@@ -3,16 +3,16 @@
 # and an nvim drafting pane (bottom). See README.md.
 #
 # Usage:
-#   pair                       # claude, default session
-#   pair claude
-#   pair codex
-#   pair gemini
-#   pair claude work           # claude, "work" variant — independent session
-#   pair claude scratch        # claude, "scratch" variant — another one
-#   pair pick                  # interactive picker over existing pair-* sessions
+#   pair                       claude in default session
+#   pair <agent>               claude / codex / gemini
+#   pair <agent> <variant>     independent session, e.g. pair claude work
+#   pair -h, --help            show help
 #
-# Each (agent, variant) tuple gets its own zellij session, draft file, and
-# log file, so any number of independent sessions can run side by side.
+# When detached pair-* sessions exist, an fzf picker is shown so the user
+# explicitly chooses what to do — no silent auto-attach. The picker shows
+# ALL detached pair-* sessions regardless of agent argument; the agent
+# argument only matters for the create path (sentinel label, default name,
+# binary to exec).
 
 set -euo pipefail
 
@@ -26,19 +26,21 @@ USAGE
   pair                          claude in default session
   pair <agent>                  e.g. pair codex / pair gemini
   pair <agent> <variant>        independent session, e.g. pair claude work
-  pair pick [<agent>]           interactive session picker; filters to agent
-                                if given (pair pick codex shows only codex)
   pair -h, --help               this message
 
 BEHAVIOR
-  When pair would create a new session it prompts for a session name
-  (default = auto-generated like pair-claude-2). Enter to accept, or type
-  a custom name (allowed chars: A-Z a-z 0-9 - _).
+  Picker shows ALL detached pair-* sessions, regardless of the agent
+  argument. The agent argument only controls what gets created if you
+  pick the "+ new" sentinel: it labels the sentinel, drives the auto-
+  suggested name, and is the binary that gets exec'd.
 
-  When pair would attach:
-    0 detached sessions in family   → create new (with prompt)
-    1 detached                      → attach silently
-    2+ detached                     → fzf picker
+    0 detached → create a new session (prompts for name; default is
+                 auto-generated like pair-claude-2)
+    ≥1 detached → fzf picker over every detached pair-* session, plus a
+                  "+ new <agent> session" sentinel. Picking attaches;
+                  picking the sentinel falls through to the create flow.
+
+  No silent attach. Every reattach is explicit.
 
 KEYBINDINGS (inside a pair session)
   Alt+Return    send nvim buffer to agent + Enter, log, clear, insert mode
@@ -70,73 +72,10 @@ done
 PAIR_HOME="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
 export PAIR_HOME
 
-# Picker mode: smarter "what do you want to do" entry point.
-#   pair pick                  — picker over all pair-* sessions; new = claude
-#   pair pick <agent>          — picker filtered to that agent; new = <agent>
-#                                e.g. `pair pick codex` only shows pair-codex
-#                                and pair-codex-* sessions, and the sentinel
-#                                becomes "+ new codex session".
-#
-# In both cases:
-#   - No matching sessions: silently fall through to a new launch.
-#   - One or more match: show fzf with the sessions plus a "+ new <agent>"
-#     sentinel. Picking a session attaches; picking the sentinel falls
-#     through to a new launch.
-if [ "${1:-}" = "pick" ] || [ "${1:-}" = "--pick" ]; then
-    if ! command -v zellij >/dev/null 2>&1; then
-        echo "pair: zellij not found on PATH." >&2; exit 1
-    fi
-
-    pick_agent="${2:-}"  # optional filter
-
-    if [ -n "$pick_agent" ]; then
-        # Match `pair-<agent>` exactly or `pair-<agent>-<variant>`. The (-|$)
-        # boundary prevents `pair pick claude` from matching `pair-claudex`.
-        sessions=$(zellij list-sessions --short --no-formatting 2>/dev/null \
-                   | grep -E "^pair-${pick_agent}(-|$)" || true)
-        new_agent="$pick_agent"
-    else
-        sessions=$(zellij list-sessions --short --no-formatting 2>/dev/null | grep '^pair-' || true)
-        new_agent="claude"
-    fi
-    new_label="+ new ${new_agent} session"
-
-    if [ -z "$sessions" ]; then
-        # No matching sessions — fall through to a new launch with the right agent.
-        set -- "$new_agent"
-    else
-        options=$(printf '%s\n%s\n' "$sessions" "$new_label")
-        if command -v fzf >/dev/null 2>&1; then
-            chosen=$(printf '%s' "$options" | fzf --prompt='attach> ' --height=10 --reverse) || exit 0
-        else
-            echo "Active pair sessions:"
-            printf '%s' "$options" | nl
-            printf 'Pick number: '
-            read -r n
-            chosen=$(printf '%s' "$options" | sed -n "${n}p")
-        fi
-        [ -z "$chosen" ] && exit 0
-
-        if [ "$chosen" = "$new_label" ]; then
-            set -- "$new_agent"
-        else
-            # Resolve PAIR_HOME for the attach exec.
-            SOURCE="${BASH_SOURCE[0]}"
-            while [ -L "$SOURCE" ]; do
-                DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
-                SOURCE="$(readlink "$SOURCE")"
-                [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
-            done
-            PAIR_HOME="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
-            exec zellij --config-dir "$PAIR_HOME/zellij" attach "$chosen"
-        fi
-    fi
-fi
-
 AGENT="${1:-claude}"
 VARIANT="${2:-}"
 
-# PAIR_AGENT is the command to exec in the agent pane.
+# PAIR_AGENT is the command to exec in the agent pane on create.
 # PAIR_TAG is the namespace identifier — used to name the zellij session and
 # the per-instance draft/log files. Without a variant, tag == agent.
 export PAIR_AGENT="$AGENT"
@@ -144,12 +83,6 @@ if [ -n "$VARIANT" ]; then
     export PAIR_TAG="${AGENT}-${VARIANT}"
 else
     export PAIR_TAG="$AGENT"
-fi
-
-if ! command -v "$AGENT" >/dev/null 2>&1; then
-    echo "pair: agent '$AGENT' not found on PATH." >&2
-    echo "      install it first, then re-run." >&2
-    exit 1
 fi
 
 if ! command -v zellij >/dev/null 2>&1; then
@@ -163,51 +96,40 @@ fi
 # create, which fails confusingly when the named session doesn't exist yet.
 if [ -n "${ZELLIJ:-}" ]; then
     echo "pair: already running inside a zellij session." >&2
-    echo "      detach first (Ctrl+p d) or run pair from a fresh terminal." >&2
+    echo "      detach first (Alt+d) or run pair from a fresh terminal." >&2
     exit 1
 fi
 
 mkdir -p "$HOME/scratch"
 
-# Collect every session in the current family — pair-<tag> exact, plus
-# pair-<tag>-N for any N — and classify each into detached / attached /
-# exited. Then branch on how many *detached* candidates we found:
-#
-#   0 detached  → create fresh at the next-free slot in the family.
-#   1 detached  → attach to it directly. This is the "I had paused this,
-#                 resume" case.
-#   2+ detached → show fzf so the user picks which one to attach to (with
-#                 a "+ new" sentinel for "actually I want a fresh one").
-#
-# A "family" for `pair claude` is anything matching pair-claude(-N)?. For
-# `pair claude work` the family is pair-claude-work(-N)?. So variants don't
-# leak into each other, and N=2,3,... are auto-rename suffixes.
-#
-# Detection: `zellij --session NAME action list-clients` prints a header
-# plus one row per connected client. Zero rows = detached. Only works on
-# running sessions; EXITED ones are spotted via list-sessions first.
 BASE_TAG="$PAIR_TAG"
 
-family=$(zellij list-sessions --short 2>/dev/null \
-         | grep -E "^pair-${BASE_TAG}(-[0-9]+)?\$" \
-         | sort)
+# Find ALL detached pair-* sessions, regardless of agent. The agent argument
+# (and BASE_TAG) is only used for the create path's defaults; the picker
+# itself shows everything you might want to reattach to, including custom-
+# named sessions like pair-blogging that don't follow any agent prefix.
+all_pair=$(zellij list-sessions --short 2>/dev/null \
+           | grep '^pair-' \
+           | sort)
 
 detached_list=()
 while IFS= read -r sess; do
     [ -z "$sess" ] && continue
     if zellij list-sessions --no-formatting 2>/dev/null \
         | grep -E "^${sess}[[:space:]].*EXITED" >/dev/null 2>&1; then
-        continue   # exited, not a candidate
+        continue   # exited, skip
     fi
     clients=$(zellij --session "$sess" action list-clients 2>/dev/null \
               | tail -n +2 | wc -l | tr -d ' ')
     if [ "${clients:-0}" -eq 0 ]; then
         detached_list+=("$sess")
     fi
-done <<< "$family"
+done <<< "$all_pair"
 
-# Compute the next-free slot in this family (used by both 0-detached and the
-# "+ new" sentinel in the picker).
+# Compute the next-free numeric slot in the agent's family — pair-<base>,
+# then pair-<base>-2, ... — used as the prompt's default name on create. This
+# checks against ALL existing sessions (not just family) to avoid clobbering
+# anything that happens to share the slot's name.
 free_slot_tag=""
 i=1
 while [ "$i" -le 100 ]; do
@@ -216,51 +138,44 @@ while [ "$i" -le 100 ]; do
     else
         cand="pair-${BASE_TAG}-${i}"
     fi
-    if ! grep -qx "$cand" <<< "$family"; then
+    if ! zellij list-sessions --short 2>/dev/null | grep -qx "$cand"; then
         free_slot_tag="${cand#pair-}"
         break
     fi
     i=$((i + 1))
 done
 
-# Decide.
+# Decide. Picker for any ≥1 detached; create directly only when none exist.
 chosen_session=""
 chosen_tag=""
 action=""   # "attach" | "create"
 
-case "${#detached_list[@]}" in
-    0)
+if [ ${#detached_list[@]} -eq 0 ]; then
+    chosen_tag="$free_slot_tag"
+    action=create
+else
+    new_label="+ new ${BASE_TAG} session"
+    options=$(printf '%s\n' "${detached_list[@]}"; printf '%s\n' "$new_label")
+    if command -v fzf >/dev/null 2>&1; then
+        picked=$(printf '%s' "$options" | fzf --prompt='pair> ' --height=10 --reverse) || exit 0
+    else
+        echo "Detached pair sessions:"
+        printf '%s' "$options" | nl
+        printf 'Pick: '
+        read -r idx
+        picked=$(printf '%s' "$options" | sed -n "${idx}p")
+    fi
+    [ -z "$picked" ] && exit 0
+
+    if [ "$picked" = "$new_label" ]; then
         chosen_tag="$free_slot_tag"
         action=create
-        ;;
-    1)
-        chosen_session="${detached_list[0]}"
+    else
+        chosen_session="$picked"
         chosen_tag="${chosen_session#pair-}"
         action=attach
-        ;;
-    *)
-        new_label="+ new ${BASE_TAG} session"
-        options=$(printf '%s\n' "${detached_list[@]}"; printf '%s\n' "$new_label")
-        if command -v fzf >/dev/null 2>&1; then
-            picked=$(printf '%s' "$options" | fzf --prompt="${BASE_TAG}> " --height=10 --reverse) || exit 0
-        else
-            echo "Detached '${BASE_TAG}' sessions:"
-            printf '%s' "$options" | nl
-            printf 'Pick: '
-            read -r idx
-            picked=$(printf '%s' "$options" | sed -n "${idx}p")
-        fi
-        [ -z "$picked" ] && exit 0
-        if [ "$picked" = "$new_label" ]; then
-            chosen_tag="$free_slot_tag"
-            action=create
-        else
-            chosen_session="$picked"
-            chosen_tag="${chosen_session#pair-}"
-            action=attach
-        fi
-        ;;
-esac
+    fi
+fi
 
 if [ -z "$chosen_tag" ]; then
     echo "pair: couldn't determine a session to use; bailing." >&2
@@ -272,9 +187,6 @@ if [ "$action" = "attach" ]; then
     SESSION="pair-${PAIR_TAG}"
     DRAFT="$HOME/scratch/pair-draft-${PAIR_TAG}.md"
     [ -f "$DRAFT" ] || : > "$DRAFT"
-    if [ "$PAIR_TAG" != "$BASE_TAG" ]; then
-        echo "pair: reattaching detached $SESSION." >&2
-    fi
     # Set terminal title — zellij sets this on new-session creation but not
     # on attach, so without this the title stays as whatever the shell's
     # preexec hook set (typically "bin/pair").
@@ -282,10 +194,19 @@ if [ "$action" = "attach" ]; then
     exec zellij --config-dir "$PAIR_HOME/zellij" attach "$SESSION"
 fi
 
-# Create branch — prompt for a session name with the auto-suggested name as
-# the default. Empty input keeps the default; a typed value (with any leading
-# `pair-` stripped) becomes the new tag. Reads from /dev/tty so the prompt
-# works even when stdin is redirected.
+# Create branch. Validate the agent here (deferred past the picker so attach
+# paths work even when AGENT isn't a real binary on PATH — e.g. attaching
+# to a custom-named session whose tag happens to match a non-command).
+if ! command -v "$AGENT" >/dev/null 2>&1; then
+    echo "pair: agent '$AGENT' not found on PATH." >&2
+    echo "      install it first, then re-run." >&2
+    exit 1
+fi
+
+# Prompt for a session name. Default = auto-suggested next-free name. Empty
+# input keeps the default; a typed value (with any leading `pair-` stripped)
+# becomes the new tag. Reads from /dev/tty so the prompt works even when
+# stdin is redirected.
 default_session="pair-${chosen_tag}"
 printf 'Session name [%s]: ' "$default_session" >/dev/tty
 if read -r user_input </dev/tty; then
@@ -318,11 +239,8 @@ SESSION="pair-${PAIR_TAG}"
 DRAFT="$HOME/scratch/pair-draft-${PAIR_TAG}.md"
 [ -f "$DRAFT" ] || : > "$DRAFT"
 
-if [ "$PAIR_TAG" != "$BASE_TAG" ]; then
-    echo "pair: spawning $SESSION." >&2
-fi
 # Set terminal title — harmless duplicate for new sessions (zellij sets it
-# itself), useful for picker-driven attach branches that fall through here.
+# itself), useful as a uniform path for both create and attach branches.
 printf '\033]0;%s\007' "$SESSION"
 
 # Note on the create invocation: zellij's `--layout PATH --session NAME` does
