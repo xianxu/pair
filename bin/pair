@@ -125,87 +125,131 @@ fi
 
 mkdir -p "$HOME/scratch"
 
-# Walk the session family in order — pair-<tag>, pair-<tag>-2, pair-<tag>-3,
-# ... — and pick the first slot that's "available", in this priority:
+# Collect every session in the current family — pair-<tag> exact, plus
+# pair-<tag>-N for any N — and classify each into detached / attached /
+# exited. Then branch on how many *detached* candidates we found:
 #
-#   1. The slot is *missing* (no session by that name).      → create fresh.
-#   2. The slot is *running with 0 clients* (detached).      → attach.
-#   3. The slot is *EXITED* or *running with ≥1 clients*.    → skip past it.
+#   0 detached  → create fresh at the next-free slot in the family.
+#   1 detached  → attach to it directly. This is the "I had paused this,
+#                 resume" case.
+#   2+ detached → show fzf so the user picks which one to attach to (with
+#                 a "+ new" sentinel for "actually I want a fresh one").
 #
-# This means: `pair claude` against [pair-claude=attached, pair-claude-2=
-# detached] reattaches to pair-claude-2 (the user's intent), instead of
-# auto-bumping to a fresh pair-claude-3. If everything in the family is busy,
-# we fall through to creating at the next-free name.
+# A "family" for `pair claude` is anything matching pair-claude(-N)?. For
+# `pair claude work` the family is pair-claude-work(-N)?. So variants don't
+# leak into each other, and N=2,3,... are auto-rename suffixes.
 #
-# Detection: `zellij --session NAME action list-clients` prints a header line
-# plus one row per connected client. Zero rows = detached. The command works
-# only on running sessions; for EXITED ones, list-sessions tells us first.
+# Detection: `zellij --session NAME action list-clients` prints a header
+# plus one row per connected client. Zero rows = detached. Only works on
+# running sessions; EXITED ones are spotted via list-sessions first.
 BASE_TAG="$PAIR_TAG"
-attach_to=""
-create_at=""
-i=1
-max_iter=100   # safety bound; you really shouldn't have 100 pair sessions
-while [ "$i" -le "$max_iter" ]; do
-    if [ "$i" -eq 1 ]; then
-        cand_tag="$BASE_TAG"
-    else
-        cand_tag="${BASE_TAG}-${i}"
-    fi
-    cand_sess="pair-${cand_tag}"
 
-    if ! zellij list-sessions --short 2>/dev/null | grep -qx "$cand_sess"; then
-        create_at="$cand_tag"
-        break
-    fi
+family=$(zellij list-sessions --short 2>/dev/null \
+         | grep -E "^pair-${BASE_TAG}(-[0-9]+)?\$" \
+         | sort)
 
-    # Slot exists. EXITED?
+detached_list=()
+while IFS= read -r sess; do
+    [ -z "$sess" ] && continue
     if zellij list-sessions --no-formatting 2>/dev/null \
-        | grep -E "^${cand_sess}[[:space:]].*EXITED" >/dev/null 2>&1; then
-        i=$((i + 1))
-        continue
+        | grep -E "^${sess}[[:space:]].*EXITED" >/dev/null 2>&1; then
+        continue   # exited, not a candidate
     fi
-
-    # Running. Detached?
-    clients=$(zellij --session "$cand_sess" action list-clients 2>/dev/null \
+    clients=$(zellij --session "$sess" action list-clients 2>/dev/null \
               | tail -n +2 | wc -l | tr -d ' ')
     if [ "${clients:-0}" -eq 0 ]; then
-        attach_to="$cand_tag"
+        detached_list+=("$sess")
+    fi
+done <<< "$family"
+
+# Compute the next-free slot in this family (used by both 0-detached and the
+# "+ new" sentinel in the picker).
+free_slot_tag=""
+i=1
+while [ "$i" -le 100 ]; do
+    if [ "$i" -eq 1 ]; then
+        cand="pair-${BASE_TAG}"
+    else
+        cand="pair-${BASE_TAG}-${i}"
+    fi
+    if ! grep -qx "$cand" <<< "$family"; then
+        free_slot_tag="${cand#pair-}"
         break
     fi
-
-    # Attached — skip.
     i=$((i + 1))
 done
 
-if [ -n "$attach_to" ]; then
-    export PAIR_TAG="$attach_to"
-    SESSION="pair-${PAIR_TAG}"
-    if [ "$PAIR_TAG" != "$BASE_TAG" ]; then
-        echo "pair: '${BASE_TAG}' is busy; reattaching detached $SESSION." >&2
-    fi
-    DRAFT="$HOME/scratch/pair-draft-${PAIR_TAG}.md"
-    [ -f "$DRAFT" ] || : > "$DRAFT"
-    exec zellij --config-dir "$PAIR_HOME/zellij" attach "$SESSION"
-fi
+# Decide.
+chosen_session=""
+chosen_tag=""
+action=""   # "attach" | "create"
 
-if [ -z "$create_at" ]; then
-    echo "pair: walked $max_iter slots and didn't find one to use." >&2
-    echo "      something is very wrong — clean up with 'zellij da' or 'pair pick'." >&2
+case "${#detached_list[@]}" in
+    0)
+        chosen_tag="$free_slot_tag"
+        action=create
+        ;;
+    1)
+        chosen_session="${detached_list[0]}"
+        chosen_tag="${chosen_session#pair-}"
+        action=attach
+        ;;
+    *)
+        new_label="+ new ${BASE_TAG} session"
+        options=$(printf '%s\n' "${detached_list[@]}"; printf '%s\n' "$new_label")
+        if command -v fzf >/dev/null 2>&1; then
+            picked=$(printf '%s' "$options" | fzf --prompt="${BASE_TAG}> " --height=10 --reverse) || exit 0
+        else
+            echo "Detached '${BASE_TAG}' sessions:"
+            printf '%s' "$options" | nl
+            printf 'Pick: '
+            read -r idx
+            picked=$(printf '%s' "$options" | sed -n "${idx}p")
+        fi
+        [ -z "$picked" ] && exit 0
+        if [ "$picked" = "$new_label" ]; then
+            chosen_tag="$free_slot_tag"
+            action=create
+        else
+            chosen_session="$picked"
+            chosen_tag="${chosen_session#pair-}"
+            action=attach
+        fi
+        ;;
+esac
+
+if [ -z "$chosen_tag" ]; then
+    echo "pair: couldn't determine a session to use; bailing." >&2
     exit 1
 fi
 
-export PAIR_TAG="$create_at"
+export PAIR_TAG="$chosen_tag"
 SESSION="pair-${PAIR_TAG}"
-if [ "$PAIR_TAG" != "$BASE_TAG" ]; then
-    echo "pair: '${BASE_TAG}' family is busy; spawning $SESSION." >&2
-fi
 DRAFT="$HOME/scratch/pair-draft-${PAIR_TAG}.md"
 [ -f "$DRAFT" ] || : > "$DRAFT"
 
-# Note on the create invocation: zellij's `--layout PATH --session NAME` does
-# NOT create-with-layout; per its help text, when --session is set, --layout
-# is treated as "add a tab to the session named NAME" and errors if the
-# session doesn't exist. The right flag is --new-session-with-layout (-n).
+if [ "$action" = "attach" ]; then
+    if [ "$PAIR_TAG" != "$BASE_TAG" ]; then
+        echo "pair: reattaching detached $SESSION." >&2
+    fi
+    # Set terminal title — zellij sets this on new-session creation but not
+    # on attach, so without this the title stays as whatever the shell's
+    # preexec hook set (typically "bin/pair").
+    printf '\033]0;%s\007' "$SESSION"
+    exec zellij --config-dir "$PAIR_HOME/zellij" attach "$SESSION"
+fi
+
+# Create. Note: zellij's `--layout PATH --session NAME` does NOT create-with-
+# layout; when --session is set, --layout is treated as "add a tab to the
+# session named NAME" and errors if it doesn't exist. The right flag for
+# "always start a new named session with this layout" is
+# --new-session-with-layout (-n).
+if [ "$PAIR_TAG" != "$BASE_TAG" ]; then
+    echo "pair: '${BASE_TAG}' family is busy; spawning $SESSION." >&2
+fi
+# Set terminal title — harmless duplicate for new sessions (zellij sets it
+# itself), useful for picker-driven attach branches that fall through here.
+printf '\033]0;%s\007' "$SESSION"
 exec zellij \
     --config-dir              "$PAIR_HOME/zellij" \
     --new-session-with-layout "$PAIR_HOME/zellij/layouts/main.kdl" \

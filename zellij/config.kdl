@@ -10,6 +10,12 @@ keybinds clear-defaults=false {
     }
 
     shared_except "locked" {
+        // Alt+d — detach from the current pair session. Replaces the default
+        // two-step (Ctrl+p, then d) with a single chord.
+        bind "Alt d" {
+            Detach;
+        }
+
         // Alt+u — toggle the nvim draft pane to fullscreen, regardless of
         // current focus. MoveFocus Down is a no-op when already at the bottom,
         // so this works whether the user is in the agent pane or in nvim.
