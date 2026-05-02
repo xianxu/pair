@@ -16,6 +16,50 @@
 
 set -euo pipefail
 
+# --- help -------------------------------------------------------------------
+case "${1:-}" in
+    -h|--help|help)
+        cat <<'EOF'
+pair — Neovim-backed input field for any TUI coding agent.
+
+USAGE
+  pair                          claude in default session
+  pair <agent>                  e.g. pair codex / pair gemini
+  pair <agent> <variant>        independent session, e.g. pair claude work
+  pair pick [<agent>]           interactive session picker; filters to agent
+                                if given (pair pick codex shows only codex)
+  pair -h, --help               this message
+
+BEHAVIOR
+  When pair would create a new session it prompts for a session name
+  (default = auto-generated like pair-claude-2). Enter to accept, or type
+  a custom name (allowed chars: A-Z a-z 0-9 - _).
+
+  When pair would attach:
+    0 detached sessions in family   → create new (with prompt)
+    1 detached                      → attach silently
+    2+ detached                     → fzf picker
+
+KEYBINDINGS (inside a pair session)
+  Alt+Return    send nvim buffer to agent + Enter, log, clear, insert mode
+  Alt+u         toggle nvim pane fullscreen (works from either pane)
+  Alt+d         detach from session
+  Alt+n         pull clipboard into nvim cursor (reflowed, ">" -prefixed)
+  Alt+i         attach clipboard image to agent + insert [Image #N];
+                if cursor is on an existing [Image #N], sync counter to N
+  <leader>cs    send only current section (between --- markers)
+  <leader>cp    paste-and-reflow at cursor (raw, no quoting)
+
+FILES
+  ~/scratch/pair-draft-<tag>.md   persistent draft per session
+  ~/scratch/pair-log-<tag>.md     append-only prompt log per session
+
+See README.md for image-paste recipes and other details.
+EOF
+        exit 0
+        ;;
+esac
+
 # Resolve this script's real path portably (macOS lacks `readlink -f`).
 SOURCE="${BASH_SOURCE[0]}"
 while [ -L "$SOURCE" ]; do
@@ -223,12 +267,11 @@ if [ -z "$chosen_tag" ]; then
     exit 1
 fi
 
-export PAIR_TAG="$chosen_tag"
-SESSION="pair-${PAIR_TAG}"
-DRAFT="$HOME/scratch/pair-draft-${PAIR_TAG}.md"
-[ -f "$DRAFT" ] || : > "$DRAFT"
-
 if [ "$action" = "attach" ]; then
+    export PAIR_TAG="$chosen_tag"
+    SESSION="pair-${PAIR_TAG}"
+    DRAFT="$HOME/scratch/pair-draft-${PAIR_TAG}.md"
+    [ -f "$DRAFT" ] || : > "$DRAFT"
     if [ "$PAIR_TAG" != "$BASE_TAG" ]; then
         echo "pair: reattaching detached $SESSION." >&2
     fi
@@ -239,17 +282,53 @@ if [ "$action" = "attach" ]; then
     exec zellij --config-dir "$PAIR_HOME/zellij" attach "$SESSION"
 fi
 
-# Create. Note: zellij's `--layout PATH --session NAME` does NOT create-with-
-# layout; when --session is set, --layout is treated as "add a tab to the
-# session named NAME" and errors if it doesn't exist. The right flag for
-# "always start a new named session with this layout" is
-# --new-session-with-layout (-n).
+# Create branch — prompt for a session name with the auto-suggested name as
+# the default. Empty input keeps the default; a typed value (with any leading
+# `pair-` stripped) becomes the new tag. Reads from /dev/tty so the prompt
+# works even when stdin is redirected.
+default_session="pair-${chosen_tag}"
+printf 'Session name [%s]: ' "$default_session" >/dev/tty
+if read -r user_input </dev/tty; then
+    if [ -n "$user_input" ]; then
+        case "$user_input" in
+            pair-*) typed_tag="${user_input#pair-}" ;;
+            *)      typed_tag="$user_input" ;;
+        esac
+        case "$typed_tag" in
+            ""|*[!A-Za-z0-9_-]*)
+                echo "pair: invalid name '$user_input'." >&2
+                echo "      allowed: letters, digits, dash, underscore." >&2
+                exit 1
+                ;;
+        esac
+        if zellij list-sessions --short 2>/dev/null | grep -qx "pair-${typed_tag}"; then
+            echo "pair: session 'pair-${typed_tag}' already exists." >&2
+            exit 1
+        fi
+        chosen_tag="$typed_tag"
+    fi
+else
+    # EOF (Ctrl+D) — bail cleanly
+    echo >/dev/tty
+    exit 0
+fi
+
+export PAIR_TAG="$chosen_tag"
+SESSION="pair-${PAIR_TAG}"
+DRAFT="$HOME/scratch/pair-draft-${PAIR_TAG}.md"
+[ -f "$DRAFT" ] || : > "$DRAFT"
+
 if [ "$PAIR_TAG" != "$BASE_TAG" ]; then
-    echo "pair: '${BASE_TAG}' family is busy; spawning $SESSION." >&2
+    echo "pair: spawning $SESSION." >&2
 fi
 # Set terminal title — harmless duplicate for new sessions (zellij sets it
 # itself), useful for picker-driven attach branches that fall through here.
 printf '\033]0;%s\007' "$SESSION"
+
+# Note on the create invocation: zellij's `--layout PATH --session NAME` does
+# NOT create-with-layout; per its help text, when --session is set, --layout
+# is treated as "add a tab to the session named NAME" and errors if the
+# session doesn't exist. The right flag is --new-session-with-layout (-n).
 exec zellij \
     --config-dir              "$PAIR_HOME/zellij" \
     --new-session-with-layout "$PAIR_HOME/zellij/layouts/main.kdl" \

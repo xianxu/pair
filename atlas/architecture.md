@@ -18,9 +18,20 @@ zellij/layouts/main.kdl      # the 65/35 split + agent/draft commands
 
 ### `bin/pair` — launcher
 
-Resolves `$PAIR_HOME` from its own real path (portable bash, no `readlink -f`), sets `$PAIR_AGENT` from the positional argument (default `claude`), checks that the agent and zellij are installed, ensures `~/scratch/` exists, and execs zellij with `--config-dir`, `--layout`, and `--session pair-<agent>`.
+Resolves `$PAIR_HOME` from its own real path (portable bash, no `readlink -f`), sets `$PAIR_AGENT` from the positional argument (default `claude`) and `$PAIR_TAG` from the agent + optional variant, checks that the agent and zellij are installed, ensures `~/scratch/` exists, and dispatches:
 
-If a session by that name already exists, it attaches instead of creating fresh — preserves draft-pane state across detach/re-attach.
+**Family-walk decision tree.** For `pair <agent> [variant]`, the launcher walks the family of pair-* sessions matching `^pair-${BASE_TAG}(-[0-9]+)?$` and classifies each as detached / attached / exited. Then:
+- 0 detached → prompt for session name, create at next-free slot.
+- 1 detached → attach silently.
+- 2+ detached → fzf picker (detached sessions + `+ new` sentinel).
+
+Detection of attached-vs-detached is via `zellij --session NAME action list-clients`, which prints a header plus one row per connected client.
+
+**Naming prompt.** Whenever the launcher is about to *create* a new session, it prompts the user with the auto-suggested name as the default (e.g. `Session name [pair-claude-5]:`). Pressing Enter accepts; typing a custom name like `pair-bugfix` (or just `bugfix`) overrides it. Custom-named sessions are not part of the auto-rename family but do show up in `pair pick`.
+
+**Picker mode.** `pair pick [agent]` filters `pair-*` sessions, optionally to a specific agent family using the looser regex `^pair-<agent>(-|$)` (so custom names like `pair-claude-bugfix` are included). Adds a `+ new <agent> session` sentinel that falls through to the regular create path with prompt.
+
+**Title.** The launcher emits an OSC 0 escape sequence right before `exec zellij`, so the terminal title shows the session name on both create and attach paths (zellij itself only sets it on create).
 
 ### `zellij/layouts/main.kdl` — pane split
 

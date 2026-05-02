@@ -41,15 +41,15 @@ Session name [pair-claude-5]: <user input or Enter>
 
 ## Plan
 
-- [ ] In the create branch of `bin/pair`, prompt for session name with default = current `pair-${chosen_tag}`.
-- [ ] Strip leading `pair-` from user input if present.
-- [ ] Validate: regex `[A-Za-z0-9_-]+`, error on bad input.
-- [ ] Collision check against `zellij list-sessions --short`, error if exists.
-- [ ] Update `chosen_tag` from the prompt response, so SESSION / PAIR_TAG / DRAFT all derive correctly.
-- [ ] Read from `/dev/tty` so the prompt works even if stdin is redirected.
-- [ ] Verify with `bash -n`.
+- [x] In the create branch of `bin/pair`, prompt for session name with default = current `pair-${chosen_tag}`.
+- [x] Strip leading `pair-` from user input if present.
+- [x] Validate: regex `[A-Za-z0-9_-]+`, error on bad input.
+- [x] Collision check against `zellij list-sessions --short`, error if exists.
+- [x] Update `chosen_tag` from the prompt response, so SESSION / PAIR_TAG / DRAFT all derive correctly.
+- [x] Read from `/dev/tty` so the prompt works even if stdin is redirected.
+- [x] Verify with `bash -n`.
 - [ ] Manual test: run `pair claude` from a fresh state, verify prompt shows, accept default works, custom name works.
-- [ ] Update atlas/architecture.md to note the naming behavior.
+- [x] Update atlas/architecture.md to note the naming behavior.
 - [ ] Mark done after user smoke-tests.
 
 ## Log
@@ -57,3 +57,7 @@ Session name [pair-claude-5]: <user input or Enter>
 ### 2026-05-02
 
 Created. Spec evolved in conversation: original idea was `pair -n "name"` flag; settled on interactive prompt with default pre-shown so the common path (just hit Enter) stays one keystroke, while the rename path is discoverable without flags.
+
+Implemented in `bin/pair`. Restructured the create vs. attach branches so the prompt only fires on create. The PAIR_TAG export was moved per-branch (was previously hoisted above the if-attach, which would have made the prompt's tag-rewrite ineffective). All non-interactive checks pass (`bash -n`). Atlas architecture doc updated to note the family-walk + naming + picker behaviors.
+
+Status `working` until user does the manual smoke test (interactive `read` can't be exercised by automated checks).
