@@ -1,6 +1,6 @@
 ---
 id: 000001
-status: open
+status: working
 deps: []
 created: 2026-05-02
 updated: 2026-05-02
