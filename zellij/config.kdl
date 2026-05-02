@@ -1,0 +1,30 @@
+// pair zellij config — adds two custom binds on top of zellij's defaults.
+// Loaded via `zellij --config-dir <pair>/zellij`.
+
+keybinds clear-defaults=false {
+    // Release Alt+i so nvim sees it (zellij's default binds Alt+i to MoveTab
+    // "Left"; we want Alt+i to mean "attach image" inside the nvim draft).
+    // Same logic for any other Alt-letter key we want to pass through.
+    shared {
+        unbind "Alt i"
+    }
+
+    shared_except "locked" {
+        // Alt+u — toggle the nvim draft pane to fullscreen, regardless of
+        // current focus. MoveFocus Down is a no-op when already at the bottom,
+        // so this works whether the user is in the agent pane or in nvim.
+        bind "Alt u" {
+            MoveFocus "Down";
+            ToggleFocusFullscreen;
+        }
+
+        // Alt+n — pull clipboard contents (reflowed + > prefix) into the nvim
+        // draft pane at the cursor. Triggers a transient pane that closes
+        // immediately on script exit.
+        bind "Alt n" {
+            Run "sh" "-c" "\"$PAIR_HOME/bin/clipboard-to-pane.sh\"" {
+                close_on_exit true
+            };
+        }
+    }
+}

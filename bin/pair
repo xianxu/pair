@@ -1,0 +1,212 @@
+#!/usr/bin/env bash
+# pair — launch a zellij session split between a TUI coding agent (top pane)
+# and an nvim drafting pane (bottom). See README.md.
+#
+# Usage:
+#   pair                       # claude, default session
+#   pair claude
+#   pair codex
+#   pair gemini
+#   pair claude work           # claude, "work" variant — independent session
+#   pair claude scratch        # claude, "scratch" variant — another one
+#   pair pick                  # interactive picker over existing pair-* sessions
+#
+# Each (agent, variant) tuple gets its own zellij session, draft file, and
+# log file, so any number of independent sessions can run side by side.
+
+set -euo pipefail
+
+# Resolve this script's real path portably (macOS lacks `readlink -f`).
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+PAIR_HOME="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
+export PAIR_HOME
+
+# Picker mode: smarter "what do you want to do" entry point.
+#   pair pick                  — picker over all pair-* sessions; new = claude
+#   pair pick <agent>          — picker filtered to that agent; new = <agent>
+#                                e.g. `pair pick codex` only shows pair-codex
+#                                and pair-codex-* sessions, and the sentinel
+#                                becomes "+ new codex session".
+#
+# In both cases:
+#   - No matching sessions: silently fall through to a new launch.
+#   - One or more match: show fzf with the sessions plus a "+ new <agent>"
+#     sentinel. Picking a session attaches; picking the sentinel falls
+#     through to a new launch.
+if [ "${1:-}" = "pick" ] || [ "${1:-}" = "--pick" ]; then
+    if ! command -v zellij >/dev/null 2>&1; then
+        echo "pair: zellij not found on PATH." >&2; exit 1
+    fi
+
+    pick_agent="${2:-}"  # optional filter
+
+    if [ -n "$pick_agent" ]; then
+        # Match `pair-<agent>` exactly or `pair-<agent>-<variant>`. The (-|$)
+        # boundary prevents `pair pick claude` from matching `pair-claudex`.
+        sessions=$(zellij list-sessions --short --no-formatting 2>/dev/null \
+                   | grep -E "^pair-${pick_agent}(-|$)" || true)
+        new_agent="$pick_agent"
+    else
+        sessions=$(zellij list-sessions --short --no-formatting 2>/dev/null | grep '^pair-' || true)
+        new_agent="claude"
+    fi
+    new_label="+ new ${new_agent} session"
+
+    if [ -z "$sessions" ]; then
+        # No matching sessions — fall through to a new launch with the right agent.
+        set -- "$new_agent"
+    else
+        options=$(printf '%s\n%s\n' "$sessions" "$new_label")
+        if command -v fzf >/dev/null 2>&1; then
+            chosen=$(printf '%s' "$options" | fzf --prompt='attach> ' --height=10 --reverse) || exit 0
+        else
+            echo "Active pair sessions:"
+            printf '%s' "$options" | nl
+            printf 'Pick number: '
+            read -r n
+            chosen=$(printf '%s' "$options" | sed -n "${n}p")
+        fi
+        [ -z "$chosen" ] && exit 0
+
+        if [ "$chosen" = "$new_label" ]; then
+            set -- "$new_agent"
+        else
+            # Resolve PAIR_HOME for the attach exec.
+            SOURCE="${BASH_SOURCE[0]}"
+            while [ -L "$SOURCE" ]; do
+                DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+                SOURCE="$(readlink "$SOURCE")"
+                [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+            done
+            PAIR_HOME="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
+            exec zellij --config-dir "$PAIR_HOME/zellij" attach "$chosen"
+        fi
+    fi
+fi
+
+AGENT="${1:-claude}"
+VARIANT="${2:-}"
+
+# PAIR_AGENT is the command to exec in the agent pane.
+# PAIR_TAG is the namespace identifier — used to name the zellij session and
+# the per-instance draft/log files. Without a variant, tag == agent.
+export PAIR_AGENT="$AGENT"
+if [ -n "$VARIANT" ]; then
+    export PAIR_TAG="${AGENT}-${VARIANT}"
+else
+    export PAIR_TAG="$AGENT"
+fi
+
+if ! command -v "$AGENT" >/dev/null 2>&1; then
+    echo "pair: agent '$AGENT' not found on PATH." >&2
+    echo "      install it first, then re-run." >&2
+    exit 1
+fi
+
+if ! command -v zellij >/dev/null 2>&1; then
+    echo "pair: zellij not found on PATH." >&2
+    echo "      brew install zellij  (or your package manager equivalent)" >&2
+    exit 1
+fi
+
+# Refuse to launch from inside an existing zellij session. Nested sessions
+# don't compose — `--session NAME` from inside zellij triggers attach, not
+# create, which fails confusingly when the named session doesn't exist yet.
+if [ -n "${ZELLIJ:-}" ]; then
+    echo "pair: already running inside a zellij session." >&2
+    echo "      detach first (Ctrl+p d) or run pair from a fresh terminal." >&2
+    exit 1
+fi
+
+mkdir -p "$HOME/scratch"
+
+# Walk the session family in order — pair-<tag>, pair-<tag>-2, pair-<tag>-3,
+# ... — and pick the first slot that's "available", in this priority:
+#
+#   1. The slot is *missing* (no session by that name).      → create fresh.
+#   2. The slot is *running with 0 clients* (detached).      → attach.
+#   3. The slot is *EXITED* or *running with ≥1 clients*.    → skip past it.
+#
+# This means: `pair claude` against [pair-claude=attached, pair-claude-2=
+# detached] reattaches to pair-claude-2 (the user's intent), instead of
+# auto-bumping to a fresh pair-claude-3. If everything in the family is busy,
+# we fall through to creating at the next-free name.
+#
+# Detection: `zellij --session NAME action list-clients` prints a header line
+# plus one row per connected client. Zero rows = detached. The command works
+# only on running sessions; for EXITED ones, list-sessions tells us first.
+BASE_TAG="$PAIR_TAG"
+attach_to=""
+create_at=""
+i=1
+max_iter=100   # safety bound; you really shouldn't have 100 pair sessions
+while [ "$i" -le "$max_iter" ]; do
+    if [ "$i" -eq 1 ]; then
+        cand_tag="$BASE_TAG"
+    else
+        cand_tag="${BASE_TAG}-${i}"
+    fi
+    cand_sess="pair-${cand_tag}"
+
+    if ! zellij list-sessions --short 2>/dev/null | grep -qx "$cand_sess"; then
+        create_at="$cand_tag"
+        break
+    fi
+
+    # Slot exists. EXITED?
+    if zellij list-sessions --no-formatting 2>/dev/null \
+        | grep -E "^${cand_sess}[[:space:]].*EXITED" >/dev/null 2>&1; then
+        i=$((i + 1))
+        continue
+    fi
+
+    # Running. Detached?
+    clients=$(zellij --session "$cand_sess" action list-clients 2>/dev/null \
+              | tail -n +2 | wc -l | tr -d ' ')
+    if [ "${clients:-0}" -eq 0 ]; then
+        attach_to="$cand_tag"
+        break
+    fi
+
+    # Attached — skip.
+    i=$((i + 1))
+done
+
+if [ -n "$attach_to" ]; then
+    export PAIR_TAG="$attach_to"
+    SESSION="pair-${PAIR_TAG}"
+    if [ "$PAIR_TAG" != "$BASE_TAG" ]; then
+        echo "pair: '${BASE_TAG}' is busy; reattaching detached $SESSION." >&2
+    fi
+    DRAFT="$HOME/scratch/pair-draft-${PAIR_TAG}.md"
+    [ -f "$DRAFT" ] || : > "$DRAFT"
+    exec zellij --config-dir "$PAIR_HOME/zellij" attach "$SESSION"
+fi
+
+if [ -z "$create_at" ]; then
+    echo "pair: walked $max_iter slots and didn't find one to use." >&2
+    echo "      something is very wrong — clean up with 'zellij da' or 'pair pick'." >&2
+    exit 1
+fi
+
+export PAIR_TAG="$create_at"
+SESSION="pair-${PAIR_TAG}"
+if [ "$PAIR_TAG" != "$BASE_TAG" ]; then
+    echo "pair: '${BASE_TAG}' family is busy; spawning $SESSION." >&2
+fi
+DRAFT="$HOME/scratch/pair-draft-${PAIR_TAG}.md"
+[ -f "$DRAFT" ] || : > "$DRAFT"
+
+# Note on the create invocation: zellij's `--layout PATH --session NAME` does
+# NOT create-with-layout; per its help text, when --session is set, --layout
+# is treated as "add a tab to the session named NAME" and errors if the
+# session doesn't exist. The right flag is --new-session-with-layout (-n).
+exec zellij \
+    --config-dir              "$PAIR_HOME/zellij" \
+    --new-session-with-layout "$PAIR_HOME/zellij/layouts/main.kdl" \
+    --session                 "$SESSION"
