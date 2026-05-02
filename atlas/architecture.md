@@ -20,16 +20,20 @@ zellij/layouts/main.kdl      # the 65/35 split + agent/draft commands
 
 Resolves `$PAIR_HOME` from its own real path (portable bash, no `readlink -f`), sets `$PAIR_AGENT` from the positional argument (default `claude`) and `$PAIR_TAG` from the agent + optional variant, checks that the agent and zellij are installed, ensures `~/scratch/` exists, and dispatches:
 
-**Family-walk decision tree.** For `pair <agent> [variant]`, the launcher walks the family of pair-* sessions matching `^pair-${BASE_TAG}(-[0-9]+)?$` and classifies each as detached / attached / exited. Then:
-- 0 detached → prompt for session name, create at next-free slot.
-- 1 detached → attach silently.
-- 2+ detached → fzf picker (detached sessions + `+ new` sentinel).
+**Decision tree.** For `pair <agent> [variant]`, the launcher finds *all* detached pair-* sessions on the machine (any agent, any naming). Then:
 
-Detection of attached-vs-detached is via `zellij --session NAME action list-clients`, which prints a header plus one row per connected client.
+- 0 detached → run create flow directly (validate agent, prompt for name, create).
+- ≥1 detached → fzf picker over the detached sessions plus a `+ new <agent> session` sentinel. Pick a session → attach. Pick the sentinel → fall through to create.
 
-**Naming prompt.** Whenever the launcher is about to *create* a new session, it prompts the user with the auto-suggested name as the default (e.g. `Session name [pair-claude-5]:`). Pressing Enter accepts; typing a custom name like `pair-bugfix` (or just `bugfix`) overrides it. Custom-named sessions are not part of the auto-rename family but do show up in `pair pick`.
+The agent argument doesn't filter the picker — only attached sessions you might want to reattach to are useful, and reattach is agent-agnostic (the existing session already runs whatever it runs). The agent argument only matters for the create path: it labels the sentinel, drives the auto-suggested default name, and is the binary that gets exec'd in the new session.
 
-**Picker mode.** `pair pick [agent]` filters `pair-*` sessions, optionally to a specific agent family using the looser regex `^pair-<agent>(-|$)` (so custom names like `pair-claude-bugfix` are included). Adds a `+ new <agent> session` sentinel that falls through to the regular create path with prompt.
+There is **no silent auto-attach**. Every reattach goes through the picker so the user explicitly sees what they're connecting to. (Long-lived sessions make silent attach surprising; explicit confirmation is the right default.)
+
+Detection of attached-vs-detached is via `zellij --session NAME action list-clients`, which prints a header plus one row per connected client. Zero rows = detached.
+
+**Naming prompt.** When the create flow runs, the launcher prompts the user with the auto-suggested name as the default (e.g. `Session name [pair-claude-2]:`). Pressing Enter accepts; typing a custom name like `pair-bugfix` (or just `bugfix`) overrides it. Custom-named sessions show up in the picker as long as they share the agent prefix; `pair-blogging` (no agent prefix) only matches if you re-invoke as `pair blogging`.
+
+**Agent validation deferred.** `command -v "$AGENT"` runs only inside the create branch, not at startup, so attaching to a custom-named session whose tag isn't a real command (like `pair-blogging` via `pair blogging`) still works.
 
 **Title.** The launcher emits an OSC 0 escape sequence right before `exec zellij`, so the terminal title shows the session name on both create and attach paths (zellij itself only sets it on create).
 

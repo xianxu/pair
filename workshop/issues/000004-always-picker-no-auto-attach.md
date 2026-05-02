@@ -40,16 +40,19 @@ The "1 detached → silent attach" branch is removed. The "2+ detached → picke
 ## Plan
 
 - [x] File this issue.
-- [ ] Remove the `pick` / `--pick` block at the top of `bin/pair`.
-- [ ] Restructure the family-walk decision: collect detached, branch on count, skip picker only when 0.
-- [ ] Switch family regex to looser form (`^pair-${BASE_TAG}(-|$)`) for the detached-search.
-- [ ] Move agent validation (`command -v`) into the create branch.
-- [ ] Update `--help` output to drop the `pick` line and reflect the new "always picker" behavior.
-- [ ] Update `atlas/architecture.md` to drop the picker-as-separate-subcommand description.
-- [ ] `bash -n` and manual smoke test.
+- [x] Remove the `pick` / `--pick` block at the top of `bin/pair`.
+- [x] Restructure the family-walk decision: collect detached, branch on count, skip picker only when 0.
+- [x] Switch family regex to looser form (`^pair-${BASE_TAG}(-|$)`) for the detached-search.
+- [x] Move agent validation (`command -v`) into the create branch.
+- [x] Update `--help` output to drop the `pick` line and reflect the new "always picker" behavior.
+- [x] Update `atlas/architecture.md` to drop the picker-as-separate-subcommand description.
+- [x] `bash -n` passes; `pair --help` renders the new help.
+- [ ] Manual smoke test by user.
 
 ## Log
 
 ### 2026-05-02
 
 Created. Triggered by user observation that the auto-attach branch is surprising in a long-lived-session world. Combined with the recognition that `pick` was solving the same problem as the default flow should — so unify and drop the subcommand.
+
+Implemented. Cleanest part of the change: deleting the entire `pick`/`--pick` block at the top of bin/pair (was ~50 lines) — its functionality folds entirely into the default flow. Net diff is *smaller* than the file was before. Agent validation moved into the create branch so attaching to a custom-named session like `pair blogging` (where `blogging` isn't a binary) works correctly.
