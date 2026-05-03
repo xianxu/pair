@@ -1,6 +1,6 @@
 ---
 id: 000006
-status: working
+status: done
 deps: [000001]
 created: 2026-05-02
 updated: 2026-05-02
@@ -37,14 +37,14 @@ Everything before `--` is positional (agent, variant) as today. Everything after
 
 ## Plan
 
-- [ ] Parse argv in `bin/pair`: split on `--`, populate `$PAIR_AGENT_ARGS`, export.
-- [ ] Update `zellij/layouts/main.kdl` agent pane command to use `$PAIR_AGENT_ARGS`.
-- [ ] Update `bin/pair --help` USAGE section with the `--` syntax and an example.
-- [ ] Update `README.md` Usage section.
-- [ ] Update `atlas/architecture.md` (the `bin/pair` section).
-- [ ] Note the create-only / attach-no-effect semantic in help and README.
-- [ ] Note the args-with-spaces caveat in README.
-- [ ] `bash -n`, `zellij setup --check`, `zellij setup --dump-layout` clean.
+- [x] Parse argv in `bin/pair`: split on `--`, populate `$PAIR_AGENT_ARGS`, export.
+- [x] Update `zellij/layouts/main.kdl` agent pane command to use `$PAIR_AGENT_ARGS`.
+- [x] Update `bin/pair --help` USAGE section with the `--` syntax and an example.
+- [x] Update `README.md` Usage section.
+- [x] Update `atlas/architecture.md` (the `bin/pair` section).
+- [x] Note the create-only / attach-no-effect semantic in help and README.
+- [x] Note the args-with-spaces caveat in README.
+- [x] `bash -n` and `zellij setup --dump-layout` clean. Error-path test (`pair claude foo`) prints helpful usage hint and exits 1.
 - [ ] Manual smoke test: `pair claude -- --version` (or whatever flag claude recognizes) shows the flag took effect.
 
 ## Log
