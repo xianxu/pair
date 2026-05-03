@@ -590,15 +590,18 @@ local function is_dirty_history_slot()
 end
 
 -- Statusline format:
---   " Alt: <- history H < pos[*] > Q queued -> "
--- The flanking arrows hint that Alt+← walks toward history and Alt+→ walks
--- toward the queue. The trailing "*" on `pos` appears only when on -N with
--- an unsent fork.
+--   " Alt: <- history H < pos[*][ (⌫=del)] > Q queued -> "
+-- The flanking arrows hint Alt+← / Alt+→. The trailing "*" on `pos` shows
+-- when on -N with an unsent fork. " (⌫=del)" is a contextual hint inside
+-- the brackets, only when on +N — the only slot where Alt+BS does anything.
 function _G.PairStatusline()
   local h = #read_history()
   local q = queue_count()
   local label = pos_label(nav.pos)
   if is_dirty_history_slot() then label = label .. '*' end
+  if type(nav.pos) == 'table' and nav.pos.kind == 'queue' then
+    label = label .. ' (⌫=del)'
+  end
   return string.format(' Alt: <- history %d < %s > %d queued -> ', h, label, q)
 end
 
