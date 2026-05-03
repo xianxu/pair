@@ -928,3 +928,41 @@ vim.api.nvim_create_autocmd({ 'TextChangedI', 'TextChangedP' }, {
   group = pair_aug,
   callback = path_complete,
 })
+
+-- "Ghost cursor" while the nvim pane is unfocused. zellij hides the real
+-- terminal cursor when the pane loses focus, which makes the insertion
+-- point invisible — easy to lose track of when you click into the agent
+-- pane to scroll, then look back. We drop an extmark at the current
+-- cursor position on FocusLost and remove it on FocusGained.
+--
+-- The mark uses the `Cursor` highlight (inverse video on most colorschemes).
+-- At end-of-line / on empty lines there's no char to highlight, so we add
+-- a single-space `virt_text` overlay so the marker still shows.
+local pair_focus_ns = vim.api.nvim_create_namespace('pair_focus_cursor')
+
+local function pair_show_focus_cursor()
+  local row1, col = unpack(vim.api.nvim_win_get_cursor(0))
+  local row = row1 - 1
+  local line = vim.api.nvim_buf_get_lines(0, row, row + 1, false)[1] or ''
+  vim.api.nvim_buf_clear_namespace(0, pair_focus_ns, 0, -1)
+  if col < #line then
+    pcall(vim.api.nvim_buf_set_extmark, 0, pair_focus_ns, row, col, {
+      end_col   = col + 1,
+      hl_group  = 'Cursor',
+      priority  = 200,
+    })
+  else
+    pcall(vim.api.nvim_buf_set_extmark, 0, pair_focus_ns, row, col, {
+      virt_text     = { { ' ', 'Cursor' } },
+      virt_text_pos = 'overlay',
+      priority      = 200,
+    })
+  end
+end
+
+local function pair_hide_focus_cursor()
+  vim.api.nvim_buf_clear_namespace(0, pair_focus_ns, 0, -1)
+end
+
+vim.api.nvim_create_autocmd('FocusLost',   { group = pair_aug, callback = pair_show_focus_cursor })
+vim.api.nvim_create_autocmd('FocusGained', { group = pair_aug, callback = pair_hide_focus_cursor })
