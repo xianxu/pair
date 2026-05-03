@@ -19,8 +19,16 @@ keybinds clear-defaults=false {
     // Release Alt+i so nvim sees it (zellij's default binds Alt+i to MoveTab
     // "Left"; we want Alt+i to mean "attach image" inside the nvim draft).
     // Same logic for any other Alt-letter key we want to pass through.
+    //
+    // Alt+Left / Alt+Right are zellij's default MoveFocus bindings; we use
+    // them in nvim for the prompt-history navigation (issue #000015), and
+    // pair's two-pane layout doesn't need pane-focus arrows anyway (Alt+u
+    // toggles the nvim pane fullscreen, which covers the only useful focus
+    // change between agent ↔ draft).
     shared {
         unbind "Alt i"
+        unbind "Alt Left"
+        unbind "Alt Right"
     }
 
     shared_except "locked" {
