@@ -52,7 +52,7 @@ Examples: `42 < * > 4`, `42 < -2 > 4`, `43 < +1 > 4`.
 |---|---|
 | `Alt+←` | Move toward history (`* → -1 → -2 → ...`); clamps at oldest. |
 | `Alt+→` | Move toward queue (`-2 → -1 → * → +1 → ...`); clamps at newest queue item. |
-| `Alt+q` | Append current buffer to **end** of queue, clear `*`, stay on `*`. (Distinct from `Alt+Return` to avoid send-typos.) |
+| `Alt+q` | Push current buffer to **front** of queue (`+1`). Return to `*`. Source-slot specifics: from `*`, also clear `*`. From `-N`, the buffer is forked into `+1` (original log entry untouched). From `+N`, the source queue file is removed first (move-to-front). Distinct from `Alt+Return` to avoid send-typos. |
 | `Alt+Return` | Send buffer to agent (existing behavior). See Send rules below. |
 
 ### Edit-flow rules (the hard part)

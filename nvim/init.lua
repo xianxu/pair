@@ -124,7 +124,15 @@ local function set_buffer_text(s)
   -- Replace whole buffer contents, mark unmodified, park cursor at end so the
   -- user can append immediately. nvim's autosave autocmd is gated on nav.pos,
   -- so this won't clobber draft-<tag>.md when we're showing a history entry.
-  local lines = vim.split(s or '', '\n', { plain = true })
+  --
+  -- Strip a single trailing "\n" from `s` before splitting: files we read off
+  -- disk have nvim's :w-added trailing newline, but the user-visible buffer
+  -- representation (and what buffer_text() returns) doesn't include it. Without
+  -- this, set_buffer_text(read_file(draft)) produces a buffer with a spurious
+  -- empty trailing line that grows with every write/read cycle.
+  s = s or ''
+  if s:sub(-1) == '\n' then s = s:sub(1, -2) end
+  local lines = vim.split(s, '\n', { plain = true })
   vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
   vim.bo.modified = false
   local last = math.max(1, #lines)
@@ -582,8 +590,11 @@ end
 local function go_to(new_pos)
   save_or_discard_dirty(nav.pos, nav.baseline)
   nav.pos = new_pos
-  nav.baseline = load_baseline_for_current_pos()
-  set_buffer_text(nav.baseline)
+  set_buffer_text(load_baseline_for_current_pos())
+  -- Re-read the baseline from the buffer so its representation matches
+  -- buffer_text() exactly (set_buffer_text strips a trailing newline). This
+  -- keeps the dirty check (`buffer_text() ~= nav.baseline`) honest.
+  nav.baseline = buffer_text()
   refresh_statusline()
 end
 
@@ -626,22 +637,34 @@ local function nav_right()
   end
 end
 
--- Alt+q — append the current buffer to the BACK of the queue, clear *. Only
--- valid from *: the semantic is "park the draft I'm working on for later".
--- From -N or +N, we'd need to disambiguate "save here" vs "duplicate to back",
--- so we just refuse and tell the user.
+-- Alt+q — push current buffer to the FRONT of the queue (+1), return to *.
+-- Uniform rule across source slots:
+--   * source : "park this draft for later". Clear * after the push.
+--   -N source: fork the (possibly edited) history entry into +1. * untouched.
+--   +N source: move-to-front. Remove the source +N file before pushing, so the
+--              same item ends up at +1 (with edits applied). * untouched.
 local function queue_current()
-  if nav.pos ~= '*' then
-    vim.notify('pair: Alt+q only works from * (the draft slot)',
-               vim.log.levels.WARN)
-    return
-  end
   local body = buffer_text()
   if body:match('^%s*$') then return end
-  queue_push_back(body)
-  vim.api.nvim_buf_set_lines(0, 0, -1, false, { '' })
-  nav.baseline = ''
-  vim.cmd('silent! write')
+
+  if type(nav.pos) == 'table' and nav.pos.kind == 'queue' then
+    local key = queue_key_for_n(nav.pos.n)
+    if key then queue_remove(key) end
+  end
+
+  queue_push_front(body)
+
+  if nav.pos == '*' then
+    -- Park-the-draft: * is now empty. Clear buffer and persist via :w.
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, { '' })
+    vim.cmd('silent! write')
+  else
+    -- From -N or +N: * is untouched. Snap buffer back to *'s on-disk baseline.
+    set_buffer_text(read_file(draft_path_for_tag()))
+  end
+
+  nav.pos = '*'
+  nav.baseline = buffer_text()
   refresh_statusline()
   vim.cmd('startinsert')
 end
