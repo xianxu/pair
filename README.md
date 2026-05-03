@@ -23,14 +23,15 @@ Full nvim support, for example:
 2. search in the input box
 3. typeahead and search local file path, just type `./` and then continue. 
 
-And in the worst case you go back to coding agent's CLI input box...
+Easy to access prompt history: Alt+<- Alt+-> to navigate. You can also queue up command with Alt+q for quick ideas but not to interrupt current working of an agent, like a stack of command.
 
 ## Keybindings
 
 | Key | Scope | Action |
 |---|---|---|
 | **Alt+Return** | nvim (normal/insert) | Send buffer to agent |
-| **Alt+←** / **Alt+→** | nvim (normal/insert) | Walk through prompt history (`-N`) and queued prompts (`+N`). Status line shows `H < pos > Q`. |
+| **Alt+←** / **Alt+→** | nvim (normal/insert) | Walk through prompt history (`-N`) and queued prompts (`+N`) one slot at a time. Status line shows `H < pos > Q`. |
+| **Shift+Alt+←** / **Shift+Alt+→** | nvim (normal/insert) | Jump to the next region boundary: oldest-history, newest-history, `*`, front-of-queue, back-of-queue. Lets you skip over long histories or queues quickly. |
 | **Alt+q** | nvim (normal/insert) | Push current buffer to the front of the queue (`+1`). From `*` clears the draft; from `+N` it's move-to-front. |
 | **Alt+Backspace** | nvim (normal/insert), at `+N` | Delete the current queued prompt without sending. Items behind shift down so you can delete a run by tapping repeatedly. |
 | **Alt+u** | any pane | Toggle the nvim pane to fullscreen (works from either pane) |

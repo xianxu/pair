@@ -725,6 +725,48 @@ local function nav_right()
   end
 end
 
+-- Boundary-jump: Shift+Alt+←/→ skips to the next "edge" landmark in the
+-- requested direction. Landmarks left-to-right: -h (oldest history),
+-- -1 (newest history), *, +1 (front of queue), +q (back of queue).
+-- A region with only one entry contributes only one landmark; an empty
+-- region contributes none.
+local function pos_rank(p)
+  if p == '*' then return 0 end
+  if p.kind == 'history' then return -p.n end   -- -1 ranks -1, -h ranks -h
+  if p.kind == 'queue'   then return  p.n end   -- +1 ranks 1,  +q ranks q
+  return 0
+end
+
+local function ordered_landmarks()
+  local list = {}
+  local h = #read_history()
+  local q = queue_count()
+  if h >= 1 then
+    table.insert(list, { kind = 'history', n = h })             -- -h (leftmost)
+    if h > 1 then table.insert(list, { kind = 'history', n = 1 }) end  -- -1
+  end
+  table.insert(list, '*')
+  if q >= 1 then
+    table.insert(list, { kind = 'queue', n = 1 })               -- +1
+    if q > 1 then table.insert(list, { kind = 'queue', n = q }) end    -- +q (rightmost)
+  end
+  return list
+end
+
+local function nav_boundary(direction)
+  local landmarks = ordered_landmarks()
+  local cur = pos_rank(nav.pos)
+  if direction > 0 then
+    for _, lm in ipairs(landmarks) do
+      if pos_rank(lm) > cur then go_to(lm); return end
+    end
+  else
+    for i = #landmarks, 1, -1 do
+      if pos_rank(landmarks[i]) < cur then go_to(landmarks[i]); return end
+    end
+  end
+end
+
 -- Alt+BS — delete the current +N queue item without sending it. "Stay near":
 -- after delete, items at +(N+1)..+M shift down by one, so the same +N slot
 -- now displays what used to be next. Lets the user tap-tap to clean out a
@@ -809,6 +851,11 @@ vim.keymap.set({ 'n', 'i' }, '<M-Left>', nav_left,
 
 vim.keymap.set({ 'n', 'i' }, '<M-Right>', nav_right,
   { silent = true, desc = 'pair: navigate toward draft / queue' })
+
+vim.keymap.set({ 'n', 'i' }, '<S-M-Left>',  function() nav_boundary(-1) end,
+  { silent = true, desc = 'pair: jump to previous region boundary' })
+vim.keymap.set({ 'n', 'i' }, '<S-M-Right>', function() nav_boundary( 1) end,
+  { silent = true, desc = 'pair: jump to next region boundary' })
 
 vim.keymap.set({ 'n', 'i' }, '<M-q>', queue_current,
   { silent = true, desc = 'pair: queue current draft for later (back of queue)' })

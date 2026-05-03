@@ -62,6 +62,9 @@ BEHAVIOR
 KEYBINDINGS (inside a pair session)
   Alt+Return    send nvim buffer to agent + Enter, log, clear, insert mode
   Alt+← / Alt+→ walk through prompt history (-N) ↔ draft (*) ↔ queue (+N)
+  Shift+Alt+← / Shift+Alt+→
+                jump to next region boundary (oldest-history / newest-history /
+                * / front-of-queue / back-of-queue)
   Alt+q         push current buffer to queue front (+1)
                 from *: parks the draft. from -N: forks. from +N: move-to-front
   Alt+BS        (at +N) delete the current queued prompt; items shift down,
