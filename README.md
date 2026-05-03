@@ -112,14 +112,14 @@ Quit-marker file (used internally by Alt+x): `~/.cache/pair/quit-<session>` — 
 
 ## Design notes
 
-See [the pensive that motivated this](../brain/docs/vision/2026-05-02-01-pensive-nvim-as-input-field-for-tui-coding-agents.md) (sibling repo) and `atlas/architecture.md` for the architecture map.
+See [the pensive that motivated this](docs/vision/2026-05-02-01-pensive-nvim-as-input-field-for-tui-coding-agents.md) and `atlas/architecture.md` for the architecture map.
 
-Highlights:
+Design choices:
 
 - **Asymmetric panes by design.** Most chat UIs cram input and output into the same constrained box. The split makes the asymmetry explicit and lets each side specialize.
 - **Self-contained, doesn't touch your config.** Uses `zellij --config-dir` and `nvim -u` to fully isolate from your normal `~/.config/{zellij,nvim}`. Try it without commitment.
-- **Prompt history is just a markdown file.** Every send appends to `~/scratch/pair-log-<tag>.md`. Grep, diff, copy from. Your conversations are searchable forever.
-- **Explicit reattach.** The picker fires whenever any detached session exists, so you always see what you're connecting to. Long-lived agent sessions make silent attach surprising.
-- **Two quit semantics.** Ctrl+q keeps the session as a resurrect candidate (zellij default). Alt+x is full quit — session is gone. Both are useful.
+- **Prompt history is just a markdown file.** Every send appends to `${XDG_DATA_HOME:-~/.local/share}/pair/log-<tag>.md`. Grep, diff, copy from. Your conversations are searchable forever.
+- **Explicit reattach.** The picker fires whenever any detached session exists, so you always see what you're connecting to. 
+- **Two quit semantics.** Alt-d keeps the session as a resurrect candidate (zellij default). Alt+x is full quit — session is gone. Both are useful.
 - **Selection is the gesture.** Click-and-drag in the agent pane, mouse up — the quote is in nvim, ready for your reaction. No keystroke between.
 - **Agent-agnostic.** The same zellij+nvim plumbing works for any TUI agent. Switching from `pair claude` to `pair codex` is one keystroke.

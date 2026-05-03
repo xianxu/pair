@@ -24,6 +24,12 @@ keybinds clear-defaults=false {
     }
 
     shared_except "locked" {
+        // Disable Ctrl+q — zellij's default Quit leaves the session in the
+        // resurrect list with dead processes inside, which is a confusing
+        // half-state for pair's "long-lived agent session" model. Alt+x is
+        // the only quit path; it tears down cleanly via pair-quit.sh.
+        unbind "Ctrl q"
+
         // Alt+d — detach from the current pair session. Replaces the default
         // two-step (Ctrl+p, then d) with a single chord.
         bind "Alt d" {
