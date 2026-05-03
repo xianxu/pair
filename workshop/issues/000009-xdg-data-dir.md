@@ -1,6 +1,6 @@
 ---
 id: 000009
-status: working
+status: done
 deps: [000001]
 created: 2026-05-02
 updated: 2026-05-02
@@ -43,15 +43,15 @@ Layout file's draft path also updated to use `$XDG_DATA_HOME` (with default fall
 
 ## Plan
 
-- [ ] Add `DATA_DIR` resolver to `bin/pair` (XDG_DATA_HOME with fallback).
-- [ ] Update `bin/pair` to use `$DATA_DIR/draft-<tag>.md` instead of `~/scratch/pair-draft-<tag>.md`.
-- [ ] Update `nvim/init.lua` `append_log()` to use `$DATA_DIR/log-<tag>.md`.
-- [ ] Update `zellij/layouts/main.kdl` draft pane args to point nvim at the new path (use shell expansion `${XDG_DATA_HOME:-$HOME/.local/share}/pair/draft-...`).
-- [ ] Add one-time auto-migration: scan `~/scratch/pair-draft-*` and `~/scratch/pair-log-*`, move to new location with name fix-up, log to stderr.
-- [ ] Update `--help` FILES section.
-- [ ] Update README FILES section.
-- [ ] Update atlas/architecture.md Data layout section.
-- [ ] `bash -n` clean. `zellij setup --dump-layout` clean.
+- [x] Add `DATA_DIR` resolver to `bin/pair` (XDG_DATA_HOME with fallback).
+- [x] Update `bin/pair` to use `$DATA_DIR/draft-<tag>.md` instead of `~/scratch/pair-draft-<tag>.md`.
+- [x] Update `nvim/init.lua` `append_log()` to use `$PAIR_DATA_DIR/log-<tag>.md` (exported by bin/pair, with same fallback chain).
+- [x] Update `zellij/layouts/main.kdl` draft pane args to point nvim at `${XDG_DATA_HOME:-$HOME/.local/share}/pair/draft-<tag>.md`.
+- [x] Add one-time auto-migration in `bin/pair`: scan `~/scratch/pair-{draft,log}-*`, move to new location with name fix-up, log count to stderr.
+- [x] Update `--help` FILES section.
+- [x] Update README FILES section.
+- [x] Update atlas/architecture.md Data layout section.
+- [x] `bash -n`, `zellij setup --dump-layout`, `nvim --headless` all clean.
 - [ ] Manual smoke test: with old `~/scratch/pair-draft-claude.md` present, run `pair`, verify the file moved and the session loads it.
 
 ## Log

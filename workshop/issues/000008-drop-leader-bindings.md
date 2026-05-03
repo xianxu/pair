@@ -1,6 +1,6 @@
 ---
 id: 000008
-status: working
+status: done
 deps: [000001]
 created: 2026-05-02
 updated: 2026-05-02
@@ -32,12 +32,12 @@ Keeps Alt+Return, Alt+u, Alt+d, Alt+x, Alt+i. That's the actual surface.
 
 ## Plan
 
-- [ ] Remove `send_section` function + keymap from `nvim/init.lua`.
-- [ ] Remove `paste_and_reflow` function + keymap from `nvim/init.lua`.
-- [ ] Remove from `bin/pair --help`.
-- [ ] Remove from README.
-- [ ] Update atlas/architecture.md.
-- [ ] `nvim --headless -u init.lua -c qa` clean.
+- [x] Remove `send_section` function + keymap from `nvim/init.lua`.
+- [x] Remove `paste_and_reflow` function + keymap from `nvim/init.lua`.
+- [x] Remove from `bin/pair --help`.
+- [x] Remove from README.
+- [x] Update atlas/architecture.md.
+- [x] `nvim --headless -u init.lua -c qa` clean.
 
 ## Log
 

@@ -1,6 +1,6 @@
 ---
 id: 000007
-status: working
+status: done
 deps: [000001, 000002]
 created: 2026-05-02
 updated: 2026-05-02
@@ -27,11 +27,11 @@ If non-interactive naming becomes a real need later, file a separate issue for `
 
 ## Plan
 
-- [ ] Remove `VARIANT="${2:-}"` and the `if [ -n "$VARIANT" ]; then ... -${VARIANT} ...` block from `bin/pair`.
-- [ ] Update `--help` USAGE to drop the variant line.
-- [ ] Update README Usage section.
-- [ ] Update atlas/architecture.md.
-- [ ] `bash -n` clean.
+- [x] Remove `VARIANT="${2:-}"` and the `if [ -n "$VARIANT" ]; then ... -${VARIANT} ...` block from `bin/pair`.
+- [x] Update `--help` USAGE to drop the variant line.
+- [x] Update README Usage section.
+- [x] Update atlas/architecture.md.
+- [x] `bash -n` clean.
 
 ## Log
 
