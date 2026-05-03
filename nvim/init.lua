@@ -861,6 +861,20 @@ vim.api.nvim_create_autocmd('VimEnter', {
   end,
 })
 
+-- Write the current mode to a per-tag file so out-of-process helpers (e.g.
+-- bin/copy-on-select.sh) can gate on it. We only auto-insert mouse-selected
+-- quotes when nvim is in insert mode — selecting while in normal mode means
+-- the user is browsing/navigating and shouldn't have their buffer mutated.
+local function pair_write_mode()
+  pcall(write_file,
+    pair_data_dir() .. '/mode-' .. pair_tag(),
+    vim.api.nvim_get_mode().mode)
+end
+vim.api.nvim_create_autocmd({ 'ModeChanged', 'VimEnter', 'FocusGained' }, {
+  group = pair_aug,
+  callback = pair_write_mode,
+})
+
 -- Fire on both events: TextChangedI when popup is hidden, TextChangedP when
 -- popup is visible — refreshing the menu as the user types more characters.
 vim.api.nvim_create_autocmd({ 'TextChangedI', 'TextChangedP' }, {

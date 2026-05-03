@@ -73,6 +73,22 @@ if [ "$in_nvim" = true ]; then
     exit 0
 fi
 
+# Gate the auto-insert on nvim's current mode: only insert quotes if nvim is
+# in insert mode. In normal mode the user is typically browsing/navigating
+# (history, queue) and an unsolicited buffer mutation is disruptive. The
+# selection is still on the OS clipboard from step 1, so they can paste
+# manually if they want it. nvim writes its mode to this file via a
+# ModeChanged autocmd; missing file = first-run / no recent mode change ⇒
+# default to "insert" so existing copy-on-select behavior isn't lost.
+mode_file="${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}/mode-${PAIR_TAG:-${PAIR_AGENT:-claude}}"
+if [ -f "$mode_file" ]; then
+    nvim_mode=$(cat "$mode_file" 2>/dev/null)
+    if [ "${nvim_mode:0:1}" != "i" ]; then
+        echo "nvim mode '$nvim_mode' is not insert; skipping auto-insert" >> "$LOG"
+        exit 0
+    fi
+fi
+
 # 3. Flash the source pane's background so the user gets a visual cue at the
 # selection site (in addition to the nvim-side flash on the inserted text).
 # set-pane-color sets the pane's *default* bg, so this only shows through in
