@@ -140,6 +140,78 @@ local function refresh_statusline()
   pcall(vim.cmd, 'redrawstatus')
 end
 
+-- ---------------------------------------------------------------------------
+-- queue store (issue #000015 §H2)
+--
+-- Per-tag directory `$DATA_DIR/queue-<tag>/` with one file per queued prompt.
+-- Filenames are 6-digit zero-padded keys; sort order = display order (+1 is
+-- the lowest key, +M is the highest). Keys start at 500000 in the middle of
+-- the address space so push_front and push_back can grow either way without
+-- collision in practical use.
+-- ---------------------------------------------------------------------------
+
+local QUEUE_KEY_FMT = '%06d'
+local QUEUE_KEY_START = 500000
+
+local function queue_dir()
+  return pair_data_dir() .. '/queue-' .. pair_tag()
+end
+
+local function queue_path(key)
+  return queue_dir() .. '/' .. key .. '.md'
+end
+
+local function queue_keys_sorted()
+  vim.fn.mkdir(queue_dir(), 'p')
+  local files = vim.fn.readdir(queue_dir(), function(name)
+    return (name:match('^%d+%.md$') and 1 or 0)
+  end)
+  table.sort(files)
+  local keys = {}
+  for _, f in ipairs(files) do
+    table.insert(keys, (f:gsub('%.md$', '')))
+  end
+  return keys
+end
+
+local function queue_count()
+  return #queue_keys_sorted()
+end
+
+local function queue_read(key)
+  return read_file(queue_path(key))
+end
+
+local function queue_write(key, body)
+  return write_file(queue_path(key), body)
+end
+
+local function queue_remove(key)
+  return os.remove(queue_path(key))
+end
+
+local function queue_push_back(body)
+  local keys = queue_keys_sorted()
+  local next_n = (#keys == 0) and QUEUE_KEY_START or (tonumber(keys[#keys]) + 1)
+  local key = string.format(QUEUE_KEY_FMT, next_n)
+  queue_write(key, body)
+  return key
+end
+
+local function queue_push_front(body)
+  local keys = queue_keys_sorted()
+  local next_n = (#keys == 0) and QUEUE_KEY_START or (tonumber(keys[1]) - 1)
+  local key = string.format(QUEUE_KEY_FMT, next_n)
+  queue_write(key, body)
+  return key
+end
+
+-- Display index N (1-based, +1 = front) → filename key.
+local function queue_key_for_n(n)
+  local keys = queue_keys_sorted()
+  return keys[n]
+end
+
 local function send_to_agent(body)
   -- focus up to agent pane, type body, press Enter, focus back down
   vim.fn.system('zellij action move-focus up')
@@ -366,15 +438,20 @@ local function send_and_clear()
   local body = buffer_text()
   if body:match('^%s*$') then return end
 
+  -- M2: send-from-+N consumes that queue file. The buffer (possibly edited)
+  -- is what ships, and the queue slot vanishes. Auto-evacuate-* on send
+  -- (the displaced-* preservation half) lands in M4 with the full edit-flow.
+  if type(nav.pos) == 'table' and nav.pos.kind == 'queue' then
+    local key = queue_key_for_n(nav.pos.n)
+    if key then queue_remove(key) end
+  end
+
   append_log(body)
   send_to_agent(body)
 
   -- Snap back to *: clear buffer, save through nvim (so the buffer↔file
   -- mtime stays in sync — bypassing nvim with io.open triggers a stale-
   -- write warning on the next :w), reset nav state.
-  -- M1 caveat: if we were at -N, the proper auto-evacuate path isn't
-  -- implemented yet — discard_if_dirty already warned on any dirty edit
-  -- that flowed to this send. M4 wires the full send rule.
   vim.api.nvim_buf_set_lines(0, 0, -1, false, { '' })
   nav.pos = '*'
   nav.baseline = ''
@@ -466,61 +543,107 @@ local function load_baseline_for_current_pos()
     local idx = #entries - nav.pos.n + 1
     return entries[idx] or ''
   end
+  if nav.pos.kind == 'queue' then
+    local key = queue_key_for_n(nav.pos.n)
+    return key and queue_read(key) or ''
+  end
   return ''
 end
 
--- Statusline format: " H < pos > Q ". Q is always 0 in M1.
+-- Statusline format: " H < pos > Q ".
 function _G.PairStatusline()
   local h = #read_history()
-  local q = 0
+  local q = queue_count()
   return string.format(' %d < %s > %d ', h, pos_label(nav.pos), q)
 end
 
--- M1: dirty content is discarded silently with a notify warning. M3 will
--- replace this with the auto-evacuate / flow-to-* rules.
-local function discard_if_dirty()
-  if buffer_text() ~= nav.baseline then
-    vim.notify(
-      'pair: discarded edit (full edit-flow lands in a later milestone)',
-      vim.log.levels.WARN)
+-- Save-on-leave for the current slot when the buffer is dirty. M2 only fully
+-- handles +N (queue is mutable storage; edits persist). For * and -N, dirty
+-- edits are discarded — the auto-evacuate-to-queue-front rule that makes
+-- this lossless lands in M3 along with the §H4 primitives.
+local function save_or_discard_dirty(prev_pos, prev_baseline)
+  local body = buffer_text()
+  if body == prev_baseline then return end
+  if type(prev_pos) == 'table' and prev_pos.kind == 'queue' then
+    local key = queue_key_for_n(prev_pos.n)
+    if key then queue_write(key, body) end
+    return
   end
+  -- prev_pos == '*' or kind == 'history': M3 will route to *. For now drop.
+  -- Notify is invisible under cmdheight=0 anyway; logged via :messages.
+  vim.notify(
+    'pair: discarded edit (auto-evacuate lands in M3)',
+    vim.log.levels.WARN)
+end
+
+-- Move to a new position: handle save/discard of the current dirty buffer,
+-- then load the destination baseline. Centralizes the boilerplate so nav_left
+-- / nav_right just compute the target pos.
+local function go_to(new_pos)
+  save_or_discard_dirty(nav.pos, nav.baseline)
+  nav.pos = new_pos
+  nav.baseline = load_baseline_for_current_pos()
+  set_buffer_text(nav.baseline)
+  refresh_statusline()
 end
 
 local function nav_left()
-  local entries = read_history()
-  local h = #entries
-  if h == 0 then return end
-
-  local target_n
   if nav.pos == '*' then
-    target_n = 1
+    local entries = read_history()
+    if #entries == 0 then return end
+    go_to({ kind = 'history', n = 1 })
   elseif nav.pos.kind == 'history' then
-    if nav.pos.n >= h then return end   -- clamp at oldest
-    target_n = nav.pos.n + 1
-  else
-    return                              -- queue: M2+
+    local entries = read_history()
+    if nav.pos.n >= #entries then return end   -- clamp at oldest
+    go_to({ kind = 'history', n = nav.pos.n + 1 })
+  elseif nav.pos.kind == 'queue' then
+    -- +N → +(N-1) → *
+    if nav.pos.n <= 1 then
+      go_to('*')
+    else
+      go_to({ kind = 'queue', n = nav.pos.n - 1 })
+    end
   end
-
-  discard_if_dirty()
-  nav.pos = { kind = 'history', n = target_n }
-  nav.baseline = load_baseline_for_current_pos()
-  set_buffer_text(nav.baseline)
-  refresh_statusline()
 end
 
 local function nav_right()
-  if nav.pos == '*' then return end     -- queue: M2+
-  if nav.pos.kind ~= 'history' then return end
-
-  discard_if_dirty()
-  if nav.pos.n <= 1 then
-    nav.pos = '*'
-  else
-    nav.pos = { kind = 'history', n = nav.pos.n - 1 }
+  if nav.pos == '*' then
+    -- * → +1 if queue has items.
+    if queue_count() == 0 then return end
+    go_to({ kind = 'queue', n = 1 })
+  elseif nav.pos.kind == 'history' then
+    -- -N → -(N-1), with -1 → *.
+    if nav.pos.n <= 1 then
+      go_to('*')
+    else
+      go_to({ kind = 'history', n = nav.pos.n - 1 })
+    end
+  elseif nav.pos.kind == 'queue' then
+    -- +N → +(N+1), clamp at queue size.
+    local total = queue_count()
+    if nav.pos.n >= total then return end
+    go_to({ kind = 'queue', n = nav.pos.n + 1 })
   end
-  nav.baseline = load_baseline_for_current_pos()
-  set_buffer_text(nav.baseline)
+end
+
+-- Alt+q — append the current buffer to the BACK of the queue, clear *. Only
+-- valid from *: the semantic is "park the draft I'm working on for later".
+-- From -N or +N, we'd need to disambiguate "save here" vs "duplicate to back",
+-- so we just refuse and tell the user.
+local function queue_current()
+  if nav.pos ~= '*' then
+    vim.notify('pair: Alt+q only works from * (the draft slot)',
+               vim.log.levels.WARN)
+    return
+  end
+  local body = buffer_text()
+  if body:match('^%s*$') then return end
+  queue_push_back(body)
+  vim.api.nvim_buf_set_lines(0, 0, -1, false, { '' })
+  nav.baseline = ''
+  vim.cmd('silent! write')
   refresh_statusline()
+  vim.cmd('startinsert')
 end
 
 vim.opt.laststatus = 2
@@ -541,6 +664,9 @@ vim.keymap.set({ 'n', 'i' }, '<M-Left>', nav_left,
 
 vim.keymap.set({ 'n', 'i' }, '<M-Right>', nav_right,
   { silent = true, desc = 'pair: navigate toward draft / queue' })
+
+vim.keymap.set({ 'n', 'i' }, '<M-q>', queue_current,
+  { silent = true, desc = 'pair: queue current draft for later (back of queue)' })
 
 vim.keymap.set('i', '<Tab>', function()
   return pum_visible() and '<C-n>' or '<Tab>'

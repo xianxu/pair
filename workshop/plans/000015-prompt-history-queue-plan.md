@@ -246,7 +246,7 @@ Notes from implementation:
 - The pre-existing `BufLeave/FocusLost/InsertLeave` autosave needed a gate on `nav.pos == '*'` — without it, navigating to `-N` and then losing focus would write the history-entry text to `draft-<tag>.md`. Documented inline in the autocmd.
 - send_and_clear uses `:silent! write` to clear the draft on disk (not `io.open` — that bypasses nvim and triggers a stale-mtime warning on the next `:w`).
 
-### M2: Queue store + Alt+q
+### M2: Queue store + Alt+q ✅ done 2026-05-03
 
 - §H2 queue ops.
 - Alt+q pushes buffer to back, clears draft.
@@ -255,6 +255,12 @@ Notes from implementation:
 - Sending from `+N` removes queue file.
 - Statusline shows real `Q`.
 - **Verify:** T12 plus general Alt+→ traversal.
+
+Notes from implementation:
+- Refactored navigation into a `go_to(new_pos)` helper that centralizes save-or-discard-then-load. `nav_left` / `nav_right` just compute the target and delegate. Cleaner than the M1 inline code.
+- `save_or_discard_dirty` is the M2/M3 transition point. M2 saves dirty `+N` to its queue file; for `*` and `-N` it still falls through to the discard branch (M1 placeholder). M3 will swap in the auto-evacuate-* logic for those branches.
+- `Alt+q` only operates from `*`. From `-N` or `+N` it warns and no-ops — pushing the current buffer would either duplicate (`+N`) or fork into queue (`-N`), and either could surprise. The `*` semantic ("park what I'm working on") is the only one with a clear use case in v1.
+- Queue file naming uses 6-digit padded sortable keys, starting at 500000. `queue_push_front` exists already (used in M3) but isn't called yet in M2.
 
 ### M3: Edit-flow with auto-evacuate
 
