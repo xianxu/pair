@@ -29,7 +29,6 @@ keybinds clear-defaults=false {
         unbind "Alt i"
         unbind "Alt Left"
         unbind "Alt Right"
-        unbind "Alt f"
     }
 
     shared_except "locked" {

@@ -725,32 +725,6 @@ local function nav_right()
   end
 end
 
--- Alt+f — jump the agent pane's scrollback to the position where the current
--- -N prompt was displayed. Uses zellij's interactive search mode driven by
--- write-chars, since zellij has no scriptable "search-input <query>" action.
--- Best-effort: terminal scrollback is per-line, so the query is capped at
--- the first 50 chars of the first non-empty line of the prompt to fit on one
--- line in most pane widths. No-op outside -N (no prompt text to search for).
-local function jump_to_prompt_in_agent()
-  if type(nav.pos) ~= 'table' or nav.pos.kind ~= 'history' then
-    return
-  end
-  local body = load_baseline_for_current_pos()
-  if not body or body == '' then return end
-  local first_line = (body:match('([^\n]+)') or ''):gsub('^%s+', ''):gsub('%s+$', '')
-  if first_line == '' then return end
-  local query = first_line:sub(1, 50)
-
-  -- focus agent pane → enter search mode → type query → Enter (execute) →
-  -- Esc (leave search mode, keeping scroll position) → focus back to nvim.
-  vim.fn.system('zellij action move-focus up')
-  vim.fn.system('zellij action switch-mode search')
-  vim.fn.system({ 'zellij', 'action', 'write-chars', query })
-  vim.fn.system('zellij action write 13')
-  vim.fn.system('zellij action write 27')
-  vim.fn.system('zellij action move-focus down')
-end
-
 -- Alt+BS — delete the current +N queue item without sending it. "Stay near":
 -- after delete, items at +(N+1)..+M shift down by one, so the same +N slot
 -- now displays what used to be next. Lets the user tap-tap to clean out a
@@ -841,9 +815,6 @@ vim.keymap.set({ 'n', 'i' }, '<M-q>', queue_current,
 
 vim.keymap.set({ 'n', 'i' }, '<M-BS>', delete_current_queue_item,
   { silent = true, desc = 'pair: delete the current +N queue item' })
-
-vim.keymap.set({ 'n', 'i' }, '<M-f>', jump_to_prompt_in_agent,
-  { silent = true, desc = 'pair: scroll agent pane to where the current -N prompt was sent' })
 
 vim.keymap.set('i', '<Tab>', function()
   return pum_visible() and '<C-n>' or '<Tab>'
