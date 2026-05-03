@@ -86,6 +86,7 @@ pair [<agent>] -- <args...>      # forward args to agent on create
                                  # e.g. pair claude -- --resume
                                  #      pair -- --dangerously-skip-permissions
                                  #      pair codex -- -p "say hi"
+pair list                        # list pair-* sessions and attach state
 pair -h, --help                  # show full help
 ```
 

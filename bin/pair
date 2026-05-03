@@ -32,6 +32,7 @@ USAGE
                                 e.g. pair claude -- --resume
                                      pair -- --dangerously-skip-permissions
                                      pair codex -- -p "say hi"
+  pair list                     list pair-* sessions and their attach state
   pair -h, --help               this message
 
   Use `--` to separate pair's args from the agent's args. Without `--`,
@@ -73,6 +74,85 @@ FILES
 
 See README.md for image-paste recipes and other details.
 EOF
+        exit 0
+        ;;
+    list|ls)
+        if ! command -v zellij >/dev/null 2>&1; then
+            echo "pair: zellij not found on PATH." >&2
+            exit 1
+        fi
+        # Snapshot session state once. --no-formatting carries the EXITED
+        # annotation; --short gives clean newline-separated names.
+        raw=$( { zellij list-sessions --no-formatting 2>/dev/null || true; } )
+        sessions=$( { zellij list-sessions --short 2>/dev/null || true; } \
+                    | awk '/^pair-/' \
+                    | sort )
+        if [ -z "$sessions" ]; then
+            echo "no pair sessions"
+            exit 0
+        fi
+        list_data_dir="${XDG_DATA_HOME:-$HOME/.local/share}/pair"
+        mkdir -p "$list_data_dir"
+
+        # Backfill agent-<tag> for any running pair-wrap process whose tag
+        # we don't yet have on disk — covers sessions created before the
+        # agent-tracking feature shipped. Read PAIR_TAG from each process's
+        # environ (macOS: `ps -E`; Linux: /proc/<pid>/environ) and the
+        # agent name from argv (the token after `pair-wrap`).
+        pw_pids=$(pgrep -f 'pair-wrap' 2>/dev/null || true)
+        for pid in $pw_pids; do
+            argv=$(ps -p "$pid" -o command= 2>/dev/null || true)
+            [ -z "$argv" ] && continue
+            agent=$(printf '%s\n' "$argv" | awk '
+                { for (i=1; i<=NF; i++) if ($i ~ /pair-wrap$/) { print $(i+1); exit } }')
+            [ -z "$agent" ] && continue
+            if [ -r "/proc/$pid/environ" ]; then
+                env_blob=$(tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null || true)
+            else
+                env_blob=$( { ps -wwEp "$pid" -o command= 2>/dev/null \
+                              || ps eww -p "$pid" 2>/dev/null \
+                              || true; } )
+            fi
+            tag=$(printf '%s' "$env_blob" \
+                  | tr ' \0' '\n\n' \
+                  | awk -F= '$1=="PAIR_TAG"{print $2; exit}')
+            [ -z "$tag" ] && continue
+            if [ ! -f "$list_data_dir/agent-${tag}" ]; then
+                printf '%s\n' "$agent" > "$list_data_dir/agent-${tag}"
+            fi
+        done
+
+        printf '%-30s %-10s %s\n' "SESSION" "AGENT" "STATUS"
+        while IFS= read -r sess; do
+            [ -z "$sess" ] && continue
+            tag="${sess#pair-}"
+            agent_file="$list_data_dir/agent-${tag}"
+            if [ -f "$agent_file" ]; then
+                agent=$(head -n1 "$agent_file" | tr -d '\r\n[:space:]')
+                [ -z "$agent" ] && agent="?"
+            else
+                agent="?"
+            fi
+            if printf '%s\n' "$raw" \
+                 | grep -E "^${sess}[[:space:]].*EXITED" >/dev/null 2>&1; then
+                status="exited"
+            else
+                # `|| true` so pipefail+errexit doesn't abort when zellij
+                # can't reach the session (e.g. running outside any zellij
+                # client); empty input through tail/wc yields 0.
+                clients=$( { zellij --session "$sess" action list-clients 2>/dev/null || true; } \
+                          | tail -n +2 | wc -l | tr -d ' ')
+                clients=${clients:-0}
+                if [ "$clients" -eq 0 ]; then
+                    status="detached"
+                elif [ "$clients" -eq 1 ]; then
+                    status="attached (1 client)"
+                else
+                    status="attached ($clients clients)"
+                fi
+            fi
+            printf '%-30s %-10s %s\n' "$sess" "$agent" "$status"
+        done <<< "$sessions"
         exit 0
         ;;
 esac
@@ -271,7 +351,7 @@ cleanup_quit_marker() {
     if [ -f "$marker" ]; then
         rm -f "$marker"
         zellij delete-session "$SESSION" --force >/dev/null 2>&1 || true
-        rm -f "$DATA_DIR/outer-tty-${PAIR_TAG}"
+        rm -f "$DATA_DIR/outer-tty-${PAIR_TAG}" "$DATA_DIR/agent-${PAIR_TAG}"
     fi
 }
 
@@ -350,6 +430,13 @@ export PAIR_TAG="$chosen_tag"
 SESSION="pair-${PAIR_TAG}"
 DRAFT="$DATA_DIR/draft-${PAIR_TAG}.md"
 [ -f "$DRAFT" ] || : > "$DRAFT"
+
+# Record the agent that's about to be launched in this session, so `pair list`
+# can show which binary is paired with each session. The agent is otherwise not
+# recoverable post-create — env vars are frozen in pane shells, and the session
+# name (e.g. `pair-bugfix`) doesn't always carry the agent. Persists across
+# detach/reattach; cleared on Alt+x quit alongside outer-tty.
+printf '%s\n' "$AGENT" > "$DATA_DIR/agent-${PAIR_TAG}"
 
 # Set terminal title — harmless duplicate for new sessions (zellij sets it
 # itself), useful as a uniform path for both create and attach branches.
