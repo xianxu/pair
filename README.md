@@ -6,8 +6,8 @@ A small launcher that gives any TUI coding agent (Claude Code, Codex, Gemini CLI
 
 Launches a zellij session split into two panes:
 
-- **Top (~65%)** — the agent. Owns the *output* affordance: streams responses, renders tool calls and diffs.
-- **Bottom (~35%)** — Neovim on a persistent draft file. Owns the *input* affordance: full editing power, persistent undo, prompt history.
+- **Top** — the agent. Owns the *output* affordance: streams responses, renders tool calls and diffs. Fills the rest of the screen.
+- **Bottom (10 rows)** — Neovim on a persistent draft file. Owns the *input* affordance: full editing power, persistent undo, prompt history. Toggle to fullscreen with `Alt+u` when you need more room.
 
 You compose prompts with full editor power, scroll the agent output independently, and never lose draft text again.
 
@@ -15,11 +15,41 @@ You compose prompts with full editor power, scroll the agent output independentl
 
 | Key | Scope | Action |
 |---|---|---|
-| **Alt+Return** | nvim (normal/insert) | Send buffer to agent, log to history, clear draft, drop into insert mode |
+| **Alt+Return** | nvim (normal/insert) | Send buffer to agent + Enter, log to history, clear draft, drop into insert mode |
 | **Alt+u** | any pane | Toggle the nvim pane to fullscreen (works from either pane) |
+| **Alt+d** | any pane | Detach from the current session |
 | **Alt+n** | any pane | Pull clipboard contents into nvim cursor — paragraph-reflowed and prefixed with `> ` (markdown quote) |
+| **Alt+i** | nvim (normal/insert) | Attach clipboard image to the agent and insert `[Image #N]` reference at cursor. If cursor is on an existing `[Image #N]`, sync the internal counter to N (manual-correction path). |
 | `<leader>cs` | nvim | Send only the section between `---` markers |
 | `<leader>cp` | nvim | Paste-and-reflow at cursor (raw, no quoting) |
+
+## Dependencies
+
+**Required**
+
+| Tool | Purpose |
+|---|---|
+| [`zellij`](https://zellij.dev/) | terminal multiplexer; pair runs as a zellij session |
+| [`nvim`](https://neovim.io/) | the input/drafting pane |
+| [`fzf`](https://github.com/junegunn/fzf) | session picker (falls back to a numbered prompt if missing) |
+| an agent | `claude`, `codex`, `gemini`, or any TUI agent you want to drive |
+
+**Optional**
+
+| Tool | Purpose |
+|---|---|
+| [`par`](https://www.nicemice.net/par/) | paragraph reflow for `Alt+n` and `<leader>cp` (clipboard content passes through unchanged if missing) |
+
+macOS install:
+```sh
+brew install zellij neovim fzf par
+```
+
+Debian/Ubuntu:
+```sh
+sudo apt install neovim fzf par
+# zellij: see https://zellij.dev/documentation/installation.html
+```
 
 ## Install
 
@@ -30,33 +60,32 @@ git clone <repo> ~/workspace/pair
 ln -s ~/workspace/pair/bin/pair /usr/local/bin/pair
 ```
 
-Recommended: install `par` for paragraph reflow (used by `Alt+n` and `<leader>cp`):
-
-```sh
-brew install par              # macOS
-sudo apt install par          # Debian/Ubuntu
-```
-
-If `par` is missing the scripts pass clipboard content through unchanged.
-
-You also need [`zellij`](https://zellij.dev/) and [`nvim`](https://neovim.io/) on your PATH, plus whichever agent you want to drive (`claude`, `codex`, `gemini`).
-
 ## Usage
 
 ```sh
-pair             # default: claude
-pair claude
-pair codex
-pair gemini
+pair                          # default: claude
+pair <agent>                  # claude / codex / gemini
+pair <agent> <variant>        # independent session, e.g. `pair claude work`
+pair -h, --help               # show full help
 ```
 
-Each agent runs in its own zellij session (`pair-claude`, `pair-codex`, ...), so multiple can run simultaneously without conflicting.
+When `pair` runs and any detached `pair-*` session exists, it shows an `fzf` picker over the detached sessions plus a `+ new <agent> session` sentinel. Picking attaches; picking the sentinel falls through to the create flow. **No silent auto-attach** — every reattach is explicit.
 
-To detach without closing the session: `Ctrl+p d` (zellij default). Re-attach by running `pair <agent>` again.
+When the create flow runs, it prompts for the session name with the auto-suggested name as the default:
+
+```
+Session name [pair-claude]: <Enter to accept, or type a custom name>
+```
+
+Custom names like `bugfix`, `pair-blogging`, or `claude-research` are allowed (chars: `A-Z a-z 0-9 - _`). Sessions named without an agent prefix (`pair-blogging`) live outside any agent family and reappear under the picker on any future `pair` run.
+
+To detach mid-session: `Alt+d`. To re-attach: run `pair` again and pick from the list.
 
 ## Image paste
 
-`Ctrl+V` in the agent pane reads the OS clipboard directly. Put an image on the clipboard first:
+`Alt+i` is the integrated path: put an image on the OS clipboard first, then press `Alt+i` from inside nvim. `pair` types `Ctrl+V` into the agent pane (so claude attaches the image as a chip) *and* inserts a `[Image #N]` reference at your nvim cursor. If the local counter drifts from claude's actual count, edit the number in nvim and press `Alt+i` while on the corrected token to resync.
+
+Putting an image on the clipboard:
 
 **macOS:**
 ```sh
@@ -79,24 +108,25 @@ A simpler path that skips the clipboard entirely: type `@/abs/path/to/img.png` i
 
 ```
 bin/pair                     # launcher
-bin/clipboard-to-pane.sh     # helper for Alt+n
-nvim/init.lua                # bundled nvim config (loaded via -u)
-zellij/config.kdl            # zellij keybinds for Alt+u and Alt+n
-zellij/layouts/main.kdl      # the 65/35 split
+bin/clipboard-to-pane.sh     # helper for Alt+n (clipboard → nvim cursor as quote)
+nvim/init.lua                # bundled nvim config (loaded via `nvim -u`)
+zellij/config.kdl            # zellij keybinds: Alt+u, Alt+d, Alt+n, unbind Alt+i
+zellij/layouts/main.kdl      # the split (agent on top, nvim 10 rows on bottom)
 ```
 
-Drafts and prompt history live in `~/scratch/`:
+Drafts and prompt history live in `~/scratch/`, keyed by *tag* (the agent name, or `<agent>-<variant>`, or your custom session name):
 
-- `pair-draft-<agent>.md` — the active draft (cleared on send, persists across launches)
-- `pair-log-<agent>.md` — appended on every send with timestamp; your grep-able prompt history
+- `pair-draft-<tag>.md` — the active draft (cleared on send, persists across launches)
+- `pair-log-<tag>.md` — appended on every send with timestamp; your grep-able prompt history
 
 ## Design notes
 
-See [the pensive that motivated this](../brain/docs/vision/2026-05-02-01-pensive-nvim-as-input-field-for-tui-coding-agents.md) (sibling repo).
+See [the pensive that motivated this](../brain/docs/vision/2026-05-02-01-pensive-nvim-as-input-field-for-tui-coding-agents.md) (sibling repo) and `atlas/architecture.md` for the architecture map.
 
 Highlights:
 
 - **Asymmetric panes by design.** Most chat UIs cram input and output into the same constrained box. The split makes the asymmetry explicit and lets each side specialize.
 - **Self-contained, doesn't touch your config.** v1 uses `zellij --config-dir` and `nvim -u` to fully isolate from your normal `~/.config/{zellij,nvim}`. Try it without commitment.
-- **Prompt history is just a markdown file.** Every send appends to `~/scratch/pair-log-<agent>.md`. Grep, diff, copy from. Your conversations are searchable forever.
+- **Prompt history is just a markdown file.** Every send appends to `~/scratch/pair-log-<tag>.md`. Grep, diff, copy from. Your conversations are searchable forever.
+- **Explicit reattach.** The picker fires whenever any detached session exists, so you always see what you're connecting to. Long-lived agent sessions make silent attach surprising.
 - **Agent-agnostic.** The same zellij+nvim plumbing works for any TUI agent. Switching from `pair claude` to `pair codex` is one keystroke.
