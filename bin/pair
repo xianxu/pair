@@ -271,7 +271,24 @@ cleanup_quit_marker() {
     if [ -f "$marker" ]; then
         rm -f "$marker"
         zellij delete-session "$SESSION" --force >/dev/null 2>&1 || true
+        rm -f "$DATA_DIR/outer-tty-${PAIR_TAG}"
     fi
+}
+
+# Capture pair's controlling TTY before zellij takes over — this IS the path
+# of the outer terminal/wrapper's PTY. Writing OSC sequences to it bypasses
+# zellij's escape filtering, letting outer wrappers (e.g. cmux, which watches
+# OSC 9/777 to surface attention indicators) see notifications emitted from
+# inside a pane. Refreshed on every attach because the outer PTY changes
+# across detach/reattach; pane-shell env doesn't (env is frozen at zellij
+# session-creation time). #000011
+record_outer_tty() {
+    local outer
+    outer="$(tty 2>/dev/null || true)"
+    case "$outer" in
+        /dev/*) printf '%s\n' "$outer" > "$DATA_DIR/outer-tty-${PAIR_TAG}" ;;
+        *)      rm -f "$DATA_DIR/outer-tty-${PAIR_TAG}" ;;
+    esac
 }
 
 if [ "$action" = "attach" ]; then
@@ -283,6 +300,7 @@ if [ "$action" = "attach" ]; then
     # on attach, so without this the title stays as whatever the shell's
     # preexec hook set (typically "bin/pair").
     printf '\033]0;%s\007' "$SESSION"
+    record_outer_tty
     zellij --config-dir "$PAIR_HOME/zellij" attach "$SESSION"
     cleanup_quit_marker
     exit $?
@@ -336,6 +354,7 @@ DRAFT="$DATA_DIR/draft-${PAIR_TAG}.md"
 # Set terminal title — harmless duplicate for new sessions (zellij sets it
 # itself), useful as a uniform path for both create and attach branches.
 printf '\033]0;%s\007' "$SESSION"
+record_outer_tty
 
 # Note on the create invocation: zellij's `--layout PATH --session NAME` does
 # NOT create-with-layout; per its help text, when --session is set, --layout

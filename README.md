@@ -95,12 +95,40 @@ To detach mid-session: `Alt+d`. To re-attach: run `pair` again and pick from the
 
 Caveat: the reference [Image #N] doesn't work with Genimi. Though user can manually paste the reference from Gemini over.
 
+## Notifications via outer-PTY passthrough
+
+Zellij filters most OSC escapes (parses them for its virtual screen and drops anything it doesn't recognize). That means OSC 9 / OSC 777 emitted from inside a pane never reach an outer wrapper that watches the PTY stream — e.g. cmux, which uses these escapes to surface "agent needs attention" badges. BEL is forwarded (so terminal-emulator bells work fine) but cmux watches OSC, not BEL.
+
+Pair works around this in two layers:
+
+1. **Outer-TTY capture.** On every attach, `bin/pair` records its controlling TTY (the outer PTY's path) into `${XDG_DATA_HOME:-~/.local/share}/pair/outer-tty-<tag>`. Anything that wants to talk to the outer terminal directly reads this file.
+2. **Transparent agent wrapper.** The agent runs under `pair-wrap`, a small PTY proxy that watches the agent's output stream. When the agent emits a terminal bell (BEL) or an OSC 9 / OSC 777 escape, `pair-wrap` writes an OSC 9 to the recorded outer-TTY path — bypassing zellij. No agent-side configuration required: any agent that bells on idle (claude with `bell` enabled, etc.) lights up the outer wrapper automatically.
+
+If you want richer signals (semantic events like `Notification` vs `Stop`, custom messages), use the bundled `pair-notify` helper from a Claude Code hook. Sample `~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "Notification": [{
+      "hooks": [{ "type": "command", "command": "pair-notify 'Claude needs input'" }]
+    }],
+    "Stop": [{
+      "hooks": [{ "type": "command", "command": "pair-notify 'Claude is done'" }]
+    }]
+  }
+}
+```
+
+Use `pair-notify --osc 777 "msg"` for the urxvt-style variant. Outside a pair session both `pair-wrap` and `pair-notify` are graceful: the wrapper just acts as a transparent proxy, and the helper exits cleanly with a stderr warning. Safe to leave configured globally.
+
 ## Files
 
 ```
 bin/pair                     # launcher
 bin/clipboard-to-pane.sh     # reflow + > -prefix + write into nvim pane
 bin/copy-on-select.sh        # zellij copy_command — wraps clipboard-to-pane on mouse-up
+bin/pair-notify              # emit OSC 9/777 to the outer terminal, bypassing zellij
+bin/pair-wrap                # transparent PTY proxy — translates agent BEL/OSC to outer terminal
 bin/pair-quit.sh             # Alt+x — marks session for cleanup, kills it
 nvim/init.lua                # bundled nvim config (loaded via `nvim -u`)
 zellij/config.kdl            # mouse_click_through, copy_command, keybinds (Alt+u/d/i/x)
@@ -113,6 +141,8 @@ Drafts and prompt history live under `${XDG_DATA_HOME:-~/.local/share}/pair/`, k
 - `log-<tag>.md` — appended on every send with timestamp; your grep-able prompt history
 
 Quit-marker file (used internally by Alt+x): `~/.cache/pair/quit-<session>` — touched by `pair-quit.sh`, removed by `bin/pair` when it cleans up the session.
+
+Outer-TTY file (used internally by `pair-notify`): `${XDG_DATA_HOME:-~/.local/share}/pair/outer-tty-<tag>` — written by `bin/pair` on every attach with the path of pair's controlling TTY before zellij takes over.
 
 ## Design notes
 

@@ -9,12 +9,17 @@
 //
 // We wrap the commands in `sh -c` so the shell does the env interpolation.
 // zellij itself does not expand env vars in `command`/`args` fields.
+//
+// The agent runs under pair-wrap, a transparent PTY proxy that translates
+// the agent's BEL/OSC notifications into an OSC 9 written directly to pair's
+// outer TTY, so outer wrappers (e.g. cmux) see attention markers despite
+// zellij's escape filtering. #000011
 
 layout {
     pane split_direction="horizontal" {
         pane name="agent" {
             command "sh"
-            args "-c" "exec ${PAIR_AGENT:-claude} ${PAIR_AGENT_ARGS:-}"
+            args "-c" "exec pair-wrap ${PAIR_AGENT:-claude} ${PAIR_AGENT_ARGS:-}"
         }
         pane size=10 name="Alt: ⏎=send  u=max  i=img  d=detach  x=quit" focus=true {
             command "sh"

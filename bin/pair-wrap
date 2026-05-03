@@ -1,0 +1,236 @@
+#!/usr/bin/env python3
+"""pair-wrap — transparent PTY proxy around a TUI coding agent.
+
+Spawns the agent in a fresh pseudo-terminal so the wrapper sees the agent's
+raw output stream. When the agent emits a terminal bell (BEL, 0x07) or an
+OSC 9 / OSC 777 notification escape, the wrapper writes an OSC 9 sequence
+directly to pair's recorded outer-TTY path — bypassing zellij, which would
+otherwise eat the OSC on the way out. Use case: outer wrappers like cmux
+that watch the host PTY stream for attention markers.
+
+Failure mode: if anything in the detection/emission path errors, the wrapper
+swallows the exception and keeps proxying. Never block the agent on a notify.
+
+Filed as #000011.
+"""
+
+import errno
+import fcntl
+import os
+import pty
+import re
+import select
+import signal
+import sys
+import termios
+import time
+import tty
+
+
+RATE_LIMIT_S = 0.5  # collapse bursts (e.g. multiple BELs) into one notification
+OUTER_TTY_FILE = None
+LAST_EMIT = 0.0
+DEBUG_LOG = os.environ.get("PAIR_WRAP_LOG")  # opt-in path; if set, log detections
+
+
+def debug(label, context):
+    """Append a one-line forensic record. Safe to call when DEBUG_LOG unset."""
+    if not DEBUG_LOG:
+        return
+    try:
+        ts = time.strftime("%H:%M:%S")
+        # repr() gives a printable form with \x.. escapes for control bytes
+        snippet = repr(context)[:240]
+        with open(DEBUG_LOG, "a") as f:
+            f.write(f"[{ts}] {label}: {snippet}\n")
+    except OSError:
+        pass
+
+
+def resolve_outer_tty_file():
+    tag = os.environ.get("PAIR_TAG")
+    if not tag:
+        return None
+    data_dir = os.environ.get("PAIR_DATA_DIR")
+    if not data_dir:
+        xdg = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
+        data_dir = os.path.join(xdg, "pair")
+    return os.path.join(data_dir, f"outer-tty-{tag}")
+
+
+def emit_outer(msg="agent attention"):
+    """Write OSC 9 to the recorded outer TTY. No-op on any error."""
+    global LAST_EMIT
+    now = time.monotonic()
+    if now - LAST_EMIT < RATE_LIMIT_S:
+        debug("EMIT-skip", f"rate-limited ({now - LAST_EMIT:.2f}s since last)")
+        return
+    if not OUTER_TTY_FILE:
+        debug("EMIT-skip", "no outer-tty file resolved")
+        return
+    try:
+        with open(OUTER_TTY_FILE) as f:
+            path = f.readline().strip()
+        if not path:
+            debug("EMIT-skip", "outer-tty file empty")
+            return
+        fd = os.open(path, os.O_WRONLY | os.O_NONBLOCK)
+        try:
+            os.write(fd, f"\x1b]9;{msg}\x07".encode())
+            LAST_EMIT = now
+            debug("EMIT", f"wrote OSC 9 to {path}")
+        finally:
+            os.close(fd)
+    except OSError as e:
+        debug("EMIT-fail", f"{path!r}: {e}")
+
+
+def set_winsize(master_fd):
+    try:
+        sz = fcntl.ioctl(0, termios.TIOCGWINSZ, b"\0" * 8)
+        fcntl.ioctl(master_fd, termios.TIOCSWINSZ, sz)
+    except OSError:
+        pass
+
+
+# Match ANY OSC sequence: ESC ] <Ps> ; <body> (BEL | ESC \). We parse all of
+# them so claude's frequent title updates (OSC 0/1/2) don't have their BEL
+# terminator misread as a "lone bell" by the fallback below. From the parsed
+# matches we then filter to ones that mean "agent wants attention" — see
+# is_actionable_osc(). Detection runs over a small rolling buffer to catch
+# sequences that span read boundaries.
+OSC_RE = re.compile(rb"\x1b\](\d+);([^\x07\x1b]*)(?:\x07|\x1b\\)")
+
+
+def is_actionable_osc(ps: bytes, body: bytes) -> bool:
+    """Decide whether an OSC <ps>;<body> is a notification we should forward.
+
+    Skip:
+      - OSC 0/1/2: window/icon title sets (claude updates every second with a
+        spinner — would spam the outer wrapper).
+      - OSC 9;4;...: iTerm progress codes (state 0/3 fire on every tool call).
+      - OSC 1337;...: iTerm proprietary extensions (file transfer, etc.).
+    Forward:
+      - OSC 777;...: standard urxvt-style notification.
+      - OSC 9;<text>: iTerm-style notification with text body.
+    """
+    if ps == b"777":
+        return True
+    if ps == b"9" and not body.startswith(b"4;"):
+        return True
+    return False
+
+
+def main():
+    global OUTER_TTY_FILE
+    OUTER_TTY_FILE = resolve_outer_tty_file()
+
+    if len(sys.argv) < 2:
+        print("usage: pair-wrap <command> [args...]", file=sys.stderr)
+        return 2
+
+    pid, master = pty.fork()
+    if pid == 0:
+        try:
+            os.execvp(sys.argv[1], sys.argv[1:])
+        except OSError as e:
+            sys.stderr.write(f"pair-wrap: cannot exec {sys.argv[1]}: {e}\n")
+            os._exit(127)
+
+    set_winsize(master)
+    signal.signal(signal.SIGWINCH, lambda *_: set_winsize(master))
+
+    # Switch our stdin into raw mode for the duration. Without this, the
+    # kernel's terminal driver does line discipline on the bytes flowing
+    # in (canonical mode + echo + signal interpretation), which double-
+    # echoes keystrokes and corrupts terminal escape responses bound for
+    # the wrapped child. The child's own slave PTY has its own (raw) mode
+    # set by the wrapped TUI; this only affects OUR view of stdin.
+    saved_termios = None
+    try:
+        saved_termios = termios.tcgetattr(0)
+        tty.setraw(0)
+    except (termios.error, OSError):
+        pass
+
+    rolling = b""
+    fds = [0, master]  # drop fd 0 from the watch list once stdin EOFs
+
+    try:
+        while master in fds:
+            try:
+                r, _, _ = select.select(fds, [], [])
+            except OSError as e:
+                if e.errno == errno.EINTR:
+                    continue
+                break
+
+            if 0 in r:
+                try:
+                    data = os.read(0, 4096)
+                except OSError:
+                    data = b""
+                if not data:
+                    # stdin EOF (e.g. non-interactive parent). Stop watching
+                    # stdin but keep draining the child's output until it
+                    # exits.
+                    fds = [master]
+                else:
+                    try:
+                        os.write(master, data)
+                    except OSError:
+                        fds = [master]
+
+            if master in r:
+                try:
+                    data = os.read(master, 4096)
+                except OSError:
+                    data = b""
+                if not data:
+                    break
+                try:
+                    os.write(1, data)
+                except OSError:
+                    pass
+                try:
+                    rolling = (rolling + data)[-512:]
+                    matches = list(OSC_RE.finditer(rolling))
+                    if matches:
+                        # Drop everything up to the end of the last matched
+                        # OSC so we don't re-process it on the next read.
+                        rolling = rolling[matches[-1].end():]
+                        actioned = False
+                        for m in matches:
+                            ps, body = m.group(1), m.group(2)
+                            if is_actionable_osc(ps, body):
+                                debug(f"OSC{ps.decode()}",
+                                      body[:80] + (b"..." if len(body) > 80 else b""))
+                                if not actioned:
+                                    emit_outer()
+                                    actioned = True
+                            else:
+                                debug(f"OSC{ps.decode()}-skip", body[:80])
+                    elif b"\x07" in data:
+                        idx = data.index(b"\x07")
+                        debug("BEL", data[max(0, idx - 16):idx + 16])
+                        emit_outer()
+                except Exception as e:
+                    debug("DETECT-fail", str(e))  # never block the proxy
+    finally:
+        if saved_termios is not None:
+            try:
+                termios.tcsetattr(0, termios.TCSAFLUSH, saved_termios)
+            except (termios.error, OSError):
+                pass
+
+    try:
+        _, status = os.waitpid(pid, 0)
+    except OSError:
+        return 1
+    if os.WIFEXITED(status):
+        return os.WEXITSTATUS(status)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
