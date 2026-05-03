@@ -1,6 +1,6 @@
 ---
 id: 000002
-status: working
+status: done
 deps: [000001]
 created: 2026-05-02
 updated: 2026-05-02
@@ -48,9 +48,9 @@ Session name [pair-claude-5]: <user input or Enter>
 - [x] Update `chosen_tag` from the prompt response, so SESSION / PAIR_TAG / DRAFT all derive correctly.
 - [x] Read from `/dev/tty` so the prompt works even if stdin is redirected.
 - [x] Verify with `bash -n`.
-- [ ] Manual test: run `pair claude` from a fresh state, verify prompt shows, accept default works, custom name works.
+- [x] Manual test: run `pair claude` from a fresh state, verify prompt shows, accept default works, custom name works.
 - [x] Update atlas/architecture.md to note the naming behavior.
-- [ ] Mark done after user smoke-tests.
+- [x] Mark done after user smoke-tests.
 
 ## Log
 
@@ -61,3 +61,5 @@ Created. Spec evolved in conversation: original idea was `pair -n "name"` flag; 
 Implemented in `bin/pair`. Restructured the create vs. attach branches so the prompt only fires on create. The PAIR_TAG export was moved per-branch (was previously hoisted above the if-attach, which would have made the prompt's tag-rewrite ineffective). All non-interactive checks pass (`bash -n`). Atlas architecture doc updated to note the family-walk + naming + picker behaviors.
 
 Status `working` until user does the manual smoke test (interactive `read` can't be exercised by automated checks).
+
+User confirmed it works in real use, including a `pair-blogging` session created via the prompt. Closed.
