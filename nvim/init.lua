@@ -613,27 +613,39 @@ end
 -- dirty -N slot. Returns true if the caller should proceed with the original
 -- navigation (i.e. user picked Discard), false otherwise (Send/Queue performed
 -- the action and moved us to *; or Stay cancelled the nav).
+--
+-- Single-key prompt format:  (S)end, (Q)ueue, (D)iscard, [S]tay:
+--   () marks the access key, [] marks the default. Send/Stay both start with
+--   "S"; we resolve by binding S → Send (the user-typeable choice) and
+--   Enter/ESC/anything-else → Stay (the safe default, including covering
+--   accidental key presses).
 local function leave_dirty_history()
   local body = buffer_text()
-  local choice = vim.fn.confirm(
-    'Edit on -' .. nav.pos.n .. ' is unsaved. Choose:',
-    '&Send\n&Queue (+1)\n&Discard\n&Stay',
-    4, 'Question')
+  vim.api.nvim_echo({
+    { '(S)end, (Q)ueue, (D)iscard, [S]tay: ', 'Question' },
+  }, false, {})
+  local ok, c = pcall(vim.fn.getchar)
+  -- Clear the prompt line so it doesn't linger under cmdheight=0.
+  pcall(vim.api.nvim_echo, { { '' } }, false, {})
+  if not ok then return false end
 
-  if choice == 1 then           -- Send
+  local key = (type(c) == 'number') and vim.fn.nr2char(c) or tostring(c or '')
+  key = key:lower()
+
+  if key == 's' then
     ship_buffer_and_reset(body)
     return false
-  elseif choice == 2 then       -- Queue (push to +1)
+  elseif key == 'q' then
     queue_push_front(body)
     set_buffer_text(read_file(draft_path_for_tag()))
     nav.pos = '*'
     nav.baseline = buffer_text()
     refresh_statusline()
     return false
-  elseif choice == 3 then       -- Discard
+  elseif key == 'd' then
     return true
-  else                          -- Stay (default; covers 0 = ESC and 4)
-    return false
+  else
+    return false                       -- Stay (Enter, ESC, anything else)
   end
 end
 
