@@ -306,3 +306,15 @@ vim.api.nvim_create_autocmd({ 'BufLeave', 'FocusLost', 'InsertLeave' }, {
   pattern = '*',
   callback = function() pcall(vim.cmd, 'silent! write') end,
 })
+
+-- ---------------------------------------------------------------------------
+-- start at end of buffer in insert mode — drafting is the default activity,
+-- so don't make the user press `i` after every fresh launch.
+-- ---------------------------------------------------------------------------
+
+vim.api.nvim_create_autocmd('VimEnter', {
+  callback = function()
+    vim.cmd('normal! G')
+    vim.cmd('startinsert!')
+  end,
+})

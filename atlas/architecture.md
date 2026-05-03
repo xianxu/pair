@@ -90,7 +90,9 @@ Pane detection: parse `list-panes --json --command`, find the focused pane, chec
 
 ### `bin/pair-quit.sh` — Alt+x handler
 
-Touches the marker file `~/.cache/pair/quit-$ZELLIJ_SESSION_NAME`, then `exec zellij kill-session $ZELLIJ_SESSION_NAME`. The kill terminates the session including the script itself; on the launcher side, `bin/pair` resumes, sees the marker, and runs `delete-session --force` to clean up the resurrect entry.
+Touches the marker file `~/.cache/pair/quit-$ZELLIJ_SESSION_NAME`, truncates the per-tag draft file (`$PAIR_DATA_DIR/draft-<tag>.md`) so the next session starts on a blank buffer, then `exec zellij kill-session $ZELLIJ_SESSION_NAME`. The kill terminates the session including the script itself; on the launcher side, `bin/pair` resumes, sees the marker, and runs `delete-session --force` to clean up the resurrect entry.
+
+The draft is truncated rather than removed so its persistent-undo entry under `~/.local/share/pair/undo/` (keyed by file path) stays addressable — if you full-quit by accident you can still re-launch and `u` your way back to recent state.
 
 ### Outer-TTY capture and notification routing — `bin/pair-wrap`, `bin/pair-notify`
 
