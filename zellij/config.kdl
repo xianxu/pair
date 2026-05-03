@@ -1,6 +1,15 @@
 // pair zellij config — adds two custom binds on top of zellij's defaults.
 // Loaded via `zellij --config-dir <pair>/zellij`.
 
+// pair uses zellij like a library — keep its own UI quiet.
+// - Disable hover help-text tooltips on pane frames.
+// - Disable advanced mouse actions (pane grouping, etc.) to keep mouse
+//   behavior predictable for selection and our copy_command flow.
+// - Suppress "what's new" release-notes popup on version bumps.
+mouse_hover_effects false
+advanced_mouse_actions false
+show_release_notes false
+
 // When clicking an unfocused pane, send the click into the pane (so a
 // click-and-drag starts selecting text in one motion) rather than only
 // changing focus and swallowing the click.
