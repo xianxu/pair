@@ -930,15 +930,20 @@ vim.api.nvim_create_autocmd({ 'TextChangedI', 'TextChangedP' }, {
 })
 
 -- "Ghost cursor" while the nvim pane is unfocused. zellij hides the real
--- terminal cursor when the pane loses focus, which makes the insertion
--- point invisible — easy to lose track of when you click into the agent
--- pane to scroll, then look back. We drop an extmark at the current
--- cursor position on FocusLost and remove it on FocusGained.
---
--- The mark uses the `Cursor` highlight (inverse video on most colorschemes).
--- At end-of-line / on empty lines there's no char to highlight, so we add
--- a single-space `virt_text` overlay so the marker still shows.
+-- terminal cursor on FocusLost, leaving the insertion point invisible.
+-- We mark the position with a subtle **underline** — visually distinct
+-- from zellij's own "unfocused pane" outlined block (which looks like a
+-- normal-mode cursor and would be confusing). At end-of-line / on empty
+-- lines we use a virt_text underscore so the marker still shows.
 local pair_focus_ns = vim.api.nvim_create_namespace('pair_focus_cursor')
+
+local function pair_apply_focus_cursor_hl()
+  -- underline only — no bg/fg flip, so it reads as "insertion-point hint"
+  -- rather than a block cursor. Reapplied on ColorScheme since :hi clear
+  -- (which colorschemes implicitly run) blows highlights away.
+  vim.api.nvim_set_hl(0, 'PairFocusCursor', { underline = true })
+end
+pair_apply_focus_cursor_hl()
 
 local function pair_show_focus_cursor()
   local row1, col = unpack(vim.api.nvim_win_get_cursor(0))
@@ -948,12 +953,12 @@ local function pair_show_focus_cursor()
   if col < #line then
     pcall(vim.api.nvim_buf_set_extmark, 0, pair_focus_ns, row, col, {
       end_col   = col + 1,
-      hl_group  = 'Cursor',
+      hl_group  = 'PairFocusCursor',
       priority  = 200,
     })
   else
     pcall(vim.api.nvim_buf_set_extmark, 0, pair_focus_ns, row, col, {
-      virt_text     = { { ' ', 'Cursor' } },
+      virt_text     = { { '_', 'PairFocusCursor' } },
       virt_text_pos = 'overlay',
       priority      = 200,
     })
@@ -966,3 +971,4 @@ end
 
 vim.api.nvim_create_autocmd('FocusLost',   { group = pair_aug, callback = pair_show_focus_cursor })
 vim.api.nvim_create_autocmd('FocusGained', { group = pair_aug, callback = pair_hide_focus_cursor })
+vim.api.nvim_create_autocmd('ColorScheme', { group = pair_aug, callback = pair_apply_focus_cursor_hl })
