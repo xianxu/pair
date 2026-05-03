@@ -19,7 +19,9 @@ Full nvim support, for example:
 
 1. mouse support
 2. search in the input box
-3. typeahead and search local file path, just type `./` and then continue.
+3. typeahead and search local file path, just type `./` and then continue. 
+
+And in the worst case you go back to coding agent's CLI input box...
 
 ## Keybindings
 
