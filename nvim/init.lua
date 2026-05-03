@@ -590,10 +590,13 @@ local function is_dirty_history_slot()
 end
 
 -- Statusline format:
---   " Alt: <- history H < pos[*][ (⌫=del)] > Q queued -> "
+--   " Alt: <- history H < pos[*][ HINT] > Q queued -> "
 -- The flanking arrows hint Alt+← / Alt+→. The trailing "*" on `pos` shows
--- when on -N with an unsent fork. " (⌫=del)" is a contextual hint inside
--- the brackets, only when on +N — the only slot where Alt+BS does anything.
+-- when on -N with an unsent fork. The HINT inside the brackets is contextual:
+--   * or -N : " [q=queue]" — Alt+q parks the current buffer as +1.
+--   +N      : " (⌫=del)"  — Alt+BS deletes the current queue item.
+-- Suppressed on +N for [q=queue] because Alt+q from +N is "move-to-front",
+-- a different mental action that doesn't grow the queue.
 function _G.PairStatusline()
   local h = #read_history()
   local q = queue_count()
@@ -601,6 +604,8 @@ function _G.PairStatusline()
   if is_dirty_history_slot() then label = label .. '*' end
   if type(nav.pos) == 'table' and nav.pos.kind == 'queue' then
     label = label .. ' (⌫=del)'
+  else
+    label = label .. ' [q=queue]'
   end
   return string.format(' Alt: <- history %d < %s > %d queued -> ', h, label, q)
 end
