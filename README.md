@@ -49,8 +49,12 @@ Automatically installed with `homebrew`.
 **Homebrew (recommended).** 
 
 ```sh
+# install
 brew tap xianxu/pair
 brew install pair
+
+# upgrade
+brew update; brew upgrade pair
 ```
 
 That installs `zellij`, `neovim`, `fzf`, `jq`, and `par` if they aren't already present. The agent (`claude`, `codex`, `gemini`) you install separately. Then:
