@@ -32,6 +32,16 @@ OUTER_TTY_FILE = None
 LAST_EMIT = 0.0
 DEBUG_LOG = os.environ.get("PAIR_WRAP_LOG")  # opt-in path; if set, log detections
 
+# Bare-BEL fallback: off by default. The fallback was intended to catch
+# unfamiliar agents that signal attention via lone BEL, but in practice
+# it fires on the trailing \x07 of OSC sequences (notably OSC 8 hyperlinks
+# and OSC 0 title sets) whose openers got trimmed out of the rolling buffer
+# after a prior match — producing an order-of-magnitude more noise than
+# real signal. Modern TUI agents use OSC 9 / OSC 777 explicitly. Set
+# PAIR_WRAP_BELL_FALLBACK=1 to re-enable for the discovery workflow.
+# See workshop/issues/000014.
+BELL_FALLBACK = os.environ.get("PAIR_WRAP_BELL_FALLBACK") not in (None, "", "0")
+
 
 def debug(label, context):
     """Append a one-line forensic record. Safe to call when DEBUG_LOG unset."""
@@ -212,8 +222,15 @@ def main():
                                 debug(f"OSC{ps.decode()}-skip", body[:80])
                     elif b"\x07" in data:
                         idx = data.index(b"\x07")
-                        debug("BEL", data[max(0, idx - 16):idx + 16])
-                        emit_outer()
+                        snippet = data[max(0, idx - 16):idx + 16]
+                        if BELL_FALLBACK:
+                            debug("BEL", snippet)
+                            emit_outer()
+                        else:
+                            # Detection still logged so PAIR_WRAP_LOG remains a
+                            # complete forensic record — useful for spotting an
+                            # agent that genuinely uses bare BEL.
+                            debug("BEL-skip", snippet)
                 except Exception as e:
                     debug("DETECT-fail", str(e))  # never block the proxy
     finally:
