@@ -108,9 +108,13 @@ BASE_TAG="$PAIR_TAG"
 # (and BASE_TAG) is only used for the create path's defaults; the picker
 # itself shows everything you might want to reattach to, including custom-
 # named sessions like pair-blogging that don't follow any agent prefix.
-all_pair=$(zellij list-sessions --short 2>/dev/null \
-           | grep '^pair-' \
-           | sort)
+# `zellij list-sessions` exits 1 when there are no sessions, and with
+# `set -euo pipefail` that would silently kill the whole script. Wrap the
+# zellij call in `|| true` and use awk (returns 0 even on no matches)
+# instead of grep (returns 1 on no matches).
+all_pair=$( { zellij list-sessions --short 2>/dev/null || true; } \
+            | awk '/^pair-/' \
+            | sort )
 
 detached_list=()
 while IFS= read -r sess; do

@@ -179,7 +179,7 @@ local function paste_and_reflow()
   local clip = vim.fn.getreg('+')
   if clip == '' then return end
   if vim.fn.executable('par') == 1 then
-    clip = vim.fn.system({ 'par', '-w99999' }, clip)
+    clip = vim.fn.system({ 'par', '1000' }, clip)
   end
   -- strip trailing newline from system output
   clip = clip:gsub('\n$', '')

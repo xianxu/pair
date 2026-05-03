@@ -1,6 +1,11 @@
 // pair zellij config — adds two custom binds on top of zellij's defaults.
 // Loaded via `zellij --config-dir <pair>/zellij`.
 
+// When clicking an unfocused pane, send the click into the pane (so a
+// click-and-drag starts selecting text in one motion) rather than only
+// changing focus and swallowing the click.
+mouse_click_through true
+
 keybinds clear-defaults=false {
     // Release Alt+i so nvim sees it (zellij's default binds Alt+i to MoveTab
     // "Left"; we want Alt+i to mean "attach image" inside the nvim draft).
