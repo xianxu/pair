@@ -1,6 +1,6 @@
 ---
 id: 000013
-status: working
+status: done
 deps: []
 created: 2026-05-03
 updated: 2026-05-03
@@ -49,7 +49,7 @@ Limitations (acceptable):
 - [x] Add `path_complete()`: split token on last `/` into dir + filter, call `getcompletion(dir, 'file')`, pass through `matchfuzzy(entries, filter)` if filter non-empty, hand results to `vim.fn.complete()`.
 - [x] Wire `path_complete` to `TextChangedI` and `TextChangedP` (both — popup-visible and not).
 - [x] Add expr keymaps in insert mode: `<Tab>` → `<C-n>` if pum visible else `<Tab>`; `<S-Tab>` → `<C-p>` else `<S-Tab>`; `<CR>` → `<C-y>` if pum has a selected item else `<CR>`.
-- [ ] Manual verification:
+- [x] Manual verification:
   - `./` pops menu of cwd entries.
   - `./md` (after fresh `./`) fuzzy-filters to `AGENTS.md`, `README.md` etc.
   - `~/` pops home dir.

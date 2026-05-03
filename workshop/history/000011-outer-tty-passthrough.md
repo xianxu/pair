@@ -1,6 +1,6 @@
 ---
 id: 000011
-status: working
+status: done
 deps: []
 created: 2026-05-03
 updated: 2026-05-03
@@ -33,7 +33,7 @@ Two-layer solution:
 - [x] README: subsection covering both layers + sample claude hook config.
 - [x] `atlas/architecture.md`: combined section on capture + both consumers.
 - [x] Smoke test (out of pair): `pair-wrap echo` forwards output, exit codes propagate (0, 7, 127 for missing binary), BEL in wrapped output → OSC 9 written to fake outer-tty file.
-- [ ] **End-to-end verification (user-driven):** detach current pair session, reattach via fresh `pair`, run normal claude tasks inside cmux, confirm cmux tab badges when claude waits for input. Open question: does claude emit BEL by default, or only with `bell` setting enabled?
+- [x] **End-to-end verification (user-driven):** detach current pair session, reattach via fresh `pair`, run normal claude tasks inside cmux, confirm cmux tab badges when claude waits for input. Verified.
 
 ## Log
 

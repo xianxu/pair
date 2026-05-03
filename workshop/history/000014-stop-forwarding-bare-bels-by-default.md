@@ -1,6 +1,6 @@
 ---
 id: 000014
-status: working
+status: done
 deps: []
 created: 2026-05-03
 updated: 2026-05-03
@@ -66,10 +66,10 @@ If some agent in the wild really does signal attention via bare BEL, this change
 - [x] Gate the bare-BEL `emit_outer()` call behind `BELL_FALLBACK`. Log `BEL:` when forwarding, `BEL-skip:` when not.
 - [x] Update `atlas/architecture.md` § `bin/pair-wrap`: explain the default-off bare-BEL behavior, point at `PAIR_WRAP_BELL_FALLBACK` for the discovery workflow, link the rationale (data from this issue).
 - [x] Synthetic smoke test (`/tmp/claude/wrap_smoke.py`): drives a child agent that emits an OSC 0 title (matches and trims rolling), then a bare `\x07` alone in a separate read (the orphaned-BEL scenario), then OSC 777. Confirmed default produces `BEL-skip` with no EMIT, `PAIR_WRAP_BELL_FALLBACK=1` produces `BEL:` with EMIT, OSC 777 always forwards.
-- [ ] Manual verification in a real pair session:
+- [x] Manual verification in a real pair session:
   - Replay the symptom: a Claude Code session with hyperlink-heavy output (TODO updates, file mentions). Confirm zero BEL emits, but `BEL-skip:` lines still appear in the log.
   - Idle Claude for ~60s; confirm `OSC 777` still forwards as `OSC777:` + `EMIT:`.
-- [ ] Truncate `~/pair-wrap.log` after verification so it doesn't carry pre-fix noise into future debugging sessions.
+- [x] Truncate `~/pair-wrap.log` after verification so it doesn't carry pre-fix noise into future debugging sessions.
 
 ## Log
 

@@ -1,6 +1,6 @@
 ---
 id: 000003
-status: working
+status: done
 deps: [000001, 000002, 000004]
 created: 2026-05-02
 updated: 2026-05-02
@@ -49,8 +49,8 @@ Story arc the user requested:
 - [x] Read style guide.
 - [x] Survey existing posts on xianxu.dev for tone/format.
 - [x] Draft post under `xianxu.dev/src/data/post/saturday-pair.md`.
-- [ ] User review + edits.
-- [ ] Ship (commit and push to xianxu.dev).
+- [x] User review + edits.
+- [x] Ship (commit and push to xianxu.dev).
 
 ## Log
 
