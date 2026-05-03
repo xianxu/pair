@@ -9,8 +9,16 @@ vim.opt.number = false
 vim.opt.relativenumber = false
 vim.opt.signcolumn = 'no'
 -- laststatus=2 + a custom statusline are set later (after nav helpers); they
--- back the position indicator H < pos > Q for the prompt history/queue feature.
+-- back the position indicator `History H < pos > Q Queued` for the prompt
+-- history/queue feature.
 vim.opt.cmdheight = 0    -- no permanent command line; appears on demand only
+
+-- Suppress the "written" / file-info messages on :w. Without this, every
+-- autosave or send-and-clear write briefly pops the cmdline up under
+-- `cmdheight=0` and that interaction blanks the custom statusline until the
+-- next redraw. With "W" + "F" the messages never fire, so the statusline
+-- stays put.
+vim.opt.shortmess:append('WF')
 vim.opt.showmode = false -- nvim's default `-- INSERT --` line; redundant with cmdheight=0
 vim.opt.ruler = false
 vim.opt.wrap = true
@@ -575,14 +583,17 @@ local function is_dirty_history_slot()
      and buffer_text() ~= nav.baseline
 end
 
--- Statusline format: " H < pos[*] > Q ". The trailing "*" appears only on -N
--- when the buffer differs from the loaded baseline.
+-- Statusline format:
+--   " Alt: <- history H < pos[*] > Q queued -> "
+-- The flanking arrows hint that Alt+← walks toward history and Alt+→ walks
+-- toward the queue. The trailing "*" on `pos` appears only when on -N with
+-- an unsent fork.
 function _G.PairStatusline()
   local h = #read_history()
   local q = queue_count()
   local label = pos_label(nav.pos)
   if is_dirty_history_slot() then label = label .. '*' end
-  return string.format(' %d < %s > %d ', h, label, q)
+  return string.format(' Alt: <- history %d < %s > %d queued -> ', h, label, q)
 end
 
 -- Persist any pending edit on a mutable slot to its underlying file. No-op
@@ -723,7 +734,8 @@ local function queue_current()
   queue_push_front(body)
 
   if nav.pos == '*' then
-    -- Park-the-draft: * is now empty. Clear buffer and persist via :w.
+    -- Park-the-draft: * is now empty. Persist via :w; shortmess+=W keeps
+    -- the cmdline silent so the statusline doesn't get pushed off.
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { '' })
     vim.cmd('silent! write')
   else
@@ -739,6 +751,17 @@ end
 
 vim.opt.laststatus = 2
 vim.opt.statusline = '%!v:lua.PairStatusline()'
+
+-- Soften the statusline appearance. nvim's default StatusLine highlight is
+-- inverted/bold (looks like a stark contrasting bar), which feels out of
+-- place against the editing buffer. Linking it to `Comment` picks up the
+-- colorscheme's dimmed-text style — visible as "secondary info" without
+-- being visually loud. ColorScheme autocmd reapplies on theme changes.
+local function pair_apply_statusline_hl()
+  vim.api.nvim_set_hl(0, 'StatusLine',   { link = 'Comment' })
+  vim.api.nvim_set_hl(0, 'StatusLineNC', { link = 'Comment' })
+end
+pair_apply_statusline_hl()
 
 -- ---------------------------------------------------------------------------
 -- keymaps
@@ -785,6 +808,13 @@ vim.api.nvim_create_autocmd({ 'BufLeave', 'FocusLost', 'InsertLeave' }, {
   group = pair_aug,
   pattern = '*',
   callback = function() autosave_current_slot() end,
+})
+
+-- Re-apply the soft statusline highlight on colorscheme changes (each
+-- :colorscheme implicitly runs :hi clear, blowing away our link).
+vim.api.nvim_create_autocmd('ColorScheme', {
+  group = pair_aug,
+  callback = pair_apply_statusline_hl,
 })
 
 -- start at end of buffer in insert mode — drafting is the default activity,
