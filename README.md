@@ -27,7 +27,12 @@ Works on Mac, probably on Linux as well, as it's just bash.
 ## Mouse
 
 - **Click-and-drag in any pane** → starts selecting immediately. 
-- **Release mouse to finish the selection** → the selection is inserted as quotes into `nvim` with format `> and selected text`.
+- **Release mouse to finish the selection** → the selection is inserted as quotes into `nvim`: 
+
+1. If cursor is at beginning of line, insert with format `> and selected text`.
+2. Otherwise, just insert selected text. 
+
+Visual feedback is provided on inserted text.
 
 ## Dependencies
 
