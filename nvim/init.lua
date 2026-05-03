@@ -594,7 +594,7 @@ end
 -- The flanking arrows hint Alt+← / Alt+→. The trailing "*" on `pos` shows
 -- when on -N with an unsent fork. The HINT inside the brackets is contextual:
 --   * or -N : " [q=queue]" — Alt+q parks the current buffer as +1.
---   +N      : " (⌫=del)"  — Alt+BS deletes the current queue item.
+--   +N      : " [⌫=del]"   — Alt+BS deletes the current queue item.
 -- Suppressed on +N for [q=queue] because Alt+q from +N is "move-to-front",
 -- a different mental action that doesn't grow the queue.
 function _G.PairStatusline()
@@ -603,7 +603,7 @@ function _G.PairStatusline()
   local label = pos_label(nav.pos)
   if is_dirty_history_slot() then label = label .. '*' end
   if type(nav.pos) == 'table' and nav.pos.kind == 'queue' then
-    label = label .. ' (⌫=del)'
+    label = label .. ' [⌫=del]'
   else
     label = label .. ' [q=queue]'
   end

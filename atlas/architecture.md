@@ -182,7 +182,7 @@ The status line shows position state:
 - `H` / `Q` = total counts of history / queue entries.
 - `pos` = `*` | `-N` | `+N`.
 - Trailing `*` on `-N` means the buffer differs from the loaded baseline (a pending fork awaiting `Send` / `Queue` / `Discard`).
-- ` (⌫=del)` appears inside the brackets only on `+N` — a contextual hint that `<M-BS>` deletes the current queue item.
+- A contextual `[key=action]` hint appears inside the brackets — `[q=queue]` on `*`/`-N` (Alt+q parks/forks to queue front), `[⌫=del]` on `+N` (Alt+BS deletes the item). Bracket convention: TUI status-bar "key badge" idiom (`[Esc] cancel` etc.). Distinct from the prompt convention `( ) [ ]` for access-key-vs-default, which only applies to interactive dialogs.
 - The flanking `<-` / `->` text and the `Alt:` prefix make the navigation gesture self-documenting (Alt+← / Alt+→).
 - Highlight is linked to `Comment` rather than the default inverted `StatusLine` so the bar reads as muted secondary info; reapplied on `ColorScheme`.
 
