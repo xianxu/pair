@@ -62,13 +62,13 @@ If some agent in the wild really does signal attention via bare BEL, this change
 
 ## Plan
 
-- [ ] In `bin/pair-wrap`, add `BELL_FALLBACK = os.environ.get("PAIR_WRAP_BELL_FALLBACK") not in (None, "", "0")` near the top with the other env reads.
-- [ ] Gate the bare-BEL `emit_outer()` call behind `BELL_FALLBACK`. Log `BEL:` when forwarding, `BEL-skip:` when not.
-- [ ] Update `atlas/architecture.md` § `bin/pair-wrap`: explain the default-off bare-BEL behavior, point at `PAIR_WRAP_BELL_FALLBACK` for the discovery workflow, link the rationale (data from this issue).
-- [ ] Manual verification:
+- [x] In `bin/pair-wrap`, add `BELL_FALLBACK = os.environ.get("PAIR_WRAP_BELL_FALLBACK") not in (None, "", "0")` near the top with the other env reads.
+- [x] Gate the bare-BEL `emit_outer()` call behind `BELL_FALLBACK`. Log `BEL:` when forwarding, `BEL-skip:` when not.
+- [x] Update `atlas/architecture.md` § `bin/pair-wrap`: explain the default-off bare-BEL behavior, point at `PAIR_WRAP_BELL_FALLBACK` for the discovery workflow, link the rationale (data from this issue).
+- [x] Synthetic smoke test (`/tmp/claude/wrap_smoke.py`): drives a child agent that emits an OSC 0 title (matches and trims rolling), then a bare `\x07` alone in a separate read (the orphaned-BEL scenario), then OSC 777. Confirmed default produces `BEL-skip` with no EMIT, `PAIR_WRAP_BELL_FALLBACK=1` produces `BEL:` with EMIT, OSC 777 always forwards.
+- [ ] Manual verification in a real pair session:
   - Replay the symptom: a Claude Code session with hyperlink-heavy output (TODO updates, file mentions). Confirm zero BEL emits, but `BEL-skip:` lines still appear in the log.
   - Idle Claude for ~60s; confirm `OSC 777` still forwards as `OSC777:` + `EMIT:`.
-  - Set `PAIR_WRAP_BELL_FALLBACK=1`, repeat hyperlink-heavy actions; confirm BELs go through (current pre-fix behavior).
 - [ ] Truncate `~/pair-wrap.log` after verification so it doesn't carry pre-fix noise into future debugging sessions.
 
 ## Log
@@ -77,3 +77,4 @@ If some agent in the wild really does signal attention via bare BEL, this change
 
 - Filed from live data analysis of `~/pair-wrap.log` during the issue #13 work session: 76 EMITs, 8 legitimate (OSC 777), 68 spurious (BEL fallback firing on hyperlink/title tails).
 - Considered a per-agent rule table; deferred until we have a concrete second-agent divergence to motivate it. Today's `is_actionable_osc()` is sufficient and the noise is entirely in the BEL fallback.
+- Implementation: 14-line change to `bin/pair-wrap` (add `BELL_FALLBACK` env, branch on it in the bare-BEL elif, log `BEL-skip` instead of `BEL` when off). Synthetic test confirmed both branches behave as specified.
