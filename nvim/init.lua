@@ -153,7 +153,13 @@ end
 local nav = { pos = '*', baseline = '' }
 
 local function refresh_statusline()
-  pcall(vim.cmd, 'redrawstatus')
+  -- Defer to the next event-loop tick so the redraw fires *after* any side
+  -- effects from the calling action have settled — e.g. send_and_clear's
+  -- vim.fn.system shell-outs to zellij and the :w that follows. Without
+  -- this, the trailing redraw work from those operations can blank the
+  -- statusline immediately after our refresh, and it stays blank until
+  -- the next user action triggers another redraw.
+  vim.schedule(function() pcall(vim.cmd, 'redrawstatus') end)
 end
 
 -- ---------------------------------------------------------------------------
