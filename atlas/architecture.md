@@ -115,7 +115,28 @@ The draft is truncated rather than removed so its persistent-undo entry under `~
 
      Rate-limited to one emit per 0.5s. Empirically: claude emits `OSC 777;notify;Claude Code;Claude is waiting for your input` after ~60s of idle waiting — that's the actionable signal that gets through.
 
-     **Debug log.** `PAIR_WRAP_LOG=<path>` enables a per-detection forensic trail (timestamp, OSC/BEL match, emit/skip outcome). Off by default. Used to discover an unfamiliar agent's notification protocol — run e.g. `PAIR_WRAP_LOG=~/pair-wrap.log pair codex`, exercise the agent, then read the log to identify which OSC family it emits when it wants attention. Extend `is_actionable_osc()` if the family isn't yet recognized. README has a fuller workflow.
+     **Debug log.** `PAIR_WRAP_LOG=<path>` enables a per-detection forensic trail (timestamp, OSC/BEL match, emit/skip outcome). Off by default. Used to discover an unfamiliar agent's notification protocol the first time, then update `is_actionable_osc()` if the agent uses a family the current filter doesn't recognize.
+
+     ```sh
+     PAIR_WRAP_LOG=~/pair-wrap.log pair codex
+     # use the agent normally; let it idle, finish tasks, etc.
+     # detach with Alt+d when done
+     cat ~/pair-wrap.log
+     ```
+
+     Log lines:
+
+     | Line | Meaning |
+     |---|---|
+     | `OSC<N>: b'<body>'` | OSC `<N>` recognized as actionable; emit fired |
+     | `OSC<N>-skip: b'<body>'` | OSC `<N>` recognized but filtered (title set, progress, etc.) |
+     | `BEL: b'<context>'` | bare BEL fallback fired (no OSC framing seen) |
+     | `EMIT: 'wrote OSC 9 to <path>'` | successful write to outer TTY (cmux should have badged) |
+     | `EMIT-skip: 'rate-limited (...)'` | within 0.5s of last emit; collapsed |
+     | `EMIT-skip: 'no outer-tty file...'` | not running under pair, or `record_outer_tty` failed |
+     | `EMIT-fail: '<path>: ...'` | tried to write but the recorded path is gone or unwritable |
+
+     Reading strategy: look for `OSC` or `BEL` lines that fired around moments where the agent was waiting — that's the actionable signal. If only `-skip` lines appear, either (a) the agent has no attention notification protocol and you'll need a hook-based path (`pair-notify`), or (b) the agent uses an OSC family `is_actionable_osc()` doesn't yet recognize — extend the filter.
 
    - **`bin/pair-notify`** (bash). Hook-driven helper for richer signals. `pair-notify [--osc 9|777] "msg"` reads the same outer-TTY file and writes the OSC. Intended for Claude Code `Notification`/`Stop` hooks where you want semantic events with custom message text rather than relying on the agent's native OSC stream.
 

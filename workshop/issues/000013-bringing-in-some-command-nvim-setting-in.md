@@ -44,11 +44,11 @@ Limitations (acceptable):
 
 ## Plan
 
-- [ ] Wrap existing autocmds in a `pair` augroup with `clear = true` so reloads don't duplicate handlers.
-- [ ] Add `completeopt = 'menu,menuone,noinsert,noselect'`.
-- [ ] Add `path_complete()`: split token on last `/` into dir + filter, call `getcompletion(dir, 'file')`, pass through `matchfuzzy(entries, filter)` if filter non-empty, hand results to `vim.fn.complete()`.
-- [ ] Wire `path_complete` to `TextChangedI` and `TextChangedP` (both — popup-visible and not).
-- [ ] Add expr keymaps in insert mode: `<Tab>` → `<C-n>` if pum visible else `<Tab>`; `<S-Tab>` → `<C-p>` else `<S-Tab>`; `<CR>` → `<C-y>` if pum has a selected item else `<CR>`.
+- [x] Wrap existing autocmds in a `pair` augroup with `clear = true` so reloads don't duplicate handlers.
+- [x] Add `completeopt = 'menu,menuone,noinsert,noselect'`.
+- [x] Add `path_complete()`: split token on last `/` into dir + filter, call `getcompletion(dir, 'file')`, pass through `matchfuzzy(entries, filter)` if filter non-empty, hand results to `vim.fn.complete()`.
+- [x] Wire `path_complete` to `TextChangedI` and `TextChangedP` (both — popup-visible and not).
+- [x] Add expr keymaps in insert mode: `<Tab>` → `<C-n>` if pum visible else `<Tab>`; `<S-Tab>` → `<C-p>` else `<S-Tab>`; `<CR>` → `<C-y>` if pum has a selected item else `<CR>`.
 - [ ] Manual verification:
   - `./` pops menu of cwd entries.
   - `./md` (after fresh `./`) fuzzy-filters to `AGENTS.md`, `README.md` etc.
@@ -56,9 +56,15 @@ Limitations (acceptable):
   - `src/foo` works mid-line, not just at start of line.
   - `<Tab>`/`<S-Tab>` cycle. `<CR>` accepts when item selected; inserts newline otherwise.
   - `<M-CR>` send still works. `<M-i>` image flow still works. Quote/inline paste still works.
-- [ ] Update `atlas/architecture.md` with one line about the fuzzy as-you-type completion in the draft pane.
+- [x] Update `atlas/architecture.md` with one line about the fuzzy as-you-type completion in the draft pane.
 
 ## Log
 
 ### 2026-05-03
+
+- Implemented as-you-type fuzzy path completion in `nvim/init.lua` (~50 lines): `path_complete()` helper, `TextChangedI`/`TextChangedP` autocmd, expr keymaps for `<Tab>`/`<S-Tab>`/`<CR>`, `completeopt` set to `menu,menuone,noinsert,noselect`.
+- Wrapped all autocmds in a `pair` augroup with `clear=true` so `:luafile $PAIR_HOME/nvim/init.lua` reloads cleanly.
+- Side fix in same change: `paste_inline` now also runs the body through `reflow_par`, so hard-wrapped multi-line selections collapse to one continuous run when pasted mid-line (was previously verbatim).
+- Smoke-tested in `nvim --headless`: `matchfuzzy({...}, 'md')` correctly ranks `AGENTS.md`, `README.md`; `getcompletion('./', 'file')` lists 16 cwd entries with trailing `/` on dirs; path-token regex + dir/filter split returns the expected values across `./`, `~/`, mid-line `./AGENTS`, and skips plain words.
+- Pending: interactive verification of popup UX (user-driven).
 
