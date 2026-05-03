@@ -43,7 +43,7 @@ Detection of attached-vs-detached uses `zellij --session NAME action list-client
 
 ### `zellij/layouts/main.kdl` — pane split
 
-Horizontal split. Top pane runs `$PAIR_AGENT $PAIR_AGENT_ARGS` (auto-fills remaining height). Bottom pane is a fixed 10 rows running `nvim -u $PAIR_HOME/nvim/init.lua` on the per-tag draft file.
+Horizontal split. Top pane runs `$PAIR_AGENT $PAIR_AGENT_ARGS` (auto-fills remaining height). Bottom pane is a fixed 12 rows running `nvim -u $PAIR_HOME/nvim/init.lua` on the per-tag draft file.
 
 Both panes wrap their command in `sh -c "..."` so the shell expands `$PAIR_AGENT`, `$PAIR_AGENT_ARGS`, `$PAIR_TAG`, and `$PAIR_HOME` at exec time — zellij itself does not interpolate env vars in `command`/`args` fields.
 

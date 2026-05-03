@@ -21,7 +21,7 @@ layout {
             command "sh"
             args "-c" "exec pair-wrap ${PAIR_AGENT:-claude} ${PAIR_AGENT_ARGS:-}"
         }
-        pane size=10 name="Alt: ⏎=send  u=max  i=img  d=detach  x=quit" focus=true {
+        pane size=12 name="Alt: ⏎=send  u=max  i=img  d=detach  x=quit" focus=true {
             command "sh"
             args "-c" "DATA_DIR=\"${XDG_DATA_HOME:-$HOME/.local/share}/pair\" && mkdir -p \"$DATA_DIR\" && exec nvim -u \"$PAIR_HOME/nvim/init.lua\" \"$DATA_DIR/draft-${PAIR_TAG:-${PAIR_AGENT:-claude}}.md\""
         }
