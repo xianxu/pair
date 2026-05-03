@@ -2,6 +2,8 @@
 
 A small launcher that gives any TUI coding agent (Claude Code, Codex, Gemini CLI) a real input field — backed by Neovim. `pair` glues several tools together: `zellij`, `nvim`, `fzf`, `par`. 
 
+All [AI created](https://xianxu.dev/2026/05/a-saturday-coding-session/).
+
 ## What it does
 
 Launches a zellij session split into two panes:
