@@ -61,10 +61,14 @@ if command -v jq >/dev/null 2>&1; then
     echo "--- list-panes --json ---" >> "$LOG"
     printf '%s\n' "$panes_json" >> "$LOG"
     echo "--- end list-panes ---" >> "$LOG"
-    # The JSON is keyed by tab id at the top level: {"0": [pane, pane, ...]}.
-    # Walk all panes across all tabs and find the one named "draft".
+    # Walk all panes and find the one running nvim. Match on terminal_command
+    # rather than title — the title is the layout's `name` attribute, which
+    # we use for displaying help text in the pane frame, not as an identifier.
     nvim_id=$(printf '%s' "$panes_json" \
-              | jq -r '[.. | objects | select(.title == "draft" or .name == "draft")][0] | (.id // .pane_id // empty)' 2>>"$LOG")
+              | jq -r '[.. | objects
+                        | select(.terminal_command != null
+                                 and (.terminal_command | test("nvim")))][0]
+                       | (.id // .pane_id // empty)' 2>>"$LOG")
 fi
 echo "resolved nvim pane id: '${nvim_id:-(none)}'" >> "$LOG"
 
@@ -80,5 +84,16 @@ else
     zellij action move-focus down 2>>"$LOG"
 fi
 
+# Ensure nvim is in insert mode before typing the body — otherwise the first
+# character ('>') would be interpreted as a normal-mode command.
+#
+# We DON'T use Esc + 'i' here, because in terminal-land `Esc` followed by `i`
+# is the exact encoding for `Alt+i` — and our nvim keymap binds <M-i> to
+# attach_image, which inserts a stray `[Image #N]` at the cursor. Instead,
+# use nvim's "force normal mode" sequence Ctrl-\ Ctrl-N, then `i`. Ctrl-\
+# is 0x1c (28), Ctrl-N is 0x0e (14). No Esc, no Alt-encoding ambiguity.
+zellij action write 28 2>>"$LOG"          # Ctrl-\
+zellij action write 14 2>>"$LOG"          # Ctrl-N → normal mode (any context)
+zellij action write-chars 'i' 2>>"$LOG"   # enter insert mode at cursor
 zellij action write-chars "$quoted"$'\n\n' 2>>"$LOG"
 echo "wrote $((${#quoted} + 2)) bytes" >> "$LOG"

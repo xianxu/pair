@@ -6,6 +6,15 @@
 // changing focus and swallowing the click.
 mouse_click_through true
 
+// On selection finalize (mouse up), pipe the selected text to our wrapper.
+// The wrapper mirrors to the OS clipboard AND, if the selection was in a
+// pane other than the nvim draft, runs the Alt+n flow: reflow, >-prefix,
+// focus nvim, insert at cursor.
+//
+// bin/pair prepends $PAIR_HOME/bin to PATH so the script is resolvable by
+// bare name — avoids the fragile `sh -c '$PAIR_HOME/...'` quoting dance.
+copy_command "copy-on-select.sh"
+
 keybinds clear-defaults=false {
     // Release Alt+i so nvim sees it (zellij's default binds Alt+i to MoveTab
     // "Left"; we want Alt+i to mean "attach image" inside the nvim draft).
@@ -29,13 +38,17 @@ keybinds clear-defaults=false {
             ToggleFocusFullscreen;
         }
 
-        // Alt+n — pull clipboard contents (reflowed + > prefix) into the nvim
-        // draft pane at the cursor. Triggers a transient pane that closes
-        // immediately on script exit.
-        bind "Alt n" {
-            Run "sh" "-c" "\"$PAIR_HOME/bin/clipboard-to-pane.sh\"" {
+        // Alt+x — full quit: kill the session AND remove its entry from the
+        // resurrect list (vs. Ctrl+q which keeps the session as a resurrect
+        // candidate). Routed through pair-quit.sh which writes a marker file
+        // bin/pair picks up on resume and acts on.
+        bind "Alt x" {
+            Run "pair-quit.sh" {
                 close_on_exit true
             };
         }
+
+        // Alt+n is no longer bound — `copy_command` (above) auto-fires on
+        // mouse-up, so the manual Alt+n keybind became redundant.
     }
 }

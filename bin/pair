@@ -72,6 +72,14 @@ done
 PAIR_HOME="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
 export PAIR_HOME
 
+# Put pair's bin/ on PATH so zellij can resolve our helper scripts by bare
+# name (clipboard-to-pane.sh, copy-on-select.sh) without sh-c env-var hacks
+# in zellij/config.kdl. Avoid double-prepending across re-launches.
+case ":$PATH:" in
+    *":$PAIR_HOME/bin:"*) ;;
+    *) export PATH="$PAIR_HOME/bin:$PATH" ;;
+esac
+
 AGENT="${1:-claude}"
 VARIANT="${2:-}"
 
@@ -186,6 +194,18 @@ if [ -z "$chosen_tag" ]; then
     exit 1
 fi
 
+# Helper: after zellij returns, check for the Alt+x marker. If present, the
+# user asked for a full quit — delete the session entry from the resurrect
+# list. Plain Ctrl+q leaves no marker, so the session lingers as a resurrect
+# candidate (zellij default behavior).
+cleanup_quit_marker() {
+    local marker="$HOME/.cache/pair/quit-$SESSION"
+    if [ -f "$marker" ]; then
+        rm -f "$marker"
+        zellij delete-session "$SESSION" --force >/dev/null 2>&1 || true
+    fi
+}
+
 if [ "$action" = "attach" ]; then
     export PAIR_TAG="$chosen_tag"
     SESSION="pair-${PAIR_TAG}"
@@ -195,7 +215,9 @@ if [ "$action" = "attach" ]; then
     # on attach, so without this the title stays as whatever the shell's
     # preexec hook set (typically "bin/pair").
     printf '\033]0;%s\007' "$SESSION"
-    exec zellij --config-dir "$PAIR_HOME/zellij" attach "$SESSION"
+    zellij --config-dir "$PAIR_HOME/zellij" attach "$SESSION"
+    cleanup_quit_marker
+    exit $?
 fi
 
 # Create branch. Validate the agent here (deferred past the picker so attach
@@ -251,7 +273,8 @@ printf '\033]0;%s\007' "$SESSION"
 # NOT create-with-layout; per its help text, when --session is set, --layout
 # is treated as "add a tab to the session named NAME" and errors if the
 # session doesn't exist. The right flag is --new-session-with-layout (-n).
-exec zellij \
+zellij \
     --config-dir              "$PAIR_HOME/zellij" \
     --new-session-with-layout "$PAIR_HOME/zellij/layouts/main.kdl" \
     --session                 "$SESSION"
+cleanup_quit_marker
