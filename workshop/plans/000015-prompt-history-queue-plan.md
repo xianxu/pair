@@ -262,12 +262,12 @@ Notes from implementation:
 - `Alt+q` only operates from `*`. From `-N` or `+N` it warns and no-ops — pushing the current buffer would either duplicate (`+N`) or fork into queue (`-N`), and either could surprise. The `*` semantic ("park what I'm working on") is the only one with a clear use case in v1.
 - Queue file naming uses 6-digit padded sortable keys, starting at 500000. `queue_push_front` exists already (used in M3) but isn't called yet in M2.
 
-### M3: Edit-flow with auto-evacuate
+### M3: Explicit edit-flow per slot ✅ done 2026-05-03
 
-- §H4 primitives: flow-to-`*`, auto-evacuate to queue front.
-- Wire into `nav_left`/`nav_right`.
-- Flash on auto-evacuate (`vim.notify` with INFO level).
-- **Verify:** T7, T10, T11'.
+Replaces the earlier "auto-evacuate-`*`" design after user feedback. The new model:
+- `*` and `+N` are mutable: edits autosave to their underlying file via `autosave_current_slot`. No dirty concept user-facing.
+- `-N` is immutable: edits are pending forks. Status line shows `-N*` mark. On navigate-away, prompt 4 options (Send, Queue (+1), Discard, Stay; default Stay).
+- `send_and_clear` preserves `*`'s draft when source is `-N` or `+N` (clear only when source is `*`).
 
 ### M4: Send integration
 

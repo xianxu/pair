@@ -37,14 +37,15 @@ The nvim buffer represents a virtual cursor over a sequence of slots:
 Reintroduce nvim's status line (`laststatus = 2`, custom `statusline`). Format:
 
 ```
-H < pos > Q
+H < pos[*] > Q
 ```
 
 - `H` = total history count (entries in `log-<tag>.md`).
 - `pos` = `*` | `-N` | `+N`.
+- Trailing `*` appears only on `-N` slots when the buffer differs from the loaded baseline (a pending fork awaiting Send/Queue/Discard).
 - `Q` = total queue count.
 
-Examples: `42 < * > 4`, `42 < -2 > 4`, `43 < +1 > 4`.
+Examples: `42 < * > 4`, `42 < -2 > 4`, `42 < -2* > 4` (dirty fork), `43 < +1 > 4`.
 
 ### Keybindings
 
@@ -55,43 +56,42 @@ Examples: `42 < * > 4`, `42 < -2 > 4`, `43 < +1 > 4`.
 | `Alt+q` | Push current buffer to **front** of queue (`+1`). Return to `*`. Source-slot specifics: from `*`, also clear `*`. From `-N`, the buffer is forked into `+1` (original log entry untouched). From `+N`, the source queue file is removed first (move-to-front). Distinct from `Alt+Return` to avoid send-typos. |
 | `Alt+Return` | Send buffer to agent (existing behavior). See Send rules below. |
 
-### Edit-flow rules (the hard part)
+### Edit-flow rules
 
-The buffer is the single editing surface. "Baseline" is the canonical content for the current slot. A "dirty" buffer = `buffer ≠ baseline`.
+Mutability differs per slot:
+- `*`: mutable. Edits autosave to `draft-<tag>.md` (existing pre-issue behavior, gated on `nav.pos == '*'`).
+- `+N`: mutable. Edits autosave to `queue-<tag>/NNN.md`. Same `BufLeave/FocusLost/InsertLeave` autocmd handles it.
+- `-N`: immutable (history can't be rewritten). An edit on `-N` is a *pending fork* that needs a destination. The status line marks the slot dirty (`-N*`).
 
-**Baselines per slot:**
-- `*`: contents of `draft-<tag>.md`
-- `-N`: the Nth-from-end entry parsed out of `log-<tag>.md`
-- `+N`: contents of `$DATA_DIR/queue-<tag>/NNN.md`
+Navigation rules:
 
-**Navigation rule (single-rule formulation):**
-> When navigating away from a slot with a dirty buffer, the buffer's content must land somewhere recoverable, then the new baseline loads.
+| From    | Behavior on Alt+←/→ |
+|---------|---|
+| `*`     | Save buffer to draft file (`:w`); load destination. |
+| `+N`    | Save buffer to `+N`'s queue file; load destination. |
+| `-N` clean | Load destination. |
+| `-N` dirty | **Prompt** the user with four options (see below). |
 
-Concretely:
+**Dirty-`-N` prompt (`vim.fn.confirm`):**
 
-| From | Dirty content lands... |
-|---|---|
-| `*` | Push to **front** of queue (`queue-<tag>/` gets a new file with the lowest sort key). Clear `*`. |
-| `-N` | Flow to `*`. **If `*` already has content, auto-evacuate `*` to queue front first**, then write the flowed content to `*`. |
-| `+N` | Save back in place to `queue-<tag>/NNN.md`. |
+1. **Send** — append fork to log, return to `*`. Original navigation cancelled.
+2. **Queue (+1)** — push buffer to front of queue, return to `*`. Original navigation cancelled.
+3. **Discard** — drop edit, proceed with the navigation as requested.
+4. **Stay** — cancel navigation, remain at `-N` with edits.
 
-Pure browsing (buffer == baseline at every navigation) never mutates anything.
-
-**Auto-evacuate corollary:** the `*` slot self-protects. Anything that would overwrite a non-empty `*` first pushes the existing `*` content to queue front. This means a chain of N history-slot edits leaves N-1 items at the queue front and the latest at `*`, in reverse-chronological order.
+(Default = 4 / Stay, including ESC, so an accidental confirmation doesn't lose work.)
 
 ### Send rules (`Alt+Return`)
 
-Send and navigate-away are distinct flows because editing `+N` carries no intent to send (it's an in-place update of a queued item). Unification only applies on send.
-
-**Send invariant:** after every send, `*` is empty and no content was silently destroyed (displaced `*` content always lands in the queue front).
+Send is always an explicit user action — no prompts, no auto-evacuation needed. After every send, the buffer is cleared and we end at `*`.
 
 | From | Effect |
 |---|---|
 | `*` | Append buffer to `log-<tag>.md`. Clear `*`. (Existing behavior.) |
-| `-N` | Auto-evacuate `*` to queue front if non-empty; flow buffer into `*`; append to log; clear `*`. Move to `*`. The original `-N` log entry is unchanged (fork). |
-| `+N` | Auto-evacuate `*` to queue front if non-empty; **remove the `+N` queue file** (consume); flow buffer into `*`; append to log; clear `*`. Move to `*`. |
+| `-N` | Append buffer (possibly edited) to log as a fork. The original `-N` log entry is unchanged. Clear `*`. Move to `*`. |
+| `+N` | **Remove the `+N` queue file** (consume). Append buffer (possibly edited) to log. Clear `*`. Move to `*`. |
 
-The `+N` row's "consume" step is what differentiates send from navigate-away: navigating away from a dirty `+N` would have saved-in-place to the queue file; sending instead removes the file and ships its content.
+`*` is mutable storage; the persistent draft state lives in `draft-<tag>.md`. Send-from-`*` clears it as the existing semantics; send-from-`-N`/`+N` doesn't displace `*` because navigating to those slots saved `*`'s state already (mutable autosave).
 
 ### Storage
 
@@ -121,4 +121,11 @@ See `workshop/plans/000015-prompt-history-queue-plan.md`.
 - Refined send vs navigate-away rules per user feedback: editing `+N` carries no intent to send (navigate-away saves in place), but sending from `+N` consumes the queue file. The two flows share the auto-evacuate-`*` invariant only on send.
 - **M1 done.** History-only navigation in `nvim/init.lua`. New helpers: `parse_log`, `read_history`, `buffer_text`, `set_buffer_text`, `pos_label`, `load_baseline_for_current_pos`, `_G.PairStatusline`. Keymaps: `<M-Left>` / `<M-Right>` for `*` ↔ `-N` traversal. Status line reintroduced (`laststatus = 2`) with custom format `H < pos > Q`. Dirty edits on `*` are discarded with a notify warning (M3 will add the proper auto-evacuate-to-queue). The `BufLeave/FocusLost/InsertLeave` autosave is now gated on `nav.pos == '*'` so navigating to `-N` doesn't clobber `draft-<tag>.md`. Verified via headless integration test: T1–T5 plus clamp behavior at oldest history and at `*`, plus send from both `*` and `-N` correctly resetting nav state.
 - **M1 wiring fix:** zellij's defaults bind `Alt+Left` / `Alt+Right` to `MoveFocus`, swallowing the keys before nvim sees them. Added `unbind "Alt Left"` / `"Alt Right"` to `zellij/config.kdl` (same pattern as `Alt+i`).
-- **M2 done.** Queue store (`§H2`) implemented as `$DATA_DIR/queue-<tag>/NNNNNN.md` files with 6-digit zero-padded keys, starting at 500000 to leave room for both `push_front` (M3) and `push_back`. Helpers: `queue_dir`, `queue_keys_sorted`, `queue_count`, `queue_read/write/remove`, `queue_push_back`, `queue_push_front` (used in M3), `queue_key_for_n`. `Alt+q` (`queue_current`) appends current `*` buffer to the back, clears `*`. Restricted to `*` only (warn-and-noop from `-N`/`+N` to avoid duplicate-vs-save ambiguity). `Alt+→` extends past `*` into queue; `Alt+←` walks queue back toward `*`. Editing a `+N` slot then navigating away saves the buffer to that queue file (mutable storage). Sending from `+N` removes the queue file (consume) and appends to log. Statusline now shows real `Q`. The `*`/`-N` discard-on-leave path is unchanged (M3 work). Verified via headless integration test: queue lifecycle (push_back, navigate, edit-in-place, persist across nav, send-consume), Alt+q from `-N` warns and no-ops, autosave gate still protects draft when navigating into queue.
+- **M2 done.** Queue store (`§H2`) implemented as `$DATA_DIR/queue-<tag>/NNNNNN.md` files with 6-digit zero-padded keys, starting at 500000 to leave room for both `push_front` and `push_back`. Helpers: `queue_dir`, `queue_keys_sorted`, `queue_count`, `queue_read/write/remove`, `queue_push_back`, `queue_push_front`, `queue_key_for_n`. Initial `Alt+q` was push-to-back from `*` only, but per user feedback was changed to push-to-front from any slot (uniform rule, +N source = move-to-front). `Alt+→` extends past `*` into queue; `Alt+←` walks queue back toward `*`. Editing a `+N` slot then navigating away saves the buffer to that queue file (mutable storage). Sending from `+N` removes the queue file (consume) and appends to log. Statusline now shows real `Q`. Buffer↔file newline accumulation fixed: `set_buffer_text` strips one trailing `\n`, `nav.baseline` is recomputed from `buffer_text()` post-load.
+- **Spec refinement before M3:** auto-evacuate-`*` model replaced with explicit user choice on dirty `-N` only. `*` and `+N` are mutable (autosave directly to underlying files); only `-N` has the dirty/fork concept. Status line shows `-N*` mark when dirty.
+- **M3 done.** Edit-flow rules implemented:
+    - `is_dirty_history_slot()` checks buffer ≠ baseline only on `-N`. `*` and `+N` autosave to their underlying files via `autosave_current_slot()`, called from both the existing `BufLeave/FocusLost/InsertLeave` autocmd and `go_to()` on every navigate.
+    - `leave_dirty_history()` shows a `vim.fn.confirm` prompt with four options (Send, Queue (+1), Discard, Stay; default = Stay). Send → ship as fork via `ship_buffer_and_reset`; Queue → `queue_push_front`; Discard → drop edit and proceed; Stay → cancel navigation.
+    - `send_and_clear` and `ship_buffer_and_reset` were updated to preserve `*`'s persistent draft when sending from `-N` or `+N` (clear-the-draft semantic now applies only when sending FROM `*`).
+    - Status line picks up dirty mark via `is_dirty_history_slot()`.
+  - Verified via headless integration test: dirty mark renders, all four prompt options behave correctly (incl. Stay cancellation), `+N` edits autosave with no prompt, draft survives both clean send-from-`-N` and prompt-Send-from-`-N`.

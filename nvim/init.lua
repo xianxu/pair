@@ -446,24 +446,31 @@ local function send_and_clear()
   local body = buffer_text()
   if body:match('^%s*$') then return end
 
-  -- M2: send-from-+N consumes that queue file. The buffer (possibly edited)
-  -- is what ships, and the queue slot vanishes. Auto-evacuate-* on send
-  -- (the displaced-* preservation half) lands in M4 with the full edit-flow.
+  -- send-from-+N consumes that queue file. The buffer (possibly edited) is
+  -- what ships, and the queue slot vanishes.
   if type(nav.pos) == 'table' and nav.pos.kind == 'queue' then
     local key = queue_key_for_n(nav.pos.n)
     if key then queue_remove(key) end
   end
 
+  local was_at_star = (nav.pos == '*')
+
   append_log(body)
   send_to_agent(body)
 
-  -- Snap back to *: clear buffer, save through nvim (so the buffer↔file
-  -- mtime stays in sync — bypassing nvim with io.open triggers a stale-
-  -- write warning on the next :w), reset nav state.
-  vim.api.nvim_buf_set_lines(0, 0, -1, false, { '' })
+  -- Return to *. If we sent FROM *, that's the existing "clear the draft"
+  -- semantic. If we sent from -N or +N, * is unaffected — the user's
+  -- draft was already autosaved when they navigated away from *. Reload
+  -- it so they see their unfinished work back in the buffer.
   nav.pos = '*'
-  nav.baseline = ''
-  vim.cmd('silent! write')
+  if was_at_star then
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, { '' })
+    vim.cmd('silent! write')
+    nav.baseline = ''
+  else
+    set_buffer_text(read_file(draft_path_for_tag()))
+    nav.baseline = buffer_text()
+  end
   refresh_statusline()
   vim.cmd('startinsert')
 end
@@ -558,37 +565,86 @@ local function load_baseline_for_current_pos()
   return ''
 end
 
--- Statusline format: " H < pos > Q ".
+-- Dirty only matters for -N: history is immutable, so an edit there is a
+-- pending fork that must explicitly become a send / a queue entry / a discard.
+-- * and +N are mutable (their edits autosave to the underlying file), so they
+-- have no dirty concept from the user's perspective.
+local function is_dirty_history_slot()
+  return type(nav.pos) == 'table'
+     and nav.pos.kind == 'history'
+     and buffer_text() ~= nav.baseline
+end
+
+-- Statusline format: " H < pos[*] > Q ". The trailing "*" appears only on -N
+-- when the buffer differs from the loaded baseline.
 function _G.PairStatusline()
   local h = #read_history()
   local q = queue_count()
-  return string.format(' %d < %s > %d ', h, pos_label(nav.pos), q)
+  local label = pos_label(nav.pos)
+  if is_dirty_history_slot() then label = label .. '*' end
+  return string.format(' %d < %s > %d ', h, label, q)
 end
 
--- Save-on-leave for the current slot when the buffer is dirty. M2 only fully
--- handles +N (queue is mutable storage; edits persist). For * and -N, dirty
--- edits are discarded — the auto-evacuate-to-queue-front rule that makes
--- this lossless lands in M3 along with the §H4 primitives.
-local function save_or_discard_dirty(prev_pos, prev_baseline)
-  local body = buffer_text()
-  if body == prev_baseline then return end
-  if type(prev_pos) == 'table' and prev_pos.kind == 'queue' then
-    local key = queue_key_for_n(prev_pos.n)
-    if key then queue_write(key, body) end
-    return
+-- Persist any pending edit on a mutable slot to its underlying file. No-op
+-- for -N (immutable; user must explicitly pick Send/Queue/Discard via the
+-- leave-dirty-history prompt) and for any state where there's nothing to do.
+local function autosave_current_slot()
+  if nav.pos == '*' then
+    pcall(vim.cmd, 'silent! write')
+  elseif type(nav.pos) == 'table' and nav.pos.kind == 'queue' then
+    local key = queue_key_for_n(nav.pos.n)
+    if key then queue_write(key, buffer_text()) end
   end
-  -- prev_pos == '*' or kind == 'history': M3 will route to *. For now drop.
-  -- Notify is invisible under cmdheight=0 anyway; logged via :messages.
-  vim.notify(
-    'pair: discarded edit (auto-evacuate lands in M3)',
-    vim.log.levels.WARN)
 end
 
--- Move to a new position: handle save/discard of the current dirty buffer,
--- then load the destination baseline. Centralizes the boilerplate so nav_left
--- / nav_right just compute the target pos.
+-- Send the current buffer to the agent and return to *, preserving *'s
+-- persistent draft. Used only by the dirty-`-N` prompt's Send branch
+-- (send_and_clear has its own variant that handles the from-* case).
+local function ship_buffer_and_reset(body)
+  append_log(body)
+  send_to_agent(body)
+  nav.pos = '*'
+  set_buffer_text(read_file(draft_path_for_tag()))
+  nav.baseline = buffer_text()
+  refresh_statusline()
+end
+
+-- Prompt the user with the four-option "what now?" dialog when leaving a
+-- dirty -N slot. Returns true if the caller should proceed with the original
+-- navigation (i.e. user picked Discard), false otherwise (Send/Queue performed
+-- the action and moved us to *; or Stay cancelled the nav).
+local function leave_dirty_history()
+  local body = buffer_text()
+  local choice = vim.fn.confirm(
+    'Edit on -' .. nav.pos.n .. ' is unsaved. Choose:',
+    '&Send\n&Queue (+1)\n&Discard\n&Stay',
+    4, 'Question')
+
+  if choice == 1 then           -- Send
+    ship_buffer_and_reset(body)
+    return false
+  elseif choice == 2 then       -- Queue (push to +1)
+    queue_push_front(body)
+    set_buffer_text(read_file(draft_path_for_tag()))
+    nav.pos = '*'
+    nav.baseline = buffer_text()
+    refresh_statusline()
+    return false
+  elseif choice == 3 then       -- Discard
+    return true
+  else                          -- Stay (default; covers 0 = ESC and 4)
+    return false
+  end
+end
+
+-- Move to a new position: save mutable slots, prompt on dirty -N, then load
+-- the destination baseline. nav_left / nav_right just compute the target pos.
 local function go_to(new_pos)
-  save_or_discard_dirty(nav.pos, nav.baseline)
+  if is_dirty_history_slot() then
+    if not leave_dirty_history() then return end
+  else
+    autosave_current_slot()
+  end
   nav.pos = new_pos
   set_buffer_text(load_baseline_for_current_pos())
   -- Re-read the baseline from the buffer so its representation matches
@@ -709,19 +765,14 @@ end, { expr = true, desc = 'pair: accept completion if selected else newline' })
 
 local pair_aug = vim.api.nvim_create_augroup('pair', { clear = true })
 
--- autosave on transitions so disk and buffer agree.
--- Gated on nav.pos == '*': when we're showing a history entry (-N) or queue
--- item (+N), the buffer holds that slot's content, NOT the persistent draft.
--- An unconditional :w would clobber draft-<tag>.md. Edit-flow for non-*
--- slots is handled inside the navigation actions, not here.
+-- autosave on transitions so disk and buffer agree. Routes to the right
+-- file per slot: * → draft via :w; +N → queue file via queue_write. -N is
+-- immutable (history can't be mutated), so its edits wait for the explicit
+-- Send/Queue/Discard choice in leave_dirty_history.
 vim.api.nvim_create_autocmd({ 'BufLeave', 'FocusLost', 'InsertLeave' }, {
   group = pair_aug,
   pattern = '*',
-  callback = function()
-    if nav.pos == '*' then
-      pcall(vim.cmd, 'silent! write')
-    end
-  end,
+  callback = function() autosave_current_slot() end,
 })
 
 -- start at end of buffer in insert mode — drafting is the default activity,
