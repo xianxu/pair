@@ -861,19 +861,14 @@ vim.api.nvim_create_autocmd('VimEnter', {
   end,
 })
 
--- Write the current mode to a per-tag file so out-of-process helpers (e.g.
--- bin/copy-on-select.sh) can gate on it. We only auto-insert mouse-selected
--- quotes when nvim is in insert mode — selecting while in normal mode means
--- the user is browsing/navigating and shouldn't have their buffer mutated.
-local function pair_write_mode()
-  pcall(write_file,
-    pair_data_dir() .. '/mode-' .. pair_tag(),
-    vim.api.nvim_get_mode().mode)
-end
-vim.api.nvim_create_autocmd({ 'ModeChanged', 'VimEnter', 'FocusGained' }, {
-  group = pair_aug,
-  callback = pair_write_mode,
-})
+-- Insert-mode-only keymap that triggers PairPasteQuote. This is what
+-- bin/clipboard-to-pane.sh sends (as a single Ctrl-_, ASCII 31) after a
+-- mouse selection. Defining the keymap *only* in insert mode is the gate:
+-- if nvim is in normal mode (e.g. browsing prompt history), Ctrl-_ hits
+-- its default — a no-op-ish revins toggle — and PairPasteQuote simply
+-- doesn't fire. No buffer mutation, no policy code.
+vim.keymap.set('i', '<C-_>', function() PairPasteQuote() end,
+  { silent = true, desc = 'pair: insert mouse-selected quote (insert mode only)' })
 
 -- Fire on both events: TextChangedI when popup is hidden, TextChangedP when
 -- popup is visible — refreshing the menu as the user types more characters.

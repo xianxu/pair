@@ -91,16 +91,11 @@ else
     zellij action move-focus down 2>>"$LOG"
 fi
 
-# Force normal mode (handles the case where nvim was already in insert), then
-# fire `:lua PairPasteQuote()<CR>`. The Lua side reads $quote_file and inserts
-# via the buffer API — it owns scroll positioning, the flash highlight, and
-# leaving the cursor on the empty line below the block in insert mode.
-#
-# We use Ctrl-\ Ctrl-N (28, 14) rather than Esc to force normal mode, because
-# Esc + a literal char is the terminal encoding for Alt+<char> and would fire
-# our <M-...> keymaps spuriously. CR is 13.
-zellij action write 28 2>>"$LOG"                              # Ctrl-\
-zellij action write 14 2>>"$LOG"                              # Ctrl-N
-zellij action write-chars ':lua PairPasteQuote()' 2>>"$LOG"
-zellij action write 13 2>>"$LOG"                              # CR
-echo "triggered PairPasteQuote" >> "$LOG"
+# Trigger PairPasteQuote via a single Ctrl-_ (ASCII 31). On the nvim side,
+# `<C-_>` is mapped to PairPasteQuote *only in insert mode* — that mapping
+# IS the gate: if the user is in normal mode (e.g. browsing prompt history
+# with Alt+←/→), Ctrl-_ hits nvim's default (a near-no-op revins toggle)
+# and the buffer isn't touched. So we don't force-normal-mode here; doing
+# so would destroy the very mode signal that drives the gate.
+zellij action write 31 2>>"$LOG"                              # Ctrl-_
+echo "triggered PairPasteQuote (Ctrl-_)" >> "$LOG"
