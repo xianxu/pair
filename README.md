@@ -23,14 +23,14 @@ Full nvim support, for example:
 2. search in the input box
 3. typeahead and search local file path, just type `./` and then continue. 
 
-**Prompt history & a future queue, in-buffer.** The nvim pane is a virtual cursor over `[ ... -2 -1 ] * [ +1 +2 ... ]`. The status line — `Alt: <- history N < pos > M queued ->` — shows where you are at all times. `Alt+←` walks back through your past prompts (parsed from the log), `Alt+→` walks forward into queued ones; `Shift+Alt+←/→` jumps between region boundaries when you're scrolling far. `Alt+q` parks the current draft as `+1` (think "quick idea I don't want to send yet, while the agent is busy") and `Alt+Backspace` from `+N` deletes a queued prompt without sending. Editing a `-N` history entry forks it: a one-line prompt asks whether to Send / Queue / Discard the fork.
+**Prompt history & a future queue, in-buffer.** The nvim pane is a virtual cursor over `[ ... -2 -1 ] * [ +1 +2 ... ]`. The status line — e.g. `Alt: <- history 17 < * [q=queue] > 3 queued ->` — shows where you are and the relevant key for the current slot. `Alt+←` walks back through your past prompts (parsed from the log), `Alt+→` walks forward into queued ones; `Shift+Alt+←/→` jumps between region boundaries when you're scrolling far. `Alt+q` parks the current draft as `+1` (think "quick idea I don't want to send yet, while the agent is busy"); the bracketed `[q=queue]` hint reminds you. From `+N` the bracketed hint switches to `[⌫=del]` and `Alt+Backspace` deletes that queued prompt without sending. Editing a `-N` history entry forks it: a one-line prompt asks whether to Send / Queue / Discard the fork.
 
 ## Keybindings
 
 | Key | Scope | Action |
 |---|---|---|
 | **Alt+Return** | nvim (normal/insert) | Send buffer to agent |
-| **Alt+←** / **Alt+→** | nvim (normal/insert) | Walk through prompt history (`-N`) and queued prompts (`+N`) one slot at a time. Status line shows `H < pos > Q`. |
+| **Alt+←** / **Alt+→** | nvim (normal/insert) | Walk through prompt history (`-N`) and queued prompts (`+N`) one slot at a time. Status line: `Alt: <- history H < pos[*] [hint] > Q queued ->`. |
 | **Shift+Alt+←** / **Shift+Alt+→** | nvim (normal/insert) | Jump to the next region boundary: oldest-history, newest-history, `*`, front-of-queue, back-of-queue. Lets you skip over long histories or queues quickly. |
 | **Alt+q** | nvim (normal/insert) | Push current buffer to the front of the queue (`+1`). From `*` clears the draft; from `+N` it's move-to-front. |
 | **Alt+Backspace** | nvim (normal/insert), at `+N` | Delete the current queued prompt without sending. Items behind shift down so you can delete a run by tapping repeatedly. |
@@ -42,9 +42,20 @@ Full nvim support, for example:
 
 ### Prompt history & queue
 
-The nvim pane is a virtual cursor over `[ ... -2 -1 ] * [ +1 +2 ... ]`. The status line shows `H < pos > Q` (history count, current position, queue count). `Alt+←` walks toward older history; `Alt+→` walks toward the future queue.
+The nvim pane is a virtual cursor over `[ ... -2 -1 ] * [ +1 +2 ... ]`.
 
-History is immutable. If you edit a `-N` slot, the position label shows a dirty mark (`-2*`) and navigating away pops a single-line prompt:
+**Status line:**
+
+```
+Alt: <- history 17 < * [q=queue] > 3 queued -> 
+Alt: <- history 17 < -2 [q=queue] > 3 queued -> 
+Alt: <- history 17 < -2* [q=queue] > 3 queued -> 
+Alt: <- history 17 < +1 [⌫=del] > 3 queued -> 
+```
+
+`H` and `Q` are total history and queue counts. `pos` is one of `*`, `-N`, `+N`. The flanking `<-` and `->` hint the Alt+← / Alt+→ navigation. The `[key=action]` hint inside the brackets is contextual: `[q=queue]` on `*`/`-N`, `[⌫=del]` on `+N`. A trailing `*` on `-N` means you've edited that history entry and have an unsent fork.
+
+History is immutable. If you edit a `-N` slot, the position label shows the dirty mark (`-2*`) and navigating away pops a single-line prompt:
 
 ```
 (S)end, (Q)ueue, (D)iscard, [S]tay:
