@@ -151,7 +151,8 @@ Loaded via `nvim -u`, fully isolated from the user's main nvim config. Provides:
 
 - Drafting-friendly defaults: no line numbers, wrap, linebreak, breakindent, spell, persistent undo under `~/.local/share/pair/undo/`, `cmdheight=0` to keep the cmdline out of the way, custom statusline (see "prompt history & queue" below).
 - `<M-CR>` (Alt+Return, normal+insert) — `send_and_clear`: append buffer to log, send to agent pane via `zellij action focus-pane-id` + `write-chars` + Enter, clear `*` (only when source was `*`), save, drop into insert mode.
-- `<M-Left>` / `<M-Right>` — navigate the prompt-history / queue position (see below).
+- `<M-Left>` / `<M-Right>` — navigate the prompt-history / queue position one slot at a time (see below).
+- `<S-M-Left>` / `<S-M-Right>` — jump to the next region boundary (oldest history, newest history, `*`, front-of-queue, back-of-queue). Lets the user skip over long histories or queues without N taps.
 - `<M-q>` — push the current buffer to the front of the queue. From `*` also clears `*`; from `+N` it's move-to-front (removes the source queue file).
 - `<M-BS>` — delete the current `+N` queue item without sending; "stay-near" behavior (items behind shift down, position label keeps its number, so the next item is now under the cursor for repeat-delete). No-op from `*` or `-N`.
 - `<M-i>` (Alt+i, normal+insert) — `attach_image`: increment per-session counter, send Ctrl+V to the agent pane (claude reads OS clipboard, attaches image), insert `[Image #N]` at cursor. If cursor is on an existing `[Image #N]`, sync the counter to N instead.
@@ -172,7 +173,18 @@ The nvim buffer is a virtual cursor over a sequence of slots:
    history (log)    draft     queue (future)
 ```
 
-The status line shows position state: ` H < pos[*] > Q ` — `H` = log entry count, `Q` = queue size, `pos` = `*` | `-N` | `+N`. A trailing `*` on `-N` means the buffer differs from the loaded baseline (a pending fork).
+The status line shows position state:
+
+```
+ Alt: <- history H < pos[*][ (⌫=del)] > Q queued -> 
+```
+
+- `H` / `Q` = total counts of history / queue entries.
+- `pos` = `*` | `-N` | `+N`.
+- Trailing `*` on `-N` means the buffer differs from the loaded baseline (a pending fork awaiting `Send` / `Queue` / `Discard`).
+- ` (⌫=del)` appears inside the brackets only on `+N` — a contextual hint that `<M-BS>` deletes the current queue item.
+- The flanking `<-` / `->` text and the `Alt:` prefix make the navigation gesture self-documenting (Alt+← / Alt+→).
+- Highlight is linked to `Comment` rather than the default inverted `StatusLine` so the bar reads as muted secondary info; reapplied on `ColorScheme`.
 
 **Slot mutability is the central distinction:**
 
@@ -197,7 +209,9 @@ The status line shows position state: ` H < pos[*] > Q ` — `H` = log entry cou
 
 **Queue store:** `queue-<tag>/` directory of one file per queued prompt. Filenames are 6-digit zero-padded sortable keys; sort order = display order (`+1` is the lowest key). New keys at `push_front` decrement the current min; `push_back` increments the current max. Initial midpoint at `500000` to leave room either way.
 
-Implementation in `nvim/init.lua`: see helpers grouped under `is_dirty_history_slot`, `autosave_current_slot`, `leave_dirty_history`, `go_to`, `nav_left`/`nav_right`, `queue_current`, plus the `queue_*` file ops. State lives in module-local `nav = { pos, baseline }` — `pos` is `'*'` or `{ kind='history'|'queue', n=N }`.
+Implementation in `nvim/init.lua`: see helpers grouped under `is_dirty_history_slot`, `autosave_current_slot`, `leave_dirty_history`, `go_to`, `nav_left`/`nav_right`, `nav_boundary` (Shift+Alt jumps), `queue_current`, `delete_current_queue_item`, plus the `queue_*` file ops. State lives in module-local `nav = { pos, baseline }` — `pos` is `'*'` or `{ kind='history'|'queue', n=N }`.
+
+**Insert-mode-only auto-insert from mouse selection.** `bin/copy-on-select.sh` mirrors any selection to the OS clipboard; for selections outside the nvim pane it then triggers `PairPasteQuote` by sending Ctrl-_ (ASCII 31) to the focused nvim pane. The `<C-_>` keymap is bound **only in insert mode**, which is structurally the gate: when the user is in normal mode (e.g. browsing prompt history with Alt+←/→), Ctrl-_ hits nvim's near-no-op default and the buffer isn't mutated. The selection is still on the OS clipboard for manual paste. No mode-probing files or shell-side state needed.
 
 ## Quit semantics
 

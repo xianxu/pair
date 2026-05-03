@@ -23,7 +23,7 @@ Full nvim support, for example:
 2. search in the input box
 3. typeahead and search local file path, just type `./` and then continue. 
 
-Easy to access prompt history: Alt+<- Alt+-> to navigate. You can also queue up command with Alt+q for quick ideas but not to interrupt current working of an agent, like a stack of command.
+**Prompt history & a future queue, in-buffer.** The nvim pane is a virtual cursor over `[ ... -2 -1 ] * [ +1 +2 ... ]`. The status line — `Alt: <- history N < pos > M queued ->` — shows where you are at all times. `Alt+←` walks back through your past prompts (parsed from the log), `Alt+→` walks forward into queued ones; `Shift+Alt+←/→` jumps between region boundaries when you're scrolling far. `Alt+q` parks the current draft as `+1` (think "quick idea I don't want to send yet, while the agent is busy") and `Alt+Backspace` from `+N` deletes a queued prompt without sending. Editing a `-N` history entry forks it: a one-line prompt asks whether to Send / Queue / Discard the fork.
 
 ## Keybindings
 
@@ -55,7 +55,7 @@ History is immutable. If you edit a `-N` slot, the position label shows a dirty 
 - `d/D` — drop the edit and continue navigating.
 - Enter / ESC / anything else — stay where you are.
 
-`+N` and `*` are mutable: edits autosave to disk on navigate-away or focus loss, no prompt. `Alt+q` from `*` parks the current draft for later; from `-N` it forks the history entry into the queue; from `+N` it bumps the item to the front.
+`+N` and `*` are mutable: edits autosave to disk on navigate-away or focus loss, no prompt. `Alt+q` from `*` parks the current draft for later; from `-N` it forks the history entry into the queue; from `+N` it bumps the item to the front. `Alt+Backspace` deletes the current `+N` (no-op anywhere else). When you mouse-select text in the agent pane, the selection always goes to the OS clipboard, but the auto-quote-into-nvim only fires when nvim is in **insert mode** — so browsing history in normal mode doesn't get its buffer overwritten.
 
 ## Mouse
 
