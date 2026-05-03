@@ -81,7 +81,10 @@ Diagnostic log lives at `${XDG_CACHE_HOME:-~/.cache}/pair/clipboard-debug.log` (
 
 ### `bin/copy-on-select.sh` — zellij copy_command wrapper
 
-Receives selected text on stdin from zellij. Mirrors the text to the OS clipboard (zellij's default clipboard write is bypassed when `copy_command` is set, so this is mandatory). Then checks if the focused pane (where the selection happened) is the nvim draft pane; if so, exits without further action (selecting in nvim shouldn't loop back). Otherwise execs `clipboard-to-pane.sh` to hand the selection off to nvim.
+Receives selected text on stdin from zellij. Mirrors the text to the OS clipboard (zellij's default clipboard write is bypassed when `copy_command` is set, so this is mandatory). Then checks if the focused pane (where the selection happened) is the nvim draft pane; if so, exits without further action (selecting in nvim shouldn't loop back). Otherwise:
+
+- Flashes the focused pane's background via `zellij action set-pane-color --pane-id <id> --bg <color>`, then backgrounds a delayed `--reset` (the bash subshell outlives the script's `exec` below). Default flash color `#5a4a00`, duration 100ms (intentionally shorter than the 500ms nvim-side flash — the source flash is a quick "fired" pulse, the destination flash lingers to orient the user on where the text landed); override via `$PAIR_FLASH_BG` and `$PAIR_FLASH_MS`. Best-effort: `set-pane-color` only affects the pane's default bg, so cells the agent has actively painted won't change. Visible-or-not depends on the agent.
+- Execs `clipboard-to-pane.sh` to hand the selection off to nvim.
 
 Pane detection: parse `list-panes --json --command`, find the focused pane, check if its `title` or `terminal_command` matches `nvim|draft`.
 

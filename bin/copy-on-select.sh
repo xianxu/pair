@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
 # Invoked by zellij as copy_command — fires whenever a selection is finalized
 # (mouse up after drag, or any keyboard-driven copy). Stdin = the selected
-# text. We do two things:
+# text. We do three things:
 #
 #   1. Put the selection on the OS clipboard (zellij's default clipboard
 #      behavior is replaced when copy_command is set, so we have to do this
 #      ourselves to keep cross-app paste working).
 #   2. If the selection happened in a pane other than the nvim "draft" pane,
-#      reflow, > -prefix, focus nvim, insert at cursor (via clipboard-to-
-#      pane.sh). This collapses select-in-claude → quote-into-draft into a
-#      single motion — no keystroke between selection and insert.
+#      flash that pane's bg via `zellij action set-pane-color` for a brief
+#      visual cue at the source end of the copy. Best-effort: many TUIs paint
+#      their own bg on every redraw, in which case the flash may be subtle or
+#      invisible. The nvim-side flash on the inserted text is the primary cue.
+#   3. Hand the selection off to clipboard-to-pane.sh, which writes it to
+#      $PAIR_DATA_DIR/quote-<tag> and triggers nvim's PairPasteQuote() to
+#      decide formatting (quote-mode vs inline) based on cursor position.
 #
-# When the selection happened *in* nvim, we skip step 2 — otherwise it'd
+# When the selection happened *in* nvim, we skip steps 2 + 3 — otherwise it'd
 # loop back and insert your own selection beneath itself.
 
 LOG="${XDG_CACHE_HOME:-$HOME/.cache}/pair/clipboard-debug.log"
@@ -43,13 +47,16 @@ elif command -v xclip >/dev/null 2>&1; then
     printf '%s' "$sel" | xclip -selection clipboard -i
 fi
 
-# 2. Detect if the focused pane (where the selection happened) is the nvim
-# draft pane. If so, skip the auto-insert.
+# 2. Inspect the focused pane (where the selection happened). One jq pass
+# extracts both the pane id and a signature for the in-nvim check.
 in_nvim=false
+focused_id=""
 if command -v jq >/dev/null 2>&1; then
-    sig=$(zellij action list-panes --json --command 2>/dev/null \
-          | jq -r '[.. | objects | select(.is_focused == true)][0]
-                   | "\(.title // "") \(.terminal_command // "")"' 2>/dev/null)
+    focused=$(zellij action list-panes --json --command 2>/dev/null \
+              | jq -r '[.. | objects | select(.is_focused == true)][0]
+                       | "\(.id // .pane_id // "")\t\(.title // "") \(.terminal_command // "")"' 2>/dev/null)
+    focused_id=${focused%%$'\t'*}
+    sig=${focused#*$'\t'}
     if printf '%s' "$sig" | grep -qiE 'nvim|draft'; then
         in_nvim=true
     fi
@@ -59,12 +66,34 @@ fi
     echo "=== copy-on-select $(date) ==="
     echo "sel bytes: ${#sel}"
     echo "in_nvim: $in_nvim"
+    echo "focused_id: ${focused_id:-(none)}"
 } >> "$LOG"
 
 if [ "$in_nvim" = true ]; then
     exit 0
 fi
 
-# Selection was in the agent pane (or some other pane) — quote it into nvim.
-# clipboard-to-pane.sh reads the OS clipboard (which we just populated above).
+# 3. Flash the source pane's background so the user gets a visual cue at the
+# selection site (in addition to the nvim-side flash on the inserted text).
+# set-pane-color sets the pane's *default* bg, so this only shows through in
+# cells the agent isn't actively painting — best-effort. Override the color
+# via $PAIR_FLASH_BG, the duration via $PAIR_FLASH_MS.
+flash_bg="${PAIR_FLASH_BG:-#5a4a00}"
+flash_ms="${PAIR_FLASH_MS:-100}"
+if [ -n "$focused_id" ]; then
+    zellij action set-pane-color --pane-id "$focused_id" --bg "$flash_bg" 2>>"$LOG"
+    # Background a delayed reset so the flash auto-clears. Survives the exec
+    # below because backgrounded children outlive parent process replacement.
+    (
+        # Convert ms → seconds for sleep(1) (POSIX sleep accepts decimals).
+        secs=$(awk "BEGIN{printf \"%.3f\", $flash_ms/1000}")
+        sleep "$secs"
+        zellij action set-pane-color --pane-id "$focused_id" --reset 2>>"$LOG"
+    ) &
+    disown 2>/dev/null || true
+    echo "flash: bg=$flash_bg ms=$flash_ms id=$focused_id" >> "$LOG"
+fi
+
+# 4. Hand off to clipboard-to-pane.sh for the actual insert into nvim.
+# It reads the OS clipboard (which we populated in step 1).
 exec "$PAIR_HOME/bin/clipboard-to-pane.sh"

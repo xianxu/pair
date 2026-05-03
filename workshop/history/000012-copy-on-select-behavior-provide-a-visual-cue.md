@@ -1,6 +1,6 @@
 ---
 id: 000012
-status: working
+status: done
 deps: []
 created: 2026-05-03
 updated: 2026-05-03
@@ -72,6 +72,14 @@ Verified in headless nvim (TMPDIR-aware test):
 Manual verification still pending: actual flash visibility under the running tty (the headless test sets the namespace + extmarks but you can't see them without a real terminal). Will eyeball next time I select text in the agent pane.
 
 Status moved to working at start; will move to done after manual eyeball check.
+
+#### Iteration: source-side flash via set-pane-color
+
+Added a complementary visual cue at the *source* end (the agent pane) by flashing its bg via `zellij action set-pane-color --bg <color>` in `bin/copy-on-select.sh`, with a backgrounded delayed `--reset`. Configurable via `$PAIR_FLASH_BG` (default `#5a4a00`) and `$PAIR_FLASH_MS` (default 500). Best-effort — `set-pane-color` only affects the pane's default bg, so cells claude is actively painting won't change; visibility depends on how much of claude's content uses transparent/default bg.
+
+The nvim-side flash on the inserted text remains the primary cue; this is additive.
+
+Eyeballed in a real session: visible on claude. Tuned duration to 250ms then 100ms — at 100ms it reads as a quick "fired" pulse without lingering, which felt right.
 
 #### Iteration: cursor-conditional paste mode
 
