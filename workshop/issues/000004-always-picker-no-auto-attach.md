@@ -1,6 +1,6 @@
 ---
 id: 000004
-status: working
+status: done
 deps: [000001, 000002]
 created: 2026-05-02
 updated: 2026-05-02
@@ -47,7 +47,7 @@ The "1 detached → silent attach" branch is removed. The "2+ detached → picke
 - [x] Update `--help` output to drop the `pick` line and reflect the new "always picker" behavior.
 - [x] Update `atlas/architecture.md` to drop the picker-as-separate-subcommand description.
 - [x] `bash -n` passes; `pair --help` renders the new help.
-- [ ] Manual smoke test by user.
+- [x] Manual smoke test by user.
 
 ## Log
 
@@ -56,3 +56,9 @@ The "1 detached → silent attach" branch is removed. The "2+ detached → picke
 Created. Triggered by user observation that the auto-attach branch is surprising in a long-lived-session world. Combined with the recognition that `pick` was solving the same problem as the default flow should — so unify and drop the subcommand.
 
 Implemented. Cleanest part of the change: deleting the entire `pick`/`--pick` block at the top of bin/pair (was ~50 lines) — its functionality folds entirely into the default flow. Net diff is *smaller* than the file was before. Agent validation moved into the create branch so attaching to a custom-named session like `pair blogging` (where `blogging` isn't a binary) works correctly.
+
+**Spec evolved during smoke test.** The original spec said the picker should use the looser family regex `^pair-${BASE_TAG}(-|$)`. User testing surfaced that even this was too restrictive — custom-named sessions without an agent prefix (e.g. `pair-blogging`) wouldn't show up under `pair claude` because they don't match anything claude-shaped. Final decision: drop the agent filter from the picker entirely; show *all* detached `pair-*` sessions regardless of agent. The agent argument is now only meaningful for the create path (sentinel label, default name, binary to exec). Picker prompt changed from `${BASE_TAG}>` to `pair>` to reflect the new scope.
+
+**A subtle bug worth noting** for future reference: at one point a `Write` call to `bin/pair` reported success but the file content didn't actually update on disk. Subsequent `Edit` calls then patched against text that no longer matched, all reporting success silently. Caught only when user re-tested and reported "I see pair-claude* still." Lesson: after a Write to overwrite an existing file, run `grep` to verify the change landed before chaining further Edits.
+
+Closed.
