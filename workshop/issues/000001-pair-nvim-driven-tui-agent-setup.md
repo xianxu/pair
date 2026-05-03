@@ -1,6 +1,6 @@
 ---
 id: 000001
-status: blocked
+status: done
 deps: []
 created: 2026-05-02
 updated: 2026-05-02
@@ -57,15 +57,13 @@ Pattern, briefly: split a zellij session into two panes. Top pane (~65%) runs th
 - [x] Write README with install steps (manual symlink), keybind summary, image-paste recipes per OS
 - [x] Atlas: `atlas/index.md` and `atlas/architecture.md`
 - [x] **Manual smoke test** by user: `pair claude` from outside zellij. Verify pane split renders, agent starts, nvim opens on draft file with focus.
-- [ ] Verify Alt+u works from both panes (toggles nvim fullscreen, restores split on second press)
-- [ ] Verify Alt+n produces correctly-quoted, correctly-reflowed paste in nvim cursor
-- [ ] Verify Alt+Return sends, logs (`~/scratch/pair-log-claude.md` gets timestamped entry), clears buffer, leaves cursor in insert mode in empty buffer
-- [ ] Verify `<leader>cs` sends only the section between `---` markers
-- [ ] Verify `<leader>cp` reflows-and-pastes without quoting
-- [ ] Test `pair codex` — confirm submit semantics, paste behavior, image-paste support
-- [ ] Test `pair gemini` — same checks
-- [ ] Document any per-agent quirks discovered
-- [ ] Iterate on annoyances surfaced during a week of real use before considering v2 packaging
+- [x] Verify Alt+u works from both panes — confirmed in real use.
+- [x] Verify Alt+Return sends, logs, clears — confirmed in real use.
+- [x] ~~Verify Alt+n~~ — Alt+n was removed in #4 (copy-on-select replaces it).
+- [x] ~~Verify `<leader>cs`~~ — removed in #8.
+- [x] ~~Verify `<leader>cp`~~ — removed in #8.
+- [x] Iterate on annoyances — done in compressed form via #2, #4, #5, #7, #8, #9 (hours rather than a week, but the same shape).
+- [→] Test `pair codex` and `pair gemini`, document per-agent quirks — punted to #000010.
 
 ## Log
 
