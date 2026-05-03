@@ -42,6 +42,7 @@ Automatically installed with `homebrew`.
 | [`fzf`](https://github.com/junegunn/fzf) | session picker (falls back to a numbered prompt if missing) |
 | [`jq`](https://jqlang.github.io/jq/) | parses `zellij action list-panes --json` to target the nvim pane explicitly |
 | [`par`](https://www.nicemice.net/par/) | paragraph reflow on copy-from-agent (without it, lines stay wrapped at terminal width) |
+| `python3` (any 3.x) | runs `bin/pair-wrap`, the PTY proxy that translates agent OSC notifications to outer-terminal OSC 9. Stdlib-only — no `pip install` needed. Usually already present via Xcode CLT |
 | an agent | `claude`, `codex`, `gemini`, or any TUI agent you want to drive |
 
 ## Install
@@ -102,9 +103,14 @@ Zellij filters most OSC escapes (parses them for its virtual screen and drops an
 Pair works around this in two layers:
 
 1. **Outer-TTY capture.** On every attach, `bin/pair` records its controlling TTY (the outer PTY's path) into `${XDG_DATA_HOME:-~/.local/share}/pair/outer-tty-<tag>`. Anything that wants to talk to the outer terminal directly reads this file.
-2. **Transparent agent wrapper.** The agent runs under `pair-wrap`, a small PTY proxy that watches the agent's output stream. When the agent emits a terminal bell (BEL) or an OSC 9 / OSC 777 escape, `pair-wrap` writes an OSC 9 to the recorded outer-TTY path — bypassing zellij. No agent-side configuration required: any agent that bells on idle (claude with `bell` enabled, etc.) lights up the outer wrapper automatically.
+2. **Transparent agent wrapper.** The agent runs under `pair-wrap`, a small PTY proxy that watches the agent's output stream. It parses every OSC sequence and translates *actionable* notifications into an OSC 9 written directly to the recorded outer-TTY path — bypassing zellij. The filter:
+   - **Forward:** OSC 777 (`notify;<title>;<msg>`), OSC 9 with text body.
+   - **Skip:** OSC 0/1/2 (window-title sets — claude updates these every second with a spinner; without filtering this single-handedly causes a notification storm), OSC 9;4;... (iTerm progress codes — fire on every tool-call cycle).
+   - Bare BEL → forwarded as a fallback when no OSC framing is found.
 
-If you want richer signals (semantic events like `Notification` vs `Stop`, custom messages), use the bundled `pair-notify` helper from a Claude Code hook. Sample `~/.claude/settings.json`:
+For Claude Code specifically: vanilla claude emits `OSC 777;notify;Claude Code;Claude is waiting for your input` after ~60s of idle waiting. That signal flows through `pair-wrap` → outer terminal → cmux badge with no extra config.
+
+If you want richer signals (semantic events like `Notification` vs `Stop`, custom messages, faster turnaround than 60s), use the bundled `pair-notify` helper from a Claude Code hook. Sample `~/.claude/settings.json`:
 
 ```json
 {
@@ -120,6 +126,34 @@ If you want richer signals (semantic events like `Notification` vs `Stop`, custo
 ```
 
 Use `pair-notify --osc 777 "msg"` for the urxvt-style variant. Outside a pair session both `pair-wrap` and `pair-notify` are graceful: the wrapper just acts as a transparent proxy, and the helper exits cleanly with a stderr warning. Safe to leave configured globally.
+
+### Debugging an agent's notification protocol
+
+When pairing with a new agent (codex, gemini, etc.) it's not always obvious what OSC family — if any — the agent uses for "I want attention." `pair-wrap` has an opt-in forensic log that records every OSC and BEL it sees, with timestamps and what action it took. Use it to discover the agent's protocol the first time, then update `is_actionable_osc()` in `bin/pair-wrap` if the agent uses something the current filter doesn't recognize.
+
+```sh
+PAIR_WRAP_LOG=~/pair-wrap.log pair codex
+# use the agent normally; let it idle, finish tasks, etc.
+# detach with Alt+d when done
+cat ~/pair-wrap.log
+```
+
+Log lines you'll see:
+
+| Line | Meaning |
+|---|---|
+| `OSC<N>: b'<body>'` | OSC `<N>` recognized as actionable; emit fired |
+| `OSC<N>-skip: b'<body>'` | OSC `<N>` recognized but filtered (title set, progress, etc.) |
+| `BEL: b'<context>'` | bare BEL fallback fired (no OSC framing seen) |
+| `EMIT: 'wrote OSC 9 to <path>'` | successful write to outer TTY (cmux should have badged) |
+| `EMIT-skip: 'rate-limited (...)'` | within 0.5s of last emit; collapsed |
+| `EMIT-skip: 'no outer-tty file...'` | not running under pair, or `record_outer_tty` failed |
+| `EMIT-fail: '<path>: ...'` | tried to write but the recorded path is gone or unwritable |
+
+Reading strategy:
+1. Look for *any* `OSC` or `BEL` lines that fired around moments where the agent was waiting for you. That's the actionable signal.
+2. Look at the gaps. Most agents wait some seconds before emitting an attention signal — note the cadence so you know what to expect.
+3. If only `-skip` lines appear, the agent's signals are all things we filter out. Either (a) the agent doesn't have an attention notification protocol and you'll need a hook-based path (`pair-notify`), or (b) the agent uses an OSC family `is_actionable_osc()` doesn't yet recognize — extend the filter.
 
 ## Files
 

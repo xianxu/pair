@@ -108,7 +108,7 @@ Touches the marker file `~/.cache/pair/quit-$ZELLIJ_SESSION_NAME`, then `exec ze
 
      Rate-limited to one emit per 0.5s. Empirically: claude emits `OSC 777;notify;Claude Code;Claude is waiting for your input` after ~60s of idle waiting — that's the actionable signal that gets through.
 
-     **Debug log.** `PAIR_WRAP_LOG=<path>` enables a per-detection forensic trail (timestamp, what was matched, emit/skip outcome). Off by default.
+     **Debug log.** `PAIR_WRAP_LOG=<path>` enables a per-detection forensic trail (timestamp, OSC/BEL match, emit/skip outcome). Off by default. Used to discover an unfamiliar agent's notification protocol — run e.g. `PAIR_WRAP_LOG=~/pair-wrap.log pair codex`, exercise the agent, then read the log to identify which OSC family it emits when it wants attention. Extend `is_actionable_osc()` if the family isn't yet recognized. README has a fuller workflow.
 
    - **`bin/pair-notify`** (bash). Hook-driven helper for richer signals. `pair-notify [--osc 9|777] "msg"` reads the same outer-TTY file and writes the OSC. Intended for Claude Code `Notification`/`Stop` hooks where you want semantic events with custom message text rather than relying on the agent's native OSC stream.
 
