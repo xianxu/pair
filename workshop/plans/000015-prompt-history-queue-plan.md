@@ -233,13 +233,18 @@ These scenarios become a manual-verification script in the issue's Log section o
 
 Each milestone leaves the script in a working state. After each, log status in the issue's Log section.
 
-### M1: History-only navigation, read-only
+### M1: History-only navigation, read-only ✅ done 2026-05-03
 
 - §H1 parser + §H3 state (no queue references yet).
 - Alt+← / Alt+→ navigate `*` ↔ `-N` only.
 - No edit-flow yet — Alt+← discards dirty edits silently with a `vim.notify` warning.
 - Statusline: `H < pos > 0`.
 - **Verify:** scenarios T1–T5.
+
+Notes from implementation:
+- Hoisted `nav` table, `buffer_text`, `set_buffer_text`, `refresh_statusline` above `send_and_clear` since lua's lexical-scope local resolution requires them in scope at function-definition time. The plan's section-ordered layout (`§H1` … `§H8`) was a logical grouping, not a strict line-order.
+- The pre-existing `BufLeave/FocusLost/InsertLeave` autosave needed a gate on `nav.pos == '*'` — without it, navigating to `-N` and then losing focus would write the history-entry text to `draft-<tag>.md`. Documented inline in the autocmd.
+- send_and_clear uses `:silent! write` to clear the draft on disk (not `io.open` — that bypasses nvim and triggers a stale-mtime warning on the next `:w`).
 
 ### M2: Queue store + Alt+q
 

@@ -8,7 +8,8 @@ vim.g.mapleader = ' '
 vim.opt.number = false
 vim.opt.relativenumber = false
 vim.opt.signcolumn = 'no'
-vim.opt.laststatus = 0   -- no status line
+-- laststatus=2 + a custom statusline are set later (after nav helpers); they
+-- back the position indicator H < pos > Q for the prompt history/queue feature.
 vim.opt.cmdheight = 0    -- no permanent command line; appears on demand only
 vim.opt.showmode = false -- nvim's default `-- INSERT --` line; redundant with cmdheight=0
 vim.opt.ruler = false
@@ -51,20 +52,92 @@ local function pair_tag()
   return os.getenv('PAIR_TAG') or os.getenv('PAIR_AGENT') or 'claude'
 end
 
+local function pair_data_dir()
+  return os.getenv('PAIR_DATA_DIR')
+      or (os.getenv('XDG_DATA_HOME') or vim.fn.expand('~/.local/share'))
+         .. '/pair'
+end
+
+local function log_path_for_tag()
+  return pair_data_dir() .. '/log-' .. pair_tag() .. '.md'
+end
+
+local function draft_path_for_tag()
+  return pair_data_dir() .. '/draft-' .. pair_tag() .. '.md'
+end
+
+local function read_file(path)
+  local f = io.open(path, 'r')
+  if not f then return '' end
+  local content = f:read('*a') or ''
+  f:close()
+  return content
+end
+
+local function write_file(path, content)
+  vim.fn.mkdir(vim.fn.fnamemodify(path, ':h'), 'p')
+  local f = io.open(path, 'w')
+  if not f then return false end
+  f:write(content)
+  f:close()
+  return true
+end
+
 local function append_log(body)
-  -- XDG data dir, honoring $PAIR_DATA_DIR if exported by bin/pair, else
-  -- computing the same way (XDG_DATA_HOME with spec fallback).
-  local data_dir = os.getenv('PAIR_DATA_DIR')
-                or (os.getenv('XDG_DATA_HOME') or vim.fn.expand('~/.local/share'))
-                   .. '/pair'
-  local log_path = data_dir .. '/log-' .. pair_tag() .. '.md'
-  vim.fn.mkdir(vim.fn.fnamemodify(log_path, ':h'), 'p')
-  local f = io.open(log_path, 'a')
+  local path = log_path_for_tag()
+  vim.fn.mkdir(vim.fn.fnamemodify(path, ':h'), 'p')
+  local f = io.open(path, 'a')
   if not f then return end
   f:write(os.date('## %Y-%m-%d %H:%M:%S') .. '\n\n')
   f:write(body)
   f:write('\n\n---\n\n')
   f:close()
+end
+
+-- Parse log-<tag>.md into a list of entry bodies, oldest first.
+-- Entry shape (per append_log): "## YYYY-MM-DD HH:MM:SS\n\n<body>\n\n---\n\n".
+-- Splitting on the entry separator yields parts; the trailing chunk is "" since
+-- the file ends with the separator. Each non-empty part starts with the
+-- timestamp header which we strip to recover just the body.
+local function parse_log(text)
+  local entries = {}
+  if text == '' then return entries end
+  local parts = vim.split(text, '\n\n---\n\n', { plain = true })
+  for _, part in ipairs(parts) do
+    if part ~= '' then
+      local body = part:gsub('^## %S+ %S+\n\n', '', 1)
+      table.insert(entries, body)
+    end
+  end
+  return entries
+end
+
+local function read_history()
+  return parse_log(read_file(log_path_for_tag()))
+end
+
+local function buffer_text()
+  return table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), '\n')
+end
+
+local function set_buffer_text(s)
+  -- Replace whole buffer contents, mark unmodified, park cursor at end so the
+  -- user can append immediately. nvim's autosave autocmd is gated on nav.pos,
+  -- so this won't clobber draft-<tag>.md when we're showing a history entry.
+  local lines = vim.split(s or '', '\n', { plain = true })
+  vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
+  vim.bo.modified = false
+  local last = math.max(1, #lines)
+  pcall(vim.api.nvim_win_set_cursor, 0, { last, #(lines[last] or '') })
+end
+
+-- Forward-declared navigation state. Accessed by send_and_clear and the
+-- autosave autocmd (both before the nav helpers below). Initialized to the
+-- "draft slot, clean buffer" state.
+local nav = { pos = '*', baseline = '' }
+
+local function refresh_statusline()
+  pcall(vim.cmd, 'redrawstatus')
 end
 
 local function send_to_agent(body)
@@ -290,15 +363,23 @@ end
 -- ---------------------------------------------------------------------------
 
 local function send_and_clear()
-  local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-  local body = table.concat(lines, '\n')
+  local body = buffer_text()
   if body:match('^%s*$') then return end
 
   append_log(body)
   send_to_agent(body)
 
+  -- Snap back to *: clear buffer, save through nvim (so the buffer↔file
+  -- mtime stays in sync — bypassing nvim with io.open triggers a stale-
+  -- write warning on the next :w), reset nav state.
+  -- M1 caveat: if we were at -N, the proper auto-evacuate path isn't
+  -- implemented yet — discard_if_dirty already warned on any dirty edit
+  -- that flowed to this send. M4 wires the full send rule.
   vim.api.nvim_buf_set_lines(0, 0, -1, false, { '' })
+  nav.pos = '*'
+  nav.baseline = ''
   vim.cmd('silent! write')
+  refresh_statusline()
   vim.cmd('startinsert')
 end
 
@@ -354,6 +435,98 @@ local function pum_has_selection()
 end
 
 -- ---------------------------------------------------------------------------
+-- prompt history & queue navigation (issue #000015)
+--
+-- Position model (M1: history-only):
+--   nav.pos = '*'                          -- the persistent draft slot
+--          | { kind='history', n=N }       -- Nth-most-recent log entry; n=1 is newest
+--          | { kind='queue',   n=N }       -- (M2+) Nth queue item; n=1 is +1 (front)
+--
+-- nav.baseline = the buffer content at the moment we last loaded the slot.
+-- Used to detect dirtiness for the (M3+) edit-flow rules. In M1 we discard
+-- dirty content with a warning.
+--
+-- See workshop/issues/000015-prompt-history-queue.md for the full spec.
+-- ---------------------------------------------------------------------------
+
+local function pos_label(pos)
+  if pos == '*' then return '*' end
+  if pos.kind == 'history' then return '-' .. pos.n end
+  if pos.kind == 'queue'   then return '+' .. pos.n end
+  return '?'
+end
+
+local function load_baseline_for_current_pos()
+  if nav.pos == '*' then
+    return read_file(draft_path_for_tag())
+  end
+  if nav.pos.kind == 'history' then
+    local entries = read_history()
+    -- entries[#entries] is most recent ⇒ pos.n=1.
+    local idx = #entries - nav.pos.n + 1
+    return entries[idx] or ''
+  end
+  return ''
+end
+
+-- Statusline format: " H < pos > Q ". Q is always 0 in M1.
+function _G.PairStatusline()
+  local h = #read_history()
+  local q = 0
+  return string.format(' %d < %s > %d ', h, pos_label(nav.pos), q)
+end
+
+-- M1: dirty content is discarded silently with a notify warning. M3 will
+-- replace this with the auto-evacuate / flow-to-* rules.
+local function discard_if_dirty()
+  if buffer_text() ~= nav.baseline then
+    vim.notify(
+      'pair: discarded edit (full edit-flow lands in a later milestone)',
+      vim.log.levels.WARN)
+  end
+end
+
+local function nav_left()
+  local entries = read_history()
+  local h = #entries
+  if h == 0 then return end
+
+  local target_n
+  if nav.pos == '*' then
+    target_n = 1
+  elseif nav.pos.kind == 'history' then
+    if nav.pos.n >= h then return end   -- clamp at oldest
+    target_n = nav.pos.n + 1
+  else
+    return                              -- queue: M2+
+  end
+
+  discard_if_dirty()
+  nav.pos = { kind = 'history', n = target_n }
+  nav.baseline = load_baseline_for_current_pos()
+  set_buffer_text(nav.baseline)
+  refresh_statusline()
+end
+
+local function nav_right()
+  if nav.pos == '*' then return end     -- queue: M2+
+  if nav.pos.kind ~= 'history' then return end
+
+  discard_if_dirty()
+  if nav.pos.n <= 1 then
+    nav.pos = '*'
+  else
+    nav.pos = { kind = 'history', n = nav.pos.n - 1 }
+  end
+  nav.baseline = load_baseline_for_current_pos()
+  set_buffer_text(nav.baseline)
+  refresh_statusline()
+end
+
+vim.opt.laststatus = 2
+vim.opt.statusline = '%!v:lua.PairStatusline()'
+
+-- ---------------------------------------------------------------------------
 -- keymaps
 -- ---------------------------------------------------------------------------
 
@@ -362,6 +535,12 @@ vim.keymap.set({ 'n', 'i' }, '<M-CR>', send_and_clear,
 
 vim.keymap.set({ 'n', 'i' }, '<M-i>', attach_image,
   { silent = true, desc = 'pair: attach clipboard image (Ctrl+V to agent + ref)' })
+
+vim.keymap.set({ 'n', 'i' }, '<M-Left>', nav_left,
+  { silent = true, desc = 'pair: navigate to older history entry' })
+
+vim.keymap.set({ 'n', 'i' }, '<M-Right>', nav_right,
+  { silent = true, desc = 'pair: navigate toward draft / queue' })
 
 vim.keymap.set('i', '<Tab>', function()
   return pum_visible() and '<C-n>' or '<Tab>'
@@ -381,11 +560,19 @@ end, { expr = true, desc = 'pair: accept completion if selected else newline' })
 
 local pair_aug = vim.api.nvim_create_augroup('pair', { clear = true })
 
--- autosave on transitions so disk and buffer agree
+-- autosave on transitions so disk and buffer agree.
+-- Gated on nav.pos == '*': when we're showing a history entry (-N) or queue
+-- item (+N), the buffer holds that slot's content, NOT the persistent draft.
+-- An unconditional :w would clobber draft-<tag>.md. Edit-flow for non-*
+-- slots is handled inside the navigation actions, not here.
 vim.api.nvim_create_autocmd({ 'BufLeave', 'FocusLost', 'InsertLeave' }, {
   group = pair_aug,
   pattern = '*',
-  callback = function() pcall(vim.cmd, 'silent! write') end,
+  callback = function()
+    if nav.pos == '*' then
+      pcall(vim.cmd, 'silent! write')
+    end
+  end,
 })
 
 -- start at end of buffer in insert mode — drafting is the default activity,
