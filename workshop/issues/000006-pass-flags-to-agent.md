@@ -55,14 +55,17 @@ Filed during conversation; user has follow-up questions before implementation. W
 
 Implemented with `--` separator (Unix convention). Worked but felt ceremonial.
 
-User pushed back: pair only takes 0 or 1 positional arg (the agent), so any `-flag` cannot be confused with an agent name. `--` is unnecessary. Refactored to: first arg is agent iff it doesn't start with `-`; otherwise default agent and all args forward. Examples:
+User pushed back: pair only takes 0 or 1 positional arg (the agent), so any `-flag` cannot be confused with an agent name. `--` is unnecessary. Refactored to: first arg is agent iff it doesn't start with `-`; otherwise default agent and all args forward.
+
+Then user surfaced real-world friction with the no-`--` model: `pair --dangerously-skip-permissions` and `pair claude --dangerously-skip-permissions` were both ambiguous to read at a glance, and the user found themselves wanting the explicit separator. Reverted to `--` semantics. Final:
 
 ```sh
-pair                        # claude
-pair claude                 # claude
-pair claude --resume        # claude --resume
-pair codex -p "hi"          # codex -p hi
-pair --resume               # claude --resume
+pair                                  # claude
+pair claude                           # claude
+pair claude -- --resume               # claude --resume
+pair -- --dangerously-skip-permissions  # claude --dangerously-skip-permissions
+pair codex -- -p "hi"                 # codex -p hi
+pair claude foo                       # error (use `--` to forward)
 ```
 
-Cleaner. README, atlas, --help all updated.
+Lesson: explicit > clever, especially for CLI tools that get typed in muscle memory. The 5 extra characters of `--` save real cognitive load.
