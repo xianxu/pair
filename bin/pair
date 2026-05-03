@@ -297,12 +297,12 @@ if ! command -v "$AGENT" >/dev/null 2>&1; then
     exit 1
 fi
 
-# Prompt for a session name. Default = auto-suggested next-free name. Empty
-# input keeps the default; a typed value (with any leading `pair-` stripped)
-# becomes the new tag. Reads from /dev/tty so the prompt works even when
-# stdin is redirected.
-default_session="pair-${chosen_tag}"
-printf 'Session name [%s]: ' "$default_session" >/dev/tty
+# Prompt for a session name. Default = auto-suggested next-free tag (the
+# `pair-` prefix is implicit and added back below). Empty input keeps the
+# default; a typed value (with any leading `pair-` stripped) becomes the
+# new tag. Reads from /dev/tty so the prompt works even when stdin is
+# redirected.
+printf 'Session name [%s]: ' "$chosen_tag" >/dev/tty
 if read -r user_input </dev/tty; then
     if [ -n "$user_input" ]; then
         case "$user_input" in

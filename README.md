@@ -82,7 +82,7 @@ When `pair` runs and any detached `pair-*` session exists, it shows an `fzf` pic
 When the create flow runs, it prompts for the session name with the auto-suggested name as the default:
 
 ```
-Session name [pair-claude]: <Enter to accept, or type a custom name>
+Session name [claude]: <Enter to accept, or type a custom name>
 ```
 
 Custom names like `bugfix`, `blogging`, or `research` are allowed (chars: `A-Z a-z 0-9 - _`). 

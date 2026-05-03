@@ -33,7 +33,7 @@ There is **no silent auto-attach**. Every reattach goes through the picker so th
 
 Detection of attached-vs-detached uses `zellij --session NAME action list-clients`, which prints a header plus one row per connected client. Zero rows = detached.
 
-**Naming prompt.** When the create flow runs, the launcher prompts the user with the auto-suggested name as the default (`Session name [pair-claude-2]:`). Pressing Enter accepts; typing a custom name (`pair-bugfix`, or just `bugfix`) overrides it.
+**Naming prompt.** When the create flow runs, the launcher prompts the user with the auto-suggested tag as the default (`Session name [claude-2]:`). The `pair-` prefix is implicit — the prompt shows just the tag since `pair-` is always prepended. Pressing Enter accepts; typing a custom name (`bugfix`, or `pair-bugfix` — leading `pair-` is stripped) overrides it.
 
 **Agent validation deferred.** `command -v "$AGENT"` runs only inside the create branch, not at startup, so attaching to a custom-named session whose tag isn't a real binary still works.
 
