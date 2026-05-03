@@ -64,6 +64,8 @@ KEYBINDINGS (inside a pair session)
   Alt+← / Alt+→ walk through prompt history (-N) ↔ draft (*) ↔ queue (+N)
   Alt+q         push current buffer to queue front (+1)
                 from *: parks the draft. from -N: forks. from +N: move-to-front
+  Alt+BS        (at +N) delete the current queued prompt; items shift down,
+                so tap-tap deletes a run
   Alt+u         toggle nvim pane fullscreen (works from either pane)
   Alt+d         detach from session (re-attach later via `pair`)
   Alt+x         full quit — kill session and remove from resurrect list

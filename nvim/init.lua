@@ -716,6 +716,28 @@ local function nav_right()
   end
 end
 
+-- Alt+BS — delete the current +N queue item without sending it. "Stay near":
+-- after delete, items at +(N+1)..+M shift down by one, so the same +N slot
+-- now displays what used to be next. Lets the user tap-tap to clean out a
+-- run. If queue empties, fall back to *.
+local function delete_current_queue_item()
+  if type(nav.pos) ~= 'table' or nav.pos.kind ~= 'queue' then return end
+  local key = queue_key_for_n(nav.pos.n)
+  if not key then return end
+  queue_remove(key)
+  local total = queue_count()
+  if total == 0 then
+    nav.pos = '*'
+  elseif nav.pos.n > total then
+    nav.pos = { kind = 'queue', n = total }
+  end
+  -- nav.pos.n unchanged when there's still something at this slot — the
+  -- shifted-down item takes its place.
+  set_buffer_text(load_baseline_for_current_pos())
+  nav.baseline = buffer_text()
+  refresh_statusline()
+end
+
 -- Alt+q — push current buffer to the FRONT of the queue (+1), return to *.
 -- Uniform rule across source slots:
 --   * source : "park this draft for later". Clear * after the push.
@@ -781,6 +803,9 @@ vim.keymap.set({ 'n', 'i' }, '<M-Right>', nav_right,
 
 vim.keymap.set({ 'n', 'i' }, '<M-q>', queue_current,
   { silent = true, desc = 'pair: queue current draft for later (back of queue)' })
+
+vim.keymap.set({ 'n', 'i' }, '<M-BS>', delete_current_queue_item,
+  { silent = true, desc = 'pair: delete the current +N queue item' })
 
 vim.keymap.set('i', '<Tab>', function()
   return pum_visible() and '<C-n>' or '<Tab>'
