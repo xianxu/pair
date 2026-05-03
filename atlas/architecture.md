@@ -20,7 +20,7 @@ zellij/layouts/main.kdl      # the split + agent/draft commands
 
 ### `bin/pair` — launcher
 
-Resolves `$PAIR_HOME` from its own real path (portable bash, no `readlink -f`), prepends `$PAIR_HOME/bin` to `$PATH` (idempotent across re-launches) so all helper scripts resolve by bare name in zellij configs and keybinds, sets `$PAIR_AGENT` from the positional argument (default `claude`) and `$PAIR_TAG` from `<agent>` or `<agent>-<variant>`, ensures `~/scratch/` exists, and dispatches:
+Resolves `$PAIR_HOME` from its own real path (portable bash, no `readlink -f`), prepends `$PAIR_HOME/bin` to `$PATH` (idempotent across re-launches) so all helper scripts resolve by bare name in zellij configs and keybinds, parses argv — first positional is `$PAIR_AGENT` (default `claude`), everything after `--` is joined into `$PAIR_AGENT_ARGS`, extra positionals before `--` are an error with a usage hint, sets `$PAIR_TAG` to the agent name (custom names come from the create-flow prompt), resolves `$PAIR_DATA_DIR` to `${XDG_DATA_HOME:-$HOME/.local/share}/pair`, runs a one-time migration of any old `~/scratch/pair-{draft,log}-*` files, and dispatches:
 
 **Decision tree.** Finds *all* detached pair-* sessions on the machine (any agent, any naming). Then:
 
@@ -43,9 +43,11 @@ Detection of attached-vs-detached uses `zellij --session NAME action list-client
 
 ### `zellij/layouts/main.kdl` — pane split
 
-Horizontal split. Top pane runs `$PAIR_AGENT` (auto-fills remaining height). Bottom pane is a fixed 10 rows running `nvim -u $PAIR_HOME/nvim/init.lua` on the per-tag draft file.
+Horizontal split. Top pane runs `$PAIR_AGENT $PAIR_AGENT_ARGS` (auto-fills remaining height). Bottom pane is a fixed 10 rows running `nvim -u $PAIR_HOME/nvim/init.lua` on the per-tag draft file.
 
-Both panes wrap their command in `sh -c "..."` so the shell expands `$PAIR_AGENT`, `$PAIR_TAG`, and `$PAIR_HOME` at exec time — zellij itself does not interpolate env vars in `command`/`args` fields.
+Both panes wrap their command in `sh -c "..."` so the shell expands `$PAIR_AGENT`, `$PAIR_AGENT_ARGS`, `$PAIR_TAG`, and `$PAIR_HOME` at exec time — zellij itself does not interpolate env vars in `command`/`args` fields.
+
+`$PAIR_AGENT_ARGS` is appended on the agent pane command line as a single space-separated string; the shell word-splits it. Args containing spaces are *not* preserved (rare for CLI flags; documented in README).
 
 The bottom pane has `focus=true` (drafting pane gets focus on launch) and a `name=` set to the help string (`Alt: ⏎=send  u=max  i=img  d=detach  x=quit`) so zellij renders that as the pane's frame title.
 
@@ -92,8 +94,6 @@ Loaded via `nvim -u`, fully isolated from the user's main nvim config. Provides:
 - Drafting-friendly defaults: no line numbers, wrap, linebreak, breakindent, spell, persistent undo under `~/.local/share/pair/undo/`, `laststatus=0` and `cmdheight=0` to maximize editing space.
 - `<M-CR>` (Alt+Return, normal+insert) — `send_and_clear`: append buffer to log, send to agent pane via `zellij action focus-pane-id` + `write-chars` + Enter, clear buffer, save, drop into insert mode.
 - `<M-i>` (Alt+i, normal+insert) — `attach_image`: increment per-session counter, send Ctrl+V to the agent pane (claude reads OS clipboard, attaches image), insert `[Image #N]` at cursor. If cursor is on an existing `[Image #N]`, sync the counter to N instead.
-- `<leader>cs` — `send_section`: send only the section between nearest `---` markers.
-- `<leader>cp` — `paste_and_reflow`: paste clipboard at cursor through `par 1000`.
 - Autosave on `BufLeave`, `FocusLost`, `InsertLeave` so disk and buffer agree.
 
 ## Quit semantics
@@ -107,14 +107,18 @@ Both work; pick based on whether you want the option to come back to that exact 
 
 ## Data layout
 
-Drafts and prompt history live in `~/scratch/`, keyed by tag (the agent name, or `<agent>-<variant>`, or a custom name from the prompt):
+Drafts and prompt history live under `${XDG_DATA_HOME:-~/.local/share}/pair/` (per XDG Base Directory spec), keyed by tag (the agent name, or a custom name from the create-flow prompt):
 
-- `pair-draft-<tag>.md` — the active draft file. Cleared by `send_and_clear`, persists across launches.
-- `pair-log-<tag>.md` — append-only log of every send, with timestamp. Searchable via `rg`.
+- `draft-<tag>.md` — the active draft file. Cleared by `send_and_clear`, persists across launches.
+- `log-<tag>.md` — append-only log of every send, with timestamp. Searchable via `rg`.
 
-Per-tag files mean `pair claude`, `pair codex`, `pair claude work`, and `pair claude bugfix` (custom name) all have independent draft state.
+The launcher exports `$PAIR_DATA_DIR` so `nvim/init.lua` can compute the same path without re-deriving the XDG fallback chain.
+
+Per-tag files mean `pair claude`, `pair codex`, and a custom-named `pair-bugfix` (entered at the prompt) all have independent draft state.
 
 Internal: `~/.cache/pair/quit-<session>` — marker file used to communicate "user asked for full quit" between `pair-quit.sh` and the launcher. Touched on Alt+x, removed by the launcher after delete-session.
+
+**Migration from v1:** the launcher detects old `~/scratch/pair-{draft,log}-*.md` files on startup and moves them to the new XDG location, stripping the redundant `pair-` prefix from filenames.
 
 ## Path resolution
 

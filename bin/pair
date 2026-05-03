@@ -5,7 +5,10 @@
 # Usage:
 #   pair                       claude in default session
 #   pair <agent>               claude / codex / gemini
-#   pair <agent> <variant>     independent session, e.g. pair claude work
+#   pair [<agent>] -- <args>   forward args to agent on create,
+#                              e.g. pair claude -- --resume
+#                                   pair -- --dangerously-skip-permissions
+#                                   pair codex -- -p "say hi"
 #   pair -h, --help            show help
 #
 # When detached pair-* sessions exist, an fzf picker is shown so the user
@@ -25,8 +28,21 @@ pair — Neovim-backed input field for any TUI coding agent.
 USAGE
   pair                          claude in default session
   pair <agent>                  e.g. pair codex / pair gemini
-  pair <agent> <variant>        independent session, e.g. pair claude work
+  pair [<agent>] -- <args>      forward args to the agent on create
+                                e.g. pair claude -- --resume
+                                     pair -- --dangerously-skip-permissions
+                                     pair codex -- -p "say hi"
   pair -h, --help               this message
+
+  Use `--` to separate pair's args from the agent's args. Without `--`,
+  pair only accepts `<agent>` as a positional.
+
+  When creating a new session you'll be prompted for a name; type any
+  custom name (e.g. "bugfix") to make it independent of other sessions.
+
+  Agent args (after `--`) only apply on CREATE. Reattaching to an
+  existing session uses whatever args the agent was originally started
+  with — the picker doesn't re-launch the agent.
 
 BEHAVIOR
   Picker shows ALL detached pair-* sessions, regardless of the agent
@@ -45,16 +61,15 @@ BEHAVIOR
 KEYBINDINGS (inside a pair session)
   Alt+Return    send nvim buffer to agent + Enter, log, clear, insert mode
   Alt+u         toggle nvim pane fullscreen (works from either pane)
-  Alt+d         detach from session
-  Alt+n         pull clipboard into nvim cursor (reflowed, ">" -prefixed)
+  Alt+d         detach from session (re-attach later via `pair`)
+  Alt+x         full quit — kill session and remove from resurrect list
+                (Ctrl+q remains as zellij's default quit-with-resurrect)
   Alt+i         attach clipboard image to agent + insert [Image #N];
                 if cursor is on an existing [Image #N], sync counter to N
-  <leader>cs    send only current section (between --- markers)
-  <leader>cp    paste-and-reflow at cursor (raw, no quoting)
 
 FILES
-  ~/scratch/pair-draft-<tag>.md   persistent draft per session
-  ~/scratch/pair-log-<tag>.md     append-only prompt log per session
+  ${XDG_DATA_HOME:-~/.local/share}/pair/draft-<tag>.md   persistent draft
+  ${XDG_DATA_HOME:-~/.local/share}/pair/log-<tag>.md     prompt history
 
 See README.md for image-paste recipes and other details.
 EOF
@@ -80,18 +95,49 @@ case ":$PATH:" in
     *) export PATH="$PAIR_HOME/bin:$PATH" ;;
 esac
 
-AGENT="${1:-claude}"
-VARIANT="${2:-}"
+# Parse argv. First positional is the agent name (default `claude`).
+# Anything after `--` is forwarded to the agent on create. The `--`
+# separator is required to disambiguate "agent name" from "flag for the
+# agent" — without it, `pair --dangerously-skip-permissions` is ambiguous
+# (is `--dangerously-skip-permissions` the agent or a flag?).
+#
+#   pair                                  → claude
+#   pair claude                           → claude
+#   pair claude -- --resume               → claude --resume
+#   pair -- --resume                      → claude --resume
+#   pair codex -- -p "hi"                 → codex -p hi   (word-split caveat)
+AGENT=""
+agent_extra=""
+seen_dd=false
+for arg in "$@"; do
+    if $seen_dd; then
+        if [ -z "$agent_extra" ]; then
+            agent_extra="$arg"
+        else
+            agent_extra="$agent_extra $arg"
+        fi
+    elif [ "$arg" = "--" ]; then
+        seen_dd=true
+    elif [ -z "$AGENT" ]; then
+        AGENT="$arg"
+    else
+        echo "pair: unexpected positional arg '$arg' (use '--' to forward args to the agent)" >&2
+        echo "      e.g. pair claude -- --resume" >&2
+        exit 1
+    fi
+done
+[ -z "$AGENT" ] && AGENT="claude"
 
 # PAIR_AGENT is the command to exec in the agent pane on create.
-# PAIR_TAG is the namespace identifier — used to name the zellij session and
-# the per-instance draft/log files. Without a variant, tag == agent.
+# PAIR_AGENT_ARGS is appended on the agent pane's command line at create.
+#   It applies only on create; reattaching to an existing session uses
+#   whatever args the agent was originally launched with.
+# PAIR_TAG is the namespace identifier — used to name the zellij session
+#   and the per-instance draft/log files. Defaults to the agent name;
+#   the create flow's interactive prompt (#000002) lets the user override.
 export PAIR_AGENT="$AGENT"
-if [ -n "$VARIANT" ]; then
-    export PAIR_TAG="${AGENT}-${VARIANT}"
-else
-    export PAIR_TAG="$AGENT"
-fi
+export PAIR_AGENT_ARGS="$agent_extra"
+export PAIR_TAG="$AGENT"
 
 if ! command -v zellij >/dev/null 2>&1; then
     echo "pair: zellij not found on PATH." >&2
@@ -108,7 +154,29 @@ if [ -n "${ZELLIJ:-}" ]; then
     exit 1
 fi
 
-mkdir -p "$HOME/scratch"
+# Resolve XDG data dir for pair's drafts and per-tag prompt logs.
+# Honors $XDG_DATA_HOME with the spec-defined fallback.
+DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/pair"
+mkdir -p "$DATA_DIR"
+export PAIR_DATA_DIR="$DATA_DIR"
+
+# One-time migration: if old ~/scratch/pair-{draft,log}-*.md files exist,
+# move them to the new XDG location with the redundant `pair-` prefix
+# stripped (since they're already inside the pair/ dir). Idempotent.
+if [ -d "$HOME/scratch" ]; then
+    moved=0
+    for old in "$HOME/scratch"/pair-draft-*.md "$HOME/scratch"/pair-log-*.md; do
+        [ -e "$old" ] || continue
+        base="$(basename "$old")"
+        new="$DATA_DIR/${base#pair-}"
+        if [ ! -e "$new" ]; then
+            mv "$old" "$new" && moved=$((moved + 1))
+        fi
+    done
+    if [ "$moved" -gt 0 ]; then
+        echo "pair: migrated $moved file(s) from ~/scratch/ to $DATA_DIR" >&2
+    fi
+fi
 
 BASE_TAG="$PAIR_TAG"
 
@@ -209,7 +277,7 @@ cleanup_quit_marker() {
 if [ "$action" = "attach" ]; then
     export PAIR_TAG="$chosen_tag"
     SESSION="pair-${PAIR_TAG}"
-    DRAFT="$HOME/scratch/pair-draft-${PAIR_TAG}.md"
+    DRAFT="$DATA_DIR/draft-${PAIR_TAG}.md"
     [ -f "$DRAFT" ] || : > "$DRAFT"
     # Set terminal title — zellij sets this on new-session creation but not
     # on attach, so without this the title stays as whatever the shell's
@@ -262,7 +330,7 @@ fi
 
 export PAIR_TAG="$chosen_tag"
 SESSION="pair-${PAIR_TAG}"
-DRAFT="$HOME/scratch/pair-draft-${PAIR_TAG}.md"
+DRAFT="$DATA_DIR/draft-${PAIR_TAG}.md"
 [ -f "$DRAFT" ] || : > "$DRAFT"
 
 # Set terminal title — harmless duplicate for new sessions (zellij sets it

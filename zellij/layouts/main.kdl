@@ -1,10 +1,11 @@
 // pair main layout — top: TUI agent, bottom: nvim drafting pane.
 //
 // Agent, tag, and pair home resolved from environment at exec time:
-//   $PAIR_AGENT  — agent command to exec (claude, codex, gemini, ...)
-//   $PAIR_TAG    — namespace ID for files (e.g. "claude" or "claude-work")
-//   $PAIR_HOME   — pair install location (for nvim init)
-// All three are exported by bin/pair before invoking zellij.
+//   $PAIR_AGENT       — agent command to exec (claude, codex, gemini, ...)
+//   $PAIR_AGENT_ARGS  — extra args after `--` on the pair command line
+//   $PAIR_TAG         — namespace ID for files (e.g. "claude" or "bugfix")
+//   $PAIR_HOME        — pair install location (for nvim init)
+// All four are exported by bin/pair before invoking zellij.
 //
 // We wrap the commands in `sh -c` so the shell does the env interpolation.
 // zellij itself does not expand env vars in `command`/`args` fields.
@@ -13,11 +14,11 @@ layout {
     pane split_direction="horizontal" {
         pane name="agent" {
             command "sh"
-            args "-c" "exec ${PAIR_AGENT:-claude}"
+            args "-c" "exec ${PAIR_AGENT:-claude} ${PAIR_AGENT_ARGS:-}"
         }
         pane size=10 name="Alt: ⏎=send  u=max  i=img  d=detach  x=quit" focus=true {
             command "sh"
-            args "-c" "mkdir -p \"$HOME/scratch\" && exec nvim -u \"$PAIR_HOME/nvim/init.lua\" \"$HOME/scratch/pair-draft-${PAIR_TAG:-${PAIR_AGENT:-claude}}.md\""
+            args "-c" "DATA_DIR=\"${XDG_DATA_HOME:-$HOME/.local/share}/pair\" && mkdir -p \"$DATA_DIR\" && exec nvim -u \"$PAIR_HOME/nvim/init.lua\" \"$DATA_DIR/draft-${PAIR_TAG:-${PAIR_AGENT:-claude}}.md\""
         }
     }
 }

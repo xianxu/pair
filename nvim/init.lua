@@ -40,7 +40,12 @@ local function pair_tag()
 end
 
 local function append_log(body)
-  local log_path = vim.fn.expand('~/scratch/pair-log-' .. pair_tag() .. '.md')
+  -- XDG data dir, honoring $PAIR_DATA_DIR if exported by bin/pair, else
+  -- computing the same way (XDG_DATA_HOME with spec fallback).
+  local data_dir = os.getenv('PAIR_DATA_DIR')
+                or (os.getenv('XDG_DATA_HOME') or vim.fn.expand('~/.local/share'))
+                   .. '/pair'
+  local log_path = data_dir .. '/log-' .. pair_tag() .. '.md'
   vim.fn.mkdir(vim.fn.fnamemodify(log_path, ':h'), 'p')
   local f = io.open(log_path, 'a')
   if not f then return end
@@ -142,53 +147,6 @@ local function send_and_clear()
 end
 
 -- ---------------------------------------------------------------------------
--- send_section: <leader>cs — send only the section between --- markers
--- ---------------------------------------------------------------------------
-
-local function send_section()
-  local cur = vim.api.nvim_win_get_cursor(0)[1]
-  local last = vim.api.nvim_buf_line_count(0)
-
-  local function is_marker(i)
-    local line = vim.api.nvim_buf_get_lines(0, i - 1, i, false)[1]
-    return line == '---'
-  end
-
-  local first = 1
-  for i = cur - 1, 1, -1 do
-    if is_marker(i) then first = i + 1; break end
-  end
-  local stop = last
-  for i = cur, last do
-    if is_marker(i) then stop = i - 1; break end
-  end
-
-  local lines = vim.api.nvim_buf_get_lines(0, first - 1, stop, false)
-  local body = table.concat(lines, '\n'):gsub('^%s+', ''):gsub('%s+$', '')
-  if body == '' then return end
-
-  append_log(body)
-  send_to_agent(body)
-end
-
--- ---------------------------------------------------------------------------
--- paste_and_reflow: <leader>cp — paste clipboard at cursor with par reflow
--- ---------------------------------------------------------------------------
-
-local function paste_and_reflow()
-  local clip = vim.fn.getreg('+')
-  if clip == '' then return end
-  if vim.fn.executable('par') == 1 then
-    clip = vim.fn.system({ 'par', '1000' }, clip)
-  end
-  -- strip trailing newline from system output
-  clip = clip:gsub('\n$', '')
-  local lines = vim.split(clip, '\n', { plain = true, trimempty = false })
-  local row = vim.api.nvim_win_get_cursor(0)[1]
-  vim.api.nvim_buf_set_lines(0, row, row, false, lines)
-end
-
--- ---------------------------------------------------------------------------
 -- keymaps
 -- ---------------------------------------------------------------------------
 
@@ -197,12 +155,6 @@ vim.keymap.set({ 'n', 'i' }, '<M-CR>', send_and_clear,
 
 vim.keymap.set({ 'n', 'i' }, '<M-i>', attach_image,
   { silent = true, desc = 'pair: attach clipboard image (Ctrl+V to agent + ref)' })
-
-vim.keymap.set('n', '<leader>cs', send_section,
-  { silent = true, desc = 'pair: send current section' })
-
-vim.keymap.set('n', '<leader>cp', paste_and_reflow,
-  { silent = true, desc = 'pair: paste-and-reflow' })
 
 -- ---------------------------------------------------------------------------
 -- autosave on transitions so disk and buffer agree
