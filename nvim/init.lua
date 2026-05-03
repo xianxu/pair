@@ -25,6 +25,12 @@ vim.opt.expandtab = true
 vim.opt.shiftwidth = 2
 vim.opt.tabstop = 2
 
+-- Disable nvim's right-click context menu. Default `mousemodel=popup_setpos`
+-- pops up a "Copy/Paste/..." menu that's confusing inside the pair draft pane;
+-- `extend` falls back to the vim-traditional behavior of extending the visual
+-- selection on right-click.
+vim.opt.mousemodel = 'extend'
+
 -- Completion popup behavior. menuone: show popup even with one match.
 -- noinsert,noselect: never auto-insert or auto-highlight a match — Enter
 -- in the draft is overwhelmingly "newline", so accidental confirmation
