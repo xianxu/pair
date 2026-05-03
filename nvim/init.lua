@@ -25,6 +25,12 @@ vim.opt.expandtab = true
 vim.opt.shiftwidth = 2
 vim.opt.tabstop = 2
 
+-- Completion popup behavior. menuone: show popup even with one match.
+-- noinsert,noselect: never auto-insert or auto-highlight a match — Enter
+-- in the draft is overwhelmingly "newline", so accidental confirmation
+-- would be disruptive. The user explicitly cycles with Tab/Shift-Tab.
+vim.opt.completeopt = { 'menu', 'menuone', 'noinsert', 'noselect' }
+
 -- Persistent undo so cleared content is recoverable
 local undodir = vim.fn.expand('~/.local/share/pair/undo')
 vim.fn.mkdir(undodir, 'p')
@@ -141,10 +147,11 @@ end
 --                 the top of the window (zt), flash the block, land on a
 --                 single empty line below in insert mode.
 --
---   * col >  0  → inline-mode. The user is mid-text and just wants the
---                 verbatim selection stitched in at the cursor. No reflow,
---                 no prefix, no scroll. Flash the inserted span, leave the
---                 cursor in insert mode immediately after it.
+--   * col >  0  → inline-mode. The user is mid-text and stitching the
+--                 selection in at the cursor. Reflow with par so hard-wrapped
+--                 lines collapse into one continuous run (paragraph breaks
+--                 preserved); no prefix, no scroll. Flash the inserted span,
+--                 leave the cursor in insert mode immediately after it.
 --
 -- A single namespace `pair_flash` carries the IncSearch highlight in both
 -- modes; cleared after 500ms via vim.defer_fn.
@@ -223,6 +230,7 @@ end
 local function paste_inline(body, row, col)
   body = body:gsub('\n+$', '')
   if body == '' then return end
+  body = reflow_par(body):gsub('\n+$', '')
   local lines = vim.split(body, '\n', { plain = true })
 
   local buf = vim.api.nvim_get_current_buf()
@@ -289,6 +297,57 @@ local function send_and_clear()
 end
 
 -- ---------------------------------------------------------------------------
+-- as-you-type path completion (plugin-free, fzf-style on the basename)
+--
+-- TextChangedI/P fires per keystroke. We pull the path-shaped token at the
+-- cursor (anything ending in `/foo` or starting with `~`/`./`), split it on
+-- the last `/` into <dir>/<filter>, list <dir> via getcompletion, then fuzzy-
+-- filter by <filter> via matchfuzzy. Results go straight to vim.fn.complete()
+-- — bypassing <C-x><C-f> avoids feedkeys reentrancy.
+--
+-- Reload via `:luafile $PAIR_HOME/nvim/init.lua` (works because all autocmds
+-- live in the `pair` augroup with clear=true).
+-- ---------------------------------------------------------------------------
+
+-- Lua pattern for a path-ish token: word chars, slash, dot, dash, underscore,
+-- tilde. Matches the longest such run anchored at end-of-prefix.
+local PATH_TOKEN_RE = '([%w%./%-_~]+)$'
+
+local function path_complete()
+  local line = vim.api.nvim_get_current_line()
+  local col = vim.fn.col('.') - 1  -- 0-indexed cursor byte position
+  if col == 0 then return end
+  local before = line:sub(1, col)
+  local token_start, _, token = before:find(PATH_TOKEN_RE)
+  if not token then return end
+  -- Only trigger on path-shaped tokens. Plain words stay quiet.
+  if not (token:find('/') or token:match('^~')) then return end
+
+  local dir, filter = token:match('^(.*/)([^/]*)$')
+  if not dir then dir, filter = '', token end
+
+  local ok, matches = pcall(vim.fn.getcompletion, dir, 'file')
+  if not ok or type(matches) ~= 'table' or #matches == 0 then return end
+  if filter ~= '' then
+    local ok2, fuzzy = pcall(vim.fn.matchfuzzy, matches, filter)
+    if ok2 then matches = fuzzy end
+  end
+  if #matches == 0 then return end
+
+  -- complete() col is 1-indexed start of the span being replaced.
+  vim.fn.complete(token_start, matches)
+end
+
+local function pum_visible()
+  return vim.fn.pumvisible() == 1
+end
+
+local function pum_has_selection()
+  -- complete_info().selected is -1 when nothing highlighted.
+  return vim.fn.complete_info({ 'selected' }).selected ~= -1
+end
+
+-- ---------------------------------------------------------------------------
 -- keymaps
 -- ---------------------------------------------------------------------------
 
@@ -298,23 +357,44 @@ vim.keymap.set({ 'n', 'i' }, '<M-CR>', send_and_clear,
 vim.keymap.set({ 'n', 'i' }, '<M-i>', attach_image,
   { silent = true, desc = 'pair: attach clipboard image (Ctrl+V to agent + ref)' })
 
+vim.keymap.set('i', '<Tab>', function()
+  return pum_visible() and '<C-n>' or '<Tab>'
+end, { expr = true, desc = 'pair: cycle completion or insert tab' })
+
+vim.keymap.set('i', '<S-Tab>', function()
+  return pum_visible() and '<C-p>' or '<S-Tab>'
+end, { expr = true, desc = 'pair: reverse-cycle completion or shift-tab' })
+
+vim.keymap.set('i', '<CR>', function()
+  return (pum_visible() and pum_has_selection()) and '<C-y>' or '<CR>'
+end, { expr = true, desc = 'pair: accept completion if selected else newline' })
+
 -- ---------------------------------------------------------------------------
--- autosave on transitions so disk and buffer agree
+-- autocmds — all under the `pair` augroup so :luafile reloads cleanly.
 -- ---------------------------------------------------------------------------
 
+local pair_aug = vim.api.nvim_create_augroup('pair', { clear = true })
+
+-- autosave on transitions so disk and buffer agree
 vim.api.nvim_create_autocmd({ 'BufLeave', 'FocusLost', 'InsertLeave' }, {
+  group = pair_aug,
   pattern = '*',
   callback = function() pcall(vim.cmd, 'silent! write') end,
 })
 
--- ---------------------------------------------------------------------------
 -- start at end of buffer in insert mode — drafting is the default activity,
 -- so don't make the user press `i` after every fresh launch.
--- ---------------------------------------------------------------------------
-
 vim.api.nvim_create_autocmd('VimEnter', {
+  group = pair_aug,
   callback = function()
     vim.cmd('normal! G')
     vim.cmd('startinsert!')
   end,
+})
+
+-- Fire on both events: TextChangedI when popup is hidden, TextChangedP when
+-- popup is visible — refreshing the menu as the user types more characters.
+vim.api.nvim_create_autocmd({ 'TextChangedI', 'TextChangedP' }, {
+  group = pair_aug,
+  callback = path_complete,
 })
