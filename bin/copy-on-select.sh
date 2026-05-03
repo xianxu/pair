@@ -7,13 +7,14 @@
 #      behavior is replaced when copy_command is set, so we have to do this
 #      ourselves to keep cross-app paste working).
 #   2. If the selection happened in a pane other than the nvim "draft" pane,
-#      run the same flow as Alt+n: reflow, > -prefix, focus nvim, insert at
-#      cursor. This collapses select-in-claude → Alt+n into a single motion.
+#      reflow, > -prefix, focus nvim, insert at cursor (via clipboard-to-
+#      pane.sh). This collapses select-in-claude → quote-into-draft into a
+#      single motion — no keystroke between selection and insert.
 #
 # When the selection happened *in* nvim, we skip step 2 — otherwise it'd
 # loop back and insert your own selection beneath itself.
 
-LOG="$HOME/scratch/pair-clipboard-debug.log"
+LOG="${XDG_CACHE_HOME:-$HOME/.cache}/pair/clipboard-debug.log"
 mkdir -p "$(dirname "$LOG")"
 
 # Log immediately so we can tell if zellij is even invoking us.

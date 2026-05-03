@@ -63,7 +63,7 @@ KEYBINDINGS (inside a pair session)
   Alt+u         toggle nvim pane fullscreen (works from either pane)
   Alt+d         detach from session (re-attach later via `pair`)
   Alt+x         full quit — kill session and remove from resurrect list
-                (Ctrl+q remains as zellij's default quit-with-resurrect)
+                (Ctrl+q is unbound; Alt+x is the only quit path)
   Alt+i         attach clipboard image to agent + insert [Image #N];
                 if cursor is on an existing [Image #N], sync counter to N
 
@@ -264,8 +264,8 @@ fi
 
 # Helper: after zellij returns, check for the Alt+x marker. If present, the
 # user asked for a full quit — delete the session entry from the resurrect
-# list. Plain Ctrl+q leaves no marker, so the session lingers as a resurrect
-# candidate (zellij default behavior).
+# list. (Ctrl+q is unbound in pair, so Alt+x is the only quit path; Alt+d
+# is detach, which keeps the session alive and leaves no marker.)
 cleanup_quit_marker() {
     local marker="$HOME/.cache/pair/quit-$SESSION"
     if [ -f "$marker" ]; then

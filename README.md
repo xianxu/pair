@@ -7,7 +7,7 @@ A small launcher that gives any TUI coding agent (Claude Code, Codex, Gemini CLI
 Launches a zellij session split into two panes:
 
 - **Top** — the coding agent, `Claude`, `Codex`, `Gemini`, ...
-- **Bottom (~8 rows)** — Neovim on a persistent draft file. 
+- **Bottom (~10 rows)** — Neovim on a persistent draft file. 
 
 You compose prompts with full editor power, scroll the agent output independently. When you are done, `Alt+Return` to send your text to the agent.
 
@@ -120,6 +120,6 @@ Design choices:
 - **Self-contained, doesn't touch your config.** Uses `zellij --config-dir` and `nvim -u` to fully isolate from your normal `~/.config/{zellij,nvim}`. Try it without commitment.
 - **Prompt history is just a markdown file.** Every send appends to `${XDG_DATA_HOME:-~/.local/share}/pair/log-<tag>.md`. Grep, diff, copy from. Your conversations are searchable forever.
 - **Explicit reattach.** The picker fires whenever any detached session exists, so you always see what you're connecting to. 
-- **Two quit semantics.** Alt-d keeps the session as a resurrect candidate (zellij default). Alt+x is full quit — session is gone. Both are useful.
+- **One detach, one quit.** Alt+d detaches (session keeps running, claude/nvim stay alive, re-attach via `pair`). Alt+x fully quits and cleans up the resurrect entry. Zellij's default Ctrl+q is unbound — it would otherwise leave a confusing half-state.
 - **Selection is the gesture.** Click-and-drag in the agent pane, mouse up — the quote is in nvim, ready for your reaction. No keystroke between.
 - **Agent-agnostic.** The same zellij+nvim plumbing works for any TUI agent. Switching from `pair claude` to `pair codex` is one keystroke.

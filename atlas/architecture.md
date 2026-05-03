@@ -39,7 +39,7 @@ Detection of attached-vs-detached uses `zellij --session NAME action list-client
 
 **Title.** The launcher emits an OSC 0 escape sequence right before invoking zellij, so the terminal title shows the session name on both create and attach paths (zellij itself only sets it on create).
 
-**Cleanup on quit.** zellij is run as a child (not `exec`) so the launcher resumes when zellij exits. On resume it checks for `~/.cache/pair/quit-<session>` (the marker that `pair-quit.sh` writes when Alt+x fires) and, if present, runs `zellij delete-session --force <session>` to clear the resurrect entry. No marker → leave the session as zellij left it (running if detached, EXITED-resurrectable if Ctrl+q).
+**Cleanup on quit.** zellij is run as a child (not `exec`) so the launcher resumes when zellij exits. On resume it checks for `~/.cache/pair/quit-<session>` (the marker that `pair-quit.sh` writes when Alt+x fires) and, if present, runs `zellij delete-session --force <session>` to clear the resurrect entry. No marker → leave the session as zellij left it (running if Alt+d detached).
 
 ### `zellij/layouts/main.kdl` — pane split
 
@@ -75,7 +75,7 @@ Find the nvim pane via `zellij action list-panes --json`, looking for the pane w
 
 Once focus is on nvim: send `Ctrl-\ Ctrl-N` (force normal mode), then `i` (enter insert), then the quoted body, then a trailing blank line. The Ctrl-\ Ctrl-N sequence is critical — the obvious alternative `Esc` + `i` is interpreted by terminals as the encoding for `Alt+i`, which would fire nvim's `attach_image` keymap and insert a stray `[Image #N]` chip. Ctrl-\ Ctrl-N has no Alt-encoding ambiguity.
 
-Diagnostic log lives at `~/scratch/pair-clipboard-debug.log` (overwritten each invocation).
+Diagnostic log lives at `${XDG_CACHE_HOME:-~/.cache}/pair/clipboard-debug.log` (overwritten each invocation).
 
 ### `bin/copy-on-select.sh` — zellij copy_command wrapper
 
@@ -100,10 +100,10 @@ Loaded via `nvim -u`, fully isolated from the user's main nvim config. Provides:
 
 Two ways to end a session, with different aftermath:
 
-- **Ctrl+q** (zellij default) — kills the session, leaves it in the resurrect list. `pair pick` will surface it under `+ new` since it counts as a detached/EXITED candidate.
-- **Alt+x** (pair-specific) — kills the session AND removes the resurrect entry. After Alt+x, the session is fully gone.
+- **Alt+d** — detach. The session keeps running (claude/nvim processes alive); `pair` surfaces it in the picker for re-attach.
+- **Alt+x** — full quit. Kills the session AND removes the resurrect entry. After Alt+x, the session is fully gone.
 
-Both work; pick based on whether you want the option to come back to that exact session shell later.
+Zellij's default `Ctrl+q` (Quit with resurrect) is **unbound** in pair's config — it would otherwise leave a half-state where the processes inside die but the session record stays as a "resurrect candidate," which is confusing for pair's long-lived-agent model. Alt+x is the only quit path.
 
 ## Data layout
 
@@ -134,4 +134,4 @@ Internal: `~/.cache/pair/quit-<session>` — marker file used to communicate "us
 
 ## Future work
 
-Tracked in workshop issues. v2 candidates include a real nvim plugin (for users who want LSP/snippets/telescope inside the input pane), a homebrew formula, and per-agent shims if Codex/Gemini have submit semantics that differ from Claude Code.
+Tracked in workshop issues. v2 candidates include a real nvim plugin (for users who want LSP/snippets/telescope inside the input pane) and per-agent reference templates for Alt+i (gemini and codex use different image-attach naming schemes than claude's `[Image #N]`).

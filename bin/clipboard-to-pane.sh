@@ -2,17 +2,19 @@
 # Pull whatever is on the OS clipboard, reflow paragraph wraps, prefix every
 # line with "> " (markdown quote), and inject into the nvim draft pane.
 #
-# Triggered by Alt+n via zellij keybind. zellij's `Run` action spawns a
-# transient pane that grabs focus, so we cannot rely on positional `move-focus`
-# to find nvim. Instead, we look up the nvim pane by its layout name ("draft")
+# Invoked from copy-on-select.sh (which is wired to zellij's copy_command,
+# firing on every selection finalize). zellij's child processes don't run
+# in a stable layout position, so we cannot rely on positional `move-focus`
+# to find nvim. Instead, we look up the nvim pane by its terminal_command
 # via `zellij action list-panes --json` and target it explicitly with
 # `zellij action focus-pane-id`.
 #
-# Diagnostic log: ~/scratch/pair-clipboard-debug.log (overwritten each invocation).
+# Diagnostic log: ${XDG_CACHE_HOME:-~/.cache}/pair/clipboard-debug.log
+# (overwritten each invocation).
 
 set -uo pipefail
 
-LOG="$HOME/scratch/pair-clipboard-debug.log"
+LOG="${XDG_CACHE_HOME:-$HOME/.cache}/pair/clipboard-debug.log"
 mkdir -p "$(dirname "$LOG")"
 {
     echo "=== $(date) ==="
