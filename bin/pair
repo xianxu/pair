@@ -61,6 +61,9 @@ BEHAVIOR
 
 KEYBINDINGS (inside a pair session)
   Alt+Return    send nvim buffer to agent + Enter, log, clear, insert mode
+  Alt+← / Alt+→ walk through prompt history (-N) ↔ draft (*) ↔ queue (+N)
+  Alt+q         push current buffer to queue front (+1)
+                from *: parks the draft. from -N: forks. from +N: move-to-front
   Alt+u         toggle nvim pane fullscreen (works from either pane)
   Alt+d         detach from session (re-attach later via `pair`)
   Alt+x         full quit — kill session and remove from resurrect list
@@ -68,9 +71,14 @@ KEYBINDINGS (inside a pair session)
   Alt+i         attach clipboard image to agent + insert [Image #N];
                 if cursor is on an existing [Image #N], sync counter to N
 
+  Status line shows `H < pos > Q` — history count, current slot, queue
+  count. A dirty `-N*` mark on history means a pending fork; navigating
+  away prompts: (S)end, (Q)ueue, (D)iscard, [S]tay.
+
 FILES
-  ${XDG_DATA_HOME:-~/.local/share}/pair/draft-<tag>.md   persistent draft
-  ${XDG_DATA_HOME:-~/.local/share}/pair/log-<tag>.md     prompt history
+  ${XDG_DATA_HOME:-~/.local/share}/pair/draft-<tag>.md     persistent draft (*)
+  ${XDG_DATA_HOME:-~/.local/share}/pair/log-<tag>.md       prompt history (-N)
+  ${XDG_DATA_HOME:-~/.local/share}/pair/queue-<tag>/*.md   queued prompts (+N)
 
 See README.md for image-paste recipes and other details.
 EOF

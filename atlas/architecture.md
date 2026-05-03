@@ -149,8 +149,10 @@ The draft is truncated rather than removed so its persistent-undo entry under `~
 
 Loaded via `nvim -u`, fully isolated from the user's main nvim config. Provides:
 
-- Drafting-friendly defaults: no line numbers, wrap, linebreak, breakindent, spell, persistent undo under `~/.local/share/pair/undo/`, `laststatus=0` and `cmdheight=0` to maximize editing space.
-- `<M-CR>` (Alt+Return, normal+insert) — `send_and_clear`: append buffer to log, send to agent pane via `zellij action focus-pane-id` + `write-chars` + Enter, clear buffer, save, drop into insert mode.
+- Drafting-friendly defaults: no line numbers, wrap, linebreak, breakindent, spell, persistent undo under `~/.local/share/pair/undo/`, `cmdheight=0` to keep the cmdline out of the way, custom statusline (see "prompt history & queue" below).
+- `<M-CR>` (Alt+Return, normal+insert) — `send_and_clear`: append buffer to log, send to agent pane via `zellij action focus-pane-id` + `write-chars` + Enter, clear `*` (only when source was `*`), save, drop into insert mode.
+- `<M-Left>` / `<M-Right>` — navigate the prompt-history / queue position (see below).
+- `<M-q>` — push the current buffer to the front of the queue. From `*` also clears `*`; from `+N` it's move-to-front (removes the source queue file).
 - `<M-i>` (Alt+i, normal+insert) — `attach_image`: increment per-session counter, send Ctrl+V to the agent pane (claude reads OS clipboard, attaches image), insert `[Image #N]` at cursor. If cursor is on an existing `[Image #N]`, sync the counter to N instead.
 - `PairPasteQuote()` (global, called from `bin/clipboard-to-pane.sh` via `:lua PairPasteQuote()`): reads the raw selection from `$PAIR_DATA_DIR/quote-<tag>` and dispatches on cursor column.
   - **col == 0 (`paste_as_quote`)**: par-reflow with width 1000, prefix every line with `> `; if the cursor's line is empty, replace it, else insert above (existing line slides down); scroll first inserted line to top via `zt`; cursor on a single empty line directly below the block in insert mode; flash the quoted lines with `IncSearch` (full-line, per-line `nvim_buf_add_highlight`).
@@ -159,6 +161,42 @@ Loaded via `nvim -u`, fully isolated from the user's main nvim config. Provides:
 - Autosave on `BufLeave`, `FocusLost`, `InsertLeave` so disk and buffer agree.
 - As-you-type fuzzy path completion (issue #13). `TextChangedI`/`TextChangedP` autocmd splits the trailing path token on the last `/` into `<dir>` + `<filter>`, lists `<dir>` via `getcompletion`, fuzzy-filters with built-in `matchfuzzy`, hands the result to `vim.fn.complete()`. Triggers only when the token contains `/` or starts with `~` (plain words stay quiet). `<Tab>`/`<S-Tab>` cycle, `<CR>` accepts when an item is selected (else newline). Plugin-free.
 - All autocmds live in the `pair` augroup (`clear=true`), so iterating via `:luafile $PAIR_HOME/nvim/init.lua` reloads cleanly without duplicating handlers.
+
+### Prompt history & queue (issue #000015)
+
+The nvim buffer is a virtual cursor over a sequence of slots:
+
+```
+[ -N ... -2  -1 ]   *   [ +1  +2 ... +M ]
+   history (log)    draft     queue (future)
+```
+
+The status line shows position state: ` H < pos[*] > Q ` — `H` = log entry count, `Q` = queue size, `pos` = `*` | `-N` | `+N`. A trailing `*` on `-N` means the buffer differs from the loaded baseline (a pending fork).
+
+**Slot mutability is the central distinction:**
+
+| Slot | Storage | Mutable? | Edit autosave? |
+|---|---|---|---|
+| `*` | `draft-<tag>.md` | yes | yes (existing autocmd) |
+| `+N` | `queue-<tag>/NNNNNN.md` | yes | yes (same autocmd) |
+| `-N` | parsed from `log-<tag>.md` | **no — immutable** | no; edit becomes a pending fork |
+
+**Navigation (Alt+←/→):** on navigate-away from a mutable slot, the buffer is autosaved to its underlying file. On navigate-away from a dirty `-N`, a single-line prompt fires:
+
+```
+(S)end, (Q)ueue, (D)iscard, [S]tay:
+```
+
+- **s/S** — Send the fork (append to log), return to `*`.
+- **q/Q** — push to queue front (`+1`), return to `*`.
+- **d/D** — drop the edit, proceed with the navigation.
+- **anything else (Enter, ESC, ...)** — Stay; cancel the navigation.
+
+`*` is preserved across navigation: when leaving `*`, its content is autosaved, so navigating into history/queue and back never destroys the draft. Sending from `-N` or `+N` also preserves `*` — the "clear the draft" semantic of `Alt+Return` only fires when the source slot was `*`.
+
+**Queue store:** `queue-<tag>/` directory of one file per queued prompt. Filenames are 6-digit zero-padded sortable keys; sort order = display order (`+1` is the lowest key). New keys at `push_front` decrement the current min; `push_back` increments the current max. Initial midpoint at `500000` to leave room either way.
+
+Implementation in `nvim/init.lua`: see helpers grouped under `is_dirty_history_slot`, `autosave_current_slot`, `leave_dirty_history`, `go_to`, `nav_left`/`nav_right`, `queue_current`, plus the `queue_*` file ops. State lives in module-local `nav = { pos, baseline }` — `pos` is `'*'` or `{ kind='history'|'queue', n=N }`.
 
 ## Quit semantics
 
@@ -173,8 +211,9 @@ Zellij's default `Ctrl+q` (Quit with resurrect) is **unbound** in pair's config 
 
 Drafts and prompt history live under `${XDG_DATA_HOME:-~/.local/share}/pair/` (per XDG Base Directory spec), keyed by tag (the agent name, or a custom name from the create-flow prompt):
 
-- `draft-<tag>.md` — the active draft file. Cleared by `send_and_clear`, persists across launches.
-- `log-<tag>.md` — append-only log of every send, with timestamp. Searchable via `rg`.
+- `draft-<tag>.md` — the active draft file (the `*` slot). Cleared by `send_and_clear` only when sending from `*`, persists across launches and navigation.
+- `log-<tag>.md` — append-only log of every send, with timestamp. Doubles as the source for the `-N` history slots (parsed at navigation time). Searchable via `rg`.
+- `queue-<tag>/NNNNNN.md` — one file per queued prompt (the `+N` slots). Filenames sort to display order (lowest = `+1`). Created lazily by `Alt+q` or auto-front-push from a dirty-`-N` "Queue" choice. Removed when the corresponding queue item is sent.
 - `quote-<tag>` — transient hand-off file written by `bin/clipboard-to-pane.sh` and read by nvim's `PairPasteQuote()`. Overwritten on every selection.
 
 The launcher exports `$PAIR_DATA_DIR` so `nvim/init.lua` can compute the same path without re-deriving the XDG fallback chain.

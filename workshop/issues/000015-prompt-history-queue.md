@@ -1,6 +1,6 @@
 ---
 id: 000015
-status: working
+status: done
 deps: []
 created: 2026-05-03
 updated: 2026-05-03
@@ -129,3 +129,7 @@ See `workshop/plans/000015-prompt-history-queue-plan.md`.
     - `send_and_clear` and `ship_buffer_and_reset` were updated to preserve `*`'s persistent draft when sending from `-N` or `+N` (clear-the-draft semantic now applies only when sending FROM `*`).
     - Status line picks up dirty mark via `is_dirty_history_slot()`.
   - Verified via headless integration test: dirty mark renders, all four prompt options behave correctly (incl. Stay cancellation), `+N` edits autosave with no prompt, draft survives both clean send-from-`-N` and prompt-Send-from-`-N`.
+- **Prompt format refinement.** Original `vim.fn.confirm` rendering was nvim-controlled and verbose. Switched to a custom single-line prompt via `vim.fn.getchar`: `(S)end, (Q)ueue, (D)iscard, [S]tay:`. Convention `() = access key`, `[] = default`. Send/Stay S-conflict resolved by binding `s/S` → Send and Enter/ESC/anything-else → Stay.
+- **M4 done** (folded into M3 — send_and_clear preserves * for non-* sources).
+- **M5 done.** Atlas (`atlas/architecture.md`) gained a "Prompt history & queue" subsection plus updated keybindings and queue-dir entry in data layout. README keybindings table extended; new prose section explains the model. `bin/pair` `--help` updated with new bindings + status-line/prompt summary + queue dir under FILES.
+- **Issue closed.** Status set to done.

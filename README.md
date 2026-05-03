@@ -30,11 +30,30 @@ And in the worst case you go back to coding agent's CLI input box...
 | Key | Scope | Action |
 |---|---|---|
 | **Alt+Return** | nvim (normal/insert) | Send buffer to agent |
+| **Alt+←** / **Alt+→** | nvim (normal/insert) | Walk through prompt history (`-N`) and queued prompts (`+N`). Status line shows `H < pos > Q`. |
+| **Alt+q** | nvim (normal/insert) | Push current buffer to the front of the queue (`+1`). From `*` clears the draft; from `+N` it's move-to-front. |
 | **Alt+u** | any pane | Toggle the nvim pane to fullscreen (works from either pane) |
 | **Alt+i** | nvim (normal/insert) | Attach clipboard image to the agent and insert `[Image #N]` reference at cursor. |
 | **Alt+i** | when inside [Image tag] | Sync the internal counter to N (manual-correction path), allowing user to edit if the cursor between nvim and agent gets out of sync. |
 | **Alt+d** | any pane | Detach from the current session (re-attach later via `pair`) |
 | **Alt+x** | any pane | Full quit — kill the session AND all processes running inside. |
+
+### Prompt history & queue
+
+The nvim pane is a virtual cursor over `[ ... -2 -1 ] * [ +1 +2 ... ]`. The status line shows `H < pos > Q` (history count, current position, queue count). `Alt+←` walks toward older history; `Alt+→` walks toward the future queue.
+
+History is immutable. If you edit a `-N` slot, the position label shows a dirty mark (`-2*`) and navigating away pops a single-line prompt:
+
+```
+(S)end, (Q)ueue, (D)iscard, [S]tay:
+```
+
+- `s/S` — append the fork to history and return to `*`.
+- `q/Q` — push to queue front and return to `*`.
+- `d/D` — drop the edit and continue navigating.
+- Enter / ESC / anything else — stay where you are.
+
+`+N` and `*` are mutable: edits autosave to disk on navigate-away or focus loss, no prompt. `Alt+q` from `*` parks the current draft for later; from `-N` it forks the history entry into the queue; from `+N` it bumps the item to the front.
 
 ## Mouse
 

@@ -269,17 +269,15 @@ Replaces the earlier "auto-evacuate-`*`" design after user feedback. The new mod
 - `-N` is immutable: edits are pending forks. Status line shows `-N*` mark. On navigate-away, prompt 4 options (Send, Queue (+1), Discard, Stay; default Stay).
 - `send_and_clear` preserves `*`'s draft when source is `-N` or `+N` (clear only when source is `*`).
 
-### M4: Send integration
+### M4: Send integration ✅ done 2026-05-03
 
-- Update `send_and_clear` per the refined send rules.
-- Send-from-`-N` and send-from-`+N` correctly preserve the persistent draft.
-- **Verify:** sending from each slot type, draft survival.
+Folded into M3 in practice — `send_and_clear` and `ship_buffer_and_reset` were updated to preserve `*`'s persistent draft when source is `-N`/`+N` as part of the explicit-edit-flow rewrite. No additional code changes needed for M4 standalone.
 
-### M5: Polish + docs
+### M5: Polish + docs ✅ done 2026-05-03
 
-- Atlas update (architecture.md): document position model, queue dir, statusline.
-- README keybindings table.
-- Help text in `bin/pair`.
+- `atlas/architecture.md`: added "Prompt history & queue" subsection under `nvim/init.lua`, updated keybinding bullets, added `queue-<tag>/` to the data layout.
+- `README.md`: extended keybindings table with `Alt+←`/`Alt+→`/`Alt+q`, added prose section explaining the history/queue model and the dirty-`-N` prompt.
+- `bin/pair`: updated `--help` KEYBINDINGS section with the new bindings + a one-paragraph status-line/prompt summary, added the queue dir to FILES.
 
 ## Open implementation questions (raise during build)
 
