@@ -52,3 +52,17 @@ Everything before `--` is positional (agent, variant) as today. Everything after
 ### 2026-05-02
 
 Filed during conversation; user has follow-up questions before implementation. Will pick up later.
+
+Implemented with `--` separator (Unix convention). Worked but felt ceremonial.
+
+User pushed back: pair only takes 0 or 1 positional arg (the agent), so any `-flag` cannot be confused with an agent name. `--` is unnecessary. Refactored to: first arg is agent iff it doesn't start with `-`; otherwise default agent and all args forward. Examples:
+
+```sh
+pair                        # claude
+pair claude                 # claude
+pair claude --resume        # claude --resume
+pair codex -p "hi"          # codex -p hi
+pair --resume               # claude --resume
+```
+
+Cleaner. README, atlas, --help all updated.
