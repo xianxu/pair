@@ -1,6 +1,6 @@
 ---
 id: 000005
-status: working
+status: done
 deps: [000001]
 created: 2026-05-02
 updated: 2026-05-02
@@ -31,7 +31,7 @@ Plain Ctrl+q leaves no marker, so the cleanup is a no-op and the session stays i
 - [x] `zellij/config.kdl` — `Alt x` → `Run "pair-quit.sh"`. (Resolved by PATH since bin/pair prepends `$PAIR_HOME/bin`.)
 - [x] `bin/pair` — drop `exec` from both zellij invocations (attach branch and create branch); add `cleanup_quit_marker()` and call after each.
 - [x] `bash -n` and `setup --check` clean.
-- [ ] Manual smoke test: launch pair, Alt+x, confirm session is gone from `zellij list-sessions` (vs. lingering in EXITED state after Ctrl+q).
+- [x] Manual smoke test: launch pair, Alt+x, confirm session is gone from `zellij list-sessions` (vs. lingering in EXITED state after Ctrl+q). Confirmed in real use.
 
 ## Log
 
