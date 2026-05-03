@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Pull whatever is on the OS clipboard, reflow paragraph wraps, prefix every
-# line with "> " (markdown quote), and inject into the nvim draft pane.
+# Pull whatever is on the OS clipboard and inject it into the nvim draft
+# pane. Formatting (par reflow, `> ` quote prefix) is decided in nvim, not
+# here, so this script just hands off the raw selection.
 #
 # Invoked from copy-on-select.sh (which is wired to zellij's copy_command,
 # firing on every selection finalize). zellij's child processes don't run
@@ -8,6 +9,14 @@
 # to find nvim. Instead, we look up the nvim pane by its terminal_command
 # via `zellij action list-panes --json` and target it explicitly with
 # `zellij action focus-pane-id`.
+#
+# Once nvim is focused, we hand the actual insert off to a Lua function
+# (PairPasteQuote in nvim/init.lua) by writing the raw clipboard body to a
+# temp file at $PAIR_DATA_DIR/quote-<tag> and then triggering
+# `:lua PairPasteQuote()<CR>` in the pane. The Lua side dispatches on
+# cursor column: col==0 → quote-mode (par reflow + `> ` prefix + scroll
+# first line to top + flash + cursor on empty line below); col>0 →
+# inline-mode (insert verbatim at cursor + flash, no scroll).
 #
 # Diagnostic log: ${XDG_CACHE_HOME:-~/.cache}/pair/clipboard-debug.log
 # (overwritten each invocation).
@@ -37,22 +46,6 @@ fi
 echo "clipboard bytes: ${#clip}" >> "$LOG"
 [ -z "$clip" ] && { echo "empty clipboard, exiting" >> "$LOG"; exit 0; }
 
-# --- reflow + quote --------------------------------------------------------
-# par may exit non-zero on weird input; fall back to raw rather than die.
-if command -v par >/dev/null 2>&1; then
-    if reflowed=$(printf '%s' "$clip" | par 1000 2>>"$LOG"); then
-        echo "par: ok" >> "$LOG"
-    else
-        echo "par: failed, using raw clipboard" >> "$LOG"
-        reflowed="$clip"
-    fi
-else
-    echo "par: not installed, using raw clipboard" >> "$LOG"
-    reflowed="$clip"
-fi
-
-quoted=$(printf '%s' "$reflowed" | sed 's/^/> /')
-
 # --- find nvim's pane id by layout name "draft" ---------------------------
 # `list-panes --json` returns an array of pane objects with id and name.
 # We named the nvim pane in zellij/layouts/main.kdl with `name="draft"`.
@@ -74,7 +67,19 @@ if command -v jq >/dev/null 2>&1; then
 fi
 echo "resolved nvim pane id: '${nvim_id:-(none)}'" >> "$LOG"
 
-# --- target nvim and write ------------------------------------------------
+# --- stage the raw selection for nvim to read ------------------------------
+# We hand off the raw clipboard body — par reflow and `> ` prefixing happen
+# in nvim now, conditional on cursor position (col==0 → quote-mode with
+# reflow + prefix; otherwise → inline paste verbatim). Keeping formatting
+# decisions on the nvim side keeps this script source-agnostic.
+data_dir="${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}"
+mkdir -p "$data_dir"
+tag="${PAIR_TAG:-${PAIR_AGENT:-claude}}"
+quote_file="$data_dir/quote-$tag"
+printf '%s' "$clip" > "$quote_file"
+echo "staged selection at: $quote_file (${#clip} bytes)" >> "$LOG"
+
+# --- target nvim and trigger PairPasteQuote -------------------------------
 if [ -n "$nvim_id" ]; then
     # Pane IDs from list-panes can be bare integers or `terminal_<N>`. Try
     # both forms because zellij's parser accepts either.
@@ -86,16 +91,16 @@ else
     zellij action move-focus down 2>>"$LOG"
 fi
 
-# Ensure nvim is in insert mode before typing the body — otherwise the first
-# character ('>') would be interpreted as a normal-mode command.
+# Force normal mode (handles the case where nvim was already in insert), then
+# fire `:lua PairPasteQuote()<CR>`. The Lua side reads $quote_file and inserts
+# via the buffer API — it owns scroll positioning, the flash highlight, and
+# leaving the cursor on the empty line below the block in insert mode.
 #
-# We DON'T use Esc + 'i' here, because in terminal-land `Esc` followed by `i`
-# is the exact encoding for `Alt+i` — and our nvim keymap binds <M-i> to
-# attach_image, which inserts a stray `[Image #N]` at the cursor. Instead,
-# use nvim's "force normal mode" sequence Ctrl-\ Ctrl-N, then `i`. Ctrl-\
-# is 0x1c (28), Ctrl-N is 0x0e (14). No Esc, no Alt-encoding ambiguity.
-zellij action write 28 2>>"$LOG"          # Ctrl-\
-zellij action write 14 2>>"$LOG"          # Ctrl-N → normal mode (any context)
-zellij action write-chars 'i' 2>>"$LOG"   # enter insert mode at cursor
-zellij action write-chars "$quoted"$'\n\n' 2>>"$LOG"
-echo "wrote $((${#quoted} + 2)) bytes" >> "$LOG"
+# We use Ctrl-\ Ctrl-N (28, 14) rather than Esc to force normal mode, because
+# Esc + a literal char is the terminal encoding for Alt+<char> and would fire
+# our <M-...> keymaps spuriously. CR is 13.
+zellij action write 28 2>>"$LOG"                              # Ctrl-\
+zellij action write 14 2>>"$LOG"                              # Ctrl-N
+zellij action write-chars ':lua PairPasteQuote()' 2>>"$LOG"
+zellij action write 13 2>>"$LOG"                              # CR
+echo "triggered PairPasteQuote" >> "$LOG"

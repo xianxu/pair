@@ -10,7 +10,7 @@ The whole thing is deliberately small — a handful of shell scripts, one nvim i
 
 ```
 bin/pair                     # entry point (launcher)
-bin/clipboard-to-pane.sh     # reflow + > -prefix + write into nvim
+bin/clipboard-to-pane.sh     # read clipboard, hand off to nvim's PairPasteQuote
 bin/copy-on-select.sh        # invoked by zellij copy_command on mouse-up
 bin/pair-quit.sh             # invoked by Alt+x — marks + kills session
 nvim/init.lua                # bundled nvim config (loaded via -u)
@@ -67,19 +67,21 @@ Keybinds added on top of zellij defaults (`clear-defaults=false`):
 
 Alt+n (clipboard → nvim quote) used to be a manual keybind here too, but became redundant once `copy_command` started auto-firing on mouse-up. Removed.
 
-### `bin/clipboard-to-pane.sh` — reflow + write into nvim
+### `bin/clipboard-to-pane.sh` — clipboard read + hand off to nvim
 
-Read OS clipboard (`pbpaste` / `wl-paste` / `xclip`). Reflow paragraphs with `par 1000` (par's width arg caps at 9999; 1000 is plenty for any soft-wrapping target). Prefix every line with `> `.
+Read OS clipboard (`pbpaste` / `wl-paste` / `xclip`). Stage the raw body to `$PAIR_DATA_DIR/quote-<tag>`. All formatting decisions (par reflow, `> ` prefix) live in nvim now, conditional on cursor position — the shell is just a transport.
 
 Find the nvim pane via `zellij action list-panes --json`, looking for the pane whose `terminal_command` contains `nvim`. Focus it via `zellij action focus-pane-id <id>` — this is critical because the script runs inside a transient `Run` pane (when invoked directly) or as a child of the zellij server (when invoked via `copy_command`), and we cannot rely on positional `move-focus` to land on nvim.
 
-Once focus is on nvim: send `Ctrl-\ Ctrl-N` (force normal mode), then `i` (enter insert), then the quoted body, then a trailing blank line. The Ctrl-\ Ctrl-N sequence is critical — the obvious alternative `Esc` + `i` is interpreted by terminals as the encoding for `Alt+i`, which would fire nvim's `attach_image` keymap and insert a stray `[Image #N]` chip. Ctrl-\ Ctrl-N has no Alt-encoding ambiguity.
+Once nvim is focused, send `Ctrl-\ Ctrl-N` (force normal) followed by `:lua PairPasteQuote()` + CR. `PairPasteQuote` reads the staged body and dispatches on cursor column — see the `nvim/init.lua` section below.
+
+Why force normal via Ctrl-\ Ctrl-N rather than Esc: Esc + a literal char is the terminal encoding for Alt+`<char>`, which would fire `<M-...>` keymaps spuriously (e.g. `<M-i>` → `attach_image` inserting a stray `[Image #N]`). Ctrl-\ Ctrl-N has no Alt-encoding ambiguity.
 
 Diagnostic log lives at `${XDG_CACHE_HOME:-~/.cache}/pair/clipboard-debug.log` (overwritten each invocation).
 
 ### `bin/copy-on-select.sh` — zellij copy_command wrapper
 
-Receives selected text on stdin from zellij. Mirrors the text to the OS clipboard (zellij's default clipboard write is bypassed when `copy_command` is set, so this is mandatory). Then checks if the focused pane (where the selection happened) is the nvim draft pane; if so, exits without further action (selecting in nvim shouldn't loop back). Otherwise execs `clipboard-to-pane.sh` to do the reflow + insert.
+Receives selected text on stdin from zellij. Mirrors the text to the OS clipboard (zellij's default clipboard write is bypassed when `copy_command` is set, so this is mandatory). Then checks if the focused pane (where the selection happened) is the nvim draft pane; if so, exits without further action (selecting in nvim shouldn't loop back). Otherwise execs `clipboard-to-pane.sh` to hand the selection off to nvim.
 
 Pane detection: parse `list-panes --json --command`, find the focused pane, check if its `title` or `terminal_command` matches `nvim|draft`.
 
@@ -121,6 +123,10 @@ Loaded via `nvim -u`, fully isolated from the user's main nvim config. Provides:
 - Drafting-friendly defaults: no line numbers, wrap, linebreak, breakindent, spell, persistent undo under `~/.local/share/pair/undo/`, `laststatus=0` and `cmdheight=0` to maximize editing space.
 - `<M-CR>` (Alt+Return, normal+insert) — `send_and_clear`: append buffer to log, send to agent pane via `zellij action focus-pane-id` + `write-chars` + Enter, clear buffer, save, drop into insert mode.
 - `<M-i>` (Alt+i, normal+insert) — `attach_image`: increment per-session counter, send Ctrl+V to the agent pane (claude reads OS clipboard, attaches image), insert `[Image #N]` at cursor. If cursor is on an existing `[Image #N]`, sync the counter to N instead.
+- `PairPasteQuote()` (global, called from `bin/clipboard-to-pane.sh` via `:lua PairPasteQuote()`): reads the raw selection from `$PAIR_DATA_DIR/quote-<tag>` and dispatches on cursor column.
+  - **col == 0 (`paste_as_quote`)**: par-reflow with width 1000, prefix every line with `> `; if the cursor's line is empty, replace it, else insert above (existing line slides down); scroll first inserted line to top via `zt`; cursor on a single empty line directly below the block in insert mode; flash the quoted lines with `IncSearch` (full-line, per-line `nvim_buf_add_highlight`).
+  - **col > 0 (`paste_inline`)**: insert the raw body at the cursor via `nvim_buf_set_text` (handles multi-line splits); cursor at the end of the inserted span in insert mode; no scroll; flash the inserted span with a single multi-line extmark.
+  - In both modes the highlight is cleared 500ms later via `vim.defer_fn`. Selection-finalize visual cue (issue #12).
 - Autosave on `BufLeave`, `FocusLost`, `InsertLeave` so disk and buffer agree.
 
 ## Quit semantics
@@ -138,6 +144,7 @@ Drafts and prompt history live under `${XDG_DATA_HOME:-~/.local/share}/pair/` (p
 
 - `draft-<tag>.md` — the active draft file. Cleared by `send_and_clear`, persists across launches.
 - `log-<tag>.md` — append-only log of every send, with timestamp. Searchable via `rg`.
+- `quote-<tag>` — transient hand-off file written by `bin/clipboard-to-pane.sh` and read by nvim's `PairPasteQuote()`. Overwritten on every selection.
 
 The launcher exports `$PAIR_DATA_DIR` so `nvim/init.lua` can compute the same path without re-deriving the XDG fallback chain.
 

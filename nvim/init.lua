@@ -130,6 +130,148 @@ local function attach_image()
 end
 
 -- ---------------------------------------------------------------------------
+-- PairPasteQuote: triggered from bin/clipboard-to-pane.sh after a copy_command
+-- selection. The shell hands off the *raw* clipboard body via
+-- $PAIR_DATA_DIR/quote-<tag>; we decide the formatting here based on where
+-- the cursor is.
+--
+--   * col == 0  → quote-mode. The user is at the start of a line, treating
+--                 the selection as a fresh block. Reflow with par, prefix
+--                 every line with `> `, scroll the first inserted line to
+--                 the top of the window (zt), flash the block, land on a
+--                 single empty line below in insert mode.
+--
+--   * col >  0  → inline-mode. The user is mid-text and just wants the
+--                 verbatim selection stitched in at the cursor. No reflow,
+--                 no prefix, no scroll. Flash the inserted span, leave the
+--                 cursor in insert mode immediately after it.
+--
+-- A single namespace `pair_flash` carries the IncSearch highlight in both
+-- modes; cleared after 500ms via vim.defer_fn.
+-- ---------------------------------------------------------------------------
+
+local pair_flash_ns = vim.api.nvim_create_namespace('pair_flash')
+
+local function quote_path()
+  local data_dir = os.getenv('PAIR_DATA_DIR')
+                or (os.getenv('XDG_DATA_HOME') or vim.fn.expand('~/.local/share'))
+                   .. '/pair'
+  return data_dir .. '/quote-' .. pair_tag()
+end
+
+local function clear_flash_after(buf, ms)
+  vim.defer_fn(function()
+    if vim.api.nvim_buf_is_valid(buf) then
+      vim.api.nvim_buf_clear_namespace(buf, pair_flash_ns, 0, -1)
+    end
+  end, ms)
+end
+
+local function reflow_par(body)
+  -- par 1000 (large width) acts as a paragraph rejoin/reflow; safe to skip
+  -- if par is missing or errors out.
+  if vim.fn.executable('par') == 0 then return body end
+  local out = vim.fn.system({ 'par', '1000' }, body)
+  if vim.v.shell_error ~= 0 then return body end
+  return out
+end
+
+local function paste_as_quote(body, row)
+  body = body:gsub('\n+$', '')
+  local reflowed = reflow_par(body):gsub('\n+$', '')
+  local quoted_lines = {}
+  for line in (reflowed .. '\n'):gmatch('([^\n]*)\n') do
+    quoted_lines[#quoted_lines + 1] = '> ' .. line
+  end
+  if #quoted_lines == 0 then return end
+
+  local buf = vim.api.nvim_get_current_buf()
+  local cur_line = vim.api.nvim_buf_get_lines(buf, row - 1, row, false)[1] or ''
+  -- If the cursor's line is empty we replace it (so we don't end up with
+  -- a leading blank above the quote); otherwise we insert above and let
+  -- the existing line slide down.
+  local insert_start, insert_end
+  if cur_line == '' then
+    insert_start, insert_end = row - 1, row
+  else
+    insert_start, insert_end = row - 1, row - 1
+  end
+
+  local payload = {}
+  for _, l in ipairs(quoted_lines) do payload[#payload + 1] = l end
+  payload[#payload + 1] = ''  -- the empty line the cursor will land on
+
+  vim.api.nvim_buf_set_lines(buf, insert_start, insert_end, false, payload)
+
+  local block_start = insert_start                  -- 0-indexed, inclusive
+  local block_end   = insert_start + #quoted_lines  -- 0-indexed, exclusive
+  local cursor_row  = block_end + 1                 -- 1-indexed empty line
+
+  vim.api.nvim_win_set_cursor(0, { block_start + 1, 0 })
+  vim.cmd('normal! zt')
+  vim.api.nvim_win_set_cursor(0, { cursor_row, 0 })
+
+  vim.api.nvim_buf_clear_namespace(buf, pair_flash_ns, 0, -1)
+  for i = block_start, block_end - 1 do
+    vim.api.nvim_buf_add_highlight(buf, pair_flash_ns, 'IncSearch', i, 0, -1)
+  end
+  clear_flash_after(buf, 500)
+
+  vim.cmd('startinsert')
+end
+
+local function paste_inline(body, row, col)
+  body = body:gsub('\n+$', '')
+  if body == '' then return end
+  local lines = vim.split(body, '\n', { plain = true })
+
+  local buf = vim.api.nvim_get_current_buf()
+  vim.api.nvim_buf_set_text(buf, row - 1, col, row - 1, col, lines)
+
+  local end_row, end_col
+  if #lines == 1 then
+    end_row = row - 1
+    end_col = col + #lines[1]
+  else
+    end_row = row - 1 + #lines - 1
+    end_col = #lines[#lines]
+  end
+
+  vim.api.nvim_buf_clear_namespace(buf, pair_flash_ns, 0, -1)
+  vim.api.nvim_buf_set_extmark(buf, pair_flash_ns, row - 1, col, {
+    end_row = end_row,
+    end_col = end_col,
+    hl_group = 'IncSearch',
+  })
+  clear_flash_after(buf, 500)
+
+  -- Place cursor at the end of the inserted text, then enter insert mode.
+  -- nvim normal-mode cursors clamp to (line length - 1), but startinsert
+  -- promotes us to insert mode where end-of-line positioning works
+  -- correctly — type-next-character lands at end_col as intended.
+  vim.api.nvim_win_set_cursor(0, { end_row + 1, end_col })
+  vim.cmd('startinsert')
+end
+
+function _G.PairPasteQuote()
+  local f = io.open(quote_path(), 'r')
+  if not f then return end
+  local body = f:read('*a')
+  f:close()
+  if not body or body == '' then return end
+
+  local row, col = unpack(vim.api.nvim_win_get_cursor(0))
+  -- Defensive: nvim returns 1-indexed row but in some uninitialized states
+  -- (e.g. just-opened headless instances) it can return 0. Clamp.
+  if row < 1 then row = 1 end
+  if col == 0 then
+    paste_as_quote(body, row)
+  else
+    paste_inline(body, row, col)
+  end
+end
+
+-- ---------------------------------------------------------------------------
 -- send_and_clear: Alt+Return — send entire buffer, log, clear, reset
 -- ---------------------------------------------------------------------------
 
