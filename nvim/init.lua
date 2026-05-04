@@ -982,14 +982,19 @@ vim.api.nvim_create_autocmd('ColorScheme', { group = pair_aug, callback = pair_a
 -- the in-frame display shows the full cheatsheet right-aligned.
 local PAIR_CHEATSHEET = 'Alt: ⏎=send  u=max  i=img  d=detach  x=quit'
 
+-- UTF-8 encoding of U+00A0 NO-BREAK SPACE. Same display width as a regular
+-- space but zellij doesn't trim/collapse it the way it does ordinary
+-- whitespace in pane names.
+local NBSP = string.char(0xC2, 0xA0)
+
 local function pair_update_pane_name()
   local cheat_w = vim.fn.strdisplaywidth(PAIR_CHEATSHEET)
   -- vim.o.columns is the nvim window width = the pane's inner width.
-  -- Add a small fudge (4) for zellij's frame chrome (corners + leading
-  -- "─ " and trailing " ─" around the title slot).
+  -- Subtract a small fudge for zellij's frame chrome (corners + the
+  -- "─ " / " ─" that bracket the title slot).
   local pad = vim.o.columns - 4 - vim.fn.strdisplaywidth('draft') - cheat_w
   if pad < 2 then pad = 2 end
-  local name = 'draft' .. string.rep(' ', pad) .. PAIR_CHEATSHEET
+  local name = 'draft' .. string.rep(NBSP, pad) .. PAIR_CHEATSHEET
   pcall(vim.fn.system, { 'zellij', 'action', 'rename-pane', name })
 end
 
