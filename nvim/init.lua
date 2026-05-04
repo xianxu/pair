@@ -1005,7 +1005,7 @@ vim.api.nvim_create_autocmd('ColorScheme', { group = pair_aug, callback = pair_a
 -- "draft" and the cheatsheet means the title truncates *during* the
 -- spaces, so the visible tab title stays short ("pair-pair: draft") while
 -- the in-frame display shows the full cheatsheet right-aligned.
-local PAIR_CHEATSHEET = 'Alt: ⏎=send  u=max  i=img  d=detach  x=quit'
+local PAIR_CHEATSHEET = 'Alt: ⏎=send  u=maximize  i=img  d=detach  x=quit'
 
 -- UTF-8 encoding of U+00A0 NO-BREAK SPACE. Same display width as a regular
 -- space but zellij doesn't trim/collapse it the way it does ordinary
