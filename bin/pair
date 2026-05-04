@@ -364,6 +364,12 @@ cleanup_quit_marker() {
     if [ -f "$marker" ]; then
         rm -f "$marker"
         zellij delete-session "$SESSION" --force >/dev/null 2>&1 || true
+        # Defensive belt-and-suspenders: if a zellij --server process for this
+        # session is still alive after delete-session (rare but seen — e.g.
+        # the server lingered in a no-clients state and re-registered the
+        # session record on its next heartbeat), SIGKILL it. Pattern matches
+        # the socket path component, scoped to this session only.
+        pkill -9 -f "zellij --server .*/${SESSION}\$" >/dev/null 2>&1 || true
         rm -f "$DATA_DIR/outer-tty-${PAIR_TAG}" "$DATA_DIR/agent-${PAIR_TAG}"
     fi
 }
