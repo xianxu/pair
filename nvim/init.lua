@@ -893,7 +893,22 @@ local pair_aug = vim.api.nvim_create_augroup('pair', { clear = true })
 vim.api.nvim_create_autocmd({ 'BufLeave', 'FocusLost', 'InsertLeave' }, {
   group = pair_aug,
   pattern = '*',
-  callback = function() autosave_current_slot() end,
+  callback = function()
+    autosave_current_slot()
+    -- The :silent! write inside autosave can occasionally blank the
+    -- statusline under cmdheight=0. Re-fire the (deferred) redraw so
+    -- it comes back without the user needing an Alt+← to nudge it.
+    refresh_statusline()
+  end,
+})
+
+-- Statusline depends on mode (the dirty-N* mark) and on focus state.
+-- ModeChanged and FocusGained/FocusLost should both trigger a redraw,
+-- but nvim doesn't always re-evaluate the statusline on these events
+-- under cmdheight=0. Defensive explicit refresh.
+vim.api.nvim_create_autocmd({ 'ModeChanged', 'FocusGained', 'FocusLost' }, {
+  group = pair_aug,
+  callback = function() refresh_statusline() end,
 })
 
 -- Re-apply the soft statusline highlight on colorscheme changes (each
