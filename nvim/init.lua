@@ -691,6 +691,9 @@ end
 -- / read_history / queue_count can't blank the bar — fall back to a minimal
 -- safe string.
 function _G.PairStatusline()
+  if vim.fn.mode():sub(1, 1) ~= 'i' then
+    return '%#PairLocked# <LOCKED> input not accepted — press i to type %*'
+  end
   local ok, result = pcall(function()
     local h = #read_history()
     local q = queue_count()
@@ -988,6 +991,9 @@ local function pair_apply_statusline_hl()
   -- group so flash_queue_count can light it up on the N→0 transition too.
   vim.api.nvim_set_hl(0, 'PairQueueCount', { link = 'WarningMsg' })
   vim.api.nvim_set_hl(0, 'PairQueueZero',  { link = 'Comment' })
+  -- Locked-mode banner reads at the same muted level as the rest of the
+  -- statusline — the bg tint is the loud signal; the text just labels it.
+  vim.api.nvim_set_hl(0, 'PairLocked', { link = 'Comment' })
   -- Pop the position marker (*, -N, +N) above the muted baseline so the
   -- "you are here" cue is unmistakable. Identifier is typically a cool
   -- accent (blue/cyan) — distinct from PairQueueCount's warning hue.
@@ -1006,6 +1012,56 @@ local function pair_apply_statusline_hl()
   })
 end
 pair_apply_statusline_hl()
+
+-- ---------------------------------------------------------------------------
+-- mode-tinted background — make non-insert modes visually obvious so a stray
+-- middle-click paste / copy-on-select that lands in normal mode is caught
+-- before keys get interpreted as commands instead of text.
+-- ---------------------------------------------------------------------------
+-- Insert mode keeps the colorscheme look. Locked mode (everything else)
+-- swaps to a "dimmed sheet": lifted grey bg + uniform dim grey fg for
+-- every syntax group, applied via a highlight namespace so the
+-- colorscheme's default ns is left untouched.
+local pair_bg_insert = '#1c1c1c' -- close to slate default
+local pair_bg_locked = '#2a2a2a' -- lifted neutral grey
+local pair_fg_locked = '#888888' -- dim grey fg for all syntax when locked
+local pair_locked_ns = vim.api.nvim_create_namespace('pair_locked')
+
+-- Snapshot every currently-defined highlight group and clone it into the
+-- locked namespace with fg→dim, bg→locked, and decorations stripped.
+-- Rebuilt on ColorScheme so new schemes / late-loaded tree-sitter groups
+-- get covered. Cursor groups are skipped so the cursor block stays
+-- visible against the dimmed sheet.
+local function pair_build_locked_ns()
+  for name in pairs(vim.api.nvim_get_hl(0, {})) do
+    if name ~= 'Cursor' and name ~= 'lCursor' and name ~= 'TermCursor' then
+      vim.api.nvim_set_hl(pair_locked_ns, name, {
+        fg = pair_fg_locked,
+        bg = pair_bg_locked,
+      })
+    end
+  end
+end
+pair_build_locked_ns()
+
+local function pair_apply_mode_bg(mode)
+  if mode == 'i' then
+    vim.api.nvim_set_hl_ns(0)
+    vim.api.nvim_set_hl(0, 'Normal',      { bg = pair_bg_insert })
+    vim.api.nvim_set_hl(0, 'NormalNC',    { bg = pair_bg_insert })
+    vim.api.nvim_set_hl(0, 'EndOfBuffer', { bg = pair_bg_insert })
+  else
+    pair_build_locked_ns() -- catch any groups defined since last build
+    vim.api.nvim_set_hl_ns(pair_locked_ns)
+  end
+end
+vim.api.nvim_create_autocmd('ModeChanged', {
+  callback = function() pair_apply_mode_bg(vim.fn.mode():sub(1, 1)) end,
+})
+vim.api.nvim_create_autocmd('ColorScheme', {
+  callback = pair_build_locked_ns,
+})
+pair_apply_mode_bg(vim.fn.mode():sub(1, 1))
 
 -- ---------------------------------------------------------------------------
 -- quit-blocker — fat-finger guard for muscle-memory :wq / :q / ZZ etc.
