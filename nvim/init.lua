@@ -931,38 +931,31 @@ vim.api.nvim_create_autocmd({ 'TextChangedI', 'TextChangedP' }, {
 
 -- "Ghost cursor" while the nvim pane is unfocused. zellij hides the real
 -- terminal cursor on FocusLost, leaving the insertion point invisible.
--- We mark the position with a subtle **underline** — visually distinct
--- from zellij's own "unfocused pane" outlined block (which looks like a
--- normal-mode cursor and would be confusing). At end-of-line / on empty
--- lines we use a virt_text underscore so the marker still shows.
+-- Mark the position with a glyph chosen by mode so the indicator mirrors
+-- the focused-state cursor:
+--   normal-mode unfocused : ▯ (outline of █, the focused block cursor)
+--   insert-mode unfocused : ¦ (broken version of |, the focused bar cursor)
 local pair_focus_ns = vim.api.nvim_create_namespace('pair_focus_cursor')
 
 local function pair_apply_focus_cursor_hl()
-  -- underline only — no bg/fg flip, so it reads as "insertion-point hint"
-  -- rather than a block cursor. Reapplied on ColorScheme since :hi clear
+  -- Tie to `Comment` so the glyph picks up the colorscheme's dimmed-text
+  -- color — visible but subdued. Reapplied on ColorScheme since :hi clear
   -- (which colorschemes implicitly run) blows highlights away.
-  vim.api.nvim_set_hl(0, 'PairFocusCursor', { underline = true })
+  vim.api.nvim_set_hl(0, 'PairFocusCursor', { link = 'Comment' })
 end
 pair_apply_focus_cursor_hl()
 
 local function pair_show_focus_cursor()
+  local mode  = vim.api.nvim_get_mode().mode:sub(1, 1)
+  local glyph = (mode == 'i') and '¦' or '▯'
   local row1, col = unpack(vim.api.nvim_win_get_cursor(0))
   local row = row1 - 1
-  local line = vim.api.nvim_buf_get_lines(0, row, row + 1, false)[1] or ''
   vim.api.nvim_buf_clear_namespace(0, pair_focus_ns, 0, -1)
-  if col < #line then
-    pcall(vim.api.nvim_buf_set_extmark, 0, pair_focus_ns, row, col, {
-      end_col   = col + 1,
-      hl_group  = 'PairFocusCursor',
-      priority  = 200,
-    })
-  else
-    pcall(vim.api.nvim_buf_set_extmark, 0, pair_focus_ns, row, col, {
-      virt_text     = { { '_', 'PairFocusCursor' } },
-      virt_text_pos = 'overlay',
-      priority      = 200,
-    })
-  end
+  pcall(vim.api.nvim_buf_set_extmark, 0, pair_focus_ns, row, col, {
+    virt_text     = { { glyph, 'PairFocusCursor' } },
+    virt_text_pos = 'overlay',
+    priority      = 200,
+  })
 end
 
 local function pair_hide_focus_cursor()
