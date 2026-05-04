@@ -972,3 +972,28 @@ end
 vim.api.nvim_create_autocmd('FocusLost',   { group = pair_aug, callback = pair_show_focus_cursor })
 vim.api.nvim_create_autocmd('FocusGained', { group = pair_aug, callback = pair_hide_focus_cursor })
 vim.api.nvim_create_autocmd('ColorScheme', { group = pair_aug, callback = pair_apply_focus_cursor_hl })
+
+-- Pane name = "draft" + spaces + cheatsheet, sized to the terminal width
+-- so the cheatsheet ends up right-aligned in the zellij frame title. Why:
+-- zellij sets the OSC 0 terminal title to "<session>: <pane-name>", which
+-- typical terminal/multiplexer tab titles truncate. Padding spaces between
+-- "draft" and the cheatsheet means the title truncates *during* the
+-- spaces, so the visible tab title stays short ("pair-pair: draft") while
+-- the in-frame display shows the full cheatsheet right-aligned.
+local PAIR_CHEATSHEET = 'Alt: ⏎=send  u=max  i=img  d=detach  x=quit'
+
+local function pair_update_pane_name()
+  local cheat_w = vim.fn.strdisplaywidth(PAIR_CHEATSHEET)
+  -- vim.o.columns is the nvim window width = the pane's inner width.
+  -- Add a small fudge (4) for zellij's frame chrome (corners + leading
+  -- "─ " and trailing " ─" around the title slot).
+  local pad = vim.o.columns - 4 - vim.fn.strdisplaywidth('draft') - cheat_w
+  if pad < 2 then pad = 2 end
+  local name = 'draft' .. string.rep(' ', pad) .. PAIR_CHEATSHEET
+  pcall(vim.fn.system, { 'zellij', 'action', 'rename-pane', name })
+end
+
+vim.api.nvim_create_autocmd({ 'VimEnter', 'VimResized' }, {
+  group = pair_aug,
+  callback = vim.schedule_wrap(pair_update_pane_name),
+})
