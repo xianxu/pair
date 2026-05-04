@@ -209,7 +209,11 @@ The status line shows position state:
 
 **Queue store:** `queue-<tag>/` directory of one file per queued prompt. Filenames are 6-digit zero-padded sortable keys; sort order = display order (`+1` is the lowest key). New keys at `push_front` decrement the current min; `push_back` increments the current max. Initial midpoint at `500000` to leave room either way.
 
-Implementation in `nvim/init.lua`: see helpers grouped under `is_dirty_history_slot`, `autosave_current_slot`, `leave_dirty_history`, `go_to`, `nav_left`/`nav_right`, `nav_boundary` (Shift+Alt jumps), `queue_current`, `delete_current_queue_item`, plus the `queue_*` file ops. State lives in module-local `nav = { pos, baseline }` — `pos` is `'*'` or `{ kind='history'|'queue', n=N }`.
+**Forget-all (Shift+Alt+BS):** wipes `log-<tag>.md`, `draft-<tag>.md`, and every file in `queue-<tag>/` after a confirmation prompt that defaults to No. Hard delete, not an archive — symmetric with the per-item `Alt+BS` queue delete. The confirm-default-No is the safety: a stray Shift+Alt+BS doesn't nuke the session.
+
+**Comments (`=== ...`):** whole lines matching `^%s*===` are stripped from the body at send time only. Draft, queue, and log files store the unstripped text so annotations survive history navigation. A comment-only prompt is a silent no-op (no queue consumption, no log append). Stripping is line-based and not fence-aware. Implementation: `strip_comments` in `nvim/init.lua`, called from `send_and_clear` and `ship_buffer_and_reset`.
+
+Implementation in `nvim/init.lua`: see helpers grouped under `is_dirty_history_slot`, `autosave_current_slot`, `leave_dirty_history`, `go_to`, `nav_left`/`nav_right`, `nav_boundary` (Shift+Alt jumps), `queue_current`, `delete_current_queue_item`, `forget_all`, plus the `queue_*` file ops. State lives in module-local `nav = { pos, baseline }` — `pos` is `'*'` or `{ kind='history'|'queue', n=N }`.
 
 **Insert-mode-only auto-insert from mouse selection.** `bin/copy-on-select.sh` mirrors any selection to the OS clipboard; for selections outside the nvim pane it then triggers `PairPasteQuote` by sending Ctrl-_ (ASCII 31) to the focused nvim pane. The `<C-_>` keymap is bound **only in insert mode**, which is structurally the gate: when the user is in normal mode (e.g. browsing prompt history with Alt+←/→), Ctrl-_ hits nvim's near-no-op default and the buffer isn't mutated. The selection is still on the OS clipboard for manual paste. No mode-probing files or shell-side state needed.
 

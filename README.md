@@ -34,6 +34,7 @@ Full nvim support, for example:
 | **Shift+Alt+←** / **Shift+Alt+→** | nvim (normal/insert) | Jump to the next region boundary: oldest-history, newest-history, `*`, front-of-queue, back-of-queue. Lets you skip over long histories or queues quickly. |
 | **Alt+q** | nvim (normal/insert) | Push current buffer to the front of the queue (`+1`). From `*` clears the draft; from `+N` it's move-to-front. |
 | **Alt+Backspace** | nvim (normal/insert), at `+N` | Delete the current queued prompt without sending. Items behind shift down so you can delete a run by tapping repeatedly. |
+| **Shift+Alt+Backspace** | nvim (normal/insert) | Erase history, draft, and queue for this session — "start anew". Confirmation prompt defaults to No. Hard delete (no archive). |
 | **Alt+u** | any pane | Toggle the nvim pane to fullscreen (works from either pane) |
 | **Alt+i** | nvim (normal/insert) | Attach clipboard image to the agent and insert `[Image #N]` reference at cursor. |
 | **Alt+i** | when inside [Image tag] | Sync the internal counter to N (manual-correction path), allowing user to edit if the cursor between nvim and agent gets out of sync. |
@@ -67,6 +68,21 @@ History is immutable. If you edit a `-N` slot, the position label shows the dirt
 - Enter / ESC / anything else — stay where you are.
 
 `+N` and `*` are mutable: edits autosave to disk on navigate-away or focus loss, no prompt. `Alt+q` from `*` parks the current draft for later; from `-N` it forks the history entry into the queue; from `+N` it bumps the item to the front. `Alt+Backspace` deletes the current `+N` (no-op anywhere else). When you mouse-select text in the agent pane, the selection always goes to the OS clipboard, but the auto-quote-into-nvim only fires when nvim is in **insert mode** — so browsing history in normal mode doesn't get its buffer overwritten.
+
+### Draft comments (`===`)
+
+Lines starting with `===` (leading whitespace allowed) are **stripped from the prompt at send time** but **kept in draft, queue, and log files**. Useful for "remember what this is for" notes that travel with a queued prompt and survive history navigation.
+
+```
+=== queued for after the build passes — re-check Auth.tsx imports
+fix the token-rotation bug in src/auth/session.ts
+```
+
+Only the second line reaches the agent; the comment stays attached when you scroll back through history or browse the queue.
+
+- Whole-line only — mid-line `===` is unaffected (`a === b` ships as-is).
+- A prompt that's all comments is a no-op send (no log entry, no queue item consumed, no flash).
+- Stripping is line-based and **not fence-aware**: a `===` line inside a fenced code block also gets stripped. Use `# H1` headings or `<!-- ... -->` if you need literal `===` in a sent prompt.
 
 ## Mouse
 

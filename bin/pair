@@ -69,6 +69,7 @@ KEYBINDINGS (inside a pair session)
                 from *: parks the draft. from -N: forks. from +N: move-to-front
   Alt+BS        (at +N) delete the current queued prompt; items shift down,
                 so tap-tap deletes a run
+  Shift+Alt+BS  erase history + draft + queue ("start anew"); confirms first
   Alt+u         toggle nvim pane fullscreen (works from either pane)
   Alt+d         detach from session (re-attach later via `pair`)
   Alt+x         full quit — kill session and remove from resurrect list
@@ -79,6 +80,11 @@ KEYBINDINGS (inside a pair session)
   Status line shows `H < pos > Q` — history count, current slot, queue
   count. A dirty `-N*` mark on history means a pending fork; navigating
   away prompts: (S)end, (Q)ueue, (D)iscard, [S]tay.
+
+DRAFT SYNTAX
+  ===  comment  Whole lines starting with `===` are stripped at send time
+                but kept in draft/queue/log. Use them to annotate why a
+                queued prompt exists. Mid-line `===` is unaffected.
 
 FILES
   ${XDG_DATA_HOME:-~/.local/share}/pair/draft-<tag>.md     persistent draft (*)

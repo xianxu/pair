@@ -4,6 +4,20 @@
 
 vim.g.mapleader = ' '
 
+-- Enable filetype detection + default syntax. Loaded via `nvim -u`, which
+-- doesn't bypass nvim's bundled runtime but doesn't auto-enable these
+-- either. The draft file is `.md`, so this picks up markdown highlighting.
+-- termguicolors is required for the default colorscheme's gui-defined
+-- palette to render in the terminal — without it most syntax groups fall
+-- back to a near-monochrome cterm palette.
+vim.opt.termguicolors = true
+vim.cmd('syntax enable')
+vim.cmd('filetype plugin indent on')
+-- nvim's bundled `default` colorscheme is intentionally near-monochrome —
+-- syntax groups get bold/italic but no fg colors. habamax is bundled and
+-- gives readable colors for markdown headings, code spans, links, etc.
+vim.cmd('colorscheme habamax')
+
 -- Drafting-friendly editor settings
 vim.opt.number = false
 vim.opt.relativenumber = false
@@ -162,6 +176,25 @@ local function refresh_statusline()
   vim.schedule(function() pcall(vim.cmd, 'redrawstatus') end)
 end
 
+-- Brief inverted flash on the "N queued" statusline segment. Confirms a
+-- queue-count change actually happened — Alt+q lands an item, send-from-+N
+-- consumes one, Alt+BS deletes one. Without it the only visible change is
+-- "buffer snapped/cleared," which is the same shape as a discard.
+--
+-- Both PairQueueCount and PairQueueZero are swapped so the flash is visible
+-- whether the queue ends non-empty (PairQueueCount) or hits zero on this
+-- transition (PairQueueZero). Uses IncSearch + 500ms to match paste-flash.
+local function flash_queue_count()
+  vim.api.nvim_set_hl(0, 'PairQueueCount', { link = 'IncSearch' })
+  vim.api.nvim_set_hl(0, 'PairQueueZero',  { link = 'IncSearch' })
+  refresh_statusline()
+  vim.defer_fn(function()
+    vim.api.nvim_set_hl(0, 'PairQueueCount', { link = 'WarningMsg' })
+    vim.api.nvim_set_hl(0, 'PairQueueZero',  { link = 'Comment' })
+    refresh_statusline()
+  end, 500)
+end
+
 -- ---------------------------------------------------------------------------
 -- queue store (issue #000015 §H2)
 --
@@ -240,6 +273,23 @@ local function send_to_agent(body)
   vim.fn.system({ 'zellij', 'action', 'write-chars', body })
   vim.fn.system('zellij action write 13')
   vim.fn.system('zellij action move-focus down')
+end
+
+-- Strip whole-line comments (^%s*===) before sending. Comments are stored
+-- intact in draft/queue/log so they survive history navigation — only what
+-- reaches the agent is cleaned. Trailing blank lines left behind by the
+-- strip are also dropped so the agent doesn't see a dangling tail.
+local function strip_comments(body)
+  local out = {}
+  for line in (body .. '\n'):gmatch('([^\n]*)\n') do
+    if not line:match('^%s*===') then
+      table.insert(out, line)
+    end
+  end
+  while #out > 0 and out[#out]:match('^%s*$') do
+    table.remove(out)
+  end
+  return table.concat(out, '\n')
 end
 
 -- ---------------------------------------------------------------------------
@@ -459,18 +509,28 @@ end
 local function send_and_clear()
   local body = buffer_text()
   if body:match('^%s*$') then return end
+  -- Strip-then-check happens before any side effects: a comment-only buffer
+  -- is a no-op send, so it must NOT consume a +N queue item or append to log.
+  local stripped = strip_comments(body)
+  if stripped:match('^%s*$') then return end
 
   -- send-from-+N consumes that queue file. The buffer (possibly edited) is
   -- what ships, and the queue slot vanishes.
+  local consumed_queue = false
   if type(nav.pos) == 'table' and nav.pos.kind == 'queue' then
     local key = queue_key_for_n(nav.pos.n)
-    if key then queue_remove(key) end
+    if key then
+      queue_remove(key)
+      consumed_queue = true
+    end
   end
 
   local was_at_star = (nav.pos == '*')
 
+  -- Log the unstripped body (the user's authored text, comments and all),
+  -- send only the stripped version to the agent.
   append_log(body)
-  send_to_agent(body)
+  send_to_agent(stripped)
 
   -- Return to *. If we sent FROM *, that's the existing "clear the draft"
   -- semantic. If we sent from -N or +N, * is unaffected — the user's
@@ -486,6 +546,7 @@ local function send_and_clear()
     nav.baseline = buffer_text()
   end
   refresh_statusline()
+  if consumed_queue then flash_queue_count() end
   vim.cmd('startinsert')
 end
 
@@ -612,7 +673,9 @@ function _G.PairStatusline()
     else
       label = label .. ' [q=queue]'
     end
-    return string.format(' Alt: <- history %d < %s > %d queued -> ', h, label, q)
+    local q_hl = (q > 0) and 'PairQueueCount' or 'PairQueueZero'
+    local q_seg = string.format('%%#%s#%d queued%%*', q_hl, q)
+    return string.format(' Alt: <- history %d < %s > %s -> ', h, label, q_seg)
   end)
   return ok and result or ' pair '
 end
@@ -633,8 +696,13 @@ end
 -- persistent draft. Used only by the dirty-`-N` prompt's Send branch
 -- (send_and_clear has its own variant that handles the from-* case).
 local function ship_buffer_and_reset(body)
-  append_log(body)
-  send_to_agent(body)
+  -- Mirror send_and_clear: log full body, send stripped. Skip both if the
+  -- stripped result is empty so a comment-only fork doesn't pollute the log.
+  local stripped = strip_comments(body)
+  if not stripped:match('^%s*$') then
+    append_log(body)
+    send_to_agent(stripped)
+  end
   nav.pos = '*'
   set_buffer_text(read_file(draft_path_for_tag()))
   nav.baseline = buffer_text()
@@ -673,6 +741,7 @@ local function leave_dirty_history()
     nav.pos = '*'
     nav.baseline = buffer_text()
     refresh_statusline()
+    flash_queue_count()
     return false
   elseif key == 'd' then
     return true
@@ -799,6 +868,34 @@ local function delete_current_queue_item()
   set_buffer_text(load_baseline_for_current_pos())
   nav.baseline = buffer_text()
   refresh_statusline()
+  flash_queue_count()
+end
+
+-- Shift+Alt+BS — wipe history, draft, and queue. "Start anew" for a session
+-- whose state has accumulated cruft. Hard delete (no archive) per design;
+-- confirmation defaults to No so a stray tap can't nuke a session.
+local function forget_all()
+  vim.api.nvim_echo({
+    { 'Erase history, draft, and queue? (y)es, [N]o: ', 'WarningMsg' },
+  }, false, {})
+  local ok, c = pcall(vim.fn.getchar)
+  pcall(vim.api.nvim_echo, { { '' } }, false, {})
+  if not ok then return end
+  local key = (type(c) == 'number') and vim.fn.nr2char(c) or tostring(c or '')
+  if key:lower() ~= 'y' then return end
+
+  os.remove(log_path_for_tag())
+  os.remove(draft_path_for_tag())
+  for _, k in ipairs(queue_keys_sorted()) do
+    queue_remove(k)
+  end
+
+  nav.pos = '*'
+  vim.api.nvim_buf_set_lines(0, 0, -1, false, { '' })
+  vim.cmd('silent! write')
+  nav.baseline = ''
+  refresh_statusline()
+  vim.cmd('startinsert')
 end
 
 -- Alt+q — push current buffer to the FRONT of the queue (+1), return to *.
@@ -831,6 +928,7 @@ local function queue_current()
   nav.pos = '*'
   nav.baseline = buffer_text()
   refresh_statusline()
+  flash_queue_count()
   vim.cmd('startinsert')
 end
 
@@ -845,8 +943,51 @@ vim.opt.statusline = '%!v:lua.PairStatusline()'
 local function pair_apply_statusline_hl()
   vim.api.nvim_set_hl(0, 'StatusLine',   { link = 'Comment' })
   vim.api.nvim_set_hl(0, 'StatusLineNC', { link = 'Comment' })
+  -- Pop the queued-count above the muted baseline when the queue is non-empty
+  -- — it's the only segment that means "you have pending work to send."
+  -- PairQueueZero matches the muted baseline normally, but exists as its own
+  -- group so flash_queue_count can light it up on the N→0 transition too.
+  vim.api.nvim_set_hl(0, 'PairQueueCount', { link = 'WarningMsg' })
+  vim.api.nvim_set_hl(0, 'PairQueueZero',  { link = 'Comment' })
 end
 pair_apply_statusline_hl()
+
+-- ---------------------------------------------------------------------------
+-- quit-blocker — fat-finger guard for muscle-memory :wq / :q / ZZ etc.
+-- ---------------------------------------------------------------------------
+-- This nvim instance is the pair draft pane, not a standalone editor. The
+-- correct exits are Alt+x (full quit) or Alt+d (detach); a stray :wq would
+-- kill the draft pane mid-session and orphan zellij's layout. We rewrite
+-- the common quit verbs as a no-op that echoes the right path. Saves still
+-- happen via autosave, so swallowing the `:w` part of `:wq` costs nothing.
+function _G.PairQuitWarn()
+  vim.api.nvim_echo({
+    { 'pair: ', 'Question' },
+    { 'use Alt+x to quit, or Alt+d to detach', 'WarningMsg' },
+  }, false, {})
+end
+
+-- Match the WHOLE typed command exactly (cmdline ==# 'q' etc.) so this only
+-- fires for bare quits, not e.g. `:qall` typed character-by-character or a
+-- substitute pattern that happens to contain 'q'. The `<expr>` form lets us
+-- branch on getcmdtype() so command-mode-only triggers fire.
+local quit_verbs = {
+  'q', 'q!', 'wq', 'wq!', 'quit', 'quit!',
+  'qa', 'qa!', 'qall', 'qall!',
+  'wqa', 'wqa!', 'wqall', 'wqall!',
+  'x', 'x!', 'xa', 'xa!', 'xall', 'xall!',
+  'exit', 'exit!',
+}
+for _, v in ipairs(quit_verbs) do
+  vim.cmd(string.format(
+    [[cnoreabbrev <expr> %s getcmdtype() == ':' && getcmdline() ==# %q ? 'lua PairQuitWarn()' : %q]],
+    v, v, v
+  ))
+end
+
+-- Normal-mode shortcuts that bypass the cmdline (and thus the abbreviations).
+vim.keymap.set('n', 'ZZ', function() PairQuitWarn() end, { silent = true, desc = 'pair: quit blocked' })
+vim.keymap.set('n', 'ZQ', function() PairQuitWarn() end, { silent = true, desc = 'pair: quit blocked' })
 
 -- ---------------------------------------------------------------------------
 -- keymaps
@@ -874,6 +1015,9 @@ vim.keymap.set({ 'n', 'i' }, '<M-q>', queue_current,
 
 vim.keymap.set({ 'n', 'i' }, '<M-BS>', delete_current_queue_item,
   { silent = true, desc = 'pair: delete the current +N queue item' })
+
+vim.keymap.set({ 'n', 'i' }, '<S-M-BS>', forget_all,
+  { silent = true, desc = 'pair: erase history + draft + queue (with confirm)' })
 
 vim.keymap.set('i', '<Tab>', function()
   return pum_visible() and '<C-n>' or '<Tab>'
