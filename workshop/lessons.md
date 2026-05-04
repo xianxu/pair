@@ -25,3 +25,15 @@ Closing an issue means (a) editing the file (`status: done`, plan checkboxes), t
 3. Or simpler: `git mv` first, edit second, `git add` the new path.
 
 After running `make issue-sync` on a close, verify with `git show HEAD:workshop/history/<file> | grep status:` that the committed file actually has `status: done`. Don't trust the rename alone.
+
+## On cancel, restore the prior visible state
+
+When a confirmation prompt or interactive flow is dismissed, the cancel path must put the UI back exactly how it was — not just "do nothing." Issuing a prompt via `nvim_echo`/`getchar` (or any flow that paints over a region: cmdline, statusline, floating windows, virtual text, highlights) leaves that region in the prompt's state. The proceed branch usually triggers a redraw incidentally (state changes → statusline refresh → cmdline cleared). The cancel branch does not, so the prompt residue lingers until the next user input.
+
+**Rule.** For every interactive surface, the cancel path is responsible for the same restoration the proceed path gets for free:
+
+- Prompts that overdraw the cmdline/statusline → call the same redraw/refresh helper the success path calls (e.g. `refresh_statusline()`), not just `return`.
+- Operations that mutated buffer text/cursor/window before asking for confirmation → snapshot first, restore on cancel.
+- Highlights, virtual text, floating windows added as part of the flow → tear them down on cancel just like on success.
+
+Treat cancel as an active branch with cleanup duties, not an early return. If you find yourself writing `if ch == 'n' then return end`, ask: what did the proceed branch do that I'm now skipping, and is any of it visual cleanup that cancel also needs?

@@ -894,10 +894,24 @@ end
 -- after delete, items at +(N+1)..+M shift down by one, so the same +N slot
 -- now displays what used to be next. Lets the user tap-tap to clean out a
 -- run. If queue empties, fall back to *.
+--
+-- Confirmation defaults to Yes — light safeguard against Cmd+BS (delete-to-
+-- line-start) being mistapped as Alt+BS. Enter/space/y all proceed; only 'n'
+-- or Esc cancels, so tap-tap cleanup stays cheap.
 local function delete_current_queue_item()
   if type(nav.pos) ~= 'table' or nav.pos.kind ~= 'queue' then return end
   local key = queue_key_for_n(nav.pos.n)
   if not key then return end
+  vim.api.nvim_echo({
+    { 'Delete this queue item? [Y]es, (n)o: ', 'WarningMsg' },
+  }, false, {})
+  local ok, c = pcall(vim.fn.getchar)
+  pcall(vim.api.nvim_echo, { { '' } }, false, {})
+  local function cancel() refresh_statusline(); return end
+  if not ok then return cancel() end
+  if c == 27 then return cancel() end -- Esc
+  local ch = (type(c) == 'number') and vim.fn.nr2char(c) or tostring(c or '')
+  if ch:lower() == 'n' then return cancel() end
   queue_remove(key)
   local total = queue_count()
   if total == 0 then
@@ -1055,8 +1069,23 @@ local function pair_apply_mode_bg(mode)
     vim.api.nvim_set_hl_ns(pair_locked_ns)
   end
 end
+-- Coalesce + defer: read mode on the next event-loop tick so transient
+-- mode flips (e.g. `:normal! zt` inside a Lua callback that ends with
+-- `startinsert`) don't strand us in the locked namespace. Synchronous
+-- ModeChanged would see the intermediate 'n', and the trailing startinsert
+-- only takes effect after the current tick — so by the time our scheduled
+-- callback runs, vim.fn.mode() reports the settled mode.
+local pair_mode_bg_pending = false
+local function pair_schedule_mode_bg()
+  if pair_mode_bg_pending then return end
+  pair_mode_bg_pending = true
+  vim.schedule(function()
+    pair_mode_bg_pending = false
+    pair_apply_mode_bg(vim.fn.mode():sub(1, 1))
+  end)
+end
 vim.api.nvim_create_autocmd('ModeChanged', {
-  callback = function() pair_apply_mode_bg(vim.fn.mode():sub(1, 1)) end,
+  callback = pair_schedule_mode_bg,
 })
 vim.api.nvim_create_autocmd('ColorScheme', {
   callback = pair_build_locked_ns,
