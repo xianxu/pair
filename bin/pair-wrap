@@ -42,6 +42,19 @@ DEBUG_LOG = os.environ.get("PAIR_WRAP_LOG")  # opt-in path; if set, log detectio
 # See workshop/issues/000014.
 BELL_FALLBACK = os.environ.get("PAIR_WRAP_BELL_FALLBACK") not in (None, "", "0")
 
+# Idle-output timeout: if the agent produces no bytes for this long, treat it
+# as idle and emit a notification. Catches agents that don't bell on idle.
+# Set to 0 to disable. Fires once per idle period; resets on any output.
+try:
+    IDLE_S = float(os.environ.get("PAIR_WRAP_IDLE_S", "60"))
+except ValueError:
+    IDLE_S = 60.0
+
+# Agents whose own idle notification is good enough — running our timer on
+# top would just duplicate. Matched against basename of the wrapped command.
+# Grow this list as we identify other self-notifying agents.
+SELF_NOTIFYING_AGENTS = frozenset({"claude"})
+
 
 def debug(label, context):
     """Append a one-line forensic record. Safe to call when DEBUG_LOG unset."""
@@ -139,6 +152,11 @@ def main():
         print("usage: pair-wrap <command> [args...]", file=sys.stderr)
         return 2
 
+    global IDLE_S
+    if os.path.basename(sys.argv[1]) in SELF_NOTIFYING_AGENTS:
+        debug("IDLE-disable", f"{sys.argv[1]} self-notifies")
+        IDLE_S = 0
+
     pid, master = pty.fork()
     if pid == 0:
         try:
@@ -165,15 +183,29 @@ def main():
 
     rolling = b""
     fds = [0, master]  # drop fd 0 from the watch list once stdin EOFs
+    last_master_activity = time.monotonic()
+    idle_fired = False
 
     try:
         while master in fds:
+            if IDLE_S > 0 and not idle_fired:
+                remaining = IDLE_S - (time.monotonic() - last_master_activity)
+                timeout = max(0.0, remaining)
+            else:
+                timeout = None
             try:
-                r, _, _ = select.select(fds, [], [])
+                r, _, _ = select.select(fds, [], [], timeout)
             except OSError as e:
                 if e.errno == errno.EINTR:
                     continue
                 break
+
+            if not r and IDLE_S > 0 and not idle_fired:
+                if time.monotonic() - last_master_activity >= IDLE_S:
+                    debug("IDLE", f"no agent output for {IDLE_S:.0f}s")
+                    emit_outer("agent idle")
+                    idle_fired = True
+                continue
 
             if 0 in r:
                 try:
@@ -198,6 +230,8 @@ def main():
                     data = b""
                 if not data:
                     break
+                last_master_activity = time.monotonic()
+                idle_fired = False
                 try:
                     os.write(1, data)
                 except OSError:
