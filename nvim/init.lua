@@ -995,7 +995,19 @@ local function pair_update_pane_name()
   local pad = vim.o.columns - 4 - vim.fn.strdisplaywidth('draft') - cheat_w
   if pad < 2 then pad = 2 end
   local name = 'draft' .. string.rep(NBSP, pad) .. PAIR_CHEATSHEET
-  pcall(vim.fn.system, { 'zellij', 'action', 'rename-pane', name })
+
+  -- Target the nvim pane explicitly via its ID, not "the focused pane".
+  -- At startup zellij may show a floating "tip" popup that grabs focus,
+  -- and rename-pane would then rename the popup instead of us. zellij
+  -- exports ZELLIJ_PANE_ID in every pane's env — that's our ID.
+  local pane_id = os.getenv('ZELLIJ_PANE_ID')
+  local cmd
+  if pane_id and pane_id ~= '' then
+    cmd = { 'zellij', 'action', 'rename-pane', '--pane-id', pane_id, name }
+  else
+    cmd = { 'zellij', 'action', 'rename-pane', name }
+  end
+  pcall(vim.fn.system, cmd)
 end
 
 vim.api.nvim_create_autocmd({ 'VimEnter', 'VimResized' }, {
