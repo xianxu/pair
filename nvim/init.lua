@@ -19,8 +19,9 @@ vim.cmd('filetype plugin indent on')
 vim.cmd('colorscheme slate')
 
 -- Drafting-friendly editor settings
-vim.opt.number = false
+vim.opt.number = true
 vim.opt.relativenumber = false
+vim.opt.numberwidth = 1
 vim.opt.signcolumn = 'no'
 -- laststatus=2 + a custom statusline are set later (after nav helpers); they
 -- back the position indicator `History H < pos > Q Queued` for the prompt
