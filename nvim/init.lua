@@ -666,16 +666,18 @@ function _G.PairStatusline()
   local ok, result = pcall(function()
     local h = #read_history()
     local q = queue_count()
-    local label = pos_label(nav.pos)
-    if is_dirty_history_slot() then label = label .. '*' end
+    local pos = pos_label(nav.pos)
+    if is_dirty_history_slot() then pos = pos .. '*' end
+    local hint
     if type(nav.pos) == 'table' and nav.pos.kind == 'queue' then
-      label = label .. ' [⌫=del]'
+      hint = ' [⌫=del]'
     else
-      label = label .. ' [q=queue]'
+      hint = ' [q=queue]'
     end
+    local pos_seg = string.format('%%#PairPosLabel#%s%%*', pos)
     local q_hl = (q > 0) and 'PairQueueCount' or 'PairQueueZero'
     local q_seg = string.format('%%#%s#%d queued%%*', q_hl, q)
-    return string.format(' Alt: <- history %d < %s > %s -> ', h, label, q_seg)
+    return string.format(' Alt: <- history %d < %s%s > %s -> ', h, pos_seg, hint, q_seg)
   end)
   return ok and result or ' pair '
 end
@@ -949,6 +951,22 @@ local function pair_apply_statusline_hl()
   -- group so flash_queue_count can light it up on the N→0 transition too.
   vim.api.nvim_set_hl(0, 'PairQueueCount', { link = 'WarningMsg' })
   vim.api.nvim_set_hl(0, 'PairQueueZero',  { link = 'Comment' })
+  -- Pop the position marker (*, -N, +N) above the muted baseline so the
+  -- "you are here" cue is unmistakable. Identifier is typically a cool
+  -- accent (blue/cyan) — distinct from PairQueueCount's warning hue.
+  -- Borrow DiffAdd's color so the position marker reads as a green "you
+  -- are here" block. Many themes encode DiffAdd as fg=green + reverse so
+  -- the rendered look is dark text on a green bg. `link` + extra attrs
+  -- doesn't layer (link wins, attrs drop), so resolve and copy.
+  local hit = vim.api.nvim_get_hl(0, { name = 'DiffAdd', link = false })
+  vim.api.nvim_set_hl(0, 'PairPosLabel', {
+    fg      = hit.fg,
+    bg      = hit.bg,
+    ctermfg = hit.ctermfg,
+    ctermbg = hit.ctermbg,
+    reverse = hit.reverse,
+    bold    = true,
+  })
 end
 pair_apply_statusline_hl()
 
