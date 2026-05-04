@@ -597,17 +597,24 @@ end
 --   +N      : " [⌫=del]"   — Alt+BS deletes the current queue item.
 -- Suppressed on +N for [q=queue] because Alt+q from +N is "move-to-front",
 -- a different mental action that doesn't grow the queue.
+--
+-- Wrapped in a pcall guard so any edge-case error in is_dirty_history_slot
+-- / read_history / queue_count can't blank the bar — fall back to a minimal
+-- safe string.
 function _G.PairStatusline()
-  local h = #read_history()
-  local q = queue_count()
-  local label = pos_label(nav.pos)
-  if is_dirty_history_slot() then label = label .. '*' end
-  if type(nav.pos) == 'table' and nav.pos.kind == 'queue' then
-    label = label .. ' [⌫=del]'
-  else
-    label = label .. ' [q=queue]'
-  end
-  return string.format(' Alt: <- history %d < %s > %d queued -> ', h, label, q)
+  local ok, result = pcall(function()
+    local h = #read_history()
+    local q = queue_count()
+    local label = pos_label(nav.pos)
+    if is_dirty_history_slot() then label = label .. '*' end
+    if type(nav.pos) == 'table' and nav.pos.kind == 'queue' then
+      label = label .. ' [⌫=del]'
+    else
+      label = label .. ' [q=queue]'
+    end
+    return string.format(' Alt: <- history %d < %s > %d queued -> ', h, label, q)
+  end)
+  return ok and result or ' pair '
 end
 
 -- Persist any pending edit on a mutable slot to its underlying file. No-op
@@ -977,7 +984,17 @@ local function pair_hide_focus_cursor()
   vim.api.nvim_buf_clear_namespace(0, pair_focus_ns, 0, -1)
 end
 
-vim.api.nvim_create_autocmd('FocusLost',   { group = pair_aug, callback = pair_show_focus_cursor })
+vim.api.nvim_create_autocmd('FocusLost', {
+  group = pair_aug,
+  callback = function()
+    pair_show_focus_cursor()
+    -- A delayed full redraw catches the case where zellij's focus-change
+    -- rendering fires after our immediate refresh_statusline (which only
+    -- defers one event-loop tick). 80ms is comfortably above one terminal
+    -- frame and unobtrusive.
+    vim.defer_fn(function() pcall(vim.cmd, 'redraw!') end, 80)
+  end,
+})
 vim.api.nvim_create_autocmd('FocusGained', { group = pair_aug, callback = pair_hide_focus_cursor })
 vim.api.nvim_create_autocmd('ColorScheme', { group = pair_aug, callback = pair_apply_focus_cursor_hl })
 
