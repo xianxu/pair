@@ -16,7 +16,7 @@ vim.cmd('filetype plugin indent on')
 -- nvim's bundled `default` colorscheme is intentionally near-monochrome —
 -- syntax groups get bold/italic but no fg colors. habamax is bundled and
 -- gives readable colors for markdown headings, code spans, links, etc.
-vim.cmd('colorscheme habamax')
+vim.cmd('colorscheme slate')
 
 -- Drafting-friendly editor settings
 vim.opt.number = false
@@ -136,6 +136,28 @@ end
 
 local function read_history()
   return parse_log(read_file(log_path_for_tag()))
+end
+
+-- Rewrite the body of the n-th-most-recent log entry (n=1 is newest) in
+-- place, preserving its timestamp header. Used to persist comment-only
+-- edits made while navigating history — comments are stripped before the
+-- agent sees them, so changing them is a no-op against the agent's view of
+-- history. No-op if n is out of range or the file is missing/malformed.
+local function write_history_entry(n, body)
+  local path = log_path_for_tag()
+  local text = read_file(path)
+  if text == '' then return end
+  local parts = vim.split(text, '\n\n---\n\n', { plain = true })
+  local entries = {}
+  for _, p in ipairs(parts) do
+    if p ~= '' then table.insert(entries, p) end
+  end
+  local idx = #entries - n + 1
+  if idx < 1 or idx > #entries then return end
+  local header = entries[idx]:match('^(## %S+ %S+\n\n)')
+  if not header then return end
+  entries[idx] = header .. body
+  write_file(path, table.concat(entries, '\n\n---\n\n') .. '\n\n---\n\n')
 end
 
 local function buffer_text()
@@ -644,10 +666,15 @@ end
 -- pending fork that must explicitly become a send / a queue entry / a discard.
 -- * and +N are mutable (their edits autosave to the underlying file), so they
 -- have no dirty concept from the user's perspective.
+--
+-- Comment-only / blank-line-only edits don't count as dirty: they vanish under
+-- strip_comments before the agent sees them, so there's no fork to resolve.
+-- They are persisted back into the log entry by autosave_current_slot, so
+-- annotations on history survive navigation and nvim restart.
 local function is_dirty_history_slot()
   return type(nav.pos) == 'table'
      and nav.pos.kind == 'history'
-     and buffer_text() ~= nav.baseline
+     and strip_comments(buffer_text()) ~= strip_comments(nav.baseline)
 end
 
 -- Statusline format:
@@ -682,15 +709,24 @@ function _G.PairStatusline()
   return ok and result or ' pair '
 end
 
--- Persist any pending edit on a mutable slot to its underlying file. No-op
--- for -N (immutable; user must explicitly pick Send/Queue/Discard via the
--- leave-dirty-history prompt) and for any state where there's nothing to do.
+-- Persist any pending edit on a mutable slot to its underlying file. For
+-- -N, only comment-only edits are persisted in place (the agent never sees
+-- comments, so changing them isn't a fork). A real fork — anything that
+-- would change the stripped body — is left unsaved so the next go_to can
+-- raise the leave-dirty-history prompt.
 local function autosave_current_slot()
   if nav.pos == '*' then
     pcall(vim.cmd, 'silent! write')
   elseif type(nav.pos) == 'table' and nav.pos.kind == 'queue' then
     local key = queue_key_for_n(nav.pos.n)
     if key then queue_write(key, buffer_text()) end
+  elseif type(nav.pos) == 'table' and nav.pos.kind == 'history' then
+    local body = buffer_text()
+    if body ~= nav.baseline
+       and strip_comments(body) == strip_comments(nav.baseline) then
+      write_history_entry(nav.pos.n, body)
+      nav.baseline = body
+    end
   end
 end
 

@@ -23,7 +23,9 @@ Full nvim support, for example:
 2. search in the input box
 3. typeahead and search local file path, just type `./` and then continue. 
 
-**Prompt history & a future queue, in-buffer.** The nvim pane is a virtual cursor over `[ ... -2 -1 ] * [ +1 +2 ... ]`. The status line — e.g. `Alt: <- history 17 < * [q=queue] > 3 queued ->` — shows where you are and the relevant key for the current slot. `Alt+←` walks back through your past prompts (parsed from the log), `Alt+→` walks forward into queued ones; `Shift+Alt+←/→` jumps between region boundaries when you're scrolling far. `Alt+q` parks the current draft as `+1` (think "quick idea I don't want to send yet, while the agent is busy"); the bracketed `[q=queue]` hint reminds you. From `+N` the bracketed hint switches to `[⌫=del]` and `Alt+Backspace` deletes that queued prompt without sending. Editing a `-N` history entry forks it: a one-line prompt asks whether to Send / Queue / Discard the fork.
+**Prompt history & a future queue, in-buffer.** 
+
+You can use `Alt+←` and `Alt+→` to move among history of commands you issued. You can `Alt+q` to enqueue a command to be parked on the side. You can use "===" at start of a line, to write comments to remind you about what this prompt is for, which I use extensively to park small things I notice as I'm working with coding agent that I want to fix, but not yet to the level that I want to create an issue to track it.
 
 ## Keybindings
 
@@ -83,6 +85,7 @@ Only the second line reaches the agent; the comment stays attached when you scro
 - Whole-line only — mid-line `===` is unaffected (`a === b` ships as-is).
 - A prompt that's all comments is a no-op send (no log entry, no queue item consumed, no flash).
 - Stripping is line-based and **not fence-aware**: a `===` line inside a fenced code block also gets stripped. Use `# H1` headings or `<!-- ... -->` if you need literal `===` in a sent prompt.
+- Comment-only edits to a `-N` history entry **autosave back into the log** — annotating an old prompt isn't a fork (the agent's view is unchanged), so it doesn't trigger the dirty prompt and the note is preserved across navigation and nvim restarts.
 
 ## Mouse
 
