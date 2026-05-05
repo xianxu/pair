@@ -212,8 +212,8 @@ local function refresh_statusline()
 end
 
 -- Focus-loss spinner. When nvim loses focus (user moved to the agent pane),
--- wait 2s, then run a braille spinner in the statusline for 2s before
--- forcing focus back to nvim (total 4s). All timers cancel on FocusGained.
+-- wait 5s, then run a braille spinner in the statusline for 5s before
+-- forcing focus back to nvim (total 10s). All timers cancel on FocusGained.
 local pair_spinner = {
   frames = { '⠋','⠙','⠹','⠸','⠼','⠴','⠦','⠧','⠇','⠏' },
   idx    = 1,
@@ -234,12 +234,12 @@ end
 
 local function pair_spinner_start()
   pair_spinner_stop()
-  -- 2s pre-delay before the spinner appears (initial timeout), then tick
+  -- 5s pre-delay before the spinner appears (initial timeout), then tick
   -- every 30ms. First fire flips `active` on; subsequent fires advance the
   -- frame.
   pair_spinner.idx  = 1
   pair_spinner.tick = vim.loop.new_timer()
-  pair_spinner.tick:start(2000, 30, vim.schedule_wrap(function()
+  pair_spinner.tick:start(5000, 30, vim.schedule_wrap(function()
     if not pair_spinner.active then
       pair_spinner.active = true
     else
@@ -248,7 +248,7 @@ local function pair_spinner_start()
     pcall(vim.cmd, 'redrawstatus')
   end))
   pair_spinner.ret = vim.loop.new_timer()
-  pair_spinner.ret:start(4000, 0, vim.schedule_wrap(function()
+  pair_spinner.ret:start(10000, 0, vim.schedule_wrap(function()
     pcall(vim.fn.system, { 'zellij', 'action', 'move-focus', 'down' })
   end))
 end
