@@ -49,7 +49,7 @@ Both panes wrap their command in `sh -c "..."` so the shell expands `$PAIR_AGENT
 
 `$PAIR_AGENT_ARGS` is appended on the agent pane command line as a single space-separated string; the shell word-splits it. Args containing spaces are *not* preserved (rare for CLI flags; documented in README).
 
-The bottom pane has `focus=true` (drafting pane gets focus on launch) and a `name=` set to the help string (`Alt: ⏎=send  u=maximize  i=img  d=detach  x=quit`) so zellij renders that as the pane's frame title.
+The bottom pane has `focus=true` (drafting pane gets focus on launch) and a `name=` set to the help string (`Alt: ⏎=send  u=⇱  i=img  d=detach  x=quit`) so zellij renders that as the pane's frame title.
 
 ### `zellij/config.kdl` — mouse, copy, keybinds
 

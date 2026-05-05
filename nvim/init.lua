@@ -211,6 +211,48 @@ local function refresh_statusline()
   vim.schedule(function() pcall(vim.cmd, 'redrawstatus') end)
 end
 
+-- Focus-loss spinner. When nvim loses focus (user moved to the agent pane),
+-- wait 2s, then run a braille spinner in the statusline for 2s before
+-- forcing focus back to nvim (total 4s). All timers cancel on FocusGained.
+local pair_spinner = {
+  frames = { '⠋','⠙','⠹','⠸','⠼','⠴','⠦','⠧','⠇','⠏' },
+  idx    = 1,
+  tick   = nil,
+  ret    = nil,
+  active = false,
+}
+
+local function pair_spinner_stop()
+  if pair_spinner.tick then
+    pair_spinner.tick:stop(); pair_spinner.tick:close(); pair_spinner.tick = nil
+  end
+  if pair_spinner.ret then
+    pair_spinner.ret:stop(); pair_spinner.ret:close(); pair_spinner.ret = nil
+  end
+  pair_spinner.active = false
+end
+
+local function pair_spinner_start()
+  pair_spinner_stop()
+  -- 2s pre-delay before the spinner appears (initial timeout), then tick
+  -- every 30ms. First fire flips `active` on; subsequent fires advance the
+  -- frame.
+  pair_spinner.idx  = 1
+  pair_spinner.tick = vim.loop.new_timer()
+  pair_spinner.tick:start(2000, 30, vim.schedule_wrap(function()
+    if not pair_spinner.active then
+      pair_spinner.active = true
+    else
+      pair_spinner.idx = (pair_spinner.idx % #pair_spinner.frames) + 1
+    end
+    pcall(vim.cmd, 'redrawstatus')
+  end))
+  pair_spinner.ret = vim.loop.new_timer()
+  pair_spinner.ret:start(4000, 0, vim.schedule_wrap(function()
+    pcall(vim.fn.system, { 'zellij', 'action', 'move-focus', 'down' })
+  end))
+end
+
 -- Brief inverted flash on the "N queued" statusline segment. Confirms a
 -- queue-count change actually happened — Alt+q lands an item, send-from-+N
 -- consumes one, Alt+BS deletes one. Without it the only visible change is
@@ -795,8 +837,11 @@ end
 -- / read_history / queue_count can't blank the bar — fall back to a minimal
 -- safe string.
 function _G.PairStatusline()
+  local spin = pair_spinner.active
+    and ('%=' .. pair_spinner.frames[pair_spinner.idx] .. ' ')
+    or ''
   if vim.fn.mode():sub(1, 1) == 'n' then
-    return '%#PairLocked# <LOCKED> input not accepted — press i to type %*'
+    return '%#PairLocked# <LOCKED> input not accepted — press i to type %*' .. spin
   end
   local ok, result = pcall(function()
     local h = #read_history()
@@ -814,7 +859,7 @@ function _G.PairStatusline()
     local q_seg = string.format('%%#%s#%d queued%%*', q_hl, q)
     return string.format(' Alt: <- history %d < %s%s > %s -> ', h, pos_seg, hint, q_seg)
   end)
-  return ok and result or ' pair '
+  return (ok and result or ' pair ') .. spin
 end
 
 -- Persist any pending edit on a mutable slot to its underlying file. For
@@ -1393,6 +1438,7 @@ vim.api.nvim_create_autocmd('FocusLost', {
   group = pair_aug,
   callback = function()
     pair_show_focus_cursor()
+    pair_spinner_start()
     -- A delayed full redraw catches the case where zellij's focus-change
     -- rendering fires after our immediate refresh_statusline (which only
     -- defers one event-loop tick). 80ms is comfortably above one terminal
@@ -1400,7 +1446,14 @@ vim.api.nvim_create_autocmd('FocusLost', {
     vim.defer_fn(function() pcall(vim.cmd, 'redraw!') end, 80)
   end,
 })
-vim.api.nvim_create_autocmd('FocusGained', { group = pair_aug, callback = pair_hide_focus_cursor })
+vim.api.nvim_create_autocmd('FocusGained', {
+  group = pair_aug,
+  callback = function()
+    pair_hide_focus_cursor()
+    pair_spinner_stop()
+    refresh_statusline()
+  end,
+})
 vim.api.nvim_create_autocmd('ColorScheme', { group = pair_aug, callback = pair_apply_focus_cursor_hl })
 
 -- Pane name = "draft" + spaces + cheatsheet, sized to the terminal width
@@ -1410,7 +1463,7 @@ vim.api.nvim_create_autocmd('ColorScheme', { group = pair_aug, callback = pair_a
 -- "draft" and the cheatsheet means the title truncates *during* the
 -- spaces, so the visible tab title stays short ("pair-pair: draft") while
 -- the in-frame display shows the full cheatsheet right-aligned.
-local PAIR_CHEATSHEET = 'Alt: ⏎=send  u=maximize  i=img  d=detach  h=help  x=quit'
+local PAIR_CHEATSHEET = 'Alt: ⏎=send  u=⇱  i=img  d=detach  h=help  x=quit'
 
 -- UTF-8 encoding of U+00A0 NO-BREAK SPACE. Same display width as a regular
 -- space but zellij doesn't trim/collapse it the way it does ordinary
