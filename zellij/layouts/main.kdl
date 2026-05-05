@@ -23,7 +23,7 @@ layout {
         // nvim with cheatsheet below) signals where to focus.
         pane name="agent" borderless=true {
             command "sh"
-            args "-c" "exec pair-wrap ${PAIR_AGENT:-claude} ${PAIR_AGENT_ARGS:-}"
+            args "-c" "exec env PAIR_WRAP_CURSOR=bar pair-wrap ${PAIR_AGENT:-claude} ${PAIR_AGENT_ARGS:-}"
         }
         // Initial pane name is just "draft" so the OSC 0 terminal title
         // ("session: pane-name") stays compact. nvim widens the name on

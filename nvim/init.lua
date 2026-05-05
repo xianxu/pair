@@ -61,6 +61,12 @@ vim.opt.expandtab = true
 vim.opt.shiftwidth = 2
 vim.opt.tabstop = 2
 
+-- Steady block cursor in every mode. Pairs with pair-wrap forcing the agent
+-- pane to a steady bar: the asymmetric shape (block here, bar there) signals
+-- which pane the user is driving. Mode is communicated via the statusline,
+-- not cursor shape, so insert mode keeps the same block.
+vim.opt.guicursor = 'a:block-Cursor/lCursor'
+
 -- Disable nvim's right-click context menu. Default `mousemodel=popup_setpos`
 -- pops up a "Copy/Paste/..." menu that's confusing inside the pair draft pane;
 -- `extend` falls back to the vim-traditional behavior of extending the visual

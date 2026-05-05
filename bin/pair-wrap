@@ -55,6 +55,25 @@ except ValueError:
 # Grow this list as we identify other self-notifying agents.
 SELF_NOTIFYING_AGENTS = frozenset({"claude"})
 
+# Force the agent pane's cursor shape via DECSCUSR (`ESC [ Ps SP q`).
+# Goal: make the agent pane visually quieter than nvim's draft pane —
+# nvim runs steady block, the agent pane runs steady bar. PAIR_WRAP_CURSOR
+# names a shape; unset means passthrough (no rewrite, no inject).
+CURSOR_SHAPES = {
+    "block":           b"2",  # steady block
+    "blink-block":     b"1",  # blinking block (nvim default-default)
+    "underline":       b"4",
+    "blink-underline": b"3",
+    "bar":             b"6",  # steady bar
+    "blink-bar":       b"5",
+}
+CURSOR_PS = CURSOR_SHAPES.get(os.environ.get("PAIR_WRAP_CURSOR", ""))
+
+# DECSCUSR pattern: any agent-emitted cursor-shape escape gets rewritten
+# to our forced Ps. The literal space before `q` is what distinguishes
+# DECSCUSR from other CSI sequences ending in `q`.
+DECSCUSR_RE = re.compile(rb"\x1b\[\d* q")
+
 
 def debug(label, context):
     """Append a one-line forensic record. Safe to call when DEBUG_LOG unset."""
@@ -181,6 +200,15 @@ def main():
     except (termios.error, OSError):
         pass
 
+    # Inject the forced cursor shape once at startup so the shape is correct
+    # even before the agent emits its first DECSCUSR (or if it never does).
+    # Subsequent agent-emitted DECSCUSRs get rewritten in the read loop.
+    if CURSOR_PS is not None:
+        try:
+            os.write(1, b"\x1b[" + CURSOR_PS + b" q")
+        except OSError:
+            pass
+
     rolling = b""
     fds = [0, master]  # drop fd 0 from the watch list once stdin EOFs
     last_master_activity = time.monotonic()
@@ -232,6 +260,12 @@ def main():
                     break
                 last_master_activity = time.monotonic()
                 idle_fired = False
+                if CURSOR_PS is not None:
+                    # Rewrite any agent-emitted cursor-shape escape to our
+                    # forced shape. A DECSCUSR split across two reads will
+                    # slip through unchanged for one frame; the next emission
+                    # corrects it. Acceptable for a cosmetic concern.
+                    data = DECSCUSR_RE.sub(b"\x1b[" + CURSOR_PS + b" q", data)
                 try:
                     os.write(1, data)
                 except OSError:
@@ -272,6 +306,13 @@ def main():
             try:
                 termios.tcsetattr(0, termios.TCSAFLUSH, saved_termios)
             except (termios.error, OSError):
+                pass
+        # Reset cursor shape to terminal default so a forced bar/block doesn't
+        # outlive the agent process.
+        if CURSOR_PS is not None:
+            try:
+                os.write(1, b"\x1b[0 q")
+            except OSError:
                 pass
 
     try:
