@@ -52,18 +52,45 @@ try:
 except ValueError:
     IDLE_S = 60.0
 
-# Agents whose own idle notification is good enough — running our timer on
-# top would just duplicate. Matched against basename of the wrapped command.
-# Grow this list as we identify other self-notifying agents.
-SELF_NOTIFYING_AGENTS = frozenset({"claude"})
+# Per-agent notification source. Exactly one path fires emit_outer() for
+# any given agent run; the other two become explicit *-swallow log
+# entries so double-notifications are impossible.
+#   "native" — forward agent's own OSC 9/777 (and bare BEL if enabled)
+#   "idle"   — fire after IDLE_S of output silence
+#   "marker" — fire on first capture of agent-specific end-of-turn span
+# Matched against basename of the wrapped command. Agents not listed
+# fall back to NOTIFY_MODE_DEFAULT.
+NOTIFY_MODE = {
+    "claude": "marker",
+}
+NOTIFY_MODE_DEFAULT = "native"
 
-# Agents whose colored-span extraction we trust. Each agent paints with a
-# different palette and uses different cursor-positioning idioms, so the
-# capture logic below is calibrated against `claude`'s output. Other agents
-# (codex, gemini, ...) get added once their coloring scheme is characterized.
-# Outside this set, pair-wrap skips span capture entirely — autocomplete in
-# nvim falls back to the draft buffer alone.
+# Per-agent end-of-turn span pattern, used only when NOTIFY_MODE is
+# "marker" for that agent. Each agent's TUI leaves a distinct frozen
+# status line at turn completion; the regex matches against finalized
+# colored spans (so colors and per-line accumulation are already handled
+# by update_agent_output) and fires emit_outer on first sighting (LRU
+# dedupes redraws). Set by main() once agent_basename is known.
+END_OF_TURN_BY_AGENT = {
+    # Claude Code: "✻ <PastTenseVerb> for Ns" in gray. Anchored ^✻ so the
+    # quoted-history form ("> ✻ Churned for 21s", different color) doesn't
+    # double-emit. ✻ = U+273B = 0xE2 0x9C 0xBB in UTF-8.
+    "claude": re.compile(rb"^\xe2\x9c\xbb\s*[A-Za-z]+\s+for\s+\d+s"),
+}
+
+# Agents whose colored-span extraction we trust. Powers nvim autocomplete
+# *and* "marker" notification mode (the marker check piggybacks on span
+# finalization). Each agent paints with a different palette and uses
+# different cursor-positioning idioms, so capture is calibrated per-agent.
+# Outside this set, pair-wrap skips span capture entirely — autocomplete
+# in nvim falls back to the draft buffer alone, and "marker" mode is a
+# no-op (caller's NOTIFY_MODE configuration error).
 SPAN_EXTRACTION_AGENTS = frozenset({"claude"})
+
+# Resolved at startup by main(). Module-global so _finalize_span() can
+# consult END_OF_TURN_RE without threading agent state through.
+NOTIFY_MODE_ACTIVE = NOTIFY_MODE_DEFAULT
+END_OF_TURN_RE = None
 
 
 def debug(label, context):
@@ -93,8 +120,8 @@ def debug(label, context):
 #
 # Storage uses OrderedDict as a fixed-size LRU: re-emissions of the same
 # span (Claude redraws constantly) move-to-end rather than displacing
-# older distinct spans, so the 100 slots hold the last 100 *unique* spans.
-AGENT_OUTPUT_SPANS = 100
+# older distinct spans, so the slots hold the last N *unique* spans.
+AGENT_OUTPUT_SPANS = 1000
 AGENT_OUTPUT_FILE = None
 AGENT_SPANS = collections.OrderedDict()  # key=b"<color>\t<text>" -> True
 AGENT_FG = None              # current FG color id (None = default fg)
@@ -182,6 +209,13 @@ def _finalize_span():
     AGENT_SPANS[key] = True
     while len(AGENT_SPANS) > AGENT_OUTPUT_SPANS:
         AGENT_SPANS.popitem(last=False)
+    if END_OF_TURN_RE is not None and END_OF_TURN_RE.match(s):
+        try:
+            msg = s.decode("utf-8", "replace")
+        except Exception:
+            msg = "agent done"
+        debug("END-OF-TURN", msg)
+        emit_outer(msg)
     return True
 
 
@@ -362,6 +396,7 @@ def is_actionable_osc(ps: bytes, body: bytes) -> bool:
 
 def main():
     global OUTER_TTY_FILE, AGENT_OUTPUT_FILE
+    global IDLE_S, NOTIFY_MODE_ACTIVE, END_OF_TURN_RE
     OUTER_TTY_FILE = resolve_outer_tty_file()
 
     if len(sys.argv) < 2:
@@ -377,9 +412,14 @@ def main():
     else:
         debug("SPAN-disable", f"{agent_basename} not in SPAN_EXTRACTION_AGENTS")
 
-    global IDLE_S
-    if agent_basename in SELF_NOTIFYING_AGENTS:
-        debug("IDLE-disable", f"{sys.argv[1]} self-notifies")
+    NOTIFY_MODE_ACTIVE = NOTIFY_MODE.get(agent_basename, NOTIFY_MODE_DEFAULT)
+    debug("NOTIFY-mode", f"{agent_basename}={NOTIFY_MODE_ACTIVE}")
+    if NOTIFY_MODE_ACTIVE == "marker":
+        END_OF_TURN_RE = END_OF_TURN_BY_AGENT.get(agent_basename)
+        if END_OF_TURN_RE is None:
+            debug("MARKER-missing",
+                  f"{agent_basename} has no END_OF_TURN_BY_AGENT entry")
+    if NOTIFY_MODE_ACTIVE != "idle":
         IDLE_S = 0
 
     write_startup_banner()
@@ -478,17 +518,23 @@ def main():
                         for m in matches:
                             ps, body = m.group(1), m.group(2)
                             if is_actionable_osc(ps, body):
-                                debug(f"OSC{ps.decode()}",
-                                      body[:80] + (b"..." if len(body) > 80 else b""))
-                                if not actioned:
-                                    emit_outer()
-                                    actioned = True
+                                if NOTIFY_MODE_ACTIVE == "native":
+                                    debug(f"OSC{ps.decode()}",
+                                          body[:80] + (b"..." if len(body) > 80 else b""))
+                                    if not actioned:
+                                        emit_outer()
+                                        actioned = True
+                                else:
+                                    # Mode owns notification; native OSC is
+                                    # logged but not forwarded so the chosen
+                                    # source is the only one that fires.
+                                    debug(f"OSC{ps.decode()}-swallow", body[:80])
                             else:
                                 debug(f"OSC{ps.decode()}-skip", body[:80])
                     elif b"\x07" in data:
                         idx = data.index(b"\x07")
                         snippet = data[max(0, idx - 16):idx + 16]
-                        if BELL_FALLBACK:
+                        if BELL_FALLBACK and NOTIFY_MODE_ACTIVE == "native":
                             debug("BEL", snippet)
                             emit_outer()
                         else:
