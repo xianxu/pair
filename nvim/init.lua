@@ -18,6 +18,18 @@ vim.cmd('filetype plugin indent on')
 -- gives readable colors for markdown headings, code spans, links, etc.
 vim.cmd('colorscheme slate')
 
+-- Highlight === comment lines (whole-line, leading-whitespace tolerant) the
+-- same dimmed-grey as Comment. Runs on FileType=markdown — the draft is
+-- always a .md file — so the match is added after markdown's own syntax
+-- loads and isn't clobbered.
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = 'markdown',
+  callback = function()
+    vim.cmd([[syntax match PairComment /^\s*===.*$/]])
+    vim.cmd([[highlight default link PairComment Comment]])
+  end,
+})
+
 -- Drafting-friendly editor settings
 vim.opt.number = true
 vim.opt.relativenumber = false
@@ -322,6 +334,46 @@ local function strip_comments(body)
   return table.concat(out, '\n')
 end
 
+-- Inverse of strip_comments: returns just the comment lines (in order). Used
+-- to extract sticky === context from any sent body — see apply_sticky_to_star.
+local function comment_lines(body)
+  local out = {}
+  for line in (body .. '\n'):gmatch('([^\n]*)\n') do
+    if line:match('^%s*===') then
+      table.insert(out, line)
+    end
+  end
+  return out
+end
+
+-- After any send, the just-sent body's === lines become *'s new sticky set.
+-- The non-comment WIP portion of * is preserved (only its old comments are
+-- replaced) so a send from -N or +N doesn't clobber a half-typed draft at *.
+-- When the send originated from * itself, there is no separate WIP to keep
+-- — the sent body was the WIP — so the result is just the stickies plus a
+-- typing line. Caller is responsible for the buffer view AND for writing the
+-- result to disk via `:w` — going through vim keeps b_mtime_read in sync, so
+-- the next autosave doesn't trip the "file changed since reading it" prompt.
+local function apply_sticky_to_star(sent_body, was_at_star)
+  local star_path = draft_path_for_tag()
+  local star_body = was_at_star and '' or (read_file(star_path) or '')
+  local stickies   = comment_lines(sent_body)
+  local non_comm   = strip_comments(star_body)
+
+  local lines = {}
+  for _, l in ipairs(stickies) do table.insert(lines, l) end
+  if non_comm ~= '' then
+    if #lines > 0 then table.insert(lines, '') end
+    for line in (non_comm .. '\n'):gmatch('([^\n]*)\n') do
+      table.insert(lines, line)
+    end
+  end
+  -- Trailing blank so the cursor lands on a fresh row to type into.
+  if #lines == 0 or lines[#lines] ~= '' then table.insert(lines, '') end
+
+  return lines
+end
+
 -- ---------------------------------------------------------------------------
 -- per-session image counter — monotonic across the whole claude session.
 -- Claude Code numbers image attachments cumulatively per-session, not
@@ -562,19 +614,19 @@ local function send_and_clear()
   append_log(body)
   send_to_agent(stripped)
 
-  -- Return to *. If we sent FROM *, that's the existing "clear the draft"
-  -- semantic. If we sent from -N or +N, * is unaffected — the user's
-  -- draft was already autosaved when they navigated away from *. Reload
-  -- it so they see their unfinished work back in the buffer.
+  -- Return to *. The just-sent body's === lines become the new sticky set
+  -- for *, regardless of which slot we sent from. When sent from -N or +N,
+  -- *'s WIP non-comment content is preserved (only its old comments are
+  -- replaced) so we don't clobber a half-typed draft.
   nav.pos = '*'
-  if was_at_star then
-    vim.api.nvim_buf_set_lines(0, 0, -1, false, { '' })
-    vim.cmd('silent! write')
-    nav.baseline = ''
-  else
-    set_buffer_text(read_file(draft_path_for_tag()))
-    nav.baseline = buffer_text()
-  end
+  local lines = apply_sticky_to_star(body, was_at_star)
+  vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
+  pcall(vim.api.nvim_win_set_cursor, 0, { #lines, 0 })
+  -- Persist via :w so vim's b_mtime_read tracks the on-disk mtime. Writing
+  -- the file out-of-band (io.open) would leave nvim's recorded mtime stale,
+  -- and the next autosave would trip the "file changed since reading it" prompt.
+  vim.cmd('silent! write')
+  nav.baseline = table.concat(lines, '\n')
   refresh_statusline()
   if consumed_queue then flash_queue_count() end
   vim.cmd('startinsert')
@@ -620,6 +672,51 @@ local function path_complete()
 
   -- complete() col is 1-indexed start of the span being replaced.
   vim.fn.complete(token_start, matches)
+end
+
+-- z= replacement: instead of vim's default "Choose a number:" prompt,
+-- pop up the standard completion menu populated with spellsuggest() results
+-- so the user picks via Tab / CR like every other completion in the draft.
+--
+-- Implementation: find word bounds around the cursor (alpha + apostrophe),
+-- check that spell flags it, move cursor to end-of-word, enter insert mode,
+-- and call vim.fn.complete() with span = the misspelled word. Picking a
+-- suggestion replaces the word; dismissing leaves it intact.
+local function spell_suggest_popup()
+  local row, col = unpack(vim.api.nvim_win_get_cursor(0))  -- col is 0-indexed
+  local line = vim.api.nvim_get_current_line()
+  if line == '' then return end
+  -- 1-indexed positions in line. Start at col+1 (cursor's char), expand.
+  local s, e = col + 1, col + 1
+  if s > #line then s = #line; e = #line end
+  while s > 1 and line:sub(s - 1, s - 1):match("[%a']") do s = s - 1 end
+  while e <= #line and line:sub(e, e):match("[%a']") do e = e + 1 end
+  local word = line:sub(s, e - 1)
+  if word == '' then
+    vim.notify('pair: no word at cursor', vim.log.levels.INFO)
+    return
+  end
+
+  local bad = vim.fn.spellbadword(word)
+  if not bad or bad[1] == '' then
+    vim.notify('pair: "' .. word .. '" is not misspelled', vim.log.levels.INFO)
+    return
+  end
+
+  local suggestions = vim.fn.spellsuggest(word, 12)
+  if not suggestions or #suggestions == 0 then
+    vim.notify('pair: no suggestions for "' .. word .. '"', vim.log.levels.INFO)
+    return
+  end
+
+  -- Park cursor at end-of-word in 0-indexed col, enter insert mode, then
+  -- (after the mode switch lands) trigger the completion popup. complete()
+  -- replaces text from start_col to cursor — i.e. the misspelled word.
+  vim.api.nvim_win_set_cursor(0, { row, e - 1 })
+  vim.cmd('startinsert')
+  vim.schedule(function()
+    vim.fn.complete(s, suggestions)
+  end)
 end
 
 local function pum_visible()
@@ -748,13 +845,24 @@ local function ship_buffer_and_reset(body)
   -- Mirror send_and_clear: log full body, send stripped. Skip both if the
   -- stripped result is empty so a comment-only fork doesn't pollute the log.
   local stripped = strip_comments(body)
-  if not stripped:match('^%s*$') then
+  local actually_sent = not stripped:match('^%s*$')
+  if actually_sent then
     append_log(body)
     send_to_agent(stripped)
   end
   nav.pos = '*'
-  set_buffer_text(read_file(draft_path_for_tag()))
-  nav.baseline = buffer_text()
+  if actually_sent then
+    -- Sent body's === lines become the new sticky set for * (mirrors
+    -- send_and_clear). Comment-only no-op preserves * as-is.
+    local lines = apply_sticky_to_star(body, false)
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
+    pcall(vim.api.nvim_win_set_cursor, 0, { #lines, 0 })
+    vim.cmd('silent! write')
+    nav.baseline = table.concat(lines, '\n')
+  else
+    set_buffer_text(read_file(draft_path_for_tag()))
+    nav.baseline = buffer_text()
+  end
   refresh_statusline()
 end
 
@@ -1244,6 +1352,9 @@ vim.api.nvim_create_autocmd({ 'TextChangedI', 'TextChangedP' }, {
   group = pair_aug,
   callback = path_complete,
 })
+
+vim.keymap.set('n', 'z=', spell_suggest_popup,
+  { silent = true, desc = 'pair: spell suggestions in completion popup' })
 
 -- "Ghost cursor" while the nvim pane is unfocused. zellij hides the real
 -- terminal cursor on FocusLost, leaving the insertion point invisible.

@@ -25,7 +25,13 @@ Full nvim support, for example:
 
 **Prompt history & a future queue, in-buffer.** 
 
-You can use `Alt+←` and `Alt+→` to move among history of commands you issued. You can `Alt+q` to enqueue a command to be parked on the side. You can use "===" at start of a line, to write comments to remind you about what this prompt is for. I use `Alt+q` extensively to park small things I notice while I work with coding agent, but not yet to the level that I want to create an issue to track it. Then, when I finish current task, I'd go pick up from the queue and work in the same session. 
+You can use `Alt+←` and `Alt+→` to move among history of prompts you issued. You can `Alt+q` to enqueue a prompt to be parked on the side. You can use `===` at start of a line, to write comments to remind you about what this prompt is for (comment's not sent to agent). 
+
+I use `Alt+q` extensively to park small things I notice while I work with coding agent, but not yet to the level that I want to create an issue to track it. Then, when I finish current task, I'd go pick up from the queue and work in the same session. 
+
+`===` is also sticky, so it stays on after you submit a prompt, thus create a stable area for sticky notes.
+
+All of those prompts are persisted on disk, keyed on the session's name.
 
 **Copy on select, and insert into nvim buffer**
 
