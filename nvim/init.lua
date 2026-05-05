@@ -755,10 +755,10 @@ end
 -- discipline keeps the popup quiet until the user has actually typed the
 -- start of something.
 --
--- Trigger after 2 typed chars; candidates filtered to 6+ chars. Override
+-- Trigger after 1 typed char; candidates filtered to 5+ chars. Override
 -- the default color allowlist with PAIR_AGENT_SPAN_COLORS (csv of color
 -- ids — inspect $PAIR_DATA_DIR/agent-output-<tag> to see what's emitted).
-local WORD_TRIGGER_MIN = 2
+local WORD_TRIGGER_MIN = 1
 local WORD_CANDIDATE_MIN = 5
 -- Prefix charset includes `-`, `.`, `/`, `$`, `+`, `<`, `>`, `{`, `}`,
 -- `[`, `]` so entity-style tokens get captured whole: `draft-<tag>.md`,
@@ -1412,6 +1412,32 @@ end
 -- Normal-mode shortcuts that bypass the cmdline (and thus the abbreviations).
 vim.keymap.set('n', 'ZZ', function() PairQuitWarn() end, { silent = true, desc = 'pair: quit blocked' })
 vim.keymap.set('n', 'ZQ', function() PairQuitWarn() end, { silent = true, desc = 'pair: quit blocked' })
+
+-- ---------------------------------------------------------------------------
+-- Alt+x / Alt+d confirm prompts
+-- ---------------------------------------------------------------------------
+-- The zellij keybindings for Alt+x (full quit) and Alt+d (detach) route
+-- here instead of running the action directly. Both are easy to fat-finger
+-- — Alt+x is unrecoverable (kills the zellij session, draft is truncated)
+-- and Alt+d drops the user out of a long-running attached session. The
+-- zellij side moves focus to nvim, ESCs into normal mode, and runs one of
+-- these via cmdline; vim.fn.confirm pops a modal Y/N (default No), and the
+-- action only fires on Yes. Y is shelled out via vim.fn.system because
+-- nvim has no direct zellij IPC and re-binding zellij keybindings to first
+-- check a flag is more state than this is worth.
+function _G.PairConfirmQuit()
+  local ans = vim.fn.confirm('Quit pair session? This kills the session and clears the draft.', '&Yes\n&No', 2)
+  if ans == 1 then
+    vim.fn.system('pair-quit.sh')
+  end
+end
+
+function _G.PairConfirmDetach()
+  local ans = vim.fn.confirm('Detach from this pair session?', '&Yes\n&No', 2)
+  if ans == 1 then
+    vim.fn.system({ 'zellij', 'action', 'detach' })
+  end
+end
 
 -- ---------------------------------------------------------------------------
 -- keymaps

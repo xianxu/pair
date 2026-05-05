@@ -47,10 +47,18 @@ keybinds clear-defaults=false {
         // the only quit path; it tears down cleanly via pair-quit.sh.
         unbind "Ctrl q"
 
-        // Alt+d — detach from the current pair session. Replaces the default
-        // two-step (Ctrl+p, then d) with a single chord.
+        // Alt+d — detach from the current pair session. Routed through nvim
+        // for a confirm prompt before the actual detach (muscle-memory guard;
+        // accidental Alt+d while in the agent pane is annoying to recover
+        // from on long-running sessions). MoveFocus Down lands in nvim, ESC
+        // (byte 27) ensures normal mode, the colon command pops a confirm,
+        // and PairConfirmDetach() shells out to `zellij action detach` only
+        // on Yes.
         bind "Alt d" {
-            Detach;
+            MoveFocus "Down";
+            Write 27;
+            WriteChars ":lua PairConfirmDetach()";
+            Write 13;
         }
 
         // Alt+u — toggle the nvim draft pane to fullscreen, regardless of
@@ -63,12 +71,15 @@ keybinds clear-defaults=false {
 
         // Alt+x — full quit: kill the session AND remove its entry from the
         // resurrect list (vs. Ctrl+q which keeps the session as a resurrect
-        // candidate). Routed through pair-quit.sh which writes a marker file
-        // bin/pair picks up on resume and acts on.
+        // candidate). Routed through nvim for a confirm prompt before the
+        // destructive action — pair-quit.sh kills the zellij session, so an
+        // accidental Alt+x mid-session is unrecoverable. PairConfirmQuit()
+        // shells out to pair-quit.sh only on Yes.
         bind "Alt x" {
-            Run "pair-quit.sh" {
-                close_on_exit true
-            };
+            MoveFocus "Down";
+            Write 27;
+            WriteChars ":lua PairConfirmQuit()";
+            Write 13;
         }
 
         // Alt+h — pop up a large floating pane with `pair -h` in a pager.

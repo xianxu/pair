@@ -22,6 +22,7 @@ Full nvim support, for example:
 1. mouse support
 2. search in the input box
 3. typeahead and search local file path, just type `./` and then continue. 
+4. typeahead from highlighted terms in agent's response.
 
 **Prompt history & a future queue, in-buffer.** 
 
