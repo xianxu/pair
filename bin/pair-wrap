@@ -121,9 +121,11 @@ def debug(label, context):
 # Storage uses OrderedDict as a fixed-size LRU: re-emissions of the same
 # span (Claude redraws constantly) move-to-end rather than displacing
 # older distinct spans, so the slots hold the last N *unique* spans.
+# The value is an emission count — bumped on every re-emission. nvim uses
+# count + recency (line position in flushed file) to rank candidates.
 AGENT_OUTPUT_SPANS = 1000
 AGENT_OUTPUT_FILE = None
-AGENT_SPANS = collections.OrderedDict()  # key=b"<color>\t<text>" -> True
+AGENT_SPANS = collections.OrderedDict()  # key=b"<color>\t<text>" -> int count
 AGENT_FG = None              # current FG color id (None = default fg)
 AGENT_SPAN_BUF = b""         # accumulator for the in-progress colored run
 AGENT_SPAN_FG = None         # color id that started AGENT_SPAN_BUF
@@ -204,9 +206,10 @@ def _finalize_span():
         return False
     key = color + b"\t" + s
     if key in AGENT_SPANS:
+        AGENT_SPANS[key] += 1
         AGENT_SPANS.move_to_end(key)
         return False
-    AGENT_SPANS[key] = True
+    AGENT_SPANS[key] = 1
     while len(AGENT_SPANS) > AGENT_OUTPUT_SPANS:
         AGENT_SPANS.popitem(last=False)
     if END_OF_TURN_RE is not None and END_OF_TURN_RE.match(s):
@@ -225,8 +228,9 @@ def _flush_agent_file():
     try:
         tmp = AGENT_OUTPUT_FILE + ".tmp"
         with open(tmp, "wb") as f:
-            for k in AGENT_SPANS:
-                f.write(k + b"\n")
+            for k, count in AGENT_SPANS.items():
+                color, text = k.split(b"\t", 1)
+                f.write(color + b"\t" + str(count).encode() + b"\t" + text + b"\n")
         os.rename(tmp, AGENT_OUTPUT_FILE)
     except OSError:
         pass

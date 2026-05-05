@@ -743,11 +743,13 @@ end
 -- Two sources of candidates:
 --   1. The current draft buffer — `[%w_]+` words the user has typed.
 --   2. $PAIR_DATA_DIR/agent-output-<tag> — colored spans extracted from
---      the agent's output by pair-wrap. Each line is `<color>\t<span>`,
---      where <color> is the SGR foreground id ("36" for cyan, "5;75" for
---      256-color, "2;R;G;B" for RGB). Filtering by color is essential:
---      Claude paints code spans (paths, commands, `<M-CR>`) in cyan, but
---      also paints headers/dim-text in other colors that we must reject.
+--      the agent's output by pair-wrap. Each line is
+--      `<color>\t<count>\t<span>`, where <color> is the SGR foreground id
+--      ("36" for cyan, "5;75" for 256-color, "2;R;G;B" for RGB) and
+--      <count> is the number of times the agent has emitted that span.
+--      Filtering by color is essential: Claude paints code spans (paths,
+--      commands, `<M-CR>`) in cyan, but also paints headers/dim-text in
+--      other colors that we must reject.
 --
 -- Matching is prefix-anchored: a candidate qualifies iff it starts with
 -- the typed prefix. Fuzzy matching produced too many false positives (e.g.
@@ -755,11 +757,22 @@ end
 -- discipline keeps the popup quiet until the user has actually typed the
 -- start of something.
 --
+-- Ranking: agent spans are scored by `(count + α·picks) · 0.5^(rank/H)`
+-- where rank is age in lines (0 = newest), picks is how many times the
+-- user has accepted that span from a popup (tracked in agent-picks-<tag>),
+-- α=PICK_WEIGHT, H=DECAY_HALFLIFE. Only the top POOL_CAP agent spans by
+-- score are eligible — keeps the popup tight even with 1000 stored spans.
+-- Draft-buffer words are always eligible (no cap) at a fixed mid score.
+--
 -- Trigger after 1 typed char; candidates filtered to 5+ chars. Override
 -- the default color allowlist with PAIR_AGENT_SPAN_COLORS (csv of color
 -- ids — inspect $PAIR_DATA_DIR/agent-output-<tag> to see what's emitted).
 local WORD_TRIGGER_MIN = 1
 local WORD_CANDIDATE_MIN = 5
+local POOL_CAP = 100        -- agent spans eligible for completion
+local DECAY_HALFLIFE = 300  -- in line-rank units; 0.5^(rank/H)
+local PICK_WEIGHT = 5       -- one user pick worth this many agent emissions
+local DRAFT_SCORE = 1.0     -- score assigned to draft-buffer words
 -- Prefix charset includes `-`, `.`, `/`, `$`, `+`, `<`, `>`, `{`, `}`,
 -- `[`, `]` so entity-style tokens get captured whole: `draft-<tag>.md`,
 -- `pair-wrap`, `lessons.md`, `bin/pair-wrap`, `$PAIR_HOME`,
@@ -796,6 +809,81 @@ local function agent_output_path()
   return pair_data_dir() .. '/agent-output-' .. pair_tag()
 end
 
+-- ----- pick tracking -------------------------------------------------------
+-- Per-tag file `agent-picks-<tag>`: lines `<count>\t<span>`, oldest first
+-- (most recent picks at end). Cap at PICK_CAP entries; LRU eviction by
+-- pick recency. Loaded lazily on first use; flushed debounced (500ms) so
+-- a burst of picks costs one rename. word_complete consults `picks` to
+-- weight agent spans (PICK_WEIGHT × picks added to emission count).
+local PICK_CAP = 5000
+local picks = {}            -- span -> int count
+local pick_order = {}       -- span list, oldest-pick first
+local picks_loaded = false
+local picks_dirty = false
+local picks_flush_timer = nil
+
+local function agent_picks_path()
+  return pair_data_dir() .. '/agent-picks-' .. pair_tag()
+end
+
+local function picks_load()
+  if picks_loaded then return end
+  picks_loaded = true
+  local f = io.open(agent_picks_path(), 'r')
+  if not f then return end
+  for l in f:lines() do
+    local n, span = l:match('^(%d+)\t(.+)$')
+    if n and span then
+      picks[span] = tonumber(n)
+      pick_order[#pick_order + 1] = span
+    end
+  end
+  f:close()
+end
+
+local function picks_flush()
+  picks_flush_timer = nil
+  if not picks_dirty then return end
+  picks_dirty = false
+  local path = agent_picks_path()
+  local tmp = path .. '.tmp'
+  local f = io.open(tmp, 'w')
+  if not f then return end
+  for _, span in ipairs(pick_order) do
+    f:write(string.format('%d\t%s\n', picks[span] or 0, span))
+  end
+  f:close()
+  os.rename(tmp, path)
+end
+
+local function picks_schedule_flush()
+  if picks_flush_timer then return end
+  picks_flush_timer = vim.loop.new_timer()
+  picks_flush_timer:start(500, 0, vim.schedule_wrap(picks_flush))
+end
+
+local function picks_bump(span)
+  if not span or span == '' then return end
+  picks_load()
+  if picks[span] then
+    -- move-to-end: scan from tail since recent picks tend to repeat.
+    for i = #pick_order, 1, -1 do
+      if pick_order[i] == span then
+        table.remove(pick_order, i)
+        break
+      end
+    end
+  end
+  picks[span] = (picks[span] or 0) + 1
+  pick_order[#pick_order + 1] = span
+  while #pick_order > PICK_CAP do
+    local oldest = table.remove(pick_order, 1)
+    picks[oldest] = nil
+  end
+  picks_dirty = true
+  picks_schedule_flush()
+end
+
 local function word_complete()
   local line = vim.api.nvim_get_current_line()
   local col = vim.fn.col('.') - 1
@@ -807,37 +895,57 @@ local function word_complete()
   -- clobber its popup. Mirrors path_complete's trigger condition.
   if token_is_path(prefix) then return end
 
+  picks_load()
+
+  -- Build agent-span pool with scores. File order = LRU recency
+  -- (oldest first, newest last), so rank = total - i gives 0 for newest.
+  local spans = {}
+  local f = io.open(agent_output_path(), 'r')
+  if f then
+    for l in f:lines() do
+      local color, count, span = l:match('^([^\t]+)\t(%d+)\t(.+)$')
+      if color and AGENT_SPAN_COLORS[color] then
+        spans[#spans + 1] = { span = span, count = tonumber(count) }
+      end
+    end
+    f:close()
+  end
+  local total = #spans
+  for i, s in ipairs(spans) do
+    local rank = total - i
+    local decay = 0.5 ^ (rank / DECAY_HALFLIFE)
+    s.score = (s.count + PICK_WEIGHT * (picks[s.span] or 0)) * decay
+  end
+  table.sort(spans, function(a, b) return a.score > b.score end)
+  for i = #spans, POOL_CAP + 1, -1 do spans[i] = nil end
+
   local plen = #prefix
   local prefix_lower = prefix:lower()
   local seen = { [prefix] = true }
   local matches = {}
 
-  local function add(w)
+  local function add(w, score)
     if #w >= WORD_CANDIDATE_MIN
        and w:sub(1, plen):lower() == prefix_lower
        and not seen[w] then
       seen[w] = true
-      matches[#matches + 1] = w
+      matches[#matches + 1] = { word = w, score = score }
     end
   end
 
-  -- Draft-buffer words: split on the plain-word regex.
+  -- Draft-buffer words: always eligible, fixed mid score.
   for _, l in ipairs(vim.api.nvim_buf_get_lines(0, 0, -1, false)) do
-    for w in l:gmatch('[%w_]+') do add(w) end
+    for w in l:gmatch('[%w_]+') do add(w, DRAFT_SCORE) end
   end
 
-  -- Agent spans: parse `<color>\t<span>`, keep only allowed colors.
-  local f = io.open(agent_output_path(), 'r')
-  if f then
-    for l in f:lines() do
-      local color, span = l:match('^([^\t]+)\t(.+)$')
-      if color and AGENT_SPAN_COLORS[color] then add(span) end
-    end
-    f:close()
-  end
+  -- Top-POOL_CAP agent spans by score.
+  for _, s in ipairs(spans) do add(s.span, s.score) end
 
   if #matches == 0 then return end
-  vim.fn.complete(token_start, matches)
+  table.sort(matches, function(a, b) return a.score > b.score end)
+  local words = {}
+  for i, m in ipairs(matches) do words[i] = m.word end
+  vim.fn.complete(token_start, words)
 end
 
 -- z= replacement: instead of vim's default "Choose a number:" prompt,
@@ -1586,6 +1694,21 @@ vim.api.nvim_create_autocmd({ 'TextChangedI', 'TextChangedP' }, {
 
 vim.keymap.set('n', 'z=', spell_suggest_popup,
   { silent = true, desc = 'pair: spell suggestions in completion popup' })
+
+-- Track which words the user accepts from the completion popup. The pick
+-- count feeds back into word_complete's ranking (PICK_WEIGHT). Fires for
+-- every completion (path/word/spell); only word_complete consults picks,
+-- but path/spell picks don't hurt — they just sit unused in the file.
+-- v.completed_item is `{}` on cancel, so the empty-word guard handles it.
+vim.api.nvim_create_autocmd('CompleteDone', {
+  group = pair_aug,
+  callback = function()
+    local item = vim.v.completed_item
+    if item and type(item) == 'table' and item.word then
+      picks_bump(item.word)
+    end
+  end,
+})
 
 -- "Ghost cursor" while the nvim pane is unfocused. zellij hides the real
 -- terminal cursor on FocusLost, leaving the insertion point invisible.
