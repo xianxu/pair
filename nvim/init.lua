@@ -695,6 +695,15 @@ end
 -- tilde. Matches the longest such run anchored at end-of-prefix.
 local PATH_TOKEN_RE = '([%w%./%-_~]+)$'
 
+-- A token is a "path" iff the user explicitly indicated one with a leading
+-- `/`, `~`, or `./` / `../` etc. Plain `bin/pair-wrap` is *not* a path here
+-- — it's an entity that lives in the agent-output spans, handled by
+-- word_complete. The explicit-prefix rule keeps the two completion systems
+-- mutually exclusive at trigger time.
+local function token_is_path(token)
+  return token:match('^[/~]') ~= nil or token:match('^%.+/') ~= nil
+end
+
 local function path_complete()
   local line = vim.api.nvim_get_current_line()
   local col = vim.fn.col('.') - 1  -- 0-indexed cursor byte position
@@ -702,8 +711,7 @@ local function path_complete()
   local before = line:sub(1, col)
   local token_start, _, token = before:find(PATH_TOKEN_RE)
   if not token then return end
-  -- Only trigger on path-shaped tokens. Plain words stay quiet.
-  if not (token:find('/') or token:match('^~')) then return end
+  if not token_is_path(token) then return end
 
   local dir, filter = token:match('^(.*/)([^/]*)$')
   if not dir then dir, filter = '', token end
@@ -717,6 +725,107 @@ local function path_complete()
   if #matches == 0 then return end
 
   -- complete() col is 1-indexed start of the span being replaced.
+  vim.fn.complete(token_start, matches)
+end
+
+-- Word completion. Triggered alongside path_complete on every TextChangedI.
+-- Two sources of candidates:
+--   1. The current draft buffer — `[%w_]+` words the user has typed.
+--   2. $PAIR_DATA_DIR/agent-output-<tag> — colored spans extracted from
+--      the agent's output by pair-wrap. Each line is `<color>\t<span>`,
+--      where <color> is the SGR foreground id ("36" for cyan, "5;75" for
+--      256-color, "2;R;G;B" for RGB). Filtering by color is essential:
+--      Claude paints code spans (paths, commands, `<M-CR>`) in cyan, but
+--      also paints headers/dim-text in other colors that we must reject.
+--
+-- Matching is prefix-anchored: a candidate qualifies iff it starts with
+-- the typed prefix. Fuzzy matching produced too many false positives (e.g.
+-- `tel` surfaced anything containing t, e, l in order); the prefix
+-- discipline keeps the popup quiet until the user has actually typed the
+-- start of something.
+--
+-- Trigger after 2 typed chars; candidates filtered to 6+ chars. Override
+-- the default color allowlist with PAIR_AGENT_SPAN_COLORS (csv of color
+-- ids — inspect $PAIR_DATA_DIR/agent-output-<tag> to see what's emitted).
+local WORD_TRIGGER_MIN = 2
+local WORD_CANDIDATE_MIN = 5
+-- Prefix charset includes `-`, `.`, `/`, `$`, `+`, `<`, `>`, `{`, `}`,
+-- `[`, `]` so entity-style tokens get captured whole: `draft-<tag>.md`,
+-- `pair-wrap`, `lessons.md`, `bin/pair-wrap`, `$PAIR_HOME`,
+-- `${XDG_DATA_HOME}/pair/`, `Alt+Return`, `<M-CR>`, `[Image #1]`-ish
+-- bracket tokens. `~` stays out — leading `~` triggers path_complete;
+-- word_complete bails via token_is_path below when the prefix is
+-- path-shaped.
+local WORD_TOKEN_RE = '([%w_%-./$+<>{}%[%]]+)$'
+
+-- Color allowlist for agent-output spans. Each agent paints in a different
+-- palette; the default per-agent table covers the colors we've actually
+-- observed. Users can override via PAIR_AGENT_SPAN_COLORS=<csv> (comma-
+-- separated; semicolons inside an entry are part of the color id, e.g.
+-- `2;177;185;249` for an RGB triple).
+local AGENT_SPAN_DEFAULTS = {
+  -- Claude Code (claude.ai's TUI): code spans painted in periwinkle RGB.
+  -- Inspect $PAIR_DATA_DIR/agent-output-<tag> to update.
+  claude = { '2;177;185;249' },
+}
+
+local AGENT_SPAN_COLORS = (function()
+  local env = os.getenv('PAIR_AGENT_SPAN_COLORS')
+  local set = {}
+  if env and env ~= '' then
+    for c in env:gmatch('[^,]+') do set[c] = true end
+    return set
+  end
+  local agent = os.getenv('PAIR_AGENT') or 'claude'
+  for _, c in ipairs(AGENT_SPAN_DEFAULTS[agent] or {}) do set[c] = true end
+  return set
+end)()
+
+local function agent_output_path()
+  return pair_data_dir() .. '/agent-output-' .. pair_tag()
+end
+
+local function word_complete()
+  local line = vim.api.nvim_get_current_line()
+  local col = vim.fn.col('.') - 1
+  if col == 0 then return end
+  local before = line:sub(1, col)
+  local token_start, _, prefix = before:find(WORD_TOKEN_RE)
+  if not prefix or #prefix < WORD_TRIGGER_MIN then return end
+  -- Explicitly-prefixed paths belong to path_complete; bail rather than
+  -- clobber its popup. Mirrors path_complete's trigger condition.
+  if token_is_path(prefix) then return end
+
+  local plen = #prefix
+  local prefix_lower = prefix:lower()
+  local seen = { [prefix] = true }
+  local matches = {}
+
+  local function add(w)
+    if #w >= WORD_CANDIDATE_MIN
+       and w:sub(1, plen):lower() == prefix_lower
+       and not seen[w] then
+      seen[w] = true
+      matches[#matches + 1] = w
+    end
+  end
+
+  -- Draft-buffer words: split on the plain-word regex.
+  for _, l in ipairs(vim.api.nvim_buf_get_lines(0, 0, -1, false)) do
+    for w in l:gmatch('[%w_]+') do add(w) end
+  end
+
+  -- Agent spans: parse `<color>\t<span>`, keep only allowed colors.
+  local f = io.open(agent_output_path(), 'r')
+  if f then
+    for l in f:lines() do
+      local color, span = l:match('^([^\t]+)\t(.+)$')
+      if color and AGENT_SPAN_COLORS[color] then add(span) end
+    end
+    f:close()
+  end
+
+  if #matches == 0 then return end
   vim.fn.complete(token_start, matches)
 end
 
@@ -1397,9 +1506,15 @@ vim.keymap.set('i', '<C-_>', function() PairPasteQuote() end,
 
 -- Fire on both events: TextChangedI when popup is hidden, TextChangedP when
 -- popup is visible — refreshing the menu as the user types more characters.
+-- path_complete handles slash/tilde tokens; word_complete kicks in for plain
+-- alphanumeric tokens >= 6 chars. Their token regexes are mutually exclusive
+-- (path needs `/` or `~`, word excludes both), so at most one calls complete().
 vim.api.nvim_create_autocmd({ 'TextChangedI', 'TextChangedP' }, {
   group = pair_aug,
-  callback = path_complete,
+  callback = function()
+    path_complete()
+    word_complete()
+  end,
 })
 
 vim.keymap.set('n', 'z=', spell_suggest_popup,

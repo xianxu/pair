@@ -14,6 +14,7 @@ swallows the exception and keeps proxying. Never block the agent on a notify.
 Filed as #000011.
 """
 
+import collections
 import errno
 import fcntl
 import os
@@ -21,6 +22,7 @@ import pty
 import re
 import select
 import signal
+import struct
 import sys
 import termios
 import time
@@ -55,6 +57,14 @@ except ValueError:
 # Grow this list as we identify other self-notifying agents.
 SELF_NOTIFYING_AGENTS = frozenset({"claude"})
 
+# Agents whose colored-span extraction we trust. Each agent paints with a
+# different palette and uses different cursor-positioning idioms, so the
+# capture logic below is calibrated against `claude`'s output. Other agents
+# (codex, gemini, ...) get added once their coloring scheme is characterized.
+# Outside this set, pair-wrap skips span capture entirely — autocomplete in
+# nvim falls back to the draft buffer alone.
+SPAN_EXTRACTION_AGENTS = frozenset({"claude"})
+
 
 def debug(label, context):
     """Append a one-line forensic record. Safe to call when DEBUG_LOG unset."""
@@ -68,6 +78,186 @@ def debug(label, context):
             f.write(f"[{ts}] {label}: {snippet}\n")
     except OSError:
         pass
+
+
+# Rolling tail of *colored* spans the agent emits — text painted with a
+# specific non-default foreground via SGR. Claude's renderer paints code
+# spans, paths, commands, and inline tokens in a distinct color; we capture
+# each colored run together with its color so nvim can filter by color
+# (e.g. accept only the blue-cyan code-span color, reject the gray header).
+#
+# File format: `<color_id>\t<span>\n`, one entry per line. `<color_id>` is
+# a small string identifying the FG: standard 16-color codes ("34", "96"),
+# 256-color ("5;75"), or RGB ("2;100;200;255"). nvim is the side that
+# decides which color_ids to admit.
+#
+# Storage uses OrderedDict as a fixed-size LRU: re-emissions of the same
+# span (Claude redraws constantly) move-to-end rather than displacing
+# older distinct spans, so the 100 slots hold the last 100 *unique* spans.
+AGENT_OUTPUT_SPANS = 100
+AGENT_OUTPUT_FILE = None
+AGENT_SPANS = collections.OrderedDict()  # key=b"<color>\t<text>" -> True
+AGENT_FG = None              # current FG color id (None = default fg)
+AGENT_SPAN_BUF = b""         # accumulator for the in-progress colored run
+AGENT_SPAN_FG = None         # color id that started AGENT_SPAN_BUF
+AGENT_PENDING = b""          # tail of last chunk if it ended mid-escape
+AGENT_SPAN_MAX = 512         # safety cap; auto-finalize past this length
+
+# Match an SGR (CSI ... m) sequence and capture its parameter list.
+SGR_RE = re.compile(rb"\x1b\[([0-9;]*)m")
+
+# Match any complete ANSI escape sequence we want to *skip* (i.e. not
+# include in the captured span). SGR is a special case handled separately;
+# everything else is just noise from a span perspective.
+OTHER_ESC_RE = re.compile(
+    rb"\x1b\[[0-?]*[ -/]*[@-~]"           # any CSI (covers non-SGR too)
+    rb"|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)"  # OSC
+    rb"|\x1b[()*+][@-~]"                    # charset designators
+    rb"|\x1b[@-Z\\-_]"                      # 2-byte ESC sequences
+)
+
+
+def resolve_agent_output_file():
+    tag = os.environ.get("PAIR_TAG")
+    if not tag:
+        return None
+    data_dir = os.environ.get("PAIR_DATA_DIR")
+    if not data_dir:
+        xdg = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
+        data_dir = os.path.join(xdg, "pair")
+    return os.path.join(data_dir, f"agent-output-{tag}")
+
+
+def _sgr_extract_fg(params, current_fg):
+    """Apply an SGR parameter list and return the new FG color id.
+
+    Returns None for default FG, otherwise a bytes identifier:
+      - "34", "36", ..., "94", ..., "97" for 16-color
+      - "5;N" for 256-color (CSI 38;5;N)
+      - "2;R;G;B" for RGB (CSI 38;2;R;G;B)
+
+    Bg, bold/underline, and other attributes are ignored — they don't
+    affect span extraction.
+    """
+    if not params:
+        return None  # \x1b[m == full reset
+    codes = params.split(b";")
+    fg = current_fg
+    i = 0
+    while i < len(codes):
+        try:
+            n = int(codes[i]) if codes[i] else 0
+        except ValueError:
+            i += 1
+            continue
+        if n == 0 or n == 39:
+            fg = None
+        elif (30 <= n <= 37) or (90 <= n <= 97):
+            fg = str(n).encode()
+        elif n == 38 and i + 1 < len(codes):
+            if codes[i + 1] == b"5" and i + 2 < len(codes):
+                fg = b"5;" + codes[i + 2]
+                i += 2
+            elif codes[i + 1] == b"2" and i + 4 < len(codes):
+                fg = (b"2;" + codes[i + 2] + b";"
+                      + codes[i + 3] + b";" + codes[i + 4])
+                i += 4
+        i += 1
+    return fg
+
+
+def _finalize_span():
+    """Trim and push the current span onto the LRU dict if non-empty."""
+    global AGENT_SPAN_BUF, AGENT_SPAN_FG
+    s = AGENT_SPAN_BUF.strip()
+    color = AGENT_SPAN_FG
+    AGENT_SPAN_BUF = b""
+    AGENT_SPAN_FG = None
+    if not s or color is None:
+        return False
+    key = color + b"\t" + s
+    if key in AGENT_SPANS:
+        AGENT_SPANS.move_to_end(key)
+        return False
+    AGENT_SPANS[key] = True
+    while len(AGENT_SPANS) > AGENT_OUTPUT_SPANS:
+        AGENT_SPANS.popitem(last=False)
+    return True
+
+
+def _flush_agent_file():
+    if not AGENT_OUTPUT_FILE:
+        return
+    try:
+        tmp = AGENT_OUTPUT_FILE + ".tmp"
+        with open(tmp, "wb") as f:
+            for k in AGENT_SPANS:
+                f.write(k + b"\n")
+        os.rename(tmp, AGENT_OUTPUT_FILE)
+    except OSError:
+        pass
+
+
+def update_agent_output(data):
+    """Walk a chunk byte-by-byte, capturing per-color FG runs as spans.
+
+    State machine:
+      * \x1b → try to consume an SGR (updates AGENT_FG) or any other
+        complete escape (skipped). On FG change while a span is open,
+        finalize that span (preserving its original color id).
+      * \n / \r → finalize current span (line breaks shouldn't span runs).
+      * any other byte → append to span buffer iff a color is active.
+
+    Incomplete escapes at chunk end carry over via AGENT_PENDING.
+    """
+    global AGENT_FG, AGENT_SPAN_BUF, AGENT_SPAN_FG, AGENT_PENDING
+    if not AGENT_OUTPUT_FILE:
+        return
+    data = AGENT_PENDING + data
+    AGENT_PENDING = b""
+    i, n = 0, len(data)
+    new_span_count = 0
+    while i < n:
+        b = data[i:i + 1]
+        if b == b"\x1b":
+            m = SGR_RE.match(data, i)
+            if m:
+                new_fg = _sgr_extract_fg(m.group(1), AGENT_FG)
+                if new_fg != AGENT_FG and AGENT_SPAN_BUF:
+                    if _finalize_span():
+                        new_span_count += 1
+                AGENT_FG = new_fg
+                i = m.end()
+                continue
+            m = OTHER_ESC_RE.match(data, i)
+            if m:
+                i = m.end()
+                continue
+            # Possibly an escape that hasn't fully arrived yet. Carry
+            # the rest of the chunk and wait for more bytes. Cap so a
+            # malformed stream can't grow it unbounded.
+            if n - i < 64:
+                AGENT_PENDING = data[i:]
+                break
+            # Malformed/unknown escape — drop the lone ESC byte and move on.
+            i += 1
+            continue
+        if b == b"\n" or b == b"\r":
+            if AGENT_SPAN_BUF:
+                if _finalize_span():
+                    new_span_count += 1
+            i += 1
+            continue
+        if AGENT_FG is not None:
+            if not AGENT_SPAN_BUF:
+                AGENT_SPAN_FG = AGENT_FG
+            AGENT_SPAN_BUF += b
+            if len(AGENT_SPAN_BUF) > AGENT_SPAN_MAX:
+                if _finalize_span():
+                    new_span_count += 1
+        i += 1
+    if new_span_count > 0:
+        _flush_agent_file()
 
 
 def resolve_outer_tty_file():
@@ -108,6 +298,32 @@ def emit_outer(msg="agent attention"):
         debug("EMIT-fail", f"{path!r}: {e}")
 
 
+def write_startup_banner():
+    """Paint a one-line inverse-video banner above the agent's first output.
+
+    Most TUI agents will either clear the screen or enter the alt-screen
+    buffer on startup, so the banner only persists for a beat — long
+    enough to flag to a new user that they're inside pair-wrap and tell
+    them where to start. We write it before pty.fork so it's the first
+    byte the pane sees.
+    """
+    try:
+        sz = fcntl.ioctl(1, termios.TIOCGWINSZ, b"\0" * 8)
+        _, cols, _, _ = struct.unpack("hhhh", sz)
+    except OSError:
+        cols = 80
+    text = " ⚙  pair-wrapped · Alt+h for help · Happy coding! "
+    if len(text) > cols:
+        text = text[:cols]
+    padded = (text + " " * max(0, cols - len(text))).encode()
+    try:
+        # Trailing CRLF puts cursor on row 2; the second CRLF leaves row 2
+        # blank in default colors, so the agent's output starts on row 3.
+        os.write(1, b"\x1b[7m" + padded + b"\x1b[27m\r\n\r\n")
+    except OSError:
+        pass
+
+
 def set_winsize(master_fd):
     try:
         sz = fcntl.ioctl(0, termios.TIOCGWINSZ, b"\0" * 8)
@@ -145,17 +361,28 @@ def is_actionable_osc(ps: bytes, body: bytes) -> bool:
 
 
 def main():
-    global OUTER_TTY_FILE
+    global OUTER_TTY_FILE, AGENT_OUTPUT_FILE
     OUTER_TTY_FILE = resolve_outer_tty_file()
 
     if len(sys.argv) < 2:
         print("usage: pair-wrap <command> [args...]", file=sys.stderr)
         return 2
 
+    agent_basename = os.path.basename(sys.argv[1])
+
+    # Span extraction is calibrated per agent; only enable for known ones.
+    # update_agent_output() short-circuits when AGENT_OUTPUT_FILE is None.
+    if agent_basename in SPAN_EXTRACTION_AGENTS:
+        AGENT_OUTPUT_FILE = resolve_agent_output_file()
+    else:
+        debug("SPAN-disable", f"{agent_basename} not in SPAN_EXTRACTION_AGENTS")
+
     global IDLE_S
-    if os.path.basename(sys.argv[1]) in SELF_NOTIFYING_AGENTS:
+    if agent_basename in SELF_NOTIFYING_AGENTS:
         debug("IDLE-disable", f"{sys.argv[1]} self-notifies")
         IDLE_S = 0
+
+    write_startup_banner()
 
     pid, master = pty.fork()
     if pid == 0:
@@ -236,6 +463,10 @@ def main():
                     os.write(1, data)
                 except OSError:
                     pass
+                try:
+                    update_agent_output(data)
+                except Exception as e:
+                    debug("AGENT-OUT-fail", str(e))  # never block the proxy
                 try:
                     rolling = (rolling + data)[-512:]
                     matches = list(OSC_RE.finditer(rolling))
