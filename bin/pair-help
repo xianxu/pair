@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# pair-help — display `pair -h` in a pager that exits on ESC or q.
+#
+# less treats ESC as a meta-key prefix by default, so we override its keymap
+# via LESSKEYIN_SYSTEM (supported by less >= 582) to bind a bare ESC to quit.
+
+set -euo pipefail
+
+keyfile="$(mktemp -t pair-help-keys.XXXXXX)"
+trap 'rm -f "$keyfile"' EXIT
+
+# lesskey source format. \e is a literal ESC in lesskey syntax. \e\e covers
+# terminals/intermediaries that emit double-ESC for a single ESC press.
+cat > "$keyfile" <<'EOF'
+#command
+\e quit
+\e\e quit
+EOF
+
+# Export — the var must be visible to `less` (the right side of the pipe),
+# not only to `pair -h`. A `VAR=x cmd1 | cmd2` prefix only sets VAR on cmd1.
+export LESSKEYIN_SYSTEM="$keyfile"
+
+# Horizontally center the help text inside the (typically wide) floating
+# pane: measure the widest help line, compare to the terminal columns, and
+# left-pad every line with the resulting margin. Without this the text
+# clings to the left edge with a large empty right margin.
+help="$(pair -h)"
+cols="$(tput cols 2>/dev/null || echo 80)"
+max_w="$(awk '{ if (length > m) m = length } END { print m+0 }' <<<"$help")"
+pad=$(( (cols - max_w) / 2 ))
+(( pad < 0 )) && pad=0
+prefix="$(printf '%*s' "$pad" '')"
+printf '%s\n' "$help" | sed "s/^/$prefix/" | less -R

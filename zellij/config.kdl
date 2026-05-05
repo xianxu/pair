@@ -71,6 +71,22 @@ keybinds clear-defaults=false {
             };
         }
 
+        // Alt+h — pop up a large floating pane with `pair -h` in a pager.
+        // pair-help wraps `less` with a custom keymap so ESC (in addition to
+        // the usual `q`) dismisses it; close_on_exit closes the pane when
+        // the pager exits.
+        bind "Alt h" {
+            Run "pair-help" {
+                floating true
+                close_on_exit true
+                name "pair help"
+                width "100%"
+                height "70%"
+                x "0"
+                y "15%"
+            };
+        }
+
         // Alt+n is no longer bound — `copy_command` (above) auto-fires on
         // mouse-up, so the manual Alt+n keybind became redundant.
     }

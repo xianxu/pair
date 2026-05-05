@@ -17,7 +17,11 @@
 
 layout {
     pane split_direction="horizontal" {
-        pane name="agent" {
+        // Agent pane is borderless to visually de-emphasize it — the user's
+        // input lives in the nvim draft pane below; this is just where the
+        // agent renders. The asymmetric framing (no border above, framed
+        // nvim with cheatsheet below) signals where to focus.
+        pane name="agent" borderless=true {
             command "sh"
             args "-c" "exec pair-wrap ${PAIR_AGENT:-claude} ${PAIR_AGENT_ARGS:-}"
         }

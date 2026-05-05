@@ -691,7 +691,7 @@ end
 -- / read_history / queue_count can't blank the bar — fall back to a minimal
 -- safe string.
 function _G.PairStatusline()
-  if vim.fn.mode():sub(1, 1) ~= 'i' then
+  if vim.fn.mode():sub(1, 1) == 'n' then
     return '%#PairLocked# <LOCKED> input not accepted — press i to type %*'
   end
   local ok, result = pcall(function()
@@ -1059,14 +1059,14 @@ end
 pair_build_locked_ns()
 
 local function pair_apply_mode_bg(mode)
-  if mode == 'i' then
+  if mode == 'n' then
+    pair_build_locked_ns() -- catch any groups defined since last build
+    vim.api.nvim_set_hl_ns(pair_locked_ns)
+  else
     vim.api.nvim_set_hl_ns(0)
     vim.api.nvim_set_hl(0, 'Normal',      { bg = pair_bg_insert })
     vim.api.nvim_set_hl(0, 'NormalNC',    { bg = pair_bg_insert })
     vim.api.nvim_set_hl(0, 'EndOfBuffer', { bg = pair_bg_insert })
-  else
-    pair_build_locked_ns() -- catch any groups defined since last build
-    vim.api.nvim_set_hl_ns(pair_locked_ns)
   end
 end
 -- Coalesce + defer: read mode on the next event-loop tick so transient

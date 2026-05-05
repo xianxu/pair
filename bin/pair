@@ -74,6 +74,7 @@ KEYBINDINGS (inside a pair session)
   Alt+d         detach from session (re-attach later via `pair`)
   Alt+x         full quit — kill session and remove from resurrect list
                 (Ctrl+q is unbound; Alt+x is the only quit path)
+  Alt+h         pop up this help in a floating pane (press `q` to dismiss)
   Alt+i         attach clipboard image to agent + insert [Image #N];
                 if cursor is on an existing [Image #N], sync counter to N
 
@@ -232,11 +233,16 @@ done
 #   It applies only on create; reattaching to an existing session uses
 #   whatever args the agent was originally launched with.
 # PAIR_TAG is the namespace identifier — used to name the zellij session
-#   and the per-instance draft/log files. Defaults to the agent name;
-#   the create flow's interactive prompt (#000002) lets the user override.
+#   and the per-instance draft/log files. Defaults to the basename of cwd
+#   (typically the repo name) so sessions are self-describing per-project;
+#   the create flow's interactive prompt (#000002) pre-fills this and lets
+#   the user extend or overwrite it.
 export PAIR_AGENT="$AGENT"
 export PAIR_AGENT_ARGS="$agent_extra"
-export PAIR_TAG="$AGENT"
+default_tag="$(basename "$PWD")"
+default_tag="${default_tag//[^A-Za-z0-9_-]/_}"
+[ -z "$default_tag" ] && default_tag="$AGENT"
+export PAIR_TAG="$default_tag"
 
 if ! command -v zellij >/dev/null 2>&1; then
     echo "pair: zellij not found on PATH." >&2
@@ -420,36 +426,66 @@ if ! command -v "$AGENT" >/dev/null 2>&1; then
     exit 1
 fi
 
-# Prompt for a session name. Default = auto-suggested next-free tag (the
-# `pair-` prefix is implicit and added back below). Empty input keeps the
-# default; a typed value (with any leading `pair-` stripped) becomes the
-# new tag. Reads from /dev/tty so the prompt works even when stdin is
-# redirected.
-printf 'Session name [%s]: ' "$chosen_tag" >/dev/tty
-if read -r user_input </dev/tty; then
-    if [ -n "$user_input" ]; then
-        case "$user_input" in
-            pair-*) typed_tag="${user_input#pair-}" ;;
-            *)      typed_tag="$user_input" ;;
-        esac
-        case "$typed_tag" in
-            ""|*[!A-Za-z0-9_-]*)
-                echo "pair: invalid name '$user_input'." >&2
-                echo "      allowed: letters, digits, dash, underscore." >&2
-                exit 1
-                ;;
-        esac
-        if zellij list-sessions --short 2>/dev/null | grep -qx "pair-${typed_tag}"; then
-            echo "pair: session 'pair-${typed_tag}' already exists." >&2
-            exit 1
-        fi
-        chosen_tag="$typed_tag"
+# Surface any existing sessions in this tag's family (pair-<base> and
+# pair-<base>-*) before prompting, so the user can see what's already
+# there — and why the auto-suggested prefill may include a numeric
+# suffix.
+family_prefix="pair-${BASE_TAG}"
+family_existing=$( { zellij list-sessions --no-formatting 2>/dev/null || true; } \
+    | awk -v p="$family_prefix" '$1 == p || index($1, p "-") == 1' )
+if [ -n "$family_existing" ]; then
+    {
+        printf 'Existing %s* sessions:\n' "$family_prefix"
+        printf '%s\n' "$family_existing" | sed 's/^/  /'
+    } >/dev/tty
+fi
+
+# Prompt for a session name. The input line is pre-filled with the auto-
+# suggested next-free tag (the `pair-` prefix is implicit and added back
+# below) so the user can edit/extend it inline — e.g. with the default
+# pre-filled as "pair", typing "1" yields "pair1". Empty input falls back
+# to the suggested default.
+#
+# bash 3.2 (system bash on macOS) lacks `read -i`, so we delegate the
+# editable prompt to zsh's `vared`, which is universally available on
+# macOS and Linux. The vared editor UI runs on /dev/tty; the captured
+# stdout is just the final value.
+if command -v zsh >/dev/null 2>&1; then
+    if user_input=$(
+        zsh -c '
+            v=$1
+            vared -p "Session name: " v
+            print -r -- "$v"
+        ' _ "$chosen_tag" </dev/tty 2>/dev/tty
+    ); then :; else
+        echo >/dev/tty
+        exit 0
     fi
 else
-    # EOF (Ctrl+D) — bail cleanly
-    echo >/dev/tty
-    exit 0
+    # No zsh — fall back to a non-editable [default]-style prompt.
+    printf 'Session name [%s]: ' "$chosen_tag" >/dev/tty
+    if ! read -r user_input </dev/tty; then
+        echo >/dev/tty
+        exit 0
+    fi
 fi
+user_input="${user_input:-$chosen_tag}"
+case "$user_input" in
+    pair-*) typed_tag="${user_input#pair-}" ;;
+    *)      typed_tag="$user_input" ;;
+esac
+case "$typed_tag" in
+    ""|*[!A-Za-z0-9_-]*)
+        echo "pair: invalid name '$user_input'." >&2
+        echo "      allowed: letters, digits, dash, underscore." >&2
+        exit 1
+        ;;
+esac
+if zellij list-sessions --short 2>/dev/null | grep -qx "pair-${typed_tag}"; then
+    echo "pair: session 'pair-${typed_tag}' already exists." >&2
+    exit 1
+fi
+chosen_tag="$typed_tag"
 
 export PAIR_TAG="$chosen_tag"
 SESSION="pair-${PAIR_TAG}"
