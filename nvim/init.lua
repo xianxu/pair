@@ -352,9 +352,20 @@ local function send_esc_to_agent()
 end
 
 local function send_to_agent(body)
-  -- focus up to agent pane, type body, press Enter, focus back down
+  -- focus up to agent pane, type body, press Enter, focus back down.
+  --
+  -- Multi-line / large bodies get wrapped by zellij as bracketed paste
+  -- (`\e[200~...\e[201~`). zellij's write-chars returns once the bytes
+  -- are queued, not delivered — sending the CR (write 13) immediately
+  -- after can land inside the paste boundary and get treated as a
+  -- literal newline rather than submit. Settle for ~100ms in that case
+  -- so Claude has time to ingest the paste and return to the input
+  -- prompt before we hit Enter. Single-line sends skip the wait.
   vim.fn.system('zellij action move-focus up')
   vim.fn.system({ 'zellij', 'action', 'write-chars', body })
+  if body:find('\n') or #body > 200 then
+    vim.cmd('sleep 100m')
+  end
   vim.fn.system('zellij action write 13')
   vim.fn.system('zellij action move-focus down')
 end
@@ -1509,11 +1520,41 @@ vim.keymap.set('i', '<C-_>', function() PairPasteQuote() end,
 -- path_complete handles slash/tilde tokens; word_complete kicks in for plain
 -- alphanumeric tokens >= 6 chars. Their token regexes are mutually exclusive
 -- (path needs `/` or `~`, word excludes both), so at most one calls complete().
+--
+-- Burst-debounce: paste dumps hundreds of TextChangedI events within a few
+-- ms; running both completion handlers (each scans the buffer + agent file)
+-- on every char stalls nvim and looks like flaky paste. Detection threshold
+-- is 20ms — well above human typing cadence (worst-case ~40ms at 200wpm),
+-- well below paste IO (~1-2ms). Bursts get coalesced into a single deferred
+-- run 30ms after the last event.
+local complete_last_fire = 0
+local complete_pending = nil
+local function run_completers()
+  path_complete()
+  word_complete()
+end
 vim.api.nvim_create_autocmd({ 'TextChangedI', 'TextChangedP' }, {
   group = pair_aug,
   callback = function()
-    path_complete()
-    word_complete()
+    local now = vim.loop.now()
+    local delta = now - complete_last_fire
+    complete_last_fire = now
+    if complete_pending then
+      complete_pending:stop()
+      complete_pending:close()
+      complete_pending = nil
+    end
+    if delta < 20 then
+      complete_pending = vim.loop.new_timer()
+      complete_pending:start(30, 0, vim.schedule_wrap(function()
+        if complete_pending then
+          complete_pending:close(); complete_pending = nil
+        end
+        run_completers()
+      end))
+      return
+    end
+    run_completers()
   end,
 })
 
