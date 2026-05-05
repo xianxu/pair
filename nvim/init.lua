@@ -578,6 +578,10 @@ local function paste_inline(body, row, col)
   body = body:gsub('\n+$', '')
   if body == '' then return end
   body = reflow_par(body):gsub('\n+$', '')
+  -- Inline insertions are followed by user-typed continuation; if the
+  -- selection didn't already end in whitespace, add a single space so the
+  -- user can start typing without manually inserting a separator.
+  if not body:match('%s$') then body = body .. ' ' end
   local lines = vim.split(body, '\n', { plain = true })
 
   local buf = vim.api.nvim_get_current_buf()
