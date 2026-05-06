@@ -13,6 +13,33 @@ vim.g.mapleader = ' '
 vim.opt.termguicolors = true
 vim.cmd('syntax enable')
 vim.cmd('filetype plugin indent on')
+
+-- Highlight fenced code blocks by language. Without this, vim's markdown
+-- syntax leaves ```<lang> ... ``` bodies as plain monospace regardless of
+-- the tag. The `alias=target` entries map common short forms to the canonical
+-- syntax filename (vim looks for `syntax/<name>.vim` under runtimepath).
+-- Read by runtime/syntax/markdown.vim when the buffer is opened, so this
+-- must be set before the .md file loads — top-of-init is safe.
+vim.g.markdown_fenced_languages = {
+  'python', 'py=python',
+  'javascript', 'js=javascript',
+  'typescript', 'ts=typescript',
+  'lua',
+  'bash', 'sh=bash', 'zsh=bash',
+  'json', 'yaml', 'yml=yaml', 'toml',
+  'html', 'css',
+  'c', 'cpp', 'cxx=cpp',
+  'rust', 'rs=rust',
+  'go',
+  'sql',
+  'ruby', 'rb=ruby',
+  'java', 'kotlin', 'kt=kotlin',
+  'swift',
+  'dockerfile',
+  'make',
+  'diff',
+  'vim',
+}
 -- nvim's bundled `default` colorscheme is intentionally near-monochrome —
 -- syntax groups get bold/italic but no fg colors. habamax is bundled and
 -- gives readable colors for markdown headings, code spans, links, etc.
