@@ -2,6 +2,8 @@
 issue: 16
 title: tag-restart — tags as durable session identities
 status: done
+actual_hours: 3
+updated: 2026-05-06
 ---
 
 # Tag-restart: tags as durable session identities
@@ -131,6 +133,8 @@ multi-line "shows the values" requirement makes fzf the natural fit.
 
 ## Log
 
+
+- 2026-05-06: closed — claude/codex/gemini all live-tested by user; watcher + compose unit-tested against fixtures
 ### M1 — 2026-05-05
 
 - `bin/pair-session-watch.sh` created. Snapshots existing `*.jsonl` under
