@@ -96,11 +96,11 @@ multi-line "shows the values" requirement makes fzf the natural fit.
 
 ## Plan
 
-- [ ] **M1 — claude session-id watcher.** New `bin/pair-session-watch.sh`
-      (or per-agent variants — TBD which is cleaner). Spawned alongside
-      claude in the agent pane; polls the projects dir, writes
-      `config-<tag>-<agent>.json` on first hit, exits. Args come in via
-      argv. Verify by launching a session and checking the file appears.
+- [x] **M1 — claude session-id watcher.** New `bin/pair-session-watch.sh`,
+      backgrounded from `bin/pair` on the new-session path. Polls the
+      claude projects dir at 100ms; writes `config-<tag>-claude.json`
+      atomically on first new file; exits silently after 60s if nothing
+      appears. Non-claude agents are no-ops at this milestone.
 - [ ] **M2 — create-flow prompt.** Read `config-<tag>-<agent>.json` after
       tag commit; if present and (when relevant) session_id is fresh,
       fzf prompt with three options; compose final args + (`--resume
@@ -114,4 +114,21 @@ multi-line "shows the values" requirement makes fzf the natural fit.
 
 ## Log
 
-(empty)
+### M1 — 2026-05-05
+
+- `bin/pair-session-watch.sh` created. Snapshots existing `*.jsonl` under
+  `~/.claude/projects/<encoded-cwd>/`, polls every 100ms for a new file,
+  writes JSON atomically via jq + mktemp + mv. 60s deadline.
+- bash 3.2 compatibility: `set -u` plus empty array required the
+  `${args[@]+"${args[@]}"}` expansion guard.
+- Verified in isolation against a mock projects dir:
+  - new-file detection (post-snapshot create) → captures id
+  - empty agent args → `"args": []`
+  - args containing spaces → preserved correctly via `jq --args`
+  - non-claude agents → silent exit 0
+- Wired into `bin/pair` right before the zellij `--new-session-with-layout`
+  exec, backgrounded with stdio redirected to `/dev/null`. word-split on
+  `$agent_extra` matches the existing `$PAIR_AGENT_ARGS` convention.
+- Manual end-to-end with a real claude session not exercised here (would
+  disrupt the pair session this work is happening in); deferred to M2's
+  end when the full read-back path exists.

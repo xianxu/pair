@@ -500,6 +500,17 @@ DRAFT="$DATA_DIR/draft-${PAIR_TAG}.md"
 # detach/reattach; cleared on Alt+x quit alongside outer-tty.
 printf '%s\n' "$AGENT" > "$DATA_DIR/agent-${PAIR_TAG}"
 
+# Spawn the session-id watcher (issue #000016). It polls the agent's
+# session dir for the file that appears once the agent boots, then writes
+# $DATA_DIR/config-<tag>-<agent>.json with the captured agent + args +
+# session_id. Backgrounded so it doesn't block the zellij launch; the
+# watcher self-times-out after 60s if no file appears (agent crashed
+# pre-startup, etc). Output redirected so any noise doesn't bleed into
+# pair's create-flow output. agent_extra is intentionally word-split here,
+# matching the existing $PAIR_AGENT_ARGS convention.
+"$PAIR_HOME/bin/pair-session-watch.sh" "$AGENT" "$PAIR_TAG" "$PWD" $agent_extra \
+    </dev/null >/dev/null 2>&1 &
+
 # Set terminal title — harmless duplicate for new sessions (zellij sets it
 # itself), useful as a uniform path for both create and attach branches.
 printf '\033]0;%s\007' "$SESSION"
