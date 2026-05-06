@@ -52,7 +52,7 @@ vim.cmd('colorscheme slate')
 -- swap can override.
 local function pair_apply_comment_hl()
   vim.api.nvim_set_hl(0, 'Comment', {
-    fg = '#888888', ctermfg = 245, italic = true,
+    fg = '#999999', ctermfg = 247,
   })
 end
 pair_apply_comment_hl()
