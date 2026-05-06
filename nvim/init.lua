@@ -1154,16 +1154,26 @@ function _G.PairStatusline()
     local q = queue_count()
     local pos = pos_label(nav.pos)
     if is_dirty_history_slot() then pos = pos .. '*' end
+    -- Wrap the actionable glyph (q or ⌫) inside its hint with PairAltKey
+    -- so the keypress is visible — the rest of the bracket text stays
+    -- in the muted statusline baseline.
     local hint
     if type(nav.pos) == 'table' and nav.pos.kind == 'queue' then
-      hint = ' [⌫=del]'
+      hint = ' [%#PairAltKey#⌫%*=del]'
     else
-      hint = ' [q=queue]'
+      hint = ' [%#PairAltKey#q%*=queue]'
     end
     local pos_seg = string.format('%%#PairPosLabel#%s%%*', pos)
     local q_hl = (q > 0) and 'PairQueueCount' or 'PairQueueZero'
     local q_seg = string.format('%%#%s#%d queued%%*', q_hl, q)
-    return string.format(' Alt: <- history %d < %s%s > %s -> ', h, pos_seg, hint, q_seg)
+    -- "Alt:", "<-", "->" — the cluster label and the nav-arrow keys —
+    -- get the same actionable accent so the user can see at a glance
+    -- which glyphs are pressable. Inline highlight markers in the format
+    -- string need %% to survive string.format's own % handling.
+    return string.format(
+      ' %%#PairAltKey#Alt:%%* %%#PairAltKey#<-%%* history %d < %s%s > %s %%#PairAltKey#->%%* ',
+      h, pos_seg, hint, q_seg
+    )
   end)
   return (ok and result or ' pair ') .. spin
 end
@@ -1481,13 +1491,24 @@ local function pair_apply_statusline_hl()
   -- are here" block. Many themes encode DiffAdd as fg=green + reverse so
   -- the rendered look is dark text on a green bg. `link` + extra attrs
   -- doesn't layer (link wins, attrs drop), so resolve and copy.
-  local hit = vim.api.nvim_get_hl(0, { name = 'DiffAdd', link = false })
+  local diffadd = vim.api.nvim_get_hl(0, { name = 'DiffAdd', link = false })
   vim.api.nvim_set_hl(0, 'PairPosLabel', {
-    fg      = hit.fg,
-    bg      = hit.bg,
-    ctermfg = hit.ctermfg,
-    ctermbg = hit.ctermbg,
-    reverse = hit.reverse,
+    fg      = diffadd.fg,
+    bg      = diffadd.bg,
+    ctermfg = diffadd.ctermfg,
+    ctermbg = diffadd.ctermbg,
+    reverse = diffadd.reverse,
+    bold    = true,
+  })
+  -- "Things the user can press" — the Alt: label, the <- / -> nav arrows,
+  -- and the inline action glyphs (q, ⌫) inside the contextual hint. Lift
+  -- them out of the muted Comment baseline with Special's accent + bold
+  -- so they read as actionable at a glance. `link` + bold doesn't layer
+  -- (link wins, bold drops), so resolve Special's fg and set explicitly.
+  local special = vim.api.nvim_get_hl(0, { name = 'Special', link = false })
+  vim.api.nvim_set_hl(0, 'PairAltKey', {
+    fg      = special.fg,
+    ctermfg = special.ctermfg,
     bold    = true,
   })
 end
