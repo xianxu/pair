@@ -215,6 +215,7 @@ esac
 AGENT=""
 agent_extra=""
 forced_tag=""
+agent_explicit=false  # true if AGENT was set from a positional CLI arg
 
 # `pair resume <tag>` is the documented restart path: skip both the picker
 # and the name prompt, attach if pair-<tag> exists, otherwise create with
@@ -252,6 +253,7 @@ for arg in "$@"; do
         seen_dd=true
     elif [ -z "$AGENT" ] && [ -z "$forced_tag" ]; then
         AGENT="$arg"
+        agent_explicit=true
     else
         echo "pair: unexpected positional arg '$arg' (use '--' to forward args to the agent)" >&2
         echo "      e.g. pair claude -- --resume" >&2
@@ -263,10 +265,20 @@ done
 # enough to fully restart, regardless of which agent was originally paired
 # with it.
 
-# default_tag is independent of AGENT — it's the basename of cwd, sanitized
-# for use as a zellij session name. The interactive prompt (#000002) and
-# `resume <tag>` both override this.
-default_tag="$(basename "$PWD")"
+# default_tag drives the auto-suggestion in the create-flow name prompt
+# and the picker's "+ new <tag> session" sentinel. The interactive prompt
+# and `resume <tag>` both override this.
+#
+# When the user explicitly named an agent on the CLI (`pair gemini`,
+# `pair codex`, ...), use the agent name — that's the most likely
+# intent ("a gemini session here"). When agent was implicit (just
+# `pair`, defaults to claude), use the cwd basename so multiple repos
+# don't collapse onto the same default.
+if $agent_explicit; then
+    default_tag="$AGENT"
+else
+    default_tag="$(basename "$PWD")"
+fi
 default_tag="${default_tag//[^A-Za-z0-9_-]/_}"
 [ -z "$default_tag" ] && default_tag="pair"
 
