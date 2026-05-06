@@ -241,7 +241,10 @@ if $expect_tag; then
     echo "pair: -t/--tag requires a value (e.g. pair -t bugfix)" >&2
     exit 1
 fi
-[ -z "$AGENT" ] && AGENT="claude"
+# Defer the [-z AGENT] default to after DATA_DIR is set: when -t is used
+# without a positional agent, we infer the agent from saved state on disk
+# so `pair -t pair-2` is enough to resume regardless of which agent was
+# originally paired with that tag.
 
 # Validate forced_tag — same charset as the interactive name prompt.
 if [ -n "$forced_tag" ]; then
@@ -257,21 +260,12 @@ if [ -n "$forced_tag" ]; then
     esac
 fi
 
-# PAIR_AGENT is the command to exec in the agent pane on create.
-# PAIR_AGENT_ARGS is appended on the agent pane's command line at create.
-#   It applies only on create; reattaching to an existing session uses
-#   whatever args the agent was originally launched with.
-# PAIR_TAG is the namespace identifier — used to name the zellij session
-#   and the per-instance draft/log files. Defaults to the basename of cwd
-#   (typically the repo name) so sessions are self-describing per-project;
-#   the create flow's interactive prompt (#000002) pre-fills this and lets
-#   the user extend or overwrite it.
-export PAIR_AGENT="$AGENT"
-export PAIR_AGENT_ARGS="$agent_extra"
+# default_tag is independent of AGENT — it's the basename of cwd, sanitized
+# for use as a zellij session name. The interactive prompt (#000002) and
+# `-t` both override this.
 default_tag="$(basename "$PWD")"
 default_tag="${default_tag//[^A-Za-z0-9_-]/_}"
-[ -z "$default_tag" ] && default_tag="$AGENT"
-export PAIR_TAG="$default_tag"
+[ -z "$default_tag" ] && default_tag="pair"
 
 if ! command -v zellij >/dev/null 2>&1; then
     echo "pair: zellij not found on PATH." >&2
@@ -293,6 +287,41 @@ fi
 DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/pair"
 mkdir -p "$DATA_DIR"
 export PAIR_DATA_DIR="$DATA_DIR"
+
+# Agent inference for `-t <tag>` without a positional agent: look up what
+# was paired with this tag last time. agent-<tag> covers live (or recently
+# detached) sessions — written at create-flow start, cleared on Alt+x.
+# config-<tag>-<agent>.json (issue #000016) covers the case where the
+# session was Alt+x'd: that file persists across quit and the filename
+# encodes the agent. Either source is authoritative; explicit positional
+# agent on the command line still wins.
+if [ -n "$forced_tag" ] && [ -z "$AGENT" ]; then
+    if [ -f "$DATA_DIR/agent-${forced_tag}" ]; then
+        AGENT=$(cat "$DATA_DIR/agent-${forced_tag}")
+    else
+        for cfg in "$DATA_DIR"/config-"${forced_tag}"-*.json; do
+            [ -f "$cfg" ] || continue
+            inferred=$(jq -r '.agent // empty' "$cfg" 2>/dev/null)
+            if [ -n "$inferred" ]; then
+                AGENT="$inferred"
+                break
+            fi
+        done
+    fi
+fi
+[ -z "$AGENT" ] && AGENT="claude"
+
+# PAIR_AGENT is the command to exec in the agent pane on create.
+# PAIR_AGENT_ARGS is appended on the agent pane's command line at create.
+#   It applies only on create; reattaching to an existing session uses
+#   whatever args the agent was originally launched with.
+export PAIR_AGENT="$AGENT"
+export PAIR_AGENT_ARGS="$agent_extra"
+
+# PAIR_TAG is the namespace identifier — used to name the zellij session
+# and the per-instance draft/log files. The create flow's interactive
+# prompt and `-t` override this.
+export PAIR_TAG="$default_tag"
 
 # One-time migration: if old ~/scratch/pair-{draft,log}-*.md files exist,
 # move them to the new XDG location with the redundant `pair-` prefix
@@ -434,10 +463,15 @@ cleanup_quit_marker() {
         # show the user the one-liner that resumes it. config-<tag>-<agent>
         # is what the create-flow prompt reads — its presence here is the
         # signal that the resume path will work next time.
+        #
+        # Display SESSION (e.g. pair-2) rather than PAIR_TAG ("2") to match
+        # what the user saw in the UI tab; `-t` accepts both forms (it
+        # strips a leading `pair-`). Agent is omitted from the resume
+        # command — pair infers it from the saved state.
         if [ -f "$DATA_DIR/config-${PAIR_TAG}-${quit_agent}.json" ]; then
             printf 'pair: saved session config for tag "%s" (%s).\n' \
-                "$PAIR_TAG" "$quit_agent"
-            printf '      resume with: pair %s -t %s\n' "$quit_agent" "$PAIR_TAG"
+                "$SESSION" "$quit_agent"
+            printf '      resume with: pair -t %s\n' "$SESSION"
         fi
     fi
 }
