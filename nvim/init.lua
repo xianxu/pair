@@ -81,6 +81,21 @@ vim.api.nvim_create_autocmd('FileType', {
     vim.cmd([[highlight! link markdownListMarker Statement]])
     vim.cmd([[highlight! link markdownOrderedListMarker Statement]])
     vim.cmd([[highlight! link markdownRule NonText]])
+
+    -- Stock markdown.vim defines markdownCode (inline `code`) as a region
+    -- but never `hi def link`s it — so inline backticks render plain by
+    -- default. Link to String for a distinct color.
+    vim.cmd([[highlight! link markdownCode String]])
+    vim.cmd([[highlight! link markdownCodeDelimiter Comment]])
+
+    -- Stock syntax only fires markdownLinkText for the `[text](url)` /
+    -- `[text][ref]` forms; bare `[text]` brackets (common in drafts —
+    -- `[Image #1]`, shorthand mentions, etc.) get no highlight at all.
+    -- Add a match scoped to bare brackets, with a negative lookahead so
+    -- the `[text]` portion of a real `[text](url)` is still owned by the
+    -- stock markdownLinkText region.
+    vim.cmd([[syntax match markdownPairBracket /\[[^\]\n]\{-1,}\]\%(\s*[[(]\)\@!/]])
+    vim.cmd([[highlight! link markdownPairBracket Identifier]])
   end,
 })
 
