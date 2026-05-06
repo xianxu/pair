@@ -664,11 +664,11 @@ if [ -f "$config_file" ]; then
     # spans three lines: label, indented args, indented resume/freshness.
     options=()
     if $has_resumable; then
-        options+=("$(printf '1) use params + session\n     args=[%s]\n     resume=%s' \
+        options+=("$(printf '1) use saved params + session\n     args=[%s]\n     resume=%s' \
                           "$saved_display" "$saved_session")")
     fi
-    options+=("$(printf '2) use params\n     args=[%s]\n     fresh session' "$saved_display")")
-    options+=("$(printf '3) use none\n     args=[%s]\n     fresh session' "$current_display")")
+    options+=("$(printf '2) use saved params\n     args=[%s]\n     fresh session' "$saved_display")")
+    options+=("$(printf '3) use new params passed in\n     args=[%s]\n     fresh session' "$current_display")")
 
     # Height: roughly 3 lines per option + 2 for header/status/border.
     fzf_height=$(( ${#options[@]} * 3 + 4 ))
