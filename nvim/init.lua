@@ -45,15 +45,42 @@ vim.g.markdown_fenced_languages = {
 -- gives readable colors for markdown headings, code spans, links, etc.
 vim.cmd('colorscheme slate')
 
--- Highlight === comment lines (whole-line, leading-whitespace tolerant) the
--- same dimmed-grey as Comment. Runs on FileType=markdown — the draft is
--- always a .md file — so the match is added after markdown's own syntax
--- loads and isn't clobbered.
+-- FileType=markdown setup. Runs after vim's stock markdown.vim, so any
+-- syntax matches we add here aren't clobbered, and any `highlight! link`
+-- we issue overrides stock's `hi def link`.
+--
+-- Two responsibilities:
+--   1. The pair-specific `===` comment line — link to Comment.
+--   2. Brighten the markdown groups stock vim leaves linked to htmlLink /
+--      htmlH1 / etc., which only carry underline/bold and no color. Without
+--      this, [link] text, headings, and emphasis render plain in slate.
 vim.api.nvim_create_autocmd('FileType', {
   pattern = 'markdown',
   callback = function()
     vim.cmd([[syntax match PairComment /^\s*===.*$/]])
     vim.cmd([[highlight default link PairComment Comment]])
+
+    -- `highlight!` (bang) overrides any existing link from stock syntax.
+    vim.cmd([[highlight! link markdownH1 Title]])
+    vim.cmd([[highlight! link markdownH2 Title]])
+    vim.cmd([[highlight! link markdownH3 Title]])
+    vim.cmd([[highlight! link markdownH4 Title]])
+    vim.cmd([[highlight! link markdownH5 Title]])
+    vim.cmd([[highlight! link markdownH6 Title]])
+    vim.cmd([[highlight! link markdownHeadingDelimiter Title]])
+    vim.cmd([[highlight! link markdownLinkText Identifier]])
+    vim.cmd([[highlight! link markdownUrl Constant]])
+    vim.cmd([[highlight! link markdownLinkTextDelimiter Comment]])
+    vim.cmd([[highlight! link markdownLinkDelimiter Comment]])
+    vim.cmd([[highlight! link markdownUrlDelimiter Comment]])
+    vim.cmd([[highlight! link markdownId Type]])
+    vim.cmd([[highlight! link markdownIdDeclaration Type]])
+    vim.cmd([[highlight! link markdownBold Special]])
+    vim.cmd([[highlight! link markdownItalic Special]])
+    vim.cmd([[highlight! link markdownBlockquote Comment]])
+    vim.cmd([[highlight! link markdownListMarker Statement]])
+    vim.cmd([[highlight! link markdownOrderedListMarker Statement]])
+    vim.cmd([[highlight! link markdownRule NonText]])
   end,
 })
 
