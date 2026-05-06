@@ -70,7 +70,8 @@ KEYBINDINGS (inside a pair session)
   Alt+BS        (at +N) delete the current queued prompt; items shift down,
                 so tap-tap deletes a run
   Shift+Alt+BS  erase history + draft + queue ("start anew"); confirms first
-  Alt+u         toggle nvim pane fullscreen (works from either pane)
+  Alt+↑ / Alt+↓ step nvim pane along small ↔ half ↔ full ladder
+                (works from either pane)
   Alt+d         detach from session (re-attach later via `pair`)
   Alt+x         full quit — kill session and remove from resurrect list
                 (Ctrl+q is unbound; Alt+x is the only quit path)
