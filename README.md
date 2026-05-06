@@ -58,7 +58,7 @@ Otherwise without `>`. Focus' automatically put at the likely position you want 
 | **Alt+i** | nvim (normal/insert) | Attach clipboard image to the agent and insert `[Image #N]` reference at cursor. |
 | **Alt+i** | when inside [Image tag] | Sync the internal counter to N (manual-correction path), allowing user to edit if the cursor between nvim and agent gets out of sync. |
 | **Alt+d** | any pane | Detach from the current session (re-attach later via `pair`) |
-| **Alt+x** | any pane | Full quit — kill the session AND all processes running inside. |
+| **Alt+x** | any pane | Full quit — kill the session and all processes inside. Pair captures the agent's session id alongside the launch args, so the session is resumable later via `pair resume <tag>`. |
 
 ### Prompt history & queue
 
@@ -150,6 +150,7 @@ That installs `zellij`, `neovim`, `fzf`, `jq`, and `par` if they aren't already 
 ```sh
 pair                             # default: claude
 pair <agent>                     # claude / codex / gemini
+pair resume <tag>                # restart a tag with its saved config
 pair [<agent>] -- <args...>      # forward args to agent on create
                                  # e.g. pair claude -- --resume
                                  #      pair -- --dangerously-skip-permissions
@@ -173,6 +174,38 @@ Session name [claude]: <Enter to accept, or type a custom name>
 Custom names like `bugfix`, `blogging`, or `research` are allowed (chars: `A-Z a-z 0-9 - _`). 
 
 To detach mid-session: `Alt+d`. To re-attach: run `pair` again and pick from the list. To fully quit (no resurrect entry): `Alt+x`.
+
+## Resume a session by tag
+
+Pair captures each new session's startup args plus the agent's own session id, keyed by tag. After `Alt+x` you'll see:
+
+```
+pair: saved session config for tag "pair-bugfix" (claude).
+      resume with: pair resume pair-bugfix
+```
+
+Run that command and the picker + name prompt are skipped. Pair offers three options for what to do with the saved config:
+
+```
+saved config for tag 'bugfix' (claude)
+  1) use params + session
+       args=[--dangerously-skip-permissions]
+       resume=8d745d08-4ecc-4474-969a-53c98a6fa5f0
+  2) use params
+       args=[--dangerously-skip-permissions]
+       fresh session
+  3) use none
+       args=[<whatever you passed on this command>]
+       fresh session
+```
+
+- **use params + session** replays the original launch args *and* points the agent at its previous session id (claude's `--resume`, codex's `resume <id>` subcommand, gemini's `--resume`). The "session" option only appears if the agent's transcript file is still on disk.
+- **use params** replays the args but starts a fresh agent session.
+- **use none** ignores the saved config (and deletes it); a new config is captured the next time the watcher sees a session id appear.
+
+The agent (claude / codex / gemini) is inferred from saved state, so `pair resume <tag>` is enough on its own — no need to repeat the agent positional. If `pair-<tag>` is still a running zellij session (e.g. you only `Alt+d` detached), `pair resume <tag>` re-attaches without prompting.
+
+Saved configs live at `${XDG_DATA_HOME:-~/.local/share}/pair/config-<tag>-<agent>.json`.
 
 ## Image paste
 

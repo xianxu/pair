@@ -1,7 +1,7 @@
 ---
 issue: 16
 title: tag-restart — tags as durable session identities
-status: working
+status: done
 ---
 
 # Tag-restart: tags as durable session identities
@@ -118,9 +118,16 @@ multi-line "shows the values" requirement makes fzf the natural fit.
           by `--resume` is in the JSON body under `"sessionId"`, not the
           filename (which only carries an 8-char prefix). Resume is
           flag-style like claude.
-- [ ] **M4 — atlas + README.** Document tag-restart flow in
-      `atlas/architecture.md`; add a short note in README's "session
-      names" section.
+- [x] **M4 — atlas + README.** Tag-restart documented end-to-end in
+      `atlas/architecture.md` (new section between Quit semantics and
+      Data layout, plus per-agent watcher discovery surface table and a
+      data-layout entry for `config-<tag>-<agent>.json`). README gets
+      `pair resume <tag>` in usage, an updated Alt+x keybinding row,
+      and a new "Resume a session by tag" subsection that walks the
+      three-option prompt with screenshots-as-text. Side-quest: a few
+      stale atlas details fixed in passing (cheatsheet text in pane
+      frame title; naming-prompt example showing `claude-2` instead of
+      the cwd basename).
 
 ## Log
 

@@ -13,6 +13,9 @@ bin/pair                     # entry point (launcher)
 bin/clipboard-to-pane.sh     # read clipboard, hand off to nvim's PairPasteQuote
 bin/copy-on-select.sh        # invoked by zellij copy_command on mouse-up
 bin/pair-quit.sh             # invoked by Alt+x — marks + kills session
+bin/pair-session-watch.sh    # captures agent session id at create time (#000016)
+bin/pair-wrap                # PTY proxy that translates agent OSC notifications
+bin/pair-notify              # hook-driven OSC notifier (e.g. claude Notification)
 nvim/init.lua                # bundled nvim config (loaded via -u)
 zellij/config.kdl            # mouse, copy_command, keybinds
 zellij/layouts/main.kdl      # the split + agent/draft commands
@@ -20,7 +23,9 @@ zellij/layouts/main.kdl      # the split + agent/draft commands
 
 ### `bin/pair` — launcher
 
-Resolves `$PAIR_HOME` from its own real path (portable bash, no `readlink -f`), prepends `$PAIR_HOME/bin` to `$PATH` (idempotent across re-launches) so all helper scripts resolve by bare name in zellij configs and keybinds, parses argv — first positional is `$PAIR_AGENT` (default `claude`), everything after `--` is joined into `$PAIR_AGENT_ARGS`, extra positionals before `--` are an error with a usage hint, sets `$PAIR_TAG` to the agent name (custom names come from the create-flow prompt), resolves `$PAIR_DATA_DIR` to `${XDG_DATA_HOME:-$HOME/.local/share}/pair`, runs a one-time migration of any old `~/scratch/pair-{draft,log}-*` files, and dispatches:
+Resolves `$PAIR_HOME` from its own real path (portable bash, no `readlink -f`), prepends `$PAIR_HOME/bin` to `$PATH` (idempotent across re-launches) so all helper scripts resolve by bare name in zellij configs and keybinds, parses argv — first positional is `$PAIR_AGENT` (default `claude`), everything after `--` is joined into `$PAIR_AGENT_ARGS`, extra positionals before `--` are an error with a usage hint, defaults `$PAIR_TAG` to the cwd basename (the create-flow prompt or `pair resume <tag>` overrides it), resolves `$PAIR_DATA_DIR` to `${XDG_DATA_HOME:-$HOME/.local/share}/pair`, runs a one-time migration of any old `~/scratch/pair-{draft,log}-*` files, and dispatches:
+
+A leading `pair resume <tag>` is recognized as a subcommand verb (alongside `list` / `help`): it skips both the picker and the name prompt, attaches if `pair-<tag>` already exists in any state, otherwise creates with that tag. When `resume` is in play, the agent is inferred from saved state on disk (`agent-<tag>` for live/recently-detached sessions; the agent embedded in the `config-<tag>-<agent>.json` filename otherwise) — so a single tag is enough to restart, regardless of which agent was originally paired with it. See "Tag-restart" below.
 
 **Decision tree.** Finds *all* detached pair-* sessions on the machine (any agent, any naming). Then:
 
@@ -33,13 +38,13 @@ There is **no silent auto-attach**. Every reattach goes through the picker so th
 
 Detection of attached-vs-detached uses `zellij --session NAME action list-clients`, which prints a header plus one row per connected client. Zero rows = detached.
 
-**Naming prompt.** When the create flow runs, the launcher prompts the user with the auto-suggested tag as the default (`Session name [claude-2]:`). The `pair-` prefix is implicit — the prompt shows just the tag since `pair-` is always prepended. Pressing Enter accepts; typing a custom name (`bugfix`, or `pair-bugfix` — leading `pair-` is stripped) overrides it.
+**Naming prompt.** When the create flow runs, the launcher prompts the user with the auto-suggested tag as the default — the cwd basename, sanitized (so `~/workspace/pair` → `Session name: pair`). The prompt is editable inline (delegated to zsh's `vared` since bash 3.2 has no `read -i`). The `pair-` prefix is implicit — the prompt shows just the tag, since `pair-` is always prepended. Pressing Enter accepts; typing a custom name (`bugfix`, or `pair-bugfix` — leading `pair-` is stripped) overrides it. `pair resume <tag>` skips this prompt entirely.
 
 **Agent validation deferred.** `command -v "$AGENT"` runs only inside the create branch, not at startup, so attaching to a custom-named session whose tag isn't a real binary still works.
 
 **Title.** The launcher emits an OSC 0 escape sequence right before invoking zellij, so the terminal title shows the session name on both create and attach paths (zellij itself only sets it on create).
 
-**Cleanup on quit.** zellij is run as a child (not `exec`) so the launcher resumes when zellij exits. On resume it checks for `~/.cache/pair/quit-<session>` (the marker that `pair-quit.sh` writes when Alt+x fires) and, if present, runs `zellij delete-session --force <session>` to clear the resurrect entry. No marker → leave the session as zellij left it (running if Alt+d detached).
+**Cleanup on quit.** zellij is run as a child (not `exec`) so the launcher resumes when zellij exits. On resume it checks for `~/.cache/pair/quit-<session>` (the marker that `pair-quit.sh` writes when Alt+x fires) and, if present, runs `zellij delete-session --force <session>` to clear the resurrect entry. If a `config-<tag>-<agent>.json` was captured during the session, it also prints a one-liner naming the resume command (`pair resume <session>`) so the user can pick the work back up later. No marker → leave the session as zellij left it (running if Alt+d detached).
 
 ### `zellij/layouts/main.kdl` — pane split
 
@@ -49,7 +54,7 @@ Both panes wrap their command in `sh -c "..."` so the shell expands `$PAIR_AGENT
 
 `$PAIR_AGENT_ARGS` is appended on the agent pane command line as a single space-separated string; the shell word-splits it. Args containing spaces are *not* preserved (rare for CLI flags; documented in README).
 
-The bottom pane has `focus=true` (drafting pane gets focus on launch) and a `name=` set to the help string (`Alt: ⏎=send  u=⇱  i=img  d=detach  x=quit`) so zellij renders that as the pane's frame title.
+The bottom pane has `focus=true` (drafting pane gets focus on launch) and a `name=` set to the help string (`Alt: ⏎=send  ↕=size  i=img  d=detach  x=quit`) so zellij renders that as the pane's frame title. The exact text is owned by `nvim/init.lua` (via `pair_update_pane_name`); the pane spec just provides an initial value before nvim's startup hook overwrites it.
 
 ### `zellij/config.kdl` — mouse, copy, keybinds
 
@@ -228,6 +233,56 @@ Two ways to end a session, with different aftermath:
 
 Zellij's default `Ctrl+q` (Quit with resurrect) is **unbound** in pair's config — it would otherwise leave a half-state where the processes inside die but the session record stays as a "resurrect candidate," which is confusing for pair's long-lived-agent model. Alt+x is the only quit path.
 
+## Tag-restart (issue #000016)
+
+A pair *tag* is a durable identity for a coding session: it survives Alt+d (detach) trivially, and survives Alt+x because pair captures both the original launch args and the agent's own session id to disk, keyed by `(tag, agent)`. After Alt+x, the user sees a one-liner naming the resume command; running it short-circuits the picker and replays the saved configuration.
+
+**Discovery (`bin/pair-session-watch.sh`).** Spawned in the background by `bin/pair` on the create path, right before the zellij launch. Polls the agent's session dir at 100ms intervals for a freshly-appearing session file, extracts the id, and writes `$PAIR_DATA_DIR/config-<tag>-<agent>.json` atomically (tmp + rename). Times out after 60s if no file appears (agent crashed pre-startup, wrote to an unexpected path, etc.) so a stuck watcher can't leak.
+
+The discovery surface is per-agent:
+
+| Agent | Path | Id source |
+|---|---|---|
+| claude | `~/.claude/projects/<encoded-cwd>/<id>.jsonl` | filename |
+| codex | `~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<id>.jsonl` | trailing UUID in filename (regex) |
+| gemini | `~/.gemini/tmp/<project>/chats/session-<ts>-<short>.json` | `.sessionId` in the JSON body (filename only carries an 8-char prefix) |
+
+The poll/diff/write loop is shared; the `case "$agent"` block sets `find_args` and `extract_id`. Gemini in particular can write the file before the JSON body is flushed, so the inner loop walks all new files in one tick and falls through to the next tick if none yield an id.
+
+**Stored shape.** `$PAIR_DATA_DIR/config-<tag>-<agent>.json`:
+
+```json
+{ "agent": "claude", "args": ["--dangerously-skip-permissions"], "session_id": "8d745d08-..." }
+```
+
+Single write path: jq + mktemp + rename, only after the id is in hand. So a concurrent reader either sees a complete prior config or a complete new one — never a partial. Keyed by `(tag, agent)` because the same tag can hold separate configs for different agents.
+
+**Create-flow prompt (`bin/pair`).** When the create path commits a tag, pair reads `config-<tag>-<agent>.json`. If present, it runs the per-agent stale-id check (claude: `[ -f .../<id>.jsonl ]`; codex: `find ~/.codex/sessions -name "*<id>*"`; gemini: `grep -rl '"sessionId":"<id>"' ~/.gemini/tmp`) and fzf-prompts the user with up to three options:
+
+```
+1) use params + session   args=[...]   resume=<id>
+2) use params             args=[...]   fresh session
+3) use none               args=[<current>]   fresh session
+```
+
+fzf renders each option multi-line via `--read0` so long args / full session ids stay visible without truncation. ESC aborts the create flow. Option 3 deletes the saved config before proceeding so the watcher writes a fresh one cleanly.
+
+**Resume composition.** "use params + session" is per-agent because the resume surface differs:
+
+- claude / gemini — flag style. Strip any pre-existing `--resume <X>` from saved args, then append `--resume <session_id>`.
+- codex — subcommand. `codex resume <id>` is the syntax, so prepend `resume <id>` ahead of any saved flags. The strip phase also drops a leading `resume <X>` at args[0..1] from saved args (the codex case where the user originally launched with `codex resume <foo>`).
+
+The shape `compose = saved_args (stripped of any prior resume tokens) + agent's resume invocation` keeps the composed line idempotent under repeated restarts.
+
+**Post-Alt+x hint.** `cleanup_quit_marker` reads `agent-<tag>` *before* clearing it (so the hint names the right binary even though that file is about to disappear), then prints:
+
+```
+pair: saved session config for tag "pair-2" (claude).
+      resume with: pair resume pair-2
+```
+
+`SESSION` rather than `PAIR_TAG` is shown — that's what the user just saw in the UI tab. `pair resume <tag>` accepts both forms (it strips a leading `pair-`).
+
 ## Data layout
 
 Drafts and prompt history live under `${XDG_DATA_HOME:-~/.local/share}/pair/` (per XDG Base Directory spec), keyed by tag (the agent name, or a custom name from the create-flow prompt):
@@ -245,7 +300,9 @@ Internal: `~/.cache/pair/quit-<session>` — marker file used to communicate "us
 
 Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/outer-tty-<tag>` — single-line file containing the path to pair's controlling TTY at attach time. Read by `pair-notify` to emit OSC escapes that reach the outer terminal/wrapper. Rewritten on every attach (create or reattach); removed on full quit.
 
-Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/agent-<tag>` — single-line file recording which agent binary was launched in the session (`claude`, `codex`, ...). Written once at session create; read by `pair list` to display the agent column. Removed on full quit. The agent isn't otherwise recoverable post-create — env vars are frozen in pane shells, and custom session names (e.g. `pair-bugfix`) don't carry the agent in the name.
+Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/agent-<tag>` — single-line file recording which agent binary was launched in the session (`claude`, `codex`, ...). Written once at session create; read by `pair list` to display the agent column, and by `bin/pair`'s tag-restart agent-inference. Removed on full quit. The agent isn't otherwise recoverable post-create — env vars are frozen in pane shells, and custom session names (e.g. `pair-bugfix`) don't carry the agent in the name.
+
+Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/config-<tag>-<agent>.json` — saved restart configuration for `(tag, agent)` (issue #000016). `{ agent, args, session_id }`. Written by `bin/pair-session-watch.sh` once the agent's session file appears at create time; read by `bin/pair`'s create-flow prompt and by the post-Alt+x hint. Survives Alt+x (unlike `agent-<tag>`, which is cleared) — that's the whole point: it's the bridge between two pair launches against the same tag.
 
 **Migration from v1:** the launcher detects old `~/scratch/pair-{draft,log}-*.md` files on startup and moves them to the new XDG location, stripping the redundant `pair-` prefix from filenames.
 
