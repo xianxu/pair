@@ -560,8 +560,15 @@ fi
 # validated and the picker landed us in `create` straight from there.
 if [ -z "$forced_tag" ]; then
     if command -v zsh >/dev/null 2>&1; then
+        # `zsh -c` boots without sourcing .zshrc, so the line editor's
+        # keymap defaults to a raw state where Ctrl-A through Ctrl-F are
+        # all `self-insert` — meaning the user couldn't navigate left to
+        # edit the prefix of the prefilled tag (only append). `bindkey
+        # -e` selects the emacs keymap explicitly, giving the expected
+        # arrows / backspace / Ctrl-A / Ctrl-E bindings inside vared.
         if user_input=$(
             zsh -c '
+                bindkey -e
                 v=$1
                 vared -p "Session name: " v
                 print -r -- "$v"
