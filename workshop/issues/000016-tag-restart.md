@@ -108,9 +108,16 @@ multi-line "shows the values" requirement makes fzf the natural fit.
       "use params + session" strips any pre-existing `--resume <X>` from
       saved args before appending `--resume <session_id>`. ESC aborts
       the create flow.
-- [ ] **M3 — codex + gemini watchers.** Add per-agent discovery
-      (filename for codex, JSON-content scan for gemini). Same storage
-      shape, same prompt code path — just per-agent stale-check.
+- [x] **M3 — codex + gemini watchers.** Per-agent discovery added to
+      both the watcher (`bin/pair-session-watch.sh`) and the create-flow
+      stale-id check / resume composition in `bin/pair`:
+        * codex — recursive scan under `~/.codex/sessions`; id is the
+          trailing UUID in the rollout filename. Resume is a subcommand
+          (`codex resume <id>`), so compose prepends rather than appends.
+        * gemini — recursive scan under `~/.gemini/tmp`; the id required
+          by `--resume` is in the JSON body under `"sessionId"`, not the
+          filename (which only carries an 8-char prefix). Resume is
+          flag-style like claude.
 - [ ] **M4 — atlas + README.** Document tag-restart flow in
       `atlas/architecture.md`; add a short note in README's "session
       names" section.
@@ -159,6 +166,27 @@ multi-line "shows the values" requirement makes fzf the natural fit.
   that interact with `set -u`.
 - Full end-to-end verification still needs a live `pair claude` run by
   the user — can't be exercised from inside the current pair session.
+
+### M3 — 2026-05-06
+
+- Watcher (`bin/pair-session-watch.sh`) extended with per-agent
+  `case "$agent"` blocks. `find_args` and `extract_id` differ; the
+  outer poll/diff/write loop is unchanged.
+- Codex extraction uses bash `=~` regex against the filename to capture
+  the trailing 8-4-4-4-12 UUID (rollout-<ts>-<uuid>.jsonl).
+- Gemini extraction reads `.sessionId` from the JSON body via jq.
+  Tolerant of mid-write empty reads — the loop walks all new files in
+  the diff and falls through to the next poll tick if none yield an id.
+- `bin/pair` stale-id check: codex uses `find ... -name "*<id>*"`;
+  gemini uses `grep -rl "sessionId.*<id>"` against `~/.gemini/tmp`.
+- `bin/pair` resume composition: codex's resume is a subcommand
+  (`codex resume <id>`) so compose prepends `resume <id>` ahead of any
+  saved flags; claude/gemini stay flag-style. Strip phase covers both
+  shapes — `--resume <X>` anywhere, plus `resume <X>` at args[0..1] for
+  codex specifically.
+- Unit-tested all three agents' watchers + compose paths against
+  fixtures (mock home dirs with pre-existing + new session files);
+  empty-args and prior-resume-token cases verified.
 
 ### M2 follow-ups — 2026-05-05
 

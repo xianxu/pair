@@ -20,9 +20,15 @@
 # pre-startup, or wrote to an unexpected path). Bounded lifetime keeps a
 # stuck watcher from leaking when the parent zellij session goes away.
 #
-# Per-agent discovery surface differs (see workshop/issues/000016); only
-# claude is wired here for M1. Other agents are silent no-ops at this
-# milestone.
+# Per-agent discovery surface differs:
+#   claude  — ~/.claude/projects/<encoded-cwd>/<id>.jsonl. id = filename.
+#   codex   — ~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<id>.jsonl.
+#             id = trailing UUID (8-4-4-4-12) in filename. Recursive scan.
+#   gemini  — ~/.gemini/tmp/<project>/chats/session-<ts>-<short>.json,
+#             where <short> is the first 8 chars of the id. The full id
+#             needed for `--resume` lives inside the JSON body under
+#             "sessionId" — we read the body, not just the filename.
+# Other agents are silent no-ops.
 
 set -uo pipefail
 
@@ -37,17 +43,54 @@ DATA_DIR="${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}"
 mkdir -p "$DATA_DIR"
 out="$DATA_DIR/config-$tag-$agent.json"
 
-# Per-agent: where the session file shows up, and how to extract its id.
+# Per-agent: where session files show up, the find pattern that selects
+# only those files, and how to pull the session id out of one.
+extract_id() {
+    case "$agent" in
+        claude)
+            basename "$1" .jsonl
+            ;;
+        codex)
+            # Filename pattern: rollout-<ts>-<uuid>.jsonl. The session id
+            # is the trailing UUID (8-4-4-4-12). bash 3.2 supports =~.
+            local fn
+            fn=$(basename "$1" .jsonl)
+            if [[ "$fn" =~ ([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$ ]]; then
+                echo "${BASH_REMATCH[1]}"
+            fi
+            ;;
+        gemini)
+            # The filename has only an 8-char prefix of the id; the full
+            # id required by `gemini --resume` is in the JSON body. Best-
+            # effort: gemini may write the file before flushing sessionId,
+            # so this can return empty on early reads — caller retries.
+            jq -r '.sessionId // empty' "$1" 2>/dev/null
+            ;;
+    esac
+}
+
 case "$agent" in
     claude)
-        # Claude encodes the cwd by replacing `/` with `-` and stores the
-        # transcript at ~/.claude/projects/<encoded>/<session-id>.jsonl.
-        # The filename minus extension IS the session id — no body parse.
         encoded=$(printf '%s' "$cwd" | tr / -)
         watch_dir="$HOME/.claude/projects/$encoded"
+        find_args=(-maxdepth 1 -type f -name '*.jsonl')
+        ;;
+    codex)
+        # Codex shards by date subdir, so the find is recursive. The
+        # rollout- prefix narrows the match enough that scans are cheap
+        # even with a long history.
+        watch_dir="$HOME/.codex/sessions"
+        find_args=(-type f -name 'rollout-*.jsonl')
+        ;;
+    gemini)
+        # Gemini namespaces under ~/.gemini/tmp/<project>/chats/. The
+        # `<project>` segment varies across runs (a hash of the cwd, by
+        # observation), so we watch the whole tmp tree and filter by the
+        # `*/chats/` path component.
+        watch_dir="$HOME/.gemini/tmp"
+        find_args=(-type f -name 'session-*.json' -path '*/chats/*')
         ;;
     *)
-        # codex/gemini come in M3.
         exit 0
         ;;
 esac
@@ -56,34 +99,44 @@ mkdir -p "$watch_dir"
 
 # Snapshot the existing session files; new file = first one not in this
 # list. `sort` keeps `comm` happy below; both inputs must be sorted.
-existing=$(find "$watch_dir" -maxdepth 1 -type f -name '*.jsonl' 2>/dev/null | sort)
+existing=$(find "$watch_dir" "${find_args[@]}" 2>/dev/null | sort)
 
 deadline=$(( $(date +%s) + 60 ))
 while [ "$(date +%s)" -lt "$deadline" ]; do
-    current=$(find "$watch_dir" -maxdepth 1 -type f -name '*.jsonl' 2>/dev/null | sort)
+    current=$(find "$watch_dir" "${find_args[@]}" 2>/dev/null | sort)
     new=$(comm -13 <(printf '%s\n' "$existing") <(printf '%s\n' "$current"))
     if [ -n "$new" ]; then
-        f=$(printf '%s\n' "$new" | head -1)
-        sid=$(basename "$f" .jsonl)
+        # Walk all new files until one yields an id. Gemini in particular
+        # may create the file before the JSON body is complete, so the
+        # first hit can return empty — try the next, or wait for next tick.
+        sid=""
+        while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            sid=$(extract_id "$f")
+            [ -n "$sid" ] && break
+        done <<< "$new"
 
-        # Build the JSON via jq (already a brew dep) so escaping handles
-        # quotes/backslashes in args correctly. `--args` consumes the rest
-        # of the argv as positional strings, exposed as $ARGS.positional.
-        tmp=$(mktemp "$out.XXXXXX") || exit 0
-        # `${args[@]+"${args[@]}"}` safely expands to nothing when args is
-        # empty, working around bash 3.2's `set -u` treating empty arrays
-        # as unset (macOS still ships bash 3.2 by default).
-        if jq -n \
-              --arg agent "$agent" \
-              --arg sid "$sid" \
-              '{ agent: $agent, args: $ARGS.positional, session_id: $sid }' \
-              --args -- ${args[@]+"${args[@]}"} > "$tmp"
-        then
-            mv "$tmp" "$out"
-        else
-            rm -f "$tmp"
+        if [ -n "$sid" ]; then
+            # Build the JSON via jq (already a brew dep) so escaping handles
+            # quotes/backslashes in args correctly. `--args` consumes the rest
+            # of the argv as positional strings, exposed as $ARGS.positional.
+            #
+            # `${args[@]+"${args[@]}"}` safely expands to nothing when args is
+            # empty, working around bash 3.2's `set -u` treating empty arrays
+            # as unset (macOS still ships bash 3.2 by default).
+            tmp=$(mktemp "$out.XXXXXX") || exit 0
+            if jq -n \
+                  --arg agent "$agent" \
+                  --arg sid "$sid" \
+                  '{ agent: $agent, args: $ARGS.positional, session_id: $sid }' \
+                  --args -- ${args[@]+"${args[@]}"} > "$tmp"
+            then
+                mv "$tmp" "$out"
+            else
+                rm -f "$tmp"
+            fi
+            exit 0
         fi
-        exit 0
     fi
     sleep 0.1
 done

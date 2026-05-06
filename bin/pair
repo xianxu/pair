@@ -607,14 +607,31 @@ if [ -f "$config_file" ]; then
     saved_session=$(jq -r '.session_id // empty' "$config_file" 2>/dev/null)
 
     # Stale-id check: only offer "resume" if the agent's transcript file
-    # for this session id still exists. Per-agent surface — claude is the
-    # only one wired today; codex/gemini come in M3.
+    # for this session id still exists. Per-agent surface:
+    #   claude — direct path lookup (filename = session id)
+    #   codex  — recursive scan; id is in the filename
+    #   gemini — recursive scan; id is in the JSON body, not the filename
     has_resumable=false
     if [ -n "$saved_session" ]; then
         case "$AGENT" in
             claude)
                 encoded_cwd=$(printf '%s' "$PWD" | tr / -)
                 [ -f "$HOME/.claude/projects/$encoded_cwd/$saved_session.jsonl" ] && has_resumable=true
+                ;;
+            codex)
+                if [ -d "$HOME/.codex/sessions" ] && \
+                   find "$HOME/.codex/sessions" -type f -name "*${saved_session}*" 2>/dev/null \
+                       | head -1 | grep -q .; then
+                    has_resumable=true
+                fi
+                ;;
+            gemini)
+                if [ -d "$HOME/.gemini/tmp" ] && \
+                   grep -rl "\"sessionId\"[[:space:]]*:[[:space:]]*\"${saved_session}\"" \
+                        "$HOME/.gemini/tmp" 2>/dev/null \
+                       | head -1 | grep -q .; then
+                    has_resumable=true
+                fi
                 ;;
         esac
     fi
@@ -650,11 +667,17 @@ if [ -f "$config_file" ]; then
 
     case "$sel" in
         "1)"*)
-            # Strip any pre-existing `--resume X` from saved args so the
-            # composed line never duplicates the flag. Two-token sliding
-            # window — matches claude's `--resume <id>` shape.
+            # Strip any pre-existing resume tokens from saved args so the
+            # composed line never duplicates them. Two surfaces:
+            #   --resume <X>   (claude, gemini — flag style; anywhere in args)
+            #   resume <X>     (codex — subcommand; only valid as args[0..1])
             stripped=()
-            i=0; n=${#saved_args[@]}
+            n=${#saved_args[@]}
+            i=0
+            if [ "$AGENT" = "codex" ] && [ $n -ge 2 ] \
+                && [ "${saved_args[0]}" = "resume" ]; then
+                i=2
+            fi
             while [ $i -lt $n ]; do
                 if [ "${saved_args[$i]}" = "--resume" ]; then
                     i=$((i+2))
@@ -663,7 +686,19 @@ if [ -f "$config_file" ]; then
                     i=$((i+1))
                 fi
             done
-            agent_extra="${stripped[*]:+${stripped[*]} }--resume $saved_session"
+
+            case "$AGENT" in
+                codex)
+                    # Codex resume is `codex resume <id> [other args]` —
+                    # subcommand first, then any flags.
+                    agent_extra="resume $saved_session${stripped[*]:+ ${stripped[*]}}"
+                    ;;
+                *)
+                    # Flag-style: claude, gemini, anything else with a
+                    # `--resume <id>` style.
+                    agent_extra="${stripped[*]:+${stripped[*]} }--resume $saved_session"
+                    ;;
+            esac
             ;;
         "2)"*)
             # `:-` guards bash 3.2's `set -u` when saved_args is empty.
