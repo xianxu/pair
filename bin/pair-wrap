@@ -72,10 +72,14 @@ NOTIFY_MODE_DEFAULT = "native"
 # by update_agent_output) and fires emit_outer on first sighting (LRU
 # dedupes redraws). Set by main() once agent_basename is known.
 END_OF_TURN_BY_AGENT = {
-    # Claude Code: "✻ <PastTenseVerb> for Ns" in gray. Anchored ^✻ so the
-    # quoted-history form ("> ✻ Churned for 21s", different color) doesn't
-    # double-emit. ✻ = U+273B = 0xE2 0x9C 0xBB in UTF-8.
-    "claude": re.compile(rb"^\xe2\x9c\xbb\s*[A-Za-z]+\s+for\s+\d+s"),
+    # Claude Code: "✻ <PastTenseVerb> for <duration>" in gray, where
+    # duration is one or more `<digits><h|m|s>` components separated by
+    # whitespace — `21s`, `1m 52s`, `2h 13m 4s`. The original regex only
+    # matched the single-seconds form and missed every multi-component
+    # case (which is most non-trivial turns). Anchored ^✻ so the
+    # quoted-history form ("> ✻ Churned for 21s", different color)
+    # doesn't double-emit. ✻ = U+273B = 0xE2 0x9C 0xBB in UTF-8.
+    "claude": re.compile(rb"^\xe2\x9c\xbb\s*[A-Za-z]+\s+for\s+\d+[hms](?:\s+\d+[hms])*"),
 }
 
 # Agents whose colored-span extraction we trust. Powers nvim autocomplete
