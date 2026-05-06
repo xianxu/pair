@@ -61,6 +61,13 @@ vim.opt.expandtab = true
 vim.opt.shiftwidth = 2
 vim.opt.tabstop = 2
 
+-- Insert-mode cursor as a blinking block. Default (`ver25`, a thin
+-- vertical bar) gets lost against the text in the draft pane,
+-- especially after a quote-paste flash clears. Block + blink makes the
+-- caret position obvious. Normal-mode stays block (already obvious as
+-- the inverted cell).
+vim.opt.guicursor = 'n-v-c-sm:block,i-ci-ve:block-blinkon250-blinkoff250,r-cr-o:hor20'
+
 -- Disable nvim's right-click context menu. Default `mousemodel=popup_setpos`
 -- pops up a "Copy/Paste/..." menu that's confusing inside the pair draft pane;
 -- `extend` falls back to the vim-traditional behavior of extending the visual
