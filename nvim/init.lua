@@ -1526,7 +1526,7 @@ vim.keymap.set('n', 'ZQ', function() PairQuitWarn() end, { silent = true, desc =
 -- ---------------------------------------------------------------------------
 -- The zellij keybindings for Alt+x (full quit) and Alt+d (detach) route
 -- here instead of running the action directly. Both are easy to fat-finger
--- — Alt+x is unrecoverable (kills the zellij session, draft is truncated)
+-- — Alt+x is unrecoverable (kills the zellij session and its processes)
 -- and Alt+d drops the user out of a long-running attached session. The
 -- zellij side moves focus to nvim, ESCs into normal mode, and runs one of
 -- these via cmdline; vim.fn.confirm pops a modal Y/N (default No), and the
@@ -1534,7 +1534,7 @@ vim.keymap.set('n', 'ZQ', function() PairQuitWarn() end, { silent = true, desc =
 -- nvim has no direct zellij IPC and re-binding zellij keybindings to first
 -- check a flag is more state than this is worth.
 function _G.PairConfirmQuit()
-  local ans = vim.fn.confirm('Quit pair session? This kills the session and clears the draft.', '&Yes\n&No', 2)
+  local ans = vim.fn.confirm('Quit pair session? This kills the session and all its processes.', '&Yes\n&No', 2)
   if ans == 1 then
     vim.fn.system('pair-quit.sh')
   end
@@ -1550,12 +1550,12 @@ end
 -- ---------------------------------------------------------------------------
 -- Layout sizing: small (initial bottom split) ↔ half (~50/50) ↔ full.
 -- ---------------------------------------------------------------------------
--- Three keys drive this: Alt+Up (PairLayoutBigger) and Alt+Down
--- (PairLayoutSmaller) step along the ladder; Alt+u (PairLayoutCycle) wraps
--- past full back to small. zellij's `resize` action steps by ~5% of screen
--- with no exact-size option, so HALF is approximated by N increments;
--- symmetric N-up / N-down keeps small↔half drift bounded to per-step
--- rounding. Fullscreen is its own zellij toggle, distinct from resize.
+-- Two keys drive this: Alt+Up (PairLayoutBigger) and Alt+Down
+-- (PairLayoutSmaller) step along the ladder, clamped at the ends.
+-- zellij's `resize` action steps by ~5% of screen with no exact-size
+-- option, so HALF is approximated by N increments; symmetric N-up /
+-- N-down keeps small↔half drift bounded to per-step rounding.
+-- Fullscreen is its own zellij toggle, distinct from resize.
 local LAYOUT_STATE_FILE = (vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/share'))
   .. '/pair/layout-mode-' .. (vim.env.PAIR_TAG or vim.env.PAIR_AGENT or 'claude')
 -- zellij's resize step is ~5% of total height. Initial draft pane is 22%
@@ -1622,11 +1622,6 @@ end
 function _G.PairLayoutSmaller()
   local cur = LAYOUT_LADDER[layout_read()] or 1
   layout_goto(LAYOUT_BY_LEVEL[math.max(cur - 1, 1)])
-end
-
-function _G.PairLayoutCycle()
-  local cur = LAYOUT_LADDER[layout_read()] or 1
-  layout_goto(LAYOUT_BY_LEVEL[(cur % #LAYOUT_BY_LEVEL) + 1])
 end
 
 -- Reset on nvim startup: zellij always boots into the layout's initial
@@ -1859,7 +1854,7 @@ vim.api.nvim_create_autocmd('ColorScheme', { group = pair_aug, callback = pair_a
 -- "draft" and the cheatsheet means the title truncates *during* the
 -- spaces, so the visible tab title stays short ("pair-pair: draft") while
 -- the in-frame display shows the full cheatsheet right-aligned.
-local PAIR_CHEATSHEET = 'Alt: ⏎=send  u=⇱  i=img  d=detach  h=help  x=quit'
+local PAIR_CHEATSHEET = 'Alt: ⏎=send  ↕=size  i=img  d=detach  x=quit'
 
 -- UTF-8 encoding of U+00A0 NO-BREAK SPACE. Same display width as a regular
 -- space but zellij doesn't trim/collapse it the way it does ordinary

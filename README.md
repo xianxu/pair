@@ -54,7 +54,7 @@ Otherwise without `>`. Focus' automatically put at the likely position you want 
 | **Alt+q** | nvim (normal/insert) | Push current buffer to the front of the queue (`+1`). From `*` clears the draft; from `+N` it's move-to-front. |
 | **Alt+Backspace** | nvim (normal/insert), at `+N` | Delete the current queued prompt without sending. Items behind shift down so you can delete a run by tapping repeatedly. |
 | **Shift+Alt+Backspace** | nvim (normal/insert) | Erase history, draft, and queue for this session — "start anew". Confirmation prompt defaults to No. Hard delete (no archive). |
-| **Alt+u** | any pane | Toggle the nvim pane among 8 lines, 1/2 screen, fullscreen (works from either pane) |
+| **Alt+↑** / **Alt+↓** | any pane | Step the nvim pane along a small (8 lines) ↔ half (~50%) ↔ full ladder one rung at a time (works from either pane). |
 | **Alt+i** | nvim (normal/insert) | Attach clipboard image to the agent and insert `[Image #N]` reference at cursor. |
 | **Alt+i** | when inside [Image tag] | Sync the internal counter to N (manual-correction path), allowing user to edit if the cursor between nvim and agent gets out of sync. |
 | **Alt+d** | any pane | Detach from the current session (re-attach later via `pair`) |

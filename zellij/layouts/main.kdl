@@ -33,7 +33,7 @@ layout {
         // in nvim/init.lua.
         // size as a percentage (not an integer row count) so the pane is
         // resizable at runtime — integer sizes are tagged FIXED by zellij and
-        // refuse `resize` actions, which breaks the Alt+u layout cycle. 22%
+        // refuse `resize` actions, which breaks the Alt+↑/↓ layout step. 22%
         // approximates the prior 11-line default on a ~50-row terminal.
         pane size="22%" name="draft" focus=true {
             command "sh"

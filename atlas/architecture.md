@@ -62,7 +62,7 @@ Keybinds added on top of zellij defaults (`clear-defaults=false`):
 
 - `unbind "Alt i"` — release Alt+i (zellij's default binds it to MoveTab; we want nvim to see it for image attach).
 - `Alt+d` — `Detach` — detach from the session.
-- `Alt+u` — `MoveFocus Down; ToggleFocusFullscreen` — toggle nvim pane fullscreen, regardless of which pane has focus.
+- `Alt+↑` / `Alt+↓` — route to nvim's `PairLayoutBigger` / `PairLayoutSmaller` — step the nvim pane along a small ↔ half ↔ full ladder, regardless of which pane has focus.
 - `Alt+x` — `Run "pair-quit.sh"` — full quit (writes marker, kills session).
 
 Alt+n (clipboard → nvim quote) used to be a manual keybind here too, but became redundant once `copy_command` started auto-firing on mouse-up. Removed.
@@ -90,9 +90,9 @@ Pane detection: parse `list-panes --json --command`, find the focused pane, chec
 
 ### `bin/pair-quit.sh` — Alt+x handler
 
-Touches the marker file `~/.cache/pair/quit-$ZELLIJ_SESSION_NAME`, truncates the per-tag draft file (`$PAIR_DATA_DIR/draft-<tag>.md`) so the next session starts on a blank buffer, then `exec zellij kill-session $ZELLIJ_SESSION_NAME`. The kill terminates the session including the script itself; on the launcher side, `bin/pair` resumes, sees the marker, and runs `delete-session --force` to clean up the resurrect entry.
+Touches the marker file `~/.cache/pair/quit-$ZELLIJ_SESSION_NAME`, then `exec zellij kill-session $ZELLIJ_SESSION_NAME`. The kill terminates the session including the script itself; on the launcher side, `bin/pair` resumes, sees the marker, and runs `delete-session --force` to clean up the resurrect entry.
 
-The draft is truncated rather than removed so its persistent-undo entry under `~/.local/share/pair/undo/` (keyed by file path) stays addressable — if you full-quit by accident you can still re-launch and `u` your way back to recent state.
+Alt+x leaves the draft, queue, and history intact — the next session resumes them. Use Shift+Alt+Backspace (`forget_all`) for the destructive "start anew" path.
 
 ### Outer-TTY capture and notification routing — `bin/pair-wrap`, `bin/pair-notify`
 

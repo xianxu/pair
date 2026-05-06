@@ -31,9 +31,9 @@ keybinds clear-defaults=false {
     //
     // Alt+Left / Alt+Right are zellij's default MoveFocus bindings; we use
     // them in nvim for the prompt-history navigation (issue #000015), and
-    // pair's two-pane layout doesn't need pane-focus arrows anyway (Alt+u
-    // toggles the nvim pane fullscreen, which covers the only useful focus
-    // change between agent ↔ draft).
+    // pair's two-pane layout doesn't need pane-focus arrows anyway —
+    // Alt+Up / Alt+Down (rebound below to step the layout ladder) cover
+    // the only useful agent ↔ draft size change.
     shared {
         unbind "Alt i"
         unbind "Alt Left"
@@ -66,24 +66,15 @@ keybinds clear-defaults=false {
             Write 13;
         }
 
-        // Alt+u — cycle the nvim draft pane through three sizes: small (the
-        // initial bottom split) → half (~50/50) → full → small. Routed
-        // through nvim because zellij's keybind language can't run a shell
-        // command silently and the cycle needs persistent state plus a loop
-        // of `zellij action resize` calls. MoveFocus Down lands in nvim
-        // whether the user started in the agent pane or in nvim; the ESC +
-        // cmdline dance matches the Alt+d / Alt+x flow.
-        bind "Alt u" {
-            MoveFocus "Down";
-            Write 27;
-            WriteChars ":lua PairLayoutCycle()";
-            Write 13;
-        }
-
-        // Alt+Up / Alt+Down — directional version of the layout cycle. Up
-        // steps toward bigger nvim (small → half → full), Down steps toward
-        // smaller (full → half → small). Each is clamped at the end of the
-        // ladder. Same nvim-routing pattern as Alt+u.
+        // Alt+Up / Alt+Down — step the nvim draft pane along a three-rung
+        // ladder: small (the initial bottom split) ↔ half (~50/50) ↔ full.
+        // Up steps toward bigger nvim, Down toward smaller; each is clamped
+        // at the end of the ladder. Routed through nvim because zellij's
+        // keybind language can't run a shell command silently and the step
+        // needs persistent state plus a loop of `zellij action resize`
+        // calls. MoveFocus Down lands in nvim whether the user started in
+        // the agent pane or in nvim; the ESC + cmdline dance matches the
+        // Alt+d / Alt+x flow.
         bind "Alt Up" {
             MoveFocus "Down";
             Write 27;

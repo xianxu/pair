@@ -21,13 +21,8 @@ fi
 
 touch "$MARKER_DIR/quit-$session"
 
-# Clear the draft so the next session starts on a blank buffer. Truncate
-# rather than rm so that the file's persistent-undo entry stays addressable
-# (the undo history under ~/.local/share/pair/undo/ is keyed by file path).
-# Best-effort: silently skip if env vars or file are missing.
-data_dir="${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}"
-tag="${PAIR_TAG:-${PAIR_AGENT:-claude}}"
-draft="$data_dir/draft-$tag.md"
-[ -f "$draft" ] && : > "$draft"
+# Note: the draft (`*` slot), queue (`+N`), and history (`-N`) all survive
+# Alt+x. Use Shift+Alt+Backspace (forget_all) for the destructive "start
+# anew" path — Alt+x is just "kill the session and its processes".
 
 exec zellij kill-session "$session"
