@@ -159,3 +159,21 @@ multi-line "shows the values" requirement makes fzf the natural fit.
   that interact with `set -u`.
 - Full end-to-end verification still needs a live `pair claude` run by
   the user — can't be exercised from inside the current pair session.
+
+### M2 follow-ups — 2026-05-05
+
+After dogfooding the v1.10 tag-restart prompt:
+
+- Multi-line fzf options (`--read0`) so long args / full session ids stay
+  visible — single-line truncated on terminal width and lost the resume
+  id past 8 chars.
+- `pair resume <tag>` subcommand replaces `-t <tag>` as the documented
+  restart path. Same picker+name-prompt skip; cleaner verb-shaped UX.
+  `-t` was never released so dropping it is free; the parser now claims
+  `resume` as a subcommand (sits alongside `list`, `help`).
+- Agent inference: `pair resume <tag>` no longer needs an explicit agent
+  positional. Reads `agent-<tag>` (live/recently-detached) or falls back
+  to the agent embedded in `config-<tag>-<agent>.json` (post-Alt+x).
+- Post-Alt+x hint shows the SESSION name (`pair-2`) rather than the
+  internal PAIR_TAG ("2") — matches the UI tab the user just saw.
+  `resume` accepts both forms (it strips a leading `pair-`).
