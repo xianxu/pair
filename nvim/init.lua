@@ -1548,6 +1548,93 @@ function _G.PairConfirmDetach()
 end
 
 -- ---------------------------------------------------------------------------
+-- Layout sizing: small (initial bottom split) ↔ half (~50/50) ↔ full.
+-- ---------------------------------------------------------------------------
+-- Three keys drive this: Alt+Up (PairLayoutBigger) and Alt+Down
+-- (PairLayoutSmaller) step along the ladder; Alt+u (PairLayoutCycle) wraps
+-- past full back to small. zellij's `resize` action steps by ~5% of screen
+-- with no exact-size option, so HALF is approximated by N increments;
+-- symmetric N-up / N-down keeps small↔half drift bounded to per-step
+-- rounding. Fullscreen is its own zellij toggle, distinct from resize.
+local LAYOUT_STATE_FILE = (vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/share'))
+  .. '/pair/layout-mode-' .. (vim.env.PAIR_TAG or vim.env.PAIR_AGENT or 'claude')
+-- zellij's resize step is ~5% of total height. Initial draft pane is 22%
+-- (see zellij/layouts/main.kdl), so 6 increments lands near 52% — close to
+-- 50/50. Symmetric N-up / N-down keeps small ↔ half drift bounded.
+local LAYOUT_HALF_STEPS = 6
+
+local function layout_read()
+  local f = io.open(LAYOUT_STATE_FILE, 'r')
+  if not f then return 'small' end
+  local s = f:read('*l')
+  f:close()
+  return s or 'small'
+end
+
+local function layout_write(s)
+  local f = io.open(LAYOUT_STATE_FILE, 'w')
+  if f then f:write(s); f:close() end
+end
+
+local function zellij_resize(direction)
+  for _ = 1, LAYOUT_HALF_STEPS do
+    vim.fn.system({ 'zellij', 'action', 'resize', direction, 'up' })
+  end
+end
+
+-- Three layout sizes form a ladder: small ↔ half ↔ full. Transitions only
+-- happen between adjacent rungs, so each step is a single zellij action
+-- (resize for small↔half, toggle-fullscreen for half↔full). Multi-rung
+-- moves (e.g. small → full directly) compose two single steps.
+local LAYOUT_LADDER = { small = 1, half = 2, full = 3 }
+local LAYOUT_BY_LEVEL = { 'small', 'half', 'full' }
+
+local function layout_step(from, to)
+  if from == 'small' and to == 'half' then
+    zellij_resize('increase')
+  elseif from == 'half' and to == 'small' then
+    zellij_resize('decrease')
+  elseif from == 'half' and to == 'full' then
+    vim.fn.system({ 'zellij', 'action', 'toggle-fullscreen' })
+  elseif from == 'full' and to == 'half' then
+    vim.fn.system({ 'zellij', 'action', 'toggle-fullscreen' })
+  end
+end
+
+local function layout_goto(target)
+  local cur = layout_read()
+  local from = LAYOUT_LADDER[cur] or 1
+  local to = LAYOUT_LADDER[target]
+  if not to or from == to then return end
+  local dir = to > from and 1 or -1
+  for level = from, to - dir, dir do
+    local next_level = level + dir
+    layout_step(LAYOUT_BY_LEVEL[level], LAYOUT_BY_LEVEL[next_level])
+  end
+  layout_write(target)
+end
+
+function _G.PairLayoutBigger()
+  local cur = LAYOUT_LADDER[layout_read()] or 1
+  layout_goto(LAYOUT_BY_LEVEL[math.min(cur + 1, #LAYOUT_BY_LEVEL)])
+end
+
+function _G.PairLayoutSmaller()
+  local cur = LAYOUT_LADDER[layout_read()] or 1
+  layout_goto(LAYOUT_BY_LEVEL[math.max(cur - 1, 1)])
+end
+
+function _G.PairLayoutCycle()
+  local cur = LAYOUT_LADDER[layout_read()] or 1
+  layout_goto(LAYOUT_BY_LEVEL[(cur % #LAYOUT_BY_LEVEL) + 1])
+end
+
+-- Reset on nvim startup: zellij always boots into the layout's initial
+-- state (the size="22%" draft pane in zellij/layouts/main.kdl), so any
+-- persisted state from a prior session is stale.
+layout_write('small')
+
+-- ---------------------------------------------------------------------------
 -- keymaps
 -- ---------------------------------------------------------------------------
 
