@@ -44,6 +44,19 @@ vim.g.markdown_fenced_languages = {
 -- syntax groups get bold/italic but no fg colors. habamax is bundled and
 -- gives readable colors for markdown headings, code spans, links, etc.
 vim.cmd('colorscheme slate')
+-- Slate's stock Comment is `#666666` — under pair's dark insert-mode bg
+-- (`#1c1c1c`) the contrast lands below WCAG AA, so `===` annotations and
+-- inline comments in any embedded language render too faded to read at a
+-- glance. Lift to a slightly brighter gray; italic conveys "annotation"
+-- without leaning on color. Reapplied on ColorScheme so a future theme
+-- swap can override.
+local function pair_apply_comment_hl()
+  vim.api.nvim_set_hl(0, 'Comment', {
+    fg = '#909090', ctermfg = 246, italic = true,
+  })
+end
+pair_apply_comment_hl()
+vim.api.nvim_create_autocmd('ColorScheme', { callback = pair_apply_comment_hl })
 
 -- FileType=markdown setup. Runs after vim's stock markdown.vim, so any
 -- syntax matches we add here aren't clobbered, and any `highlight! link`
