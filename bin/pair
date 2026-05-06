@@ -28,6 +28,8 @@ pair — Neovim-backed input field for any TUI coding agent.
 USAGE
   pair                          claude in default session
   pair <agent>                  e.g. pair codex / pair gemini
+  pair -t <tag>                 attach pair-<tag> if it exists, else create
+                                with that tag (skips picker + name prompt)
   pair [<agent>] -- <args>      forward args to the agent on create
                                 e.g. pair claude -- --resume
                                      pair -- --dangerously-skip-permissions
@@ -36,10 +38,11 @@ USAGE
   pair -h, --help               this message
 
   Use `--` to separate pair's args from the agent's args. Without `--`,
-  pair only accepts `<agent>` as a positional.
+  pair only accepts `<agent>` and `-t <tag>` as positionals/flags.
 
   When creating a new session you'll be prompted for a name; type any
   custom name (e.g. "bugfix") to make it independent of other sessions.
+  `-t <tag>` skips that prompt — use it to resume a saved tag directly.
 
   Agent args (after `--`) only apply on CREATE. Reattaching to an
   existing session uses whatever args the agent was originally started
@@ -209,7 +212,9 @@ esac
 #   pair codex -- -p "hi"                 → codex -p hi   (word-split caveat)
 AGENT=""
 agent_extra=""
+forced_tag=""
 seen_dd=false
+expect_tag=false
 for arg in "$@"; do
     if $seen_dd; then
         if [ -z "$agent_extra" ]; then
@@ -217,8 +222,13 @@ for arg in "$@"; do
         else
             agent_extra="$agent_extra $arg"
         fi
+    elif $expect_tag; then
+        forced_tag="$arg"
+        expect_tag=false
     elif [ "$arg" = "--" ]; then
         seen_dd=true
+    elif [ "$arg" = "-t" ] || [ "$arg" = "--tag" ]; then
+        expect_tag=true
     elif [ -z "$AGENT" ]; then
         AGENT="$arg"
     else
@@ -227,7 +237,25 @@ for arg in "$@"; do
         exit 1
     fi
 done
+if $expect_tag; then
+    echo "pair: -t/--tag requires a value (e.g. pair -t bugfix)" >&2
+    exit 1
+fi
 [ -z "$AGENT" ] && AGENT="claude"
+
+# Validate forced_tag — same charset as the interactive name prompt.
+if [ -n "$forced_tag" ]; then
+    case "$forced_tag" in
+        pair-*) forced_tag="${forced_tag#pair-}" ;;
+    esac
+    case "$forced_tag" in
+        ""|*[!A-Za-z0-9_-]*)
+            echo "pair: invalid tag '$forced_tag'." >&2
+            echo "      allowed: letters, digits, dash, underscore." >&2
+            exit 1
+            ;;
+    esac
+fi
 
 # PAIR_AGENT is the command to exec in the agent pane on create.
 # PAIR_AGENT_ARGS is appended on the agent pane's command line at create.
@@ -336,7 +364,19 @@ chosen_session=""
 chosen_tag=""
 action=""   # "attach" | "create"
 
-if [ ${#detached_list[@]} -eq 0 ]; then
+# `-t <tag>` short-circuits both the picker and the name prompt: attach if
+# pair-<tag> already exists in any state, otherwise create with that tag.
+# This is the "resume by name" path — pair off the hint printed at Alt+x.
+if [ -n "$forced_tag" ]; then
+    if zellij list-sessions --short 2>/dev/null | grep -qx "pair-${forced_tag}"; then
+        chosen_session="pair-${forced_tag}"
+        chosen_tag="$forced_tag"
+        action=attach
+    else
+        chosen_tag="$forced_tag"
+        action=create
+    fi
+elif [ ${#detached_list[@]} -eq 0 ]; then
     chosen_tag="$free_slot_tag"
     action=create
 else
@@ -376,6 +416,10 @@ cleanup_quit_marker() {
     local marker="$HOME/.cache/pair/quit-$SESSION"
     if [ -f "$marker" ]; then
         rm -f "$marker"
+        # Capture the agent BEFORE the file is cleared below, so the resume
+        # hint can name the right binary.
+        local quit_agent
+        quit_agent=$(cat "$DATA_DIR/agent-${PAIR_TAG}" 2>/dev/null || echo "$AGENT")
         zellij delete-session "$SESSION" --force >/dev/null 2>&1 || true
         # Defensive belt-and-suspenders: if a zellij --server process for this
         # session is still alive after delete-session (rare but seen — e.g.
@@ -385,6 +429,16 @@ cleanup_quit_marker() {
         pkill -9 -f "zellij --server .*/${SESSION}\$" >/dev/null 2>&1 || true
         rm -f "$DATA_DIR/outer-tty-${PAIR_TAG}" "$DATA_DIR/agent-${PAIR_TAG}" \
               "$DATA_DIR/agent-output-${PAIR_TAG}"
+
+        # If the watcher captured a session config for this (tag, agent),
+        # show the user the one-liner that resumes it. config-<tag>-<agent>
+        # is what the create-flow prompt reads — its presence here is the
+        # signal that the resume path will work next time.
+        if [ -f "$DATA_DIR/config-${PAIR_TAG}-${quit_agent}.json" ]; then
+            printf 'pair: saved session config for tag "%s" (%s).\n' \
+                "$PAIR_TAG" "$quit_agent"
+            printf '      resume with: pair %s -t %s\n' "$quit_agent" "$PAIR_TAG"
+        fi
     fi
 }
 
@@ -452,42 +506,47 @@ fi
 # editable prompt to zsh's `vared`, which is universally available on
 # macOS and Linux. The vared editor UI runs on /dev/tty; the captured
 # stdout is just the final value.
-if command -v zsh >/dev/null 2>&1; then
-    if user_input=$(
-        zsh -c '
-            v=$1
-            vared -p "Session name: " v
-            print -r -- "$v"
-        ' _ "$chosen_tag" </dev/tty 2>/dev/tty
-    ); then :; else
-        echo >/dev/tty
-        exit 0
+#
+# Skipped when -t/--tag is given: forced_tag has already been validated
+# and the picker landed us in `create` straight from there.
+if [ -z "$forced_tag" ]; then
+    if command -v zsh >/dev/null 2>&1; then
+        if user_input=$(
+            zsh -c '
+                v=$1
+                vared -p "Session name: " v
+                print -r -- "$v"
+            ' _ "$chosen_tag" </dev/tty 2>/dev/tty
+        ); then :; else
+            echo >/dev/tty
+            exit 0
+        fi
+    else
+        # No zsh — fall back to a non-editable [default]-style prompt.
+        printf 'Session name [%s]: ' "$chosen_tag" >/dev/tty
+        if ! read -r user_input </dev/tty; then
+            echo >/dev/tty
+            exit 0
+        fi
     fi
-else
-    # No zsh — fall back to a non-editable [default]-style prompt.
-    printf 'Session name [%s]: ' "$chosen_tag" >/dev/tty
-    if ! read -r user_input </dev/tty; then
-        echo >/dev/tty
-        exit 0
-    fi
-fi
-user_input="${user_input:-$chosen_tag}"
-case "$user_input" in
-    pair-*) typed_tag="${user_input#pair-}" ;;
-    *)      typed_tag="$user_input" ;;
-esac
-case "$typed_tag" in
-    ""|*[!A-Za-z0-9_-]*)
-        echo "pair: invalid name '$user_input'." >&2
-        echo "      allowed: letters, digits, dash, underscore." >&2
+    user_input="${user_input:-$chosen_tag}"
+    case "$user_input" in
+        pair-*) typed_tag="${user_input#pair-}" ;;
+        *)      typed_tag="$user_input" ;;
+    esac
+    case "$typed_tag" in
+        ""|*[!A-Za-z0-9_-]*)
+            echo "pair: invalid name '$user_input'." >&2
+            echo "      allowed: letters, digits, dash, underscore." >&2
+            exit 1
+            ;;
+    esac
+    if zellij list-sessions --short 2>/dev/null | grep -qx "pair-${typed_tag}"; then
+        echo "pair: session 'pair-${typed_tag}' already exists." >&2
         exit 1
-        ;;
-esac
-if zellij list-sessions --short 2>/dev/null | grep -qx "pair-${typed_tag}"; then
-    echo "pair: session 'pair-${typed_tag}' already exists." >&2
-    exit 1
+    fi
+    chosen_tag="$typed_tag"
 fi
-chosen_tag="$typed_tag"
 
 # ---------------------------------------------------------------------------
 # Tag-restart prompt (issue #000016)
