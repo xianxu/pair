@@ -541,9 +541,22 @@ local function reflow_par(body)
   return out
 end
 
+-- Strip leading/trailing whitespace (spaces, tabs, newlines) from the whole
+-- selection. Mouse drags often grab a stray space or newline at either end;
+-- trimming makes the inline-paste separator logic predictable (it can rely
+-- on body never ending in whitespace) and keeps quote blocks from rendering
+-- with `>     ` indents or trailing spaces. Interior indentation is left
+-- alone — only the global ends are trimmed.
+local function trim_ends(s)
+  s = s:gsub('^%s+', '')
+  s = s:gsub('%s+$', '')
+  return s
+end
+
 local function paste_as_quote(body, row)
-  body = body:gsub('\n+$', '')
-  local reflowed = reflow_par(body):gsub('\n+$', '')
+  body = trim_ends(body)
+  if body == '' then return end
+  local reflowed = trim_ends(reflow_par(body))
   local quoted_lines = {}
   for line in (reflowed .. '\n'):gmatch('([^\n]*)\n') do
     quoted_lines[#quoted_lines + 1] = '> ' .. line
@@ -586,13 +599,13 @@ local function paste_as_quote(body, row)
 end
 
 local function paste_inline(body, row, col)
-  body = body:gsub('\n+$', '')
+  body = trim_ends(body)
   if body == '' then return end
-  body = reflow_par(body):gsub('\n+$', '')
-  -- Inline insertions are followed by user-typed continuation; if the
-  -- selection didn't already end in whitespace, add a single space so the
-  -- user can start typing without manually inserting a separator.
-  if not body:match('%s$') then body = body .. ' ' end
+  body = trim_ends(reflow_par(body))
+  -- Inline insertions are followed by user-typed continuation. body has
+  -- been trimmed, so it never ends in whitespace — append a single space
+  -- as the separator so the user can start typing immediately.
+  body = body .. ' '
   local lines = vim.split(body, '\n', { plain = true })
 
   local buf = vim.api.nvim_get_current_buf()
