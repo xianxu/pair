@@ -488,6 +488,88 @@ if zellij list-sessions --short 2>/dev/null | grep -qx "pair-${typed_tag}"; then
 fi
 chosen_tag="$typed_tag"
 
+# ---------------------------------------------------------------------------
+# Tag-restart prompt (issue #000016)
+# ---------------------------------------------------------------------------
+# If we have a saved config for (tag, agent) from a prior launch, ask the
+# user whether to reuse the saved args (and resume the agent's session if
+# the agent's transcript is still on disk). This is the place: the tag has
+# just been committed; agent + agent_extra are known; the watcher and
+# zellij launch happen below.
+#
+# fzf is already a hard dep (used for the session picker). Each option line
+# spells out the values it will apply so the user can pick without flipping
+# context. ESC aborts the create flow — same posture as the name prompt.
+config_file="$DATA_DIR/config-${chosen_tag}-${AGENT}.json"
+if [ -f "$config_file" ]; then
+    # Read saved args as a properly-delimited stream; mapfile would be
+    # cleaner but is bash 4+ and macOS still ships 3.2.
+    saved_args=()
+    while IFS= read -r line; do saved_args+=("$line"); done \
+        < <(jq -r '.args[]?' "$config_file" 2>/dev/null)
+    saved_session=$(jq -r '.session_id // empty' "$config_file" 2>/dev/null)
+
+    # Stale-id check: only offer "resume" if the agent's transcript file
+    # for this session id still exists. Per-agent surface — claude is the
+    # only one wired today; codex/gemini come in M3.
+    has_resumable=false
+    if [ -n "$saved_session" ]; then
+        case "$AGENT" in
+            claude)
+                encoded_cwd=$(printf '%s' "$PWD" | tr / -)
+                [ -f "$HOME/.claude/projects/$encoded_cwd/$saved_session.jsonl" ] && has_resumable=true
+                ;;
+        esac
+    fi
+
+    saved_display="${saved_args[*]:-<none>}"
+    current_display="${agent_extra:-<none>}"
+    short_session="${saved_session:0:8}"
+
+    options=()
+    $has_resumable && options+=("1) use params + session  →  args=[$saved_display]  resume=$short_session")
+    options+=("2) use params            →  args=[$saved_display]  fresh session")
+    options+=("3) use none              →  args=[$current_display]  fresh session")
+
+    sel=$(printf '%s\n' "${options[@]}" \
+        | fzf --header "saved config for tag '$chosen_tag' ($AGENT)" \
+              --height "$((${#options[@]}+3))" \
+              --no-info --layout reverse --no-multi \
+        || true)
+    [ -z "$sel" ] && { echo "pair: aborted." >&2; exit 1; }
+
+    case "$sel" in
+        "1)"*)
+            # Strip any pre-existing `--resume X` from saved args so the
+            # composed line never duplicates the flag. Two-token sliding
+            # window — matches claude's `--resume <id>` shape.
+            stripped=()
+            i=0; n=${#saved_args[@]}
+            while [ $i -lt $n ]; do
+                if [ "${saved_args[$i]}" = "--resume" ]; then
+                    i=$((i+2))
+                else
+                    stripped+=("${saved_args[$i]}")
+                    i=$((i+1))
+                fi
+            done
+            agent_extra="${stripped[*]:+${stripped[*]} }--resume $saved_session"
+            ;;
+        "2)"*)
+            # `:-` guards bash 3.2's `set -u` when saved_args is empty.
+            agent_extra="${saved_args[*]:-}"
+            ;;
+        "3)"*)
+            # Clean overwrite — drop the stale config; the watcher we
+            # spawn below will write a fresh one once the new session
+            # boots. agent_extra stays as whatever was passed on this
+            # command line.
+            rm -f "$config_file"
+            ;;
+    esac
+    export PAIR_AGENT_ARGS="$agent_extra"
+fi
+
 export PAIR_TAG="$chosen_tag"
 SESSION="pair-${PAIR_TAG}"
 DRAFT="$DATA_DIR/draft-${PAIR_TAG}.md"

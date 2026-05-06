@@ -101,10 +101,13 @@ multi-line "shows the values" requirement makes fzf the natural fit.
       claude projects dir at 100ms; writes `config-<tag>-claude.json`
       atomically on first new file; exits silently after 60s if nothing
       appears. Non-claude agents are no-ops at this milestone.
-- [ ] **M2 — create-flow prompt.** Read `config-<tag>-<agent>.json` after
-      tag commit; if present and (when relevant) session_id is fresh,
-      fzf prompt with three options; compose final args + (`--resume
-      <id>`) and pass to zellij new-session. Delete file on "use none".
+- [x] **M2 — create-flow prompt.** `bin/pair` reads
+      `config-<tag>-<agent>.json` after tag commit, runs the per-agent
+      stale-id check (claude only at this milestone), fzf-prompts with
+      the inline-value options, and composes the final agent_extra.
+      "use params + session" strips any pre-existing `--resume <X>` from
+      saved args before appending `--resume <session_id>`. ESC aborts
+      the create flow.
 - [ ] **M3 — codex + gemini watchers.** Add per-agent discovery
       (filename for codex, JSON-content scan for gemini). Same storage
       shape, same prompt code path — just per-agent stale-check.
@@ -132,3 +135,27 @@ multi-line "shows the values" requirement makes fzf the natural fit.
 - Manual end-to-end with a real claude session not exercised here (would
   disrupt the pair session this work is happening in); deferred to M2's
   end when the full read-back path exists.
+
+### M2 — 2026-05-05
+
+- Tag-restart prompt block added to `bin/pair` between tag-commit and the
+  watcher spawn. fzf with `--header` for the heading and three numbered
+  options whose lines spell out the values to be applied (per the user's
+  ask: show what each selection will do inline).
+- Stale-id check is per-agent: claude verifies
+  `~/.claude/projects/<encoded-cwd>/<id>.jsonl` exists. If absent the
+  "use params + session" row is silently dropped, leaving "use params /
+  use none".
+- "use params + session" strips any pre-existing `--resume <X>` from the
+  saved args before appending `--resume <session_id>`, so the composed
+  command line never carries a duplicate `--resume`.
+- Tested unit-style against fixtures:
+  - all option-building paths (valid / stale-cwd / missing-file /
+    empty-args)
+  - all choice-application paths (option 1 with/without prior `--resume`
+    in args; option 2 with empty args)
+- bash 3.2 compatibility: `agent_extra="${saved_args[*]:-}"` (empty-array
+  guard) and `${stripped[*]:+...}` (conditional separator) for cases
+  that interact with `set -u`.
+- Full end-to-end verification still needs a live `pair claude` run by
+  the user — can't be exercised from inside the current pair session.
