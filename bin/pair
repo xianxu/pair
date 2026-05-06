@@ -524,18 +524,31 @@ if [ -f "$config_file" ]; then
 
     saved_display="${saved_args[*]:-<none>}"
     current_display="${agent_extra:-<none>}"
-    short_session="${saved_session:0:8}"
 
+    # Multi-line options so long args / full session ids are visible without
+    # truncation. NUL-separated items + `--read0` is fzf's multi-line-render
+    # mode (added in 0.46, broadly available in homebrew fzf). Each item
+    # spans three lines: label, indented args, indented resume/freshness.
     options=()
-    $has_resumable && options+=("1) use params + session  →  args=[$saved_display]  resume=$short_session")
-    options+=("2) use params            →  args=[$saved_display]  fresh session")
-    options+=("3) use none              →  args=[$current_display]  fresh session")
+    if $has_resumable; then
+        options+=("$(printf '1) use params + session\n     args=[%s]\n     resume=%s' \
+                          "$saved_display" "$saved_session")")
+    fi
+    options+=("$(printf '2) use params\n     args=[%s]\n     fresh session' "$saved_display")")
+    options+=("$(printf '3) use none\n     args=[%s]\n     fresh session' "$current_display")")
 
-    sel=$(printf '%s\n' "${options[@]}" \
-        | fzf --header "saved config for tag '$chosen_tag' ($AGENT)" \
-              --height "$((${#options[@]}+3))" \
-              --no-info --layout reverse --no-multi \
-        || true)
+    # Height: roughly 3 lines per option + 2 for header/status/border.
+    fzf_height=$(( ${#options[@]} * 3 + 4 ))
+
+    sel=$(
+        for opt in "${options[@]}"; do
+            printf '%s\0' "$opt"
+        done | fzf --read0 \
+                   --header "saved config for tag '$chosen_tag' ($AGENT)" \
+                   --height "$fzf_height" \
+                   --no-info --layout reverse --no-multi \
+        || true
+    )
     [ -z "$sel" ] && { echo "pair: aborted." >&2; exit 1; }
 
     case "$sel" in
