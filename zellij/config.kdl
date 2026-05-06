@@ -52,6 +52,22 @@ keybinds clear-defaults=false {
         // the only quit path; it tears down cleanly via pair-quit.sh.
         unbind "Ctrl q"
 
+        // Lock pair into Normal mode. pair uses zellij as a pane manager,
+        // never as a multi-mode TUI, so every default Ctrl-chord that
+        // switches into another mode is pure surface area for mis-fires
+        // (Ctrl+g in particular sits next to common editor chords). With
+        // every mode-switch chord unbound, zellij can't leave Normal —
+        // recovery from a bad binding is to edit this file, no in-session
+        // escape hatch needed.
+        unbind "Ctrl g"
+        unbind "Ctrl p"
+        unbind "Ctrl t"
+        unbind "Ctrl n"
+        unbind "Ctrl h"
+        unbind "Ctrl s"
+        unbind "Ctrl o"
+        unbind "Ctrl b"
+
         // Alt+d — detach from the current pair session. Routed through nvim
         // for a confirm prompt before the actual detach (muscle-memory guard;
         // accidental Alt+d while in the agent pane is annoying to recover
