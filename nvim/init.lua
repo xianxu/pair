@@ -1671,20 +1671,23 @@ function _G.PairConfirmDetach()
 end
 
 -- ---------------------------------------------------------------------------
--- Layout sizing: small (initial bottom split) ↔ half (~50/50) ↔ full.
+-- Layout sizing: small (initial bottom split) ↔ third (~1/3) ↔ twothirds (~2/3).
 -- ---------------------------------------------------------------------------
 -- Two keys drive this: Alt+Up (PairLayoutBigger) and Alt+Down
 -- (PairLayoutSmaller) step along the ladder, clamped at the ends.
 -- zellij's `resize` action steps by ~5% of screen with no exact-size
--- option, so HALF is approximated by N increments; symmetric N-up /
--- N-down keeps small↔half drift bounded to per-step rounding.
--- Fullscreen is its own zellij toggle, distinct from resize.
+-- option, so each rung is approximated by N increments; symmetric N-up /
+-- N-down keeps drift bounded to per-step rounding.
 local LAYOUT_STATE_FILE = (vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/share'))
   .. '/pair/layout-mode-' .. (vim.env.PAIR_TAG or vim.env.PAIR_AGENT or 'claude')
 -- zellij's resize step is ~5% of total height. Initial draft pane is 22%
--- (see zellij/layouts/main.kdl), so 6 increments lands near 52% — close to
--- 50/50. Symmetric N-up / N-down keeps small ↔ half drift bounded.
-local LAYOUT_HALF_STEPS = 6
+-- (see zellij/layouts/main.kdl). Step counts are chosen so each rung lands
+-- close to its target ratio:
+--   small (22%)  → third       2 steps  → ~32%
+--   third (~32%) → twothirds   7 steps  → ~67%
+-- Symmetric N-up / N-down means a round-trip returns to the same position.
+local LAYOUT_STEPS_SMALL_TO_THIRD = 2
+local LAYOUT_STEPS_THIRD_TO_TWOTHIRDS = 7
 
 local function layout_read()
   local f = io.open(LAYOUT_STATE_FILE, 'r')
@@ -1699,28 +1702,28 @@ local function layout_write(s)
   if f then f:write(s); f:close() end
 end
 
-local function zellij_resize(direction)
-  for _ = 1, LAYOUT_HALF_STEPS do
+local function zellij_resize(direction, n)
+  for _ = 1, n do
     vim.fn.system({ 'zellij', 'action', 'resize', direction, 'up' })
   end
 end
 
--- Three layout sizes form a ladder: small ↔ half ↔ full. Transitions only
--- happen between adjacent rungs, so each step is a single zellij action
--- (resize for small↔half, toggle-fullscreen for half↔full). Multi-rung
--- moves (e.g. small → full directly) compose two single steps.
-local LAYOUT_LADDER = { small = 1, half = 2, full = 3 }
-local LAYOUT_BY_LEVEL = { 'small', 'half', 'full' }
+-- Three layout sizes form a ladder: small ↔ third ↔ twothirds. Transitions
+-- only happen between adjacent rungs; each step is a run of zellij `resize`
+-- actions sized for the rung delta. Multi-rung moves (e.g. small → twothirds
+-- directly) compose two single steps.
+local LAYOUT_LADDER = { small = 1, third = 2, twothirds = 3 }
+local LAYOUT_BY_LEVEL = { 'small', 'third', 'twothirds' }
 
 local function layout_step(from, to)
-  if from == 'small' and to == 'half' then
-    zellij_resize('increase')
-  elseif from == 'half' and to == 'small' then
-    zellij_resize('decrease')
-  elseif from == 'half' and to == 'full' then
-    vim.fn.system({ 'zellij', 'action', 'toggle-fullscreen' })
-  elseif from == 'full' and to == 'half' then
-    vim.fn.system({ 'zellij', 'action', 'toggle-fullscreen' })
+  if from == 'small' and to == 'third' then
+    zellij_resize('increase', LAYOUT_STEPS_SMALL_TO_THIRD)
+  elseif from == 'third' and to == 'small' then
+    zellij_resize('decrease', LAYOUT_STEPS_SMALL_TO_THIRD)
+  elseif from == 'third' and to == 'twothirds' then
+    zellij_resize('increase', LAYOUT_STEPS_THIRD_TO_TWOTHIRDS)
+  elseif from == 'twothirds' and to == 'third' then
+    zellij_resize('decrease', LAYOUT_STEPS_THIRD_TO_TWOTHIRDS)
   end
 end
 

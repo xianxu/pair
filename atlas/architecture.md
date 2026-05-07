@@ -67,7 +67,7 @@ Keybinds added on top of zellij defaults (`clear-defaults=false`):
 
 - `unbind "Alt i"` — release Alt+i (zellij's default binds it to MoveTab; we want nvim to see it for image attach).
 - `Alt+d` — `Detach` — detach from the session.
-- `Alt+↑` / `Alt+↓` — route to nvim's `PairLayoutBigger` / `PairLayoutSmaller` — step the nvim pane along a small ↔ half ↔ full ladder, regardless of which pane has focus.
+- `Alt+↑` / `Alt+↓` — route to nvim's `PairLayoutBigger` / `PairLayoutSmaller` — step the nvim pane along a small ↔ 1/3 ↔ 2/3 ladder, regardless of which pane has focus.
 - `Alt+x` — `Run "pair-quit.sh"` — full quit (writes marker, kills session).
 
 Alt+n (clipboard → nvim quote) used to be a manual keybind here too, but became redundant once `copy_command` started auto-firing on mouse-up. Removed.

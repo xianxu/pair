@@ -19,6 +19,42 @@
 
 set -euo pipefail
 
+# Wrap zellij with a hard timeout for read-only IPC. The daemon socket can
+# wedge if an earlier client got stuck (seen 2026-05-06: a `list-sessions`
+# from hours prior held the socket and every new pair launch piled up behind
+# it). pair makes several of these per launch, so one wedge cascades into
+# unkillable bash trees. 5s is generous — healthy responses are <100ms; if
+# it doesn't return by then, something's wrong and falling through is better
+# than hanging. Long-running zellij invocations (attach, new-session) are
+# intentionally NOT wrapped — they're meant to block.
+zj() {
+    local secs=5
+    if command -v gtimeout >/dev/null 2>&1; then
+        gtimeout "$secs" zellij "$@"
+    elif command -v timeout >/dev/null 2>&1; then
+        timeout "$secs" zellij "$@"
+    else
+        # Pure-bash fallback for systems without coreutils' timeout (default
+        # macOS). Run zellij in the background, arm a watchdog, wait.
+        #
+        # The watchdog's stdio is redirected to /dev/null. Otherwise, in a
+        # pipeline like `zj list-sessions | awk ...`, the watchdog subshell
+        # inherits stdout = pipe-to-awk; when we SIGTERM it after zellij
+        # exits, bash dies but the orphan `sleep` child keeps the pipe FD
+        # open, so awk waits for EOF until the full $secs elapses. With N
+        # piped zj calls in pair's startup, that compounds (we saw N×5s).
+        zellij "$@" &
+        local pid=$!
+        ( sleep "$secs"; kill -9 "$pid" 2>/dev/null ) </dev/null >/dev/null 2>&1 &
+        local watchdog=$!
+        local rc=0
+        wait "$pid" 2>/dev/null || rc=$?
+        kill "$watchdog" 2>/dev/null || true
+        wait "$watchdog" 2>/dev/null || true
+        return $rc
+    fi
+}
+
 # --- help -------------------------------------------------------------------
 case "${1:-}" in
     -h|--help|help)
@@ -109,8 +145,8 @@ EOF
         fi
         # Snapshot session state once. --no-formatting carries the EXITED
         # annotation; --short gives clean newline-separated names.
-        raw=$( { zellij list-sessions --no-formatting 2>/dev/null || true; } )
-        sessions=$( { zellij list-sessions --short 2>/dev/null || true; } \
+        raw=$( { zj list-sessions --no-formatting 2>/dev/null || true; } )
+        sessions=$( { zj list-sessions --short 2>/dev/null || true; } \
                     | awk '/^pair-/' \
                     | sort )
         if [ -z "$sessions" ]; then
@@ -166,7 +202,7 @@ EOF
                 # `|| true` so pipefail+errexit doesn't abort when zellij
                 # can't reach the session (e.g. running outside any zellij
                 # client); empty input through tail/wc yields 0.
-                clients=$( { zellij --session "$sess" action list-clients 2>/dev/null || true; } \
+                clients=$( { zj --session "$sess" action list-clients 2>/dev/null || true; } \
                           | tail -n +2 | wc -l | tr -d ' ')
                 clients=${clients:-0}
                 if [ "$clients" -eq 0 ]; then
@@ -365,18 +401,18 @@ BASE_TAG="$PAIR_TAG"
 # `set -euo pipefail` that would silently kill the whole script. Wrap the
 # zellij call in `|| true` and use awk (returns 0 even on no matches)
 # instead of grep (returns 1 on no matches).
-all_pair=$( { zellij list-sessions --short 2>/dev/null || true; } \
+all_pair=$( { zj list-sessions --short 2>/dev/null || true; } \
             | awk '/^pair-/' \
             | sort )
 
 detached_list=()
 while IFS= read -r sess; do
     [ -z "$sess" ] && continue
-    if zellij list-sessions --no-formatting 2>/dev/null \
+    if zj list-sessions --no-formatting 2>/dev/null \
         | grep -E "^${sess}[[:space:]].*EXITED" >/dev/null 2>&1; then
         continue   # exited, skip
     fi
-    clients=$(zellij --session "$sess" action list-clients 2>/dev/null \
+    clients=$(zj --session "$sess" action list-clients 2>/dev/null \
               | tail -n +2 | wc -l | tr -d ' ')
     if [ "${clients:-0}" -eq 0 ]; then
         detached_list+=("$sess")
@@ -395,7 +431,7 @@ while [ "$i" -le 100 ]; do
     else
         cand="pair-${BASE_TAG}-${i}"
     fi
-    if ! zellij list-sessions --short 2>/dev/null | grep -qx "$cand"; then
+    if ! zj list-sessions --short 2>/dev/null | grep -qx "$cand"; then
         free_slot_tag="${cand#pair-}"
         break
     fi
@@ -412,7 +448,7 @@ action=""   # "attach" | "create"
 # that tag. This is the "resume by name" path — pair off the hint printed
 # at Alt+x.
 if [ -n "$forced_tag" ]; then
-    if zellij list-sessions --short 2>/dev/null | grep -qx "pair-${forced_tag}"; then
+    if zj list-sessions --short 2>/dev/null | grep -qx "pair-${forced_tag}"; then
         chosen_session="pair-${forced_tag}"
         chosen_tag="$forced_tag"
         action=attach
@@ -464,7 +500,7 @@ cleanup_quit_marker() {
         # hint can name the right binary.
         local quit_agent
         quit_agent=$(cat "$DATA_DIR/agent-${PAIR_TAG}" 2>/dev/null || echo "$AGENT")
-        zellij delete-session "$SESSION" --force >/dev/null 2>&1 || true
+        zj delete-session "$SESSION" --force >/dev/null 2>&1 || true
         # Defensive belt-and-suspenders: if a zellij --server process for this
         # session is still alive after delete-session (rare but seen — e.g.
         # the server lingered in a no-clients state and re-registered the
@@ -536,7 +572,7 @@ fi
 # there — and why the auto-suggested prefill may include a numeric
 # suffix.
 family_prefix="pair-${BASE_TAG}"
-family_existing=$( { zellij list-sessions --no-formatting 2>/dev/null || true; } \
+family_existing=$( { zj list-sessions --no-formatting 2>/dev/null || true; } \
     | awk -v p="$family_prefix" '$1 == p || index($1, p "-") == 1' )
 if [ -n "$family_existing" ]; then
     {
@@ -597,7 +633,7 @@ if [ -z "$forced_tag" ]; then
             exit 1
             ;;
     esac
-    if zellij list-sessions --short 2>/dev/null | grep -qx "pair-${typed_tag}"; then
+    if zj list-sessions --short 2>/dev/null | grep -qx "pair-${typed_tag}"; then
         echo "pair: session 'pair-${typed_tag}' already exists." >&2
         exit 1
     fi
@@ -662,13 +698,38 @@ if [ -f "$config_file" ]; then
     # truncation. NUL-separated items + `--read0` is fzf's multi-line-render
     # mode (added in 0.46, broadly available in homebrew fzf). Each item
     # spans three lines: label, indented args, indented resume/freshness.
+    # Four cells in the (args × session) matrix; only some are reachable on
+    # any given launch. Build options + a parallel `actions[]` so the case
+    # statement keys off intent rather than the visible row number, since
+    # numbering renumbers on the fly when rows are hidden.
     options=()
+    actions=()
+    n=1
+
     if $has_resumable; then
-        options+=("$(printf '1) use saved params + session\n     args=[%s]\n     resume=%s' \
-                          "$saved_display" "$saved_session")")
+        options+=("$(printf '%d) use saved params + session\n     args=[%s]\n     resume=%s' \
+                          "$n" "$saved_display" "$saved_session")")
+        actions+=("saved+resume")
+        n=$((n+1))
     fi
-    options+=("$(printf '2) use saved params\n     args=[%s]\n     fresh session' "$saved_display")")
-    options+=("$(printf '3) use new params passed in\n     args=[%s]\n     fresh session' "$current_display")")
+
+    options+=("$(printf '%d) use saved params\n     args=[%s]\n     fresh session' \
+                      "$n" "$saved_display")")
+    actions+=("saved")
+    n=$((n+1))
+
+    # New params + resumed session is only meaningful when there *are* new
+    # params; otherwise it collapses into "saved params + session".
+    if $has_resumable && [ -n "$agent_extra" ]; then
+        options+=("$(printf '%d) use new params + session\n     args=[%s]\n     resume=%s' \
+                          "$n" "$current_display" "$saved_session")")
+        actions+=("new+resume")
+        n=$((n+1))
+    fi
+
+    options+=("$(printf '%d) use new params passed in\n     args=[%s]\n     fresh session' \
+                      "$n" "$current_display")")
+    actions+=("new")
 
     # Height: roughly 3 lines per option + 2 for header/status/border.
     fzf_height=$(( ${#options[@]} * 3 + 4 ))
@@ -684,24 +745,48 @@ if [ -f "$config_file" ]; then
     )
     [ -z "$sel" ] && { echo "pair: aborted." >&2; exit 1; }
 
-    case "$sel" in
-        "1)"*)
-            # Strip any pre-existing resume tokens from saved args so the
-            # composed line never duplicates them. Two surfaces:
+    # Map fzf's selection back to the action key. Comparing full multi-line
+    # entries works because each option string is unique by construction.
+    action=""
+    for i in "${!options[@]}"; do
+        if [ "${options[$i]}" = "$sel" ]; then
+            action="${actions[$i]}"
+            break
+        fi
+    done
+
+    case "$action" in
+        saved+resume|new+resume)
+            # Strip any pre-existing resume tokens from the chosen base
+            # args so the composed line never duplicates them. Two surfaces:
             #   --resume <X>   (claude, gemini — flag style; anywhere in args)
             #   resume <X>     (codex — subcommand; only valid as args[0..1])
+            #
+            # Base differs by action: saved+resume starts from the JSON's
+            # saved args; new+resume starts from what the user just typed
+            # on the CLI (word-split out of agent_extra).
+            base=()
+            if [ "$action" = "saved+resume" ]; then
+                base=("${saved_args[@]}")
+            else
+                # bash 3.2 has no `read -a` of empty input quirks to worry
+                # about here — agent_extra is non-empty by construction
+                # (the option is hidden otherwise).
+                read -ra base <<< "$agent_extra"
+            fi
+
             stripped=()
-            n=${#saved_args[@]}
+            n=${#base[@]}
             i=0
             if [ "$AGENT" = "codex" ] && [ $n -ge 2 ] \
-                && [ "${saved_args[0]}" = "resume" ]; then
+                && [ "${base[0]}" = "resume" ]; then
                 i=2
             fi
             while [ $i -lt $n ]; do
-                if [ "${saved_args[$i]}" = "--resume" ]; then
+                if [ "${base[$i]}" = "--resume" ]; then
                     i=$((i+2))
                 else
-                    stripped+=("${saved_args[$i]}")
+                    stripped+=("${base[$i]}")
                     i=$((i+1))
                 fi
             done
@@ -719,11 +804,11 @@ if [ -f "$config_file" ]; then
                     ;;
             esac
             ;;
-        "2)"*)
+        saved)
             # `:-` guards bash 3.2's `set -u` when saved_args is empty.
             agent_extra="${saved_args[*]:-}"
             ;;
-        "3)"*)
+        new)
             # Clean overwrite — drop the stale config; the watcher we
             # spawn below will write a fresh one once the new session
             # boots. agent_extra stays as whatever was passed on this
