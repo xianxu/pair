@@ -2070,6 +2070,71 @@ vim.api.nvim_create_autocmd('VimEnter', {
 vim.keymap.set('i', '<C-_>', function() PairPasteQuote() end,
   { silent = true, desc = 'pair: insert mouse-selected quote (insert mode only)' })
 
+-- Auto-paired brackets and quotes in insert mode.
+--
+-- Hand-rolled minimal autopair: each opener inserts its closer and parks
+-- the cursor between them; each closer "jumps out" if it would otherwise
+-- duplicate the existing closer; backspace on an empty pair deletes both
+-- halves. No syntax awareness, no string-detection cleverness — just a
+-- one-char lookahead/lookbehind.
+--
+-- Quote rule: if the next char is the same quote, jump over it (covers
+-- typing the closer of a pair we just inserted). Otherwise, skip pairing
+-- when the previous char is a word char, so apostrophes in "don't" /
+-- "can't" stay single.
+local PAIR_OPEN_TO_CLOSE = {
+  ['('] = ')', ['['] = ']', ['{'] = '}',
+  ['"'] = '"', ["'"] = "'", ['`'] = '`',
+}
+local PAIR_QUOTES = { ['"'] = true, ["'"] = true, ['`'] = true }
+
+local function pair_cursor_chars()
+  local line = vim.api.nvim_get_current_line()
+  local col  = vim.api.nvim_win_get_cursor(0)[2]  -- 0-based byte column
+  local prev = col > 0     and line:sub(col, col)         or ''
+  local next = col < #line and line:sub(col + 1, col + 1) or ''
+  return prev, next
+end
+
+local function pair_insert_open(open)
+  local close = PAIR_OPEN_TO_CLOSE[open]
+  local prev, next = pair_cursor_chars()
+  if PAIR_QUOTES[open] then
+    if next == open          then return '<C-G>U<Right>' end
+    if prev:match('[%w_]')   then return open            end
+  end
+  -- <C-G>U keeps the inline cursor move from breaking undo into two units,
+  -- so a single `u` undoes the whole opener+closer insertion.
+  return open .. close .. '<C-G>U<Left>'
+end
+
+local function pair_insert_close(close)
+  local _, next = pair_cursor_chars()
+  if next == close then return '<C-G>U<Right>' end
+  return close
+end
+
+local function pair_backspace()
+  local prev, next = pair_cursor_chars()
+  if prev ~= '' and PAIR_OPEN_TO_CLOSE[prev] == next then
+    return '<BS><Del>'
+  end
+  return '<BS>'
+end
+
+for open, close in pairs(PAIR_OPEN_TO_CLOSE) do
+  vim.keymap.set('i', open, function() return pair_insert_open(open) end,
+    { silent = true, expr = true, desc = 'pair: autopair ' .. open })
+  -- Closers for non-quote pairs only — quote keys map to the opener handler
+  -- above, which already does the jump-over check.
+  if not PAIR_QUOTES[open] then
+    vim.keymap.set('i', close, function() return pair_insert_close(close) end,
+      { silent = true, expr = true, desc = 'pair: jump over ' .. close })
+  end
+end
+vim.keymap.set('i', '<BS>', pair_backspace,
+  { silent = true, expr = true, desc = 'pair: smart-delete empty pair' })
+
 -- Fire on both events: TextChangedI when popup is hidden, TextChangedP when
 -- popup is visible — refreshing the menu as the user types more characters.
 -- path_complete handles slash/tilde tokens; word_complete kicks in for plain
