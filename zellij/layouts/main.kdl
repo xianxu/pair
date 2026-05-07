@@ -14,33 +14,75 @@
 // the agent's BEL/OSC notifications into an OSC 9 written directly to pair's
 // outer TTY, so outer wrappers (e.g. cmux) see attention markers despite
 // zellij's escape filtering. #000011
+//
+// LAYOUT RUNGS — the draft pane has three sizes: minimized (1 row,
+// statusline only) ↔ small (fixed 10 rows, initial) ↔ half (50%). Alt+Up /
+// Alt+Down step the ladder via zellij's swap layouts (defined below).
+// Swap layouts re-tile existing panes — the agent and nvim processes are
+// preserved across rung changes; zellij maps existing panes onto the new
+// layout positionally.
 
 layout {
     pane split_direction="horizontal" {
-        // Agent pane is borderless to visually de-emphasize it — the user's
-        // input lives in the nvim draft pane below; this is just where the
-        // agent renders. The asymmetric framing (no border above, framed
-        // nvim with cheatsheet below) signals where to focus.
         pane name="agent" borderless=true {
             command "sh"
             args "-c" "exec pair-wrap ${PAIR_AGENT:-claude} ${PAIR_AGENT_ARGS:-}"
         }
-        // Initial pane name is just "draft" so the OSC 0 terminal title
-        // ("session: pane-name") stays compact. nvim widens the name on
-        // startup via `zellij action rename-pane` to embed the keybind
-        // cheatsheet right-aligned in the frame — terminal title truncates
-        // before the cheatsheet so it stays clean. See pair_update_pane_name
-        // in nvim/init.lua.
-        // size as a percentage (not an integer row count) so the pane is
-        // resizable at runtime — integer sizes are tagged FIXED by zellij and
-        // refuse `resize` actions, which breaks the Alt+↑/↓ layout step. 32%
-        // is the middle rung ("third") on the layout ladder; Alt+Down steps
-        // to ~22% (small) and Alt+Up to ~67% (twothirds). Starting at third
-        // gives a usable draft pane on first attach without forcing the user
-        // to resize.
-        pane size="32%" name="draft" focus=true {
+        // Pane name "draft" appears in zellij's OSC 0 terminal title
+        // ("<session>: draft") and propagates to the user's terminal /
+        // multiplexer tab title. With pane_frames disabled in
+        // zellij/config.kdl there's no frame title slot, so the name
+        // exists only for the OSC 0 propagation.
+        //
+        // size=10 (integer) is the middle rung ("small") — a fixed
+        // 10-row draft pane is enough for ~7-8 lines of prompt with the
+        // statusline. zellij tags integer sizes as FIXED (refusing
+        // `resize` actions), but pair drives all rung changes through
+        // swap layouts, not resize, so FIXED is harmless here.
+        pane size=10 name="draft" focus=true {
             command "sh"
             args "-c" "DATA_DIR=\"${XDG_DATA_HOME:-$HOME/.local/share}/pair\" && mkdir -p \"$DATA_DIR\" && exec nvim -u \"$PAIR_HOME/nvim/init.lua\" \"$DATA_DIR/draft-${PAIR_TAG:-${PAIR_AGENT:-claude}}.md\""
+        }
+    }
+
+    // Swap layouts: zellij's `next-swap-layout` / `previous-swap-layout`
+    // actions cycle through these alongside the default layout above,
+    // re-tiling existing panes positionally. Pane processes (pair-wrap,
+    // nvim) survive each swap.
+    //
+    // Cycle from default(small) — assuming swap order [minimized, half]:
+    //   default → next → minimized → next → half → next → default
+    //   default → prev → half → prev → minimized → prev → default
+    //
+    // nvim/init.lua maps Alt+Down → next-swap-layout (smaller rung) and
+    // Alt+Up → prev-swap-layout (bigger rung), with a state-machine clamp
+    // at each end so we never call past the rung extremes.
+    //
+    // exact_panes=2 constrains the swap layout to apply only when the
+    // current pane count matches what we built (agent + draft). pair
+    // never has any other pane shape, so this is always satisfied.
+    //
+    // Leaf panes carry only structural attributes (name, size,
+    // borderless) — no `command` block. zellij maps existing panes onto
+    // these leaf positions; if we repeated the command, there's a risk
+    // zellij would treat that as a request to spawn a new pane rather
+    // than match an existing one.
+
+    swap_tiled_layout name="minimized" {
+        tab exact_panes=2 {
+            pane split_direction="horizontal" {
+                pane name="agent" borderless=true
+                pane size=1 name="draft"
+            }
+        }
+    }
+
+    swap_tiled_layout name="half" {
+        tab exact_panes=2 {
+            pane split_direction="horizontal" {
+                pane name="agent" borderless=true
+                pane size="50%" name="draft"
+            }
         }
     }
 }

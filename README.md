@@ -54,11 +54,13 @@ Otherwise without `>`. Focus' automatically put at the likely position you want 
 | **Alt+q** | nvim (normal/insert) | Push current buffer to the front of the queue (`+1`). From `*` clears the draft; from `+N` it's move-to-front. |
 | **Alt+Backspace** | nvim (normal/insert), at `+N` | Delete the current queued prompt without sending. Items behind shift down so you can delete a run by tapping repeatedly. |
 | **Shift+Alt+Backspace** | nvim (normal/insert) | Erase history, draft, and queue for this session — "start anew". Confirmation prompt defaults to No. Hard delete (no archive). |
-| **Alt+↑** / **Alt+↓** | any pane | Step the nvim pane along a small (~10 lines) ↔ 1/3 ↔ 2/3 ladder one rung at a time (works from either pane). |
+| **Alt+↑** / **Alt+↓** | any pane | Step the nvim pane along a `minimized` ↔ `10 lines` ↔ `1/2` ladder one rung at a time (works from either pane). `minimized` collapses nvim to a single statusline row showing `Alt+↑ for pair input box`; confirm-requiring keys (Alt+x/d/n) auto-grow out of minimized so the modal prompt is visible. |
 | **Alt+i** | nvim (normal/insert) | Attach clipboard image to the agent and insert `[Image #N]` reference at cursor. |
 | **Alt+i** | when inside [Image tag] | Sync the internal counter to N (manual-correction path), allowing user to edit if the cursor between nvim and agent gets out of sync. |
-| **Alt+d** | any pane | Detach from the current session (re-attach later via `pair`) |
-| **Alt+x** | any pane | Full quit — kill the session and all processes inside. Pair captures the agent's session id alongside the launch args, so the session is resumable later via `pair resume <tag>`. |
+| **Alt+h** | any pane | Pop up the full keybind help in a floating pane (press `q` to dismiss). |
+| **Alt+d** | any pane | Detach from the current session (re-attach later via `pair`). Confirms first. |
+| **Alt+x** | any pane | Full quit — kill the session and all processes inside. Confirms first. Pair captures the agent's session id alongside the launch args, so the session is resumable later via `pair resume <tag>`. |
+| **Alt+n** | any pane | Restart in place — kill the session and re-launch with the same tag, agent, and agent args, but a fresh agent conversation (the saved per-(tag,agent) config is dropped before relaunch). Confirms first. |
 
 ### Prompt history & queue
 

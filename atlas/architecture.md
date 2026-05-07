@@ -13,12 +13,13 @@ bin/pair                     # entry point (launcher)
 bin/clipboard-to-pane.sh     # read clipboard, hand off to nvim's PairPasteQuote
 bin/copy-on-select.sh        # invoked by zellij copy_command on mouse-up
 bin/pair-quit.sh             # invoked by Alt+x — marks + kills session
+bin/pair-restart.sh          # invoked by Alt+n — marks (quit + restart) + kills session
 bin/pair-session-watch.sh    # captures agent session id at create time (#000016)
 bin/pair-wrap                # PTY proxy that translates agent OSC notifications
 bin/pair-notify              # hook-driven OSC notifier (e.g. claude Notification)
 nvim/init.lua                # bundled nvim config (loaded via -u)
-zellij/config.kdl            # mouse, copy_command, keybinds
-zellij/layouts/main.kdl      # the split + agent/draft commands
+zellij/config.kdl            # mouse, copy_command, keybinds, frameless panes
+zellij/layouts/main.kdl      # the split + agent/draft commands + swap layouts
 ```
 
 ### `bin/pair` — launcher
@@ -46,15 +47,19 @@ Detection of attached-vs-detached uses `zellij --session NAME action list-client
 
 **Cleanup on quit.** zellij is run as a child (not `exec`) so the launcher resumes when zellij exits. On resume it checks for `~/.cache/pair/quit-<session>` (the marker that `pair-quit.sh` writes when Alt+x fires) and, if present, runs `zellij delete-session --force <session>` to clear the resurrect entry. If a `config-<tag>-<agent>.json` was captured during the session, it also prints a one-liner naming the resume command (`pair resume <session>`) so the user can pick the work back up later. No marker → leave the session as zellij left it (running if Alt+d detached).
 
-### `zellij/layouts/main.kdl` — pane split
+**Restart in place (Alt+n).** A second marker, `~/.cache/pair/restart-<session>`, is written alongside `quit-` by `bin/pair-restart.sh`. After cleanup_quit_marker tears the session down, `handle_restart_marker` reads the captured agent name from the restart marker, drops the per-(tag,agent) config so the relaunched run starts a fresh agent conversation, then `exec`s pair on itself with `PAIR_FORCE_TAG=<same-tag>` set in the env. The `PAIR_FORCE_TAG` hook in argv parsing pins the new run to the killed session's tag, skipping both the picker and the name prompt — so Alt+n is a one-keystroke "wipe agent state, keep my draft and tag" loop.
 
-Horizontal split. Top pane runs `$PAIR_AGENT $PAIR_AGENT_ARGS` (auto-fills remaining height). Bottom pane is a fixed 11 rows running `nvim -u $PAIR_HOME/nvim/init.lua` on the per-tag draft file.
+### `zellij/layouts/main.kdl` — pane split + swap-layout ladder
+
+Horizontal split. Top pane runs `$PAIR_AGENT $PAIR_AGENT_ARGS` (auto-fills remaining height). Bottom pane is `size=10` (fixed 10 rows) running `nvim -u $PAIR_HOME/nvim/init.lua` on the per-tag draft file. Integer sizes are FIXED in zellij (refusing the `resize` action), but pair drives all rung changes through swap layouts, not resize, so FIXED is harmless.
 
 Both panes wrap their command in `sh -c "..."` so the shell expands `$PAIR_AGENT`, `$PAIR_AGENT_ARGS`, `$PAIR_TAG`, and `$PAIR_HOME` at exec time — zellij itself does not interpolate env vars in `command`/`args` fields.
 
 `$PAIR_AGENT_ARGS` is appended on the agent pane command line as a single space-separated string; the shell word-splits it. Args containing spaces are *not* preserved (rare for CLI flags; documented in README).
 
-The bottom pane has `focus=true` (drafting pane gets focus on launch) and a `name=` set to the help string (`Alt: ⏎=send  ↕=size  i=img  d=detach  x=quit`) so zellij renders that as the pane's frame title. The exact text is owned by `nvim/init.lua` (via `pair_update_pane_name`); the pane spec just provides an initial value before nvim's startup hook overwrites it.
+The bottom pane has `focus=true` (drafting pane gets focus on launch) and `name="draft"` — used by zellij in the OSC 0 terminal title (`pair-<tag>: draft`) which propagates to the user's terminal/multiplexer tab title. With `pane_frames false` set globally in `zellij/config.kdl` there's no frame title slot, so the name exists only for OSC 0 propagation; the keybind cheatsheet that used to live in the frame title now lives in nvim's statusline (right-aligned, see `nvim/init.lua`).
+
+**Swap layouts.** Two `swap_tiled_layout` entries — `minimized` (draft `size=1`) and `half` (draft `size="50%"`) — sit alongside the default layout above. Each is gated by `exact_panes=2` so it only applies when the current pane structure matches what pair builds. `nvim/init.lua` drives them via `zellij action next-swap-layout` / `previous-swap-layout`, which re-tile the existing agent + nvim panes onto the target layout positionally — running pane processes (`pair-wrap`, `nvim`) survive each swap. Cycle from default(small) is `[minimized, half]`: `next-swap-layout` from small → minimized, from minimized → half, from half → wraps to small. The lua side maps Alt+Down to next-swap (smaller rung) and Alt+Up to prev-swap (bigger rung), with a state-machine clamp at the rung extremes.
 
 ### `zellij/config.kdl` — mouse, copy, keybinds
 
@@ -62,15 +67,20 @@ Top-level config:
 
 - `mouse_click_through true` — first click on an unfocused pane goes through to the pane (so click-and-drag selects in one motion) instead of being consumed by zellij just to change focus.
 - `copy_command "copy-on-select.sh"` — on every selection finalize (mouse-up after drag), zellij pipes the selected text to this script. `copy_command` replaces zellij's default OS-clipboard write, so the script does that part too. Resolved by PATH (which `bin/pair` populated).
+- `pane_frames false` — disables zellij's pane-border chrome globally. Lets the `minimized` rung collapse the draft pane to a single statusline row (zellij's framed minimum is ~3 rows; frameless minimum is 1). Side effect: no frame title slot, so the keybind cheatsheet now renders in nvim's statusline, right-aligned, with progressive disclosure based on terminal width.
 
 Keybinds added on top of zellij defaults (`clear-defaults=false`):
 
 - `unbind "Alt i"` — release Alt+i (zellij's default binds it to MoveTab; we want nvim to see it for image attach).
-- `Alt+d` — `Detach` — detach from the session.
-- `Alt+↑` / `Alt+↓` — route to nvim's `PairLayoutBigger` / `PairLayoutSmaller` — step the nvim pane along a small ↔ 1/3 ↔ 2/3 ladder, regardless of which pane has focus.
-- `Alt+x` — `Run "pair-quit.sh"` — full quit (writes marker, kills session).
+- `unbind "Alt n"` — release Alt+n (zellij's default `NewPane` would break pair's two-pane invariant; we rebind it below for restart).
+- Mode-locking — every default chord that would switch zellij modes (`Ctrl+g/p/t/n/h/s/o/b`) is unbound, and `Ctrl+q` (zellij's resurrect-leaving Quit) is unbound too — Alt+x is the only quit path.
+- `Alt+d` — routed through nvim to `:lua PairConfirmDetach()` — Y/N modal then detach.
+- `Alt+x` — routed through nvim to `:lua PairConfirmQuit()` — Y/N modal then `pair-quit.sh` (full quit).
+- `Alt+n` — routed through nvim to `:lua PairConfirmRestart()` — Y/N modal then `pair-restart.sh` (restart in place; see "Restart in place" under `bin/pair`).
+- `Alt+h` — `Run "pair-help" { floating true; close_on_exit true; ... }` — pops a floating pane running `pair -h | less`.
+- `Alt+↑` / `Alt+↓` — route to nvim's `PairLayoutBigger` / `PairLayoutSmaller` — step the nvim pane along the swap-layout ladder (`minimized ↔ small (10 rows) ↔ half`).
 
-Alt+n (clipboard → nvim quote) used to be a manual keybind here too, but became redundant once `copy_command` started auto-firing on mouse-up. Removed.
+The Alt+x/d/n confirms route through nvim rather than running directly so a single fat-finger doesn't tear the session down (Alt+x in particular is unrecoverable). The lua side also auto-grows out of `minimized` before showing the modal, since otherwise the prompt would land on a 1-row pane where nothing is visible.
 
 ### `bin/clipboard-to-pane.sh` — clipboard read + hand off to nvim
 
@@ -168,6 +178,9 @@ Loaded via `nvim -u`, fully isolated from the user's main nvim config. Provides:
 - Autosave on `BufLeave`, `FocusLost`, `InsertLeave` so disk and buffer agree.
 - As-you-type fuzzy path completion (issue #13). `TextChangedI`/`TextChangedP` autocmd splits the trailing path token on the last `/` into `<dir>` + `<filter>`, lists `<dir>` via `getcompletion`, fuzzy-filters with built-in `matchfuzzy`, hands the result to `vim.fn.complete()`. Triggers only when the token contains `/` or starts with `~` (plain words stay quiet). `<Tab>`/`<S-Tab>` cycle, `<CR>` accepts when an item is selected (else newline). Plugin-free.
 - All autocmds live in the `pair` augroup (`clear=true`), so iterating via `:luafile $PAIR_HOME/nvim/init.lua` reloads cleanly without duplicating handlers.
+- **Layout ladder** — `PairLayoutBigger` / `PairLayoutSmaller` step a state machine (`pair_layout_state`: `minimized | small | half`) and call `zellij action next-swap-layout` / `previous-swap-layout` accordingly. State is mirrored to disk at `${XDG_DATA_HOME:-~/.local/share}/pair/layout-mode-<tag>` for diagnostic visibility, but the in-memory copy is the truth so the early-defined `pair_spinner_start` can read it (without a forward-declaration shuffle). Landing in `minimized` also `MoveFocus`es up to the agent pane (the draft is unusable at 1 row) and the focus-grab spinner suppresses itself when `pair_layout_state == 'minimized'`.
+- **Statusline cheatsheet (right-aligned, progressive disclosure).** `PAIR_CHEATS` lists `Alt+h help`, `Alt+⏎ send`, `Alt+q queue`, `Alt+x quit`, `Alt+d detach` in priority order. `pair_compose_statusline` measures the variable left segment (history/queue/position cluster), reserves a 6-cell minimum gap, and accumulates as many cheat entries as fit in the remaining columns — Alt+h is always the last entry to drop. Spinner takes the right slot when active (vim only honors a single `%=` per statusline). The minimized rung shows a standalone "Alt+↑ for pair input box" hint instead, with 4 leading spaces so the terminal cursor (which lands on the statusline row when the buffer has zero visible lines) sits on whitespace rather than the hint text.
+- **Alt+x / Alt+d / Alt+n confirm modals.** `PairConfirmQuit` / `PairConfirmDetach` / `PairConfirmRestart` shell out to `pair-quit.sh` / `zellij action detach` / `pair-restart.sh` after a Y/N modal that defaults to No. All three are wrapped in `pair_ensure_visible_then`, which auto-grows out of `minimized` (calls `PairLayoutBigger` and defers the modal 100ms) so the prompt renders on visible rows.
 
 ### Prompt history & queue (issue #000015)
 
@@ -224,14 +237,17 @@ Implementation in `nvim/init.lua`: see helpers grouped under `is_dirty_history_s
 
 **Insert-mode-only auto-insert from mouse selection.** `bin/copy-on-select.sh` mirrors any selection to the OS clipboard; for selections outside the nvim pane it then triggers `PairPasteQuote` by sending Ctrl-_ (ASCII 31) to the focused nvim pane. The `<C-_>` keymap is bound **only in insert mode**, which is structurally the gate: when the user is in normal mode (e.g. browsing prompt history with Alt+←/→), Ctrl-_ hits nvim's near-no-op default and the buffer isn't mutated. The selection is still on the OS clipboard for manual paste. No mode-probing files or shell-side state needed.
 
-## Quit semantics
+## Quit / restart semantics
 
-Two ways to end a session, with different aftermath:
+Three ways to end a session, with different aftermath:
 
 - **Alt+d** — detach. The session keeps running (claude/nvim processes alive); `pair` surfaces it in the picker for re-attach.
-- **Alt+x** — full quit. Kills the session AND removes the resurrect entry. After Alt+x, the session is fully gone.
+- **Alt+x** — full quit. Kills the session AND removes the resurrect entry. After Alt+x, the session is fully gone (but the `config-<tag>-<agent>.json` survives, so `pair resume <tag>` later replays the saved launch args + agent session id).
+- **Alt+n** — restart in place. Kills the session AND drops the saved `config-<tag>-<agent>.json` AND immediately re-launches pair on the same tag with the same agent + args, but a fresh agent conversation. Mechanically two markers (`quit-` + `restart-`) plus a `PAIR_FORCE_TAG` env var on re-exec; see the launcher's "Restart in place" section.
 
-Zellij's default `Ctrl+q` (Quit with resurrect) is **unbound** in pair's config — it would otherwise leave a half-state where the processes inside die but the session record stays as a "resurrect candidate," which is confusing for pair's long-lived-agent model. Alt+x is the only quit path.
+All three route through a Y/N confirm modal in nvim before firing, so a single fat-finger Alt-key can't tear the session down. The lua side auto-grows the nvim pane out of the `minimized` rung first, so the modal lands on visible rows.
+
+Zellij's default `Ctrl+q` (Quit with resurrect) is **unbound** in pair's config — it would otherwise leave a half-state where the processes inside die but the session record stays as a "resurrect candidate," which is confusing for pair's long-lived-agent model. Alt+x is the only full-quit path.
 
 ## Tag-restart (issue #000016)
 
@@ -296,7 +312,9 @@ The launcher exports `$PAIR_DATA_DIR` so `nvim/init.lua` can compute the same pa
 
 Per-tag files mean `pair claude`, `pair codex`, and a custom-named `pair-bugfix` (entered at the prompt) all have independent draft state.
 
-Internal: `~/.cache/pair/quit-<session>` — marker file used to communicate "user asked for full quit" between `pair-quit.sh` and the launcher. Touched on Alt+x, removed by the launcher after delete-session.
+Internal: `~/.cache/pair/quit-<session>` — marker file used to communicate "user asked for full quit" between `pair-quit.sh` (or `pair-restart.sh`) and the launcher. Touched on Alt+x or Alt+n, removed by the launcher after delete-session.
+
+Internal: `~/.cache/pair/restart-<session>` — marker written alongside `quit-` by `pair-restart.sh` (Alt+n only). Holds the captured agent name as `key=value` lines so the launcher can reconstruct the relaunch params after `cleanup_quit_marker` has wiped `agent-<tag>`. Removed by `handle_restart_marker` immediately before `exec`-ing pair on itself.
 
 Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/outer-tty-<tag>` — single-line file containing the path to pair's controlling TTY at attach time. Read by `pair-notify` to emit OSC escapes that reach the outer terminal/wrapper. Rewritten on every attach (create or reattach); removed on full quit.
 

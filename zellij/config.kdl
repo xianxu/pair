@@ -6,9 +6,17 @@
 // - Disable advanced mouse actions (pane grouping, etc.) to keep mouse
 //   behavior predictable for selection and our copy_command flow.
 // - Suppress "what's new" release-notes popup on version bumps.
+// - Disable pane frames globally. Frames eat 2 rows per pane and prevent
+//   the draft pane from collapsing below ~3 rows in the "minimized"
+//   layout rung. Both panes already render cleanly without frames; the
+//   thin separator zellij draws between adjacent panes is enough visual
+//   division. Side effect: no frame title, so any cheatsheet/name we
+//   used to right-align in the title slot via `rename-pane` is gone —
+//   Alt+h still pops the full keybind help.
 mouse_hover_effects false
 advanced_mouse_actions false
 show_release_notes false
+pane_frames false
 
 // When clicking an unfocused pane, send the click into the pane (so a
 // click-and-drag starts selecting text in one motion) rather than only
@@ -40,7 +48,7 @@ keybinds clear-defaults=false {
         unbind "Alt Right"
         // Alt Up / Alt Down default to MoveFocus; pair only has two panes
         // (agent ↔ draft) so focus-shift is redundant. Reclaim them as
-        // step-up / step-down through the layout sizes (small/1-3/2-3).
+        // step-up / step-down through the layout sizes (minimized/1-3/2-3).
         unbind "Alt Up"
         unbind "Alt Down"
         // Alt+n default is NewPane — pair manages its own two-pane layout,
@@ -93,9 +101,9 @@ keybinds clear-defaults=false {
         }
 
         // Alt+Up / Alt+Down — step the nvim draft pane along a three-rung
-        // ladder: small (the initial bottom split) ↔ ~1/3 ↔ ~2/3.
-        // Up steps toward bigger nvim, Down toward smaller; each is clamped
-        // at the end of the ladder. Routed through nvim because zellij's
+        // ladder: minimized (statusline only, cursor hidden) ↔ 10 lines
+        // (initial) ↔ 1/2. Up steps toward bigger nvim, Down toward smaller;
+        // each is clamped at the end of the ladder. Routed through nvim because zellij's
         // keybind language can't run a shell command silently and the step
         // needs persistent state plus a loop of `zellij action resize`
         // calls. MoveFocus Down lands in nvim whether the user started in

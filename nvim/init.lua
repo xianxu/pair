@@ -290,6 +290,13 @@ end
 -- "draft slot, clean buffer" state.
 local nav = { pos = '*', baseline = '' }
 
+-- Forward-declared layout-state mirror. The on-disk LAYOUT_STATE_FILE far
+-- below is the source of truth; this in-memory copy lets pair_spinner_start
+-- (defined right below) check the current rung without re-reading the file
+-- and without depending on layout_read, which is declared much later.
+-- Updated by layout_write().
+local pair_layout_state = 'small'
+
 local function refresh_statusline()
   -- Defer to the next event-loop tick so the redraw fires *after* any side
   -- effects from the calling action have settled — e.g. send_and_clear's
@@ -323,6 +330,12 @@ end
 
 local function pair_spinner_start()
   pair_spinner_stop()
+  -- In the `minimized` rung nvim is collapsed to its statusline — the user
+  -- is intentionally working in the agent pane and there's no draft to
+  -- come back to. Skip the spinner + focus-grab entirely; FocusGained
+  -- will still fire normally if the user moves focus back via Alt+Up
+  -- (which steps out of minimized).
+  if pair_layout_state == 'minimized' then return end
   -- 5s pre-delay before the spinner appears (initial timeout), then tick
   -- every 30ms. First fire flips `active` on; subsequent fires advance the
   -- frame.
@@ -1180,12 +1193,91 @@ end
 -- Wrapped in a pcall guard so any edge-case error in is_dirty_history_slot
 -- / read_history / queue_count can't blank the bar — fall back to a minimal
 -- safe string.
+-- Right-aligned cheatsheet rendered at the end of the statusline. Listed
+-- in priority order — when the terminal is too narrow for the full set,
+-- entries drop from the bottom (lowest priority first) until what's left
+-- fits in the available space. At a minimum we try to keep Alt+h so the
+-- user always has a discoverable path to the full keybind help.
+local PAIR_CHEATS = {
+  { key = 'Alt+h',  label = 'help'   },
+  { key = 'Alt+⏎',  label = 'send'   },
+  { key = 'Alt+q',  label = 'queue'  },
+  { key = 'Alt+x',  label = 'quit'   },
+  { key = 'Alt+d',  label = 'detach' },
+}
+
+-- Display width of a statusline format string, ignoring vim's inline
+-- format codes (highlight groups, alignment, truncation markers) since
+-- those don't render as visible cells. strdisplaywidth handles the
+-- multibyte glyphs (⏎, ⌫, etc).
+local function pair_statusline_width(s)
+  local stripped = s:gsub('%%#[^#]*#', '')
+                    :gsub('%%%*', '')
+                    :gsub('%%=', '')
+                    :gsub('%%<', '')
+  return vim.fn.strdisplaywidth(stripped)
+end
+
+local function pair_format_cheat(c)
+  -- Key gets the actionable accent; label stays in the muted baseline.
+  return string.format('%%#PairAltKey#%s%%* %s', c.key, c.label)
+end
+
+-- Build the right-aligned cheatsheet with progressive disclosure: walk
+-- the priority list and accumulate as many entries as fit in `budget`
+-- display columns. Returns the accumulated format string (possibly
+-- empty if even the highest-priority entry doesn't fit).
+local function pair_build_cheatsheet(budget)
+  if budget <= 0 then return '' end
+  local sep = '  '
+  local out = ''
+  for i, c in ipairs(PAIR_CHEATS) do
+    local part = (i == 1 and '' or sep) .. pair_format_cheat(c)
+    local candidate = out .. part
+    if pair_statusline_width(candidate) > budget then break end
+    out = candidate
+  end
+  return out
+end
+
+-- Compose a statusline with the cheatsheet right-aligned past `left`.
+-- When the spinner is active (focus has been away long enough that the
+-- focus-grab timer is counting down), it takes the right slot instead —
+-- vim's statusline only honors a single %= split, so we can't show both.
+local function pair_compose_statusline(left)
+  if pair_spinner.active then
+    return left .. '%=' .. pair_spinner.frames[pair_spinner.idx] .. ' '
+  end
+  -- 6-cell minimum margin between the variable left segment and the
+  -- cheatsheet. Capping the cheatsheet's budget at (columns - left - 6)
+  -- bounds left+right ≤ columns - 6, so vim's %= autopads at least 6
+  -- spaces in the middle no matter how wide the terminal is.
+  local budget = vim.o.columns - pair_statusline_width(left) - 6
+  local cheats = pair_build_cheatsheet(math.max(0, budget))
+  if cheats == '' then return left end
+  return left .. '%=' .. cheats .. ' '
+end
+
 function _G.PairStatusline()
-  local spin = pair_spinner.active
-    and ('%=' .. pair_spinner.frames[pair_spinner.idx] .. ' ')
-    or ''
+  -- Minimized rung: nvim is collapsed to this single statusline row, so
+  -- the buffer is invisible and the usual history/queue/position
+  -- cluster has nothing to refer to. Replace it with a hint that names
+  -- the keybind that grows the pane back. (spinner and cheatsheet are
+  -- intentionally omitted — pair_spinner_start bails when minimized,
+  -- and the row is meant to read as a single focused hint.)
+  --
+  -- Leading whitespace gives the terminal cursor (which lives on this
+  -- row since the buffer has zero visible lines) a few blank cells to
+  -- land on instead of overprinting the hint text. nvim re-emits ?25h
+  -- on redraws and we can't reliably suppress that, so the cursor
+  -- block stays visible — but on a leading space it's unobtrusive.
+  if pair_layout_state == 'minimized' then
+    return '    %#PairAltKey#Alt+↑%* for pair input box '
+  end
   if vim.fn.mode():sub(1, 1) == 'n' then
-    return '%#PairLocked# <LOCKED> input not accepted — press i to type %*' .. spin
+    return pair_compose_statusline(
+      '%#PairLocked# <LOCKED> input not accepted — press i to type %*'
+    )
   end
   local ok, result = pcall(function()
     local h = #read_history()
@@ -1213,7 +1305,7 @@ function _G.PairStatusline()
       h, pos_seg, hint, q_seg
     )
   end)
-  return (ok and result or ' pair ') .. spin
+  return pair_compose_statusline(ok and result or ' pair ')
 end
 
 -- Persist any pending edit on a mutable slot to its underlying file. For
@@ -1666,83 +1758,170 @@ vim.keymap.set('n', 'ZQ', function() PairQuitWarn() end, { silent = true, desc =
 -- action only fires on Yes. Y is shelled out via vim.fn.system because
 -- nvim has no direct zellij IPC and re-binding zellij keybindings to first
 -- check a flag is more state than this is worth.
-function _G.PairConfirmQuit()
-  local ans = vim.fn.confirm('Quit pair session? This kills the session and all its processes.', '&Yes\n&No', 2)
-  if ans == 1 then
-    vim.fn.system('pair-quit.sh')
+-- If the user fires a confirm-requiring keybind while the rung is
+-- minimized, the modal prompt would land on a 1-row pane where nothing
+-- is visible. Step up to small first so the prompt renders, then defer
+-- the actual prompt one event-loop tick — zellij's resize after
+-- swap-layout reaches nvim asynchronously, and vim.fn.confirm reads
+-- window dimensions when it's called.
+local function pair_ensure_visible_then(fn)
+  if pair_layout_state == 'minimized' and _G.PairLayoutBigger then
+    _G.PairLayoutBigger()
+    vim.defer_fn(fn, 100)
+  else
+    fn()
   end
+end
+
+-- Read the per-(tag,agent) saved config so the Alt+x prompt can show the
+-- user what they're about to detach from for the future `pair resume
+-- <tag>` path. Returns nil when the tag isn't set, the agent file is
+-- missing, or the JSON parse fails — in which case the prompt falls back
+-- to the bare confirmation.
+local function pair_read_saved_config()
+  local tag = vim.env.PAIR_TAG
+  if not tag or tag == '' then return nil end
+  local data_dir = vim.env.PAIR_DATA_DIR
+    or ((vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/share')) .. '/pair')
+
+  local af = io.open(data_dir .. '/agent-' .. tag, 'r')
+  if not af then return nil end
+  local agent = af:read('*l')
+  af:close()
+  if not agent or agent == '' then return nil end
+
+  local cf = io.open(data_dir .. '/config-' .. tag .. '-' .. agent .. '.json', 'r')
+  if not cf then
+    return { tag = tag, agent = agent }
+  end
+  local body = cf:read('*a')
+  cf:close()
+  local ok, parsed = pcall(vim.json.decode, body)
+  if not ok or type(parsed) ~= 'table' then
+    return { tag = tag, agent = agent }
+  end
+  return {
+    tag        = tag,
+    agent      = agent,
+    args       = parsed.args,
+    session_id = parsed.session_id,
+  }
+end
+
+function _G.PairConfirmQuit()
+  pair_ensure_visible_then(function()
+    local prompt = 'Quit pair session? This kills the session and all its processes.'
+    local cfg = pair_read_saved_config()
+    if cfg then
+      local args_line
+      if type(cfg.args) == 'table' and #cfg.args > 0 then
+        args_line = table.concat(cfg.args, ' ')
+      else
+        args_line = '<none>'
+      end
+      local sid_line = cfg.session_id and cfg.session_id ~= '' and cfg.session_id or '<not captured>'
+      prompt = prompt
+        .. '\n\nResumable later via `pair resume ' .. cfg.tag .. '`:'
+        .. '\n  agent:      ' .. cfg.agent
+        .. '\n  args:       ' .. args_line
+        .. '\n  session id: ' .. sid_line
+    end
+    local ans = vim.fn.confirm(prompt, '&Yes\n&No', 2)
+    if ans == 1 then
+      vim.fn.system('pair-quit.sh')
+    end
+  end)
 end
 
 function _G.PairConfirmDetach()
-  local ans = vim.fn.confirm('Detach from this pair session?', '&Yes\n&No', 2)
-  if ans == 1 then
-    vim.fn.system({ 'zellij', 'action', 'detach' })
-  end
+  pair_ensure_visible_then(function()
+    local ans = vim.fn.confirm('Detach from this pair session?', '&Yes\n&No', 2)
+    if ans == 1 then
+      vim.fn.system({ 'zellij', 'action', 'detach' })
+    end
+  end)
 end
 
 function _G.PairConfirmRestart()
-  local ans = vim.fn.confirm(
-    'Restart pair session? Kills the session and re-launches with the same tag and agent args, but a fresh agent conversation.',
-    '&Yes\n&No', 2)
-  if ans == 1 then
-    vim.fn.system('pair-restart.sh')
-  end
+  pair_ensure_visible_then(function()
+    local prompt = 'Restart pair session? Kills the session and re-launches with the same tag and agent args, but a fresh agent conversation.'
+    local cfg = pair_read_saved_config()
+    if cfg then
+      local args_line
+      if type(cfg.args) == 'table' and #cfg.args > 0 then
+        args_line = table.concat(cfg.args, ' ')
+      else
+        args_line = '<none>'
+      end
+      -- Show only what carries forward into the new session (agent +
+      -- args). The session id is intentionally omitted: Alt+n drops the
+      -- saved config and the new agent run starts a brand-new
+      -- conversation, so showing the prior id would be misleading.
+      prompt = prompt
+        .. '\n\nRe-launching with:'
+        .. '\n  agent: ' .. cfg.agent
+        .. '\n  args:  ' .. args_line
+    end
+    local ans = vim.fn.confirm(prompt, '&Yes\n&No', 2)
+    if ans == 1 then
+      vim.fn.system('pair-restart.sh')
+    end
+  end)
 end
 
 -- ---------------------------------------------------------------------------
--- Layout sizing: small (initial bottom split) ↔ third (~1/3) ↔ twothirds (~2/3).
+-- Layout sizing: minimized (statusline only) ↔ small (10 rows, initial) ↔ half (50%).
 -- ---------------------------------------------------------------------------
 -- Two keys drive this: Alt+Up (PairLayoutBigger) and Alt+Down
 -- (PairLayoutSmaller) step along the ladder, clamped at the ends.
--- zellij's `resize` action steps by ~5% of screen with no exact-size
--- option, so each rung is approximated by N increments; symmetric N-up /
--- N-down keeps drift bounded to per-step rounding.
+--
+-- Sizing is exact — zellij/layouts/main.kdl declares each rung as a
+-- swap_tiled_layout with the desired draft-pane size. We step along the
+-- ladder via `zellij action next-swap-layout` / `previous-swap-layout`,
+-- which re-tiles the existing agent + nvim panes onto the target swap
+-- layout. One IPC call per step, panes are preserved.
+--
+-- Cycle from default = [minimized, half]:
+--   default(small) → next → minimized → next → half → next → wraps
+--   default(small) → prev → half → prev → minimized → prev → wraps
+-- So Alt+Down (smaller) maps to next-swap from {small, half},
+-- and Alt+Up (bigger) maps to prev-swap from {small, minimized}.
+-- The state machine in PairLayoutBigger / PairLayoutSmaller clamps at
+-- the rung extremes so we never wrap past them.
 local LAYOUT_STATE_FILE = (vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/share'))
   .. '/pair/layout-mode-' .. (vim.env.PAIR_TAG or vim.env.PAIR_AGENT or 'claude')
--- zellij's resize step is ~5% of total height. Initial draft pane is 32%
--- (the "third" rung — see zellij/layouts/main.kdl). Step counts are chosen
--- so each rung lands close to its target ratio:
---   small (22%)  → third       2 steps  → ~32%
---   third (~32%) → twothirds   7 steps  → ~67%
--- Symmetric N-up / N-down means a round-trip returns to the same position.
-local LAYOUT_STEPS_SMALL_TO_THIRD = 2
-local LAYOUT_STEPS_THIRD_TO_TWOTHIRDS = 7
 
 local function layout_read()
   local f = io.open(LAYOUT_STATE_FILE, 'r')
-  if not f then return 'third' end
+  if not f then return 'small' end
   local s = f:read('*l')
   f:close()
-  return s or 'third'
+  return s or 'small'
 end
 
 local function layout_write(s)
+  pair_layout_state = s
   local f = io.open(LAYOUT_STATE_FILE, 'w')
   if f then f:write(s); f:close() end
 end
 
-local function zellij_resize(direction, n)
-  for _ = 1, n do
-    vim.fn.system({ 'zellij', 'action', 'resize', direction, 'up' })
-  end
+local LAYOUT_LADDER = { minimized = 1, small = 2, half = 3 }
+local LAYOUT_BY_LEVEL = { 'minimized', 'small', 'half' }
+
+local function zellij_swap(direction)
+  -- direction = 'next' or 'previous'
+  vim.fn.system({ 'zellij', 'action', direction .. '-swap-layout' })
 end
 
--- Three layout sizes form a ladder: small ↔ third ↔ twothirds. Transitions
--- only happen between adjacent rungs; each step is a run of zellij `resize`
--- actions sized for the rung delta. Multi-rung moves (e.g. small → twothirds
--- directly) compose two single steps.
-local LAYOUT_LADDER = { small = 1, third = 2, twothirds = 3 }
-local LAYOUT_BY_LEVEL = { 'small', 'third', 'twothirds' }
-
 local function layout_step(from, to)
-  if from == 'small' and to == 'third' then
-    zellij_resize('increase', LAYOUT_STEPS_SMALL_TO_THIRD)
-  elseif from == 'third' and to == 'small' then
-    zellij_resize('decrease', LAYOUT_STEPS_SMALL_TO_THIRD)
-  elseif from == 'third' and to == 'twothirds' then
-    zellij_resize('increase', LAYOUT_STEPS_THIRD_TO_TWOTHIRDS)
-  elseif from == 'twothirds' and to == 'third' then
-    zellij_resize('decrease', LAYOUT_STEPS_THIRD_TO_TWOTHIRDS)
+  if from == 'minimized' and to == 'small' then
+    zellij_swap('previous')   -- minimized → default(small)
+  elseif from == 'small' and to == 'minimized' then
+    zellij_swap('next')       -- default(small) → minimized
+  elseif from == 'small' and to == 'half' then
+    zellij_swap('previous')   -- default(small) → half (last in cycle)
+  elseif from == 'half' and to == 'small' then
+    zellij_swap('next')       -- half → wraps to default(small)
   end
 end
 
@@ -1757,6 +1936,21 @@ local function layout_goto(target)
     layout_step(LAYOUT_BY_LEVEL[level], LAYOUT_BY_LEVEL[next_level])
   end
   layout_write(target)
+  -- Refresh the statusline AFTER state has updated. Focus events fire
+  -- before this point (zellij's keybind does MoveFocus Down → nvim
+  -- FocusGained → refresh, all before our :lua call runs), so without
+  -- this explicit refresh the statusline reads the previous state and
+  -- the minimized hint sticks around when leaving minimized.
+  refresh_statusline()
+  -- Landing in minimized: nvim is now a single-row statusline strip and
+  -- the user can't usefully interact with it. Shift focus to the agent
+  -- pane so they can keep working. The MoveFocus triggers FocusLost in
+  -- nvim, which would normally start the focus-grab timer — but
+  -- pair_spinner_start checks pair_layout_state and bails when minimized,
+  -- so the timer doesn't fire.
+  if target == 'minimized' then
+    vim.fn.system({ 'zellij', 'action', 'move-focus', 'up' })
+  end
 end
 
 function _G.PairLayoutBigger()
@@ -1770,9 +1964,9 @@ function _G.PairLayoutSmaller()
 end
 
 -- Reset on nvim startup: zellij always boots into the layout's initial
--- state (the size="32%" draft pane in zellij/layouts/main.kdl), so any
+-- state (the size=10 draft pane in zellij/layouts/main.kdl), so any
 -- persisted state from a prior session is stale.
-layout_write('third')
+layout_write('small')
 
 -- ---------------------------------------------------------------------------
 -- keymaps
@@ -1991,45 +2185,3 @@ vim.api.nvim_create_autocmd('FocusGained', {
   end,
 })
 vim.api.nvim_create_autocmd('ColorScheme', { group = pair_aug, callback = pair_apply_focus_cursor_hl })
-
--- Pane name = "draft" + spaces + cheatsheet, sized to the terminal width
--- so the cheatsheet ends up right-aligned in the zellij frame title. Why:
--- zellij sets the OSC 0 terminal title to "<session>: <pane-name>", which
--- typical terminal/multiplexer tab titles truncate. Padding spaces between
--- "draft" and the cheatsheet means the title truncates *during* the
--- spaces, so the visible tab title stays short ("pair-pair: draft") while
--- the in-frame display shows the full cheatsheet right-aligned.
-local PAIR_CHEATSHEET = 'Alt: ⏎=send  ↕=size  i=img  d=detach  x=quit'
-
--- UTF-8 encoding of U+00A0 NO-BREAK SPACE. Same display width as a regular
--- space but zellij doesn't trim/collapse it the way it does ordinary
--- whitespace in pane names.
-local NBSP = string.char(0xC2, 0xA0)
-
-local function pair_update_pane_name()
-  local cheat_w = vim.fn.strdisplaywidth(PAIR_CHEATSHEET)
-  -- vim.o.columns is the nvim window width = the pane's inner width.
-  -- Subtract a small fudge for zellij's frame chrome (corners + the
-  -- "─ " / " ─" that bracket the title slot).
-  local pad = vim.o.columns - 4 - vim.fn.strdisplaywidth('draft') - cheat_w
-  if pad < 2 then pad = 2 end
-  local name = 'draft' .. string.rep(NBSP, pad) .. PAIR_CHEATSHEET
-
-  -- Target the nvim pane explicitly via its ID, not "the focused pane".
-  -- At startup zellij may show a floating "tip" popup that grabs focus,
-  -- and rename-pane would then rename the popup instead of us. zellij
-  -- exports ZELLIJ_PANE_ID in every pane's env — that's our ID.
-  local pane_id = os.getenv('ZELLIJ_PANE_ID')
-  local cmd
-  if pane_id and pane_id ~= '' then
-    cmd = { 'zellij', 'action', 'rename-pane', '--pane-id', pane_id, name }
-  else
-    cmd = { 'zellij', 'action', 'rename-pane', name }
-  end
-  pcall(vim.fn.system, cmd)
-end
-
-vim.api.nvim_create_autocmd({ 'VimEnter', 'VimResized' }, {
-  group = pair_aug,
-  callback = vim.schedule_wrap(pair_update_pane_name),
-})

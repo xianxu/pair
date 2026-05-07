@@ -111,11 +111,17 @@ KEYBINDINGS (inside a pair session)
   Alt+BS        (at +N) delete the current queued prompt; items shift down,
                 so tap-tap deletes a run
   Shift+Alt+BS  erase history + draft + queue ("start anew"); confirms first
-  Alt+↑ / Alt+↓ step nvim pane along small ↔ half ↔ full ladder
-                (works from either pane)
+  Alt+↑ / Alt+↓ step nvim pane along minimized ↔ 10 lines ↔ 1/2 ladder
+                (works from either pane). minimized = statusline only;
+                Alt+↑ from there grows the pane back. Confirm-requiring
+                keys (Alt+x/d/n) auto-grow out of minimized first so the
+                prompt is visible.
   Alt+d         detach from session (re-attach later via `pair`)
   Alt+x         full quit — kill session and remove from resurrect list
                 (Ctrl+q is unbound; Alt+x is the only quit path)
+  Alt+n         restart — kill the session and re-launch in place with
+                the same tag and agent args, but a fresh agent
+                conversation (saved per-(tag,agent) config dropped)
   Alt+h         pop up this help in a floating pane (press `q` to dismiss)
   Alt+i         attach clipboard image to agent + insert [Image #N];
                 if cursor is on an existing [Image #N], sync counter to N
@@ -814,7 +820,11 @@ if [ -f "$config_file" ]; then
             # on the CLI (word-split out of agent_extra).
             base=()
             if [ "$action" = "saved+resume" ]; then
-                base=("${saved_args[@]}")
+                # bash 3.2 + set -u: an empty array reads as "unset". Use
+                # the `${arr[@]+...}` guard (matches the convention in
+                # bin/pair-session-watch.sh) so an empty saved_args
+                # expands to nothing rather than aborting the script.
+                base=( ${saved_args[@]+"${saved_args[@]}"} )
             else
                 # bash 3.2 has no `read -a` of empty input quirks to worry
                 # about here — agent_extra is non-empty by construction
