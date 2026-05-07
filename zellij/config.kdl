@@ -71,13 +71,18 @@ keybinds clear-defaults=false {
         // Alt+d — detach from the current pair session. Routed through nvim
         // for a confirm prompt before the actual detach (muscle-memory guard;
         // accidental Alt+d while in the agent pane is annoying to recover
-        // from on long-running sessions). MoveFocus Down lands in nvim, ESC
-        // (byte 27) ensures normal mode, the colon command pops a confirm,
-        // and PairConfirmDetach() shells out to `zellij action detach` only
-        // on Yes.
+        // from on long-running sessions). MoveFocus Down lands in nvim,
+        // <C-\><C-n> (bytes 28, 14) forces normal mode from any state
+        // (insert, terminal, visual, op-pending, select) — a bare ESC is
+        // unreliable when a completion popup, telescope prompt, or :terminal
+        // is focused, in which case the colon command would get typed into
+        // the buffer. The colon command pops a confirm, and
+        // PairConfirmDetach() shells out to `zellij action detach` only on
+        // Yes.
         bind "Alt d" {
             MoveFocus "Down";
-            Write 27;
+            Write 28;
+            Write 14;
             WriteChars ":lua PairConfirmDetach()";
             Write 13;
         }
@@ -89,17 +94,19 @@ keybinds clear-defaults=false {
         // keybind language can't run a shell command silently and the step
         // needs persistent state plus a loop of `zellij action resize`
         // calls. MoveFocus Down lands in nvim whether the user started in
-        // the agent pane or in nvim; the ESC + cmdline dance matches the
-        // Alt+d / Alt+x flow.
+        // the agent pane or in nvim; the <C-\><C-n> + cmdline dance matches
+        // the Alt+d / Alt+x flow.
         bind "Alt Up" {
             MoveFocus "Down";
-            Write 27;
+            Write 28;
+            Write 14;
             WriteChars ":lua PairLayoutBigger()";
             Write 13;
         }
         bind "Alt Down" {
             MoveFocus "Down";
-            Write 27;
+            Write 28;
+            Write 14;
             WriteChars ":lua PairLayoutSmaller()";
             Write 13;
         }
@@ -112,7 +119,8 @@ keybinds clear-defaults=false {
         // shells out to pair-quit.sh only on Yes.
         bind "Alt x" {
             MoveFocus "Down";
-            Write 27;
+            Write 28;
+            Write 14;
             WriteChars ":lua PairConfirmQuit()";
             Write 13;
         }
