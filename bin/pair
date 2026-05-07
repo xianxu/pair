@@ -723,7 +723,7 @@ if [ -f "$config_file" ]; then
     if [ -n "$saved_session" ]; then
         case "$AGENT" in
             claude)
-                encoded_cwd=$(printf '%s' "$PWD" | tr / -)
+                encoded_cwd=$(printf '%s' "$PWD" | tr ./ -)
                 [ -f "$HOME/.claude/projects/$encoded_cwd/$saved_session.jsonl" ] && has_resumable=true
                 ;;
             codex)

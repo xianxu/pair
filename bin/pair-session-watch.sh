@@ -71,7 +71,10 @@ extract_id() {
 
 case "$agent" in
     claude)
-        encoded=$(printf '%s' "$cwd" | tr / -)
+        # Claude encodes both `/` and `.` as `-` (so `/path/foo.nvim`
+        # becomes `-path-foo-nvim`). Translating only `/` lands on an
+        # empty dir for any cwd containing a dot.
+        encoded=$(printf '%s' "$cwd" | tr ./ -)
         watch_dir="$HOME/.claude/projects/$encoded"
         find_args=(-maxdepth 1 -type f -name '*.jsonl')
         ;;
