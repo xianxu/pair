@@ -70,6 +70,14 @@ vim.api.nvim_create_autocmd('ColorScheme', { callback = pair_apply_comment_hl })
 vim.api.nvim_create_autocmd('FileType', {
   pattern = 'markdown',
   callback = function()
+    -- Stock vim ftplugin/markdown.vim sets ts/sw/sts to 4 buffer-locally,
+    -- overriding our 2-space globals. Re-apply 2 here so Tab and `>>`
+    -- match the rest of the editor.
+    vim.bo.tabstop = 2
+    vim.bo.shiftwidth = 2
+    vim.bo.softtabstop = 2
+    vim.bo.expandtab = true
+
     vim.cmd([[syntax match PairComment /^\s*===.*$/]])
     vim.cmd([[highlight default link PairComment Comment]])
 
