@@ -296,6 +296,15 @@ for arg in "$@"; do
         exit 1
     fi
 done
+
+# PAIR_FORCE_TAG is set by the Alt+n restart flow (handle_restart_marker
+# below): it pins the new run to the same tag as the killed session,
+# skipping both the picker and the name prompt. Treated as forced_tag from
+# here on; unset so a child process doesn't inherit it.
+if [ -z "$forced_tag" ] && [ -n "${PAIR_FORCE_TAG:-}" ]; then
+    forced_tag="$PAIR_FORCE_TAG"
+fi
+unset PAIR_FORCE_TAG
 # Defer the [-z AGENT] default to after DATA_DIR is set: when `resume <tag>`
 # is used we infer the agent from saved state on disk so a single tag is
 # enough to fully restart, regardless of which agent was originally paired
@@ -527,6 +536,42 @@ cleanup_quit_marker() {
     fi
 }
 
+# After cleanup_quit_marker, check for the Alt+n restart marker. If present,
+# pair-restart.sh asked for "kill + relaunch with same tag/agent/args, fresh
+# agent conversation": drop the saved per-(tag,agent) config so the new run
+# doesn't offer to resume the prior agent session, then exec self with
+# PAIR_FORCE_TAG pinning the same tag. The agent name comes from the marker
+# (captured before cleanup_quit_marker wiped agent-<tag>); agent args come
+# from the saved config that we're about to delete.
+handle_restart_marker() {
+    local marker="$HOME/.cache/pair/restart-$SESSION"
+    [ -f "$marker" ] || return 0
+
+    local r_tag r_agent
+    r_tag=$(awk -F= '$1=="tag"{print $2; exit}' "$marker")
+    r_agent=$(awk -F= '$1=="agent"{print $2; exit}' "$marker")
+    rm -f "$marker"
+
+    [ -z "$r_tag" ] && r_tag="$PAIR_TAG"
+    [ -z "$r_agent" ] && r_agent="$AGENT"
+
+    local r_args=""
+    local cfg="$DATA_DIR/config-${r_tag}-${r_agent}.json"
+    if [ -f "$cfg" ] && command -v jq >/dev/null 2>&1; then
+        r_args=$(jq -r '(.args // []) | join(" ")' "$cfg" 2>/dev/null || true)
+    fi
+    rm -f "$cfg"
+
+    export PAIR_FORCE_TAG="$r_tag"
+    if [ -n "$r_args" ]; then
+        # word-split r_args into argv tokens, mirroring PAIR_AGENT_ARGS convention
+        # shellcheck disable=SC2086
+        exec "$0" "$r_agent" -- $r_args
+    else
+        exec "$0" "$r_agent"
+    fi
+}
+
 # Capture pair's controlling TTY before zellij takes over — this IS the path
 # of the outer terminal/wrapper's PTY. Writing OSC sequences to it bypasses
 # zellij's escape filtering, letting outer wrappers (e.g. cmux, which watches
@@ -554,8 +599,10 @@ if [ "$action" = "attach" ]; then
     printf '\033]0;%s\007' "$SESSION"
     record_outer_tty
     zellij --config-dir "$PAIR_HOME/zellij" attach "$SESSION"
+    rc=$?
     cleanup_quit_marker
-    exit $?
+    handle_restart_marker
+    exit $rc
 fi
 
 # Create branch. Validate the agent here (deferred past the picker so attach
@@ -856,3 +903,4 @@ zellij \
     --new-session-with-layout "$PAIR_HOME/zellij/layouts/main.kdl" \
     --session                 "$SESSION"
 cleanup_quit_marker
+handle_restart_marker

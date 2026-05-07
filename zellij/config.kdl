@@ -43,6 +43,11 @@ keybinds clear-defaults=false {
         // step-up / step-down through the layout sizes (small/1-3/2-3).
         unbind "Alt Up"
         unbind "Alt Down"
+        // Alt+n default is NewPane — pair manages its own two-pane layout,
+        // so a manually-spawned third pane breaks every routed keybind that
+        // assumes "MoveFocus Down lands in nvim". Reclaimed below as the
+        // restart shortcut.
+        unbind "Alt n"
     }
 
     shared_except "locked" {
@@ -141,7 +146,18 @@ keybinds clear-defaults=false {
             };
         }
 
-        // Alt+n is no longer bound — `copy_command` (above) auto-fires on
-        // mouse-up, so the manual Alt+n keybind became redundant.
+        // Alt+n — restart: kill the current pair session AND re-launch with
+        // the same tag, agent, and agent args, but a fresh agent conversation
+        // (the saved per-(tag,agent) config is dropped before re-exec, so the
+        // new run starts the agent from a clean slate rather than offering
+        // to resume). Routed through nvim for the same fat-finger guard as
+        // Alt+x — destroying the agent's in-progress context is irreversible.
+        bind "Alt n" {
+            MoveFocus "Down";
+            Write 28;
+            Write 14;
+            WriteChars ":lua PairConfirmRestart()";
+            Write 13;
+        }
     }
 }

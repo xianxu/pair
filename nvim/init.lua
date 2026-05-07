@@ -1680,6 +1680,15 @@ function _G.PairConfirmDetach()
   end
 end
 
+function _G.PairConfirmRestart()
+  local ans = vim.fn.confirm(
+    'Restart pair session? Kills the session and re-launches with the same tag and agent args, but a fresh agent conversation.',
+    '&Yes\n&No', 2)
+  if ans == 1 then
+    vim.fn.system('pair-restart.sh')
+  end
+end
+
 -- ---------------------------------------------------------------------------
 -- Layout sizing: small (initial bottom split) ↔ third (~1/3) ↔ twothirds (~2/3).
 -- ---------------------------------------------------------------------------
