@@ -33,9 +33,12 @@ layout {
         // in nvim/init.lua.
         // size as a percentage (not an integer row count) so the pane is
         // resizable at runtime — integer sizes are tagged FIXED by zellij and
-        // refuse `resize` actions, which breaks the Alt+↑/↓ layout step. 22%
-        // approximates the prior 11-line default on a ~50-row terminal.
-        pane size="22%" name="draft" focus=true {
+        // refuse `resize` actions, which breaks the Alt+↑/↓ layout step. 32%
+        // is the middle rung ("third") on the layout ladder; Alt+Down steps
+        // to ~22% (small) and Alt+Up to ~67% (twothirds). Starting at third
+        // gives a usable draft pane on first attach without forcing the user
+        // to resize.
+        pane size="32%" name="draft" focus=true {
             command "sh"
             args "-c" "DATA_DIR=\"${XDG_DATA_HOME:-$HOME/.local/share}/pair\" && mkdir -p \"$DATA_DIR\" && exec nvim -u \"$PAIR_HOME/nvim/init.lua\" \"$DATA_DIR/draft-${PAIR_TAG:-${PAIR_AGENT:-claude}}.md\""
         }

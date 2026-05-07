@@ -48,12 +48,21 @@ elif command -v xclip >/dev/null 2>&1; then
 fi
 
 # 2. Inspect the focused pane (where the selection happened). One jq pass
-# extracts both the pane id and a signature for the in-nvim check.
+# extracts both the pane id and a signature for the in-nvim check. Filter
+# out plugin and floating panes — when a floating plugin (e.g. About
+# Zellij) is open, zellij reports BOTH the plugin and the underlying
+# terminal as is_focused=true; without the filter we'd pick the plugin
+# and (a) misclassify in_nvim and (b) point set-pane-color at the wrong
+# terminal id. flash-pane.sh applies the same filter when called with no
+# args; passing $focused_id explicitly avoids a second jq round-trip.
 in_nvim=false
 focused_id=""
 if command -v jq >/dev/null 2>&1; then
     focused=$(zellij action list-panes --json --command 2>/dev/null \
-              | jq -r '[.. | objects | select(.is_focused == true)][0]
+              | jq -r '[.. | objects
+                        | select(.is_focused == true
+                                 and (.is_plugin   // false) == false
+                                 and (.is_floating // false) == false)][0]
                        | "\(.id // .pane_id // "")\t\(.title // "") \(.terminal_command // "")"' 2>/dev/null)
     focused_id=${focused%%$'\t'*}
     sig=${focused#*$'\t'}
@@ -77,25 +86,13 @@ fi
 # mapped to PairPasteQuote *only in insert mode*. No shell-side mode probe
 # is needed.
 
-# 3. Flash the source pane's background so the user gets a visual cue at the
-# selection site (in addition to the nvim-side flash on the inserted text).
-# set-pane-color sets the pane's *default* bg, so this only shows through in
-# cells the agent isn't actively painting — best-effort. Override the color
-# via $PAIR_FLASH_BG, the duration via $PAIR_FLASH_MS.
-flash_bg="${PAIR_FLASH_BG:-#5a4a00}"
-flash_ms="${PAIR_FLASH_MS:-100}"
-if [ -n "$focused_id" ]; then
-    zellij action set-pane-color --pane-id "$focused_id" --bg "$flash_bg" 2>>"$LOG"
-    # Background a delayed reset so the flash auto-clears. Survives the exec
-    # below because backgrounded children outlive parent process replacement.
-    (
-        # Convert ms → seconds for sleep(1) (POSIX sleep accepts decimals).
-        secs=$(awk "BEGIN{printf \"%.3f\", $flash_ms/1000}")
-        sleep "$secs"
-        zellij action set-pane-color --pane-id "$focused_id" --reset 2>>"$LOG"
-    ) &
-    disown 2>/dev/null || true
-    echo "flash: bg=$flash_bg ms=$flash_ms id=$focused_id" >> "$LOG"
+# 3. Flash the source pane's background so the user gets a visual cue at
+# the selection site (in addition to the nvim-side flash on the inserted
+# text). Delegated to bin/flash-pane.sh so the flash idiom (color, duration,
+# bg-reset) lives in one place — see that script for the visibility caveat
+# (best-effort: the TUI may repaint the bg).
+if [ -n "$focused_id" ] && [ -x "$PAIR_HOME/bin/flash-pane.sh" ]; then
+    "$PAIR_HOME/bin/flash-pane.sh" "$focused_id"
 fi
 
 # 4. Hand off to clipboard-to-pane.sh for the actual insert into nvim.

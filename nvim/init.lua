@@ -338,6 +338,16 @@ local function pair_spinner_start()
   end))
   pair_spinner.ret = vim.loop.new_timer()
   pair_spinner.ret:start(10000, 0, vim.schedule_wrap(function()
+    -- Flash the agent pane (currently focused) before yanking focus back
+    -- to nvim, same idiom as copy-on-select's selection-site flash. The
+    -- focus shift can be jarring without a visual cue when the user is
+    -- mid-task in the agent pane. Run flash synchronously so the bg is
+    -- already set when move-focus changes which pane is "focused"; the
+    -- bg-reset is backgrounded inside flash-pane.sh and survives.
+    local pair_home = vim.env.PAIR_HOME
+    if pair_home and pair_home ~= '' then
+      pcall(vim.fn.system, { pair_home .. '/bin/flash-pane.sh' })
+    end
     pcall(vim.fn.system, { 'zellij', 'action', 'move-focus', 'down' })
   end))
 end
@@ -1680,9 +1690,9 @@ end
 -- N-down keeps drift bounded to per-step rounding.
 local LAYOUT_STATE_FILE = (vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/share'))
   .. '/pair/layout-mode-' .. (vim.env.PAIR_TAG or vim.env.PAIR_AGENT or 'claude')
--- zellij's resize step is ~5% of total height. Initial draft pane is 22%
--- (see zellij/layouts/main.kdl). Step counts are chosen so each rung lands
--- close to its target ratio:
+-- zellij's resize step is ~5% of total height. Initial draft pane is 32%
+-- (the "third" rung — see zellij/layouts/main.kdl). Step counts are chosen
+-- so each rung lands close to its target ratio:
 --   small (22%)  → third       2 steps  → ~32%
 --   third (~32%) → twothirds   7 steps  → ~67%
 -- Symmetric N-up / N-down means a round-trip returns to the same position.
@@ -1691,10 +1701,10 @@ local LAYOUT_STEPS_THIRD_TO_TWOTHIRDS = 7
 
 local function layout_read()
   local f = io.open(LAYOUT_STATE_FILE, 'r')
-  if not f then return 'small' end
+  if not f then return 'third' end
   local s = f:read('*l')
   f:close()
-  return s or 'small'
+  return s or 'third'
 end
 
 local function layout_write(s)
@@ -1751,9 +1761,9 @@ function _G.PairLayoutSmaller()
 end
 
 -- Reset on nvim startup: zellij always boots into the layout's initial
--- state (the size="22%" draft pane in zellij/layouts/main.kdl), so any
+-- state (the size="32%" draft pane in zellij/layouts/main.kdl), so any
 -- persisted state from a prior session is stale.
-layout_write('small')
+layout_write('third')
 
 -- ---------------------------------------------------------------------------
 -- keymaps
