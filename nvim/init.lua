@@ -835,6 +835,24 @@ end
 -- live in the `pair` augroup with clear=true).
 -- ---------------------------------------------------------------------------
 
+-- Wrap a list of completion strings into the dict form vim.fn.complete()
+-- accepts, prefixing the first 9 abbrs with `⌥N ` to advertise the Alt+N
+-- quick-pick keymaps below. The prefix is purely visual (label users see
+-- in the popup); .word stays clean so accept-via-<C-y>, the <M-1>..<M-9>
+-- handlers, and the CompleteDone pick-tracking autocmd all see the actual
+-- candidate. Items past 9 stay arrow-navigable but have no quick-key.
+local function indexed_items(words)
+  local items = {}
+  for i, w in ipairs(words) do
+    if i <= 9 then
+      items[i] = { word = w, abbr = '⌥' .. i .. ' ' .. w }
+    else
+      items[i] = { word = w }
+    end
+  end
+  return items
+end
+
 -- Lua pattern for a path-ish token: word chars, slash, dot, dash, underscore,
 -- tilde. Matches the longest such run anchored at end-of-prefix.
 local PATH_TOKEN_RE = '([%w%./%-_~]+)$'
@@ -869,7 +887,7 @@ local function path_complete()
   if #matches == 0 then return end
 
   -- complete() col is 1-indexed start of the span being replaced.
-  vim.fn.complete(token_start, matches)
+  vim.fn.complete(token_start, indexed_items(matches))
 end
 
 -- Word completion. Triggered alongside path_complete on every TextChangedI.
@@ -1078,7 +1096,7 @@ local function word_complete()
   table.sort(matches, function(a, b) return a.score > b.score end)
   local words = {}
   for i, m in ipairs(matches) do words[i] = m.word end
-  vim.fn.complete(token_start, words)
+  vim.fn.complete(token_start, indexed_items(words))
 end
 
 -- z= replacement: instead of vim's default "Choose a number:" prompt,
@@ -1122,7 +1140,7 @@ local function spell_suggest_popup()
   vim.api.nvim_win_set_cursor(0, { row, e - 1 })
   vim.cmd('startinsert')
   vim.schedule(function()
-    vim.fn.complete(s, suggestions)
+    vim.fn.complete(s, indexed_items(suggestions))
   end)
 end
 
@@ -1658,33 +1676,92 @@ pair_apply_statusline_hl()
 -- before keys get interpreted as commands instead of text.
 -- ---------------------------------------------------------------------------
 -- Insert mode keeps the colorscheme look. Locked mode (everything else)
--- swaps to a "dimmed sheet": lifted grey bg + uniform dim grey fg for
--- every syntax group, applied via a highlight namespace so the
--- colorscheme's default ns is left untouched.
+-- swaps to a "dimmed sheet": lifted grey bg + every syntax color blended
+-- toward that bg by FADE_ALPHA so the palette survives in muted form.
+-- Applied via a highlight namespace so the colorscheme's default ns is
+-- left untouched. Truecolor (termguicolors) is required and asserted at
+-- top of file.
 local pair_bg_insert = '#1c1c1c' -- close to slate default
 local pair_bg_locked = '#2a2a2a' -- lifted neutral grey
-local pair_fg_locked = '#888888' -- dim grey fg for all syntax when locked
 local pair_locked_ns = vim.api.nvim_create_namespace('pair_locked')
 
+-- 0 = pure locked-bg (full grey-out); 1 = original color (no fade).
+-- 0.45 keeps hue legible while clearly signaling "not insert mode".
+local PAIR_LOCKED_FADE = 0.45
+
+-- Fallback fg used when a group has no defined fg (e.g. Normal under the
+-- default scheme — its fg comes from the terminal default, which our blend
+-- can't see). Without this, "plain" buffer text stays at the terminal's
+-- bright default while every colored token gets faded, leaving Normal
+-- text the *brightest* thing on the dimmed sheet.
+local PAIR_LOCKED_DEFAULT_FG = 0xeeeeee
+
+local function pair_hex_to_int(s)
+  return tonumber((s:gsub('#', '')), 16)
+end
+local pair_bg_locked_int = pair_hex_to_int(pair_bg_locked)
+local pair_locked_br = math.floor(pair_bg_locked_int / 65536) % 256
+local pair_locked_bg_g = math.floor(pair_bg_locked_int / 256) % 256
+local pair_locked_bb = pair_bg_locked_int % 256
+
+-- Linear blend between an integer RGB color (24-bit) and pair_bg_locked.
+-- alpha = 1 returns rgb unchanged; alpha = 0 returns pair_bg_locked.
+local function pair_blend_to_locked(rgb, alpha)
+  local r = math.floor(rgb / 65536) % 256
+  local g = math.floor(rgb / 256) % 256
+  local b = rgb % 256
+  local nr = math.floor(r * alpha + pair_locked_br   * (1 - alpha) + 0.5)
+  local ng = math.floor(g * alpha + pair_locked_bg_g * (1 - alpha) + 0.5)
+  local nb = math.floor(b * alpha + pair_locked_bb   * (1 - alpha) + 0.5)
+  return nr * 65536 + ng * 256 + nb
+end
+
 -- Snapshot every currently-defined highlight group and clone it into the
--- locked namespace with fg→dim, bg→locked, and decorations stripped.
--- Rebuilt on ColorScheme so new schemes / late-loaded tree-sitter groups
--- get covered. Cursor groups are skipped so the cursor block stays
--- visible against the dimmed sheet.
+-- locked namespace with fg/bg blended toward the locked sheet bg, while
+-- preserving decorations (bold/italic/underline) so the colorscheme's
+-- shape stays recognizable. Rebuilt on ColorScheme so new schemes /
+-- late-loaded tree-sitter groups get covered. Cursor groups are skipped
+-- so the cursor block stays visible against the dimmed sheet.
+--
+-- `reverse` is dropped: it swaps fg/bg, which would put a faded color in
+-- the bg slot and break the uniform sheet. Groups that relied on reverse
+-- (CurSearch, Visual on some schemes) will fall back to the resolved
+-- fg/bg without inversion — still legible, just not flipped.
 local function pair_build_locked_ns()
   for name in pairs(vim.api.nvim_get_hl(0, {})) do
     if name ~= 'Cursor' and name ~= 'lCursor' and name ~= 'TermCursor' then
-      vim.api.nvim_set_hl(pair_locked_ns, name, {
-        fg = pair_fg_locked,
-        bg = pair_bg_locked,
-      })
+      local hl = vim.api.nvim_get_hl(0, { name = name, link = false }) or {}
+      local entry = {
+        bold          = hl.bold,
+        italic        = hl.italic,
+        underline     = hl.underline,
+        undercurl     = hl.undercurl,
+        strikethrough = hl.strikethrough,
+      }
+      entry.fg = pair_blend_to_locked(hl.fg or PAIR_LOCKED_DEFAULT_FG,
+                                      PAIR_LOCKED_FADE)
+      -- Group-specific bg (Visual, Search, etc.): fade toward locked bg
+      -- so highlighters stay visible but muted. No bg → uniform sheet.
+      if hl.bg then
+        entry.bg = pair_blend_to_locked(hl.bg, PAIR_LOCKED_FADE)
+      else
+        entry.bg = pair_bg_locked_int
+      end
+      vim.api.nvim_set_hl(pair_locked_ns, name, entry)
     end
   end
 end
 pair_build_locked_ns()
 
+-- Focus state mirror. FocusLost is treated the same as normal-mode:
+-- the user isn't actively typing into this pane, so the dimmed sheet
+-- applies. FocusGained restores to whatever the current mode dictates.
+-- Default true: nvim usually starts focused (and if it doesn't, the
+-- first FocusLost will correct us).
+local pair_has_focus = true
+
 local function pair_apply_mode_bg(mode)
-  if mode == 'n' then
+  if mode == 'n' or not pair_has_focus then
     pair_build_locked_ns() -- catch any groups defined since last build
     vim.api.nvim_set_hl_ns(pair_locked_ns)
   else
@@ -1711,6 +1788,18 @@ local function pair_schedule_mode_bg()
 end
 vim.api.nvim_create_autocmd('ModeChanged', {
   callback = pair_schedule_mode_bg,
+})
+vim.api.nvim_create_autocmd('FocusLost', {
+  callback = function()
+    pair_has_focus = false
+    pair_schedule_mode_bg()
+  end,
+})
+vim.api.nvim_create_autocmd('FocusGained', {
+  callback = function()
+    pair_has_focus = true
+    pair_schedule_mode_bg()
+  end,
 })
 vim.api.nvim_create_autocmd('ColorScheme', {
   callback = pair_build_locked_ns,
@@ -1956,8 +2045,16 @@ local function layout_goto(target)
   -- nvim, which would normally start the focus-grab timer — but
   -- pair_spinner_start checks pair_layout_state and bails when minimized,
   -- so the timer doesn't fire.
+  --
+  -- Landing in small/half: the zellij keybind that triggered us escaped
+  -- to normal mode (Ctrl-\ Ctrl-N) before invoking this lua. That's
+  -- correct for minimized (where the locked sheet is the desired look),
+  -- but for any expanded rung the user is here to type — startinsert
+  -- puts the buffer into insert mode automatically.
   if target == 'minimized' then
     vim.fn.system({ 'zellij', 'action', 'move-focus', 'up' })
+  else
+    vim.cmd('startinsert')
   end
 end
 
@@ -2142,6 +2239,39 @@ for open, close in pairs(PAIR_OPEN_TO_CLOSE) do
 end
 vim.keymap.set('i', '<BS>', pair_backspace,
   { silent = true, expr = true, desc = 'pair: smart-delete empty pair' })
+
+-- <M-1>..<M-9>: quick-pick the Nth visible completion item. The path/word/
+-- spell completers tag the first 9 abbrs with their index (see
+-- indexed_items) so the popup shows e.g. `1 bin/pair-wrap`. Outside the
+-- popup these keys are no-ops — returning '' from an expr keymap leaves
+-- the buffer unchanged. Items past 9 stay reachable via arrows / <C-n>.
+--
+-- Mechanism: feed `<C-n>` / `<C-p>` to land selection on item N, then
+-- `<C-y>` to accept. We don't replace text manually; vim's accept handler
+-- already knows the span passed to complete() and substitutes correctly.
+local function pair_pick_completion(n)
+  if vim.fn.pumvisible() == 0 then return '' end
+  local info = vim.fn.complete_info({ 'items', 'selected' })
+  if not info.items or not info.items[n] then return '' end
+  local cn = vim.api.nvim_replace_termcodes('<C-n>', true, false, true)
+  local cp = vim.api.nvim_replace_termcodes('<C-p>', true, false, true)
+  local cy = vim.api.nvim_replace_termcodes('<C-y>', true, false, true)
+  -- selected is 0-indexed (-1 = nothing selected, the noselect default).
+  -- Treat -1 as "before item 0" so steps from -1 to target=0 is +1.
+  local current = info.selected
+  local target = n - 1
+  local steps = (current >= 0) and (target - current) or (target + 1)
+  local keys = ''
+  if steps > 0 then keys = string.rep(cn, steps)
+  elseif steps < 0 then keys = string.rep(cp, -steps) end
+  return keys .. cy
+end
+
+for i = 1, 9 do
+  vim.keymap.set('i', '<M-' .. i .. '>',
+    function() return pair_pick_completion(i) end,
+    { silent = true, expr = true, desc = 'pair: pick completion item ' .. i })
+end
 
 -- Fire on both events: TextChangedI when popup is hidden, TextChangedP when
 -- popup is visible — refreshing the menu as the user types more characters.
