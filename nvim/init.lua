@@ -298,11 +298,11 @@ end
 -- "draft slot, clean buffer" state.
 local nav = { pos = '*', baseline = '' }
 
--- Forward-declared layout-state mirror. The on-disk LAYOUT_STATE_FILE far
--- below is the source of truth; this in-memory copy lets pair_spinner_start
--- (defined right below) check the current rung without re-reading the file
--- and without depending on layout_read, which is declared much later.
--- Updated by layout_write().
+-- Forward-declared layout-state mirror. layout_read (declared much later)
+-- derives the rung from vim.o.lines; this in-memory copy lets the early
+-- pair_spinner_start (defined right below) check the rung without a
+-- forward-declaration shuffle. Updated by layout_write() at every
+-- PairLayoutBigger/Smaller transition.
 local pair_layout_state = 'small'
 
 local function refresh_statusline()
@@ -1870,6 +1870,16 @@ local function pair_ensure_visible_then(fn)
   end
 end
 
+local function pair_write_config(tag, agent, args, session_id, data_dir)
+  local body = vim.json.encode({
+    agent      = agent,
+    args       = args or {},
+    session_id = session_id,
+  })
+  local f = io.open(data_dir .. '/config-' .. tag .. '-' .. agent .. '.json', 'w')
+  if f then f:write(body); f:close() end
+end
+
 -- Read the per-(tag,agent) saved config so the Alt+x prompt can show the
 -- user what they're about to detach from for the future `pair resume
 -- <tag>` path. Returns nil when the tag isn't set, the agent file is
@@ -1887,22 +1897,69 @@ local function pair_read_saved_config()
   af:close()
   if not agent or agent == '' then return nil end
 
+  local cfg = { tag = tag, agent = agent }
   local cf = io.open(data_dir .. '/config-' .. tag .. '-' .. agent .. '.json', 'r')
-  if not cf then
-    return { tag = tag, agent = agent }
+  if cf then
+    local body = cf:read('*a')
+    cf:close()
+    local ok, parsed = pcall(vim.json.decode, body)
+    if ok and type(parsed) == 'table' then
+      cfg.args       = parsed.args
+      cfg.session_id = parsed.session_id
+    end
   end
-  local body = cf:read('*a')
-  cf:close()
-  local ok, parsed = pcall(vim.json.decode, body)
-  if not ok or type(parsed) ~= 'table' then
-    return { tag = tag, agent = agent }
-  end
-  return {
-    tag        = tag,
-    agent      = agent,
-    args       = parsed.args,
-    session_id = parsed.session_id,
-  }
+  return cfg
+end
+
+-- Capture the agent's currently-active session id via trigger-then-mtime.
+-- Called on the Alt+x quit path, after the user confirms but before
+-- pair-quit.sh kills the session.
+--
+-- Why this layer exists: the launch-time watcher misses two cases —
+-- (1) --resume launches (the agent appends to an existing jsonl, so the
+-- watcher's snapshot-diff never sees a new file) and (2) /clear or
+-- /compact rotations mid-session (the watcher's 60s window is long
+-- gone). lsof would be the natural choice, but claude opens-writes-
+-- closes the jsonl per append, so a snapshot-time lsof almost never
+-- catches the file open.
+--
+-- Approach: send a benign user message ("bye") to the agent pane via
+-- zellij IPC, wait briefly for the agent to log it to disk, then pick
+-- the most-recently-modified jsonl in the project dir. The trigger
+-- guarantees a fresh mtime on OUR session even when the agent was idle,
+-- which disambiguates against any peer pair sessions that share the
+-- project dir. The "bye" lands in the conversation log — harmless given
+-- we're tearing down the session immediately after.
+--
+-- Claude only for now: codex/gemini have different session-dir layouts
+-- and (for gemini) the id isn't in the filename.
+local function pair_capture_session_via_trigger(cfg, data_dir)
+  if not cfg or cfg.agent ~= 'claude' then return end
+
+  send_to_agent('bye')
+
+  -- Wait for claude to log the user message. 200ms is plenty on typical
+  -- macOS setups; we don't need claude's response to land, only the
+  -- user-message append. vim.wait blocks but processes events.
+  vim.wait(200, function() return false end)
+
+  local cwd = vim.env.PWD or vim.fn.getcwd()
+  -- Claude encodes both `/` and `.` in the cwd as `-` (mirrors
+  -- bin/pair-session-watch.sh's path resolution).
+  local encoded = cwd:gsub('[./]', '-')
+  local project_dir = (vim.env.HOME or '') .. '/.claude/projects/' .. encoded
+
+  local handle = io.popen('ls -1t ' .. vim.fn.shellescape(project_dir)
+                          .. '/*.jsonl 2>/dev/null | head -1')
+  if not handle then return end
+  local newest = handle:read('*l')
+  handle:close()
+  if not newest or newest == '' then return end
+
+  local id = newest:match('(%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x)%.jsonl$')
+  if not id then return end
+
+  pair_write_config(cfg.tag, cfg.agent, cfg.args, id, data_dir)
 end
 
 function _G.PairConfirmQuit()
@@ -1925,6 +1982,15 @@ function _G.PairConfirmQuit()
     end
     local ans = vim.fn.confirm(prompt, '&Yes\n&No', 2)
     if ans == 1 then
+      -- Refresh the saved session id before tearing the session down.
+      -- Catches /clear and /compact rotations the launch-time watcher
+      -- misses — without this, a user who clears mid-session would see
+      -- the next `pair resume` offer the stale pre-clear id.
+      if cfg then
+        local data_dir = vim.env.PAIR_DATA_DIR
+          or ((vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/share')) .. '/pair')
+        pair_capture_session_via_trigger(cfg, data_dir)
+      end
       vim.fn.system('pair-quit.sh')
     end
   end)
@@ -1988,15 +2054,26 @@ end
 local LAYOUT_STATE_FILE = (vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/share'))
   .. '/pair/layout-mode-' .. (vim.env.PAIR_TAG or vim.env.PAIR_AGENT or 'claude')
 
+-- Read the current rung from nvim's own pane height. The kdl pins each
+-- rung to an exact size (1 / 10 / 50%), so vim.o.lines is a ground-truth
+-- signal that can't drift from zellij's actual swap-layout position. We
+-- previously tracked rung in a disk file and updated it after each step,
+-- which permanently desynced if any single `zellij action <swap>` was
+-- silently rejected — the clamp in PairLayoutBigger/Smaller would then
+-- lock the user out of one end of the ladder. Reading actual height
+-- means each press recomputes from reality and is self-correcting.
 local function layout_read()
-  local f = io.open(LAYOUT_STATE_FILE, 'r')
-  if not f then return 'small' end
-  local s = f:read('*l')
-  f:close()
-  return s or 'small'
+  local h = vim.o.lines
+  if h <= 2 then return 'minimized' end
+  if h <= 10 then return 'small' end
+  return 'half'
 end
 
 local function layout_write(s)
+  -- Mirrors the rung into pair_layout_state (the in-memory copy other
+  -- callers read — pair_spinner_start, pair_ensure_visible_then) and the
+  -- on-disk file (diagnostic only — layout_read derives from vim.o.lines
+  -- now, so disk drift is harmless).
   pair_layout_state = s
   local f = io.open(LAYOUT_STATE_FILE, 'w')
   if f then f:write(s); f:close() end
@@ -2068,9 +2145,10 @@ function _G.PairLayoutSmaller()
   layout_goto(LAYOUT_BY_LEVEL[math.max(cur - 1, 1)])
 end
 
--- Reset on nvim startup: zellij always boots into the layout's initial
--- state (the size=10 draft pane in zellij/layouts/main.kdl), so any
--- persisted state from a prior session is stale.
+-- Seed the in-memory mirror at startup. zellij boots into the size=10
+-- draft pane (see zellij/layouts/main.kdl), and the in-memory mirror is
+-- only used by callers that don't want to call layout_read; layout_read
+-- itself reads vim.o.lines so it doesn't need this.
 layout_write('small')
 
 -- ---------------------------------------------------------------------------

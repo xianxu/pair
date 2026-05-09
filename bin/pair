@@ -888,6 +888,48 @@ DRAFT="$DATA_DIR/draft-${PAIR_TAG}.md"
 # detach/reattach; cleared on Alt+x quit alongside outer-tty.
 printf '%s\n' "$AGENT" > "$DATA_DIR/agent-${PAIR_TAG}"
 
+# Pre-capture the session id when --resume <id> is explicit on the
+# command line. The watcher only catches NEW jsonl files the agent
+# creates; an explicit --resume makes the agent APPEND to an existing
+# file, so the watcher's snapshot-diff times out without writing a
+# config. Pre-writing here means config-<tag>-<agent>.json is right from
+# the start, so a future `pair resume` picker shows the resumed session
+# and Alt+x's saved-config display reports the right id.
+#
+# Per-agent surface:
+#   claude / gemini — flag style: `--resume <id>` anywhere in argv.
+#   codex           — subcommand: `resume <id>` at args[0..1].
+explicit_resume=""
+case "$AGENT" in
+    claude|gemini)
+        prev=""
+        for tok in $agent_extra; do
+            if [ "$prev" = "--resume" ]; then
+                explicit_resume="$tok"
+                break
+            fi
+            prev="$tok"
+        done
+        ;;
+    codex)
+        read -r first second _rest <<< "$agent_extra"
+        if [ "$first" = "resume" ] && [ -n "$second" ]; then
+            explicit_resume="$second"
+        fi
+        ;;
+esac
+if [ -n "$explicit_resume" ]; then
+    config_path="$DATA_DIR/config-${PAIR_TAG}-${AGENT}.json"
+    tmp=$(mktemp "$config_path.XXXXXX") && \
+        jq -n \
+            --arg agent "$AGENT" \
+            --arg sid "$explicit_resume" \
+            '{ agent: $agent, args: $ARGS.positional, session_id: $sid }' \
+            --args -- $agent_extra > "$tmp" \
+        && mv "$tmp" "$config_path" \
+        || rm -f "$tmp"
+fi
+
 # Spawn the session-id watcher (issue #000016). It polls the agent's
 # session dir for the file that appears once the agent boots, then writes
 # $DATA_DIR/config-<tag>-<agent>.json with the captured agent + args +
