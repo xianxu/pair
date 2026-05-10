@@ -110,6 +110,30 @@ SCROLLBACK_FD = -1
 SCROLLBACK_EVENTS_FD = -1
 SCROLLBACK_BYTES = 0  # bytes written to SCROLLBACK_FD so far; offset key for events
 
+# Image-paste capture window. nvim's Alt+i sends us SIGUSR1, then writes
+# Ctrl+V to the agent pane via zellij; the agent renders a placeholder
+# marker (claude: "[Image #N]"; gemini: "[Image N-M]"; per-agent format)
+# into its own input. We buffer bytes received from the agent for
+# CAPTURE_WINDOW_S after the signal, then write the buffer to
+# image-capture-<tag> and touch image-capture-<tag>.done so nvim can pick
+# the marker text up via regex without maintaining a fragile local
+# counter. PAIR_TAG / PAIR_DATA_DIR drive the paths; if either is unset
+# the feature is silently off (signal handler not registered).
+CAPTURE_ACTIVE = False
+CAPTURE_BUFFER = b""
+CAPTURE_DEADLINE = 0.0
+CAPTURE_OUT_PATH = None
+CAPTURE_DONE_PATH = None
+CAPTURE_PID_PATH = None
+try:
+    # 0.9s default: leaves comfortable headroom under nvim's 1.0s poll cap
+    # while accommodating slower agents (claude in particular has been
+    # observed taking 400-700ms to render `[Image #N]` on cold-start).
+    # Tunable via env for sessions with very slow or very fast agents.
+    CAPTURE_WINDOW_S = float(os.environ.get("PAIR_WRAP_CAPTURE_S", "0.9"))
+except ValueError:
+    CAPTURE_WINDOW_S = 0.9
+
 
 def debug(label, context):
     """Append a one-line forensic record. Safe to call when DEBUG_LOG unset."""
@@ -163,6 +187,14 @@ OTHER_ESC_RE = re.compile(
     rb"|\x1b[@-Z\\-_]"                      # 2-byte ESC sequences
 )
 
+# Match an image-paste marker rendered by the agent into its input area.
+# Same pattern shape as nvim/init.lua's PAIR_IMAGE_MARKER_RE — matches both
+# claude's `[Image #N]` (which can also degrade to `[Image#N]` after CSI
+# stripping) and gemini's `[Image N-M]`. Used by the early-termination
+# fast-path: as soon as the marker is visible in CAPTURE_BUFFER we
+# finalize, rather than waiting out the full CAPTURE_WINDOW_S.
+IMAGE_MARKER_RE = re.compile(rb"\[Image[ #][^\]]+\]")
+
 
 def resolve_agent_output_file():
     tag = os.environ.get("PAIR_TAG")
@@ -173,6 +205,90 @@ def resolve_agent_output_file():
         xdg = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
         data_dir = os.path.join(xdg, "pair")
     return os.path.join(data_dir, f"agent-output-{tag}")
+
+
+def resolve_capture_paths():
+    """Return (out_path, done_path, pid_path) or (None, None, None) when unset."""
+    tag = os.environ.get("PAIR_TAG")
+    if not tag:
+        return None, None, None
+    data_dir = os.environ.get("PAIR_DATA_DIR")
+    if not data_dir:
+        xdg = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
+        data_dir = os.path.join(xdg, "pair")
+    out = os.path.join(data_dir, f"image-capture-{tag}")
+    return out, out + ".done", os.path.join(data_dir, f"pair-wrap-pid-{tag}")
+
+
+def _handle_capture_signal(signum, frame):
+    """SIGUSR1 → arm capture window. Coalesces repeats by extending the deadline."""
+    global CAPTURE_ACTIVE, CAPTURE_BUFFER, CAPTURE_DEADLINE
+    if not CAPTURE_OUT_PATH:
+        return
+    # Clear any stale done sentinel so nvim doesn't see a previous capture.
+    try:
+        os.remove(CAPTURE_DONE_PATH)
+    except OSError:
+        pass
+    deadline = time.monotonic() + CAPTURE_WINDOW_S
+    if CAPTURE_ACTIVE:
+        # Already capturing — just extend. Buffer keeps accumulating.
+        CAPTURE_DEADLINE = deadline
+        debug("CAPTURE-extend", f"window now ends at {deadline:.3f}")
+        return
+    CAPTURE_BUFFER = b""
+    CAPTURE_ACTIVE = True
+    CAPTURE_DEADLINE = deadline
+    debug("CAPTURE-start", f"window {CAPTURE_WINDOW_S:.3f}s")
+
+
+def _finalize_capture():
+    """Write buffered bytes + done sentinel, clear active flag.
+
+    Idempotent: a second call after the window has already been finalized
+    is a no-op. Matters because two paths can trigger finalize in the same
+    main-loop iteration — the early-termination check after each chunk
+    (`_maybe_finalize_early`) and the deadline-expiry check at the end of
+    the iteration. Without this guard, the second call would overwrite the
+    just-written file with an empty buffer and re-touch the sentinel,
+    racing nvim's read of the first write.
+    """
+    global CAPTURE_ACTIVE, CAPTURE_BUFFER
+    if not CAPTURE_ACTIVE:
+        return
+    try:
+        with open(CAPTURE_OUT_PATH, "wb") as f:
+            f.write(CAPTURE_BUFFER)
+        # Touch the sentinel last. nvim polls for this; ordering guarantees
+        # the buffer file is fully written by the time the sentinel exists.
+        open(CAPTURE_DONE_PATH, "w").close()
+        debug("CAPTURE-done", f"{len(CAPTURE_BUFFER)} bytes")
+    except OSError as e:
+        debug("CAPTURE-write-fail", str(e))
+    CAPTURE_ACTIVE = False
+    CAPTURE_BUFFER = b""
+
+
+def _maybe_finalize_early():
+    """Early-termination check. Called after each chunk lands in the
+    capture buffer during an active window: if the agent's image marker
+    is already visible, finalize now instead of waiting out the rest of
+    CAPTURE_WINDOW_S. Without this, every Alt+i pays the full window cost
+    (~0.9s) regardless of how fast the agent rendered.
+
+    Cheap: ANSI-strip + regex search on the buffer (typically <1 KB during
+    a capture window). The regex shape mirrors nvim's parser, so a positive
+    here means nvim's parse on the resulting file is virtually certain to
+    succeed too. False positives are limited to "agent emits unrelated
+    bracketed [Image ...]-shaped text in the window" — rare in practice
+    since Alt+i is pressed at the idle prompt.
+    """
+    if not CAPTURE_ACTIVE:
+        return
+    stripped = OTHER_ESC_RE.sub(b"", CAPTURE_BUFFER).replace(b"\r", b"")
+    if IMAGE_MARKER_RE.search(stripped):
+        debug("CAPTURE-early", f"marker visible after {len(CAPTURE_BUFFER)} bytes")
+        _finalize_capture()
 
 
 def _sgr_extract_fg(params, current_fg):
@@ -439,6 +555,13 @@ def main():
     global OUTER_TTY_FILE, AGENT_OUTPUT_FILE
     global SCROLLBACK_FD, SCROLLBACK_EVENTS_FD, SCROLLBACK_BYTES
     global IDLE_S, NOTIFY_MODE_ACTIVE, END_OF_TURN_RE
+    global CAPTURE_OUT_PATH, CAPTURE_DONE_PATH, CAPTURE_PID_PATH
+    # CAPTURE_BUFFER must be declared global because `CAPTURE_BUFFER += data`
+    # below is an assignment; without `global`, Python treats every reference
+    # in main() as a local and raises UnboundLocalError on first access. The
+    # read-only references (CAPTURE_ACTIVE, CAPTURE_DEADLINE) listed
+    # alongside for clarity / future-proofing.
+    global CAPTURE_ACTIVE, CAPTURE_BUFFER, CAPTURE_DEADLINE
     OUTER_TTY_FILE = resolve_outer_tty_file()
 
     # Strip pair-wrap's own flags from argv before resolving the agent
@@ -524,6 +647,22 @@ def main():
     set_winsize(master)
     signal.signal(signal.SIGWINCH, lambda *_: set_winsize(master))
 
+    # Image-paste capture wiring. nvim's Alt+i finds us by pid (written below)
+    # and raises SIGUSR1; we collect bytes from the agent during a short
+    # window and deposit them at $PAIR_DATA_DIR/image-capture-<tag>. If
+    # PAIR_TAG/PAIR_DATA_DIR aren't set (running outside a pair session),
+    # leave the feature off — no pidfile, no handler.
+    CAPTURE_OUT_PATH, CAPTURE_DONE_PATH, CAPTURE_PID_PATH = resolve_capture_paths()
+    if CAPTURE_OUT_PATH:
+        try:
+            with open(CAPTURE_PID_PATH, "w") as f:
+                f.write(str(os.getpid()))
+            signal.signal(signal.SIGUSR1, _handle_capture_signal)
+            debug("CAPTURE-arm", f"pid={os.getpid()} window={CAPTURE_WINDOW_S}s")
+        except OSError as e:
+            debug("CAPTURE-arm-fail", str(e))
+            CAPTURE_OUT_PATH = None  # disable; signal handler bails if so
+
     # Switch our stdin into raw mode for the duration. Without this, the
     # kernel's terminal driver does line discipline on the bytes flowing
     # in (canonical mode + echo + signal interpretation), which double-
@@ -549,6 +688,13 @@ def main():
                 timeout = max(0.0, remaining)
             else:
                 timeout = None
+            # When an image-capture window is open, wake at the deadline so
+            # _finalize_capture() runs even if the agent stops producing
+            # output before the window closes. Clamp the existing timeout
+            # rather than overwrite it — idle detection still needs to fire.
+            if CAPTURE_ACTIVE:
+                cap_remain = max(0.0, CAPTURE_DEADLINE - time.monotonic())
+                timeout = cap_remain if timeout is None else min(timeout, cap_remain)
             try:
                 r, _, _ = select.select(fds, [], [], timeout)
             except OSError as e:
@@ -556,11 +702,24 @@ def main():
                     continue
                 break
 
+            # Image-capture deadline check. select() might have returned
+            # empty (timeout) or with data; in either case, if the capture
+            # window has expired, flush now. Buffer accumulation for the
+            # current iteration happens below — order matters only when
+            # the deadline is exactly hit on a data-bearing wake: we'd
+            # rather include that final chunk, so finalize *after* the
+            # master-read block. Hence: schedule a flag here, act below.
+            capture_due = (
+                CAPTURE_ACTIVE and time.monotonic() >= CAPTURE_DEADLINE
+            )
+
             if not r and IDLE_S > 0 and not idle_fired:
                 if time.monotonic() - last_master_activity >= IDLE_S:
                     debug("IDLE", f"no agent output for {IDLE_S:.0f}s")
                     emit_outer("agent idle")
                     idle_fired = True
+                if capture_due:
+                    _finalize_capture()
                 continue
 
             if 0 in r:
@@ -588,6 +747,16 @@ def main():
                     break
                 last_master_activity = time.monotonic()
                 idle_fired = False
+                # Tee into the image-paste capture buffer if a window is open.
+                # Done before the stdout write so even a brief window snags
+                # the very next byte from the agent. The early-termination
+                # check immediately after lets us close the window the moment
+                # the marker is visible, rather than waiting out the full
+                # CAPTURE_WINDOW_S — drops Alt+i tail latency from ~0.9s to
+                # ~(agent render time + one nvim poll tick).
+                if CAPTURE_ACTIVE:
+                    CAPTURE_BUFFER += data
+                    _maybe_finalize_early()
                 try:
                     os.write(1, data)
                 except OSError:
@@ -639,6 +808,12 @@ def main():
                             debug("BEL-skip", snippet)
                 except Exception as e:
                     debug("DETECT-fail", str(e))  # never block the proxy
+
+            # End-of-iteration capture flush. Runs after we've teed any
+            # data from this read into CAPTURE_BUFFER, so the last chunk
+            # that completes the agent's render is included.
+            if capture_due:
+                _finalize_capture()
     finally:
         if saved_termios is not None:
             try:
@@ -653,6 +828,15 @@ def main():
         if SCROLLBACK_EVENTS_FD >= 0:
             try:
                 os.close(SCROLLBACK_EVENTS_FD)
+            except OSError:
+                pass
+        if CAPTURE_PID_PATH:
+            # Drop the pidfile so a future Alt+i doesn't signal a stale pid.
+            # The image-capture-* files are intentionally left alone here —
+            # bin/pair's cleanup_quit_marker sweeps them with the rest of
+            # the session's $DATA_DIR state on Alt+x.
+            try:
+                os.remove(CAPTURE_PID_PATH)
             except OSError:
                 pass
 

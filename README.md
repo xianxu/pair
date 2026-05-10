@@ -55,8 +55,7 @@ Otherwise without `>`. Focus' automatically put at the likely position you want 
 | **Alt+Backspace** | nvim (normal/insert), at `+N` | Delete the current queued prompt without sending. Items behind shift down so you can delete a run by tapping repeatedly. |
 | **Shift+Alt+Backspace** | nvim (normal/insert) | Erase history, draft, and queue for this session — "start anew". Confirmation prompt defaults to No. Hard delete (no archive). |
 | **Alt+↑** / **Alt+↓** | any pane | Step the nvim pane along a `minimized` ↔ `10 lines` ↔ `1/2` ladder one rung at a time (works from either pane). `minimized` collapses nvim to a single statusline row showing `Alt+↑ for pair input box`; confirm-requiring keys (Alt+x/d/n) auto-grow out of minimized so the modal prompt is visible. |
-| **Alt+i** | nvim (normal/insert) | Attach clipboard image to the agent and insert `[Image #N]` reference at cursor. |
-| **Alt+i** | when inside [Image tag] | Sync the internal counter to N (manual-correction path), allowing user to edit if the cursor between nvim and agent gets out of sync. |
+| **Alt+i** | nvim (normal/insert) | Attach clipboard image to the agent and insert whatever marker the agent renders (claude `[Image #N]`, gemini `[Image N-M]`) at cursor — the marker text is captured live from the agent's PTY, so no per-agent format or counter is hardcoded. Flashes `[no image in clipboard]` at cursor for 1s if the OS clipboard has no image data. |
 | **Alt+h** | any pane | Pop up the full keybind help in a floating pane (press `q` to dismiss). |
 | **Alt+d** | any pane | Detach from the current session (re-attach later via `pair`). Confirms first. |
 | **Alt+x** | any pane | Full quit — kill the session and all processes inside. Confirms first. Pair captures the agent's session id alongside the launch args, so the session is resumable later via `pair resume <tag>`. |
@@ -217,9 +216,7 @@ Saved configs live at `${XDG_DATA_HOME:-~/.local/share}/pair/config-<tag>-<agent
 
 ## Image paste
 
-`Alt+i` is the integrated path: put an image on the OS clipboard first, then press `Alt+i` from inside nvim. `pair` types `Ctrl+V` into the agent pane (so claude attaches the image as a chip) *and* inserts a `[Image #N]` reference at your nvim cursor. If the local counter drifts from claude's actual count, edit the number in nvim and press `Alt+i` while on the corrected token to resync.
-
-Caveat: the `[Image #N]` reference syntax works in Claude Code and Codex. With Gemini, the image still attaches via `Ctrl+V`, but you'll need to mention it inline however Gemini expects.
+`Alt+i` is the integrated path: put an image on the OS clipboard first, then press `Alt+i` from inside nvim. `pair` checks that the clipboard actually holds image data (flashing `[no image in clipboard]` for 1s and bailing if not), signals `pair-wrap` to open a short capture window, then types `Ctrl+V` into the agent pane. Whatever marker text the agent renders into its own input area (claude: `[Image #N]`, gemini: `[Image N-M]`) gets captured from the PTY stream and inserted verbatim at your nvim cursor. The agent is the source of truth for the marker — no local counter, nothing per-agent baked into pair.
 
 ## Notifications
 
