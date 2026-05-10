@@ -766,6 +766,30 @@ if [ -f "$config_file" ]; then
         < <(jq -r '.args[]?' "$config_file" 2>/dev/null)
     saved_session=$(jq -r '.session_id // empty' "$config_file" 2>/dev/null)
 
+    # Defensive strip: pair-session-watch.sh and the inline explicit_resume
+    # capture both now scrub --resume <id> (and codex's `resume <id>`)
+    # before persisting, so freshly-written configs already have clean
+    # args. This pass exists for migration — older configs on disk may
+    # still carry the resume token and we don't want the picker to
+    # display "args=[... --resume <id>] / resume=<id>" with the same id
+    # duplicated, nor have the "saved (fresh)" option silently resume.
+    # Keep the loop shape in sync with the two writers.
+    saved_args_clean=()
+    n=${#saved_args[@]}
+    i=0
+    if [ "$AGENT" = "codex" ] && [ $n -ge 2 ] \
+        && [ "${saved_args[0]}" = "resume" ]; then
+        i=2
+    fi
+    while [ $i -lt $n ]; do
+        if [ "${saved_args[$i]}" = "--resume" ]; then
+            i=$((i+2))
+        else
+            saved_args_clean+=("${saved_args[$i]}")
+            i=$((i+1))
+        fi
+    done
+
     # Stale-id check: only offer "resume" if the agent's transcript file
     # for this session id still exists. Per-agent surface:
     #   claude — direct path lookup (filename = session id)
@@ -796,7 +820,7 @@ if [ -f "$config_file" ]; then
         esac
     fi
 
-    saved_display="${saved_args[*]:-<none>}"
+    saved_display="${saved_args_clean[*]:-<none>}"
     current_display="${agent_extra:-<none>}"
 
     # Multi-line options so long args / full session ids are visible without
@@ -862,43 +886,34 @@ if [ -f "$config_file" ]; then
 
     case "$action" in
         saved+resume|new+resume)
-            # Strip any pre-existing resume tokens from the chosen base
-            # args so the composed line never duplicates them. Two surfaces:
-            #   --resume <X>   (claude, gemini — flag style; anywhere in args)
-            #   resume <X>     (codex — subcommand; only valid as args[0..1])
-            #
-            # Base differs by action: saved+resume starts from the JSON's
-            # saved args; new+resume starts from what the user just typed
-            # on the CLI (word-split out of agent_extra).
-            base=()
-            if [ "$action" = "saved+resume" ]; then
-                # bash 3.2 + set -u: an empty array reads as "unset". Use
-                # the `${arr[@]+...}` guard (matches the convention in
-                # bin/pair-session-watch.sh) so an empty saved_args
-                # expands to nothing rather than aborting the script.
-                base=( ${saved_args[@]+"${saved_args[@]}"} )
-            else
-                # bash 3.2 has no `read -a` of empty input quirks to worry
-                # about here — agent_extra is non-empty by construction
-                # (the option is hidden otherwise).
-                read -ra base <<< "$agent_extra"
-            fi
-
+            # Compose: (base args stripped of any resume tokens) + the
+            # canonical resume binding from saved_session. saved+resume's
+            # base is saved_args_clean (already stripped above). new+resume's
+            # base is the user-typed agent_extra, which may carry --resume
+            # if the user typed one — strip those too so we don't end up
+            # with duplicate resume tokens in the composed argv.
             stripped=()
-            n=${#base[@]}
-            i=0
-            if [ "$AGENT" = "codex" ] && [ $n -ge 2 ] \
-                && [ "${base[0]}" = "resume" ]; then
-                i=2
-            fi
-            while [ $i -lt $n ]; do
-                if [ "${base[$i]}" = "--resume" ]; then
-                    i=$((i+2))
-                else
-                    stripped+=("${base[$i]}")
-                    i=$((i+1))
+            if [ "$action" = "saved+resume" ]; then
+                # bash 3.2 + set -u: empty arrays read as "unset" without
+                # the `${arr[@]+...}` guard.
+                stripped=( ${saved_args_clean[@]+"${saved_args_clean[@]}"} )
+            else
+                read -ra _new_base <<< "$agent_extra"
+                n=${#_new_base[@]}
+                i=0
+                if [ "$AGENT" = "codex" ] && [ $n -ge 2 ] \
+                    && [ "${_new_base[0]}" = "resume" ]; then
+                    i=2
                 fi
-            done
+                while [ $i -lt $n ]; do
+                    if [ "${_new_base[$i]}" = "--resume" ]; then
+                        i=$((i+2))
+                    else
+                        stripped+=("${_new_base[$i]}")
+                        i=$((i+1))
+                    fi
+                done
+            fi
 
             case "$AGENT" in
                 codex)
@@ -914,8 +929,10 @@ if [ -f "$config_file" ]; then
             esac
             ;;
         saved)
-            # `:-` guards bash 3.2's `set -u` when saved_args is empty.
-            agent_extra="${saved_args[*]:-}"
+            # Use the cleaned args: option 2 is "fresh session", so any
+            # --resume baked into the on-disk config must NOT come along
+            # for the ride. `:-` guards bash 3.2's `set -u` when empty.
+            agent_extra="${saved_args_clean[*]:-}"
             ;;
         new)
             # Clean overwrite — drop the stale config; the watcher we
@@ -971,13 +988,35 @@ case "$AGENT" in
         ;;
 esac
 if [ -n "$explicit_resume" ]; then
+    # Strip the --resume <id> (or codex's `resume <id>`) we just detected
+    # from the args we're about to persist — session_id below is the
+    # canonical storage for the resume binding. Without this, every
+    # --resume launch writes a config whose `args` contains the resume
+    # token, the picker then re-appends it on the next launch, and the
+    # value gets duplicated indefinitely. Same loop shape as
+    # bin/pair-session-watch.sh; keep them in sync.
+    read -ra _eargs <<< "$agent_extra"
+    _estripped=()
+    n=${#_eargs[@]}
+    i=0
+    if [ "$AGENT" = "codex" ] && [ $n -ge 2 ] && [ "${_eargs[0]}" = "resume" ]; then
+        i=2
+    fi
+    while [ $i -lt $n ]; do
+        if [ "${_eargs[$i]}" = "--resume" ]; then
+            i=$((i+2))
+        else
+            _estripped+=("${_eargs[$i]}")
+            i=$((i+1))
+        fi
+    done
     config_path="$DATA_DIR/config-${PAIR_TAG}-${AGENT}.json"
     tmp=$(mktemp "$config_path.XXXXXX") && \
         jq -n \
             --arg agent "$AGENT" \
             --arg sid "$explicit_resume" \
             '{ agent: $agent, args: $ARGS.positional, session_id: $sid }' \
-            --args -- $agent_extra > "$tmp" \
+            --args -- ${_estripped[@]+"${_estripped[@]}"} > "$tmp" \
         && mv "$tmp" "$config_path" \
         || rm -f "$tmp"
 fi

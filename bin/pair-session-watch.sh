@@ -120,19 +120,46 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
         done <<< "$new"
 
         if [ -n "$sid" ]; then
+            # Strip any --resume <id> (claude/gemini flag) or codex's
+            # `resume <id>` subcommand prefix from args before serializing.
+            # session_id below is the canonical storage for the resume
+            # binding; retaining it in args makes every relaunch through
+            # the picker compound the saved config — option 1 ("use saved
+            # params + session") appends --resume <sid>, the watcher then
+            # persists that combined argv, and on the NEXT run the picker
+            # reads "args=[... --resume <id>] / resume=<id>" with the same
+            # id duplicated. Stripping here keeps saved args = what the
+            # user actually typed as launch flags, decoupled from the
+            # resume target.
+            stripped=()
+            n=${#args[@]}
+            i=0
+            if [ "$agent" = "codex" ] && [ $n -ge 2 ] \
+                && [ "${args[0]}" = "resume" ]; then
+                i=2
+            fi
+            while [ $i -lt $n ]; do
+                if [ "${args[$i]}" = "--resume" ]; then
+                    i=$((i+2))
+                else
+                    stripped+=("${args[$i]}")
+                    i=$((i+1))
+                fi
+            done
+
             # Build the JSON via jq (already a brew dep) so escaping handles
             # quotes/backslashes in args correctly. `--args` consumes the rest
             # of the argv as positional strings, exposed as $ARGS.positional.
             #
-            # `${args[@]+"${args[@]}"}` safely expands to nothing when args is
-            # empty, working around bash 3.2's `set -u` treating empty arrays
-            # as unset (macOS still ships bash 3.2 by default).
+            # `${stripped[@]+"${stripped[@]}"}` safely expands to nothing when
+            # the array is empty, working around bash 3.2's `set -u` treating
+            # empty arrays as unset (macOS still ships bash 3.2 by default).
             tmp=$(mktemp "$out.XXXXXX") || exit 0
             if jq -n \
                   --arg agent "$agent" \
                   --arg sid "$sid" \
                   '{ agent: $agent, args: $ARGS.positional, session_id: $sid }' \
-                  --args -- ${args[@]+"${args[@]}"} > "$tmp"
+                  --args -- ${stripped[@]+"${stripped[@]}"} > "$tmp"
             then
                 mv "$tmp" "$out"
             else
