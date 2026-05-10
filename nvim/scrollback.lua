@@ -493,10 +493,15 @@ vim.api.nvim_create_autocmd('VimLeavePre', {
   end,
 })
 
--- Cosmetic: thin status line, no ruler, line numbers on so :880 has a
--- visible target.
-vim.opt.number = true
+-- Reclaim every available column for the rendered scrollback: the
+-- agent pane writes lines that nearly fill its width, and any nvim
+-- gutter (line numbers, sign column) would push the tail of those
+-- lines into a wrap. `:N` still jumps to line N without a visible
+-- gutter — line position lives in the statusline instead.
+vim.opt.number = false
 vim.opt.relativenumber = false
+vim.opt.signcolumn = 'no'
+vim.opt.foldcolumn = '0'
 vim.opt.cursorline = true
 vim.opt.laststatus = 2
-vim.opt.statusline = ' pair scrollback · q to quit · Alt+q to drop 🤖[] · :N to jump '
+vim.opt.statusline = ' pair scrollback · q quit · Alt+q 🤖[] · :N jump %= L%l/%L '
