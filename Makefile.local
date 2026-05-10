@@ -1,7 +1,72 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
-.PHONY: pair-bootstrap tart tart-mount tart-stop tart-clean
+.PHONY: pair-bootstrap tart tart-mount tart-stop tart-clean \
+        build install scribe scrollback-render
+
+# Cross-cutting Go-binary targets.
+# Adding a new binary: drop main.go under cmd/<name>/ and append <name>
+# to GO_BINS. `make build` and `make install` pick it up automatically.
+#
+#   make build      → compile every binary in GO_BINS into ./bin/
+#   make install    → also copy each into ~/.local/bin/
+#   make <name>     → build just that one (e.g., `make scribe`)
+#
+# Why ./bin/ for the in-tree build: keeps Go output next to the shell
+# scripts pair already ships from bin/, and pair-scrollback-open looks
+# at $PAIR_HOME/bin/scrollback-render to pick up the Go renderer in
+# both dev (source tree) and brew-install layouts.
+#
+# Why ~/.local/bin/ for install: XDG convention, on PATH per the user's
+# zshrc. Each binary the user wires into their shell (e.g. scribe in
+# zshrc) should reference $HOME/.local/bin/<name>.
+
+BIN_DIR     := bin
+INSTALL_DIR := $(HOME)/.local/bin
+GO_BINS     := scribe scrollback-render pair-wrap
+
+build: $(addprefix $(BIN_DIR)/,$(GO_BINS))
+
+install: build
+	@mkdir -p $(INSTALL_DIR)
+	@for b in $(GO_BINS); do \
+	    install -m 755 $(BIN_DIR)/$$b $(INSTALL_DIR)/$$b && \
+	    echo "installed: $(INSTALL_DIR)/$$b"; \
+	done
+
+# Per-binary aliases — `make scribe`, `make scrollback-render`, `make pair-wrap`.
+scribe:            $(BIN_DIR)/scribe
+scrollback-render: $(BIN_DIR)/scrollback-render
+pair-wrap:         $(BIN_DIR)/pair-wrap
+
+# scribe — Go-based pty wrapper with SIGUSR1/SIGUSR2 pause/resume of the
+# typescript log. Replaces script(1) at the top of the user's shell, so
+# preexec can stop the log from filling with TUI redraw bytes (claude,
+# nvim, etc). See cmd/scribe/README.md for the full why.
+$(BIN_DIR)/scribe: cmd/scribe/main.go go.mod
+	go build -o $@ ./cmd/scribe
+
+# scrollback-render — Go reimplementation of bin/pair-scrollback-render
+# using charmbracelet/x/vt. Replays a pair-wrap raw PTY capture and emits
+# one ANSI-styled output line per logical scrollback row, for the Alt+/
+# viewer to display through nvim. ~10× faster than the pyte-based Python
+# version, no Python runtime dependency, single static binary.
+#
+# pair-scrollback-open prefers this binary when present; otherwise falls
+# back to the Python pyte renderer. After confidence builds, drop the
+# Python script + brew formula pyte vendoring in a follow-up.
+$(BIN_DIR)/scrollback-render: cmd/scrollback-render/main.go go.mod
+	go build -o $@ ./cmd/scrollback-render
+
+# pair-wrap — Go port of bin/pair-wrap.py (filed #000011). Transparent PTY
+# proxy around a TUI coding agent: forwards stdio, tees scrollback log,
+# extracts colored spans for nvim autocomplete, detects OSC/BEL and
+# forwards as OSC 9 to the recorded outer-TTY, handles SIGUSR1 image-
+# paste capture window. Python fallback at bin/pair-wrap.py (kept until
+# the Go binary has soaked in a session).
+$(BIN_DIR)/pair-wrap: cmd/pair-wrap/main.go go.mod
+	go build -o $@ ./cmd/pair-wrap
+
 
 # pair-bootstrap — install pair's runtime Python dependencies.
 #

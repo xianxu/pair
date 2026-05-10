@@ -33,28 +33,40 @@ if [ ! -s "$RAW" ]; then
     exit 0
 fi
 
-# Pick the python that has pyte. Brew installs vendor it into a
-# private venv at $PAIR_HOME/venv (see homebrew-pair Formula); git-
-# clone users rely on `make pair-bootstrap` (or `pip3 install --user
-# --break-system-packages pyte`) putting it in the system python's
-# user site-packages. Prefer the venv when present.
-PYTHON=python3
-if [ -x "${PAIR_HOME:-}/venv/bin/python3" ]; then
-    PYTHON="$PAIR_HOME/venv/bin/python3"
-fi
-
-if ! "$PYTHON" -c 'import pyte' 2>/dev/null; then
-    printf 'pair-scrollback-open: python3 module `pyte` not installed.\n' >&2
-    printf '  brew install pair (1.15+) bundles it; or:\n' >&2
-    printf '  pip3 install --user --break-system-packages pyte\n' >&2
-    sleep 5
-    exit 1
-fi
-
-if ! "$PYTHON" "$PAIR_HOME/bin/pair-scrollback-render" "$RAW" "$EVENTS" "$ANSI"; then
-    printf 'pair-scrollback-open: renderer failed; see above.\n' >&2
-    sleep 5
-    exit 1
+# Prefer the Go renderer (bin/scrollback-render, built by `make
+# scrollback-render`): no Python dep, ~10× faster than the pyte path,
+# instant Alt+/. Falls back to the pyte-based Python script if the
+# binary hasn't been built yet — keeps the brew-install + git-clone
+# flows working during the cutover. Once the Go binary has been stable
+# for a while, the Python fallback (and the pyte vendoring in the brew
+# formula) can be dropped.
+if [ -x "$PAIR_HOME/bin/scrollback-render" ]; then
+    if ! "$PAIR_HOME/bin/scrollback-render" "$RAW" "$EVENTS" "$ANSI"; then
+        printf 'pair-scrollback-open: scrollback-render failed; see above.\n' >&2
+        sleep 5
+        exit 1
+    fi
+else
+    # Pick the python that has pyte. Brew installs vendor it into a
+    # private venv at $PAIR_HOME/venv (see homebrew-pair Formula);
+    # git-clone users rely on `make pair-bootstrap` putting it in the
+    # system python's user site-packages. Prefer the venv when present.
+    PYTHON=python3
+    if [ -x "${PAIR_HOME:-}/venv/bin/python3" ]; then
+        PYTHON="$PAIR_HOME/venv/bin/python3"
+    fi
+    if ! "$PYTHON" -c 'import pyte' 2>/dev/null; then
+        printf 'pair-scrollback-open: neither bin/scrollback-render nor python pyte found.\n' >&2
+        printf '  Build the Go renderer:  make scrollback-render\n' >&2
+        printf '  Or install pyte:        pip3 install --user --break-system-packages pyte\n' >&2
+        sleep 5
+        exit 1
+    fi
+    if ! "$PYTHON" "$PAIR_HOME/bin/pair-scrollback-render" "$RAW" "$EVENTS" "$ANSI"; then
+        printf 'pair-scrollback-open: pyte renderer failed; see above.\n' >&2
+        sleep 5
+        exit 1
+    fi
 fi
 
 # exec nvim — when the user :q's, the script (and its containing

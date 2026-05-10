@@ -3,3 +3,6 @@
 .openshell/.bootstrap/
 .openshell/.base-image-digest
 __pycache__/
+/bin/scribe
+/bin/scrollback-render
+/bin/pair-wrap
