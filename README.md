@@ -136,7 +136,7 @@ Automatically installed with `homebrew`.
 
 | Tool | Purpose |
 |---|---|
-| [`pyte`](https://github.com/selectel/pyte) | Python terminal emulator used by `Alt+/` to render full scrollback with colors and matching line numbers. Without it, `Alt+/` prints a hint; everything else works. Install with `make pair-bootstrap` (or `pip3 install --user pyte`). |
+| [`pyte`](https://github.com/selectel/pyte) | Python terminal emulator used by `Alt+/` to render full scrollback with colors and matching line numbers. Without it, `Alt+/` prints a hint; everything else works. **Brew install pair (≥1.15) bundles it** in a private venv. Git-clone users: `make pair-bootstrap` (or `pip3 install --user --break-system-packages pyte`). |
 
 ## Install
 

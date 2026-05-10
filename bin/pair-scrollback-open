@@ -33,16 +33,25 @@ if [ ! -s "$RAW" ]; then
     exit 0
 fi
 
-# pyte is the renderer's only non-stdlib dependency; surface a clear
-# error rather than nvim opening on an empty file.
-if ! python3 -c 'import pyte' 2>/dev/null; then
+# Pick the python that has pyte. Brew installs vendor it into a
+# private venv at $PAIR_HOME/venv (see homebrew-pair Formula); git-
+# clone users rely on `make pair-bootstrap` (or `pip3 install --user
+# --break-system-packages pyte`) putting it in the system python's
+# user site-packages. Prefer the venv when present.
+PYTHON=python3
+if [ -x "${PAIR_HOME:-}/venv/bin/python3" ]; then
+    PYTHON="$PAIR_HOME/venv/bin/python3"
+fi
+
+if ! "$PYTHON" -c 'import pyte' 2>/dev/null; then
     printf 'pair-scrollback-open: python3 module `pyte` not installed.\n' >&2
-    printf '  install with: pip3 install --user pyte\n' >&2
+    printf '  brew install pair (1.15+) bundles it; or:\n' >&2
+    printf '  pip3 install --user --break-system-packages pyte\n' >&2
     sleep 5
     exit 1
 fi
 
-if ! pair-scrollback-render "$RAW" "$EVENTS" "$ANSI" 2>&1; then
+if ! "$PYTHON" "$PAIR_HOME/bin/pair-scrollback-render" "$RAW" "$EVENTS" "$ANSI"; then
     printf 'pair-scrollback-open: renderer failed; see above.\n' >&2
     sleep 5
     exit 1
