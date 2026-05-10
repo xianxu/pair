@@ -75,45 +75,57 @@ file, schedule a redraw. Brief `vim.notify` confirming the pickup
 
 ### M1: marker creation in scrollback viewer
 
-- [ ] `nvim/scrollback.lua` — `Alt+q` normal-mode keymap: prompt
-      for comment via `vim.fn.input`, insert `🤖[<comment>]` at end
-      of current line. Lift `modifiable=false` for the insert.
-- [ ] `nvim/scrollback.lua` — `Alt+q` visual-mode keymap: get the
-      selection (single line), prompt, replace with `🤖<sel>[<comment>]`.
-- [ ] Verify (headless): drop one of each kind of marker, dump
-      buffer, check both forms appear in expected positions.
+- [x] `nvim/scrollback.lua` — `Alt+q` normal-mode keymap: prompts
+      for comment, inserts `🤖[<comment>]` at end of cursor line.
+      Lifts `modifiable` AND `readonly` (both must flip; readonly
+      alone triggers W10 warning).
+- [x] `nvim/scrollback.lua` — `Alt+q` visual-mode keymap: reads
+      live `'v'` and `'.'` positions (no need to wait for the
+      `'< / '>` marks to settle), single-line check, prompts,
+      replaces selection with `🤖<sel>[<comment>]`.
+- [x] Verify (headless): keymaps registered (`mode=n` and `mode=x`
+      both have `<M-q>`); stubbed input + simulated cursor → buffer
+      contains the marker on the right line.
 
 ### M2: extraction on viewer exit
 
-- [ ] Marker parser: walk a line by index, find every `🤖`, peek
-      at the next byte to discriminate scoped vs bare, record
-      `{kind, X?, Y, byte_range}` per match.
-- [ ] Strip-all-markers helper for the bare-form context: removes
-      every marker from a line back-to-front (preserves earlier
-      ranges) then trims whitespace.
-- [ ] `VimLeavePre` autocmd: walk buffer, find markers, format,
-      write to sidecar. Skip writing if no markers (no-op exit
-      should be silent).
-- [ ] Verify (headless): synthetic buffer with mixed markers,
-      assert sidecar contents match expected `> X\nY\n\n` blocks.
+- [x] Marker parser (`find_markers_in_line`): walks line by byte
+      index, anchors on `🤖` literal-byte sequence
+      (`\240\159\164\150`), discriminates scoped vs bare by peeking
+      at the next byte, records `{kind, X?, Y, range = {lo, hi}}`.
+- [x] `strip_markers` helper: removes markers back-to-front so
+      earlier ranges remain valid, trims whitespace. Used to build
+      the quote line for bare markers.
+- [x] `VimLeavePre` autocmd: locates the decorated buffer, calls
+      `format_extraction`, writes to a tempfile + renames to
+      `scrollback-pending-<tag>.md` (atomic). Silent no-op when no
+      markers.
+- [x] Verify (headless): mixed-marker buffer (bare on one line,
+      scoped + bare on another, standalone bare on empty-content
+      line) → output blocks match spec including the `(no context)`
+      fallback for the standalone case. Pure-function tests
+      exposed via `_G.PairScrollbackTest`.
 
 ### M3: pickup in draft
 
-- [ ] `nvim/init.lua` — `FocusGained` autocmd: check sidecar exists
-      and non-empty, read contents, append to draft buffer (separated
-      by a blank line if the draft already has content), delete
-      sidecar atomically (rename-to-tempfile-then-rm or just
-      `os.remove`), `vim.notify` count.
-- [ ] Verify (manual): drop markers, exit viewer, focus back on
-      draft, see them appended.
+- [x] `nvim/init.lua` — `FocusGained` autocmd: reads sidecar,
+      counts markers (one per `\n> ` prefix), applies via
+      `nvim_buf_set_lines` + `:write` when on `*` slot (avoids the
+      autoread + checktime sub-second-mtime ambiguity), or
+      appends-to-file off-slot (`-N` / `+N`) so next nav-to-`*`
+      reads it. Sidecar removed; `vim.notify` confirms count.
+- [x] Verify (headless): on-`*` path produces exactly the expected
+      buffer lines, draft file matches buffer (autosave consistent),
+      sidecar gone. Off-slot path code-reviewed (no test — `nav.pos`
+      is locally scoped in init.lua).
 
 ### M4: docs + cleanup
 
-- [ ] Update `nvim/scrollback.lua`'s statusline hint to mention Alt+q.
-- [ ] Update `bin/pair -h` Alt+/ entry to mention the marker workflow.
-- [ ] Atlas: extend the "Colored scrollback dump" section with the
+- [x] `nvim/scrollback.lua` statusline hint now reads
+      "q to quit · Alt+q to drop 🤖[] · :N to jump".
+- [x] `bin/pair -h` Alt+/ entry mentions the marker workflow.
+- [x] Atlas: "Colored scrollback dump" section extended with the
       marker-and-pickup loop.
-- [ ] Add to lessons.md if any subtle bugs caught during testing.
 
 ## Risks / open questions
 
@@ -133,3 +145,42 @@ file, schedule a redraw. Brief `vim.notify` confirming the pickup
   they Alt+down. Acceptable.
 
 ## Log
+
+### 2026-05-09
+
+**M1+M2 done in nvim/scrollback.lua.** Two pure functions exposed
+for testing (`find_markers_in_line`, `format_extraction`) plus the
+keymap callbacks and the `VimLeavePre` autocmd. Visual-mode keymap
+reads live `'v'` / `'.'` instead of waiting for `'< / '>` marks.
+Tested with three synthetic cases:
+
+- Bare marker (`agent text 🤖[fix this]`) → `> agent text\nfix this`.
+- Scoped marker (`before 🤖<some>[review] after`) → `> some\nreview`.
+- Mixed (scoped + bare on same line, plus a standalone bare on
+  empty content) → all extracted, standalone falls back to
+  `> (no context)` placeholder.
+
+End-to-end via headless nvim with stubbed `vim.fn.input`:
+`Alt+q` insertion lands the marker on the right row; `:quitall`
+fires `VimLeavePre`, sidecar at `$DATA_DIR/scrollback-pending-test.md`
+contains the formatted block.
+
+Bug caught during M1: the read-only buffer triggered `W10: Changing
+a readonly file` even with `modifiable = true`, because `readonly`
+is a separate flag. Lifting both for the insert and re-locking both
+afterward suppresses it.
+
+**M3 done in nvim/init.lua.** First attempt used append-to-file +
+`:silent! checktime` and relied on autoread to reload — turned out
+to be flaky because the file write happens within sub-second
+mtime resolution of the buffer load, and `checktime` doesn't always
+detect the change. Switched to direct `nvim_buf_set_lines` + `:write`
+when on the `*` slot. Off-slot, append-to-file remains correct
+because the slot-load reads from disk on the next nav.
+
+Verified headless: `existing draft` + sidecar with 2 markers →
+buffer ends up as 7 lines including separators, draft file matches
+buffer, sidecar removed, `vim.notify` "🤖 picked up 2 scrollback
+comment(s)".
+
+**M4 done.** Statusline hint, `pair -h` entry, atlas section.

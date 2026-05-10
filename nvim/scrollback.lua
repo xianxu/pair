@@ -212,6 +212,190 @@ local function decorate_buffer(bufnr)
   end
 end
 
+-- ---------------------------------------------------------------------------
+-- Alt+q comment markers (#000018) — let the user drop parley-style
+-- 🤖[] markers while reading scrollback. Two forms:
+--   normal mode: 🤖[<comment>] appended to the current line
+--   visual mode: 🤖<selection>[<comment>] in place of the selection
+-- The buffer is read-only by default; we lift modifiable for the insert
+-- and re-lock immediately. On VimLeavePre the markers are extracted and
+-- written to a sidecar file for the draft pane to pick up.
+
+-- 🤖 = U+1F916, four bytes in UTF-8: F0 9F A4 96. Lua patterns aren't
+-- UTF-8-aware so we use the literal byte sequence with `find(..., 1, true)`.
+local MARKER_BOT = '\240\159\164\150'
+
+-- Walk one line, return every marker as { kind, X?, Y, range = {byte_lo, byte_hi} }.
+-- Pure function — exposed so headless tests can exercise it without a buffer.
+local function find_markers_in_line(line)
+  local out = {}
+  local i = 1
+  while i <= #line do
+    local s = line:find(MARKER_BOT, i, true)
+    if not s then break end
+    local after = s + #MARKER_BOT
+    local consumed = nil
+    if line:sub(after, after) == '<' then
+      local close_q = line:find('>', after + 1, true)
+      if close_q and line:sub(close_q + 1, close_q + 1) == '[' then
+        local close_b = line:find(']', close_q + 2, true)
+        if close_b then
+          table.insert(out, {
+            kind = 'scoped',
+            X = line:sub(after + 1, close_q - 1),
+            Y = line:sub(close_q + 2, close_b - 1),
+            range = { s, close_b },
+          })
+          consumed = close_b + 1
+        end
+      end
+    elseif line:sub(after, after) == '[' then
+      local close_b = line:find(']', after + 1, true)
+      if close_b then
+        table.insert(out, {
+          kind = 'bare',
+          Y = line:sub(after + 1, close_b - 1),
+          range = { s, close_b },
+        })
+        consumed = close_b + 1
+      end
+    end
+    i = consumed or (s + #MARKER_BOT)
+  end
+  return out
+end
+
+-- Remove every marker from `line` (back-to-front so earlier ranges stay
+-- valid), trim leading/trailing whitespace. Used for bare-marker context:
+-- the marker carries no quoted text, so we quote the whole line minus
+-- any markers it contains.
+local function strip_markers(line, markers)
+  local sorted = vim.deepcopy(markers)
+  table.sort(sorted, function(a, b) return a.range[1] > b.range[1] end)
+  for _, m in ipairs(sorted) do
+    line = line:sub(1, m.range[1] - 1) .. line:sub(m.range[2] + 1)
+  end
+  return (line:gsub('^%s+', ''):gsub('%s+$', ''))
+end
+
+-- Walk the whole buffer and return the formatted extraction block.
+-- Each marker becomes:
+--   > <quote>
+--   <comment>
+-- Markers are separated by a blank line. Returns "" when no markers exist.
+local function format_extraction(buf_lines)
+  local pieces = {}
+  for _, line in ipairs(buf_lines) do
+    local markers = find_markers_in_line(line)
+    if #markers > 0 then
+      local stripped = strip_markers(line, markers)
+      for _, m in ipairs(markers) do
+        local quote = (m.kind == 'scoped') and m.X or stripped
+        if quote == '' then
+          -- Edge: bare marker on a line that's *only* the marker. Fall
+          -- back to a placeholder so the pickup side knows there was a
+          -- standalone note.
+          quote = '(no context)'
+        end
+        table.insert(pieces, '> ' .. quote .. '\n' .. m.Y)
+      end
+    end
+  end
+  return table.concat(pieces, '\n\n')
+end
+
+-- Expose for tests; headless harness pokes these directly.
+_G.PairScrollbackTest = {
+  find_markers_in_line = find_markers_in_line,
+  strip_markers        = strip_markers,
+  format_extraction    = format_extraction,
+}
+
+local function prompt_comment()
+  -- vim.fn.input swallows a trailing CR; we get whatever the user typed.
+  -- Empty input cancels — caller bails out without modifying the buffer.
+  local ok, comment = pcall(vim.fn.input, 'Comment: ')
+  if not ok then return nil end
+  comment = comment or ''
+  if comment == '' then return nil end
+  return comment
+end
+
+local function add_marker_normal(bufnr)
+  local comment = prompt_comment()
+  if not comment then return end
+  local row = vim.api.nvim_win_get_cursor(0)[1]
+  local line = vim.api.nvim_buf_get_lines(bufnr, row - 1, row, false)[1] or ''
+  local marker = MARKER_BOT .. '[' .. comment .. ']'
+  local sep = (line == '' or line:sub(-1) == ' ') and '' or ' '
+  vim.bo[bufnr].modifiable = true
+  vim.bo[bufnr].readonly   = false
+  vim.api.nvim_buf_set_lines(bufnr, row - 1, row, false, { line .. sep .. marker })
+  vim.bo[bufnr].modifiable = false
+  vim.bo[bufnr].readonly   = true
+end
+
+local function add_marker_visual(bufnr)
+  -- Live selection positions while still in visual mode (the '< / '>
+  -- marks aren't set until visual exits, so we read 'v' and '.' which
+  -- represent the start and current cursor of the active selection).
+  local sr = vim.fn.line('v')
+  local sc = vim.fn.col('v')
+  local er = vim.fn.line('.')
+  local ec = vim.fn.col('.')
+  if sr > er or (sr == er and sc > ec) then
+    sr, er = er, sr
+    sc, ec = ec, sc
+  end
+  if sr ~= er then
+    vim.notify('🤖 marker: multi-line selection not supported',
+               vim.log.levels.WARN)
+    vim.cmd('normal! \27')
+    return
+  end
+  vim.cmd('normal! \27')  -- exit visual so the upcoming input prompt works
+  local line = vim.api.nvim_buf_get_lines(bufnr, sr - 1, sr, false)[1] or ''
+  ec = math.min(ec, #line)  -- clamp for line-wise V (col is huge there)
+  local before = line:sub(1, sc - 1)
+  local sel    = line:sub(sc, ec)
+  local after  = line:sub(ec + 1)
+  if sel == '' then return end
+  local comment = prompt_comment()
+  if not comment then return end
+  local marker = MARKER_BOT .. '<' .. sel .. '>[' .. comment .. ']'
+  vim.bo[bufnr].modifiable = true
+  vim.bo[bufnr].readonly   = false
+  vim.api.nvim_buf_set_lines(bufnr, sr - 1, sr, false, { before .. marker .. after })
+  vim.bo[bufnr].modifiable = false
+  vim.bo[bufnr].readonly   = true
+end
+
+-- Sidecar path the draft nvim picks up on FocusGained. Resolved at
+-- VimLeavePre so we don't need to thread it through the autocmd args.
+local function sidecar_path()
+  local data_dir = vim.env.PAIR_DATA_DIR
+    or ((vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/share')) .. '/pair')
+  local tag = vim.env.PAIR_TAG or vim.env.PAIR_AGENT or 'claude'
+  return data_dir .. '/scrollback-pending-' .. tag .. '.md'
+end
+
+local function emit_pending(bufnr)
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local block = format_extraction(lines)
+  if block == '' then return end  -- silent no-op when no markers were dropped
+  local path = sidecar_path()
+  local tmp = path .. '.tmp'
+  local f = io.open(tmp, 'w')
+  if not f then return end
+  -- Preceding blank line ensures the draft's existing content gets a
+  -- visible separator when the pickup side appends.
+  f:write('\n')
+  f:write(block)
+  f:write('\n')
+  f:close()
+  os.rename(tmp, path)
+end
+
 -- Wire it up: when the file is loaded, decorate then lock the buffer.
 vim.api.nvim_create_autocmd('BufReadPost', {
   pattern = '*',
@@ -223,6 +407,23 @@ vim.api.nvim_create_autocmd('BufReadPost', {
     vim.bo[bufnr].buftype = 'nofile'  -- prevent accidental :w
     vim.bo[bufnr].swapfile = false
     vim.keymap.set('n', 'q', '<cmd>qa<CR>', { buffer = bufnr, silent = true })
+    vim.keymap.set('n', '<M-q>', function() add_marker_normal(bufnr) end,
+                   { buffer = bufnr, silent = true })
+    vim.keymap.set('x', '<M-q>', function() add_marker_visual(bufnr) end,
+                   { buffer = bufnr, silent = true })
+  end,
+})
+
+vim.api.nvim_create_autocmd('VimLeavePre', {
+  callback = function()
+    -- Find a buffer that's been ANSI-decorated (only one expected — this
+    -- nvim is launched per-Alt+/ on a single .ansi file).
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].buftype == 'nofile' then
+        emit_pending(b)
+        return
+      end
+    end
   end,
 })
 
@@ -232,4 +433,4 @@ vim.opt.number = true
 vim.opt.relativenumber = false
 vim.opt.cursorline = true
 vim.opt.laststatus = 2
-vim.opt.statusline = ' pair scrollback · q to quit · :N to jump to line N '
+vim.opt.statusline = ' pair scrollback · q to quit · Alt+q to drop 🤖[] · :N to jump '

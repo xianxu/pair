@@ -127,7 +127,12 @@ KEYBINDINGS (inside a pair session)
                 if cursor is on an existing [Image #N], sync counter to N
   Alt+/         open agent pane scrollback in a read-only ANSI-colored
                 nvim viewer; line numbers match zellij's frame indicator,
-                so e.g. `:880` jumps to the line you saw scrolled to 880
+                so e.g. `:880` jumps to the line you saw scrolled to 880.
+                Inside the viewer, Alt+q drops a 🤖[comment] marker —
+                bare in normal mode (the line is the context) or
+                🤖<selection>[comment] in visual mode. On :q, all
+                markers are formatted (`> <quote>\n<comment>`) and
+                appended to the draft for review + send
 
   Status line shows `H < pos > Q` — history count, current slot, queue
   count. A dirty `-N*` mark on history means a pending fork; navigating
