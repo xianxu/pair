@@ -48,7 +48,12 @@ layout {
         // swap layouts, not resize, so FIXED is harmless here.
         pane size=10 name="draft" borderless=true focus=true {
             command "sh"
-            args "-c" "DATA_DIR=\"${XDG_DATA_HOME:-$HOME/.local/share}/pair\" && mkdir -p \"$DATA_DIR\" && exec nvim -u \"$PAIR_HOME/nvim/init.lua\" \"$DATA_DIR/draft-${PAIR_TAG:-${PAIR_AGENT:-claude}}.md\""
+            // PAIR_NVIM_PID_FILE: nvim/init.lua's VimEnter autocmd writes the
+            // embed pid here so cleanup_quit_marker in bin/pair can reap
+            // deterministically on Alt+x. Without this, the embed nvim
+            // (forked off the TUI) can survive zellij's kill-session and
+            // accumulate as PPID=1 orphans across quits.
+            args "-c" "DATA_DIR=\"${XDG_DATA_HOME:-$HOME/.local/share}/pair\" && mkdir -p \"$DATA_DIR\" && export PAIR_NVIM_PID_FILE=\"$DATA_DIR/nvim-pid-${PAIR_TAG:-${PAIR_AGENT:-claude}}-draft\" && exec nvim -u \"$PAIR_HOME/nvim/init.lua\" \"$DATA_DIR/draft-${PAIR_TAG:-${PAIR_AGENT:-claude}}.md\""
         }
     }
 

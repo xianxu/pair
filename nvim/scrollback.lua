@@ -13,6 +13,23 @@
 vim.opt.termguicolors = true
 vim.opt.compatible = false
 
+-- See init.lua for the full rationale: this writes the embed nvim's pid to
+-- $PAIR_NVIM_PID_FILE so bin/pair's cleanup_quit_marker can reap it on
+-- Alt+x without resorting to argv pattern matching. Scrollback nvim has
+-- the same TUI/embed fork shape as the draft, so the same leak applies if
+-- the user Alt+x's while this viewer is floating.
+do
+  local pidfile = vim.env.PAIR_NVIM_PID_FILE
+  if pidfile and pidfile ~= '' then
+    vim.api.nvim_create_autocmd('VimEnter', {
+      once = true,
+      callback = function()
+        pcall(vim.fn.writefile, { tostring(vim.fn.getpid()) }, pidfile)
+      end,
+    })
+  end
+end
+
 -- Standard 16-color palette. Approximate xterm defaults — close enough
 -- to most TUI palettes that the rendered colors feel right. No user
 -- configuration; the file is supposed to look like the agent's output.

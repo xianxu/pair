@@ -530,6 +530,40 @@ cleanup_quit_marker() {
         # session record on its next heartbeat), SIGKILL it. Pattern matches
         # the socket path component, scoped to this session only.
         pkill -9 -f "zellij --server .*/${SESSION}\$" >/dev/null 2>&1 || true
+        # Reap orphan nvim embeds. Running `nvim FILE` is internally a fork:
+        # parent = TUI front-end, child = `nvim --embed` server connected
+        # via stdio pipe. When zellij kills the pane, the TUI dies but the
+        # embed child sometimes survives the EOF on its RPC pipe and gets
+        # reparented to launchd. Observed accumulating across Alt+x quits —
+        # each orphan retains its full buffer + lua state (~30 MB resident),
+        # and at 100+ orphans the host hits memory pressure that makes even
+        # plain shell prompts lag for seconds.
+        #
+        # Primary path: nvim/init.lua and nvim/scrollback.lua each register
+        # a VimEnter autocmd that writes `getpid()` (the embed pid; lua
+        # runs inside the embed) to $PAIR_NVIM_PID_FILE. The launch sites
+        # (zellij layout for draft; bin/pair-scrollback-open for the Alt+/
+        # viewer) export that env var pointing at a tag-scoped file under
+        # DATA_DIR. We read those files here and SIGKILL whatever they
+        # name. The pidfiles cover both nvim instances pair owns; if a new
+        # nvim surface is added, route it through the same env-var hook
+        # rather than another pattern.
+        for kind in draft scrollback; do
+            pf="$DATA_DIR/nvim-pid-${PAIR_TAG}-${kind}"
+            if [ -f "$pf" ]; then
+                pid=$(cat "$pf" 2>/dev/null | tr -d '[:space:]')
+                [ -n "$pid" ] && kill -9 "$pid" >/dev/null 2>&1
+                rm -f "$pf"
+            fi
+        done
+        # Belt-and-suspenders pattern reap, for the rare case the autocmd
+        # never fired (init.lua errored before VimEnter, or pair upgraded
+        # mid-session and an older pane has no pidfile). Scoped to argv
+        # containing this tag's DATA_DIR file, so unrelated nvim instances
+        # are untouched. Two calls because pkill -f uses BRE on macOS —
+        # alternation `(a|b)` isn't portable.
+        pkill -9 -f "nvim --embed.*${DATA_DIR}/draft-${PAIR_TAG}\.md\$" >/dev/null 2>&1 || true
+        pkill -9 -f "nvim --embed.*${DATA_DIR}/scrollback-${PAIR_TAG}-" >/dev/null 2>&1 || true
         rm -f "$DATA_DIR/outer-tty-${PAIR_TAG}" "$DATA_DIR/agent-${PAIR_TAG}" \
               "$DATA_DIR/agent-output-${PAIR_TAG}" \
               "$DATA_DIR/scrollback-${PAIR_TAG}-${quit_agent}.raw" \

@@ -4,6 +4,26 @@
 
 vim.g.mapleader = ' '
 
+-- Publish this nvim's pid so the quit path can reap it deterministically.
+-- `nvim FILE` forks into a TUI parent + `nvim --embed` server child; when
+-- zellij kills the pane, the TUI exits but the embed sometimes survives
+-- the RPC-pipe EOF and gets reparented to launchd, accumulating across
+-- Alt+x quits until the host runs out of memory. `getpid()` here returns
+-- the embed pid (lua runs inside the embed); bin/pair's cleanup_quit_marker
+-- reads this file and SIGKILLs the recorded pid. Best-effort: a write
+-- failure is silent so init.lua never blocks startup over a pidfile.
+do
+  local pidfile = vim.env.PAIR_NVIM_PID_FILE
+  if pidfile and pidfile ~= '' then
+    vim.api.nvim_create_autocmd('VimEnter', {
+      once = true,
+      callback = function()
+        pcall(vim.fn.writefile, { tostring(vim.fn.getpid()) }, pidfile)
+      end,
+    })
+  end
+end
+
 -- Enable filetype detection + default syntax. Loaded via `nvim -u`, which
 -- doesn't bypass nvim's bundled runtime but doesn't auto-enable these
 -- either. The draft file is `.md`, so this picks up markdown highlighting.

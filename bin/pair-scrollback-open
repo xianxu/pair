@@ -60,4 +60,11 @@ fi
 # exec nvim — when the user :q's, the script (and its containing
 # floating pane) exits. close_on_exit=true on the zellij Run binding
 # tears the pane down.
+#
+# PAIR_NVIM_PID_FILE: nvim/scrollback.lua's VimEnter autocmd writes the
+# embed pid here so cleanup_quit_marker in bin/pair can reap it on Alt+x.
+# Without this, the embed nvim (forked off the TUI) can survive zellij's
+# kill-session and accumulate as a PPID=1 orphan — same shape as the draft
+# pane leak, but reachable via Alt+/ leaving the scrollback viewer open.
+export PAIR_NVIM_PID_FILE="$PAIR_DATA_DIR/nvim-pid-$PAIR_TAG-scrollback"
 exec nvim -u "$PAIR_HOME/nvim/scrollback.lua" "$ANSI"
