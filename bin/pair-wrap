@@ -96,6 +96,16 @@ SPAN_EXTRACTION_AGENTS = frozenset({"claude"})
 NOTIFY_MODE_ACTIVE = NOTIFY_MODE_DEFAULT
 END_OF_TURN_RE = None
 
+# Scrollback capture (#000017 M1). When --scrollback-log <path> is set,
+# every byte read from the agent's PTY (master) is teed to this fd,
+# truncated on open. Downstream pair-scrollback-render reads this raw
+# stream + the .events.jsonl sidecar (M2) and replays through pyte to
+# recover line-numbered, ANSI-colored scrollback.
+#
+# Failure mode mirrors the rest of pair-wrap: any tee error is swallowed
+# so the proxy never blocks the agent on a logging hiccup.
+SCROLLBACK_FD = -1
+
 
 def debug(label, context):
     """Append a one-line forensic record. Safe to call when DEBUG_LOG unset."""
@@ -403,15 +413,44 @@ def is_actionable_osc(ps: bytes, body: bytes) -> bool:
 
 
 def main():
-    global OUTER_TTY_FILE, AGENT_OUTPUT_FILE
+    global OUTER_TTY_FILE, AGENT_OUTPUT_FILE, SCROLLBACK_FD
     global IDLE_S, NOTIFY_MODE_ACTIVE, END_OF_TURN_RE
     OUTER_TTY_FILE = resolve_outer_tty_file()
 
-    if len(sys.argv) < 2:
-        print("usage: pair-wrap <command> [args...]", file=sys.stderr)
+    # Strip pair-wrap's own flags from argv before resolving the agent
+    # command. argparse would be heavier than needed; a tiny loop keeps
+    # the dependency surface and behavior obvious. `--` ends flag parsing.
+    argv = sys.argv[1:]
+    scrollback_log = None
+    while argv and argv[0].startswith("-"):
+        if argv[0] == "--scrollback-log" and len(argv) > 1:
+            scrollback_log = argv[1]
+            argv = argv[2:]
+        elif argv[0] == "--":
+            argv = argv[1:]
+            break
+        else:
+            print(f"pair-wrap: unknown flag {argv[0]!r}", file=sys.stderr)
+            return 2
+
+    if not argv:
+        print("usage: pair-wrap [--scrollback-log <path>] <command> [args...]",
+              file=sys.stderr)
         return 2
 
-    agent_basename = os.path.basename(sys.argv[1])
+    agent_basename = os.path.basename(argv[0])
+
+    if scrollback_log:
+        try:
+            SCROLLBACK_FD = os.open(
+                scrollback_log,
+                os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
+                0o644,
+            )
+            debug("SCROLLBACK-open", scrollback_log)
+        except OSError as e:
+            debug("SCROLLBACK-open-fail", f"{scrollback_log!r}: {e}")
+            SCROLLBACK_FD = -1
 
     # Span extraction is calibrated per agent; only enable for known ones.
     # update_agent_output() short-circuits when AGENT_OUTPUT_FILE is None.
@@ -435,9 +474,9 @@ def main():
     pid, master = pty.fork()
     if pid == 0:
         try:
-            os.execvp(sys.argv[1], sys.argv[1:])
+            os.execvp(argv[0], argv)
         except OSError as e:
-            sys.stderr.write(f"pair-wrap: cannot exec {sys.argv[1]}: {e}\n")
+            sys.stderr.write(f"pair-wrap: cannot exec {argv[0]}: {e}\n")
             os._exit(127)
 
     set_winsize(master)
@@ -511,6 +550,11 @@ def main():
                     os.write(1, data)
                 except OSError:
                     pass
+                if SCROLLBACK_FD >= 0:
+                    try:
+                        os.write(SCROLLBACK_FD, data)
+                    except OSError as e:
+                        debug("SCROLLBACK-write-fail", str(e))
                 try:
                     update_agent_output(data)
                 except Exception as e:
@@ -557,6 +601,11 @@ def main():
             try:
                 termios.tcsetattr(0, termios.TCSAFLUSH, saved_termios)
             except (termios.error, OSError):
+                pass
+        if SCROLLBACK_FD >= 0:
+            try:
+                os.close(SCROLLBACK_FD)
+            except OSError:
                 pass
 
     try:

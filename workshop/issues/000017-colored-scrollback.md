@@ -204,3 +204,28 @@ bind "Alt /" {
   during M4 if SGR parsing turns out gnarlier than expected.
 
 ## Log
+
+### 2026-05-09
+
+**M1 done — raw stream capture.** pair-wrap now accepts
+`--scrollback-log <path>`. When set, opens with `O_TRUNC | O_CREAT | O_WRONLY`,
+tees every chunk read from the agent's master PTY into the file, and
+swallows write errors (proxy never blocks). Flag parsing is a tiny
+prelude before the existing `agent_basename = os.path.basename(argv[0])`;
+existing flagless invocations remain unchanged. `--` ends flag parsing
+in case the wrapped command itself takes a `--something` argv[0].
+
+Not yet wired in the layout — `zellij/layouts/main.kdl` still launches
+pair-wrap without the flag. M5 will turn it on once the renderer +
+viewer exist; landing it now would create per-session .raw files that
+no consumer reads.
+
+**Manual smoke test** (sandbox blocks pty allocation, so this must be
+done in a real terminal):
+
+```
+mkdir -p /tmp/pwtest
+python3 bin/pair-wrap --scrollback-log /tmp/pwtest/raw \
+    /usr/bin/env bash -c 'echo hello scrollback; sleep 0.1'
+xxd /tmp/pwtest/raw | head -3   # expect "hello scrollback\r\n"
+```
