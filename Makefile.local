@@ -1,2 +1,32 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
+
+.PHONY: pair-bootstrap
+
+# pair-bootstrap — install pair's runtime Python dependencies.
+#
+# Distinct from `make bootstrap` (.openshell/Makefile), which sets up
+# the OpenShell sandbox tooling. This target is for pair end-users:
+# brew install pair handles the binary deps (zellij, nvim, fzf, jq, par);
+# this fills in the pip-managed extras that the brew formula can't
+# easily own.
+#
+# Currently:
+#   - pyte: required by `Alt+/` (bin/pair-scrollback-render). Without
+#     it, capture still happens but the viewer prints an install hint
+#     and exits.
+#
+# `--break-system-packages` is needed on Python 3.11+ on systems with
+# PEP 668 marker files (Homebrew Python sets one). Falls back to a plain
+# install on systems without the flag — older pip rejects the unknown flag.
+pair-bootstrap:
+	@echo "==> Installing pair runtime dependencies..."
+	@if python3 -c 'import pyte' 2>/dev/null; then \
+		echo "  [ok] pyte already installed"; \
+	else \
+		echo "  [..] Installing pyte..."; \
+		pip3 install --user --break-system-packages pyte 2>/dev/null \
+			|| pip3 install --user pyte; \
+	fi
+	@echo ""
+	@echo "Done. Try Alt+/ in a pair session to see the colored scrollback viewer."
