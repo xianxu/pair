@@ -163,14 +163,19 @@ bind "Alt /" {
 
 ### M4: nvim integration
 
-- [ ] `nvim/scrollback.lua` — minimal init that loads the .ansi file,
+- [x] `nvim/scrollback.lua` — minimal init that loads the .ansi file,
       strips SGR escapes, applies extmarks for colors/attrs.
-- [ ] ANSI parsing: support SGR codes `0` (reset), `1`/`22` (bold/no-bold),
-      `3`/`23` (italic), `4`/`24` (underline), `30-37`/`90-97` (fg
-      indexed), `40-47`/`100-107` (bg indexed), `38;2;r;g;b` and
-      `38;5;n` (truecolor + 256), and `48;2;...`/`48;5;...` for bg.
-- [ ] Read-only, `q` to quit.
-- [ ] Verify: open a rendered .ansi, see colors match the live agent.
+- [x] ANSI parsing: SGR `0` reset, `1/22` bold, `3/23` italic, `4/24`
+      underline, `7/27` reverse, `9/29` strike, `30-37`/`90-97` fg
+      indexed (mapped via xterm-default palette), `40-47`/`100-107`
+      bg, `38;2;r;g;b` truecolor fg / `48;2;` bg, `38;5;n` 256-indexed
+      fg / `48;5;` bg. Cache (state → hl-group) keyed by stringified
+      attrs so we don't recreate duplicates.
+- [x] Read-only (`modifiable = false`, `buftype = nofile`), `q` to quit.
+- [x] Verify: synthetic 4-line file with red / truecolor-bold / plain /
+      white-on-green produced four distinct PairScrollback_N groups
+      with correct fg/bg integers, one extmark per row, buffer content
+      stripped clean.
 
 ### M5: keybind + open script
 
@@ -267,3 +272,14 @@ synthetic streams in `$TMPDIR/sb-render-test/`:
 
 pyte is a new runtime dependency (`pip install pyte`). Will document
 in M6 alongside the atlas update.
+
+**M4 done — nvim viewer.** `nvim/scrollback.lua` is a self-contained,
+plugin-free init: SGR parser → state machine → extmark spans. Bug
+caught + fixed during the test pass: `#hl_cache` on a string-keyed
+table returns 0, so the first attempt collapsed all groups to
+`PairScrollback_1` (last-write-wins). Replaced with an explicit
+`hl_counter`. Headless verification confirmed: the four-line
+fixture produces four distinct hl groups with the right fg/bg ints,
+one extmark per row, and the buffer is left with stripped text only.
+`q` quits via `<cmd>qa<CR>`; `buftype = nofile` and `modifiable =
+false` prevent stray `:w`.
