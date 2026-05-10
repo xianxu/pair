@@ -184,3 +184,48 @@ buffer, sidecar removed, `vim.notify` "🤖 picked up 2 scrollback
 comment(s)".
 
 **M4 done.** Statusline hint, `pair -h` entry, atlas section.
+
+**Code review (post-M4).** Dispatched `superpowers-code-reviewer` over
+`a5e9b1a..f7c29cc`. Verdict: merge-ready with the Critical + Important
+findings fixed. 1 Critical, 2 Important, 7 Minor.
+
+Important findings addressed:
+
+- **Critical #1 — scoped marker silently lost when selection
+  contains `>`.** A selection like `git log --grep > something`
+  produces `🤖<git log --grep > something>[c]`; the parser found
+  the first `>` (mid-X), checked for `[` next, saw a space, gave
+  up. Marker silently dropped on `:q`.
+- **Important #2 — sidecar deleted even on failed pickup.** Both
+  branches removed the sidecar before checking whether the buffer
+  insert / file append actually succeeded; a failed I/O would lose
+  the comments while `vim.notify("picked up N")` lied.
+- **Important #3 — `]` in user comment closed the marker.** First
+  `]` won; comment text after the first `]` was dropped on
+  extraction.
+
+Unified fix: escape `\`, `>`, and `]` in X (selection); escape `\`
+and `]` in Y (comment) at insert time. Parser uses
+`find_unescaped()` walking byte-by-byte and counting backslash
+parity. `unescape()` walks bytes too (the placeholder-NUL approach
+broke because Lua patterns treat `\0` as empty-position match, not
+NUL byte — caught during the test pass; lesson captured below).
+Plus pickup now gates `os.remove(pending)` on a `landed` flag and
+notifies WARN on failure so the sidecar survives for the next try.
+
+Minor #5 fixed: `VimLeavePre` now keys off
+`vim.b[bufnr].pair_scrollback` (set in `BufReadPost`) instead of
+the `buftype == 'nofile'` heuristic — robust to other plugin
+buffers.
+
+Minor #8 fixed: docblock at `nvim/init.lua` now describes the
+direct `nvim_buf_set_lines` + `:write` path rather than the
+abandoned autoread + checktime one.
+
+Other minors (FocusGained ordering annotation, `(no context)`
+ambiguity, `vim.deepcopy` overkill, multi-space `sep` test) left
+as not-blocking.
+
+Lessons captured in `workshop/lessons.md`:
+- Lua patterns and the literal NUL byte (the unescape bug).
+- Escape-on-insert vs scan-on-extract for delimited markers.

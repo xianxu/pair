@@ -1844,14 +1844,20 @@ vim.api.nvim_create_autocmd('ColorScheme', {
 -- Scrollback-comment pickup (#000018). When the user drops 🤖[] markers in
 -- the Alt+/ scrollback viewer and quits, scrollback.lua writes a sidecar
 -- block to `$DATA_DIR/scrollback-pending-<tag>.md`. On every FocusGained
--- the draft pane checks for this file, appends its contents to the draft
--- file, deletes the sidecar, and reloads the buffer (only when the user
--- is currently on the `*` slot, so we don't disturb history/queue views).
+-- the draft pane checks for this file and lands the content via one of
+-- two paths depending on the current slot:
 --
--- Appending to the file (rather than directly into the buffer) means a
--- user on `-N` or `+N` won't see anything until they navigate back to
--- `*` — but the content waits for them in draft-<tag>.md, where the
--- next `*`-navigation read will pick it up. No state needed in nvim.
+--   `*` slot     — append directly into the buffer via nvim_buf_set_lines
+--                  + `:silent! write`. We don't go through autoread+
+--                  checktime because file mtime resolution is sub-second
+--                  and the change can land in the same tick the buffer
+--                  was loaded, defeating the auto-reload trigger.
+--   `-N` / `+N` — append to draft-<tag>.md on disk; the next nav-to-`*`
+--                  reads from disk and picks it up naturally. No state
+--                  needed in nvim — the file IS the queue.
+--
+-- The sidecar is removed only after a successful land (catch failed I/O
+-- so we don't lose comments to a "picked up N" toast that's lying).
 local function pair_pending_path()
   local data_dir = vim.env.PAIR_DATA_DIR
     or ((vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/share')) .. '/pair')
@@ -1880,12 +1886,9 @@ local function pair_pickup_scrollback_pending()
   local count = 0
   for _ in content:gmatch('\n> ') do count = count + 1 end
 
+  local landed = false
   if nav.pos == '*' then
     -- On the draft slot: append directly into the buffer + autosave.
-    -- Going through nvim_buf_set_lines (rather than appending to the
-    -- file and relying on autoread + checktime) avoids the sub-second
-    -- mtime ambiguity — autoread can miss a change if the buffer was
-    -- loaded in the same FS mtime tick.
     local lines = vim.split(content, '\n', { plain = true })
     while #lines > 0 and lines[#lines] == '' do
       table.remove(lines)  -- trim trailing empty(s) from the final \n
@@ -1897,20 +1900,33 @@ local function pair_pickup_scrollback_pending()
     if last_existing == '' and lines[1] == '' then
       table.remove(lines, 1)
     end
-    vim.api.nvim_buf_set_lines(0, -1, -1, false, lines)
-    pcall(vim.cmd, 'silent! write')
+    local ok = pcall(vim.api.nvim_buf_set_lines, 0, -1, -1, false, lines)
+    if ok then
+      pcall(vim.cmd, 'silent! write')
+      landed = true
+    end
   else
     -- Not on `*`: append to the draft FILE so the next navigation back
     -- to the draft slot reads it. nvim's slot-load reads from disk, so
     -- this is the right hand-off shape for the off-slot case.
     local draft = pair_draft_file()
     local d = io.open(draft, 'a')
-    if d then d:write(content); d:close() end
+    if d then
+      local wrote = pcall(function() d:write(content); d:close() end)
+      if wrote then landed = true end
+    end
   end
 
-  os.remove(pending)
-  vim.notify(string.format('🤖 picked up %d scrollback comment(s)', count),
-             vim.log.levels.INFO)
+  if landed then
+    os.remove(pending)
+    vim.notify(string.format('🤖 picked up %d scrollback comment(s)', count),
+               vim.log.levels.INFO)
+  else
+    -- Preserve sidecar so the next FocusGained tries again rather than
+    -- silently swallowing the user's comments.
+    vim.notify('🤖 pickup failed; sidecar kept at ' .. pending,
+               vim.log.levels.WARN)
+  end
 end
 
 vim.api.nvim_create_autocmd('FocusGained', {

@@ -225,6 +225,64 @@ end
 -- UTF-8-aware so we use the literal byte sequence with `find(..., 1, true)`.
 local MARKER_BOT = '\240\159\164\150'
 
+-- Escape/unescape so user-supplied X (selection) and Y (comment) can
+-- contain the marker delimiters `>` and `]` without prematurely
+-- terminating the surrounding `<...>[...]` brackets. Backslash is the
+-- escape char and is itself escaped first so the unescape pass can be
+-- a single regex-free walk.
+--
+-- Without this, a selection like `git log --grep '> '` or a comment
+-- containing `]` would produce a marker the parser silently truncates,
+-- and the user loses their comment between Alt+q and `:q` (data-loss
+-- footgun caught in #18 review).
+local function esc_x(s)
+  return (s:gsub('\\', '\\\\'):gsub('>', '\\>'):gsub(']', '\\]'))
+end
+
+local function esc_y(s)
+  return (s:gsub('\\', '\\\\'):gsub(']', '\\]'))
+end
+
+local function unescape(s)
+  -- Walk byte-by-byte so `\\>` correctly unescapes to `\` + `>` (not
+  -- `\>`). The placeholder-via-NUL approach failed because Lua patterns
+  -- don't treat a literal NUL byte as a single-char match — it ends up
+  -- matching empty positions between every character.
+  local out = {}
+  local i = 1
+  while i <= #s do
+    local c = s:sub(i, i)
+    if c == '\\' and i < #s then
+      table.insert(out, s:sub(i + 1, i + 1))
+      i = i + 2
+    else
+      table.insert(out, c)
+      i = i + 1
+    end
+  end
+  return table.concat(out)
+end
+
+-- Find first occurrence of `char` in `line` starting at `start_pos`
+-- that is NOT escaped (i.e., not preceded by an odd number of `\`s).
+-- Returns nil if none. Used to locate the real `>` and `]` that
+-- close a marker, ignoring escaped ones inside X / Y.
+local function find_unescaped(line, char, start_pos)
+  local i = start_pos
+  while true do
+    local idx = line:find(char, i, true)
+    if not idx then return nil end
+    local bs = 0
+    local j = idx - 1
+    while j >= start_pos and line:sub(j, j) == '\\' do
+      bs = bs + 1
+      j = j - 1
+    end
+    if bs % 2 == 0 then return idx end
+    i = idx + 1
+  end
+end
+
 -- Walk one line, return every marker as { kind, X?, Y, range = {byte_lo, byte_hi} }.
 -- Pure function — exposed so headless tests can exercise it without a buffer.
 local function find_markers_in_line(line)
@@ -236,25 +294,25 @@ local function find_markers_in_line(line)
     local after = s + #MARKER_BOT
     local consumed = nil
     if line:sub(after, after) == '<' then
-      local close_q = line:find('>', after + 1, true)
+      local close_q = find_unescaped(line, '>', after + 1)
       if close_q and line:sub(close_q + 1, close_q + 1) == '[' then
-        local close_b = line:find(']', close_q + 2, true)
+        local close_b = find_unescaped(line, ']', close_q + 2)
         if close_b then
           table.insert(out, {
             kind = 'scoped',
-            X = line:sub(after + 1, close_q - 1),
-            Y = line:sub(close_q + 2, close_b - 1),
+            X = unescape(line:sub(after + 1, close_q - 1)),
+            Y = unescape(line:sub(close_q + 2, close_b - 1)),
             range = { s, close_b },
           })
           consumed = close_b + 1
         end
       end
     elseif line:sub(after, after) == '[' then
-      local close_b = line:find(']', after + 1, true)
+      local close_b = find_unescaped(line, ']', after + 1)
       if close_b then
         table.insert(out, {
           kind = 'bare',
-          Y = line:sub(after + 1, close_b - 1),
+          Y = unescape(line:sub(after + 1, close_b - 1)),
           range = { s, close_b },
         })
         consumed = close_b + 1
@@ -309,6 +367,9 @@ _G.PairScrollbackTest = {
   find_markers_in_line = find_markers_in_line,
   strip_markers        = strip_markers,
   format_extraction    = format_extraction,
+  esc_x                = esc_x,
+  esc_y                = esc_y,
+  unescape             = unescape,
 }
 
 local function prompt_comment()
@@ -326,8 +387,8 @@ local function add_marker_normal(bufnr)
   if not comment then return end
   local row = vim.api.nvim_win_get_cursor(0)[1]
   local line = vim.api.nvim_buf_get_lines(bufnr, row - 1, row, false)[1] or ''
-  local marker = MARKER_BOT .. '[' .. comment .. ']'
-  local sep = (line == '' or line:sub(-1) == ' ') and '' or ' '
+  local marker = MARKER_BOT .. '[' .. esc_y(comment) .. ']'
+  local sep = (line == '' or line:match('%s$')) and '' or ' '
   vim.bo[bufnr].modifiable = true
   vim.bo[bufnr].readonly   = false
   vim.api.nvim_buf_set_lines(bufnr, row - 1, row, false, { line .. sep .. marker })
@@ -362,7 +423,7 @@ local function add_marker_visual(bufnr)
   if sel == '' then return end
   local comment = prompt_comment()
   if not comment then return end
-  local marker = MARKER_BOT .. '<' .. sel .. '>[' .. comment .. ']'
+  local marker = MARKER_BOT .. '<' .. esc_x(sel) .. '>[' .. esc_y(comment) .. ']'
   vim.bo[bufnr].modifiable = true
   vim.bo[bufnr].readonly   = false
   vim.api.nvim_buf_set_lines(bufnr, sr - 1, sr, false, { before .. marker .. after })
@@ -406,6 +467,10 @@ vim.api.nvim_create_autocmd('BufReadPost', {
     vim.bo[bufnr].readonly = true
     vim.bo[bufnr].buftype = 'nofile'  -- prevent accidental :w
     vim.bo[bufnr].swapfile = false
+    -- Buffer-local sentinel for VimLeavePre lookup. Picking via
+    -- buftype='nofile' alone is fragile — any plugin spawning a scratch
+    -- nofile buffer would shadow ours. Tag the one we own.
+    vim.b[bufnr].pair_scrollback = true
     vim.keymap.set('n', 'q', '<cmd>qa<CR>', { buffer = bufnr, silent = true })
     vim.keymap.set('n', '<M-q>', function() add_marker_normal(bufnr) end,
                    { buffer = bufnr, silent = true })
@@ -416,10 +481,11 @@ vim.api.nvim_create_autocmd('BufReadPost', {
 
 vim.api.nvim_create_autocmd('VimLeavePre', {
   callback = function()
-    -- Find a buffer that's been ANSI-decorated (only one expected — this
-    -- nvim is launched per-Alt+/ on a single .ansi file).
+    -- Look up by the buffer-local sentinel set in BufReadPost — robust
+    -- against any other nofile buffers that might exist (terminals,
+    -- plugin scratches, etc.).
     for _, b in ipairs(vim.api.nvim_list_bufs()) do
-      if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].buftype == 'nofile' then
+      if vim.api.nvim_buf_is_loaded(b) and vim.b[b].pair_scrollback then
         emit_pending(b)
         return
       end

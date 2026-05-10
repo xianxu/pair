@@ -1,5 +1,41 @@
 # Lessons
 
+## Lua patterns: `\0` is empty-position match, not NUL byte
+
+The unescape function in `nvim/scrollback.lua` first attempt used a
+placeholder dance: `s:gsub('\\\\', '\0')` to swap `\\` for NUL,
+then `gsub('\\(.)', '%1')` to strip remaining `\X`, then
+`gsub('\0', '\\')` to restore the NUL → `\`. The result was
+absurd: `unescape("plain")` returned `\p\l\a\i\n\` — the NUL pattern
+matches between every byte (empty-position match), not the NUL byte
+character. Each "match" inserted a `\` between every char.
+
+**Rule.** When you need to match a literal NUL byte in a Lua pattern,
+use `%z` or wrap as a character class `[%z]`. But the cleaner answer
+is usually to skip patterns entirely for character-by-character
+walks: a tiny while-loop with `s:sub(i, i)` is unambiguous and avoids
+all the pattern-syntax footguns. Caught in #000018 review.
+
+## Escape on insert, scan-with-parity on extract — for delimited markers
+
+When user-supplied content is embedded in a delimited container
+(e.g. `🤖<X>[Y]`), and X or Y can contain the delimiter chars,
+the choice is "escape at insert + unescape at extract" vs "find
+the closing delimiter cleverly." The first attempt at `🤖<X>[Y]`
+parsing tried the latter — find first `>`, peek for `[`, give up
+otherwise. Result: any selection with `>` was silently dropped on
+extract, since the user couldn't tell the marker had been written
+malformed.
+
+**Rule.** Escape the delimiter chars in user-supplied fields at
+insert time; have the parser walk byte-by-byte counting backslash
+parity to find the *next unescaped* delimiter; unescape the
+extracted content. The escape→walk→unescape chain handles every
+delimiter-collision case uniformly, including `\\>` (literal `\`
+followed by `>`). Don't try to be clever with "find first `>[`
+adjacent" patterns — they fail when X contains `>[` literally,
+and the failure mode is silent data loss. Caught in #000018 review.
+
 ## `#table` is 0 on string-keyed tables — never use it for ID generation
 
 Adding nvim/scrollback.lua's hl-group cache: `local name = 'PairScrollback_' .. (#hl_cache + 1)` was meant to give each new (state→hl-group) entry a unique numeric suffix. `hl_cache` is a string-keyed dict (cache key is `(fg|bg|attrs)`), and Lua's `#` on a non-array table returns 0. Result: every group resolved to `PairScrollback_1`, `nvim_set_hl(0, "PairScrollback_1", def)` overwrote on each call, and all extmarks ended up sharing whatever the last-written attrs were. Caught only by an end-to-end test that checked extmark hl_groups against expected fg/bg ints.
