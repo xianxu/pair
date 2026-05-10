@@ -134,12 +134,13 @@ bind "Alt /" {
 
 ### M2: SIGWINCH events sidecar
 
-- [ ] In pair-wrap, hook `SIGWINCH` (it already proxies the signal to
+- [x] In pair-wrap, hook `SIGWINCH` (it already proxies the signal to
       the agent's PTY); on each, log a `{type:"resize",offset,cols,rows}`
       line to `<scrollback>.events.jsonl`.
-- [ ] Log an initial resize event at startup (for pyte's first config).
-- [ ] Verify: trigger Alt+Up/Alt+Down rung swap, see resize entries
-      appear with byte-offset boundaries.
+- [x] Log an initial resize event at startup (for pyte's first config).
+- [ ] Verify (manual): trigger Alt+Up/Alt+Down rung swap, see resize
+      entries appear with byte-offset boundaries that match `wc -c
+      <scrollback>.raw` checkpoints.
 
 ### M3: pyte replayer
 
@@ -220,12 +221,28 @@ pair-wrap without the flag. M5 will turn it on once the renderer +
 viewer exist; landing it now would create per-session .raw files that
 no consumer reads.
 
+**M2 done — events sidecar.** `--scrollback-log /path/foo.raw` now
+also opens `/path/foo.events.jsonl` (truncated). `set_winsize` was the
+existing single-source entry point for both the initial size and every
+SIGWINCH; threaded a `log_scrollback_event` call through it. The first
+event lands right after pty.fork at offset 0. Counter `SCROLLBACK_BYTES`
+is bumped after each successful write to the .raw fd, so the next resize
+event's `offset` cleanly demarcates "from this byte onward, use these
+new (cols, rows)". JSON is one line per event:
+
+```
+{"type":"resize","offset":0,"cols":120,"rows":30}
+{"type":"resize","offset":18324,"cols":120,"rows":15}
+```
+
 **Manual smoke test** (sandbox blocks pty allocation, so this must be
 done in a real terminal):
 
 ```
 mkdir -p /tmp/pwtest
-python3 bin/pair-wrap --scrollback-log /tmp/pwtest/raw \
+python3 bin/pair-wrap --scrollback-log /tmp/pwtest/foo.raw \
     /usr/bin/env bash -c 'echo hello scrollback; sleep 0.1'
-xxd /tmp/pwtest/raw | head -3   # expect "hello scrollback\r\n"
+xxd /tmp/pwtest/foo.raw | head -3
+cat /tmp/pwtest/foo.events.jsonl
+# expect: at least one resize event at offset 0
 ```

@@ -17,6 +17,7 @@ Filed as #000011.
 import collections
 import errno
 import fcntl
+import json
 import os
 import pty
 import re
@@ -96,15 +97,18 @@ SPAN_EXTRACTION_AGENTS = frozenset({"claude"})
 NOTIFY_MODE_ACTIVE = NOTIFY_MODE_DEFAULT
 END_OF_TURN_RE = None
 
-# Scrollback capture (#000017 M1). When --scrollback-log <path> is set,
-# every byte read from the agent's PTY (master) is teed to this fd,
-# truncated on open. Downstream pair-scrollback-render reads this raw
-# stream + the .events.jsonl sidecar (M2) and replays through pyte to
-# recover line-numbered, ANSI-colored scrollback.
+# Scrollback capture (#000017). When --scrollback-log <path> is set,
+# every byte read from the agent's PTY (master) is teed to SCROLLBACK_FD
+# (truncated on open), and a sidecar .events.jsonl gets one record per
+# resize keyed by byte offset. Downstream pair-scrollback-render reads
+# both files and replays through pyte at each segment's correct width
+# to recover line-numbered, ANSI-colored scrollback.
 #
 # Failure mode mirrors the rest of pair-wrap: any tee error is swallowed
 # so the proxy never blocks the agent on a logging hiccup.
 SCROLLBACK_FD = -1
+SCROLLBACK_EVENTS_FD = -1
+SCROLLBACK_BYTES = 0  # bytes written to SCROLLBACK_FD so far; offset key for events
 
 
 def debug(label, context):
@@ -376,12 +380,31 @@ def write_startup_banner():
         pass
 
 
+def log_scrollback_event(type_, **fields):
+    """Append a JSON event line keyed by current SCROLLBACK_BYTES offset.
+
+    No-op when --scrollback-log isn't enabled. Errors swallowed so a
+    write failure can't take down the proxy. Called both at startup
+    (initial resize) and from the SIGWINCH handler.
+    """
+    if SCROLLBACK_EVENTS_FD < 0:
+        return
+    payload = {"type": type_, "offset": SCROLLBACK_BYTES, **fields}
+    line = (json.dumps(payload, separators=(",", ":")) + "\n").encode()
+    try:
+        os.write(SCROLLBACK_EVENTS_FD, line)
+    except OSError as e:
+        debug("EVENT-write-fail", str(e))
+
+
 def set_winsize(master_fd):
     try:
         sz = fcntl.ioctl(0, termios.TIOCGWINSZ, b"\0" * 8)
+        rows, cols, _, _ = struct.unpack("hhhh", sz)
         fcntl.ioctl(master_fd, termios.TIOCSWINSZ, sz)
     except OSError:
-        pass
+        return
+    log_scrollback_event("resize", cols=cols, rows=rows)
 
 
 # Match ANY OSC sequence: ESC ] <Ps> ; <body> (BEL | ESC \). We parse all of
@@ -413,7 +436,8 @@ def is_actionable_osc(ps: bytes, body: bytes) -> bool:
 
 
 def main():
-    global OUTER_TTY_FILE, AGENT_OUTPUT_FILE, SCROLLBACK_FD
+    global OUTER_TTY_FILE, AGENT_OUTPUT_FILE
+    global SCROLLBACK_FD, SCROLLBACK_EVENTS_FD, SCROLLBACK_BYTES
     global IDLE_S, NOTIFY_MODE_ACTIVE, END_OF_TURN_RE
     OUTER_TTY_FILE = resolve_outer_tty_file()
 
@@ -441,6 +465,13 @@ def main():
     agent_basename = os.path.basename(argv[0])
 
     if scrollback_log:
+        # Derive the events sidecar path from --scrollback-log: trim
+        # `.raw` if present, append `.events.jsonl`. Both files are
+        # truncated together so a fresh launch starts a clean capture.
+        if scrollback_log.endswith(".raw"):
+            events_path = scrollback_log[:-4] + ".events.jsonl"
+        else:
+            events_path = scrollback_log + ".events.jsonl"
         try:
             SCROLLBACK_FD = os.open(
                 scrollback_log,
@@ -451,6 +482,17 @@ def main():
         except OSError as e:
             debug("SCROLLBACK-open-fail", f"{scrollback_log!r}: {e}")
             SCROLLBACK_FD = -1
+        if SCROLLBACK_FD >= 0:
+            try:
+                SCROLLBACK_EVENTS_FD = os.open(
+                    events_path,
+                    os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
+                    0o644,
+                )
+                debug("EVENTS-open", events_path)
+            except OSError as e:
+                debug("EVENTS-open-fail", f"{events_path!r}: {e}")
+                SCROLLBACK_EVENTS_FD = -1
 
     # Span extraction is calibrated per agent; only enable for known ones.
     # update_agent_output() short-circuits when AGENT_OUTPUT_FILE is None.
@@ -552,7 +594,8 @@ def main():
                     pass
                 if SCROLLBACK_FD >= 0:
                     try:
-                        os.write(SCROLLBACK_FD, data)
+                        n = os.write(SCROLLBACK_FD, data)
+                        SCROLLBACK_BYTES += n
                     except OSError as e:
                         debug("SCROLLBACK-write-fail", str(e))
                 try:
@@ -605,6 +648,11 @@ def main():
         if SCROLLBACK_FD >= 0:
             try:
                 os.close(SCROLLBACK_FD)
+            except OSError:
+                pass
+        if SCROLLBACK_EVENTS_FD >= 0:
+            try:
+                os.close(SCROLLBACK_EVENTS_FD)
             except OSError:
                 pass
 
