@@ -25,6 +25,7 @@ Usage:
 Filed as #000017 M3.
 """
 
+import collections
 import json
 import os
 import re
@@ -50,10 +51,44 @@ import pyte
 PRIVATE_CSI_RE = re.compile(rb'\x1b\[[<>][0-9;:]*[ -/]*[@-~]')
 
 
-# Cap on how many scrolled-out rows pyte retains. Generous because the
+# Cap on how many scrolled-out rows we retain. Generous because the
 # point of this whole feature is "I remember a line from way back".
 # At ~100B/row average, 100k rows is ~10MB — fine.
 HISTORY_ROWS = 100_000
+
+
+class CaptureScreen(pyte.Screen):
+    """Plain Screen + a manual deque of rows that have scrolled off the top.
+
+    Why not pyte.HistoryScreen: HistoryScreen overrides __getattribute__ to
+    wrap every event handler with before_event / after_event hooks. The
+    override fires on every method dispatch and every attribute read —
+    ~19M calls for a 3 MB raw input in our use, ~95% of wall time. We
+    don't need its page-navigation features (history.bottom, prev_page /
+    next_page); we only need the scrolled-out rows. Capturing them
+    directly in index() — the single point where pyte actually drops a
+    row off the top of the buffer — gives identical output at 3-4x the
+    speed.
+
+    Resize-induced row loss is not handled here: the renderer feeds
+    segments at their original widths, and pyte's resize() on a Screen
+    keeps the visible buffer, just clamping width. Rows lost across
+    resize boundaries were never in the live screen's history either, so
+    this matches what the user saw.
+    """
+
+    def __init__(self, columns: int, lines: int, history_rows: int = HISTORY_ROWS) -> None:
+        super().__init__(columns, lines)
+        self.history_top = collections.deque(maxlen=history_rows)
+
+    def index(self) -> None:
+        top, bottom = self.margins or (0, self.lines - 1)
+        if self.cursor.y == bottom:
+            # parent's index() is about to drop self.buffer[top] — grab it
+            # before the shift. Falls back to None for never-written rows,
+            # which serialize_row turns into an empty line.
+            self.history_top.append(self.buffer.get(top))
+        super().index()
 
 # Default fallback if events.jsonl is empty or the first event is missing
 # dimensions. Should rarely fire (pair-wrap always logs an initial
@@ -141,7 +176,12 @@ def serialize_row(row, cols: int) -> str:
     doesn't have to scroll past pad. Empty rows return an empty string.
     Each non-empty row ends with `\\x1b[0m` to keep styles from bleeding
     into the next line if the viewer concatenates without resetting.
+
+    `row` may be None for a CaptureScreen history entry that scrolled
+    out before it was ever written — treat as an empty line.
     """
+    if row is None:
+        return ""
     last_nonblank = -1
     for x in range(cols):
         ch = row[x]
@@ -195,7 +235,7 @@ def initial_size(events: list[dict]) -> tuple[int, int]:
     return DEFAULT_COLS, DEFAULT_ROWS
 
 
-def feed_segments(stream: pyte.Stream, screen: pyte.HistoryScreen,
+def feed_segments(stream: pyte.Stream, screen: CaptureScreen,
                   raw: bytes, events: list[dict]) -> None:
     """Feed `raw` to `stream` in segments delimited by resize events.
 
@@ -232,12 +272,8 @@ def feed_segments(stream: pyte.Stream, screen: pyte.HistoryScreen,
         stream.feed(chunk.decode("utf-8", errors="replace"))
 
 
-def iter_all_rows(screen: pyte.HistoryScreen) -> Iterable:
-    """Yield every logical row in display order: history.top → visible buffer.
-
-    `history.bottom` is for content scrolled forward (alt-screen / page
-    navigation) and isn't part of the user's "scrollback" mental model,
-    so we skip it.
+def iter_all_rows(screen: CaptureScreen) -> Iterable:
+    """Yield every logical row in display order: scrolled-out → visible buffer.
 
     Visible buffer iteration uses `range(screen.lines)` rather than
     `buffer.keys()`. pyte's buffer is sparse — unwritten rows aren't in
@@ -247,8 +283,12 @@ def iter_all_rows(screen: pyte.HistoryScreen) -> Iterable:
     `:880` lands where zellij showed line 880. The StaticDefaultDict
     yields a default-style Char for missing rows, and serialize_row
     returns "" for an all-blank row, so the count stays correct.
+
+    `history_top` entries may be None for rows that scrolled out before
+    they were ever written to (pyte's buffer.get(top) returns None for
+    missing keys). serialize_row handles None as "empty line".
     """
-    for row in screen.history.top:
+    for row in screen.history_top:
         yield row
     for y in range(screen.lines):
         yield screen.buffer[y]
@@ -257,7 +297,7 @@ def iter_all_rows(screen: pyte.HistoryScreen) -> Iterable:
 def render(raw_path: str, events_path: str, out_path: str) -> None:
     events = parse_events(events_path)
     cols, rows = initial_size(events)
-    screen = pyte.HistoryScreen(cols, rows, history=HISTORY_ROWS)
+    screen = CaptureScreen(cols, rows, history_rows=HISTORY_ROWS)
     stream = pyte.Stream(screen)
     with open(raw_path, "rb") as f:
         raw = f.read()
