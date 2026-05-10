@@ -27,10 +27,27 @@ Filed as #000017 M3.
 
 import json
 import os
+import re
 import sys
 from typing import Iterable, Optional
 
 import pyte
+
+
+# Strip xterm / kitty private CSI sequences that pyte 0.8.2 mis-handles:
+#
+#   \x1b[<u, \x1b[>1u   — kitty keyboard protocol
+#   \x1b[>4;2m          — XTERM modifyOtherKeys (claude emits this at
+#                         startup). pyte's SGR handler drops the `>`
+#                         prefix and reads the params as standard SGR,
+#                         so `>4;2m` becomes `4;2m` → underscore + faint
+#                         sticky on every subsequent cell. This was the
+#                         "everything is underlined" bug in the rendered
+#                         scrollback (#000018 follow-up).
+#
+# Leaving DEC private (`\x1b[?...`) alone — pyte handles those modes
+# correctly. CSI grammar: ESC `[` private-prefix? params intermediates final.
+PRIVATE_CSI_RE = re.compile(rb'\x1b\[[<>][0-9;:]*[ -/]*[@-~]')
 
 
 # Cap on how many scrolled-out rows pyte retains. Generous because the
@@ -189,6 +206,14 @@ def feed_segments(stream: pyte.Stream, screen: pyte.HistoryScreen,
     with errors='replace' — segment boundaries falling mid-codepoint
     are rare and a single replacement glyph is cheaper than running an
     incremental decoder.
+
+    Private CSI sequences are stripped from each chunk *before* decode
+    so pyte never sees the offending bytes. Stripping at the chunk
+    level (rather than once on the whole `raw`) keeps the byte
+    offsets in `events` aligned with what we feed: a resize event at
+    offset N applies to the chunk that contained byte N originally.
+    A private CSI straddling a chunk boundary is rare enough that the
+    decode-replace fallback handles it harmlessly.
     """
     resize_events = [e for e in events if e.get("type") == "resize"]
     # The first resize sets initial size; we apply it before this call,
@@ -198,12 +223,13 @@ def feed_segments(stream: pyte.Stream, screen: pyte.HistoryScreen,
     cursor = 0
     for offset, cols, rows in boundaries:
         if offset > cursor:
-            chunk = raw[cursor:offset].decode("utf-8", errors="replace")
-            stream.feed(chunk)
+            chunk = PRIVATE_CSI_RE.sub(b"", raw[cursor:offset])
+            stream.feed(chunk.decode("utf-8", errors="replace"))
             cursor = offset
         screen.resize(rows, cols)
     if cursor < len(raw):
-        stream.feed(raw[cursor:].decode("utf-8", errors="replace"))
+        chunk = PRIVATE_CSI_RE.sub(b"", raw[cursor:])
+        stream.feed(chunk.decode("utf-8", errors="replace"))
 
 
 def iter_all_rows(screen: pyte.HistoryScreen) -> Iterable:
