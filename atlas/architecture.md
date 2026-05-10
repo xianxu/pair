@@ -15,9 +15,12 @@ bin/copy-on-select.sh        # invoked by zellij copy_command on mouse-up
 bin/pair-quit.sh             # invoked by Alt+x — marks + kills session
 bin/pair-restart.sh          # invoked by Alt+n — marks (quit + restart) + kills session
 bin/pair-session-watch.sh    # captures agent session id at create time (#000016)
-bin/pair-wrap                # PTY proxy that translates agent OSC notifications
+bin/pair-wrap                # PTY proxy: OSC translation + scrollback capture
 bin/pair-notify              # hook-driven OSC notifier (e.g. claude Notification)
+bin/pair-scrollback-render   # raw PTY capture → ANSI-colored line dump (#000017)
+bin/pair-scrollback-open     # Alt+/ orchestrator: render + open viewer
 nvim/init.lua                # bundled nvim config (loaded via -u)
+nvim/scrollback.lua          # read-only ANSI viewer for the scrollback dump
 zellij/config.kdl            # mouse, copy_command, keybinds, pane frames
 zellij/layouts/main.kdl      # the split + agent/draft commands + swap layouts
 ```
@@ -161,6 +164,26 @@ Alt+x leaves the draft, queue, and history intact — the next session resumes t
    - **`bin/pair-notify`** (bash). Hook-driven helper for richer signals. `pair-notify [--osc 9|777] "msg"` reads the same outer-TTY file and writes the OSC. Intended for Claude Code `Notification`/`Stop` hooks where you want semantic events with custom message text rather than relying on the agent's native OSC stream.
 
 **Failure mode.** Both are designed to never block the agent. `pair-wrap` swallows exceptions in the detection/emission path and keeps proxying. `pair-notify` exits 0 with a stderr warning when `PAIR_TAG` is unset, the file is missing, or the recorded path isn't writable.
+
+### Colored scrollback dump — `pair-wrap`, `pair-scrollback-render`, `pair-scrollback-open`, `nvim/scrollback.lua`
+
+**Why.** zellij now renders a frame on the agent pane, which surfaces a scroll-position indicator (e.g. `500/540`) in the top-right. Knowing the position is half the value — the other half is being able to *jump back* to a remembered line. zellij's built-in `EditScrollback` strips ANSI styles when dumping (its scrollback is a styled cell grid internally, but the dump is plain text) and opens in a new tiled pane that breaks pair's two-pane invariant. Filed as #000017.
+
+**Capture (in `pair-wrap`).** When invoked with `--scrollback-log <path>`, pair-wrap opens `<path>` (truncated) and tees every chunk read from the agent's master PTY into it. Alongside it, `<path-without-.raw>.events.jsonl` collects one JSON line per resize:
+
+```
+{"type":"resize","offset":<bytes>,"cols":N,"rows":N}
+```
+
+The existing `set_winsize()` is the single entry point for both the initial PTY size (called once after `pty.fork`) and every SIGWINCH (the registered handler). Threading `log_scrollback_event()` through it covers both. `SCROLLBACK_BYTES` is bumped after each successful write to the raw fd, so the offset on each resize event demarcates "from this byte onward, apply these new (cols, rows)" — which is what the renderer needs to replay each segment at its correct width. Failure mode is unchanged: any tee or sidecar write error is `debug()`-logged and swallowed; the proxy never blocks the agent on a logging hiccup. `zellij/layouts/main.kdl` passes the flag by default, so capture runs automatically for every pair session.
+
+**Replay (`bin/pair-scrollback-render`, Python + `pyte`).** Reads `<raw>` and `<events.jsonl>`, feeds the bytes to `pyte.HistoryScreen(cols, rows, history=100_000)` in segments delimited by resize events. pyte runs the same VT100 interpretation that zellij does live (width-based wrap, alternate-screen flips, scroll regions), so its row count matches what the user saw in zellij's indicator. After feeding, the renderer walks `screen.history.top` (scrolled-out rows) followed by the visible buffer, and emits one ANSI-decorated line per row to `<out.ansi>`: full-reset SGR + per-row attrs + the row's characters + `\x1b[0m`. `history.bottom` (alt-screen page-forward) is skipped — it's not part of the user's "scrollback" mental model.
+
+`pyte` is a soft dependency: install via `pip3 install --user pyte`. Without it, capture still happens, but `Alt+/` shows a one-line install hint and exits.
+
+**Viewer (`nvim/scrollback.lua`).** Plugin-free init loaded via `nvim -u`. On `BufReadPost`, an SGR state machine walks each line: peels every `\x1b[...m` escape, mutates a running state (fg/bg/bold/italic/underline/reverse/strike/blink), and emits an extmark span for each contiguous run of visible bytes under a single state. Color resolution: 30-37/90-97 fg + 40-47/100-107 bg map through an xterm-default palette; `38;5;n` indexed maps via the standard 256-color formula (16 anchored to the same palette, 16-231 = 6×6×6 cube, 232-255 = greyscale ramp); `38;2;r;g;b` uses RGB directly. State→hl-group cache is keyed by stringified attrs and uses an explicit counter (not `#hl_cache` — that's 0 on string-keyed tables, a bug caught during the test pass). Buffer is locked read-only (`modifiable = false`, `buftype = nofile`, no swapfile); `q` quits via `<cmd>qa<CR>`.
+
+**Open (`bin/pair-scrollback-open`, POSIX sh).** Validates `PAIR_DATA_DIR` / `PAIR_TAG` / `PAIR_AGENT`, sanity-checks `pyte` is importable, runs the renderer, then `exec`s `nvim -u $PAIR_HOME/nvim/scrollback.lua $ANSI`. Errors print and `sleep` briefly so the message is readable before the floating pane self-closes. Bound in `zellij/config.kdl` to `Alt+/` as a 100% × 100% floating pane with `close_on_exit=true` — the user's `:q` in the viewer dismisses the pane and returns to pair's two-pane layout untouched.
 
 ### `nvim/init.lua` — drafting buffer config
 
@@ -313,6 +336,7 @@ Drafts and prompt history live under `${XDG_DATA_HOME:-~/.local/share}/pair/` (p
 - `log-<tag>.md` — append-only log of every send, with timestamp. Doubles as the source for the `-N` history slots (parsed at navigation time). Searchable via `rg`.
 - `queue-<tag>/NNNNNN.md` — one file per queued prompt (the `+N` slots). Filenames sort to display order (lowest = `+1`). Created lazily by `Alt+q` or auto-front-push from a dirty-`-N` "Queue" choice. Removed when the corresponding queue item is sent.
 - `quote-<tag>` — transient hand-off file written by `bin/clipboard-to-pane.sh` and read by nvim's `PairPasteQuote()`. Overwritten on every selection.
+- `scrollback-<tag>-<agent>.raw` / `.events.jsonl` / `.ansi` — pair-wrap's raw PTY capture, the resize sidecar, and the rendered viewer file (#000017). The .raw + .events are written live during the session (truncated on each launch); the .ansi is regenerated on every `Alt+/` press. Per (tag, agent) so multiple agents on the same tag don't clobber each other.
 
 The launcher exports `$PAIR_DATA_DIR` so `nvim/init.lua` can compute the same path without re-deriving the XDG fallback chain.
 

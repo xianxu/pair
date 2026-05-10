@@ -195,10 +195,13 @@ bind "Alt /" {
 
 ### M6: atlas + cleanup
 
-- [ ] Document the capture + render + open architecture in
-      `atlas/architecture.md`.
-- [ ] Note pyte dependency and how it's installed (probably
-      `pip install pyte` in pair's bootstrap or doc'd as a prereq).
+- [x] Document the capture + render + open architecture in
+      `atlas/architecture.md` (new section "Colored scrollback dump",
+      file index updated, data layout updated for the .raw / .events /
+      .ansi triplet).
+- [x] Note pyte dependency in README.md (Optional table) — pair gracefully
+      degrades without it; only Alt+/ requires it.
+- [x] Add Alt+/ entry to `pair -h` keybindings list.
 
 ## Risks / open questions
 

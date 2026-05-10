@@ -125,6 +125,9 @@ KEYBINDINGS (inside a pair session)
   Alt+h         pop up this help in a floating pane (press `q` to dismiss)
   Alt+i         attach clipboard image to agent + insert [Image #N];
                 if cursor is on an existing [Image #N], sync counter to N
+  Alt+/         open agent pane scrollback in a read-only ANSI-colored
+                nvim viewer; line numbers match zellij's frame indicator,
+                so e.g. `:880` jumps to the line you saw scrolled to 880
 
   Status line shows `H < pos > Q` — history count, current slot, queue
   count. A dirty `-N*` mark on history means a pending fork; navigating

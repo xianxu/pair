@@ -132,6 +132,12 @@ Automatically installed with `homebrew`.
 | `python3` (any 3.x) | runs the notification-forwarding helper. Stdlib-only — already present on macOS |
 | an agent | `claude`, `codex`, `gemini`, or any TUI agent you want to drive |
 
+**Optional**
+
+| Tool | Purpose |
+|---|---|
+| [`pyte`](https://github.com/selectel/pyte) | Python terminal emulator used by `Alt+/` to render full scrollback with colors and matching line numbers. Without it, `Alt+/` prints a hint; everything else works. Install with `pip3 install --user pyte`. |
+
 ## Install
 
 **Homebrew (recommended).** 
