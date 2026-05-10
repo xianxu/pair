@@ -366,6 +366,93 @@ DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/pair"
 mkdir -p "$DATA_DIR"
 export PAIR_DATA_DIR="$DATA_DIR"
 
+# --- nvim --embed orphan reaping --------------------------------------------
+#
+# `nvim FILE` is internally a TUI parent + `nvim --embed` server child wired
+# by an RPC stdio pipe. When the parent dies, the embed sometimes survives
+# the pipe EOF and gets reparented to launchd. Each orphan keeps its full
+# buffer + lua state (~30 MB resident); at 100+ orphans the host hits
+# memory pressure that makes plain shell prompts lag for seconds.
+#
+# Two callers reap, both via reap_nvim_for_tag:
+#   - cleanup_quit_marker (Alt+x path) — reaps the just-quit tag.
+#   - sweep_orphan_nvim (this file, called once at startup) — reaps any
+#     tag whose pair-<tag> session is no longer alive. Covers external
+#     terminations (`zellij kill-session`, host reboot, pair upgrade
+#     mid-session) that left no quit marker, so cleanup_quit_marker
+#     never ran for them.
+
+reap_nvim_for_tag() {
+    local tag="$1" kind pf pid
+    # Primary path is deterministic. nvim/init.lua + nvim/scrollback.lua
+    # register a VimEnter autocmd that writes getpid() (the embed pid;
+    # lua runs inside the embed) to $PAIR_NVIM_PID_FILE; launch sites
+    # (zellij/layouts/main.kdl, bin/pair-scrollback-open) point that env
+    # var at $DATA_DIR/nvim-pid-<tag>-<kind>.
+    for kind in draft scrollback; do
+        pf="$DATA_DIR/nvim-pid-${tag}-${kind}"
+        if [ -f "$pf" ]; then
+            pid=$(tr -d '[:space:]' < "$pf" 2>/dev/null || true)
+            [ -n "$pid" ] && kill -9 "$pid" >/dev/null 2>&1 || true
+            rm -f "$pf"
+        fi
+    done
+    # Belt-and-suspenders for the missing-pidfile case (autocmd errored
+    # before VimEnter, or pair upgraded mid-session and the older pane
+    # wrote no pidfile — this is how the 4 orphans on the host that
+    # prompted this change had to be found). Scoped to this tag's
+    # DATA_DIR file so unrelated nvim --embed instances are untouched.
+    # Two calls because macOS pkill -f uses BRE; (a|b) isn't portable.
+    pkill -9 -f "nvim --embed.*${DATA_DIR}/draft-${tag}\.md\$" >/dev/null 2>&1 || true
+    pkill -9 -f "nvim --embed.*${DATA_DIR}/scrollback-${tag}-" >/dev/null 2>&1 || true
+}
+
+# Reap nvim --embed processes whose pair-<tag> session is no longer alive.
+# Reads $all_pair (set just before this is called in the main flow) for
+# the live set. Cheap when nothing to do (~one ps + a few stat calls).
+sweep_orphan_nvim() {
+    local live tag pf fname argv
+    live=$(printf '%s\n' "${all_pair:-}" | sed -n 's/^pair-//p')
+    {
+        for pf in "$DATA_DIR"/nvim-pid-*-draft "$DATA_DIR"/nvim-pid-*-scrollback; do
+            [ -e "$pf" ] || continue
+            fname=$(basename "$pf")
+            tag=${fname#nvim-pid-}
+            tag=${tag%-draft}
+            tag=${tag%-scrollback}
+            printf '%s\n' "$tag"
+        done
+        # `ps -ww -A -o args=` prints full untruncated argv, one line per
+        # process. Catches orphans with no pidfile — without this the
+        # sweep misses any embed launched before f95f71c (commit that
+        # added the autocmd) or whose autocmd errored before VimEnter.
+        while IFS= read -r argv; do
+            case "$argv" in
+                *nvim*--embed*"$DATA_DIR/draft-"*)
+                    tag=${argv##*"$DATA_DIR/draft-"}
+                    tag=${tag%% *}
+                    tag=${tag%.md}
+                    printf '%s\n' "$tag"
+                    ;;
+                *nvim*--embed*"$DATA_DIR/scrollback-"*)
+                    tag=${argv##*"$DATA_DIR/scrollback-"}
+                    tag=${tag%% *}
+                    tag=${tag%.ansi}
+                    # Filename shape: scrollback-<tag>-<agent>.ansi —
+                    # strip trailing -<agent> to recover <tag>.
+                    tag=${tag%-*}
+                    printf '%s\n' "$tag"
+                    ;;
+            esac
+        done < <(ps -ww -A -o args= 2>/dev/null || true)
+    } | sort -u | while IFS= read -r tag; do
+        [ -z "$tag" ] && continue
+        if ! printf '%s\n' "$live" | grep -qx "$tag"; then
+            reap_nvim_for_tag "$tag"
+        fi
+    done
+}
+
 # Agent inference for `pair resume <tag>`: look up what was paired with
 # this tag last time. agent-<tag> covers live (or recently detached)
 # sessions — written at create-flow start, cleared on Alt+x.
@@ -431,6 +518,12 @@ BASE_TAG="$PAIR_TAG"
 all_pair=$( { zj list-sessions --short 2>/dev/null || true; } \
             | awk '/^pair-/' \
             | sort )
+
+# With the live-session set in hand, reap any nvim --embed left behind by
+# a tag whose pair-<tag> session is gone — external `zellij kill-session`,
+# host reboot, or pair upgrade leave no Alt+x marker, so cleanup_quit_marker
+# never runs and these embeds accumulate. Definition near $DATA_DIR setup.
+sweep_orphan_nvim
 
 detached_list=()
 while IFS= read -r sess; do
@@ -534,40 +627,10 @@ cleanup_quit_marker() {
         # session record on its next heartbeat), SIGKILL it. Pattern matches
         # the socket path component, scoped to this session only.
         pkill -9 -f "zellij --server .*/${SESSION}\$" >/dev/null 2>&1 || true
-        # Reap orphan nvim embeds. Running `nvim FILE` is internally a fork:
-        # parent = TUI front-end, child = `nvim --embed` server connected
-        # via stdio pipe. When zellij kills the pane, the TUI dies but the
-        # embed child sometimes survives the EOF on its RPC pipe and gets
-        # reparented to launchd. Observed accumulating across Alt+x quits —
-        # each orphan retains its full buffer + lua state (~30 MB resident),
-        # and at 100+ orphans the host hits memory pressure that makes even
-        # plain shell prompts lag for seconds.
-        #
-        # Primary path: nvim/init.lua and nvim/scrollback.lua each register
-        # a VimEnter autocmd that writes `getpid()` (the embed pid; lua
-        # runs inside the embed) to $PAIR_NVIM_PID_FILE. The launch sites
-        # (zellij layout for draft; bin/pair-scrollback-open for the Alt+/
-        # viewer) export that env var pointing at a tag-scoped file under
-        # DATA_DIR. We read those files here and SIGKILL whatever they
-        # name. The pidfiles cover both nvim instances pair owns; if a new
-        # nvim surface is added, route it through the same env-var hook
-        # rather than another pattern.
-        for kind in draft scrollback; do
-            pf="$DATA_DIR/nvim-pid-${PAIR_TAG}-${kind}"
-            if [ -f "$pf" ]; then
-                pid=$(cat "$pf" 2>/dev/null | tr -d '[:space:]')
-                [ -n "$pid" ] && kill -9 "$pid" >/dev/null 2>&1
-                rm -f "$pf"
-            fi
-        done
-        # Belt-and-suspenders pattern reap, for the rare case the autocmd
-        # never fired (init.lua errored before VimEnter, or pair upgraded
-        # mid-session and an older pane has no pidfile). Scoped to argv
-        # containing this tag's DATA_DIR file, so unrelated nvim instances
-        # are untouched. Two calls because pkill -f uses BRE on macOS —
-        # alternation `(a|b)` isn't portable.
-        pkill -9 -f "nvim --embed.*${DATA_DIR}/draft-${PAIR_TAG}\.md\$" >/dev/null 2>&1 || true
-        pkill -9 -f "nvim --embed.*${DATA_DIR}/scrollback-${PAIR_TAG}-" >/dev/null 2>&1 || true
+        # Reap this tag's nvim --embed children. See reap_nvim_for_tag and
+        # the orphan-reaping block near $DATA_DIR setup for the full story
+        # on why these survive pane death and need explicit cleanup.
+        reap_nvim_for_tag "$PAIR_TAG"
         rm -f "$DATA_DIR/outer-tty-${PAIR_TAG}" "$DATA_DIR/agent-${PAIR_TAG}" \
               "$DATA_DIR/agent-output-${PAIR_TAG}" \
               "$DATA_DIR/scrollback-${PAIR_TAG}-${quit_agent}.raw" \
