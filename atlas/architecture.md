@@ -18,7 +18,7 @@ bin/pair-session-watch.sh    # captures agent session id at create time (#000016
 bin/pair-wrap                # PTY proxy that translates agent OSC notifications
 bin/pair-notify              # hook-driven OSC notifier (e.g. claude Notification)
 nvim/init.lua                # bundled nvim config (loaded via -u)
-zellij/config.kdl            # mouse, copy_command, keybinds, frameless panes
+zellij/config.kdl            # mouse, copy_command, keybinds, pane frames
 zellij/layouts/main.kdl      # the split + agent/draft commands + swap layouts
 ```
 
@@ -57,7 +57,9 @@ Both panes wrap their command in `sh -c "..."` so the shell expands `$PAIR_AGENT
 
 `$PAIR_AGENT_ARGS` is appended on the agent pane command line as a single space-separated string; the shell word-splits it. Args containing spaces are *not* preserved (rare for CLI flags; documented in README).
 
-The bottom pane has `focus=true` (drafting pane gets focus on launch) and `name="draft"` — used by zellij in the OSC 0 terminal title (`pair-<tag>: draft`) which propagates to the user's terminal/multiplexer tab title. With `pane_frames false` set globally in `zellij/config.kdl` there's no frame title slot, so the name exists only for OSC 0 propagation; the keybind cheatsheet that used to live in the frame title now lives in nvim's statusline (right-aligned, see `nvim/init.lua`).
+The bottom pane has `focus=true` (drafting pane gets focus on launch), `borderless=true` (so the `minimized` rung can collapse to 1 row — see "pane frame asymmetry" below), and `name="draft"` — used by zellij in the OSC 0 terminal title (`pair-<tag>: draft`) which propagates to the user's terminal/multiplexer tab title. The draft is borderless so it has no frame title slot; the keybind cheatsheet that used to live in the frame title lives in nvim's statusline (right-aligned, see `nvim/init.lua`).
+
+**Pane frame asymmetry.** `pane_frames true` is set globally in `zellij/config.kdl` so the **agent pane** renders a frame — the value is the scroll-position indicator zellij draws in the top-right of a framed pane (e.g. `500/540`), which is the only way to see scrollback position (zellij doesn't expose scroll offset to plugins or the CLI). The **draft pane** opts out via `borderless=true` in every layout (default + both swap layouts), because a framed pane has a ~3-row minimum and the `minimized` rung needs `size=1`. Cost: the agent pane loses 2 rows + 2 cols to the frame chrome.
 
 **Swap layouts.** Two `swap_tiled_layout` entries — `minimized` (draft `size=1`) and `half` (draft `size="50%"`) — sit alongside the default layout above. Each is gated by `exact_panes=2` so it only applies when the current pane structure matches what pair builds. `nvim/init.lua` drives them via `zellij action next-swap-layout` / `previous-swap-layout`, which re-tile the existing agent + nvim panes onto the target layout positionally — running pane processes (`pair-wrap`, `nvim`) survive each swap. Cycle from default(small) is `[minimized, half]`: `next-swap-layout` from small → minimized, from minimized → half, from half → wraps to small. The lua side maps Alt+Down to next-swap (smaller rung) and Alt+Up to prev-swap (bigger rung), with a state-machine clamp at the rung extremes.
 
@@ -67,7 +69,7 @@ Top-level config:
 
 - `mouse_click_through true` — first click on an unfocused pane goes through to the pane (so click-and-drag selects in one motion) instead of being consumed by zellij just to change focus.
 - `copy_command "copy-on-select.sh"` — on every selection finalize (mouse-up after drag), zellij pipes the selected text to this script. `copy_command` replaces zellij's default OS-clipboard write, so the script does that part too. Resolved by PATH (which `bin/pair` populated).
-- `pane_frames false` — disables zellij's pane-border chrome globally. Lets the `minimized` rung collapse the draft pane to a single statusline row (zellij's framed minimum is ~3 rows; frameless minimum is 1). Side effect: no frame title slot, so the keybind cheatsheet now renders in nvim's statusline, right-aligned, with progressive disclosure based on terminal width.
+- `pane_frames true` — frames are enabled globally so the agent pane shows zellij's scroll-position indicator (top-right of the frame) when scrolled. The draft pane opts out via `borderless=true` in `zellij/layouts/main.kdl` so the `minimized` rung can still collapse to 1 row (a framed pane's minimum is ~3 rows). The cheatsheet still renders in nvim's statusline rather than a frame title — the draft has no frame to hold one.
 
 Keybinds added on top of zellij defaults (`clear-defaults=false`):
 

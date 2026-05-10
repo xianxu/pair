@@ -6,17 +6,17 @@
 // - Disable advanced mouse actions (pane grouping, etc.) to keep mouse
 //   behavior predictable for selection and our copy_command flow.
 // - Suppress "what's new" release-notes popup on version bumps.
-// - Disable pane frames globally. Frames eat 2 rows per pane and prevent
-//   the draft pane from collapsing below ~3 rows in the "minimized"
-//   layout rung. Both panes already render cleanly without frames; the
-//   thin separator zellij draws between adjacent panes is enough visual
-//   division. Side effect: no frame title, so any cheatsheet/name we
-//   used to right-align in the title slot via `rename-pane` is gone —
-//   Alt+h still pops the full keybind help.
+// - Enable pane frames globally so the agent pane shows zellij's
+//   scroll-position indicator (top-right) when scrolled — the only way
+//   to surface scrollback position, since zellij doesn't expose pane
+//   scroll offset to plugins or the CLI. The draft pane opts out via
+//   `borderless=true` in zellij/layouts/main.kdl so the "minimized"
+//   layout rung can still collapse to 1 row (framed minimum is ~3
+//   rows). Cost on the agent pane: ~2 rows + 2 cols of frame chrome.
 mouse_hover_effects false
 advanced_mouse_actions false
 show_release_notes false
-pane_frames false
+pane_frames true
 
 // When clicking an unfocused pane, send the click into the pane (so a
 // click-and-drag starts selecting text in one motion) rather than only

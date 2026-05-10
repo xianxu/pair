@@ -24,22 +24,24 @@
 
 layout {
     pane split_direction="horizontal" {
-        pane name="agent" borderless=true {
+        pane name="agent" {
             command "sh"
             args "-c" "exec pair-wrap ${PAIR_AGENT:-claude} ${PAIR_AGENT_ARGS:-}"
         }
         // Pane name "draft" appears in zellij's OSC 0 terminal title
         // ("<session>: draft") and propagates to the user's terminal /
-        // multiplexer tab title. With pane_frames disabled in
-        // zellij/config.kdl there's no frame title slot, so the name
-        // exists only for the OSC 0 propagation.
+        // multiplexer tab title. The draft is borderless (the agent
+        // pane is framed for the scroll indicator; the draft must stay
+        // borderless so the `minimized` rung can collapse to 1 row),
+        // so it has no frame title slot — the name exists only for OSC
+        // 0 propagation.
         //
         // size=10 (integer) is the middle rung ("small") — a fixed
         // 10-row draft pane is enough for ~7-8 lines of prompt with the
         // statusline. zellij tags integer sizes as FIXED (refusing
         // `resize` actions), but pair drives all rung changes through
         // swap layouts, not resize, so FIXED is harmless here.
-        pane size=10 name="draft" focus=true {
+        pane size=10 name="draft" borderless=true focus=true {
             command "sh"
             args "-c" "DATA_DIR=\"${XDG_DATA_HOME:-$HOME/.local/share}/pair\" && mkdir -p \"$DATA_DIR\" && exec nvim -u \"$PAIR_HOME/nvim/init.lua\" \"$DATA_DIR/draft-${PAIR_TAG:-${PAIR_AGENT:-claude}}.md\""
         }
@@ -67,12 +69,16 @@ layout {
     // these leaf positions; if we repeated the command, there's a risk
     // zellij would treat that as a request to spawn a new pane rather
     // than match an existing one.
+    //
+    // The draft pane carries `borderless=true` in every rung so it can
+    // collapse to size=1 in `minimized`; the agent pane stays framed so
+    // its scroll indicator (top-right) is visible.
 
     swap_tiled_layout name="minimized" {
         tab exact_panes=2 {
             pane split_direction="horizontal" {
-                pane name="agent" borderless=true
-                pane size=1 name="draft"
+                pane name="agent"
+                pane size=1 name="draft" borderless=true
             }
         }
     }
@@ -80,8 +86,8 @@ layout {
     swap_tiled_layout name="half" {
         tab exact_panes=2 {
             pane split_direction="horizontal" {
-                pane name="agent" borderless=true
-                pane size="50%" name="draft"
+                pane name="agent"
+                pane size="50%" name="draft" borderless=true
             }
         }
     }
