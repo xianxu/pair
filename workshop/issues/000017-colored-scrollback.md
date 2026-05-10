@@ -179,13 +179,19 @@ bind "Alt /" {
 
 ### M5: keybind + open script
 
-- [ ] `bin/pair-scrollback-open` — orchestration: run renderer, exec
-      nvim with scrollback.lua on the result.
-- [ ] `zellij/config.kdl` — bind `Alt+/` (or another free chord) to
-      Run `pair-scrollback-open` floating, close-on-exit.
-- [ ] Verify: from agent pane, `Alt+/` opens floating nvim with
-      scrollback, `:880` jumps to the right line, colors render,
-      `:q` dismisses, pair returns to 2-pane layout.
+- [x] `bin/pair-scrollback-open` — orchestration: validate env, check
+      pyte, run renderer, exec nvim with scrollback.lua on the result.
+      Brief `sleep 3-5` on errors so the floating pane stays visible
+      long enough to read the message before close_on_exit dismisses.
+- [x] `zellij/config.kdl` — `Alt+/` binding wraps it in a 100% × 100%
+      floating pane named `scrollback`, close-on-exit.
+- [x] `zellij/layouts/main.kdl` — agent pane invocation now passes
+      `--scrollback-log` to pair-wrap, so capture is on by default.
+      Path follows the same `${PAIR_TAG:-…}` fallback chain as the
+      draft pane.
+- [ ] Verify (manual, real session): from agent pane, `Alt+/` opens
+      floating nvim with scrollback, `:880` jumps to the right line,
+      colors render, `:q` dismisses, pair returns to 2-pane layout.
 
 ### M6: atlas + cleanup
 
@@ -283,3 +289,24 @@ fixture produces four distinct hl groups with the right fg/bg ints,
 one extmark per row, and the buffer is left with stripped text only.
 `q` quits via `<cmd>qa<CR>`; `buftype = nofile` and `modifiable =
 false` prevent stray `:w`.
+
+**M5 done — orchestration + keybind + auto-capture.** Three pieces:
+
+- `bin/pair-scrollback-open` — POSIX `sh` wrapper. Validates
+  `PAIR_DATA_DIR` / `PAIR_TAG` / `PAIR_AGENT` (from pair's exported
+  env), checks the .raw file is non-empty, sanity-checks pyte, runs
+  the renderer, then `exec`s nvim on the .ansi. Errors print + sleep
+  briefly so the user sees the message before the pane self-closes.
+- `zellij/config.kdl` — new `Alt+/` binding `Run`s pair-scrollback-open
+  in a 100%×100% floating pane named `scrollback` with `close_on_exit`.
+- `zellij/layouts/main.kdl` — agent pane args now include
+  `--scrollback-log "$DATA_DIR/scrollback-$TAG-$AGENT.raw"`. Capture
+  is on by default; the file is truncated on every launch (pair-wrap
+  opens with O_TRUNC), so disk usage stays bounded by the latest
+  session per (tag, agent).
+
+End-to-end manual verification deferred to a real pair session — the
+sandbox blocks pty allocation. Plan: launch pair, type a few claude
+turns to grow scrollback, scroll back via mouse-wheel to remember a
+line N from the indicator, press Alt+/, then `:N` in the viewer to
+confirm the line landed correctly.

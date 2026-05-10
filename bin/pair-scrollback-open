@@ -1,0 +1,54 @@
+#!/bin/sh
+# pair-scrollback-open — render the agent pane's captured scrollback
+# and open it in a read-only ANSI-aware nvim viewer.
+#
+# Bound to Alt+/ in zellij/config.kdl (Run with floating=true,
+# close_on_exit=true), so this script runs in a floating pane, executes
+# nvim in place, and the pane self-dismisses when the user :q's.
+#
+# Inputs come from pair's env (exported by bin/pair before zellij starts):
+#   $PAIR_DATA_DIR  — where pair stores per-session state files
+#   $PAIR_TAG       — session identity
+#   $PAIR_AGENT     — agent basename (claude / codex / gemini)
+#   $PAIR_HOME      — pair install root (for nvim/scrollback.lua)
+#
+# Filed as #000017 M5.
+set -eu
+
+if [ -z "${PAIR_DATA_DIR:-}" ] || [ -z "${PAIR_TAG:-}" ] || [ -z "${PAIR_AGENT:-}" ]; then
+    printf 'pair-scrollback-open: missing PAIR_DATA_DIR / PAIR_TAG / PAIR_AGENT\n' >&2
+    printf '  This script is meant to run inside a pair session.\n' >&2
+    sleep 3
+    exit 1
+fi
+
+RAW="$PAIR_DATA_DIR/scrollback-$PAIR_TAG-$PAIR_AGENT.raw"
+EVENTS="$PAIR_DATA_DIR/scrollback-$PAIR_TAG-$PAIR_AGENT.events.jsonl"
+ANSI="$PAIR_DATA_DIR/scrollback-$PAIR_TAG-$PAIR_AGENT.ansi"
+
+if [ ! -s "$RAW" ]; then
+    printf 'pair-scrollback-open: no scrollback yet for %s/%s\n' "$PAIR_TAG" "$PAIR_AGENT" >&2
+    printf '  (capture starts when the agent pane begins emitting output.)\n' >&2
+    sleep 3
+    exit 0
+fi
+
+# pyte is the renderer's only non-stdlib dependency; surface a clear
+# error rather than nvim opening on an empty file.
+if ! python3 -c 'import pyte' 2>/dev/null; then
+    printf 'pair-scrollback-open: python3 module `pyte` not installed.\n' >&2
+    printf '  install with: pip3 install --user pyte\n' >&2
+    sleep 5
+    exit 1
+fi
+
+if ! pair-scrollback-render "$RAW" "$EVENTS" "$ANSI" 2>&1; then
+    printf 'pair-scrollback-open: renderer failed; see above.\n' >&2
+    sleep 5
+    exit 1
+fi
+
+# exec nvim — when the user :q's, the script (and its containing
+# floating pane) exits. close_on_exit=true on the zellij Run binding
+# tears the pane down.
+exec nvim -u "$PAIR_HOME/nvim/scrollback.lua" "$ANSI"

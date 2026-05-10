@@ -26,7 +26,12 @@ layout {
     pane split_direction="horizontal" {
         pane name="agent" {
             command "sh"
-            args "-c" "exec pair-wrap ${PAIR_AGENT:-claude} ${PAIR_AGENT_ARGS:-}"
+            // --scrollback-log captures the raw PTY stream + a resize
+            // sidecar so Alt+/ can render an ANSI-colored, line-numbered
+            // view of scrollback on demand (#000017). DATA_DIR/PAIR_*
+            // are exported by bin/pair before zellij launches, so the
+            // sh -c form below resolves them at exec time.
+            args "-c" "exec pair-wrap --scrollback-log \"${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}/scrollback-${PAIR_TAG:-${PAIR_AGENT:-claude}}-${PAIR_AGENT:-claude}.raw\" ${PAIR_AGENT:-claude} ${PAIR_AGENT_ARGS:-}"
         }
         // Pane name "draft" appears in zellij's OSC 0 terminal title
         // ("<session>: draft") and propagates to the user's terminal /
