@@ -144,19 +144,22 @@ bind "Alt /" {
 
 ### M3: pyte replayer
 
-- [ ] New `bin/pair-scrollback-render` (Python). CLI:
+- [x] New `bin/pair-scrollback-render` (Python). CLI:
       `pair-scrollback-render <raw> <events.jsonl> <out.ansi>`.
-- [ ] Use `pyte.HistoryScreen` so scrollback rows are preserved.
-- [ ] For each contiguous segment between resize events, set screen
+- [x] Use `pyte.HistoryScreen` so scrollback rows are preserved.
+- [x] For each contiguous segment between resize events, set screen
       size and feed bytes; on resize boundary, resize the screen and
       continue.
-- [ ] Serialize: iterate scrollback (history.top) → visible buffer →
-      history.bottom. Per row, walk cells and emit minimal SGR diffs
-      (only when style changes), then reset at row end.
-- [ ] Truecolor support — pyte exposes RGB if the agent emitted
-      truecolor escapes (claude does).
-- [ ] Verify: render a session, count lines, eyeball a few line numbers
-      against what the zellij indicator showed before scrollback dump.
+- [x] Serialize: iterate scrollback (history.top) → visible buffer.
+      (history.bottom skipped — it's for alt-screen page-forward, not
+      part of the user's scrollback mental model.) Per row, emit SGR
+      only when style changes, reset at row end.
+- [x] Truecolor support — pyte normalizes 256-color and 24-bit RGB
+      into 6-char hex strings on Char.fg/bg; renderer detects hex vs.
+      named and emits 38;2;R;G;B accordingly.
+- [ ] Verify (manual, against a real session): render a captured
+      session, count lines, eyeball a few line numbers against what
+      the zellij indicator showed.
 
 ### M4: nvim integration
 
@@ -246,3 +249,21 @@ xxd /tmp/pwtest/foo.raw | head -3
 cat /tmp/pwtest/foo.events.jsonl
 # expect: at least one resize event at offset 0
 ```
+
+**M3 done — pyte renderer.** `bin/pair-scrollback-render <raw>
+<events.jsonl> <out.ansi>` replays the captured stream through
+`pyte.HistoryScreen(cols, rows, history=100_000)`, applying resize
+events at their byte offsets. Output is one line per pyte row
+(history.top in order, then visible buffer), each line carries SGR
+codes that reproduce pyte's Char.fg/bg/decorations. Tested on two
+synthetic streams in `$TMPDIR/sb-render-test/`:
+
+1. **Color preservation** — 12 lines mixing default / red / truecolor
+   bold. Output: 12 lines, each with the right SGR (e.g.
+   `\x1b[0;1;38;2;100;200;255;49m`).
+2. **Scrollback + mid-stream resize** — 50 lines into a 5-row screen
+   with a resize from 40 cols → 20 cols at byte 250. Output: all 50
+   lines preserved, line numbers monotonically `001..050`.
+
+pyte is a new runtime dependency (`pip install pyte`). Will document
+in M6 alongside the atlas update.
