@@ -1900,9 +1900,27 @@ local function pair_pickup_scrollback_pending()
     if last_existing == '' and lines[1] == '' then
       table.remove(lines, 1)
     end
+    local block_start = vim.api.nvim_buf_line_count(0)  -- 0-idx, first inserted
     local ok = pcall(vim.api.nvim_buf_set_lines, 0, -1, -1, false, lines)
     if ok then
       pcall(vim.cmd, 'silent! write')
+      -- Visual feedback identical to copy-on-select's quote-paste:
+      -- scroll the first non-empty inserted line to the top of the
+      -- draft pane, then flash every inserted line via the shared
+      -- pair_flash_ns + IncSearch hl. 500ms clear matches the rest of
+      -- pair's flash idiom (queue-count blink, paste highlight). Skip
+      -- startinsert — the user may have come back to read, not type.
+      local first_visible = block_start
+      for i, l in ipairs(lines) do
+        if l ~= '' then first_visible = block_start + i - 1; break end
+      end
+      pcall(vim.api.nvim_win_set_cursor, 0, { first_visible + 1, 0 })
+      pcall(vim.cmd, 'normal! zt')
+      vim.api.nvim_buf_clear_namespace(0, pair_flash_ns, 0, -1)
+      for i = block_start, block_start + #lines - 1 do
+        vim.api.nvim_buf_add_highlight(0, pair_flash_ns, 'IncSearch', i, 0, -1)
+      end
+      clear_flash_after(0, 500)
       landed = true
     end
   else
