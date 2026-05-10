@@ -1681,13 +1681,19 @@ pair_apply_statusline_hl()
 -- Applied via a highlight namespace so the colorscheme's default ns is
 -- left untouched. Truecolor (termguicolors) is required and asserted at
 -- top of file.
-local pair_bg_insert = '#1c1c1c' -- close to slate default
-local pair_bg_locked = '#2a2a2a' -- lifted neutral grey
+-- Two fade levels:
+--   pair_locked_ns  — focus-lost (deeper grey-out at 0.45). The pane isn't
+--                     where the user is looking, so push it well into the bg.
+--   pair_normal_ns  — focused but in normal mode (lighter grey-out at 0.80).
+--                     The user is still looking at the pane; the fade signals
+--                     "not actively typing" without dropping legibility.
+-- Insert mode uses neither (no fade).
 local pair_locked_ns = vim.api.nvim_create_namespace('pair_locked')
+local pair_normal_ns = vim.api.nvim_create_namespace('pair_normal')
 
 -- 0 = pure locked-bg (full grey-out); 1 = original color (no fade).
--- 0.45 keeps hue legible while clearly signaling "not insert mode".
-local PAIR_LOCKED_FADE = 0.45
+local PAIR_LOCKED_FADE = 0.45  -- focus-lost: pane is in the user's periphery
+local PAIR_NORMAL_FADE = 0.80  -- focused normal mode: barely faded
 
 -- Fallback fg used when a group has no defined fg (e.g. Normal under the
 -- default scheme — its fg comes from the terminal default, which our blend
@@ -1696,28 +1702,48 @@ local PAIR_LOCKED_FADE = 0.45
 -- text the *brightest* thing on the dimmed sheet.
 local PAIR_LOCKED_DEFAULT_FG = 0xeeeeee
 
-local function pair_hex_to_int(s)
-  return tonumber((s:gsub('#', '')), 16)
-end
-local pair_bg_locked_int = pair_hex_to_int(pair_bg_locked)
-local pair_locked_br = math.floor(pair_bg_locked_int / 65536) % 256
-local pair_locked_bg_g = math.floor(pair_bg_locked_int / 256) % 256
-local pair_locked_bb = pair_bg_locked_int % 256
-
--- Linear blend between an integer RGB color (24-bit) and pair_bg_locked.
--- alpha = 1 returns rgb unchanged; alpha = 0 returns pair_bg_locked.
-local function pair_blend_to_locked(rgb, alpha)
-  local r = math.floor(rgb / 65536) % 256
-  local g = math.floor(rgb / 256) % 256
-  local b = rgb % 256
-  local nr = math.floor(r * alpha + pair_locked_br   * (1 - alpha) + 0.5)
-  local ng = math.floor(g * alpha + pair_locked_bg_g * (1 - alpha) + 0.5)
-  local nb = math.floor(b * alpha + pair_locked_bb   * (1 - alpha) + 0.5)
+-- Generic 24-bit RGB blend. alpha=1 → rgb_a, alpha=0 → rgb_b.
+local function pair_blend_rgb(rgb_a, rgb_b, alpha)
+  local ar = math.floor(rgb_a / 65536) % 256
+  local ag = math.floor(rgb_a / 256) % 256
+  local ab = rgb_a % 256
+  local br = math.floor(rgb_b / 65536) % 256
+  local bg = math.floor(rgb_b / 256) % 256
+  local bb = rgb_b % 256
+  local nr = math.floor(ar * alpha + br * (1 - alpha) + 0.5)
+  local ng = math.floor(ag * alpha + bg * (1 - alpha) + 0.5)
+  local nb = math.floor(ab * alpha + bb * (1 - alpha) + 0.5)
   return nr * 65536 + ng * 256 + nb
 end
 
--- Snapshot every currently-defined highlight group and clone it into the
--- locked namespace with fg/bg blended toward the locked sheet bg, while
+-- Resolve insert-mode and locked-mode background colors from the active
+-- colorscheme's `Normal` group instead of hardcoding hex values, so the
+-- dimmed sheet stays visibly distinct from the editing bg under any
+-- theme (light or dark). Insert mode reuses Normal.bg verbatim; the
+-- locked sheet is Normal.bg shifted 14% toward 50% grey — this direction
+-- automatically lifts on dark themes and darkens on light themes (both
+-- move toward neutral). Re-run on init and on every ColorScheme change.
+local pair_bg_insert       -- '#xxxxxx' string for nvim_set_hl
+local pair_bg_locked_int   -- 24-bit int, used as blend target
+
+local function pair_resolve_bgs()
+  local normal = vim.api.nvim_get_hl(0, { name = 'Normal', link = false }) or {}
+  -- Fallback when Normal.bg is undefined (terminal-default themes): pick
+  -- a dim neutral that the original hardcoded value resolved to.
+  local theme_bg = normal.bg or 0x1c1c1c
+  pair_bg_insert     = string.format('#%06x', theme_bg)
+  pair_bg_locked_int = pair_blend_rgb(theme_bg, 0x808080, 0.86)
+end
+pair_resolve_bgs()
+
+-- Linear blend between an integer RGB color (24-bit) and pair_bg_locked_int.
+-- alpha = 1 returns rgb unchanged; alpha = 0 returns the locked-sheet bg.
+local function pair_blend_to_locked(rgb, alpha)
+  return pair_blend_rgb(rgb, pair_bg_locked_int, alpha)
+end
+
+-- Snapshot every currently-defined highlight group and clone it into a
+-- target namespace with fg/bg blended toward the locked sheet bg, while
 -- preserving decorations (bold/italic/underline) so the colorscheme's
 -- shape stays recognizable. Rebuilt on ColorScheme so new schemes /
 -- late-loaded tree-sitter groups get covered. Cursor groups are skipped
@@ -1727,7 +1753,7 @@ end
 -- the bg slot and break the uniform sheet. Groups that relied on reverse
 -- (CurSearch, Visual on some schemes) will fall back to the resolved
 -- fg/bg without inversion — still legible, just not flipped.
-local function pair_build_locked_ns()
+local function pair_build_faded_ns(ns, alpha)
   for name in pairs(vim.api.nvim_get_hl(0, {})) do
     if name ~= 'Cursor' and name ~= 'lCursor' and name ~= 'TermCursor' then
       local hl = vim.api.nvim_get_hl(0, { name = name, link = false }) or {}
@@ -1738,33 +1764,42 @@ local function pair_build_locked_ns()
         undercurl     = hl.undercurl,
         strikethrough = hl.strikethrough,
       }
-      entry.fg = pair_blend_to_locked(hl.fg or PAIR_LOCKED_DEFAULT_FG,
-                                      PAIR_LOCKED_FADE)
+      entry.fg = pair_blend_to_locked(hl.fg or PAIR_LOCKED_DEFAULT_FG, alpha)
       -- Group-specific bg (Visual, Search, etc.): fade toward locked bg
       -- so highlighters stay visible but muted. No bg → uniform sheet.
       if hl.bg then
-        entry.bg = pair_blend_to_locked(hl.bg, PAIR_LOCKED_FADE)
+        entry.bg = pair_blend_to_locked(hl.bg, alpha)
       else
         entry.bg = pair_bg_locked_int
       end
-      vim.api.nvim_set_hl(pair_locked_ns, name, entry)
+      vim.api.nvim_set_hl(ns, name, entry)
     end
   end
 end
-pair_build_locked_ns()
+local function pair_build_fade_namespaces()
+  pair_resolve_bgs() -- refresh in case colorscheme changed
+  pair_build_faded_ns(pair_locked_ns, PAIR_LOCKED_FADE)
+  pair_build_faded_ns(pair_normal_ns, PAIR_NORMAL_FADE)
+end
+pair_build_fade_namespaces()
 
--- Focus state mirror. FocusLost is treated the same as normal-mode:
--- the user isn't actively typing into this pane, so the dimmed sheet
--- applies. FocusGained restores to whatever the current mode dictates.
+-- Focus state mirror. Three sheet states:
+--   focused + insert  → no fade (full color)
+--   focused + normal  → light fade (pair_normal_ns at 0.80)
+--   not focused (any) → deep fade (pair_locked_ns at 0.45)
 -- Default true: nvim usually starts focused (and if it doesn't, the
 -- first FocusLost will correct us).
 local pair_has_focus = true
 
 local function pair_apply_mode_bg(mode)
-  if mode == 'n' or not pair_has_focus then
-    pair_build_locked_ns() -- catch any groups defined since last build
+  if not pair_has_focus then
+    pair_build_fade_namespaces() -- catch any groups defined since last build
     vim.api.nvim_set_hl_ns(pair_locked_ns)
+  elseif mode == 'n' then
+    pair_build_fade_namespaces()
+    vim.api.nvim_set_hl_ns(pair_normal_ns)
   else
+    pair_resolve_bgs()
     vim.api.nvim_set_hl_ns(0)
     vim.api.nvim_set_hl(0, 'Normal',      { bg = pair_bg_insert })
     vim.api.nvim_set_hl(0, 'NormalNC',    { bg = pair_bg_insert })
@@ -1802,7 +1837,7 @@ vim.api.nvim_create_autocmd('FocusGained', {
   end,
 })
 vim.api.nvim_create_autocmd('ColorScheme', {
-  callback = pair_build_locked_ns,
+  callback = pair_build_fade_namespaces,
 })
 pair_apply_mode_bg(vim.fn.mode():sub(1, 1))
 
