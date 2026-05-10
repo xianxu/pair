@@ -293,6 +293,45 @@ one extmark per row, and the buffer is left with stripped text only.
 `q` quits via `<cmd>qa<CR>`; `buftype = nofile` and `modifiable =
 false` prevent stray `:w`.
 
+**Code review (post-M6).** Dispatched `superpowers-code-reviewer` over
+`88bc938..d3c23a6`. Verdict: merge-ready with the four Important
+findings fixed. Critical: 0. Minor: 8 (all annotated for follow-up
+or "won't fix as cosmetic").
+
+Important findings addressed:
+
+- **I1 — SGR parser drops empty params.** `\x1b[;1m` should mean
+  "reset + bold"; `[^;]+` discarded the empty leading field, leaving
+  any standing fg/bg in place. Fixed in `nvim/scrollback.lua` via the
+  trailing-`;` + `([^;]*);` trick; an explicit empty-field-as-0
+  branch in the loop. Direct test confirmed: red span ends cleanly,
+  next span is bold-default-only with no leftover red.
+- **I2 — `.ansi` write race.** Two `Alt+/` taps could race on the
+  same path. Switched `pair-scrollback-render` to tempfile + atomic
+  `os.replace()`.
+- **I3 — sparse `screen.buffer.keys()` skips trailing blanks.** Would
+  shift line numbers vs. zellij's indicator (the feature's core
+  promise). Switched `iter_all_rows` to `range(screen.lines)`; pyte's
+  StaticDefaultDict materializes default Chars and `serialize_row`
+  emits `""` for all-blank rows.
+- **I4 — scrollback files survive Alt+x quit.** Privacy + unbounded
+  growth. Extended `cleanup_quit_marker`'s `rm -f` line in `bin/pair`
+  to include the .raw, .events.jsonl, and .ansi for the (tag, agent)
+  being torn down.
+
+Lessons captured in `workshop/lessons.md`:
+- `#table` is 0 on string-keyed tables (the M4 hl_cache bug).
+- Empty fields in delimited parsing — `[^;]+` drops them.
+- Sparse data structures: iterate by index when count must be exact.
+- Atomic write for files a feature can race on its own.
+
+Minor findings (not fixed): partial-write handling on .raw, SIGWINCH
+race on SCROLLBACK_BYTES (~4KB max stale-offset window), `q` mapping
+uses `:qa` not `:q` (cosmetic), pyte deque-iteration assumption
+(documented in atlas), redundant `2>&1` in pair-scrollback-open,
+case-sensitivity of `.raw` extension, layout kdl quoting density,
+ANSI dump line-count comment for sanity-check anchoring.
+
 **M5 done — orchestration + keybind + auto-capture.** Three pieces:
 
 - `bin/pair-scrollback-open` — POSIX `sh` wrapper. Validates

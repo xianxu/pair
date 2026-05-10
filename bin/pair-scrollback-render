@@ -26,6 +26,7 @@ Filed as #000017 M3.
 """
 
 import json
+import os
 import sys
 from typing import Iterable, Optional
 
@@ -211,10 +212,19 @@ def iter_all_rows(screen: pyte.HistoryScreen) -> Iterable:
     `history.bottom` is for content scrolled forward (alt-screen / page
     navigation) and isn't part of the user's "scrollback" mental model,
     so we skip it.
+
+    Visible buffer iteration uses `range(screen.lines)` rather than
+    `buffer.keys()`. pyte's buffer is sparse — unwritten rows aren't in
+    `.keys()` — so walking keys silently skips trailing blank rows when
+    the agent cleared and paused mid-redraw. That would shift every
+    subsequent line number, breaking the feature's core promise that
+    `:880` lands where zellij showed line 880. The StaticDefaultDict
+    yields a default-style Char for missing rows, and serialize_row
+    returns "" for an all-blank row, so the count stays correct.
     """
     for row in screen.history.top:
         yield row
-    for y in sorted(screen.buffer.keys()):
+    for y in range(screen.lines):
         yield screen.buffer[y]
 
 
@@ -236,10 +246,17 @@ def render(raw_path: str, events_path: str, out_path: str) -> None:
     while out_lines and out_lines[-1] == "":
         out_lines.pop()
 
-    with open(out_path, "w", encoding="utf-8") as f:
+    # Atomic write: a second concurrent render (e.g. user double-tapping
+    # Alt+/) would otherwise race on truncate-then-write of the same
+    # path, leaving nvim with whatever survived the interleave. Write
+    # to a sibling tempfile, then os.replace — guarantees readers see
+    # either the old file or the complete new one.
+    tmp_path = out_path + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
         f.write("\n".join(out_lines))
         if out_lines:
             f.write("\n")
+    os.replace(tmp_path, out_path)
 
 
 def main(argv: list[str]) -> int:

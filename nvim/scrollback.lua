@@ -58,13 +58,21 @@ local function apply_sgr(state, params)
     state.bold, state.italic, state.underline, state.reverse, state.strike = false, false, false, false, false
     return
   end
+  -- Match every `;`-delimited field, *including empty ones*. ECMA-48
+  -- treats an omitted SGR parameter as 0 (reset), so `\x1b[;1m` is
+  -- "reset + bold" — splitting on `[^;]+` would drop the empty leading
+  -- field and leave any standing fg/bg/decoration in place. Appending
+  -- a trailing `;` and matching `([^;]*);` makes every field — empty
+  -- or not — a separate code.
   local codes = {}
-  for code in params:gmatch('[^;]+') do
+  for code in (params .. ';'):gmatch('([^;]*);') do
     table.insert(codes, code)
   end
   local i = 1
   while i <= #codes do
     local n = tonumber(codes[i])
+    -- Empty field == 0 (reset).
+    if codes[i] == '' then n = 0 end
     if n == nil then i = i + 1 ; goto continue end
     if n == 0 then
       state.fg, state.bg = nil, nil

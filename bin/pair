@@ -526,7 +526,10 @@ cleanup_quit_marker() {
         # the socket path component, scoped to this session only.
         pkill -9 -f "zellij --server .*/${SESSION}\$" >/dev/null 2>&1 || true
         rm -f "$DATA_DIR/outer-tty-${PAIR_TAG}" "$DATA_DIR/agent-${PAIR_TAG}" \
-              "$DATA_DIR/agent-output-${PAIR_TAG}"
+              "$DATA_DIR/agent-output-${PAIR_TAG}" \
+              "$DATA_DIR/scrollback-${PAIR_TAG}-${quit_agent}.raw" \
+              "$DATA_DIR/scrollback-${PAIR_TAG}-${quit_agent}.events.jsonl" \
+              "$DATA_DIR/scrollback-${PAIR_TAG}-${quit_agent}.ansi"
 
         # If the watcher captured a session config for this (tag, agent),
         # show the user the one-liner that resumes it. config-<tag>-<agent>
