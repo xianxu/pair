@@ -178,6 +178,189 @@ vim.opt.tabstop = 2
 -- the inverted cell).
 vim.opt.guicursor = 'n-v-c-sm:block,i-ci-ve:block-blinkon250-blinkoff250,r-cr-o:hor20'
 
+-- When the draft loses focus while in insert mode, animate an `_`
+-- (U+005F, LOW LINE) over the cursor cell. zellij draws an unfocused
+-- pane's cursor as a hollow outline regardless of DECSCUSR, so the
+-- only way to make the cursor visibly "alive" is to paint underneath
+-- it. We toggle an extmark between two virt_text contents (`_` on
+-- the visible tick, the underlying buffer character on the hidden
+-- tick); the buffer's actual bytes are untouched (no undo entry, no
+-- modification flag, no autosave trigger) except for one transient
+-- trailing space when the cursor sits past EOL — see the pad
+-- helpers below.
+--
+-- Glyph history: tried `█` (too loud — read as a regular cursor),
+-- `🖱` (emoji presentation forced two cells, overflowed zellij's
+-- 1-cell ghost rectangle), `⏺` (clearer signature than `█` but felt
+-- distracting against the lightly-faded unfocused-insert sheet).
+-- `_` lands as a quiet typewriter-style underline inside zellij's
+-- hollow box: visible at a glance, not attention-grabbing.
+--
+-- Why this matters: the copy-on-select pipeline
+-- (bin/copy-on-select.sh + bin/clipboard-to-pane.sh) lands a
+-- selection from any pane into the draft while the draft is
+-- unfocused. The user wants to see "this pane is the target" at a
+-- glance.
+--
+-- The block blinks by toggling the extmark every BLINK_MS. Defaults
+-- to 500 ms on / 500 ms off so the eye picks up motion without being
+-- distracting. CursorMoved* refreshes the position so a paste-driven
+-- cursor advance follows the block forward without waiting for the
+-- next tick.
+local pair_focus_block_ns = vim.api.nvim_create_namespace('pair_focus_block')
+local pair_focus_buf = nil
+local pair_focus_timer_id = nil
+local pair_focus_visible = false
+local PAIR_BLOCK_BLINK_MS = 500
+
+-- Default to linking PairFocusBlock to Cursor; user themes can override.
+vim.api.nvim_set_hl(0, 'PairFocusBlock', { link = 'Cursor', default = true })
+
+-- Past-EOL bookkeeping. virt_text_pos='inline' past EOL turned out to
+-- have a redraw race under zellij that stalled the blink after one
+-- cycle. Instead, when the cursor sits past EOL on FocusLost we
+-- temporarily append a real space to the line so the cursor is
+-- *in-line*; everything else can use the well-trodden overlay path.
+-- The space is removed on FocusGained. Two careful bits:
+--   - autosave fires from another FocusLost autocmd that runs after
+--     ours. To keep the persisted draft clean, the space-insert is
+--     scheduled (vim.schedule) so autosave runs first on a clean
+--     buffer; our pad lands a tick later.
+--   - `modified` is restored around both insert and remove so the
+--     dirty flag doesn't flicker.
+local pair_focus_eol_padded = false
+local pair_focus_eol_row    = nil
+
+local function pair_eol_ensure_pad()
+  if pair_focus_eol_padded then return end
+  if not pair_focus_buf or not vim.api.nvim_buf_is_loaded(pair_focus_buf) then return end
+  local win = vim.fn.bufwinid(pair_focus_buf)
+  if win == -1 then return end
+  local row, col = unpack(vim.api.nvim_win_get_cursor(win))
+  local line = vim.api.nvim_buf_get_lines(pair_focus_buf, row - 1, row, false)[1] or ''
+  if col < #line then return end -- already in-line
+  local was_modified = vim.bo[pair_focus_buf].modified
+  vim.api.nvim_buf_set_text(pair_focus_buf, row - 1, #line, row - 1, #line, { ' ' })
+  vim.bo[pair_focus_buf].modified = was_modified
+  pair_focus_eol_padded = true
+  pair_focus_eol_row    = row
+end
+
+local function pair_eol_remove_pad()
+  if not pair_focus_eol_padded then return end
+  local row = pair_focus_eol_row
+  pair_focus_eol_padded = false
+  pair_focus_eol_row    = nil
+  if not row or not pair_focus_buf or not vim.api.nvim_buf_is_loaded(pair_focus_buf) then
+    return
+  end
+  if row > vim.api.nvim_buf_line_count(pair_focus_buf) then return end
+  local line = vim.api.nvim_buf_get_lines(pair_focus_buf, row - 1, row, false)[1] or ''
+  if line:sub(-1) == ' ' then
+    local was_modified = vim.bo[pair_focus_buf].modified
+    vim.api.nvim_buf_set_text(pair_focus_buf, row - 1, #line - 1, row - 1, #line, {})
+    vim.bo[pair_focus_buf].modified = was_modified
+  end
+end
+
+-- Render the cursor cell with an overlay extmark. Always toggle between
+-- ⏺ and the underlying character so zellij's unfocused-pane blank-cell
+-- paint never reaches the cell — we always have content there.
+local function pair_block_render(show)
+  if not pair_focus_buf or not vim.api.nvim_buf_is_loaded(pair_focus_buf) then return end
+  local win = vim.fn.bufwinid(pair_focus_buf)
+  if win == -1 then return end
+  local row, col = unpack(vim.api.nvim_win_get_cursor(win))
+  local line = vim.api.nvim_buf_get_lines(pair_focus_buf, row - 1, row, false)[1] or ''
+  vim.api.nvim_buf_clear_namespace(pair_focus_buf, pair_focus_block_ns, 0, -1)
+  -- If cursor moved past EOL during the unfocused window (e.g. paste
+  -- jumped it there), top up the pad so we stay in-line.
+  if col >= #line then
+    pair_eol_ensure_pad()
+    line = vim.api.nvim_buf_get_lines(pair_focus_buf, row - 1, row, false)[1] or ''
+  end
+  if col >= #line then return end -- defensive: pad failed somehow
+
+  local glyph, hl
+  if show then
+    glyph, hl = '_', 'PairFocusBlock'
+  else
+    -- strcharpart on the byte-substring from col gives us the first
+    -- grapheme cleanly, handling multi-byte UTF-8 (emoji, CJK, etc.).
+    glyph = vim.fn.strcharpart(line:sub(col + 1), 0, 1)
+    if glyph == '' or glyph == '\t' then glyph = ' ' end
+    hl = 'Normal'
+  end
+
+  vim.api.nvim_buf_set_extmark(pair_focus_buf, pair_focus_block_ns, row - 1, col, {
+    virt_text     = { { glyph, hl } },
+    virt_text_pos = 'overlay',
+    priority      = 200,
+  })
+end
+
+local function pair_block_clear()
+  if pair_focus_buf and vim.api.nvim_buf_is_loaded(pair_focus_buf) then
+    vim.api.nvim_buf_clear_namespace(pair_focus_buf, pair_focus_block_ns, 0, -1)
+  end
+end
+
+local function pair_block_tick()
+  pair_focus_visible = not pair_focus_visible
+  pcall(pair_block_render, pair_focus_visible)
+end
+
+local function pair_block_start()
+  if pair_focus_timer_id then return end
+  pair_focus_buf = vim.api.nvim_get_current_buf()
+  -- Defer the actual work past the synchronous FocusLost autocmd chain
+  -- so autosave (registered later, runs after us) sees a clean buffer.
+  -- Our pad lands a tick afterwards.
+  vim.schedule(function()
+    if not pair_focus_buf then return end -- FocusGained may have raced
+    pair_eol_ensure_pad()
+    pair_focus_visible = true
+    pair_block_render(true)
+    pair_focus_timer_id = vim.fn.timer_start(PAIR_BLOCK_BLINK_MS, pair_block_tick,
+      { ['repeat'] = -1 })
+  end)
+end
+
+local function pair_block_stop()
+  if pair_focus_timer_id then
+    vim.fn.timer_stop(pair_focus_timer_id)
+    pair_focus_timer_id = nil
+  end
+  pair_block_clear()
+  pair_eol_remove_pad()
+  pair_focus_buf = nil
+  pair_focus_visible = false
+end
+
+vim.api.nvim_create_autocmd('FocusLost', {
+  callback = function()
+    local m = vim.fn.mode()
+    if m == 'i' or m == 'ic' or m == 'ix' then
+      pair_block_start()
+    end
+  end,
+})
+
+vim.api.nvim_create_autocmd('FocusGained', {
+  callback = pair_block_stop,
+})
+
+-- Track cursor movement during the unfocused window — paste-driven
+-- inserts advance the cursor and we want the block to follow without
+-- waiting for the next blink.
+vim.api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI', 'TextChanged', 'TextChangedI' }, {
+  callback = function()
+    if pair_focus_timer_id then
+      pcall(pair_block_render, pair_focus_visible)
+    end
+  end,
+})
+
 -- Disable nvim's right-click context menu. Default `mousemodel=popup_setpos`
 -- pops up a "Copy/Paste/..." menu that's confusing inside the pair draft pane;
 -- `extend` falls back to the vim-traditional behavior of extending the visual
@@ -1957,12 +2140,16 @@ pair_apply_statusline_hl()
 -- left untouched. Truecolor (termguicolors) is required and asserted at
 -- top of file.
 -- Two fade levels:
---   pair_locked_ns  — focus-lost (deeper grey-out at 0.45). The pane isn't
---                     where the user is looking, so push it well into the bg.
---   pair_normal_ns  — focused but in normal mode (lighter grey-out at 0.80).
---                     The user is still looking at the pane; the fade signals
---                     "not actively typing" without dropping legibility.
--- Insert mode uses neither (no fade).
+--   pair_locked_ns  — focus-lost AND not in insert mode (deeper grey-out at
+--                     0.45). The pane isn't where the user is looking and
+--                     isn't even editable, so push it well into the bg.
+--   pair_normal_ns  — light grey-out at 0.80. Applied in two cases:
+--                     (1) focused + normal mode: user is looking, fade says
+--                         "not actively typing." (2) unfocused + insert mode:
+--                         text is still going to flow in here (copy-on-
+--                         select destination), keep it legible while signaling
+--                         "not the foreground focus."
+-- Focused + insert uses neither (no fade).
 local pair_locked_ns = vim.api.nvim_create_namespace('pair_locked')
 local pair_normal_ns = vim.api.nvim_create_namespace('pair_normal')
 
@@ -2030,7 +2217,13 @@ end
 -- fg/bg without inversion — still legible, just not flipped.
 local function pair_build_faded_ns(ns, alpha)
   for name in pairs(vim.api.nvim_get_hl(0, {})) do
-    if name ~= 'Cursor' and name ~= 'lCursor' and name ~= 'TermCursor' then
+    -- Skip cursor groups so the cursor block + the focus-lost
+    -- PairFocusBlock indicator stay visible against the faded sheet.
+    -- Without the PairFocusBlock exclusion, the blinking block ended
+    -- up the same shade as its background and the animation was
+    -- invisible in the unfocused-insert state.
+    if name ~= 'Cursor' and name ~= 'lCursor' and name ~= 'TermCursor'
+       and name ~= 'PairFocusBlock' then
       local hl = vim.api.nvim_get_hl(0, { name = name, link = false }) or {}
       local entry = {
         bold          = hl.bold,
@@ -2058,18 +2251,24 @@ local function pair_build_fade_namespaces()
 end
 pair_build_fade_namespaces()
 
--- Focus state mirror. Three sheet states:
---   focused + insert  → no fade (full color)
---   focused + normal  → light fade (pair_normal_ns at 0.80)
---   not focused (any) → deep fade (pair_locked_ns at 0.45)
+-- Focus state mirror. Four sheet states:
+--   focused   + insert  → no fade (full color)
+--   focused   + normal  → light fade (pair_normal_ns at 0.80)
+--   unfocused + insert  → light fade (pair_normal_ns at 0.80) — pane is a
+--                         copy-on-select destination, text needs to stay
+--                         readable while signaling "not the foreground"
+--   unfocused + normal  → deep fade  (pair_locked_ns at 0.45)
 -- Default true: nvim usually starts focused (and if it doesn't, the
 -- first FocusLost will correct us).
 local pair_has_focus = true
 
 local function pair_apply_mode_bg(mode)
+  local in_insert = (mode ~= 'n')
   if not pair_has_focus then
     pair_build_fade_namespaces() -- catch any groups defined since last build
-    vim.api.nvim_set_hl_ns(pair_locked_ns)
+    -- Insert-mode-unfocused promoted to the light fade so the user can
+    -- read what's in the draft while attending to the other pane.
+    vim.api.nvim_set_hl_ns(in_insert and pair_normal_ns or pair_locked_ns)
   elseif mode == 'n' then
     pair_build_fade_namespaces()
     vim.api.nvim_set_hl_ns(pair_normal_ns)
