@@ -2498,16 +2498,6 @@ local function pair_ensure_visible_then(fn)
   end
 end
 
-local function pair_write_config(tag, agent, args, session_id, data_dir)
-  local body = vim.json.encode({
-    agent      = agent,
-    args       = args or {},
-    session_id = session_id,
-  })
-  local f = io.open(data_dir .. '/config-' .. tag .. '-' .. agent .. '.json', 'w')
-  if f then f:write(body); f:close() end
-end
-
 -- Read the per-(tag,agent) saved config so the Alt+x prompt can show the
 -- user what they're about to detach from for the future `pair resume
 -- <tag>` path. Returns nil when the tag isn't set, the agent file is
@@ -2539,57 +2529,6 @@ local function pair_read_saved_config()
   return cfg
 end
 
--- Capture the agent's currently-active session id via trigger-then-mtime.
--- Called on the Alt+x quit path, after the user confirms but before
--- pair-quit.sh kills the session.
---
--- Why this layer exists: the launch-time watcher misses two cases —
--- (1) --resume launches (the agent appends to an existing jsonl, so the
--- watcher's snapshot-diff never sees a new file) and (2) /clear or
--- /compact rotations mid-session (the watcher's 60s window is long
--- gone). lsof would be the natural choice, but claude opens-writes-
--- closes the jsonl per append, so a snapshot-time lsof almost never
--- catches the file open.
---
--- Approach: send a benign user message ("bye") to the agent pane via
--- zellij IPC, wait briefly for the agent to log it to disk, then pick
--- the most-recently-modified jsonl in the project dir. The trigger
--- guarantees a fresh mtime on OUR session even when the agent was idle,
--- which disambiguates against any peer pair sessions that share the
--- project dir. The "bye" lands in the conversation log — harmless given
--- we're tearing down the session immediately after.
---
--- Claude only for now: codex/gemini have different session-dir layouts
--- and (for gemini) the id isn't in the filename.
-local function pair_capture_session_via_trigger(cfg, data_dir)
-  if not cfg or cfg.agent ~= 'claude' then return end
-
-  send_to_agent('bye')
-
-  -- Wait for claude to log the user message. 200ms is plenty on typical
-  -- macOS setups; we don't need claude's response to land, only the
-  -- user-message append. vim.wait blocks but processes events.
-  vim.wait(200, function() return false end)
-
-  local cwd = vim.env.PWD or vim.fn.getcwd()
-  -- Claude encodes both `/` and `.` in the cwd as `-` (mirrors
-  -- bin/pair-session-watch.sh's path resolution).
-  local encoded = cwd:gsub('[./]', '-')
-  local project_dir = (vim.env.HOME or '') .. '/.claude/projects/' .. encoded
-
-  local handle = io.popen('ls -1t ' .. vim.fn.shellescape(project_dir)
-                          .. '/*.jsonl 2>/dev/null | head -1')
-  if not handle then return end
-  local newest = handle:read('*l')
-  handle:close()
-  if not newest or newest == '' then return end
-
-  local id = newest:match('(%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x)%.jsonl$')
-  if not id then return end
-
-  pair_write_config(cfg.tag, cfg.agent, cfg.args, id, data_dir)
-end
-
 function _G.PairConfirmQuit()
   pair_ensure_visible_then(function()
     local prompt = 'Quit pair session? This kills the session and all its processes.'
@@ -2610,15 +2549,6 @@ function _G.PairConfirmQuit()
     end
     local ans = vim.fn.confirm(prompt, '&Yes\n&No', 2)
     if ans == 1 then
-      -- Refresh the saved session id before tearing the session down.
-      -- Catches /clear and /compact rotations the launch-time watcher
-      -- misses — without this, a user who clears mid-session would see
-      -- the next `pair resume` offer the stale pre-clear id.
-      if cfg then
-        local data_dir = vim.env.PAIR_DATA_DIR
-          or ((vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/share')) .. '/pair')
-        pair_capture_session_via_trigger(cfg, data_dir)
-      end
       vim.fn.system('pair-quit.sh')
     end
   end)
