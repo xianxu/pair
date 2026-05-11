@@ -54,8 +54,9 @@ keybinds clear-defaults=false {
         // Alt+n default is NewPane — pair manages its own two-pane layout,
         // so a manually-spawned third pane breaks every routed keybind that
         // assumes "MoveFocus Down lands in nvim". Reclaimed below as the
-        // restart shortcut.
+        // restart shortcuts.
         unbind "Alt n"
+        unbind "Alt N"
     }
 
     shared_except "locked" {
@@ -183,6 +184,18 @@ keybinds clear-defaults=false {
             Write 28;
             Write 14;
             WriteChars ":lua PairConfirmRestart()";
+            Write 13;
+        }
+
+        // Shift+Alt+N — restart at a new tag: same agent and args as the
+        // current session, but pair picks a fresh tag via its normal
+        // free-slot logic. Lets you spin up parallel-themed work without
+        // re-typing the agent + args. Same nvim-routed confirm guard.
+        bind "Alt N" {
+            MoveFocus "Down";
+            Write 28;
+            Write 14;
+            WriteChars ":lua PairConfirmRestartNewTag()";
             Write 13;
         }
     }

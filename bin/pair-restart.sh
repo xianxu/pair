@@ -1,20 +1,34 @@
 #!/usr/bin/env bash
-# Triggered by Alt+n via zellij keybind. Tears down the current pair session
-# (like Alt+x) and signals bin/pair to re-launch with the same tag + agent +
-# agent args, but a fresh agent conversation.
+# Triggered by Alt+n (and Shift+Alt+N) via zellij keybinds. Tears down the
+# current pair session (like Alt+x) and signals bin/pair to re-launch:
+#
+#   default      — same tag + agent + agent args, fresh agent conversation.
+#                  (Alt+n)
+#   --new-tag    — same agent + agent args, but bin/pair picks a fresh tag
+#                  via its normal free-slot logic. Useful for spinning up a
+#                  parallel-themed session without re-typing the agent and
+#                  args. (Shift+Alt+N)
 #
 # Mechanism: writes BOTH a `quit-<session>` marker (so cleanup_quit_marker in
 # bin/pair runs `zellij delete-session` as usual) AND a `restart-<session>`
-# marker carrying the agent name. After kill-session returns, bin/pair sees
-# the restart marker, drops $DATA_DIR/config-<tag>-<agent>.json (so the new
-# run starts a fresh agent session rather than offering to resume), and execs
-# itself with PAIR_FORCE_TAG set to the current tag.
+# marker carrying the agent name + optional new_tag flag. After kill-session
+# returns, bin/pair sees the restart marker, drops
+# $DATA_DIR/config-<tag>-<agent>.json (so the new run starts a fresh agent
+# session rather than offering to resume), and execs itself — with
+# PAIR_FORCE_TAG set to the current tag unless new_tag was requested.
 #
 # The agent name is captured here, while $DATA_DIR/agent-<tag> still exists —
 # cleanup_quit_marker deletes that file before bin/pair gets the chance to
 # read it.
 
 set -uo pipefail
+
+new_tag=0
+case "${1:-}" in
+    --new-tag) new_tag=1 ;;
+    "") : ;;
+    *) echo "pair-restart: unknown arg ${1:-}" >&2; exit 2 ;;
+esac
 
 MARKER_DIR="$HOME/.cache/pair"
 mkdir -p "$MARKER_DIR"
@@ -33,6 +47,7 @@ agent=""
 {
     printf 'tag=%s\n' "$tag"
     printf 'agent=%s\n' "$agent"
+    printf 'new_tag=%s\n' "$new_tag"
 } > "$MARKER_DIR/restart-$session"
 
 touch "$MARKER_DIR/quit-$session"

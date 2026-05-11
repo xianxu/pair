@@ -694,29 +694,112 @@ var holdbackPatterns = [][]byte{
 	enterLegacyAlt,
 }
 
+// pendingFlushAfter is the timeout for held-back bytes that haven't
+// completed into a known marker. Real terminals dispatch chorded
+// keystrokes (Alt+Enter, KKP CSI sequences) in microseconds, so 30 ms
+// safely catches a split chord. A standalone ESC (e.g. nvim's
+// send_esc_to_agent writes a lone \x1b for "interrupt the agent") waits
+// at most this long before being flushed verbatim to the child.
+const pendingFlushAfter = 30 * time.Millisecond
+
 // translateStdin replaces the io.Copy(ptmx, os.Stdin) pass-through with
 // a byte-stream translator that rewrites Return / Alt+Return per the
 // resolved per-agent sendKM, while honoring bracketed-paste mode so
 // pasted multi-line text passes through unchanged.
 //
-// State machine (one buffered read at a time):
-//   - if we're inside a bracketed paste, scan for the end marker and
-//     forward bytes verbatim until it arrives
-//   - otherwise, look for: bpStart (enters paste), `\x1b\r` (Alt+Enter
-//     → altCR), or `\r` (Enter → plainCR)
-//   - a stray ESC at the very tail might be the start of a longer
-//     sequence (Alt+Enter, bpStart, or any other CSI). Carry it over
-//     to the next read instead of misclassifying it as "Esc alone."
-//     Cap the carryover at 64 B so a malformed stream can't grow it
-//     without bound.
+// Pipeline:
+//   - a reader goroutine pumps stdin chunks into a channel
+//   - the main select-loop combines each chunk with any pending bytes
+//     from a partial sequence held over from the previous chunk, runs
+//     translateChunk over the combined slice, writes the output to
+//     the pty master, and stashes any new leftover as pending
+//   - if pending is non-empty, a timer is armed; the timer firing
+//     means "no continuation byte arrived within pendingFlushAfter —
+//     this is a standalone sequence, flush it." Resets on every read.
+//
+// State machine (per translateChunk):
+//   - in paste mode: scan for bpEnd, forward bytes verbatim
+//   - otherwise: look for bpStart, KKP / legacy Alt+Enter, KKP plain
+//     Enter, plain \r. Anything else passes through.
+//   - chunk-tail that's a strict prefix of any known marker → held
+//     over to the next read.
 func (p *proxy) translateStdin() {
-	buf := make([]byte, 4096)
+	type readEv struct {
+		data []byte
+		err  error
+	}
+	ch := make(chan readEv, 4)
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := os.Stdin.Read(buf)
+			if n > 0 {
+				cp := make([]byte, n)
+				copy(cp, buf[:n])
+				ch <- readEv{data: cp}
+			}
+			if err != nil {
+				ch <- readEv{err: err}
+				close(ch)
+				return
+			}
+		}
+	}()
+
 	var pending []byte
 	inPaste := false
+
+	// Timer for flushing pending. Starts in a stopped+drained state so
+	// the select can wait on it without an immediate spurious fire.
+	flushTimer := time.NewTimer(time.Hour)
+	if !flushTimer.Stop() {
+		<-flushTimer.C
+	}
+	timerArmed := false
+	armTimer := func() {
+		if timerArmed {
+			if !flushTimer.Stop() {
+				select {
+				case <-flushTimer.C:
+				default:
+				}
+			}
+		}
+		flushTimer.Reset(pendingFlushAfter)
+		timerArmed = true
+	}
+	disarmTimer := func() {
+		if !timerArmed {
+			return
+		}
+		if !flushTimer.Stop() {
+			select {
+			case <-flushTimer.C:
+			default:
+			}
+		}
+		timerArmed = false
+	}
+
+	flushPending := func() {
+		if len(pending) == 0 {
+			return
+		}
+		_, _ = p.ptmx.Write(pending)
+		pending = nil
+		disarmTimer()
+	}
+
 	for {
-		n, err := os.Stdin.Read(buf)
-		if n > 0 {
-			data := buf[:n]
+		select {
+		case ev, ok := <-ch:
+			if !ok || ev.err != nil {
+				// EOF / read error: flush whatever was held over —
+				// nothing more is coming to complete the sequence.
+				flushPending()
+				return
+			}
+			data := ev.data
 			if len(pending) > 0 {
 				data = append(pending, data...)
 				pending = nil
@@ -729,14 +812,14 @@ func (p *proxy) translateStdin() {
 					return
 				}
 			}
-		}
-		if err != nil {
-			// Flush whatever pending we held back — at EOF nothing more
-			// is coming to complete the escape, so emit it verbatim.
 			if len(pending) > 0 {
-				_, _ = p.ptmx.Write(pending)
+				armTimer()
+			} else {
+				disarmTimer()
 			}
-			return
+		case <-flushTimer.C:
+			timerArmed = false
+			flushPending()
 		}
 	}
 }

@@ -657,20 +657,28 @@ cleanup_quit_marker() {
     fi
 }
 
-# After cleanup_quit_marker, check for the Alt+n restart marker. If present,
-# pair-restart.sh asked for "kill + relaunch with same tag/agent/args, fresh
-# agent conversation": drop the saved per-(tag,agent) config so the new run
-# doesn't offer to resume the prior agent session, then exec self with
-# PAIR_FORCE_TAG pinning the same tag. The agent name comes from the marker
-# (captured before cleanup_quit_marker wiped agent-<tag>); agent args come
-# from the saved config that we're about to delete.
+# After cleanup_quit_marker, check for the restart marker written by
+# pair-restart.sh. Two flavors:
+#
+#   Alt+n             — same tag + agent + args, fresh conversation. We
+#                       drop the saved per-(tag,agent) config and exec
+#                       self with PAIR_FORCE_TAG pinning the same tag.
+#   Shift+Alt+N       — same agent + args, new tag. Same config drop,
+#                       but DON'T set PAIR_FORCE_TAG — the re-exec'd
+#                       pair runs its normal free-slot picker and lands
+#                       on a fresh tag in the agent's family.
+#
+# The agent name comes from the marker (captured before cleanup_quit_marker
+# wiped agent-<tag>); agent args come from the saved config that we're
+# about to delete.
 handle_restart_marker() {
     local marker="$HOME/.cache/pair/restart-$SESSION"
     [ -f "$marker" ] || return 0
 
-    local r_tag r_agent
+    local r_tag r_agent r_new_tag
     r_tag=$(awk -F= '$1=="tag"{print $2; exit}' "$marker")
     r_agent=$(awk -F= '$1=="agent"{print $2; exit}' "$marker")
+    r_new_tag=$(awk -F= '$1=="new_tag"{print $2; exit}' "$marker")
     rm -f "$marker"
 
     [ -z "$r_tag" ] && r_tag="$PAIR_TAG"
@@ -683,7 +691,9 @@ handle_restart_marker() {
     fi
     rm -f "$cfg"
 
-    export PAIR_FORCE_TAG="$r_tag"
+    if [ "$r_new_tag" != "1" ]; then
+        export PAIR_FORCE_TAG="$r_tag"
+    fi
     if [ -n "$r_args" ]; then
         # word-split r_args into argv tokens, mirroring PAIR_AGENT_ARGS convention
         # shellcheck disable=SC2086

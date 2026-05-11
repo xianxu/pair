@@ -687,17 +687,25 @@ local function send_to_agent(body)
   --
   -- Multi-line / large bodies get wrapped by zellij as bracketed paste
   -- (`\e[200~...\e[201~`). zellij's write-chars returns once the bytes
-  -- are queued, not delivered — sending the CR (write 13) immediately
-  -- after can land inside the paste boundary and get treated as a
-  -- literal newline rather than submit. Settle for ~100ms in that case
-  -- so Claude has time to ingest the paste and return to the input
-  -- prompt before we hit Enter. Single-line sends skip the wait.
+  -- are queued, not delivered — sending the submit immediately after
+  -- can land inside the paste boundary and get treated as a literal
+  -- newline rather than submit. Settle for ~100ms in that case so the
+  -- agent has time to ingest the paste and return to the input prompt
+  -- before we hit submit. Single-line sends skip the wait.
+  --
+  -- Submit is Alt+Enter (ESC 0x1b, then CR 0x0d), not plain Enter:
+  -- pair-wrap's stdin translator rewrites incoming \r into the agent's
+  -- "insert newline" sequence (claude: `\<Enter>`, codex/gemini: \n),
+  -- so a bare CR here would insert a newline rather than submit.
+  -- Alt+Enter is what pair-wrap rewrites into the agent's actual
+  -- submit byte. Mirrors the keyboard convention we set up for the
+  -- user (Enter = newline, Alt+Enter = send).
   vim.fn.system('zellij action move-focus up')
   vim.fn.system({ 'zellij', 'action', 'write-chars', body })
   if body:find('\n') or #body > 200 then
     vim.cmd('sleep 100m')
   end
-  vim.fn.system('zellij action write 13')
+  vim.fn.system({ 'zellij', 'action', 'write', '27', '13' })
   vim.fn.system('zellij action move-focus down')
 end
 
@@ -2625,9 +2633,17 @@ function _G.PairConfirmDetach()
   end)
 end
 
-function _G.PairConfirmRestart()
+-- Shared between Alt+n (PairConfirmRestart) and Shift+Alt+N
+-- (PairConfirmRestartNewTag). Differs only in whether pair-restart.sh
+-- is invoked with --new-tag and what the prompt says.
+local function pair_confirm_restart_impl(new_tag)
   pair_ensure_visible_then(function()
-    local prompt = 'Restart pair session? Kills the session and re-launches with the same tag and agent args, but a fresh agent conversation.'
+    local prompt
+    if new_tag then
+      prompt = 'Restart at a new tag? Kills the current session and re-launches with the same agent and args, but pair picks a fresh tag (parallel-themed work without re-typing the agent).'
+    else
+      prompt = 'Restart pair session? Kills the session and re-launches with the same tag and agent args, but a fresh agent conversation.'
+    end
     local cfg = pair_read_saved_config()
     if cfg then
       local args_line
@@ -2637,8 +2653,8 @@ function _G.PairConfirmRestart()
         args_line = '<none>'
       end
       -- Show only what carries forward into the new session (agent +
-      -- args). The session id is intentionally omitted: Alt+n drops the
-      -- saved config and the new agent run starts a brand-new
+      -- args). The session id is intentionally omitted: the saved
+      -- config is dropped and the new agent run starts a brand-new
       -- conversation, so showing the prior id would be misleading.
       prompt = prompt
         .. '\n\nRe-launching with:'
@@ -2647,10 +2663,17 @@ function _G.PairConfirmRestart()
     end
     local ans = vim.fn.confirm(prompt, '&Yes\n&No', 2)
     if ans == 1 then
-      vim.fn.system('pair-restart.sh')
+      if new_tag then
+        vim.fn.system('pair-restart.sh --new-tag')
+      else
+        vim.fn.system('pair-restart.sh')
+      end
     end
   end)
 end
+
+function _G.PairConfirmRestart()       pair_confirm_restart_impl(false) end
+function _G.PairConfirmRestartNewTag() pair_confirm_restart_impl(true)  end
 
 -- ---------------------------------------------------------------------------
 -- Layout sizing: minimized (statusline only) ↔ small (10 rows, initial) ↔ half (50%).
