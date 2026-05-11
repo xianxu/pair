@@ -187,15 +187,16 @@ keybinds clear-defaults=false {
             Write 13;
         }
 
-        // Shift+Alt+N — restart at a new tag: same agent and args as the
-        // current session, but pair picks a fresh tag via its normal
-        // free-slot logic. Lets you spin up parallel-themed work without
-        // re-typing the agent + args. Same nvim-routed confirm guard.
+        // Shift+Alt+N — restart with a fresh agent conversation: same
+        // tag + agent + args, but the saved config-<tag>-<agent>.json
+        // is dropped so the new run starts a brand-new agent session
+        // (vs. Alt+n which resumes the prior session). Same nvim-routed
+        // confirm guard.
         bind "Alt N" {
             MoveFocus "Down";
             Write 28;
             Write 14;
-            WriteChars ":lua PairConfirmRestartNewTag()";
+            WriteChars ":lua PairConfirmRestartNewSession()";
             Write 13;
         }
     }

@@ -660,44 +660,66 @@ cleanup_quit_marker() {
 # After cleanup_quit_marker, check for the restart marker written by
 # pair-restart.sh. Two flavors:
 #
-#   Alt+n             — same tag + agent + args, fresh conversation. We
-#                       drop the saved per-(tag,agent) config and exec
-#                       self with PAIR_FORCE_TAG pinning the same tag.
-#   Shift+Alt+N       — same agent + args, new tag. Same config drop,
-#                       but DON'T set PAIR_FORCE_TAG — the re-exec'd
-#                       pair runs its normal free-slot picker and lands
-#                       on a fresh tag in the agent's family.
+#   Alt+n         — pure pair reload. Same tag + agent + args + agent
+#                   session. The saved config is kept and the new run
+#                   resumes the prior conversation via --resume <id>
+#                   (claude/gemini) or `resume <id>` (codex).
+#   Shift+Alt+N   — same tag + agent + args, fresh agent conversation:
+#                   we drop the saved per-(tag,agent) config so the new
+#                   run starts a brand-new session.
 #
-# The agent name comes from the marker (captured before cleanup_quit_marker
-# wiped agent-<tag>); agent args come from the saved config that we're
-# about to delete.
+# Both flavors pin the same tag via PAIR_FORCE_TAG. The agent name comes
+# from the marker (captured before cleanup_quit_marker wiped agent-<tag>);
+# agent args + session id come from the saved config.
 handle_restart_marker() {
     local marker="$HOME/.cache/pair/restart-$SESSION"
     [ -f "$marker" ] || return 0
 
-    local r_tag r_agent r_new_tag
+    local r_tag r_agent r_new_session
     r_tag=$(awk -F= '$1=="tag"{print $2; exit}' "$marker")
     r_agent=$(awk -F= '$1=="agent"{print $2; exit}' "$marker")
-    r_new_tag=$(awk -F= '$1=="new_tag"{print $2; exit}' "$marker")
+    r_new_session=$(awk -F= '$1=="new_session"{print $2; exit}' "$marker")
     rm -f "$marker"
 
     [ -z "$r_tag" ] && r_tag="$PAIR_TAG"
     [ -z "$r_agent" ] && r_agent="$AGENT"
 
-    local r_args=""
+    local r_args="" r_sid=""
     local cfg="$DATA_DIR/config-${r_tag}-${r_agent}.json"
     if [ -f "$cfg" ] && command -v jq >/dev/null 2>&1; then
         r_args=$(jq -r '(.args // []) | join(" ")' "$cfg" 2>/dev/null || true)
+        r_sid=$(jq -r '.session_id // empty' "$cfg" 2>/dev/null || true)
     fi
-    rm -f "$cfg"
 
-    if [ "$r_new_tag" != "1" ]; then
-        export PAIR_FORCE_TAG="$r_tag"
+    export PAIR_FORCE_TAG="$r_tag"
+
+    if [ "$r_new_session" = "1" ]; then
+        # Fresh conversation: drop the config so the next launch doesn't
+        # offer (or auto-pick) the prior session id.
+        rm -f "$cfg"
+        if [ -n "$r_args" ]; then
+            # shellcheck disable=SC2086
+            exec "$0" "$r_agent" -- $r_args
+        else
+            exec "$0" "$r_agent"
+        fi
     fi
-    if [ -n "$r_args" ]; then
-        # word-split r_args into argv tokens, mirroring PAIR_AGENT_ARGS convention
+
+    # Default Alt+n: keep config, append the resume token so the new
+    # launch picks up exactly where we left off without going through
+    # the picker. Surface differs per agent — claude/gemini use the
+    # `--resume <id>` flag, codex uses the `resume <id>` subcommand.
+    local resume_extra=""
+    if [ -n "$r_sid" ]; then
+        case "$r_agent" in
+            claude|gemini) resume_extra="--resume $r_sid" ;;
+            codex)         resume_extra="resume $r_sid" ;;
+        esac
+    fi
+    local combined="${r_args}${r_args:+${resume_extra:+ }}${resume_extra}"
+    if [ -n "$combined" ]; then
         # shellcheck disable=SC2086
-        exec "$0" "$r_agent" -- $r_args
+        exec "$0" "$r_agent" -- $combined
     else
         exec "$0" "$r_agent"
     fi
@@ -830,8 +852,27 @@ fi
 # fzf is already a hard dep (used for the session picker). Each option line
 # spells out the values it will apply so the user can pick without flipping
 # context. ESC aborts the create flow — same posture as the name prompt.
+# If the user (or Alt+n's restart loop) explicitly passed a resume token
+# on argv, the picker has nothing to offer — the choice is already made.
+# Same per-agent surface as the explicit_resume detection further below;
+# kept inline here to gate the picker without restructuring the flow.
+_argv_has_resume=0
+case "$AGENT" in
+    claude|gemini)
+        prev=""
+        for tok in $agent_extra; do
+            if [ "$prev" = "--resume" ]; then _argv_has_resume=1; break; fi
+            prev="$tok"
+        done
+        ;;
+    codex)
+        read -r first second _rest <<< "$agent_extra"
+        [ "$first" = "resume" ] && [ -n "$second" ] && _argv_has_resume=1
+        ;;
+esac
+
 config_file="$DATA_DIR/config-${chosen_tag}-${AGENT}.json"
-if [ -f "$config_file" ]; then
+if [ -f "$config_file" ] && [ $_argv_has_resume -eq 0 ]; then
     # Read saved args as a properly-delimited stream; mapfile would be
     # cleaner but is bash 4+ and macOS still ships 3.2.
     saved_args=()

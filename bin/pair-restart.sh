@@ -2,20 +2,21 @@
 # Triggered by Alt+n (and Shift+Alt+N) via zellij keybinds. Tears down the
 # current pair session (like Alt+x) and signals bin/pair to re-launch:
 #
-#   default      — same tag + agent + agent args, fresh agent conversation.
-#                  (Alt+n)
-#   --new-tag    — same agent + agent args, but bin/pair picks a fresh tag
-#                  via its normal free-slot logic. Useful for spinning up a
-#                  parallel-themed session without re-typing the agent and
-#                  args. (Shift+Alt+N)
+#   default        — same tag + agent + args + agent session. Pure reload
+#                    of pair itself; the agent conversation is preserved
+#                    (resumed via --resume <id> / resume <id>). (Alt+n)
+#   --new-session  — same tag + agent + args, but a fresh agent
+#                    conversation: bin/pair drops the saved
+#                    config-<tag>-<agent>.json so the next launch starts
+#                    a brand-new session. (Shift+Alt+N)
 #
 # Mechanism: writes BOTH a `quit-<session>` marker (so cleanup_quit_marker in
 # bin/pair runs `zellij delete-session` as usual) AND a `restart-<session>`
-# marker carrying the agent name + optional new_tag flag. After kill-session
-# returns, bin/pair sees the restart marker, drops
-# $DATA_DIR/config-<tag>-<agent>.json (so the new run starts a fresh agent
-# session rather than offering to resume), and execs itself — with
-# PAIR_FORCE_TAG set to the current tag unless new_tag was requested.
+# marker carrying the agent name + optional new_session flag. After
+# kill-session returns, bin/pair sees the restart marker and execs itself
+# with PAIR_FORCE_TAG pinning the same tag — the new_session flag controls
+# whether the saved config-<tag>-<agent>.json is dropped (fresh) or kept
+# (resume the prior agent session).
 #
 # The agent name is captured here, while $DATA_DIR/agent-<tag> still exists —
 # cleanup_quit_marker deletes that file before bin/pair gets the chance to
@@ -23,9 +24,9 @@
 
 set -uo pipefail
 
-new_tag=0
+new_session=0
 case "${1:-}" in
-    --new-tag) new_tag=1 ;;
+    --new-session) new_session=1 ;;
     "") : ;;
     *) echo "pair-restart: unknown arg ${1:-}" >&2; exit 2 ;;
 esac
@@ -47,7 +48,7 @@ agent=""
 {
     printf 'tag=%s\n' "$tag"
     printf 'agent=%s\n' "$agent"
-    printf 'new_tag=%s\n' "$new_tag"
+    printf 'new_session=%s\n' "$new_session"
 } > "$MARKER_DIR/restart-$session"
 
 touch "$MARKER_DIR/quit-$session"

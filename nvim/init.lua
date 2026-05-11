@@ -2634,15 +2634,20 @@ function _G.PairConfirmDetach()
 end
 
 -- Shared between Alt+n (PairConfirmRestart) and Shift+Alt+N
--- (PairConfirmRestartNewTag). Differs only in whether pair-restart.sh
--- is invoked with --new-tag and what the prompt says.
-local function pair_confirm_restart_impl(new_tag)
+-- (PairConfirmRestartNewSession). Differs in whether pair-restart.sh
+-- is invoked with --new-session and what the prompt says.
+--
+--   Alt+n         — pure pair reload; agent session is preserved
+--                   (resumed via --resume <id> / resume <id>).
+--   Shift+Alt+N   — same tag + agent + args, but a fresh agent
+--                   conversation (saved config is dropped).
+local function pair_confirm_restart_impl(new_session)
   pair_ensure_visible_then(function()
     local prompt
-    if new_tag then
-      prompt = 'Restart at a new tag? Kills the current session and re-launches with the same agent and args, but pair picks a fresh tag (parallel-themed work without re-typing the agent).'
+    if new_session then
+      prompt = 'Restart with a fresh agent conversation? Kills the current session and re-launches with the same tag, agent, and args, but the saved agent session is dropped (brand-new conversation).'
     else
-      prompt = 'Restart pair session? Kills the session and re-launches with the same tag and agent args, but a fresh agent conversation.'
+      prompt = 'Reload pair? Kills the current session and re-launches with the same tag, agent, args, AND agent session — the prior conversation resumes.'
     end
     local cfg = pair_read_saved_config()
     if cfg then
@@ -2652,19 +2657,21 @@ local function pair_confirm_restart_impl(new_tag)
       else
         args_line = '<none>'
       end
-      -- Show only what carries forward into the new session (agent +
-      -- args). The session id is intentionally omitted: the saved
-      -- config is dropped and the new agent run starts a brand-new
-      -- conversation, so showing the prior id would be misleading.
       prompt = prompt
         .. '\n\nRe-launching with:'
         .. '\n  agent: ' .. cfg.agent
         .. '\n  args:  ' .. args_line
+      -- Show the session id only on the resume path — it's the load-
+      -- bearing detail there. Hiding it on the new-session path avoids
+      -- confusing the user into thinking the prior id will carry over.
+      if not new_session and cfg.session_id and cfg.session_id ~= '' then
+        prompt = prompt .. '\n  resume: ' .. cfg.session_id
+      end
     end
     local ans = vim.fn.confirm(prompt, '&Yes\n&No', 2)
     if ans == 1 then
-      if new_tag then
-        vim.fn.system('pair-restart.sh --new-tag')
+      if new_session then
+        vim.fn.system('pair-restart.sh --new-session')
       else
         vim.fn.system('pair-restart.sh')
       end
@@ -2672,8 +2679,8 @@ local function pair_confirm_restart_impl(new_tag)
   end)
 end
 
-function _G.PairConfirmRestart()       pair_confirm_restart_impl(false) end
-function _G.PairConfirmRestartNewTag() pair_confirm_restart_impl(true)  end
+function _G.PairConfirmRestart()           pair_confirm_restart_impl(false) end
+function _G.PairConfirmRestartNewSession() pair_confirm_restart_impl(true)  end
 
 -- ---------------------------------------------------------------------------
 -- Layout sizing: minimized (statusline only) ↔ small (10 rows, initial) ↔ half (50%).
