@@ -172,7 +172,8 @@ define _tart_boot_and_ssh
 	    fi; \
 	    echo "==> ssh admin@$$ip (password: admin)"; \
 	    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-	        -t admin@$$ip
+	        -t admin@$$ip \
+	        'export TERM=xterm-256color; stty erase "^?"; exec $$SHELL -l'
 endef
 
 tart:
