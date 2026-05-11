@@ -33,16 +33,17 @@ if [ ! -s "$RAW" ]; then
     exit 0
 fi
 
-# Prefer the Go renderer (bin/scrollback-render, built by `make
-# scrollback-render`): no Python dep, ~10× faster than the pyte path,
-# instant Alt+/. Falls back to the pyte-based Python script if the
-# binary hasn't been built yet — keeps the brew-install + git-clone
-# flows working during the cutover. Once the Go binary has been stable
-# for a while, the Python fallback (and the pyte vendoring in the brew
-# formula) can be dropped.
-if [ -x "$PAIR_HOME/bin/scrollback-render" ]; then
-    if ! "$PAIR_HOME/bin/scrollback-render" "$RAW" "$EVENTS" "$ANSI"; then
-        printf 'pair-scrollback-open: scrollback-render failed; see above.\n' >&2
+# Prefer the Go renderer (bin/pair-scrollback-render, built by `make
+# pair-scrollback-render`): no Python dep, ~10× faster than the pyte
+# path, instant Alt+/. Falls back to the pyte-based Python script
+# (bin/pair-scrollback-render.py) if the binary hasn't been built yet
+# — keeps the brew-install + git-clone flows working during the
+# cutover. Once the Go binary has been stable for a while, the Python
+# fallback (and the pyte vendoring in the brew formula) can be dropped
+# per workshop/issues/000019.
+if [ -x "$PAIR_HOME/bin/pair-scrollback-render" ]; then
+    if ! "$PAIR_HOME/bin/pair-scrollback-render" "$RAW" "$EVENTS" "$ANSI"; then
+        printf 'pair-scrollback-open: pair-scrollback-render failed; see above.\n' >&2
         sleep 5
         exit 1
     fi
@@ -56,13 +57,13 @@ else
         PYTHON="$PAIR_HOME/venv/bin/python3"
     fi
     if ! "$PYTHON" -c 'import pyte' 2>/dev/null; then
-        printf 'pair-scrollback-open: neither bin/scrollback-render nor python pyte found.\n' >&2
-        printf '  Build the Go renderer:  make scrollback-render\n' >&2
+        printf 'pair-scrollback-open: neither bin/pair-scrollback-render nor python pyte found.\n' >&2
+        printf '  Build the Go renderer:  make pair-scrollback-render\n' >&2
         printf '  Or install pyte:        pip3 install --user --break-system-packages pyte\n' >&2
         sleep 5
         exit 1
     fi
-    if ! "$PYTHON" "$PAIR_HOME/bin/pair-scrollback-render" "$RAW" "$EVENTS" "$ANSI"; then
+    if ! "$PYTHON" "$PAIR_HOME/bin/pair-scrollback-render.py" "$RAW" "$EVENTS" "$ANSI"; then
         printf 'pair-scrollback-open: pyte renderer failed; see above.\n' >&2
         sleep 5
         exit 1

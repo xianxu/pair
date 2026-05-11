@@ -3,7 +3,7 @@
 // Direct port of bin/pair-wrap.py (filed as #000011). The Python version
 // remains as bin/pair-wrap.py for fallback / reference; this Go binary is
 // installed at bin/pair-wrap and invoked by zellij/layouts/main.kdl on
-// pair startup. See cmd/scrollback-render for the prior Go-port pattern.
+// pair startup. See cmd/pair-scrollback-render for the prior Go-port pattern.
 //
 // What it does:
 //   - Spawns the agent in a fresh pty so the wrapper sees the raw output.

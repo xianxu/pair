@@ -2,28 +2,32 @@
 # This file is included by Makefile — add your own targets here.
 
 .PHONY: pair-bootstrap tart tart-mount tart-stop tart-clean \
-        build install scribe scrollback-render
+        build install pair-scribe pair-scrollback-render pair-wrap
 
-# Cross-cutting Go-binary targets.
-# Adding a new binary: drop main.go under cmd/<name>/ and append <name>
-# to GO_BINS. `make build` and `make install` pick it up automatically.
+# Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
+# and ships with the `pair-` prefix so it doesn't collide with anything
+# else on PATH (pair-scribe replaced an earlier bare-named `scribe`).
+#
+# Adding a new binary: drop main.go under cmd/<name>/, append <name>
+# to GO_BINS, add the per-binary recipe stanza. `make build` and
+# `make install` pick it up automatically.
 #
 #   make build      → compile every binary in GO_BINS into ./bin/
 #   make install    → also copy each into ~/.local/bin/
-#   make <name>     → build just that one (e.g., `make scribe`)
+#   make <name>     → build just that one (e.g., `make pair-scribe`)
 #
 # Why ./bin/ for the in-tree build: keeps Go output next to the shell
 # scripts pair already ships from bin/, and pair-scrollback-open looks
-# at $PAIR_HOME/bin/scrollback-render to pick up the Go renderer in
-# both dev (source tree) and brew-install layouts.
+# at $PAIR_HOME/bin/pair-scrollback-render to pick up the Go renderer
+# in both dev (source tree) and brew-install layouts.
 #
 # Why ~/.local/bin/ for install: XDG convention, on PATH per the user's
-# zshrc. Each binary the user wires into their shell (e.g. scribe in
-# zshrc) should reference $HOME/.local/bin/<name>.
+# zshrc. Each binary the user wires into their shell (e.g. pair-scribe
+# in zshrc) should reference $HOME/.local/bin/<name>.
 
 BIN_DIR     := bin
 INSTALL_DIR := $(HOME)/.local/bin
-GO_BINS     := scribe scrollback-render pair-wrap
+GO_BINS     := pair-scribe pair-scrollback-render pair-wrap
 
 build: $(addprefix $(BIN_DIR)/,$(GO_BINS))
 
@@ -34,33 +38,34 @@ install: build
 	    echo "installed: $(INSTALL_DIR)/$$b"; \
 	done
 
-# Per-binary aliases — `make scribe`, `make scrollback-render`, `make pair-wrap`.
-scribe:            $(BIN_DIR)/scribe
-scrollback-render: $(BIN_DIR)/scrollback-render
-pair-wrap:         $(BIN_DIR)/pair-wrap
+# Per-binary aliases — `make pair-scribe`, etc.
+pair-scribe:            $(BIN_DIR)/pair-scribe
+pair-scrollback-render: $(BIN_DIR)/pair-scrollback-render
+pair-wrap:              $(BIN_DIR)/pair-wrap
 
-# scribe — Go-based pty wrapper with SIGUSR1/SIGUSR2 pause/resume of the
-# typescript log. Replaces script(1) at the top of the user's shell, so
-# preexec can stop the log from filling with TUI redraw bytes (claude,
-# nvim, etc). See cmd/scribe/README.md for the full why.
-$(BIN_DIR)/scribe: cmd/scribe/main.go go.mod
-	go build -o $@ ./cmd/scribe
+# pair-scribe — Go-based pty wrapper with SIGUSR1/SIGUSR2 pause/resume
+# of the typescript log. Replaces script(1) at the top of the user's
+# shell, so preexec can stop the log from filling with TUI redraw bytes
+# (claude, nvim, etc). See cmd/pair-scribe/README.md for the full why.
+$(BIN_DIR)/pair-scribe: cmd/pair-scribe/main.go go.mod
+	go build -o $@ ./cmd/pair-scribe
 
-# scrollback-render — Go reimplementation of bin/pair-scrollback-render
-# using charmbracelet/x/vt. Replays a pair-wrap raw PTY capture and emits
-# one ANSI-styled output line per logical scrollback row, for the Alt+/
-# viewer to display through nvim. ~10× faster than the pyte-based Python
-# version, no Python runtime dependency, single static binary.
+# pair-scrollback-render — Go reimplementation of the pyte-based
+# bin/pair-scrollback-render.py using charmbracelet/x/vt. Replays a
+# pair-wrap raw PTY capture and emits one ANSI-styled output line per
+# logical scrollback row, for the Alt+/ viewer to display through nvim.
+# ~10× faster than the Python version, no Python runtime dependency,
+# single static binary.
 #
-# pair-scrollback-open prefers this binary when present; otherwise falls
-# back to the Python pyte renderer. After confidence builds, drop the
-# Python script + brew formula pyte vendoring in a follow-up.
-$(BIN_DIR)/scrollback-render: cmd/scrollback-render/main.go go.mod
-	go build -o $@ ./cmd/scrollback-render
+# pair-scrollback-open prefers this binary when present; otherwise it
+# falls back to the .py renderer. After confidence builds, drop the
+# Python script + brew formula pyte vendoring in a follow-up (#19).
+$(BIN_DIR)/pair-scrollback-render: cmd/pair-scrollback-render/main.go go.mod
+	go build -o $@ ./cmd/pair-scrollback-render
 
-# pair-wrap — Go port of bin/pair-wrap.py (filed #000011). Transparent PTY
-# proxy around a TUI coding agent: forwards stdio, tees scrollback log,
-# extracts colored spans for nvim autocomplete, detects OSC/BEL and
+# pair-wrap — Go port of bin/pair-wrap.py (filed #000011). Transparent
+# PTY proxy around a TUI coding agent: forwards stdio, tees scrollback
+# log, extracts colored spans for nvim autocomplete, detects OSC/BEL and
 # forwards as OSC 9 to the recorded outer-TTY, handles SIGUSR1 image-
 # paste capture window. Python fallback at bin/pair-wrap.py (kept until
 # the Go binary has soaked in a session).
@@ -142,8 +147,15 @@ endef
 # Boot in background (no-op if already running), poll for SSH, then
 # exec ssh -t for an interactive shell. RUN_FLAGS lets `tart-mount`
 # inject --dir without duplicating the rest of the recipe.
+#
+# Gate the boot decision on `tart list`'s State column, not on
+# `tart ip`. Tart caches the last-known IP for a stopped VM, so
+# `tart ip` succeeds even when the VM isn't running — which was
+# silently skipping the boot branch and leaving the loop polling a
+# dead address until ssh inevitably failed with "Host is down".
 define _tart_boot_and_ssh
-	@if ! tart ip $(TART_VM) >/dev/null 2>&1; then \
+	@state=$$(tart list 2>/dev/null | awk -v vm=$(TART_VM) '$$2==vm {print $$NF}'); \
+	if [ "$$state" != "running" ]; then \
 	    echo "==> Booting VM..."; \
 	    nohup tart run --no-graphics $(RUN_FLAGS) $(TART_VM) >/tmp/tart-$(TART_VM).log 2>&1 & \
 	fi
@@ -154,6 +166,10 @@ define _tart_boot_and_ssh
 	    sleep 2; \
 	done
 	@ip=$$(tart ip $(TART_VM)); \
+	    if ! nc -z -G 2 "$$ip" 22 2>/dev/null; then \
+	        echo "==> SSH never came up at $$ip (boot log: /tmp/tart-$(TART_VM).log)"; \
+	        exit 1; \
+	    fi; \
 	    echo "==> ssh admin@$$ip (password: admin)"; \
 	    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 	        -t admin@$$ip

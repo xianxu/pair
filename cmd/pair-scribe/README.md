@@ -1,4 +1,4 @@
-# scribe
+# pair-scribe
 
 A `script(1)`-replacement that supports pause/resume of the typescript via
 signals. Built because macOS `script(1)`:
@@ -11,23 +11,28 @@ signals. Built because macOS `script(1)`:
   …) floods the typescript with redraw bytes that aren't useful for
   "copy last command output."
 
-`scribe` is signal-controllable: `SIGUSR1` pauses on-disk capture,
+`pair-scribe` is signal-controllable: `SIGUSR1` pauses on-disk capture,
 `SIGUSR2` resumes. Terminal output to the user is never paused — only the
 log file.
+
+Lives under `cmd/` in the pair repo for build-system convenience, but
+isn't part of pair's runtime — it's user shell tooling that swaps for
+`script(1)` at the top of the zsh session.
 
 ## Build
 
 From the pair repo root:
 
-    make scribe-install
+    make install
 
-Produces `~/bin/scribe`. Static binary, no runtime deps.
+Produces `~/.local/bin/pair-scribe` (and the other Go binaries). Static
+binary, no runtime deps.
 
 ## Use
 
 Same shape as `script -q -F LOG CMD`:
 
-    scribe -log PATH -- CMD [ARGS...]
+    pair-scribe -log PATH -- CMD [ARGS...]
 
 In `~/.zshrc`, replace
 
@@ -35,7 +40,7 @@ In `~/.zshrc`, replace
 
 with
 
-    exec ~/bin/scribe -log "$_ZSH_SCRIPT_LOG" -- /bin/zsh
+    exec ~/.local/bin/pair-scribe -log "$_ZSH_SCRIPT_LOG" -- /bin/zsh
 
 Then in `preexec` / `precmd`, send signals to `$_ZSH_SCRIPT_LOG_OWNER`
 around commands whose output you don't want captured.

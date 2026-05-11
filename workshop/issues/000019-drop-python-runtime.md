@@ -12,15 +12,17 @@ related: [homebrew-pair/Formula/pair.rb]
 ## Problem
 
 In commit `14dc879`, pair-wrap and pair-scrollback-render were ported
-to Go (`cmd/pair-wrap`, `cmd/scrollback-render`), but the Python
+to Go (`cmd/pair-wrap`, `cmd/pair-scrollback-render`), but the Python
 originals were kept as fallbacks:
 
 - `bin/pair-wrap.py` — renamed from `bin/pair-wrap`; the Go binary now
   occupies that path. Kept so a broken Go build doesn't ship a wedge.
-- `bin/pair-scrollback-render` — the pyte-based renderer, also kept
-  as a fallback. `bin/pair-scrollback-open` prefers
-  `$PAIR_HOME/bin/scrollback-render` (Go) when present and falls back
-  to `python3 bin/pair-scrollback-render` otherwise.
+- `bin/pair-scrollback-render.py` — renamed from
+  `bin/pair-scrollback-render` (the pyte-based renderer). The Go
+  binary now occupies the prefix-free path.
+  `bin/pair-scrollback-open` prefers
+  `$PAIR_HOME/bin/pair-scrollback-render` (Go) when present and falls
+  back to `python3 bin/pair-scrollback-render.py` otherwise.
 
 Carrying both has costs: it leaves `python3 + pyte` in the dependency
 graph (the brew formula vendors pyte into a private venv, see
@@ -39,19 +41,18 @@ Three drops, ideally in one commit per repo:
 **In this repo (`pair`):**
 
 1. Delete `bin/pair-wrap.py`.
-2. Delete `bin/pair-scrollback-render` (the Python pyte renderer).
+2. Delete `bin/pair-scrollback-render.py` (the Python pyte renderer).
 3. Simplify `bin/pair-scrollback-open` to invoke the Go binary
    directly — remove the python3 + pyte preflight + fallback branch.
-   Hard-fail with a clear "build the Go renderer: make
-   scrollback-render-install" message if `bin/scrollback-render` is
-   missing.
+   Hard-fail with a clear "build the Go renderer: make install"
+   message if `bin/pair-scrollback-render` is missing.
 4. Drop the `pair-bootstrap` target's pyte-install step in
    `Makefile.local` (and the comment paragraph explaining why pyte
    was needed). The target either becomes a no-op or gets removed —
    double-check no other runtime Python deps need it before
    deleting outright.
-5. Update `cmd/scribe/README.md` and `cmd/scrollback-render/README.md`
-   (if it gets one) — drop any "Python fallback" language.
+5. Update `cmd/pair-scribe/README.md` — drop any "Python fallback"
+   language.
 6. Update `atlas/architecture.md` — the scrollback section currently
    mentions "Downstream pair-scrollback-render reads both files and
    replays through pyte" / similar phrasing. Re-anchor on the Go
