@@ -136,6 +136,13 @@ var sendKeymapByAgent = map[string]sendKeymap{
 		plainCR: []byte{'\n'},
 		altCR:   []byte{'\r'},
 	},
+	"gemini": {
+		// Same Enter/Shift+Enter convention as codex. Gemini explicitly
+		// disables KKP at startup (\x1b[?0u) so all special keys arrive
+		// as legacy bytes; the row is identical to codex's.
+		plainCR: []byte{'\n'},
+		altCR:   []byte{'\r'},
+	},
 }
 
 // ----- Compiled regexes (byte-mode) -------------------------------------------
