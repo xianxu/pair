@@ -14,7 +14,7 @@ bin/clipboard-to-pane.sh     # read clipboard, hand off to nvim's PairPasteQuote
 bin/copy-on-select.sh        # invoked by zellij copy_command on mouse-up
 bin/pair-quit.sh             # invoked by Alt+x — marks + kills session
 bin/pair-restart.sh          # invoked by Alt+n — marks (quit + restart) + kills session
-bin/pair-session-watch.sh    # captures agent session id at create time (#000016)
+bin/pair-session-watch.sh    # captures codex/gemini session id at create time (#000016, #000020)
 bin/pair-wrap                # PTY proxy: OSC translation + scrollback capture
 bin/pair-notify              # hook-driven OSC notifier (e.g. claude Notification)
 bin/pair-scrollback-render   # raw PTY capture → ANSI-colored line dump (#000017)
@@ -291,19 +291,25 @@ A pair *tag* is a durable identity for a coding session: it survives Alt+d (deta
 
 **Discovery — three layers.** The watcher alone can't see every kind of session: it catches *new* jsonl files at launch, but misses (a) `--resume <id>` launches (the agent appends to an existing file, no new file appears) and (b) `/clear` or `/compact` rotations mid-session (the agent rotates id long after the watcher's 60s window has elapsed). Three mechanisms cover the cases:
 
-1. **Pre-write at launch (`bin/pair`).** When `--resume <id>` (claude/gemini) or `resume <id>` (codex) is explicit on the agent command line, pair writes `config-<tag>-<agent>.json` directly with that id before spawning the watcher. Handles case (a) when the id is on argv.
-2. **Watcher (`bin/pair-session-watch.sh`).** Spawned in the background by `bin/pair` on the create path, right before the zellij launch. Polls the agent's session dir at 100ms intervals for a freshly-appearing session file, extracts the id, writes `$PAIR_DATA_DIR/config-<tag>-<agent>.json` atomically (tmp + rename). Times out after 60s. Handles fresh launches.
+1. **Pre-write at launch (`bin/pair`).** Two paths:
+   - `--resume <id>` / `resume <id>` explicit on argv: pair writes `config-<tag>-<agent>.json` directly with that id. Handles case (a).
+   - **Claude fresh launch (issue #000020):** claude supports `--session-id <uuid>`, so on the new-session path pair generates a v4 UUID, injects the flag into the agent argv, and writes the config synchronously *before* spawning the watcher. The id is deterministic from the launcher's perspective, so the watcher is a no-op for claude — the cross-tag race that existed when two pair sessions shared a cwd is structurally eliminated.
+2. **Watcher (`bin/pair-session-watch.sh`, codex/gemini only).** Spawned in the background by `bin/pair` on the create path, right before the zellij launch. Two discovery paths:
+   - **PID-bound (preferred).** Reads `$PAIR_DATA_DIR/agent-pid-<tag>` (written by pair-wrap right after `pty.Start`) and inspects open files in that PID's process tree via `lsof -p <pid> -Fn`. Race-free across concurrent pair sessions because lsof output is scoped to specific PIDs. Falls back internally to a birth-time-filtered directory walk if the agent doesn't keep its session file open: candidates are files with `stat -f %B >= agent_start_epoch`, and only a *single* candidate is accepted (multiple = concurrent race, refuse rather than guess).
+   - **Legacy snapshot-diff (fallback).** Used when the pidfile doesn't appear within 2s — i.e., when the installed pair-wrap binary predates #000020 and doesn't publish the pidfile. Behaves identically to pre-#000020: snapshots the watch dir at start, picks the first new file. Cross-tag races re-emerge in this path, so the proper resolution is to rebuild pair-wrap.
+
+   Times out after 60s in either path.
 3. **Trigger + mtime refresh on Alt+x quit (nvim `pair_capture_session_via_trigger`).** After the user confirms Yes, before `pair-quit.sh` runs, nvim sends a benign `bye\n` to the agent pane via `zellij action write-chars`, waits ~200ms, and picks the most-recently-modified jsonl in the project dir as the live session — the trigger guarantees a fresh mtime on our session even when the agent was idle, which disambiguates against any peer pair sessions sharing the project dir. Catches case (b) and the `--resume`-without-explicit-id variant of case (a). The `bye` lands in the conversation log; harmless given the session is being torn down. Claude only — codex/gemini fall back to whatever the watcher captured.
 
-The watcher's per-agent discovery surface:
+Per-agent surface:
 
-| Agent | Path | Id source |
-|---|---|---|
-| claude | `~/.claude/projects/<encoded-cwd>/<id>.jsonl` | filename |
-| codex | `~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<id>.jsonl` | trailing UUID in filename (regex) |
-| gemini | `~/.gemini/tmp/<project>/chats/session-<ts>-<short>.json` | `.sessionId` in the JSON body (filename only carries an 8-char prefix) |
+| Agent | Path | Id source | Capture mechanism |
+|---|---|---|---|
+| claude | `~/.claude/projects/<encoded-cwd>/<id>.jsonl` | filename | `--session-id` pre-injected by `bin/pair` (deterministic) |
+| codex | `~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<id>.jsonl` | trailing UUID in filename (regex) | `lsof -p <pid>` against agent PID, birth-time fallback |
+| gemini | `~/.gemini/tmp/<project>/chats/session-<ts>-<short>.json` | `.sessionId` in JSON body (filename only carries an 8-char prefix) | `lsof -p <pid>` against agent PID, birth-time fallback |
 
-The poll/diff/write loop is shared; the `case "$agent"` block sets `find_args` and `extract_id`. Gemini in particular can write the file before the JSON body is flushed, so the inner loop walks all new files in one tick and falls through to the next tick if none yield an id.
+Gemini in particular can write the file before the JSON body is flushed; `extract_id` returns empty in that case and the outer loop retries on the next tick.
 
 **Stored shape.** `$PAIR_DATA_DIR/config-<tag>-<agent>.json`:
 
@@ -361,7 +367,9 @@ Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/outer-tty-<tag>` — single-lin
 
 Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/agent-<tag>` — single-line file recording which agent binary was launched in the session (`claude`, `codex`, ...). Written once at session create; read by `pair list` to display the agent column, and by `bin/pair`'s tag-restart agent-inference. Removed on full quit. The agent isn't otherwise recoverable post-create — env vars are frozen in pane shells, and custom session names (e.g. `pair-bugfix`) don't carry the agent in the name.
 
-Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/config-<tag>-<agent>.json` — saved restart configuration for `(tag, agent)` (issue #000016). `{ agent, args, session_id }`. Written by `bin/pair-session-watch.sh` once the agent's session file appears at create time; read by `bin/pair`'s create-flow prompt and by the post-Alt+x hint. Survives Alt+x (unlike `agent-<tag>`, which is cleared) — that's the whole point: it's the bridge between two pair launches against the same tag.
+Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/config-<tag>-<agent>.json` — saved restart configuration for `(tag, agent)` (issue #000016, #000020). `{ agent, args, session_id }`. For claude, written synchronously by `bin/pair` before zellij launch (`--session-id` is deterministic). For codex/gemini, written by `bin/pair-session-watch.sh` once the agent's session file is discovered via lsof. Read by `bin/pair`'s create-flow prompt and by the post-Alt+x hint. Survives Alt+x (unlike `agent-<tag>`, which is cleared) — that's the whole point: it's the bridge between two pair launches against the same tag.
+
+Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/agent-pid-<tag>` — child agent PID written by `cmd/pair-wrap` immediately after `pty.Start`, removed on shutdown. Consumed by `bin/pair-session-watch.sh` to scope `lsof` discovery to a specific process tree (issue #000020). Mtime is also used as the agent-start epoch in the watcher's birth-time fallback.
 
 Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/nvim-pid-<tag>-{draft,scrollback}` — single-line file containing the pid of an `nvim --embed` server child. Written at VimEnter by `nvim/init.lua` (for the draft pane) and `nvim/scrollback.lua` (for the Alt+/ floating viewer) when `$PAIR_NVIM_PID_FILE` is set; the launch sites (`zellij/layouts/main.kdl` for draft, `bin/pair-scrollback-open` for scrollback) export the env var pointing at a tag-scoped path. Read and removed by `cleanup_quit_marker` on Alt+x to SIGKILL the embed deterministically — without this, the embed sometimes survives zellij's pane teardown and accumulates as a PPID=1 orphan, dragging the host into memory pressure across many quits.
 

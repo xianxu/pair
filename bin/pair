@@ -885,6 +885,14 @@ if [ -f "$config_file" ]; then
 
     saved_display="${saved_args_clean[*]:-<none>}"
     current_display="${agent_extra:-<none>}"
+    # When saved == current, "saved" and "new" variants are byte-identical
+    # launches — collapse them so the picker doesn't show two rows the
+    # user can't tell apart. The "saved" branch is preferred since it
+    # ALSO covers the case where the user typed nothing this time.
+    args_match=false
+    if [ "$saved_display" = "$current_display" ]; then
+        args_match=true
+    fi
 
     # Multi-line options so long args / full session ids are visible without
     # truncation. NUL-separated items + `--read0` is fzf's multi-line-render
@@ -911,17 +919,22 @@ if [ -f "$config_file" ]; then
     n=$((n+1))
 
     # New params + resumed session is only meaningful when there *are* new
-    # params; otherwise it collapses into "saved params + session".
-    if $has_resumable && [ -n "$agent_extra" ]; then
+    # params AND they differ from what's saved; otherwise it collapses
+    # into "saved params + session" (already shown above).
+    if $has_resumable && [ -n "$agent_extra" ] && ! $args_match; then
         options+=("$(printf '%d) use new params + session\n     args=[%s]\n     resume=%s' \
                           "$n" "$current_display" "$saved_session")")
         actions+=("new+resume")
         n=$((n+1))
     fi
 
-    options+=("$(printf '%d) use new params passed in\n     args=[%s]\n     fresh session' \
-                      "$n" "$current_display")")
-    actions+=("new")
+    # Same dedup for the fresh-session row: when args match, "use new"
+    # is byte-identical to "use saved" already in the list.
+    if ! $args_match; then
+        options+=("$(printf '%d) use new params passed in\n     args=[%s]\n     fresh session' \
+                          "$n" "$current_display")")
+        actions+=("new")
+    fi
 
     # Height: roughly 3 lines per option + 2 for header/status/border.
     fzf_height=$(( ${#options[@]} * 3 + 4 ))
@@ -1084,14 +1097,81 @@ if [ -n "$explicit_resume" ]; then
         || rm -f "$tmp"
 fi
 
-# Spawn the session-id watcher (issue #000016). It polls the agent's
-# session dir for the file that appears once the agent boots, then writes
-# $DATA_DIR/config-<tag>-<agent>.json with the captured agent + args +
-# session_id. Backgrounded so it doesn't block the zellij launch; the
-# watcher self-times-out after 60s if no file appears (agent crashed
-# pre-startup, etc). Output redirected so any noise doesn't bleed into
-# pair's create-flow output. agent_extra is intentionally word-split here,
-# matching the existing $PAIR_AGENT_ARGS convention.
+# Claude supports `--session-id <uuid>`, so on the new-session path we
+# pin the id deterministically rather than fishing for it via the
+# watcher. Two tags in the same cwd previously raced for the next new
+# `~/.claude/projects/<encoded-cwd>/*.jsonl` and could capture each
+# other's id (issue #000020). Pre-injecting the flag — and writing the
+# config synchronously here — eliminates the race entirely for claude.
+#
+# Skip when:
+#   - explicit_resume already pinned a session above;
+#   - the user passed --session-id explicitly (their UUID wins);
+#   - the user passed --fork-session (claude allocates a new id internally).
+#
+# Codex and gemini have no equivalent flag; they still need the watcher.
+if [ "$AGENT" = "claude" ] && [ -z "$explicit_resume" ]; then
+    _has_sid=0
+    _has_fork=0
+    for tok in $agent_extra; do
+        case "$tok" in
+            --session-id)   _has_sid=1 ;;
+            --fork-session) _has_fork=1 ;;
+        esac
+    done
+    if [ $_has_sid -eq 0 ] && [ $_has_fork -eq 0 ]; then
+        # Claude refuses --session-id <uuid> if a session file with that id
+        # already exists (observed). Collisions are astronomically rare
+        # for v4, but check the project dir anyway and retry — cheap.
+        _enc=$(printf '%s' "$PWD" | tr ./ -)
+        _cdir="$HOME/.claude/projects/$_enc"
+        new_sid=""
+        for _ in 1 2 3 4 5; do
+            cand=$(uuidgen | tr 'A-Z' 'a-z')
+            if [ ! -e "$_cdir/$cand.jsonl" ]; then
+                new_sid="$cand"
+                break
+            fi
+        done
+        if [ -n "$new_sid" ]; then
+            agent_extra="${agent_extra:+$agent_extra }--session-id $new_sid"
+            export PAIR_AGENT_ARGS="$agent_extra"
+            config_path="$DATA_DIR/config-${PAIR_TAG}-${AGENT}.json"
+            # Persist args WITHOUT the --session-id we just added: session_id
+            # is the canonical storage for the resume binding, and leaving
+            # the flag in args would compound on every relaunch through the
+            # picker (same logic as the explicit_resume strip above).
+            read -ra _sargs <<< "$agent_extra"
+            _sstripped=()
+            n=${#_sargs[@]}
+            i=0
+            while [ $i -lt $n ]; do
+                if [ "${_sargs[$i]}" = "--session-id" ]; then
+                    i=$((i+2))
+                else
+                    _sstripped+=("${_sargs[$i]}")
+                    i=$((i+1))
+                fi
+            done
+            tmp=$(mktemp "$config_path.XXXXXX") && \
+                jq -n \
+                    --arg agent "$AGENT" \
+                    --arg sid "$new_sid" \
+                    '{ agent: $agent, args: $ARGS.positional, session_id: $sid }' \
+                    --args -- ${_sstripped[@]+"${_sstripped[@]}"} > "$tmp" \
+                && mv "$tmp" "$config_path" \
+                || rm -f "$tmp"
+        fi
+    fi
+fi
+
+# Spawn the session-id watcher (issue #000016, fixed in #000020). For
+# codex/gemini it binds to the agent's PID via lsof, so concurrent pair
+# sessions in the same cwd no longer race for each other's session file.
+# For claude the watcher is a no-op (the deterministic --session-id path
+# above writes the config synchronously). Backgrounded; self-times-out
+# after 60s if the agent never opens a session file. agent_extra is
+# intentionally word-split, matching the existing PAIR_AGENT_ARGS rule.
 "$PAIR_HOME/bin/pair-session-watch.sh" "$AGENT" "$PAIR_TAG" "$PWD" $agent_extra \
     </dev/null >/dev/null 2>&1 &
 

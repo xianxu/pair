@@ -172,6 +172,7 @@ type proxy struct {
 	captureOutPath  string
 	captureDonePath string
 	capturePIDPath  string
+	agentPIDPath    string
 
 	// PTY
 	ptmx *os.File
@@ -249,6 +250,7 @@ func (p *proxy) resolvePaths() {
 	p.captureOutPath = filepath.Join(dir, "image-capture-"+tag)
 	p.captureDonePath = p.captureOutPath + ".done"
 	p.capturePIDPath = filepath.Join(dir, "pair-wrap-pid-"+tag)
+	p.agentPIDPath = filepath.Join(dir, "agent-pid-"+tag)
 }
 
 // ----- Debug log --------------------------------------------------------------
@@ -1080,6 +1082,17 @@ argsDone:
 	p.ptmx = ptmx
 	defer ptmx.Close()
 
+	// Drop the agent's PID so pair-session-watch.sh can bind discovery to
+	// this specific child (lsof -p <pid>) instead of racing peers in the
+	// shared session dir. Best-effort: a failed write only degrades the
+	// session-id capture for codex/gemini; claude doesn't need it.
+	if p.agentPIDPath != "" {
+		if err := os.WriteFile(p.agentPIDPath, []byte(strconv.Itoa(cmd.Process.Pid)), 0644); err != nil {
+			p.debug("AGENT-PID-write-fail", err.Error())
+			p.agentPIDPath = ""
+		}
+	}
+
 	// Initial winsize copy + SIGWINCH handler.
 	p.setWinsize()
 
@@ -1124,6 +1137,9 @@ argsDone:
 			// bin/pair's cleanup_quit_marker handles them with the rest
 			// of $DATA_DIR on Alt+x.
 			_ = os.Remove(p.capturePIDPath)
+		}
+		if p.agentPIDPath != "" {
+			_ = os.Remove(p.agentPIDPath)
 		}
 	}()
 
