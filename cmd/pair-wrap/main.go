@@ -98,6 +98,35 @@ var spanExtractionAgents = map[string]bool{
 	"claude": true,
 }
 
+// Per-agent stdin keymap. The pair-managed nvim draft uses
+//
+//	Enter      = insert newline
+//	Alt+Enter  = send to agent
+//
+// but the agent's native TUI typically uses Enter = send. That mismatch
+// is jarring when the user moves between panes. When PAIR_WRAP_REMAP_RETURN
+// isn't "0", pair-wrap rewrites stdin so the agent receives the inverted
+// mapping: incoming Enter becomes the agent's "insert newline" sequence,
+// incoming Alt+Enter becomes a plain Enter (send).
+//
+//   - plainCR:   bytes emitted when the user hits Enter alone (\r)
+//   - altCR:     bytes emitted when the user hits Alt+Enter (\x1b\r)
+//
+// Claude reads "\<Enter>" (backslash + CR) as a newline regardless of
+// terminal keyboard-protocol support — this is the documented portable
+// path. Other agents need their own probing; leave them out of the table
+// to fall through to no-rewrite (today's pass-through behavior).
+type sendKeymap struct {
+	plainCR, altCR []byte
+}
+
+var sendKeymapByAgent = map[string]sendKeymap{
+	"claude": {
+		plainCR: []byte{'\\', '\r'},
+		altCR:   []byte{'\r'},
+	},
+}
+
 // ----- Compiled regexes (byte-mode) -------------------------------------------
 
 var (
@@ -134,6 +163,11 @@ type proxy struct {
 	notifyModeActive string
 	endOfTurnRe      *regexp.Regexp
 	idleS            time.Duration
+
+	// Stdin Return-key remap. Zero-value (empty plainCR + altCR) means
+	// pass-through. Populated from sendKeymapByAgent unless the user
+	// opts out via PAIR_WRAP_REMAP_RETURN=0.
+	sendKM sendKeymap
 
 	// Scrollback log (-1 / nil when disabled)
 	scrollbackFD    *os.File
@@ -595,6 +629,269 @@ func bytesReplaceAll(b []byte, c byte) []byte {
 	return out
 }
 
+// ----- Stdin Return-key remap -------------------------------------------------
+
+// Bracketed-paste markers. Modern terminals wrap pasted text in
+// ESC[200~ ... ESC[201~ when DECSET 2004 is active. Claude (and most
+// modern TUIs) enables it. We MUST NOT rewrite \r bytes inside a paste
+// — those are literal newlines from the source content, not user
+// keystrokes that mean "send."
+var (
+	bpStart = []byte("\x1b[200~")
+	bpEnd   = []byte("\x1b[201~")
+)
+
+// Enter / Alt+Enter byte sequences across the two protocols modern
+// terminals use:
+//
+//   - Legacy ("cooked"): plain Enter = \r, Alt+Enter = \x1b\r.
+//   - Kitty keyboard protocol (KKP): plain Enter = \x1b[13u (or the
+//     explicit-no-modifier form \x1b[13;1u), Alt+Enter = \x1b[13;3u
+//     (modifier param 3 = alt). Claude enables KKP when it starts; if
+//     the host terminal supports it (Ghostty, kitty, WezTerm, recent
+//     iTerm) the user's keystrokes arrive in this form instead of the
+//     legacy bytes.
+//
+// pair-wrap must recognize both — the user can't be expected to know
+// which protocol their terminal is negotiating. Matching is greedy on
+// the longer KKP forms first so e.g. \x1b[13;3u doesn't get partially
+// matched as \x1b[13u.
+var (
+	enterLegacyPlain = []byte("\r")
+	enterLegacyAlt   = []byte("\x1b\r")
+	enterKKPPlain    = []byte("\x1b[13u")
+	enterKKPPlainExp = []byte("\x1b[13;1u") // explicit-no-modifier form
+	enterKKPAlt      = []byte("\x1b[13;3u")
+)
+
+// holdbackPatterns lists every multi-byte marker the translator might
+// need to complete across a chunk boundary. If a chunk ends with bytes
+// that form a strict prefix of any pattern here, hold those bytes back
+// to the next read.
+var holdbackPatterns = [][]byte{
+	bpStart, bpEnd,
+	enterKKPPlain, enterKKPPlainExp, enterKKPAlt,
+	enterLegacyAlt,
+}
+
+// translateStdin replaces the io.Copy(ptmx, os.Stdin) pass-through with
+// a byte-stream translator that rewrites Return / Alt+Return per the
+// resolved per-agent sendKM, while honoring bracketed-paste mode so
+// pasted multi-line text passes through unchanged.
+//
+// State machine (one buffered read at a time):
+//   - if we're inside a bracketed paste, scan for the end marker and
+//     forward bytes verbatim until it arrives
+//   - otherwise, look for: bpStart (enters paste), `\x1b\r` (Alt+Enter
+//     → altCR), or `\r` (Enter → plainCR)
+//   - a stray ESC at the very tail might be the start of a longer
+//     sequence (Alt+Enter, bpStart, or any other CSI). Carry it over
+//     to the next read instead of misclassifying it as "Esc alone."
+//     Cap the carryover at 64 B so a malformed stream can't grow it
+//     without bound.
+func (p *proxy) translateStdin() {
+	buf := make([]byte, 4096)
+	var pending []byte
+	inPaste := false
+	for {
+		n, err := os.Stdin.Read(buf)
+		if n > 0 {
+			data := buf[:n]
+			if len(pending) > 0 {
+				data = append(pending, data...)
+				pending = nil
+			}
+			out, leftover, newInPaste := p.translateChunk(data, inPaste)
+			inPaste = newInPaste
+			pending = leftover
+			if len(out) > 0 {
+				if _, werr := p.ptmx.Write(out); werr != nil {
+					return
+				}
+			}
+		}
+		if err != nil {
+			// Flush whatever pending we held back — at EOF nothing more
+			// is coming to complete the escape, so emit it verbatim.
+			if len(pending) > 0 {
+				_, _ = p.ptmx.Write(pending)
+			}
+			return
+		}
+	}
+}
+
+// translateChunk walks `data` and returns (rewritten bytes, leftover to
+// carry over, new bracketed-paste state). `leftover` is non-nil only
+// when the chunk ends mid-escape that could still resolve into bpStart,
+// bpEnd, or an Alt+Enter — the caller prepends it to the next read.
+func (p *proxy) translateChunk(data []byte, inPaste bool) ([]byte, []byte, bool) {
+	out := make([]byte, 0, len(data))
+	i := 0
+	for i < len(data) {
+		if inPaste {
+			// Scan for end-of-paste marker. Anything before it is
+			// literal pasted content — forward verbatim.
+			if idx := indexOfSubseq(data[i:], bpEnd); idx >= 0 {
+				out = append(out, data[i:i+idx+len(bpEnd)]...)
+				i += idx + len(bpEnd)
+				inPaste = false
+				continue
+			}
+			// Marker not in this chunk. Forward everything but hold back
+			// a trailing partial ESC[201~ in case it splits the boundary.
+			tail := trailingPartial(data[i:], bpEnd)
+			out = append(out, data[i:len(data)-tail]...)
+			leftover := append([]byte(nil), data[len(data)-tail:]...)
+			return out, leftover, true
+		}
+
+		b := data[i]
+		// Outside paste: scan for the multi-byte markers and the
+		// single-byte plain Enter. Longer KKP forms come first so a
+		// 7-byte \x1b[13;3u doesn't get partially matched as the
+		// 5-byte \x1b[13u.
+		if b == 0x1b {
+			if startsWith(data[i:], bpStart) {
+				out = append(out, bpStart...)
+				i += len(bpStart)
+				inPaste = true
+				continue
+			}
+			// KKP Alt+Enter: \x1b[13;3u → send.
+			if startsWith(data[i:], enterKKPAlt) {
+				out = append(out, p.sendKM.altCR...)
+				i += len(enterKKPAlt)
+				continue
+			}
+			// KKP plain Enter, explicit-no-modifier form: \x1b[13;1u.
+			if startsWith(data[i:], enterKKPPlainExp) {
+				out = append(out, p.sendKM.plainCR...)
+				i += len(enterKKPPlainExp)
+				continue
+			}
+			// KKP plain Enter: \x1b[13u.
+			if startsWith(data[i:], enterKKPPlain) {
+				out = append(out, p.sendKM.plainCR...)
+				i += len(enterKKPPlain)
+				continue
+			}
+			// Legacy Alt+Enter: \x1b\r.
+			if startsWith(data[i:], enterLegacyAlt) {
+				out = append(out, p.sendKM.altCR...)
+				i += len(enterLegacyAlt)
+				continue
+			}
+			// Could the chunk-tail still grow into one of our markers
+			// on the next read? Hold back only if data[i:] is a strict
+			// prefix of *some* known pattern — unrelated escapes (arrow
+			// keys, CSI sequences, etc.) pass through.
+			held := false
+			for _, pat := range holdbackPatterns {
+				if isPrefixOf(data[i:], pat) {
+					held = true
+					break
+				}
+			}
+			if held {
+				return out, append([]byte(nil), data[i:]...), false
+			}
+			// Lone trailing ESC could be the first byte of an Alt+Enter
+			// arriving across a chunk boundary; hold it back.
+			if i == len(data)-1 {
+				return out, append([]byte(nil), data[i:]...), false
+			}
+			// Some other escape — pass the ESC byte through and let
+			// the next iteration handle the rest of the sequence
+			// naturally (each byte after ESC isn't special to us).
+			out = append(out, b)
+			i++
+			continue
+		}
+		if b == '\r' {
+			out = append(out, p.sendKM.plainCR...)
+			i++
+			continue
+		}
+		out = append(out, b)
+		i++
+	}
+	return out, nil, inPaste
+}
+
+// startsWith reports whether b starts with prefix.
+func startsWith(b, prefix []byte) bool {
+	if len(b) < len(prefix) {
+		return false
+	}
+	for i := range prefix {
+		if b[i] != prefix[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// isPrefixOf reports whether short is a (possibly equal) prefix of long.
+// Used to decide whether a chunk-tail could grow into a known marker
+// (bpStart/bpEnd) on the next read, vs being some unrelated escape.
+func isPrefixOf(short, long []byte) bool {
+	if len(short) > len(long) {
+		return false
+	}
+	for i := range short {
+		if short[i] != long[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// indexOfSubseq returns the index of the first occurrence of needle in
+// haystack, or -1.
+func indexOfSubseq(haystack, needle []byte) int {
+	if len(needle) == 0 {
+		return 0
+	}
+	for i := 0; i+len(needle) <= len(haystack); i++ {
+		match := true
+		for j := range needle {
+			if haystack[i+j] != needle[j] {
+				match = false
+				break
+			}
+		}
+		if match {
+			return i
+		}
+	}
+	return -1
+}
+
+// trailingPartial returns the count of bytes at the tail of b that form
+// a strict prefix of needle. Used to hold back potentially-split
+// markers across chunk boundaries.
+func trailingPartial(b, needle []byte) int {
+	maxK := len(needle) - 1
+	if maxK > len(b) {
+		maxK = len(b)
+	}
+	for k := maxK; k > 0; k-- {
+		tail := b[len(b)-k:]
+		match := true
+		for i := 0; i < k; i++ {
+			if tail[i] != needle[i] {
+				match = false
+				break
+			}
+		}
+		if match {
+			return k
+		}
+	}
+	return 0
+}
+
 // ----- Scrollback log ---------------------------------------------------------
 
 // logScrollbackEvent writes one JSON record keyed by current
@@ -740,6 +1037,18 @@ argsDone:
 		p.idleS = 0
 	}
 
+	// Resolve the per-agent stdin Return-key keymap unless the user has
+	// disabled the rewrite via PAIR_WRAP_REMAP_RETURN=0. Empty struct
+	// means pass-through.
+	if os.Getenv("PAIR_WRAP_REMAP_RETURN") != "0" {
+		if km, ok := sendKeymapByAgent[p.agentBasename]; ok {
+			p.sendKM = km
+			p.debug("REMAP-return", fmt.Sprintf(
+				"%s: Enter→%q  Alt+Enter→%q",
+				p.agentBasename, string(km.plainCR), string(km.altCR)))
+		}
+	}
+
 	writeStartupBanner()
 
 	// Spawn child in a fresh PTY.
@@ -821,7 +1130,12 @@ argsDone:
 	go func() {
 		// stdin → master. EOF on stdin doesn't kill the proxy — the child
 		// may still be producing output. We just stop forwarding.
-		_, _ = io.Copy(ptmx, os.Stdin)
+		if p.sendKM.plainCR == nil && p.sendKM.altCR == nil {
+			// No remap configured — fast pass-through.
+			_, _ = io.Copy(ptmx, os.Stdin)
+		} else {
+			p.translateStdin()
+		}
 		close(stdinDone)
 	}()
 
