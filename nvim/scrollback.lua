@@ -242,6 +242,45 @@ end
 -- UTF-8-aware so we use the literal byte sequence with `find(..., 1, true)`.
 local MARKER_BOT = '\240\159\164\150'
 
+-- Per-agent user-prompt marker. Used by Alt+b to skip backward through
+-- the user's turns in the scrollback. vim's regex engine (which
+-- vim.fn.search uses) is UTF-8 aware, so the literal character in the
+-- pattern works. Each agent paints its prompt-input line with a
+-- distinct leading glyph:
+--   claude — ❯  (U+276F, HEAVY RIGHT-POINTING ANGLE QUOTATION MARK)
+--   codex  — ›  (U+203A, SINGLE RIGHT-POINTING ANGLE QUOTATION MARK)
+--   gemini — leading space + `>` (no glyph; matches the indented `> `
+--            input row gemini renders below its border)
+-- Lookup falls back to claude's pattern so unknown agents still get a
+-- useful default.
+local PROMPT_PATTERN_BY_AGENT = {
+  claude = [[^❯]],
+  codex  = [[^›]],
+  gemini = [[^ >]],
+}
+
+local function prompt_pattern()
+  local agent = vim.env.PAIR_AGENT or ''
+  return PROMPT_PATTERN_BY_AGENT[agent] or PROMPT_PATTERN_BY_AGENT.claude
+end
+
+-- Alt+b / Alt+Shift+B: search backward / forward for the next line
+-- starting with the per-agent prompt marker. Lands on the prompt line
+-- and pulls it to the top of the window (zt) so the response below
+-- stays in view. No-wrap: hitting either end of scrollback with no
+-- further matches reports "no {previous,next} prompt" rather than
+-- silently jumping to the other end.
+local function jump_to_prompt(direction)
+  local pat = prompt_pattern()
+  -- 'b' = backward, omitted = forward. 'W' = no wrap.
+  local flags = (direction == 'prev') and 'bW' or 'W'
+  if vim.fn.search(pat, flags) == 0 then
+    vim.notify('no ' .. direction .. ' prompt', vim.log.levels.INFO)
+  else
+    vim.cmd('normal! zt')
+  end
+end
+
 -- Escape/unescape so user-supplied X (selection) and Y (comment) can
 -- contain the marker delimiters `>` and `]` without prematurely
 -- terminating the surrounding `<...>[...]` brackets. Backslash is the
@@ -498,6 +537,20 @@ vim.api.nvim_create_autocmd('BufReadPost', {
                    { buffer = bufnr, silent = true })
     vim.keymap.set('x', '<M-q>', function() add_marker_visual(bufnr) end,
                    { buffer = bufnr, silent = true })
+    vim.keymap.set('n', '<M-b>', function() jump_to_prompt('prev') end,
+                   { buffer = bufnr, silent = true })
+    vim.keymap.set('n', '<M-B>', function() jump_to_prompt('next') end,
+                   { buffer = bufnr, silent = true })
+    -- Open at the *bottom* of the scrollback — the agent's most recent
+    -- output is what the user just saw vanish off the top of the pane;
+    -- opening anywhere else makes them hit G first. `zb` forces the
+    -- last line to the bottom of the window so the maximum amount of
+    -- preceding context stays visible.
+    local last = vim.api.nvim_buf_line_count(bufnr)
+    if last > 0 then
+      pcall(vim.api.nvim_win_set_cursor, 0, { last, 0 })
+      vim.cmd('normal! zb')
+    end
   end,
 })
 
@@ -526,4 +579,4 @@ vim.opt.signcolumn = 'no'
 vim.opt.foldcolumn = '0'
 vim.opt.cursorline = true
 vim.opt.laststatus = 2
-vim.opt.statusline = ' pair scrollback · q/Esc quit · Alt+q 🤖[] · :N jump %= L%l/%L '
+vim.opt.statusline = ' pair scrollback · q/Esc quit · Alt+q 🤖[] · Alt+b/B prev/next prompt · :N jump %= L%l/%L '
