@@ -13,7 +13,7 @@ bin/pair                     # entry point (launcher)
 bin/clipboard-to-pane.sh     # read clipboard, hand off to nvim's PairPasteQuote
 bin/copy-on-select.sh        # invoked by zellij copy_command on mouse-up
 bin/pair-quit.sh             # invoked by Alt+x — marks + kills session
-bin/pair-restart.sh          # invoked by Alt+n — marks (quit + restart) + kills session
+bin/pair-restart.sh          # invoked by Alt+n / Shift+Alt+N — marks (quit + restart) + kills session
 bin/pair-session-watch.sh    # captures codex/gemini session id at create time (#000016, #000020)
 bin/pair-wrap                # PTY proxy: OSC translation + scrollback capture
 bin/pair-notify              # hook-driven OSC notifier (e.g. claude Notification)
@@ -52,7 +52,12 @@ Detection of attached-vs-detached uses `zellij --session NAME action list-client
 
 **Startup orphan sweep.** The Alt+x reaper only runs when the user quit through pair. External terminations (`zellij kill-session`, host reboot during a session, pair upgrade mid-session) leave the embed orphaned with no marker. `sweep_orphan_nvim` runs once per `pair` invocation, just after the live pair-session list is computed: it collects candidate tags from both pidfiles and the argv of every running `nvim --embed` referencing `$DATA_DIR/`, then calls `reap_nvim_for_tag` on any tag whose `pair-<tag>` session is no longer alive. The argv walk is what catches embeds with no pidfile (autocmd errored before VimEnter, or panes that predate the autocmd). The same `reap_nvim_for_tag` is shared with `cleanup_quit_marker`, so there's exactly one reaper definition; adding a new nvim surface in pair means routing it through `$PAIR_NVIM_PID_FILE` and naming it under `$DATA_DIR/{draft,scrollback}-<tag>...`, not extending the reaper.
 
-**Restart in place (Alt+n).** A second marker, `~/.cache/pair/restart-<session>`, is written alongside `quit-` by `bin/pair-restart.sh`. After cleanup_quit_marker tears the session down, `handle_restart_marker` reads the captured agent name from the restart marker, drops the per-(tag,agent) config so the relaunched run starts a fresh agent conversation, then `exec`s pair on itself with `PAIR_FORCE_TAG=<same-tag>` set in the env. The `PAIR_FORCE_TAG` hook in argv parsing pins the new run to the killed session's tag, skipping both the picker and the name prompt — so Alt+n is a one-keystroke "wipe agent state, keep my draft and tag" loop.
+**Reload / restart in place (Alt+n, Shift+Alt+N).** A second marker, `~/.cache/pair/restart-<session>`, is written alongside `quit-` by `bin/pair-restart.sh`, carrying the agent name + a `new_session` flag. After cleanup_quit_marker tears the session down, `handle_restart_marker` reads the marker and `exec`s pair on itself with `PAIR_FORCE_TAG=<same-tag>` set in the env (pins the new run to the killed session's tag, skipping both the picker and the name prompt). The flag controls what happens to the saved config:
+
+- `new_session=0` (Alt+n) — keep `config-<tag>-<agent>.json`. Append the agent-appropriate resume token to the re-exec'd argv: `--resume <id>` for claude/gemini, `resume <id>` for codex. Result: pure pair reload — same tag, same draft, same agent conversation. Useful after a binary or config rebuild.
+- `new_session=1` (Shift+Alt+N) — drop `config-<tag>-<agent>.json` so the next launch's claude `--session-id` injection (or the codex/gemini watcher) writes a brand-new entry. Result: fresh agent conversation, same tag and draft.
+
+The picker is bypassed in either flavor — Alt+n's argv carries an explicit resume token, and Shift+Alt+N has no saved config to pick against.
 
 ### `zellij/layouts/main.kdl` — pane split + swap-layout ladder
 
@@ -83,7 +88,8 @@ Keybinds added on top of zellij defaults (`clear-defaults=false`):
 - Mode-locking — every default chord that would switch zellij modes (`Ctrl+g/p/t/n/h/s/o/b`) is unbound, and `Ctrl+q` (zellij's resurrect-leaving Quit) is unbound too — Alt+x is the only quit path.
 - `Alt+d` — routed through nvim to `:lua PairConfirmDetach()` — Y/N modal then detach.
 - `Alt+x` — routed through nvim to `:lua PairConfirmQuit()` — Y/N modal then `pair-quit.sh` (full quit).
-- `Alt+n` — routed through nvim to `:lua PairConfirmRestart()` — Y/N modal then `pair-restart.sh` (restart in place; see "Restart in place" under `bin/pair`).
+- `Alt+n` — routed through nvim to `:lua PairConfirmRestart()` — Y/N modal then `pair-restart.sh` (reload pair, keep agent session).
+- `Shift+Alt+N` — routed through nvim to `:lua PairConfirmRestartNewSession()` — Y/N modal then `pair-restart.sh --new-session` (restart with a fresh agent conversation). See "Reload / restart in place" under `bin/pair`.
 - `Alt+h` — `Run "pair-help" { floating true; close_on_exit true; ... }` — pops a floating pane running `pair -h | less`.
 - `Alt+↑` / `Alt+↓` — route to nvim's `PairLayoutBigger` / `PairLayoutSmaller` — step the nvim pane along the swap-layout ladder (`minimized ↔ small (10 rows) ↔ half`).
 
@@ -216,7 +222,7 @@ Loaded via `nvim -u`, fully isolated from the user's main nvim config. Provides:
 - All autocmds live in the `pair` augroup (`clear=true`), so iterating via `:luafile $PAIR_HOME/nvim/init.lua` reloads cleanly without duplicating handlers.
 - **Layout ladder** — `PairLayoutBigger` / `PairLayoutSmaller` derive the current rung from `vim.o.lines` (the kdl pins each rung to an exact size — 1 / 10 / 50% — so nvim's pane height is ground truth) and call `zellij action next-swap-layout` / `previous-swap-layout` accordingly. Reading actual height makes drift self-correcting: a silently-rejected swap can't desync state, since the next press recomputes from reality rather than a counter that was incremented optimistically. `pair_layout_state` mirrors the rung in-memory for callers like `pair_spinner_start` and `pair_ensure_visible_then` to check without re-reading; an on-disk copy at `${XDG_DATA_HOME:-~/.local/share}/pair/layout-mode-<tag>` is purely diagnostic. Landing in `minimized` also `MoveFocus`es up to the agent pane (the draft is unusable at 1 row) and the focus-grab spinner suppresses itself when `pair_layout_state == 'minimized'`.
 - **Statusline cheatsheet (right-aligned, progressive disclosure).** `PAIR_CHEATS` lists `Alt+h help`, `Alt+⏎ send`, `Alt+q queue`, `Alt+x quit`, `Alt+d detach` in priority order. `pair_compose_statusline` measures the variable left segment (history/queue/position cluster), reserves a 6-cell minimum gap, and accumulates as many cheat entries as fit in the remaining columns — Alt+h is always the last entry to drop. Spinner takes the right slot when active (vim only honors a single `%=` per statusline). The minimized rung shows a standalone "Alt+↑ for pair input box" hint instead, with 4 leading spaces so the terminal cursor (which lands on the statusline row when the buffer has zero visible lines) sits on whitespace rather than the hint text.
-- **Alt+x / Alt+d / Alt+n confirm modals.** `PairConfirmQuit` / `PairConfirmDetach` / `PairConfirmRestart` shell out to `pair-quit.sh` / `zellij action detach` / `pair-restart.sh` after a Y/N modal that defaults to No. All three are wrapped in `pair_ensure_visible_then`, which auto-grows out of `minimized` (calls `PairLayoutBigger` and defers the modal 100ms) so the prompt renders on visible rows.
+- **Alt+x / Alt+d / Alt+n / Shift+Alt+N confirm modals.** `PairConfirmQuit` / `PairConfirmDetach` / `PairConfirmRestart` / `PairConfirmRestartNewSession` shell out to `pair-quit.sh` / `zellij action detach` / `pair-restart.sh` / `pair-restart.sh --new-session` after a Y/N modal that defaults to No. All four are wrapped in `pair_ensure_visible_then`, which auto-grows out of `minimized` (calls `PairLayoutBigger` and defers the modal 100ms) so the prompt renders on visible rows. The two restart modals share a single `pair_confirm_restart_impl(new_session)` helper.
 
 ### Prompt history & queue (issue #000015)
 
@@ -275,11 +281,14 @@ Implementation in `nvim/init.lua`: see helpers grouped under `is_dirty_history_s
 
 ## Quit / restart semantics
 
-Three ways to end a session, with different aftermath:
+Four ways to end (or refresh) a session, with different aftermath:
 
 - **Alt+d** — detach. The session keeps running (claude/nvim processes alive); `pair` surfaces it in the picker for re-attach.
 - **Alt+x** — full quit. Kills the session AND removes the resurrect entry. After Alt+x, the session is fully gone (but the `config-<tag>-<agent>.json` survives, so `pair resume <tag>` later replays the saved launch args + agent session id).
-- **Alt+n** — restart in place. Kills the session AND drops the saved `config-<tag>-<agent>.json` AND immediately re-launches pair on the same tag with the same agent + args, but a fresh agent conversation. Mechanically two markers (`quit-` + `restart-`) plus a `PAIR_FORCE_TAG` env var on re-exec; see the launcher's "Restart in place" section.
+- **Alt+n** — reload pair. Kills the session AND keeps the saved `config-<tag>-<agent>.json` AND re-launches pair on the same tag with the same agent + args + agent session: the conversation resumes via `--resume <id>` (claude/gemini) or `resume <id>` (codex). Pair itself is the only thing that restarts — useful after a binary or config rebuild.
+- **Shift+Alt+N** — restart with a fresh agent conversation. Same as Alt+n but drops `config-<tag>-<agent>.json` first, so the relaunched agent starts a brand-new session.
+
+Mechanically Alt+n and Shift+Alt+N share two markers (`quit-` + `restart-`) plus a `PAIR_FORCE_TAG` env var on re-exec; the restart marker carries a `new_session` flag that selects the keep-vs-drop branch. See the launcher's "Reload / restart in place" section.
 
 All three route through a Y/N confirm modal in nvim before firing, so a single fat-finger Alt-key can't tear the session down. The lua side auto-grows the nvim pane out of the `minimized` rung first, so the modal lands on visible rows.
 
@@ -359,9 +368,9 @@ The launcher exports `$PAIR_DATA_DIR` so `nvim/init.lua` can compute the same pa
 
 Per-tag files mean `pair claude`, `pair codex`, and a custom-named `pair-bugfix` (entered at the prompt) all have independent draft state.
 
-Internal: `~/.cache/pair/quit-<session>` — marker file used to communicate "user asked for full quit" between `pair-quit.sh` (or `pair-restart.sh`) and the launcher. Touched on Alt+x or Alt+n, removed by the launcher after delete-session.
+Internal: `~/.cache/pair/quit-<session>` — marker file used to communicate "user asked for full quit" between `pair-quit.sh` (or `pair-restart.sh`) and the launcher. Touched on Alt+x, Alt+n, and Shift+Alt+N; removed by the launcher after delete-session.
 
-Internal: `~/.cache/pair/restart-<session>` — marker written alongside `quit-` by `pair-restart.sh` (Alt+n only). Holds the captured agent name as `key=value` lines so the launcher can reconstruct the relaunch params after `cleanup_quit_marker` has wiped `agent-<tag>`. Removed by `handle_restart_marker` immediately before `exec`-ing pair on itself.
+Internal: `~/.cache/pair/restart-<session>` — marker written alongside `quit-` by `pair-restart.sh` (Alt+n / Shift+Alt+N). Holds `tag`, `agent`, and `new_session` (0 = keep config and resume, 1 = drop config and start fresh) as `key=value` lines so the launcher can reconstruct the relaunch params after `cleanup_quit_marker` has wiped `agent-<tag>`. Removed by `handle_restart_marker` immediately before `exec`-ing pair on itself.
 
 Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/outer-tty-<tag>` — single-line file containing the path to pair's controlling TTY at attach time. Read by `pair-notify` to emit OSC escapes that reach the outer terminal/wrapper. Rewritten on every attach (create or reattach); removed on full quit.
 

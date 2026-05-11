@@ -114,14 +114,19 @@ KEYBINDINGS (inside a pair session)
   Alt+↑ / Alt+↓ step nvim pane along minimized ↔ 10 lines ↔ 1/2 ladder
                 (works from either pane). minimized = statusline only;
                 Alt+↑ from there grows the pane back. Confirm-requiring
-                keys (Alt+x/d/n) auto-grow out of minimized first so the
-                prompt is visible.
+                keys (Alt+x/d/n/N) auto-grow out of minimized first so
+                the prompt is visible.
   Alt+d         detach from session (re-attach later via `pair`)
   Alt+x         full quit — kill session and remove from resurrect list
                 (Ctrl+q is unbound; Alt+x is the only quit path)
-  Alt+n         restart — kill the session and re-launch in place with
-                the same tag and agent args, but a fresh agent
-                conversation (saved per-(tag,agent) config dropped)
+  Alt+n         reload pair — kill the session and re-launch in place
+                with the same tag, agent, args, AND agent session.
+                The conversation resumes; pair itself is the only
+                thing that restarts (useful after a config or binary
+                rebuild)
+  Shift+Alt+N   restart with a fresh agent conversation — same tag,
+                agent, and args, but the saved per-(tag,agent) config
+                is dropped so the agent starts a brand-new session
   Alt+h         pop up this help in a floating pane (press `q` to dismiss)
   Alt+i         attach clipboard image to agent + insert whatever marker
                 the agent renders (e.g. claude `[Image #N]`, gemini
@@ -315,10 +320,11 @@ for arg in "$@"; do
     fi
 done
 
-# PAIR_FORCE_TAG is set by the Alt+n restart flow (handle_restart_marker
-# below): it pins the new run to the same tag as the killed session,
-# skipping both the picker and the name prompt. Treated as forced_tag from
-# here on; unset so a child process doesn't inherit it.
+# PAIR_FORCE_TAG is set by the Alt+n / Shift+Alt+N restart flow
+# (handle_restart_marker below): it pins the new run to the same tag as
+# the killed session, skipping both the picker and the name prompt.
+# Treated as forced_tag from here on; unset so a child process doesn't
+# inherit it.
 if [ -z "$forced_tag" ] && [ -n "${PAIR_FORCE_TAG:-}" ]; then
     forced_tag="$PAIR_FORCE_TAG"
 fi
