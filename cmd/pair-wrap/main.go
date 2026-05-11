@@ -122,7 +122,18 @@ type sendKeymap struct {
 
 var sendKeymapByAgent = map[string]sendKeymap{
 	"claude": {
+		// Claude reads `\<Enter>` as newline regardless of terminal
+		// keyboard-protocol level — the documented portable path.
 		plainCR: []byte{'\\', '\r'},
+		altCR:   []byte{'\r'},
+	},
+	"codex": {
+		// Codex follows the textbook chat-UI convention: Enter = send,
+		// Shift+Enter = newline. Under Ghostty's KKP level-1
+		// negotiation, Shift+Enter comes through as a literal LF
+		// (\n) and plain Enter stays as \r. Probed via
+		// PAIR_WRAP_LOG=… PAIR_WRAP_REMAP_RETURN=0.
+		plainCR: []byte{'\n'},
 		altCR:   []byte{'\r'},
 	},
 }
@@ -1131,8 +1142,27 @@ argsDone:
 		// stdin → master. EOF on stdin doesn't kill the proxy — the child
 		// may still be producing output. We just stop forwarding.
 		if p.sendKM.plainCR == nil && p.sendKM.altCR == nil {
-			// No remap configured — fast pass-through.
-			_, _ = io.Copy(ptmx, os.Stdin)
+			// No remap configured. Pass-through, but log raw chunks
+			// when PAIR_WRAP_LOG is set — useful for probing what
+			// bytes a terminal sends for a given keystroke (e.g.
+			// figuring out a new agent's send/newline encoding).
+			if p.debugLogPath != "" {
+				buf := make([]byte, 4096)
+				for {
+					n, err := os.Stdin.Read(buf)
+					if n > 0 {
+						p.debug("STDIN", fmt.Sprintf("%q", buf[:n]))
+						if _, werr := ptmx.Write(buf[:n]); werr != nil {
+							break
+						}
+					}
+					if err != nil {
+						break
+					}
+				}
+			} else {
+				_, _ = io.Copy(ptmx, os.Stdin)
+			}
 		} else {
 			p.translateStdin()
 		}
