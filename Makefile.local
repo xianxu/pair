@@ -129,7 +129,7 @@ pair-bootstrap:
 # they reuse it instead of erroring.
 # ----------------------------------------------------------------------------
 
-TART_BASE ?= ghcr.io/cirruslabs/macos-sequoia-base:latest
+TART_BASE ?= ghcr.io/cirruslabs/macos-tahoe-base:latest
 TART_VM   ?= pair-test
 
 # Common preamble: tart present, base pulled, VM cloned (idempotent).
