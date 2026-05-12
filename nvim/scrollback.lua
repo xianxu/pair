@@ -339,7 +339,13 @@ local function find_unescaped(line, char, start_pos)
   end
 end
 
--- Walk one line, return every marker as { kind, X?, Y, range = {byte_lo, byte_hi} }.
+-- Walk one line, return every marker as { kind, X?, Y, range, parts }.
+--   range = { byte_lo, byte_hi } — 1-based, inclusive, covers the whole marker.
+--   parts = byte ranges of each colored component (for the highlighter):
+--     bare:   { robot, lb, y, rb }
+--     scoped: { robot, lt, x, gt, lb, y, rb }
+--   each part is { lo, hi } 1-based inclusive; an empty X yields lo > hi
+--   (caller skips zero-width parts).
 -- Pure function — exposed so headless tests can exercise it without a buffer.
 local function find_markers_in_line(line)
   local out = {}
@@ -359,6 +365,15 @@ local function find_markers_in_line(line)
             X = unescape(line:sub(after + 1, close_q - 1)),
             Y = unescape(line:sub(close_q + 2, close_b - 1)),
             range = { s, close_b },
+            parts = {
+              robot = { s, s + #MARKER_BOT - 1 },
+              lt    = { after, after },
+              x     = { after + 1, close_q - 1 },
+              gt    = { close_q, close_q },
+              lb    = { close_q + 1, close_q + 1 },
+              y     = { close_q + 2, close_b - 1 },
+              rb    = { close_b, close_b },
+            },
           })
           consumed = close_b + 1
         end
@@ -370,6 +385,12 @@ local function find_markers_in_line(line)
           kind = 'bare',
           Y = unescape(line:sub(after + 1, close_b - 1)),
           range = { s, close_b },
+          parts = {
+            robot = { s, s + #MARKER_BOT - 1 },
+            lb    = { after, after },
+            y     = { after + 1, close_b - 1 },
+            rb    = { close_b, close_b },
+          },
         })
         consumed = close_b + 1
       end
@@ -377,6 +398,53 @@ local function find_markers_in_line(line)
     i = consumed or (s + #MARKER_BOT)
   end
   return out
+end
+
+-- 🤖[] marker syntax highlighting. Separate namespace from the SGR ANSI
+-- decoration so we can re-render markers (after each Alt+q insertion)
+-- without rebuilding the much larger SGR span set. `default = true`
+-- lets a colorscheme override; the fallback links keep things readable
+-- against most schemes without picking absolute colors.
+vim.api.nvim_set_hl(0, 'PairRobotIcon',      { default = true, link = 'Special'    })
+vim.api.nvim_set_hl(0, 'PairRobotBracket',   { default = true, link = 'Delimiter'  })
+vim.api.nvim_set_hl(0, 'PairRobotSelection', { default = true, link = 'String'     })
+vim.api.nvim_set_hl(0, 'PairRobotComment',   { default = true, link = 'Identifier', bold = true })
+
+-- Re-render 🤖[] markers across the buffer (or a single line range).
+-- Cheap enough to run on every Alt+q insertion since markers are
+-- typically a handful per buffer; if that ever stops being true,
+-- pass `lo, hi` to scope to the modified line.
+local function highlight_markers(bufnr, lo, hi)
+  local ns = vim.api.nvim_create_namespace('pair_scrollback_markers')
+  lo = lo or 0
+  hi = hi or -1
+  vim.api.nvim_buf_clear_namespace(bufnr, ns, lo, hi)
+  local lines = vim.api.nvim_buf_get_lines(bufnr, lo, hi, false)
+  local function emit(row, part, hl)
+    -- Skip empty parts (e.g. scoped marker with empty X) — col_start ==
+    -- col_end is a no-op extmark but we save the API call.
+    if part[2] < part[1] then return end
+    vim.api.nvim_buf_set_extmark(bufnr, ns, row, part[1] - 1, {
+      end_col = part[2],
+      hl_group = hl,
+      priority = 200,  -- above SGR (default 0/100ish) so colors win
+    })
+  end
+  for offset, line in ipairs(lines) do
+    local row = lo + offset - 1
+    for _, m in ipairs(find_markers_in_line(line)) do
+      local p = m.parts
+      emit(row, p.robot, 'PairRobotIcon')
+      emit(row, p.lb,    'PairRobotBracket')
+      emit(row, p.y,     'PairRobotComment')
+      emit(row, p.rb,    'PairRobotBracket')
+      if m.kind == 'scoped' then
+        emit(row, p.lt, 'PairRobotBracket')
+        emit(row, p.x,  'PairRobotSelection')
+        emit(row, p.gt, 'PairRobotBracket')
+      end
+    end
+  end
 end
 
 -- Remove every marker from `line` (back-to-front so earlier ranges stay
@@ -450,6 +518,7 @@ local function add_marker_normal(bufnr)
   vim.api.nvim_buf_set_lines(bufnr, row - 1, row, false, { line .. sep .. marker })
   vim.bo[bufnr].modifiable = false
   vim.bo[bufnr].readonly   = true
+  highlight_markers(bufnr, row - 1, row)
 end
 
 local function add_marker_visual(bufnr)
@@ -485,6 +554,7 @@ local function add_marker_visual(bufnr)
   vim.api.nvim_buf_set_lines(bufnr, sr - 1, sr, false, { before .. marker .. after })
   vim.bo[bufnr].modifiable = false
   vim.bo[bufnr].readonly   = true
+  highlight_markers(bufnr, sr - 1, sr)
 end
 
 -- Sidecar path the draft nvim picks up on FocusGained. Resolved at
@@ -519,6 +589,7 @@ vim.api.nvim_create_autocmd('BufReadPost', {
   callback = function(args)
     local bufnr = args.buf
     decorate_buffer(bufnr)
+    highlight_markers(bufnr)
     vim.bo[bufnr].modifiable = false
     vim.bo[bufnr].readonly = true
     vim.bo[bufnr].buftype = 'nofile'  -- prevent accidental :w
