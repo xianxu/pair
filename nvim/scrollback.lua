@@ -598,12 +598,15 @@ vim.api.nvim_create_autocmd('BufReadPost', {
     -- buftype='nofile' alone is fragile — any plugin spawning a scratch
     -- nofile buffer would shadow ours. Tag the one we own.
     vim.b[bufnr].pair_scrollback = true
-    -- Two quit keys: `q` (less-style, fast — no Esc-prefix timeout)
-    -- and `<Esc>` (more vim/idiomatic for a read-only viewer; matches
-    -- the pair-help less binding). Esc only in normal mode so visual-
-    -- mode selection still cancels via Esc as usual.
-    vim.keymap.set('n', 'q', '<cmd>qa<CR>', { buffer = bufnr, silent = true })
+    -- ESC is the only quit binding. `q` was tempting (less-style, no
+    -- Esc-prefix timeout) but a fat-fingered `q` instead of `Alt+q`
+    -- (the marker-comment binding) was a frequent footgun — one
+    -- mistype and the viewer slammed shut, dropping any pending
+    -- markers along with the session. Built-in `ZZ` / `ZQ` are
+    -- shadowed with no-ops for the same reason.
     vim.keymap.set('n', '<Esc>', '<cmd>qa<CR>', { buffer = bufnr, silent = true })
+    vim.keymap.set('n', 'ZZ', '<nop>', { buffer = bufnr, silent = true })
+    vim.keymap.set('n', 'ZQ', '<nop>', { buffer = bufnr, silent = true })
     vim.keymap.set('n', '<M-q>', function() add_marker_normal(bufnr) end,
                    { buffer = bufnr, silent = true })
     vim.keymap.set('x', '<M-q>', function() add_marker_visual(bufnr) end,
@@ -650,4 +653,4 @@ vim.opt.signcolumn = 'no'
 vim.opt.foldcolumn = '0'
 vim.opt.cursorline = true
 vim.opt.laststatus = 2
-vim.opt.statusline = ' pair scrollback · q/Esc quit · Alt+q 🤖[] · Alt+b/B prev/next prompt · :N jump %= L%l/%L '
+vim.opt.statusline = ' pair scrollback · Esc quit · Alt+q 🤖[] · Alt+b/B prev/next prompt · :N jump %= L%l/%L '
