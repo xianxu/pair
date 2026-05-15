@@ -2683,7 +2683,20 @@ local function layout_goto(target)
   local cur = layout_read()
   local from = LAYOUT_LADDER[cur] or 1
   local to = LAYOUT_LADDER[target]
-  if not to or from == to then return end
+  if not to or from == to then
+    -- Clamped at the ladder boundary (Alt+Up at half, or Alt+Down at
+    -- minimized). The zellij keybind has already moved focus to nvim
+    -- and forced normal mode (Ctrl-\ Ctrl-N), expecting the post-step
+    -- recovery below to either move focus back (for minimized) or
+    -- startinsert (for any expanded rung). Mirror that recovery here
+    -- so the keystroke is a true no-op visually.
+    if cur == 'minimized' then
+      vim.fn.system({ 'zellij', 'action', 'move-focus', 'up' })
+    else
+      vim.cmd('startinsert')
+    end
+    return
+  end
   local dir = to > from and 1 or -1
   for level = from, to - dir, dir do
     local next_level = level + dir
