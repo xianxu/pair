@@ -138,6 +138,18 @@ Automatically installed with `homebrew`.
 |---|---|
 | [`pyte`](https://github.com/selectel/pyte) | Python terminal emulator used by `Alt+/` to render full scrollback with colors and matching line numbers. Without it, `Alt+/` prints a hint; everything else works. **Brew install pair (≥1.15) bundles it** in a private venv. Git-clone users: `make pair-bootstrap` (or `pip3 install --user --break-system-packages pyte`). |
 
+## Terminal setup
+
+Pair leans on `Alt+<key>` chords for almost every action — `Alt+Return` to send, `Alt+x/d/n/N` to quit/detach/restart, `Alt+↑/↓` for layout, `Alt+i` for image attach, `Alt+/` for scrollback, `Alt+q` for marker comments. macOS terminals don't all forward Option as a meta-prefix by default, so the chords silently insert macOS special characters (`Alt+x` → `≈`, `Alt+e` → ``` ` ```, etc.) instead of reaching pair. One-time per-terminal setup:
+
+| Terminal | Setting | Default | Required |
+|---|---|---|---|
+| **Ghostty** | `macos-option-as-alt = true` | already `true` | nothing — works out of the box |
+| **iTerm2** | Settings → Profiles → Keys → General → Left/Right Option Key → **Esc+** | Normal | flip both Option-key dropdowns to **Esc+** |
+| **Terminal.app** | Settings → Profiles → Keyboard → **Use Option as Meta key** | unchecked | check the box |
+
+Symptom when not configured: `Alt+Return` may still send (since that chord doesn't have a macOS special character), but `Alt+x` prints `≈` in nvim, `Alt+n` prints `˜`, `Alt+d` prints `∂`, etc. — the literal Unicode insertions tell you the chord was eaten by macOS before reaching pair.
+
 ## Install
 
 **Homebrew (recommended).** 
