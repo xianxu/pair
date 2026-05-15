@@ -22,9 +22,11 @@
 #   < 7 days → 📦 prefix  (recent)
 #   else     → no prefix  (cold)
 #
-# We always set the title to "<prefix> <tag>" (or "<tag>" for cold), so
-# manual renames in the cmux sidebar are overridden on the next poll —
-# matches bin/pair's existing rename-on-launch behavior.
+# We always set the title to "<prefix> pair-<tag>" (or "pair-<tag>" for
+# cold), mirroring the zellij SESSION name the user sees everywhere
+# else (`pair list`, the terminal title bar, etc.). Manual renames in
+# the cmux sidebar are overridden on the next poll — matches bin/pair's
+# existing rename-on-launch behavior.
 
 set -uo pipefail
 
@@ -141,7 +143,7 @@ while true; do
 
     prefix=$(prefix_for_age "$age")
     if [ "$prefix" != "$last_prefix" ]; then
-        cmux rename-workspace "${prefix}${TAG}" >/dev/null 2>&1 || true
+        cmux rename-workspace "${prefix}${SESSION}" >/dev/null 2>&1 || true
         last_prefix="$prefix"
     fi
     sleep "$POLL_INTERVAL"

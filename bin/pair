@@ -768,7 +768,7 @@ if [ "$action" = "attach" ]; then
     # preexec hook set (typically "bin/pair").
     printf '\033]0;%s\007' "$SESSION"
     record_outer_tty
-    cmux_rename_workspace "$PAIR_TAG"
+    cmux_rename_workspace "$SESSION"
     # Real agent for this tag may differ from the CLI default — prefer
     # the on-disk record so the activity poller looks at the right
     # session file. Falls back to $AGENT if the record's missing.
@@ -1255,7 +1255,7 @@ fi
 # itself), useful as a uniform path for both create and attach branches.
 printf '\033]0;%s\007' "$SESSION"
 record_outer_tty
-cmux_rename_workspace "$PAIR_TAG"
+cmux_rename_workspace "$SESSION"
 "$PAIR_HOME/bin/pair-cmux-title.sh" "$PAIR_TAG" "$AGENT" \
     </dev/null >/dev/null 2>&1 &
 
