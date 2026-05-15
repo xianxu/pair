@@ -652,5 +652,12 @@ vim.opt.relativenumber = false
 vim.opt.signcolumn = 'no'
 vim.opt.foldcolumn = '0'
 vim.opt.cursorline = true
+-- Route yank/delete to the system clipboard. The viewer launches with
+-- `nvim -u nvim/scrollback.lua`, which bypasses the user's regular
+-- init — so any clipboard config there doesn't apply here. Without
+-- this, `y` lands in the unnamed register only and cmd+V outside the
+-- terminal pulls whatever was on the system clipboard before. Neovim
+-- autodetects pbcopy/pbpaste on macOS so no provider config needed.
+vim.opt.clipboard = 'unnamedplus'
 vim.opt.laststatus = 2
 vim.opt.statusline = ' pair scrollback · Esc quit · Alt+q 🤖[] · Alt+b/B prev/next prompt · :N jump %= L%l/%L '
