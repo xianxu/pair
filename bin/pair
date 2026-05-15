@@ -111,7 +111,7 @@ KEYBINDINGS (inside a pair session)
   Alt+BS        (at +N) delete the current queued prompt; items shift down,
                 so tap-tap deletes a run
   Shift+Alt+BS  erase history + draft + queue ("start anew"); confirms first
-  Alt+↑ / Alt+↓ step nvim pane along minimized ↔ 10 lines ↔ 1/2 ladder
+  Alt+↑ / Alt+↓ step nvim pane along minimized ↔ 12 lines ↔ 1/2 ladder
                 (works from either pane). minimized = statusline only;
                 Alt+↑ from there grows the pane back. Confirm-requiring
                 keys (Alt+x/d/n/N) auto-grow out of minimized first so

@@ -9,7 +9,7 @@ All [AI created](https://xianxu.dev/2026/05/a-saturday-coding-session/).
 Launches a zellij session split into two panes:
 
 - **Top** — the coding agent, `Claude`, `Codex`, `Gemini`, ...
-- **Bottom (~10 rows)** — Neovim on a persistent draft file. 
+- **Bottom (~12 rows)** — Neovim on a persistent draft file. 
 
 You compose prompts with full editor power, scroll the agent output independently. When you are done, `Alt+Return` to send your text to the agent.
 
@@ -54,7 +54,7 @@ Otherwise without `>`. Focus' automatically put at the likely position you want 
 | **Alt+q** | nvim (normal/insert) | Push current buffer to the front of the queue (`+1`). From `*` clears the draft; from `+N` it's move-to-front. |
 | **Alt+Backspace** | nvim (normal/insert), at `+N` | Delete the current queued prompt without sending. Items behind shift down so you can delete a run by tapping repeatedly. |
 | **Shift+Alt+Backspace** | nvim (normal/insert) | Erase history, draft, and queue for this session — "start anew". Confirmation prompt defaults to No. Hard delete (no archive). |
-| **Alt+↑** / **Alt+↓** | any pane | Step the nvim pane along a `minimized` ↔ `10 lines` ↔ `1/2` ladder one rung at a time (works from either pane). `minimized` collapses nvim to a single statusline row showing `Alt+↑ for pair input box`; confirm-requiring keys (Alt+x/d/n/N) auto-grow out of minimized so the modal prompt is visible. |
+| **Alt+↑** / **Alt+↓** | any pane | Step the nvim pane along a `minimized` ↔ `12 lines` ↔ `1/2` ladder one rung at a time (works from either pane). `minimized` collapses nvim to a single statusline row showing `Alt+↑ for pair input box`; confirm-requiring keys (Alt+x/d/n/N) auto-grow out of minimized so the modal prompt is visible. |
 | **Alt+i** | nvim (normal/insert) | Attach clipboard image to the agent and insert whatever marker the agent renders (claude `[Image #N]`, gemini `[Image N-M]`) at cursor — the marker text is captured live from the agent's PTY, so no per-agent format or counter is hardcoded. Flashes `[no image in clipboard]` at cursor for 1s if the OS clipboard has no image data. |
 | **Alt+h** | any pane | Pop up the full keybind help in a floating pane (press `q` to dismiss). |
 | **Alt+d** | any pane | Detach from the current session (re-attach later via `pair`). Confirms first. |

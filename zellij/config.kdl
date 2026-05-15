@@ -102,7 +102,7 @@ keybinds clear-defaults=false {
         }
 
         // Alt+Up / Alt+Down — step the nvim draft pane along a three-rung
-        // ladder: minimized (statusline only, cursor hidden) ↔ 10 lines
+        // ladder: minimized (statusline only, cursor hidden) ↔ 12 lines
         // (initial) ↔ 1/2. Up steps toward bigger nvim, Down toward smaller;
         // each is clamped at the end of the ladder. Routed through nvim because zellij's
         // keybind language can't run a shell command silently and the step

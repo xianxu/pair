@@ -16,7 +16,7 @@
 // zellij's escape filtering. #000011
 //
 // LAYOUT RUNGS — the draft pane has three sizes: minimized (1 row,
-// statusline only) ↔ small (fixed 10 rows, initial) ↔ half (50%). Alt+Up /
+// statusline only) ↔ small (fixed 12 rows, initial) ↔ half (50%). Alt+Up /
 // Alt+Down step the ladder via zellij's swap layouts (defined below).
 // Swap layouts re-tile existing panes — the agent and nvim processes are
 // preserved across rung changes; zellij maps existing panes onto the new
@@ -41,12 +41,12 @@ layout {
         // so it has no frame title slot — the name exists only for OSC
         // 0 propagation.
         //
-        // size=10 (integer) is the middle rung ("small") — a fixed
-        // 10-row draft pane is enough for ~7-8 lines of prompt with the
-        // statusline. zellij tags integer sizes as FIXED (refusing
+        // size=12 (integer) is the middle rung ("small") — a fixed
+        // 12-row draft pane is enough for ~9-10 lines of prompt with
+        // the statusline. zellij tags integer sizes as FIXED (refusing
         // `resize` actions), but pair drives all rung changes through
         // swap layouts, not resize, so FIXED is harmless here.
-        pane size=10 name="draft" borderless=true focus=true {
+        pane size=12 name="draft" borderless=true focus=true {
             command "sh"
             // PAIR_NVIM_PID_FILE: nvim/init.lua's VimEnter autocmd writes the
             // embed pid here so cleanup_quit_marker in bin/pair can reap

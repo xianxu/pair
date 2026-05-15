@@ -2613,7 +2613,7 @@ function _G.PairConfirmRestart()           pair_confirm_restart_impl(false) end
 function _G.PairConfirmRestartNewSession() pair_confirm_restart_impl(true)  end
 
 -- ---------------------------------------------------------------------------
--- Layout sizing: minimized (statusline only) ↔ small (10 rows, initial) ↔ half (50%).
+-- Layout sizing: minimized (statusline only) ↔ small (12 rows, initial) ↔ half (50%).
 -- ---------------------------------------------------------------------------
 -- Two keys drive this: Alt+Up (PairLayoutBigger) and Alt+Down
 -- (PairLayoutSmaller) step along the ladder, clamped at the ends.
@@ -2635,7 +2635,7 @@ local LAYOUT_STATE_FILE = (vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/sh
   .. '/pair/layout-mode-' .. (vim.env.PAIR_TAG or vim.env.PAIR_AGENT or 'claude')
 
 -- Read the current rung from nvim's own pane height. The kdl pins each
--- rung to an exact size (1 / 10 / 50%), so vim.o.lines is a ground-truth
+-- rung to an exact size (1 / 12 / 50%), so vim.o.lines is a ground-truth
 -- signal that can't drift from zellij's actual swap-layout position. We
 -- previously tracked rung in a disk file and updated it after each step,
 -- which permanently desynced if any single `zellij action <swap>` was
@@ -2645,7 +2645,7 @@ local LAYOUT_STATE_FILE = (vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/sh
 local function layout_read()
   local h = vim.o.lines
   if h <= 2 then return 'minimized' end
-  if h <= 10 then return 'small' end
+  if h <= 12 then return 'small' end
   return 'half'
 end
 
@@ -2738,7 +2738,7 @@ function _G.PairLayoutSmaller()
   layout_goto(LAYOUT_BY_LEVEL[math.max(cur - 1, 1)])
 end
 
--- Seed the in-memory mirror at startup. zellij boots into the size=10
+-- Seed the in-memory mirror at startup. zellij boots into the size=12
 -- draft pane (see zellij/layouts/main.kdl), and the in-memory mirror is
 -- only used by callers that don't want to call layout_read; layout_read
 -- itself reads vim.o.lines so it doesn't need this.
