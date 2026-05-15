@@ -2575,7 +2575,7 @@ local function pair_confirm_restart_impl(new_session)
   pair_ensure_visible_then(function()
     local prompt
     if new_session then
-      prompt = 'Start a new session with same parameters?'
+      prompt = 'Continue work with a brand new session?'
     else
       prompt = 'Reload pair?'
     end
