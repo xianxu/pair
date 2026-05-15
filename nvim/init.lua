@@ -2577,7 +2577,7 @@ local function pair_confirm_restart_impl(new_session)
     if new_session then
       prompt = 'Restart with a fresh agent conversation? Kills the current session and re-launches with the same tag, agent, and args, but the saved agent session is dropped (brand-new conversation).'
     else
-      prompt = 'Reload pair? Kills the current session and re-launches with the same tag, agent, args, AND agent session — the prior conversation resumes.'
+      prompt = 'Reload pair?'
     end
     local cfg = pair_read_saved_config()
     if cfg then
