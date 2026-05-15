@@ -143,7 +143,11 @@ while true; do
 
     prefix=$(prefix_for_age "$age")
     if [ "$prefix" != "$last_prefix" ]; then
-        cmux rename-workspace "${prefix}${SESSION}" >/dev/null 2>&1 || true
+        # Personal display convention (matches bin/pair's cmux_rename_workspace):
+        # 'brain' → 🧠 anywhere in the title.
+        title="${prefix}${SESSION}"
+        title="${title//brain/🧠}"
+        cmux rename-workspace "$title" >/dev/null 2>&1 || true
         last_prefix="$prefix"
     fi
     sleep "$POLL_INTERVAL"
