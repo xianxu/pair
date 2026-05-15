@@ -660,6 +660,27 @@ cleanup_quit_marker() {
                 "$SESSION" "$quit_agent"
             printf '      resume with: pair resume %s\n' "$SESSION"
         fi
+
+        # Kill the cmux activity-prefix poller for this tag (if running)
+        # so its next 60s tick doesn't race with the cwd-rename below.
+        local poller_pid_file="$DATA_DIR/cmux-title-pid-${PAIR_TAG}"
+        if [ -f "$poller_pid_file" ]; then
+            local poller_pid
+            poller_pid=$(cat "$poller_pid_file" 2>/dev/null)
+            [ -n "$poller_pid" ] && kill "$poller_pid" 2>/dev/null || true
+            rm -f "$poller_pid_file"
+        fi
+
+        # Reset the cmux workspace title to the shell's cwd basename —
+        # this pair session is dead and the user is back at a plain
+        # shell prompt; the workspace label should reflect that instead
+        # of the just-killed pair-<tag>. On Alt+n / Shift+Alt+N the
+        # follow-up re-exec immediately re-renames to the new SESSION,
+        # so the cwd flash here is invisible.
+        local reset_title
+        reset_title=$(basename "$PWD" 2>/dev/null)
+        [ -n "$reset_title" ] || reset_title="shell"
+        cmux_rename_workspace "$reset_title"
     fi
 }
 
