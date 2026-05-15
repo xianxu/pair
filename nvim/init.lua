@@ -2575,7 +2575,7 @@ local function pair_confirm_restart_impl(new_session)
   pair_ensure_visible_then(function()
     local prompt
     if new_session then
-      prompt = 'Restart with a fresh agent conversation? Kills the current session and re-launches with the same tag, agent, and args, but the saved agent session is dropped (brand-new conversation).'
+      prompt = 'Start a new session with same parameters?'
     else
       prompt = 'Reload pair?'
     end
