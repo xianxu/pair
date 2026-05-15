@@ -668,9 +668,18 @@ cleanup_quit_marker() {
         # both forms (it strips a leading `pair-`). Agent is omitted from
         # the resume command — pair infers it from the saved state.
         if [ -f "$DATA_DIR/config-${PAIR_TAG}-${quit_agent}.json" ]; then
+            local saved_sid=""
+            saved_sid=$(jq -r '.session_id // empty' \
+                "$DATA_DIR/config-${PAIR_TAG}-${quit_agent}.json" 2>/dev/null || true)
             printf 'pair: saved session config for tag "%s" (%s).\n' \
                 "$SESSION" "$quit_agent"
             printf '      resume with: pair resume %s\n' "$SESSION"
+            # Surface the agent session id too: useful when the user
+            # wants to drive the agent directly (`claude --resume <id>`,
+            # `codex resume <id>`) without going back through pair.
+            if [ -n "$saved_sid" ]; then
+                printf '      session id:  %s\n' "$saved_sid"
+            fi
         fi
 
         # Kill the cmux activity-prefix poller for this tag (if running)
@@ -813,6 +822,9 @@ if [ "$action" = "attach" ]; then
     [ -n "$title_agent" ] || title_agent="$AGENT"
     "$PAIR_HOME/bin/pair-cmux-title.sh" "$PAIR_TAG" "$title_agent" \
         </dev/null >/dev/null 2>&1 &
+    # disown so cleanup_quit_marker's `kill <pid>` later doesn't spawn
+    # a "[1] Terminated:" line into the user's shell on session exit.
+    disown $! 2>/dev/null || true
     zellij --config-dir "$PAIR_HOME/zellij" attach "$SESSION"
     rc=$?
     cleanup_quit_marker
@@ -1287,6 +1299,7 @@ fi
 # intentionally word-split, matching the existing PAIR_AGENT_ARGS rule.
 "$PAIR_HOME/bin/pair-session-watch.sh" "$AGENT" "$PAIR_TAG" "$PWD" $agent_extra \
     </dev/null >/dev/null 2>&1 &
+disown $! 2>/dev/null || true
 
 # Set terminal title — harmless duplicate for new sessions (zellij sets it
 # itself), useful as a uniform path for both create and attach branches.
@@ -1295,6 +1308,7 @@ record_outer_tty
 cmux_rename_workspace "$SESSION"
 "$PAIR_HOME/bin/pair-cmux-title.sh" "$PAIR_TAG" "$AGENT" \
     </dev/null >/dev/null 2>&1 &
+disown $! 2>/dev/null || true
 
 # Note on the create invocation: zellij's `--layout PATH --session NAME` does
 # NOT create-with-layout; per its help text, when --session is set, --layout
