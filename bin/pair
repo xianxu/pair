@@ -769,6 +769,13 @@ if [ "$action" = "attach" ]; then
     printf '\033]0;%s\007' "$SESSION"
     record_outer_tty
     cmux_rename_workspace "$PAIR_TAG"
+    # Real agent for this tag may differ from the CLI default — prefer
+    # the on-disk record so the activity poller looks at the right
+    # session file. Falls back to $AGENT if the record's missing.
+    title_agent=$(cat "$DATA_DIR/agent-$PAIR_TAG" 2>/dev/null | tr -d '\r\n[:space:]')
+    [ -n "$title_agent" ] || title_agent="$AGENT"
+    "$PAIR_HOME/bin/pair-cmux-title.sh" "$PAIR_TAG" "$title_agent" \
+        </dev/null >/dev/null 2>&1 &
     zellij --config-dir "$PAIR_HOME/zellij" attach "$SESSION"
     rc=$?
     cleanup_quit_marker
@@ -1249,6 +1256,8 @@ fi
 printf '\033]0;%s\007' "$SESSION"
 record_outer_tty
 cmux_rename_workspace "$PAIR_TAG"
+"$PAIR_HOME/bin/pair-cmux-title.sh" "$PAIR_TAG" "$AGENT" \
+    </dev/null >/dev/null 2>&1 &
 
 # Note on the create invocation: zellij's `--layout PATH --session NAME` does
 # NOT create-with-layout; per its help text, when --session is set, --layout
