@@ -488,6 +488,18 @@ fi
 export PAIR_AGENT="$AGENT"
 export PAIR_AGENT_ARGS="$agent_extra"
 
+# PAIR_PANE_TITLE drives the agent pane's frame title in zellij. The
+# layout's `pane name="agent"` is just a matching anchor; the layout's
+# args block calls `zellij action rename-pane "$PAIR_PANE_TITLE"`
+# before exec'ing pair-wrap, so the frame shows the agent's capitalized
+# name (Claude / Codex / Gemini) instead of a generic "agent".
+case "$AGENT" in
+    claude) export PAIR_PANE_TITLE="Claude" ;;
+    codex)  export PAIR_PANE_TITLE="Codex" ;;
+    gemini) export PAIR_PANE_TITLE="Gemini" ;;
+    *)      export PAIR_PANE_TITLE="$AGENT" ;;
+esac
+
 # PAIR_TAG is the namespace identifier — used to name the zellij session
 # and the per-instance draft/log files. The create flow's interactive
 # prompt and `resume <tag>` override this.
