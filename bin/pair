@@ -361,11 +361,29 @@ fi
 # don't compose — `--session NAME` from inside zellij triggers attach, not
 # create, which fails confusingly when the named session doesn't exist yet.
 #
-# Probe via ZELLIJ_SESSION_NAME (set only by zellij itself when it spawns
-# a pane), not ZELLIJ — cmux exports ZELLIJ=0 in its panes regardless of
-# whether zellij is involved, which used to trip this check as a false
-# positive (any pair launch from a cmux pane errored out).
-if [ -n "${ZELLIJ_SESSION_NAME:-}" ]; then
+# Detection via process-ancestry walk, NOT env vars. cmux propagates the
+# focused pane's env (including ZELLIJ / ZELLIJ_SESSION_NAME / ZELLIJ_PANE_ID)
+# to every other pane it spawns, so a standalone ghostty pane next to a
+# pair pane inherits stale ZELLIJ_SESSION_NAME and used to trigger this
+# check as a false positive. Walking the PPID chain looking for a
+# `zellij` ancestor is the ground truth: it's true iff this shell is
+# actually a descendant of a zellij process.
+in_zellij_pane() {
+    local pid=$$
+    local cmd parent
+    while [ "$pid" -gt 1 ]; do
+        cmd=$(ps -o comm= -p "$pid" 2>/dev/null | tr -d ' ')
+        case "${cmd##*/}" in
+            zellij) return 0 ;;
+        esac
+        parent=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
+        [ -z "$parent" ] && return 1
+        [ "$parent" = "$pid" ] && return 1
+        pid="$parent"
+    done
+    return 1
+}
+if in_zellij_pane; then
     echo "pair: already running inside a zellij session." >&2
     echo "      detach first (Alt+d) or run pair from a fresh terminal." >&2
     exit 1
