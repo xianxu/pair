@@ -2498,6 +2498,58 @@ local function pair_ensure_visible_then(fn)
   end
 end
 
+-- Compact "Nu" duration: `45s` `12m` `3.2h` `5d`. Used in the confirm
+-- modals so the session-id line carries a "this session is X old, last
+-- touched Y ago" hint without ballooning into a sentence.
+local function humanize_dur(secs)
+  if secs < 0 then secs = 0 end
+  if secs < 60 then return string.format('%ds', secs) end
+  if secs < 3600 then return string.format('%dm', math.floor(secs / 60)) end
+  if secs < 86400 then return string.format('%.1fh', secs / 3600) end
+  return string.format('%.1fd', secs / 86400)
+end
+
+-- Resolve the on-disk session file for (agent, sid) and return
+-- "(<age> old, <idle> idle)" — or nil if the file can't be found
+-- (uncaptured id, agent we don't have a path resolver for, etc.).
+-- Only called from the confirm modals, so the cost (one stat for
+-- claude; a find for codex; a grep for gemini) is paid at most once
+-- per Alt+x / Alt+n press.
+local function session_age_hint(agent, sid)
+  if not sid or sid == '' then return nil end
+  local home = vim.env.HOME or ''
+  local path
+  if agent == 'claude' then
+    local cwd = vim.env.PWD or vim.fn.getcwd()
+    local enc = cwd:gsub('[./]', '-')
+    path = home .. '/.claude/projects/' .. enc .. '/' .. sid .. '.jsonl'
+    if vim.fn.filereadable(path) ~= 1 then path = nil end
+  elseif agent == 'codex' then
+    local cmd = 'find ' .. vim.fn.shellescape(home .. '/.codex/sessions')
+      .. " -type f -name '*" .. sid .. "*.jsonl' 2>/dev/null | head -1"
+    local h = io.popen(cmd)
+    if h then path = h:read('*l'); h:close() end
+  elseif agent == 'gemini' then
+    local cmd = 'grep -rl --include="*.json" '
+      .. vim.fn.shellescape('"sessionId":"' .. sid .. '"') .. ' '
+      .. vim.fn.shellescape(home .. '/.gemini/tmp') .. ' 2>/dev/null | head -1'
+    local h = io.popen(cmd)
+    if h then path = h:read('*l'); h:close() end
+  end
+  if not path or path == '' then return nil end
+  local h = io.popen('stat -f "%B %m" ' .. vim.fn.shellescape(path) .. ' 2>/dev/null')
+  if not h then return nil end
+  local out = h:read('*l')
+  h:close()
+  if not out then return nil end
+  local birth, mtime = out:match('^(%d+) (%d+)$')
+  if not birth then return nil end
+  local now = os.time()
+  return string.format('(%s old, %s idle)',
+                       humanize_dur(now - tonumber(birth)),
+                       humanize_dur(now - tonumber(mtime)))
+end
+
 -- Read the per-(tag,agent) saved config so the Alt+x prompt can show the
 -- user what they're about to detach from for the future `pair resume
 -- <tag>` path. Returns nil when the tag isn't set, the agent file is
@@ -2541,6 +2593,8 @@ function _G.PairConfirmQuit()
         args_line = '<none>'
       end
       local sid_line = cfg.session_id and cfg.session_id ~= '' and cfg.session_id or '<not captured>'
+      local age = session_age_hint(cfg.agent, cfg.session_id)
+      if age then sid_line = sid_line .. '  ' .. age end
       prompt = prompt
         .. '\n\nResumable later via `pair resume ' .. cfg.tag .. '`:'
         .. '\n  agent:      ' .. cfg.agent
@@ -2595,7 +2649,10 @@ local function pair_confirm_restart_impl(new_session)
       -- bearing detail there. Hiding it on the new-session path avoids
       -- confusing the user into thinking the prior id will carry over.
       if not new_session and cfg.session_id and cfg.session_id ~= '' then
-        prompt = prompt .. '\n  resume: ' .. cfg.session_id
+        local resume_line = cfg.session_id
+        local age = session_age_hint(cfg.agent, cfg.session_id)
+        if age then resume_line = resume_line .. '  ' .. age end
+        prompt = prompt .. '\n  resume: ' .. resume_line
       end
     end
     local ans = vim.fn.confirm(prompt, '&Yes\n&No', 2)
