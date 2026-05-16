@@ -2432,6 +2432,38 @@ end
 vim.api.nvim_create_autocmd('FocusGained', {
   callback = function() pcall(pair_pickup_scrollback_pending) end,
 })
+
+-- Backstop the FocusGained pickup with a libuv fs_event watcher. When
+-- scrollback.lua writes the sidecar in VimLeavePre, zellij doesn't
+-- always forward a focus event back to the draft pane fast enough
+-- (sometimes 5–10s of delay observed when closing a floating pane),
+-- so markers appear to "vanish" until the user happens to mouse or
+-- keypress into the draft. The watcher fires within ms of the rename
+-- and calls the same pickup function, single source of truth for the
+-- landing logic.
+local function pair_start_pending_fs_watch()
+  local data_dir = vim.env.PAIR_DATA_DIR
+    or ((vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/share')) .. '/pair')
+  local tag = vim.env.PAIR_TAG or vim.env.PAIR_AGENT or 'claude'
+  local target = 'scrollback-pending-' .. tag .. '.md'
+  local handle = vim.loop.new_fs_event()
+  if not handle then return end
+  local ok = pcall(function()
+    handle:start(data_dir, {}, vim.schedule_wrap(function(err, filename)
+      if err then return end
+      -- Many other files churn in $PAIR_DATA_DIR (agent-output, draft,
+      -- config…); skip events that name a different file. Where the
+      -- platform doesn't report a filename (filename == nil), fall
+      -- through and let the pickup short-circuit on its own existence
+      -- check.
+      if filename and filename ~= target then return end
+      pcall(pair_pickup_scrollback_pending)
+    end))
+  end)
+  if not ok then handle:close() end
+end
+pair_start_pending_fs_watch()
+
 pair_apply_mode_bg(vim.fn.mode():sub(1, 1))
 
 -- ---------------------------------------------------------------------------

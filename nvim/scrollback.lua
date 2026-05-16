@@ -604,7 +604,27 @@ vim.api.nvim_create_autocmd('BufReadPost', {
     -- mistype and the viewer slammed shut, dropping any pending
     -- markers along with the session. Built-in `ZZ` / `ZQ` are
     -- shadowed with no-ops for the same reason.
-    vim.keymap.set('n', '<Esc>', '<cmd>qa<CR>', { buffer = bufnr, silent = true })
+    --
+    -- Always confirm on ESC (default Yes — single Enter still exits).
+    -- A stray ESC during marker entry used to slam the viewer shut and
+    -- felt like data loss even though the sidecar gets written, since
+    -- the pickup back to the draft pane can be slow. The confirm gives
+    -- the user a chance to bail out of the accidental exit. Mention
+    -- the marker count when present so the user knows what's at stake.
+    vim.keymap.set('n', '<Esc>', function()
+      local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+      local block = format_extraction(lines)
+      local prompt = 'Exit scrollback?'
+      if block ~= '' then
+        local n = 0
+        for _ in block:gmatch('\n> ') do n = n + 1 end
+        n = n + 1  -- first marker has no preceding "\n> "
+        prompt = string.format('Exit scrollback? %d pending 🤖[] marker%s will be sent.',
+                               n, n == 1 and '' or 's')
+      end
+      local choice = vim.fn.confirm(prompt, '&Yes\n&No', 1, 'Question')
+      if choice == 1 then vim.cmd('qa') end
+    end, { buffer = bufnr, silent = true })
     vim.keymap.set('n', 'ZZ', '<nop>', { buffer = bufnr, silent = true })
     vim.keymap.set('n', 'ZQ', '<nop>', { buffer = bufnr, silent = true })
     vim.keymap.set('n', '<M-q>', function() add_marker_normal(bufnr) end,
@@ -660,4 +680,4 @@ vim.opt.cursorline = true
 -- autodetects pbcopy/pbpaste on macOS so no provider config needed.
 vim.opt.clipboard = 'unnamedplus'
 vim.opt.laststatus = 2
-vim.opt.statusline = ' pair scrollback · Esc quit · Alt+q 🤖[] · Alt+b/B prompts · :N jump %= L%l/%L '
+vim.opt.statusline = ' pair scrollback · Esc quit (confirm) · Alt+q 🤖[] · Alt+b/B prompts · :N jump %= L%l/%L '
