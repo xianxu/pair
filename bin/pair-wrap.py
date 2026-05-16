@@ -403,6 +403,15 @@ def update_agent_output(data):
                 continue
             m = OTHER_ESC_RE.match(data, i)
             if m:
+                # Cursor-positioning escapes inside an active colored run
+                # mean the agent skipped one or more cells without
+                # repainting (typically blanks). Claude's TUI in particular
+                # paints inline code char-by-char and uses CUF to jump
+                # over spaces, so without this we'd merge
+                # `make nous-install` into `makenous-install`. Drop in a
+                # single-space placeholder to preserve word boundaries.
+                if AGENT_SPAN_BUF and not AGENT_SPAN_BUF.endswith(b" "):
+                    AGENT_SPAN_BUF += b" "
                 i = m.end()
                 continue
             # Possibly an escape that hasn't fully arrived yet. Carry
