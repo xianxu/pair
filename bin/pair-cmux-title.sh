@@ -17,10 +17,14 @@
 #   - nvim draft: $PAIR_DATA_DIR/draft-<tag>.md
 # Both move on user typing AND agent output, so this captures both sides.
 #
-# Buckets:
-#   < 1 day  → 🚧 prefix  (active)
-#   < 7 days → 📦 prefix  (recent)
-#   else     → no prefix  (cold)
+# Buckets (heat-ramp, hottest first):
+#   < 1 hour  → 🔴 prefix  (this session)
+#   < 1 day   → 🟠 prefix  (today)
+#   < 1 week  → 🟡 prefix  (this week)
+#   < 1 month → 🔵 prefix  (this month)
+#   else      → no prefix  (cold)
+# All four emoji are CJK-wide so the title alignment in cmux's sidebar
+# stays uniform across buckets.
 #
 # We always set the title to "<prefix> pair-<tag>" (or "pair-<tag>" for
 # cold), mirroring the zellij SESSION name the user sees everywhere
@@ -44,10 +48,20 @@ DRAFT="$DATA_DIR/draft-$TAG.md"
 PIDFILE="$DATA_DIR/cmux-title-pid-$TAG"
 
 POLL_INTERVAL=60
+# Grace period for the zellij session to appear after spawn — covers the
+# create path in bin/pair, which spawns this poller right BEFORE calling
+# `zellij --new-session-with-layout`. Without this, the very first
+# liveness check loses the race and the poller exits before it ever
+# renames anything.
+STARTUP_GRACE=30
+ONE_HOUR=3600
 ONE_DAY=86400
 ONE_WEEK=604800
-PREFIX_BUSY=$'\xf0\x9f\x9a\xa7'   # 🚧
-PREFIX_IDLE=$'\xf0\x9f\x93\xa6'   # 📦
+ONE_MONTH=2592000                   # 30 days
+PREFIX_HOT=$'\xf0\x9f\x94\xb4'      # 🔴 < 1 hour
+PREFIX_WARM=$'\xf0\x9f\x9f\xa0'     # 🟠 < 1 day
+PREFIX_LUKEWARM=$'\xf0\x9f\x9f\xa1' # 🟡 < 1 week
+PREFIX_COOL=$'\xf0\x9f\x94\xb5'     # 🔵 < 1 month
 
 # Single-instance: bail if a prior poller for this tag is still alive.
 if [ -f "$PIDFILE" ]; then
@@ -111,10 +125,14 @@ latest_activity() {
 # Bucket an age (seconds) into a prefix string. Empty = no prefix.
 prefix_for_age() {
     local age="$1"
-    if [ "$age" -lt "$ONE_DAY" ]; then
-        printf '%s ' "$PREFIX_BUSY"
+    if [ "$age" -lt "$ONE_HOUR" ]; then
+        printf '%s ' "$PREFIX_HOT"
+    elif [ "$age" -lt "$ONE_DAY" ]; then
+        printf '%s ' "$PREFIX_WARM"
     elif [ "$age" -lt "$ONE_WEEK" ]; then
-        printf '%s ' "$PREFIX_IDLE"
+        printf '%s ' "$PREFIX_LUKEWARM"
+    elif [ "$age" -lt "$ONE_MONTH" ]; then
+        printf '%s ' "$PREFIX_COOL"
     fi
 }
 
@@ -122,6 +140,20 @@ prefix_for_age() {
 # bucket changes (or on the very first iteration to set the prefix on a
 # freshly-renamed workspace).
 last_prefix="__init__"
+
+# Wait for the zellij session to appear (create-path race: bin/pair
+# spawns us right before `zellij --new-session-with-layout`). After this
+# block, "session missing" reliably means the user ended the session.
+session_seen=0
+deadline=$(( $(date +%s) + STARTUP_GRACE ))
+while [ "$(date +%s)" -lt "$deadline" ]; do
+    if zellij list-sessions --short 2>/dev/null | grep -qx "$SESSION"; then
+        session_seen=1
+        break
+    fi
+    sleep 1
+done
+[ "$session_seen" -eq 1 ] || exit 0
 
 while true; do
     # Self-terminate when the pair zellij session is gone — covers Alt+x,
@@ -144,9 +176,10 @@ while true; do
     prefix=$(prefix_for_age "$age")
     if [ "$prefix" != "$last_prefix" ]; then
         # Personal display convention (matches bin/pair's cmux_rename_workspace):
-        # 'brain' → 🧠 anywhere in the title.
+        # 'brain' → 🧠, 'book' → 📗 anywhere in the title.
         title="${prefix}${SESSION}"
         title="${title//brain/🧠}"
+        title="${title//book/📗}"
         cmux rename-workspace "$title" >/dev/null 2>&1 || true
         last_prefix="$prefix"
     fi
