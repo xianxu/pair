@@ -660,4 +660,4 @@ vim.opt.cursorline = true
 -- autodetects pbcopy/pbpaste on macOS so no provider config needed.
 vim.opt.clipboard = 'unnamedplus'
 vim.opt.laststatus = 2
-vim.opt.statusline = ' pair scrollback · Esc quit · Alt+q 🤖[] · Alt+b/B prev/next prompt · :N jump %= L%l/%L '
+vim.opt.statusline = ' pair scrollback · Esc quit · Alt+q 🤖[] · Alt+b/B prompts · :N jump %= L%l/%L '
