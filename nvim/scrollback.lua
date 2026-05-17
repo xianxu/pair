@@ -601,10 +601,21 @@ local function edit_marker(bufnr, row, line, m)
       if new_y == '' then
         local before = line:sub(1, m.range[1] - 1)
         local after  = line:sub(m.range[2] + 1)
-        if before:match(' $') and after:match('^ ') then
-          after = after:sub(2)
+        if m.kind == 'scoped' then
+          -- Scoped markers wrap a user-selected span (add_marker_visual
+          -- replaced `sel` with `🤖<sel>[comment]`). Deleting the marker
+          -- should restore that span, not also erase the prose it was
+          -- attached to.
+          new_line = before .. m.X .. after
+        else
+          -- Bare marker: pure removal. Collapse one adjacent space so
+          -- the surrounding prose doesn't end up with a double gap, and
+          -- trim trailing whitespace for the end-of-line case.
+          if before:match(' $') and after:match('^ ') then
+            after = after:sub(2)
+          end
+          new_line = (before .. after):gsub('%s+$', '')
         end
-        new_line = (before .. after):gsub('%s+$', '')
       else
         local marker_text
         if m.kind == 'scoped' then
