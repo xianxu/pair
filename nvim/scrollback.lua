@@ -782,13 +782,26 @@ vim.api.nvim_create_autocmd('BufReadPost', {
     -- Option+Backspace / Option+Delete send ESC-prefixed sequences, and
     -- in default cmdline handling the ESC cancels the input — the next
     -- byte then re-enters normal mode and can edit the underlying
-    -- buffer. Map both chords to <C-U> (clear-to-prompt-start, same as
-    -- Cmd+Backspace) so they only ever clear the input. Buffer-local
-    -- cmaps aren't a thing in vim, but the scrollback viewer is the
-    -- only cmdline consumer in this nvim instance, so a plain cmap is
-    -- effectively scoped.
-    vim.keymap.set('c', '<M-BS>',  '<C-U>', { silent = true })
-    vim.keymap.set('c', '<M-Del>', '<C-U>', { silent = true })
+    -- buffer.
+    --
+    -- The previous fix mapped the chords to the literal '<C-U>' string,
+    -- which works at the cmdline-state level but doesn't repaint the
+    -- prompt until the next keystroke, so the user perceived "first
+    -- Alt+Del did nothing, then a plain Del cleared to start". Doing
+    -- the mutation directly via setcmdline + setcmdpos and forcing a
+    -- redraw makes the single-press behaviour match Cmd+Backspace.
+    -- Buffer-local cmaps don't exist in vim; the scrollback viewer is
+    -- the only cmdline consumer in this nvim instance, so a plain cmap
+    -- is effectively scoped.
+    local function clear_cmdline_to_start()
+      local line = vim.fn.getcmdline()
+      local pos  = vim.fn.getcmdpos()  -- 1-based byte column of cursor
+      vim.fn.setcmdline(line:sub(pos))
+      vim.fn.setcmdpos(1)
+      vim.cmd('redraw')
+    end
+    vim.keymap.set('c', '<M-BS>',  clear_cmdline_to_start, { silent = true })
+    vim.keymap.set('c', '<M-Del>', clear_cmdline_to_start, { silent = true })
     -- Open at the *bottom* of the scrollback — the agent's most recent
     -- output is what the user just saw vanish off the top of the pane;
     -- opening anywhere else makes them hit G first. `zb` forces the
