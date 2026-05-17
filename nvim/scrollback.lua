@@ -583,28 +583,44 @@ local function marker_under_cursor(bufnr)
   return nil
 end
 
--- Rewrite an existing marker's Y in place, preserving kind/X. Empty
--- input (or unchanged input — which is what happens if the user just
--- hits Enter on the prefilled default) is a no-op; the buffer is not
--- touched, so the read-only lock stays untouched too.
+-- Rewrite (or remove) an existing marker. Uses vim.ui.input so we can
+-- distinguish cancel (callback nil, e.g. Esc) from clear-and-Enter
+-- (callback ""); vim.fn.input collapses both to "" and would conflate
+-- the two intents. Behaviour:
+--   nil  → cancel, buffer untouched
+--   ""   → delete the marker (and collapse one adjacent space so the
+--          surrounding prose doesn't end up with a double gap)
+--   == Y → no-op
+--   else → replace Y in place, preserving kind + X
 local function edit_marker(bufnr, row, line, m)
-  local ok, new_y = pcall(vim.fn.input, 'Edit comment: ', m.Y)
-  if not ok then return end
-  new_y = new_y or ''
-  if new_y == '' or new_y == m.Y then return end
-  local marker_text
-  if m.kind == 'scoped' then
-    marker_text = MARKER_BOT .. '<' .. esc_x(m.X) .. '>[' .. esc_y(new_y) .. ']'
-  else
-    marker_text = MARKER_BOT .. '[' .. esc_y(new_y) .. ']'
-  end
-  local new_line = line:sub(1, m.range[1] - 1) .. marker_text .. line:sub(m.range[2] + 1)
-  vim.bo[bufnr].modifiable = true
-  vim.bo[bufnr].readonly   = false
-  vim.api.nvim_buf_set_lines(bufnr, row - 1, row, false, { new_line })
-  vim.bo[bufnr].modifiable = false
-  vim.bo[bufnr].readonly   = true
-  highlight_markers(bufnr, row - 1, row)
+  vim.ui.input({ prompt = 'Edit comment (empty deletes): ', default = m.Y },
+    function(new_y)
+      if new_y == nil then return end
+      if new_y == m.Y then return end
+      local new_line
+      if new_y == '' then
+        local before = line:sub(1, m.range[1] - 1)
+        local after  = line:sub(m.range[2] + 1)
+        if before:match(' $') and after:match('^ ') then
+          after = after:sub(2)
+        end
+        new_line = (before .. after):gsub('%s+$', '')
+      else
+        local marker_text
+        if m.kind == 'scoped' then
+          marker_text = MARKER_BOT .. '<' .. esc_x(m.X) .. '>[' .. esc_y(new_y) .. ']'
+        else
+          marker_text = MARKER_BOT .. '[' .. esc_y(new_y) .. ']'
+        end
+        new_line = line:sub(1, m.range[1] - 1) .. marker_text .. line:sub(m.range[2] + 1)
+      end
+      vim.bo[bufnr].modifiable = true
+      vim.bo[bufnr].readonly   = false
+      vim.api.nvim_buf_set_lines(bufnr, row - 1, row, false, { new_line })
+      vim.bo[bufnr].modifiable = false
+      vim.bo[bufnr].readonly   = true
+      highlight_markers(bufnr, row - 1, row)
+    end)
 end
 
 local function add_marker_normal(bufnr)
