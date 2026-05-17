@@ -778,6 +778,17 @@ vim.api.nvim_create_autocmd('BufReadPost', {
                    { buffer = bufnr, silent = true })
     vim.keymap.set('n', '<M-B>', function() jump_to_prompt('next') end,
                    { buffer = bufnr, silent = true })
+    -- Edit-comment prompt (vim.ui.input → cmdline) ergonomics: on macOS
+    -- Option+Backspace / Option+Delete send ESC-prefixed sequences, and
+    -- in default cmdline handling the ESC cancels the input — the next
+    -- byte then re-enters normal mode and can edit the underlying
+    -- buffer. Map both chords to <C-U> (clear-to-prompt-start, same as
+    -- Cmd+Backspace) so they only ever clear the input. Buffer-local
+    -- cmaps aren't a thing in vim, but the scrollback viewer is the
+    -- only cmdline consumer in this nvim instance, so a plain cmap is
+    -- effectively scoped.
+    vim.keymap.set('c', '<M-BS>',  '<C-U>', { silent = true })
+    vim.keymap.set('c', '<M-Del>', '<C-U>', { silent = true })
     -- Open at the *bottom* of the scrollback — the agent's most recent
     -- output is what the user just saw vanish off the top of the pane;
     -- opening anywhere else makes them hit G first. `zb` forces the
