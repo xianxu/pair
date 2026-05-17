@@ -23,6 +23,7 @@ Full nvim support, for example:
 2. search in the input box
 3. typeahead and search local file path, just type `./` and then continue. 
 4. typeahead from highlighted terms in agent's response.
+5. search and comment in the scrollback buffer (alt+/ then alt+q).
 
 **Prompt history & a future queue, in-buffer.** 
 
@@ -43,6 +44,9 @@ Select something on agent's pane, the selection is inserted at current mouse loc
 ```
 
 Otherwise without `>`. Focus' automatically put at the likely position you want to type, such as the next line after `> quoted text line`
+
+**comment in scrollback history**
+when you need to comment more extensively on agent's output, you can use scrollback buffer through `Alt+/`. This opens a read-only nvim pane with scrollback history loaded. Then you can use `Alt+q` to comment on a line, or a selection. When you are done, press `ESC` to exit, with your comment's inserted into the draft editor.
 
 ## Keybindings
 
