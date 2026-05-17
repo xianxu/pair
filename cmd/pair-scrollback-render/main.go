@@ -130,6 +130,13 @@ func serializeRow(line uv.Line) string {
 	last := -1
 	for i := range line {
 		c := &line[i]
+		// Continuation cells of a preceding wide grapheme are stored as
+		// zero-value Cell{} per the ultraviolet convention (Width=0,
+		// Content=""). They don't extend the visible row and must not
+		// emit anything in the loop below.
+		if c.IsZero() {
+			continue
+		}
 		content := c.Content
 		if content != "" && content != " " {
 			last = i
@@ -145,6 +152,12 @@ func serializeRow(line uv.Line) string {
 	first := true
 	for i := 0; i <= last; i++ {
 		c := &line[i]
+		// Skip wide-grapheme continuation cells — the wide cell already
+		// emitted its full glyph; emitting anything here adds a phantom
+		// space after every emoji.
+		if c.IsZero() {
+			continue
+		}
 		if first || !c.Style.Equal(&prev) {
 			b.WriteString(c.Style.Diff(&prev))
 			prev = c.Style
