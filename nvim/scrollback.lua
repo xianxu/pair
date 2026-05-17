@@ -558,14 +558,125 @@ _G.PairScrollbackTest = {
 -- pickup) stay put.
 local initial_markers_by_buf = {}
 
-local function prompt_comment()
-  -- vim.fn.input swallows a trailing CR; we get whatever the user typed.
-  -- Empty input cancels — caller bails out without modifying the buffer.
-  local ok, comment = pcall(vim.fn.input, 'Comment: ')
-  if not ok then return nil end
-  comment = comment or ''
-  if comment == '' then return nil end
-  return comment
+-- Truncate `s` to fit within `max_cols` of display width, appending an
+-- ellipsis if cut. Used for the quote-context line in the prompt.
+local function truncate_to_width(s, max_cols)
+  if vim.fn.strdisplaywidth(s) <= max_cols then return s end
+  -- vim.fn.strcharpart is char-based, not display-width-based, but is a
+  -- close enough proxy for the kind of mixed-ASCII content we get from
+  -- the agent pane. Underestimates for wide CJK, which just means the
+  -- ellipsis lands a hair earlier — fine.
+  return vim.fn.strcharpart(s, 0, max_cols - 1) .. '…'
+end
+
+-- Floating-window single-line prompt with a markdown-style quote header.
+--   `quote`   : the context line to display as `> quote` above the input
+--   `default` : initial text in the input field
+--   `on_done(result)` : called with the user's input on Return, or nil
+--                       on Esc/cancel. Empty-string result means "the
+--                       user accepted with an empty input", distinct
+--                       from cancel — callers map this to delete-marker.
+-- Reason this isn't vim.ui.input / vim.fn.input: cmdline-based prompts
+-- on macOS terminals mishandle Option+Delete by letting the ESC half
+-- cancel the cmdline before nvim can fuse it with the trailing byte
+-- into <M-BS>/<M-Del>, and the trailing byte then leaks into normal
+-- mode where it can edit the underlying scrollback buffer. Owning the
+-- buffer + window + keymaps cleanly side-steps that whole class of bug.
+local function open_marker_prompt(quote, default, on_done)
+  default = default or ''
+  local quote_text = (quote == '' or quote == nil) and '(no context)' or quote
+  -- Hug content width but cap to a sensible 80-cell maximum and leave
+  -- a couple of columns of padding for the border + cursor space.
+  local max_inner = math.max(20, math.min(80, vim.o.columns - 6))
+  local quote_disp = truncate_to_width(quote_text, max_inner - 2)  -- 2 for "> "
+  local quote_line = '> ' .. quote_disp
+  local lines = { quote_line, '', default }
+  local input_row = #lines  -- 1-based row of the editable line
+
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.bo[buf].buftype = 'nofile'
+  vim.bo[buf].bufhidden = 'wipe'
+  vim.bo[buf].swapfile = false
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+
+  local content_width = math.max(
+    vim.fn.strdisplaywidth(quote_line),
+    vim.fn.strdisplaywidth(default) + 1,  -- +1 for cursor space at EOL
+    40
+  )
+  local width = math.min(content_width, vim.o.columns - 4)
+  local height = #lines
+
+  local win = vim.api.nvim_open_win(buf, true, {
+    relative   = 'editor',
+    row        = math.floor((vim.o.lines - height) / 2),
+    col        = math.floor((vim.o.columns - width) / 2),
+    width      = width,
+    height     = height,
+    style      = 'minimal',
+    border     = 'rounded',
+    title      = ' 🤖[] — Return to accept, Esc to cancel ',
+    title_pos  = 'left',
+  })
+
+  -- Dim the quote line so the eye lands on the editable text below.
+  local ns = vim.api.nvim_create_namespace('PairScrollbackPrompt')
+  pcall(vim.api.nvim_buf_add_highlight, buf, ns, 'Comment', 0, 0, -1)
+
+  -- Place cursor at end of input line and enter insert mode.
+  pcall(vim.api.nvim_win_set_cursor, win, { input_row, 0 })
+  vim.cmd('startinsert!')
+
+  local finished = false
+  local function finish(result)
+    if finished then return end
+    finished = true
+    pcall(vim.cmd, 'stopinsert')
+    if vim.api.nvim_win_is_valid(win) then
+      pcall(vim.api.nvim_win_close, win, true)
+    end
+    on_done(result)
+  end
+
+  local function accept()
+    local text = vim.api.nvim_buf_get_lines(buf, input_row - 1, input_row, false)[1] or ''
+    finish(text)
+  end
+  local function cancel() finish(nil) end
+
+  local opts = { buffer = buf, silent = true, nowait = true }
+  vim.keymap.set({ 'i', 'n' }, '<CR>',  accept, opts)
+  vim.keymap.set({ 'i', 'n' }, '<Esc>', cancel, opts)
+  vim.keymap.set('n', 'q', cancel, opts)
+  -- Option+Delete / Option+Backspace in insert mode → delete to line
+  -- start, matching macOS Cocoa text-field convention. Buffer-local so
+  -- it can't leak elsewhere. Two spellings because terminal emitters
+  -- disagree on which keycode Option+Delete maps to.
+  vim.keymap.set('i', '<M-BS>',  '<C-U>', opts)
+  vim.keymap.set('i', '<M-Del>', '<C-U>', opts)
+
+  -- Pin the cursor on the input line: clicks or arrow keys that would
+  -- wander into the quote/blank get bounced back. Also pin the input
+  -- line itself as the only editable surface — multi-line input is an
+  -- explicit non-feature here.
+  local function bounce()
+    if not vim.api.nvim_win_is_valid(win) then return end
+    local cur = vim.api.nvim_win_get_cursor(win)
+    if cur[1] ~= input_row then
+      vim.api.nvim_win_set_cursor(win, { input_row, cur[2] })
+    end
+  end
+  vim.api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI' }, {
+    buffer = buf,
+    callback = bounce,
+  })
+  -- Treat focus loss (user clicked another pane) as cancel so the
+  -- prompt never gets orphaned.
+  vim.api.nvim_create_autocmd('BufLeave', {
+    buffer = buf,
+    once = true,
+    callback = function() finish(nil) end,
+  })
 end
 
 -- Locate the marker (if any) whose byte range contains the cursor's
@@ -583,55 +694,55 @@ local function marker_under_cursor(bufnr)
   return nil
 end
 
--- Rewrite (or remove) an existing marker. Uses vim.ui.input so we can
--- distinguish cancel (callback nil, e.g. Esc) from clear-and-Enter
--- (callback ""); vim.fn.input collapses both to "" and would conflate
--- the two intents. Behaviour:
---   nil  → cancel, buffer untouched
---   ""   → delete the marker (and collapse one adjacent space so the
---          surrounding prose doesn't end up with a double gap)
---   == Y → no-op
---   else → replace Y in place, preserving kind + X
+-- Helper: write a single line back into the scrollback buffer, toggling
+-- the read-only lock around the edit. Triggers marker re-highlighting.
+local function rewrite_line(bufnr, row, new_line)
+  vim.bo[bufnr].modifiable = true
+  vim.bo[bufnr].readonly   = false
+  vim.api.nvim_buf_set_lines(bufnr, row - 1, row, false, { new_line })
+  vim.bo[bufnr].modifiable = false
+  vim.bo[bufnr].readonly   = true
+  highlight_markers(bufnr, row - 1, row)
+end
+
+-- Rewrite (or remove) an existing marker.
+--   nil result → cancel, buffer untouched
+--   ""         → delete the marker (scoped: restore X; bare: pure
+--                removal with adjacent-space collapse)
+--   == m.Y     → no-op
+--   else       → replace Y in place, preserving kind + X
 local function edit_marker(bufnr, row, line, m)
-  vim.ui.input({ prompt = 'Edit comment (empty deletes): ', default = m.Y },
-    function(new_y)
-      if new_y == nil then return end
-      if new_y == m.Y then return end
-      local new_line
-      if new_y == '' then
-        local before = line:sub(1, m.range[1] - 1)
-        local after  = line:sub(m.range[2] + 1)
-        if m.kind == 'scoped' then
-          -- Scoped markers wrap a user-selected span (add_marker_visual
-          -- replaced `sel` with `🤖<sel>[comment]`). Deleting the marker
-          -- should restore that span, not also erase the prose it was
-          -- attached to.
-          new_line = before .. m.X .. after
-        else
-          -- Bare marker: pure removal. Collapse one adjacent space so
-          -- the surrounding prose doesn't end up with a double gap, and
-          -- trim trailing whitespace for the end-of-line case.
-          if before:match(' $') and after:match('^ ') then
-            after = after:sub(2)
-          end
-          new_line = (before .. after):gsub('%s+$', '')
-        end
+  local quote = (m.kind == 'scoped') and m.X
+    or strip_markers(line, find_markers_in_line(line))
+  open_marker_prompt(quote, m.Y, function(new_y)
+    if new_y == nil then return end
+    if new_y == m.Y then return end
+    local new_line
+    if new_y == '' then
+      local before = line:sub(1, m.range[1] - 1)
+      local after  = line:sub(m.range[2] + 1)
+      if m.kind == 'scoped' then
+        -- Scoped markers wrap a user-selected span (add_marker_visual
+        -- replaced `sel` with `🤖<sel>[comment]`). Deleting the marker
+        -- restores that span; the prose it was attached to stays.
+        new_line = before .. m.X .. after
       else
-        local marker_text
-        if m.kind == 'scoped' then
-          marker_text = MARKER_BOT .. '<' .. esc_x(m.X) .. '>[' .. esc_y(new_y) .. ']'
-        else
-          marker_text = MARKER_BOT .. '[' .. esc_y(new_y) .. ']'
+        -- Bare marker: pure removal. Collapse one adjacent space so the
+        -- surrounding prose doesn't end up with a double gap, and trim
+        -- trailing whitespace for the end-of-line case.
+        if before:match(' $') and after:match('^ ') then
+          after = after:sub(2)
         end
-        new_line = line:sub(1, m.range[1] - 1) .. marker_text .. line:sub(m.range[2] + 1)
+        new_line = (before .. after):gsub('%s+$', '')
       end
-      vim.bo[bufnr].modifiable = true
-      vim.bo[bufnr].readonly   = false
-      vim.api.nvim_buf_set_lines(bufnr, row - 1, row, false, { new_line })
-      vim.bo[bufnr].modifiable = false
-      vim.bo[bufnr].readonly   = true
-      highlight_markers(bufnr, row - 1, row)
-    end)
+    else
+      local marker_text = (m.kind == 'scoped')
+        and (MARKER_BOT .. '<' .. esc_x(m.X) .. '>[' .. esc_y(new_y) .. ']')
+        or  (MARKER_BOT .. '['                       .. esc_y(new_y) .. ']')
+      new_line = line:sub(1, m.range[1] - 1) .. marker_text .. line:sub(m.range[2] + 1)
+    end
+    rewrite_line(bufnr, row, new_line)
+  end)
 end
 
 local function add_marker_normal(bufnr)
@@ -643,18 +754,15 @@ local function add_marker_normal(bufnr)
     edit_marker(bufnr, hit_row, hit_line, hit_marker)
     return
   end
-  local comment = prompt_comment()
-  if not comment then return end
   local row = vim.api.nvim_win_get_cursor(0)[1]
   local line = vim.api.nvim_buf_get_lines(bufnr, row - 1, row, false)[1] or ''
-  local marker = MARKER_BOT .. '[' .. esc_y(comment) .. ']'
-  local sep = (line == '' or line:match('%s$')) and '' or ' '
-  vim.bo[bufnr].modifiable = true
-  vim.bo[bufnr].readonly   = false
-  vim.api.nvim_buf_set_lines(bufnr, row - 1, row, false, { line .. sep .. marker })
-  vim.bo[bufnr].modifiable = false
-  vim.bo[bufnr].readonly   = true
-  highlight_markers(bufnr, row - 1, row)
+  local quote = strip_markers(line, find_markers_in_line(line))
+  open_marker_prompt(quote, '', function(comment)
+    if comment == nil or comment == '' then return end
+    local marker = MARKER_BOT .. '[' .. esc_y(comment) .. ']'
+    local sep = (line == '' or line:match('%s$')) and '' or ' '
+    rewrite_line(bufnr, row, line .. sep .. marker)
+  end)
 end
 
 local function add_marker_visual(bufnr)
@@ -675,22 +783,18 @@ local function add_marker_visual(bufnr)
     vim.cmd('normal! \27')
     return
   end
-  vim.cmd('normal! \27')  -- exit visual so the upcoming input prompt works
+  vim.cmd('normal! \27')  -- exit visual so the upcoming prompt has focus
   local line = vim.api.nvim_buf_get_lines(bufnr, sr - 1, sr, false)[1] or ''
   ec = math.min(ec, #line)  -- clamp for line-wise V (col is huge there)
   local before = line:sub(1, sc - 1)
   local sel    = line:sub(sc, ec)
   local after  = line:sub(ec + 1)
   if sel == '' then return end
-  local comment = prompt_comment()
-  if not comment then return end
-  local marker = MARKER_BOT .. '<' .. esc_x(sel) .. '>[' .. esc_y(comment) .. ']'
-  vim.bo[bufnr].modifiable = true
-  vim.bo[bufnr].readonly   = false
-  vim.api.nvim_buf_set_lines(bufnr, sr - 1, sr, false, { before .. marker .. after })
-  vim.bo[bufnr].modifiable = false
-  vim.bo[bufnr].readonly   = true
-  highlight_markers(bufnr, sr - 1, sr)
+  open_marker_prompt(sel, '', function(comment)
+    if comment == nil or comment == '' then return end
+    local marker = MARKER_BOT .. '<' .. esc_x(sel) .. '>[' .. esc_y(comment) .. ']'
+    rewrite_line(bufnr, sr, before .. marker .. after)
+  end)
 end
 
 -- Sidecar path the draft nvim picks up on FocusGained. Resolved at
@@ -778,30 +882,6 @@ vim.api.nvim_create_autocmd('BufReadPost', {
                    { buffer = bufnr, silent = true })
     vim.keymap.set('n', '<M-B>', function() jump_to_prompt('next') end,
                    { buffer = bufnr, silent = true })
-    -- Edit-comment prompt (vim.ui.input → cmdline) ergonomics: on macOS
-    -- Option+Backspace / Option+Delete send ESC-prefixed sequences, and
-    -- in default cmdline handling the ESC cancels the input — the next
-    -- byte then re-enters normal mode and can edit the underlying
-    -- buffer.
-    --
-    -- The previous fix mapped the chords to the literal '<C-U>' string,
-    -- which works at the cmdline-state level but doesn't repaint the
-    -- prompt until the next keystroke, so the user perceived "first
-    -- Alt+Del did nothing, then a plain Del cleared to start". Doing
-    -- the mutation directly via setcmdline + setcmdpos and forcing a
-    -- redraw makes the single-press behaviour match Cmd+Backspace.
-    -- Buffer-local cmaps don't exist in vim; the scrollback viewer is
-    -- the only cmdline consumer in this nvim instance, so a plain cmap
-    -- is effectively scoped.
-    local function clear_cmdline_to_start()
-      local line = vim.fn.getcmdline()
-      local pos  = vim.fn.getcmdpos()  -- 1-based byte column of cursor
-      vim.fn.setcmdline(line:sub(pos))
-      vim.fn.setcmdpos(1)
-      vim.cmd('redraw')
-    end
-    vim.keymap.set('c', '<M-BS>',  clear_cmdline_to_start, { silent = true })
-    vim.keymap.set('c', '<M-Del>', clear_cmdline_to_start, { silent = true })
     -- Open at the *bottom* of the scrollback — the agent's most recent
     -- output is what the user just saw vanish off the top of the pane;
     -- opening anywhere else makes them hit G first. `zb` forces the
