@@ -568,7 +568,54 @@ local function prompt_comment()
   return comment
 end
 
+-- Locate the marker (if any) whose byte range contains the cursor's
+-- current 1-based byte column on the current line. Returns
+-- (row, line, marker) on hit, nil otherwise.
+local function marker_under_cursor(bufnr)
+  local row, col0 = unpack(vim.api.nvim_win_get_cursor(0))  -- col0 is 0-indexed byte
+  local col = col0 + 1
+  local line = vim.api.nvim_buf_get_lines(bufnr, row - 1, row, false)[1] or ''
+  for _, m in ipairs(find_markers_in_line(line)) do
+    if col >= m.range[1] and col <= m.range[2] then
+      return row, line, m
+    end
+  end
+  return nil
+end
+
+-- Rewrite an existing marker's Y in place, preserving kind/X. Empty
+-- input (or unchanged input — which is what happens if the user just
+-- hits Enter on the prefilled default) is a no-op; the buffer is not
+-- touched, so the read-only lock stays untouched too.
+local function edit_marker(bufnr, row, line, m)
+  local ok, new_y = pcall(vim.fn.input, 'Edit comment: ', m.Y)
+  if not ok then return end
+  new_y = new_y or ''
+  if new_y == '' or new_y == m.Y then return end
+  local marker_text
+  if m.kind == 'scoped' then
+    marker_text = MARKER_BOT .. '<' .. esc_x(m.X) .. '>[' .. esc_y(new_y) .. ']'
+  else
+    marker_text = MARKER_BOT .. '[' .. esc_y(new_y) .. ']'
+  end
+  local new_line = line:sub(1, m.range[1] - 1) .. marker_text .. line:sub(m.range[2] + 1)
+  vim.bo[bufnr].modifiable = true
+  vim.bo[bufnr].readonly   = false
+  vim.api.nvim_buf_set_lines(bufnr, row - 1, row, false, { new_line })
+  vim.bo[bufnr].modifiable = false
+  vim.bo[bufnr].readonly   = true
+  highlight_markers(bufnr, row - 1, row)
+end
+
 local function add_marker_normal(bufnr)
+  -- Context-sensitive: cursor on an existing 🤖[…] or 🤖<…>[…] →
+  -- offer to edit it in place; otherwise drop a new bare marker at
+  -- end-of-line.
+  local hit_row, hit_line, hit_marker = marker_under_cursor(bufnr)
+  if hit_marker then
+    edit_marker(bufnr, hit_row, hit_line, hit_marker)
+    return
+  end
   local comment = prompt_comment()
   if not comment then return end
   local row = vim.api.nvim_win_get_cursor(0)[1]
@@ -749,4 +796,4 @@ vim.opt.cursorline = true
 -- autodetects pbcopy/pbpaste on macOS so no provider config needed.
 vim.opt.clipboard = 'unnamedplus'
 vim.opt.laststatus = 2
-vim.opt.statusline = ' pair scrollback · Esc quit (confirm) · Alt+q 🤖[] · Alt+b/B prompts · :N jump %= L%l/%L '
+vim.opt.statusline = ' pair scrollback · Esc quit (confirm) · Alt+q 🤖[] (add/edit) · Alt+b/B prompts · :N jump %= L%l/%L '
