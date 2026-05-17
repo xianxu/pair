@@ -465,43 +465,98 @@ end
 --   > <quote>
 --   <comment>
 -- Markers are separated by a blank line. Returns "" when no markers exist.
-local function format_extraction(buf_lines)
-  local pieces = {}
-  for _, line in ipairs(buf_lines) do
+-- Stable identity for a marker, used to subtract the load-time baseline
+-- from the set of markers present at emit time. NUL separator keeps
+-- distinct (X, Y) pairs from colliding when one contains the other's
+-- text.
+local function marker_key(m)
+  if m.kind == 'scoped' then
+    return 's\0' .. m.X .. '\0' .. m.Y
+  end
+  return 'b\0' .. m.Y
+end
+
+-- Snapshot per-line marker counts. Counts (not sets) so a line with two
+-- identical 🤖[foo] markers at load time doesn't silently absorb a new
+-- 🤖[foo] added on the same line via Alt+q.
+local function collect_markers_by_line(buf_lines)
+  local by_line = {}
+  for i, line in ipairs(buf_lines) do
     local markers = find_markers_in_line(line)
     if #markers > 0 then
-      local stripped = strip_markers(line, markers)
+      local set = {}
       for _, m in ipairs(markers) do
-        -- Empty `[]` body = unfinished marker (Alt+q dropped the syntax
-        -- and the user moved on without typing a comment). Drop it
-        -- silently rather than ship a quote-only block to the draft.
-        if m.Y:match('^%s*$') then
-          goto continue
-        end
-        local quote = (m.kind == 'scoped') and m.X or stripped
-        if quote == '' then
-          -- Edge: bare marker on a line that's *only* the marker. Fall
-          -- back to a placeholder so the pickup side knows there was a
-          -- standalone note.
-          quote = '(no context)'
-        end
-        table.insert(pieces, '> ' .. quote .. '\n' .. m.Y)
-        ::continue::
+        local k = marker_key(m)
+        set[k] = (set[k] or 0) + 1
       end
+      by_line[i] = set
     end
+  end
+  return by_line
+end
+
+-- Walk `buf_lines`, return a markdown block of "> quote\nY" entries for
+-- every 🤖[]-marker except those already present at load time. The
+-- baseline (per-line marker-key counts from collect_markers_by_line) is
+-- decremented as we walk, so a load-time marker absorbs exactly one
+-- current-state marker with the same key on the same line.
+local function format_extraction(buf_lines, baseline_by_line)
+  baseline_by_line = baseline_by_line or {}
+  local pieces = {}
+  for i, line in ipairs(buf_lines) do
+    local markers = find_markers_in_line(line)
+    if #markers == 0 then goto next_line end
+    local stripped = strip_markers(line, markers)
+    -- Per-iteration mutable copy of the baseline counts for this line.
+    local skip = {}
+    for k, v in pairs(baseline_by_line[i] or {}) do skip[k] = v end
+    for _, m in ipairs(markers) do
+      -- Empty `[]` body = unfinished marker (Alt+q dropped the syntax
+      -- and the user moved on without typing a comment). Drop it
+      -- silently rather than ship a quote-only block to the draft.
+      if m.Y:match('^%s*$') then goto continue end
+      local k = marker_key(m)
+      if (skip[k] or 0) > 0 then
+        -- Pre-existing in the transcript itself (the captured agent
+        -- pane already had 🤖[…] tokens, e.g. from a previous session's
+        -- draft picked up by the agent). Skip — only emit markers the
+        -- user typed during *this* scrollback viewing.
+        skip[k] = skip[k] - 1
+        goto continue
+      end
+      local quote = (m.kind == 'scoped') and m.X or stripped
+      if quote == '' then
+        -- Edge: bare marker on a line that's *only* the marker. Fall
+        -- back to a placeholder so the pickup side knows there was a
+        -- standalone note.
+        quote = '(no context)'
+      end
+      table.insert(pieces, '> ' .. quote .. '\n' .. m.Y)
+      ::continue::
+    end
+    ::next_line::
   end
   return table.concat(pieces, '\n\n')
 end
 
 -- Expose for tests; headless harness pokes these directly.
 _G.PairScrollbackTest = {
-  find_markers_in_line = find_markers_in_line,
-  strip_markers        = strip_markers,
-  format_extraction    = format_extraction,
-  esc_x                = esc_x,
-  esc_y                = esc_y,
-  unescape             = unescape,
+  find_markers_in_line     = find_markers_in_line,
+  strip_markers            = strip_markers,
+  format_extraction        = format_extraction,
+  collect_markers_by_line  = collect_markers_by_line,
+  marker_key               = marker_key,
+  esc_x                    = esc_x,
+  esc_y                    = esc_y,
+  unescape                 = unescape,
 }
+
+-- Per-buffer snapshot of markers present at buffer load. Subtracted
+-- from format_extraction so only markers the user added during this
+-- viewing of the scrollback get shipped to the draft; any 🤖[…] tokens
+-- baked into the captured transcript (from a prior session's draft
+-- pickup) stay put.
+local initial_markers_by_buf = {}
 
 local function prompt_comment()
   -- vim.fn.input swallows a trailing CR; we get whatever the user typed.
@@ -575,7 +630,7 @@ end
 
 local function emit_pending(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-  local block = format_extraction(lines)
+  local block = format_extraction(lines, initial_markers_by_buf[bufnr])
   if block == '' then return end  -- silent no-op when no markers were dropped
   local path = sidecar_path()
   local tmp = path .. '.tmp'
@@ -605,6 +660,13 @@ vim.api.nvim_create_autocmd('BufReadPost', {
     -- buftype='nofile' alone is fragile — any plugin spawning a scratch
     -- nofile buffer would shadow ours. Tag the one we own.
     vim.b[bufnr].pair_scrollback = true
+    -- Snapshot 🤖[…] markers that came in with the transcript itself
+    -- (an agent that echoed back a prior draft's markers, or a re-run
+    -- where the previous session's sidecar landed in the input log).
+    -- format_extraction subtracts these so only markers the user adds
+    -- during this viewing get shipped to the draft.
+    initial_markers_by_buf[bufnr] = collect_markers_by_line(
+      vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
     -- ESC is the only quit binding. `q` was tempting (less-style, no
     -- Esc-prefix timeout) but a fat-fingered `q` instead of `Alt+q`
     -- (the marker-comment binding) was a frequent footgun — one
@@ -620,7 +682,7 @@ vim.api.nvim_create_autocmd('BufReadPost', {
     -- the marker count when present so the user knows what's at stake.
     vim.keymap.set('n', '<Esc>', function()
       local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-      local block = format_extraction(lines)
+      local block = format_extraction(lines, initial_markers_by_buf[bufnr])
       local prompt = 'Exit scrollback?'
       if block ~= '' then
         local n = 0
