@@ -472,6 +472,12 @@ local function format_extraction(buf_lines)
     if #markers > 0 then
       local stripped = strip_markers(line, markers)
       for _, m in ipairs(markers) do
+        -- Empty `[]` body = unfinished marker (Alt+q dropped the syntax
+        -- and the user moved on without typing a comment). Drop it
+        -- silently rather than ship a quote-only block to the draft.
+        if m.Y:match('^%s*$') then
+          goto continue
+        end
         local quote = (m.kind == 'scoped') and m.X or stripped
         if quote == '' then
           -- Edge: bare marker on a line that's *only* the marker. Fall
@@ -480,6 +486,7 @@ local function format_extraction(buf_lines)
           quote = '(no context)'
         end
         table.insert(pieces, '> ' .. quote .. '\n' .. m.Y)
+        ::continue::
       end
     end
   end
