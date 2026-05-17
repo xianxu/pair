@@ -820,13 +820,13 @@ record_outer_tty() {
 cmux_rename_workspace() {
     [ -n "${CMUX_WORKSPACE_ID:-}" ] || return 0
     command -v cmux >/dev/null 2>&1 || return 0
-    # Personal display convention: 'brain' → 🧠, 'book' → 📗, 'pair' → ⧉
+    # Personal display convention: 'brain' → 🧠, 'book' → 📗, 'pair' → ♋
     # anywhere in the title. Applied to every cmux rename (launch + the
     # cwd-reset on quit) so the substitution is uniform regardless of
     # who's calling.
     local title="${1//brain/🧠}"
     title="${title//book/📗}"
-    title="${title//pair/⧉}"
+    title="${title//pair/♋}"
     cmux rename-workspace "$title" >/dev/null 2>&1 || true
 }
 

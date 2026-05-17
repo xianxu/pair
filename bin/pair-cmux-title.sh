@@ -176,11 +176,11 @@ while true; do
     prefix=$(prefix_for_age "$age")
     if [ "$prefix" != "$last_prefix" ]; then
         # Personal display convention (matches bin/pair's cmux_rename_workspace):
-        # 'brain' → 🧠, 'book' → 📗, 'pair' → ⧉ anywhere in the title.
+        # 'brain' → 🧠, 'book' → 📗, 'pair' → ♋ anywhere in the title.
         title="${prefix}${SESSION}"
         title="${title//brain/🧠}"
         title="${title//book/📗}"
-        title="${title//pair/⧉}"
+        title="${title//pair/♋}"
         cmux rename-workspace "$title" >/dev/null 2>&1 || true
         last_prefix="$prefix"
     fi
