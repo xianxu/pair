@@ -6,3 +6,4 @@ __pycache__/
 /bin/pair-scribe
 /bin/pair-scrollback-render
 /bin/pair-wrap
+.DS_Store
