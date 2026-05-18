@@ -47,7 +47,7 @@ SESSION="pair-$TAG"
 DRAFT="$DATA_DIR/draft-$TAG.md"
 PIDFILE="$DATA_DIR/cmux-title-pid-$TAG"
 
-POLL_INTERVAL=60
+POLL_INTERVAL=600
 # Grace period for the zellij session to appear after spawn — covers the
 # create path in bin/pair, which spawns this poller right BEFORE calling
 # `zellij --new-session-with-layout`. Without this, the very first
