@@ -884,13 +884,35 @@ vim.api.nvim_create_autocmd('BufReadPost', {
                    { buffer = bufnr, silent = true })
     vim.keymap.set('n', '<M-B>', function() jump_to_prompt('next') end,
                    { buffer = bufnr, silent = true })
-    -- Open at the *bottom* of the scrollback — the agent's most recent
-    -- output is what the user just saw vanish off the top of the pane;
-    -- opening anywhere else makes them hit G first. `zb` forces the
-    -- last line to the bottom of the window so the maximum amount of
-    -- preceding context stays visible.
+    -- Align the viewer's top with the agent pane's current viewport.
+    -- The renderer writes a sibling `<ansi>.viewport` containing the
+    -- 1-indexed line where the visible buffer (em.Height() rows at the
+    -- bottom of the emulator) starts in the rendered output — i.e.
+    -- the first line the user was just looking at in the agent pane.
+    -- Position cursor there and `zt` to top so opening Alt+/ feels
+    -- like a seamless lift of the current screen into a scrollable
+    -- viewer.
+    --
+    -- Fallback: if the sidecar is missing or out of range, drop to
+    -- the original "G + zb" bottom-anchored behaviour so a stale
+    -- pair install with the new viewer but the old renderer still
+    -- opens to something useful.
     local last = vim.api.nvim_buf_line_count(bufnr)
-    if last > 0 then
+    local top
+    local ansi_path = vim.api.nvim_buf_get_name(bufnr)
+    if ansi_path:match('%.ansi$') then
+      local vp_path = (ansi_path:gsub('%.ansi$', '.viewport'))
+      local f = io.open(vp_path, 'r')
+      if f then
+        local raw = f:read('*l')
+        f:close()
+        top = tonumber(raw)
+      end
+    end
+    if top and top >= 1 and top <= last then
+      pcall(vim.api.nvim_win_set_cursor, 0, { top, 0 })
+      vim.cmd('normal! zt')
+    elseif last > 0 then
       pcall(vim.api.nvim_win_set_cursor, 0, { last, 0 })
       vim.cmd('normal! zb')
     end

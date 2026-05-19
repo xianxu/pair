@@ -304,6 +304,7 @@ def render(raw_path: str, events_path: str, out_path: str) -> None:
     feed_segments(stream, screen, raw, events)
 
     final_cols = screen.columns
+    viewport_top = len(screen.history_top) + 1  # 1-indexed line where visible buffer starts
     out_lines = []
     for row in iter_all_rows(screen):
         out_lines.append(serialize_row(row, final_cols))
@@ -311,6 +312,17 @@ def render(raw_path: str, events_path: str, out_path: str) -> None:
     # leave a tail of empties at the end of the file.
     while out_lines and out_lines[-1] == "":
         out_lines.pop()
+
+    # Write the viewport sidecar *before* the .ansi rename so a reader
+    # that opens the new .ansi never sees a stale sidecar from the
+    # previous render. Sidecar is best-effort; on failure scrollback.lua
+    # falls back to its prior bottom-alignment behaviour.
+    viewport_path = (out_path[:-len(".ansi")] if out_path.endswith(".ansi") else out_path) + ".viewport"
+    try:
+        with open(viewport_path, "w", encoding="utf-8") as f:
+            f.write(f"{viewport_top}\n")
+    except OSError:
+        pass
 
     # Atomic write: a second concurrent render (e.g. user double-tapping
     # Alt+/) would otherwise race on truncate-then-write of the same

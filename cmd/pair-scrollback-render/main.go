@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	uv "github.com/charmbracelet/ultraviolet"
@@ -218,6 +219,7 @@ func render(rawPath, eventsPath, outPath string) error {
 	// every subsequent line number otherwise, and `:880` should still land
 	// where zellij showed line 880.
 	sb := em.Scrollback()
+	viewportTop := sb.Len() + 1 // 1-indexed line where the visible buffer starts
 	out := make([]string, 0, sb.Len()+em.Height())
 	for i := 0; i < sb.Len(); i++ {
 		out = append(out, serializeRow(sb.Line(i)))
@@ -231,6 +233,15 @@ func render(rawPath, eventsPath, outPath string) error {
 	for len(out) > 0 && out[len(out)-1] == "" {
 		out = out[:len(out)-1]
 	}
+
+	// Write the viewport sidecar *first*, then atomically rename the
+	// .ansi into place. Order matters: scrollback.lua's BufReadPost
+	// opens the .ansi and immediately reads the sidecar — flipping the
+	// .ansi last guarantees the sidecar is up-to-date by the time
+	// nvim sees the new content. Sidecar is best-effort: on write
+	// failure, scrollback.lua falls back to its prior bottom-alignment.
+	viewportPath := strings.TrimSuffix(outPath, ".ansi") + ".viewport"
+	_ = os.WriteFile(viewportPath, []byte(strconv.Itoa(viewportTop)+"\n"), 0o644)
 
 	// Atomic write so a double-tap Alt+/ can't race truncate-then-write
 	// on the same path. Reader sees either the old complete file or the
