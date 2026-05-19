@@ -1,7 +1,7 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
-.PHONY: pair-bootstrap build install pair-scribe pair-scrollback-render pair-wrap
+.PHONY: pair-bootstrap build install pair-scribe pair-scrollback-render pair-wrap test test-race
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
 # and ships with the `pair-` prefix so it doesn't collide with anything
@@ -41,6 +41,22 @@ install: build
 pair-scribe:            $(BIN_DIR)/pair-scribe
 pair-scrollback-render: $(BIN_DIR)/pair-scrollback-render
 pair-wrap:              $(BIN_DIR)/pair-wrap
+
+# Tests
+#   make test       → go test ./... (cache disabled so reruns actually run)
+#   make test-race  → race-detector run, scoped to packages where the
+#                     suite has actual concurrent code worth checking.
+#                     pair-wrap has translateStdin's goroutine + timer +
+#                     channels; pair-scrollback-render's render() spawns
+#                     a goroutine drainer that races with em.Close()
+#                     inside the vt.Emulator library API itself, which is
+#                     outside our scope to fix — exclude that package
+#                     here rather than chase a library-level race.
+test:
+	go test ./... -count=1
+
+test-race:
+	go test -count=1 -race ./cmd/pair-wrap/
 
 # pair-scribe — Go-based pty wrapper with SIGUSR1/SIGUSR2 pause/resume
 # of the typescript log. Replaces script(1) at the top of the user's

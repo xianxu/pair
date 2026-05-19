@@ -106,23 +106,31 @@ func TestInitialSize_PicksFirstUsable(t *testing.T) {
 	}
 }
 
+// feedSegments tests use a bare *vt.Emulator without the drainer
+// goroutine that render() spawns: none of the input streams below
+// contain status queries (DSR, DA, …) that would cause the emulator
+// to write replies, so leaving the emulator's reader pipe undrained
+// doesn't deadlock. Skipping the drainer keeps the test
+// race-detector-clean (otherwise the reader goroutine races with
+// the deferred Close() on test exit).
+
 func TestFeedSegments_ClampsOffsetBeyondEOF(t *testing.T) {
 	// Synthesized corrupted sidecar case: events claim a resize at an
 	// offset well past the end of the raw byte stream. Without the
 	// clamp in feedSegments, raw[cursor:off] would panic.
 	em := vt.NewEmulator(80, 24)
 	defer em.Close()
-	go consumeAll(em) // drain emulator replies, see render() comment
 
-	raw := []byte("hello\r\nworld\r\n") // 14 bytes
+	raw := []byte("hello\r\nworld\r\n")
 	events := []resizeEvent{
 		{Type: "resize", Offset: 0, Cols: 80, Rows: 24},
 		{Type: "resize", Offset: 9999, Cols: 100, Rows: 30}, // way past EOF
 	}
 
-	// Should not panic. We can't easily inspect what's in the
-	// emulator, but the absence of a panic + the resize having
-	// landed (em.Width == 100 after) is the observable contract.
+	// Should not panic. The resize landing (em.Width == 100 after) is
+	// the observable contract — the test would also pass if we just
+	// asserted "didn't panic", but checking the post-resize size also
+	// verifies the iteration ran to completion.
 	feedSegments(em, raw, events)
 	if w, h := em.Width(), em.Height(); w != 100 || h != 30 {
 		t.Errorf("post-feed size: got %dx%d, want 100x30 (resize event applied)",
@@ -133,14 +141,12 @@ func TestFeedSegments_ClampsOffsetBeyondEOF(t *testing.T) {
 func TestFeedSegments_WritesAllRawWhenNoMidStreamResizes(t *testing.T) {
 	em := vt.NewEmulator(80, 24)
 	defer em.Close()
-	go consumeAll(em)
 
 	raw := []byte("alpha\r\nbeta\r\ngamma")
 	events := []resizeEvent{
 		{Type: "resize", Offset: 0, Cols: 80, Rows: 24},
 	}
 	feedSegments(em, raw, events) // must not panic; trailing tail flushed
-	// Size should be unchanged.
 	if w, h := em.Width(), em.Height(); w != 80 || h != 24 {
 		t.Errorf("size drifted: got %dx%d, want 80x24", w, h)
 	}
@@ -149,10 +155,8 @@ func TestFeedSegments_WritesAllRawWhenNoMidStreamResizes(t *testing.T) {
 func TestFeedSegments_AppliesMidStreamResize(t *testing.T) {
 	em := vt.NewEmulator(80, 24)
 	defer em.Close()
-	go consumeAll(em)
 
 	raw := []byte("first chunk\r\nsecond chunk\r\n")
-	// Mid-stream resize after the first line.
 	events := []resizeEvent{
 		{Type: "resize", Offset: 0, Cols: 80, Rows: 24},
 		{Type: "resize", Offset: 13, Cols: 120, Rows: 40},
@@ -160,19 +164,5 @@ func TestFeedSegments_AppliesMidStreamResize(t *testing.T) {
 	feedSegments(em, raw, events)
 	if w, h := em.Width(), em.Height(); w != 120 || h != 40 {
 		t.Errorf("post-feed size: got %dx%d, want 120x40", w, h)
-	}
-}
-
-// consumeAll drains an emulator's response pipe in the background.
-// The emulator writes replies to status queries (DSR, DA) back into
-// its own reader, and offscreen tests with no consumer would
-// deadlock on those writes. Mirrors what render() does in main.go.
-func consumeAll(em *vt.Emulator) {
-	buf := make([]byte, 256)
-	for {
-		_, err := em.Read(buf)
-		if err != nil {
-			return
-		}
 	}
 }

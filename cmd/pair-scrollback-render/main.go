@@ -196,7 +196,6 @@ func render(rawPath, eventsPath, outPath string) error {
 	cols, rows := initialSize(events)
 	em := vt.NewEmulator(cols, rows)
 	em.Scrollback().SetMaxLines(historyRows)
-	defer em.Close()
 
 	// Drain the emulator's input pipe in the background. CSI status
 	// queries (DSR, Device Attributes, etc.) in the captured stream
@@ -205,7 +204,20 @@ func render(rawPath, eventsPath, outPath string) error {
 	// replay has no reader, so the handler's WriteString blocks
 	// forever and deadlocks the Write goroutine. Discarding the bytes
 	// preserves emulation correctness; we never act on the replies.
-	go io.Copy(io.Discard, em)
+	//
+	// Wait for the drainer to actually exit before letting em.Close()
+	// run, otherwise Close races with the drainer's still-pending
+	// Read() (race detector catches it; in production the window is
+	// usually harmless but it's a real ordering bug).
+	drainDone := make(chan struct{})
+	go func() {
+		defer close(drainDone)
+		_, _ = io.Copy(io.Discard, em)
+	}()
+	defer func() {
+		em.Close()
+		<-drainDone
+	}()
 
 	raw, err := os.ReadFile(rawPath)
 	if err != nil {
