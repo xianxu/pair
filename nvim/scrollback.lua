@@ -852,23 +852,25 @@ vim.api.nvim_create_autocmd('BufReadPost', {
     -- markers along with the session. Built-in `ZZ` / `ZQ` are
     -- shadowed with no-ops for the same reason.
     --
-    -- Always confirm on ESC (default Yes — single Enter still exits).
-    -- A stray ESC during marker entry used to slam the viewer shut and
-    -- felt like data loss even though the sidecar gets written, since
-    -- the pickup back to the draft pane can be slow. The confirm gives
-    -- the user a chance to bail out of the accidental exit. Mention
-    -- the marker count when present so the user knows what's at stake.
+    -- Confirm on ESC *only when* there's something to ship to the
+    -- draft pane (i.e. user-added markers beyond the load-time
+    -- baseline). A stray ESC during marker entry used to slam the
+    -- viewer shut and felt like data loss; the prompt is the guard.
+    -- For passive reads, there's nothing at stake — quit instantly,
+    -- no friction.
     vim.keymap.set('n', '<Esc>', function()
       local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
       local block = format_extraction(lines, initial_markers_by_buf[bufnr])
-      local prompt = 'Exit scrollback?'
-      if block ~= '' then
-        local n = 0
-        for _ in block:gmatch('\n> ') do n = n + 1 end
-        n = n + 1  -- first marker has no preceding "\n> "
-        prompt = string.format('Exit scrollback? %d pending 🤖[] marker%s will be sent.',
-                               n, n == 1 and '' or 's')
+      if block == '' then
+        vim.cmd('qa')
+        return
       end
+      local n = 0
+      for _ in block:gmatch('\n> ') do n = n + 1 end
+      n = n + 1  -- first marker has no preceding "\n> "
+      local prompt = string.format(
+        'Exit scrollback? %d pending 🤖[] marker%s will be sent.',
+        n, n == 1 and '' or 's')
       local choice = vim.fn.confirm(prompt, '&Yes\n&No', 1, 'Question')
       if choice == 1 then vim.cmd('qa') end
     end, { buffer = bufnr, silent = true })
