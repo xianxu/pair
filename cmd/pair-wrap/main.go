@@ -513,6 +513,18 @@ func (p *proxy) updateAgentOutput(data []byte) {
 				continue
 			}
 			if loc := otherEscRe.FindIndex(data[i:]); loc != nil && loc[0] == 0 {
+				// Cursor-positioning escapes inside an active colored
+				// run mean the agent skipped one or more cells without
+				// repainting (typically blanks). Claude's TUI in
+				// particular paints inline code char-by-char and uses
+				// CUF to jump over spaces, so without this we'd merge
+				// `make nous-install` into the unusable autocomplete
+				// candidate `makenous-install`. Drop in a single-space
+				// placeholder to preserve word boundaries. Mirrors the
+				// fix in bin/pair-wrap.py (949aeec).
+				if len(p.agentSpanBuf) > 0 && p.agentSpanBuf[len(p.agentSpanBuf)-1] != ' ' {
+					p.agentSpanBuf = append(p.agentSpanBuf, ' ')
+				}
 				i += loc[1]
 				continue
 			}
