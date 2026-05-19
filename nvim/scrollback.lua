@@ -897,25 +897,37 @@ vim.api.nvim_create_autocmd('BufReadPost', {
     -- the original "G + zb" bottom-anchored behaviour so a stale
     -- pair install with the new viewer but the old renderer still
     -- opens to something useful.
-    local last = vim.api.nvim_buf_line_count(bufnr)
-    local top
+    --
+    -- The positioning runs on `vim.schedule` rather than inline because
+    -- a synchronous `zt` during BufReadPost can be undone by a window-
+    -- size update that fires later in the same tick (the floating pane
+    -- only finalises its layout after the file is loaded), leaving the
+    -- viewer scrolled to wherever the layout-change put it instead of
+    -- our requested top. Deferring one tick puts our positioning *after*
+    -- those layout passes complete.
     local ansi_path = vim.api.nvim_buf_get_name(bufnr)
-    if ansi_path:match('%.ansi$') then
-      local vp_path = (ansi_path:gsub('%.ansi$', '.viewport'))
-      local f = io.open(vp_path, 'r')
-      if f then
-        local raw = f:read('*l')
-        f:close()
-        top = tonumber(raw)
+    local vp_path = ansi_path:match('%.ansi$')
+      and (ansi_path:gsub('%.ansi$', '.viewport'))
+      or nil
+    vim.schedule(function()
+      if not vim.api.nvim_buf_is_valid(bufnr) then return end
+      local last = vim.api.nvim_buf_line_count(bufnr)
+      local top
+      if vp_path then
+        local f = io.open(vp_path, 'r')
+        if f then
+          top = tonumber(f:read('*l'))
+          f:close()
+        end
       end
-    end
-    if top and top >= 1 and top <= last then
-      pcall(vim.api.nvim_win_set_cursor, 0, { top, 0 })
-      vim.cmd('normal! zt')
-    elseif last > 0 then
-      pcall(vim.api.nvim_win_set_cursor, 0, { last, 0 })
-      vim.cmd('normal! zb')
-    end
+      if top and top >= 1 and top <= last then
+        pcall(vim.api.nvim_win_set_cursor, 0, { top, 0 })
+        vim.cmd('normal! zt')
+      elseif last > 0 then
+        pcall(vim.api.nvim_win_set_cursor, 0, { last, 0 })
+        vim.cmd('normal! zb')
+      end
+    end)
   end,
 })
 
