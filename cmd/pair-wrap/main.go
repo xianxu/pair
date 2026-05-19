@@ -736,6 +736,14 @@ const pendingFlushAfter = 30 * time.Millisecond
 //   - chunk-tail that's a strict prefix of any known marker → held
 //     over to the next read.
 func (p *proxy) translateStdin() {
+	p.translateStdinFrom(os.Stdin, p.ptmx, pendingFlushAfter)
+}
+
+// translateStdinFrom is the testable inner loop. Takes an explicit
+// reader / writer / flush-timeout so tests can inject pipes and a
+// shortened timeout. Production binds to os.Stdin + p.ptmx via the
+// thin wrapper above.
+func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter time.Duration) {
 	type readEv struct {
 		data []byte
 		err  error
@@ -744,7 +752,7 @@ func (p *proxy) translateStdin() {
 	go func() {
 		buf := make([]byte, 4096)
 		for {
-			n, err := os.Stdin.Read(buf)
+			n, err := stdin.Read(buf)
 			if n > 0 {
 				cp := make([]byte, n)
 				copy(cp, buf[:n])
@@ -777,7 +785,7 @@ func (p *proxy) translateStdin() {
 				}
 			}
 		}
-		flushTimer.Reset(pendingFlushAfter)
+		flushTimer.Reset(flushAfter)
 		timerArmed = true
 	}
 	disarmTimer := func() {
@@ -797,7 +805,7 @@ func (p *proxy) translateStdin() {
 		if len(pending) == 0 {
 			return
 		}
-		_, _ = p.ptmx.Write(pending)
+		_, _ = out.Write(pending)
 		pending = nil
 		disarmTimer()
 	}
@@ -816,11 +824,11 @@ func (p *proxy) translateStdin() {
 				data = append(pending, data...)
 				pending = nil
 			}
-			out, leftover, newInPaste := p.translateChunk(data, inPaste)
+			outBytes, leftover, newInPaste := p.translateChunk(data, inPaste)
 			inPaste = newInPaste
 			pending = leftover
-			if len(out) > 0 {
-				if _, werr := p.ptmx.Write(out); werr != nil {
+			if len(outBytes) > 0 {
+				if _, werr := out.Write(outBytes); werr != nil {
 					return
 				}
 			}
