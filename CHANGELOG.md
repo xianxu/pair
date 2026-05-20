@@ -63,7 +63,19 @@ tagged in git (`vN.M`) and tracked in the homebrew formula at
 - `pair-wrap`: preserve word boundaries when the agent paints a colored
   span cell-by-cell with cursor-positioning escapes between glyphs. The
   inline-code span `make nous-install` stops merging into the unusable
-  completion candidate `makenous-install`.
+  completion candidate `makenous-install`. Fixed in both the Go binary
+  (the primary path shipped via brew) and the Python fallback.
+
+### Tests (developer-facing)
+- Eight new Go test files (`extractFG`, `splitBytes`, `updateAgentOutput`,
+  `translateStdin` pipeline + 30ms flush timer, OSC dispatch, keymap
+  registry incl. gemini, `serializeRow` incl. wide-grapheme, `render`
+  end-to-end, `parseEvents`, `feedSegments` clamp-beyond-EOF,
+  `initialSize`). Test count went from 1 file to 8.
+- `make test` / `make test-race` targets.
+- `render()` waits for its drainer goroutine before `em.Close()` —
+  race-detector-clean cleanup ordering (this also formalises a
+  correctness ordering that existed only implicitly before).
 
 ### Misc
 - Vendored refreshes from ariadne: `.tart/` toolchain (rsync-mirror of
