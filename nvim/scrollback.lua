@@ -946,6 +946,27 @@ vim.api.nvim_create_autocmd('BufReadPost', {
                    { buffer = bufnr, silent = true })
     vim.keymap.set('n', '<M-B>', function() jump_to_prompt('next') end,
                    { buffer = bufnr, silent = true })
+    -- Disable the Alt-arrow / Shift-Alt-arrow combos. Two distinct
+    -- failure modes had to be neutralised:
+    --   • <M-Up> / <M-Down>: nvim's defaults bind these to "move line
+    --     up / down", which errors loudly on the scrollback's read-
+    --     only buffer.
+    --   • <M-Left> / <M-Right> (+ Shift variants): terminals emit
+    --     them as `ESC <Arrow>` and the two bytes can split apart
+    --     past ttimeoutlen — the ESC half then fires our exit binding
+    --     and the viewer silently closes.
+    -- Mapping all of them to <nop> at buffer scope takes the default
+    -- handler out of the picture for the first class; bumping
+    -- ttimeoutlen below maximises the chance nvim fuses ESC + Arrow
+    -- into a single <M-Arrow> chord before our <Esc> handler sees a
+    -- bare ESC.
+    for _, key in ipairs({
+      '<M-Up>', '<M-Down>', '<M-Left>', '<M-Right>',
+      '<M-S-Up>', '<M-S-Down>', '<M-S-Left>', '<M-S-Right>',
+    }) do
+      vim.keymap.set({ 'n', 'x' }, key, '<nop>', { buffer = bufnr, silent = true })
+    end
+    vim.opt.ttimeoutlen = 100
     -- Align the viewer's top with the agent pane's current viewport.
     -- The renderer writes a sibling `<ansi>.viewport` containing the
     -- 1-indexed line where the visible buffer (em.Height() rows at the
