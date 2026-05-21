@@ -539,18 +539,6 @@ local function format_extraction(buf_lines, baseline_by_line)
   return table.concat(pieces, '\n\n')
 end
 
--- Expose for tests; headless harness pokes these directly.
-_G.PairScrollbackTest = {
-  find_markers_in_line     = find_markers_in_line,
-  strip_markers            = strip_markers,
-  format_extraction        = format_extraction,
-  collect_markers_by_line  = collect_markers_by_line,
-  marker_key               = marker_key,
-  esc_x                    = esc_x,
-  esc_y                    = esc_y,
-  unescape                 = unescape,
-}
-
 -- Per-buffer snapshot of markers present at buffer load. Subtracted
 -- from format_extraction so only markers the user added during this
 -- viewing of the scrollback get shipped to the draft; any 🤖[…] tokens
@@ -568,6 +556,53 @@ local function truncate_to_width(s, max_cols)
   -- ellipsis lands a hair earlier — fine.
   return vim.fn.strcharpart(s, 0, max_cols - 1) .. '…'
 end
+
+-- Greedy word-wrap of `s` to `max_cols` display width per line. Returns
+-- a list of lines (no trailing newlines). Single tokens that exceed
+-- max_cols are character-sliced at the boundary — pathological case,
+-- shouldn't show up in practice but better than overflowing the prompt
+-- window. Whitespace runs collapse to single spaces by construction
+-- (gmatch('%S+') skips them); for a context-preview line that's an
+-- acceptable lossy display.
+local function wrap_to_width(s, max_cols)
+  if max_cols < 1 then max_cols = 1 end
+  if vim.fn.strdisplaywidth(s) <= max_cols then return { s } end
+  local lines = {}
+  local current = ''
+  for word in s:gmatch('%S+') do
+    local candidate = (current == '') and word or (current .. ' ' .. word)
+    if vim.fn.strdisplaywidth(candidate) <= max_cols then
+      current = candidate
+    else
+      if current ~= '' then table.insert(lines, current) end
+      current = word
+      -- Force-break an over-long single token (rare).
+      while vim.fn.strdisplaywidth(current) > max_cols do
+        table.insert(lines, vim.fn.strcharpart(current, 0, max_cols))
+        current = vim.fn.strcharpart(current, max_cols)
+      end
+    end
+  end
+  if current ~= '' then table.insert(lines, current) end
+  return lines
+end
+
+-- Expose for tests; headless harness pokes these directly. Lives down
+-- here (vs. immediately after format_extraction) so the table can
+-- include the layout helpers — Lua's local scoping would otherwise
+-- have them resolve to globals at the table-construction site.
+_G.PairScrollbackTest = {
+  find_markers_in_line     = find_markers_in_line,
+  strip_markers            = strip_markers,
+  format_extraction        = format_extraction,
+  collect_markers_by_line  = collect_markers_by_line,
+  marker_key               = marker_key,
+  esc_x                    = esc_x,
+  esc_y                    = esc_y,
+  unescape                 = unescape,
+  truncate_to_width        = truncate_to_width,
+  wrap_to_width            = wrap_to_width,
+}
 
 -- Floating-window single-line prompt with a markdown-style quote header.
 --   `quote`   : the context line to display as `> quote` above the input
@@ -588,10 +623,30 @@ local function open_marker_prompt(quote, default, on_done)
   -- Hug content width but cap to a sensible 80-cell maximum and leave
   -- a couple of columns of padding for the border + cursor space.
   local max_inner = math.max(20, math.min(80, vim.o.columns - 6))
-  local quote_disp = truncate_to_width(quote_text, max_inner - 2)  -- 2 for "> "
-  local quote_line = '> ' .. quote_disp
-  local lines = { quote_line, '', default }
-  local input_row = #lines  -- 1-based row of the editable line
+  -- Window height cap: up to 10 rows total. Reserve 2 for the blank
+  -- separator + input line; the remaining 8 are available for wrapped
+  -- quote context. Long quotes wrap; if they exceed the cap the last
+  -- visible quote line gets an ellipsis. Input itself stays single-
+  -- line (multi-line entry is an explicit non-feature).
+  local MAX_WINDOW_ROWS = 10
+  local max_quote_rows = MAX_WINDOW_ROWS - 2
+  local quote_rows = wrap_to_width(quote_text, max_inner - 2)  -- 2 for "> "
+  if #quote_rows > max_quote_rows then
+    -- Replace the last shown row with a truncated version that hints
+    -- there's more, instead of silently dropping context.
+    quote_rows = { table.unpack(quote_rows, 1, max_quote_rows) }
+    quote_rows[#quote_rows] = truncate_to_width(quote_rows[#quote_rows], max_inner - 2)
+    if not quote_rows[#quote_rows]:match('…$') then
+      quote_rows[#quote_rows] = quote_rows[#quote_rows] .. ' …'
+    end
+  end
+  local lines = {}
+  for _, r in ipairs(quote_rows) do
+    table.insert(lines, '> ' .. r)
+  end
+  table.insert(lines, '')        -- separator
+  table.insert(lines, default)   -- editable input
+  local input_row = #lines       -- 1-based row of the editable line
 
   local buf = vim.api.nvim_create_buf(false, true)
   vim.bo[buf].buftype = 'nofile'
@@ -599,11 +654,12 @@ local function open_marker_prompt(quote, default, on_done)
   vim.bo[buf].swapfile = false
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 
-  local content_width = math.max(
-    vim.fn.strdisplaywidth(quote_line),
-    vim.fn.strdisplaywidth(default) + 1,  -- +1 for cursor space at EOL
-    40
-  )
+  local content_width = vim.fn.strdisplaywidth(default) + 1 -- +1 for cursor at EOL
+  for _, l in ipairs(lines) do
+    local w = vim.fn.strdisplaywidth(l)
+    if w > content_width then content_width = w end
+  end
+  if content_width < 40 then content_width = 40 end
   local width = math.min(content_width, vim.o.columns - 4)
   local height = #lines
 
@@ -619,9 +675,14 @@ local function open_marker_prompt(quote, default, on_done)
     title_pos  = 'left',
   })
 
-  -- Dim the quote line so the eye lands on the editable text below.
+  -- Dim every quote line so the eye lands on the editable text below.
+  -- All rows from 0 through input_row-2 (i.e. including the blank
+  -- separator at input_row-2) get the muted highlight; the input line
+  -- itself uses default Normal.
   local ns = vim.api.nvim_create_namespace('PairScrollbackPrompt')
-  pcall(vim.api.nvim_buf_add_highlight, buf, ns, 'Comment', 0, 0, -1)
+  for i = 0, input_row - 2 do
+    pcall(vim.api.nvim_buf_add_highlight, buf, ns, 'Comment', i, 0, -1)
+  end
 
   -- Place cursor at end of input line and enter insert mode.
   pcall(vim.api.nvim_win_set_cursor, win, { input_row, 0 })
