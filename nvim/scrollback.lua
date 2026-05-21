@@ -620,9 +620,17 @@ _G.PairScrollbackTest = {
 local function open_marker_prompt(quote, default, on_done)
   default = default or ''
   local quote_text = (quote == '' or quote == nil) and '(no context)' or quote
-  -- Hug content width but cap to a sensible 80-cell maximum and leave
-  -- a couple of columns of padding for the border + cursor space.
-  local max_inner = math.max(20, math.min(80, vim.o.columns - 6))
+  -- Window width: ~80% of the editor width. Bounded below at 40 so
+  -- it stays usable on narrow terminals, and above at `columns - 4`
+  -- so the rounded border has visual breathing room from the edge.
+  -- The width is fixed (not content-hugging) — earlier UX feedback
+  -- was that the prior 50%-ish hug felt cramped for context preview.
+  local width = math.max(40, math.min(math.floor(vim.o.columns * 0.8), vim.o.columns - 4))
+  -- Quote lines wrap to fit the window: the buffer's text spans
+  -- `width` cells (style='minimal' removes signcolumn/numbers, so
+  -- the inner area is the full width); 2 of those cells go to the
+  -- `> ` markdown-blockquote prefix.
+  local max_inner = width
   -- Window height cap: up to 10 rows total. Reserve 2 for the blank
   -- separator + input line; the remaining 8 are available for wrapped
   -- quote context. Long quotes wrap; if they exceed the cap the last
@@ -654,13 +662,6 @@ local function open_marker_prompt(quote, default, on_done)
   vim.bo[buf].swapfile = false
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 
-  local content_width = vim.fn.strdisplaywidth(default) + 1 -- +1 for cursor at EOL
-  for _, l in ipairs(lines) do
-    local w = vim.fn.strdisplaywidth(l)
-    if w > content_width then content_width = w end
-  end
-  if content_width < 40 then content_width = 40 end
-  local width = math.min(content_width, vim.o.columns - 4)
   local height = #lines
 
   local win = vim.api.nvim_open_win(buf, true, {
