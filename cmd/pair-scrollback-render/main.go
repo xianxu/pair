@@ -34,10 +34,13 @@ import (
 	"github.com/charmbracelet/x/vt"
 )
 
-// historyRows caps scrolled-out rows retained for the viewer. Generous
-// because "I remember a line from way back" is the whole point of Alt+/.
-// ~100B/row average → 100k rows ≈ 10MB resident, fine.
-const historyRows = 100_000
+// historyRows caps scrolled-out rows retained for the viewer. Matched
+// to zellij/config.kdl's `scroll_buffer_size 2000` so PageUp inside the
+// agent pane and Alt+/ both reach back the same distance — otherwise
+// the viewer would surface lines that zellij no longer has, leaving
+// the scroll-overlay logic in pair-scrollback-open unable to align
+// against the agent pane's frame.
+const historyRows = 2_000
 
 const (
 	defaultCols = 80

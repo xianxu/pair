@@ -18,6 +18,14 @@ advanced_mouse_actions false
 show_release_notes false
 pane_frames true
 
+// Cap zellij's per-pane scroll-back at 2000 rows. Matches the
+// pair-scrollback-render historyRows cap so PageUp inside the agent
+// pane and Alt+/ both reach back the same distance. Default is 10000;
+// 2000 keeps memory pressure modest on long-running sessions while
+// still preserving enough history for "scroll up to find that thing
+// the agent said a few turns ago" without dropping into Alt+/.
+scroll_buffer_size 2000
+
 // When clicking an unfocused pane, send the click into the pane (so a
 // click-and-drag starts selecting text in one motion) rather than only
 // changing focus and swallowing the click.
