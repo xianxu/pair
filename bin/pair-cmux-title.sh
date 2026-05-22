@@ -63,6 +63,17 @@ PREFIX_WARM=$'\xf0\x9f\x9f\xa0'     # 🟠 < 3 days
 PREFIX_LUKEWARM=$'\xf0\x9f\x9f\xa1' # 🟡 < 10 days
 PREFIX_COOL=$'\xf0\x9f\x94\xb5'     # 🔵 < 21 days
 
+# Ignore SIGHUP. bin/pair spawns this with `& disown`, which only
+# removes the job from the shell's job table — the poller still
+# shares a controlling tty with the launching shell, so when that
+# terminal goes away (cmux pane close, ghostty quit) the kernel
+# sends SIGHUP and the poller terminates. The downstream symptom:
+# workspace titles freeze at whatever bucket was last written.
+# Trapping HUP keeps the poller alive across terminal lifecycle
+# changes; it only exits via the explicit "zellij session gone"
+# branch below.
+trap '' HUP
+
 # Single-instance: bail if a prior poller for this tag is still alive.
 if [ -f "$PIDFILE" ]; then
     old_pid=$(cat "$PIDFILE" 2>/dev/null || true)
@@ -155,11 +166,29 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
 done
 [ "$session_seen" -eq 1 ] || exit 0
 
+# Tolerate transient `zellij list-sessions` failures: after a system
+# sleep/wake the first IPC call sometimes returns empty briefly even
+# though the session is alive, and a single-miss exit here was the
+# other observed cause of zombie titles. Require this many consecutive
+# misses (= `SESSION_MISS_THRESHOLD * POLL_INTERVAL` seconds of
+# unbroken signal-lost time) before deciding the session is really
+# gone.
+SESSION_MISS_THRESHOLD=5
+session_misses=0
+
 while true; do
     # Self-terminate when the pair zellij session is gone — covers Alt+x,
-    # host reboot, manual `zellij kill-session`, pair upgrade.
-    if ! zellij list-sessions --short 2>/dev/null | grep -qx "$SESSION"; then
-        exit 0
+    # host reboot, manual `zellij kill-session`, pair upgrade. Counted
+    # across multiple polls so a single flaky IPC read doesn't kill us.
+    if zellij list-sessions --short 2>/dev/null | grep -qx "$SESSION"; then
+        session_misses=0
+    else
+        session_misses=$(( session_misses + 1 ))
+        if [ "$session_misses" -ge "$SESSION_MISS_THRESHOLD" ]; then
+            exit 0
+        fi
+        sleep "$POLL_INTERVAL"
+        continue
     fi
 
     now=$(date +%s)
