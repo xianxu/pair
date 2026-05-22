@@ -990,6 +990,30 @@ vim.api.nvim_create_autocmd('BufReadPost', {
       vim.keymap.set({ 'n', 'x' }, key, '<nop>', { buffer = bufnr, silent = true })
     end
     vim.opt.ttimeoutlen = 100
+
+    -- Keep the buffer's last line pinned at-or-above the bottom of the
+    -- window, so j / Ctrl-E / Ctrl-D / G past EOF can't re-introduce
+    -- phantom `~` rows that confuse the reader into thinking there's
+    -- more content. The clamp runs on every cursor move or scroll;
+    -- nvim has no built-in "stop scrolling at EOF" option, so this
+    -- autocmd-driven retopline is the canonical pattern.
+    local function clamp_no_phantom_rows()
+      if not vim.api.nvim_win_is_valid(0) then return end
+      local last = vim.api.nvim_buf_line_count(0)
+      local winh = vim.api.nvim_win_get_height(0)
+      local max_top = math.max(1, last - winh + 1)
+      if vim.fn.line('w0') > max_top then
+        local saved = vim.api.nvim_win_get_cursor(0)
+        pcall(vim.api.nvim_win_set_cursor, 0, { max_top, 0 })
+        vim.cmd('normal! zt')
+        pcall(vim.api.nvim_win_set_cursor, 0, saved)
+      end
+    end
+    vim.api.nvim_create_autocmd({ 'CursorMoved', 'WinScrolled' }, {
+      buffer = bufnr,
+      callback = clamp_no_phantom_rows,
+    })
+
     -- Align the viewer's top with the agent pane's current viewport.
     -- The renderer writes a sibling `<ansi>.viewport` containing the
     -- 1-indexed line where the visible buffer (em.Height() rows at the
@@ -1027,8 +1051,20 @@ vim.api.nvim_create_autocmd('BufReadPost', {
         end
       end
       if top and top >= 1 and top <= last then
-        pcall(vim.api.nvim_win_set_cursor, 0, { top, 0 })
+        -- Clamp topline so we never show phantom `~` rows past EOF:
+        -- if there's not enough content past `top` to fill the window
+        -- (common when the scrollback viewer is taller than the agent
+        -- pane), shift topline up to backfill with pre-viewport
+        -- content. The cursor still lands at the agent's-viewport-top
+        -- line — it's just no longer pinned to *row 1* of the window.
+        local winh = vim.api.nvim_win_get_height(0)
+        local max_top = math.max(1, last - winh + 1)
+        local clamped_top = math.min(top, max_top)
+        pcall(vim.api.nvim_win_set_cursor, 0, { clamped_top, 0 })
         vim.cmd('normal! zt')
+        if clamped_top < top then
+          pcall(vim.api.nvim_win_set_cursor, 0, { top, 0 })
+        end
       elseif last > 0 then
         pcall(vim.api.nvim_win_set_cursor, 0, { last, 0 })
         vim.cmd('normal! zb')
