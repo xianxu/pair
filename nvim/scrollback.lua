@@ -569,6 +569,17 @@ end
 -- pickup) stay put.
 local initial_markers_by_buf = {}
 
+-- Overall-comment affordance (#000021). A single trailing line gives
+-- the user a natural place to drop a summary comment after annotating
+-- with Alt+q. The line is a real buffer row — nvim's virt_lines
+-- aren't cursor-navigable, so Alt+q couldn't fire on a virtual line.
+-- Rendered in default Normal color (the user explicitly asked it not
+-- be greyed out — the affordance is positional, not visual).
+local footer_row_by_buf  = {}  -- bufnr → 1-based row of the affordance line
+local footer_text_by_buf = {}  -- bufnr → user's overall comment, or nil
+local FOOTER_HINT   = 'For overall comment, Alt+q on this line.'
+local FOOTER_PREFIX = 'Overall comment: '
+
 -- Truncate `s` to fit within `max_cols` of display width, appending an
 -- ellipsis if cut. Used for the quote-context line in the prompt.
 local function truncate_to_width(s, max_cols)
@@ -830,7 +841,41 @@ local function edit_marker(bufnr, row, line, m)
   end)
 end
 
+-- Rewrite the affordance line to reflect the stored footer comment:
+-- empty/nil → hint text, non-empty → "Overall comment: <text>". Toggles
+-- modifiable for the edit.
+local function update_footer_line(bufnr)
+  local row = footer_row_by_buf[bufnr]
+  if not row then return end
+  local text = footer_text_by_buf[bufnr]
+  local new_line = (text and text ~= '') and (FOOTER_PREFIX .. text) or FOOTER_HINT
+  vim.bo[bufnr].modifiable = true
+  vim.bo[bufnr].readonly   = false
+  vim.api.nvim_buf_set_lines(bufnr, row - 1, row, false, { new_line })
+  vim.bo[bufnr].modifiable = false
+  vim.bo[bufnr].readonly   = true
+end
+
+-- Open the marker prompt for the overall scrollback comment. No quote
+-- context — it's a standalone footer, not tied to a line. Empty submit
+-- clears the comment; cancel (nil) leaves state untouched.
+local function add_footer_comment(bufnr)
+  local current = footer_text_by_buf[bufnr] or ''
+  open_marker_prompt('(overall comment for this scrollback)', current, function(new_text)
+    if new_text == nil then return end
+    footer_text_by_buf[bufnr] = (new_text ~= '') and new_text or nil
+    update_footer_line(bufnr)
+  end)
+end
+
 local function add_marker_normal(bufnr)
+  local row = vim.api.nvim_win_get_cursor(0)[1]
+  -- Footer affordance row: route to the overall-comment flow rather
+  -- than treating the hint text as transcript to annotate.
+  if row == footer_row_by_buf[bufnr] then
+    add_footer_comment(bufnr)
+    return
+  end
   -- Context-sensitive: cursor on an existing 🤖[…] or 🤖<…>[…] →
   -- offer to edit it in place; otherwise drop a new bare marker at
   -- end-of-line.
@@ -839,7 +884,6 @@ local function add_marker_normal(bufnr)
     edit_marker(bufnr, hit_row, hit_line, hit_marker)
     return
   end
-  local row = vim.api.nvim_win_get_cursor(0)[1]
   local line = vim.api.nvim_buf_get_lines(bufnr, row - 1, row, false)[1] or ''
   local quote = strip_markers(line, find_markers_in_line(line))
   open_marker_prompt(quote, '', function(comment)
@@ -868,6 +912,12 @@ local function add_marker_visual(bufnr)
     vim.cmd('normal! \27')
     return
   end
+  if sr == footer_row_by_buf[bufnr] then
+    vim.notify('🤖 marker: use Alt+q on this line for the overall comment',
+               vim.log.levels.INFO)
+    vim.cmd('normal! \27')
+    return
+  end
   vim.cmd('normal! \27')  -- exit visual so the upcoming prompt has focus
   local line = vim.api.nvim_buf_get_lines(bufnr, sr - 1, sr, false)[1] or ''
   ec = math.min(ec, #line)  -- clamp for line-wise V (col is huge there)
@@ -893,8 +943,16 @@ end
 
 local function emit_pending(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  -- Drop the footer affordance row from the marker scan; the stored
+  -- overall comment (if any) is appended to the block below.
+  local footer_row = footer_row_by_buf[bufnr]
+  if footer_row then table.remove(lines, footer_row) end
   local block = format_extraction(lines, initial_markers_by_buf[bufnr])
-  if block == '' then return end  -- silent no-op when no markers were dropped
+  local footer = footer_text_by_buf[bufnr]
+  if footer and footer ~= '' then
+    block = (block == '') and footer or (block .. '\n\n' .. footer)
+  end
+  if block == '' then return end  -- silent no-op when nothing to ship
   local path = sidecar_path()
   local tmp = path .. '.tmp'
   local f = io.open(tmp, 'w')
@@ -915,6 +973,21 @@ vim.api.nvim_create_autocmd('BufReadPost', {
     local bufnr = args.buf
     decorate_buffer(bufnr)
     highlight_markers(bufnr)
+    -- Snapshot 🤖[…] markers that came in with the transcript itself
+    -- (an agent that echoed back a prior draft's markers, or a re-run
+    -- where the previous session's sidecar landed in the input log).
+    -- format_extraction subtracts these so only markers the user adds
+    -- during this viewing get shipped to the draft. Snapshot BEFORE
+    -- appending the footer affordance so it doesn't end up in the
+    -- baseline counts.
+    initial_markers_by_buf[bufnr] = collect_markers_by_line(
+      vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
+    -- Append the overall-comment affordance line at end-of-buffer
+    -- (#000021). Must run while the buffer is still modifiable.
+    local footer_row0 = vim.api.nvim_buf_line_count(bufnr)
+    vim.api.nvim_buf_set_lines(bufnr, footer_row0, footer_row0, false, { FOOTER_HINT })
+    footer_row_by_buf[bufnr]  = footer_row0 + 1  -- 1-based
+    footer_text_by_buf[bufnr] = nil
     vim.bo[bufnr].modifiable = false
     vim.bo[bufnr].readonly = true
     vim.bo[bufnr].buftype = 'nofile'  -- prevent accidental :w
@@ -923,13 +996,6 @@ vim.api.nvim_create_autocmd('BufReadPost', {
     -- buftype='nofile' alone is fragile — any plugin spawning a scratch
     -- nofile buffer would shadow ours. Tag the one we own.
     vim.b[bufnr].pair_scrollback = true
-    -- Snapshot 🤖[…] markers that came in with the transcript itself
-    -- (an agent that echoed back a prior draft's markers, or a re-run
-    -- where the previous session's sidecar landed in the input log).
-    -- format_extraction subtracts these so only markers the user adds
-    -- during this viewing get shipped to the draft.
-    initial_markers_by_buf[bufnr] = collect_markers_by_line(
-      vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
     -- ESC is the only quit binding. `q` was tempting (less-style, no
     -- Esc-prefix timeout) but a fat-fingered `q` instead of `Alt+q`
     -- (the marker-comment binding) was a frequent footgun — one
@@ -945,17 +1011,26 @@ vim.api.nvim_create_autocmd('BufReadPost', {
     -- no friction.
     vim.keymap.set('n', '<Esc>', function()
       local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+      local footer_row = footer_row_by_buf[bufnr]
+      if footer_row then table.remove(lines, footer_row) end
       local block = format_extraction(lines, initial_markers_by_buf[bufnr])
-      if block == '' then
+      local footer = footer_text_by_buf[bufnr]
+      local has_footer = (footer and footer ~= '')
+      if block == '' and not has_footer then
         vim.cmd('qa')
         return
       end
       local n = 0
-      for _ in block:gmatch('\n> ') do n = n + 1 end
-      n = n + 1  -- first marker has no preceding "\n> "
-      local prompt = string.format(
-        'Exit scrollback? %d pending 🤖[] marker%s will be sent.',
-        n, n == 1 and '' or 's')
+      if block ~= '' then
+        for _ in block:gmatch('\n> ') do n = n + 1 end
+        n = n + 1  -- first marker has no preceding "\n> "
+      end
+      local parts = {}
+      if n > 0 then
+        table.insert(parts, string.format('%d 🤖[] marker%s', n, n == 1 and '' or 's'))
+      end
+      if has_footer then table.insert(parts, 'overall comment') end
+      local prompt = 'Exit scrollback? ' .. table.concat(parts, ' + ') .. ' will be sent.'
       local choice = vim.fn.confirm(prompt, '&Yes\n&No', 1, 'Question')
       if choice == 1 then vim.cmd('qa') end
     end, { buffer = bufnr, silent = true })

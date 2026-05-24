@@ -202,6 +202,8 @@ The existing `set_winsize()` is the single entry point for both the initial PTY 
 
 The draft pane's `nvim/init.lua` registers a `FocusGained` autocmd that picks up the sidecar: on the `*` slot, it appends the block directly into the buffer and `:write`s (going through nvim_buf_set_lines, not an autoread + checktime dance, sidesteps the sub-second mtime resolution issue). Off-slot (`-N` / `+N`), it appends to `draft-<tag>.md` so the next nav-to-`*` reads it from disk. Sidecar is removed in both cases, and a `vim.notify` flashes "🤖 picked up N scrollback comment(s)". Round-trip: read scrollback → `Alt+q` to mark → `:q` → focus the draft → see the formatted block ready to send via `Alt+Return`.
 
+**Overall comment affordance (#000021).** After inline annotations, users often want a standalone summary not tied to any line. `BufReadPost` appends one trailing row — `For overall comment, Alt+q on this line.` — rendered in default Normal color (not dimmed; the affordance is positional, not visual). `nvim`'s `virt_lines` aren't cursor-navigable, so this is a real line. `Alt+q` on that row routes to `add_footer_comment` (no inline-quote context) and stores the text in a module-local `footer_text_by_buf[bufnr]`; the visible row becomes `Overall comment: <text>` and edits via the same chord. Empty submit clears, restoring the hint. `emit_pending` strips the affordance row from the marker scan and appends the stored text as a trailing standalone block (no `> quote` prefix) in the sidecar. The Esc exit-confirm folds it into the prompt ("3 🤖[] markers + overall comment will be sent").
+
 ### `nvim/init.lua` — drafting buffer config
 
 Loaded via `nvim -u`, fully isolated from the user's main nvim config. Provides:
