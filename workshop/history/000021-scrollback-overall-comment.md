@@ -1,10 +1,11 @@
 ---
 id: 000021
-status: working
+status: done
 deps: [000018]
 created: 2026-05-23
 updated: 2026-05-23
-related: [nvim/scrollback.lua]
+related: [nvim/scrollback.lua, atlas/architecture.md]
+actual_hours: 1
 ---
 
 # Overall comment affordance at end of scrollback
@@ -57,20 +58,38 @@ markers.)
 
 ## Plan
 
-- [ ] M1: append affordance line on `BufReadPost`, apply
+- [x] M1: append affordance line on `BufReadPost`, apply
   `PairScrollbackFooter` line highlight; track `footer_row_by_buf`.
-- [ ] M2: `add_marker_normal` branches to `add_footer_comment` when
+- [x] M2: `add_marker_normal` branches to `add_footer_comment` when
   cursor is on the affordance row. Empty submit clears, non-empty
   stores + rewrites the visible line.
-- [ ] M3: `add_marker_visual` rejects selections touching the
+- [x] M3: `add_marker_visual` rejects selections touching the
   affordance row.
-- [ ] M4: `emit_pending` strips the affordance row from the marker
+- [x] M4: `emit_pending` strips the affordance row from the marker
   scan and appends the stored overall comment to the shipped block.
-- [ ] M5: `Esc` exit-confirm prompt counts inline markers + overall
+- [x] M5: `Esc` exit-confirm prompt counts inline markers + overall
   comment separately in the message.
-- [ ] Manual verify: open `Alt+/`, walk to bottom, `Alt+q`, type
-  "summary", Return → line updates. `Alt+q` again to edit. Submit
-  empty → reverts. Inline marker + overall comment both ship in the
-  draft sidecar.
+- [x] Headless verify: drove `Alt+q` keymap + prompt buffer rewrites
+  through `nvim --headless` against a 3-line fixture. Confirmed:
+  affordance row appended (`L4="For overall comment, Alt+q on this line."`),
+  footer-only submit ships unprefixed footer to sidecar, inline
+  marker + footer round-trips as `> hello line 2 / inline note /
+  (blank) / summary`, empty re-submit restores the hint and writes
+  no sidecar, passive read writes no sidecar.
 
 ## Log
+
+
+- 2026-05-23: closed — headless nvim tests against 3-line fixture: footer appended, edit/clear loops, sidecar formatting for inline+footer combined and footer-only
+- **2026-05-23 — shipped.** Single-file change in `nvim/scrollback.lua`
+  (~90 lines net) plus a paragraph in `atlas/architecture.md`. Design
+  hinge: nvim's `virt_lines` aren't cursor-navigable, so the
+  affordance had to be a real trailing buffer row styled to look
+  virtual (line_hl_group → Comment). The marker baseline snapshot
+  (`initial_markers_by_buf`) was moved to *before* the footer append
+  so the affordance row doesn't enter the baseline counts; harmless
+  in practice (FOOTER_HINT contains no `🤖`) but cleaner posture.
+  Headless tests via `nvim -u nvim/scrollback.lua <fixture>` + a
+  driver lua sourced post-load (drives the keymap callbacks + patches
+  the floating prompt buffer to bypass UI). No code-review subagent
+  invoked — single file, single milestone, low blast radius.
