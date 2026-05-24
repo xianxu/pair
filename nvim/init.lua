@@ -119,6 +119,22 @@ vim.api.nvim_create_autocmd('FileType', {
     vim.cmd([[highlight! link markdownBold Special]])
     vim.cmd([[highlight! link markdownItalic Special]])
     vim.cmd([[highlight! link markdownBlockquote Comment]])
+    -- Render `> ` markdown blockquotes as a vertical bar, matching how
+    -- typical markdown renderers (GitHub, Obsidian) draw a gutter bar.
+    -- Stock markdownBlockquote matches `>\s` or `>$` as one chunk and
+    -- only dims that prefix; we want the bar visual AND the whole line
+    -- dimmed. Split into two contained matches: `^>` with conceal
+    -- cchar=▎ (inherits Comment via the existing link above), and
+    -- `.*$` as markdownBlockquoteText linked to Comment. conceallevel=2
+    -- enables cchar replacement; concealcursor='nc' keeps the bar
+    -- visible in normal/command mode while showing the real `>` in
+    -- insert/visual so editing the prefix isn't disorienting.
+    vim.cmd([[syntax clear markdownBlockquote]])
+    vim.cmd([[syntax match markdownBlockquote /^>/ contained conceal cchar=▎ nextgroup=markdownBlockquoteText]])
+    vim.cmd([[syntax match markdownBlockquoteText /.*$/ contained]])
+    vim.cmd([[highlight! link markdownBlockquoteText Comment]])
+    vim.wo.conceallevel = 2
+    vim.wo.concealcursor = 'nc'
     vim.cmd([[highlight! link markdownListMarker Statement]])
     vim.cmd([[highlight! link markdownOrderedListMarker Statement]])
     vim.cmd([[highlight! link markdownRule NonText]])
