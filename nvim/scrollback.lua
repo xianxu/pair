@@ -12,6 +12,14 @@
 
 vim.opt.termguicolors = true
 vim.opt.compatible = false
+-- The scrollback viewer is launched with `nvim -u scrollback.lua`, which
+-- skips init.lua — so the editor-wide `wrap`/`linebreak` defaults set
+-- there don't apply here. Repeat them so long lines (and any 🤖[…]
+-- markers the user has dropped into them) wrap at whitespace instead of
+-- mid-word.
+vim.opt.wrap = true
+vim.opt.linebreak = true
+vim.opt.breakindent = true
 
 -- Stub out the pair-launcher cmdline targets so a stray zellij Alt+Up
 -- / Alt+Down / Alt+x / Alt+n / Alt+d / Shift+Alt+N pressed while the
@@ -641,10 +649,15 @@ _G.PairScrollbackTest = {
 -- Floating-window single-line prompt with a markdown-style quote header.
 --   `quote`   : the context line to display as `> quote` above the input
 --   `default` : initial text in the input field
---   `on_done(result)` : called with the user's input on Return, or nil
---                       on Esc/cancel. Empty-string result means "the
---                       user accepted with an empty input", distinct
---                       from cancel — callers map this to delete-marker.
+--   `on_done(result)` : called with the user's input on Return or Esc
+--                       (both accept). Empty-string result is the
+--                       "clear and accept" path — callers map it to
+--                       delete-marker (edit case) or no-op (new-marker
+--                       case). `nil` is reserved for the BufLeave
+--                       focus-loss path below, which is the only true
+--                       cancel — Esc as cancel was a frequent footgun
+--                       after long comments, so the only way to drop
+--                       text is to clear it first (Option+BS / ⌥⌫).
 -- Reason this isn't vim.ui.input / vim.fn.input: cmdline-based prompts
 -- on macOS terminals mishandle Option+Delete by letting the ESC half
 -- cancel the cmdline before nvim can fuse it with the trailing byte
@@ -706,9 +719,15 @@ local function open_marker_prompt(quote, default, on_done)
     height     = height,
     style      = 'minimal',
     border     = 'rounded',
-    title      = ' 🤖[] — Return to accept, Esc to cancel ',
+    title      = ' 🤖[] — Return/Esc: accept · Alt+Return: accept & ship to draft ',
     title_pos  = 'left',
   })
+
+  -- Wrap long input at whitespace instead of mid-word. `wrap` is on by
+  -- default; `linebreak` switches the break point from "any column" to
+  -- "characters in `breakat`" (spaces and punctuation).
+  vim.wo[win].wrap = true
+  vim.wo[win].linebreak = true
 
   -- Dim every quote line so the eye lands on the editable text below.
   -- All rows from 0 through input_row-2 (i.e. including the blank
@@ -738,12 +757,30 @@ local function open_marker_prompt(quote, default, on_done)
     local text = vim.api.nvim_buf_get_lines(buf, input_row - 1, input_row, false)[1] or ''
     finish(text)
   end
-  local function cancel() finish(nil) end
 
+  -- Esc accepts (same as Return), rather than cancelling. A long comment
+  -- typed and then fat-fingered into Esc was being silently discarded —
+  -- much higher pain than the inverse mistake (committed something I
+  -- meant to drop). To explicitly cancel/delete, clear the input first
+  -- (Option+BS / Option+Del → `<C-U>` below) then Return: empty result
+  -- is the delete-marker / no-op path for either marker kind.
   local opts = { buffer = buf, silent = true, nowait = true }
   vim.keymap.set({ 'i', 'n' }, '<CR>',  accept, opts)
-  vim.keymap.set({ 'i', 'n' }, '<Esc>', cancel, opts)
-  vim.keymap.set('n', 'q', cancel, opts)
+  vim.keymap.set({ 'i', 'n' }, '<Esc>', accept, opts)
+  vim.keymap.set('n', 'q', accept, opts)
+  -- Alt+Return: accept this comment AND immediately quit the viewer so
+  -- the pending markers ship to the draft pane via the VimLeavePre →
+  -- sidecar pickup path. Mirrors the draft pane's <M-CR> = send-to-agent
+  -- muscle memory ("I'm done, push it"). Skips the viewer-level exit
+  -- confirm — the user explicitly chose the ship gesture, so a second
+  -- prompt is friction not safety. Bound here (not just at the viewer
+  -- level) because without an explicit binding terminals split Alt+CR
+  -- into ESC+CR past ttimeoutlen, then the BufLeave-on-prompt focus-loss
+  -- cancel kicks in and the typed comment is silently dropped.
+  vim.keymap.set({ 'i', 'n' }, '<M-CR>', function()
+    accept()
+    vim.cmd('qa')
+  end, opts)
   -- Option+Delete / Option+Backspace in insert mode → delete to line
   -- start, matching macOS Cocoa text-field convention. Buffer-local so
   -- it can't leak elsewhere. Two spellings because terminal emitters

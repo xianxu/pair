@@ -181,13 +181,21 @@ keybinds clear-defaults=false {
             };
         }
 
-        // Alt+n — restart: kill the current pair session AND re-launch with
-        // the same tag, agent, and agent args, but a fresh agent conversation
-        // (the saved per-(tag,agent) config is dropped before re-exec, so the
-        // new run starts the agent from a clean slate rather than offering
-        // to resume). Routed through nvim for the same fat-finger guard as
-        // Alt+x — destroying the agent's in-progress context is irreversible.
-        bind "Alt n" {
+        // Alt+n / Ctrl+Alt+n — restart: kill the current pair session AND
+        // re-launch with the same tag, agent, and agent args, but a fresh
+        // agent conversation (the saved per-(tag,agent) config is dropped
+        // before re-exec, so the new run starts the agent from a clean slate
+        // rather than offering to resume). Routed through nvim for the same
+        // fat-finger guard as Alt+x — destroying the agent's in-progress
+        // context is irreversible.
+        //
+        // Ctrl+Alt+n is a duplicate alias for macOS users on Tahoe (and any
+        // future OS / terminal combo that lets Option+n fire the dead-tilde
+        // composer instead of forwarding it as Meta+n). Adding Ctrl to the
+        // chord defeats the composer at the OS layer, so the binding
+        // reaches zellij on the first press. Alt+n is kept for users whose
+        // terminal is configured with Option-as-Meta.
+        bind "Alt n" "Ctrl Alt n" {
             MoveFocus "Down";
             Write 28;
             Write 14;

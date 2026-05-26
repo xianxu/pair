@@ -63,7 +63,7 @@ when you need to comment more extensively on agent's output, you can use scrollb
 | **Alt+h** | any pane | Pop up the full keybind help in a floating pane (press `q` to dismiss). |
 | **Alt+d** | any pane | Detach from the current session (re-attach later via `pair`). Confirms first. |
 | **Alt+x** | any pane | Full quit — kill the session and all processes inside. Confirms first. Pair captures the agent's session id alongside the launch args, so the session is resumable later via `pair resume <tag>`. |
-| **Alt+n** | any pane | Reload pair — kill the session and re-launch with the same tag, agent, args, AND agent session: the conversation resumes via `--resume <id>` (claude/gemini) or `resume <id>` (codex). Useful after a config or binary rebuild. Confirms first. |
+| **Alt+n** (or **Ctrl+Alt+n**) | any pane | Reload pair — kill the session and re-launch with the same tag, agent, args, AND agent session: the conversation resumes via `--resume <id>` (claude/gemini) or `resume <id>` (codex). Useful after a config or binary rebuild. Confirms first. Ctrl+Alt+n is the macOS-friendly alias — adding Ctrl defeats the Option+n dead-tilde composer on newer macOS / terminal combos that ignore the Option-as-Meta setting. |
 | **Shift+Alt+N** | any pane | Restart with a fresh agent conversation — same tag, agent, and args as Alt+n, but the saved per-(tag,agent) config is dropped before relaunch so the agent starts a brand-new session. Confirms first. |
 
 ### Prompt history & queue
