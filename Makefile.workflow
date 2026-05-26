@@ -71,8 +71,14 @@ help-workflow:
 
 # ── Issue sync ────────────────────────────────────────────────────────────────
 # Sync issue file changes to main and push, even when on a feature branch.
+# Delegates to bin/sdlc lock when the binary is built; falls back to the
+# shell script otherwise.
 issue-sync:
-	@scripts/issue-sync.sh
+	@if [ -x bin/sdlc ]; then \
+	    bin/sdlc lock; \
+	else \
+	    scripts/issue-sync.sh; \
+	fi
 
 # ── Close (issue or milestone) ────────────────────────────────────────────────
 # Mechanical part of AGENTS.md §5: tick checkboxes, flip status, write
@@ -95,8 +101,27 @@ close-issue: export VERIFIED    := $(VERIFIED)
 close-issue: export FORCE       := $(FORCE)
 close-issue: export DRY         := $(DRY)
 close-issue: export BRAIN_DIR   := $(BRAIN_DIR)
+# Delegates to bin/sdlc close when the Go binary is built; falls back to
+# the Python script otherwise. Both implementations match byte-for-byte
+# on stderr (Go is a faithful port of close-issue.py). The fallback path
+# keeps downstream repos that haven't run `make sdlc-build` yet working.
+# After M8 deprecates the Python script, the fallback branch goes away.
+#
+# Bash ${VAR:+--flag "$$VAR"} expands to nothing when VAR is unset/empty,
+# else to --flag "value" — preserves spaces in VERIFIED across the call.
 close-issue:
-	@scripts/close-issue.py
+	@if [ -x bin/sdlc ]; then \
+	    bin/sdlc close \
+	      $${ISSUE:+--issue "$$ISSUE"} \
+	      $${MILESTONE:+--milestone "$$MILESTONE"} \
+	      $${ACTUAL:+--actual "$$ACTUAL"} \
+	      $${VERIFIED:+--verified "$$VERIFIED"} \
+	      $${FORCE:+--force} \
+	      $${DRY:+--dry-run} \
+	      $${BRAIN_DIR:+--brain-dir "$$BRAIN_DIR"}; \
+	else \
+	    scripts/close-issue.py; \
+	fi
 
 # ── Refresh (setup + merge) ───────────────────────────────────────────────────
 # Detection (all keyed off UPSTREAM_* vars; defaults target ariadne):
@@ -138,7 +163,11 @@ pre-merge:
 	@scripts/parallel-checks.sh
 
 check-%:
-	@scripts/pre-merge-checks.sh $*
+	@if [ -x bin/sdlc ]; then \
+	    bin/sdlc judge $*; \
+	else \
+	    scripts/pre-merge-checks.sh $*; \
+	fi
 
 # Worktree management targets
 # Capture extra argument after worktree (e.g. make worktree feature-x)
@@ -160,42 +189,58 @@ endif
 # Create a new git worktree in the parent directory.
 # Usage: make worktree <name>    — explicit name
 #        make worktree            — auto-detect from single untracked issue file
+# Delegates to bin/sdlc start when the binary is built; falls back to the
+# inline shell logic otherwise.
 worktree:
-	@name="$(WT_NAME)"; \
-	if [ -z "$$name" ]; then \
-		issues=$$(git ls-files --others --exclude-standard -- '$(WF_ISSUES_DIR)/' 2>/dev/null | grep -E '/[0-9]{6}-.*\.md$$'); \
-		count=$$(echo "$$issues" | grep -c . 2>/dev/null || echo 0); \
-		if [ "$$count" -eq 1 ]; then \
-			name=$$(basename "$$issues" .md); \
-			echo "Auto-detected issue: $$name"; \
-		else \
-			echo "Usage: make worktree <name>"; \
-			if [ "$$count" -gt 1 ]; then \
-				echo "Multiple untracked issue files found:"; \
-				echo "$$issues" | sed 's/^/  /'; \
-			fi; \
-			exit 1; \
-		fi; \
-	fi; \
-	if [ -n "$$issues" ] && [ -f "$$issues" ]; then \
-		echo "==> Committing $$issues before creating worktree..."; \
-		git add "$$issues" && \
-		git commit -m "committing issue file before creating worktree" && \
-		git push || echo "  Warning: push failed, continuing with worktree creation"; \
-	fi; \
-	repo_dir=$$(basename "$$(pwd)"); \
-	mkdir -p "../worktree/$$repo_dir"; \
-	git worktree add -b "$$name" "../worktree/$$repo_dir/$$name" HEAD; \
-	echo "Worktree created at ../worktree/$$repo_dir/$$name on branch $$name"; \
-	printf '%s' "../worktree/$$repo_dir/$$name" > .goto; \
-	echo "Run: g (to cd into worktree)"
+	@if [ -x bin/sdlc ]; then \
+	    if [ -n "$(WT_NAME)" ]; then \
+	        bin/sdlc start --name "$(WT_NAME)"; \
+	    else \
+	        bin/sdlc start; \
+	    fi; \
+	else \
+	    name="$(WT_NAME)"; \
+	    if [ -z "$$name" ]; then \
+	        issues=$$(git ls-files --others --exclude-standard -- '$(WF_ISSUES_DIR)/' 2>/dev/null | grep -E '/[0-9]{6}-.*\.md$$'); \
+	        count=$$(echo "$$issues" | grep -c . 2>/dev/null || echo 0); \
+	        if [ "$$count" -eq 1 ]; then \
+	            name=$$(basename "$$issues" .md); \
+	            echo "Auto-detected issue: $$name"; \
+	        else \
+	            echo "Usage: make worktree <name>"; \
+	            if [ "$$count" -gt 1 ]; then \
+	                echo "Multiple untracked issue files found:"; \
+	                echo "$$issues" | sed 's/^/  /'; \
+	            fi; \
+	            exit 1; \
+	        fi; \
+	    fi; \
+	    if [ -n "$$issues" ] && [ -f "$$issues" ]; then \
+	        echo "==> Committing $$issues before creating worktree..."; \
+	        git add "$$issues" && \
+	        git commit -m "committing issue file before creating worktree" && \
+	        git push || echo "  Warning: push failed, continuing with worktree creation"; \
+	    fi; \
+	    repo_dir=$$(basename "$$(pwd)"); \
+	    mkdir -p "../worktree/$$repo_dir"; \
+	    git worktree add -b "$$name" "../worktree/$$repo_dir/$$name" HEAD; \
+	    echo "Worktree created at ../worktree/$$repo_dir/$$name on branch $$name"; \
+	    printf '%s' "../worktree/$$repo_dir/$$name" > .goto; \
+	    echo "Run: g (to cd into worktree)"; \
+	fi
 
 # Fetch a GitHub issue and create a local issue file in issues/.
 # Usage: make fetch <number>
+# Delegates to bin/sdlc fetch when the binary is built; falls back to
+# the inline shell logic otherwise.
 fetch:
 	@if [ -z "$(FETCH_NUM)" ]; then \
 		echo "Usage: make fetch <number>"; \
 		exit 1; \
+	fi
+	@if [ -x bin/sdlc ]; then \
+	    bin/sdlc fetch --github-issue "$(FETCH_NUM)"; \
+	    exit 0; \
 	fi
 	@set -o pipefail; \
 	repo=$$(git remote get-url origin | sed 's|.*github.com[:/]\(.*\)\.git|\1|;s|.*github.com[:/]\(.*\)$$|\1|'); \
@@ -239,7 +284,13 @@ fetch:
 # Push to remote, close GitHub issues for done issues, move done issues to history/.
 # Works from main — the direct-on-main workflow counterpart to merge.
 # Usage: make push
+# Delegates to bin/sdlc push when the binary is built; falls back to
+# the inline shell logic otherwise (M5 of #31).
 push:
+	@if [ -x bin/sdlc ]; then \
+	    bin/sdlc push $(if $(YES),--yes) $(if $(NO_JUDGE),--no-judge); \
+	    exit 0; \
+	fi
 	@branch=$$(git branch --show-current); \
 	if [ "$$branch" != "main" ]; then \
 		echo "Error: make push must be run from main (current branch: $$branch)"; \
@@ -308,7 +359,13 @@ push:
 # Create a GitHub pull request from the current worktree branch to main.
 # Scans issues/ files touched since branch point for github_issue frontmatter.
 # Must be run from inside a worktree (not from main).
+# Delegates to bin/sdlc pr when the binary is built; falls back to
+# the inline shell logic otherwise (M5 of #31).
 pull-request:
+	@if [ -x bin/sdlc ]; then \
+	    bin/sdlc pr; \
+	    exit 0; \
+	fi
 	@branch=$$(git branch --show-current); \
 	if [ -z "$$branch" ] || [ "$$branch" = "main" ]; then \
 		echo "Error: run this from a worktree branch, not main"; \
@@ -348,7 +405,13 @@ pull-request:
 # Merge the current worktree branch into main (if a PR exists),
 # move done issues to history/, clean up the worktree.
 # Must be run from inside a worktree (not from main).
+# Delegates to bin/sdlc merge when the binary is built; falls back to
+# the inline shell logic otherwise (M5 of #31).
 merge:
+	@if [ -x bin/sdlc ]; then \
+	    bin/sdlc merge $(if $(YES),--yes) $(if $(NO_JUDGE),--no-judge); \
+	    exit 0; \
+	fi
 	@branch=$$(git branch --show-current); \
 	if [ -z "$$branch" ] || [ "$$branch" = "main" ]; then \
 		echo "Error: run this from a worktree branch, not main"; \
@@ -535,3 +598,37 @@ build:
 #   	@cd python-utils && pip install --user -e .
 local-build:
 	@:
+
+# ── sdlc binary ──────────────────────────────────────────────────────────────
+# `sdlc` is the SDLC checkpoint binary (see workshop/issues/000031-*.md).
+# Builds from cmd/sdlc/main.go, output at cmd/sdlc/bin/sdlc, symlinked
+# into bin/sdlc. Mirrors ../nous's `nous-build` pattern.
+#
+# `make build` (the cmd/*/main.go scanner above) also picks sdlc up
+# automatically — sdlc-build is the explicit dev-flow target for
+# iterating just on the binary without scanning the whole cmd/ tree.
+.PHONY: sdlc-build sdlc-bootstrap
+sdlc-build:
+	@mkdir -p bin
+	@echo "==> building bin/sdlc"
+	@# Build via Go package path so this target works in both ariadne (the
+	@# source repo — Go's module system finds cmd/sdlc locally via the
+	@# module's own go.mod) and any derivative that vendors ariadne (Go
+	@# resolves the path via the require + replace + vendor/ chain that
+	@# `go mod vendor` populated during `make refresh`).
+	@#
+	@# Derivatives must declare the dependency in their go.mod:
+	@#   require github.com/xianxu/ariadne v0.0.0-00010101000000-000000000000
+	@#   replace github.com/xianxu/ariadne => ../ariadne
+	@#   tool    github.com/xianxu/ariadne/cmd/sdlc        # Go 1.24+
+	@# Otherwise `go mod tidy` strips the require (no code import) and
+	@# vendor/ stays empty.
+	@go build -o bin/sdlc github.com/xianxu/ariadne/cmd/sdlc
+
+# sdlc-bootstrap installs sdlc onto PATH for the developer. Idempotent.
+# Mirrors ../nous's `nous-bootstrap` pattern but stripped down: sdlc
+# has no GPG / openshell / Brewfile dependencies, just a Go toolchain.
+#
+# Default install dir: ~/bin. Override with SDLC_INSTALL_BIN=...
+sdlc-bootstrap:
+	@scripts/sdlc-bootstrap.sh

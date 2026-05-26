@@ -527,6 +527,28 @@ if [[ ! -f "$MODE_MARKER" ]] || [[ "$(tr -d '[:space:]' < "$MODE_MARKER")" != "$
     printf "  ${GREEN}wrote${RESET}   .ariadne-mode (%s)\n" "$MODE"
 fi
 
+# ── Vendor Go source (vendor mode + go.mod present) ──────────────────────────
+# In vendor mode, the substrate isn't just text — Go binaries that ship
+# from ariadne (like cmd/sdlc) need their source available in the target
+# repo too. `go mod vendor` populates vendor/ with the source for every
+# require / tool declaration in go.mod, so the binary can be built
+# locally without needing the ancestor checked out next door.
+#
+# Symlink mode skips this — sibling-checkout development resolves Go
+# imports via the replace directive's local path, no vendor/ needed.
+if [[ "$MODE" == "vendor" && -f "$TARGET_DIR/go.mod" ]]; then
+    if command -v go >/dev/null 2>&1; then
+        printf "\n  ${CYAN}vendoring Go source (go mod vendor)${RESET}\n"
+        if ( cd "$TARGET_DIR" && go mod tidy && go mod vendor ) 2>&1 | sed 's/^/    /'; then
+            printf "  ${GREEN}vendored${RESET} Go source into vendor/\n"
+        else
+            printf "  ${YELLOW}skipped${RESET} go mod vendor (errors above; non-fatal)\n"
+        fi
+    else
+        printf "  ${YELLOW}skipped${RESET} go mod vendor (go toolchain not on PATH)\n"
+    fi
+fi
+
 # ── Sync skill symlinks ───────────────────────────────────────────────────────
 SYNC_SCRIPT="$TARGET_DIR/construct/scripts/sync-local-skills.sh"
 if [[ -f "$SYNC_SCRIPT" ]]; then

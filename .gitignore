@@ -7,3 +7,4 @@ __pycache__/
 /bin/pair-scrollback-render
 /bin/pair-wrap
 .DS_Store
+/bin/sdlc
