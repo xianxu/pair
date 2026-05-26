@@ -258,14 +258,39 @@ EOF
         # `*-brain-2-*` files. The set of agent suffixes (claude/codex/
         # gemini) is hardcoded below; if a new agent is added to pair,
         # add it there too.
-        old_tag="${2:-}"
-        new_tag="${3:-}"
+        # Optional flags before the positionals.
+        #   --restart-check : validate everything but skip the `pair-<old>`
+        #                     live-session refusal AND skip the actual mv.
+        #                     Used by the in-session rename gesture
+        #                     (Ctrl+Alt+n's (R)ename), where pair-<old> IS
+        #                     the current session — about to be killed by
+        #                     pair-restart.sh — so its presence in
+        #                     `zellij list-sessions` is expected, not a
+        #                     reason to refuse.
+        rename_check_only=0
+        rename_skip_old_live=0
+        rename_argi=2
+        while :; do
+            case "${!rename_argi:-}" in
+                --restart-check)
+                    rename_check_only=1
+                    rename_skip_old_live=1
+                    rename_argi=$((rename_argi + 1))
+                    ;;
+                --) rename_argi=$((rename_argi + 1)); break ;;
+                *)  break ;;
+            esac
+        done
+        old_tag="${!rename_argi:-}"
+        rename_argi=$((rename_argi + 1))
+        new_tag="${!rename_argi:-}"
+        rename_argi=$((rename_argi + 1))
         if [ -z "$old_tag" ] || [ -z "$new_tag" ]; then
-            echo "usage: pair rename <old> <new>" >&2
+            echo "usage: pair rename [--restart-check] <old> <new>" >&2
             exit 1
         fi
-        if [ -n "${4:-}" ]; then
-            echo "pair rename: unexpected arg '$4'" >&2
+        if [ -n "${!rename_argi:-}" ]; then
+            echo "pair rename: unexpected arg '${!rename_argi}'" >&2
             exit 1
         fi
         # Accept either bare tag or `pair-<tag>` (matches `pair resume`).
@@ -298,7 +323,8 @@ EOF
         # — refusal is for safety, not gatekeeping.
         if command -v zellij >/dev/null 2>&1; then
             rename_sessions=$( { zj list-sessions --short 2>/dev/null || true; } )
-            if printf '%s\n' "$rename_sessions" | grep -qx "pair-${old_tag}"; then
+            if [ "$rename_skip_old_live" -eq 0 ] \
+               && printf '%s\n' "$rename_sessions" | grep -qx "pair-${old_tag}"; then
                 echo "pair rename: session 'pair-${old_tag}' is still tracked by zellij." >&2
                 echo "             Quit it first (Alt+x), or use the in-session" >&2
                 echo "             rename via the Ctrl+Alt+n restart confirm." >&2
@@ -413,6 +439,14 @@ EOF
         if [ "$rename_count" -eq 0 ]; then
             echo "pair rename: no files found for tag '$old_tag' in $rename_dd" >&2
             exit 1
+        fi
+
+        # --restart-check returns after full validation (incl. the
+        # collision-free dst plan) without touching disk. The actual
+        # rename runs later, post-kill, from handle_restart_marker.
+        if [ "$rename_check_only" -eq 1 ]; then
+            echo "pair rename: ok ($rename_count file(s) would move from '$old_tag' to '$new_tag')"
+            exit 0
         fi
 
         # Journal the plan to disk before executing so a crash-mid-rename
@@ -957,14 +991,29 @@ handle_restart_marker() {
     local marker="$HOME/.cache/pair/restart-$SESSION"
     [ -f "$marker" ] || return 0
 
-    local r_tag r_agent r_new_session
+    local r_tag r_agent r_new_session r_rename_to
     r_tag=$(awk -F= '$1=="tag"{print $2; exit}' "$marker")
     r_agent=$(awk -F= '$1=="agent"{print $2; exit}' "$marker")
     r_new_session=$(awk -F= '$1=="new_session"{print $2; exit}' "$marker")
+    r_rename_to=$(awk -F= '$1=="rename_to"{print $2; exit}' "$marker")
     rm -f "$marker"
 
     [ -z "$r_tag" ] && r_tag="$PAIR_TAG"
     [ -z "$r_agent" ] && r_agent="$AGENT"
+
+    # Inside-flow tag rename (#000022 M2). By this point the zellij kill
+    # has completed and `pair-<r_tag>` is no longer in the sessions list,
+    # so `pair rename` (full check) passes the live-old gate. On failure
+    # we keep the old tag and continue restarting — the user is not left
+    # stranded, just without the rename. Loud stderr so they notice.
+    if [ -n "$r_rename_to" ]; then
+        if "$0" rename "$r_tag" "$r_rename_to"; then
+            r_tag="$r_rename_to"
+        else
+            echo "pair: tag rename failed; restarting with original tag '$r_tag'." >&2
+            sleep 2
+        fi
+    fi
 
     local r_args="" r_sid=""
     local cfg="$DATA_DIR/config-${r_tag}-${r_agent}.json"

@@ -197,6 +197,19 @@ for a in claude codex gemini; do
 done
 rm -rf "$DD"
 
+# ── T9: --restart-check validates but doesn't move ──────────────────────────
+case_begin "T9 --restart-check is a dry-run validate"
+DD="$(mktemp -d "${TMPDIR:-/tmp}/pair-rename-t9.XXXXXX")"
+seed_tag "$DD" src claude
+run_rename "$DD" --restart-check src dst >/dev/null
+# Files untouched.
+assert_exists "$DD/agent-src"
+assert_gone   "$DD/agent-dst"
+# Same call with occupied dst should refuse.
+seed_tag "$DD" dst claude
+assert_exits_nonzero run_rename "$DD" --restart-check src dst
+rm -rf "$DD"
+
 # ── Summary ──────────────────────────────────────────────────────────────────
 echo
 printf 'pair rename: %s passed, %s failed\n' "$(green "$pass")" "$([ "$fail" -eq 0 ] && green "$fail" || red "$fail")"

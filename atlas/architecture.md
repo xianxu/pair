@@ -359,7 +359,7 @@ pair: saved session config for tag "pair-2" (claude).
 
 ## Tag rename (issue #000022)
 
-A tag is durable but historically frozen-at-create. `pair rename <old> <new>` lifts that: every tag-scoped file in `$PAIR_DATA_DIR` is renamed in one transactional pass, so the agent's saved session, draft buffer, scrollback artefacts, log, queue, and per-pane pidfiles all follow the new name. Renaming is offline-only — zellij has no live-rename for a session, so the inside-session UX (M2: Ctrl+Alt+n's (R)ename option, planned) wraps quit → rename → re-exec around this primitive.
+A tag is durable but historically frozen-at-create. `pair rename <old> <new>` lifts that: every tag-scoped file in `$PAIR_DATA_DIR` is renamed in one transactional pass, so the agent's saved session, draft buffer, scrollback artefacts, log, queue, and per-pane pidfiles all follow the new name. Renaming is offline-only — zellij has no live-rename for a session, so the inside-session UX wraps quit → rename → re-exec around this primitive: Ctrl+Alt+n's confirm offers `&Yes / &No / &Rename`, and the (R) path prompts for a new tag, pre-validates via `pair rename --restart-check`, then triggers the restart with `--rename-to <new>`. Orthogonal to Shift+Alt+N's `--new-session` — rename + fresh agent is one gesture.
 
 **File-family enumeration is the canonical place to look up "what is scoped to a tag."** The launcher walks two shapes:
 
@@ -370,7 +370,9 @@ A tag is durable but historically frozen-at-create. `pair rename <old> <new>` li
 
 **Atomicity.** The full `(src, dst)` plan is written to `$PAIR_DATA_DIR/.rename-<old>-to-<new>.journal` before any `mv` runs. On mid-flight failure, the renamer reads the first N journal lines, swaps columns, and `mv`s the completed renames back to their original paths. The journal is cleared on success and retained on rollback failure as a forensic breadcrumb (M3 will add crash-recovery: a stale journal on startup gets finished or rolled back automatically).
 
-**Refusals.** The CLI refuses upfront when: (a) `pair-<old>` or `pair-<new>` is in `zellij list-sessions` (live, detached, or resurrectable), (b) any file matching the `<new>` family exists, (c) `<old>` has no files. Tested via `tests/pair-rename.sh`.
+**Refusals.** The CLI refuses upfront when: (a) `pair-<old>` or `pair-<new>` is in `zellij list-sessions` (live, detached, or resurrectable), (b) any file matching the `<new>` family exists, (c) `<old>` has no files. Tested via `tests/pair-rename.sh`. `--restart-check` skips (a) for `pair-<old>` only (the inside-flow case: `pair-<old>` is the current session, about to be killed) and exits without touching disk.
+
+**Inside-flow choreography.** `nvim/init.lua`'s `pair_confirm_restart_impl` shells out `pair rename --restart-check` after the user enters a new tag, re-prompting on each rejection. On accept it execs `pair-restart.sh --rename-to <new>`. `pair-restart.sh` writes `rename_to=<new>` into the restart marker (`~/.cache/pair/restart-<SESSION>`) alongside the existing `tag`, `agent`, `new_session` fields. `handle_restart_marker` in `bin/pair` runs after `cleanup_quit_marker` (so the zj delete-session has cleared the live-old gate) and if `rename_to` is set, invokes `"$0" rename <old> <new>` — full check. On success, the working tag for the re-exec is swapped to `<new>` (so `config-<new>-<agent>.json`, the just-renamed file, is what gets resumed). On failure, a 2-second visible stderr warning is printed and the restart continues with the original tag — the user is never stranded.
 
 ## Data layout
 

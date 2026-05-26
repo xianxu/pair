@@ -2673,6 +2673,46 @@ end
 --                   (resumed via --resume <id> / resume <id>).
 --   Shift+Alt+N   — same tag + agent + args, but a fresh agent
 --                   conversation (saved config is dropped).
+--
+-- Both confirms offer an extra (R)ename option (#000022 M2): the
+-- restart choreography becomes kill → `pair rename <old> <new>` →
+-- re-exec with PAIR_FORCE_TAG=<new>, so the agent conversation
+-- (resume) or fresh session (new-session) is preserved under the
+-- new tag. The rename runs in handle_restart_marker after the kill;
+-- pre-validation here via `pair rename --restart-check` so the user
+-- gets immediate feedback on bad tags / collisions instead of
+-- discovering them post-kill.
+local function pair_rename_prompt(current_tag)
+  -- Loop until the user enters a valid new tag (returned) or cancels
+  -- with empty input / Esc (returns nil).
+  while true do
+    -- Pre-fill with current_tag so the user can edit in place rather
+    -- than retype the prefix of a related name.
+    local input = vim.fn.input({
+      prompt = 'New tag: ',
+      default = current_tag,
+      cancelreturn = '',
+    })
+    if input == nil or input == '' then return nil end
+    -- Strip optional pair- prefix to match `pair resume` / `pair rename`
+    -- accepting either form.
+    local new_tag = input:gsub('^pair%-', '')
+    if new_tag == current_tag then
+      vim.api.nvim_echo({ { '\nnew tag matches current tag; nothing to do', 'WarningMsg' } }, false, {})
+      return nil
+    end
+    if not new_tag:match('^[%w_-]+$') then
+      vim.api.nvim_echo({ { '\ninvalid tag (allowed: letters, digits, dash, underscore) — try again', 'WarningMsg' } }, false, {})
+    else
+      local out = vim.fn.system({ 'pair', 'rename', '--restart-check', current_tag, new_tag })
+      if vim.v.shell_error == 0 then
+        return new_tag
+      end
+      vim.api.nvim_echo({ { '\n' .. (out:gsub('%s+$', '')) .. ' — try again', 'WarningMsg' } }, false, {})
+    end
+  end
+end
+
 local function pair_confirm_restart_impl(new_session)
   pair_ensure_visible_then(function()
     local prompt
@@ -2703,14 +2743,22 @@ local function pair_confirm_restart_impl(new_session)
         prompt = prompt .. '\n  resume: ' .. resume_line
       end
     end
-    local ans = vim.fn.confirm(prompt, '&Yes\n&No', 2)
-    if ans == 1 then
-      if new_session then
-        vim.fn.system('pair-restart.sh --new-session')
-      else
-        vim.fn.system('pair-restart.sh')
-      end
+    local ans = vim.fn.confirm(prompt, '&Yes\n&No\n&Rename', 2)
+    if ans ~= 1 and ans ~= 3 then return end
+
+    local rename_to
+    if ans == 3 then
+      rename_to = pair_rename_prompt(pair_tag())
+      if not rename_to then return end
     end
+
+    local argv = { 'pair-restart.sh' }
+    if new_session then table.insert(argv, '--new-session') end
+    if rename_to then
+      table.insert(argv, '--rename-to')
+      table.insert(argv, rename_to)
+    end
+    vim.fn.system(argv)
   end)
 end
 

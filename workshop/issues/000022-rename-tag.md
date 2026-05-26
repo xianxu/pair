@@ -192,12 +192,21 @@ list will get re-used by any future tag-scoped op.
       simulating a mid-mv failure needs a PATH-shimmed `mv` fault-
       injector; deferred to M3 with the crash-recovery work.)
 
-- [ ] **M2 — restart confirm gains (R).** `nvim/init.lua`:
-      `PairConfirmRestart()` and `PairConfirmRestartNewSession()`
-      switch from `vim.fn.confirm` to a custom y/n/r prompt; on `r`,
-      `vim.fn.input` for new tag, then validation, then exec
-      `pair-restart.sh` with `PAIR_RENAME_TO` set. `pair-restart.sh`
-      gains the rename glue (kill → rename → re-exec).
+- [x] **M2 — restart confirm gains (R).** Three-letter confirm
+      (`&Yes\n&No\n&Rename`) in `pair_confirm_restart_impl`; on
+      `r`, `pair_rename_prompt` loops on `vim.fn.input` until the
+      user either supplies a tag that passes `pair rename
+      --restart-check <old> <new>` (skips the live-old refusal,
+      validates everything else, no mv) or cancels with empty
+      input. `pair-restart.sh` accepts `--rename-to <new>` and
+      writes `rename_to=<new>` into the marker (orthogonal to
+      `--new-session`; both may appear together). `bin/pair`'s
+      `handle_restart_marker` reads `rename_to`, runs
+      `"$0" rename "$old" "$new"` after `cleanup_quit_marker`
+      finishes (so the live-old gate is cleanly passed), and on
+      success switches `PAIR_FORCE_TAG` to the new tag before
+      re-exec. On rename failure, falls back to the original tag
+      with a loud stderr warning rather than stranding the user.
 
 - [ ] **M3 — flock + crash recovery.** Wire the flock on
       `$PAIR_DATA_DIR/.rename.lock` around the inside-flow choreography.
@@ -256,3 +265,39 @@ list will get re-used by any future tag-scoped op.
   are not exercised by the test suite (need real `zellij list-sessions`
   output or a richer shim). Will get manual smoke-test coverage at
   M2 when the inside flow goes live.
+
+### M2 — 2026-05-25
+
+- `pair_confirm_restart_impl` in `nvim/init.lua` now offers a third
+  `&Rename` option in its confirm dialog. Picking it invokes
+  `pair_rename_prompt(current_tag)`, which loops on `vim.fn.input`
+  pre-filled with the current tag, accepts a `pair-<tag>` prefix
+  variant, and re-prompts on each rejection (charset failure or
+  whatever `pair rename --restart-check` complained about). Empty
+  input cancels.
+- `pair rename --restart-check <old> <new>` added: same validation
+  as the full rename, minus the `pair-<old>` live-session refusal,
+  minus the actual `mv`. Used as the nvim-side pre-flight so the
+  user gets immediate feedback on bad tags / `<new>` collisions
+  before the destructive kill.
+- `pair-restart.sh` accepts `--rename-to <new>` (orthogonal to
+  `--new-session`; both may appear in either order). Writes a
+  `rename_to=<new>` line into the restart marker.
+- `handle_restart_marker` in `bin/pair` reads `rename_to` and, if
+  present, runs `"$0" rename "$r_tag" "$r_rename_to"` after
+  `cleanup_quit_marker` returns. The cleanup runs zj delete-session
+  first, so by the rename's time the live-old gate passes naturally.
+  On success, `r_tag` is switched to the new tag — every subsequent
+  step (config lookup, `PAIR_FORCE_TAG`, exec) targets the new tag.
+  On failure, a 2-second visible stderr warning is printed and the
+  restart proceeds with the original tag (no stranding).
+- Tests: `tests/pair-rename.sh` gained T9 (`--restart-check` is a
+  dry-run validate; refuses occupied `<new>` without moving files).
+  Total: 9 cases / 57 assertions. The inside flow as a whole is
+  not exercised by the suite — nvim's confirm UI + the
+  pair-restart.sh → handle_restart_marker chain need a real pair
+  session. Will be smoke-tested manually after commit.
+- Verification gap closes for live-session refusal: a manual run
+  inside this very pair session, invoking `pair rename <thistag>
+  newname` from a shell, should print the "pair-<thistag> is still
+  tracked by zellij" refusal.

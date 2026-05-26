@@ -25,11 +25,35 @@
 set -uo pipefail
 
 new_session=0
-case "${1:-}" in
-    --new-session) new_session=1 ;;
-    "") : ;;
-    *) echo "pair-restart: unknown arg ${1:-}" >&2; exit 2 ;;
-esac
+rename_to=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --new-session)
+            new_session=1
+            shift
+            ;;
+        --rename-to)
+            # Inside-flow tag rename (issue #000022 M2). Written into the
+            # restart marker; handle_restart_marker reads it after the kill
+            # and runs `pair rename <old> <new>` before re-execing with
+            # PAIR_FORCE_TAG=<new>. The new tag is validated before we get
+            # here (nvim shells out to `pair rename --restart-check`).
+            rename_to="${2:-}"
+            if [ -z "$rename_to" ]; then
+                echo "pair-restart: --rename-to requires a value" >&2
+                exit 2
+            fi
+            shift 2
+            ;;
+        "")
+            shift
+            ;;
+        *)
+            echo "pair-restart: unknown arg $1" >&2
+            exit 2
+            ;;
+    esac
+done
 
 MARKER_DIR="$HOME/.cache/pair"
 mkdir -p "$MARKER_DIR"
@@ -49,6 +73,7 @@ agent=""
     printf 'tag=%s\n' "$tag"
     printf 'agent=%s\n' "$agent"
     printf 'new_session=%s\n' "$new_session"
+    [ -n "$rename_to" ] && printf 'rename_to=%s\n' "$rename_to"
 } > "$MARKER_DIR/restart-$session"
 
 touch "$MARKER_DIR/quit-$session"
