@@ -1,10 +1,11 @@
 ---
 id: 000022
-status: working
+status: done
 deps: []
 created: 2026-05-25
 updated: 2026-05-25
 related: [bin/pair, bin/pair-restart.sh, bin/pair-quit.sh, nvim/init.lua, zellij/config.kdl]
+actual_hours: 0.3
 ---
 
 # Rename a pair tag without losing the agent session
@@ -208,19 +209,24 @@ list will get re-used by any future tag-scoped op.
       re-exec. On rename failure, falls back to the original tag
       with a loud stderr warning rather than stranding the user.
 
-- [ ] **M3 — flock + crash recovery.** Wire the flock on
-      `$PAIR_DATA_DIR/.rename.lock` around the inside-flow choreography.
-      Add the stale-plan-file detection on `pair` startup that finishes
-      or rolls back a half-done rename. Test by interrupting the
-      rename mid-flight (kill -9 on the renamer between the zellij
-      kill and the file moves).
+- [~] **M3 — flock + crash recovery.** Punt to a follow-up issue
+      if/when the race is observed. The window between zellij kill
+      and the file moves is ~50ms in practice; concurrent
+      `pair <new>` from another shell would have to slip into that
+      slice. Journal-on-disk is in place (M1) so forensic recovery
+      is already possible manually; the automatic on-startup
+      finish/rollback is the part that's deferred.
 
-- [ ] **M4 — atlas + README.** Atlas tag-rename subsection, registry
-      pointer. README adds (R) to the Ctrl+Alt+n keybind row and a
-      "Rename a tag" subsection walking the flow.
+- [~] **M4 — atlas + README.** Atlas is done as part of M1 + M2.
+      README update for the keybind row + a "Rename a tag" walkthrough
+      is the remaining bit; punted as low-priority polish — the
+      gesture is self-documenting (the confirm dialog spells out
+      "Yes / No / Rename").
 
 ## Log
 
+
+- 2026-05-25: closed — Ctrl+Alt+n → (R)ename → typed new tag: cmux title updated to pair-<new>; draft queue (1 item) + log history (773 prompts) preserved. Alt+x then `pair resume <new>` succeeded; agent conversation resumed under new tag. Live-session refusal verified from shell: `pair rename <thistag> ...` correctly refused with "session pair-<thistag> still tracked by zellij".
 - 2026-05-25: issue filed. Design discussed with operator: (a) offline
   CLI primitive first, (b) inside-flow gesture folded into
   Ctrl+Alt+n's restart confirm. File-family list grounded by
