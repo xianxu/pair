@@ -179,14 +179,18 @@ list will get re-used by any future tag-scoped op.
 
 ## Plan
 
-- [ ] **M1 — registry + primitive.** Add `bin/pair-tag-files` (list +
-      plan subcommands). Add `bin/pair-rename.sh` (or `pair rename`
-      subcommand in `bin/pair`) implementing the offline CLI per the
-      spec's safety + atomicity rules. Unit-test against a fixtured
-      `$PAIR_DATA_DIR` covering: clean rename, substring-collision
-      tag (`brain` vs `brain-2`), partial-failure rollback, stale
-      plan-file recovery, live-session refusal, name-collision
-      refusal. No nvim/zellij touch at this milestone.
+- [x] **M1 — primitive.** `pair rename <old> <new>` subcommand in
+      `bin/pair`. File-family list inlined (registry deferred until a
+      second consumer exists). Safety: charset validation, old≠new,
+      `pair-<old>` not in zellij list, `pair-<new>` not in zellij list,
+      `<new>` tag has no occupied files, no per-file dst collision.
+      Atomicity: build full plan + journal to disk before any mv;
+      mid-flight failure triggers reverse-order rollback from the
+      journal. Tested via `tests/pair-rename.sh` — 54 assertions,
+      8 cases including the marquee `brain` vs `brain-2` substring
+      safety. (Rollback path is implemented but not unit-tested:
+      simulating a mid-mv failure needs a PATH-shimmed `mv` fault-
+      injector; deferred to M3 with the crash-recovery work.)
 
 - [ ] **M2 — restart confirm gains (R).** `nvim/init.lua`:
       `PairConfirmRestart()` and `PairConfirmRestartNewSession()`
@@ -213,3 +217,42 @@ list will get re-used by any future tag-scoped op.
   Ctrl+Alt+n's restart confirm. File-family list grounded by
   grepping `DATA_DIR` paths across `bin/`, `nvim/`, `cmd/` —
   enumerated in the Spec.
+
+### M1 — 2026-05-25
+
+- `pair rename` lives at the top of `bin/pair`'s subcommand `case`
+  alongside `list|ls` and `help`. Exits before falling through to
+  the create/attach machinery.
+- File enumeration is by **exact-name construction**, never globbing —
+  that's how substring collisions between `brain` and `brain-2` are
+  structurally prevented. The set of agent suffixes is hardcoded
+  (`claude codex gemini`); a comment flags that adding a new agent
+  to pair needs a same-PR update here.
+- Per-(tag, agent) families anchor on `config-<tag>-<agent>.json`;
+  scrollback `.{ansi,raw,viewport,events.jsonl}` and per-agent draft
+  are computed from the same `<tag>-<agent>` pair, not enumerated
+  independently.
+- Pre-flight refuses if `<new>` tag has ANY existing file (not just
+  per-file dst collisions) — protects against partial-occupied dst
+  state from a half-cleaned earlier session.
+- Atomicity: full plan is journalled to `.rename-<old>-to-<new>.journal`
+  in `$PAIR_DATA_DIR` before any `mv` runs. Mid-flight failure
+  triggers reverse-order rollback (reads first `N` journal lines,
+  swaps src/dst columns, `mv`s back). Journal is retained on
+  rollback failure as a diagnostic; cleared on successful complete.
+- Zellij integration: refuses if `pair-<old>` or `pair-<new>` is in
+  `zellij list-sessions` output (live, detached, or resurrectable).
+  Skipped if zellij isn't on PATH (offline housekeeping case).
+- Tests: `tests/pair-rename.sh` — 8 cases, 54 assertions. PATH-shims
+  a stub `zellij` that exits 0 (no-sessions) so the test matrix is
+  pure file-system. Marquee case (T2) seeds both `brain` and
+  `brain-2`, renames `brain → new-brain`, asserts `brain-2`'s files
+  are untouched.
+- Help text in `bin/pair --help` updated with the `pair rename`
+  row pointing at the in-session equivalent (Ctrl+Alt+n's R, M2).
+- Atlas: added "Tag rename" subsection in `atlas/architecture.md`
+  pointing at the file-family enumeration as canonical.
+- Verification gap: live-session refusal and zellij-list integration
+  are not exercised by the test suite (need real `zellij list-sessions`
+  output or a richer shim). Will get manual smoke-test coverage at
+  M2 when the inside flow goes live.

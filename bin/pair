@@ -72,6 +72,11 @@ USAGE
                                      pair -- --dangerously-skip-permissions
                                      pair codex -- -p "say hi"
   pair list                     list pair-* sessions and their attach state
+  pair rename <old> <new>       rename every tag-scoped file in
+                                $PAIR_DATA_DIR from <old> to <new>.
+                                Refuses if `pair-<old>` is still tracked
+                                by zellij (use Ctrl+Alt+n's (R)ename
+                                option for the in-session equivalent).
   pair -h, --help               this message
 
   Use `--` to separate pair's args from the agent's args. Without `--`,
@@ -238,6 +243,212 @@ EOF
             fi
             printf '%-30s %-10s %s\n' "$sess" "$agent" "$status"
         done <<< "$sessions"
+        exit 0
+        ;;
+    rename)
+        # `pair rename <old> <new>` — rename every tag-scoped file in
+        # $PAIR_DATA_DIR from <old> to <new>. Offline-only: refuses if
+        # `pair-<old>` is still in zellij's session list (live, detached,
+        # or resurrectable). The inside-session rename gesture (M2) takes
+        # care of the quit→rename→re-exec choreography on top of this
+        # primitive; the only safe live equivalent is to use that.
+        #
+        # File enumeration is by exact-name construction, never globbing —
+        # that way `pair rename brain newname` can't accidentally pick up
+        # `*-brain-2-*` files. The set of agent suffixes (claude/codex/
+        # gemini) is hardcoded below; if a new agent is added to pair,
+        # add it there too.
+        old_tag="${2:-}"
+        new_tag="${3:-}"
+        if [ -z "$old_tag" ] || [ -z "$new_tag" ]; then
+            echo "usage: pair rename <old> <new>" >&2
+            exit 1
+        fi
+        if [ -n "${4:-}" ]; then
+            echo "pair rename: unexpected arg '$4'" >&2
+            exit 1
+        fi
+        # Accept either bare tag or `pair-<tag>` (matches `pair resume`).
+        case "$old_tag" in pair-*) old_tag="${old_tag#pair-}" ;; esac
+        case "$new_tag" in pair-*) new_tag="${new_tag#pair-}" ;; esac
+        for t in "$old_tag" "$new_tag"; do
+            case "$t" in
+                ""|*[!A-Za-z0-9_-]*)
+                    echo "pair rename: invalid tag '$t' (allowed: letters, digits, dash, underscore)" >&2
+                    exit 1
+                    ;;
+            esac
+            if [ ${#t} -gt 256 ]; then
+                echo "pair rename: tag '$t' is too long (max 256)" >&2
+                exit 1
+            fi
+        done
+        if [ "$old_tag" = "$new_tag" ]; then
+            echo "pair rename: old and new tag are the same ('$old_tag')" >&2
+            exit 1
+        fi
+        rename_dd="${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}"
+        if [ ! -d "$rename_dd" ]; then
+            echo "pair rename: data dir not found: $rename_dd" >&2
+            exit 1
+        fi
+
+        # Zellij session checks. Skipped if zellij isn't on PATH (e.g.,
+        # offline housekeeping from a machine that never had it installed)
+        # — refusal is for safety, not gatekeeping.
+        if command -v zellij >/dev/null 2>&1; then
+            rename_sessions=$( { zj list-sessions --short 2>/dev/null || true; } )
+            if printf '%s\n' "$rename_sessions" | grep -qx "pair-${old_tag}"; then
+                echo "pair rename: session 'pair-${old_tag}' is still tracked by zellij." >&2
+                echo "             Quit it first (Alt+x), or use the in-session" >&2
+                echo "             rename via the Ctrl+Alt+n restart confirm." >&2
+                exit 1
+            fi
+            if printf '%s\n' "$rename_sessions" | grep -qx "pair-${new_tag}"; then
+                echo "pair rename: session 'pair-${new_tag}' already exists in zellij." >&2
+                exit 1
+            fi
+        fi
+
+        # Enumerate every candidate path for a given tag. Tag-only families
+        # use exact-name construction; per-(tag,agent) families iterate the
+        # known agent set. Output: one absolute path per line.
+        rename_paths_for() {
+            local tag="$1" dd="$2" fam
+            for fam in outer-tty pair-wrap-pid cmux-title-pid \
+                       agent agent-pid agent-output agent-picks \
+                       layout-mode queue quote image-capture; do
+                printf '%s\n' "$dd/$fam-$tag"
+            done
+            printf '%s\n' "$dd/image-capture-$tag.done"
+            printf '%s\n' "$dd/draft-$tag.md"
+            printf '%s\n' "$dd/log-$tag.md"
+            printf '%s\n' "$dd/nvim-pid-$tag-draft"
+            printf '%s\n' "$dd/nvim-pid-$tag-scrollback"
+            for a in claude codex gemini; do
+                printf '%s\n' "$dd/config-$tag-$a.json"
+                printf '%s\n' "$dd/scrollback-$tag-$a.ansi"
+                printf '%s\n' "$dd/scrollback-$tag-$a.raw"
+                printf '%s\n' "$dd/scrollback-$tag-$a.viewport"
+                printf '%s\n' "$dd/scrollback-$tag-$a.events.jsonl"
+                printf '%s\n' "$dd/draft-$tag-$a.md"
+            done
+        }
+
+        # NEW must be empty of any tag-scoped files. If any exist, that
+        # tag is in use (live, detached, or stale-after-quit) and a
+        # rename onto it would conflict.
+        rename_new_occupied=""
+        while IFS= read -r p; do
+            if [ -e "$p" ]; then
+                rename_new_occupied="$p"
+                break
+            fi
+        done < <(rename_paths_for "$new_tag" "$rename_dd")
+        if [ -n "$rename_new_occupied" ]; then
+            echo "pair rename: tag '$new_tag' is occupied — '$rename_new_occupied' exists." >&2
+            exit 1
+        fi
+
+        # Build (src TAB dst) plan, in stable enumeration order.
+        rename_plan=""
+        rename_count=0
+        old_paths_tmp="$(mktemp "${TMPDIR:-/tmp}/pair-rename.XXXXXX")"
+        rename_paths_for "$old_tag" "$rename_dd" > "$old_paths_tmp"
+        while IFS= read -r src; do
+            [ -e "$src" ] || continue
+            base="${src##*/}"
+            # Substitute the tag chunk: the path was constructed by
+            # rename_paths_for as "<dir>/<chunk-with-$old_tag>", so the
+            # transform is deterministic.
+            case "$base" in
+                # tag-only families (suffix is "")
+                outer-tty-$old_tag|pair-wrap-pid-$old_tag|cmux-title-pid-$old_tag|\
+                agent-$old_tag|agent-pid-$old_tag|agent-output-$old_tag|\
+                agent-picks-$old_tag|layout-mode-$old_tag|queue-$old_tag|\
+                quote-$old_tag|image-capture-$old_tag)
+                    dst="$rename_dd/${base%-"$old_tag"}-$new_tag"
+                    ;;
+                image-capture-$old_tag.done)
+                    dst="$rename_dd/image-capture-$new_tag.done"
+                    ;;
+                draft-$old_tag.md)
+                    dst="$rename_dd/draft-$new_tag.md"
+                    ;;
+                log-$old_tag.md)
+                    dst="$rename_dd/log-$new_tag.md"
+                    ;;
+                nvim-pid-$old_tag-draft|nvim-pid-$old_tag-scrollback)
+                    dst="$rename_dd/nvim-pid-$new_tag-${base##*-}"
+                    ;;
+                config-$old_tag-*.json)
+                    suf="${base#config-$old_tag-}"
+                    dst="$rename_dd/config-$new_tag-$suf"
+                    ;;
+                scrollback-$old_tag-*)
+                    suf="${base#scrollback-$old_tag-}"
+                    dst="$rename_dd/scrollback-$new_tag-$suf"
+                    ;;
+                draft-$old_tag-*.md)
+                    suf="${base#draft-$old_tag-}"
+                    dst="$rename_dd/draft-$new_tag-$suf"
+                    ;;
+                *)
+                    echo "pair rename: internal error: unrecognised src '$src'" >&2
+                    rm -f "$old_paths_tmp"
+                    exit 1
+                    ;;
+            esac
+            if [ -e "$dst" ]; then
+                echo "pair rename: destination already exists: $dst" >&2
+                rm -f "$old_paths_tmp"
+                exit 1
+            fi
+            rename_plan="${rename_plan}${src}	${dst}
+"
+            rename_count=$((rename_count + 1))
+        done < "$old_paths_tmp"
+        rm -f "$old_paths_tmp"
+
+        if [ "$rename_count" -eq 0 ]; then
+            echo "pair rename: no files found for tag '$old_tag' in $rename_dd" >&2
+            exit 1
+        fi
+
+        # Journal the plan to disk before executing so a crash-mid-rename
+        # leaves a forensic breadcrumb for M3's recovery path.
+        rename_journal="$rename_dd/.rename-$old_tag-to-$new_tag.journal"
+        printf '%s' "$rename_plan" > "$rename_journal"
+
+        echo "pair rename: $rename_count file(s) ${old_tag} → ${new_tag}"
+        rename_done=0
+        rename_failed=""
+        while IFS=$'\t' read -r src dst; do
+            [ -z "$src" ] && continue
+            if mv "$src" "$dst"; then
+                rename_done=$((rename_done + 1))
+            else
+                rename_failed="$src → $dst"
+                break
+            fi
+        done <<EOF
+$rename_plan
+EOF
+
+        if [ -n "$rename_failed" ]; then
+            echo "pair rename: mv failed: $rename_failed" >&2
+            echo "pair rename: rolling back $rename_done completed rename(s)..." >&2
+            # Reverse the journal lines we've already executed and mv back.
+            head -n "$rename_done" "$rename_journal" \
+                | awk -F'\t' 'NF { printf "%s\t%s\n", $2, $1 }' \
+                | while IFS=$'\t' read -r r_src r_dst; do
+                    mv "$r_src" "$r_dst" 2>/dev/null || true
+                done
+            # Keep journal on rollback failure so it's diagnostic.
+            exit 1
+        fi
+        rm -f "$rename_journal"
+        echo "pair rename: ok"
         exit 0
         ;;
 esac
