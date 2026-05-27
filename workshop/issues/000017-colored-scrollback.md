@@ -1,9 +1,10 @@
 ---
 id: 000017
-status: working
+status: done
 deps: []
 created: 2026-05-09
-updated: 2026-05-09
+updated: 2026-05-27
+actual_hours: 0
 ---
 
 # Colored, line-numbered scrollback dump
@@ -122,14 +123,14 @@ bind "Alt /" {
 
 ### M1: Raw stream capture in pair-wrap
 
-- [ ] Add a `--scrollback-log <path>` flag to `bin/pair-wrap`.
-- [ ] When flag is present, on every read from agent → outer (the
+- [x] Add a `--scrollback-log <path>` flag to `bin/pair-wrap`.
+- [x] When flag is present, on every read from agent → outer (the
       bytes the user sees), `os.write(scrollback_fd, chunk)` in
       addition to the existing forwarding.
-- [ ] Truncate the file on open (each session is fresh).
-- [ ] Update `bin/pair`: pass `--scrollback-log $DATA_DIR/scrollback-${PAIR_TAG}-${AGENT}.raw`
+- [x] Truncate the file on open (each session is fresh).
+- [x] Update `bin/pair`: pass `--scrollback-log $DATA_DIR/scrollback-${PAIR_TAG}-${AGENT}.raw`
       when invoking pair-wrap.
-- [ ] Verify: `tail -f` the file while running claude, see bytes growing
+- [x] Verify: `tail -f` the file while running claude, see bytes growing
       with the agent's output.
 
 ### M2: SIGWINCH events sidecar
@@ -138,7 +139,7 @@ bind "Alt /" {
       the agent's PTY); on each, log a `{type:"resize",offset,cols,rows}`
       line to `<scrollback>.events.jsonl`.
 - [x] Log an initial resize event at startup (for pyte's first config).
-- [ ] Verify (manual): trigger Alt+Up/Alt+Down rung swap, see resize
+- [x] Verify (manual): trigger Alt+Up/Alt+Down rung swap, see resize
       entries appear with byte-offset boundaries that match `wc -c
       <scrollback>.raw` checkpoints.
 
@@ -157,7 +158,7 @@ bind "Alt /" {
 - [x] Truecolor support — pyte normalizes 256-color and 24-bit RGB
       into 6-char hex strings on Char.fg/bg; renderer detects hex vs.
       named and emits 38;2;R;G;B accordingly.
-- [ ] Verify (manual, against a real session): render a captured
+- [x] Verify (manual, against a real session): render a captured
       session, count lines, eyeball a few line numbers against what
       the zellij indicator showed.
 
@@ -189,7 +190,7 @@ bind "Alt /" {
       `--scrollback-log` to pair-wrap, so capture is on by default.
       Path follows the same `${PAIR_TAG:-…}` fallback chain as the
       draft pane.
-- [ ] Verify (manual, real session): from agent pane, `Alt+/` opens
+- [x] Verify (manual, real session): from agent pane, `Alt+/` opens
       floating nvim with scrollback, `:880` jumps to the right line,
       colors render, `:q` dismisses, pair returns to 2-pane layout.
 
@@ -223,6 +224,8 @@ bind "Alt /" {
 
 ## Log
 
+
+- 2026-05-27: closed — user confirmed Alt+/ scrollback viewer working well after extensive iteration; post-M6 code review Important findings addressed (see 2026-05-09 Log)
 ### 2026-05-09
 
 **M1 done — raw stream capture.** pair-wrap now accepts

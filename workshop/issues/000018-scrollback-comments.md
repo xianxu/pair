@@ -1,9 +1,10 @@
 ---
 id: 000018
-status: working
+status: done
 deps: [000017]
 created: 2026-05-09
-updated: 2026-05-09
+updated: 2026-05-27
+actual_hours: 0
 ---
 
 # 🤖[] comment markers in scrollback viewer → draft
@@ -146,6 +147,8 @@ file, schedule a redraw. Brief `vim.notify` confirming the pickup
 
 ## Log
 
+
+- 2026-05-27: closed — headless tests pass per-milestone (marker insert, extraction, pickup); post-M4 code review Critical+Important addressed (see 2026-05-09 Log)
 ### 2026-05-09
 
 **M1+M2 done in nvim/scrollback.lua.** Two pure functions exposed

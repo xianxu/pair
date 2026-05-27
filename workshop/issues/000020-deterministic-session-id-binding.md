@@ -1,10 +1,11 @@
 ---
 id: 000020
-status: working
+status: done
 deps: []
 created: 2026-05-10
-updated: 2026-05-10
+updated: 2026-05-27
 related: [bin/pair, bin/pair-session-watch.sh, cmd/pair-wrap/main.go]
+actual_hours: 0
 ---
 
 # Bind agent session id to the pair tag deterministically
@@ -59,10 +60,12 @@ output is scoped to a specific PID.
 - [x] M3: `bin/pair` — generate UUID for claude new-session path, inject `--session-id`, write config synchronously. Guards against existing `--session-id` / `--fork-session` and existing-jsonl collisions.
 - [x] M4: `bin/pair-session-watch.sh` — claude becomes no-op; codex/gemini use lsof against agent PID tree, with birth-time-filtered single-candidate fallback when lsof can't see the file.
 - [x] M6: Update atlas/architecture.md — refresh "Discovery — three layers" + per-agent table + storage section.
-- [ ] M5: Verify — relaunch with the new code, start two pair sessions in same cwd (claude × claude), confirm distinct session ids. Test codex/gemini at least once each.
+- [x] M5: Verify — relaunch with the new code, start two pair sessions in same cwd (claude × claude), confirm distinct session ids. Test codex/gemini at least once each.
 
 ## Log
 
+
+- 2026-05-27: closed — user confirmed live two-session same-cwd test; codex/gemini regression patched and exercised with synthetic session files (see 2026-05-10 Log)
 **2026-05-10 — implementation.**
 
 - Confirmed `claude --help` exposes `--session-id <uuid>`; codex and gemini do not. Confirmed claude refuses already-existing UUIDs (`Error: Session ID ... is already in use`), so the launcher retries up to 5 fresh UUIDs against `~/.claude/projects/<encoded-cwd>/<id>.jsonl`. v4 collisions are astronomically unlikely; the retry is just a defense-in-depth.
