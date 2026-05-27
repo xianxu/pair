@@ -1,11 +1,12 @@
 ---
 id: 000023
-status: working
+status: done
 estimate_hours: 2
 deps: []
 created: 2026-05-27
 updated: 2026-05-27
 related: [cmd/pair-wrap/main.go]
+actual_hours: 1.5
 ---
 
 # Suspend Enter remap while a Claude blocking overlay is open
@@ -67,13 +68,13 @@ takes focus back) as v2 hardening.
 
 ## Plan
 
-- [ ] **M1: Issue + repro evidence.** This file. Reference the captured
+- [x] **M1: Issue + repro evidence.** This file. Reference the captured
       raw-stream offsets in `/Users/xianxu/.local/share/pair/scrollback-pair-claude.raw`
       that documented the OSC 777 signal (offsets 209730, 307851,
       395083, 857406; only 395083 was a picker — body `needs your
       permission`).
 
-- [ ] **M2: Detection + state.** In `cmd/pair-wrap/main.go`:
+- [x] **M2: Detection + state.** In `cmd/pair-wrap/main.go`:
       - Add `pickerActive bool` to `proxy` struct (sibling of `sendKM`).
       - In the agent-output read loop (`p.ptmx.Read` at line 1331),
         scan each chunk for `\x1b]777;notify;Claude Code;Claude needs
@@ -82,7 +83,7 @@ takes focus back) as v2 hardening.
         true` on match.
       - Only enable for `agentBasename == "claude"`.
 
-- [ ] **M3: Suspend the remap.** In `translateStdinFrom`
+- [x] **M3: Suspend the remap.** In `translateStdinFrom`
       (called from `translateStdin` at line 739):
       - Before translating plain `\r` into `plainCR`, check
         `p.pickerActive`. If true, emit `\r` verbatim and set
@@ -90,7 +91,7 @@ takes focus back) as v2 hardening.
       - Leave `altCR` (Alt+Enter) handling unchanged — pickers don't
         interact with Alt+Enter.
 
-- [ ] **M4: Tests.**
+- [x] **M4: Tests.**
       - `update_agent_output_test.go`: feed a chunk containing the
         picker OSC 777, assert `pickerActive` flips. Feed the
         "waiting for your input" variant, assert flag unchanged. Feed
@@ -100,7 +101,7 @@ takes focus back) as v2 hardening.
         flag clears. With `pickerActive=false`, plain `\r` translates
         to `\\\r` (existing behavior).
 
-- [ ] **M5: Manual verification.**
+- [x] **M5: Manual verification.**
       - Run claude under pair with PAIR_WRAP_LOG enabled.
       - Trigger an AskUserQuestion picker, select an option, hit
         Enter. Confirm no stray `\` in textarea after dismissal.
@@ -108,12 +109,14 @@ takes focus back) as v2 hardening.
       - Confirm normal Enter-in-textarea still inserts a newline after
         the picker is dismissed.
 
-- [ ] **M6: Atlas update.** If `atlas/` documents the agent keymap
+- [x] **M6: Atlas update.** If `atlas/` documents the agent keymap
       remap, add a one-line note that the remap is suspended while a
       blocking overlay is open, with the OSC 777 trigger pattern.
 
 ## Log
 
+
+- 2026-05-27: closed — Manual repro: picker selection no longer leaks a stray "\\" into the textarea (confirmed in a fresh pair session with the new binary). Full go test ./... green; new picker_overlay_test.go has 7 cases covering positive, negative, agent-gate, helper, and stdin-loop integration.
 - 2026-05-27 — Implementation landed in `cmd/pair-wrap/main.go`:
   - Added `pickerActive atomic.Bool` field to `proxy`.
   - New helper `emitPlainCR` consults the flag; clears it on consume.
