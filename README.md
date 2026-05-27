@@ -133,14 +133,7 @@ Automatically installed with `homebrew`.
 | [`fzf`](https://github.com/junegunn/fzf) | session picker |
 | [`jq`](https://jqlang.github.io/jq/) | JSON parsing for pane targeting |
 | [`par`](https://www.nicemice.net/par/) | paragraph reflow when pasting from the agent pane |
-| `python3` (any 3.x) | runs the notification-forwarding helper. Stdlib-only — already present on macOS |
 | an agent | `claude`, `codex`, `gemini`, or any TUI agent you want to drive |
-
-**Optional**
-
-| Tool | Purpose |
-|---|---|
-| [`pyte`](https://github.com/selectel/pyte) | Python terminal emulator used by `Alt+/` to render full scrollback with colors and matching line numbers. Without it, `Alt+/` prints a hint; everything else works. **Brew install pair (≥1.15) bundles it** in a private venv. Git-clone users: `make pair-bootstrap` (or `pip3 install --user --break-system-packages pyte`). |
 
 ## Terminal setup
 

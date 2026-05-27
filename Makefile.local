@@ -1,7 +1,7 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
-.PHONY: pair-bootstrap build install pair-scribe pair-scrollback-render pair-wrap test test-race
+.PHONY: build install pair-scribe pair-scrollback-render pair-wrap test test-race
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
 # and ships with the `pair-` prefix so it doesn't collide with anything
@@ -65,56 +65,18 @@ test-race:
 $(BIN_DIR)/pair-scribe: cmd/pair-scribe/main.go go.mod
 	go build -o $@ ./cmd/pair-scribe
 
-# pair-scrollback-render — Go reimplementation of the pyte-based
-# bin/pair-scrollback-render.py using charmbracelet/x/vt. Replays a
-# pair-wrap raw PTY capture and emits one ANSI-styled output line per
-# logical scrollback row, for the Alt+/ viewer to display through nvim.
-# ~10× faster than the Python version, no Python runtime dependency,
-# single static binary.
-#
-# pair-scrollback-open prefers this binary when present; otherwise it
-# falls back to the .py renderer. After confidence builds, drop the
-# Python script + brew formula pyte vendoring in a follow-up (#19).
+# pair-scrollback-render — replays a pair-wrap raw PTY capture through
+# charmbracelet/x/vt and emits one ANSI-styled line per logical scrollback
+# row, for the Alt+/ viewer to display through nvim.
 $(BIN_DIR)/pair-scrollback-render: cmd/pair-scrollback-render/main.go go.mod
 	go build -o $@ ./cmd/pair-scrollback-render
 
-# pair-wrap — Go port of bin/pair-wrap.py (filed #000011). Transparent
-# PTY proxy around a TUI coding agent: forwards stdio, tees scrollback
-# log, extracts colored spans for nvim autocomplete, detects OSC/BEL and
-# forwards as OSC 9 to the recorded outer-TTY, handles SIGUSR1 image-
-# paste capture window. Python fallback at bin/pair-wrap.py (kept until
-# the Go binary has soaked in a session).
+# pair-wrap — transparent PTY proxy around a TUI coding agent: forwards
+# stdio, tees scrollback log, extracts colored spans for nvim autocomplete,
+# detects OSC/BEL and forwards as OSC 9 to the recorded outer-TTY, handles
+# SIGUSR1 image-paste capture window.
 $(BIN_DIR)/pair-wrap: cmd/pair-wrap/main.go go.mod
 	go build -o $@ ./cmd/pair-wrap
-
-
-# pair-bootstrap — install pair's runtime Python dependencies.
-#
-# Distinct from `make bootstrap` (.openshell/Makefile), which sets up
-# the OpenShell sandbox tooling. This target is for pair end-users:
-# brew install pair handles the binary deps (zellij, nvim, fzf, jq, par);
-# this fills in the pip-managed extras that the brew formula can't
-# easily own.
-#
-# Currently:
-#   - pyte: required by `Alt+/` (bin/pair-scrollback-render). Without
-#     it, capture still happens but the viewer prints an install hint
-#     and exits.
-#
-# `--break-system-packages` is needed on Python 3.11+ on systems with
-# PEP 668 marker files (Homebrew Python sets one). Falls back to a plain
-# install on systems without the flag — older pip rejects the unknown flag.
-pair-bootstrap:
-	@echo "==> Installing pair runtime dependencies..."
-	@if python3 -c 'import pyte' 2>/dev/null; then \
-		echo "  [ok] pyte already installed"; \
-	else \
-		echo "  [..] Installing pyte..."; \
-		pip3 install --user --break-system-packages pyte 2>/dev/null \
-			|| pip3 install --user pyte; \
-	fi
-	@echo ""
-	@echo "Done. Try Alt+/ in a pair session to see the colored scrollback viewer."
 
 
 # Tart VM targets (tart, tart-gui, tart-mount, tart-stop, tart-clean)

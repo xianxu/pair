@@ -1,9 +1,9 @@
 ---
 id: 000019
-status: open
+status: working
 deps: []
 created: 2026-05-10
-updated: 2026-05-10
+updated: 2026-05-27
 related: [homebrew-pair/Formula/pair.rb]
 ---
 
@@ -108,9 +108,9 @@ After publishing, verify on a clean machine (or `tart`-VM target):
 
 ## Plan
 
-- [ ] Soak Go binaries in real sessions for ~3-5 days; track any
+- [x] Soak Go binaries in real sessions for ~3-5 days; track any
       regressions in this issue's Log section.
-- [ ] Drops 1-6 (pair repo) in one commit. Subject suggestion:
+- [x] Drops 1-6 (pair repo) in one commit. Subject suggestion:
       `pair: drop python from runtime path`.
 - [ ] Tag pair release matching the drop (e.g. v1.17).
 - [ ] Drops 7-11 (homebrew-pair). Update url + sha256 to the new pair
@@ -127,3 +127,25 @@ After publishing, verify on a clean machine (or `tart`-VM target):
   `depends_on "python@3"`, and the venv install step — the v1.16
   formula bump only added the Go build path alongside; the python
   surface stays until this issue closes.
+- 2026-05-27: pair-repo drops 1-6 landed (soak window of 17 days passed
+  without Go-binary regression reports).
+  - Deleted `bin/pair-wrap.py`, `bin/pair-scrollback-render.py`.
+  - `bin/pair-scrollback-open` simplified to "run Go binary or hard-fail
+    with build hint"; dropped pyte preflight + venv-python lookup + the
+    32-line else branch.
+  - `Makefile.local`: removed `pair-bootstrap` target and trimmed the
+    stale "Python fallback" comments from the Go-binary recipes.
+  - `atlas/architecture.md`: scrollback Replay paragraph re-anchored on
+    `charmbracelet/x/vt`; dropped the "pyte is a soft dependency" line;
+    Open paragraph no longer mentions a pyte preflight; outer-TTY
+    section now labels pair-wrap as Go (`cmd/pair-wrap`).
+  - `README.md`: dropped the `python3` Required row (stale — pair-notify
+    is bash, not Python) and the `pyte` Optional row.
+  - `cmd/pair-wrap/main.go`: tightened the lead comment now that the
+    Python original no longer exists. (Two historical comments
+    referencing commit `949aeec` remain — those point at git history
+    that survives the file deletion.)
+  - Verified: `make build` succeeds, `make test ./...` passes
+    (pair-scrollback-render + pair-wrap suites green).
+  - Remaining work: pair release tag, homebrew-pair drops 7-11, ariadne
+    drop 12. Issue stays open until those land.

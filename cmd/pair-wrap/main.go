@@ -1,9 +1,8 @@
 // pair-wrap — transparent PTY proxy around a TUI coding agent.
 //
-// Direct port of bin/pair-wrap.py (filed as #000011). The Python version
-// remains as bin/pair-wrap.py for fallback / reference; this Go binary is
-// installed at bin/pair-wrap and invoked by zellij/layouts/main.kdl on
-// pair startup. See cmd/pair-scrollback-render for the prior Go-port pattern.
+// Installed at bin/pair-wrap and invoked by zellij/layouts/main.kdl on
+// pair startup. (Originally ported from a Python prototype, #000011; the
+// Python original was retired in #000019.)
 //
 // What it does:
 //   - Spawns the agent in a fresh pty so the wrapper sees the raw output.
