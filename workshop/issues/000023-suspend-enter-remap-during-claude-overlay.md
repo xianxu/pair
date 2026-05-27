@@ -1,6 +1,7 @@
 ---
 id: 000023
-status: open
+status: working
+estimate_hours: 2
 deps: []
 created: 2026-05-27
 updated: 2026-05-27
@@ -113,4 +114,21 @@ takes focus back) as v2 hardening.
 
 ## Log
 
-(empty)
+- 2026-05-27 — Implementation landed in `cmd/pair-wrap/main.go`:
+  - Added `pickerActive atomic.Bool` field to `proxy`.
+  - New helper `emitPlainCR` consults the flag; clears it on consume.
+  - New method `checkOSCForOverlayOpen` flips the flag on the picker-
+    open OSC body, gated on `agentBasename == "claude"`.
+  - Three plain-Enter call sites in `translateChunk` (KKP plain
+    explicit, KKP plain implicit, legacy `\r`) now route through
+    `emitPlainCR`. `altCR` unchanged.
+- Tests in `picker_overlay_test.go`: 7 cases — picker variant flips,
+  end-of-turn variant doesn't, agent gating, unrelated OSCs, helper
+  positive + negative, integration through `translateStdinFrom`.
+- `go test ./...` green. M5 (manual verification with live claude)
+  pending — binary built at worktree `bin/pair-wrap`; install to
+  `~/workspace/pair/bin/pair-wrap` and `pair-restart` to test.
+- Atlas updated: added "Stdin Enter remap (per-agent)" + "Overlay-
+  aware suspension (claude only)" subsections to
+  `atlas/architecture.md` (no prior atlas coverage of the per-agent
+  Enter remap).
