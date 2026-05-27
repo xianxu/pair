@@ -42,6 +42,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -188,6 +189,19 @@ type proxy struct {
 	// opts out via PAIR_WRAP_REMAP_RETURN=0.
 	sendKM sendKeymap
 
+	// pickerActive is set when claude's output stream signals that a
+	// blocking overlay (AskUserQuestion picker or tool-permission
+	// prompt) opened, via OSC 777 with body
+	// "notify;Claude Code;Claude needs your permission". While set,
+	// translateChunk emits a bare \r for the user's plain Enter
+	// instead of the textarea-aware \<CR>, so the overlay confirms
+	// without leaking a stray '\' into the textarea behind it. The
+	// flag clears after the first plain Enter is consumed —
+	// restoring normal remap for the next Enter, which is back in
+	// the textarea. Set from masterPump (handleChunk), read+cleared
+	// from translateChunk → atomic.
+	pickerActive atomic.Bool
+
 	// Scrollback log (-1 / nil when disabled)
 	scrollbackFD    *os.File
 	eventsFD        *os.File
@@ -317,6 +331,13 @@ func (p *proxy) emitOuter(msg string) {
 	p.lastEmit = now
 	p.debug("EMIT", "wrote OSC 9 to "+path)
 }
+
+// pickerOpenOSCBody is the OSC 777 body claude emits when a blocking
+// overlay (AskUserQuestion picker or tool-permission prompt) opens.
+// Distinct from the end-of-turn body "Claude is waiting for your
+// input" — only this variant means "Enter routes to the overlay, not
+// the textarea." Used to suspend the textarea-aware Enter remap.
+const pickerOpenOSCBody = "notify;Claude Code;Claude needs your permission"
 
 // isActionableOSC decides whether an OSC <ps>;<body> should be forwarded.
 // Skip 0/1/2 (title sets — claude updates every second with a spinner),
@@ -844,6 +865,39 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 	}
 }
 
+// checkOSCForOverlayOpen flips pickerActive on the OSC 777 body that
+// claude emits when an AskUserQuestion picker or tool-permission
+// prompt opens. Idempotent — repeated emissions within one overlay
+// (claude rerenders) don't re-debug-log. No-op for non-claude agents
+// and for any other OSC body (notably the end-of-turn variant
+// "Claude is waiting for your input", where the textarea is active
+// and the remap should stay engaged).
+func (p *proxy) checkOSCForOverlayOpen(ps, body []byte) {
+	if p.agentBasename != "claude" {
+		return
+	}
+	if string(ps) != "777" || string(body) != pickerOpenOSCBody {
+		return
+	}
+	if !p.pickerActive.Load() {
+		p.pickerActive.Store(true)
+		p.debug("PICKER-open", string(body))
+	}
+}
+
+// emitPlainCR appends bytes for a user "plain Enter" event, honoring
+// the overlay-active state. While pickerActive is set, Enter goes
+// through as a bare \r so the overlay confirms — and the flag clears,
+// restoring the textarea-aware plainCR remap for the next Enter.
+// See the pickerActive field doc for the open/close protocol.
+func (p *proxy) emitPlainCR(out []byte) []byte {
+	if p.pickerActive.Load() {
+		p.pickerActive.Store(false)
+		return append(out, '\r')
+	}
+	return append(out, p.sendKM.plainCR...)
+}
+
 // translateChunk walks `data` and returns (rewritten bytes, leftover to
 // carry over, new bracketed-paste state). `leftover` is non-nil only
 // when the chunk ends mid-escape that could still resolve into bpStart,
@@ -889,13 +943,13 @@ func (p *proxy) translateChunk(data []byte, inPaste bool) ([]byte, []byte, bool)
 			}
 			// KKP plain Enter, explicit-no-modifier form: \x1b[13;1u.
 			if startsWith(data[i:], enterKKPPlainExp) {
-				out = append(out, p.sendKM.plainCR...)
+				out = p.emitPlainCR(out)
 				i += len(enterKKPPlainExp)
 				continue
 			}
 			// KKP plain Enter: \x1b[13u.
 			if startsWith(data[i:], enterKKPPlain) {
-				out = append(out, p.sendKM.plainCR...)
+				out = p.emitPlainCR(out)
 				i += len(enterKKPPlain)
 				continue
 			}
@@ -932,7 +986,7 @@ func (p *proxy) translateChunk(data []byte, inPaste bool) ([]byte, []byte, bool)
 			continue
 		}
 		if b == '\r' {
-			out = append(out, p.sendKM.plainCR...)
+			out = p.emitPlainCR(out)
 			i++
 			continue
 		}
@@ -1463,6 +1517,7 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 			for _, m := range matches {
 				ps := (*rolling)[m[2]:m[3]]
 				body := (*rolling)[m[4]:m[5]]
+				p.checkOSCForOverlayOpen(ps, body)
 				if isActionableOSC(ps, body) {
 					if p.notifyModeActive == "native" {
 						p.debug("OSC"+string(ps), string(truncate(body, 80)))
