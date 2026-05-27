@@ -20,19 +20,6 @@ export WF_ISSUES_DIR WF_HISTORY_DIR
 # Python default in scripts/close-issue.py and suppresses project updates.
 BRAIN_DIR ?= ../brain
 
-# ── Upstream config ──────────────────────────────────────────────────────────
-# Defaults assume ariadne is upstream. Descendants of nous (or other re-export
-# hosts) override these in their root Makefile before `include Makefile.workflow`:
-#   UPSTREAM_NAME    := nous
-#   UPSTREAM_REFRESH := ../nous/construct/setup.sh
-# (Post-#32: every layer's substrate management lives at <repo>/construct/;
-# the canonical setup.sh — vendored from ariadne — handles the transitive
-# walk via go.mod's dep graph.)
-UPSTREAM_NAME      ?= ariadne
-UPSTREAM_DIR       ?= ../$(UPSTREAM_NAME)
-UPSTREAM_MODE_FILE ?= .$(UPSTREAM_NAME)-mode
-UPSTREAM_REFRESH   ?= $(UPSTREAM_DIR)/construct/setup.sh
-
 .PHONY: help-workflow worktree fetch push pull-request merge check pre-merge refresh issue-sync
 
 help-workflow:
@@ -123,33 +110,22 @@ close-issue:
 	    scripts/close-issue.py; \
 	fi
 
-# ── Refresh (setup + merge) ───────────────────────────────────────────────────
-# Detection (all keyed off UPSTREAM_* vars; defaults target ariadne):
-#   $(UPSTREAM_MODE_FILE) present → adopted target. Run $(UPSTREAM_REFRESH) so
-#     vendored copies are refreshed from the source of truth. If upstream is
-#     missing, fall back to merging settings with the local vendored merge
-#     script (skips the re-vendor — local construct/ may be stale).
-#   $(UPSTREAM_MODE_FILE) absent + construct/setup.sh present → upstream itself
-#     (e.g. running inside ariadne); just merge.
-#   $(UPSTREAM_MODE_FILE) absent + upstream present → uninitialized target; first-time adopt.
+# ── Refresh ───────────────────────────────────────────────────────────────────
+# Invoke the canonical setup.sh, which handles ancestor discovery via
+# go.mod replace directives (post-ariadne#32). No UPSTREAM_NAME or other
+# name-based variables — single source of truth is go.mod.
+#
+# First-time bootstrap (no construct/setup.sh vendored yet) is an
+# explicit operator action: run `../ariadne/construct/setup.sh`
+# manually from the new target directory, then `make refresh` works
+# going forward.
 refresh:
-	@if [ -f $(UPSTREAM_MODE_FILE) ]; then \
-		if [ -f $(UPSTREAM_REFRESH) ]; then \
-			$(UPSTREAM_REFRESH); \
-		else \
-			echo "$(UPSTREAM_DIR) not found — merging settings only (skipping re-vendor)."; \
-			construct/scripts/merge-settings.sh .claude/settings.ariadne.json .claude; \
-			echo "Done. .claude/settings.json updated."; \
-		fi; \
-	elif [ -f construct/setup.sh ]; then \
-		echo "$(UPSTREAM_NAME) repo detected — merging settings only."; \
-		construct/scripts/merge-settings.sh .claude/settings.ariadne.json .claude; \
-		echo "Done. .claude/settings.json updated."; \
-	elif [ -f $(UPSTREAM_REFRESH) ]; then \
-		$(UPSTREAM_REFRESH); \
+	@if [ -x construct/setup.sh ]; then \
+		construct/setup.sh; \
 	else \
-		echo "Error: $(UPSTREAM_NAME) not found at $(UPSTREAM_DIR)."; \
-		echo "  Clone it as a sibling directory."; \
+		echo "Error: construct/setup.sh not found in this repo."; \
+		echo "  First-time bootstrap: run \`../ariadne/construct/setup.sh\` manually."; \
+		echo "  After that, \`make refresh\` will work — the script vendors itself."; \
 		exit 1; \
 	fi
 
@@ -607,23 +583,42 @@ local-build:
 # `make build` (the cmd/*/main.go scanner above) also picks sdlc up
 # automatically — sdlc-build is the explicit dev-flow target for
 # iterating just on the binary without scanning the whole cmd/ tree.
-.PHONY: sdlc-build sdlc-bootstrap
+.PHONY: bootstrap sdlc-build sdlc-bootstrap
+
+# bootstrap: post-clone setup. Builds substrate tools from local vendored
+# sources. Does NOT require ../<upstream> sibling — vendored content is
+# already in the repo from a prior `make refresh` (which DOES need the
+# sibling). One-shot after `git clone <derivative>`.
+bootstrap:
+	@echo "==> bootstrap: building substrate tools from local vendored sources"
+	@$(MAKE) sdlc-build
+	@echo ""
+	@echo "  bin/sdlc ready. Use it via: ./bin/sdlc --help"
+	@echo "  To update vendored substrate from upstream: make refresh"
+	@echo "  (refresh requires ../<upstream> sibling-checkout)"
+
 sdlc-build:
 	@mkdir -p bin
 	@echo "==> building bin/sdlc"
-	@# Build via Go package path so this target works in both ariadne (the
-	@# source repo — Go's module system finds cmd/sdlc locally via the
-	@# module's own go.mod) and any derivative that vendors ariadne (Go
-	@# resolves the path via the require + replace + vendor/ chain that
-	@# `go mod vendor` populated during `make refresh`).
+	@# Build via Go package path. In derivatives with construct/go.mod
+	@# (the post-#37 layout — substrate-tool deps separated from app
+	@# deps), build inside construct/ so Go resolves through the
+	@# construct/vendor/ tree. In ariadne (the source itself) and other
+	@# repos without construct/go.mod, build at the root.
 	@#
-	@# Derivatives must declare the dependency in their go.mod:
+	@# Derivatives' construct/go.mod is auto-managed by setup.sh:
+	@#   module github.com/<owner>/<derivative>-construct
 	@#   require github.com/xianxu/ariadne v0.0.0-00010101000000-000000000000
-	@#   replace github.com/xianxu/ariadne => ../ariadne
+	@#   replace github.com/xianxu/ariadne => ../../ariadne
 	@#   tool    github.com/xianxu/ariadne/cmd/sdlc        # Go 1.24+
-	@# Otherwise `go mod tidy` strips the require (no code import) and
-	@# vendor/ stays empty.
-	@go build -o bin/sdlc github.com/xianxu/ariadne/cmd/sdlc
+	@# `go mod vendor` in construct/ then populates construct/vendor/
+	@# with the sdlc closure only (~600KB, not the derivative's app
+	@# closure). See workshop/issues/000037.
+	@if [ -f construct/go.mod ]; then \
+	    cd construct && go build -o ../bin/sdlc github.com/xianxu/ariadne/cmd/sdlc; \
+	else \
+	    go build -o bin/sdlc github.com/xianxu/ariadne/cmd/sdlc; \
+	fi
 
 # sdlc-bootstrap installs sdlc onto PATH for the developer. Idempotent.
 # Mirrors ../nous's `nous-bootstrap` pattern but stripped down: sdlc
