@@ -7,48 +7,47 @@ import (
 	"time"
 )
 
-// TestCheckOSCForOverlayOpen_PickerVariantFlipsFlag confirms the OSC
+// TestCheckOverlayOpen_PickerVariantFlipsFlag confirms the OSC
 // body that claude emits for AskUserQuestion / tool-permission
 // overlays trips pickerActive. This is the open half of the
 // suspend-Enter-remap-during-overlay contract.
-func TestCheckOSCForOverlayOpen_PickerVariantFlipsFlag(t *testing.T) {
+func TestCheckOverlayOpen_PickerVariantFlipsFlag(t *testing.T) {
 	p := &proxy{agentBasename: "claude"}
-	p.checkOSCForOverlayOpen([]byte("777"), []byte(pickerOpenOSCBody))
+	checkOverlayBytes(p, []byte("\x1b]777;"+pickerOpenOSCBody+"\x07"))
 	if !p.pickerActive.Load() {
 		t.Fatalf("pickerActive should be true after picker-open OSC")
 	}
 }
 
-// TestCheckOSCForOverlayOpen_WaitingForInputDoesNotFlip pins the
+// TestCheckOverlayOpen_WaitingForInputDoesNotFlip pins the
 // negative case: the end-of-turn OSC 777 body ("Claude is waiting for
 // your input") fires while the textarea has focus. The remap MUST
 // stay engaged or the user's next Enter loses its newline.
-func TestCheckOSCForOverlayOpen_WaitingForInputDoesNotFlip(t *testing.T) {
+func TestCheckOverlayOpen_WaitingForInputDoesNotFlip(t *testing.T) {
 	p := &proxy{agentBasename: "claude"}
-	p.checkOSCForOverlayOpen([]byte("777"), []byte("notify;Claude Code;Claude is waiting for your input"))
+	checkOverlayBytes(p, []byte("\x1b]777;notify;Claude Code;Claude is waiting for your input\x07"))
 	if p.pickerActive.Load() {
 		t.Fatalf("pickerActive should stay false for end-of-turn OSC")
 	}
 }
 
-// TestCheckOSCForOverlayOpen_NonClaudeAgentSkipped pins the
-// agent-gate: codex and gemini use different Enter conventions (no
-// \<CR> remap, no overlay bug) so detection is wasted work for them.
-func TestCheckOSCForOverlayOpen_NonClaudeAgentSkipped(t *testing.T) {
-	for _, name := range []string{"codex", "gemini", ""} {
+// TestCheckOverlayOpen_AgentsWithoutDetectorSkipped pins the agent-gate:
+// agents without an overlay detector must ignore Claude's OSC body.
+func TestCheckOverlayOpen_AgentsWithoutDetectorSkipped(t *testing.T) {
+	for _, name := range []string{"gemini", ""} {
 		p := &proxy{agentBasename: name}
-		p.checkOSCForOverlayOpen([]byte("777"), []byte(pickerOpenOSCBody))
+		checkOverlayBytes(p, []byte("\x1b]777;"+pickerOpenOSCBody+"\x07"))
 		if p.pickerActive.Load() {
-			t.Fatalf("agent %q: pickerActive should stay false (gated on claude)", name)
+			t.Fatalf("agent %q: pickerActive should stay false (no detector)", name)
 		}
 	}
 }
 
-// TestCheckOSCForOverlayOpen_UnrelatedOSCSkipped covers the broader
+// TestCheckOverlayOpen_UnrelatedOSCSkipped covers the broader
 // negative case: any OSC that isn't the picker-open body must be a
 // no-op, even on claude. Guards against accidentally tripping on
 // OSC 9 / OSC 1337 / arbitrary 777 bodies.
-func TestCheckOSCForOverlayOpen_UnrelatedOSCSkipped(t *testing.T) {
+func TestCheckOverlayOpen_UnrelatedOSCSkipped(t *testing.T) {
 	cases := []struct {
 		ps, body string
 	}{
@@ -59,11 +58,15 @@ func TestCheckOSCForOverlayOpen_UnrelatedOSCSkipped(t *testing.T) {
 	}
 	for _, c := range cases {
 		p := &proxy{agentBasename: "claude"}
-		p.checkOSCForOverlayOpen([]byte(c.ps), []byte(c.body))
+		checkOverlayBytes(p, []byte("\x1b]"+c.ps+";"+c.body+"\x07"))
 		if p.pickerActive.Load() {
 			t.Fatalf("ps=%q body=%q: should not flip pickerActive", c.ps, c.body)
 		}
 	}
+}
+
+func checkOverlayBytes(p *proxy, raw []byte) {
+	p.checkOverlayOpen(raw, raw)
 }
 
 // TestEmitPlainCR_OverlayActiveSendsBareCRAndClears is the close half

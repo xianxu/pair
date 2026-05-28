@@ -145,6 +145,13 @@ var sendKeymapByAgent = map[string]sendKeymap{
 	},
 }
 
+type overlayDetector func(*proxy, []byte, []byte) (bool, string)
+
+var overlayDetectorByAgent = map[string]overlayDetector{
+	"claude": detectClaudeOverlayOpen,
+	"codex":  detectCodexOverlayOpen,
+}
+
 // ----- Compiled regexes (byte-mode) -------------------------------------------
 
 var (
@@ -188,18 +195,23 @@ type proxy struct {
 	// opts out via PAIR_WRAP_REMAP_RETURN=0.
 	sendKM sendKeymap
 
-	// pickerActive is set when claude's output stream signals that a
-	// blocking overlay (AskUserQuestion picker or tool-permission
-	// prompt) opened, via OSC 777 with body
-	// "notify;Claude Code;Claude needs your permission". While set,
+	// pickerActive is set when the active agent's output stream signals
+	// that a blocking overlay / picker opened. While set,
 	// translateChunk emits a bare \r for the user's plain Enter
-	// instead of the textarea-aware \<CR>, so the overlay confirms
-	// without leaking a stray '\' into the textarea behind it. The
-	// flag clears after the first plain Enter is consumed —
-	// restoring normal remap for the next Enter, which is back in
-	// the textarea. Set from masterPump (handleChunk), read+cleared
-	// from translateChunk → atomic.
+	// instead of the textarea-aware remap, so the overlay confirms.
+	// The flag clears after the first plain Enter is consumed —
+	// restoring normal remap for the next Enter, which is back in the
+	// textarea. Set from masterPump (handleChunk), read+cleared from
+	// translateChunk → atomic.
 	pickerActive atomic.Bool
+
+	// Codex does not expose a dedicated overlay OSC today, so its
+	// detector watches newly arrived visible text plus this carryover for
+	// split picker labels. Keeping it separate from the OSC rolling tail
+	// avoids re-detecting stale picker text after Enter clears
+	// pickerActive.
+	overlayMu       sync.Mutex
+	overlayTextTail string
 
 	// Scrollback log (-1 / nil when disabled)
 	scrollbackFD    *os.File
@@ -337,6 +349,61 @@ func (p *proxy) emitOuter(msg string) {
 // input" — only this variant means "Enter routes to the overlay, not
 // the textarea." Used to suspend the textarea-aware Enter remap.
 const pickerOpenOSCBody = "notify;Claude Code;Claude needs your permission"
+
+var codexPickerMarkers = []string{
+	// Codex 0.134.0 resume-CWD picker. Both labels are visible in the
+	// overlay; either is enough to know Enter should select, not insert
+	// a textarea newline.
+	"Use session directory (",
+	"Use current directory (",
+
+	// Generic picker footer observed in Codex blocking prompts. Keep as
+	// a fallback for picker variants that do not include cwd choices.
+	"Press enter to continue",
+}
+
+func detectClaudeOverlayOpen(_ *proxy, _ []byte, rolling []byte) (bool, string) {
+	matches := oscRe.FindAllSubmatch(rolling, -1)
+	for _, m := range matches {
+		if len(m) >= 3 && string(m[1]) == "777" && string(m[2]) == pickerOpenOSCBody {
+			return true, string(m[2])
+		}
+	}
+	return false, ""
+}
+
+func detectCodexOverlayOpen(p *proxy, data, _ []byte) (bool, string) {
+	visible := stripTerminalControls(data)
+	if p != nil {
+		p.overlayMu.Lock()
+		defer p.overlayMu.Unlock()
+		visible = p.overlayTextTail + visible
+		p.overlayTextTail = textSuffix(visible, rollingTailLen)
+	}
+	return detectCodexOverlayText(visible)
+}
+
+func detectCodexOverlayText(visible string) (bool, string) {
+	for _, marker := range codexPickerMarkers {
+		if strings.Contains(visible, marker) {
+			return true, marker
+		}
+	}
+	return false, ""
+}
+
+func stripTerminalControls(raw []byte) string {
+	stripped := otherEscRe.ReplaceAll(raw, nil)
+	stripped = bytesReplaceAll(stripped, '\r')
+	return string(stripped)
+}
+
+func textSuffix(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[len(s)-max:]
+}
 
 // isActionableOSC decides whether an OSC <ps>;<body> should be forwarded.
 // Skip 0/1/2 (title sets — claude updates every second with a spinner),
@@ -864,23 +931,21 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 	}
 }
 
-// checkOSCForOverlayOpen flips pickerActive on the OSC 777 body that
-// claude emits when an AskUserQuestion picker or tool-permission
-// prompt opens. Idempotent — repeated emissions within one overlay
-// (claude rerenders) don't re-debug-log. No-op for non-claude agents
-// and for any other OSC body (notably the end-of-turn variant
-// "Claude is waiting for your input", where the textarea is active
-// and the remap should stay engaged).
-func (p *proxy) checkOSCForOverlayOpen(ps, body []byte) {
-	if p.agentBasename != "claude" {
+// checkOverlayOpen flips pickerActive when the current agent's output
+// indicates that a blocking overlay opened. Idempotent — repeated
+// rerenders within one overlay don't re-debug-log.
+func (p *proxy) checkOverlayOpen(data, rolling []byte) {
+	detect, ok := overlayDetectorByAgent[p.agentBasename]
+	if !ok {
 		return
 	}
-	if string(ps) != "777" || string(body) != pickerOpenOSCBody {
+	open, reason := detect(p, data, rolling)
+	if !open {
 		return
 	}
 	if !p.pickerActive.Load() {
 		p.pickerActive.Store(true)
-		p.debug("PICKER-open", string(body))
+		p.debug("PICKER-open", p.agentBasename+": "+reason)
 	}
 }
 
@@ -892,6 +957,9 @@ func (p *proxy) checkOSCForOverlayOpen(ps, body []byte) {
 func (p *proxy) emitPlainCR(out []byte) []byte {
 	if p.pickerActive.Load() {
 		p.pickerActive.Store(false)
+		p.overlayMu.Lock()
+		p.overlayTextTail = ""
+		p.overlayMu.Unlock()
 		return append(out, '\r')
 	}
 	return append(out, p.sendKM.plainCR...)
@@ -1509,6 +1577,7 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 		if len(*rolling) > rollingTailLen {
 			*rolling = (*rolling)[len(*rolling)-rollingTailLen:]
 		}
+		p.checkOverlayOpen(data, *rolling)
 		matches := oscRe.FindAllSubmatchIndex(*rolling, -1)
 		if len(matches) > 0 {
 			last := matches[len(matches)-1]
@@ -1516,7 +1585,6 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 			for _, m := range matches {
 				ps := (*rolling)[m[2]:m[3]]
 				body := (*rolling)[m[4]:m[5]]
-				p.checkOSCForOverlayOpen(ps, body)
 				if isActionableOSC(ps, body) {
 					if p.notifyModeActive == "native" {
 						p.debug("OSC"+string(ps), string(truncate(body, 80)))

@@ -75,23 +75,23 @@ the normal `\n` remap.
 
 ## Plan
 
-1. Probe codex's wire output around picker open/close. Capture
+1. [x] Probe codex's wire output around picker open/close. Capture
    `PAIR_WRAP_LOG=/tmp/codex.log PAIR_WRAP_REMAP_RETURN=0 pair codex`
    and trigger the resume-cwd picker (or any other picker codex
    shows). Diff the bytes between non-picker and picker states.
-2. Pick the most stable signal from the probe. If nothing
+2. [x] Pick the most stable signal from the probe. If nothing
    byte-level works, fall back to a text marker watched in the
    output stream.
-3. Generalize the existing `pickerActive` plumbing in
+3. [x] Generalize the existing `pickerActive` plumbing in
    `cmd/pair-wrap/main.go` so claude and codex share the suspend-
    on-overlay machinery. Likely shape:
    - Per-agent `overlayDetector func([]byte) bool` registered next
      to `sendKeymapByAgent`.
    - `checkOSCForOverlayOpen` becomes a generic
      `checkOverlaySignal(data []byte)` called from `handleChunk`.
-4. Test: extend `osc_test.go` (or a new `overlay_test.go`) with
+4. [x] Test: extend `osc_test.go` (or a new `overlay_test.go`) with
    table-driven cases for both agents' open detection.
-5. Manual verify: trigger the codex resume-cwd picker, confirm
+5. [ ] Manual verify: trigger the codex resume-cwd picker, confirm
    Enter selects option 1 instead of navigating.
 
 ## Log
@@ -99,6 +99,16 @@ the normal `\n` remap.
 ### 2026-05-28 09:57 PDT
 
 - Marked issue working and started implementation pass.
+
+### 2026-05-28 10:06 PDT
+
+- Probed the locally installed Codex CLI (`codex-cli 0.134.0`) bundle with `strings`; the resume-cwd picker exposes `Use session directory (` and `Use current directory (` labels, but no dedicated overlay OSC was visible.
+- Implemented per-agent overlay detectors in `cmd/pair-wrap/main.go`: Claude still uses the OSC 777 permission body; Codex strips terminal controls from newly arrived output plus a short text carryover and detects the resume-cwd labels plus `Press enter to continue`.
+- Added tests in `cmd/pair-wrap/overlay_test.go` and updated the existing picker overlay tests for the generic `checkOverlayOpen` path.
+- Self-review caught a stale rolling-tail edge case where old Codex picker text could re-arm `pickerActive` after the confirming Enter; fixed by clearing the Codex text carryover on the consumed Enter and added a regression test.
+- Verification: `GOCACHE=/private/tmp/pair-go-cache go test ./cmd/pair-wrap -count=1`, `GOCACHE=/private/tmp/pair-go-cache go test ./... -count=1`, and `GOCACHE=/private/tmp/pair-go-cache go test -count=1 -race ./cmd/pair-wrap/` all pass.
+- Rebuilt `bin/pair-wrap`; the final build was run with permission so Go could update its module stat cache cleanly.
+- Updated `atlas/architecture.md` with the per-agent overlay detector behavior and Codex text-marker fallback.
 
 ## Workarounds today
 
