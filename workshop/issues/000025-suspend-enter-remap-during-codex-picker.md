@@ -1,6 +1,6 @@
 ---
 id: 000025
-status: open
+status: working
 deps: []
 created: 2026-05-28
 updated: 2026-05-28
@@ -96,7 +96,9 @@ the normal `\n` remap.
 
 ## Log
 
-(Empty — to be filled as work progresses.)
+### 2026-05-28 09:57 PDT
+
+- Marked issue working and started implementation pass.
 
 ## Workarounds today
 
