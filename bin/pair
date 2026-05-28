@@ -1193,7 +1193,17 @@ handle_restart_marker() {
             codex)         resume_extra="resume $r_sid" ;;
         esac
     fi
-    local combined="${r_args}${r_args:+${resume_extra:+ }}${resume_extra}"
+    # Composition order matters for codex: its `resume` subcommand must
+    # sit at args[0] for the inner pair + watcher detection blocks to
+    # recognize it. Other saved flags (e.g. --no-alt-screen, --search)
+    # follow. claude/gemini's --resume flag works anywhere, so the
+    # legacy order (r_args first) stays unchanged for them.
+    local combined
+    if [ "$r_agent" = "codex" ] && [ -n "$resume_extra" ]; then
+        combined="${resume_extra}${r_args:+ $r_args}"
+    else
+        combined="${r_args}${r_args:+${resume_extra:+ }}${resume_extra}"
+    fi
     if [ -n "$combined" ]; then
         # shellcheck disable=SC2086
         exec "$0" "$r_agent" -- $combined
@@ -1720,6 +1730,35 @@ if [ "$AGENT" = "claude" ] && [ -z "$explicit_resume" ]; then
                 || rm -f "$tmp"
         fi
     fi
+fi
+
+# Codex: force inline mode (--no-alt-screen) so the conversation goes
+# into the normal screen + DECSTBM scroll-region pipeline. Codex's
+# default alt-screen mode hides scrolled-off lines from zellij's pane
+# scrollback (xterm spec — no scrollback in alt-screen), which is why
+# mouse wheel and keyboard scroll both come up blank inside the codex
+# pane. Inline mode pushes the conversation through zellij's scrollback
+# the same way claude does, so wheel/Alt+/ work transparently.
+#
+# Opt-out: set PAIR_CODEX_ALT_SCREEN=1 (e.g. for full-screen overlays).
+# Idempotent: strips an existing --no-alt-screen before re-appending so
+# repeated Alt+n restarts don't accumulate duplicates in saved args.
+#
+# Append (not prepend) keeps the `resume` subcommand at args[0] when
+# present — several detection points in this script + pair-session-
+# watch.sh assume that position.
+if [ "$AGENT" = "codex" ]; then
+    _codex_stripped=""
+    for tok in $agent_extra; do
+        if [ "$tok" = "--no-alt-screen" ]; then continue; fi
+        _codex_stripped="${_codex_stripped:+$_codex_stripped }$tok"
+    done
+    if [ "${PAIR_CODEX_ALT_SCREEN:-0}" = "1" ]; then
+        agent_extra="$_codex_stripped"
+    else
+        agent_extra="${_codex_stripped:+$_codex_stripped }--no-alt-screen"
+    fi
+    export PAIR_AGENT_ARGS="$agent_extra"
 fi
 
 # Spawn the session-id watcher (issue #000016, fixed in #000020). For
