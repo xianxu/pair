@@ -1,10 +1,11 @@
 ---
 id: 000024
-status: working
+status: done
 deps: []
 created: 2026-05-27
 updated: 2026-05-27
 related: [bin/pair]
+actual_hours: 0.55
 ---
 
 # pair should show active tags of last week
@@ -45,6 +46,8 @@ we should actually present user with tags 1/ inferred from current working direc
 
 ## Log
 
+
+- 2026-05-27: closed — operator-verified end-to-end in ~/workspace/brain (picker surfaces historical rows as designed); dedup correctness confirmed in ~/workspace/pair (only matching tag hidden as currently-live). Force used: all four milestones landed in a single commit (055fec0) — no per-milestone commit boundaries for separate Review-Verdict trailers
 ### 2026-05-27
 
 - 2026-05-27: filed and scoped. Convention-only design (no new state file); discovery via mtime walk of existing `draft-<tag>.md` / `log-<tag>.md` filtered by cwd-prefix and 14-day window. Operator-side convention reminder: name tags as `<cwd-base>-<subproject>` so historical discovery surfaces them in the right context.
