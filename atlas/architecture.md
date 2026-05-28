@@ -31,10 +31,10 @@ Resolves `$PAIR_HOME` from its own real path (portable bash, no `readlink -f`), 
 
 A leading `pair resume <tag>` is recognized as a subcommand verb (alongside `list` / `help`): it skips both the picker and the name prompt, attaches if `pair-<tag>` already exists in any state, otherwise creates with that tag. When `resume` is in play, the agent is inferred from saved state on disk (`agent-<tag>` for live/recently-detached sessions; the agent embedded in the `config-<tag>-<agent>.json` filename otherwise) — so a single tag is enough to restart, regardless of which agent was originally paired with it. See "Tag-restart" below.
 
-**Decision tree.** Finds *all* detached pair-* sessions on the machine (any agent, any naming). Then:
+**Decision tree.** Finds *all* detached pair-* sessions on the machine (any agent, any naming). It also surfaces **historical tags from this cwd** (#000024): tags named `<cwd-base>` or `<cwd-base>-<subproject>` whose `draft-` / `log-` sidecars in `$DATA_DIR/` were touched within the last `$PAIR_HISTORY_DAYS` (default 14) but no longer have a live session. Convention-only — operators are expected to name sessions `<cwd-base>-<subproject>` so they appear in the right cwd's picker. Then:
 
-- 0 detached → run create flow directly (validate agent, prompt for name, create).
-- ≥1 detached → fzf picker over the detached sessions plus a `+ new <agent> session` sentinel. Pick a session → attach. Pick the sentinel → fall through to create.
+- 0 detached + 0 historical → run create flow directly (validate agent, prompt for name, create).
+- ≥1 detached or ≥1 historical → fzf picker over the detached sessions, then historical rows annotated `(Nd ago, no live session)`, then a `+ new <agent> session` sentinel. Pick a detached row → attach. Pick a historical row → create-by-name (same path as `pair resume <tag>`, which re-uses any saved `draft-<tag>.md` / `config-<tag>-<agent>.json`). Pick the sentinel → fall through to create with `free_slot_tag`. `PAIR_DEBUG_HISTORY=1 pair` exits early printing the scan results — useful for sanity-checking the cwd-prefix convention on a given data dir.
 
 The agent argument doesn't filter the picker — reattach is agent-agnostic (the existing session already runs whatever it runs). The agent argument only matters for the create path: it labels the sentinel, drives the auto-suggested default name, and is the binary that gets exec'd in the new session.
 

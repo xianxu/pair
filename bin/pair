@@ -793,6 +793,14 @@ fi
 
 BASE_TAG="$PAIR_TAG"
 
+# Historical scan always anchors on the cwd basename (independent of
+# whether the user explicitly named an agent). Convention: tags named
+# `<cwd-base>` or `<cwd-base>-<subproject>` belong to this dir; #000024.
+HISTORY_BASE="$(basename "$PWD")"
+HISTORY_BASE="${HISTORY_BASE//[^A-Za-z0-9_-]/_}"
+[ -z "$HISTORY_BASE" ] && HISTORY_BASE="pair"
+HISTORY_DAYS="${PAIR_HISTORY_DAYS:-14}"
+
 # Find ALL detached pair-* sessions, regardless of agent. The agent argument
 # (and BASE_TAG) is only used for the create path's defaults; the picker
 # itself shows everything you might want to reattach to, including custom-
@@ -844,7 +852,92 @@ while [ "$i" -le 100 ]; do
     i=$((i + 1))
 done
 
-# Decide. Picker for any ≥1 detached; create directly only when none exist.
+# ── Historical tags from this cwd (#000024) ──────────────────────────────────
+# Surface tags named `$HISTORY_BASE` or `$HISTORY_BASE-*` that were touched
+# (draft / log mtime) within the last $HISTORY_DAYS days but no longer have a
+# live zellij session. Lets the operator resume an old session by name from
+# the picker without remembering the exact slot number. Convention-only —
+# tags that don't follow the cwd-prefix rule are not surfaced; the operator
+# is expected to name sessions `<cwd-base>-<subproject>` so they show up in
+# the right context (atlas note).
+#
+# Scan strategy: walk draft-/log- sidecars (created/touched by nvim's
+# autosave and bin/pair's send-log), bucket per tag, take max mtime, filter
+# by cutoff, then dedup against the live set + free_slot_tag.
+
+scan_history() {
+    local base="$1" cutoff="$2"
+    local f name tag mt
+    for f in "$DATA_DIR"/draft-*.md "$DATA_DIR"/log-*.md; do
+        [ -e "$f" ] || continue
+        name="${f##*/}"
+        case "$name" in
+            draft-*.md) tag="${name#draft-}"; tag="${tag%.md}" ;;
+            log-*.md)   tag="${name#log-}";   tag="${tag%.md}" ;;
+            *) continue ;;
+        esac
+        # Strict prefix: tag is exactly $base, or starts with "$base-".
+        case "$tag" in
+            "$base"|"$base"-*) ;;
+            *) continue ;;
+        esac
+        mt=$(stat -f %m "$f" 2>/dev/null || echo 0)
+        [ "$mt" -lt "$cutoff" ] && continue
+        printf '%s\t%s\n' "$tag" "$mt"
+    done | awk -F'\t' '
+        { if ($2 > m[$1]) m[$1] = $2 }
+        END { for (t in m) printf "%s\t%s\n", t, m[t] }
+    ' | sort -t$'\t' -k2 -nr
+}
+
+format_age() {
+    local now="$1" then="$2"
+    local diff_days=$(( (now - then) / 86400 ))
+    case "$diff_days" in
+        0) echo "today" ;;
+        1) echo "yesterday" ;;
+        *) echo "${diff_days}d ago" ;;
+    esac
+}
+
+now_epoch=$(date +%s)
+history_cutoff=$(( now_epoch - HISTORY_DAYS * 86400 ))
+
+# Build the live-tag exclusion set as a newline-delimited string (bash 3.2
+# friendly — no assoc arrays). One tag per line, lookup via `grep -qx`.
+live_tags_nl=$(printf '%s\n' "$all_pair" | sed 's|^pair-||' | sort -u)
+
+historical_rows=()
+while IFS=$'\t' read -r tag mtime; do
+    [ -z "$tag" ] && continue
+    # Dedup against live sessions and the "+ new" slot.
+    if printf '%s\n' "$live_tags_nl" | grep -qx "$tag"; then continue; fi
+    [ "$tag" = "$free_slot_tag" ] && continue
+    age=$(format_age "$now_epoch" "$mtime")
+    historical_rows+=("$(printf 'pair-%s  (%s, no live session)' "$tag" "$age")")
+done < <(scan_history "$HISTORY_BASE" "$history_cutoff")
+
+# Debug probe — `PAIR_DEBUG_HISTORY=1 pair` prints what the scan would have
+# surfaced and exits without launching zellij. Use this to verify the cwd-
+# prefix convention is matching what you expect on your data dir.
+if [ "${PAIR_DEBUG_HISTORY:-0}" = "1" ]; then
+    echo "pair: historical scan"
+    echo "  data_dir       = $DATA_DIR"
+    echo "  base (cwd)     = $HISTORY_BASE"
+    echo "  window         = ${HISTORY_DAYS}d (cutoff epoch ${history_cutoff})"
+    echo "  live tags      = $(printf '%s' "$live_tags_nl" | tr '\n' ' ')"
+    echo "  free_slot_tag  = $free_slot_tag"
+    if [ "${#historical_rows[@]}" -eq 0 ]; then
+        echo "  (no historical tags matched)"
+    else
+        echo "  matched rows:"
+        printf '    %s\n' "${historical_rows[@]}"
+    fi
+    exit 0
+fi
+
+# Decide. Picker for any ≥1 detached or ≥1 historical row; create directly
+# only when nothing to surface.
 chosen_session=""
 chosen_tag=""
 action=""   # "attach" | "create"
@@ -862,16 +955,20 @@ if [ -n "$forced_tag" ]; then
         chosen_tag="$forced_tag"
         action=create
     fi
-elif [ ${#detached_list[@]} -eq 0 ]; then
+elif [ ${#detached_list[@]} -eq 0 ] && [ ${#historical_rows[@]} -eq 0 ]; then
     chosen_tag="$free_slot_tag"
     action=create
 else
     new_label="+ new ${BASE_TAG} session"
-    options=$(printf '%s\n' "${detached_list[@]}"; printf '%s\n' "$new_label")
+    options=$({
+        if [ ${#detached_list[@]} -gt 0 ]; then printf '%s\n' "${detached_list[@]}"; fi
+        if [ ${#historical_rows[@]} -gt 0 ]; then printf '%s\n' "${historical_rows[@]}"; fi
+        printf '%s\n' "$new_label"
+    })
     if command -v fzf >/dev/null 2>&1; then
         picked=$(printf '%s' "$options" | fzf --prompt='pair> ' --height=10 --reverse) || exit 0
     else
-        echo "Detached pair sessions:"
+        echo "Detached / historical pair sessions:"
         printf '%s' "$options" | nl
         printf 'Pick: '
         read -r idx
@@ -883,9 +980,21 @@ else
         chosen_tag="$free_slot_tag"
         action=create
     else
-        chosen_session="$picked"
+        # Historical rows are annotated as "pair-<tag>  (... ago, ...)" — the
+        # double-space separator never appears in detached-row text (sanitized
+        # tags can't contain spaces), so trimming everything from the first
+        # double-space onward yields the bare "pair-<tag>" for both shapes.
+        chosen_session="${picked%%  *}"
         chosen_tag="${chosen_session#pair-}"
-        action=attach
+        # If the picked tag is currently live → attach; otherwise (historical
+        # row, or the unlikely "live tag listed as historical" race) → create
+        # by name, which goes through the same path as `pair resume <tag>`.
+        if printf '%s\n' "$live_tags_nl" | grep -qx "$chosen_tag"; then
+            action=attach
+        else
+            chosen_session=""
+            action=create
+        fi
     fi
 fi
 
