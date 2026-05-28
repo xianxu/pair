@@ -1,10 +1,11 @@
 ---
 id: 000026
-status: working
+status: done
 deps: [000010]
 created: 2026-05-28
 updated: 2026-05-28
 related: [cmd/pair-wrap/main.go, zellij/config.kdl]
+actual_hours: 0.4
 ---
 
 # Mouse scroll does not work inside pair with Codex
@@ -23,10 +24,9 @@ forcing `codex --no-alt-screen`. Codex's default alternate screen
 emits `CSI ?1049 h/l`; zellij pane scrollback is intentionally empty
 for alternate-screen applications, so mouse wheel has nothing to scroll.
 
-Revision: user uninstalled the Homebrew `pair` and retested with the
-workspace version; mouse scroll still does not work in `pair codex`.
-The stale-launcher diagnosis was insufficient and the issue must remain
-open until live behavior is verified.
+Revision: user initially reported that uninstalling Homebrew `pair` did
+not fix the issue, so the issue was reopened. On live retest, mouse
+scroll does work in `pair codex`; no code change is needed.
 
 ## Spec
 
@@ -40,22 +40,26 @@ copy-on-select behavior or existing key remaps.
 - [x] Inspect pair-wrap input forwarding and mouse/escape sequence
       handling.
 - [x] Inspect zellij config for mouse mode and copy-on-select behavior.
-- [ ] Determine whether zellij is forwarding wheel events into Codex
+- [x] Determine whether zellij is forwarding wheel events into Codex
       because Codex enables mouse/protocol modes even under
-      `--no-alt-screen`.
-- [ ] Determine whether pair-wrap should filter Codex mouse-mode enable
+      `--no-alt-screen`: no further fix needed after live retest.
+- [x] Determine whether pair-wrap should filter Codex mouse-mode enable
       sequences, translate wheel events, or configure Codex/zellij
-      differently.
-- [ ] Add a focused regression test if the fix is in pair-wrap stream
-      filtering/translation.
-- [ ] Implement the narrow fix.
-- [ ] Verify with a live `pair codex` scroll test, not just process/log
+      differently: no, current launcher behavior is sufficient.
+- [x] Add a focused regression test if the fix is in pair-wrap stream
+      filtering/translation: skipped because no pair-wrap code changed.
+- [x] Implement the narrow fix: already present in `bin/pair`
+      (`codex --no-alt-screen`).
+- [x] Verify with a live `pair codex` scroll test, not just process/log
       inspection.
-- [ ] Update atlas notes if the fix changes agent input semantics.
+- [x] Update atlas notes if the fix changes agent input semantics: no
+      new atlas change needed; no behavior changed in this pass.
 
 ## Log
 
 
+
+- 2026-05-28: closed — User retested live after removing the Homebrew pair install and using the workspace pair; mouse scroll now works in pair codex.
 ### 2026-05-28
 
 - Started investigation from user report: mouse scroll does not work
@@ -82,3 +86,5 @@ copy-on-select behavior or existing key remaps.
   mouse scroll failure in `pair codex`.
 - Reopened issue. Prior close was premature because it relied on
   indirect evidence and did not verify live mouse-scroll behavior.
+- User then retested again and confirmed mouse scroll is working in
+  `pair codex`. Close with live verification; no code change needed.
