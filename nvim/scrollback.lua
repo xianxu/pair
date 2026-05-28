@@ -21,6 +21,12 @@ vim.opt.wrap = true
 vim.opt.linebreak = true
 vim.opt.breakindent = true
 
+-- Smart-case search: `/foo` matches Foo/FOO/foo; `/Foo` matches only Foo.
+-- Standard nvim idiom (ignorecase + smartcase together) — same defaults
+-- a reader would expect from any modern editor's incremental search.
+vim.opt.ignorecase = true
+vim.opt.smartcase = true
+
 -- Stub out the pair-launcher cmdline targets so a stray zellij Alt+Up
 -- / Alt+Down / Alt+x / Alt+n / Alt+d / Shift+Alt+N pressed while the
 -- scrollback viewer is the focused pane degrades silently rather than
