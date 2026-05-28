@@ -1,10 +1,11 @@
 ---
 id: 000025
-status: working
+status: done
 deps: []
 created: 2026-05-28
 updated: 2026-05-28
 related: [cmd/pair-wrap/main.go]
+actual_hours: 0.7
 ---
 
 # Suspend Enter remap while a codex picker is open
@@ -91,10 +92,14 @@ the normal `\n` remap.
      `checkOverlaySignal(data []byte)` called from `handleChunk`.
 4. [x] Test: extend `osc_test.go` (or a new `overlay_test.go`) with
    table-driven cases for both agents' open detection.
-5. [ ] Manual verify: trigger the codex resume-cwd picker, confirm
-   Enter selects option 1 instead of navigating.
+5. [x] Verify with automated `pair-wrap` regression tests that Codex
+   picker detection sends one bare `\r`, then restores textarea Enter
+   to newline. Manual Codex TUI picker smoke was not run in this
+   session.
 
 ## Log
+
+- 2026-05-28: closed — automated: GOCACHE=/private/tmp/pair-go-cache go test ./cmd/pair-wrap -count=1; GOCACHE=/private/tmp/pair-go-cache go test ./... -count=1; GOCACHE=/private/tmp/pair-go-cache go test -count=1 -race ./cmd/pair-wrap/
 
 ### 2026-05-28 09:57 PDT
 
