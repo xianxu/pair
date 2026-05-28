@@ -56,13 +56,16 @@ Select something with mouse on agent's pane, the selection is inserted at curren
 |---|---|---|
 | **Alt+h** | any pane | Pop up the full keybind help in a floating pane (press `q` to dismiss). |
 | **Alt+Return** | nvim (normal/insert) | Send buffer to agent. Note for consistency, claude's keybinding also changed to Alt+return as send, and return as newline |
+| **Alt+c** | nvim (normal/insert) | Send ESC (0x1b) to the agent pane — interrupts claude's in-flight stream without leaving the draft |
 | **Alt+←** / **Alt+→** | nvim (normal/insert) | Walk through prompt history (`-N`) and queued prompts (`+N`) one slot at a time. |
 | **Alt+↑** / **Alt+↓** | any pane | Step the nvim pane along a `minimized` ↔ `12 lines` ↔ `1/2` ladder one rung at a time. When minimized, claude pane always have focus |
 | **Alt+i** | nvim (normal/insert) | Attach clipboard image to the agent and insert anchor text at cursor location |
+| **Alt+1**…**Alt+9** | nvim (insert, popup visible) | Quick-pick the Nth visible completion item. The popup tags its first nine items with indices (e.g. `1 bin/pair-wrap`); past 9, use arrows or `<C-n>` / `<C-p>` |
 | **Shift+Alt+←** / **Shift+Alt+→** | nvim (normal/insert) | Jump to the next region boundary: oldest-history, newest-history, `*`, front-of-queue, back-of-queue. |
 | **Alt+q** | nvim (normal/insert) | Push current buffer to the front of the queue (`+1`). From `*` clears the draft; from `+N` it's move-to-front. |
-| **Alt+/** | any pane | Enter into scrollback viewer, at same view port of current mouse scroll state of claude pane |
+| **Alt+/** | any pane | Enter into scrollback viewer, at same view port of current mouse scroll state of claude pane. Search is smart-case (`/foo` = case-insensitive, `/Foo` = case-sensitive). `Esc` exits (with a Yes/No confirm if there are pending markers). |
 | **Alt+q** | scrollback viewer | Insert comment for the line, or selection |
+| **Alt+b** / **Alt+B** | scrollback viewer | Jump to previous / next prompt boundary — hop between turns instead of scrolling line-by-line |
 | **Alt+Backspace** | nvim (normal/insert), at `+N` | Delete the current queued prompt. |
 | **Shift+Alt+Backspace** | nvim (normal/insert) | Erase history, draft, and queue for this session to "start anew". |
 | **Alt+d** | any pane | Detach from the current session (re-attach later via `pair`). |
@@ -158,7 +161,7 @@ Newer MacOS `Alt+n` sends dead-tilda. You can use [Ukelele](https://software.sil
 
 ```sh
 # install
-brew tap xianxu/pair: brew install pair
+brew tap xianxu/pair && brew install pair
 
 # upgrade
 brew update; brew upgrade pair
@@ -177,6 +180,11 @@ pair [<agent>] -- <args...>      # forward args to agent on create
                                  #      pair -- --dangerously-skip-permissions
                                  #      pair codex -- -p "say hi"
 pair list                        # list pair-* sessions and attach state
+pair rename <old> <new>          # rename every tag-scoped file in
+                                 # $PAIR_DATA_DIR from <old> to <new>;
+                                 # refuses if pair-<old> is still tracked
+                                 # by zellij (use Ctrl+Alt+n's (R) inside
+                                 # a session for the live equivalent)
 pair -h, --help                  # show full help
 ```
 
@@ -184,7 +192,7 @@ Use `--` to separate pair's positional from agent flags. Without it, pair only t
 
 Agent args (after `--`) are appended to the agent command line on **create**. Reattaching to an existing session does not re-launch the agent, so the args don't apply on attach. (The picker connects you to whatever's already running.)
 
-When `pair` runs and any detached `pair-*` session exists, it shows an `fzf` picker over the detached sessions plus a `+ new <agent> session` sentinel.
+When `pair` runs and there's anything to pick — a detached `pair-*` session **or** a tag from this cwd used within the last 14 days — it shows an `fzf` picker. Detached rows come first, then historical rows annotated `(Nd ago, no live session)`, then a `+ new <agent> session` sentinel. Picking a historical row reuses the name and any surviving draft / saved agent config (same path as `pair resume <tag>`). Override the 14-day window with `PAIR_HISTORY_DAYS`; `PAIR_DEBUG_HISTORY=1 pair` prints the scan and exits without launching.
 
 When the create flow runs, it prompts for the session name with the auto-suggested name as the default:
 
@@ -209,20 +217,24 @@ Run that command and the picker + name prompt are skipped. Pair offers three opt
 
 ```
 saved config for tag 'bugfix' (claude)
-  1) use params + session
+  1) use saved params + session
        args=[--dangerously-skip-permissions]
        resume=8d745d08-4ecc-4474-969a-53c98a6fa5f0
-  2) use params
+  2) use saved params
        args=[--dangerously-skip-permissions]
        fresh session
-  3) use none
+  3) use new params + session            (only if you passed new args that differ)
+       args=[<whatever you passed on this command>]
+       resume=8d745d08-4ecc-4474-969a-53c98a6fa5f0
+  4) use new params passed in            (only if you passed new args that differ)
        args=[<whatever you passed on this command>]
        fresh session
 ```
 
-- **use params + session** replays the original launch args *and* points the agent at its previous session id (claude's `--resume`, codex's `resume <id>` subcommand, gemini's `--resume`). The "session" option only appears if the agent's transcript file is still on disk.
-- **use params** replays the args but starts a fresh agent session.
-- **use none** ignores the saved config (and deletes it); a new config is captured the next time the watcher sees a session id appear.
+- **use saved params + session** replays the original launch args *and* points the agent at its previous session id (claude's `--resume`, codex's `resume <id>` subcommand, gemini's `--resume`). Only shown if the agent's transcript file is still on disk.
+- **use saved params** replays the args but starts a fresh agent session.
+- **use new params + session** swaps in the args you just passed on the command line, but keeps the prior session id. Only shown when both conditions hold: the transcript is on disk AND the new args differ from the saved ones (otherwise it would be byte-identical to row 1).
+- **use new params passed in** uses your new args with a fresh session. Only shown when the new args differ from the saved ones.
 
 The agent (claude / codex / gemini) is inferred from saved state, so `pair resume <tag>` is enough on its own — no need to repeat the agent positional. If `pair-<tag>` is still a running zellij session (e.g. you only `Alt+d` detached), `pair resume <tag>` re-attaches without prompting.
 
