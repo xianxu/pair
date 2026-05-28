@@ -826,7 +826,15 @@ while IFS= read -r sess; do
         | grep -E "^${sess}[[:space:]].*EXITED" >/dev/null 2>&1; then
         continue   # exited, skip
     fi
-    clients=$(zj --session "$sess" action list-clients 2>/dev/null \
+    # `zj --session NAME action list-clients` exits 1 with "There is no active
+    # session!" when invoked from a process tree inside that same session's
+    # panes — e.g. a script in an agent pane that shells out to `pair`. With
+    # set -o pipefail, that propagates and errexit silently kills bin/pair at
+    # the assignment. Swallow zellij's exit the same way line 804 does for
+    # list-sessions; the rest of the pipeline still produces a clean "0" for
+    # the empty-stdout case, which is the right semantic (treat unable-to-
+    # query as detached).
+    clients=$( { zj --session "$sess" action list-clients 2>/dev/null || true; } \
               | tail -n +2 | wc -l | tr -d ' ')
     if [ "${clients:-0}" -eq 0 ]; then
         detached_list+=("$sess")
