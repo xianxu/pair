@@ -97,20 +97,37 @@ BEHAVIOR
   pick the "+ new" sentinel: it labels the sentinel, drives the auto-
   suggested name, and is the binary that gets exec'd.
 
-    0 detached → create a new session (prompts for name; default is
-                 auto-generated like pair-claude-2)
-    ≥1 detached → fzf picker over every detached pair-* session, plus a
-                  "+ new <agent> session" sentinel. Picking attaches;
-                  picking the sentinel falls through to the create flow.
+    0 detached + 0 historical → create directly (prompts for name;
+                                default is auto-generated like
+                                pair-claude-2)
+    ≥1 detached or ≥1 historical → fzf picker over: detached pair-*
+                                sessions, then historical tags from
+                                this cwd within $PAIR_HISTORY_DAYS
+                                (default 14) annotated `(Nd ago, no
+                                live session)`, then a `+ new <agent>
+                                session` sentinel. Detached row →
+                                attach. Historical row → create-by-name
+                                (reuses saved draft / agent config).
+                                Sentinel → fall through to create.
+
+  Historical surface (#24) uses the cwd basename as prefix: tags named
+  `<cwd-base>` or `<cwd-base>-<subproject>` whose draft/log sidecars
+  were touched within the window. PAIR_DEBUG_HISTORY=1 prints the scan
+  results and exits without launching zellij.
 
   No silent attach. Every reattach is explicit.
 
 KEYBINDINGS (inside a pair session)
   Alt+Return    send nvim buffer to agent + Enter, log, clear, insert mode
+  Alt+c         send ESC (0x1b) to agent pane — interrupts claude's
+                in-flight stream without leaving the draft
   Alt+← / Alt+→ walk through prompt history (-N) ↔ draft (*) ↔ queue (+N)
   Shift+Alt+← / Shift+Alt+→
                 jump to next region boundary (oldest-history / newest-history /
                 * / front-of-queue / back-of-queue)
+  Alt+1..Alt+9  (insert mode, completion popup visible) quick-pick the Nth
+                visible completion item. Items show their index (e.g.
+                `1 bin/pair-wrap`); past 9, use arrows or <C-n>/<C-p>.
   Alt+q         push current buffer to queue front (+1)
                 from *: parks the draft. from -N: forks. from +N: move-to-front
   Alt+BS        (at +N) delete the current queued prompt; items shift down,
@@ -128,7 +145,9 @@ KEYBINDINGS (inside a pair session)
                 with the same tag, agent, args, AND agent session.
                 The conversation resumes; pair itself is the only
                 thing that restarts (useful after a config or binary
-                rebuild)
+                rebuild). Ctrl+Alt+n is a bound alias — use it on macOS
+                terminal combos where Option+n triggers the dead-tilde
+                composer instead of forwarding as Meta+n.
   Shift+Alt+N   restart with a fresh agent conversation — same tag,
                 agent, and args, but the saved per-(tag,agent) config
                 is dropped so the agent starts a brand-new session
@@ -142,15 +161,25 @@ KEYBINDINGS (inside a pair session)
   Alt+/         open agent pane scrollback in a read-only ANSI-colored
                 nvim viewer; line numbers match zellij's frame indicator,
                 so e.g. `:880` jumps to the line you saw scrolled to 880.
-                Inside the viewer, Alt+q drops a 🤖[comment] marker —
-                bare in normal mode (the line is the context) or
-                🤖<selection>[comment] in visual mode. On :q, all
-                markers are formatted (`> <quote>\n<comment>`) and
-                appended to the draft for review + send
+                Inside the viewer:
+                  • Alt+q drops a 🤖[comment] marker — bare in normal
+                    mode (the line is the context) or 🤖<selection>
+                    [comment] in visual mode.
+                  • Alt+b / Alt+B jump to previous / next prompt
+                    boundary, so you can hop between turns instead of
+                    scrolling line-by-line.
+                  • Search is smart-case: `/foo` matches Foo/FOO/foo,
+                    `/Foo` only Foo.
+                  • <Esc> exits. If markers (or an overall comment) are
+                    pending, a Yes/No confirm runs first; on accept,
+                    everything is formatted (`> <quote>\n<comment>`)
+                    and appended to the draft for review + send.
 
-  Status line shows `H < pos > Q` — history count, current slot, queue
-  count. A dirty `-N*` mark on history means a pending fork; navigating
-  away prompts: (S)end, (Q)ueue, (D)iscard, [S]tay.
+  Status line shape: `Alt: <- history H < pos[*] [hint] > Q queued ->`
+  — H/Q are total counts, pos is `*`/`-N`/`+N`. A trailing `*` on `-N`
+  means a pending fork on that history slot; navigating away prompts:
+  (S)end, (Q)ueue, (D)iscard, [S]tay. The `[hint]` is contextual:
+  `[q=queue]` on */-N, `[⌫=del]` on +N.
 
 DRAFT SYNTAX
   ===  comment  Whole lines starting with `===` are stripped at send time

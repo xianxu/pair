@@ -166,9 +166,10 @@ keybinds clear-defaults=false {
         // Alt+/ — open the agent pane's full scrollback in a read-only,
         // ANSI-colored nvim viewer (#000017). pair-wrap captures the raw
         // PTY stream alongside resize events; pair-scrollback-open replays
-        // through pyte to recover line numbers that match zellij's frame
-        // indicator, then execs nvim on the rendered .ansi. The viewer's
-        // own `q` keybind dismisses the floating pane via close_on_exit.
+        // through charmbracelet/x/vt (Go, post #000019) to recover line
+        // numbers that match zellij's frame indicator, then execs nvim on
+        // the rendered .ansi. The viewer's own <Esc> keybind dismisses
+        // the floating pane via close_on_exit.
         bind "Alt /" {
             Run "pair-scrollback-open" {
                 floating true
