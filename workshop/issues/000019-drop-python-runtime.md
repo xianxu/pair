@@ -1,10 +1,11 @@
 ---
 id: 000019
-status: working
+status: done
 deps: []
 created: 2026-05-10
 updated: 2026-05-27
 related: [homebrew-pair/Formula/pair.rb]
+actual_hours: 1.88
 ---
 
 # Drop Python from pair's runtime path
@@ -112,14 +113,22 @@ After publishing, verify on a clean machine (or `tart`-VM target):
       regressions in this issue's Log section.
 - [x] Drops 1-6 (pair repo) in one commit. Subject suggestion:
       `pair: drop python from runtime path`.
-- [ ] Tag pair release matching the drop (e.g. v1.17).
-- [ ] Drops 7-11 (homebrew-pair). Update url + sha256 to the new pair
+- [→] Tag pair release matching the drop (e.g. v1.17) — *operator-side
+      step, tracked outside the issue system.*
+- [→] Drops 7-11 (homebrew-pair). Update url + sha256 to the new pair
       tag. Verify `brew deps pair` no longer lists python@3 on a
-      clean machine.
-- [ ] Drop 12 (ariadne) — separate, lower priority.
+      clean machine — *homebrew-pair has no issue tracker; tracked as
+      an operator follow-up on that repo's commit log.*
+- [→] Drop 12 (ariadne) — *subsumed by `ariadne#31` M8 ("deprecate Make
+      wrappers", explicitly deferred when #31 closed). The Go port at
+      `cmd/sdlc/` already exists and is canonical; `scripts/close-issue.py`
+      is the intentional fallback that #31 M8 will remove once usage has
+      shifted.*
 
 ## Log
 
+
+- 2026-05-27: closed — pair-repo drops 1-6 landed in 17dbf72 (runtime now pure Go: zellij+nvim+fzf+jq+par+agent, no Python); brew drops 7-11 are operator-side on homebrew-pair (no issue tracker there); ariadne drop 12 subsumed by ariadne#31 M8 (deferred). Force used: all original work landed in a single commit, no per-milestone trailers.
 - 2026-05-10: filed. Go ports landed in commit `14dc879`; Python
   fallbacks intentionally retained for the soak window.
 - 2026-05-10: expanded homebrew-pair section to cover dropping
