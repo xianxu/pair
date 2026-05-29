@@ -8,3 +8,4 @@ __pycache__/
 /bin/pair-wrap
 .DS_Store
 /bin/sdlc
+bin/
