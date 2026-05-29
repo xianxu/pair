@@ -204,6 +204,21 @@ while true; do
 
     prefix=$(prefix_for_age "$age")
     if [ "$prefix" != "$last_prefix" ]; then
+        # Workspace-title ownership (matches bin/pair's cmux_rename_workspace):
+        # if another live pair owns this cmux workspace, leave the title
+        # alone. If the owner crashed without cleanup, take over. If no
+        # owner is set, claim it so a later 2nd pair defers to us.
+        owner_file="$DATA_DIR/cmux-owner-${CMUX_WORKSPACE_ID}"
+        owner=""
+        [ -f "$owner_file" ] && owner=$(cat "$owner_file" 2>/dev/null)
+        if [ -n "$owner" ] && [ "$owner" != "$TAG" ]; then
+            if zellij list-sessions --short 2>/dev/null | grep -qx "pair-$owner"; then
+                sleep "$POLL_INTERVAL"
+                continue
+            fi
+            # Owner is stale; fall through and reclaim.
+        fi
+        printf '%s\n' "$TAG" > "$owner_file"
         # Personal display convention (matches bin/pair's cmux_rename_workspace):
         # 'brain' → 🧠, 'book' → 📗, 'pair' → ♋ anywhere in the title.
         title="${prefix}${SESSION}"

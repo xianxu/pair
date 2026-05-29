@@ -1101,10 +1101,18 @@ cleanup_quit_marker() {
         # of the just-killed pair-<tag>. On Alt+n / Shift+Alt+N the
         # follow-up re-exec immediately re-renames to the new SESSION,
         # so the cwd flash here is invisible.
-        local reset_title
-        reset_title=$(basename "$PWD" 2>/dev/null)
-        [ -n "$reset_title" ] || reset_title="shell"
-        cmux_rename_workspace "$reset_title"
+        #
+        # Gated on ownership: when a 2nd pair shares the workspace,
+        # the 1st pair owns the title and a 2nd-pair exit must not
+        # clobber it. After resetting we release ownership so any
+        # remaining pair (or the next one) can claim.
+        if pair_owns_cmux_workspace; then
+            local reset_title
+            reset_title=$(basename "$PWD" 2>/dev/null)
+            [ -n "$reset_title" ] || reset_title="shell"
+            cmux_rename_workspace "$reset_title"
+            rm -f "$DATA_DIR/cmux-owner-${CMUX_WORKSPACE_ID}"
+        fi
     fi
 }
 
@@ -1222,9 +1230,38 @@ record_outer_tty() {
 # cmux inside every pane, so its presence is the "we're inside cmux"
 # probe. Best-effort — silent no-op outside cmux or if the rename
 # round-trips an error.
+#
+# Ownership model: when two pair sessions share one cmux workspace
+# (user opened a 2nd pair in the same workspace), the first one to
+# claim ownership keeps the title — first-writer-wins. The owner
+# file at $DATA_DIR/cmux-owner-$CMUX_WORKSPACE_ID holds the owning
+# tag; a different-tag rename request is a no-op. This prevents the
+# 2nd pair from overriding the 1st's label, and prevents the 2nd's
+# exit from resetting a title the 1st is still using.
+pair_owns_cmux_workspace() {
+    [ -n "${CMUX_WORKSPACE_ID:-}" ] || return 1
+    local owner_file="$DATA_DIR/cmux-owner-${CMUX_WORKSPACE_ID}"
+    [ -f "$owner_file" ] || return 1
+    [ "$(cat "$owner_file" 2>/dev/null)" = "$PAIR_TAG" ]
+}
+
 cmux_rename_workspace() {
     [ -n "${CMUX_WORKSPACE_ID:-}" ] || return 0
     command -v cmux >/dev/null 2>&1 || return 0
+    local owner_file="$DATA_DIR/cmux-owner-${CMUX_WORKSPACE_ID}"
+    local owner=""
+    [ -f "$owner_file" ] && owner=$(cat "$owner_file" 2>/dev/null)
+    if [ -n "$owner" ] && [ "$owner" != "$PAIR_TAG" ]; then
+        # Another pair already labels this workspace — first-writer-wins.
+        # Defer only if that pair's zellij session is still alive; if the
+        # owner crashed without running cleanup_quit_marker, the file is
+        # stale and we should take over.
+        if zellij list-sessions --short 2>/dev/null | grep -qx "pair-$owner"; then
+            return 0
+        fi
+    fi
+    # Claim ownership (idempotent: re-writes our own tag).
+    printf '%s\n' "$PAIR_TAG" > "$owner_file"
     # Personal display convention: 'brain' → 🧠, 'book' → 📗, 'pair' → ♋
     # anywhere in the title. Applied to every cmux rename (launch + the
     # cwd-reset on quit) so the substitution is uniform regardless of
