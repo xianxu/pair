@@ -34,11 +34,15 @@ layout {
             //
             // The leading `zellij action rename-pane` overrides the
             // layout's literal pane name ("agent") with the agent's
-            // capitalized brand (PAIR_PANE_TITLE — Claude / Codex /
-            // Gemini), so the pane frame reads as that instead of the
-            // generic "agent". Errors swallowed: if the IPC call fails
-            // we still launch the agent.
-            args "-c" "zellij action rename-pane \"${PAIR_PANE_TITLE:-Agent}\" 2>/dev/null; exec pair-wrap --scrollback-log \"${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}/scrollback-${PAIR_TAG:-${PAIR_AGENT:-claude}}-${PAIR_AGENT:-claude}.raw\" ${PAIR_AGENT:-claude} ${PAIR_AGENT_ARGS:-}"
+            // binary name (PAIR_PANE_TITLE — claude / codex / gemini),
+            // so the pane frame reads as that instead of the generic
+            // "agent". `--pane-id $ZELLIJ_PANE_ID` is required because
+            // `rename-pane` defaults to the focused pane, and the
+            // layout focuses the draft pane (focus=true) — without
+            // explicit targeting, this would silently rename draft.
+            // Errors swallowed: if the IPC call fails we still launch
+            // the agent.
+            args "-c" "zellij action rename-pane --pane-id \"$ZELLIJ_PANE_ID\" \"${PAIR_PANE_TITLE:-agent}\" 2>/dev/null; exec pair-wrap --scrollback-log \"${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}/scrollback-${PAIR_TAG:-${PAIR_AGENT:-claude}}-${PAIR_AGENT:-claude}.raw\" ${PAIR_AGENT:-claude} ${PAIR_AGENT_ARGS:-}"
         }
         // Pane name "draft" appears in zellij's OSC 0 terminal title
         // ("<session>: draft") and propagates to the user's terminal /

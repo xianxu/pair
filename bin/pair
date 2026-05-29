@@ -548,7 +548,6 @@ esac
 AGENT=""
 agent_extra=""
 forced_tag=""
-agent_explicit=false  # true if AGENT was set from a positional CLI arg
 
 # `pair resume <tag>` is the documented restart path: skip both the picker
 # and the name prompt, attach if pair-<tag> exists, otherwise create with
@@ -586,7 +585,6 @@ for arg in "$@"; do
         seen_dd=true
     elif [ -z "$AGENT" ] && [ -z "$forced_tag" ]; then
         AGENT="$arg"
-        agent_explicit=true
     else
         echo "pair: unexpected positional arg '$arg' (use '--' to forward args to the agent)" >&2
         echo "      e.g. pair claude -- --resume" >&2
@@ -612,16 +610,11 @@ unset PAIR_FORCE_TAG
 # and the picker's "+ new <tag> session" sentinel. The interactive prompt
 # and `resume <tag>` both override this.
 #
-# When the user explicitly named an agent on the CLI (`pair gemini`,
-# `pair codex`, ...), use the agent name — that's the most likely
-# intent ("a gemini session here"). When agent was implicit (just
-# `pair`, defaults to claude), use the cwd basename so multiple repos
-# don't collapse onto the same default.
-if $agent_explicit; then
-    default_tag="$AGENT"
-else
-    default_tag="$(basename "$PWD")"
-fi
+# Always use the cwd basename, regardless of which agent the user picked.
+# The tag scopes sessions to a workspace, and per-agent variants of the
+# same workspace are already disambiguated by the agent name in saved
+# files (config-<tag>-<agent>.json, scrollback-<tag>-<agent>.raw, ...).
+default_tag="$(basename "$PWD")"
 default_tag="${default_tag//[^A-Za-z0-9_-]/_}"
 [ -z "$default_tag" ] && default_tag="pair"
 
@@ -787,15 +780,11 @@ export PAIR_AGENT_ARGS="$agent_extra"
 
 # PAIR_PANE_TITLE drives the agent pane's frame title in zellij. The
 # layout's `pane name="agent"` is just a matching anchor; the layout's
-# args block calls `zellij action rename-pane "$PAIR_PANE_TITLE"`
-# before exec'ing pair-wrap, so the frame shows the agent's capitalized
-# name (Claude / Codex / Gemini) instead of a generic "agent".
-case "$AGENT" in
-    claude) export PAIR_PANE_TITLE="Claude" ;;
-    codex)  export PAIR_PANE_TITLE="Codex" ;;
-    gemini) export PAIR_PANE_TITLE="Gemini" ;;
-    *)      export PAIR_PANE_TITLE="$AGENT" ;;
-esac
+# args block calls `zellij action rename-pane --pane-id $ZELLIJ_PANE_ID
+# "$PAIR_PANE_TITLE"` before exec'ing pair-wrap, so the frame shows the
+# agent's binary name (claude / codex / gemini) instead of the literal
+# "agent" anchor.
+export PAIR_PANE_TITLE="$AGENT"
 
 # PAIR_TAG is the namespace identifier — used to name the zellij session
 # and the per-instance draft/log files. The create flow's interactive
