@@ -83,7 +83,8 @@ vim.api.nvim_create_autocmd('ColorScheme', { callback = pair_apply_comment_hl })
 -- we issue overrides stock's `hi def link`.
 --
 -- Two responsibilities:
---   1. The pair-specific `===` comment line — link to Comment.
+--   1. The pair-specific `===` comment line — faded (Comment) in general,
+--      but bold normal-fg when it's the first line.
 --   2. Brighten the markdown groups stock vim leaves linked to htmlLink /
 --      htmlH1 / etc., which only carry underline/bold and no color. Without
 --      this, [link] text, headings, and emphasis render plain in slate.
@@ -100,6 +101,14 @@ vim.api.nvim_create_autocmd('FileType', {
 
     vim.cmd([[syntax match PairComment /^\s*===.*$/]])
     vim.cmd([[highlight default link PairComment Comment]])
+    -- A `===` line on the *first* line is the deliberate header annotation the
+    -- user wants to notice, so render it bold instead of the faded Comment
+    -- gray. Setting only the bold attribute (no fg) leaves the foreground at
+    -- the default Normal color, so it's bold white-on-dark-grey. `\%1l`
+    -- restricts the match to line 1; defined after PairComment so it wins the
+    -- overlap there.
+    vim.cmd([[syntax match PairCommentFirst /\%1l^\s*===.*$/]])
+    vim.cmd([[highlight PairCommentFirst gui=bold cterm=bold]])
 
     -- `highlight!` (bang) overrides any existing link from stock syntax.
     vim.cmd([[highlight! link markdownH1 Title]])
@@ -155,6 +164,44 @@ vim.api.nvim_create_autocmd('FileType', {
     vim.cmd([[highlight! link markdownPairBracket Identifier]])
   end,
 })
+
+-- Pin a leading `===` comment to the top of the window once it scrolls off, so
+-- the header annotation stays visible while drafting a long prompt. Uses winbar
+-- (a per-window top bar): empty while line 1 is on screen (it's its own header
+-- there — showing it in the winbar too would duplicate it), populated with line
+-- 1's text once the window has scrolled past it (`line('w0') > 1`). Scoped to
+-- markdown (the compose buffer) and only when line 1 is actually a `===`
+-- comment — other buffers' winbars are left untouched.
+local function pair_pin_header()
+  if vim.bo.filetype ~= 'markdown' then return end
+  -- In the minimized rung nvim is a single row; a winbar won't fit (nvim
+  -- raises E36: Not enough room) and the resulting error pages into a
+  -- `-- More --` prompt that swallows the next keystroke — e.g. Alt+Up to
+  -- grow back. Never set a winbar there; clear any stale one. Clearing is
+  -- always safe (it frees a row); only adding one to a too-short window errs.
+  if vim.o.lines <= 2 then
+    if vim.wo.winbar ~= '' then vim.wo.winbar = '' end
+    return
+  end
+  local first = vim.fn.getline(1)
+  if first:match('^%s*===') and vim.fn.line('w0') > 1 then
+    -- The winbar spans the full window width, but buffer text is inset by the
+    -- gutter (number column). Match that inset so the pinned header lines up
+    -- exactly under the real line 1. `textoff` is the gutter width nvim is
+    -- currently using — it tracks the 1-vs-2-digit line-number swing for free,
+    -- so no need to compute numberwidth ourselves.
+    local info = vim.fn.getwininfo(vim.api.nvim_get_current_win())[1]
+    local pad = string.rep(' ', (info and info.textoff) or 0)
+    -- `%` is statusline-special; double it so the text renders literally.
+    vim.wo.winbar = pad .. first:gsub('%%', '%%%%')
+  else
+    vim.wo.winbar = ''
+  end
+end
+vim.api.nvim_create_autocmd(
+  { 'WinScrolled', 'CursorMoved', 'CursorMovedI', 'TextChanged', 'TextChangedI', 'BufWinEnter', 'WinEnter', 'VimResized' },
+  { callback = pair_pin_header }
+)
 
 -- Drafting-friendly editor settings
 vim.opt.number = true
@@ -518,8 +565,8 @@ end
 local nav = { pos = '*', baseline = '' }
 
 -- Forward-declared layout-state mirror. layout_read (declared much later)
--- derives the rung from vim.o.lines; this in-memory copy lets the early
--- pair_spinner_start (defined right below) check the rung without a
+-- derives the rung from vim.o.lines; this in-memory copy lets earlier
+-- callers (e.g. pair_ensure_visible_then) check the rung without a
 -- forward-declaration shuffle. Updated by layout_write() at every
 -- PairLayoutBigger/Smaller transition.
 local pair_layout_state = 'small'
@@ -534,63 +581,11 @@ local function refresh_statusline()
   vim.schedule(function() pcall(vim.cmd, 'redrawstatus') end)
 end
 
--- Focus-loss spinner. When nvim loses focus (user moved to the agent pane),
--- wait 5s, then run a braille spinner in the statusline for 5s before
--- forcing focus back to nvim (total 10s). All timers cancel on FocusGained.
-local pair_spinner = {
-  frames = { '⠋','⠙','⠹','⠸','⠼','⠴','⠦','⠧','⠇','⠏' },
-  idx    = 1,
-  tick   = nil,
-  ret    = nil,
-  active = false,
-}
-
-local function pair_spinner_stop()
-  if pair_spinner.tick then
-    pair_spinner.tick:stop(); pair_spinner.tick:close(); pair_spinner.tick = nil
-  end
-  if pair_spinner.ret then
-    pair_spinner.ret:stop(); pair_spinner.ret:close(); pair_spinner.ret = nil
-  end
-  pair_spinner.active = false
-end
-
-local function pair_spinner_start()
-  pair_spinner_stop()
-  -- In the `minimized` rung nvim is collapsed to its statusline — the user
-  -- is intentionally working in the agent pane and there's no draft to
-  -- come back to. Skip the spinner + focus-grab entirely; FocusGained
-  -- will still fire normally if the user moves focus back via Alt+Up
-  -- (which steps out of minimized).
-  if pair_layout_state == 'minimized' then return end
-  -- 5s pre-delay before the spinner appears (initial timeout), then tick
-  -- every 30ms. First fire flips `active` on; subsequent fires advance the
-  -- frame.
-  pair_spinner.idx  = 1
-  pair_spinner.tick = vim.loop.new_timer()
-  pair_spinner.tick:start(5000, 30, vim.schedule_wrap(function()
-    if not pair_spinner.active then
-      pair_spinner.active = true
-    else
-      pair_spinner.idx = (pair_spinner.idx % #pair_spinner.frames) + 1
-    end
-    pcall(vim.cmd, 'redrawstatus')
-  end))
-  pair_spinner.ret = vim.loop.new_timer()
-  pair_spinner.ret:start(10000, 0, vim.schedule_wrap(function()
-    -- Flash the agent pane (currently focused) before yanking focus back
-    -- to nvim, same idiom as copy-on-select's selection-site flash. The
-    -- focus shift can be jarring without a visual cue when the user is
-    -- mid-task in the agent pane. Run flash synchronously so the bg is
-    -- already set when move-focus changes which pane is "focused"; the
-    -- bg-reset is backgrounded inside flash-pane.sh and survives.
-    local pair_home = vim.env.PAIR_HOME
-    if pair_home and pair_home ~= '' then
-      pcall(vim.fn.system, { pair_home .. '/bin/flash-pane.sh' })
-    end
-    pcall(vim.fn.system, { 'zellij', 'action', 'move-focus', 'down' })
-  end))
-end
+-- (Removed: focus-loss spinner + auto-focus-grab. nvim used to yank focus
+-- back to the draft pane 10s after losing it, with a braille countdown in
+-- the statusline. The forced focus return was distracting mid-task in the
+-- agent pane, so the whole feature is gone — FocusLost/FocusGained now only
+-- manage the focus cursor.)
 
 -- Brief inverted flash on the "N queued" statusline segment. Confirms a
 -- queue-count change actually happened — Alt+q lands an item, send-from-+N
@@ -727,8 +722,10 @@ end
 
 -- Strip whole-line comments (^%s*===) before sending. Comments are stored
 -- intact in draft/queue/log so they survive history navigation — only what
--- reaches the agent is cleaned. Trailing blank lines left behind by the
--- strip are also dropped so the agent doesn't see a dangling tail.
+-- reaches the agent is cleaned. Leading and trailing blank lines left behind
+-- by the strip are also dropped so the agent doesn't see a dangling head or
+-- tail. (Leading matters because comment_lines preserves blanks between
+-- sticky comments, which sit at the top of the next draft.)
 local function strip_comments(body)
   local out = {}
   for line in (body .. '\n'):gmatch('([^\n]*)\n') do
@@ -739,16 +736,31 @@ local function strip_comments(body)
   while #out > 0 and out[#out]:match('^%s*$') do
     table.remove(out)
   end
+  while #out > 0 and out[1]:match('^%s*$') do
+    table.remove(out, 1)
+  end
   return table.concat(out, '\n')
 end
 
--- Inverse of strip_comments: returns just the comment lines (in order). Used
--- to extract sticky === context from any sent body — see apply_sticky_to_star.
+-- Inverse of strip_comments: returns the comment lines (in order), preserving
+-- blank lines that sit *between* comments so the sticky block keeps its
+-- spacing across a send. Blank lines before the first comment or after the
+-- last one are dropped — only interior spacing is structural. Used to extract
+-- sticky === context from any sent body — see apply_sticky_to_star.
 local function comment_lines(body)
   local out = {}
+  local pending = {}
+  local seen = false
   for line in (body .. '\n'):gmatch('([^\n]*)\n') do
     if line:match('^%s*===') then
+      for _, b in ipairs(pending) do table.insert(out, b) end
+      pending = {}
       table.insert(out, line)
+      seen = true
+    elseif seen and line:match('^%s*$') then
+      table.insert(pending, line)
+    else
+      pending = {}
     end
   end
   return out
@@ -1749,13 +1761,7 @@ local function pair_build_cheatsheet(budget)
 end
 
 -- Compose a statusline with the cheatsheet right-aligned past `left`.
--- When the spinner is active (focus has been away long enough that the
--- focus-grab timer is counting down), it takes the right slot instead —
--- vim's statusline only honors a single %= split, so we can't show both.
 local function pair_compose_statusline(left)
-  if pair_spinner.active then
-    return left .. '%=' .. pair_spinner.frames[pair_spinner.idx] .. ' '
-  end
   -- 6-cell minimum margin between the variable left segment and the
   -- cheatsheet. Capping the cheatsheet's budget at (columns - left - 6)
   -- bounds left+right ≤ columns - 6, so vim's %= autopads at least 6
@@ -1770,9 +1776,9 @@ function _G.PairStatusline()
   -- Minimized rung: nvim is collapsed to this single statusline row, so
   -- the buffer is invisible and the usual history/queue/position
   -- cluster has nothing to refer to. Replace it with a hint that names
-  -- the keybind that grows the pane back. (spinner and cheatsheet are
-  -- intentionally omitted — pair_spinner_start bails when minimized,
-  -- and the row is meant to read as a single focused hint.)
+  -- the keybind that grows the pane back. (the cheatsheet is
+  -- intentionally omitted — the row is meant to read as a single
+  -- focused hint.)
   --
   -- Leading whitespace gives the terminal cursor (which lives on this
   -- row since the buffer has zero visible lines) a few blank cells to
@@ -2085,18 +2091,21 @@ local function queue_current()
 
   queue_push_front(body)
 
-  if nav.pos == '*' then
-    -- Park-the-draft: * is now empty. Persist via :w; shortmess+=W keeps
-    -- the cmdline silent so the statusline doesn't get pushed off.
-    vim.api.nvim_buf_set_lines(0, 0, -1, false, { '' })
-    vim.cmd('silent! write')
-  else
-    -- From -N or +N: * is untouched. Snap buffer back to *'s on-disk baseline.
-    set_buffer_text(read_file(draft_path_for_tag()))
-  end
-
+  -- Preserve the `===` sticky comments into * exactly like a send does (the
+  -- queued item keeps its own comments verbatim). Without this, parking a
+  -- draft from * would wipe the sticky header. apply_sticky_to_star reads *'s
+  -- on-disk WIP when queuing from -N/+N, or treats * as empty when queuing
+  -- from * itself.
+  local was_at_star = (nav.pos == '*')
   nav.pos = '*'
-  nav.baseline = buffer_text()
+  local lines = apply_sticky_to_star(body, was_at_star)
+  vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
+  pcall(vim.api.nvim_win_set_cursor, 0, { #lines, 0 })
+  -- Persist via :w; shortmess+=W keeps the cmdline silent so the statusline
+  -- doesn't get pushed off.
+  vim.cmd('silent! write')
+
+  nav.baseline = table.concat(lines, '\n')
   refresh_statusline()
   flash_queue_count()
   vim.cmd('startinsert')
@@ -2804,7 +2813,7 @@ end
 
 local function layout_write(s)
   -- Mirrors the rung into pair_layout_state (the in-memory copy other
-  -- callers read — pair_spinner_start, pair_ensure_visible_then) and the
+  -- callers read — e.g. pair_ensure_visible_then) and the
   -- on-disk file (diagnostic only — layout_read derives from vim.o.lines
   -- now, so disk drift is harmless).
   pair_layout_state = s
@@ -2850,6 +2859,12 @@ local function layout_goto(target)
     end
     return
   end
+  -- Shrinking to minimized takes nvim to a single row, which can't hold the
+  -- pinned-header winbar. Clear it now, before the zellij resize lands, so the
+  -- resize never tries to render a winbar that doesn't fit (E36 → `-- More --`
+  -- prompt that eats the next keystroke). pair_pin_header re-adds it on the
+  -- way back up via VimResized.
+  if target == 'minimized' then pcall(function() vim.wo.winbar = '' end) end
   local dir = to > from and 1 or -1
   for level = from, to - dir, dir do
     local next_level = level + dir
@@ -2864,10 +2879,7 @@ local function layout_goto(target)
   refresh_statusline()
   -- Landing in minimized: nvim is now a single-row statusline strip and
   -- the user can't usefully interact with it. Shift focus to the agent
-  -- pane so they can keep working. The MoveFocus triggers FocusLost in
-  -- nvim, which would normally start the focus-grab timer — but
-  -- pair_spinner_start checks pair_layout_state and bails when minimized,
-  -- so the timer doesn't fire.
+  -- pane so they can keep working.
   --
   -- Landing in small/half: the zellij keybind that triggered us escaped
   -- to normal mode (Ctrl-\ Ctrl-N) before invoking this lua. That's
@@ -3195,7 +3207,6 @@ vim.api.nvim_create_autocmd('FocusLost', {
   group = pair_aug,
   callback = function()
     pair_show_focus_cursor()
-    pair_spinner_start()
     -- A delayed full redraw catches the case where zellij's focus-change
     -- rendering fires after our immediate refresh_statusline (which only
     -- defers one event-loop tick). 80ms is comfortably above one terminal
@@ -3207,7 +3218,6 @@ vim.api.nvim_create_autocmd('FocusGained', {
   group = pair_aug,
   callback = function()
     pair_hide_focus_cursor()
-    pair_spinner_stop()
     refresh_statusline()
   end,
 })

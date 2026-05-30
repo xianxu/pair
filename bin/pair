@@ -783,8 +783,22 @@ export PAIR_AGENT_ARGS="$agent_extra"
 # args block calls `zellij action rename-pane --pane-id $ZELLIJ_PANE_ID
 # "$PAIR_PANE_TITLE"` before exec'ing pair-wrap, so the frame shows the
 # agent's binary name (claude / codex / gemini) instead of the literal
-# "agent" anchor.
-export PAIR_PANE_TITLE="$AGENT"
+# "agent" anchor. Append the launch cwd (tilde-abbreviated) so the frame
+# also says where the session was started, e.g. `claude [~/workspace/brain]`.
+# $PWD here is the dir the user ran `pair` from (bin/pair never cd's); the
+# rename runs only at pane creation, so on resume the title keeps the
+# original session cwd. The layout passes $PAIR_PANE_TITLE as one quoted
+# arg, so the spaces/brackets survive intact.
+#
+# Abbreviate $HOME to ~ only on a real path boundary — `${PWD/#$HOME/~}`
+# would mangle a sibling like /Users/xianxu-other into ~-other, so match
+# exactly $HOME or $HOME/* instead.
+case "$PWD" in
+    "$HOME")   pane_cwd="~" ;;
+    "$HOME"/*) pane_cwd="~${PWD#"$HOME"}" ;;
+    *)         pane_cwd="$PWD" ;;
+esac
+export PAIR_PANE_TITLE="$AGENT [$pane_cwd]"
 
 # PAIR_TAG is the namespace identifier — used to name the zellij session
 # and the per-instance draft/log files. The create flow's interactive
@@ -926,6 +940,21 @@ format_age() {
     esac
 }
 
+# Greyscale gradient by age for the historical (no-live-session) rows: the
+# more recently a tag was touched, the brighter it reads. 256-color greys
+# (xterm 232=near-black .. 255=near-white); fzf --ansi honors these. Newest
+# stays comfortably readable on the dark bg; oldest fades toward the
+# background without disappearing.
+age_color() {
+    local d="$1"
+    if   [ "$d" -le 0 ]; then printf '\033[38;5;250m'   # today
+    elif [ "$d" -le 1 ]; then printf '\033[38;5;245m'   # yesterday
+    elif [ "$d" -le 3 ]; then printf '\033[38;5;242m'   # 2-3d
+    elif [ "$d" -le 6 ]; then printf '\033[38;5;240m'   # 4-6d
+    else                      printf '\033[38;5;238m'   # a week+
+    fi
+}
+
 now_epoch=$(date +%s)
 history_cutoff=$(( now_epoch - HISTORY_DAYS * 86400 ))
 
@@ -933,14 +962,18 @@ history_cutoff=$(( now_epoch - HISTORY_DAYS * 86400 ))
 # friendly — no assoc arrays). One tag per line, lookup via `grep -qx`.
 live_tags_nl=$(printf '%s\n' "$all_pair" | sed 's|^pair-||' | sort -u)
 
-historical_rows=()
+historical_rows=()      # plain text — drives the fallback display + matching
+historical_colored=()   # age-graded grey — fzf display only
 while IFS=$'\t' read -r tag mtime; do
     [ -z "$tag" ] && continue
     # Dedup against live sessions and the "+ new" slot.
     if printf '%s\n' "$live_tags_nl" | grep -qx "$tag"; then continue; fi
     [ "$tag" = "$free_slot_tag" ] && continue
     age=$(format_age "$now_epoch" "$mtime")
-    historical_rows+=("$(printf 'pair-%s  (%s, no live session)' "$tag" "$age")")
+    row="$(printf 'pair-%s  (%s, no live session)' "$tag" "$age")"
+    historical_rows+=("$row")
+    diff_days=$(( (now_epoch - mtime) / 86400 ))
+    historical_colored+=("$(age_color "$diff_days")${row}"$'\033[0m')
 done < <(scan_history "$HISTORY_BASE" "$history_cutoff")
 
 # Debug probe — `PAIR_DEBUG_HISTORY=1 pair` prints what the scan would have
@@ -966,7 +999,13 @@ fi
 # only when nothing to surface.
 chosen_session=""
 chosen_tag=""
-action=""   # "attach" | "create"
+action=""        # "attach" | "create"
+# 1 only when naming a brand-new session (the "+ new" pick, or a direct
+# create when there's nothing to surface). Picking an existing historical
+# tag, or `pair resume <tag>`, already names the session — and a historical
+# tag is known to have no live session (it was deduped against the live set)
+# — so the name prompt + collision warning below are skipped for those.
+prompt_name=0
 
 # `pair resume <tag>` short-circuits both the picker and the name prompt:
 # attach if pair-<tag> already exists in any state, otherwise create with
@@ -984,15 +1023,29 @@ if [ -n "$forced_tag" ]; then
 elif [ ${#detached_list[@]} -eq 0 ] && [ ${#historical_rows[@]} -eq 0 ]; then
     chosen_tag="$free_slot_tag"
     action=create
+    prompt_name=1
 else
     new_label="+ new ${BASE_TAG} session"
+    # Plain text drives selection matching below; the colored variant is for
+    # fzf display only. fzf --ansi strips its color codes from the returned
+    # line, so `picked` maps back to one of these exact plain strings.
     options=$({
         if [ ${#detached_list[@]} -gt 0 ]; then printf '%s\n' "${detached_list[@]}"; fi
         if [ ${#historical_rows[@]} -gt 0 ]; then printf '%s\n' "${historical_rows[@]}"; fi
         printf '%s\n' "$new_label"
     })
     if command -v fzf >/dev/null 2>&1; then
-        picked=$(printf '%s' "$options" | fzf --prompt='pair> ' --height=10 --reverse) || exit 0
+        # Color-code: green = live session (picking it attaches); historical
+        # rows carry an age-graded grey (set per-row in historical_colored,
+        # brighter = more recent) and picking one re-creates by name. The
+        # "+ new" row stays default.
+        C_ACTIVE=$'\033[32m'; C_RESET=$'\033[0m'
+        options_colored=$({
+            if [ ${#detached_list[@]} -gt 0 ]; then printf "${C_ACTIVE}%s${C_RESET}\n" "${detached_list[@]}"; fi
+            if [ ${#historical_colored[@]} -gt 0 ]; then printf '%s\n' "${historical_colored[@]}"; fi
+            printf '%s\n' "$new_label"
+        })
+        picked=$(printf '%s' "$options_colored" | fzf --ansi --prompt='pair> ' --height=10 --reverse) || exit 0
     else
         echo "Detached / historical pair sessions:"
         printf '%s' "$options" | nl
@@ -1005,6 +1058,7 @@ else
     if [ "$picked" = "$new_label" ]; then
         chosen_tag="$free_slot_tag"
         action=create
+        prompt_name=1
     else
         # Historical rows are annotated as "pair-<tag>  (... ago, ...)" — the
         # double-space separator never appears in detached-row text (sanitized
@@ -1312,9 +1366,11 @@ fi
 # Surface any existing sessions in this tag's family (pair-<base> and
 # pair-<base>-*) before prompting, so the user can see what's already
 # there — and why the auto-suggested prefill may include a numeric
-# suffix.
+# suffix. Only when we're about to prompt for a brand-new name; a
+# historical pick or `pair resume <tag>` already has its name.
 family_prefix="pair-${BASE_TAG}"
-family_existing=$( { zj list-sessions --no-formatting 2>/dev/null || true; } \
+family_existing=""
+[ "$prompt_name" = 1 ] && family_existing=$( { zj list-sessions --no-formatting 2>/dev/null || true; } \
     | awk -v p="$family_prefix" '$1 == p || index($1, p "-") == 1' )
 if [ -n "$family_existing" ]; then
     {
@@ -1334,9 +1390,12 @@ fi
 # macOS and Linux. The vared editor UI runs on /dev/tty; the captured
 # stdout is just the final value.
 #
-# Skipped when `resume <tag>` is given: forced_tag has already been
-# validated and the picker landed us in `create` straight from there.
-if [ -z "$forced_tag" ]; then
+# Skipped unless we're naming a brand-new session (prompt_name=1). A
+# historical pick already chose the name (and is known to have no live
+# session, so there's nothing to collide with), and `pair resume <tag>`
+# passed a validated forced_tag — both land in `create` with chosen_tag
+# already set, so re-prompting would be redundant friction.
+if [ "$prompt_name" = 1 ]; then
     if command -v zsh >/dev/null 2>&1; then
         # `zsh -c` boots without sourcing .zshrc, so the line editor's
         # keymap defaults to a raw state where Ctrl-A through Ctrl-F are
