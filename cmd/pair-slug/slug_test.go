@@ -124,6 +124,35 @@ func TestSelectWindowHardMax(t *testing.T) {
 	}
 }
 
+// I2: a user turn older than hardMax must still be anchored into the window —
+// otherwise a long autonomous stretch yields a 100%-assistant window and the
+// slug narrates the agent instead of the user's intent.
+func TestSelectWindowAnchorsUserBeyondHardMax(t *testing.T) {
+	all := []turn{{Role: "user", Text: "the original intent"}}
+	for i := 0; i < 40; i++ {
+		all = append(all, turn{Role: "assistant", Text: "narration"})
+	}
+	// recentTurns=10, minUser=3, hardMax=20 → extension caps at 20, all
+	// assistant; the anchor must still pull in the lone user turn at index 0.
+	win := selectWindow(all, 10, 3, 20)
+	if countUser(win) != 1 || win[0].Text != "the original intent" {
+		t.Fatalf("anchor failed: %d users, first=%q", countUser(win), win[0].Text)
+	}
+}
+
+func TestSelectWindowNoUserAtAll(t *testing.T) {
+	// Pathological: zero user turns anywhere → anchor loop finds none, no panic,
+	// returns the capped window unchanged.
+	var all []turn
+	for i := 0; i < 30; i++ {
+		all = append(all, turn{Role: "assistant", Text: "x"})
+	}
+	win := selectWindow(all, 10, 3, 20)
+	if len(win) == 0 || len(win) > 20 {
+		t.Fatalf("unexpected window len %d", len(win))
+	}
+}
+
 // TestExtractTurnsKeepsUserIntent exercises the real-transcript shape: many
 // recent assistant turns + tool_result-only user entries (no text, dropped),
 // with the genuine user prompt further back. The window must still surface it.

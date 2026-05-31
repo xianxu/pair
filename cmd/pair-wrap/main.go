@@ -310,6 +310,11 @@ func (p *proxy) debug(label, ctx string) {
 // signals don't double-spawn. pair-slug self-gates (no-op without PAIR_TAG)
 // and is non-fatal, so this is fire-and-forget. PAIR_AGENT tells it which
 // session-file format to parse; cwd is inherited (the agent's repo → branch).
+//
+// Cost note: this runs once per turn-end, and pair-slug must call the small
+// model before it can know the answer is KEEP — so steady-state cost is ~one
+// haiku call per agent turn. The 1s debounce only collapses bursts, not the
+// per-turn baseline; that's the accepted price of an always-current slug.
 func (p *proxy) maybeSpawnSlug() {
 	now := time.Now()
 	if !p.lastSlug.IsZero() && now.Sub(p.lastSlug) < slugDebounceS {

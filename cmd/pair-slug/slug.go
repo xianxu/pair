@@ -261,6 +261,19 @@ func selectWindow(all []turn, recentTurns, minUser, hardMax int) []turn {
 	for start > 0 && countUser(all[start:]) < minUser && len(all)-start < hardMax {
 		start--
 	}
+	// Even past hardMax: if the window is still 100% assistant (a long
+	// autonomous tool-running stretch, or a resumed tail with no recent
+	// prompt), anchor on the single most recent user turn so the model always
+	// sees at least one prompt — the orientation signal. Without this the slug
+	// would narrate the agent's chatter, not the user's intent.
+	if countUser(all[start:]) == 0 {
+		for i := start - 1; i >= 0; i-- {
+			if all[i].Role == "user" {
+				start = i
+				break
+			}
+		}
+	}
 	return all[start:]
 }
 

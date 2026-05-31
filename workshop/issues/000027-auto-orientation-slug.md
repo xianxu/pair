@@ -189,6 +189,8 @@ own fresh-eyes review (pair-wrap spawn + 3 parsers).
 ## Log
 
 
+
+- 2026-05-31: closed M2 — live: nvim applies proposed slug to draft line 1, holds while cursor on line 1, lines 2+/cursor intact; make test-lua green
 - 2026-05-31: closed M1 — go test green (4 pkgs); e2e: real claude Stop wrote "=== #000027 auto-orientation-slug | testing critical fix ==="; atomic write + recursion guard verified; review verdict: unknown
 ### 2026-05-31 — planning gates
 
@@ -419,3 +421,24 @@ steady focus from churning. Debug side-channel stripped (3a1f9c2).
 
 Not yet exercised live: a codex/gemini tab (parsers validated against real
 transcripts offline, M3 log). Will surface in normal multi-agent use.
+
+### 2026-05-31 — final whole-branch review (verdict: FIX-THEN-SHIP → fixed)
+
+One fresh-eyes review of the entire branch (main..HEAD) instead of per-milestone
+historical judges (operator's call). Verdict FIX-THEN-SHIP; both Important items
+fixed:
+- **I2 (fixed)** — `selectWindow` could still yield a 100%-assistant window when
+  the last `hardMax` turns held no user turn (long autonomous stretch / resumed
+  tail). Now anchors on the most recent user turn even past `hardMax`. Tests:
+  `TestSelectWindowAnchorsUserBeyondHardMax`, `TestSelectWindowNoUserAtAll`.
+- **I1 (fixed)** — an apply rewrites line 1 → fires TextChanged → the mirror
+  re-wrote the identical value the apply had just persisted. Added an
+  idempotency guard (skip mirror when slug-<tag> already matches line 1). Also
+  documented the inherent per-turn model cost in `maybeSpawnSlug` (one haiku
+  call per turn is the accepted price of an always-current slug; 1s debounce
+  only collapses bursts).
+Reviewer verified correct: cursor-on-line-1 defer (no re-entrancy/clobber),
+lines 2+ never touched, KEEP-refreshes-left, atomic write, PAIR_SLUG_NESTED
+guard, single-goroutine lastSlug. `make test`/`make test-lua`/`go vet` green.
+Minors deferred (gemini per-turn re-walk → cache later; no CI test for real
+resolveTranscript glob/walk). Effective verdict: SHIP.

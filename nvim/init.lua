@@ -3261,7 +3261,14 @@ local function pair_slug_mirror_line1()
   if not buf then return end
   local line1 = (vim.api.nvim_buf_get_lines(buf, 0, 1, false))[1] or ''
   if line1 ~= '' and line1:sub(1, 3) ~= '===' then return end
-  write_file(pair_data_dir() .. '/slug-' .. pair_tag(), line1 .. '\n')
+  -- Idempotency: an apply rewrites line 1 via nvim_buf_set_lines, which itself
+  -- fires TextChanged → this mirror. The apply already persisted the same
+  -- value to slug-<tag>, so skip when unchanged — avoids churning the file
+  -- (and the proposer's `prev`) on every machine apply.
+  local path = pair_data_dir() .. '/slug-' .. pair_tag()
+  local cur = read_file(path):match('^[^\n]*') or ''
+  if cur == line1 then return end
+  write_file(path, line1 .. '\n')
 end
 
 local function pair_slug_reconcile()
