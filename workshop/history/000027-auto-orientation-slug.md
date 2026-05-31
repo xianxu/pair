@@ -1,11 +1,12 @@
 ---
 id: 000027
-status: working
+status: done
 deps: []
 created: 2026-05-31
 updated: 2026-05-31
 related: [nvim/init.lua, bin/pair-notify, .claude/settings.json]
 estimate_hours: 7
+actual_hours: 11
 ---
 
 # Auto-maintained orientation slug in the winbar (`=== branch | focus ===`)
@@ -190,6 +191,8 @@ own fresh-eyes review (pair-wrap spawn + 3 parsers).
 
 
 
+
+- 2026-05-31: closed — whole-branch fresh-eyes review verdict SHIP (1 review in lieu of per-milestone judges); live-verified in a real pair session — pair-wrap turn-end (agent-agnostic) → pair-slug proposes → nvim applies to draft line 1 off-cursor, holds on-cursor, KEEP keeps steady focus; codex/gemini parsers validated vs real transcripts; make test (incl. test-lua) + go vet green
 - 2026-05-31: closed M2 — live: nvim applies proposed slug to draft line 1, holds while cursor on line 1, lines 2+/cursor intact; make test-lua green
 - 2026-05-31: closed M1 — go test green (4 pkgs); e2e: real claude Stop wrote "=== #000027 auto-orientation-slug | testing critical fix ==="; atomic write + recursion guard verified; review verdict: unknown
 ### 2026-05-31 — planning gates
