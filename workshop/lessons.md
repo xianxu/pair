@@ -119,3 +119,16 @@ Caught in #000027 M1 review.
   `tool_result`-only user entries and any sidechain/summary types — not the
   clean text-only case. A fixture that can't reproduce the bug can't guard
   against it.
+
+## `gofmt -w <dir>` reformats files you didn't touch
+
+Running `gofmt -w cmd/pair-wrap/` to format M3's edited `main.go` also
+rewrote four pre-existing `*_test.go` files (struct-field alignment) that the
+milestone never touched, staging unrelated churn into the commit. Caught at
+`git status` review before commit; reverted with `git checkout -- <files>`.
+
+**Rule.** Format only the files the change actually touches: `gofmt -w
+path/to/file.go` (or `gofmt -w $(git diff --name-only '*.go')`), not the whole
+package directory. If a dir-wide gofmt lights up files outside the change,
+revert them — don't smuggle repo-wide reformatting into a feature commit.
+Caught in #000027 M3.

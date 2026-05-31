@@ -384,3 +384,17 @@ every session regardless of repo/agent, so no `~/.claude` config is needed.
   clean.
 - Live verification pending: restart pair (rebuilds/reloads pair-wrap + pair-slug)
   so turn-end spawns the slug for the running agent.
+
+### 2026-05-31 — M3 fresh-eyes review (verdict: SHIP)
+
+No Critical/Important findings. Reviewer confirmed: `emitOuter`/`maybeSpawnSlug`
+run on the single `masterPump` goroutine (so unguarded `lastSlug`/`lastEmit`
+are not races; `go test -race ./cmd/pair-wrap/` clean); all three parsers match
+the real on-disk schemas and survive malformed/nil/truncated JSON without
+panic; claude path encoding matches all peer encoders (`bin/pair` `tr ./ -`,
+nvim `gsub`); codex glob + gemini WalkDir handle missing dirs safely;
+`PAIR_SLUG_NESTED` is correct defense-in-depth (pair-slug's `claude -p` is a
+direct subprocess, not pair-wrapped, so it can't re-enter). Non-blocking minors:
+gemini path re-walked per turn (could cache resolved path in config later);
+first codex/gemini user turn is the AGENTS.md injection (content dilution,
+pre-existing posture). `make test`/`make test-lua`/`go vet` green.
