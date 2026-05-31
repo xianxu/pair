@@ -398,3 +398,24 @@ direct subprocess, not pair-wrapped, so it can't re-enter). Non-blocking minors:
 gemini path re-walked per turn (could cache resolved path in config later);
 first codex/gemini user turn is the AGENTS.md injection (content dilution,
 pre-existing posture). `make test`/`make test-lua`/`go vet` green.
+
+### 2026-05-31 — live dogfood complete (M2+M3 verified in a real session)
+
+Verified end-to-end in the running pair session after fixing two dogfood-only
+bugs:
+- **make install gap** — the layout execs `pair-wrap` by bare name → resolves
+  `~/.local/bin` first; `go build -o bin/` alone left a stale installed binary
+  running. Fixed by `make install`; lesson recorded in workshop/lessons.md.
+- **insert-mode defer froze the winbar** — the draft pane sits in insert mode
+  almost permanently while composing on line 2+, so gating the apply on
+  insert-mode-at-all deferred every live proposal forever. Fixed: defer only
+  when the cursor is on line 1 (the user editing the slug itself); re-apply on
+  CursorMoved/CursorMovedI/InsertLeave (commit 3808529).
+
+Confirmed live: M3 trigger fires via pair-wrap (no Stop hook) and writes a
+fresh proposal each turn; nvim applies it when the cursor is off line 1, holds
+it when the cursor rests on line 1 (buffer-safety), and the KEEP gate keeps a
+steady focus from churning. Debug side-channel stripped (3a1f9c2).
+
+Not yet exercised live: a codex/gemini tab (parsers validated against real
+transcripts offline, M3 log). Will surface in normal multi-agent use.
