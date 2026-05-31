@@ -97,3 +97,25 @@ When a confirmation prompt or interactive flow is dismissed, the cancel path mus
 - Highlights, virtual text, floating windows added as part of the flow → tear them down on cancel just like on success.
 
 Treat cancel as an active branch with cleanup duties, not an early return. If you find yourself writing `if ch == 'n' then return end`, ask: what did the proceed branch do that I'm now skipping, and is any of it visual cleanup that cancel also needs?
+
+## Transcript summarization must bias toward USER turns, not a flat tail
+
+`cmd/pair-slug` (#000027) summarized "what is this session about" by feeding
+the last N text-bearing transcript turns to a small model. On a tool-heavy
+session that window is almost entirely assistant narration: a real Claude
+transcript had ~16 genuine user prompts vs ~200 assistant entries (most
+`user` entries carry only `tool_result` blocks, correctly dropped as
+text-less). Measured: the last 10 text-bearing turns were 10/10 assistant,
+0 user. So the slug tracked what the agent was *saying*, not what the user
+*asked for* — the orientation signal was pushed out of the window. The unit
+tests passed because their fixtures used only text-content messages, never
+the dominant `tool_result`-only user shape — green tests masked the bug.
+Caught in #000027 M1 review.
+
+**Rule.** When sampling a conversation transcript to infer user intent:
+- Don't take a flat tail of turns. Guarantee a minimum number of recent
+  *user* turns are in the window (extend backward until satisfied, capped).
+- Model test fixtures on the *real* transcript shape, including
+  `tool_result`-only user entries and any sidechain/summary types — not the
+  clean text-only case. A fixture that can't reproduce the bug can't guard
+  against it.

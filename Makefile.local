@@ -26,7 +26,7 @@
 
 BIN_DIR     := bin
 INSTALL_DIR := $(HOME)/.local/bin
-GO_BINS     := pair-scribe pair-scrollback-render pair-wrap
+GO_BINS     := pair-scribe pair-scrollback-render pair-wrap pair-slug
 
 build: $(addprefix $(BIN_DIR)/,$(GO_BINS))
 
@@ -41,6 +41,7 @@ install: build
 pair-scribe:            $(BIN_DIR)/pair-scribe
 pair-scrollback-render: $(BIN_DIR)/pair-scrollback-render
 pair-wrap:              $(BIN_DIR)/pair-wrap
+pair-slug:              $(BIN_DIR)/pair-slug
 
 # Tests
 #   make test       → go test ./... (cache disabled so reruns actually run)

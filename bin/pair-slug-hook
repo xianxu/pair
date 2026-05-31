@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# pair-slug-hook — Stop-hook entrypoint for pair-slug (issue #000027).
+#
+# Claude Code blocks on a Stop hook until its command exits, so we must
+# never run the model inline. This wrapper slurps the hook JSON from stdin
+# (fast) and hands it to a *detached* pair-slug, then exits 0 immediately —
+# the slug generation (git + a small-model call) happens in the background
+# and adds no perceptible latency to the prompt returning.
+#
+# pair-slug itself no-ops outside a pair session (no PAIR_TAG/PAIR_DATA_DIR),
+# so wiring this hook globally is harmless in non-pair contexts.
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+input=$(cat)
+printf '%s' "$input" | nohup "$here/pair-slug" >/dev/null 2>&1 &
+exit 0
