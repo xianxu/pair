@@ -59,6 +59,12 @@ test:
 test-race:
 	go test -count=1 -race ./cmd/pair-wrap/
 
+# Headless Lua tests for nvim/*.lua decision modules (issue #000027). nvim -l
+# runs a Lua script in nvim's interpreter with the full vim.api available, so
+# pure logic AND buffer-manipulation can be asserted without a UI.
+test-lua:
+	nvim -l nvim/slug_test.lua
+
 # pair-scribe — Go-based pty wrapper with SIGUSR1/SIGUSR2 pause/resume
 # of the typescript log. Replaces script(1) at the top of the user's
 # shell, so preexec can stop the log from filling with TUI redraw bytes

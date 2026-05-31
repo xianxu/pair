@@ -3222,3 +3222,84 @@ vim.api.nvim_create_autocmd('FocusGained', {
   end,
 })
 vim.api.nvim_create_autocmd('ColorScheme', { group = pair_aug, callback = pair_apply_focus_cursor_hl })
+
+-- ---------------------------------------------------------------------------
+-- Auto-orientation slug — dispose side (issue #000027)
+-- ---------------------------------------------------------------------------
+-- The Stop hook's `cmd/pair-slug` proposes a `=== <branch> | <focus> ===`
+-- slug to slug-proposed-<tag>. We apply it to draft line 1 when safe and
+-- mirror the effective line 1 back to slug-<tag> (the proposer's `prev`).
+-- The buffer-safety decision lives in the pure, headless-tested nvim/slug.lua
+-- (`make test-lua`); this is just the fs_event + file-IO wiring.
+local pair_slug = nil
+do
+  local dir = debug.getinfo(1, 'S').source:match('@?(.*/)')
+  if dir then
+    local ok, mod = pcall(dofile, dir .. 'slug.lua')
+    if ok then pair_slug = mod end
+  end
+end
+
+local slug_last_applied = nil -- nil on restart → decide treats line 1 as user-owned
+local slug_pending = false    -- a proposal arrived mid-insert; apply on InsertLeave
+
+local function pair_slug_draft_buf()
+  local want = draft_path_for_tag()
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(b) and vim.api.nvim_buf_get_name(b) == want then
+      return b
+    end
+  end
+  return nil
+end
+
+local function pair_slug_reconcile()
+  if not pair_slug then return end
+  local dd, tag = pair_data_dir(), pair_tag()
+  local proposed = read_file(dd .. '/slug-proposed-' .. tag):match('^[^\n]*') or ''
+  if proposed == '' then return end
+  local buf = pair_slug_draft_buf()
+  if not buf then return end
+  -- Defer while the user is mid-keystroke; re-run on InsertLeave so the
+  -- apply never lands under an active cursor.
+  if vim.fn.mode():sub(1, 1) == 'i' then
+    slug_pending = true
+    return
+  end
+  local _, prev, newlast = pair_slug.apply(buf, proposed, slug_last_applied)
+  slug_last_applied = newlast
+  -- Mirror only slug-shaped / empty effective values; never persist the
+  -- user's prompt text as the proposer's `prev`.
+  if prev == '' or prev:sub(1, 3) == '===' then
+    write_file(dd .. '/slug-' .. tag, prev .. '\n')
+  end
+end
+
+do
+  local handle = vim.loop.new_fs_event()
+  if handle then
+    local target = 'slug-proposed-' .. pair_tag()
+    local ok = pcall(function()
+      handle:start(pair_data_dir(), {}, vim.schedule_wrap(function(err, filename)
+        if err then return end
+        if filename and filename ~= target then return end
+        pcall(pair_slug_reconcile)
+      end))
+    end)
+    if not ok then handle:close() end
+  end
+end
+
+vim.api.nvim_create_autocmd('InsertLeave', {
+  group = pair_aug,
+  callback = function()
+    if slug_pending then
+      slug_pending = false
+      pcall(pair_slug_reconcile)
+    end
+  end,
+})
+
+-- Pick up any proposal already on disk at startup (e.g. a Stop fired while
+-- the draft pane was restarting).
+pcall(pair_slug_reconcile)

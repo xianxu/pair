@@ -134,7 +134,7 @@ reads what it writes.
       transcript + a PATH-shimmed fake `claude` (process-level fake, not a
       function mock). Verify end-to-end: a real Stop produces a sane
       `slug-proposed-<tag>`.
-- [ ] **M2 — nvim dispose (buffer-safety critical).** Factor the dispose
+- [x] **M2 — nvim dispose (buffer-safety critical).** Factor the dispose
       **decision** into a pure Lua module (`nvim/slug.lua`): given (line 1,
       `prev`, proposed, composing?, last-machine-applied) → an action
       (apply / skip / mirror-user-edit / hands-off). Pure, so it's testable
@@ -266,3 +266,26 @@ in the close commit:
   during M2 bring-up.
 
 Effective verdict: FIX-THEN-SHIP, findings addressed → SHIP.
+
+### 2026-05-31 — M2 implemented (code + automated tests; live dogfood pending)
+
+- `nvim/slug.lua`: pure `decide` (apply/hold) + `apply` (buffer mutation via
+  vim.api — only ever rewrites line 1; lines 2+ never touched; empty buffer
+  gets a blank prompt line under the slug). `nvim/slug_test.lua` runs both
+  the decision matrix and a buffer-safety matrix headless via `nvim -l`
+  (`make test-lua`): line-1 replace leaves lines 2+/cursor intact; user-edited
+  slug and user-prompt-on-line-1 are held unmodified; restart (nil
+  last-applied) treats line 1 as user-owned. `pair_pin_header` unchanged — it
+  already renders line 1 verbatim, so the winbar tracks for free.
+- `nvim/init.lua` wiring: `fs_event` watch on `slug-proposed-<tag>` →
+  `pair_slug_reconcile` → `slug.apply` on the draft buffer; mirrors the
+  effective line 1 into `slug-<tag>` (only slug-shaped/empty values, never the
+  user's prompt text). Defers while in insert mode, re-applies on
+  `InsertLeave`; startup pickup for a proposal that landed during a restart.
+- `make test-lua` green; `make test` green (4 Go pkgs); `gofmt` clean;
+  `init.lua` parses (`loadfile`).
+- **Pending manual verification (plan-designated):** live `fs_event`
+  reactivity — restart pair so the draft nvim reloads `init.lua`, then on the
+  next Claude Stop confirm the winbar/line-1 updates and the minimized-rung
+  guard still holds. The running session can't show this (nvim won't hot-
+  reload init.lua).
