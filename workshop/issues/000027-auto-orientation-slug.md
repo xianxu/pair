@@ -320,3 +320,25 @@ shift overrides; a freeform no-pipe line stays fully manual).
 
 Note: this materially changes M1's `decide` (milestone-closed SHIP). The M1
 audit trailer stands; this revision is the durable record of the change.
+
+### 2026-05-31 — live dogfood: two bugs found + fixed
+
+Restarted pair and traced via the slug files (`slug-pair` mtime fresh, `slug-proposed-pair` stale):
+
+- **Bug 1 — relative hook path regression.** The M1-close "minor" that changed
+  the `Stop` hook command to `./bin/pair-slug-hook` silently broke the
+  proposer: the hook fails (exit 127) whenever Claude Code runs it from a cwd
+  other than the repo root. Reverted to the absolute path (the form that
+  worked during M1/M2). Proposer went silent at ~11:30 because of this.
+- **Bug 2 — startup pickup raced the buffer load.** End-of-init reconcile ran
+  before the draft buffer was named, so a restart left line 1 showing the
+  stale manual note. Fixed: deferred to a once `VimEnter` autocmd (committed
+  ae9230e).
+- **Finding — `claude -p` DOES fire Stop hooks.** The diagnostic log showed
+  `nested invocation (PAIR_SLUG_NESTED); skipping`, i.e. the proposer's own
+  `claude -p` call re-fired the Stop hook. So the I1 recursion guard the
+  milestone judge called "insurance" is actually **load-bearing** — without it
+  every Stop would recurse. (pair-slug itself verified working in isolation:
+  produced `=== #000027 auto-orientation-slug | fixing hook path ===`.)
+- Follow-up: the absolute path hardcodes the repo location; a $PAIR_HOME- or
+  PATH-based resolution is better for the global-rollout follow-up.
