@@ -3271,9 +3271,14 @@ local function pair_slug_reconcile()
   if proposed == '' then return end
   local buf = pair_slug_draft_buf()
   if not buf then return end
-  -- Defer while the user is mid-keystroke; re-run on InsertLeave so the
-  -- apply never lands under an active cursor.
-  if vim.fn.mode():sub(1, 1) == 'i' then
+  -- Defer ONLY when the cursor is actually on line 1 — i.e. the user is
+  -- editing the slug itself — so the rewrite never lands under their cursor.
+  -- The draft pane sits in insert mode almost permanently while composing on
+  -- line 2+, so gating on insert-mode-at-all (the original check) deferred
+  -- every live proposal forever; gating on the line-1 cursor is the real
+  -- safety condition. Re-runs on InsertLeave/CursorMoved off line 1.
+  local win = vim.fn.bufwinid(buf)
+  if win ~= -1 and vim.api.nvim_win_get_cursor(win)[1] == 1 then
     slug_pending = true
     return
   end
@@ -3298,7 +3303,10 @@ do
   end
 end
 
-vim.api.nvim_create_autocmd('InsertLeave', {
+-- Re-run a deferred apply once the cursor leaves line 1 (the defer condition).
+-- CursorMoved/CursorMovedI fire as the user moves down to compose; InsertLeave
+-- covers leaving insert mode while still on line 1.
+vim.api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI', 'InsertLeave' }, {
   group = pair_aug,
   callback = function()
     if slug_pending then
