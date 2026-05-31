@@ -3322,5 +3322,11 @@ do
 end
 
 -- Pick up any proposal already on disk at startup (e.g. a Stop fired while
--- the draft pane was restarting).
-pcall(pair_slug_reconcile)
+-- the draft pane was restarting). Deferred to VimEnter: running it inline
+-- during init races the draft-buffer load, so pair_slug_draft_buf() finds
+-- nothing and the slug isn't applied until the next Stop.
+vim.api.nvim_create_autocmd('VimEnter', {
+  group = pair_aug,
+  once = true,
+  callback = function() pcall(pair_slug_reconcile) end,
+})
