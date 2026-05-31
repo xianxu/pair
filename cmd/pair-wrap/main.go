@@ -54,6 +54,7 @@ import (
 
 const (
 	rateLimitS          = 500 * time.Millisecond
+	slugDebounceS       = 1 * time.Second // min gap between pair-slug spawns (#000027)
 	agentOutputSpansMax = 1000
 	agentSpanMax        = 512
 	rollingTailLen      = 512
@@ -220,6 +221,8 @@ type proxy struct {
 
 	// OSC rate limiting
 	lastEmit time.Time
+	// pair-slug spawn debounce (#000027)
+	lastSlug time.Time
 
 	// Span LRU. spans maps key="<color>\t<text>" → *spanEntry; order keeps
 	// insertion order, oldest at Front, newest at Back. Move-to-back on
@@ -302,12 +305,40 @@ func (p *proxy) debug(label, ctx string) {
 // ----- Outer-TTY OSC emit -----------------------------------------------------
 
 // emitOuter writes \x1b]9;<msg>\x07 to the path recorded in outerTTYFile.
+// maybeSpawnSlug fires pair-slug in the background to refresh the orientation
+// slug (#000027 M3). Debounced by slugDebounceS so closely-spaced turn-end
+// signals don't double-spawn. pair-slug self-gates (no-op without PAIR_TAG)
+// and is non-fatal, so this is fire-and-forget. PAIR_AGENT tells it which
+// session-file format to parse; cwd is inherited (the agent's repo → branch).
+//
+// Cost note: this runs once per turn-end, and pair-slug must call the small
+// model before it can know the answer is KEEP — so steady-state cost is ~one
+// haiku call per agent turn. The 1s debounce only collapses bursts, not the
+// per-turn baseline; that's the accepted price of an always-current slug.
+func (p *proxy) maybeSpawnSlug() {
+	now := time.Now()
+	if !p.lastSlug.IsZero() && now.Sub(p.lastSlug) < slugDebounceS {
+		return
+	}
+	p.lastSlug = now
+	p.debug("SLUG-spawn", "agent="+p.agentBasename)
+	go func() {
+		cmd := exec.Command("pair-slug")
+		cmd.Env = append(os.Environ(), "PAIR_AGENT="+p.agentBasename)
+		_ = cmd.Run()
+	}()
+}
+
 // Rate-limited: any call within rateLimitS of the last successful emit is
 // silently dropped. All errors are swallowed — never blocks the proxy.
 func (p *proxy) emitOuter(msg string) {
 	if msg == "" {
 		msg = "agent attention"
 	}
+	// Turn-end is also when the orientation slug should refresh (#000027).
+	// This is pair's agent-agnostic notify sink (marker/idle/native all land
+	// here), so it works for claude/codex/gemini alike — no claude Stop hook.
+	p.maybeSpawnSlug()
 	now := time.Now()
 	if !p.lastEmit.IsZero() && now.Sub(p.lastEmit) < rateLimitS {
 		p.debug("EMIT-skip", fmt.Sprintf("rate-limited (%.2fs since last)", now.Sub(p.lastEmit).Seconds()))

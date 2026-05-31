@@ -3222,3 +3222,126 @@ vim.api.nvim_create_autocmd('FocusGained', {
   end,
 })
 vim.api.nvim_create_autocmd('ColorScheme', { group = pair_aug, callback = pair_apply_focus_cursor_hl })
+
+-- ---------------------------------------------------------------------------
+-- Auto-orientation slug — dispose side (issue #000027)
+-- ---------------------------------------------------------------------------
+-- The Stop hook's `cmd/pair-slug` proposes a `=== <branch> | <focus> ===`
+-- slug to slug-proposed-<tag>. We apply it to draft line 1 when safe and
+-- mirror the effective line 1 back to slug-<tag> (the proposer's `prev`).
+-- The buffer-safety decision lives in the pure, headless-tested nvim/slug.lua
+-- (`make test-lua`); this is just the fs_event + file-IO wiring.
+local pair_slug = nil
+do
+  local dir = debug.getinfo(1, 'S').source:match('@?(.*/)')
+  if dir then
+    local ok, mod = pcall(dofile, dir .. 'slug.lua')
+    if ok then pair_slug = mod end
+  end
+end
+
+local slug_pending = false -- a proposal arrived mid-insert; apply on InsertLeave
+
+local function pair_slug_draft_buf()
+  local want = draft_path_for_tag()
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(b) and vim.api.nvim_buf_get_name(b) == want then
+      return b
+    end
+  end
+  return nil
+end
+
+-- Mirror line 1 to slug-<tag> so the proposer reads the user's edits as `prev`
+-- next Stop (soft policy — the model biases toward keeping the user's
+-- wording). Only slug-shaped / empty line 1 is mirrored; the user's prompt
+-- text is never persisted as `prev`.
+local function pair_slug_mirror_line1()
+  local buf = pair_slug_draft_buf()
+  if not buf then return end
+  local line1 = (vim.api.nvim_buf_get_lines(buf, 0, 1, false))[1] or ''
+  if line1 ~= '' and line1:sub(1, 3) ~= '===' then return end
+  -- Idempotency: an apply rewrites line 1 via nvim_buf_set_lines, which itself
+  -- fires TextChanged → this mirror. The apply already persisted the same
+  -- value to slug-<tag>, so skip when unchanged — avoids churning the file
+  -- (and the proposer's `prev`) on every machine apply.
+  local path = pair_data_dir() .. '/slug-' .. pair_tag()
+  local cur = read_file(path):match('^[^\n]*') or ''
+  if cur == line1 then return end
+  write_file(path, line1 .. '\n')
+end
+
+local function pair_slug_reconcile()
+  if not pair_slug then return end
+  local dd, tag = pair_data_dir(), pair_tag()
+  local proposed = read_file(dd .. '/slug-proposed-' .. tag):match('^[^\n]*') or ''
+  if proposed == '' then return end
+  local buf = pair_slug_draft_buf()
+  if not buf then return end
+  -- Defer ONLY when the cursor is actually on line 1 — i.e. the user is
+  -- editing the slug itself — so the rewrite never lands under their cursor.
+  -- The draft pane sits in insert mode almost permanently while composing on
+  -- line 2+, so gating on insert-mode-at-all (the original check) deferred
+  -- every live proposal forever; gating on the line-1 cursor is the real
+  -- safety condition. Re-runs on InsertLeave/CursorMoved off line 1.
+  local win = vim.fn.bufwinid(buf)
+  if win ~= -1 and vim.api.nvim_win_get_cursor(win)[1] == 1 then
+    slug_pending = true
+    return
+  end
+  local _, prev = pair_slug.apply(buf, proposed)
+  if prev == '' or prev:sub(1, 3) == '===' then
+    write_file(dd .. '/slug-' .. tag, prev .. '\n')
+  end
+end
+
+do
+  local handle = vim.loop.new_fs_event()
+  if handle then
+    local target = 'slug-proposed-' .. pair_tag()
+    local ok = pcall(function()
+      handle:start(pair_data_dir(), {}, vim.schedule_wrap(function(err, filename)
+        if err then return end
+        if filename and filename ~= target then return end
+        pcall(pair_slug_reconcile)
+      end))
+    end)
+    if not ok then handle:close() end
+  end
+end
+
+-- Re-run a deferred apply once the cursor leaves line 1 (the defer condition).
+-- CursorMoved/CursorMovedI fire as the user moves down to compose; InsertLeave
+-- covers leaving insert mode while still on line 1.
+vim.api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI', 'InsertLeave' }, {
+  group = pair_aug,
+  callback = function()
+    if slug_pending then
+      slug_pending = false
+      pcall(pair_slug_reconcile)
+    end
+  end,
+})
+
+-- Debounced mirror of the user's line-1 edits (see pair_slug_mirror_line1).
+do
+  local timer = vim.loop.new_timer()
+  vim.api.nvim_create_autocmd({ 'TextChanged', 'TextChangedI' }, {
+    group = pair_aug,
+    callback = function()
+      if vim.bo.filetype ~= 'markdown' or not timer then return end
+      timer:stop()
+      timer:start(400, 0, vim.schedule_wrap(function() pcall(pair_slug_mirror_line1) end))
+    end,
+  })
+end
+
+-- Pick up any proposal already on disk at startup (e.g. a Stop fired while
+-- the draft pane was restarting). Deferred to VimEnter: running it inline
+-- during init races the draft-buffer load, so pair_slug_draft_buf() finds
+-- nothing and the slug isn't applied until the next Stop.
+vim.api.nvim_create_autocmd('VimEnter', {
+  group = pair_aug,
+  once = true,
+  callback = function() pcall(pair_slug_reconcile) end,
+})
