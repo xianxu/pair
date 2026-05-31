@@ -316,6 +316,7 @@ func (p *proxy) maybeSpawnSlug() {
 		return
 	}
 	p.lastSlug = now
+	p.debug("SLUG-spawn", "agent="+p.agentBasename)
 	go func() {
 		cmd := exec.Command("pair-slug")
 		cmd.Env = append(os.Environ(), "PAIR_AGENT="+p.agentBasename)
