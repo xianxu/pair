@@ -119,7 +119,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/xianxu/workspace/pair/bin/pair-slug-hook",
+            "command": "./bin/pair-slug-hook",
             "timeout": 5
           }
         ]

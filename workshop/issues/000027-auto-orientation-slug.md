@@ -173,6 +173,8 @@ Review boundary between M1 and M2 (M2 carries the clobber risk).
 
 ## Log
 
+
+- 2026-05-31: closed M1 — go test green (4 pkgs); e2e: real claude Stop wrote "=== #000027 auto-orientation-slug | testing critical fix ==="; atomic write + recursion guard verified; review verdict: unknown
 ### 2026-05-31 — planning gates
 
 - `sdlc change-code` plan-quality judge: first pass INFO (3 findings:
@@ -240,3 +242,27 @@ Critical/Important addressed before M2:
   race), `type`-based filtering matches real transcript, left-stomp
   invariant, non-fatal error paths.
 - `make test` green (4 pkgs); `go vet` clean; `gofmt -l` clean.
+
+### 2026-05-31 — M1 milestone-close + auto-judge (FIX-THEN-SHIP → fixed)
+
+`sdlc milestone-close` auto-dispatched its judge over the M1 commit window.
+It logged verdict "unknown" (the judge's first line didn't match the
+SHIP/FIX-THEN-SHIP/REWORK grammar), but found 2 Important items, both fixed
+in the close commit:
+
+- **I-A (fixed)** — `branchLeft` was unsanitized; `|` is a git-legal branch
+  char (`feat|wip`), which would plant a second pipe and break the
+  single-pipe channel M2 parses. Added `sanitizeLeft` (strip `===`, `|`→`/`,
+  never-empty) on all `normalizeBranch` returns; test rows `feat|wip`,
+  `feature/a|b`.
+- **I-B (fixed)** — recursion guard had no test. Added
+  `TestIntegrationNestedGuard`: with `PAIR_SLUG_NESTED=1` the binary invokes
+  no model and writes no proposal.
+- Minors taken: model exec now `CommandContext` with a 30s timeout (a hung
+  `claude` can't leave pair-slug resident); `Stop` hook path made relative
+  (`./bin/pair-slug-hook`) to match the SessionStart hook.
+- Deferred to M2: last-writer-wins on rapid Stops (cosmetic); the `prev`
+  channel is dormant until M2 closes the loop, so exercise KEEP/`value==prev`
+  during M2 bring-up.
+
+Effective verdict: FIX-THEN-SHIP, findings addressed → SHIP.

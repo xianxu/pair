@@ -16,6 +16,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -23,6 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const (
@@ -31,6 +33,7 @@ const (
 	hardMaxTurns = 40  // cap on how far back the user-turn extension reaches
 	perTurnChars = 500 // truncation per turn
 	defaultModel = "claude-haiku-4-5"
+	modelTimeout = 30 * time.Second // a hung model must not leave pair-slug resident
 )
 
 type hookInput struct {
@@ -79,7 +82,9 @@ func repoBase(dir string) string {
 // fires Stop hooks (it does not today), the nested pair-slug no-ops instead
 // of recursing into an unbounded fork/cost loop.
 func runModel(model, prompt, input string) (string, error) {
-	cmd := exec.Command("claude", "-p", "--model", model, prompt)
+	ctx, cancel := context.WithTimeout(context.Background(), modelTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "claude", "-p", "--model", model, prompt)
 	cmd.Stdin = strings.NewReader(input)
 	cmd.Env = append(os.Environ(), "PAIR_SLUG_NESTED=1")
 	out, err := cmd.Output()

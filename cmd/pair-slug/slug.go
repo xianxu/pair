@@ -26,7 +26,22 @@ var embeddedNumRE = regexp.MustCompile(`^(\d+)[-_](.+)$`)
 // initials like xx/, and nested forms); this list is only documentation of
 // the common cases — normalizeBranch uses the last-slash rule.
 //
-// normalizeBranch maps a git branch to the left segment.
+// sanitizeLeft strips the slug's structural delimiters from a left segment.
+// "|" is a git-legal branch char (git forbids space ~ ^ : ? * [ \ .. but not
+// "|"), and a branch like "feat|wip" would otherwise plant a second pipe and
+// break the "two segments separated by ' | '" channel contract M2 parses. We
+// own the left, so sanitize it at the source rather than trust it downstream.
+func sanitizeLeft(s string) string {
+	s = strings.ReplaceAll(s, "===", "")
+	s = strings.ReplaceAll(s, "|", "/")
+	s = strings.TrimSpace(s)
+	if s == "" {
+		s = "?"
+	}
+	return s
+}
+
+// normalizeBranch maps a git branch to the (sanitized) left segment.
 //   - main/master/HEAD/"" → the repo basename (honest "between branches")
 //   - strip everything through the last "/" (feature/x, xx/42-x → 42-x)
 //   - a leading "<num><-|_>" becomes "#<num> <rest>" (42-winbar → #42 winbar)
@@ -34,15 +49,15 @@ func normalizeBranch(branch, repoBase string) string {
 	b := strings.TrimSpace(branch)
 	switch b {
 	case "", "main", "master", "HEAD":
-		return repoBase
+		return sanitizeLeft(repoBase)
 	}
 	if i := strings.LastIndex(b, "/"); i >= 0 {
 		b = b[i+1:]
 	}
 	if m := embeddedNumRE.FindStringSubmatch(b); m != nil {
-		return "#" + m[1] + " " + m[2]
+		return sanitizeLeft("#" + m[1] + " " + m[2])
 	}
-	return b
+	return sanitizeLeft(b)
 }
 
 // turn is one text-bearing message extracted from the transcript.

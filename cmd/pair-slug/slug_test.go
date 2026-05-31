@@ -21,6 +21,9 @@ func TestNormalizeBranch(t *testing.T) {
 		// the edge the judge flagged: prefix AND embedded number
 		{"xx/42-winbar-recap", "pair", "#42 winbar-recap"},
 		{"feature/123_some_thing", "pair", "#123 some_thing"},
+		// I-A: pipe is git-legal but would break the single-pipe channel → sanitized
+		{"feat|wip", "pair", "feat/wip"},
+		{"feature/a|b", "pair", "a/b"},
 	}
 	for _, c := range cases {
 		if got := normalizeBranch(c.branch, c.repoBase); got != c.want {

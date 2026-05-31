@@ -98,3 +98,44 @@ func TestIntegrationInvalidWritesNothing(t *testing.T) {
 		t.Errorf("invalid model output must not write a proposal (err=%v)", err)
 	}
 }
+
+// TestIntegrationNestedGuard pins I1/I-B: with PAIR_SLUG_NESTED set, the
+// binary must no-op — never invoke the model, never write a proposal — so a
+// model child that re-fires the Stop hook can't recurse.
+func TestIntegrationNestedGuard(t *testing.T) {
+	bin := buildBinary(t)
+	dataDir := t.TempDir()
+	cwd := t.TempDir()
+	marker := filepath.Join(t.TempDir(), "invoked")
+
+	// fake claude that records the fact it ran — it must NOT run here.
+	claudeDir := t.TempDir()
+	script := "#!/bin/sh\ntouch " + shellQuote(marker) + "\nprintf '=== x | y ===\\n'\n"
+	if err := os.WriteFile(filepath.Join(claudeDir, "claude"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	transcript := filepath.Join(t.TempDir(), "t.jsonl")
+	if err := os.WriteFile(transcript,
+		[]byte(`{"type":"user","message":{"role":"user","content":"hi"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command(bin)
+	cmd.Stdin = strings.NewReader(`{"transcript_path":"` + transcript + `","cwd":"` + cwd + `"}`)
+	cmd.Env = append(os.Environ(),
+		"PATH="+claudeDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"PAIR_TAG=testtag",
+		"PAIR_DATA_DIR="+dataDir,
+		"PAIR_SLUG_NESTED=1",
+	)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("run: %v\n%s", err, out)
+	}
+
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Error("nested guard failed: model was invoked")
+	}
+	if _, err := os.Stat(filepath.Join(dataDir, "slug-proposed-testtag")); !os.IsNotExist(err) {
+		t.Error("nested guard failed: a proposal was written")
+	}
+}
