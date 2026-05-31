@@ -216,23 +216,33 @@ func rightOf(slug string) string {
 	return inner
 }
 
-// decide applies the gate. Given the authoritative branchLeft, the prev
-// slug, and raw model output, it returns whether to write and the value.
-//   - KEEP                → no write (cold-start KEEP with no prev also no-ops)
-//   - focus has | or ===  → no write (would confuse M2's line-1 parser)
-//   - value == prev       → no write (no-op; nothing changed)
-//   - valid new slug      → write "=== <branchLeft> | <model focus> ==="
-//     (left is always stomped with the authoritative branch)
-//   - anything else       → no write (validate-or-keep-last)
+// decide applies the gate. The left is always the authoritative branch; the
+// right (focus) is the model's, or — on KEEP — the prev slug's right carried
+// forward. The value is always assembled fresh so a branch switch refreshes
+// the left even when the focus is unchanged (KEEP no longer means "no write").
+//   - KEEP, prev has a right → keep that right with the fresh left
+//   - KEEP, no prev          → no write (cold start: nothing to keep)
+//   - valid new slug         → take the model's focus
+//   - focus has | or ===     → no write (would confuse M2's line-1 parser)
+//   - value == prev          → no write (same branch + same focus; nothing changed)
+//   - anything else          → no write (validate-or-keep-last)
 func decide(branchLeft, prev, raw string) (write bool, value string) {
 	line := modelLine(raw)
-	if line == "" || line == "KEEP" {
+	if line == "" {
 		return false, ""
 	}
-	if !validateSlug(line) {
-		return false, ""
+	var focus string
+	if line == "KEEP" {
+		focus = rightOf(prev)
+		if focus == "" {
+			return false, "" // cold start: no prior focus to keep
+		}
+	} else {
+		if !validateSlug(line) {
+			return false, ""
+		}
+		focus = rightOf(line)
 	}
-	focus := rightOf(line)
 	// A focus carrying the structural delimiters could round-trip into the
 	// written slug and confuse nvim's line-1 parse in M2. Reject it.
 	if strings.Contains(focus, "|") || strings.Contains(focus, "===") {
@@ -240,7 +250,7 @@ func decide(branchLeft, prev, raw string) (write bool, value string) {
 	}
 	value = "=== " + branchLeft + " | " + focus + " ==="
 	if value == prev {
-		return false, ""
+		return false, "" // same branch + same focus → nothing changed
 	}
 	return true, value
 }

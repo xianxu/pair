@@ -21,44 +21,34 @@ eq(M.is_structured(''), false, 'empty not structured')
 
 local PROPOSED = '=== #27 auto | new focus ==='
 
--- empty line 1 → apply, mirror proposed
+-- empty line 1 → apply
 do
-  local a, p = M.decide('', PROPOSED, nil)
+  local a, p = M.decide('', PROPOSED)
   eq(a, 'apply', 'empty→apply'); eq(p, PROPOSED, 'empty→prev=proposed')
 end
 
--- machine slug, untouched (line1 == last_applied) → apply
+-- structured slug (machine-written or user-edited) → apply. Soft policy: the
+-- proposer only proposes when the model decided to change it; preservation of
+-- a user edit happens upstream (no proposal written), not by holding here.
 do
-  local last = '=== #27 auto | old focus ==='
-  local a, p = M.decide(last, PROPOSED, last)
-  eq(a, 'apply', 'untouched→apply'); eq(p, PROPOSED, 'untouched→prev=proposed')
+  local a, p = M.decide('=== #27 auto | old focus ===', PROPOSED)
+  eq(a, 'apply', 'structured→apply'); eq(p, PROPOSED, 'structured→prev=proposed')
+end
+do
+  local a = M.decide('=== #27 auto | my own words ===', PROPOSED)
+  eq(a, 'apply', 'user-edited structured→apply (soft)')
 end
 
--- machine slug, user edited (line1 ~= last_applied) → hold, mirror user's line
-do
-  local last = '=== #27 auto | old focus ==='
-  local edited = '=== #27 auto | my own words ==='
-  local a, p = M.decide(edited, PROPOSED, last)
-  eq(a, 'hold', 'edited→hold'); eq(p, edited, 'edited→prev=user line')
-end
-
--- restart: last_applied nil but line1 holds a slug → hold (never clobber)
-do
-  local cur = '=== #27 auto | something ==='
-  local a, p = M.decide(cur, PROPOSED, nil)
-  eq(a, 'hold', 'restart→hold'); eq(p, cur, 'restart→prev=current')
-end
-
--- freeform "=== … ===" without pipe → hold (manual override)
+-- freeform "=== … ===" without pipe → hold (full manual override)
 do
   local fre = '=== my own note ==='
-  local a, p = M.decide(fre, PROPOSED, nil)
+  local a, p = M.decide(fre, PROPOSED)
   eq(a, 'hold', 'freeform→hold'); eq(p, fre, 'freeform→prev=freeform')
 end
 
--- user prompt text on line 1 → hold (never insert a slug above it)
+-- user prompt text on line 1 → hold (never clobber it)
 do
-  local a, p = M.decide('please fix the winbar bug', PROPOSED, nil)
+  local a, p = M.decide('please fix the winbar bug', PROPOSED)
   eq(a, 'hold', 'prompt→hold'); eq(p, 'please fix the winbar bug', 'prompt→prev=text')
 end
 
@@ -73,11 +63,10 @@ if vim and vim.api then
     return vim.api.nvim_buf_get_lines(b, 0, -1, false)
   end
 
-  -- apply over a user prompt: line 1 replaced, lines 2+ untouched
+  -- apply over a structured slug + prompt: line 1 replaced, lines 2+ untouched
   do
-    local last = '=== #27 auto | old ==='
-    local b = mkbuf({ last, 'my prompt line', 'second line' })
-    local a = M.apply(b, PROPOSED, last)
+    local b = mkbuf({ '=== #27 auto | old ===', 'my prompt line', 'second line' })
+    local a = M.apply(b, PROPOSED)
     local L = lines(b)
     eq(a, 'apply', 'apply over prompt: action')
     eq(L[1], PROPOSED, 'apply: line1 replaced')
@@ -86,13 +75,12 @@ if vim and vim.api then
     eq(#L, 3, 'apply: no spurious lines')
   end
 
-  -- cursor intact when applying to a non-current... use current win for cursor
+  -- cursor intact when line 1 is replaced
   do
-    local last = '=== #27 auto | old ==='
-    local b = mkbuf({ last, 'prompt', 'more here' })
+    local b = mkbuf({ '=== #27 auto | old ===', 'prompt', 'more here' })
     vim.api.nvim_set_current_buf(b)
     vim.api.nvim_win_set_cursor(0, { 3, 4 })
-    M.apply(b, PROPOSED, last)
+    M.apply(b, PROPOSED)
     local c = vim.api.nvim_win_get_cursor(0)
     eq(c[1], 3, 'cursor row intact'); eq(c[2], 4, 'cursor col intact')
     eq(lines(b)[2], 'prompt', 'cursor case: line2 intact')
@@ -101,29 +89,26 @@ if vim and vim.api then
   -- empty buffer → slug on line 1 + blank prompt line below
   do
     local b = mkbuf({ '' })
-    M.apply(b, PROPOSED, nil)
+    M.apply(b, PROPOSED)
     local L = lines(b)
     eq(L[1], PROPOSED, 'empty: slug on line1')
     eq(L[2], '', 'empty: blank prompt line added')
     eq(#L, 2, 'empty: exactly two lines')
   end
 
-  -- hold (user-edited slug): buffer must NOT change
+  -- freeform no-pipe line 1 → hold: buffer must NOT change (manual override)
   do
-    local last = '=== #27 auto | old ==='
-    local edited = '=== #27 auto | my words ==='
-    local b = mkbuf({ edited, 'prompt' })
-    local a, p, nl = M.apply(b, PROPOSED, last)
-    eq(a, 'hold', 'edited: hold')
-    eq(lines(b)[1], edited, 'edited: line1 unchanged')
-    eq(nl, last, 'edited: last_applied preserved')
-    eq(p, edited, 'edited: prev = user line')
+    local b = mkbuf({ '=== my own note ===', 'prompt' })
+    local a, p = M.apply(b, PROPOSED)
+    eq(a, 'hold', 'freeform: hold')
+    eq(lines(b)[1], '=== my own note ===', 'freeform: line1 unchanged')
+    eq(p, '=== my own note ===', 'freeform: prev = freeform line')
   end
 
-  -- hold (user prompt text on line 1): no slug inserted above
+  -- user prompt text on line 1 → hold: no slug inserted/overwritten
   do
     local b = mkbuf({ 'please fix the bug', 'detail' })
-    local a = M.apply(b, PROPOSED, nil)
+    local a = M.apply(b, PROPOSED)
     eq(a, 'hold', 'prompt-on-line1: hold')
     eq(lines(b)[1], 'please fix the bug', 'prompt-on-line1: unchanged')
     eq(#lines(b), 2, 'prompt-on-line1: no inserted line')

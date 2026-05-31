@@ -3240,8 +3240,7 @@ do
   end
 end
 
-local slug_last_applied = nil -- nil on restart → decide treats line 1 as user-owned
-local slug_pending = false    -- a proposal arrived mid-insert; apply on InsertLeave
+local slug_pending = false -- a proposal arrived mid-insert; apply on InsertLeave
 
 local function pair_slug_draft_buf()
   local want = draft_path_for_tag()
@@ -3251,6 +3250,18 @@ local function pair_slug_draft_buf()
     end
   end
   return nil
+end
+
+-- Mirror line 1 to slug-<tag> so the proposer reads the user's edits as `prev`
+-- next Stop (soft policy — the model biases toward keeping the user's
+-- wording). Only slug-shaped / empty line 1 is mirrored; the user's prompt
+-- text is never persisted as `prev`.
+local function pair_slug_mirror_line1()
+  local buf = pair_slug_draft_buf()
+  if not buf then return end
+  local line1 = (vim.api.nvim_buf_get_lines(buf, 0, 1, false))[1] or ''
+  if line1 ~= '' and line1:sub(1, 3) ~= '===' then return end
+  write_file(pair_data_dir() .. '/slug-' .. pair_tag(), line1 .. '\n')
 end
 
 local function pair_slug_reconcile()
@@ -3266,10 +3277,7 @@ local function pair_slug_reconcile()
     slug_pending = true
     return
   end
-  local _, prev, newlast = pair_slug.apply(buf, proposed, slug_last_applied)
-  slug_last_applied = newlast
-  -- Mirror only slug-shaped / empty effective values; never persist the
-  -- user's prompt text as the proposer's `prev`.
+  local _, prev = pair_slug.apply(buf, proposed)
   if prev == '' or prev:sub(1, 3) == '===' then
     write_file(dd .. '/slug-' .. tag, prev .. '\n')
   end
@@ -3299,6 +3307,19 @@ vim.api.nvim_create_autocmd('InsertLeave', {
     end
   end,
 })
+
+-- Debounced mirror of the user's line-1 edits (see pair_slug_mirror_line1).
+do
+  local timer = vim.loop.new_timer()
+  vim.api.nvim_create_autocmd({ 'TextChanged', 'TextChangedI' }, {
+    group = pair_aug,
+    callback = function()
+      if vim.bo.filetype ~= 'markdown' or not timer then return end
+      timer:stop()
+      timer:start(400, 0, vim.schedule_wrap(function() pcall(pair_slug_mirror_line1) end))
+    end,
+  })
+end
 
 -- Pick up any proposal already on disk at startup (e.g. a Stop fired while
 -- the draft pane was restarting).

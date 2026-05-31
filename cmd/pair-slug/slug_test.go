@@ -171,9 +171,16 @@ func TestDecide(t *testing.T) {
 		}
 	})
 
-	t.Run("KEEP → no write", func(t *testing.T) {
-		if w, _ := decide(left, "=== x | y ===", "KEEP"); w {
-			t.Error("KEEP must not write")
+	t.Run("KEEP, branch changed → write (left refreshes, focus kept)", func(t *testing.T) {
+		w, v := decide(left, "=== oldbranch | y ===", "KEEP")
+		if !w || v != "=== #42 winbar-recap | y ===" {
+			t.Errorf("KEEP+branch-change: write=%v val=%q", w, v)
+		}
+	})
+
+	t.Run("KEEP, same branch + focus → no write", func(t *testing.T) {
+		if w, _ := decide(left, "=== #42 winbar-recap | y ===", "KEEP"); w {
+			t.Error("KEEP with unchanged branch+focus must not write")
 		}
 	})
 

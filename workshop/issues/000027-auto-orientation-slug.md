@@ -289,3 +289,34 @@ Effective verdict: FIX-THEN-SHIP, findings addressed → SHIP.
   next Claude Stop confirm the winbar/line-1 updates and the minimized-rung
   guard still holds. The running session can't show this (nvim won't hot-
   reload init.lua).
+
+## Revisions
+
+### 2026-05-31 — soft edit policy; separate left/right (reopens M1 decide)
+
+**Reason.** Design review surfaced a conflict between "respect a manual edit"
+and "keep auto-refreshing," plus a latent bug: M2 held the *whole* line on a
+human edit, so the **left (branch) went stale** on a branch switch, and the
+proposer's KEEP gate (whole-slug) suppressed left refreshes too. Root cause:
+left and right were treated as one atomic unit. Operator chose the **soft**
+policy (manual focus kept while the model judges it unchanged; a genuine topic
+shift overrides; a freeform no-pipe line stays fully manual).
+
+**Delta.**
+- M1 `decide` (reopens closed M1): `KEEP` now keeps the prev focus but
+  re-assembles with the **fresh branch left**; writes iff the assembled value
+  differs from `prev`. Same branch+focus → no write; branch switch → writes
+  (left refreshes); focus moves → writes. Cold-start KEEP (no prev) → no write.
+- M2 `nvim/slug.lua`: `decide` is now soft — apply when line 1 is empty or a
+  structured slug; hold only for freeform no-pipe (manual override) or
+  arbitrary prompt text. `last_applied` removed (no longer the arbiter — the
+  proposer is).
+- M2 `init.lua`: added a debounced (`TextChanged`/`TextChangedI`, 400ms) mirror
+  of line 1 → `slug-<tag>`, so a user edit reaches the proposer as `prev`
+  next Stop (the mechanism that lets the model bias toward keeping the user's
+  wording). reconcile drops `last_applied`.
+- Tests updated: Go KEEP-refreshes-left cases; Lua soft decide + apply matrix.
+  `make test` + `make test-lua` green; `init.lua` parses; e2e cold-start OK.
+
+Note: this materially changes M1's `decide` (milestone-closed SHIP). The M1
+audit trailer stands; this revision is the durable record of the change.

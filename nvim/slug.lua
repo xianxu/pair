@@ -16,55 +16,45 @@ function M.is_structured(s)
     and s:find(' | ', 1, true) ~= nil
 end
 
--- decide what to do with a freshly proposed slug, given the current draft
--- line 1 and the last value the machine itself applied (nil on restart).
+-- decide what to do with a freshly proposed slug given the current line 1.
+-- Soft policy (issue #000027): nvim trusts the proposer. The proposer only
+-- writes a proposal when the model decided the slug should change (and it
+-- saw the user's edit as `prev` and biased toward KEEP), so nvim's only job
+-- is to refuse to clobber content that is the user's to own.
 --
 -- Returns (action, prev):
 --   action = 'apply' → set line 1 to `proposed`
 --   action = 'hold'  → leave line 1 as-is
 --   prev             → the effective line 1 to mirror into slug-<tag>
 --
--- Safe by construction (never clobber the user):
---   • empty line 1                 → apply (no manual content to lose)
---   • machine slug, untouched      → apply (line1 == last_applied)
---   • machine slug, but edited     → hold  (line1 ~= last_applied; this also
---                                     covers last_applied == nil on restart,
---                                     so a slug surviving a restart is treated
---                                     as user content and never clobbered)
---   • freeform "=== … ===" no pipe → hold  (full manual override)
---   • any other non-empty line 1   → hold  (user's prompt text — never insert
---                                     a slug above it)
-function M.decide(line1, proposed, last_applied)
-  local apply
-  if line1 == '' then
-    apply = true
-  elseif M.is_structured(line1) and last_applied ~= nil and line1 == last_applied then
-    apply = true
-  else
-    apply = false
-  end
-  if apply then
+--   • empty line 1                 → apply
+--   • structured slug              → apply (incl. a user-edited one — the
+--                                     model decided to change it; if it
+--                                     should have stayed, no proposal was
+--                                     written and apply isn't reached)
+--   • freeform "=== … ===" no pipe → hold (full manual override — yours)
+--   • any other non-empty line 1   → hold (user's prompt text; never clobber)
+function M.decide(line1, proposed)
+  if line1 == '' or M.is_structured(line1) then
     return 'apply', proposed
   end
   return 'hold', line1
 end
 
--- apply reconciles `proposed` into buffer `buf`'s line 1, given the last value
--- the machine applied (nil on restart). Uses vim.api, so it's still headless-
--- testable under `nvim -l` (which provides the API) against a scratch buffer.
--- Returns (action, prev, new_last_applied):
---   action           'apply' | 'hold' (see decide)
---   prev             effective line 1 to mirror into slug-<tag>
---   new_last_applied the value to remember as last machine-applied
+-- apply reconciles `proposed` into buffer `buf`'s line 1. Uses vim.api, so
+-- it's headless-testable under `nvim -l` against a scratch buffer.
+-- Returns (action, prev):
+--   action 'apply' | 'hold' (see decide)
+--   prev   effective line 1 to mirror into slug-<tag>
 --
 -- Safety: only ever rewrites line 1 (lines 2+ — the user's prompt — are never
 -- touched). When the buffer is otherwise empty, a blank prompt line is added
 -- below the slug so the user types under it, not onto it.
-function M.apply(buf, proposed, last_applied)
+function M.apply(buf, proposed)
   local line1 = (vim.api.nvim_buf_get_lines(buf, 0, 1, false))[1] or ''
-  local action, prev = M.decide(line1, proposed, last_applied)
+  local action, prev = M.decide(line1, proposed)
   if action ~= 'apply' then
-    return action, prev, last_applied
+    return action, prev
   end
   local total = vim.api.nvim_buf_line_count(buf)
   local was_empty = (total <= 1 and line1 == '')
@@ -72,7 +62,7 @@ function M.apply(buf, proposed, last_applied)
   if was_empty then
     vim.api.nvim_buf_set_lines(buf, 1, 1, false, { '' })
   end
-  return action, prev, proposed
+  return action, prev
 end
 
 return M
