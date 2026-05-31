@@ -1968,11 +1968,11 @@ local function nav_right()
   end
 end
 
--- Boundary-jump: Shift+Alt+←/→ skips to the next "edge" landmark in the
--- requested direction. Landmarks left-to-right: -h (oldest history),
--- -1 (newest history), *, +1 (front of queue), +q (back of queue).
--- A region with only one entry contributes only one landmark; an empty
--- region contributes none.
+-- Boundary-jump: Shift+Alt+←/→ steps between exactly three landmarks —
+-- -h (oldest history), * (draft), +q (back of queue). The newest-history
+-- (-1) and queue-front (+1) edges are deliberately *not* stops: Alt+←/→
+-- already walks one slot at a time, so Shift+Alt is the coarse "jump to the
+-- far end / back to draft" gesture. An empty region contributes no landmark.
 local function pos_rank(p)
   if p == '*' then return 0 end
   if p.kind == 'history' then return -p.n end   -- -1 ranks -1, -h ranks -h
@@ -1985,13 +1985,11 @@ local function ordered_landmarks()
   local h = #read_history()
   local q = queue_count()
   if h >= 1 then
-    table.insert(list, { kind = 'history', n = h })             -- -h (leftmost)
-    if h > 1 then table.insert(list, { kind = 'history', n = 1 }) end  -- -1
+    table.insert(list, { kind = 'history', n = h })            -- -h (leftmost)
   end
   table.insert(list, '*')
   if q >= 1 then
-    table.insert(list, { kind = 'queue', n = 1 })               -- +1
-    if q > 1 then table.insert(list, { kind = 'queue', n = q }) end    -- +q (rightmost)
+    table.insert(list, { kind = 'queue', n = q })             -- +q (rightmost)
   end
   return list
 end
