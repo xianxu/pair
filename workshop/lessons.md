@@ -132,3 +132,20 @@ path/to/file.go` (or `gofmt -w $(git diff --name-only '*.go')`), not the whole
 package directory. If a dir-wide gofmt lights up files outside the change,
 revert them — don't smuggle repo-wide reformatting into a feature commit.
 Caught in #000027 M3.
+
+## Dogfooding a Go-binary change needs `make install`, not just `make build`
+
+M3's pair-wrap trigger "didn't fire" on restart. Trace: pair-slug worked in
+isolation, but the running `pair-wrap` (pid via `pair-wrap-pid-<tag>`, binary
+via `lsof -p <pid> | awk '$4=="txt"`) was `~/.local/bin/pair-wrap` dated days
+earlier — the *installed* copy, with no spawn. I had only `go build -o bin/…`;
+the layout (`zellij/layouts/main.kdl`) execs `pair-wrap` by bare name and the
+pane's PATH resolved `~/.local/bin` first.
+
+**Rule.** `bin/` is the repo build; `~/.local/bin` (via `make install`) is what
+actually runs in a live pair session. To dogfood a change to a Go binary
+(pair-wrap/pair-slug/…): `make install`, *then* restart pair. Verifying with
+`bin/<binary>` alone proves nothing about the running session. When a "live"
+change seems inert, confirm the running binary: `lsof -p $(cat
+$PAIR_DATA_DIR/pair-wrap-pid-<tag>) | awk '$4=="txt"{print $NF}'`. Caught in
+#000027 M3 dogfood.
