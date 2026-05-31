@@ -21,11 +21,6 @@ func validateSlug(s string) bool { return slugRE.MatchString(s) }
 // "42-winbar-recap" surfaces its issue number as "#42 winbar-recap".
 var embeddedNumRE = regexp.MustCompile(`^(\d+)[-_](.+)$`)
 
-// branchPrefixes are dropped from the front of a branch name. The general
-// rule is "strip everything through the last slash" (handles feature/, fix/,
-// initials like xx/, and nested forms); this list is only documentation of
-// the common cases — normalizeBranch uses the last-slash rule.
-//
 // sanitizeLeft strips the slug's structural delimiters from a left segment.
 // "|" is a git-legal branch char (git forbids space ~ ^ : ? * [ \ .. but not
 // "|"), and a branch like "feat|wip" would otherwise plant a second pipe and
@@ -66,8 +61,24 @@ type turn struct {
 	Text string
 }
 
-// transcript jsonl line shape (only the fields we read).
-type tEntry struct {
+// parseTranscript dispatches to the right native-format parser. pair is
+// agent-agnostic, so each agent's own session file is parsed into the common
+// {role, text} shape. Unknown agents fall back to the claude parser.
+func parseTranscript(agent string, data []byte) []turn {
+	switch agent {
+	case "codex":
+		return parseCodex(data)
+	case "gemini":
+		return parseGemini(data)
+	default:
+		return parseClaude(data)
+	}
+}
+
+// ── claude: jsonl, one entry per line; type user|assistant, message.content
+//
+//	a string or an array of typed blocks (text / tool_use / tool_result). ──
+type claudeEntry struct {
 	Type    string `json:"type"`
 	Message struct {
 		Role    string          `json:"role"`
@@ -75,10 +86,7 @@ type tEntry struct {
 	} `json:"message"`
 }
 
-// contentText flattens a message's content into plain text, dropping
-// tool_use / tool_result blocks (content may be a bare string or an array
-// of typed blocks).
-func contentText(raw json.RawMessage) string {
+func claudeContent(raw json.RawMessage) string {
 	var s string
 	if json.Unmarshal(raw, &s) == nil {
 		return strings.TrimSpace(s)
@@ -99,30 +107,130 @@ func contentText(raw json.RawMessage) string {
 	return strings.TrimSpace(strings.Join(parts, " "))
 }
 
-// extractTurns parses transcript jsonl into text-bearing turns, then selects
-// a window via selectWindow. Each turn's text is truncated to perTurnChars.
-func extractTurns(jsonl []byte, recentTurns, minUser, hardMax, perTurnChars int) []turn {
-	var all []turn
-	for _, line := range strings.Split(string(jsonl), "\n") {
+func parseClaude(data []byte) []turn {
+	var out []turn
+	for _, line := range strings.Split(string(data), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
-		var e tEntry
+		var e claudeEntry
 		if json.Unmarshal([]byte(line), &e) != nil {
 			continue
 		}
 		if e.Type != "user" && e.Type != "assistant" {
 			continue
 		}
-		txt := contentText(e.Message.Content)
-		if txt == "" {
+		if txt := claudeContent(e.Message.Content); txt != "" {
+			out = append(out, turn{Role: e.Message.Role, Text: txt})
+		}
+	}
+	return out
+}
+
+// ── codex: jsonl rollout. A turn is type=="response_item" with
+//
+//	payload.type=="message" and payload.role in {user,assistant}; text at
+//	payload.content[].text. function_call/output, reasoning, developer
+//	messages, session_meta/event_msg are all skipped. ──
+type codexEntry struct {
+	Type    string `json:"type"`
+	Payload struct {
+		Type    string `json:"type"`
+		Role    string `json:"role"`
+		Content []struct {
+			Text string `json:"text"`
+		} `json:"content"`
+	} `json:"payload"`
+}
+
+func parseCodex(data []byte) []turn {
+	var out []turn
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
 			continue
 		}
-		if len(txt) > perTurnChars {
-			txt = txt[:perTurnChars]
+		var e codexEntry
+		if json.Unmarshal([]byte(line), &e) != nil {
+			continue
 		}
-		all = append(all, turn{Role: e.Message.Role, Text: txt})
+		if e.Type != "response_item" || e.Payload.Type != "message" {
+			continue
+		}
+		if e.Payload.Role != "user" && e.Payload.Role != "assistant" {
+			continue
+		}
+		var parts []string
+		for _, c := range e.Payload.Content {
+			if c.Text != "" {
+				parts = append(parts, c.Text)
+			}
+		}
+		if txt := strings.TrimSpace(strings.Join(parts, " ")); txt != "" {
+			out = append(out, turn{Role: e.Payload.Role, Text: txt})
+		}
+	}
+	return out
+}
+
+// ── gemini: single json file; messages[] with type user|gemini|info. user
+//
+//	content is an array of {text}; gemini content is a plain string. info
+//	(and embedded toolCalls/thoughts) are skipped. ──
+type geminiFile struct {
+	Messages []struct {
+		Type    string          `json:"type"`
+		Content json.RawMessage `json:"content"`
+	} `json:"messages"`
+}
+
+func parseGemini(data []byte) []turn {
+	var f geminiFile
+	if json.Unmarshal(data, &f) != nil {
+		return nil
+	}
+	var out []turn
+	for _, m := range f.Messages {
+		var role, txt string
+		switch m.Type {
+		case "user":
+			role = "user"
+			var blocks []struct {
+				Text string `json:"text"`
+			}
+			if json.Unmarshal(m.Content, &blocks) == nil {
+				var parts []string
+				for _, b := range blocks {
+					if b.Text != "" {
+						parts = append(parts, b.Text)
+					}
+				}
+				txt = strings.TrimSpace(strings.Join(parts, " "))
+			}
+		case "gemini":
+			role = "assistant"
+			var s string
+			if json.Unmarshal(m.Content, &s) == nil {
+				txt = strings.TrimSpace(s)
+			}
+		default:
+			continue
+		}
+		if txt != "" {
+			out = append(out, turn{Role: role, Text: txt})
+		}
+	}
+	return out
+}
+
+// windowTurns truncates each turn to perTurnChars, then selects a window
+// biased toward recent user turns (see selectWindow).
+func windowTurns(all []turn, recentTurns, minUser, hardMax, perTurnChars int) []turn {
+	for i := range all {
+		if len(all[i].Text) > perTurnChars {
+			all[i].Text = all[i].Text[:perTurnChars]
+		}
 	}
 	return selectWindow(all, recentTurns, minUser, hardMax)
 }

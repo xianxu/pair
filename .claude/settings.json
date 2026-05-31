@@ -113,17 +113,6 @@
           }
         ]
       }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "pair-slug-hook",
-            "timeout": 5
-          }
-        ]
-      }
     ]
   }
 }

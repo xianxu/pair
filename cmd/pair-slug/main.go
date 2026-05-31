@@ -1,25 +1,33 @@
 // pair-slug — propose an orientation slug for a pair tab.
 //
-// Invoked (backgrounded) from a Claude Code `Stop` hook. Reads the hook
-// JSON on stdin (transcript_path, cwd), derives the left segment from the
-// current git branch, asks a small model for the <focus> right segment over
-// the recent transcript (with a KEEP gate), and writes a validated
-// candidate to $PAIR_DATA_DIR/slug-proposed-<tag>. nvim is the consumer
-// that applies it to the draft (see nvim/slug.lua, issue #000027).
+// Spawned (backgrounded) by pair-wrap at turn-end — pair's agent-agnostic
+// notify point — so it works for claude/codex/gemini alike (issue #000027 M3,
+// replacing the earlier claude-only Stop hook). It resolves its own transcript
+// from $PAIR_DATA_DIR/config-<tag>-<agent>.json (session_id) + the per-agent
+// path, parses the native format into turns, derives the left segment from the
+// git branch, asks a small model for the <focus> right segment over the recent
+// transcript (with a KEEP gate), validates, and writes a candidate to
+// $PAIR_DATA_DIR/slug-proposed-<tag>. nvim applies it (see nvim/slug.lua).
 //
-// Single writer of slug-proposed-<tag>; never touches the draft or the
-// effective slug-<tag> (nvim owns that, and it is this tool's `prev`).
+// Inputs (all env / filesystem — no stdin):
 //
-// Failure mode: any error (no tag, no transcript, model failure, invalid
-// output) is non-fatal — it logs to $PAIR_SLUG_LOG when set and exits 0
-// without writing, so a hiccup never disturbs the agent or the draft.
+//	PAIR_TAG, PAIR_DATA_DIR   required; identify the session
+//	PAIR_AGENT                agent name (claude|codex|gemini); default claude
+//	PAIR_SLUG_MODEL           small-model override; default claude-haiku-4-5
+//	PAIR_SLUG_TRANSCRIPT      explicit transcript path, bypassing resolution
+//	                          (tests; also lets pair-wrap pass it directly)
+//	PAIR_SLUG_NESTED          set by the model child — makes pair-slug no-op
+//	cwd                       the repo (inherited from pair-wrap) — branch left
+//
+// Failure mode: any error is non-fatal — logs to $PAIR_SLUG_LOG when set and
+// exits 0 without writing, so a hiccup never disturbs the agent or the draft.
 package main
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,11 +43,6 @@ const (
 	defaultModel = "claude-haiku-4-5"
 	modelTimeout = 30 * time.Second // a hung model must not leave pair-slug resident
 )
-
-type hookInput struct {
-	TranscriptPath string `json:"transcript_path"`
-	Cwd            string `json:"cwd"`
-}
 
 // logf writes a diagnostic line to $PAIR_SLUG_LOG if set; otherwise silent.
 func logf(format string, a ...any) {
@@ -76,11 +79,69 @@ func repoBase(dir string) string {
 	return filepath.Base(dir)
 }
 
+// sessionID reads the session id pair recorded for (tag, agent) — written by
+// bin/pair-session-watch.sh once the agent's session file is discovered.
+func sessionID(dataDir, tag, agent string) string {
+	b, err := os.ReadFile(filepath.Join(dataDir, "config-"+tag+"-"+agent+".json"))
+	if err != nil {
+		return ""
+	}
+	var c struct {
+		SessionID string `json:"session_id"`
+	}
+	if json.Unmarshal(b, &c) != nil {
+		return ""
+	}
+	return c.SessionID
+}
+
+// claudePathEncoder mirrors nvim's `cwd:gsub('[./]', '-')` for the
+// ~/.claude/projects/<encoded-cwd>/ directory name.
+var claudePathEncoder = strings.NewReplacer(".", "-", "/", "-")
+
+// resolveTranscript returns the on-disk transcript path for (agent, sid), or
+// "" if it can't be located. Mirrors nvim/init.lua's session_age_hint.
+func resolveTranscript(agent, sid, cwd, home string) string {
+	switch agent {
+	case "codex":
+		// ~/.codex/sessions/YYYY/MM/DD/rollout-...-<sid>.jsonl
+		matches, _ := filepath.Glob(filepath.Join(home, ".codex", "sessions", "*", "*", "*", "rollout-*"+sid+"*.jsonl"))
+		if len(matches) > 0 {
+			return matches[0]
+		}
+		return ""
+	case "gemini":
+		// ~/.gemini/tmp/<project>/chats/session-*.json whose .sessionId == sid
+		var found string
+		root := filepath.Join(home, ".gemini", "tmp")
+		filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+			if err != nil || found != "" {
+				return nil
+			}
+			if d.IsDir() || !strings.HasPrefix(d.Name(), "session-") || !strings.HasSuffix(d.Name(), ".json") {
+				return nil
+			}
+			b, e := os.ReadFile(p)
+			if e != nil {
+				return nil
+			}
+			var g struct {
+				SessionID string `json:"sessionId"`
+			}
+			if json.Unmarshal(b, &g) == nil && g.SessionID == sid {
+				found = p
+			}
+			return nil
+		})
+		return found
+	default: // claude
+		return filepath.Join(home, ".claude", "projects", claudePathEncoder.Replace(cwd), sid+".jsonl")
+	}
+}
+
 // runModel invokes the small model: `claude -p --model <m> <prompt>` with
 // input on stdin, returning raw stdout. The child inherits the env with
-// PAIR_SLUG_NESTED=1 set — a breaker so that if headless `claude -p` ever
-// fires Stop hooks (it does not today), the nested pair-slug no-ops instead
-// of recursing into an unbounded fork/cost loop.
+// PAIR_SLUG_NESTED=1 — a breaker against any recursion through the agent.
 func runModel(model, prompt, input string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), modelTimeout)
 	defer cancel()
@@ -103,36 +164,39 @@ func main() {
 		logf("no PAIR_TAG/PAIR_DATA_DIR; not inside a pair session")
 		return
 	}
+	agent := os.Getenv("PAIR_AGENT")
+	if agent == "" {
+		agent = "claude"
+	}
+	cwd, _ := os.Getwd()
+	home, _ := os.UserHomeDir()
 
-	raw, err := io.ReadAll(os.Stdin)
+	transcript := os.Getenv("PAIR_SLUG_TRANSCRIPT")
+	if transcript == "" {
+		sid := sessionID(dataDir, tag, agent)
+		if sid == "" {
+			logf("no session_id in config-%s-%s.json", tag, agent)
+			return
+		}
+		transcript = resolveTranscript(agent, sid, cwd, home)
+	}
+	if transcript == "" {
+		logf("could not resolve transcript for agent %q", agent)
+		return
+	}
+
+	data, err := os.ReadFile(transcript)
 	if err != nil {
-		logf("read stdin: %v", err)
+		logf("read transcript %q: %v", transcript, err)
 		return
 	}
-	var hin hookInput
-	if err := json.Unmarshal(raw, &hin); err != nil {
-		logf("parse hook JSON: %v", err)
-		return
-	}
-	if hin.Cwd == "" {
-		hin.Cwd = "."
-	}
-
-	branchLeft := normalizeBranch(gitBranch(hin.Cwd), repoBase(hin.Cwd))
-
-	transcript, err := os.ReadFile(hin.TranscriptPath)
-	if err != nil {
-		logf("read transcript %q: %v", hin.TranscriptPath, err)
-		return
-	}
-	turns := extractTurns(transcript, recentTurns, minUserTurns, hardMaxTurns, perTurnChars)
+	turns := windowTurns(parseTranscript(agent, data), recentTurns, minUserTurns, hardMaxTurns, perTurnChars)
 	if len(turns) == 0 {
-		logf("no turns extracted")
+		logf("no turns extracted (agent=%s, transcript=%s)", agent, transcript)
 		return
 	}
 
 	// prev is the effective slug nvim last wrote (includes user edits).
-	// Missing on a fresh tab → cold start, "(none)".
 	prev := ""
 	if b, err := os.ReadFile(filepath.Join(dataDir, "slug-"+tag)); err == nil {
 		prev = strings.TrimSpace(string(b))
@@ -142,6 +206,7 @@ func main() {
 	if model == "" {
 		model = defaultModel
 	}
+	branchLeft := normalizeBranch(gitBranch(cwd), repoBase(cwd))
 
 	out, err := runModel(model, buildPrompt(branchLeft), buildModelInput(prev, turns))
 	if err != nil {
@@ -155,8 +220,8 @@ func main() {
 		return
 	}
 
-	// Atomic write: nvim (M2) is a concurrent reader of slug-proposed-<tag>;
-	// write to a temp sibling then rename so it never observes a torn file.
+	// Atomic write: nvim is a concurrent reader of slug-proposed-<tag>; write
+	// to a temp sibling then rename so it never observes a torn file.
 	proposed := filepath.Join(dataDir, "slug-proposed-"+tag)
 	tmp := proposed + ".tmp"
 	if err := os.WriteFile(tmp, []byte(value+"\n"), 0o644); err != nil {

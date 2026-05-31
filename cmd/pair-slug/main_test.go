@@ -51,12 +51,14 @@ func runSlug(t *testing.T, bin, claudeDir, modelOut string) (dataDir, cwd string
 	}
 
 	cmd := exec.Command(bin)
-	cmd.Stdin = strings.NewReader(`{"transcript_path":"` + transcript + `","cwd":"` + cwd + `"}`)
+	cmd.Dir = cwd // os.Getwd() in the binary → branch left = basename(cwd)
 	cmd.Env = append(os.Environ(),
 		"PATH="+claudeDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"PAIR_TAG=testtag",
 		"PAIR_DATA_DIR="+dataDir,
+		"PAIR_AGENT=claude",
 		"PAIR_SLUG_MODEL=fake-model",
+		"PAIR_SLUG_TRANSCRIPT="+transcript,
 	)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("run pair-slug: %v\n%s", err, out)
@@ -121,11 +123,13 @@ func TestIntegrationNestedGuard(t *testing.T) {
 	}
 
 	cmd := exec.Command(bin)
-	cmd.Stdin = strings.NewReader(`{"transcript_path":"` + transcript + `","cwd":"` + cwd + `"}`)
+	cmd.Dir = cwd
 	cmd.Env = append(os.Environ(),
 		"PATH="+claudeDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"PAIR_TAG=testtag",
 		"PAIR_DATA_DIR="+dataDir,
+		"PAIR_AGENT=claude",
+		"PAIR_SLUG_TRANSCRIPT="+transcript,
 		"PAIR_SLUG_NESTED=1",
 	)
 	if out, err := cmd.CombinedOutput(); err != nil {

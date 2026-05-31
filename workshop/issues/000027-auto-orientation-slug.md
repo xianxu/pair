@@ -152,7 +152,22 @@ reads what it writes.
       intact. Manual verification (no harness): live `fs_event` reactivity
       and the minimized-rung winbar guard.
 
-Review boundary between M1 and M2 (M2 carries the clobber risk).
+- [x] **M3 — agent-agnostic trigger + per-agent transcript parsing.** Replace
+      the claude-only `Stop` hook with a trigger from `pair-wrap` (pair's
+      agent-agnostic turn-end detection — `emitOuter`), so the slug works for
+      claude/codex/gemini and the global-rollout problem disappears (pair-wrap
+      wraps every session; no `~/.claude` config). pair-slug stops reading hook
+      JSON; it resolves its own transcript from `config-<tag>-<agent>.json`
+      (session_id) + per-agent path, and parses each native format → turns:
+      claude jsonl (have it), codex rollout (`response_item`/`payload.message`
+      role user|assistant, text at `payload.content[].text`), gemini json
+      (`messages[]` type user|gemini, content array-of-text vs string). Remove
+      the `Stop` hook from `.claude/settings.json` and `bin/pair-slug-hook`.
+      Tests: per-agent parser table tests (real-format fixtures). Verify e2e
+      across at least claude + one other agent.
+
+Review boundary between M1 and M2 (M2 carries the clobber risk); M3 gets its
+own fresh-eyes review (pair-wrap spawn + 3 parsers).
 
 ## Done-when
 
@@ -342,3 +357,30 @@ Restarted pair and traced via the slug files (`slug-pair` mtime fresh, `slug-pro
   produced `=== #000027 auto-orientation-slug | fixing hook path ===`.)
 - Follow-up: the absolute path hardcodes the repo location; a $PAIR_HOME- or
   PATH-based resolution is better for the global-rollout follow-up.
+
+### 2026-05-31 — M3 implemented (agent-agnostic trigger + per-agent parsing)
+
+Operator's call: the claude-only `Stop` hook cut against pair's agent-agnostic
+design. Moved the trigger to pair-wrap and parse each agent's native session
+file. This also **eliminated the global-rollout follow-up** — pair-wrap wraps
+every session regardless of repo/agent, so no `~/.claude` config is needed.
+
+- **Trigger** — `cmd/pair-wrap` `emitOuter` (the single turn-end sink for all
+  notify modes) now spawns `pair-slug` backgrounded, debounced `slugDebounceS`
+  (1s), with `PAIR_AGENT` set and repo cwd inherited. `maybeSpawnSlug`.
+- **pair-slug** — dropped hook-JSON stdin; now env/filesystem only. Resolves
+  the transcript from `config-<tag>-<agent>.json` (session_id) + per-agent path
+  (claude: encoded-cwd jsonl; codex: `sessions/*/*/*/rollout-*<sid>*.jsonl`
+  glob; gemini: walk `~/.gemini/tmp/**/session-*.json` matching `.sessionId`).
+  Parsers: `parseClaude` / `parseCodex` / `parseGemini` → common `{role,text}`.
+  `PAIR_SLUG_TRANSCRIPT` env overrides resolution (tests).
+- Removed the `Stop` hook from `.claude/settings.json` and deleted
+  `bin/pair-slug-hook`.
+- **Validated against REAL transcripts**: codex session → `| code review merge
+  gate`; gemini session → `| docker image debugging` (the gemini chat opened
+  "why are you using amd64 docker image…"). claude path unchanged.
+- `make test` green (4 pkgs, incl. codex/gemini parser table tests +
+  dispatch); `make test-lua` green; pair-wrap + pair-slug build; `go vet`/gofmt
+  clean.
+- Live verification pending: restart pair (rebuilds/reloads pair-wrap + pair-slug)
+  so turn-end spawns the slug for the running agent.

@@ -69,7 +69,7 @@ func TestExtractTurns(t *testing.T) {
 		``, // blank line tolerated
 	}, "\n")
 
-	turns := extractTurns([]byte(jsonl), 10, 0, 40, 500)
+	turns := windowTurns(parseClaude([]byte(jsonl)), 10, 0, 40, 500)
 	if len(turns) != 3 {
 		t.Fatalf("got %d turns, want 3: %+v", len(turns), turns)
 	}
@@ -89,7 +89,7 @@ func TestExtractTurnsTrim(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		lines = append(lines, `{"type":"user","message":{"role":"user","content":"p"}}`)
 	}
-	turns := extractTurns([]byte(strings.Join(lines, "\n")), 5, 0, 40, 500)
+	turns := windowTurns(parseClaude([]byte(strings.Join(lines, "\n"))), 5, 0, 40, 500)
 	if len(turns) != 5 {
 		t.Fatalf("got %d, want last 5", len(turns))
 	}
@@ -136,7 +136,7 @@ func TestExtractTurnsKeepsUserIntent(t *testing.T) {
 		// tool_result-only user turn — array content, no text block → dropped
 		add(`{"type":"user","message":{"role":"user","content":[{"type":"tool_result","content":"ok"}]}}`)
 	}
-	turns := extractTurns([]byte(strings.Join(lines, "\n")), 10, 1, 40, 500)
+	turns := windowTurns(parseClaude([]byte(strings.Join(lines, "\n"))), 10, 1, 40, 500)
 	found := false
 	for _, tn := range turns {
 		if tn.Role == "user" && tn.Text == "fix the winbar padding bug" {
@@ -151,9 +151,65 @@ func TestExtractTurnsKeepsUserIntent(t *testing.T) {
 func TestExtractTurnsTruncate(t *testing.T) {
 	long := strings.Repeat("x", 1000)
 	line := `{"type":"user","message":{"role":"user","content":"` + long + `"}}`
-	turns := extractTurns([]byte(line), 10, 0, 40, 50)
+	turns := windowTurns(parseClaude([]byte(line)), 10, 0, 40, 50)
 	if len(turns) != 1 || len(turns[0].Text) != 50 {
 		t.Fatalf("truncate failed: len=%d", len(turns[0].Text))
+	}
+}
+
+func TestParseCodex(t *testing.T) {
+	jsonl := strings.Join([]string{
+		`{"type":"session_meta","payload":{"cwd":"/x"}}`,
+		`{"type":"response_item","payload":{"type":"message","role":"developer","content":[{"type":"input_text","text":"system init — skip"}]}}`,
+		`{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"fix the bug"}]}}`,
+		`{"type":"response_item","payload":{"type":"function_call","name":"shell","arguments":"{}"}}`,
+		`{"type":"response_item","payload":{"type":"function_call_output","call_id":"c1","output":"ok"}}`,
+		`{"type":"response_item","payload":{"type":"reasoning"}}`,
+		`{"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"on it"}]}}`,
+		`{"type":"event_msg","payload":{"type":"token_count"}}`,
+	}, "\n")
+	turns := parseCodex([]byte(jsonl))
+	if len(turns) != 2 {
+		t.Fatalf("got %d turns, want 2 (user+assistant): %+v", len(turns), turns)
+	}
+	if turns[0].Role != "user" || turns[0].Text != "fix the bug" {
+		t.Errorf("turn0 = %+v", turns[0])
+	}
+	if turns[1].Role != "assistant" || turns[1].Text != "on it" {
+		t.Errorf("turn1 = %+v", turns[1])
+	}
+}
+
+func TestParseGemini(t *testing.T) {
+	doc := `{"sessionId":"abc","messages":[
+		{"type":"user","content":[{"text":"why amd64 here?"}]},
+		{"type":"gemini","content":"I'm in a linux sandbox","toolCalls":[{"name":"shell"}]},
+		{"type":"info","content":"Request cancelled."},
+		{"type":"user","content":[{"text":"part one"},{"text":"part two"}]}
+	]}`
+	turns := parseGemini([]byte(doc))
+	if len(turns) != 3 {
+		t.Fatalf("got %d turns, want 3 (user, gemini, user; info skipped): %+v", len(turns), turns)
+	}
+	if turns[0].Role != "user" || turns[0].Text != "why amd64 here?" {
+		t.Errorf("turn0 = %+v", turns[0])
+	}
+	if turns[1].Role != "assistant" || turns[1].Text != "I'm in a linux sandbox" {
+		t.Errorf("turn1 (gemini→assistant) = %+v", turns[1])
+	}
+	if turns[2].Text != "part one part two" {
+		t.Errorf("turn2 (multi-part user) = %+v", turns[2])
+	}
+}
+
+func TestParseTranscriptDispatch(t *testing.T) {
+	// claude is the default/fallback parser
+	claude := `{"type":"user","message":{"role":"user","content":"hi"}}`
+	if got := parseTranscript("claude", []byte(claude)); len(got) != 1 || got[0].Text != "hi" {
+		t.Errorf("claude dispatch: %+v", got)
+	}
+	if got := parseTranscript("unknown-agent", []byte(claude)); len(got) != 1 {
+		t.Errorf("unknown agent should fall back to claude parser: %+v", got)
 	}
 }
 

@@ -283,33 +283,40 @@ Implementation in `nvim/init.lua`: see helpers grouped under `is_dirty_history_s
 
 **Insert-mode-only auto-insert from mouse selection.** `bin/copy-on-select.sh` mirrors any selection to the OS clipboard; for selections outside the nvim pane it then triggers `PairPasteQuote` by sending Ctrl-_ (ASCII 31) to the focused nvim pane. The `<C-_>` keymap is bound **only in insert mode**, which is structurally the gate: when the user is in normal mode (e.g. browsing prompt history with Alt+←/→), Ctrl-_ hits nvim's near-no-op default and the buffer isn't mutated. The selection is still on the OS clipboard for manual paste. No mode-probing files or shell-side state needed.
 
-### Auto-orientation slug — `cmd/pair-slug`, Stop hook, nvim winbar (issue #000027)
+### Auto-orientation slug — `cmd/pair-slug`, pair-wrap trigger, nvim winbar (issue #000027)
 
 When juggling several pair tabs, the `=== comment ===` on draft line 1 (pinned
 to the winbar by `pair_pin_header`) tells you what a tab is about — but only if
 you remember to type it. This feature auto-maintains it. A **propose / dispose**
 split keeps the model out of the live buffer:
 
-- **Propose** — `cmd/pair-slug` (Go binary), invoked backgrounded from a Claude
-  Code `Stop` hook via the `bin/pair-slug-hook` wrapper (slurp stdin + detach so
-  the hook never blocks the prompt). It derives the left segment from the git
-  branch (`git -C <cwd>`, cwd from the hook JSON — keys the right repo per tab),
-  asks a small model (`$PAIR_SLUG_MODEL`, default `claude-haiku-4-5`) for the
-  `<focus>` right segment over a **user-biased** window of the transcript (a flat
-  tail is mostly assistant narration; `selectWindow` extends back to include
-  recent user turns), and writes a validated `=== <branch> | <focus> ===` to
-  `slug-proposed-<tag>`. Gates: KEEP (no material change), validate-or-keep-last,
-  left always stomped with the authoritative branch. Failures are non-fatal.
-- **Dispose** — nvim (M2, `nvim/slug.lua`) watches `slug-proposed-<tag>` and
-  applies it to draft line 1 only when safe (never touches the prompt below,
-  not mid-compose, user edits win), mirroring the effective line 1 back into
-  `slug-<tag>` — the `prev` the proposer reads next turn. Single writer per file
+- **Trigger** — `pair-wrap`'s turn-end detection (`emitOuter`, the agent-agnostic
+  notify sink: marker-regex for claude, idle/native OSC for codex/gemini). On
+  turn-end it spawns `pair-slug` in the background (debounced `slugDebounceS`,
+  `PAIR_AGENT` set, repo cwd inherited). This is agent-agnostic by design — *not*
+  a claude `Stop` hook — so the slug works for every agent and needs no
+  `~/.claude` config (pair-wrap wraps every session).
+- **Propose** — `cmd/pair-slug` (Go binary). Resolves its own transcript from
+  `config-<tag>-<agent>.json` (session_id) + the per-agent path, and parses each
+  **native format** into `{role,text}` turns: claude jsonl, codex rollout
+  (`response_item`/`payload.message`), gemini json (`messages[]`). Derives the
+  left from the git branch (`git -C <cwd>`); asks a small model (`$PAIR_SLUG_MODEL`,
+  default `claude-haiku-4-5`) for the `<focus>` right over a **user-biased**
+  window (`selectWindow` extends back past tool-only turns to include real user
+  prompts); writes a validated `=== <branch> | <focus> ===` to
+  `slug-proposed-<tag>`. Gates: KEEP keeps the focus but refreshes the left,
+  validate-or-keep-last, left always stomped with the authoritative branch.
+  `PAIR_SLUG_NESTED` breaks any recursion. Failures are non-fatal.
+- **Dispose** — nvim (`nvim/slug.lua`) watches `slug-proposed-<tag>` and applies
+  it to draft line 1 only when safe (never touches the prompt below, not
+  mid-compose, freeform no-pipe stays manual), mirroring the effective line 1
+  back into `slug-<tag>` — the `prev` the proposer reads next turn (so a user
+  edit reaches the model, soft policy). Single writer per file
   (proposer→`slug-proposed`, nvim→`slug-<tag>`) makes the channel race-free.
 
-Pure core (`cmd/pair-slug/slug.go`) is `go test`-covered; the nvim decision is a
-pure Lua module tested headless via `nvim -l`. Deployment: the `Stop` hook lives
-in pair's repo `.claude/settings.json` (fires when the agent's project is pair);
-global rollout for every peer-repo tab is follow-up.
+Pure cores are tested: `cmd/pair-slug/slug.go` (normalize/parse/decide) via
+`go test`, the nvim decision via `nvim -l` (`make test-lua`). Per-agent parsers
+validated against real codex/gemini transcripts.
 
 ## Quit / restart semantics
 
@@ -436,7 +443,7 @@ Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/pair-wrap-pid-<tag>` — single
 
 Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/image-capture-<tag>` + `image-capture-<tag>.done` — paired files driving the Alt+i image-marker pickup. On SIGUSR1, pair-wrap buffers bytes from the agent's PTY for `PAIR_WRAP_CAPTURE_S` seconds (default 0.2), then writes the buffer to the first file and touches the `.done` sentinel. nvim polls the sentinel (20ms cadence, 600ms cap), reads the buffer, strips ANSI, regex-matches the agent's image marker (claude `[Image #N]`, gemini `[Image N-M]`), and inserts it at cursor. Both files are removed by nvim after the pickup and by `cleanup_quit_marker` on Alt+x.
 
-Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/slug-proposed-<tag>` and `slug-<tag>` — the orientation-slug channel (issue #000027). `pair-slug` (Stop hook) writes the proposed `=== <branch> | <focus> ===` to `slug-proposed-<tag>` (atomic temp+rename); nvim applies it to draft line 1 and writes the effective line back to `slug-<tag>`, which is the `prev` the proposer reads next turn. Single writer each, so the channel is race-free.
+Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/slug-proposed-<tag>` and `slug-<tag>` — the orientation-slug channel (issue #000027). `pair-slug` (spawned by pair-wrap at turn-end) writes the proposed `=== <branch> | <focus> ===` to `slug-proposed-<tag>` (atomic temp+rename); nvim applies it to draft line 1 and writes the effective line back to `slug-<tag>`, which is the `prev` the proposer reads next turn. Single writer each, so the channel is race-free.
 
 **Migration from v1:** the launcher detects old `~/scratch/pair-{draft,log}-*.md` files on startup and moves them to the new XDG location, stripping the redundant `pair-` prefix from filenames.
 
