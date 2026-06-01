@@ -273,7 +273,7 @@ The status line shows position state:
 - **d/D** — drop the edit, proceed with the navigation.
 - **anything else (Enter, ESC, ...)** — Stay; cancel the navigation.
 
-`*` is preserved across navigation: when leaving `*`, its content is autosaved, so navigating into history/queue and back never destroys the draft. Sending from `-N` or `+N` also preserves `*` — the "clear the draft" semantic of `Alt+Return` only fires when the source slot was `*`.
+`*` is preserved across navigation: when leaving `*`, its content is autosaved, so navigating into history/queue and back never destroys the draft. Sending from `-N` preserves `*` (the "clear the draft" semantic of `Alt+Return` only fires when the source slot was `*`). **Sending from `+N` while `*` holds an in-progress draft parks that draft as a queue item (`push_front`) before shipping the selected item** — so `*` ends up empty (sent item's stickies + a fresh line) and the WIP survives as the new `+1`, rather than dangling at `*`. The selected item is resolved by its filename **key captured before** the enqueue, never by the display index: the `push_front` shifts every index by one, and removing by a stale index is what previously left the sent item in *both* `+N` and `-1` (duplication). Regression-guarded by `tests/queue-send-test.sh` (`make test-queue`). Empty / comment-only drafts have nothing to park, so that case is unchanged.
 
 **Queue store:** `queue-<tag>/` directory of one file per queued prompt. Filenames are 6-digit zero-padded sortable keys; sort order = display order (`+1` is the lowest key). New keys at `push_front` decrement the current min; `push_back` increments the current max. Initial midpoint at `500000` to leave room either way.
 

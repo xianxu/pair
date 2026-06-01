@@ -149,3 +149,21 @@ actually runs in a live pair session. To dogfood a change to a Go binary
 change seems inert, confirm the running binary: `lsof -p $(cat
 $PAIR_DATA_DIR/pair-wrap-pid-<tag>) | awk '$4=="txt"{print $NF}'`. Caught in
 #000027 M3 dogfood.
+
+## Queue items: resolve by filename key, not display index, across a mutation
+
+Sending from a future-queue slot (`+N`) while the draft `*` was non-empty left
+the sent item in BOTH the queue (`+N`) and history (`-1`). Root cause:
+`send_and_clear` resolved the item to remove via `queue_key_for_n(nav.pos.n)` —
+the *display index* — but the new "park the draft into the queue first"
+(`push_front`) step shifts every index by one. Resolving by the stale index
+then removed the wrong file (or `nil`), so the actually-sent item was logged to
+history but never deleted from the queue → duplication.
+
+**Rule.** A `+N` display index is only valid against the queue snapshot it was
+read from. The moment any queue mutation (`push_front`/`push_back`/remove) can
+intervene, capture the item's **filename key first** (`queue_key_for_n(n)` →
+`NNNNNN`), then mutate, then remove by that stable key. Keys don't move on
+insert; indices do. Verified the duplication via a headless driver
+(`nvim --headless -u nvim/init.lua` + `maparg().callback`) before fixing, and
+guarded it with `tests/queue-send-test.sh` (`make test-queue`).

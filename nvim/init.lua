@@ -1282,15 +1282,35 @@ local function send_and_clear()
   local stripped = strip_comments(body)
   if stripped:match('^%s*$') then return end
 
-  -- send-from-+N consumes that queue file. The buffer (possibly edited) is
-  -- what ships, and the queue slot vanishes.
-  local consumed_queue = false
-  if type(nav.pos) == 'table' and nav.pos.kind == 'queue' then
-    local key = queue_key_for_n(nav.pos.n)
-    if key then
-      queue_remove(key)
-      consumed_queue = true
+  local from_queue = (type(nav.pos) == 'table' and nav.pos.kind == 'queue')
+
+  -- send-from-+N consumes that queue file. Resolve the selected item by its
+  -- filename KEY *now*, before any queue mutation below. The key is a stable
+  -- identity; the display index (nav.pos.n) is not — enqueueing the draft
+  -- shifts every index by one. Removing by a stale index is the duplication
+  -- bug: queue_key_for_n then points at the wrong file (or nil), the selected
+  -- item never gets removed, and it ends up at both +N and -1.
+  local selected_key = from_queue and queue_key_for_n(nav.pos.n) or nil
+
+  -- Sending from the future queue while * holds an in-progress draft: park
+  -- that draft as a real queue item (front) rather than leaving it dangling
+  -- at *. The draft was autosaved to disk on the nav into the queue, so read
+  -- it from there. Push before the removal so it survives regardless of order;
+  -- keys don't move on insert, so selected_key stays valid. Comment-only /
+  -- empty drafts have nothing to park — skip them (mirrors the send no-op rule).
+  local enqueued_draft = false
+  if from_queue then
+    local star_body = read_file(draft_path_for_tag()) or ''
+    if not strip_comments(star_body):match('^%s*$') then
+      queue_push_front(star_body)
+      enqueued_draft = true
     end
+  end
+
+  local consumed_queue = false
+  if selected_key then
+    queue_remove(selected_key)
+    consumed_queue = true
   end
 
   local was_at_star = (nav.pos == '*')
@@ -1303,9 +1323,11 @@ local function send_and_clear()
   -- Return to *. The just-sent body's === lines become the new sticky set
   -- for *, regardless of which slot we sent from. When sent from -N or +N,
   -- *'s WIP non-comment content is preserved (only its old comments are
-  -- replaced) so we don't clobber a half-typed draft.
+  -- replaced) so we don't clobber a half-typed draft — UNLESS we just parked
+  -- that draft into the queue, in which case * is now empty and should reset
+  -- to the sent item's stickies + a fresh line (treat * as empty).
   nav.pos = '*'
-  local lines = apply_sticky_to_star(body, was_at_star)
+  local lines = apply_sticky_to_star(body, was_at_star or enqueued_draft)
   vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
   pcall(vim.api.nvim_win_set_cursor, 0, { #lines, 0 })
   -- Persist via :w so vim's b_mtime_read tracks the on-disk mtime. Writing
