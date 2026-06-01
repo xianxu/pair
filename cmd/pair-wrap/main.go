@@ -391,6 +391,10 @@ var codexPickerMarkers = []string{
 	// Generic picker footer observed in Codex blocking prompts. Keep as
 	// a fallback for picker variants that do not include cwd choices.
 	"Press enter to continue",
+
+	// Codex ask-user-question choices render the recommended option label
+	// inline, without the resume-CWD labels above.
+	"(Recommended)",
 }
 
 func detectClaudeOverlayOpen(_ *proxy, _ []byte, rolling []byte) (bool, string) {

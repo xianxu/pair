@@ -41,6 +41,13 @@ func TestOverlayDetectorByAgent(t *testing.T) {
 			wantMatch: "Press enter to continue",
 		},
 		{
+			name:      "codex request user input picker opens overlay",
+			agent:     "codex",
+			raw:       []byte("\x1b[7mUse saved params (Recommended)\x1b[0m"),
+			wantOpen:  true,
+			wantMatch: "(Recommended)",
+		},
+		{
 			name:     "codex normal textarea does not open overlay",
 			agent:    "codex",
 			raw:      []byte("+----------------------------------------+\r\n| > write a message                       |"),
