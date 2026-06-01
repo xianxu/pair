@@ -193,7 +193,9 @@ local function pair_pin_header()
     local info = vim.fn.getwininfo(vim.api.nvim_get_current_win())[1]
     local pad = string.rep(' ', (info and info.textoff) or 0)
     -- `%` is statusline-special; double it so the text renders literally.
-    vim.wo.winbar = pad .. first:gsub('%%', '%%%%')
+    -- Wrap in PairWinbar (DiffAdd green) so the pinned header is visually set
+    -- apart from the compose text below it.
+    vim.wo.winbar = '%#PairWinbar#' .. pad .. first:gsub('%%', '%%%%') .. '%*'
   else
     vim.wo.winbar = ''
   end
@@ -2154,6 +2156,15 @@ local function pair_apply_statusline_hl()
   vim.api.nvim_set_hl(0, 'PairAltKey', {
     fg      = special.fg,
     ctermfg = special.ctermfg,
+    bold    = true,
+  })
+  -- The pinned `===` header in the winbar gets DiffAdd's green so it reads as
+  -- a distinct "this is the header" band, set apart from the grey compose text
+  -- scrolling below it. Take just the fg (not bg/reverse like PairPosLabel) so
+  -- it's green text across the bar, not a full-width green block.
+  vim.api.nvim_set_hl(0, 'PairWinbar', {
+    fg      = diffadd.fg,
+    ctermfg = diffadd.ctermfg,
     bold    = true,
   })
 end
