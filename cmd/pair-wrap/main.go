@@ -381,6 +381,8 @@ func (p *proxy) emitOuter(msg string) {
 // the textarea." Used to suspend the textarea-aware Enter remap.
 const pickerOpenOSCBody = "notify;Claude Code;Claude needs your permission"
 
+const codexQuestionOSC9Prefix = "Plan mode prompt:"
+
 var codexPickerMarkers = []string{
 	// Codex 0.134.0 resume-CWD picker. Both labels are visible in the
 	// overlay; either is enough to know Enter should select, not insert
@@ -391,10 +393,6 @@ var codexPickerMarkers = []string{
 	// Generic picker footer observed in Codex blocking prompts. Keep as
 	// a fallback for picker variants that do not include cwd choices.
 	"Press enter to continue",
-
-	// Codex ask-user-question choices render the recommended option label
-	// inline, without the resume-CWD labels above.
-	"(Recommended)",
 }
 
 func detectClaudeOverlayOpen(_ *proxy, _ []byte, rolling []byte) (bool, string) {
@@ -407,7 +405,10 @@ func detectClaudeOverlayOpen(_ *proxy, _ []byte, rolling []byte) (bool, string) 
 	return false, ""
 }
 
-func detectCodexOverlayOpen(p *proxy, data, _ []byte) (bool, string) {
+func detectCodexOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
+	if open, reason := detectCodexQuestionOSC(rolling); open {
+		return true, reason
+	}
 	visible := stripTerminalControls(data)
 	if p != nil {
 		p.overlayMu.Lock()
@@ -416,6 +417,16 @@ func detectCodexOverlayOpen(p *proxy, data, _ []byte) (bool, string) {
 		p.overlayTextTail = textSuffix(visible, rollingTailLen)
 	}
 	return detectCodexOverlayText(visible)
+}
+
+func detectCodexQuestionOSC(rolling []byte) (bool, string) {
+	matches := oscRe.FindAllSubmatch(rolling, -1)
+	for _, m := range matches {
+		if len(m) >= 3 && string(m[1]) == "9" && strings.HasPrefix(string(m[2]), codexQuestionOSC9Prefix) {
+			return true, string(m[2])
+		}
+	}
+	return false, ""
 }
 
 func detectCodexOverlayText(visible string) (bool, string) {
