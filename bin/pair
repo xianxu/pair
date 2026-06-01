@@ -873,25 +873,6 @@ while IFS= read -r sess; do
     fi
 done <<< "$all_pair"
 
-# Compute the next-free numeric slot in the agent's family — pair-<base>,
-# then pair-<base>-2, ... — used as the prompt's default name on create. This
-# checks against ALL existing sessions (not just family) to avoid clobbering
-# anything that happens to share the slot's name.
-free_slot_tag=""
-i=1
-while [ "$i" -le 100 ]; do
-    if [ "$i" -eq 1 ]; then
-        cand="pair-${BASE_TAG}"
-    else
-        cand="pair-${BASE_TAG}-${i}"
-    fi
-    if ! zj list-sessions --short 2>/dev/null | grep -qx "$cand"; then
-        free_slot_tag="${cand#pair-}"
-        break
-    fi
-    i=$((i + 1))
-done
-
 # ── Historical tags from this cwd (#000024) ──────────────────────────────────
 # Surface tags named `$HISTORY_BASE` or `$HISTORY_BASE-*` that were touched
 # (draft / log mtime) within the last $HISTORY_DAYS days but no longer have a
@@ -903,7 +884,7 @@ done
 #
 # Scan strategy: walk draft-/log- sidecars (created/touched by nvim's
 # autosave and bin/pair's send-log), bucket per tag, take max mtime, filter
-# by cutoff, then dedup against the live set + free_slot_tag.
+# by cutoff, then dedup against the live set.
 
 scan_history() {
     local base="$1" cutoff="$2"
@@ -962,19 +943,50 @@ history_cutoff=$(( now_epoch - HISTORY_DAYS * 86400 ))
 # friendly — no assoc arrays). One tag per line, lookup via `grep -qx`.
 live_tags_nl=$(printf '%s\n' "$all_pair" | sed 's|^pair-||' | sort -u)
 
+# Capture the historical scan once. It feeds two things: the next-free create
+# slot (below) and the picker's "no live session" rows. Tags here have a recent
+# draft/log sidecar but may or may not still have a live zellij session.
+history_scan="$(scan_history "$HISTORY_BASE" "$history_cutoff")"
+historical_tags_nl=$(printf '%s\n' "$history_scan" | cut -f1 | sed '/^$/d' | sort -u)
+
+# Compute the next-free slot in the agent's family — pair-<base>, then
+# pair-<base>-2, ... — used as the "+ new" prompt's default name on create.
+# Skip any candidate that is live OR has recent history, so "+ new <tag>
+# session" always proposes a genuinely fresh name; an inactive pair-<base>
+# then surfaces as its own resumable "no live session" row below instead of
+# being folded into "+ new" (#000024 follow-up). Checks against ALL live
+# sessions (not just the family) to avoid clobbering a shared slot name.
+free_slot_tag=""
+i=1
+while [ "$i" -le 100 ]; do
+    if [ "$i" -eq 1 ]; then
+        cand="pair-${BASE_TAG}"
+    else
+        cand="pair-${BASE_TAG}-${i}"
+    fi
+    cand_tag="${cand#pair-}"
+    if ! zj list-sessions --short 2>/dev/null | grep -qx "$cand" \
+       && ! printf '%s\n' "$historical_tags_nl" | grep -qx "$cand_tag"; then
+        free_slot_tag="$cand_tag"
+        break
+    fi
+    i=$((i + 1))
+done
+
 historical_rows=()      # plain text — drives the fallback display + matching
 historical_colored=()   # age-graded grey — fzf display only
 while IFS=$'\t' read -r tag mtime; do
     [ -z "$tag" ] && continue
-    # Dedup against live sessions and the "+ new" slot.
+    # Dedup against live sessions only — free_slot_tag is guaranteed not to be
+    # a historical tag (the slot scan above skips history), so an inactive
+    # pair-<tag> now shows up here as its own resumable row.
     if printf '%s\n' "$live_tags_nl" | grep -qx "$tag"; then continue; fi
-    [ "$tag" = "$free_slot_tag" ] && continue
     age=$(format_age "$now_epoch" "$mtime")
     row="$(printf 'pair-%s  (%s, no live session)' "$tag" "$age")"
     historical_rows+=("$row")
     diff_days=$(( (now_epoch - mtime) / 86400 ))
     historical_colored+=("$(age_color "$diff_days")${row}"$'\033[0m')
-done < <(scan_history "$HISTORY_BASE" "$history_cutoff")
+done <<< "$history_scan"
 
 # Debug probe — `PAIR_DEBUG_HISTORY=1 pair` prints what the scan would have
 # surfaced and exits without launching zellij. Use this to verify the cwd-
