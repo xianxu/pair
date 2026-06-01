@@ -307,11 +307,13 @@ split keeps the model out of the live buffer:
   **native format** into `{role,text}` turns: claude jsonl, codex rollout
   (`response_item`/`payload.message`), gemini json (`messages[]`). Derives the
   left from the git branch (`git -C <cwd>`); asks a small model (`$PAIR_SLUG_MODEL`,
-  default `claude-haiku-4-5` via `claude -p`, or `gpt-5.4-mini` via OpenAI
-  Responses API when `PAIR_AGENT=codex`) for the `<focus>` right over a **user-biased**
+  default `claude-haiku-4-5` via `claude -p`, or `gpt-5.4-mini` when
+  `PAIR_AGENT=codex`) for the `<focus>` right over a **user-biased**
   window (`selectWindow` extends back past tool-only turns to include real user
-  prompts); writes a validated `=== <branch> | <focus> ===` to
-  `slug-proposed-<tag>`. Gates: KEEP keeps the focus but refreshes the left,
+  prompts). Codex uses the direct OpenAI Responses API when `OPENAI_API_KEY` is
+  exported; otherwise it shells through `codex exec` so subscription-authenticated
+  Codex CLI sessions still work. It writes a validated `=== <branch> | <focus> ===`
+  to `slug-proposed-<tag>`. Gates: KEEP keeps the focus but refreshes the left,
   validate-or-keep-last, left always stomped with the authoritative branch.
   `PAIR_SLUG_NESTED` breaks any recursion. Failures are non-fatal.
 - **Dispose** — nvim (`nvim/slug.lua`) watches `slug-proposed-<tag>` and applies
@@ -450,7 +452,7 @@ Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/pair-wrap-pid-<tag>` — single
 
 Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/image-capture-<tag>` + `image-capture-<tag>.done` — paired files driving the Alt+i image-marker pickup. On SIGUSR1, pair-wrap buffers bytes from the agent's PTY for `PAIR_WRAP_CAPTURE_S` seconds (default 0.2), then writes the buffer to the first file and touches the `.done` sentinel. nvim polls the sentinel (20ms cadence, 600ms cap), reads the buffer, strips ANSI, regex-matches the agent's image marker (claude `[Image #N]`, gemini `[Image N-M]`), and inserts it at cursor. Both files are removed by nvim after the pickup and by `cleanup_quit_marker` on Alt+x.
 
-Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/slug-proposed-<tag>` and `slug-<tag>` — the orientation-slug channel (issue #000027). `pair-slug` (spawned by pair-wrap at turn-end) writes the proposed `=== <branch> | <focus> ===` to `slug-proposed-<tag>` (atomic temp+rename); nvim applies it to draft line 1 and writes the effective line back to `slug-<tag>`, which is the `prev` the proposer reads next turn. For Codex, if `config-<tag>-codex.json` is missing, `pair-slug` can recover the live rollout by reading `agent-pid-<tag>`, walking descendants via `ps`, and checking their `lsof` paths for `~/.codex/sessions/.../rollout-*.jsonl`. Single writer each, so the channel is race-free.
+Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/slug-proposed-<tag>` and `slug-<tag>` — the orientation-slug channel (issue #000027). `pair-slug` (spawned by pair-wrap at turn-end) writes the proposed `=== <branch> | <focus> ===` to `slug-proposed-<tag>` (atomic temp+rename); nvim applies it to draft line 1 and writes the effective line back to `slug-<tag>`, which is the `prev` the proposer reads next turn. For Codex, if `config-<tag>-codex.json` is missing, `pair-slug` can recover the live rollout by reading `agent-pid-<tag>`, walking descendants via `ps`, and checking their `lsof` paths for `~/.codex/sessions/.../rollout-*.jsonl`. Codex model auth is API-key first, then Codex CLI subscription auth via `codex exec`. Single writer each, so the channel is race-free.
 
 **Migration from v1:** the launcher detects old `~/scratch/pair-{draft,log}-*.md` files on startup and moves them to the new XDG location, stripping the redundant `pair-` prefix from filenames.
 

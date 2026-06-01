@@ -17,7 +17,7 @@
 //	PAIR_SLUG_TRANSCRIPT      explicit transcript path, bypassing resolution
 //	                          (tests; also lets pair-wrap pass it directly)
 //	PAIR_SLUG_NESTED          set by the model child — makes pair-slug no-op
-//	OPENAI_API_KEY            required for Codex's OpenAI model path
+//	OPENAI_API_KEY            optional for Codex's direct OpenAI API path
 //	cwd                       the repo (inherited from pair-wrap) — branch left
 //
 // Failure mode: any error is non-fatal — logs to $PAIR_SLUG_LOG when set and
@@ -230,7 +230,10 @@ func defaultModel(agent string) string {
 // runModel invokes the small model for the active agent family.
 func runModel(agent, model, prompt, input string) (string, error) {
 	if agent == "codex" {
-		return runOpenAIModel(model, prompt, input)
+		if os.Getenv("OPENAI_API_KEY") != "" {
+			return runOpenAIModel(model, prompt, input)
+		}
+		return runCodexCLIModel(model, prompt, input)
 	}
 	return runClaudeModel(model, prompt, input)
 }
@@ -246,6 +249,41 @@ func runClaudeModel(model, prompt, input string) (string, error) {
 	cmd.Env = append(os.Environ(), "PAIR_SLUG_NESTED=1")
 	out, err := cmd.Output()
 	return string(out), err
+}
+
+// runCodexCLIModel invokes the authenticated Codex CLI path. This lets
+// subscription-authenticated Codex sessions generate slugs even when no
+// OPENAI_API_KEY is exported for direct API calls.
+func runCodexCLIModel(model, prompt, input string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), modelTimeout)
+	defer cancel()
+
+	f, err := os.CreateTemp("", "pair-slug-codex-*.txt")
+	if err != nil {
+		return "", err
+	}
+	outPath := f.Name()
+	_ = f.Close()
+	defer os.Remove(outPath)
+
+	cmd := exec.CommandContext(ctx, "codex", "exec",
+		"--model", model,
+		"--sandbox", "read-only",
+		"--skip-git-repo-check",
+		"--ephemeral",
+		"--output-last-message", outPath,
+		"-",
+	)
+	cmd.Stdin = strings.NewReader(prompt + "\n\n" + input)
+	cmd.Env = append(os.Environ(), "PAIR_SLUG_NESTED=1")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("codex exec failed: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	if b, err := os.ReadFile(outPath); err == nil && strings.TrimSpace(string(b)) != "" {
+		return string(b), nil
+	}
+	return string(out), nil
 }
 
 // runOpenAIModel invokes the Responses API directly. No SDK dependency: this
