@@ -1169,6 +1169,14 @@ vim.api.nvim_create_autocmd('BufReadPost', {
         pcall(vim.api.nvim_win_set_cursor, 0, { last, 0 })
         vim.cmd('normal! zb')
       end
+      -- Alt+/-then-Alt+b shortcut: the draft pane opened us with
+      -- PAIR_SCROLLBACK_JUMP set. Jump from the just-positioned cursor
+      -- exactly as a manual Alt+b/Alt+B would — same starting point, so
+      -- the shortcut is behaviourally identical to the two-key sequence.
+      local jump = vim.env.PAIR_SCROLLBACK_JUMP
+      if jump == 'prev' or jump == 'next' then
+        jump_to_prompt(jump)
+      end
     end)
   end,
 })

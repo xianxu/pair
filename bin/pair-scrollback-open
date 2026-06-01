@@ -13,7 +13,20 @@
 #   $PAIR_HOME      — pair install root (for nvim/scrollback.lua)
 #
 # Filed as #000017 M5.
+#
+# Optional `--jump prev|next`: open positioned on the previous / next user
+# prompt (as if the user pressed Alt+b / Alt+B right after Alt+/). Used by
+# the draft pane's Alt+b shortcut. Forwarded to the viewer via env so it
+# stays scoped to this one invocation (no sentinel file, no staleness).
 set -eu
+
+JUMP=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --jump) JUMP="${2:-}"; shift 2 ;;
+        *) shift ;;
+    esac
+done
 
 if [ -z "${PAIR_DATA_DIR:-}" ] || [ -z "${PAIR_TAG:-}" ] || [ -z "${PAIR_AGENT:-}" ]; then
     printf 'pair-scrollback-open: missing PAIR_DATA_DIR / PAIR_TAG / PAIR_AGENT\n' >&2
@@ -147,4 +160,7 @@ fi
 # kill-session and accumulate as a PPID=1 orphan — same shape as the draft
 # pane leak, but reachable via Alt+/ leaving the scrollback viewer open.
 export PAIR_NVIM_PID_FILE="$PAIR_DATA_DIR/nvim-pid-$PAIR_TAG-scrollback"
+# PAIR_SCROLLBACK_JUMP: scrollback.lua reads this after positioning and, if
+# set, jumps to the previous/next prompt — the Alt+/-then-Alt+b shortcut.
+export PAIR_SCROLLBACK_JUMP="$JUMP"
 exec nvim -u "$PAIR_HOME/nvim/scrollback.lua" "$ANSI"

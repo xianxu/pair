@@ -133,6 +133,17 @@ keybinds clear-defaults=false {
             Write 13;
         }
 
+        // Alt+j — toggle focus between the agent and draft panes. Works from
+        // *either* pane because it's a global zellij bind, intercepted before
+        // the focused pane's process (agent TUI or nvim) ever sees the key.
+        // pair's layout is always exactly two tiled panes, so FocusNextPane is
+        // a clean toggle with no direction to track — unlike zellij's default
+        // Alt+j (MoveFocus "Down"), which only reaches the draft and is a
+        // dead key once you're already there. This bind overrides that default.
+        bind "Alt j" {
+            FocusNextPane;
+        }
+
         // Alt+x — full quit: kill the session AND remove its entry from the
         // resurrect list (vs. Ctrl+q which keeps the session as a resurrect
         // candidate). Routed through nvim for a confirm prompt before the

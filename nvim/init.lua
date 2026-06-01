@@ -2918,12 +2918,32 @@ end
 -- itself reads vim.o.lines so it doesn't need this.
 layout_write('small')
 
+-- Alt+b — open the scrollback viewer already positioned on the previous
+-- user prompt. This is a one-key shortcut for "Alt+/ then Alt+b": it opens
+-- the same floating pane Alt+/ does (geometry mirrored from the Alt+/ bind
+-- in zellij/config.kdl), but passes `--jump prev` so pair-scrollback-open
+-- exports PAIR_SCROLLBACK_JUMP and nvim/scrollback.lua jumps to the prior
+-- prompt right after positioning — identical to pressing Alt+b inside the
+-- viewer. `zellij run` panes inherit the session env (PAIR_DATA_DIR etc.),
+-- so the script resolves its inputs the same way the Alt+/ Run does. The
+-- new floating pane takes focus, landing the user in the viewer.
+local function pair_scrollback_prev_prompt()
+  vim.fn.system({
+    'zellij', 'run', '--floating', '--close-on-exit', '--name', 'scrollback',
+    '--width', '100%', '--height', '100%', '--x', '0', '--y', '0',
+    '--', 'pair-scrollback-open', '--jump', 'prev',
+  })
+end
+
 -- ---------------------------------------------------------------------------
 -- keymaps
 -- ---------------------------------------------------------------------------
 
 vim.keymap.set({ 'n', 'i' }, '<M-CR>', send_and_clear,
   { silent = true, desc = 'pair: send buffer + clear' })
+
+vim.keymap.set({ 'n', 'i' }, '<M-b>', pair_scrollback_prev_prompt,
+  { silent = true, desc = 'pair: open scrollback on previous prompt (Alt+/ then Alt+b)' })
 
 vim.keymap.set({ 'n', 'i' }, '<M-i>', attach_image,
   { silent = true, desc = 'pair: attach clipboard image (Ctrl+V to agent + ref)' })
