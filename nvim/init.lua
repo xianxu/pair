@@ -2987,8 +2987,15 @@ vim.keymap.set({ 'n', 'i' }, '<S-M-Right>', function() nav_boundary( 1) end,
 vim.keymap.set({ 'n', 'i' }, '<M-q>', queue_current,
   { silent = true, desc = 'pair: queue current draft for later (back of queue)' })
 
-vim.keymap.set({ 'n', 'i' }, '<M-BS>', delete_current_queue_item,
+-- Normal mode: Alt+BS deletes the current +N queue item. Insert mode: Alt+BS
+-- mirrors Cmd+BS — kill from the cursor to the start of the line (<C-U>, the
+-- macOS Cocoa convention scrollback.lua already uses for <M-BS>/<M-Del>). The
+-- queue-delete gesture is normal-mode only; while typing, Alt+BS is line-kill
+-- even when parked on a +N item.
+vim.keymap.set('n', '<M-BS>', delete_current_queue_item,
   { silent = true, desc = 'pair: delete the current +N queue item' })
+vim.keymap.set('i', '<M-BS>', '<C-U>',
+  { silent = true, desc = 'pair: kill from cursor to line start' })
 
 vim.keymap.set({ 'n', 'i' }, '<S-M-BS>', forget_all,
   { silent = true, desc = 'pair: erase history + draft + queue (with confirm)' })
