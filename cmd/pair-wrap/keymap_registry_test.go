@@ -24,6 +24,8 @@ func TestSendKeymapByAgent_RegistrationTable(t *testing.T) {
 		"codex": {[]byte{'\n'}, []byte{'\r'}},
 		// gemini: same as codex (KKP disabled, legacy bytes).
 		"gemini": {[]byte{'\n'}, []byte{'\r'}},
+		// agy: same as codex/gemini.
+		"agy": {[]byte{'\n'}, []byte{'\r'}},
 	}
 	if len(sendKeymapByAgent) != len(want) {
 		t.Fatalf("sendKeymapByAgent has %d agents, want %d (%v)",
@@ -51,9 +53,9 @@ func TestSendKeymapByAgent_RegistrationTable(t *testing.T) {
 func TestTranslateChunk_GeminiKeymap(t *testing.T) {
 	p := &proxy{sendKM: sendKeymapByAgent["gemini"]}
 	cases := []struct{ in, want []byte }{
-		{[]byte("hi\r"), []byte("hi\n")},                                             // Enter → newline
-		{[]byte("hi\x1b\r"), []byte("hi\r")},                                         // Alt+Enter → send
-		{[]byte("a\rb\x1b\r"), []byte("a\nb\r")},                                     // both, same chunk
+		{[]byte("hi\r"), []byte("hi\n")},                                                 // Enter → newline
+		{[]byte("hi\x1b\r"), []byte("hi\r")},                                             // Alt+Enter → send
+		{[]byte("a\rb\x1b\r"), []byte("a\nb\r")},                                         // both, same chunk
 		{[]byte("\x1b[200~text\rmore\x1b[201~"), []byte("\x1b[200~text\rmore\x1b[201~")}, // paste untouched
 	}
 	for _, c := range cases {

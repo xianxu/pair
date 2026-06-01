@@ -144,6 +144,12 @@ var sendKeymapByAgent = map[string]sendKeymap{
 		plainCR: []byte{'\n'},
 		altCR:   []byte{'\r'},
 	},
+	"agy": {
+		// Antigravity (agy) follows the same Enter/Shift+Enter convention
+		// as codex/gemini.
+		plainCR: []byte{'\n'},
+		altCR:   []byte{'\r'},
+	},
 }
 
 type overlayDetector func(*proxy, []byte, []byte) (bool, string)
