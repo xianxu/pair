@@ -13,10 +13,11 @@
 //
 //	PAIR_TAG, PAIR_DATA_DIR   required; identify the session
 //	PAIR_AGENT                agent name (claude|codex|gemini); default claude
-//	PAIR_SLUG_MODEL           small-model override; default claude-haiku-4-5
+//	PAIR_SLUG_MODEL           small-model override; default depends on agent
 //	PAIR_SLUG_TRANSCRIPT      explicit transcript path, bypassing resolution
 //	                          (tests; also lets pair-wrap pass it directly)
 //	PAIR_SLUG_NESTED          set by the model child — makes pair-slug no-op
+//	OPENAI_API_KEY            required for Codex's OpenAI model path
 //	cwd                       the repo (inherited from pair-wrap) — branch left
 //
 // Failure mode: any error is non-fatal — logs to $PAIR_SLUG_LOG when set and
@@ -24,24 +25,29 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
 
 const (
-	recentTurns  = 12  // baseline recency window fed to the model
-	minUserTurns = 3   // extend back until the window holds this many user turns
-	hardMaxTurns = 40  // cap on how far back the user-turn extension reaches
-	perTurnChars = 500 // truncation per turn
-	defaultModel = "claude-haiku-4-5"
-	modelTimeout = 30 * time.Second // a hung model must not leave pair-slug resident
+	recentTurns        = 12  // baseline recency window fed to the model
+	minUserTurns       = 3   // extend back until the window holds this many user turns
+	hardMaxTurns       = 40  // cap on how far back the user-turn extension reaches
+	perTurnChars       = 500 // truncation per turn
+	defaultClaudeModel = "claude-haiku-4-5"
+	defaultOpenAIModel = "gpt-5.4-mini"
+	modelTimeout       = 30 * time.Second // a hung model must not leave pair-slug resident
 )
 
 // logf writes a diagnostic line to $PAIR_SLUG_LOG if set; otherwise silent.
@@ -95,6 +101,81 @@ func sessionID(dataDir, tag, agent string) string {
 	return c.SessionID
 }
 
+var codexRolloutRE = regexp.MustCompile(`^(.*/\.codex/sessions/.*/rollout-.*([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\.jsonl)$`)
+
+func processChildren() map[string][]string {
+	out, err := exec.Command("ps", "-axo", "pid=,ppid=").Output()
+	if err != nil {
+		return nil
+	}
+	children := make(map[string][]string)
+	for _, line := range strings.Split(string(out), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		pid, ppid := fields[0], fields[1]
+		children[ppid] = append(children[ppid], pid)
+	}
+	return children
+}
+
+func descendantPIDs(root string, children map[string][]string) []string {
+	if root == "" {
+		return nil
+	}
+	var out []string
+	seen := map[string]bool{root: true}
+	queue := []string{root}
+	for len(queue) > 0 {
+		pid := queue[0]
+		queue = queue[1:]
+		out = append(out, pid)
+		for _, child := range children[pid] {
+			if seen[child] {
+				continue
+			}
+			seen[child] = true
+			queue = append(queue, child)
+		}
+	}
+	return out
+}
+
+func lsofNames(pid string) []string {
+	out, err := exec.Command("lsof", "-p", pid, "-Fn").Output()
+	if err != nil {
+		return nil
+	}
+	var names []string
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.HasPrefix(line, "n") {
+			names = append(names, line[1:])
+		}
+	}
+	return names
+}
+
+func resolveLiveCodexTranscript(dataDir, tag, home string) string {
+	b, err := os.ReadFile(filepath.Join(dataDir, "agent-pid-"+tag))
+	if err != nil {
+		return ""
+	}
+	root := strings.TrimSpace(string(b))
+	if root == "" {
+		return ""
+	}
+	prefix := filepath.Join(home, ".codex", "sessions") + string(os.PathSeparator)
+	for _, pid := range descendantPIDs(root, processChildren()) {
+		for _, name := range lsofNames(pid) {
+			if strings.HasPrefix(name, prefix) && codexRolloutRE.MatchString(name) {
+				return name
+			}
+		}
+	}
+	return ""
+}
+
 // claudePathEncoder mirrors nvim's `cwd:gsub('[./]', '-')` for the
 // ~/.claude/projects/<encoded-cwd>/ directory name.
 var claudePathEncoder = strings.NewReplacer(".", "-", "/", "-")
@@ -139,10 +220,25 @@ func resolveTranscript(agent, sid, cwd, home string) string {
 	}
 }
 
-// runModel invokes the small model: `claude -p --model <m> <prompt>` with
-// input on stdin, returning raw stdout. The child inherits the env with
+func defaultModel(agent string) string {
+	if agent == "codex" {
+		return defaultOpenAIModel
+	}
+	return defaultClaudeModel
+}
+
+// runModel invokes the small model for the active agent family.
+func runModel(agent, model, prompt, input string) (string, error) {
+	if agent == "codex" {
+		return runOpenAIModel(model, prompt, input)
+	}
+	return runClaudeModel(model, prompt, input)
+}
+
+// runClaudeModel invokes `claude -p --model <m> <prompt>` with
+// input on stdin, returning raw stdout. The child inherits env with
 // PAIR_SLUG_NESTED=1 — a breaker against any recursion through the agent.
-func runModel(model, prompt, input string) (string, error) {
+func runClaudeModel(model, prompt, input string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), modelTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "claude", "-p", "--model", model, prompt)
@@ -150,6 +246,88 @@ func runModel(model, prompt, input string) (string, error) {
 	cmd.Env = append(os.Environ(), "PAIR_SLUG_NESTED=1")
 	out, err := cmd.Output()
 	return string(out), err
+}
+
+// runOpenAIModel invokes the Responses API directly. No SDK dependency: this
+// binary is spawned in the hot turn-end path, and a tiny JSON POST is enough.
+func runOpenAIModel(model, prompt, input string) (string, error) {
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		return "", fmt.Errorf("OPENAI_API_KEY is not set")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), modelTimeout)
+	defer cancel()
+	body := map[string]any{
+		"model":             model,
+		"instructions":      prompt,
+		"input":             input,
+		"max_output_tokens": 64,
+		"text": map[string]string{
+			"verbosity": "low",
+		},
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return "", err
+	}
+
+	baseURL := os.Getenv("PAIR_SLUG_OPENAI_BASE_URL")
+	if baseURL == "" {
+		baseURL = "https://api.openai.com"
+	}
+	url := strings.TrimRight(baseURL, "/") + "/v1/responses"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(raw))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("openai responses status %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
+	}
+	return responseText(respBody)
+}
+
+func responseText(data []byte) (string, error) {
+	var r struct {
+		OutputText string `json:"output_text"`
+		Output     []struct {
+			Type    string `json:"type"`
+			Content []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"output"`
+	}
+	if err := json.Unmarshal(data, &r); err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(r.OutputText) != "" {
+		return r.OutputText, nil
+	}
+	var parts []string
+	for _, item := range r.Output {
+		if item.Type != "message" {
+			continue
+		}
+		for _, c := range item.Content {
+			if (c.Type == "output_text" || c.Type == "text") && c.Text != "" {
+				parts = append(parts, c.Text)
+			}
+		}
+	}
+	if len(parts) == 0 {
+		return "", fmt.Errorf("openai response had no output text")
+	}
+	return strings.Join(parts, "\n"), nil
 }
 
 func main() {
@@ -174,11 +352,19 @@ func main() {
 	transcript := os.Getenv("PAIR_SLUG_TRANSCRIPT")
 	if transcript == "" {
 		sid := sessionID(dataDir, tag, agent)
-		if sid == "" {
+		if sid != "" {
+			transcript = resolveTranscript(agent, sid, cwd, home)
+		}
+		if transcript == "" && agent == "codex" {
+			transcript = resolveLiveCodexTranscript(dataDir, tag, home)
+			if transcript != "" {
+				logf("resolved live codex transcript without config: %s", transcript)
+			}
+		}
+		if transcript == "" && sid == "" {
 			logf("no session_id in config-%s-%s.json", tag, agent)
 			return
 		}
-		transcript = resolveTranscript(agent, sid, cwd, home)
 	}
 	if transcript == "" {
 		logf("could not resolve transcript for agent %q", agent)
@@ -204,11 +390,11 @@ func main() {
 
 	model := os.Getenv("PAIR_SLUG_MODEL")
 	if model == "" {
-		model = defaultModel
+		model = defaultModel(agent)
 	}
 	branchLeft := normalizeBranch(gitBranch(cwd), repoBase(cwd))
 
-	out, err := runModel(model, buildPrompt(branchLeft), buildModelInput(prev, turns))
+	out, err := runModel(agent, model, buildPrompt(branchLeft), buildModelInput(prev, turns))
 	if err != nil {
 		logf("model %q failed: %v", model, err)
 		return

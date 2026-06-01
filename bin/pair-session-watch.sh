@@ -96,18 +96,32 @@ if [ -z "$root_pid" ]; then
     legacy_existing=$(find "$watch_dir" "${find_args[@]}" 2>/dev/null | sort)
 fi
 
-# pid + descendants. Codex/gemini open the session file from the main
-# agent process by observation, so this is usually a 1-element list, but
-# the recursion is cheap insurance against helper-process forks.
+# pid + descendants. Codex/gemini may keep the session file open in a native
+# child below a JS launcher process. Use ps instead of pgrep -P: on macOS,
+# pgrep can miss children that ps still reports, which makes the PID-bound
+# discovery path inspect only the launcher and miss Codex's rollout fd.
 descendants() {
-    local pid="$1"
-    echo "$pid"
-    local kids
-    kids=$(pgrep -P "$pid" 2>/dev/null)
-    [ -z "$kids" ] && return
-    while IFS= read -r k; do
-        [ -n "$k" ] && descendants "$k"
-    done <<< "$kids"
+    local root="$1"
+    ps -axo pid=,ppid= 2>/dev/null | awk -v root="$root" '
+        { children[$2] = children[$2] " " $1 }
+        END {
+            queue[1] = root
+            seen[root] = 1
+            head = 1
+            tail = 1
+            while (head <= tail) {
+                p = queue[head++]
+                print p
+                n = split(children[p], kids, " ")
+                for (i = 1; i <= n; i++) {
+                    k = kids[i]
+                    if (k != "" && !seen[k]) {
+                        seen[k] = 1
+                        queue[++tail] = k
+                    }
+                }
+            }
+        }'
 }
 
 match_path() {

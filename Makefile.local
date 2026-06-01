@@ -92,6 +92,9 @@ $(BIN_DIR)/pair-scrollback-render: cmd/pair-scrollback-render/main.go go.mod
 $(BIN_DIR)/pair-wrap: cmd/pair-wrap/main.go go.mod
 	go build -o $@ ./cmd/pair-wrap
 
+$(BIN_DIR)/pair-slug: cmd/pair-slug/main.go cmd/pair-slug/slug.go go.mod
+	go build -o $@ ./cmd/pair-slug
+
 
 # Tart VM targets (tart, tart-gui, tart-mount, tart-stop, tart-clean)
 # live in .tart/Makefile, vendored from ariadne and auto-included by

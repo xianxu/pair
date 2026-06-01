@@ -1,6 +1,9 @@
 package main
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -141,5 +144,113 @@ func TestIntegrationNestedGuard(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dataDir, "slug-proposed-testtag")); !os.IsNotExist(err) {
 		t.Error("nested guard failed: a proposal was written")
+	}
+}
+
+func TestDescendantPIDsIncludesNestedChildren(t *testing.T) {
+	children := map[string][]string{
+		"10": {"11", "12"},
+		"11": {"13"},
+		"13": {"14"},
+	}
+	got := descendantPIDs("10", children)
+	want := []string{"10", "11", "12", "13", "14"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("descendantPIDs = %v, want %v", got, want)
+	}
+}
+
+func TestCodexRolloutPattern(t *testing.T) {
+	path := "/Users/x/.codex/sessions/2026/05/31/rollout-2026-05-31T21-36-56-019e8178-79c2-7862-91db-e8fa1be3b162.jsonl"
+	if !codexRolloutRE.MatchString(path) {
+		t.Fatalf("codexRolloutRE did not match %q", path)
+	}
+}
+
+func TestResolveLiveCodexTranscriptUsesDescendantLsof(t *testing.T) {
+	dataDir := t.TempDir()
+	home := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dataDir, "agent-pid-testtag"), []byte("10\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	path := filepath.Join(home, ".codex", "sessions", "2026", "05", "31",
+		"rollout-2026-05-31T21-36-56-019e8178-79c2-7862-91db-e8fa1be3b162.jsonl")
+	binDir := t.TempDir()
+	ps := "#!/bin/sh\nprintf ' 10 1\\n 11 10\\n'\n"
+	if err := os.WriteFile(filepath.Join(binDir, "ps"), []byte(ps), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	lsof := "#!/bin/sh\nif [ \"$2\" = \"11\" ]; then printf 'p11\\nn" + path + "\\n'; else printf 'p%s\\n' \"$2\"; fi\n"
+	if err := os.WriteFile(filepath.Join(binDir, "lsof"), []byte(lsof), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	oldPath := os.Getenv("PATH")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+oldPath)
+	got := resolveLiveCodexTranscript(dataDir, "testtag", home)
+	if got != path {
+		t.Fatalf("resolveLiveCodexTranscript = %q, want %q", got, path)
+	}
+}
+
+func TestDefaultModelByAgent(t *testing.T) {
+	if got := defaultModel("codex"); got != defaultOpenAIModel {
+		t.Fatalf("codex default model = %q, want %q", got, defaultOpenAIModel)
+	}
+	if got := defaultModel("claude"); got != defaultClaudeModel {
+		t.Fatalf("claude default model = %q, want %q", got, defaultClaudeModel)
+	}
+}
+
+func TestResponseTextParsesOutputTextConvenience(t *testing.T) {
+	got, err := responseText([]byte(`{"output_text":"=== pair | openai slug ==="}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "=== pair | openai slug ===" {
+		t.Fatalf("responseText = %q", got)
+	}
+}
+
+func TestResponseTextParsesOutputMessageContent(t *testing.T) {
+	raw := []byte(`{"output":[{"type":"message","content":[{"type":"output_text","text":"KEEP"}]}]}`)
+	got, err := responseText(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "KEEP" {
+		t.Fatalf("responseText = %q", got)
+	}
+}
+
+func TestRunOpenAIModelPostsResponsesRequest(t *testing.T) {
+	var reqBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/responses" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer test-key" {
+			t.Fatalf("Authorization = %q", got)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+			t.Fatal(err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"output":[{"type":"message","content":[{"type":"output_text","text":"=== pair | openai slug ==="}]}]}`))
+	}))
+	defer srv.Close()
+
+	t.Setenv("OPENAI_API_KEY", "test-key")
+	t.Setenv("PAIR_SLUG_OPENAI_BASE_URL", srv.URL)
+	got, err := runOpenAIModel("gpt-test-mini", "prompt", "input")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "=== pair | openai slug ===" {
+		t.Fatalf("runOpenAIModel = %q", got)
+	}
+	if reqBody["model"] != "gpt-test-mini" || reqBody["instructions"] != "prompt" || reqBody["input"] != "input" {
+		t.Fatalf("request body = %#v", reqBody)
 	}
 }
