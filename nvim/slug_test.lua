@@ -89,11 +89,16 @@ if vim and vim.api then
   -- empty buffer → slug on line 1 + blank prompt line below
   do
     local b = mkbuf({ '' })
+    vim.api.nvim_set_current_buf(b)
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
     M.apply(b, PROPOSED)
     local L = lines(b)
     eq(L[1], PROPOSED, 'empty: slug on line1')
     eq(L[2], '', 'empty: blank prompt line added')
     eq(#L, 2, 'empty: exactly two lines')
+    local c = vim.api.nvim_win_get_cursor(0)
+    eq(c[1], 2, 'empty: cursor moved to prompt line')
+    eq(c[2], 0, 'empty: cursor column reset')
   end
 
   -- freeform no-pipe line 1 → hold: buffer must NOT change (manual override)

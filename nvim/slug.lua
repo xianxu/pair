@@ -61,6 +61,10 @@ function M.apply(buf, proposed)
   vim.api.nvim_buf_set_lines(buf, 0, 1, false, { proposed })
   if was_empty then
     vim.api.nvim_buf_set_lines(buf, 1, 1, false, { '' })
+    local win = vim.fn.bufwinid(buf)
+    if win ~= -1 and vim.api.nvim_win_get_cursor(win)[1] == 1 then
+      vim.api.nvim_win_set_cursor(win, { 2, 0 })
+    end
   end
   return action, prev
 end

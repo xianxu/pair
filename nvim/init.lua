@@ -3329,14 +3329,17 @@ local function pair_slug_reconcile()
   if proposed == '' then return end
   local buf = pair_slug_draft_buf()
   if not buf then return end
-  -- Defer ONLY when the cursor is actually on line 1 — i.e. the user is
-  -- editing the slug itself — so the rewrite never lands under their cursor.
+  local line1 = (vim.api.nvim_buf_get_lines(buf, 0, 1, false))[1] or ''
+  -- Defer ONLY when the cursor is actually on a non-empty line 1 — i.e. the
+  -- user is editing the slug itself — so the rewrite never lands under their cursor.
+  -- Empty line 1 is initialization, not an edit-in-progress; apply immediately
+  -- and let slug.lua move the cursor to the blank prompt line below.
   -- The draft pane sits in insert mode almost permanently while composing on
   -- line 2+, so gating on insert-mode-at-all (the original check) deferred
   -- every live proposal forever; gating on the line-1 cursor is the real
   -- safety condition. Re-runs on InsertLeave/CursorMoved off line 1.
   local win = vim.fn.bufwinid(buf)
-  if win ~= -1 and vim.api.nvim_win_get_cursor(win)[1] == 1 then
+  if line1 ~= '' and win ~= -1 and vim.api.nvim_win_get_cursor(win)[1] == 1 then
     slug_pending = true
     return
   end

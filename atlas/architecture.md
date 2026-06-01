@@ -318,9 +318,11 @@ split keeps the model out of the live buffer:
   `PAIR_SLUG_NESTED` breaks any recursion. Failures are non-fatal.
 - **Dispose** — nvim (`nvim/slug.lua`) watches `slug-proposed-<tag>` and applies
   it to draft line 1 only when safe (never touches the prompt below, not
-  mid-compose, freeform no-pipe stays manual), mirroring the effective line 1
-  back into `slug-<tag>` — the `prev` the proposer reads next turn (so a user
-  edit reaches the model, soft policy). Single writer per file
+  mid-compose, freeform no-pipe stays manual). An empty draft is an initialization
+  case: nvim inserts the slug on line 1, adds a blank line 2, and moves the
+  cursor there so composition continues below the header. nvim mirrors the
+  effective line 1 back into `slug-<tag>` — the `prev` the proposer reads next
+  turn (so a user edit reaches the model, soft policy). Single writer per file
   (proposer→`slug-proposed`, nvim→`slug-<tag>`) makes the channel race-free.
 
 Pure cores are tested: `cmd/pair-slug/slug.go` (normalize/parse/decide) via
