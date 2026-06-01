@@ -393,6 +393,10 @@ var codexPickerMarkers = []string{
 	// Generic picker footer observed in Codex blocking prompts. Keep as
 	// a fallback for picker variants that do not include cwd choices.
 	"Press enter to continue",
+
+	// Quota/model-fallback picker footer observed when Codex suggests
+	// switching to a smaller model near rate limits.
+	"Press enter to confirm or esc to go back",
 }
 
 func detectClaudeOverlayOpen(_ *proxy, _ []byte, rolling []byte) (bool, string) {

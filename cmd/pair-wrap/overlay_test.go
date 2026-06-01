@@ -41,6 +41,13 @@ func TestOverlayDetectorByAgent(t *testing.T) {
 			wantMatch: "Press enter to continue",
 		},
 		{
+			name:      "codex quota model picker opens overlay",
+			agent:     "codex",
+			raw:       []byte("\x1b[2mPress enter to confirm or esc to go back\x1b[0m"),
+			wantOpen:  true,
+			wantMatch: "Press enter to confirm or esc to go back",
+		},
+		{
 			name:      "codex request user input OSC opens overlay",
 			agent:     "codex",
 			raw:       []byte("\x1b]9;Plan mode prompt: Probe\x07"),
