@@ -97,6 +97,26 @@ func TestTranslateChunk_CodexPickerPlainEnterSelectsOnce(t *testing.T) {
 	}
 }
 
+func TestArmCapture_CodexArmsImagePickerEnter(t *testing.T) {
+	p := &proxy{
+		agentBasename:  "codex",
+		sendKM:         sendKeymapByAgent["codex"],
+		captureOutPath: "capture",
+	}
+
+	p.armCapture()
+	if !p.pickerActive.Load() {
+		t.Fatal("pickerActive should be true after Codex image capture starts")
+	}
+	got := p.emitPlainCR(nil)
+	if want := []byte{'\r'}; !bytes.Equal(got, want) {
+		t.Fatalf("got %q, want bare CR for image picker confirm", got)
+	}
+	if p.pickerActive.Load() {
+		t.Fatal("pickerActive should clear after confirming Enter")
+	}
+}
+
 func TestCheckOverlayOpen_CodexDoesNotRedetectStalePickerText(t *testing.T) {
 	p := &proxy{agentBasename: "codex"}
 	rolling := []byte("Use session directory (/tmp/old)")

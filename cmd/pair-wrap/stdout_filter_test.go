@@ -14,6 +14,15 @@ func TestStdoutChunk_CodexStripsSynchronizedOutputMarkers(t *testing.T) {
 	}
 }
 
+func TestStdoutChunk_CodexStripsFocusEventMode(t *testing.T) {
+	p := &proxy{agentBasename: "codex"}
+
+	got := p.stdoutChunk([]byte("a\x1b[?1004hb\x1b[?1004lc"))
+	if want := []byte("abc"); !bytes.Equal(got, want) {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
 func TestStdoutChunk_CodexStripsSplitSynchronizedOutputMarkers(t *testing.T) {
 	p := &proxy{agentBasename: "codex"}
 

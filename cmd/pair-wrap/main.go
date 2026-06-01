@@ -450,6 +450,8 @@ func detectCodexOverlayText(visible string) (bool, string) {
 var codexSyncOutputMarkers = [][]byte{
 	[]byte("\x1b[?2026h"),
 	[]byte("\x1b[?2026l"),
+	[]byte("\x1b[?1004h"),
+	[]byte("\x1b[?1004l"),
 }
 
 func (p *proxy) stdoutChunk(data []byte) []byte {
@@ -770,6 +772,10 @@ func bytesEqual(a, b []byte) bool {
 func (p *proxy) armCapture() {
 	if p.captureOutPath == "" {
 		return
+	}
+	if p.agentBasename == "codex" && p.sendKM.plainCR != nil {
+		p.pickerActive.Store(true)
+		p.debug("PICKER-open", "codex: image capture")
 	}
 	p.captureMu.Lock()
 	defer p.captureMu.Unlock()
