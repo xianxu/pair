@@ -242,6 +242,11 @@ type proxy struct {
 	captureBuffer   []byte
 	captureDeadline time.Time
 	captureWindow   time.Duration
+
+	// stdoutPending carries a possible split escape sequence for the
+	// per-agent stdout filter. It affects only bytes written to zellij;
+	// raw scrollback capture and detection still see the original PTY data.
+	stdoutPending []byte
 }
 
 type spanEntry struct {
@@ -440,6 +445,50 @@ func detectCodexOverlayText(visible string) (bool, string) {
 		}
 	}
 	return false, ""
+}
+
+var codexSyncOutputMarkers = [][]byte{
+	[]byte("\x1b[?2026h"),
+	[]byte("\x1b[?2026l"),
+}
+
+func (p *proxy) stdoutChunk(data []byte) []byte {
+	if p.agentBasename != "codex" {
+		return data
+	}
+	return p.stripCodexSyncOutput(data)
+}
+
+func (p *proxy) stripCodexSyncOutput(data []byte) []byte {
+	if len(p.stdoutPending) > 0 {
+		combined := make([]byte, 0, len(p.stdoutPending)+len(data))
+		combined = append(combined, p.stdoutPending...)
+		combined = append(combined, data...)
+		data = combined
+		p.stdoutPending = nil
+	}
+
+	out := make([]byte, 0, len(data))
+	for i := 0; i < len(data); {
+		matched := false
+		for _, marker := range codexSyncOutputMarkers {
+			if startsWith(data[i:], marker) {
+				i += len(marker)
+				matched = true
+				break
+			}
+			if isPrefixOf(data[i:], marker) {
+				p.stdoutPending = append([]byte(nil), data[i:]...)
+				return out
+			}
+		}
+		if matched {
+			continue
+		}
+		out = append(out, data[i])
+		i++
+	}
+	return out
 }
 
 func stripTerminalControls(raw []byte) string {
@@ -1598,7 +1647,9 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 		p.maybeFinalizeEarly()
 	}
 
-	_, _ = os.Stdout.Write(data)
+	if out := p.stdoutChunk(data); len(out) > 0 {
+		_, _ = os.Stdout.Write(out)
+	}
 
 	if p.scrollbackFD != nil {
 		if wn, err := p.scrollbackFD.Write(data); err == nil {
