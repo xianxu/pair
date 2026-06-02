@@ -1,11 +1,12 @@
 ---
 id: 000041
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-01
 updated: 2026-06-01
 estimate_hours: 0.5
+actual_hours: 0.5
 ---
 
 # Fix pair-slug agy stdin transcript pollution
@@ -34,6 +35,8 @@ Remove the `cmd.Stdin` assignment from `runAgyModel` in `cmd/pair-slug/main.go` 
 
 ## Log
 
+
+- 2026-06-01: closed — pure bugfix: echo "hello" | agy -p "test" verified that agy executes stdin as prompts, and tests are green
 ### 2026-06-01
 
 - Removed `cmd.Stdin = strings.NewReader(input)` from `runAgyModel` in `cmd/pair-slug/main.go`.
