@@ -38,9 +38,9 @@ cwd="${3:-}"
 shift 3
 args=( "$@" )
 
-# Claude is fully handled at launch time. Codex and gemini need lsof.
+# Claude is fully handled at launch time. Codex, gemini and agy need lsof.
 case "$agent" in
-    codex|gemini) ;;
+    codex|gemini|agy) ;;
     *) exit 0 ;;
 esac
 
@@ -61,6 +61,10 @@ case "$agent" in
     gemini)
         watch_dir="$HOME/.gemini/tmp"
         find_args=(-type f -name 'session-*.json' -path '*/chats/*')
+        ;;
+    agy)
+        watch_dir="$HOME/.gemini/antigravity-cli/brain"
+        find_args=(-type f -name 'transcript.jsonl' -path '*/.system_generated/logs/*')
         ;;
 esac
 mkdir -p "$watch_dir"
@@ -137,6 +141,11 @@ match_path() {
                 "$HOME/.gemini/tmp/"*"/chats/session-"*".json") echo "$line" ;;
             esac
             ;;
+        agy)
+            case "$line" in
+                "$HOME/.gemini/antigravity-cli/brain/"*"/transcript.jsonl") echo "$line" ;;
+            esac
+            ;;
     esac
 }
 
@@ -153,6 +162,15 @@ extract_id() {
             # Gemini may create the file before flushing sessionId — empty
             # return is normal on early reads; outer loop retries.
             jq -r '.sessionId // empty' "$1" 2>/dev/null
+            ;;
+        agy)
+            # Path is like: ~/.gemini/antigravity-cli/brain/<uuid>/.system_generated/logs/transcript.jsonl
+            # The UUID is 3 directories up from the file name transcript.jsonl
+            local uuid
+            uuid=$(basename "$(dirname "$(dirname "$(dirname "$1")")")")
+            if [[ "$uuid" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+                echo "$uuid"
+            fi
             ;;
     esac
 }

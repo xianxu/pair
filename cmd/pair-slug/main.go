@@ -215,6 +215,9 @@ func resolveTranscript(agent, sid, cwd, home string) string {
 			return nil
 		})
 		return found
+	case "agy":
+		// ~/.gemini/antigravity-cli/brain/<sid>/.system_generated/logs/transcript.jsonl
+		return filepath.Join(home, ".gemini", "antigravity-cli", "brain", sid, ".system_generated", "logs", "transcript.jsonl")
 	default: // claude
 		return filepath.Join(home, ".claude", "projects", claudePathEncoder.Replace(cwd), sid+".jsonl")
 	}
@@ -235,6 +238,9 @@ func runModel(agent, model, prompt, input string) (string, error) {
 		}
 		return runCodexCLIModel(model, prompt, input)
 	}
+	if agent == "agy" {
+		return runAgyModel(prompt, input)
+	}
 	return runClaudeModel(model, prompt, input)
 }
 
@@ -246,6 +252,21 @@ func runClaudeModel(model, prompt, input string) (string, error) {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "claude", "-p", "--model", model, prompt)
 	cmd.Stdin = strings.NewReader(input)
+	cmd.Env = append(os.Environ(), "PAIR_SLUG_NESTED=1")
+	out, err := cmd.Output()
+	return string(out), err
+}
+
+// runAgyModel invokes `agy -p <prompt>` with the transcript input on stdin.
+// Setting Dir to os.TempDir() is crucial: it forces the agy agent loop to execute in
+// an empty sandbox directory, preventing it from discovering workspace files/projects
+// or triggering slow background tool executions.
+func runAgyModel(prompt, input string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), modelTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "agy", "-p", prompt)
+	cmd.Stdin = strings.NewReader(input)
+	cmd.Dir = os.TempDir()
 	cmd.Env = append(os.Environ(), "PAIR_SLUG_NESTED=1")
 	out, err := cmd.Output()
 	return string(out), err
