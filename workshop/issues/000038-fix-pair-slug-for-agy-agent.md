@@ -1,11 +1,12 @@
 ---
 id: 000038
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-01
 updated: 2026-06-01
 estimate_hours: 2
+actual_hours: 1.5
 ---
 
 # Fix pair-slug for agy agent
@@ -46,6 +47,8 @@ estimate_hours: 2
 
 ## Log
 
+
+- 2026-06-01: closed — All unit tests and Makefile targets build and pass successfully.
 ### 2026-06-01
 
 Created issue.
