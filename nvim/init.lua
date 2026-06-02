@@ -680,8 +680,14 @@ local function queue_key_for_n(n)
   return keys[n]
 end
 
+-- Check if Neovim has a UI attached (false indicates headless mode, e.g. tests)
+local function has_ui()
+  return #vim.api.nvim_list_uis() > 0
+end
+
 local function send_esc_to_agent()
   -- ESC = 0x1b = 27. Claude reads this as "interrupt current stream".
+  if not has_ui() then return end
   vim.fn.system('zellij action move-focus up')
   vim.fn.system('zellij action write 27')
   vim.fn.system('zellij action move-focus down')
@@ -713,6 +719,7 @@ local function send_to_agent(body)
   -- Alt+Enter is what pair-wrap rewrites into the agent's actual
   -- submit byte. Mirrors the keyboard convention we set up for the
   -- user (Enter = newline, Alt+Enter = send).
+  if not has_ui() then return end
   vim.fn.system('zellij action move-focus up')
   vim.fn.system({ 'zellij', 'action', 'write-chars', body })
   if body:find('\n') or #body > 200 then
@@ -1101,9 +1108,11 @@ local function attach_image()
     end
     -- Send Ctrl+V to the agent pane. Order is fixed: window must be open
     -- (above) before the bytes flow back, or we miss the marker.
-    vim.fn.system('zellij action move-focus up')
-    vim.fn.system('zellij action write 22')
-    vim.fn.system('zellij action move-focus down')
+    if has_ui() then
+      vim.fn.system('zellij action move-focus up')
+      vim.fn.system('zellij action write 22')
+      vim.fn.system('zellij action move-focus down')
+    end
     poll_capture(bufnr, ns, extmark_id, cap_path, done_path,
                  vim.loop.now(), PAIR_IMAGE_FIRST_POLL_MS)
   end)
@@ -2694,7 +2703,9 @@ function _G.PairConfirmDetach()
   pair_ensure_visible_then(function()
     local ans = vim.fn.confirm('Detach from this pair session?', '&Yes\n&No', 2)
     if ans == 1 then
-      vim.fn.system({ 'zellij', 'action', 'detach' })
+      if has_ui() then
+        vim.fn.system({ 'zellij', 'action', 'detach' })
+      end
     end
   end)
 end
@@ -2851,7 +2862,9 @@ local LAYOUT_BY_LEVEL = { 'minimized', 'small', 'half' }
 
 local function zellij_swap(direction)
   -- direction = 'next' or 'previous'
-  vim.fn.system({ 'zellij', 'action', direction .. '-swap-layout' })
+  if has_ui() then
+    vim.fn.system({ 'zellij', 'action', direction .. '-swap-layout' })
+  end
 end
 
 local function layout_step(from, to)
@@ -2878,7 +2891,9 @@ local function layout_goto(target)
     -- startinsert (for any expanded rung). Mirror that recovery here
     -- so the keystroke is a true no-op visually.
     if cur == 'minimized' then
-      vim.fn.system({ 'zellij', 'action', 'move-focus', 'up' })
+      if has_ui() then
+        vim.fn.system({ 'zellij', 'action', 'move-focus', 'up' })
+      end
     else
       vim.cmd('startinsert')
     end
@@ -2912,7 +2927,9 @@ local function layout_goto(target)
   -- but for any expanded rung the user is here to type — startinsert
   -- puts the buffer into insert mode automatically.
   if target == 'minimized' then
-    vim.fn.system({ 'zellij', 'action', 'move-focus', 'up' })
+    if has_ui() then
+      vim.fn.system({ 'zellij', 'action', 'move-focus', 'up' })
+    end
   else
     vim.cmd('startinsert')
   end

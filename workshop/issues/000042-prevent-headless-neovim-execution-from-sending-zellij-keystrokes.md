@@ -1,11 +1,12 @@
 ---
 id: 000042
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-01
 updated: 2026-06-01
 estimate_hours: 1
+actual_hours: 0.5
 ---
 
 # Prevent headless Neovim execution from sending Zellij keystrokes
@@ -24,20 +25,25 @@ Specifically:
 
 ## Done when
 
-- [ ] Neovim is running headlessly, no `zellij action` shell-outs are executed.
-- [ ] running `tests/queue-send-test.sh` inside Zellij no longer types characters into the live agent pane.
-- [ ] all existing tests pass.
+- [x] Neovim is running headlessly, no `zellij action` shell-outs are executed.
+- [x] running `tests/queue-send-test.sh` inside Zellij no longer types characters into the live agent pane.
+- [x] all existing tests pass.
 
 ## Plan
 
-- [ ] Define helper or guard `is_headless` in `nvim/init.lua`.
-- [ ] Guard `zellij` calls in `nvim/init.lua` against headless execution.
-- [ ] Run the test suite via `make test` and verify no inputs are queued in the active agent pane.
+- [x] Define helper or guard `is_headless` in `nvim/init.lua`.
+- [x] Guard `zellij` calls in `nvim/init.lua` against headless execution.
+- [x] Run the test suite via `make test` and verify no inputs are queued in the active agent pane.
 
 ## Log
 
+
+- 2026-06-01: closed — make test passes cleanly, headless nvim no longer types CCC/BBB/HELLO into live Zellij agent pane
 ### 2026-06-01
 
 - Discovered that the `tests/queue-send-test.sh` drives `nvim --headless` which executes `send_and_clear()` and in turn `send_to_agent()`.
 - Since it runs in the same Zellij session, `zellij action write-chars` targets the live session, causing `CCC/BBB/HELLO` to be typed into the agent pane.
 - Creating issue #000042 to address this.
+- Added a `has_ui()` helper in `nvim/init.lua` that checks if `#vim.api.nvim_list_uis() > 0`.
+- Wrapped/guarded all `zellij action` shell-outs inside `nvim/init.lua` with `has_ui()`.
+- Verified that all unit/integration tests (`make test`) compile and pass successfully, and that the active Zellij agent pane is no longer polluted by `CCC/BBB/HELLO` keystrokes when tests run.
