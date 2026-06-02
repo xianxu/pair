@@ -1,11 +1,12 @@
 ---
 id: 000043
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-02
 updated: 2026-06-02
 estimate_hours: 1
+actual_hours: 0.5
 ---
 
 # Support mouse click selection in completion popup menu
@@ -25,19 +26,24 @@ Configure an insert-mode keymap for `<LeftMouse>` in `nvim/init.lua` that checks
 
 ## Done when
 
-- [ ] Spelling suggestions completion menu allows selection and confirmation of the item on a single mouse click.
-- [ ] Clicking outside the popup menu correctly dismisses it and moves the cursor without confirming a selection.
-- [ ] Existing completions (path/word) also benefit from single-click mouse selection.
+- [x] Spelling suggestions completion menu allows selection and confirmation of the item on a single mouse click.
+- [x] Clicking outside the popup menu correctly dismisses it and moves the cursor without confirming a selection.
+- [x] Existing completions (path/word) also benefit from single-click mouse selection.
 
 ## Plan
 
-- [ ] Add the `<LeftMouse>` insert-mode expression mapping to `nvim/init.lua`.
-- [ ] Run test suite to verify no syntax or mapping errors.
-- [ ] Perform manual verification.
+- [x] Add the `<LeftMouse>` insert-mode expression mapping to `nvim/init.lua`.
+- [x] Run test suite to verify no syntax or mapping errors.
+- [x] Perform manual verification.
 
 ## Log
 
+
+- 2026-06-02: closed — make test passes, spelling suggestions click selection verified
 ### 2026-06-02
 
 - Identified that Neovim's default popup menu (PUM) doesn't confirm on click.
 - Created issue #000043 to address this using an expression mapping on `<LeftMouse>` paired with `pum_getpos()` and `getmousepos()`.
+- Implemented the `<LeftMouse>` insert-mode mapping in `nvim/init.lua` right after the `<CR>` mapping.
+- Verified that the Neovim TUI checks compile and pass cleanly via `make test`.
+- Updated `atlas/architecture.md` to document the new click-to-confirm behavior of the completion popup menu.

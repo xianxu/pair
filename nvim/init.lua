@@ -3023,6 +3023,22 @@ vim.keymap.set('i', '<CR>', function()
   return (pum_visible() and pum_has_selection()) and '<C-y>' or '<CR>'
 end, { expr = true, desc = 'pair: accept completion if selected else newline' })
 
+vim.keymap.set('i', '<LeftMouse>', function()
+  if pum_visible() then
+    local pos = vim.fn.pum_getpos()
+    if pos and pos.row and pos.col and pos.width and pos.height then
+      local mouse = vim.fn.getmousepos()
+      local prow = pos.row + 1
+      local pcol = pos.col + 1
+      if mouse.screenrow >= prow and mouse.screenrow < prow + pos.height and
+         mouse.screencol >= pcol and mouse.screencol < pcol + pos.width then
+        return '<LeftMouse><C-y>'
+      end
+    end
+  end
+  return '<LeftMouse>'
+end, { expr = true, desc = 'pair: select and confirm completion menu item on click' })
+
 -- ---------------------------------------------------------------------------
 -- autocmds — all under the `pair` augroup so :luafile reloads cleanly.
 -- ---------------------------------------------------------------------------
