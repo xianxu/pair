@@ -1,11 +1,12 @@
 ---
 id: 000039
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-01
 updated: 2026-06-01
 estimate_hours: 1
+actual_hours: 1
 ---
 
 # Bring agy agent to full capability parity
@@ -48,6 +49,8 @@ Complete the following validation and implementation:
 
 ## Log
 
+
+- 2026-06-01: closed — All 7 aspects are fully validated, headless Lua unit tests covering prompt patterns across all agents are implemented and fully green (make test passed)
 ### 2026-06-01
 
 - Guide created and linked in the atlas index.
