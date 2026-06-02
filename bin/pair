@@ -1476,6 +1476,7 @@ case "$AGENT" in
         prev=""
         for tok in $agent_extra; do
             if [ "$prev" = "--resume" ] || [ "$prev" = "--conversation" ]; then _argv_has_resume=1; break; fi
+            if [[ "$tok" =~ ^--conversation= ]]; then _argv_has_resume=1; break; fi
             prev="$tok"
         done
         ;;
@@ -1512,6 +1513,8 @@ if [ -f "$config_file" ] && [ $_argv_has_resume -eq 0 ]; then
     while [ $i -lt $n ]; do
         if [ "${saved_args[$i]}" = "--resume" ] || [ "${saved_args[$i]}" = "--conversation" ]; then
             i=$((i+2))
+        elif [[ "${saved_args[$i]}" =~ ^--conversation= ]]; then
+            i=$((i+1))
         else
             saved_args_clean+=("${saved_args[$i]}")
             i=$((i+1))
@@ -1652,6 +1655,8 @@ if [ -f "$config_file" ] && [ $_argv_has_resume -eq 0 ]; then
                 while [ $i -lt $n ]; do
                     if [ "${_new_base[$i]}" = "--resume" ] || [ "${_new_base[$i]}" = "--conversation" ]; then
                         i=$((i+2))
+                    elif [[ "${_new_base[$i]}" =~ ^--conversation= ]]; then
+                        i=$((i+1))
                     else
                         stripped+=("${_new_base[$i]}")
                         i=$((i+1))
@@ -1725,6 +1730,10 @@ case "$AGENT" in
                 explicit_resume="$tok"
                 break
             fi
+            if [[ "$tok" =~ ^--conversation=(.+) ]]; then
+                explicit_resume="${BASH_REMATCH[1]}"
+                break
+            fi
             prev="$tok"
         done
         ;;
@@ -1753,6 +1762,8 @@ if [ -n "$explicit_resume" ]; then
     while [ $i -lt $n ]; do
         if [ "${_eargs[$i]}" = "--resume" ] || [ "${_eargs[$i]}" = "--conversation" ]; then
             i=$((i+2))
+        elif [[ "${_eargs[$i]}" =~ ^--conversation= ]]; then
+            i=$((i+1))
         else
             _estripped+=("${_eargs[$i]}")
             i=$((i+1))

@@ -63,8 +63,8 @@ case "$agent" in
         find_args=(-type f -name 'session-*.json' -path '*/chats/*')
         ;;
     agy)
-        watch_dir="$HOME/.gemini/antigravity-cli/brain"
-        find_args=(-type f -name 'transcript.jsonl' -path '*/.system_generated/logs/*')
+        watch_dir="$HOME/.gemini/antigravity-cli/conversations"
+        find_args=(-type f -name '*.db')
         ;;
 esac
 mkdir -p "$watch_dir"
@@ -143,7 +143,7 @@ match_path() {
             ;;
         agy)
             case "$line" in
-                "$HOME/.gemini/antigravity-cli/brain/"*"/transcript.jsonl") echo "$line" ;;
+                "$HOME/.gemini/antigravity-cli/conversations/"*".db") echo "$line" ;;
             esac
             ;;
     esac
@@ -164,12 +164,12 @@ extract_id() {
             jq -r '.sessionId // empty' "$1" 2>/dev/null
             ;;
         agy)
-            # Path is like: ~/.gemini/antigravity-cli/brain/<uuid>/.system_generated/logs/transcript.jsonl
-            # The UUID is 3 directories up from the file name transcript.jsonl
-            local uuid
-            uuid=$(basename "$(dirname "$(dirname "$(dirname "$1")")")")
-            if [[ "$uuid" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
-                echo "$uuid"
+            # Path is like: ~/.gemini/antigravity-cli/conversations/<uuid>.db
+            # The UUID is the basename of the file without the .db extension.
+            local fn
+            fn=$(basename "$1" .db)
+            if [[ "$fn" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+                echo "$fn"
             fi
             ;;
     esac
