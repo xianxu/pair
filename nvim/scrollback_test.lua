@@ -82,15 +82,7 @@ if vim and vim.api then
     "> blockquote",        -- 4: no match
   }, { true, true, false, false })
 
-  -- 3. Test Gemini pattern
-  test_agent_pattern('gemini', {
-    " > hello",            -- 1: match
-    " > real prompt",      -- 2: match
-    "> blockquote",        -- 3: no match
-    "❯ hello",             -- 4: no match
-  }, { true, true, false, false })
-
-  -- 4. Test Agy pattern (including lookbehind rule)
+  -- 3. Test Agy pattern (including lookbehind rule)
   test_agent_pattern('agy', {
     "────────────────────────────────────────────────────────────",
     "> hello",             -- 2: match (preceded by horizontal rule)

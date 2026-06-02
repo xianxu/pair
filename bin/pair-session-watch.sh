@@ -18,9 +18,7 @@
 #             left to discover at runtime.
 #   codex   — open file under ~/.codex/sessions/.../rollout-*-<uuid>.jsonl.
 #             id = trailing UUID in filename.
-#   gemini  — open file under ~/.gemini/tmp/*/chats/session-*.json. Full
-#             id lives in the JSON body (filename only has an 8-char
-#             prefix); jq extracts `sessionId`.
+#
 #
 # The pidfile ($PAIR_DATA_DIR/agent-pid-<tag>) is dropped by pair-wrap
 # right after pty.Start; we wait briefly for it, then poll
@@ -38,9 +36,9 @@ cwd="${3:-}"
 shift 3
 args=( "$@" )
 
-# Claude is fully handled at launch time. Codex, gemini and agy need lsof.
+# Claude is fully handled at launch time. Codex and agy need lsof.
 case "$agent" in
-    codex|gemini|agy) ;;
+    codex|agy) ;;
     *) exit 0 ;;
 esac
 
@@ -58,10 +56,7 @@ case "$agent" in
         watch_dir="$HOME/.codex/sessions"
         find_args=(-type f -name 'rollout-*.jsonl')
         ;;
-    gemini)
-        watch_dir="$HOME/.gemini/tmp"
-        find_args=(-type f -name 'session-*.json' -path '*/chats/*')
-        ;;
+
     agy)
         watch_dir="$HOME/.gemini/antigravity-cli/conversations"
         find_args=(-type f -name '*.db')
@@ -72,7 +67,7 @@ mkdir -p "$watch_dir"
 # Wait up to 2s for pair-wrap to publish the agent PID. The wrapper
 # writes it synchronously after pty.Start so it's normally instant; if
 # it never appears (older pair-wrap binary that doesn't know about the
-# pidfile), drop to the legacy snapshot-diff path so codex/gemini
+# pidfile), drop to the legacy snapshot-diff path so codex/agy
 # capture keeps working until the user rebuilds pair-wrap.
 pid_deadline=$(( $(date +%s) + 2 ))
 while [ ! -s "$pid_file" ] && [ "$(date +%s)" -lt "$pid_deadline" ]; do
@@ -100,7 +95,7 @@ if [ -z "$root_pid" ]; then
     legacy_existing=$(find "$watch_dir" "${find_args[@]}" 2>/dev/null | sort)
 fi
 
-# pid + descendants. Codex/gemini may keep the session file open in a native
+# pid + descendants. Codex/agy may keep the session file open in a native
 # child below a JS launcher process. Use ps instead of pgrep -P: on macOS,
 # pgrep can miss children that ps still reports, which makes the PID-bound
 # discovery path inspect only the launcher and miss Codex's rollout fd.
@@ -136,11 +131,7 @@ match_path() {
                 "$HOME/.codex/sessions/"*"/rollout-"*".jsonl") echo "$line" ;;
             esac
             ;;
-        gemini)
-            case "$line" in
-                "$HOME/.gemini/tmp/"*"/chats/session-"*".json") echo "$line" ;;
-            esac
-            ;;
+
         agy)
             case "$line" in
                 "$HOME/.gemini/antigravity-cli/conversations/"*".db") echo "$line" ;;
@@ -158,11 +149,7 @@ extract_id() {
                 echo "${BASH_REMATCH[1]}"
             fi
             ;;
-        gemini)
-            # Gemini may create the file before flushing sessionId — empty
-            # return is normal on early reads; outer loop retries.
-            jq -r '.sessionId // empty' "$1" 2>/dev/null
-            ;;
+
         agy)
             # Path is like: ~/.gemini/antigravity-cli/conversations/<uuid>.db
             # The UUID is the basename of the file without the .db extension.

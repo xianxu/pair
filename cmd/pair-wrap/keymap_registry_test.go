@@ -9,7 +9,7 @@ import (
 // rewrite table. Adding the row for a new agent or accidentally
 // editing an existing one (typo in the byte literal, swapped fields)
 // is the kind of change that's easy to miss in review — claude /
-// codex / gemini each have their own ergonomics expectations and
+// codex / agy each have their own ergonomics expectations and
 // the wrong bytes silently breaks Enter / Shift+Enter for that
 // agent in production. Treat the table as a contract.
 func TestSendKeymapByAgent_RegistrationTable(t *testing.T) {
@@ -22,9 +22,7 @@ func TestSendKeymapByAgent_RegistrationTable(t *testing.T) {
 		"claude": {[]byte{'\\', '\r'}, []byte{'\r'}},
 		// codex: Enter = send (\r), Shift+Enter = newline (\n).
 		"codex": {[]byte{'\n'}, []byte{'\r'}},
-		// gemini: same as codex (KKP disabled, legacy bytes).
-		"gemini": {[]byte{'\n'}, []byte{'\r'}},
-		// agy: same as codex/gemini.
+		// agy: same as codex.
 		"agy": {[]byte{'\n'}, []byte{'\r'}},
 	}
 	if len(sendKeymapByAgent) != len(want) {
@@ -46,12 +44,12 @@ func TestSendKeymapByAgent_RegistrationTable(t *testing.T) {
 	}
 }
 
-// TestTranslateChunk_GeminiKeymap exercises the gemini row through
+// TestTranslateChunk_AgyKeymap exercises the agy row through
 // translateChunk so a typo in the registration table that happens to
 // pass the registry test (e.g. swapped fields) also gets caught at
 // the translation layer.
-func TestTranslateChunk_GeminiKeymap(t *testing.T) {
-	p := &proxy{sendKM: sendKeymapByAgent["gemini"]}
+func TestTranslateChunk_AgyKeymap(t *testing.T) {
+	p := &proxy{sendKM: sendKeymapByAgent["agy"]}
 	cases := []struct{ in, want []byte }{
 		{[]byte("hi\r"), []byte("hi\n")},                                                 // Enter → newline
 		{[]byte("hi\x1b\r"), []byte("hi\r")},                                             // Alt+Enter → send

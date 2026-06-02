@@ -708,7 +708,7 @@ local function send_to_agent(body)
   --
   -- Submit is Alt+Enter (ESC 0x1b, then CR 0x0d), not plain Enter:
   -- pair-wrap's stdin translator rewrites incoming \r into the agent's
-  -- "insert newline" sequence (claude: `\<Enter>`, codex/gemini: \n),
+  -- "insert newline" sequence (claude: `\<Enter>`, codex/agy: \n),
   -- so a bare CR here would insert a newline rather than submit.
   -- Alt+Enter is what pair-wrap rewrites into the agent's actual
   -- submit byte. Mirrors the keyboard convention we set up for the
@@ -823,7 +823,7 @@ end
 --
 -- The agent is the source of truth for the marker text — no local counter,
 -- no per-agent format hardcoded. Claude renders `[Image #N]` (sequential),
--- Gemini renders `[Image 12981-2312]` (non-consecutive); the same regex
+-- agy renders `[Image 12981-2312]` (non-consecutive); the same regex
 -- matches both.
 -- ---------------------------------------------------------------------------
 
@@ -2601,7 +2601,7 @@ end
 -- "(<age> old, <idle> idle)" — or nil if the file can't be found
 -- (uncaptured id, agent we don't have a path resolver for, etc.).
 -- Only called from the confirm modals, so the cost (one stat for
--- claude; a find for codex; a grep for gemini) is paid at most once
+-- claude; a find for codex) is paid at most once
 -- per Alt+x / Alt+n press.
 local function session_age_hint(agent, sid)
   if not sid or sid == '' then return nil end
@@ -2615,12 +2615,6 @@ local function session_age_hint(agent, sid)
   elseif agent == 'codex' then
     local cmd = 'find ' .. vim.fn.shellescape(home .. '/.codex/sessions')
       .. " -type f -name '*" .. sid .. "*.jsonl' 2>/dev/null | head -1"
-    local h = io.popen(cmd)
-    if h then path = h:read('*l'); h:close() end
-  elseif agent == 'gemini' then
-    local cmd = 'grep -rl --include="*.json" '
-      .. vim.fn.shellescape('"sessionId":"' .. sid .. '"') .. ' '
-      .. vim.fn.shellescape(home .. '/.gemini/tmp') .. ' 2>/dev/null | head -1'
     local h = io.popen(cmd)
     if h then path = h:read('*l'); h:close() end
   end

@@ -286,14 +286,11 @@ local MARKER_BOT = '\240\159\164\150'
 -- distinct leading glyph:
 --   claude — ❯  (U+276F, HEAVY RIGHT-POINTING ANGLE QUOTATION MARK)
 --   codex  — ›  (U+203A, SINGLE RIGHT-POINTING ANGLE QUOTATION MARK)
---   gemini — leading space + `>` (no glyph; matches the indented `> `
---            input row gemini renders below its border)
 -- Lookup falls back to claude's pattern so unknown agents still get a
 -- useful default.
 local PROMPT_PATTERN_BY_AGENT = {
   claude = [[^❯]],
   codex  = [[^›]],
-  gemini = [[^ >]],
   agy    = [[\(──.*\n\)\zs>]],
 }
 

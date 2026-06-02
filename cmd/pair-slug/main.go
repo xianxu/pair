@@ -1,7 +1,7 @@
 // pair-slug — propose an orientation slug for a pair tab.
 //
 // Spawned (backgrounded) by pair-wrap at turn-end — pair's agent-agnostic
-// notify point — so it works for claude/codex/gemini alike (issue #000027 M3,
+// notify point — so it works for claude/codex/agy alike (issue #000027 M3,
 // replacing the earlier claude-only Stop hook). It resolves its own transcript
 // from $PAIR_DATA_DIR/config-<tag>-<agent>.json (session_id) + the per-agent
 // path, parses the native format into turns, derives the left segment from the
@@ -12,7 +12,7 @@
 // Inputs (all env / filesystem — no stdin):
 //
 //	PAIR_TAG, PAIR_DATA_DIR   required; identify the session
-//	PAIR_AGENT                agent name (claude|codex|gemini); default claude
+//	PAIR_AGENT                agent name (claude|codex|agy); default claude
 //	PAIR_SLUG_MODEL           small-model override; default depends on agent
 //	PAIR_SLUG_TRANSCRIPT      explicit transcript path, bypassing resolution
 //	                          (tests; also lets pair-wrap pass it directly)
@@ -30,7 +30,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/fs"
 	"net/http"
 	"os"
 	"os/exec"
@@ -191,30 +190,6 @@ func resolveTranscript(agent, sid, cwd, home string) string {
 			return matches[0]
 		}
 		return ""
-	case "gemini":
-		// ~/.gemini/tmp/<project>/chats/session-*.json whose .sessionId == sid
-		var found string
-		root := filepath.Join(home, ".gemini", "tmp")
-		filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
-			if err != nil || found != "" {
-				return nil
-			}
-			if d.IsDir() || !strings.HasPrefix(d.Name(), "session-") || !strings.HasSuffix(d.Name(), ".json") {
-				return nil
-			}
-			b, e := os.ReadFile(p)
-			if e != nil {
-				return nil
-			}
-			var g struct {
-				SessionID string `json:"sessionId"`
-			}
-			if json.Unmarshal(b, &g) == nil && g.SessionID == sid {
-				found = p
-			}
-			return nil
-		})
-		return found
 	case "agy":
 		// ~/.gemini/antigravity-cli/brain/<sid>/.system_generated/logs/transcript.jsonl
 		return filepath.Join(home, ".gemini", "antigravity-cli", "brain", sid, ".system_generated", "logs", "transcript.jsonl")

@@ -1,7 +1,7 @@
 // pair main layout — top: TUI agent, bottom: nvim drafting pane.
 //
 // Agent, tag, and pair home resolved from environment at exec time:
-//   $PAIR_AGENT       — agent command to exec (claude, codex, gemini, ...)
+//   $PAIR_AGENT       — agent command to exec (claude, codex, agy, ...)
 //   $PAIR_AGENT_ARGS  — extra args after `--` on the pair command line
 //   $PAIR_TAG         — namespace ID for files (e.g. "claude" or "bugfix")
 //   $PAIR_HOME        — pair install location (for nvim init)
@@ -34,7 +34,7 @@ layout {
             //
             // The leading `zellij action rename-pane` overrides the
             // layout's literal pane name ("agent") with the agent's
-            // binary name (PAIR_PANE_TITLE — claude / codex / gemini),
+            // binary name (PAIR_PANE_TITLE — claude / codex / agy),
             // so the pane frame reads as that instead of the generic
             // "agent". `--pane-id $ZELLIJ_PANE_ID` is required because
             // `rename-pane` defaults to the focused pane, and the

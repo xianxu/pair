@@ -137,16 +137,9 @@ var sendKeymapByAgent = map[string]sendKeymap{
 		plainCR: []byte{'\n'},
 		altCR:   []byte{'\r'},
 	},
-	"gemini": {
-		// Same Enter/Shift+Enter convention as codex. Gemini explicitly
-		// disables KKP at startup (\x1b[?0u) so all special keys arrive
-		// as legacy bytes; the row is identical to codex's.
-		plainCR: []byte{'\n'},
-		altCR:   []byte{'\r'},
-	},
 	"agy": {
 		// Antigravity (agy) follows the same Enter/Shift+Enter convention
-		// as codex/gemini.
+		// as codex.
 		plainCR: []byte{'\n'},
 		altCR:   []byte{'\r'},
 	},
@@ -348,7 +341,7 @@ func (p *proxy) emitOuter(msg string) {
 	}
 	// Turn-end is also when the orientation slug should refresh (#000027).
 	// This is pair's agent-agnostic notify sink (marker/idle/native all land
-	// here), so it works for claude/codex/gemini alike — no claude Stop hook.
+	// here), so it works for claude/codex/agy alike — no claude Stop hook.
 	p.maybeSpawnSlug()
 	now := time.Now()
 	if !p.lastEmit.IsZero() && now.Sub(p.lastEmit) < rateLimitS {
@@ -1420,7 +1413,7 @@ argsDone:
 	// Drop the agent's PID so pair-session-watch.sh can bind discovery to
 	// this specific child (lsof -p <pid>) instead of racing peers in the
 	// shared session dir. Best-effort: a failed write only degrades the
-	// session-id capture for codex/gemini; claude doesn't need it.
+	// session-id capture for codex/agy; claude doesn't need it.
 	if p.agentPIDPath != "" {
 		if err := os.WriteFile(p.agentPIDPath, []byte(strconv.Itoa(cmd.Process.Pid)), 0644); err != nil {
 			p.debug("AGENT-PID-write-fail", err.Error())

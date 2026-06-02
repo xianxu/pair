@@ -34,7 +34,7 @@ func TestCheckOverlayOpen_WaitingForInputDoesNotFlip(t *testing.T) {
 // TestCheckOverlayOpen_AgentsWithoutDetectorSkipped pins the agent-gate:
 // agents without an overlay detector must ignore Claude's OSC body.
 func TestCheckOverlayOpen_AgentsWithoutDetectorSkipped(t *testing.T) {
-	for _, name := range []string{"gemini", ""} {
+	for _, name := range []string{"agy", ""} {
 		p := &proxy{agentBasename: name}
 		checkOverlayBytes(p, []byte("\x1b]777;"+pickerOpenOSCBody+"\x07"))
 		if p.pickerActive.Load() {

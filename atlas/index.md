@@ -1,6 +1,6 @@
 # pair atlas
 
-`pair` is a small launcher that gives any TUI coding agent (Claude Code, Codex, Gemini CLI) a Neovim-backed input field, decoupling the input scroll from the output scroll inside a zellij session.
+`pair` is a small launcher that gives any TUI coding agent (Claude Code, Codex, Antigravity) a Neovim-backed input field, decoupling the input scroll from the output scroll inside a zellij session.
 
 ## Map
 

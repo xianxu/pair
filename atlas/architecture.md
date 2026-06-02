@@ -14,7 +14,7 @@ bin/clipboard-to-pane.sh     # read clipboard, hand off to nvim's PairPasteQuote
 bin/copy-on-select.sh        # invoked by zellij copy_command on mouse-up
 bin/pair-quit.sh             # invoked by Alt+x — marks + kills session
 bin/pair-restart.sh          # invoked by Alt+n / Shift+Alt+N — marks (quit + restart) + kills session
-bin/pair-session-watch.sh    # captures codex/gemini session id at create time (#000016, #000020)
+bin/pair-session-watch.sh    # captures codex/agy session id at create time (#000016, #000020)
 bin/pair-wrap                # PTY proxy: OSC translation + scrollback capture
 bin/pair-notify              # hook-driven OSC notifier (e.g. claude Notification)
 bin/pair-scrollback-render   # raw PTY capture → ANSI-colored line dump (#000017)
@@ -54,8 +54,8 @@ Detection of attached-vs-detached uses `zellij --session NAME action list-client
 
 **Reload / restart in place (Alt+n, Shift+Alt+N).** A second marker, `~/.cache/pair/restart-<session>`, is written alongside `quit-` by `bin/pair-restart.sh`, carrying the agent name + a `new_session` flag. After cleanup_quit_marker tears the session down, `handle_restart_marker` reads the marker and `exec`s pair on itself with `PAIR_FORCE_TAG=<same-tag>` set in the env (pins the new run to the killed session's tag, skipping both the picker and the name prompt). The flag controls what happens to the saved config:
 
-- `new_session=0` (Alt+n) — keep `config-<tag>-<agent>.json`. Append the agent-appropriate resume token to the re-exec'd argv: `--resume <id>` for claude/gemini, `resume <id>` for codex. Result: pure pair reload — same tag, same draft, same agent conversation. Useful after a binary or config rebuild.
-- `new_session=1` (Shift+Alt+N) — drop `config-<tag>-<agent>.json` so the next launch's claude `--session-id` injection (or the codex/gemini watcher) writes a brand-new entry. Result: fresh agent conversation, same tag and draft.
+- `new_session=0` (Alt+n) — keep `config-<tag>-<agent>.json`. Append the agent-appropriate resume token to the re-exec'd argv: `--resume <id>` for claude, `resume <id>` for codex, `--conversation <id>` for agy. Result: pure pair reload — same tag, same draft, same agent conversation. Useful after a binary or config rebuild.
+- `new_session=1` (Shift+Alt+N) — drop `config-<tag>-<agent>.json` so the next launch's claude `--session-id` injection (or the codex/agy watcher) writes a brand-new entry. Result: fresh agent conversation, same tag and draft.
 
 The picker is bypassed in either flavor — Alt+n's argv carries an explicit resume token, and Shift+Alt+N has no saved config to pick against.
 
@@ -137,7 +137,7 @@ Alt+x leaves the draft, queue, and history intact — the next session resumes t
 
      **Stdin raw mode.** The wrapper switches its stdin (zellij's pane PTY) into termios raw mode for the duration. Without this the kernel's line discipline does local echo + canonical buffering on the bytes flowing toward the wrapped TUI, which double-echoes keystrokes and corrupts terminal-response sequences. Saved/restored in a `finally` block.
 
-     **Stdin Enter remap (per-agent).** `sendKeymapByAgent` (`cmd/pair-wrap/main.go`) translates the user's Enter / Alt+Enter to per-agent send/newline bytes so the convention matches pair's nvim draft pane (Enter = newline, Alt+Enter = send). For `claude` the user's plain Enter becomes `\<CR>` (claude's portable "insert newline" sequence); Alt+Enter becomes a bare `\r` (send). For Codex / Gemini, pair sends LF for plain Enter (their newline gesture) and CR for Alt+Enter (send). Opt out with `PAIR_WRAP_REMAP_RETURN=0`.
+     **Stdin Enter remap (per-agent).** `sendKeymapByAgent` (`cmd/pair-wrap/main.go`) translates the user's Enter / Alt+Enter to per-agent send/newline bytes so the convention matches pair's nvim draft pane (Enter = newline, Alt+Enter = send). For `claude` the user's plain Enter becomes `\<CR>` (claude's portable "insert newline" sequence); Alt+Enter becomes a bare `\r` (send). For Codex / agy, pair sends LF for plain Enter (their newline gesture) and CR for Alt+Enter (send). Opt out with `PAIR_WRAP_REMAP_RETURN=0`.
 
      **Stdout filtering (Codex).** Codex inline mode emits DEC synchronized-output markers (`ESC[?2026h` / `ESC[?2026l`) around frequent redraw batches. It can also enable terminal focus-event mode (`ESC[?1004h`) even though pair/zellij do not use focus events for the agent pane. `pair-wrap` strips those markers from the stdout stream sent to zellij, because zellij scrollback/mouse scrolling can behave poorly while a pane is in synchronized-output or extra terminal-event modes during generation. The raw scrollback log remains unfiltered so forensic replay still captures the agent's original PTY stream.
 
@@ -222,7 +222,7 @@ Loaded via `nvim -u`, fully isolated from the user's main nvim config. Provides:
 - `<M-b>` — `pair_scrollback_prev_prompt`: open the scrollback viewer already positioned on the previous agent-conversation prompt — a one-key shortcut for `Alt+/` then `Alt+b`. Shells out `zellij run --floating … -- pair-scrollback-open --jump prev`. See the scrollback section's "Jump-on-open shortcut".
 - `<M-q>` — push the current buffer to the front of the queue. From `*` also clears `*`; from `+N` it's move-to-front (removes the source queue file).
 - `<M-BS>` — delete the current `+N` queue item without sending; "stay-near" behavior (items behind shift down, position label keeps its number, so the next item is now under the cursor for repeat-delete). No-op from `*` or `-N`.
-- `<M-i>` (Alt+i, normal+insert) — `attach_image`: capture-driven image attach. 1) Verify the OS clipboard holds image data (macOS: AppleScript `clipboard info` enumerates `PNGf`/`TIFF`/etc.; Linux: `wl-paste --list-types` or `xclip -t TARGETS`) — if not, flash `[no image in clipboard]` as inline virt_text for 1s and bail. 2) Read pair-wrap's pid from `$DATA_DIR/pair-wrap-pid-<tag>` (notify+abort if missing/dead, since pair-wrap is the whole agent I/O path). 3) `kill -USR1 <pid>` to arm a ~200ms capture window in pair-wrap, then `zellij action write 22` to send Ctrl+V to the agent pane. 4) Poll `image-capture-<tag>.done` (20ms cadence, 600ms cap); on hit, read `image-capture-<tag>`, strip ANSI, regex `%[Image[ #][^%]]+%]` (matches both claude's `[Image #N]` and gemini's `[Image N-M]`) and insert the captured marker verbatim at cursor. The agent is the source of truth for the marker text — no local counter, no per-agent format hardcoded.
+- `<M-i>` (Alt+i, normal+insert) — `attach_image`: capture-driven image attach. 1) Verify the OS clipboard holds image data (macOS: AppleScript `clipboard info` enumerates `PNGf`/`TIFF`/etc.; Linux: `wl-paste --list-types` or `xclip -t TARGETS`) — if not, flash `[no image in clipboard]` as inline virt_text for 1s and bail. 2) Read pair-wrap's pid from `$DATA_DIR/pair-wrap-pid-<tag>` (notify+abort if missing/dead, since pair-wrap is the whole agent I/O path). 3) `kill -USR1 <pid>` to arm a ~200ms capture window in pair-wrap, then `zellij action write 22` to send Ctrl+V to the agent pane. 4) Poll `image-capture-<tag>.done` (20ms cadence, 600ms cap); on hit, read `image-capture-<tag>`, strip ANSI, regex `%[Image[ #][^%]]+%]` (matches both claude's `[Image #N]` and agy's `[Image N-M]`) and insert the captured marker verbatim at cursor. The agent is the source of truth for the marker text — no local counter, no per-agent format hardcoded.
 - `PairPasteQuote()` (global, called from `bin/clipboard-to-pane.sh` via `:lua PairPasteQuote()`): reads the raw selection from `$PAIR_DATA_DIR/quote-<tag>` and dispatches on cursor column.
   - **col == 0 (`paste_as_quote`)**: par-reflow with width 1000, prefix every line with `> `; if the cursor's line is empty, replace it, else insert above (existing line slides down); scroll first inserted line to top via `zt`; cursor on a single empty line directly below the block in insert mode; flash the quoted lines with `IncSearch` (full-line, per-line `nvim_buf_add_highlight`).
   - **col > 0 (`paste_inline`)**: par-reflow (so hard-wrapped sources collapse to one continuous run, paragraph breaks preserved), insert at the cursor via `nvim_buf_set_text` (handles multi-line splits); cursor at the end of the inserted span in insert mode; no scroll; flash the inserted span with a single multi-line extmark.
@@ -297,7 +297,7 @@ you remember to type it. This feature auto-maintains it. A **propose / dispose**
 split keeps the model out of the live buffer:
 
 - **Trigger** — `pair-wrap`'s turn-end detection (`emitOuter`, the agent-agnostic
-  notify sink: marker-regex for claude, idle/native OSC for codex/gemini). On
+  notify sink: marker-regex for claude, idle/native OSC for codex/agy). On
   turn-end it spawns `pair-slug` in the background (debounced `slugDebounceS`,
   `PAIR_AGENT` set, repo cwd inherited). This is agent-agnostic by design — *not*
   a claude `Stop` hook — so the slug works for every agent and needs no
@@ -305,7 +305,7 @@ split keeps the model out of the live buffer:
 - **Propose** — `cmd/pair-slug` (Go binary). Resolves its own transcript from
   `config-<tag>-<agent>.json` (session_id) + the per-agent path, and parses each
   **native format** into `{role,text}` turns: claude jsonl, codex rollout
-  (`response_item`/`payload.message`), gemini json (`messages[]`). Derives the
+  (`response_item`/`payload.message`), agy jsonl (USER_INPUT transcript). Derives the
   left from the git branch (`git -C <cwd>`); asks a small model (`$PAIR_SLUG_MODEL`,
   default `claude-haiku-4-5` via `claude -p`, or `gpt-5.4-mini` when
   `PAIR_AGENT=codex`) for the `<focus>` right over a **user-biased**
@@ -327,7 +327,7 @@ split keeps the model out of the live buffer:
 
 Pure cores are tested: `cmd/pair-slug/slug.go` (normalize/parse/decide) via
 `go test`, the nvim decision via `nvim -l` (`make test-lua`). Per-agent parsers
-validated against real codex/gemini transcripts.
+validated against real codex/agy transcripts.
 
 ## Quit / restart semantics
 
@@ -335,7 +335,7 @@ Four ways to end (or refresh) a session, with different aftermath:
 
 - **Alt+d** — detach. The session keeps running (claude/nvim processes alive); `pair` surfaces it in the picker for re-attach.
 - **Alt+x** — full quit. Kills the session AND removes the resurrect entry. After Alt+x, the session is fully gone (but the `config-<tag>-<agent>.json` survives, so `pair resume <tag>` later replays the saved launch args + agent session id).
-- **Alt+n** — reload pair. Kills the session AND keeps the saved `config-<tag>-<agent>.json` AND re-launches pair on the same tag with the same agent + args + agent session: the conversation resumes via `--resume <id>` (claude/gemini) or `resume <id>` (codex). Pair itself is the only thing that restarts — useful after a binary or config rebuild.
+- **Alt+n** — reload pair. Kills the session AND keeps the saved `config-<tag>-<agent>.json` AND re-launches pair on the same tag with the same agent + args + agent session: the conversation resumes via `--resume <id>` (claude) or `resume <id>` (codex) or `--conversation <id>` (agy). Pair itself is the only thing that restarts — useful after a binary or config rebuild.
 - **Shift+Alt+N** — restart with a fresh agent conversation. Same as Alt+n but drops `config-<tag>-<agent>.json` first, so the relaunched agent starts a brand-new session.
 
 Mechanically Alt+n and Shift+Alt+N share two markers (`quit-` + `restart-`) plus a `PAIR_FORCE_TAG` env var on re-exec; the restart marker carries a `new_session` flag that selects the keep-vs-drop branch. See the launcher's "Reload / restart in place" section.
@@ -353,7 +353,7 @@ A pair *tag* is a durable identity for a coding session: it survives Alt+d (deta
 1. **Pre-write at launch (`bin/pair`).** Two paths:
    - `--resume <id>` / `resume <id>` explicit on argv: pair writes `config-<tag>-<agent>.json` directly with that id, before zellij launch.
    - **Claude fresh launch (issue #000020):** claude supports `--session-id <uuid>`, so on the new-session path pair generates a v4 UUID, injects the flag into the agent argv, and writes the config synchronously *before* spawning the watcher. The id is deterministic from the launcher's perspective, so the watcher is a no-op for claude — and the cross-tag race that existed when two pair sessions shared a cwd is structurally eliminated.
-2. **Watcher (`bin/pair-session-watch.sh`, codex/gemini/agy only).** Spawned in the background by `bin/pair` on the create path, right before the zellij launch. Two discovery paths:
+2. **Watcher (`bin/pair-session-watch.sh`, codex/agy only).** Spawned in the background by `bin/pair` on the create path, right before the zellij launch. Two discovery paths:
    - **PID-bound (preferred).** Reads `$PAIR_DATA_DIR/agent-pid-<tag>` (written by pair-wrap right after `pty.Start`) and inspects open files in that PID's process tree via `lsof -p <pid> -Fn`. Race-free across concurrent pair sessions because lsof output is scoped to specific PIDs. Falls back internally to a birth-time-filtered directory walk if the agent doesn't keep its session file open: candidates are files with `stat -f %B >= agent_start_epoch`, and only a *single* candidate is accepted (multiple = concurrent race, refuse rather than guess).
    - **Legacy snapshot-diff (fallback).** Used when the pidfile doesn't appear within 2s — i.e., when the installed pair-wrap binary predates #000020 and doesn't publish the pidfile. Behaves identically to pre-#000020: snapshots the watch dir at start, picks the first new file. Cross-tag races re-emerge in this path, so the proper resolution is to rebuild pair-wrap.
 
@@ -367,10 +367,7 @@ Per-agent surface:
 |---|---|---|---|
 | claude | `~/.claude/projects/<encoded-cwd>/<id>.jsonl` | filename | `--session-id` pre-injected by `bin/pair` (deterministic) |
 | codex | `~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<id>.jsonl` | trailing UUID in filename (regex) | `lsof -p <pid>` against agent PID + `ps`-discovered descendants, birth-time fallback |
-| gemini | `~/.gemini/tmp/<project>/chats/session-<ts>-<short>.json` | `.sessionId` in JSON body (filename only carries an 8-char prefix) | `lsof -p <pid>` against agent PID, birth-time fallback |
 | agy | `~/.gemini/antigravity-cli/brain/<id>/.system_generated/logs/transcript.jsonl` | UUID directory name (3 levels up) | `lsof -p <pid>` against agent PID + `ps`-discovered descendants, birth-time fallback |
-
-Gemini in particular can write the file before the JSON body is flushed; `extract_id` returns empty in that case and the outer loop retries on the next tick.
 
 **Stored shape.** `$PAIR_DATA_DIR/config-<tag>-<agent>.json`:
 
@@ -380,7 +377,7 @@ Gemini in particular can write the file before the JSON body is flushed; `extrac
 
 Single write path: jq + mktemp + rename, only after the id is in hand. So a concurrent reader either sees a complete prior config or a complete new one — never a partial. Keyed by `(tag, agent)` because the same tag can hold separate configs for different agents.
 
-**Create-flow prompt (`bin/pair`).** When the create path commits a tag, pair reads `config-<tag>-<agent>.json`. If present, it runs the per-agent stale-id check (claude: `[ -f .../<id>.jsonl ]`; codex: `find ~/.codex/sessions -name "*<id>*"`; gemini: `grep -rl '"sessionId":"<id>"' ~/.gemini/tmp`) and fzf-prompts the user with up to three options:
+**Create-flow prompt (`bin/pair`).** When the create path commits a tag, pair reads `config-<tag>-<agent>.json`. If present, it runs the per-agent stale-id check (claude: `[ -f .../<id>.jsonl ]`; codex: `find ~/.codex/sessions -name "*<id>*"`; agy: check transcript file) and fzf-prompts the user with up to three options:
 
 ```
 1) use params + session   args=[...]   resume=<id>
@@ -392,7 +389,8 @@ fzf renders each option multi-line via `--read0` so long args / full session ids
 
 **Resume composition.** "use params + session" is per-agent because the resume surface differs:
 
-- claude / gemini — flag style. Strip any pre-existing `--resume <X>` from saved args, then append `--resume <session_id>`.
+- claude — flag style. Strip any pre-existing `--resume <X>` from saved args, then append `--resume <session_id>`.
+- agy — flag style. Strip any pre-existing `--conversation <X>` from saved args, then append `--conversation <session_id>`.
 - codex — subcommand. `codex resume <id>` is the syntax, so prepend `resume <id>` ahead of any saved flags. The strip phase also drops a leading `resume <X>` at args[0..1] from saved args (the codex case where the user originally launched with `codex resume <foo>`).
 
 The shape `compose = saved_args (stripped of any prior resume tokens) + agent's resume invocation` keeps the composed line idempotent under repeated restarts.
@@ -413,7 +411,7 @@ A tag is durable but historically frozen-at-create. `pair rename <old> <new>` li
 **File-family enumeration is the canonical place to look up "what is scoped to a tag."** The launcher walks two shapes:
 
 1. **Tag-only families** (filename is `<prefix>-<tag>[<ext>]`, no further structure): `agent`, `agent-pid`, `agent-output`, `agent-picks`, `outer-tty`, `pair-wrap-pid`, `cmux-title-pid`, `layout-mode`, `queue` (dir), `quote`, `image-capture` + `.done`, `draft-<tag>.md`, `log-<tag>.md`, `nvim-pid-<tag>-{draft,scrollback}`.
-2. **Per-(tag, agent) families** anchored on `config-<tag>-<agent>.json` — also `scrollback-<tag>-<agent>.{ansi,raw,viewport,events.jsonl}` and the per-agent draft `draft-<tag>-<agent>.md`. The set of agent suffixes is hardcoded (`claude codex gemini`) — adding a new agent to pair requires updating that list in lockstep.
+2. **Per-(tag, agent) families** anchored on `config-<tag>-<agent>.json` — also `scrollback-<tag>-<agent>.{ansi,raw,viewport,events.jsonl}` and the per-agent draft `draft-<tag>-<agent>.md`. The set of agent suffixes is hardcoded (`claude codex agy`) — adding a new agent to pair requires updating that list in lockstep.
 
 **Substring safety is enforced by construction**, never by filtering. The enumerator computes exact filenames like `$DD/config-$old-claude.json`; it never globs `$DD/config-$old-*.json`. This is why `pair rename brain newname` cannot accidentally pick up `brain-2`'s files — the `brain-2`'s filenames are never constructed.
 
@@ -445,7 +443,7 @@ Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/outer-tty-<tag>` — single-lin
 
 Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/agent-<tag>` — single-line file recording which agent binary was launched in the session (`claude`, `codex`, ...). Written once at session create; read by `pair list` to display the agent column, and by `bin/pair`'s tag-restart agent-inference. Removed on full quit. The agent isn't otherwise recoverable post-create — env vars are frozen in pane shells, and custom session names (e.g. `pair-bugfix`) don't carry the agent in the name.
 
-Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/config-<tag>-<agent>.json` — saved restart configuration for `(tag, agent)` (issue #000016, #000020). `{ agent, args, session_id }`. For claude, written synchronously by `bin/pair` before zellij launch (`--session-id` is deterministic). For codex/gemini, written by `bin/pair-session-watch.sh` once the agent's session file is discovered via lsof. Read by `bin/pair`'s create-flow prompt and by the post-Alt+x hint. Survives Alt+x (unlike `agent-<tag>`, which is cleared) — that's the whole point: it's the bridge between two pair launches against the same tag.
+Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/config-<tag>-<agent>.json` — saved restart configuration for `(tag, agent)` (issue #000016, #000020). `{ agent, args, session_id }`. For claude, written synchronously by `bin/pair` before zellij launch (`--session-id` is deterministic). For codex/agy, written by `bin/pair-session-watch.sh` once the agent's session file is discovered via lsof. Read by `bin/pair`'s create-flow prompt and by the post-Alt+x hint. Survives Alt+x (unlike `agent-<tag>`, which is cleared) — that's the whole point: it's the bridge between two pair launches against the same tag.
 
 Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/agent-pid-<tag>` — child agent PID written by `cmd/pair-wrap` immediately after `pty.Start`, removed on shutdown. Consumed by `bin/pair-session-watch.sh` to scope `lsof` discovery to a specific process tree (issue #000020). Mtime is also used as the agent-start epoch in the watcher's birth-time fallback.
 
@@ -453,7 +451,7 @@ Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/nvim-pid-<tag>-{draft,scrollbac
 
 Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/pair-wrap-pid-<tag>` — single-line file containing pair-wrap's pid, written at startup by `bin/pair-wrap` if `PAIR_TAG` is set. Read by nvim's Alt+i (`attach_image`) so it can `kill -USR1 <pid>` to arm an image-capture window. Removed by pair-wrap on exit (the `finally` block in `main()`) and by `cleanup_quit_marker` as belt-and-suspenders on Alt+x.
 
-Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/image-capture-<tag>` + `image-capture-<tag>.done` — paired files driving the Alt+i image-marker pickup. On SIGUSR1, pair-wrap buffers bytes from the agent's PTY for `PAIR_WRAP_CAPTURE_S` seconds (default 0.2), then writes the buffer to the first file and touches the `.done` sentinel. nvim polls the sentinel (20ms cadence, 600ms cap), reads the buffer, strips ANSI, regex-matches the agent's image marker (claude `[Image #N]`, gemini `[Image N-M]`), and inserts it at cursor. Both files are removed by nvim after the pickup and by `cleanup_quit_marker` on Alt+x.
+Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/image-capture-<tag>` + `image-capture-<tag>.done` — paired files driving the Alt+i image-marker pickup. On SIGUSR1, pair-wrap buffers bytes from the agent's PTY for `PAIR_WRAP_CAPTURE_S` seconds (default 0.2), then writes the buffer to the first file and touches the `.done` sentinel. nvim polls the sentinel (20ms cadence, 600ms cap), reads the buffer, strips ANSI, regex-matches the agent's image marker (claude `[Image #N]`, agy `[Image N-M]`), and inserts it at cursor. Both files are removed by nvim after the pickup and by `cleanup_quit_marker` on Alt+x.
 
 Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/slug-proposed-<tag>` and `slug-<tag>` — the orientation-slug channel (issue #000027). `pair-slug` (spawned by pair-wrap at turn-end) writes the proposed `=== <branch> | <focus> ===` to `slug-proposed-<tag>` (atomic temp+rename); nvim applies it to draft line 1 and writes the effective line back to `slug-<tag>`, which is the `prev` the proposer reads next turn. For Codex, if `config-<tag>-codex.json` is missing, `pair-slug` can recover the live rollout by reading `agent-pid-<tag>`, walking descendants via `ps`, and checking their `lsof` paths for `~/.codex/sessions/.../rollout-*.jsonl`. Similarly, for agy, the transcript is resolved from `~/.gemini/antigravity-cli/brain/<session_id>/.system_generated/logs/transcript.jsonl`. Codex model auth is API-key first, then Codex CLI subscription auth via `codex exec`. Single writer each, so the channel is race-free.
 

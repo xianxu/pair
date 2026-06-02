@@ -181,15 +181,15 @@ rm -rf "$DD"
 case_begin "T8 renames all agents under one tag"
 DD="$(mktemp -d "${TMPDIR:-/tmp}/pair-rename-t8.XXXXXX")"
 seed_tag "$DD" multi claude
-# Add codex + gemini on top (overwriting the agent-multi file is fine).
+# Add codex + agy on top (overwriting the agent-multi file is fine).
 printf '{"agent":"codex","args":[],"session_id":"x"}\n' \
     > "$DD/config-multi-codex.json"
 : > "$DD/scrollback-multi-codex.raw"
-printf '{"agent":"gemini","args":[],"session_id":"x"}\n' \
-    > "$DD/config-multi-gemini.json"
-: > "$DD/scrollback-multi-gemini.raw"
+printf '{"agent":"agy","args":[],"session_id":"x"}\n' \
+    > "$DD/config-multi-agy.json"
+: > "$DD/scrollback-multi-agy.raw"
 run_rename "$DD" multi renamed >/dev/null
-for a in claude codex gemini; do
+for a in claude codex agy; do
     assert_gone   "$DD/config-multi-$a.json"
     assert_exists "$DD/config-renamed-$a.json"
     assert_gone   "$DD/scrollback-multi-$a.raw"

@@ -4,7 +4,7 @@
 #
 # Usage:
 #   pair                       claude in default session
-#   pair <agent>               claude / codex / gemini
+#   pair <agent>               claude / codex / agy
 #   pair [<agent>] -- <args>   forward args to agent on create,
 #                              e.g. pair claude -- --resume
 #                                   pair -- --dangerously-skip-permissions
@@ -63,7 +63,7 @@ pair — Neovim-backed input field for any TUI coding agent.
 
 USAGE
   pair                          claude in default session
-  pair <agent>                  e.g. pair codex / pair gemini
+  pair <agent>                  e.g. pair codex / pair agy
   pair resume <tag>             attach pair-<tag> if it exists, else create
                                 with that tag and the saved config; agent
                                 is inferred from saved state
@@ -153,9 +153,9 @@ KEYBINDINGS (inside a pair session)
                 is dropped so the agent starts a brand-new session
   Alt+h         pop up this help in a floating pane (press `q` to dismiss)
   Alt+i         attach clipboard image to agent + insert whatever marker
-                the agent renders (e.g. claude `[Image #N]`, gemini
-                `[Image N-M]`). Captured from pair-wrap's PTY stream so
-                no per-agent format knowledge is baked in. Flashes
+                the agent renders (e.g. claude `[Image #N]`). Captured
+                from pair-wrap's PTY stream so no per-agent format
+                knowledge is baked in. Flashes
                 "[no image in clipboard]" at cursor for 1s if the OS
                 clipboard has no image data.
   Alt+/         open agent pane scrollback in a read-only ANSI-colored
@@ -285,7 +285,7 @@ EOF
         # File enumeration is by exact-name construction, never globbing —
         # that way `pair rename brain newname` can't accidentally pick up
         # `*-brain-2-*` files. The set of agent suffixes (claude/codex/
-        # gemini) is hardcoded below; if a new agent is added to pair,
+        # agy) is hardcoded below; if a new agent is added to pair,
         # add it there too.
         # Optional flags before the positionals.
         #   --restart-check : validate everything but skip the `pair-<old>`
@@ -380,7 +380,7 @@ EOF
             printf '%s\n' "$dd/log-$tag.md"
             printf '%s\n' "$dd/nvim-pid-$tag-draft"
             printf '%s\n' "$dd/nvim-pid-$tag-scrollback"
-            for a in claude codex gemini agy; do
+            for a in claude codex agy; do
                 printf '%s\n' "$dd/config-$tag-$a.json"
                 printf '%s\n' "$dd/scrollback-$tag-$a.ansi"
                 printf '%s\n' "$dd/scrollback-$tag-$a.raw"
@@ -782,7 +782,7 @@ export PAIR_AGENT_ARGS="$agent_extra"
 # layout's `pane name="agent"` is just a matching anchor; the layout's
 # args block calls `zellij action rename-pane --pane-id $ZELLIJ_PANE_ID
 # "$PAIR_PANE_TITLE"` before exec'ing pair-wrap, so the frame shows the
-# agent's binary name (claude / codex / gemini) instead of the literal
+# agent's binary name (claude / codex / agy) instead of the literal
 # "agent" anchor. Append the launch cwd (tilde-abbreviated) so the frame
 # also says where the session was started, e.g. `claude [~/workspace/brain]`.
 # $PWD here is the dir the user ran `pair` from (bin/pair never cd's); the
@@ -1187,8 +1187,8 @@ cleanup_quit_marker() {
 #
 #   Alt+n         — pure pair reload. Same tag + agent + args + agent
 #                   session. The saved config is kept and the new run
-#                   resumes the prior conversation via --resume <id>
-#                   (claude/gemini) or `resume <id>` (codex).
+#                   resumes the prior conversation via --resume <id> (claude),
+#                   --conversation <id> (agy), or `resume <id>` (codex).
 #   Shift+Alt+N   — same tag + agent + args, fresh agent conversation:
 #                   we drop the saved per-(tag,agent) config so the new
 #                   run starts a brand-new session.
@@ -1247,12 +1247,13 @@ handle_restart_marker() {
 
     # Default Alt+n: keep config, append the resume token so the new
     # launch picks up exactly where we left off without going through
-    # the picker. Surface differs per agent — claude/gemini use the
-    # `--resume <id>` flag, codex uses the `resume <id>` subcommand.
+    # the picker. Surface differs per agent — claude uses the
+    # `--resume <id>` flag, codex uses `resume <id>`, and agy uses
+    # `--conversation <id>`.
     local resume_extra=""
     if [ -n "$r_sid" ]; then
         case "$r_agent" in
-            claude|gemini) resume_extra="--resume $r_sid" ;;
+            claude)        resume_extra="--resume $r_sid" ;;
             codex)         resume_extra="resume $r_sid" ;;
             agy)           resume_extra="--conversation $r_sid" ;;
         esac
@@ -1260,8 +1261,8 @@ handle_restart_marker() {
     # Composition order matters for codex: its `resume` subcommand must
     # sit at args[0] for the inner pair + watcher detection blocks to
     # recognize it. Other saved flags (e.g. --no-alt-screen, --search)
-    # follow. claude/gemini's --resume flag works anywhere, so the
-    # legacy order (r_args first) stays unchanged for them.
+    # follow. claude's --resume flag works anywhere, so the
+    # legacy order (r_args first) stays unchanged for it.
     local combined
     if [ "$r_agent" = "codex" ] && [ -n "$resume_extra" ]; then
         combined="${resume_extra}${r_args:+ $r_args}"
@@ -1472,7 +1473,7 @@ fi
 # kept inline here to gate the picker without restructuring the flow.
 _argv_has_resume=0
 case "$AGENT" in
-    claude|gemini|agy)
+    claude|agy)
         prev=""
         for tok in $agent_extra; do
             if [ "$prev" = "--resume" ] || [ "$prev" = "--conversation" ]; then _argv_has_resume=1; break; fi
@@ -1525,7 +1526,6 @@ if [ -f "$config_file" ] && [ $_argv_has_resume -eq 0 ]; then
     # for this session id still exists. Per-agent surface:
     #   claude — direct path lookup (filename = session id)
     #   codex  — recursive scan; id is in the filename
-    #   gemini — recursive scan; id is in the JSON body, not the filename
     has_resumable=false
     if [ -n "$saved_session" ]; then
         case "$AGENT" in
@@ -1536,14 +1536,6 @@ if [ -f "$config_file" ] && [ $_argv_has_resume -eq 0 ]; then
             codex)
                 if [ -d "$HOME/.codex/sessions" ] && \
                    find "$HOME/.codex/sessions" -type f -name "*${saved_session}*" 2>/dev/null \
-                       | head -1 | grep -q .; then
-                    has_resumable=true
-                fi
-                ;;
-            gemini)
-                if [ -d "$HOME/.gemini/tmp" ] && \
-                   grep -rl "\"sessionId\"[[:space:]]*:[[:space:]]*\"${saved_session}\"" \
-                        "$HOME/.gemini/tmp" 2>/dev/null \
                        | head -1 | grep -q .; then
                     has_resumable=true
                 fi
@@ -1719,11 +1711,11 @@ printf '%s\n' "$AGENT" > "$DATA_DIR/agent-${PAIR_TAG}"
 # and Alt+x's saved-config display reports the right id.
 #
 # Per-agent surface:
-#   claude / gemini — flag style: `--resume <id>` anywhere in argv.
+#   claude / agy   — flag style: `--resume <id>` / `--conversation <id>` anywhere in argv.
 #   codex           — subcommand: `resume <id>` at args[0..1].
 explicit_resume=""
 case "$AGENT" in
-    claude|gemini|agy)
+    claude|agy)
         prev=""
         for tok in $agent_extra; do
             if [ "$prev" = "--resume" ] || [ "$prev" = "--conversation" ]; then
@@ -1792,7 +1784,7 @@ fi
 #   - the user passed --session-id explicitly (their UUID wins);
 #   - the user passed --fork-session (claude allocates a new id internally).
 #
-# Codex and gemini have no equivalent flag; they still need the watcher.
+# Codex and agy have no equivalent flag; they still need the watcher.
 if [ "$AGENT" = "claude" ] && [ -z "$explicit_resume" ]; then
     _has_sid=0
     _has_fork=0
@@ -1878,7 +1870,7 @@ if [ "$AGENT" = "codex" ]; then
 fi
 
 # Spawn the session-id watcher (issue #000016, fixed in #000020). For
-# codex/gemini it binds to the agent's PID via lsof, so concurrent pair
+# codex/agy it binds to the agent's PID via lsof, so concurrent pair
 # sessions in the same cwd no longer race for each other's session file.
 # For claude the watcher is a no-op (the deterministic --session-id path
 # above writes the config synchronously). Backgrounded; self-times-out
