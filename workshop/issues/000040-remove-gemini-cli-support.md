@@ -1,11 +1,12 @@
 ---
 id: 000040
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-01
 updated: 2026-06-01
 estimate_hours: 2.0
+actual_hours: 1.5
 ---
 
 # Remove gemini CLI support
@@ -70,6 +71,8 @@ Complete the following removals:
 
 ## Log
 
+
+- 2026-06-01: closed — make test and tests/pair-rename.sh successfully executed and all tests passed perfectly
 ### 2026-06-01
 
 - Removed all gemini CLI references and configurations.
