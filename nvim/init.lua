@@ -3032,7 +3032,18 @@ vim.keymap.set('i', '<LeftMouse>', function()
       local pcol = pos.col + 1
       if mouse.screenrow >= prow and mouse.screenrow < prow + pos.height and
          mouse.screencol >= pcol and mouse.screencol < pcol + pos.width then
-        return '<LeftMouse><C-y>'
+        local target_idx = mouse.screenrow - prow
+        local info = vim.fn.complete_info({ 'selected' })
+        local current_selected = info.selected
+        if current_selected == -1 then
+          return string.rep('<C-n>', target_idx + 1) .. '<C-y>'
+        elseif target_idx > current_selected then
+          return string.rep('<C-n>', target_idx - current_selected) .. '<C-y>'
+        elseif target_idx < current_selected then
+          return string.rep('<C-p>', current_selected - target_idx) .. '<C-y>'
+        else
+          return '<C-y>'
+        end
       end
     end
   end

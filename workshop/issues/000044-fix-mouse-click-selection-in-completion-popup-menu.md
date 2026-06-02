@@ -1,11 +1,12 @@
 ---
 id: 000044
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-02
 updated: 2026-06-02
 estimate_hours: 1
+actual_hours: 0.5
 ---
 
 # Fix mouse click selection in completion popup menu
@@ -16,23 +17,32 @@ The previous `<LeftMouse>` mapping in `nvim/init.lua` designed to select and con
 
 ## Spec
 
-- Add temporary file-based logging to `/tmp/pair_pum_debug.log` inside the `<LeftMouse>` mapping to capture `pum_visible()`, `pum_getpos()`, and `getmousepos()` when clicked.
-- Investigate log outputs to determine why the check failed.
-- Adjust the click detection / key mapping behavior so that clicking a spelling suggestion confirms the selection.
+- Add temporary file-based logging to `/tmp/pair_pum_debug.log` inside the `<LeftMouse>` mapping. This log will capture the outputs of `pum_visible()`, `pum_getpos()`, and `getmousepos()` when clicked.
+- Investigate these log outputs to determine why the previous coordinate check failed or why the mapping did not fire.
+- Correctly calculate the click coordinates and adjust the key mapping behavior. If the click coordinates are inside the popup menu boundary, we will translate the click to a confirm action. If they are outside, we will fallback to standard cursor navigation.
+- Ensure that spelling suggestions can be successfully clicked and confirmed on a single mouse click.
 
 ## Done when
 
-- [ ] Mouse clicks on spelling suggestion menu items successfully select and confirm the item.
-- [ ] No regression on cursor positioning when clicking elsewhere.
+- [x] Mouse clicks on spelling suggestion menu items successfully select and confirm the item.
+- [x] No regression on cursor positioning when clicking elsewhere.
 
 ## Plan
 
-- [ ] Add debugging log statements to `<LeftMouse>` mapping in `nvim/init.lua`.
-- [ ] Ask user to click and inspect log outputs.
-- [ ] Implement and verify the final coordinate/mapping correction.
+- [x] Add debugging log statements to `<LeftMouse>` mapping in `nvim/init.lua`.
+- [x] Ask user to click and inspect log outputs.
+- [x] Implement and verify the final coordinate/mapping correction.
 
 ## Log
 
+
+- 2026-06-02: closed — make test passes, spelling suggestions click selection verified
 ### 2026-06-02
 
 - Created issue #000044 to investigate and fix the `<LeftMouse>` click selection menu behavior.
+- Added temporary file-based logging to `/tmp/pair_pum_debug.log` and had the user test it.
+- Identified that returning `<LeftMouse>` alongside `<C-y>` caused Neovim to process the mouse click first, moving the cursor and immediately closing the popup menu (rendering `<C-y>` a no-op).
+- Fixed the issue by simulating relative scroll/navigation keypresses (`<C-n>` / `<C-p>`) followed by confirmation (`<C-y>`) when clicking inside the popup menu coordinates, without propagating the standard cursor-moving `<LeftMouse>`.
+- Verified that spelling suggestions (e.g. "sesion" correcting to "session") and other completion menus work seamlessly with mouse clicks.
+- Checked that clicking outside the popup menu correctly dismisses it and positions the cursor normally.
+- Verified all tests pass successfully.
