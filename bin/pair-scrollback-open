@@ -9,7 +9,7 @@
 # Inputs come from pair's env (exported by bin/pair before zellij starts):
 #   $PAIR_DATA_DIR  — where pair stores per-session state files
 #   $PAIR_TAG       — session identity
-#   $PAIR_AGENT     — agent basename (claude / codex / gemini)
+#   $PAIR_AGENT     — agent basename (claude / codex / agy)
 #   $PAIR_HOME      — pair install root (for nvim/scrollback.lua)
 #
 # Filed as #000017 M5.

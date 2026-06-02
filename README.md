@@ -1,6 +1,6 @@
 # pair
 
-A small launcher that gives any TUI coding agent (Claude Code, Codex, Gemini CLI) a real input field — backed by Neovim. `pair` glues several tools together: `zellij`, `nvim`, `fzf` etc.
+A small launcher that gives any TUI coding agent (Claude Code, Codex, Antigravity) a real input field — backed by Neovim. `pair` glues several tools together: `zellij`, `nvim`, `fzf` etc.
 
 All [AI created](https://xianxu.dev/2026/05/a-saturday-coding-session/).
 
@@ -8,7 +8,7 @@ All [AI created](https://xianxu.dev/2026/05/a-saturday-coding-session/).
 
 Launches a `zellij` session split into two panes:
 
-- **Top** — the coding agent, `Claude`, `Codex`, `Gemini`, ...
+- **Top** — the coding agent, `Claude`, `Codex`, `Antigravity`, ...
 - **Bottom (~12 rows)** — Neovim on a persistent draft file. 
 
 You compose prompts with full editor power, scroll the agent output independently. When you are done, `Alt+Return` to send your text to the agent.
@@ -139,7 +139,7 @@ Automatically installed with `homebrew`.
 | [`fzf`](https://github.com/junegunn/fzf) | session picker |
 | [`jq`](https://jqlang.github.io/jq/) | JSON parsing for pane targeting |
 | [`par`](https://www.nicemice.net/par/) | paragraph reflow when pasting from the agent pane |
-| an agent | `claude`, `codex`, `gemini`, or any TUI agent you want to drive |
+| an agent | `claude`, `codex`, `agy`, or any TUI agent you want to drive |
 
 ## Terminal setup
 
@@ -167,13 +167,13 @@ brew tap xianxu/pair && brew install pair
 brew update; brew upgrade pair
 ```
 
-That installs `zellij`, `neovim`, `fzf`, `jq`, and `par` if they aren't already present. The agent (`claude`, `codex`, `gemini`) you install separately. Then:
+That installs `zellij`, `neovim`, `fzf`, `jq`, and `par` if they aren't already present. The agent (`claude`, `codex`, `agy`) you install separately. Then:
 
 ## Command Usage
 
 ```sh
 pair                             # default: claude
-pair <agent>                     # claude / codex / gemini
+pair <agent>                     # claude / codex / agy
 pair resume <tag>                # restart a tag with its saved config
 pair [<agent>] -- <args...>      # forward args to agent on create
                                  # e.g. pair claude -- --resume
@@ -231,12 +231,12 @@ saved config for tag 'bugfix' (claude)
        fresh session
 ```
 
-- **use saved params + session** replays the original launch args *and* points the agent at its previous session id (claude's `--resume`, codex's `resume <id>` subcommand, gemini's `--resume`). Only shown if the agent's transcript file is still on disk.
+- **use saved params + session** replays the original launch args *and* points the agent at its previous session id (claude's `--resume`, codex's `resume <id>` subcommand, agy's `--resume` / session recovery). Only shown if the agent's transcript file is still on disk.
 - **use saved params** replays the args but starts a fresh agent session.
 - **use new params + session** swaps in the args you just passed on the command line, but keeps the prior session id. Only shown when both conditions hold: the transcript is on disk AND the new args differ from the saved ones (otherwise it would be byte-identical to row 1).
 - **use new params passed in** uses your new args with a fresh session. Only shown when the new args differ from the saved ones.
 
-The agent (claude / codex / gemini) is inferred from saved state, so `pair resume <tag>` is enough on its own — no need to repeat the agent positional. If `pair-<tag>` is still a running zellij session (e.g. you only `Alt+d` detached), `pair resume <tag>` re-attaches without prompting.
+The agent (claude / codex / agy) is inferred from saved state, so `pair resume <tag>` is enough on its own — no need to repeat the agent positional. If `pair-<tag>` is still a running zellij session (e.g. you only `Alt+d` detached), `pair resume <tag>` re-attaches without prompting.
 
 Saved configs live at `${XDG_DATA_HOME:-~/.local/share}/pair/config-<tag>-<agent>.json`.
 

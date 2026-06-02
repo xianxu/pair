@@ -68,8 +68,7 @@ func parseTranscript(agent string, data []byte) []turn {
 	switch agent {
 	case "codex":
 		return parseCodex(data)
-	case "gemini":
-		return parseGemini(data)
+
 	case "agy":
 		return parseAgy(data)
 	default:
@@ -176,55 +175,7 @@ func parseCodex(data []byte) []turn {
 	return out
 }
 
-// ── gemini: single json file; messages[] with type user|gemini|info. user
-//
-//	content is an array of {text}; gemini content is a plain string. info
-//	(and embedded toolCalls/thoughts) are skipped. ──
-type geminiFile struct {
-	Messages []struct {
-		Type    string          `json:"type"`
-		Content json.RawMessage `json:"content"`
-	} `json:"messages"`
-}
 
-func parseGemini(data []byte) []turn {
-	var f geminiFile
-	if json.Unmarshal(data, &f) != nil {
-		return nil
-	}
-	var out []turn
-	for _, m := range f.Messages {
-		var role, txt string
-		switch m.Type {
-		case "user":
-			role = "user"
-			var blocks []struct {
-				Text string `json:"text"`
-			}
-			if json.Unmarshal(m.Content, &blocks) == nil {
-				var parts []string
-				for _, b := range blocks {
-					if b.Text != "" {
-						parts = append(parts, b.Text)
-					}
-				}
-				txt = strings.TrimSpace(strings.Join(parts, " "))
-			}
-		case "gemini":
-			role = "assistant"
-			var s string
-			if json.Unmarshal(m.Content, &s) == nil {
-				txt = strings.TrimSpace(s)
-			}
-		default:
-			continue
-		}
-		if txt != "" {
-			out = append(out, turn{Role: role, Text: txt})
-		}
-	}
-	return out
-}
 
 // windowTurns truncates each turn to perTurnChars, then selects a window
 // biased toward recent user turns (see selectWindow).

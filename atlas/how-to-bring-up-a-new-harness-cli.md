@@ -2,7 +2,7 @@
 
 `pair` is an agent-agnostic, Neovim-backed launcher environment. While the horizontal two-pane design is generic, delivering a premium, seamless pair-programming experience requires integrating the agent across seven critical integration surfaces.
 
-This guide outlines how to bring up a new agent harness CLI (e.g., `agy`) and achieve parity with existing agents (`claude`, `codex`, `gemini`).
+This guide outlines how to bring up a new agent harness CLI (e.g., `agy`) and achieve parity with existing agents (`claude`, `codex`).
 
 ---
 
@@ -24,7 +24,7 @@ By default, the bottom Neovim draft pane maps **Enter** to insert a newline, and
       },
   }
   ```
-- **Note:** Claude uses `\<Enter>` (`[]byte{'\\', '\r'}`) as a newline, while Codex, Gemini, and Antigravity (`agy`) use LF (`\n`) for newline and CR (`\r`) for send.
+- **Note:** Claude uses `\<Enter>` (`[]byte{'\\', '\r'}`) as a newline, while Codex and Antigravity (`agy`) use LF (`\n`) for newline and CR (`\r`) for send.
 
 ---
 
@@ -78,7 +78,7 @@ If the agent presents blocking overlays, pickers (like file autocompletes), or y
 - Integrate the agent-specific resume argument in `bin/pair`:
   ```bash
   case "$r_agent" in
-      claude|gemini) resume_extra="--resume $r_sid" ;;
+      claude)        resume_extra="--resume $r_sid" ;;
       codex)         resume_extra="resume $r_sid" ;;
       agy)           resume_extra="--conversation $r_sid" ;;
   esac
@@ -124,8 +124,7 @@ The scrollback viewer (`Alt+/`) maps **Alt+b** (and **Alt+Shift+B**) to jump bet
   local PROMPT_PATTERN_BY_AGENT = {
     claude = [[^❯]],
     codex  = [[^›]],
-    gemini = [[^ >]],
-    agy    = [[^>]], // Antigravity prompt starts with a literal >
+    agy    = [[\(──.*\n\)\zs>]],
   }
   ```
 

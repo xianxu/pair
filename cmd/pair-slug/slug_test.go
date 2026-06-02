@@ -209,27 +209,7 @@ func TestParseCodex(t *testing.T) {
 	}
 }
 
-func TestParseGemini(t *testing.T) {
-	doc := `{"sessionId":"abc","messages":[
-		{"type":"user","content":[{"text":"why amd64 here?"}]},
-		{"type":"gemini","content":"I'm in a linux sandbox","toolCalls":[{"name":"shell"}]},
-		{"type":"info","content":"Request cancelled."},
-		{"type":"user","content":[{"text":"part one"},{"text":"part two"}]}
-	]}`
-	turns := parseGemini([]byte(doc))
-	if len(turns) != 3 {
-		t.Fatalf("got %d turns, want 3 (user, gemini, user; info skipped): %+v", len(turns), turns)
-	}
-	if turns[0].Role != "user" || turns[0].Text != "why amd64 here?" {
-		t.Errorf("turn0 = %+v", turns[0])
-	}
-	if turns[1].Role != "assistant" || turns[1].Text != "I'm in a linux sandbox" {
-		t.Errorf("turn1 (gemini→assistant) = %+v", turns[1])
-	}
-	if turns[2].Text != "part one part two" {
-		t.Errorf("turn2 (multi-part user) = %+v", turns[2])
-	}
-}
+
 
 func TestParseAgy(t *testing.T) {
 	doc := strings.Join([]string{

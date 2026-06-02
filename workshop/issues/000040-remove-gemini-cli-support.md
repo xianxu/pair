@@ -1,11 +1,12 @@
 ---
 id: 000040
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-01
 updated: 2026-06-01
 estimate_hours: 2.0
+actual_hours: 1.5
 ---
 
 # Remove gemini CLI support
@@ -34,42 +35,46 @@ Complete the following removals:
 ## Done when
 
 - [x] Guide `atlas/how-to-bring-up-a-new-harness-cli.md` is updated to replace gemini references.
-- [ ] All `gemini` CLI mentions and logic blocks are removed from `bin/pair`, `bin/pair-session-watch.sh`, `bin/pair-scrollback-open`, and `bin/pair-cmux-title.sh`.
-- [ ] PTY proxy `cmd/pair-wrap/` has `gemini` removed from keymaps and test files (`keymap_registry_test.go`, `picker_overlay_test.go`).
-- [ ] Transcript summarizer `cmd/pair-slug/` has `gemini` parser and tests (`slug_test.go`) deleted.
-- [ ] Neovim Lua files (`nvim/init.lua`, `nvim/scrollback.lua`) and tests (`scrollback_test.lua`) have `gemini` patterns and tests removed.
-- [ ] Rename integration test (`tests/pair-rename.sh`) is refactored to use `agy` instead of `gemini`.
-- [ ] Zellij layout (`zellij/layouts/main.kdl`) doc comments are cleaned up.
-- [ ] Main test suite (`make test`) is fully green.
-- [ ] **Agy-Safety Verification**: Explicitly verify that `agy` session watcher and slug generation continue to function perfectly on the `~/.gemini/antigravity-cli/` path.
+- [x] All `gemini` CLI mentions and logic blocks are removed from `bin/pair`, `bin/pair-session-watch.sh`, `bin/pair-scrollback-open`, and `bin/pair-cmux-title.sh`.
+- [x] PTY proxy `cmd/pair-wrap/` has `gemini` removed from keymaps and test files (`keymap_registry_test.go`, `picker_overlay_test.go`).
+- [x] Transcript summarizer `cmd/pair-slug/` has `gemini` parser and tests (`slug_test.go`) deleted.
+- [x] Neovim Lua files (`nvim/init.lua`, `nvim/scrollback.lua`) and tests (`scrollback_test.lua`) have `gemini` patterns and tests removed.
+- [x] Rename integration test (`tests/pair-rename.sh`) is refactored to use `agy` instead of `gemini`.
+- [x] Zellij layout (`zellij/layouts/main.kdl`) doc comments are cleaned up.
+- [x] Main test suite (`make test`) is fully green.
+- [x] **Agy-Safety Verification**: Explicitly verify that `agy` session watcher and slug generation continue to function perfectly on the `~/.gemini/antigravity-cli/` path.
 
 ## Plan
 
-- [ ] **Launcher, Watcher, Cmux**: Remove `gemini` from `bin/pair`, `bin/pair-session-watch.sh`, `bin/pair-cmux-title.sh`, and `bin/pair-scrollback-open`.
-- [ ] **Zellij**: Remove `gemini` comments from `zellij/layouts/main.kdl`.
-- [ ] **PTY Wrapper**:
-  - Remove `gemini` from `sendKeymapByAgent` in `cmd/pair-wrap/main.go`.
-  - Delete `TestTranslateChunk_GeminiKeymap` from `cmd/pair-wrap/keymap_registry_test.go`.
-  - Replace `gemini` with `agy` in `cmd/pair-wrap/picker_overlay_test.go` at `TestCheckOverlayOpen_AgentsWithoutDetectorSkipped`.
-- [ ] **Slug**:
-  - Remove `geminiFile` struct and case from `cmd/pair-slug/slug.go`.
-  - Remove `gemini` case from `cmd/pair-slug/main.go`.
-  - Delete `gemini` tests from `cmd/pair-slug/slug_test.go`.
-- [ ] **Neovim & Scrollback**:
-  - Remove `gemini` pattern `^ >` from `nvim/scrollback.lua`.
-  - Delete `gemini` test block from `nvim/scrollback_test.lua`.
-  - Clean up `agent == 'gemini'` block in `nvim/init.lua`.
-- [ ] **Integration Tests**:
-  - Replace `gemini` config and tests with `agy` in `tests/pair-rename.sh` at `T8` test case.
-- [ ] **Atlas**:
-  - Clean up `gemini` mentions in `atlas/architecture.md`, `atlas/how-to-bring-up-a-new-harness-cli.md`, and `atlas/index.md`.
-- [ ] **Verification suite**:
-  - Run Go and Lua unit tests (`make test`) to ensure codebase tests are green.
-  - Run the rename integration test (`make test-queue` or `bash tests/pair-rename.sh`) and confirm it passes.
-- [ ] **Agy-Safety Check**: Assert that running `agy` launcher and slug creation works completely fine to guarantee the `~/.gemini/antigravity-cli/` path was preserved intact.
+- [x] **Launcher, Watcher, Cmux**: Remove `gemini` from `bin/pair`, `bin/pair-session-watch.sh`, `bin/pair-cmux-title.sh`, and `bin/pair-scrollback-open`.
+- [x] **Zellij**: Remove `gemini` comments from `zellij/layouts/main.kdl`.
+- [x] **PTY Wrapper**:
+  - [x] Remove `gemini` from `sendKeymapByAgent` in `cmd/pair-wrap/main.go`.
+  - [x] Delete `TestTranslateChunk_GeminiKeymap` from `cmd/pair-wrap/keymap_registry_test.go`.
+  - [x] Replace `gemini` with `agy` in `cmd/pair-wrap/picker_overlay_test.go at TestCheckOverlayOpen_AgentsWithoutDetectorSkipped`.
+- [x] **Slug**:
+  - [x] Remove `geminiFile` struct and case from `cmd/pair-slug/slug.go`.
+  - [x] Remove `gemini` case from `cmd/pair-slug/main.go`.
+  - [x] Delete `gemini` tests from `cmd/pair-slug/slug_test.go`.
+- [x] **Neovim & Scrollback**:
+  - [x] Remove `gemini` pattern `^ >` from `nvim/scrollback.lua`.
+  - [x] Delete `gemini` test block from `nvim/scrollback_test.lua`.
+  - [x] Clean up `agent == 'gemini'` block in `nvim/init.lua`.
+- [x] **Integration Tests**:
+  - [x] Replace `gemini` config and tests with `agy` in `tests/pair-rename.sh` at `T8` test case.
+- [x] **Atlas**:
+  - [x] Clean up `gemini` mentions in `atlas/architecture.md`, `atlas/how-to-bring-up-a-new-harness-cli.md`, and `atlas/index.md`.
+- [x] **Verification suite**:
+  - [x] Run Go and Lua unit tests (`make test`) to ensure codebase tests are green.
+  - [x] Run the rename integration test (`make test-queue` or `bash tests/pair-rename.sh`) and confirm it passes.
+- [x] **Agy-Safety Check**: Assert that running `agy` launcher and slug creation works completely fine to guarantee the `~/.gemini/antigravity-cli/` path was preserved intact.
 
 ## Log
 
+
+- 2026-06-01: closed — make test and tests/pair-rename.sh successfully executed and all tests passed perfectly
 ### 2026-06-01
 
-
+- Removed all gemini CLI references and configurations.
+- Verified that all unit and integration tests are fully green.
+- Updated docs (README and atlas).

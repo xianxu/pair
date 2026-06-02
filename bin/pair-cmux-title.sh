@@ -13,7 +13,7 @@
 # host shutdown, etc.).
 #
 # Activity sources (most-recent mtime wins):
-#   - agent session file: claude jsonl / codex rollout / gemini chat
+#   - agent session file: claude jsonl / codex rollout / agy transcript
 #   - nvim draft: $PAIR_DATA_DIR/draft-<tag>.md
 # Both move on user typing AND agent output, so this captures both sides.
 #
@@ -87,7 +87,7 @@ trap 'rm -f "$PIDFILE"' EXIT
 
 # Resolve the agent's session file path. Cached after first hit since the
 # path is stable for the session's lifetime (claude --session-id pre-
-# injection, codex/gemini single-file model). /clear in claude rotates
+# injection, codex/agy single-file model). /clear in claude rotates
 # the file, leaving the cache pointed at the old jsonl — that file's
 # mtime freezes, which is the desired "no recent activity" signal anyway.
 agent_file_cache=""
@@ -110,9 +110,7 @@ agent_session_file() {
         codex)
             path=$(find "$HOME/.codex/sessions" -type f -name "*$sid*.jsonl" 2>/dev/null | head -1)
             ;;
-        gemini)
-            path=$(grep -rl --include='*.json' "\"sessionId\":\"$sid\"" "$HOME/.gemini/tmp" 2>/dev/null | head -1)
-            ;;
+
     esac
     if [ -n "$path" ] && [ -f "$path" ]; then
         agent_file_cache="$path"
