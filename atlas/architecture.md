@@ -327,7 +327,13 @@ split keeps the model out of the live buffer:
 
 Pure cores are tested: `cmd/pair-slug/slug.go` (normalize/parse/decide) via
 `go test`, the nvim decision via `nvim -l` (`make test-lua`). Per-agent parsers
-validated against real codex/agy transcripts.
+validated against real codex/agy transcripts. Tests that drive `nvim --headless`
+through real keymap callbacks (e.g. `queue-send-test.sh` exercising `<M-CR>` →
+`send_to_agent`) often run *inside* a live zellij session, so every `zellij
+action` shell-out in `nvim/init.lua` is guarded by `has_ui()`
+(`#vim.api.nvim_list_uis() > 0`) — headless nvim has no UI attached, so the
+guard turns those shell-outs into no-ops and test inputs never leak into the
+active agent pane (#000042).
 
 ## Quit / restart semantics
 

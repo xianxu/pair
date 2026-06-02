@@ -34,12 +34,22 @@ func TestCheckOverlayOpen_WaitingForInputDoesNotFlip(t *testing.T) {
 // TestCheckOverlayOpen_AgentsWithoutDetectorSkipped pins the agent-gate:
 // agents without an overlay detector must ignore Claude's OSC body.
 func TestCheckOverlayOpen_AgentsWithoutDetectorSkipped(t *testing.T) {
-	for _, name := range []string{"agy", ""} {
+	for _, name := range []string{"unsupported", ""} {
 		p := &proxy{agentBasename: name}
 		checkOverlayBytes(p, []byte("\x1b]777;"+pickerOpenOSCBody+"\x07"))
 		if p.pickerActive.Load() {
 			t.Fatalf("agent %q: pickerActive should stay false (no detector)", name)
 		}
+	}
+}
+
+// TestCheckOverlayOpen_AgyPickerMarkers confirms that when a visible chunk
+// contains any agy picker markers, pickerActive is set to true.
+func TestCheckOverlayOpen_AgyPickerMarkers(t *testing.T) {
+	p := &proxy{agentBasename: "agy"}
+	checkOverlayBytes(p, []byte("Do you want to proceed?\r\n> 1. Yes\r\n2. No"))
+	if !p.pickerActive.Load() {
+		t.Fatalf("pickerActive should be true after seeing agy picker marker")
 	}
 }
 

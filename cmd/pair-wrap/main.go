@@ -150,6 +150,7 @@ type overlayDetector func(*proxy, []byte, []byte) (bool, string)
 var overlayDetectorByAgent = map[string]overlayDetector{
 	"claude": detectClaudeOverlayOpen,
 	"codex":  detectCodexOverlayOpen,
+	"agy":    detectAgyOverlayOpen,
 }
 
 // ----- Compiled regexes (byte-mode) -------------------------------------------
@@ -439,6 +440,34 @@ func detectCodexQuestionOSC(rolling []byte) (bool, string) {
 
 func detectCodexOverlayText(visible string) (bool, string) {
 	for _, marker := range codexPickerMarkers {
+		if strings.Contains(visible, marker) {
+			return true, marker
+		}
+	}
+	return false, ""
+}
+
+var agyPickerMarkers = []string{
+	"Do you want to proceed?",
+	"Yes, and always allow",
+	"always allow in this conversation",
+	"Navigate · tab Amend",
+	"ctrl+r Review",
+}
+
+func detectAgyOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
+	visible := stripTerminalControls(data)
+	if p != nil {
+		p.overlayMu.Lock()
+		defer p.overlayMu.Unlock()
+		visible = p.overlayTextTail + visible
+		p.overlayTextTail = textSuffix(visible, rollingTailLen)
+	}
+	return detectAgyOverlayText(visible)
+}
+
+func detectAgyOverlayText(visible string) (bool, string) {
+	for _, marker := range agyPickerMarkers {
 		if strings.Contains(visible, marker) {
 			return true, marker
 		}
