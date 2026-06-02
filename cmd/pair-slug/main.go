@@ -232,7 +232,7 @@ func runClaudeModel(model, prompt, input string) (string, error) {
 	return string(out), err
 }
 
-// runAgyModel invokes `agy -p <prompt>` with the transcript input on stdin.
+// runAgyModel invokes `agy -p <prompt>`.
 // Setting Dir to os.TempDir() is crucial: it forces the agy agent loop to execute in
 // an empty sandbox directory, preventing it from discovering workspace files/projects
 // or triggering slow background tool executions.
@@ -240,7 +240,6 @@ func runAgyModel(prompt, input string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), modelTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "agy", "-p", prompt)
-	cmd.Stdin = strings.NewReader(input)
 	cmd.Dir = os.TempDir()
 	cmd.Env = append(os.Environ(), "PAIR_SLUG_NESTED=1")
 	out, err := cmd.Output()
