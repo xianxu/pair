@@ -380,7 +380,7 @@ EOF
             printf '%s\n' "$dd/log-$tag.md"
             printf '%s\n' "$dd/nvim-pid-$tag-draft"
             printf '%s\n' "$dd/nvim-pid-$tag-scrollback"
-            for a in claude codex gemini; do
+            for a in claude codex gemini agy; do
                 printf '%s\n' "$dd/config-$tag-$a.json"
                 printf '%s\n' "$dd/scrollback-$tag-$a.ansi"
                 printf '%s\n' "$dd/scrollback-$tag-$a.raw"
@@ -1254,6 +1254,7 @@ handle_restart_marker() {
         case "$r_agent" in
             claude|gemini) resume_extra="--resume $r_sid" ;;
             codex)         resume_extra="resume $r_sid" ;;
+            agy)           resume_extra="--conversation $r_sid" ;;
         esac
     fi
     # Composition order matters for codex: its `resume` subcommand must
@@ -1471,10 +1472,11 @@ fi
 # kept inline here to gate the picker without restructuring the flow.
 _argv_has_resume=0
 case "$AGENT" in
-    claude|gemini)
+    claude|gemini|agy)
         prev=""
         for tok in $agent_extra; do
-            if [ "$prev" = "--resume" ]; then _argv_has_resume=1; break; fi
+            if [ "$prev" = "--resume" ] || [ "$prev" = "--conversation" ]; then _argv_has_resume=1; break; fi
+            if [[ "$tok" =~ ^--conversation= ]]; then _argv_has_resume=1; break; fi
             prev="$tok"
         done
         ;;
@@ -1509,8 +1511,10 @@ if [ -f "$config_file" ] && [ $_argv_has_resume -eq 0 ]; then
         i=2
     fi
     while [ $i -lt $n ]; do
-        if [ "${saved_args[$i]}" = "--resume" ]; then
+        if [ "${saved_args[$i]}" = "--resume" ] || [ "${saved_args[$i]}" = "--conversation" ]; then
             i=$((i+2))
+        elif [[ "${saved_args[$i]}" =~ ^--conversation= ]]; then
+            i=$((i+1))
         else
             saved_args_clean+=("${saved_args[$i]}")
             i=$((i+1))
@@ -1543,6 +1547,9 @@ if [ -f "$config_file" ] && [ $_argv_has_resume -eq 0 ]; then
                        | head -1 | grep -q .; then
                     has_resumable=true
                 fi
+                ;;
+            agy)
+                [ -f "$HOME/.gemini/antigravity-cli/brain/$saved_session/.system_generated/logs/transcript.jsonl" ] && has_resumable=true
                 ;;
         esac
     fi
@@ -1646,8 +1653,10 @@ if [ -f "$config_file" ] && [ $_argv_has_resume -eq 0 ]; then
                     i=2
                 fi
                 while [ $i -lt $n ]; do
-                    if [ "${_new_base[$i]}" = "--resume" ]; then
+                    if [ "${_new_base[$i]}" = "--resume" ] || [ "${_new_base[$i]}" = "--conversation" ]; then
                         i=$((i+2))
+                    elif [[ "${_new_base[$i]}" =~ ^--conversation= ]]; then
+                        i=$((i+1))
                     else
                         stripped+=("${_new_base[$i]}")
                         i=$((i+1))
@@ -1660,6 +1669,10 @@ if [ -f "$config_file" ] && [ $_argv_has_resume -eq 0 ]; then
                     # Codex resume is `codex resume <id> [other args]` —
                     # subcommand first, then any flags.
                     agent_extra="resume $saved_session${stripped[*]:+ ${stripped[*]}}"
+                    ;;
+                agy)
+                    # agy resume is `--conversation <id>`
+                    agent_extra="${stripped[*]:+${stripped[*]} }--conversation $saved_session"
                     ;;
                 *)
                     # Flag-style: claude, gemini, anything else with a
@@ -1710,11 +1723,15 @@ printf '%s\n' "$AGENT" > "$DATA_DIR/agent-${PAIR_TAG}"
 #   codex           — subcommand: `resume <id>` at args[0..1].
 explicit_resume=""
 case "$AGENT" in
-    claude|gemini)
+    claude|gemini|agy)
         prev=""
         for tok in $agent_extra; do
-            if [ "$prev" = "--resume" ]; then
+            if [ "$prev" = "--resume" ] || [ "$prev" = "--conversation" ]; then
                 explicit_resume="$tok"
+                break
+            fi
+            if [[ "$tok" =~ ^--conversation=(.+) ]]; then
+                explicit_resume="${BASH_REMATCH[1]}"
                 break
             fi
             prev="$tok"
@@ -1743,8 +1760,10 @@ if [ -n "$explicit_resume" ]; then
         i=2
     fi
     while [ $i -lt $n ]; do
-        if [ "${_eargs[$i]}" = "--resume" ]; then
+        if [ "${_eargs[$i]}" = "--resume" ] || [ "${_eargs[$i]}" = "--conversation" ]; then
             i=$((i+2))
+        elif [[ "${_eargs[$i]}" =~ ^--conversation= ]]; then
+            i=$((i+1))
         else
             _estripped+=("${_eargs[$i]}")
             i=$((i+1))

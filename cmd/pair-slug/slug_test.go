@@ -231,11 +231,34 @@ func TestParseGemini(t *testing.T) {
 	}
 }
 
+func TestParseAgy(t *testing.T) {
+	doc := strings.Join([]string{
+		`{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","content":"<USER_REQUEST>\nexplain the bug\n</USER_REQUEST>\n<METADATA>...</METADATA>"}`,
+		`{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","content":"I will look into it"}`,
+		`{"step_index":2,"source":"SYSTEM","type":"CONVERSATION_HISTORY","status":"DONE"}`,
+	}, "\n")
+	turns := parseAgy([]byte(doc))
+	if len(turns) != 2 {
+		t.Fatalf("got %d turns, want 2 (user+assistant): %+v", len(turns), turns)
+	}
+	if turns[0].Role != "user" || turns[0].Text != "explain the bug" {
+		t.Errorf("turn0 = %+v", turns[0])
+	}
+	if turns[1].Role != "assistant" || turns[1].Text != "I will look into it" {
+		t.Errorf("turn1 = %+v", turns[1])
+	}
+}
+
+
 func TestParseTranscriptDispatch(t *testing.T) {
 	// claude is the default/fallback parser
 	claude := `{"type":"user","message":{"role":"user","content":"hi"}}`
 	if got := parseTranscript("claude", []byte(claude)); len(got) != 1 || got[0].Text != "hi" {
 		t.Errorf("claude dispatch: %+v", got)
+	}
+	agy := `{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","content":"<USER_REQUEST>\nhi\n</USER_REQUEST>"}`
+	if got := parseTranscript("agy", []byte(agy)); len(got) != 1 || got[0].Text != "hi" {
+		t.Errorf("agy dispatch: %+v", got)
 	}
 	if got := parseTranscript("unknown-agent", []byte(claude)); len(got) != 1 {
 		t.Errorf("unknown agent should fall back to claude parser: %+v", got)

@@ -70,6 +70,8 @@ func parseTranscript(agent string, data []byte) []turn {
 		return parseCodex(data)
 	case "gemini":
 		return parseGemini(data)
+	case "agy":
+		return parseAgy(data)
 	default:
 		return parseClaude(data)
 	}
@@ -375,3 +377,44 @@ func decide(branchLeft, prev, raw string) (write bool, value string) {
 	}
 	return true, value
 }
+
+type agyEntry struct {
+	Source  string `json:"source"`
+	Type    string `json:"type"`
+	Content string `json:"content"`
+}
+
+func parseAgy(data []byte) []turn {
+	var out []turn
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var e agyEntry
+		if json.Unmarshal([]byte(line), &e) != nil {
+			continue
+		}
+		if e.Type == "USER_INPUT" {
+			txt := e.Content
+			if strings.Contains(txt, "<USER_REQUEST>") {
+				start := strings.Index(txt, "<USER_REQUEST>") + len("<USER_REQUEST>")
+				end := strings.Index(txt, "</USER_REQUEST>")
+				if end > start {
+					txt = txt[start:end]
+				}
+			}
+			txt = strings.TrimSpace(txt)
+			if txt != "" {
+				out = append(out, turn{Role: "user", Text: txt})
+			}
+		} else if e.Type == "PLANNER_RESPONSE" {
+			txt := strings.TrimSpace(e.Content)
+			if txt != "" {
+				out = append(out, turn{Role: "assistant", Text: txt})
+			}
+		}
+	}
+	return out
+}
+
