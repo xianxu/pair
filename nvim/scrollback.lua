@@ -294,6 +294,7 @@ local PROMPT_PATTERN_BY_AGENT = {
   claude = [[^❯]],
   codex  = [[^›]],
   gemini = [[^ >]],
+  agy    = [[\(──.*\n\)\zs>]],
 }
 
 local function prompt_pattern()
@@ -650,6 +651,7 @@ _G.PairScrollbackTest = {
   unescape                 = unescape,
   truncate_to_width        = truncate_to_width,
   wrap_to_width            = wrap_to_width,
+  prompt_pattern           = prompt_pattern,
 }
 
 -- Floating-window single-line prompt with a markdown-style quote header.
