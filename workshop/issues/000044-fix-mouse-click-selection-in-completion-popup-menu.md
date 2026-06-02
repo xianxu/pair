@@ -1,11 +1,12 @@
 ---
 id: 000044
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-02
 updated: 2026-06-02
 estimate_hours: 1
+actual_hours: 0.5
 ---
 
 # Fix mouse click selection in completion popup menu
@@ -34,6 +35,8 @@ The previous `<LeftMouse>` mapping in `nvim/init.lua` designed to select and con
 
 ## Log
 
+
+- 2026-06-02: closed — make test passes, spelling suggestions click selection verified
 ### 2026-06-02
 
 - Created issue #000044 to investigate and fix the `<LeftMouse>` click selection menu behavior.
