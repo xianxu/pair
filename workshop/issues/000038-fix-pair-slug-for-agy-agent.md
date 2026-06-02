@@ -61,3 +61,5 @@ Completed all implementations and verified with both Go and Neovim/Lua test suit
 - Configured `bin/pair-session-watch.sh` to discover and monitor the `agy` session ID.
 - Fully integrated `agy` flags, resume actions, and renames in `bin/pair`.
 - Staged, committed, and compiled successfully. All tests are green.
+- Added support for `--conversation=UUID` (with `=` separator) inside all argument parsing and capture loops.
+- Shifted session watcher strategy to monitor active SQLite database files (`~/.gemini/antigravity-cli/conversations/<uuid>.db`) which are opened and held open continuously from startup, enabling 100% reliable instant `lsof` matching. Verified locally that the proposed slug resolves and renders immediately!
