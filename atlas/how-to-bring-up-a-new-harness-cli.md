@@ -40,10 +40,11 @@ If the agent presents blocking overlays, pickers (like file autocompletes), or y
   var overlayDetectorByAgent = map[string]overlayDetector{
       "claude": detectClaudeOverlayOpen,
       "codex":  detectCodexOverlayOpen,
+      "agy":    detectAgyOverlayOpen,
   }
   ```
 - Implement the detector. Detectors can scan the rolling output stream for custom OSC escape sequences (e.g. Claude's permission OSC `OSC 777;notify;...`, or Codex's `OSC 9;Plan mode prompt:...`) or fallback to visible text substring matches (e.g., watching for `"Press enter to confirm"`).
-- **For `agy`:** Since Antigravity communicates permission and option prompts via the IDE/launcher's tool-call overlay UI (`ask_permission` / `ask_question`) rather than terminal-based character overlays in the PTY, a custom terminal overlay detector is not required.
+- **For `agy`:** Antigravity *does* render its permission picker in the PTY ("Do you want to proceed?", "Yes, and always allow", …), so `detectAgyOverlayOpen` matches those visible-text markers (no OSC) to arm `pickerActive` — without it, the remapped Enter can't confirm the picker and a stray newline leaks into the prompt (#000042).
 
 ---
 
