@@ -1,11 +1,12 @@
 ---
 id: 000045
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-03
 updated: 2026-06-03
 estimate_hours: 5
+actual_hours: 7
 ---
 
 # adaptation flight recorder and pair-doctor
@@ -23,9 +24,9 @@ frozen strings, so they pass forever even after the live harness moves.
 ## Spec
 
 A **passive flight recorder**: the user runs `pair` normally, every adaptation
-trigger leaves a structured trace, and when something feels off they invoke a
-`pair-doctor` skill that reads the trace and proposes fixes — without having to
-describe the symptom.
+trigger leaves a structured trace, and when something feels off they run
+`pair-doctor` (a script + README under `doctor/` in the pair repo) that reads the
+trace and proposes fixes — without having to describe the symptom.
 
 - **Sink:** one per-session append-only JSONL, `$PAIR_DATA_DIR/adapt-<tag>.jsonl`
   (fits the existing `<purpose>-<tag>` file convention). Flat schema, one line per
@@ -54,26 +55,74 @@ explicitly deferred. Full design: `~/.claude/plans/tidy-stargazing-music.md`.
   and overlay-detect during normal use.
 - Mangling a codex overlay marker produces a `near-miss` line (regression the unit
   suite cannot currently catch), covered by a Go test.
-- `/xx-pair-doctor` reads the trace, reports the near-miss, and points at the atlas
-  aspect with a concrete fix.
-- All 7 aspects emit signals from their owning component (Go/shell/Lua), all into
-  the one shared-schema file; atlas documents each signal.
+- `doctor/doctor.sh` reads the trace, reports the near-miss, and (via doctor/README.md
+  + atlas §3) maps it to the atlas aspect with a concrete fix.
+- All 6 *runtime* aspects (1,2,3,4,5,7) emit signals from their owning component
+  (Go/shell/Lua), all into the one shared-schema file; atlas documents each signal.
+  Aspect 6 (agent settings) is static config with no runtime trigger — it has no
+  emittable signal by nature, so the atlas notes it as "static, no telemetry".
 
 ## Plan
 
-- [ ] M1 — Vertical slice: shared Go emitter (`cmd/internal/adapt`), wire pair-wrap
+- [x] M1 — Vertical slice: shared Go emitter (`cmd/internal/adapt`), wire pair-wrap
       (Aspect 1 remap fired/bypass; Aspect 2 overlay fired + near-miss heuristic),
       `bin/pair` truncate-at-launch, atlas Telemetry-Signal lines for Aspects 1&2 +
-      `## 3. Drift Telemetry` section, `pair-doctor` skill + aggregator, tests
+      `## 3. Drift Telemetry` section, `pair-doctor` (doctor/ script + README), tests
       (emitter format + drift near-miss regression). Proves emit→file→doctor→fix loop.
-- [ ] M2 — Horizontal fan-out: shell helper `bin/lib/adapt-log.sh`; Aspect 3
+- [x] M2 — Horizontal fan-out: shell helper `bin/lib/adapt-log.sh`; Aspect 3
       (session-watch + resume), Aspect 4 (pair-slug), Aspect 5 (PTY filter),
       Aspect 7 (nvim prompt-search); atlas Telemetry-Signal lines for 3,4,5,7;
       extend doctor registry coverage; tests per emitter.
+      Carried from M1 review (all minor, non-blocking): (a) **cross-emitter golden
+      test** — one Go + one shell + one Lua line asserted byte-identical in field
+      order, so the "same schema, three languages" contract can't silently drift;
+      (b) a concurrent-writer test asserting multi-process `O_APPEND` stays
+      line-atomic before the shell/Lua emitters land; (c) rename the byte
+      `truncate([]byte,int)` in pair-wrap (collides with `adapt.truncate`) →
+      e.g. `capBytes`; (d) add an `atlas/index.md` "see also" pointer to
+      `doctor/README.md`. M2 emitters must reference the atlas outcome enum, not
+      re-invent the strings.
 
 ## Log
 
 ### 2026-06-03
+- 2026-06-03: closed — Both milestones reviewed + closed (M1 SHIP, M2 FIX-THEN-SHIP with fixes applied). make test fully green: go ./... + test-lua (slug/scrollback/adapt) + test-queue + test-doctor + test-adapt-schema. Flight recorder emits from all 6 runtime aspects across Go/shell/Lua into one byte-identical schema (golden test); doctor/doctor.sh reads + maps findings to atlas §3; near-miss drift detection + concurrent-append atomicity proven. Atlas §3 registry documents every signal.
+- 2026-06-03: closed M2 — make test fully green (go ./... + test-lua incl new adapt_test.lua + test-queue + test-doctor + test-adapt-schema). Cross-emitter golden test proves Go==shell==Lua byte-identical; 60-way concurrent multi-process O_APPEND stays line-atomic. Fresh-eyes review verdict SHIP; fixed the one contract-relevant minor (Lua rune-safe truncate) with nvim/adapt_test.lua coverage.; review verdict: FIX-THEN-SHIP
+- 2026-06-03: closed M1 — make test green (go ./... + lua + queue + doctor); -race clean on cmd/internal/adapt + cmd/pair-wrap (pair-scrollback-render race pre-existing/excluded). doctor.sh verified end-to-end against synthetic logs: tallies + deduped near-miss findings + NO-DATA + malformed-line tolerance (doctor_test.sh). Fresh-eyes review done; C1 panic + I1 robustness fixed with regression tests.; review verdict: SHIP
+
+**M2 landed.** Fanned the flight recorder out to the remaining runtime aspects in
+their owning components/languages: shell emitter `bin/lib/adapt-log.sh`; aspect 3
+(`pair-session-watch.sh` session-id fired/near-miss/fail); aspect 4 (`pair-slug`
+slug-parse fired/near-miss/fail); aspect 5 (`pair-wrap` output-filter, deduped per
+marker); aspect 7 (`nvim/adapt.lua` + `scrollback.lua` prompt-search fired/near-miss).
+Cross-cutting: disabled Go HTML-escaping for cross-emitter parity; renamed pair-wrap
+byte `truncate`→`capBytes`; atlas §3 signal rows for 3/4/5/7 + index pointer to
+doctor/README.md. Carried M1-review items all done: cross-emitter golden test +
+60-way concurrent-append atomicity test (`tests/adapt-schema-test.sh`,
+`make test-adapt-schema`), pinned by a single fixture validated on all three
+emitters (`TestGoldenMatchesFixture` is the Go leg, since tests/ can't import the
+internal pkg).
+
+Fresh-eyes review (BASE a640c7d → HEAD): verdict **SHIP**, no Critical/Important.
+Three minor findings; fixed the one contract-relevant one (Lua `string.sub` byte-cut
+could split a multibyte rune → invalid UTF-8, diverging from Go's rune-safe
+truncate) by porting the rune-backoff into `nvim/adapt.lua`, covered by
+`nvim/adapt_test.lua` (`make test-lua`). Left minor #2 (comp label "session-watch"
+vs filename — cosmetic) and noted #3 (aspect-7 near-miss has no headless test — the
+branch needs a no-glyph scrollback fixture; logic verified by inspection). One lesson
+recorded (one-schema-three-languages → golden test). `make test` fully green.
+
+Then the sdlc-dispatched milestone-review judge (a second, stricter pass) returned
+**FIX-THEN-SHIP**; all its findings addressed: Important #1 — atlas §3 aspect-4
+Outcomes now lists `fail` (emitted in 3 places); Important #2 — scoped the shell
+`${detail:0:200}` cap with a comment (all shell call sites are ASCII → byte≈char cap
+matches Go/Lua; golden test covers ASCII). Minors: dropped the noisy
+`slug-parse/fail` on the not-yet-resolved (sid=="") path (timing, not drift); added
+an aspect-5 absence-is-the-signal row to doctor/README.md. Remaining noted, not done:
+comp label "session-watch" (cosmetic); aspect-7 near-miss headless test (logic
+verified by inspection). Also cleaned the stale `ariadne/construct/local/pair-doctor`
+left by the M1 detour; its `.claude/skills/xx-pair-doctor` symlink now dangles and the
+sync-local-skills SessionStart hook prunes it.
 
 Filed from a design discussion. User chose passive logging (idea 2) + atlas-as-registry
 (idea 3, already largely done); deferred active probes. The differentiator vs the
@@ -81,3 +130,22 @@ user's initial framing: **near-miss logging** — without it a success-only log 
 detect drift because breakage manifests as silence. Plan approved:
 `~/.claude/plans/tidy-stargazing-music.md`. Two milestones (M1 vertical slice proves
 the loop; M2 fans out across components/languages).
+
+**M1 landed.** Shared `cmd/internal/adapt` emitter; pair-wrap aspects 1 (return-remap
+fired/bypass) + 2 (overlay-detect fired + near-miss via `promptShape`); `bin/pair`
+truncate-at-launch + quit cleanup; `doctor/{doctor.sh,README.md}`; atlas §3 registry.
+Decision: pair-doctor ships as a plain script+README under `doctor/` in the pair repo
+(NOT a construct skill — `construct/local` symlinks into ariadne's base layer and
+propagates to all downstream repos, wrong home for a pair-specific tool).
+
+Fresh-eyes review (BASE 4d0d32d → HEAD): verdict **changes-requested**, all fixed
+before close. C1 — `promptShape` panicked because `strings.ToLower` isn't
+length-preserving (offset past `len(visible)`); fixed with length-preserving
+`asciiFold` + clamped `snippetLine`, regression test `TestPromptShapeMultibyteNoPanic`.
+I1 — `doctor.sh` died on a single malformed JSONL line; fixed with tolerant
+`jq -R 'fromjson? // empty'` + `|| true`, regression `doctor/doctor_test.sh`
+(`make test-doctor`). Also: removed duplicate `dataDir()` (use `adapt.DataDir()`),
+gated near-miss strip on live recorder, dropped the false-positive-prone
+"do you want to" shape, added emitPlainCR/Open/Close/truncate coverage. Two lessons
+recorded. `make test` green; `-race` clean on adapt + pair-wrap (the
+pair-scrollback-render race is pre-existing, unrelated, excluded from `test-race`).

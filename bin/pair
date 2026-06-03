@@ -1124,6 +1124,7 @@ cleanup_quit_marker() {
               "$DATA_DIR/scrollback-${PAIR_TAG}-${quit_agent}.events.jsonl" \
               "$DATA_DIR/scrollback-${PAIR_TAG}-${quit_agent}.ansi" \
               "$DATA_DIR/pair-wrap-pid-${PAIR_TAG}" \
+              "$DATA_DIR/adapt-${PAIR_TAG}.jsonl" \
               "$DATA_DIR/image-capture-${PAIR_TAG}" \
               "$DATA_DIR/image-capture-${PAIR_TAG}.done"
 
@@ -1868,6 +1869,15 @@ if [ "$AGENT" = "codex" ]; then
     fi
     export PAIR_AGENT_ARGS="$agent_extra"
 fi
+
+# Truncate the adaptation flight recorder for this session. Multiple
+# components (pair-wrap, pair-session-watch.sh, pair-slug, nvim) append one
+# JSON line per harness-adaptation trigger to this file during the run;
+# pair-doctor reads it to spot integration drift. bin/pair owns its lifecycle:
+# truncating here — once, before any writer starts — means every appender can
+# safely O_APPEND without racing on truncation. See
+# atlas/how-to-bring-up-a-new-harness-cli.md §3 (Drift Telemetry).
+: > "$DATA_DIR/adapt-${PAIR_TAG}.jsonl" 2>/dev/null || true
 
 # Spawn the session-id watcher (issue #000016, fixed in #000020). For
 # codex/agy it binds to the agent's PID via lsof, so concurrent pair

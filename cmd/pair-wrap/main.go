@@ -48,6 +48,8 @@ import (
 	"github.com/creack/pty"
 	"golang.org/x/sys/unix"
 	"golang.org/x/term"
+
+	"github.com/xianxu/pair/cmd/internal/adapt"
 )
 
 // ----- Tunables ---------------------------------------------------------------
@@ -214,6 +216,19 @@ type proxy struct {
 	overlayMu       sync.Mutex
 	overlayTextTail string
 
+	// Adaptation flight recorder: always-on, appends one JSON line per
+	// adaptation trigger to adapt-<tag>.jsonl so pair-doctor can spot drift.
+	// nil is a safe no-op (telemetry never blocks the proxy). lastNearMiss
+	// dedups repeated overlay near-misses across rerenders — touched only
+	// from the handleChunk pump goroutine, so it needs no lock.
+	adapt        *adapt.Logger
+	lastNearMiss string
+	// filterSeen dedups the aspect-5 output-filter signal: we log `fired`
+	// once per distinct stripped marker (presence is the signal, and the
+	// markers fire many times per turn). Touched only from the stdout pump
+	// goroutine (stripCodexSyncOutput), so no lock.
+	filterSeen map[string]bool
+
 	// Scrollback log (-1 / nil when disabled)
 	scrollbackFD    *os.File
 	eventsFD        *os.File
@@ -258,24 +273,12 @@ type spanEntry struct {
 
 // ----- Path resolution --------------------------------------------------------
 
-// dataDir returns $PAIR_DATA_DIR or the XDG default. Mirrors the Python.
-func dataDir() string {
-	if d := os.Getenv("PAIR_DATA_DIR"); d != "" {
-		return d
-	}
-	if d := os.Getenv("XDG_DATA_HOME"); d != "" {
-		return filepath.Join(d, "pair")
-	}
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".local", "share", "pair")
-}
-
 func (p *proxy) resolvePaths() {
 	tag := os.Getenv("PAIR_TAG")
 	if tag == "" {
 		return
 	}
-	dir := dataDir()
+	dir := adapt.DataDir()
 	p.outerTTYFile = filepath.Join(dir, "outer-tty-"+tag)
 	if spanExtractionAgents[p.agentBasename] {
 		p.agentOutputFile = filepath.Join(dir, "agent-output-"+tag)
@@ -505,6 +508,19 @@ func (p *proxy) stripCodexSyncOutput(data []byte) []byte {
 			if startsWith(data[i:], marker) {
 				i += len(marker)
 				matched = true
+				// Aspect 5: record that the filter engaged, once per distinct
+				// marker (deduped — these fire many times per render). If a
+				// codex update changes a sequence, its `fired` line stops
+				// appearing and pair-doctor sees the gap.
+				if p.adapt != nil {
+					if mk := fmt.Sprintf("%q", marker); !p.filterSeen[mk] {
+						if p.filterSeen == nil {
+							p.filterSeen = make(map[string]bool)
+						}
+						p.filterSeen[mk] = true
+						p.adapt.Log(5, "output-filter", adapt.Fired, "stripped "+mk)
+					}
+				}
 				break
 			}
 			if isPrefixOf(data[i:], marker) {
@@ -1073,13 +1089,95 @@ func (p *proxy) checkOverlayOpen(data, rolling []byte) {
 		return
 	}
 	open, reason := detect(p, data, rolling)
-	if !open {
+	if open {
+		if !p.pickerActive.Load() {
+			p.pickerActive.Store(true)
+			p.debug("PICKER-open", p.agentBasename+": "+reason)
+			p.adapt.Log(2, "overlay-detect", adapt.Fired, p.agentBasename+": "+reason)
+		}
 		return
 	}
-	if !p.pickerActive.Load() {
-		p.pickerActive.Store(true)
-		p.debug("PICKER-open", p.agentBasename+": "+reason)
+	// The detector said no. If the output nonetheless looks like an interactive
+	// confirm/permission prompt, that's the fingerprint of harness drift: the
+	// agent is asking for input via a string our markers no longer recognize,
+	// so the next plain Enter will leak a newline instead of confirming (the
+	// #000042 class of bug). Record it — deduped across rerenders — so
+	// pair-doctor can surface the new string. Diagnostic only; we never act on
+	// it. Only meaningful when no overlay is already known-open. Gated on a
+	// live recorder so the extra strip+scan isn't paid when telemetry is off.
+	if p.adapt != nil && !p.pickerActive.Load() {
+		if snippet, ok := promptShape(stripTerminalControls(data)); ok && snippet != p.lastNearMiss {
+			p.lastNearMiss = snippet
+			p.adapt.Log(2, "overlay-detect", adapt.NearMiss, p.agentBasename+": unmatched prompt-shaped output: "+snippet)
+		}
 	}
+}
+
+// genericPromptShapes are phrasings common to interactive confirm/permission
+// prompts but deliberately distinct from any agent-specific picker marker
+// (codexPickerMarkers / agyPickerMarkers). They are the drift tripwire, not a
+// detection mechanism: a match here while every registered detector misses
+// means the harness likely changed its picker wording. Kept conservative to
+// limit false positives — matches only feed the diagnostic near-miss signal.
+// All entries are lowercase ASCII (matched via asciiFold).
+var genericPromptShapes = []string{
+	"(y/n)", "[y/n]", "y/n]", "[y/n",
+	"press enter to",
+	"esc to go back",
+	"esc to cancel",
+	"yes, and always",
+	"select an option",
+}
+
+// promptShape reports whether stripped visible output looks like an
+// interactive prompt, returning the trimmed line around the first match for a
+// human reading the trace. Pure → unit-testable without a live harness.
+//
+// Matching uses asciiFold (length-preserving) rather than strings.ToLower:
+// ToLower can change a string's byte length (e.g. 'Ⱥ' folds 2→3 bytes), which
+// would make a match offset in the folded copy point past the end of the
+// original `visible` and panic snippetLine. Since every shape is ASCII, an
+// ASCII-only fold is sufficient and keeps byte offsets aligned.
+func promptShape(visible string) (string, bool) {
+	low := asciiFold(visible)
+	for _, s := range genericPromptShapes {
+		if i := strings.Index(low, s); i >= 0 {
+			return snippetLine(visible, i), true
+		}
+	}
+	return "", false
+}
+
+// asciiFold lowercases A–Z in place and leaves every other byte (including all
+// UTF-8 multi-byte sequences) untouched, so the result has the same byte
+// length as the input and offsets map 1:1 back onto it.
+func asciiFold(s string) string {
+	b := []byte(s)
+	for i, c := range b {
+		if c >= 'A' && c <= 'Z' {
+			b[i] = c + ('a' - 'A')
+		}
+	}
+	return string(b)
+}
+
+// snippetLine returns the trimmed line of s containing byte offset idx. idx is
+// clamped to [0,len(s)] defensively so a caller offset can never panic.
+func snippetLine(s string, idx int) string {
+	if idx < 0 {
+		idx = 0
+	}
+	if idx > len(s) {
+		idx = len(s)
+	}
+	start := strings.LastIndexByte(s[:idx], '\n') + 1
+	end := strings.IndexByte(s[idx:], '\n')
+	if end < 0 {
+		end = len(s)
+	} else {
+		end += idx
+	}
+	return strings.TrimSpace(s[start:end])
 }
 
 // emitPlainCR appends bytes for a user "plain Enter" event, honoring
@@ -1093,8 +1191,10 @@ func (p *proxy) emitPlainCR(out []byte) []byte {
 		p.overlayMu.Lock()
 		p.overlayTextTail = ""
 		p.overlayMu.Unlock()
+		p.adapt.Log(1, "return-remap", adapt.Bypass, "plain Enter → bare CR (overlay active)")
 		return append(out, '\r')
 	}
+	p.adapt.Log(1, "return-remap", adapt.Fired, "plain Enter → newline remap")
 	return append(out, p.sendKM.plainCR...)
 }
 
@@ -1373,6 +1473,10 @@ argsDone:
 	p.agentBasename = filepath.Base(argv[0])
 	p.resolvePaths()
 
+	// Open the always-on adaptation flight recorder. bin/pair truncates the
+	// file once per session launch, so we append. nil when PAIR_TAG is unset.
+	p.adapt = adapt.Open("pair-wrap", p.agentBasename)
+
 	// Open scrollback log (truncate) + matching .events.jsonl sidecar.
 	// Disable scrollback entirely on any open failure; never block startup.
 	if p.scrollbackLog != "" {
@@ -1488,6 +1592,7 @@ argsDone:
 		if p.eventsFD != nil {
 			_ = p.eventsFD.Close()
 		}
+		_ = p.adapt.Close()
 		if p.capturePIDPath != "" {
 			// Drop pidfile so a future Alt+i doesn't signal a stale pid.
 			// image-capture-* files are intentionally left alone here —
@@ -1722,16 +1827,16 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 				body := (*rolling)[m[4]:m[5]]
 				if isActionableOSC(ps, body) {
 					if p.notifyModeActive == "native" {
-						p.debug("OSC"+string(ps), string(truncate(body, 80)))
+						p.debug("OSC"+string(ps), string(capBytes(body, 80)))
 						if !actioned {
 							p.emitOuter("")
 							actioned = true
 						}
 					} else {
-						p.debug("OSC"+string(ps)+"-swallow", string(truncate(body, 80)))
+						p.debug("OSC"+string(ps)+"-swallow", string(capBytes(body, 80)))
 					}
 				} else {
-					p.debug("OSC"+string(ps)+"-skip", string(truncate(body, 80)))
+					p.debug("OSC"+string(ps)+"-skip", string(capBytes(body, 80)))
 				}
 			}
 			*rolling = (*rolling)[last[1]:]
@@ -1785,7 +1890,10 @@ func isTTY(f *os.File) bool {
 	return term.IsTerminal(int(f.Fd()))
 }
 
-func truncate(b []byte, n int) []byte {
+// capBytes caps a byte slice to at most n bytes (raw, not rune-aware — used for
+// debug-log snippets where a split rune is harmless). Distinct from
+// adapt.truncate, which is rune-safe for the telemetry detail field.
+func capBytes(b []byte, n int) []byte {
 	if len(b) > n {
 		return b[:n]
 	}

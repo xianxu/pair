@@ -37,6 +37,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/adapt"
 )
 
 const (
@@ -379,6 +381,11 @@ func main() {
 	if agent == "" {
 		agent = "claude"
 	}
+	// Aspect 4 flight recorder: slug-parse fires on a successful parse,
+	// near-misses when a transcript is read but yields no turns (schema drift),
+	// fails when no transcript resolves at all. See atlas §3.
+	lg := adapt.Open("pair-slug", agent)
+	defer lg.Close()
 	cwd, _ := os.Getwd()
 	home, _ := os.UserHomeDir()
 
@@ -395,25 +402,32 @@ func main() {
 			}
 		}
 		if transcript == "" && sid == "" {
+			// No session id yet — normal early in a session before the watcher
+			// has written the config. Not a drift signal, so don't log `fail`
+			// (it would fire on every turn-end until the id resolves).
 			logf("no session_id in config-%s-%s.json", tag, agent)
 			return
 		}
 	}
 	if transcript == "" {
 		logf("could not resolve transcript for agent %q", agent)
+		lg.Log(4, "slug-parse", adapt.Fail, "could not resolve transcript for agent "+agent)
 		return
 	}
 
 	data, err := os.ReadFile(transcript)
 	if err != nil {
 		logf("read transcript %q: %v", transcript, err)
+		lg.Log(4, "slug-parse", adapt.Fail, "read transcript: "+err.Error())
 		return
 	}
 	turns := windowTurns(parseTranscript(agent, data), recentTurns, minUserTurns, hardMaxTurns, perTurnChars)
 	if len(turns) == 0 {
 		logf("no turns extracted (agent=%s, transcript=%s)", agent, transcript)
+		lg.Log(4, "slug-parse", adapt.NearMiss, "transcript read but 0 turns extracted (agent="+agent+")")
 		return
 	}
+	lg.Log(4, "slug-parse", adapt.Fired, fmt.Sprintf("%d turns", len(turns)))
 
 	// prev is the effective slug nvim last wrote (includes user edits).
 	prev := ""
