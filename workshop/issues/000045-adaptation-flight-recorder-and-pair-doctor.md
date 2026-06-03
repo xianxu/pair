@@ -63,7 +63,7 @@ explicitly deferred. Full design: `~/.claude/plans/tidy-stargazing-music.md`.
 
 ## Plan
 
-- [ ] M1 — Vertical slice: shared Go emitter (`cmd/internal/adapt`), wire pair-wrap
+- [x] M1 — Vertical slice: shared Go emitter (`cmd/internal/adapt`), wire pair-wrap
       (Aspect 1 remap fired/bypass; Aspect 2 overlay fired + near-miss heuristic),
       `bin/pair` truncate-at-launch, atlas Telemetry-Signal lines for Aspects 1&2 +
       `## 3. Drift Telemetry` section, `pair-doctor` (doctor/ script + README), tests
@@ -83,3 +83,22 @@ user's initial framing: **near-miss logging** — without it a success-only log 
 detect drift because breakage manifests as silence. Plan approved:
 `~/.claude/plans/tidy-stargazing-music.md`. Two milestones (M1 vertical slice proves
 the loop; M2 fans out across components/languages).
+
+**M1 landed.** Shared `cmd/internal/adapt` emitter; pair-wrap aspects 1 (return-remap
+fired/bypass) + 2 (overlay-detect fired + near-miss via `promptShape`); `bin/pair`
+truncate-at-launch + quit cleanup; `doctor/{doctor.sh,README.md}`; atlas §3 registry.
+Decision: pair-doctor ships as a plain script+README under `doctor/` in the pair repo
+(NOT a construct skill — `construct/local` symlinks into ariadne's base layer and
+propagates to all downstream repos, wrong home for a pair-specific tool).
+
+Fresh-eyes review (BASE 4d0d32d → HEAD): verdict **changes-requested**, all fixed
+before close. C1 — `promptShape` panicked because `strings.ToLower` isn't
+length-preserving (offset past `len(visible)`); fixed with length-preserving
+`asciiFold` + clamped `snippetLine`, regression test `TestPromptShapeMultibyteNoPanic`.
+I1 — `doctor.sh` died on a single malformed JSONL line; fixed with tolerant
+`jq -R 'fromjson? // empty'` + `|| true`, regression `doctor/doctor_test.sh`
+(`make test-doctor`). Also: removed duplicate `dataDir()` (use `adapt.DataDir()`),
+gated near-miss strip on live recorder, dropped the false-positive-prone
+"do you want to" shape, added emitPlainCR/Open/Close/truncate coverage. Two lessons
+recorded. `make test` green; `-race` clean on adapt + pair-wrap (the
+pair-scrollback-render race is pre-existing, unrelated, excluded from `test-race`).

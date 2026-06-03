@@ -53,7 +53,7 @@ pair-slug:              $(BIN_DIR)/pair-slug
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
-test: test-lua test-queue
+test: test-lua test-queue test-doctor
 	go test ./... -count=1
 
 test-race:
@@ -72,6 +72,11 @@ test-lua:
 # regression. See tests/queue-send-test.sh.
 test-queue:
 	bash tests/queue-send-test.sh
+
+# Regression test for doctor/doctor.sh (the adaptation flight-recorder reader):
+# a malformed line must not abort the diagnostic. See doctor/doctor_test.sh.
+test-doctor:
+	bash doctor/doctor_test.sh
 
 # pair-scribe — Go-based pty wrapper with SIGUSR1/SIGUSR2 pause/resume
 # of the typescript log. Replaces script(1) at the top of the user's

@@ -43,22 +43,28 @@ echo "log:   $f"
 echo "lines: $(wc -l < "$f" | tr -d ' ')"
 echo
 
+# Parse tolerantly: `fromjson? // empty` drops any malformed/partial line
+# (a writer can crash mid-line, and O_APPEND only guarantees atomicity below
+# PIPE_BUF), so one bad line never aborts the whole diagnostic. `|| true`
+# keeps a jq hiccup from tripping `set -e` — this tool always exits 0.
+records="$(jq -R 'fromjson? // empty' "$f" 2>/dev/null || true)"
+
 echo "-- tallies (aspect · signal/outcome · count) --"
-jq -rs '
+printf '%s\n' "$records" | jq -rs '
   group_by([.aspect, .signal, .outcome])
   | map({aspect: .[0].aspect, signal: .[0].signal, outcome: .[0].outcome, n: length})
   | sort_by(.aspect, .signal, .outcome)
   | .[] | "  aspect \(.aspect)  \(.signal)/\(.outcome): \(.n)"
-' "$f"
+' 2>/dev/null || true
 echo
 
 echo "-- drift findings (near-miss / fail, deduped by detail) --"
-findings="$(jq -rs '
+findings="$(printf '%s\n' "$records" | jq -rs '
   map(select(.outcome == "near-miss" or .outcome == "fail"))
   | unique_by([.signal, .detail])
   | sort_by(.aspect)
   | .[] | "  [\(.outcome)] aspect \(.aspect) \(.signal): \(.detail)"
-' "$f")"
+' 2>/dev/null || true)"
 if [ -z "$findings" ]; then
     echo "  none — every adaptation that fired was recognized."
 else

@@ -268,24 +268,12 @@ type spanEntry struct {
 
 // ----- Path resolution --------------------------------------------------------
 
-// dataDir returns $PAIR_DATA_DIR or the XDG default. Mirrors the Python.
-func dataDir() string {
-	if d := os.Getenv("PAIR_DATA_DIR"); d != "" {
-		return d
-	}
-	if d := os.Getenv("XDG_DATA_HOME"); d != "" {
-		return filepath.Join(d, "pair")
-	}
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".local", "share", "pair")
-}
-
 func (p *proxy) resolvePaths() {
 	tag := os.Getenv("PAIR_TAG")
 	if tag == "" {
 		return
 	}
-	dir := dataDir()
+	dir := adapt.DataDir()
 	p.outerTTYFile = filepath.Join(dir, "outer-tty-"+tag)
 	if spanExtractionAgents[p.agentBasename] {
 		p.agentOutputFile = filepath.Join(dir, "agent-output-"+tag)
@@ -1097,8 +1085,9 @@ func (p *proxy) checkOverlayOpen(data, rolling []byte) {
 	// so the next plain Enter will leak a newline instead of confirming (the
 	// #000042 class of bug). Record it — deduped across rerenders — so
 	// pair-doctor can surface the new string. Diagnostic only; we never act on
-	// it. Only meaningful when no overlay is already known-open.
-	if !p.pickerActive.Load() {
+	// it. Only meaningful when no overlay is already known-open. Gated on a
+	// live recorder so the extra strip+scan isn't paid when telemetry is off.
+	if p.adapt != nil && !p.pickerActive.Load() {
 		if snippet, ok := promptShape(stripTerminalControls(data)); ok && snippet != p.lastNearMiss {
 			p.lastNearMiss = snippet
 			p.adapt.Log(2, "overlay-detect", adapt.NearMiss, p.agentBasename+": unmatched prompt-shaped output: "+snippet)
@@ -1112,10 +1101,10 @@ func (p *proxy) checkOverlayOpen(data, rolling []byte) {
 // detection mechanism: a match here while every registered detector misses
 // means the harness likely changed its picker wording. Kept conservative to
 // limit false positives — matches only feed the diagnostic near-miss signal.
+// All entries are lowercase ASCII (matched via asciiFold).
 var genericPromptShapes = []string{
 	"(y/n)", "[y/n]", "y/n]", "[y/n",
 	"press enter to",
-	"do you want to",
 	"esc to go back",
 	"esc to cancel",
 	"yes, and always",
@@ -1125,8 +1114,14 @@ var genericPromptShapes = []string{
 // promptShape reports whether stripped visible output looks like an
 // interactive prompt, returning the trimmed line around the first match for a
 // human reading the trace. Pure → unit-testable without a live harness.
+//
+// Matching uses asciiFold (length-preserving) rather than strings.ToLower:
+// ToLower can change a string's byte length (e.g. 'Ⱥ' folds 2→3 bytes), which
+// would make a match offset in the folded copy point past the end of the
+// original `visible` and panic snippetLine. Since every shape is ASCII, an
+// ASCII-only fold is sufficient and keeps byte offsets aligned.
 func promptShape(visible string) (string, bool) {
-	low := strings.ToLower(visible)
+	low := asciiFold(visible)
 	for _, s := range genericPromptShapes {
 		if i := strings.Index(low, s); i >= 0 {
 			return snippetLine(visible, i), true
@@ -1135,8 +1130,28 @@ func promptShape(visible string) (string, bool) {
 	return "", false
 }
 
-// snippetLine returns the trimmed line of s containing byte offset idx.
+// asciiFold lowercases A–Z in place and leaves every other byte (including all
+// UTF-8 multi-byte sequences) untouched, so the result has the same byte
+// length as the input and offsets map 1:1 back onto it.
+func asciiFold(s string) string {
+	b := []byte(s)
+	for i, c := range b {
+		if c >= 'A' && c <= 'Z' {
+			b[i] = c + ('a' - 'A')
+		}
+	}
+	return string(b)
+}
+
+// snippetLine returns the trimmed line of s containing byte offset idx. idx is
+// clamped to [0,len(s)] defensively so a caller offset can never panic.
 func snippetLine(s string, idx int) string {
+	if idx < 0 {
+		idx = 0
+	}
+	if idx > len(s) {
+		idx = len(s)
+	}
 	start := strings.LastIndexByte(s[:idx], '\n') + 1
 	end := strings.IndexByte(s[idx:], '\n')
 	if end < 0 {

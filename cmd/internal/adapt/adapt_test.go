@@ -3,6 +3,8 @@ package adapt
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -79,4 +81,61 @@ func utf8Valid(s string) bool {
 		}
 	}
 	return true
+}
+
+func TestTruncateEdges(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"abc", "abc"}, // n > len → whole
+		{strings.Repeat("a", 200), strings.Repeat("a", 200)}, // exactly n → whole
+		{strings.Repeat("a", 201), strings.Repeat("a", 200)}, // 1 over → cut to n
+	}
+	for _, c := range cases {
+		if got := truncate(c.in, maxDetail); got != c.want {
+			t.Errorf("truncate(%d bytes) = %d bytes, want %d", len(c.in), len(got), len(c.want))
+		}
+	}
+	// A cut landing mid-rune backs up to a boundary and stays valid UTF-8.
+	got := truncate(strings.Repeat("é", maxDetail), maxDetail) // 2*maxDetail bytes
+	if len(got) > maxDetail || !utf8Valid(got) {
+		t.Errorf("mid-rune truncate: len=%d valid=%v", len(got), utf8Valid(got))
+	}
+}
+
+func TestOpenNoTagReturnsNilNoOp(t *testing.T) {
+	t.Setenv("PAIR_TAG", "")
+	l := Open("pair-wrap", "codex")
+	if l != nil {
+		t.Fatalf("Open with empty PAIR_TAG should return nil, got %v", l)
+	}
+	l.Log(1, "x", Fired, "y") // must not panic
+	if err := l.Close(); err != nil {
+		t.Errorf("nil Close = %v, want nil", err)
+	}
+}
+
+func TestOpenAppendsAcrossOpens(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("PAIR_TAG", "t1")
+	t.Setenv("PAIR_DATA_DIR", dir)
+
+	l1 := Open("pair-wrap", "codex")
+	if l1 == nil {
+		t.Fatal("Open returned nil with PAIR_TAG set")
+	}
+	l1.Log(1, "return-remap", Fired, "first")
+	_ = l1.Close()
+
+	// A second Open (e.g. a different process) must append, not truncate.
+	l2 := Open("pair-slug", "codex")
+	l2.Log(4, "slug-parse", NearMiss, "second")
+	_ = l2.Close()
+
+	data, err := os.ReadFile(filepath.Join(dir, "adapt-t1.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Count(strings.TrimSpace(string(data)), "\n") + 1
+	if lines != 2 {
+		t.Fatalf("want 2 appended lines, got %d:\n%s", lines, data)
+	}
 }

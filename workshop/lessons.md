@@ -167,3 +167,35 @@ intervene, capture the item's **filename key first** (`queue_key_for_n(n)` →
 insert; indices do. Verified the duplication via a headless driver
 (`nvim --headless -u nvim/init.lua` + `maparg().callback`) before fixing, and
 guarded it with `tests/queue-send-test.sh` (`make test-queue`).
+
+## strings.ToLower can change byte length — don't cross-index a folded copy
+
+`promptShape` matched against `strings.ToLower(visible)` but then sliced the
+**original** `visible` at the match offset. `ToLower` is not length-preserving
+(e.g. `Ⱥ` U+023A, 2 bytes → `ⱥ` U+2C65, 3 bytes), so on agent output with such a
+rune the offset exceeded `len(visible)` and panicked the slice. The panic was
+swallowed by `handleChunk`'s `recover`, but that `recover` wraps the whole
+detect block, so OSC-notification + bell handling were silently skipped for that
+chunk — a diagnostic-only feature altering proxy behavior. Surfaced in #000045
+M1 review (C1).
+
+**Rule.** If you compute a byte offset in one string, slice the *same* string —
+never a transformed copy whose length can differ. For case-insensitive matching
+where you need offsets back in the original, use a **length-preserving** fold
+(ASCII-only `asciiFold`) and clamp slice indices defensively. Add a multibyte
+test case (`Ⱥ`/`İ`/`Å`) — ASCII-only tests can't catch this.
+
+## jq slurp (`-s`) over a JSONL file aborts on one bad line
+
+`doctor.sh` read the flight recorder with `jq -rs '…'`, which parses the whole
+file as one array — so a single malformed/partial line (a writer crashing
+mid-line; O_APPEND only guarantees atomicity below PIPE_BUF) made jq error and,
+under `set -euo pipefail`, killed the script. The operator got a jq stack trace
+and zero diagnostics exactly when they needed the tool. Surfaced in #000045 M1
+review (I1).
+
+**Rule.** Parse append-only JSONL **tolerantly**: pre-filter with
+`jq -R 'fromjson? // empty'` to drop bad lines, then slurp; and `|| true` the jq
+calls so a parse hiccup can't trip `set -e` in an always-exit-0 diagnostic.
+Guard it with a fixture containing a deliberately truncated line
+(`doctor/doctor_test.sh`, `make test-doctor`).

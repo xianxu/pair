@@ -96,6 +96,48 @@ func TestOverlayKnownMarker_EmitsFiredNotNearMiss(t *testing.T) {
 	}
 }
 
+// TestEmitPlainCR_LogsFiredAndBypass covers aspect 1's telemetry: a normal
+// Enter logs `fired`, an Enter consumed while an overlay is active logs
+// `bypass`. (The byte-translation behavior itself is covered in
+// picker_overlay_test.go; this pins the signal.)
+func TestEmitPlainCR_LogsFiredAndBypass(t *testing.T) {
+	var buf bytes.Buffer
+	p := claudeProxy()
+	p.adapt = adapt.New(&buf, "pair-wrap", "claude")
+
+	p.emitPlainCR(nil) // no overlay → fired
+	p.pickerActive.Store(true)
+	p.emitPlainCR(nil) // overlay active → bypass
+
+	recs := decodeAdapt(t, &buf)
+	if len(recs) != 2 {
+		t.Fatalf("want 2 lines, got %d: %s", len(recs), buf.String())
+	}
+	if recs[0]["outcome"] != "fired" || recs[1]["outcome"] != "bypass" {
+		t.Errorf("outcomes = %v, %v (want fired, bypass)", recs[0]["outcome"], recs[1]["outcome"])
+	}
+	for _, r := range recs {
+		if r["signal"] != "return-remap" || r["aspect"] != float64(1) {
+			t.Errorf("bad signal/aspect: %v", r)
+		}
+	}
+}
+
+// TestPromptShapeMultibyteNoPanic is the C1 regression: 'Ⱥ' (U+023A, 2 bytes)
+// lowercases to 'ⱥ' (U+2C65, 3 bytes), so the old strings.ToLower path
+// produced a match offset past len(visible) and panicked snippetLine. The
+// ASCII-fold path keeps offsets aligned; the snippet must come back correct.
+func TestPromptShapeMultibyteNoPanic(t *testing.T) {
+	in := "Ⱥ heads up\nselect an option:"
+	snippet, ok := promptShape(in)
+	if !ok {
+		t.Fatal("expected a prompt-shape match after the multibyte rune")
+	}
+	if snippet != "select an option:" {
+		t.Errorf("snippet = %q, want %q", snippet, "select an option:")
+	}
+}
+
 func TestPromptShape(t *testing.T) {
 	cases := []struct {
 		in   string
