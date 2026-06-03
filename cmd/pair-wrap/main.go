@@ -48,6 +48,8 @@ import (
 	"github.com/creack/pty"
 	"golang.org/x/sys/unix"
 	"golang.org/x/term"
+
+	"github.com/xianxu/pair/cmd/internal/adapt"
 )
 
 // ----- Tunables ---------------------------------------------------------------
@@ -213,6 +215,14 @@ type proxy struct {
 	// pickerActive.
 	overlayMu       sync.Mutex
 	overlayTextTail string
+
+	// Adaptation flight recorder: always-on, appends one JSON line per
+	// adaptation trigger to adapt-<tag>.jsonl so pair-doctor can spot drift.
+	// nil is a safe no-op (telemetry never blocks the proxy). lastNearMiss
+	// dedups repeated overlay near-misses across rerenders — touched only
+	// from the handleChunk pump goroutine, so it needs no lock.
+	adapt        *adapt.Logger
+	lastNearMiss string
 
 	// Scrollback log (-1 / nil when disabled)
 	scrollbackFD    *os.File
@@ -1073,13 +1083,68 @@ func (p *proxy) checkOverlayOpen(data, rolling []byte) {
 		return
 	}
 	open, reason := detect(p, data, rolling)
-	if !open {
+	if open {
+		if !p.pickerActive.Load() {
+			p.pickerActive.Store(true)
+			p.debug("PICKER-open", p.agentBasename+": "+reason)
+			p.adapt.Log(2, "overlay-detect", adapt.Fired, p.agentBasename+": "+reason)
+		}
 		return
 	}
+	// The detector said no. If the output nonetheless looks like an interactive
+	// confirm/permission prompt, that's the fingerprint of harness drift: the
+	// agent is asking for input via a string our markers no longer recognize,
+	// so the next plain Enter will leak a newline instead of confirming (the
+	// #000042 class of bug). Record it — deduped across rerenders — so
+	// pair-doctor can surface the new string. Diagnostic only; we never act on
+	// it. Only meaningful when no overlay is already known-open.
 	if !p.pickerActive.Load() {
-		p.pickerActive.Store(true)
-		p.debug("PICKER-open", p.agentBasename+": "+reason)
+		if snippet, ok := promptShape(stripTerminalControls(data)); ok && snippet != p.lastNearMiss {
+			p.lastNearMiss = snippet
+			p.adapt.Log(2, "overlay-detect", adapt.NearMiss, p.agentBasename+": unmatched prompt-shaped output: "+snippet)
+		}
 	}
+}
+
+// genericPromptShapes are phrasings common to interactive confirm/permission
+// prompts but deliberately distinct from any agent-specific picker marker
+// (codexPickerMarkers / agyPickerMarkers). They are the drift tripwire, not a
+// detection mechanism: a match here while every registered detector misses
+// means the harness likely changed its picker wording. Kept conservative to
+// limit false positives — matches only feed the diagnostic near-miss signal.
+var genericPromptShapes = []string{
+	"(y/n)", "[y/n]", "y/n]", "[y/n",
+	"press enter to",
+	"do you want to",
+	"esc to go back",
+	"esc to cancel",
+	"yes, and always",
+	"select an option",
+}
+
+// promptShape reports whether stripped visible output looks like an
+// interactive prompt, returning the trimmed line around the first match for a
+// human reading the trace. Pure → unit-testable without a live harness.
+func promptShape(visible string) (string, bool) {
+	low := strings.ToLower(visible)
+	for _, s := range genericPromptShapes {
+		if i := strings.Index(low, s); i >= 0 {
+			return snippetLine(visible, i), true
+		}
+	}
+	return "", false
+}
+
+// snippetLine returns the trimmed line of s containing byte offset idx.
+func snippetLine(s string, idx int) string {
+	start := strings.LastIndexByte(s[:idx], '\n') + 1
+	end := strings.IndexByte(s[idx:], '\n')
+	if end < 0 {
+		end = len(s)
+	} else {
+		end += idx
+	}
+	return strings.TrimSpace(s[start:end])
 }
 
 // emitPlainCR appends bytes for a user "plain Enter" event, honoring
@@ -1093,8 +1158,10 @@ func (p *proxy) emitPlainCR(out []byte) []byte {
 		p.overlayMu.Lock()
 		p.overlayTextTail = ""
 		p.overlayMu.Unlock()
+		p.adapt.Log(1, "return-remap", adapt.Bypass, "plain Enter → bare CR (overlay active)")
 		return append(out, '\r')
 	}
+	p.adapt.Log(1, "return-remap", adapt.Fired, "plain Enter → newline remap")
 	return append(out, p.sendKM.plainCR...)
 }
 
@@ -1373,6 +1440,10 @@ argsDone:
 	p.agentBasename = filepath.Base(argv[0])
 	p.resolvePaths()
 
+	// Open the always-on adaptation flight recorder. bin/pair truncates the
+	// file once per session launch, so we append. nil when PAIR_TAG is unset.
+	p.adapt = adapt.Open("pair-wrap", p.agentBasename)
+
 	// Open scrollback log (truncate) + matching .events.jsonl sidecar.
 	// Disable scrollback entirely on any open failure; never block startup.
 	if p.scrollbackLog != "" {
@@ -1488,6 +1559,7 @@ argsDone:
 		if p.eventsFD != nil {
 			_ = p.eventsFD.Close()
 		}
+		_ = p.adapt.Close()
 		if p.capturePIDPath != "" {
 			// Drop pidfile so a future Alt+i doesn't signal a stale pid.
 			// image-capture-* files are intentionally left alone here —

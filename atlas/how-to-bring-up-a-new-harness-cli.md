@@ -26,6 +26,8 @@ By default, the bottom Neovim draft pane maps **Enter** to insert a newline, and
   ```
 - **Note:** Claude uses `\<Enter>` (`[]byte{'\\', '\r'}`) as a newline, while Codex and Antigravity (`agy`) use LF (`\n`) for newline and CR (`\r`) for send.
 
+**Telemetry Signal** (aspect `1`, see §3): `return-remap` — `fired` each time a plain Enter is remapped to the agent's newline; `bypass` each time it passes through as a bare `\r` while an overlay is active. Emitted from `emitPlainCR`. The `fired:bypass` ratio is the health signal; an all-`bypass` or zero-`fired` session means the remap stopped engaging.
+
 ---
 
 ### Aspect 2: Overlay-Aware Return Suspension
@@ -45,6 +47,8 @@ If the agent presents blocking overlays, pickers (like file autocompletes), or y
   ```
 - Implement the detector. Detectors can scan the rolling output stream for custom OSC escape sequences (e.g. Claude's permission OSC `OSC 777;notify;...`, or Codex's `OSC 9;Plan mode prompt:...`) or fallback to visible text substring matches (e.g., watching for `"Press enter to confirm"`).
 - **For `agy`:** Antigravity *does* render its permission picker in the PTY ("Do you want to proceed?", "Yes, and always allow", …), so `detectAgyOverlayOpen` matches those visible-text markers (no OSC) to arm `pickerActive` — without it, the remapped Enter can't confirm the picker and a stray newline leaks into the prompt (#000042).
+
+**Telemetry Signal** (aspect `2`, see §3): `overlay-detect` — `fired` when a registered marker arms `pickerActive` (the detail carries the matched marker); **`near-miss`** when the output looks like a confirm/permission prompt (`promptShape` heuristic in `checkOverlayOpen`) but *no* registered marker matched. A `near-miss` is the drift fingerprint: the harness renamed its picker wording, the detector went silent, and the next plain Enter will leak a newline (#000042). The `detail` field carries the unrecognized line verbatim — that's the new string to add to `codexPickerMarkers`/`agyPickerMarkers` (or the OSC body for claude).
 
 ---
 
@@ -113,6 +117,8 @@ To minimize confirmation prompt fatigue and allow the agent to run commands, cre
 
 Align local settings in workspace directories with parent configurations (e.g. `../ariadne/`) to support continuous testing and seamless automation.
 
+**Telemetry Signal:** none. This aspect is *static config*, not a runtime mechanism — there is no per-run trigger to emit, so it has no flight-recorder signal. Drift here surfaces as confirmation-prompt fatigue, not a missing signal.
+
 ---
 
 ### Aspect 7: Human Prompt Search (Alt+b)
@@ -143,3 +149,56 @@ When introducing a new agent `<name>`, ensure you complete each item:
 6. [ ] **Confirm mouse scroll and scrollback render** work smoothly without drawing glitch issues.
 7. [ ] **White-list permissions** in the agent's global or workspace settings directory.
 8. [ ] **Register the user-prompt glyph** in `nvim/scrollback.lua` for `Alt+b` jumping.
+
+---
+
+## 3. Drift Telemetry
+
+Harnesses update constantly and break the adaptations above *silently* — a renamed
+picker string or a changed transcript shape doesn't error, the adaptation just
+stops firing. Unit tests can't catch this: they validate our matchers against
+strings we froze, so they pass forever even after the live harness moves.
+
+The **adaptation flight recorder** makes drift observable. Every adaptation appends
+one JSON line per trigger to `$PAIR_DATA_DIR/adapt-<tag>.jsonl` during normal use.
+`bin/pair` truncates the file once at session launch; all components then append
+(`O_APPEND`, atomic per-line across processes). A user runs `pair` normally; when
+something feels off they run **`doctor/doctor.sh`** (see [`doctor/README.md`](file:///Users/xianxu/workspace/pair/doctor/README.md)),
+which reads the trace and points at the broken aspect — no need to describe the
+symptom.
+
+**Line schema** (flat — `detail` is a single capped string so shell/Lua emitters
+stay one-liners):
+
+```json
+{"ts":"...","comp":"pair-wrap","agent":"codex","aspect":2,"signal":"overlay-detect","outcome":"near-miss","detail":"unmatched prompt-shaped output: Do you want to apply this patch? (y/n)"}
+```
+
+`outcome` ∈ `fired` (matched + acted) · `bypass` (deliberately stepped aside) ·
+`near-miss` (**the drift fingerprint** — the harness did something we half-recognized
+but no matcher caught it) · `fail` (expected to work, couldn't).
+
+**The key idea is logging near-misses, not just successes.** A success-only log
+can't detect drift because breakage manifests as *absence* of a signal — invisible.
+A near-miss records the unrecognized string verbatim in `detail`, which is exactly
+what you paste into the relevant matcher to fix the drift.
+
+**Signal registry** — when adding an aspect, add its row here and emit the signal
+from the owning component (the Go binaries use `cmd/internal/adapt`; shell and Lua
+write the same line shape directly):
+
+| Aspect | Signal | Component | Outcomes | Drift looks like |
+|---|---|---|---|---|
+| 1 Return remap | `return-remap` | pair-wrap | fired, bypass | zero `fired` / all `bypass` |
+| 2 Overlay suspend | `overlay-detect` | pair-wrap | fired, near-miss | any `near-miss` |
+| 3 Session watch | `session-id` | pair-session-watch.sh | fired, near-miss, fail | `fail` (timeout) / `near-miss` (file found, id unparsed) |
+| 4 Slug gen | `slug-parse` | pair-slug | fired, near-miss | `near-miss` (transcript parsed, 0 turns) |
+| 5 PTY filter | `output-filter` | pair-wrap | fired | (presence/absence vs. expected) |
+| 6 Settings | — | — | — | static config; no signal |
+| 7 Prompt search | `prompt-search` | nvim/scrollback.lua | fired, near-miss | `near-miss` (0 matches in non-empty scrollback) |
+
+> Status: aspects 1 & 2 emit today (#000045 M1). Aspects 3, 4, 5, 7 land in M2.
+
+**Privacy:** `detail` can carry a snippet of agent output (e.g. an unrecognized
+prompt). It is capped at 200 bytes and the file stays local under `$PAIR_DATA_DIR`,
+the same trust level as the existing scrollback logs. `bin/pair` removes it on quit.

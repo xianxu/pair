@@ -23,9 +23,9 @@ frozen strings, so they pass forever even after the live harness moves.
 ## Spec
 
 A **passive flight recorder**: the user runs `pair` normally, every adaptation
-trigger leaves a structured trace, and when something feels off they invoke a
-`pair-doctor` skill that reads the trace and proposes fixes — without having to
-describe the symptom.
+trigger leaves a structured trace, and when something feels off they run
+`pair-doctor` (a script + README under `doctor/` in the pair repo) that reads the
+trace and proposes fixes — without having to describe the symptom.
 
 - **Sink:** one per-session append-only JSONL, `$PAIR_DATA_DIR/adapt-<tag>.jsonl`
   (fits the existing `<purpose>-<tag>` file convention). Flat schema, one line per
@@ -54,17 +54,19 @@ explicitly deferred. Full design: `~/.claude/plans/tidy-stargazing-music.md`.
   and overlay-detect during normal use.
 - Mangling a codex overlay marker produces a `near-miss` line (regression the unit
   suite cannot currently catch), covered by a Go test.
-- `/xx-pair-doctor` reads the trace, reports the near-miss, and points at the atlas
-  aspect with a concrete fix.
-- All 7 aspects emit signals from their owning component (Go/shell/Lua), all into
-  the one shared-schema file; atlas documents each signal.
+- `doctor/doctor.sh` reads the trace, reports the near-miss, and (via doctor/README.md
+  + atlas §3) maps it to the atlas aspect with a concrete fix.
+- All 6 *runtime* aspects (1,2,3,4,5,7) emit signals from their owning component
+  (Go/shell/Lua), all into the one shared-schema file; atlas documents each signal.
+  Aspect 6 (agent settings) is static config with no runtime trigger — it has no
+  emittable signal by nature, so the atlas notes it as "static, no telemetry".
 
 ## Plan
 
 - [ ] M1 — Vertical slice: shared Go emitter (`cmd/internal/adapt`), wire pair-wrap
       (Aspect 1 remap fired/bypass; Aspect 2 overlay fired + near-miss heuristic),
       `bin/pair` truncate-at-launch, atlas Telemetry-Signal lines for Aspects 1&2 +
-      `## 3. Drift Telemetry` section, `pair-doctor` skill + aggregator, tests
+      `## 3. Drift Telemetry` section, `pair-doctor` (doctor/ script + README), tests
       (emitter format + drift near-miss regression). Proves emit→file→doctor→fix loop.
 - [ ] M2 — Horizontal fan-out: shell helper `bin/lib/adapt-log.sh`; Aspect 3
       (session-watch + resume), Aspect 4 (pair-slug), Aspect 5 (PTY filter),
