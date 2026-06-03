@@ -2189,13 +2189,17 @@ local function pair_apply_statusline_hl()
     ctermfg = special.ctermfg,
     bold    = true,
   })
-  -- The pinned `===` header in the winbar gets DiffAdd's green so it reads as
-  -- a distinct "this is the header" band, set apart from the grey compose text
-  -- scrolling below it. Take just the fg (not bg/reverse like PairPosLabel) so
-  -- it's green text across the bar, not a full-width green block.
+  -- The pinned `===` header in the winbar gets the diff "added" green so it
+  -- reads as a distinct "this is the header" band, set apart from the grey
+  -- compose text scrolling below it. We want green *text* across the bar (not
+  -- a full-width green block), so borrow the foreground of the `Added` group —
+  -- the same green a diff paints new lines with. (DiffAdd.fg is the *contrast*
+  -- color sitting on a green bg — white in slate — so it's the wrong source
+  -- for a fg-only treatment; Added carries the green in its fg directly.)
+  local added = vim.api.nvim_get_hl(0, { name = 'Added', link = false })
   vim.api.nvim_set_hl(0, 'PairWinbar', {
-    fg      = diffadd.fg,
-    ctermfg = diffadd.ctermfg,
+    fg      = added.fg,
+    ctermfg = added.ctermfg,
     bold    = true,
   })
 end
