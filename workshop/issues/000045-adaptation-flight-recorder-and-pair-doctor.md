@@ -1,11 +1,12 @@
 ---
 id: 000045
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-03
 updated: 2026-06-03
 estimate_hours: 5
+actual_hours: 7
 ---
 
 # adaptation flight recorder and pair-doctor
@@ -85,6 +86,7 @@ explicitly deferred. Full design: `~/.claude/plans/tidy-stargazing-music.md`.
 ## Log
 
 ### 2026-06-03
+- 2026-06-03: closed — Both milestones reviewed + closed (M1 SHIP, M2 FIX-THEN-SHIP with fixes applied). make test fully green: go ./... + test-lua (slug/scrollback/adapt) + test-queue + test-doctor + test-adapt-schema. Flight recorder emits from all 6 runtime aspects across Go/shell/Lua into one byte-identical schema (golden test); doctor/doctor.sh reads + maps findings to atlas §3; near-miss drift detection + concurrent-append atomicity proven. Atlas §3 registry documents every signal.
 - 2026-06-03: closed M2 — make test fully green (go ./... + test-lua incl new adapt_test.lua + test-queue + test-doctor + test-adapt-schema). Cross-emitter golden test proves Go==shell==Lua byte-identical; 60-way concurrent multi-process O_APPEND stays line-atomic. Fresh-eyes review verdict SHIP; fixed the one contract-relevant minor (Lua rune-safe truncate) with nvim/adapt_test.lua coverage.; review verdict: FIX-THEN-SHIP
 - 2026-06-03: closed M1 — make test green (go ./... + lua + queue + doctor); -race clean on cmd/internal/adapt + cmd/pair-wrap (pair-scrollback-render race pre-existing/excluded). doctor.sh verified end-to-end against synthetic logs: tallies + deduped near-miss findings + NO-DATA + malformed-line tolerance (doctor_test.sh). Fresh-eyes review done; C1 panic + I1 robustness fixed with regression tests.; review verdict: SHIP
 
