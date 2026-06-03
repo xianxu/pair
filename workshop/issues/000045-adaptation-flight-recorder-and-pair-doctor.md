@@ -72,10 +72,20 @@ explicitly deferred. Full design: `~/.claude/plans/tidy-stargazing-music.md`.
       (session-watch + resume), Aspect 4 (pair-slug), Aspect 5 (PTY filter),
       Aspect 7 (nvim prompt-search); atlas Telemetry-Signal lines for 3,4,5,7;
       extend doctor registry coverage; tests per emitter.
+      Carried from M1 review (all minor, non-blocking): (a) **cross-emitter golden
+      test** — one Go + one shell + one Lua line asserted byte-identical in field
+      order, so the "same schema, three languages" contract can't silently drift;
+      (b) a concurrent-writer test asserting multi-process `O_APPEND` stays
+      line-atomic before the shell/Lua emitters land; (c) rename the byte
+      `truncate([]byte,int)` in pair-wrap (collides with `adapt.truncate`) →
+      e.g. `capBytes`; (d) add an `atlas/index.md` "see also" pointer to
+      `doctor/README.md`. M2 emitters must reference the atlas outcome enum, not
+      re-invent the strings.
 
 ## Log
 
 ### 2026-06-03
+- 2026-06-03: closed M1 — make test green (go ./... + lua + queue + doctor); -race clean on cmd/internal/adapt + cmd/pair-wrap (pair-scrollback-render race pre-existing/excluded). doctor.sh verified end-to-end against synthetic logs: tallies + deduped near-miss findings + NO-DATA + malformed-line tolerance (doctor_test.sh). Fresh-eyes review done; C1 panic + I1 robustness fixed with regression tests.; review verdict: SHIP
 
 Filed from a design discussion. User chose passive logging (idea 2) + atlas-as-registry
 (idea 3, already largely done); deferred active probes. The differentiator vs the
