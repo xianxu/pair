@@ -200,8 +200,8 @@ write the same line shape directly):
 | 1 Return remap | `return-remap` | pair-wrap | fired, bypass | zero `fired` / all `bypass` |
 | 2 Overlay suspend | `overlay-detect` | pair-wrap | fired, near-miss | any `near-miss` |
 | 3 Session watch | `session-id` | pair-session-watch.sh | fired, near-miss, fail | `fail` (timeout) / `near-miss` (file found, id unparsed) |
-| 4 Slug gen | `slug-parse` | pair-slug | fired, near-miss | `near-miss` (transcript parsed, 0 turns) |
-| 5 PTY filter | `output-filter` | pair-wrap | fired | (presence/absence vs. expected) |
+| 4 Slug gen | `slug-parse` | pair-slug | fired, near-miss, fail | `near-miss` (transcript parsed, 0 turns) / `fail` (resolved a transcript but couldn't read/parse it) |
+| 5 PTY filter | `output-filter` | pair-wrap | fired | a `fired` line that *stops* appearing (its absence is the signal — the sequence was renamed) |
 | 6 Settings | — | — | — | static config; no signal |
 | 7 Prompt search | `prompt-search` | nvim/scrollback.lua | fired, near-miss | `near-miss` (0 matches in non-empty scrollback) |
 

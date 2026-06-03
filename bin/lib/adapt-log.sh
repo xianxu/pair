@@ -20,7 +20,11 @@ adapt_log() {
     local dir="${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}"
     local ts
     ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    detail="${detail:0:200}" # match adapt.maxDetail
+    # Cap detail. All shell call sites pass ASCII (session-file basenames, ids,
+    # marker text), so this byte ≈ char cap matches the Go/Lua 200-byte rune-safe
+    # cap exactly. (For multibyte detail it would differ — bash slices by chars
+    # in a UTF-8 locale — but no shell emitter passes multibyte detail.)
+    detail="${detail:0:200}"
 
     # Build with a fixed key order (ts,comp,agent,aspect,signal,outcome[,detail])
     # via jq so escaping is correct and detail is omitted when empty — exactly

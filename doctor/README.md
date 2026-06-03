@@ -32,6 +32,7 @@ The output maps to the signal registry in
 | `return-remap` all `bypass`, no `fired` (aspect 1) | remap stopped engaging | check `sendKeymapByAgent` / `overlayDetectorByAgent` for the agent |
 | `session-id/fail` or `near-miss` (aspect 3) | session file moved or id format changed | update `watch_dir`/`find_args`/`extract_id` in `bin/pair-session-watch.sh` |
 | `slug-parse/near-miss` (aspect 4) | transcript schema changed | update the parser in `cmd/pair-slug/slug.go` |
+| `output-filter` *absent* for codex (aspect 5) | a sync-output sequence was renamed (no `fired` line where you'd expect one) | update `codexSyncOutputMarkers` in `cmd/pair-wrap/main.go` |
 | `prompt-search/near-miss` (aspect 7) | prompt glyph changed | update `PROMPT_PATTERN_BY_AGENT` in `nvim/scrollback.lua` |
 
 A `detail` string is the literal text the live harness emitted — usually exactly

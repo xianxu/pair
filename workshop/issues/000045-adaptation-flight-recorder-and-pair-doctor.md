@@ -85,6 +85,7 @@ explicitly deferred. Full design: `~/.claude/plans/tidy-stargazing-music.md`.
 ## Log
 
 ### 2026-06-03
+- 2026-06-03: closed M2 — make test fully green (go ./... + test-lua incl new adapt_test.lua + test-queue + test-doctor + test-adapt-schema). Cross-emitter golden test proves Go==shell==Lua byte-identical; 60-way concurrent multi-process O_APPEND stays line-atomic. Fresh-eyes review verdict SHIP; fixed the one contract-relevant minor (Lua rune-safe truncate) with nvim/adapt_test.lua coverage.; review verdict: FIX-THEN-SHIP
 - 2026-06-03: closed M1 — make test green (go ./... + lua + queue + doctor); -race clean on cmd/internal/adapt + cmd/pair-wrap (pair-scrollback-render race pre-existing/excluded). doctor.sh verified end-to-end against synthetic logs: tallies + deduped near-miss findings + NO-DATA + malformed-line tolerance (doctor_test.sh). Fresh-eyes review done; C1 panic + I1 robustness fixed with regression tests.; review verdict: SHIP
 
 **M2 landed.** Fanned the flight recorder out to the remaining runtime aspects in
@@ -108,6 +109,18 @@ truncate) by porting the rune-backoff into `nvim/adapt.lua`, covered by
 vs filename — cosmetic) and noted #3 (aspect-7 near-miss has no headless test — the
 branch needs a no-glyph scrollback fixture; logic verified by inspection). One lesson
 recorded (one-schema-three-languages → golden test). `make test` fully green.
+
+Then the sdlc-dispatched milestone-review judge (a second, stricter pass) returned
+**FIX-THEN-SHIP**; all its findings addressed: Important #1 — atlas §3 aspect-4
+Outcomes now lists `fail` (emitted in 3 places); Important #2 — scoped the shell
+`${detail:0:200}` cap with a comment (all shell call sites are ASCII → byte≈char cap
+matches Go/Lua; golden test covers ASCII). Minors: dropped the noisy
+`slug-parse/fail` on the not-yet-resolved (sid=="") path (timing, not drift); added
+an aspect-5 absence-is-the-signal row to doctor/README.md. Remaining noted, not done:
+comp label "session-watch" (cosmetic); aspect-7 near-miss headless test (logic
+verified by inspection). Also cleaned the stale `ariadne/construct/local/pair-doctor`
+left by the M1 detour; its `.claude/skills/xx-pair-doctor` symlink now dangles and the
+sync-local-skills SessionStart hook prunes it.
 
 Filed from a design discussion. User chose passive logging (idea 2) + atlas-as-registry
 (idea 3, already largely done); deferred active probes. The differentiator vs the

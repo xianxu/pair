@@ -402,8 +402,10 @@ func main() {
 			}
 		}
 		if transcript == "" && sid == "" {
+			// No session id yet — normal early in a session before the watcher
+			// has written the config. Not a drift signal, so don't log `fail`
+			// (it would fire on every turn-end until the id resolves).
 			logf("no session_id in config-%s-%s.json", tag, agent)
-			lg.Log(4, "slug-parse", adapt.Fail, "no session_id in config")
 			return
 		}
 	}
