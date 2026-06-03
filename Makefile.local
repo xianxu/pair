@@ -65,6 +65,7 @@ test-race:
 test-lua:
 	nvim -l nvim/slug_test.lua
 	nvim -l nvim/scrollback_test.lua
+	nvim -l nvim/adapt_test.lua
 
 # Integration test for nvim/init.lua's send/queue/history state machine.
 # Drives the real init.lua under headless nvim (it can't be unit-tested —

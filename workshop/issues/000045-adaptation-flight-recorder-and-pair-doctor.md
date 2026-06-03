@@ -68,7 +68,7 @@ explicitly deferred. Full design: `~/.claude/plans/tidy-stargazing-music.md`.
       `bin/pair` truncate-at-launch, atlas Telemetry-Signal lines for Aspects 1&2 +
       `## 3. Drift Telemetry` section, `pair-doctor` (doctor/ script + README), tests
       (emitter format + drift near-miss regression). Proves emit→file→doctor→fix loop.
-- [ ] M2 — Horizontal fan-out: shell helper `bin/lib/adapt-log.sh`; Aspect 3
+- [x] M2 — Horizontal fan-out: shell helper `bin/lib/adapt-log.sh`; Aspect 3
       (session-watch + resume), Aspect 4 (pair-slug), Aspect 5 (PTY filter),
       Aspect 7 (nvim prompt-search); atlas Telemetry-Signal lines for 3,4,5,7;
       extend doctor registry coverage; tests per emitter.
@@ -86,6 +86,28 @@ explicitly deferred. Full design: `~/.claude/plans/tidy-stargazing-music.md`.
 
 ### 2026-06-03
 - 2026-06-03: closed M1 — make test green (go ./... + lua + queue + doctor); -race clean on cmd/internal/adapt + cmd/pair-wrap (pair-scrollback-render race pre-existing/excluded). doctor.sh verified end-to-end against synthetic logs: tallies + deduped near-miss findings + NO-DATA + malformed-line tolerance (doctor_test.sh). Fresh-eyes review done; C1 panic + I1 robustness fixed with regression tests.; review verdict: SHIP
+
+**M2 landed.** Fanned the flight recorder out to the remaining runtime aspects in
+their owning components/languages: shell emitter `bin/lib/adapt-log.sh`; aspect 3
+(`pair-session-watch.sh` session-id fired/near-miss/fail); aspect 4 (`pair-slug`
+slug-parse fired/near-miss/fail); aspect 5 (`pair-wrap` output-filter, deduped per
+marker); aspect 7 (`nvim/adapt.lua` + `scrollback.lua` prompt-search fired/near-miss).
+Cross-cutting: disabled Go HTML-escaping for cross-emitter parity; renamed pair-wrap
+byte `truncate`→`capBytes`; atlas §3 signal rows for 3/4/5/7 + index pointer to
+doctor/README.md. Carried M1-review items all done: cross-emitter golden test +
+60-way concurrent-append atomicity test (`tests/adapt-schema-test.sh`,
+`make test-adapt-schema`), pinned by a single fixture validated on all three
+emitters (`TestGoldenMatchesFixture` is the Go leg, since tests/ can't import the
+internal pkg).
+
+Fresh-eyes review (BASE a640c7d → HEAD): verdict **SHIP**, no Critical/Important.
+Three minor findings; fixed the one contract-relevant one (Lua `string.sub` byte-cut
+could split a multibyte rune → invalid UTF-8, diverging from Go's rune-safe
+truncate) by porting the rune-backoff into `nvim/adapt.lua`, covered by
+`nvim/adapt_test.lua` (`make test-lua`). Left minor #2 (comp label "session-watch"
+vs filename — cosmetic) and noted #3 (aspect-7 near-miss has no headless test — the
+branch needs a no-glyph scrollback fixture; logic verified by inspection). One lesson
+recorded (one-schema-three-languages → golden test). `make test` fully green.
 
 Filed from a design discussion. User chose passive logging (idea 2) + atlas-as-registry
 (idea 3, already largely done); deferred active probes. The differentiator vs the

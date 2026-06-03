@@ -11,6 +11,24 @@ local M = {}
 
 local MAX_DETAIL = 200
 
+-- truncate caps s to at most n bytes without splitting a multi-byte rune, so
+-- the result stays valid UTF-8 (and thus valid JSON). Mirrors adapt.truncate
+-- in cmd/internal/adapt so the same long detail yields the same bytes across
+-- emitters. (string.sub/# are byte operations in Lua, hence the backoff.)
+local function truncate(s, n)
+  if #s <= n then return s end
+  -- Back off while the cut would land on a continuation byte (10xxxxxx).
+  while n > 0 do
+    local b = string.byte(s, n + 1)
+    if b and b >= 0x80 and b < 0xC0 then
+      n = n - 1
+    else
+      break
+    end
+  end
+  return s:sub(1, n)
+end
+
 -- log appends one event. No-op when PAIR_TAG is unset (not in a pair session).
 -- comp defaults to 'nvim'. outcome ∈ 'fired'|'bypass'|'near-miss'|'fail'.
 function M.log(aspect, signal, outcome, detail, comp)
@@ -25,8 +43,7 @@ function M.log(aspect, signal, outcome, detail, comp)
     dir = base .. '/pair'
   end
 
-  detail = detail or ''
-  if #detail > MAX_DETAIL then detail = detail:sub(1, MAX_DETAIL) end
+  detail = truncate(detail or '', MAX_DETAIL)
   local ts = os.date('!%Y-%m-%dT%H:%M:%SZ') -- '!' = UTC
 
   -- Fixed field order matching the Go struct; vim.json.encode handles string

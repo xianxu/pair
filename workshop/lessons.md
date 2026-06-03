@@ -199,3 +199,21 @@ review (I1).
 calls so a parse hiccup can't trip `set -e` in an always-exit-0 diagnostic.
 Guard it with a fixture containing a deliberately truncated line
 (`doctor/doctor_test.sh`, `make test-doctor`).
+
+## One schema, three languages → pin it with a golden test, not three unit tests
+
+The flight recorder is emitted from Go (`cmd/internal/adapt`), shell
+(`bin/lib/adapt-log.sh`), and Lua (`nvim/adapt.lua`); `doctor.sh` only works if
+all three produce byte-identical lines. Per-emitter unit tests can't catch the
+three drifting apart. Three real divergences surfaced: (1) Go's `encoding/json`
+HTML-escapes `<>&` by default — jq and `vim.json` don't; fixed with
+`SetEscapeHTML(false)`. (2) field order — Go marshals struct order, jq preserves
+object-construction order, Lua needed manual assembly to match. (3) detail
+truncation — Go is rune-safe, Lua's `string.sub`/`#` are byte ops and split
+multibyte runes (invalid UTF-8). Surfaced in #000045 M2 review.
+
+**Rule.** When N emitters must share a wire format, add ONE golden fixture and
+assert every emitter reproduces it byte-for-byte (normalizing only genuinely
+variable fields like timestamps). `tests/adapt-schema-test.sh` + the Go
+`TestGoldenMatchesFixture` leg do this. Watch the three usual divergence
+sources: default escaping, key order, and multibyte/locale-dependent length caps.
