@@ -101,6 +101,28 @@ func TestTruncateEdges(t *testing.T) {
 	}
 }
 
+// TestGoldenMatchesFixture pins the Go emitter to the shared cross-emitter
+// fixture (tests/adapt-golden.expected). The shell + Lua emitters are checked
+// against the same file in tests/adapt-schema-test.sh, so this is the Go leg of
+// the "same schema, three languages" contract — the internal package can't be
+// imported from tests/, so the Go assertion lives here.
+func TestGoldenMatchesFixture(t *testing.T) {
+	line := marshalEvent(fixedTime, "golden", "codex", 2, "overlay-detect", NearMiss, "press > to continue? (y/n)")
+	// Normalize the only field that legitimately varies (ts) by string
+	// replacement, preserving field order (a map round-trip would re-sort keys).
+	got := strings.TrimRight(string(line), "\n")
+	got = strings.Replace(got, fixedTime.Format(time.RFC3339), "TS", 1)
+
+	raw, err := os.ReadFile("../../../tests/adapt-golden.expected")
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	want := strings.TrimSpace(string(raw))
+	if got != want {
+		t.Errorf("Go emitter diverged from cross-emitter fixture:\n got %s\nwant %s", got, want)
+	}
+}
+
 func TestOpenNoTagReturnsNilNoOp(t *testing.T) {
 	t.Setenv("PAIR_TAG", "")
 	l := Open("pair-wrap", "codex")

@@ -95,6 +95,8 @@ If the agent presents blocking overlays, pickers (like file autocompletes), or y
       ;;
   ```
 
+**Telemetry Signal** (aspect `3`, see §3): `session-id` from `pair-session-watch.sh` — `fired` when `extract_id` resolves an id and the config is written, **`near-miss`** when a file matching the watch pattern is found but no id can be extracted (filename/format drift), `fail` when the 60s watch window elapses with no id at all (the session file never appeared where expected). The resume mapping in `bin/pair` is the *consumer* of this id; it's static config with no separate signal.
+
 ---
 
 ### Aspect 4: pair-slug Generation
@@ -104,11 +106,15 @@ The `pair-slug` script summarizes what the current agent session is about to dis
 - **Transcript Parsing:** Register a parser in [cmd/pair-slug/slug.go](file:///Users/xianxu/workspace/pair/cmd/pair-slug/slug.go) under `parseTranscript()`. For JSONL transcripts like `agy`, extract the `content` where `type: "USER_INPUT"`.
 - **Model Sandbox Execution:** Ensure that invoking the agent in summarize mode (`agy -p "<prompt>"`) runs inside a clean sandbox (e.g. setting `cmd.Dir = os.TempDir()` in [cmd/pair-slug/main.go](file:///Users/xianxu/workspace/pair/cmd/pair-slug/main.go)). This prevents the agent from triggering expensive workspace exploration tools, speeding up slug generation from 20s to 1s.
 
+**Telemetry Signal** (aspect `4`, see §3): `slug-parse` from `pair-slug` — `fired` when the transcript parses into ≥1 turn, **`near-miss`** when a transcript is read but yields 0 turns (the transcript schema changed and the parser no longer extracts anything), `fail` when no transcript resolves at all. A run of `near-miss` lines points straight at a `parseTranscript` parser that needs updating.
+
 ---
 
 ### Aspect 5: Mouse Scroll & PTY Output Filtering
 Some agents emit DEC synchronized-output markers or other terminal control characters that interfere with Zellij's mouse scrollback.
 - **PTY Filter:** If an agent behaves poorly with mouse scrolling, `pair-wrap` can intercept and strip specific sequences (e.g., Codex's `ESC[?2026h` synchronized-output toggles) in `updateAgentOutput()` before forwarding the stream to Zellij.
+
+**Telemetry Signal** (aspect `5`, see §3): `output-filter` from `pair-wrap` (`stripCodexSyncOutput`) — `fired` once per distinct marker stripped per session (deduped; the markers repeat many times per render, so presence is the signal). If a codex update renames a sequence, its `fired` line stops appearing — an *absence* the operator reads against the expected marker set.
 
 ---
 
@@ -134,6 +140,8 @@ The scrollback viewer (`Alt+/`) maps **Alt+b** (and **Alt+Shift+B**) to jump bet
     agy    = [[\(──.*\n\)\zs>]],
   }
   ```
+
+**Telemetry Signal** (aspect `7`, see §3): `prompt-search` from `nvim/scrollback.lua` (`jump_to_prompt`, via `nvim/adapt.lua`) — `fired` on a successful Alt+b jump; **`near-miss`** (deduped per viewer) when the pattern matches *nowhere* in a non-empty scrollback, which means the agent's prompt glyph changed and Alt+b can never land. (A miss in only one direction is ordinary end-of-scrollback and is *not* logged.)
 
 ---
 
@@ -197,7 +205,7 @@ write the same line shape directly):
 | 6 Settings | — | — | — | static config; no signal |
 | 7 Prompt search | `prompt-search` | nvim/scrollback.lua | fired, near-miss | `near-miss` (0 matches in non-empty scrollback) |
 
-> Status: aspects 1 & 2 emit today (#000045 M1). Aspects 3, 4, 5, 7 land in M2.
+> Status: all six runtime aspects emit today (#000045 M1: aspects 1 & 2; M2: aspects 3, 4, 5, 7).
 
 **Privacy:** `detail` can carry a snippet of agent output (e.g. an unrecognized
 prompt). It is capped at 200 bytes and the file stays local under `$PAIR_DATA_DIR`,

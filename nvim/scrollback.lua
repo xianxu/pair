@@ -294,6 +294,19 @@ local PROMPT_PATTERN_BY_AGENT = {
   agy    = [[\(──.*\n\)\zs>]],
 }
 
+-- Adaptation flight recorder (atlas §3). Load the sibling emitter by this
+-- file's own directory so it works however scrollback.lua was launched
+-- (`nvim -u .../scrollback.lua`). Best-effort: a load failure leaves a no-op
+-- stub so telemetry never breaks the viewer.
+local adapt
+do
+  local src = debug.getinfo(1, 'S').source:sub(2) -- strip leading '@'
+  local dir = src:match('(.*/)') or './'
+  local ok, mod = pcall(dofile, dir .. 'adapt.lua')
+  adapt = (ok and mod) or { log = function() end }
+end
+local prompt_nearmiss_logged = false
+
 local function prompt_pattern()
   local agent = vim.env.PAIR_AGENT or ''
   return PROMPT_PATTERN_BY_AGENT[agent] or PROMPT_PATTERN_BY_AGENT.claude
@@ -311,7 +324,19 @@ local function jump_to_prompt(direction)
   local flags = (direction == 'prev') and 'bW' or 'W'
   if vim.fn.search(pat, flags) == 0 then
     vim.notify('no ' .. direction .. ' prompt', vim.log.levels.INFO)
+    -- Drift fingerprint (aspect 7): a `search` miss in one direction is
+    -- ordinary end-of-scrollback. But if the pattern matches NOWHERE in a
+    -- non-empty buffer (the 'nw' = no-move, wrap probe also returns 0), the
+    -- agent's prompt glyph likely changed and Alt+b can never jump. Log once.
+    if not prompt_nearmiss_logged
+        and vim.fn.line('$') > 1
+        and vim.fn.search(pat, 'nw') == 0 then
+      prompt_nearmiss_logged = true
+      adapt.log(7, 'prompt-search', 'near-miss',
+        'prompt pattern matched 0 lines in scrollback (agent=' .. (vim.env.PAIR_AGENT or '') .. ')')
+    end
   else
+    adapt.log(7, 'prompt-search', 'fired', direction)
     vim.cmd('normal! zt')
   end
 end

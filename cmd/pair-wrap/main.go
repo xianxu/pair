@@ -223,6 +223,11 @@ type proxy struct {
 	// from the handleChunk pump goroutine, so it needs no lock.
 	adapt        *adapt.Logger
 	lastNearMiss string
+	// filterSeen dedups the aspect-5 output-filter signal: we log `fired`
+	// once per distinct stripped marker (presence is the signal, and the
+	// markers fire many times per turn). Touched only from the stdout pump
+	// goroutine (stripCodexSyncOutput), so no lock.
+	filterSeen map[string]bool
 
 	// Scrollback log (-1 / nil when disabled)
 	scrollbackFD    *os.File
@@ -503,6 +508,19 @@ func (p *proxy) stripCodexSyncOutput(data []byte) []byte {
 			if startsWith(data[i:], marker) {
 				i += len(marker)
 				matched = true
+				// Aspect 5: record that the filter engaged, once per distinct
+				// marker (deduped — these fire many times per render). If a
+				// codex update changes a sequence, its `fired` line stops
+				// appearing and pair-doctor sees the gap.
+				if p.adapt != nil {
+					if mk := fmt.Sprintf("%q", marker); !p.filterSeen[mk] {
+						if p.filterSeen == nil {
+							p.filterSeen = make(map[string]bool)
+						}
+						p.filterSeen[mk] = true
+						p.adapt.Log(5, "output-filter", adapt.Fired, "stripped "+mk)
+					}
+				}
 				break
 			}
 			if isPrefixOf(data[i:], marker) {
@@ -1809,16 +1827,16 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 				body := (*rolling)[m[4]:m[5]]
 				if isActionableOSC(ps, body) {
 					if p.notifyModeActive == "native" {
-						p.debug("OSC"+string(ps), string(truncate(body, 80)))
+						p.debug("OSC"+string(ps), string(capBytes(body, 80)))
 						if !actioned {
 							p.emitOuter("")
 							actioned = true
 						}
 					} else {
-						p.debug("OSC"+string(ps)+"-swallow", string(truncate(body, 80)))
+						p.debug("OSC"+string(ps)+"-swallow", string(capBytes(body, 80)))
 					}
 				} else {
-					p.debug("OSC"+string(ps)+"-skip", string(truncate(body, 80)))
+					p.debug("OSC"+string(ps)+"-skip", string(capBytes(body, 80)))
 				}
 			}
 			*rolling = (*rolling)[last[1]:]
@@ -1872,7 +1890,10 @@ func isTTY(f *os.File) bool {
 	return term.IsTerminal(int(f.Fd()))
 }
 
-func truncate(b []byte, n int) []byte {
+// capBytes caps a byte slice to at most n bytes (raw, not rune-aware — used for
+// debug-log snippets where a split rune is harmless). Distinct from
+// adapt.truncate, which is rune-safe for the telemetry detail field.
+func capBytes(b []byte, n int) []byte {
 	if len(b) > n {
 		return b[:n]
 	}

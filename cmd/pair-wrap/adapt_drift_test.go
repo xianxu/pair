@@ -123,6 +123,28 @@ func TestEmitPlainCR_LogsFiredAndBypass(t *testing.T) {
 	}
 }
 
+// TestOutputFilter_LogsFiredDedupedPerMarker covers aspect 5: stripping a
+// codex sync-output marker logs `fired` once per distinct marker (deduped —
+// the markers repeat many times per render).
+func TestOutputFilter_LogsFiredDedupedPerMarker(t *testing.T) {
+	var buf bytes.Buffer
+	p := &proxy{agentBasename: "codex"}
+	p.adapt = adapt.New(&buf, "pair-wrap", "codex")
+
+	// Same marker twice + a different one, interleaved with normal bytes.
+	p.stripCodexSyncOutput([]byte("a\x1b[?2026hb\x1b[?2026hc\x1b[?1004hd"))
+
+	recs := decodeAdapt(t, &buf)
+	if len(recs) != 2 {
+		t.Fatalf("want 2 deduped fired lines (one per distinct marker), got %d: %s", len(recs), buf.String())
+	}
+	for _, r := range recs {
+		if r["signal"] != "output-filter" || r["outcome"] != "fired" || r["aspect"] != float64(5) {
+			t.Errorf("bad record: %v", r)
+		}
+	}
+}
+
 // TestPromptShapeMultibyteNoPanic is the C1 regression: 'Ⱥ' (U+023A, 2 bytes)
 // lowercases to 'ⱥ' (U+2C65, 3 bytes), so the old strings.ToLower path
 // produced a match offset past len(visible) and panicked snippetLine. The

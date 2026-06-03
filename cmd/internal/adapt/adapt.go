@@ -19,6 +19,7 @@
 package adapt
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"os"
@@ -134,8 +135,16 @@ func (l *Logger) Close() error {
 
 // marshalEvent renders one newline-terminated JSON line. Pure (time passed in)
 // so the line format is unit-testable without touching the clock or env.
+//
+// HTML escaping is disabled: the shell (jq) and Lua (vim.json) emitters that
+// write the same schema do NOT escape <, >, & — and detail routinely carries
+// agent output containing those (e.g. a "press > to continue" prompt). Keeping
+// Go in step makes all three emitters byte-identical and the detail readable.
 func marshalEvent(ts time.Time, comp, agent string, aspect int, signal string, outcome Outcome, detail string) []byte {
-	line, _ := json.Marshal(event{
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf) // Encoder appends '\n' itself
+	enc.SetEscapeHTML(false)
+	_ = enc.Encode(event{
 		TS:      ts.Format(time.RFC3339),
 		Comp:    comp,
 		Agent:   agent,
@@ -144,7 +153,7 @@ func marshalEvent(ts time.Time, comp, agent string, aspect int, signal string, o
 		Outcome: string(outcome),
 		Detail:  truncate(detail, maxDetail),
 	})
-	return append(line, '\n')
+	return buf.Bytes()
 }
 
 // truncate caps s to at most n bytes without splitting a multi-byte rune, so

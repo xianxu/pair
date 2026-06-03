@@ -47,6 +47,15 @@ mkdir -p "$DATA_DIR"
 out="$DATA_DIR/config-$tag-$agent.json"
 pid_file="$DATA_DIR/agent-pid-$tag"
 
+# Aspect 3 flight recorder (atlas §3). PAIR_TAG is normally exported by bin/pair;
+# fall back to our positional tag so logging works even if run standalone.
+: "${PAIR_TAG:=$tag}"
+export PAIR_TAG
+_swdir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=bin/lib/adapt-log.sh
+. "$_swdir/lib/adapt-log.sh" 2>/dev/null || true
+nm_logged=0 # dedup the session-id near-miss across poll iterations
+
 # Per-agent: directory we walk + the find pattern. Used by both the
 # PID-bound primary path (for lsof path matching) and the legacy
 # snapshot-diff fallback (for pair-wrap binaries that don't publish
@@ -171,6 +180,7 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
 
     sid=""
     matched_file=""
+    nm_candidate="" # a file that matched our pattern but yielded no id this pass
 
     if [ -n "$root_pid" ]; then
         # Primary path: lsof against the agent's PID tree. Race-free
@@ -191,6 +201,7 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
                     matched_file="$hit"
                     break 2
                 fi
+                nm_candidate="$hit"
             done < <(lsof -p "$p" -Fn 2>/dev/null)
         done < <(descendants "$root_pid")
 
@@ -212,6 +223,8 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
                 if [ -n "$cand" ]; then
                     sid="$cand"
                     matched_file="${candidates[0]}"
+                else
+                    nm_candidate="${candidates[0]}"
                 fi
             fi
         fi
@@ -232,8 +245,18 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
                     matched_file="$f"
                     break
                 fi
+                nm_candidate="$f"
             done <<< "$new"
         fi
+    fi
+
+    # Drift fingerprint: we found a file matching the agent's session-file
+    # pattern but extract_id couldn't pull an id out of it — likely the
+    # filename/format changed. Log once per session (the poll loop reruns).
+    if [ -z "$sid" ] && [ -n "$nm_candidate" ] && [ "$nm_logged" = 0 ]; then
+        adapt_log session-watch "$agent" 3 session-id near-miss \
+            "matched session file but no id extracted: $(basename "$nm_candidate")"
+        nm_logged=1
     fi
 
     if [ -n "$sid" ]; then
@@ -265,6 +288,7 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
               --args -- ${stripped[@]+"${stripped[@]}"} > "$tmp"
         then
             mv "$tmp" "$out"
+            adapt_log session-watch "$agent" 3 session-id fired "session_id=$sid"
         else
             rm -f "$tmp"
         fi
@@ -273,4 +297,7 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
     sleep 0.1
 done
 
+# Watched the full window without resolving an id: the session file never
+# appeared where/how we expect — the strongest drift signal for this aspect.
+adapt_log session-watch "$agent" 3 session-id fail "no session id within 60s deadline (agent=$agent)"
 exit 0
