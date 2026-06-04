@@ -57,10 +57,16 @@ frozen sample in the matcher's test so the *same* drift is caught next time.
 - No findings + a real symptom? The relevant adaptation may have no signal yet
   (e.g. aspect 6 is static config). That gap is a candidate follow-up.
 
-## As a skill
+## Entry points
 
-[`SKILL.md`](SKILL.md) makes this folder a self-contained Agent Skill
-(AGENTS.md §11) — the same procedure, packaged for an agent to run on demand
-against the one `doctor.sh` here (no bundled copy). It is not registered yet;
-install it by linking `doctor/` into `.claude/skills/` when you want it
-auto-loaded.
+The primary, agent-agnostic entry is **`:PairDoctor`** in pair's nvim (#000048):
+it hands whatever agent is running (claude / codex / agy / vanilla) a
+`$PAIR_HOME`-absolute instruction to run `doctor.sh` and propose fixes — so it
+works under any agent and from any cwd, unlike a `.claude/skills/` entry (claude
+only) or a bare `doctor/doctor.sh` (resolves only in the pair repo). The
+procedure it points at is single-sourced in [`SKILL.md`](SKILL.md).
+
+[`SKILL.md`](SKILL.md) also makes `doctor/` a self-contained Agent Skill
+(AGENTS.md §11) over the one `doctor.sh` here (no bundled copy). Registering it
+as a Claude skill — by linking `doctor/` into `.claude/skills/` — is an optional
+convenience for claude users; `:PairDoctor` is the path that works everywhere.
