@@ -30,9 +30,12 @@ edit matcher code silently — surface the finding and the proposed edit first.
    bash doctor/doctor.sh
    ```
 
-2. **Read the tallies + drift findings.** The output groups every event by
-   `aspect · signal/outcome · count`, then lists deduped `near-miss`/`fail`
-   findings with the literal `detail` string the live harness emitted.
+2. **Check emitter health first, then read the tallies + drift findings.** The
+   output leads with an emitter-health line: a `[STALE]` `pair-wrap`/`pair-slug`
+   binary means the recorder can't log for whole aspects — that's the answer, and
+   the fix is `make install` / `pair-dev` (#000046), not a matcher edit. Then the
+   tallies group every event by `aspect · signal/outcome · count`, followed by
+   deduped `near-miss`/`fail` findings with the literal `detail` string emitted.
 
 3. **Interpret against the registry** in
    `atlas/how-to-bring-up-a-new-harness-cli.md` §3. The Finding → likely-drift →
