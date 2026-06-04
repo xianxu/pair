@@ -3340,6 +3340,36 @@ do
   end
 end
 
+-- :PairDoctor — agent-agnostic pair-doctor entry (issue #000048). The payload is
+-- built by the pure, headless-tested nvim/doctor.lua; this is the IO seam: read
+-- $PAIR_HOME and hand the absolute-pathed instruction to whatever agent is
+-- running (works under any agent, unlike a Claude skill; works from any cwd,
+-- since the paths are $PAIR_HOME-absolute). Auto-sends via send_to_agent.
+do
+  local doctor = nil
+  local dir = debug.getinfo(1, 'S').source:match('@?(.*/)')
+  if dir then
+    local ok, mod = pcall(dofile, dir .. 'doctor.lua')
+    if ok then doctor = mod end
+  end
+  local function pair_doctor()
+    if not doctor then
+      vim.notify('PairDoctor: nvim/doctor.lua failed to load.', vim.log.levels.ERROR)
+      return
+    end
+    local body = doctor.payload(vim.env.PAIR_HOME)
+    if not body then
+      vim.notify('PairDoctor: PAIR_HOME unset (run inside a pair session).',
+        vim.log.levels.ERROR)
+      return
+    end
+    send_to_agent(body)
+  end
+  vim.api.nvim_create_user_command('PairDoctor', pair_doctor,
+    { desc = 'Ask the agent to run pair-doctor and propose harness-drift fixes' })
+  _G.PairDoctor = pair_doctor
+end
+
 local slug_pending = false -- a proposal arrived mid-insert; apply on InsertLeave
 
 local function pair_slug_draft_buf()
