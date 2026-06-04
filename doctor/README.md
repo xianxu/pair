@@ -47,3 +47,11 @@ frozen sample in the matcher's test so the *same* drift is caught next time.
   contain a snippet of agent output, so treat findings as session-private.
 - No findings + a real symptom? The relevant adaptation may have no signal yet
   (e.g. aspect 6 is static config). That gap is a candidate follow-up.
+
+## As a skill
+
+[`SKILL.md`](SKILL.md) makes this folder a self-contained Agent Skill
+(AGENTS.md §11) — the same procedure, packaged for an agent to run on demand
+against the one `doctor.sh` here (no bundled copy). It is not registered yet;
+install it by linking `doctor/` into `.claude/skills/` when you want it
+auto-loaded.
