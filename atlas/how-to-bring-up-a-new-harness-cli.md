@@ -173,7 +173,8 @@ one JSON line per trigger to `$PAIR_DATA_DIR/adapt-<tag>.jsonl` during normal us
 (`O_APPEND`, atomic per-line across processes). A user runs `pair` normally; when
 something feels off they run **`doctor/doctor.sh`** (see [`doctor/README.md`](file:///Users/xianxu/workspace/pair/doctor/README.md)),
 which reads the trace and points at the broken aspect — no need to describe the
-symptom.
+symptom. The same procedure is packaged as the `doctor/SKILL.md` skill, so an
+agent can run and interpret it on demand.
 
 **Line schema** (flat — `detail` is a single capped string so shell/Lua emitters
 stay one-liners):
