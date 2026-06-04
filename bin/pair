@@ -82,6 +82,13 @@ USAGE
   Use `--` to separate pair's args from the agent's args. Without `--`,
   pair only accepts `<agent>` as a positional (or `resume <tag>`).
 
+  DEV MODE
+  `pair-dev` is identical to `pair` but rebuilds pair's Go binaries from
+  source (`make build`) on launch AND on every Alt+n / Shift+Alt+N restart,
+  so the zellij-spawned pair-wrap always matches the working tree. Use it
+  when hacking on cmd/*; deployed installs keep running `pair` (prebuilt,
+  no toolchain dependency). See bin/pair-dev + bin/lib/dev-rebuild.sh.
+
   When creating a new session you'll be prompted for a name; type any
   custom name (e.g. "bugfix") to make it independent of other sessions.
   `resume <tag>` skips that prompt — use it to restart a saved tag with
@@ -1898,6 +1905,16 @@ cmux_rename_workspace "$SESSION"
 "$PAIR_HOME/bin/pair-cmux-title.sh" "$PAIR_TAG" "$AGENT" \
     </dev/null >/dev/null 2>&1 &
 disown $! 2>/dev/null || true
+
+# Dev mode (pair-dev exports PAIR_DEV): rebuild the Go binaries from source so
+# the layout's `exec pair-wrap` below resolves to a fresh repo/bin build — first
+# on PATH — instead of a stale (or gitignored-absent) ~/.local/bin copy. No-op
+# with no toolchain dependency unless PAIR_DEV is set. This is the create path
+# only, so a plain attach skips it; restart re-execs $0=bin/pair with PAIR_DEV
+# surviving, so Alt+n / Shift+Alt+N re-fire the rebuild. See #000046.
+# shellcheck source=bin/lib/dev-rebuild.sh
+. "$PAIR_HOME/bin/lib/dev-rebuild.sh"
+dev_rebuild
 
 # Note on the create invocation: zellij's `--layout PATH --session NAME` does
 # NOT create-with-layout; per its help text, when --session is set, --layout

@@ -1,11 +1,12 @@
 ---
 id: 000046
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-03
 updated: 2026-06-03
 estimate_hours: 1
+actual_hours: 1
 ---
 
 # pair-dev dev-mode rebuild entrypoint
@@ -65,22 +66,45 @@ stale-binary check (separate follow-up).
 - `bin/pair` rebuilds via `make build` iff `PAIR_DEV` is set, before the zellij launch.
 - Deployed path (`PAIR_DEV` unset) invokes no toolchain.
 - Restart (Alt+n / Shift+Alt+N) re-fires the rebuild because `PAIR_DEV` survives `exec "$0"`.
-- `bin/pair-dev --help` proves the chain (builds, then prints `pair`'s usage, exits 0).
+- `bin/pair-dev --help` proves the handoff: forwards args to `pair`, prints usage, exits 0. (It does NOT build — `--help` short-circuits at `bin/pair:60`, before the create-path rebuild; building on `--help` is intentionally avoided since `--help` is not a launch.)
 
 ## Plan
 
-- [ ] Add `bin/pair-dev` (flag + symlink-safe sibling exec of `pair`).
-- [ ] Add the `PAIR_DEV`-gated `make build` block to `bin/pair` before line 1906.
-- [ ] Update help text in `bin/pair`/README to mention dev mode + `pair-dev`.
-- [ ] Verify: `pair --help` clean; `bin/pair-dev --help` chains build→pair; deployed path skips build; trace restart env-survival.
-- [ ] Atlas: note pair-dev + dev/deployed binary-freshness in `atlas/architecture.md`.
+- [x] Add `bin/pair-dev` (flag + symlink-safe sibling exec of `pair`).
+- [x] Add the `PAIR_DEV`-gated rebuild to `bin/pair` before line 1906 — via sourced `bin/lib/dev-rebuild.sh` (`dev_rebuild`).
+- [x] Update help text in `bin/pair` + README to mention dev mode + `pair-dev`.
+- [x] Regression test `tests/dev-rebuild-test.sh` (deployed=no-toolchain, dev=builds, errexit-safe) wired into `make test`.
+- [x] Verify: `pair --help` clean; `bin/pair-dev --help` chains handoff+args; deployed path skips build (test); restart env-survival traced.
+- [x] Atlas: pair-dev + dev/deployed binary-freshness section in `atlas/architecture.md`.
+
+## Revisions
+
+### 2026-06-03 — plan-quality sharpenings (sdlc change-code judge: INFO)
+- **errexit safety:** the gated build must not abort `bin/pair` (`set -euo
+  pipefail`) on failure — least of all mid-restart. Resolved by isolating the
+  hook in `bin/lib/dev-rebuild.sh::dev_rebuild`, which warns-and-`return 0`s on
+  build failure (loud, continues with last-good binaries).
+- **deployed-mode invariant test:** added `tests/dev-rebuild-test.sh` asserting
+  PAIR_DEV-unset invokes NO toolchain (the silent-regression guard the judge
+  flagged), plus dev-builds and errexit-safety, via a stubbed `make`.
+- **export, not bare assign:** `pair-dev` uses `export PAIR_DEV=1` — restart
+  survival depends on it riding through `exec "$0"`.
 
 ## Log
 
 ### 2026-06-03
+- 2026-06-03: closed — tests/dev-rebuild-test.sh 3/3 (deployed=no-toolchain, dev builds, errexit-safe); pair-dev --help forwards args + shows DEV MODE help; create-only placement confirmed (attach branch exits at bin/pair:1369, restart re-execs into create path with PAIR_DEV surviving exec); make build green; doctor test unaffected; review verdict: SHIP
 - Diagnosed the stale-binary root cause via the flight recorder going silent
   (only nvim aspect-7 logged). Confirmed installed `pair-wrap`/`pair-slug`
   predated #000045; `make install` + restart fixed the live session.
 - Established why dev-aliases freshness can't reach the wrapper: `sh -c … exec`
   uses PATH, not the rebuild function. Restart re-execs `$0`=`bin/pair`, so the
   rebuild hook must live in `bin/pair` gated by an exported `PAIR_DEV`.
+- Implemented: `bin/pair-dev` (export + symlink-safe exec of sibling `pair`),
+  `bin/lib/dev-rebuild.sh::dev_rebuild` (no-op unless PAIR_DEV; errexit-safe),
+  sourced + called on `bin/pair`'s create path before the zellij launch
+  (verified create-only: the attach branch `exit $rc`s at bin/pair:1369).
+- Verified line 1906 is create-only; restart-from-attach re-execs into the
+  create path so it rebuilds too. Tests: `tests/dev-rebuild-test.sh` 3/3 green;
+  `bin/pair-dev --help` forwards args + shows the new DEV MODE help. `bash -n`
+  clean on all touched scripts.
