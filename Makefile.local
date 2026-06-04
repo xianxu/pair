@@ -1,7 +1,7 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
-.PHONY: build install pair-scribe pair-scrollback-render pair-wrap pair-slug test test-race test-lua test-queue test-doctor test-adapt-schema test-dev-rebuild
+.PHONY: build install pair-scribe pair-scrollback-render pair-wrap pair-slug test test-race test-lua test-queue test-doctor test-adapt-schema test-dev-rebuild test-emitter-health
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
 # and ships with the `pair-` prefix so it doesn't collide with anything
@@ -53,7 +53,7 @@ pair-slug:              $(BIN_DIR)/pair-slug
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
-test: test-lua test-queue test-doctor test-adapt-schema test-dev-rebuild
+test: test-lua test-queue test-doctor test-adapt-schema test-dev-rebuild test-emitter-health
 	go test ./... -count=1
 
 test-race:
@@ -89,6 +89,11 @@ test-adapt-schema:
 # tests/dev-rebuild-test.sh.
 test-dev-rebuild:
 	bash tests/dev-rebuild-test.sh
+
+# pair-doctor emitter-health probe (#000047): marker check + binary selection
+# (running-via-pidfile vs PATH). See tests/emitter-health-test.sh.
+test-emitter-health:
+	bash tests/emitter-health-test.sh
 
 # pair-scribe — Go-based pty wrapper with SIGUSR1/SIGUSR2 pause/resume
 # of the typescript log. Replaces script(1) at the top of the user's

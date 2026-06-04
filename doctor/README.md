@@ -16,9 +16,18 @@ doctor/doctor.sh            # current session ($PAIR_TAG), else newest adapt-*.j
 doctor/doctor.sh <path>     # a specific session's log
 ```
 
-It prints per-`aspect · signal/outcome` tallies, then the deduped
-`near-miss`/`fail` findings with the literal `detail` string the live harness
-emitted. Always exits 0; prints `NO-DATA` if no log exists yet.
+It first prints an **emitter-health** check, then per-`aspect · signal/outcome`
+tallies, then the deduped `near-miss`/`fail` findings with the literal `detail`
+string the live harness emitted. Always exits 0; prints `NO-DATA` if no log
+exists yet.
+
+**Emitter health** (`emitter-health.sh`) guards the failure that *looks* like
+drift but isn't: a `pair-wrap`/`pair-slug` binary built before the flight
+recorder existed has no logging code, so it emits nothing and the log goes
+silent with no error. The probe greps each binary (preferring the *running* one
+via its pidfile) for its adapt signal string and flags `[STALE]` with the fix —
+`make install`, or launch via `pair-dev` (#000046). A `[STALE]` line explains an
+otherwise-mysterious empty/thin tally below it.
 
 ## Read the findings
 

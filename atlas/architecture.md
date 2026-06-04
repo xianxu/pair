@@ -477,6 +477,8 @@ Two launch modes resolve this:
 - **Deployed** — `pair`. Runs whatever prebuilt binary PATH finds; zero toolchain dependency. Keep `~/.local/bin` current with `make install`.
 - **Dev** — `pair-dev` (#000046). Exports `PAIR_DEV=1` and execs `pair`; `bin/pair` then runs `make build` (via `bin/lib/dev-rebuild.sh`'s `dev_rebuild`) on the **create path**, before the layout execs pair-wrap, so `$PAIR_HOME/bin` holds a fresh build. Restart-safe: `PAIR_DEV` survives `handle_restart_marker`'s `exec "$0"`, so Alt+n / Shift+Alt+N rebuild too; a plain attach (no new wrapper spawned) correctly skips it. Deployed launches (`PAIR_DEV` unset) invoke no toolchain.
 
+`pair-doctor` *diagnoses* the same staleness `pair-dev` prevents: its emitter-health probe (`doctor/emitter-health.sh`, #000047) greps the *running* `pair-wrap`/`pair-slug` (resolved via the `pair-wrap-pid-<tag>` pidfile, else PATH) for its adapt signal strings and flags `[STALE]` when a binary has no logging code — turning the silent-emitter failure into a named finding.
+
 ## Adjacent: `pair-scribe`
 
 `cmd/pair-scribe` is a `script(1)` replacement that lives in the pair repo for build-system convenience but is not part of pair's runtime — it's user shell tooling, typically wired at the top of `~/.zshrc` to swap for `script -q -F`. The user's preexec/precmd hooks send `SIGUSR1`/`SIGUSR2` to pause/resume the on-disk typescript around commands whose output (e.g. TUI redraws) shouldn't be captured, enabling a clean "capture last command output" flow that pair can read back from `$_ZSH_SCRIPT_LOG`. Lives at `~/.local/bin/pair-scribe` after `make install`. Full design notes and the zshrc snippet: `cmd/pair-scribe/README.md`.

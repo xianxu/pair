@@ -20,6 +20,18 @@ set -euo pipefail
 
 DATA_DIR="${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}"
 
+# Emitter-health probe (#000047): detects a Go emitter binary built without
+# adapt-logging code (stale, pre-#000045) — the silent cause of a thin log.
+# Sourced lib so its binary-resolution is unit-testable (see emitter-health.sh).
+_doctor_dir="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=doctor/emitter-health.sh
+[ -r "$_doctor_dir/emitter-health.sh" ] && . "$_doctor_dir/emitter-health.sh"
+emit_health() {
+    command -v emitter_health_report >/dev/null 2>&1 || return 0
+    emitter_health_report "$DATA_DIR" "${PAIR_TAG:-}"
+    echo
+}
+
 f="${1:-}"
 if [ -z "$f" ]; then
     if [ -n "${PAIR_TAG:-}" ] && [ -f "$DATA_DIR/adapt-${PAIR_TAG}.jsonl" ]; then
@@ -34,6 +46,9 @@ if [ -z "$f" ] || [ ! -s "$f" ]; then
     echo "NO-DATA: no non-empty adaptation log found."
     echo "  looked in: $DATA_DIR (PAIR_TAG=${PAIR_TAG:-unset})"
     echo "  A log appears once you run a session: \$PAIR_DATA_DIR/adapt-<tag>.jsonl"
+    echo
+    # A stale emitter binary is a prime reason the log is empty — surface it.
+    emit_health
     exit 0
 fi
 
@@ -142,6 +157,9 @@ fi
 printf '%s %s\n' "$(paint "$DIM" 'log:  ')" "$f"
 printf '%s %s\n' "$(paint "$DIM" 'lines:')" "$(wc -l < "$f" | tr -d ' ')"
 echo
+
+# Emitter health first: a STALE-BINARY line explains a thin/empty tally below.
+emit_health
 
 # --- tallies -----------------------------------------------------------------
 tallies_tsv="$(printf '%s\n' "$records" | jq -rs '

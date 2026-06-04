@@ -48,6 +48,15 @@ else
     fail "near-miss finding not surfaced; got:"$'\n'"$out"
 fi
 
+# 3b) Emitter-health section renders (deterministic — the header always prints;
+#     the per-binary verdict depends on the box, so only the header is asserted).
+#     Probe internals are covered by tests/emitter-health-test.sh.
+if grep -q "emitter health" <<<"$out"; then
+    pass "emitter-health section renders"
+else
+    fail "emitter-health section missing; got:"$'\n'"$out"
+fi
+
 # 4) NO-DATA path on a missing file still exits 0.
 if out="$(bash "$DOCTOR" "$RT/nope.jsonl" 2>&1)" && grep -q "NO-DATA" <<<"$out"; then
     pass "NO-DATA path exits 0 with notice"
