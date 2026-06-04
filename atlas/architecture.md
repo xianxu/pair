@@ -469,6 +469,14 @@ Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/adapt-<tag>.jsonl` — the adap
 
 `bin/pair` prepends `$PAIR_HOME/bin` to `$PATH` before exec'ing zellij. zellij and all its child processes (panes, copy_command, Run actions) inherit the PATH and can resolve `clipboard-to-pane.sh`, `copy-on-select.sh`, `pair-quit.sh` by bare name. This lets the zellij KDL configs reference scripts without `sh -c` env-var quoting hacks.
 
+## Binary freshness: deployed vs dev (`pair-dev`)
+
+The Go binaries (`pair-wrap`, `pair-slug`, …) live in `$PAIR_HOME/bin` (first on PATH per *Path resolution* above) and, after `make install`, in `~/.local/bin`. `bin/` is **gitignored** — built on demand, absent in a fresh tree. Because the agent pane launches as `sh -c '… exec pair-wrap …'`, the wrapper is resolved by a **PATH lookup**: no shell function or `.zshenv` can intercept it (`exec` bypasses functions, and `sh` ≠ zsh), so `construct/dev-aliases.sh`'s rebuild-on-call freshness does **not** reach it. When `$PAIR_HOME/bin/pair-wrap` is stale or absent, PATH silently falls through to an old `~/.local/bin` copy and the running wrapper drifts from source — the failure mode is *silence*, not an error (diagnosed once via the #000045 flight recorder going quiet for every Go-emitted aspect while only nvim's Lua emitter still logged).
+
+Two launch modes resolve this:
+- **Deployed** — `pair`. Runs whatever prebuilt binary PATH finds; zero toolchain dependency. Keep `~/.local/bin` current with `make install`.
+- **Dev** — `pair-dev` (#000046). Exports `PAIR_DEV=1` and execs `pair`; `bin/pair` then runs `make build` (via `bin/lib/dev-rebuild.sh`'s `dev_rebuild`) on the **create path**, before the layout execs pair-wrap, so `$PAIR_HOME/bin` holds a fresh build. Restart-safe: `PAIR_DEV` survives `handle_restart_marker`'s `exec "$0"`, so Alt+n / Shift+Alt+N rebuild too; a plain attach (no new wrapper spawned) correctly skips it. Deployed launches (`PAIR_DEV` unset) invoke no toolchain.
+
 ## Adjacent: `pair-scribe`
 
 `cmd/pair-scribe` is a `script(1)` replacement that lives in the pair repo for build-system convenience but is not part of pair's runtime — it's user shell tooling, typically wired at the top of `~/.zshrc` to swap for `script -q -F`. The user's preexec/precmd hooks send `SIGUSR1`/`SIGUSR2` to pause/resume the on-disk typescript around commands whose output (e.g. TUI redraws) shouldn't be captured, enabling a clean "capture last command output" flow that pair can read back from `$_ZSH_SCRIPT_LOG`. Lives at `~/.local/bin/pair-scribe` after `make install`. Full design notes and the zshrc snippet: `cmd/pair-scribe/README.md`.

@@ -192,6 +192,8 @@ Use `--` to separate pair's positional from agent flags. Without it, pair only t
 
 Agent args (after `--`) are appended to the agent command line on **create**. Reattaching to an existing session does not re-launch the agent, so the args don't apply on attach. (The picker connects you to whatever's already running.)
 
+**Hacking on pair?** Use `pair-dev` instead of `pair` — same arguments, but it rebuilds pair's Go binaries from source (`make build`) on launch *and* on every Alt+n / Shift+Alt+N restart, so the zellij-spawned `pair-wrap` always matches your working tree. (Deployed installs run `pair`, which uses the prebuilt binary and needs no Go toolchain.)
+
 When `pair` runs and there's anything to pick — a detached `pair-*` session **or** a tag from this cwd used within the last 14 days — it shows an `fzf` picker. Detached rows come first, then historical rows annotated `(Nd ago, no live session)`, then a `+ new <agent> session` sentinel. Picking a historical row reuses the name and any surviving draft / saved agent config (same path as `pair resume <tag>`). Override the 14-day window with `PAIR_HISTORY_DAYS`; `PAIR_DEBUG_HISTORY=1 pair` prints the scan and exits without launching.
 
 When the create flow runs, it prompts for the session name with the auto-suggested name as the default:
