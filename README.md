@@ -60,7 +60,8 @@ Select something with mouse on agent's pane, the selection is inserted at curren
 | **Alt+←** / **Alt+→** | nvim (normal/insert) | Walk through prompt history (`-N`) and queued prompts (`+N`) one slot at a time. |
 | **Alt+↑** / **Alt+↓** | any pane | Step the nvim pane along a `minimized` ↔ `12 lines` ↔ `1/2` ladder one rung at a time. When minimized, claude pane always have focus |
 | **Alt+i** | nvim (normal/insert) | Attach clipboard image to the agent and insert anchor text at cursor location |
-| **Alt+1**…**Alt+9** | nvim (insert, popup visible) | Quick-pick the Nth visible completion item. The popup tags its first nine items with indices (e.g. `1 bin/pair-wrap`); past 9, use arrows or `<C-n>` / `<C-p>` |
+| **Alt+1**…**Alt+9** | nvim (insert, popup visible) | Quick-pick the Nth visible completion item. The popup tags its first nine items with indices (e.g. `⌥1 bin/pair-wrap`); past 9, use arrows or `<C-n>` / `<C-p>` |
+| **1**…**9** | nvim (z= spell popup visible) | Pick the Nth spell suggestion. `z=` opens the popup for the word under the cursor (tagged `1`…`9`); picking — or `Esc` to dismiss — leaves you in normal mode |
 | **Shift+Alt+←** / **Shift+Alt+→** | nvim (normal/insert) | Jump to the next region boundary: oldest-history, newest-history, `*`, front-of-queue, back-of-queue. |
 | **Alt+q** | nvim (normal/insert) | Push current buffer to the front of the queue (`+1`). From `*` clears the draft; from `+N` it's move-to-front. |
 | **Alt+/** | any pane | Enter into scrollback viewer, at same view port of current mouse scroll state of claude pane. Search is smart-case (`/foo` = case-insensitive, `/Foo` = case-sensitive). `Esc` exits (with a Yes/No confirm if there are pending markers). |

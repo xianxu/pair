@@ -217,3 +217,21 @@ assert every emitter reproduces it byte-for-byte (normalizing only genuinely
 variable fields like timestamps). `tests/adapt-schema-test.sh` + the Go
 `TestGoldenMatchesFixture` leg do this. Watch the three usual divergence
 sources: default escaping, key order, and multibyte/locale-dependent length caps.
+
+## A "momentary mode" flag leaks unless every popup-swap path clears it
+
+#000049 added `spell_popup_active` so bare digits pick a `z=` spell suggestion
+instead of inserting. The first cut cleared it only on `CompleteDone` /
+`InsertLeave`. But the `TextChangedI/P` autocmd runs `word_complete`, which can
+fire a *new* `vim.fn.complete()` (swapping the menu) without any `CompleteDone`
+for the in-place replacement — so the flag stayed true under a non-spell popup
+and a digit would mis-pick. The naive fix (clear the flag in `run_completers`)
+risks killing the feature: if showing a popup re-entered that path it'd clear
+the flag before the user could pick.
+
+**Rule.** When a boolean marks "the visible popup is mode X", clear it at the
+*exact* sites that replace the popup with a not-X menu (here: right before
+`complete()` in `path_complete`/`word_complete`), not in a broad event handler
+that might also fire for X itself. Verify the X-shower doesn't trip the clear —
+`z=`'s own `complete()` is `noinsert`, so it fires no `TextChanged` and the flag
+survives. Prefer clearing at the state-transition source over the event funnel.
