@@ -1362,17 +1362,31 @@ end
 -- live in the `pair` augroup with clear=true).
 -- ---------------------------------------------------------------------------
 
+-- z= is a normal-mode "pick a fix" gesture, not a typing session. While set,
+-- bare digits 1-9 pick a spell suggestion (spell_pick_digit) instead of
+-- inserting, and CompleteDone returns the user to normal mode. Declared here
+-- (above the completers) so path_complete / word_complete can clear it the
+-- moment they replace the menu with a typed-token popup — that's the only way
+-- the spell behavior could otherwise leak past a momentary popup. Set by
+-- spell_suggest_popup; cleared on CompleteDone / InsertLeave too.
+local spell_popup_active = false
+
 -- Wrap a list of completion strings into the dict form vim.fn.complete()
 -- accepts, prefixing the first 9 abbrs with `⌥N ` to advertise the Alt+N
 -- quick-pick keymaps below. The prefix is purely visual (label users see
 -- in the popup); .word stays clean so accept-via-<C-y>, the <M-1>..<M-9>
 -- handlers, and the CompleteDone pick-tracking autocmd all see the actual
 -- candidate. Items past 9 stay arrow-navigable but have no quick-key.
-local function indexed_items(words)
+-- label_prefix tags the first 9 abbrs with the quick-pick key the user
+-- presses to choose them: '⌥' for insert-mode completions (where bare
+-- digits must stay literal text, so picking is on <M-i>), '' for the z=
+-- spell popup (where bare digits pick — see spell_pick_digit).
+local function indexed_items(words, label_prefix)
+  label_prefix = label_prefix or '⌥'
   local items = {}
   for i, w in ipairs(words) do
     if i <= 9 then
-      items[i] = { word = w, abbr = '⌥' .. i .. ' ' .. w }
+      items[i] = { word = w, abbr = label_prefix .. i .. ' ' .. w }
     else
       items[i] = { word = w }
     end
@@ -1413,7 +1427,10 @@ local function path_complete()
   end
   if #matches == 0 then return end
 
-  -- complete() col is 1-indexed start of the span being replaced.
+  -- complete() col is 1-indexed start of the span being replaced. We're about
+  -- to replace any spell popup with a typed-token menu, so bare digits go back
+  -- to being literal (see spell_popup_active).
+  spell_popup_active = false
   vim.fn.complete(token_start, indexed_items(matches))
 end
 
@@ -1623,6 +1640,8 @@ local function word_complete()
   table.sort(matches, function(a, b) return a.score > b.score end)
   local words = {}
   for i, m in ipairs(matches) do words[i] = m.word end
+  -- Replacing any spell popup with a typed-token menu → bare digits literal.
+  spell_popup_active = false
   vim.fn.complete(token_start, indexed_items(words))
 end
 
@@ -1633,7 +1652,9 @@ end
 -- Implementation: find word bounds around the cursor (alpha + apostrophe),
 -- check that spell flags it, move cursor to end-of-word, enter insert mode,
 -- and call vim.fn.complete() with span = the misspelled word. Picking a
--- suggestion replaces the word; dismissing leaves it intact.
+-- suggestion replaces the word; dismissing leaves it intact. (spell_popup_active
+-- — the flag that turns bare digits into pickers — is declared above the
+-- completers; see its comment.)
 local function spell_suggest_popup()
   local row, col = unpack(vim.api.nvim_win_get_cursor(0))  -- col is 0-indexed
   local line = vim.api.nvim_get_current_line()
@@ -1665,9 +1686,10 @@ local function spell_suggest_popup()
   -- (after the mode switch lands) trigger the completion popup. complete()
   -- replaces text from start_col to cursor — i.e. the misspelled word.
   vim.api.nvim_win_set_cursor(0, { row, e - 1 })
+  spell_popup_active = true
   vim.cmd('startinsert')
   vim.schedule(function()
-    vim.fn.complete(s, indexed_items(suggestions))
+    vim.fn.complete(s, indexed_items(suggestions, ''))
   end)
 end
 
@@ -3209,6 +3231,23 @@ for i = 1, 9 do
     { silent = true, expr = true, desc = 'pair: pick completion item ' .. i })
 end
 
+-- Bare digits pick a spell suggestion — but ONLY while the z= spell popup is
+-- up (spell_popup_active + a visible menu). Everywhere else a digit is just a
+-- digit, so the expr returns the literal key. CompleteDone then drops us back
+-- to normal mode (the popup's <C-y> accept fires it).
+local function spell_pick_digit(n)
+  if spell_popup_active and vim.fn.pumvisible() == 1 then
+    return pair_pick_completion(n)
+  end
+  return tostring(n)
+end
+
+for i = 1, 9 do
+  vim.keymap.set('i', tostring(i),
+    function() return spell_pick_digit(i) end,
+    { silent = true, expr = true, desc = 'pair: pick spell suggestion ' .. i })
+end
+
 -- Fire on both events: TextChangedI when popup is hidden, TextChangedP when
 -- popup is visible — refreshing the menu as the user types more characters.
 -- path_complete handles slash/tilde tokens; word_complete kicks in for plain
@@ -3267,7 +3306,22 @@ vim.api.nvim_create_autocmd('CompleteDone', {
     if item and type(item) == 'table' and item.word then
       picks_bump(item.word)
     end
+    -- z= forced insert mode purely to host the popup; once the suggestion is
+    -- accepted (or dismissed) hand the user back the normal mode they came
+    -- from. stopinsert can't run mid-CompleteDone, so defer it.
+    if spell_popup_active then
+      spell_popup_active = false
+      vim.schedule(function() vim.cmd('stopinsert') end)
+    end
   end,
+})
+
+-- Safety net: if the spell popup is torn down without a CompleteDone (e.g.
+-- the popup never materialized), make sure the flag never survives into a
+-- later, ordinary insert session where bare digits must stay literal.
+vim.api.nvim_create_autocmd('InsertLeave', {
+  group = pair_aug,
+  callback = function() spell_popup_active = false end,
 })
 
 -- "Ghost cursor" while the nvim pane is unfocused. zellij hides the real
