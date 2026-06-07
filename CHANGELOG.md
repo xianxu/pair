@@ -4,6 +4,19 @@ All notable user-facing changes to `pair` land here. Each release is also
 tagged in git (`vN.M`) and tracked in the homebrew formula at
 [xianxu/homebrew-pair](https://github.com/xianxu/homebrew-pair).
 
+## v1.21 — 2026-06-06
+
+### Startup picker
+- Inactive ("no live session") tag rows now show an amber **`[⏎ N queued]`
+  badge** when that session has prompts parked in its queue — a reminder of
+  queued-up work before you resume an old session. Shown only when N > 0.
+
+### Homebrew
+- **`python@3` (and the vendored `pyte` / `wcwidth` resources + private
+  venv) dropped from the formula** — the v1.20 soak window is over and the
+  runtime is Go-only (`pair-scrollback-render`). `brew install pair` no
+  longer pulls python.
+
 ## v1.20 — 2026-06-06
 
 ### Multi-agent: Codex & Antigravity (agy) parity
