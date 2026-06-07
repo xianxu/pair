@@ -1446,6 +1446,7 @@ local function path_complete()
   -- to being literal (see spell_popup_active).
   spell_popup_active = false
   vim.fn.complete(token_start, indexed_items(matches))
+  return true
 end
 
 -- Word completion. Triggered alongside path_complete on every TextChangedI.
@@ -1657,6 +1658,7 @@ local function word_complete()
   -- Replacing any spell popup with a typed-token menu → bare digits literal.
   spell_popup_active = false
   vim.fn.complete(token_start, indexed_items(words))
+  return true
 end
 
 -- z= replacement: instead of vim's default "Choose a number:" prompt,
@@ -1705,6 +1707,43 @@ local function spell_suggest_popup()
   vim.schedule(function()
     vim.fn.complete(s, indexed_items(suggestions, ''))
   end)
+end
+
+-- As-you-type spell typeahead. Runs only as a fallback in run_completers,
+-- after path_complete and word_complete have both declined — so a word with
+-- real buffer/agent completions still shows those, and a word that matches
+-- nothing AND is misspelled gets a spelling-fix menu instead. Mirrors the
+-- nvim-cmp + cmp-spell behavior in the user's own config, built plugin-free
+-- on spellsuggest().
+--
+-- Unlike spell_suggest_popup (the on-demand z= gesture), this does NOT set
+-- spell_popup_active: we're mid-type, so bare digits must stay literal text
+-- and CompleteDone must not bounce us back to normal mode. A suggestion is
+-- accepted the same way as any typed-token popup (CR / Tab / <C-y> / Alt+N).
+local SPELL_TRIGGER_MIN = 4   -- min misspelled-word length before suggesting
+local SPELL_MAX_SUGGEST = 9   -- first 9 carry an Alt+N quick-pick label
+local function spell_complete()
+  local line = vim.api.nvim_get_current_line()
+  local col = vim.fn.col('.') - 1   -- 0-indexed byte position of the cursor
+  if col == 0 then return end
+  -- Fire only at end-of-word: if the char under the cursor is alphabetic the
+  -- cursor sits inside a word, and complete()'s replace span (start..cursor)
+  -- would strand the tail. Bail so mid-word edits aren't mangled.
+  if line:sub(col + 1, col + 1):match("[%a']") then return end
+  -- The alphabetic run ending at the cursor is the word being typed.
+  local s = col + 1
+  while s > 1 and line:sub(s - 1, s - 1):match("[%a']") do s = s - 1 end
+  local word = line:sub(s, col)
+  if #word < SPELL_TRIGGER_MIN then return end
+
+  local bad = vim.fn.spellbadword(word)
+  if not bad or bad[1] == '' then return end   -- correctly spelled → nothing to do
+
+  local suggestions = vim.fn.spellsuggest(word, SPELL_MAX_SUGGEST)
+  if not suggestions or #suggestions == 0 then return end
+
+  vim.fn.complete(s, indexed_items(suggestions))
+  return true
 end
 
 local function pum_visible()
@@ -3270,6 +3309,10 @@ end
 -- path_complete handles slash/tilde tokens; word_complete kicks in for plain
 -- alphanumeric tokens >= 6 chars. Their token regexes are mutually exclusive
 -- (path needs `/` or `~`, word excludes both), so at most one calls complete().
+-- spell_complete is the fallback: only when both decline does it offer
+-- spelling fixes for a misspelled word-in-progress. Each completer returns
+-- true once it calls complete(), so run_completers short-circuits and at most
+-- one menu is built per keystroke.
 --
 -- Burst-debounce: paste dumps hundreds of TextChangedI events within a few
 -- ms; running both completion handlers (each scans the buffer + agent file)
@@ -3280,8 +3323,9 @@ end
 local complete_last_fire = 0
 local complete_pending = nil
 local function run_completers()
-  path_complete()
-  word_complete()
+  if path_complete() then return end
+  if word_complete() then return end
+  spell_complete()
 end
 vim.api.nvim_create_autocmd({ 'TextChangedI', 'TextChangedP' }, {
   group = pair_aug,

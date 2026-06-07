@@ -25,6 +25,7 @@ For example:
 2. syntax color, spelling check (z=) etc.
 3. typeahead and search local file path, just type `./`, useful to pick a local file
 4. typeahead from highlighted terms in agent's response
+5. spell-fix typeahead — mistype a word and a menu of likely corrections pops up as you type (built on nvim's `spellsuggest`; pick like any completion, or use `z=` for an on-demand fix). It only kicks in when path/word typeahead have nothing, so it never crowds out real completions.
 
 **Much better scroll back experience**
 
