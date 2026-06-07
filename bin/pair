@@ -946,6 +946,21 @@ age_color() {
     fi
 }
 
+# Count the +N draft items parked in a tag's queue. nvim writes each queued
+# prompt as queue-<tag>/<6-digit-key>.md (see queue_dir / queue_keys_sorted in
+# nvim/init.lua), so the queued count is just how many <digits>.md files live
+# there. Surfaced as a badge on inactive picker rows so a session's forgotten
+# queue is visible before you resume it.
+queue_count_for() {
+    local tag="$1" qdir="$DATA_DIR/queue-$tag" n=0 f
+    [ -d "$qdir" ] || { echo 0; return; }
+    for f in "$qdir"/[0-9]*.md; do
+        [ -e "$f" ] || continue   # no match → glob stays literal; skip
+        n=$((n + 1))
+    done
+    echo "$n"
+}
+
 now_epoch=$(date +%s)
 history_cutoff=$(( now_epoch - HISTORY_DAYS * 86400 ))
 
@@ -992,10 +1007,22 @@ while IFS=$'\t' read -r tag mtime; do
     # pair-<tag> now shows up here as its own resumable row.
     if printf '%s\n' "$live_tags_nl" | grep -qx "$tag"; then continue; fi
     age=$(format_age "$now_epoch" "$mtime")
-    row="$(printf 'pair-%s  (%s, no live session)' "$tag" "$age")"
-    historical_rows+=("$row")
+    base_row="$(printf 'pair-%s  (%s, no live session)' "$tag" "$age")"
+    # Queue badge (only when non-empty): kept as a separate segment so the
+    # colored row tints just the badge amber (xterm 214) while age_color
+    # greys the base. The plain badge has the identical visible text, so the
+    # fzf --ansi return still maps back to a historical_rows entry, and the
+    # "${picked%%  *}" → pair-<tag> parse below is unaffected (badge sits
+    # after the parenthetical's leading double-space).
+    qn=$(queue_count_for "$tag")
+    badge_plain=""; badge_colored=""
+    if [ "$qn" -gt 0 ]; then
+        badge_plain="$(printf '   [\xe2\x8f\x8e %d queued]' "$qn")"
+        badge_colored="$(printf '   \033[38;5;214m[\xe2\x8f\x8e %d queued]\033[0m' "$qn")"
+    fi
+    historical_rows+=("${base_row}${badge_plain}")
     diff_days=$(( (now_epoch - mtime) / 86400 ))
-    historical_colored+=("$(age_color "$diff_days")${row}"$'\033[0m')
+    historical_colored+=("$(age_color "$diff_days")${base_row}"$'\033[0m'"${badge_colored}")
 done <<< "$history_scan"
 
 # Debug probe — `PAIR_DEBUG_HISTORY=1 pair` prints what the scan would have
