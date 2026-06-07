@@ -35,6 +35,27 @@ if [ -z "${PAIR_DATA_DIR:-}" ] || [ -z "${PAIR_TAG:-}" ] || [ -z "${PAIR_AGENT:-
     exit 1
 fi
 
+# Re-entrancy guard. Alt+/ is a global zellij keybind (a Run in a floating
+# pane, zellij/config.kdl), so it fires even when focus is already inside
+# this scrollback viewer — stacking a second nvim on top of the first, so
+# the user has to :q / ESC once per layer. zellij can't conditionally skip
+# the Run, so the redundant pane launches regardless; we detect an already
+# -open viewer here and exit immediately, letting close_on_exit dismiss
+# this extra pane (focus falls back to the existing viewer).
+#
+# The lock holds the PID of the script instance that owns the open viewer:
+# this script stays alive as the parent of nvim for the pane's whole life
+# (we run nvim, not exec, so the EXIT trap can clear the lock). A live PID
+# means a viewer is already up; a stale lock (crash / kill -9) has a dead
+# PID and is reclaimed below.
+LOCK="$PAIR_DATA_DIR/scrollback-$PAIR_TAG-$PAIR_AGENT.openlock"
+if [ -f "$LOCK" ]; then
+    other=$(cat "$LOCK" 2>/dev/null || true)
+    if [ -n "${other:-}" ] && kill -0 "$other" 2>/dev/null; then
+        exit 0
+    fi
+fi
+
 RAW="$PAIR_DATA_DIR/scrollback-$PAIR_TAG-$PAIR_AGENT.raw"
 EVENTS="$PAIR_DATA_DIR/scrollback-$PAIR_TAG-$PAIR_AGENT.events.jsonl"
 ANSI="$PAIR_DATA_DIR/scrollback-$PAIR_TAG-$PAIR_AGENT.ansi"
@@ -150,9 +171,12 @@ if command -v jq >/dev/null 2>&1; then
     fi
 fi
 
-# exec nvim — when the user :q's, the script (and its containing
-# floating pane) exits. close_on_exit=true on the zellij Run binding
-# tears the pane down.
+# Run nvim — when the user :q's, nvim exits, the EXIT trap clears the
+# re-entrancy lock, the script (and its containing floating pane) exits,
+# and close_on_exit=true on the zellij Run binding tears the pane down.
+# We deliberately do NOT exec nvim: keeping the script as nvim's parent
+# lets the trap fire on quit/signal so the lock never goes stale on a
+# clean exit, and its live PID is what a second Alt+/ checks against.
 #
 # PAIR_NVIM_PID_FILE: nvim/scrollback.lua's VimEnter autocmd writes the
 # embed pid here so cleanup_quit_marker in bin/pair can reap it on Alt+x.
@@ -163,4 +187,7 @@ export PAIR_NVIM_PID_FILE="$PAIR_DATA_DIR/nvim-pid-$PAIR_TAG-scrollback"
 # PAIR_SCROLLBACK_JUMP: scrollback.lua reads this after positioning and, if
 # set, jumps to the previous/next prompt — the Alt+/-then-Alt+b shortcut.
 export PAIR_SCROLLBACK_JUMP="$JUMP"
-exec nvim -u "$PAIR_HOME/nvim/scrollback.lua" "$ANSI"
+
+printf '%s\n' "$$" > "$LOCK"
+trap 'rm -f "$LOCK"' EXIT INT TERM
+nvim -u "$PAIR_HOME/nvim/scrollback.lua" "$ANSI"
