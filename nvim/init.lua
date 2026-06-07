@@ -693,7 +693,7 @@ local function send_esc_to_agent()
   vim.fn.system('zellij action move-focus down')
 end
 
-local function send_to_agent(body)
+local function send_to_agent(body, no_submit)
   -- focus up to agent pane, type body, press Enter, focus back down.
   --
   -- We deliberately do NOT clear the agent's input first. The "[Image #N]"
@@ -719,13 +719,24 @@ local function send_to_agent(body)
   -- Alt+Enter is what pair-wrap rewrites into the agent's actual
   -- submit byte. Mirrors the keyboard convention we set up for the
   -- user (Enter = newline, Alt+Enter = send).
+  --
+  -- no_submit (Alt+Shift+Enter path): land the body in the agent's
+  -- composer followed by a literal newline but DON'T submit. A bare CR
+  -- (write 13) is exactly what pair-wrap rewrites into the agent's
+  -- insert-newline sequence — the same byte the comment above warns is
+  -- *not* a submit — so it leaves the cursor on a fresh line in the
+  -- composer, ready for more input.
   if not has_ui() then return end
   vim.fn.system('zellij action move-focus up')
   vim.fn.system({ 'zellij', 'action', 'write-chars', body })
   if body:find('\n') or #body > 200 then
     vim.cmd('sleep 100m')
   end
-  vim.fn.system({ 'zellij', 'action', 'write', '27', '13' })
+  if no_submit then
+    vim.fn.system({ 'zellij', 'action', 'write', '13' })
+  else
+    vim.fn.system({ 'zellij', 'action', 'write', '27', '13' })
+  end
   vim.fn.system('zellij action move-focus down')
 end
 
@@ -1280,10 +1291,13 @@ function _G.PairPasteQuote()
 end
 
 -- ---------------------------------------------------------------------------
--- send_and_clear: Alt+Return — send entire buffer, log, clear, reset
+-- send_and_clear: Alt+Return — send entire buffer, log, clear, reset.
+-- With no_submit=true (Alt+Shift+Return) the body lands in the agent's
+-- composer followed by a literal newline but is NOT submitted; everything
+-- else (strip, log, queue handling, clear, reset to *) is identical.
 -- ---------------------------------------------------------------------------
 
-local function send_and_clear()
+local function send_and_clear(no_submit)
   local body = buffer_text()
   if body:match('^%s*$') then return end
   -- Strip-then-check happens before any side effects: a comment-only buffer
@@ -1327,7 +1341,7 @@ local function send_and_clear()
   -- Log the unstripped body (the user's authored text, comments and all),
   -- send only the stripped version to the agent.
   append_log(body)
-  send_to_agent(stripped)
+  send_to_agent(stripped, no_submit)
 
   -- Return to *. The just-sent body's === lines become the new sticky set
   -- for *, regardless of which slot we sent from. When sent from -N or +N,
@@ -3000,6 +3014,9 @@ end
 
 vim.keymap.set({ 'n', 'i' }, '<M-CR>', send_and_clear,
   { silent = true, desc = 'pair: send buffer + clear' })
+
+vim.keymap.set({ 'n', 'i' }, '<S-M-CR>', function() send_and_clear(true) end,
+  { silent = true, desc = 'pair: append buffer to agent (newline, no send) + clear' })
 
 vim.keymap.set({ 'n', 'i' }, '<M-b>', pair_scrollback_prev_prompt,
   { silent = true, desc = 'pair: open scrollback on previous prompt (Alt+/ then Alt+b)' })
