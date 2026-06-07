@@ -4,6 +4,78 @@ All notable user-facing changes to `pair` land here. Each release is also
 tagged in git (`vN.M`) and tracked in the homebrew formula at
 [xianxu/homebrew-pair](https://github.com/xianxu/homebrew-pair).
 
+## v1.20 — 2026-06-06
+
+### Multi-agent: Codex & Antigravity (agy) parity
+- **Antigravity (`agy`) brought to full capability parity** with claude
+  (#39): plain Return → newline / Alt+Return → send remap (#32),
+  orientation-slug support via its JSONL transcript (#38), permission-
+  picker detection that suspends the Enter remap while the picker is open
+  (#42), and a fix for stdin transcript pollution during slug generation
+  (#41).
+- **Codex fully supported**: Enter remap suspends while any Codex picker
+  (question / quota / image) is open (#25, #31, #34, #37); Codex sync
+  output is filtered out of autocomplete (#30); Codex is forced into
+  `--no-alt-screen` so mouse-wheel and Alt+/ scrollback work; slug
+  generation falls back to Codex CLI subscription auth and recovers the
+  live rollout transcript when the per-tag config is missing (#35).
+- **Deprecated gemini-cli support removed** (#40) — superseded by `agy`.
+
+### Auto-orientation slug (#27)
+- The draft's first line is now an **auto-generated `=== <branch> | <focus>
+  ===` orientation slug**, refreshed each turn by a small model so line 1
+  always reflects where the session is. Agent-agnostic: triggered from
+  `pair-wrap` at turn-end (no claude-specific Stop hook), with per-agent
+  transcript parsing. The left half comes from the git branch; the right
+  focus is widened to 4–8 words. Sticky and edit-safe — your edits to
+  line 1 are respected and fed back as the next turn's baseline.
+
+### Tag management
+- **`pair rename <old> <new>`** offline tag-rename primitive plus an
+  in-flow **Ctrl+Alt+n → (R)ename** (#22).
+- Picker now **surfaces historical tags from the current directory**
+  (active in the last week) (#24), shows an inactive base-tag session,
+  defaults the tag to the cwd basename, and titles the pane by binary name.
+
+### Draft editor
+- **Alt+Shift+Return** — append the buffer to the agent's composer
+  followed by a newline, *without* submitting (logs + clears like
+  Alt+Return).
+- **Markdown blockquotes render as a vertical bar** in the draft; the
+  pinned `===` winbar header is tinted the diff "added" green.
+- **Alt+Backspace kills to line start** in insert mode (macOS Cmd+Delete
+  convention).
+- Navigation: **Alt+j** toggles focus between the agent and draft panes;
+  **Alt+b** opens the scrollback viewer on the previous prompt;
+  **Shift+Alt+←/→** stops at three landmarks (history / `*` / queue).
+- **Spell popup** (`z=`): bare-digit `1`…`9` pick with clean normal-mode
+  handoff (#49).
+- **Completion popup**: LeftMouse click selects and confirms an item
+  (#43, #44).
+
+### Scrollback viewer (Alt+/)
+- **Smart-case search** — `/foo` is case-insensitive, `/Foo`
+  case-sensitive.
+- **Overall-comment affordance** at the end of the viewer for a standalone
+  summary not tied to any line (#21).
+- **Alt+b / Alt+B** jump to the previous / next prompt boundary.
+- **Re-entrancy guard** — pressing Alt+/ while the viewer is already open
+  no longer stacks a second nvim on top.
+- Scrollback cap raised to **2000 rows** (in sync with zellij); assorted
+  rendering fixes (hidden `~` end-of-buffer marker, no phantom rows past
+  EOF, larger wrapped-quote prompt window).
+
+### Diagnostics & runtime
+- **`pair-doctor` / `:PairDoctor`** — agent-agnostic health check with
+  color-coded table output (#48), an emitter-health probe that flags stale
+  built binaries (#47), and an adaptation flight recorder
+  (`adapt-<tag>.jsonl`) recording every harness-adaptation trigger (#45).
+- **`pair-dev`** — dev-mode entrypoint that rebuilds the Go binaries from
+  source on launch and on every restart (#46).
+- **Python dropped from the runtime path** (#19) — scrollback rendering is
+  the static Go `pair-scrollback-render`. (The brew formula still vendors
+  python + pyte as a fallback during the soak window.)
+
 ## v1.19 — 2026-05-19
 
 ### cmux workspace title
