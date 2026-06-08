@@ -9,6 +9,7 @@ func TestTranslateChunk(t *testing.T) {
 	p := &proxy{sendKM: sendKeymap{
 		plainCR: []byte{'\\', '\r'},
 		altCR:   []byte{'\r'},
+		altBS:   []byte{0x15},
 	}}
 
 	tests := []struct {
@@ -125,6 +126,32 @@ func TestTranslateChunk(t *testing.T) {
 			in:       []byte("hi\x1b[13"),
 			wantOut:  []byte("hi"),
 			wantHold: []byte("\x1b[13"),
+		},
+		{
+			name:    "legacy Alt+Backspace becomes Ctrl+U",
+			in:      []byte("hi\x1b\x7f"),
+			wantOut: []byte("hi\x15"),
+		},
+		{
+			name:    "KKP Alt+Backspace becomes Ctrl+U",
+			in:      []byte("hi\x1b[127;3u"),
+			wantOut: []byte("hi\x15"),
+		},
+		{
+			name:    "plain Backspace (lone DEL) passes through",
+			in:      []byte("hi\x7f"),
+			wantOut: []byte("hi\x7f"),
+		},
+		{
+			name:    "mixed: Alt+Backspace and Alt+Enter in one chunk",
+			in:      []byte("a\x1b\x7fb\x1b\rc"),
+			wantOut: []byte("a\x15b\rc"),
+		},
+		{
+			name:     "partial KKP Alt+Backspace held back at chunk end",
+			in:       []byte("hi\x1b[127;3"),
+			wantOut:  []byte("hi"),
+			wantHold: []byte("\x1b[127;3"),
 		},
 	}
 

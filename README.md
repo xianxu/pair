@@ -70,6 +70,7 @@ Select something with mouse on agent's pane, the selection is inserted at curren
 | **Alt+q** | scrollback viewer | Insert comment for the line, or selection |
 | **Alt+b** / **Alt+B** | scrollback viewer | Jump to previous / next prompt boundary — hop between turns instead of scrolling line-by-line |
 | **Alt+Backspace** | nvim (normal/insert), at `+N` | Delete the current queued prompt. |
+| **Alt+Backspace** | agent pane | Delete to start of line — forwarded to the agent as Ctrl+U, matching its Cmd+Delete. |
 | **Shift+Alt+Backspace** | nvim (normal/insert) | Erase history, draft, and queue for this session to "start anew". |
 | **Alt+d** | any pane | Detach from the current session (re-attach later via `pair`). |
 | **Alt+x** | any pane | Full quit — kill the session and all processes inside. Pair captures the agent's session id alongside the launch args, so the session is resumable later via `pair resume <tag>`. |
