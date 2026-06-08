@@ -1719,9 +1719,14 @@ end
 -- Unlike spell_suggest_popup (the on-demand z= gesture), this does NOT set
 -- spell_popup_active: we're mid-type, so bare digits must stay literal text
 -- and CompleteDone must not bounce us back to normal mode. A suggestion is
--- accepted the same way as any typed-token popup (CR / Tab / <C-y> / Alt+N).
+-- accepted via CR / Tab / <C-y> / arrows.
+--
+-- No quick-pick labels here: the ⌥N / bare-digit pick keys don't work in
+-- this mid-type fallback (Alt+N belongs to path/word menus, bare digits stay
+-- literal), so the items are left unlabelled rather than advertising a key
+-- that does nothing.
 local SPELL_TRIGGER_MIN = 4   -- min misspelled-word length before suggesting
-local SPELL_MAX_SUGGEST = 9   -- first 9 carry an Alt+N quick-pick label
+local SPELL_MAX_SUGGEST = 9   -- max suggestions shown in the menu
 local function spell_complete()
   local line = vim.api.nvim_get_current_line()
   local col = vim.fn.col('.') - 1   -- 0-indexed byte position of the cursor
@@ -1742,7 +1747,11 @@ local function spell_complete()
   local suggestions = vim.fn.spellsuggest(word, SPELL_MAX_SUGGEST)
   if not suggestions or #suggestions == 0 then return end
 
-  vim.fn.complete(s, indexed_items(suggestions))
+  -- Plain items, no ⌥N labels: the quick-pick keys don't function in this
+  -- mid-type popup (see header), so don't render them.
+  local items = {}
+  for i, w in ipairs(suggestions) do items[i] = { word = w } end
+  vim.fn.complete(s, items)
   return true
 end
 
