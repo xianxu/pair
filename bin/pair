@@ -129,7 +129,8 @@ KEYBINDINGS (inside a pair session)
   Alt+Shift+Return
                 append nvim buffer to agent composer + newline, no submit;
                 log + clear (like Alt+Return but unsubmitted)
-  Alt+c         send ESC (0x1b) to agent pane — interrupts claude's
+  Alt+c / Ctrl+C
+                send ESC (0x1b) to agent pane — interrupts claude's
                 in-flight stream without leaving the draft
   Alt+← / Alt+→ walk through prompt history (-N) ↔ draft (*) ↔ queue (+N)
   Shift+Alt+← / Shift+Alt+→

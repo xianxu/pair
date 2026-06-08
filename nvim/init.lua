@@ -3075,6 +3075,14 @@ vim.keymap.set({ 'n', 'i' }, '<M-i>', attach_image,
 vim.keymap.set({ 'n', 'i' }, '<M-c>', send_esc_to_agent,
   { silent = true, desc = 'pair: send ESC to agent (interrupt stream)' })
 
+-- Ctrl+C mirrors Alt+c: the familiar "interrupt" chord forwards to the agent
+-- as ESC. send_esc_to_agent doesn't touch the draft's mode, so in insert mode
+-- you stay in insert (overriding <C-c>'s usual leave-insert) and in normal
+-- mode the pending-command cancel is given up — both deliberate, so a reflexive
+-- Ctrl+C interrupts the agent's stream without disrupting your draft.
+vim.keymap.set({ 'n', 'i' }, '<C-c>', send_esc_to_agent,
+  { silent = true, desc = 'pair: send ESC to agent (interrupt stream)' })
+
 vim.keymap.set({ 'n', 'i' }, '<M-Left>', nav_left,
   { silent = true, desc = 'pair: navigate to older history entry' })
 
