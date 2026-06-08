@@ -14,16 +14,17 @@ import (
 // agent in production. Treat the table as a contract.
 func TestSendKeymapByAgent_RegistrationTable(t *testing.T) {
 	type row struct {
-		plain, alt []byte
+		plain, alt, altBS []byte
 	}
+	ctrlU := []byte{0x15} // Alt+Backspace → kill to line start (all agents)
 	want := map[string]row{
 		// claude reads `\<Enter>` as newline regardless of terminal
 		// keyboard-protocol level — the documented portable path.
-		"claude": {[]byte{'\\', '\r'}, []byte{'\r'}},
+		"claude": {[]byte{'\\', '\r'}, []byte{'\r'}, ctrlU},
 		// codex: Enter = send (\r), Shift+Enter = newline (\n).
-		"codex": {[]byte{'\n'}, []byte{'\r'}},
+		"codex": {[]byte{'\n'}, []byte{'\r'}, ctrlU},
 		// agy: same as codex.
-		"agy": {[]byte{'\n'}, []byte{'\r'}},
+		"agy": {[]byte{'\n'}, []byte{'\r'}, ctrlU},
 	}
 	if len(sendKeymapByAgent) != len(want) {
 		t.Fatalf("sendKeymapByAgent has %d agents, want %d (%v)",
@@ -41,6 +42,9 @@ func TestSendKeymapByAgent_RegistrationTable(t *testing.T) {
 		if !bytes.Equal(got.altCR, w.alt) {
 			t.Errorf("%s.altCR: got %q, want %q", agent, got.altCR, w.alt)
 		}
+		if !bytes.Equal(got.altBS, w.altBS) {
+			t.Errorf("%s.altBS: got %q, want %q", agent, got.altBS, w.altBS)
+		}
 	}
 }
 
@@ -54,6 +58,7 @@ func TestTranslateChunk_AgyKeymap(t *testing.T) {
 		{[]byte("hi\r"), []byte("hi\n")},                                                 // Enter → newline
 		{[]byte("hi\x1b\r"), []byte("hi\r")},                                             // Alt+Enter → send
 		{[]byte("a\rb\x1b\r"), []byte("a\nb\r")},                                         // both, same chunk
+		{[]byte("hi\x1b\x7f"), []byte("hi\x15")},                                         // Alt+Backspace → Ctrl+U
 		{[]byte("\x1b[200~text\rmore\x1b[201~"), []byte("\x1b[200~text\rmore\x1b[201~")}, // paste untouched
 	}
 	for _, c := range cases {

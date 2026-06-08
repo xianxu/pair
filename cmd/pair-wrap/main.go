@@ -114,13 +114,20 @@ var spanExtractionAgents = map[string]bool{
 //
 //   - plainCR:   bytes emitted when the user hits Enter alone (\r)
 //   - altCR:     bytes emitted when the user hits Alt+Enter (\x1b\r)
+//   - altBS:     bytes emitted when the user hits Alt+Backspace (\x1b\x7f)
 //
 // Claude reads "\<Enter>" (backslash + CR) as a newline regardless of
 // terminal keyboard-protocol support — this is the documented portable
 // path. Other agents need their own probing; leave them out of the table
 // to fall through to no-rewrite (today's pass-through behavior).
+//
+// altBS maps Alt+Backspace to Ctrl+U (kill-to-line-start) so Alt+Delete
+// in the agent pane matches the agent's existing Cmd+Delete and the
+// draft pane's Alt+Delete. Ctrl+U is the universal readline kill, so it's
+// the same byte for every agent.
 type sendKeymap struct {
 	plainCR, altCR []byte
+	altBS          []byte
 }
 
 var sendKeymapByAgent = map[string]sendKeymap{
@@ -129,6 +136,7 @@ var sendKeymapByAgent = map[string]sendKeymap{
 		// keyboard-protocol level — the documented portable path.
 		plainCR: []byte{'\\', '\r'},
 		altCR:   []byte{'\r'},
+		altBS:   []byte{0x15}, // Ctrl+U — kill to line start
 	},
 	"codex": {
 		// Codex follows the textbook chat-UI convention: Enter = send,
@@ -138,12 +146,14 @@ var sendKeymapByAgent = map[string]sendKeymap{
 		// PAIR_WRAP_LOG=… PAIR_WRAP_REMAP_RETURN=0.
 		plainCR: []byte{'\n'},
 		altCR:   []byte{'\r'},
+		altBS:   []byte{0x15}, // Ctrl+U — kill to line start
 	},
 	"agy": {
 		// Antigravity (agy) follows the same Enter/Shift+Enter convention
 		// as codex.
 		plainCR: []byte{'\n'},
 		altCR:   []byte{'\r'},
+		altBS:   []byte{0x15}, // Ctrl+U — kill to line start
 	},
 }
 
@@ -932,6 +942,19 @@ var (
 	enterKKPAlt      = []byte("\x1b[13;3u")
 )
 
+// Alt+Backspace byte sequences — the same two-protocol shape as Alt+Enter:
+//   - Legacy: \x1b\x7f (ESC + DEL; macOS and most terminals send 0x7f for
+//     Backspace, so Alt+Backspace is an ESC-prefixed DEL).
+//   - KKP: \x1b[127;3u (127 = backspace keycode, modifier param 3 = alt).
+//
+// Both rewrite to the agent's altBS (Ctrl+U, kill-to-line-start) so Alt+Delete
+// matches the agent's Cmd+Delete. A lone 0x7f (plain Backspace) is left
+// untouched — it isn't ESC-prefixed, so it passes through as an ordinary byte.
+var (
+	altBSLegacy = []byte("\x1b\x7f")
+	altBSKKP    = []byte("\x1b[127;3u")
+)
+
 // holdbackPatterns lists every multi-byte marker the translator might
 // need to complete across a chunk boundary. If a chunk ends with bytes
 // that form a strict prefix of any pattern here, hold those bytes back
@@ -940,6 +963,7 @@ var holdbackPatterns = [][]byte{
 	bpStart, bpEnd,
 	enterKKPPlain, enterKKPPlainExp, enterKKPAlt,
 	enterLegacyAlt,
+	altBSKKP, altBSLegacy,
 }
 
 // pendingFlushAfter is the timeout for held-back bytes that haven't
@@ -1257,6 +1281,18 @@ func (p *proxy) translateChunk(data []byte, inPaste bool) ([]byte, []byte, bool)
 			if startsWith(data[i:], enterLegacyAlt) {
 				out = append(out, p.sendKM.altCR...)
 				i += len(enterLegacyAlt)
+				continue
+			}
+			// KKP Alt+Backspace: \x1b[127;3u → kill to line start (Ctrl+U).
+			if startsWith(data[i:], altBSKKP) {
+				out = append(out, p.sendKM.altBS...)
+				i += len(altBSKKP)
+				continue
+			}
+			// Legacy Alt+Backspace: \x1b\x7f (ESC + DEL) → kill to line start.
+			if startsWith(data[i:], altBSLegacy) {
+				out = append(out, p.sendKM.altBS...)
+				i += len(altBSLegacy)
 				continue
 			}
 			// Could the chunk-tail still grow into one of our markers
