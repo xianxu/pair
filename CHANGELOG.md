@@ -4,6 +4,23 @@ All notable user-facing changes to `pair` land here. Each release is also
 tagged in git (`vN.M`) and tracked in the homebrew formula at
 [xianxu/homebrew-pair](https://github.com/xianxu/homebrew-pair).
 
+## v1.22 — 2026-06-08
+
+### Draft input
+- **As-you-type spell-fix typeahead** — while typing, a misspelled word
+  (alphabetic, ≥4 chars) now pops a menu of likely corrections from nvim's
+  `spellsuggest`, pickable like any completion (CR / Tab / arrows). It fires
+  only as the last-resort completer, so it never crowds out real path/word
+  completions.
+- **Ctrl+C in the draft forwards to the agent as ESC** (normal + insert
+  mode) — the reflexive interrupt chord now stops the agent's stream
+  without disrupting your draft (insert mode stays in insert).
+
+### Agent pane
+- **Alt+Backspace → Ctrl+U (kill-to-line-start)** in the agent pane,
+  matching the agent's Cmd+Delete and the draft pane's Alt+Delete. Recognizes
+  both the legacy `ESC DEL` and Kitty-keyboard `ESC [127;3u` protocol forms.
+
 ## v1.21 — 2026-06-06
 
 ### Startup picker
