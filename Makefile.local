@@ -1,7 +1,7 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
-.PHONY: build install pair-scribe pair-scrollback-render pair-wrap pair-slug test test-race test-lua test-queue test-doctor test-adapt-schema test-dev-rebuild test-emitter-health
+.PHONY: build install pair-scribe pair-scrollback-render pair-wrap pair-slug test test-race test-lua test-queue test-autopair test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
 # and ships with the `pair-` prefix so it doesn't collide with anything
@@ -53,7 +53,7 @@ pair-slug:              $(BIN_DIR)/pair-slug
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
-test: test-lua test-queue test-doctor test-adapt-schema test-dev-rebuild test-emitter-health
+test: test-lua test-queue test-autopair test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health
 	go test ./... -count=1
 
 test-race:
@@ -74,6 +74,19 @@ test-lua:
 # regression. See tests/queue-send-test.sh.
 test-queue:
 	bash tests/queue-send-test.sh
+
+# Regression test for the autopair next-char gate (nvim/init.lua,
+# pair_insert_open). Drives the real init.lua headlessly and asserts each
+# opener's expr output. See tests/autopair-test.sh.
+test-autopair:
+	bash tests/autopair-test.sh
+
+# Regression test for the normal-mode position marker in the draft statusline
+# (nvim/init.lua, _G.PairStatusline). Drives the real init.lua headlessly,
+# navigates history/queue, and asserts the bar shows *, -N, +N. See
+# tests/statusline-pos-test.sh.
+test-statusline:
+	bash tests/statusline-pos-test.sh
 
 # Regression test for doctor/doctor.sh (the adaptation flight-recorder reader):
 # a malformed line must not abort the diagnostic. See doctor/doctor_test.sh.

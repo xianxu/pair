@@ -1906,8 +1906,20 @@ function _G.PairStatusline()
     return '    %#PairAltKey#Alt+↑%* for pair input box '
   end
   if vim.fn.mode():sub(1, 1) == 'n' then
+    -- Carry the position marker (*, -N, +N) into locked/normal mode — the
+    -- insert-mode cluster below is gone here, so without this the user loses
+    -- the "you are here" cue the moment they leave insert to navigate
+    -- (Alt+←/→ work in both modes). Same PairPosLabel green block as the
+    -- cluster; pcall-guarded like it so a nav-state hiccup can't blank the bar.
+    local ok_pos, pos = pcall(function()
+      local p = pos_label(nav.pos)
+      if is_dirty_history_slot() then p = p .. '*' end
+      return p
+    end)
+    local pos_seg = (ok_pos and pos ~= '')
+      and string.format(' %%#PairPosLabel#%s%%*', pos) or ''
     return pair_compose_statusline(
-      '%#PairLocked# <LOCKED> input not accepted — press i to type %*'
+      pos_seg .. '%#PairLocked# <LOCKED> input not accepted — press i to type %*'
     )
   end
   local ok, result = pcall(function()
@@ -3214,6 +3226,12 @@ vim.keymap.set('i', '<C-_>', function() PairPasteQuote() end,
 -- halves. No syntax awareness, no string-detection cleverness — just a
 -- one-char lookahead/lookbehind.
 --
+-- Next-char gate: only auto-insert the closer when the cursor sits at
+-- end-of-line or in front of whitespace. If a real character follows, the
+-- user is typing in front of existing text (e.g. `(` before `foo`), where a
+-- trailing closer would just be in the way — so drop in the bare opener.
+-- Applies to every pair, brackets and quotes alike.
+--
 -- Quote rule: if the next char is the same quote, jump over it (covers
 -- typing the closer of a pair we just inserted). Otherwise, skip pairing
 -- when the previous char is a word char, so apostrophes in "don't" /
@@ -3239,6 +3257,9 @@ local function pair_insert_open(open)
     if next == open          then return '<C-G>U<Right>' end
     if prev:match('[%w_]')   then return open            end
   end
+  -- Only pair when at EOL or in front of whitespace; if a real character
+  -- follows, insert the bare opener so we don't strand a closer mid-word.
+  if next ~= '' and not next:match('%s') then return open end
   -- <C-G>U keeps the inline cursor move from breaking undo into two units,
   -- so a single `u` undoes the whole opener+closer insertion.
   return open .. close .. '<C-G>U<Left>'
