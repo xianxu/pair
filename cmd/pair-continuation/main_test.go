@@ -118,3 +118,47 @@ func TestWriter_MissingRequiredFlags(t *testing.T) {
 		t.Fatalf("expected failure on missing slug; output: %s", out)
 	}
 }
+
+// TestWriter_DoesNotSweepDirtyIndex is the regression for the path-scoped
+// commit: a pre-staged unrelated file must NOT land in the continuation commit
+// (parking happens mid-session, so a dirty index is the common case).
+func TestWriter_DoesNotSweepDirtyIndex(t *testing.T) {
+	bin := buildBinary(t)
+	root := t.TempDir()
+	gitInitWithBareOrigin(t, root)
+	if err := os.WriteFile(filepath.Join(root, "unrelated.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git(t, root, "add", "unrelated.txt") // dirty index
+
+	bodyFile := filepath.Join(t.TempDir(), "body.md")
+	if err := os.WriteFile(bodyFile, []byte("# C\n\n## NEXT ACTION\nGo.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command(bin, "-repo-root", root, "-slug", "x", "-agent", "claude",
+		"-issues", "1", "-body-file", bodyFile).CombinedOutput()
+	if err != nil {
+		t.Fatalf("writer: %v\n%s", err, out)
+	}
+	if files := git(t, root, "show", "--name-only", "--format=", "HEAD"); strings.Contains(files, "unrelated.txt") {
+		t.Fatalf("dirty index swept into continuation commit:\n%s", files)
+	}
+	if st := git(t, root, "status", "--short", "unrelated.txt"); !strings.Contains(st, "unrelated.txt") {
+		t.Fatalf("unrelated.txt should remain staged-uncommitted, got: %q", st)
+	}
+}
+
+func TestWriter_RequiresNextAction(t *testing.T) {
+	bin := buildBinary(t)
+	root := t.TempDir()
+	gitInitWithBareOrigin(t, root)
+	bodyFile := filepath.Join(t.TempDir(), "b.md")
+	if err := os.WriteFile(bodyFile, []byte("# C\n\nno next action section here\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command(bin, "-repo-root", root, "-slug", "x", "-agent", "claude",
+		"-issues", "1", "-body-file", bodyFile).CombinedOutput()
+	if err == nil {
+		t.Fatalf("expected failure when body lacks NEXT ACTION; out: %s", out)
+	}
+}

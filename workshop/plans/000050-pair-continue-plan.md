@@ -281,3 +281,19 @@ Bash in `bin/pair` (no Go test harness; verify via the existing bash integration
 - **M2:** `go test ./cmd/pair-continuation/` — pure core units + the write→commit→push integration test against a real temp repo with a bare origin (the deterministic anchor for the Spec's invariants). `make build && make test` clean.
 - **M3:** bash list test + manual `pair continue` / Alt+x walkthroughs recorded in `## Log`.
 - **End-to-end (records the Spec's headline):** in a live pair session, "park this" → `xx-datatype` applies `continuation.md` → shells `pair-continuation` → doc lands in `workshop/continuation/`, committed + pushed; then `pair continue <slug>` (optionally a different agent) launches a fresh session on it. Record the transcript-level walkthrough in `## Log`.
+
+---
+
+## Revisions
+
+**2026-06-11 — reconcile Core concepts table with shipped code (M3 boundary review).**
+The pure/IO-seam architecture held, but three table rows drifted from the implementation:
+- `io.go` / `dirList` / `writeFile` were **folded into `main.go`** (`listMarkdown` + inline `os.WriteFile`) — no separate file.
+- `GitRunner` is a concrete `gitRunner` struct (`git.go`), **not an injected interface** — the git seam is exercised via the **built binary against a real temp repo with a bare origin** (the subprocess integration test), which is stronger than an interface mock.
+- `Clock` is a plain `func() time.Time` param to `run()`, not a named type.
+
+**2026-06-11 — push target + dirty-index + NEXT-ACTION (M3 boundary review, FIX-THEN-SHIP).**
+- **Critical:** the writer's `git commit` was un-scoped, so a pre-staged dirty index was swept into (and pushed with) the continuation commit. Fixed: `commit -- <rel>` (path-scoped) + `TestWriter_DoesNotSweepDirtyIndex`.
+- **Push target:** the writer pushes `origin HEAD` (current branch), **not** a forced `main` — the doc reaches main when the feature branch merges. Docs (`continuation.md`, `atlas`, code comment) corrected from "to main".
+- **NEXT-ACTION enforcement** now lives in the writer (`run()` rejects a body without `## NEXT ACTION`) — making the "structural guard" framing accurate; `TestWriter_RequiresNextAction`.
+- Deferred minors: extract a `normalize_tag()` shell fn (resume/continue share the tag normalize+validate); a `pair park-render <tag>` lister for accumulated `parked-scrollback-*`.

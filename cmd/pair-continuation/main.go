@@ -56,6 +56,11 @@ func run(a runArgs, now func() time.Time, stdin io.Reader, stdout io.Writer) err
 	if err != nil {
 		return err
 	}
+	// The writer is the structural guard (Spec Done-when): continuation.md
+	// makes NEXT ACTION mandatory, so refuse a body that lacks it.
+	if !strings.Contains(body, "## NEXT ACTION") {
+		return fmt.Errorf("continuation body must contain a '## NEXT ACTION' section")
+	}
 
 	ts := now()
 	f := Fields{
@@ -82,17 +87,23 @@ func run(a runArgs, now func() time.Time, stdin io.Reader, stdout io.Writer) err
 		return err
 	}
 
-	// Disaster-recovery: commit + push straight to main the instant it's
-	// written (record artifact, not feature code). A push failure must NOT
-	// lose the local recovery doc — warn and keep the commit.
+	// Disaster-recovery: commit + push the instant it's written (record
+	// artifact, not feature code) so the doc is durable and off-host.
+	//   - the commit is PATH-SCOPED (`-- rel`) so an unrelated dirty index is
+	//     never swept into the continuation commit (and unrelated staged work
+	//     is left untouched);
+	//   - push to origin/HEAD (the current branch — lands on main when that
+	//     branch merges; avoids a fragile cross-branch push to main);
+	//   - a push failure is non-fatal: a detached/offline park still keeps the
+	//     local recovery commit.
 	g := gitRunner{root: root}
 	if out, err := g.run("add", rel); err != nil {
 		return fmt.Errorf("git add: %v\n%s", err, out)
 	}
-	if out, err := g.run("commit", "-m", "continuation: "+f.Slug); err != nil {
+	if out, err := g.run("commit", "-m", "continuation: "+f.Slug, "--", rel); err != nil {
 		return fmt.Errorf("git commit: %v\n%s", err, out)
 	}
-	if out, err := g.run("push"); err != nil {
+	if out, err := g.run("push", "origin", "HEAD"); err != nil {
 		fmt.Fprintf(os.Stderr, "pair-continuation: push failed (commit kept locally): %v\n%s\n", err, out)
 	}
 	fmt.Fprintln(stdout, abs)
