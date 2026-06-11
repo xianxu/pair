@@ -584,6 +584,52 @@ if [ "${1:-}" = "resume" ]; then
     shift 2
 fi
 
+# `pair continue [slug] [agent]` — the human-understanding sibling of `resume`
+# (ariadne#91). Bare: list continuation docs. With a slug: start a FRESH session
+# seeded to read the matching doc and execute its NEXT ACTION. The optional
+# agent is the "port" (continue under a different stack). We capture the agent
+# HERE rather than via the positional loop below, which rejects trailing args
+# once a tag is forced. `continue` never reads session_id — that's `resume`.
+CONTINUE_DOC=""
+if [ "${1:-}" = "continue" ]; then
+    _croot="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+    _cdir="${_croot:-$PWD}/workshop/continuation"
+    if [ -z "${2:-}" ]; then
+        if [ -d "$_cdir" ] && ls "$_cdir"/*.md >/dev/null 2>&1; then
+            printf 'continuations in %s:\n' "$_cdir"
+            for _cf in "$_cdir"/*.md; do
+                _cs="$(basename "$_cf" .md)"; _cs="${_cs#*-}"
+                _cn="$(awk '/^## NEXT ACTION/{f=1;next} f&&NF{print;exit}' "$_cf")"
+                _ci="$(awk -F': ' '/^issues:/{print $2; exit}' "$_cf")"
+                printf '  %-22s %-18s %s\n' "$_cs" "${_ci:-[]}" "$_cn"
+            done
+        else
+            printf 'pair: no continuations in %s\n' "$_cdir" >&2
+        fi
+        exit 0
+    fi
+    _cslug="$2"
+    case "$_cslug" in pair-*) _cslug="${_cslug#pair-}" ;; esac
+    case "$_cslug" in
+        ""|*[!A-Za-z0-9_-]*)
+            echo "pair: invalid slug '$2'." >&2
+            exit 1
+            ;;
+    esac
+    CONTINUE_DOC="$(ls -1 "$_cdir"/*-"$_cslug".md 2>/dev/null | sort | tail -1)"
+    if [ -z "$CONTINUE_DOC" ]; then
+        echo "pair: no continuation matching '$_cslug' in $_cdir" >&2
+        exit 1
+    fi
+    forced_tag="$_cslug"
+    if [ -n "${3:-}" ]; then
+        AGENT="$3"   # explicit port: continue under a different agent
+    else
+        AGENT="$(awk -F': ' '/^agent:/{print $2; exit}' "$CONTINUE_DOC")"
+    fi
+    shift "$#"
+fi
+
 seen_dd=false
 for arg in "$@"; do
     if $seen_dd; then
@@ -1156,15 +1202,36 @@ cleanup_quit_marker() {
         # the orphan-reaping block near $DATA_DIR setup for the full story
         # on why these survive pane death and need explicit cleanup.
         reap_nvim_for_tag "$PAIR_TAG"
+        # Park-nudge: the scrollback is the only on-disk record of this session,
+        # and Alt+x is about to discard it. Offer to PRESERVE it (rename to a
+        # non-recyclable name so the next `pair <same-tag>` O_TRUNC can't clobber
+        # it) so a live session can later distill it into a continuation
+        # (ariadne#91). No live agent exists at quit, so we only preserve — never
+        # distill here. `[ -t 0 ]` skips the prompt on a detached/automated quit.
+        _sb_base="$DATA_DIR/scrollback-${PAIR_TAG}-${quit_agent}"
+        _parked=0
+        if [ -s "${_sb_base}.raw" ] && [ -t 0 ]; then
+            printf 'pair: park "%s" as a continuation? (preserve its scrollback) [y/N]: ' "$PAIR_TAG" >/dev/tty
+            if read -r _ans </dev/tty && { [ "$_ans" = "y" ] || [ "$_ans" = "Y" ]; }; then
+                _pts="$(date +%Y%m%dT%H%M%S)"
+                _pbase="$DATA_DIR/parked-scrollback-${PAIR_TAG}-${_pts}"
+                if mv "${_sb_base}.raw" "${_pbase}.raw" 2>/dev/null; then
+                    _parked=1
+                    mv "${_sb_base}.events.jsonl" "${_pbase}.events.jsonl" 2>/dev/null || true
+                    : > "$DATA_DIR/parked-${PAIR_TAG}"
+                    printf 'pair: scrollback preserved (%s.raw). Open a session and "park pair-%s" to finish the continuation.\n' "$_pbase" "$PAIR_TAG"
+                fi
+            fi
+        fi
         rm -f "$DATA_DIR/outer-tty-${PAIR_TAG}" "$DATA_DIR/agent-${PAIR_TAG}" \
               "$DATA_DIR/agent-output-${PAIR_TAG}" \
-              "$DATA_DIR/scrollback-${PAIR_TAG}-${quit_agent}.raw" \
-              "$DATA_DIR/scrollback-${PAIR_TAG}-${quit_agent}.events.jsonl" \
-              "$DATA_DIR/scrollback-${PAIR_TAG}-${quit_agent}.ansi" \
+              "${_sb_base}.ansi" \
               "$DATA_DIR/pair-wrap-pid-${PAIR_TAG}" \
               "$DATA_DIR/adapt-${PAIR_TAG}.jsonl" \
               "$DATA_DIR/image-capture-${PAIR_TAG}" \
               "$DATA_DIR/image-capture-${PAIR_TAG}.done"
+        # Remove the raw capture only if it wasn't parked (preserved above).
+        [ "$_parked" = 1 ] || rm -f "${_sb_base}.raw" "${_sb_base}.events.jsonl"
 
         # If the watcher captured a session config for this (tag, agent),
         # show the user the one-liner that resumes it. config-<tag>-<agent>
@@ -1733,6 +1800,14 @@ export PAIR_TAG="$chosen_tag"
 SESSION="pair-${PAIR_TAG}"
 DRAFT="$DATA_DIR/draft-${PAIR_TAG}.md"
 [ -f "$DRAFT" ] || : > "$DRAFT"
+
+# pair continue <slug>: this is a fresh session — seed the draft to read the
+# continuation doc and pick up its NEXT ACTION. Create-path only, so a live
+# same-tag session's draft is never clobbered (that path attaches instead).
+if [ -n "${CONTINUE_DOC:-}" ]; then
+    printf 'Read workshop/continuation/%s and continue from its NEXT ACTION.\n' \
+        "$(basename "$CONTINUE_DOC")" > "$DRAFT"
+fi
 
 # Record the agent that's about to be launched in this session, so `pair list`
 # can show which binary is paired with each session. The agent is otherwise not

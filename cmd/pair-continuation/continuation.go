@@ -1,0 +1,89 @@
+// Command pair-continuation is the deterministic writer for the `continuation`
+// datatype (ariadne#91): given the gathered frontmatter fields + an approved
+// body, it renders a conformant continuation file, allocates a collision-safe
+// timestamped name under workshop/continuation/, writes it, and commits +
+// pushes it to main — the disaster-recovery invariants that must not depend on
+// the distilling LLM remembering. The xx-datatype dispatcher does the
+// distillation (judgment); this binary does the mechanics.
+package main
+
+import (
+	"fmt"
+	"strings"
+	"time"
+)
+
+// Fields are the frontmatter inputs for a continuation instance.
+// Keep the field set + order in sync with construct/datatype/continuation.md
+// (ariadne#91 Frontmatter-shape table) — the golden-string test pins them.
+type Fields struct {
+	Slug       string
+	Agent      string
+	SessionID  string
+	Created    time.Time
+	Supersedes string
+	Branch     string
+	Worktree   string
+	Issues     []string
+}
+
+// RenderFrontmatter emits the continuation frontmatter body (without the
+// surrounding `---` fences). Field order tracks continuation.md's
+// Frontmatter-shape table; empty optionals are omitted.
+func RenderFrontmatter(f Fields) string {
+	var b strings.Builder
+	b.WriteString("type: continuation\n")
+	fmt.Fprintf(&b, "slug: %s\n", f.Slug)
+	fmt.Fprintf(&b, "agent: %s\n", f.Agent)
+	if f.SessionID != "" {
+		fmt.Fprintf(&b, "session_id: %s\n", f.SessionID)
+	}
+	fmt.Fprintf(&b, "created: %s\n", f.Created.Format("2006-01-02T15:04:05"))
+	if f.Supersedes != "" {
+		fmt.Fprintf(&b, "supersedes: %s\n", f.Supersedes)
+	}
+	if f.Branch != "" {
+		fmt.Fprintf(&b, "branch: %s\n", f.Branch)
+	}
+	if f.Worktree != "" {
+		fmt.Fprintf(&b, "worktree: %s\n", f.Worktree)
+	}
+	fmt.Fprintf(&b, "issues: [%s]\n", strings.Join(f.Issues, ", "))
+	return b.String()
+}
+
+// AllocName returns the continuation filename for slug at ts —
+// `<YYYYMMDDTHHMMSS>-<slug>.md` — collision-safe against existing names
+// (an exact clash appends -1, -2, …; same-second parks usually differ by slug).
+func AllocName(slug string, ts time.Time, existing []string) string {
+	base := ts.Format("20060102T150405") + "-" + slug
+	seen := make(map[string]bool, len(existing))
+	for _, e := range existing {
+		seen[e] = true
+	}
+	name := base + ".md"
+	for n := 1; seen[name]; n++ {
+		name = fmt.Sprintf("%s-%d.md", base, n)
+	}
+	return name
+}
+
+// Assemble joins frontmatter + body into a full continuation file:
+// fenced frontmatter, a blank line, then the body with one trailing newline.
+func Assemble(frontmatter, body string) string {
+	return "---\n" + frontmatter + "---\n\n" + strings.TrimRight(body, "\n") + "\n"
+}
+
+// ValidateFields rejects a continuation missing its required fields.
+func ValidateFields(f Fields) error {
+	if strings.TrimSpace(f.Slug) == "" {
+		return fmt.Errorf("slug is required")
+	}
+	if strings.TrimSpace(f.Agent) == "" {
+		return fmt.Errorf("agent is required")
+	}
+	if len(f.Issues) == 0 {
+		return fmt.Errorf("at least one issue is required")
+	}
+	return nil
+}

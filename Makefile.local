@@ -26,7 +26,7 @@
 
 BIN_DIR     := bin
 INSTALL_DIR := $(HOME)/.local/bin
-GO_BINS     := pair-scribe pair-scrollback-render pair-wrap pair-slug
+GO_BINS     := pair-scribe pair-scrollback-render pair-wrap pair-slug pair-continuation
 
 build: $(addprefix $(BIN_DIR)/,$(GO_BINS))
 
@@ -42,6 +42,7 @@ pair-scribe:            $(BIN_DIR)/pair-scribe
 pair-scrollback-render: $(BIN_DIR)/pair-scrollback-render
 pair-wrap:              $(BIN_DIR)/pair-wrap
 pair-slug:              $(BIN_DIR)/pair-slug
+pair-continuation:      $(BIN_DIR)/pair-continuation
 
 # Tests
 #   make test       → go test ./... (cache disabled so reruns actually run)
@@ -131,6 +132,12 @@ $(BIN_DIR)/pair-wrap: cmd/pair-wrap/main.go go.mod
 
 $(BIN_DIR)/pair-slug: cmd/pair-slug/main.go cmd/pair-slug/slug.go go.mod
 	go build -o $@ ./cmd/pair-slug
+
+# pair-continuation — the deterministic writer for the `continuation` datatype
+# (ariadne#91): renders frontmatter, allocates a collision-safe timestamped
+# name under workshop/continuation/, writes, then commits + pushes (recovery).
+$(BIN_DIR)/pair-continuation: cmd/pair-continuation/continuation.go cmd/pair-continuation/git.go cmd/pair-continuation/main.go go.mod
+	go build -o $@ ./cmd/pair-continuation
 
 
 # Tart VM targets (tart, tart-gui, tart-mount, tart-stop, tart-clean)
