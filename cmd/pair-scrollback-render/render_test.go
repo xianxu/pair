@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -102,6 +103,51 @@ func TestRender_Plain(t *testing.T) {
 	}
 	if !strings.Contains(string(body), "red text") {
 		t.Fatalf("plain render missing visible text; got %q", string(body))
+	}
+	// plain render must NOT litter a .viewport sidecar
+	if _, err := os.Stat(outPath + ".viewport"); err == nil {
+		t.Fatalf("plain render wrote a stray .viewport sidecar")
+	}
+}
+
+func TestResolveMax(t *testing.T) {
+	for _, c := range []struct{ in, want int }{
+		{-1, math.MaxInt32}, {0, math.MaxInt32}, {5, 5}, {2000, 2000},
+	} {
+		if got := resolveMax(c.in); got != c.want {
+			t.Fatalf("resolveMax(%d) = %d, want %d", c.in, got, c.want)
+		}
+	}
+}
+
+// TestRender_MaxLinesCaps pushes many lines through a short terminal so most
+// spill to scrollback, then asserts a small --max-lines retains strictly fewer
+// total rows than uncapped — exercising the cap's *differentiating* behavior.
+func TestRender_MaxLinesCaps(t *testing.T) {
+	dir := t.TempDir()
+	rawPath := filepath.Join(dir, "in.raw")
+	evPath := filepath.Join(dir, "in.events.jsonl")
+	var raw strings.Builder
+	for i := 1; i <= 30; i++ {
+		fmt.Fprintf(&raw, "line %02d\r\n", i)
+	}
+	if err := os.WriteFile(rawPath, []byte(raw.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(evPath, []byte(`{"type":"resize","offset":0,"cols":20,"rows":5}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	countLines := func(maxLines int) int {
+		out := filepath.Join(dir, fmt.Sprintf("out-%d.txt", maxLines))
+		if err := render(rawPath, evPath, out, true, maxLines); err != nil {
+			t.Fatalf("render(maxLines=%d): %v", maxLines, err)
+		}
+		b, _ := os.ReadFile(out)
+		return len(strings.Split(strings.TrimRight(string(b), "\n"), "\n"))
+	}
+	capped, uncapped := countLines(2), countLines(-1)
+	if capped >= uncapped {
+		t.Fatalf("expected capped (%d) < uncapped (%d)", capped, uncapped)
 	}
 }
 

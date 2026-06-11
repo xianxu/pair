@@ -277,8 +277,13 @@ func render(rawPath, eventsPath, outPath string, plain bool, maxLines int) error
 	// .ansi last guarantees the sidecar is up-to-date by the time
 	// nvim sees the new content. Sidecar is best-effort: on write
 	// failure, scrollback.lua falls back to its prior bottom-alignment.
-	viewportPath := strings.TrimSuffix(outPath, ".ansi") + ".viewport"
-	_ = os.WriteFile(viewportPath, []byte(strconv.Itoa(viewportTop)+"\n"), 0o644)
+	// The viewport sidecar positions the Alt+/ nvim viewer; it's meaningless
+	// for the plain projection (a continuation distills the text, not a
+	// scroll position), so skip it and don't litter a stray <out>.viewport.
+	if !plain {
+		viewportPath := strings.TrimSuffix(outPath, ".ansi") + ".viewport"
+		_ = os.WriteFile(viewportPath, []byte(strconv.Itoa(viewportTop)+"\n"), 0o644)
+	}
 
 	// Atomic write so a double-tap Alt+/ can't race truncate-then-write
 	// on the same path. Reader sees either the old complete file or the
