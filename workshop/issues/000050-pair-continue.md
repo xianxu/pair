@@ -121,13 +121,14 @@ pair keybinding for the author trigger.
 
 - [x] M1 — `--plain` substrate: `serializeRow` plain mode + `--plain`/`--max-lines` on `pair-scrollback-render`; real-`.raw` signal check
 - [x] M2 — `cmd/pair-continuation` writer: pure core (frontmatter/filename/assemble/validate) + thin clock/fs/git seam; write→commit→push integration test against a temp repo with a bare origin
-- [ ] M3 — pair UX: `pair continue [slug] [agent]` (list / launch / port) + Alt+x park-nudge (preserve-on-quit) + atlas/README
+- [x] M3 — pair UX: `pair continue [slug] [agent]` (list / launch / port) + Alt+x park-nudge (preserve-on-quit) + atlas/README
 
 Detailed steps: `workshop/plans/000050-pair-continue-plan.md`.
 
 ## Log
 
 ### 2026-06-11 — M1 (`--plain` substrate)
+- 2026-06-11: closed M2 — cmd/pair-continuation writer: 7 pure-core unit tests + write→commit→push integration test (real temp repo + bare origin) pass; gofmt/vet clean; make build green; atlas continuation-writer note added.; review verdict: FIX-THEN-SHIP
 - 2026-06-11: closed M1 — serializeRow plain mode + --plain/--max-lines; 14 renderer tests pass incl. bg/wide-grapheme regressions; gofmt/vet/build clean; real-.raw plain render escape-free + legible (signal check in Log); atlas sessionView note added.; review verdict: FIX-THEN-SHIP
 - `serializeRow(line, plain bool)`: plain mode skips SGR + the trailing reset, and the trailing-blank trim is now `plain`-aware (a bg-only "visible" blank is trimmed in plain, kept in colored — the gate's Critical). `render()` + `main()` gain `--plain` and `--max-lines` (`<=0` = uncapped via `resolveMax` → `math.MaxInt32`). 14 renderer tests pass (incl. the existing bg/wide-grapheme regressions); gofmt/vet/build clean.
 - **Real-`.raw` signal check (AGENTS.md §5):** rendered `~/.local/share/pair/scrollback-brain-claude.raw` (1.4 MB) with `--plain --max-lines 0` → **0 escape sequences**, 1458 lines, conversation prose contiguous and legible, `⏺` agent-turn markers preserved as useful boundaries; box/spinner chrome negligible. Signal-to-noise is good — the substrate is fit for distillation as-is (de-chroming stays deferred polish).
@@ -137,3 +138,9 @@ Detailed steps: `workshop/plans/000050-pair-continue-plan.md`.
 - Built the deterministic writer (ARCH-PURE). Pure core (`continuation.go`): `Fields`, `RenderFrontmatter` (field order pinned to `continuation.md`'s table, omit-empty optionals), `AllocName` (`<YYYYMMDDTHHMMSS>-slug.md`, `-N` on clash), `Assemble`, `ValidateFields` — 7 unit tests, no IO. Thin seam: `gitRunner` (shell `git -C`, the `pair-slug` pattern — no git lib) + injected clock/stdin in `run()`.
 - `run()` (in `main.go`): resolve repo-root → read body (`-body-file`/stdin) → validate → alloc name vs existing → write `workshop/continuation/<name>` → `git add`/`commit`/`push`. A push failure warns but keeps the local commit (recovery doc isn't lost).
 - Integration test (`main_test.go`): builds the binary, sets up a **real temp repo with a bare origin** (process-level realism, not mocks), runs the writer, asserts the file's conformant frontmatter+body, the local commit, AND that it landed in `origin/main`'s tree. Plus a missing-required-flag failure case. 9 tests pass; gofmt/vet clean; wired into `GO_BINS` + `make build`.
+
+### 2026-06-11 — M3 (pair UX) + ops note
+- `pair continue` verb (`bin/pair`): bare = list `workshop/continuation/*.md` (slug · issues · NEXT-ACTION one-liner); `<slug> [agent]` resolves the newest `*-<slug>.md`, sets `forced_tag=slug`, captures the optional agent itself (resume's positional loop would reject a trailing arg), seeds `draft-<tag>.md` (create-path only, so a live same-tag draft is never clobbered) with "Read … and continue from its NEXT ACTION", and never reads `session_id`. List mode verified in a temp repo; `bash -n` clean.
+- Alt+x park-nudge (`cleanup_quit_marker`): split the scrollback `rm` into two; on opt-in (`[ -t 0 ]`-guarded so a detached quit can't hang), rename `.raw`+`.events.jsonl` to non-recyclable `parked-scrollback-<tag>-<ts>.*` (the in-place name gets O_TRUNC'd by the next launch) + a `parked-<tag>` marker; declining preserves prior behavior. No live agent at quit → preserve-only (distill later in a live session).
+- README: `pair continue` usage, the Alt+x park note, and a `resume` (machine state) vs `continue` (human understanding) section. Atlas was updated per-milestone (M1 sessionView projection, M2 continuation writer).
+- **Ops note:** the M2 boundary review (verdict FIX-THEN-SHIP; detailed findings lost to an output-capture failure) ran the writer against a sandbox *inside* the pair repo, leaking 3 stray commits (`seed`/`continuation: t`) + untracked `bare/`/`body.md`/`.review-tmp/` onto the branch. Cleaned via `git reset --mixed` to the M2 commit + `rm` of the artifacts; branch verified clean (`main..HEAD` = plan + M1 + M1-fix + M2). The final `sdlc close` review re-covers M2's code, so the lost M2 findings get a second pass.

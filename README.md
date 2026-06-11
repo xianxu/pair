@@ -73,7 +73,7 @@ Select something with mouse on agent's pane, the selection is inserted at curren
 | **Alt+Backspace** | agent pane | Delete to start of line — forwarded to the agent as Ctrl+U, matching its Cmd+Delete. |
 | **Shift+Alt+Backspace** | nvim (normal/insert) | Erase history, draft, and queue for this session to "start anew". |
 | **Alt+d** | any pane | Detach from the current session (re-attach later via `pair`). |
-| **Alt+x** | any pane | Full quit — kill the session and all processes inside. Pair captures the agent's session id alongside the launch args, so the session is resumable later via `pair resume <tag>`. |
+| **Alt+x** | any pane | Full quit — kill the session and all processes inside. Pair captures the agent's session id alongside the launch args, so the session is resumable later via `pair resume <tag>`. Before discarding the scrollback it offers to **park** the session (preserve its capture) so you can later distill it into a durable `continuation` — see `pair continue`. |
 | **Alt+n** (or **Ctrl+Alt+n**) | any pane | Reload pair — kill the session and re-launch with the same tag, agent, args, AND agent session. Ctrl+Alt+n is the macOS-friendly alias — adding Ctrl defeats the Option+n dead-tilde composer on newer macOS / terminal combos that ignore the Option-as-Meta setting. Press Alt+n twice works as well. |
 | **Shift+Alt+N** | any pane | Restart with a fresh agent conversation — same tag, agent, and args as Alt+n, but the saved per-(tag,agent) config is dropped before relaunch so the agent starts a brand-new session. |
 
@@ -178,7 +178,9 @@ That installs `zellij`, `neovim`, `fzf`, `jq`, and `par` if they aren't already 
 ```sh
 pair                             # default: claude
 pair <agent>                     # claude / codex / agy
-pair resume <tag>                # restart a tag with its saved config
+pair resume <tag>                # restart a tag with its saved config (native session)
+pair continue                    # list saved continuations (durable session handoffs)
+pair continue <slug> [agent]     # start fresh from a continuation doc (optionally a different agent)
 pair [<agent>] -- <args...>      # forward args to agent on create
                                  # e.g. pair claude -- --resume
                                  #      pair -- --dangerously-skip-permissions
@@ -245,6 +247,15 @@ saved config for tag 'bugfix' (claude)
 The agent (claude / codex / agy) is inferred from saved state, so `pair resume <tag>` is enough on its own — no need to repeat the agent positional. If `pair-<tag>` is still a running zellij session (e.g. you only `Alt+d` detached), `pair resume <tag>` re-attaches without prompting.
 
 Saved configs live at `${XDG_DATA_HOME:-~/.local/share}/pair/config-<tag>-<agent>.json`.
+
+### `resume` vs `continue`
+
+`pair resume` and `pair continue` restore two different *kinds* of state:
+
+- **`pair resume <tag>`** reattaches the agent's **native** session — its own transcript and session id, byte-faithful. It needs that session to still exist on this machine, with the same agent.
+- **`pair continue <slug> [agent]`** rebuilds from a **continuation** doc — a durable, version-controlled distillation of the session's *human-meaningful* state (next action, open threads, decisions/dead-ends), written to `workshop/continuation/` and committed to the repo. It's portable across time, machines, people, and agent stacks, and the optional `[agent]` lets you continue under a *different* stack. Bare `pair continue` lists the saved continuations.
+
+You produce a continuation by asking the agent to "park this session" (it distills the rendered scrollback via the `continuation` datatype), or by accepting the **Alt+x park prompt** to preserve a session's scrollback for distillation later.
 
 ## Notifications
 
