@@ -1,11 +1,12 @@
 ---
 id: 000050
-status: working
+status: done
 deps: [ariadne#91]
 github_issue:
 created: 2026-06-11
 updated: 2026-06-11
 estimate_hours: 8
+actual_hours: 0.75
 ---
 
 # pair continue: sessionView --plain, continue verb, park-nudge
@@ -128,6 +129,7 @@ Detailed steps: `workshop/plans/000050-pair-continue-plan.md`.
 ## Log
 
 ### 2026-06-11 — M1 (`--plain` substrate)
+- 2026-06-11: closed — M1+M2+M3 done; full go test ./... green; bash -n clean. M1 + M3 FIX-THEN-SHIP verdicts in commits 0caefd0 / 7d7ce56 (fixes applied incl. the writer path-scoped-commit Critical). --no-verdict: M2 milestone-close review ran (FIX-THEN-SHIP) but its output was lost to a capture failure + repo pollution (cleaned, see Log); M2 writer was re-reviewed by the M3 boundary review (window 0caefd0..HEAD) which caught+fixed the Critical, so M2 review obligation is met.; review verdict: FIX-THEN-SHIP
 - 2026-06-11: closed M3 — pair continue verb (list verified in temp repo) + Alt+x park-nudge (split rm, [ -t 0 ]-guarded, non-recyclable parked- name) + README + atlas; bash -n clean; full go test ./... green.; review verdict: FIX-THEN-SHIP
 - 2026-06-11: closed M2 — cmd/pair-continuation writer: 7 pure-core unit tests + write→commit→push integration test (real temp repo + bare origin) pass; gofmt/vet clean; make build green; atlas continuation-writer note added.; review verdict: FIX-THEN-SHIP
 - 2026-06-11: closed M1 — serializeRow plain mode + --plain/--max-lines; 14 renderer tests pass incl. bg/wide-grapheme regressions; gofmt/vet/build clean; real-.raw plain render escape-free + legible (signal check in Log); atlas sessionView note added.; review verdict: FIX-THEN-SHIP
@@ -146,3 +148,4 @@ Detailed steps: `workshop/plans/000050-pair-continue-plan.md`.
 - README: `pair continue` usage, the Alt+x park note, and a `resume` (machine state) vs `continue` (human understanding) section. Atlas was updated per-milestone (M1 sessionView projection, M2 continuation writer).
 - **Ops note:** the M2 boundary review (verdict FIX-THEN-SHIP; detailed findings lost to an output-capture failure) ran the writer against a sandbox *inside* the pair repo, leaking 3 stray commits (`seed`/`continuation: t`) + untracked `bare/`/`body.md`/`.review-tmp/` onto the branch. Cleaned via `git reset --mixed` to the M2 commit + `rm` of the artifacts; branch verified clean (`main..HEAD` = plan + M1 + M1-fix + M2). The final `sdlc close` review re-covers M2's code, so the lost M2 findings get a second pass.
 - **M3 boundary review fixes (FIX-THEN-SHIP, 1 Critical):** the writer's bare `git commit` swept the whole index — the *exact* cause of the M2 pollution above. Fixed: **path-scoped** `commit -- <rel>` + `TestWriter_DoesNotSweepDirtyIndex`. Push now targets `origin HEAD` (current branch; reaches main at merge), not a fragile forced-main; "to main" wording corrected in `continuation.md` (ariadne#91), `atlas`, and the code comment. NEXT-ACTION enforcement moved into the writer (`run()` rejects a body without `## NEXT ACTION`) + `TestWriter_RequiresNextAction`, making the "structural guard" framing honest. Plan `## Revisions` reconciles the Core-concepts table (io.go folded in; `gitRunner` concrete struct + subprocess test instead of injected interface). Deferred minors: `normalize_tag()` shell-fn extraction; a `parked-scrollback-*` lister. 11 writer tests green; full `go test` + `bash -n` clean.
+- **Close review (FIX-THEN-SHIP, 0 Critical/Important — all Minor; ARCH-DRY + ARCH-PURE PASS).** Crossing the boundary per the constitution (Minors don't block) and the "fix forward" posture. Deferred minors to track: NEXT-ACTION guard checks heading-presence not non-empty content; park-nudge shell vars aren't `local` (harmless — script exits after); slug glob is suffix-greedy (`*-robotics.md` also matches `…-deep-robotics.md`); `parked-scrollback-*` has no reaper; `pair continue <slug>` onto a live same-tag session attaches rather than starting a fresh seeded session; `normalize_tag()` DRY extraction (resume/continue share tag normalize+validate); `pair --help` should list `continue` alongside `resume`; a `tests/continue-list-test.sh` fixture for the bash list path.
