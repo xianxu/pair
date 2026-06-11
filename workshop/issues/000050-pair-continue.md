@@ -24,9 +24,12 @@ a durable continuation or to resume from one.
 
 ## Spec
 
-Depends on **`ariadne#91`** (continuation datatype + `xx-continuation` skill — the
-skill writes a timestamped file directly and commits+pushes it; there is **no**
-`sdlc continuation new` verb). This issue supplies the pair-side substrate and UX.
+Depends on **`ariadne#91`** (the `continuation` datatype, applied by the existing
+`xx-datatype` dispatcher — there is **no** `xx-continuation` skill and **no** `sdlc
+continuation new` verb). `#91` defines the format + invariants; **this issue builds
+the deterministic writer that enforces them** (`cmd/pair-continuation`: render
+frontmatter, allocate the timestamped collision-safe filename, write, commit+push),
+plus the pair-side substrate and UX.
 Principle (from `#91`): **`resume` = machine state; `continue` = human
 understanding** — `pair continue` is the orthogonal sibling of `pair resume`, not
 a fidelity variant.
@@ -47,7 +50,7 @@ clean rendered text straight from the emulator, no post-hoc regex strip. Two det
   blank-content cell "visible"; in plain mode trim each row to its last
   non-blank-*content* cell so text isn't padded to terminal width.
 
-This is the substrate `xx-continuation` consumes. Terminal hard-wraps + box chrome
+This is the substrate the `xx-datatype` dispatcher consumes (applying `continuation.md`). Terminal hard-wraps + box chrome
 (borders, status lines, spinner frames) survive into the plain text — *asserted*
 LLM-tolerable, so the `--plain` test must run over a **real captured agent `.raw`**
 (not a synthetic one) and check signal-to-noise. Unwrapping/de-chroming is later polish.
@@ -78,11 +81,12 @@ lookup** from a native session id. (You think in tags — "the robotics session"
 not in claude's `xxxx`; and the substrate is keyed that way anyway.)
 
 No new shell verb (parking is a within-session act): inside the session the agent
-already knows its `PAIR_TAG`, so "park this" runs `xx-continuation` against the
-current tag's render. For the dead-agent case, a fresh session names the tag
-explicitly ("park `pair-robotics`") and the live agent distills *that* tag's
-scrollback. Either way the skill writes the doc and commits+pushes it
-(`ariadne#91`); pair only supplies the rendered-transcript path.
+already knows its `PAIR_TAG`, so "park this" applies `continuation.md` (via the
+`xx-datatype` dispatcher) against the current tag's render. For the dead-agent case,
+a fresh session names the tag explicitly ("park `pair-robotics`") and distills
+*that* tag's scrollback. Either way the dispatcher does the distillation and the
+`cmd/pair-continuation` writer (this issue) finalizes — writes the doc + commits +
+pushes; pair supplies the rendered-transcript path.
 
 *Dead-agent caveat.* The agent-alive path distills from the agent's own warm
 context (the whole session). The dead-agent path distills only from on-disk
@@ -109,17 +113,17 @@ pair keybinding for the author trigger.
 
 - `pair-scrollback-render --plain` emits clean rendered text with full (uncapped) history; covered by a render test over a real captured `.raw`.
 - `pair continue` lists open continuations; `pair continue <slug>` launches a fresh session on the doc (newest match); `pair continue <slug> <agent>` ports to another stack.
-- Asking a live agent to park produces a continuation doc that passes a **structural** check (frontmatter conforms to `#91`'s `type.md` prototype; NEXT ACTION non-empty) and is committed+pushed; distilled from the tag's scrollback. (`#91`'s create test is the deterministic anchor.)
+- Asking a live agent to park produces a continuation doc that passes a **structural** check (frontmatter conforms to `continuation.md`'s `type.md` shape; NEXT ACTION non-empty) and is committed+pushed; distilled from the tag's scrollback. (The `cmd/pair-continuation` writer's unit + integration tests are the deterministic anchor.)
 - Alt+x offers the park-nudge before scrollback is removed; declining preserves current behavior.
 - Atlas: `resume` vs `continue` entry; README keybinding/verb note.
 
 ## Plan
 
-- [ ] `pair-scrollback-render --plain` projection + test
-- [ ] `pair continue [slug] [agent]` (list / launch / cross-agent port)
-- [ ] Author trigger: wire scrollback-render → `xx-continuation` skill for the current tag
-- [ ] Alt+x park-nudge before scrollback `rm`
-- [ ] Atlas (`resume` vs `continue`) + README
+- [ ] M1 — `--plain` substrate: `serializeRow` plain mode + `--plain`/`--max-lines` on `pair-scrollback-render`; real-`.raw` signal check
+- [ ] M2 — `cmd/pair-continuation` writer: pure core (frontmatter/filename/assemble/validate) + thin clock/fs/git seam; write→commit→push integration test against a temp repo with a bare origin
+- [ ] M3 — pair UX: `pair continue [slug] [agent]` (list / launch / port) + Alt+x park-nudge (preserve-on-quit) + atlas/README
+
+Detailed steps: `workshop/plans/000050-pair-continue-plan.md`.
 
 ## Log
 
