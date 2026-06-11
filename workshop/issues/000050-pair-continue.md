@@ -1,26 +1,125 @@
 ---
 id: 000050
-status: open
+status: working
 deps: [ariadne#91]
 github_issue:
 created: 2026-06-11
 updated: 2026-06-11
-estimate_hours:
+estimate_hours: 8
 ---
 
 # pair continue: sessionView --plain, continue verb, park-nudge
 
 ## Problem
 
+pair wraps any TUI agent and can relaunch with a different agent, but has no way
+to durably hand off the *human-meaningful* state of a session. `pair resume <tag>`
+restores the **native** session (same agent, same `session_id`) — machine state
+that depends on the agent's own, recyclable store. There's no portable "pick this
+up later / elsewhere / on another agent" path. The substrate for that already
+exists in pair — the rendered scrollback (`pair-scrollback-render`) is the
+cleaned-up, human-consumable projection of the session — but it's only emitted as
+SGR-colored text for the Alt+/ viewer, and there's no verb to turn a session into
+a durable continuation or to resume from one.
+
 ## Spec
+
+Depends on **`ariadne#91`** (continuation datatype + `xx-continuation` skill — the
+skill writes a timestamped file directly and commits+pushes it; there is **no**
+`sdlc continuation new` verb). This issue supplies the pair-side substrate and UX.
+Principle (from `#91`): **`resume` = machine state; `continue` = human
+understanding** — `pair continue` is the orthogonal sibling of `pair resume`, not
+a fidelity variant.
+
+**1. `pair-scrollback-render --plain`** — a plain-text projection of the
+`sessionView` abstraction. Today the renderer replays `.raw` + resize events
+through a VT100 emulator and emits one **SGR-decorated** row per logical line (for
+the nvim viewer, which strips + recolors), localized to `serializeRow`. Add
+`--plain` to emit `c.Content` only (skip the `Style.Diff` / `\x1b[0m` emission) →
+clean rendered text straight from the emulator, no post-hoc regex strip. Two details:
+
+- **Render full history, not the viewer window.** The default caps retained
+  scrollback at `historyRows` = 2000 (matched to zellij's scroll buffer); a
+  continuation wants the whole session, so `--plain` renders with an uncapped (or
+  large) history. Harder limit: `.raw` is `O_TRUNC`'d every launch (`pair-wrap`),
+  so it only holds the **current run** — see the dead-agent caveat in §3.
+- **Trim trailing blanks.** In SGR mode a non-default background makes a
+  blank-content cell "visible"; in plain mode trim each row to its last
+  non-blank-*content* cell so text isn't padded to terminal width.
+
+This is the substrate `xx-continuation` consumes. Terminal hard-wraps + box chrome
+(borders, status lines, spinner frames) survive into the plain text — *asserted*
+LLM-tolerable, so the `--plain` test must run over a **real captured agent `.raw`**
+(not a synthetic one) and check signal-to-noise. Unwrapping/de-chroming is later polish.
+
+**2. `pair continue [slug] [agent]`** — sibling of `pair resume`:
+
+- bare `pair continue` → list open continuations in `workshop/continuation/`
+  (slug, NEXT-ACTION one-liner, issues, age);
+- `pair continue <slug>` → start a **fresh** session seeded to read the matching
+  `workshop/continuation/<timestamp>-<slug>.md` (newest if several share the slug)
+  and execute its NEXT ACTION; uses pair's normal launch path;
+- optional `[agent]` → launch under a different stack — this is the **port**
+  (e.g. `pair continue mywork codex`). The launch stack defaults to the doc's
+  `agent:`, but that field is only the original/provenance agent, **not a
+  constraint** — `[agent]` is the escape hatch (you often continue *off* the
+  original agent precisely because it died or underperformed).
+
+Never reads `session_id` to do a native resume — that path is `pair resume`'s
+alone (keep the verbs behaviorally separate).
+
+**3. Author trigger (produce-while-alive) — keyed on the pair tag, not the native
+session id.** A session's substrate is tag-keyed: scrollback lives at
+`scrollback-<tag>-<agent>.{raw,events.jsonl}` and the native `session_id` sits in
+`config-<tag>-<agent>.json`. So the operation is "**continue / park
+`pair-<tag>`**" — pair resolves tag → rendered transcript (`pair-scrollback-render
+--plain`) + agent + the `session_id` (for provenance) **directly, no reverse
+lookup** from a native session id. (You think in tags — "the robotics session" —
+not in claude's `xxxx`; and the substrate is keyed that way anyway.)
+
+No new shell verb (parking is a within-session act): inside the session the agent
+already knows its `PAIR_TAG`, so "park this" runs `xx-continuation` against the
+current tag's render. For the dead-agent case, a fresh session names the tag
+explicitly ("park `pair-robotics`") and the live agent distills *that* tag's
+scrollback. Either way the skill writes the doc and commits+pushes it
+(`ariadne#91`); pair only supplies the rendered-transcript path.
+
+*Dead-agent caveat.* The agent-alive path distills from the agent's own warm
+context (the whole session). The dead-agent path distills only from on-disk
+scrollback — and because `.raw` is truncated each launch, that holds the session
+**since its last (re)launch**: complete for a never-reloaded run, but a long
+session that reloaded loses pre-reload turns unless the agent's resume-replay had
+already re-captured them. v1 accepts this; the agent-alive park (the common,
+recommended case) is unaffected.
+
+**4. Alt+x park-nudge** — `cleanup_quit_marker()` currently `rm`s the scrollback
+(`.raw` / `.events.jsonl` / `.ansi`) on a true quit, discarding the only on-disk
+record. Before that `rm`, prompt: "park this session as a continuation first?
+(y/N)". On yes, run the author flow against the still-present scrollback. Converts
+silent discard into an explicit park — directly addresses the "I don't want state
+silently recycled" worry. (Reload/resume already re-capture via the agent's
+resume-replay, so the nudge is the quit path specifically.)
+
+Out of scope (v1): reading native agent stores / per-agent transcript parsers
+(wrong kind of state for `continue`; see `#91`). Optional later: a raw
+scrollback/native snapshot copied beside the doc for the recycling-paranoid; a
+pair keybinding for the author trigger.
 
 ## Done when
 
--
+- `pair-scrollback-render --plain` emits clean rendered text with full (uncapped) history; covered by a render test over a real captured `.raw`.
+- `pair continue` lists open continuations; `pair continue <slug>` launches a fresh session on the doc (newest match); `pair continue <slug> <agent>` ports to another stack.
+- Asking a live agent to park produces a continuation doc that passes a **structural** check (frontmatter conforms to `#91`'s `type.md` prototype; NEXT ACTION non-empty) and is committed+pushed; distilled from the tag's scrollback. (`#91`'s create test is the deterministic anchor.)
+- Alt+x offers the park-nudge before scrollback is removed; declining preserves current behavior.
+- Atlas: `resume` vs `continue` entry; README keybinding/verb note.
 
 ## Plan
 
-- [ ]
+- [ ] `pair-scrollback-render --plain` projection + test
+- [ ] `pair continue [slug] [agent]` (list / launch / cross-agent port)
+- [ ] Author trigger: wire scrollback-render → `xx-continuation` skill for the current tag
+- [ ] Alt+x park-nudge before scrollback `rm`
+- [ ] Atlas (`resume` vs `continue`) + README
 
 ## Log
 
