@@ -28,9 +28,55 @@ func styledCell(content string, width int, fg color.Color) uv.Cell {
 	return c
 }
 
+// styledCellBg sets a non-default background — an inverse-video / box-fill
+// cell. A blank with a bg is "visible" in colored mode but invisible in plain
+// mode (no bg is emitted there).
+func styledCellBg(content string, width int, bg color.Color) uv.Cell {
+	c := cell(content, width)
+	c.Style.Bg = bg
+	return c
+}
+
+func TestSerializeRow_Plain_NoSGR(t *testing.T) {
+	line := uv.Line{styledCell("hi", 1, color.RGBA{R: 255, A: 255}), cell(" ", 1)}
+	got := serializeRow(line, true)
+	if got != "hi" {
+		t.Fatalf("plain: want %q got %q", "hi", got)
+	}
+	if strings.Contains(got, "\x1b") {
+		t.Fatalf("plain row must contain no escape: %q", got)
+	}
+}
+
+func TestSerializeRow_Plain_TrimsTrailingDefaultBlanks(t *testing.T) {
+	line := uv.Line{cell("a", 1), cell(" ", 1), cell(" ", 1)}
+	if got := serializeRow(line, true); got != "a" {
+		t.Fatalf("want %q got %q", "a", got)
+	}
+}
+
+func TestSerializeRow_Plain_TrimsTrailingBgBlank(t *testing.T) {
+	// A trailing blank visible ONLY via background. Plain emits no bg, so it's
+	// just padding to trim; colored keeps it (it's visible).
+	line := uv.Line{cell("a", 1), styledCellBg(" ", 1, color.RGBA{B: 255, A: 255})}
+	if got := serializeRow(line, true); got != "a" {
+		t.Fatalf("plain should trim bg-only blank: got %q", got)
+	}
+	if got := stripSGR(serializeRow(line, false)); got != "a " {
+		t.Fatalf("colored should keep the visible bg-blank (want %q): got %q", "a ", got)
+	}
+}
+
+func TestSerializeRow_Colored_StillResets(t *testing.T) {
+	line := uv.Line{styledCell("hi", 1, color.RGBA{R: 255, A: 255})}
+	if got := serializeRow(line, false); !strings.HasSuffix(got, "\x1b[0m") {
+		t.Fatalf("colored row should still terminate with reset: %q", got)
+	}
+}
+
 func TestSerializeRow_PlainAscii(t *testing.T) {
 	line := uv.Line{cell("h", 1), cell("i", 1)}
-	got := trimReset(serializeRow(line))
+	got := trimReset(serializeRow(line, false))
 	if got != "hi" {
 		t.Errorf("got %q, want %q", got, "hi")
 	}
@@ -39,7 +85,7 @@ func TestSerializeRow_PlainAscii(t *testing.T) {
 func TestSerializeRow_Empty(t *testing.T) {
 	// All-blank cells (default-style spaces) should serialize to "".
 	line := uv.Line{cell(" ", 1), cell(" ", 1), cell(" ", 1)}
-	got := serializeRow(line)
+	got := serializeRow(line, false)
 	if got != "" {
 		t.Errorf("got %q, want empty string", got)
 	}
@@ -53,7 +99,7 @@ func TestSerializeRow_TrimsTrailingBlanks(t *testing.T) {
 		cell("h", 1), cell("i", 1),
 		cell(" ", 1), cell(" ", 1), cell(" ", 1),
 	}
-	got := trimReset(serializeRow(line))
+	got := trimReset(serializeRow(line, false))
 	if got != "hi" {
 		t.Errorf("got %q, want %q", got, "hi")
 	}
@@ -66,7 +112,7 @@ func TestSerializeRow_PreservesNonDefaultBgBlank(t *testing.T) {
 	bgCell := cell(" ", 1)
 	bgCell.Style.Bg = color.RGBA{R: 255, A: 255}
 	line := uv.Line{cell("x", 1), bgCell, cell(" ", 1)}
-	got := serializeRow(line)
+	got := serializeRow(line, false)
 	// The bg-blank cell is at index 1; trailing default-blank at index
 	// 2 should still be trimmed. The output must contain a space for
 	// the bg-blank cell.
@@ -90,7 +136,7 @@ func TestSerializeRow_WideGraphemeNoPhantomSpace(t *testing.T) {
 		{}, // zero-value continuation cell
 		cell("Y", 1),
 	}
-	got := trimReset(serializeRow(line))
+	got := trimReset(serializeRow(line, false))
 	want := "X🔴Y"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
@@ -107,7 +153,7 @@ func TestSerializeRow_WideGraphemeAtEnd(t *testing.T) {
 		cell("🔴", 2),
 		{}, // continuation
 	}
-	got := trimReset(serializeRow(line))
+	got := trimReset(serializeRow(line, false))
 	want := "X🔴"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
@@ -124,7 +170,7 @@ func TestSerializeRow_StyleDiffEmittedOnTransition(t *testing.T) {
 		styledCell("a", 1, red), styledCell("b", 1, red),
 		styledCell("c", 1, blue), styledCell("d", 1, blue),
 	}
-	got := serializeRow(line)
+	got := serializeRow(line, false)
 	if !strings.HasSuffix(got, "\x1b[0m") {
 		t.Errorf("expected trailing reset, got %q", got)
 	}
@@ -145,7 +191,7 @@ func TestSerializeRow_TerminatingReset(t *testing.T) {
 	// Every non-empty line ends with the full reset so subsequent
 	// concatenated lines start from default style.
 	line := uv.Line{cell("z", 1)}
-	got := serializeRow(line)
+	got := serializeRow(line, false)
 	if !strings.HasSuffix(got, "\x1b[0m") {
 		t.Errorf("expected trailing \\x1b[0m, got %q", got)
 	}

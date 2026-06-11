@@ -44,7 +44,7 @@ func TestRender_ViewportSidecar(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := render(rawPath, evPath, outPath); err != nil {
+	if err := render(rawPath, evPath, outPath, false, historyRows); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 
@@ -72,6 +72,39 @@ func TestRender_ViewportSidecar(t *testing.T) {
 	}
 }
 
+// TestRender_Plain drives render() in plain mode (uncapped) over styled input
+// and verifies the output carries the visible text with NO SGR escapes — the
+// substrate a continuation distills.
+func TestRender_Plain(t *testing.T) {
+	dir := t.TempDir()
+	rawPath := filepath.Join(dir, "in.raw")
+	evPath := filepath.Join(dir, "in.events.jsonl")
+	outPath := filepath.Join(dir, "out.txt")
+
+	raw := "\x1b[31mred\x1b[0m text" // a colored word + plain text, no trailing newline
+	if err := os.WriteFile(rawPath, []byte(raw), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	events := `{"type":"resize","offset":0,"cols":20,"rows":5}` + "\n"
+	if err := os.WriteFile(evPath, []byte(events), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := render(rawPath, evPath, outPath, true, -1); err != nil { // plain, uncapped
+		t.Fatalf("render: %v", err)
+	}
+	body, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("read out: %v", err)
+	}
+	if strings.Contains(string(body), "\x1b") {
+		t.Fatalf("plain render contains SGR escape: %q", string(body))
+	}
+	if !strings.Contains(string(body), "red text") {
+		t.Fatalf("plain render missing visible text; got %q", string(body))
+	}
+}
+
 // TestRender_ViewportEmptyHistory covers the edge case where the agent
 // hasn't produced enough output to spill anything into history yet:
 // viewport_top should still be a valid 1-indexed line number (= 1), not
@@ -92,7 +125,7 @@ func TestRender_ViewportEmptyHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := render(rawPath, evPath, outPath); err != nil {
+	if err := render(rawPath, evPath, outPath, false, historyRows); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 

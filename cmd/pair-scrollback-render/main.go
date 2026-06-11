@@ -11,14 +11,16 @@
 // stays within the pair repo's existing cmd/ layout.
 //
 // Pipeline:
-//   raw bytes (.raw)              → emulator.Write(...) in segments
-//   resize events (.events.jsonl) → segment boundaries with new (cols,rows)
-//   final emulator state          → scrollback lines + visible buffer
-//   each row                      → SGR-decorated text line written to out
+//
+//	raw bytes (.raw)              → emulator.Write(...) in segments
+//	resize events (.events.jsonl) → segment boundaries with new (cols,rows)
+//	final emulator state          → scrollback lines + visible buffer
+//	each row                      → SGR-decorated text line written to out
 //
 // CLI is identical to the Python version so bin/pair-scrollback-open can
 // invoke either:
-//   scrollback-render <raw> <events.jsonl> <out.ansi>
+//
+//	scrollback-render <raw> <events.jsonl> <out.ansi>
 package main
 
 import (
@@ -26,6 +28,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -130,7 +133,13 @@ func feedSegments(em *vt.Emulator, raw []byte, events []resizeEvent) {
 //
 // A non-default background space is treated as visible content (e.g.
 // inverse-video padding). Matches what the Python renderer does.
-func serializeRow(line uv.Line) string {
+//
+// In plain mode (plain=true) no SGR is emitted at all: the row is just its
+// visible content, trimmed to the last non-blank-*content* cell — a cell that
+// is "visible" only via a non-default background (inverse-video padding, box
+// fill) is NOT emitted in plain mode, so it must not extend the row, or a
+// trailing bordered region would become space-padding toward terminal width.
+func serializeRow(line uv.Line, plain bool) string {
 	last := -1
 	for i := range line {
 		c := &line[i]
@@ -144,7 +153,7 @@ func serializeRow(line uv.Line) string {
 		content := c.Content
 		if content != "" && content != " " {
 			last = i
-		} else if c.Style.Bg != nil {
+		} else if !plain && c.Style.Bg != nil {
 			last = i
 		}
 	}
@@ -162,7 +171,7 @@ func serializeRow(line uv.Line) string {
 		if c.IsZero() {
 			continue
 		}
-		if first || !c.Style.Equal(&prev) {
+		if !plain && (first || !c.Style.Equal(&prev)) {
 			b.WriteString(c.Style.Diff(&prev))
 			prev = c.Style
 			first = false
@@ -173,8 +182,21 @@ func serializeRow(line uv.Line) string {
 			b.WriteString(c.Content)
 		}
 	}
-	b.WriteString("\x1b[0m")
+	if !plain {
+		b.WriteString("\x1b[0m")
+	}
 	return b.String()
+}
+
+// resolveMax maps a --max-lines value to a scrollback cap. <=0 means
+// "uncapped" — a continuation wants the whole session, not the viewer's
+// 2000-row window. Represented as a large sentinel; .raw is per-run
+// O_TRUNC'd, so the practical bound is the run length.
+func resolveMax(n int) int {
+	if n <= 0 {
+		return math.MaxInt32
+	}
+	return n
 }
 
 // visibleRow materializes row y of the live screen as a uv.Line. The
@@ -191,14 +213,14 @@ func visibleRow(em *vt.Emulator, y, width int) uv.Line {
 	return row
 }
 
-func render(rawPath, eventsPath, outPath string) error {
+func render(rawPath, eventsPath, outPath string, plain bool, maxLines int) error {
 	events, err := parseEvents(eventsPath)
 	if err != nil {
 		return fmt.Errorf("parse events: %w", err)
 	}
 	cols, rows := initialSize(events)
 	em := vt.NewEmulator(cols, rows)
-	em.Scrollback().SetMaxLines(historyRows)
+	em.Scrollback().SetMaxLines(resolveMax(maxLines))
 
 	// Drain the emulator's input pipe in the background. CSI status
 	// queries (DSR, Device Attributes, etc.) in the captured stream
@@ -237,11 +259,11 @@ func render(rawPath, eventsPath, outPath string) error {
 	viewportTop := sb.Len() + 1 // 1-indexed line where the visible buffer starts
 	out := make([]string, 0, sb.Len()+em.Height())
 	for i := 0; i < sb.Len(); i++ {
-		out = append(out, serializeRow(sb.Line(i)))
+		out = append(out, serializeRow(sb.Line(i), plain))
 	}
 	w := em.Width()
 	for y := 0; y < em.Height(); y++ {
-		out = append(out, serializeRow(visibleRow(em, y, w)))
+		out = append(out, serializeRow(visibleRow(em, y, w), plain))
 	}
 	// Trim trailing all-blank lines: a half-empty visible buffer otherwise
 	// leaves a tail of empties at EOF.
@@ -284,15 +306,17 @@ func render(rawPath, eventsPath, outPath string) error {
 
 func main() {
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: %s <raw> <events.jsonl> <out.ansi>\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "usage: %s [--plain] [--max-lines N] <raw> <events.jsonl> <out>\n", os.Args[0])
 	}
+	plain := flag.Bool("plain", false, "emit plain text (no SGR) for distillation")
+	maxLines := flag.Int("max-lines", historyRows, "scrollback history rows retained; <=0 = uncapped")
 	flag.Parse()
 	args := flag.Args()
 	if len(args) != 3 {
 		flag.Usage()
 		os.Exit(2)
 	}
-	if err := render(args[0], args[1], args[2]); err != nil {
+	if err := render(args[0], args[1], args[2], *plain, *maxLines); err != nil {
 		fmt.Fprintf(os.Stderr, "scrollback-render: %v\n", err)
 		os.Exit(1)
 	}

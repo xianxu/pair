@@ -119,7 +119,7 @@ pair keybinding for the author trigger.
 
 ## Plan
 
-- [ ] M1 — `--plain` substrate: `serializeRow` plain mode + `--plain`/`--max-lines` on `pair-scrollback-render`; real-`.raw` signal check
+- [x] M1 — `--plain` substrate: `serializeRow` plain mode + `--plain`/`--max-lines` on `pair-scrollback-render`; real-`.raw` signal check
 - [ ] M2 — `cmd/pair-continuation` writer: pure core (frontmatter/filename/assemble/validate) + thin clock/fs/git seam; write→commit→push integration test against a temp repo with a bare origin
 - [ ] M3 — pair UX: `pair continue [slug] [agent]` (list / launch / port) + Alt+x park-nudge (preserve-on-quit) + atlas/README
 
@@ -127,4 +127,6 @@ Detailed steps: `workshop/plans/000050-pair-continue-plan.md`.
 
 ## Log
 
-### 2026-06-11
+### 2026-06-11 — M1 (`--plain` substrate)
+- `serializeRow(line, plain bool)`: plain mode skips SGR + the trailing reset, and the trailing-blank trim is now `plain`-aware (a bg-only "visible" blank is trimmed in plain, kept in colored — the gate's Critical). `render()` + `main()` gain `--plain` and `--max-lines` (`<=0` = uncapped via `resolveMax` → `math.MaxInt32`). 14 renderer tests pass (incl. the existing bg/wide-grapheme regressions); gofmt/vet/build clean.
+- **Real-`.raw` signal check (AGENTS.md §5):** rendered `~/.local/share/pair/scrollback-brain-claude.raw` (1.4 MB) with `--plain --max-lines 0` → **0 escape sequences**, 1458 lines, conversation prose contiguous and legible, `⏺` agent-turn markers preserved as useful boundaries; box/spinner chrome negligible. Signal-to-noise is good — the substrate is fit for distillation as-is (de-chroming stays deferred polish).
