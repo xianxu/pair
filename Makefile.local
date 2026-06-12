@@ -120,8 +120,9 @@ test-continue:
 
 # changelog — end-to-end smoke for bin/pair-changelog-open (#53 M2): fakes the
 # scrollback capture + model + nvim, asserts clean → distill → write → open.
-# Needs the binaries built (skips with a notice otherwise).
-test-changelog:
+# Depends on the binaries so `make test` builds + runs it (the script SKIPs if
+# they're absent, which would silently no-op in CI without these prereqs).
+test-changelog: $(BIN_DIR)/pair-changelog $(BIN_DIR)/pair-scrollback-render
 	sh tests/changelog-open-test.sh
 
 # pair-scribe — Go-based pty wrapper with SIGUSR1/SIGUSR2 pause/resume

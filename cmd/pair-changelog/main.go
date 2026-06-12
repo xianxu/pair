@@ -13,7 +13,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -128,22 +127,6 @@ func main() {
 	if err := writeAnchor(anchorPath, len(boundaries), anchorSnippet(lines, anchorLines)); err != nil {
 		fail("write anchor: %v", err)
 	}
-}
-
-// parseAnchor reads the anchor sidecar: an optional "turns:<N>" header line (the
-// completed-turn count at the last distill, for the no-op check) followed by the
-// verbatim K-line content snippet. Tolerates a header-less (legacy) file.
-func parseAnchor(content string) (turns int, snippet []string) {
-	ls := splitLines(content)
-	if len(ls) == 0 {
-		return 0, nil
-	}
-	if rest, ok := strings.CutPrefix(ls[0], "turns:"); ok {
-		if n, err := strconv.Atoi(strings.TrimSpace(rest)); err == nil {
-			return n, ls[1:]
-		}
-	}
-	return 0, ls
 }
 
 func writeAnchor(path string, turns int, snippet []string) error {

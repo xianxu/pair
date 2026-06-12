@@ -2,6 +2,7 @@ package main
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -191,6 +192,23 @@ func assemble(frozenPrefix, ekPrime, newEntries, today, lastDate string) string 
 		b.WriteString(ensureBlock(newEntries))
 	}
 	return b.String()
+}
+
+// parseAnchor reads the anchor sidecar: an optional "turns:<N>" header line (the
+// completed-turn count at the last distill, for the no-op check) followed by the
+// verbatim K-line content snippet. Tolerates a header-less (legacy) file and a
+// malformed count (falls back to turns=0, whole content as snippet). Pure.
+func parseAnchor(content string) (turns int, snippet []string) {
+	ls := splitLines(content)
+	if len(ls) == 0 {
+		return 0, nil
+	}
+	if rest, ok := strings.CutPrefix(ls[0], "turns:"); ok {
+		if n, err := strconv.Atoi(strings.TrimSpace(rest)); err == nil {
+			return n, ls[1:]
+		}
+	}
+	return 0, ls
 }
 
 // anchorSnippet returns the last k lines of the cleaned text (the next anchor).

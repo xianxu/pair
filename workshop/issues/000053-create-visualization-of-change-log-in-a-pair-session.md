@@ -130,6 +130,12 @@ count hasn't increased**. Robust to trailing churn; "nothing happened → nothin
 to the server." The anchor snippet still drives the *slice* when a new turn did
 occur.
 
+Note this couples prompt-glyph detection to the model-call gate (not only the
+lookback): a dropped/false glyph can **delay** a distill, or a spurious one
+trigger an extra model call. It **self-heals within ~1 press** and never corrupts
+the log — so the §Lookback "degrades gracefully — never breaks the boundary"
+guarantee is, for the no-op specifically, "self-heals within ~1 press."
+
 ### History contract — structural freeze; orchestrator owns headers
 
 "Earlier entries unchanged" is enforced **structurally**, not by trusting the
@@ -293,7 +299,7 @@ guarantees byte-stability._
   output length parameterized, test green) + `cmd/pair-changelog` distiller:
   TTY-clean → `locate` → distill (first-run + incremental + structural-freeze +
   date-header assembly), pure unit tests + Go integration test.
-- [ ] M2 — integration: `bin/pair-changelog-open`, `nvim/changelog.lua`
+- [x] M2 — integration: `bin/pair-changelog-open`, `nvim/changelog.lua`
   (read-only + colorization), `Alt l` keybind; end-to-end dogfood.
 
 ## Log
@@ -308,6 +314,14 @@ guarantees byte-stability._
   distiller as its **own library**.
 
 ### 2026-06-12
+- 2026-06-12: closed M2 — M2 (orchestrator + viewer + keybind + async/no-op reworks). go test ./... green; headless viewer test (read-only + colorization); make test-changelog end-to-end orchestrator smoke (real distiller+renderer, fake claude+nvim). Live operator dogfood: Alt+l verified working — async instant open + bottom-virtual-line spinner + turn-count no-op + W10 readonly fix. Concurrency: lifetime PID openlock + log-then-anchor atomic temp+rename (no dedicated shell race test — impractical in sh; basis is the proven scrollback lock pattern + atomic rename).; review verdict: FIX-THEN-SHIP
+- M2 FIX-THEN-SHIP findings addressed before crossing: (Important) `make
+  test-changelog` now depends on the binaries so it runs in `make test` (was
+  silently SKIP on a clean tree); (Important) added a headless `M.reload` test to
+  `changelog_test.lua`. Also moved pure `parseAnchor` → `distill.go` + direct
+  unit test; plan `## Revisions` narrows the degradation guarantee (turn-count
+  no-op gates the model call → self-heals within ~1 press) + adds `parseAnchor`/
+  `writeAnchor` to the Core-concepts tables. `go test ./cmd/... ` + lua + smoke green.
 - 2026-06-12: closed M1 — go test ./... green: model extraction leaves pair-slug suite green; distiller pure core (locate/split/assemble) + process-level fake-model integration test pass (first-run / incremental+byte-identical-frozen-prefix / revise-last / never-drop-last / date-rollover / no-op-skips-model). make pair-changelog builds. --no-atlas: M1 is internal plumbing (cmd/internal/model + cmd/pair-changelog distiller, not yet user-reachable); the user-facing atlas surface (Alt+l flow + state files) lands with M2.; review verdict: FIX-THEN-SHIP
 - M1 FIX-THEN-SHIP findings addressed before crossing: (Important) `pair-slug`
   Makefile recipe gained its missing `cmd/internal/model/model.go` prereq;
@@ -326,6 +340,16 @@ guarantees byte-stability._
   "Refreshing… N lines" after, N from the distiller's stderr), reloading on done.
   Tests updated (turn-count fixtures, anchor `turns:` header, async smoke via a
   fake-nvim that simulates the job). Awaiting re-dogfood before close.
+- Re-dogfood (operator): `Alt+l` confirmed working with the async open + spinner
+  + turn-count no-op. Two more nits fixed fix-forward: a `W10: Changing a
+  readonly file` warning on the async reload (clear `readonly` around the write),
+  and the spinner moved from the winbar to a **bottom virtual line** (where the
+  new entry will be inserted). M2 done.
+- Deferred to a **new issue** (operator call): allow the scrollback `Alt+q`
+  annotation flow in the change-log viewer, and extract the shared 🤖-marker
+  system into `nvim/annotate.lua` used by both viewers (rendering + async refresh
+  stay per-viewer). It refactors the working scrollback viewer, so it's its own
+  issue rather than an M3 here.
 
 - Spec-review round 1 (fresh context): model helpers unexported → M1 extracts
   `cmd/internal/model`; line-index anchor unstable under redraw → content

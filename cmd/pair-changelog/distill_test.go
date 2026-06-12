@@ -189,3 +189,26 @@ func TestAnchorSnippet(t *testing.T) {
 		t.Fatalf("got %v want [a]", got)
 	}
 }
+
+func TestParseAnchor(t *testing.T) {
+	// with header
+	turns, snip := parseAnchor("turns:3\nL1\nL2\nL3\n")
+	if turns != 3 || !reflect.DeepEqual(snip, []string{"L1", "L2", "L3"}) {
+		t.Fatalf("with-header: turns=%d snip=%v", turns, snip)
+	}
+	// legacy: no header → turns 0, whole content is the snippet
+	turns, snip = parseAnchor("L1\nL2\n")
+	if turns != 0 || !reflect.DeepEqual(snip, []string{"L1", "L2"}) {
+		t.Fatalf("legacy: turns=%d snip=%v", turns, snip)
+	}
+	// malformed count → turns 0, the "turns:x" line stays in the snippet
+	turns, snip = parseAnchor("turns:notanumber\nL1\n")
+	if turns != 0 || !reflect.DeepEqual(snip, []string{"turns:notanumber", "L1"}) {
+		t.Fatalf("malformed: turns=%d snip=%v", turns, snip)
+	}
+	// empty
+	turns, snip = parseAnchor("")
+	if turns != 0 || snip != nil {
+		t.Fatalf("empty: turns=%d snip=%v", turns, snip)
+	}
+}

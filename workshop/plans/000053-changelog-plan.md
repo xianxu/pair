@@ -29,6 +29,7 @@
 | `assemble` | `cmd/pair-changelog/distill.go` | new |
 | `anchorSnippet` | `cmd/pair-changelog/distill.go` | new |
 | `promptGlyphByAgent` | `cmd/pair-changelog/distill.go` | new |
+| `parseAnchor` | `cmd/pair-changelog/distill.go` | new (M2) |
 
 - **`LocateResult`** — `{Kind LocateKind; Start int}` where `Kind ∈ {Found, NoOp, FullRedistill}`. `Start` is the slice start index (0 for `FullRedistill`); the slice end is always `len(lines)`. `NoOp` carries no slice.
   - **Relationships:** produced by `locate`, consumed by `main.go`'s flow.
@@ -55,6 +56,7 @@
 | `nvim/changelog.lua` | `nvim/changelog.lua` | new | nvim UI |
 | `Alt l` keybind | `zellij/config.kdl` | modified | zellij |
 | `pair-slug` model calls | `cmd/pair-slug/main.go` | modified | now calls `model.Run` |
+| `writeAnchor` | `cmd/pair-changelog/main.go` | new (M2) | atomic file write |
 
 - **`model.Run(Request) (string, error)`** — per-agent model dispatch, lifted verbatim from `pair-slug`'s unexported helpers, with `MaxOutputTokens` + `Verbosity` now parameters (the OpenAI path hardcoded `64`/`low`).
   - **Injected into:** both `pair-slug` (passes 64/low) and `pair-changelog` (passes a generous budget). Keeps the two binaries DRY over one dispatch.
@@ -630,3 +632,19 @@ close:
   and reloads the buffer on completion. The smoke test's fake nvim simulates the
   job from the exported env. So perceived latency is ~zero on every press;
   unchanged sessions clear the spinner near-instantly (no model call).
+
+### 2026-06-12 — M2 boundary-review (FIX-THEN-SHIP) corrections
+
+- **Graceful-degradation guarantee narrowed.** The §Lookback claim "a missed/false
+  marker degrades gracefully — never breaks the boundary" held when turns drove
+  *only* the lookback. The turn-count no-op now also gates the **model call**, so
+  a dropped prompt glyph can *delay* a distill (or a spurious one trigger an extra
+  model call). It still **self-heals within ~1 press** and never corrupts the log
+  — but it's a delay/extra-call, not pure lookback-context jitter.
+- **CI gaps closed** (both Important): `make test-changelog` now depends on the
+  binaries so it runs in `make test` instead of silently SKIPping on a clean
+  tree; and the async viewer path got a headless test (`changelog_test.lua` now
+  exercises `M.reload`: content replaced, cursor at newest, buffer still readonly).
+- **`parseAnchor` moved** from `main.go` to `distill.go` (with its pure siblings)
+  and directly unit-tested (header / legacy-no-header / malformed-count / empty);
+  added to the Core-concepts tables (`parseAnchor` PURE, `writeAnchor` INTEGRATION).

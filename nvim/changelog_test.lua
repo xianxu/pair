@@ -42,6 +42,24 @@ check(token_group('M1') == 'ChangelogMilestone', 'milestone M1 → ChangelogMile
 check(token_group('`') == 'ChangelogCode', 'inline code → ChangelogCode')
 check(token_group('feature/53-changelog') == 'ChangelogBranch', 'branch → ChangelogBranch')
 
+-- M.reload: simulate the async background distill finishing — write a new log
+-- to disk, reload it into the read-only buffer, assert content + cursor + lock.
+do
+  local path = (os.getenv('TMPDIR') or '/tmp') .. '/pair-changelog-reload-test.md'
+  local new_lines = { '## 2026-06-12', '', '- one', '', '- two newest #99' }
+  vim.fn.writefile(new_lines, path)
+  local rbuf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_set_current_buf(rbuf)
+  M.setup(rbuf)
+  M.reload(rbuf, path)
+  local got = vim.api.nvim_buf_get_lines(rbuf, 0, -1, false)
+  check(vim.deep_equal(got, new_lines), 'reload replaced buffer with file contents')
+  check(vim.bo[rbuf].modifiable == false, 'reload left buffer non-modifiable')
+  check(vim.bo[rbuf].readonly == true, 'reload left buffer readonly')
+  check(vim.api.nvim_win_get_cursor(0)[1] == #new_lines, 'reload put cursor at newest entry')
+  os.remove(path)
+end
+
 if fails > 0 then
   io.stderr:write(string.format('changelog_test: %d failure(s)\n', fails))
   os.exit(1)
