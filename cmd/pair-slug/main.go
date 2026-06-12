@@ -25,20 +25,16 @@
 package main
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
+	"github.com/xianxu/pair/cmd/internal/model"
 )
 
 const (
@@ -46,9 +42,6 @@ const (
 	minUserTurns       = 3   // extend back until the window holds this many user turns
 	hardMaxTurns       = 40  // cap on how far back the user-turn extension reaches
 	perTurnChars       = 500 // truncation per turn
-	defaultClaudeModel = "claude-haiku-4-5"
-	defaultOpenAIModel = "gpt-5.4-mini"
-	modelTimeout       = 30 * time.Second // a hung model must not leave pair-slug resident
 )
 
 // logf writes a diagnostic line to $PAIR_SLUG_LOG if set; otherwise silent.
@@ -200,171 +193,6 @@ func resolveTranscript(agent, sid, cwd, home string) string {
 	}
 }
 
-func defaultModel(agent string) string {
-	if agent == "codex" {
-		return defaultOpenAIModel
-	}
-	return defaultClaudeModel
-}
-
-// runModel invokes the small model for the active agent family.
-func runModel(agent, model, prompt, input string) (string, error) {
-	if agent == "codex" {
-		if os.Getenv("OPENAI_API_KEY") != "" {
-			return runOpenAIModel(model, prompt, input)
-		}
-		return runCodexCLIModel(model, prompt, input)
-	}
-	if agent == "agy" {
-		return runAgyModel(prompt, input)
-	}
-	return runClaudeModel(model, prompt, input)
-}
-
-// runClaudeModel invokes `claude -p --model <m> <prompt>` with
-// input on stdin, returning raw stdout. The child inherits env with
-// PAIR_SLUG_NESTED=1 — a breaker against any recursion through the agent.
-func runClaudeModel(model, prompt, input string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), modelTimeout)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "claude", "-p", "--model", model, prompt)
-	cmd.Stdin = strings.NewReader(input)
-	cmd.Env = append(os.Environ(), "PAIR_SLUG_NESTED=1")
-	out, err := cmd.Output()
-	return string(out), err
-}
-
-// runAgyModel invokes `agy -p <prompt>`.
-// Setting Dir to os.TempDir() is crucial: it forces the agy agent loop to execute in
-// an empty sandbox directory, preventing it from discovering workspace files/projects
-// or triggering slow background tool executions.
-func runAgyModel(prompt, input string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), modelTimeout)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "agy", "-p", prompt)
-	cmd.Dir = os.TempDir()
-	cmd.Env = append(os.Environ(), "PAIR_SLUG_NESTED=1")
-	out, err := cmd.Output()
-	return string(out), err
-}
-
-// runCodexCLIModel invokes the authenticated Codex CLI path. This lets
-// subscription-authenticated Codex sessions generate slugs even when no
-// OPENAI_API_KEY is exported for direct API calls.
-func runCodexCLIModel(model, prompt, input string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), modelTimeout)
-	defer cancel()
-
-	f, err := os.CreateTemp("", "pair-slug-codex-*.txt")
-	if err != nil {
-		return "", err
-	}
-	outPath := f.Name()
-	_ = f.Close()
-	defer os.Remove(outPath)
-
-	cmd := exec.CommandContext(ctx, "codex", "exec",
-		"--model", model,
-		"--sandbox", "read-only",
-		"--skip-git-repo-check",
-		"--ephemeral",
-		"--output-last-message", outPath,
-		"-",
-	)
-	cmd.Stdin = strings.NewReader(prompt + "\n\n" + input)
-	cmd.Env = append(os.Environ(), "PAIR_SLUG_NESTED=1")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("codex exec failed: %w: %s", err, strings.TrimSpace(string(out)))
-	}
-	if b, err := os.ReadFile(outPath); err == nil && strings.TrimSpace(string(b)) != "" {
-		return string(b), nil
-	}
-	return string(out), nil
-}
-
-// runOpenAIModel invokes the Responses API directly. No SDK dependency: this
-// binary is spawned in the hot turn-end path, and a tiny JSON POST is enough.
-func runOpenAIModel(model, prompt, input string) (string, error) {
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		return "", fmt.Errorf("OPENAI_API_KEY is not set")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), modelTimeout)
-	defer cancel()
-	body := map[string]any{
-		"model":             model,
-		"instructions":      prompt,
-		"input":             input,
-		"max_output_tokens": 64,
-		"text": map[string]string{
-			"verbosity": "low",
-		},
-	}
-	raw, err := json.Marshal(body)
-	if err != nil {
-		return "", err
-	}
-
-	baseURL := os.Getenv("PAIR_SLUG_OPENAI_BASE_URL")
-	if baseURL == "" {
-		baseURL = "https://api.openai.com"
-	}
-	url := strings.TrimRight(baseURL, "/") + "/v1/responses"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(raw))
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("openai responses status %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
-	}
-	return responseText(respBody)
-}
-
-func responseText(data []byte) (string, error) {
-	var r struct {
-		OutputText string `json:"output_text"`
-		Output     []struct {
-			Type    string `json:"type"`
-			Content []struct {
-				Type string `json:"type"`
-				Text string `json:"text"`
-			} `json:"content"`
-		} `json:"output"`
-	}
-	if err := json.Unmarshal(data, &r); err != nil {
-		return "", err
-	}
-	if strings.TrimSpace(r.OutputText) != "" {
-		return r.OutputText, nil
-	}
-	var parts []string
-	for _, item := range r.Output {
-		if item.Type != "message" {
-			continue
-		}
-		for _, c := range item.Content {
-			if (c.Type == "output_text" || c.Type == "text") && c.Text != "" {
-				parts = append(parts, c.Text)
-			}
-		}
-	}
-	if len(parts) == 0 {
-		return "", fmt.Errorf("openai response had no output text")
-	}
-	return strings.Join(parts, "\n"), nil
-}
-
 func main() {
 	if os.Getenv("PAIR_SLUG_NESTED") != "" {
 		logf("nested invocation (PAIR_SLUG_NESTED); skipping to avoid recursion")
@@ -435,15 +263,22 @@ func main() {
 		prev = strings.TrimSpace(string(b))
 	}
 
-	model := os.Getenv("PAIR_SLUG_MODEL")
-	if model == "" {
-		model = defaultModel(agent)
+	modelName := os.Getenv("PAIR_SLUG_MODEL")
+	if modelName == "" {
+		modelName = model.DefaultModel(agent)
 	}
 	branchLeft := normalizeBranch(gitBranch(cwd), repoBase(cwd))
 
-	out, err := runModel(agent, model, buildPrompt(branchLeft), buildModelInput(prev, turns))
+	out, err := model.Run(model.Request{
+		Agent:           agent,
+		Model:           modelName,
+		Prompt:          buildPrompt(branchLeft),
+		Input:           buildModelInput(prev, turns),
+		MaxOutputTokens: 64,
+		Verbosity:       "low",
+	})
 	if err != nil {
-		logf("model %q failed: %v", model, err)
+		logf("model %q failed: %v", modelName, err)
 		return
 	}
 

@@ -1,9 +1,6 @@
 package main
 
 import (
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,28 +29,6 @@ func fakeClaude(t *testing.T, body string) string {
 		t.Fatal(err)
 	}
 	return dir
-}
-
-func fakeCodex(t *testing.T, body string) (dir, stdinPath string) {
-	t.Helper()
-	dir = t.TempDir()
-	stdinPath = filepath.Join(dir, "stdin")
-	script := strings.Join([]string{
-		"#!/bin/sh",
-		"out=''",
-		"while [ \"$#\" -gt 0 ]; do",
-		"  if [ \"$1\" = '--output-last-message' ]; then shift; out=$1; fi",
-		"  shift",
-		"done",
-		"cat > " + shellQuote(stdinPath),
-		"if [ -z \"$out\" ]; then exit 2; fi",
-		"printf '%s\\n' " + shellQuote(body) + " > \"$out\"",
-		"printf 'progress output ignored\\n'",
-	}, "\n") + "\n"
-	if err := os.WriteFile(filepath.Join(dir, "codex"), []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	return dir, stdinPath
 }
 
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
@@ -213,105 +188,5 @@ func TestResolveLiveCodexTranscriptUsesDescendantLsof(t *testing.T) {
 	got := resolveLiveCodexTranscript(dataDir, "testtag", home)
 	if got != path {
 		t.Fatalf("resolveLiveCodexTranscript = %q, want %q", got, path)
-	}
-}
-
-func TestDefaultModelByAgent(t *testing.T) {
-	if got := defaultModel("codex"); got != defaultOpenAIModel {
-		t.Fatalf("codex default model = %q, want %q", got, defaultOpenAIModel)
-	}
-	if got := defaultModel("claude"); got != defaultClaudeModel {
-		t.Fatalf("claude default model = %q, want %q", got, defaultClaudeModel)
-	}
-}
-
-func TestResponseTextParsesOutputTextConvenience(t *testing.T) {
-	got, err := responseText([]byte(`{"output_text":"=== pair | openai slug ==="}`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != "=== pair | openai slug ===" {
-		t.Fatalf("responseText = %q", got)
-	}
-}
-
-func TestResponseTextParsesOutputMessageContent(t *testing.T) {
-	raw := []byte(`{"output":[{"type":"message","content":[{"type":"output_text","text":"KEEP"}]}]}`)
-	got, err := responseText(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != "KEEP" {
-		t.Fatalf("responseText = %q", got)
-	}
-}
-
-func TestRunOpenAIModelPostsResponsesRequest(t *testing.T) {
-	var reqBody map[string]any
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/responses" {
-			t.Fatalf("path = %q", r.URL.Path)
-		}
-		if got := r.Header.Get("Authorization"); got != "Bearer test-key" {
-			t.Fatalf("Authorization = %q", got)
-		}
-		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
-			t.Fatal(err)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"output":[{"type":"message","content":[{"type":"output_text","text":"=== pair | openai slug ==="}]}]}`))
-	}))
-	defer srv.Close()
-
-	t.Setenv("OPENAI_API_KEY", "test-key")
-	t.Setenv("PAIR_SLUG_OPENAI_BASE_URL", srv.URL)
-	got, err := runOpenAIModel("gpt-test-mini", "prompt", "input")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != "=== pair | openai slug ===" {
-		t.Fatalf("runOpenAIModel = %q", got)
-	}
-	if reqBody["model"] != "gpt-test-mini" || reqBody["instructions"] != "prompt" || reqBody["input"] != "input" {
-		t.Fatalf("request body = %#v", reqBody)
-	}
-}
-
-func TestRunModelCodexUsesCLIWithoutAPIKey(t *testing.T) {
-	codexDir, stdinPath := fakeCodex(t, "=== pair | codex cli slug ===")
-	t.Setenv("OPENAI_API_KEY", "")
-	t.Setenv("PATH", codexDir+string(os.PathListSeparator)+os.Getenv("PATH"))
-
-	got, err := runModel("codex", "gpt-test-mini", "prompt text", "input text")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != "=== pair | codex cli slug ===\n" {
-		t.Fatalf("runModel = %q", got)
-	}
-	stdin, err := os.ReadFile(stdinPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(stdin), "prompt text") || !strings.Contains(string(stdin), "input text") {
-		t.Fatalf("codex stdin = %q", stdin)
-	}
-}
-
-func TestRunModelCodexReportsCLIErrorOutput(t *testing.T) {
-	codexDir := t.TempDir()
-	script := "#!/bin/sh\nprintf 'auth failed\\n' >&2\nexit 1\n"
-	if err := os.WriteFile(filepath.Join(codexDir, "codex"), []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("OPENAI_API_KEY", "")
-	t.Setenv("PATH", codexDir+string(os.PathListSeparator)+os.Getenv("PATH"))
-
-	_, err := runModel("codex", "gpt-test-mini", "prompt text", "input text")
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !strings.Contains(err.Error(), "auth failed") {
-		t.Fatalf("error = %v", err)
 	}
 }
