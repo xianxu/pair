@@ -20,7 +20,7 @@ bin/pair-notify              # hook-driven OSC notifier (e.g. claude Notificatio
 bin/pair-scrollback-render   # raw PTY capture → ANSI-colored line dump (#000017)
 bin/pair-scrollback-open     # Alt+/ orchestrator: render + open viewer
 bin/pair-changelog           # TTY → distilled change log (LLM, incremental) (#53)
-bin/pair-changelog-open      # Alt+l orchestrator: clean TTY + distill + open viewer (#53)
+bin/pair-changelog-open      # Alt+l orchestrator: open viewer; clean+distill run in the background (#53)
 nvim/init.lua                # bundled nvim config (loaded via -u)
 nvim/scrollback.lua          # read-only ANSI viewer for the scrollback dump
 nvim/changelog.lua           # read-only viewer for the distilled change log (#53)

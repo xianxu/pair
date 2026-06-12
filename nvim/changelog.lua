@@ -8,9 +8,9 @@
 --
 -- It opens IMMEDIATELY on whatever log already exists, then runs the
 -- render+distill as a background job (via PAIR_CHANGELOG_* env from the
--- orchestrator), showing a winbar spinner and reloading the buffer when the job
--- finishes. The distiller skips the model when no new turn completed, so an
--- unchanged session clears the spinner near-instantly.
+-- orchestrator), showing a spinner as a bottom virtual line and reloading the
+-- buffer when the job finishes. The distiller skips the model when no new turn
+-- completed, so an unchanged session clears the spinner near-instantly.
 --
 -- M.setup is exported so nvim/changelog_test.lua can drive it headlessly
 -- (`nvim -l`) without launching the interactive UI / background job.
