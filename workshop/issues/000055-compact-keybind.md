@@ -164,10 +164,16 @@ Detailed step-by-step plan: `workshop/plans/000055-compact-keybind-plan.md`
   re-execs `pair continue <slug>` on a `continue=` marker; tests via the
   `PAIR_FORCE_IN_SESSION` / `PAIR_FAKE_IN_ZELLIJ` / `PAIR_KILL_CMD` /
   `PAIR_TEST_CALL` / `PAIR_REEXEC_CAPTURE` seams (incl. invalid-slug-no-kill).
-- [ ] M2 — keybind + nvim wiring: `bind "Alt C" "Ctrl Alt c"` → `PairConfirmCompact`
+- [x] M2 — keybind + nvim wiring: `bind "Alt C" "Ctrl Alt c"` → `PairConfirmCompact`
   (confirm via `pair_ensure_visible_then` + `vim.fn.confirm`, then
-  `send_to_agent(<agent-agnostic compaction prompt>)`); manual e2e verification
-  (claude + codex).
+  `send_to_agent(<agent-agnostic compaction prompt>)`). Static verification done
+  (luac clean; zellij config "Well defined"); **runtime e2e is operator-manual**
+  (live keypress → agent → restart can't be driven headlessly):
+    1. `pair-dev claude -- --dangerously-skip-permissions`; do a little work.
+    2. `Alt+Shift+C` → confirm dialog → Yes. Compaction prompt appears in the agent pane + submits.
+    3. Agent writes `workshop/continuation/*-<slug>.md` (git-committed) and runs `pair continue <slug>`.
+    4. Session restarts: SAME tag, fresh conversation, draft seeded `continue from … — do its NEXT ACTION`, same `-- --dangerously-skip-permissions`; a `parked-scrollback-<tag>-*.raw` recovery copy exists; **no stray "park as a continuation?" prompt** (the M1 FIX-THEN-SHIP suppression).
+    5. Repeat once under `pair-dev codex` (agent-agnostic prompt).
 
 ## Log
 
