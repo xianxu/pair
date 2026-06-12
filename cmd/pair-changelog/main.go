@@ -114,10 +114,10 @@ func main() {
 	}
 }
 
-// splitLines splits cleaned text into lines, dropping a single trailing newline
-// so a file ending in "\n" doesn't yield a spurious empty last line.
+// splitLines splits cleaned text into lines, dropping any trailing newlines so a
+// file ending in one or more blank lines doesn't yield spurious empty elements.
 func splitLines(s string) []string {
-	s = strings.TrimSuffix(s, "\n")
+	s = strings.TrimRight(s, "\n")
 	if s == "" {
 		return nil
 	}

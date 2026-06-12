@@ -266,7 +266,7 @@ path regenerates earlier entries (could reword them) — it trades the structura
 freeze for that one rare redraw-recovery pass; only the frozen-prefix happy path
 guarantees byte-stability._
 
-- [ ] M1 — `cmd/internal/model` extraction (pair-slug refactored onto it,
+- [x] M1 — `cmd/internal/model` extraction (pair-slug refactored onto it,
   output length parameterized, test green) + `cmd/pair-changelog` distiller:
   TTY-clean → `locate` → distill (first-run + incremental + structural-freeze +
   date-header assembly), pure unit tests + Go integration test.
@@ -285,6 +285,13 @@ guarantees byte-stability._
   distiller as its **own library**.
 
 ### 2026-06-12
+- 2026-06-12: closed M1 — go test ./... green: model extraction leaves pair-slug suite green; distiller pure core (locate/split/assemble) + process-level fake-model integration test pass (first-run / incremental+byte-identical-frozen-prefix / revise-last / never-drop-last / date-rollover / no-op-skips-model). make pair-changelog builds. --no-atlas: M1 is internal plumbing (cmd/internal/model + cmd/pair-changelog distiller, not yet user-reachable); the user-facing atlas surface (Alt+l flow + state files) lands with M2.; review verdict: FIX-THEN-SHIP
+- M1 FIX-THEN-SHIP findings addressed before crossing: (Important) `pair-slug`
+  Makefile recipe gained its missing `cmd/internal/model/model.go` prereq;
+  (Important) atlas updated — documented the shared `cmd/internal/model` package
+  in `architecture.md`. Also: added `TestFullRedistillWithPriorLogKeepsFrozenPrefix`
+  (the flagged seam gap), `MaxOutputTokens<=0` floor, `splitLines` trims all
+  trailing newlines, plan `## Revisions` correcting note #3. `go test ./cmd/...` green.
 
 - Spec-review round 1 (fresh context): model helpers unexported → M1 extracts
   `cmd/internal/model`; line-index anchor unstable under redraw → content
@@ -304,3 +311,9 @@ guarantees byte-stability._
   natural unit, even across verbose/terse output; reuses the prompt glyphs from
   `scrollback.lua` (small synced Go copy, `ARCH-DRY`), capped ≤200 lines. Turns
   drive only lookback, so detection misses degrade gracefully.
+- M1 implemented: `cmd/internal/model` extracted (pair-slug green, OpenAI output
+  length parameterized); `cmd/pair-changelog` distiller — pure core (`locate`,
+  split, `assemble`) unit-tested, IO seam + process-level fake-model integration
+  test (first-run / incremental+frozen-prefix / revise-last / never-drop /
+  rollover / no-op), wired into `Makefile.local`. Resolved a contradiction in the
+  plan's own `locate` no-boundaries tests during impl.

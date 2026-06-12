@@ -322,7 +322,12 @@ split keeps the model out of the live buffer:
   window (`selectWindow` extends back past tool-only turns to include real user
   prompts). Codex uses the direct OpenAI Responses API when `OPENAI_API_KEY` is
   exported; otherwise it shells through `codex exec` so subscription-authenticated
-  Codex CLI sessions still work. It writes a validated `=== <branch> | <focus> ===`
+  Codex CLI sessions still work. The per-agent model dispatch
+  (claude/codex/agy/OpenAI-Responses) lives in the shared **`cmd/internal/model`**
+  package (`model.Run`), extracted from pair-slug in #53 so `cmd/pair-changelog`
+  (the Alt+l change-log distiller) shares one dispatch; the OpenAI output-token
+  cap is a per-call parameter (pair-slug passes 64, the change-log a larger
+  budget). It writes a validated `=== <branch> | <focus> ===`
   to `slug-proposed-<tag>`. Gates: KEEP keeps the focus but refreshes the left,
   validate-or-keep-last, left always stomped with the authoritative branch.
   `PAIR_SLUG_NESTED` breaks any recursion. Failures are non-fatal.

@@ -149,6 +149,34 @@ func TestDateRollover(t *testing.T) {
 	}
 }
 
+// When the anchor is absent from the freshly-cleaned TTY (a redraw mangled it)
+// but a prior log exists, locate → FullRedistill: main feeds the whole
+// transcript as "new activity" yet still keeps the frozen prefix (only the last
+// entry is model-revised). This pins that subtle seam behavior.
+func TestFullRedistillWithPriorLogKeepsFrozenPrefix(t *testing.T) {
+	bin := buildBinary(t)
+	dir := fakeClaude(t, "- two-revised\n\n- three\n")
+	cleaned := "fresh1\nfresh2\nfresh3\n" // does NOT contain the prior anchor
+	priorLog := "## 2026-06-12\n\n- one\n\n- two\n"
+	priorAnchor := "OLD1\nOLD2\nOLD3\n" // absent in cleaned → FullRedistill
+	log, anchor := run(t, bin, cleaned, priorLog, priorAnchor, "2026-06-12")
+
+	if !invoked(dir) {
+		t.Fatal("full-redistill should still call the model")
+	}
+	frozen := "## 2026-06-12\n\n- one\n\n"
+	if !strings.HasPrefix(log, frozen) {
+		t.Fatalf("frozen prefix not preserved on full-redistill:\n%q", log)
+	}
+	want := "## 2026-06-12\n\n- one\n\n- two-revised\n\n- three\n"
+	if log != want {
+		t.Fatalf("log = %q\nwant %q", log, want)
+	}
+	if anchor != "fresh1\nfresh2\nfresh3\n" {
+		t.Fatalf("anchor = %q", anchor)
+	}
+}
+
 func TestNoOpDoesNotCallModelOrChangeLog(t *testing.T) {
 	bin := buildBinary(t)
 	dir := fakeClaude(t, "- should not appear\n")

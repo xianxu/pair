@@ -1,7 +1,8 @@
 // Package model is the per-agent small-model dispatch shared by pair-slug and
-// pair-changelog. It was extracted verbatim from pair-slug's package main
+// pair-changelog. It was extracted near-verbatim from pair-slug's package main
 // (issue #53) so both binaries call one model surface instead of duplicating
-// the claude / codex / agy / OpenAI-Responses plumbing.
+// the claude / codex / agy / OpenAI-Responses plumbing. (The runCodexCLI temp
+// prefix was renamed pair-slug-codex-* → pair-model-codex-*.)
 //
 // The one behavioral change from the original is that MaxOutputTokens and
 // Verbosity are now per-call parameters (the OpenAI path previously hardcoded
@@ -65,6 +66,9 @@ func Run(r Request) (string, error) {
 	}
 	if r.Verbosity == "" {
 		r.Verbosity = "low"
+	}
+	if r.MaxOutputTokens <= 0 {
+		r.MaxOutputTokens = 256 // defensive floor; the OpenAI API rejects <= 0
 	}
 	switch r.Agent {
 	case "codex":

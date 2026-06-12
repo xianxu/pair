@@ -590,3 +590,21 @@ Structure the file so the test can source the setup without a real `nvim -u` lau
 1. **Inter-block whitespace** is pinned at the byte level by Task 3's `assemble` tests + Task 4's frozen-prefix assertion — the literal `## D\n\n-` spacing and the trailing newline of `Ek'` are nailed by `ensureBlock` + the golden strings.
 2. **Header invariant** ("a `## date` is never written without ≥1 following bullet") is encoded in `assemble` and documented there, keeping `splitFrozenTail`'s "last bullet block" well-defined for every reachable state.
 3. **Full-redistill** regenerates earlier entries (could reword them) — it trades the structural freeze for that one rare redraw-recovery pass. Only the `Found` happy path guarantees byte-stability; this is acceptable (redraw-mangled anchors are rare) and noted so a reviewer isn't surprised.
+
+## Revisions
+
+### 2026-06-12 — M1 boundary-review (FIX-THEN-SHIP) corrections
+
+- **Note #3 above corrected.** The implemented `main.go` keeps the **frozen
+  prefix even on full-redistill** (only `Ek` is revised + new appended; the whole
+  transcript is fed as "new activity" with the prior log as read-only dedup
+  memory). So byte-stability of the frozen prefix holds there too — the residual
+  risk on full-redistill is **duplicate** entries (dedup rests on the prompt),
+  not reworded earlier entries. Pinned by `TestFullRedistillWithPriorLogKeepsFrozenPrefix`.
+- **Task 1 side-effect (now landed):** the extraction made `pair-slug` import
+  `cmd/internal/model`, so its `Makefile.local` recipe prerequisite list gained
+  `cmd/internal/model/model.go` (was missing → `make pair-slug` wouldn't rebuild
+  on a model change). Caught by the M1 boundary review.
+- Minor hardening from the same review: `model.Run` floors `MaxOutputTokens` at
+  256 when ≤ 0; `splitLines` now trims all trailing newlines; package doc says
+  "near-verbatim" (the codex temp prefix was renamed).

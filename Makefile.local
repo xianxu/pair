@@ -137,7 +137,7 @@ $(BIN_DIR)/pair-scrollback-render: cmd/pair-scrollback-render/main.go go.mod
 $(BIN_DIR)/pair-wrap: cmd/pair-wrap/main.go go.mod
 	go build -o $@ ./cmd/pair-wrap
 
-$(BIN_DIR)/pair-slug: cmd/pair-slug/main.go cmd/pair-slug/slug.go go.mod
+$(BIN_DIR)/pair-slug: cmd/pair-slug/main.go cmd/pair-slug/slug.go cmd/internal/model/model.go go.mod
 	go build -o $@ ./cmd/pair-slug
 
 # pair-changelog — distills the pair TTY into the Alt+l change log (#53);
