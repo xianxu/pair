@@ -1415,7 +1415,13 @@ cleanup_quit_marker() {
         # distill here. `[ -t 0 ]` skips the prompt on a detached/automated quit.
         _sb_base="$DATA_DIR/scrollback-${PAIR_TAG}-${quit_agent}"
         _parked=0
-        if [ -s "${_sb_base}.raw" ] && [ -t 0 ]; then
+        # Skip the park nudge when a restart is pending: a restart isn't a
+        # quit (the relaunch keeps the work), and for #55 compaction the
+        # branch has ALREADY copy-parked a recovery net + written a
+        # continuation — re-asking "park as a continuation?" here is noise.
+        # Also de-noises the inherited Alt+n / Shift+Alt+N restart paths.
+        if [ -s "${_sb_base}.raw" ] && [ -t 0 ] \
+            && [ ! -f "$HOME/.cache/pair/restart-$SESSION" ]; then
             printf 'pair: park "%s" as a continuation? (preserve its scrollback) [y/N]: ' "$PAIR_TAG" >/dev/tty
             if read -r _ans </dev/tty && { [ "$_ans" = "y" ] || [ "$_ans" = "Y" ]; }; then
                 # park_scrollback (move mode — session is dying) handles the
