@@ -1,11 +1,12 @@
 ---
 id: 000055
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-11
-updated: 2026-06-11
+updated: 2026-06-12
 estimate_hours: 2.5
+actual_hours: 0.91
 ---
 
 # Alt+Shift+C compaction: continuation + in-session restart via context-aware pair continue
@@ -178,6 +179,7 @@ Detailed step-by-step plan: `workshop/plans/000055-compact-keybind-plan.md`
 ## Log
 
 ### 2026-06-12
+- 2026-06-12: closed — Both milestones reviewed (M1 FIX-THEN-SHIP fixed, M2 SHIP). M1: make test-continue 21/21 (mechanics via injectable seams). M2: live Alt+Shift+C round-trip dogfooded (continuation → pair continue → same-tag fresh restart, copy-not-move recovery net, no stray prompt). make build/bash -n/luac clean; zellij config Well defined. Atlas updated. Codex deferred (agent-agnostic prompt; relaunch carries r_agent).; review verdict: SHIP
 - 2026-06-12: closed M2 — M2 runtime e2e PASS (claude), dogfooded live: real Alt+Shift+C → confirm → agent wrote continuation 20260612T002626-compact.md → pair continue compact → same-tag (3) fresh restart seeded from doc (round-trip proof). Recovery net: parked-scrollback-3 (425KB) copy exists AND live scrollback-3-claude.raw intact (copy-not-move); no stray park prompt. Static: luac clean, zellij config Well defined. Atlas updated (keybind + suppression).; review verdict: SHIP
 - **M2 runtime e2e PASS (`claude`) — dogfooded live.** Steps 2–4 executed by an
   actual `Alt+Shift+C` keypress in a live `pair-dev claude` session: confirm
