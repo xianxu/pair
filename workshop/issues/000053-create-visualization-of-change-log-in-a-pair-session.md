@@ -1,11 +1,11 @@
 ---
 id: 000053
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-06-11
-updated: 2026-06-11
-estimate_hours: 8
+updated: 2026-06-12
+estimate_hours: 10
 ---
 
 # create visualization of change log in a pair session
@@ -36,60 +36,103 @@ session transcript. Rationale: the TTY is already the agent's own decision of
 what to surface to a human, so it is the cleanest proxy for "what a human cares
 about"; it carries none of the tool-call/thinking noise of the raw transcript;
 and it is **agent-agnostic** — just terminal text, no per-harness JSON schema to
-parse (the structured-transcript path in `pair-slug` needs a parser per agent).
-It also keeps the feature from hardcoding any workflow (sdlc/git) conventions —
-milestones like "M1 done" are picked up because the agent *said* them in the
-pane, not because we watch `sdlc`.
+parse. It also keeps the feature from hardcoding any workflow (sdlc/git)
+conventions — milestones like "M1 done" are picked up because the agent *said*
+them in the pane, not because we watch `sdlc`.
+
+### Responsibility split — thin shell, all logic in the Go distiller
+
+- **`bin/pair-changelog-open`** (shell, ~thin, models on `pair-scrollback-open`):
+  acquire the lock; clean the TTY via the renderer; run the distiller; `exec`
+  nvim on the log. No log-assembly logic in shell.
+- **`cmd/pair-changelog`** (Go) owns everything testable: compute the slice from
+  the anchor (pure), parse the prior log (pure), call the model, assemble the
+  new log (pure), write log + anchor atomically. Putting assembly in Go makes
+  the structural-freeze invariant assertable on **real bytes** in a Go test, and
+  keeps date-header logic out of fragile shell (`ARCH-PURE`).
 
 ### Trigger & timing — on-demand at `Alt+l`, incremental across presses
 
 Distillation runs **only when `Alt+l` is pressed** (no per-turn background
-cost). It is incremental across presses via a high-water mark:
+cost), incremental across presses, anchored on a **content snippet**:
 
-- **First press:** clean the *full* TTY → LLM → change log. Record the
-  high-water mark `N` = last cleaned line distilled.
-- **Later press:** feed `lines[N − lookback .. current_last]` (lookback ≈ 20
-  lines, for continuity across the boundary) **+ the previous change log** →
-  LLM → updated change log. Advance `N → current_last`.
-- **No new lines since last press** (`current_last == N`): skip the LLM
-  entirely, just open the viewer on the existing file.
+- **First press:** clean the *full* TTY → model summarizes into entries → write
+  log. Record the anchor (the tail of what was distilled).
+- **Later press:** locate the anchor in the freshly-cleaned TTY → boundary `B`;
+  feed `lines[B − lookback .. current_last]` (lookback ≈ 20 lines, for
+  continuity) to the model with the prior log (see "History contract"). Re-record
+  the anchor.
+- **No new content:** skip the model, open the viewer on the existing log.
 
 The full raw TTY (`scrollback-<tag>-<agent>.raw`) is truncated only at session
-start and appended for the whole session, so the first press can always see
-everything (the 2000-row cap in `pair-scrollback-render` is a *display* cap; the
-distiller renders without it). First-press latency on a long session is
-accepted — quality over speed, and it only happens once; later presses process
-only the delta.
+start, then appended for the whole session (`O_TRUNC` once at
+`cmd/pair-wrap/main.go:1523`, persistent append at :1830), so the first press
+always sees everything. First-press latency on a long session is accepted —
+quality over speed, once; later presses process only the delta.
 
-### History contract — prior frozen, last revisable, new appended
+#### Anchor — verbatim snippet, located newest-first
 
-The previous change log is fed back in as **read-only memory**. On each later
-press the LLM may:
+A bare cleaned-line index is **not** a stable cross-press anchor: the renderer
+replays the whole `.raw` through a VT100 emulator each press, so an agent that
+clears/redraws (scroll regions, alternate-screen) can make the cleaned-line
+count **non-monotonic**. The anchor is therefore the **verbatim last K cleaned
+lines** distilled (K ≈ 3), stored as text (locatable by substring search; a hash
+would not be). On a later press, the pure function
+`locate(cleaned_text, anchor, lookback)` returns one of:
 
-- **NOT** touch entries before the last one — frozen (their source TTY is no
-  longer in the window; amending them would be guessing);
-- **revise the last entry** — new lines may clarify what that activity was
-  (e.g. "investigating X" → "fixed X"), and the ~20-line lookback overlaps its
-  source, so the revision is grounded;
-- **append zero or more new entries.**
+- **Found** → `B` = index of the **first** line of the anchor's **last (newest)
+  occurrence** (searched from the end — this tie-break is the central anchor
+  invariant; a short snippet like a repeated banner/border can recur, and the
+  newest match is always the true boundary). Lookback is measured **backward
+  from `B`**. Slice `[max(0, B − lookback) .. current_last]`.
+- **No-op** → the anchor sits flush with the end (no cleaned lines after it):
+  nothing new, open existing log, no model call.
+- **Full re-distill** → anchor not found *or only partially matches* (a redraw
+  mangled it): clean the whole TTY, pass the prior log as read-only memory so
+  already-logged entries are not duplicated. Safe (never loses entries), costs
+  one full pass. No fuzzy matching — partial == not-found.
+
+`locate` is total and unit-tested across: growth, no-change, shrink,
+anchor-recurs (newest wins), and anchor-not-found.
+
+### History contract — structural freeze; orchestrator owns headers
+
+"Earlier entries unchanged" is enforced **structurally**, not by trusting the
+model. The distiller parses the prior log into **bullet entry blocks** (a `- `
+line plus its indented continuations; blank-line separated). `## YYYY-MM-DD`
+date headers are **structure, not entries** — the model never emits them.
+
+- **Frozen prefix** = all bytes up to (not including) the last bullet block
+  `Ek` — includes every date header and earlier bullet. Concatenated from the
+  distiller's *own* bytes; never re-emitted by the model → byte-for-byte
+  unchanged by construction. Passed to the model only as read-only context
+  ("already logged, don't repeat") for dedup.
+- **Last entry `Ek`** = sent as "the current tentative last entry; you may
+  **revise its text** if the new activity clarifies what it was (e.g.
+  'investigating X' → 'fixed X'), but **emit exactly one entry here, never drop
+  it**." The ≈20-line lookback overlaps its source, grounding the revision.
+- The model returns `Ek'` **+ zero or more new bullet entries** (no headers).
+
+**Date-header ownership (distiller, deterministic):** let `D` = today (press
+date), `Dlast` = date of the last header in the prior log. Assemble:
+`frozen_prefix + Ek' + (new entries, prefixed with "\n## D\n" iff there are new
+entries AND D ≠ Dlast)`. First-ever press (empty log): `"## D\n\n" + ` all model
+entries. So multi-day sessions group correctly and the model is never
+responsible for dates/timestamps. First-ever press has no `Ek` — the model
+summarizes the whole cleaned TTY into entries.
 
 ### Entry format
 
-Plain markdown, grouped under a per-day `## YYYY-MM-DD` header (the press date).
-**No precise per-entry timestamps** — they are not reliably derivable from the
-TTY (the raw capture has no per-line wall-clock), and clock precision is
-low-value for a glance view; chronological order is inherent from position.
-
-Each entry is **1–2 sentences**, with a **blank line between entries** for
-readability. No visible category tag (chrome) — instead the *category
-vocabulary* (milestone / decision / change / blocker / scope-shift …) goes into
-the LLM prompt as the enumeration of "what constitutes a change-log-worthy
-entry."
-
-Example:
+Plain markdown under per-day `## YYYY-MM-DD` headers. **No precise per-entry
+timestamps** — not reliably derivable from the TTY (no per-line wall-clock), and
+low-value for a glance view; chronological order is inherent from position. Each
+entry is **1–2 sentences**, **blank line between entries**. No visible category
+tag (chrome) — the *category vocabulary* (milestone / decision / change /
+blocker / scope-shift …) lives in the LLM prompt as the enumeration of "what
+constitutes a change-log-worthy entry."
 
 ```markdown
-## 2026-06-11
+## 2026-06-12
 
 - Decided to distill the change log from the pair TTY rather than the
   structured transcript — agent-agnostic, mirrors what the operator saw. (#53)
@@ -103,75 +146,106 @@ Example:
 ### Viewer
 
 `nvim/changelog.lua` — read-only, full-screen, modeled on `scrollback.lua` but
-much simpler: no SGR reconstruction, no marker system. Read-only buffer
-(`modifiable=false`, `readonly=true`, `buftype=nofile`), hidden EOL tildes,
-`Esc` to quit. Opens with the cursor at the **bottom** (newest entry).
-
-**Colorization** of key glance tokens via a few `syntax match` rules → highlight
-groups: ticket refs (`#\d\+`), milestone tags (`\<M\d\+\>`), inline `` `code` ``
-and path-like tokens, branch-like tokens (`feature/…`). Content is plain
-markdown (no SGR), so this is local nvim syntax, not extmark replay.
+much simpler: no SGR reconstruction, no markers, **no frontmatter** (anchor is a
+sidecar, so the buffer is pure markdown). Read-only buffer (`modifiable=false`,
+`readonly=true`, `buftype=nofile`), hidden EOL tildes, `Esc` to quit, cursor
+opens at the **bottom** (newest). Colorization of glance tokens via a few
+`syntax match` rules → highlight groups: ticket refs (`#\d\+`), milestone tags
+(`\<M\d\+\>`), inline `` `code` `` / path-like tokens, branch-like (`feature/…`).
 
 ### Components & state
 
 New:
 
-- `cmd/pair-changelog/` — the distiller binary (its own library, sibling to
-  `cmd/pair-slug`). Reuses `pair-slug`'s model-call helper and
-  `pair-scrollback-render` for TTY cleaning (`ARCH-DRY`). The cleaned-line
-  slice + high-water-mark advance is a **pure function**, unit-tested in
-  isolation (`ARCH-PURE`).
-- `bin/pair-changelog-open` — orchestrator shell script, modeled on
-  `bin/pair-scrollback-open`: re-entrancy PID lock, clean TTY, read cursor,
-  invoke distiller (or skip), atomic-write the log, exec nvim.
-- `nvim/changelog.lua` — the viewer (above).
+- `cmd/internal/model/` — **extracted** shared model-call package. pair-slug's
+  provider dispatch (`runModel`/`runClaudeModel`/`runOpenAIModel`/
+  `runCodexCLIModel`/`runAgyModel`/`responseText`) lives **unexported in
+  `package main` of `cmd/pair-slug/main.go`** — not reusable as-is. M1 extracts
+  it and refactors `pair-slug` onto it (its `main_test.go`, which exercises
+  `responseText`/`runOpenAIModel`/`runModel` directly, guards the refactor).
+  **The extraction must parameterize output length:** `runOpenAIModel` currently
+  hardcodes `max_output_tokens: 64` + `verbosity: low` (`main.go:300`, sized for
+  a one-line slug) — verbatim reuse would truncate a multi-entry change log on a
+  Codex session. The shared call takes `maxOutputTokens` (+ verbosity) per
+  caller; pair-slug passes 64, pair-changelog passes a generous budget.
+- `cmd/pair-changelog/` — the distiller (its own library, sibling to
+  `cmd/pair-slug`), consuming `cmd/internal/model`. Cleans the TTY via the
+  existing renderer:
+  `pair-scrollback-render --plain --max-lines 0 <raw> <events.jsonl> <out>`
+  (`--plain` + uncapped `--max-lines 0` already exist, no other caller; events
+  sidecar is a required positional). Owns `locate` + log assembly (pure) + model
+  call + atomic write.
+- `bin/pair-changelog-open` — thin shell orchestrator (above).
 - `Alt l` binding in `zellij/config.kdl`, next to `Alt /`.
 
-State files in `$PAIR_DATA_DIR` (per-tag, matching existing conventions):
+State files in `$PAIR_DATA_DIR`, all keyed **per-tag-agent** (matching the
+source `scrollback-<tag>-<agent>.raw`, so file, source, and lock share one key):
 
-- `changelog-<tag>.md` — the change log (atomic temp+rename on write, per the
-  lessons.md race rule).
-- `changelog-cursor-<tag>` — the high-water mark `N`.
-- `changelog-<tag>-<agent>.openlock` — re-entrancy guard.
+- `changelog-<tag>-<agent>.md` — the change log (pure markdown).
+- `changelog-<tag>-<agent>.anchor` — the verbatim K-line anchor snippet.
+- `changelog-<tag>-<agent>.openlock` — re-entrancy + write-serialization guard,
+  held for the **whole script lifetime** (as scrollback's openlock): a second
+  `Alt+l` while the viewer is open is a no-op refocus, and because the
+  distill+write happen at the start under that same lock, concurrent presses
+  cannot double-distill or tear the file. **Write order: log atomic-write
+  (temp+rename) first, then the anchor** — a crash between leaves the anchor
+  one-behind → next press re-processes (dedup-protected by the frozen prefix),
+  never skips content.
 
 ### Model
 
-A **capable** model for the distill (not the tiny `pair-slug` model) — quality
-over cost, since it runs only on press and rarely.
+The distill uses the **session's agent model** (per-agent dispatch, as
+pair-slug; no assumption of a specific CLI), at the capable default tier with a
+generous `maxOutputTokens` — quality over cost, since it runs only on press.
 
 ### Out of scope (YAGNI for v1)
 
-- Operator-authored / pinned / editable entries (the scrollback-style
-  marker-back-to-draft loop). Distillation is passive; revisit only if the
-  automatic log proves insufficient.
-- Folding the distiller into `pair-slug` (different input — TTY vs transcript;
-  keep them separate libraries).
+- Operator-authored / pinned / editable entries (scrollback-style marker loop).
+- Folding the distiller into `pair-slug` (different input; keep separate binaries
+  over the shared `cmd/internal/model`).
 - The per-turn-background "cheap capture + refine on open" hybrid.
 - Persisting the change log into the continuation/park artifacts.
 
 ## Done when
 
-- `Alt+l` opens a read-only, full-screen nvim window showing the session's
-  change log, with key tokens (`#NN`, `Mx`, paths, branches) colorized.
-- First press distills the full cleaned TTY into 1–2-sentence entries grouped
-  under a per-day header, blank-line separated; the high-water mark is recorded.
+- `Alt+l` opens a read-only, full-screen nvim window of the session's change log
+  (pure markdown), with key tokens (`#NN`, `Mx`, paths, branches) colorized.
+- First press distills the full cleaned TTY into 1–2-sentence entries under a
+  per-day header, blank-line separated; the anchor snippet is recorded.
 - A later press after new activity appends new entries and may revise only the
-  last entry, leaving earlier entries byte-for-byte unchanged; the mark advances.
-- A press with no new TTY lines opens the existing log without a model call.
-- `cmd/pair-changelog` has a Go integration test (process-level fake model)
-  covering first-run, incremental append, last-entry-revision, frozen-prior, and
-  no-new-lines paths; the slice/mark math has a pure unit test; `changelog.lua`
-  has a headless Lua test for read-only + colorization rules.
-- Concurrent `Alt+l` presses cannot corrupt the log (re-entrancy lock + atomic
-  write), verified.
+  last entry **(never dropping it)**; the frozen prefix is byte-for-byte
+  identical (enforced by the assembly path, asserted in a Go test); the anchor
+  advances; a day-rollover press starts a fresh `## date` header.
+- `locate` resolves growth / no-change / shrink / anchor-recurs (newest wins) /
+  not-found deterministically — pure-function unit test.
+- `cmd/internal/model` extraction leaves `pair-slug`'s test green and lets the
+  OpenAI/Codex path emit a full multi-entry log (parameterized output length).
+- `cmd/pair-changelog` has a Go integration test (process-level fake model):
+  first-run, incremental append, last-entry revision, structural frozen-prefix,
+  Ek-never-dropped, date-rollover. `changelog.lua` has a headless Lua test for
+  read-only + colorization.
+- Concurrent `Alt+l` presses cannot corrupt the log (lifetime lock +
+  log-then-anchor atomic write), verified.
 
 ## Plan
 
 _Detailed design lands in `workshop/plans/000053-changelog-plan.md` (via the
-writing-plans skill). Natural decomposition into two review boundaries:_
+writing-plans skill). Two review boundaries:_
 
-- [ ] M1 — `cmd/pair-changelog` distiller: TTY-clean → distill (first-run +
-  incremental + history contract), pure slice/mark math, Go + unit tests.
+_Carry into the plan (advisory, from spec review round 3 — non-blocking):_
+_(1) Pin inter-block whitespace at the byte level via the frozen-prefix Go test —
+the literal `"\n## D\n"` rollover must match the example's `## D\n\n-` spacing
+(blank line after header, trailing newline of `Ek'`). (2) State the invariant "a
+date header is never written without ≥1 following bullet" (makes "last bullet
+block" well-defined for every reachable state). (3) Note that the full-redistill
+path regenerates earlier entries (could reword them) — it trades the structural
+freeze for that one rare redraw-recovery pass; only the frozen-prefix happy path
+guarantees byte-stability._
+
+- [ ] M1 — `cmd/internal/model` extraction (pair-slug refactored onto it,
+  output length parameterized, test green) + `cmd/pair-changelog` distiller:
+  TTY-clean → `locate` → distill (first-run + incremental + structural-freeze +
+  date-header assembly), pure unit tests + Go integration test.
 - [ ] M2 — integration: `bin/pair-changelog-open`, `nvim/changelog.lua`
   (read-only + colorization), `Alt l` keybind; end-to-end dogfood.
 
@@ -182,6 +256,23 @@ writing-plans skill). Natural decomposition into two review boundaries:_
 - Moved from parley.nvim #130 (created there by mistake — this is a pair concern).
 - Brainstormed the design (this Spec). Key decisions: distill the **TTY** (not
   the transcript) for agent-agnostic "what the human saw"; **on-demand** at
-  `Alt+l` with incremental high-water-mark + ~20-line lookback + prior-log
-  feedback; **prior entries frozen, last entry revisable**; no per-entry
-  timestamps (not derivable from TTY); distiller as its **own library**.
+  `Alt+l` with incremental anchor + ~20-line lookback + prior-log feedback;
+  **prior entries frozen, last entry revisable**; no per-entry timestamps;
+  distiller as its **own library**.
+
+### 2026-06-12
+
+- Spec-review round 1 (fresh context): model helpers unexported → M1 extracts
+  `cmd/internal/model`; line-index anchor unstable under redraw → content
+  anchor; last-entry freeze made structural; state re-keyed per-tag-agent;
+  named renderer invocation + lock-spans-write. Est 8h → 10h.
+- Spec-review round 2 (fresh context): OpenAI path hardcodes `max_output_tokens:
+  64` → extraction parameterizes output length (else Codex log truncates);
+  anchor tie-break pinned to **newest occurrence**, `B` = first line of snippet,
+  lookback measured from `B`, partial-match → re-distill; **date headers given
+  to the distiller** (deterministic rollover, model emits only bullets); anchor
+  moved to a **sidecar** (pure-markdown viewer, no conceal); logic consolidated
+  into the Go distiller (shell stays thin) so freeze is byte-asserted.
+- Spec-review round 3 (fresh context): **✅ Approved** — all four header-assembly
+  cases walked, `locate` confirmed total, write-order crash-safe, round-2 fixes
+  verified against code. Three advisories carried into `## Plan` (non-blocking).
