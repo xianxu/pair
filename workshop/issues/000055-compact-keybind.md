@@ -158,12 +158,12 @@ command, both roles.
 Detailed step-by-step plan: `workshop/plans/000055-compact-keybind-plan.md`
 (spec-reviewed + plan-reviewed; 2 review boundaries).
 
-- [ ] M1 — `bin/pair` compaction mechanics: `park_scrollback` helper (copy|move,
+- [x] M1 — `bin/pair` compaction mechanics: `park_scrollback` helper (copy|move,
   ARCH-DRY); in-session compaction branch (ancestry-gated via `in_zellij_pane`,
   placed before the guard with DATA_DIR hoisted); `handle_restart_marker`
   re-execs `pair continue <slug>` on a `continue=` marker; tests via the
-  `PAIR_FORCE_IN_SESSION` / `PAIR_KILL_CMD` / `PAIR_REEXEC_CAPTURE` /
-  `PAIR_HANDLE_RESTART_ONLY` seams (incl. invalid-slug-no-kill).
+  `PAIR_FORCE_IN_SESSION` / `PAIR_FAKE_IN_ZELLIJ` / `PAIR_KILL_CMD` /
+  `PAIR_TEST_CALL` / `PAIR_REEXEC_CAPTURE` seams (incl. invalid-slug-no-kill).
 - [ ] M2 — keybind + nvim wiring: `bind "Alt C" "Ctrl Alt c"` → `PairConfirmCompact`
   (confirm via `pair_ensure_visible_then` + `vim.fn.confirm`, then
   `send_to_agent(<agent-agnostic compaction prompt>)`); manual e2e verification
@@ -173,4 +173,5 @@ Detailed step-by-step plan: `workshop/plans/000055-compact-keybind-plan.md`
 
 ### 2026-06-11
 - Brainstormed (superpowers-brainstorming). Decisions: agent-driven trigger; same tag + agent + `-- <args>`, fresh convo; park scrollback recovery net; confirm first. Operator pushed back on a separate `pair recompact` verb → unified into a context-aware `pair continue` (in-session = compact+restart; outside = fresh start; self-referential — outer relaunch runs outside zellij so takes the fresh branch).
+- **M1 landed** (commit 9b9e0a1): park_scrollback (copy|move, ARCH-DRY), in-session compaction branch (ancestry-gated, before the guard), handle_restart_marker `continue=` re-exec. 21/21 tests green (`make test-continue`), `make build` clean. Impl refinements beyond the plan: (a) `handle_restart_marker` ALSO had to be hoisted (defined ~1323, after the picker, which would hang the test on the name prompt) — moved up with DATA_DIR; (b) a single generic `PAIR_TEST_CALL` dispatcher replaced per-function hooks; (c) `_reexec` must `exit` not `return` in capture mode (else the function falls through into the resume arm and overwrites the capture — caught by the test); (d) the `compact_env` test helper uses `env` so seam assignments arriving via `"$@"` are treated as env, not run as a command (bash only recognizes literal leading assignments). DATA_DIR hoisted just after `unset PAIR_FORCE_TAG`, before the `command -v zellij` gate (per plan-quality finding #1) so the dispatcher tests don't need zellij on PATH.
 - Fresh-eyes spec review (APPROVE-WITH-CHANGES). Folded in 2 Critical + Important/Minor: **C1** the `in_zellij_pane` guard (`bin/pair:718`) hard-exits inside zellij → branch must precede it; **C2** detect via the `in_zellij_pane` PPID-ancestry helper, NOT `$ZELLIJ*` env (cmux propagates those to sibling non-pair panes → false-positive park+kill). Park must **copy** not `mv` (live `pair-wrap` appends to `.raw`). Re-exec argv = `continue <slug> <agent> -- <args>`; relaunch args from saved config; `PAIR_DEV` free. Key token `"Alt C"` (+ `"Ctrl Alt c"` alias). Test seams `PAIR_FORCE_IN_SESSION` / `PAIR_KILL_CMD`. Multi-agent (claude+codex) Done-when added.
