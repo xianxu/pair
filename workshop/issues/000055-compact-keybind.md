@@ -155,7 +155,19 @@ command, both roles.
 
 ## Plan
 
-- [ ] (filled by writing-plans → workshop/plans/000055-*-plan.md)
+Detailed step-by-step plan: `workshop/plans/000055-compact-keybind-plan.md`
+(spec-reviewed + plan-reviewed; 2 review boundaries).
+
+- [ ] M1 — `bin/pair` compaction mechanics: `park_scrollback` helper (copy|move,
+  ARCH-DRY); in-session compaction branch (ancestry-gated via `in_zellij_pane`,
+  placed before the guard with DATA_DIR hoisted); `handle_restart_marker`
+  re-execs `pair continue <slug>` on a `continue=` marker; tests via the
+  `PAIR_FORCE_IN_SESSION` / `PAIR_KILL_CMD` / `PAIR_REEXEC_CAPTURE` /
+  `PAIR_HANDLE_RESTART_ONLY` seams (incl. invalid-slug-no-kill).
+- [ ] M2 — keybind + nvim wiring: `bind "Alt C" "Ctrl Alt c"` → `PairConfirmCompact`
+  (confirm via `pair_ensure_visible_then` + `vim.fn.confirm`, then
+  `send_to_agent(<agent-agnostic compaction prompt>)`); manual e2e verification
+  (claude + codex).
 
 ## Log
 
