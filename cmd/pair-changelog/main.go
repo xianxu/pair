@@ -87,31 +87,24 @@ func main() {
 	}
 	slice := lines[sliceStart:]
 
-	newLog := priorLog
-	if hasPrior {
-		// Incremental (Found) or full-redistill (Start=0): one capped call; the
-		// prior log is fed as read-only memory.
-		capped := capTail(slice, maxSliceLines)
-		fmt.Fprintf(os.Stderr, "pair-changelog: distilling %d lines\n", len(capped))
-		nl, err := distillStep(priorLog, strings.Join(capped, "\n"), agent, modelName, today)
+	// Batch the slice into maxSliceLines-sized chunks and distill each in order,
+	// accumulating the log as memory — so a long slice is never truncated to the
+	// last maxSliceLines (#58). 800 is just the per-call batch size (a timeout
+	// bound); this applies equally to a long first run AND a large gap on a later
+	// press. distillStep switches first-run vs incremental on the running log.
+	newLog := priorLog // "" on a first-ever run
+	chunks := chunkLines(slice, maxSliceLines)
+	for i, chunk := range chunks {
+		if len(chunks) > 1 {
+			fmt.Fprintf(os.Stderr, "pair-changelog: distilling batch %d/%d (%d lines)\n", i+1, len(chunks), len(chunk))
+		} else {
+			fmt.Fprintf(os.Stderr, "pair-changelog: distilling %d lines\n", len(chunk))
+		}
+		nl, err := distillStep(newLog, strings.Join(chunk, "\n"), agent, modelName, today)
 		if err != nil {
 			fail("model: %v", err)
 		}
 		newLog = nl
-	} else {
-		// First-ever run: distill the FULL transcript in batches so a long session
-		// isn't truncated to the last maxSliceLines (#58). Each batch after the
-		// first feeds the accumulating log as memory.
-		chunks := chunkLines(slice, maxSliceLines)
-		newLog = ""
-		for i, chunk := range chunks {
-			fmt.Fprintf(os.Stderr, "pair-changelog: distilling batch %d/%d (%d lines)\n", i+1, len(chunks), len(chunk))
-			nl, err := distillStep(newLog, strings.Join(chunk, "\n"), agent, modelName, today)
-			if err != nil {
-				fail("model: %v", err)
-			}
-			newLog = nl
-		}
 	}
 
 	if strings.TrimSpace(newLog) == "" || newLog == priorLog {

@@ -220,25 +220,28 @@ func TestNoOpWhenNoNewTurn(t *testing.T) {
 	}
 }
 
-// A long transcript (> maxSliceLines) on first-run is capped before the model
-// sees it — the #58 timeout guard (the live failure shipped 3110 lines to haiku
-// and hit the 30s kill).
-func TestModelInputCappedOnLongTranscript(t *testing.T) {
+// A LATER press with a large gap (the agent did >800 lines of work since the
+// anchor) is ALSO batched — 800 is the per-call batch size, not a first-run-only
+// cap. And each batch's input stays bounded (~<= maxSliceLines) (#58).
+func TestIncrementalBatchesLongGap(t *testing.T) {
 	bin := buildBinary(t)
-	dir := fakeClaude(t, "- one entry\n")
+	dir := fakeClaude(t, "- entry\n")
 	var b strings.Builder
-	b.WriteString("❯ start\n")
+	b.WriteString("❯ p1\nANCHOR1\nANCHOR2\nANCHOR3\n")
 	for i := 0; i < 1000; i++ {
-		b.WriteString("content line\n")
+		b.WriteString("agent did work\n")
 	}
-	run(t, bin, b.String(), "", "", "2026-06-12") // first-run, no prior
-	n := stdinLines(dir)
-	if n < 0 {
-		t.Fatal("model not invoked")
+	b.WriteString("❯ p2\n") // a new completed turn → not a no-op
+	b.WriteString(idleFooter)
+	priorLog := "## 2026-06-12\n\n- one\n"
+	priorAnchor := "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n"
+	run(t, bin, b.String(), priorLog, priorAnchor, "2026-06-12")
+
+	if c := callCount(dir); c < 2 {
+		t.Fatalf("incremental with a >800-line gap should batch; model called %d times", c)
 	}
-	// Cap is on the slice (800); stdin adds a few transcript-delimiter lines.
-	if n > 800+10 {
-		t.Fatalf("model received %d stdin lines, want ~<= 800 (cap + wrapper)", n)
+	if n := stdinLines(dir); n > 800+10 {
+		t.Fatalf("a batch fed %d stdin lines, want ~<= 800 (batch size + wrapper)", n)
 	}
 }
 

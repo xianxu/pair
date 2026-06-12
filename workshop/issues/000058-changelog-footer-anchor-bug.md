@@ -132,5 +132,13 @@ unchanged log), so a failed refresh is visible.
   and `distillStep` (extracted) runs each, accumulating the log as memory through
   the batches. The viewer spinner shows "Computing change log (batch N/M)…".
   Verified live on a 2173-line transcript → 3 batches in ~44s → a complete,
-  valid change log covering the whole session. (Incremental/full-redistill stay a
-  single capped call — the prior log preserves history there.)
+  valid change log covering the whole session.
+- Operator clarification: **batching applies to ALL distills, not just first-run**
+  — a later press can also have a >800-line gap (the agent did a lot of work, or
+  a full-redistill). 800 is just the per-call batch size. Unified the path:
+  `capTail` removed; the slice (whatever it is — full transcript on first run,
+  `lines[Start:]` on a later press) is always `chunkLines`-batched, accumulating
+  the log. `distillStep` switches first-run vs incremental on the running log.
+  Single-chunk slices (the common incremental case) are one call, as before.
+  Tests: `TestIncrementalBatchesLongGap` (a >800-line gap on a later press →
+  multiple calls, each batch bounded).

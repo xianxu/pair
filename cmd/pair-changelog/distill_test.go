@@ -252,19 +252,6 @@ func TestChunkLines(t *testing.T) {
 	}
 }
 
-func TestCapTail(t *testing.T) {
-	ten := []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"}
-	if got := capTail(ten, 3); !reflect.DeepEqual(got, []string{"8", "9", "10"}) {
-		t.Fatalf("cap 3: got %v", got)
-	}
-	if got := capTail(ten, 0); !reflect.DeepEqual(got, ten) {
-		t.Fatalf("cap 0 (no cap): got %v", got)
-	}
-	if got := capTail([]string{"a", "b"}, 5); !reflect.DeepEqual(got, []string{"a", "b"}) {
-		t.Fatalf("under cap: got %v", got)
-	}
-}
-
 func TestParseAnchor(t *testing.T) {
 	// with header
 	turns, snip := parseAnchor("turns:3\nL1\nL2\nL3\n")

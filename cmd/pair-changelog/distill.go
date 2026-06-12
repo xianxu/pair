@@ -107,16 +107,6 @@ func looksLikeChangelog(s string) bool {
 	return sawBullet
 }
 
-// capTail bounds a slice to its last max lines (max <= 0 → no cap) — the safety
-// net that keeps an incremental / full-redistill slice from blowing the model
-// timeout (#58).
-func capTail(lines []string, max int) []string {
-	if max > 0 && len(lines) > max {
-		return lines[len(lines)-max:]
-	}
-	return lines
-}
-
 // chunkLines splits lines into consecutive chunks of at most size, in order.
 // Used to distill a long first-run transcript in batches (each per-call chunk
 // bounded for the timeout) instead of truncating to the last `size` lines (#58).
