@@ -2947,6 +2947,8 @@ end
 -- live — at Alt+x quit it's deleted unless preserved (see cleanup_quit_marker),
 -- and the next same-tag launch O_TRUNCs it. The path is copied to the + register.
 function _G.PairTTYRawPath()
+  -- Raw getenv on purpose (NOT pair_tag(), whose 'claude' fallback would mask
+  -- the unset case) so the guard below can report "not inside a pair session".
   local tag = os.getenv('PAIR_TAG')
   local agent = os.getenv('PAIR_AGENT')
   if not tag or tag == '' or not agent or agent == '' then
@@ -2956,8 +2958,8 @@ function _G.PairTTYRawPath()
   local raw = string.format('%s/scrollback-%s-%s.raw', pair_data_dir(), tag, agent)
   local sz = vim.fn.getfsize(raw)
   local note = (sz >= 0) and string.format(' (%d bytes)', sz) or ' (not present yet)'
-  pcall(vim.fn.setreg, '+', raw)
-  vim.notify('pair tty raw: ' .. raw .. note .. '  [copied to +]', vim.log.levels.INFO)
+  local copied = pcall(vim.fn.setreg, '+', raw)   -- may fail with no clipboard provider
+  vim.notify('pair tty raw: ' .. raw .. note .. (copied and '  [copied to +]' or ''), vim.log.levels.INFO)
 end
 vim.api.nvim_create_user_command('PairTTYRawPath', function() _G.PairTTYRawPath() end, {})
 
