@@ -1,0 +1,73 @@
+#!/bin/sh
+# pair-changelog-open — open the session's distilled change log in a read-only
+# nvim viewer, refreshing it in the background.
+#
+# Bound to Alt+l in zellij/config.kdl (Run with floating=true,
+# close_on_exit=true), so this script runs in a floating pane, executes nvim in
+# place, and the pane self-dismisses when the user :q's. The distilled counter-
+# part to Alt+/ (pair-scrollback-open): Alt+/ shows the raw scroll, Alt+l the
+# distilled scroll. Filed as #53.
+#
+# This script is deliberately thin: it does NOT distill synchronously (that
+# blocked the viewer behind a multi-second model call on every press). It opens
+# nvim immediately on whatever log already exists; nvim/changelog.lua then runs
+# the render+distill as a background job and reloads the buffer when it finishes,
+# showing a spinner meanwhile. The distiller itself skips the model when no new
+# turn has completed, so an unchanged session is effectively instant.
+#
+# Inputs come from pair's env (exported by bin/pair before zellij starts):
+#   $PAIR_DATA_DIR  — where pair stores per-session state files
+#   $PAIR_TAG       — session identity
+#   $PAIR_AGENT     — agent basename (claude / codex / agy)
+#   $PAIR_HOME      — pair install root (for bin/* and nvim/changelog.lua)
+set -eu
+
+if [ -z "${PAIR_DATA_DIR:-}" ] || [ -z "${PAIR_TAG:-}" ] || [ -z "${PAIR_AGENT:-}" ]; then
+    printf 'pair-changelog-open: missing PAIR_DATA_DIR / PAIR_TAG / PAIR_AGENT\n' >&2
+    printf '  This script is meant to run inside a pair session.\n' >&2
+    sleep 3
+    exit 1
+fi
+
+# Re-entrancy guard: a second Alt+l while the viewer is open is a no-op refocus
+# (the live PID owns the viewer). The lock holds the script PID; we run nvim (not
+# exec) so the EXIT trap clears it.
+LOCK="$PAIR_DATA_DIR/changelog-$PAIR_TAG-$PAIR_AGENT.openlock"
+if [ -f "$LOCK" ]; then
+    other=$(cat "$LOCK" 2>/dev/null || true)
+    if [ -n "${other:-}" ] && kill -0 "$other" 2>/dev/null; then
+        exit 0
+    fi
+fi
+printf '%s\n' "$$" > "$LOCK"
+trap 'rm -f "$LOCK"' EXIT INT TERM
+
+RAW="$PAIR_DATA_DIR/scrollback-$PAIR_TAG-$PAIR_AGENT.raw"
+EVENTS="$PAIR_DATA_DIR/scrollback-$PAIR_TAG-$PAIR_AGENT.events.jsonl"
+LOG="$PAIR_DATA_DIR/changelog-$PAIR_TAG-$PAIR_AGENT.md"
+ANCHOR="$PAIR_DATA_DIR/changelog-$PAIR_TAG-$PAIR_AGENT.anchor"
+CLEANED="$PAIR_DATA_DIR/changelog-$PAIR_TAG-$PAIR_AGENT.cleaned"
+
+# Ensure the viewer always has a file to open, even before the first distill.
+[ -f "$LOG" ] || : > "$LOG"
+
+# Hand the viewer everything it needs to run the background refresh job. It
+# refreshes only when there's captured scrollback and both binaries are present;
+# otherwise it just shows the existing log.
+if [ -s "$RAW" ] && [ -x "$PAIR_HOME/bin/pair-scrollback-render" ] && [ -x "$PAIR_HOME/bin/pair-changelog" ]; then
+    PAIR_CHANGELOG_REFRESH=1
+else
+    PAIR_CHANGELOG_REFRESH=0
+fi
+export PAIR_CHANGELOG_REFRESH
+export PAIR_CHANGELOG_RAW="$RAW"
+export PAIR_CHANGELOG_EVENTS="$EVENTS"
+export PAIR_CHANGELOG_CLEANED="$CLEANED"
+export PAIR_CHANGELOG_LOG="$LOG"
+export PAIR_CHANGELOG_ANCHOR="$ANCHOR"
+export PAIR_CHANGELOG_AGENT="$PAIR_AGENT"
+export PAIR_CHANGELOG_TODAY="$(date +%F)"
+export PAIR_CHANGELOG_RENDER="$PAIR_HOME/bin/pair-scrollback-render"
+export PAIR_CHANGELOG_DISTILL="$PAIR_HOME/bin/pair-changelog"
+
+nvim -u "$PAIR_HOME/nvim/changelog.lua" "$LOG"

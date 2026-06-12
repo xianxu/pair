@@ -193,6 +193,24 @@ keybinds clear-defaults=false {
             };
         }
 
+        // Alt+l — open the session's distilled change log in a read-only nvim
+        // viewer (#53). The distilled counterpart to Alt+/: pair-changelog-open
+        // cleans the captured TTY, runs the pair-changelog distiller (LLM
+        // distillation of what the operator saw, incremental across presses),
+        // then runs nvim on the change-log markdown. <Esc>/q dismisses the
+        // floating pane via close_on_exit.
+        bind "Alt l" {
+            Run "pair-changelog-open" {
+                floating true
+                close_on_exit true
+                name "changelog"
+                width "100%"
+                height "100%"
+                x "0"
+                y "0"
+            };
+        }
+
         // Alt+n / Ctrl+Alt+n — restart: kill the current pair session AND
         // re-launch with the same tag, agent, and agent args, but a fresh
         // agent conversation (the saved per-(tag,agent) config is dropped

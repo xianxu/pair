@@ -1,11 +1,12 @@
 ---
 id: 000053
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-11
 updated: 2026-06-12
 estimate_hours: 10
+actual_hours: 1.01
 ---
 
 # create visualization of change log in a pair session
@@ -43,8 +44,10 @@ them in the pane, not because we watch `sdlc`.
 ### Responsibility split — thin shell, all logic in the Go distiller
 
 - **`bin/pair-changelog-open`** (shell, ~thin, models on `pair-scrollback-open`):
-  acquire the lock; clean the TTY via the renderer; run the distiller; `exec`
-  nvim on the log. No log-assembly logic in shell.
+  acquire the lock and open nvim **immediately** on the existing log (no
+  synchronous distill — that blocked the viewer behind a model call every
+  press); it exports the render/distill paths so the viewer runs the refresh as
+  a background job. No log-assembly logic in shell.
 - **`cmd/pair-changelog`** (Go) owns everything testable: compute the slice from
   the anchor (pure), parse the prior log (pure), call the model, assemble the
   new log (pure), write log + anchor atomically. Putting assembly in Go makes
@@ -87,8 +90,9 @@ would not be). On a later press, the pure function
   newest match is always the true boundary). The slice start walks **backward
   from `B`** past `lookback_turns` turn boundaries (see "Lookback"). Slice
   `[lookback_start .. current_last]`.
-- **No-op** → the anchor sits flush with the end (no cleaned lines after it):
-  nothing new, open existing log, no model call.
+- **No-op** → no new *completed turn* since the last distill (see "No-op — by
+  turn count" below): open the existing log, no model call. (The anchor still
+  drives the *slice* when there IS new work.)
 - **Full re-distill** → anchor not found *or only partially matches* (a redraw
   mangled it): clean the whole TTY, pass the prior log as read-only memory so
   already-logged entries are not duplicated. Safe (never loses entries), costs
@@ -113,6 +117,25 @@ gracefully — it walks back a bit more or less context, never breaks the bounda
 `locate` is total and unit-tested across: growth, no-change, shrink,
 anchor-recurs (newest wins), anchor-not-found, and the lookback turn-walk (incl.
 fewer-than-2-turns-available → start 0, and the line cap).
+
+##### No-op — by turn count, not byte-flush
+
+(Revised after dogfood — see Log 2026-06-12.) The change log only gains entries
+when the agent **completes a new turn** (a new user-prompt boundary). A
+byte-level "anchor flush with the end" check is brittle in a live session: the
+trailing lines are the *volatile prompt/status area*, which re-renders slightly
+each press, so the anchor is rarely found at the end → a model call every press.
+Instead the distiller records the **completed-turn count** at each distill (a
+`turns:<N>` header in the anchor sidecar) and **skips the model when the current
+count hasn't increased**. Robust to trailing churn; "nothing happened → nothing
+to the server." The anchor snippet still drives the *slice* when a new turn did
+occur.
+
+Note this couples prompt-glyph detection to the model-call gate (not only the
+lookback): a dropped/false glyph can **delay** a distill, or a spurious one
+trigger an extra model call. It **self-heals within ~1 press** and never corrupts
+the log — so the §Lookback "degrades gracefully — never breaks the boundary"
+guarantee is, for the no-op specifically, "self-heals within ~1 press."
 
 ### History contract — structural freeze; orchestrator owns headers
 
@@ -167,8 +190,14 @@ constitutes a change-log-worthy entry."
 `nvim/changelog.lua` — read-only, full-screen, modeled on `scrollback.lua` but
 much simpler: no SGR reconstruction, no markers, **no frontmatter** (anchor is a
 sidecar, so the buffer is pure markdown). Read-only buffer (`modifiable=false`,
-`readonly=true`, `buftype=nofile`), hidden EOL tildes, `Esc` to quit, cursor
-opens at the **bottom** (newest). Colorization of glance tokens via a few
+`readonly=true`, `buftype=nofile`), hidden EOL tildes, `Esc`/`q` to quit, cursor
+opens at the **bottom** (newest). **Async refresh:** on open it shows the
+existing log instantly, then runs the render+distill as a background
+`jobstart`, animating a **spinner** as a bottom virtual line (a `virt_lines`
+extmark where the new entry will land — not the winbar, so the buffer stays
+untouched/read-only): "Computing change log…" first time; "Refreshing change log
+(N new lines)…" thereafter, where N comes from the distiller's stderr status.
+Reloads the buffer on completion. Colorization of glance tokens via a few
 `syntax match` rules → highlight groups: ticket refs (`#\d\+`), milestone tags
 (`\<M\d\+\>`), inline `` `code` `` / path-like tokens, branch-like (`feature/…`).
 
@@ -205,7 +234,10 @@ State files in `$PAIR_DATA_DIR`, all keyed **per-tag-agent** (matching the
 source `scrollback-<tag>-<agent>.raw`, so file, source, and lock share one key):
 
 - `changelog-<tag>-<agent>.md` — the change log (pure markdown).
-- `changelog-<tag>-<agent>.anchor` — the verbatim K-line anchor snippet.
+- `changelog-<tag>-<agent>.anchor` — a `turns:<N>` header (completed-turn count
+  at last distill, for the no-op) + the verbatim K-line content snippet.
+- `changelog-<tag>-<agent>.cleaned` — transient: the rendered plain-text TTY the
+  background job feeds the distiller.
 - `changelog-<tag>-<agent>.openlock` — re-entrancy + write-serialization guard,
   held for the **whole script lifetime** (as scrollback's openlock): a second
   `Alt+l` while the viewer is open is a no-op refocus, and because the
@@ -218,8 +250,11 @@ source `scrollback-<tag>-<agent>.raw`, so file, source, and lock share one key):
 ### Model
 
 The distill uses the **session's agent model** (per-agent dispatch, as
-pair-slug; no assumption of a specific CLI), at the capable default tier with a
-generous `maxOutputTokens` — quality over cost, since it runs only on press.
+pair-slug; no assumption of a specific CLI) — the **same small default model as
+the slug** (`claude-haiku-4-5` / `gpt-5.4-mini`), but with a generous
+`maxOutputTokens` (2000 vs the slug's 64) and `medium` verbosity so a multi-entry
+log doesn't truncate. (A more capable tier is an easy future knob — it runs only
+on press — but dogfood confirmed the small model distills fine.)
 
 ### Out of scope (YAGNI for v1)
 
@@ -266,11 +301,11 @@ path regenerates earlier entries (could reword them) — it trades the structura
 freeze for that one rare redraw-recovery pass; only the frozen-prefix happy path
 guarantees byte-stability._
 
-- [ ] M1 — `cmd/internal/model` extraction (pair-slug refactored onto it,
+- [x] M1 — `cmd/internal/model` extraction (pair-slug refactored onto it,
   output length parameterized, test green) + `cmd/pair-changelog` distiller:
   TTY-clean → `locate` → distill (first-run + incremental + structural-freeze +
   date-header assembly), pure unit tests + Go integration test.
-- [ ] M2 — integration: `bin/pair-changelog-open`, `nvim/changelog.lua`
+- [x] M2 — integration: `bin/pair-changelog-open`, `nvim/changelog.lua`
   (read-only + colorization), `Alt l` keybind; end-to-end dogfood.
 
 ## Log
@@ -285,6 +320,43 @@ guarantees byte-stability._
   distiller as its **own library**.
 
 ### 2026-06-12
+- 2026-06-12: closed — Alt+l change-log feature complete + operator-dogfooded live. go test ./... + make test-lua + make test-changelog all green; go vet clean. M1 (model extraction + distiller) and M2 (orchestrator + read-only viewer + async/spinner + turn-count no-op) each milestone-reviewed (FIX-THEN-SHIP, findings addressed). Done-when satisfied: Alt+l opens read-only full-screen viewer with colorized distilled entries; first press distills full TTY; later press appends + may revise last entry with byte-identical frozen prefix; no-new-turn press skips the model; concurrent presses guarded by lifetime lock + log-then-anchor atomic write.; review verdict: SHIP
+- 2026-06-12: closed M2 — M2 (orchestrator + viewer + keybind + async/no-op reworks). go test ./... green; headless viewer test (read-only + colorization); make test-changelog end-to-end orchestrator smoke (real distiller+renderer, fake claude+nvim). Live operator dogfood: Alt+l verified working — async instant open + bottom-virtual-line spinner + turn-count no-op + W10 readonly fix. Concurrency: lifetime PID openlock + log-then-anchor atomic temp+rename (no dedicated shell race test — impractical in sh; basis is the proven scrollback lock pattern + atomic rename).; review verdict: FIX-THEN-SHIP
+- M2 FIX-THEN-SHIP findings addressed before crossing: (Important) `make
+  test-changelog` now depends on the binaries so it runs in `make test` (was
+  silently SKIP on a clean tree); (Important) added a headless `M.reload` test to
+  `changelog_test.lua`. Also moved pure `parseAnchor` → `distill.go` + direct
+  unit test; plan `## Revisions` narrows the degradation guarantee (turn-count
+  no-op gates the model call → self-heals within ~1 press) + adds `parseAnchor`/
+  `writeAnchor` to the Core-concepts tables. `go test ./cmd/... ` + lua + smoke green.
+- 2026-06-12: closed M1 — go test ./... green: model extraction leaves pair-slug suite green; distiller pure core (locate/split/assemble) + process-level fake-model integration test pass (first-run / incremental+byte-identical-frozen-prefix / revise-last / never-drop-last / date-rollover / no-op-skips-model). make pair-changelog builds. --no-atlas: M1 is internal plumbing (cmd/internal/model + cmd/pair-changelog distiller, not yet user-reachable); the user-facing atlas surface (Alt+l flow + state files) lands with M2.; review verdict: FIX-THEN-SHIP
+- M1 FIX-THEN-SHIP findings addressed before crossing: (Important) `pair-slug`
+  Makefile recipe gained its missing `cmd/internal/model/model.go` prereq;
+  (Important) atlas updated — documented the shared `cmd/internal/model` package
+  in `architecture.md`. Also: added `TestFullRedistillWithPriorLogKeepsFrozenPrefix`
+  (the flagged seam gap), `MaxOutputTokens<=0` floor, `splitLines` trims all
+  trailing newlines, plan `## Revisions` correcting note #3. `go test ./cmd/...` green.
+- M2 dogfood (operator, live `Alt+l` ✓ working) surfaced two UX issues, fixed
+  fix-forward: (1) **2nd press also slow** — the byte-flush no-op never fired
+  because the anchor (last 3 lines) is the volatile prompt/status area → model
+  call every press. Replaced with a **turn-count no-op**: the distiller records
+  the completed-turn count (`turns:<N>` in the anchor) and skips the model unless
+  a new turn appeared. (2) **Blocking open** — reworked to **async**: the shell
+  opens nvim instantly on the existing log; `changelog.lua` runs render+distill
+  as a background `jobstart` with a winbar **spinner** ("Computing…" first /
+  "Refreshing… N lines" after, N from the distiller's stderr), reloading on done.
+  Tests updated (turn-count fixtures, anchor `turns:` header, async smoke via a
+  fake-nvim that simulates the job). Awaiting re-dogfood before close.
+- Re-dogfood (operator): `Alt+l` confirmed working with the async open + spinner
+  + turn-count no-op. Two more nits fixed fix-forward: a `W10: Changing a
+  readonly file` warning on the async reload (clear `readonly` around the write),
+  and the spinner moved from the winbar to a **bottom virtual line** (where the
+  new entry will be inserted). M2 done.
+- Deferred to a **new issue** (operator call): allow the scrollback `Alt+q`
+  annotation flow in the change-log viewer, and extract the shared 🤖-marker
+  system into `nvim/annotate.lua` used by both viewers (rendering + async refresh
+  stay per-viewer). It refactors the working scrollback viewer, so it's its own
+  issue rather than an M3 here.
 
 - Spec-review round 1 (fresh context): model helpers unexported → M1 extracts
   `cmd/internal/model`; line-index anchor unstable under redraw → content
@@ -304,3 +376,9 @@ guarantees byte-stability._
   natural unit, even across verbose/terse output; reuses the prompt glyphs from
   `scrollback.lua` (small synced Go copy, `ARCH-DRY`), capped ≤200 lines. Turns
   drive only lookback, so detection misses degrade gracefully.
+- M1 implemented: `cmd/internal/model` extracted (pair-slug green, OpenAI output
+  length parameterized); `cmd/pair-changelog` distiller — pure core (`locate`,
+  split, `assemble`) unit-tested, IO seam + process-level fake-model integration
+  test (first-run / incremental+frozen-prefix / revise-last / never-drop /
+  rollover / no-op), wired into `Makefile.local`. Resolved a contradiction in the
+  plan's own `locate` no-boundaries tests during impl.
