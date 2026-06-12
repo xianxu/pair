@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-06-11
 updated: 2026-06-11
-estimate_hours:
+estimate_hours: 8
 ---
 
 # create visualization of change log in a pair session
@@ -23,16 +23,165 @@ ideally we would have a changelog easily accessible to operator of the changes i
 
 ## Spec
 
+A per-session **change log**: an LLM-distilled, append-mostly list of notable
+milestones and decisions, opened read-only and full-screen with `Alt+l`.
+Conceptually: `Alt+/` shows the *raw* scroll, `Alt+l` shows the *distilled*
+scroll.
+
+### Source of entries — distill the TTY, not the transcript
+
+Entries are produced by an LLM distilling the **pair TTY log** (the rendered
+scrollback — what the operator actually saw), *not* the agent's structured
+session transcript. Rationale: the TTY is already the agent's own decision of
+what to surface to a human, so it is the cleanest proxy for "what a human cares
+about"; it carries none of the tool-call/thinking noise of the raw transcript;
+and it is **agent-agnostic** — just terminal text, no per-harness JSON schema to
+parse (the structured-transcript path in `pair-slug` needs a parser per agent).
+It also keeps the feature from hardcoding any workflow (sdlc/git) conventions —
+milestones like "M1 done" are picked up because the agent *said* them in the
+pane, not because we watch `sdlc`.
+
+### Trigger & timing — on-demand at `Alt+l`, incremental across presses
+
+Distillation runs **only when `Alt+l` is pressed** (no per-turn background
+cost). It is incremental across presses via a high-water mark:
+
+- **First press:** clean the *full* TTY → LLM → change log. Record the
+  high-water mark `N` = last cleaned line distilled.
+- **Later press:** feed `lines[N − lookback .. current_last]` (lookback ≈ 20
+  lines, for continuity across the boundary) **+ the previous change log** →
+  LLM → updated change log. Advance `N → current_last`.
+- **No new lines since last press** (`current_last == N`): skip the LLM
+  entirely, just open the viewer on the existing file.
+
+The full raw TTY (`scrollback-<tag>-<agent>.raw`) is truncated only at session
+start and appended for the whole session, so the first press can always see
+everything (the 2000-row cap in `pair-scrollback-render` is a *display* cap; the
+distiller renders without it). First-press latency on a long session is
+accepted — quality over speed, and it only happens once; later presses process
+only the delta.
+
+### History contract — prior frozen, last revisable, new appended
+
+The previous change log is fed back in as **read-only memory**. On each later
+press the LLM may:
+
+- **NOT** touch entries before the last one — frozen (their source TTY is no
+  longer in the window; amending them would be guessing);
+- **revise the last entry** — new lines may clarify what that activity was
+  (e.g. "investigating X" → "fixed X"), and the ~20-line lookback overlaps its
+  source, so the revision is grounded;
+- **append zero or more new entries.**
+
+### Entry format
+
+Plain markdown, grouped under a per-day `## YYYY-MM-DD` header (the press date).
+**No precise per-entry timestamps** — they are not reliably derivable from the
+TTY (the raw capture has no per-line wall-clock), and clock precision is
+low-value for a glance view; chronological order is inherent from position.
+
+Each entry is **1–2 sentences**, with a **blank line between entries** for
+readability. No visible category tag (chrome) — instead the *category
+vocabulary* (milestone / decision / change / blocker / scope-shift …) goes into
+the LLM prompt as the enumeration of "what constitutes a change-log-worthy
+entry."
+
+Example:
+
+```markdown
+## 2026-06-11
+
+- Decided to distill the change log from the pair TTY rather than the
+  structured transcript — agent-agnostic, mirrors what the operator saw. (#53)
+
+- M1 started: scaffold `cmd/pair-changelog` + the `pair-changelog-open`
+  orchestrator on branch `feature/53-changelog`.
+
+- M1 done — distiller emits entries from a clean TTY slice; tests green.
+```
+
+### Viewer
+
+`nvim/changelog.lua` — read-only, full-screen, modeled on `scrollback.lua` but
+much simpler: no SGR reconstruction, no marker system. Read-only buffer
+(`modifiable=false`, `readonly=true`, `buftype=nofile`), hidden EOL tildes,
+`Esc` to quit. Opens with the cursor at the **bottom** (newest entry).
+
+**Colorization** of key glance tokens via a few `syntax match` rules → highlight
+groups: ticket refs (`#\d\+`), milestone tags (`\<M\d\+\>`), inline `` `code` ``
+and path-like tokens, branch-like tokens (`feature/…`). Content is plain
+markdown (no SGR), so this is local nvim syntax, not extmark replay.
+
+### Components & state
+
+New:
+
+- `cmd/pair-changelog/` — the distiller binary (its own library, sibling to
+  `cmd/pair-slug`). Reuses `pair-slug`'s model-call helper and
+  `pair-scrollback-render` for TTY cleaning (`ARCH-DRY`). The cleaned-line
+  slice + high-water-mark advance is a **pure function**, unit-tested in
+  isolation (`ARCH-PURE`).
+- `bin/pair-changelog-open` — orchestrator shell script, modeled on
+  `bin/pair-scrollback-open`: re-entrancy PID lock, clean TTY, read cursor,
+  invoke distiller (or skip), atomic-write the log, exec nvim.
+- `nvim/changelog.lua` — the viewer (above).
+- `Alt l` binding in `zellij/config.kdl`, next to `Alt /`.
+
+State files in `$PAIR_DATA_DIR` (per-tag, matching existing conventions):
+
+- `changelog-<tag>.md` — the change log (atomic temp+rename on write, per the
+  lessons.md race rule).
+- `changelog-cursor-<tag>` — the high-water mark `N`.
+- `changelog-<tag>-<agent>.openlock` — re-entrancy guard.
+
+### Model
+
+A **capable** model for the distill (not the tiny `pair-slug` model) — quality
+over cost, since it runs only on press and rarely.
+
+### Out of scope (YAGNI for v1)
+
+- Operator-authored / pinned / editable entries (the scrollback-style
+  marker-back-to-draft loop). Distillation is passive; revisit only if the
+  automatic log proves insufficient.
+- Folding the distiller into `pair-slug` (different input — TTY vs transcript;
+  keep them separate libraries).
+- The per-turn-background "cheap capture + refine on open" hybrid.
+- Persisting the change log into the continuation/park artifacts.
+
 ## Done when
 
--
+- `Alt+l` opens a read-only, full-screen nvim window showing the session's
+  change log, with key tokens (`#NN`, `Mx`, paths, branches) colorized.
+- First press distills the full cleaned TTY into 1–2-sentence entries grouped
+  under a per-day header, blank-line separated; the high-water mark is recorded.
+- A later press after new activity appends new entries and may revise only the
+  last entry, leaving earlier entries byte-for-byte unchanged; the mark advances.
+- A press with no new TTY lines opens the existing log without a model call.
+- `cmd/pair-changelog` has a Go integration test (process-level fake model)
+  covering first-run, incremental append, last-entry-revision, frozen-prior, and
+  no-new-lines paths; the slice/mark math has a pure unit test; `changelog.lua`
+  has a headless Lua test for read-only + colorization rules.
+- Concurrent `Alt+l` presses cannot corrupt the log (re-entrancy lock + atomic
+  write), verified.
 
 ## Plan
 
-- [ ]
+_Detailed design lands in `workshop/plans/000053-changelog-plan.md` (via the
+writing-plans skill). Natural decomposition into two review boundaries:_
+
+- [ ] M1 — `cmd/pair-changelog` distiller: TTY-clean → distill (first-run +
+  incremental + history contract), pure slice/mark math, Go + unit tests.
+- [ ] M2 — integration: `bin/pair-changelog-open`, `nvim/changelog.lua`
+  (read-only + colorization), `Alt l` keybind; end-to-end dogfood.
 
 ## Log
 
 ### 2026-06-11
 
 - Moved from parley.nvim #130 (created there by mistake — this is a pair concern).
+- Brainstormed the design (this Spec). Key decisions: distill the **TTY** (not
+  the transcript) for agent-agnostic "what the human saw"; **on-demand** at
+  `Alt+l` with incremental high-water-mark + ~20-line lookback + prior-log
+  feedback; **prior entries frozen, last entry revisable**; no per-entry
+  timestamps (not derivable from TTY); distiller as its **own library**.
