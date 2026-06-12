@@ -52,9 +52,13 @@ end
 function M.reload(bufnr, logpath)
   local ok, lines = pcall(vim.fn.readfile, logpath)
   if not ok then return end
+  -- Clear readonly too, not just modifiable, so the programmatic write doesn't
+  -- trip "W10: Changing a readonly file".
+  vim.bo[bufnr].readonly = false
   vim.bo[bufnr].modifiable = true
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
   vim.bo[bufnr].modifiable = false
+  vim.bo[bufnr].readonly = true
   M.colorize(bufnr)
   pcall(function()
     vim.api.nvim_win_set_cursor(0, { math.max(1, vim.api.nvim_buf_line_count(bufnr)), 0 })
