@@ -95,6 +95,73 @@ else
   printf '  skip guard discrimination (no zellij on PATH)\n'
 fi
 
+# ---------------------------------------------------------------------------
+# #55 in-session compaction (Alt+Shift+C). Drives the REAL bin/pair via the
+# PAIR_FORCE_IN_SESSION / PAIR_FAKE_IN_ZELLIJ / PAIR_KILL_CMD / PAIR_TEST_CALL /
+# PAIR_REEXEC_CAPTURE seams — no real zellij/agent.
+# ---------------------------------------------------------------------------
+CRT="$(mktemp -d "${TMPDIR:-/tmp}/pair-compact-test.XXXXXX")"
+trap 'rm -rf "$RT" "$CRT"' EXIT
+mkdir -p "$CRT/workshop/continuation" "$CRT/xdg/pair" "$CRT/.cache/pair"
+cat > "$CRT/workshop/continuation/20260101T000000-demo.md" <<'DOC'
+---
+agent: claude
+issues: [#99]
+---
+## NEXT ACTION
+demo.
+DOC
+seed_sb() { printf 'SCROLLBACK BYTES\n' > "$CRT/xdg/pair/scrollback-demo-claude.raw"; }
+compact_env() { # common env for an in-pane invocation. `env` (not a bare
+  # VAR=val prefix) so seam assignments passed via "$@" are treated as env,
+  # not run as a command (bash only recognizes LITERAL leading assignments).
+  env HOME="$CRT" XDG_DATA_HOME="$CRT/xdg" PAIR_TAG=demo PAIR_AGENT=claude PAIR_KILL_CMD=true "$@"
+}
+MK="$CRT/.cache/pair/restart-pair-demo"
+
+# 1. forced in-session: marker shape + park-copy
+seed_sb; rm -f "$MK"
+( cd "$CRT" && compact_env PAIR_FORCE_IN_SESSION=1 "$PAIR" continue demo >/dev/null 2>&1 )
+grep -q '^continue=demo$' "$MK" 2>/dev/null && pass "compact: marker continue=slug" || fail "compact: marker missing continue="
+grep -q '^new_session=1$' "$MK" 2>/dev/null && pass "compact: marker new_session=1" || fail "compact: marker missing new_session"
+grep -q '^tag=demo$'      "$MK" 2>/dev/null && pass "compact: marker tag=demo"      || fail "compact: marker missing tag"
+ls "$CRT/xdg/pair"/parked-scrollback-demo-*.raw >/dev/null 2>&1 && pass "compact: scrollback parked" || fail "compact: no parked scrollback"
+[ -s "$CRT/xdg/pair/scrollback-demo-claude.raw" ] && pass "compact: original .raw intact (copy)" || fail "compact: original .raw lost (should copy)"
+
+# 2. in-session + invalid slug → exit 1, NO marker, NO kill
+rm -f "$MK"
+( cd "$CRT" && compact_env PAIR_FORCE_IN_SESSION=1 "$PAIR" continue bogus >/dev/null 2>&1 ); rc=$?
+{ [ "$rc" -eq 1 ] && [ ! -f "$MK" ]; } && pass "compact: invalid slug errors without killing" || fail "compact: invalid slug should exit 1 + no marker (rc=$rc)"
+
+# 3. real tag-match predicate via PAIR_FAKE_IN_ZELLIJ (ancestry faked, tag-match REAL)
+seed_sb; rm -f "$MK"
+( cd "$CRT" && compact_env PAIR_FAKE_IN_ZELLIJ=1 ZELLIJ_SESSION_NAME=pair-demo "$PAIR" continue demo >/dev/null 2>&1 )
+[ -f "$MK" ] && pass "compact: tag-match (pair-demo) triggers compaction" || fail "compact: tag-match should compact"
+rm -f "$MK"
+( cd "$CRT" && compact_env PAIR_FAKE_IN_ZELLIJ=1 ZELLIJ_SESSION_NAME=pair-other "$PAIR" continue demo >/dev/null 2>&1 ); rc=$?
+{ [ ! -f "$MK" ] && [ "$rc" -ne 0 ]; } && pass "compact: tag-MISMATCH does not compact (falls to guard)" || fail "compact: tag-mismatch should NOT compact (rc=$rc, marker=$( [ -f "$MK" ] && echo present || echo absent ))"
+
+# 4. park_scrollback move mode (quit path) via dispatcher — original REMOVED
+seed_sb
+( cd "$CRT" && HOME="$CRT" XDG_DATA_HOME="$CRT/xdg" \
+  PAIR_TEST_CALL=park_scrollback PAIR_TEST_ARGS="demo claude" "$PAIR" >/dev/null 2>&1 )
+{ ls "$CRT/xdg/pair"/parked-scrollback-demo-*.raw >/dev/null 2>&1 && [ ! -f "$CRT/xdg/pair/scrollback-demo-claude.raw" ]; } \
+  && pass "park_scrollback: move mode removes original" || fail "park_scrollback: move should remove original"
+
+# 5. handle_restart_marker continue= → re-exec argv
+cat > "$CRT/.cache/pair/restart-pair-demo" <<'EOF'
+tag=demo
+agent=claude
+new_session=1
+continue=demo
+EOF
+printf '{"args":["--dangerously-skip-permissions"],"session_id":"x"}' > "$CRT/xdg/pair/config-demo-claude.json"
+CAP="$CRT/reexec.txt"
+( cd "$CRT" && HOME="$CRT" XDG_DATA_HOME="$CRT/xdg" SESSION=pair-demo \
+  PAIR_TEST_CALL=handle_restart_marker PAIR_REEXEC_CAPTURE="$CAP" "$PAIR" >/dev/null 2>&1 )
+grep -Eq 'continue demo claude -- .*--dangerously-skip-permissions' "$CAP" 2>/dev/null \
+  && pass "restart: re-exec = continue <slug> <agent> -- <args>" || fail "restart: wrong re-exec ($(cat "$CAP" 2>/dev/null))"
+
 if [ "$fails" -eq 0 ]; then
   printf 'PASS pair-continue-test\n'
 else
