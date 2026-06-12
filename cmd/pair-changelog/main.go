@@ -24,6 +24,11 @@ const (
 	lineCap       = 200  // safety cap on the lookback slice (verbose-turn guard)
 	anchorLines   = 3    // K: verbatim cleaned-lines stored as the content anchor
 	maxTokens     = 2000 // generous output budget (multi-entry log)
+	maxSliceLines = 800  // hard cap on lines fed to the model (timeout guard, #58)
+	// changelogTimeout — `claude -p` has a ~28s baseline (CLI startup + model), so
+	// the slug's 30s default is too tight for this heavier, on-demand distill; the
+	// viewer runs it async behind a spinner, so a longer budget is fine (#58).
+	changelogTimeout = 90 * time.Second
 )
 
 func fail(format string, a ...any) {
@@ -49,7 +54,9 @@ func main() {
 	if err != nil {
 		fail("read cleaned: %v", err)
 	}
-	lines := splitLines(string(cleanedBytes))
+	// Trim the volatile live UI (empty prompt box + rule/status) so the anchor,
+	// slice, and turn-count work on stable committed scrollback (#58).
+	lines := trimLiveTail(splitLines(string(cleanedBytes)), agent)
 	if len(lines) == 0 {
 		return // nothing captured yet; leave the log untouched
 	}
@@ -74,25 +81,31 @@ func main() {
 		return // belt-and-suspenders; shouldn't fire once a new turn exists
 	}
 
-	var frozen, ek, sliceText, sys, input string
 	sliceStart := 0
+	if hasPrior {
+		sliceStart = res.Start
+	}
+	// Cap the model input so a first-run / full-redistill over a long transcript
+	// can never blow the model timeout (#58). The prior log (fed as memory below)
+	// preserves older entries when a re-distill is capped to recent lines.
+	sliceLines := capTail(lines[sliceStart:], maxSliceLines)
+	sliceText := strings.Join(sliceLines, "\n")
+
+	var frozen, ek, sys, input string
 	if !hasPrior {
-		// First-ever run: summarize the whole transcript.
-		sliceText = strings.Join(lines, "\n")
+		// First-ever run: summarize the (capped) transcript.
 		sys = buildSystemPrompt(true)
 		input = buildInput("", "", sliceText, true)
 	} else {
 		// Incremental (Found) OR full-redistill (Start=0) — both keep the prior
 		// log: feed it as read-only memory and slice from res.Start.
 		frozen, ek = splitFrozenTail(priorLog)
-		sliceStart = res.Start
-		sliceText = strings.Join(lines[sliceStart:], "\n")
 		sys = buildSystemPrompt(false)
 		input = buildInput(frozen, ek, sliceText, false)
 	}
 
 	// Status line the viewer surfaces in its spinner ("Refreshing … N lines").
-	fmt.Fprintf(os.Stderr, "pair-changelog: distilling %d lines\n", len(lines)-sliceStart)
+	fmt.Fprintf(os.Stderr, "pair-changelog: distilling %d lines\n", len(sliceLines))
 
 	out, err := model.Run(model.Request{
 		Agent:           agent,
@@ -101,6 +114,7 @@ func main() {
 		Input:           input,
 		MaxOutputTokens: maxTokens,
 		Verbosity:       "medium",
+		Timeout:         changelogTimeout,
 	})
 	if err != nil {
 		fail("model: %v", err)
@@ -108,6 +122,12 @@ func main() {
 	out = strings.TrimSpace(out)
 	if out == "" {
 		return // model produced nothing; leave the log as-is
+	}
+	if !looksLikeChangelog(out) {
+		// The model ignored the distill instruction and returned prose / a
+		// conversation continuation instead of change-log bullets (#58). Reject
+		// rather than pollute the log; the viewer surfaces this as a failure.
+		fail("model returned a non-distill response (no change-log entries); leaving log unchanged")
 	}
 
 	var ekPrime, newEntries string

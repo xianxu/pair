@@ -106,10 +106,27 @@ function M.start_refresh(bufnr)
   paint()
   local timer = vim.fn.timer_start(90, paint, { ['repeat'] = -1 })
 
-  local function finish()
+  local err -- captured distiller error line, if any
+
+  local function show_error(detail)
+    local last = math.max(0, vim.api.nvim_buf_line_count(bufnr) - 1)
+    pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, last, 0, {
+      id = 1,
+      virt_lines = { { { '', 'Comment' } }, { { '  ⚠  change log refresh failed: ' .. detail, 'ErrorMsg' } } },
+    })
+  end
+
+  local function finish(code)
     pcall(vim.fn.timer_stop, timer)
-    pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, 1)
-    M.reload(bufnr, log)
+    if (code and code ~= 0) or err then
+      -- Leave the existing log; show a persistent error line instead of
+      -- silently reloading the unchanged content (#58 — the timeout/kill was
+      -- invisible before).
+      show_error(err or ('exited ' .. tostring(code)))
+    else
+      pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, 1)
+      M.reload(bufnr, log)
+    end
   end
 
   local job = vim.fn.jobstart({ 'sh', '-c', cmd }, {
@@ -118,11 +135,15 @@ function M.start_refresh(bufnr)
         local n = line:match('distilling (%d+) lines')
         if n then msg = 'Refreshing change log (' .. n .. ' new lines)…' end
         if line:match('up to date') then msg = 'Up to date' end
+        local e = line:match('pair%-changelog: (.+)')
+        if e and not e:match('^distilling') and not e:match('^up to date') then
+          err = e
+        end
       end
     end,
-    on_exit = function() finish() end,
+    on_exit = function(_, code) finish(code) end,
   })
-  if job <= 0 then finish() end -- job failed to start: clear the spinner
+  if job <= 0 then finish(1) end -- job failed to start
 end
 
 -- Interactive wiring — skipped under the headless test (which sets the guard).

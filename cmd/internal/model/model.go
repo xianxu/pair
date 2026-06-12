@@ -43,12 +43,21 @@ const (
 // exactly as the original runAgyModel did. Fixing that is out of scope for the
 // #53 extraction; revisit if agy change-log quality suffers.
 type Request struct {
-	Agent           string // "claude" | "codex" | "agy"
-	Model           string // "" → DefaultModel(Agent)
-	Prompt          string // instructions / system prompt
-	Input           string // content on stdin
-	MaxOutputTokens int    // OpenAI hard cap; must be > 0 for the OpenAI path
-	Verbosity       string // "low" | "medium" | "high"; "" → "low"
+	Agent           string        // "claude" | "codex" | "agy"
+	Model           string        // "" → DefaultModel(Agent)
+	Prompt          string        // instructions / system prompt
+	Input           string        // content on stdin
+	MaxOutputTokens int           // OpenAI hard cap; must be > 0 for the OpenAI path
+	Verbosity       string        // "low" | "medium" | "high"; "" → "low"
+	Timeout         time.Duration // per-call timeout; 0 → package Timeout default
+}
+
+// timeout returns the per-call timeout, defaulting to the package Timeout.
+func (r Request) timeout() time.Duration {
+	if r.Timeout > 0 {
+		return r.Timeout
+	}
+	return Timeout
 }
 
 // DefaultModel is the small-model id for an agent family.
@@ -87,11 +96,16 @@ func Run(r Request) (string, error) {
 // returning raw stdout. The child inherits env with PAIR_SLUG_NESTED=1 — a
 // breaker against any recursion through the agent.
 func runClaude(r Request) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), Timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), r.timeout())
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "claude", "-p", "--model", r.Model, r.Prompt)
 	cmd.Stdin = strings.NewReader(r.Input)
 	cmd.Env = append(os.Environ(), "PAIR_SLUG_NESTED=1")
+	// Run in an empty sandbox dir (as runAgy does): otherwise `claude -p` loads
+	// the agent repo's CLAUDE.md + MCP servers + tools on every call — a ~25s
+	// startup tax that blew the changelog timeout (#58). The distill only needs
+	// the prompt + stdin, never the cwd.
+	cmd.Dir = os.TempDir()
 	out, err := cmd.Output()
 	return string(out), err
 }
@@ -101,7 +115,7 @@ func runClaude(r Request) (string, error) {
 // preventing it from discovering workspace files/projects or triggering slow
 // background tool executions.
 func runAgy(r Request) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), Timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), r.timeout())
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "agy", "-p", r.Prompt)
 	cmd.Dir = os.TempDir()
@@ -114,7 +128,7 @@ func runAgy(r Request) (string, error) {
 // subscription-authenticated Codex sessions generate output even when no
 // OPENAI_API_KEY is exported for direct API calls.
 func runCodexCLI(r Request) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), Timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), r.timeout())
 	defer cancel()
 
 	f, err := os.CreateTemp("", "pair-model-codex-*.txt")
@@ -153,7 +167,7 @@ func runOpenAI(r Request) (string, error) {
 		return "", fmt.Errorf("OPENAI_API_KEY is not set")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), Timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), r.timeout())
 	defer cancel()
 	body := map[string]any{
 		"model":             r.Model,

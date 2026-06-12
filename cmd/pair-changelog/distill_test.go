@@ -190,6 +190,68 @@ func TestAnchorSnippet(t *testing.T) {
 	}
 }
 
+func TestTrimLiveTail(t *testing.T) {
+	content := []string{"❯ sent prompt", "agent work A", "stable last line"}
+	// idle footer: empty box + rule + status bar → all stripped.
+	idle := append(append([]string{}, content...), "❯ ", "────────", "⏵⏵ bypass · 3 shells")
+	if got := trimLiveTail(idle, "claude"); !reflect.DeepEqual(got, content) {
+		t.Fatalf("idle footer: got %v", got)
+	}
+	// thinking footer (multi-block: spinner + rule ABOVE the box, box + rule +
+	// status below) → all stripped iteratively.
+	thinking := append(append([]string{}, content...),
+		"* Cerebrating… (3s · thinking with xhigh effort)", "", "────────", "❯ ", "────────", "  ⏵⏵ esc to interrupt")
+	if got := trimLiveTail(thinking, "claude"); !reflect.DeepEqual(got, content) {
+		t.Fatalf("thinking footer: got %v", got)
+	}
+	// codex empty box + status.
+	cx := []string{"x", "stable", "› ", "────"}
+	if got := trimLiveTail(cx, "codex"); !reflect.DeepEqual(got, []string{"x", "stable"}) {
+		t.Fatalf("codex footer: got %v", got)
+	}
+	// committed markdown bullets ("* item", no spinner timer/ellipsis) are NOT
+	// chrome → preserved.
+	bullets := []string{"intro", "* item one", "* item two"}
+	if got := trimLiveTail(bullets, "claude"); !reflect.DeepEqual(got, bullets) {
+		t.Fatalf("markdown bullets over-trimmed: got %v", got)
+	}
+	// no footer at all → unchanged.
+	plain := []string{"a", "b", "c"}
+	if got := trimLiveTail(plain, "claude"); !reflect.DeepEqual(got, plain) {
+		t.Fatalf("plain: got %v", got)
+	}
+}
+
+func TestLooksLikeChangelog(t *testing.T) {
+	if !looksLikeChangelog("## 2026-06-12\n\n- an entry\n  wrapped\n\n- another\n") {
+		t.Fatal("valid change log rejected")
+	}
+	// a conversation continuation with bullets but bare prose lines → rejected.
+	hijack := "Can you either:\n- Grant me read permission on the file\n- Or paste the logic\n\nAnd from changelog.lua, the reload logic?"
+	if looksLikeChangelog(hijack) {
+		t.Fatal("bulleted conversation continuation wrongly accepted")
+	}
+	if looksLikeChangelog("just some prose, no bullets at all") {
+		t.Fatal("prose accepted")
+	}
+	if looksLikeChangelog("") {
+		t.Fatal("empty accepted")
+	}
+}
+
+func TestCapTail(t *testing.T) {
+	ten := []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"}
+	if got := capTail(ten, 3); !reflect.DeepEqual(got, []string{"8", "9", "10"}) {
+		t.Fatalf("cap 3: got %v", got)
+	}
+	if got := capTail(ten, 0); !reflect.DeepEqual(got, ten) {
+		t.Fatalf("cap 0 (no cap): got %v", got)
+	}
+	if got := capTail([]string{"a", "b"}, 5); !reflect.DeepEqual(got, []string{"a", "b"}) {
+		t.Fatalf("under cap: got %v", got)
+	}
+}
+
 func TestParseAnchor(t *testing.T) {
 	// with header
 	turns, snip := parseAnchor("turns:3\nL1\nL2\nL3\n")

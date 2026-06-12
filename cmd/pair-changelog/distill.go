@@ -6,25 +6,115 @@ import (
 	"strings"
 )
 
-// promptGlyphByAgent — sync-commented to nvim/scrollback.lua PROMPT_PATTERN_BY_AGENT.
-// claude/codex are faithful single-glyph ports. agy is a DELIBERATE
-// SIMPLIFICATION: scrollback uses a box-aware, multi-line variant
-// (`\(──.*\n\)\zs>` — a `>` only when the prior line starts with `──`); we
-// approximate with `^>`. Over-matching is safe because turns drive ONLY the
-// lookback — a false boundary just shortens context (graceful degradation, per
-// the #53 spec), never breaks the anchor. A faithful port (also require
-// lines[i-1] to start with `──`) is a future refinement if agy quality suffers.
-var promptGlyphByAgent = map[string]*regexp.Regexp{
-	"claude": regexp.MustCompile(`^❯`),
-	"codex":  regexp.MustCompile(`^›`),
-	"agy":    regexp.MustCompile(`^>`),
+// promptGlyphChar is the per-agent prompt glyph — the SINGLE source for both the
+// line-start regex (promptGlyphByAgent, derived below) and the empty-input-box
+// detection (trimLiveTail). Sync-commented to nvim/scrollback.lua
+// PROMPT_PATTERN_BY_AGENT. claude/codex are faithful; agy is a DELIBERATE
+// SIMPLIFICATION of scrollback's box-aware variant (`\(──.*\n\)\zs>` — a `>` only
+// after a `──` line): a bare `>` can over-match agy output, which now feeds the
+// no-op gate as well as the lookback, so a false boundary can delay/add one
+// distill — graceful (self-heals within ~1 press), never corrupts the log.
+var promptGlyphChar = map[string]string{
+	"claude": "❯",
+	"codex":  "›",
+	"agy":    ">",
 }
+
+// promptGlyphByAgent — line-start regex per agent, derived from promptGlyphChar
+// so the two maps can't drift.
+var promptGlyphByAgent = func() map[string]*regexp.Regexp {
+	m := make(map[string]*regexp.Regexp, len(promptGlyphChar))
+	for agent, ch := range promptGlyphChar {
+		m[agent] = regexp.MustCompile("^" + regexp.QuoteMeta(ch))
+	}
+	return m
+}()
 
 func glyphFor(agent string) *regexp.Regexp {
 	if re, ok := promptGlyphByAgent[agent]; ok {
 		return re
 	}
 	return promptGlyphByAgent["claude"]
+}
+
+var (
+	// ruleRe matches a horizontal-rule line (box-drawing / dashes only).
+	ruleRe = regexp.MustCompile(`^[\s─━—=_·.\-]+$`)
+	// thinkingRe matches claude's working spinner, e.g.
+	// "* Cerebrating… (3s · thinking with xhigh effort)".
+	thinkingRe = regexp.MustCompile(`^\* .*(…|\(\d+s)`)
+)
+
+// isFooterChrome reports whether line belongs to the live UI footer — none of
+// which is committed scrollback (#58). The footer is multi-block when the agent
+// is working: a thinking spinner + rule ABOVE the input box, then the box + rule
+// + status below. Claude-shaped; other agents still get the generic blank / box
+// / rule cases.
+func isFooterChrome(line, glyph string) bool {
+	t := strings.TrimSpace(line)
+	switch {
+	case t == "", t == glyph: // blank or empty input box
+		return true
+	case ruleRe.MatchString(line): // horizontal rule
+		return true
+	case thinkingRe.MatchString(t): // "* Cerebrating… (3s …)"
+		return true
+	case strings.HasPrefix(t, "⏵"): // "⏵⏵ bypass permissions …" status bar
+		return true
+	case strings.Contains(t, "esc to interrupt"):
+		return true
+	}
+	return false
+}
+
+// trimLiveTail drops the live UI footer from the end of the cleaned text so the
+// anchor/slice/turn-count work on stable committed scrollback — anchoring on the
+// volatile footer is what made `locate` miss → FullRedistill every press (#58).
+// It strips trailing chrome lines iteratively (handling the multi-block thinking
+// footer), stopping at the first committed-content line. Pure.
+func trimLiveTail(lines []string, agent string) []string {
+	glyph := promptGlyphChar[agent]
+	if glyph == "" {
+		glyph = promptGlyphChar["claude"]
+	}
+	end := len(lines)
+	for end > 0 && isFooterChrome(lines[end-1], glyph) {
+		end--
+	}
+	return lines[:end]
+}
+
+// looksLikeChangelog reports whether s is a plausible change log: at least one
+// `- ` bullet, and NO bare prose lines (every non-blank line must be a bullet, an
+// indented bullet continuation, or a `#` header). This rejects a hijacked model
+// that returned a conversation continuation — even one sprinkled with bullets,
+// which a mere "has a bullet" check would wave through (#58).
+func looksLikeChangelog(s string) bool {
+	sawBullet := false
+	for _, line := range strings.Split(strings.TrimSpace(s), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		switch {
+		case strings.HasPrefix(line, "- "):
+			sawBullet = true
+		case strings.HasPrefix(line, "#"): // date header
+		case strings.HasPrefix(line, " "), strings.HasPrefix(line, "\t"): // bullet continuation
+		default:
+			return false // a bare prose line → not a change log
+		}
+	}
+	return sawBullet
+}
+
+// capTail bounds a slice to its last max lines (max <= 0 → no cap) — the safety
+// net that keeps a first-run / FullRedistill over a long transcript from blowing
+// the model timeout (#58).
+func capTail(lines []string, max int) []string {
+	if max > 0 && len(lines) > max {
+		return lines[len(lines)-max:]
+	}
+	return lines
 }
 
 // scanTurnBoundaries returns the indices of lines that begin a user turn (the

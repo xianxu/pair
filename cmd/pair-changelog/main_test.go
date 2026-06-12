@@ -8,6 +8,11 @@ import (
 	"testing"
 )
 
+// idleFooter is an idle claude footer (empty input box + rule + status),
+// appended to test transcripts so trimLiveTail does its precise empty-box cut
+// as on a real TTY (short fixtures would otherwise hit the coarse skip-4 path).
+const idleFooter = "\u276f \n\u2500\u2500\u2500\u2500\n\u23f5\u23f5 bypass permissions\n"
+
 func buildBinary(t *testing.T) string {
 	t.Helper()
 	bin := filepath.Join(t.TempDir(), "pair-changelog")
@@ -28,7 +33,8 @@ func fakeClaude(t *testing.T, body string) string {
 		t.Fatal(err)
 	}
 	script := "#!/bin/sh\ntouch " + sh(filepath.Join(dir, "invoked")) +
-		"\ncat >/dev/null\ncat " + sh(filepath.Join(dir, "body")) + "\n"
+		"\ncat > " + sh(filepath.Join(dir, "stdin")) +
+		"\ncat " + sh(filepath.Join(dir, "body")) + "\n"
 	if err := os.WriteFile(filepath.Join(dir, "claude"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -41,6 +47,16 @@ func sh(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 func invoked(dir string) bool {
 	_, err := os.Stat(filepath.Join(dir, "invoked"))
 	return err == nil
+}
+
+// stdinLines returns how many lines the fake model received on stdin (the model
+// input), or -1 if it was never invoked.
+func stdinLines(dir string) int {
+	b, err := os.ReadFile(filepath.Join(dir, "stdin"))
+	if err != nil {
+		return -1
+	}
+	return strings.Count(string(b), "\n")
 }
 
 // run writes the cleaned/log/anchor fixtures, runs the binary, and returns the
@@ -86,7 +102,7 @@ func readOr(path string) string {
 func TestFirstRun(t *testing.T) {
 	bin := buildBinary(t)
 	fakeClaude(t, "- entry one\n\n- entry two\n")
-	cleaned := "❯ start\nintro line\nLAST1\nLAST2\nLAST3\n"
+	cleaned := "❯ start\nintro line\nLAST1\nLAST2\nLAST3\n" + idleFooter
 	log, anchor := run(t, bin, cleaned, "", "", "2026-06-12")
 
 	want := "## 2026-06-12\n\n- entry one\n\n- entry two\n"
@@ -103,7 +119,7 @@ func TestIncrementalFreezesPrefixAndRevisesLast(t *testing.T) {
 	fakeClaude(t, "- two-revised\n\n- three\n")
 	// A new turn (2 boundaries > prior 1) triggers the distill; the anchor is
 	// present mid-stream with new content after it.
-	cleaned := "❯ first\nintro\n❯ second\nANCHOR1\nANCHOR2\nANCHOR3\nnew work a\nnew work b\n"
+	cleaned := "❯ first\nintro\n❯ second\nANCHOR1\nANCHOR2\nANCHOR3\nnew work a\nnew work b\n" + idleFooter
 	priorLog := "## 2026-06-12\n\n- one\n\n- two\n"
 	priorAnchor := "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n"
 	log, anchor := run(t, bin, cleaned, priorLog, priorAnchor, "2026-06-12")
@@ -125,7 +141,7 @@ func TestIncrementalFreezesPrefixAndRevisesLast(t *testing.T) {
 func TestReviseOnlyNeverDropsLast(t *testing.T) {
 	bin := buildBinary(t)
 	fakeClaude(t, "- two-revised\n") // only the revised last entry, no new
-	cleaned := "❯ a\nintro\n❯ b\nANCHOR1\nANCHOR2\nANCHOR3\nnew tail\n"
+	cleaned := "❯ a\nintro\n❯ b\nANCHOR1\nANCHOR2\nANCHOR3\nnew tail\n" + idleFooter
 	priorLog := "## 2026-06-12\n\n- one\n\n- two\n"
 	priorAnchor := "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n"
 	log, _ := run(t, bin, cleaned, priorLog, priorAnchor, "2026-06-12")
@@ -139,7 +155,7 @@ func TestReviseOnlyNeverDropsLast(t *testing.T) {
 func TestDateRollover(t *testing.T) {
 	bin := buildBinary(t)
 	fakeClaude(t, "- two-revised\n\n- three\n")
-	cleaned := "❯ a\nintro\n❯ b\nANCHOR1\nANCHOR2\nANCHOR3\nnew tail\n"
+	cleaned := "❯ a\nintro\n❯ b\nANCHOR1\nANCHOR2\nANCHOR3\nnew tail\n" + idleFooter
 	priorLog := "## 2026-06-11\n\n- one\n\n- two\n"
 	priorAnchor := "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n"
 	log, _ := run(t, bin, cleaned, priorLog, priorAnchor, "2026-06-12")
@@ -158,7 +174,7 @@ func TestFullRedistillWithPriorLogKeepsFrozenPrefix(t *testing.T) {
 	bin := buildBinary(t)
 	dir := fakeClaude(t, "- two-revised\n\n- three\n")
 	// 2 boundaries > prior 1 → not a no-op; OLD1-3 absent → FullRedistill.
-	cleaned := "❯ p\n❯ q\nfresh1\nfresh2\nfresh3\n"
+	cleaned := "❯ p\n❯ q\nfresh1\nfresh2\nfresh3\n" + idleFooter
 	priorLog := "## 2026-06-12\n\n- one\n\n- two\n"
 	priorAnchor := "turns:1\nOLD1\nOLD2\nOLD3\n" // absent in cleaned → FullRedistill
 	log, anchor := run(t, bin, cleaned, priorLog, priorAnchor, "2026-06-12")
@@ -185,7 +201,7 @@ func TestFullRedistillWithPriorLogKeepsFrozenPrefix(t *testing.T) {
 func TestNoOpWhenNoNewTurn(t *testing.T) {
 	bin := buildBinary(t)
 	dir := fakeClaude(t, "- should not appear\n")
-	cleaned := "❯ a\nwork churned a bit\nLAST1\nLAST2\nLAST3\n" // still 1 boundary
+	cleaned := "❯ a\nwork churned a bit\nLAST1\nLAST2\nLAST3\n" + idleFooter // still 1 boundary
 	priorLog := "## 2026-06-12\n\n- one\n\n- two\n"
 	priorAnchor := "turns:1\nWHATEVER\n" // prior count = 1; snippet irrelevant
 	log, _ := run(t, bin, cleaned, priorLog, priorAnchor, "2026-06-12")
@@ -195,5 +211,47 @@ func TestNoOpWhenNoNewTurn(t *testing.T) {
 	}
 	if invoked(dir) {
 		t.Fatal("model was called on a no-op press")
+	}
+}
+
+// A long transcript (> maxSliceLines) on first-run is capped before the model
+// sees it — the #58 timeout guard (the live failure shipped 3110 lines to haiku
+// and hit the 30s kill).
+func TestModelInputCappedOnLongTranscript(t *testing.T) {
+	bin := buildBinary(t)
+	dir := fakeClaude(t, "- one entry\n")
+	var b strings.Builder
+	b.WriteString("❯ start\n")
+	for i := 0; i < 1000; i++ {
+		b.WriteString("content line\n")
+	}
+	run(t, bin, b.String(), "", "", "2026-06-12") // first-run, no prior
+	n := stdinLines(dir)
+	if n < 0 {
+		t.Fatal("model not invoked")
+	}
+	// Cap is on the slice (800); stdin adds a few transcript-delimiter lines.
+	if n > 800+10 {
+		t.Fatalf("model received %d stdin lines, want ~<= 800 (cap + wrapper)", n)
+	}
+}
+
+// Only the trailing footer changed (status-line churn) — committed content is
+// identical, so trimLiveTail makes the turn count stable and the no-op fires.
+// This is the #58 bug: footer churn used to break the anchor → re-distill every
+// press.
+func TestFooterChurnIsNoOp(t *testing.T) {
+	bin := buildBinary(t)
+	dir := fakeClaude(t, "- should not appear\n")
+	stable := "❯ a prompt\nagent work\nANCHOR1\nANCHOR2\nANCHOR3"
+	cleaned := stable + "\n❯ \n────────\n  ⏵⏵ bypass · 5 shells · NEW STATUS\n"
+	priorLog := "## 2026-06-12\n\n- one\n\n- two\n"
+	priorAnchor := "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n"
+	log, _ := run(t, bin, cleaned, priorLog, priorAnchor, "2026-06-12")
+	if invoked(dir) {
+		t.Fatal("footer-only change triggered a model call (no-op should fire)")
+	}
+	if log != priorLog {
+		t.Fatalf("log changed on no-op:\n%q", log)
 	}
 }
