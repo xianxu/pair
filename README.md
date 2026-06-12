@@ -180,7 +180,9 @@ pair                             # default: claude
 pair <agent>                     # claude / codex / agy
 pair resume <tag>                # restart a tag with its saved config (native session)
 pair continue                    # list saved continuations (durable session handoffs)
-pair continue <slug> [agent]     # start fresh from a continuation doc (optionally a different agent)
+pair continue <slug> [agent]     # new session seeded from a continuation doc; prompts
+                                 # for the tag, and forwards -- <args> to the agent
+                                 # e.g. pair continue port claude -- --dangerously-skip-permissions
 pair [<agent>] -- <args...>      # forward args to agent on create
                                  # e.g. pair claude -- --resume
                                  #      pair -- --dangerously-skip-permissions
@@ -253,7 +255,7 @@ Saved configs live at `${XDG_DATA_HOME:-~/.local/share}/pair/config-<tag>-<agent
 `pair resume` and `pair continue` restore two different *kinds* of state:
 
 - **`pair resume <tag>`** reattaches the agent's **native** session — its own transcript and session id, byte-faithful. It needs that session to still exist on this machine, with the same agent.
-- **`pair continue <slug> [agent]`** rebuilds from a **continuation** doc — a durable, version-controlled distillation of the session's *human-meaningful* state (next action, open threads, decisions/dead-ends), written to `workshop/continuation/` and committed to the repo. It's portable across time, machines, people, and agent stacks, and the optional `[agent]` lets you continue under a *different* stack. Bare `pair continue` lists the saved continuations.
+- **`pair continue <slug> [agent]`** seeds a fresh session from a **continuation** doc — a durable, version-controlled distillation of the session's *human-meaningful* state (next action, open threads, decisions/dead-ends), written to `workshop/continuation/` and committed to the repo. It's portable across time, machines, people, and agent stacks, and the optional `[agent]` lets you continue under a *different* stack. Unlike `resume`, it does **not** force the tag: you name the session at the normal prompt (so a long slug can't overflow zellij's socket-path name budget), and `-- <args>` forward to the agent just like a plain `pair <agent> -- <args>`. Bare `pair continue` lists the saved continuations.
 
 You produce a continuation by asking the agent to "park this session" (it distills the rendered scrollback via the `continuation` datatype), or by accepting the **Alt+x park prompt** to preserve a session's scrollback for distillation later.
 

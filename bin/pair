@@ -585,11 +585,15 @@ if [ "${1:-}" = "resume" ]; then
 fi
 
 # `pair continue [slug] [agent]` — the human-understanding sibling of `resume`
-# (ariadne#91). Bare: list continuation docs. With a slug: start a FRESH session
-# seeded to read the matching doc and execute its NEXT ACTION. The optional
-# agent is the "port" (continue under a different stack). We capture the agent
-# HERE rather than via the positional loop below, which rejects trailing args
-# once a tag is forced. `continue` never reads session_id — that's `resume`.
+# (ariadne#91). Bare: list continuation docs. With a slug: seed a fresh session
+# to read the matching doc and execute its NEXT ACTION. It does NOT force the
+# tag — like `pair <agent> -- <args>` it flows through the normal name prompt
+# so the operator picks the tag (a long slug must never become an over-long
+# zellij session name — see the launch-time guard) and any `-- <args>` reach
+# the agent. The optional agent is the "port" (continue under a different
+# stack); absent, it's read from the doc. We capture slug + agent HERE (the
+# positional loop below rejects a bare agent arg) but leave `-- <args>` for it.
+# `continue` never reads session_id — that's `resume`.
 CONTINUE_DOC=""
 if [ "${1:-}" = "continue" ]; then
     _croot="$(git rev-parse --show-toplevel 2>/dev/null || true)"
@@ -621,13 +625,17 @@ if [ "${1:-}" = "continue" ]; then
         echo "pair: no continuation matching '$_cslug' in $_cdir" >&2
         exit 1
     fi
-    forced_tag="$_cslug"
-    if [ -n "${3:-}" ]; then
-        AGENT="$3"   # explicit port: continue under a different agent
+    # No forced_tag (see header). Consume `continue` + slug; an optional next
+    # arg is the agent port UNLESS it's `--` (then no port, only forwarded
+    # args). Leave everything from `--` onward for the positional loop to
+    # capture as agent_extra.
+    shift 2
+    if [ -n "${1:-}" ] && [ "${1:-}" != "--" ]; then
+        AGENT="$1"   # explicit port: continue under a different agent
+        shift
     else
         AGENT="$(awk -F': ' '/^agent:/{print $2; exit}' "$CONTINUE_DOC")"
     fi
-    shift "$#"
 fi
 
 seen_dd=false
@@ -827,6 +835,16 @@ if [ -n "$forced_tag" ] && [ -z "$AGENT" ]; then
     fi
 fi
 [ -z "$AGENT" ] && AGENT="claude"
+
+# Debug probe (sibling of PAIR_DEBUG_HISTORY): once argv is fully resolved —
+# agent / forced_tag / forwarded args / continuation doc — dump them and exit
+# before any session work, so tests/pair-continue-test.sh can assert the
+# arg-parsing contract against the REAL script without spawning zellij.
+if [ "${PAIR_DEBUG_ARGS:-0}" = "1" ]; then
+    printf 'AGENT=%s\nFORCED_TAG=%s\nAGENT_EXTRA=%s\nCONTINUE_DOC=%s\n' \
+        "$AGENT" "$forced_tag" "$agent_extra" "${CONTINUE_DOC:-}"
+    exit 0
+fi
 
 # PAIR_AGENT is the command to exec in the agent pane on create.
 # PAIR_AGENT_ARGS is appended on the agent pane's command line at create.
@@ -2021,6 +2039,28 @@ disown $! 2>/dev/null || true
 # shellcheck source=bin/lib/dev-rebuild.sh
 . "$PAIR_HOME/bin/lib/dev-rebuild.sh"
 dev_rebuild
+
+# zellij caps a --session name at its unix-socket sun_path budget (capacity
+# minus the socket dir, which is long under macOS $TMPDIR) and rejects an
+# over-long name with a cryptic clap error ("session name must be less than 0
+# characters") that aborts the launch. The budget is machine-specific, so we
+# probe zellij's OWN validator with a harmless no-op (`action list-clients`
+# only reads client state) and translate a rejection into a clear, actionable
+# message. Covers every create path — `continue`, `resume`, a manually-typed
+# long tag — not just the one that surfaced it (#54).
+#
+# Capture-then-match, NOT `zj … | grep`: under this script's `set -o pipefail`
+# the probe's non-zero exit (zellij errors on a rejected name) would propagate
+# and make an `if … | grep -q` condition false even when the message matched —
+# i.e. the guard would silently never fire. `|| true` also keeps errexit calm.
+_zj_probe="$(zj --session "$SESSION" action list-clients 2>&1 || true)"
+case "$_zj_probe" in
+    *"session name must be less than"*)
+        echo "pair: tag '$PAIR_TAG' makes zellij's session name too long for this" >&2
+        echo "      machine's socket path ($SESSION). Pick a shorter tag." >&2
+        exit 1
+        ;;
+esac
 
 # Note on the create invocation: zellij's `--layout PATH --session NAME` does
 # NOT create-with-layout; per its help text, when --session is set, --layout

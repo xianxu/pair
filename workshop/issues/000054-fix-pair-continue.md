@@ -57,13 +57,16 @@ reshape it to behave like `pair <agent> -- <args>` — pre-seeded but normal.
 
 ## Plan
 
-- [ ] `bin/pair`: remove `forced_tag` from continue block; `shift 2` + agent-port shift; update header comment
-- [ ] `bin/pair`: launch-time session-name guard (probe zellij validator)
-- [ ] `README.md` + `atlas/architecture.md`: reflect tag-prompt + arg-forward + guard
-- [ ] Verify: `bash -n`; arg-parse harness (4 forms); guard discriminates short vs long; bare list
+- [x] `bin/pair`: remove `forced_tag` from continue block; `shift 2` + agent-port shift; update header comment
+- [x] `bin/pair`: launch-time session-name guard (probe zellij validator)
+- [x] `README.md` + `atlas/architecture.md`: reflect tag-prompt + arg-forward + guard
+- [x] Verify: durable `tests/pair-continue-test.sh` (real bin/pair via `PAIR_DEBUG_ARGS` probe) + guard short-vs-long; wired into `make test`
 
 ## Log
 
 ### 2026-06-11
 - Root-caused the crash: zellij `--session` sun_path budget = capacity − socket_dir_len; long macOS `$TMPDIR` shrinks it below the forced slug length. Reproduced locally (≥~60 chars rejected here; ≥28 on the operator's longer-TMPDIR machine). Message "less than 0 characters" is a zellij cosmetic bug.
 - Reversed an earlier in-session removal plan (operator changed direction twice → keep + fix). See `#50` (the feature, merged PR #23), `#91` (continuation datatype).
+- Implemented all three Spec items in `bin/pair`. Added a `PAIR_DEBUG_ARGS=1` probe (sibling of `PAIR_DEBUG_HISTORY`) that dumps resolved argv and exits pre-launch, so the new `tests/pair-continue-test.sh` drives the REAL script (not a mirror) — per the repo's drive-the-artifact discipline.
+- **The test caught a bug in the fix itself:** the guard was first written `zj … | grep -q`, which under `bin/pair`'s `set -euo pipefail` returns zellij's non-zero exit (not grep's), so the `if` was always false and the guard would never fire. Rewrote it capture-then-`case`-match with `|| true`. The existing line-916/939 comments warn about exactly this pipefail footgun. Test mirrors the same capture-then-match shape.
+- Verified: `bash -n bin/pair` clean; `make build` (Go binaries incl. `pair-continuation` writer untouched); `bash tests/pair-continue-test.sh` → 11/11 ok (4 arg forms, `[agent]` port, bare list, 2 error paths, guard short-vs-long). Reproduced the original crash locally: zellij rejects an ~60-char `--session` here (`/tmp` TMPDIR); on the operator's longer macOS `/var/folders` TMPDIR the budget drops below 28, hence the 28-char forced slug crashed.
