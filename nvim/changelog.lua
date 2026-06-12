@@ -86,22 +86,29 @@ function M.start_refresh(bufnr)
     .. ' && ' .. esc(distill) .. ' --cleaned ' .. esc(cleaned) .. ' --log ' .. esc(log)
     .. ' --anchor ' .. esc(anchor) .. ' --agent ' .. esc(agent) .. ' --today ' .. esc(today)
 
-  local win = vim.api.nvim_get_current_win()
   local first_run = vim.api.nvim_buf_line_count(bufnr) <= 1
     and (vim.api.nvim_buf_get_lines(bufnr, 0, 1, false)[1] or '') == ''
   local msg = first_run and 'Computing change log…' or 'Refreshing change log…'
   local frames = { '⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏' }
   local i = 0
+  -- The spinner renders as a virtual line at the bottom — where the new entry
+  -- will be inserted — not in the winbar. virt_lines don't touch buffer content,
+  -- so the buffer stays read-only / unmodified.
+  local ns = vim.api.nvim_create_namespace('pair_changelog_spinner')
   local function paint()
     i = (i % #frames) + 1
-    pcall(function() vim.wo[win].winbar = ' ' .. frames[i] .. '  ' .. msg end)
+    local last = math.max(0, vim.api.nvim_buf_line_count(bufnr) - 1)
+    pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, last, 0, {
+      id = 1,
+      virt_lines = { { { '', 'Comment' } }, { { '  ' .. frames[i] .. '  ' .. msg, 'Comment' } } },
+    })
   end
   paint()
   local timer = vim.fn.timer_start(90, paint, { ['repeat'] = -1 })
 
   local function finish()
     pcall(vim.fn.timer_stop, timer)
-    pcall(function() vim.wo[win].winbar = '' end)
+    pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, 1)
     M.reload(bufnr, log)
   end
 
