@@ -85,68 +85,86 @@ func main() {
 	if hasPrior {
 		sliceStart = res.Start
 	}
-	// Cap the model input so a first-run / full-redistill over a long transcript
-	// can never blow the model timeout (#58). The prior log (fed as memory below)
-	// preserves older entries when a re-distill is capped to recent lines.
-	sliceLines := capTail(lines[sliceStart:], maxSliceLines)
-	sliceText := strings.Join(sliceLines, "\n")
+	slice := lines[sliceStart:]
 
-	var frozen, ek, sys, input string
-	if !hasPrior {
-		// First-ever run: summarize the (capped) transcript.
-		sys = buildSystemPrompt(true)
-		input = buildInput("", "", sliceText, true)
+	newLog := priorLog
+	if hasPrior {
+		// Incremental (Found) or full-redistill (Start=0): one capped call; the
+		// prior log is fed as read-only memory.
+		capped := capTail(slice, maxSliceLines)
+		fmt.Fprintf(os.Stderr, "pair-changelog: distilling %d lines\n", len(capped))
+		nl, err := distillStep(priorLog, strings.Join(capped, "\n"), agent, modelName, today)
+		if err != nil {
+			fail("model: %v", err)
+		}
+		newLog = nl
 	} else {
-		// Incremental (Found) OR full-redistill (Start=0) — both keep the prior
-		// log: feed it as read-only memory and slice from res.Start.
-		frozen, ek = splitFrozenTail(priorLog)
-		sys = buildSystemPrompt(false)
-		input = buildInput(frozen, ek, sliceText, false)
+		// First-ever run: distill the FULL transcript in batches so a long session
+		// isn't truncated to the last maxSliceLines (#58). Each batch after the
+		// first feeds the accumulating log as memory.
+		chunks := chunkLines(slice, maxSliceLines)
+		newLog = ""
+		for i, chunk := range chunks {
+			fmt.Fprintf(os.Stderr, "pair-changelog: distilling batch %d/%d (%d lines)\n", i+1, len(chunks), len(chunk))
+			nl, err := distillStep(newLog, strings.Join(chunk, "\n"), agent, modelName, today)
+			if err != nil {
+				fail("model: %v", err)
+			}
+			newLog = nl
+		}
 	}
 
-	// Status line the viewer surfaces in its spinner ("Refreshing … N lines").
-	fmt.Fprintf(os.Stderr, "pair-changelog: distilling %d lines\n", len(sliceLines))
-
-	out, err := model.Run(model.Request{
-		Agent:           agent,
-		Model:           modelName,
-		Prompt:          sys,
-		Input:           input,
-		MaxOutputTokens: maxTokens,
-		Verbosity:       "medium",
-		Timeout:         changelogTimeout,
-	})
-	if err != nil {
-		fail("model: %v", err)
-	}
-	out = strings.TrimSpace(out)
-	if out == "" {
-		return // model produced nothing; leave the log as-is
-	}
-	if !looksLikeChangelog(out) {
-		// The model ignored the distill instruction and returned prose / a
-		// conversation continuation instead of change-log bullets (#58). Reject
-		// rather than pollute the log; the viewer surfaces this as a failure.
-		fail("model returned a non-distill response (no change-log entries); leaving log unchanged")
+	if strings.TrimSpace(newLog) == "" || newLog == priorLog {
+		return // nothing produced / no change
 	}
 
-	var ekPrime, newEntries string
-	if !hasPrior {
-		newEntries = out
-	} else {
-		ekPrime, newEntries = splitFirstEntry(out)
-	}
-	newLog := assemble(frozen, ekPrime, newEntries, today, lastHeaderDate(priorLog))
-
-	// Write the log first, then the anchor (crash-safety): a crash between
-	// leaves the anchor one-behind → next press re-processes a delta already
-	// covered by the frozen-prefix dedup; it never skips content.
+	// Write the log first, then the anchor (crash-safety): a crash between leaves
+	// the anchor one-behind → next press re-processes a delta already covered by
+	// the frozen-prefix dedup; it never skips content.
 	if err := atomicWrite(logPath, newLog); err != nil {
 		fail("write log: %v", err)
 	}
 	if err := writeAnchor(anchorPath, len(boundaries), anchorSnippet(lines, anchorLines)); err != nil {
 		fail("write anchor: %v", err)
 	}
+}
+
+// distillStep runs one model distill — first-run (priorLog empty) or incremental
+// (revise the last entry + append) — and returns the new full log. Returns
+// priorLog unchanged when the model produces nothing; errors on a non-distill
+// response (a hijacked continuation). Used per-chunk by the first-run batcher.
+func distillStep(priorLog, sliceText, agent, modelName, today string) (string, error) {
+	firstRun := strings.TrimSpace(priorLog) == ""
+	var frozen, ek, sys, input string
+	if firstRun {
+		sys = buildSystemPrompt(true)
+		input = buildInput("", "", sliceText, true)
+	} else {
+		frozen, ek = splitFrozenTail(priorLog)
+		sys = buildSystemPrompt(false)
+		input = buildInput(frozen, ek, sliceText, false)
+	}
+	out, err := model.Run(model.Request{
+		Agent: agent, Model: modelName, Prompt: sys, Input: input,
+		MaxOutputTokens: maxTokens, Verbosity: "medium", Timeout: changelogTimeout,
+	})
+	if err != nil {
+		return "", err
+	}
+	out = strings.TrimSpace(out)
+	if out == "" {
+		return priorLog, nil // model produced nothing; no change this step
+	}
+	if !looksLikeChangelog(out) {
+		return "", fmt.Errorf("non-distill response (no change-log entries)")
+	}
+	var ekPrime, newEntries string
+	if firstRun {
+		newEntries = out
+	} else {
+		ekPrime, newEntries = splitFirstEntry(out)
+	}
+	return assemble(frozen, ekPrime, newEntries, today, lastHeaderDate(priorLog)), nil
 }
 
 func writeAnchor(path string, turns int, snippet []string) error {

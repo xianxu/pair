@@ -239,6 +239,19 @@ func TestLooksLikeChangelog(t *testing.T) {
 	}
 }
 
+func TestChunkLines(t *testing.T) {
+	got := chunkLines([]string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"}, 4)
+	if len(got) != 3 || len(got[0]) != 4 || len(got[1]) != 4 || len(got[2]) != 2 {
+		t.Fatalf("got %v", got)
+	}
+	if got := chunkLines([]string{"a", "b"}, 4); len(got) != 1 {
+		t.Fatalf("under-size should be one chunk, got %d", len(got))
+	}
+	if got := chunkLines(nil, 4); len(got) != 1 {
+		t.Fatalf("empty → one (empty) chunk, got %d", len(got))
+	}
+}
+
 func TestCapTail(t *testing.T) {
 	ten := []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"}
 	if got := capTail(ten, 3); !reflect.DeepEqual(got, []string{"8", "9", "10"}) {

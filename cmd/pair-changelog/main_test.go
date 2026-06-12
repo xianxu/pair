@@ -32,7 +32,7 @@ func fakeClaude(t *testing.T, body string) string {
 	if err := os.WriteFile(filepath.Join(dir, "body"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	script := "#!/bin/sh\ntouch " + sh(filepath.Join(dir, "invoked")) +
+	script := "#!/bin/sh\nprintf 'x\\n' >> " + sh(filepath.Join(dir, "calls")) +
 		"\ncat > " + sh(filepath.Join(dir, "stdin")) +
 		"\ncat " + sh(filepath.Join(dir, "body")) + "\n"
 	if err := os.WriteFile(filepath.Join(dir, "claude"), []byte(script), 0o755); err != nil {
@@ -44,9 +44,15 @@ func fakeClaude(t *testing.T, body string) string {
 
 func sh(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
 
-func invoked(dir string) bool {
-	_, err := os.Stat(filepath.Join(dir, "invoked"))
-	return err == nil
+func invoked(dir string) bool { return callCount(dir) > 0 }
+
+// callCount returns how many times the fake model was invoked.
+func callCount(dir string) int {
+	b, err := os.ReadFile(filepath.Join(dir, "calls"))
+	if err != nil {
+		return 0
+	}
+	return strings.Count(string(b), "\n")
 }
 
 // stdinLines returns how many lines the fake model received on stdin (the model
@@ -233,6 +239,29 @@ func TestModelInputCappedOnLongTranscript(t *testing.T) {
 	// Cap is on the slice (800); stdin adds a few transcript-delimiter lines.
 	if n > 800+10 {
 		t.Fatalf("model received %d stdin lines, want ~<= 800 (cap + wrapper)", n)
+	}
+}
+
+// A long first-run transcript (> maxSliceLines) is distilled in MULTIPLE batches
+// — not truncated to the last 800 — so the full session is covered. The model is
+// called once per chunk with the accumulating log carried forward (#58).
+func TestFirstRunBatchesLongTranscript(t *testing.T) {
+	bin := buildBinary(t)
+	dir := fakeClaude(t, "- batch entry\n")
+	// 1701 committed lines after the footer is trimmed → ceil(1701/800) = 3 batches.
+	var b strings.Builder
+	b.WriteString("❯ start\n")
+	for i := 0; i < 1700; i++ {
+		b.WriteString("content line\n")
+	}
+	b.WriteString(idleFooter)
+	log, _ := run(t, bin, b.String(), "", "", "2026-06-12")
+
+	if c := callCount(dir); c != 3 {
+		t.Fatalf("model called %d times, want 3 (1701 lines / 800 per batch)", c)
+	}
+	if !strings.Contains(log, "- batch entry") {
+		t.Fatalf("batched log missing entries:\n%s", log)
 	}
 }
 

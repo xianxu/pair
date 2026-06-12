@@ -126,3 +126,11 @@ unchanged log), so a failed refresh is visible.
      the viewer surfaces a distill failure instead of silently reloading.
   Verified: distill succeeds (~30-50s, valid bullets, no hijack); the anchor is
   stable committed content; a repeat press is a no-op. Full go + lua + smoke green.
+- Operator follow-up: the `maxSliceLines` cap silently truncated the **first run**
+  to the last 800 lines (a 1732-line session lost ~932 lines). Fixed by **batching
+  the first run**: `chunkLines` splits the full transcript into 800-line chunks
+  and `distillStep` (extracted) runs each, accumulating the log as memory through
+  the batches. The viewer spinner shows "Computing change log (batch N/M)…".
+  Verified live on a 2173-line transcript → 3 batches in ~44s → a complete,
+  valid change log covering the whole session. (Incremental/full-redistill stay a
+  single capped call — the prior log preserves history there.)

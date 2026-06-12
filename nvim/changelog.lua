@@ -132,8 +132,10 @@ function M.start_refresh(bufnr)
   local job = vim.fn.jobstart({ 'sh', '-c', cmd }, {
     on_stderr = function(_, data)
       for _, line in ipairs(data or {}) do
+        local batch = line:match('distilling batch (%d+/%d+)')
+        if batch then msg = 'Computing change log (batch ' .. batch .. ')…' end
         local n = line:match('distilling (%d+) lines')
-        if n then msg = 'Refreshing change log (' .. n .. ' new lines)…' end
+        if n and not batch then msg = 'Refreshing change log (' .. n .. ' new lines)…' end
         if line:match('up to date') then msg = 'Up to date' end
         local e = line:match('pair%-changelog: (.+)')
         if e and not e:match('^distilling') and not e:match('^up to date') then
