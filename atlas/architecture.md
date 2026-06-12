@@ -390,8 +390,10 @@ one-liner.
   full-screen, `<Esc>`/`q` to quit, cursor at the newest entry, with a few
   `syntax match` token highlights (`#NN`, `Mx`, `` `code` ``, `feature/…`). Opens
   instantly on the existing log, then runs the render+distill as a background
-  `jobstart` with a winbar **spinner** ("Computing…" first / "Refreshing… N
-  lines" after), reloading the buffer on completion.
+  `jobstart` with a **spinner** rendered as a virtual line at the bottom (a
+  `virt_lines` extmark, where the new entry will land — not the winbar, so the
+  buffer stays untouched): "Computing change log…" first / "Refreshing change log
+  (N new lines)…" after, reloading the buffer on completion.
 - **State** (`$PAIR_DATA_DIR`, per-tag-agent — matching the
   `scrollback-<tag>-<agent>.raw` source): `changelog-<tag>-<agent>.md` (the log,
   plain markdown), `.anchor` (`turns:<N>` header + content snippet), `.cleaned`
