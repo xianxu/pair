@@ -59,9 +59,10 @@ cost), incremental across presses, anchored on a **content snippet**:
 - **First press:** clean the *full* TTY → model summarizes into entries → write
   log. Record the anchor (the tail of what was distilled).
 - **Later press:** locate the anchor in the freshly-cleaned TTY → boundary `B`;
-  feed `lines[B − lookback .. current_last]` (lookback ≈ 20 lines, for
-  continuity) to the model with the prior log (see "History contract"). Re-record
-  the anchor.
+  feed `lines[lookback_start .. current_last]` — where `lookback_start` walks
+  back from `B` past ≈2 turn boundaries (capped; see "Lookback — in turns") for
+  continuity — to the model with the prior log (see "History contract").
+  Re-record the anchor.
 - **No new content:** skip the model, open the viewer on the existing log.
 
 The full raw TTY (`scrollback-<tag>-<agent>.raw`) is truncated only at session
@@ -78,13 +79,14 @@ clears/redraws (scroll regions, alternate-screen) can make the cleaned-line
 count **non-monotonic**. The anchor is therefore the **verbatim last K cleaned
 lines** distilled (K ≈ 3), stored as text (locatable by substring search; a hash
 would not be). On a later press, the pure function
-`locate(cleaned_text, anchor, lookback)` returns one of:
+`locate(cleaned_text, anchor, turn_boundaries, lookback_turns)` returns one of:
 
 - **Found** → `B` = index of the **first** line of the anchor's **last (newest)
   occurrence** (searched from the end — this tie-break is the central anchor
   invariant; a short snippet like a repeated banner/border can recur, and the
-  newest match is always the true boundary). Lookback is measured **backward
-  from `B`**. Slice `[max(0, B − lookback) .. current_last]`.
+  newest match is always the true boundary). The slice start walks **backward
+  from `B`** past `lookback_turns` turn boundaries (see "Lookback"). Slice
+  `[lookback_start .. current_last]`.
 - **No-op** → the anchor sits flush with the end (no cleaned lines after it):
   nothing new, open existing log, no model call.
 - **Full re-distill** → anchor not found *or only partially matches* (a redraw
@@ -92,8 +94,25 @@ would not be). On a later press, the pure function
   already-logged entries are not duplicated. Safe (never loses entries), costs
   one full pass. No fuzzy matching — partial == not-found.
 
+##### Lookback — in turns, not lines
+
+`lookback_start` walks **backward from `B` past ≈2 turn boundaries** — not a
+fixed line count. "20 lines" is arbitrary (a verbose turn dwarfs it; terse turns
+undershoot), whereas ≈2 turns is the natural unit at which the last entry formed
+and is even across verbose/terse output. A turn boundary is a user-prompt marker;
+`turn_boundaries` is a pure scan of the cleaned text for the per-agent prompt
+glyph — the same markers `scrollback.lua` uses for `Alt+b` jump-to-prompt
+(`PROMPT_PATTERN_BY_AGENT`: claude `^❯`, codex `^›`, agy `──…>`). The distiller
+carries a small Go copy of those three single-token patterns, sync-commented to
+the Lua source (`ARCH-DRY`: a shared cross-language pattern store would be
+over-engineering for three stable glyphs). A **line cap (≤200)** bounds the slice
+so a pathologically verbose turn can't blow up model input. Because turns drive
+**only the lookback** (never the anchor/boundary), a missed/false marker degrades
+gracefully — it walks back a bit more or less context, never breaks the boundary.
+
 `locate` is total and unit-tested across: growth, no-change, shrink,
-anchor-recurs (newest wins), and anchor-not-found.
+anchor-recurs (newest wins), anchor-not-found, and the lookback turn-walk (incl.
+fewer-than-2-turns-available → start 0, and the line cap).
 
 ### History contract — structural freeze; orchestrator owns headers
 
@@ -110,7 +129,7 @@ date headers are **structure, not entries** — the model never emits them.
 - **Last entry `Ek`** = sent as "the current tentative last entry; you may
   **revise its text** if the new activity clarifies what it was (e.g.
   'investigating X' → 'fixed X'), but **emit exactly one entry here, never drop
-  it**." The ≈20-line lookback overlaps its source, grounding the revision.
+  it**." The ≈2-turn lookback overlaps its source, grounding the revision.
 - The model returns `Ek'` **+ zero or more new bullet entries** (no headers).
 
 **Date-header ownership (distiller, deterministic):** let `D` = today (press
@@ -169,13 +188,17 @@ New:
   Codex session. The shared call takes `maxOutputTokens` (+ verbosity) per
   caller; pair-slug passes 64, pair-changelog passes a generous budget.
 - `cmd/pair-changelog/` — the distiller (its own library, sibling to
-  `cmd/pair-slug`), consuming `cmd/internal/model`. Cleans the TTY via the
-  existing renderer:
-  `pair-scrollback-render --plain --max-lines 0 <raw> <events.jsonl> <out>`
-  (`--plain` + uncapped `--max-lines 0` already exist, no other caller; events
-  sidecar is a required positional). Owns `locate` + log assembly (pure) + model
-  call + atomic write.
-- `bin/pair-changelog-open` — thin shell orchestrator (above).
+  `cmd/pair-slug`), consuming `cmd/internal/model`. Reads the **cleaned-text
+  file the shell produced** (so its integration test feeds a fixture — no
+  renderer fake). Owns `locate` + turn-boundary scan (synced Go copy of
+  `scrollback.lua`'s prompt glyphs, `ARCH-DRY`) + log assembly (all pure) + model
+  call + atomic write of log + anchor.
+- `bin/pair-changelog-open` — thin shell orchestrator: acquire the lock; clean
+  the TTY (`pair-scrollback-render --plain --max-lines 0 <raw> <events.jsonl>
+  <cleaned>` — `--plain` + uncapped `--max-lines 0` already exist, no other
+  caller, events is a required positional); run the distiller; `exec` nvim on the
+  log. (The renderer subprocess is glue at the boundary, not logic — the testable
+  logic still lives in the Go distiller.)
 - `Alt l` binding in `zellij/config.kdl`, next to `Alt /`.
 
 State files in `$PAIR_DATA_DIR`, all keyed **per-tag-agent** (matching the
@@ -217,7 +240,8 @@ generous `maxOutputTokens` — quality over cost, since it runs only on press.
   identical (enforced by the assembly path, asserted in a Go test); the anchor
   advances; a day-rollover press starts a fresh `## date` header.
 - `locate` resolves growth / no-change / shrink / anchor-recurs (newest wins) /
-  not-found deterministically — pure-function unit test.
+  not-found / turn-lookback-walk (incl. <2 turns available, ≤200-line cap)
+  deterministically — pure-function unit test.
 - `cmd/internal/model` extraction leaves `pair-slug`'s test green and lets the
   OpenAI/Codex path emit a full multi-entry log (parameterized output length).
 - `cmd/pair-changelog` has a Go integration test (process-level fake model):
@@ -276,3 +300,7 @@ guarantees byte-stability._
 - Spec-review round 3 (fresh context): **✅ Approved** — all four header-assembly
   cases walked, `locate` confirmed total, write-order crash-safe, round-2 fixes
   verified against code. Three advisories carried into `## Plan` (non-blocking).
+- Pre-plan tweak (operator): **lookback measured in turns (≈2), not lines** —
+  natural unit, even across verbose/terse output; reuses the prompt glyphs from
+  `scrollback.lua` (small synced Go copy, `ARCH-DRY`), capped ≤200 lines. Turns
+  drive only lookback, so detection misses degrade gracefully.
