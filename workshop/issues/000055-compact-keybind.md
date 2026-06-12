@@ -177,6 +177,20 @@ Detailed step-by-step plan: `workshop/plans/000055-compact-keybind-plan.md`
 
 ## Log
 
+### 2026-06-12
+- 2026-06-12: closed M2 — M2 runtime e2e PASS (claude), dogfooded live: real Alt+Shift+C → confirm → agent wrote continuation 20260612T002626-compact.md → pair continue compact → same-tag (3) fresh restart seeded from doc (round-trip proof). Recovery net: parked-scrollback-3 (425KB) copy exists AND live scrollback-3-claude.raw intact (copy-not-move); no stray park prompt. Static: luac clean, zellij config Well defined. Atlas updated (keybind + suppression).; review verdict: SHIP
+- **M2 runtime e2e PASS (`claude`) — dogfooded live.** Steps 2–4 executed by an
+  actual `Alt+Shift+C` keypress in a live `pair-dev claude` session: confirm
+  dialog → agent wrote `workshop/continuation/20260612T002626-compact.md` →
+  `pair continue compact` → same-tag (`3`) session restarted with a fresh
+  conversation seeded from the doc. The continuation was read in a fresh seeded
+  conversation under the same tag — that *is* the round-trip proof. Recovery-net
+  checks post-restart: `parked-scrollback-3-20260612T002733.raw` (425 KB) exists
+  AND live `scrollback-3-claude.raw` still present → park is **copy-not-move** ✓;
+  no `restart-*` / `quit-*` markers lingering → **no stray "park as a
+  continuation?" prompt** (M1 FIX-THEN-SHIP suppression held) ✓. Step 5 (repeat
+  under `pair-dev codex`) is optional — the injected prompt is agent-agnostic.
+
 ### 2026-06-11
 - 2026-06-11: closed M1 — make test-continue → 21/21 (11 fresh-start + 10 compaction: marker shape, park copy vs move, real tag-match predicate via PAIR_FAKE_IN_ZELLIJ, invalid-slug-no-kill, re-exec argv); make build clean; bash -n clean. Mechanics drive the REAL bin/pair via injectable seams, no live zellij/agent. Atlas updated (compaction flow + park_scrollback).; review verdict: FIX-THEN-SHIP
 - **M1 boundary review FIX-THEN-SHIP** → fixed the one Important before M2: compaction `touch quit-<session>` made the outer `cleanup_quit_marker` fire its "park as a continuation?" nudge mid-compaction (the `.raw` survives the copy-park). Guarded the nudge with `[ ! -f restart-$SESSION ]` so it's skipped whenever a restart is pending — also de-noises the inherited Alt+n/Shift+Alt+N paths (a restart isn't a quit). M2 Task 7 e2e must confirm no stray prompt.
