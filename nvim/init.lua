@@ -859,11 +859,6 @@ local function normalize_image_marker(marker)
   return (marker:gsub('^(%[Image)(#)', '%1 %2'))
 end
 
-local function pair_data_dir()
-  return vim.env.PAIR_DATA_DIR
-      or ((vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/share')) .. '/pair')
-end
-
 local function clipboard_has_image()
   -- macOS: clipboard info enumerates the available types as "«class XXXX»"
   -- tokens; image data shows up under PNGf / TIFF / JPEG / GIFf / jp2.
