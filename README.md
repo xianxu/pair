@@ -69,6 +69,7 @@ Select something with mouse on agent's pane, the selection is inserted at curren
 | **Alt+/** | any pane | Enter into scrollback viewer, at same view port of current mouse scroll state of claude pane. Search is smart-case (`/foo` = case-insensitive, `/Foo` = case-sensitive). `Esc` exits (with a Yes/No confirm if there are pending markers). |
 | **Alt+q** | scrollback viewer | Insert comment for the line, or selection |
 | **Alt+b** / **Alt+B** | scrollback viewer | Jump to previous / next prompt boundary — hop between turns instead of scrolling line-by-line |
+| **Alt+l** | any pane | Open the session's distilled **change log** (LLM-summarized milestones / decisions) in a read-only full-screen viewer — the distilled counterpart to `Alt+/`. Opens instantly and refreshes in the background; `Esc` / `q` to dismiss. |
 | **Alt+Backspace** | nvim (normal/insert), at `+N` | Delete the current queued prompt. |
 | **Alt+Backspace** | agent pane | Delete to start of line — forwarded to the agent as Ctrl+U, matching its Cmd+Delete. |
 | **Shift+Alt+Backspace** | nvim (normal/insert) | Erase history, draft, and queue for this session to "start anew". |
@@ -147,7 +148,7 @@ Automatically installed with `homebrew`.
 
 ## Terminal setup
 
-Pair leans on `Alt+<key>` chords for almost every action — `Alt+Return` to send, `Alt+x/d/n/N` to quit/detach/restart, `Alt+↑/↓` for layout, `Alt+i` for image attach, `Alt+/` for scrollback, `Alt+q` for marker comments. macOS terminals don't all forward Option as a meta-prefix by default, so the chords silently insert macOS special characters (`Alt+x` → `≈`, `Alt+e` → ``` ` ```, etc.) instead of reaching pair. One-time per-terminal setup:
+Pair leans on `Alt+<key>` chords for almost every action — `Alt+Return` to send, `Alt+x/d/n/N` to quit/detach/restart, `Alt+↑/↓` for layout, `Alt+i` for image attach, `Alt+/` for scrollback, `Alt+l` for the change log, `Alt+q` for marker comments. macOS terminals don't all forward Option as a meta-prefix by default, so the chords silently insert macOS special characters (`Alt+x` → `≈`, `Alt+e` → ``` ` ```, etc.) instead of reaching pair. One-time per-terminal setup:
 
 | Terminal | Setting | Default | Required |
 |---|---|---|---|
