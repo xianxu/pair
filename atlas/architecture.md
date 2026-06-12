@@ -384,8 +384,11 @@ one-liner.
   boundary appeared. `locate` still drives the *slice* and full-redistill (anchor
   lost → whole TTY as "new", prior log as dedup memory). The thin `main.go` seam
   reads files → `model.Run` → atomic write (log first, then anchor); it prints a
-  `distilling N lines` status to stderr for the viewer's spinner. Quality-tier
-  model, generous output budget. First-ever press summarizes the whole transcript.
+  `distilling N lines` status to stderr for the viewer's spinner. Same small
+  per-agent default model as the slug (`claude-haiku-4-5` / `gpt-5.4-mini`), but
+  a generous output budget (2000 tokens vs the slug's 64) and `medium` verbosity
+  so a multi-entry log doesn't truncate. First-ever press summarizes the whole
+  transcript.
 - **View** — `nvim/changelog.lua`: read-only (`modifiable=false`, `nofile`),
   full-screen, `<Esc>`/`q` to quit, cursor at the newest entry, with a few
   `syntax match` token highlights (`#NN`, `Mx`, `` `code` ``, `feature/…`). Opens

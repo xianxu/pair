@@ -250,8 +250,11 @@ source `scrollback-<tag>-<agent>.raw`, so file, source, and lock share one key):
 ### Model
 
 The distill uses the **session's agent model** (per-agent dispatch, as
-pair-slug; no assumption of a specific CLI), at the capable default tier with a
-generous `maxOutputTokens` — quality over cost, since it runs only on press.
+pair-slug; no assumption of a specific CLI) — the **same small default model as
+the slug** (`claude-haiku-4-5` / `gpt-5.4-mini`), but with a generous
+`maxOutputTokens` (2000 vs the slug's 64) and `medium` verbosity so a multi-entry
+log doesn't truncate. (A more capable tier is an easy future knob — it runs only
+on press — but dogfood confirmed the small model distills fine.)
 
 ### Out of scope (YAGNI for v1)
 
