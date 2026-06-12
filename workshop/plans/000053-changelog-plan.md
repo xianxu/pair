@@ -608,3 +608,25 @@ Structure the file so the test can source the setup without a real `nvim -u` lau
 - Minor hardening from the same review: `model.Run` floors `MaxOutputTokens` at
   256 when ≤ 0; `splitLines` now trims all trailing newlines; package doc says
   "near-verbatim" (the codex temp prefix was renamed).
+
+### 2026-06-12 — M2 dogfood UX rework (Tasks 5–6 revised)
+
+Live `Alt+l` dogfood surfaced two issues; both fixed fix-forward before the M2
+close:
+
+- **No-op was brittle → turn-count.** The byte-flush no-op (`locate` "anchor
+  flush with end") almost never fired in a live session because the anchor (last
+  K cleaned lines) is the *volatile prompt/status area* → a model call on every
+  press. The distiller now records the **completed-turn count** in the anchor
+  (`turns:<N>` header, via `parseAnchor`/`writeAnchor`) and **skips the model
+  unless the count increased**. `locate` is retained for the slice. Integration
+  tests reworked to drive turns via `❯` boundaries; `TestNoOpWhenNoNewTurn`
+  replaces the old byte-flush no-op test.
+- **Blocking open → async + spinner.** `bin/pair-changelog-open` is now thin
+  (lock + open nvim immediately on the existing log; export `PAIR_CHANGELOG_*`).
+  `nvim/changelog.lua` runs render+distill as a background `jobstart`, animating
+  a winbar spinner ("Computing change log…" first / "Refreshing change log (N new
+  lines)…" after — N parsed from the distiller's `distilling N lines` stderr),
+  and reloads the buffer on completion. The smoke test's fake nvim simulates the
+  job from the exported env. So perceived latency is ~zero on every press;
+  unchanged sessions clear the spinner near-instantly (no model call).

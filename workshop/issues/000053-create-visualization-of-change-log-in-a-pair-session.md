@@ -43,8 +43,10 @@ them in the pane, not because we watch `sdlc`.
 ### Responsibility split — thin shell, all logic in the Go distiller
 
 - **`bin/pair-changelog-open`** (shell, ~thin, models on `pair-scrollback-open`):
-  acquire the lock; clean the TTY via the renderer; run the distiller; `exec`
-  nvim on the log. No log-assembly logic in shell.
+  acquire the lock and open nvim **immediately** on the existing log (no
+  synchronous distill — that blocked the viewer behind a model call every
+  press); it exports the render/distill paths so the viewer runs the refresh as
+  a background job. No log-assembly logic in shell.
 - **`cmd/pair-changelog`** (Go) owns everything testable: compute the slice from
   the anchor (pure), parse the prior log (pure), call the model, assemble the
   new log (pure), write log + anchor atomically. Putting assembly in Go makes
@@ -87,8 +89,9 @@ would not be). On a later press, the pure function
   newest match is always the true boundary). The slice start walks **backward
   from `B`** past `lookback_turns` turn boundaries (see "Lookback"). Slice
   `[lookback_start .. current_last]`.
-- **No-op** → the anchor sits flush with the end (no cleaned lines after it):
-  nothing new, open existing log, no model call.
+- **No-op** → no new *completed turn* since the last distill (see "No-op — by
+  turn count" below): open the existing log, no model call. (The anchor still
+  drives the *slice* when there IS new work.)
 - **Full re-distill** → anchor not found *or only partially matches* (a redraw
   mangled it): clean the whole TTY, pass the prior log as read-only memory so
   already-logged entries are not duplicated. Safe (never loses entries), costs
@@ -113,6 +116,19 @@ gracefully — it walks back a bit more or less context, never breaks the bounda
 `locate` is total and unit-tested across: growth, no-change, shrink,
 anchor-recurs (newest wins), anchor-not-found, and the lookback turn-walk (incl.
 fewer-than-2-turns-available → start 0, and the line cap).
+
+##### No-op — by turn count, not byte-flush
+
+(Revised after dogfood — see Log 2026-06-12.) The change log only gains entries
+when the agent **completes a new turn** (a new user-prompt boundary). A
+byte-level "anchor flush with the end" check is brittle in a live session: the
+trailing lines are the *volatile prompt/status area*, which re-renders slightly
+each press, so the anchor is rarely found at the end → a model call every press.
+Instead the distiller records the **completed-turn count** at each distill (a
+`turns:<N>` header in the anchor sidecar) and **skips the model when the current
+count hasn't increased**. Robust to trailing churn; "nothing happened → nothing
+to the server." The anchor snippet still drives the *slice* when a new turn did
+occur.
 
 ### History contract — structural freeze; orchestrator owns headers
 
@@ -167,8 +183,12 @@ constitutes a change-log-worthy entry."
 `nvim/changelog.lua` — read-only, full-screen, modeled on `scrollback.lua` but
 much simpler: no SGR reconstruction, no markers, **no frontmatter** (anchor is a
 sidecar, so the buffer is pure markdown). Read-only buffer (`modifiable=false`,
-`readonly=true`, `buftype=nofile`), hidden EOL tildes, `Esc` to quit, cursor
-opens at the **bottom** (newest). Colorization of glance tokens via a few
+`readonly=true`, `buftype=nofile`), hidden EOL tildes, `Esc`/`q` to quit, cursor
+opens at the **bottom** (newest). **Async refresh:** on open it shows the
+existing log instantly, then runs the render+distill as a background
+`jobstart`, animating a winbar **spinner** ("Computing change log…" first time;
+"Refreshing change log (N new lines)…" thereafter, where N comes from the
+distiller's stderr status), and reloads the buffer on completion. Colorization of glance tokens via a few
 `syntax match` rules → highlight groups: ticket refs (`#\d\+`), milestone tags
 (`\<M\d\+\>`), inline `` `code` `` / path-like tokens, branch-like (`feature/…`).
 
@@ -205,7 +225,10 @@ State files in `$PAIR_DATA_DIR`, all keyed **per-tag-agent** (matching the
 source `scrollback-<tag>-<agent>.raw`, so file, source, and lock share one key):
 
 - `changelog-<tag>-<agent>.md` — the change log (pure markdown).
-- `changelog-<tag>-<agent>.anchor` — the verbatim K-line anchor snippet.
+- `changelog-<tag>-<agent>.anchor` — a `turns:<N>` header (completed-turn count
+  at last distill, for the no-op) + the verbatim K-line content snippet.
+- `changelog-<tag>-<agent>.cleaned` — transient: the rendered plain-text TTY the
+  background job feeds the distiller.
 - `changelog-<tag>-<agent>.openlock` — re-entrancy + write-serialization guard,
   held for the **whole script lifetime** (as scrollback's openlock): a second
   `Alt+l` while the viewer is open is a no-op refocus, and because the
@@ -292,6 +315,17 @@ guarantees byte-stability._
   in `architecture.md`. Also: added `TestFullRedistillWithPriorLogKeepsFrozenPrefix`
   (the flagged seam gap), `MaxOutputTokens<=0` floor, `splitLines` trims all
   trailing newlines, plan `## Revisions` correcting note #3. `go test ./cmd/...` green.
+- M2 dogfood (operator, live `Alt+l` ✓ working) surfaced two UX issues, fixed
+  fix-forward: (1) **2nd press also slow** — the byte-flush no-op never fired
+  because the anchor (last 3 lines) is the volatile prompt/status area → model
+  call every press. Replaced with a **turn-count no-op**: the distiller records
+  the completed-turn count (`turns:<N>` in the anchor) and skips the model unless
+  a new turn appeared. (2) **Blocking open** — reworked to **async**: the shell
+  opens nvim instantly on the existing log; `changelog.lua` runs render+distill
+  as a background `jobstart` with a winbar **spinner** ("Computing…" first /
+  "Refreshing… N lines" after, N from the distiller's stderr), reloading on done.
+  Tests updated (turn-count fixtures, anchor `turns:` header, async smoke via a
+  fake-nvim that simulates the job). Awaiting re-dogfood before close.
 
 - Spec-review round 1 (fresh context): model helpers unexported → M1 extracts
   `cmd/internal/model`; line-index anchor unstable under redraw → content

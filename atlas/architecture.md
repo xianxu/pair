@@ -364,11 +364,12 @@ one-liner.
 - **Orchestrate** — `Alt l` (`zellij/config.kdl`, next to `Alt /`) runs
   `bin/pair-changelog-open` in a floating pane. Thin shell, modeled on
   `pair-scrollback-open`: a lifetime PID `openlock` (`kill -0` re-entrancy — a
-  second press while open is a no-op refocus; held across the distill+write so
-  concurrent presses can't tear the file), then clean the captured TTY
-  (`pair-scrollback-render --plain --max-lines 0 <raw> <events> <cleaned>`),
-  run the distiller, and open `nvim -u nvim/changelog.lua` on the log (not
-  `exec`, so the EXIT trap clears the lock).
+  second press while open is a no-op refocus), then open `nvim -u
+  nvim/changelog.lua` on the existing log **immediately** (not `exec`, so the
+  EXIT trap clears the lock). It does **not** distill synchronously (that blocked
+  the viewer behind a model call every press, found in dogfood); instead it
+  exports the render/distill paths (`PAIR_CHANGELOG_*`) so the viewer runs the
+  refresh as a background job.
 - **Distill** — `cmd/pair-changelog` (Go) over the shared `cmd/internal/model`
   dispatch. All logic is pure (`distill.go`): a **content anchor** (verbatim last
   K cleaned lines, located newest-first) marks how far the TTY was distilled; on
@@ -377,17 +378,24 @@ one-liner.
   the prior log is parsed into bullet blocks so the **frozen prefix** (all but
   the last entry) is concatenated from the distiller's own bytes (byte-stable by
   construction — only the last entry is ever model-revised), with date headers
-  owned deterministically. `locate` resolves no-op (anchor flush with end → skip
-  the model) and full-redistill (anchor lost → whole TTY as "new", prior log as
-  dedup memory). The thin `main.go` seam reads files → `model.Run` → atomic
-  write (log first, then anchor, for crash-safety). Quality-tier model, generous
-  output budget. First-ever press summarizes the whole transcript.
+  owned deterministically. **No-op by turn count** (not byte-flush — the volatile
+  trailing prompt churns every press): the distiller records the completed-turn
+  count (`turns:<N>` in the anchor) and skips the model unless a new user-prompt
+  boundary appeared. `locate` still drives the *slice* and full-redistill (anchor
+  lost → whole TTY as "new", prior log as dedup memory). The thin `main.go` seam
+  reads files → `model.Run` → atomic write (log first, then anchor); it prints a
+  `distilling N lines` status to stderr for the viewer's spinner. Quality-tier
+  model, generous output budget. First-ever press summarizes the whole transcript.
 - **View** — `nvim/changelog.lua`: read-only (`modifiable=false`, `nofile`),
   full-screen, `<Esc>`/`q` to quit, cursor at the newest entry, with a few
-  `syntax match` token highlights (`#NN`, `Mx`, `` `code` ``, `feature/…`).
+  `syntax match` token highlights (`#NN`, `Mx`, `` `code` ``, `feature/…`). Opens
+  instantly on the existing log, then runs the render+distill as a background
+  `jobstart` with a winbar **spinner** ("Computing…" first / "Refreshing… N
+  lines" after), reloading the buffer on completion.
 - **State** (`$PAIR_DATA_DIR`, per-tag-agent — matching the
   `scrollback-<tag>-<agent>.raw` source): `changelog-<tag>-<agent>.md` (the log,
-  plain markdown), `.anchor` (the content snippet), `.openlock`.
+  plain markdown), `.anchor` (`turns:<N>` header + content snippet), `.cleaned`
+  (transient rendered TTY), `.openlock`.
 
 Tests: pure core + a process-level fake-model integration test in
 `cmd/pair-changelog`; a headless viewer test (`nvim/changelog_test.lua`); an

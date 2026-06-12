@@ -86,14 +86,14 @@ func readOr(path string) string {
 func TestFirstRun(t *testing.T) {
 	bin := buildBinary(t)
 	fakeClaude(t, "- entry one\n\n- entry two\n")
-	cleaned := "intro line\nwork\nLAST1\nLAST2\nLAST3\n"
+	cleaned := "❯ start\nintro line\nLAST1\nLAST2\nLAST3\n"
 	log, anchor := run(t, bin, cleaned, "", "", "2026-06-12")
 
 	want := "## 2026-06-12\n\n- entry one\n\n- entry two\n"
 	if log != want {
 		t.Fatalf("log = %q\nwant %q", log, want)
 	}
-	if anchor != "LAST1\nLAST2\nLAST3\n" {
+	if anchor != "turns:1\nLAST1\nLAST2\nLAST3\n" {
 		t.Fatalf("anchor = %q", anchor)
 	}
 }
@@ -101,10 +101,11 @@ func TestFirstRun(t *testing.T) {
 func TestIncrementalFreezesPrefixAndRevisesLast(t *testing.T) {
 	bin := buildBinary(t)
 	fakeClaude(t, "- two-revised\n\n- three\n")
-	// anchor present mid-stream, with new content after it.
-	cleaned := "intro\nwork\nANCHOR1\nANCHOR2\nANCHOR3\nnew work a\nnew work b\n"
+	// A new turn (2 boundaries > prior 1) triggers the distill; the anchor is
+	// present mid-stream with new content after it.
+	cleaned := "❯ first\nintro\n❯ second\nANCHOR1\nANCHOR2\nANCHOR3\nnew work a\nnew work b\n"
 	priorLog := "## 2026-06-12\n\n- one\n\n- two\n"
-	priorAnchor := "ANCHOR1\nANCHOR2\nANCHOR3\n"
+	priorAnchor := "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n"
 	log, anchor := run(t, bin, cleaned, priorLog, priorAnchor, "2026-06-12")
 
 	frozen := "## 2026-06-12\n\n- one\n\n"
@@ -115,8 +116,8 @@ func TestIncrementalFreezesPrefixAndRevisesLast(t *testing.T) {
 	if log != want {
 		t.Fatalf("log = %q\nwant %q", log, want)
 	}
-	// the anchor advanced to the last 3 cleaned lines.
-	if anchor != "ANCHOR3\nnew work a\nnew work b\n" {
+	// the anchor advanced to the last 3 cleaned lines + the new turn count.
+	if anchor != "turns:2\nANCHOR3\nnew work a\nnew work b\n" {
 		t.Fatalf("anchor = %q", anchor)
 	}
 }
@@ -124,9 +125,9 @@ func TestIncrementalFreezesPrefixAndRevisesLast(t *testing.T) {
 func TestReviseOnlyNeverDropsLast(t *testing.T) {
 	bin := buildBinary(t)
 	fakeClaude(t, "- two-revised\n") // only the revised last entry, no new
-	cleaned := "intro\nANCHOR1\nANCHOR2\nANCHOR3\nnew tail\n"
+	cleaned := "❯ a\nintro\n❯ b\nANCHOR1\nANCHOR2\nANCHOR3\nnew tail\n"
 	priorLog := "## 2026-06-12\n\n- one\n\n- two\n"
-	priorAnchor := "ANCHOR1\nANCHOR2\nANCHOR3\n"
+	priorAnchor := "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n"
 	log, _ := run(t, bin, cleaned, priorLog, priorAnchor, "2026-06-12")
 
 	want := "## 2026-06-12\n\n- one\n\n- two-revised\n"
@@ -138,9 +139,9 @@ func TestReviseOnlyNeverDropsLast(t *testing.T) {
 func TestDateRollover(t *testing.T) {
 	bin := buildBinary(t)
 	fakeClaude(t, "- two-revised\n\n- three\n")
-	cleaned := "intro\nANCHOR1\nANCHOR2\nANCHOR3\nnew tail\n"
+	cleaned := "❯ a\nintro\n❯ b\nANCHOR1\nANCHOR2\nANCHOR3\nnew tail\n"
 	priorLog := "## 2026-06-11\n\n- one\n\n- two\n"
-	priorAnchor := "ANCHOR1\nANCHOR2\nANCHOR3\n"
+	priorAnchor := "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n"
 	log, _ := run(t, bin, cleaned, priorLog, priorAnchor, "2026-06-12")
 
 	want := "## 2026-06-11\n\n- one\n\n- two-revised\n\n## 2026-06-12\n\n- three\n"
@@ -156,9 +157,10 @@ func TestDateRollover(t *testing.T) {
 func TestFullRedistillWithPriorLogKeepsFrozenPrefix(t *testing.T) {
 	bin := buildBinary(t)
 	dir := fakeClaude(t, "- two-revised\n\n- three\n")
-	cleaned := "fresh1\nfresh2\nfresh3\n" // does NOT contain the prior anchor
+	// 2 boundaries > prior 1 → not a no-op; OLD1-3 absent → FullRedistill.
+	cleaned := "❯ p\n❯ q\nfresh1\nfresh2\nfresh3\n"
 	priorLog := "## 2026-06-12\n\n- one\n\n- two\n"
-	priorAnchor := "OLD1\nOLD2\nOLD3\n" // absent in cleaned → FullRedistill
+	priorAnchor := "turns:1\nOLD1\nOLD2\nOLD3\n" // absent in cleaned → FullRedistill
 	log, anchor := run(t, bin, cleaned, priorLog, priorAnchor, "2026-06-12")
 
 	if !invoked(dir) {
@@ -172,18 +174,20 @@ func TestFullRedistillWithPriorLogKeepsFrozenPrefix(t *testing.T) {
 	if log != want {
 		t.Fatalf("log = %q\nwant %q", log, want)
 	}
-	if anchor != "fresh1\nfresh2\nfresh3\n" {
+	if anchor != "turns:2\nfresh1\nfresh2\nfresh3\n" {
 		t.Fatalf("anchor = %q", anchor)
 	}
 }
 
-func TestNoOpDoesNotCallModelOrChangeLog(t *testing.T) {
+// No new completed turn (cleaned has 1 boundary, prior recorded 1) → no-op: the
+// model is not called and the log is untouched, even though the trailing lines
+// churned. This is the turn-count no-op that replaces the brittle byte-flush one.
+func TestNoOpWhenNoNewTurn(t *testing.T) {
 	bin := buildBinary(t)
 	dir := fakeClaude(t, "- should not appear\n")
-	// anchor IS the last 3 lines of cleaned → flush with the end → no-op.
-	cleaned := "intro\nwork\nLAST1\nLAST2\nLAST3\n"
+	cleaned := "❯ a\nwork churned a bit\nLAST1\nLAST2\nLAST3\n" // still 1 boundary
 	priorLog := "## 2026-06-12\n\n- one\n\n- two\n"
-	priorAnchor := "LAST1\nLAST2\nLAST3\n"
+	priorAnchor := "turns:1\nWHATEVER\n" // prior count = 1; snippet irrelevant
 	log, _ := run(t, bin, cleaned, priorLog, priorAnchor, "2026-06-12")
 
 	if log != priorLog {

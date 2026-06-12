@@ -13,6 +13,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -55,15 +56,27 @@ func main() {
 	}
 
 	priorLog := readFileOr(logPath)
-	anchor := splitLines(readFileOr(anchorPath))
+	priorTurns, anchor := parseAnchor(readFileOr(anchorPath))
+	boundaries := scanTurnBoundaries(lines, agent)
+	hasPrior := strings.TrimSpace(priorLog) != ""
 
-	res := locate(lines, anchor, scanTurnBoundaries(lines, agent), lookbackTurns, lineCap)
-	if res.Kind == NoOp {
-		return // nothing new since the last run; viewer opens the existing log
+	// Turn-count no-op: the change log only gains entries when the agent
+	// completes a new turn (a new user-prompt boundary). The volatile trailing
+	// prompt/status lines churn between presses, so a byte-level check would
+	// re-distill every press; counting completed turns is robust to that noise
+	// and means "nothing changed → no model call".
+	if hasPrior && len(boundaries) <= priorTurns {
+		fmt.Fprintln(os.Stderr, "pair-changelog: up to date (no new turn)")
+		return
 	}
 
-	hasPrior := strings.TrimSpace(priorLog) != ""
+	res := locate(lines, anchor, boundaries, lookbackTurns, lineCap)
+	if res.Kind == NoOp {
+		return // belt-and-suspenders; shouldn't fire once a new turn exists
+	}
+
 	var frozen, ek, sliceText, sys, input string
+	sliceStart := 0
 	if !hasPrior {
 		// First-ever run: summarize the whole transcript.
 		sliceText = strings.Join(lines, "\n")
@@ -73,10 +86,14 @@ func main() {
 		// Incremental (Found) OR full-redistill (Start=0) — both keep the prior
 		// log: feed it as read-only memory and slice from res.Start.
 		frozen, ek = splitFrozenTail(priorLog)
-		sliceText = strings.Join(lines[res.Start:], "\n")
+		sliceStart = res.Start
+		sliceText = strings.Join(lines[sliceStart:], "\n")
 		sys = buildSystemPrompt(false)
 		input = buildInput(frozen, ek, sliceText, false)
 	}
+
+	// Status line the viewer surfaces in its spinner ("Refreshing … N lines").
+	fmt.Fprintf(os.Stderr, "pair-changelog: distilling %d lines\n", len(lines)-sliceStart)
 
 	out, err := model.Run(model.Request{
 		Agent:           agent,
@@ -108,10 +125,35 @@ func main() {
 	if err := atomicWrite(logPath, newLog); err != nil {
 		fail("write log: %v", err)
 	}
-	snippet := strings.Join(anchorSnippet(lines, anchorLines), "\n") + "\n"
-	if err := atomicWrite(anchorPath, snippet); err != nil {
+	if err := writeAnchor(anchorPath, len(boundaries), anchorSnippet(lines, anchorLines)); err != nil {
 		fail("write anchor: %v", err)
 	}
+}
+
+// parseAnchor reads the anchor sidecar: an optional "turns:<N>" header line (the
+// completed-turn count at the last distill, for the no-op check) followed by the
+// verbatim K-line content snippet. Tolerates a header-less (legacy) file.
+func parseAnchor(content string) (turns int, snippet []string) {
+	ls := splitLines(content)
+	if len(ls) == 0 {
+		return 0, nil
+	}
+	if rest, ok := strings.CutPrefix(ls[0], "turns:"); ok {
+		if n, err := strconv.Atoi(strings.TrimSpace(rest)); err == nil {
+			return n, ls[1:]
+		}
+	}
+	return 0, ls
+}
+
+func writeAnchor(path string, turns int, snippet []string) error {
+	var b strings.Builder
+	fmt.Fprintf(&b, "turns:%d\n", turns)
+	for _, l := range snippet {
+		b.WriteString(l)
+		b.WriteString("\n")
+	}
+	return atomicWrite(path, b.String())
 }
 
 // splitLines splits cleaned text into lines, dropping any trailing newlines so a

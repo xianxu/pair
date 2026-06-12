@@ -6,8 +6,14 @@
 -- system), so this is a read-only buffer plus a few token-colorizing syntax
 -- rules for quick glancing.
 --
+-- It opens IMMEDIATELY on whatever log already exists, then runs the
+-- render+distill as a background job (via PAIR_CHANGELOG_* env from the
+-- orchestrator), showing a winbar spinner and reloading the buffer when the job
+-- finishes. The distiller skips the model when no new turn completed, so an
+-- unchanged session clears the spinner near-instantly.
+--
 -- M.setup is exported so nvim/changelog_test.lua can drive it headlessly
--- (`nvim -l`) without launching the interactive UI.
+-- (`nvim -l`) without launching the interactive UI / background job.
 
 local M = {}
 
@@ -41,6 +47,73 @@ function M.setup(bufnr)
   vim.bo[bufnr].readonly = true
 end
 
+-- reload re-reads the log file into the (read-only) buffer and re-colorizes,
+-- keeping the cursor at the newest entry.
+function M.reload(bufnr, logpath)
+  local ok, lines = pcall(vim.fn.readfile, logpath)
+  if not ok then return end
+  vim.bo[bufnr].modifiable = true
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+  vim.bo[bufnr].modifiable = false
+  M.colorize(bufnr)
+  pcall(function()
+    vim.api.nvim_win_set_cursor(0, { math.max(1, vim.api.nvim_buf_line_count(bufnr)), 0 })
+  end)
+end
+
+-- start_refresh runs the render+distill as a background job, animating a winbar
+-- spinner and reloading the buffer on completion. No-op unless the orchestrator
+-- set PAIR_CHANGELOG_REFRESH=1.
+function M.start_refresh(bufnr)
+  if os.getenv('PAIR_CHANGELOG_REFRESH') ~= '1' then return end
+  local render  = os.getenv('PAIR_CHANGELOG_RENDER')
+  local distill = os.getenv('PAIR_CHANGELOG_DISTILL')
+  local raw     = os.getenv('PAIR_CHANGELOG_RAW')
+  local events  = os.getenv('PAIR_CHANGELOG_EVENTS')
+  local cleaned = os.getenv('PAIR_CHANGELOG_CLEANED')
+  local log     = os.getenv('PAIR_CHANGELOG_LOG')
+  local anchor  = os.getenv('PAIR_CHANGELOG_ANCHOR')
+  local agent   = os.getenv('PAIR_CHANGELOG_AGENT') or 'claude'
+  local today   = os.getenv('PAIR_CHANGELOG_TODAY') or ''
+  if not (render and distill and raw and events and cleaned and log and anchor) then return end
+
+  local esc = vim.fn.shellescape
+  local cmd = esc(render) .. ' --plain --max-lines 0 ' .. esc(raw) .. ' ' .. esc(events) .. ' ' .. esc(cleaned)
+    .. ' && ' .. esc(distill) .. ' --cleaned ' .. esc(cleaned) .. ' --log ' .. esc(log)
+    .. ' --anchor ' .. esc(anchor) .. ' --agent ' .. esc(agent) .. ' --today ' .. esc(today)
+
+  local win = vim.api.nvim_get_current_win()
+  local first_run = vim.api.nvim_buf_line_count(bufnr) <= 1
+    and (vim.api.nvim_buf_get_lines(bufnr, 0, 1, false)[1] or '') == ''
+  local msg = first_run and 'Computing change log…' or 'Refreshing change log…'
+  local frames = { '⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏' }
+  local i = 0
+  local function paint()
+    i = (i % #frames) + 1
+    pcall(function() vim.wo[win].winbar = ' ' .. frames[i] .. '  ' .. msg end)
+  end
+  paint()
+  local timer = vim.fn.timer_start(90, paint, { ['repeat'] = -1 })
+
+  local function finish()
+    pcall(vim.fn.timer_stop, timer)
+    pcall(function() vim.wo[win].winbar = '' end)
+    M.reload(bufnr, log)
+  end
+
+  local job = vim.fn.jobstart({ 'sh', '-c', cmd }, {
+    on_stderr = function(_, data)
+      for _, line in ipairs(data or {}) do
+        local n = line:match('distilling (%d+) lines')
+        if n then msg = 'Refreshing change log (' .. n .. ' new lines)…' end
+        if line:match('up to date') then msg = 'Up to date' end
+      end
+    end,
+    on_exit = function() finish() end,
+  })
+  if job <= 0 then finish() end -- job failed to start: clear the spinner
+end
+
 -- Interactive wiring — skipped under the headless test (which sets the guard).
 if not _G.PAIR_CHANGELOG_TEST then
   vim.opt.number = false
@@ -52,6 +125,7 @@ if not _G.PAIR_CHANGELOG_TEST then
     callback = function(args)
       M.setup(args.buf)
       vim.cmd('normal! G') -- newest entry at the bottom
+      M.start_refresh(args.buf)
     end,
   })
 
