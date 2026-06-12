@@ -2910,6 +2910,36 @@ end
 function _G.PairConfirmRestart()           pair_confirm_restart_impl(false) end
 function _G.PairConfirmRestartNewSession() pair_confirm_restart_impl(true)  end
 
+-- Alt+Shift+C compaction (#55). Unlike the restart modals (which shell out to
+-- pair-restart.sh directly), creating a continuation needs the agent's
+-- judgment — so this asks the AGENT (agent-agnostic prompt, no claude-only
+-- skill name) to distill a continuation and then run `pair continue <slug>`,
+-- which is context-aware: inside this live pane it parks the scrollback, marks
+-- a continue= restart, and kills the session → the outer pair reincarnates the
+-- same tag with a fresh conversation seeded from the doc.
+local COMPACT_PROMPT = table.concat({
+  'Compact this session:',
+  '1. Write a continuation doc for this session NOW — distill the NEXT ACTION,',
+  '   open threads, and key decisions/dead-ends into workshop/continuation/',
+  "   (use this project's continuation mechanism / pair-continuation writer).",
+  '   Choose a short slug.',
+  '2. Then run:  pair continue <that-slug>',
+  '   (or  pair-dev continue <that-slug>  if this is a dev checkout)',
+  '   That restarts this session with a fresh conversation seeded from the',
+  '   continuation. Do this as your immediate next action.',
+}, '\n')
+
+function _G.PairConfirmCompact()
+  pair_ensure_visible_then(function()
+    local ans = vim.fn.confirm(
+      'Compact this session?\n\nThe agent will write a continuation, then'
+        .. '\n`pair continue <slug>` restarts this tag fresh, seeded from it.',
+      '&Yes\n&No', 2)
+    if ans ~= 1 then return end
+    send_to_agent(COMPACT_PROMPT)
+  end)
+end
+
 -- ---------------------------------------------------------------------------
 -- Layout sizing: minimized (statusline only) ↔ small (12 rows, initial) ↔ half (50%).
 -- ---------------------------------------------------------------------------
