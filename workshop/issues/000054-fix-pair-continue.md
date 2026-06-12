@@ -1,11 +1,12 @@
 ---
 id: 000054
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-11
 updated: 2026-06-11
 estimate_hours: 1.0
+actual_hours: 0.14
 ---
 
 # Fix pair continue: startup crash + don't force tag + forward args
@@ -65,6 +66,7 @@ reshape it to behave like `pair <agent> -- <args>` — pre-seeded but normal.
 ## Log
 
 ### 2026-06-11
+- 2026-06-11: closed — bash tests/pair-continue-test.sh → 11/11 ok (4 arg forms incl. -- forwarding, [agent] port, bare list, unknown/invalid slug, guard short-vs-long); make build clean (Go binaries incl. pair-continuation writer untouched); bash -n bin/pair clean. Root-caused + reproduced the zellij sun_path session-name crash; guard rewritten pipefail-safe (capture-then-match) after the test caught the | grep regression.; review verdict: SHIP
 - Root-caused the crash: zellij `--session` sun_path budget = capacity − socket_dir_len; long macOS `$TMPDIR` shrinks it below the forced slug length. Reproduced locally (≥~60 chars rejected here; ≥28 on the operator's longer-TMPDIR machine). Message "less than 0 characters" is a zellij cosmetic bug.
 - Reversed an earlier in-session removal plan (operator changed direction twice → keep + fix). See `#50` (the feature, merged PR #23), `#91` (continuation datatype).
 - Implemented all three Spec items in `bin/pair`. Added a `PAIR_DEBUG_ARGS=1` probe (sibling of `PAIR_DEBUG_HISTORY`) that dumps resolved argv and exits pre-launch, so the new `tests/pair-continue-test.sh` drives the REAL script (not a mirror) — per the repo's drive-the-artifact discipline.
