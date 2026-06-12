@@ -1,11 +1,12 @@
 ---
 id: 000053
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-11
 updated: 2026-06-12
 estimate_hours: 10
+actual_hours: 1.01
 ---
 
 # create visualization of change log in a pair session
@@ -314,6 +315,7 @@ guarantees byte-stability._
   distiller as its **own library**.
 
 ### 2026-06-12
+- 2026-06-12: closed — Alt+l change-log feature complete + operator-dogfooded live. go test ./... + make test-lua + make test-changelog all green; go vet clean. M1 (model extraction + distiller) and M2 (orchestrator + read-only viewer + async/spinner + turn-count no-op) each milestone-reviewed (FIX-THEN-SHIP, findings addressed). Done-when satisfied: Alt+l opens read-only full-screen viewer with colorized distilled entries; first press distills full TTY; later press appends + may revise last entry with byte-identical frozen prefix; no-new-turn press skips the model; concurrent presses guarded by lifetime lock + log-then-anchor atomic write.; review verdict: SHIP
 - 2026-06-12: closed M2 — M2 (orchestrator + viewer + keybind + async/no-op reworks). go test ./... green; headless viewer test (read-only + colorization); make test-changelog end-to-end orchestrator smoke (real distiller+renderer, fake claude+nvim). Live operator dogfood: Alt+l verified working — async instant open + bottom-virtual-line spinner + turn-count no-op + W10 readonly fix. Concurrency: lifetime PID openlock + log-then-anchor atomic temp+rename (no dedicated shell race test — impractical in sh; basis is the proven scrollback lock pattern + atomic rename).; review verdict: FIX-THEN-SHIP
 - M2 FIX-THEN-SHIP findings addressed before crossing: (Important) `make
   test-changelog` now depends on the binaries so it runs in `make test` (was
