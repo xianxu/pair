@@ -2940,6 +2940,29 @@ function _G.PairConfirmCompact()
   end)
 end
 
+-- :PairTTYRawPath / _G.PairTTYRawPath() — print THIS session's raw scrollback
+-- path (the VT byte stream pair-wrap --scrollback-log captures; the substrate
+-- pair-scrollback-render replays). It lives in the XDG data dir, NOT the repo,
+-- and is RAW bytes, not cleaned text. Grab it mid-session while the file is
+-- live — at Alt+x quit it's deleted unless preserved (see cleanup_quit_marker),
+-- and the next same-tag launch O_TRUNCs it. The path is copied to the + register.
+function _G.PairTTYRawPath()
+  -- Raw getenv on purpose (NOT pair_tag(), whose 'claude' fallback would mask
+  -- the unset case) so the guard below can report "not inside a pair session".
+  local tag = os.getenv('PAIR_TAG')
+  local agent = os.getenv('PAIR_AGENT')
+  if not tag or tag == '' or not agent or agent == '' then
+    vim.notify('pair: not inside a pair session (PAIR_TAG/PAIR_AGENT unset)', vim.log.levels.WARN)
+    return
+  end
+  local raw = string.format('%s/scrollback-%s-%s.raw', pair_data_dir(), tag, agent)
+  local sz = vim.fn.getfsize(raw)
+  local note = (sz >= 0) and string.format(' (%d bytes)', sz) or ' (not present yet)'
+  local copied = pcall(vim.fn.setreg, '+', raw)   -- may fail with no clipboard provider
+  vim.notify('pair tty raw: ' .. raw .. note .. (copied and '  [copied to +]' or ''), vim.log.levels.INFO)
+end
+vim.api.nvim_create_user_command('PairTTYRawPath', function() _G.PairTTYRawPath() end, {})
+
 -- ---------------------------------------------------------------------------
 -- Layout sizing: minimized (statusline only) ↔ small (12 rows, initial) ↔ half (50%).
 -- ---------------------------------------------------------------------------

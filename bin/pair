@@ -1422,13 +1422,16 @@ cleanup_quit_marker() {
         # Also de-noises the inherited Alt+n / Shift+Alt+N restart paths.
         if [ -s "${_sb_base}.raw" ] && [ -t 0 ] \
             && [ ! -f "$HOME/.cache/pair/restart-$SESSION" ]; then
-            printf 'pair: park "%s" as a continuation? (preserve its scrollback) [y/N]: ' "$PAIR_TAG" >/dev/tty
+            printf 'pair: preserve "%s" scrollback to distill into a continuation later? [y/N]: ' "$SESSION" >/dev/tty
             if read -r _ans </dev/tty && { [ "$_ans" = "y" ] || [ "$_ans" = "Y" ]; }; then
                 # park_scrollback (move mode — session is dying) handles the
                 # .raw/.events.jsonl rename + parked-<tag> marker (#55 ARCH-DRY).
+                # The parked file is RAW VT bytes in the XDG data dir, NOT in the
+                # repo — the durable continuation doc is written later when a
+                # live agent renders + distills it.
                 if _pbase="$(park_scrollback "$PAIR_TAG" "$quit_agent")"; then
                     _parked=1
-                    printf 'pair: scrollback preserved (%s.raw). Open a session and "park pair-%s" to finish the continuation.\n' "$_pbase" "$PAIR_TAG"
+                    printf 'pair: scrollback preserved at\n        %s.raw\n      open a session and "park %s" to distill it into a continuation.\n' "$_pbase" "$SESSION" >/dev/tty
                 fi
             fi
         fi
