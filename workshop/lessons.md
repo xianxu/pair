@@ -235,3 +235,32 @@ the flag before the user could pick.
 that might also fire for X itself. Verify the X-shower doesn't trip the clear —
 `z=`'s own `complete()` is `noinsert`, so it fires no `TextChanged` and the flag
 survives. Prefer clearing at the state-transition source over the event funnel.
+
+## Doc-sync: sweep ALL prose when a design detail moves, and verify claims against code
+
+Shipping #53 hit the merge `atlas/README sync` judge three times because docs
+drifted from the code. Two distinct failures:
+
+1. **A relocated UI detail left stale pointers in many files.** Moving the
+   changelog spinner from the winbar to a bottom virtual line (one commit) left
+   "winbar spinner" in five places — `atlas/architecture.md`, the issue Spec, the
+   plan, the `changelog.lua` docstring, and (implicitly) the README. The merge
+   judge gates only `atlas/` + `README.md`, so it caught those one at a time
+   across re-runs; the Spec/plan/code-comment copies it does *not* gate drifted
+   silently. **Rule:** when you rename or relocate a behavior/UI element
+   mid-implementation, `grep -rn '<old-term>'` across **atlas + issue spec + plan
+   + README + code docstrings** in one pass and fix every hit — don't let the
+   merge judge find them serially.
+
+2. **A doc claim overstated the code.** The atlas/spec said the distiller uses a
+   "quality/capable-tier model"; the code passes no `--model`, so it falls back to
+   `DefaultModel` = the *same small model the slug uses*. **Rule:** doc claims
+   about *behavior* ("uses model X", "runs in parallel", "caches Y") must be read
+   off the code, not the original intent — aspiration in a spec silently becomes a
+   false statement once the implementation takes the simpler path.
+
+Also: `sdlc close --issue N --milestone Mx` is the **no-auto-review** escape; the
+reviewed milestone close is `sdlc milestone-close`. Using `close --milestone`
+ticks the box without dispatching the boundary review or emitting the
+`Review-Verdict:` trailer the issue-close gate then requires — leading to a
+restart. Use `milestone-close` for a reviewed boundary.
