@@ -193,9 +193,11 @@ sidecar, so the buffer is pure markdown). Read-only buffer (`modifiable=false`,
 `readonly=true`, `buftype=nofile`), hidden EOL tildes, `Esc`/`q` to quit, cursor
 opens at the **bottom** (newest). **Async refresh:** on open it shows the
 existing log instantly, then runs the render+distill as a background
-`jobstart`, animating a winbar **spinner** ("Computing change log…" first time;
-"Refreshing change log (N new lines)…" thereafter, where N comes from the
-distiller's stderr status), and reloads the buffer on completion. Colorization of glance tokens via a few
+`jobstart`, animating a **spinner** as a bottom virtual line (a `virt_lines`
+extmark where the new entry will land — not the winbar, so the buffer stays
+untouched/read-only): "Computing change log…" first time; "Refreshing change log
+(N new lines)…" thereafter, where N comes from the distiller's stderr status.
+Reloads the buffer on completion. Colorization of glance tokens via a few
 `syntax match` rules → highlight groups: ticket refs (`#\d\+`), milestone tags
 (`\<M\d\+\>`), inline `` `code` `` / path-like tokens, branch-like (`feature/…`).
 

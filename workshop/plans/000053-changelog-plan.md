@@ -627,8 +627,9 @@ close:
 - **Blocking open → async + spinner.** `bin/pair-changelog-open` is now thin
   (lock + open nvim immediately on the existing log; export `PAIR_CHANGELOG_*`).
   `nvim/changelog.lua` runs render+distill as a background `jobstart`, animating
-  a winbar spinner ("Computing change log…" first / "Refreshing change log (N new
-  lines)…" after — N parsed from the distiller's `distilling N lines` stderr),
+  a spinner as a bottom virtual line ("Computing change log…" first / "Refreshing
+  change log (N new lines)…" after — N parsed from the distiller's `distilling N
+  lines` stderr),
   and reloads the buffer on completion. The smoke test's fake nvim simulates the
   job from the exported env. So perceived latency is ~zero on every press;
   unchanged sessions clear the spinner near-instantly (no model call).
