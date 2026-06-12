@@ -19,8 +19,11 @@ bin/pair-wrap                # PTY proxy: OSC translation + scrollback capture
 bin/pair-notify              # hook-driven OSC notifier (e.g. claude Notification)
 bin/pair-scrollback-render   # raw PTY capture → ANSI-colored line dump (#000017)
 bin/pair-scrollback-open     # Alt+/ orchestrator: render + open viewer
+bin/pair-changelog           # TTY → distilled change log (LLM, incremental) (#53)
+bin/pair-changelog-open      # Alt+l orchestrator: clean TTY + distill + open viewer (#53)
 nvim/init.lua                # bundled nvim config (loaded via -u)
 nvim/scrollback.lua          # read-only ANSI viewer for the scrollback dump
+nvim/changelog.lua           # read-only viewer for the distilled change log (#53)
 zellij/config.kdl            # mouse, copy_command, keybinds, pane frames
 zellij/layouts/main.kdl      # the split + agent/draft commands + swap layouts
 ```
@@ -349,6 +352,47 @@ action` shell-out in `nvim/init.lua` is guarded by `has_ui()`
 (`#vim.api.nvim_list_uis() > 0`) — headless nvim has no UI attached, so the
 guard turns those shell-outs into no-ops and test inputs never leak into the
 active agent pane (#000042).
+
+### Change log — `Alt+l`, `cmd/pair-changelog`, `nvim/changelog.lua` (issue #53)
+
+The distilled counterpart to `Alt+/`: `Alt+/` shows the *raw* scroll, `Alt+l`
+the *distilled* one — an append-mostly list of session milestones/decisions an
+operator can glance at. On-demand only (no per-turn cost); a *furtherance of the
+slug* (LLM distillation of what the operator saw), but accumulating instead of a
+one-liner.
+
+- **Orchestrate** — `Alt l` (`zellij/config.kdl`, next to `Alt /`) runs
+  `bin/pair-changelog-open` in a floating pane. Thin shell, modeled on
+  `pair-scrollback-open`: a lifetime PID `openlock` (`kill -0` re-entrancy — a
+  second press while open is a no-op refocus; held across the distill+write so
+  concurrent presses can't tear the file), then clean the captured TTY
+  (`pair-scrollback-render --plain --max-lines 0 <raw> <events> <cleaned>`),
+  run the distiller, and open `nvim -u nvim/changelog.lua` on the log (not
+  `exec`, so the EXIT trap clears the lock).
+- **Distill** — `cmd/pair-changelog` (Go) over the shared `cmd/internal/model`
+  dispatch. All logic is pure (`distill.go`): a **content anchor** (verbatim last
+  K cleaned lines, located newest-first) marks how far the TTY was distilled; on
+  a later press it slices from the anchor minus a **turn-based lookback** (≈2
+  turns, via per-agent prompt glyphs synced from `scrollback.lua`, line-capped);
+  the prior log is parsed into bullet blocks so the **frozen prefix** (all but
+  the last entry) is concatenated from the distiller's own bytes (byte-stable by
+  construction — only the last entry is ever model-revised), with date headers
+  owned deterministically. `locate` resolves no-op (anchor flush with end → skip
+  the model) and full-redistill (anchor lost → whole TTY as "new", prior log as
+  dedup memory). The thin `main.go` seam reads files → `model.Run` → atomic
+  write (log first, then anchor, for crash-safety). Quality-tier model, generous
+  output budget. First-ever press summarizes the whole transcript.
+- **View** — `nvim/changelog.lua`: read-only (`modifiable=false`, `nofile`),
+  full-screen, `<Esc>`/`q` to quit, cursor at the newest entry, with a few
+  `syntax match` token highlights (`#NN`, `Mx`, `` `code` ``, `feature/…`).
+- **State** (`$PAIR_DATA_DIR`, per-tag-agent — matching the
+  `scrollback-<tag>-<agent>.raw` source): `changelog-<tag>-<agent>.md` (the log,
+  plain markdown), `.anchor` (the content snippet), `.openlock`.
+
+Tests: pure core + a process-level fake-model integration test in
+`cmd/pair-changelog`; a headless viewer test (`nvim/changelog_test.lua`); an
+end-to-end orchestrator smoke (`tests/changelog-open-test.sh`, `make
+test-changelog`).
 
 ## Quit / restart semantics
 

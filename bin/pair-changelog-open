@@ -1,0 +1,67 @@
+#!/bin/sh
+# pair-changelog-open — distill the pair session's TTY into a change log and
+# open it in a read-only nvim viewer.
+#
+# Bound to Alt+l in zellij/config.kdl (Run with floating=true,
+# close_on_exit=true), so this script runs in a floating pane, executes nvim in
+# place, and the pane self-dismisses when the user :q's. The distilled counter-
+# part to Alt+/ (pair-scrollback-open): Alt+/ shows the raw scroll, Alt+l the
+# distilled scroll. Filed as #53.
+#
+# Inputs come from pair's env (exported by bin/pair before zellij starts):
+#   $PAIR_DATA_DIR  — where pair stores per-session state files
+#   $PAIR_TAG       — session identity
+#   $PAIR_AGENT     — agent basename (claude / codex / agy)
+#   $PAIR_HOME      — pair install root (for bin/* and nvim/changelog.lua)
+set -eu
+
+if [ -z "${PAIR_DATA_DIR:-}" ] || [ -z "${PAIR_TAG:-}" ] || [ -z "${PAIR_AGENT:-}" ]; then
+    printf 'pair-changelog-open: missing PAIR_DATA_DIR / PAIR_TAG / PAIR_AGENT\n' >&2
+    printf '  This script is meant to run inside a pair session.\n' >&2
+    sleep 3
+    exit 1
+fi
+
+# Re-entrancy + write-serialization guard. Alt+l is a global zellij keybind, so
+# it fires even when focus is already inside this viewer. The lock holds the PID
+# of the script instance that owns the open viewer (we run nvim, not exec, so the
+# EXIT trap clears the lock). A live PID means a viewer is already up → exit; a
+# stale lock (crash) has a dead PID and is reclaimed. Because the distill+write
+# below also run under this lock, concurrent presses can't double-distill or tear
+# the file.
+LOCK="$PAIR_DATA_DIR/changelog-$PAIR_TAG-$PAIR_AGENT.openlock"
+if [ -f "$LOCK" ]; then
+    other=$(cat "$LOCK" 2>/dev/null || true)
+    if [ -n "${other:-}" ] && kill -0 "$other" 2>/dev/null; then
+        exit 0
+    fi
+fi
+printf '%s\n' "$$" > "$LOCK"
+trap 'rm -f "$LOCK"' EXIT INT TERM
+
+RAW="$PAIR_DATA_DIR/scrollback-$PAIR_TAG-$PAIR_AGENT.raw"
+EVENTS="$PAIR_DATA_DIR/scrollback-$PAIR_TAG-$PAIR_AGENT.events.jsonl"
+LOG="$PAIR_DATA_DIR/changelog-$PAIR_TAG-$PAIR_AGENT.md"
+ANCHOR="$PAIR_DATA_DIR/changelog-$PAIR_TAG-$PAIR_AGENT.anchor"
+CLEANED="$PAIR_DATA_DIR/changelog-$PAIR_TAG-$PAIR_AGENT.cleaned"
+
+# Ensure the viewer always has a file to open, even before the first distill.
+[ -f "$LOG" ] || : > "$LOG"
+
+# Clean the TTY (uncapped, plain text) for the distiller — but only if there's
+# scrollback yet. A missing/empty raw just means "no activity captured"; we still
+# open whatever log exists.
+if [ -s "$RAW" ] && [ -x "$PAIR_HOME/bin/pair-scrollback-render" ]; then
+    if "$PAIR_HOME/bin/pair-scrollback-render" --plain --max-lines 0 "$RAW" "$EVENTS" "$CLEANED" 2>/dev/null \
+       && [ -x "$PAIR_HOME/bin/pair-changelog" ]; then
+        # Distill. Non-fatal: a model hiccup must never block opening the log.
+        "$PAIR_HOME/bin/pair-changelog" \
+            --cleaned "$CLEANED" --log "$LOG" --anchor "$ANCHOR" \
+            --agent "$PAIR_AGENT" --today "$(date +%F)" \
+            || printf 'pair-changelog-open: distill failed; showing the existing log.\n' >&2
+    fi
+fi
+
+# Run nvim (not exec) so the EXIT trap fires on quit and the lock never goes
+# stale; close_on_exit=true on the zellij Run binding tears the pane down.
+nvim -u "$PAIR_HOME/nvim/changelog.lua" "$LOG"
