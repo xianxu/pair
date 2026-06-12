@@ -666,6 +666,151 @@ if [ -z "$forced_tag" ] && [ -n "${PAIR_FORCE_TAG:-}" ]; then
     forced_tag="$PAIR_FORCE_TAG"
 fi
 unset PAIR_FORCE_TAG
+
+# --- #55 compaction support: hoisted DATA_DIR + early helpers ----------------
+# DATA_DIR is hoisted above the `command -v zellij` gate, the in-session
+# compaction branch, and the in_zellij_pane guard so park_scrollback /
+# handle_restart_marker (defined here) and the branch can all use it.
+# Honors $XDG_DATA_HOME with the spec-defined fallback. (Original site below
+# the guard is removed.)
+DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/pair"
+mkdir -p "$DATA_DIR"
+export PAIR_DATA_DIR="$DATA_DIR"
+
+# Park a session's scrollback for later distillation into a continuation
+# (ariadne#91). Extracted from cleanup_quit_marker so BOTH the Alt+x quit path
+# (move — the session is dying) and the #55 in-session compaction path (--copy
+# — the live pair-wrap is still appending to .raw) share one implementation
+# (ARCH-DRY). Non-interactive; echoes the parked base path on success, rc 1 if
+# there's nothing to park. Knows only .raw/.events.jsonl; .ansi stays the
+# caller's concern.
+park_scrollback() {  # <tag> <agent> [--copy]
+    local tag="$1" agent="$2" mode="${3:-}"
+    local base="$DATA_DIR/scrollback-${tag}-${agent}"
+    [ -s "${base}.raw" ] || return 1
+    local ts pbase op
+    ts="$(date +%Y%m%dT%H%M%S)"
+    pbase="$DATA_DIR/parked-scrollback-${tag}-${ts}"
+    if [ "$mode" = "--copy" ]; then op=cp; else op=mv; fi
+    "$op" "${base}.raw" "${pbase}.raw" 2>/dev/null || return 1
+    [ -f "${base}.events.jsonl" ] && "$op" "${base}.events.jsonl" "${pbase}.events.jsonl" 2>/dev/null
+    : > "$DATA_DIR/parked-${tag}"
+    printf '%s\n' "$pbase"
+}
+
+# Re-read the restart marker dropped by pair-restart.sh (Alt+n / Shift+Alt+N)
+# or the #55 in-session compaction branch, and re-exec pair under the same tag.
+# Moved up from its original site (~1323) so the PAIR_TEST_CALL dispatcher below
+# can drive it before the picker (which would otherwise hang on the name
+# prompt). The `_reexec` seam captures the would-be argv under
+# PAIR_REEXEC_CAPTURE instead of exec'ing, so the relaunch argv is unit-testable.
+handle_restart_marker() {
+    local marker="$HOME/.cache/pair/restart-$SESSION"
+    [ -f "$marker" ] || return 0
+
+    _reexec() {  # capture in tests, exec in prod. MUST NOT return — real exec
+        # never returns, so a `return` here would let the caller fall through
+        # into a later re-exec arm and overwrite the capture. exit mimics exec.
+        if [ -n "${PAIR_REEXEC_CAPTURE:-}" ]; then printf '%s\n' "$*" > "$PAIR_REEXEC_CAPTURE"; exit 0; fi
+        exec "$@"
+    }
+
+    local r_tag r_agent r_new_session r_rename_to r_continue
+    r_tag=$(awk -F= '$1=="tag"{print $2; exit}' "$marker")
+    r_agent=$(awk -F= '$1=="agent"{print $2; exit}' "$marker")
+    r_new_session=$(awk -F= '$1=="new_session"{print $2; exit}' "$marker")
+    r_rename_to=$(awk -F= '$1=="rename_to"{print $2; exit}' "$marker")
+    r_continue=$(awk -F= '$1=="continue"{print $2; exit}' "$marker")
+    rm -f "$marker"
+
+    [ -z "$r_tag" ] && r_tag="$PAIR_TAG"
+    [ -z "$r_agent" ] && r_agent="$AGENT"
+
+    # Inside-flow tag rename (#000022 M2). By this point the zellij kill
+    # has completed and `pair-<r_tag>` is no longer in the sessions list,
+    # so `pair rename` (full check) passes the live-old gate. On failure
+    # we keep the old tag and continue restarting — the user is not left
+    # stranded, just without the rename. Loud stderr so they notice.
+    if [ -n "$r_rename_to" ]; then
+        if "$0" rename "$r_tag" "$r_rename_to"; then
+            r_tag="$r_rename_to"
+        else
+            echo "pair: tag rename failed; restarting with original tag '$r_tag'." >&2
+            sleep 2
+        fi
+    fi
+
+    local r_args="" r_sid=""
+    local cfg="$DATA_DIR/config-${r_tag}-${r_agent}.json"
+    if [ -f "$cfg" ] && command -v jq >/dev/null 2>&1; then
+        r_args=$(jq -r '(.args // []) | join(" ")' "$cfg" 2>/dev/null || true)
+        r_sid=$(jq -r '.session_id // empty' "$cfg" 2>/dev/null || true)
+    fi
+
+    export PAIR_FORCE_TAG="$r_tag"
+
+    if [ "$r_new_session" = "1" ]; then
+        # Fresh conversation: drop the config so the next launch doesn't
+        # offer (or auto-pick) the prior session id.
+        rm -f "$cfg"
+        if [ -n "$r_continue" ]; then
+            # #55 compaction: relaunch seeded from the continuation. `continue`
+            # + slug come BEFORE the agent (continue's parse order). Args come
+            # from the saved config, NOT the doc. Codex is unaffected — this is
+            # the new_session arm, which never applies the resume-token reorder.
+            # shellcheck disable=SC2086
+            _reexec "$0" continue "$r_continue" "$r_agent" ${r_args:+-- $r_args}
+        elif [ -n "$r_args" ]; then
+            # shellcheck disable=SC2086
+            _reexec "$0" "$r_agent" -- $r_args
+        else
+            _reexec "$0" "$r_agent"
+        fi
+    fi
+
+    # Default Alt+n: keep config, append the resume token so the new
+    # launch picks up exactly where we left off without going through
+    # the picker. Surface differs per agent — claude uses the
+    # `--resume <id>` flag, codex uses `resume <id>`, and agy uses
+    # `--conversation <id>`.
+    local resume_extra=""
+    if [ -n "$r_sid" ]; then
+        case "$r_agent" in
+            claude)        resume_extra="--resume $r_sid" ;;
+            codex)         resume_extra="resume $r_sid" ;;
+            agy)           resume_extra="--conversation $r_sid" ;;
+        esac
+    fi
+    # Composition order matters for codex: its `resume` subcommand must
+    # sit at args[0] for the inner pair + watcher detection blocks to
+    # recognize it. Other saved flags (e.g. --no-alt-screen, --search)
+    # follow. claude's --resume flag works anywhere, so the
+    # legacy order (r_args first) stays unchanged for it.
+    local combined
+    if [ "$r_agent" = "codex" ] && [ -n "$resume_extra" ]; then
+        combined="${resume_extra}${r_args:+ $r_args}"
+    else
+        combined="${r_args}${r_args:+${resume_extra:+ }}${resume_extra}"
+    fi
+    if [ -n "$combined" ]; then
+        # shellcheck disable=SC2086
+        _reexec "$0" "$r_agent" -- $combined
+    else
+        _reexec "$0" "$r_agent"
+    fi
+}
+
+# Test-only dispatcher (#55): invoke an internal function and exit, so the bash
+# harness can unit-test park_scrollback / handle_restart_marker against the REAL
+# script without a live zellij/agent. Placed BEFORE the `command -v zellij` gate
+# so the tests don't require zellij on PATH. Never set in normal use.
+if [ -n "${PAIR_TEST_CALL:-}" ]; then
+    # shellcheck disable=SC2086
+    "$PAIR_TEST_CALL" ${PAIR_TEST_ARGS:-}
+    exit $?
+fi
+# --- end #55 early helpers ---------------------------------------------------
+
 # Defer the [-z AGENT] default to after DATA_DIR is set: when `resume <tag>`
 # is used we infer the agent from saved state on disk so a single tag is
 # enough to fully restart, regardless of which agent was originally paired
@@ -715,17 +860,59 @@ in_zellij_pane() {
     done
     return 1
 }
+# In-session compaction (#55): `pair continue <slug>` run from INSIDE its own
+# live pane must NOT fresh-start (the in_zellij_pane guard below would reject
+# it; --session would nest). Instead: park the scrollback (copy — pair-wrap is
+# still appending to .raw), drop a restart marker carrying the slug, and kill
+# the session — the outer bin/pair then re-execs `pair continue <slug>` fresh
+# under the same tag (handle_restart_marker, hoisted above). PAIR_TAG/PAIR_AGENT
+# come from the pane env (frozen at session creation).
+#
+# Detection is ANCESTRY-based (in_zellij_pane), NOT $ZELLIJ* env: cmux
+# propagates ZELLIJ / ZELLIJ_SESSION_NAME / PAIR_TAG to sibling non-pair panes
+# (see in_zellij_pane above), so an env-only check would false-positive and
+# park+kill a session that isn't this one. Seams (test-only, unset after read):
+# PAIR_FORCE_IN_SESSION forces the branch (bypassing both halves);
+# PAIR_FAKE_IN_ZELLIJ fakes only the ancestry half so tests exercise the real
+# tag-match; PAIR_KILL_CMD overrides the kill.
+if [ -n "${CONTINUE_DOC:-}" ]; then
+    _in_pane=0
+    if [ "${PAIR_FAKE_IN_ZELLIJ:-0}" = "1" ] || in_zellij_pane; then _in_pane=1; fi
+    _compact=0
+    if [ "${PAIR_FORCE_IN_SESSION:-0}" = "1" ]; then
+        _compact=1
+    elif [ "$_in_pane" = "1" ] && [ -n "${PAIR_TAG:-}" ] \
+        && [ "${ZELLIJ_SESSION_NAME:-}" = "pair-${PAIR_TAG}" ]; then
+        _compact=1
+    fi
+    unset PAIR_FORCE_IN_SESSION PAIR_FAKE_IN_ZELLIJ
+    if [ "$_compact" = "1" ]; then
+        : "${PAIR_TAG:?compaction needs PAIR_TAG}"
+        _cagent="${PAIR_AGENT:-${AGENT:-claude}}"
+        printf 'pair: compacting pair-%s — parking scrollback, restarting from continuation…\n' \
+            "$PAIR_TAG" >&2
+        park_scrollback "$PAIR_TAG" "$_cagent" --copy >/dev/null 2>&1 || true
+        mkdir -p "$HOME/.cache/pair"
+        {
+            printf 'tag=%s\n' "$PAIR_TAG"
+            printf 'agent=%s\n' "$_cagent"
+            printf 'new_session=1\n'
+            printf 'continue=%s\n' "$_cslug"
+        } > "$HOME/.cache/pair/restart-pair-${PAIR_TAG}"
+        touch "$HOME/.cache/pair/quit-pair-${PAIR_TAG}"
+        # shellcheck disable=SC2086
+        exec ${PAIR_KILL_CMD:-zellij kill-session} "pair-${PAIR_TAG}"
+    fi
+fi
+
 if in_zellij_pane; then
     echo "pair: already running inside a zellij session." >&2
     echo "      detach first (Alt+d) or run pair from a fresh terminal." >&2
     exit 1
 fi
 
-# Resolve XDG data dir for pair's drafts and per-tag prompt logs.
-# Honors $XDG_DATA_HOME with the spec-defined fallback.
-DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/pair"
-mkdir -p "$DATA_DIR"
-export PAIR_DATA_DIR="$DATA_DIR"
+# DATA_DIR / PAIR_DATA_DIR are set above (hoisted for #55, just after
+# `unset PAIR_FORCE_TAG`) so they precede the zellij gate + compaction branch.
 
 # --- nvim --embed orphan reaping --------------------------------------------
 #
@@ -1228,15 +1415,19 @@ cleanup_quit_marker() {
         # distill here. `[ -t 0 ]` skips the prompt on a detached/automated quit.
         _sb_base="$DATA_DIR/scrollback-${PAIR_TAG}-${quit_agent}"
         _parked=0
-        if [ -s "${_sb_base}.raw" ] && [ -t 0 ]; then
+        # Skip the park nudge when a restart is pending: a restart isn't a
+        # quit (the relaunch keeps the work), and for #55 compaction the
+        # branch has ALREADY copy-parked a recovery net + written a
+        # continuation — re-asking "park as a continuation?" here is noise.
+        # Also de-noises the inherited Alt+n / Shift+Alt+N restart paths.
+        if [ -s "${_sb_base}.raw" ] && [ -t 0 ] \
+            && [ ! -f "$HOME/.cache/pair/restart-$SESSION" ]; then
             printf 'pair: park "%s" as a continuation? (preserve its scrollback) [y/N]: ' "$PAIR_TAG" >/dev/tty
             if read -r _ans </dev/tty && { [ "$_ans" = "y" ] || [ "$_ans" = "Y" ]; }; then
-                _pts="$(date +%Y%m%dT%H%M%S)"
-                _pbase="$DATA_DIR/parked-scrollback-${PAIR_TAG}-${_pts}"
-                if mv "${_sb_base}.raw" "${_pbase}.raw" 2>/dev/null; then
+                # park_scrollback (move mode — session is dying) handles the
+                # .raw/.events.jsonl rename + parked-<tag> marker (#55 ARCH-DRY).
+                if _pbase="$(park_scrollback "$PAIR_TAG" "$quit_agent")"; then
                     _parked=1
-                    mv "${_sb_base}.events.jsonl" "${_pbase}.events.jsonl" 2>/dev/null || true
-                    : > "$DATA_DIR/parked-${PAIR_TAG}"
                     printf 'pair: scrollback preserved (%s.raw). Open a session and "park pair-%s" to finish the continuation.\n' "$_pbase" "$PAIR_TAG"
                 fi
             fi
@@ -1320,86 +1511,9 @@ cleanup_quit_marker() {
 # Both flavors pin the same tag via PAIR_FORCE_TAG. The agent name comes
 # from the marker (captured before cleanup_quit_marker wiped agent-<tag>);
 # agent args + session id come from the saved config.
-handle_restart_marker() {
-    local marker="$HOME/.cache/pair/restart-$SESSION"
-    [ -f "$marker" ] || return 0
-
-    local r_tag r_agent r_new_session r_rename_to
-    r_tag=$(awk -F= '$1=="tag"{print $2; exit}' "$marker")
-    r_agent=$(awk -F= '$1=="agent"{print $2; exit}' "$marker")
-    r_new_session=$(awk -F= '$1=="new_session"{print $2; exit}' "$marker")
-    r_rename_to=$(awk -F= '$1=="rename_to"{print $2; exit}' "$marker")
-    rm -f "$marker"
-
-    [ -z "$r_tag" ] && r_tag="$PAIR_TAG"
-    [ -z "$r_agent" ] && r_agent="$AGENT"
-
-    # Inside-flow tag rename (#000022 M2). By this point the zellij kill
-    # has completed and `pair-<r_tag>` is no longer in the sessions list,
-    # so `pair rename` (full check) passes the live-old gate. On failure
-    # we keep the old tag and continue restarting — the user is not left
-    # stranded, just without the rename. Loud stderr so they notice.
-    if [ -n "$r_rename_to" ]; then
-        if "$0" rename "$r_tag" "$r_rename_to"; then
-            r_tag="$r_rename_to"
-        else
-            echo "pair: tag rename failed; restarting with original tag '$r_tag'." >&2
-            sleep 2
-        fi
-    fi
-
-    local r_args="" r_sid=""
-    local cfg="$DATA_DIR/config-${r_tag}-${r_agent}.json"
-    if [ -f "$cfg" ] && command -v jq >/dev/null 2>&1; then
-        r_args=$(jq -r '(.args // []) | join(" ")' "$cfg" 2>/dev/null || true)
-        r_sid=$(jq -r '.session_id // empty' "$cfg" 2>/dev/null || true)
-    fi
-
-    export PAIR_FORCE_TAG="$r_tag"
-
-    if [ "$r_new_session" = "1" ]; then
-        # Fresh conversation: drop the config so the next launch doesn't
-        # offer (or auto-pick) the prior session id.
-        rm -f "$cfg"
-        if [ -n "$r_args" ]; then
-            # shellcheck disable=SC2086
-            exec "$0" "$r_agent" -- $r_args
-        else
-            exec "$0" "$r_agent"
-        fi
-    fi
-
-    # Default Alt+n: keep config, append the resume token so the new
-    # launch picks up exactly where we left off without going through
-    # the picker. Surface differs per agent — claude uses the
-    # `--resume <id>` flag, codex uses `resume <id>`, and agy uses
-    # `--conversation <id>`.
-    local resume_extra=""
-    if [ -n "$r_sid" ]; then
-        case "$r_agent" in
-            claude)        resume_extra="--resume $r_sid" ;;
-            codex)         resume_extra="resume $r_sid" ;;
-            agy)           resume_extra="--conversation $r_sid" ;;
-        esac
-    fi
-    # Composition order matters for codex: its `resume` subcommand must
-    # sit at args[0] for the inner pair + watcher detection blocks to
-    # recognize it. Other saved flags (e.g. --no-alt-screen, --search)
-    # follow. claude's --resume flag works anywhere, so the
-    # legacy order (r_args first) stays unchanged for it.
-    local combined
-    if [ "$r_agent" = "codex" ] && [ -n "$resume_extra" ]; then
-        combined="${resume_extra}${r_args:+ $r_args}"
-    else
-        combined="${r_args}${r_args:+${resume_extra:+ }}${resume_extra}"
-    fi
-    if [ -n "$combined" ]; then
-        # shellcheck disable=SC2086
-        exec "$0" "$r_agent" -- $combined
-    else
-        exec "$0" "$r_agent"
-    fi
-}
+# handle_restart_marker() is defined earlier (hoisted for #55 so the
+# PAIR_TEST_CALL dispatcher can drive it before the picker). It is still
+# *called* below, after the zellij session exits.
 
 # Capture pair's controlling TTY before zellij takes over — this IS the path
 # of the outer terminal/wrapper's PTY. Writing OSC sequences to it bypasses

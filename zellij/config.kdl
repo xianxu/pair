@@ -227,5 +227,17 @@ keybinds clear-defaults=false {
             WriteChars ":lua PairConfirmRestartNewSession()";
             Write 13;
         }
+        // Alt+Shift+C — compaction (#55). Capital C IS shift (no Shift token,
+        // cf. "Alt N"). The "Ctrl Alt c" alias defeats the macOS Option-as-
+        // dead-key composer (Option+c is a live composer), mirroring "Alt n"'s
+        // "Ctrl Alt n" alias. Routes to nvim, which asks Y/N then prompts the
+        // agent to write a continuation and run `pair continue <slug>`.
+        bind "Alt C" "Ctrl Alt c" {
+            MoveFocus "Down";
+            Write 28;
+            Write 14;
+            WriteChars ":lua PairConfirmCompact()";
+            Write 13;
+        }
     }
 }

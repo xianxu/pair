@@ -1,11 +1,12 @@
 ---
 id: 000055
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-11
-updated: 2026-06-11
+updated: 2026-06-12
 estimate_hours: 2.5
+actual_hours: 0.91
 ---
 
 # Alt+Shift+C compaction: continuation + in-session restart via context-aware pair continue
@@ -158,19 +159,43 @@ command, both roles.
 Detailed step-by-step plan: `workshop/plans/000055-compact-keybind-plan.md`
 (spec-reviewed + plan-reviewed; 2 review boundaries).
 
-- [ ] M1 — `bin/pair` compaction mechanics: `park_scrollback` helper (copy|move,
+- [x] M1 — `bin/pair` compaction mechanics: `park_scrollback` helper (copy|move,
   ARCH-DRY); in-session compaction branch (ancestry-gated via `in_zellij_pane`,
   placed before the guard with DATA_DIR hoisted); `handle_restart_marker`
   re-execs `pair continue <slug>` on a `continue=` marker; tests via the
-  `PAIR_FORCE_IN_SESSION` / `PAIR_KILL_CMD` / `PAIR_REEXEC_CAPTURE` /
-  `PAIR_HANDLE_RESTART_ONLY` seams (incl. invalid-slug-no-kill).
-- [ ] M2 — keybind + nvim wiring: `bind "Alt C" "Ctrl Alt c"` → `PairConfirmCompact`
+  `PAIR_FORCE_IN_SESSION` / `PAIR_FAKE_IN_ZELLIJ` / `PAIR_KILL_CMD` /
+  `PAIR_TEST_CALL` / `PAIR_REEXEC_CAPTURE` seams (incl. invalid-slug-no-kill).
+- [x] M2 — keybind + nvim wiring: `bind "Alt C" "Ctrl Alt c"` → `PairConfirmCompact`
   (confirm via `pair_ensure_visible_then` + `vim.fn.confirm`, then
-  `send_to_agent(<agent-agnostic compaction prompt>)`); manual e2e verification
-  (claude + codex).
+  `send_to_agent(<agent-agnostic compaction prompt>)`). Static verification done
+  (luac clean; zellij config "Well defined"); **runtime e2e is operator-manual**
+  (live keypress → agent → restart can't be driven headlessly):
+    1. `pair-dev claude -- --dangerously-skip-permissions`; do a little work.
+    2. `Alt+Shift+C` → confirm dialog → Yes. Compaction prompt appears in the agent pane + submits.
+    3. Agent writes `workshop/continuation/*-<slug>.md` (git-committed) and runs `pair continue <slug>`.
+    4. Session restarts: SAME tag, fresh conversation, draft seeded `continue from … — do its NEXT ACTION`, same `-- --dangerously-skip-permissions`; a `parked-scrollback-<tag>-*.raw` recovery copy exists; **no stray "park as a continuation?" prompt** (the M1 FIX-THEN-SHIP suppression).
+    5. Repeat once under `pair-dev codex` (agent-agnostic prompt).
 
 ## Log
 
+### 2026-06-12
+- 2026-06-12: closed — Both milestones reviewed (M1 FIX-THEN-SHIP fixed, M2 SHIP). M1: make test-continue 21/21 (mechanics via injectable seams). M2: live Alt+Shift+C round-trip dogfooded (continuation → pair continue → same-tag fresh restart, copy-not-move recovery net, no stray prompt). make build/bash -n/luac clean; zellij config Well defined. Atlas updated. Codex deferred (agent-agnostic prompt; relaunch carries r_agent).; review verdict: SHIP
+- 2026-06-12: closed M2 — M2 runtime e2e PASS (claude), dogfooded live: real Alt+Shift+C → confirm → agent wrote continuation 20260612T002626-compact.md → pair continue compact → same-tag (3) fresh restart seeded from doc (round-trip proof). Recovery net: parked-scrollback-3 (425KB) copy exists AND live scrollback-3-claude.raw intact (copy-not-move); no stray park prompt. Static: luac clean, zellij config Well defined. Atlas updated (keybind + suppression).; review verdict: SHIP
+- **M2 runtime e2e PASS (`claude`) — dogfooded live.** Steps 2–4 executed by an
+  actual `Alt+Shift+C` keypress in a live `pair-dev claude` session: confirm
+  dialog → agent wrote `workshop/continuation/20260612T002626-compact.md` →
+  `pair continue compact` → same-tag (`3`) session restarted with a fresh
+  conversation seeded from the doc. The continuation was read in a fresh seeded
+  conversation under the same tag — that *is* the round-trip proof. Recovery-net
+  checks post-restart: `parked-scrollback-3-20260612T002733.raw` (425 KB) exists
+  AND live `scrollback-3-claude.raw` still present → park is **copy-not-move** ✓;
+  no `restart-*` / `quit-*` markers lingering → **no stray "park as a
+  continuation?" prompt** (M1 FIX-THEN-SHIP suppression held) ✓. Step 5 (repeat
+  under `pair-dev codex`) is optional — the injected prompt is agent-agnostic.
+
 ### 2026-06-11
+- 2026-06-11: closed M1 — make test-continue → 21/21 (11 fresh-start + 10 compaction: marker shape, park copy vs move, real tag-match predicate via PAIR_FAKE_IN_ZELLIJ, invalid-slug-no-kill, re-exec argv); make build clean; bash -n clean. Mechanics drive the REAL bin/pair via injectable seams, no live zellij/agent. Atlas updated (compaction flow + park_scrollback).; review verdict: FIX-THEN-SHIP
+- **M1 boundary review FIX-THEN-SHIP** → fixed the one Important before M2: compaction `touch quit-<session>` made the outer `cleanup_quit_marker` fire its "park as a continuation?" nudge mid-compaction (the `.raw` survives the copy-park). Guarded the nudge with `[ ! -f restart-$SESSION ]` so it's skipped whenever a restart is pending — also de-noises the inherited Alt+n/Shift+Alt+N paths (a restart isn't a quit). M2 Task 7 e2e must confirm no stray prompt.
 - Brainstormed (superpowers-brainstorming). Decisions: agent-driven trigger; same tag + agent + `-- <args>`, fresh convo; park scrollback recovery net; confirm first. Operator pushed back on a separate `pair recompact` verb → unified into a context-aware `pair continue` (in-session = compact+restart; outside = fresh start; self-referential — outer relaunch runs outside zellij so takes the fresh branch).
+- **M1 landed** (commit 9b9e0a1): park_scrollback (copy|move, ARCH-DRY), in-session compaction branch (ancestry-gated, before the guard), handle_restart_marker `continue=` re-exec. 21/21 tests green (`make test-continue`), `make build` clean. Impl refinements beyond the plan: (a) `handle_restart_marker` ALSO had to be hoisted (defined ~1323, after the picker, which would hang the test on the name prompt) — moved up with DATA_DIR; (b) a single generic `PAIR_TEST_CALL` dispatcher replaced per-function hooks; (c) `_reexec` must `exit` not `return` in capture mode (else the function falls through into the resume arm and overwrites the capture — caught by the test); (d) the `compact_env` test helper uses `env` so seam assignments arriving via `"$@"` are treated as env, not run as a command (bash only recognizes literal leading assignments). DATA_DIR hoisted just after `unset PAIR_FORCE_TAG`, before the `command -v zellij` gate (per plan-quality finding #1) so the dispatcher tests don't need zellij on PATH.
 - Fresh-eyes spec review (APPROVE-WITH-CHANGES). Folded in 2 Critical + Important/Minor: **C1** the `in_zellij_pane` guard (`bin/pair:718`) hard-exits inside zellij → branch must precede it; **C2** detect via the `in_zellij_pane` PPID-ancestry helper, NOT `$ZELLIJ*` env (cmux propagates those to sibling non-pair panes → false-positive park+kill). Park must **copy** not `mv` (live `pair-wrap` appends to `.raw`). Re-exec argv = `continue <slug> <agent> -- <args>`; relaunch args from saved config; `PAIR_DEV` free. Key token `"Alt C"` (+ `"Ctrl Alt c"` alias). Test seams `PAIR_FORCE_IN_SESSION` / `PAIR_KILL_CMD`. Multi-agent (claude+codex) Done-when added.
