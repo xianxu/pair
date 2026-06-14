@@ -216,7 +216,10 @@ func TestNoOpWhenNoNewTurn(t *testing.T) {
 	dir := fakeClaude(t, "- should not appear\n")
 	cleaned := "❯ a\nwork churned a bit\nLAST1\nLAST2\nLAST3\n" + idleFooter // still 1 boundary
 	priorLog := "## 2026-06-12\n\n- one\n\n- two\n"
-	priorAnchor := "turns:1\nWHATEVER\n" // prior count = 1; snippet irrelevant
+	// Realistic same-session anchor: it locates in the cleaned (committed tail).
+	// A no-op requires the anchor to still be found — an absent anchor means the
+	// session reset, which must re-distill (TestSessionResetDistillsNotNoOp).
+	priorAnchor := "turns:1\nLAST1\nLAST2\nLAST3\n"
 	log, _ := run(t, bin, cleaned, priorLog, priorAnchor, "2026-06-12")
 
 	if log != priorLog {
@@ -224,6 +227,38 @@ func TestNoOpWhenNoNewTurn(t *testing.T) {
 	}
 	if invoked(dir) {
 		t.Fatal("model was called on a no-op press")
+	}
+}
+
+// After an agent restart (Alt+n) the screen re-renders as a fresh session whose
+// turn count is BELOW the stale anchor's priorTurns. The turn-count no-op
+// (len(boundaries) <= priorTurns) used to fire on that "fewer turns" reading and
+// the new session never distilled. The anchor is a per-session marker, so when
+// it no longer locates (FullRedistill) we must distill, not no-op (#58 follow-up).
+func TestSessionResetDistillsNotNoOp(t *testing.T) {
+	bin := buildBinary(t)
+	dir := fakeClaude(t, "- new-session entry\n")
+	// New session: one prompt boundary, content that does NOT contain the stale
+	// anchor snippet below.
+	cleaned := "❯ fresh prompt\nnew session work\nNEWLAST1\nNEWLAST2\nNEWLAST3\n" + idleFooter
+	priorLog := "## 2026-06-12\n\n- old one\n\n- old two\n"
+	// Stale anchor from the prior, longer session: high turn count + a snippet
+	// that won't be found in the new cleaned → locate returns FullRedistill.
+	priorAnchor := "turns:9\nOLD_SESSION_TAIL_A\nOLD_SESSION_TAIL_B\nOLD_SESSION_TAIL_C\n"
+	log, anchor := run(t, bin, cleaned, priorLog, priorAnchor, "2026-06-12")
+
+	if !invoked(dir) {
+		t.Fatal("model NOT called after a session reset (no-op fired on a stale-anchor turn count)")
+	}
+	if !strings.Contains(log, "- new-session entry") {
+		t.Fatalf("new session's entry not appended:\n%s", log)
+	}
+	if !strings.Contains(log, "- old one") {
+		t.Fatalf("prior log dropped on reset (should append, not replace):\n%s", log)
+	}
+	// The fresh anchor now reflects the new session (committed content, lower count).
+	if !strings.HasPrefix(anchor, "turns:1\n") {
+		t.Fatalf("anchor not reset to the new session's turn count:\n%s", anchor)
 	}
 }
 
@@ -245,7 +280,7 @@ func TestReadyMarkerWrittenOnChangeOnly(t *testing.T) {
 	fakeClaude(t, "- should not appear\n")
 	runIn(t, bin, noopDir,
 		"❯ a\nwork churned\nL1\nL2\nL3\n"+idleFooter,
-		"## 2026-06-12\n\n- one\n", "turns:1\nWHATEVER\n", "2026-06-12")
+		"## 2026-06-12\n\n- one\n", "turns:1\nL1\nL2\nL3\n", "2026-06-12")
 	if _, err := os.Stat(filepath.Join(noopDir, "changelog.ready")); err == nil {
 		t.Fatal("ready marker written on a no-op press")
 	}

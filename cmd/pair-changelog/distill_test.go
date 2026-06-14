@@ -220,6 +220,14 @@ func TestTrimLiveTail(t *testing.T) {
 	if got := trimLiveTail(plain, "claude"); !reflect.DeepEqual(got, plain) {
 		t.Fatalf("plain: got %v", got)
 	}
+	// context-meter footer: when the window fills, claude appends a right-aligned
+	// "N% context used" line BELOW the status bar. As the last line it used to
+	// stop trimLiveTail dead, leaking the whole footer into the anchor (#58).
+	meter := append(append([]string{}, content...),
+		"❯ ", "────────", "  ⏵⏵ bypass permissions on · esc to interrupt", "                  100% context used")
+	if got := trimLiveTail(meter, "claude"); !reflect.DeepEqual(got, content) {
+		t.Fatalf("context-meter footer: got %v", got)
+	}
 }
 
 func TestLooksLikeChangelog(t *testing.T) {

@@ -43,6 +43,12 @@ var (
 	// thinkingRe matches claude's working spinner, e.g.
 	// "* Cerebrating… (3s · thinking with xhigh effort)".
 	thinkingRe = regexp.MustCompile(`^\* .*(…|\(\d+s)`)
+	// contextMeterRe matches claude's context-usage footer line, e.g.
+	// "100% context used" / "85% context left" — shown (right-aligned) when the
+	// context window fills. A new footer variant: sitting as the LAST line it
+	// stopped trimLiveTail dead, leaking the whole volatile footer into the
+	// anchor → locate misses → FullRedistill / stale turn count (#58).
+	contextMeterRe = regexp.MustCompile(`^\d+% context\b`)
 )
 
 // isFooterChrome reports whether line belongs to the live UI footer — none of
@@ -62,6 +68,8 @@ func isFooterChrome(line, glyph string) bool {
 	case strings.HasPrefix(t, "⏵"): // "⏵⏵ bypass permissions …" status bar
 		return true
 	case strings.Contains(t, "esc to interrupt"):
+		return true
+	case contextMeterRe.MatchString(t): // "100% context used" context meter
 		return true
 	}
 	return false

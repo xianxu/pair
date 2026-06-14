@@ -66,17 +66,25 @@ func main() {
 	boundaries := scanTurnBoundaries(lines, agent)
 	hasPrior := strings.TrimSpace(priorLog) != ""
 
+	res := locate(lines, anchor, boundaries, lookbackTurns, lineCap)
+
 	// Turn-count no-op: the change log only gains entries when the agent
 	// completes a new turn (a new user-prompt boundary). The volatile trailing
 	// prompt/status lines churn between presses, so a byte-level check would
 	// re-distill every press; counting completed turns is robust to that noise
 	// and means "nothing changed → no model call".
-	if hasPrior && len(boundaries) <= priorTurns {
+	//
+	// Guarded by res.Kind != FullRedistill: a FullRedistill means the anchor is
+	// gone — either a first run, OR the agent session was reset (Alt+n), which
+	// re-renders a fresh screen whose turn count is BELOW the stale anchor's
+	// priorTurns. Without this guard a reset reads as "fewer turns → nothing
+	// new" and the new session never distills (#58 follow-up: the anchor is a
+	// per-session marker, so an absent anchor can't license a no-op).
+	if hasPrior && res.Kind != FullRedistill && len(boundaries) <= priorTurns {
 		fmt.Fprintln(os.Stderr, "pair-changelog: up to date (no new turn)")
 		return
 	}
 
-	res := locate(lines, anchor, boundaries, lookbackTurns, lineCap)
 	if res.Kind == NoOp {
 		return // belt-and-suspenders; shouldn't fire once a new turn exists
 	}

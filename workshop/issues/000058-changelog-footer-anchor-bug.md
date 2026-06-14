@@ -186,3 +186,26 @@ unchanged log), so a failed refresh is visible.
   Tests: `TestReadyMarkerWrittenOnChangeOnly` (marker on change, none on no-op);
   `tests/changelog-notify-test.sh` (drives real init.lua headless — flash render,
   cheatsheet replace, 2s revert, marker poll → flash, marker consumed).
+- Dogfood bug (post-restart no-op): after an `Alt+n` agent restart, `Alt+l`
+  triggered no new batch — status said `up to date (no new turn)`. Two root
+  causes, both anchor-related:
+  1. **Stale-anchor turn-count no-op.** The no-op check `len(boundaries) <=
+     priorTurns` ran *before* `locate` and assumed the turn count only grows. A
+     restart re-renders a fresh screen whose count (1) is below the prior
+     session's anchor (`turns:9`) → it read "fewer turns → nothing new" and never
+     distilled. Fix: run `locate` first and guard the no-op with `res.Kind !=
+     FullRedistill` — an absent anchor (first run OR session reset) can't license
+     a no-op; it re-distills the new session and appends (prior log kept as
+     memory). `TestSessionResetDistillsNotNoOp`. (Two no-op tests used a fake
+     non-locating anchor as a shortcut — now realistic, since a genuine no-op
+     always has a locating anchor against the full-scrollback render.)
+  2. **Unhandled `N% context used` footer.** When the context window fills,
+     claude appends a right-aligned `100% context used` line below the status
+     bar. `isFooterChrome` didn't match it, so as the *last* line it stopped
+     `trimLiveTail` dead → the whole volatile footer leaked into the anchor (the
+     original #58 footer bug, new variant). Fix: `contextMeterRe` (`^\d+%
+     context\b`) added to `isFooterChrome`. `TestTrimLiveTail` context-meter case.
+  Verified live: ran the rebuilt distiller against the real failing
+  `changelog-pair-claude.cleaned` (turns:9 footer anchor) → `distilling 759
+  lines` (not a no-op), new anchor healed to `turns:1` + committed content, new
+  entries appended, `.ready` written. Full go + lua suites green.
