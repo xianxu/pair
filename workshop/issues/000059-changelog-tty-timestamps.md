@@ -99,3 +99,19 @@ Granularity: **day-level** display (`## YYYY-MM-DD`). Cadence: **minute**.
   per operator). Seams identified: `logScrollbackEvent` (pair-wrap:1413, generic),
   `parseEvents` resize-filter (scrollback-render:81), `assemble` date-header path
   (#58 removed — to be restored, fed real dates). See #58 history for context.
+- Durable plan: `workshop/plans/000059-changelog-tty-timestamps-plan.md`. Plan
+  quality judge (`sdlc change-code`) verdict **INFO** (start-ready). ARCH-DRY
+  (reuse `logScrollbackEvent`; one `scrollbackEvent` struct+parser; restore the
+  single `assemble` date authority) + ARCH-PURE (pure `dueForTimeEvent`/`dateOf`/
+  `interleaveDateMarkers`/`parseDatedLines`/`splitByDate`/`assemble` vs thin
+  clock/emulator/flag seams) both satisfied. Four non-blocking refinements folded
+  into the plan: (1) **visible-buffer lag** — the snapshot reads `Scrollback().Len()`
+  during feed, so up to ~one screenful of the prior day's not-yet-evicted tail can
+  fall under the new day's marker; negligible at day granularity, noted as a risk.
+  (2) **marker-survival e2e** — added an automated render(`--with-timestamps`)→
+  cleaned→distill assertion (Task 9) so the seam isn't only live-verified. (3)
+  `feedSegments` becomes the **single offset-ordered walk** over all events (act on
+  `resize`, snapshot on `time`) — not a parallel feeder. (4) estimate 3h is
+  optimistic (~3–5h for 10 TDD tasks across 4 pkgs); left as-is, actual measured at
+  close. Single review boundary (capture+render are invisible without the distiller
+  → one `sdlc close`, plain checkboxes).
