@@ -140,38 +140,61 @@ func TestSplitFirstEntry(t *testing.T) {
 	}
 }
 
-func TestStripDateHeaders(t *testing.T) {
-	// legacy multi-day log → flat header-free list, blank-line separated.
-	if got := stripDateHeaders("## 2026-06-11\n\n- a\n\n## 2026-06-12\n\n- b\n"); got != "- a\n\n- b\n" {
-		t.Fatalf("got %q want %q", got, "- a\n\n- b\n")
+func TestParseDatedLines(t *testing.T) {
+	in := []string{"old", "⟦pair:ts 2026-06-13⟧", "x", "y", "⟦pair:ts 2026-06-14⟧", "z"}
+	content, dates := parseDatedLines(in)
+	if !reflect.DeepEqual(content, []string{"old", "x", "y", "z"}) {
+		t.Fatalf("content %q", content)
 	}
-	// already header-free → unchanged (idempotent on the new format).
-	if got := stripDateHeaders("- a\n\n- b\n"); got != "- a\n\n- b\n" {
-		t.Fatalf("header-free log altered: %q", got)
-	}
-}
-
-func TestAssembleAppend(t *testing.T) {
-	got := assemble("- one\n\n", "- two\n", "- three\n")
-	want := "- one\n\n- two\n\n- three\n"
-	if got != want {
-		t.Fatalf("got %q want %q", got, want)
+	if !reflect.DeepEqual(dates, []string{"", "2026-06-13", "2026-06-13", "2026-06-14"}) {
+		t.Fatalf("dates %q", dates)
 	}
 }
 
-func TestAssembleReviseOnlyNoNew(t *testing.T) {
-	got := assemble("- one\n\n", "- two-revised\n", "")
-	want := "- one\n\n- two-revised\n"
-	if got != want {
-		t.Fatalf("got %q want %q", got, want)
+func TestSplitByDate(t *testing.T) {
+	content := []string{"a", "b", "c", "d"}
+	dates := []string{"", "", "2026-06-14", "2026-06-14"}
+	segs := splitByDate(content, dates)
+	want := []datedSegment{
+		{date: "", lines: []string{"a", "b"}},
+		{date: "2026-06-14", lines: []string{"c", "d"}},
+	}
+	if !reflect.DeepEqual(segs, want) {
+		t.Fatalf("got %+v\nwant %+v", segs, want)
 	}
 }
 
-func TestAssembleFirstEver(t *testing.T) {
-	got := assemble("", "", "- a\n\n- b\n")
-	want := "- a\n\n- b\n"
-	if got != want {
-		t.Fatalf("got %q want %q", got, want)
+func TestLastHeaderDate(t *testing.T) {
+	if got := lastHeaderDate("## 2026-06-11\n\n- a\n\n## 2026-06-12\n\n- b\n"); got != "2026-06-12" {
+		t.Fatalf("got %q want 2026-06-12", got)
+	}
+	if got := lastHeaderDate("- a\n"); got != "" {
+		t.Fatalf("got %q want empty", got)
+	}
+}
+
+// assemble: date != lastDate inserts a header; date == lastDate appends bare;
+// date == "" (undated content) → no header (the #58 header-free behavior).
+func TestAssembleDated(t *testing.T) {
+	// same-day append (date == lastDate) → no new header.
+	if got := assemble("## 2026-06-14\n\n- one\n\n", "- two\n", "- three\n", "2026-06-14", "2026-06-14"); got != "## 2026-06-14\n\n- one\n\n- two\n\n- three\n" {
+		t.Fatalf("same-day append: %q", got)
+	}
+	// day rollover → new header inserted before the new entries.
+	if got := assemble("## 2026-06-14\n\n- one\n\n", "- two\n", "- three\n", "2026-06-15", "2026-06-14"); got != "## 2026-06-14\n\n- one\n\n- two\n\n## 2026-06-15\n\n- three\n" {
+		t.Fatalf("rollover: %q", got)
+	}
+	// first-ever dated → header at top.
+	if got := assemble("", "", "- a\n\n- b\n", "2026-06-14", ""); got != "## 2026-06-14\n\n- a\n\n- b\n" {
+		t.Fatalf("first-ever dated: %q", got)
+	}
+	// undated (date == "") → no header, header-free append.
+	if got := assemble("- one\n\n", "- two\n", "- three\n", "", ""); got != "- one\n\n- two\n\n- three\n" {
+		t.Fatalf("undated: %q", got)
+	}
+	// revise-only (no new entries) → ek revised, no header churn.
+	if got := assemble("## 2026-06-14\n\n- one\n\n", "- two-revised\n", "", "2026-06-14", "2026-06-14"); got != "## 2026-06-14\n\n- one\n\n- two-revised\n" {
+		t.Fatalf("revise-only: %q", got)
 	}
 }
 

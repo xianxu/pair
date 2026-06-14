@@ -53,21 +53,24 @@ func main() {
 	if err != nil {
 		fail("read cleaned: %v", err)
 	}
-	// Trim the volatile live UI (empty prompt box + rule/status) so the anchor,
-	// slice, and turn-count work on stable committed scrollback (#58).
-	lines := trimLiveTail(splitLines(string(cleanedBytes)), agent)
-	if len(lines) == 0 {
+	// Parse the render's ⟦pair:ts DATE⟧ markers into per-line dates and strip them
+	// so the anchor/slice/turn-count/model-input all see clean content (#59). Then
+	// trim the volatile live UI footer (empty prompt box + rule/status) so the
+	// anchor/slice/turn-count work on stable committed scrollback (#58); keep
+	// `dates` aligned to the trimmed content (trimLiveTail only removes the tail).
+	content, dates := parseDatedLines(splitLines(string(cleanedBytes)))
+	content = trimLiveTail(content, agent)
+	dates = dates[:len(content)]
+	if len(content) == 0 {
 		return // nothing captured yet; leave the log untouched
 	}
 
-	// Strip any legacy "## YYYY-MM-DD" headers so old logs migrate to the
-	// header-free format (the date was distill-time, not change-time — #58).
-	priorLog := stripDateHeaders(readFileOr(logPath))
+	priorLog := readFileOr(logPath)
 	priorTurns, anchor := parseAnchor(readFileOr(anchorPath))
-	boundaries := scanTurnBoundaries(lines, agent)
+	boundaries := scanTurnBoundaries(content, agent)
 	hasPrior := strings.TrimSpace(priorLog) != ""
 
-	res := locate(lines, anchor, boundaries, lookbackTurns, lineCap)
+	res := locate(content, anchor, boundaries, lookbackTurns, lineCap)
 
 	// Turn-count no-op: the change log only gains entries when the agent
 	// completes a new turn (a new user-prompt boundary). The volatile trailing
@@ -94,36 +97,38 @@ func main() {
 	if hasPrior {
 		sliceStart = res.Start
 	}
-	slice := lines[sliceStart:]
+	slice := content[sliceStart:]
+	sliceDates := dates[sliceStart:]
 
-	// Batch the slice into maxSliceLines-sized chunks and distill each in order,
-	// accumulating the log as memory — so a long slice is never truncated to the
-	// last maxSliceLines (#58). 800 is just the per-call batch size (a timeout
-	// bound); this applies equally to a long first run AND a large gap on a later
-	// press. distillStep switches first-run vs incremental on the running log.
+	// Split the slice into per-day segments (#59) so a multi-day slice distills
+	// into multiple ## DATE sections, then batch each segment into maxSliceLines
+	// chunks (#58) — a long slice is never truncated; 800 is just the per-call
+	// batch size. distillStep dates each batch's new entries by the segment's day
+	// (real change-time from the markers; "" → undated, no header). The running
+	// log is carried as memory across segments AND batches (dedup + last-entry
+	// revision). The log is written after each batch for progressive viewer reload;
+	// the anchor only after the loop (below): if interrupted, it stays one-behind →
+	// the next press re-distills and catches up, never skipping content.
 	newLog := priorLog // "" on a first-ever run
-	chunks := chunkLines(slice, maxSliceLines)
-	for i, chunk := range chunks {
-		if len(chunks) > 1 {
-			fmt.Fprintf(os.Stderr, "pair-changelog: distilling batch %d/%d (%d lines)\n", i+1, len(chunks), len(chunk))
-		} else {
-			fmt.Fprintf(os.Stderr, "pair-changelog: distilling %d lines\n", len(chunk))
-		}
-		nl, err := distillStep(newLog, strings.Join(chunk, "\n"), agent, modelName)
-		if err != nil {
-			fail("model: %v", err)
-		}
-		if nl == newLog {
-			continue // this batch added nothing — no write
-		}
-		newLog = nl
-		// Write the log after EACH batch so the viewer can show intermediate
-		// progress (it reloads on file change). The anchor is written only after
-		// the final batch (below): if interrupted mid-run, the anchor stays
-		// one-behind → the next press re-distills and catches up (the prior-log
-		// dedup prevents duplicates), never skipping content.
-		if err := atomicWrite(logPath, newLog); err != nil {
-			fail("write log: %v", err)
+	for _, seg := range splitByDate(slice, sliceDates) {
+		chunks := chunkLines(seg.lines, maxSliceLines)
+		for i, chunk := range chunks {
+			if len(chunks) > 1 {
+				fmt.Fprintf(os.Stderr, "pair-changelog: distilling batch %d/%d (%d lines)\n", i+1, len(chunks), len(chunk))
+			} else {
+				fmt.Fprintf(os.Stderr, "pair-changelog: distilling %d lines\n", len(chunk))
+			}
+			nl, err := distillStep(newLog, strings.Join(chunk, "\n"), agent, modelName, seg.date)
+			if err != nil {
+				fail("model: %v", err)
+			}
+			if nl == newLog {
+				continue // this batch added nothing — no write
+			}
+			newLog = nl
+			if err := atomicWrite(logPath, newLog); err != nil {
+				fail("write log: %v", err)
+			}
 		}
 	}
 
@@ -137,7 +142,7 @@ func main() {
 	// advancing only on a text change would leave the turn count lagging behind
 	// len(boundaries), so the turn-count no-op gate could never engage and every
 	// later press would re-run the model — a regression of the exact #58 symptom.
-	if err := writeAnchor(anchorPath, len(boundaries), anchorSnippet(lines, anchorLines)); err != nil {
+	if err := writeAnchor(anchorPath, len(boundaries), anchorSnippet(content, anchorLines)); err != nil {
 		fail("write anchor: %v", err)
 	}
 	if newLog == priorLog {
@@ -164,7 +169,7 @@ func writeReady(logPath string) {
 // (revise the last entry + append) — and returns the new full log. Returns
 // priorLog unchanged when the model produces nothing; errors on a non-distill
 // response (a hijacked continuation). Used per-chunk by the first-run batcher.
-func distillStep(priorLog, sliceText, agent, modelName string) (string, error) {
+func distillStep(priorLog, sliceText, agent, modelName, date string) (string, error) {
 	firstRun := strings.TrimSpace(priorLog) == ""
 	var frozen, ek, sys, input string
 	if firstRun {
@@ -195,7 +200,7 @@ func distillStep(priorLog, sliceText, agent, modelName string) (string, error) {
 	} else {
 		ekPrime, newEntries = splitFirstEntry(out)
 	}
-	return assemble(frozen, ekPrime, newEntries), nil
+	return assemble(frozen, ekPrime, newEntries, date, lastHeaderDate(priorLog)), nil
 }
 
 func writeAnchor(path string, turns int, snippet []string) error {

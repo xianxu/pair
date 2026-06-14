@@ -133,7 +133,7 @@ func TestIncrementalFreezesPrefixAndRevisesLast(t *testing.T) {
 	// A new turn (2 boundaries > prior 1) triggers the distill; the anchor is
 	// present mid-stream with new content after it.
 	cleaned := "❯ first\nintro\n❯ second\nANCHOR1\nANCHOR2\nANCHOR3\nnew work a\nnew work b\n" + idleFooter
-	priorLog := "## 2026-06-12\n\n- one\n\n- two\n"
+	priorLog := "- one\n\n- two\n"
 	priorAnchor := "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n"
 	log, anchor := run(t, bin, cleaned, priorLog, priorAnchor)
 
@@ -155,7 +155,7 @@ func TestReviseOnlyNeverDropsLast(t *testing.T) {
 	bin := buildBinary(t)
 	fakeClaude(t, "- two-revised\n") // only the revised last entry, no new
 	cleaned := "❯ a\nintro\n❯ b\nANCHOR1\nANCHOR2\nANCHOR3\nnew tail\n" + idleFooter
-	priorLog := "## 2026-06-12\n\n- one\n\n- two\n"
+	priorLog := "- one\n\n- two\n"
 	priorAnchor := "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n"
 	log, _ := run(t, bin, cleaned, priorLog, priorAnchor)
 
@@ -165,23 +165,43 @@ func TestReviseOnlyNeverDropsLast(t *testing.T) {
 	}
 }
 
-// Legacy logs that still carry "## YYYY-MM-DD" headers migrate to the header-free
-// format on the next distill — the date was distill-time, not change-time, which
-// misled the reader, so it was removed (#58 follow-up).
-func TestStripsLegacyDateHeaders(t *testing.T) {
+// A first run over content spanning two days (render-emitted ⟦pair:ts DATE⟧
+// markers) dates each day's entries under its own ## YYYY-MM-DD header — real
+// change-time, not the distill date (#59). The markers are stripped from the log.
+func TestTwoDayDating(t *testing.T) {
 	bin := buildBinary(t)
-	fakeClaude(t, "- two-revised\n\n- three\n")
-	cleaned := "❯ a\nintro\n❯ b\nANCHOR1\nANCHOR2\nANCHOR3\nnew tail\n" + idleFooter
-	priorLog := "## 2026-06-11\n\n- one\n\n## 2026-06-12\n\n- two\n"
-	priorAnchor := "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n"
-	log, _ := run(t, bin, cleaned, priorLog, priorAnchor)
+	fakeClaude(t, "- worked\n\n- more\n")
+	cleaned := "⟦pair:ts 2026-06-13⟧\n❯ p1\nday 13 work\n" +
+		"⟦pair:ts 2026-06-14⟧\n❯ p2\nday 14 work\nTAIL1\nTAIL2\nTAIL3\n" + idleFooter
+	log, _ := run(t, bin, cleaned, "", "")
 
-	if strings.Contains(log, "## 20") {
-		t.Fatalf("legacy date header survived migration:\n%q", log)
+	i13 := strings.Index(log, "## 2026-06-13")
+	i14 := strings.Index(log, "## 2026-06-14")
+	if i13 < 0 || i14 < 0 {
+		t.Fatalf("missing a day header (13=%d 14=%d):\n%s", i13, i14, log)
 	}
-	want := "- one\n\n- two-revised\n\n- three\n"
-	if log != want {
-		t.Fatalf("log = %q\nwant %q", log, want)
+	if i13 >= i14 {
+		t.Fatalf("day headers out of order (13 should precede 14):\n%s", log)
+	}
+	if strings.Contains(log, "⟦pair:ts") {
+		t.Fatalf("ts marker leaked into the change log:\n%s", log)
+	}
+}
+
+// Regression / "purely additive" guard: a cleaned stream with NO markers (a
+// pre-#59 session, or capture not yet running) produces a header-free log —
+// byte-identical to the #58 behavior. Markers are the only thing that adds dates.
+func TestNoMarkerHeaderFree(t *testing.T) {
+	bin := buildBinary(t)
+	fakeClaude(t, "- entry\n")
+	cleaned := "❯ p\nsome work\nL1\nL2\nL3\n" + idleFooter
+	log, _ := run(t, bin, cleaned, "", "")
+
+	if strings.Contains(log, "## ") {
+		t.Fatalf("undated stream produced a date header:\n%s", log)
+	}
+	if log != "- entry\n" {
+		t.Fatalf("log = %q, want %q", log, "- entry\n")
 	}
 }
 
@@ -194,7 +214,7 @@ func TestFullRedistillWithPriorLogKeepsFrozenPrefix(t *testing.T) {
 	dir := fakeClaude(t, "- two-revised\n\n- three\n")
 	// 2 boundaries > prior 1 → not a no-op; OLD1-3 absent → FullRedistill.
 	cleaned := "❯ p\n❯ q\nfresh1\nfresh2\nfresh3\n" + idleFooter
-	priorLog := "## 2026-06-12\n\n- one\n\n- two\n"
+	priorLog := "- one\n\n- two\n"
 	priorAnchor := "turns:1\nOLD1\nOLD2\nOLD3\n" // absent in cleaned → FullRedistill
 	log, anchor := run(t, bin, cleaned, priorLog, priorAnchor)
 
@@ -221,7 +241,7 @@ func TestNoOpWhenNoNewTurn(t *testing.T) {
 	bin := buildBinary(t)
 	dir := fakeClaude(t, "- should not appear\n")
 	cleaned := "❯ a\nwork churned a bit\nLAST1\nLAST2\nLAST3\n" + idleFooter // still 1 boundary
-	priorLog := "## 2026-06-12\n\n- one\n\n- two\n"
+	priorLog := "- one\n\n- two\n"
 	// Realistic same-session anchor: it locates in the cleaned (committed tail).
 	// A no-op requires the anchor to still be found — an absent anchor means the
 	// session reset, which must re-distill (TestSessionResetDistillsNotNoOp).
@@ -247,7 +267,7 @@ func TestSessionResetDistillsNotNoOp(t *testing.T) {
 	// New session: one prompt boundary, content that does NOT contain the stale
 	// anchor snippet below.
 	cleaned := "❯ fresh prompt\nnew session work\nNEWLAST1\nNEWLAST2\nNEWLAST3\n" + idleFooter
-	priorLog := "## 2026-06-12\n\n- old one\n\n- old two\n"
+	priorLog := "- old one\n\n- old two\n"
 	// Stale anchor from the prior, longer session: high turn count + a snippet
 	// that won't be found in the new cleaned → locate returns FullRedistill.
 	priorAnchor := "turns:9\nOLD_SESSION_TAIL_A\nOLD_SESSION_TAIL_B\nOLD_SESSION_TAIL_C\n"
@@ -321,7 +341,7 @@ func TestReadyMarkerWrittenOnChangeOnly(t *testing.T) {
 	fakeClaude(t, "- should not appear\n")
 	runIn(t, bin, noopDir,
 		"❯ a\nwork churned\nL1\nL2\nL3\n"+idleFooter,
-		"## 2026-06-12\n\n- one\n", "turns:1\nL1\nL2\nL3\n")
+		"- one\n", "turns:1\nL1\nL2\nL3\n")
 	if _, err := os.Stat(filepath.Join(noopDir, "changelog.ready")); err == nil {
 		t.Fatal("ready marker written on a no-op press")
 	}
@@ -340,7 +360,7 @@ func TestIncrementalBatchesLongGap(t *testing.T) {
 	}
 	b.WriteString("❯ p2\n") // a new completed turn → not a no-op
 	b.WriteString(idleFooter)
-	priorLog := "## 2026-06-12\n\n- one\n"
+	priorLog := "- one\n"
 	priorAnchor := "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n"
 	run(t, bin, b.String(), priorLog, priorAnchor)
 
@@ -384,7 +404,7 @@ func TestFooterChurnIsNoOp(t *testing.T) {
 	dir := fakeClaude(t, "- should not appear\n")
 	stable := "❯ a prompt\nagent work\nANCHOR1\nANCHOR2\nANCHOR3"
 	cleaned := stable + "\n❯ \n────────\n  ⏵⏵ bypass · 5 shells · NEW STATUS\n"
-	priorLog := "## 2026-06-12\n\n- one\n\n- two\n"
+	priorLog := "- one\n\n- two\n"
 	priorAnchor := "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n"
 	log, _ := run(t, bin, cleaned, priorLog, priorAnchor)
 	if invoked(dir) {
