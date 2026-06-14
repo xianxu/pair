@@ -124,6 +124,21 @@ func main() {
 	if err := writeAnchor(anchorPath, len(boundaries), anchorSnippet(lines, anchorLines)); err != nil {
 		fail("write anchor: %v", err)
 	}
+	// Drop the "build complete" marker the draft nvim fs-watches (#58). Reached
+	// only on a real change (the no-op above returns first), so the draft flashes
+	// its statusline only when a triggered-and-left build actually produced
+	// something — not on a repeat-press no-op. Best-effort: the build already
+	// succeeded; the notification is a bonus, so a write failure isn't fatal.
+	writeReady(logPath)
+}
+
+// writeReady drops the "<base>.ready" marker beside the log. The draft nvim
+// fs-watches $PAIR_DATA_DIR for it and, on arrival, flashes its statusline then
+// deletes the marker (one-shot). The timestamp body is for debugging only — the
+// marker's existence is the signal.
+func writeReady(logPath string) {
+	readyPath := strings.TrimSuffix(logPath, ".md") + ".ready"
+	_ = os.WriteFile(readyPath, []byte(time.Now().Format(time.RFC3339)+"\n"), 0o644)
 }
 
 // distillStep runs one model distill — first-run (priorLog empty) or incremental

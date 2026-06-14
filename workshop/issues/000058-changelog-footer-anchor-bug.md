@@ -169,3 +169,20 @@ unchanged log), so a failed refresh is visible.
   `distill.lock` PID is alive → no relaunch → the viewer re-attaches and shows
   continued progress (batch 2/3, 3/3), or the complete log if it finished while
   closed.
+- Operator follow-up (build-done signal): a slow build is trigger-and-leave —
+  the operator presses Alt+l, goes back to work, and returns later. They needed a
+  **visual "it's ready"** without reopening the viewer. Added an ephemeral
+  notification at the **right end of the draft statusline** (where the Alt+h/Alt+⏎
+  cheatsheet lives): the distiller drops a `changelog-<tag>-<agent>.ready` marker
+  on a **real-change** completion (not on a no-op press), and the draft nvim
+  flashes that segment **green** ("✓ change log ready · Alt+l") for ~2s, then
+  reverts to the cheatsheet. The draft statusline is always on screen (even when
+  the agent pane is focused), so the flash lands while the operator works
+  elsewhere — and it's also shown when the draft is minimized. Mechanism: the
+  draft **polls** the marker on a 2s timer rather than fs_event — macOS FSEvents
+  from nvim is unreliable (EMFILE/nil-filename); the scrollback-pending fs_event
+  watcher only survives that because a FocusGained fallback covers the miss, and
+  this signal (whose whole job is to fire while focus is elsewhere) has none.
+  Tests: `TestReadyMarkerWrittenOnChangeOnly` (marker on change, none on no-op);
+  `tests/changelog-notify-test.sh` (drives real init.lua headless — flash render,
+  cheatsheet replace, 2s revert, marker poll → flash, marker consumed).

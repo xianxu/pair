@@ -69,7 +69,14 @@ func stdinLines(dir string) int {
 // resulting log + anchor contents.
 func run(t *testing.T, bin, cleaned, priorLog, priorAnchor, today string) (log, anchor string) {
 	t.Helper()
-	dir := t.TempDir()
+	return runIn(t, bin, t.TempDir(), cleaned, priorLog, priorAnchor, today)
+}
+
+// runIn is run() with an explicit dir so a test can inspect the sidecar files a
+// run produces (e.g. the "<base>.ready" marker). run() wraps it with a fresh
+// temp dir; the log/anchor live at changelog.md / changelog.anchor under `dir`.
+func runIn(t *testing.T, bin, dir, cleaned, priorLog, priorAnchor, today string) (log, anchor string) {
+	t.Helper()
 	cleanedPath := filepath.Join(dir, "cleaned.txt")
 	logPath := filepath.Join(dir, "changelog.md")
 	anchorPath := filepath.Join(dir, "changelog.anchor")
@@ -217,6 +224,30 @@ func TestNoOpWhenNoNewTurn(t *testing.T) {
 	}
 	if invoked(dir) {
 		t.Fatal("model was called on a no-op press")
+	}
+}
+
+// On a real-change build the distiller drops a "<base>.ready" marker beside the
+// log; the draft nvim fs-watches it to flash "change log ready" (#58). A no-op
+// press (no new turn) must NOT drop it — the operator shouldn't be flashed for a
+// build that produced nothing.
+func TestReadyMarkerWrittenOnChangeOnly(t *testing.T) {
+	bin := buildBinary(t)
+
+	changeDir := t.TempDir()
+	fakeClaude(t, "- entry\n")
+	runIn(t, bin, changeDir, "❯ start\nL1\nL2\nL3\n"+idleFooter, "", "", "2026-06-12")
+	if _, err := os.Stat(filepath.Join(changeDir, "changelog.ready")); err != nil {
+		t.Fatalf("ready marker missing after a change build: %v", err)
+	}
+
+	noopDir := t.TempDir()
+	fakeClaude(t, "- should not appear\n")
+	runIn(t, bin, noopDir,
+		"❯ a\nwork churned\nL1\nL2\nL3\n"+idleFooter,
+		"## 2026-06-12\n\n- one\n", "turns:1\nWHATEVER\n", "2026-06-12")
+	if _, err := os.Stat(filepath.Join(noopDir, "changelog.ready")); err == nil {
+		t.Fatal("ready marker written on a no-op press")
 	}
 }
 
