@@ -1880,12 +1880,19 @@ end
 local pair_notify = nil
 local pair_notify_timer = nil
 
+-- The active notification rendered as a right-aligned green segment, appended
+-- past `left`. Single source for the format codes (%= right-align, PairNotify
+-- highlight) so the compose paths can't drift.
+local function pair_notify_segment(left)
+  return left .. '%=%#PairNotify# ' .. pair_notify .. ' %* '
+end
+
 -- Compose a statusline with the cheatsheet right-aligned past `left`.
 local function pair_compose_statusline(left)
   -- An active ephemeral notification owns the right end until its flash timer
   -- reverts it — show the green PairNotify message instead of the cheatsheet.
   if pair_notify then
-    return left .. '%=%#PairNotify# ' .. pair_notify .. ' %* '
+    return pair_notify_segment(left)
   end
   -- 6-cell minimum margin between the variable left segment and the
   -- cheatsheet. Capping the cheatsheet's budget at (columns - left - 6)
@@ -1940,7 +1947,7 @@ function _G.PairStatusline()
     -- Surface an active notification even when collapsed — the build-complete
     -- flash matters most when the operator has minimized the draft to work.
     if pair_notify then
-      return base .. '%=%#PairNotify# ' .. pair_notify .. ' %* '
+      return pair_notify_segment(base)
     end
     return base
   end

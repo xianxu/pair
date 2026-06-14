@@ -127,17 +127,27 @@ func main() {
 		}
 	}
 
-	if strings.TrimSpace(newLog) == "" || newLog == priorLog {
-		return // nothing produced / no change → no anchor advance
+	// A first-ever run that yielded nothing has no committed content to anchor on.
+	if strings.TrimSpace(newLog) == "" {
+		return
 	}
+	// Advance the anchor to the turns/position we just processed — even when the
+	// distill produced no textual change (a trivial turn the model added nothing
+	// for). The anchor tracks "processed up to here," NOT "the log text changed":
+	// advancing only on a text change would leave the turn count lagging behind
+	// len(boundaries), so the turn-count no-op gate could never engage and every
+	// later press would re-run the model — a regression of the exact #58 symptom.
 	if err := writeAnchor(anchorPath, len(boundaries), anchorSnippet(lines, anchorLines)); err != nil {
 		fail("write anchor: %v", err)
 	}
-	// Drop the "build complete" marker the draft nvim fs-watches (#58). Reached
-	// only on a real change (the no-op above returns first), so the draft flashes
-	// its statusline only when a triggered-and-left build actually produced
-	// something — not on a repeat-press no-op. Best-effort: the build already
-	// succeeded; the notification is a bonus, so a write failure isn't fatal.
+	if newLog == priorLog {
+		return // processed, but no new entry → anchor advanced; nothing to flash
+	}
+	// Drop the "build complete" marker the draft nvim polls (#58). Reached only on
+	// a real textual change, so the draft flashes its statusline only when a
+	// triggered-and-left build actually produced something — not on a no-op press
+	// or a trivial turn. Best-effort: the build already succeeded; the notification
+	// is a bonus, so a write failure isn't fatal.
 	writeReady(logPath)
 }
 

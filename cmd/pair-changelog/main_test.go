@@ -268,6 +268,41 @@ func TestSessionResetDistillsNotNoOp(t *testing.T) {
 	}
 }
 
+// A new turn that distills to NO textual change (the model returns the last
+// entry unchanged) must still advance the anchor's turn count. Otherwise the
+// count lags len(boundaries), the turn-count no-op gate can never engage, and
+// every later press re-runs the model — a #58 regression the boundary review
+// caught. The anchor tracks "processed up to here", not "the text changed".
+func TestAnchorAdvancesOnNoTextualChange(t *testing.T) {
+	bin := buildBinary(t)
+	dir := t.TempDir()
+
+	// Phase 1: a new turn (2 boundaries > prior 1), but the model returns the
+	// unchanged last entry → newLog == priorLog. Anchor must advance to turns:2.
+	d1 := fakeClaude(t, "- two\n")
+	cleaned := "❯ p1\nANCHOR1\nANCHOR2\nANCHOR3\n❯ p2\nmore work\n" + idleFooter
+	log, anchor := runIn(t, bin, dir, cleaned,
+		"- one\n\n- two\n", "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n")
+	if !invoked(d1) {
+		t.Fatal("phase 1: model should run for a new turn")
+	}
+	if log != "- one\n\n- two\n" {
+		t.Fatalf("phase 1: log changed unexpectedly:\n%q", log)
+	}
+	if !strings.HasPrefix(anchor, "turns:2\n") {
+		t.Fatalf("phase 1: anchor turn count did not advance on a no-change distill:\n%q", anchor)
+	}
+
+	// Phase 2: same cleaned, no further turn. With the advanced anchor (turns:2)
+	// the press is now a no-op — the model is NOT called. (Empty prior args leave
+	// phase 1's log + anchor in place.)
+	d2 := fakeClaude(t, "- should not run\n")
+	runIn(t, bin, dir, cleaned, "", "")
+	if invoked(d2) {
+		t.Fatal("phase 2: model re-ran — advanced anchor did not gate the follow-up no-op (#58 regression)")
+	}
+}
+
 // On a real-change build the distiller drops a "<base>.ready" marker beside the
 // log; the draft nvim fs-watches it to flash "change log ready" (#58). A no-op
 // press (no new turn) must NOT drop it — the operator shouldn't be flashed for a

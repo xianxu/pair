@@ -1,11 +1,12 @@
 ---
 id: 000058
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-12
-updated: 2026-06-12
+updated: 2026-06-14
 estimate_hours: 2
+actual_hours: 8.99
 ---
 
 # pair-changelog incremental fails: volatile-footer anchor → FullRedistill → model timeout
@@ -89,13 +90,15 @@ unchanged log), so a failed refresh is visible.
 
 ## Plan
 
-- [ ] `trimLiveTail` + glyph-char map (pure) + unit tests.
-- [ ] Apply in `main.go` (trim first; cap the slice); integration tests for cap +
+- [x] `trimLiveTail` + glyph-char map (pure) + unit tests.
+- [x] Apply in `main.go` (trim first; cap the slice); integration tests for cap +
   footer-churn no-op; verify live against `changelog-pair-claude.cleaned`.
-- [ ] Viewer failure signal in `changelog.lua` on_exit.
+- [x] Viewer failure signal in `changelog.lua` on_exit.
 
 ## Log
 
+
+- 2026-06-14: closed — Alt+l incremental distill correct across Alt+n restart (no false no-op), 100%-context footer stripped, build-done statusline flash fires, date headers removed; verified live against real failing transcript (distilling 759 lines, anchor healed turns:9→1); full go + lua + test-statusline suites green; review verdict: FIX-THEN-SHIP
 ### 2026-06-12
 
 - Found + root-caused live (see Problem). Single-pass atomic fix (no milestones).
@@ -222,3 +225,22 @@ unchanged log), so a failed refresh is visible.
   rewritten `assemble`/no-op tests (the date-rollover tests removed). Live log
   cleaned. Atlas updated (this section + the build-complete flash + no-op-reset
   guard, which were unrecorded). Full go + lua suites green.
+- Boundary review (#69) verdict **FIX-THEN-SHIP**; both blockers fixed before the
+  close commit:
+  - *Critical* — `tests/changelog-open-test.sh` still asserted a `## ` date header
+    existed, so `make test` (via `test-changelog`) was red after the date removal.
+    Flipped the assertion to fail if a header *survives*. (My close evidence said
+    "go + lua + test-statusline green" but never ran the smoke — the gap that hid
+    it; lesson logged.)
+  - *Important* — `main.go` advanced the anchor only when `newLog != priorLog`, so
+    a new turn that distilled to no textual change left the turn count behind
+    `len(boundaries)` → every later press re-ran the model (partial regression of
+    #58's own symptom). Fixed: advance the anchor whenever we processed the turns
+    (the anchor tracks position, not text change); gate only `writeReady` on a real
+    change. `TestAnchorAdvancesOnNoTextualChange` (2-phase: no-change distill
+    advances the anchor → follow-up press is a no-op).
+  - *Minors*: DRY'd the duplicated notify-segment render (`pair_notify_segment`);
+    added a `## Revisions` note to the still-active `000053-changelog-plan.md`
+    flagging the date-header surface as removed. (Stale-`.ready`-flash-on-startup
+    left as-is — harmless: the log genuinely is ready.)
+  Re-verified: full go + lua + `test-changelog` smoke + `test-statusline` all green.

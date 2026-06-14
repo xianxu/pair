@@ -64,7 +64,7 @@ done
 
 fail=0
 grep -q 'M1 done for #53' "$LOG" 2>/dev/null || { echo "FAIL: distilled entry missing from log:"; cat "$LOG" 2>/dev/null; fail=1; }
-grep -q '^## ' "$LOG" 2>/dev/null || { echo "FAIL: no date header in log"; fail=1; }
+grep -q '^## ' "$LOG" 2>/dev/null && { echo "FAIL: stale date header in log (dates were removed in #58)"; fail=1; }
 grep -q '^turns:' "$ANCHOR" 2>/dev/null || { echo "FAIL: anchor missing turns header: $(cat "$ANCHOR" 2>/dev/null)"; fail=1; }
 grep -q 'changelog-t-claude.md' "$tmp/nvim-args" 2>/dev/null || { echo "FAIL: nvim not opened on the log; args: $(cat "$tmp/nvim-args" 2>/dev/null)"; fail=1; }
 [ -f "$PAIR_DATA_DIR/changelog-t-claude.openlock" ] && { echo "FAIL: openlock not cleared on viewer exit"; fail=1; }

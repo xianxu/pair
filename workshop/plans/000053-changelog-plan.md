@@ -649,3 +649,15 @@ close:
 - **`parseAnchor` moved** from `main.go` to `distill.go` (with its pure siblings)
   and directly unit-tested (header / legacy-no-header / malformed-count / empty);
   added to the Core-concepts tables (`parseAnchor` PURE, `writeAnchor` INTEGRATION).
+
+### 2026-06-14 — surface removed in #58 (date headers)
+
+This plan's Core-concepts tables and steps still describe **date headers** and the
+machinery that produced them — `lastHeaderDate`, the `--today`/`PCL_TODAY` flag,
+and `assemble`'s day-rollover `## YYYY-MM-DD` insertion. **All removed in #58**:
+the only date available was distill-time (Alt+l-press), not change-time, which
+misled the reader. The change log is now a flat, header-free bullet list;
+`assemble` takes no date args, `lastHeaderDate` is gone, and `stripDateHeaders`
+migrates legacy logs on read. Real change-dating is deferred (it needs
+turn-boundary timestamps captured in `pair-wrap`). Treat the date-header surface
+in the tables/steps above as historical; see the #58 issue Log + `atlas/architecture.md`.
