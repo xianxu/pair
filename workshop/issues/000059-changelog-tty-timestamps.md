@@ -78,15 +78,15 @@ Granularity: **day-level** display (`## YYYY-MM-DD`). Cadence: **minute**.
 
 ## Plan
 
-- [ ] `cmd/pair-wrap`: minute-debounced `time` event via `logScrollbackEvent`;
+- [x] `cmd/pair-wrap`: minute-debounced `time` event via `logScrollbackEvent`;
   tests (debounce window, offset anchoring).
-- [ ] `cmd/pair-scrollback-render`: `--with-timestamps` emits marker lines from
+- [x] `cmd/pair-scrollback-render`: `--with-timestamps` emits marker lines from
   `time` events (scrollback default path unchanged); tests.
-- [ ] `cmd/pair-changelog`: parse markers → per-entry change-date, strip markers,
+- [x] `cmd/pair-changelog`: parse markers → per-entry change-date, strip markers,
   re-introduce day-level `## YYYY-MM-DD` headers from real dates, no-date →
   no-header; unit + integration tests (two-day stream, no-event stream).
-- [ ] `bin/pair-changelog-open`: pass `--with-timestamps` to the render step.
-- [ ] Atlas: update the Change-log section (date headers are back, sourced from
+- [x] `bin/pair-changelog-open`: pass `--with-timestamps` to the render step.
+- [x] Atlas: update the Change-log section (date headers are back, sourced from
   `time` events) + the scrollback/events-sidecar description.
 
 ## Log
@@ -99,6 +99,21 @@ Granularity: **day-level** display (`## YYYY-MM-DD`). Cadence: **minute**.
   per operator). Seams identified: `logScrollbackEvent` (pair-wrap:1413, generic),
   `parseEvents` resize-filter (scrollback-render:81), `assemble` date-header path
   (#58 removed — to be restored, fed real dates). See #58 history for context.
+- Implemented (TDD, 5 commits): **pair-wrap** emits minute-debounced `time`
+  events via the generic `logScrollbackEvent` (pure `dueForTimeEvent` + `p.now`
+  clock seam); **render** `parseEvents` keeps `resize`+`time`, `feedSegments` is
+  one offset-ordered walk (act on resize, snapshot `Scrollback().Len()` on time),
+  pure `interleaveDateMarkers` inserts `⟦pair:ts DATE⟧` at day boundaries behind
+  `--with-timestamps`; **distiller** `parseDatedLines` strips markers → per-line
+  dates, `splitByDate` → per-day segments, `assemble` regains its date param
+  (restored from #58, fed real dates), `stripDateHeaders` deleted; **orchestrator**
+  passes `--with-timestamps`. No markers → header-free, byte-identical to #58
+  (purely additive). Tests: pure units (`dueForTimeEvent`, `dateOf`,
+  `interleaveDateMarkers`, `parseDatedLines`, `splitByDate`, `assemble`),
+  `TestMaybeLogTimeDebounced`, `TestRenderWithTimestamps`, `TestTwoDayDating`,
+  `TestNoMarkerHeaderFree`, and an e2e `TestEndToEndMarkerSurvival` (real
+  render→cleaned→distill, plan-quality finding 2). go + render + pair-wrap suites
+  green; orchestrator smoke green.
 - Durable plan: `workshop/plans/000059-changelog-tty-timestamps-plan.md`. Plan
   quality judge (`sdlc change-code`) verdict **INFO** (start-ready). ARCH-DRY
   (reuse `logScrollbackEvent`; one `scrollbackEvent` struct+parser; restore the
