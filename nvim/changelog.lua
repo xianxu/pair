@@ -95,7 +95,19 @@ function M.start_refresh(bufnr)
   -- will be inserted — not in the winbar. virt_lines don't touch buffer content,
   -- so the buffer stays read-only / unmodified.
   local ns = vim.api.nvim_create_namespace('pair_changelog_spinner')
+  local uv = vim.uv or vim.loop
+  local last_key = '' -- log file (mtime+size) fingerprint, for progressive reload
   local function paint()
+    -- Progressive reload: the distiller writes the log after EACH batch, so on a
+    -- multi-batch run we show batch 1, then 1+2, … instead of nothing until done.
+    local st = uv.fs_stat(log)
+    if st then
+      local key = st.mtime.sec .. '.' .. st.mtime.nsec .. '.' .. st.size
+      if key ~= last_key then
+        last_key = key
+        M.reload(bufnr, log)
+      end
+    end
     i = (i % #frames) + 1
     local last = math.max(0, vim.api.nvim_buf_line_count(bufnr) - 1)
     pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, last, 0, {
@@ -104,7 +116,7 @@ function M.start_refresh(bufnr)
     })
   end
   paint()
-  local timer = vim.fn.timer_start(90, paint, { ['repeat'] = -1 })
+  local timer = vim.fn.timer_start(120, paint, { ['repeat'] = -1 })
 
   local err -- captured distiller error line, if any
 

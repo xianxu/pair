@@ -104,18 +104,22 @@ func main() {
 		if err != nil {
 			fail("model: %v", err)
 		}
+		if nl == newLog {
+			continue // this batch added nothing — no write
+		}
 		newLog = nl
+		// Write the log after EACH batch so the viewer can show intermediate
+		// progress (it reloads on file change). The anchor is written only after
+		// the final batch (below): if interrupted mid-run, the anchor stays
+		// one-behind → the next press re-distills and catches up (the prior-log
+		// dedup prevents duplicates), never skipping content.
+		if err := atomicWrite(logPath, newLog); err != nil {
+			fail("write log: %v", err)
+		}
 	}
 
 	if strings.TrimSpace(newLog) == "" || newLog == priorLog {
-		return // nothing produced / no change
-	}
-
-	// Write the log first, then the anchor (crash-safety): a crash between leaves
-	// the anchor one-behind → next press re-processes a delta already covered by
-	// the frozen-prefix dedup; it never skips content.
-	if err := atomicWrite(logPath, newLog); err != nil {
-		fail("write log: %v", err)
+		return // nothing produced / no change → no anchor advance
 	}
 	if err := writeAnchor(anchorPath, len(boundaries), anchorSnippet(lines, anchorLines)); err != nil {
 		fail("write anchor: %v", err)

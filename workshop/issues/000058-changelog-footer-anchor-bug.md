@@ -142,3 +142,8 @@ unchanged log), so a failed refresh is visible.
   Single-chunk slices (the common incremental case) are one call, as before.
   Tests: `TestIncrementalBatchesLongGap` (a >800-line gap on a later press →
   multiple calls, each batch bounded).
+- Operator follow-up: on a multi-batch run the viewer was blank until ALL batches
+  finished. Now the distiller **writes the log after each batch** (anchor still
+  only at the end, for crash-safety), and the viewer **reloads progressively** —
+  it fingerprints the log file (mtime+size) on each spinner tick and reloads on
+  change, so batch 1's entries appear, then 1+2, then 1+2+3, live as they land.
