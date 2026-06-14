@@ -27,9 +27,7 @@
       "Bash(sed -n '1,30p' workshop/issues/000055-*.md)",
       "Bash(env)",
       "Bash(grep -nA40 'continue\\)' bin/pair)",
-      "Bash(command -v go)",
-      "Bash(bin/pair-continuation -slug compact -agent claude -session-id fa0ddc46-36c4-4394-881f-174a69fbf986 -issues 000055,000010 -branch 000055-compact-keybind -worktree /Users/xianxu/workspace/pair -body-file /Users/xianxu/workspace/pair/.continuation-body.tmp.md)",
-      "Bash(echo \"EXIT=$?\")",
+      "Bash(command -v go)",      "Bash(echo \"EXIT=$?\")",
       "Bash(sdlc actual *)"
     ],
     "deny": [
