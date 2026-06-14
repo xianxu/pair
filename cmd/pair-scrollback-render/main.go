@@ -32,6 +32,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/vt"
@@ -50,17 +51,28 @@ const (
 	defaultRows = 24
 )
 
-type resizeEvent struct {
+type scrollbackEvent struct {
 	Type   string `json:"type"`
 	Offset int64  `json:"offset"`
 	Cols   int    `json:"cols"`
 	Rows   int    `json:"rows"`
+	Ts     string `json:"ts,omitempty"` // RFC3339 wall-clock for "time" events (#59)
+}
+
+// dateOf extracts the YYYY-MM-DD day from an RFC3339 timestamp; "" on a
+// malformed value so a corrupt time event degrades to undated, never panics (#59).
+func dateOf(ts string) string {
+	t, err := time.Parse(time.RFC3339, ts)
+	if err != nil {
+		return ""
+	}
+	return t.Format("2006-01-02")
 }
 
 // parseEvents reads the sidecar JSONL. Empty / missing file → empty slice.
 // Malformed lines are skipped so a corrupted tail doesn't abort the render —
 // imperfect width tracking beats an unusable viewer.
-func parseEvents(path string) ([]resizeEvent, error) {
+func parseEvents(path string) ([]scrollbackEvent, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -68,17 +80,19 @@ func parseEvents(path string) ([]resizeEvent, error) {
 		}
 		return nil, err
 	}
-	var out []resizeEvent
+	var out []scrollbackEvent
 	for _, line := range strings.Split(string(data), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
-		var e resizeEvent
+		var e scrollbackEvent
 		if err := json.Unmarshal([]byte(line), &e); err != nil {
 			continue
 		}
-		if e.Type == "resize" {
+		// Keep both known types: resize boundaries AND time stamps (#59).
+		// Consumers filter by Type at their use sites.
+		if e.Type == "resize" || e.Type == "time" {
 			out = append(out, e)
 		}
 	}
@@ -89,25 +103,36 @@ func parseEvents(path string) ([]resizeEvent, error) {
 // falls back to 80x24 if the sidecar is empty or the first entry is
 // malformed. pair-wrap always emits an initial resize at offset 0, so the
 // fallback only fires on a truncated file.
-func initialSize(events []resizeEvent) (int, int) {
+func initialSize(events []scrollbackEvent) (int, int) {
 	for _, e := range events {
-		if e.Cols > 0 && e.Rows > 0 {
+		if e.Type == "resize" && e.Cols > 0 && e.Rows > 0 {
 			return e.Cols, e.Rows
 		}
 	}
 	return defaultCols, defaultRows
 }
 
-// feedSegments writes raw into the emulator in chunks delimited by resize
-// events. The caller has already applied events[0] as the initial size,
-// so events[1:] are treated as in-stream boundaries: write everything up
-// to event.Offset, then Resize, then continue.
+// dateMark records the emulator's scrollback length at a "time" event's byte
+// offset → the day that applies to committed lines from that index onward (#59).
+// Built during the feed (the only place that knows both byte offsets and the
+// rendered line count); consumed by the pure interleaveDateMarkers.
+type dateMark struct {
+	line int
+	date string
+}
+
+// feedSegments writes raw into the emulator as a single offset-ordered walk over
+// all sidecar events (the caller has applied events[0] as the initial size, so
+// events[1:] are in-stream boundaries): write everything up to event.Offset,
+// then act — Resize on a resize event, or snapshot Scrollback().Len() on a time
+// event. Returns the time snapshots (empty unless time events are present).
 //
-// Clamping Offset to len(raw) defends against a corrupted sidecar that
-// records a resize beyond EOF (saw this once with a half-written events
-// file after a hard kill); without clamping we'd panic on the slice.
-func feedSegments(em *vt.Emulator, raw []byte, events []resizeEvent) {
+// Clamping Offset to len(raw) defends against a corrupted sidecar that records
+// an offset beyond EOF (saw this once with a half-written events file after a
+// hard kill); without clamping we'd panic on the slice.
+func feedSegments(em *vt.Emulator, raw []byte, events []scrollbackEvent) []dateMark {
 	var cursor int64
+	var marks []dateMark
 	for _, e := range events[1:] {
 		off := e.Offset
 		if off > int64(len(raw)) {
@@ -117,11 +142,53 @@ func feedSegments(em *vt.Emulator, raw []byte, events []resizeEvent) {
 			_, _ = em.Write(raw[cursor:off])
 			cursor = off
 		}
-		em.Resize(e.Cols, e.Rows)
+		switch e.Type {
+		case "resize":
+			em.Resize(e.Cols, e.Rows)
+		case "time":
+			if d := dateOf(e.Ts); d != "" {
+				marks = append(marks, dateMark{line: em.Scrollback().Len(), date: d})
+			}
+		}
 	}
 	if cursor < int64(len(raw)) {
 		_, _ = em.Write(raw[cursor:])
 	}
+	return marks
+}
+
+// tsMarkerLine is the wire format the distiller parses (#59). MUST stay in sync
+// with tsMarkerRe in cmd/pair-changelog/distill.go — the contract is pinned by
+// the render→clean→distill e2e test in tests/changelog-open-test.sh.
+func tsMarkerLine(date string) string {
+	return "⟦pair:ts " + date + "⟧"
+}
+
+// interleaveDateMarkers inserts a tsMarkerLine immediately before the first line
+// of each new date run. marks are (scrollback-line-index, date) snapshots in
+// ascending index; a marker is emitted only when the applicable date *changes*
+// from the running date (consecutive same-date marks collapse). Lines before the
+// first mark stay undated; marks past len(lines) are ignored. Pure (#59).
+func interleaveDateMarkers(lines []string, marks []dateMark) []string {
+	if len(marks) == 0 {
+		return lines
+	}
+	out := make([]string, 0, len(lines)+len(marks))
+	mi := 0
+	prevDate := ""
+	for i := 0; i < len(lines); i++ {
+		curDate := prevDate
+		for mi < len(marks) && marks[mi].line <= i {
+			curDate = marks[mi].date
+			mi++
+		}
+		if curDate != "" && curDate != prevDate {
+			out = append(out, tsMarkerLine(curDate))
+			prevDate = curDate
+		}
+		out = append(out, lines[i])
+	}
+	return out
 }
 
 // serializeRow flattens one row into ANSI-styled text. Trims trailing
@@ -213,7 +280,7 @@ func visibleRow(em *vt.Emulator, y, width int) uv.Line {
 	return row
 }
 
-func render(rawPath, eventsPath, outPath string, plain bool, maxLines int) error {
+func render(rawPath, eventsPath, outPath string, plain bool, maxLines int, withTimestamps bool) error {
 	events, err := parseEvents(eventsPath)
 	if err != nil {
 		return fmt.Errorf("parse events: %w", err)
@@ -248,7 +315,7 @@ func render(rawPath, eventsPath, outPath string, plain bool, maxLines int) error
 	if err != nil {
 		return fmt.Errorf("read raw: %w", err)
 	}
-	feedSegments(em, raw, events)
+	marks := feedSegments(em, raw, events)
 
 	// Scrollback lines (oldest → newest), then visible buffer top → bottom.
 	// Visible buffer iterates by row index rather than dropping trailing
@@ -269,6 +336,14 @@ func render(rawPath, eventsPath, outPath string, plain bool, maxLines int) error
 	// leaves a tail of empties at EOF.
 	for len(out) > 0 && out[len(out)-1] == "" {
 		out = out[:len(out)-1]
+	}
+
+	// Change-log path only: interleave day markers from the time-event snapshots
+	// so the distiller can date entries by real change-time (#59). Done after the
+	// trailing-blank trim so a marker never dangles past content. The scrollback
+	// viewer never sets this flag → its render is byte-identical to before.
+	if withTimestamps {
+		out = interleaveDateMarkers(out, marks)
 	}
 
 	// Write the viewport sidecar *first*, then atomically rename the
@@ -311,17 +386,18 @@ func render(rawPath, eventsPath, outPath string, plain bool, maxLines int) error
 
 func main() {
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: %s [--plain] [--max-lines N] <raw> <events.jsonl> <out>\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "usage: %s [--plain] [--max-lines N] [--with-timestamps] <raw> <events.jsonl> <out>\n", os.Args[0])
 	}
 	plain := flag.Bool("plain", false, "emit plain text (no SGR) for distillation")
 	maxLines := flag.Int("max-lines", historyRows, "scrollback history rows retained; <=0 = uncapped")
+	withTimestamps := flag.Bool("with-timestamps", false, "interleave ⟦pair:ts DATE⟧ day markers from time events (for the change log; #59)")
 	flag.Parse()
 	args := flag.Args()
 	if len(args) != 3 {
 		flag.Usage()
 		os.Exit(2)
 	}
-	if err := render(args[0], args[1], args[2], *plain, *maxLines); err != nil {
+	if err := render(args[0], args[1], args[2], *plain, *maxLines, *withTimestamps); err != nil {
 		fmt.Fprintf(os.Stderr, "scrollback-render: %v\n", err)
 		os.Exit(1)
 	}

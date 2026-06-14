@@ -96,7 +96,7 @@ func TestInitialSize_DefaultsWhenEmpty(t *testing.T) {
 
 func TestInitialSize_PicksFirstUsable(t *testing.T) {
 	// First entry has zero cols (truncated) → fall through to next.
-	events := []resizeEvent{
+	events := []scrollbackEvent{
 		{Type: "resize", Offset: 0, Cols: 0, Rows: 0},
 		{Type: "resize", Offset: 0, Cols: 120, Rows: 40},
 	}
@@ -122,7 +122,7 @@ func TestFeedSegments_ClampsOffsetBeyondEOF(t *testing.T) {
 	defer em.Close()
 
 	raw := []byte("hello\r\nworld\r\n")
-	events := []resizeEvent{
+	events := []scrollbackEvent{
 		{Type: "resize", Offset: 0, Cols: 80, Rows: 24},
 		{Type: "resize", Offset: 9999, Cols: 100, Rows: 30}, // way past EOF
 	}
@@ -143,7 +143,7 @@ func TestFeedSegments_WritesAllRawWhenNoMidStreamResizes(t *testing.T) {
 	defer em.Close()
 
 	raw := []byte("alpha\r\nbeta\r\ngamma")
-	events := []resizeEvent{
+	events := []scrollbackEvent{
 		{Type: "resize", Offset: 0, Cols: 80, Rows: 24},
 	}
 	feedSegments(em, raw, events) // must not panic; trailing tail flushed
@@ -157,7 +157,7 @@ func TestFeedSegments_AppliesMidStreamResize(t *testing.T) {
 	defer em.Close()
 
 	raw := []byte("first chunk\r\nsecond chunk\r\n")
-	events := []resizeEvent{
+	events := []scrollbackEvent{
 		{Type: "resize", Offset: 0, Cols: 80, Rows: 24},
 		{Type: "resize", Offset: 13, Cols: 120, Rows: 40},
 	}
