@@ -1872,8 +1872,28 @@ local function pair_build_cheatsheet(budget)
   return out
 end
 
+-- Ephemeral right-end notification (#58). When set it REPLACES the cheatsheet
+-- with a flashed message (e.g. "change log ready · Alt+l"); pair_flash_notify
+-- sets it + a green PairNotify highlight, then a ~2s timer clears it back to the
+-- cheatsheet. Declared here so pair_compose_statusline — the single right-end
+-- renderer — can short-circuit to it in every mode.
+local pair_notify = nil
+local pair_notify_timer = nil
+
+-- The active notification rendered as a right-aligned green segment, appended
+-- past `left`. Single source for the format codes (%= right-align, PairNotify
+-- highlight) so the compose paths can't drift.
+local function pair_notify_segment(left)
+  return left .. '%=%#PairNotify# ' .. pair_notify .. ' %* '
+end
+
 -- Compose a statusline with the cheatsheet right-aligned past `left`.
 local function pair_compose_statusline(left)
+  -- An active ephemeral notification owns the right end until its flash timer
+  -- reverts it — show the green PairNotify message instead of the cheatsheet.
+  if pair_notify then
+    return pair_notify_segment(left)
+  end
   -- 6-cell minimum margin between the variable left segment and the
   -- cheatsheet. Capping the cheatsheet's budget at (columns - left - 6)
   -- bounds left+right ≤ columns - 6, so vim's %= autopads at least 6
@@ -1883,6 +1903,31 @@ local function pair_compose_statusline(left)
   if cheats == '' then return left end
   return left .. '%=' .. cheats .. ' '
 end
+
+-- Flash an ephemeral message on the right end of the statusline, then revert to
+-- the cheatsheet after ~2s. Drives the "change log ready" build-complete signal
+-- (#58): the draft pane is always on screen, so the operator sees it even while
+-- working in the agent pane after a triggered-and-left build. Models
+-- flash_queue_count — swap the highlight + refresh now, defer the revert.
+-- Re-arming cancels the prior timer so a second notification isn't cut short.
+local function pair_flash_notify(text)
+  pair_notify = text
+  -- Green background to grab attention (operator-specified). Set per-flash so it
+  -- survives a colorscheme reload that would otherwise clear the group.
+  vim.api.nvim_set_hl(0, 'PairNotify', { fg = '#04260a', bg = '#3fb950', bold = true })
+  refresh_statusline()
+  if pair_notify_timer then
+    pcall(function() pair_notify_timer:stop() end)
+    pcall(function() pair_notify_timer:close() end)
+  end
+  pair_notify_timer = vim.defer_fn(function()
+    pair_notify = nil
+    pair_notify_timer = nil
+    refresh_statusline()
+  end, 2000)
+end
+-- Exposed for the headless statusline test (drives the notify render path).
+_G.PairFlashNotify = pair_flash_notify
 
 function _G.PairStatusline()
   -- Minimized rung: nvim is collapsed to this single statusline row, so
@@ -1898,7 +1943,13 @@ function _G.PairStatusline()
   -- on redraws and we can't reliably suppress that, so the cursor
   -- block stays visible — but on a leading space it's unobtrusive.
   if pair_layout_state == 'minimized' then
-    return '    %#PairAltKey#Alt+↑%* for pair input box '
+    local base = '    %#PairAltKey#Alt+↑%* for pair input box '
+    -- Surface an active notification even when collapsed — the build-complete
+    -- flash matters most when the operator has minimized the draft to work.
+    if pair_notify then
+      return pair_notify_segment(base)
+    end
+    return base
   end
   if vim.fn.mode():sub(1, 1) == 'n' then
     -- Carry the position marker (*, -N, +N) into locked/normal mode — the
@@ -2623,6 +2674,30 @@ local function pair_start_pending_fs_watch()
   if not ok then handle:close() end
 end
 pair_start_pending_fs_watch()
+
+-- Watch $PAIR_DATA_DIR for the change-log "build complete" marker (#58). The
+-- detached distiller drops "changelog-<tag>-<agent>.ready" only when a triggered
+-- build actually changed the log; we flash the statusline + delete the marker
+-- (one-shot). A low-frequency timer poll, NOT fs_event: macOS FSEvents is
+-- unreliable from nvim here (it surfaces EMFILE with a nil filename), and the
+-- scrollback-pending fs_event watcher only gets away with it because a
+-- FocusGained fallback covers the miss. This signal has no such fallback — its
+-- whole job is to flash while the operator works in the *agent* pane (the draft
+-- statusline stays on screen), so it can't depend on focus. One fs_stat every
+-- 2s is negligible; the ≤2s latency is invisible against a slow background build.
+local function pair_start_changelog_ready_watch()
+  local data_dir = vim.env.PAIR_DATA_DIR
+    or ((vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/share')) .. '/pair')
+  local tag = vim.env.PAIR_TAG or vim.env.PAIR_AGENT or 'claude'
+  local agent = vim.env.PAIR_AGENT or 'claude'
+  local marker = data_dir .. '/changelog-' .. tag .. '-' .. agent .. '.ready'
+  vim.fn.timer_start(2000, function()
+    if not vim.loop.fs_stat(marker) then return end
+    os.remove(marker) -- one-shot: consume the marker so the flash fires once
+    pair_flash_notify('✓ change log ready · Alt+l')
+  end, { ['repeat'] = -1 })
+end
+pair_start_changelog_ready_watch()
 
 pair_apply_mode_bg(vim.fn.mode():sub(1, 1))
 

@@ -24,6 +24,11 @@ const (
 	lineCap       = 200  // safety cap on the lookback slice (verbose-turn guard)
 	anchorLines   = 3    // K: verbatim cleaned-lines stored as the content anchor
 	maxTokens     = 2000 // generous output budget (multi-entry log)
+	maxSliceLines = 800  // hard cap on lines fed to the model (timeout guard, #58)
+	// changelogTimeout — `claude -p` has a ~28s baseline (CLI startup + model), so
+	// the slug's 30s default is too tight for this heavier, on-demand distill; the
+	// viewer runs it async behind a spinner, so a longer budget is fine (#58).
+	changelogTimeout = 90 * time.Second
 )
 
 func fail(format string, a ...any) {
@@ -32,101 +37,165 @@ func fail(format string, a ...any) {
 }
 
 func main() {
-	var cleanedPath, logPath, anchorPath, agent, today, modelName string
+	var cleanedPath, logPath, anchorPath, agent, modelName string
 	flag.StringVar(&cleanedPath, "cleaned", "", "path to the cleaned-TTY text file")
 	flag.StringVar(&logPath, "log", "", "path to the change-log markdown file")
 	flag.StringVar(&anchorPath, "anchor", "", "path to the content-anchor sidecar")
 	flag.StringVar(&agent, "agent", "claude", "session agent (claude|codex|agy)")
-	flag.StringVar(&today, "today", time.Now().Format("2006-01-02"), "press date (testing hook)")
 	flag.StringVar(&modelName, "model", "", "model override; default per-agent")
 	flag.Parse()
 
 	if cleanedPath == "" || logPath == "" || anchorPath == "" {
-		fail("usage: pair-changelog --cleaned F --log F --anchor F [--agent A] [--today D]")
+		fail("usage: pair-changelog --cleaned F --log F --anchor F [--agent A]")
 	}
 
 	cleanedBytes, err := os.ReadFile(cleanedPath)
 	if err != nil {
 		fail("read cleaned: %v", err)
 	}
-	lines := splitLines(string(cleanedBytes))
+	// Trim the volatile live UI (empty prompt box + rule/status) so the anchor,
+	// slice, and turn-count work on stable committed scrollback (#58).
+	lines := trimLiveTail(splitLines(string(cleanedBytes)), agent)
 	if len(lines) == 0 {
 		return // nothing captured yet; leave the log untouched
 	}
 
-	priorLog := readFileOr(logPath)
+	// Strip any legacy "## YYYY-MM-DD" headers so old logs migrate to the
+	// header-free format (the date was distill-time, not change-time — #58).
+	priorLog := stripDateHeaders(readFileOr(logPath))
 	priorTurns, anchor := parseAnchor(readFileOr(anchorPath))
 	boundaries := scanTurnBoundaries(lines, agent)
 	hasPrior := strings.TrimSpace(priorLog) != ""
+
+	res := locate(lines, anchor, boundaries, lookbackTurns, lineCap)
 
 	// Turn-count no-op: the change log only gains entries when the agent
 	// completes a new turn (a new user-prompt boundary). The volatile trailing
 	// prompt/status lines churn between presses, so a byte-level check would
 	// re-distill every press; counting completed turns is robust to that noise
 	// and means "nothing changed → no model call".
-	if hasPrior && len(boundaries) <= priorTurns {
+	//
+	// Guarded by res.Kind != FullRedistill: a FullRedistill means the anchor is
+	// gone — either a first run, OR the agent session was reset (Alt+n), which
+	// re-renders a fresh screen whose turn count is BELOW the stale anchor's
+	// priorTurns. Without this guard a reset reads as "fewer turns → nothing
+	// new" and the new session never distills (#58 follow-up: the anchor is a
+	// per-session marker, so an absent anchor can't license a no-op).
+	if hasPrior && res.Kind != FullRedistill && len(boundaries) <= priorTurns {
 		fmt.Fprintln(os.Stderr, "pair-changelog: up to date (no new turn)")
 		return
 	}
 
-	res := locate(lines, anchor, boundaries, lookbackTurns, lineCap)
 	if res.Kind == NoOp {
 		return // belt-and-suspenders; shouldn't fire once a new turn exists
 	}
 
-	var frozen, ek, sliceText, sys, input string
 	sliceStart := 0
-	if !hasPrior {
-		// First-ever run: summarize the whole transcript.
-		sliceText = strings.Join(lines, "\n")
+	if hasPrior {
+		sliceStart = res.Start
+	}
+	slice := lines[sliceStart:]
+
+	// Batch the slice into maxSliceLines-sized chunks and distill each in order,
+	// accumulating the log as memory — so a long slice is never truncated to the
+	// last maxSliceLines (#58). 800 is just the per-call batch size (a timeout
+	// bound); this applies equally to a long first run AND a large gap on a later
+	// press. distillStep switches first-run vs incremental on the running log.
+	newLog := priorLog // "" on a first-ever run
+	chunks := chunkLines(slice, maxSliceLines)
+	for i, chunk := range chunks {
+		if len(chunks) > 1 {
+			fmt.Fprintf(os.Stderr, "pair-changelog: distilling batch %d/%d (%d lines)\n", i+1, len(chunks), len(chunk))
+		} else {
+			fmt.Fprintf(os.Stderr, "pair-changelog: distilling %d lines\n", len(chunk))
+		}
+		nl, err := distillStep(newLog, strings.Join(chunk, "\n"), agent, modelName)
+		if err != nil {
+			fail("model: %v", err)
+		}
+		if nl == newLog {
+			continue // this batch added nothing — no write
+		}
+		newLog = nl
+		// Write the log after EACH batch so the viewer can show intermediate
+		// progress (it reloads on file change). The anchor is written only after
+		// the final batch (below): if interrupted mid-run, the anchor stays
+		// one-behind → the next press re-distills and catches up (the prior-log
+		// dedup prevents duplicates), never skipping content.
+		if err := atomicWrite(logPath, newLog); err != nil {
+			fail("write log: %v", err)
+		}
+	}
+
+	// A first-ever run that yielded nothing has no committed content to anchor on.
+	if strings.TrimSpace(newLog) == "" {
+		return
+	}
+	// Advance the anchor to the turns/position we just processed — even when the
+	// distill produced no textual change (a trivial turn the model added nothing
+	// for). The anchor tracks "processed up to here," NOT "the log text changed":
+	// advancing only on a text change would leave the turn count lagging behind
+	// len(boundaries), so the turn-count no-op gate could never engage and every
+	// later press would re-run the model — a regression of the exact #58 symptom.
+	if err := writeAnchor(anchorPath, len(boundaries), anchorSnippet(lines, anchorLines)); err != nil {
+		fail("write anchor: %v", err)
+	}
+	if newLog == priorLog {
+		return // processed, but no new entry → anchor advanced; nothing to flash
+	}
+	// Drop the "build complete" marker the draft nvim polls (#58). Reached only on
+	// a real textual change, so the draft flashes its statusline only when a
+	// triggered-and-left build actually produced something — not on a no-op press
+	// or a trivial turn. Best-effort: the build already succeeded; the notification
+	// is a bonus, so a write failure isn't fatal.
+	writeReady(logPath)
+}
+
+// writeReady drops the "<base>.ready" marker beside the log. The draft nvim
+// fs-watches $PAIR_DATA_DIR for it and, on arrival, flashes its statusline then
+// deletes the marker (one-shot). The timestamp body is for debugging only — the
+// marker's existence is the signal.
+func writeReady(logPath string) {
+	readyPath := strings.TrimSuffix(logPath, ".md") + ".ready"
+	_ = os.WriteFile(readyPath, []byte(time.Now().Format(time.RFC3339)+"\n"), 0o644)
+}
+
+// distillStep runs one model distill — first-run (priorLog empty) or incremental
+// (revise the last entry + append) — and returns the new full log. Returns
+// priorLog unchanged when the model produces nothing; errors on a non-distill
+// response (a hijacked continuation). Used per-chunk by the first-run batcher.
+func distillStep(priorLog, sliceText, agent, modelName string) (string, error) {
+	firstRun := strings.TrimSpace(priorLog) == ""
+	var frozen, ek, sys, input string
+	if firstRun {
 		sys = buildSystemPrompt(true)
 		input = buildInput("", "", sliceText, true)
 	} else {
-		// Incremental (Found) OR full-redistill (Start=0) — both keep the prior
-		// log: feed it as read-only memory and slice from res.Start.
 		frozen, ek = splitFrozenTail(priorLog)
-		sliceStart = res.Start
-		sliceText = strings.Join(lines[sliceStart:], "\n")
 		sys = buildSystemPrompt(false)
 		input = buildInput(frozen, ek, sliceText, false)
 	}
-
-	// Status line the viewer surfaces in its spinner ("Refreshing … N lines").
-	fmt.Fprintf(os.Stderr, "pair-changelog: distilling %d lines\n", len(lines)-sliceStart)
-
 	out, err := model.Run(model.Request{
-		Agent:           agent,
-		Model:           modelName,
-		Prompt:          sys,
-		Input:           input,
-		MaxOutputTokens: maxTokens,
-		Verbosity:       "medium",
+		Agent: agent, Model: modelName, Prompt: sys, Input: input,
+		MaxOutputTokens: maxTokens, Verbosity: "medium", Timeout: changelogTimeout,
 	})
 	if err != nil {
-		fail("model: %v", err)
+		return "", err
 	}
 	out = strings.TrimSpace(out)
 	if out == "" {
-		return // model produced nothing; leave the log as-is
+		return priorLog, nil // model produced nothing; no change this step
 	}
-
+	if !looksLikeChangelog(out) {
+		return "", fmt.Errorf("non-distill response (no change-log entries)")
+	}
 	var ekPrime, newEntries string
-	if !hasPrior {
+	if firstRun {
 		newEntries = out
 	} else {
 		ekPrime, newEntries = splitFirstEntry(out)
 	}
-	newLog := assemble(frozen, ekPrime, newEntries, today, lastHeaderDate(priorLog))
-
-	// Write the log first, then the anchor (crash-safety): a crash between
-	// leaves the anchor one-behind → next press re-processes a delta already
-	// covered by the frozen-prefix dedup; it never skips content.
-	if err := atomicWrite(logPath, newLog); err != nil {
-		fail("write log: %v", err)
-	}
-	if err := writeAnchor(anchorPath, len(boundaries), anchorSnippet(lines, anchorLines)); err != nil {
-		fail("write anchor: %v", err)
-	}
+	return assemble(frozen, ekPrime, newEntries), nil
 }
 
 func writeAnchor(path string, turns int, snippet []string) error {

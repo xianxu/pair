@@ -1,25 +1,21 @@
 #!/bin/sh
 # pair-changelog-open — open the session's distilled change log in a read-only
-# nvim viewer, refreshing it in the background.
+# nvim viewer; build/refresh it with a DETACHED background distiller.
 #
-# Bound to Alt+l in zellij/config.kdl (Run with floating=true,
-# close_on_exit=true), so this script runs in a floating pane, executes nvim in
-# place, and the pane self-dismisses when the user :q's. The distilled counter-
-# part to Alt+/ (pair-scrollback-open): Alt+/ shows the raw scroll, Alt+l the
-# distilled scroll. Filed as #53.
+# Bound to Alt+l in zellij/config.kdl (Run with floating=true, close_on_exit=true).
+# The distilled counterpart to Alt+/ (pair-scrollback-open). Filed as #53.
 #
-# This script is deliberately thin: it does NOT distill synchronously (that
-# blocked the viewer behind a multi-second model call on every press). It opens
-# nvim immediately on whatever log already exists; nvim/changelog.lua then runs
-# the render+distill as a background job and reloads the buffer when it finishes,
-# showing a spinner meanwhile. The distiller itself skips the model when no new
-# turn has completed, so an unchanged session is effectively instant.
+# Architecture (#58): the render+distill runs as a **detached** background process
+# (nohup), NOT as a child of nvim — so a long batched build keeps running even if
+# the operator closes the viewer mid-build. nvim is a pure WATCHER: it tails the
+# log file (reloading per batch) and shows a spinner while the distiller is alive.
+# Two locks:
+#   - openlock  → viewer singleton (a second Alt+l while a viewer is up refocuses)
+#   - distill.lock (PID) → distiller singleton; a press won't start a second
+#     distiller while one is running (it just opens a viewer to watch it).
 #
-# Inputs come from pair's env (exported by bin/pair before zellij starts):
-#   $PAIR_DATA_DIR  — where pair stores per-session state files
-#   $PAIR_TAG       — session identity
-#   $PAIR_AGENT     — agent basename (claude / codex / agy)
-#   $PAIR_HOME      — pair install root (for bin/* and nvim/changelog.lua)
+# Inputs from pair's env (exported by bin/pair before zellij starts):
+#   $PAIR_DATA_DIR  $PAIR_TAG  $PAIR_AGENT  $PAIR_HOME
 set -eu
 
 if [ -z "${PAIR_DATA_DIR:-}" ] || [ -z "${PAIR_TAG:-}" ] || [ -z "${PAIR_AGENT:-}" ]; then
@@ -29,45 +25,64 @@ if [ -z "${PAIR_DATA_DIR:-}" ] || [ -z "${PAIR_TAG:-}" ] || [ -z "${PAIR_AGENT:-
     exit 1
 fi
 
-# Re-entrancy guard: a second Alt+l while the viewer is open is a no-op refocus
-# (the live PID owns the viewer). The lock holds the script PID; we run nvim (not
-# exec) so the EXIT trap clears it.
-LOCK="$PAIR_DATA_DIR/changelog-$PAIR_TAG-$PAIR_AGENT.openlock"
-if [ -f "$LOCK" ]; then
-    other=$(cat "$LOCK" 2>/dev/null || true)
+base="$PAIR_DATA_DIR/changelog-$PAIR_TAG-$PAIR_AGENT"
+RAW="$PAIR_DATA_DIR/scrollback-$PAIR_TAG-$PAIR_AGENT.raw"
+EVENTS="$PAIR_DATA_DIR/scrollback-$PAIR_TAG-$PAIR_AGENT.events.jsonl"
+LOG="$base.md"
+ANCHOR="$base.anchor"
+CLEANED="$base.cleaned"
+OPENLOCK="$base.openlock"      # viewer singleton
+DLOCK="$base.distill.lock"     # distiller singleton (holds the distiller PID)
+STATUS="$base.status"          # distiller stderr (batch progress) for the spinner
+
+# Viewer re-entrancy: a second Alt+l while a viewer is already up just exits
+# (its pane self-dismisses), leaving the existing viewer focused.
+if [ -f "$OPENLOCK" ]; then
+    other=$(cat "$OPENLOCK" 2>/dev/null || true)
     if [ -n "${other:-}" ] && kill -0 "$other" 2>/dev/null; then
         exit 0
     fi
 fi
-printf '%s\n' "$$" > "$LOCK"
-trap 'rm -f "$LOCK"' EXIT INT TERM
+printf '%s\n' "$$" > "$OPENLOCK"
+trap 'rm -f "$OPENLOCK"' EXIT INT TERM
 
-RAW="$PAIR_DATA_DIR/scrollback-$PAIR_TAG-$PAIR_AGENT.raw"
-EVENTS="$PAIR_DATA_DIR/scrollback-$PAIR_TAG-$PAIR_AGENT.events.jsonl"
-LOG="$PAIR_DATA_DIR/changelog-$PAIR_TAG-$PAIR_AGENT.md"
-ANCHOR="$PAIR_DATA_DIR/changelog-$PAIR_TAG-$PAIR_AGENT.anchor"
-CLEANED="$PAIR_DATA_DIR/changelog-$PAIR_TAG-$PAIR_AGENT.cleaned"
-
-# Ensure the viewer always has a file to open, even before the first distill.
 [ -f "$LOG" ] || : > "$LOG"
 
-# Hand the viewer everything it needs to run the background refresh job. It
-# refreshes only when there's captured scrollback and both binaries are present;
-# otherwise it just shows the existing log.
-if [ -s "$RAW" ] && [ -x "$PAIR_HOME/bin/pair-scrollback-render" ] && [ -x "$PAIR_HOME/bin/pair-changelog" ]; then
-    PAIR_CHANGELOG_REFRESH=1
-else
-    PAIR_CHANGELOG_REFRESH=0
-fi
-export PAIR_CHANGELOG_REFRESH
-export PAIR_CHANGELOG_RAW="$RAW"
-export PAIR_CHANGELOG_EVENTS="$EVENTS"
-export PAIR_CHANGELOG_CLEANED="$CLEANED"
-export PAIR_CHANGELOG_LOG="$LOG"
-export PAIR_CHANGELOG_ANCHOR="$ANCHOR"
-export PAIR_CHANGELOG_AGENT="$PAIR_AGENT"
-export PAIR_CHANGELOG_TODAY="$(date +%F)"
-export PAIR_CHANGELOG_RENDER="$PAIR_HOME/bin/pair-scrollback-render"
-export PAIR_CHANGELOG_DISTILL="$PAIR_HOME/bin/pair-changelog"
+# Is a distiller already running (from a prior press whose viewer may be closed)?
+distiller_running() {
+    [ -f "$DLOCK" ] || return 1
+    _p=$(cat "$DLOCK" 2>/dev/null || true)
+    [ -n "${_p:-}" ] && kill -0 "$_p" 2>/dev/null
+}
 
+# Launch the render+distill in its OWN SESSION so it survives the viewer closing.
+# nohup alone is not enough: closing the zellij floating pane tears down the
+# pane's process group/session, which still reaches a plain background child
+# (only its already-written batches survive on disk, and reopening restarts from
+# batch 1 — #58). setsid puts the build in a new session the pane teardown can't
+# reach; macOS has no setsid, so fall back to a perl POSIX::setsid shim. The
+# distiller writes the log per batch + the anchor at the end; PID → DLOCK; stderr
+# (batch progress) → STATUS.
+if ! distiller_running && [ -s "$RAW" ] \
+   && [ -x "$PAIR_HOME/bin/pair-scrollback-render" ] && [ -x "$PAIR_HOME/bin/pair-changelog" ]; then
+    : > "$STATUS"
+    export PCL_RENDER="$PAIR_HOME/bin/pair-scrollback-render"
+    export PCL_DISTILL="$PAIR_HOME/bin/pair-changelog"
+    export PCL_RAW="$RAW" PCL_EVENTS="$EVENTS" PCL_CLEANED="$CLEANED"
+    export PCL_LOG="$LOG" PCL_ANCHOR="$ANCHOR" PCL_AGENT="$PAIR_AGENT"
+    INNER='"$PCL_RENDER" --plain --max-lines 0 "$PCL_RAW" "$PCL_EVENTS" "$PCL_CLEANED" && "$PCL_DISTILL" --cleaned "$PCL_CLEANED" --log "$PCL_LOG" --anchor "$PCL_ANCHOR" --agent "$PCL_AGENT"'
+    if command -v setsid >/dev/null 2>&1; then
+        setsid sh -c "$INNER" </dev/null >/dev/null 2>"$STATUS" &
+    else
+        perl -e 'use POSIX qw(setsid); setsid() or die "setsid: $!"; exec @ARGV or die "exec: $!";' \
+            sh -c "$INNER" </dev/null >/dev/null 2>"$STATUS" &
+    fi
+    printf '%s\n' "$!" > "$DLOCK"
+fi
+
+# Viewer (foreground). On close, the EXIT trap clears OPENLOCK; the detached
+# distiller (DLOCK) keeps running. The viewer watches LOG / DLOCK / STATUS.
+export PAIR_CHANGELOG_LOG="$LOG"
+export PAIR_CHANGELOG_DLOCK="$DLOCK"
+export PAIR_CHANGELOG_STATUS="$STATUS"
 nvim -u "$PAIR_HOME/nvim/changelog.lua" "$LOG"

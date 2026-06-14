@@ -264,3 +264,23 @@ reviewed milestone close is `sdlc milestone-close`. Using `close --milestone`
 ticks the box without dispatching the boundary review or emitting the
 `Review-Verdict:` trailer the issue-close gate then requires — leading to a
 restart. Use `milestone-close` for a reviewed boundary.
+
+## #58 — feature removal + anchor semantics (boundary review caught both)
+
+1. **Removing a feature: grep EVERY test layer, not just the unit tests.** Dropping
+   the change-log date headers, I updated the Go + lua assertions but missed the
+   shell **smoke** test's `grep -q '^## '` ("assert a header exists"), so `make
+   test` went red while `go test ./...` was green. **Rule:** when you delete output
+   a feature produced, grep the whole `tests/` tree (and `*.sh`) for assertions on
+   that output — shell/e2e tests don't show up in `go test`.
+2. **Close evidence must name the suite that actually gates.** My `--verified` said
+   "go + lua + test-statusline green" — true, but it never ran `test-changelog`
+   (the smoke), which was the one that was red. **Rule:** the VERIFIED line must
+   cover `make test` (or name each suite incl. the e2e/smoke), not a convenient
+   subset; a claim that omits the failing suite is how a red build ships.
+3. **An anchor/cursor tracks POSITION, not whether the payload changed.** I gated
+   the change-log anchor advance on `newLog \!= priorLog`, so a turn that distilled
+   to no textual change left the turn count behind → every later press re-ran the
+   model. **Rule:** "processed up to here" and "the output changed" are different
+   facts — advance the position marker when you've consumed the input; gate only
+   the user-visible side effect (the notification) on an actual change.

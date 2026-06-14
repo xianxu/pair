@@ -140,42 +140,36 @@ func TestSplitFirstEntry(t *testing.T) {
 	}
 }
 
-func TestLastHeaderDate(t *testing.T) {
-	if got := lastHeaderDate("## 2026-06-11\n\n- a\n\n## 2026-06-12\n\n- b\n"); got != "2026-06-12" {
-		t.Fatalf("got %q want 2026-06-12", got)
+func TestStripDateHeaders(t *testing.T) {
+	// legacy multi-day log → flat header-free list, blank-line separated.
+	if got := stripDateHeaders("## 2026-06-11\n\n- a\n\n## 2026-06-12\n\n- b\n"); got != "- a\n\n- b\n" {
+		t.Fatalf("got %q want %q", got, "- a\n\n- b\n")
 	}
-	if got := lastHeaderDate("- a\n"); got != "" {
-		t.Fatalf("got %q want empty", got)
-	}
-}
-
-func TestAssembleSameDayAppend(t *testing.T) {
-	got := assemble("## 2026-06-12\n\n- one\n\n", "- two\n", "- three\n", "2026-06-12", "2026-06-12")
-	want := "## 2026-06-12\n\n- one\n\n- two\n\n- three\n"
-	if got != want {
-		t.Fatalf("got %q want %q", got, want)
+	// already header-free → unchanged (idempotent on the new format).
+	if got := stripDateHeaders("- a\n\n- b\n"); got != "- a\n\n- b\n" {
+		t.Fatalf("header-free log altered: %q", got)
 	}
 }
 
-func TestAssembleRolloverInsertsHeader(t *testing.T) {
-	got := assemble("## 2026-06-12\n\n- one\n\n", "- two\n", "- three\n", "2026-06-13", "2026-06-12")
-	want := "## 2026-06-12\n\n- one\n\n- two\n\n## 2026-06-13\n\n- three\n"
+func TestAssembleAppend(t *testing.T) {
+	got := assemble("- one\n\n", "- two\n", "- three\n")
+	want := "- one\n\n- two\n\n- three\n"
 	if got != want {
 		t.Fatalf("got %q want %q", got, want)
 	}
 }
 
 func TestAssembleReviseOnlyNoNew(t *testing.T) {
-	got := assemble("## 2026-06-12\n\n- one\n\n", "- two-revised\n", "", "2026-06-13", "2026-06-12")
-	want := "## 2026-06-12\n\n- one\n\n- two-revised\n"
+	got := assemble("- one\n\n", "- two-revised\n", "")
+	want := "- one\n\n- two-revised\n"
 	if got != want {
 		t.Fatalf("got %q want %q", got, want)
 	}
 }
 
 func TestAssembleFirstEver(t *testing.T) {
-	got := assemble("", "", "- a\n\n- b\n", "2026-06-12", "")
-	want := "## 2026-06-12\n\n- a\n\n- b\n"
+	got := assemble("", "", "- a\n\n- b\n")
+	want := "- a\n\n- b\n"
 	if got != want {
 		t.Fatalf("got %q want %q", got, want)
 	}
@@ -187,6 +181,76 @@ func TestAnchorSnippet(t *testing.T) {
 	}
 	if got := anchorSnippet([]string{"a"}, 3); !reflect.DeepEqual(got, []string{"a"}) {
 		t.Fatalf("got %v want [a]", got)
+	}
+}
+
+func TestTrimLiveTail(t *testing.T) {
+	content := []string{"❯ sent prompt", "agent work A", "stable last line"}
+	// idle footer: empty box + rule + status bar → all stripped.
+	idle := append(append([]string{}, content...), "❯ ", "────────", "⏵⏵ bypass · 3 shells")
+	if got := trimLiveTail(idle, "claude"); !reflect.DeepEqual(got, content) {
+		t.Fatalf("idle footer: got %v", got)
+	}
+	// thinking footer (multi-block: spinner + rule ABOVE the box, box + rule +
+	// status below) → all stripped iteratively.
+	thinking := append(append([]string{}, content...),
+		"* Cerebrating… (3s · thinking with xhigh effort)", "", "────────", "❯ ", "────────", "  ⏵⏵ esc to interrupt")
+	if got := trimLiveTail(thinking, "claude"); !reflect.DeepEqual(got, content) {
+		t.Fatalf("thinking footer: got %v", got)
+	}
+	// codex empty box + status.
+	cx := []string{"x", "stable", "› ", "────"}
+	if got := trimLiveTail(cx, "codex"); !reflect.DeepEqual(got, []string{"x", "stable"}) {
+		t.Fatalf("codex footer: got %v", got)
+	}
+	// committed markdown bullets ("* item", no spinner timer/ellipsis) are NOT
+	// chrome → preserved.
+	bullets := []string{"intro", "* item one", "* item two"}
+	if got := trimLiveTail(bullets, "claude"); !reflect.DeepEqual(got, bullets) {
+		t.Fatalf("markdown bullets over-trimmed: got %v", got)
+	}
+	// no footer at all → unchanged.
+	plain := []string{"a", "b", "c"}
+	if got := trimLiveTail(plain, "claude"); !reflect.DeepEqual(got, plain) {
+		t.Fatalf("plain: got %v", got)
+	}
+	// context-meter footer: when the window fills, claude appends a right-aligned
+	// "N% context used" line BELOW the status bar. As the last line it used to
+	// stop trimLiveTail dead, leaking the whole footer into the anchor (#58).
+	meter := append(append([]string{}, content...),
+		"❯ ", "────────", "  ⏵⏵ bypass permissions on · esc to interrupt", "                  100% context used")
+	if got := trimLiveTail(meter, "claude"); !reflect.DeepEqual(got, content) {
+		t.Fatalf("context-meter footer: got %v", got)
+	}
+}
+
+func TestLooksLikeChangelog(t *testing.T) {
+	if !looksLikeChangelog("## 2026-06-12\n\n- an entry\n  wrapped\n\n- another\n") {
+		t.Fatal("valid change log rejected")
+	}
+	// a conversation continuation with bullets but bare prose lines → rejected.
+	hijack := "Can you either:\n- Grant me read permission on the file\n- Or paste the logic\n\nAnd from changelog.lua, the reload logic?"
+	if looksLikeChangelog(hijack) {
+		t.Fatal("bulleted conversation continuation wrongly accepted")
+	}
+	if looksLikeChangelog("just some prose, no bullets at all") {
+		t.Fatal("prose accepted")
+	}
+	if looksLikeChangelog("") {
+		t.Fatal("empty accepted")
+	}
+}
+
+func TestChunkLines(t *testing.T) {
+	got := chunkLines([]string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"}, 4)
+	if len(got) != 3 || len(got[0]) != 4 || len(got[1]) != 4 || len(got[2]) != 2 {
+		t.Fatalf("got %v", got)
+	}
+	if got := chunkLines([]string{"a", "b"}, 4); len(got) != 1 {
+		t.Fatalf("under-size should be one chunk, got %d", len(got))
+	}
+	if got := chunkLines(nil, 4); len(got) != 1 {
+		t.Fatalf("empty → one (empty) chunk, got %d", len(got))
 	}
 }
 

@@ -6,25 +6,131 @@ import (
 	"strings"
 )
 
-// promptGlyphByAgent — sync-commented to nvim/scrollback.lua PROMPT_PATTERN_BY_AGENT.
-// claude/codex are faithful single-glyph ports. agy is a DELIBERATE
-// SIMPLIFICATION: scrollback uses a box-aware, multi-line variant
-// (`\(──.*\n\)\zs>` — a `>` only when the prior line starts with `──`); we
-// approximate with `^>`. Over-matching is safe because turns drive ONLY the
-// lookback — a false boundary just shortens context (graceful degradation, per
-// the #53 spec), never breaks the anchor. A faithful port (also require
-// lines[i-1] to start with `──`) is a future refinement if agy quality suffers.
-var promptGlyphByAgent = map[string]*regexp.Regexp{
-	"claude": regexp.MustCompile(`^❯`),
-	"codex":  regexp.MustCompile(`^›`),
-	"agy":    regexp.MustCompile(`^>`),
+// promptGlyphChar is the per-agent prompt glyph — the SINGLE source for both the
+// line-start regex (promptGlyphByAgent, derived below) and the empty-input-box
+// detection (trimLiveTail). Sync-commented to nvim/scrollback.lua
+// PROMPT_PATTERN_BY_AGENT. claude/codex are faithful; agy is a DELIBERATE
+// SIMPLIFICATION of scrollback's box-aware variant (`\(──.*\n\)\zs>` — a `>` only
+// after a `──` line): a bare `>` can over-match agy output, which now feeds the
+// no-op gate as well as the lookback, so a false boundary can delay/add one
+// distill — graceful (self-heals within ~1 press), never corrupts the log.
+var promptGlyphChar = map[string]string{
+	"claude": "❯",
+	"codex":  "›",
+	"agy":    ">",
 }
+
+// promptGlyphByAgent — line-start regex per agent, derived from promptGlyphChar
+// so the two maps can't drift.
+var promptGlyphByAgent = func() map[string]*regexp.Regexp {
+	m := make(map[string]*regexp.Regexp, len(promptGlyphChar))
+	for agent, ch := range promptGlyphChar {
+		m[agent] = regexp.MustCompile("^" + regexp.QuoteMeta(ch))
+	}
+	return m
+}()
 
 func glyphFor(agent string) *regexp.Regexp {
 	if re, ok := promptGlyphByAgent[agent]; ok {
 		return re
 	}
 	return promptGlyphByAgent["claude"]
+}
+
+var (
+	// ruleRe matches a horizontal-rule line (box-drawing / dashes only).
+	ruleRe = regexp.MustCompile(`^[\s─━—=_·.\-]+$`)
+	// thinkingRe matches claude's working spinner, e.g.
+	// "* Cerebrating… (3s · thinking with xhigh effort)".
+	thinkingRe = regexp.MustCompile(`^\* .*(…|\(\d+s)`)
+	// contextMeterRe matches claude's context-usage footer line, e.g.
+	// "100% context used" / "85% context left" — shown (right-aligned) when the
+	// context window fills. A new footer variant: sitting as the LAST line it
+	// stopped trimLiveTail dead, leaking the whole volatile footer into the
+	// anchor → locate misses → FullRedistill / stale turn count (#58).
+	contextMeterRe = regexp.MustCompile(`^\d+% context\b`)
+)
+
+// isFooterChrome reports whether line belongs to the live UI footer — none of
+// which is committed scrollback (#58). The footer is multi-block when the agent
+// is working: a thinking spinner + rule ABOVE the input box, then the box + rule
+// + status below. Claude-shaped; other agents still get the generic blank / box
+// / rule cases.
+func isFooterChrome(line, glyph string) bool {
+	t := strings.TrimSpace(line)
+	switch {
+	case t == "", t == glyph: // blank or empty input box
+		return true
+	case ruleRe.MatchString(line): // horizontal rule
+		return true
+	case thinkingRe.MatchString(t): // "* Cerebrating… (3s …)"
+		return true
+	case strings.HasPrefix(t, "⏵"): // "⏵⏵ bypass permissions …" status bar
+		return true
+	case strings.Contains(t, "esc to interrupt"):
+		return true
+	case contextMeterRe.MatchString(t): // "100% context used" context meter
+		return true
+	}
+	return false
+}
+
+// trimLiveTail drops the live UI footer from the end of the cleaned text so the
+// anchor/slice/turn-count work on stable committed scrollback — anchoring on the
+// volatile footer is what made `locate` miss → FullRedistill every press (#58).
+// It strips trailing chrome lines iteratively (handling the multi-block thinking
+// footer), stopping at the first committed-content line. Pure.
+func trimLiveTail(lines []string, agent string) []string {
+	glyph := promptGlyphChar[agent]
+	if glyph == "" {
+		glyph = promptGlyphChar["claude"]
+	}
+	end := len(lines)
+	for end > 0 && isFooterChrome(lines[end-1], glyph) {
+		end--
+	}
+	return lines[:end]
+}
+
+// looksLikeChangelog reports whether s is a plausible change log: at least one
+// `- ` bullet, and NO bare prose lines (every non-blank line must be a bullet, an
+// indented bullet continuation, or a `#` header). This rejects a hijacked model
+// that returned a conversation continuation — even one sprinkled with bullets,
+// which a mere "has a bullet" check would wave through (#58).
+func looksLikeChangelog(s string) bool {
+	sawBullet := false
+	for _, line := range strings.Split(strings.TrimSpace(s), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		switch {
+		case strings.HasPrefix(line, "- "):
+			sawBullet = true
+		case strings.HasPrefix(line, "#"): // date header
+		case strings.HasPrefix(line, " "), strings.HasPrefix(line, "\t"): // bullet continuation
+		default:
+			return false // a bare prose line → not a change log
+		}
+	}
+	return sawBullet
+}
+
+// chunkLines splits lines into consecutive chunks of at most size, in order.
+// Used to distill a long first-run transcript in batches (each per-call chunk
+// bounded for the timeout) instead of truncating to the last `size` lines (#58).
+func chunkLines(lines []string, size int) [][]string {
+	if size <= 0 || len(lines) <= size {
+		return [][]string{lines}
+	}
+	var out [][]string
+	for i := 0; i < len(lines); i += size {
+		end := i + size
+		if end > len(lines) {
+			end = len(lines)
+		}
+		out = append(out, lines[i:end])
+	}
+	return out
 }
 
 // scanTurnBoundaries returns the indices of lines that begin a user turn (the
@@ -152,15 +258,27 @@ func splitFirstEntry(s string) (first, rest string) {
 	return strings.TrimRight(s, "\n\t "), ""
 }
 
-var headerDateRe = regexp.MustCompile(`(?m)^## (\d{4}-\d{2}-\d{2})\s*$`)
+// dateHeaderRe matches a legacy "## YYYY-MM-DD" date-header line (kept only to
+// strip them out — see stripDateHeaders). multiBlankRe collapses the blank-line
+// run a removed header leaves behind.
+var (
+	dateHeaderRe = regexp.MustCompile(`(?m)^## \d{4}-\d{2}-\d{2}\s*$\n?`)
+	multiBlankRe = regexp.MustCompile(`\n{3,}`)
+)
 
-// lastHeaderDate returns the date of the last "## YYYY-MM-DD" header, or "".
-func lastHeaderDate(log string) string {
-	m := headerDateRe.FindAllStringSubmatch(log, -1)
-	if len(m) == 0 {
-		return ""
+// stripDateHeaders removes legacy "## YYYY-MM-DD" header lines from a prior log.
+// The change log no longer dates entries — the only date available was
+// distill-time, not change-time, which misled the reader (#58 follow-up). Run on
+// the prior log every read so old logs self-heal to the header-free format on the
+// next distill; idempotent once clean. Collapses the leftover blank run so blocks
+// stay one-blank-line separated. Pure.
+func stripDateHeaders(log string) string {
+	if !strings.Contains(log, "## ") {
+		return log
 	}
-	return m[len(m)-1][1]
+	out := dateHeaderRe.ReplaceAllString(log, "")
+	out = multiBlankRe.ReplaceAllString(out, "\n\n")
+	return strings.TrimLeft(out, "\n")
 }
 
 // ensureBlock normalizes a block to end in exactly one newline.
@@ -168,26 +286,20 @@ func ensureBlock(s string) string {
 	return strings.TrimRight(s, "\n\t ") + "\n"
 }
 
-// assemble builds the new log. frozenPrefix is byte-verbatim. ekPrime is the
-// revised last entry ("" on first-ever). newEntries is the model's new bullets
-// ("" if none). A "## today" header is inserted before newEntries iff there are
-// new entries AND today != lastDate. Invariant: a "## date" header is only ever
-// emitted immediately before ≥1 bullet, so splitFrozenTail's "last bullet
-// block" stays well-defined for every reachable state. Pure.
-func assemble(frozenPrefix, ekPrime, newEntries, today, lastDate string) string {
+// assemble builds the new log: byte-verbatim frozen prefix + the revised last
+// entry (ekPrime, "" on first-ever) + the model's new bullets (newEntries, "" if
+// none), each block one-blank-line separated. The change log no longer carries
+// date headers — the only date available was distill-time, not change-time
+// (misleading; #58). Pure.
+func assemble(frozenPrefix, ekPrime, newEntries string) string {
 	var b strings.Builder
 	b.WriteString(frozenPrefix)
 	if ekPrime != "" {
 		b.WriteString(ensureBlock(ekPrime))
 	}
 	if newEntries != "" {
-		if today != lastDate {
-			if b.Len() > 0 {
-				b.WriteString("\n")
-			}
-			b.WriteString("## " + today + "\n\n")
-		} else if ekPrime != "" {
-			b.WriteString("\n")
+		if b.Len() > 0 {
+			b.WriteString("\n") // blank line between prior content and new bullets
 		}
 		b.WriteString(ensureBlock(newEntries))
 	}

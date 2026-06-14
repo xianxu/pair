@@ -84,12 +84,13 @@ test-queue:
 test-autopair:
 	bash tests/autopair-test.sh
 
-# Regression test for the normal-mode position marker in the draft statusline
-# (nvim/init.lua, _G.PairStatusline). Drives the real init.lua headlessly,
-# navigates history/queue, and asserts the bar shows *, -N, +N. See
-# tests/statusline-pos-test.sh.
+# Regression tests for the draft statusline (nvim/init.lua, _G.PairStatusline).
+# Drive the real init.lua headlessly: statusline-pos asserts the *, -N, +N nav
+# marker; changelog-notify asserts the ephemeral "change log ready" flash + its
+# fs_event marker watcher (#58).
 test-statusline:
 	bash tests/statusline-pos-test.sh
+	bash tests/changelog-notify-test.sh
 
 # Regression test for doctor/doctor.sh (the adaptation flight-recorder reader):
 # a malformed line must not abort the diagnostic. See doctor/doctor_test.sh.
