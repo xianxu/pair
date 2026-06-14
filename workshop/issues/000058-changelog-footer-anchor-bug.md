@@ -209,3 +209,16 @@ unchanged log), so a failed refresh is visible.
   `changelog-pair-claude.cleaned` (turns:9 footer anchor) → `distilling 759
   lines` (not a no-op), new anchor healed to `turns:1` + committed content, new
   entries appended, `.ready` written. Full go + lua suites green.
+- Operator follow-up (remove dates): the `## YYYY-MM-DD` headers were
+  **distill-time**, not change-time — a session worked across days collapses under
+  one "today" header on any bulk/first distill (the rendered TTY carries no
+  per-change timestamps; `events.jsonl` has only resize events). Recovering real
+  change-dates needs timestamping turn boundaries at capture (a separate
+  enhancement, touches `pair-wrap`) — operator declined for now. So removed dating
+  entirely: `assemble` no longer emits `## date`; dropped `--today`/`PCL_TODAY` +
+  `lastHeaderDate`; `stripDateHeaders` migrates legacy logs to the header-free
+  format on read (idempotent). The change log is now a flat blank-line-separated
+  bullet list. Tests: `TestStripDateHeaders`, `TestStripsLegacyDateHeaders`,
+  rewritten `assemble`/no-op tests (the date-rollover tests removed). Live log
+  cleaned. Atlas updated (this section + the build-complete flash + no-op-reset
+  guard, which were unrecorded). Full go + lua suites green.

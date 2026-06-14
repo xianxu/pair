@@ -67,15 +67,15 @@ func stdinLines(dir string) int {
 
 // run writes the cleaned/log/anchor fixtures, runs the binary, and returns the
 // resulting log + anchor contents.
-func run(t *testing.T, bin, cleaned, priorLog, priorAnchor, today string) (log, anchor string) {
+func run(t *testing.T, bin, cleaned, priorLog, priorAnchor string) (log, anchor string) {
 	t.Helper()
-	return runIn(t, bin, t.TempDir(), cleaned, priorLog, priorAnchor, today)
+	return runIn(t, bin, t.TempDir(), cleaned, priorLog, priorAnchor)
 }
 
 // runIn is run() with an explicit dir so a test can inspect the sidecar files a
 // run produces (e.g. the "<base>.ready" marker). run() wraps it with a fresh
 // temp dir; the log/anchor live at changelog.md / changelog.anchor under `dir`.
-func runIn(t *testing.T, bin, dir, cleaned, priorLog, priorAnchor, today string) (log, anchor string) {
+func runIn(t *testing.T, bin, dir, cleaned, priorLog, priorAnchor string) (log, anchor string) {
 	t.Helper()
 	cleanedPath := filepath.Join(dir, "cleaned.txt")
 	logPath := filepath.Join(dir, "changelog.md")
@@ -89,7 +89,7 @@ func runIn(t *testing.T, bin, dir, cleaned, priorLog, priorAnchor, today string)
 	}
 	out, err := exec.Command(bin,
 		"--cleaned", cleanedPath, "--log", logPath, "--anchor", anchorPath,
-		"--agent", "claude", "--today", today,
+		"--agent", "claude",
 	).CombinedOutput()
 	if err != nil {
 		t.Fatalf("run: %v\n%s", err, out)
@@ -116,9 +116,9 @@ func TestFirstRun(t *testing.T) {
 	bin := buildBinary(t)
 	fakeClaude(t, "- entry one\n\n- entry two\n")
 	cleaned := "❯ start\nintro line\nLAST1\nLAST2\nLAST3\n" + idleFooter
-	log, anchor := run(t, bin, cleaned, "", "", "2026-06-12")
+	log, anchor := run(t, bin, cleaned, "", "")
 
-	want := "## 2026-06-12\n\n- entry one\n\n- entry two\n"
+	want := "- entry one\n\n- entry two\n"
 	if log != want {
 		t.Fatalf("log = %q\nwant %q", log, want)
 	}
@@ -135,13 +135,13 @@ func TestIncrementalFreezesPrefixAndRevisesLast(t *testing.T) {
 	cleaned := "❯ first\nintro\n❯ second\nANCHOR1\nANCHOR2\nANCHOR3\nnew work a\nnew work b\n" + idleFooter
 	priorLog := "## 2026-06-12\n\n- one\n\n- two\n"
 	priorAnchor := "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n"
-	log, anchor := run(t, bin, cleaned, priorLog, priorAnchor, "2026-06-12")
+	log, anchor := run(t, bin, cleaned, priorLog, priorAnchor)
 
-	frozen := "## 2026-06-12\n\n- one\n\n"
+	frozen := "- one\n\n"
 	if !strings.HasPrefix(log, frozen) {
 		t.Fatalf("frozen prefix not byte-identical:\n%q", log)
 	}
-	want := "## 2026-06-12\n\n- one\n\n- two-revised\n\n- three\n"
+	want := "- one\n\n- two-revised\n\n- three\n"
 	if log != want {
 		t.Fatalf("log = %q\nwant %q", log, want)
 	}
@@ -157,23 +157,29 @@ func TestReviseOnlyNeverDropsLast(t *testing.T) {
 	cleaned := "❯ a\nintro\n❯ b\nANCHOR1\nANCHOR2\nANCHOR3\nnew tail\n" + idleFooter
 	priorLog := "## 2026-06-12\n\n- one\n\n- two\n"
 	priorAnchor := "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n"
-	log, _ := run(t, bin, cleaned, priorLog, priorAnchor, "2026-06-12")
+	log, _ := run(t, bin, cleaned, priorLog, priorAnchor)
 
-	want := "## 2026-06-12\n\n- one\n\n- two-revised\n"
+	want := "- one\n\n- two-revised\n"
 	if log != want {
 		t.Fatalf("log = %q\nwant %q", log, want)
 	}
 }
 
-func TestDateRollover(t *testing.T) {
+// Legacy logs that still carry "## YYYY-MM-DD" headers migrate to the header-free
+// format on the next distill — the date was distill-time, not change-time, which
+// misled the reader, so it was removed (#58 follow-up).
+func TestStripsLegacyDateHeaders(t *testing.T) {
 	bin := buildBinary(t)
 	fakeClaude(t, "- two-revised\n\n- three\n")
 	cleaned := "❯ a\nintro\n❯ b\nANCHOR1\nANCHOR2\nANCHOR3\nnew tail\n" + idleFooter
-	priorLog := "## 2026-06-11\n\n- one\n\n- two\n"
+	priorLog := "## 2026-06-11\n\n- one\n\n## 2026-06-12\n\n- two\n"
 	priorAnchor := "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n"
-	log, _ := run(t, bin, cleaned, priorLog, priorAnchor, "2026-06-12")
+	log, _ := run(t, bin, cleaned, priorLog, priorAnchor)
 
-	want := "## 2026-06-11\n\n- one\n\n- two-revised\n\n## 2026-06-12\n\n- three\n"
+	if strings.Contains(log, "## 20") {
+		t.Fatalf("legacy date header survived migration:\n%q", log)
+	}
+	want := "- one\n\n- two-revised\n\n- three\n"
 	if log != want {
 		t.Fatalf("log = %q\nwant %q", log, want)
 	}
@@ -190,16 +196,16 @@ func TestFullRedistillWithPriorLogKeepsFrozenPrefix(t *testing.T) {
 	cleaned := "❯ p\n❯ q\nfresh1\nfresh2\nfresh3\n" + idleFooter
 	priorLog := "## 2026-06-12\n\n- one\n\n- two\n"
 	priorAnchor := "turns:1\nOLD1\nOLD2\nOLD3\n" // absent in cleaned → FullRedistill
-	log, anchor := run(t, bin, cleaned, priorLog, priorAnchor, "2026-06-12")
+	log, anchor := run(t, bin, cleaned, priorLog, priorAnchor)
 
 	if !invoked(dir) {
 		t.Fatal("full-redistill should still call the model")
 	}
-	frozen := "## 2026-06-12\n\n- one\n\n"
+	frozen := "- one\n\n"
 	if !strings.HasPrefix(log, frozen) {
 		t.Fatalf("frozen prefix not preserved on full-redistill:\n%q", log)
 	}
-	want := "## 2026-06-12\n\n- one\n\n- two-revised\n\n- three\n"
+	want := "- one\n\n- two-revised\n\n- three\n"
 	if log != want {
 		t.Fatalf("log = %q\nwant %q", log, want)
 	}
@@ -220,7 +226,7 @@ func TestNoOpWhenNoNewTurn(t *testing.T) {
 	// A no-op requires the anchor to still be found — an absent anchor means the
 	// session reset, which must re-distill (TestSessionResetDistillsNotNoOp).
 	priorAnchor := "turns:1\nLAST1\nLAST2\nLAST3\n"
-	log, _ := run(t, bin, cleaned, priorLog, priorAnchor, "2026-06-12")
+	log, _ := run(t, bin, cleaned, priorLog, priorAnchor)
 
 	if log != priorLog {
 		t.Fatalf("log changed on no-op:\n%q", log)
@@ -245,7 +251,7 @@ func TestSessionResetDistillsNotNoOp(t *testing.T) {
 	// Stale anchor from the prior, longer session: high turn count + a snippet
 	// that won't be found in the new cleaned → locate returns FullRedistill.
 	priorAnchor := "turns:9\nOLD_SESSION_TAIL_A\nOLD_SESSION_TAIL_B\nOLD_SESSION_TAIL_C\n"
-	log, anchor := run(t, bin, cleaned, priorLog, priorAnchor, "2026-06-12")
+	log, anchor := run(t, bin, cleaned, priorLog, priorAnchor)
 
 	if !invoked(dir) {
 		t.Fatal("model NOT called after a session reset (no-op fired on a stale-anchor turn count)")
@@ -271,7 +277,7 @@ func TestReadyMarkerWrittenOnChangeOnly(t *testing.T) {
 
 	changeDir := t.TempDir()
 	fakeClaude(t, "- entry\n")
-	runIn(t, bin, changeDir, "❯ start\nL1\nL2\nL3\n"+idleFooter, "", "", "2026-06-12")
+	runIn(t, bin, changeDir, "❯ start\nL1\nL2\nL3\n"+idleFooter, "", "")
 	if _, err := os.Stat(filepath.Join(changeDir, "changelog.ready")); err != nil {
 		t.Fatalf("ready marker missing after a change build: %v", err)
 	}
@@ -280,7 +286,7 @@ func TestReadyMarkerWrittenOnChangeOnly(t *testing.T) {
 	fakeClaude(t, "- should not appear\n")
 	runIn(t, bin, noopDir,
 		"❯ a\nwork churned\nL1\nL2\nL3\n"+idleFooter,
-		"## 2026-06-12\n\n- one\n", "turns:1\nL1\nL2\nL3\n", "2026-06-12")
+		"## 2026-06-12\n\n- one\n", "turns:1\nL1\nL2\nL3\n")
 	if _, err := os.Stat(filepath.Join(noopDir, "changelog.ready")); err == nil {
 		t.Fatal("ready marker written on a no-op press")
 	}
@@ -301,7 +307,7 @@ func TestIncrementalBatchesLongGap(t *testing.T) {
 	b.WriteString(idleFooter)
 	priorLog := "## 2026-06-12\n\n- one\n"
 	priorAnchor := "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n"
-	run(t, bin, b.String(), priorLog, priorAnchor, "2026-06-12")
+	run(t, bin, b.String(), priorLog, priorAnchor)
 
 	if c := callCount(dir); c < 2 {
 		t.Fatalf("incremental with a >800-line gap should batch; model called %d times", c)
@@ -324,7 +330,7 @@ func TestFirstRunBatchesLongTranscript(t *testing.T) {
 		b.WriteString("content line\n")
 	}
 	b.WriteString(idleFooter)
-	log, _ := run(t, bin, b.String(), "", "", "2026-06-12")
+	log, _ := run(t, bin, b.String(), "", "")
 
 	if c := callCount(dir); c != 3 {
 		t.Fatalf("model called %d times, want 3 (1701 lines / 800 per batch)", c)
@@ -345,7 +351,7 @@ func TestFooterChurnIsNoOp(t *testing.T) {
 	cleaned := stable + "\n❯ \n────────\n  ⏵⏵ bypass · 5 shells · NEW STATUS\n"
 	priorLog := "## 2026-06-12\n\n- one\n\n- two\n"
 	priorAnchor := "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n"
-	log, _ := run(t, bin, cleaned, priorLog, priorAnchor, "2026-06-12")
+	log, _ := run(t, bin, cleaned, priorLog, priorAnchor)
 	if invoked(dir) {
 		t.Fatal("footer-only change triggered a model call (no-op should fire)")
 	}

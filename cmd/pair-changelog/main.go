@@ -37,17 +37,16 @@ func fail(format string, a ...any) {
 }
 
 func main() {
-	var cleanedPath, logPath, anchorPath, agent, today, modelName string
+	var cleanedPath, logPath, anchorPath, agent, modelName string
 	flag.StringVar(&cleanedPath, "cleaned", "", "path to the cleaned-TTY text file")
 	flag.StringVar(&logPath, "log", "", "path to the change-log markdown file")
 	flag.StringVar(&anchorPath, "anchor", "", "path to the content-anchor sidecar")
 	flag.StringVar(&agent, "agent", "claude", "session agent (claude|codex|agy)")
-	flag.StringVar(&today, "today", time.Now().Format("2006-01-02"), "press date (testing hook)")
 	flag.StringVar(&modelName, "model", "", "model override; default per-agent")
 	flag.Parse()
 
 	if cleanedPath == "" || logPath == "" || anchorPath == "" {
-		fail("usage: pair-changelog --cleaned F --log F --anchor F [--agent A] [--today D]")
+		fail("usage: pair-changelog --cleaned F --log F --anchor F [--agent A]")
 	}
 
 	cleanedBytes, err := os.ReadFile(cleanedPath)
@@ -61,7 +60,9 @@ func main() {
 		return // nothing captured yet; leave the log untouched
 	}
 
-	priorLog := readFileOr(logPath)
+	// Strip any legacy "## YYYY-MM-DD" headers so old logs migrate to the
+	// header-free format (the date was distill-time, not change-time — #58).
+	priorLog := stripDateHeaders(readFileOr(logPath))
 	priorTurns, anchor := parseAnchor(readFileOr(anchorPath))
 	boundaries := scanTurnBoundaries(lines, agent)
 	hasPrior := strings.TrimSpace(priorLog) != ""
@@ -108,7 +109,7 @@ func main() {
 		} else {
 			fmt.Fprintf(os.Stderr, "pair-changelog: distilling %d lines\n", len(chunk))
 		}
-		nl, err := distillStep(newLog, strings.Join(chunk, "\n"), agent, modelName, today)
+		nl, err := distillStep(newLog, strings.Join(chunk, "\n"), agent, modelName)
 		if err != nil {
 			fail("model: %v", err)
 		}
@@ -153,7 +154,7 @@ func writeReady(logPath string) {
 // (revise the last entry + append) — and returns the new full log. Returns
 // priorLog unchanged when the model produces nothing; errors on a non-distill
 // response (a hijacked continuation). Used per-chunk by the first-run batcher.
-func distillStep(priorLog, sliceText, agent, modelName, today string) (string, error) {
+func distillStep(priorLog, sliceText, agent, modelName string) (string, error) {
 	firstRun := strings.TrimSpace(priorLog) == ""
 	var frozen, ek, sys, input string
 	if firstRun {
@@ -184,7 +185,7 @@ func distillStep(priorLog, sliceText, agent, modelName, today string) (string, e
 	} else {
 		ekPrime, newEntries = splitFirstEntry(out)
 	}
-	return assemble(frozen, ekPrime, newEntries, today, lastHeaderDate(priorLog)), nil
+	return assemble(frozen, ekPrime, newEntries), nil
 }
 
 func writeAnchor(path string, turns int, snippet []string) error {

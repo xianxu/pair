@@ -258,15 +258,27 @@ func splitFirstEntry(s string) (first, rest string) {
 	return strings.TrimRight(s, "\n\t "), ""
 }
 
-var headerDateRe = regexp.MustCompile(`(?m)^## (\d{4}-\d{2}-\d{2})\s*$`)
+// dateHeaderRe matches a legacy "## YYYY-MM-DD" date-header line (kept only to
+// strip them out — see stripDateHeaders). multiBlankRe collapses the blank-line
+// run a removed header leaves behind.
+var (
+	dateHeaderRe = regexp.MustCompile(`(?m)^## \d{4}-\d{2}-\d{2}\s*$\n?`)
+	multiBlankRe = regexp.MustCompile(`\n{3,}`)
+)
 
-// lastHeaderDate returns the date of the last "## YYYY-MM-DD" header, or "".
-func lastHeaderDate(log string) string {
-	m := headerDateRe.FindAllStringSubmatch(log, -1)
-	if len(m) == 0 {
-		return ""
+// stripDateHeaders removes legacy "## YYYY-MM-DD" header lines from a prior log.
+// The change log no longer dates entries — the only date available was
+// distill-time, not change-time, which misled the reader (#58 follow-up). Run on
+// the prior log every read so old logs self-heal to the header-free format on the
+// next distill; idempotent once clean. Collapses the leftover blank run so blocks
+// stay one-blank-line separated. Pure.
+func stripDateHeaders(log string) string {
+	if !strings.Contains(log, "## ") {
+		return log
 	}
-	return m[len(m)-1][1]
+	out := dateHeaderRe.ReplaceAllString(log, "")
+	out = multiBlankRe.ReplaceAllString(out, "\n\n")
+	return strings.TrimLeft(out, "\n")
 }
 
 // ensureBlock normalizes a block to end in exactly one newline.
@@ -274,26 +286,20 @@ func ensureBlock(s string) string {
 	return strings.TrimRight(s, "\n\t ") + "\n"
 }
 
-// assemble builds the new log. frozenPrefix is byte-verbatim. ekPrime is the
-// revised last entry ("" on first-ever). newEntries is the model's new bullets
-// ("" if none). A "## today" header is inserted before newEntries iff there are
-// new entries AND today != lastDate. Invariant: a "## date" header is only ever
-// emitted immediately before ≥1 bullet, so splitFrozenTail's "last bullet
-// block" stays well-defined for every reachable state. Pure.
-func assemble(frozenPrefix, ekPrime, newEntries, today, lastDate string) string {
+// assemble builds the new log: byte-verbatim frozen prefix + the revised last
+// entry (ekPrime, "" on first-ever) + the model's new bullets (newEntries, "" if
+// none), each block one-blank-line separated. The change log no longer carries
+// date headers — the only date available was distill-time, not change-time
+// (misleading; #58). Pure.
+func assemble(frozenPrefix, ekPrime, newEntries string) string {
 	var b strings.Builder
 	b.WriteString(frozenPrefix)
 	if ekPrime != "" {
 		b.WriteString(ensureBlock(ekPrime))
 	}
 	if newEntries != "" {
-		if today != lastDate {
-			if b.Len() > 0 {
-				b.WriteString("\n")
-			}
-			b.WriteString("## " + today + "\n\n")
-		} else if ekPrime != "" {
-			b.WriteString("\n")
+		if b.Len() > 0 {
+			b.WriteString("\n") // blank line between prior content and new bullets
 		}
 		b.WriteString(ensureBlock(newEntries))
 	}

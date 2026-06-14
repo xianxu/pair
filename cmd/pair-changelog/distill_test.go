@@ -140,42 +140,36 @@ func TestSplitFirstEntry(t *testing.T) {
 	}
 }
 
-func TestLastHeaderDate(t *testing.T) {
-	if got := lastHeaderDate("## 2026-06-11\n\n- a\n\n## 2026-06-12\n\n- b\n"); got != "2026-06-12" {
-		t.Fatalf("got %q want 2026-06-12", got)
+func TestStripDateHeaders(t *testing.T) {
+	// legacy multi-day log → flat header-free list, blank-line separated.
+	if got := stripDateHeaders("## 2026-06-11\n\n- a\n\n## 2026-06-12\n\n- b\n"); got != "- a\n\n- b\n" {
+		t.Fatalf("got %q want %q", got, "- a\n\n- b\n")
 	}
-	if got := lastHeaderDate("- a\n"); got != "" {
-		t.Fatalf("got %q want empty", got)
-	}
-}
-
-func TestAssembleSameDayAppend(t *testing.T) {
-	got := assemble("## 2026-06-12\n\n- one\n\n", "- two\n", "- three\n", "2026-06-12", "2026-06-12")
-	want := "## 2026-06-12\n\n- one\n\n- two\n\n- three\n"
-	if got != want {
-		t.Fatalf("got %q want %q", got, want)
+	// already header-free → unchanged (idempotent on the new format).
+	if got := stripDateHeaders("- a\n\n- b\n"); got != "- a\n\n- b\n" {
+		t.Fatalf("header-free log altered: %q", got)
 	}
 }
 
-func TestAssembleRolloverInsertsHeader(t *testing.T) {
-	got := assemble("## 2026-06-12\n\n- one\n\n", "- two\n", "- three\n", "2026-06-13", "2026-06-12")
-	want := "## 2026-06-12\n\n- one\n\n- two\n\n## 2026-06-13\n\n- three\n"
+func TestAssembleAppend(t *testing.T) {
+	got := assemble("- one\n\n", "- two\n", "- three\n")
+	want := "- one\n\n- two\n\n- three\n"
 	if got != want {
 		t.Fatalf("got %q want %q", got, want)
 	}
 }
 
 func TestAssembleReviseOnlyNoNew(t *testing.T) {
-	got := assemble("## 2026-06-12\n\n- one\n\n", "- two-revised\n", "", "2026-06-13", "2026-06-12")
-	want := "## 2026-06-12\n\n- one\n\n- two-revised\n"
+	got := assemble("- one\n\n", "- two-revised\n", "")
+	want := "- one\n\n- two-revised\n"
 	if got != want {
 		t.Fatalf("got %q want %q", got, want)
 	}
 }
 
 func TestAssembleFirstEver(t *testing.T) {
-	got := assemble("", "", "- a\n\n- b\n", "2026-06-12", "")
-	want := "## 2026-06-12\n\n- a\n\n- b\n"
+	got := assemble("", "", "- a\n\n- b\n")
+	want := "- a\n\n- b\n"
 	if got != want {
 		t.Fatalf("got %q want %q", got, want)
 	}
