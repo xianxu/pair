@@ -20,7 +20,17 @@
       "Bash(/Users/xianxu/workspace/pair/bin/pair-wrap)",
       "Bash(/Users/xianxu/workspace/pair/bin/pair-wrap nonexistent-binary *)",
       "WebFetch(domain:eu-central-1-1.aws.cloud2.influxdata.com)",
-      "WebFetch(domain:formulae.brew.sh)"
+      "WebFetch(domain:formulae.brew.sh)",
+      "Bash(echo \"=== exit $? ===\")",
+      "Bash(/Users/xianxu/workspace/pair/bin/pair continue *)",
+      "Bash(sdlc state *)",
+      "Bash(sed -n '1,30p' workshop/issues/000055-*.md)",
+      "Bash(env)",
+      "Bash(grep -nA40 'continue\\)' bin/pair)",
+      "Bash(command -v go)",
+      "Bash(bin/pair-continuation -slug compact -agent claude -session-id fa0ddc46-36c4-4394-881f-174a69fbf986 -issues 000055,000010 -branch 000055-compact-keybind -worktree /Users/xianxu/workspace/pair -body-file /Users/xianxu/workspace/pair/.continuation-body.tmp.md)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(sdlc actual *)"
     ],
     "deny": [
       "Bash(tsh *)",

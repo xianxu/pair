@@ -1,0 +1,1 @@
+../../ariadne/.colima/colima.sh
