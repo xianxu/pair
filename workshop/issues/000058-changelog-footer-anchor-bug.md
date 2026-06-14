@@ -147,3 +147,14 @@ unchanged log), so a failed refresh is visible.
   only at the end, for crash-safety), and the viewer **reloads progressively** —
   it fingerprints the log file (mtime+size) on each spinner tick and reloads on
   change, so batch 1's entries appear, then 1+2, then 1+2+3, live as they land.
+- Operator follow-up: a multi-batch build was killed if the operator closed the
+  viewer mid-build (the distiller was a `jobstart` child of nvim). **Detached the
+  distiller**: `bin/pair-changelog-open` now `nohup`-launches render+distill as a
+  background process (PID → `changelog-<tag>-<agent>.distill.lock`, stderr →
+  `.status`) and nvim is a pure **watcher** — it polls the log (reload per batch),
+  the status file (batch progress), and the distiller PID (spinner while alive,
+  final reload when done). Closing the viewer no longer stops the build; a second
+  press while it runs just opens a viewer (the `distill.lock` keeps the distiller
+  a singleton). Two locks now: `openlock` (viewer) + `distill.lock` (distiller).
+  Verified: the smoke test's fake nvim exits before the detached distiller
+  finishes, yet the log still completes.

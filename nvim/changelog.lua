@@ -65,99 +65,104 @@ function M.reload(bufnr, logpath)
   end)
 end
 
--- start_refresh runs the render+distill as a background job, animating a winbar
--- spinner and reloading the buffer on completion. No-op unless the orchestrator
--- set PAIR_CHANGELOG_REFRESH=1.
+-- start_refresh turns the viewer into a WATCHER of the DETACHED distiller (#58).
+-- The orchestrator (bin/pair-changelog-open) launches render+distill as a nohup'd
+-- background process — NOT a child of nvim — and records its PID in
+-- $PAIR_CHANGELOG_DLOCK. So closing the viewer does NOT stop the build. This
+-- polls: the log file (reloading per batch), the status file (batch progress),
+-- and the distiller PID — showing a bottom virtual-line spinner while it runs and
+-- a final reload (or error tip) when it exits.
 function M.start_refresh(bufnr)
-  if os.getenv('PAIR_CHANGELOG_REFRESH') ~= '1' then return end
-  local render  = os.getenv('PAIR_CHANGELOG_RENDER')
-  local distill = os.getenv('PAIR_CHANGELOG_DISTILL')
-  local raw     = os.getenv('PAIR_CHANGELOG_RAW')
-  local events  = os.getenv('PAIR_CHANGELOG_EVENTS')
-  local cleaned = os.getenv('PAIR_CHANGELOG_CLEANED')
-  local log     = os.getenv('PAIR_CHANGELOG_LOG')
-  local anchor  = os.getenv('PAIR_CHANGELOG_ANCHOR')
-  local agent   = os.getenv('PAIR_CHANGELOG_AGENT') or 'claude'
-  local today   = os.getenv('PAIR_CHANGELOG_TODAY') or ''
-  if not (render and distill and raw and events and cleaned and log and anchor) then return end
+  if vim.b[bufnr] and vim.b[bufnr].pair_cl_watching then return end
+  pcall(function() vim.b[bufnr].pair_cl_watching = true end)
 
-  local esc = vim.fn.shellescape
-  local cmd = esc(render) .. ' --plain --max-lines 0 ' .. esc(raw) .. ' ' .. esc(events) .. ' ' .. esc(cleaned)
-    .. ' && ' .. esc(distill) .. ' --cleaned ' .. esc(cleaned) .. ' --log ' .. esc(log)
-    .. ' --anchor ' .. esc(anchor) .. ' --agent ' .. esc(agent) .. ' --today ' .. esc(today)
+  local log = os.getenv('PAIR_CHANGELOG_LOG')
+  if not log or log == '' then return end
+  local dlock = os.getenv('PAIR_CHANGELOG_DLOCK')
+  local status = os.getenv('PAIR_CHANGELOG_STATUS')
+  local uv = vim.uv or vim.loop
+  local ns = vim.api.nvim_create_namespace('pair_changelog_spinner')
+
+  local function distiller_alive()
+    if not dlock then return false end
+    local ok, ls = pcall(vim.fn.readfile, dlock)
+    if not ok or not ls[1] then return false end
+    local pid = tonumber(ls[1])
+    if not pid then return false end
+    vim.fn.system({ 'kill', '-0', tostring(pid) })
+    return vim.v.shell_error == 0
+  end
+
+  -- Nothing building (no distiller launched, or it already finished) → just show
+  -- the existing log; nvim already loaded it and M.setup ran.
+  if not distiller_alive() then return end
 
   local first_run = vim.api.nvim_buf_line_count(bufnr) <= 1
     and (vim.api.nvim_buf_get_lines(bufnr, 0, 1, false)[1] or '') == ''
   local msg = first_run and 'Computing change log…' or 'Refreshing change log…'
+  local err = nil
   local frames = { '⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏' }
-  local i = 0
-  -- The spinner renders as a virtual line at the bottom — where the new entry
-  -- will be inserted — not in the winbar. virt_lines don't touch buffer content,
-  -- so the buffer stays read-only / unmodified.
-  local ns = vim.api.nvim_create_namespace('pair_changelog_spinner')
-  local uv = vim.uv or vim.loop
-  local last_key = '' -- log file (mtime+size) fingerprint, for progressive reload
-  local function paint()
-    -- Progressive reload: the distiller writes the log after EACH batch, so on a
-    -- multi-batch run we show batch 1, then 1+2, … instead of nothing until done.
+  local i, tick = 0, 0
+  local last_key = ''
+  local running = true
+  local timer
+
+  -- The spinner is a virtual line at the bottom (where the next entry lands) — a
+  -- virt_lines extmark, so the read-only buffer is never mutated.
+  local function tip(text, hl)
+    local last = math.max(0, vim.api.nvim_buf_line_count(bufnr) - 1)
+    pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, last, 0, {
+      id = 1, virt_lines = { { { '', 'Comment' } }, { { text, hl } } },
+    })
+  end
+
+  local function reload_if_changed()
     local st = uv.fs_stat(log)
-    if st then
-      local key = st.mtime.sec .. '.' .. st.mtime.nsec .. '.' .. st.size
-      if key ~= last_key then
-        last_key = key
-        M.reload(bufnr, log)
-      end
-    end
-    i = (i % #frames) + 1
-    local last = math.max(0, vim.api.nvim_buf_line_count(bufnr) - 1)
-    pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, last, 0, {
-      id = 1,
-      virt_lines = { { { '', 'Comment' } }, { { '  ' .. frames[i] .. '  ' .. msg, 'Comment' } } },
-    })
-  end
-  paint()
-  local timer = vim.fn.timer_start(120, paint, { ['repeat'] = -1 })
-
-  local err -- captured distiller error line, if any
-
-  local function show_error(detail)
-    local last = math.max(0, vim.api.nvim_buf_line_count(bufnr) - 1)
-    pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, last, 0, {
-      id = 1,
-      virt_lines = { { { '', 'Comment' } }, { { '  ⚠  change log refresh failed: ' .. detail, 'ErrorMsg' } } },
-    })
-  end
-
-  local function finish(code)
-    pcall(vim.fn.timer_stop, timer)
-    if (code and code ~= 0) or err then
-      -- Leave the existing log; show a persistent error line instead of
-      -- silently reloading the unchanged content (#58 — the timeout/kill was
-      -- invisible before).
-      show_error(err or ('exited ' .. tostring(code)))
-    else
-      pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, 1)
+    if not st then return end
+    local key = st.mtime.sec .. '.' .. st.mtime.nsec .. '.' .. st.size
+    if key ~= last_key then
+      last_key = key
       M.reload(bufnr, log)
     end
   end
 
-  local job = vim.fn.jobstart({ 'sh', '-c', cmd }, {
-    on_stderr = function(_, data)
-      for _, line in ipairs(data or {}) do
-        local batch = line:match('distilling batch (%d+/%d+)')
-        if batch then msg = 'Computing change log (batch ' .. batch .. ')…' end
-        local n = line:match('distilling (%d+) lines')
-        if n and not batch then msg = 'Refreshing change log (' .. n .. ' new lines)…' end
-        if line:match('up to date') then msg = 'Up to date' end
-        local e = line:match('pair%-changelog: (.+)')
-        if e and not e:match('^distilling') and not e:match('^up to date') then
-          err = e
-        end
+  local function read_status()
+    if not status then return end
+    local ok, ls = pcall(vim.fn.readfile, status)
+    if not ok then return end
+    for _, l in ipairs(ls) do
+      local b = l:match('distilling batch (%d+/%d+)')
+      if b then msg = 'Computing change log (batch ' .. b .. ')…' end
+      local n = l:match('distilling (%d+) lines')
+      if n and not b then msg = 'Refreshing change log (' .. n .. ' new lines)…' end
+      local e = l:match('pair%-changelog: (.+)')
+      if e and not e:match('^distilling') and not e:match('^up to date') then err = e end
+    end
+  end
+
+  local function poll()
+    tick = tick + 1
+    reload_if_changed()            -- per-batch progressive reload
+    if tick % 4 == 0 then read_status() end
+    if tick % 8 == 0 then running = distiller_alive() end
+    if running then
+      i = (i % #frames) + 1
+      tip('  ' .. frames[i] .. '  ' .. msg, 'Comment')
+    else
+      read_status() -- catch a final error line
+      reload_if_changed()
+      M.reload(bufnr, log)
+      if err then
+        tip('  ⚠  change log refresh failed: ' .. err, 'ErrorMsg')
+      else
+        pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, 1)
       end
-    end,
-    on_exit = function(_, code) finish(code) end,
-  })
-  if job <= 0 then finish(1) end -- job failed to start
+      if timer then pcall(vim.fn.timer_stop, timer); timer = nil end
+    end
+  end
+
+  tip('  ' .. frames[1] .. '  ' .. msg, 'Comment')
+  timer = vim.fn.timer_start(120, poll, { ['repeat'] = -1 })
 end
 
 -- Interactive wiring — skipped under the headless test (which sets the guard).
