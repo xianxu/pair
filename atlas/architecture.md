@@ -364,12 +364,15 @@ one-liner.
 - **Orchestrate** — `Alt l` (`zellij/config.kdl`, next to `Alt /`) runs
   `bin/pair-changelog-open` in a floating pane. It opens `nvim -u
   nvim/changelog.lua` on the existing log **immediately**, and launches the
-  render+distill as a **detached** (`nohup`) background process — NOT a child of
-  nvim — so a long batched build keeps running even if the operator closes the
-  viewer mid-build (#58). Two locks: `openlock` (viewer singleton — a second
-  `Alt l` while a viewer is up refocuses) and `distill.lock` holding the
-  distiller PID (distiller singleton — a press won't start a second distiller
-  while one runs; it just opens a viewer to watch). The distiller's stderr →
+  render+distill in its **own session** (`setsid`, or a `perl POSIX::setsid` shim
+  on macOS) — NOT a child of nvim, and outside the pane's process group — so a
+  long batched build keeps running even if the operator closes the viewer
+  mid-build (#58). (`nohup` alone wasn't enough: closing the zellij floating pane
+  tears down the pane's process group, killing a plain background child; a new
+  session escapes it.) Two locks: `openlock` (viewer singleton — a second `Alt l`
+  while a viewer is up refocuses) and `distill.lock` holding the distiller PID
+  (distiller singleton — a press won't start a second distiller while one runs; it
+  re-attaches a viewer to the in-progress build). The distiller's stderr →
   `.status` (batch progress for the spinner). The viewer is a pure **watcher**
   (`PAIR_CHANGELOG_LOG`/`DLOCK`/`STATUS`).
 - **Distill** — `cmd/pair-changelog` (Go) over the shared `cmd/internal/model`

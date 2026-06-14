@@ -158,3 +158,14 @@ unchanged log), so a failed refresh is visible.
   a singleton). Two locks now: `openlock` (viewer) + `distill.lock` (distiller).
   Verified: the smoke test's fake nvim exits before the detached distiller
   finishes, yet the log still completes.
+- Operator follow-up: `nohup &` was NOT enough — closing the viewer still killed
+  the build (reopen restarted from batch 1/3; only the on-disk batch-1 text
+  survived). Closing the zellij floating pane tears down the pane's process
+  group/session, which reaches a plain background child (nohup only ignores
+  SIGHUP). Fix: launch the distiller in its **own session** via `setsid` (macOS
+  has none → a `perl POSIX::setsid` shim). Verified the detached child is its own
+  process-group/session leader (`pgid==pid`, ≠ parent), so the teardown can't
+  reach it. Now: close mid-build → the build keeps running; reopen → the
+  `distill.lock` PID is alive → no relaunch → the viewer re-attaches and shows
+  continued progress (batch 2/3, 3/3), or the complete log if it finished while
+  closed.

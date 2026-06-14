@@ -55,22 +55,28 @@ distiller_running() {
     [ -n "${_p:-}" ] && kill -0 "$_p" 2>/dev/null
 }
 
-# Launch the render+distill detached so it survives this viewer closing. nohup
-# ignores the SIGHUP the floating pane sends on close; `&` + the orchestrator
-# exiting orphans it (kept alive). The distiller writes the log per batch and the
-# anchor at the end; its PID goes in DLOCK; its stderr (batch progress) → STATUS.
+# Launch the render+distill in its OWN SESSION so it survives the viewer closing.
+# nohup alone is not enough: closing the zellij floating pane tears down the
+# pane's process group/session, which still reaches a plain background child
+# (only its already-written batches survive on disk, and reopening restarts from
+# batch 1 — #58). setsid puts the build in a new session the pane teardown can't
+# reach; macOS has no setsid, so fall back to a perl POSIX::setsid shim. The
+# distiller writes the log per batch + the anchor at the end; PID → DLOCK; stderr
+# (batch progress) → STATUS.
 if ! distiller_running && [ -s "$RAW" ] \
    && [ -x "$PAIR_HOME/bin/pair-scrollback-render" ] && [ -x "$PAIR_HOME/bin/pair-changelog" ]; then
     : > "$STATUS"
-    PCL_RENDER="$PAIR_HOME/bin/pair-scrollback-render" \
-    PCL_DISTILL="$PAIR_HOME/bin/pair-changelog" \
-    PCL_RAW="$RAW" PCL_EVENTS="$EVENTS" PCL_CLEANED="$CLEANED" \
-    PCL_LOG="$LOG" PCL_ANCHOR="$ANCHOR" PCL_AGENT="$PAIR_AGENT" PCL_TODAY="$(date +%F)" \
-    nohup sh -c '
-        "$PCL_RENDER" --plain --max-lines 0 "$PCL_RAW" "$PCL_EVENTS" "$PCL_CLEANED" \
-          && "$PCL_DISTILL" --cleaned "$PCL_CLEANED" --log "$PCL_LOG" \
-               --anchor "$PCL_ANCHOR" --agent "$PCL_AGENT" --today "$PCL_TODAY"
-    ' </dev/null >/dev/null 2>"$STATUS" &
+    export PCL_RENDER="$PAIR_HOME/bin/pair-scrollback-render"
+    export PCL_DISTILL="$PAIR_HOME/bin/pair-changelog"
+    export PCL_RAW="$RAW" PCL_EVENTS="$EVENTS" PCL_CLEANED="$CLEANED"
+    export PCL_LOG="$LOG" PCL_ANCHOR="$ANCHOR" PCL_AGENT="$PAIR_AGENT" PCL_TODAY="$(date +%F)"
+    INNER='"$PCL_RENDER" --plain --max-lines 0 "$PCL_RAW" "$PCL_EVENTS" "$PCL_CLEANED" && "$PCL_DISTILL" --cleaned "$PCL_CLEANED" --log "$PCL_LOG" --anchor "$PCL_ANCHOR" --agent "$PCL_AGENT" --today "$PCL_TODAY"'
+    if command -v setsid >/dev/null 2>&1; then
+        setsid sh -c "$INNER" </dev/null >/dev/null 2>"$STATUS" &
+    else
+        perl -e 'use POSIX qw(setsid); setsid() or die "setsid: $!"; exec @ARGV or die "exec: $!";' \
+            sh -c "$INNER" </dev/null >/dev/null 2>"$STATUS" &
+    fi
     printf '%s\n' "$!" > "$DLOCK"
 fi
 
