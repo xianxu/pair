@@ -391,7 +391,7 @@ one-liner.
   locates**; if it's gone (first run, or an `Alt+n` agent restart that re-renders a
   fresh, lower turn count → `FullRedistill`) it re-distills the new session rather
   than misreading "fewer turns" as a no-op (#58). The slice (whole transcript on a first run,
-  `lines[anchor..]` on a later press) is **batched** into ≤`maxSliceLines` (800)
+  `lines[anchor..]` on a later press) is **batched** into ≤`maxSliceLines` (2000)
   chunks (`chunkLines` + `distillStep`), each accumulating the log as memory — so
   a long slice is never truncated, and the log is **written after each batch** for
   progressive display (the anchor only after the final batch, for crash-safety).

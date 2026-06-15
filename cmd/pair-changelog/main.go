@@ -105,7 +105,7 @@ func main() {
 
 	// Split the slice into per-day segments (#59) so a multi-day slice distills
 	// into multiple ## DATE sections, then batch each segment into maxSliceLines
-	// chunks (#58) — a long slice is never truncated; 800 is just the per-call
+	// chunks (#58) — a long slice is never truncated; the cap is just the per-call
 	// batch size. distillStep dates each batch's new entries by the segment's day
 	// (real change-time from the markers; "" → undated, no header). The running
 	// log is carried as memory across segments AND batches (dedup + last-entry
