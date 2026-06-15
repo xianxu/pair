@@ -1,9 +1,10 @@
 ---
 id: 000061
-status: open
+status: working
 deps: []
 created: 2026-06-15
 updated: 2026-06-15
+estimate_hours: 3
 ---
 
 # pair-continuation improvements
