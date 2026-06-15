@@ -347,15 +347,16 @@ func TestReadyMarkerWrittenOnChangeOnly(t *testing.T) {
 	}
 }
 
-// A LATER press with a large gap (the agent did >800 lines of work since the
-// anchor) is ALSO batched — 800 is the per-call batch size, not a first-run-only
-// cap. And each batch's input stays bounded (~<= maxSliceLines) (#58).
+// A LATER press with a large gap (the agent did > maxSliceLines lines of work
+// since the anchor) is ALSO batched — the cap is the per-call batch size, not a
+// first-run-only cap. And each batch's input stays bounded (~<= maxSliceLines)
+// (#58). Cap-relative so it survives future maxSliceLines changes (#59).
 func TestIncrementalBatchesLongGap(t *testing.T) {
 	bin := buildBinary(t)
 	dir := fakeClaude(t, "- entry\n")
 	var b strings.Builder
 	b.WriteString("❯ p1\nANCHOR1\nANCHOR2\nANCHOR3\n")
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < maxSliceLines+100; i++ { // > one batch worth → ≥2 batches
 		b.WriteString("agent did work\n")
 	}
 	b.WriteString("❯ p2\n") // a new completed turn → not a no-op
@@ -365,30 +366,30 @@ func TestIncrementalBatchesLongGap(t *testing.T) {
 	run(t, bin, b.String(), priorLog, priorAnchor)
 
 	if c := callCount(dir); c < 2 {
-		t.Fatalf("incremental with a >800-line gap should batch; model called %d times", c)
+		t.Fatalf("incremental with a >maxSliceLines gap should batch; model called %d times", c)
 	}
-	if n := stdinLines(dir); n > 800+10 {
-		t.Fatalf("a batch fed %d stdin lines, want ~<= 800 (batch size + wrapper)", n)
+	if n := stdinLines(dir); n > maxSliceLines+50 {
+		t.Fatalf("a batch fed %d stdin lines, want ~<= %d (batch size + wrapper)", n, maxSliceLines)
 	}
 }
 
 // A long first-run transcript (> maxSliceLines) is distilled in MULTIPLE batches
-// — not truncated to the last 800 — so the full session is covered. The model is
-// called once per chunk with the accumulating log carried forward (#58).
+// — not truncated to the last batch — so the full session is covered. The model
+// is called once per chunk with the accumulating log carried forward (#58).
+// Cap-relative: 2*maxSliceLines+1 committed lines → exactly 3 batches (#59).
 func TestFirstRunBatchesLongTranscript(t *testing.T) {
 	bin := buildBinary(t)
 	dir := fakeClaude(t, "- batch entry\n")
-	// 1701 committed lines after the footer is trimmed → ceil(1701/800) = 3 batches.
 	var b strings.Builder
-	b.WriteString("❯ start\n")
-	for i := 0; i < 1700; i++ {
+	b.WriteString("❯ start\n") // 1 committed line; +2*maxSliceLines below → 2*cap+1 total
+	for i := 0; i < 2*maxSliceLines; i++ {
 		b.WriteString("content line\n")
 	}
 	b.WriteString(idleFooter)
 	log, _ := run(t, bin, b.String(), "", "")
 
 	if c := callCount(dir); c != 3 {
-		t.Fatalf("model called %d times, want 3 (1701 lines / 800 per batch)", c)
+		t.Fatalf("model called %d times, want 3 (2*maxSliceLines+1 lines / maxSliceLines per batch)", c)
 	}
 	if !strings.Contains(log, "- batch entry") {
 		t.Fatalf("batched log missing entries:\n%s", log)

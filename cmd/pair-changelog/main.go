@@ -24,7 +24,10 @@ const (
 	lineCap       = 200  // safety cap on the lookback slice (verbose-turn guard)
 	anchorLines   = 3    // K: verbatim cleaned-lines stored as the content anchor
 	maxTokens     = 2000 // generous output budget (multi-entry log)
-	maxSliceLines = 800  // hard cap on lines fed to the model (timeout guard, #58)
+	maxSliceLines = 2000 // hard cap on lines fed to the model per batch (timeout
+	//                     guard, #58). 2000 < the ~3000+ that tripped the old 30s
+	//                     timeout, and the budget is now 90s — comfortable headroom
+	//                     while halving the batch count on long transcripts (#59).
 	// changelogTimeout — `claude -p` has a ~28s baseline (CLI startup + model), so
 	// the slug's 30s default is too tight for this heavier, on-demand distill; the
 	// viewer runs it async behind a spinner, so a longer budget is fine (#58).
