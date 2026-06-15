@@ -12,3 +12,8 @@ __pycache__/
 bin/
 cache/
 
+/AGENTS.md
+/.claude/skills/
+/.claude/settings.json
+/.colima/
+/construct/scripts/vm-log.sh
