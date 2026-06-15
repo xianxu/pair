@@ -70,7 +70,7 @@ if ! distiller_running && [ -s "$RAW" ] \
     export PCL_DISTILL="$PAIR_HOME/bin/pair-changelog"
     export PCL_RAW="$RAW" PCL_EVENTS="$EVENTS" PCL_CLEANED="$CLEANED"
     export PCL_LOG="$LOG" PCL_ANCHOR="$ANCHOR" PCL_AGENT="$PAIR_AGENT"
-    INNER='"$PCL_RENDER" --plain --max-lines 0 "$PCL_RAW" "$PCL_EVENTS" "$PCL_CLEANED" && "$PCL_DISTILL" --cleaned "$PCL_CLEANED" --log "$PCL_LOG" --anchor "$PCL_ANCHOR" --agent "$PCL_AGENT"'
+    INNER='"$PCL_RENDER" --plain --max-lines 0 --with-timestamps "$PCL_RAW" "$PCL_EVENTS" "$PCL_CLEANED" && "$PCL_DISTILL" --cleaned "$PCL_CLEANED" --log "$PCL_LOG" --anchor "$PCL_ANCHOR" --agent "$PCL_AGENT"'
     if command -v setsid >/dev/null 2>&1; then
         setsid sh -c "$INNER" </dev/null >/dev/null 2>"$STATUS" &
     else

@@ -258,27 +258,67 @@ func splitFirstEntry(s string) (first, rest string) {
 	return strings.TrimRight(s, "\n\t "), ""
 }
 
-// dateHeaderRe matches a legacy "## YYYY-MM-DD" date-header line (kept only to
-// strip them out — see stripDateHeaders). multiBlankRe collapses the blank-line
-// run a removed header leaves behind.
-var (
-	dateHeaderRe = regexp.MustCompile(`(?m)^## \d{4}-\d{2}-\d{2}\s*$\n?`)
-	multiBlankRe = regexp.MustCompile(`\n{3,}`)
-)
+// headerDateRe matches a "## YYYY-MM-DD" day header. Change-log entries are dated
+// by real change-time captured in the scrollback time events (#59).
+var headerDateRe = regexp.MustCompile(`(?m)^## (\d{4}-\d{2}-\d{2})\s*$`)
 
-// stripDateHeaders removes legacy "## YYYY-MM-DD" header lines from a prior log.
-// The change log no longer dates entries — the only date available was
-// distill-time, not change-time, which misled the reader (#58 follow-up). Run on
-// the prior log every read so old logs self-heal to the header-free format on the
-// next distill; idempotent once clean. Collapses the leftover blank run so blocks
-// stay one-blank-line separated. Pure.
-func stripDateHeaders(log string) string {
-	if !strings.Contains(log, "## ") {
-		return log
+// lastHeaderDate returns the date of the last "## YYYY-MM-DD" header in log, or
+// "" if none — assemble's day-rollover check.
+func lastHeaderDate(log string) string {
+	m := headerDateRe.FindAllStringSubmatch(log, -1)
+	if len(m) == 0 {
+		return ""
 	}
-	out := dateHeaderRe.ReplaceAllString(log, "")
-	out = multiBlankRe.ReplaceAllString(out, "\n\n")
-	return strings.TrimLeft(out, "\n")
+	return m[len(m)-1][1]
+}
+
+// tsMarkerRe matches a render-emitted day marker line (#59). MUST stay in sync
+// with tsMarkerLine in cmd/pair-scrollback-render/main.go — the contract is
+// pinned by the render→clean→distill e2e test e2e_test.go
+// (TestEndToEndMarkerSurvival), which feeds real time events through both binaries.
+var tsMarkerRe = regexp.MustCompile(`^⟦pair:ts (\d{4}-\d{2}-\d{2})⟧$`)
+
+// datedSegment is a run of consecutive content lines sharing one day ("" =
+// undated, e.g. content captured before #59 was running). #59.
+type datedSegment struct {
+	date  string
+	lines []string
+}
+
+// parseDatedLines strips the render's ⟦pair:ts DATE⟧ marker lines and returns the
+// content lines plus a parallel `dates` slice: dates[i] is the day of the most
+// recent preceding marker, "" before the first. The single point where markers
+// leave the pipeline — everything downstream (anchor, turn-count, locate, slice,
+// model input) sees clean content. len(content)==len(dates). Pure (#59).
+func parseDatedLines(lines []string) (content, dates []string) {
+	cur := ""
+	for _, l := range lines {
+		if m := tsMarkerRe.FindStringSubmatch(l); m != nil {
+			cur = m[1]
+			continue
+		}
+		content = append(content, l)
+		dates = append(dates, cur)
+	}
+	return content, dates
+}
+
+// splitByDate groups content into consecutive same-date runs (oldest→newest), so
+// a multi-day slice distills into multiple ## DATE sections. dates parallels
+// content. Pure (#59).
+func splitByDate(content, dates []string) []datedSegment {
+	var segs []datedSegment
+	for i, line := range content {
+		d := ""
+		if i < len(dates) {
+			d = dates[i]
+		}
+		if len(segs) == 0 || segs[len(segs)-1].date != d {
+			segs = append(segs, datedSegment{date: d})
+		}
+		segs[len(segs)-1].lines = append(segs[len(segs)-1].lines, line)
+	}
+	return segs
 }
 
 // ensureBlock normalizes a block to end in exactly one newline.
@@ -288,17 +328,24 @@ func ensureBlock(s string) string {
 
 // assemble builds the new log: byte-verbatim frozen prefix + the revised last
 // entry (ekPrime, "" on first-ever) + the model's new bullets (newEntries, "" if
-// none), each block one-blank-line separated. The change log no longer carries
-// date headers — the only date available was distill-time, not change-time
-// (misleading; #58). Pure.
-func assemble(frozenPrefix, ekPrime, newEntries string) string {
+// none). A "## <date>" header is inserted before newEntries iff there are new
+// entries AND date != "" AND date != lastDate (the day rolled over vs the running
+// log's last header). date=="" → no header (undated content, e.g. pre-#59
+// capture). Dates are real change-time from the scrollback markers, not
+// distill-time (the #58 fix, now sourced honestly). Pure.
+func assemble(frozenPrefix, ekPrime, newEntries, date, lastDate string) string {
 	var b strings.Builder
 	b.WriteString(frozenPrefix)
 	if ekPrime != "" {
 		b.WriteString(ensureBlock(ekPrime))
 	}
 	if newEntries != "" {
-		if b.Len() > 0 {
+		if date != "" && date != lastDate {
+			if b.Len() > 0 {
+				b.WriteString("\n")
+			}
+			b.WriteString("## " + date + "\n\n")
+		} else if b.Len() > 0 {
 			b.WriteString("\n") // blank line between prior content and new bullets
 		}
 		b.WriteString(ensureBlock(newEntries))

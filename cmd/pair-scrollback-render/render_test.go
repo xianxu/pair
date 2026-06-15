@@ -45,7 +45,7 @@ func TestRender_ViewportSidecar(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := render(rawPath, evPath, outPath, false, historyRows); err != nil {
+	if err := render(rawPath, evPath, outPath, false, historyRows, false); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 
@@ -91,7 +91,7 @@ func TestRender_Plain(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := render(rawPath, evPath, outPath, true, -1); err != nil { // plain, uncapped
+	if err := render(rawPath, evPath, outPath, true, -1, false); err != nil { // plain, uncapped
 		t.Fatalf("render: %v", err)
 	}
 	body, err := os.ReadFile(outPath)
@@ -139,7 +139,7 @@ func TestRender_MaxLinesCaps(t *testing.T) {
 	}
 	countLines := func(maxLines int) int {
 		out := filepath.Join(dir, fmt.Sprintf("out-%d.txt", maxLines))
-		if err := render(rawPath, evPath, out, true, maxLines); err != nil {
+		if err := render(rawPath, evPath, out, true, maxLines, false); err != nil {
 			t.Fatalf("render(maxLines=%d): %v", maxLines, err)
 		}
 		b, _ := os.ReadFile(out)
@@ -171,7 +171,7 @@ func TestRender_ViewportEmptyHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := render(rawPath, evPath, outPath, false, historyRows); err != nil {
+	if err := render(rawPath, evPath, outPath, false, historyRows, false); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 

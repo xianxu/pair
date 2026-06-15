@@ -243,6 +243,8 @@ type proxy struct {
 	scrollbackFD    *os.File
 	eventsFD        *os.File
 	scrollbackBytes int64
+	lastTimeEvent   time.Time        // last logged scrollback "time" event (#59)
+	now             func() time.Time // clock seam; defaults to time.Now (#59)
 
 	// OSC rate limiting
 	lastEmit time.Time
@@ -1425,6 +1427,29 @@ func (p *proxy) logScrollbackEvent(typ string, fields map[string]any) {
 	}
 }
 
+// dueForTimeEvent reports whether a new scrollback "time" event should be
+// logged: the first one always (zero last), then at most one per minute of
+// activity. The change-log render uses these to date scrollback regions (#59).
+func dueForTimeEvent(last, now time.Time) bool {
+	return last.IsZero() || now.Sub(last) >= time.Minute
+}
+
+// maybeLogTime drops a minute-debounced wall-clock event into the scrollback
+// sidecar (keyed by the current byte offset via logScrollbackEvent) so the
+// change-log render can map scrollback regions to real dates (#59). The raw
+// stream is untouched. Called from the scrollback tee on new output.
+func (p *proxy) maybeLogTime() {
+	if p.now == nil {
+		p.now = time.Now
+	}
+	now := p.now()
+	if !dueForTimeEvent(p.lastTimeEvent, now) {
+		return
+	}
+	p.logScrollbackEvent("time", map[string]any{"ts": now.Format(time.RFC3339)})
+	p.lastTimeEvent = now
+}
+
 // setWinsize copies stdin's window size to the master ptm and emits a
 // resize event into the scrollback sidecar. Called once at startup and
 // again on each SIGWINCH.
@@ -1484,6 +1509,7 @@ func run() error {
 		captureWindow: envDuration("PAIR_WRAP_CAPTURE_S", defaultCaptureWindow),
 		debugLogPath:  os.Getenv("PAIR_WRAP_LOG"),
 		bellFallback:  envFlag("PAIR_WRAP_BELL_FALLBACK"),
+		now:           time.Now,
 	}
 
 	// Argv: strip our own flags before resolving the command. argparse
@@ -1829,6 +1855,7 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 	if p.scrollbackFD != nil {
 		if wn, err := p.scrollbackFD.Write(data); err == nil {
 			p.scrollbackBytes += int64(wn)
+			p.maybeLogTime() // minute-debounced timestamp for change-log dates (#59)
 		} else {
 			p.debug("SCROLLBACK-write-fail", err.Error())
 		}

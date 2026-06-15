@@ -1,11 +1,12 @@
 ---
 id: 000059
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-14
 updated: 2026-06-14
 estimate_hours: 3
+actual_hours: 1.02
 ---
 
 # timestamp TTY scrollback for real change-time change-log dates
@@ -78,20 +79,33 @@ Granularity: **day-level** display (`## YYYY-MM-DD`). Cadence: **minute**.
 
 ## Plan
 
-- [ ] `cmd/pair-wrap`: minute-debounced `time` event via `logScrollbackEvent`;
+- [x] `cmd/pair-wrap`: minute-debounced `time` event via `logScrollbackEvent`;
   tests (debounce window, offset anchoring).
-- [ ] `cmd/pair-scrollback-render`: `--with-timestamps` emits marker lines from
+- [x] `cmd/pair-scrollback-render`: `--with-timestamps` emits marker lines from
   `time` events (scrollback default path unchanged); tests.
-- [ ] `cmd/pair-changelog`: parse markers → per-entry change-date, strip markers,
+- [x] `cmd/pair-changelog`: parse markers → per-entry change-date, strip markers,
   re-introduce day-level `## YYYY-MM-DD` headers from real dates, no-date →
   no-header; unit + integration tests (two-day stream, no-event stream).
-- [ ] `bin/pair-changelog-open`: pass `--with-timestamps` to the render step.
-- [ ] Atlas: update the Change-log section (date headers are back, sourced from
+- [x] `bin/pair-changelog-open`: pass `--with-timestamps` to the render step.
+- [x] Atlas: update the Change-log section (date headers are back, sourced from
   `time` events) + the scrollback/events-sidecar description.
 
 ## Log
 
 ### 2026-06-14
+- 2026-06-14: closed — Alt+l dates change-log entries by real change-time — live test: ## 2026-06-14 on new work, old content undated, no ts markers leaked. pair-wrap emits minute-debounced time events; render --with-timestamps interleaves day markers; distiller segments per-day (no markers → header-free, byte-identical to #58). Touched go suites + e2e (render→cleaned→distill) + orchestrator smoke green. Full `make test` aggregate hang tracked in #60 (test-infra, not feature code).; review verdict: FIX-THEN-SHIP
+- Boundary review (#59) **FIX-THEN-SHIP**, no Critical. Fixed before merge:
+  *Important* — added `TestIncrementalDatedAppend` (the cross-press dated path
+  through `main.go`'s segment loop: dated prior log + a new-day marker → one new
+  `## DATE`, no duplicate of the prior day, frozen prefix intact; was only covered
+  at the pure level by `TestAssembleDated`). *Minors* — repointed the
+  `tsMarkerLine`↔`tsMarkerRe` sync comments to the real pin (`e2e_test.go`
+  `TestEndToEndMarkerSurvival`, not the no-marker `changelog-open-test.sh`); made
+  `feedSegments` walk **all** events (not `events[1:]`) so a time event in any
+  position is captured + empty events can't slice-panic (re-applying the offset-0
+  resize is a harmless no-op). Left as accepted: the side-quest batch-size bump to
+  2000 (#59 Log), and the negligible stale-header note on pre-#58 never-redistilled
+  logs. Touched suites re-green.
 
 - Filed from the post-#58 brainstorm. Root cause of the #58 date removal: no
   change-time source. Design settled (events-sidecar over raw-injection;
@@ -99,3 +113,34 @@ Granularity: **day-level** display (`## YYYY-MM-DD`). Cadence: **minute**.
   per operator). Seams identified: `logScrollbackEvent` (pair-wrap:1413, generic),
   `parseEvents` resize-filter (scrollback-render:81), `assemble` date-header path
   (#58 removed — to be restored, fed real dates). See #58 history for context.
+- Implemented (TDD, 5 commits): **pair-wrap** emits minute-debounced `time`
+  events via the generic `logScrollbackEvent` (pure `dueForTimeEvent` + `p.now`
+  clock seam); **render** `parseEvents` keeps `resize`+`time`, `feedSegments` is
+  one offset-ordered walk (act on resize, snapshot `Scrollback().Len()` on time),
+  pure `interleaveDateMarkers` inserts `⟦pair:ts DATE⟧` at day boundaries behind
+  `--with-timestamps`; **distiller** `parseDatedLines` strips markers → per-line
+  dates, `splitByDate` → per-day segments, `assemble` regains its date param
+  (restored from #58, fed real dates), `stripDateHeaders` deleted; **orchestrator**
+  passes `--with-timestamps`. No markers → header-free, byte-identical to #58
+  (purely additive). Tests: pure units (`dueForTimeEvent`, `dateOf`,
+  `interleaveDateMarkers`, `parseDatedLines`, `splitByDate`, `assemble`),
+  `TestMaybeLogTimeDebounced`, `TestRenderWithTimestamps`, `TestTwoDayDating`,
+  `TestNoMarkerHeaderFree`, and an e2e `TestEndToEndMarkerSurvival` (real
+  render→cleaned→distill, plan-quality finding 2). go + render + pair-wrap suites
+  green; orchestrator smoke green.
+- Durable plan: `workshop/plans/000059-changelog-tty-timestamps-plan.md`. Plan
+  quality judge (`sdlc change-code`) verdict **INFO** (start-ready). ARCH-DRY
+  (reuse `logScrollbackEvent`; one `scrollbackEvent` struct+parser; restore the
+  single `assemble` date authority) + ARCH-PURE (pure `dueForTimeEvent`/`dateOf`/
+  `interleaveDateMarkers`/`parseDatedLines`/`splitByDate`/`assemble` vs thin
+  clock/emulator/flag seams) both satisfied. Four non-blocking refinements folded
+  into the plan: (1) **visible-buffer lag** — the snapshot reads `Scrollback().Len()`
+  during feed, so up to ~one screenful of the prior day's not-yet-evicted tail can
+  fall under the new day's marker; negligible at day granularity, noted as a risk.
+  (2) **marker-survival e2e** — added an automated render(`--with-timestamps`)→
+  cleaned→distill assertion (Task 9) so the seam isn't only live-verified. (3)
+  `feedSegments` becomes the **single offset-ordered walk** over all events (act on
+  `resize`, snapshot on `time`) — not a parallel feeder. (4) estimate 3h is
+  optimistic (~3–5h for 10 TDD tasks across 4 pkgs); left as-is, actual measured at
+  close. Single review boundary (capture+render are invisible without the distiller
+  → one `sdlc close`, plain checkboxes).
