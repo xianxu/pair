@@ -1,11 +1,12 @@
 ---
 id: 000059
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-14
 updated: 2026-06-14
 estimate_hours: 3
+actual_hours: 1.02
 ---
 
 # timestamp TTY scrollback for real change-time change-log dates
@@ -92,6 +93,19 @@ Granularity: **day-level** display (`## YYYY-MM-DD`). Cadence: **minute**.
 ## Log
 
 ### 2026-06-14
+- 2026-06-14: closed — Alt+l dates change-log entries by real change-time — live test: ## 2026-06-14 on new work, old content undated, no ts markers leaked. pair-wrap emits minute-debounced time events; render --with-timestamps interleaves day markers; distiller segments per-day (no markers → header-free, byte-identical to #58). Touched go suites + e2e (render→cleaned→distill) + orchestrator smoke green. Full `make test` aggregate hang tracked in #60 (test-infra, not feature code).; review verdict: FIX-THEN-SHIP
+- Boundary review (#59) **FIX-THEN-SHIP**, no Critical. Fixed before merge:
+  *Important* — added `TestIncrementalDatedAppend` (the cross-press dated path
+  through `main.go`'s segment loop: dated prior log + a new-day marker → one new
+  `## DATE`, no duplicate of the prior day, frozen prefix intact; was only covered
+  at the pure level by `TestAssembleDated`). *Minors* — repointed the
+  `tsMarkerLine`↔`tsMarkerRe` sync comments to the real pin (`e2e_test.go`
+  `TestEndToEndMarkerSurvival`, not the no-marker `changelog-open-test.sh`); made
+  `feedSegments` walk **all** events (not `events[1:]`) so a time event in any
+  position is captured + empty events can't slice-panic (re-applying the offset-0
+  resize is a harmless no-op). Left as accepted: the side-quest batch-size bump to
+  2000 (#59 Log), and the negligible stale-header note on pre-#58 never-redistilled
+  logs. Touched suites re-green.
 
 - Filed from the post-#58 brainstorm. Root cause of the #58 date removal: no
   change-time source. Design settled (events-sidecar over raw-injection;

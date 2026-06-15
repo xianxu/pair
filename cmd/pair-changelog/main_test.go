@@ -188,6 +188,34 @@ func TestTwoDayDating(t *testing.T) {
 	}
 }
 
+// A LATER press with a DATED prior log: new next-day content appends under a new
+// ## header through main.go's full segment loop — no duplicate of the prior day's
+// header, frozen prefix intact (boundary-review #59 Important: the cross-press
+// dated path; pure-level coverage is TestAssembleDated).
+func TestIncrementalDatedAppend(t *testing.T) {
+	bin := buildBinary(t)
+	fakeClaude(t, "- two-revised\n\n- three\n")
+	// 2 boundaries > prior 1 → distill (not a no-op). The new turn's content is
+	// marked 2026-06-14; the prior log's last header is 2026-06-13.
+	cleaned := "❯ p0\nANCHOR1\nANCHOR2\nANCHOR3\n⟦pair:ts 2026-06-14⟧\n❯ p1\nnew work\n" + idleFooter
+	priorLog := "## 2026-06-13\n\n- one\n\n- two\n"
+	priorAnchor := "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n"
+	log, _ := run(t, bin, cleaned, priorLog, priorAnchor)
+
+	if n := strings.Count(log, "## 2026-06-13"); n != 1 {
+		t.Fatalf("prior day's header should appear exactly once, got %d:\n%s", n, log)
+	}
+	if !strings.Contains(log, "## 2026-06-14") {
+		t.Fatalf("new day's header missing:\n%s", log)
+	}
+	if !strings.HasPrefix(log, "## 2026-06-13\n\n- one\n\n") {
+		t.Fatalf("frozen prefix not intact:\n%s", log)
+	}
+	if strings.Index(log, "## 2026-06-13") >= strings.Index(log, "## 2026-06-14") {
+		t.Fatalf("day headers out of order:\n%s", log)
+	}
+}
+
 // Regression / "purely additive" guard: a cleaned stream with NO markers (a
 // pre-#59 session, or capture not yet running) produces a header-free log —
 // byte-identical to the #58 behavior. Markers are the only thing that adds dates.

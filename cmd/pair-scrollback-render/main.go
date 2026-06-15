@@ -122,10 +122,13 @@ type dateMark struct {
 }
 
 // feedSegments writes raw into the emulator as a single offset-ordered walk over
-// all sidecar events (the caller has applied events[0] as the initial size, so
-// events[1:] are in-stream boundaries): write everything up to event.Offset,
-// then act — Resize on a resize event, or snapshot Scrollback().Len() on a time
-// event. Returns the time snapshots (empty unless time events are present).
+// ALL sidecar events: write everything up to event.Offset, then act — Resize on a
+// resize event, or snapshot Scrollback().Len() on a time event. Returns the time
+// snapshots (empty unless time events are present). The caller already set the
+// initial size via initialSize; re-applying the offset-0 resize here is a harmless
+// no-op (resize to the current dimensions). Walking all events — rather than
+// events[1:] — means a time event in any position (incl. first) is captured, and
+// an empty events slice is handled without an out-of-range slice (#59).
 //
 // Clamping Offset to len(raw) defends against a corrupted sidecar that records
 // an offset beyond EOF (saw this once with a half-written events file after a
@@ -133,7 +136,7 @@ type dateMark struct {
 func feedSegments(em *vt.Emulator, raw []byte, events []scrollbackEvent) []dateMark {
 	var cursor int64
 	var marks []dateMark
-	for _, e := range events[1:] {
+	for _, e := range events {
 		off := e.Offset
 		if off > int64(len(raw)) {
 			off = int64(len(raw))
@@ -159,7 +162,8 @@ func feedSegments(em *vt.Emulator, raw []byte, events []scrollbackEvent) []dateM
 
 // tsMarkerLine is the wire format the distiller parses (#59). MUST stay in sync
 // with tsMarkerRe in cmd/pair-changelog/distill.go — the contract is pinned by
-// the render→clean→distill e2e test in tests/changelog-open-test.sh.
+// the render→clean→distill e2e test cmd/pair-changelog/e2e_test.go
+// (TestEndToEndMarkerSurvival), which feeds real time events through both binaries.
 func tsMarkerLine(date string) string {
 	return "⟦pair:ts " + date + "⟧"
 }
