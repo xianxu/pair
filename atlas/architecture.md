@@ -195,7 +195,7 @@ Alt+x leaves the draft, queue, and history intact — the next session resumes t
 {"type":"time","offset":<bytes>,"ts":"<RFC3339>"}
 ```
 
-The `time` events (one generic `logScrollbackEvent` writer, ARCH-DRY; pure `dueForTimeEvent` debounce + a `p.now` clock seam, ARCH-PURE) let the change-log render date entries by real change-time — the raw byte stream stays byte-faithful (`resume` replays it), since the timestamp lives in the sidecar, not injected into the TTY (#59).
+The `time` events (one generic `logScrollbackEvent` writer, ARCH-DRY; pure `dueForTimeEvent` debounce + a `p.now` clock seam, ARCH-PURE) let the change-log render date entries by real change-time — the raw byte stream stays byte-faithful (the scrollback render replays it), since the timestamp lives in the sidecar, not injected into the TTY (#59).
 
 The existing `set_winsize()` is the single entry point for both the initial PTY size (called once after `pty.fork`) and every SIGWINCH (the registered handler). Threading `log_scrollback_event()` through it covers both. `SCROLLBACK_BYTES` is bumped after each successful write to the raw fd, so the offset on each resize event demarcates "from this byte onward, apply these new (cols, rows)" — which is what the renderer needs to replay each segment at its correct width. Failure mode is unchanged: any tee or sidecar write error is `debug()`-logged and swallowed; the proxy never blocks the agent on a logging hiccup. `zellij/layouts/main.kdl` passes the flag by default, so capture runs automatically for every pair session.
 
