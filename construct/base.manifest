@@ -1,0 +1,19 @@
+# pair base.manifest — pair's module declaration for the weave layer compiler.
+#
+# pair is a LEAF derivative: it consumes ariadne as its substrate (construct/deps
+# `substrate ../ariadne`) and inherits ariadne's EXPORTED base layer through that
+# edge. pair exports NOTHING downstream (it has no consumers). This manifest
+# declares ONLY pair's OWN internal artifacts.
+#
+# Format and verbs are documented in ariadne's construct/base.manifest. The
+# leading `internal` token (ariadne#99 composition algebra) marks an artifact
+# that stays with pair: selected ONLY on pair's own self-walk (when pair is the
+# leaf), never leaked into any consumer — and, conversely, ariadne's own internal
+# artifacts (its AGENTS.local.md) never leak DOWN into pair's composed AGENTS.md.
+# This is the structural fix for the #95 bug.
+
+# ── Constitution ──────────────────────────────────────────────────────────────
+# pair's own local extensions. weave concatenates this fragment LAST into pair's
+# composed AGENTS.md (after ariadne's exported AGENTS.base.md / Constitution).
+# Declared `internal` so it is pair-only.
+internal  prose AGENTS.local.md
