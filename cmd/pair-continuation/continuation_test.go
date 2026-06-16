@@ -83,6 +83,8 @@ func TestHasNextAction(t *testing.T) {
 		{"heading then EOF", "# C\n\n## NEXT ACTION\n", false},
 		{"heading then blanks then EOF", "## NEXT ACTION\n\n   \n", false},
 		{"heading immediately followed by another heading", "## NEXT ACTION\n\n## Open questions\nstuff\n", false},
+		{"first content line is a #NN issue ref (not a heading)", "## NEXT ACTION\n#52: drain the minors\n", true},
+		{"first content line is a real h1 heading => empty", "## NEXT ACTION\n# Title\nbody\n", false},
 		{"no heading at all", "# C\n\nsome prose\n", false},
 		{"indented heading still counts", "  ## NEXT ACTION\n  go\n", true},
 	}

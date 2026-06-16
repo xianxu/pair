@@ -89,11 +89,24 @@ func HasNextAction(body string) bool {
 			if t == "" {
 				continue // skip blank lines under the heading
 			}
-			return !strings.HasPrefix(t, "#") // a new heading => empty section
+			return !isATXHeading(t) // a real heading => empty section
 		}
 		return false // heading was the last non-blank line
 	}
 	return false
+}
+
+// isATXHeading reports whether a trimmed line is a markdown ATX heading: one or
+// more '#' followed by a space. It deliberately does NOT match a bare '#NN'
+// issue reference (no space after the hashes) — this repo writes those
+// constantly, and "#52: do the thing" is valid NEXT ACTION content, not an empty
+// section. (#52 review)
+func isATXHeading(t string) bool {
+	i := 0
+	for i < len(t) && t[i] == '#' {
+		i++
+	}
+	return i > 0 && i < len(t) && t[i] == ' '
 }
 
 // ValidateFields rejects a continuation missing its required fields.
