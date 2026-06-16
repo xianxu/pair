@@ -1380,18 +1380,25 @@ end
 -- spell_suggest_popup; cleared on CompleteDone / InsertLeave too.
 local spell_popup_active = false
 
--- Wrap a list of completion strings into the dict form vim.fn.complete()
--- accepts, prefixing the first 9 abbrs with `⌥N ` to advertise the Alt+N
--- quick-pick keymaps below. The prefix is purely visual (label users see
--- in the popup); .word stays clean so accept-via-<C-y>, the <M-1>..<M-9>
--- handlers, and the CompleteDone pick-tracking autocmd all see the actual
--- candidate. Items past 9 stay arrow-navigable but have no quick-key.
--- label_prefix tags the first 9 abbrs with the quick-pick key the user
--- presses to choose them: '⌥' for insert-mode completions (where bare
--- digits must stay literal text, so picking is on <M-i>), '' for the z=
--- spell popup (where bare digits pick — see spell_pick_digit).
+-- Two ways to wrap completion strings into vim.fn.complete()'s dict form.
+--
+-- plain_items — no labels. The uniform mechanism for every as-you-type menu
+-- (path / word / spell): all three render identically with no numbering, picked
+-- by arrows / Tab / <C-y>. (The <M-1>..<M-9> keys below still pick the Nth item
+-- of any popup; they're just no longer advertised.)
+local function plain_items(words)
+  local items = {}
+  for i, w in ipairs(words) do items[i] = { word = w } end
+  return items
+end
+
+-- indexed_items — prefixes the first 9 abbrs with `<prefix>N ` to advertise a
+-- numbered quick-pick. Used ONLY by the explicit z= spell popup, which passes
+-- '' so the label is a bare digit (1..9) and bare digits pick it (see
+-- spell_pick_digit). .word stays clean so <C-y> / CompleteDone see the real
+-- candidate; items past 9 are arrow-navigable.
 local function indexed_items(words, label_prefix)
-  label_prefix = label_prefix or '⌥'
+  label_prefix = label_prefix or ''
   local items = {}
   for i, w in ipairs(words) do
     if i <= 9 then
@@ -1440,7 +1447,7 @@ local function path_complete()
   -- to replace any spell popup with a typed-token menu, so bare digits go back
   -- to being literal (see spell_popup_active).
   spell_popup_active = false
-  vim.fn.complete(token_start, indexed_items(matches))
+  vim.fn.complete(token_start, plain_items(matches))
   return true
 end
 
@@ -1652,7 +1659,7 @@ local function word_complete()
   for i, m in ipairs(matches) do words[i] = m.word end
   -- Replacing any spell popup with a typed-token menu → bare digits literal.
   spell_popup_active = false
-  vim.fn.complete(token_start, indexed_items(words))
+  vim.fn.complete(token_start, plain_items(words))
   return true
 end
 
@@ -1716,10 +1723,9 @@ end
 -- and CompleteDone must not bounce us back to normal mode. A suggestion is
 -- accepted via CR / Tab / <C-y> / arrows.
 --
--- No quick-pick labels here: the ⌥N / bare-digit pick keys don't work in
--- this mid-type fallback (Alt+N belongs to path/word menus, bare digits stay
--- literal), so the items are left unlabelled rather than advertising a key
--- that does nothing.
+-- Uses plain_items, same as the path/word menus: every as-you-type popup is
+-- unlabelled (uniform, no numbering), picked by arrows / Tab / <C-y>. Bare
+-- digits stay literal mid-type — only the explicit z= popup repurposes them.
 local SPELL_TRIGGER_MIN = 4   -- min misspelled-word length before suggesting
 local SPELL_MAX_SUGGEST = 9   -- max suggestions shown in the menu
 local function spell_complete()
@@ -1742,11 +1748,7 @@ local function spell_complete()
   local suggestions = vim.fn.spellsuggest(word, SPELL_MAX_SUGGEST)
   if not suggestions or #suggestions == 0 then return end
 
-  -- Plain items, no ⌥N labels: the quick-pick keys don't function in this
-  -- mid-type popup (see header), so don't render them.
-  local items = {}
-  for i, w in ipairs(suggestions) do items[i] = { word = w } end
-  vim.fn.complete(s, items)
+  vim.fn.complete(s, plain_items(suggestions))
   return true
 end
 
@@ -3422,11 +3424,12 @@ end
 vim.keymap.set('i', '<BS>', pair_backspace,
   { silent = true, expr = true, desc = 'pair: smart-delete empty pair' })
 
--- <M-1>..<M-9>: quick-pick the Nth visible completion item. The path/word/
--- spell completers tag the first 9 abbrs with their index (see
--- indexed_items) so the popup shows e.g. `1 bin/pair-wrap`. Outside the
--- popup these keys are no-ops — returning '' from an expr keymap leaves
--- the buffer unchanged. Items past 9 stay reachable via arrows / <C-n>.
+-- <M-1>..<M-9>: quick-pick the Nth visible completion item from any popup.
+-- The as-you-type menus (path/word/spell) are unlabelled now (uniform, no
+-- numbering), so this is an unadvertised power-key — and it also swallows Alt+N
+-- so the terminal's Esc+N sequence can't break insert mode. Outside the popup
+-- these keys are no-ops — returning '' from an expr keymap leaves the buffer
+-- unchanged. (The z= popup advertises its own bare-digit picking separately.)
 --
 -- Mechanism: feed `<C-n>` / `<C-p>` to land selection on item N, then
 -- `<C-y>` to accept. We don't replace text manually; vim's accept handler
