@@ -1,10 +1,11 @@
 ---
 id: 000061
-status: working
+status: done
 deps: [ariadne#105]
 created: 2026-06-15
 updated: 2026-06-15
 estimate_hours: 3
+actual_hours: 2.28
 ---
 
 # pair-continuation improvements
@@ -86,17 +87,18 @@ It is **distinct from decision 5**, which is about the *resume* seed prompt
       to follow the continuation datatype procedure — drop the stale old-skeleton
       enumeration; stay agent-agnostic. Landed (PR #30, `c0107aa`); `luac -p` +
       `make test-queue` green. No test pins the prompt text.
-- [ ] Dogfood (self-park of a live pair session). Concrete pass conditions:
-      (a) `## Artifact map` points at real pensive(s) flushed *this* session
-      (proves flush-first fired); (b) `## Open questions`, when present, leads
-      with the verbatim resume directive; (c) the new reflective sections
-      (Thread arc & user model, Lessons) are present + non-boilerplate;
-      (d) `pair continue <slug>` round-trips and the reincarnated session honors
-      the resume directive before the NEXT ACTION.
+- [x] Dogfood (self-park of a live pair session). All pass conditions met:
+      (a) `## Artifact map` points at the real pensive flushed *this* session
+      (proves flush-first fired); (b) `## Open questions` leads with the verbatim
+      resume directive; (c) the new reflective sections (Thread arc & user model,
+      Lessons) are present + non-boilerplate; (d) `pair continue <slug>`
+      round-trips — confirmed by *this* seeded session, which resolved the Open
+      questions with the operator before acting on the NEXT ACTION.
 
 ## Log
 
 ### 2026-06-15
+- 2026-06-15: closed — dogfood: a real Alt+Shift+C park drove the new COMPACT_PROMPT → the writer produced a new-shape continuation (Artifact map→this-session pensive, Open questions led by the resume directive, Thread arc & Lessons present); pair continue seeded THIS session, which honored the embedded resume directive (resolved the 3 open questions with the operator) before acting on the NEXT ACTION — pass-conditions a–d all met; review verdict: SHIP
 - Claimed. Gap analysis of the current procedure vs the 5 asks; design + 6
   decisions agreed with operator. Opened **ariadne#105** for the datatype rewrite
   (its real home); this issue is the dogfood umbrella.
@@ -105,4 +107,16 @@ It is **distinct from decision 5**, which is about the *resume* seed prompt
 - Dogfood prep found the real pair-side change: `COMPACT_PROMPT` (Alt+Shift+C) still
   drove the old skeleton. Rerouting it through the datatype procedure so pair's
   primary park path picks up #105.
+- **Dogfood complete.** A real Alt+Shift+C park drove the new `COMPACT_PROMPT` →
+  the writer produced a new-shape continuation
+  (`workshop/continuation/20260615T225403-cont-improve.md`); `pair continue`
+  seeded a fresh session that honored the embedded resume directive (resolved the
+  3 Open questions with the operator) before acting. Pass-conditions a–d all met.
+- Open-question resolutions (recorded canonically in **ariadne#103** Log): (1) the
+  user-model's two criteria collapse to #103 as single source — the continuation
+  section defers by pointer; (2) the user-model stays **cross-cutting** (continuation
+  section + #103 instruction + pensive flush), no separate durable artifact.
+- Atlas updated: `atlas/architecture.md` In-session-compaction paragraph now notes
+  `COMPACT_PROMPT` defers to the continuation datatype procedure (the drift pair#61
+  fixed) — committed with this close.
 
