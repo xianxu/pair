@@ -2987,12 +2987,19 @@ function _G.PairConfirmRestartNewSession() pair_confirm_restart_impl(true)  end
 -- which is context-aware: inside this live pane it parks the scrollback, marks
 -- a continue= restart, and kills the session → the outer pair reincarnates the
 -- same tag with a fresh conversation seeded from the doc.
+--
+-- The prompt DEFERS to the project's continuation DATATYPE procedure rather than
+-- enumerating a section skeleton inline. The skeleton + authoring steps live in
+-- the datatype (construct/datatype/continuation.md — ariadne#105: flush-first,
+-- thread-arc/user-model, open-questions, lessons); an inline copy here would
+-- drift out of sync with it — that drift WAS the bug pair#61 fixed, so do not
+-- re-add a skeleton list. Keep it agent-agnostic: no skill name, no hardcoded path.
 local COMPACT_PROMPT = table.concat({
   'Compact this session:',
-  '1. Write a continuation doc for this session NOW — distill the NEXT ACTION,',
-  '   open threads, and key decisions/dead-ends into workshop/continuation/',
-  "   (use this project's continuation mechanism / pair-continuation writer).",
-  '   Choose a short slug.',
+  "1. Write a continuation doc for this session NOW by following this project's",
+  '   continuation DATATYPE procedure — first flush key exchanges to pensive,',
+  '   then distill per that procedure and finalize with the pair-continuation',
+  '   writer (workshop/continuation/). Choose a short slug.',
   '2. Then run:  pair continue <that-slug>',
   '   (or  pair-dev continue <that-slug>  if this is a dev checkout)',
   '   That restarts this session with a fresh conversation seeded from the',

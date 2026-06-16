@@ -1,7 +1,7 @@
 ---
 id: 000061
 status: working
-deps: []
+deps: [ariadne#105]
 created: 2026-06-15
 updated: 2026-06-15
 estimate_hours: 3
@@ -23,16 +23,86 @@ We should check if it does the following:
 
 ## Done when
 
--
+- The continuation procedure (the **ariadne#105** datatype rewrite) addresses all
+  five asks above: flush-first, lessons, build-around-artifacts, thread-arc/user-
+  model/open-questions, and connect-to-next-steps.
+- A real continuation of a live pair session, produced under the new procedure,
+  exhibits the new sections (Thread arc & user model, Open questions w/ embedded
+  resume directive, Artifact map, Lessons learned) and **round-trips** via
+  `pair continue <slug>`.
+- Confirmed pair resolves the updated datatype at runtime (no copy of
+  `continuation.md` lives in pair today, so the dispatcher reads it from the
+  ariadne substrate — recompose only if weave is changed to copy datatypes).
 
 ## Spec
 
+The continuation **procedure** (body skeleton + authoring instructions) lives in
+ariadne's `construct/datatype/continuation.md`; pair consumes it via weave and
+provides only the mechanics (`pair-continuation` writer) + the park/continue flow.
+So the substantive change lands in **ariadne#105**; this issue is the dogfood
+umbrella, owns validation, and carries **one pair-side code change** (below).
+
+Core reframe: the continuation becomes the **connective narrative over the
+session's durable artifacts** — detail lives in the flushed artifacts, the
+continuation explains how they connect and where the user's head is. Full design,
+body skeleton, and rules: see **ariadne#105**.
+
+Agreed decisions (operator sign-off):
+1. Section set & order as in ariadne#105; Live deliberations and Decisions & dead
+   ends stay separate.
+2. Flush-first is a procedure step, not a body section; what was flushed shows up
+   in the Artifact map.
+3. **Automated flush is `pensive`-only** — `target` needs human review,
+   `meeting-notes` doesn't fit.
+4. **Writer unchanged** — `pair-continuation` keeps enforcing only `## NEXT ACTION`.
+5. **No seed-prompt change** — the resume directive ("On resume, resolve the open
+   questions with the user before continuing with the NEXT ACTION") is embedded in
+   the generated continuation file itself.
+6. Datatype change lands in ariadne#105 (gated by ariadne sdlc); pair#61 is the
+   umbrella + dogfood.
+
+Related: **ariadne#103** (maintain the user-model live every turn) is the
+complementary half — #61/#105 persist/checkpoint what #103 maintains. **ariadne#90**
+(docflow suspend/resume) is the sibling-domain analog.
+
+**Pair-side change (found during dogfood prep).** The Alt+Shift+C compaction prompt
+(`nvim/init.lua` `COMPACT_PROMPT`) enumerated the *old* skeleton ("NEXT ACTION,
+open threads, decisions/dead-ends") and only softly pointed at "the continuation
+mechanism" — so pair's **primary** park path would not reliably exercise #105's new
+procedure. Reroute it to follow the continuation **datatype procedure** (flush-first
++ new skeleton), staying agent-agnostic (no skill name, no hardcoded path). This is
+the load-bearing connection between #105's datatype work and pair's real workflow.
+It is **distinct from decision 5**, which is about the *resume* seed prompt
+(`bin/pair`, line ~1943) — that stays unchanged.
 
 ## Plan
 
-- [ ]
+- [x] ariadne#105 — rewrite the continuation datatype (the substance). Landed
+      (PR #42, boundary review SHIP).
+- [x] Confirm pair picks up the ariadne datatype change at runtime — verified:
+      `construct/datatype` is a symlink → `../../ariadne/construct/datatype`, so
+      pair resolves the updated `continuation.md` live (no recompose, no wiring).
+- [x] Reroute the Alt+Shift+C compaction prompt (`nvim/init.lua` `COMPACT_PROMPT`)
+      to follow the continuation datatype procedure — drop the stale old-skeleton
+      enumeration; stay agent-agnostic. Landed (PR #30, `c0107aa`); `luac -p` +
+      `make test-queue` green. No test pins the prompt text.
+- [ ] Dogfood (self-park of a live pair session). Concrete pass conditions:
+      (a) `## Artifact map` points at real pensive(s) flushed *this* session
+      (proves flush-first fired); (b) `## Open questions`, when present, leads
+      with the verbatim resume directive; (c) the new reflective sections
+      (Thread arc & user model, Lessons) are present + non-boilerplate;
+      (d) `pair continue <slug>` round-trips and the reincarnated session honors
+      the resume directive before the NEXT ACTION.
 
 ## Log
 
 ### 2026-06-15
+- Claimed. Gap analysis of the current procedure vs the 5 asks; design + 6
+  decisions agreed with operator. Opened **ariadne#105** for the datatype rewrite
+  (its real home); this issue is the dogfood umbrella.
+- ariadne#105 landed (PR #42, SHIP). Verified pair resolves the new datatype live
+  via the `construct/datatype` symlink.
+- Dogfood prep found the real pair-side change: `COMPACT_PROMPT` (Alt+Shift+C) still
+  drove the old skeleton. Rerouting it through the datatype procedure so pair's
+  primary park path picks up #105.
 
