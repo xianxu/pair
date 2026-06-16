@@ -57,9 +57,10 @@ func run(a runArgs, now func() time.Time, stdin io.Reader, stdout io.Writer) err
 		return err
 	}
 	// The writer is the structural guard (Spec Done-when): continuation.md
-	// makes NEXT ACTION mandatory, so refuse a body that lacks it.
-	if !strings.Contains(body, "## NEXT ACTION") {
-		return fmt.Errorf("continuation body must contain a '## NEXT ACTION' section")
+	// makes NEXT ACTION mandatory, so refuse a body that lacks it — or that has
+	// only an empty heading with no actionable content (#52).
+	if !HasNextAction(body) {
+		return fmt.Errorf("continuation body must contain a non-empty '## NEXT ACTION' section")
 	}
 
 	ts := now()

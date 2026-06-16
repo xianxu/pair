@@ -75,6 +75,22 @@ probe() { # field, then pair args...
 ( cd "$RT" && "$PAIR" continue 'bad/slug' >/dev/null 2>&1 ); [ $? -eq 1 ] \
   && pass "invalid slug exits 1" || fail "invalid slug should exit 1"
 
+# 4b. a long NEXT-ACTION first line is truncated in the bare list (#52)
+LONG="$(printf 'X%.0s' $(seq 1 90))TAILMARKER"
+cat > "$CDIR/20260101T000009-longrow.md" <<DOC
+---
+agent: claude
+issues: [#1]
+---
+## NEXT ACTION
+$LONG
+DOC
+LOUT="$( cd "$RT" && "$PAIR" continue 2>&1 )"
+{ printf '%s' "$LOUT" | grep -q '…' && ! printf '%s' "$LOUT" | grep -q 'TAILMARKER'; } \
+  && pass "bare list truncates a long NEXT ACTION line" \
+  || fail "bare list did not truncate the long NEXT ACTION line"
+rm -f "$CDIR/20260101T000009-longrow.md"
+
 # 5. guard: zellij's own --session validator discriminates short vs over-long.
 # Mirror the launch-time guard EXACTLY — capture-then-match, not `| grep` —
 # since under pipefail the probe's non-zero exit would corrupt a piped test

@@ -55,6 +55,23 @@ zj() {
     fi
 }
 
+# normalize_tag <raw> <errprefix> — accept a bare tag or `pair-<tag>`, strip the
+# prefix, and validate the charset (letters/digits/dash/underscore). Echoes the
+# cleaned tag on stdout; on an empty/invalid value prints "<errprefix> '<raw>'
+# (allowed: …)" to stderr and returns 1. Callers: t="$(normalize_tag "$x" "…")" || exit 1.
+# Shared by resume/continue/rename + the name prompt (#52 ARCH-DRY). It *returns*
+# (never exits) so it composes inside $( ), where an exit would only kill the subshell.
+normalize_tag() {
+    local _raw="$1" _t="$1"
+    case "$_t" in pair-*) _t="${_t#pair-}" ;; esac
+    case "$_t" in
+        ""|*[!A-Za-z0-9_-]*)
+            printf "%s '%s' (allowed: letters, digits, dash, underscore)\n" "$2" "$_raw" >&2
+            return 1 ;;
+    esac
+    printf '%s' "$_t"
+}
+
 # --- help -------------------------------------------------------------------
 case "${1:-}" in
     -h|--help|help)
@@ -67,6 +84,7 @@ USAGE
   pair resume <tag>             attach pair-<tag> if it exists, else create
                                 with that tag and the saved config; agent
                                 is inferred from saved state
+  pair continue [slug]          resume from a continuation doc; bare lists them
   pair [<agent>] -- <args>      forward args to the agent on create
                                 e.g. pair claude -- --resume
                                      pair -- --dangerously-skip-permissions
@@ -333,16 +351,11 @@ EOF
             echo "pair rename: unexpected arg '${!rename_argi}'" >&2
             exit 1
         fi
-        # Accept either bare tag or `pair-<tag>` (matches `pair resume`).
-        case "$old_tag" in pair-*) old_tag="${old_tag#pair-}" ;; esac
-        case "$new_tag" in pair-*) new_tag="${new_tag#pair-}" ;; esac
+        # Accept either bare tag or `pair-<tag>`; strip + charset-validate via the
+        # shared helper (#52 ARCH-DRY). Length stays a rename-specific guard below.
+        old_tag="$(normalize_tag "$old_tag" "pair rename: invalid tag")" || exit 1
+        new_tag="$(normalize_tag "$new_tag" "pair rename: invalid tag")" || exit 1
         for t in "$old_tag" "$new_tag"; do
-            case "$t" in
-                ""|*[!A-Za-z0-9_-]*)
-                    echo "pair rename: invalid tag '$t' (allowed: letters, digits, dash, underscore)" >&2
-                    exit 1
-                    ;;
-            esac
             if [ ${#t} -gt 256 ]; then
                 echo "pair rename: tag '$t' is too long (max 256)" >&2
                 exit 1
@@ -570,17 +583,7 @@ if [ "${1:-}" = "resume" ]; then
         echo "pair: 'resume' requires a tag (e.g. pair resume bugfix)" >&2
         exit 1
     fi
-    forced_tag="$2"
-    case "$forced_tag" in
-        pair-*) forced_tag="${forced_tag#pair-}" ;;
-    esac
-    case "$forced_tag" in
-        ""|*[!A-Za-z0-9_-]*)
-            echo "pair: invalid tag '$2'." >&2
-            echo "      allowed: letters, digits, dash, underscore." >&2
-            exit 1
-            ;;
-    esac
+    forced_tag="$(normalize_tag "$2" "pair: invalid tag")" || exit 1
     shift 2
 fi
 
@@ -594,6 +597,11 @@ fi
 # stack); absent, it's read from the doc. We capture slug + agent HERE (the
 # positional loop below rejects a bare agent arg) but leave `-- <args>` for it.
 # `continue` never reads session_id — that's `resume`.
+# Fresh-vs-attach (#52): the seeded session is "fresh" only for a NEW tag. If the
+# tag picked at the prompt collides with a LIVE `pair-<tag>`, the normal launch
+# path ATTACHES to it (same as `pair <agent>` / `resume`) rather than reseeding —
+# intentional, so a continue never clobbers a running session; pick a fresh tag
+# to force a clean seed.
 CONTINUE_DOC=""
 if [ "${1:-}" = "continue" ]; then
     _croot="$(git rev-parse --show-toplevel 2>/dev/null || true)"
@@ -604,6 +612,8 @@ if [ "${1:-}" = "continue" ]; then
             for _cf in "$_cdir"/*.md; do
                 _cs="$(basename "$_cf" .md)"; _cs="${_cs#*-}"
                 _cn="$(awk '/^## NEXT ACTION/{f=1;next} f&&NF{print;exit}' "$_cf")"
+                # cap the preview so a long NEXT ACTION line doesn't flood the row (#52)
+                if [ "${#_cn}" -gt 80 ]; then _cn="${_cn:0:79}…"; fi
                 _ci="$(awk -F': ' '/^issues:/{print $2; exit}' "$_cf")"
                 printf '  %-22s %-18s %s\n' "$_cs" "${_ci:-[]}" "$_cn"
             done
@@ -612,14 +622,7 @@ if [ "${1:-}" = "continue" ]; then
         fi
         exit 0
     fi
-    _cslug="$2"
-    case "$_cslug" in pair-*) _cslug="${_cslug#pair-}" ;; esac
-    case "$_cslug" in
-        ""|*[!A-Za-z0-9_-]*)
-            echo "pair: invalid slug '$2'." >&2
-            exit 1
-            ;;
-    esac
+    _cslug="$(normalize_tag "$2" "pair: invalid slug")" || exit 1
     CONTINUE_DOC="$(ls -1 "$_cdir"/*-"$_cslug".md 2>/dev/null | sort | tail -1)"
     if [ -z "$CONTINUE_DOC" ]; then
         echo "pair: no continuation matching '$_cslug' in $_cdir" >&2
@@ -1394,7 +1397,7 @@ cleanup_quit_marker() {
         rm -f "$marker"
         # Capture the agent BEFORE the file is cleared below, so the resume
         # hint can name the right binary.
-        local quit_agent
+        local quit_agent _sb_base _parked _ans _pbase   # #52: keep park-nudge vars function-scoped
         quit_agent=$(cat "$DATA_DIR/agent-${PAIR_TAG}" 2>/dev/null || echo "$AGENT")
         zj delete-session "$SESSION" --force >/dev/null 2>&1 || true
         # Defensive belt-and-suspenders: if a zellij --server process for this
@@ -1678,17 +1681,7 @@ if [ "$prompt_name" = 1 ]; then
         fi
     fi
     user_input="${user_input:-$chosen_tag}"
-    case "$user_input" in
-        pair-*) typed_tag="${user_input#pair-}" ;;
-        *)      typed_tag="$user_input" ;;
-    esac
-    case "$typed_tag" in
-        ""|*[!A-Za-z0-9_-]*)
-            echo "pair: invalid name '$user_input'." >&2
-            echo "      allowed: letters, digits, dash, underscore." >&2
-            exit 1
-            ;;
-    esac
+    typed_tag="$(normalize_tag "$user_input" "pair: invalid name")" || exit 1
     if zj list-sessions --short 2>/dev/null | grep -qx "pair-${typed_tag}"; then
         echo "pair: session 'pair-${typed_tag}' already exists." >&2
         exit 1

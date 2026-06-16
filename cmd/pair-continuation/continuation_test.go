@@ -71,6 +71,28 @@ func TestAssemble(t *testing.T) {
 	}
 }
 
+func TestHasNextAction(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+		want bool
+	}{
+		{"content on next line", "# C\n\n## NEXT ACTION\nDo the thing.\n", true},
+		{"blank then content", "## NEXT ACTION\n\n\nDo the thing.\n", true},
+		{"list content", "## NEXT ACTION\n- step one\n", true},
+		{"heading then EOF", "# C\n\n## NEXT ACTION\n", false},
+		{"heading then blanks then EOF", "## NEXT ACTION\n\n   \n", false},
+		{"heading immediately followed by another heading", "## NEXT ACTION\n\n## Open questions\nstuff\n", false},
+		{"no heading at all", "# C\n\nsome prose\n", false},
+		{"indented heading still counts", "  ## NEXT ACTION\n  go\n", true},
+	}
+	for _, c := range cases {
+		if got := HasNextAction(c.body); got != c.want {
+			t.Errorf("%s: HasNextAction = %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
 func TestValidateFields(t *testing.T) {
 	ok := Fields{Slug: "x", Agent: "claude", Issues: []string{"000001"}}
 	if err := ValidateFields(ok); err != nil {

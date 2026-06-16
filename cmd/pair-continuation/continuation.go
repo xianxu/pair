@@ -74,6 +74,28 @@ func Assemble(frontmatter, body string) string {
 	return "---\n" + frontmatter + "---\n\n" + strings.TrimRight(body, "\n") + "\n"
 }
 
+// HasNextAction reports whether body has a '## NEXT ACTION' heading followed by
+// at least one non-blank content line (and not immediately another heading).
+// The writer's structural guard: continuation.md makes NEXT ACTION mandatory,
+// and a bare heading with no content is as useless as a missing one (#52).
+func HasNextAction(body string) bool {
+	lines := strings.Split(body, "\n")
+	for i, ln := range lines {
+		if strings.TrimSpace(ln) != "## NEXT ACTION" {
+			continue
+		}
+		for _, rest := range lines[i+1:] {
+			t := strings.TrimSpace(rest)
+			if t == "" {
+				continue // skip blank lines under the heading
+			}
+			return !strings.HasPrefix(t, "#") // a new heading => empty section
+		}
+		return false // heading was the last non-blank line
+	}
+	return false
+}
+
 // ValidateFields rejects a continuation missing its required fields.
 func ValidateFields(f Fields) error {
 	if strings.TrimSpace(f.Slug) == "" {
