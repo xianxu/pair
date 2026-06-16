@@ -82,9 +82,10 @@ It is **distinct from decision 5**, which is about the *resume* seed prompt
 - [x] Confirm pair picks up the ariadne datatype change at runtime — verified:
       `construct/datatype` is a symlink → `../../ariadne/construct/datatype`, so
       pair resolves the updated `continuation.md` live (no recompose, no wiring).
-- [ ] Reroute the Alt+Shift+C compaction prompt (`nvim/init.lua` `COMPACT_PROMPT`)
+- [x] Reroute the Alt+Shift+C compaction prompt (`nvim/init.lua` `COMPACT_PROMPT`)
       to follow the continuation datatype procedure — drop the stale old-skeleton
-      enumeration; stay agent-agnostic. No test pins the prompt text.
+      enumeration; stay agent-agnostic. Landed (PR #30, `c0107aa`); `luac -p` +
+      `make test-queue` green. No test pins the prompt text.
 - [ ] Dogfood (self-park of a live pair session). Concrete pass conditions:
       (a) `## Artifact map` points at real pensive(s) flushed *this* session
       (proves flush-first fired); (b) `## Open questions`, when present, leads
