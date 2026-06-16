@@ -1,10 +1,11 @@
 ---
 id: 000062
-status: working
+status: done
 deps: []
 created: 2026-06-16
 updated: 2026-06-16
 estimate_hours: 0.5
+actual_hours: 0.04
 ---
 
 # move alt+delete back to always trigger deletion of future queue item
@@ -36,11 +37,19 @@ where it's actually an editing convenience (the `*` draft).
 
 ## Plan
 
-- [ ] Insert-mode `<M-BS>` → delete `+N` item when on a queue slot, else `<C-U>`;
+- [x] Insert-mode `<M-BS>` → delete `+N` item when on a queue slot, else `<C-U>`;
       update the keymap comment. Verify `luac -p` + dogfood (normal & insert
       delete on +N; `*`/`-N` insert line-kill preserved).
 
 ## Log
 
 ### 2026-06-16
+- 2026-06-16: closed — operator dogfood: on a +N queue slot Alt+BS deletes the item in BOTH normal and insert mode (Y/n confirm intact); on the * draft, insert-mode Alt+BS still kills to line start (<C-U>). Restores pre-97cc1e1 always-delete on +N without regressing draft line-kill. luac -p green.; review verdict: SHIP
+- Made the insert-mode `<M-BS>` conditional: on a queue (`+N`) slot it calls
+  `delete_current_queue_item` (both modes now delete the item); off the queue it
+  feeds `<C-U>`. Normal-mode keymap unchanged. Reverts the `97cc1e1` mode-split
+  for the +N portion while keeping `*`-draft line-kill.
+- Verified (operator dogfood): on `+N`, Alt+BS deletes the item in both normal
+  and insert mode (Y/n confirm intact); on the `*` draft, insert-mode Alt+BS
+  still kills to line start. `luac -p` green.
 
