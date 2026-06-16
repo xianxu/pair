@@ -1,10 +1,10 @@
 ---
 id: 000051
-status: open
+status: wontfix
 deps: []
 github_issue:
 created: 2026-06-11
-updated: 2026-06-11
+updated: 2026-06-16
 estimate_hours:
 ---
 
@@ -54,3 +54,20 @@ predicate, unit-tested; the IO stays in the thin seam).
 ## Log
 
 ### 2026-06-11
+
+### 2026-06-16
+- **wontfix (operator decision).** The Spec's premise — "a continuation belongs to
+  the repo of the session it distills" — is wrong. A continuation is a *thinking
+  artifact* and homes with the **thinking thread**, which is repo-fluid and often
+  anchored in **brain** (where unstructured project initiation lives). So the cwd
+  default is correct, and both proposed guards misfire on the *legitimate* pattern:
+  option 1 (force session-repo as target) would block "park into brain while the
+  work is in ariadne"; option 2 (cross-check referenced `issues:` resolve locally)
+  would false-alarm on a brain continuation that legitimately references e.g.
+  `ariadne#105` (brain initiates projects that live elsewhere). The original
+  "silently writes to the wrong repo" trigger is also weak: it's not truly silent
+  (`worktree:` is recorded in frontmatter), and a stray landing is low-stakes and
+  self-healing (a continuation is cheap, `git mv`-able, push is non-fatal disaster
+  recovery). Same anti-pattern as locking the `construct/*` symlinks read-only — a
+  rigid location guard fighting deliberate fluidity. Archived to `history/` per the
+  terminal-status convention.
