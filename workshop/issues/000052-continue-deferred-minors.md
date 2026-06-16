@@ -1,11 +1,11 @@
 ---
 id: 000052
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-06-11
-updated: 2026-06-11
-estimate_hours:
+updated: 2026-06-16
+estimate_hours: 1.5
 ---
 
 # pair continue: deferred minors (verb + writer polish)
