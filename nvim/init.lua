@@ -226,6 +226,10 @@ vim.opt.ruler = false
 vim.opt.wrap = true
 vim.opt.linebreak = true
 vim.opt.breakindent = true
+-- Scroll by screen line, not buffer line, so a long wrapped draft line scrolls
+-- smoothly (partial top line + a `<<<` marker) instead of jumping a whole
+-- paragraph at once.
+vim.opt.smoothscroll = true
 vim.opt.spell = true
 vim.opt.spelllang = 'en_us'
 vim.opt.swapfile = false
