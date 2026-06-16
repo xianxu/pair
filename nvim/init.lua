@@ -3491,6 +3491,14 @@ end
 local complete_last_fire = 0
 local complete_pending = nil
 local function run_completers()
+  -- The explicit z= gesture (spell_suggest_popup) owns the popup while it's
+  -- active, so the as-you-type completers must stay out of its way. Without
+  -- this guard, startinsert's TextChangedI drives spell_complete to pop its own
+  -- menu before z='s scheduled complete() runs; z= then replaces that menu, and
+  -- the replacement's CompleteDone is misread by the teardown as "popup
+  -- dismissed" → a scheduled stopinsert closes the just-opened z= menu (the
+  -- first-z= menu flash).
+  if spell_popup_active then return end
   if path_complete() then return end
   if word_complete() then return end
   spell_complete()
