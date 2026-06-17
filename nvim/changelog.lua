@@ -17,6 +17,17 @@
 
 local M = {}
 
+-- Shared 🤖-marker subsystem (#57): the same Alt+q annotate flow + draft-sidecar
+-- emit the scrollback viewer uses. Loaded dir-relative (same pattern as the
+-- scrollback viewer) since this file is launched via `nvim -u changelog.lua` and
+-- may not have nvim/ on its runtimepath.
+local annotate
+do
+  local src = debug.getinfo(1, 'S').source:sub(2)
+  local dir = src:match('(.*/)') or './'
+  annotate = dofile(dir .. 'annotate.lua')
+end
+
 -- colorize applies the glance-token highlights to bufnr. Runs inside the
 -- buffer's context so `:syntax match` targets the right buffer.
 function M.colorize(bufnr)
@@ -97,6 +108,18 @@ function M.start_refresh(bufnr)
   -- the existing log; nvim already loaded it and M.setup ran.
   if not distiller_alive() then return end
 
+  -- Reload guard (#57): the distiller's M.reload replaces ALL lines, which would
+  -- wipe a 🤖-marker the user added during the spinner (markers are buffer text).
+  -- Skip the reload when annotations are present — they win; the fresh log is on
+  -- disk and appears on the next Alt+l. After a reload that DID run, realign the
+  -- baseline + re-highlight via annotate.on_reloaded. Defined before
+  -- reload_if_changed so that closure can capture it.
+  local function safe_reload()
+    if annotate.has_new_markers(bufnr) then return end
+    M.reload(bufnr, log)
+    annotate.on_reloaded(bufnr)
+  end
+
   local first_run = vim.api.nvim_buf_line_count(bufnr) <= 1
     and (vim.api.nvim_buf_get_lines(bufnr, 0, 1, false)[1] or '') == ''
   local msg = first_run and 'Computing change log…' or 'Refreshing change log…'
@@ -122,7 +145,7 @@ function M.start_refresh(bufnr)
     local key = st.mtime.sec .. '.' .. st.mtime.nsec .. '.' .. st.size
     if key ~= last_key then
       last_key = key
-      M.reload(bufnr, log)
+      safe_reload()
     end
   end
 
@@ -151,7 +174,7 @@ function M.start_refresh(bufnr)
     else
       read_status() -- catch a final error line
       reload_if_changed()
-      M.reload(bufnr, log)
+      safe_reload()
       if err then
         tip('  ⚠  change log refresh failed: ' .. err, 'ErrorMsg')
       else
@@ -176,14 +199,32 @@ if not _G.PAIR_CHANGELOG_TEST then
     callback = function(args)
       M.setup(args.buf)
       vim.cmd('normal! G') -- newest entry at the bottom
+      -- Wire the shared Alt+q annotate flow once (this autocmd fires on both
+      -- BufReadPost and BufWinEnter; attach sets the pair_annotate sentinel).
+      -- footer=false: no overall-comment affordance line (scrollback-only).
+      -- source_label tags each shipped question `> [change log] …` so the agent
+      -- knows it's about a logged milestone vs raw scrollback. Same sidecar the
+      -- draft picks up on FocusGained — zero new plumbing. attach runs BEFORE
+      -- start_refresh so the reload guard's state[bufnr] exists.
+      if not vim.b[args.buf].pair_annotate then
+        annotate.attach({
+          bufnr = args.buf,
+          pending_path = annotate.default_pending_path(),
+          footer = false,
+          source_label = 'change log',
+          quit_noun = 'change log',
+        })
+        -- Esc / q quit the viewer. The shared confirm gate prompts only when
+        -- there are user-added markers to ship, then quits (VimLeavePre emits
+        -- to the sidecar). Buffer-local so confirm_quit gets this buffer.
+        for _, key in ipairs({ '<Esc>', 'q' }) do
+          vim.keymap.set('n', key, function() annotate.confirm_quit(args.buf) end,
+                         { buffer = args.buf, silent = true })
+        end
+      end
       M.start_refresh(args.buf)
     end,
   })
-
-  -- Esc / q quit the whole viewer (and its floating pane).
-  for _, key in ipairs({ '<Esc>', 'q' }) do
-    vim.keymap.set('n', key, '<cmd>qa!<cr>', { silent = true })
-  end
 end
 
 return M

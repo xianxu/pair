@@ -60,6 +60,48 @@ do
   os.remove(path)
 end
 
+-- #57 M2: changelog annotate wiring + reload-guard smoke. Drives the data path
+-- (attach → marker-as-text → emit) headlessly; the floating Alt+q prompt UI is
+-- the documented headless limit.
+do
+  local annotate = dofile(here .. 'annotate.lua')
+  local MARKER = '\240\159\164\150'  -- 🤖
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { '## 2026-06-12', '', '- M1 done for #53' })
+  vim.api.nvim_set_current_buf(buf)
+  M.setup(buf)
+  local pend = (os.getenv('TMPDIR') or '/tmp') .. '/pair-cl-annotate-test.md'
+  os.remove(pend)
+  annotate.attach({
+    bufnr = buf, pending_path = pend,
+    footer = false, source_label = 'change log', quit_noun = 'change log',
+  })
+  -- footer=false: no overall-comment affordance line appended.
+  check(vim.api.nvim_buf_line_count(buf) == 3, 'footer=false adds no affordance line')
+  -- Simulate Alt+q dropping a bare marker on line 3 (as buffer text), toggling
+  -- the read-only lock exactly as annotate's rewrite_line does.
+  vim.bo[buf].modifiable = true
+  vim.bo[buf].readonly = false
+  vim.api.nvim_buf_set_lines(buf, 2, 3, false, { '- M1 done for #53 ' .. MARKER .. '[why M1 first?]' })
+  vim.bo[buf].modifiable = false
+  vim.bo[buf].readonly = true
+  check(annotate.has_new_markers(buf) == true, 'has_new_markers true after add')
+  -- emit ships a source-tagged block to the sidecar the draft picks up.
+  annotate.emit(buf)
+  local got = table.concat(vim.fn.readfile(pend), '\n')
+  check(got:match('> %[change log%] .-why M1 first%?') ~= nil,
+    'sidecar block tagged with change-log source')
+  -- Reload guard (plan rev #3): with a marker present, the guard predicate skips
+  -- the distiller reload, so the marker text survives. Mirror safe_reload's gate.
+  local before = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  if not annotate.has_new_markers(buf) then M.reload(buf, pend) end
+  local after = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  check(vim.deep_equal(before, after),
+    'reload guard skips reload while a marker is present (marker survives)')
+  vim.b[buf].pair_annotate = false  -- stop the exit-time VimLeavePre re-emit
+  os.remove(pend)
+end
+
 if fails > 0 then
   io.stderr:write(string.format('changelog_test: %d failure(s)\n', fails))
   os.exit(1)
