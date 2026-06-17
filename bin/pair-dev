@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# pair-dev — dev-mode launcher: identical to `pair`, but rebuilds pair's Go
+# binaries from source on every launch AND every in-session restart, so the
+# zellij-spawned pair-wrap always matches the working tree (#000046).
+#
+# Why a separate entrypoint: the agent pane runs pair-wrap via a PATH lookup
+# (`sh -c '... exec pair-wrap ...'`) that no shell function or .zshenv can
+# intercept — so a stale, or gitignored-absent, repo/bin binary silently falls
+# through to an old ~/.local/bin copy and the wrapper drifts from source.
+# pair-dev exports PAIR_DEV=1 and hands off to `pair`, which (and only which)
+# owns the gated `make build` — see bin/lib/dev-rebuild.sh. PAIR_DEV survives
+# the `exec "$0"` that restart performs, so the rebuild re-fires on Alt+n /
+# Shift+Alt+N too. Deployed users keep running `pair` directly, with no
+# toolchain dependency.
+#
+# Usage: exactly `pair`'s — all args forward through.
+#   pair-dev            pair-dev codex      pair-dev -- --resume      etc.
+set -euo pipefail
+
+# Resolve this script's real directory (following symlinks) so a ~/.local/bin
+# or other PATH symlink to pair-dev still finds its sibling `pair` in the
+# source tree rather than next to the symlink.
+src="${BASH_SOURCE[0]}"
+while [ -L "$src" ]; do
+    dir="$(cd -P "$(dirname "$src")" && pwd)"
+    src="$(readlink "$src")"
+    case "$src" in /*) ;; *) src="$dir/$src" ;; esac
+done
+here="$(cd -P "$(dirname "$src")" && pwd)"
+
+# Exported (not a bare assignment) so it survives the exec chain — pair → the
+# zellij/sh launch → and crucially the `exec "$0"` that handle_restart_marker
+# performs on restart. dev_rebuild keys off exactly this.
+export PAIR_DEV=1
+exec "$here/pair" "$@"
