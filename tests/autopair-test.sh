@@ -16,6 +16,7 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 INIT="$ROOT/nvim/init.lua"
+. "$ROOT/tests/lib/run-headless.sh"   # run_headless: timeout watchdog (#60)
 RT="$(mktemp -d "${TMPDIR:-/tmp}/pair-autopair-test.XXXXXX")"
 trap 'rm -rf "$RT"' EXIT
 
@@ -61,12 +62,13 @@ for _, c in ipairs(cases) do
 end
 O:write('TOTAL_FAILS=' .. fails .. '\n')
 O:close()
-vim.cmd('qall')
+vim.cmd('qall!')  -- force: the driver dirties the buffer; bare qall → E37 → hang (#60)
 LUA
 
-PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=claude \
+run_headless --timeout 30 -- \
+  env PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=claude \
   nvim --headless -u "$INIT" "$RT/draft.md" \
-  -c "luafile $RT/driver.lua" >/dev/null 2>&1 || true
+  -c "luafile $RT/driver.lua"
 
 echo "autopair-test:"
 fails=0

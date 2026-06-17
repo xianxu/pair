@@ -1,7 +1,7 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
-.PHONY: build install pair-scribe pair-scrollback-render pair-wrap pair-slug pair-changelog test test-race test-lua test-queue test-autopair test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-continue test-changelog
+.PHONY: build install pair-scribe pair-scrollback-render pair-wrap pair-slug pair-changelog test test-race test-run-headless test-lua test-queue test-autopair test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-continue test-changelog
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
 # and ships with the `pair-` prefix so it doesn't collide with anything
@@ -55,11 +55,18 @@ pair-changelog:         $(BIN_DIR)/pair-changelog
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
-test: test-lua test-queue test-autopair test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-continue test-changelog
+test: test-run-headless test-lua test-queue test-autopair test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-continue test-changelog
 	go test ./... -count=1
 
 test-race:
 	go test -count=1 -race ./cmd/pair-wrap/
+
+# Self-test for the headless-nvim timeout watchdog (tests/lib/run-headless.sh,
+# #60). Runs FIRST in `test` so the safety net every headless-nvim sub-target
+# now relies on is proven before those targets run — without it, a driver that
+# fails to quit (bare `qall` on a modified buffer → E37) hangs the whole suite.
+test-run-headless:
+	bash tests/run-headless-test.sh
 
 # Headless Lua tests for nvim/*.lua decision modules (issue #000027). nvim -l
 # runs a Lua script in nvim's interpreter with the full vim.api available, so
