@@ -2127,6 +2127,16 @@ if [ "$AGENT" = "codex" ]; then
     export PAIR_AGENT_ARGS="$agent_extra"
 fi
 
+# Export the resolved session id (when known at launch) so the change log keys
+# its file set per-session (#63): a fresh session opens an empty log, a resume
+# reopens the same growing one. claude-fresh mints it ($new_sid, above) and a
+# resume pins it ($explicit_resume) — the Alt+n restart re-execs with --resume,
+# so it lands in the explicit_resume arm too. codex/agy fresh sessions discover
+# the id async via pair-session-watch.sh, so it is empty here; pair-changelog-open
+# and the draft nvim watcher fall back to reading .session_id from the per-tag
+# config. Inherited by every zellij pane (set before the launch below).
+export PAIR_SESSION_ID="${explicit_resume:-${new_sid:-}}"
+
 # Truncate the adaptation flight recorder for this session. Multiple
 # components (pair-wrap, pair-session-watch.sh, pair-slug, nvim) append one
 # JSON line per harness-adaptation trigger to this file during the run;

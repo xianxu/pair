@@ -132,6 +132,7 @@ test-continue:
 # they're absent, which would silently no-op in CI without these prereqs).
 test-changelog: $(BIN_DIR)/pair-changelog $(BIN_DIR)/pair-scrollback-render
 	sh tests/changelog-open-test.sh
+	sh tests/changelog-session-key-test.sh
 
 # pair-scribe — Go-based pty wrapper with SIGUSR1/SIGUSR2 pause/resume
 # of the typescript log. Replaces script(1) at the top of the user's

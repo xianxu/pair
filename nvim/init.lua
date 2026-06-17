@@ -2691,13 +2691,37 @@ pair_start_pending_fs_watch()
 -- whole job is to flash while the operator works in the *agent* pane (the draft
 -- statusline stays on screen), so it can't depend on focus. One fs_stat every
 -- 2s is negligible; the ≤2s latency is invisible against a slow background build.
+-- Resolve the change-log session id (#63): the env var bin/pair exports when the
+-- id is known at launch (claude-fresh / any resume), else the per-tag config the
+-- session watcher writes (codex/agy discover it async). Mirrors the env->config
+-- order in bin/pair-changelog-open so the polled .ready path matches the base the
+-- opener builds. A focused reader, not pair_read_saved_config() -- that one is
+-- defined later in this file (Lua local-function ordering) and also reads the
+-- agent-<tag> file, which is overkill here.
+local function pair_changelog_session_id(data_dir, tag, agent)
+  local sid = vim.env.PAIR_SESSION_ID
+  if sid and sid ~= '' then return sid end
+  local cf = io.open(data_dir .. '/config-' .. tag .. '-' .. agent .. '.json', 'r')
+  if not cf then return nil end
+  local body = cf:read('*a'); cf:close()
+  local ok, parsed = pcall(vim.json.decode, body)
+  if ok and type(parsed) == 'table' and parsed.session_id and parsed.session_id ~= '' then
+    return parsed.session_id
+  end
+  return nil
+end
+
 local function pair_start_changelog_ready_watch()
   local data_dir = vim.env.PAIR_DATA_DIR
     or ((vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/share')) .. '/pair')
   local tag = vim.env.PAIR_TAG or vim.env.PAIR_AGENT or 'claude'
   local agent = vim.env.PAIR_AGENT or 'claude'
-  local marker = data_dir .. '/changelog-' .. tag .. '-' .. agent .. '.ready'
   vim.fn.timer_start(2000, function()
+    -- Re-resolve each tick: a codex/agy id may land in the config mid-session.
+    local sid = pair_changelog_session_id(data_dir, tag, agent)
+    local base = data_dir .. '/changelog-' .. tag .. '-' .. agent
+    if sid then base = base .. '-' .. sid end
+    local marker = base .. '.ready'
     if not vim.loop.fs_stat(marker) then return end
     os.remove(marker) -- one-shot: consume the marker so the flash fires once
     pair_flash_notify('✓ change log ready · Alt+l')

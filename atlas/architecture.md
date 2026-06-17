@@ -430,8 +430,10 @@ one-liner.
   viewer doesn't stop the build.
 - **Notify (build-complete flash)** — a slow build is trigger-and-leave (press
   `Alt+l`, go back to the agent pane, return later), so the distiller drops a
-  `changelog-<tag>-<agent>.ready` marker on a **real-change** completion (not a
-  no-op press). The draft nvim (`nvim/init.lua`) polls for it on a 2s timer — NOT
+  `changelog-<tag>-<agent>[-<session_id>].ready` marker on a **real-change**
+  completion (not a no-op press; keyed per session — see State below, #63). The
+  draft nvim (`nvim/init.lua`) re-resolves the session id each tick and polls for
+  the matching marker on a 2s timer — NOT
   fs_event (macOS FSEvents from nvim is unreliable: EMFILE/nil-filename; the
   scrollback-pending watcher only survives that via a FocusGained fallback this
   signal can't use, since its job is to fire while focus is elsewhere) — and on
@@ -439,19 +441,31 @@ one-liner.
   ready · Alt+l`) for ~2s via `pair_flash_notify`, then reverts to the cheatsheet,
   consuming the marker (one-shot). The draft statusline is always on screen, so the
   flash lands while the operator works in the agent pane (#58).
-- **State** (`$PAIR_DATA_DIR`, per-tag-agent — matching the
-  `scrollback-<tag>-<agent>.raw` source): `changelog-<tag>-<agent>.md` (the log,
+- **State** (`$PAIR_DATA_DIR`, per `(tag, agent, session)` — the base is
+  `changelog-<tag>-<agent>-<session_id>`, keyed on the persisted agent session id
+  so a fresh session (Alt+Shift+N) starts an **empty** log and a resume (Alt+n)
+  reopens the **same growing** one; a different id is a different file, which *is*
+  the reset — and each session's own `.anchor` removes the cross-session
+  `FullRedistill` pile-up, #63). The id is resolved the same way by both builders
+  (the opener `bin/pair-changelog-open` and the draft-nvim `.ready` watcher):
+  the exported `PAIR_SESSION_ID` (set by `bin/pair` at launch for claude-fresh /
+  any resume) → the per-tag `config-<tag>-<agent>.json` `session_id` (the
+  `pair-session-watch.sh` codex/agy async path) → the **legacy unsuffixed base**
+  when no id is known (backward compat). Files off `<base>`: `.md` (the log,
   plain markdown; `## YYYY-MM-DD` day headers from real change-time when the
   session has `time` events, header-free bullets otherwise — #59), `.anchor` (`turns:<N>` header + content
   snippet), `.cleaned` (transient rendered TTY), `.status` (distiller batch
   progress), `.ready` (build-complete marker the draft statusline polls),
-  `.openlock` (viewer), `.distill.lock` (distiller PID).
+  `.openlock` (viewer), `.distill.lock` (distiller PID). (Old per-tag logs are
+  orphaned on the first post-#63 resume — harmless; reaping them is a follow-up.)
 
 Tests: pure core + a process-level fake-model integration test in
 `cmd/pair-changelog`; a headless viewer test (`nvim/changelog_test.lua`) and a
 headless statusline-flash test (`tests/changelog-notify-test.sh`, `make
-test-statusline`); an end-to-end orchestrator smoke (`tests/changelog-open-test.sh`,
-`make test-changelog`).
+test-statusline`, which also covers the watcher's per-session keying — legacy /
+`PAIR_SESSION_ID` / config-resolved, #63); an end-to-end orchestrator smoke
+(`tests/changelog-open-test.sh`) plus a focused per-session keying test
+(`tests/changelog-session-key-test.sh`), both under `make test-changelog`.
 
 ## Quit / restart semantics
 
