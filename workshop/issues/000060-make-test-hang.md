@@ -1,10 +1,10 @@
 ---
 id: 000060
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-06-14
-updated: 2026-06-14
+updated: 2026-06-16
 estimate_hours: 1
 ---
 
