@@ -4,12 +4,25 @@
 .openshell/.bootstrap/
 .openshell/.base-image-digest
 __pycache__/
-/bin/pair-scribe
-/bin/pair-scrollback-render
-/bin/pair-wrap
 .DS_Store
-/bin/sdlc
-bin/
+# bin/ holds BOTH built Go binaries (Makefile.local GO_BINS) AND pair's own
+# SHELL launcher scripts. The binaries are build output (ignored); the shell
+# scripts are SOURCE and stay tracked. Blanket-ignore is the safe default — a
+# newly built binary is never committed by accident — and the negations below
+# re-include the scripts by name/glob. (Restored after a 2026-06-16
+# propagate-base sweep git-rm'd these tracked scripts: the blanket bin/ ignore
+# made them look disposable. See workshop/issues #64.)
+bin/*
+!bin/*.sh
+!bin/pair
+!bin/pair-changelog-open
+!bin/pair-dev
+!bin/pair-help
+!bin/pair-notify
+!bin/pair-scrollback-open
+!bin/lib/
+bin/lib/*
+!bin/lib/*.sh
 cache/
 
 /AGENTS.md
