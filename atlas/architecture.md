@@ -429,8 +429,11 @@ one-liner.
   small per-agent model as the slug, generous output budget (2000 vs 64),
   `medium` verbosity.
 - **View** — `nvim/changelog.lua`: read-only (`modifiable=false`, `nofile`),
-  full-screen, `<Esc>`/`q` to quit, cursor at the newest entry, with a few
-  `syntax match` token highlights (`#NN`, `Mx`, `` `code` ``, `feature/…`). Opens
+  full-screen, cursor at the newest entry, with a few `syntax match` token
+  highlights (`#NN`, `Mx`, `` `code` ``, `feature/…`). `Alt+q` drops a 🤖-marker
+  question on a line/selection (the shared `nvim/annotate.lua` flow, #57) that
+  ships to the draft tagged `> [change log] …`; `<Esc>`/`q` confirm-if-markers
+  then quit (the shared `confirm_quit` gate). Opens
   instantly on the existing log, then **watches** the detached distiller: it polls
   the log file (reload per batch), the `.status` file (batch progress), and the
   `distill.lock` PID — showing a **spinner** as a bottom `virt_lines` extmark

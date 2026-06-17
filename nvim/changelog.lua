@@ -2,9 +2,10 @@
 --
 -- Loaded as `nvim -u nvim/changelog.lua <changelog-<tag>-<agent>.md>` by
 -- bin/pair-changelog-open. The distilled counterpart to scrollback.lua, but
--- much simpler: the buffer is plain markdown (no SGR reconstruction, no marker
--- system), so this is a read-only buffer plus a few token-colorizing syntax
--- rules for quick glancing.
+-- much simpler: the buffer is plain markdown (no SGR reconstruction), so this is
+-- a read-only buffer plus a few token-colorizing syntax rules for quick
+-- glancing. It shares the scrollback viewer's 🤖-marker Alt+q flow via
+-- nvim/annotate.lua (#57) — questions ship to the draft tagged `[change log]`.
 --
 -- It opens IMMEDIATELY on whatever log already exists, then runs the
 -- render+distill as a background job (via PAIR_CHANGELOG_* env from the
