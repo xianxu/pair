@@ -354,7 +354,14 @@ through real keymap callbacks (e.g. `queue-send-test.sh` exercising `<M-CR>` →
 action` shell-out in `nvim/init.lua` is guarded by `has_ui()`
 (`#vim.api.nvim_list_uis() > 0`) — headless nvim has no UI attached, so the
 guard turns those shell-outs into no-ops and test inputs never leak into the
-active agent pane (#000042).
+active agent pane (#000042). Every headless-nvim driver routes its boot through a
+shared timeout watchdog (`tests/lib/run-headless.sh`, `run_headless`) that bounds
+the boot, kills + returns `124` loud on overrun, and surfaces nvim output on
+failure — because a driver that dirties its buffer then runs bare `vim.cmd('qall')`
+hits `E37: No write since last change`, refuses to quit, and hangs `nvim --headless`
+forever (#000060). **Buffer-mutating headless drivers must `qall!`**; the watchdog's
+124-on-timeout contract is pinned by `tests/run-headless-test.sh` (the path a green
+suite can no longer exercise once `qall!` lands).
 
 ### Change log — `Alt+l`, `cmd/pair-changelog`, `nvim/changelog.lua` (issue #53)
 

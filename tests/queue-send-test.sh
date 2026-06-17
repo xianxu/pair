@@ -16,6 +16,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 INIT="$ROOT/nvim/init.lua"
+. "$ROOT/tests/lib/run-headless.sh"   # run_headless: timeout watchdog (#60)
 RT="$(mktemp -d "${TMPDIR:-/tmp}/pair-queue-test.XXXXXX")"
 trap 'rm -rf "$RT"' EXIT
 
@@ -41,9 +42,10 @@ setup() {
 # file the asserts below read. zellij send-to-agent calls fail harmlessly
 # headless (stderr swallowed) — only the file state matters here.
 run() {
-  PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=claude \
+  run_headless --timeout 30 -- \
+    env PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=claude \
     nvim --headless -u "$INIT" "$RT/draft-test.md" \
-    -c "luafile $RT/driver.lua" >/dev/null 2>&1 || true
+    -c "luafile $RT/driver.lua"
 }
 
 # A driver that navigates right $1 times then sends, and dumps state as
@@ -69,7 +71,7 @@ for body in (lc..'\n---\n'):gmatch('## %S+ %S+\n\n(.-)\n\n%-%-%-') do
   O:write('L '..body..'\n')
 end
 local d=io.open(dd..'/draft-test.md'); O:write('D '..((d and d:read('*a') or ''):gsub('%s+\$',''))..'\n'); if d then d:close() end
-O:close(); vim.cmd('qall')
+O:close(); vim.cmd('qall!')  -- force-quit the dirtied throwaway buffer (#60)
 LUA
 }
 

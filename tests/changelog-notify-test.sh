@@ -17,6 +17,7 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 INIT="$ROOT/nvim/init.lua"
+. "$ROOT/tests/lib/run-headless.sh"   # run_headless: timeout watchdog (#60)
 RT="$(mktemp -d "${TMPDIR:-/tmp}/pair-changelog-notify-test.XXXXXX")"
 trap 'rm -rf "$RT"' EXIT
 
@@ -61,12 +62,13 @@ local ok, err = pcall(function()
 end)
 if not ok then emit(false, 'driver-error: ' .. tostring(err)) end
 O:close()
-vim.cmd('qall')
+vim.cmd('qall!')  -- force: headless boot may dirty the buffer; bare qall → E37 → hang (#60)
 LUA
 
-PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=claude \
+run_headless --timeout 30 -- \
+  env PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=claude \
   nvim --headless -u "$INIT" "$RT/draft-test.md" \
-  -c "luafile $RT/driver.lua" >/dev/null 2>&1 || true
+  -c "luafile $RT/driver.lua"
 
 echo "changelog-notify-test:"
 if [ ! -f "$RT/result.txt" ]; then
