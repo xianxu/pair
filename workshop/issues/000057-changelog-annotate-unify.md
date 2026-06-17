@@ -1,11 +1,11 @@
 ---
 id: 000057
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-06-12
-updated: 2026-06-12
-estimate_hours:
+updated: 2026-06-17
+estimate_hours: 4.5
 ---
 
 # Alt+q annotation in change-log viewer + shared nvim/annotate.lua
