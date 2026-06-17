@@ -430,8 +430,10 @@ one-liner.
   viewer doesn't stop the build.
 - **Notify (build-complete flash)** — a slow build is trigger-and-leave (press
   `Alt+l`, go back to the agent pane, return later), so the distiller drops a
-  `changelog-<tag>-<agent>.ready` marker on a **real-change** completion (not a
-  no-op press). The draft nvim (`nvim/init.lua`) polls for it on a 2s timer — NOT
+  `changelog-<tag>-<agent>[-<session_id>].ready` marker on a **real-change**
+  completion (not a no-op press; keyed per session — see State below, #63). The
+  draft nvim (`nvim/init.lua`) re-resolves the session id each tick and polls for
+  the matching marker on a 2s timer — NOT
   fs_event (macOS FSEvents from nvim is unreliable: EMFILE/nil-filename; the
   scrollback-pending watcher only survives that via a FocusGained fallback this
   signal can't use, since its job is to fire while focus is elsewhere) — and on

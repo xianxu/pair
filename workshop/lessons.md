@@ -328,3 +328,32 @@ restart. Use `milestone-close` for a reviewed boundary.
    (safe default: a new build artifact is never committed by accident) while source
    is provably tracked. A blanket `bin/` relied on "gitignore doesn't untrack
    already-tracked files," which is exactly the invariant a `git rm` sweep breaks.
+
+## #63 — when a spec keys behavior on an identifier, check WHEN that id exists on every path
+
+1. **An identifier's *availability timing* can differ across code paths — confirm
+   it before you make it a key.** #63's spec keyed the change-log on `session_id`,
+   framing it as "minted on a fresh start." True for **claude** (pre-injected
+   `--session-id` at launch) and **any resume** (`--resume <id>` on argv) — but a
+   **codex/agy fresh session has no such flag**: the id is discovered *async* by
+   `pair-session-watch.sh` and written to the config ~seconds *after* zellij/nvim
+   already started. A design that read the id only from a launch-time env var would
+   silently mis-key (or skip keying) for those agents. **Rule:** before keying
+   anything on an id, trace every code path that produces it and ask "is it known
+   *here, now*?" — synchronous for one path ≠ synchronous for all.
+2. **Make the canonical store the source of truth; the env var is a fast-path
+   cache, not a second fact.** Resolution order in *both* consumers (shell opener +
+   Lua watcher) is `PAIR_SESSION_ID → per-tag config → none`. The config (which the
+   watcher writes for the async agents) is authoritative; the exported env var is a
+   launch-time optimization that just happens to be present for the sync paths.
+   This keeps ARCH-DRY (one fact) while still covering the async case — and the
+   nvim watcher **re-resolves each tick** so a late-landing id is picked up without
+   a restart. **Rule:** when an env var and a file both hold "the same" value,
+   pick one as canonical and make the other an explicit cache with a fallback.
+3. **Decline a cosmetic transform that introduces a correctness risk that didn't
+   exist.** The spec offered "truncate/hash the uuid for the filename (cosmetic)."
+   Truncating buys a shorter name but adds a (tiny) collision risk and a transform
+   to keep in sync across two languages. Full uuids are path-safe and ~36 chars —
+   under any limit. **Rule:** "cosmetic" suggestions that trade away a correctness
+   invariant (here: zero-collision keys) for nothing the user sees should be
+   declined and the decision logged, not adopted by default.
