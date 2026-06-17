@@ -284,3 +284,23 @@ restart. Use `milestone-close` for a reviewed boundary.
    model. **Rule:** "processed up to here" and "the output changed" are different
    facts — advance the position marker when you've consumed the input; gate only
    the user-visible side effect (the notification) on an actual change.
+
+## #60 — a stuck headless-nvim boot hangs the whole suite (boundary review: §4/§8)
+
+1. **A buffer-mutating headless driver must `qall!`, not `qall`.** A driver that
+   modifies its buffer (`nvim_buf_set_lines`) then ends in bare `vim.cmd('qall')`
+   hits `E37: No write since last change`, refuses to quit, and `nvim --headless`
+   blocks in its main loop **forever** — even with stdin=`/dev/null`. One such
+   driver hung `make test` for 12m54s and leaked week-old nvim corpses. **Rule:**
+   any headless driver that mutates a buffer ends in `qall!`; the hazard is latent
+   across drivers — audit *every* sibling, don't fix only the one that bit.
+2. **Never run a subprocess boot unbounded in a test suite.** Bound it with a
+   timeout watchdog that fails loud (kill + exit 124 + diagnostic naming the issue),
+   and don't `>/dev/null 2>&1 || true` it — that swallows both the hang and the boot
+   error (`tests/lib/run-headless.sh`). Reproduce a suspected hang *streaming*, not
+   through `… | tail`, which buffers until EOF and makes a progressing run look
+   frozen.
+3. **When a fix removes the only trigger of a safety path, pin that path with a
+   fixture.** Once `qall!` lands, a green `make test` never exercises the watchdog's
+   timeout branch — so the contract is pinned directly with a deliberate-hang
+   fixture (`tests/run-headless-test.sh`), else the safety net ships unproven.

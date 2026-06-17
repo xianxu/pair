@@ -1,11 +1,12 @@
 ---
 id: 000060
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-14
 updated: 2026-06-16
 estimate_hours: 1
+actual_hours: 0.78
 ---
 
 # full make test hangs as an aggregate run
@@ -57,9 +58,13 @@ e2e + a live `Alt+l` test all pass). This is test-infra hygiene.
 
 ## Plan
 
-- [ ] Bisect: per-target timeout run to identify the stalling target.
-- [ ] Fix the root cause (likely build-once for the in-test `go build`s).
-- [ ] Confirm `make test` runs green end-to-end, timed.
+- [x] Fix root cause: `tests/autopair-test.sh` driver `qall` → `qall!`.
+- [x] Add a shared timeout watchdog (`tests/lib/run-headless.sh`) so a stuck
+      headless nvim fails loud instead of hanging the suite; route all 4
+      headless-nvim tests through it.
+- [x] Audit + fix the latent `qall` in the other 3 drivers (queue-send,
+      statusline-pos, changelog-notify).
+- [x] Confirm `make test` runs green end-to-end, timed, with streamed output.
 
 ## Log
 
@@ -69,3 +74,38 @@ e2e + a live `Alt+l` test all pass). This is test-infra hygiene.
   `make test` stalls. Leading hypothesis: concurrent in-test `go build`
   (`buildBinary`/`buildRender`) under the recipe's parallel `go test ./...`.
   Note the `| tail` buffering confounder when reproducing — stream the output.
+
+### 2026-06-16 — root cause found; the go-build hypothesis was WRONG
+- 2026-06-16: closed — make test green in ~34s (was a 12m54s hang on test-autopair); fix is qall→qall\! in autopair + 3 audited sibling drivers, all routed through the new shared timeout watchdog tests/lib/run-headless.sh whose self-test pins the 124-on-timeout contract; test-infra hygiene with no new architectural surface → --no-atlas; review verdict: FIX-THEN-SHIP
+
+- **The `go build` contention hypothesis is wrong.** `go test ./... -count=1`
+  completes in ~14.7s (warm cache); `pair-changelog` is the long pole at ~14s
+  (16 redundant in-test `go build`s) but that's *slow, not a hang*.
+- **Real culprit: `make test-autopair` hangs forever — confirmed in isolation**
+  (>15s, killed). A full `make test` run hung **12m54s** on `test-autopair`
+  before I killed it; a **7-day-old** leaked `nvim --headless … init.lua …
+  autopair` corpse was still in the process table (this recurs + leaks zombies).
+  Note: the issue's "passes directly" list never actually included
+  `test-autopair`.
+- **Root cause (A/B proven):** `tests/autopair-test.sh`'s driver ends with
+  `vim.cmd('qall')` (no bang, line 64) but modifies the buffer via
+  `nvim_buf_set_lines` for every case and never saves. `qall` → `E37: No write
+  since last change` → refuses to quit → headless nvim blocks in its main loop
+  forever (even with stdin=/dev/null). `qall!` exits clean (code 0).
+- **Two defects:** (1) the `qall`→E37 hang; (2) no timeout watchdog — *why* a
+  one-char bug freezes the whole suite for 13 min and leaks nvims for days.
+  Same latent `qall` hazard sits in 3 sibling drivers (queue-send passes today
+  only because its send path saves the buffer).
+- Fix scope (operator-approved): root cause + shared watchdog + audit all 4.
+
+### 2026-06-16 — fix landed; suite green
+
+- All 4 Plan items done in-tree: `qall`→`qall!` in autopair + the 3 audited
+  siblings (queue-send, statusline-pos, changelog-notify), each now routed
+  through the new shared watchdog `tests/lib/run-headless.sh`; `make test` wires
+  `test-run-headless` first; `tests/run-headless-test.sh` pins the watchdog
+  contract (clean exit → 0 quiet; modified-buffer bare-`qall` → `124` ≤ timeout,
+  loud, names #60; generic non-terminating child → `124`).
+- **Verified green, streamed, timed:** `make -f Makefile.local test` completes in
+  **~34s** (was a **12m54s** hang on `test-autopair`); `test-run-headless` and
+  `test-autopair` both pass. Done-when satisfied.
