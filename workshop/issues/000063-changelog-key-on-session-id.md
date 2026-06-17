@@ -1,11 +1,12 @@
 ---
 id: 000063
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-16
 updated: 2026-06-17
 estimate_hours: 2
+actual_hours: 0.66
 ---
 
 # key the changelog on session_id so a fresh session starts a fresh changelog
@@ -80,14 +81,14 @@ reaping the old per-session files is a noted follow-up, not in scope.
 
 ## Plan
 
-- [ ] Export `PAIR_SESSION_ID` to the session env from `bin/pair` (reuse the
+- [x] Export `PAIR_SESSION_ID` to the session env from `bin/pair` (reuse the
       `.session_id` it already reads from the per-tag config).
-- [ ] Key the changelog base on `<tag>-<agent>-<session_id>` (truncate/hash the
-      uuid for the path) in `bin/pair-changelog-open`; update the draft-nvim
+- [x] Key the changelog base on `<tag>-<agent>-<session_id>` (full uuid — see Log,
+      truncation declined) in `bin/pair-changelog-open`; update the draft-nvim
       `.ready` watcher path (`nvim/init.lua` `pair_start_changelog_ready_watch`).
-- [ ] Tests: fresh → new/empty changelog, resume → same changelog; update the
+- [x] Tests: fresh → new/empty changelog, resume → same changelog; update the
       e2e/render tests for the new base.
-- [ ] Atlas: note the per-session keying in the Change-log section of
+- [x] Atlas: note the per-session keying in the Change-log section of
       `atlas/architecture.md`.
 
 ## Log
@@ -100,3 +101,32 @@ reaping the old per-session files is a noted follow-up, not in scope.
   already turns over on fresh-vs-resume); rejected coupling-to-scrollback (too
   granular) and a parallel epoch token (duplicates session_id). Old-per-session-
   file reaping deferred. **Not started.**
+
+### 2026-06-17 — implemented (durable plan: `workshop/plans/000063-…-plan.md`)
+- 2026-06-17: closed — Fresh session opens an empty change log; resume reopens the same growing one — pair-changelog-open and the draft-nvim .ready watcher both resolve session_id (PAIR_SESSION_ID -> per-tag config -> legacy unsuffixed) to the keyed base. Full `make test` green, incl. new tests/changelog-session-key-test.sh (fresh/resume/config-fallback/legacy) and extended changelog-notify-test.sh driving the watcher legacy/env/config branches.; review verdict: SHIP
+- **Key discovery beyond the spec:** session_id is known at `bin/pair` launch
+  **only** for claude-fresh (minted via `uuidgen --session-id`) and **any resume**
+  (`--resume <id>`, incl. the Alt+n restart re-exec). For a **codex/agy fresh
+  session there is no `--session-id` flag** — the id is discovered *async* by
+  `pair-session-watch.sh` and written to the config *after* zellij/nvim start. So
+  the per-tag **config is the canonical source** (ARCH-DRY, reusing the existing
+  `jq -r '.session_id // empty'` idiom); `PAIR_SESSION_ID` is a launch-time fast
+  path. Both consumers resolve `PAIR_SESSION_ID → config → none`; the nvim watcher
+  re-resolves each tick so a late codex/agy id is picked up without a restart.
+- **Truncation declined (spec said "truncate/hash the uuid").** All three agents'
+  ids are path-safe `8-4-4-4-12` hex uuids (~36 chars; total path well under any
+  limit). Truncating would introduce a (tiny) collision risk that doesn't exist
+  today for a cosmetic gain on a non-user-facing data-dir filename — Root-Cause /
+  Simplicity-First. Kept the **full uuid**; no truncation logic to duplicate
+  across the shell + Lua builders.
+- **Backward compat:** no id ⇒ the legacy unsuffixed base `changelog-<tag>-<agent>`,
+  so pre-existing logs/tests stay valid. Accepted caveat: the first resume after
+  this orphans any pre-#63 per-tag log (harmless — that's the accreting pile #63
+  targets; reaping deferred).
+- **Tests:** new `tests/changelog-session-key-test.sh` (fresh/resume/config-fallback/
+  legacy via a fake nvim) under `make test-changelog`; extended
+  `tests/changelog-notify-test.sh` to drive the watcher's legacy/env/config branches
+  in one boot via `vim.env` mutation (closes the config-fallback coverage gap the
+  plan-quality judge flagged). Full `make test` green.
+- **Reviews:** plan-quality judge `VERDICT: INFO` (high confidence, all claims
+  verified); fresh-eyes plan review **Approved**.
