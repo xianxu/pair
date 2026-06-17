@@ -2,9 +2,10 @@
 --
 -- Loaded as `nvim -u nvim/changelog.lua <changelog-<tag>-<agent>.md>` by
 -- bin/pair-changelog-open. The distilled counterpart to scrollback.lua, but
--- much simpler: the buffer is plain markdown (no SGR reconstruction, no marker
--- system), so this is a read-only buffer plus a few token-colorizing syntax
--- rules for quick glancing.
+-- much simpler: the buffer is plain markdown (no SGR reconstruction), so this is
+-- a read-only buffer plus a few token-colorizing syntax rules for quick
+-- glancing. It shares the scrollback viewer's 🤖-marker Alt+q flow via
+-- nvim/annotate.lua (#57) — questions ship to the draft tagged `[change log]`.
 --
 -- It opens IMMEDIATELY on whatever log already exists, then runs the
 -- render+distill as a background job (via PAIR_CHANGELOG_* env from the
@@ -16,6 +17,17 @@
 -- (`nvim -l`) without launching the interactive UI / background job.
 
 local M = {}
+
+-- Shared 🤖-marker subsystem (#57): the same Alt+q annotate flow + draft-sidecar
+-- emit the scrollback viewer uses. Loaded dir-relative (same pattern as the
+-- scrollback viewer) since this file is launched via `nvim -u changelog.lua` and
+-- may not have nvim/ on its runtimepath.
+local annotate
+do
+  local src = debug.getinfo(1, 'S').source:sub(2)
+  local dir = src:match('(.*/)') or './'
+  annotate = dofile(dir .. 'annotate.lua')
+end
 
 -- colorize applies the glance-token highlights to bufnr. Runs inside the
 -- buffer's context so `:syntax match` targets the right buffer.
@@ -97,6 +109,18 @@ function M.start_refresh(bufnr)
   -- the existing log; nvim already loaded it and M.setup ran.
   if not distiller_alive() then return end
 
+  -- Reload guard (#57): the distiller's M.reload replaces ALL lines, which would
+  -- wipe a 🤖-marker the user added during the spinner (markers are buffer text).
+  -- Skip the reload when annotations are present — they win; the fresh log is on
+  -- disk and appears on the next Alt+l. After a reload that DID run, realign the
+  -- baseline + re-highlight via annotate.on_reloaded. Defined before
+  -- reload_if_changed so that closure can capture it.
+  local function safe_reload()
+    if annotate.has_new_markers(bufnr) then return end
+    M.reload(bufnr, log)
+    annotate.on_reloaded(bufnr)
+  end
+
   local first_run = vim.api.nvim_buf_line_count(bufnr) <= 1
     and (vim.api.nvim_buf_get_lines(bufnr, 0, 1, false)[1] or '') == ''
   local msg = first_run and 'Computing change log…' or 'Refreshing change log…'
@@ -122,7 +146,7 @@ function M.start_refresh(bufnr)
     local key = st.mtime.sec .. '.' .. st.mtime.nsec .. '.' .. st.size
     if key ~= last_key then
       last_key = key
-      M.reload(bufnr, log)
+      safe_reload()
     end
   end
 
@@ -151,7 +175,7 @@ function M.start_refresh(bufnr)
     else
       read_status() -- catch a final error line
       reload_if_changed()
-      M.reload(bufnr, log)
+      safe_reload()
       if err then
         tip('  ⚠  change log refresh failed: ' .. err, 'ErrorMsg')
       else
@@ -165,6 +189,48 @@ function M.start_refresh(bufnr)
   timer = vim.fn.timer_start(120, poll, { ['repeat'] = -1 })
 end
 
+-- on_buf_enter is the viewer's BufReadPost/BufWinEnter handler — sets the buffer
+-- up read-only and wires the shared Alt+q annotate flow. Returns true if it set
+-- the buffer up, false if it skipped. Exported so the headless test can drive
+-- the buffer-discrimination guard.
+--
+-- CRITICAL (#57 follow-up): the autocmd below has NO `pattern`, so it fires for
+-- EVERY buffer shown in a window — including annotate's floating Alt+q prompt,
+-- an unnamed scratch buffer whose display triggers BufWinEnter. Without this
+-- guard, M.setup would lock that prompt `modifiable=false` and the user couldn't
+-- type their comment. The real change-log buffer is the one nvim was launched
+-- with (`nvim -u changelog.lua <log>`) — it carries a file name; the scratch
+-- prompt does not. (The scrollback viewer dodges this only because its autocmd
+-- is BufReadPost-only, which a scratch buffer never fires.)
+function M.on_buf_enter(buf)
+  if vim.api.nvim_buf_get_name(buf) == '' then return false end
+  M.setup(buf)
+  -- Wire the shared Alt+q annotate flow once (this fires on both BufReadPost and
+  -- BufWinEnter; attach sets the pair_annotate sentinel). footer=false: no
+  -- overall-comment affordance line (scrollback-only). source_label tags each
+  -- shipped question `> [change log] …` so the agent knows it's about a logged
+  -- milestone vs raw scrollback. Same sidecar the draft picks up on FocusGained
+  -- — zero new plumbing. attach runs BEFORE start_refresh so the reload guard's
+  -- state[bufnr] exists.
+  if not vim.b[buf].pair_annotate then
+    annotate.attach({
+      bufnr = buf,
+      pending_path = annotate.default_pending_path(),
+      footer = false,
+      source_label = 'change log',
+      quit_noun = 'change log',
+    })
+    -- Esc / q quit the viewer via the shared confirm gate (prompts only when
+    -- there are user-added markers to ship, then quits — VimLeavePre emits to
+    -- the sidecar). Buffer-local so confirm_quit gets this buffer.
+    for _, key in ipairs({ '<Esc>', 'q' }) do
+      vim.keymap.set('n', key, function() annotate.confirm_quit(buf) end,
+                     { buffer = buf, silent = true })
+    end
+  end
+  return true
+end
+
 -- Interactive wiring — skipped under the headless test (which sets the guard).
 if not _G.PAIR_CHANGELOG_TEST then
   vim.opt.number = false
@@ -174,16 +240,11 @@ if not _G.PAIR_CHANGELOG_TEST then
 
   vim.api.nvim_create_autocmd({ 'BufReadPost', 'BufWinEnter' }, {
     callback = function(args)
-      M.setup(args.buf)
-      vim.cmd('normal! G') -- newest entry at the bottom
+      if not M.on_buf_enter(args.buf) then return end  -- skip the Alt+q prompt etc.
+      vim.cmd('normal! G')  -- newest entry at the bottom
       M.start_refresh(args.buf)
     end,
   })
-
-  -- Esc / q quit the whole viewer (and its floating pane).
-  for _, key in ipairs({ '<Esc>', 'q' }) do
-    vim.keymap.set('n', key, '<cmd>qa!<cr>', { silent = true })
-  end
 end
 
 return M

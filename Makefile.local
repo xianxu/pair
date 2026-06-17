@@ -74,6 +74,7 @@ test-run-headless:
 test-lua:
 	nvim -l nvim/slug_test.lua
 	nvim -l nvim/scrollback_test.lua
+	nvim -l nvim/annotate_test.lua
 	nvim -l nvim/changelog_test.lua
 	nvim -l nvim/adapt_test.lua
 	nvim -l nvim/doctor_test.lua

@@ -98,6 +98,36 @@ else
   io.stderr:write('WARN: vim.api unavailable — prompt pattern tests skipped\n')
 end
 
+-- Wiring smoke (#57): annotate.attach with scrollback's config (footer=true, no
+-- source_label) must emit the LEGACY un-prefixed `> quote` format — proof the
+-- extraction is behavior-preserving. Drives the data path (attach → marker-as-
+-- text → emit); the interactive floating prompt is the documented headless limit.
+if vim and vim.api then
+  local annotate = dofile(here .. 'annotate.lua')
+  local MARKER = '\240\159\164\150'  -- 🤖
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'line one', 'line two' })
+  vim.api.nvim_set_current_buf(buf)
+  local pend = (os.getenv('TMPDIR') or '/tmp') .. '/pair-sb-annotate-test.md'
+  os.remove(pend)
+  annotate.attach({ bufnr = buf, pending_path = pend, footer = true, quit_noun = 'scrollback' })
+  eq(vim.api.nvim_buf_line_count(buf), 3, 'scrollback attach appends footer affordance line')
+  -- Simulate Alt+q dropping a bare marker on line 1 (as buffer text). Toggle
+  -- BOTH modifiable + readonly, exactly as annotate's rewrite_line does.
+  vim.bo[buf].modifiable = true
+  vim.bo[buf].readonly = false
+  vim.api.nvim_buf_set_lines(buf, 0, 1, false, { 'line one ' .. MARKER .. '[why?]' })
+  vim.bo[buf].modifiable = false
+  vim.bo[buf].readonly = true
+  eq(annotate.has_new_markers(buf), true, 'scrollback has_new_markers true after add')
+  annotate.emit(buf)
+  local got = table.concat(vim.fn.readfile(pend), '\n')
+  eq(got:match('> line one\nwhy%?') ~= nil, true, 'scrollback emit = legacy un-prefixed format')
+  eq(got:match('%[change log%]') == nil, true, 'scrollback emit has NO source label')
+  vim.b[buf].pair_annotate = false  -- stop the exit-time VimLeavePre re-emit
+  os.remove(pend)
+end
+
 if fails > 0 then
   io.stderr:write(fails .. ' failure(s)\n')
   os.exit(1)

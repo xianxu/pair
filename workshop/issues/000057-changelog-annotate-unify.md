@@ -1,11 +1,12 @@
 ---
 id: 000057
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-12
 updated: 2026-06-17
 estimate_hours: 4.5
+actual_hours: 0.55
 ---
 
 # Alt+q annotation in change-log viewer + shared nvim/annotate.lua
@@ -98,10 +99,31 @@ raw scrollback — this is the "differentiate source" ask.
 
 ## Plan
 
-- [ ]
+Durable design: `workshop/plans/000057-changelog-annotate-unify-plan.md` (authored
+via superpowers-writing-plans; fresh-eyes reviewed — all 4 critical design claims
+verified, blocking Makefile-registration gap fixed). Two review boundaries:
+
+- [x] M1 — Extract `nvim/annotate.lua` (pure marker core + IO/UI seam behind
+  `attach{bufnr,pending_path,footer,source_label}`), refactor `scrollback.lua`
+  onto it with **no behavior change**; new `annotate_test.lua` (registered in
+  `Makefile.local` test-lua) covers the pure core; `scrollback_test.lua` stays
+  green as the regression net. (ARCH-DRY: one marker subsystem; ARCH-PURE: pure
+  core unit-tested without mocks.)
+- [x] M2 — Wire `changelog.lua` through annotate: `Alt+q` normal+visual, emit
+  tagged `> [change log] …` (per-quote prefix so `init.lua`'s `\n> ` pickup-count
+  stays correct), and the async-reload guard (`has_new_markers`/`on_reloaded`) so a
+  marker added during the spinner survives the distiller's reload; changelog
+  smoke test; atlas update for the new shared surface.
 
 ## Log
 
+- 2026-06-17: **live dogfood PASSED → pre-merge gate cleared.** Operator confirmed the change-log `Alt+q` prompt is now typeable and the question lands in the draft. This closes the integration review's one Important finding (interactive floating-prompt path unverified end-to-end). Clear to merge.
+- 2026-06-17: **dogfood bug + fix (post-close, pre-merge).** Operator's live pass: in the change-log viewer, Alt+q popped the prompt but it was un-typeable (modifiable=off). Root cause: the changelog autocmd fires on `BufWinEnter` with **no pattern**, so it also caught annotate's floating-prompt scratch buffer and ran `M.setup` on it → locked it read-only. (Scrollback dodged this — its autocmd is BufReadPost-only, which scratch buffers never fire; M2 wiring exposed the latent gap.) Fix: extracted `M.on_buf_enter(buf)` that **skips unnamed buffers** (the prompt has no file name; the real log buffer does) — only the named change-log buffer gets locked. Regression test added (unnamed scratch → skipped + stays modifiable; named → set up read-only). make test-lua green. This was exactly the interactive-path gap the integration review flagged — live dogfooding caught it.
+- 2026-06-17: closed — Issue done-when met: (1) Alt+q in the change-log viewer drops a 🤖-marker (normal+visual) and on quit ships to the draft via the pending sidecar tagged "> [change log] …"; (2) marker machinery lives once in nvim/annotate.lua, scrollback.lua refactored onto it (SGR+header byte-identical to pre-refactor) with scrollback_test green; (3) a marker added during the async spinner survives the distiller reload (safe_reload/has_new_markers guard, asserted in changelog_test); (4) annotate_test covers the pure marker core, scrollback+changelog each have a wiring smoke. make test-lua all green (6 suites). Both milestones reviewed: M1 SHIP, M2 FIX-THEN-SHIP (minors applied).; review verdict: FIX-THEN-SHIP
+- 2026-06-17: closed M2 — make test-lua all green (6 suites incl. annotate + changelog smoke). M2 wires changelog viewer to annotate.attach{footer=false, source_label="change log"}; smoke asserts footer=false adds no affordance line, emit ships a "> [change log] …" source-tagged block (per-quote prefix keeps init.lua \n> pickup-count faithful), and the reload guard skips the distiller reload while a marker is present so it survives. Esc/q route through shared confirm_quit. Both viewers now share one marker subsystem (ARCH-DRY); pure core tested without mocks (ARCH-PURE). Atlas updated. Headless limit documented: floating Alt+q prompt UI covered via pure-core + attach->emit data path, not a driven UI.
+- 2026-06-17: M2 boundary review = **FIX-THEN-SHIP (high)** — no Critical/Important; reload-guard correctness + per-quote-prefix count + idempotent re-attach all verified by the reviewer. Two Minor doc-hygiene fixes applied before close: (1) changelog.lua header no longer claims "no marker system"; (2) atlas Change-log "View" bullet now documents the Alt+q affordance + confirm-if-markers quit.
+- 2026-06-17: closed M1 — make test-lua all green (slug/scrollback/annotate/changelog/adapt/doctor). Extraction behavior-preserving: scrollback.lua SGR+header (lines 1-267) and final-opts tail byte-identical to pre-refactor (diff IDENTICAL); scrollback_test prompt-pattern green; new attach->emit wiring smoke asserts scrollback emit keeps legacy un-prefixed "> quote" format, no source label. annotate_test covers the pure marker core directly, no mocks (ARCH-PURE). Atlas maps the new annotate.lua surface.; review verdict: SHIP
+- 2026-06-17: M1 boundary review = **SHIP (high)** — independently byte-diffed every moved fn vs base, all 10 pure fns byte-identical, others differ only by documented changes; no Critical/Important. Minors addressed/noted: (2) VimLeavePre multi-buffer behavior now commented in annotate.lua; (3) the live interactive Alt+q parity check (plan Task 1.3 Step 4) couldn't run in this headless env — superseded by the byte-level diff + the attach→emit wiring smoke; the floating-prompt UI remains the documented headless limit (verify live before final ship).
 ### 2026-06-12
 
 - Split out of #53 (operator). Design sketched during #53 (see its Log

@@ -357,3 +357,27 @@ restart. Use `milestone-close` for a reviewed boundary.
    under any limit. **Rule:** "cosmetic" suggestions that trade away a correctness
    invariant (here: zero-collision keys) for nothing the user sees should be
    declined and the decision logged, not adopted by default.
+
+## A no-`pattern` nvim autocmd on `BufWinEnter` fires for scratch/floating buffers too
+
+`nvim/changelog.lua`'s viewer-setup autocmd was registered on
+`{ 'BufReadPost', 'BufWinEnter' }` with **no `pattern`**. That matches every
+buffer shown in a window. When #57 added the shared `Alt+q` annotate flow, its
+floating prompt — a nameless scratch buffer (`nvim_create_buf(false, true)`) —
+triggered `BufWinEnter` on display, so the viewer callback ran `M.setup` on the
+*prompt* and locked it `modifiable=false`. The dialog appeared but was
+un-typeable. The scrollback viewer dodged the identical bug only by accident:
+its autocmd is `BufReadPost`-only, and a scratch buffer (created + `set_lines`,
+never read from a file) never fires `BufReadPost`. Found in operator live
+dogfooding, not by any headless test.
+
+**Rule.** A read-only viewer's setup autocmd must only act on *its own* buffer,
+not every buffer that enters a window. `BufWinEnter` in particular fires for
+floating prompts, plugin scratch panes, etc. Guard the callback — discriminate
+on a stable property of the real target (here: the change-log buffer is the
+named file nvim was launched with, so `nvim_buf_get_name(buf) == ''` → skip the
+scratch prompt) and early-return for anything else. Extract the guard into a
+testable function (`M.on_buf_enter` returns true/false) so a headless test can
+assert the skip path even when the floating UI itself can't be driven. Whenever
+you add a floating/scratch UI inside a buffer-scoped viewer, re-check every
+`BufWinEnter`/`BufEnter`/`WinEnter` autocmd in that viewer for this collision.
