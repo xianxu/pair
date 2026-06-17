@@ -1397,7 +1397,7 @@ cleanup_quit_marker() {
         rm -f "$marker"
         # Capture the agent BEFORE the file is cleared below, so the resume
         # hint can name the right binary.
-        local quit_agent _sb_base _parked _ans _pbase   # #52: keep park-nudge vars function-scoped
+        local quit_agent _sb_base _parked _ans _pbase _ptimeout   # #52: keep park-nudge vars function-scoped
         quit_agent=$(cat "$DATA_DIR/agent-${PAIR_TAG}" 2>/dev/null || echo "$AGENT")
         zj delete-session "$SESSION" --force >/dev/null 2>&1 || true
         # Defensive belt-and-suspenders: if a zellij --server process for this
@@ -1425,17 +1425,31 @@ cleanup_quit_marker() {
         # Also de-noises the inherited Alt+n / Shift+Alt+N restart paths.
         if [ -s "${_sb_base}.raw" ] && [ -t 0 ] \
             && [ ! -f "$HOME/.cache/pair/restart-$SESSION" ]; then
-            printf 'pair: preserve "%s" scrollback to distill into a continuation later? [y/N]: ' "$SESSION" >/dev/tty
-            if read -r _ans </dev/tty && { [ "$_ans" = "y" ] || [ "$_ans" = "Y" ]; }; then
-                # park_scrollback (move mode — session is dying) handles the
-                # .raw/.events.jsonl rename + parked-<tag> marker (#55 ARCH-DRY).
-                # The parked file is RAW VT bytes in the XDG data dir, NOT in the
-                # repo — the durable continuation doc is written later when a
-                # live agent renders + distills it.
-                if _pbase="$(park_scrollback "$PAIR_TAG" "$quit_agent")"; then
-                    _parked=1
-                    printf 'pair: scrollback preserved at\n        %s.raw\n      open a session and "park %s" to distill it into a continuation.\n' "$_pbase" "$SESSION" >/dev/tty
+            # Bound the nudge with a timeout (default 5s, PAIR_PARK_PROMPT_TIMEOUT
+            # seam) so an unattended quit auto-picks the default (N) instead of
+            # blocking forever. read -t exits non-zero on timeout/EOF, so only the
+            # `then` branch (read SUCCEEDED) consults the answer — any partial
+            # input bash 4+ leaves in $_ans on timeout is never read as a "yes".
+            # Guard a non-integer seam value (bash 3.2 `read -t` needs an integer).
+            _ptimeout="${PAIR_PARK_PROMPT_TIMEOUT:-5}"
+            case "$_ptimeout" in ''|*[!0-9]*) _ptimeout=5 ;; esac
+            printf 'pair: preserve "%s" scrollback to distill into a continuation later? [y/N] (%ss → N): ' "$SESSION" "$_ptimeout" >/dev/tty
+            if read -t "$_ptimeout" -r _ans </dev/tty; then
+                if [ "$_ans" = "y" ] || [ "$_ans" = "Y" ]; then
+                    # park_scrollback (move mode — session is dying) handles the
+                    # .raw/.events.jsonl rename + parked-<tag> marker (#55 ARCH-DRY).
+                    # The parked file is RAW VT bytes in the XDG data dir, NOT in the
+                    # repo — the durable continuation doc is written later when a
+                    # live agent renders + distills it.
+                    if _pbase="$(park_scrollback "$PAIR_TAG" "$quit_agent")"; then
+                        _parked=1
+                        printf 'pair: scrollback preserved at\n        %s.raw\n      open a session and "park %s" to distill it into a continuation.\n' "$_pbase" "$SESSION" >/dev/tty
+                    fi
                 fi
+            else
+                # Timed out / EOF: no Enter was consumed, so close the
+                # un-terminated prompt line before the cleanup output below.
+                printf '\n' >/dev/tty
             fi
         fi
         rm -f "$DATA_DIR/outer-tty-${PAIR_TAG}" "$DATA_DIR/agent-${PAIR_TAG}" \
