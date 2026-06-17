@@ -304,3 +304,27 @@ restart. Use `milestone-close` for a reviewed boundary.
    fixture.** Once `qall!` lands, a green `make test` never exercises the watchdog's
    timeout branch — so the contract is pinned directly with a deliberate-hang
    fixture (`tests/run-headless-test.sh`), else the safety net ships unproven.
+
+## #64 — confirm the file you're fixing is actually tracked (a one-line fix exposed a lost-source regression)
+
+1. **Before editing to fix a bug, confirm the target is git-tracked — `git
+   ls-files --error-unmatch <path>`.** The #64 prompt fix was a 3-line edit to
+   `bin/pair`, but `bin/pair` turned out to be gitignored AND untracked: a normal
+   commit/PR would have committed the atlas + issue edits and **silently dropped
+   the actual code change**. **Rule:** when a fix lands in a file under a
+   blanket-ignored dir (`bin/`, `dist/`, generated trees), check tracking first; a
+   green local edit that isn't in `git status` never ships.
+2. **A base-layer `propagate-base`/weave sweep can `git rm` a leaf's OWN source.**
+   The cutover (`90c0c6c` "ariadne#107: propagate-base") deleted pair's 15 bin/
+   shell scripts (3588 lines) from `main` tracking — they lived under a blanket
+   `bin/` ignore (for built Go binaries) so the sweep treated tracked-but-ignored
+   source as disposable. No source survived anywhere (not in the substrate, not
+   woven by a manifest). **Rule:** after any weave/propagate-base run, verify
+   critical dirs still track their source (`git ls-files bin/ | wc -l`); the very
+   next ariadne commit (#109, dirty-tree precheck) confirms this sweep is hazardous.
+3. **A dir holding BOTH source and build output should use explicit negations, not
+   a blanket ignore.** `bin/` had both shell scripts (source) and Go binaries
+   (built). The fix: `bin/*` + `!bin/<script>` negations — binaries stay ignored
+   (safe default: a new build artifact is never committed by accident) while source
+   is provably tracked. A blanket `bin/` relied on "gitignore doesn't untrack
+   already-tracked files," which is exactly the invariant a `git rm` sweep breaks.
