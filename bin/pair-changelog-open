@@ -25,7 +25,17 @@ if [ -z "${PAIR_DATA_DIR:-}" ] || [ -z "${PAIR_TAG:-}" ] || [ -z "${PAIR_AGENT:-
     exit 1
 fi
 
-base="$PAIR_DATA_DIR/changelog-$PAIR_TAG-$PAIR_AGENT"
+# Per-session keying (#63): a fresh agent session gets its own change log; a
+# resume reuses it. PAIR_SESSION_ID is exported by bin/pair when the id is known
+# at launch (claude fresh / any resume); otherwise (codex/agy fresh, where the id
+# is discovered async by pair-session-watch.sh) fall back to the per-tag config
+# the watcher writes. No id at all -> the legacy unsuffixed base (backward compat).
+sid="${PAIR_SESSION_ID:-}"
+if [ -z "$sid" ] && command -v jq >/dev/null 2>&1; then
+    cfg="$PAIR_DATA_DIR/config-$PAIR_TAG-$PAIR_AGENT.json"
+    [ -f "$cfg" ] && sid=$(jq -r '.session_id // empty' "$cfg" 2>/dev/null || true)
+fi
+base="$PAIR_DATA_DIR/changelog-$PAIR_TAG-$PAIR_AGENT${sid:+-$sid}"
 RAW="$PAIR_DATA_DIR/scrollback-$PAIR_TAG-$PAIR_AGENT.raw"
 EVENTS="$PAIR_DATA_DIR/scrollback-$PAIR_TAG-$PAIR_AGENT.events.jsonl"
 LOG="$base.md"
