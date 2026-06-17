@@ -50,22 +50,47 @@ local ok, err = pcall(function()
   end, 50)
   emit(reverted, 'reverts to the cheatsheet after the timer')
 
-  -- (2) marker poll: dropping the marker fires the flash + consumes it (≤2s).
+  -- (2) marker poll keyed on session id (#63). The watcher resolves the id
+  -- (PAIR_SESSION_ID -> per-tag config -> none) on each tick and polls the
+  -- matching changelog-<tag>-<agent>[-<sid>].ready. We drive all three branches
+  -- in one boot by mutating vim.env, asserting KEYED-MARKER CONSUMPTION -- the
+  -- unambiguous signal the watcher resolved that exact path (the flash text would
+  -- overlap across phases on its ~2s revert, so consumption is the clean probe).
   local dd = os.getenv('PAIR_DATA_DIR')
-  local marker = dd .. '/changelog-test-claude.ready'
-  local mf = assert(io.open(marker, 'w')); mf:write('2026-06-14T00:00:00Z\n'); mf:close()
-  local fired = vim.wait(4000, function()
-    return _G.PairStatusline():find('change log ready', 1, true) ~= nil
-  end, 50)
-  emit(fired, 'dropped marker fires the flash')
-  emit(vim.loop.fs_stat(marker) == nil, 'marker consumed (deleted, one-shot)')
+  local function drop(name)
+    local f = assert(io.open(dd .. '/' .. name, 'w')); f:write('2026-06-14T00:00:00Z\n'); f:close()
+  end
+  local function consumed(name)
+    return vim.wait(4000, function() return vim.loop.fs_stat(dd .. '/' .. name) == nil end, 50)
+  end
+
+  -- (2a) no id -> legacy unsuffixed marker (backward compat + the flash render).
+  vim.env.PAIR_SESSION_ID = nil
+  drop('changelog-test-claude.ready')
+  emit(consumed('changelog-test-claude.ready'), 'legacy (no-id) marker consumed')
+  emit(_G.PairStatusline():find('change log ready', 1, true) ~= nil, 'legacy marker fires the flash')
+
+  -- (2b) PAIR_SESSION_ID set -> keyed marker (the claude-fresh / resume path).
+  local SID = 'deadbeef-0000-1111-2222-333344445555'
+  vim.env.PAIR_SESSION_ID = SID
+  drop('changelog-test-claude-' .. SID .. '.ready')
+  emit(consumed('changelog-test-claude-' .. SID .. '.ready'), 'env-keyed marker consumed')
+
+  -- (2c) env cleared + config written -> config-resolved keyed marker (the
+  -- codex/agy async path: the id lands in the config mid-session, no nvim restart).
+  vim.env.PAIR_SESSION_ID = nil
+  local CSID = 'beadfeed-9999-8888-7777-666655554444'
+  local cf = assert(io.open(dd .. '/config-test-claude.json', 'w'))
+  cf:write('{"agent":"claude","args":[],"session_id":"' .. CSID .. '"}'); cf:close()
+  drop('changelog-test-claude-' .. CSID .. '.ready')
+  emit(consumed('changelog-test-claude-' .. CSID .. '.ready'), 'config-resolved keyed marker consumed')
 end)
 if not ok then emit(false, 'driver-error: ' .. tostring(err)) end
 O:close()
 vim.cmd('qall!')  -- force: headless boot may dirty the buffer; bare qall → E37 → hang (#60)
 LUA
 
-run_headless --timeout 30 -- \
+run_headless --timeout 45 -- \
   env PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=claude \
   nvim --headless -u "$INIT" "$RT/draft-test.md" \
   -c "luafile $RT/driver.lua"
