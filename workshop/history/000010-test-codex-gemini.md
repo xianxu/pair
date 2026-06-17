@@ -1,9 +1,9 @@
 ---
 id: 000010
-status: open
+status: wontfix
 deps: [000001]
 created: 2026-05-02
-updated: 2026-05-02
+updated: 2026-06-17
 ---
 
 # test pair with codex and gemini
@@ -43,3 +43,31 @@ If quirks need code paths, file follow-up issues per quirk.
 ### 2026-05-02
 
 Filed as a punt-out from #000001. The v1 setup work is done; per-agent verification is its own scope.
+
+### 2026-06-17 — wontfix (superseded)
+
+Closing **wontfix**: the issue is overtaken by events, not abandoned.
+
+- **codex**: fully integrated + exercised — wired across all 7 integration aspects
+  (return remap, overlay suspend, session watch, resume, slug, PTY filter, prompt
+  glyph) **plus** the drift-telemetry flight recorder. Far beyond #10's 6-step
+  smoke-test ask.
+- **agy (Antigravity)**: brought up as the de-facto third agent — became the
+  worked example throughout `atlas/how-to-bring-up-a-new-harness-cli.md`.
+- **gemini**: never brought up (0 references in code/config). It was effectively
+  swapped for `agy`.
+
+Two reasons this is wontfix rather than done:
+1. **Deliverable superseded by a better artifact.** #10's plan called for an
+   ad-hoc `atlas/agent-quirks.md`; that knowledge instead crystallized into
+   `atlas/how-to-bring-up-a-new-harness-cli.md` (a reusable 7-aspect bring-up
+   guide) + the drift-telemetry/`doctor` system (#000045). The quirks-doc never
+   needed to exist.
+2. **Not executed as written.** gemini→agy swap; the issue's open-ended
+   exploration framing is obsolete now that bring-up is a checklist.
+
+Residual (not blocking close): #10's Alt+i image-attach-numbering and
+copy-on-select sub-steps aren't *documented as validated* per-agent — but both
+are agent-agnostic (nvim/zellij-side text injection) and exercised in daily
+codex/agy use. If gemini support is wanted specifically, file a fresh scoped
+issue against the how-to guide's checklist rather than reviving this framing.
