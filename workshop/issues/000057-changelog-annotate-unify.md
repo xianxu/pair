@@ -98,10 +98,27 @@ raw scrollback — this is the "differentiate source" ask.
 
 ## Plan
 
-- [ ]
+Durable design: `workshop/plans/000057-changelog-annotate-unify-plan.md` (authored
+via superpowers-writing-plans; fresh-eyes reviewed — all 4 critical design claims
+verified, blocking Makefile-registration gap fixed). Two review boundaries:
+
+- [x] M1 — Extract `nvim/annotate.lua` (pure marker core + IO/UI seam behind
+  `attach{bufnr,pending_path,footer,source_label}`), refactor `scrollback.lua`
+  onto it with **no behavior change**; new `annotate_test.lua` (registered in
+  `Makefile.local` test-lua) covers the pure core; `scrollback_test.lua` stays
+  green as the regression net. (ARCH-DRY: one marker subsystem; ARCH-PURE: pure
+  core unit-tested without mocks.)
+- [ ] M2 — Wire `changelog.lua` through annotate: `Alt+q` normal+visual, emit
+  tagged `> [change log] …` (per-quote prefix so `init.lua`'s `\n> ` pickup-count
+  stays correct), and the async-reload guard (`has_new_markers`/`on_reloaded`) so a
+  marker added during the spinner survives the distiller's reload; changelog
+  smoke test; atlas update for the new shared surface.
 
 ## Log
 
+
+- 2026-06-17: closed M1 — make test-lua all green (slug/scrollback/annotate/changelog/adapt/doctor). Extraction behavior-preserving: scrollback.lua SGR+header (lines 1-267) and final-opts tail byte-identical to pre-refactor (diff IDENTICAL); scrollback_test prompt-pattern green; new attach->emit wiring smoke asserts scrollback emit keeps legacy un-prefixed "> quote" format, no source label. annotate_test covers the pure marker core directly, no mocks (ARCH-PURE). Atlas maps the new annotate.lua surface.; review verdict: SHIP
+- 2026-06-17: M1 boundary review = **SHIP (high)** — independently byte-diffed every moved fn vs base, all 10 pure fns byte-identical, others differ only by documented changes; no Critical/Important. Minors addressed/noted: (2) VimLeavePre multi-buffer behavior now commented in annotate.lua; (3) the live interactive Alt+q parity check (plan Task 1.3 Step 4) couldn't run in this headless env — superseded by the byte-level diff + the attach→emit wiring smoke; the floating-prompt UI remains the documented headless limit (verify live before final ship).
 ### 2026-06-12
 
 - Split out of #53 (operator). Design sketched during #53 (see its Log

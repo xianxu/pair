@@ -853,7 +853,10 @@ function M.attach(opts)
 end
 
 -- Emit every attached buffer's pending markers on quit. Registered once at
--- module load; fires for any quit path (including `qa` / `qa!`).
+-- module load; fires for any quit path (including `qa` / `qa!`). Emits for
+-- EVERY attached buffer (no early return) — in the real single-buffer-per-
+-- process viewer that's exactly one buffer; if a process ever attached two,
+-- each would correctly write its own pending_path.
 vim.api.nvim_create_autocmd('VimLeavePre', {
   callback = function()
     for _, b in ipairs(vim.api.nvim_list_bufs()) do
