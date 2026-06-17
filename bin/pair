@@ -1431,6 +1431,8 @@ cleanup_quit_marker() {
             # `then` branch (read SUCCEEDED) consults the answer — any partial
             # input bash 4+ leaves in $_ans on timeout is never read as a "yes".
             # Guard a non-integer seam value (bash 3.2 `read -t` needs an integer).
+            # A 0 value is a valid "don't wait": `read -t 0` returns at once, so
+            # the prompt auto-declines (N) immediately rather than blocking.
             _ptimeout="${PAIR_PARK_PROMPT_TIMEOUT:-5}"
             case "$_ptimeout" in ''|*[!0-9]*) _ptimeout=5 ;; esac
             printf 'pair: preserve "%s" scrollback to distill into a continuation later? [y/N] (%ss → N): ' "$SESSION" "$_ptimeout" >/dev/tty
