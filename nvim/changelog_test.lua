@@ -102,6 +102,28 @@ do
   os.remove(pend)
 end
 
+-- #57 follow-up bug: the viewer autocmd fires on BufWinEnter for ANY buffer in a
+-- window — incl. annotate's floating Alt+q prompt (an unnamed scratch buffer).
+-- on_buf_enter must SKIP unnamed buffers so the prompt stays typeable; only the
+-- named change-log buffer gets locked read-only. (Regression: without the guard,
+-- M.setup locked the prompt modifiable=false and the user couldn't type.)
+do
+  -- Unnamed scratch buffer (stands in for the annotate prompt) — must be skipped.
+  local scratch = vim.api.nvim_create_buf(false, true)
+  check(M.on_buf_enter(scratch) == false, 'on_buf_enter skips an unnamed (prompt) buffer')
+  check(vim.bo[scratch].modifiable == true, 'skipped prompt buffer stays modifiable (user can type)')
+  check(vim.b[scratch].pair_annotate ~= true, 'skipped prompt buffer is not annotate-attached')
+
+  -- Named buffer (the real change-log file) — must be set up read-only.
+  local named = vim.api.nvim_create_buf(true, false)
+  vim.api.nvim_buf_set_name(named, (os.getenv('TMPDIR') or '/tmp') .. '/pair-cl-named-test.md')
+  vim.api.nvim_buf_set_lines(named, 0, -1, false, { '## 2026-06-12', '', '- entry' })
+  vim.api.nvim_set_current_buf(named)
+  check(M.on_buf_enter(named) == true, 'on_buf_enter sets up the named change-log buffer')
+  check(vim.bo[named].modifiable == false, 'named change-log buffer locked read-only')
+  vim.b[named].pair_annotate = false  -- stop the exit-time VimLeavePre re-emit
+end
+
 if fails > 0 then
   io.stderr:write(string.format('changelog_test: %d failure(s)\n', fails))
   os.exit(1)
