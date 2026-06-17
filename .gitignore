@@ -17,3 +17,6 @@ cache/
 /.claude/settings.json
 /.colima/
 /construct/scripts/vm-log.sh
+/CLAUDE.md
+/GEMINI.md
+/.agents/skills/

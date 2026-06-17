@@ -1,1 +1,0 @@
-../../ariadne/.colima/vnc-setup.sh
