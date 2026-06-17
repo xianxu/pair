@@ -4,6 +4,47 @@ All notable user-facing changes to `pair` land here. Each release is also
 tagged in git (`vN.M`) and tracked in the homebrew formula at
 [xianxu/homebrew-pair](https://github.com/xianxu/homebrew-pair).
 
+## v1.23 — 2026-06-17
+
+### Change log (`Alt+l`) — new
+- **Distilled session change log.** A new read-only viewer (`Alt+l`) shows an
+  LLM-summarized log of the session's milestones and decisions — the distilled
+  counterpart to the raw scrollback (`Alt+/`). It opens instantly on the existing
+  log and refreshes in the background via a **detached distiller that survives
+  closing the viewer**, streaming batches in with a spinner. Entries are dated by
+  real change-time (captured from the TTY stream), and the log is keyed per agent
+  session so a resume reuses it and a fresh session starts clean.
+- **`Alt+q` in the change log.** Drop a 🤖 question/comment on a line or selection,
+  exactly like the scrollback viewer; on quit it ships to the draft tagged
+  `[change log]` so the agent sees what you're asking about. (The marker machinery
+  is now shared between both viewers.)
+
+### Session continuation
+- **`pair continue [slug]`.** Distill a *rendered* session into a portable,
+  durable markdown doc and resume from it across time, machines, or agent stacks
+  — a human-readable cousin of `pair resume`. Bare lists continuations; a slug
+  seeds a fresh session to pick the work back up; an agent arg ports it to a
+  different stack.
+- **`Alt+Shift+C` — in-session compaction.** Park the current scrollback as a
+  recovery net, then reincarnate the session under the same tag with a clean
+  conversation seeded from a continuation.
+- On `Alt+x`, pair now offers to **park** a session's scrollback so a later
+  session can distill it; the prompt auto-defaults to "preserve nothing" after 5s
+  so an unattended quit never blocks.
+
+### Draft & agent pane
+- **`Alt+Backspace` always deletes the current `+N` queued prompt** (normal and
+  insert mode), instead of working in only one mode.
+- Draft polish: smooth scrolling in the draft pane; the first `z=` spell popup no
+  longer flashes shut; as-you-type completion menus dropped the `⌥N` numbering
+  (unified with the spell menu); autopair next-char gate + a normal-mode position
+  marker.
+
+### Misc
+- **`:PairTTYRawPath`** (`_G.PairTTYRawPath()`) prints the live session's raw
+  scrollback path and copies it to the `+` register — handy for grabbing the byte
+  stream mid-session.
+
 ## v1.22 — 2026-06-08
 
 ### Draft input
