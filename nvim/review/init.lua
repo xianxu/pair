@@ -11,6 +11,11 @@ local docflow = dofile(here .. 'docflow.lua')
 local handoff = dofile(here .. 'handoff.lua')
 local apply   = dofile(here .. 'apply.lua')
 local record  = dofile(here .. 'record.lua')
+local projection = dofile(here .. 'projection.lua')
+
+local function buf_content(buf)
+  return table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n')
+end
 
 local sessions = {} -- buf → { tag, file, stop }
 
@@ -33,12 +38,23 @@ end
 -- Apply an agent handoff: undo-able apply → save → commit the agent round with
 -- the (enriched) records in the body. Exposed for testing.
 function M.on_agent_round(buf, records)
+  local base = buf_content(buf) -- pre-round content, for the projection empty snapshot
+  projection.set_applying(buf, true) -- suppress the watcher during the round's own apply
   local enriched, dropped = apply.apply(buf, records)
   if #dropped > 0 then
     -- never silent: a partial review must not look complete (milestone review)
     vim.notify(string.format('review: %d proposal(s) did not anchor — dropped', #dropped),
       vim.log.levels.WARN)
   end
+  if #enriched > 0 then
+    -- record_empty_for FIRST (its guard skips it if `base` is a prior round's
+    -- output), then snapshot the placed decorations, then attach the watcher
+    -- lazily — only after the snapshots exist, so it never fires before them.
+    projection.record_empty_for(buf, base)
+    projection.record(buf)
+    projection.ensure_watch(buf)
+  end
+  projection.set_applying(buf, false)
   if #enriched == 0 then return enriched, dropped end
   save(buf)
   local summary = string.format('%d edit(s)', #enriched)
@@ -72,6 +88,7 @@ function M.stop(buf)
   local s = sessions[buf]
   if s and s.stop then s.stop() end
   sessions[buf] = nil
+  projection.reset(buf) -- remove the watcher so a surviving buffer doesn't double-attach
 end
 
 return M
