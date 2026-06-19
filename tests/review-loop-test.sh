@@ -67,6 +67,15 @@ local a = content(buf)
 ok(a:match('foo') and not a:match('FOO'), 'one undo reverts the agent round')
 ok(a:match('human note'), 'human round survives the agent-round undo')
 
+-- on_agent_round must SURFACE dropped (unanchorable) proposals — a partial
+-- review must not look complete.
+local drops = {}
+local on2 = vim.notify
+vim.notify = function(msg) drops[#drops + 1] = tostring(msg) end
+review.on_agent_round(buf, { { old = 'NOTPRESENT', occurrence = 1, new = 'x', explain = 'no' } })
+vim.notify = on2
+ok(#drops >= 1 and drops[1]:match('anchor'), 'on_agent_round notifies when proposals are dropped')
+
 -- (I3) a docflow failure must SURFACE (notify), not silently leave an
 -- edited+saved buffer with no commit.
 local notified = {}

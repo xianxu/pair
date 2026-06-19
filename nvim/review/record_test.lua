@@ -38,5 +38,14 @@ eq(M.extract_from_body('no block here'), nil, 'extract returns nil when absent')
 local body2 = body .. '\nCo-Authored-By: Claude <noreply@anthropic.com>'
 eq(#M.extract_from_body(body2), 2, 'extract works with trailer after block')
 
+-- a record whose new/explain contains a literal ``` + newline (reviewing
+-- markdown with code fences) must round-trip: vim.json single-lines it, so the
+-- only "\n```" is the closing fence.
+local fenced = { { old = 'a', occurrence = 1, new = '```lua\nx=1\n```', explain = 'fence' } }
+local fb = M.embed_in_body('one', fenced)
+local fex = M.extract_from_body(fb)
+eq(fex and #fex, 1, 'extract survives a record containing triple-backticks')
+eq(fex and fex[1].new, '```lua\nx=1\n```', 'embedded backticks round-trip intact')
+
 if fails > 0 then os.exit(1) end
 print('record_test ok')

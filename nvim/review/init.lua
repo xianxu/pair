@@ -33,12 +33,17 @@ end
 -- Apply an agent handoff: undo-able apply → save → commit the agent round with
 -- the (enriched) records in the body. Exposed for testing.
 function M.on_agent_round(buf, records)
-  local enriched = apply.apply(buf, records)
-  if #enriched == 0 then return enriched end
+  local enriched, dropped = apply.apply(buf, records)
+  if #dropped > 0 then
+    -- never silent: a partial review must not look complete (milestone review)
+    vim.notify(string.format('review: %d proposal(s) did not anchor — dropped', #dropped),
+      vim.log.levels.WARN)
+  end
+  if #enriched == 0 then return enriched, dropped end
   save(buf)
   local summary = string.format('%d edit(s)', #enriched)
   check(docflow.round('agent', summary, record.embed_in_body(summary, enriched)), 'agent round')
-  return enriched
+  return enriched, dropped
 end
 
 -- Commit the human's incoming edits as a human round.
@@ -53,6 +58,7 @@ function M.start(opts)
   local buf = opts.buf or vim.api.nvim_get_current_buf()
   local file = opts.file or vim.api.nvim_buf_get_name(buf)
   local tag = opts.tag or vim.fn.fnamemodify(file, ':t:r')
+  if sessions[buf] then M.stop(buf) end -- avoid orphaning a prior poll timer
   vim.bo[buf].undofile = true -- cross-session undo (decision 2)
   check(docflow.start(file), 'start')
   local stop = handoff.watch(tag, function(records)

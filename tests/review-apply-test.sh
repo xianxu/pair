@@ -92,6 +92,31 @@ ok(content(target) == 'AAA bbb CCC', 'applied to non-current buffer')
 vim.api.nvim_buf_call(target, function() vim.cmd('silent undo') end)
 ok(content(target) == 'aaa bbb ccc', 'single undo reverts whole round when buf not current')
 
+-- (h) partial anchor failure: anchored subset applies, the rest reported dropped
+local b8 = newbuf({ 'hello world' })
+local en8, dr8 = apply.apply(b8, {
+  { old = 'hello', occurrence = 1, new = 'HI', explain = 'ok' },
+  { old = 'missing', occurrence = 1, new = 'X', explain = 'no' },
+  { old = '', occurrence = 1, new = 'Y', explain = 'empty' },
+})
+ok(#en8 == 1 and content(b8) == 'HI world', 'partial: anchored subset applied')
+ok(#dr8 == 2, 'partial: unanchorable records reported as dropped (not silent)')
+
+-- (i) total failure: buffer untouched, all dropped with a reason
+local b9 = newbuf({ 'abc' })
+local en9, dr9 = apply.apply(b9, { { old = 'zzz', occurrence = 1, new = 'Z', explain = 'no' } })
+ok(#en9 == 0 and content(b9) == 'abc', 'total failure: buffer untouched')
+ok(#dr9 == 1 and dr9[1].reason == 'not found', 'total failure: dropped with reason')
+
+-- (j) overlap: the intersecting record is dropped (no silent corruption)
+local b10 = newbuf({ 'abcdef' })
+local en10, dr10 = apply.apply(b10, {
+  { old = 'abcd', occurrence = 1, new = '1', explain = 'first' },
+  { old = 'cdef', occurrence = 1, new = '2', explain = 'overlaps' },
+})
+ok(#en10 == 1 and content(b10) == '1ef', 'overlap: only the non-overlapping record applied')
+ok(#dr10 == 1 and dr10[1].reason == 'overlap', 'overlap: intersecting record dropped with reason')
+
 OUT:write(fails == 0 and 'apply_test ok\n' or ('FAILED ' .. fails .. '\n'))
 OUT:close()
 LUA

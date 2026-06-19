@@ -65,23 +65,43 @@ local function place(buf, decos)
   vim.diagnostic.set(DIAG, buf, diags, {})
 end
 
--- Apply `records` to `buf`. Returns the records enriched with new_occurrence
--- (for the commit body / resume path).
+-- Apply `records` to `buf`. Returns (enriched, dropped):
+--   enriched — applied records carrying new_occurrence (for commit/resume);
+--   dropped  — records that did NOT land, each { rec, reason }. The caller MUST
+--              surface dropped (milestone review): a partial review presented as
+--              complete is the bug. reason ∈ 'empty old' | 'not found' | 'overlap'.
 function M.apply(buf, records)
-  if not records or #records == 0 then return {} end
+  local dropped = {}
+  if not records or #records == 0 then return {}, dropped end
   local base = buf_content(buf)
 
-  -- resolve old@occurrence → base byte offset; document order (ascending).
-  -- old == '' has no anchor — skip it.
-  local items = {}
+  -- resolve old@occurrence → base byte offset (document order, ascending)
+  local resolved = {}
   for _, r in ipairs(records) do
-    if r.old and r.old ~= '' then
+    if not r.old or r.old == '' then
+      dropped[#dropped + 1] = { rec = r, reason = 'empty old' }
+    else
       local off = reconstruct.nth_offset(base, r.old, r.occurrence or 1)
-      if off then items[#items + 1] = { rec = r, base_off = off } end
+      if off then resolved[#resolved + 1] = { rec = r, base_off = off }
+      else dropped[#dropped + 1] = { rec = r, reason = 'not found' } end
     end
   end
-  if #items == 0 then return {} end
-  table.sort(items, function(a, b) return a.base_off < b.base_off end)
+  table.sort(resolved, function(a, b) return a.base_off < b.base_off end)
+
+  -- bottom-to-top with base coordinates is correct only for NON-overlapping
+  -- records; drop (and report) any whose [base_off, base_off+#old) intersects an
+  -- already-accepted neighbor, else the higher edit clobbers bytes the lower one
+  -- still addresses by base coords (silent corruption otherwise).
+  local items, prev_end = {}, 0
+  for _, it in ipairs(resolved) do
+    if it.base_off < prev_end then
+      dropped[#dropped + 1] = { rec = it.rec, reason = 'overlap' }
+    else
+      items[#items + 1] = it
+      prev_end = it.base_off + #it.rec.old
+    end
+  end
+  if #items == 0 then return {}, dropped end
 
   -- apply bottom-to-top as one undo block, all with `buf` current (I2)
   vim.api.nvim_buf_call(buf, function()
@@ -115,7 +135,7 @@ function M.apply(buf, records)
     }
   end
   place(buf, decos)
-  return enriched
+  return enriched, dropped
 end
 
 -- Resume render: locate `records` in `content` by new_occurrence and decorate.

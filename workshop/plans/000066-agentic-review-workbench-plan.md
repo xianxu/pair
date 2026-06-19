@@ -331,7 +331,7 @@ git commit -m "#66 M1: review.reconstruct — records→decorations, occurrence-
 
 - [ ] **Step 2: Run → fail.**
 
-- [ ] **Step 3: Implement** — `path(tag)` = `<XDG_DATA_HOME or ~/.local/share>/pair/review-handoff-<tag>.json`; `write` does atomic temp+rename; `watch` registers `vim.uv.fs_event`, on change reads + `record.decode` + unlinks + calls back.
+- [ ] **Step 3: Implement** — `path(tag)` = `<XDG_DATA_HOME or ~/.local/share>/pair/review-handoff-<tag>.json`; `write` does atomic temp+rename; `watch` polls via a `vim.uv` timer (NOT `fs_event` — macOS FSEvents is flaky/laggy, per `init.lua`'s scrollback precedent), on appearance reads + `record.decode` + unlinks + calls back.
 
 - [ ] **Step 4: Run → pass.**
 
@@ -384,3 +384,23 @@ The review `SKILL.md` the pair agent follows: do multi-step memory discovery (br
 - **M2:** exact styling-clear trigger — "next conversation turn" vs. explicit end-of-human-turn.
 - **M4:** handoff race — keep fixed-name `review-handoff-<tag>.json`, or move to per-round `-rN` names if a next round can fire before consume completes.
 - **Estimate caveat (judge finding #4, non-blocking):** `estimate_hours: 30` covers all four milestones but only M1 is detailed; expect growth when M2–M4 get their own plans — or split #66 into an umbrella + sibling issues for per-milestone calibration.
+
+## Revisions
+
+- **2026-06-18 — handoff is a timer poll, not `fs_event`.** Task 5 originally said
+  `watch` registers `vim.uv.fs_event`; implementation uses a `vim.uv` timer poll
+  instead (macOS FSEvents is flaky/laggy — `init.lua`'s scrollback already polls).
+  Reflected in the entity table, the entity description, Task 5 Step 3, and the atlas.
+- **2026-06-18 — milestone-review (round 1: I1/I2/I3).** `apply` decorates LIVE from
+  the actual edited ranges (no `new`-re-find); `new_occurrence` counts non-overlapping
+  to match `reconstruct.nth_offset` (resume re-anchors consistently); the edit loop runs
+  inside `nvim_buf_call(buf)` so the undo break + undojoins target `buf` regardless of
+  focus; `init` surfaces non-zero docflow exits via `vim.notify` instead of swallowing.
+- **2026-06-18 — milestone-review (round 2: unanchorable + overlap).** Decision on the
+  "Open detail" of partial/failed anchoring: **surface, don't silently drop.**
+  `apply.apply` now returns `(enriched, dropped)`; `dropped` carries a `reason`
+  (`empty old` | `not found` | `overlap`), and `on_agent_round` `vim.notify`s when any
+  record is dropped — a partial review must never look complete. Overlapping `old`
+  ranges are rejected (not corrupted) since bottom-to-top apply assumes non-overlap.
+  This is the stable apply→orchestrator return contract M2's renderer and M4's real
+  agent will both depend on.
