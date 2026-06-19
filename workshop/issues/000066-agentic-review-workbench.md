@@ -87,8 +87,8 @@ Milestones are review boundaries; sub-steps firm up after M0.
 - [x] M0 — Read ariadne docflow; decide history/undo mechanism + per-hunk-explain home;
   finalize the record + docflow-commit contract. (Design; gates the rest.) → durable plan at
   `workshop/plans/000066-agentic-review-workbench-plan.md`.
-- [ ] M1 — Contract + history foundation: record format, docflow-commit round boundary,
-  undo-preserving buffer apply.
+- [x] M1 — Contract + history foundation: record format, docflow-commit round boundary,
+  undo-preserving buffer apply. (Fake-agent-driven vertical; all tests green.)
 - [ ] M2 — Extract parley review consumer-half into pair as inline lua (render / projection /
   diagnosis / markers / modes); drop the invoke path.
 - [ ] M3 — Review window + pair integration (`:PairReview` / alt+r pane; poke channel to the
@@ -97,6 +97,8 @@ Milestones are review boundaries; sub-steps firm up after M0.
 
 ## Log
 
+
+- 2026-06-18: closed M1 — make test-lua + make test-review all green; e2e (review-loop-test) proves handoff→undo-able apply→docflow agent-round (records in body)→undo crosses commit→decorations reconstruct from commit; real-docflow smoke passes; review verdict: unknown
 ### 2026-06-18
 
 - Design brainstormed and captured in
@@ -152,3 +154,22 @@ Milestones are review boundaries; sub-steps firm up after M0.
   `reconstruct` locates `new` by `new_occurrence`; bottom-to-top apply (finding #2); hermetic `fake-docflow.sh`
   with real commits + gated real-docflow smoke (finding #3).
 - Implementing M1 (TDD), starting Task 1 (`review.record`).
+- M1 complete (6 commits, all TDD-green). Pure core: `record` (one serialization, handoff==commit
+  body), `reconstruct` (records→decorations, occurrence-anchored). Seams: `docflow` (+ hermetic
+  `fake-docflow.sh`, real-docflow smoke passing), `apply` (single undo-block, bottom-to-top, decorate
+  +new_occurrence), `handoff` (timer-poll, atomic). Orchestrator `init.lua` + `fake-review-agent.sh`.
+  E2E (`tests/review-loop-test.sh`) proves the contract headlessly: handoff → undo-able apply →
+  docflow agent-round (records in body) → undo crosses the commit → decorations reconstruct from the
+  commit; human round survives the agent-round undo. Wired `test-review` into `make test`.
+- Verified: `make test-lua` (record/reconstruct) + `make test-review` (docflow/apply/handoff/loop) all green.
+- **M1 milestone-review: converged → SHIP-equivalent.** The auto-dispatched fresh-context judge
+  ran 4 rounds (binary recorded the first as `unknown` — its leading verdict token wasn't parsed).
+  Round 1 (blocking) I1 decorate-from-actual-ranges + consistent occurrence counting, I2 buf-current
+  undojoin, I3 surface docflow exits — fixed. Round 2 (blocking) surface dropped/unanchorable records
+  + overlap guard (`apply` returns `(enriched, dropped)`) — fixed. Round 3: one non-blocking item
+  (malformed-handoff notify) + minors — fixed. Round 4: **"no shipped-code defect, nothing blocks
+  M2"**; closed two test-fidelity gaps (in-scope-only staging assertion; `apply.render` coverage).
+  Every finding addressed with a regression test. Review-Window 20443c8..HEAD (11 commits).
+  Carried to M2/M4 (documented in plan ## Revisions, non-blocking): additive styling vs. clear (M2),
+  newline-offset perf index (M2), VimLeave timer cleanup (M3), stronger resume anchor + file-vs-buffer
+  newline contract (M4).
