@@ -173,3 +173,10 @@ Milestones are review boundaries; sub-steps firm up after M0.
   Carried to M2/M4 (documented in plan ## Revisions, non-blocking): additive styling vs. clear (M2),
   newline-offset perf index (M2), VimLeave timer cleanup (M3), stronger resume anchor + file-vs-buffer
   newline contract (M4).
+- **ACTUAL correction:** M1 milestone-close was passed a hand-typed `--actual 4` (a guess).
+  The MEASURED active-time-v3 value (in-binary engine, window 20443c8..HEAD) is **1.87h** —
+  the typed 4 was ~2× over. Use 1.87 (≈2.0) for M1; the final `sdlc close --issue 66` will
+  recompute over the full window. Root cause: **pair's `./bin/sdlc` is a stale build** (older
+  ariadne, before active-time was folded into Go) — `sdlc actual` was "unknown command" and
+  the close explainer pointed at a non-existent `active-time-v3.py`. pair's sdlc should be
+  rebuilt from current ariadne (base-layer source of truth).
