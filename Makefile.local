@@ -1,7 +1,7 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
-.PHONY: build install pair-scribe pair-scrollback-render pair-wrap pair-slug pair-changelog test test-race test-run-headless test-lua test-queue test-autopair test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-continue test-changelog test-copy-on-select
+.PHONY: build install pair-scribe pair-scrollback-render pair-wrap pair-slug pair-changelog test test-race test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-continue test-changelog test-copy-on-select
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
 # and ships with the `pair-` prefix so it doesn't collide with anything
@@ -55,7 +55,7 @@ pair-changelog:         $(BIN_DIR)/pair-changelog
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
-test: test-run-headless test-lua test-queue test-autopair test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-continue test-changelog test-copy-on-select
+test: test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-continue test-changelog test-copy-on-select
 	go test ./... -count=1
 
 test-race:
@@ -91,6 +91,13 @@ test-queue:
 # opener's expr output. See tests/autopair-test.sh.
 test-autopair:
 	bash tests/autopair-test.sh
+
+# Regression test for the insert-mode <CR> decision (nvim/init.lua, cr_keys /
+# _G.PairCRKeys, #65): Return must always insert a newline when no completion
+# is selected, dismissing the popup. Asserts the expr output for all three
+# popup states. See tests/cr-newline-test.sh.
+test-cr:
+	bash tests/cr-newline-test.sh
 
 # Regression tests for the draft statusline (nvim/init.lua, _G.PairStatusline).
 # Drive the real init.lua headlessly: statusline-pos asserts the *, -N, +N nav
