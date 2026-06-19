@@ -381,3 +381,27 @@ testable function (`M.on_buf_enter` returns true/false) so a headless test can
 assert the skip path even when the floating UI itself can't be driven. Whenever
 you add a floating/scratch UI inside a buffer-scoped viewer, re-check every
 `BufWinEnter`/`BufEnter`/`WinEnter` autocmd in that viewer for this collision.
+
+## Changing a shared insert-mode keymap: enumerate ALL its consumers, not just the spec's
+
+#65 fixed the draft `<CR>`: when a completion popup is up and nothing is
+Tab-selected, a bare `<CR>` only closes the menu and swallows the newline, so it
+now feeds `<C-e><CR>` (cancel completion, then newline). The Spec's three-state
+table reasoned about ONE consumer — as-you-type draft completion. But the insert
+`<CR>` map is a **shared chokepoint**: it also serves the momentary normal-mode
+`z=` spell popup (`spell_suggest_popup`, gated by `spell_popup_active`), whose
+contract is "dismiss leaves the text intact — no newline." The first cut would
+have injected a spurious newline into the draft on a `z=`-dismiss-via-Return
+(the deferred `stopinsert` keeps you in insert mode when the `<CR>` lands). The
+fresh-eyes milestone review caught it; the doer's spec never modeled the second
+caller.
+
+**Rule.** Before changing a shared keymap / dispatch function, grep for *every*
+caller and popup/mode that routes through it (`z=`, as-you-type completers,
+future pickers) and write a decision for each — don't let the spec's single
+use-case stand in for the contract. Keep the decision **pure and testable**:
+thread the distinguishing state in as an argument (`cr_keys(visible,
+has_selection, momentary)`, fed `momentary = spell_popup_active` at the map
+site) rather than branching on a global inside the handler, so each consumer's
+behavior is unit-asserted without a live UI. A chokepoint shared across N
+callers needs N tested cases, not one.
