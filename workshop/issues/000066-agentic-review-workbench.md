@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-06-18
 updated: 2026-06-18
-estimate_hours:
+estimate_hours: 30
 ---
 
 # Agentic memory-backed review as a document workbench in pair
@@ -84,8 +84,9 @@ Open (resolve at/before start-plan):
 
 Milestones are review boundaries; sub-steps firm up after M0.
 
-- [ ] M0 — Read ariadne docflow; decide history/undo mechanism + per-hunk-explain home;
-  finalize the record + docflow-commit contract. (Design; gates the rest.)
+- [x] M0 — Read ariadne docflow; decide history/undo mechanism + per-hunk-explain home;
+  finalize the record + docflow-commit contract. (Design; gates the rest.) → durable plan at
+  `workshop/plans/000066-agentic-review-workbench-plan.md`.
 - [ ] M1 — Contract + history foundation: record format, docflow-commit round boundary,
   undo-preserving buffer apply.
 - [ ] M2 — Extract parley review consumer-half into pair as inline lua (render / projection /
@@ -110,3 +111,44 @@ Milestones are review boundaries; sub-steps firm up after M0.
   new,explain}` applied undo-ably + committed; git = checkpoints not history; styling
   accumulates and clears on the next conversation turn.
 - Next: read ariadne docflow (M0) before planning the contract.
+- Claimed (`sdlc claim --issue 66 --no-start`, cheap lock on main; estimate deferred). pair's
+  sdlc predates `start-plan`, so flow is claim → design → `change-code` → implement.
+- M0 in progress: dispatched a docflow digest (commit structure, fine-grained-history-vs-checkpoints,
+  per-hunk-explain home) to lock the contract before planning M1.
+- M0 docflow findings (`ariadne/scripts/docflow.sh`, ~300-line shell; atlas `atlas/workflow/docflow.md`;
+  used by xx-fix; suspend/resume = ariadne #90, open):
+  - **Round = two commits** (human then agent) on a `review/<slug>` branch; subject
+    `review(<slug>): <side> r<N> — <summary>`; agent rationale in the **commit body** +
+    `Co-Authored-By`; `ship` does `--no-ff` merge + branch delete (`--first-parent` = clean
+    per-batch view, full log = forensic). Reusable as-is — shell out, don't reimplement.
+  - **Deliberately leaves us 3 things:** (a) no undo assumptions / no `undofile`; (b) agent flow is
+    xx-fix's file-write-in-place; (c) rationale is commit-level only, no per-hunk explain. These are
+    exactly #66's open questions — docflow defers them to us.
+  - Reuse `review-convention.md`'s 🤖 marker grammar for human in-doc review requests; don't fork.
+- M0 decisions (proposed, pending operator confirm):
+  1. **Buffer entry = in-buffer undo-able apply** (the one extension over docflow): apply the agent's
+     `{old,occurrence,new,explain}` records as in-buffer ops, then commit via `docflow round`. Preserves undo.
+  2. **Cross-session undo = nvim persistent `undofile`**, not history-doc replay → the third
+     "review-history doc" layer collapses. Edits-as-in-buffer-ops make the undo tree real + persistable.
+  3. **Per-hunk explain = line-anchored in the agent round's commit body** (`- [L12-15] reworded`),
+     extending docflow's body-rationale convention. Frozen commit ⇒ no drift. No sidecar / no git-notes.
+  - Net: durable record = git (commits + per-hunk explains in body); fine-grained undo = nvim undofile.
+    Two mechanisms, no sidecar — three-layer model drops to two.
+  - Operator confirmed all three decisions; accepted the one drawback (doc must live in a git repo).
+- M0 closed: durable plan written (`workshop/plans/000066-agentic-review-workbench-plan.md`) via writing-plans
+  skill. Pure core = `review.record` (one serialization shared by handoff file + agent commit body) +
+  `review.reconstruct` (records→decorations, occurrence-anchored, live + resume). M1 = fake-agent-driven
+  vertical proving the contract headlessly; M2–M4 outlined as their own plans.
+- Plan review (fresh-context, general-purpose): **Approved** — reviewer empirically validated the 3 riskiest
+  mechanisms (undojoin single-undo-block on nvim 0.11.7; `vim.json` under `nvim -l`; cross-session
+  reconstruction from an externally-authored commit body). 3 advisories folded in: E790-safe undojoin
+  (first edit fresh, join 2..N), handoff via timer-poll not fs_event (macOS FSEvents precedent in init.lua),
+  e2e human round must mutate+stage the doc (docflow no-ops an empty round).
+- `sdlc change-code --issue 66`: structural ✓, plan-quality judge **INFO** (executable as-written), branch
+  `000066-agentic-review-workbench` created in-place, estimate 30h, status → working. The judge caught a real
+  correctness bug the first reviewer missed — **occurrence mapping** (finding #1): `occurrence` (Nth `old` in
+  base) ≠ position of `new` post-apply. Folded the fix into the plan before any code: Records carry both
+  `occurrence` and `new_occurrence`; `apply` decorates from its own edited ranges + enriches `new_occurrence`;
+  `reconstruct` locates `new` by `new_occurrence`; bottom-to-top apply (finding #2); hermetic `fake-docflow.sh`
+  with real commits + gated real-docflow smoke (finding #3).
+- Implementing M1 (TDD), starting Task 1 (`review.record`).
