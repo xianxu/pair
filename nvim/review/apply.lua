@@ -49,19 +49,62 @@ local function buf_content(buf)
   return table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n')
 end
 
--- Place a list of {line, end_line, message} decorations (clears review ns first).
-local function place(buf, decos)
+-- Clear both review decoration layers (shared by place + apply_snapshot, so
+-- "cleared" means the same everywhere). The HL extmark ns is cleared; the
+-- diagnostic layer is replaced via vim.diagnostic.set (empty here).
+local function clear(buf)
   vim.api.nvim_buf_clear_namespace(buf, HL, 0, -1)
+  vim.diagnostic.set(DIAG, buf, {}, {})
+end
+
+local function hl_extmark(buf, line, end_line)
+  vim.api.nvim_buf_set_extmark(buf, HL, line, 0, {
+    end_row = end_line, end_col = 0, hl_eol = true, hl_group = 'DiffChange',
+  })
+end
+
+local function diag_of(d)
+  return {
+    lnum = d.line or d.lnum, end_lnum = d.end_line or d.end_lnum, col = 0,
+    message = d.message, severity = vim.diagnostic.severity.INFO, source = 'review',
+  }
+end
+
+-- Place a list of {line, end_line, message} decorations (clears first).
+local function place(buf, decos)
+  clear(buf)
   local diags = {}
   for _, d in ipairs(decos) do
-    vim.api.nvim_buf_set_extmark(buf, HL, d.line, 0, {
-      end_row = d.end_line, end_col = 0, hl_eol = true, hl_group = 'DiffChange',
-    })
-    diags[#diags + 1] = {
-      lnum = d.line, end_lnum = d.end_line, col = 0,
-      message = d.message, severity = vim.diagnostic.severity.INFO, source = 'review',
-    }
+    hl_extmark(buf, d.line, d.end_line)
+    diags[#diags + 1] = diag_of(d)
   end
+  vim.diagnostic.set(DIAG, buf, diags, {})
+end
+
+-- Snapshot the current decorations for projection: ranged extmarks ({line,
+-- end_line} — captured via details so the multi-line span survives) + the
+-- diagnostics (which carry the message). The two layers are independent (after
+-- riding, an extmark moves but its diagnostic doesn't), so they're stored —
+-- and restored — separately, never paired.
+function M.snapshot(buf)
+  local hl = {}
+  for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, HL, 0, -1, { details = true })) do
+    hl[#hl + 1] = { line = m[2], end_line = (m[4] and m[4].end_row) or m[2] }
+  end
+  local diags = {}
+  for _, d in ipairs(vim.diagnostic.get(buf, { namespace = DIAG })) do
+    diags[#diags + 1] = { lnum = d.lnum, end_lnum = d.end_lnum, message = d.message }
+  end
+  return { hl = hl, diags = diags }
+end
+
+-- Restore a snapshot (undo/redo coherence). Independent layers; shares clear().
+function M.apply_snapshot(buf, snap)
+  clear(buf)
+  snap = snap or {}
+  for _, h in ipairs(snap.hl or {}) do hl_extmark(buf, h.line, h.end_line) end
+  local diags = {}
+  for _, d in ipairs(snap.diags or {}) do diags[#diags + 1] = diag_of(d) end
   vim.diagnostic.set(DIAG, buf, diags, {})
 end
 

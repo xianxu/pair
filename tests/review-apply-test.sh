@@ -145,6 +145,29 @@ local rlines = {}
 for _, m in ipairs(vim.api.nvim_buf_get_extmarks(br, apply.HL, 0, -1, {})) do rlines[m[2]] = true end
 ok(rlines[1] and rlines[2], 'render: decorations on the right lines (1 and 2)')
 
+-- (m) snapshot/apply_snapshot round-trip, including a MULTI-LINE decoration —
+-- the span (end_row) must survive (M2 plan-review fidelity fix).
+local bs = newbuf({ 'p1', 'old', 'q', 'tail' })
+apply.apply(bs, {
+  { old = 'old', occurrence = 1, new = 'NEW1\nNEW2', explain = 'multi' },
+  { old = 'tail', occurrence = 1, new = 'T', explain = 'single' },
+})
+local snap = apply.snapshot(bs)
+local ml = false
+for _, h in ipairs(snap.hl) do if h.end_line > h.line then ml = true end end
+ok(ml, 'snapshot captures a multi-line extmark range (end_line > line)')
+ok(#snap.diags >= 2, 'snapshot captures diagnostics')
+-- wipe both layers, then restore from the snapshot
+vim.api.nvim_buf_clear_namespace(bs, apply.HL, 0, -1)
+vim.diagnostic.reset(apply.DIAG, bs)
+apply.apply_snapshot(bs, snap)
+local restored_ml = false
+for _, m in ipairs(vim.api.nvim_buf_get_extmarks(bs, apply.HL, 0, -1, { details = true })) do
+  if m[4] and m[4].end_row and m[4].end_row > m[2] then restored_ml = true end
+end
+ok(restored_ml, 'apply_snapshot restores the multi-line range (end_row preserved)')
+ok(#vim.diagnostic.get(bs, { namespace = apply.DIAG }) >= 2, 'apply_snapshot restores diagnostics')
+
 OUT:write(fails == 0 and 'apply_test ok\n' or ('FAILED ' .. fails .. '\n'))
 OUT:close()
 LUA
