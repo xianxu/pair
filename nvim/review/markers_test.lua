@@ -49,5 +49,20 @@ local m7 = M.parse_markers({ '🤖~old~[reply]' })
 eq(m7[1].ready, false, 'strike never ready')
 eq(m7[1].strike.text, 'old', 'strike kept alongside section')
 
+-- a marker inside an INLINE-code span is excluded
+local mi = M.parse_markers({ 'see `🤖[x]` here' })
+eq(#mi, 0, 'marker inside inline code excluded')
+
+-- a section may span multiple lines (within the budget)
+local mml = M.parse_markers({ '🤖[line one', 'line two]' })
+eq(#mml, 1, 'multi-line section parses')
+eq(mml[1].sections[1].text, 'line one\nline two', 'multi-line section text')
+
+-- a stray opener beyond MULTILINE_LINE_BUDGET (50) yields no section
+local budget = { '🤖{' }
+for _ = 1, 60 do budget[#budget + 1] = 'x' end
+budget[#budget + 1] = '}'
+eq(#M.parse_markers(budget), 0, 'stray { beyond the newline budget yields no marker')
+
 if fails > 0 then os.exit(1) end
 print('markers_test ok')

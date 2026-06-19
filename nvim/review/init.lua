@@ -13,10 +13,6 @@ local apply   = dofile(here .. 'apply.lua')
 local record  = dofile(here .. 'record.lua')
 local projection = dofile(here .. 'projection.lua')
 
-local function buf_content(buf)
-  return table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n')
-end
-
 local sessions = {} -- buf → { tag, file, stop }
 
 local function save(buf)
@@ -38,9 +34,14 @@ end
 -- Apply an agent handoff: undo-able apply → save → commit the agent round with
 -- the (enriched) records in the body. Exposed for testing.
 function M.on_agent_round(buf, records)
-  local base = buf_content(buf) -- pre-round content, for the projection empty snapshot
+  local base = apply.buf_content(buf) -- pre-round content, for the projection empty snapshot
   projection.set_applying(buf, true) -- suppress the watcher during the round's own apply
-  local enriched, dropped = apply.apply(buf, records)
+  local ok_apply, enriched, dropped = pcall(apply.apply, buf, records)
+  if not ok_apply then
+    projection.set_applying(buf, false) -- never leave the watcher permanently suppressed
+    vim.notify('review: apply failed: ' .. tostring(enriched), vim.log.levels.ERROR)
+    return {}, {}
+  end
   if #dropped > 0 then
     -- never silent: a partial review must not look complete (milestone review)
     vim.notify(string.format('review: %d proposal(s) did not anchor — dropped', #dropped),

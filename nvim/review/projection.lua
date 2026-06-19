@@ -36,12 +36,8 @@ local function put(s, h, snap)
   s.records[h] = snap
 end
 
-local function content(buf)
-  return table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
-end
-
 local function hash(buf)
-  return vim.fn.sha256(content(buf))
+  return vim.fn.sha256(apply.buf_content(buf))
 end
 
 -- PURE: "restore" if we've recorded this exact content before (undo/redo),

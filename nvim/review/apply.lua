@@ -199,4 +199,5 @@ function M.render(buf, records, content)
 end
 
 M.HL, M.DIAG = HL, DIAG
+M.buf_content = buf_content -- shared (init/projection) so the join lives in one place
 return M

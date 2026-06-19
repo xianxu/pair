@@ -127,12 +127,13 @@ end
 --- @return table list of Mode
 function M.list(dir)
     local out = {}
-    local handle = vim.loop.fs_scandir(dir)
+    local uv = vim.uv or vim.loop
+    local handle = uv.fs_scandir(dir)
     if not handle then
         return out
     end
     while true do
-        local fname, typ = vim.loop.fs_scandir_next(handle)
+        local fname, typ = uv.fs_scandir_next(handle)
         if not fname then
             break
         end
