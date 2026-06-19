@@ -1,7 +1,7 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
-.PHONY: build install pair-scribe pair-scrollback-render pair-wrap pair-slug pair-changelog test test-race test-run-headless test-lua test-queue test-autopair test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-continue test-changelog
+.PHONY: build install pair-scribe pair-scrollback-render pair-wrap pair-slug pair-changelog test test-race test-run-headless test-lua test-queue test-autopair test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-continue test-changelog test-copy-on-select
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
 # and ships with the `pair-` prefix so it doesn't collide with anything
@@ -55,7 +55,7 @@ pair-changelog:         $(BIN_DIR)/pair-changelog
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
-test: test-run-headless test-lua test-queue test-autopair test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-continue test-changelog
+test: test-run-headless test-lua test-queue test-autopair test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-continue test-changelog test-copy-on-select
 	go test ./... -count=1
 
 test-race:
@@ -104,6 +104,13 @@ test-statusline:
 # a malformed line must not abort the diagnostic. See doctor/doctor_test.sh.
 test-doctor:
 	bash doctor/doctor_test.sh
+
+# copy-on-select in_nvim detection: the agent overwrites its pane title with
+# "claude [<cwd>]", so a repo path containing "nvim" (e.g. parley.nvim) must not
+# be mistaken for the nvim draft pane (which would skip the paste). Keys on
+# terminal_command, not the cwd-polluted title. See tests/copy-on-select-test.sh.
+test-copy-on-select:
+	bash tests/copy-on-select-test.sh
 
 # Cross-emitter contract for the flight recorder: Go == shell == Lua schema,
 # plus concurrent-append line-atomicity. See tests/adapt-schema-test.sh.

@@ -48,13 +48,23 @@ elif command -v xclip >/dev/null 2>&1; then
 fi
 
 # 2. Inspect the focused pane (where the selection happened). One jq pass
-# extracts both the pane id and a signature for the in-nvim check. Filter
-# out plugin and floating panes — when a floating plugin (e.g. About
-# Zellij) is open, zellij reports BOTH the plugin and the underlying
-# terminal as is_focused=true; without the filter we'd pick the plugin
-# and (a) misclassify in_nvim and (b) point set-pane-color at the wrong
-# terminal id. flash-pane.sh applies the same filter when called with no
-# args; passing $focused_id explicitly avoids a second jq round-trip.
+# extracts both the pane id and the in-nvim signal. Filter out plugin and
+# floating panes — when a floating plugin (e.g. About Zellij) is open,
+# zellij reports BOTH the plugin and the underlying terminal as
+# is_focused=true; without the filter we'd pick the plugin and (a)
+# misclassify in_nvim and (b) point set-pane-color at the wrong terminal
+# id. flash-pane.sh applies the same filter when called with no args;
+# passing $focused_id explicitly avoids a second jq round-trip.
+#
+# The in-nvim signal is the pane's terminal_command (the fixed launch
+# string — "exec nvim … draft-<tag>.md" for the draft, "pair-wrap <agent>"
+# for the agent), NEVER the title: the agent (e.g. claude) overwrites its
+# pane title with "claude [<cwd>]", so a repo whose path contains "nvim"
+# (e.g. parley.nvim) would match the nvim regex and misclassify the agent
+# pane as the draft — copy-on-select would then think the selection was
+# made in nvim and skip the paste entirely. terminal_command never embeds
+# the cwd, so it stays clean. This mirrors clipboard-to-pane.sh, which
+# resolves the draft pane the same way (terminal_command | test("nvim")).
 in_nvim=false
 focused_id=""
 if command -v jq >/dev/null 2>&1; then
@@ -63,10 +73,10 @@ if command -v jq >/dev/null 2>&1; then
                         | select(.is_focused == true
                                  and (.is_plugin   // false) == false
                                  and (.is_floating // false) == false)][0]
-                       | "\(.id // .pane_id // "")\t\(.title // "") \(.terminal_command // "")"' 2>/dev/null)
+                       | "\(.id // .pane_id // "")\t\(.terminal_command // "")"' 2>/dev/null)
     focused_id=${focused%%$'\t'*}
-    sig=${focused#*$'\t'}
-    if printf '%s' "$sig" | grep -qiE 'nvim|draft'; then
+    cmd=${focused#*$'\t'}
+    if printf '%s' "$cmd" | grep -qiE 'nvim|draft'; then
         in_nvim=true
     fi
 fi
