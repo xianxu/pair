@@ -89,7 +89,7 @@ Milestones are review boundaries; sub-steps firm up after M0.
   `workshop/plans/000066-agentic-review-workbench-plan.md`.
 - [x] M1 — Contract + history foundation: record format, docflow-commit round boundary,
   undo-preserving buffer apply. (Fake-agent-driven vertical; all tests green.)
-- [ ] M2 — Extract parley review consumer-half into pair as inline lua (render / projection /
+- [x] M2 — Extract parley review consumer-half into pair as inline lua (render / projection /
   diagnosis / markers / modes); drop the invoke path.
 - [ ] M3 — Review window + pair integration (`:PairReview` / alt+r pane; poke channel to the
   agent).
@@ -98,6 +98,14 @@ Milestones are review boundaries; sub-steps firm up after M0.
 ## Log
 
 
+
+- 2026-06-19: closed M2 — M2 increment 0.7h (engine measures cumulative 2.57h over the whole-issue window; M1 was 1.87h). Green: make test-lua (markers/mode pure) + make test-review (projection undo/redo coherence + riding + round-2 idempotence; apply snapshot multi-line round-trip; markers ready/pending/strike invariants); review verdict: FIX-THEN-SHIP
+- 2026-06-19: M2 milestone-review CONVERGED → **SHIP** (3 judge rounds: FIX-THEN-SHIP → markers edge-case
+  tests [inline-code/multi-line/budget] + minors [vim.uv, buf_content dedup→apply.buf_content, pcall-guard
+  on_agent_round] → mode.list name≠basename negative test + marker line/col → SHIP; no Critical/Important;
+  ARCH-DRY/PURE PASS). Ported the consumer-half: markers/mode/projection + apply.snapshot/apply_snapshot.
+  Deferred (documented): marker rendering + interactive styling accumulation → M3; mode.directives into the
+  agent SKILL.md → M4; cross-repo grammar-fix divergence → revisit shared-module if both repos keep evolving.
 - 2026-06-18: closed M1 — make test-lua + make test-review all green; e2e (review-loop-test) proves handoff→undo-able apply→docflow agent-round (records in body)→undo crosses commit→decorations reconstruct from commit; real-docflow smoke passes; review verdict: unknown
 ### 2026-06-18
 
