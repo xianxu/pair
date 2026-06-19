@@ -59,9 +59,10 @@ typed text exactly) followed by `<CR>` (now processed as a normal newline).
       real `init.lua` lets the test ALSO assert the live `<CR>` maparg callback
       routes through `cr_keys` (returns `<CR>` headless, where no popup is up) —
       proving the wiring, not just the extracted function.
-- [x] Run `make test-cr` (5/5 green). Live-dogfood deferred to operator: an
-      end-to-end keystroke test needs an interactive pum, which a non-interactive
-      agent can't drive and headless pum rendering is unreliable here.
+- [x] Run `make test-cr` (7/7 green after the z= revision). Operator
+      live-confirmed the end-to-end keystroke: a non-interactive agent can't
+      drive a live pum and headless pum rendering is unreliable here, so the
+      keystroke check is the operator's — and it passed.
 
 ## Log
 
