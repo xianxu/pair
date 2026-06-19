@@ -1765,6 +1765,37 @@ local function pum_has_selection()
   return vim.fn.complete_info({ 'selected' }).selected ~= -1
 end
 
+-- Decide what <CR> feeds in insert mode given completion-popup state. Pure
+-- (three booleans → a key string) so it's unit-testable without a live popup,
+-- which needs a UI headless nvim lacks. Cases:
+--   no popup                       → <CR>        plain newline (unchanged).
+--   popup + selection              → <C-y>       accept the highlighted item.
+--   popup, no selection, typing    → <C-e><CR>   dismiss the menu, THEN newline.
+--   popup, no selection, momentary → <CR>        clean dismiss, NO newline.
+-- The typing case is the fix (#65): under completeopt=noselect nothing is ever
+-- auto-highlighted, so "popup up, nothing picked" is the common case — and a
+-- bare <CR> there only closes the menu, swallowing the newline. <C-e> cancels
+-- completion (keeping exactly what was typed), so the following <CR> is
+-- processed as an ordinary newline. <CR> in the draft must ALWAYS break the line
+-- when the user hasn't picked a completion.
+--
+-- `momentary` is the escape hatch: the insert <CR> map is a shared chokepoint,
+-- and the normal-mode z= spell popup (spell_suggest_popup, gated by
+-- spell_popup_active) is a transient picker whose contract is "dismiss leaves
+-- the text intact" — it does NOT want a newline. For it we keep the old bare
+-- <CR> (clean dismiss); only as-you-type draft completions want the newline.
+-- Threaded as an arg (not read here) so cr_keys stays pure. (Caught in the #65
+-- milestone review — the Spec's three-state table missed this second consumer.)
+local function cr_keys(visible, has_selection, momentary)
+  if not visible then return '<CR>' end
+  if has_selection then return '<C-y>' end
+  if momentary then return '<CR>' end
+  return '<C-e><CR>'
+end
+-- Exposed for tests/cr-newline-test.sh (decision table); the live map below
+-- feeds the real popup state in.
+_G.PairCRKeys = cr_keys
+
 -- ---------------------------------------------------------------------------
 -- prompt history & queue navigation (issue #000015)
 --
@@ -3299,8 +3330,10 @@ vim.keymap.set('i', '<S-Tab>', function()
 end, { expr = true, desc = 'pair: reverse-cycle completion or shift-tab' })
 
 vim.keymap.set('i', '<CR>', function()
-  return (pum_visible() and pum_has_selection()) and '<C-y>' or '<CR>'
-end, { expr = true, desc = 'pair: accept completion if selected else newline' })
+  -- spell_popup_active marks the momentary z= picker (clean dismiss, no newline);
+  -- everything else is as-you-type draft completion (dismiss + newline on #65).
+  return cr_keys(pum_visible(), pum_has_selection(), spell_popup_active)
+end, { expr = true, desc = 'pair: accept selected completion, else dismiss popup (+newline unless z=)' })
 
 vim.keymap.set('i', '<LeftMouse>', function()
   if pum_visible() then

@@ -1,6 +1,6 @@
 ---
 id: 000065
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-18
@@ -48,12 +48,21 @@ typed text exactly) followed by `<CR>` (now processed as a normal newline).
 
 ## Plan
 
-- [ ] Extract a pure `cr_keys(visible, has_selection)` decision in `nvim/init.lua`,
+- [x] Extract a pure `cr_keys(visible, has_selection)` decision in `nvim/init.lua`,
       add the `<C-e><CR>` branch, route the `<CR>` map through it, expose it as
       `_G.PairCRKeys` for testing.
-- [ ] Add `tests/cr-newline-test.sh` (autopair-style headless driver) asserting
+- [x] Add `tests/cr-newline-test.sh` (autopair-style headless driver) asserting
       the three states; wire it into `Makefile.local` (`test-cr` + `test`).
-- [ ] Run `make test-cr`; live-dogfood the newline-on-Return in a real session.
+      Deliberately the headless-driver shape, not a bare `nvim -l` pure test:
+      `cr_keys` lives in monolithic `init.lua` (can't be `dofile`'d standalone
+      like `slug.lua`/`scrollback.lua` without its side effects), and booting the
+      real `init.lua` lets the test ALSO assert the live `<CR>` maparg callback
+      routes through `cr_keys` (returns `<CR>` headless, where no popup is up) —
+      proving the wiring, not just the extracted function.
+- [x] Run `make test-cr` (7/7 green after the z= revision). Operator
+      live-confirmed the end-to-end keystroke: a non-interactive agent can't
+      drive a live pum and headless pum rendering is unreliable here, so the
+      keystroke check is the operator's — and it passed.
 
 ## Log
 
@@ -65,3 +74,48 @@ typed text exactly) followed by `<CR>` (now processed as a normal newline).
 - Behavioral headless test of popup rendering is flaky (pum needs a UI;
   feedkeys timing). Following the repo's autopair-test precedent: assert the
   returned expr-string, trust nvim's `<C-e><CR>` semantics, verify newline live.
+- Implemented `cr_keys` + `_G.PairCRKeys`, routed the `<CR>` map through it,
+  corrected the now-inaccurate atlas line (#254) that claimed the old "(else
+  newline)" behavior. Updated README/atlas etc. were NOT touched here — they
+  belong to the WIP committed separately.
+- Verification: `make test-cr` 5/5; `test-autopair`/`test-queue`/`test-statusline`
+  + full `go test ./...` green. Full `make test` green EXCEPT `test-changelog`,
+  which fails IDENTICALLY on the pre-WIP baseline `4042686` (LLM-distiller env
+  issue, unrelated to this fix).
+- Tried twice to add an automated behavioral (newline-lands) headless check;
+  both failed at the luafile compile stage under UI-attach + feedkeys — the
+  flakiness the repo's expr-string precedent exists to avoid. Decision-table +
+  wiring test + canonical idiom stand; operator does the 10-sec live confirm.
+- Side note for operator: the WIP README added a duplicate `Alt+l` keybind row
+  (it also said "First invocation is slow", contradicting line 72's "Opens
+  instantly"). I dropped the dup and kept the detailed line 72; if the
+  slowness note is accurate, fold it into line 72.
+- 2026-06-18: closed — test-cr 7/7 (4 decision branches incl. the z= momentary
+  case + wiring); operator live-confirmed the keystroke (newline lands on
+  Return with a popup up & nothing picked; z= dismiss adds no newline).
+  test-autopair/queue/statusline + `go test ./...` green; full `make test` green
+  EXCEPT pre-existing `test-changelog` (fails identically on baseline 4042686,
+  LLM-distiller env). FORCE on close: `active-time-v3.py` absent (uncloned
+  data-dep) → ACTUAL unmeasurable, not hand-guessing per AGENTS.md §5;
+  estimate_hours 0.5.
+
+## Revisions
+
+### 2026-06-18 — milestone review caught a shared-chokepoint regression
+
+**Reason:** The `## Spec` three-state table was written for ONE consumer of the
+insert `<CR>` map (as-you-type draft completion), but the map is a shared
+chokepoint: it also serves the momentary normal-mode `z=` spell popup
+(`spell_suggest_popup`, gated by `spell_popup_active`), whose contract is
+"dismiss leaves the text intact" — NO newline. The first cut's `<C-e><CR>` would
+inject a spurious newline into the draft when a `z=` popup is dismissed with
+Return (the deferred `stopinsert` keeps us in insert mode when the `<CR>` lands).
+Critical found by `sdlc judge milestone-review`.
+
+**Delta:**
+- `cr_keys` gains a third `momentary` arg (still pure): momentary + no selection
+  → bare `<CR>` (clean dismiss); typing + no selection → `<C-e><CR>` (newline).
+- The `<CR>` map passes `momentary = spell_popup_active`.
+- `tests/cr-newline-test.sh` adds two `z=` momentary cases (now unit-testable
+  since the distinction is a pure arg — closes the review's test-gap note).
+- Atlas + the `cr_keys` comment document the two consumers.
