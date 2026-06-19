@@ -19,6 +19,8 @@ bin/*
 !bin/pair-dev
 !bin/pair-help
 !bin/pair-notify
+!bin/pair-review-open
+!bin/pair-review-toggle
 !bin/pair-scrollback-open
 !bin/lib/
 bin/lib/*

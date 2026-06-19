@@ -744,6 +744,19 @@ local function send_to_agent(body, no_submit)
   vim.fn.system('zellij action move-focus down')
 end
 
+-- :PairReview <file> — open a review pane on a file (#66 M3). `complete='file'`
+-- gives :e-style tab-completion; Alt+r in normal mode feeds ":PairReview " into
+-- this command line. Shells out to bin/pair-review-open, which spawns the
+-- floating review pane (nvim -u nvim/review.lua <file>).
+vim.api.nvim_create_user_command('PairReview', function(opts)
+  local home = vim.env.PAIR_HOME or ''
+  local bin = (home ~= '') and (home .. '/bin/pair-review-open') or 'pair-review-open'
+  vim.fn.system({ bin, opts.args })
+  if vim.v.shell_error ~= 0 then
+    vim.notify('PairReview: ' .. (vim.fn.fnamemodify(opts.args, ':t')) .. ' — open failed', vim.log.levels.WARN)
+  end
+end, { nargs = 1, complete = 'file', desc = 'open a review pane on a file' })
+
 -- Strip whole-line comments (^%s*===) before sending. Comments are stored
 -- intact in draft/queue/log so they survive history navigation — only what
 -- reaches the agent is cleaned. Leading and trailing blank lines left behind
