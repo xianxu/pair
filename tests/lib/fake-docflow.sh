@@ -22,6 +22,8 @@ case "$verb" in
     f="${1:?start needs a file}"
     [ -f "$f" ] || { echo "fake-docflow: $f not found" >&2; exit 1; }
     git checkout -q -b "review/$(slugify "$f")"
+    # record the in-scope file — the real docflow stages in-scope-only, never -A
+    printf '%s\n' "$f" > "$(git rev-parse --git-dir)/fake-docflow-inscope"
     ;;
   round)
     side=""; summary=""; body=""
@@ -37,7 +39,13 @@ case "$verb" in
     [ "$side" = human ] || [ "$side" = agent ] || { echo "round needs --side human|agent" >&2; exit 1; }
     cur="$(git rev-parse --abbrev-ref HEAD)"
     slug="${cur#review/}"
-    git add -A
+    # stage in-scope files only (matches the real docflow); -A only as fallback
+    inscope="$(git rev-parse --git-dir)/fake-docflow-inscope"
+    if [ -s "$inscope" ]; then
+      while IFS= read -r insf; do [ -n "$insf" ] && git add -- "$insf"; done < "$inscope"
+    else
+      git add -A
+    fi
     if git diff --cached --quiet; then
       echo "fake-docflow: no changes for $side round — skipping" >&2
       exit 0

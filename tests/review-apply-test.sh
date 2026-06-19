@@ -132,6 +132,19 @@ for l in pairs(live) do if not res[l] then same = false end end
 for l in pairs(res) do if not live[l] then same = false end end
 ok(same, 'live decoration lines == reconstruct (resume) lines')
 
+-- (l) apply.render — the RESUME-render path M2 consumes: given records with
+-- new_occurrence + content, places decorations matching reconstruct.
+local br = newbuf({ 'alpha', 'TWO bar', 'IV baz' })
+apply.render(br, {
+  { new = 'TWO', new_occurrence = 1, explain = 'a' },
+  { new = 'IV', new_occurrence = 1, explain = 'b' },
+}, content(br))
+ok(#vim.api.nvim_buf_get_extmarks(br, apply.HL, 0, -1, {}) == 2, 'render: 2 extmarks placed')
+ok(#vim.diagnostic.get(br) == 2, 'render: 2 diagnostics placed')
+local rlines = {}
+for _, m in ipairs(vim.api.nvim_buf_get_extmarks(br, apply.HL, 0, -1, {})) do rlines[m[2]] = true end
+ok(rlines[1] and rlines[2], 'render: decorations on the right lines (1 and 2)')
+
 OUT:write(fails == 0 and 'apply_test ok\n' or ('FAILED ' .. fails .. '\n'))
 OUT:close()
 LUA

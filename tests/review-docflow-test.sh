@@ -30,6 +30,9 @@ local ROOT = os.getenv('PAIR_ROOT')
 local docflow = dofile(ROOT .. '/nvim/review/docflow.lua')
 local record  = dofile(ROOT .. '/nvim/review/record.lua')
 docflow.start('doc.md')
+-- an out-of-scope file present during the rounds: must NOT be staged (the real
+-- docflow stages in-scope-only, never -A).
+local o = io.open('other.md', 'w'); o:write('out of scope\n'); o:close()
 local h = io.open('doc.md', 'a'); h:write('\nhuman\n'); h:close()
 docflow.round('human', 'incoming')
 local a = io.open('doc.md', 'a'); a:write('\nagent\n'); a:close()
@@ -56,6 +59,11 @@ body="$(cd "$REPO" && git log --format='%b' --grep='agent r1' -1)"
 case "$body" in *'```review-records'*) pass "records block in agent commit body";; *) fail "no records block in body";; esac
 he="$(cd "$REPO" && git log --format='%ae' --grep='human r1' -1)"
 [ "$he" = "t@example.com" ] && pass "human round authored by operator" || fail "human author: $he"
+
+# scoping: the agent round must stage the in-scope doc only, not other.md
+files="$(cd "$REPO" && git log -1 --name-only --format= --grep='agent r1')"
+case "$files" in *doc.md*) pass "agent round staged the in-scope doc";; *) fail "doc.md missing from agent commit";; esac
+case "$files" in *other.md*) fail "out-of-scope other.md leaked into the round (staging not in-scope-only)";; *) pass "out-of-scope file NOT staged";; esac
 
 # ── gated smoke test against the REAL ariadne docflow ─────────────────────────
 REAL="${DOCFLOW_BIN_REAL:-$ROOT/../ariadne/scripts/docflow.sh}"
