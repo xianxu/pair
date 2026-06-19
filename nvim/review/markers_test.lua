@@ -69,5 +69,22 @@ local mlc = M.parse_markers({ 'x', 'ab🤖[y]' })
 eq(mlc[1].line, 1, 'marker line (0-based)')
 eq(mlc[1].col, 2, 'marker col (0-based byte)')
 
+-- highlight_spans (#66 M3): per-line spans for the ParleyReview* groups
+local function find_hl(spans, hl)
+  for _, s in ipairs(spans) do if s.hl_group == hl then return s end end
+end
+local hsp = M.highlight_spans({ 'before 🤖<q>[u]{a} after' })
+eq(find_hl(hsp, 'ParleyReviewQuoted') ~= nil, true, 'quoted span present')
+eq(find_hl(hsp, 'ParleyReviewUser') ~= nil, true, 'user span present')
+eq(find_hl(hsp, 'ParleyReviewAgent') ~= nil, true, 'agent span present')
+eq(hsp[1].row, 0, 'span row is 0-based')
+-- byte-accurate: 'before ' = 7 bytes → 🤖 starts at 0-based col 7
+eq(find_hl(hsp, 'ParleyReviewQuoted').col_start, 7, 'quoted col_start = 0-based 🤖 start')
+-- '🤖<q>' spans 1-based bytes 8..14 → quoted closes at byte 14 → col_end 14
+eq(find_hl(hsp, 'ParleyReviewQuoted').col_end, 14, 'quoted col_end through >')
+local ss = M.highlight_spans({ '🤖~old~' })
+eq(find_hl(ss, 'ParleyReviewStrike') ~= nil, true, 'strike span present')
+eq(#M.highlight_spans({ 'no markers here' }), 0, 'no markers → no spans')
+
 if fails > 0 then os.exit(1) end
 print('markers_test ok')

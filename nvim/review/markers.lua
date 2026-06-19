@@ -206,7 +206,37 @@ M.parse_markers = function(lines)
   return markers
 end
 
--- Exposed for a future highlighter (the per-line section seam).
+-- Exposed for the highlighter (the per-line section seam).
 M._parse_marker_sections = parse_marker_sections
+
+-- Per-line highlight spans for 🤖 markers (issue #66 M3). Pure: lines → spans
+-- { row (0-based), col_start (0-based byte), col_end (0-based byte, exclusive),
+-- hl_group }. Ported from parley's highlighter (per-line 🤖 scan). Groups:
+-- ParleyReviewQuoted (🤖<…>), ParleyReviewStrike (🤖~…~), ParleyReviewUser ([…]),
+-- ParleyReviewAgent ({…}). Scans per LINE (not the whole doc) — markers used as
+-- review requests sit on one line; the multi-line parser is parse_markers.
+function M.highlight_spans(lines)
+  local spans = {}
+  for i, line in ipairs(lines) do
+    local row = i - 1
+    local search_start = 1
+    while true do
+      local pos = line:find(MARKER_CHAR, search_start, true)
+      if not pos then break end
+      local sections, end_pos, quoted, strike = parse_marker_sections(line, pos, MARKER_BYTE_LEN)
+      if quoted then
+        spans[#spans + 1] = { row = row, col_start = pos - 1, col_end = quoted.byte_end, hl_group = 'ParleyReviewQuoted' }
+      elseif strike and strike.text ~= '' then
+        spans[#spans + 1] = { row = row, col_start = pos - 1, col_end = strike.byte_end, hl_group = 'ParleyReviewStrike' }
+      end
+      for _, section in ipairs(sections) do
+        local hl = section.type == 'agent' and 'ParleyReviewAgent' or 'ParleyReviewUser'
+        spans[#spans + 1] = { row = row, col_start = section.byte_start - 1, col_end = section.byte_end, hl_group = hl }
+      end
+      search_start = (end_pos > pos) and end_pos or (pos + MARKER_BYTE_LEN)
+    end
+  end
+  return spans
+end
 
 return M
