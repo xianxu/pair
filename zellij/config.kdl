@@ -193,6 +193,23 @@ keybinds clear-defaults=false {
             };
         }
 
+        // Alt+r — review workbench (#66 M3). Mode-aware: with no review open it
+        // focuses the draft and drops into `:PairReview ` (tab-complete a file);
+        // with a review open it flips the review pane's visibility (agent+draft
+        // ⇄ review view). pair-review-toggle owns the branch + uses explicit
+        // show/hide (never toggle-floating-panes).
+        bind "Alt r" {
+            Run "pair-review-toggle" {
+                floating true
+                close_on_exit true
+                name "review-toggle"
+                width "20%"
+                height "1"
+                x "0"
+                y "0"
+            };
+        }
+
         // Alt+l — open the session's distilled change log in a read-only nvim
         // viewer (#53). The distilled counterpart to Alt+/: pair-changelog-open
         // cleans the captured TTY, runs the pair-changelog distiller (LLM
