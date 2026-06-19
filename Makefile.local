@@ -55,8 +55,16 @@ pair-changelog:         $(BIN_DIR)/pair-changelog
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
-test: test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-continue test-changelog test-copy-on-select
+test: test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-continue test-changelog test-copy-on-select test-review
 	go test ./... -count=1
+
+# Review workbench (#66): the integration shell tests. The pure modules
+# (record, reconstruct) run under `make test-lua`.
+test-review:
+	bash tests/review-docflow-test.sh
+	bash tests/review-apply-test.sh
+	bash tests/review-handoff-test.sh
+	bash tests/review-loop-test.sh
 
 test-race:
 	go test -count=1 -race ./cmd/pair-wrap/
