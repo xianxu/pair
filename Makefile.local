@@ -66,6 +66,9 @@ test-review:
 	bash tests/review-handoff-test.sh
 	bash tests/review-loop-test.sh
 	bash tests/review-projection-test.sh
+	bash tests/review-poke-test.sh
+	bash tests/review-window-test.sh
+	bash tests/review-toggle-test.sh
 
 test-race:
 	go test -count=1 -race ./cmd/pair-wrap/

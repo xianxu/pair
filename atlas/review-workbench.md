@@ -61,15 +61,43 @@ records handoff → nvim watcher → `apply` (undo-able) + decorate → `docflow
 per-hunk explains in the agent commit body); fine-grained undo lives in nvim's
 `undofile`; no bespoke sidecar. The doc must be in a git repo.
 
+## The review window (M3)
+
+The document workbench in a live pair session — a **floating** nvim pane (the
+proven scrollback/changelog pattern), opened on a file, alongside pair's agent+draft.
+
+- `nvim/review.lua` — the pane init (`nvim -u nvim/review.lua <file>`): dofiles the
+  review core + poke + markers, `review.start{}`, wires **Alt+Return = finish human
+  turn** (`human_round` + poke "updated, please review"), renders 🤖 markers
+  (`markers.highlight_spans` → `ParleyReview*` extmarks, re-rendered on TextChanged),
+  writes the open-state file (`pid\nvisible`), and tears down on `VimLeave`.
+- `bin/pair-review-open <file>` — validates + spawns the floating pane (`zellij run
+  --floating --close-on-exit --name review`), replacing any live review (single pane).
+- `:PairReview <file>` (in draft `nvim/init.lua`, `complete=file`) — the `:e`-style
+  opener; shells to `pair-review-open`.
+- `bin/pair-review-toggle` (Alt+r, `zellij/config.kdl`) — mode-aware: no review →
+  focus the draft + open `:PairReview ` (file-select); review open → flip visibility
+  (`show`/`hide-floating-panes`, visibility tracked on state-file line 2 to dodge the
+  toggle's own floating pane confounding `are-floating-panes-visible`; **never**
+  `toggle-floating-panes`).
+- `nvim/pair_poke.lua` — id-based agent poke: relative `move-focus` does NOT escape a
+  floating pane, so it resolves the agent + caller panes from `list-panes --json` and
+  `focus-pane-id`s them (focus agent → write-chars + `write 27 13` submit → restore).
+
+The agent pane is pair's **existing** agent — free-form chat works for free; the SKILL
+that makes "please review" / "ship it" review-aware is M4.
+
 ## State
 
-M1 (contract + history spine, fake-agent-driven e2e) and M2 (consumer-half port:
-projection / markers / modes) are complete. Still to come (see
-`workshop/issues/000066`, `workshop/plans/000066-*`): M3 the `:PairReview` window +
-zellij agent poke + marker rendering + the interactive styling-accumulation
-semantics (human round adds without clearing agent's; clear on next conversation
-turn), M4 the real agent SKILL.md (composing `mode.directives()`) + memory
-discovery + cross-session resume.
+M1 (contract + history spine, fake-agent-driven e2e), M2 (consumer-half port:
+projection / markers / modes), and M3's **headless parts** (window/poke/toggle/marker
+rendering wiring) are complete + tested. **M3 manual real-session smoke is pending**
+(live zellij pane open/toggle, the Alt+Return round-trip, and the projection
+`TextChanged` autocmd firing live — which headless can't reach). Still to come (see
+`workshop/issues/000066`, `workshop/plans/000066-*`): M3 the interactive
+styling-accumulation semantics (human round adds without clearing agent's; clear on
+next conversation turn), M4 the real agent SKILL.md (composing `mode.directives()`) +
+memory discovery + cross-session resume.
 
 ## Tests
 
@@ -77,4 +105,7 @@ discovery + cross-session resume.
 - `make test-review` — `docflow` (+ hermetic `tests/lib/fake-docflow.sh` and a
   gated smoke against the real ariadne `docflow.sh`), `apply` (incl. snapshot
   round-trip), `handoff`, the `loop` e2e (with `tests/lib/fake-review-agent.sh`),
-  and `projection` (undo/redo coherence + riding + round-2 idempotence).
+  and `projection` (undo/redo coherence + riding + round-2 idempotence); M3 adds
+  `poke` (id-based agent poke, no relative move-focus), `window` (:PairReview +
+  pair-review-open + review.lua: keymap/state/markers + Alt+Return round-trip), and
+  `toggle` (mode-aware branch, explicit show/hide, no toggle-floating-panes).
