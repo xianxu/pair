@@ -404,3 +404,10 @@ The review `SKILL.md` the pair agent follows: do multi-step memory discovery (br
   ranges are rejected (not corrupted) since bottom-to-top apply assumes non-overlap.
   This is the stable apply→orchestrator return contract M2's renderer and M4's real
   agent will both depend on.
+- **2026-06-18 — milestone-review (round 3: completions).** Finished the "never silent"
+  sweep: a malformed handoff now surfaces a `vim.notify` (and is still consumed). Minor
+  hardening: the records fence pattern is derived from the `OPEN` constant (can't drift);
+  `apply`'s resume renderer is `M.render` (not `M.decorate`, which collided with
+  `reconstruct.decorate`'s pure-vs-side-effecting semantics). Deferred to M2/M4 (documented,
+  non-blocking): additive styling vs. clear (M2), newline-offset index perf (M2), VimLeave
+  timer cleanup (M3), stronger resume anchor + file-vs-buffer newline contract (M4).

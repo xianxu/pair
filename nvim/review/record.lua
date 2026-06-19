@@ -13,6 +13,10 @@
 local M = {}
 
 local OPEN = '```review-records'
+local CLOSE = '```'
+-- the extract pattern is DERIVED from OPEN (escape Lua-pattern magic) so the
+-- fence can't drift between embed and extract.
+local OPEN_PAT = OPEN:gsub('[%(%)%.%%%+%-%*%?%[%]%^%$]', '%%%0')
 
 function M.encode(records)
   return vim.json.encode(records)
@@ -24,7 +28,7 @@ end
 
 -- Build an agent commit body: prose summary + a fenced records block.
 function M.embed_in_body(summary, records)
-  return table.concat({ summary, '', OPEN, M.encode(records), '```' }, '\n')
+  return table.concat({ summary, '', OPEN, M.encode(records), CLOSE }, '\n')
 end
 
 -- Pull the records back out of a commit body; nil if no block present. The
@@ -32,7 +36,7 @@ end
 -- Relies on vim.json.encode emitting SINGLE-LINE JSON, so the only "\n```" is
 -- the closing fence (true today; the block would need re-delimiting otherwise).
 function M.extract_from_body(body)
-  local block = body:match('```review%-records\n(.-)\n```')
+  local block = body:match(OPEN_PAT .. '\n(.-)\n' .. CLOSE)
   if not block then return nil end
   return M.decode(block)
 end

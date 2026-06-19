@@ -140,7 +140,9 @@ end
 
 -- Resume render: locate `records` in `content` by new_occurrence and decorate.
 -- Used when re-rendering a past round from its commit body (not the live path).
-function M.decorate(buf, records, content)
+-- Named `render` (not `decorate`) to avoid colliding with reconstruct.decorate,
+-- which is PURE and returns data — this one side-effects (places extmarks).
+function M.render(buf, records, content)
   content = content or buf_content(buf)
   local d = reconstruct.decorate(records, content, 'new')
   local decos = {}

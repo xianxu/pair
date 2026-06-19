@@ -32,6 +32,20 @@ ok(got and got[1] and got[1].new == 'b', 'received the decoded records')
 ok(got and got[1] and got[1].new_occurrence == 1, 'records carry new_occurrence')
 ok(vim.uv.fs_stat(handoff.path(tag)) == nil, 'handoff unlinked after consume')
 
+-- malformed handoff: must SURFACE (notify) + consume the file, never silent
+local note = {}
+local orig = vim.notify
+vim.notify = function(m) note[#note + 1] = tostring(m) end
+local bad = handoff.path('bad'); vim.fn.mkdir(vim.fn.fnamemodify(bad, ':h'), 'p')
+local fired = false
+local stop2 = handoff.watch('bad', function() fired = true end, { interval = 20 })
+local fh = io.open(bad, 'w'); fh:write('not json{'); fh:close()
+vim.wait(2000, function() return #note > 0 end, 20)
+stop2(); vim.notify = orig
+ok(not fired, 'malformed handoff does not fire the callback')
+ok(#note >= 1 and note[1]:match('decode'), 'malformed handoff surfaces a notify')
+ok(vim.uv.fs_stat(bad) == nil, 'malformed handoff is still consumed (no loop)')
+
 OUT:write(fails == 0 and 'handoff_test ok\n' or ('FAILED ' .. fails .. '\n'))
 OUT:close()
 LUA

@@ -44,7 +44,12 @@ function M.watch(tag, cb, opts)
     local data = fh:read('*a'); fh:close()
     os.remove(p) -- consume regardless, so a bad handoff never loops forever
     local ok, recs = pcall(record.decode, data)
-    if ok and recs then cb(recs) end
+    if ok and recs then
+      cb(recs)
+    else
+      -- never silent (milestone review): a malformed handoff drops the round
+      vim.notify('review: handoff decode failed — round dropped', vim.log.levels.WARN)
+    end
   end))
   return function()
     if timer and not timer:is_closing() then timer:stop(); timer:close() end

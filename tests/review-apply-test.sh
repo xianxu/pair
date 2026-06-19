@@ -117,6 +117,21 @@ local en10, dr10 = apply.apply(b10, {
 ok(#en10 == 1 and content(b10) == '1ef', 'overlap: only the non-overlapping record applied')
 ok(#dr10 == 1 and dr10[1].reason == 'overlap', 'overlap: intersecting record dropped with reason')
 
+-- (k) live decoration lines EQUAL the resume(reconstruct) lines — the
+-- new_occurrence invariant that keeps live-render and resume-render identical.
+local bk = newbuf({ 'one two three four' })
+local ek = apply.apply(bk, {
+  { old = 'two', occurrence = 1, new = 'TWO', explain = 'a' },
+  { old = 'four', occurrence = 1, new = 'IV', explain = 'b' },
+})
+local live, res = {}, {}
+for _, m in ipairs(vim.api.nvim_buf_get_extmarks(bk, apply.HL, 0, -1, {})) do live[m[2]] = true end
+for _, h in ipairs(reconstruct.decorate(ek, content(bk), 'new').highlights) do res[h.line] = true end
+local same = true
+for l in pairs(live) do if not res[l] then same = false end end
+for l in pairs(res) do if not live[l] then same = false end end
+ok(same, 'live decoration lines == reconstruct (resume) lines')
+
 OUT:write(fails == 0 and 'apply_test ok\n' or ('FAILED ' .. fails .. '\n'))
 OUT:close()
 LUA
