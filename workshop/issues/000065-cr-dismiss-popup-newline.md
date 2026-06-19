@@ -65,8 +65,6 @@ typed text exactly) followed by `<CR>` (now processed as a normal newline).
 
 ## Log
 
-
-- 2026-06-18: closed — make test-cr 5/5: <CR> -> <C-e><CR> (dismiss popup + newline) when pum up & nothing selected, <C-y> when item selected, plain <CR> with no pum; live <CR> map routes through cr_keys. test-autopair/queue/statusline + go test ./... green; full make test green EXCEPT pre-existing test-changelog (fails identically on baseline 4042686, LLM-distiller env). FORCE reason: construct/local/issues/active-time-v3.py absent from this checkout (uncloned data-dep) -> ACTUAL unmeasurable; not hand-guessing per AGENTS.md §5; estimate_hours 0.5 stands. atlas+plan done despite blanket force.
 ### 2026-06-18
 
 - Confirmed current map at `nvim/init.lua:3301`; `completeopt` is
@@ -91,6 +89,14 @@ typed text exactly) followed by `<CR>` (now processed as a normal newline).
   (it also said "First invocation is slow", contradicting line 72's "Opens
   instantly"). I dropped the dup and kept the detailed line 72; if the
   slowness note is accurate, fold it into line 72.
+- 2026-06-18: closed — test-cr 7/7 (4 decision branches incl. the z= momentary
+  case + wiring); operator live-confirmed the keystroke (newline lands on
+  Return with a popup up & nothing picked; z= dismiss adds no newline).
+  test-autopair/queue/statusline + `go test ./...` green; full `make test` green
+  EXCEPT pre-existing `test-changelog` (fails identically on baseline 4042686,
+  LLM-distiller env). FORCE on close: `active-time-v3.py` absent (uncloned
+  data-dep) → ACTUAL unmeasurable, not hand-guessing per AGENTS.md §5;
+  estimate_hours 0.5.
 
 ## Revisions
 
