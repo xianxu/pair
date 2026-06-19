@@ -64,5 +64,10 @@ for _ = 1, 60 do budget[#budget + 1] = 'x' end
 budget[#budget + 1] = '}'
 eq(#M.parse_markers(budget), 0, 'stray { beyond the newline budget yields no marker')
 
+-- a marker carries its 0-based (line, col) position
+local mlc = M.parse_markers({ 'x', 'ab🤖[y]' })
+eq(mlc[1].line, 1, 'marker line (0-based)')
+eq(mlc[1].col, 2, 'marker col (0-based byte)')
+
 if fails > 0 then os.exit(1) end
 print('markers_test ok')

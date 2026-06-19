@@ -43,5 +43,16 @@ eq(#modes, 6, 'six stock modes')
 eq(modes[1].name, 'developmental', 'first by order=1')
 eq(modes[6].name, 'free-form', 'last by order=6')
 
+-- list() drops a file whose frontmatter name ≠ basename (load resolves by
+-- basename, so a mismatch would offer a name load() can't find).
+local td = vim.fn.tempname()
+vim.fn.mkdir(td, 'p')
+local function w(p, c) local f = io.open(p, 'w'); f:write(c); f:close() end
+w(td .. '/good.md', '---\nname: good\n---\nx')
+w(td .. '/mismatch.md', '---\nname: notmismatch\n---\nx')
+local lst = M.list(td)
+eq(#lst, 1, 'list drops a file whose name ≠ basename')
+eq(lst[1].name, 'good', 'only the matching file kept')
+
 if fails > 0 then os.exit(1) end
 print('mode_test ok')
