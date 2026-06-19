@@ -10,7 +10,15 @@ end
 local function run(args)
   local cmd = { bin() }
   vim.list_extend(cmd, args)
-  return vim.system(cmd, { text = true }):wait()
+  -- A missing binary makes vim.system raise ENOENT (not a non-zero exit), which
+  -- would crash the caller (e.g. review.start on VimEnter). Catch it and return
+  -- a synthetic failure result so callers' check()/notify path handles it and
+  -- the review pane still opens (render-only until docflow is on PATH/$DOCFLOW_BIN).
+  local ok, res = pcall(function() return vim.system(cmd, { text = true }):wait() end)
+  if not ok then
+    return { code = 127, stdout = '', stderr = 'docflow not runnable (' .. bin() .. '): ' .. tostring(res) }
+  end
+  return res
 end
 
 function M.start(file)
