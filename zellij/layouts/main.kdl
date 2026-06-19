@@ -16,7 +16,7 @@
 // zellij's escape filtering. #000011
 //
 // LAYOUT RUNGS — the draft pane has three sizes: minimized (1 row,
-// statusline only) ↔ small (fixed 12 rows, initial) ↔ half (50%). Alt+Up /
+// statusline only) ↔ small (fixed 12 rows, initial) ↔ third (1/3). Alt+Up /
 // Alt+Down step the ladder via zellij's swap layouts (defined below).
 // Swap layouts re-tile existing panes — the agent and nvim processes are
 // preserved across rung changes; zellij maps existing panes onto the new
@@ -73,9 +73,9 @@ layout {
     // re-tiling existing panes positionally. Pane processes (pair-wrap,
     // nvim) survive each swap.
     //
-    // Cycle from default(small) — assuming swap order [minimized, half]:
-    //   default → next → minimized → next → half → next → default
-    //   default → prev → half → prev → minimized → prev → default
+    // Cycle from default(small) — assuming swap order [minimized, third]:
+    //   default → next → minimized → next → third → next → default
+    //   default → prev → third → prev → minimized → prev → default
     //
     // nvim/init.lua maps Alt+Down → next-swap-layout (smaller rung) and
     // Alt+Up → prev-swap-layout (bigger rung), with a state-machine clamp
@@ -104,11 +104,11 @@ layout {
         }
     }
 
-    swap_tiled_layout name="half" {
+    swap_tiled_layout name="third" {
         tab exact_panes=2 {
             pane split_direction="horizontal" {
                 pane name="agent"
-                pane size="50%" name="draft" borderless=true
+                pane size="33%" name="draft" borderless=true
             }
         }
     }

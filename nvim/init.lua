@@ -3071,7 +3071,7 @@ end
 vim.api.nvim_create_user_command('PairTTYRawPath', function() _G.PairTTYRawPath() end, {})
 
 -- ---------------------------------------------------------------------------
--- Layout sizing: minimized (statusline only) ↔ small (12 rows, initial) ↔ half (50%).
+-- Layout sizing: minimized (statusline only) ↔ small (12 rows, initial) ↔ third (1/3).
 -- ---------------------------------------------------------------------------
 -- Two keys drive this: Alt+Up (PairLayoutBigger) and Alt+Down
 -- (PairLayoutSmaller) step along the ladder, clamped at the ends.
@@ -3082,10 +3082,10 @@ vim.api.nvim_create_user_command('PairTTYRawPath', function() _G.PairTTYRawPath(
 -- which re-tiles the existing agent + nvim panes onto the target swap
 -- layout. One IPC call per step, panes are preserved.
 --
--- Cycle from default = [minimized, half]:
---   default(small) → next → minimized → next → half → next → wraps
---   default(small) → prev → half → prev → minimized → prev → wraps
--- So Alt+Down (smaller) maps to next-swap from {small, half},
+-- Cycle from default = [minimized, third]:
+--   default(small) → next → minimized → next → third → next → wraps
+--   default(small) → prev → third → prev → minimized → prev → wraps
+-- So Alt+Down (smaller) maps to next-swap from {small, third},
 -- and Alt+Up (bigger) maps to prev-swap from {small, minimized}.
 -- The state machine in PairLayoutBigger / PairLayoutSmaller clamps at
 -- the rung extremes so we never wrap past them.
@@ -3093,7 +3093,7 @@ local LAYOUT_STATE_FILE = (vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/sh
   .. '/pair/layout-mode-' .. (vim.env.PAIR_TAG or vim.env.PAIR_AGENT or 'claude')
 
 -- Read the current rung from nvim's own pane height. The kdl pins each
--- rung to an exact size (1 / 12 / 50%), so vim.o.lines is a ground-truth
+-- rung to an exact size (1 / 12 / 33%), so vim.o.lines is a ground-truth
 -- signal that can't drift from zellij's actual swap-layout position. We
 -- previously tracked rung in a disk file and updated it after each step,
 -- which permanently desynced if any single `zellij action <swap>` was
@@ -3104,7 +3104,7 @@ local function layout_read()
   local h = vim.o.lines
   if h <= 2 then return 'minimized' end
   if h <= 12 then return 'small' end
-  return 'half'
+  return 'third'
 end
 
 local function layout_write(s)
@@ -3117,8 +3117,8 @@ local function layout_write(s)
   if f then f:write(s); f:close() end
 end
 
-local LAYOUT_LADDER = { minimized = 1, small = 2, half = 3 }
-local LAYOUT_BY_LEVEL = { 'minimized', 'small', 'half' }
+local LAYOUT_LADDER = { minimized = 1, small = 2, third = 3 }
+local LAYOUT_BY_LEVEL = { 'minimized', 'small', 'third' }
 
 local function zellij_swap(direction)
   -- direction = 'next' or 'previous'
@@ -3132,10 +3132,10 @@ local function layout_step(from, to)
     zellij_swap('previous')   -- minimized → default(small)
   elseif from == 'small' and to == 'minimized' then
     zellij_swap('next')       -- default(small) → minimized
-  elseif from == 'small' and to == 'half' then
-    zellij_swap('previous')   -- default(small) → half (last in cycle)
-  elseif from == 'half' and to == 'small' then
-    zellij_swap('next')       -- half → wraps to default(small)
+  elseif from == 'small' and to == 'third' then
+    zellij_swap('previous')   -- default(small) → third (last in cycle)
+  elseif from == 'third' and to == 'small' then
+    zellij_swap('next')       -- third → wraps to default(small)
   end
 end
 
@@ -3144,7 +3144,7 @@ local function layout_goto(target)
   local from = LAYOUT_LADDER[cur] or 1
   local to = LAYOUT_LADDER[target]
   if not to or from == to then
-    -- Clamped at the ladder boundary (Alt+Up at half, or Alt+Down at
+    -- Clamped at the ladder boundary (Alt+Up at third, or Alt+Down at
     -- minimized). The zellij keybind has already moved focus to nvim
     -- and forced normal mode (Ctrl-\ Ctrl-N), expecting the post-step
     -- recovery below to either move focus back (for minimized) or
@@ -3181,7 +3181,7 @@ local function layout_goto(target)
   -- the user can't usefully interact with it. Shift focus to the agent
   -- pane so they can keep working.
   --
-  -- Landing in small/half: the zellij keybind that triggered us escaped
+  -- Landing in small/third: the zellij keybind that triggered us escaped
   -- to normal mode (Ctrl-\ Ctrl-N) before invoking this lua. That's
   -- correct for minimized (where the locked sheet is the desired look),
   -- but for any expanded rung the user is here to type — startinsert
