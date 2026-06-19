@@ -411,3 +411,8 @@ The review `SKILL.md` the pair agent follows: do multi-step memory discovery (br
   `reconstruct.decorate`'s pure-vs-side-effecting semantics). Deferred to M2/M4 (documented,
   non-blocking): additive styling vs. clear (M2), newline-offset index perf (M2), VimLeave
   timer cleanup (M3), stronger resume anchor + file-vs-buffer newline contract (M4).
+- **2026-06-19 — M3 module naming reconciled.** The M3 outline named `review/poke.lua` and
+  `review/window.lua`; the M3 plan (`…-m3-plan.md`) instead uses **`nvim/pair_poke.lua`** (top-level —
+  the draft pane shares the agent poke, so `review/` is the wrong home) and folds the window logic into
+  **`nvim/review.lua`** (the pane init, mirroring `scrollback.lua`/`changelog.lua`). The M3 plan is the
+  authority for M3's file layout.
