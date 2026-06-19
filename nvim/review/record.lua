@@ -29,6 +29,8 @@ end
 
 -- Pull the records back out of a commit body; nil if no block present. The
 -- non-greedy capture tolerates trailing content (e.g. a Co-Authored-By trailer).
+-- Relies on vim.json.encode emitting SINGLE-LINE JSON, so the only "\n```" is
+-- the closing fence (true today; the block would need re-delimiting otherwise).
 function M.extract_from_body(body)
   local block = body:match('```review%-records\n(.-)\n```')
   if not block then return nil end

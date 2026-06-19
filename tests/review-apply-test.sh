@@ -71,6 +71,27 @@ ok(content(b6) == 'z Z', 'single record applied at occurrence 2')
 undo(b6)
 ok(content(b6) == 'z z', 'single-record single-undo reverts')
 
+-- (f) self-overlapping `new` adjacent to identical bytes: LIVE decoration must
+-- NOT be dropped (milestone review I1). base 'aX' → 'aaa'.
+local b7 = newbuf({ 'aX' })
+apply.apply(b7, { { old = 'X', occurrence = 1, new = 'aa', explain = 'overlap' } })
+ok(content(b7) == 'aaa', 'self-overlapping edit applied')
+ok(#vim.api.nvim_buf_get_extmarks(b7, apply.HL, 0, -1, {}) >= 1, 'self-overlap: live decoration not dropped')
+ok(#vim.diagnostic.get(b7) >= 1, 'self-overlap: diagnostic present')
+
+-- (g) apply with a DIFFERENT buffer focused: the single-undo-block must still
+-- hold (milestone review I2 — undojoin must target `buf`, not the current one).
+local target = newbuf({ 'aaa bbb ccc' })
+local other = vim.api.nvim_create_buf(true, false)
+vim.api.nvim_set_current_buf(other)
+apply.apply(target, {
+  { old = 'aaa', occurrence = 1, new = 'AAA', explain = '1' },
+  { old = 'ccc', occurrence = 1, new = 'CCC', explain = '2' },
+})
+ok(content(target) == 'AAA bbb CCC', 'applied to non-current buffer')
+vim.api.nvim_buf_call(target, function() vim.cmd('silent undo') end)
+ok(content(target) == 'aaa bbb ccc', 'single undo reverts whole round when buf not current')
+
 OUT:write(fails == 0 and 'apply_test ok\n' or ('FAILED ' .. fails .. '\n'))
 OUT:close()
 LUA

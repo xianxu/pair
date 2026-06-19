@@ -18,6 +18,18 @@ local function save(buf)
   vim.api.nvim_buf_call(buf, function() vim.cmd('silent keepalt write') end)
 end
 
+-- Surface docflow failures instead of swallowing them (milestone review I3):
+-- a failed round leaves an edited+saved buffer with no commit — never silent.
+local function check(result, what)
+  if result and result.code and result.code ~= 0 then
+    vim.notify(
+      string.format('review: docflow %s failed (exit %d): %s', what, result.code, result.stderr or ''),
+      vim.log.levels.ERROR)
+    return false
+  end
+  return true
+end
+
 -- Apply an agent handoff: undo-able apply → save → commit the agent round with
 -- the (enriched) records in the body. Exposed for testing.
 function M.on_agent_round(buf, records)
@@ -25,14 +37,14 @@ function M.on_agent_round(buf, records)
   if #enriched == 0 then return enriched end
   save(buf)
   local summary = string.format('%d edit(s)', #enriched)
-  docflow.round('agent', summary, record.embed_in_body(summary, enriched))
+  check(docflow.round('agent', summary, record.embed_in_body(summary, enriched)), 'agent round')
   return enriched
 end
 
 -- Commit the human's incoming edits as a human round.
 function M.human_round(buf, summary)
   save(buf)
-  docflow.round('human', summary or 'incoming')
+  return check(docflow.round('human', summary or 'incoming'), 'human round')
 end
 
 -- Start a review on a buffer. opts: { buf, file, tag, watch_opts }.
@@ -42,7 +54,7 @@ function M.start(opts)
   local file = opts.file or vim.api.nvim_buf_get_name(buf)
   local tag = opts.tag or vim.fn.fnamemodify(file, ':t:r')
   vim.bo[buf].undofile = true -- cross-session undo (decision 2)
-  docflow.start(file)
+  check(docflow.start(file), 'start')
   local stop = handoff.watch(tag, function(records)
     M.on_agent_round(buf, records)
   end, opts.watch_opts)

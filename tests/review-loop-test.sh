@@ -67,6 +67,16 @@ local a = content(buf)
 ok(a:match('foo') and not a:match('FOO'), 'one undo reverts the agent round')
 ok(a:match('human note'), 'human round survives the agent-round undo')
 
+-- (I3) a docflow failure must SURFACE (notify), not silently leave an
+-- edited+saved buffer with no commit.
+local notified = {}
+local orig = vim.notify
+vim.notify = function(msg) notified[#notified + 1] = tostring(msg) end
+vim.env.DOCFLOW_BIN = ROOT .. '/tests/lib/fail-docflow.sh'
+review.on_agent_round(buf, { { old = 'qux', occurrence = 1, new = 'QUX', explain = 'q' } })
+vim.notify = orig
+ok(#notified >= 1 and notified[1]:match('docflow'), 'docflow failure surfaces via notify (I3)')
+
 review.stop(buf)
 OUT:write(fails == 0 and 'loop_test ok\n' or ('FAILED ' .. fails .. '\n'))
 OUT:close()
