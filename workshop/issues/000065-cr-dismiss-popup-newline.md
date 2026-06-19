@@ -91,3 +91,24 @@ typed text exactly) followed by `<CR>` (now processed as a normal newline).
   (it also said "First invocation is slow", contradicting line 72's "Opens
   instantly"). I dropped the dup and kept the detailed line 72; if the
   slowness note is accurate, fold it into line 72.
+
+## Revisions
+
+### 2026-06-18 — milestone review caught a shared-chokepoint regression
+
+**Reason:** The `## Spec` three-state table was written for ONE consumer of the
+insert `<CR>` map (as-you-type draft completion), but the map is a shared
+chokepoint: it also serves the momentary normal-mode `z=` spell popup
+(`spell_suggest_popup`, gated by `spell_popup_active`), whose contract is
+"dismiss leaves the text intact" — NO newline. The first cut's `<C-e><CR>` would
+inject a spurious newline into the draft when a `z=` popup is dismissed with
+Return (the deferred `stopinsert` keeps us in insert mode when the `<CR>` lands).
+Critical found by `sdlc judge milestone-review`.
+
+**Delta:**
+- `cr_keys` gains a third `momentary` arg (still pure): momentary + no selection
+  → bare `<CR>` (clean dismiss); typing + no selection → `<C-e><CR>` (newline).
+- The `<CR>` map passes `momentary = spell_popup_active`.
+- `tests/cr-newline-test.sh` adds two `z=` momentary cases (now unit-testable
+  since the distinction is a pure arg — closes the review's test-gap note).
+- Atlas + the `cr_keys` comment document the two consumers.

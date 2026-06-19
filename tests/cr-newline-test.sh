@@ -7,12 +7,15 @@
 # completeopt=...,noselect (init.lua) nothing is EVER auto-selected, so that was
 # the common case, not an edge: Return stopped breaking the line.
 #
-# Fix: route <CR> through the pure cr_keys(visible, has_selection):
-#   no popup            → <CR>        (plain newline)
-#   popup + selection   → <C-y>       (accept the highlighted item)
-#   popup, no selection → <C-e><CR>   (dismiss the menu, THEN newline)
+# Fix: route <CR> through the pure cr_keys(visible, has_selection, momentary):
+#   no popup                       → <CR>        (plain newline)
+#   popup + selection              → <C-y>       (accept the highlighted item)
+#   popup, no selection, typing    → <C-e><CR>   (dismiss the menu, THEN newline)
+#   popup, no selection, momentary → <CR>        (z= clean dismiss, NO newline)
 # <C-e> cancels completion keeping exactly what was typed, so the following <CR>
-# is a normal newline — Return always breaks the line when nothing was picked.
+# is a normal newline — Return always breaks the line when nothing was picked
+# during as-you-type completion; the momentary z= spell popup keeps its
+# clean-dismiss contract (no spurious newline).
 #
 # Like autopair-test.sh, this asserts the *expr string* the decision yields (the
 # live popup needs a UI headless nvim lacks; feedkeys timing is flaky). It boots
@@ -38,18 +41,24 @@ local function check(label, got, want)
   O:write(string.format('%s\t%s\t%q\t%q\n', ok and 'ok' or 'FAIL', label, got, want))
 end
 
--- Decision table: cr_keys(visible, has_selection) → key string.
--- {label, visible, has_selection, expected}
+-- Decision table: cr_keys(visible, has_selection, momentary) → key string.
+-- {label, visible, has_selection, momentary, expected}
+-- momentary=false → as-you-type draft completion (the #65 fix path).
+-- momentary=true  → the transient z= spell popup (clean-dismiss contract; must
+--                   NOT inject a newline — the milestone-review regression).
 local cases = {
-  { 'no popup -> newline',          false, false, '<CR>'      },
-  { 'no popup (sel irrelevant)',    false, true,  '<CR>'      },
-  { 'popup + selection -> accept',  true,  true,  '<C-y>'     },
-  -- the fix: nothing picked -> cancel completion (keep typed text) + newline
-  { 'popup, nothing picked -> C-e + newline', true, false, '<C-e><CR>' },
+  { 'no popup -> newline',                  false, false, false, '<CR>'      },
+  { 'no popup (sel irrelevant)',            false, true,  false, '<CR>'      },
+  { 'typing: popup + selection -> accept',  true,  true,  false, '<C-y>'     },
+  -- the #65 fix: nothing picked -> cancel completion (keep typed text) + newline
+  { 'typing: nothing picked -> C-e + newline', true, false, false, '<C-e><CR>' },
+  -- z= momentary picker keeps its clean dismiss (no spurious newline)
+  { 'z=: nothing picked -> clean dismiss, no newline', true, false, true, '<CR>'  },
+  { 'z=: popup + selection -> accept',      true,  true,  true,  '<C-y>'     },
 }
 assert(type(_G.PairCRKeys) == 'function', '_G.PairCRKeys must be defined by init.lua')
 for _, c in ipairs(cases) do
-  check(c[1], _G.PairCRKeys(c[2], c[3]), c[4])
+  check(c[1], _G.PairCRKeys(c[2], c[3], c[4]), c[5])
 end
 
 -- Wiring: the real insert-mode <CR> map must route through cr_keys. Headless
