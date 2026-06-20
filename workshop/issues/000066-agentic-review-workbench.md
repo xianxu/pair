@@ -92,12 +92,22 @@ Milestones are review boundaries; sub-steps firm up after M0.
   undo-preserving buffer apply. (Fake-agent-driven vertical; all tests green.)
 - [x] M2 — Extract parley review consumer-half into pair as inline lua (render / projection /
   diagnosis / markers / modes); drop the invoke path.
-- [ ] M3 — Review window + pair integration (`:PairReview` / alt+r pane; poke channel to the
+- [x] M3 — Review window + pair integration (`:PairReview` / alt+r pane; poke channel to the
   agent).
 - [ ] M4 — Agent protocol (review SKILL.md + modes + memory discovery); end-to-end round-trip.
 
 ## Log
 
+
+- 2026-06-19: M3 milestone-review **FIX-THEN-SHIP** (no Critical) — addressed all 3
+  Important before crossing: I1 atlas described a non-existent line-1 `_pair_review_indicator`
+  (corrected to the shipped statusline segment); I2 the missing-docflow degradation — the
+  exact VimEnter crash class that shipped — had no test (added: `DOCFLOW_BIN=/nope` →
+  unavailable=true, start doesn't crash, one INFO not ERROR); I3 the `review-<tag>.open`
+  seam path was computed 3× with divergent empty-tag fallback (centralized in
+  `nvim/review/seam.lua`, ARCH-DRY). Plus target-honesty (invariant #1 caveated as M4-target,
+  not yet held) + plan revision + dead .gitignore line. 112 headless checks green.
+- 2026-06-19: closed M3 — M3 review window: :PairReview + Alt+r draft-lua toggle (full-screen, instant) + id-based agent poke + marker render + diagnosis gutter + review-mode statusline bar; live smoke passed (pane opens/toggles full-screen, Alt+Return pokes /xx-fix, docflow render-only quiet); 95 headless checks green (make test-lua + test-review). M3 increment ~5.75h over M2 cumulative 2.57h.; review verdict: FIX-THEN-SHIP
 - 2026-06-19: **M3 Alt+r rework + smoke round 2.** Reworked the Alt+r toggle off the
   transient 20%×1 floating "toggle pane" onto draft-nvim lua (`PairReviewToggle()`,
   Alt+d-style routing) + full-screen review pane (`zellij run --width 100%`, dropped
