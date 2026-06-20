@@ -154,3 +154,16 @@ the agent" (the round commit no-ops with a warning until M4).
 
 All headless suites green after the rework (`make test-lua` + `make test-review`, 92
 checks). The live re-smoke (Task 5) is the remaining gate before `milestone-close`.
+
+### 2026-06-19 — review-mode cue: statusline segment, not the line-1 indicator
+
+Task 4 (and the first cut) put the "in review mode" cue on the **draft's line 1** as a
+`=== review: <file>  (N agent · M human) ===` comment (riding the slug/winbar-pin
+machinery). Live feedback: **line 1 is the user's to edit**, so squatting on it is fragile.
+Superseded by folding a **statusline segment** `Review • <file> • 🤖N/M` into
+`pair_compose_statusline` (replaces the rightmost cheatsheet while a review is open;
+timer-cached counts so the hot render never shells git; branch-scoped counts fixed the
+"25/28" repo-wide over-count). The mode (`🪄 <Mode>`) + lean history left-cluster
+(`-92 < -3 > +0`, "remove all help text") land in M4 with the mode-state seam. Code:
+`_pair_review_bar`/`_pair_review_segment` (`nvim/init.lua`); the cross-process seam path
+is centralized in `nvim/review/seam.lua` (milestone-review I3). Tested: `review-indicator-test`.

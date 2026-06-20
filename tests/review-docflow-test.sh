@@ -65,6 +65,39 @@ files="$(cd "$REPO" && git log -1 --name-only --format= --grep='agent r1')"
 case "$files" in *doc.md*) pass "agent round staged the in-scope doc";; *) fail "doc.md missing from agent commit";; esac
 case "$files" in *other.md*) fail "out-of-scope other.md leaked into the round (staging not in-scope-only)";; *) pass "out-of-scope file NOT staged";; esac
 
+# ── missing-docflow degradation (M3-smoke bug #2 regression; milestone-review I2) ──
+# The class of bug that shipped: docflow not on PATH → a VimEnter crash. The fix is
+# docflow.lua's `unavailable` flag + review.init's check() degrading to ONE INFO
+# (not a per-action ERROR). Point DOCFLOW_BIN at a nonexistent path and assert it.
+cat > "$RT/unavail.lua" <<'LUA'
+local ROOT = os.getenv('PAIR_ROOT')
+local OUT = io.open(os.getenv('RESULT'), 'w')
+local docflow = dofile(ROOT .. '/nvim/review/docflow.lua')
+local r = docflow.start('doc.md')
+OUT:write((r.unavailable == true and r.code == 127) and 'unavailable ok\n' or 'unavailable FAIL\n')
+-- review.start must NOT crash and must degrade to one INFO, never an ERROR.
+local notes = {}
+vim.notify = function(_, level) notes[#notes + 1] = level end
+local review = dofile(ROOT .. '/nvim/review/init.lua')
+local buf = vim.api.nvim_create_buf(false, true)
+vim.api.nvim_buf_set_name(buf, 'doc.md')
+local ok = pcall(review.start, { buf = buf, file = 'doc.md', tag = 'unavail' })
+OUT:write(ok and 'start ok\n' or 'start CRASHED\n')
+local infos, errs = 0, 0
+for _, lvl in ipairs(notes) do
+  if lvl == vim.log.levels.INFO then infos = infos + 1
+  elseif lvl == vim.log.levels.ERROR then errs = errs + 1 end
+end
+OUT:write((infos >= 1 and errs == 0) and 'one-info-no-error ok\n'
+  or ('notify FAIL infos=' .. infos .. ' errs=' .. errs .. '\n'))
+OUT:close()
+LUA
+( cd "$RT" && PAIR_ROOT="$ROOT" DOCFLOW_BIN="$RT/nope/docflow" RESULT="$RT/unavail.out" \
+    run_headless --timeout 30 -- nvim -l "$RT/unavail.lua" )
+grep -q 'unavailable ok'      "$RT/unavail.out" && pass "missing docflow → start() returns unavailable=true (code 127)" || { fail "no unavailable flag"; cat "$RT/unavail.out"; }
+grep -q '^start ok$'          "$RT/unavail.out" && pass "review.start does not crash without docflow (the shipped VimEnter bug)" || fail "review.start crashed"
+grep -q 'one-info-no-error'   "$RT/unavail.out" && pass "degrades to one INFO, never an ERROR notify" || { fail "wrong notify degradation"; grep notify "$RT/unavail.out"; }
+
 # ── gated smoke test against the REAL ariadne docflow ─────────────────────────
 REAL="${DOCFLOW_BIN_REAL:-$ROOT/../ariadne/scripts/docflow.sh}"
 if [ -x "$REAL" ]; then

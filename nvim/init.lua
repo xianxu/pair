@@ -765,12 +765,12 @@ end, { nargs = 1, complete = 'file', desc = 'open a review pane on a file' })
 do
   -- review-state file (nvim/review.lua writes it on VimEnter, removes it on exit).
   -- Line 1 = the review pane nvim's pid (liveness = `kill -0`); line 2 = the
-  -- absolute doc path (the review-mode indicator reads it).
+  -- absolute doc path (the review-mode indicator reads it). Path from the shared
+  -- seam module so this reader and the pane writer can't diverge (ARCH-DRY, I3).
+  local nvim_dir = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
+  local seam = dofile(nvim_dir .. 'review/seam.lua')
   local function state_file()
-    local dir = vim.env.PAIR_DATA_DIR
-    if not dir or dir == '' then return nil end
-    local tag = vim.env.PAIR_TAG
-    return dir .. '/review-' .. ((tag and tag ~= '') and tag or 'default') .. '.open'
+    return seam.open_state(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
   end
 
   -- Returns (alive, statefile, file). `file` is the reviewed doc's absolute path.

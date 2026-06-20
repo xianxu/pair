@@ -92,14 +92,18 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
 - `nvim/pair_poke.lua` — id-based agent poke: relative `move-focus` does NOT escape a
   floating pane, so it resolves the agent + caller panes from `list-panes --json` and
   `focus-pane-id`s them (focus agent → write-chars + `write 27 13` submit → restore).
-- **review-mode indicator** (`nvim/init.lua`, `do`-block; `_pair_review_indicator`) —
-  while a review is open, a 1.5s timer rewrites the draft's line 1 to `=== review:
-  <file>  (N agent · M human) ===` (counts parsed from `git log` round subjects;
-  0/0 until the agent commits in M4), so review mode is visible even when the pane is
-  hidden. Reuses the slug line-1 + winbar pin for free (no ` | ` pipe ⇒ slug.lua holds;
-  `===` prefix ⇒ pinned). Restores the prior line 1 on close. (New draft-side review
-  helpers live in `do`-blocks sharing `_G._pair_review` — init.lua is at Lua's
-  200-local chunk ceiling.)
+- **review-mode bar** (`nvim/init.lua`, `do`-block; `_pair_review_bar` count source +
+  `_pair_review_segment` cached segment) — while a review is open, the draft's
+  **statusline** carries `Review • <file> • 🤖N/M`: `pair_compose_statusline` swaps the
+  cached segment in for the rightmost cheatsheet, so review mode is visible even when the
+  pane is hidden. A 1.5s timer recomputes the segment (counts parsed from `git log` round
+  subjects, **branch-scoped** to the active `review/<slug>` so other docs' shipped reviews
+  don't leak in — `🤖0/0` off a review branch / in M3 render-only) and triggers a redraw
+  only on change; the hot render path never shells git. (This **supersedes** an earlier
+  line-1 `=== review … ===` indicator — line 1 is the user's to edit. New draft-side
+  review helpers live in `do`-blocks sharing `_G._pair_review` — init.lua is at Lua's
+  200-local chunk ceiling.) The cross-process `review-<tag>.open` path is centralized in
+  `nvim/review/seam.lua` (one fallback rule for writer + reader).
 - **docflow degradation** (`nvim/review/docflow.lua` + `init.lua`'s `check`) — a
   missing `docflow` returns `{unavailable=true}`; the review pane degrades to a single
   calm "render-only" INFO (not a per-action ERROR), since round commits are agent-side

@@ -26,6 +26,8 @@ fi
 
 # Single review pane: replace any LIVE review (close the old nvim → its
 # close_on_exit floating pane self-dismisses) before spawning the new one.
+# Path == nvim/review/seam.lua's `open_state` formula; PAIR_TAG is guaranteed
+# non-empty by the env check above (so no 'default' fallback is reachable here).
 STATE="$PAIR_DATA_DIR/review-$PAIR_TAG.open"
 if [ -f "$STATE" ]; then
     old=$(head -n1 "$STATE" 2>/dev/null || true)

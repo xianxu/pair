@@ -83,6 +83,7 @@ local here = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
 local review = dofile(here .. 'review/init.lua')
 local poke = dofile(here .. 'pair_poke.lua')
 local markers = dofile(here .. 'review/markers.lua')
+local seam = dofile(here .. 'review/seam.lua')
 
 -- 🤖 marker highlight groups (parley's names; linked, overridable by a colorscheme).
 vim.api.nvim_set_hl(0, 'ParleyReviewQuoted', { link = 'Comment', default = true })
@@ -103,11 +104,10 @@ local function render_markers(buf)
 end
 
 -- The review state file: the draft's PairReviewToggle reads it (pid → liveness)
--- to know a review is open (file-select vs. visibility-toggle branch).
+-- to know a review is open (file-select vs. visibility-toggle branch). Path comes
+-- from the shared seam module so the writer here and the reader in init.lua agree.
 local function state_file()
-  local dir = vim.env.PAIR_DATA_DIR
-  if not dir or dir == '' then return nil end
-  return dir .. '/review-' .. (vim.env.PAIR_TAG or 'default') .. '.open'
+  return seam.open_state(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
 end
 
 -- TEMPORARY (M3 unblock): the poke explicitly invokes the xx-fix skill, so the

@@ -144,8 +144,12 @@ channels and the bar read the same value.
 
 ## Invariants to defend from drift
 
-1. **The review nvim writes no git.** (If you find a `docflow round`/`ship`/branch call
-   in `nvim/review/*`, it's drift — the agent owns writes.)
+1. **The review nvim writes no git.** — **M4 TARGET, not yet held.** M1's
+   `nvim/review/init.lua` (`human_round`/`on_agent_round`) still calls `docflow.round`;
+   it's dormant in M3 render-only (docflow unavailable ⇒ no-op) and unwinds in M4 when the
+   agent takes over git writes (seam #4 is correctly marked M4-DESIGN). Once unwound, this
+   becomes a true defended invariant: a `docflow round`/`ship`/branch call in `nvim/review/*`
+   is drift.
 2. **Undo is continuous** (nvim `undofile`); never reload-to-refresh a buffer (a reload
    resets the undo tree — the reason records are applied in-buffer, not file-rewritten).
 3. **The agent commits a round only after the nvim's "applied" poke** (apply may drop
