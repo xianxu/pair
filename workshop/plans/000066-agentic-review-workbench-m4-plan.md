@@ -142,3 +142,30 @@ Manual, in a real pair session once #000121 M4a lands:
 - **`docflow.lua` in the nvim** — after Tasks 1–2 the nvim calls no `docflow` writer. Keep the module only if a `status` read earns it; otherwise drop its `init.lua` usage (don't delete the file blindly — M4b–d / the fake may still want it). Decide in Task 1.
 - **Commit-signal timing + body authorship** — *resolved* by the landed-artifact Decision: the agent commits *after* the nvim's "applied" poke (invariant #3), reading the body verbatim from `review-landed-<tag>.json` (so the committed records == what landed, drops surfaced). With fake-agent-v2 the ordering is one script; with the real SKILL it's the poke→read-artifact→commit handshake. The dropped-record test (Task 1b) pins it.
 - **`REVIEW_TRIGGER` retirement** — the `/xx-fix` poke is a stopgap; it retires when #000121 makes the agent recognize review-mode from the `human_committed`/`agent_applied` signals. Keep the constant until then.
+
+## Revisions
+
+### 2026-06-20 — M4a Tasks 1–4 as-built (commits `2a4d95d`, `fabfaf8`; 103 checks green)
+
+Implemented per the plan, with these deltas (the as-planned text above is the record; this is the delta):
+
+- **Landed-artifact location: the handoff's data dir, not `$PAIR_DATA_DIR`.** It lives at
+  `$XDG_DATA_HOME/pair/review-landed-<tag>.json` via `nvim/review/handoff.lua`
+  (`write_landed`/`landed_path`), NOT `$PAIR_DATA_DIR` + `seam.lua` as the Decision section
+  said. Rationale: it's the **reverse channel of the handoff** (agent↔nvim record channel),
+  so it co-locates with seam #2 — whereas `seam.lua`/`$PAIR_DATA_DIR` own the draft↔pane
+  files (`.open`/`.mode`). Target seam #2b reconciled to this.
+- **`review.start` no longer calls `docflow.start`** (beyond literal Tasks 1–2): the agent
+  owns the `review/<slug>` branch too (seam #4, invariant #1). So the nvim calls `docflow`
+  **nowhere** — the `docflow` dofile + `check()` were removed from `init.lua`; `pair_poke.send`
+  is injectable as `M.poke` so headless tests record without shelling zellij.
+- **`docflow.lua` kept** (the Task-1 open-detail decision): the nvim no longer uses it, but
+  it + `review-docflow-test` now guard the **docflow commit-shape contract** the agent must
+  produce (same subject/author/body the nvim reconstructs from). Flagged as a clean-removal
+  candidate for the M4a boundary review.
+- **Invariant #1 is BUILT (pair side)** — flipped in the target ahead of Task 6 since it's
+  headless-verified; the live smoke (Task 5, gated on #000121) confirms it with the real agent.
+- **For the live smoke / #000121:** the real SKILL must (a) create `review/<slug>` on
+  review-start, (b) read `review-landed-<tag>.json` from `$XDG_DATA_HOME/pair` and commit the
+  agent round verbatim, (c) commit the human round on the `human_committed` poke.
+  `tests/lib/fake-review-agent.sh` (fake-agent-v2) is the exact protocol reference.

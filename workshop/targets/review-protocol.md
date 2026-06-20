@@ -35,9 +35,9 @@ Why this split (not nvim-shells-docflow, which M1 scaffolded):
 |---|------|--------|--------|---------|--------|
 | 1 | open-state file `$PAIR_DATA_DIR/review-<tag>.open` | review nvim (pid on VimEnter; removed on VimLeave) | draft nvim (`PairReviewToggle` liveness; review-mode cue) | one line: the pane nvim's pid | **BUILT** — `review-toggle-test`, `review-window-test` |
 | 2 | handoff file (agent → nvim) | agent | review nvim (`handoff.watch` poll) | `{old, occurrence, new, explain}[]` (`record.lua`; == agent commit body) | **BUILT** — `review-handoff-test`, `review-loop-test` |
-| 2b | landed-artifact `review-landed-<tag>.json` (nvim → agent) | review nvim (`on_agent_round`, post-apply) | agent (commits the round verbatim) | `{summary, body=record.embed_in_body(enriched), applied, dropped}` — what actually landed (drops filtered, `new_occurrence` computed) | **M4a-DESIGN** |
+| 2b | landed-artifact `$XDG_DATA_HOME/pair/review-landed-<tag>.json` (nvim → agent; the handoff's reverse channel, co-located with seam #2) | review nvim (`on_agent_round`, post-apply; `handoff.write_landed`) | agent (commits the round verbatim) | `{summary, body=record.embed_in_body(enriched), applied, dropped}` — what actually landed (drops filtered, `new_occurrence` computed) | **BUILT** (pair side) — `review-loop-test` (agent-owns-git e2e + dropped case) |
 | 3 | poke channel (nvim → agent) | review nvim (zellij `write-chars`, agent addressed by **absolute pane id**) | agent pane | NL instruction, carrying the **absolute** doc path | **BUILT** — `review-poke-test` (abs-path 2026-06-19) |
-| 4 | git: `review/<slug>` branch + round commits | **AGENT** (`docflow`, in the doc's repo) | review nvim **reads** (reconstruct decorations + indicator counts) | `review(<slug>): <side> r<N> — …`, per-hunk explains in body | **read** BUILT (`review-loop-test`); **write** = **M4-DESIGN** |
+| 4 | git: `review/<slug>` branch + round commits | **AGENT** (`docflow`, in the doc's repo) | review nvim **reads** (reconstruct decorations + indicator counts) | `review(<slug>): <side> r<N> — …`, per-hunk explains in body | **read** BUILT; **write** proven via `fake-agent-v2` (`review-loop-test`), real agent = ariadne **#000121** (live smoke) |
 | 5 | mode file `$PAIR_DATA_DIR/review-<tag>.mode` | **AGENT** (on a mode switch from either channel) | review nvim + draft bar (display the `🪄 <Mode>`) | one line: the active mode | **M4-DESIGN** |
 
 ## States & transitions
@@ -145,12 +145,13 @@ channels and the bar read the same value.
 
 ## Invariants to defend from drift
 
-1. **The review nvim writes no git.** — **M4 TARGET, not yet held.** M1's
-   `nvim/review/init.lua` (`human_round`/`on_agent_round`) still calls `docflow.round`;
-   it's dormant in M3 render-only (docflow unavailable ⇒ no-op) and unwinds in M4 when the
-   agent takes over git writes (seam #4 is correctly marked M4-DESIGN). Once unwound, this
-   becomes a true defended invariant: a `docflow round`/`ship`/branch call in `nvim/review/*`
-   is drift.
+1. **The review nvim writes no git.** — **BUILT (pair side, M4a).** `nvim/review/init.lua`
+   calls `docflow` nowhere: `on_agent_round` writes the landed-artifact (seam #2b) + pokes;
+   `human_round` only saves; `review.start` no longer runs `docflow.start` (the agent owns
+   the branch too). Verified headlessly by `review-loop-test` via `fake-agent-v2` (the agent
+   makes all round + branch commits). A `docflow round`/`ship`/`start` call in
+   `nvim/review/*` is now drift. The full loop with the *real* agent is the live smoke
+   (Task 5, gated on ariadne #000121).
 2. **Undo is continuous** (nvim `undofile`); never reload-to-refresh a buffer (a reload
    resets the undo tree — the reason records are applied in-buffer, not file-rewritten).
 3. **The agent commits a round only after the nvim's "applied" poke** (apply may drop
