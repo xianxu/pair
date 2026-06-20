@@ -99,6 +99,18 @@ Milestones are review boundaries; sub-steps firm up after M0.
 ## Log
 
 
+- 2026-06-20: **M4a pair-side done (Tasks 1–4), forked + verified.** The git-ownership
+  inversion: the nvim writes git NOWHERE — `on_agent_round` applies+saves → writes the
+  landed-artifact (seam #2b, `$XDG_DATA_HOME/pair/review-landed-<tag>.json`, body via the one
+  `record.embed_in_body` encoder) → pokes `agent_applied`; `human_round` save-only;
+  `review.start` dropped `docflow.start` (agent owns the branch). `fake-agent-v2` owns all
+  git (branch + both rounds, reading the artifact verbatim); `pair_poke` injectable for tests.
+  Plan-quality gate caught the body-authorship data-flow gap (FAILURE→INFO) → resolved via
+  the landed-artifact + a dropped-record test (invariant #3). 103 headless checks green
+  (`make test-lua` + `make test-review`). Invariant #1 flipped to BUILT (pair side). Commits
+  2a4d95d, fabfaf8, 92f107f. **Tasks 5 (live smoke) + 6 (close) gated on ariadne #000121 M4a**
+  (the real SKILL: recognize review-mode, create the branch, read the landed-artifact +
+  commit rounds — `fake-agent-v2` is the protocol reference).
 - 2026-06-19: M3 milestone-review **FIX-THEN-SHIP** (no Critical) — addressed all 3
   Important before crossing: I1 atlas described a non-existent line-1 `_pair_review_indicator`
   (corrected to the shipped statusline segment); I2 the missing-docflow degradation — the
