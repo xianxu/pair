@@ -84,6 +84,7 @@ local review = dofile(here .. 'review/init.lua')
 local poke = dofile(here .. 'pair_poke.lua')
 local markers = dofile(here .. 'review/markers.lua')
 local seam = dofile(here .. 'review/seam.lua')
+local poke_bodies = dofile(here .. 'review/poke_bodies.lua')
 
 -- 🤖 marker highlight groups (parley's names; linked, overridable by a colorscheme).
 vim.api.nvim_set_hl(0, 'ParleyReviewQuoted', { link = 'Comment', default = true })
@@ -110,21 +111,14 @@ local function state_file()
   return seam.open_state(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
 end
 
--- TEMPORARY (M3 unblock): the poke explicitly invokes the xx-fix skill, so the
--- agent runs the marker/record edit-review flow rather than guessing (it picked
--- doc-review/fact-check from a bare "please review"). M4's review SKILL replaces
--- this with proper review-mode recognition (the agent recognizes it's in the
--- workbench and engages the record flow itself). Kept as a single named constant
--- so the hardcoded skill name lives in ONE place, not scattered through pokes.
-local REVIEW_TRIGGER = '/xx-fix'
-
 local function finish_human_turn(buf, file)
   if vim.fn.mode():match('^i') then vim.cmd('stopinsert') end
-  review.human_round(buf, 'updated')
-  -- Absolute path: the agent pane's cwd is pair's, not the doc's repo, so a bare
-  -- basename made the agent hunt ("not in this repo… check siblings"). The full
-  -- path lets it read/locate the doc — and, later (M4), operate in the doc's repo.
-  poke.send(REVIEW_TRIGGER .. ' ' .. vim.fn.fnamemodify(file, ':p'))
+  review.human_round(buf, 'updated') -- saves; the agent commits the human round
+  -- Poke the agent with the commit-request signal (absolute path: the agent pane's
+  -- cwd is pair's, not the doc's repo). The agent commits the human round + reviews.
+  -- (Once ariadne#000121's SKILL recognizes review-mode from these signals, this is
+  -- the whole trigger — the M3 `/xx-fix` stopgap is retired here.)
+  poke.send(poke_bodies.human_committed(vim.fn.fnamemodify(file, ':p')))
 end
 
 local function start_review(buf, file)

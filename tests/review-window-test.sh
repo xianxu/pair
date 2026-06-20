@@ -93,9 +93,12 @@ grep -q 'pane-loaded' "$RT/r3" && pass "review.lua loaded the review core" || fa
 grep -q 'altcr-map' "$RT/r3" && pass "Alt+Return keymap wired" || fail "no Alt+Return keymap"
 grep -q '^state-file$' "$RT/r3" && pass "open-state file written" || fail "no state file"
 grep -q '^markers$' "$RT/r3" && pass "🤖 markers rendered" || fail "no marker extmarks"
-# Alt+Return integration: a human round commits + the agent gets poked
-grep -q 'round --side human' "$RT/doclog" && pass "Alt+Return commits a human round" || fail "no human round"
-grep -q 'write-chars /xx-fix ' "$RT/zlog" && pass "Alt+Return pokes the agent (id-based, invokes xx-fix)" || fail "no agent poke"
+# Alt+Return integration (M4a): the nvim SAVES the human edits but writes NO git
+# (invariant #1) — the agent commits the human round; the nvim pokes the
+# commit-request signal (human_committed), not a docflow round and not /xx-fix.
+grep -q 'a human edit' "$REPO/doc.md" && pass "Alt+Return saves the human edits (agent commits the round)" || fail "human edit not saved"
+grep -q 'round --side human' "$RT/doclog" && fail "nvim ran a human docflow round (invariant #1: nvim writes no git)" || pass "nvim writes no git on Alt+Return"
+grep -q 'write-chars committed my edits' "$RT/zlog" && pass "Alt+Return pokes the agent commit-request signal (human_committed)" || fail "no commit-request poke"
 
 [ "$fails" -eq 0 ] || { printf 'review-window-test FAILED (%d)\n' "$fails"; exit 1; }
 printf 'review-window-test ok\n'

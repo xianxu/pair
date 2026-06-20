@@ -1,17 +1,26 @@
--- nvim/review/init.lua — the review orchestrator (issue #66 M1). Wires the
--- pure core + thin seams into the loop: start a docflow review on a buffer,
--- enable persistent undo, watch for agent handoffs, and on each handoff apply
--- the records undo-ably + commit the agent round (records in the commit body).
+-- nvim/review/init.lua — the review orchestrator (issue #66). Wires the pure core
+-- + thin seams into the loop: enable persistent undo, watch for agent handoffs,
+-- and on each handoff apply the records undo-ably, save, and signal the agent to
+-- commit (the nvim writes NO git — invariant #1; the AGENT owns branch + rounds).
+--
+-- M4a: the round commit moved to the agent. on_agent_round (the apply authority)
+-- writes what LANDED to the landed-artifact (seam #2b) and pokes the agent; the
+-- agent commits the round verbatim from it. So the body's single encoder
+-- (record.embed_in_body) stays here, but the git write is the agent's.
 --
 -- This is the only stateful glue; every decision is delegated to the pure
--- modules (record/reconstruct) and thin seams (docflow/handoff/apply).
+-- modules (record/reconstruct/poke_bodies) and thin seams (handoff/apply/poke).
 local M = {}
 local here = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
-local docflow = dofile(here .. 'docflow.lua')
 local handoff = dofile(here .. 'handoff.lua')
 local apply   = dofile(here .. 'apply.lua')
 local record  = dofile(here .. 'record.lua')
 local projection = dofile(here .. 'projection.lua')
+local poke_bodies = dofile(here .. 'poke_bodies.lua')
+
+-- The agent-poke seam, injectable: on_agent_round is driven directly by the
+-- headless tests, which swap `M.poke` for a recorder so they never shell zellij.
+M.poke = dofile(here .. '../pair_poke.lua')
 
 local sessions = {} -- buf → { tag, file, stop }
 
@@ -19,33 +28,8 @@ local function save(buf)
   vim.api.nvim_buf_call(buf, function() vim.cmd('silent keepalt write') end)
 end
 
--- Surface docflow failures instead of swallowing them (milestone review I3):
--- a failed round leaves an edited+saved buffer with no commit — never silent.
--- EXCEPT "docflow not found" (result.unavailable): in a live M3 pane that's the
--- expected render-only state (round commits are agent-side, #66 M4), so it gets a
--- single calm INFO, never the per-action ERROR (an ERROR notify in the VimEnter
--- autocmd is what surfaced as "Error detected while processing VimEnter…").
-local docflow_unavailable_notified = false
-local function check(result, what)
-  if result and result.unavailable then
-    if not docflow_unavailable_notified then
-      docflow_unavailable_notified = true
-      vim.notify('review: docflow not found — render-only (round commits are agent-side, #66 M4)',
-        vim.log.levels.INFO)
-    end
-    return false
-  end
-  if result and result.code and result.code ~= 0 then
-    vim.notify(
-      string.format('review: docflow %s failed (exit %d): %s', what, result.code, result.stderr or ''),
-      vim.log.levels.ERROR)
-    return false
-  end
-  return true
-end
-
--- Apply an agent handoff: undo-able apply → save → commit the agent round with
--- the (enriched) records in the body. Exposed for testing.
+-- Apply an agent handoff: undo-able apply → save → write the landed-artifact
+-- (what landed) → poke the agent to commit the round. Exposed for testing.
 function M.on_agent_round(buf, records)
   local base = apply.buf_content(buf) -- pre-round content, for the projection empty snapshot
   projection.set_applying(buf, true) -- suppress the watcher during the round's own apply
@@ -71,15 +55,30 @@ function M.on_agent_round(buf, records)
   projection.set_applying(buf, false)
   if #enriched == 0 then return enriched, dropped end
   save(buf)
+  -- The nvim writes NO git. As the apply authority it records WHAT LANDED to the
+  -- landed-artifact (seam #2b) — the body via the one encoder (record.embed_in_body),
+  -- drops filtered, new_occurrence computed — then pokes the agent to commit the
+  -- round verbatim from it (invariants #1 + #3).
+  local sess = sessions[buf] or {}
+  local file = sess.file or vim.api.nvim_buf_get_name(buf)
+  local tag = sess.tag or vim.fn.fnamemodify(file, ':t:r')
   local summary = string.format('%d edit(s)', #enriched)
-  check(docflow.round('agent', summary, record.embed_in_body(summary, enriched)), 'agent round')
+  handoff.write_landed(tag, {
+    summary = summary,
+    body = record.embed_in_body(summary, enriched),
+    applied = #enriched,
+    dropped = #dropped,
+  })
+  M.poke.send(poke_bodies.agent_applied(#enriched, #dropped, file))
   return enriched, dropped
 end
 
--- Commit the human's incoming edits as a human round.
+-- The human finished their turn: save the incoming edits. The nvim writes no git;
+-- the AGENT commits the human round (invariant #1). The commit-request poke is
+-- issued by nvim/review.lua's finish_human_turn (the UI layer where the trigger lives).
 function M.human_round(buf, summary)
   save(buf)
-  return check(docflow.round('human', summary or 'incoming'), 'human round')
+  return true
 end
 
 -- Start a review on a buffer. opts: { buf, file, tag, watch_opts }.
@@ -90,7 +89,8 @@ function M.start(opts)
   local tag = opts.tag or vim.fn.fnamemodify(file, ':t:r')
   if sessions[buf] then M.stop(buf) end -- avoid orphaning a prior poll timer
   vim.bo[buf].undofile = true -- cross-session undo (decision 2)
-  check(docflow.start(file), 'start')
+  -- No `docflow.start` — the agent owns the `review/<slug>` branch too (seam #4,
+  -- invariant #1). The nvim only opens the pane + watches for handoffs.
   local stop = handoff.watch(tag, function(records)
     M.on_agent_round(buf, records)
   end, opts.watch_opts)

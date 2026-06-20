@@ -19,6 +19,26 @@ function M.path(tag)
   return data_dir() .. '/review-handoff-' .. tag .. '.json'
 end
 
+-- The landed-artifact (seam #2b, nvim → agent) — the REVERSE channel of the
+-- handoff, so it lives in the same agent↔nvim data dir. on_agent_round writes
+-- what actually landed ({summary, body=embed_in_body(enriched), applied, dropped});
+-- the agent reads it and commits the agent round verbatim (it owns git; the nvim,
+-- the apply authority, owns the body content — invariants #1 + #3).
+function M.landed_path(tag)
+  return data_dir() .. '/review-landed-' .. tag .. '.json'
+end
+
+function M.write_landed(tag, landed)
+  vim.fn.mkdir(data_dir(), 'p')
+  local p = M.landed_path(tag)
+  local tmp = p .. '.tmp'
+  local f = assert(io.open(tmp, 'w'))
+  f:write(vim.json.encode(landed))
+  f:close()
+  assert(os.rename(tmp, p))
+  return p
+end
+
 -- Write records atomically (temp + rename). Used by the agent / fake / tests.
 function M.write(tag, records)
   vim.fn.mkdir(data_dir(), 'p')
