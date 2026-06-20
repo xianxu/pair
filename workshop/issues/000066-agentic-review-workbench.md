@@ -1,7 +1,7 @@
 ---
 id: 000066
 status: open
-deps: []
+deps: [ariadne#000121]
 target: review-protocol
 github_issue:
 created: 2026-06-18
