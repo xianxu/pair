@@ -8,8 +8,57 @@ vim.opt.compatible = false
 vim.opt.termguicolors = true
 vim.opt.wrap = true
 vim.opt.linebreak = true
-vim.opt.number = false
-vim.opt.signcolumn = 'no'
+-- The review pane is an EDITABLE document workbench, not a read-only viewer (the
+-- scrollback look these were copied from) — show the gutter: absolute line numbers
+-- + a stable sign column for the review diagnostics.
+vim.opt.number = true
+vim.opt.signcolumn = 'yes'
+
+-- Diagnosis display — review/apply.lua sets each record's `explain` as an INFO
+-- diagnostic (the "why" behind an edit). Render it parley-style: a sign in the
+-- gutter on every edit, and the (wrapped) why auto-expanded as a virtual line below
+-- the edit ONLY when the cursor is in its region. The review pane has no LSP, so a
+-- global config is safe (review diagnostics are the only source). pcall-guarded:
+-- `virtual_lines` is nvim 0.11+; degrade to virtual_text on anything older.
+if not pcall(vim.diagnostic.config, {
+  virtual_lines = { current_line = true },
+  virtual_text = false,
+  signs = true,
+  underline = true,
+  severity_sort = true,
+}) then
+  vim.diagnostic.config({ virtual_text = true, signs = true })
+end
+
+-- Markdown appearance — mirrors the draft's setup (nvim/init.lua ~L33-79). nvim's
+-- bundled `default` colorscheme is near-monochrome, so the review doc's syntax
+-- reads as muted; `slate` + fenced-language highlighting gives readable headings,
+-- emphasis, code spans, and per-language code blocks. fenced_languages must be set
+-- before the .md loads, so it sits at top-of-init. (Two md-nvims share this now;
+-- factor into a module if a third appears.)
+vim.cmd('syntax enable')
+vim.cmd('filetype plugin indent on')
+vim.g.markdown_fenced_languages = {
+  'python', 'py=python', 'javascript', 'js=javascript', 'typescript', 'ts=typescript',
+  'lua', 'bash', 'sh=bash', 'zsh=bash', 'json', 'yaml', 'yml=yaml', 'toml',
+  'html', 'css', 'c', 'cpp', 'cxx=cpp', 'rust', 'rs=rust', 'go', 'sql',
+  'ruby', 'rb=ruby', 'java', 'kotlin', 'kt=kotlin', 'swift', 'dockerfile', 'make', 'diff', 'vim',
+}
+vim.cmd('colorscheme slate')
+vim.api.nvim_set_hl(0, 'Comment', { fg = '#999999', ctermfg = 247 }) -- lift slate's faded Comment
+
+-- The agent edits the doc on disk (M3: via xx-fix's file write; M4: the pane
+-- applies records in-buffer, so this won't fire). autoread + a checktime when the
+-- user returns to the pane reloads those external edits instead of the cryptic W12
+-- prompt — provided the buffer is unmodified (finish a human turn with Alt+Return,
+-- which saves, before the agent edits). A genuine both-changed conflict still
+-- prompts: the human's unsaved edits are theirs to resolve.
+vim.opt.autoread = true
+vim.api.nvim_create_autocmd({ 'FocusGained', 'BufEnter' }, {
+  callback = function()
+    if vim.fn.mode() == 'n' then pcall(vim.cmd, 'silent! checktime') end
+  end,
+})
 
 -- Stub the draft-pane globals so a stray zellij Alt+Up/Down/x/n/d pressed while
 -- the review pane is focused degrades silently (same rationale as scrollback.lua).
@@ -18,6 +67,16 @@ for _, name in ipairs({
   'PairConfirmDetach', 'PairConfirmRestart', 'PairConfirmRestartNewSession',
 }) do
   _G[name] = function() end
+end
+
+-- Alt+r pressed while THIS review pane is focused: the zellij bind's relative
+-- MoveFocus Down may not escape a floating pane, so the `:lua PairReviewToggle()`
+-- it types lands here instead of in the draft. The review pane only ever needs to
+-- hide itself (it's necessarily visible to receive the keystrokes); focus falls
+-- back to the tiled layer. The draft's PairReviewToggle owns open/show; this one
+-- is the hide half (robust whether or not MoveFocus escapes).
+function _G.PairReviewToggle()
+  vim.fn.system({ 'zellij', 'action', 'hide-floating-panes' })
 end
 
 local here = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
@@ -43,17 +102,29 @@ local function render_markers(buf)
   end
 end
 
--- The review state file: pair-review-toggle reads it to know a review is open.
+-- The review state file: the draft's PairReviewToggle reads it (pid → liveness)
+-- to know a review is open (file-select vs. visibility-toggle branch).
 local function state_file()
   local dir = vim.env.PAIR_DATA_DIR
   if not dir or dir == '' then return nil end
   return dir .. '/review-' .. (vim.env.PAIR_TAG or 'default') .. '.open'
 end
 
+-- TEMPORARY (M3 unblock): the poke explicitly invokes the xx-fix skill, so the
+-- agent runs the marker/record edit-review flow rather than guessing (it picked
+-- doc-review/fact-check from a bare "please review"). M4's review SKILL replaces
+-- this with proper review-mode recognition (the agent recognizes it's in the
+-- workbench and engages the record flow itself). Kept as a single named constant
+-- so the hardcoded skill name lives in ONE place, not scattered through pokes.
+local REVIEW_TRIGGER = '/xx-fix'
+
 local function finish_human_turn(buf, file)
   if vim.fn.mode():match('^i') then vim.cmd('stopinsert') end
   review.human_round(buf, 'updated')
-  poke.send('updated, please review ' .. vim.fn.fnamemodify(file, ':t'))
+  -- Absolute path: the agent pane's cwd is pair's, not the doc's repo, so a bare
+  -- basename made the agent hunt ("not in this repo… check siblings"). The full
+  -- path lets it read/locate the doc — and, later (M4), operate in the doc's repo.
+  poke.send(REVIEW_TRIGGER .. ' ' .. vim.fn.fnamemodify(file, ':p'))
 end
 
 local function start_review(buf, file)
@@ -68,7 +139,9 @@ local function start_review(buf, file)
   end
 
   render_markers(buf)
-  vim.api.nvim_create_autocmd({ 'TextChanged', 'InsertLeave' }, {
+  -- Re-render on local edits AND after an external reload (autoread/checktime
+  -- pulling in the agent's on-disk edits) so markers track the new content.
+  vim.api.nvim_create_autocmd({ 'TextChanged', 'InsertLeave', 'FileChangedShellPost' }, {
     buffer = buf, callback = function() render_markers(buf) end,
   })
 
@@ -77,11 +150,13 @@ local function start_review(buf, file)
   if pidfile and pidfile ~= '' then
     pcall(vim.fn.writefile, { tostring(vim.fn.getpid()) }, pidfile)
   end
-  -- state file: line 1 = pid (liveness), line 2 = visibility (pair-review-toggle
-  -- flips it). Tracking visibility here avoids `are-floating-panes-visible` being
-  -- confounded by the toggle's own transient floating pane.
+  -- state file: line 1 = the pane nvim's pid (liveness); line 2 = the absolute
+  -- doc path (the draft reads it to render the review-mode indicator on its
+  -- line 1). The draft's PairReviewToggle decides show vs. hide from live
+  -- `are-floating-panes-visible` (reliable now that no transient floating
+  -- toggle-pane confounds it), so visibility is NOT tracked here.
   local sf = state_file()
-  if sf then pcall(vim.fn.writefile, { tostring(vim.fn.getpid()), 'visible' }, sf) end
+  if sf then pcall(vim.fn.writefile, { tostring(vim.fn.getpid()), file }, sf) end
 
   -- Lifecycle (the M1-carried "VimLeave timer cleanup"): tear down the handoff
   -- poll timer + projection autocmd + state file when the pane nvim exits.
@@ -108,4 +183,7 @@ vim.api.nvim_create_autocmd('VimEnter', {
 })
 
 vim.opt.laststatus = 2
-vim.opt.statusline = ' pair review · Alt+Return finish human turn · Alt+r → agent · %f %= L%l/%L '
+-- Compact review bar. %m → "[+]" when the buffer is unsaved (the save happens at
+-- Alt+Return / after the agent applies records, never per-keystroke — so the cue
+-- matters). %= right-aligns the line position.
+vim.opt.statusline = ' Review • Alt+⏎ Send • Alt+r → agent • %f%m %= L%l/%L '

@@ -21,7 +21,20 @@ end
 
 -- Surface docflow failures instead of swallowing them (milestone review I3):
 -- a failed round leaves an edited+saved buffer with no commit — never silent.
+-- EXCEPT "docflow not found" (result.unavailable): in a live M3 pane that's the
+-- expected render-only state (round commits are agent-side, #66 M4), so it gets a
+-- single calm INFO, never the per-action ERROR (an ERROR notify in the VimEnter
+-- autocmd is what surfaced as "Error detected while processing VimEnter…").
+local docflow_unavailable_notified = false
 local function check(result, what)
+  if result and result.unavailable then
+    if not docflow_unavailable_notified then
+      docflow_unavailable_notified = true
+      vim.notify('review: docflow not found — render-only (round commits are agent-side, #66 M4)',
+        vim.log.levels.INFO)
+    end
+    return false
+  end
   if result and result.code and result.code ~= 0 then
     vim.notify(
       string.format('review: docflow %s failed (exit %d): %s', what, result.code, result.stderr or ''),

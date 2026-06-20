@@ -16,7 +16,11 @@ local function run(args)
   -- the review pane still opens (render-only until docflow is on PATH/$DOCFLOW_BIN).
   local ok, res = pcall(function() return vim.system(cmd, { text = true }):wait() end)
   if not ok then
-    return { code = 127, stdout = '', stderr = 'docflow not runnable (' .. bin() .. '): ' .. tostring(res) }
+    -- `unavailable` marks "docflow isn't on PATH / $DOCFLOW_BIN" — an EXPECTED
+    -- state in a live M3 pane (render-only; round commits are agent-side, M4), as
+    -- distinct from a real non-zero docflow failure. Callers degrade quietly on it.
+    return { code = 127, unavailable = true, stdout = '',
+      stderr = 'docflow not runnable (' .. bin() .. '): ' .. tostring(res) }
   end
   return res
 end

@@ -95,7 +95,7 @@ grep -q '^state-file$' "$RT/r3" && pass "open-state file written" || fail "no st
 grep -q '^markers$' "$RT/r3" && pass "🤖 markers rendered" || fail "no marker extmarks"
 # Alt+Return integration: a human round commits + the agent gets poked
 grep -q 'round --side human' "$RT/doclog" && pass "Alt+Return commits a human round" || fail "no human round"
-grep -q 'write-chars updated, please review' "$RT/zlog" && pass "Alt+Return pokes the agent (id-based)" || fail "no agent poke"
+grep -q 'write-chars /xx-fix ' "$RT/zlog" && pass "Alt+Return pokes the agent (id-based, invokes xx-fix)" || fail "no agent poke"
 
 [ "$fails" -eq 0 ] || { printf 'review-window-test FAILED (%d)\n' "$fails"; exit 1; }
 printf 'review-window-test ok\n'
