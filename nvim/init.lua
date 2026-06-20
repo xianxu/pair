@@ -757,6 +757,75 @@ vim.api.nvim_create_user_command('PairReview', function(opts)
   end
 end, { nargs = 1, complete = 'file', desc = 'open a review pane on a file' })
 
+-- Review-workbench draft-side helpers (#66 M3). Wrapped in `do ... end` and shared
+-- via the `_G._pair_review` table rather than added as file-level `local`s: init.lua's
+-- main chunk is near Lua's hard 200-local-per-function ceiling (E5112), so new
+-- top-level locals would break sourcing. The indicator block (below) reuses
+-- `_pair_review.is_alive` from here, keeping the state-file contract DRY.
+do
+  -- review-state file (nvim/review.lua writes it on VimEnter, removes it on exit).
+  -- Line 1 = the review pane nvim's pid (liveness = `kill -0`); line 2 = the
+  -- absolute doc path (the review-mode indicator reads it).
+  local function state_file()
+    local dir = vim.env.PAIR_DATA_DIR
+    if not dir or dir == '' then return nil end
+    local tag = vim.env.PAIR_TAG
+    return dir .. '/review-' .. ((tag and tag ~= '') and tag or 'default') .. '.open'
+  end
+
+  -- Returns (alive, statefile, file). `file` is the reviewed doc's absolute path.
+  local function is_alive()
+    local sf = state_file()
+    if not sf or vim.fn.filereadable(sf) ~= 1 then return false, sf end
+    local lines = vim.fn.readfile(sf)
+    local pid = tonumber(lines[1] or '')
+    if not pid then return false, sf end
+    vim.fn.system({ 'kill', '-0', tostring(pid) })
+    return vim.v.shell_error == 0, sf, lines[2]
+  end
+
+  -- Pure: the Alt+r branch, given whether a review pane is live and whether
+  -- floating panes are currently visible. Exposed for the headless toggle test.
+  local function toggle_action(alive, visible)
+    if not alive then return 'open' end       -- no review → file-select
+    return visible and 'hide' or 'show'        -- live review → flip visibility
+  end
+
+  _G._pair_review = { state_file = state_file, is_alive = is_alive, toggle_action = toggle_action }
+  _G._pair_review_toggle_action = toggle_action -- test alias
+
+  -- Alt+r — the review-workbench toggle (#66 M3). The zellij Alt+r bind routes here
+  -- through this draft nvim exactly like Alt+d/PairConfirmDetach (MoveFocus Down →
+  -- `:lua PairReviewToggle()`), so the branch + the file-select cmdline injection
+  -- happen in a real nvim, NOT in a transient floating shell pane (the old
+  -- pair-review-toggle, which caused the open delay / auto-hide / mis-fire).
+  --
+  --   • no live review → file-select: drop into `:PairReview ` (tab-complete a file,
+  --     which shells out to pair-review-open → a 100% floating review pane).
+  --   • live review    → flip visibility via `are-floating-panes-visible` →
+  --     show/hide-floating-panes (NEVER toggle-floating-panes, the footgun).
+  --
+  -- `are-floating-panes-visible` is reliable from this *tiled* draft (no transient
+  -- floating pane to confound it). The review pane defines its own PairReviewToggle()
+  -- (hide-self) for the case where Alt+r is pressed from inside the focused review
+  -- pane and the bind's relative MoveFocus Down does not escape the floating pane.
+  -- No has_ui() short-circuit on the zellij calls so the headless test can record them.
+  function _G.PairReviewToggle()
+    local alive, sf = is_alive()
+    if not alive then
+      if sf then pcall(os.remove, sf) end      -- reap a stale/dead state file
+      vim.api.nvim_feedkeys(':PairReview ', 'n', false)  -- cmdline, no submit
+      return
+    end
+    local vis = vim.fn.system({ 'zellij', 'action', 'are-floating-panes-visible' })
+    if toggle_action(true, vis:match('true') ~= nil) == 'hide' then
+      vim.fn.system({ 'zellij', 'action', 'hide-floating-panes' })
+    else
+      vim.fn.system({ 'zellij', 'action', 'show-floating-panes' })
+    end
+  end
+end
+
 -- Strip whole-line comments (^%s*===) before sending. Comments are stored
 -- intact in draft/queue/log so they survive history navigation — only what
 -- reaches the agent is cleaned. Leading and trailing blank lines left behind
@@ -1943,6 +2012,13 @@ local function pair_compose_statusline(left)
   -- reverts it — show the green PairNotify message instead of the cheatsheet.
   if pair_notify then
     return pair_notify_segment(left)
+  end
+  -- #66 M3: while a review is open, the review segment (`Review • <file> •
+  -- 🤖N/M`) replaces the rightmost cheatsheet. Read from the timer-cached value
+  -- (a global set by the review do-block) so this hot path never shells git.
+  if _G._pair_review_segment then
+    local seg = _G._pair_review_segment()
+    if seg then return left .. '%=' .. seg .. ' ' end
   end
   -- 6-cell minimum margin between the variable left segment and the
   -- cheatsheet. Capping the cheatsheet's budget at (columns - left - 6)
@@ -3854,3 +3930,76 @@ vim.api.nvim_create_autocmd('VimEnter', {
   once = true,
   callback = function() pcall(pair_slug_reconcile) end,
 })
+
+-- Review-mode bar content (#66 M3) — the compact review segment shown in the pair
+-- (draft) view while a review is open: `Review • Alt+r → review • <file>  (🤖N/M)`
+-- (N agent / M human round commits). This just builds the string; where it renders
+-- (its own bar vs folded into PairStatusline) is wired separately. Supersedes the
+-- earlier line-1 `=== review … ===` indicator (line 1 is the user's to edit — a
+-- bar is chrome, not buffer content). (`do ... end`: no file-level locals —
+-- init.lua is at Lua's 200-local chunk ceiling; reuses `_pair_review.is_alive`.)
+do
+  -- Rounds in the CURRENT review session only. The session lives on a
+  -- `review/<slug>` branch (M4, agent-owned); count that slug's round commits.
+  -- On any OTHER branch — including M3 render-only, where no review is active —
+  -- return 0/0. (A repo's history can hold dozens of shipped reviews of OTHER docs:
+  -- `review(a-blogging-workflow): …` etc. Counting repo-wide gave the spurious
+  -- "25/28" — those are other docs' shipped rounds, not this session.)
+  -- Slug-scoped, not just branch-scoped, so a merged prior review of a *different*
+  -- doc reachable from HEAD doesn't leak in. (M4 refinement: merge-base..HEAD to
+  -- also drop a prior shipped review of the SAME slug.)
+  local function counts(file)
+    local dir = vim.fn.fnamemodify(file, ':h')
+    local branch = vim.fn.system({ 'git', '-C', dir, 'branch', '--show-current' })
+    if vim.v.shell_error ~= 0 then return 0, 0 end
+    local slug = vim.trim(branch):match('^review/(.+)$')
+    if not slug then return 0, 0 end -- not in an active review (M3 / between reviews)
+    local out = vim.fn.system({ 'git', '-C', dir, 'log', '--pretty=%s' })
+    if vim.v.shell_error ~= 0 then return 0, 0 end
+    local pa = '^review%(' .. vim.pesc(slug) .. '%):%s*agent%s'
+    local ph = '^review%(' .. vim.pesc(slug) .. '%):%s*human%s'
+    local a, h = 0, 0
+    for line in out:gmatch('[^\n]+') do
+      if line:match(pa) then a = a + 1
+      elseif line:match(ph) then h = h + 1 end
+    end
+    return a, h
+  end
+
+  -- The compact draft-side review bar text. 🤖N = agent (robot) rounds, /M = human.
+  local function bar_text(file)
+    local a, h = counts(file)
+    return string.format('Review • %s • 🤖%d/%d', vim.fn.fnamemodify(file, ':t'), a, h)
+  end
+  _G._pair_review_bar = bar_text -- exposed for the headless test (plain, unstyled)
+
+  -- Review-mode accent for the folded statusline segment (reapplied on ColorScheme
+  -- since :colorscheme runs :hi clear).
+  local function set_hl()
+    vim.api.nvim_set_hl(0, 'PairReviewBar', { fg = '#56b6c2', bold = true, default = true })
+  end
+  set_hl()
+  vim.api.nvim_create_autocmd('ColorScheme', { callback = set_hl })
+
+  -- Cached statusline segment, recomputed off a timer — the statusline renders on
+  -- nearly every keystroke/cursor move, so it must NEVER shell git inline. `nil`
+  -- when no review is open; PairStatusline shows the normal cheatsheet then.
+  local cached = nil
+  local function recompute()
+    local seg = nil
+    if _G._pair_review then
+      local alive, _, file = _G._pair_review.is_alive()
+      if alive and file and file ~= '' then
+        seg = '%#PairReviewBar#' .. bar_text(file):gsub('%%', '%%%%') .. '%*'
+      end
+    end
+    if seg ~= cached then
+      cached = seg
+      pcall(refresh_statusline) -- redraw on open / close / count change
+    end
+  end
+  _G._pair_review_segment = function() return cached end
+
+  local timer = vim.loop.new_timer()
+  if timer then timer:start(800, 1500, vim.schedule_wrap(function() pcall(recompute) end)) end
+end

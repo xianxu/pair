@@ -40,12 +40,13 @@ fi
 export PAIR_NVIM_PID_FILE="$PAIR_DATA_DIR/nvim-pid-$PAIR_TAG-review"
 
 # cwd = the file's directory so docflow's git commands (shelled from the pane's
-# nvim) run inside the doc's repo. Near-full-screen floating pane.
+# nvim) run inside the doc's repo. Full-screen floating pane: percentage dims (a
+# zellij `run` feature) instead of `tput`, which measured whichever pane this
+# script happened to run in — the old toggle pane's 20%x1 leaked through as a
+# half-size review pane (#66 M3 smoke bug #4). 100% mirrors scrollback's Alt+/.
 dir=$(CDPATH= cd -- "$(dirname -- "$file")" && pwd)
 abs="$dir/$(basename -- "$file")"
-W=$(tput cols 2>/dev/null || echo 200)
-H=$(tput lines 2>/dev/null || echo 50)
 
 exec zellij run --floating --close-on-exit --name review \
-    --width "$W" --height "$H" --x 0 --y 0 --cwd "$dir" \
+    --width 100% --height 100% --x 0 --y 0 --cwd "$dir" \
     -- nvim -u "$PAIR_HOME/nvim/review.lua" "$abs"
