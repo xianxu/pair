@@ -109,3 +109,48 @@ Automated tests cover the wiring; live zellij pane behavior cannot run headlessl
 - **Where `:PairReview` runs from** — the draft nvim's command line (Alt+r feeds `:PairReview `). Confirm the draft is the right host (it's the only interactive nvim) and that command-line mode doesn't disturb the draft buffer.
 - **Agent-side is dumb in M3** — the poke says "please review"; without the M4 SKILL the agent won't do memory discovery or emit the records handoff cleverly. M3's automated loop uses the fake agent; the real intelligent loop is M4. Don't over-build the agent side here.
 - **Ship** — `docflow ship` plumbing exists (`review.docflow.ship`), but the *trigger* ("ship it") is the agent's call (M4). M3 leaves ship conversational + unwired.
+
+## Revisions
+
+### 2026-06-19 — Alt+r rework (toggle-pane → draft-nvim lua)
+
+**Reason:** the first M3 real-session smoke (Task 5) found 5 bugs, four sharing one
+root cause — Task 2's design ran the Alt+r branch *inside a transient 20%×1 floating
+shell pane* (`Run "pair-review-toggle"`). That intermediate floating pane caused: #1
+~1s open delay (two pane spawns), #3 the review pane auto-hiding after ~1s + #5 Alt+r
+in review mode mis-firing `:PairReview` (the transient floating pane confounded
+`are-floating-panes-visible` / flapped the alive-state), and #4 a half-size review
+pane (`pair-review-open`'s `tput cols/lines` measured the 20%×1 toggle pane). (#2, a
+docflow ENOENT on VimEnter, was unrelated — fixed separately by making `docflow.lua`
+resilient.)
+
+**Delta** (supersedes Task 2's `bin/pair-review-toggle` design; Tasks 1/3/4 unchanged):
+- **Alt+r bind** (`zellij/config.kdl`) now routes through the draft nvim exactly like
+  Alt+d / `PairConfirmDetach`: `MoveFocus "Down"; Write 28; Write 14; WriteChars
+  ":lua PairReviewToggle()"; Write 13`. No spawned shell pane → no second spawn, no
+  transient floating pane.
+- **`PairReviewToggle()`** moves into nvim lua, defined in **two** places:
+  - draft `nvim/init.lua` — branches on review state-file liveness: not alive →
+    `:PairReview ` cmdline (file-select); alive → `are-floating-panes-visible` (now
+    reliable, queried from the *tiled* draft) → `show`/`hide-floating-panes`. Pure
+    decision `_pair_review_toggle_action(alive, visible)`.
+  - review pane `nvim/review.lua` — hide-self, for when Alt+r fires from inside the
+    focused floating review pane and the bind's relative `MoveFocus Down` doesn't
+    escape it (robust either way: if it *does* escape, the draft handles it via
+    `are-floating-panes-visible`).
+- **`pair-review-open`** spawns full-screen via percentage dims (`--width 100%
+  --height 100%`, a `zellij run` feature) instead of `tput` (the half-size fix).
+- **state file** simplifies to a single line (the pane nvim's pid); visibility is no
+  longer tracked there (the `are-floating-panes-visible` query is now reliable).
+- **`bin/pair-review-toggle` deleted.** Test `tests/review-toggle-test.sh` rewritten
+  to headless-drive the lua `PairReviewToggle()` (zellij stubbed, `are-floating-panes
+  -visible` answered from a file) + the pure decision + the KDL bind lint.
+
+**docflow in M3 (open-question resolution):** render-only stays the M3 scope. `docflow`
+isn't on PATH in a live session and M3 is the *window/toggle* milestone — the commit
+pipeline (`DOCFLOW_BIN` resolution to the sibling ariadne, ship) is wired in M4. The
+Task 5 smoke item "Alt+Return → a human round commits" relaxes to "Alt+Return pokes
+the agent" (the round commit no-ops with a warning until M4).
+
+All headless suites green after the rework (`make test-lua` + `make test-review`, 92
+checks). The live re-smoke (Task 5) is the remaining gate before `milestone-close`.

@@ -2,9 +2,10 @@
 id: 000066
 status: open
 deps: []
+target: review-protocol
 github_issue:
 created: 2026-06-18
-updated: 2026-06-18
+updated: 2026-06-19
 estimate_hours: 30
 ---
 
@@ -97,6 +98,19 @@ Milestones are review boundaries; sub-steps firm up after M0.
 
 ## Log
 
+- 2026-06-19: **M3 Alt+r rework + smoke round 2.** Reworked the Alt+r toggle off the
+  transient 20%×1 floating "toggle pane" onto draft-nvim lua (`PairReviewToggle()`,
+  Alt+d-style routing) + full-screen review pane (`zellij run --width 100%`, dropped
+  `tput`). User re-smoked: pane opens full-screen + fast + toggles cleanly (#1/#3/#4/#5
+  fixed). Remaining: docflow ENOENT noise (caller fired ERROR notify in VimEnter →
+  "Error detected…"; fixed: `result.unavailable` → one calm INFO, render-only) + the
+  poke used a basename so the agent couldn't find the doc (fixed: absolute path).
+- 2026-06-19: **Direction confirmed — the review nvim writes NO git; the agent owns
+  all git** (branch / round commits / ship), driven by prose pokes. Documented the
+  full agent↔review-nvim state machine as a target → `workshop/targets/review-protocol.md`
+  (`target: review-protocol`), BUILT (M1–M3, test-backed) vs M4-DESIGN clearly split.
+  This makes M1's nvim-shells-docflow scaffolding to unwind in M4 (its nvim-commit e2e
+  relocates to an agent-side test). M3 stays render-only (the unwind lands in M4).
 
 
 - 2026-06-19: closed M2 — M2 increment 0.7h (engine measures cumulative 2.57h over the whole-issue window; M1 was 1.87h). Green: make test-lua (markers/mode pure) + make test-review (projection undo/redo coherence + riding + round-2 idempotence; apply snapshot multi-line round-trip; markers ready/pending/strike invariants); review verdict: FIX-THEN-SHIP

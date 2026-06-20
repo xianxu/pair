@@ -405,3 +405,21 @@ has_selection, momentary)`, fed `momentary = spell_popup_active` at the map
 site) rather than branching on a global inside the handler, so each consumer's
 behavior is unit-asserted without a live UI. A chokepoint shared across N
 callers needs N tested cases, not one.
+
+## init.lua is at Lua's 200-local-per-chunk ceiling (E5112)
+
+**What happened (#66 M3).** Adding a handful of new file-level `local`s to
+`nvim/init.lua` (review toggle + indicator helpers) broke sourcing with
+`E5112: main function has more than 200 local variables`. Lua caps locals per
+function scope at 200; init.lua's main chunk was already at the edge, so the new
+locals silently tipped it over — and a sourcing error there isn't loud in the
+headless tests (nvim still runs the `-c` driver, so functions defined *after* the
+error line just come back `nil`, looking like "not exposed" rather than "chunk
+broke").
+
+**Rule.** New top-level helpers in `nvim/init.lua` go in a `do ... end` block
+(their locals are block-scoped, off the main chunk's count); share across blocks
+via a `_G.<table>` (e.g. `_G._pair_review = { … }`), not file-level locals. When a
+headless probe reports a function as `nil` despite being defined, suspect a
+mid-chunk sourcing error first — run `nvim -u nvim/init.lua -c 'lua …' 2>&1` and
+grep for `E5112`/`E5108`, don't assume the definition is wrong.

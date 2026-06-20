@@ -68,21 +68,42 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
 
 - `nvim/review.lua` — the pane init (`nvim -u nvim/review.lua <file>`): dofiles the
   review core + poke + markers, `review.start{}`, wires **Alt+Return = finish human
-  turn** (`human_round` + poke "updated, please review"), renders 🤖 markers
-  (`markers.highlight_spans` → `ParleyReview*` extmarks, re-rendered on TextChanged),
-  writes the open-state file (`pid\nvisible`), and tears down on `VimLeave`.
-- `bin/pair-review-open <file>` — validates + spawns the floating pane (`zellij run
-  --floating --close-on-exit --name review`), replacing any live review (single pane).
+  turn** (`human_round` + poke "updated, please review &lt;abs path&gt;"), renders 🤖
+  markers (`markers.highlight_spans` → `ParleyReview*` extmarks, re-rendered on
+  TextChanged), writes the open-state file (line 1 = pane nvim `pid` for liveness,
+  line 2 = the absolute doc path for the indicator), and tears down on `VimLeave`.
+  Also defines `PairReviewToggle()` = hide-self (the case where Alt+r fires from
+  inside the focused floating review pane).
+- `bin/pair-review-open <file>` — validates + spawns the **full-screen** floating pane
+  (`zellij run --floating --close-on-exit --name review --width 100% --height 100%`;
+  percentage dims, not `tput`, which measured the wrong pane), replacing any live
+  review (single pane).
 - `:PairReview <file>` (in draft `nvim/init.lua`, `complete=file`) — the `:e`-style
   opener; shells to `pair-review-open`.
-- `bin/pair-review-toggle` (Alt+r, `zellij/config.kdl`) — mode-aware: no review →
-  focus the draft + open `:PairReview ` (file-select); review open → flip visibility
-  (`show`/`hide-floating-panes`, visibility tracked on state-file line 2 to dodge the
-  toggle's own floating pane confounding `are-floating-panes-visible`; **never**
-  `toggle-floating-panes`).
+- **Alt+r** (`zellij/config.kdl`) — routed through the draft nvim like Alt+d
+  (`MoveFocus Down` → `<C-\><C-n>` → `:lua PairReviewToggle()`), **not** a spawned
+  shell pane. The draft's `PairReviewToggle()` (`nvim/init.lua`) branches on the
+  state-file liveness: no review → drop into `:PairReview ` (file-select); review open
+  → flip visibility from this *tiled* draft (`are-floating-panes-visible` →
+  `show`/`hide-floating-panes`; **never** `toggle-floating-panes`). Pure decision
+  `_pair_review_toggle_action(alive, visible)`. Doing the branch in nvim (not a
+  transient 20%×1 floating pane) is what killed the M3-smoke open-delay / auto-hide /
+  half-size / mis-fire bugs.
 - `nvim/pair_poke.lua` — id-based agent poke: relative `move-focus` does NOT escape a
   floating pane, so it resolves the agent + caller panes from `list-panes --json` and
   `focus-pane-id`s them (focus agent → write-chars + `write 27 13` submit → restore).
+- **review-mode indicator** (`nvim/init.lua`, `do`-block; `_pair_review_indicator`) —
+  while a review is open, a 1.5s timer rewrites the draft's line 1 to `=== review:
+  <file>  (N agent · M human) ===` (counts parsed from `git log` round subjects;
+  0/0 until the agent commits in M4), so review mode is visible even when the pane is
+  hidden. Reuses the slug line-1 + winbar pin for free (no ` | ` pipe ⇒ slug.lua holds;
+  `===` prefix ⇒ pinned). Restores the prior line 1 on close. (New draft-side review
+  helpers live in `do`-blocks sharing `_G._pair_review` — init.lua is at Lua's
+  200-local chunk ceiling.)
+- **docflow degradation** (`nvim/review/docflow.lua` + `init.lua`'s `check`) — a
+  missing `docflow` returns `{unavailable=true}`; the review pane degrades to a single
+  calm "render-only" INFO (not a per-action ERROR), since round commits are agent-side
+  (M4). See `workshop/targets/review-protocol.md` for the full agent↔nvim state machine.
 
 The agent pane is pair's **existing** agent — free-form chat works for free; the SKILL
 that makes "please review" / "ship it" review-aware is M4.
