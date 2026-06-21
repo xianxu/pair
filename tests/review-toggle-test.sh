@@ -61,11 +61,17 @@ local function has(lines, pat)
 end
 local function setfloat(v) local f = io.open(FLOATVIS, 'w'); f:write(v); f:close() end
 
--- pure decision
+-- pure decision (5 cases: a live pane → hide/show; else target-driven prompt/open/wait)
 local A = _G._pair_review_toggle_action
-OUT:write((A(false) == 'open') and 'pure-open ok\n' or 'pure-open FAIL\n')
+OUT:write((A(false, false, nil) == 'prompt') and 'pure-prompt ok\n' or 'pure-prompt FAIL\n')
+OUT:write((A(false, false, 'ready') == 'open') and 'pure-open ok\n' or 'pure-open FAIL\n')
+OUT:write((A(false, false, 'proposed') == 'wait') and 'pure-wait ok\n' or 'pure-wait FAIL\n')
 OUT:write((A(true, true) == 'hide') and 'pure-hide ok\n' or 'pure-hide FAIL\n')
 OUT:write((A(true, false) == 'show') and 'pure-show ok\n' or 'pure-show FAIL\n')
+
+local R = _G._pair_review
+local target = vim.env.PAIR_DATA_DIR .. '/review-target-' .. vim.env.PAIR_TAG .. '.json'
+local draft = vim.env.PAIR_DATA_DIR .. '/draft.md' -- exists (the test wrote it)
 
 -- live + visible → hide  (state file holds OUR pid, so kill -0 says alive)
 vim.fn.writefile({ tostring(vim.fn.getpid()) }, sf); setfloat('true')
@@ -80,13 +86,24 @@ n = #read_zlog(); _G.PairReviewToggle()
 d = new_since(n)
 OUT:write(has(d, 'action show-floating-panes') and 'show ok\n' or 'show FAIL\n')
 
--- no review → file-select: no visibility query, no show/hide
-os.remove(sf)
+-- no live pane, NO target → prompt: no open (zellij run), no show/hide
+os.remove(sf); os.remove(target)
 n = #read_zlog(); _G.PairReviewToggle()
 d = new_since(n)
-local quiet = not has(d, 'are-floating-panes-visible')
-  and not has(d, 'hide-floating-panes') and not has(d, 'show-floating-panes')
-OUT:write(quiet and 'open ok\n' or 'open FAIL\n')
+OUT:write((not has(d, 'run --floating') and not has(d, 'hide-floating-panes')
+  and not has(d, 'show-floating-panes')) and 'prompt ok\n' or 'prompt FAIL\n')
+
+-- no live pane, target READY → open the pane (pair-review-open → zellij run)
+R.write_target(draft, 'ready')
+n = #read_zlog(); _G.PairReviewToggle()
+d = new_since(n)
+OUT:write(has(d, 'run --floating') and 'targetopen ok\n' or 'targetopen FAIL\n')
+
+-- no live pane, target PROPOSED → wait: do NOT open
+R.write_target(draft, 'proposed')
+n = #read_zlog(); _G.PairReviewToggle()
+d = new_since(n)
+OUT:write((not has(d, 'run --floating')) and 'wait ok\n' or 'wait FAIL\n')
 
 -- footgun: never toggle-floating-panes anywhere
 OUT:write(has(read_zlog(), 'toggle-floating-panes') and 'footgun FAIL\n' or 'footgun ok\n')
@@ -100,13 +117,17 @@ LUA
     run_headless --timeout 30 -- nvim --headless -u "$ROOT/nvim/init.lua" "$RT/draft.md" \
       -c "luafile $RT/driver.lua" )
 
-grep -q 'pure-open ok'  "$RESULT" && pass "pure: not alive → open"        || fail "pure open"
-grep -q 'pure-hide ok'  "$RESULT" && pass "pure: alive+visible → hide"    || fail "pure hide"
-grep -q 'pure-show ok'  "$RESULT" && pass "pure: alive+hidden → show"     || fail "pure show"
-grep -q '^hide ok$'     "$RESULT" && pass "live+visible → hide-floating-panes (after are-visible)" || fail "hide branch"
-grep -q '^show ok$'     "$RESULT" && pass "live+hidden → show-floating-panes" || fail "show branch"
-grep -q '^open ok$'     "$RESULT" && pass "no review → file-select (no visibility query / show / hide)" || fail "open branch"
-grep -q '^footgun ok$'  "$RESULT" && pass "never toggle-floating-panes" || fail "footgun (toggle-floating-panes used)"
+grep -q 'pure-prompt ok'  "$RESULT" && pass "pure: no target → prompt"        || fail "pure prompt"
+grep -q 'pure-open ok'    "$RESULT" && pass "pure: target ready → open"       || fail "pure open"
+grep -q 'pure-wait ok'    "$RESULT" && pass "pure: target proposed → wait"    || fail "pure wait"
+grep -q 'pure-hide ok'    "$RESULT" && pass "pure: alive+visible → hide"      || fail "pure hide"
+grep -q 'pure-show ok'    "$RESULT" && pass "pure: alive+hidden → show"       || fail "pure show"
+grep -q '^hide ok$'       "$RESULT" && pass "live+visible → hide-floating-panes" || fail "hide branch"
+grep -q '^show ok$'       "$RESULT" && pass "live+hidden → show-floating-panes" || fail "show branch"
+grep -q '^prompt ok$'     "$RESULT" && pass "no target → :PairReview prompt (no open/show/hide)" || fail "prompt branch"
+grep -q '^targetopen ok$' "$RESULT" && pass "target ready → opens the pane (pair-review-open)" || fail "open branch"
+grep -q '^wait ok$'       "$RESULT" && pass "target proposed → wait (no open)" || fail "wait branch"
+grep -q '^footgun ok$'    "$RESULT" && pass "never toggle-floating-panes" || fail "footgun (toggle-floating-panes used)"
 
 # ── config lint ───────────────────────────────────────────────────────────────
 grep -q 'bind "Alt r"' "$ROOT/zellij/config.kdl" && pass "Alt+r bound in config.kdl" || fail "no Alt+r bind"

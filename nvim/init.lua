@@ -744,18 +744,19 @@ local function send_to_agent(body, no_submit)
   vim.fn.system('zellij action move-focus down')
 end
 
--- :PairReview <file> — open a review pane on a file (#66 M3). `complete='file'`
--- gives :e-style tab-completion; Alt+r in normal mode feeds ":PairReview " into
--- this command line. Shells out to bin/pair-review-open, which spawns the
--- floating review pane (nvim -u nvim/review.lua <file>).
+-- :PairReview <file> — PROPOSE a file for review (#66 M4a'). It does NOT open the
+-- pane: it writes the review-target seam (status=proposed) + pokes the agent to run
+-- the readiness probe and prepare (track / new branch / resume / interact), then
+-- mark the target ready. Alt+r opens the pane once ready. `complete='file'` gives
+-- :e-style tab-completion; Alt+r feeds ":PairReview " into this command line.
+-- (Callback runs at runtime, after the do-block below sets `_G._pair_review`.)
 vim.api.nvim_create_user_command('PairReview', function(opts)
-  local home = vim.env.PAIR_HOME or ''
-  local bin = (home ~= '') and (home .. '/bin/pair-review-open') or 'pair-review-open'
-  vim.fn.system({ bin, opts.args })
-  if vim.v.shell_error ~= 0 then
-    vim.notify('PairReview: ' .. (vim.fn.fnamemodify(opts.args, ':t')) .. ' — open failed', vim.log.levels.WARN)
+  if _G._pair_review and _G._pair_review.propose then
+    _G._pair_review.propose(opts.args)
+    vim.notify('PairReview: proposed ' .. vim.fn.fnamemodify(opts.args, ':t')
+      .. ' — agent preparing; press Alt+r to open when ready', vim.log.levels.INFO)
   end
-end, { nargs = 1, complete = 'file', desc = 'open a review pane on a file' })
+end, { nargs = 1, complete = 'file', desc = 'propose a file for review (agent preps; Alt+r opens when ready)' })
 
 -- Review-workbench draft-side helpers (#66 M3). Wrapped in `do ... end` and shared
 -- via the `_G._pair_review` table rather than added as file-level `local`s: init.lua's
@@ -784,44 +785,77 @@ do
     return vim.v.shell_error == 0, sf, lines[2]
   end
 
-  -- Pure: the Alt+r branch, given whether a review pane is live and whether
-  -- floating panes are currently visible. Exposed for the headless toggle test.
-  local function toggle_action(alive, visible)
-    if not alive then return 'open' end       -- no review → file-select
-    return visible and 'hide' or 'show'        -- live review → flip visibility
+  -- review-target (seam #6): {file, status: proposed|ready}. :PairReview proposes;
+  -- the agent marks ready after prep; Alt+r reads it to decide prompt/open/wait.
+  local function read_target()
+    local p = seam.target_path(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
+    if not p or vim.fn.filereadable(p) ~= 1 then return nil end
+    local ok, t = pcall(vim.json.decode, table.concat(vim.fn.readfile(p), '\n'))
+    if ok and type(t) == 'table' and t.file and t.file ~= '' then return t end
+    return nil
+  end
+  local function write_target(file, status)
+    local p = seam.target_path(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
+    if p then pcall(vim.fn.writefile, { vim.json.encode({ file = file, status = status }) }, p) end
+  end
+  -- :PairReview proposes a target + pokes the agent to prep (run the readiness
+  -- probe, act per the case, mark ready). The nvim does NOT open the pane — Alt+r
+  -- does, once ready; the prep is async so auto-open would fire indeterministically.
+  local function propose(file)
+    local abs = vim.fn.fnamemodify(file, ':p')
+    write_target(abs, 'proposed')
+    send_to_agent('prepare a review of ' .. abs .. ' — run `pair-review-readiness '
+      .. abs .. '`, act per the case (stop/track/resume/new/interact), then mark the '
+      .. 'review target ready. See the xx-fix "Pair review workbench" SKILL.')
   end
 
-  _G._pair_review = { state_file = state_file, is_alive = is_alive, toggle_action = toggle_action }
+  -- Pure: the Alt+r decision. A live pane → flip visibility (hide/show). No live
+  -- pane → driven by the review-target status: ready→open, proposed→wait (prep in
+  -- progress), none→prompt (:PairReview file-select). Exposed for the headless test.
+  local function toggle_action(alive, visible, target_status)
+    if alive then return visible and 'hide' or 'show' end
+    if target_status == 'ready' then return 'open' end
+    if target_status == 'proposed' then return 'wait' end
+    return 'prompt'
+  end
+
+  _G._pair_review = { state_file = state_file, is_alive = is_alive, toggle_action = toggle_action,
+    read_target = read_target, write_target = write_target, propose = propose }
   _G._pair_review_toggle_action = toggle_action -- test alias
 
-  -- Alt+r — the review-workbench toggle (#66 M3). The zellij Alt+r bind routes here
-  -- through this draft nvim exactly like Alt+d/PairConfirmDetach (MoveFocus Down →
-  -- `:lua PairReviewToggle()`), so the branch + the file-select cmdline injection
-  -- happen in a real nvim, NOT in a transient floating shell pane (the old
-  -- pair-review-toggle, which caused the open delay / auto-hide / mis-fire).
-  --
-  --   • no live review → file-select: drop into `:PairReview ` (tab-complete a file,
-  --     which shells out to pair-review-open → a 100% floating review pane).
-  --   • live review    → flip visibility via `are-floating-panes-visible` →
-  --     show/hide-floating-panes (NEVER toggle-floating-panes, the footgun).
-  --
-  -- `are-floating-panes-visible` is reliable from this *tiled* draft (no transient
-  -- floating pane to confound it). The review pane defines its own PairReviewToggle()
-  -- (hide-self) for the case where Alt+r is pressed from inside the focused review
-  -- pane and the bind's relative MoveFocus Down does not escape the floating pane.
-  -- No has_ui() short-circuit on the zellij calls so the headless test can record them.
+  -- Alt+r — the review-workbench brain (#66 M3/M4a'). Routed here through the draft
+  -- nvim (Alt+d-style) so the branch happens in a real nvim, not a transient shell
+  -- pane. A LIVE pane → flip visibility (`are-floating-panes-visible` →
+  -- show/hide-floating-panes; never the toggle-floating-panes footgun). Otherwise
+  -- branch on the review target (seam #6): ready→open via pair-review-open,
+  -- proposed→"prep in progress", none→drop into `:PairReview ` (file-select). The
+  -- review pane defines its own PairReviewToggle() (hide-self) for Alt+r from inside
+  -- the focused floating pane. No has_ui() guard so the headless test records calls.
   function _G.PairReviewToggle()
     local alive, sf = is_alive()
-    if not alive then
-      if sf then pcall(os.remove, sf) end      -- reap a stale/dead state file
-      vim.api.nvim_feedkeys(':PairReview ', 'n', false)  -- cmdline, no submit
+    if alive then
+      local vis = vim.fn.system({ 'zellij', 'action', 'are-floating-panes-visible' })
+      if toggle_action(true, vis:match('true') ~= nil) == 'hide' then
+        vim.fn.system({ 'zellij', 'action', 'hide-floating-panes' })
+      else
+        vim.fn.system({ 'zellij', 'action', 'show-floating-panes' })
+      end
       return
     end
-    local vis = vim.fn.system({ 'zellij', 'action', 'are-floating-panes-visible' })
-    if toggle_action(true, vis:match('true') ~= nil) == 'hide' then
-      vim.fn.system({ 'zellij', 'action', 'hide-floating-panes' })
-    else
-      vim.fn.system({ 'zellij', 'action', 'show-floating-panes' })
+    local t = read_target()
+    local action = toggle_action(false, false, t and t.status)
+    if action == 'open' then
+      local home = vim.env.PAIR_HOME or ''
+      local bin = (home ~= '') and (home .. '/bin/pair-review-open') or 'pair-review-open'
+      vim.fn.system({ bin, t.file })
+      if vim.v.shell_error ~= 0 then
+        vim.notify('PairReview: open failed — ' .. vim.fn.fnamemodify(t.file, ':t'), vim.log.levels.WARN)
+      end
+    elseif action == 'wait' then
+      vim.notify('review prep in progress — check the agent pane', vim.log.levels.INFO)
+    else -- 'prompt'
+      if sf then pcall(os.remove, sf) end -- reap a stale/dead open-state file
+      vim.api.nvim_feedkeys(':PairReview ', 'n', false)
     end
   end
 end
