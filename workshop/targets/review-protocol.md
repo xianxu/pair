@@ -38,7 +38,8 @@ Why this split (not nvim-shells-docflow, which M1 scaffolded):
 | 2b | landed-artifact `$XDG_DATA_HOME/pair/review-landed-<tag>.json` (nvim → agent; the handoff's reverse channel, co-located with seam #2) | review nvim (`on_agent_round`, post-apply; `handoff.write_landed`) | agent (commits the round verbatim) | `{summary, body=record.embed_in_body(enriched), applied, dropped}` — what actually landed (drops filtered, `new_occurrence` computed) | **BUILT** (pair side) — `review-loop-test` (agent-owns-git e2e + dropped case) |
 | 3 | poke channel (nvim → agent) | review nvim (zellij `write-chars`, agent addressed by **absolute pane id**) | agent pane | NL instruction, carrying the **absolute** doc path | **BUILT** — `review-poke-test` (abs-path 2026-06-19) |
 | 4 | git: `review/<slug>` branch + round commits | **AGENT** (`docflow`, in the doc's repo) | review nvim **reads** (reconstruct decorations + indicator counts) | `review(<slug>): <side> r<N> — …`, per-hunk explains in body | **read** BUILT; **write** proven via `fake-agent-v2` (`review-loop-test`), real agent = ariadne **#000121** (live smoke) |
-| 5 | mode file `$PAIR_DATA_DIR/review-<tag>.mode` | **AGENT** (on a mode switch from either channel) | review nvim + draft bar (display the `🪄 <Mode>`) | one line: the active mode | **M4-DESIGN** |
+| 5 | mode file `$PAIR_DATA_DIR/review-<tag>.mode` | **AGENT** (on a mode switch from either channel) | review nvim + draft bar (display the `🪄 <Mode>`) | one line: the active mode | **M4b-DESIGN** |
+| 6 | review-target `$PAIR_DATA_DIR/review-target-<tag>.json` | `:PairReview` (proposes) + **AGENT** (marks `ready` after prep) | Alt+r (`PairReviewToggle`: no target → prompt; `ready` → open; `proposed` → "prep in progress") | `{file, status: proposed|ready}` — what to review, before the pane opens | **M4a'-DESIGN** (review-start flow) |
 
 ## States & transitions
 
@@ -142,6 +143,33 @@ channels and the bar read the same value.
 > **Naming (deferred):** `xx-fix` has outlived its name — it's no longer "fix small things
 > from `🤖[instruction]`", it's a collaborative writing assistant. Rename to
 > `writing-assistant` eventually (an ariadne-side change; not now).
+
+## Review-start & resume flow — M4a'
+
+`:PairReview` does **not** open the pane — it *proposes* a review target (seam #6); the
+agent *prepares* it (git readiness); Alt+r opens once `ready` (**manual** — auto-open's
+async timing is bad UX). This is the agentic embedding of "is this doc ready to review?"
+
+**Readiness probe (pure, pair-side) — the 4 git cases.** A deterministic function of git
+state; pair computes it, the **agent acts** (ARCH-PURE: pure state, agent judgment):
+- not git-managed → **stop**, ask the operator to create a repo (don't auto-init).
+- git-managed, untracked → **track** the file.
+- on a `review/<slug>` branch whose scoped file == the target → **resume** (single file per
+  review branch — multi-file is out of scope).
+- not on a review branch: clean → **new** `review/<slug>`; dirty → **interact** (the only
+  truly interactive case — clean up / choose with the operator).
+
+**Two-phase Alt+r (manual).** no target → `:PairReview` prompt (pick → proposes + pokes the
+agent to prep); target `ready` → open the pane; target `proposed` (prepping / dirty) →
+"prep in progress" (never open a half-ready review).
+
+**Resume (case 3).** On a file-match: the agent **reestablishes context** (reads the round
+commits — SKILL), and the pane **reconstructs decorations on open** from the latest commit
+body (text = `undofile`; style = records-in-commit → repaint).
+
+**Agent-running spinner (≤6 cols).** The pane derives "agent working" from the **protocol
+state** (no `pair-wrap` flag): set when it pokes the agent, cleared when the next handoff
+lands. Braille spinner + compact elapsed: `⠹ 45s` → `⠹ 2m`.
 
 ## Invariants to defend from drift
 
