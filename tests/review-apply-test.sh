@@ -168,6 +168,17 @@ end
 ok(restored_ml, 'apply_snapshot restores the multi-line range (end_row preserved)')
 ok(#vim.diagnostic.get(bs, { namespace = apply.DIAG }) >= 2, 'apply_snapshot restores diagnostics')
 
+-- (n) issue #5: a single-line edit's highlight extmark must SPAN the line's
+-- content — the old form (end_row==line, end_col=0) was an empty range that
+-- rendered invisibly ("only diagnostic styling, no change highlight").
+local bn = newbuf({ 'in the end of the day' })
+apply.apply(bn, { { old = 'in the end', occurrence = 1, new = 'at the end', explain = 'grammar' } })
+local em = vim.api.nvim_buf_get_extmarks(bn, apply.HL, 0, -1, { details = true })[1]
+ok(em ~= nil, 'single-line edit: highlight extmark placed')
+local er = em and em[4] and em[4].end_row
+local ec = (em and em[4] and em[4].end_col) or 0
+ok(em ~= nil and er == em[2] and ec > 0, 'single-line highlight spans the line content (non-empty range), not [line,0)-(line,0)')
+
 OUT:write(fails == 0 and 'apply_test ok\n' or ('FAILED ' .. fails .. '\n'))
 OUT:close()
 LUA

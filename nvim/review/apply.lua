@@ -15,6 +15,7 @@
 local M = {}
 local here = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
 local reconstruct = dofile(here .. 'reconstruct.lua')
+local wrap = dofile(here .. 'wrap.lua')
 
 local HL = vim.api.nvim_create_namespace('review')
 local DIAG = vim.api.nvim_create_namespace('review_diag')
@@ -57,16 +58,40 @@ local function clear(buf)
   vim.diagnostic.set(DIAG, buf, {}, {})
 end
 
+-- Highlight the CHANGED LINES' content, col 0 → the last line's EOL (hl_eol). The
+-- old form (end_row=end_line, end_col=0) is an EMPTY range for a single-line edit
+-- (end_line==line) → invisible (M4a-smoke bug #5: "only diagnostic styling, no
+-- change highlight"). Ending at the last changed line's content makes a single-line
+-- edit a full-line change bar; clamp to the buffer so a trailing edit can't error.
 local function hl_extmark(buf, line, end_line)
-  vim.api.nvim_buf_set_extmark(buf, HL, line, 0, {
-    end_row = end_line, end_col = 0, hl_eol = true, hl_group = 'DiffChange',
+  local last = math.max(0, vim.api.nvim_buf_line_count(buf) - 1)
+  local sl = math.max(0, math.min(line, last))
+  local el = math.max(sl, math.min(end_line, last))
+  local el_text = vim.api.nvim_buf_get_lines(buf, el, el + 1, false)[1] or ''
+  pcall(vim.api.nvim_buf_set_extmark, buf, HL, sl, 0, {
+    end_row = el, end_col = #el_text, hl_eol = true, hl_group = 'DiffChange',
   })
+end
+
+-- Usable wrap width for the virtual_lines "why": window text columns minus the
+-- gutter (textoff) minus a margin for the indent/connector nvim renders. Mirrors
+-- parley's diag_wrap_width; falls back to 76 with no window.
+local function diag_wrap_width()
+  local ok, info = pcall(function()
+    return vim.fn.getwininfo(vim.api.nvim_get_current_win())[1]
+  end)
+  if not ok or type(info) ~= 'table' then return 76 end
+  return math.max(30, (info.width or 80) - (info.textoff or 0) - 6)
 end
 
 local function diag_of(d)
   return {
     lnum = d.line or d.lnum, end_lnum = d.end_line or d.end_lnum, col = 0,
-    message = d.message, severity = vim.diagnostic.severity.INFO, source = 'review',
+    -- hard-wrap the "why" (virtual_lines doesn't soft-wrap — M4a issue 2.1).
+    message = wrap.wrap(d.message or '', diag_wrap_width()),
+    -- short source: it surfaces as the inline "header" (was 'review' = 6 cols →
+    -- 🤖 ≈ 2 cols, M4a issue 2.2).
+    severity = vim.diagnostic.severity.INFO, source = '🤖',
   }
 end
 
