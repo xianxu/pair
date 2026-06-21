@@ -104,6 +104,7 @@ local poke = dofile(here .. 'pair_poke.lua')
 local markers = dofile(here .. 'review/markers.lua')
 local seam = dofile(here .. 'review/seam.lua')
 local poke_bodies = dofile(here .. 'review/poke_bodies.lua')
+local resolve = dofile(here .. 'review/resolve.lua')
 
 -- 🤖 marker highlight groups (parley's names; linked, overridable by a colorscheme).
 vim.api.nvim_set_hl(0, 'ParleyReviewQuoted', { link = 'Comment', default = true })
@@ -121,6 +122,53 @@ local function render_markers(buf)
       end_col = s.col_end, hl_group = s.hl_group,
     })
   end
+end
+
+-- Accept/reject the 🤖 marker on the cursor's line (M4b, parley §5 via resolve.lua):
+-- turn the `🤖…{…}` chain into plain text. A normal buffer edit — undo-able, and
+-- committed by the agent on the next human round (Alt+Return). `nil` from resolve
+-- means "reject → same" (the marker is kept), so we no-op + tell the user.
+local function resolve_at_cursor(buf, action)
+  local win = vim.api.nvim_get_current_win()
+  local cur = vim.api.nvim_win_get_cursor(win) -- {row 1-based, col 0-based byte}
+  local row0 = cur[1] - 1
+  local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local target
+  for _, m in ipairs(markers.parse_markers(lines)) do
+    if m.line == row0 then target = m; break end -- first 🤖 marker on the cursor line
+  end
+  if not target then
+    vim.notify('review: no 🤖 marker on this line', vim.log.levels.INFO); return
+  end
+  local replacement = resolve.resolve(target, action)
+  if replacement == nil then
+    vim.notify('review: nothing to ' .. action .. ' here (marker kept)', vim.log.levels.INFO); return
+  end
+  -- The marker's raw span (🤖 → end of last section) may cross lines (bounded).
+  local raw_lines = vim.split(target.raw, '\n', { plain = true })
+  local end_row = target.line + #raw_lines - 1
+  local end_col = (#raw_lines == 1) and (target.col + #target.raw) or #raw_lines[#raw_lines]
+  vim.api.nvim_buf_set_text(buf, target.line, target.col, end_row, end_col,
+    vim.split(replacement, '\n', { plain = true }))
+  render_markers(buf)
+end
+
+-- Jump to the next/prev 🤖 marker (dir = 1 | -1), wrapping. Lets the human move
+-- between pending suggestions to accept/reject them.
+local function jump_marker(buf, dir)
+  local win = vim.api.nvim_get_current_win()
+  local row0 = vim.api.nvim_win_get_cursor(win)[1] - 1
+  local marks = markers.parse_markers(vim.api.nvim_buf_get_lines(buf, 0, -1, false))
+  if #marks == 0 then vim.notify('review: no 🤖 markers', vim.log.levels.INFO); return end
+  local pick
+  if dir > 0 then
+    for _, m in ipairs(marks) do if m.line > row0 then pick = m; break end end
+    pick = pick or marks[1] -- wrap
+  else
+    for i = #marks, 1, -1 do if marks[i].line < row0 then pick = marks[i]; break end end
+    pick = pick or marks[#marks] -- wrap
+  end
+  vim.api.nvim_win_set_cursor(win, { pick.line + 1, pick.col })
 end
 
 -- The review state file: the draft's PairReviewToggle reads it (pid → liveness)
@@ -150,6 +198,18 @@ local function start_review(buf, file)
     vim.keymap.set(mode, '<M-CR>', function() finish_human_turn(buf, file) end,
       { buffer = buf, silent = true })
   end
+
+  -- Accept/reject the 🤖 suggestion on the cursor line (M4b, §5), and jump between
+  -- markers. Leader-based (leader = `\` here) — NOT Alt+r (the pane toggle), NOT `gr`
+  -- (nvim 0.11 LSP prefix). `\a` accept · `\r` reject · `]m`/`[m` next/prev marker.
+  vim.keymap.set('n', '<leader>a', function() resolve_at_cursor(buf, 'accept') end,
+    { buffer = buf, silent = true, desc = 'review: accept 🤖 suggestion (§5)' })
+  vim.keymap.set('n', '<leader>r', function() resolve_at_cursor(buf, 'reject') end,
+    { buffer = buf, silent = true, desc = 'review: reject 🤖 suggestion (§5)' })
+  vim.keymap.set('n', ']m', function() jump_marker(buf, 1) end,
+    { buffer = buf, silent = true, desc = 'review: next 🤖 marker' })
+  vim.keymap.set('n', '[m', function() jump_marker(buf, -1) end,
+    { buffer = buf, silent = true, desc = 'review: prev 🤖 marker' })
 
   render_markers(buf)
   -- Re-render on local edits AND after an external reload (autoread/checktime
