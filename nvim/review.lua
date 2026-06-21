@@ -152,6 +152,15 @@ local function start_review(buf, file)
   local sf = state_file()
   if sf then pcall(vim.fn.writefile, { tostring(vim.fn.getpid()), file }, sf) end
 
+  -- Announce the workbench to the agent (M4a smoke fix): opening the pane is the
+  -- review-START signal a chat "please review" otherwise lacks — without it the
+  -- agent can't tell it's in the workbench and falls back to summarize-and-ask.
+  -- Context only (no review triggered yet), so no branch/commit until the operator
+  -- actually asks. Deferred so the agent pane is resolvable + settled first.
+  vim.defer_fn(function()
+    pcall(poke.send, poke_bodies.review_opened(vim.fn.fnamemodify(file, ':p')))
+  end, 200)
+
   -- Lifecycle (the M1-carried "VimLeave timer cleanup"): tear down the handoff
   -- poll timer + projection autocmd + state file when the pane nvim exits.
   vim.api.nvim_create_autocmd('VimLeave', {

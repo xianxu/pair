@@ -21,5 +21,15 @@ eq(M.human_committed('/a/doc.md'),
   'committed my edits to /a/doc.md — please review',
   'human_committed')
 
+do -- review_opened: the review-START announce poke names the file + the workbench protocol
+  local s = M.review_opened('/a/doc.md')
+  local function has(sub, msg) if not s:find(sub, 1, true) then
+    io.stderr:write('FAIL review_opened ' .. msg .. ': ' .. s .. '\n'); fails = fails + 1 end end
+  has('/a/doc.md', 'names the file')
+  has('Pair review workbench', 'names the workbench protocol')
+  has('records', 'says propose records')
+  has('do NOT edit the file', 'forbids file-write')
+end
+
 if fails > 0 then os.exit(1) end
 print('poke_bodies_test ok')

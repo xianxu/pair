@@ -19,4 +19,17 @@ function M.human_committed(file)
   return string.format('committed my edits to %s — please review', file)
 end
 
+-- Sent ONCE when the review pane opens — the missing review-START signal (M4a
+-- smoke: a chat "please review" carried no workbench cue, so the agent fell back
+-- to a standalone summarize-and-ask). Establishes context WITHOUT triggering a
+-- review (no branch/commit until the operator actually asks): when asked, the
+-- agent must use the xx-fix Pair-review-workbench protocol, not file-write.
+function M.review_opened(file)
+  return string.format(
+    'Review workbench open on %s. When I ask you to review this doc, use the xx-fix '
+    .. '"Pair review workbench" protocol: propose {old,occurrence,new,explain} records '
+    .. 'to the handoff and own the git — do NOT edit the file in place or summarize '
+    .. 'edits and ask to apply (that bypasses the pane). Reply "ready".', file)
+end
+
 return M
