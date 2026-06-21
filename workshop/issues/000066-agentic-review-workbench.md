@@ -94,7 +94,12 @@ Milestones are review boundaries; sub-steps firm up after M0.
   diagnosis / markers / modes); drop the invoke path.
 - [x] M3 — Review window + pair integration (`:PairReview` / alt+r pane; poke channel to the
   agent).
-- [ ] M4 — Agent protocol (review SKILL.md + modes + memory discovery); end-to-end round-trip.
+M4 (agent protocol) — **re-sliced structure-first** (2026-06-21): the whole loop standing thin before any tuning. Agent half = ariadne **#000121**.
+
+- [ ] M4a — agent-owns-git inversion + the basic round (records → apply → landed-artifact → agent commits). *Code done + 105 green; milestone-close pends the live smoke + #000121.*
+- [ ] M4a' — review-start & resume flow: `:PairReview` **proposes** → agent preps (pure readiness probe) → Alt+r opens when ready; reconstruct-on-open (resume repaint). Spec in `workshop/targets/review-protocol.md`. *[in flight]*
+- [ ] M4b — **skeleton** (structure): the 🤖[] fulfill/punt + **accept/reject** (parley §5) conversation + a default editing posture + **ship** — completes the thin full cycle (open → propose → prep → review → converse → iterate → ship → resume).
+- [ ] M4c — **thicken** (tuning; sub-slices when reached): modes menu + 🪄/spinner/lean-history bar; voice (`voice:` frontmatter); fact-check pass (`doc-review` fold); pending-🤖{} quickfix; diagnostic-display polish; `xx-fix`→`writing-assistant` rename.
 
 ## Log
 

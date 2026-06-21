@@ -8,12 +8,12 @@
 
 **Tech Stack:** nvim Lua (`nvim/review/*`), the existing `pair_poke` seam, `docflow` (now agent-only), shell test fakes; ariadne's writing-assistant SKILL (#000121, separate repo).
 
-**Sub-milestones** (review boundaries; M4a in detail, M4b–d firm up after M4a — like M3's sub-steps after M0):
+**Sub-milestones** — **re-sliced structure-first** (2026-06-21; see ## Revisions): get the *whole loop standing thin* before any tuning.
 
-- **M4a** — real loop + agent-owns-git unwind (this plan, in detail).
-- **M4b** — modes (Generate / Copy Edit / Proofread): `modes/<name>.md` + `mode.directives` wired into the SKILL; the `review-<tag>.mode` seam; the bar's `🪄 Mode` + lean history (`-92 < -3 > +0`, "remove all help text"); review-nvim sticky menu + free-text box.
-- **M4c** — voice (`voice: <slug>` → `~/.personal/<slug>-writing-style.md`) + fact-check pass (dispatch `doc-review` → integrate via records).
-- **M4d** — ship ("ship it" → `docflow ship`) + cross-session resume + styling accumulate/clear-on-turn + the faithful process-level e2e demo (the issue's final Done-when).
+- **M4a** — real loop + agent-owns-git unwind (this plan, in detail). *Done.*
+- **M4a'** — review-start & resume flow (`:PairReview` proposes → agent preps via the pure readiness probe → Alt+r opens; reconstruct-on-open). **Spec: `workshop/targets/review-protocol.md` → "Review-start & resume flow — M4a'" + seam #6.** *[in flight]*
+- **M4b — skeleton (structure):** the 🤖[] fulfill/punt + **accept/reject** (parley §5) conversation + a **default editing posture** + **ship** (`docflow ship`) — completes the thin full cycle. The smallest set that makes the loop *usable* end-to-end.
+- **M4c — thicken (tuning; sub-slices when reached):** modes menu + `🪄 Mode`/spinner/lean-history (`-92 < -3 > +0`) bar; voice (`voice: <slug>` → `~/.personal/<slug>-writing-style.md`); fact-check pass (`doc-review` → records); pending-🤖{} quickfix; diagnostic-display polish; cross-session undo-of-style completeness; `xx-fix`→`writing-assistant` rename; the faithful e2e demo (final Done-when).
 
 ---
 
@@ -169,3 +169,16 @@ Implemented per the plan, with these deltas (the as-planned text above is the re
   review-start, (b) read `review-landed-<tag>.json` from `$XDG_DATA_HOME/pair` and commit the
   agent round verbatim, (c) commit the human round on the `human_committed` poke.
   `tests/lib/fake-review-agent.sh` (fake-agent-v2) is the exact protocol reference.
+
+### 2026-06-21 — re-slice structure-first (operator)
+
+The original M4 slices were feature-columns (M4b modes, M4c voice/fact-check, M4d
+ship/e2e). Re-sliced to **get the whole loop standing thin before any tuning**:
+- **M4a'** carved out (review-start & resume) — surfaced by the live smoke (no
+  review-START signal; resume unhandled). Spec lives in the protocol target.
+- **M4b = skeleton**: pulled **ship** *up* from the old M4d and the 🤖[]
+  conversation + accept/reject *up* into one milestone, with just a **default**
+  posture — the minimal set that makes the cycle usable end-to-end.
+- **M4c = thicken**: everything else (modes menu/UI, voice, fact-check, quickfix,
+  display polish, rename, the faithful e2e demo) becomes tuning, sub-sliced when
+  reached. So no single feature is polished before the skeleton stands.
