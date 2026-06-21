@@ -20,8 +20,12 @@ vim.opt.signcolumn = 'yes'
 -- the edit ONLY when the cursor is in its region. The review pane has no LSP, so a
 -- global config is safe (review diagnostics are the only source). pcall-guarded:
 -- `virtual_lines` is nvim 0.11+; degrade to virtual_text on anything older.
+-- `format` returns just the message (already hard-wrapped in apply.lua) so the
+-- inline virtual_lines carry no source/severity prefix — trimming the leading
+-- "header" columns (M4a issue 2.2). pcall-guarded; degrade to virtual_text on
+-- older nvim or if virtual_lines.format is unsupported.
 if not pcall(vim.diagnostic.config, {
-  virtual_lines = { current_line = true },
+  virtual_lines = { current_line = true, format = function(d) return d.message end },
   virtual_text = false,
   signs = true,
   underline = true,
@@ -29,6 +33,21 @@ if not pcall(vim.diagnostic.config, {
 }) then
   vim.diagnostic.config({ virtual_text = true, signs = true })
 end
+
+-- Diagnostic navigation (M4a issue 1): the user tried `<C-w>d` (→ E388, vim's
+-- define-search) and `]d` (jumped without showing the why). Bind the float
+-- explicitly, and make `]d`/`[d` jumps pop the float so the "why" is visible.
+vim.keymap.set('n', '<C-w>d', vim.diagnostic.open_float, { desc = 'review: diagnostic float' })
+vim.keymap.set('n', 'gl', vim.diagnostic.open_float, { desc = 'review: diagnostic float' })
+local function diag_jump(count)
+  if vim.diagnostic.jump then
+    vim.diagnostic.jump({ count = count, float = true }) -- nvim 0.11 API
+  else
+    (count > 0 and vim.diagnostic.goto_next or vim.diagnostic.goto_prev)({ float = true })
+  end
+end
+vim.keymap.set('n', ']d', function() diag_jump(1) end, { desc = 'review: next diagnostic (float)' })
+vim.keymap.set('n', '[d', function() diag_jump(-1) end, { desc = 'review: prev diagnostic (float)' })
 
 -- Markdown appearance — mirrors the draft's setup (nvim/init.lua ~L33-79). nvim's
 -- bundled `default` colorscheme is near-monochrome, so the review doc's syntax
