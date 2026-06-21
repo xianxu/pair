@@ -73,6 +73,18 @@ local R = _G._pair_review
 local target = vim.env.PAIR_DATA_DIR .. '/review-target-' .. vim.env.PAIR_TAG .. '.json'
 local draft = vim.env.PAIR_DATA_DIR .. '/draft.md' -- exists (the test wrote it)
 
+-- conversation-scope (#66 smoke #6): a target written under a DIFFERENT session
+-- (PAIR_SESSION_ID=oldsid, pre-written below) is ignored by this session (testsid),
+-- so a fresh session prompts instead of reopening the previous review.
+OUT:write((R.read_target() == nil) and 'session-scope ok\n' or 'session-scope FAIL\n')
+
+-- pure target_stale: same id → fresh; different / empty-current / no-id → stale.
+local TS = R.target_stale
+OUT:write((TS({ session = 'testsid' }, 'testsid') == false) and 'ts-same ok\n' or 'ts-same FAIL\n')
+OUT:write((TS({ session = 'oldsid' }, 'testsid') == true) and 'ts-diff ok\n' or 'ts-diff FAIL\n')
+OUT:write((TS({ session = 'x' }, '') == true) and 'ts-nocur ok\n' or 'ts-nocur FAIL\n')
+OUT:write((TS({}, 'testsid') == true) and 'ts-noid ok\n' or 'ts-noid FAIL\n')
+
 -- live + visible → hide  (state file holds OUR pid, so kill -0 says alive)
 vim.fn.writefile({ tostring(vim.fn.getpid()) }, sf); setfloat('true')
 local n = #read_zlog(); _G.PairReviewToggle()
@@ -111,12 +123,20 @@ OUT:close()
 vim.cmd('qa!')
 LUA
 
+# a STALE review-target from a DIFFERENT conversation (session=oldsid). This session
+# runs as PAIR_SESSION_ID=testsid, so read_target must ignore it (a fresh session
+# prompts; an Alt+n resume — same id — would keep its target). (#66 smoke #6.)
+printf '{"file":"/stale/prev.md","status":"ready","session":"oldsid"}\n' > "$RT/review-target-test.json"
 ( cd "$RT" && PATH="$RT/bin:$PATH" \
-    PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=claude PAIR_HOME="$ROOT" \
+    PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=claude PAIR_HOME="$ROOT" PAIR_SESSION_ID=testsid \
     RESULT="$RESULT" ZLOG="$ZLOG" FLOATVIS="$FLOATVIS" \
     run_headless --timeout 30 -- nvim --headless -u "$ROOT/nvim/init.lua" "$RT/draft.md" \
       -c "luafile $RT/driver.lua" )
 
+grep -q 'session-scope ok' "$RESULT" && pass "other-session target ignored (smoke #6)" || fail "stale (other-session) target not ignored"
+for c in ts-same ts-diff ts-nocur ts-noid; do
+  grep -q "$c ok" "$RESULT" && pass "pure target_stale: $c" || fail "target_stale $c"
+done
 grep -q 'pure-prompt ok'  "$RESULT" && pass "pure: no target → prompt"        || fail "pure prompt"
 grep -q 'pure-open ok'    "$RESULT" && pass "pure: target ready → open"       || fail "pure open"
 grep -q 'pure-wait ok'    "$RESULT" && pass "pure: target proposed → wait"    || fail "pure wait"

@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# bin/pair-review-target — write the review-target seam (#6) stamped with the
+# current PAIR_SESSION_ID, so the target is CONVERSATION-scoped: the draft nvim's
+# Alt+r ignores a target from a different session (a fresh pair session prompts),
+# while an Alt+n restart that resumes the same conversation keeps its in-progress
+# review. The agent runs this to mark a target `ready` (or `proposed`) instead of
+# hand-writing the JSON — pair-side stamping keeps the session reliable. (#66 #6.)
+#
+#   pair-review-target <file> <proposed|ready>
+set -euo pipefail
+file="${1:?usage: pair-review-target <file> <proposed|ready>}"
+status="${2:?usage: pair-review-target <file> <proposed|ready>}"
+case "$status" in proposed | ready) ;; *) echo "pair-review-target: status must be proposed|ready" >&2; exit 2 ;; esac
+: "${PAIR_DATA_DIR:?pair-review-target: PAIR_DATA_DIR not set}"
+tag="${PAIR_TAG:-default}"
+
+# normalize to an absolute path (the dir must exist — it's the doc under review)
+if [ -d "$(dirname "$file")" ]; then
+  file="$(cd "$(dirname "$file")" && pwd)/$(basename "$file")"
+fi
+
+out="$PAIR_DATA_DIR/review-target-$tag.json"
+jq -n --arg file "$file" --arg status "$status" --arg session "${PAIR_SESSION_ID:-}" \
+  '{file: $file, status: $status, session: $session}' > "$out"
+echo "review target $status: $file (session ${PAIR_SESSION_ID:-none})"

@@ -770,6 +770,17 @@ do
   -- seam module so this reader and the pane writer can't diverge (ARCH-DRY, I3).
   local nvim_dir = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
   local seam = dofile(nvim_dir .. 'review/seam.lua')
+
+  -- The review-target (seam #6) is CONVERSATION-scoped: it carries the
+  -- PAIR_SESSION_ID it was written under, and a reader IGNORES a target from a
+  -- different session. So a fresh pair session (new PAIR_SESSION_ID) prompts
+  -- (Alt+r → :PairReview), while an Alt+n restart that RESUMES the conversation
+  -- (same id, re-loaded init) keeps its in-progress review. We do NOT clear on
+  -- load — that would wrongly reset a resumed review. Pure → unit-testable. (#66 #6.)
+  local function target_stale(t, session)
+    return not (type(t) == 'table' and session and session ~= '' and t.session == session)
+  end
+
   local function state_file()
     return seam.open_state(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
   end
@@ -791,12 +802,15 @@ do
     local p = seam.target_path(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
     if not p or vim.fn.filereadable(p) ~= 1 then return nil end
     local ok, t = pcall(vim.json.decode, table.concat(vim.fn.readfile(p), '\n'))
-    if ok and type(t) == 'table' and t.file and t.file ~= '' then return t end
-    return nil
+    if not (ok and type(t) == 'table' and t.file and t.file ~= '') then return nil end
+    -- ignore a target from a different conversation (stale across a fresh session)
+    if target_stale(t, vim.env.PAIR_SESSION_ID) then return nil end
+    return t
   end
   local function write_target(file, status)
     local p = seam.target_path(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
-    if p then pcall(vim.fn.writefile, { vim.json.encode({ file = file, status = status }) }, p) end
+    if p then pcall(vim.fn.writefile,
+      { vim.json.encode({ file = file, status = status, session = vim.env.PAIR_SESSION_ID }) }, p) end
   end
   -- :PairReview proposes a target + pokes the agent to prep (run the readiness
   -- probe, act per the case, mark ready). The nvim does NOT open the pane — Alt+r
@@ -820,7 +834,7 @@ do
   end
 
   _G._pair_review = { state_file = state_file, is_alive = is_alive, toggle_action = toggle_action,
-    read_target = read_target, write_target = write_target, propose = propose }
+    read_target = read_target, write_target = write_target, propose = propose, target_stale = target_stale }
   _G._pair_review_toggle_action = toggle_action -- test alias
 
   -- Alt+r — the review-workbench brain (#66 M3/M4a'). Routed here through the draft

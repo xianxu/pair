@@ -21,6 +21,7 @@ bin/*
 !bin/pair-notify
 !bin/pair-review-open
 !bin/pair-review-readiness
+!bin/pair-review-target
 !bin/pair-scrollback-open
 !bin/lib/
 bin/lib/*
