@@ -137,7 +137,7 @@ local function finish_human_turn(buf, file)
   -- cwd is pair's, not the doc's repo). The agent commits the human round + reviews.
   -- (Once ariadne#000121's SKILL recognizes review-mode from these signals, this is
   -- the whole trigger — the M3 `/xx-fix` stopgap is retired here.)
-  poke.send(poke_bodies.human_committed(vim.fn.fnamemodify(file, ':p')))
+  poke.send(poke_bodies.human_finished(vim.fn.fnamemodify(file, ':p')))
 end
 
 local function start_review(buf, file)

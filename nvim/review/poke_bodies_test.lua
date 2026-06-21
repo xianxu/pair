@@ -17,9 +17,9 @@ eq(M.agent_applied(2, 1, '/a/doc.md'),
 eq(M.agent_applied(2, 0, '/a/doc.md'),
   'applied 2 edit(s) to /a/doc.md — commit the agent round',
   'agent_applied omits the dropped segment when dropped==0')
-eq(M.human_committed('/a/doc.md'),
-  'committed my edits to /a/doc.md — please review',
-  'human_committed')
+eq(M.human_finished('/a/doc.md'),
+  'finished my edits to /a/doc.md — please review',
+  'human_finished')
 
 do -- review_opened: the review-START announce poke names the file + the workbench protocol
   local s = M.review_opened('/a/doc.md')

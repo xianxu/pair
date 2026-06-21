@@ -14,9 +14,10 @@ function M.agent_applied(applied, dropped, file)
   return string.format('applied %d edit(s)%s to %s — commit the agent round', applied, drop, file)
 end
 
--- After the human finished their turn (the nvim saved the incoming edits).
-function M.human_committed(file)
-  return string.format('committed my edits to %s — please review', file)
+-- After the human finished their turn (the nvim saved — but did NOT git-commit;
+-- the agent commits the human round). "finished", not "committed" — precise.
+function M.human_finished(file)
+  return string.format('finished my edits to %s — please review', file)
 end
 
 -- Sent ONCE when the review pane opens — the missing review-START signal (M4a
