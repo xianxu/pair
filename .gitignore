@@ -20,6 +20,7 @@ bin/*
 !bin/pair-help
 !bin/pair-notify
 !bin/pair-review-open
+!bin/pair-review-readiness
 !bin/pair-scrollback-open
 !bin/lib/
 bin/lib/*

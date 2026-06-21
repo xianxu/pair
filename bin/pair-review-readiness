@@ -1,0 +1,45 @@
+#!/bin/sh
+# pair-review-readiness <file> — print the review-start readiness case + git facts
+# as JSON, for the agent's review-prep (issue #66 M4a'). The pure 4-case decision
+# is nvim/review/readiness.lua (single source); this is the thin git-fact shell
+# (ARCH-PURE). The agent runs this and acts per `case`:
+#   stop | track | resume | new | interact   (see workshop/targets/review-protocol.md)
+# Env: $PAIR_HOME (locates the lua module; defaults to this script's repo root).
+set -eu
+
+file="${1:-}"
+[ -n "$file" ] || { printf 'usage: pair-review-readiness <file>\n' >&2; exit 2; }
+
+HOME_DIR="${PAIR_HOME:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}"
+READINESS="$HOME_DIR/nvim/review/readiness.lua"
+
+# pwd -P: physical path (resolve symlinks like /tmp→/private/tmp) so the abs path
+# matches `git rev-parse --show-toplevel` (which is physical) for file_matches.
+dir=$(CDPATH= cd -- "$(dirname -- "$file")" 2>/dev/null && pwd -P) || dir=""
+
+is_git=false; is_tracked=false; branch=""; on_review_branch=false; scoped=""; file_matches=false; is_clean=false
+if [ -n "$dir" ] && git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    is_git=true
+    abs="$dir/$(basename -- "$file")"
+    git -C "$dir" ls-files --error-unmatch -- "$abs" >/dev/null 2>&1 && is_tracked=true
+    branch=$(git -C "$dir" branch --show-current 2>/dev/null || true)
+    case "$branch" in review/*) on_review_branch=true ;; esac
+    [ -z "$(git -C "$dir" status --porcelain 2>/dev/null)" ] && is_clean=true
+    if [ "$on_review_branch" = true ]; then
+        # the doc under review on this branch = the file changed in the latest
+        # `review(<slug>): …` round commit (single file per review branch, M4a').
+        top=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null || true)
+        scoped=$(git -C "$dir" log -1 --name-only --pretty=format: --grep='^review(' 2>/dev/null \
+                 | grep -v '^[[:space:]]*$' | head -1 || true)
+        [ -n "$scoped" ] && [ -n "$top" ] && [ "$top/$scoped" = "$abs" ] && file_matches=true
+    fi
+fi
+
+# Compute the case via the pure module — single source of the 4-case logic.
+case=$(nvim --headless -u NONE \
+    --cmd "lua io.write(dofile('$READINESS').classify({is_git=$is_git,is_tracked=$is_tracked,on_review_branch=$on_review_branch,file_matches=$file_matches,is_clean=$is_clean}))" \
+    --cmd 'qa!' 2>/dev/null) || case=""
+[ -n "$case" ] || { printf 'pair-review-readiness: classify failed (nvim/readiness.lua)\n' >&2; exit 1; }
+
+printf '{"case":"%s","is_git":%s,"is_tracked":%s,"branch":"%s","on_review_branch":%s,"scoped_file":"%s","file_matches":%s,"is_clean":%s}\n' \
+    "$case" "$is_git" "$is_tracked" "$branch" "$on_review_branch" "$scoped" "$file_matches" "$is_clean"
