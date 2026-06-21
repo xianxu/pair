@@ -15,6 +15,7 @@ local here = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
 local handoff = dofile(here .. 'handoff.lua')
 local apply   = dofile(here .. 'apply.lua')
 local record  = dofile(here .. 'record.lua')
+local reconstruct = dofile(here .. 'reconstruct.lua') -- resume repaint (reconstruct-on-open)
 local projection = dofile(here .. 'projection.lua')
 local poke_bodies = dofile(here .. 'poke_bodies.lua')
 
@@ -81,6 +82,25 @@ function M.human_round(buf, summary)
   return true
 end
 
+-- Reconstruct-on-open (M4a' resume): repaint decorations from the latest agent-round
+-- commit body. Text already survives across sessions via `undofile`; the styling
+-- (highlights + diagnosis) is rebuilt from the records-in-commit (the M0 decision).
+-- No-op when there's no agent round yet (a fresh review) or not in a git repo.
+-- Exposed for the resume test.
+function M.reconstruct_on_open(buf, file)
+  local dir = vim.fn.fnamemodify(file, ':h')
+  -- the latest agent round's body (subject `review(<slug>): agent r<N> — …`);
+  -- -F so the paren-bearing marker is a fixed string, not a regex.
+  local body = vim.fn.system({ 'git', '-C', dir, 'log', '-1', '--pretty=%b', '-F', '--grep=): agent r' })
+  if vim.v.shell_error ~= 0 or not body or body == '' then return false end
+  local ok, records = pcall(record.extract_from_body, body)
+  if not ok or type(records) ~= 'table' or #records == 0 then return false end
+  local content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n')
+  local dec = reconstruct.decorate(records, content, 'new')
+  apply.apply_snapshot(buf, { hl = dec.highlights, diags = dec.diagnostics })
+  return #dec.highlights > 0
+end
+
 -- Start a review on a buffer. opts: { buf, file, tag, watch_opts }.
 function M.start(opts)
   opts = opts or {}
@@ -95,6 +115,7 @@ function M.start(opts)
     M.on_agent_round(buf, records)
   end, opts.watch_opts)
   sessions[buf] = { tag = tag, file = file, stop = stop }
+  pcall(M.reconstruct_on_open, buf, file) -- resume repaint (no-op on a fresh review)
   return sessions[buf]
 end
 

@@ -70,6 +70,7 @@ test-review:
 	bash tests/review-window-test.sh
 	bash tests/review-toggle-test.sh
 	bash tests/review-indicator-test.sh
+	bash tests/review-resume-test.sh
 
 test-race:
 	go test -count=1 -race ./cmd/pair-wrap/
