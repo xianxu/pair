@@ -87,7 +87,8 @@ end
 
 local function diag_of(d)
   return {
-    lnum = d.line or d.lnum, end_lnum = d.end_line or d.end_lnum, col = 0,
+    lnum = d.line or d.lnum, end_lnum = d.end_line or d.end_lnum,
+    col = d.col or 0, end_col = d.end_col,
     -- hard-wrap the "why" (virtual_lines doesn't soft-wrap — M4a issue 2.1).
     message = wrap.wrap(d.message or '', diag_wrap_width()),
     -- short source: it surfaces as the inline "header" (was 'review' = 6 cols →
@@ -122,7 +123,11 @@ function M.snapshot(buf)
   end
   local diags = {}
   for _, d in ipairs(vim.diagnostic.get(buf, { namespace = DIAG })) do
-    diags[#diags + 1] = { lnum = d.lnum, end_lnum = d.end_lnum, message = d.message }
+    diags[#diags + 1] = {
+      lnum = d.lnum, col = d.col,
+      end_lnum = d.end_lnum, end_col = d.end_col,
+      message = d.message,
+    }
   end
   return { hl = hl, diags = diags }
 end

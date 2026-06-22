@@ -144,6 +144,23 @@ ok(#vim.diagnostic.get(br) == 2, 'render: 2 diagnostics placed')
 local rlines = {}
 for _, m in ipairs(vim.api.nvim_buf_get_extmarks(br, apply.HL, 0, -1, {})) do rlines[m[2]] = true end
 ok(rlines[1] and rlines[2], 'render: decorations on the right lines (1 and 2)')
+local br_same = newbuf({ 'A B C' })
+apply.render(br_same, {
+  { new = 'A', new_occurrence = 1, explain = 'first' },
+  { new = 'C', new_occurrence = 1, explain = 'third' },
+}, content(br_same))
+local br_same_diags = vim.diagnostic.get(br_same, { namespace = apply.DIAG })
+table.sort(br_same_diags, function(a, b) return a.message < b.message end)
+ok(#br_same_diags == 2
+  and br_same_diags[1].message == 'first'
+  and br_same_diags[1].lnum == 0
+  and br_same_diags[1].col == 0
+  and br_same_diags[1].end_col == 1
+  and br_same_diags[2].message == 'third'
+  and br_same_diags[2].lnum == 0
+  and br_same_diags[2].col == 4
+  and br_same_diags[2].end_col == 5,
+  'render diagnostics preserve distinct same-line columns')
 
 local brm = newbuf({ 'prefix 🤖<bad>{GOOD} suffix' })
 apply.render(brm, { { new = '🤖<bad>{GOOD}', new_occurrence = 1, explain = 'proposal' } }, content(brm))
@@ -188,6 +205,23 @@ local em = vim.api.nvim_buf_get_extmarks(bn, apply.HL, 0, -1, { details = true }
 ok(em ~= nil, 'direct edit: highlight extmark placed')
 ok(em ~= nil and em[2] == 0 and em[3] == #'prefix ' and em[4].end_row == 0 and em[4].end_col == #'prefix GOOD',
   'direct edit highlight spans only inserted new text')
+local bnd = newbuf({ 'aa bb cc' })
+apply.apply(bnd, {
+  { old = 'aa', occurrence = 1, new = 'AA', explain = 'first' },
+  { old = 'cc', occurrence = 1, new = 'CC', explain = 'third' },
+})
+local bnd_diags = vim.diagnostic.get(bnd, { namespace = apply.DIAG })
+table.sort(bnd_diags, function(a, b) return a.message < b.message end)
+ok(#bnd_diags == 2
+  and bnd_diags[1].message == 'first'
+  and bnd_diags[1].lnum == 0
+  and bnd_diags[1].col == 0
+  and bnd_diags[1].end_col == 2
+  and bnd_diags[2].message == 'third'
+  and bnd_diags[2].lnum == 0
+  and bnd_diags[2].col == 6
+  and bnd_diags[2].end_col == 8,
+  'live diagnostics preserve distinct same-line columns')
 
 -- (o) Marker-rendered proposals carry their own visible delta, so the renderer
 -- keeps diagnostics but does not add a redundant change highlight.

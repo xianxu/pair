@@ -18,6 +18,27 @@ vim.opt.guicursor = 'n-v-c-sm:block-blinkon250-blinkoff250,i-ci-ve:block-blinkon
 vim.opt.number = true
 vim.opt.signcolumn = 'yes'
 
+local function cursor_over_diagnostic(d)
+  local ok, cur = pcall(vim.api.nvim_win_get_cursor, 0)
+  if not ok then return true end
+  local row, col = cur[1] - 1, cur[2]
+  local first, last = d.lnum, d.end_lnum or d.lnum
+  if row < first or row > last then return false end
+  if row == first and d.col and col < d.col then return false end
+  if row == last and d.end_col then
+    if d.col and first == last and d.end_col == d.col then
+      return col == d.col
+    end
+    if col >= d.end_col then return false end
+  end
+  return true
+end
+
+local function format_review_diagnostic(d)
+  if not cursor_over_diagnostic(d) then return nil end
+  return d.message
+end
+
 -- Diagnosis display — review/apply.lua sets each record's `explain` as an INFO
 -- diagnostic (the "why" behind an edit). Render it parley-style: a sign in the
 -- gutter on every edit, and the (wrapped) why auto-expanded as a virtual line below
@@ -29,7 +50,7 @@ vim.opt.signcolumn = 'yes'
 -- "header" columns (M4a issue 2.2). pcall-guarded; degrade to virtual_text on
 -- older nvim or if virtual_lines.format is unsupported.
 if not pcall(vim.diagnostic.config, {
-  virtual_lines = { current_line = true, format = function(d) return d.message end },
+  virtual_lines = { current_line = true, format = format_review_diagnostic },
   virtual_text = false,
   signs = true,
   underline = true,
@@ -52,6 +73,11 @@ local function diag_jump(count)
 end
 vim.keymap.set('n', ']d', function() diag_jump(1) end, { desc = 'review: next diagnostic (float)' })
 vim.keymap.set('n', '[d', function() diag_jump(-1) end, { desc = 'review: prev diagnostic (float)' })
+vim.api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI' }, {
+  callback = function(args)
+    pcall(vim.diagnostic.show, nil, args.buf)
+  end,
+})
 
 -- Markdown appearance — mirrors the user's nvim where possible, while still
 -- working as a standalone `nvim -u pair/nvim/review.lua` process. The normal
@@ -473,7 +499,8 @@ _G.PairReviewPane = { start_review = start_review, render_markers = render_marke
   end,
   resolve_at_cursor = resolve_at_cursor, insert_review_marker = insert_review_marker,
   resolve_paragraph_to_cursor = resolve_paragraph_to_cursor,
-  quote_selection = quote_selection, current_mode = current_mode, mode_label = mode_label }
+  quote_selection = quote_selection, current_mode = current_mode, mode_label = mode_label,
+  format_diagnostic = format_review_diagnostic }
 
 -- Start once the file is loaded (the buffer doesn't exist yet at init time).
 vim.api.nvim_create_autocmd('VimEnter', {

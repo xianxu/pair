@@ -129,6 +129,13 @@ local function check()
   OUT:write((link_of('ParleyReviewAgent') == 'DiagnosticInfo' and 'review-agent-hl\n') or 'NO-review-agent-hl\n')
   OUT:write((quoted.reverse and quoted.bold and 'review-quoted-hl\n') or 'NO-review-quoted-hl\n')
   OUT:write((strike.strikethrough and 'review-strike-hl\n') or 'NO-review-strike-hl\n')
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'aa bb cc' })
+  vim.api.nvim_win_set_cursor(0, { 1, 1 })
+  local fmt = _G.PairReviewPane and _G.PairReviewPane.format_diagnostic
+  local in_range = fmt and fmt({ lnum = 0, col = 0, end_lnum = 0, end_col = 2, message = 'first' })
+  local out_range = fmt and fmt({ lnum = 0, col = 6, end_lnum = 0, end_col = 8, message = 'third' })
+  OUT:write((in_range == 'first' and out_range == nil and 'cursor-scoped-diagnostic-lines\n')
+    or ('NO-cursor-scoped-diagnostic-lines in=' .. tostring(in_range) .. ' out=' .. tostring(out_range) .. '\n'))
   -- A failed poke (no agent pane found) must not leave the statusline spinner
   -- waiting forever. This catches mark-awaiting-before-send regressions.
   local panes_path = os.getenv('PANES_JSON')
@@ -309,6 +316,7 @@ grep -q '^review-user-hl$' "$RT/r3" && pass "review user marker highlight matche
 grep -q '^review-agent-hl$' "$RT/r3" && pass "review agent marker highlight matches parley" || fail "review agent marker highlight"
 grep -q '^review-quoted-hl$' "$RT/r3" && pass "review quoted marker highlight matches parley" || fail "review quoted marker highlight"
 grep -q '^review-strike-hl$' "$RT/r3" && pass "review strike marker highlight matches parley" || fail "review strike marker highlight"
+grep -q '^cursor-scoped-diagnostic-lines$' "$RT/r3" && pass "diagnostic virtual lines follow cursor span" || fail "cursor-scoped diagnostic virtual lines"
 grep -q '^failed-poke-no-spinner$' "$RT/r3" && pass "failed poke does not leave spinner awaiting" || fail "failed-poke spinner behavior"
 grep -q '^alt-a-accept$' "$RT/r3" && pass "Alt+a accepts quoted agent replacement" || fail "Alt+a accept behavior"
 grep -q '^alt-r-reject$' "$RT/r3" && pass "Alt+r rejects to original quoted text" || fail "Alt+r reject behavior"

@@ -58,7 +58,11 @@ function M.decorate(records, content, which)
       if not M.is_marker_proposal(anchor) then
         highlights[#highlights + 1] = { line = lnum, col = col, end_line = last, end_col = end_col }
       end
-      diagnostics[#diagnostics + 1] = { lnum = lnum, end_lnum = last, message = r.explain or '' }
+      diagnostics[#diagnostics + 1] = {
+        lnum = lnum, col = col,
+        end_lnum = last, end_col = end_col,
+        message = r.explain or '',
+      }
     end
   end
   return { highlights = highlights, diagnostics = diagnostics }
