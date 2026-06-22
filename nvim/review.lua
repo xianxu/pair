@@ -67,6 +67,21 @@ vim.g.markdown_fenced_languages = {
   'ruby', 'rb=ruby', 'java', 'kotlin', 'kt=kotlin', 'swift', 'dockerfile', 'make', 'diff', 'vim',
 }
 
+local function disable_review_markdown_html_syntax()
+  if vim.bo.filetype ~= 'markdown' and vim.bo.syntax ~= 'markdown' then return end
+  -- Vim's regex markdown embeds HTML. In the review pane, 🤖<old>{new}
+  -- markers are first-class review syntax; parsing <old> as an HTML tag can
+  -- leak htmlTag/htmlString highlighting into following prose.
+  pcall(vim.cmd, 'syntax clear htmlTag htmlEndTag htmlTagN htmlTagName htmlSpecialTagName htmlTagError')
+  pcall(vim.cmd, 'syntax clear htmlString htmlValue htmlArg htmlEvent htmlCssDefinition')
+  pcall(vim.cmd, 'syntax sync fromstart')
+end
+
+vim.api.nvim_create_autocmd({ 'FileType', 'Syntax' }, {
+  pattern = 'markdown',
+  callback = disable_review_markdown_html_syntax,
+})
+
 local function add_local_theme_rtp()
   local lazy = vim.fn.stdpath('data') .. '/lazy'
   for _, dir in ipairs({ 'moonfly', 'catppuccin', 'gruvbox.nvim', 'rose-pine', 'everforest', 'melange-nvim' }) do

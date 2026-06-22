@@ -61,7 +61,28 @@ REPO="$RT/repo"; mkdir -p "$REPO"
 ( cd "$REPO"
   git init -q; git config user.email t@e.com; git config user.name T
   printf 'hello 🤖[review this]\nworld\n' > doc.md
+  cat > syntax.md <<'MD'
+In the context of agentic coding, 🤖<in the end of the day>{at the end of the day}, you assemble some system prompts to prime how an 🤖<LLM based intelligent agent work>{LLM-based intelligent agent works} in a session. **That's the mechanism for using the LLM -- the new stochastic computer.** And the current generation of 🤖<LLM based agents>{LLM-based agents} 🤖<use [agent skill](https://agentskills.io/home) convention>{use the [agent skill](https://agentskills.io/home) convention} for constructing 🤖<such prompt>{such prompts} (aka context). The convention works roughly as follows: there is a folder with the name of the skill, and within that folder a file named `SKILL.md` serves as the entry point. `SKILL.md` contains a 🤖<front-matter formatted meta-data>{frontmatter-formatted metadata} section at the top. The body is prose describing what the agent is supposed to do. One front-matter field is of particular interest: `description`, which is always loaded into the agent's context at startup. The rest of the document is pulled into context later in the session -- 🤖<by the agent's own determination>{at the agent's own discretion}, based on that description.
+
+The skill's main prose should remain normal.
+MD
   git add doc.md; git commit -q -m init )
+cat > "$RT/syntax.lua" <<'LUA'
+local OUT = io.open(os.getenv('SYNTAX_RESULT'), 'w')
+local bad_html = false
+for _, id in ipairs(vim.fn.synstack(3, 10)) do
+  local name = vim.fn.synIDattr(id, 'name')
+  if name == 'htmlTag' or name == 'htmlString' then bad_html = true end
+end
+OUT:write((not bad_html and 'review-markers-not-html\n') or 'NO-review-markers-not-html\n')
+OUT:close()
+vim.cmd('qa!')
+LUA
+( cd "$REPO" && PATH="$RT/bin:$PATH" PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=claude \
+    PAIR_HOME="$ROOT" DOCFLOW_BIN="$ROOT/tests/lib/fake-docflow.sh" DOCFLOW_ARGLOG="$RT/doclog" \
+    SYNTAX_RESULT="$RT/syntax-result" PANES_JSON="$RT/panes.json" \
+    run_headless --timeout 30 -- nvim --headless -u "$ROOT/nvim/review.lua" "$REPO/syntax.md" -c "luafile $RT/syntax.lua" )
+grep -q '^review-markers-not-html$' "$RT/syntax-result" && pass "review markers do not poison markdown HTML syntax" || fail "review marker html syntax bleed"
 cat > "$RT/wdriver.lua" <<'LUA'
 local function check()
   local OUT = io.open(os.getenv('RESULT2'), 'w')
@@ -106,7 +127,6 @@ local function check()
   OUT:write((link_of('ParleyReviewAgent') == 'DiagnosticInfo' and 'review-agent-hl\n') or 'NO-review-agent-hl\n')
   OUT:write((quoted.reverse and quoted.bold and 'review-quoted-hl\n') or 'NO-review-quoted-hl\n')
   OUT:write((strike.strikethrough and 'review-strike-hl\n') or 'NO-review-strike-hl\n')
-
   -- A failed poke (no agent pane found) must not leave the statusline spinner
   -- waiting forever. This catches mark-awaiting-before-send regressions.
   local panes_path = os.getenv('PANES_JSON')
