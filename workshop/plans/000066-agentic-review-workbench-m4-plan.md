@@ -10,10 +10,10 @@
 
 **Sub-milestones** — **re-sliced structure-first** (2026-06-21; see ## Revisions): get the *whole loop standing thin* before any tuning.
 
-- **M4a** — real loop + agent-owns-git unwind (this plan, in detail). *Done.*
-- **M4a'** — review-start & resume flow (`:PairReview` proposes → agent preps via the pure readiness probe → Alt+r opens; reconstruct-on-open). **Spec: `workshop/targets/review-protocol.md` → "Review-start & resume flow — M4a'" + seam #6.** *[in flight]*
-- **M4b — skeleton (structure):** the 🤖[] fulfill/punt + **accept/reject** (parley §5) conversation + a **default editing posture** + **ship** (`docflow ship`) — completes the thin full cycle. The smallest set that makes the loop *usable* end-to-end.
-- **M4c — thicken (tuning; sub-slices when reached):** modes menu + `🪄 Mode`/spinner/lean-history (`-92 < -3 > +0`) bar; voice (`voice: <slug>` → `~/.personal/<slug>-writing-style.md`); fact-check pass (`doc-review` → records); pending-🤖{} quickfix; diagnostic-display polish; cross-session undo-of-style completeness; `xx-fix`→`writing-assistant` rename; the faithful e2e demo (final Done-when).
+- **M4a** — real loop + agent-owns-git unwind (this plan, in detail). *Implemented/headless-verified; evidence folded into the current M4 skeleton boundary rather than retroactively milestone-closed.*
+- **M4a'** — review-start & resume flow (`:PairReview` proposes → agent preps via the pure readiness probe → Alt+r opens; reconstruct-on-open). **Spec: `workshop/targets/review-protocol.md` → "Review-start & resume flow — M4a'" + seam #6.** *Pair side implemented/headless-verified; folded into current boundary.*
+- **M4b — skeleton (structure):** the 🤖[] fulfill/punt + **accept/reject** (parley §5) conversation + a **default editing posture** + **ship** (`docflow ship`) — completes the thin full cycle. The smallest set that makes the loop *usable* end-to-end. *In progress: accept/reject + marker nav landed; fulfill/punt/default posture/ship remain.*
+- **M4c — thicken (tuning; sub-slices when reached):** modes menu + `🪄 Mode`/spinner/lean-history (`-92 < -3 > +0`) bar; voice (`voice: <slug>` → `~/.personal/<slug>-writing-style.md`); fact-check pass (`doc-review` → records); pending-🤖{} quickfix; diagnostic-display polish; cross-session undo-of-style completeness; `xx-fix`→`writing-assistant` rename; the faithful e2e demo (final Done-when). *One pure spinner helper exists as unwired pre-work.*
 
 ---
 
@@ -85,41 +85,41 @@ actually landed) writes a structured artifact; the committing party reads it and
 
 **Files:** Modify `nvim/review/init.lua`; extend `tests/review-loop-test.sh` (+ a pure `poke_bodies` assertion); reuse `nvim/pair_poke.lua` (injectable)
 
-- [ ] **Step 1a: failing test (pure)** — `poke_bodies.agent_applied(2, 1, '/a/doc.md')` returns the exact string (incl. the "(1 dropped)" segment); `agent_applied(2, 0, …)` omits the dropped segment.
-- [ ] **Step 1b: failing test (integration, the dropped-record case — invariant #3)** — drive `on_agent_round` with TWO records where one **cannot anchor** (so `apply` drops it), `pair_poke.send` stubbed to record, `docflow` stubbed to record. Assert: (a) **no `round --side agent`** invoked by the nvim; (b) `review-landed-<tag>.json` written with `applied=1, dropped=1` and `body` = `record.embed_in_body` of the **one** enriched record (the dropped one absent); (c) the poke body carries `agent_applied(1, 1, file)`.
-- [ ] **Step 2: run → fail.**
-- [ ] **Step 3: implement** — add pure `nvim/review/poke_bodies.lua` (+ colocated `poke_bodies_test.lua`, run under `make test-lua`); make `pair_poke.send` injectable (module-level, default the real send; the test swaps a recorder). In `on_agent_round`: thread `file` from `sessions[buf].file`; after `apply` + `save`, write `review-landed-<tag>.json` (`{summary, body=record.embed_in_body(summary, enriched), applied=#enriched, dropped=#dropped}`); `pair_poke.send(poke_bodies.agent_applied(#enriched, #dropped, file))`; **remove** the `check(docflow.round('agent', …))` call. (Apply/projection/decorate unchanged.)
-- [ ] **Step 4: run → pass.**
-- [ ] **Step 5: commit** — `#66 M4a: on_agent_round — apply+save, write landed-artifact, commit-signal poke (nvim writes no agent round)`.
+- [x] **Step 1a: failing test (pure)** — `poke_bodies.agent_applied(2, 1, '/a/doc.md')` returns the exact string (incl. the "(1 dropped)" segment); `agent_applied(2, 0, …)` omits the dropped segment.
+- [x] **Step 1b: failing test (integration, the dropped-record case — invariant #3)** — drive `on_agent_round` with TWO records where one **cannot anchor** (so `apply` drops it), `pair_poke.send` stubbed to record, `docflow` stubbed to record. Assert: (a) **no `round --side agent`** invoked by the nvim; (b) `review-landed-<tag>.json` written with `applied=1, dropped=1` and `body` = `record.embed_in_body` of the **one** enriched record (the dropped one absent); (c) the poke body carries `agent_applied(1, 1, file)`.
+- [x] **Step 2: run → fail.**
+- [x] **Step 3: implement** — add pure `nvim/review/poke_bodies.lua` (+ colocated `poke_bodies_test.lua`, run under `make test-lua`); make `pair_poke.send` injectable (module-level, default the real send; the test swaps a recorder). In `on_agent_round`: thread `file` from `sessions[buf].file`; after `apply` + `save`, write `review-landed-<tag>.json` (`{summary, body=record.embed_in_body(summary, enriched), applied=#enriched, dropped=#dropped}`); `pair_poke.send(poke_bodies.agent_applied(#enriched, #dropped, file))`; **remove** the `check(docflow.round('agent', …))` call. (Apply/projection/decorate unchanged.)
+- [x] **Step 4: run → pass.**
+- [x] **Step 5: commit** — `#66 M4a: on_agent_round — apply+save, write landed-artifact, commit-signal poke (nvim writes no agent round)`.
 
 ### Task 2: `human_round` stops writing git — save + commit-request poke
 
 **Files:** Modify `nvim/review/init.lua`, `nvim/review.lua`; extend the test
 
-- [ ] **Step 1: failing test** — a driven `human_round` asserts the buffer is saved and **no `round --side human`** is invoked; and `finish_human_turn` pokes the `human_committed` body (not the temporary `/xx-fix …`).
-- [ ] **Step 2: run → fail.**
-- [ ] **Step 3: implement** — `human_round`: keep `save(buf)`, drop `check(docflow.round('human', …))`. In `nvim/review.lua` `finish_human_turn`, swap `poke.send(REVIEW_TRIGGER .. ' ' .. abs)` for `poke.send(poke_bodies.human_committed(file))`. (Retire `REVIEW_TRIGGER` once #000121 makes the agent review-mode-aware; until then, a one-line note.)
-- [ ] **Step 4: run → pass.**
-- [ ] **Step 5: commit** — `#66 M4a: human_round — save+commit-request poke (nvim writes no human round)`.
+- [x] **Step 1: failing test** — a driven `human_round` asserts the buffer is saved and **no `round --side human`** is invoked; and `finish_human_turn` pokes the `human_committed` body (not the temporary `/xx-fix …`).
+- [x] **Step 2: run → fail.**
+- [x] **Step 3: implement** — `human_round`: keep `save(buf)`, drop `check(docflow.round('human', …))`. In `nvim/review.lua` `finish_human_turn`, swap `poke.send(REVIEW_TRIGGER .. ' ' .. abs)` for `poke.send(poke_bodies.human_committed(file))`. (Retire `REVIEW_TRIGGER` once #000121 makes the agent review-mode-aware; until then, a one-line note.)
+- [x] **Step 4: run → pass.**
+- [x] **Step 5: commit** — `#66 M4a: human_round — save+commit-request poke (nvim writes no human round)`.
 
 ### Task 3: `fake-agent-v2` — the agent owns the round commits
 
 **Files:** Modify `tests/lib/fake-review-agent.sh`; Modify `tests/review-loop-test.sh`
 
-- [ ] **Step 1: failing test** — update `review-loop-test.sh` to expect the **agent** (fake-agent-v2), not the nvim, to have created the `review(<slug>): agent r1` / `human r1` commits, with the agent-round **body taken verbatim from `review-landed-<tag>.json`** (so the committed records == what landed); the nvim only applies + the decorations/counts reconstruct from those agent commits.
-- [ ] **Step 2: run → fail** (the old test asserted nvim-made commits).
-- [ ] **Step 3: implement** — fake-agent-v2: after emitting the handoff records, **wait for `review-landed-<tag>.json`**, then `docflow round --side agent -m <summary> --body <body>` (both from the artifact via `jq`) in the doc's repo; on the human-round signal, `docflow round --side human`. (Same `DOCFLOW_BIN` fake/real as M1; reading the artifact is what keeps the no-intelligence fake faithful.)
-- [ ] **Step 4: run → pass.**
-- [ ] **Step 5: commit** — `#66 M4a: fake-agent-v2 — reads landed-artifact, agent owns round commits (relocates M1's nvim-commit e2e)`.
+- [x] **Step 1: failing test** — update `review-loop-test.sh` to expect the **agent** (fake-agent-v2), not the nvim, to have created the `review(<slug>): agent r1` / `human r1` commits, with the agent-round **body taken verbatim from `review-landed-<tag>.json`** (so the committed records == what landed); the nvim only applies + the decorations/counts reconstruct from those agent commits.
+- [x] **Step 2: run → fail** (the old test asserted nvim-made commits).
+- [x] **Step 3: implement** — fake-agent-v2: after emitting the handoff records, **wait for `review-landed-<tag>.json`**, then `docflow round --side agent -m <summary> --body <body>` (both from the artifact via `jq`) in the doc's repo; on the human-round signal, `docflow round --side human`. (Same `DOCFLOW_BIN` fake/real as M1; reading the artifact is what keeps the no-intelligence fake faithful.)
+- [x] **Step 4: run → pass.**
+- [x] **Step 5: commit** — `#66 M4a: fake-agent-v2 — reads landed-artifact, agent owns round commits (relocates M1's nvim-commit e2e)`.
 
 ### Task 4: counts + decorations reconstruct from the agent's commits
 
 **Files:** Modify `tests/review-loop-test.sh` (or `review-indicator-test.sh`)
 
-- [ ] **Step 1: failing test** — on the `review/<slug>` branch the fake-agent-v2 built, assert `_pair_review_bar(file)` shows the live `🤖N/M` (no longer `0/0`) and decorations reconstruct from the agent commit body.
-- [ ] **Step 2: run → fail / Step 3: confirm** the read paths already work (they read git directly) — likely green once Task 3 lands; if not, fix the read.
-- [ ] **Step 4: run → pass.**
-- [ ] **Step 5: commit** — `#66 M4a: indicator counts + decorations reconstruct from agent commits (go live)`.
+- [x] **Step 1: failing test** — on the `review/<slug>` branch the fake-agent-v2 built, assert `_pair_review_bar(file)` shows the live `🤖N/M` (no longer `0/0`) and decorations reconstruct from the agent commit body.
+- [x] **Step 2: run → fail / Step 3: confirm** the read paths already work (they read git directly) — likely green once Task 3 lands; if not, fix the read.
+- [x] **Step 4: run → pass.**
+- [x] **Step 5: commit** — `#66 M4a: indicator counts + decorations reconstruct from agent commits (go live)`.
 
 ### Task 5: live smoke (real agent, gated on ariadne #000121 M4a)
 
@@ -129,11 +129,15 @@ Manual, in a real pair session once #000121 M4a lands:
 - [ ] Edit + Alt+Return → the agent commits the human round; undo stays continuous; no nvim-side git.
 - [ ] Record the smoke in `## Log`.
 
+This smoke remains the real-agent proof for ariadne #000121. It is not a separate M4a
+review boundary after the 2026-06-21 reconciliation; include it in the current M4
+skeleton boundary evidence when available.
+
 ### Task 6: milestone close
 
-- [ ] `make test-lua` + `make test-review` green; manual smoke recorded.
-- [ ] Update `atlas/review-workbench.md` (the nvim now writes no git; the commit-signal poke) + flip `review-protocol.md` invariant #1 from "M4 TARGET" to BUILT (seam #4 write → agent).
-- [ ] `sdlc milestone-close --issue 66 --milestone M4a --verified '<…>'` (ariadne's binary; omit `--actual` → measured). Address the auto-dispatched review's Critical/Important; log the verdict.
+- [ ] `make test-lua` + `make test-review` green; manual smoke recorded when the real-agent dependency is available.
+- [x] Update `atlas/review-workbench.md` / `review-protocol.md` for the nvim-writes-no-git invariant and the commit-signal seam.
+- [ ] Close the **current M4 skeleton boundary** once M4b's remaining structure is in place. Do not retroactively `milestone-close M4a`; the branch already crossed that line before reconciliation.
 
 ---
 
@@ -182,3 +186,11 @@ ship/e2e). Re-sliced to **get the whole loop standing thin before any tuning**:
 - **M4c = thicken**: everything else (modes menu/UI, voice, fact-check, quickfix,
   display polish, rename, the faithful e2e demo) becomes tuning, sub-sliced when
   reached. So no single feature is polished before the skeleton stands.
+
+### 2026-06-21 — continuation reconciliation: fold crossed M4a/M4a' evidence into current boundary
+
+Continuation `pair-pair` resumed after M4a, M4a', early M4b, and unwired M4c commits had
+already landed without separate `sdlc milestone-close` boundaries. Reconciliation decision:
+do not manufacture retrospective M4a/M4a' closes over an interleaved commit window. Treat
+M4a + M4a' as implemented evidence inside the current M4 skeleton boundary, keep M4b open
+for fulfill/punt/default posture/ship, and record the spinner helper as M4c pre-work.

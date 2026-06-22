@@ -5,7 +5,7 @@ deps: [ariadne#000121]
 target: review-protocol
 github_issue:
 created: 2026-06-18
-updated: 2026-06-19
+updated: 2026-06-21
 estimate_hours: 30
 ---
 
@@ -96,13 +96,24 @@ Milestones are review boundaries; sub-steps firm up after M0.
   agent).
 M4 (agent protocol) — **re-sliced structure-first** (2026-06-21): the whole loop standing thin before any tuning. Agent half = ariadne **#000121**.
 
-- [ ] M4a — agent-owns-git inversion + the basic round (records → apply → landed-artifact → agent commits). *Code done + 105 green; milestone-close pends the live smoke + #000121.*
-- [ ] M4a' — review-start & resume flow: `:PairReview` **proposes** → agent preps (pure readiness probe) → Alt+r opens when ready; reconstruct-on-open (resume repaint). Spec in `workshop/targets/review-protocol.md`. *[in flight]*
-- [ ] M4b — **skeleton** (structure): the 🤖[] fulfill/punt + **accept/reject** (parley §5) conversation + a default editing posture + **ship** — completes the thin full cycle (open → propose → prep → review → converse → iterate → ship → resume).
-- [ ] M4c — **thicken** (tuning; sub-slices when reached): modes menu + 🪄/spinner/lean-history bar; voice (`voice:` frontmatter); fact-check pass (`doc-review` fold); pending-🤖{} quickfix; diagnostic-display polish; `xx-fix`→`writing-assistant` rename.
+- [x] M4a — agent-owns-git inversion + the basic round (records → apply → landed-artifact → fake-agent commits). *Implemented/headless-verified; not separately milestone-closed because M4a'/M4b commits already landed before reconciliation. Review evidence folds into the current M4 skeleton boundary.*
+- [x] M4a' — review-start & resume flow: `:PairReview` **proposes** → agent preps (pure readiness probe) → Alt+r opens when ready; reconstruct-on-open (resume repaint). Spec in `workshop/targets/review-protocol.md`; pair side built and headless-tested.
+- [ ] M4b — **skeleton** (structure): 🤖[] fulfill/punt + **accept/reject** (parley §5) conversation + default editing posture + **ship** — completes the thin full cycle (open → propose → prep → review → converse → iterate → ship → resume). *Accept/reject + marker nav started; ship/default posture remain.*
+- [ ] M4c — **thicken** (tuning; sub-slices when reached): modes menu + 🪄/spinner/lean-history bar; voice (`voice:` frontmatter); fact-check pass (`doc-review` fold); pending-🤖{} quickfix; diagnostic-display polish; `xx-fix`→`writing-assistant` rename. *Spinner pure helper exists as pre-work, unwired.*
 
 ## Log
 
+- 2026-06-21: **Reconciled M4 boundary state after continuation `pair-pair`.** The branch had
+  advanced past the older `review-m3` checkpoint: M4a pair-side agent-owns-git is built,
+  M4a' review-target/readiness/resume is built, M4b accept/reject started, and an unwired
+  M4c spinner helper exists. Because the commits crossed the planned M4a/M4a' review lines
+  before a milestone-close, we are **not** retroactively closing M4a as a separate boundary;
+  the evidence is folded into the current M4 skeleton boundary. Next: bring the atlas/plan
+  fully current, run `make test-lua` + `make test-review`, then continue/close the skeleton
+  from a truthful checkpoint. Verification after reconciliation: `make test-lua` green
+  (slug/scrollback/annotate/changelog/adapt/doctor + review record/reconstruct/markers/mode/
+  poke_bodies/wrap/readiness/spinner/resolve) and `make test-review` green (docflow/apply/
+  handoff/loop/projection/poke/window/toggle/indicator/resume).
 
 - 2026-06-20: **M4a pair-side done (Tasks 1–4), forked + verified.** The git-ownership
   inversion: the nvim writes git NOWHERE — `on_agent_round` applies+saves → writes the
