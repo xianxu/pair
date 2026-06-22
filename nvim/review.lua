@@ -77,8 +77,13 @@ end
 
 local function apply_review_colorscheme()
   add_local_theme_rtp()
-  for _, name in ipairs({ vim.env.PAIR_REVIEW_COLORSCHEME, 'moonfly', 'catppuccin', 'slate', 'default' }) do
-    if name and name ~= '' and pcall(vim.cmd.colorscheme, name) then
+  local names = {}
+  if vim.env.PAIR_REVIEW_COLORSCHEME and vim.env.PAIR_REVIEW_COLORSCHEME ~= '' then
+    names[#names + 1] = vim.env.PAIR_REVIEW_COLORSCHEME
+  end
+  vim.list_extend(names, { 'moonfly', 'catppuccin', 'slate', 'default' })
+  for _, name in ipairs(names) do
+    if pcall(vim.cmd.colorscheme, name) then
       return name
     end
   end
