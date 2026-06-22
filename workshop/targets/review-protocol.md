@@ -159,21 +159,23 @@ channels and the bar read the same value.
 agent *prepares* it (git readiness); Alt+c opens once `ready` (**manual** — auto-open's
 async timing is bad UX). This is the agentic embedding of "is this doc ready to review?"
 
-**Readiness probe (pure, pair-side) — the 4 git cases.** A deterministic function of git
-state; pair computes it, the **agent acts** (ARCH-PURE: pure state, agent judgment):
+**Readiness prep (pair-side) — the 4 git cases.** A deterministic function of git
+state; pair computes it and performs deterministic setup locally (draft nvim shells
+to `pair-review-readiness --prepare`; ARCH-PURE: pure classification, shell seam for
+git effects):
 - not git-managed → **stop**, ask the operator to create a repo (don't auto-init).
-- git-managed, untracked → **track** the file.
+- git-managed, untracked → **track** the file, then start/resume its review branch.
 - on a `review/<slug>` branch whose scoped file == the target → **resume** (single file per
   review branch — multi-file is out of scope).
 - not on a review branch: clean → **new** `review/<slug>`; dirty → **interact** (the only
   truly interactive case — clean up / choose with the operator).
 
-**Two-phase Alt+c (manual).** no target → `:PairReview` prompt (pick → proposes + pokes the
-agent to prep); target `ready` → open the pane; target `proposed` (prepping / dirty) →
+**Two-phase Alt+c (manual).** no target → `:PairReview` prompt (pick → proposes + local
+readiness prep + concise agent ack); target `ready` → open the pane; target `proposed` (prepping / dirty) →
 "prep in progress" (never open a half-ready review).
 
-**Resume (case 3).** On a file-match: the agent **reestablishes context** (reads the round
-commits — SKILL), and the pane **reconstructs decorations on open** from the latest commit
+**Resume (case 3).** On a file-match: pair marks the target ready and asks the agent to
+ack the prepared review. The pane **reconstructs decorations on open** from the latest commit
 body (text = `undofile`; style = records-in-commit → repaint).
 
 **Agent-running spinner (≤6 cols).** The pane derives "agent working" from the **protocol
@@ -182,13 +184,13 @@ lands. Braille spinner + compact elapsed: `⠹ 45s` → `⠹ 2m`.
 
 ## Invariants to defend from drift
 
-1. **The review nvim writes no git.** — **BUILT (pair side, M4a).** `nvim/review/init.lua`
+1. **The review pane nvim writes no git.** — **BUILT (pair side, M4a).** `nvim/review/init.lua`
    calls `docflow` nowhere: `on_agent_round` writes the landed-artifact (seam #2b) + pokes;
-   `human_round` only saves; `review.start` no longer runs `docflow.start` (the agent owns
-   the branch too). Verified headlessly by `review-loop-test` via `fake-agent-v2` (the agent
-   makes all round + branch commits). A `docflow round`/`ship`/`start` call in
-   `nvim/review/*` is now drift. The full loop with the *real* agent is the live smoke
-   (Task 5, gated on ariadne #000121).
+   `human_round` only saves; `review.start` no longer runs `docflow.start`. Draft nvim may
+   perform deterministic start-up git (`pair-review-readiness --prepare`: track/start/resume),
+   but round commits and ship remain outside the pane. Verified headlessly by
+   `review-loop-test` via `fake-agent-v2` for rounds plus readiness CLI/toggle tests for prep.
+   A `docflow round`/`ship` call in `nvim/review/*` is now drift.
 2. **Undo is continuous** (nvim `undofile`); never reload-to-refresh a buffer (a reload
    resets the undo tree — the reason records are applied in-buffer, not file-rewritten).
 3. **The agent commits a round only after the nvim's "applied" poke** (apply may drop

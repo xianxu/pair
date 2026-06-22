@@ -26,5 +26,24 @@ else
   fail "invalid JSON: $out"
 fi
 
+PREP="$RT/prep"; mkdir -p "$PREP"
+( cd "$PREP"
+  git init -q
+  git config user.email t@e.com
+  git config user.name T
+  printf 'doc\n' > doc.md
+  git add doc.md
+  git commit -q -m init
+)
+prep_out="$(PAIR_HOME="$ROOT" PAIR_DATA_DIR="$RT" PAIR_TAG=prep PAIR_SESSION_ID=sid \
+  "$ROOT/bin/pair-review-readiness" --prepare "$PREP/doc.md" 2>&1 || true)"
+prep_branch="$(cd "$PREP" && git branch --show-current)"
+prep_abs="$(cd "$PREP" && pwd -P)/doc.md"
+target=""
+[ -f "$RT/review-target-prep.json" ] && target="$(jq -r '.status + " " + .file + " " + .session' "$RT/review-target-prep.json")"
+[ "$prep_branch" = "review/doc" ] && pass "prepare creates review branch for clean tracked file" || fail "prepare branch: $prep_branch"
+case "$target" in "ready $prep_abs sid") pass "prepare marks review target ready";; *) fail "prepare target: $target";; esac
+case "$prep_out" in *"review prepared:"*"review/doc"*"Reply \"ready\"."*) pass "prepare emits minimal agent ack instruction";; *) fail "prepare output: $prep_out";; esac
+
 [ "$fails" -eq 0 ] || { printf 'review-readiness-cli-test FAILED (%d)\n' "$fails"; exit 1; }
 printf 'review-readiness-cli-test ok\n'

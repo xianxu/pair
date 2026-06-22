@@ -94,6 +94,21 @@ local draft = vim.env.PAIR_DATA_DIR .. '/draft.md' -- exists (the test wrote it)
 -- so a fresh session prompts instead of reopening the previous review.
 OUT:write((R.read_target() == nil) and 'session-scope ok\n' or 'session-scope FAIL\n')
 
+local prepbin = vim.env.PAIR_DATA_DIR .. '/prep-ok'
+vim.fn.writefile({
+  '#!/usr/bin/env bash',
+  'set -eu',
+  '"' .. vim.env.PAIR_HOME .. '/bin/pair-review-target" "$2" ready >/dev/null',
+  'printf "%s\\n" "review prepared: $2 on review/draft. Reply \\"ready\\"."',
+}, prepbin)
+vim.fn.system({ 'chmod', '+x', prepbin })
+vim.env.PAIR_REVIEW_READINESS_BIN = prepbin
+R.propose(draft)
+local proposed = R.read_target()
+OUT:write((proposed and proposed.status == 'ready') and 'propose-prepares-ready ok\n' or 'propose-prepares-ready FAIL\n')
+vim.env.PAIR_REVIEW_READINESS_BIN = nil
+vim.fn.writefile({ '{"file":"/stale/prev.md","status":"ready","session":"oldsid"}' }, target)
+
 -- pure target_stale: same id → fresh; different / empty-current / no-id → stale.
 local TS = R.target_stale
 OUT:write((TS({ session = 'testsid' }, 'testsid') == false) and 'ts-same ok\n' or 'ts-same FAIL\n')
@@ -176,6 +191,7 @@ printf '{"file":"/stale/prev.md","status":"ready","session":"oldsid"}\n' > "$RT/
       -c "luafile $RT/driver.lua" )
 
 grep -q 'session-scope ok' "$RESULT" && pass "other-session target ignored (smoke #6)" || fail "stale (other-session) target not ignored"
+grep -q 'propose-prepares-ready ok' "$RESULT" && pass ":PairReview prepares target locally" || fail ":PairReview local prepare"
 for c in ts-same ts-diff ts-nocur ts-noid; do
   grep -q "$c ok" "$RESULT" && pass "pure target_stale: $c" || fail "target_stale $c"
 done

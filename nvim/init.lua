@@ -745,18 +745,19 @@ local function send_to_agent(body, no_submit)
 end
 
 -- :PairReview <file> — PROPOSE a file for review (#66 M4a'). It does NOT open the
--- pane: it writes the review-target seam (status=proposed) + pokes the agent to run
--- the readiness probe and prepare (track / new branch / resume / interact), then
--- mark the target ready. Alt+c opens the pane once ready. `complete='file'` gives
+-- pane: it writes the review-target seam (status=proposed), runs the deterministic
+-- readiness prep locally (track / new branch / resume), then sends the agent a
+-- minimal ack request. Alt+c opens the pane once ready. `complete='file'` gives
 -- :e-style tab-completion; Alt+c feeds ":PairReview " into this command line.
 -- (Callback runs at runtime, after the do-block below sets `_G._pair_review`.)
 vim.api.nvim_create_user_command('PairReview', function(opts)
   if _G._pair_review and _G._pair_review.propose then
-    _G._pair_review.propose(opts.args)
-    vim.notify('PairReview: proposed ' .. vim.fn.fnamemodify(opts.args, ':t')
-      .. ' — agent preparing; press Alt+c to open when ready', vim.log.levels.INFO)
+    local ok = _G._pair_review.propose(opts.args)
+    local status = ok and 'prepared ' or 'could not prepare '
+    vim.notify('PairReview: ' .. status .. vim.fn.fnamemodify(opts.args, ':t')
+      .. ' — press Alt+c to open when ready', ok and vim.log.levels.INFO or vim.log.levels.WARN)
   end
-end, { nargs = 1, complete = 'file', desc = 'propose a file for review (agent preps; Alt+c opens when ready)' })
+end, { nargs = 1, complete = 'file', desc = 'prepare a file for review (Alt+c opens when ready)' })
 
 -- Review-workbench draft-side helpers (#66 M3). Wrapped in `do ... end` and shared
 -- via the `_G._pair_review` table rather than added as file-level `local`s: init.lua's
@@ -878,18 +879,22 @@ do
     if p then pcall(vim.fn.writefile,
       { vim.json.encode({ file = file, status = status, session = current_session_id() or '' }) }, p) end
   end
-  -- :PairReview proposes a target + pokes the agent to prep (run the readiness
-  -- probe, act per the case, mark ready). The nvim does NOT open the pane — Alt+c
-  -- does, once ready; the prep is async so auto-open would fire indeterministically.
+  -- :PairReview proposes a target, then performs deterministic local prep via the
+  -- readiness shell seam. The nvim still does NOT open the pane — Alt+c does, once
+  -- the prep marks the target ready. The agent gets only a concise ack request.
   local function propose(file)
     local abs = vim.fn.fnamemodify(file, ':p')
     write_target(abs, 'proposed')
-    send_to_agent('prepare a review of ' .. abs .. ' — run `pair-review-readiness '
-      .. abs .. '`, act per the case (stop/track/resume/new/interact), then mark the '
-      .. 'review target ready. See the xx-fix "Pair review workbench" SKILL. When '
-      .. 'reviewing in Edit, use minimal 🤖<old>{new}/🤖{new} marker proposals '
-      .. 'and do not replace whole paragraphs for word-level edits; make each record '
-      .. 'old the smallest stable locator.')
+    local home = vim.env.PAIR_HOME or ''
+    local bin = vim.env.PAIR_REVIEW_READINESS_BIN
+    if not bin or bin == '' then bin = (home ~= '') and (home .. '/bin/pair-review-readiness') or 'pair-review-readiness' end
+    local out = table.concat(vim.fn.systemlist({ bin, '--prepare', abs }), '\n')
+    local ok = vim.v.shell_error == 0
+    if out ~= '' then send_to_agent(out) end
+    if not ok then
+      vim.notify('PairReview: prep failed — ' .. out, vim.log.levels.WARN)
+    end
+    return ok, out
   end
 
   -- Pure: the Alt+c decision. A live pane → flip visibility (hide/show). No live

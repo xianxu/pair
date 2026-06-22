@@ -130,6 +130,11 @@ M4 (agent protocol) — **re-sliced structure-first** (2026-06-21): the whole lo
   `nvim/review/mode.lua` now exposes only UI metadata, with comments pointing to
   ariadne's `xx-fix` skill as the runtime definition of Generate/Edit/Proofread. Moved
   those mode meanings into `../ariadne/construct/local/fix/SKILL.md`.
+- 2026-06-22: **M4d review-start prep moved local.** `:PairReview` now shells
+  `pair-review-readiness --prepare <file>` from draft nvim to perform deterministic
+  readiness work directly (track/start/resume review branch, mark target ready) and
+  sends the agent only a concise "review prepared; ack" summary. Agent involvement
+  starts after prep, for review rounds and ship.
 
 - 2026-06-22: closed M4c — M4c post-REWORK: fixed send-menu document-buffer capture, failed-poke spinner clearing, atlas spinner wording; live smoke passed; make test-lua; make test-review; git diff --check; review verdict: SHIP
 - 2026-06-22: **M4c boundary REWORK fixes.** Captured the reviewed document buffer before

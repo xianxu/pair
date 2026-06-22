@@ -1,14 +1,21 @@
 #!/bin/sh
-# pair-review-readiness <file> — print the review-start readiness case + git facts
-# as JSON, for the agent's review-prep (issue #66 M4a'). The pure 4-case decision
-# is nvim/review/readiness.lua (single source); this is the thin git-fact shell
-# (ARCH-PURE). The agent runs this and acts per `case`:
+# pair-review-readiness [--prepare] <file> — print the review-start readiness case
+# + git facts as JSON, or perform the deterministic local prep and print the
+# minimal agent ack prompt.
+# as JSON, or prepare deterministic local review-start state (issue #66 M4a').
+# The pure 4-case decision is nvim/review/readiness.lua (single source); this is
+# the thin git-fact / git-effect shell (ARCH-PURE). JSON mode reports the case:
 #   stop | track | resume | new | interact   (see workshop/targets/review-protocol.md)
 # Env: $PAIR_HOME (locates the lua module; defaults to this script's repo root).
 set -eu
 
+prepare=false
+if [ "${1:-}" = "--prepare" ]; then
+    prepare=true
+    shift
+fi
 file="${1:-}"
-[ -n "$file" ] || { printf 'usage: pair-review-readiness <file>\n' >&2; exit 2; }
+[ -n "$file" ] || { printf 'usage: pair-review-readiness [--prepare] <file>\n' >&2; exit 2; }
 
 HOME_DIR="${PAIR_HOME:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}"
 READINESS="$HOME_DIR/nvim/review/readiness.lua"
@@ -17,18 +24,36 @@ READINESS="$HOME_DIR/nvim/review/readiness.lua"
 # matches `git rev-parse --show-toplevel` (which is physical) for file_matches.
 dir=$(CDPATH= cd -- "$(dirname -- "$file")" 2>/dev/null && pwd -P) || dir=""
 
+slugify() {
+    s="${1##*/}"; s="${s%.*}"
+    s="$(printf '%s' "$s" | tr '[:upper:]' '[:lower:]' | tr -c '[:alnum:]' '-')"
+    printf '%s' "$s" | sed -E 's/-+/-/g; s/^-//; s/-$//'
+}
+
+mark_ready() {
+    target_bin="${PAIR_REVIEW_TARGET_BIN:-$HOME_DIR/bin/pair-review-target}"
+    "$target_bin" "$1" ready >/dev/null
+}
+
 is_git=false; is_tracked=false; branch=""; on_review_branch=false; scoped=""; file_matches=false; is_clean=false
+abs=""; top=""; rel=""
 if [ -n "$dir" ] && git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     is_git=true
     abs="$dir/$(basename -- "$file")"
-    git -C "$dir" ls-files --error-unmatch -- "$abs" >/dev/null 2>&1 && is_tracked=true
+    top=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null || true)
+    if [ -n "$top" ]; then
+        case "$abs" in "$top"/*)
+            rel="${abs#"$top"/}"
+            git -C "$top" ls-files --error-unmatch -- "$rel" >/dev/null 2>&1 && is_tracked=true
+            ;;
+        esac
+    fi
     branch=$(git -C "$dir" branch --show-current 2>/dev/null || true)
     case "$branch" in review/*) on_review_branch=true ;; esac
     [ -z "$(git -C "$dir" status --porcelain 2>/dev/null)" ] && is_clean=true
     if [ "$on_review_branch" = true ]; then
         # the doc under review on this branch = the file changed in the latest
         # `review(<slug>): …` round commit (single file per review branch, M4a').
-        top=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null || true)
         scoped=$(git -C "$dir" log -1 --name-only --pretty=format: --grep='^review(' 2>/dev/null \
                  | grep -v '^[[:space:]]*$' | head -1 || true)
         [ -n "$scoped" ] && [ -n "$top" ] && [ "$top/$scoped" = "$abs" ] && file_matches=true
@@ -40,6 +65,51 @@ case=$(nvim --headless -u NONE \
     --cmd "lua io.write(dofile('$READINESS').classify({is_git=$is_git,is_tracked=$is_tracked,on_review_branch=$on_review_branch,file_matches=$file_matches,is_clean=$is_clean}))" \
     --cmd 'qa!' 2>/dev/null) || case=""
 [ -n "$case" ] || { printf 'pair-review-readiness: classify failed (nvim/readiness.lua)\n' >&2; exit 1; }
+
+if [ "$prepare" = true ]; then
+    if [ "$case" = stop ]; then
+        printf 'review not prepared: %s is not in a git repo; ask the operator how to proceed.\n' "$file"
+        exit 1
+    fi
+    if [ "$case" = interact ]; then
+        printf 'review not prepared: repo state needs operator choice for %s (branch %s, clean=%s).\n' "$abs" "${branch:-detached}" "$is_clean"
+        exit 1
+    fi
+
+    review_branch="review/$(slugify "$abs")"
+    action="$case"
+    if [ "$case" = track ]; then
+        [ -n "$top" ] || { printf 'review not prepared: cannot locate git root for %s.\n' "$file"; exit 1; }
+        git -C "$top" add -- "$abs"
+        git -C "$top" commit -q -m "review: track $(basename -- "$abs")"
+        rel="${abs#"$top"/}"
+        git -C "$top" ls-files --error-unmatch -- "$rel" >/dev/null 2>&1 || rel=""
+        [ -n "$rel" ] || { printf 'review not prepared: failed to track %s.\n' "$abs"; exit 1; }
+        [ -z "$(git -C "$top" status --porcelain 2>/dev/null)" ] || {
+            printf 'review not prepared: tracked %s, but repo still has unrelated changes.\n' "$abs"
+            exit 1
+        }
+        action="tracked and started"
+    fi
+
+    if [ "$case" = new ] || [ "$case" = track ]; then
+        [ -n "$top" ] || { printf 'review not prepared: cannot locate git root for %s.\n' "$file"; exit 1; }
+        if git -C "$top" show-ref --verify --quiet "refs/heads/$review_branch"; then
+            git -C "$top" checkout -q "$review_branch"
+            action="resumed existing"
+        else
+            git -C "$top" checkout -q -b "$review_branch"
+            [ "$case" = new ] && action="started"
+        fi
+    elif [ "$case" = resume ]; then
+        review_branch="$branch"
+        action="resumed"
+    fi
+
+    mark_ready "$abs"
+    printf 'review prepared: %s %s on %s. Reply "ready".\n' "$action" "$abs" "$review_branch"
+    exit 0
+fi
 
 jq -n \
     --arg case "$case" \

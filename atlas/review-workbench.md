@@ -121,9 +121,11 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   percentage dims, not `tput`, which measured the wrong pane), replacing any live
   review (single pane).
 - `:PairReview <file>` (in draft `nvim/init.lua`, `complete=file`) — proposes the
-  review target. It writes `review-target-<tag>.json` with `status=proposed` and
-  pokes the agent to run `pair-review-readiness`; it does **not** open the pane.
-  The agent marks the target `ready`; Alt+c opens it.
+  review target. It writes `review-target-<tag>.json` with `status=proposed`,
+  runs `pair-review-readiness --prepare <file>` locally for deterministic
+  start-up work (track file / create or resume `review/<slug>` / mark target
+  `ready`), then sends the agent only a concise "review prepared; ack" message.
+  It does **not** open the pane; Alt+c opens it once ready.
 - **Alt+c** (`zellij/config.kdl`) — routed through the draft nvim like Alt+d
   (`MoveFocus Down` → `<C-\><C-n>` → `:lua PairReviewToggle()`), **not** a spawned
   shell pane. The draft's `PairReviewToggle()` (`nvim/init.lua`) branches on the
