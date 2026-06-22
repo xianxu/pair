@@ -38,7 +38,23 @@ if [ "\$1" = action ] && [ "\$2" = are-floating-panes-visible ]; then
 fi
 exit 0
 EOF
-chmod +x "$RT/bin/zellij"
+cat > "$RT/bin/ps" <<'EOF'
+#!/usr/bin/env bash
+if [ "$1" = "-axo" ]; then
+  printf '111 1\n222 111\n'
+  exit 0
+fi
+exec /bin/ps "$@"
+EOF
+cat > "$RT/bin/lsof" <<'EOF'
+#!/usr/bin/env bash
+if [ "$1" = "-p" ] && [ "$2" = "222" ]; then
+  printf 'p222\nn%s/.codex/sessions/2026/06/21/rollout-2026-06-21T00-00-00-12345678-1234-1234-1234-123456789abc.jsonl\n' "$HOME"
+  exit 0
+fi
+printf 'p%s\n' "${2:-}"
+EOF
+chmod +x "$RT/bin/zellij" "$RT/bin/ps" "$RT/bin/lsof"
 
 printf 'draft\n' > "$RT/draft.md"
 cat > "$RT/driver.lua" <<'LUA'
@@ -84,6 +100,32 @@ OUT:write((TS({ session = 'testsid' }, 'testsid') == false) and 'ts-same ok\n' o
 OUT:write((TS({ session = 'oldsid' }, 'testsid') == true) and 'ts-diff ok\n' or 'ts-diff FAIL\n')
 OUT:write((TS({ session = 'x' }, '') == true) and 'ts-nocur ok\n' or 'ts-nocur FAIL\n')
 OUT:write((TS({}, 'testsid') == true) and 'ts-noid ok\n' or 'ts-noid FAIL\n')
+
+-- codex/agy fresh sessions learn their id after nvim starts; review-target must
+-- fall back to config-<tag>-<agent>.json when PAIR_SESSION_ID is empty.
+vim.env.PAIR_SESSION_ID = ''
+vim.fn.writefile({ '{"agent":"claude","args":[],"session_id":"cfgsid"}' },
+  vim.env.PAIR_DATA_DIR .. '/config-' .. vim.env.PAIR_TAG .. '-' .. vim.env.PAIR_AGENT .. '.json')
+vim.fn.writefile({ '{"file":"' .. draft .. '","status":"ready","session":"cfgsid"}' }, target)
+OUT:write((R.read_target() ~= nil) and 'config-session-read ok\n' or 'config-session-read FAIL\n')
+R.write_target(draft, 'ready')
+local written = vim.json.decode(table.concat(vim.fn.readfile(target), '\n'))
+OUT:write((written.session == 'cfgsid') and 'config-session-write ok\n' or 'config-session-write FAIL\n')
+vim.env.PAIR_SESSION_ID = 'testsid'
+vim.fn.writefile({ '{"file":"/stale/prev.md","status":"ready","session":"oldsid"}' }, target)
+
+vim.env.PAIR_SESSION_ID = ''
+vim.env.PAIR_AGENT = 'codex'
+os.remove(vim.env.PAIR_DATA_DIR .. '/config-' .. vim.env.PAIR_TAG .. '-codex.json')
+vim.fn.writefile({ '111' }, vim.env.PAIR_DATA_DIR .. '/agent-pid-' .. vim.env.PAIR_TAG)
+vim.fn.writefile({ '{"file":"' .. draft .. '","status":"ready","session":"12345678-1234-1234-1234-123456789abc"}' }, target)
+OUT:write((R.read_target() ~= nil) and 'live-codex-session-read ok\n' or 'live-codex-session-read FAIL\n')
+R.write_target(draft, 'ready')
+written = vim.json.decode(table.concat(vim.fn.readfile(target), '\n'))
+OUT:write((written.session == '12345678-1234-1234-1234-123456789abc') and 'live-codex-session-write ok\n' or 'live-codex-session-write FAIL\n')
+vim.env.PAIR_AGENT = 'claude'
+vim.env.PAIR_SESSION_ID = 'testsid'
+vim.fn.writefile({ '{"file":"/stale/prev.md","status":"ready","session":"oldsid"}' }, target)
 
 -- live + visible → hide  (state file holds OUR pid, so kill -0 says alive)
 vim.fn.writefile({ tostring(vim.fn.getpid()) }, sf); setfloat('true')
@@ -137,6 +179,10 @@ grep -q 'session-scope ok' "$RESULT" && pass "other-session target ignored (smok
 for c in ts-same ts-diff ts-nocur ts-noid; do
   grep -q "$c ok" "$RESULT" && pass "pure target_stale: $c" || fail "target_stale $c"
 done
+grep -q 'config-session-read ok' "$RESULT" && pass "read_target falls back to config session_id" || fail "read_target config fallback"
+grep -q 'config-session-write ok' "$RESULT" && pass "write_target stamps config session_id" || fail "write_target config fallback"
+grep -q 'live-codex-session-read ok' "$RESULT" && pass "read_target resolves live codex session_id" || fail "read_target live codex fallback"
+grep -q 'live-codex-session-write ok' "$RESULT" && pass "write_target stamps live codex session_id" || fail "write_target live codex fallback"
 grep -q 'pure-prompt ok'  "$RESULT" && pass "pure: no target → prompt"        || fail "pure prompt"
 grep -q 'pure-open ok'    "$RESULT" && pass "pure: target ready → open"       || fail "pure open"
 grep -q 'pure-wait ok'    "$RESULT" && pass "pure: target proposed → wait"    || fail "pure wait"

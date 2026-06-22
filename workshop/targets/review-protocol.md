@@ -41,6 +41,12 @@ Why this split (not nvim-shells-docflow, which M1 scaffolded):
 | 5 | mode file `$PAIR_DATA_DIR/review-<tag>.mode` | **AGENT** (on a mode switch from either channel) | review nvim + draft bar (display the `🪄 <Mode>`) | one line: the active mode | **M4c-DESIGN** (modes → thicken) |
 | 6 | review-target `$PAIR_DATA_DIR/review-target-<tag>.json` | `:PairReview` (proposes) + **AGENT** (marks `ready` after prep) | Alt+c (`PairReviewToggle`: no target → prompt; `ready` → open; `proposed` → "prep in progress") | `{file, status: proposed|ready}` — what to review, before the pane opens | **BUILT** (pair side) — `review-toggle-test` |
 
+Review-target session scoping resolves the current conversation id as:
+`PAIR_SESSION_ID` → `config-<tag>-<agent>.json` → live Codex rollout from
+`agent-pid-<tag>`. Codex/agy fresh sessions start with an empty `PAIR_SESSION_ID`; the
+watcher writes config later, so both the draft reader and `pair-review-target` must use
+the fallback chain.
+
 ## States & transitions
 
 ```

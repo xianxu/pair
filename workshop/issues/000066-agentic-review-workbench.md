@@ -123,6 +123,13 @@ M4 (agent protocol) — **re-sliced structure-first** (2026-06-21): the whole lo
   `nvim -l nvim/review/resolve_test.lua`, `bash tests/review-toggle-test.sh`, and
   `bash tests/review-window-test.sh` green.
 
+- 2026-06-21: **M4b Codex review-target session fallback.** Live `pair-pair-3` exposed that
+  Codex fresh sessions start with empty `PAIR_SESSION_ID`; `pair-review-target` wrote
+  `"session": ""`, and the draft ignored the ready target as stale, so `Alt+c` could not
+  open the pane. Fixed both writer and reader to resolve session id via env → config →
+  live Codex rollout. Also stamped the live tag `3` target/config with rollout
+  `019eecfc-87a8-7d23-8b3e-978069a508af`.
+
 - 2026-06-20: **M4a pair-side done (Tasks 1–4), forked + verified.** The git-ownership
   inversion: the nvim writes git NOWHERE — `on_agent_round` applies+saves → writes the
   landed-artifact (seam #2b, `$XDG_DATA_HOME/pair/review-landed-<tag>.json`, body via the one

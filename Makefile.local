@@ -69,6 +69,7 @@ test-review:
 	bash tests/review-poke-test.sh
 	bash tests/review-window-test.sh
 	bash tests/review-toggle-test.sh
+	bash tests/pair-review-target-test.sh
 	bash tests/review-indicator-test.sh
 	bash tests/review-resume-test.sh
 

@@ -781,6 +781,72 @@ do
     return not (type(t) == 'table' and session and session ~= '' and t.session == session)
   end
 
+  local function config_session_id(data_dir, tag, agent)
+    local cf = io.open(data_dir .. '/config-' .. tag .. '-' .. agent .. '.json', 'r')
+    if not cf then return nil end
+    local body = cf:read('*a'); cf:close()
+    local ok, parsed = pcall(vim.json.decode, body)
+    if ok and type(parsed) == 'table' and parsed.session_id and parsed.session_id ~= '' then
+      return parsed.session_id
+    end
+    return nil
+  end
+
+  local function descendant_pids(root)
+    local out = vim.fn.systemlist({ 'ps', '-axo', 'pid=,ppid=' })
+    local children = {}
+    for _, line in ipairs(out) do
+      local pid, ppid = line:match('^%s*(%d+)%s+(%d+)%s*$')
+      if pid and ppid then
+        children[ppid] = children[ppid] or {}
+        table.insert(children[ppid], pid)
+      end
+    end
+    local pids, queue, seen = {}, { root }, { [root] = true }
+    local i = 1
+    while i <= #queue do
+      local pid = queue[i]; i = i + 1
+      table.insert(pids, pid)
+      for _, child in ipairs(children[pid] or {}) do
+        if not seen[child] then
+          seen[child] = true
+          table.insert(queue, child)
+        end
+      end
+    end
+    return pids
+  end
+
+  local function live_codex_session_id(data_dir, tag)
+    local pf = io.open(data_dir .. '/agent-pid-' .. tag, 'r')
+    if not pf then return nil end
+    local root = vim.trim(pf:read('*a') or ''); pf:close()
+    if root == '' then return nil end
+    for _, pid in ipairs(descendant_pids(root)) do
+      for _, line in ipairs(vim.fn.systemlist({ 'lsof', '-p', pid, '-Fn' })) do
+        local path = line:match('^n(.*/%.codex/sessions/.*/rollout%-.*%.jsonl)$')
+        if path then
+          local sid = path:match('([0-9a-fA-F]+%-[0-9a-fA-F]+%-[0-9a-fA-F]+%-[0-9a-fA-F]+%-[0-9a-fA-F]+)%.jsonl$')
+          if sid then return sid end
+        end
+      end
+    end
+    return nil
+  end
+
+  local function current_session_id()
+    local sid = vim.env.PAIR_SESSION_ID
+    if sid and sid ~= '' then return sid end
+    local data_dir = vim.env.PAIR_DATA_DIR
+    if not data_dir or data_dir == '' then return nil end
+    local tag = (vim.env.PAIR_TAG and vim.env.PAIR_TAG ~= '') and vim.env.PAIR_TAG or 'default'
+    local agent = (vim.env.PAIR_AGENT and vim.env.PAIR_AGENT ~= '') and vim.env.PAIR_AGENT or 'claude'
+    sid = config_session_id(data_dir, tag, agent)
+    if sid then return sid end
+    if agent == 'codex' then return live_codex_session_id(data_dir, tag) end
+    return nil
+  end
+
   local function state_file()
     return seam.open_state(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
   end
@@ -804,13 +870,13 @@ do
     local ok, t = pcall(vim.json.decode, table.concat(vim.fn.readfile(p), '\n'))
     if not (ok and type(t) == 'table' and t.file and t.file ~= '') then return nil end
     -- ignore a target from a different conversation (stale across a fresh session)
-    if target_stale(t, vim.env.PAIR_SESSION_ID) then return nil end
+    if target_stale(t, current_session_id()) then return nil end
     return t
   end
   local function write_target(file, status)
     local p = seam.target_path(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
     if p then pcall(vim.fn.writefile,
-      { vim.json.encode({ file = file, status = status, session = vim.env.PAIR_SESSION_ID }) }, p) end
+      { vim.json.encode({ file = file, status = status, session = current_session_id() or '' }) }, p) end
   end
   -- :PairReview proposes a target + pokes the agent to prep (run the readiness
   -- probe, act per the case, mark ready). The nvim does NOT open the pane — Alt+c
@@ -834,7 +900,8 @@ do
   end
 
   _G._pair_review = { state_file = state_file, is_alive = is_alive, toggle_action = toggle_action,
-    read_target = read_target, write_target = write_target, propose = propose, target_stale = target_stale }
+    read_target = read_target, write_target = write_target, propose = propose, target_stale = target_stale,
+    current_session_id = current_session_id }
   _G._pair_review_toggle_action = toggle_action -- test alias
 
   -- Alt+c — the collaboration/review-workbench brain (#66 M3/M4b). Routed here through the draft

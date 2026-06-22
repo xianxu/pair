@@ -110,9 +110,12 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   **never** `toggle-floating-panes`); no live review + ready target → open;
   proposed target → "prep in progress"; no target → drop into `:PairReview `
   (file-select). Pure decision `_pair_review_toggle_action(alive, visible, status)`.
-  Review-targets are scoped to `PAIR_SESSION_ID` so fresh sessions ignore stale
-  targets while resumed sessions keep their in-progress target. `Alt+r` is deliberately
-  free inside the review pane for reject.
+  Review-targets are scoped to the current conversation id so fresh sessions ignore
+  stale targets while resumed sessions keep their in-progress target. Resolution is
+  `PAIR_SESSION_ID` → `config-<tag>-<agent>.json` → live Codex rollout via
+  `agent-pid-<tag>`; Codex/agy learn ids asynchronously, so review target handling must
+  not rely on the launch-time env alone. `Alt+r` is deliberately free inside the review
+  pane for reject.
 - `nvim/pair_poke.lua` — id-based agent poke: relative `move-focus` does NOT escape a
   floating pane, so it resolves the agent + caller panes from `list-panes --json` and
   `focus-pane-id`s them (focus agent → write-chars + `write 27 13` submit → restore).
