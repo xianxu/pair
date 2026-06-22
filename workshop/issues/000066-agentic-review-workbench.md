@@ -116,6 +116,11 @@ M4 (agent protocol) — **re-sliced structure-first** (2026-06-21): the whole lo
   human-finished pokes, enabled review-pane system clipboard + blinking cursor defaults,
   made `Alt+a` clear agent styling when pressed inside a highlighted non-marker region,
   and clear stale agent highlights/diagnostics on every human submit.
+- 2026-06-22: **M4d rendering semantics pass.** Review rendering now keeps diagnostics
+  for every applied record, highlights only exact direct-edit `new` spans, suppresses
+  redundant highlights for inline marker proposals, and treats empty direct deletions
+  as diagnostic-only. Copy Edit prompts now require smallest-stable `old` locators; the
+  developmental/generative posture keeps deletion-only changes visible with `🤖~old~`.
 
 - 2026-06-22: closed M4c — M4c post-REWORK: fixed send-menu document-buffer capture, failed-poke spinner clearing, atlas spinner wording; live smoke passed; make test-lua; make test-review; git diff --check; review verdict: SHIP
 - 2026-06-22: **M4c boundary REWORK fixes.** Captured the reviewed document buffer before

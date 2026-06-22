@@ -145,41 +145,70 @@ local rlines = {}
 for _, m in ipairs(vim.api.nvim_buf_get_extmarks(br, apply.HL, 0, -1, {})) do rlines[m[2]] = true end
 ok(rlines[1] and rlines[2], 'render: decorations on the right lines (1 and 2)')
 
--- (m) snapshot/apply_snapshot round-trip, including a MULTI-LINE decoration —
--- the span (end_row) must survive (M2 plan-review fidelity fix).
+local brm = newbuf({ 'prefix 🤖<bad>{GOOD} suffix' })
+apply.render(brm, { { new = '🤖<bad>{GOOD}', new_occurrence = 1, explain = 'proposal' } }, content(brm))
+ok(#vim.api.nvim_buf_get_extmarks(brm, apply.HL, 0, -1, {}) == 0, 'render marker proposal: no redundant highlight')
+local rmd = vim.diagnostic.get(brm, { namespace = apply.DIAG })
+ok(#rmd == 1 and rmd[1].message == 'proposal', 'render marker proposal keeps diagnostic')
+
+-- (m) snapshot/apply_snapshot round-trip, including exact columns and a
+-- MULTI-LINE decoration — the span must survive projection.
 local bs = newbuf({ 'p1', 'old', 'q', 'tail' })
 apply.apply(bs, {
   { old = 'old', occurrence = 1, new = 'NEW1\nNEW2', explain = 'multi' },
   { old = 'tail', occurrence = 1, new = 'T', explain = 'single' },
 })
 local snap = apply.snapshot(bs)
-local ml = false
-for _, h in ipairs(snap.hl) do if h.end_line > h.line then ml = true end end
-ok(ml, 'snapshot captures a multi-line extmark range (end_line > line)')
+local ml, exact = false, false
+for _, h in ipairs(snap.hl) do
+  if h.end_line > h.line and h.col == 0 and h.end_col == #'NEW2' then ml = true end
+  if h.line == 4 and h.col == 0 and h.end_col == 1 then exact = true end
+end
+ok(ml, 'snapshot captures a multi-line exact extmark range')
+ok(exact, 'snapshot captures exact single-line columns')
 ok(#snap.diags >= 2, 'snapshot captures diagnostics')
 -- wipe both layers, then restore from the snapshot
 vim.api.nvim_buf_clear_namespace(bs, apply.HL, 0, -1)
 vim.diagnostic.reset(apply.DIAG, bs)
 apply.apply_snapshot(bs, snap)
-local restored_ml = false
+local restored_ml, restored_exact = false, false
 for _, m in ipairs(vim.api.nvim_buf_get_extmarks(bs, apply.HL, 0, -1, { details = true })) do
-  if m[4] and m[4].end_row and m[4].end_row > m[2] then restored_ml = true end
+  if m[4] and m[4].end_row and m[4].end_row > m[2] and m[3] == 0 and m[4].end_col == #'NEW2' then restored_ml = true end
+  if m[2] == 4 and m[3] == 0 and m[4] and m[4].end_col == 1 then restored_exact = true end
 end
-ok(restored_ml, 'apply_snapshot restores the multi-line range (end_row preserved)')
+ok(restored_ml, 'apply_snapshot restores the multi-line exact range')
+ok(restored_exact, 'apply_snapshot restores exact single-line columns')
 ok(#vim.diagnostic.get(bs, { namespace = apply.DIAG }) >= 2, 'apply_snapshot restores diagnostics')
 
--- (n) issue #5: a single-line edit's highlight extmark must SPAN the line's
--- content — the old form (end_row==line, end_col=0) was an empty range that
--- rendered invisibly ("only diagnostic styling, no change highlight").
-local bn = newbuf({ 'in the end of the day' })
-apply.apply(bn, { { old = 'in the end', occurrence = 1, new = 'at the end', explain = 'grammar' } })
+-- (n) Direct-rendered changes highlight only the inserted `new` bytes, not the
+-- whole line/paragraph.
+local bn = newbuf({ 'prefix bad suffix' })
+apply.apply(bn, { { old = 'bad', occurrence = 1, new = 'GOOD', explain = 'grammar' } })
 local em = vim.api.nvim_buf_get_extmarks(bn, apply.HL, 0, -1, { details = true })[1]
-ok(em ~= nil, 'single-line edit: highlight extmark placed')
-local er = em and em[4] and em[4].end_row
-local ec = (em and em[4] and em[4].end_col) or 0
-ok(em ~= nil and er == em[2] and ec > 0, 'single-line highlight spans the line content (non-empty range), not [line,0)-(line,0)')
+ok(em ~= nil, 'direct edit: highlight extmark placed')
+ok(em ~= nil and em[2] == 0 and em[3] == #'prefix ' and em[4].end_row == 0 and em[4].end_col == #'prefix GOOD',
+  'direct edit highlight spans only inserted new text')
 
--- (o) targeted clear: accepting a styled region without a marker clears only
+-- (o) Marker-rendered proposals carry their own visible delta, so the renderer
+-- keeps diagnostics but does not add a redundant change highlight.
+local bm = newbuf({ 'prefix bad suffix' })
+apply.apply(bm, { { old = 'bad', occurrence = 1, new = '🤖<bad>{GOOD}', explain = 'proposal' } })
+ok(content(bm) == 'prefix 🤖<bad>{GOOD} suffix', 'marker proposal inserted')
+ok(#vim.api.nvim_buf_get_extmarks(bm, apply.HL, 0, -1, {}) == 0, 'marker proposal: no redundant highlight')
+local md = vim.diagnostic.get(bm, { namespace = apply.DIAG })
+ok(#md == 1 and md[1].message == 'proposal', 'marker proposal keeps diagnostic')
+
+-- (p) Empty direct deletions have no new span to highlight. Agents should use
+-- 🤖~deleted~ when a deletion needs visible review, but diagnostics still carry
+-- the reason if a direct deletion lands.
+local bd = newbuf({ 'remove me' })
+apply.apply(bd, { { old = 'remove ', occurrence = 1, new = '', explain = 'delete' } })
+ok(content(bd) == 'me', 'empty direct deletion applied')
+ok(#vim.api.nvim_buf_get_extmarks(bd, apply.HL, 0, -1, {}) == 0, 'empty direct deletion: no fake highlight')
+local dd = vim.diagnostic.get(bd, { namespace = apply.DIAG })
+ok(#dd == 1 and dd[1].message == 'delete', 'empty direct deletion keeps diagnostic')
+
+-- (q) targeted clear: accepting a styled region without a marker clears only
 -- that region's review highlight + matching diagnostic.
 local bc = newbuf({ 'alpha', 'beta', 'gamma' })
 apply.apply(bc, {

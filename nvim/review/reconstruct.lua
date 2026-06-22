@@ -1,5 +1,5 @@
 -- nvim/review/reconstruct.lua — pure: records + content → decoration inputs
--- (issue #66 M1). Returns 0-based line ranges + explains; no vim API.
+-- (issue #66 M1). Returns 0-based spans + explains; no vim API.
 --
 -- This is the RESUME / from-commit path: review.apply produces *live*
 -- decorations from the exact ranges it just edited, while this module rebuilds
@@ -31,6 +31,19 @@ function M.line_of(content, byte_offset)
   return n
 end
 
+-- 1-based byte offset → (row, col) both 0-based.
+function M.pos_at(content, byte_offset)
+  local row, last_nl = 0, 0
+  for i = 1, byte_offset - 1 do
+    if content:sub(i, i) == '\n' then row = row + 1; last_nl = i end
+  end
+  return row, (byte_offset - 1) - last_nl
+end
+
+function M.is_marker_proposal(text)
+  return type(text) == 'string' and text:match('^🤖[<{~]') ~= nil
+end
+
 function M.decorate(records, content, which)
   which = which or 'new'
   local highlights, diagnostics = {}, {}
@@ -40,9 +53,11 @@ function M.decorate(records, content, which)
     else anchor, occ = r.new, r.new_occurrence end
     local off = anchor and anchor ~= '' and M.nth_offset(content, anchor, occ or 1)
     if off then
-      local lnum = M.line_of(content, off)
-      local last = M.line_of(content, off + #anchor)
-      highlights[#highlights + 1] = { line = lnum, end_line = last }
+      local lnum, col = M.pos_at(content, off)
+      local last, end_col = M.pos_at(content, off + #anchor)
+      if not M.is_marker_proposal(anchor) then
+        highlights[#highlights + 1] = { line = lnum, col = col, end_line = last, end_col = end_col }
+      end
       diagnostics[#diagnostics + 1] = { lnum = lnum, end_lnum = last, message = r.explain or '' }
     end
   end

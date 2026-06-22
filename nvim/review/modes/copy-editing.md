@@ -16,5 +16,6 @@ In the pair review workbench, express each copy-edit proposal as the smallest
 stable inline marker that carries the intended change. Prefer word, phrase, or
 sentence anchors over paragraph anchors. For replacements, write a minimal
 🤖<old text>{new text} proposal; for insertions, write 🤖{new text}; for
-deletions, use the deletion marker form. Do not replace a whole paragraph just
-to change a few words.
+deletions, use the deletion marker form. In each {old, occurrence, new, explain}
+record, make old the smallest stable string needed to locate the change. Do not
+replace a whole paragraph just to change a few words.

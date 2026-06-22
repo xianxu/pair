@@ -85,6 +85,12 @@ fulfill-or-punt instructions and copy edits expressed as minimal inline marker
 proposals (`🤖<old>{new}` / `🤖{new}`) → the agent commits the human round and
 re-reviews. Finishing a human turn clears stale agent-applied highlights and
 diagnostics; the next agent handoff repaints current styling.
+Diagnostics always render because they carry the agent's rationale. Change
+highlights are only a direct-edit affordance: direct replacements highlight the
+exact inserted `new` span, marker-rendered proposals (`🤖<old>{new}`, `🤖{new}`,
+`🤖~old~`) do not get a redundant highlight, and empty direct deletions get no
+fake highlight. Generative modes should use direct replacements when marker noise
+would be too high, but deletion-only changes should remain visible as `🤖~old~`.
 `:PairReviewShip` pokes the agent to run `docflow ship`; the pane does not shell
 docflow. History lives in git (round commits + per-hunk explains in the agent commit
 body); fine-grained undo lives in nvim's `undofile`; no bespoke sidecar. The doc must
@@ -172,7 +178,8 @@ M4a' pair-side review-start/resume are implemented and headless-tested. M4b adds
 pair-side accept/reject + marker navigation, fulfill-or-punt default Copy Edit
 posture, and ship request. M4c adds pair-side mode display/menu and the awaiting-agent
 spinner. M4d starts workflow-detail tuning with one-round instruction menu polish and
-minimal-marker Copy Edit semantics.
+minimal-marker Copy Edit semantics, plus exact-span direct-change highlighting and
+diagnostic-only marker proposals.
 
 The real-agent half lives in ariadne #000121. Until that lands, pair proves the
 protocol with `tests/lib/fake-review-agent.sh`; the real live smoke remains the

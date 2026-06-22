@@ -25,7 +25,7 @@ function M.human_finished(file, mode, instruction, label)
   local mode_rule = ''
   if mode == nil or mode == '' or mode == 'copy-editing' or label == 'Copy Edit' then
     mode_rule = '; for Copy Edit, use minimal 🤖<old>{new}/🤖{new} marker proposals and do not '
-      .. 'replace whole paragraphs for word-level edits'
+      .. 'replace whole paragraphs for word-level edits; make each record old the smallest stable locator'
   end
   return string.format('finished my edits to %s — please review in %s posture; %s'
     .. 'resolve 🤖[] comments as edits when possible, or punt explicitly when not%s',

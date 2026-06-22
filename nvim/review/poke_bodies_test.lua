@@ -18,7 +18,7 @@ eq(M.agent_applied(2, 0, '/a/doc.md'),
   'applied 2 edit(s) to /a/doc.md — commit the agent round',
   'agent_applied omits the dropped segment when dropped==0')
 eq(M.human_finished('/a/doc.md'),
-  'finished my edits to /a/doc.md — please review in Copy Edit posture; resolve 🤖[] comments as edits when possible, or punt explicitly when not; for Copy Edit, use minimal 🤖<old>{new}/🤖{new} marker proposals and do not replace whole paragraphs for word-level edits',
+  'finished my edits to /a/doc.md — please review in Copy Edit posture; resolve 🤖[] comments as edits when possible, or punt explicitly when not; for Copy Edit, use minimal 🤖<old>{new}/🤖{new} marker proposals and do not replace whole paragraphs for word-level edits; make each record old the smallest stable locator',
   'human_finished')
 
 eq(M.human_finished('/a/doc.md', 'proofreading', 'keep the title', 'Proofreading'),

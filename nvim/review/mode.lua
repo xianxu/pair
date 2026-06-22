@@ -5,7 +5,8 @@
 -- A mode's flags drive how parley treats the LLM's result:
 --   scope     whole-doc | markers-only   — edit the whole document, or only
 --                                          text referenced by 🤖 markers.
---   deletions apply-with-gutter-why       — apply removals, explain in the gutter
+--   deletions apply-with-gutter-why       — apply broad replacements, but mark
+--                                          deletion-only changes visibly
 --             | propose-strike            — propose removals as 🤖~old~{new}
 --             | apply                      — apply silently (mechanical modes)
 --   frontier  on | off                    — respect the settled region above the
@@ -86,7 +87,7 @@ function M.directives(m)
         table.insert(lines, "- Reading frontier: treat everything above the topmost 🤖[] human marker as settled — confine edits and findings to that marker and below.")
     end
     if m.deletions == "apply-with-gutter-why" then
-        table.insert(lines, "- Deletions: apply removals directly, and state the reason so the operator sees why it went.")
+        table.insert(lines, "- Deletions/replacements: direct replacements may land with highlighted new text; for deletion-only changes, use 🤖~old~ so the removed text remains visible. State the reason in explain.")
     elseif m.deletions == "apply" then
         table.insert(lines, "- Deletions: apply mechanical removals directly and silently.")
     else -- propose-strike

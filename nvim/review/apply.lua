@@ -20,15 +20,6 @@ local wrap = dofile(here .. 'wrap.lua')
 local HL = vim.api.nvim_create_namespace('review')
 local DIAG = vim.api.nvim_create_namespace('review_diag')
 
--- 1-based byte offset → (row, col) both 0-based, for the buffer API.
-local function pos_at(content, offset)
-  local row, last_nl = 0, 0
-  for i = 1, offset - 1 do
-    if content:sub(i, i) == '\n' then row = row + 1; last_nl = i end
-  end
-  return row, (offset - 1) - last_nl
-end
-
 -- Index of the match of `needle` starting at `target_off`, counted
 -- NON-OVERLAPPING (from = e + 1) to match reconstruct.nth_offset. nil when
 -- target_off isn't a non-overlapping boundary (self-overlapping `new` adjacent
@@ -58,18 +49,28 @@ local function clear(buf)
   vim.diagnostic.set(DIAG, buf, {}, {})
 end
 
--- Highlight the CHANGED LINES' content, col 0 → the last line's EOL (hl_eol). The
--- old form (end_row=end_line, end_col=0) is an EMPTY range for a single-line edit
--- (end_line==line) → invisible (M4a-smoke bug #5: "only diagnostic styling, no
--- change highlight"). Ending at the last changed line's content makes a single-line
--- edit a full-line change bar; clamp to the buffer so a trailing edit can't error.
-local function hl_extmark(buf, line, end_line)
+-- Highlight the exact inserted/new span. Marker-rendered proposals already show
+-- the delta inline, and empty deletions have no new bytes to highlight.
+local function hl_extmark(buf, h)
+  if h.no_highlight then return end
   local last = math.max(0, vim.api.nvim_buf_line_count(buf) - 1)
-  local sl = math.max(0, math.min(line, last))
-  local el = math.max(sl, math.min(end_line, last))
+  local sl = math.max(0, math.min(h.line or 0, last))
+  local el = math.max(sl, math.min(h.end_line or sl, last))
+  local sc = h.col or 0
+  local ec = h.end_col
+  local sl_text = vim.api.nvim_buf_get_lines(buf, sl, sl + 1, false)[1] or ''
+  sc = math.max(0, math.min(sc, #sl_text))
+  if ec == nil then
+    local el_text = vim.api.nvim_buf_get_lines(buf, el, el + 1, false)[1] or ''
+    ec = #el_text
+  end
   local el_text = vim.api.nvim_buf_get_lines(buf, el, el + 1, false)[1] or ''
-  pcall(vim.api.nvim_buf_set_extmark, buf, HL, sl, 0, {
-    end_row = el, end_col = #el_text, hl_eol = true, hl_group = 'DiffChange',
+  ec = math.max(0, math.min(ec, #el_text))
+  if sl == el and sc == ec then return end
+  pcall(vim.api.nvim_buf_set_extmark, buf, HL, sl, sc, {
+    end_row = el, end_col = ec, hl_group = 'DiffChange',
+    right_gravity = true,
+    end_right_gravity = false,
   })
 end
 
@@ -95,26 +96,29 @@ local function diag_of(d)
   }
 end
 
--- Place a list of {line, end_line, message} decorations (clears first).
+-- Place a list of decoration spans + diagnostics (clears first).
 local function place(buf, decos)
   clear(buf)
   local diags = {}
   for _, d in ipairs(decos) do
-    hl_extmark(buf, d.line, d.end_line)
+    hl_extmark(buf, d)
     diags[#diags + 1] = diag_of(d)
   end
   vim.diagnostic.set(DIAG, buf, diags, {})
 end
 
--- Snapshot the current decorations for projection: ranged extmarks ({line,
--- end_line} — captured via details so the multi-line span survives) + the
+-- Snapshot the current decorations for projection: ranged extmarks + the
 -- diagnostics (which carry the message). The two layers are independent (after
 -- riding, an extmark moves but its diagnostic doesn't), so they're stored —
 -- and restored — separately, never paired.
 function M.snapshot(buf)
   local hl = {}
   for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, HL, 0, -1, { details = true })) do
-    hl[#hl + 1] = { line = m[2], end_line = (m[4] and m[4].end_row) or m[2] }
+    local details = m[4] or {}
+    hl[#hl + 1] = {
+      line = m[2], col = m[3],
+      end_line = details.end_row or m[2], end_col = details.end_col or m[3],
+    }
   end
   local diags = {}
   for _, d in ipairs(vim.diagnostic.get(buf, { namespace = DIAG })) do
@@ -127,7 +131,7 @@ end
 function M.apply_snapshot(buf, snap)
   clear(buf)
   snap = snap or {}
-  for _, h in ipairs(snap.hl or {}) do hl_extmark(buf, h.line, h.end_line) end
+  for _, h in ipairs(snap.hl or {}) do hl_extmark(buf, h) end
   local diags = {}
   for _, d in ipairs(snap.diags or {}) do diags[#diags + 1] = diag_of(d) end
   vim.diagnostic.set(DIAG, buf, diags, {})
@@ -217,8 +221,8 @@ function M.apply(buf, records)
   vim.api.nvim_buf_call(buf, function()
     for i = #items, 1, -1 do
       local it = items[i]
-      local sr, sc = pos_at(base, it.base_off)
-      local er, ec = pos_at(base, it.base_off + #it.rec.old)
+      local sr, sc = reconstruct.pos_at(base, it.base_off)
+      local er, ec = reconstruct.pos_at(base, it.base_off + #it.rec.old)
       if i == #items then
         vim.cmd('silent! let &undolevels = &undolevels') -- fresh undo block
       else
@@ -238,9 +242,11 @@ function M.apply(buf, records)
     local nr = vim.tbl_extend('force', {}, it.rec)
     nr.new_occurrence = new_occurrence_of(final, it.rec.new, final_off)
     enriched[#enriched + 1] = nr
+    local sr, sc = reconstruct.pos_at(final, final_off)
+    local er, ec = reconstruct.pos_at(final, final_off + #it.rec.new)
     decos[#decos + 1] = {
-      line = reconstruct.line_of(final, final_off),
-      end_line = reconstruct.line_of(final, final_off + #it.rec.new),
+      line = sr, col = sc, end_line = er, end_col = ec,
+      no_highlight = it.rec.new == '' or reconstruct.is_marker_proposal(it.rec.new),
       message = it.rec.explain or '',
     }
   end
@@ -255,14 +261,15 @@ end
 function M.render(buf, records, content)
   content = content or buf_content(buf)
   local d = reconstruct.decorate(records, content, 'new')
-  local decos = {}
-  for i, h in ipairs(d.highlights) do
-    decos[#decos + 1] = {
-      line = h.line, end_line = h.end_line,
-      message = (d.diagnostics[i] and d.diagnostics[i].message) or '',
-    }
+  clear(buf)
+  for _, h in ipairs(d.highlights) do
+    hl_extmark(buf, h)
   end
-  place(buf, decos)
+  local diags = {}
+  for _, diag in ipairs(d.diagnostics) do
+    diags[#diags + 1] = diag_of(diag)
+  end
+  vim.diagnostic.set(DIAG, buf, diags, {})
 end
 
 M.HL, M.DIAG = HL, DIAG
