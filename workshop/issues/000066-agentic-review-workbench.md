@@ -105,6 +105,7 @@ M4 (agent protocol) — **re-sliced structure-first** (2026-06-21): the whole lo
 
 ## Log
 
+- 2026-06-22: closed M4c — M4c post-REWORK: fixed send-menu document-buffer capture, failed-poke spinner clearing, atlas spinner wording; live smoke passed; make test-lua; make test-review; git diff --check; review verdict: SHIP
 - 2026-06-22: **M4c boundary REWORK fixes.** Captured the reviewed document buffer before
   opening the `Alt+Shift+Return` send menu, so menu submit saves/sends the real review doc
   rather than depending on the focused floating buffer; awaiting spinner now starts only
