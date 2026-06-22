@@ -72,6 +72,7 @@ local function check()
   local mapqn = vim.fn.maparg('<M-q>', 'n') ~= ''
   local mapqi = vim.fn.maparg('<M-q>', 'i') ~= ''
   local mapqx = vim.fn.maparg('<M-q>', 'x') ~= ''
+  local mapo = vim.fn.maparg('<M-o>', 'n') ~= ''
   local ship_cmd = vim.api.nvim_get_commands({}).PairReviewShip ~= nil
   local sf = _G.PairReviewPane and _G.PairReviewPane.state_file()
   local sf_ok = sf and (vim.uv or vim.loop).fs_stat(sf) ~= nil
@@ -81,9 +82,12 @@ local function check()
   OUT:write((pane and 'pane-loaded\n') or 'NO-pane\n')
   OUT:write((map and 'altcr-map\n') or 'NO-altcr\n')
   OUT:write((mapa and mapr and mapqn and mapqi and mapqx and 'review-alt-maps\n') or 'NO-review-alt-maps\n')
+  OUT:write((mapo and 'mode-menu-map\n') or 'NO-mode-menu-map\n')
   OUT:write((ship_cmd and 'ship-cmd\n') or 'NO-ship-cmd\n')
   OUT:write((sf_ok and 'state-file\n') or 'NO-state\n')
   OUT:write(((#marks >= 1) and 'markers\n') or 'NO-markers\n')
+  local status = vim.o.statusline
+  OUT:write((status:find('🪄 Copy Edit', 1, true) and 'mode-statusline\n') or ('NO-mode-statusline ' .. status .. '\n'))
 
   -- Alt+a / Alt+r semantics: quoted agent replacement accepts new text and
   -- rejection removes the marker while keeping the original quoted text.
@@ -146,6 +150,7 @@ local function check()
   vim.api.nvim_buf_set_lines(buf, -1, -1, false, { 'a human edit' })
   pcall(_G.PairReviewPane.finish_human_turn, buf, 'doc.md')
   pcall(vim.cmd, 'PairReviewShip')
+  pcall(_G.PairReviewPane.submit_mode_switch, 'proofreading', 'keep the title')
   vim.cmd('qa!')
 end
 if vim.v.vim_did_enter == 1 then vim.schedule(check)
@@ -159,9 +164,11 @@ LUA
 grep -q 'pane-loaded' "$RT/r3" && pass "review.lua loaded the review core" || fail "review.lua did not load"
 grep -q 'altcr-map' "$RT/r3" && pass "Alt+Return keymap wired" || fail "no Alt+Return keymap"
 grep -q 'review-alt-maps' "$RT/r3" && pass "Alt+a/Alt+r/Alt+q review maps wired" || fail "review Alt maps missing"
+grep -q '^mode-menu-map$' "$RT/r3" && pass "Alt+o mode menu keymap wired" || fail "mode menu map missing"
 grep -q '^ship-cmd$' "$RT/r3" && pass ":PairReviewShip command wired" || fail ":PairReviewShip missing"
 grep -q '^state-file$' "$RT/r3" && pass "open-state file written" || fail "no state file"
 grep -q '^markers$' "$RT/r3" && pass "🤖 markers rendered" || fail "no marker extmarks"
+grep -q '^mode-statusline$' "$RT/r3" && pass "review statusline shows current mode" || fail "review statusline missing mode"
 grep -q '^alt-a-accept$' "$RT/r3" && pass "Alt+a accepts quoted agent replacement" || fail "Alt+a accept behavior"
 grep -q '^alt-r-reject$' "$RT/r3" && pass "Alt+r rejects to original quoted text" || fail "Alt+r reject behavior"
 grep -q '^alt-a-under-cursor$' "$RT/r3" && pass "Alt+a resolves the marker under cursor" || fail "Alt+a marker-under-cursor behavior"
@@ -176,6 +183,7 @@ grep -q 'round --side human' "$RT/doclog" && fail "nvim ran a human docflow roun
 grep -q '^ship$' "$RT/doclog" && fail "nvim ran docflow ship (invariant #1: agent owns git)" || pass "nvim writes no git on :PairReviewShip"
 grep -q 'write-chars finished my edits' "$RT/zlog" && pass "Alt+Return pokes the agent commit-request signal (human_finished)" || fail "no commit-request poke"
 grep -q 'write-chars ship .*doc.md.*agent owns git' "$RT/zlog" && pass ":PairReviewShip pokes the agent ship request" || fail "no ship-request poke"
+grep -q 'write-chars switch review mode to Proofreading for .*doc.md.*keep the title' "$RT/zlog" && pass "mode switch pokes the agent with optional instruction" || fail "no mode-switch poke"
 
 [ "$fails" -eq 0 ] || { printf 'review-window-test FAILED (%d)\n' "$fails"; exit 1; }
 printf 'review-window-test ok\n'

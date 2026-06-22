@@ -32,12 +32,17 @@ end
 -- Apply an agent handoff: undo-able apply → save → write the landed-artifact
 -- (what landed) → poke the agent to commit the round. Exposed for testing.
 function M.on_agent_round(buf, records)
+  if M.before_agent_round then pcall(M.before_agent_round, buf) end
+  local function finish()
+    if M.after_agent_round then pcall(M.after_agent_round, buf) end
+  end
   local base = apply.buf_content(buf) -- pre-round content, for the projection empty snapshot
   projection.set_applying(buf, true) -- suppress the watcher during the round's own apply
   local ok_apply, enriched, dropped = pcall(apply.apply, buf, records)
   if not ok_apply then
     projection.set_applying(buf, false) -- never leave the watcher permanently suppressed
     vim.notify('review: apply failed: ' .. tostring(enriched), vim.log.levels.ERROR)
+    finish()
     return {}, {}
   end
   if #dropped > 0 then
@@ -54,7 +59,7 @@ function M.on_agent_round(buf, records)
     projection.ensure_watch(buf)
   end
   projection.set_applying(buf, false)
-  if #enriched == 0 then return enriched, dropped end
+  if #enriched == 0 then finish(); return enriched, dropped end
   save(buf)
   -- The nvim writes NO git. As the apply authority it records WHAT LANDED to the
   -- landed-artifact (seam #2b) — the body via the one encoder (record.embed_in_body),
@@ -71,6 +76,7 @@ function M.on_agent_round(buf, records)
     dropped = #dropped,
   })
   M.poke.send(poke_bodies.agent_applied(#enriched, #dropped, file))
+  finish()
   return enriched, dropped
 end
 

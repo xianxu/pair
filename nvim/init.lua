@@ -4051,6 +4051,9 @@ vim.api.nvim_create_autocmd('VimEnter', {
 -- bar is chrome, not buffer content). (`do ... end`: no file-level locals —
 -- init.lua is at Lua's 200-local chunk ceiling; reuses `_pair_review.is_alive`.)
 do
+  local nvim_dir = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
+  local seam = dofile(nvim_dir .. 'review/seam.lua')
+
   -- Rounds in the CURRENT review session only. The session lives on a
   -- `review/<slug>` branch (M4, agent-owned); count that slug's round commits.
   -- On any OTHER branch — including M3 render-only, where no review is active —
@@ -4081,7 +4084,8 @@ do
   -- The compact draft-side review bar text. 🤖N = agent (robot) rounds, /M = human.
   local function bar_text(file)
     local a, h = counts(file)
-    return string.format('Review • %s • 🤖%d/%d', vim.fn.fnamemodify(file, ':t'), a, h)
+    local m = seam.read_mode(pair_data_dir(), pair_tag())
+    return string.format('🪄 %s • %s • 🤖%d/%d', seam.mode_label(m), vim.fn.fnamemodify(file, ':t'), a, h)
   end
   _G._pair_review_bar = bar_text -- exposed for the headless test (plain, unstyled)
 

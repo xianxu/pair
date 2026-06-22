@@ -38,7 +38,7 @@ Why this split (not nvim-shells-docflow, which M1 scaffolded):
 | 2b | landed-artifact `$XDG_DATA_HOME/pair/review-landed-<tag>.json` (nvim → agent; the handoff's reverse channel, co-located with seam #2) | review nvim (`on_agent_round`, post-apply; `handoff.write_landed`) | agent (commits the round verbatim) | `{summary, body=record.embed_in_body(enriched), applied, dropped}` — what actually landed (drops filtered, `new_occurrence` computed) | **BUILT** (pair side) — `review-loop-test` (agent-owns-git e2e + dropped case) |
 | 3 | poke channel (nvim → agent) | review nvim (zellij `write-chars`, agent addressed by **absolute pane id**) | agent pane | NL instruction, carrying the **absolute** doc path | **BUILT** — `review-poke-test` (abs-path 2026-06-19) |
 | 4 | git: `review/<slug>` branch + round commits | **AGENT** (`docflow`, in the doc's repo) | review nvim **reads** (reconstruct decorations + indicator counts) | `review(<slug>): <side> r<N> — …`, per-hunk explains in body | **read** BUILT; **write** proven via `fake-agent-v2` (`review-loop-test`), real agent = ariadne **#000121** (live smoke) |
-| 5 | mode file `$PAIR_DATA_DIR/review-<tag>.mode` | **AGENT** (on a mode switch from either channel) | review nvim + draft bar (display the `🪄 <Mode>`) | one line: the active mode | **M4c-DESIGN** (modes → thicken) |
+| 5 | mode file `$PAIR_DATA_DIR/review-<tag>.mode` | **AGENT** (on a mode switch from either channel) | review nvim + draft bar (display the `🪄 <Mode>`) | one line: the active mode | **BUILT (pair side, M4c)** — `seam_test`, `review-indicator-test`, `review-window-test` |
 | 6 | review-target `$PAIR_DATA_DIR/review-target-<tag>.json` | `:PairReview` (proposes) + **AGENT** (marks `ready` after prep) | Alt+c (`PairReviewToggle`: no target → prompt; `ready` → open; `proposed` → "prep in progress") | `{file, status: proposed|ready}` — what to review, before the pane opens | **BUILT** (pair side) — `review-toggle-test` |
 
 Review-target session scoping resolves the current conversation id as:
@@ -140,10 +140,10 @@ The mode lives in the **seam** (a `review-<tag>.mode`, agent-written) so both sw
 channels and the bar read the same value.
 - **draft window** — free text ("now do a copy edit"; fact-check is also just free text,
   keeping the current mode).
-- **review nvim** — a sticky mode menu (parley's UI) + an optional multi-line free-text
-  box; Alt+Return → Return keeps the default. On confirm it pokes `"[free text], updated,
-  go <mode>"` (the persisted-session analogue of parley's one-shot packaged prompt — same
-  UI, but it injects a small poke instead of dispatching an invoke).
+- **review nvim** — a sticky mode menu (parley's UI shape: mode list plus optional
+  multi-line instruction box), bound to `Alt+o`. On confirm it pokes the agent to
+  switch to `<mode>` with the optional instruction; `Alt+Return` remains the human-turn
+  send key.
 - **display** — the review bar's `🪄 <Mode>` segment (above).
 
 > **Naming (deferred):** `xx-fix` has outlived its name — it's no longer "fix small things

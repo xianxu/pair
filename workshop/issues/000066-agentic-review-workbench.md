@@ -1,12 +1,13 @@
 ---
 id: 000066
-status: open
+status: working
 deps: [ariadne#000121]
 target: review-protocol
 github_issue:
 created: 2026-06-18
 updated: 2026-06-21
 estimate_hours: 30
+started: 2026-06-21T19:33:22-07:00
 ---
 
 # Agentic memory-backed review as a document workbench in pair
@@ -99,10 +100,17 @@ M4 (agent protocol) — **re-sliced structure-first** (2026-06-21): the whole lo
 - [x] M4a — agent-owns-git inversion + the basic round (records → apply → landed-artifact → fake-agent commits). *Implemented/headless-verified; not separately milestone-closed because M4a'/M4b commits already landed before reconciliation. Review evidence folds into the current M4 skeleton boundary.*
 - [x] M4a' — review-start & resume flow: `:PairReview` **proposes** → agent preps (pure readiness probe) → Alt+c opens when ready; reconstruct-on-open (resume repaint). Spec in `workshop/targets/review-protocol.md`; pair side built and headless-tested.
 - [x] M4b — **skeleton** (structure): 🤖[] fulfill/punt + **accept/reject** (parley §5) conversation + default editing posture + **ship** — completes the thin full cycle (open → propose → prep → review → converse → iterate → ship → resume). *Pair-side skeleton implemented: Alt+c collaboration toggle, Alt+a/Alt+r/Alt+q review shortcuts, Copy Edit fulfill-or-punt poke posture, and `:PairReviewShip` agent-owned ship request; first boundary review returned REWORK and fixes are now in this window.*
-- [ ] M4c — **thicken** (tuning; sub-slices when reached): modes menu + 🪄/spinner/lean-history bar; voice (`voice:` frontmatter); fact-check pass (`doc-review` fold); pending-🤖{} quickfix; diagnostic-display polish; `xx-fix`→`writing-assistant` rename. *Spinner pure helper exists as pre-work, unwired.*
+- [ ] M4c — **thicken** (tuning; sub-slices when reached): modes menu + 🪄/spinner/lean-history bar; voice (`voice:` frontmatter); fact-check pass (`doc-review` fold); pending-🤖{} quickfix; diagnostic-display polish; `xx-fix`→`writing-assistant` rename. *Smoke slice implemented: mode seam + draft/review mode display + `Alt+o` mode menu poke + awaiting-agent spinner; live smoke pending.*
 
 ## Log
 
+- 2026-06-21: **M4c smoke slice implemented.** Added `review-<tag>.mode` seam helpers
+  with Copy Edit default labels; draft statusline now shows `🪄 <Mode> • <file> • 🤖N/M`;
+  review pane statusline shows the current mode and an awaiting-agent spinner; `Alt+o`
+  opens a Parley-shaped mode menu (mode list + optional instruction) and pokes the agent
+  to switch modes/write the seam. Deferred voice frontmatter, fact-check fold polish,
+  quickfix/diagnostic polish, and `xx-fix` rename until after live smoke. Verification:
+  focused seam/indicator/window tests, `make test-lua`, and `make test-review` green.
 
 - 2026-06-21: closed M4b — make test-lua; make test-review; git diff --check; REWORK fixes included marker delimiter escaping, jq readiness JSON, under-cursor accept/reject, and plan table updates; review verdict: SHIP
 - 2026-06-21: closed M4b — make test-lua; make test-review; git diff --check; M4b pair-side skeleton complete: accept/reject/Alt+q, Copy Edit fulfill-or-punt pokes, and :PairReviewShip poke with no nvim git writes; review verdict: REWORK

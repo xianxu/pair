@@ -30,6 +30,8 @@ Pure core (run under `nvim -l`, colocated `*_test.lua`, `make test-lua`):
 - `mode.lua` + `modes/*.md` (M2) — pure mode-brief parser (`parse`/`directives` +
   IO `load`/`list`) and the 6 stock modes (developmental→free-form). `directives()`
   renders the scope/frontier/deletions block M4's agent SKILL.md composes in.
+  `menu.lua` (M4c) presents those modes in the review pane with an optional
+  instruction buffer.
 
 Integration seams (headless shell tests, `make test-review`):
 
@@ -128,16 +130,22 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   `focus-pane-id`s them (focus agent → write-chars + `write 27 13` submit → restore).
 - **review-mode bar** (`nvim/init.lua`, `do`-block; `_pair_review_bar` count source +
   `_pair_review_segment` cached segment) — while a review is open, the draft's
-  **statusline** carries `Review • <file> • 🤖N/M`: `pair_compose_statusline` swaps the
+  **statusline** carries `🪄 <Mode> • <file> • 🤖N/M`: `pair_compose_statusline` swaps the
   cached segment in for the rightmost cheatsheet, so review mode is visible even when the
   pane is hidden. A 1.5s timer recomputes the segment (counts parsed from `git log` round
   subjects, **branch-scoped** to the active `review/<slug>` so other docs' shipped reviews
-  don't leak in — `🤖0/0` off a review branch / in M3 render-only) and triggers a redraw
+  don't leak in — `🤖0/0` off a review branch / in M3 render-only; mode from
+  `$PAIR_DATA_DIR/review-<tag>.mode`, defaulting to Copy Edit) and triggers a redraw
   only on change; the hot render path never shells git. (This **supersedes** an earlier
   line-1 `=== review … ===` indicator — line 1 is the user's to edit. New draft-side
   review helpers live in `do`-blocks sharing `_G._pair_review` — init.lua is at Lua's
   200-local chunk ceiling.) The cross-process `review-<tag>.open` path is centralized in
   `nvim/review/seam.lua` (one fallback rule for writer + reader).
+- **mode menu + waiting cue** (`nvim/review.lua`, `nvim/review/menu.lua`,
+  `nvim/review/spinner.lua`) — `Alt+o` opens a Parley-shaped mode menu (mode selector
+  plus optional instruction editor) and pokes the agent to switch mode/write the seam;
+  `Alt+Return`, `:PairReviewShip`, and mode-switch pokes mark the pane as awaiting the
+  agent, displayed by the statusline spinner until the next handoff clears it.
 - **docflow degradation** (`nvim/review/docflow.lua`) — missing `docflow` still has
   a calm contract-test path, but the review pane no longer shells docflow at runtime.
   Round commits are agent-side. See `workshop/targets/review-protocol.md` for the
@@ -150,11 +158,10 @@ that makes "please review" / "ship it" review-aware is the ariadne #000121 half 
 
 M1 (contract + history spine), M2 (consumer-half port), M3 (review window + live
 smoke), M4a (nvim writes no git; fake-agent commits from landed artifacts), and
-M4a' pair-side review-start/resume are implemented and headless-tested. The current
-open boundary is M4b skeleton: pair-side accept/reject + marker navigation,
-fulfill-or-punt default Copy Edit posture, and ship request are implemented; full
-suite verification/milestone close is pending. M4c is the thickening pass; one spinner
-helper exists as unwired pre-work.
+M4a' pair-side review-start/resume are implemented and headless-tested. M4b adds
+pair-side accept/reject + marker navigation, fulfill-or-punt default Copy Edit
+posture, and ship request. M4c adds pair-side mode display/menu and the awaiting-agent
+spinner.
 
 The real-agent half lives in ariadne #000121. Until that lands, pair proves the
 protocol with `tests/lib/fake-review-agent.sh`; the real live smoke remains the
@@ -163,7 +170,7 @@ docflow rounds.
 
 ## Tests
 
-- `make test-lua` — `record`, `reconstruct`, `markers`, `mode`, `poke_bodies`,
+- `make test-lua` — `record`, `reconstruct`, `markers`, `seam`, `mode`, `poke_bodies`,
   `readiness`, `resolve`, `spinner` (pure).
 - `make test-review` — `docflow` (+ hermetic `tests/lib/fake-docflow.sh` and a
   gated smoke against the real ariadne `docflow.sh`), `apply` (incl. snapshot

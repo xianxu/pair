@@ -105,6 +105,9 @@ local markers = dofile(here .. 'review/markers.lua')
 local seam = dofile(here .. 'review/seam.lua')
 local poke_bodies = dofile(here .. 'review/poke_bodies.lua')
 local resolve = dofile(here .. 'review/resolve.lua')
+local mode = dofile(here .. 'review/mode.lua')
+local menu = dofile(here .. 'review/menu.lua')
+local spinner = dofile(here .. 'review/spinner.lua')
 
 -- 🤖 marker highlight groups (parley's names; linked, overridable by a colorscheme).
 vim.api.nvim_set_hl(0, 'ParleyReviewQuoted', { link = 'Comment', default = true })
@@ -222,6 +225,48 @@ local function state_file()
   return seam.open_state(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
 end
 
+local awaiting_since, spinner_tick
+
+local function current_mode()
+  return seam.read_mode(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
+end
+
+local function mode_label()
+  return seam.mode_label(current_mode())
+end
+
+local function statusline_text()
+  local cell = spinner.cell(awaiting_since, os.time(), spinner_tick or 0)
+  return ' ' .. cell .. '🪄 ' .. mode_label()
+    .. ' • Alt+⏎ Send • Alt+o Mode • Alt+c → agent • %f%m %= L%l/%L '
+end
+
+local function refresh_statusline()
+  vim.opt.statusline = statusline_text()
+end
+
+local function mark_awaiting()
+  awaiting_since = awaiting_since or os.time()
+  refresh_statusline()
+end
+
+local function clear_awaiting()
+  awaiting_since = nil
+  refresh_statusline()
+end
+
+review.after_agent_round = function() clear_awaiting() end
+
+local status_timer = vim.loop.new_timer()
+if status_timer then
+  status_timer:start(1000, 1000, vim.schedule_wrap(function()
+    if awaiting_since then
+      spinner_tick = (spinner_tick or 0) + 1
+    end
+    refresh_statusline()
+  end))
+end
+
 local function finish_human_turn(buf, file)
   if vim.fn.mode():match('^i') then vim.cmd('stopinsert') end
   review.human_round(buf, 'updated') -- saves; the agent commits the human round
@@ -229,11 +274,31 @@ local function finish_human_turn(buf, file)
   -- cwd is pair's, not the doc's repo). The agent commits the human round + reviews.
   -- (Once ariadne#000121's SKILL recognizes review-mode from these signals, this is
   -- the whole trigger — the M3 `/xx-fix` stopgap is retired here.)
+  mark_awaiting()
   poke.send(poke_bodies.human_finished(vim.fn.fnamemodify(file, ':p')))
 end
 
 local function request_ship(file)
+  mark_awaiting()
   poke.send(poke_bodies.ship_requested(vim.fn.fnamemodify(file, ':p')))
+end
+
+local function submit_mode_switch(file, mode_name, instruction)
+  local abs = vim.fn.fnamemodify(file, ':p')
+  mark_awaiting()
+  poke.send(poke_bodies.mode_switch(abs, mode_name, instruction or '', seam.mode_label(mode_name)))
+end
+
+local function open_mode_menu(file)
+  local modes = mode.list(here .. 'review/modes')
+  return menu.open({
+    modes = modes,
+    seam = seam,
+    mode = current_mode(),
+    on_submit = function(choice)
+      submit_mode_switch(file, choice.mode, choice.instruction)
+    end,
+  })
 end
 
 local function start_review(buf, file)
@@ -269,6 +334,8 @@ local function start_review(buf, file)
     { buffer = buf, silent = true, desc = 'review: insert human comment marker' })
   vim.keymap.set('x', '<M-q>', function() quote_visual_selection(buf) end,
     { buffer = buf, silent = true, desc = 'review: quote selection for human comment' })
+  vim.keymap.set('n', '<M-o>', function() open_mode_menu(file) end,
+    { buffer = buf, silent = true, desc = 'review: mode menu' })
   vim.keymap.set('n', ']m', function() jump_marker(buf, 1) end,
     { buffer = buf, silent = true, desc = 'review: next 🤖 marker' })
   vim.keymap.set('n', '[m', function() jump_marker(buf, -1) end,
@@ -309,16 +376,20 @@ local function start_review(buf, file)
     callback = function()
       pcall(review.stop, buf)
       if sf then pcall(os.remove, sf) end
+      if status_timer then pcall(status_timer.stop, status_timer); pcall(status_timer.close, status_timer) end
     end,
   })
+  refresh_statusline()
 end
 
 -- Exposed for the headless test.
 _G.PairReviewPane = { start_review = start_review, render_markers = render_markers,
   state_file = state_file, finish_human_turn = finish_human_turn,
   request_ship = request_ship,
+  submit_mode_switch = function(mode_name, instruction) submit_mode_switch(vim.api.nvim_buf_get_name(0), mode_name, instruction) end,
+  open_mode_menu = open_mode_menu,
   resolve_at_cursor = resolve_at_cursor, insert_review_marker = insert_review_marker,
-  quote_selection = quote_selection }
+  quote_selection = quote_selection, current_mode = current_mode, mode_label = mode_label }
 
 -- Start once the file is loaded (the buffer doesn't exist yet at init time).
 vim.api.nvim_create_autocmd('VimEnter', {
@@ -334,4 +405,4 @@ vim.opt.laststatus = 2
 -- Compact review bar. %m → "[+]" when the buffer is unsaved (the save happens at
 -- Alt+Return / after the agent applies records, never per-keystroke — so the cue
 -- matters). %= right-aligns the line position.
-vim.opt.statusline = ' Review • Alt+⏎ Send • Alt+c → agent • %f%m %= L%l/%L '
+refresh_statusline()

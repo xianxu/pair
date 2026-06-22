@@ -25,6 +25,15 @@ function M.ship_requested(file)
   return string.format('ship %s — run docflow ship for the active review branch; the agent owns git', file)
 end
 
+function M.mode_switch(file, mode, instruction, label)
+  local suffix = ''
+  if instruction and instruction ~= '' then
+    suffix = ' with instruction: ' .. instruction
+  end
+  return string.format('switch review mode to %s for %s%s — acknowledge the mode, write the review mode seam, then continue only when I send the next turn',
+    label or mode, file, suffix)
+end
+
 -- Sent ONCE when the review pane opens — the missing review-START signal (M4a
 -- smoke: a chat "please review" carried no workbench cue, so the agent fell back
 -- to a standalone summarize-and-ask). Establishes context WITHOUT triggering a

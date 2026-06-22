@@ -26,4 +26,52 @@ function M.target_path(data_dir, env_tag)
   return data_dir .. '/review-target-' .. M.tag(env_tag) .. '.json'
 end
 
+function M.mode_path(data_dir, env_tag)
+  if not data_dir or data_dir == '' then return nil end
+  return data_dir .. '/review-' .. M.tag(env_tag) .. '.mode'
+end
+
+function M.default_mode()
+  return 'copy-editing'
+end
+
+local LABELS = {
+  ['copy-editing'] = 'Copy Edit',
+  ['line-editing'] = 'Line Edit',
+  ['fact-check'] = 'Fact-check',
+  ['free-form'] = 'Free-form',
+}
+
+function M.normalize_mode(mode)
+  if not mode or mode == '' then return M.default_mode() end
+  return tostring(mode):gsub('^%s+', ''):gsub('%s+$', '')
+end
+
+function M.mode_label(mode)
+  mode = M.normalize_mode(mode)
+  if LABELS[mode] then return LABELS[mode] end
+  local out = mode:gsub('%-', ' ')
+  return (out:gsub('^%l', string.upper))
+end
+
+function M.read_mode(data_dir, env_tag)
+  local path = M.mode_path(data_dir, env_tag)
+  if not path then return M.default_mode() end
+  local f = io.open(path, 'r')
+  if not f then return M.default_mode() end
+  local body = f:read('*a') or ''
+  f:close()
+  return M.normalize_mode(body:match('([^\r\n]+)') or '')
+end
+
+function M.write_mode(data_dir, env_tag, mode)
+  local path = M.mode_path(data_dir, env_tag)
+  if not path then return false end
+  local f = io.open(path, 'w')
+  if not f then return false end
+  f:write(M.normalize_mode(mode), '\n')
+  f:close()
+  return true
+end
+
 return M
