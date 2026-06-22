@@ -36,6 +36,30 @@ followed by `>`). Don't try to be clever with "find first `>[`
 adjacent" patterns — they fail when X contains `>[` literally,
 and the failure mode is silent data loss. Caught in #000018 review.
 
+## Shared delimiter codecs beat subsystem-local marker parsing
+
+M4b's review pane added `Alt+q` visual wrapping as `🤖<selection>[]` but initially
+embedded the selected text raw, even though annotate already had delimiter escaping for
+the same marker family. A selection containing `>` or `]` could truncate the parsed marker
+and make accept/reject leave stray syntax in the document.
+
+**Rule.** When a second feature writes the same delimited marker format, reuse or extract
+the existing codec before adding parser/writer code. Add tests for delimiter collisions
+(`>`, `]`, backslash) at the write path and the consume path. A parser unit test alone is
+not enough; the UI wrapper that inserts the marker must also be covered. Caught in #000066
+M4b review.
+
+## Shell scripts should use JSON builders, not `printf` JSON
+
+`pair-review-readiness` originally printed JSON with `printf` and unescaped string fields.
+A review branch named `review/a"b` produced invalid JSON, even though all the boolean
+fields were correct.
+
+**Rule.** In shell seams that emit JSON, use `jq -n --arg/--argjson` (or an equivalent
+structured encoder) for every field. Do not hand-build JSON with `printf` unless every
+string field is impossible by construction — and then document why. Guard it with a test
+using quotes in a branch/path/name. Caught in #000066 M4b review.
+
 ## `#table` is 0 on string-keyed tables — never use it for ID generation
 
 Adding nvim/scrollback.lua's hl-group cache: `local name = 'PairScrollback_' .. (#hl_cache + 1)` was meant to give each new (state→hl-group) entry a unique numeric suffix. `hl_cache` is a string-keyed dict (cache key is `(fg|bg|attrs)`), and Lua's `#` on a non-array table returns 0. Result: every group resolved to `PairScrollback_1`, `nvim_set_hl(0, "PairScrollback_1", def)` overwrote on each call, and all extmarks ended up sharing whatever the last-written attrs were. Caught only by an end-to-end test that checked extmark hl_groups against expected fg/bg ints.

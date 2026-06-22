@@ -104,6 +104,7 @@ M4 (agent protocol) — **re-sliced structure-first** (2026-06-21): the whole lo
 ## Log
 
 
+- 2026-06-21: closed M4b — make test-lua; make test-review; git diff --check; REWORK fixes included marker delimiter escaping, jq readiness JSON, under-cursor accept/reject, and plan table updates; review verdict: SHIP
 - 2026-06-21: closed M4b — make test-lua; make test-review; git diff --check; M4b pair-side skeleton complete: accept/reject/Alt+q, Copy Edit fulfill-or-punt pokes, and :PairReviewShip poke with no nvim git writes; review verdict: REWORK
 - 2026-06-21: **M4b review fixes after REWORK.** Verified the reported
   `review-apply-test` failure did not reproduce locally, then fixed the real review
