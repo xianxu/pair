@@ -20,17 +20,10 @@ function M.human_finished(file, mode, instruction, label)
   label = label or 'Edit'
   local suffix = ''
   if instruction and instruction ~= '' then
-    suffix = 'instruction: ' .. instruction .. '; '
+    suffix = '; instruction: ' .. instruction
   end
-  local mode_rule = ''
-  if mode == nil or mode == '' or mode == 'edit' or mode == 'copy-editing' or mode == 'line-editing'
-      or label == 'Edit' or label == 'Copy Edit' then
-    mode_rule = '; for Edit, use minimal 🤖<old>{new}/🤖{new} marker proposals and do not '
-      .. 'replace whole paragraphs for word-level edits; make each record old the smallest stable locator'
-  end
-  return string.format('finished my edits to %s — please review in %s posture; %s'
-    .. 'resolve 🤖[] comments as edits when possible, or punt explicitly when not%s',
-    file, label, suffix, mode_rule)
+  return string.format('finished my edits to %s — please review in %s posture%s',
+    file, label, suffix)
 end
 
 function M.ship_requested(file)

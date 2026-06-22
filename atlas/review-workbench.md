@@ -79,11 +79,10 @@ Integration seams (headless shell tests, `make test-review`):
 Agent writes a records handoff → nvim watcher applies undo-ably, decorates, saves,
 writes the landed-artifact, and pokes `agent_applied` → the agent commits the
 agent round from that artifact. Human edits → Alt+Return saves and pokes
-`human_finished` in Edit posture, with `🤖[]` comments treated as
-fulfill-or-punt instructions and edits expressed as minimal inline marker
-proposals (`🤖<old>{new}` / `🤖{new}`) → the agent commits the human round and
-re-reviews. Finishing a human turn clears stale agent-applied highlights and
-diagnostics; the next agent handoff repaints current styling.
+`human_finished` with the selected posture plus any one-round instruction → the
+agent commits the human round and re-reviews using the standing `xx-fix` review
+rules. Finishing a human turn clears stale agent-applied highlights and diagnostics;
+the next agent handoff repaints current styling.
 Diagnostics always render because they carry the agent's rationale. Change
 highlights are only a direct-edit affordance: direct replacements highlight the
 exact inserted `new` span, marker-rendered proposals (`🤖<old>{new}`, `🤖{new}`,
