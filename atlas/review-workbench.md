@@ -27,11 +27,10 @@ Pure core (run under `nvim -l`, colocated `*_test.lua`, `make test-lua`):
   `🤖<quoted>?(~strike~)?([user]|{agent})*` → marker records with `ready`/`pending`
   (last-section rule), excluding markers in fenced/inline code. The human's
   in-doc review requests; M3 highlights from it, M4's agent reads it.
-- `mode.lua` + `modes/*.md` (M2) — pure mode-brief parser (`parse`/`directives` +
-  IO `load`/`list`) and the 3 human assistance levels: Generate, Edit, Proofread.
-  `directives()` renders the scope/frontier/deletions block M4's agent SKILL.md
-  composes in. `menu.lua` (M4c/M4d) presents those modes in the review pane with a
-  one-round optional instruction buffer.
+- `mode.lua` (M2/M4d) — pure pair-side UI metadata for the 3 human assistance
+  levels: Generate, Edit, Proofread. Pair does not carry prompt prose for these;
+  their meanings live in ariadne's `xx-fix` skill. `menu.lua` (M4c/M4d) presents
+  those modes in the review pane with a one-round optional instruction buffer.
 
 Integration seams (headless shell tests, `make test-review`):
 
