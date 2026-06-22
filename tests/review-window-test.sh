@@ -102,6 +102,14 @@ local function check()
   local reject_line = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1]
   OUT:write((reject_line == 'hello old' and 'alt-r-reject\n') or ('NO-alt-r-reject ' .. tostring(reject_line) .. '\n'))
 
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'one 🤖<a>{A} two 🤖<b>{B}' })
+  vim.api.nvim_win_set_cursor(0, { 1, 24 })
+  if _G.PairReviewPane and _G.PairReviewPane.resolve_at_cursor then
+    _G.PairReviewPane.resolve_at_cursor(buf, 'accept')
+  end
+  local second_marker_line = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1]
+  OUT:write((second_marker_line == 'one 🤖<a>{A} two B' and 'alt-a-under-cursor\n') or ('NO-alt-a-under-cursor ' .. tostring(second_marker_line) .. '\n'))
+
   -- Alt+q in normal/insert inserts a bare human comment marker and leaves the
   -- cursor inside the brackets; visual Alt+q wraps the selection as quoted text.
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'abc' })
@@ -120,6 +128,18 @@ local function check()
   local quoted = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1]
   cur = vim.api.nvim_win_get_cursor(0)
   OUT:write((quoted == '🤖<alpha>[] beta' and cur[2] == 12 and 'alt-q-visual\n') or ('NO-alt-q-visual ' .. tostring(quoted) .. ' col=' .. tostring(cur[2]) .. '\n'))
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'a > b ] c \\ d tail' })
+  if _G.PairReviewPane and _G.PairReviewPane.quote_selection then
+    _G.PairReviewPane.quote_selection(buf, { 1, 0 }, { 1, 13 })
+  end
+  quoted = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1]
+  vim.api.nvim_win_set_cursor(0, { 1, 1 })
+  if _G.PairReviewPane and _G.PairReviewPane.resolve_at_cursor then
+    _G.PairReviewPane.resolve_at_cursor(buf, 'reject')
+  end
+  local rejected_quote = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1]
+  OUT:write((rejected_quote == 'a > b ] c \\ d tail' and 'alt-q-escaped-visual\n') or ('NO-alt-q-escaped-visual ' .. tostring(quoted) .. ' -> ' .. tostring(rejected_quote) .. '\n'))
 
   OUT:close()
   -- drive Alt+Return (finish human turn): edit → human_round + poke
@@ -144,8 +164,10 @@ grep -q '^state-file$' "$RT/r3" && pass "open-state file written" || fail "no st
 grep -q '^markers$' "$RT/r3" && pass "🤖 markers rendered" || fail "no marker extmarks"
 grep -q '^alt-a-accept$' "$RT/r3" && pass "Alt+a accepts quoted agent replacement" || fail "Alt+a accept behavior"
 grep -q '^alt-r-reject$' "$RT/r3" && pass "Alt+r rejects to original quoted text" || fail "Alt+r reject behavior"
+grep -q '^alt-a-under-cursor$' "$RT/r3" && pass "Alt+a resolves the marker under cursor" || fail "Alt+a marker-under-cursor behavior"
 grep -q '^alt-q-insert$' "$RT/r3" && pass "Alt+q inserts a human comment marker" || fail "Alt+q insert behavior"
 grep -q '^alt-q-visual$' "$RT/r3" && pass "Alt+q wraps visual selection as quoted marker" || fail "Alt+q visual behavior"
+grep -q '^alt-q-escaped-visual$' "$RT/r3" && pass "Alt+q quoted marker preserves delimiter text" || fail "Alt+q delimiter escaping"
 # Alt+Return integration (M4a): the nvim SAVES the human edits but writes NO git
 # (invariant #1) — the agent commits the human round; the nvim pokes the
 # commit-request signal (human_finished), not a docflow round and not /xx-fix.

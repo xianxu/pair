@@ -25,6 +25,13 @@ eq(m2[1].sections[1].type, 'agent', 'agent section')
 eq(m2[1].pending, true, 'pending (last {})')
 eq(m2[1].ready, false, 'not ready')
 
+-- escaped delimiter collisions round-trip through the parser
+local tricky_text = 'a < b > c ] d \\ e'
+local tricky = M.parse_markers({ '🤖<' .. M.esc_quote(tricky_text) .. '>[human]' })
+eq(#tricky, 1, 'escaped quote marker parses')
+eq(tricky[1].quoted.text, tricky_text, 'escaped quote text round-trips')
+eq(tricky[1].raw, '🤖<' .. M.esc_quote(tricky_text) .. '>[human]', 'escaped raw spans the whole marker')
+
 -- strike
 local m3 = M.parse_markers({ '🤖~old~' })
 eq(m3[1].strike.text, 'old', 'strike text')

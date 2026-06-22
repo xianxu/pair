@@ -11,6 +11,9 @@ artifact. The contract between them is a small set of seam files + git commits.
 
 Pure core (run under `nvim -l`, colocated `*_test.lua`, `make test-lua`):
 
+- `marker_codec.lua` — shared 🤖 delimiter escaping/unescaping used by both
+  annotate and review markers. Keeps `🤖<selection>[]` safe when selected text
+  contains marker delimiters such as `>`, `]`, or backslashes.
 - `record.lua` — the `Record` `{old, occurrence, new, explain}` and its **one**
   JSON serialization, written verbatim to both the handoff file and the agent
   commit body. `apply` enriches each record with `new_occurrence` (Nth match of
@@ -57,7 +60,8 @@ Integration seams (headless shell tests, `make test-review`):
   review opened, review target prep, handoff applied, and human turn finished.
 - `readiness.lua` + `bin/pair-review-readiness` — pure/classified git readiness
   for review-start: stop / track / resume / new / interact. The nvim proposes;
-  the agent acts.
+  the agent acts. The shell seam emits JSON with `jq -n` so quoted branch/path
+  facts remain valid JSON.
 - `resolve.lua` — pure parley §5 accept/reject resolution for `🤖` marker chains;
   `nvim/review.lua` binds it to the review pane (`\a`, `\r`, `]m`, `[m`).
 - `spinner.lua` — pure compact spinner/elapsed helper for M4c; currently unwired
@@ -168,4 +172,5 @@ docflow rounds.
   `poke` (id-based agent poke, no relative move-focus), `window` (:PairReview +
   pair-review-open + review.lua: keymap/state/markers + Alt+Return round-trip),
   `toggle` (mode-aware branch, explicit show/hide, no toggle-floating-panes),
-  `resume`, and the agent-owns-git loop.
+  `review-readiness-cli` (quoted git facts stay valid JSON), `resume`, and the
+  agent-owns-git loop.

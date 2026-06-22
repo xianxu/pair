@@ -5,9 +5,12 @@
 -- Grammar: 🤖<quoted>?(~strike~)?([user]|{agent})*
 --   <> quoted body (≤1, first slot only); ~~ strike = deletion proposal
 --   [] human turns; {} agent turns
+--   delimiter text is backslash-escaped via nvim/marker_codec.lua
 --   ready   = last section is a non-empty [] (human spoke last; strikes never ready)
 --   pending = last section is a non-empty {} (agent asked, awaiting human)
 local M = {}
+local here = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
+local marker_codec = dofile(here .. '../marker_codec.lua')
 
 local MARKER_CHAR = "🤖"
 local MARKER_BYTE_LEN = 4
@@ -28,7 +31,8 @@ local function find_matching_bracket(text, start, open, close, opts)
     if ch == "\n" then
       newlines = newlines + 1
       if budget and newlines > budget then return nil end
-    elseif (ch == open or ch == close) and not (is_excluded and is_excluded(i)) then
+    elseif (ch == open or ch == close) and not (is_excluded and is_excluded(i))
+        and not marker_codec.is_escaped(text, i, start) then
       if ch == open then
         depth = depth + 1
       else
@@ -53,7 +57,7 @@ local function parse_marker_sections(text, pos, byte_len, opts)
     if ch == "<" then
       local close = find_matching_bracket(text, cursor, "<", ">", opts)
       if close then
-        quoted = { text = text:sub(cursor + 1, close - 1), byte_start = cursor, byte_end = close }
+        quoted = { text = marker_codec.unescape(text:sub(cursor + 1, close - 1)), byte_start = cursor, byte_end = close }
         cursor = close + 1
       end
     elseif ch == "~" then
@@ -61,7 +65,7 @@ local function parse_marker_sections(text, pos, byte_len, opts)
       local close = text:find("~", cursor + 1, true)
       local nl = text:find("\n", cursor + 1, true)
       if close and (not nl or close < nl) then
-        strike = { text = text:sub(cursor + 1, close - 1), byte_start = cursor, byte_end = close }
+        strike = { text = marker_codec.unescape(text:sub(cursor + 1, close - 1)), byte_start = cursor, byte_end = close }
         cursor = close + 1
       end
     end
@@ -72,12 +76,12 @@ local function parse_marker_sections(text, pos, byte_len, opts)
     if ch == "[" then
       local close = find_matching_bracket(text, cursor, "[", "]", opts)
       if not close then break end
-      table.insert(sections, { type = "user", text = text:sub(cursor + 1, close - 1), byte_start = cursor, byte_end = close })
+        table.insert(sections, { type = "user", text = marker_codec.unescape(text:sub(cursor + 1, close - 1)), byte_start = cursor, byte_end = close })
       cursor = close + 1
     elseif ch == "{" then
       local close = find_matching_bracket(text, cursor, "{", "}", opts)
       if not close then break end
-      table.insert(sections, { type = "agent", text = text:sub(cursor + 1, close - 1), byte_start = cursor, byte_end = close })
+      table.insert(sections, { type = "agent", text = marker_codec.unescape(text:sub(cursor + 1, close - 1)), byte_start = cursor, byte_end = close })
       cursor = close + 1
     else
       break
@@ -203,8 +207,11 @@ M.parse_markers = function(lines)
     ::continue::
   end
 
-  return markers
+return markers
 end
+
+M.esc_quote = marker_codec.esc_quote
+M.unescape = marker_codec.unescape
 
 -- Exposed for the highlighter (the per-line section seam).
 M._parse_marker_sections = parse_marker_sections

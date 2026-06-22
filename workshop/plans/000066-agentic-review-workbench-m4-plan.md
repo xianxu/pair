@@ -51,7 +51,12 @@ actually landed) writes a structured artifact; the committing party reads it and
 | Name | Lives in | Status |
 |------|----------|--------|
 | `review.poke_bodies` (commit-signal message builders) | `nvim/review/poke_bodies.lua` | new |
-| `record` / `reconstruct` / `apply` (the consumer core) | `nvim/review/*.lua` | unchanged (PURE) |
+| `record` / `reconstruct` / `apply` (the consumer core) | `nvim/review/*.lua` | modified/read-path reused (PURE core with nvim integration shell) |
+| `review.readiness` (review-start case classifier) | `nvim/review/readiness.lua` | new in M4a' |
+| `review.resolve` (accept/reject semantics for 🤖 marker chains) | `nvim/review/resolve.lua` | new in M4b |
+| `review.wrap` (diagnostic text wrapping) | `nvim/review/wrap.lua` | new in M4a polish |
+| `review.spinner` (compact elapsed spinner) | `nvim/review/spinner.lua` | new M4c pre-work, unwired |
+| `marker_codec` (shared delimiter escaping for 🤖 markers) | `nvim/marker_codec.lua` | new in M4b review fix |
 
 (Its own standalone file — like `record.lua`/`reconstruct.lua` — so `nvim -l nvim/review/poke_bodies_test.lua` runs without `dofile`-ing the IO orchestrator. plan-quality INFO-1.)
 
@@ -66,6 +71,9 @@ actually landed) writes a structured artifact; the committing party reads it and
 | `review.human_round` | `nvim/review/init.lua` | modified | (was) docflow human-round → now save+poke |
 | `pair_poke.send` | `nvim/pair_poke.lua` | reused (injectable) | zellij write-chars (the commit-signal poke) |
 | `fake-agent-v2` | `tests/lib/fake-review-agent.sh` | modified | a protocol-faithful agent: writes records, **reads the landed-artifact, commits rounds** |
+| `pair-review-readiness` | `bin/pair-review-readiness` | new in M4a' | shell git facts → pure readiness classifier → JSON for the agent |
+| `pair-review-target` | `bin/pair-review-target` | new in M4a' | agent marks proposed/ready review targets with conversation scoping |
+| `PairReviewShip` | `nvim/review.lua` | new in M4b | review-pane command that pokes the agent to ship; no git writes |
 
 - **`review-landed-<tag>.json`** — the nvim→agent payload (the Decision above): `{summary, body, applied, dropped}`, `body` = `record.embed_in_body(summary, enriched)`. Written by `on_agent_round`; read by the agent/fake to commit the agent round verbatim. **Future:** carries the active mode (M4b).
 - **`review.on_agent_round(buf, records)`** — applies undo-ably (unchanged), saves, **writes `review-landed-<tag>.json`**, then **pokes `agent_applied(#enriched, #dropped, file)`** instead of `docflow.round('agent', …)`. The commit is the agent's, *after* the poke (invariant #3). **`file` comes from `sessions[buf].file`** (the watcher only has `buf` — thread the session's file through). **Injected:** `pair_poke.send` is injectable (a module-level seam the headless test stubs) since `on_agent_round` is driven directly by `review-loop-test.sh` and must not shell `zellij`. Reconstruct/counts read the agent's resulting commit.
@@ -212,3 +220,15 @@ not. Added `:PairReviewShip` as the pair-side ship request: it pokes the agent t
 `docflow ship` for the active review branch, and keeps invariant #1 intact by not shelling
 docflow from review nvim. Focused tests cover the pure poke bodies and the review-pane
 command boundary.
+
+### 2026-06-21 — M4b boundary review fixes
+
+The first M4b boundary review returned `REWORK`. Verified that its reported
+`review-apply-test` failure did **not** reproduce locally (`bash tests/review-apply-test.sh`
+and prior `make test-review` were green), but accepted the real findings: visual
+`Alt+q` wrote raw quoted text into `🤖<...>[]`, so delimiter characters could truncate a
+marker, and `pair-review-readiness` hand-built JSON with unescaped git facts. Fixed by
+extracting `nvim/marker_codec.lua` from annotate's existing escaping logic (ARCH-DRY),
+using it in both annotate and review markers, escaping review quoted selections, and
+emitting readiness JSON with `jq -n`. Also pinned the minor under-cursor accept/reject
+behavior and expanded this Core concepts table for M4a'/M4b entities.

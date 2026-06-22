@@ -41,5 +41,13 @@ case=$(nvim --headless -u NONE \
     --cmd 'qa!' 2>/dev/null) || case=""
 [ -n "$case" ] || { printf 'pair-review-readiness: classify failed (nvim/readiness.lua)\n' >&2; exit 1; }
 
-printf '{"case":"%s","is_git":%s,"is_tracked":%s,"branch":"%s","on_review_branch":%s,"scoped_file":"%s","file_matches":%s,"is_clean":%s}\n' \
-    "$case" "$is_git" "$is_tracked" "$branch" "$on_review_branch" "$scoped" "$file_matches" "$is_clean"
+jq -n \
+    --arg case "$case" \
+    --argjson is_git "$is_git" \
+    --argjson is_tracked "$is_tracked" \
+    --arg branch "$branch" \
+    --argjson on_review_branch "$on_review_branch" \
+    --arg scoped_file "$scoped" \
+    --argjson file_matches "$file_matches" \
+    --argjson is_clean "$is_clean" \
+    '{case:$case,is_git:$is_git,is_tracked:$is_tracked,branch:$branch,on_review_branch:$on_review_branch,scoped_file:$scoped_file,file_matches:$file_matches,is_clean:$is_clean}'

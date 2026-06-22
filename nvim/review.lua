@@ -141,7 +141,12 @@ local function resolve_at_cursor(buf, action)
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   local target
   for _, m in ipairs(markers.parse_markers(lines)) do
-    if m.line == row0 then target = m; break end -- first 🤖 marker on the cursor line
+    if m.line == row0 then
+      local raw_lines = vim.split(m.raw, '\n', { plain = true })
+      local end_col = (#raw_lines == 1) and (m.col + #m.raw) or #raw_lines[#raw_lines]
+      if not target then target = m end -- same-line fallback for legacy cursor placement
+      if cur[2] >= m.col and cur[2] < end_col then target = m; break end
+    end
   end
   if not target then
     vim.notify('review: no 🤖 marker on this line', vim.log.levels.INFO); return
@@ -175,7 +180,7 @@ local function quote_selection(buf, start_pos, end_pos)
     srow, erow, scol, ecol = erow, srow, ecol, scol
   end
   local selected = table.concat(vim.api.nvim_buf_get_text(buf, srow, scol, erow, ecol, {}), '\n')
-  local marker = REVIEW_MARKER .. '<' .. selected .. '>[]'
+  local marker = REVIEW_MARKER .. '<' .. markers.esc_quote(selected) .. '>[]'
   vim.api.nvim_buf_set_text(buf, srow, scol, erow, ecol, vim.split(marker, '\n', { plain = true }))
   local marker_lines = vim.split(marker, '\n', { plain = true })
   local cursor_row = srow + #marker_lines
