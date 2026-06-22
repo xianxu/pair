@@ -1,4 +1,4 @@
--- nvim/review/menu.lua — self-contained review mode menu for pair's review pane.
+-- nvim/review/menu.lua — self-contained review send menu for pair's review pane.
 -- Shape follows parley.nvim: a mode selector plus an optional instruction buffer.
 local M = {}
 

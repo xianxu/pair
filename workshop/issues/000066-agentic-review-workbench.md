@@ -100,15 +100,22 @@ M4 (agent protocol) — **re-sliced structure-first** (2026-06-21): the whole lo
 - [x] M4a — agent-owns-git inversion + the basic round (records → apply → landed-artifact → fake-agent commits). *Implemented/headless-verified; not separately milestone-closed because M4a'/M4b commits already landed before reconciliation. Review evidence folds into the current M4 skeleton boundary.*
 - [x] M4a' — review-start & resume flow: `:PairReview` **proposes** → agent preps (pure readiness probe) → Alt+c opens when ready; reconstruct-on-open (resume repaint). Spec in `workshop/targets/review-protocol.md`; pair side built and headless-tested.
 - [x] M4b — **skeleton** (structure): 🤖[] fulfill/punt + **accept/reject** (parley §5) conversation + default editing posture + **ship** — completes the thin full cycle (open → propose → prep → review → converse → iterate → ship → resume). *Pair-side skeleton implemented: Alt+c collaboration toggle, Alt+a/Alt+r/Alt+q review shortcuts, Copy Edit fulfill-or-punt poke posture, and `:PairReviewShip` agent-owned ship request; first boundary review returned REWORK and fixes are now in this window.*
-- [ ] M4c — **thicken** (tuning; sub-slices when reached): modes menu + 🪄/spinner/lean-history bar; voice (`voice:` frontmatter); fact-check pass (`doc-review` fold); pending-🤖{} quickfix; diagnostic-display polish; `xx-fix`→`writing-assistant` rename. *Smoke slice implemented: mode seam + draft/review mode display + `Alt+o` mode menu poke + awaiting-agent spinner; live smoke pending.*
+- [ ] M4c — **thicken** (tuning; sub-slices when reached): modes menu + 🪄/spinner/lean-history bar; voice (`voice:` frontmatter); fact-check pass (`doc-review` fold); pending-🤖{} quickfix; diagnostic-display polish; `xx-fix`→`writing-assistant` rename. *Smoke slice implemented: mode seam + draft/review mode display + `Alt+Shift+Return` send menu + awaiting-agent spinner; live smoke pending.*
 
 ## Log
 
+- 2026-06-22: **M4c send-menu shortcut revised after smoke feedback.** Removed the
+  review pane's `Alt+o` menu binding; `Alt+Return` now directly finishes the human turn
+  with the current/default mode, while `Alt+Shift+Return` opens the mode/instruction send
+  menu and then finishes the turn. Verification: `make test-lua`, `make test-review`, and
+  `git diff --check` green.
+
 - 2026-06-21: **M4c smoke slice implemented.** Added `review-<tag>.mode` seam helpers
   with Copy Edit default labels; draft statusline now shows `🪄 <Mode> • <file> • 🤖N/M`;
-  review pane statusline shows the current mode and an awaiting-agent spinner; `Alt+o`
-  opens a Parley-shaped mode menu (mode list + optional instruction) and pokes the agent
-  to switch modes/write the seam. Deferred voice frontmatter, fact-check fold polish,
+  review pane statusline shows the current mode and an awaiting-agent spinner;
+  `Alt+Shift+Return` opens a Parley-shaped send menu (mode list + optional instruction)
+  and then finishes the human turn; `Alt+Return` keeps the current mode and sends
+  directly. Deferred voice frontmatter, fact-check fold polish,
   quickfix/diagnostic polish, and `xx-fix` rename until after live smoke. Verification:
   focused seam/indicator/window tests, `make test-lua`, and `make test-review` green.
 

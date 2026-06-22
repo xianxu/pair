@@ -16,22 +16,18 @@ end
 
 -- After the human finished their turn (the nvim saved — but did NOT git-commit;
 -- the agent commits the human round). "finished", not "committed" — precise.
-function M.human_finished(file)
-  return string.format('finished my edits to %s — please review in Copy Edit posture; '
-    .. 'resolve 🤖[] comments as edits when possible, or punt explicitly when not', file)
+function M.human_finished(file, mode, instruction, label)
+  label = label or 'Copy Edit'
+  local suffix = ''
+  if instruction and instruction ~= '' then
+    suffix = 'instruction: ' .. instruction .. '; '
+  end
+  return string.format('finished my edits to %s — please review in %s posture; %s'
+    .. 'resolve 🤖[] comments as edits when possible, or punt explicitly when not', file, label, suffix)
 end
 
 function M.ship_requested(file)
   return string.format('ship %s — run docflow ship for the active review branch; the agent owns git', file)
-end
-
-function M.mode_switch(file, mode, instruction, label)
-  local suffix = ''
-  if instruction and instruction ~= '' then
-    suffix = ' with instruction: ' .. instruction
-  end
-  return string.format('switch review mode to %s for %s%s — acknowledge the mode, write the review mode seam, then continue only when I send the next turn',
-    label or mode, file, suffix)
 end
 
 -- Sent ONCE when the review pane opens — the missing review-START signal (M4a

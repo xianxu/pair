@@ -199,7 +199,7 @@ grep -q '^footgun ok$'    "$RESULT" && pass "never toggle-floating-panes" || fai
 grep -q 'bind "Alt c"' "$ROOT/zellij/config.kdl" && pass "Alt+c bound in config.kdl" || fail "no Alt+c bind"
 grep -q ':lua PairReviewToggle()' "$ROOT/zellij/config.kdl" && pass "Alt+c routes to :lua PairReviewToggle()" || fail "Alt+c target wrong"
 grep -q 'bind "Alt r"' "$ROOT/zellij/config.kdl" && fail "Alt+r still globally bound" || pass "Alt+r free for review-pane reject"
-grep -q 'unbind "Alt o"' "$ROOT/zellij/config.kdl" && pass "Alt+o released for review-pane mode menu" || fail "Alt+o still captured by zellij"
+grep -q 'unbind "Alt o"' "$ROOT/zellij/config.kdl" && pass "Alt+o default zellij tab-move disabled" || fail "Alt+o still captured by zellij"
 grep -q 'Run "pair-review-toggle"' "$ROOT/zellij/config.kdl" && fail "Alt+c still spawns the old toggle pane" || pass "old pair-review-toggle pane gone"
 
 [ "$fails" -eq 0 ] || { printf 'review-toggle-test FAILED (%d)\n' "$fails"; exit 1; }

@@ -21,13 +21,13 @@ eq(M.human_finished('/a/doc.md'),
   'finished my edits to /a/doc.md — please review in Copy Edit posture; resolve 🤖[] comments as edits when possible, or punt explicitly when not',
   'human_finished')
 
+eq(M.human_finished('/a/doc.md', 'proofreading', 'keep the title', 'Proofreading'),
+  'finished my edits to /a/doc.md — please review in Proofreading posture; instruction: keep the title; resolve 🤖[] comments as edits when possible, or punt explicitly when not',
+  'human_finished with mode and instruction')
+
 eq(M.ship_requested('/a/doc.md'),
   'ship /a/doc.md — run docflow ship for the active review branch; the agent owns git',
   'ship_requested')
-
-eq(M.mode_switch('/a/doc.md', 'proofreading', 'keep the title', 'Proofreading'),
-  'switch review mode to Proofreading for /a/doc.md with instruction: keep the title — acknowledge the mode, write the review mode seam, then continue only when I send the next turn',
-  'mode_switch with instruction')
 
 do -- review_opened: the review-START announce poke names the file + the workbench protocol
   local s = M.review_opened('/a/doc.md')

@@ -141,11 +141,12 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   review helpers live in `do`-blocks sharing `_G._pair_review` — init.lua is at Lua's
   200-local chunk ceiling.) The cross-process `review-<tag>.open` path is centralized in
   `nvim/review/seam.lua` (one fallback rule for writer + reader).
-- **mode menu + waiting cue** (`nvim/review.lua`, `nvim/review/menu.lua`,
-  `nvim/review/spinner.lua`) — `Alt+o` opens a Parley-shaped mode menu (mode selector
-  plus optional instruction editor) and pokes the agent to switch mode/write the seam;
-  `Alt+Return`, `:PairReviewShip`, and mode-switch pokes mark the pane as awaiting the
-  agent, displayed by the statusline spinner until the next handoff clears it.
+- **send menu + waiting cue** (`nvim/review.lua`, `nvim/review/menu.lua`,
+  `nvim/review/spinner.lua`) — `Alt+Shift+Return` opens a Parley-shaped send menu
+  (mode selector plus optional instruction editor), then finishes the human turn with
+  the selected mode/instruction. `Alt+Return` keeps the current mode and sends
+  directly. Send and ship pokes mark the pane as awaiting the agent, displayed by the
+  statusline spinner until the next handoff clears it.
 - **docflow degradation** (`nvim/review/docflow.lua`) — missing `docflow` still has
   a calm contract-test path, but the review pane no longer shells docflow at runtime.
   Round commits are agent-side. See `workshop/targets/review-protocol.md` for the

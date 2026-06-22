@@ -238,7 +238,7 @@ end
 local function statusline_text()
   local cell = spinner.cell(awaiting_since, os.time(), spinner_tick or 0)
   return ' ' .. cell .. '🪄 ' .. mode_label()
-    .. ' • Alt+⏎ Send • Alt+o Mode • Alt+c → agent • %f%m %= L%l/%L '
+    .. ' • Alt+⏎ Send • Alt+⇧⏎ Menu • Alt+c → agent • %f%m %= L%l/%L '
 end
 
 local function refresh_statusline()
@@ -267,7 +267,7 @@ if status_timer then
   end))
 end
 
-local function finish_human_turn(buf, file)
+local function finish_human_turn(buf, file, mode_name, instruction)
   if vim.fn.mode():match('^i') then vim.cmd('stopinsert') end
   review.human_round(buf, 'updated') -- saves; the agent commits the human round
   -- Poke the agent with the commit-request signal (absolute path: the agent pane's
@@ -275,18 +275,14 @@ local function finish_human_turn(buf, file)
   -- (Once ariadne#000121's SKILL recognizes review-mode from these signals, this is
   -- the whole trigger — the M3 `/xx-fix` stopgap is retired here.)
   mark_awaiting()
-  poke.send(poke_bodies.human_finished(vim.fn.fnamemodify(file, ':p')))
+  local m = seam.normalize_mode(mode_name or current_mode())
+  poke.send(poke_bodies.human_finished(vim.fn.fnamemodify(file, ':p'), m,
+    instruction or '', seam.mode_label(m)))
 end
 
 local function request_ship(file)
   mark_awaiting()
   poke.send(poke_bodies.ship_requested(vim.fn.fnamemodify(file, ':p')))
-end
-
-local function submit_mode_switch(file, mode_name, instruction)
-  local abs = vim.fn.fnamemodify(file, ':p')
-  mark_awaiting()
-  poke.send(poke_bodies.mode_switch(abs, mode_name, instruction or '', seam.mode_label(mode_name)))
 end
 
 local function open_mode_menu(file)
@@ -296,7 +292,7 @@ local function open_mode_menu(file)
     seam = seam,
     mode = current_mode(),
     on_submit = function(choice)
-      submit_mode_switch(file, choice.mode, choice.instruction)
+      finish_human_turn(vim.api.nvim_get_current_buf(), file, choice.mode, choice.instruction)
     end,
   })
 end
@@ -310,6 +306,8 @@ local function start_review(buf, file)
   for _, mode in ipairs({ 'n', 'i' }) do
     vim.keymap.set(mode, '<M-CR>', function() finish_human_turn(buf, file) end,
       { buffer = buf, silent = true })
+    vim.keymap.set(mode, '<M-S-CR>', function() open_mode_menu(file) end,
+      { buffer = buf, silent = true, desc = 'review: send menu' })
   end
   pcall(vim.api.nvim_del_user_command, 'PairReviewShip')
   vim.api.nvim_create_user_command('PairReviewShip', function() request_ship(file) end, {})
@@ -334,8 +332,6 @@ local function start_review(buf, file)
     { buffer = buf, silent = true, desc = 'review: insert human comment marker' })
   vim.keymap.set('x', '<M-q>', function() quote_visual_selection(buf) end,
     { buffer = buf, silent = true, desc = 'review: quote selection for human comment' })
-  vim.keymap.set('n', '<M-o>', function() open_mode_menu(file) end,
-    { buffer = buf, silent = true, desc = 'review: mode menu' })
   vim.keymap.set('n', ']m', function() jump_marker(buf, 1) end,
     { buffer = buf, silent = true, desc = 'review: next 🤖 marker' })
   vim.keymap.set('n', '[m', function() jump_marker(buf, -1) end,
@@ -386,7 +382,6 @@ end
 _G.PairReviewPane = { start_review = start_review, render_markers = render_markers,
   state_file = state_file, finish_human_turn = finish_human_turn,
   request_ship = request_ship,
-  submit_mode_switch = function(mode_name, instruction) submit_mode_switch(vim.api.nvim_buf_get_name(0), mode_name, instruction) end,
   open_mode_menu = open_mode_menu,
   resolve_at_cursor = resolve_at_cursor, insert_review_marker = insert_review_marker,
   quote_selection = quote_selection, current_mode = current_mode, mode_label = mode_label }

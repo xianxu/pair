@@ -140,10 +140,10 @@ The mode lives in the **seam** (a `review-<tag>.mode`, agent-written) so both sw
 channels and the bar read the same value.
 - **draft window** — free text ("now do a copy edit"; fact-check is also just free text,
   keeping the current mode).
-- **review nvim** — a sticky mode menu (parley's UI shape: mode list plus optional
-  multi-line instruction box), bound to `Alt+o`. On confirm it pokes the agent to
-  switch to `<mode>` with the optional instruction; `Alt+Return` remains the human-turn
-  send key.
+- **review nvim** — `Alt+Return` sends the human turn immediately with the current
+  mode; `Alt+Shift+Return` opens a sticky send menu (parley's UI shape: mode list plus
+  optional multi-line instruction box). On confirm it finishes the human turn with the
+  selected mode and optional instruction.
 - **display** — the review bar's `🪄 <Mode>` segment (above).
 
 > **Naming (deferred):** `xx-fix` has outlived its name — it's no longer "fix small things

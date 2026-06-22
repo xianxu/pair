@@ -60,8 +60,8 @@ keybinds clear-defaults=false {
         unbind "Alt Up"
         unbind "Alt Down"
         // Alt+n default is NewPane; Alt+o default is MoveTab "Right". pair
-        // manages its own two-pane/single-tab layout, and review nvim needs
-        // Alt+o for its mode menu, so both must pass through or be reclaimed.
+        // manages its own two-pane/single-tab layout, so both are disabled or
+        // reclaimed by pair-specific flows.
         unbind "Alt n"
         unbind "Alt N"
         unbind "Alt o"
