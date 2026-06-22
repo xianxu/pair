@@ -91,6 +91,8 @@ local function check()
   OUT:write(((#marks >= 1) and 'markers\n') or 'NO-markers\n')
   OUT:write((vim.o.clipboard:find('unnamedplus', 1, true) and 'review-clipboard\n') or ('NO-review-clipboard ' .. vim.o.clipboard .. '\n'))
   OUT:write((vim.o.guicursor:find('blinkon', 1, true) and 'review-blink-cursor\n') or ('NO-review-blink-cursor ' .. vim.o.guicursor .. '\n'))
+  OUT:write((vim.o.breakindent and 'review-breakindent\n') or 'NO-review-breakindent\n')
+  OUT:write((vim.o.smoothscroll and 'review-smoothscroll\n') or 'NO-review-smoothscroll\n')
   OUT:write((vim.g.colors_name and 'review-colorscheme\n') or 'NO-review-colorscheme\n')
   local status = vim.o.statusline
   OUT:write((status:find('🪄 Edit', 1, true) and 'mode-statusline\n') or ('NO-mode-statusline ' .. status .. '\n'))
@@ -233,6 +235,8 @@ grep -q '^state-file$' "$RT/r3" && pass "open-state file written" || fail "no st
 grep -q '^markers$' "$RT/r3" && pass "🤖 markers rendered" || fail "no marker extmarks"
 grep -q '^review-clipboard$' "$RT/r3" && pass "review pane yanks to system clipboard" || fail "review clipboard option"
 grep -q '^review-blink-cursor$' "$RT/r3" && pass "review pane uses blinking cursor" || fail "review cursor blink option"
+grep -q '^review-breakindent$' "$RT/r3" && pass "review pane indents soft-wrapped lines" || fail "review breakindent option"
+grep -q '^review-smoothscroll$' "$RT/r3" && pass "review pane smooth-scrolls soft-wrapped lines" || fail "review smoothscroll option"
 grep -q '^review-colorscheme$' "$RT/r3" && pass "review pane loads a colorscheme" || fail "review colorscheme not loaded"
 grep -q '^mode-statusline$' "$RT/r3" && pass "review statusline shows current mode" || fail "review statusline missing mode"
 grep -q '^review-user-hl$' "$RT/r3" && pass "review user marker highlight matches parley" || fail "review user marker highlight"

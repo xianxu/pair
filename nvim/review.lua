@@ -8,6 +8,8 @@ vim.opt.compatible = false
 vim.opt.termguicolors = true
 vim.opt.wrap = true
 vim.opt.linebreak = true
+vim.opt.breakindent = true
+vim.opt.smoothscroll = true
 vim.opt.clipboard = 'unnamedplus'
 vim.opt.guicursor = 'n-v-c-sm:block-blinkon250-blinkoff250,i-ci-ve:block-blinkon250-blinkoff250,r-cr-o:hor20'
 -- The review pane is an EDITABLE document workbench, not a read-only viewer (the
