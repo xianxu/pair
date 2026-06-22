@@ -59,12 +59,12 @@ keybinds clear-defaults=false {
         // step-up / step-down through the layout sizes (minimized/1-3/2-3).
         unbind "Alt Up"
         unbind "Alt Down"
-        // Alt+n default is NewPane — pair manages its own two-pane layout,
-        // so a manually-spawned third pane breaks every routed keybind that
-        // assumes "MoveFocus Down lands in nvim". Reclaimed below as the
-        // restart shortcuts.
+        // Alt+n default is NewPane; Alt+o default is MoveTab "Right". pair
+        // manages its own two-pane/single-tab layout, and review nvim needs
+        // Alt+o for its mode menu, so both must pass through or be reclaimed.
         unbind "Alt n"
         unbind "Alt N"
+        unbind "Alt o"
     }
 
     shared_except "locked" {
