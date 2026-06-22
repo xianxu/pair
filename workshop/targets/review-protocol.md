@@ -123,7 +123,10 @@ described in the SKILL up front; the agent tracks the active mode as session sta
   agent develops the doc, composing in the user's voice. Still goes through records — in
   the limit a single `old` skeleton line → a large `new` block (rarely a blank page).
 - **Copy Edit** — user authored most of it; agent makes limited edits + resolves `🤖[]`
-  markers, in the user's style. (The battle-tested core.)
+  markers, in the user's style. Agent-authored copy-edit changes are **minimal inline
+  marker proposals**: prefer word/phrase/sentence anchors, use `🤖<old text>{new text}`
+  for replacements, `🤖{new text}` for insertions, and deletion markers for removals.
+  Do not replace a whole paragraph to change a few words. (The battle-tested core.)
 - **Proofread** — syntax + spelling only (mechanical).
 - **Fact-check** — NOT a peer mode; an **orthogonal pass**, free-text-triggered ("do a
   fact check on this"). Dispatches the read-only `doc-review` agent (world knowledge + web
@@ -141,9 +144,9 @@ channels and the bar read the same value.
 - **draft window** — free text ("now do a copy edit"; fact-check is also just free text,
   keeping the current mode).
 - **review nvim** — `Alt+Return` sends the human turn immediately with the current
-  mode; `Alt+Shift+Return` opens a sticky send menu (parley's UI shape: mode list plus
+  mode; `Alt+Shift+Return` opens a send menu (parley's UI shape: mode list plus
   optional multi-line instruction box). On confirm it finishes the human turn with the
-  selected mode and optional instruction.
+  selected mode and optional instruction for that single round only.
 - **display** — the review bar's `🪄 <Mode>` segment (above).
 
 > **Naming (deferred):** `xx-fix` has outlived its name — it's no longer "fix small things

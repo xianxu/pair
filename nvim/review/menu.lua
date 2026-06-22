@@ -3,6 +3,7 @@
 local M = {}
 
 local last_mode
+local blink_suffix = 'a:blinkwait700-blinkoff400-blinkon250'
 
 local function layout(count)
   local ui = vim.api.nvim_list_uis()[1] or { width = 80, height = 24 }
@@ -23,6 +24,10 @@ function M.open(opts)
   end
   local seam = opts.seam
   local on_submit = opts.on_submit or function() end
+  local original_guicursor = vim.o.guicursor
+  if not original_guicursor:find('blinkon', 1, true) then
+    vim.o.guicursor = (original_guicursor ~= '' and (original_guicursor .. ',') or '') .. blink_suffix
+  end
   local current = opts.mode or last_mode
   local start_line = 1
   for i, mode in ipairs(modes) do
@@ -54,13 +59,15 @@ function M.open(opts)
   local instr_win = vim.api.nvim_open_win(instr_buf, false, {
     relative = 'editor', row = instr_row, col = col, width = width, height = 5,
     style = 'minimal', border = 'rounded',
-    title = ' Instruction - optional (M-CR/C-s submit · Tab/Esc→list) ',
+    title = ' One-round instruction - optional (M-CR/C-s submit · Tab/Esc→list) ',
   })
+  vim.wo[instr_win].cursorline = true
 
   local closed = false
   local function close()
     if closed then return end
     closed = true
+    vim.o.guicursor = original_guicursor
     pcall(vim.api.nvim_win_close, list_win, true)
     pcall(vim.api.nvim_win_close, instr_win, true)
   end
@@ -130,6 +137,7 @@ function M.open(opts)
     submit = submit,
     move = move,
     close = close,
+    focus_instruction = focus_instr,
     selected = function() return selected().name end,
   }
 end

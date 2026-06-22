@@ -5,7 +5,7 @@ deps: [ariadne#000121]
 target: review-protocol
 github_issue:
 created: 2026-06-18
-updated: 2026-06-21
+updated: 2026-06-22
 estimate_hours: 30
 started: 2026-06-21T19:33:22-07:00
 ---
@@ -104,6 +104,13 @@ M4 (agent protocol) — **re-sliced structure-first** (2026-06-21): the whole lo
 - [ ] M4d — **workflow detail tuning**: iterate from real-use feedback on mode semantics, voice (`voice:` frontmatter), fact-check pass (`doc-review` fold), pending-🤖{} quickfix, diagnostic-display polish, and `xx-fix`→`writing-assistant` rename.
 
 ## Log
+
+- 2026-06-22: **M4d detail tuning started with Copy Edit semantics.** Tightened the
+  `Alt+Shift+Return` instruction field as a one-round instruction surface with visible
+  focused cursor affordances; updated Copy Edit protocol/briefs so hosted agents propose
+  minimal inline marker edits (`🤖<old>{new}` / `🤖{new}`) instead of paragraph-sized
+  direct replacements. Peer ariadne `xx-fix`/review-convention prose updated to match
+  pair's resolver behavior.
 
 - 2026-06-22: closed M4c — M4c post-REWORK: fixed send-menu document-buffer capture, failed-poke spinner clearing, atlas spinner wording; live smoke passed; make test-lua; make test-review; git diff --check; review verdict: SHIP
 - 2026-06-22: **M4c boundary REWORK fixes.** Captured the reviewed document buffer before

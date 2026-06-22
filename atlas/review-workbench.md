@@ -30,8 +30,8 @@ Pure core (run under `nvim -l`, colocated `*_test.lua`, `make test-lua`):
 - `mode.lua` + `modes/*.md` (M2) — pure mode-brief parser (`parse`/`directives` +
   IO `load`/`list`) and the 6 stock modes (developmental→free-form). `directives()`
   renders the scope/frontier/deletions block M4's agent SKILL.md composes in.
-  `menu.lua` (M4c) presents those modes in the review pane with an optional
-  instruction buffer.
+  `menu.lua` (M4c/M4d) presents those modes in the review pane with a one-round
+  optional instruction buffer.
 
 Integration seams (headless shell tests, `make test-review`):
 
@@ -81,7 +81,9 @@ Agent writes a records handoff → nvim watcher applies undo-ably, decorates, sa
 writes the landed-artifact, and pokes `agent_applied` → the agent commits the
 agent round from that artifact. Human edits → Alt+Return saves and pokes
 `human_finished` in Copy Edit posture, with `🤖[]` comments treated as
-fulfill-or-punt instructions → the agent commits the human round and re-reviews.
+fulfill-or-punt instructions and copy edits expressed as minimal inline marker
+proposals (`🤖<old>{new}` / `🤖{new}`) → the agent commits the human round and
+re-reviews.
 `:PairReviewShip` pokes the agent to run `docflow ship`; the pane does not shell
 docflow. History lives in git (round commits + per-hunk explains in the agent commit
 body); fine-grained undo lives in nvim's `undofile`; no bespoke sidecar. The doc must
@@ -143,10 +145,11 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   `nvim/review/seam.lua` (one fallback rule for writer + reader).
 - **send menu + waiting cue** (`nvim/review.lua`, `nvim/review/menu.lua`,
   `nvim/review/spinner.lua`) — `Alt+Shift+Return` opens a Parley-shaped send menu
-  (mode selector plus optional instruction editor), then finishes the human turn with
-  the selected mode/instruction. `Alt+Return` keeps the current mode and sends
-  directly. Send and ship pokes mark the pane as awaiting the agent, displayed by the
-  statusline spinner until the next handoff clears it.
+  (mode selector plus a one-round optional instruction editor with focused cursor
+  affordances), then finishes the human turn with the selected mode/instruction.
+  `Alt+Return` keeps the current mode and sends directly. Send and ship pokes mark the
+  pane as awaiting the agent, displayed by the statusline spinner until the next
+  handoff clears it.
 - **docflow degradation** (`nvim/review/docflow.lua`) — missing `docflow` still has
   a calm contract-test path, but the review pane no longer shells docflow at runtime.
   Round commits are agent-side. See `workshop/targets/review-protocol.md` for the
@@ -162,7 +165,8 @@ smoke), M4a (nvim writes no git; fake-agent commits from landed artifacts), and
 M4a' pair-side review-start/resume are implemented and headless-tested. M4b adds
 pair-side accept/reject + marker navigation, fulfill-or-punt default Copy Edit
 posture, and ship request. M4c adds pair-side mode display/menu and the awaiting-agent
-spinner.
+spinner. M4d starts workflow-detail tuning with one-round instruction menu polish and
+minimal-marker Copy Edit semantics.
 
 The real-agent half lives in ariadne #000121. Until that lands, pair proves the
 protocol with `tests/lib/fake-review-agent.sh`; the real live smoke remains the
@@ -172,7 +176,7 @@ docflow rounds.
 ## Tests
 
 - `make test-lua` — `record`, `reconstruct`, `markers`, `seam`, `mode`, `poke_bodies`,
-  `readiness`, `resolve`, `spinner` (pure).
+  `readiness`, `resolve`, `spinner`, `menu` (pure/headless).
 - `make test-review` — `docflow` (+ hermetic `tests/lib/fake-docflow.sh` and a
   gated smoke against the real ariadne `docflow.sh`), `apply` (incl. snapshot
   round-trip), `handoff`, the `loop` e2e (with `tests/lib/fake-review-agent.sh`),

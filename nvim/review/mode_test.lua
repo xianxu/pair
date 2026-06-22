@@ -43,6 +43,12 @@ eq(#modes, 6, 'six stock modes')
 eq(modes[1].name, 'developmental', 'first by order=1')
 eq(modes[6].name, 'free-form', 'last by order=6')
 
+local copy = M.load(here .. 'modes', 'copy-editing')
+eq(copy.body:find('stable inline marker', 1, true) ~= nil, true,
+   'copy-editing brief requires minimal anchors')
+eq(copy.body:find('🤖<old text>{new text}', 1, true) ~= nil, true,
+   'copy-editing brief requires minimal quoted replacement markers')
+
 -- list() drops a file whose frontmatter name ≠ basename (load resolves by
 -- basename, so a mismatch would offer a name load() can't find).
 local td = vim.fn.tempname()
