@@ -90,6 +90,8 @@ local function check()
   local map = vim.fn.maparg('<M-CR>', 'n') ~= ''
   local mapa = vim.fn.maparg('<M-a>', 'n') ~= ''
   local mapr = vim.fn.maparg('<M-r>', 'n') ~= ''
+  local mapshifta = vim.fn.maparg('<M-A>', 'n') ~= ''
+  local mapshiftr = vim.fn.maparg('<M-R>', 'n') ~= ''
   local mapqn = vim.fn.maparg('<M-q>', 'n') ~= ''
   local mapqi = vim.fn.maparg('<M-q>', 'i') ~= ''
   local mapqx = vim.fn.maparg('<M-q>', 'x') ~= ''
@@ -104,7 +106,7 @@ local function check()
   local apply = dofile(vim.env.PAIR_HOME .. '/nvim/review/apply.lua')
   OUT:write((pane and 'pane-loaded\n') or 'NO-pane\n')
   OUT:write((map and 'altcr-map\n') or 'NO-altcr\n')
-  OUT:write((mapa and mapr and mapqn and mapqi and mapqx and 'review-alt-maps\n') or 'NO-review-alt-maps\n')
+  OUT:write((mapa and mapr and mapshifta and mapshiftr and mapqn and mapqi and mapqx and 'review-alt-maps\n') or 'NO-review-alt-maps\n')
   OUT:write((mapo and 'no-alt-o-map\n') or 'HAS-alt-o-map\n')
   OUT:write((mapshiftcr and 'mode-menu-map\n') or 'NO-mode-menu-map\n')
   OUT:write((ship_cmd and 'ship-cmd\n') or 'NO-ship-cmd\n')
@@ -169,6 +171,50 @@ local function check()
   end
   local second_marker_line = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1]
   OUT:write((second_marker_line == 'one 🤖<a>{A} two B' and 'alt-a-under-cursor\n') or ('NO-alt-a-under-cursor ' .. tostring(second_marker_line) .. '\n'))
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    'before 🤖<a>{A}',
+    '',
+    'first 🤖<b>{B} second 🤖<c>{C} third 🤖<d>{D}',
+    'wrap 🤖<e>{E}',
+    '',
+    'after 🤖<f>{F}',
+  })
+  vim.api.nvim_win_set_cursor(0, { 3, 30 })
+  if _G.PairReviewPane and _G.PairReviewPane.resolve_paragraph_to_cursor then
+    _G.PairReviewPane.resolve_paragraph_to_cursor(buf, 'accept')
+  end
+  local accept_para = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n')
+  OUT:write((accept_para == table.concat({
+    'before 🤖<a>{A}',
+    '',
+    'first B second C third 🤖<d>{D}',
+    'wrap 🤖<e>{E}',
+    '',
+    'after 🤖<f>{F}',
+  }, '\n') and 'alt-shift-a-paragraph-prefix\n') or ('NO-alt-shift-a-paragraph-prefix ' .. accept_para .. '\n'))
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    'before 🤖<a>{A}',
+    '',
+    'first 🤖<b>{B} second 🤖<c>{C} third 🤖<d>{D}',
+    'wrap 🤖<e>{E}',
+    '',
+    'after 🤖<f>{F}',
+  })
+  vim.api.nvim_win_set_cursor(0, { 3, 30 })
+  if _G.PairReviewPane and _G.PairReviewPane.resolve_paragraph_to_cursor then
+    _G.PairReviewPane.resolve_paragraph_to_cursor(buf, 'reject')
+  end
+  local reject_para = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n')
+  OUT:write((reject_para == table.concat({
+    'before 🤖<a>{A}',
+    '',
+    'first b second c third 🤖<d>{D}',
+    'wrap 🤖<e>{E}',
+    '',
+    'after 🤖<f>{F}',
+  }, '\n') and 'alt-shift-r-paragraph-prefix\n') or ('NO-alt-shift-r-paragraph-prefix ' .. reject_para .. '\n'))
 
   -- If Alt+a is pressed on agent-applied styling but outside any 🤖 marker, it
   -- clears that styling/diagnosis instead of reporting "no marker".
@@ -267,6 +313,8 @@ grep -q '^failed-poke-no-spinner$' "$RT/r3" && pass "failed poke does not leave 
 grep -q '^alt-a-accept$' "$RT/r3" && pass "Alt+a accepts quoted agent replacement" || fail "Alt+a accept behavior"
 grep -q '^alt-r-reject$' "$RT/r3" && pass "Alt+r rejects to original quoted text" || fail "Alt+r reject behavior"
 grep -q '^alt-a-under-cursor$' "$RT/r3" && pass "Alt+a resolves the marker under cursor" || fail "Alt+a marker-under-cursor behavior"
+grep -q '^alt-shift-a-paragraph-prefix$' "$RT/r3" && pass "Alt+Shift+a accepts paragraph suggestions through cursor" || fail "Alt+Shift+a paragraph-prefix behavior"
+grep -q '^alt-shift-r-paragraph-prefix$' "$RT/r3" && pass "Alt+Shift+r rejects paragraph suggestions through cursor" || fail "Alt+Shift+r paragraph-prefix behavior"
 grep -q '^alt-a-clear-style$' "$RT/r3" && pass "Alt+a clears agent styling outside markers" || fail "Alt+a clear styling behavior"
 grep -q '^alt-q-insert$' "$RT/r3" && pass "Alt+q inserts a human comment marker" || fail "Alt+q insert behavior"
 grep -q '^alt-q-visual$' "$RT/r3" && pass "Alt+q wraps visual selection as quoted marker" || fail "Alt+q visual behavior"

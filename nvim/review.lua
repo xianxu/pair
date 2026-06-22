@@ -182,6 +182,20 @@ local function split_replacement(text)
   return vim.split(text, '\n', { plain = true })
 end
 
+local function marker_end_pos(marker)
+  local raw_lines = vim.split(marker.raw, '\n', { plain = true })
+  local end_row = marker.line + #raw_lines - 1
+  local end_col = (#raw_lines == 1) and (marker.col + #marker.raw) or #raw_lines[#raw_lines]
+  return end_row, end_col
+end
+
+local function apply_marker_resolution(buf, marker, action)
+  local replacement = resolve.resolve(marker, action)
+  local end_row, end_col = marker_end_pos(marker)
+  vim.api.nvim_buf_set_text(buf, marker.line, marker.col, end_row, end_col,
+    split_replacement(replacement))
+end
+
 -- Accept/reject the 🤖 marker on the cursor's line (M4b, parley §5 via resolve.lua):
 -- turn the `🤖…{…}` chain into plain text. A normal buffer edit — undo-able, and
 -- committed by the agent on the next human round (Alt+Return).
@@ -193,8 +207,7 @@ local function resolve_at_cursor(buf, action)
   local target
   for _, m in ipairs(markers.parse_markers(lines)) do
     if m.line == row0 then
-      local raw_lines = vim.split(m.raw, '\n', { plain = true })
-      local end_col = (#raw_lines == 1) and (m.col + #m.raw) or #raw_lines[#raw_lines]
+      local _, end_col = marker_end_pos(m)
       if not target then target = m end -- same-line fallback for legacy cursor placement
       if cur[2] >= m.col and cur[2] < end_col then target = m; break end
     end
@@ -205,13 +218,37 @@ local function resolve_at_cursor(buf, action)
     end
     vim.notify('review: no 🤖 marker on this line', vim.log.levels.INFO); return
   end
-  local replacement = resolve.resolve(target, action)
-  -- The marker's raw span (🤖 → end of last section) may cross lines (bounded).
-  local raw_lines = vim.split(target.raw, '\n', { plain = true })
-  local end_row = target.line + #raw_lines - 1
-  local end_col = (#raw_lines == 1) and (target.col + #target.raw) or #raw_lines[#raw_lines]
-  vim.api.nvim_buf_set_text(buf, target.line, target.col, end_row, end_col,
-    split_replacement(replacement))
+  apply_marker_resolution(buf, target, action)
+  render_markers(buf)
+end
+
+local function paragraph_bounds(lines, row0)
+  local first = row0
+  while first > 0 and lines[first] ~= '' do first = first - 1 end
+  local last = row0
+  while last < (#lines - 1) and lines[last + 2] ~= '' do last = last + 1 end
+  return first, last
+end
+
+local function resolve_paragraph_to_cursor(buf, action)
+  local win = vim.api.nvim_get_current_win()
+  local cur = vim.api.nvim_win_get_cursor(win)
+  local row0, col = cur[1] - 1, cur[2]
+  local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local first, last = paragraph_bounds(lines, row0)
+  local targets = {}
+  for _, m in ipairs(markers.parse_markers(lines)) do
+    if m.line >= first and m.line <= last and (m.line < row0 or (m.line == row0 and m.col <= col)) then
+      targets[#targets + 1] = m
+    end
+  end
+  if #targets == 0 then
+    vim.notify('review: no 🤖 markers before cursor in this paragraph', vim.log.levels.INFO)
+    return
+  end
+  for i = #targets, 1, -1 do
+    apply_marker_resolution(buf, targets[i], action)
+  end
   render_markers(buf)
 end
 
@@ -378,6 +415,10 @@ local function start_review(buf, file)
     { buffer = buf, silent = true, desc = 'review: accept 🤖 suggestion (§5)' })
   vim.keymap.set('n', '<M-r>', function() resolve_at_cursor(buf, 'reject') end,
     { buffer = buf, silent = true, desc = 'review: reject 🤖 suggestion (§5)' })
+  vim.keymap.set('n', '<M-A>', function() resolve_paragraph_to_cursor(buf, 'accept') end,
+    { buffer = buf, silent = true, desc = 'review: accept paragraph 🤖 suggestions through cursor' })
+  vim.keymap.set('n', '<M-R>', function() resolve_paragraph_to_cursor(buf, 'reject') end,
+    { buffer = buf, silent = true, desc = 'review: reject paragraph 🤖 suggestions through cursor' })
   vim.keymap.set('n', '<M-q>', function()
     insert_review_marker(buf)
     vim.cmd('startinsert')
@@ -431,6 +472,7 @@ _G.PairReviewPane = { start_review = start_review, render_markers = render_marke
     return open_mode_menu(vim.api.nvim_get_current_buf(), file)
   end,
   resolve_at_cursor = resolve_at_cursor, insert_review_marker = insert_review_marker,
+  resolve_paragraph_to_cursor = resolve_paragraph_to_cursor,
   quote_selection = quote_selection, current_mode = current_mode, mode_label = mode_label }
 
 -- Start once the file is loaded (the buffer doesn't exist yet at init time).
