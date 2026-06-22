@@ -18,8 +18,12 @@ eq(M.agent_applied(2, 0, '/a/doc.md'),
   'applied 2 edit(s) to /a/doc.md — commit the agent round',
   'agent_applied omits the dropped segment when dropped==0')
 eq(M.human_finished('/a/doc.md'),
-  'finished my edits to /a/doc.md — please review',
+  'finished my edits to /a/doc.md — please review in Copy Edit posture; resolve 🤖[] comments as edits when possible, or punt explicitly when not',
   'human_finished')
+
+eq(M.ship_requested('/a/doc.md'),
+  'ship /a/doc.md — run docflow ship for the active review branch; the agent owns git',
+  'ship_requested')
 
 do -- review_opened: the review-START announce poke names the file + the workbench protocol
   local s = M.review_opened('/a/doc.md')
@@ -29,6 +33,8 @@ do -- review_opened: the review-START announce poke names the file + the workben
   has('Pair review workbench', 'names the workbench protocol')
   has('records', 'says propose records')
   has('do NOT edit the file', 'forbids file-write')
+  has('Copy Edit', 'names the default posture')
+  has('resolve 🤖[] comments', 'names fulfill/punt marker handling')
 end
 
 if fails > 0 then os.exit(1) end

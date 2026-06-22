@@ -227,16 +227,22 @@ local function finish_human_turn(buf, file)
   poke.send(poke_bodies.human_finished(vim.fn.fnamemodify(file, ':p')))
 end
 
+local function request_ship(file)
+  poke.send(poke_bodies.ship_requested(vim.fn.fnamemodify(file, ':p')))
+end
+
 local function start_review(buf, file)
   local tag = vim.env.PAIR_TAG
   review.start({ buf = buf, file = file, tag = (tag and tag ~= '') and tag or nil })
 
-  -- Alt+Return = finish the human turn (the fix-skill gesture): commit the human
-  -- round, then poke the agent "updated, please review <file>".
+  -- Alt+Return = finish the human turn: save the human round, then poke the agent
+  -- to commit it and continue in the default Copy Edit posture.
   for _, mode in ipairs({ 'n', 'i' }) do
     vim.keymap.set(mode, '<M-CR>', function() finish_human_turn(buf, file) end,
       { buffer = buf, silent = true })
   end
+  pcall(vim.api.nvim_del_user_command, 'PairReviewShip')
+  vim.api.nvim_create_user_command('PairReviewShip', function() request_ship(file) end, {})
 
   -- Accept/reject the 🤖 suggestion on the cursor line (M4b, §5), insert human
   -- comment markers, and jump between markers. Leader maps stay as a fallback;
@@ -305,6 +311,7 @@ end
 -- Exposed for the headless test.
 _G.PairReviewPane = { start_review = start_review, render_markers = render_markers,
   state_file = state_file, finish_human_turn = finish_human_turn,
+  request_ship = request_ship,
   resolve_at_cursor = resolve_at_cursor, insert_review_marker = insert_review_marker,
   quote_selection = quote_selection }
 

@@ -62,18 +62,18 @@ the fallback chain.
                                       │ └───────────────┘                 │  agent round │
                                       │   the agent, asked, commits  ◄─────┴──────────────┘
                                       └─── + re-reviews (next handoff) ───┘
-   ship: "ship it" → agent `docflow ship` (merge --no-ff + branch delete)            (M4)
+   ship: "ship it" / `:PairReviewShip` → agent `docflow ship` (merge --no-ff + branch delete) (M4)
 ```
 
 - **idle** — no open-state file. Draft shows the normal pair-slug. `Alt+c` → file-select. **BUILT.**
-- **open / rendering** — review nvim open on `<file>`; doc + 🤖 markers rendered; draft line-1 becomes the **review indicator** (slug generation suppressed). `Alt+c` ⇄ visibility. **BUILT** (indicator: M3-close item). In review nvim, `Alt+a` accepts, `Alt+r` rejects, and `Alt+q` inserts `🤖[]` or wraps the visual selection as `🤖<selection>[]`.
+- **open / rendering** — review nvim open on `<file>`; doc + 🤖 markers rendered; draft line-1 becomes the **review indicator** (slug generation suppressed). `Alt+c` ⇄ visibility. **BUILT** (indicator: M3-close item). In review nvim, `Alt+a` accepts, `Alt+r` rejects, and `Alt+q` inserts `🤖[]` or wraps the visual selection as `🤖<selection>[]`. The context poke defaults the agent to **Copy Edit** posture and tells it to resolve `🤖[]` human comments as edits when possible, or punt explicitly when not.
 - **agent-proposing** *(M4)* — the SKILL recognizes "please review", does memory discovery, and on the **first** round creates `review/<slug>` **in the doc's repo** (the abs path from poke #3 tells it which repo), then writes the handoff records. This IS the **xx-fix-under-docflow flow** (see *What "review" means here* below) — not a review skill the agent picks by vibe.
 - **applying** — review nvim polls the handoff → applies undo-ably → renders → **saves** → pokes "applied N edits to `<abs>`". **BUILT** (apply/render/save); the post-apply poke is the **commit signal**.
 - **agent-committing** *(M4)* — the agent commits the agent round (records in body) **only after** the "applied" poke (apply can drop unanchorable records, so the agent must not blind-commit its own proposal). `agent-count++`.
 - **human-editing** — the human edits in the review pane. **BUILT.**
-- **human-finish** (`Alt+Return`) — review nvim **saves** → pokes "updated, please commit this human round + re-review `<abs>`". **BUILT** (save + poke); the commit is the agent's.
+- **human-finish** (`Alt+Return`) — review nvim **saves** → pokes "updated, please commit this human round + re-review `<abs>`" in Copy Edit posture, with `🤖[]` comments handled as fulfill-or-punt instructions. **BUILT** (save + poke); the commit is the agent's.
 - **human-committing** *(M4)* — the agent commits the human round. `human-count++`.
-- **ship** *(M4)* — "ship it" → the agent runs `docflow ship` (merge `--no-ff` + branch delete).
+- **ship** *(M4)* — "ship it" or `:PairReviewShip` → the agent runs `docflow ship` (merge `--no-ff` + branch delete). The review nvim only pokes; it never shells `docflow ship`.
 
 ## What "review" means here (xx-fix, not doc-review)
 

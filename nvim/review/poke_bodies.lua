@@ -17,7 +17,12 @@ end
 -- After the human finished their turn (the nvim saved — but did NOT git-commit;
 -- the agent commits the human round). "finished", not "committed" — precise.
 function M.human_finished(file)
-  return string.format('finished my edits to %s — please review', file)
+  return string.format('finished my edits to %s — please review in Copy Edit posture; '
+    .. 'resolve 🤖[] comments as edits when possible, or punt explicitly when not', file)
+end
+
+function M.ship_requested(file)
+  return string.format('ship %s — run docflow ship for the active review branch; the agent owns git', file)
 end
 
 -- Sent ONCE when the review pane opens — the missing review-START signal (M4a
@@ -30,7 +35,8 @@ function M.review_opened(file)
     'Review workbench open on %s. When I ask you to review this doc, use the xx-fix '
     .. '"Pair review workbench" protocol: propose {old,occurrence,new,explain} records '
     .. 'to the handoff and own the git — do NOT edit the file in place or summarize '
-    .. 'edits and ask to apply (that bypasses the pane). Reply "ready".', file)
+    .. 'edits and ask to apply (that bypasses the pane). Default to Copy Edit posture; '
+    .. 'resolve 🤖[] comments as edits when possible, or punt explicitly when not. Reply "ready".', file)
 end
 
 return M

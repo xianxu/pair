@@ -72,6 +72,7 @@ local function check()
   local mapqn = vim.fn.maparg('<M-q>', 'n') ~= ''
   local mapqi = vim.fn.maparg('<M-q>', 'i') ~= ''
   local mapqx = vim.fn.maparg('<M-q>', 'x') ~= ''
+  local ship_cmd = vim.api.nvim_get_commands({}).PairReviewShip ~= nil
   local sf = _G.PairReviewPane and _G.PairReviewPane.state_file()
   local sf_ok = sf and (vim.uv or vim.loop).fs_stat(sf) ~= nil
   local buf = vim.api.nvim_get_current_buf()
@@ -80,6 +81,7 @@ local function check()
   OUT:write((pane and 'pane-loaded\n') or 'NO-pane\n')
   OUT:write((map and 'altcr-map\n') or 'NO-altcr\n')
   OUT:write((mapa and mapr and mapqn and mapqi and mapqx and 'review-alt-maps\n') or 'NO-review-alt-maps\n')
+  OUT:write((ship_cmd and 'ship-cmd\n') or 'NO-ship-cmd\n')
   OUT:write((sf_ok and 'state-file\n') or 'NO-state\n')
   OUT:write(((#marks >= 1) and 'markers\n') or 'NO-markers\n')
 
@@ -123,18 +125,21 @@ local function check()
   -- drive Alt+Return (finish human turn): edit → human_round + poke
   vim.api.nvim_buf_set_lines(buf, -1, -1, false, { 'a human edit' })
   pcall(_G.PairReviewPane.finish_human_turn, buf, 'doc.md')
+  pcall(vim.cmd, 'PairReviewShip')
   vim.cmd('qa!')
 end
 if vim.v.vim_did_enter == 1 then vim.schedule(check)
 else vim.api.nvim_create_autocmd('VimEnter', { callback = function() vim.schedule(check) end }) end
 LUA
 : > "$RT/zlog"
+: > "$RT/doclog"
 ( cd "$REPO" && PATH="$RT/bin:$PATH" PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=claude \
     PAIR_HOME="$ROOT" DOCFLOW_BIN="$ROOT/tests/lib/fake-docflow.sh" DOCFLOW_ARGLOG="$RT/doclog" RESULT2="$RT/r3" \
     run_headless --timeout 30 -- nvim --headless -u "$ROOT/nvim/review.lua" "$REPO/doc.md" -c "luafile $RT/wdriver.lua" )
 grep -q 'pane-loaded' "$RT/r3" && pass "review.lua loaded the review core" || fail "review.lua did not load"
 grep -q 'altcr-map' "$RT/r3" && pass "Alt+Return keymap wired" || fail "no Alt+Return keymap"
 grep -q 'review-alt-maps' "$RT/r3" && pass "Alt+a/Alt+r/Alt+q review maps wired" || fail "review Alt maps missing"
+grep -q '^ship-cmd$' "$RT/r3" && pass ":PairReviewShip command wired" || fail ":PairReviewShip missing"
 grep -q '^state-file$' "$RT/r3" && pass "open-state file written" || fail "no state file"
 grep -q '^markers$' "$RT/r3" && pass "🤖 markers rendered" || fail "no marker extmarks"
 grep -q '^alt-a-accept$' "$RT/r3" && pass "Alt+a accepts quoted agent replacement" || fail "Alt+a accept behavior"
@@ -146,7 +151,9 @@ grep -q '^alt-q-visual$' "$RT/r3" && pass "Alt+q wraps visual selection as quote
 # commit-request signal (human_finished), not a docflow round and not /xx-fix.
 grep -q 'a human edit' "$REPO/doc.md" && pass "Alt+Return saves the human edits (agent commits the round)" || fail "human edit not saved"
 grep -q 'round --side human' "$RT/doclog" && fail "nvim ran a human docflow round (invariant #1: nvim writes no git)" || pass "nvim writes no git on Alt+Return"
+grep -q '^ship$' "$RT/doclog" && fail "nvim ran docflow ship (invariant #1: agent owns git)" || pass "nvim writes no git on :PairReviewShip"
 grep -q 'write-chars finished my edits' "$RT/zlog" && pass "Alt+Return pokes the agent commit-request signal (human_finished)" || fail "no commit-request poke"
+grep -q 'write-chars ship .*doc.md.*agent owns git' "$RT/zlog" && pass ":PairReviewShip pokes the agent ship request" || fail "no ship-request poke"
 
 [ "$fails" -eq 0 ] || { printf 'review-window-test FAILED (%d)\n' "$fails"; exit 1; }
 printf 'review-window-test ok\n'

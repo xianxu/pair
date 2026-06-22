@@ -74,10 +74,12 @@ Integration seams (headless shell tests, `make test-review`):
 Agent writes a records handoff → nvim watcher applies undo-ably, decorates, saves,
 writes the landed-artifact, and pokes `agent_applied` → the agent commits the
 agent round from that artifact. Human edits → Alt+Return saves and pokes
-`human_finished` → the agent commits the human round and re-reviews. History lives
-in git (round commits + per-hunk explains in the agent commit body);
-fine-grained undo lives in nvim's `undofile`; no bespoke sidecar. The doc must be
-in a git repo.
+`human_finished` in Copy Edit posture, with `🤖[]` comments treated as
+fulfill-or-punt instructions → the agent commits the human round and re-reviews.
+`:PairReviewShip` pokes the agent to run `docflow ship`; the pane does not shell
+docflow. History lives in git (round commits + per-hunk explains in the agent commit
+body); fine-grained undo lives in nvim's `undofile`; no bespoke sidecar. The doc must
+be in a git repo.
 
 ## The review window (M3)
 
@@ -90,7 +92,8 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   (`markers.highlight_spans` → `ParleyReview*` extmarks, re-rendered on
   TextChanged), supports accept/reject on the cursor line (`Alt+a`/`Alt+r`, with
   `\a`/`\r` fallbacks), inserts human comment markers (`Alt+q` bare marker or visual
-  quote), plus marker navigation (`]m`/`[m`), writes the open-state file (line 1 = pane nvim `pid` for
+  quote), exposes `:PairReviewShip` as an agent-owned ship request, plus marker
+  navigation (`]m`/`[m`), writes the open-state file (line 1 = pane nvim `pid` for
   liveness, line 2 = the absolute doc path for the indicator), and tears down on
   `VimLeave`. Also defines `PairReviewToggle()` = hide-self (the case where Alt+c
   fires from inside the focused floating review pane).
@@ -137,16 +140,17 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   full agent↔nvim state machine.
 
 The agent pane is pair's **existing** agent — free-form chat works for free; the SKILL
-that makes "please review" / "ship it" review-aware is M4.
+that makes "please review" / "ship it" review-aware is the ariadne #000121 half of M4.
 
 ## State
 
 M1 (contract + history spine), M2 (consumer-half port), M3 (review window + live
 smoke), M4a (nvim writes no git; fake-agent commits from landed artifacts), and
 M4a' pair-side review-start/resume are implemented and headless-tested. The current
-open boundary is M4b skeleton: accept/reject + marker navigation has landed; still
-to finish are fulfill/punt behavior, default editing posture, and ship. M4c is the
-thickening pass; one spinner helper exists as unwired pre-work.
+open boundary is M4b skeleton: pair-side accept/reject + marker navigation,
+fulfill-or-punt default Copy Edit posture, and ship request are implemented; full
+suite verification/milestone close is pending. M4c is the thickening pass; one spinner
+helper exists as unwired pre-work.
 
 The real-agent half lives in ariadne #000121. Until that lands, pair proves the
 protocol with `tests/lib/fake-review-agent.sh`; the real live smoke remains the

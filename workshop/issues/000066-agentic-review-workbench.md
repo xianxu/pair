@@ -98,7 +98,7 @@ M4 (agent protocol) — **re-sliced structure-first** (2026-06-21): the whole lo
 
 - [x] M4a — agent-owns-git inversion + the basic round (records → apply → landed-artifact → fake-agent commits). *Implemented/headless-verified; not separately milestone-closed because M4a'/M4b commits already landed before reconciliation. Review evidence folds into the current M4 skeleton boundary.*
 - [x] M4a' — review-start & resume flow: `:PairReview` **proposes** → agent preps (pure readiness probe) → Alt+c opens when ready; reconstruct-on-open (resume repaint). Spec in `workshop/targets/review-protocol.md`; pair side built and headless-tested.
-- [ ] M4b — **skeleton** (structure): 🤖[] fulfill/punt + **accept/reject** (parley §5) conversation + default editing posture + **ship** — completes the thin full cycle (open → propose → prep → review → converse → iterate → ship → resume). *Alt+c collaboration toggle + Alt+a/Alt+r/Alt+q review shortcuts implemented; ship/default posture remain.*
+- [ ] M4b — **skeleton** (structure): 🤖[] fulfill/punt + **accept/reject** (parley §5) conversation + default editing posture + **ship** — completes the thin full cycle (open → propose → prep → review → converse → iterate → ship → resume). *Pair-side skeleton implemented: Alt+c collaboration toggle, Alt+a/Alt+r/Alt+q review shortcuts, Copy Edit fulfill-or-punt poke posture, and `:PairReviewShip` agent-owned ship request. Full verification pending before close.*
 - [ ] M4c — **thicken** (tuning; sub-slices when reached): modes menu + 🪄/spinner/lean-history bar; voice (`voice:` frontmatter); fact-check pass (`doc-review` fold); pending-🤖{} quickfix; diagnostic-display polish; `xx-fix`→`writing-assistant` rename. *Spinner pure helper exists as pre-work, unwired.*
 
 ## Log
@@ -129,6 +129,12 @@ M4 (agent protocol) — **re-sliced structure-first** (2026-06-21): the whole lo
   open the pane. Fixed both writer and reader to resolve session id via env → config →
   live Codex rollout. Also stamped the live tag `3` target/config with rollout
   `019eecfc-87a8-7d23-8b3e-978069a508af`.
+
+- 2026-06-21: **M4b default posture + ship seam.** Review-open and Alt+Return pokes now
+  tell the agent to use Copy Edit posture and treat `🤖[]` comments as fulfill-or-punt
+  instructions. Added `:PairReviewShip`, which only pokes the agent to run `docflow ship`;
+  the review nvim still writes no git. Focused verification: `nvim -l
+  nvim/review/poke_bodies_test.lua` and `bash tests/review-window-test.sh` green.
 
 - 2026-06-20: **M4a pair-side done (Tasks 1–4), forked + verified.** The git-ownership
   inversion: the nvim writes git NOWHERE — `on_agent_round` applies+saves → writes the
