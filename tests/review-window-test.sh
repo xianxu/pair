@@ -93,6 +93,16 @@ local function check()
   OUT:write((vim.o.guicursor:find('blinkon', 1, true) and 'review-blink-cursor\n') or ('NO-review-blink-cursor ' .. vim.o.guicursor .. '\n'))
   local status = vim.o.statusline
   OUT:write((status:find('🪄 Edit', 1, true) and 'mode-statusline\n') or ('NO-mode-statusline ' .. status .. '\n'))
+  local function link_of(name)
+    local ok, hl = pcall(vim.api.nvim_get_hl, 0, { name = name, link = true })
+    return ok and hl.link or nil
+  end
+  local quoted = vim.api.nvim_get_hl(0, { name = 'ParleyReviewQuoted', link = false })
+  local strike = vim.api.nvim_get_hl(0, { name = 'ParleyReviewStrike', link = false })
+  OUT:write((link_of('ParleyReviewUser') == 'DiagnosticWarn' and 'review-user-hl\n') or 'NO-review-user-hl\n')
+  OUT:write((link_of('ParleyReviewAgent') == 'DiagnosticInfo' and 'review-agent-hl\n') or 'NO-review-agent-hl\n')
+  OUT:write((quoted.reverse and quoted.bold and 'review-quoted-hl\n') or 'NO-review-quoted-hl\n')
+  OUT:write((strike.strikethrough and 'review-strike-hl\n') or 'NO-review-strike-hl\n')
 
   -- A failed poke (no agent pane found) must not leave the statusline spinner
   -- waiting forever. This catches mark-awaiting-before-send regressions.
@@ -223,6 +233,10 @@ grep -q '^markers$' "$RT/r3" && pass "🤖 markers rendered" || fail "no marker 
 grep -q '^review-clipboard$' "$RT/r3" && pass "review pane yanks to system clipboard" || fail "review clipboard option"
 grep -q '^review-blink-cursor$' "$RT/r3" && pass "review pane uses blinking cursor" || fail "review cursor blink option"
 grep -q '^mode-statusline$' "$RT/r3" && pass "review statusline shows current mode" || fail "review statusline missing mode"
+grep -q '^review-user-hl$' "$RT/r3" && pass "review user marker highlight matches parley" || fail "review user marker highlight"
+grep -q '^review-agent-hl$' "$RT/r3" && pass "review agent marker highlight matches parley" || fail "review agent marker highlight"
+grep -q '^review-quoted-hl$' "$RT/r3" && pass "review quoted marker highlight matches parley" || fail "review quoted marker highlight"
+grep -q '^review-strike-hl$' "$RT/r3" && pass "review strike marker highlight matches parley" || fail "review strike marker highlight"
 grep -q '^failed-poke-no-spinner$' "$RT/r3" && pass "failed poke does not leave spinner awaiting" || fail "failed-poke spinner behavior"
 grep -q '^alt-a-accept$' "$RT/r3" && pass "Alt+a accepts quoted agent replacement" || fail "Alt+a accept behavior"
 grep -q '^alt-r-reject$' "$RT/r3" && pass "Alt+r rejects to original quoted text" || fail "Alt+r reject behavior"

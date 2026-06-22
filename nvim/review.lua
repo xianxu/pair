@@ -51,12 +51,11 @@ end
 vim.keymap.set('n', ']d', function() diag_jump(1) end, { desc = 'review: next diagnostic (float)' })
 vim.keymap.set('n', '[d', function() diag_jump(-1) end, { desc = 'review: prev diagnostic (float)' })
 
--- Markdown appearance — mirrors the draft's setup (nvim/init.lua ~L33-79). nvim's
--- bundled `default` colorscheme is near-monochrome, so the review doc's syntax
--- reads as muted; `slate` + fenced-language highlighting gives readable headings,
--- emphasis, code spans, and per-language code blocks. fenced_languages must be set
--- before the .md loads, so it sits at top-of-init. (Two md-nvims share this now;
--- factor into a module if a third appears.)
+-- Markdown appearance — mirrors the user's nvim where possible, while still
+-- working as a standalone `nvim -u pair/nvim/review.lua` process. The normal
+-- config loads moonfly through lazy.nvim, which this minimal init does not run,
+-- so add common lazy theme paths to rtp and prefer the local theme before
+-- falling back to bundled colors.
 vim.cmd('syntax enable')
 vim.cmd('filetype plugin indent on')
 vim.g.markdown_fenced_languages = {
@@ -65,8 +64,28 @@ vim.g.markdown_fenced_languages = {
   'html', 'css', 'c', 'cpp', 'cxx=cpp', 'rust', 'rs=rust', 'go', 'sql',
   'ruby', 'rb=ruby', 'java', 'kotlin', 'kt=kotlin', 'swift', 'dockerfile', 'make', 'diff', 'vim',
 }
-vim.cmd('colorscheme slate')
-vim.api.nvim_set_hl(0, 'Comment', { fg = '#999999', ctermfg = 247 }) -- lift slate's faded Comment
+
+local function add_local_theme_rtp()
+  local lazy = vim.fn.stdpath('data') .. '/lazy'
+  for _, dir in ipairs({ 'moonfly', 'catppuccin', 'gruvbox.nvim', 'rose-pine', 'everforest', 'melange-nvim' }) do
+    local path = lazy .. '/' .. dir
+    if vim.fn.isdirectory(path) == 1 then
+      vim.opt.runtimepath:append(path)
+    end
+  end
+end
+
+local function apply_review_colorscheme()
+  add_local_theme_rtp()
+  for _, name in ipairs({ vim.env.PAIR_REVIEW_COLORSCHEME, 'moonfly', 'catppuccin', 'slate', 'default' }) do
+    if name and name ~= '' and pcall(vim.cmd.colorscheme, name) then
+      return name
+    end
+  end
+  return vim.g.colors_name or 'default'
+end
+
+apply_review_colorscheme()
 
 -- The agent edits the doc on disk (M3: via xx-fix's file write; M4: the pane
 -- applies records in-buffer, so this won't fire). autoread + a checktime when the
@@ -111,11 +130,16 @@ local mode = dofile(here .. 'review/mode.lua')
 local menu = dofile(here .. 'review/menu.lua')
 local spinner = dofile(here .. 'review/spinner.lua')
 
--- 🤖 marker highlight groups (parley's names; linked, overridable by a colorscheme).
-vim.api.nvim_set_hl(0, 'ParleyReviewQuoted', { link = 'Comment', default = true })
-vim.api.nvim_set_hl(0, 'ParleyReviewStrike', { strikethrough = true, default = true })
-vim.api.nvim_set_hl(0, 'ParleyReviewUser', { link = 'Question', default = true })
-vim.api.nvim_set_hl(0, 'ParleyReviewAgent', { link = 'Identifier', default = true })
+-- 🤖 marker highlight groups. Keep these aligned with parley.nvim's review mode
+-- so pair and parley render the marker language consistently across themes.
+local function setup_review_marker_hl()
+  vim.api.nvim_set_hl(0, 'ParleyReviewUser', { link = 'DiagnosticWarn' })
+  vim.api.nvim_set_hl(0, 'ParleyReviewAgent', { link = 'DiagnosticInfo' })
+  vim.api.nvim_set_hl(0, 'ParleyReviewQuoted', { reverse = true, bold = true })
+  vim.api.nvim_set_hl(0, 'ParleyReviewStrike', { strikethrough = true })
+end
+setup_review_marker_hl()
+vim.api.nvim_create_autocmd('ColorScheme', { callback = setup_review_marker_hl })
 
 local MARK_NS = vim.api.nvim_create_namespace('review_markers')
 local function render_markers(buf)
