@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/review-toggle-test.sh — the Alt+r review toggle, now a draft-nvim lua
+# tests/review-toggle-test.sh — the Alt+c review/collaboration toggle, now a draft-nvim lua
 # fn (#66 M3 rework; the old transient pair-review-toggle floating pane caused
 # the open delay / auto-hide / half-size / mis-fire smoke bugs).
 #
@@ -150,9 +150,10 @@ grep -q '^wait ok$'       "$RESULT" && pass "target proposed → wait (no open)"
 grep -q '^footgun ok$'    "$RESULT" && pass "never toggle-floating-panes" || fail "footgun (toggle-floating-panes used)"
 
 # ── config lint ───────────────────────────────────────────────────────────────
-grep -q 'bind "Alt r"' "$ROOT/zellij/config.kdl" && pass "Alt+r bound in config.kdl" || fail "no Alt+r bind"
-grep -q ':lua PairReviewToggle()' "$ROOT/zellij/config.kdl" && pass "Alt+r routes to :lua PairReviewToggle()" || fail "Alt+r target wrong"
-grep -q 'Run "pair-review-toggle"' "$ROOT/zellij/config.kdl" && fail "Alt+r still spawns the old toggle pane" || pass "old pair-review-toggle pane gone"
+grep -q 'bind "Alt c"' "$ROOT/zellij/config.kdl" && pass "Alt+c bound in config.kdl" || fail "no Alt+c bind"
+grep -q ':lua PairReviewToggle()' "$ROOT/zellij/config.kdl" && pass "Alt+c routes to :lua PairReviewToggle()" || fail "Alt+c target wrong"
+grep -q 'bind "Alt r"' "$ROOT/zellij/config.kdl" && fail "Alt+r still globally bound" || pass "Alt+r free for review-pane reject"
+grep -q 'Run "pair-review-toggle"' "$ROOT/zellij/config.kdl" && fail "Alt+c still spawns the old toggle pane" || pass "old pair-review-toggle pane gone"
 
 [ "$fails" -eq 0 ] || { printf 'review-toggle-test FAILED (%d)\n' "$fails"; exit 1; }
 printf 'review-toggle-test ok\n'

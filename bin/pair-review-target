@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # bin/pair-review-target — write the review-target seam (#6) stamped with the
 # current PAIR_SESSION_ID, so the target is CONVERSATION-scoped: the draft nvim's
-# Alt+r ignores a target from a different session (a fresh pair session prompts),
+# Alt+c ignores a target from a different session (a fresh pair session prompts),
 # while an Alt+n restart that resumes the same conversation keeps its in-progress
 # review. The agent runs this to mark a target `ready` (or `proposed`) instead of
 # hand-writing the JSON — pair-side stamping keeps the session reliable. (#66 #6.)

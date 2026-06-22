@@ -20,7 +20,7 @@ function M.open_state(data_dir, env_tag)
 end
 
 -- The review-target path (seam #6, M4a'): `{file, status: proposed|ready}` — what
--- to review, set by :PairReview (proposes) + the agent (marks ready), read by Alt+r.
+-- to review, set by :PairReview (proposes) + the agent (marks ready), read by Alt+c.
 function M.target_path(data_dir, env_tag)
   if not data_dir or data_dir == '' then return nil end
   return data_dir .. '/review-target-' .. M.tag(env_tag) .. '.json'

@@ -747,16 +747,16 @@ end
 -- :PairReview <file> — PROPOSE a file for review (#66 M4a'). It does NOT open the
 -- pane: it writes the review-target seam (status=proposed) + pokes the agent to run
 -- the readiness probe and prepare (track / new branch / resume / interact), then
--- mark the target ready. Alt+r opens the pane once ready. `complete='file'` gives
--- :e-style tab-completion; Alt+r feeds ":PairReview " into this command line.
+-- mark the target ready. Alt+c opens the pane once ready. `complete='file'` gives
+-- :e-style tab-completion; Alt+c feeds ":PairReview " into this command line.
 -- (Callback runs at runtime, after the do-block below sets `_G._pair_review`.)
 vim.api.nvim_create_user_command('PairReview', function(opts)
   if _G._pair_review and _G._pair_review.propose then
     _G._pair_review.propose(opts.args)
     vim.notify('PairReview: proposed ' .. vim.fn.fnamemodify(opts.args, ':t')
-      .. ' — agent preparing; press Alt+r to open when ready', vim.log.levels.INFO)
+      .. ' — agent preparing; press Alt+c to open when ready', vim.log.levels.INFO)
   end
-end, { nargs = 1, complete = 'file', desc = 'propose a file for review (agent preps; Alt+r opens when ready)' })
+end, { nargs = 1, complete = 'file', desc = 'propose a file for review (agent preps; Alt+c opens when ready)' })
 
 -- Review-workbench draft-side helpers (#66 M3). Wrapped in `do ... end` and shared
 -- via the `_G._pair_review` table rather than added as file-level `local`s: init.lua's
@@ -774,7 +774,7 @@ do
   -- The review-target (seam #6) is CONVERSATION-scoped: it carries the
   -- PAIR_SESSION_ID it was written under, and a reader IGNORES a target from a
   -- different session. So a fresh pair session (new PAIR_SESSION_ID) prompts
-  -- (Alt+r → :PairReview), while an Alt+n restart that RESUMES the conversation
+  -- (Alt+c → :PairReview), while an Alt+n restart that RESUMES the conversation
   -- (same id, re-loaded init) keeps its in-progress review. We do NOT clear on
   -- load — that would wrongly reset a resumed review. Pure → unit-testable. (#66 #6.)
   local function target_stale(t, session)
@@ -797,7 +797,7 @@ do
   end
 
   -- review-target (seam #6): {file, status: proposed|ready}. :PairReview proposes;
-  -- the agent marks ready after prep; Alt+r reads it to decide prompt/open/wait.
+  -- the agent marks ready after prep; Alt+c reads it to decide prompt/open/wait.
   local function read_target()
     local p = seam.target_path(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
     if not p or vim.fn.filereadable(p) ~= 1 then return nil end
@@ -813,7 +813,7 @@ do
       { vim.json.encode({ file = file, status = status, session = vim.env.PAIR_SESSION_ID }) }, p) end
   end
   -- :PairReview proposes a target + pokes the agent to prep (run the readiness
-  -- probe, act per the case, mark ready). The nvim does NOT open the pane — Alt+r
+  -- probe, act per the case, mark ready). The nvim does NOT open the pane — Alt+c
   -- does, once ready; the prep is async so auto-open would fire indeterministically.
   local function propose(file)
     local abs = vim.fn.fnamemodify(file, ':p')
@@ -823,7 +823,7 @@ do
       .. 'review target ready. See the xx-fix "Pair review workbench" SKILL.')
   end
 
-  -- Pure: the Alt+r decision. A live pane → flip visibility (hide/show). No live
+  -- Pure: the Alt+c decision. A live pane → flip visibility (hide/show). No live
   -- pane → driven by the review-target status: ready→open, proposed→wait (prep in
   -- progress), none→prompt (:PairReview file-select). Exposed for the headless test.
   local function toggle_action(alive, visible, target_status)
@@ -837,13 +837,13 @@ do
     read_target = read_target, write_target = write_target, propose = propose, target_stale = target_stale }
   _G._pair_review_toggle_action = toggle_action -- test alias
 
-  -- Alt+r — the review-workbench brain (#66 M3/M4a'). Routed here through the draft
+  -- Alt+c — the collaboration/review-workbench brain (#66 M3/M4b). Routed here through the draft
   -- nvim (Alt+d-style) so the branch happens in a real nvim, not a transient shell
   -- pane. A LIVE pane → flip visibility (`are-floating-panes-visible` →
   -- show/hide-floating-panes; never the toggle-floating-panes footgun). Otherwise
   -- branch on the review target (seam #6): ready→open via pair-review-open,
   -- proposed→"prep in progress", none→drop into `:PairReview ` (file-select). The
-  -- review pane defines its own PairReviewToggle() (hide-self) for Alt+r from inside
+  -- review pane defines its own PairReviewToggle() (hide-self) for Alt+c from inside
   -- the focused floating pane. No has_ui() guard so the headless test records calls.
   function _G.PairReviewToggle()
     local alive, sf = is_alive()
@@ -3412,11 +3412,8 @@ vim.keymap.set({ 'n', 'i' }, '<M-b>', pair_scrollback_prev_prompt,
 vim.keymap.set({ 'n', 'i' }, '<M-i>', attach_image,
   { silent = true, desc = 'pair: attach clipboard image (Ctrl+V to agent + ref)' })
 
-vim.keymap.set({ 'n', 'i' }, '<M-c>', send_esc_to_agent,
-  { silent = true, desc = 'pair: send ESC to agent (interrupt stream)' })
-
--- Ctrl+C mirrors Alt+c: the familiar "interrupt" chord forwards to the agent
--- as ESC. send_esc_to_agent doesn't touch the draft's mode, so in insert mode
+-- Ctrl+C forwards ESC to the agent. send_esc_to_agent doesn't touch the draft's mode,
+-- so in insert mode
 -- you stay in insert (overriding <C-c>'s usual leave-insert) and in normal
 -- mode the pending-command cancel is given up — both deliberate, so a reflexive
 -- Ctrl+C interrupts the agent's stream without disrupting your draft.
@@ -3980,7 +3977,7 @@ vim.api.nvim_create_autocmd('VimEnter', {
 })
 
 -- Review-mode bar content (#66 M3) — the compact review segment shown in the pair
--- (draft) view while a review is open: `Review • Alt+r → review • <file>  (🤖N/M)`
+-- (draft) view while a review is open: `Review • Alt+c → review • <file>  (🤖N/M)`
 -- (N agent / M human round commits). This just builds the string; where it renders
 -- (its own bar vs folded into PairStatusline) is wired separately. Supersedes the
 -- earlier line-1 `=== review … ===` indicator (line 1 is the user's to edit — a

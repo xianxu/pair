@@ -11,8 +11,8 @@
 **Sub-milestones** — **re-sliced structure-first** (2026-06-21; see ## Revisions): get the *whole loop standing thin* before any tuning.
 
 - **M4a** — real loop + agent-owns-git unwind (this plan, in detail). *Implemented/headless-verified; evidence folded into the current M4 skeleton boundary rather than retroactively milestone-closed.*
-- **M4a'** — review-start & resume flow (`:PairReview` proposes → agent preps via the pure readiness probe → Alt+r opens; reconstruct-on-open). **Spec: `workshop/targets/review-protocol.md` → "Review-start & resume flow — M4a'" + seam #6.** *Pair side implemented/headless-verified; folded into current boundary.*
-- **M4b — skeleton (structure):** the 🤖[] fulfill/punt + **accept/reject** (parley §5) conversation + a **default editing posture** + **ship** (`docflow ship`) — completes the thin full cycle. The smallest set that makes the loop *usable* end-to-end. *In progress: accept/reject + marker nav landed; fulfill/punt/default posture/ship remain.*
+- **M4a'** — review-start & resume flow (`:PairReview` proposes → agent preps via the pure readiness probe → Alt+c opens; reconstruct-on-open). **Spec: `workshop/targets/review-protocol.md` → "Review-start & resume flow — M4a'" + seam #6.** *Pair side implemented/headless-verified; folded into current boundary.*
+- **M4b — skeleton (structure):** the 🤖[] fulfill/punt + **accept/reject** (parley §5) conversation + a **default editing posture** + **ship** (`docflow ship`) — completes the thin full cycle. The smallest set that makes the loop *usable* end-to-end. *In progress: Alt+c collaboration toggle and Alt+a/Alt+r/Alt+q review shortcuts landed; fulfill/punt/default posture/ship remain.*
 - **M4c — thicken (tuning; sub-slices when reached):** modes menu + `🪄 Mode`/spinner/lean-history (`-92 < -3 > +0`) bar; voice (`voice: <slug>` → `~/.personal/<slug>-writing-style.md`); fact-check pass (`doc-review` → records); pending-🤖{} quickfix; diagnostic-display polish; cross-session undo-of-style completeness; `xx-fix`→`writing-assistant` rename; the faithful e2e demo (final Done-when). *One pure spinner helper exists as unwired pre-work.*
 
 ---
@@ -194,3 +194,11 @@ already landed without separate `sdlc milestone-close` boundaries. Reconciliatio
 do not manufacture retrospective M4a/M4a' closes over an interleaved commit window. Treat
 M4a + M4a' as implemented evidence inside the current M4 skeleton boundary, keep M4b open
 for fulfill/punt/default posture/ship, and record the spinner helper as M4c pre-work.
+
+### 2026-06-21 — M4b keybinding reconciliation with parley review mode
+
+Operator resolved the global/review conflict: move pair's review collaboration toggle from
+`Alt+r` to `Alt+c`, freeing `Alt+r` inside review nvim for rejection. M4b now includes the
+Parley-style review shortcuts (`Alt+a` accept, `Alt+r` reject, `Alt+q` insert/wrap human
+comment marker) as the accept/reject conversation surface. `Alt+Return` remains the finish
+human turn gesture; any future menu is part of that gesture and is postponed.

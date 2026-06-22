@@ -193,7 +193,7 @@ keybinds clear-defaults=false {
             };
         }
 
-        // Alt+r — review workbench toggle (#66 M3). Routed through the draft
+        // Alt+c — collaboration/review workbench toggle (#66 M3/M4b). Routed through the draft
         // nvim exactly like Alt+d / Alt+x (MoveFocus Down lands in nvim from
         // either tiled pane; <C-\><C-n> = bytes 28,14 forces normal mode), then
         // `:lua PairReviewToggle()` runs the branch IN nvim: with no review open
@@ -202,10 +202,10 @@ keybinds clear-defaults=false {
         // show/hide, never the toggle-floating-panes footgun). Doing the branch
         // in nvim — not in a transient 20%x1 floating shell pane — kills the
         // ~1s open delay, the auto-hide, and the half-size bugs the old
-        // pair-review-toggle pane caused. When Alt+r is pressed from inside the
+        // pair-review-toggle pane caused. When Alt+c is pressed from inside the
         // focused (floating) review pane, MoveFocus Down may not escape it, so the
         // review pane defines its own PairReviewToggle() (hide-self).
-        bind "Alt r" {
+        bind "Alt c" {
             MoveFocus "Down";
             Write 28;
             Write 14;

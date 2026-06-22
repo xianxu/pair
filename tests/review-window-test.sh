@@ -3,7 +3,7 @@
 #   1. :PairReview exists in the draft init with complete=file
 #   2. pair-review-open validates + spawns `zellij run --floating ... nvim -u review.lua`
 #   3. nvim/review.lua, on a real doc, starts the review (Alt+Return map),
-#      writes the open-state file, and renders 🤖 markers.
+#      writes the open-state file, renders 🤖 markers, and wires Alt+a/r/q.
 # Live zellij pane behaviour is manual smoke; here zellij/tput/docflow are stubbed.
 #
 # Run: bash tests/review-window-test.sh
@@ -67,6 +67,11 @@ local function check()
   local OUT = io.open(os.getenv('RESULT2'), 'w')
   local pane = _G.PairReviewPane ~= nil
   local map = vim.fn.maparg('<M-CR>', 'n') ~= ''
+  local mapa = vim.fn.maparg('<M-a>', 'n') ~= ''
+  local mapr = vim.fn.maparg('<M-r>', 'n') ~= ''
+  local mapqn = vim.fn.maparg('<M-q>', 'n') ~= ''
+  local mapqi = vim.fn.maparg('<M-q>', 'i') ~= ''
+  local mapqx = vim.fn.maparg('<M-q>', 'x') ~= ''
   local sf = _G.PairReviewPane and _G.PairReviewPane.state_file()
   local sf_ok = sf and (vim.uv or vim.loop).fs_stat(sf) ~= nil
   local buf = vim.api.nvim_get_current_buf()
@@ -74,8 +79,46 @@ local function check()
   local marks = vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, {})
   OUT:write((pane and 'pane-loaded\n') or 'NO-pane\n')
   OUT:write((map and 'altcr-map\n') or 'NO-altcr\n')
+  OUT:write((mapa and mapr and mapqn and mapqi and mapqx and 'review-alt-maps\n') or 'NO-review-alt-maps\n')
   OUT:write((sf_ok and 'state-file\n') or 'NO-state\n')
   OUT:write(((#marks >= 1) and 'markers\n') or 'NO-markers\n')
+
+  -- Alt+a / Alt+r semantics: quoted agent replacement accepts new text and
+  -- rejection removes the marker while keeping the original quoted text.
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'hello 🤖<old>{new}', 'bye' })
+  vim.api.nvim_win_set_cursor(0, { 1, 8 })
+  local ok_accept = _G.PairReviewPane and _G.PairReviewPane.resolve_at_cursor
+  if ok_accept then _G.PairReviewPane.resolve_at_cursor(buf, 'accept') end
+  local accept_line = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1]
+  OUT:write((accept_line == 'hello new' and 'alt-a-accept\n') or ('NO-alt-a-accept ' .. tostring(accept_line) .. '\n'))
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'hello 🤖<old>{new}', 'bye' })
+  vim.api.nvim_win_set_cursor(0, { 1, 8 })
+  if _G.PairReviewPane and _G.PairReviewPane.resolve_at_cursor then
+    _G.PairReviewPane.resolve_at_cursor(buf, 'reject')
+  end
+  local reject_line = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1]
+  OUT:write((reject_line == 'hello old' and 'alt-r-reject\n') or ('NO-alt-r-reject ' .. tostring(reject_line) .. '\n'))
+
+  -- Alt+q in normal/insert inserts a bare human comment marker and leaves the
+  -- cursor inside the brackets; visual Alt+q wraps the selection as quoted text.
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'abc' })
+  vim.api.nvim_win_set_cursor(0, { 1, 2 })
+  if _G.PairReviewPane and _G.PairReviewPane.insert_review_marker then
+    _G.PairReviewPane.insert_review_marker(buf)
+  end
+  local inserted = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1]
+  local cur = vim.api.nvim_win_get_cursor(0)
+  OUT:write((inserted == 'ab🤖[]c' and cur[2] == 7 and 'alt-q-insert\n') or ('NO-alt-q-insert ' .. tostring(inserted) .. ' col=' .. tostring(cur[2]) .. '\n'))
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'alpha beta' })
+  if _G.PairReviewPane and _G.PairReviewPane.quote_selection then
+    _G.PairReviewPane.quote_selection(buf, { 1, 0 }, { 1, 5 })
+  end
+  local quoted = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1]
+  cur = vim.api.nvim_win_get_cursor(0)
+  OUT:write((quoted == '🤖<alpha>[] beta' and cur[2] == 12 and 'alt-q-visual\n') or ('NO-alt-q-visual ' .. tostring(quoted) .. ' col=' .. tostring(cur[2]) .. '\n'))
+
   OUT:close()
   -- drive Alt+Return (finish human turn): edit → human_round + poke
   vim.api.nvim_buf_set_lines(buf, -1, -1, false, { 'a human edit' })
@@ -91,8 +134,13 @@ LUA
     run_headless --timeout 30 -- nvim --headless -u "$ROOT/nvim/review.lua" "$REPO/doc.md" -c "luafile $RT/wdriver.lua" )
 grep -q 'pane-loaded' "$RT/r3" && pass "review.lua loaded the review core" || fail "review.lua did not load"
 grep -q 'altcr-map' "$RT/r3" && pass "Alt+Return keymap wired" || fail "no Alt+Return keymap"
+grep -q 'review-alt-maps' "$RT/r3" && pass "Alt+a/Alt+r/Alt+q review maps wired" || fail "review Alt maps missing"
 grep -q '^state-file$' "$RT/r3" && pass "open-state file written" || fail "no state file"
 grep -q '^markers$' "$RT/r3" && pass "🤖 markers rendered" || fail "no marker extmarks"
+grep -q '^alt-a-accept$' "$RT/r3" && pass "Alt+a accepts quoted agent replacement" || fail "Alt+a accept behavior"
+grep -q '^alt-r-reject$' "$RT/r3" && pass "Alt+r rejects to original quoted text" || fail "Alt+r reject behavior"
+grep -q '^alt-q-insert$' "$RT/r3" && pass "Alt+q inserts a human comment marker" || fail "Alt+q insert behavior"
+grep -q '^alt-q-visual$' "$RT/r3" && pass "Alt+q wraps visual selection as quoted marker" || fail "Alt+q visual behavior"
 # Alt+Return integration (M4a): the nvim SAVES the human edits but writes NO git
 # (invariant #1) — the agent commits the human round; the nvim pokes the
 # commit-request signal (human_finished), not a docflow round and not /xx-fix.

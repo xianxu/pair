@@ -97,8 +97,8 @@ Milestones are review boundaries; sub-steps firm up after M0.
 M4 (agent protocol) — **re-sliced structure-first** (2026-06-21): the whole loop standing thin before any tuning. Agent half = ariadne **#000121**.
 
 - [x] M4a — agent-owns-git inversion + the basic round (records → apply → landed-artifact → fake-agent commits). *Implemented/headless-verified; not separately milestone-closed because M4a'/M4b commits already landed before reconciliation. Review evidence folds into the current M4 skeleton boundary.*
-- [x] M4a' — review-start & resume flow: `:PairReview` **proposes** → agent preps (pure readiness probe) → Alt+r opens when ready; reconstruct-on-open (resume repaint). Spec in `workshop/targets/review-protocol.md`; pair side built and headless-tested.
-- [ ] M4b — **skeleton** (structure): 🤖[] fulfill/punt + **accept/reject** (parley §5) conversation + default editing posture + **ship** — completes the thin full cycle (open → propose → prep → review → converse → iterate → ship → resume). *Accept/reject + marker nav started; ship/default posture remain.*
+- [x] M4a' — review-start & resume flow: `:PairReview` **proposes** → agent preps (pure readiness probe) → Alt+c opens when ready; reconstruct-on-open (resume repaint). Spec in `workshop/targets/review-protocol.md`; pair side built and headless-tested.
+- [ ] M4b — **skeleton** (structure): 🤖[] fulfill/punt + **accept/reject** (parley §5) conversation + default editing posture + **ship** — completes the thin full cycle (open → propose → prep → review → converse → iterate → ship → resume). *Alt+c collaboration toggle + Alt+a/Alt+r/Alt+q review shortcuts implemented; ship/default posture remain.*
 - [ ] M4c — **thicken** (tuning; sub-slices when reached): modes menu + 🪄/spinner/lean-history bar; voice (`voice:` frontmatter); fact-check pass (`doc-review` fold); pending-🤖{} quickfix; diagnostic-display polish; `xx-fix`→`writing-assistant` rename. *Spinner pure helper exists as pre-work, unwired.*
 
 ## Log
@@ -114,6 +114,14 @@ M4 (agent protocol) — **re-sliced structure-first** (2026-06-21): the whole lo
   (slug/scrollback/annotate/changelog/adapt/doctor + review record/reconstruct/markers/mode/
   poke_bodies/wrap/readiness/spinner/resolve) and `make test-review` green (docflow/apply/
   handoff/loop/projection/poke/window/toggle/indicator/resume).
+
+- 2026-06-21: **M4b review-keybinding pass.** Freed `Alt+r` for review-pane rejection by
+  moving the global review/collaboration toggle to `Alt+c`; kept `Ctrl+C` as the draft
+  interrupt chord. Review nvim now mirrors parley's shortcuts: `Alt+a` accepts
+  `🤖<old>{new}` to `new`, `Alt+r` rejects to `old` / removes markup, and `Alt+q` inserts
+  `🤖[]` or wraps a visual selection as `🤖<selection>[]`. Focused verification:
+  `nvim -l nvim/review/resolve_test.lua`, `bash tests/review-toggle-test.sh`, and
+  `bash tests/review-window-test.sh` green.
 
 - 2026-06-20: **M4a pair-side done (Tasks 1–4), forked + verified.** The git-ownership
   inversion: the nvim writes git NOWHERE — `on_agent_round` applies+saves → writes the

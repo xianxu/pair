@@ -70,7 +70,7 @@ Integration seams (headless shell tests, `make test-review`):
 ## The loop (round = two docflow commits)
 
 `:PairReview <file>` proposes a review target → the agent runs readiness prep
-(track/new/resume/interact) and marks the target ready → Alt+r opens the pane.
+(track/new/resume/interact) and marks the target ready → Alt+c opens the pane.
 Agent writes a records handoff → nvim watcher applies undo-ably, decorates, saves,
 writes the landed-artifact, and pokes `agent_applied` → the agent commits the
 agent round from that artifact. Human edits → Alt+Return saves and pokes
@@ -88,10 +88,11 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   review core + poke + markers, `review.start{}`, wires **Alt+Return = finish human
   turn** (`human_round` save + `human_finished` poke), renders 🤖 markers
   (`markers.highlight_spans` → `ParleyReview*` extmarks, re-rendered on
-  TextChanged), supports accept/reject on the cursor line (`\a`/`\r`) plus marker
-  navigation (`]m`/`[m`), writes the open-state file (line 1 = pane nvim `pid` for
+  TextChanged), supports accept/reject on the cursor line (`Alt+a`/`Alt+r`, with
+  `\a`/`\r` fallbacks), inserts human comment markers (`Alt+q` bare marker or visual
+  quote), plus marker navigation (`]m`/`[m`), writes the open-state file (line 1 = pane nvim `pid` for
   liveness, line 2 = the absolute doc path for the indicator), and tears down on
-  `VimLeave`. Also defines `PairReviewToggle()` = hide-self (the case where Alt+r
+  `VimLeave`. Also defines `PairReviewToggle()` = hide-self (the case where Alt+c
   fires from inside the focused floating review pane).
 - `bin/pair-review-open <file>` — validates + spawns the **full-screen** floating pane
   (`zellij run --floating --close-on-exit --name review --width 100% --height 100%`;
@@ -100,8 +101,8 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
 - `:PairReview <file>` (in draft `nvim/init.lua`, `complete=file`) — proposes the
   review target. It writes `review-target-<tag>.json` with `status=proposed` and
   pokes the agent to run `pair-review-readiness`; it does **not** open the pane.
-  The agent marks the target `ready`; Alt+r opens it.
-- **Alt+r** (`zellij/config.kdl`) — routed through the draft nvim like Alt+d
+  The agent marks the target `ready`; Alt+c opens it.
+- **Alt+c** (`zellij/config.kdl`) — routed through the draft nvim like Alt+d
   (`MoveFocus Down` → `<C-\><C-n>` → `:lua PairReviewToggle()`), **not** a spawned
   shell pane. The draft's `PairReviewToggle()` (`nvim/init.lua`) branches on the
   state-file liveness and review-target status: live review → flip visibility from
@@ -110,7 +111,8 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   proposed target → "prep in progress"; no target → drop into `:PairReview `
   (file-select). Pure decision `_pair_review_toggle_action(alive, visible, status)`.
   Review-targets are scoped to `PAIR_SESSION_ID` so fresh sessions ignore stale
-  targets while resumed sessions keep their in-progress target.
+  targets while resumed sessions keep their in-progress target. `Alt+r` is deliberately
+  free inside the review pane for reject.
 - `nvim/pair_poke.lua` — id-based agent poke: relative `move-focus` does NOT escape a
   floating pane, so it resolves the agent + caller panes from `list-panes --json` and
   `focus-pane-id`s them (focus agent → write-chars + `write 27 13` submit → restore).

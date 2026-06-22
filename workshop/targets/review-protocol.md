@@ -39,12 +39,12 @@ Why this split (not nvim-shells-docflow, which M1 scaffolded):
 | 3 | poke channel (nvim → agent) | review nvim (zellij `write-chars`, agent addressed by **absolute pane id**) | agent pane | NL instruction, carrying the **absolute** doc path | **BUILT** — `review-poke-test` (abs-path 2026-06-19) |
 | 4 | git: `review/<slug>` branch + round commits | **AGENT** (`docflow`, in the doc's repo) | review nvim **reads** (reconstruct decorations + indicator counts) | `review(<slug>): <side> r<N> — …`, per-hunk explains in body | **read** BUILT; **write** proven via `fake-agent-v2` (`review-loop-test`), real agent = ariadne **#000121** (live smoke) |
 | 5 | mode file `$PAIR_DATA_DIR/review-<tag>.mode` | **AGENT** (on a mode switch from either channel) | review nvim + draft bar (display the `🪄 <Mode>`) | one line: the active mode | **M4c-DESIGN** (modes → thicken) |
-| 6 | review-target `$PAIR_DATA_DIR/review-target-<tag>.json` | `:PairReview` (proposes) + **AGENT** (marks `ready` after prep) | Alt+r (`PairReviewToggle`: no target → prompt; `ready` → open; `proposed` → "prep in progress") | `{file, status: proposed|ready}` — what to review, before the pane opens | **BUILT** (pair side) — `review-toggle-test` |
+| 6 | review-target `$PAIR_DATA_DIR/review-target-<tag>.json` | `:PairReview` (proposes) + **AGENT** (marks `ready` after prep) | Alt+c (`PairReviewToggle`: no target → prompt; `ready` → open; `proposed` → "prep in progress") | `{file, status: proposed|ready}` — what to review, before the pane opens | **BUILT** (pair side) — `review-toggle-test` |
 
 ## States & transitions
 
 ```
-            Alt+r (no open-state)                handoff records arrive
+            Alt+c (no open-state)                handoff records arrive
    ┌─────┐ ──────────────────────► ┌───────────┐ ─────────────────────► ┌──────────┐
    │idle │   :PairReview <file>     │open /     │                        │applying  │
    │     │ ◄──────────────────────  │rendering  │ ◄───────────────────── │(nvim)    │
@@ -59,8 +59,8 @@ Why this split (not nvim-shells-docflow, which M1 scaffolded):
    ship: "ship it" → agent `docflow ship` (merge --no-ff + branch delete)            (M4)
 ```
 
-- **idle** — no open-state file. Draft shows the normal pair-slug. `Alt+r` → file-select. **BUILT.**
-- **open / rendering** — review nvim open on `<file>`; doc + 🤖 markers rendered; draft line-1 becomes the **review indicator** (slug generation suppressed). `Alt+r` ⇄ visibility. **BUILT** (indicator: M3-close item).
+- **idle** — no open-state file. Draft shows the normal pair-slug. `Alt+c` → file-select. **BUILT.**
+- **open / rendering** — review nvim open on `<file>`; doc + 🤖 markers rendered; draft line-1 becomes the **review indicator** (slug generation suppressed). `Alt+c` ⇄ visibility. **BUILT** (indicator: M3-close item). In review nvim, `Alt+a` accepts, `Alt+r` rejects, and `Alt+q` inserts `🤖[]` or wraps the visual selection as `🤖<selection>[]`.
 - **agent-proposing** *(M4)* — the SKILL recognizes "please review", does memory discovery, and on the **first** round creates `review/<slug>` **in the doc's repo** (the abs path from poke #3 tells it which repo), then writes the handoff records. This IS the **xx-fix-under-docflow flow** (see *What "review" means here* below) — not a review skill the agent picks by vibe.
 - **applying** — review nvim polls the handoff → applies undo-ably → renders → **saves** → pokes "applied N edits to `<abs>`". **BUILT** (apply/render/save); the post-apply poke is the **commit signal**.
 - **agent-committing** *(M4)* — the agent commits the agent round (records in body) **only after** the "applied" poke (apply can drop unanchorable records, so the agent must not blind-commit its own proposal). `agent-count++`.
@@ -147,7 +147,7 @@ channels and the bar read the same value.
 ## Review-start & resume flow — M4a'
 
 `:PairReview` does **not** open the pane — it *proposes* a review target (seam #6); the
-agent *prepares* it (git readiness); Alt+r opens once `ready` (**manual** — auto-open's
+agent *prepares* it (git readiness); Alt+c opens once `ready` (**manual** — auto-open's
 async timing is bad UX). This is the agentic embedding of "is this doc ready to review?"
 
 **Readiness probe (pure, pair-side) — the 4 git cases.** A deterministic function of git
@@ -159,7 +159,7 @@ state; pair computes it, the **agent acts** (ARCH-PURE: pure state, agent judgme
 - not on a review branch: clean → **new** `review/<slug>`; dirty → **interact** (the only
   truly interactive case — clean up / choose with the operator).
 
-**Two-phase Alt+r (manual).** no target → `:PairReview` prompt (pick → proposes + pokes the
+**Two-phase Alt+c (manual).** no target → `:PairReview` prompt (pick → proposes + pokes the
 agent to prep); target `ready` → open the pane; target `proposed` (prepping / dirty) →
 "prep in progress" (never open a half-ready review).
 

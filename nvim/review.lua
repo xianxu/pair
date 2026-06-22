@@ -88,7 +88,7 @@ for _, name in ipairs({
   _G[name] = function() end
 end
 
--- Alt+r pressed while THIS review pane is focused: the zellij bind's relative
+-- Alt+c pressed while THIS review pane is focused: the zellij bind's relative
 -- MoveFocus Down may not escape a floating pane, so the `:lua PairReviewToggle()`
 -- it types lands here instead of in the draft. The review pane only ever needs to
 -- hide itself (it's necessarily visible to receive the keystrokes); focus falls
@@ -124,10 +124,16 @@ local function render_markers(buf)
   end
 end
 
+local REVIEW_MARKER = '🤖'
+
+local function split_replacement(text)
+  if text == '' then return {} end
+  return vim.split(text, '\n', { plain = true })
+end
+
 -- Accept/reject the 🤖 marker on the cursor's line (M4b, parley §5 via resolve.lua):
 -- turn the `🤖…{…}` chain into plain text. A normal buffer edit — undo-able, and
--- committed by the agent on the next human round (Alt+Return). `nil` from resolve
--- means "reject → same" (the marker is kept), so we no-op + tell the user.
+-- committed by the agent on the next human round (Alt+Return).
 local function resolve_at_cursor(buf, action)
   local win = vim.api.nvim_get_current_win()
   local cur = vim.api.nvim_win_get_cursor(win) -- {row 1-based, col 0-based byte}
@@ -141,16 +147,49 @@ local function resolve_at_cursor(buf, action)
     vim.notify('review: no 🤖 marker on this line', vim.log.levels.INFO); return
   end
   local replacement = resolve.resolve(target, action)
-  if replacement == nil then
-    vim.notify('review: nothing to ' .. action .. ' here (marker kept)', vim.log.levels.INFO); return
-  end
   -- The marker's raw span (🤖 → end of last section) may cross lines (bounded).
   local raw_lines = vim.split(target.raw, '\n', { plain = true })
   local end_row = target.line + #raw_lines - 1
   local end_col = (#raw_lines == 1) and (target.col + #target.raw) or #raw_lines[#raw_lines]
   vim.api.nvim_buf_set_text(buf, target.line, target.col, end_row, end_col,
-    vim.split(replacement, '\n', { plain = true }))
+    split_replacement(replacement))
   render_markers(buf)
+end
+
+local function insert_review_marker(buf)
+  local win = vim.api.nvim_get_current_win()
+  local cur = vim.api.nvim_win_get_cursor(win)
+  local row0, col = cur[1] - 1, cur[2]
+  local marker = REVIEW_MARKER .. '[]'
+  vim.api.nvim_buf_set_text(buf, row0, col, row0, col, { marker })
+  vim.api.nvim_win_set_cursor(win, { cur[1], col + #(REVIEW_MARKER .. '[') })
+  render_markers(buf)
+end
+
+-- Replace the byte range [start_pos, end_pos) with 🤖<selected>[] and put the
+-- cursor inside the human-comment brackets. start_pos/end_pos are {row1, col0}.
+local function quote_selection(buf, start_pos, end_pos)
+  local srow, scol = start_pos[1] - 1, start_pos[2]
+  local erow, ecol = end_pos[1] - 1, end_pos[2]
+  if erow < srow or (erow == srow and ecol < scol) then
+    srow, erow, scol, ecol = erow, srow, ecol, scol
+  end
+  local selected = table.concat(vim.api.nvim_buf_get_text(buf, srow, scol, erow, ecol, {}), '\n')
+  local marker = REVIEW_MARKER .. '<' .. selected .. '>[]'
+  vim.api.nvim_buf_set_text(buf, srow, scol, erow, ecol, vim.split(marker, '\n', { plain = true }))
+  local marker_lines = vim.split(marker, '\n', { plain = true })
+  local cursor_row = srow + #marker_lines
+  local cursor_col = (#marker_lines == 1) and (scol + #marker - 1) or (#marker_lines[#marker_lines] - 1)
+  vim.api.nvim_win_set_cursor(vim.api.nvim_get_current_win(), { cursor_row, cursor_col })
+  render_markers(buf)
+end
+
+local function quote_visual_selection(buf)
+  local a = vim.fn.getpos("'<")
+  local b = vim.fn.getpos("'>")
+  -- Visual marks are inclusive and 1-based byte columns.
+  quote_selection(buf, { a[2], math.max(a[3] - 1, 0) }, { b[2], b[3] })
+  vim.cmd('startinsert')
 end
 
 -- Jump to the next/prev 🤖 marker (dir = 1 | -1), wrapping. Lets the human move
@@ -199,13 +238,26 @@ local function start_review(buf, file)
       { buffer = buf, silent = true })
   end
 
-  -- Accept/reject the 🤖 suggestion on the cursor line (M4b, §5), and jump between
-  -- markers. Leader-based (leader = `\` here) — NOT Alt+r (the pane toggle), NOT `gr`
-  -- (nvim 0.11 LSP prefix). `\a` accept · `\r` reject · `]m`/`[m` next/prev marker.
+  -- Accept/reject the 🤖 suggestion on the cursor line (M4b, §5), insert human
+  -- comment markers, and jump between markers. Leader maps stay as a fallback;
+  -- Alt+a/r/q mirror parley.nvim's review-mode shortcuts now that the pane toggle
+  -- moved to Alt+c.
   vim.keymap.set('n', '<leader>a', function() resolve_at_cursor(buf, 'accept') end,
     { buffer = buf, silent = true, desc = 'review: accept 🤖 suggestion (§5)' })
   vim.keymap.set('n', '<leader>r', function() resolve_at_cursor(buf, 'reject') end,
     { buffer = buf, silent = true, desc = 'review: reject 🤖 suggestion (§5)' })
+  vim.keymap.set('n', '<M-a>', function() resolve_at_cursor(buf, 'accept') end,
+    { buffer = buf, silent = true, desc = 'review: accept 🤖 suggestion (§5)' })
+  vim.keymap.set('n', '<M-r>', function() resolve_at_cursor(buf, 'reject') end,
+    { buffer = buf, silent = true, desc = 'review: reject 🤖 suggestion (§5)' })
+  vim.keymap.set('n', '<M-q>', function()
+    insert_review_marker(buf)
+    vim.cmd('startinsert')
+  end, { buffer = buf, silent = true, desc = 'review: insert human comment marker' })
+  vim.keymap.set('i', '<M-q>', function() insert_review_marker(buf) end,
+    { buffer = buf, silent = true, desc = 'review: insert human comment marker' })
+  vim.keymap.set('x', '<M-q>', function() quote_visual_selection(buf) end,
+    { buffer = buf, silent = true, desc = 'review: quote selection for human comment' })
   vim.keymap.set('n', ']m', function() jump_marker(buf, 1) end,
     { buffer = buf, silent = true, desc = 'review: next 🤖 marker' })
   vim.keymap.set('n', '[m', function() jump_marker(buf, -1) end,
@@ -252,7 +304,9 @@ end
 
 -- Exposed for the headless test.
 _G.PairReviewPane = { start_review = start_review, render_markers = render_markers,
-  state_file = state_file, finish_human_turn = finish_human_turn }
+  state_file = state_file, finish_human_turn = finish_human_turn,
+  resolve_at_cursor = resolve_at_cursor, insert_review_marker = insert_review_marker,
+  quote_selection = quote_selection }
 
 -- Start once the file is loaded (the buffer doesn't exist yet at init time).
 vim.api.nvim_create_autocmd('VimEnter', {
@@ -268,4 +322,4 @@ vim.opt.laststatus = 2
 -- Compact review bar. %m → "[+]" when the buffer is unsaved (the save happens at
 -- Alt+Return / after the agent applies records, never per-keystroke — so the cue
 -- matters). %= right-aligns the line position.
-vim.opt.statusline = ' Review • Alt+⏎ Send • Alt+r → agent • %f%m %= L%l/%L '
+vim.opt.statusline = ' Review • Alt+⏎ Send • Alt+c → agent • %f%m %= L%l/%L '
