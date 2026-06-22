@@ -133,6 +133,48 @@ function M.apply_snapshot(buf, snap)
   vim.diagnostic.set(DIAG, buf, diags, {})
 end
 
+local function overlaps_line(first, last, row)
+  last = last or first
+  return first <= row and row <= last
+end
+
+-- Clear the review decoration that covers `row` (0-based), preserving unrelated
+-- highlights/diagnostics. Used by Alt+a as "I accept this styled suggestion"
+-- when the agent changed text directly and there is no inline 🤖 marker to resolve.
+function M.clear_at_line(buf, row)
+  local cleared = false
+  for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, HL, 0, -1, { details = true })) do
+    local id, line, details = m[1], m[2], m[4] or {}
+    if overlaps_line(line, details.end_row, row) then
+      pcall(vim.api.nvim_buf_del_extmark, buf, HL, id)
+      cleared = true
+    end
+  end
+
+  local kept = {}
+  for _, d in ipairs(vim.diagnostic.get(buf, { namespace = DIAG })) do
+    if overlaps_line(d.lnum, d.end_lnum, row) then
+      cleared = true
+    else
+      kept[#kept + 1] = {
+        lnum = d.lnum,
+        end_lnum = d.end_lnum,
+        col = d.col,
+        end_col = d.end_col,
+        message = d.message,
+        severity = d.severity,
+        source = d.source,
+      }
+    end
+  end
+  vim.diagnostic.set(DIAG, buf, kept, {})
+  return cleared
+end
+
+function M.clear_all(buf)
+  clear(buf)
+end
+
 -- Apply `records` to `buf`. Returns (enriched, dropped):
 --   enriched — applied records carrying new_occurrence (for commit/resume);
 --   dropped  — records that did NOT land, each { rec, reason }. The caller MUST

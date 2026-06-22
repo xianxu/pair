@@ -886,7 +886,9 @@ do
     write_target(abs, 'proposed')
     send_to_agent('prepare a review of ' .. abs .. ' — run `pair-review-readiness '
       .. abs .. '`, act per the case (stop/track/resume/new/interact), then mark the '
-      .. 'review target ready. See the xx-fix "Pair review workbench" SKILL.')
+      .. 'review target ready. See the xx-fix "Pair review workbench" SKILL. When '
+      .. 'reviewing in Copy Edit, use minimal 🤖<old>{new}/🤖{new} marker proposals '
+      .. 'and do not replace whole paragraphs for word-level edits.')
   end
 
   -- Pure: the Alt+c decision. A live pane → flip visibility (hide/show). No live

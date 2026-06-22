@@ -8,6 +8,8 @@ vim.opt.compatible = false
 vim.opt.termguicolors = true
 vim.opt.wrap = true
 vim.opt.linebreak = true
+vim.opt.clipboard = 'unnamedplus'
+vim.opt.guicursor = 'n-v-c-sm:block-blinkon250-blinkoff250,i-ci-ve:block-blinkon250-blinkoff250,r-cr-o:hor20'
 -- The review pane is an EDITABLE document workbench, not a read-only viewer (the
 -- scrollback look these were copied from) — show the gutter: absolute line numbers
 -- + a stable sign column for the review diagnostics.
@@ -152,6 +154,9 @@ local function resolve_at_cursor(buf, action)
     end
   end
   if not target then
+    if action == 'accept' and review.clear_decoration_at_line(buf, row0) then
+      return
+    end
     vim.notify('review: no 🤖 marker on this line', vim.log.levels.INFO); return
   end
   local replacement = resolve.resolve(target, action)
@@ -269,6 +274,7 @@ end
 
 local function finish_human_turn(buf, file, mode_name, instruction)
   if vim.fn.mode():match('^i') then vim.cmd('stopinsert') end
+  review.clear_decorations(buf)
   review.human_round(buf, 'updated') -- saves; the agent commits the human round
   -- Poke the agent with the commit-request signal (absolute path: the agent pane's
   -- cwd is pair's, not the doc's repo). The agent commits the human round + reviews.
@@ -358,15 +364,6 @@ local function start_review(buf, file)
   -- toggle-pane confounds it), so visibility is NOT tracked here.
   local sf = state_file()
   if sf then pcall(vim.fn.writefile, { tostring(vim.fn.getpid()), file }, sf) end
-
-  -- Announce the workbench to the agent (M4a smoke fix): opening the pane is the
-  -- review-START signal a chat "please review" otherwise lacks — without it the
-  -- agent can't tell it's in the workbench and falls back to summarize-and-ask.
-  -- Context only (no review triggered yet), so no branch/commit until the operator
-  -- actually asks. Deferred so the agent pane is resolvable + settled first.
-  vim.defer_fn(function()
-    pcall(poke.send, poke_bodies.review_opened(vim.fn.fnamemodify(file, ':p')))
-  end, 200)
 
   -- Lifecycle (the M1-carried "VimLeave timer cleanup"): tear down the handoff
   -- poll timer + projection autocmd + state file when the pane nvim exits.

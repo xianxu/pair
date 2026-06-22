@@ -88,6 +88,19 @@ function M.human_round(buf, summary)
   return true
 end
 
+function M.clear_decorations(buf)
+  apply.clear_all(buf)
+  projection.reset(buf)
+end
+
+function M.clear_decoration_at_line(buf, row)
+  local cleared = apply.clear_at_line(buf, row)
+  if cleared then
+    projection.record(buf)
+  end
+  return cleared
+end
+
 -- Reconstruct-on-open (M4a' resume): repaint decorations from the latest agent-round
 -- commit body. Text already survives across sessions via `undofile`; the styling
 -- (highlights + diagnosis) is rebuilt from the records-in-commit (the M0 decision).

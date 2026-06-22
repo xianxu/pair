@@ -179,6 +179,20 @@ local er = em and em[4] and em[4].end_row
 local ec = (em and em[4] and em[4].end_col) or 0
 ok(em ~= nil and er == em[2] and ec > 0, 'single-line highlight spans the line content (non-empty range), not [line,0)-(line,0)')
 
+-- (o) targeted clear: accepting a styled region without a marker clears only
+-- that region's review highlight + matching diagnostic.
+local bc = newbuf({ 'alpha', 'beta', 'gamma' })
+apply.apply(bc, {
+  { old = 'alpha', occurrence = 1, new = 'ALPHA', explain = 'first' },
+  { old = 'gamma', occurrence = 1, new = 'GAMMA', explain = 'third' },
+})
+ok(apply.clear_at_line(bc, 0) == true, 'clear_at_line reports a cleared decoration')
+local cmarks = vim.api.nvim_buf_get_extmarks(bc, apply.HL, 0, -1, {})
+local cdiags = vim.diagnostic.get(bc, { namespace = apply.DIAG })
+ok(#cmarks == 1 and cmarks[1][2] == 2, 'clear_at_line leaves other highlights intact')
+ok(#cdiags == 1 and cdiags[1].lnum == 2, 'clear_at_line leaves other diagnostics intact')
+ok(apply.clear_at_line(bc, 1) == false, 'clear_at_line reports false outside decorations')
+
 OUT:write(fails == 0 and 'apply_test ok\n' or ('FAILED ' .. fails .. '\n'))
 OUT:close()
 LUA

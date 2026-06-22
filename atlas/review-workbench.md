@@ -59,7 +59,7 @@ Integration seams (headless shell tests, `make test-review`):
   `record_empty_for` guard keeps a prior round's styling when round-2's base is
   round-1's output. No more clear-on-each-apply.
 - `poke_bodies.lua` — pure builders for the prose signals sent to the agent:
-  review opened, review target prep, handoff applied, and human turn finished.
+  review target prep, handoff applied, human turn finished, and ship requested.
 - `readiness.lua` + `bin/pair-review-readiness` — pure/classified git readiness
   for review-start: stop / track / resume / new / interact. The nvim proposes;
   the agent acts. The shell seam emits JSON with `jq -n` so quoted branch/path
@@ -83,7 +83,8 @@ agent round from that artifact. Human edits → Alt+Return saves and pokes
 `human_finished` in Copy Edit posture, with `🤖[]` comments treated as
 fulfill-or-punt instructions and copy edits expressed as minimal inline marker
 proposals (`🤖<old>{new}` / `🤖{new}`) → the agent commits the human round and
-re-reviews.
+re-reviews. Finishing a human turn clears stale agent-applied highlights and
+diagnostics; the next agent handoff repaints current styling.
 `:PairReviewShip` pokes the agent to run `docflow ship`; the pane does not shell
 docflow. History lives in git (round commits + per-hunk explains in the agent commit
 body); fine-grained undo lives in nvim's `undofile`; no bespoke sidecar. The doc must
@@ -99,12 +100,17 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   turn** (`human_round` save + `human_finished` poke), renders 🤖 markers
   (`markers.highlight_spans` → `ParleyReview*` extmarks, re-rendered on
   TextChanged), supports accept/reject on the cursor line (`Alt+a`/`Alt+r`, with
-  `\a`/`\r` fallbacks), inserts human comment markers (`Alt+q` bare marker or visual
+  `\a`/`\r` fallbacks); when `Alt+a` is pressed outside a marker but inside an
+  agent-applied highlight, it clears that highlight + matching diagnosis as an
+  acceptance gesture. It inserts human comment markers (`Alt+q` bare marker or visual
   quote), exposes `:PairReviewShip` as an agent-owned ship request, plus marker
-  navigation (`]m`/`[m`), writes the open-state file (line 1 = pane nvim `pid` for
+  navigation (`]m`/`[m`), sets review-local clipboard/cursor defaults (`unnamedplus`,
+  blinking cursor), writes the open-state file (line 1 = pane nvim `pid` for
   liveness, line 2 = the absolute doc path for the indicator), and tears down on
   `VimLeave`. Also defines `PairReviewToggle()` = hide-self (the case where Alt+c
-  fires from inside the focused floating review pane).
+  fires from inside the focused floating review pane). Pane-open no longer sends a
+  separate "review workbench open" poke; the prep and human-finished pokes carry the
+  workbench protocol context.
 - `bin/pair-review-open <file>` — validates + spawns the **full-screen** floating pane
   (`zellij run --floating --close-on-exit --name review --width 100% --height 100%`;
   percentage dims, not `tput`, which measured the wrong pane), replacing any live

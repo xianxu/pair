@@ -111,6 +111,11 @@ M4 (agent protocol) — **re-sliced structure-first** (2026-06-21): the whole lo
   minimal inline marker edits (`🤖<old>{new}` / `🤖{new}`) instead of paragraph-sized
   direct replacements. Peer ariadne `xx-fix`/review-convention prose updated to match
   pair's resolver behavior.
+- 2026-06-22: **M4d review-pane feedback pass.** Removed the redundant pane-open
+  "Reply ready" handshake, moved the minimal-marker Copy Edit rule into the prep and
+  human-finished pokes, enabled review-pane system clipboard + blinking cursor defaults,
+  made `Alt+a` clear agent styling when pressed inside a highlighted non-marker region,
+  and clear stale agent highlights/diagnostics on every human submit.
 
 - 2026-06-22: closed M4c — M4c post-REWORK: fixed send-menu document-buffer capture, failed-poke spinner clearing, atlas spinner wording; live smoke passed; make test-lua; make test-review; git diff --check; review verdict: SHIP
 - 2026-06-22: **M4c boundary REWORK fixes.** Captured the reviewed document buffer before

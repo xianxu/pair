@@ -80,6 +80,7 @@ local function check()
   local buf = vim.api.nvim_get_current_buf()
   local ns = vim.api.nvim_create_namespace('review_markers')
   local marks = vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, {})
+  local apply = dofile(vim.env.PAIR_HOME .. '/nvim/review/apply.lua')
   OUT:write((pane and 'pane-loaded\n') or 'NO-pane\n')
   OUT:write((map and 'altcr-map\n') or 'NO-altcr\n')
   OUT:write((mapa and mapr and mapqn and mapqi and mapqx and 'review-alt-maps\n') or 'NO-review-alt-maps\n')
@@ -88,6 +89,8 @@ local function check()
   OUT:write((ship_cmd and 'ship-cmd\n') or 'NO-ship-cmd\n')
   OUT:write((sf_ok and 'state-file\n') or 'NO-state\n')
   OUT:write(((#marks >= 1) and 'markers\n') or 'NO-markers\n')
+  OUT:write((vim.o.clipboard:find('unnamedplus', 1, true) and 'review-clipboard\n') or ('NO-review-clipboard ' .. vim.o.clipboard .. '\n'))
+  OUT:write((vim.o.guicursor:find('blinkon', 1, true) and 'review-blink-cursor\n') or ('NO-review-blink-cursor ' .. vim.o.guicursor .. '\n'))
   local status = vim.o.statusline
   OUT:write((status:find('🪄 Copy Edit', 1, true) and 'mode-statusline\n') or ('NO-mode-statusline ' .. status .. '\n'))
 
@@ -134,6 +137,22 @@ local function check()
   local second_marker_line = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1]
   OUT:write((second_marker_line == 'one 🤖<a>{A} two B' and 'alt-a-under-cursor\n') or ('NO-alt-a-under-cursor ' .. tostring(second_marker_line) .. '\n'))
 
+  -- If Alt+a is pressed on agent-applied styling but outside any 🤖 marker, it
+  -- clears that styling/diagnosis instead of reporting "no marker".
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'alpha', 'beta', 'gamma' })
+  apply.apply(buf, {
+    { old = 'alpha', occurrence = 1, new = 'ALPHA', explain = 'first' },
+    { old = 'gamma', occurrence = 1, new = 'GAMMA', explain = 'third' },
+  })
+  vim.api.nvim_win_set_cursor(0, { 1, 0 })
+  if _G.PairReviewPane and _G.PairReviewPane.resolve_at_cursor then
+    _G.PairReviewPane.resolve_at_cursor(buf, 'accept')
+  end
+  local clear_marks = vim.api.nvim_buf_get_extmarks(buf, apply.HL, 0, -1, {})
+  local clear_diags = vim.diagnostic.get(buf, { namespace = apply.DIAG })
+  OUT:write((#clear_marks == 1 and clear_marks[1][2] == 2 and #clear_diags == 1 and clear_diags[1].lnum == 2
+    and 'alt-a-clear-style\n') or ('NO-alt-a-clear-style marks=' .. #clear_marks .. ' diags=' .. #clear_diags .. '\n'))
+
   -- Alt+q in normal/insert inserts a bare human comment marker and leaves the
   -- cursor inside the brackets; visual Alt+q wraps the selection as quoted text.
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'abc' })
@@ -167,8 +186,15 @@ local function check()
 
   OUT:close()
   -- drive Alt+Return (finish human turn): edit → human_round + poke
+  apply.apply(buf, { { old = 'tail', occurrence = 1, new = 'TAIL', explain = 'stale' } })
   vim.api.nvim_buf_set_lines(buf, -1, -1, false, { 'a human edit' })
   pcall(_G.PairReviewPane.finish_human_turn, buf, 'doc.md')
+  local post_submit_marks = vim.api.nvim_buf_get_extmarks(buf, apply.HL, 0, -1, {})
+  local post_submit_diags = vim.diagnostic.get(buf, { namespace = apply.DIAG })
+  local OUT2 = io.open(os.getenv('RESULT2'), 'a')
+  OUT2:write((#post_submit_marks == 0 and #post_submit_diags == 0 and 'human-submit-clears-style\n')
+    or ('NO-human-submit-clears-style marks=' .. #post_submit_marks .. ' diags=' .. #post_submit_diags .. '\n'))
+  OUT2:close()
   pcall(vim.cmd, 'PairReviewShip')
   pcall(_G.PairReviewPane.finish_human_turn, buf, 'doc.md', 'proofreading', 'keep the title')
   vim.api.nvim_set_current_buf(buf)
@@ -194,11 +220,14 @@ grep -q '^mode-menu-map$' "$RT/r3" && pass "Alt+Shift+Return send menu keymap wi
 grep -q '^ship-cmd$' "$RT/r3" && pass ":PairReviewShip command wired" || fail ":PairReviewShip missing"
 grep -q '^state-file$' "$RT/r3" && pass "open-state file written" || fail "no state file"
 grep -q '^markers$' "$RT/r3" && pass "🤖 markers rendered" || fail "no marker extmarks"
+grep -q '^review-clipboard$' "$RT/r3" && pass "review pane yanks to system clipboard" || fail "review clipboard option"
+grep -q '^review-blink-cursor$' "$RT/r3" && pass "review pane uses blinking cursor" || fail "review cursor blink option"
 grep -q '^mode-statusline$' "$RT/r3" && pass "review statusline shows current mode" || fail "review statusline missing mode"
 grep -q '^failed-poke-no-spinner$' "$RT/r3" && pass "failed poke does not leave spinner awaiting" || fail "failed-poke spinner behavior"
 grep -q '^alt-a-accept$' "$RT/r3" && pass "Alt+a accepts quoted agent replacement" || fail "Alt+a accept behavior"
 grep -q '^alt-r-reject$' "$RT/r3" && pass "Alt+r rejects to original quoted text" || fail "Alt+r reject behavior"
 grep -q '^alt-a-under-cursor$' "$RT/r3" && pass "Alt+a resolves the marker under cursor" || fail "Alt+a marker-under-cursor behavior"
+grep -q '^alt-a-clear-style$' "$RT/r3" && pass "Alt+a clears agent styling outside markers" || fail "Alt+a clear styling behavior"
 grep -q '^alt-q-insert$' "$RT/r3" && pass "Alt+q inserts a human comment marker" || fail "Alt+q insert behavior"
 grep -q '^alt-q-visual$' "$RT/r3" && pass "Alt+q wraps visual selection as quoted marker" || fail "Alt+q visual behavior"
 grep -q '^alt-q-escaped-visual$' "$RT/r3" && pass "Alt+q quoted marker preserves delimiter text" || fail "Alt+q delimiter escaping"
@@ -206,12 +235,14 @@ grep -q '^alt-q-escaped-visual$' "$RT/r3" && pass "Alt+q quoted marker preserves
 # (invariant #1) — the agent commits the human round; the nvim pokes the
 # commit-request signal (human_finished), not a docflow round and not /xx-fix.
 grep -q 'a human edit' "$REPO/doc.md" && pass "Alt+Return saves the human edits (agent commits the round)" || fail "human edit not saved"
+grep -q '^human-submit-clears-style$' "$RT/r3" && pass "Alt+Return clears stale agent styling" || fail "human submit styling clear"
 grep -q 'round --side human' "$RT/doclog" && fail "nvim ran a human docflow round (invariant #1: nvim writes no git)" || pass "nvim writes no git on Alt+Return"
 grep -q '^ship$' "$RT/doclog" && fail "nvim ran docflow ship (invariant #1: agent owns git)" || pass "nvim writes no git on :PairReviewShip"
-grep -q 'write-chars finished my edits .*Copy Edit posture' "$RT/zlog" && pass "Alt+Return pokes human_finished with the current/default mode" || fail "no direct human_finished poke"
+grep -q 'write-chars finished my edits .*Copy Edit posture.*minimal 🤖<old>{new}/🤖{new}' "$RT/zlog" && pass "Alt+Return pokes human_finished with Copy Edit marker rule" || fail "no direct human_finished marker-rule poke"
 grep -q 'write-chars ship .*doc.md.*agent owns git' "$RT/zlog" && pass ":PairReviewShip pokes the agent ship request" || fail "no ship-request poke"
 grep -q 'write-chars finished my edits .*Proofreading posture.*keep the title' "$RT/zlog" && pass "menu send pokes human_finished with mode and instruction" || fail "no mode/instruction human_finished poke"
 grep -q 'menu submit edit' "$REPO/doc.md" && pass "send menu submit saves the reviewed document buffer" || fail "send menu submit did not save reviewed document"
+grep -q 'Review workbench open on' "$RT/zlog" && fail "review pane still sends redundant open handshake" || pass "review pane does not send redundant open handshake"
 
 [ "$fails" -eq 0 ] || { printf 'review-window-test FAILED (%d)\n' "$fails"; exit 1; }
 printf 'review-window-test ok\n'
