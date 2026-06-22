@@ -18,10 +18,15 @@ vim.opt.guicursor = 'n-v-c-sm:block-blinkon250-blinkoff250,i-ci-ve:block-blinkon
 vim.opt.number = true
 vim.opt.signcolumn = 'yes'
 
-local function cursor_over_diagnostic(d)
-  local ok, cur = pcall(vim.api.nvim_win_get_cursor, 0)
-  if not ok then return true end
-  local row, col = cur[1] - 1, cur[2]
+local REVIEW_DIAG_NS = vim.api.nvim_create_namespace('review_diag')
+local ACTIVE_DIAG_NS = vim.api.nvim_create_namespace('review_active_diag')
+
+local function cursor_over_diagnostic(d, row, col)
+  if not row or not col then
+    local ok, cur = pcall(vim.api.nvim_win_get_cursor, 0)
+    if not ok then return true end
+    row, col = cur[1] - 1, cur[2]
+  end
   local first, last = d.lnum, d.end_lnum or d.lnum
   if row < first or row > last then return false end
   if row == first and d.col and col < d.col then return false end
@@ -34,23 +39,69 @@ local function cursor_over_diagnostic(d)
   return true
 end
 
-local function format_review_diagnostic(d)
-  if not cursor_over_diagnostic(d) then return nil end
-  return d.message
+local function diagnostic_span_len(d)
+  if not d then return math.huge end
+  local first, last = d.lnum or 0, d.end_lnum or d.lnum or 0
+  return ((last - first) * 1000000) + ((d.end_col or d.col or 0) - (d.col or 0))
+end
+
+local function active_diagnostic(buf)
+  buf = buf or vim.api.nvim_get_current_buf()
+  local ok, cur = pcall(vim.api.nvim_win_get_cursor, 0)
+  if not ok then return nil end
+  local row, col = cur[1] - 1, cur[2]
+  local pick
+  for _, d in ipairs(vim.diagnostic.get(buf, { namespace = REVIEW_DIAG_NS })) do
+    if cursor_over_diagnostic(d, row, col) then
+      if not pick or diagnostic_span_len(d) < diagnostic_span_len(pick) then
+        pick = d
+      end
+    end
+  end
+  return pick
+end
+
+local function message_virt_lines(message)
+  local lines = {}
+  for _, line in ipairs(vim.split(message or '', '\n', { plain = true })) do
+    lines[#lines + 1] = { { line, 'DiagnosticVirtualTextInfo' } }
+  end
+  return lines
+end
+
+local function render_active_diagnostic(buf)
+  buf = buf or vim.api.nvim_get_current_buf()
+  if not vim.api.nvim_buf_is_valid(buf) then return false end
+  vim.api.nvim_buf_clear_namespace(buf, ACTIVE_DIAG_NS, 0, -1)
+  local d = active_diagnostic(buf)
+  if not d or not d.message or d.message == '' then return false end
+  local line = math.max(0, math.min(d.end_lnum or d.lnum, vim.api.nvim_buf_line_count(buf) - 1))
+  vim.api.nvim_buf_set_extmark(buf, ACTIVE_DIAG_NS, line, 0, {
+    virt_lines = message_virt_lines(d.message),
+    virt_lines_above = false,
+  })
+  return true
+end
+
+local function open_review_diagnostic_float()
+  local d = active_diagnostic(vim.api.nvim_get_current_buf())
+  render_active_diagnostic(vim.api.nvim_get_current_buf())
+  if not d or not d.message or d.message == '' then
+    return vim.diagnostic.open_float(nil, { scope = 'cursor', focus = false })
+  end
+  return vim.lsp.util.open_floating_preview(vim.split(d.message, '\n', { plain = true }), 'markdown', {
+    border = 'rounded',
+    focus = false,
+    close_events = { 'CursorMoved', 'CursorMovedI', 'BufHidden', 'InsertCharPre', 'WinLeave' },
+  })
 end
 
 -- Diagnosis display — review/apply.lua sets each record's `explain` as an INFO
--- diagnostic (the "why" behind an edit). Render it parley-style: a sign in the
--- gutter on every edit, and the (wrapped) why auto-expanded as a virtual line below
--- the edit ONLY when the cursor is in its region. The review pane has no LSP, so a
--- global config is safe (review diagnostics are the only source). pcall-guarded:
--- `virtual_lines` is nvim 0.11+; degrade to virtual_text on anything older.
--- `format` returns just the message (already hard-wrapped in apply.lua) so the
--- inline virtual_lines carry no source/severity prefix — trimming the leading
--- "header" columns (M4a issue 2.2). pcall-guarded; degrade to virtual_text on
--- older nvim or if virtual_lines.format is unsupported.
+-- diagnostic (the "why" behind an edit). Keep diagnostic signs/underlines in
+-- Neovim's native layer, but render the expanded virtual-line text ourselves so
+-- same-line edits do not produce combined or blank built-in virtual lines.
 if not pcall(vim.diagnostic.config, {
-  virtual_lines = { current_line = true, format = format_review_diagnostic },
+  virtual_lines = false,
   virtual_text = false,
   signs = true,
   underline = true,
@@ -60,10 +111,11 @@ if not pcall(vim.diagnostic.config, {
 end
 
 -- Diagnostic navigation (M4a issue 1): the user tried `<C-w>d` (→ E388, vim's
--- define-search) and `]d` (jumped without showing the why). Bind the float
--- explicitly, and make `]d`/`[d` jumps pop the float so the "why" is visible.
-vim.keymap.set('n', '<C-w>d', vim.diagnostic.open_float, { desc = 'review: diagnostic float' })
-vim.keymap.set('n', 'gl', vim.diagnostic.open_float, { desc = 'review: diagnostic float' })
+-- define-search) and `]d` (jumped without showing the why). Bind floats
+-- explicitly; `<C-w>d`/`gl` use the active cursor span, while `]d`/`[d` retain
+-- native diagnostic navigation.
+vim.keymap.set('n', '<C-w>d', open_review_diagnostic_float, { desc = 'review: diagnostic float' })
+vim.keymap.set('n', 'gl', open_review_diagnostic_float, { desc = 'review: diagnostic float' })
 local function diag_jump(count)
   if vim.diagnostic.jump then
     vim.diagnostic.jump({ count = count, float = true }) -- nvim 0.11 API
@@ -75,7 +127,7 @@ vim.keymap.set('n', ']d', function() diag_jump(1) end, { desc = 'review: next di
 vim.keymap.set('n', '[d', function() diag_jump(-1) end, { desc = 'review: prev diagnostic (float)' })
 vim.api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI' }, {
   callback = function(args)
-    pcall(vim.diagnostic.show, nil, args.buf)
+    pcall(render_active_diagnostic, args.buf)
   end,
 })
 
@@ -369,7 +421,10 @@ local function clear_awaiting()
   refresh_statusline()
 end
 
-review.after_agent_round = function() clear_awaiting() end
+review.after_agent_round = function(buf)
+  clear_awaiting()
+  render_active_diagnostic(buf)
+end
 
 local status_timer = vim.loop.new_timer()
 if status_timer then
@@ -384,6 +439,7 @@ end
 local function finish_human_turn(buf, file, mode_name, instruction)
   if vim.fn.mode():match('^i') then vim.cmd('stopinsert') end
   review.clear_decorations(buf)
+  render_active_diagnostic(buf)
   review.human_round(buf, 'updated') -- saves; the agent commits the human round
   -- Poke the agent with the commit-request signal (absolute path: the agent pane's
   -- cwd is pair's, not the doc's repo). The agent commits the human round + reviews.
@@ -459,10 +515,14 @@ local function start_review(buf, file)
     { buffer = buf, silent = true, desc = 'review: prev 🤖 marker' })
 
   render_markers(buf)
+  render_active_diagnostic(buf)
   -- Re-render on local edits AND after an external reload (autoread/checktime
   -- pulling in the agent's on-disk edits) so markers track the new content.
   vim.api.nvim_create_autocmd({ 'TextChanged', 'InsertLeave', 'FileChangedShellPost' }, {
-    buffer = buf, callback = function() render_markers(buf) end,
+    buffer = buf, callback = function()
+      render_markers(buf)
+      render_active_diagnostic(buf)
+    end,
   })
 
   -- pid file (reaped by bin/pair's cleanup) + the open-state file.
@@ -500,7 +560,8 @@ _G.PairReviewPane = { start_review = start_review, render_markers = render_marke
   resolve_at_cursor = resolve_at_cursor, insert_review_marker = insert_review_marker,
   resolve_paragraph_to_cursor = resolve_paragraph_to_cursor,
   quote_selection = quote_selection, current_mode = current_mode, mode_label = mode_label,
-  format_diagnostic = format_review_diagnostic }
+  active_diagnostic = active_diagnostic, render_active_diagnostic = render_active_diagnostic,
+  open_diagnostic_float = open_review_diagnostic_float }
 
 -- Start once the file is loaded (the buffer doesn't exist yet at init time).
 vim.api.nvim_create_autocmd('VimEnter', {

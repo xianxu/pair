@@ -130,12 +130,22 @@ local function check()
   OUT:write((quoted.reverse and quoted.bold and 'review-quoted-hl\n') or 'NO-review-quoted-hl\n')
   OUT:write((strike.strikethrough and 'review-strike-hl\n') or 'NO-review-strike-hl\n')
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'aa bb cc' })
-  vim.api.nvim_win_set_cursor(0, { 1, 1 })
-  local fmt = _G.PairReviewPane and _G.PairReviewPane.format_diagnostic
-  local in_range = fmt and fmt({ lnum = 0, col = 0, end_lnum = 0, end_col = 2, message = 'first' })
-  local out_range = fmt and fmt({ lnum = 0, col = 6, end_lnum = 0, end_col = 8, message = 'third' })
-  OUT:write((in_range == 'first' and out_range == nil and 'cursor-scoped-diagnostic-lines\n')
-    or ('NO-cursor-scoped-diagnostic-lines in=' .. tostring(in_range) .. ' out=' .. tostring(out_range) .. '\n'))
+  vim.diagnostic.set(apply.DIAG, buf, {
+    { lnum = 0, col = 0, end_lnum = 0, end_col = 2, message = 'first', severity = vim.diagnostic.severity.INFO },
+    { lnum = 0, col = 6, end_lnum = 0, end_col = 8, message = 'third', severity = vim.diagnostic.severity.INFO },
+  }, {})
+  vim.api.nvim_win_set_cursor(0, { 1, 7 })
+  local can_active = _G.PairReviewPane and _G.PairReviewPane.active_diagnostic
+  local can_render_active = _G.PairReviewPane and _G.PairReviewPane.render_active_diagnostic
+  local active = can_active and _G.PairReviewPane.active_diagnostic(buf)
+  local virt_ok = can_render_active and _G.PairReviewPane.render_active_diagnostic(buf)
+  local active_ns = vim.api.nvim_create_namespace('review_active_diag')
+  local active_marks = vim.api.nvim_buf_get_extmarks(buf, active_ns, 0, -1, { details = true })
+  local virt_text = active_marks[1] and active_marks[1][4] and active_marks[1][4].virt_lines
+    and active_marks[1][4].virt_lines[1] and active_marks[1][4].virt_lines[1][1]
+    and active_marks[1][4].virt_lines[1][1][1]
+  OUT:write((active and active.message == 'third' and virt_ok and virt_text == 'third' and 'cursor-scoped-diagnostic-lines\n')
+    or ('NO-cursor-scoped-diagnostic-lines active=' .. (active and tostring(active.message) or 'nil') .. '\n'))
   -- A failed poke (no agent pane found) must not leave the statusline spinner
   -- waiting forever. This catches mark-awaiting-before-send regressions.
   local panes_path = os.getenv('PANES_JSON')
