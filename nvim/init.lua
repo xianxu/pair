@@ -765,6 +765,8 @@ end, { nargs = 1, complete = 'file', desc = 'prepare a file for review (Alt+c op
 -- top-level locals would break sourcing. The indicator block (below) reuses
 -- `_pair_review.is_alive` from here, keeping the state-file contract DRY.
 do
+  local review_init_epoch = os.time()
+
   -- review-state file (nvim/review.lua writes it on VimEnter, removes it on exit).
   -- Line 1 = the review pane nvim's pid (liveness = `kill -0`); line 2 = the
   -- absolute doc path (the review-mode indicator reads it). Path from the shared
@@ -871,7 +873,14 @@ do
     local ok, t = pcall(vim.json.decode, table.concat(vim.fn.readfile(p), '\n'))
     if not (ok and type(t) == 'table' and t.file and t.file ~= '') then return nil end
     -- ignore a target from a different conversation (stale across a fresh session)
-    if target_stale(t, current_session_id()) then return nil end
+    if target_stale(t, current_session_id()) then
+      -- Codex fresh starts learn their session id asynchronously. If :PairReview
+      -- prepared a target before any id was discoverable, keep that same-nvim
+      -- unscoped target readable; old unscoped targets remain stale.
+      local stat = (vim.uv or vim.loop).fs_stat(p)
+      local mtime = stat and stat.mtime and stat.mtime.sec or 0
+      if not (t.session == '' and mtime >= review_init_epoch) then return nil end
+    end
     return t
   end
   local function write_target(file, status)

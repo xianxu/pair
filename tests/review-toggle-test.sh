@@ -116,6 +116,21 @@ OUT:write((TS({ session = 'oldsid' }, 'testsid') == true) and 'ts-diff ok\n' or 
 OUT:write((TS({ session = 'x' }, '') == true) and 'ts-nocur ok\n' or 'ts-nocur FAIL\n')
 OUT:write((TS({}, 'testsid') == true) and 'ts-noid ok\n' or 'ts-noid FAIL\n')
 
+-- Codex fresh-start race: :PairReview may prepare before the async session
+-- watcher has discovered a session id. The target was created by this same
+-- draft nvim, so it must remain readable even though it is not yet session
+-- stamped; otherwise the second Alt+c falls back to :PairReview again.
+vim.env.PAIR_SESSION_ID = ''
+vim.env.PAIR_AGENT = 'claude'
+os.remove(vim.env.PAIR_DATA_DIR .. '/config-' .. vim.env.PAIR_TAG .. '-claude.json')
+vim.fn.writefile({ '{"file":"' .. draft .. '","status":"ready","session":""}' }, target)
+vim.fn.system({ 'touch', '-t', '202001010000', target })
+OUT:write((R.read_target() == nil) and 'old-unscoped-target-stale ok\n' or 'old-unscoped-target-stale FAIL\n')
+vim.fn.writefile({ '{"file":"' .. draft .. '","status":"ready","session":""}' }, target)
+OUT:write((R.read_target() ~= nil) and 'fresh-unscoped-target-read ok\n' or 'fresh-unscoped-target-read FAIL\n')
+vim.env.PAIR_SESSION_ID = 'testsid'
+vim.fn.writefile({ '{"file":"/stale/prev.md","status":"ready","session":"oldsid"}' }, target)
+
 -- codex/agy fresh sessions learn their id after nvim starts; review-target must
 -- fall back to config-<tag>-<agent>.json when PAIR_SESSION_ID is empty.
 vim.env.PAIR_SESSION_ID = ''
@@ -195,6 +210,8 @@ grep -q 'propose-prepares-ready ok' "$RESULT" && pass ":PairReview prepares targ
 for c in ts-same ts-diff ts-nocur ts-noid; do
   grep -q "$c ok" "$RESULT" && pass "pure target_stale: $c" || fail "target_stale $c"
 done
+grep -q 'old-unscoped-target-stale ok' "$RESULT" && pass "old unscoped target remains stale" || fail "old unscoped target accepted"
+grep -q 'fresh-unscoped-target-read ok' "$RESULT" && pass "same-nvim unscoped target remains readable" || fail "same-nvim unscoped target ignored"
 grep -q 'config-session-read ok' "$RESULT" && pass "read_target falls back to config session_id" || fail "read_target config fallback"
 grep -q 'config-session-write ok' "$RESULT" && pass "write_target stamps config session_id" || fail "write_target config fallback"
 grep -q 'live-codex-session-read ok' "$RESULT" && pass "read_target resolves live codex session_id" || fail "read_target live codex fallback"
