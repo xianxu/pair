@@ -27,8 +27,9 @@ vim.o.guicursor = 'n:block'
 
 local handle = M.open({
   modes = {
-    { name = 'copy-editing' },
-    { name = 'proofreading' },
+    { name = 'generate' },
+    { name = 'edit' },
+    { name = 'proofread' },
   },
   seam = { mode_label = function(name) return name end },
   on_submit = function() end,

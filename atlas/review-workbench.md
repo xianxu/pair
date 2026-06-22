@@ -28,10 +28,10 @@ Pure core (run under `nvim -l`, colocated `*_test.lua`, `make test-lua`):
   (last-section rule), excluding markers in fenced/inline code. The human's
   in-doc review requests; M3 highlights from it, M4's agent reads it.
 - `mode.lua` + `modes/*.md` (M2) — pure mode-brief parser (`parse`/`directives` +
-  IO `load`/`list`) and the 6 stock modes (developmental→free-form). `directives()`
-  renders the scope/frontier/deletions block M4's agent SKILL.md composes in.
-  `menu.lua` (M4c/M4d) presents those modes in the review pane with a one-round
-  optional instruction buffer.
+  IO `load`/`list`) and the 3 human assistance levels: Generate, Edit, Proofread.
+  `directives()` renders the scope/frontier/deletions block M4's agent SKILL.md
+  composes in. `menu.lua` (M4c/M4d) presents those modes in the review pane with a
+  one-round optional instruction buffer.
 
 Integration seams (headless shell tests, `make test-review`):
 
@@ -80,8 +80,8 @@ Integration seams (headless shell tests, `make test-review`):
 Agent writes a records handoff → nvim watcher applies undo-ably, decorates, saves,
 writes the landed-artifact, and pokes `agent_applied` → the agent commits the
 agent round from that artifact. Human edits → Alt+Return saves and pokes
-`human_finished` in Copy Edit posture, with `🤖[]` comments treated as
-fulfill-or-punt instructions and copy edits expressed as minimal inline marker
+`human_finished` in Edit posture, with `🤖[]` comments treated as
+fulfill-or-punt instructions and edits expressed as minimal inline marker
 proposals (`🤖<old>{new}` / `🤖{new}`) → the agent commits the human round and
 re-reviews. Finishing a human turn clears stale agent-applied highlights and
 diagnostics; the next agent handoff repaints current styling.
@@ -149,7 +149,7 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   pane is hidden. A 1.5s timer recomputes the segment (counts parsed from `git log` round
   subjects, **branch-scoped** to the active `review/<slug>` so other docs' shipped reviews
   don't leak in — `🤖0/0` off a review branch / in M3 render-only; mode from
-  `$PAIR_DATA_DIR/review-<tag>.mode`, defaulting to Copy Edit) and triggers a redraw
+  `$PAIR_DATA_DIR/review-<tag>.mode`, defaulting to Edit) and triggers a redraw
   only on change; the hot render path never shells git. (This **supersedes** an earlier
   line-1 `=== review … ===` indicator — line 1 is the user's to edit. New draft-side
   review helpers live in `do`-blocks sharing `_G._pair_review` — init.lua is at Lua's
@@ -167,7 +167,7 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   Round commits are agent-side. See `workshop/targets/review-protocol.md` for the
   full agent↔nvim state machine.
 
-The agent pane is pair's **existing** agent — free-form chat works for free; the SKILL
+The agent pane is pair's **existing** agent — ordinary chat still works; the SKILL
 that makes "please review" / "ship it" review-aware is the ariadne #000121 half of M4.
 
 ## State
@@ -175,11 +175,13 @@ that makes "please review" / "ship it" review-aware is the ariadne #000121 half 
 M1 (contract + history spine), M2 (consumer-half port), M3 (review window + live
 smoke), M4a (nvim writes no git; fake-agent commits from landed artifacts), and
 M4a' pair-side review-start/resume are implemented and headless-tested. M4b adds
-pair-side accept/reject + marker navigation, fulfill-or-punt default Copy Edit
-posture, and ship request. M4c adds pair-side mode display/menu and the awaiting-agent
-spinner. M4d starts workflow-detail tuning with one-round instruction menu polish and
-minimal-marker Copy Edit semantics, plus exact-span direct-change highlighting and
-diagnostic-only marker proposals.
+pair-side accept/reject + marker navigation, fulfill-or-punt default Edit posture,
+and ship request. M4c adds pair-side mode display/menu and the awaiting-agent
+spinner. M4d starts workflow-detail tuning with one-round instruction menu polish,
+three-mode assistance semantics, minimal-marker Edit behavior, exact-span
+direct-change highlighting, and diagnostic-only marker proposals. Fact-check is
+not a mode; it is requested through the one-round instruction field or agent
+prompt and handled by the review agent's skill workflow.
 
 The real-agent half lives in ariadne #000121. Until that lands, pair proves the
 protocol with `tests/lib/fake-review-agent.sh`; the real live smoke remains the

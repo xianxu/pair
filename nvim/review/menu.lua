@@ -87,10 +87,6 @@ function M.open(opts)
     local mode = selected()
     local instruction = table.concat(vim.api.nvim_buf_get_lines(instr_buf, 0, -1, false), '\n')
       :gsub('^%s+', ''):gsub('%s+$', '')
-    if mode.name == 'free-form' and instruction == '' then
-      vim.notify('review: free-form mode requires an instruction', vim.log.levels.WARN)
-      return
-    end
     last_mode = mode.name
     close()
     on_submit({ mode = mode.name, instruction = instruction })

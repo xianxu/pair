@@ -40,17 +40,24 @@ local gd = M.directives(M.parse('---\nname: g\nscope: whole-doc\nfrontier: off\n
 eq(gd:find('highlighted new text', 1, true) ~= nil, true, 'generative direct replacements highlight new text')
 eq(gd:find('🤖~old~', 1, true) ~= nil, true, 'generative deletion-only changes use visible deletion markers')
 
--- list over the real modes/ dir → 6, sorted by order (name == basename enforced)
+-- list over the real modes/ dir → 3, sorted by order (name == basename enforced)
 local modes = M.list(here .. 'modes')
-eq(#modes, 6, 'six stock modes')
-eq(modes[1].name, 'developmental', 'first by order=1')
-eq(modes[6].name, 'free-form', 'last by order=6')
+eq(#modes, 3, 'three stock modes')
+eq(modes[1].name, 'generate', 'first by order=1')
+eq(modes[2].name, 'edit', 'second by order=2')
+eq(modes[3].name, 'proofread', 'third by order=3')
 
-local copy = M.load(here .. 'modes', 'copy-editing')
-eq(copy.body:find('stable inline marker', 1, true) ~= nil, true,
-   'copy-editing brief requires minimal anchors')
-eq(copy.body:find('🤖<old text>{new text}', 1, true) ~= nil, true,
-   'copy-editing brief requires minimal quoted replacement markers')
+local generate = M.load(here .. 'modes', 'generate')
+eq(generate.body:find('fill out', 1, true) ~= nil, true,
+   'generate brief names fill-out assistance')
+local edit = M.load(here .. 'modes', 'edit')
+eq(edit.body:find('stable inline marker', 1, true) ~= nil, true,
+   'edit brief requires minimal anchors')
+eq(edit.body:find('🤖<old text>{new text}', 1, true) ~= nil, true,
+   'edit brief requires minimal quoted replacement markers')
+local proofread = M.load(here .. 'modes', 'proofread')
+eq(proofread.body:find('near final', 1, true) ~= nil, true,
+   'proofread brief names near-final quality')
 
 -- list() drops a file whose frontmatter name ≠ basename (load resolves by
 -- basename, so a mismatch would offer a name load() can't find).

@@ -58,7 +58,7 @@ function M.parse(content)
     local body = content:sub((nl_after_fence or #content) + 1)
 
     local out = { name = flags.name, body = (body:gsub("%s+$", "")) }
-    -- Optional editorial-sequence position (developmental → … → free-form), used
+    -- Optional editorial-sequence position (Generate → Edit → Proofread), used
     -- to order the menu by the document-construction workflow, not alphabetically.
     out.order = tonumber(flags.order)
     for key, default in pairs(DEFAULT) do

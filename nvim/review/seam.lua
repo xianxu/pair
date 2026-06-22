@@ -32,19 +32,28 @@ function M.mode_path(data_dir, env_tag)
 end
 
 function M.default_mode()
-  return 'copy-editing'
+  return 'edit'
 end
 
 local LABELS = {
-  ['copy-editing'] = 'Copy Edit',
-  ['line-editing'] = 'Line Edit',
-  ['fact-check'] = 'Fact-check',
-  ['free-form'] = 'Free-form',
+  generate = 'Generate',
+  edit = 'Edit',
+  proofread = 'Proofread',
+}
+
+local LEGACY = {
+  developmental = 'generate',
+  ['line-editing'] = 'edit',
+  ['copy-editing'] = 'edit',
+  proofreading = 'proofread',
+  ['free-form'] = 'edit',
+  ['fact-check'] = 'edit',
 }
 
 function M.normalize_mode(mode)
   if not mode or mode == '' then return M.default_mode() end
-  return tostring(mode):gsub('^%s+', ''):gsub('%s+$', '')
+  local out = tostring(mode):gsub('^%s+', ''):gsub('%s+$', '')
+  return LEGACY[out] or out
 end
 
 function M.mode_label(mode)

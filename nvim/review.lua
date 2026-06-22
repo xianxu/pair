@@ -310,7 +310,7 @@ local function start_review(buf, file)
   review.start({ buf = buf, file = file, tag = (tag and tag ~= '') and tag or nil })
 
   -- Alt+Return = finish the human turn: save the human round, then poke the agent
-  -- to commit it and continue in the default Copy Edit posture.
+  -- to commit it and continue in the default Edit posture.
   for _, mode in ipairs({ 'n', 'i' }) do
     vim.keymap.set(mode, '<M-CR>', function() finish_human_turn(buf, file) end,
       { buffer = buf, silent = true })

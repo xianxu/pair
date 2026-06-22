@@ -101,7 +101,7 @@ M4 (agent protocol) — **re-sliced structure-first** (2026-06-21): the whole lo
 - [x] M4a' — review-start & resume flow: `:PairReview` **proposes** → agent preps (pure readiness probe) → Alt+c opens when ready; reconstruct-on-open (resume repaint). Spec in `workshop/targets/review-protocol.md`; pair side built and headless-tested.
 - [x] M4b — **skeleton** (structure): 🤖[] fulfill/punt + **accept/reject** (parley §5) conversation + default editing posture + **ship** — completes the thin full cycle (open → propose → prep → review → converse → iterate → ship → resume). *Pair-side skeleton implemented: Alt+c collaboration toggle, Alt+a/Alt+r/Alt+q review shortcuts, Copy Edit fulfill-or-punt poke posture, and `:PairReviewShip` agent-owned ship request; first boundary review returned REWORK and fixes are now in this window.*
 - [x] M4c — **smokeable mode/send surface**: mode seam + draft/review `🪄 <Mode>` display + `Alt+Return` direct send + `Alt+Shift+Return` mode/instruction send menu + awaiting-agent spinner. *Live smoke passed on a from-scratch real review round.*
-- [ ] M4d — **workflow detail tuning**: iterate from real-use feedback on mode semantics, voice (`voice:` frontmatter), fact-check pass (`doc-review` fold), pending-🤖{} quickfix, diagnostic-display polish, and `xx-fix`→`writing-assistant` rename.
+- [ ] M4d — **workflow detail tuning**: iterate from real-use feedback on Generate/Edit/Proofread mode semantics, voice (`voice:` frontmatter), fact-check as an instruction-driven `xx-fix` workflow, pending-🤖{} quickfix, diagnostic-display polish, and `xx-fix`→`writing-assistant` rename.
 
 ## Log
 
@@ -121,6 +121,11 @@ M4 (agent protocol) — **re-sliced structure-first** (2026-06-21): the whole lo
   redundant highlights for inline marker proposals, and treats empty direct deletions
   as diagnostic-only. Copy Edit prompts now require smallest-stable `old` locators; the
   developmental/generative posture keeps deletion-only changes visible with `🤖~old~`.
+- 2026-06-22: **M4d mode taxonomy pass.** Collapsed the review menu to the three
+  human-assistance levels: Generate, Edit, and Proofread. Edit is now the default
+  mode and carries the minimal-marker contract; legacy mode state files normalize into
+  the new IDs. Free-form is just the one-round instruction field, and fact-check is an
+  instruction-driven `xx-fix` workflow rather than a mode.
 
 - 2026-06-22: closed M4c — M4c post-REWORK: fixed send-menu document-buffer capture, failed-poke spinner clearing, atlas spinner wording; live smoke passed; make test-lua; make test-review; git diff --check; review verdict: SHIP
 - 2026-06-22: **M4c boundary REWORK fixes.** Captured the reviewed document buffer before

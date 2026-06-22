@@ -92,7 +92,7 @@ local function check()
   OUT:write((vim.o.clipboard:find('unnamedplus', 1, true) and 'review-clipboard\n') or ('NO-review-clipboard ' .. vim.o.clipboard .. '\n'))
   OUT:write((vim.o.guicursor:find('blinkon', 1, true) and 'review-blink-cursor\n') or ('NO-review-blink-cursor ' .. vim.o.guicursor .. '\n'))
   local status = vim.o.statusline
-  OUT:write((status:find('🪄 Copy Edit', 1, true) and 'mode-statusline\n') or ('NO-mode-statusline ' .. status .. '\n'))
+  OUT:write((status:find('🪄 Edit', 1, true) and 'mode-statusline\n') or ('NO-mode-statusline ' .. status .. '\n'))
 
   -- A failed poke (no agent pane found) must not leave the statusline spinner
   -- waiting forever. This catches mark-awaiting-before-send regressions.
@@ -196,7 +196,7 @@ local function check()
     or ('NO-human-submit-clears-style marks=' .. #post_submit_marks .. ' diags=' .. #post_submit_diags .. '\n'))
   OUT2:close()
   pcall(vim.cmd, 'PairReviewShip')
-  pcall(_G.PairReviewPane.finish_human_turn, buf, 'doc.md', 'proofreading', 'keep the title')
+  pcall(_G.PairReviewPane.finish_human_turn, buf, 'doc.md', 'proofread', 'keep the title')
   vim.api.nvim_set_current_buf(buf)
   vim.api.nvim_buf_set_lines(buf, -1, -1, false, { 'menu submit edit' })
   local h = _G.PairReviewPane.open_mode_menu('doc.md')
@@ -238,9 +238,9 @@ grep -q 'a human edit' "$REPO/doc.md" && pass "Alt+Return saves the human edits 
 grep -q '^human-submit-clears-style$' "$RT/r3" && pass "Alt+Return clears stale agent styling" || fail "human submit styling clear"
 grep -q 'round --side human' "$RT/doclog" && fail "nvim ran a human docflow round (invariant #1: nvim writes no git)" || pass "nvim writes no git on Alt+Return"
 grep -q '^ship$' "$RT/doclog" && fail "nvim ran docflow ship (invariant #1: agent owns git)" || pass "nvim writes no git on :PairReviewShip"
-grep -q 'write-chars finished my edits .*Copy Edit posture.*minimal 🤖<old>{new}/🤖{new}' "$RT/zlog" && pass "Alt+Return pokes human_finished with Copy Edit marker rule" || fail "no direct human_finished marker-rule poke"
+grep -q 'write-chars finished my edits .*Edit posture.*minimal 🤖<old>{new}/🤖{new}' "$RT/zlog" && pass "Alt+Return pokes human_finished with Edit marker rule" || fail "no direct human_finished marker-rule poke"
 grep -q 'write-chars ship .*doc.md.*agent owns git' "$RT/zlog" && pass ":PairReviewShip pokes the agent ship request" || fail "no ship-request poke"
-grep -q 'write-chars finished my edits .*Proofreading posture.*keep the title' "$RT/zlog" && pass "menu send pokes human_finished with mode and instruction" || fail "no mode/instruction human_finished poke"
+grep -q 'write-chars finished my edits .*Proofread posture.*keep the title' "$RT/zlog" && pass "menu send pokes human_finished with mode and instruction" || fail "no mode/instruction human_finished poke"
 grep -q 'menu submit edit' "$REPO/doc.md" && pass "send menu submit saves the reviewed document buffer" || fail "send menu submit did not save reviewed document"
 grep -q 'Review workbench open on' "$RT/zlog" && fail "review pane still sends redundant open handshake" || pass "review pane does not send redundant open handshake"
 

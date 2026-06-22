@@ -17,14 +17,15 @@ end
 -- After the human finished their turn (the nvim saved — but did NOT git-commit;
 -- the agent commits the human round). "finished", not "committed" — precise.
 function M.human_finished(file, mode, instruction, label)
-  label = label or 'Copy Edit'
+  label = label or 'Edit'
   local suffix = ''
   if instruction and instruction ~= '' then
     suffix = 'instruction: ' .. instruction .. '; '
   end
   local mode_rule = ''
-  if mode == nil or mode == '' or mode == 'copy-editing' or label == 'Copy Edit' then
-    mode_rule = '; for Copy Edit, use minimal 🤖<old>{new}/🤖{new} marker proposals and do not '
+  if mode == nil or mode == '' or mode == 'edit' or mode == 'copy-editing' or mode == 'line-editing'
+      or label == 'Edit' or label == 'Copy Edit' then
+    mode_rule = '; for Edit, use minimal 🤖<old>{new}/🤖{new} marker proposals and do not '
       .. 'replace whole paragraphs for word-level edits; make each record old the smallest stable locator'
   end
   return string.format('finished my edits to %s — please review in %s posture; %s'
@@ -46,7 +47,7 @@ function M.review_opened(file)
     'Review workbench open on %s. When I ask you to review this doc, use the xx-fix '
     .. '"Pair review workbench" protocol: propose {old,occurrence,new,explain} records '
     .. 'to the handoff and own the git — do NOT edit the file in place or summarize '
-    .. 'edits and ask to apply (that bypasses the pane). Default to Copy Edit posture; '
+    .. 'edits and ask to apply (that bypasses the pane). Default to Edit posture; '
     .. 'resolve 🤖[] comments as edits when possible, or punt explicitly when not. Reply "ready".', file)
 end
 

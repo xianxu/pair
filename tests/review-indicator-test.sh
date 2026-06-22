@@ -35,7 +35,7 @@ REPO="$RT/repo"; mkdir -p "$REPO"
   git commit -q --allow-empty -m "review(binary-skill): agent r2 — second pass"
   git checkout -q main )
 
-printf 'fact-check\n' > "$RT/review-test.mode"
+printf 'generate\n' > "$RT/review-test.mode"
 cat > "$RT/driver.lua" <<'LUA'
 local OUT = io.open(os.getenv('RESULT'), 'w')
 local f = _G._pair_review_bar
@@ -59,10 +59,10 @@ PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=claude PAIR_HOME="$ROOT" \
 grep -q 'fn ok' "$RT/r" && pass "_pair_review_bar exposed" || fail "bar fn not exposed"
 # THE regression for the "25/28" bug: off a review branch → 🤖0/0, even though
 # main's history carries other docs' shipped review rounds.
-grep -qF 'main: 🪄 Fact-check • binary-skill-and-dynamic-skill.md • 🤖0/0' "$RT/r" \
+grep -qF 'main: 🪄 Generate • binary-skill-and-dynamic-skill.md • 🤖0/0' "$RT/r" \
   && pass "off a review branch → 🤖0/0 (ignores other docs' shipped rounds)" \
   || { fail "repo-wide over-count not fixed"; grep '^main:' "$RT/r" || true; }
-grep -qF 'review: 🪄 Fact-check • binary-skill-and-dynamic-skill.md • 🤖2/1' "$RT/r" \
+grep -qF 'review: 🪄 Generate • binary-skill-and-dynamic-skill.md • 🤖2/1' "$RT/r" \
   && pass "on review/<slug> → that slug's rounds only (🤖agent/human)" \
   || { fail "wrong on-branch count"; grep '^review:' "$RT/r" || true; }
 
