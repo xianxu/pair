@@ -100,15 +100,31 @@ M4 (agent protocol) — **re-sliced structure-first** (2026-06-21): the whole lo
 - [x] M4a — agent-owns-git inversion + the basic round (records → apply → landed-artifact → fake-agent commits). *Implemented/headless-verified; not separately milestone-closed because M4a'/M4b commits already landed before reconciliation. Review evidence folds into the current M4 skeleton boundary.*
 - [x] M4a' — review-start & resume flow: `:PairReview` **proposes** → agent preps (pure readiness probe) → Alt+c opens when ready; reconstruct-on-open (resume repaint). Spec in `workshop/targets/review-protocol.md`; pair side built and headless-tested.
 - [x] M4b — **skeleton** (structure): 🤖[] fulfill/punt + **accept/reject** (parley §5) conversation + default editing posture + **ship** — completes the thin full cycle (open → propose → prep → review → converse → iterate → ship → resume). *Pair-side skeleton implemented: Alt+c collaboration toggle, Alt+a/Alt+r/Alt+q review shortcuts, Copy Edit fulfill-or-punt poke posture, and `:PairReviewShip` agent-owned ship request; first boundary review returned REWORK and fixes are now in this window.*
-- [ ] M4c — **thicken** (tuning; sub-slices when reached): modes menu + 🪄/spinner/lean-history bar; voice (`voice:` frontmatter); fact-check pass (`doc-review` fold); pending-🤖{} quickfix; diagnostic-display polish; `xx-fix`→`writing-assistant` rename. *Smoke slice implemented: mode seam + draft/review mode display + `Alt+Shift+Return` send menu + awaiting-agent spinner; live smoke pending.*
+- [x] M4c — **smokeable mode/send surface**: mode seam + draft/review `🪄 <Mode>` display + `Alt+Return` direct send + `Alt+Shift+Return` mode/instruction send menu + awaiting-agent spinner. *Live smoke passed on a from-scratch real review round.*
+- [ ] M4d — **workflow detail tuning**: iterate from real-use feedback on mode semantics, voice (`voice:` frontmatter), fact-check pass (`doc-review` fold), pending-🤖{} quickfix, diagnostic-display polish, and `xx-fix`→`writing-assistant` rename.
 
 ## Log
 
+- 2026-06-22: **M4c boundary REWORK fixes.** Captured the reviewed document buffer before
+  opening the `Alt+Shift+Return` send menu, so menu submit saves/sends the real review doc
+  rather than depending on the focused floating buffer; awaiting spinner now starts only
+  after a successful agent poke; atlas no longer says `spinner.lua` is unwired. Added
+  focused regressions for real menu submit and failed-poke spinner behavior. Verification:
+  `bash tests/review-window-test.sh`, `make test-lua`, `make test-review`, and
+  `git diff --check` green.
+
+- 2026-06-22: closed M4c — M4c smoke slice: live from-scratch review round passed on xianxu.dev binary-skill doc (Alt+Shift+Return copy-edit send, agent-owned commits, suggestion highlight+diagnosis, undo/redo text+styling+diagnosis); make test-lua; make test-review; git diff --check; review verdict: REWORK
 - 2026-06-22: **M4c send-menu shortcut revised after smoke feedback.** Removed the
   review pane's `Alt+o` menu binding; `Alt+Return` now directly finishes the human turn
   with the current/default mode, while `Alt+Shift+Return` opens the mode/instruction send
   menu and then finishes the turn. Verification: `make test-lua`, `make test-review`, and
   `git diff --check` green.
+- 2026-06-22: **M4c live smoke passed from scratch.** Operator reset the real doc
+  `/Users/xianxu/workspace/xianxu.dev/src/data/post/binary-skill-and-dynamic-skill.md`
+  and removed the review branch, then ran one full review round: `Alt+Shift+Return`
+  copy-edit send, agent-owned review branch with expected commits, edit suggestion landed
+  in the doc with highlight + diagnosis, and undo/redo changed both text and styling
+  (including diagnosis). Remaining detail tuning moved to M4d.
 
 - 2026-06-21: **M4c smoke slice implemented.** Added `review-<tag>.mode` seam helpers
   with Copy Edit default labels; draft statusline now shows `🪄 <Mode> • <file> • 🤖N/M`;

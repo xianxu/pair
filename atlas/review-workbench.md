@@ -66,8 +66,8 @@ Integration seams (headless shell tests, `make test-review`):
   facts remain valid JSON.
 - `resolve.lua` — pure parley §5 accept/reject resolution for `🤖` marker chains;
   `nvim/review.lua` binds it to the review pane (`\a`, `\r`, `]m`, `[m`).
-- `spinner.lua` — pure compact spinner/elapsed helper for M4c; currently unwired
-  pre-work.
+- `spinner.lua` — pure compact spinner/elapsed helper wired into the review pane
+  statusline while the pane is awaiting the agent.
 - `init.lua` — the orchestrator: `start` a review (`undofile` + handoff watch +
   reconstruct-on-open); on each handoff `on_agent_round` = undo-able apply →
   snapshot (projection record/watch) → save → write landed-artifact → poke the

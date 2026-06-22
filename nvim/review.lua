@@ -274,25 +274,27 @@ local function finish_human_turn(buf, file, mode_name, instruction)
   -- cwd is pair's, not the doc's repo). The agent commits the human round + reviews.
   -- (Once ariadne#000121's SKILL recognizes review-mode from these signals, this is
   -- the whole trigger — the M3 `/xx-fix` stopgap is retired here.)
-  mark_awaiting()
   local m = seam.normalize_mode(mode_name or current_mode())
-  poke.send(poke_bodies.human_finished(vim.fn.fnamemodify(file, ':p'), m,
-    instruction or '', seam.mode_label(m)))
+  if poke.send(poke_bodies.human_finished(vim.fn.fnamemodify(file, ':p'), m,
+      instruction or '', seam.mode_label(m))) then
+    mark_awaiting()
+  end
 end
 
 local function request_ship(file)
-  mark_awaiting()
-  poke.send(poke_bodies.ship_requested(vim.fn.fnamemodify(file, ':p')))
+  if poke.send(poke_bodies.ship_requested(vim.fn.fnamemodify(file, ':p'))) then
+    mark_awaiting()
+  end
 end
 
-local function open_mode_menu(file)
+local function open_mode_menu(buf, file)
   local modes = mode.list(here .. 'review/modes')
   return menu.open({
     modes = modes,
     seam = seam,
     mode = current_mode(),
     on_submit = function(choice)
-      finish_human_turn(vim.api.nvim_get_current_buf(), file, choice.mode, choice.instruction)
+      finish_human_turn(buf, file, choice.mode, choice.instruction)
     end,
   })
 end
@@ -306,7 +308,7 @@ local function start_review(buf, file)
   for _, mode in ipairs({ 'n', 'i' }) do
     vim.keymap.set(mode, '<M-CR>', function() finish_human_turn(buf, file) end,
       { buffer = buf, silent = true })
-    vim.keymap.set(mode, '<M-S-CR>', function() open_mode_menu(file) end,
+    vim.keymap.set(mode, '<M-S-CR>', function() open_mode_menu(buf, file) end,
       { buffer = buf, silent = true, desc = 'review: send menu' })
   end
   pcall(vim.api.nvim_del_user_command, 'PairReviewShip')
@@ -382,7 +384,9 @@ end
 _G.PairReviewPane = { start_review = start_review, render_markers = render_markers,
   state_file = state_file, finish_human_turn = finish_human_turn,
   request_ship = request_ship,
-  open_mode_menu = open_mode_menu,
+  open_mode_menu = function(file)
+    return open_mode_menu(vim.api.nvim_get_current_buf(), file)
+  end,
   resolve_at_cursor = resolve_at_cursor, insert_review_marker = insert_review_marker,
   quote_selection = quote_selection, current_mode = current_mode, mode_label = mode_label }
 

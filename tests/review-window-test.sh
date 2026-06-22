@@ -91,6 +91,24 @@ local function check()
   local status = vim.o.statusline
   OUT:write((status:find('🪄 Copy Edit', 1, true) and 'mode-statusline\n') or ('NO-mode-statusline ' .. status .. '\n'))
 
+  -- A failed poke (no agent pane found) must not leave the statusline spinner
+  -- waiting forever. This catches mark-awaiting-before-send regressions.
+  local panes_path = os.getenv('PANES_JSON')
+  local original_panes
+  if panes_path then
+    local pf = io.open(panes_path, 'r'); original_panes = pf and pf:read('*a'); if pf then pf:close() end
+    local wf = io.open(panes_path, 'w')
+    wf:write('{"t":{"panes":[{"id":9,"is_plugin":false,"is_floating":true,"is_focused":true,"title":"review"}]}}')
+    wf:close()
+  end
+  pcall(_G.PairReviewPane.finish_human_turn, buf, 'doc.md')
+  local failed_poke_status = vim.o.statusline
+  OUT:write((not failed_poke_status:find('⠋', 1, true) and 'failed-poke-no-spinner\n')
+    or ('NO-failed-poke-no-spinner ' .. failed_poke_status .. '\n'))
+  if panes_path and original_panes then
+    local wf = io.open(panes_path, 'w'); wf:write(original_panes); wf:close()
+  end
+
   -- Alt+a / Alt+r semantics: quoted agent replacement accepts new text and
   -- rejection removes the marker while keeping the original quoted text.
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'hello 🤖<old>{new}', 'bye' })
@@ -153,6 +171,10 @@ local function check()
   pcall(_G.PairReviewPane.finish_human_turn, buf, 'doc.md')
   pcall(vim.cmd, 'PairReviewShip')
   pcall(_G.PairReviewPane.finish_human_turn, buf, 'doc.md', 'proofreading', 'keep the title')
+  vim.api.nvim_set_current_buf(buf)
+  vim.api.nvim_buf_set_lines(buf, -1, -1, false, { 'menu submit edit' })
+  local h = _G.PairReviewPane.open_mode_menu('doc.md')
+  if h then h.submit() end
   vim.cmd('qa!')
 end
 if vim.v.vim_did_enter == 1 then vim.schedule(check)
@@ -162,6 +184,7 @@ LUA
 : > "$RT/doclog"
 ( cd "$REPO" && PATH="$RT/bin:$PATH" PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=claude \
     PAIR_HOME="$ROOT" DOCFLOW_BIN="$ROOT/tests/lib/fake-docflow.sh" DOCFLOW_ARGLOG="$RT/doclog" RESULT2="$RT/r3" \
+    PANES_JSON="$RT/panes.json" \
     run_headless --timeout 30 -- nvim --headless -u "$ROOT/nvim/review.lua" "$REPO/doc.md" -c "luafile $RT/wdriver.lua" )
 grep -q 'pane-loaded' "$RT/r3" && pass "review.lua loaded the review core" || fail "review.lua did not load"
 grep -q 'altcr-map' "$RT/r3" && pass "Alt+Return keymap wired" || fail "no Alt+Return keymap"
@@ -172,6 +195,7 @@ grep -q '^ship-cmd$' "$RT/r3" && pass ":PairReviewShip command wired" || fail ":
 grep -q '^state-file$' "$RT/r3" && pass "open-state file written" || fail "no state file"
 grep -q '^markers$' "$RT/r3" && pass "🤖 markers rendered" || fail "no marker extmarks"
 grep -q '^mode-statusline$' "$RT/r3" && pass "review statusline shows current mode" || fail "review statusline missing mode"
+grep -q '^failed-poke-no-spinner$' "$RT/r3" && pass "failed poke does not leave spinner awaiting" || fail "failed-poke spinner behavior"
 grep -q '^alt-a-accept$' "$RT/r3" && pass "Alt+a accepts quoted agent replacement" || fail "Alt+a accept behavior"
 grep -q '^alt-r-reject$' "$RT/r3" && pass "Alt+r rejects to original quoted text" || fail "Alt+r reject behavior"
 grep -q '^alt-a-under-cursor$' "$RT/r3" && pass "Alt+a resolves the marker under cursor" || fail "Alt+a marker-under-cursor behavior"
@@ -187,6 +211,7 @@ grep -q '^ship$' "$RT/doclog" && fail "nvim ran docflow ship (invariant #1: agen
 grep -q 'write-chars finished my edits .*Copy Edit posture' "$RT/zlog" && pass "Alt+Return pokes human_finished with the current/default mode" || fail "no direct human_finished poke"
 grep -q 'write-chars ship .*doc.md.*agent owns git' "$RT/zlog" && pass ":PairReviewShip pokes the agent ship request" || fail "no ship-request poke"
 grep -q 'write-chars finished my edits .*Proofreading posture.*keep the title' "$RT/zlog" && pass "menu send pokes human_finished with mode and instruction" || fail "no mode/instruction human_finished poke"
+grep -q 'menu submit edit' "$REPO/doc.md" && pass "send menu submit saves the reviewed document buffer" || fail "send menu submit did not save reviewed document"
 
 [ "$fails" -eq 0 ] || { printf 'review-window-test FAILED (%d)\n' "$fails"; exit 1; }
 printf 'review-window-test ok\n'
