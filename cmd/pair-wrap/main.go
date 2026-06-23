@@ -283,6 +283,12 @@ type proxy struct {
 	wrapEventsFD *os.File
 	traceMu      sync.Mutex
 	traceSeq     uint64
+
+	// codexSyncPassthrough disables stripCodexSyncOutput when PAIR_CODEX_SYNC_PASSTHROUGH
+	// is set — the #68 A/B switch for whether forwarding codex's DEC 2026/1004
+	// markers untouched lets zellij batch the inline repaint storm instead of
+	// tripping its client-disconnect guard. Default off preserves the #30 strip.
+	codexSyncPassthrough bool
 }
 
 type spanEntry struct {
@@ -545,6 +551,9 @@ var codexSyncOutputMarkers = [][]byte{
 
 func (p *proxy) stdoutChunk(data []byte) []byte {
 	if p.agentBasename != "codex" {
+		return data
+	}
+	if p.codexSyncPassthrough {
 		return data
 	}
 	return p.stripCodexSyncOutput(data)
@@ -1612,6 +1621,7 @@ argsDone:
 	}
 
 	p.agentBasename = filepath.Base(argv[0])
+	p.codexSyncPassthrough = envFlag("PAIR_CODEX_SYNC_PASSTHROUGH")
 	p.resolvePaths()
 
 	// Open the always-on adaptation flight recorder. bin/pair truncates the

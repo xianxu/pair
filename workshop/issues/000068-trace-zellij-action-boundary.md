@@ -92,3 +92,22 @@ focused-headless-tests design=0.1 impl=0.4
   timing. Verified with `go test ./cmd/pair-wrap -run 'TestTraceWrap|TestHandleChunkTraces' -count=1`,
   `go test ./cmd/pair-wrap -count=1`, `make pair-wrap`, `make test-zellij-trace`,
   and `bash tests/review-poke-test.sh`.
+- Repro tag `debug-67` (codex): last nvim zellij action 10:43:28, disconnect
+  10:44:36 — a **68s gap**, so again not prompt injection. `wrap-events` shows a
+  sustained codex output storm filling that gap: ~50 master-chunks/s for the full
+  68s straight into the disconnect, the same ~217-byte frame repeated 750+× (359
+  distinct hashes / 3454 chunks), 672 BEL-bearing chunks, **2684/3454 stdout-writes
+  `filtered`, 0 write errors**. The 8-byte chunk filtered to `stdout_len:0` and
+  repeated 477× is `\x1b[?2026h`.
+- Root mechanism: codex runs `--no-alt-screen` (inline mode for scrollback), so it
+  repaints in the primary buffer ~50Hz, wrapping each frame in DEC 2026
+  synchronized-output markers. `stripCodexSyncOutput` (#30, to stop live-scroll
+  interference) strips 2026/1004, so zellij receives an **un-batched 50Hz repaint
+  stream** — not byte volume (~8KB/s) but ~50 un-synchronized render updates/s —
+  which trips zellij's "1000+ unknown/empty client messages" disconnect guard.
+  #30's cosmetic fix likely unmasks this fatal one.
+- Added `PAIR_CODEX_SYNC_PASSTHROUGH` gate (`stdoutChunk`): set → forward codex's
+  2026/1004 markers untouched, to A/B whether the strip is the trigger (survives →
+  honor 2026 / coalesce frames instead of stripping; still dies → throttle codex
+  stdout rate). Default off preserves #30. Verified with
+  `go test ./cmd/pair-wrap -run TestStdoutChunk -count=1` and `go test ./cmd/pair-wrap -count=1`.

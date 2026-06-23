@@ -45,3 +45,16 @@ func TestStdoutChunk_NonCodexPassesSynchronizedOutputMarkers(t *testing.T) {
 		t.Fatalf("got %q, want %q", got, in)
 	}
 }
+
+// PAIR_CODEX_SYNC_PASSTHROUGH (#68 A/B switch): when set, codex's DEC 2026/1004
+// markers must reach zellij untouched so we can test whether the strip is what
+// trips zellij's client-disconnect guard.
+func TestStdoutChunk_CodexSyncPassthroughForwardsMarkers(t *testing.T) {
+	p := &proxy{agentBasename: "codex", codexSyncPassthrough: true}
+	in := []byte("a\x1b[?2026hb\x1b[?2026lc\x1b[?1004hd")
+
+	got := p.stdoutChunk(in)
+	if !bytes.Equal(got, in) {
+		t.Fatalf("got %q, want %q (passthrough must forward markers untouched)", got, in)
+	}
+}
