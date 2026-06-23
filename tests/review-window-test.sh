@@ -117,8 +117,11 @@ local function check()
   OUT:write((vim.o.breakindent and 'review-breakindent\n') or 'NO-review-breakindent\n')
   OUT:write((vim.o.smoothscroll and 'review-smoothscroll\n') or 'NO-review-smoothscroll\n')
   OUT:write((vim.g.colors_name and 'review-colorscheme\n') or 'NO-review-colorscheme\n')
+  OUT:write((vim.o.cmdheight == 0 and 'review-hidden-cmdline\n') or ('NO-review-hidden-cmdline ' .. tostring(vim.o.cmdheight) .. '\n'))
   local status = vim.o.statusline
-  OUT:write((status:find('🪄 Edit', 1, true) and 'mode-statusline\n') or ('NO-mode-statusline ' .. status .. '\n'))
+  local compact_status = status:find('🪄 Edit • %t%m', 1, true) and status:find('L%l/%L', 1, true)
+    and not status:find('Alt+', 1, true)
+  OUT:write((compact_status and 'compact-mode-statusline\n') or ('NO-compact-mode-statusline ' .. status .. '\n'))
   local function link_of(name)
     local ok, hl = pcall(vim.api.nvim_get_hl, 0, { name = name, link = true })
     return ok and hl.link or nil
@@ -158,7 +161,7 @@ local function check()
   end
   pcall(_G.PairReviewPane.finish_human_turn, buf, 'doc.md')
   local failed_poke_status = vim.o.statusline
-  OUT:write((not failed_poke_status:find('⠋', 1, true) and 'failed-poke-no-spinner\n')
+  OUT:write((not failed_poke_status:find('⣾', 1, true) and 'failed-poke-no-spinner\n')
     or ('NO-failed-poke-no-spinner ' .. failed_poke_status .. '\n'))
   if panes_path and original_panes then
     local wf = io.open(panes_path, 'w'); wf:write(original_panes); wf:close()
@@ -287,9 +290,17 @@ local function check()
   pcall(_G.PairReviewPane.finish_human_turn, buf, 'doc.md')
   local post_submit_marks = vim.api.nvim_buf_get_extmarks(buf, apply.HL, 0, -1, {})
   local post_submit_diags = vim.diagnostic.get(buf, { namespace = apply.DIAG })
+  local waiting_status = vim.o.statusline
   local OUT2 = io.open(os.getenv('RESULT2'), 'a')
   OUT2:write((#post_submit_marks == 0 and #post_submit_diags == 0 and 'human-submit-clears-style\n')
     or ('NO-human-submit-clears-style marks=' .. #post_submit_marks .. ' diags=' .. #post_submit_diags .. '\n'))
+  OUT2:write((waiting_status:find('⣾ %{v:lua._pair_review_elapsed()}', 1, true)
+      and waiting_status:find('• %t%m', 1, true)
+      and not waiting_status:find('🪄', 1, true)
+      and 'awaiting-statusline\n')
+    or ('NO-awaiting-statusline ' .. waiting_status .. '\n'))
+  OUT2:write((_G.PairReviewPane.status_timer_interval == 200 and 'spinner-200ms\n')
+    or ('NO-spinner-200ms ' .. tostring(_G.PairReviewPane.status_timer_interval) .. '\n'))
   OUT2:close()
   pcall(vim.cmd, 'PairReviewShip')
   pcall(_G.PairReviewPane.finish_human_turn, buf, 'doc.md', 'proofread', 'keep the title')
@@ -321,7 +332,8 @@ grep -q '^review-blink-cursor$' "$RT/r3" && pass "review pane uses blinking curs
 grep -q '^review-breakindent$' "$RT/r3" && pass "review pane indents soft-wrapped lines" || fail "review breakindent option"
 grep -q '^review-smoothscroll$' "$RT/r3" && pass "review pane smooth-scrolls soft-wrapped lines" || fail "review smoothscroll option"
 grep -q '^review-colorscheme$' "$RT/r3" && pass "review pane loads a colorscheme" || fail "review colorscheme not loaded"
-grep -q '^mode-statusline$' "$RT/r3" && pass "review statusline shows current mode" || fail "review statusline missing mode"
+grep -q '^review-hidden-cmdline$' "$RT/r3" && pass "review pane hides command line until : commands" || fail "review pane cmdheight"
+grep -q '^compact-mode-statusline$' "$RT/r3" && pass "review statusline is compact in mode state" || fail "review compact mode statusline"
 grep -q '^review-user-hl$' "$RT/r3" && pass "review user marker highlight matches parley" || fail "review user marker highlight"
 grep -q '^review-agent-hl$' "$RT/r3" && pass "review agent marker highlight matches parley" || fail "review agent marker highlight"
 grep -q '^review-quoted-hl$' "$RT/r3" && pass "review quoted marker highlight matches parley" || fail "review quoted marker highlight"
@@ -344,11 +356,13 @@ grep -q 'a human edit' "$REPO/doc.md" && pass "Alt+Return saves the human edits 
 grep -q '^human-submit-clears-style$' "$RT/r3" && pass "Alt+Return clears stale agent styling" || fail "human submit styling clear"
 grep -q 'round --side human' "$RT/doclog" && fail "nvim ran a human docflow round (invariant #1: nvim writes no git)" || pass "nvim writes no git on Alt+Return"
 grep -q '^ship$' "$RT/doclog" && fail "nvim ran docflow ship (invariant #1: agent owns git)" || pass "nvim writes no git on :PairReviewShip"
-grep -q 'write-chars finished my edits .*Edit posture' "$RT/zlog" && pass "Alt+Return pokes human_finished with posture" || fail "no direct human_finished posture poke"
+grep -q '^awaiting-statusline$' "$RT/r3" && pass "human submit switches statusline to awaiting spinner" || fail "awaiting statusline"
+grep -q '^spinner-200ms$' "$RT/r3" && pass "awaiting spinner redraws at 200ms" || fail "spinner redraw cadence"
+grep -q 'write-chars --pane-id .* finished my edits .*Edit posture' "$RT/zlog" && pass "Alt+Return pokes human_finished with posture" || fail "no direct human_finished posture poke"
 grep -q 'minimal 🤖<old>{new}/🤖{new}' "$RT/zlog" && fail "human_finished repeats standing Edit marker rule" || pass "human_finished omits standing Edit marker rule"
 grep -q 'resolve 🤖\\[\\] comments' "$RT/zlog" && fail "human_finished repeats standing comment-resolution rule" || pass "human_finished omits standing comment-resolution rule"
-grep -q 'write-chars ship .*doc.md.*agent owns git' "$RT/zlog" && pass ":PairReviewShip pokes the agent ship request" || fail "no ship-request poke"
-grep -q 'write-chars finished my edits .*Proofread posture.*keep the title' "$RT/zlog" && pass "menu send pokes human_finished with mode and instruction" || fail "no mode/instruction human_finished poke"
+grep -q 'write-chars --pane-id .* ship .*doc.md.*agent owns git' "$RT/zlog" && pass ":PairReviewShip pokes the agent ship request" || fail "no ship-request poke"
+grep -q 'write-chars --pane-id .* finished my edits .*Proofread posture.*keep the title' "$RT/zlog" && pass "menu send pokes human_finished with mode and instruction" || fail "no mode/instruction human_finished poke"
 grep -q 'menu submit edit' "$REPO/doc.md" && pass "send menu submit saves the reviewed document buffer" || fail "send menu submit did not save reviewed document"
 grep -q 'Review workbench open on' "$RT/zlog" && fail "review pane still sends redundant open handshake" || pass "review pane does not send redundant open handshake"
 

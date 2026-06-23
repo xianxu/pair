@@ -18,7 +18,7 @@ eq(M.elapsed(7200), '2h', 'elapsed hours')
 eq(M.elapsed(-5), '0s', 'elapsed clamps negative')
 
 eq(M.cell(nil, 100, 0), '', 'idle → empty cell')
-eq(M.cell(100, 145, 2), '⠹ 45s ', 'awaiting → frame + elapsed (tick 2 = 3rd frame)')
+eq(M.cell(100, 145, 2), '⣻ 45s ', 'awaiting → frame + elapsed (tick 2 = 3rd frame)')
 -- frame advances with tick; budget ≤6 visible cols for spinner+elapsed
 local c = M.cell(100, 102, 0)
 if #c == 0 or not c:find('2s', 1, true) then

@@ -4,7 +4,7 @@
 -- the braille frame + compact elapsed as the statusline's leading cell. PURE.
 local M = {}
 
-M.frames = { '⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏' }
+M.frames = { '⣾', '⣽', '⣻', '⢿', '⡿', '⣟', '⣯', '⣷' }
 
 -- compact elapsed, ≤4 visible cols: 45s / 2m / 3h.
 function M.elapsed(secs)

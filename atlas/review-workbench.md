@@ -114,7 +114,10 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   `VimLeave`. Also defines `PairReviewToggle()` = hide-self (the case where Alt+c
   fires from inside the focused floating review pane). Pane-open no longer sends a
   separate "review workbench open" poke; the prep and human-finished pokes carry the
-  workbench protocol context.
+  workbench protocol context. The command line is hidden until `:` commands, and the
+  pane statusline is compact: idle shows `🪄 <Mode> • <file>[+] Lx/y`; after a send
+  it stays focused in the review pane and shows a 200ms braille spinner plus elapsed
+  time until the agent handoff lands.
 - `bin/pair-review-open <file>` — validates + spawns the **full-screen** floating pane
   (`zellij run --floating --close-on-exit --name review --width 100% --height 100%`;
   percentage dims, not `tput`, which measured the wrong pane), replacing any live
@@ -140,8 +143,9 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   not rely on the launch-time env alone. `Alt+r` is deliberately free inside the review
   pane for reject.
 - `nvim/pair_poke.lua` — id-based agent poke: relative `move-focus` does NOT escape a
-  floating pane, so it resolves the agent + caller panes from `list-panes --json` and
-  `focus-pane-id`s them (focus agent → write-chars + `write 27 13` submit → restore).
+  floating pane, so it resolves the agent pane from `list-panes --json` and writes
+  directly with `write-chars --pane-id <agent>` + `write --pane-id <agent> 27 13`.
+  The review pane keeps focus while the agent receives the poke.
 - **review-mode bar** (`nvim/init.lua`, `do`-block; `_pair_review_bar` count source +
   `_pair_review_segment` cached segment) — while a review is open, the draft's
   **statusline** carries `🪄 <Mode> • <file> • 🤖N/M`: `pair_compose_statusline` swaps the

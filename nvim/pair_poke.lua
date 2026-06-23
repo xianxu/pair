@@ -1,20 +1,18 @@
 -- nvim/pair_poke.lua — inject an instruction into the agent pane from ANY pane
 -- (issue #66 M3). The draft's send_to_agent uses RELATIVE move-focus, which does
--- NOT escape a floating pane (documented in scrollback.lua) — so the review pane
--- addresses the agent by ABSOLUTE pane id: resolve the agent (and the caller's
--- own focused pane) from `zellij action list-panes --json`, focus the agent,
--- type + submit, restore focus. Deliberately NO has_ui() short-circuit, so the
--- headless test can stub `zellij` and record the calls.
+-- NOT escape a floating pane (documented in scrollback.lua). The review pane
+-- resolves the agent's ABSOLUTE pane id from `zellij action list-panes --json`
+-- and writes directly to that pane id, so review focus never moves.
+-- Deliberately NO has_ui() short-circuit, so the headless test can stub `zellij`
+-- and record the calls.
 local M = {}
 
 -- Pure: the ordered zellij argv list for one poke. Submit is Alt+Enter
 -- (write 27 13) — pair-wrap rewrites that into the agent's real submit byte.
 function M._cmds(body, agent_id, review_id)
   return {
-    { 'zellij', 'action', 'focus-pane-id', tostring(agent_id) },
-    { 'zellij', 'action', 'write-chars', body },
-    { 'zellij', 'action', 'write', '27', '13' },
-    { 'zellij', 'action', 'focus-pane-id', tostring(review_id) },
+    { 'zellij', 'action', 'write-chars', '--pane-id', tostring(agent_id), body },
+    { 'zellij', 'action', 'write', '--pane-id', tostring(agent_id), '27', '13' },
   }
 end
 
@@ -47,21 +45,16 @@ local function find_agent(panes)
   end
 end
 
-local function find_focused(panes)
-  for _, p in ipairs(panes) do if p.is_focused == true then return p.id end end
-end
-
--- Send `body` to the agent and return focus to the caller's (focused) pane.
+-- Send `body` to the agent without moving focus away from the caller.
 -- Returns false (+ notify) if the agent pane can't be resolved.
 function M.send(body)
   local panes = list_panes()
   local agent = find_agent(panes)
-  local review = find_focused(panes)
   if not agent then
     vim.notify('review: could not find the agent pane to poke', vim.log.levels.ERROR)
     return false
   end
-  for _, cmd in ipairs(M._cmds(body, agent, review or agent)) do
+  for _, cmd in ipairs(M._cmds(body, agent)) do
     vim.fn.system(cmd)
   end
   return true

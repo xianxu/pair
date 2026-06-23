@@ -12,6 +12,7 @@ vim.opt.breakindent = true
 vim.opt.smoothscroll = true
 vim.opt.clipboard = 'unnamedplus'
 vim.opt.guicursor = 'n-v-c-sm:block-blinkon250-blinkoff250,i-ci-ve:block-blinkon250-blinkoff250,r-cr-o:hor20'
+vim.opt.cmdheight = 0
 -- The review pane is an EDITABLE document workbench, not a read-only viewer (the
 -- scrollback look these were copied from) — show the gutter: absolute line numbers
 -- + a stable sign column for the review diagnostics.
@@ -392,6 +393,7 @@ local function state_file()
 end
 
 local awaiting_since, spinner_tick
+local status_timer_interval = 200
 
 local function current_mode()
   return seam.read_mode(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
@@ -402,13 +404,20 @@ local function mode_label()
 end
 
 local function statusline_text()
-  local cell = spinner.cell(awaiting_since, os.time(), spinner_tick or 0)
-  return ' ' .. cell .. '🪄 ' .. mode_label()
-    .. ' • Alt+⏎ Send • Alt+⇧⏎ Menu • Alt+c → agent • %f%m %= L%l/%L '
+  if awaiting_since then
+    local frame = spinner.frames[((spinner_tick or 0) % #spinner.frames) + 1]
+    return ' ' .. frame .. ' %{v:lua._pair_review_elapsed()} • %t%m %= L%l/%L '
+  end
+  return ' 🪄 ' .. mode_label() .. ' • %t%m %= L%l/%L '
 end
 
 local function refresh_statusline()
   vim.opt.statusline = statusline_text()
+  pcall(vim.cmd, 'redrawstatus')
+end
+
+function _G._pair_review_elapsed()
+  return spinner.elapsed(os.time() - (awaiting_since or os.time()))
 end
 
 local function mark_awaiting()
@@ -428,7 +437,7 @@ end
 
 local status_timer = vim.loop.new_timer()
 if status_timer then
-  status_timer:start(1000, 1000, vim.schedule_wrap(function()
+  status_timer:start(status_timer_interval, status_timer_interval, vim.schedule_wrap(function()
     if awaiting_since then
       spinner_tick = (spinner_tick or 0) + 1
     end
@@ -554,6 +563,7 @@ end
 _G.PairReviewPane = { start_review = start_review, render_markers = render_markers,
   state_file = state_file, finish_human_turn = finish_human_turn,
   request_ship = request_ship,
+  status_timer_interval = status_timer_interval,
   open_mode_menu = function(file)
     return open_mode_menu(vim.api.nvim_get_current_buf(), file)
   end,
