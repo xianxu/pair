@@ -41,7 +41,7 @@ function M.pos_at(content, byte_offset)
 end
 
 function M.is_marker_proposal(text)
-  return type(text) == 'string' and text:match('^🤖[<{~]') ~= nil
+  return type(text) == 'string' and text:match('🤖[<{~]') ~= nil
 end
 
 function M.decorate(records, content, which)

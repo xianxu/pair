@@ -15,6 +15,7 @@
 local M = {}
 local here = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
 local reconstruct = dofile(here .. 'reconstruct.lua')
+local markers = dofile(here .. 'markers.lua')
 local wrap = dofile(here .. 'wrap.lua')
 
 local HL = vim.api.nvim_create_namespace('review')
@@ -39,6 +40,71 @@ end
 
 local function buf_content(buf)
   return table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n')
+end
+
+local function exact_replacement_marker(rec)
+  if type(rec.new) ~= 'string' or rec.new:find('\n', 1, true) then return nil end
+  local parsed = markers.parse_markers({ rec.new })
+  if #parsed ~= 1 then return nil end
+  local marker = parsed[1]
+  if marker.line ~= 0 or marker.col ~= 0 or marker.raw ~= rec.new then return nil end
+  if not marker.quoted or marker.quoted.text ~= rec.old then return nil end
+  if marker.strike or #marker.sections ~= 1 then return nil end
+  local section = marker.sections[1]
+  if section.type ~= 'agent' then return nil end
+  return section.text
+end
+
+local function is_word_byte(s, idx)
+  if idx < 1 or idx > #s then return false end
+  return s:sub(idx, idx):match('[%w_]') ~= nil
+end
+
+local function shrink_replacement_span(old, new)
+  if old == new or old == '' then return nil end
+
+  local start = 1
+  local old_len, new_len = #old, #new
+  while start <= old_len and start <= new_len and old:sub(start, start) == new:sub(start, start) do
+    start = start + 1
+  end
+
+  local old_end, new_end = old_len, new_len
+  while old_end >= start and new_end >= start and old:sub(old_end, old_end) == new:sub(new_end, new_end) do
+    old_end = old_end - 1
+    new_end = new_end - 1
+  end
+
+  -- A one-character case fix is technically the minimal byte delta, but it is a
+  -- poor review unit. Expand changes inside words to whole-token markers.
+  while start > 1 and (is_word_byte(old, start - 1) or is_word_byte(new, start - 1)) do
+    start = start - 1
+  end
+  while old_end < old_len and new_end < new_len
+      and (is_word_byte(old, old_end + 1) or is_word_byte(new, new_end + 1)) do
+    old_end = old_end + 1
+    new_end = new_end + 1
+  end
+
+  local display_old = old:sub(start, old_end)
+  local display_new = new:sub(start, new_end)
+  if display_old == '' or display_new == '' then return nil end
+  return {
+    prefix = new:sub(1, start - 1),
+    old = display_old,
+    new = display_new,
+    suffix = new:sub(new_end + 1),
+  }
+end
+
+local function display_new_for_record(rec)
+  local replacement = exact_replacement_marker(rec)
+  if not replacement then return rec.new end
+  local span = shrink_replacement_span(rec.old, replacement)
+  if not span then return rec.new end
+  return span.prefix
+    .. '🤖<' .. markers.esc_quote(span.old) .. '>{' .. markers.esc_quote(span.new) .. '}'
+    .. span.suffix
 end
 
 -- Clear both review decoration layers (shared by place + apply_snapshot, so
@@ -216,6 +282,7 @@ function M.apply(buf, records)
     if it.base_off < prev_end then
       dropped[#dropped + 1] = { rec = it.rec, reason = 'overlap' }
     else
+      it.new_text = display_new_for_record(it.rec)
       items[#items + 1] = it
       prev_end = it.base_off + #it.rec.old
     end
@@ -233,7 +300,7 @@ function M.apply(buf, records)
       else
         pcall(vim.cmd, 'undojoin')
       end
-      vim.api.nvim_buf_set_text(buf, sr, sc, er, ec, vim.split(it.rec.new, '\n', { plain = true }))
+      vim.api.nvim_buf_set_text(buf, sr, sc, er, ec, vim.split(it.new_text, '\n', { plain = true }))
     end
   end)
 
@@ -243,15 +310,16 @@ function M.apply(buf, records)
   local shift, enriched, decos = 0, {}, {}
   for _, it in ipairs(items) do
     local final_off = it.base_off + shift
-    shift = shift + (#it.rec.new - #it.rec.old)
+    shift = shift + (#it.new_text - #it.rec.old)
     local nr = vim.tbl_extend('force', {}, it.rec)
-    nr.new_occurrence = new_occurrence_of(final, it.rec.new, final_off)
+    nr.new = it.new_text
+    nr.new_occurrence = new_occurrence_of(final, it.new_text, final_off)
     enriched[#enriched + 1] = nr
     local sr, sc = reconstruct.pos_at(final, final_off)
-    local er, ec = reconstruct.pos_at(final, final_off + #it.rec.new)
+    local er, ec = reconstruct.pos_at(final, final_off + #it.new_text)
     decos[#decos + 1] = {
       line = sr, col = sc, end_line = er, end_col = ec,
-      no_highlight = it.rec.new == '' or reconstruct.is_marker_proposal(it.rec.new),
+      no_highlight = it.new_text == '' or reconstruct.is_marker_proposal(it.new_text),
       message = it.rec.explain or '',
     }
   end

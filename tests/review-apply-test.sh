@@ -232,6 +232,44 @@ ok(#vim.api.nvim_buf_get_extmarks(bm, apply.HL, 0, -1, {}) == 0, 'marker proposa
 local md = vim.diagnostic.get(bm, { namespace = apply.DIAG })
 ok(#md == 1 and md[1].message == 'proposal', 'marker proposal keeps diagnostic')
 
+local bms = newbuf({ 'put most, if not all, scripts in one folder' })
+local ems = apply.apply(bms, {
+  {
+    old = 'put most, if not all, scripts',
+    occurrence = 1,
+    new = '🤖<put most, if not all, scripts>{Put most, if not all, scripts}',
+    explain = 'capitalize',
+  },
+})
+ok(content(bms) == '🤖<put>{Put} most, if not all, scripts in one folder',
+  'marker proposal display shrinks to the changed word')
+ok(ems[1] and ems[1].new == '🤖<put>{Put} most, if not all, scripts',
+  'enriched record stores the displayed marker proposal')
+ok(#vim.api.nvim_buf_get_extmarks(bms, apply.HL, 0, -1, {}) == 0,
+  'shrunk marker proposal: no redundant highlight')
+
+local bmi = newbuf({ 'abc def ghi' })
+apply.apply(bmi, {
+  {
+    old = 'abc def ghi',
+    occurrence = 1,
+    new = '🤖<abc def ghi>{abc DEF ghi}',
+    explain = 'emphasis',
+  },
+})
+ok(content(bmi) == 'abc 🤖<def>{DEF} ghi',
+  'marker proposal display shrinks to an interior changed word')
+
+local bmr = newbuf({ 'abc 🤖<def>{DEF} ghi' })
+apply.render(bmr, {
+  { new = 'abc 🤖<def>{DEF} ghi', new_occurrence = 1, explain = 'emphasis' },
+}, content(bmr))
+ok(#vim.api.nvim_buf_get_extmarks(bmr, apply.HL, 0, -1, {}) == 0,
+  'render embedded marker proposal: no redundant highlight')
+local mrd = vim.diagnostic.get(bmr, { namespace = apply.DIAG })
+ok(#mrd == 1 and mrd[1].message == 'emphasis',
+  'render embedded marker proposal keeps diagnostic')
+
 -- (p) Empty direct deletions have no new span to highlight. Agents should use
 -- 🤖~deleted~ when a deletion needs visible review, but diagnostics still carry
 -- the reason if a direct deletion lands.
