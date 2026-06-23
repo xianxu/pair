@@ -148,11 +148,13 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   The review pane keeps focus while the agent receives the poke.
 - **review-mode bar** (`nvim/init.lua`, `do`-block; `_pair_review_bar` count source +
   `_pair_review_segment` cached segment) — while a review is open, the draft's
-  **statusline** carries `🪄 <Mode> • <file> • 🤖N/M`: `pair_compose_statusline` swaps the
-  cached segment in for the rightmost cheatsheet, so review mode is visible even when the
-  pane is hidden. A 1.5s timer recomputes the segment (counts parsed from `git log` round
+  **statusline** carries `-H < pos > +Q • 🪄 <Mode> • <file> •     🤖 A/H`: `H` is
+  prompt history count, `Q` is future queue count, `A` is agent/robot review rounds,
+  and `H` after the slash is human review rounds. `pair_compose_statusline` swaps the
+  cached segment in for the rightmost cheatsheet and right-aligns the review-round count,
+  so review mode is visible even when the pane is hidden. A 1.5s timer recomputes the segment (counts parsed from `git log` round
   subjects, **branch-scoped** to the active `review/<slug>` so other docs' shipped reviews
-  don't leak in — `🤖0/0` off a review branch / in M3 render-only; mode from
+  don't leak in — `🤖 0/0` off a review branch / in M3 render-only; mode from
   `$PAIR_DATA_DIR/review-<tag>.mode`, defaulting to Edit) and triggers a redraw
   only on change; the hot render path never shells git. (This **supersedes** an earlier
   line-1 `=== review … ===` indicator — line 1 is the user's to edit. New draft-side

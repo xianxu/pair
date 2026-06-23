@@ -2145,12 +2145,14 @@ local function pair_compose_statusline(left)
   if pair_notify then
     return pair_notify_segment(left)
   end
-  -- #66 M3: while a review is open, the review segment (`Review • <file> •
-  -- 🤖N/M`) replaces the rightmost cheatsheet. Read from the timer-cached value
-  -- (a global set by the review do-block) so this hot path never shells git.
+  -- #66 M3/M4d: while a review is open, the review segment replaces the
+  -- rightmost cheatsheet. It carries its own %= so mode/file stay near the
+  -- compact nav cluster while 🤖 agent/human counts are right-aligned.
+  -- Read from the timer-cached value (a global set by the review do-block) so
+  -- this hot path never shells git.
   if _G._pair_review_segment then
     local seg = _G._pair_review_segment()
-    if seg then return left .. '%=' .. seg .. ' ' end
+    if seg then return left .. seg .. ' ' end
   end
   -- 6-cell minimum margin between the variable left segment and the
   -- cheatsheet. Capping the cheatsheet's budget at (columns - left - 6)
@@ -2187,6 +2189,18 @@ end
 -- Exposed for the headless statusline test (drives the notify render path).
 _G.PairFlashNotify = pair_flash_notify
 
+_G._pair_review_compact_left = function()
+  local ok, result = pcall(function()
+    local h = #read_history()
+    local q = queue_count()
+    local pos = pos_label(nav.pos)
+    if is_dirty_history_slot() then pos = pos .. '*' end
+    local pos_seg = string.format('%%#PairPosLabel#%s%%*', pos)
+    return string.format('-%d < %s > +%d • ', h, pos_seg, q)
+  end)
+  return ok and result or ' pair • '
+end
+
 function _G.PairStatusline()
   -- Minimized rung: nvim is collapsed to this single statusline row, so
   -- the buffer is invisible and the usual history/queue/position
@@ -2208,6 +2222,9 @@ function _G.PairStatusline()
       return pair_notify_segment(base)
     end
     return base
+  end
+  if _G._pair_review_segment and _G._pair_review_segment() then
+    return pair_compose_statusline(_G._pair_review_compact_left())
   end
   if vim.fn.mode():sub(1, 1) == 'n' then
     -- Carry the position marker (*, -N, +N) into locked/normal mode — the
@@ -4060,10 +4077,10 @@ vim.api.nvim_create_autocmd('VimEnter', {
   callback = function() pcall(pair_slug_reconcile) end,
 })
 
--- Review-mode bar content (#66 M3) — the compact review segment shown in the pair
--- (draft) view while a review is open: `Review • Alt+c → review • <file>  (🤖N/M)`
--- (N agent / M human round commits). This just builds the string; where it renders
--- (its own bar vs folded into PairStatusline) is wired separately. Supersedes the
+-- Review-mode bar content (#66 M3/M4d) — the compact review segment shown in the
+-- pair (draft) view while a review is open: `-H < pos > +Q • 🪄 Mode • file •
+-- ... 🤖 A/H` (A agent / H human round commits). This just builds the review
+-- string; PairStatusline supplies the compact history/queue prefix. Supersedes the
 -- earlier line-1 `=== review … ===` indicator (line 1 is the user's to edit — a
 -- bar is chrome, not buffer content). (`do ... end`: no file-level locals —
 -- init.lua is at Lua's 200-local chunk ceiling; reuses `_pair_review.is_alive`.)
@@ -4098,11 +4115,11 @@ do
     return a, h
   end
 
-  -- The compact draft-side review bar text. 🤖N = agent (robot) rounds, /M = human.
+  -- The compact draft-side review bar text. 🤖A = agent (robot) rounds, /H = human.
   local function bar_text(file)
     local a, h = counts(file)
     local m = seam.read_mode(pair_data_dir(), pair_tag())
-    return string.format('🪄 %s • %s • 🤖%d/%d', seam.mode_label(m), vim.fn.fnamemodify(file, ':t'), a, h)
+    return string.format('🪄 %s • %s • 🤖 %d/%d', seam.mode_label(m), vim.fn.fnamemodify(file, ':t'), a, h)
   end
   _G._pair_review_bar = bar_text -- exposed for the headless test (plain, unstyled)
 
@@ -4123,7 +4140,11 @@ do
     if _G._pair_review then
       local alive, _, file = _G._pair_review.is_alive()
       if alive and file and file ~= '' then
-        seg = '%#PairReviewBar#' .. bar_text(file):gsub('%%', '%%%%') .. '%*'
+        local a, h = counts(file)
+        local m = seam.read_mode(pair_data_dir(), pair_tag())
+        local label, name = seam.mode_label(m), vim.fn.fnamemodify(file, ':t')
+        seg = string.format('%%#PairReviewBar#🪄 %s • %s •%%*%%=%%#PairReviewBar#🤖 %d/%d%%*',
+          label:gsub('%%', '%%%%'), name:gsub('%%', '%%%%'), a, h)
       end
     end
     if seg ~= cached then
