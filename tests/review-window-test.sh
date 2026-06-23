@@ -299,8 +299,8 @@ local function check()
       and not waiting_status:find('🪄', 1, true)
       and 'awaiting-statusline\n')
     or ('NO-awaiting-statusline ' .. waiting_status .. '\n'))
-  OUT2:write((_G.PairReviewPane.status_timer_interval == 200 and 'spinner-200ms\n')
-    or ('NO-spinner-200ms ' .. tostring(_G.PairReviewPane.status_timer_interval) .. '\n'))
+  OUT2:write((_G.PairReviewPane.status_timer_interval == 100 and 'spinner-100ms\n')
+    or ('NO-spinner-100ms ' .. tostring(_G.PairReviewPane.status_timer_interval) .. '\n'))
   OUT2:close()
   pcall(vim.cmd, 'PairReviewShip')
   pcall(_G.PairReviewPane.finish_human_turn, buf, 'doc.md', 'proofread', 'keep the title')
@@ -357,7 +357,7 @@ grep -q '^human-submit-clears-style$' "$RT/r3" && pass "Alt+Return clears stale 
 grep -q 'round --side human' "$RT/doclog" && fail "nvim ran a human docflow round (invariant #1: nvim writes no git)" || pass "nvim writes no git on Alt+Return"
 grep -q '^ship$' "$RT/doclog" && fail "nvim ran docflow ship (invariant #1: agent owns git)" || pass "nvim writes no git on :PairReviewShip"
 grep -q '^awaiting-statusline$' "$RT/r3" && pass "human submit switches statusline to awaiting spinner" || fail "awaiting statusline"
-grep -q '^spinner-200ms$' "$RT/r3" && pass "awaiting spinner redraws at 200ms" || fail "spinner redraw cadence"
+grep -q '^spinner-100ms$' "$RT/r3" && pass "awaiting spinner redraws at 100ms" || fail "spinner redraw cadence"
 grep -q 'write-chars --pane-id .* finished my edits .*Edit posture' "$RT/zlog" && pass "Alt+Return pokes human_finished with posture" || fail "no direct human_finished posture poke"
 grep -q 'minimal 🤖<old>{new}/🤖{new}' "$RT/zlog" && fail "human_finished repeats standing Edit marker rule" || pass "human_finished omits standing Edit marker rule"
 grep -q 'resolve 🤖\\[\\] comments' "$RT/zlog" && fail "human_finished repeats standing comment-resolution rule" || pass "human_finished omits standing comment-resolution rule"

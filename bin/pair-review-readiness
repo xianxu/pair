@@ -107,7 +107,7 @@ if [ "$prepare" = true ]; then
     fi
 
     mark_ready "$abs"
-    printf 'review prepared: %s %s on %s. Reply "ready".\n' "$action" "$abs" "$review_branch"
+    printf 'review prepared: %s %s on %s. Do not load xx-fix for this ack; when asked to review this file, load the full xx-fix skill directly and follow its Pair review workbench protocol. Reply "ready".\n' "$action" "$abs" "$review_branch"
     exit 0
 fi
 

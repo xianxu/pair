@@ -116,7 +116,7 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   separate "review workbench open" poke; the prep and human-finished pokes carry the
   workbench protocol context. The command line is hidden until `:` commands, and the
   pane statusline is compact: idle shows `🪄 <Mode> • <file>[+] Lx/y`; after a send
-  it stays focused in the review pane and shows a 200ms braille spinner plus elapsed
+  it stays focused in the review pane and shows a 100ms braille spinner plus elapsed
   time until the agent handoff lands.
 - `bin/pair-review-open <file>` — validates + spawns the **full-screen** floating pane
   (`zellij run --floating --close-on-exit --name review --width 100% --height 100%`;

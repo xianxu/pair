@@ -43,7 +43,7 @@ target=""
 [ -f "$RT/review-target-prep.json" ] && target="$(jq -r '.status + " " + .file + " " + .session' "$RT/review-target-prep.json")"
 [ "$prep_branch" = "review/doc" ] && pass "prepare creates review branch for clean tracked file" || fail "prepare branch: $prep_branch"
 case "$target" in "ready $prep_abs sid") pass "prepare marks review target ready";; *) fail "prepare target: $target";; esac
-case "$prep_out" in *"review prepared:"*"review/doc"*"Reply \"ready\"."*) pass "prepare emits minimal agent ack instruction";; *) fail "prepare output: $prep_out";; esac
+case "$prep_out" in *"review prepared:"*"review/doc"*"Do not load xx-fix for this ack"*"load the full xx-fix skill"*"Reply \"ready\"."*) pass "prepare emits xx-fix deferred-load ack instruction";; *) fail "prepare output: $prep_out";; esac
 
 [ "$fails" -eq 0 ] || { printf 'review-readiness-cli-test FAILED (%d)\n' "$fails"; exit 1; }
 printf 'review-readiness-cli-test ok\n'

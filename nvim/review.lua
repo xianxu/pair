@@ -393,7 +393,7 @@ local function state_file()
 end
 
 local awaiting_since, spinner_tick
-local status_timer_interval = 200
+local status_timer_interval = 100
 
 local function current_mode()
   return seam.read_mode(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
