@@ -406,7 +406,7 @@ end
 local function statusline_text()
   if awaiting_since then
     local frame = spinner.frames[((spinner_tick or 0) % #spinner.frames) + 1]
-    return ' ' .. frame .. ' %{v:lua._pair_review_elapsed()} • %t%m %= L%l/%L '
+    return ' ' .. frame .. ' %{v:lua._pair_review_elapsed()} ' .. mode_label() .. ' • %t%m %= L%l/%L '
   end
   return ' 🪄 ' .. mode_label() .. ' • %t%m %= L%l/%L '
 end
