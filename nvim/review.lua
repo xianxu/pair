@@ -455,6 +455,8 @@ local function finish_human_turn(buf, file, mode_name, instruction)
   -- (Once ariadne#000121's SKILL recognizes review-mode from these signals, this is
   -- the whole trigger — the M3 `/xx-fix` stopgap is retired here.)
   local m = seam.normalize_mode(mode_name or current_mode())
+  seam.write_mode(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG, m)
+  refresh_statusline()
   if poke.send(poke_bodies.human_finished(vim.fn.fnamemodify(file, ':p'), m,
       instruction or '', seam.mode_label(m))) then
     mark_awaiting()

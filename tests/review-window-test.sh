@@ -304,6 +304,11 @@ local function check()
   OUT2:close()
   pcall(vim.cmd, 'PairReviewShip')
   pcall(_G.PairReviewPane.finish_human_turn, buf, 'doc.md', 'proofread', 'keep the title')
+  local mode_after_proofread = _G.PairReviewPane.current_mode()
+  local OUT3 = io.open(os.getenv('RESULT2'), 'a')
+  OUT3:write((mode_after_proofread == 'proofread' and 'proofread-mode-persisted\n')
+    or ('NO-proofread-mode-persisted ' .. tostring(mode_after_proofread) .. '\n'))
+  OUT3:close()
   vim.api.nvim_set_current_buf(buf)
   vim.api.nvim_buf_set_lines(buf, -1, -1, false, { 'menu submit edit' })
   local h = _G.PairReviewPane.open_mode_menu('doc.md')
@@ -363,6 +368,7 @@ grep -q 'minimal 🤖<old>{new}/🤖{new}' "$RT/zlog" && fail "human_finished re
 grep -q 'resolve 🤖\\[\\] comments' "$RT/zlog" && fail "human_finished repeats standing comment-resolution rule" || pass "human_finished omits standing comment-resolution rule"
 grep -q 'write-chars --pane-id .* ship .*doc.md.*agent owns git' "$RT/zlog" && pass ":PairReviewShip pokes the agent ship request" || fail "no ship-request poke"
 grep -q 'write-chars --pane-id .* finished my edits .*Proofread posture.*keep the title' "$RT/zlog" && pass "menu send pokes human_finished with mode and instruction" || fail "no mode/instruction human_finished poke"
+grep -q '^proofread-mode-persisted$' "$RT/r3" && pass "menu send persists selected review mode" || fail "selected review mode not persisted"
 grep -q 'menu submit edit' "$REPO/doc.md" && pass "send menu submit saves the reviewed document buffer" || fail "send menu submit did not save reviewed document"
 grep -q 'Review workbench open on' "$RT/zlog" && fail "review pane still sends redundant open handshake" || pass "review pane does not send redundant open handshake"
 
