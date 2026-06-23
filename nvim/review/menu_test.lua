@@ -38,6 +38,19 @@ local handle = M.open({
 ok(handle ~= nil, 'menu opens')
 ok(type(handle.focus_instruction) == 'function', 'menu exposes instruction focus')
 
+local list_lines = vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(handle.list_win), 0, -1, false)
+ok(list_lines[1] == '✦ Generate', 'menu labels generate with review glyph/title case')
+ok(list_lines[2] == '✎ Edit', 'menu labels edit with review glyph/title case')
+ok(list_lines[3] == '✓ Proofread', 'menu labels proofread with review glyph/title case')
+
+local list_hl = vim.wo[handle.list_win].winhighlight
+local instr_hl = vim.wo[handle.instr_win].winhighlight
+contains(list_hl, 'Normal:PairReviewMenuNormal', 'mode list uses review menu normal highlight')
+contains(list_hl, 'CursorLine:PairReviewMenuSelected', 'mode list uses selected highlight')
+contains(list_hl, 'FloatBorder:PairReviewMenuBorder', 'mode list uses review border highlight')
+contains(instr_hl, 'Normal:PairReviewInstructionNormal', 'instruction box uses instruction normal highlight')
+contains(instr_hl, 'FloatBorder:PairReviewInstructionBorder', 'instruction box uses instruction border highlight')
+
 local instr_config = vim.api.nvim_win_get_config(handle.instr_win)
 contains(title_text(instr_config.title), 'One-round instruction', 'instruction title names one-round scope')
 

@@ -5,6 +5,31 @@ local M = {}
 local last_mode
 local blink_suffix = 'a:blinkwait700-blinkoff400-blinkon250'
 
+local MODE_GLYPHS = {
+  generate = '✦',
+  edit = '✎',
+  proofread = '✓',
+}
+
+local function setup_highlights()
+  pcall(vim.api.nvim_set_hl, 0, 'PairReviewMenuNormal', { link = 'Pmenu', default = true })
+  pcall(vim.api.nvim_set_hl, 0, 'PairReviewMenuSelected', { link = 'PmenuSel', default = true })
+  pcall(vim.api.nvim_set_hl, 0, 'PairReviewMenuBorder', { link = 'DiagnosticInfo', default = true })
+  pcall(vim.api.nvim_set_hl, 0, 'PairReviewMenuTitle', { link = 'DiagnosticInfo', default = true })
+  pcall(vim.api.nvim_set_hl, 0, 'PairReviewInstructionNormal', { link = 'NormalFloat', default = true })
+  pcall(vim.api.nvim_set_hl, 0, 'PairReviewInstructionBorder', { link = 'DiagnosticWarn', default = true })
+  pcall(vim.api.nvim_set_hl, 0, 'PairReviewInstructionTitle', { link = 'DiagnosticWarn', default = true })
+end
+
+local function mode_display(mode, seam)
+  local name = mode.name
+  local label = seam.mode_label(name)
+  label = label:gsub('(%a)([%w_%-]*)', function(first, rest)
+    return first:upper() .. rest
+  end)
+  return string.format('%s %s', MODE_GLYPHS[name] or '•', label)
+end
+
 local function layout(count)
   local ui = vim.api.nvim_list_uis()[1] or { width = 80, height = 24 }
   local width = math.min(70, math.max(40, ui.width - 8))
@@ -24,6 +49,7 @@ function M.open(opts)
   end
   local seam = opts.seam
   local on_submit = opts.on_submit or function() end
+  setup_highlights()
   local original_guicursor = vim.o.guicursor
   if not original_guicursor:find('blinkon', 1, true) then
     vim.o.guicursor = (original_guicursor ~= '' and (original_guicursor .. ',') or '') .. blink_suffix
@@ -39,7 +65,7 @@ function M.open(opts)
   vim.bo[list_buf].buftype = 'nofile'
   vim.bo[list_buf].bufhidden = 'wipe'
   local lines = {}
-  for i, mode in ipairs(modes) do lines[i] = seam.mode_label(mode.name) end
+  for i, mode in ipairs(modes) do lines[i] = mode_display(mode, seam) end
   vim.api.nvim_buf_set_lines(list_buf, 0, -1, false, lines)
   vim.bo[list_buf].modifiable = false
   local list_win = vim.api.nvim_open_win(list_buf, true, {
@@ -48,6 +74,14 @@ function M.open(opts)
     title = ' Review mode - j/k select · Enter run · Tab→instruction ',
   })
   vim.wo[list_win].cursorline = true
+  vim.wo[list_win].winhighlight = table.concat({
+    'Normal:PairReviewMenuNormal',
+    'NormalFloat:PairReviewMenuNormal',
+    'CursorLine:PairReviewMenuSelected',
+    'FloatBorder:PairReviewMenuBorder',
+    'FloatTitle:PairReviewMenuTitle',
+    'EndOfBuffer:PairReviewMenuNormal',
+  }, ',')
   vim.api.nvim_win_set_cursor(list_win, { start_line, 0 })
 
   local instr_buf = vim.api.nvim_create_buf(false, true)
@@ -62,6 +96,14 @@ function M.open(opts)
     title = ' One-round instruction - optional (M-CR/C-s submit · Tab/Esc→list) ',
   })
   vim.wo[instr_win].cursorline = true
+  vim.wo[instr_win].winhighlight = table.concat({
+    'Normal:PairReviewInstructionNormal',
+    'NormalFloat:PairReviewInstructionNormal',
+    'CursorLine:CursorLine',
+    'FloatBorder:PairReviewInstructionBorder',
+    'FloatTitle:PairReviewInstructionTitle',
+    'EndOfBuffer:PairReviewInstructionNormal',
+  }, ',')
 
   local closed = false
   local function close()
