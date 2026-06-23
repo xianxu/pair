@@ -745,7 +745,8 @@ handle_restart_marker() {
     fi
 
     local r_args="" r_sid=""
-    local cfg="$DATA_DIR/config-${r_tag}-${r_agent}.json"
+    local cfg
+    cfg="$(resolve_config_file "$r_tag" "$r_agent")"
     if [ -f "$cfg" ] && command -v jq >/dev/null 2>&1; then
         r_args=$(jq -r '(.args // []) | join(" ")' "$cfg" 2>/dev/null || true)
         r_sid=$(jq -r '.session_id // empty' "$cfg" 2>/dev/null || true)
@@ -802,6 +803,53 @@ handle_restart_marker() {
     else
         _reexec "$0" "$r_agent"
     fi
+}
+
+# #67: decide whether a live zellij session named <session> blocks reuse of its
+# workspace tag. Alt+x can leave a resurrect record like
+# `pair-2 (EXITED - attach to resurrect)`; that row still shows in
+# `list-sessions`, so the old open-coded `grep -qx` collision checks treated a
+# fully-quit tag as occupied. Treat an EXITED row as stale full-quit residue:
+# delete the zellij record and report the tag reusable (non-zero). A
+# running/detached row still blocks (zero); an absent session never blocks.
+# Shared by forced resume, the free-slot scan, the name-prompt collision, and
+# the cmux-owner liveness check (ARCH-DRY). `pair rename` keeps its own
+# offline-only resurrectable-session contract and is intentionally not routed
+# through here.
+session_blocks_reuse() {
+    local session="$1" row
+    row=$( { zj list-sessions --no-formatting 2>/dev/null || true; } \
+           | awk -v s="$session" '$1==s {print; exit}' )
+    [ -z "$row" ] && return 1            # no such session — reuse is free
+    case "$row" in
+        *EXITED*)
+            zj delete-session "$session" --force >/dev/null 2>&1 || true
+            return 1 ;;                  # stale residue cleaned — reuse is free
+    esac
+    return 0                             # running/detached — still occupied
+}
+
+# #67: resolve the canonical saved-config path for a known (tag, agent), echoing
+# it on stdout. Current launches write `config-<tag>-<agent>.json`, but older
+# Codex sessions on disk use the doubled shape `config-<tag>-codex-codex.json`.
+# When the canonical file is absent and a legacy Codex file exists whose JSON
+# declares `"agent": "codex"`, migrate it to the canonical name so the resume
+# picker can offer native resume. This is a narrow, agent-checked compatibility
+# path — NOT a glob resolver — so unrelated stale files can never silently win
+# (ARCH-DRY, ARCH-PURE). Used only where both tag and agent are already known;
+# the agent-inference glob loop is deliberately left alone (it discovers the
+# agent and already sees the legacy filename).
+resolve_config_file() {
+    local tag="$1" agent="$2"
+    local canonical="$DATA_DIR/config-${tag}-${agent}.json"
+    if [ ! -f "$canonical" ] && [ "$agent" = "codex" ]; then
+        local legacy="$DATA_DIR/config-${tag}-codex-codex.json"
+        if [ -f "$legacy" ] && command -v jq >/dev/null 2>&1 \
+            && [ "$(jq -r '.agent // empty' "$legacy" 2>/dev/null)" = "codex" ]; then
+            mv "$legacy" "$canonical" 2>/dev/null || true
+        fi
+    fi
+    printf '%s\n' "$canonical"
 }
 
 # Test-only dispatcher (#55): invoke an internal function and exit, so the bash
@@ -1246,7 +1294,7 @@ while [ "$i" -le 100 ]; do
         cand="pair-${BASE_TAG}-${i}"
     fi
     cand_tag="${cand#pair-}"
-    if ! zj list-sessions --short 2>/dev/null | grep -qx "$cand" \
+    if ! session_blocks_reuse "$cand" \
        && ! printf '%s\n' "$historical_tags_nl" | grep -qx "$cand_tag"; then
         free_slot_tag="$cand_tag"
         break
@@ -1317,7 +1365,7 @@ prompt_name=0
 # that tag. This is the "resume by name" path — pair off the hint printed
 # at Alt+x.
 if [ -n "$forced_tag" ]; then
-    if zj list-sessions --short 2>/dev/null | grep -qx "pair-${forced_tag}"; then
+    if session_blocks_reuse "pair-${forced_tag}"; then
         chosen_session="pair-${forced_tag}"
         chosen_tag="$forced_tag"
         action=attach
@@ -1474,10 +1522,12 @@ cleanup_quit_marker() {
         # what the user saw in the UI tab; the `resume` subcommand accepts
         # both forms (it strips a leading `pair-`). Agent is omitted from
         # the resume command — pair infers it from the saved state.
-        if [ -f "$DATA_DIR/config-${PAIR_TAG}-${quit_agent}.json" ]; then
+        local resume_cfg
+        resume_cfg="$(resolve_config_file "$PAIR_TAG" "$quit_agent")"
+        if [ -f "$resume_cfg" ]; then
             local saved_sid=""
             saved_sid=$(jq -r '.session_id // empty' \
-                "$DATA_DIR/config-${PAIR_TAG}-${quit_agent}.json" 2>/dev/null || true)
+                "$resume_cfg" 2>/dev/null || true)
             printf 'pair: saved session config for tag "%s" (%s).\n' \
                 "$SESSION" "$quit_agent"
             printf '      resume with: pair resume %s\n' "$SESSION"
@@ -1585,7 +1635,7 @@ cmux_rename_workspace() {
         # Defer only if that pair's zellij session is still alive; if the
         # owner crashed without running cleanup_quit_marker, the file is
         # stale and we should take over.
-        if zellij list-sessions --short 2>/dev/null | grep -qx "pair-$owner"; then
+        if session_blocks_reuse "pair-$owner"; then
             return 0
         fi
     fi
@@ -1699,7 +1749,7 @@ if [ "$prompt_name" = 1 ]; then
     fi
     user_input="${user_input:-$chosen_tag}"
     typed_tag="$(normalize_tag "$user_input" "pair: invalid name")" || exit 1
-    if zj list-sessions --short 2>/dev/null | grep -qx "pair-${typed_tag}"; then
+    if session_blocks_reuse "pair-${typed_tag}"; then
         echo "pair: session 'pair-${typed_tag}' already exists." >&2
         exit 1
     fi
@@ -1738,7 +1788,7 @@ case "$AGENT" in
         ;;
 esac
 
-config_file="$DATA_DIR/config-${chosen_tag}-${AGENT}.json"
+config_file="$(resolve_config_file "$chosen_tag" "$AGENT")"
 if [ -f "$config_file" ] && [ $_argv_has_resume -eq 0 ]; then
     # Read saved args as a properly-delimited stream; mapfile would be
     # cleaner but is bash 4+ and macOS still ships 3.2.
@@ -2020,7 +2070,7 @@ if [ -n "$explicit_resume" ]; then
             i=$((i+1))
         fi
     done
-    config_path="$DATA_DIR/config-${PAIR_TAG}-${AGENT}.json"
+    config_path="$(resolve_config_file "$PAIR_TAG" "$AGENT")"
     tmp=$(mktemp "$config_path.XXXXXX") && \
         jq -n \
             --arg agent "$AGENT" \
@@ -2070,7 +2120,7 @@ if [ "$AGENT" = "claude" ] && [ -z "$explicit_resume" ]; then
         if [ -n "$new_sid" ]; then
             agent_extra="${agent_extra:+$agent_extra }--session-id $new_sid"
             export PAIR_AGENT_ARGS="$agent_extra"
-            config_path="$DATA_DIR/config-${PAIR_TAG}-${AGENT}.json"
+            config_path="$(resolve_config_file "$PAIR_TAG" "$AGENT")"
             # Persist args WITHOUT the --session-id we just added: session_id
             # is the canonical storage for the resume binding, and leaving
             # the flag in args would compound on every relaunch through the
