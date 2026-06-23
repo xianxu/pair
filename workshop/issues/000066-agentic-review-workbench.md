@@ -1,6 +1,6 @@
 ---
 id: 000066
-status: working
+status: done
 deps: [ariadne#000121]
 target: review-protocol
 github_issue:
@@ -8,6 +8,7 @@ created: 2026-06-18
 updated: 2026-06-22
 estimate_hours: 30
 started: 2026-06-21T19:33:22-07:00
+actual_hours: 12.87
 ---
 
 # Agentic memory-backed review as a document workbench in pair
@@ -105,6 +106,7 @@ M4 (agent protocol) — **re-sliced structure-first** (2026-06-21): the whole lo
 
 ## Log
 
+- 2026-06-22: closed — make test-lua; make test-review; git diff --check; live workbench acceptance: used WIP pair review workbench with hosted ariadne#121 xx-fix protocol to revise and publish the binary-skill blog post; ariadne#121 closed; rename deferred with review as likely successor name; --no-verdict because older M0/M1/M2/M4a/M4d boundaries predate/folded into this final close record; --no-judge because Claude boundary judge dispatch hung repeatedly during ariadne#121 close; review verdict: not-run
 - 2026-06-22: **M4d live-workflow acceptance passed.** Operator used the WIP workbench
   for a real revision of the binary-skill blog post and posted the article. The
   detail-tuning slice now includes Generate/Edit/Proofread mode semantics, local
