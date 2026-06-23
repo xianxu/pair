@@ -1,7 +1,7 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
-.PHONY: build install pair-scribe pair-scrollback-render pair-wrap pair-slug pair-changelog test test-race test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-continue test-changelog test-copy-on-select test-cmux-title test-cmux-ownership
+.PHONY: build install pair-scribe pair-scrollback-render pair-wrap pair-slug pair-changelog test test-race test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-continue test-changelog test-copy-on-select test-cmux-title test-cmux-ownership test-zellij-trace
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
 # and ships with the `pair-` prefix so it doesn't collide with anything
@@ -55,7 +55,7 @@ pair-changelog:         $(BIN_DIR)/pair-changelog
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
-test: test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-continue test-changelog test-copy-on-select test-cmux-title test-cmux-ownership test-review
+test: test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-continue test-changelog test-copy-on-select test-cmux-title test-cmux-ownership test-zellij-trace test-review
 	go test ./... -count=1
 
 # Single-instance guard for the cmux activity-title poller (identity-checked
@@ -124,6 +124,10 @@ test-lua:
 # regression. See tests/queue-send-test.sh.
 test-queue:
 	bash tests/queue-send-test.sh
+
+# Diagnostic trace for pair-originated zellij action calls (#68).
+test-zellij-trace:
+	bash tests/zellij-trace-test.sh
 
 # Regression test for the autopair next-char gate (nvim/init.lua,
 # pair_insert_open). Drives the real init.lua headlessly and asserts each

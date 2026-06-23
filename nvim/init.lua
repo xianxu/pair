@@ -4,6 +4,8 @@
 
 vim.g.mapleader = ' '
 
+_G.PairZellijTrace = dofile(vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h') .. '/zellij_trace.lua')
+
 -- Publish this nvim's pid so the quit path can reap it deterministically.
 -- `nvim FILE` forks into a TUI parent + `nvim --embed` server child; when
 -- zellij kills the pane, the TUI exits but the embed sometimes survives
@@ -692,9 +694,9 @@ end
 local function send_esc_to_agent()
   -- ESC = 0x1b = 27. Claude reads this as "interrupt current stream".
   if not has_ui() then return end
-  vim.fn.system('zellij action move-focus up')
-  vim.fn.system('zellij action write 27')
-  vim.fn.system('zellij action move-focus down')
+  PairZellijTrace.action('draft.interrupt.focus-agent', { 'zellij', 'action', 'move-focus', 'up' })
+  PairZellijTrace.action('draft.interrupt.esc', { 'zellij', 'action', 'write', '27' })
+  PairZellijTrace.action('draft.interrupt.focus-draft', { 'zellij', 'action', 'move-focus', 'down' })
 end
 
 local function send_to_agent(body, no_submit)
@@ -731,17 +733,19 @@ local function send_to_agent(body, no_submit)
   -- *not* a submit — so it leaves the cursor on a fresh line in the
   -- composer, ready for more input.
   if not has_ui() then return end
-  vim.fn.system('zellij action move-focus up')
-  vim.fn.system({ 'zellij', 'action', 'write-chars', body })
+  PairZellijTrace.action('draft.send.focus-agent', { 'zellij', 'action', 'move-focus', 'up' })
+  PairZellijTrace.action('draft.send.write-body', { 'zellij', 'action', 'write-chars', body }, {
+    redact = { [4] = body },
+  })
   if body:find('\n') or #body > 200 then
     vim.cmd('sleep 100m')
   end
   if no_submit then
-    vim.fn.system({ 'zellij', 'action', 'write', '13' })
+    PairZellijTrace.action('draft.send.newline', { 'zellij', 'action', 'write', '13' })
   else
-    vim.fn.system({ 'zellij', 'action', 'write', '27', '13' })
+    PairZellijTrace.action('draft.send.submit', { 'zellij', 'action', 'write', '27', '13' })
   end
-  vim.fn.system('zellij action move-focus down')
+  PairZellijTrace.action('draft.send.focus-draft', { 'zellij', 'action', 'move-focus', 'down' })
 end
 
 -- :PairReview <file> — PROPOSE a file for review (#66 M4a'). It does NOT open the

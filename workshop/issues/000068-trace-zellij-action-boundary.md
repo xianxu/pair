@@ -31,18 +31,27 @@ Initial instrumentation covers:
 
 - draft `send_to_agent`: relative focus, `write-chars`, submit, and focus-back;
 - review `pair_poke`: direct `--pane-id` write and submit, for the parallel
-  absolute-pane path.
+  absolute-pane path;
+- `pair-wrap`: redacted stdin, master PTY output, stdout-to-zellij writes,
+  scrollback writes, resize, and child lifecycle events.
 
 The wrapper records timestamp, component, label, argv summary, duration,
 `vim.v.shell_error`, stdout/stderr byte counts when observable, and redacted
 argument metadata.
 
+The pair-wrap trace records byte counts, short SHA-256 prefixes, offsets, write
+errors, and lifecycle labels, but never raw agent output or prompt text.
+
 ## Done when
 
 - A clean repro session leaves `$PAIR_DATA_DIR/zellij-actions-<tag>.jsonl`
   showing the final pair-originated zellij actions before zellij disconnects.
+- A clean repro session leaves `$PAIR_DATA_DIR/wrap-events-<tag>.jsonl`
+  showing the last pair-wrap stdin/output/stdout boundary events before zellij
+  disconnects.
 - Full prompt text is not written to the trace.
-- Headless tests cover redaction/logging and the review poke integration.
+- Tests cover redaction/logging, review poke integration, and pair-wrap event
+  redaction.
 
 ## Estimate
 
@@ -53,10 +62,12 @@ focused-headless-tests design=0.1 impl=0.4
 
 ## Plan
 
-- [ ] Add a reusable Lua zellij trace wrapper with JSONL output and body redaction.
-- [ ] Route draft prompt send and review poke zellij calls through the wrapper.
-- [ ] Add/extend headless tests that fail without trace records and pass with them.
-- [ ] Run the focused tests and record the repro command/log location.
+- [x] Add a reusable Lua zellij trace wrapper with JSONL output and body redaction.
+- [x] Route draft prompt send and review poke zellij calls through the wrapper.
+- [x] Add/extend headless tests that fail without trace records and pass with them.
+- [x] Run the focused tests and record the repro command/log location.
+- [x] Add pair-wrap-side redacted PTY/stdout/lifecycle trace after repro showed
+  no pair-originated zellij action immediately before disconnect.
 
 ## Log
 
@@ -66,3 +77,18 @@ focused-headless-tests design=0.1 impl=0.4
   client for repeated unknown/empty IPC messages. `sdlc claim --issue 68`
   changed status to working locally, but could not broadcast because no `main`
   worktree is currently available.
+- Added `nvim/zellij_trace.lua` and routed draft `send_to_agent` plus review
+  `pair_poke` zellij actions through it. The repro trace lands at
+  `$PAIR_DATA_DIR/zellij-actions-<tag>.jsonl`; body-bearing `write-chars`
+  records include byte length and a short SHA-256 prefix instead of prompt text.
+  Verified with `make test-zellij-trace`, `bash tests/review-poke-test.sh`,
+  `bash tests/queue-send-test.sh`, `nvim --headless -u nvim/init.lua +'lua print("loaded")' +'qa!'`,
+  and `git diff --check`.
+- Repro with tag `67-clean` showed the last zellij action trace at 09:43:43 and
+  the zellij disconnect at 09:44:18, so the immediate trigger was not prompt
+  injection. Added `pair-wrap` structured trace at
+  `$PAIR_DATA_DIR/wrap-events-<tag>.jsonl` to capture redacted stdin, master PTY
+  output, stdout writes to zellij, scrollback writes, resize, and child exit
+  timing. Verified with `go test ./cmd/pair-wrap -run 'TestTraceWrap|TestHandleChunkTraces' -count=1`,
+  `go test ./cmd/pair-wrap -count=1`, `make pair-wrap`, `make test-zellij-trace`,
+  and `bash tests/review-poke-test.sh`.

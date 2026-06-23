@@ -28,7 +28,9 @@
 package main
 
 import (
+	"bytes"
 	"container/list"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -181,10 +183,11 @@ var (
 // window, notify-mode flags) are guarded explicitly.
 type proxy struct {
 	// CLI / config
-	scrollbackLog string
-	agentBasename string
-	debugLogPath  string
-	bellFallback  bool
+	scrollbackLog  string
+	agentBasename  string
+	debugLogPath   string
+	wrapEventsPath string
+	bellFallback   bool
 
 	// Resolved paths (empty when env didn't provide PAIR_TAG)
 	outerTTYFile    string
@@ -274,6 +277,12 @@ type proxy struct {
 	// per-agent stdout filter. It affects only bytes written to zellij;
 	// raw scrollback capture and detection still see the original PTY data.
 	stdoutPending []byte
+
+	// Structured forensic trace for pair-wrap ⇄ zellij/agent boundaries.
+	// It is best-effort and redacted: lengths/hashes/timing only, no raw stream.
+	wrapEventsFD *os.File
+	traceMu      sync.Mutex
+	traceSeq     uint64
 }
 
 type spanEntry struct {
@@ -299,6 +308,7 @@ func (p *proxy) resolvePaths() {
 	p.captureDonePath = p.captureOutPath + ".done"
 	p.capturePIDPath = filepath.Join(dir, "pair-wrap-pid-"+tag)
 	p.agentPIDPath = filepath.Join(dir, "agent-pid-"+tag)
+	p.wrapEventsPath = filepath.Join(dir, "wrap-events-"+tag+".jsonl")
 }
 
 // ----- Debug log --------------------------------------------------------------
@@ -320,6 +330,42 @@ func (p *proxy) debug(label, ctx string) {
 		ctx = ctx[:240]
 	}
 	fmt.Fprintf(f, "[%s] %s: %q\n", time.Now().Format("15:04:05"), label, ctx)
+}
+
+func shortSHA256(data []byte) string {
+	sum := sha256.Sum256(data)
+	return fmt.Sprintf("%x", sum[:])[:12]
+}
+
+func errorString(err error) any {
+	if err == nil {
+		return nil
+	}
+	return err.Error()
+}
+
+func (p *proxy) traceWrap(label string, fields map[string]any) {
+	if p.wrapEventsFD == nil {
+		return
+	}
+	p.traceMu.Lock()
+	defer p.traceMu.Unlock()
+	p.traceSeq++
+	rec := map[string]any{
+		"ts":        time.Now().Format(time.RFC3339Nano),
+		"seq":       p.traceSeq,
+		"component": "pair-wrap",
+		"agent":     p.agentBasename,
+		"label":     label,
+	}
+	for k, v := range fields {
+		rec[k] = v
+	}
+	b, err := json.Marshal(rec)
+	if err != nil {
+		return
+	}
+	_, _ = p.wrapEventsFD.Write(append(b, '\n'))
 }
 
 // ----- Outer-TTY OSC emit -----------------------------------------------------
@@ -1067,7 +1113,14 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 		if len(pending) == 0 {
 			return
 		}
-		_, _ = out.Write(pending)
+		wn, err := out.Write(pending)
+		p.traceWrap("stdin-write-pty", map[string]any{
+			"write_len":        wn,
+			"translated_len":   len(pending),
+			"translated_sha12": shortSHA256(pending),
+			"error":            errorString(err),
+			"mode":             "pending-flush",
+		})
 		pending = nil
 		disarmTimer()
 	}
@@ -1076,12 +1129,22 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 		select {
 		case ev, ok := <-ch:
 			if !ok || ev.err != nil {
+				if ev.err != nil {
+					p.traceWrap("stdin-read-end", map[string]any{"error": ev.err.Error()})
+				} else {
+					p.traceWrap("stdin-read-end", nil)
+				}
 				// EOF / read error: flush whatever was held over —
 				// nothing more is coming to complete the sequence.
 				flushPending()
 				return
 			}
 			data := ev.data
+			p.traceWrap("stdin-read", map[string]any{
+				"raw_len":       len(data),
+				"raw_sha256_12": shortSHA256(data),
+				"mode":          "translate",
+			})
 			if len(pending) > 0 {
 				data = append(pending, data...)
 				pending = nil
@@ -1090,7 +1153,17 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 			inPaste = newInPaste
 			pending = leftover
 			if len(outBytes) > 0 {
-				if _, werr := out.Write(outBytes); werr != nil {
+				wn, werr := out.Write(outBytes)
+				p.traceWrap("stdin-write-pty", map[string]any{
+					"write_len":        wn,
+					"translated_len":   len(outBytes),
+					"translated_sha12": shortSHA256(outBytes),
+					"leftover_len":     len(leftover),
+					"in_paste":         inPaste,
+					"error":            errorString(werr),
+					"mode":             "translate",
+				})
+				if werr != nil {
 					return
 				}
 			}
@@ -1456,11 +1529,17 @@ func (p *proxy) maybeLogTime() {
 func (p *proxy) setWinsize() {
 	ws, err := pty.GetsizeFull(os.Stdin)
 	if err != nil {
+		p.traceWrap("winsize-read-fail", map[string]any{"error": err.Error()})
 		return
 	}
 	if err := pty.Setsize(p.ptmx, ws); err != nil {
+		p.traceWrap("winsize-set-fail", map[string]any{"error": err.Error()})
 		return
 	}
+	p.traceWrap("winsize", map[string]any{
+		"cols": int(ws.Cols),
+		"rows": int(ws.Rows),
+	})
 	p.logScrollbackEvent("resize", map[string]any{
 		"cols": int(ws.Cols),
 		"rows": int(ws.Rows),
@@ -1539,6 +1618,18 @@ argsDone:
 	// file once per session launch, so we append. nil when PAIR_TAG is unset.
 	p.adapt = adapt.Open("pair-wrap", p.agentBasename)
 
+	if p.wrapEventsPath != "" && os.Getenv("PAIR_WRAP_EVENTS") != "0" {
+		if f, err := os.OpenFile(p.wrapEventsPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644); err == nil {
+			p.wrapEventsFD = f
+			p.traceWrap("start", map[string]any{
+				"pid":  os.Getpid(),
+				"argv": append([]string(nil), argv...),
+			})
+		} else {
+			p.debug("WRAP-EVENTS-open-fail", fmt.Sprintf("%q: %v", p.wrapEventsPath, err))
+		}
+	}
+
 	// Open scrollback log (truncate) + matching .events.jsonl sidecar.
 	// Disable scrollback entirely on any open failure; never block startup.
 	if p.scrollbackLog != "" {
@@ -1603,6 +1694,9 @@ argsDone:
 	}
 	p.cmd = cmd
 	p.ptmx = ptmx
+	p.traceWrap("child-start", map[string]any{
+		"child_pid": cmd.Process.Pid,
+	})
 	defer ptmx.Close()
 
 	// Drop the agent's PID so pair-session-watch.sh can bind discovery to
@@ -1654,6 +1748,10 @@ argsDone:
 		if p.eventsFD != nil {
 			_ = p.eventsFD.Close()
 		}
+		if p.wrapEventsFD != nil {
+			p.traceWrap("proxy-defer-close", nil)
+			_ = p.wrapEventsFD.Close()
+		}
 		_ = p.adapt.Close()
 		if p.capturePIDPath != "" {
 			// Drop pidfile so a future Alt+i doesn't signal a stale pid.
@@ -1699,7 +1797,18 @@ argsDone:
 					n, err := os.Stdin.Read(buf)
 					if n > 0 {
 						p.debug("STDIN", fmt.Sprintf("%q", buf[:n]))
-						if _, werr := ptmx.Write(buf[:n]); werr != nil {
+						p.traceWrap("stdin-read", map[string]any{
+							"raw_len":       n,
+							"raw_sha256_12": shortSHA256(buf[:n]),
+							"mode":          "passthrough",
+						})
+						wn, werr := ptmx.Write(buf[:n])
+						p.traceWrap("stdin-write-pty", map[string]any{
+							"write_len": wn,
+							"error":     errorString(werr),
+							"mode":      "passthrough",
+						})
+						if werr != nil {
 							break
 						}
 					}
@@ -1717,15 +1826,22 @@ argsDone:
 	}()
 
 	p.masterPump()
+	p.traceWrap("master-pump-return", nil)
 
 	// Wait for the child and propagate its exit code.
 	werr := cmd.Wait()
 	if exitErr, ok := werr.(*exec.ExitError); ok {
+		p.traceWrap("child-exit", map[string]any{
+			"exit_code": exitErr.ExitCode(),
+			"error":     exitErr.Error(),
+		})
 		os.Exit(exitErr.ExitCode())
 	}
 	if werr != nil {
+		p.traceWrap("child-wait-error", map[string]any{"error": werr.Error()})
 		return werr
 	}
+	p.traceWrap("child-exit", map[string]any{"exit_code": 0})
 	return nil
 }
 
@@ -1783,6 +1899,7 @@ func (p *proxy) masterPump() {
 		select {
 		case ev, ok := <-ch:
 			if !ok {
+				p.traceWrap("master-read-end", nil)
 				return
 			}
 			if ev.err != nil {
@@ -1790,9 +1907,11 @@ func (p *proxy) masterPump() {
 				// child-exit path; treat as quiet EOF. Same for any
 				// PathError wrapping syscall.EIO.
 				if errors.Is(ev.err, io.EOF) || isEIO(ev.err) {
+					p.traceWrap("master-read-end", map[string]any{"error": ev.err.Error(), "normal": true})
 					return
 				}
 				p.debug("MASTER-read-fail", ev.err.Error())
+				p.traceWrap("master-read-end", map[string]any{"error": ev.err.Error(), "normal": false})
 				return
 			}
 			p.handleChunk(ev.data, &rolling)
@@ -1811,6 +1930,7 @@ func (p *proxy) masterPump() {
 		case <-idleTimer.C:
 			if p.idleS > 0 && !idleFired {
 				p.debug("IDLE", fmt.Sprintf("no agent output for %.0fs", p.idleS.Seconds()))
+				p.traceWrap("idle", map[string]any{"idle_s": p.idleS.Seconds()})
 				p.emitOuter("agent idle")
 				idleFired = true
 			}
@@ -1838,6 +1958,14 @@ func (p *proxy) masterPump() {
 // Each step is wrapped so a single failure can't take down the proxy —
 // matches the Python's try/except pattern.
 func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
+	offsetBefore := p.scrollbackBytes
+	p.traceWrap("master-chunk", map[string]any{
+		"raw_len":              len(data),
+		"raw_sha256_12":        shortSHA256(data),
+		"scrollback_offset_in": offsetBefore,
+		"contains_esc":         bytes.Contains(data, []byte{0x1b}),
+		"contains_bel":         bytes.Contains(data, []byte{0x07}),
+	})
 	p.captureMu.Lock()
 	active := p.captureActive
 	if active {
@@ -1849,15 +1977,35 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 	}
 
 	if out := p.stdoutChunk(data); len(out) > 0 {
-		_, _ = os.Stdout.Write(out)
+		wn, err := os.Stdout.Write(out)
+		p.traceWrap("stdout-write", map[string]any{
+			"stdout_len":       len(out),
+			"stdout_sha256_12": shortSHA256(out),
+			"write_len":        wn,
+			"filtered":         len(out) != len(data),
+			"error":            errorString(err),
+		})
+	} else {
+		p.traceWrap("stdout-write", map[string]any{
+			"stdout_len": 0,
+			"filtered":   len(data) > 0,
+		})
 	}
 
 	if p.scrollbackFD != nil {
 		if wn, err := p.scrollbackFD.Write(data); err == nil {
 			p.scrollbackBytes += int64(wn)
+			p.traceWrap("scrollback-write", map[string]any{
+				"write_len":             wn,
+				"scrollback_offset_out": p.scrollbackBytes,
+			})
 			p.maybeLogTime() // minute-debounced timestamp for change-log dates (#59)
 		} else {
 			p.debug("SCROLLBACK-write-fail", err.Error())
+			p.traceWrap("scrollback-write", map[string]any{
+				"write_len": 0,
+				"error":     err.Error(),
+			})
 		}
 	}
 

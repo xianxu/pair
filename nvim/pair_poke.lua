@@ -7,6 +7,9 @@
 -- and record the calls.
 local M = {}
 
+local pair_nvim_dir = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h')
+local zellij_trace = dofile(pair_nvim_dir .. '/zellij_trace.lua')
+
 -- Pure: the ordered zellij argv list for one poke. Submit is Alt+Enter
 -- (write 27 13) — pair-wrap rewrites that into the agent's real submit byte.
 function M._cmds(body, agent_id, review_id)
@@ -28,7 +31,7 @@ local function collect_panes(node, out)
 end
 
 local function list_panes()
-  local res = vim.fn.system({ 'zellij', 'action', 'list-panes', '--json' })
+  local res = zellij_trace.action('review.poke.list-panes', { 'zellij', 'action', 'list-panes', '--json' }).stdout
   local ok, decoded = pcall(vim.json.decode, res)
   if not ok or type(decoded) ~= 'table' then return {} end
   return collect_panes(decoded, {})
@@ -54,9 +57,11 @@ function M.send(body)
     vim.notify('review: could not find the agent pane to poke', vim.log.levels.ERROR)
     return false
   end
-  for _, cmd in ipairs(M._cmds(body, agent)) do
-    vim.fn.system(cmd)
-  end
+  local cmds = M._cmds(body, agent)
+  zellij_trace.action('review.poke.write-body', cmds[1], {
+    redact = { [6] = body },
+  })
+  zellij_trace.action('review.poke.submit', cmds[2])
   return true
 end
 

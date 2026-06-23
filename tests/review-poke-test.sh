@@ -46,7 +46,7 @@ poke.send('updated, please review foo.md')
 OUT:write('sent\n'); OUT:close()
 LUA
 
-PATH="$RT/bin:$PATH" PAIR_ROOT="$ROOT" RESULT="$RESULT" \
+PATH="$RT/bin:$PATH" PAIR_ROOT="$ROOT" RESULT="$RESULT" PAIR_DATA_DIR="$RT" PAIR_TAG=poke \
   run_headless --timeout 30 -- nvim --headless -u NONE -c "luafile $RT/driver.lua" -c 'qa!'
 
 fails=0
@@ -57,6 +57,16 @@ grep -q '^action write-chars --pane-id 7 updated, please review foo.md$' "$ZLOG"
 grep -q '^action write --pane-id 7 27 13$' "$ZLOG" && pass "submits with Alt+Enter (27 13) to agent pane" || fail "no pane-id submit"
 grep -q 'focus-pane-id' "$ZLOG" && fail "changed focus while poking agent" || pass "does not change focus"
 grep -q 'move-focus' "$ZLOG" && fail "used relative move-focus (must be id-based)" || pass "no relative move-focus"
+TRACE="$RT/zellij-actions-poke.jsonl"
+test -s "$TRACE" && pass "writes zellij action trace" || fail "missing zellij action trace"
+grep -q '"label":"review.poke.list-panes"' "$TRACE" && pass "traces pane lookup" || fail "missing list-panes trace"
+grep -q '"label":"review.poke.write-body"' "$TRACE" && pass "traces body write" || fail "missing write-body trace"
+grep -q '"body_len":29' "$TRACE" && pass "records redacted body length" || fail "missing body length"
+if grep -q 'updated, please review foo.md' "$TRACE"; then
+  fail "trace leaked review poke body"
+else
+  pass "redacts review poke body"
+fi
 
 [ "$fails" -eq 0 ] || { printf 'review-poke-test FAILED (%d)\n' "$fails"; exit 1; }
 printf 'review-poke-test ok\n'
