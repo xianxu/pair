@@ -55,8 +55,24 @@ pair-changelog:         $(BIN_DIR)/pair-changelog
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
-test: test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-continue test-changelog test-copy-on-select
+test: test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-continue test-changelog test-copy-on-select test-review
 	go test ./... -count=1
+
+# Review workbench (#66): the integration shell tests. The pure modules
+# (record, reconstruct) run under `make test-lua`.
+test-review:
+	bash tests/review-docflow-test.sh
+	bash tests/review-apply-test.sh
+	bash tests/review-handoff-test.sh
+	bash tests/review-loop-test.sh
+	bash tests/review-projection-test.sh
+	bash tests/review-poke-test.sh
+	bash tests/review-window-test.sh
+	bash tests/review-toggle-test.sh
+	bash tests/pair-review-target-test.sh
+	bash tests/review-readiness-cli-test.sh
+	bash tests/review-indicator-test.sh
+	bash tests/review-resume-test.sh
 
 test-race:
 	go test -count=1 -race ./cmd/pair-wrap/
@@ -78,6 +94,17 @@ test-lua:
 	nvim -l nvim/changelog_test.lua
 	nvim -l nvim/adapt_test.lua
 	nvim -l nvim/doctor_test.lua
+	nvim -l nvim/review/record_test.lua
+	nvim -l nvim/review/reconstruct_test.lua
+	nvim -l nvim/review/markers_test.lua
+	nvim -l nvim/review/seam_test.lua
+	nvim -l nvim/review/mode_test.lua
+	nvim -l nvim/review/poke_bodies_test.lua
+	nvim -l nvim/review/wrap_test.lua
+	nvim -l nvim/review/readiness_test.lua
+	nvim -l nvim/review/spinner_test.lua
+	nvim -l nvim/review/resolve_test.lua
+	nvim -l nvim/review/menu_test.lua
 
 # Integration test for nvim/init.lua's send/queue/history state machine.
 # Drives the real init.lua under headless nvim (it can't be unit-tested —

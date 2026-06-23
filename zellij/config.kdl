@@ -59,12 +59,12 @@ keybinds clear-defaults=false {
         // step-up / step-down through the layout sizes (minimized/1-3/2-3).
         unbind "Alt Up"
         unbind "Alt Down"
-        // Alt+n default is NewPane — pair manages its own two-pane layout,
-        // so a manually-spawned third pane breaks every routed keybind that
-        // assumes "MoveFocus Down lands in nvim". Reclaimed below as the
-        // restart shortcuts.
+        // Alt+n default is NewPane; Alt+o default is MoveTab "Right". pair
+        // manages its own two-pane/single-tab layout, so both are disabled or
+        // reclaimed by pair-specific flows.
         unbind "Alt n"
         unbind "Alt N"
+        unbind "Alt o"
     }
 
     shared_except "locked" {
@@ -191,6 +191,26 @@ keybinds clear-defaults=false {
                 x "0"
                 y "0"
             };
+        }
+
+        // Alt+c — collaboration/review workbench toggle (#66 M3/M4b). Routed through the draft
+        // nvim exactly like Alt+d / Alt+x (MoveFocus Down lands in nvim from
+        // either tiled pane; <C-\><C-n> = bytes 28,14 forces normal mode), then
+        // `:lua PairReviewToggle()` runs the branch IN nvim: with no review open
+        // it drops into `:PairReview ` (tab-complete a file → a 100% review pane);
+        // with one open it flips visibility (are-floating-panes-visible →
+        // show/hide, never the toggle-floating-panes footgun). Doing the branch
+        // in nvim — not in a transient 20%x1 floating shell pane — kills the
+        // ~1s open delay, the auto-hide, and the half-size bugs the old
+        // pair-review-toggle pane caused. When Alt+c is pressed from inside the
+        // focused (floating) review pane, MoveFocus Down may not escape it, so the
+        // review pane defines its own PairReviewToggle() (hide-self).
+        bind "Alt c" {
+            MoveFocus "Down";
+            Write 28;
+            Write 14;
+            WriteChars ":lua PairReviewToggle()";
+            Write 13;
         }
 
         // Alt+l — open the session's distilled change log in a read-only nvim

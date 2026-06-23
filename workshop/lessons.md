@@ -36,6 +36,30 @@ followed by `>`). Don't try to be clever with "find first `>[`
 adjacent" patterns — they fail when X contains `>[` literally,
 and the failure mode is silent data loss. Caught in #000018 review.
 
+## Shared delimiter codecs beat subsystem-local marker parsing
+
+M4b's review pane added `Alt+q` visual wrapping as `🤖<selection>[]` but initially
+embedded the selected text raw, even though annotate already had delimiter escaping for
+the same marker family. A selection containing `>` or `]` could truncate the parsed marker
+and make accept/reject leave stray syntax in the document.
+
+**Rule.** When a second feature writes the same delimited marker format, reuse or extract
+the existing codec before adding parser/writer code. Add tests for delimiter collisions
+(`>`, `]`, backslash) at the write path and the consume path. A parser unit test alone is
+not enough; the UI wrapper that inserts the marker must also be covered. Caught in #000066
+M4b review.
+
+## Shell scripts should use JSON builders, not `printf` JSON
+
+`pair-review-readiness` originally printed JSON with `printf` and unescaped string fields.
+A review branch named `review/a"b` produced invalid JSON, even though all the boolean
+fields were correct.
+
+**Rule.** In shell seams that emit JSON, use `jq -n --arg/--argjson` (or an equivalent
+structured encoder) for every field. Do not hand-build JSON with `printf` unless every
+string field is impossible by construction — and then document why. Guard it with a test
+using quotes in a branch/path/name. Caught in #000066 M4b review.
+
 ## `#table` is 0 on string-keyed tables — never use it for ID generation
 
 Adding nvim/scrollback.lua's hl-group cache: `local name = 'PairScrollback_' .. (#hl_cache + 1)` was meant to give each new (state→hl-group) entry a unique numeric suffix. `hl_cache` is a string-keyed dict (cache key is `(fg|bg|attrs)`), and Lua's `#` on a non-array table returns 0. Result: every group resolved to `PairScrollback_1`, `nvim_set_hl(0, "PairScrollback_1", def)` overwrote on each call, and all extmarks ended up sharing whatever the last-written attrs were. Caught only by an end-to-end test that checked extmark hl_groups against expected fg/bg ints.
@@ -405,3 +429,21 @@ has_selection, momentary)`, fed `momentary = spell_popup_active` at the map
 site) rather than branching on a global inside the handler, so each consumer's
 behavior is unit-asserted without a live UI. A chokepoint shared across N
 callers needs N tested cases, not one.
+
+## init.lua is at Lua's 200-local-per-chunk ceiling (E5112)
+
+**What happened (#66 M3).** Adding a handful of new file-level `local`s to
+`nvim/init.lua` (review toggle + indicator helpers) broke sourcing with
+`E5112: main function has more than 200 local variables`. Lua caps locals per
+function scope at 200; init.lua's main chunk was already at the edge, so the new
+locals silently tipped it over — and a sourcing error there isn't loud in the
+headless tests (nvim still runs the `-c` driver, so functions defined *after* the
+error line just come back `nil`, looking like "not exposed" rather than "chunk
+broke").
+
+**Rule.** New top-level helpers in `nvim/init.lua` go in a `do ... end` block
+(their locals are block-scoped, off the main chunk's count); share across blocks
+via a `_G.<table>` (e.g. `_G._pair_review = { … }`), not file-level locals. When a
+headless probe reports a function as `nil` despite being defined, suspect a
+mid-chunk sourcing error first — run `nvim -u nvim/init.lua -c 'lua …' 2>&1` and
+grep for `E5112`/`E5108`, don't assume the definition is wrong.

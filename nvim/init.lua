@@ -744,6 +744,220 @@ local function send_to_agent(body, no_submit)
   vim.fn.system('zellij action move-focus down')
 end
 
+-- :PairReview <file> — PROPOSE a file for review (#66 M4a'). It does NOT open the
+-- pane: it writes the review-target seam (status=proposed), runs the deterministic
+-- readiness prep locally (track / new branch / resume), then sends the agent a
+-- minimal ack request. Alt+c opens the pane once ready. `complete='file'` gives
+-- :e-style tab-completion; Alt+c feeds ":PairReview " into this command line.
+-- (Callback runs at runtime, after the do-block below sets `_G._pair_review`.)
+vim.api.nvim_create_user_command('PairReview', function(opts)
+  if _G._pair_review and _G._pair_review.propose then
+    local ok = _G._pair_review.propose(opts.args)
+    local status = ok and 'prepared ' or 'could not prepare '
+    vim.notify('PairReview: ' .. status .. vim.fn.fnamemodify(opts.args, ':t')
+      .. ' — press Alt+c to open when ready', ok and vim.log.levels.INFO or vim.log.levels.WARN)
+  end
+end, { nargs = 1, complete = 'file', desc = 'prepare a file for review (Alt+c opens when ready)' })
+
+-- Review-workbench draft-side helpers (#66 M3). Wrapped in `do ... end` and shared
+-- via the `_G._pair_review` table rather than added as file-level `local`s: init.lua's
+-- main chunk is near Lua's hard 200-local-per-function ceiling (E5112), so new
+-- top-level locals would break sourcing. The indicator block (below) reuses
+-- `_pair_review.is_alive` from here, keeping the state-file contract DRY.
+do
+  local review_init_epoch = os.time()
+
+  -- review-state file (nvim/review.lua writes it on VimEnter, removes it on exit).
+  -- Line 1 = the review pane nvim's pid (liveness = `kill -0`); line 2 = the
+  -- absolute doc path (the review-mode indicator reads it). Path from the shared
+  -- seam module so this reader and the pane writer can't diverge (ARCH-DRY, I3).
+  local nvim_dir = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
+  local seam = dofile(nvim_dir .. 'review/seam.lua')
+
+  -- The review-target (seam #6) is CONVERSATION-scoped: it carries the
+  -- PAIR_SESSION_ID it was written under, and a reader IGNORES a target from a
+  -- different session. So a fresh pair session (new PAIR_SESSION_ID) prompts
+  -- (Alt+c → :PairReview), while an Alt+n restart that RESUMES the conversation
+  -- (same id, re-loaded init) keeps its in-progress review. We do NOT clear on
+  -- load — that would wrongly reset a resumed review. Pure → unit-testable. (#66 #6.)
+  local function target_stale(t, session)
+    return not (type(t) == 'table' and session and session ~= '' and t.session == session)
+  end
+
+  local function config_session_id(data_dir, tag, agent)
+    local cf = io.open(data_dir .. '/config-' .. tag .. '-' .. agent .. '.json', 'r')
+    if not cf then return nil end
+    local body = cf:read('*a'); cf:close()
+    local ok, parsed = pcall(vim.json.decode, body)
+    if ok and type(parsed) == 'table' and parsed.session_id and parsed.session_id ~= '' then
+      return parsed.session_id
+    end
+    return nil
+  end
+
+  local function descendant_pids(root)
+    local out = vim.fn.systemlist({ 'ps', '-axo', 'pid=,ppid=' })
+    local children = {}
+    for _, line in ipairs(out) do
+      local pid, ppid = line:match('^%s*(%d+)%s+(%d+)%s*$')
+      if pid and ppid then
+        children[ppid] = children[ppid] or {}
+        table.insert(children[ppid], pid)
+      end
+    end
+    local pids, queue, seen = {}, { root }, { [root] = true }
+    local i = 1
+    while i <= #queue do
+      local pid = queue[i]; i = i + 1
+      table.insert(pids, pid)
+      for _, child in ipairs(children[pid] or {}) do
+        if not seen[child] then
+          seen[child] = true
+          table.insert(queue, child)
+        end
+      end
+    end
+    return pids
+  end
+
+  local function live_codex_session_id(data_dir, tag)
+    local pf = io.open(data_dir .. '/agent-pid-' .. tag, 'r')
+    if not pf then return nil end
+    local root = vim.trim(pf:read('*a') or ''); pf:close()
+    if root == '' then return nil end
+    for _, pid in ipairs(descendant_pids(root)) do
+      for _, line in ipairs(vim.fn.systemlist({ 'lsof', '-p', pid, '-Fn' })) do
+        local path = line:match('^n(.*/%.codex/sessions/.*/rollout%-.*%.jsonl)$')
+        if path then
+          local sid = path:match('([0-9a-fA-F]+%-[0-9a-fA-F]+%-[0-9a-fA-F]+%-[0-9a-fA-F]+%-[0-9a-fA-F]+)%.jsonl$')
+          if sid then return sid end
+        end
+      end
+    end
+    return nil
+  end
+
+  local function current_session_id()
+    local sid = vim.env.PAIR_SESSION_ID
+    if sid and sid ~= '' then return sid end
+    local data_dir = vim.env.PAIR_DATA_DIR
+    if not data_dir or data_dir == '' then return nil end
+    local tag = (vim.env.PAIR_TAG and vim.env.PAIR_TAG ~= '') and vim.env.PAIR_TAG or 'default'
+    local agent = (vim.env.PAIR_AGENT and vim.env.PAIR_AGENT ~= '') and vim.env.PAIR_AGENT or 'claude'
+    sid = config_session_id(data_dir, tag, agent)
+    if sid then return sid end
+    if agent == 'codex' then return live_codex_session_id(data_dir, tag) end
+    return nil
+  end
+
+  local function state_file()
+    return seam.open_state(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
+  end
+
+  -- Returns (alive, statefile, file). `file` is the reviewed doc's absolute path.
+  local function is_alive()
+    local sf = state_file()
+    if not sf or vim.fn.filereadable(sf) ~= 1 then return false, sf end
+    local lines = vim.fn.readfile(sf)
+    local pid = tonumber(lines[1] or '')
+    if not pid then return false, sf end
+    vim.fn.system({ 'kill', '-0', tostring(pid) })
+    return vim.v.shell_error == 0, sf, lines[2]
+  end
+
+  -- review-target (seam #6): {file, status: proposed|ready}. :PairReview proposes;
+  -- the agent marks ready after prep; Alt+c reads it to decide prompt/open/wait.
+  local function read_target()
+    local p = seam.target_path(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
+    if not p or vim.fn.filereadable(p) ~= 1 then return nil end
+    local ok, t = pcall(vim.json.decode, table.concat(vim.fn.readfile(p), '\n'))
+    if not (ok and type(t) == 'table' and t.file and t.file ~= '') then return nil end
+    -- ignore a target from a different conversation (stale across a fresh session)
+    if target_stale(t, current_session_id()) then
+      -- Codex fresh starts learn their session id asynchronously. If :PairReview
+      -- prepared a target before any id was discoverable, keep that same-nvim
+      -- unscoped target readable; old unscoped targets remain stale.
+      local stat = (vim.uv or vim.loop).fs_stat(p)
+      local mtime = stat and stat.mtime and stat.mtime.sec or 0
+      if not (t.session == '' and mtime >= review_init_epoch) then return nil end
+    end
+    return t
+  end
+  local function write_target(file, status)
+    local p = seam.target_path(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
+    if p then pcall(vim.fn.writefile,
+      { vim.json.encode({ file = file, status = status, session = current_session_id() or '' }) }, p) end
+  end
+  -- :PairReview proposes a target, then performs deterministic local prep via the
+  -- readiness shell seam. The nvim still does NOT open the pane — Alt+c does, once
+  -- the prep marks the target ready. The agent gets only a concise ack request.
+  local function propose(file)
+    local abs = vim.fn.fnamemodify(file, ':p')
+    write_target(abs, 'proposed')
+    local home = vim.env.PAIR_HOME or ''
+    local bin = vim.env.PAIR_REVIEW_READINESS_BIN
+    if not bin or bin == '' then bin = (home ~= '') and (home .. '/bin/pair-review-readiness') or 'pair-review-readiness' end
+    local out = table.concat(vim.fn.systemlist({ bin, '--prepare', abs }), '\n')
+    local ok = vim.v.shell_error == 0
+    if out ~= '' then send_to_agent(out) end
+    if not ok then
+      vim.notify('PairReview: prep failed — ' .. out, vim.log.levels.WARN)
+    end
+    return ok, out
+  end
+
+  -- Pure: the Alt+c decision. A live pane → flip visibility (hide/show). No live
+  -- pane → driven by the review-target status: ready→open, proposed→wait (prep in
+  -- progress), none→prompt (:PairReview file-select). Exposed for the headless test.
+  local function toggle_action(alive, visible, target_status)
+    if alive then return visible and 'hide' or 'show' end
+    if target_status == 'ready' then return 'open' end
+    if target_status == 'proposed' then return 'wait' end
+    return 'prompt'
+  end
+
+  _G._pair_review = { state_file = state_file, is_alive = is_alive, toggle_action = toggle_action,
+    read_target = read_target, write_target = write_target, propose = propose, target_stale = target_stale,
+    current_session_id = current_session_id }
+  _G._pair_review_toggle_action = toggle_action -- test alias
+
+  -- Alt+c — the collaboration/review-workbench brain (#66 M3/M4b). Routed here through the draft
+  -- nvim (Alt+d-style) so the branch happens in a real nvim, not a transient shell
+  -- pane. A LIVE pane → flip visibility (`are-floating-panes-visible` →
+  -- show/hide-floating-panes; never the toggle-floating-panes footgun). Otherwise
+  -- branch on the review target (seam #6): ready→open via pair-review-open,
+  -- proposed→"prep in progress", none→drop into `:PairReview ` (file-select). The
+  -- review pane defines its own PairReviewToggle() (hide-self) for Alt+c from inside
+  -- the focused floating pane. No has_ui() guard so the headless test records calls.
+  function _G.PairReviewToggle()
+    local alive, sf = is_alive()
+    if alive then
+      local vis = vim.fn.system({ 'zellij', 'action', 'are-floating-panes-visible' })
+      if toggle_action(true, vis:match('true') ~= nil) == 'hide' then
+        vim.fn.system({ 'zellij', 'action', 'hide-floating-panes' })
+      else
+        vim.fn.system({ 'zellij', 'action', 'show-floating-panes' })
+      end
+      return
+    end
+    local t = read_target()
+    local action = toggle_action(false, false, t and t.status)
+    if action == 'open' then
+      local home = vim.env.PAIR_HOME or ''
+      local bin = (home ~= '') and (home .. '/bin/pair-review-open') or 'pair-review-open'
+      vim.fn.system({ bin, t.file })
+      if vim.v.shell_error ~= 0 then
+        vim.notify('PairReview: open failed — ' .. vim.fn.fnamemodify(t.file, ':t'), vim.log.levels.WARN)
+      end
+    elseif action == 'wait' then
+      vim.notify('review prep in progress — check the agent pane', vim.log.levels.INFO)
+    else -- 'prompt'
+      if sf then pcall(os.remove, sf) end -- reap a stale/dead open-state file
+      vim.api.nvim_feedkeys(':PairReview ', 'n', false)
+    end
+  end
+end
+
 -- Strip whole-line comments (^%s*===) before sending. Comments are stored
 -- intact in draft/queue/log so they survive history navigation — only what
 -- reaches the agent is cleaned. Leading and trailing blank lines left behind
@@ -1931,6 +2145,15 @@ local function pair_compose_statusline(left)
   if pair_notify then
     return pair_notify_segment(left)
   end
+  -- #66 M3/M4d: while a review is open, the review segment replaces the
+  -- rightmost cheatsheet. It carries its own %= so mode/file stay near the
+  -- compact nav cluster while 🤖 agent/human counts are right-aligned.
+  -- Read from the timer-cached value (a global set by the review do-block) so
+  -- this hot path never shells git.
+  if _G._pair_review_segment then
+    local seg = _G._pair_review_segment()
+    if seg then return left .. seg .. ' ' end
+  end
   -- 6-cell minimum margin between the variable left segment and the
   -- cheatsheet. Capping the cheatsheet's budget at (columns - left - 6)
   -- bounds left+right ≤ columns - 6, so vim's %= autopads at least 6
@@ -1966,6 +2189,18 @@ end
 -- Exposed for the headless statusline test (drives the notify render path).
 _G.PairFlashNotify = pair_flash_notify
 
+_G._pair_review_compact_left = function()
+  local ok, result = pcall(function()
+    local h = #read_history()
+    local q = queue_count()
+    local pos = pos_label(nav.pos)
+    if is_dirty_history_slot() then pos = pos .. '*' end
+    local pos_seg = string.format('%%#PairPosLabel#%s%%*', pos)
+    return string.format('-%d < %s > +%d • ', h, pos_seg, q)
+  end)
+  return ok and result or ' pair • '
+end
+
 function _G.PairStatusline()
   -- Minimized rung: nvim is collapsed to this single statusline row, so
   -- the buffer is invisible and the usual history/queue/position
@@ -1987,6 +2222,9 @@ function _G.PairStatusline()
       return pair_notify_segment(base)
     end
     return base
+  end
+  if _G._pair_review_segment and _G._pair_review_segment() then
+    return pair_compose_statusline(_G._pair_review_compact_left())
   end
   if vim.fn.mode():sub(1, 1) == 'n' then
     -- Carry the position marker (*, -N, +N) into locked/normal mode — the
@@ -3275,11 +3513,8 @@ vim.keymap.set({ 'n', 'i' }, '<M-b>', pair_scrollback_prev_prompt,
 vim.keymap.set({ 'n', 'i' }, '<M-i>', attach_image,
   { silent = true, desc = 'pair: attach clipboard image (Ctrl+V to agent + ref)' })
 
-vim.keymap.set({ 'n', 'i' }, '<M-c>', send_esc_to_agent,
-  { silent = true, desc = 'pair: send ESC to agent (interrupt stream)' })
-
--- Ctrl+C mirrors Alt+c: the familiar "interrupt" chord forwards to the agent
--- as ESC. send_esc_to_agent doesn't touch the draft's mode, so in insert mode
+-- Ctrl+C forwards ESC to the agent. send_esc_to_agent doesn't touch the draft's mode,
+-- so in insert mode
 -- you stay in insert (overriding <C-c>'s usual leave-insert) and in normal
 -- mode the pending-command cancel is given up — both deliberate, so a reflexive
 -- Ctrl+C interrupts the agent's stream without disrupting your draft.
@@ -3841,3 +4076,84 @@ vim.api.nvim_create_autocmd('VimEnter', {
   once = true,
   callback = function() pcall(pair_slug_reconcile) end,
 })
+
+-- Review-mode bar content (#66 M3/M4d) — the compact review segment shown in the
+-- pair (draft) view while a review is open: `-H < pos > +Q • 🪄 Mode • file •
+-- ... 🤖 A/H` (A agent / H human round commits). This just builds the review
+-- string; PairStatusline supplies the compact history/queue prefix. Supersedes the
+-- earlier line-1 `=== review … ===` indicator (line 1 is the user's to edit — a
+-- bar is chrome, not buffer content). (`do ... end`: no file-level locals —
+-- init.lua is at Lua's 200-local chunk ceiling; reuses `_pair_review.is_alive`.)
+do
+  local nvim_dir = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
+  local seam = dofile(nvim_dir .. 'review/seam.lua')
+
+  -- Rounds in the CURRENT review session only. The session lives on a
+  -- `review/<slug>` branch (M4, agent-owned); count that slug's round commits.
+  -- On any OTHER branch — including M3 render-only, where no review is active —
+  -- return 0/0. (A repo's history can hold dozens of shipped reviews of OTHER docs:
+  -- `review(a-blogging-workflow): …` etc. Counting repo-wide gave the spurious
+  -- "25/28" — those are other docs' shipped rounds, not this session.)
+  -- Slug-scoped, not just branch-scoped, so a merged prior review of a *different*
+  -- doc reachable from HEAD doesn't leak in. (M4 refinement: merge-base..HEAD to
+  -- also drop a prior shipped review of the SAME slug.)
+  local function counts(file)
+    local dir = vim.fn.fnamemodify(file, ':h')
+    local branch = vim.fn.system({ 'git', '-C', dir, 'branch', '--show-current' })
+    if vim.v.shell_error ~= 0 then return 0, 0 end
+    local slug = vim.trim(branch):match('^review/(.+)$')
+    if not slug then return 0, 0 end -- not in an active review (M3 / between reviews)
+    local out = vim.fn.system({ 'git', '-C', dir, 'log', '--pretty=%s' })
+    if vim.v.shell_error ~= 0 then return 0, 0 end
+    local pa = '^review%(' .. vim.pesc(slug) .. '%):%s*agent%s'
+    local ph = '^review%(' .. vim.pesc(slug) .. '%):%s*human%s'
+    local a, h = 0, 0
+    for line in out:gmatch('[^\n]+') do
+      if line:match(pa) then a = a + 1
+      elseif line:match(ph) then h = h + 1 end
+    end
+    return a, h
+  end
+
+  -- The compact draft-side review bar text. 🤖A = agent (robot) rounds, /H = human.
+  local function bar_text(file)
+    local a, h = counts(file)
+    local m = seam.read_mode(pair_data_dir(), pair_tag())
+    return string.format('🪄 %s • %s • 🤖 %d/%d', seam.mode_label(m), vim.fn.fnamemodify(file, ':t'), a, h)
+  end
+  _G._pair_review_bar = bar_text -- exposed for the headless test (plain, unstyled)
+
+  -- Review-mode accent for the folded statusline segment (reapplied on ColorScheme
+  -- since :colorscheme runs :hi clear).
+  local function set_hl()
+    vim.api.nvim_set_hl(0, 'PairReviewBar', { fg = '#56b6c2', bold = true, default = true })
+  end
+  set_hl()
+  vim.api.nvim_create_autocmd('ColorScheme', { callback = set_hl })
+
+  -- Cached statusline segment, recomputed off a timer — the statusline renders on
+  -- nearly every keystroke/cursor move, so it must NEVER shell git inline. `nil`
+  -- when no review is open; PairStatusline shows the normal cheatsheet then.
+  local cached = nil
+  local function recompute()
+    local seg = nil
+    if _G._pair_review then
+      local alive, _, file = _G._pair_review.is_alive()
+      if alive and file and file ~= '' then
+        local a, h = counts(file)
+        local m = seam.read_mode(pair_data_dir(), pair_tag())
+        local label, name = seam.mode_label(m), vim.fn.fnamemodify(file, ':t')
+        seg = string.format('%%#PairReviewBar#🪄 %s • %s •%%*%%=%%#PairReviewBar#🤖 %d/%d%%*',
+          label:gsub('%%', '%%%%'), name:gsub('%%', '%%%%'), a, h)
+      end
+    end
+    if seg ~= cached then
+      cached = seg
+      pcall(refresh_statusline) -- redraw on open / close / count change
+    end
+  end
+  _G._pair_review_segment = function() return cached end
+
+  local timer = vim.loop.new_timer()
+  if timer then timer:start(800, 1500, vim.schedule_wrap(function() pcall(recompute) end)) end
+end

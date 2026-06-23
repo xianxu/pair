@@ -46,6 +46,18 @@ local ok, err = pcall(function()
   nav('<M-Left>');  check('hist-2', '%#PairPosLabel#-2%*')
   nav('<M-Right>'); nav('<M-Right>')              -- -2 -> -1 -> *
   nav('<M-Right>'); check('queue-1', '%#PairPosLabel#+1%*')
+  nav('<M-Left>')                                  -- +1 -> *
+  _G._pair_review_segment = function()
+    return '%#PairReviewBar#🪄 Edit • doc.md • %=%#PairReviewBar#🤖 3/4%*'
+  end
+  local review = _G.PairStatusline()
+  local compact = review:find('-2 < %#PairPosLabel#*%* > +1 •', 1, true) ~= nil
+    and review:find('🪄 Edit • doc.md •', 1, true) ~= nil
+    and review:find('🤖 3/4', 1, true) ~= nil
+    and review:find('<LOCKED>', 1, true) == nil
+    and review:find('Alt:', 1, true) == nil
+    and review:find('queued', 1, true) == nil
+  O:write(string.format('%s\treview-compact\n', compact and 'ok' or 'FAIL'))
 end)
 if not ok then O:write('FAIL\tdriver-error: ' .. tostring(err) .. '\n') end
 O:close()

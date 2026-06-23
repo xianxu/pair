@@ -23,6 +23,8 @@
 -- <viewer>.lua` and may not have nvim/ on its runtimepath.
 
 local M = {}
+local here = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
+local marker_codec = dofile(here .. 'marker_codec.lua')
 
 -- 🤖 = U+1F916, four bytes in UTF-8: F0 9F A4 96. Lua patterns aren't
 -- UTF-8-aware so we use the literal byte sequence with `find(..., 1, true)`.
@@ -41,53 +43,15 @@ local MARKER_BOT = '\240\159\164\150'
 -- containing `]` would produce a marker the parser silently truncates,
 -- and the user loses their comment between Alt+q and `:q` (data-loss
 -- footgun caught in #18 review).
-local function esc_x(s)
-  return (s:gsub('\\', '\\\\'):gsub('>', '\\>'):gsub(']', '\\]'))
-end
-
-local function esc_y(s)
-  return (s:gsub('\\', '\\\\'):gsub(']', '\\]'))
-end
-
-local function unescape(s)
-  -- Walk byte-by-byte so `\\>` correctly unescapes to `\` + `>` (not
-  -- `\>`). The placeholder-via-NUL approach failed because Lua patterns
-  -- don't treat a literal NUL byte as a single-char match — it ends up
-  -- matching empty positions between every character.
-  local out = {}
-  local i = 1
-  while i <= #s do
-    local c = s:sub(i, i)
-    if c == '\\' and i < #s then
-      table.insert(out, s:sub(i + 1, i + 1))
-      i = i + 2
-    else
-      table.insert(out, c)
-      i = i + 1
-    end
-  end
-  return table.concat(out)
-end
+local esc_x = marker_codec.esc_x
+local esc_y = marker_codec.esc_y
+local unescape = marker_codec.unescape
 
 -- Find first occurrence of `char` in `line` starting at `start_pos`
 -- that is NOT escaped (i.e., not preceded by an odd number of `\`s).
 -- Returns nil if none. Used to locate the real `>` and `]` that
 -- close a marker, ignoring escaped ones inside X / Y.
-local function find_unescaped(line, char, start_pos)
-  local i = start_pos
-  while true do
-    local idx = line:find(char, i, true)
-    if not idx then return nil end
-    local bs = 0
-    local j = idx - 1
-    while j >= start_pos and line:sub(j, j) == '\\' do
-      bs = bs + 1
-      j = j - 1
-    end
-    if bs % 2 == 0 then return idx end
-    i = idx + 1
-  end
-end
+local find_unescaped = marker_codec.find_unescaped
 
 -- Walk one line, return every marker as { kind, X?, Y, range, parts }.
 --   range = { byte_lo, byte_hi } — 1-based, inclusive, covers the whole marker.

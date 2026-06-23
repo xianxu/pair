@@ -1,0 +1,54 @@
+#!/bin/sh
+# pair-review-open <file> — open a full-screen floating review pane on <file>
+# (issue #66 M3). Invoked by the draft's :PairReview command (and by
+# pair-review-toggle's file-select path). Spawns `nvim -u nvim/review.lua <file>`
+# in a floating zellij pane; nvim/review.lua writes the open-state file the
+# toggle reads. Single review pane: a live review on another file is replaced
+# (killed → its close_on_exit pane self-dismisses) before the new one opens.
+#
+# Env (exported by bin/pair): $PAIR_DATA_DIR $PAIR_TAG $PAIR_HOME
+set -eu
+
+file="${1:-}"
+if [ -z "$file" ]; then
+    printf 'pair-review-open: needs a file argument\n' >&2
+    exit 1
+fi
+if [ ! -f "$file" ]; then
+    printf 'pair-review-open: %s not found\n' "$file" >&2
+    exit 1
+fi
+if [ -z "${PAIR_DATA_DIR:-}" ] || [ -z "${PAIR_TAG:-}" ] || [ -z "${PAIR_HOME:-}" ]; then
+    printf 'pair-review-open: missing PAIR_DATA_DIR / PAIR_TAG / PAIR_HOME\n' >&2
+    printf '  This script is meant to run inside a pair session.\n' >&2
+    exit 1
+fi
+
+# Single review pane: replace any LIVE review (close the old nvim → its
+# close_on_exit floating pane self-dismisses) before spawning the new one.
+# Path == nvim/review/seam.lua's `open_state` formula; PAIR_TAG is guaranteed
+# non-empty by the env check above (so no 'default' fallback is reachable here).
+STATE="$PAIR_DATA_DIR/review-$PAIR_TAG.open"
+if [ -f "$STATE" ]; then
+    old=$(head -n1 "$STATE" 2>/dev/null || true)
+    if [ -n "${old:-}" ] && kill -0 "$old" 2>/dev/null; then
+        kill "$old" 2>/dev/null || true
+    fi
+    rm -f "$STATE"
+fi
+
+# nvim/review.lua's VimEnter writes its pid here so bin/pair's cleanup can reap
+# the embed nvim on Alt+x (same leak shape as the draft/scrollback panes).
+export PAIR_NVIM_PID_FILE="$PAIR_DATA_DIR/nvim-pid-$PAIR_TAG-review"
+
+# cwd = the file's directory so docflow's git commands (shelled from the pane's
+# nvim) run inside the doc's repo. Full-screen floating pane: percentage dims (a
+# zellij `run` feature) instead of `tput`, which measured whichever pane this
+# script happened to run in — the old toggle pane's 20%x1 leaked through as a
+# half-size review pane (#66 M3 smoke bug #4). 100% mirrors scrollback's Alt+/.
+dir=$(CDPATH= cd -- "$(dirname -- "$file")" && pwd)
+abs="$dir/$(basename -- "$file")"
+
+exec zellij run --floating --close-on-exit --name review \
+    --width 100% --height 100% --x 0 --y 0 --cwd "$dir" \
+    -- nvim -u "$PAIR_HOME/nvim/review.lua" "$abs"

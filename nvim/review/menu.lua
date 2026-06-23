@@ -1,0 +1,183 @@
+-- nvim/review/menu.lua — self-contained review send menu for pair's review pane.
+-- Shape follows parley.nvim: a mode selector plus an optional instruction buffer.
+local M = {}
+
+local last_mode
+local blink_suffix = 'a:blinkwait700-blinkoff400-blinkon250'
+
+local MODE_GLYPHS = {
+  generate = '✦',
+  edit = '✎',
+  proofread = '✓',
+}
+
+local function setup_highlights()
+  pcall(vim.api.nvim_set_hl, 0, 'PairReviewMenuNormal', { link = 'Pmenu', default = true })
+  pcall(vim.api.nvim_set_hl, 0, 'PairReviewMenuSelected', { link = 'PmenuSel', default = true })
+  pcall(vim.api.nvim_set_hl, 0, 'PairReviewMenuBorder', { link = 'DiagnosticInfo', default = true })
+  pcall(vim.api.nvim_set_hl, 0, 'PairReviewMenuTitle', { link = 'DiagnosticInfo', default = true })
+  pcall(vim.api.nvim_set_hl, 0, 'PairReviewInstructionNormal', { link = 'NormalFloat', default = true })
+  pcall(vim.api.nvim_set_hl, 0, 'PairReviewInstructionBorder', { link = 'DiagnosticWarn', default = true })
+  pcall(vim.api.nvim_set_hl, 0, 'PairReviewInstructionTitle', { link = 'DiagnosticWarn', default = true })
+end
+
+local function mode_display(mode, seam)
+  local name = mode.name
+  local label = seam.mode_label(name)
+  label = label:gsub('(%a)([%w_%-]*)', function(first, rest)
+    return first:upper() .. rest
+  end)
+  return string.format('%s %s', MODE_GLYPHS[name] or '•', label)
+end
+
+local function layout(count)
+  local ui = vim.api.nvim_list_uis()[1] or { width = 80, height = 24 }
+  local width = math.min(70, math.max(40, ui.width - 8))
+  local list_h = math.min(math.max(count, 1), math.max(3, ui.height - 12))
+  local col = math.max(0, math.floor((ui.width - width) / 2))
+  local total_h = list_h + 7
+  local row = math.max(0, math.floor((ui.height - total_h) / 2))
+  return width, list_h, row, col, row + list_h + 1
+end
+
+function M.open(opts)
+  opts = opts or {}
+  local modes = opts.modes or {}
+  if #modes == 0 then
+    vim.notify('review: no review modes found', vim.log.levels.WARN)
+    return nil
+  end
+  local seam = opts.seam
+  local on_submit = opts.on_submit or function() end
+  setup_highlights()
+  local original_guicursor = vim.o.guicursor
+  if not original_guicursor:find('blinkon', 1, true) then
+    vim.o.guicursor = (original_guicursor ~= '' and (original_guicursor .. ',') or '') .. blink_suffix
+  end
+  local current = opts.mode or last_mode
+  local start_line = 1
+  for i, mode in ipairs(modes) do
+    if mode.name == current then start_line = i; break end
+  end
+
+  local width, list_h, row, col, instr_row = layout(#modes)
+  local list_buf = vim.api.nvim_create_buf(false, true)
+  vim.bo[list_buf].buftype = 'nofile'
+  vim.bo[list_buf].bufhidden = 'wipe'
+  local lines = {}
+  for i, mode in ipairs(modes) do lines[i] = mode_display(mode, seam) end
+  vim.api.nvim_buf_set_lines(list_buf, 0, -1, false, lines)
+  vim.bo[list_buf].modifiable = false
+  local list_win = vim.api.nvim_open_win(list_buf, true, {
+    relative = 'editor', row = row, col = col, width = width, height = list_h,
+    style = 'minimal', border = 'rounded',
+    title = ' Review mode - j/k select · Enter run · Tab→instruction ',
+  })
+  vim.wo[list_win].cursorline = true
+  vim.wo[list_win].winhighlight = table.concat({
+    'Normal:PairReviewMenuNormal',
+    'NormalFloat:PairReviewMenuNormal',
+    'CursorLine:PairReviewMenuSelected',
+    'FloatBorder:PairReviewMenuBorder',
+    'FloatTitle:PairReviewMenuTitle',
+    'EndOfBuffer:PairReviewMenuNormal',
+  }, ',')
+  vim.api.nvim_win_set_cursor(list_win, { start_line, 0 })
+
+  local instr_buf = vim.api.nvim_create_buf(false, true)
+  vim.bo[instr_buf].buftype = ''
+  vim.bo[instr_buf].bufhidden = 'wipe'
+  if opts.instruction and opts.instruction ~= '' then
+    vim.api.nvim_buf_set_lines(instr_buf, 0, -1, false, vim.split(opts.instruction, '\n', { plain = true }))
+  end
+  local instr_win = vim.api.nvim_open_win(instr_buf, false, {
+    relative = 'editor', row = instr_row, col = col, width = width, height = 5,
+    style = 'minimal', border = 'rounded',
+    title = ' One-round instruction - optional (M-CR/C-s submit · Tab/Esc→list) ',
+  })
+  vim.wo[instr_win].cursorline = true
+  vim.wo[instr_win].winhighlight = table.concat({
+    'Normal:PairReviewInstructionNormal',
+    'NormalFloat:PairReviewInstructionNormal',
+    'CursorLine:CursorLine',
+    'FloatBorder:PairReviewInstructionBorder',
+    'FloatTitle:PairReviewInstructionTitle',
+    'EndOfBuffer:PairReviewInstructionNormal',
+  }, ',')
+
+  local closed = false
+  local function close()
+    if closed then return end
+    closed = true
+    vim.o.guicursor = original_guicursor
+    pcall(vim.api.nvim_win_close, list_win, true)
+    pcall(vim.api.nvim_win_close, instr_win, true)
+  end
+  local function selected()
+    local line = 1
+    if vim.api.nvim_win_is_valid(list_win) then
+      line = vim.api.nvim_win_get_cursor(list_win)[1]
+    end
+    return modes[line] or modes[1]
+  end
+  local function move(delta)
+    if not vim.api.nvim_win_is_valid(list_win) then return end
+    local line = vim.api.nvim_win_get_cursor(list_win)[1]
+    vim.api.nvim_win_set_cursor(list_win, { ((line - 1 + delta) % #modes) + 1, 0 })
+  end
+  local function submit()
+    local mode = selected()
+    local instruction = table.concat(vim.api.nvim_buf_get_lines(instr_buf, 0, -1, false), '\n')
+      :gsub('^%s+', ''):gsub('%s+$', '')
+    last_mode = mode.name
+    close()
+    on_submit({ mode = mode.name, instruction = instruction })
+  end
+  local function focus_instr()
+    if vim.api.nvim_win_is_valid(instr_win) then
+      vim.api.nvim_set_current_win(instr_win)
+      pcall(vim.cmd, 'startinsert')
+    end
+  end
+  local function focus_list()
+    if vim.api.nvim_win_is_valid(list_win) then
+      pcall(vim.cmd, 'stopinsert')
+      vim.api.nvim_set_current_win(list_win)
+    end
+  end
+
+  local function lmap(lhs, fn)
+    vim.keymap.set('n', lhs, fn, { buffer = list_buf, nowait = true, silent = true })
+  end
+  lmap('<CR>', submit)
+  lmap('<M-CR>', submit)
+  lmap('<C-s>', submit)
+  lmap('<C-j>', function() move(1) end)
+  lmap('<C-k>', function() move(-1) end)
+  lmap('<Tab>', focus_instr)
+  lmap('i', focus_instr)
+  lmap('a', focus_instr)
+  lmap('<Esc>', close)
+  lmap('<C-c>', close)
+
+  local function imap(modes_, lhs, fn)
+    vim.keymap.set(modes_, lhs, fn, { buffer = instr_buf, nowait = true, silent = true })
+  end
+  imap({ 'n', 'i' }, '<M-CR>', submit)
+  imap({ 'n', 'i' }, '<C-s>', submit)
+  imap({ 'n', 'i' }, '<C-c>', close)
+  imap('n', '<Tab>', focus_list)
+  imap('n', '<Esc>', focus_list)
+
+  return {
+    list_win = list_win,
+    instr_win = instr_win,
+    submit = submit,
+    move = move,
+    close = close,
+    focus_instruction = focus_instr,
+    selected = function() return selected().name end,
+  }
+end
+
+return M

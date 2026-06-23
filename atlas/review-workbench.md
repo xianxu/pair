@@ -1,0 +1,209 @@
+# Review workbench
+
+An embedded nvim **document workbench** for agentic document review (issue #66):
+a persistent agent (pair's session) *proposes* edit records, and an nvim review
+pane *applies* them undo-ably, decorates them, saves, and pokes the agent. The
+agent is the producer **and the only git writer**: it creates/resumes the
+`review/<slug>` branch and commits `docflow` rounds from the nvim's landed
+artifact. The contract between them is a small set of seam files + git commits.
+
+## Modules (`nvim/review/`)
+
+Pure core (run under `nvim -l`, colocated `*_test.lua`, `make test-lua`):
+
+- `marker_codec.lua` — shared 🤖 delimiter escaping/unescaping used by both
+  annotate and review markers. Keeps `🤖<selection>[]` safe when selected text
+  contains marker delimiters such as `>`, `]`, or backslashes.
+- `record.lua` — the `Record` `{old, occurrence, new, explain}` and its **one**
+  JSON serialization, written verbatim to both the handoff file and the agent
+  commit body. `apply` enriches each record with `new_occurrence` (Nth match of
+  `new` post-apply) so resume can re-anchor; `occurrence` (Nth `old` in base) and
+  `new_occurrence` are never crossed.
+- `reconstruct.lua` — pure `records, content, which → {highlights, diagnostics}`
+  (0-based line ranges + explains). `which='old'` anchors by `occurrence`,
+  `which='new'` by `new_occurrence`. The resume / from-commit render path; exports
+  `nth_offset`/`line_of`.
+- `markers.lua` (M2) — pure 🤖 review-request parser (ported from parley):
+  `🤖<quoted>?(~strike~)?([user]|{agent})*` → marker records with `ready`/`pending`
+  (last-section rule), excluding markers in fenced/inline code. The human's
+  in-doc review requests; M3 highlights from it, M4's agent reads it.
+- `mode.lua` (M2/M4d) — pure pair-side UI metadata for the 3 human assistance
+  levels: Generate, Edit, Proofread. Pair does not carry prompt prose for these;
+  their meanings live in ariadne's `xx-fix` skill. `menu.lua` (M4c/M4d) presents
+  those modes in the review pane with a one-round optional instruction buffer.
+
+Integration seams (headless shell tests, `make test-review`):
+
+- `apply.lua` — applies records as ONE undo block (first edit breaks the undo
+  sequence so the round is separate from prior history; edits 2..N `undojoin`,
+  E790-safe), **bottom-to-top** to avoid offset drift, decorates from the actual
+  edited ranges, returns records enriched with `new_occurrence`. No file reload
+  (a reload would reset undo).
+- `docflow.lua` — thin wrapper shelling `$DOCFLOW_BIN` (ariadne's `docflow`):
+  `start`/`round --side`/`status`/`ship`. The review nvim no longer calls it;
+  it remains as a contract test surface for the commit shape the **agent**
+  produces (and as a future candidate for removal if no read use earns it).
+- `handoff.lua` — the ephemeral `review-handoff-<tag>.json` (in XDG data dir):
+  the agent writes it atomically; nvim **timer-polls** (not fs_event — macOS
+  FSEvents precedent in `init.lua`), decodes, unlinks, fires a callback. Data and
+  signal in one file. Also owns the reverse channel,
+  `review-landed-<tag>.json`: `{summary, body, applied, dropped}` for the agent
+  to commit verbatim after nvim applies a handoff.
+- `apply.snapshot`/`apply.apply_snapshot` (M2) — read/restore the decoration
+  state: ranged extmarks ({line,end_line}) + diagnostics, as two independent
+  layers (they decouple after riding) sharing a `clear()` helper with `place`.
+- `projection.lua` (M2) — decoration coherence across undo/redo (ported from
+  parley): per-buffer snapshots keyed by content hash; on undo/redo restore the
+  matching snapshot, on a novel state capture the riding decorations. The
+  `record_empty_for` guard keeps a prior round's styling when round-2's base is
+  round-1's output. No more clear-on-each-apply.
+- `poke_bodies.lua` — pure builders for the prose signals sent to the agent:
+  review target prep, handoff applied, human turn finished, and ship requested.
+- `readiness.lua` + `bin/pair-review-readiness` — pure/classified git readiness
+  for review-start: stop / track / resume / new / interact. The nvim proposes;
+  the agent acts. The shell seam emits JSON with `jq -n` so quoted branch/path
+  facts remain valid JSON.
+- `resolve.lua` — pure parley §5 accept/reject resolution for `🤖` marker chains;
+  `nvim/review.lua` binds it to the review pane (`\a`, `\r`, `]m`, `[m`).
+- `spinner.lua` — pure compact spinner/elapsed helper wired into the review pane
+  statusline while the pane is awaiting the agent.
+- `init.lua` — the orchestrator: `start` a review (`undofile` + handoff watch +
+  reconstruct-on-open); on each handoff `on_agent_round` = undo-able apply →
+  snapshot (projection record/watch) → save → write landed-artifact → poke the
+  agent to commit; `human_round` saves only. It calls no `docflow` writer.
+
+## The loop (round = two docflow commits)
+
+`:PairReview <file>` proposes a review target → the agent runs readiness prep
+(track/new/resume/interact) and marks the target ready → Alt+c opens the pane.
+Agent writes a records handoff → nvim watcher applies undo-ably, decorates, saves,
+writes the landed-artifact, and pokes `agent_applied` → the agent commits the
+agent round from that artifact. Human edits → Alt+Return saves and pokes
+`human_finished` with the selected posture plus any one-round instruction → the
+agent commits the human round and re-reviews using the standing `xx-fix` review
+rules. Finishing a human turn clears stale agent-applied highlights and diagnostics;
+the next agent handoff repaints current styling.
+Diagnostics always render because they carry the agent's rationale. Change
+highlights are only a direct-edit affordance: direct replacements highlight the
+exact inserted `new` span, marker-rendered proposals (`🤖<old>{new}`, `🤖{new}`,
+`🤖~old~`) do not get a redundant highlight, and empty direct deletions get no
+fake highlight. Generative modes should use direct replacements when marker noise
+would be too high, but deletion-only changes should remain visible as `🤖~old~`.
+`:PairReviewShip` pokes the agent to run `docflow ship`; the pane does not shell
+docflow. History lives in git (round commits + per-hunk explains in the agent commit
+body); fine-grained undo lives in nvim's `undofile`; no bespoke sidecar. The doc must
+be in a git repo.
+
+## The review window (M3)
+
+The document workbench in a live pair session — a **floating** nvim pane (the
+proven scrollback/changelog pattern), opened on a file, alongside pair's agent+draft.
+
+- `nvim/review.lua` — the pane init (`nvim -u nvim/review.lua <file>`): dofiles the
+  review core + poke + markers, `review.start{}`, wires **Alt+Return = finish human
+  turn** (`human_round` save + `human_finished` poke), renders 🤖 markers
+  (`markers.highlight_spans` → `ParleyReview*` extmarks, re-rendered on
+  TextChanged), supports accept/reject on the cursor line (`Alt+a`/`Alt+r`, with
+  `\a`/`\r` fallbacks); when `Alt+a` is pressed outside a marker but inside an
+  agent-applied highlight, it clears that highlight + matching diagnosis as an
+  acceptance gesture. It inserts human comment markers (`Alt+q` bare marker or visual
+  quote), exposes `:PairReviewShip` as an agent-owned ship request, plus marker
+  navigation (`]m`/`[m`), sets review-local clipboard/cursor defaults (`unnamedplus`,
+  blinking cursor), writes the open-state file (line 1 = pane nvim `pid` for
+  liveness, line 2 = the absolute doc path for the indicator), and tears down on
+  `VimLeave`. Also defines `PairReviewToggle()` = hide-self (the case where Alt+c
+  fires from inside the focused floating review pane). Pane-open no longer sends a
+  separate "review workbench open" poke; the prep and human-finished pokes carry the
+  workbench protocol context. The command line is hidden until `:` commands, and the
+  pane statusline is compact: idle shows `🪄 <Mode> • <file>[+] Lx/y`; after a send
+  it stays focused in the review pane and shows a 100ms braille spinner plus elapsed
+  time until the agent handoff lands.
+- `bin/pair-review-open <file>` — validates + spawns the **full-screen** floating pane
+  (`zellij run --floating --close-on-exit --name review --width 100% --height 100%`;
+  percentage dims, not `tput`, which measured the wrong pane), replacing any live
+  review (single pane).
+- `:PairReview <file>` (in draft `nvim/init.lua`, `complete=file`) — proposes the
+  review target. It writes `review-target-<tag>.json` with `status=proposed`,
+  runs `pair-review-readiness --prepare <file>` locally for deterministic
+  start-up work (track file / create or resume `review/<slug>` / mark target
+  `ready`), then sends the agent only a concise "review prepared; ack" message.
+  It does **not** open the pane; Alt+c opens it once ready.
+- **Alt+c** (`zellij/config.kdl`) — routed through the draft nvim like Alt+d
+  (`MoveFocus Down` → `<C-\><C-n>` → `:lua PairReviewToggle()`), **not** a spawned
+  shell pane. The draft's `PairReviewToggle()` (`nvim/init.lua`) branches on the
+  state-file liveness and review-target status: live review → flip visibility from
+  this *tiled* draft (`are-floating-panes-visible` → `show`/`hide-floating-panes`;
+  **never** `toggle-floating-panes`); no live review + ready target → open;
+  proposed target → "prep in progress"; no target → drop into `:PairReview `
+  (file-select). Pure decision `_pair_review_toggle_action(alive, visible, status)`.
+  Review-targets are scoped to the current conversation id so fresh sessions ignore
+  stale targets while resumed sessions keep their in-progress target. Resolution is
+  `PAIR_SESSION_ID` → `config-<tag>-<agent>.json` → live Codex rollout via
+  `agent-pid-<tag>`; Codex/agy learn ids asynchronously, so review target handling must
+  not rely on the launch-time env alone. `Alt+r` is deliberately free inside the review
+  pane for reject.
+- `nvim/pair_poke.lua` — id-based agent poke: relative `move-focus` does NOT escape a
+  floating pane, so it resolves the agent pane from `list-panes --json` and writes
+  directly with `write-chars --pane-id <agent>` + `write --pane-id <agent> 27 13`.
+  The review pane keeps focus while the agent receives the poke.
+- **review-mode bar** (`nvim/init.lua`, `do`-block; `_pair_review_bar` count source +
+  `_pair_review_segment` cached segment) — while a review is open, the draft's
+  **statusline** carries `-H < pos > +Q • 🪄 <Mode> • <file> •     🤖 A/H`: `H` is
+  prompt history count, `Q` is future queue count, `A` is agent/robot review rounds,
+  and `H` after the slash is human review rounds. `pair_compose_statusline` swaps the
+  cached segment in for the rightmost cheatsheet and right-aligns the review-round count,
+  so review mode is visible even when the pane is hidden. A 1.5s timer recomputes the segment (counts parsed from `git log` round
+  subjects, **branch-scoped** to the active `review/<slug>` so other docs' shipped reviews
+  don't leak in — `🤖 0/0` off a review branch / in M3 render-only; mode from
+  `$PAIR_DATA_DIR/review-<tag>.mode`, defaulting to Edit) and triggers a redraw
+  only on change; the hot render path never shells git. (This **supersedes** an earlier
+  line-1 `=== review … ===` indicator — line 1 is the user's to edit. New draft-side
+  review helpers live in `do`-blocks sharing `_G._pair_review` — init.lua is at Lua's
+  200-local chunk ceiling.) The cross-process `review-<tag>.open` path is centralized in
+  `nvim/review/seam.lua` (one fallback rule for writer + reader).
+- **send menu + waiting cue** (`nvim/review.lua`, `nvim/review/menu.lua`,
+  `nvim/review/spinner.lua`) — `Alt+Shift+Return` opens a Parley-shaped send menu
+  (mode selector plus a one-round optional instruction editor with focused cursor
+  affordances), then finishes the human turn with the selected mode/instruction.
+  `Alt+Return` keeps the current mode and sends directly. Send and ship pokes mark the
+  pane as awaiting the agent, displayed by the statusline spinner until the next
+  handoff clears it.
+- **docflow degradation** (`nvim/review/docflow.lua`) — missing `docflow` still has
+  a calm contract-test path, but the review pane no longer shells docflow at runtime.
+  Round commits are agent-side. See `workshop/targets/review-protocol.md` for the
+  full agent↔nvim state machine.
+
+The agent pane is pair's **existing** agent — ordinary chat still works; the SKILL
+that makes "please review" / "ship it" review-aware is the ariadne #000121 half of M4.
+
+## State
+
+M1 (contract + history spine), M2 (consumer-half port), M3 (review window + live
+smoke), M4a (nvim writes no git; fake-agent commits from landed artifacts), and
+M4a' pair-side review-start/resume are implemented and headless-tested. M4b adds
+pair-side accept/reject + marker navigation, fulfill-or-punt default Edit posture,
+and ship request. M4c adds pair-side mode display/menu and the awaiting-agent
+spinner. M4d starts workflow-detail tuning with one-round instruction menu polish,
+three-mode assistance semantics, minimal-marker Edit behavior, exact-span
+direct-change highlighting, and diagnostic-only marker proposals. Fact-check is
+not a mode; it is requested through the one-round instruction field or agent
+prompt and handled by the review agent's skill workflow.
+
+The real-agent half lives in ariadne #000121. Until that lands, pair proves the
+protocol with `tests/lib/fake-review-agent.sh`; the real live smoke remains the
+cross-repo proof that the persistent agent recognizes review mode and owns the
+docflow rounds.
+
+## Tests
+
+- `make test-lua` — `record`, `reconstruct`, `markers`, `seam`, `mode`, `poke_bodies`,
+  `readiness`, `resolve`, `spinner`, `menu` (pure/headless).
+- `make test-review` — `docflow` (+ hermetic `tests/lib/fake-docflow.sh` and a
+  gated smoke against the real ariadne `docflow.sh`), `apply` (incl. snapshot
+  round-trip), `handoff`, the `loop` e2e (with `tests/lib/fake-review-agent.sh`),
+  and `projection` (undo/redo coherence + riding + round-2 idempotence); M3 adds
+  `poke` (id-based agent poke, no relative move-focus), `window` (:PairReview +
+  pair-review-open + review.lua: keymap/state/markers + Alt+Return round-trip),
+  `toggle` (mode-aware branch, explicit show/hide, no toggle-floating-panes),
+  `review-readiness-cli` (quoted git facts stay valid JSON), `resume`, and the
+  agent-owns-git loop.
