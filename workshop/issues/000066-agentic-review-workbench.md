@@ -101,10 +101,18 @@ M4 (agent protocol) — **re-sliced structure-first** (2026-06-21): the whole lo
 - [x] M4a' — review-start & resume flow: `:PairReview` **proposes** → agent preps (pure readiness probe) → Alt+c opens when ready; reconstruct-on-open (resume repaint). Spec in `workshop/targets/review-protocol.md`; pair side built and headless-tested.
 - [x] M4b — **skeleton** (structure): 🤖[] fulfill/punt + **accept/reject** (parley §5) conversation + default editing posture + **ship** — completes the thin full cycle (open → propose → prep → review → converse → iterate → ship → resume). *Pair-side skeleton implemented: Alt+c collaboration toggle, Alt+a/Alt+r/Alt+q review shortcuts, Copy Edit fulfill-or-punt poke posture, and `:PairReviewShip` agent-owned ship request; first boundary review returned REWORK and fixes are now in this window.*
 - [x] M4c — **smokeable mode/send surface**: mode seam + draft/review `🪄 <Mode>` display + `Alt+Return` direct send + `Alt+Shift+Return` mode/instruction send menu + awaiting-agent spinner. *Live smoke passed on a from-scratch real review round.*
-- [ ] M4d — **workflow detail tuning**: iterate from real-use feedback on Generate/Edit/Proofread mode semantics, voice (`voice:` frontmatter), fact-check as an instruction-driven `xx-fix` workflow, pending-🤖{} quickfix, diagnostic-display polish, and `xx-fix`→`writing-assistant` rename.
+- [x] M4d — **workflow detail tuning**: iterate from real-use feedback on Generate/Edit/Proofread mode semantics, voice (`voice:` frontmatter), fact-check as an instruction-driven `xx-fix` workflow, pending-🤖{} quickfix, diagnostic-display polish, and skill naming. Rename remains deferred; the preferred user-facing name is likely `review`.
 
 ## Log
 
+- 2026-06-22: **M4d live-workflow acceptance passed.** Operator used the WIP workbench
+  for a real revision of the binary-skill blog post and posted the article. The
+  detail-tuning slice now includes Generate/Edit/Proofread mode semantics, local
+  deterministic review prep, simplified human-finished pokes, marker-aware minimal
+  display shrink, review-pane color/cursor/statusline polish, paragraph-prefix
+  accept/reject shortcuts, and shared mode persistence across draft/review statuslines.
+  Skill rename is intentionally deferred after naming discussion; `review` is the
+  likely user-facing successor to `xx-fix`.
 - 2026-06-22: **M4d detail tuning started with Copy Edit semantics.** Tightened the
   `Alt+Shift+Return` instruction field as a one-round instruction surface with visible
   focused cursor affordances; updated Copy Edit protocol/briefs so hosted agents propose
