@@ -912,6 +912,39 @@ in_zellij_pane() {
     done
     return 1
 }
+
+# Agent inference for `pair resume <tag>`: look up what was paired with
+# this tag last time. agent-<tag> covers live (or recently detached)
+# sessions — written at create-flow start, cleared on Alt+x.
+# config-<tag>-<agent>.json (issue #000016) covers the case where the
+# session was Alt+x'd: that file persists across quit and the filename
+# encodes the agent. Either source is authoritative.
+if [ -n "$forced_tag" ] && [ -z "$AGENT" ]; then
+    if [ -f "$DATA_DIR/agent-${forced_tag}" ]; then
+        AGENT=$(cat "$DATA_DIR/agent-${forced_tag}")
+    else
+        for cfg in "$DATA_DIR"/config-"${forced_tag}"-*.json; do
+            [ -f "$cfg" ] || continue
+            inferred=$(jq -r '.agent // empty' "$cfg" 2>/dev/null)
+            if [ -n "$inferred" ]; then
+                AGENT="$inferred"
+                break
+            fi
+        done
+    fi
+fi
+[ -z "$AGENT" ] && AGENT="claude"
+
+# Debug probe (sibling of PAIR_DEBUG_HISTORY): once argv is fully resolved —
+# agent / forced_tag / forwarded args / continuation doc — dump them and exit
+# before any session work, so tests/pair-continue-test.sh can assert the
+# arg-parsing contract against the REAL script without spawning zellij.
+if [ "${PAIR_DEBUG_ARGS:-0}" = "1" ]; then
+    printf 'AGENT=%s\nFORCED_TAG=%s\nAGENT_EXTRA=%s\nCONTINUE_DOC=%s\n' \
+        "$AGENT" "$forced_tag" "$agent_extra" "${CONTINUE_DOC:-}"
+    exit 0
+fi
+
 # In-session compaction (#55): `pair continue <slug>` run from INSIDE its own
 # live pane must NOT fresh-start (the in_zellij_pane guard below would reject
 # it; --session would nest). Instead: park the scrollback (copy — pair-wrap is
@@ -1052,38 +1085,6 @@ sweep_orphan_nvim() {
         fi
     done
 }
-
-# Agent inference for `pair resume <tag>`: look up what was paired with
-# this tag last time. agent-<tag> covers live (or recently detached)
-# sessions — written at create-flow start, cleared on Alt+x.
-# config-<tag>-<agent>.json (issue #000016) covers the case where the
-# session was Alt+x'd: that file persists across quit and the filename
-# encodes the agent. Either source is authoritative.
-if [ -n "$forced_tag" ] && [ -z "$AGENT" ]; then
-    if [ -f "$DATA_DIR/agent-${forced_tag}" ]; then
-        AGENT=$(cat "$DATA_DIR/agent-${forced_tag}")
-    else
-        for cfg in "$DATA_DIR"/config-"${forced_tag}"-*.json; do
-            [ -f "$cfg" ] || continue
-            inferred=$(jq -r '.agent // empty' "$cfg" 2>/dev/null)
-            if [ -n "$inferred" ]; then
-                AGENT="$inferred"
-                break
-            fi
-        done
-    fi
-fi
-[ -z "$AGENT" ] && AGENT="claude"
-
-# Debug probe (sibling of PAIR_DEBUG_HISTORY): once argv is fully resolved —
-# agent / forced_tag / forwarded args / continuation doc — dump them and exit
-# before any session work, so tests/pair-continue-test.sh can assert the
-# arg-parsing contract against the REAL script without spawning zellij.
-if [ "${PAIR_DEBUG_ARGS:-0}" = "1" ]; then
-    printf 'AGENT=%s\nFORCED_TAG=%s\nAGENT_EXTRA=%s\nCONTINUE_DOC=%s\n' \
-        "$AGENT" "$forced_tag" "$agent_extra" "${CONTINUE_DOC:-}"
-    exit 0
-fi
 
 # PAIR_AGENT is the command to exec in the agent pane on create.
 # PAIR_AGENT_ARGS is appended on the agent pane's command line at create.

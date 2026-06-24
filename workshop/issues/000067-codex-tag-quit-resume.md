@@ -109,3 +109,12 @@ total: 1.8
   (`PAIR_SESSION_ID`/`PAIR_TAG` leak into `pair-review-target-test` +
   `changelog-open-test`); both PASS under `env -u PAIR_SESSION_ID -u PAIR_TAG`
   and reproduce identically on the pre-change `bin/pair`, so not regressions.
+- Re-verified after resuming in a live Codex pane: `tests/pair-continue-test.sh`
+  initially failed because its `PAIR_DEBUG_ARGS` probe sat below the zellij
+  ancestry guard and exited before printing debug fields when the test itself
+  ran inside zellij. Moved the existing debug probe (and the agent inference it
+  depends on) above the in-session guards; production launch behavior is
+  unchanged, but the test seam now works from a live pair pane. Verification:
+  `bash -n bin/pair bin/pair-session-watch.sh bin/pair-quit.sh` PASS;
+  `bash tests/pair-continue-test.sh` PASS; `env -u PAIR_SESSION_ID -u PAIR_TAG
+  make test` PASS.
