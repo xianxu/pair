@@ -447,3 +447,19 @@ via a `_G.<table>` (e.g. `_G._pair_review = { … }`), not file-level locals. Wh
 headless probe reports a function as `nil` despite being defined, suspect a
 mid-chunk sourcing error first — run `nvim -u nvim/init.lua -c 'lua …' 2>&1` and
 grep for `E5112`/`E5108`, don't assume the definition is wrong.
+
+## Test-only debug probes must sit before the guards they are meant to bypass
+
+`tests/pair-continue-test.sh` uses `PAIR_DEBUG_ARGS=1` to ask the real
+`bin/pair` parser what it resolved (`AGENT`, `FORCED_TAG`, forwarded args,
+continuation doc) without launching zellij. That probe lived below the
+in-session ancestry guard. When the test was run from inside a real pair/Codex
+pane, `in_zellij_pane` returned true and `bin/pair` exited with "already running
+inside a zellij session" before printing any debug fields. The parser was fine;
+the seam was below the guard it needed to avoid.
+
+**Rule.** A test-only probe that promises "parse and exit before side effects"
+must be placed immediately after the state it reports is resolved, and before
+environment/process guards, launch checks, cleanup sweeps, or IO side effects.
+For live-session-sensitive tools, verify the seam from inside the real host
+environment too — ancestry checks can fail even after env vars are scrubbed.
