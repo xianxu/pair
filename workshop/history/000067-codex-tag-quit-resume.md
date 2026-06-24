@@ -7,7 +7,7 @@ created: 2026-06-22
 updated: 2026-06-23
 estimate_hours: 1.8
 started: 2026-06-23T00:13:50-07:00
-actual_hours: 0.72
+actual_hours: 0.81
 ---
 
 # Fix Codex pair tag quit and resume
@@ -78,6 +78,25 @@ total: 1.8
 ### 2026-06-22
 
 ### 2026-06-23
+- 2026-06-23: closed — Reverified local red state, restored #67 bin/pair helpers and early inference/debug placement, then passed bash -n bin/pair bin/pair-session-watch.sh bin/pair-quit.sh; bash tests/pair-continue-test.sh; bash tests/pair-rename.sh; env -u PAIR_SESSION_ID -u PAIR_TAG make test. No atlas update: restored existing #67 architecture only.; review verdict: FIX-THEN-SHIP
+- 2026-06-24: reopened — local `main` was left at commit `6aedcf1`, which
+  reverted #67's `bin/pair` implementation while keeping the #67 tests. Fresh
+  verification with `bash tests/pair-continue-test.sh` failed 11 cases,
+  including the stale EXITED cleanup, legacy Codex config migration, and
+  continue/debug probe placement cases.
+- 2026-06-24: restored the missing #67 `bin/pair` implementation on local
+  `main`: `session_blocks_reuse` now deletes stale EXITED resurrect rows before
+  tag-reuse decisions, `resolve_config_file` migrates verified legacy Codex
+  configs, and forced-tag agent inference / `PAIR_DEBUG_ARGS` run before the
+  early zellij guards. Verification: `bash -n bin/pair bin/pair-session-watch.sh
+  bin/pair-quit.sh`; `bash tests/pair-continue-test.sh` (PASS after the earlier
+  11-failure red run); `bash tests/pair-rename.sh` (57 passed, 0 failed);
+  `env -u PAIR_SESSION_ID -u PAIR_TAG make test` (PASS).
+- 2026-06-24: boundary review returned `FIX-THEN-SHIP`: logic is sound, but the
+  close commit must include the restored `bin/pair` implementation and the plan
+  should acknowledge the early forced-tag agent-inference / `PAIR_DEBUG_ARGS`
+  relocation. Added the plan revision; staging will include `bin/pair`.
+
 - 2026-06-23: closed — session_blocks_reuse deletes stale EXITED resurrect rows so a fully-quit pair tag is reusable (running/detached still block); resolve_config_file migrates legacy config-<tag>-codex-codex.json -> canonical so Codex native resume surfaces in the picker. pair-continue-test (6 new cases) + pair-rename pass; full make test rc=0 in scrubbed env (PAIR_SESSION_ID/PAIR_TAG leak causes 2 false fails inside a live pair session).; review verdict: SHIP
 
 - Root cause trace: zellij still lists `pair-2` as EXITED, while Pair skips

@@ -128,3 +128,16 @@
 
 - [x] **Step 4: Update issue plan/log**
   Tick completed issue plan items and record verification commands.
+
+## Revisions
+
+### 2026-06-24 — Reopen repair clarified early inference/debug placement
+
+Reason: The local `main` repair restored the missing #67 helpers after a later
+repro commit reverted them, but it also kept the already-reviewed refinement that
+moves forced-tag agent inference and `PAIR_DEBUG_ARGS` before the early zellij /
+in-session guards.
+
+Delta: Treat the relocation as intentional rather than byte-for-byte restoration.
+The rationale is that debug probes and early continue handling should see the
+same resolved agent state as the real create path before any guard can exit.
