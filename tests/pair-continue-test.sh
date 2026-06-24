@@ -178,6 +178,101 @@ CAP="$CRT/reexec.txt"
 grep -Eq 'continue demo claude -- .*--dangerously-skip-permissions' "$CAP" 2>/dev/null \
   && pass "restart: re-exec = continue <slug> <agent> -- <args>" || fail "restart: wrong re-exec ($(cat "$CAP" 2>/dev/null))"
 
+# ---------------------------------------------------------------------------
+# #67 stale zellij EXITED cleanup + legacy Codex config migration. Drives the
+# REAL bin/pair helper seams through PAIR_TEST_CALL with process-level fakes.
+# ---------------------------------------------------------------------------
+HRT="$(mktemp -d "${TMPDIR:-/tmp}/pair-helper-test.XXXXXX")"
+trap 'rm -rf "$RT" "$CRT" "$HRT"' EXIT
+mkdir -p "$HRT/bin" "$HRT/xdg/pair" "$HRT/.cache/pair"
+cat > "$HRT/bin/zellij" <<'STUB'
+#!/usr/bin/env bash
+state="${ZJ_STATE:?}"
+log="${ZJ_LOG:?}"
+case "$1" in
+  list-sessions)
+    case "$2" in
+      --no-formatting) cat "$state" ;;
+      --short) awk '{print $1}' "$state" ;;
+      *) cat "$state" ;;
+    esac
+    ;;
+  delete-session)
+    printf 'delete-session %s %s\n' "${2:-}" "${3:-}" >> "$log"
+    awk -v s="$2" '$1 != s' "$state" > "$state.tmp" && mv "$state.tmp" "$state"
+    ;;
+  *) exit 0 ;;
+esac
+STUB
+chmod +x "$HRT/bin/zellij"
+helper_env() {
+  env HOME="$HRT" XDG_DATA_HOME="$HRT/xdg" PATH="$HRT/bin:$PATH" \
+      ZJ_STATE="$HRT/zellij-sessions" ZJ_LOG="$HRT/zellij.log" "$@"
+}
+
+printf 'pair-demo [Created 1day ago] (EXITED - attach to resurrect)\n' > "$HRT/zellij-sessions"
+: > "$HRT/zellij.log"
+if ( cd "$HRT" && helper_env PAIR_TEST_CALL=session_blocks_reuse PAIR_TEST_ARGS="pair-demo" "$PAIR" >/dev/null 2>&1 ); then
+  fail "session_blocks_reuse: EXITED row should not block reuse"
+else
+  grep -q '^delete-session pair-demo --force$' "$HRT/zellij.log" \
+    && ! grep -q '^pair-demo ' "$HRT/zellij-sessions" \
+    && pass "session_blocks_reuse: deletes EXITED row and reports reusable" \
+    || fail "session_blocks_reuse: EXITED cleanup did not delete row"
+fi
+
+printf 'pair-demo [Created 1day ago]\n' > "$HRT/zellij-sessions"
+: > "$HRT/zellij.log"
+if ( cd "$HRT" && helper_env PAIR_TEST_CALL=session_blocks_reuse PAIR_TEST_ARGS="pair-demo" "$PAIR" >/dev/null 2>&1 ); then
+  [ ! -s "$HRT/zellij.log" ] \
+    && pass "session_blocks_reuse: running row still blocks" \
+    || fail "session_blocks_reuse: running row should not delete"
+else
+  fail "session_blocks_reuse: running row should return occupied"
+fi
+
+printf 'pair-demo [Created 1day ago] (DETACHED)\n' > "$HRT/zellij-sessions"
+: > "$HRT/zellij.log"
+if ( cd "$HRT" && helper_env PAIR_TEST_CALL=session_blocks_reuse PAIR_TEST_ARGS="pair-demo" "$PAIR" >/dev/null 2>&1 ); then
+  [ ! -s "$HRT/zellij.log" ] \
+    && pass "session_blocks_reuse: detached row still blocks" \
+    || fail "session_blocks_reuse: detached row should not delete"
+else
+  fail "session_blocks_reuse: detached row should return occupied"
+fi
+
+CFGDIR="$HRT/xdg/pair"
+printf '{"agent":"codex","args":["--sandbox"],"session_id":"legacy"}\n' > "$CFGDIR/config-demo-codex-codex.json"
+if out="$( cd "$HRT" && helper_env PAIR_TEST_CALL=resolve_config_file PAIR_TEST_ARGS="demo codex" "$PAIR" 2>/dev/null )" \
+   && [ "$out" = "$CFGDIR/config-demo-codex.json" ] \
+   && [ -f "$CFGDIR/config-demo-codex.json" ] \
+   && [ ! -f "$CFGDIR/config-demo-codex-codex.json" ]; then
+  pass "resolve_config_file: migrates legacy Codex config"
+else
+  fail "resolve_config_file: did not migrate legacy Codex config (out=$out)"
+fi
+
+printf '{"agent":"not-codex","args":[],"session_id":"bad"}\n' > "$CFGDIR/config-bad-codex-codex.json"
+if out="$( cd "$HRT" && helper_env PAIR_TEST_CALL=resolve_config_file PAIR_TEST_ARGS="bad codex" "$PAIR" 2>/dev/null )" \
+   && [ "$out" = "$CFGDIR/config-bad-codex.json" ] \
+   && [ ! -f "$CFGDIR/config-bad-codex.json" ] \
+   && [ -f "$CFGDIR/config-bad-codex-codex.json" ]; then
+  pass "resolve_config_file: ignores legacy file with wrong agent"
+else
+  fail "resolve_config_file: wrong-agent legacy file should not migrate (out=$out)"
+fi
+
+printf '{"agent":"codex","args":[],"session_id":"canonical"}\n' > "$CFGDIR/config-keep-codex.json"
+printf '{"agent":"codex","args":[],"session_id":"legacy"}\n' > "$CFGDIR/config-keep-codex-codex.json"
+if out="$( cd "$HRT" && helper_env PAIR_TEST_CALL=resolve_config_file PAIR_TEST_ARGS="keep codex" "$PAIR" 2>/dev/null )" \
+   && [ "$out" = "$CFGDIR/config-keep-codex.json" ] \
+   && grep -q canonical "$CFGDIR/config-keep-codex.json" \
+   && [ -f "$CFGDIR/config-keep-codex-codex.json" ]; then
+  pass "resolve_config_file: canonical config wins"
+else
+  fail "resolve_config_file: canonical config should win (out=$out)"
+fi
+
 if [ "$fails" -eq 0 ]; then
   printf 'PASS pair-continue-test\n'
 else
