@@ -111,3 +111,50 @@ focused-headless-tests design=0.1 impl=0.4
   honor 2026 / coalesce frames instead of stripping; still dies → throttle codex
   stdout rate). Default off preserves #30. Verified with
   `go test ./cmd/pair-wrap -run TestStdoutChunk -count=1` and `go test ./cmd/pair-wrap -count=1`.
+
+#### Deep-dive bisection (2026-06-23 PM) — supersedes the "#30 strip unmasks a fatal un-batched repaint" root-cause above (that hypothesis is **REFUTED**)
+
+Walked the zellij source (cloned at `../zellij`, v0.44.1+36 ≈ installed 0.44.3) plus the
+server log (`/var/folders/.../zellij-501/zellij-log/zellij.log`).
+
+- **Real mechanism (confirmed from source + log).** `route.rs:2645` fires when
+  `recv_client_msg` (`ipc.rs:364`) returns `None` 1000× in a row. `None` = `read_exact`
+  `Err` on a **broken client socket**, spun in a tight loop (the counter resets on any
+  valid message, `route.rs:2160`). So the guard is the server **spin-detecting an
+  already-dead client connection** — a *symptom*, not the cause. The client exits
+  **cleanly** (`lib.rs:1266` "Bye from Zellij!", **no client panic**). The
+  `pty.rs:1352 .fatal()` panic (pty-reader's send to the screen thread failed) is
+  **incidental collateral** — present in crashes 67-1/2, **absent** in 67-4/5.
+- **Channel map.** pane PTY (raw bytes) → in-proc MPSC `ScreenInstruction::PtyBytes` →
+  screen thread (VTE→grid→render) → **framed length-prefixed protobuf over a unix socket**
+  (`ServerToClientMsg::Render`) → client → terminal. Byte framing is reconstructed
+  (length-prefix + `read_exact`), so split writes / sync-block splitting are **not** the issue.
+- **Eliminated, each with evidence:** DEC 2026 strip (#30) **and** `PAIR_CODEX_SYNC_PASSTHROUGH`
+  passthrough both crash → marker handling irrelevant; `PAIR_CODEX_ALT_SCREEN=1` crashed and
+  codex never even emits `1049h`; **pure rate** — synthetic generator
+  (`scratchpad/zellij-storm.py`) at 41 *and* 80 fps with a fast-draining headless client
+  **survived** (only a SIGKILL teardown faked the guard — a harness artifact I initially
+  misread); **codex content** — `--debug` raw byte capture (`zellij-<id>.log`) shows terminal
+  queries only at startup, an ordinary inline repaint storm, one 64KB divider mid-stream, no
+  killer sequence; client-stdout-panic theory — no panic logged, client exits clean.
+- **pair-wrap EXONERATED.** Execed codex directly into the pane (temporary `PAIR_NO_WRAP`
+  layout gate, since reverted) — **still crashed**. Verified the bypass actually took effect
+  via the frozen `wrap-events-<tag>.jsonl` mtime (pair-wrap `O_TRUNC`s it at startup; it stayed
+  at the prior wrapped run's time while the bypass run touched the draft + crashed). [The
+  scrollback-file-absence signal I used first was unreliable — those get cleaned on quit.]
+- **Bisection points at the nvim draft pane.** codex alone (1 pane, stock config) → survived;
+  codex + **idle `sleep`** 2nd pane (pair config, `2 tiled`) → survived ~16.5 min; codex +
+  **nvim** draft (pair's real two-pane layout) → **crashes**. So it is **not** the config
+  (`scroll_buffer_size 2000` / `pane_frames`) and **not** the split/geometry — it is **nvim
+  specifically** in the second pane (working hypothesis: a second active render source racing
+  codex's ~41 Hz repaint through the screen→client pipeline, killing the client connection).
+- **CAVEAT (gates the conclusion):** the two "survived" runs assume codex was *actively
+  churning*; that storm was not independently verified. Re-run single-pane and 2-pane-idle with
+  a confirmed ~1 min+ storm before fully trusting the nvim conclusion.
+- **Next:** (1) confirm the storm in the survived runs; (2) `--debug` capture on the real
+  two-pane layout to see what the nvim pane emits during a codex storm, and test whether a
+  minimal / stub periodically-repainting 2nd pane reproduces — pinning nvim's render cadence vs.
+  a specific sequence.
+- Repro: `pair-dev codex -- --sandbox danger-full-access`, drive codex into sustained work
+  (e.g. closing #67); crash signature = `zellij_client lib.rs:1266 "Bye"` + `route.rs:2645`
+  guard in the server log, ~50s–2min after start (faster, ~10s, unwrapped).
