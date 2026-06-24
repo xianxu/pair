@@ -1,7 +1,7 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
-.PHONY: build install pair-scribe pair-scrollback-render pair-wrap pair-slug pair-changelog test test-race test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-continue test-changelog test-copy-on-select
+.PHONY: build install pair-scribe pair-scrollback-render pair-wrap pair-slug pair-changelog test test-race test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-continue test-changelog test-copy-on-select test-cmux-title test-cmux-ownership
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
 # and ships with the `pair-` prefix so it doesn't collide with anything
@@ -55,8 +55,20 @@ pair-changelog:         $(BIN_DIR)/pair-changelog
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
-test: test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-continue test-changelog test-copy-on-select test-review
+test: test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-continue test-changelog test-copy-on-select test-cmux-title test-cmux-ownership test-review
 	go test ./... -count=1
+
+# Single-instance guard for the cmux activity-title poller (identity-checked
+# liveness so a recycled PID can't suppress the respawn). See
+# tests/cmux-title-poller-test.sh.
+test-cmux-title:
+	bash tests/cmux-title-poller-test.sh
+
+# cmux workspace ownership claim (presence beats a stale owner flag), so a
+# launch/attach/restart reclaims its workspace title. See
+# tests/cmux-ownership-test.sh.
+test-cmux-ownership:
+	bash tests/cmux-ownership-test.sh
 
 # Review workbench (#66): the integration shell tests. The pure modules
 # (record, reconstruct) run under `make test-lua`.

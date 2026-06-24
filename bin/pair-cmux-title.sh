@@ -38,6 +38,36 @@ TAG="${1:-}"
 AGENT="${2:-}"
 [ -z "$TAG" ] || [ -z "$AGENT" ] && exit 0
 
+# True iff $1 is a live pair-cmux-title.sh poller for THIS tag. A bare
+# `kill -0` is not enough for the single-instance guard: after a host
+# sleep/reboot the kernel can recycle a dead poller's PID onto an
+# unrelated process, and a naive liveness check would then read that
+# stranger as "poller still alive" and suppress the respawn — freezing
+# the workspace title even across a pair restart. Confirm the command
+# line really is our poller for this tag. The trailing space keeps tag
+# "21" from matching "211"; the agent arg always follows the tag.
+# Mirrors bin/pair's existing `ps -p <pid> -o command=` identity probe.
+poller_alive() {
+    local pid="$1" argv
+    [ -n "$pid" ] || return 1
+    kill -0 "$pid" 2>/dev/null || return 1
+    argv=$(ps -p "$pid" -o command= 2>/dev/null || true)
+    case "$argv" in
+        *"pair-cmux-title.sh $TAG "*) return 0 ;;
+    esac
+    return 1
+}
+
+# Test hook (mirrors bin/pair's PAIR_TEST_CALL): invoke a single helper
+# against the trailing args, then exit — so the harness can unit-test
+# poller_alive without a live cmux/zellij. Never set in normal use.
+if [ -n "${PAIR_CMUX_TITLE_TEST_CALL:-}" ]; then
+    _fn="$PAIR_CMUX_TITLE_TEST_CALL"
+    shift 2 2>/dev/null || true
+    "$_fn" "$@"
+    exit $?
+fi
+
 # Outside cmux: nothing to do.
 [ -n "${CMUX_WORKSPACE_ID:-}" ] || exit 0
 command -v cmux >/dev/null 2>&1 || exit 0
@@ -74,10 +104,14 @@ PREFIX_COOL=$'\xf0\x9f\x94\xb5'     # 🔵 < 21 days
 # branch below.
 trap '' HUP
 
-# Single-instance: bail if a prior poller for this tag is still alive.
+# Single-instance: bail only if a prior poller for this tag is genuinely
+# still running. poller_alive() is identity-checked (not a bare kill -0),
+# so a recycled PID left by a dead poller can't wedge the respawn — the
+# next pair create/attach/restart reliably revives a poller that a host
+# sleep/reboot killed.
 if [ -f "$PIDFILE" ]; then
     old_pid=$(cat "$PIDFILE" 2>/dev/null || true)
-    if [ -n "$old_pid" ] && kill -0 "$old_pid" 2>/dev/null; then
+    if poller_alive "$old_pid"; then
         exit 0
     fi
 fi
