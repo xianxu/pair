@@ -1,6 +1,6 @@
 ---
 id: 000070
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-25
@@ -36,6 +36,7 @@ the pidfile written for the current launch, not stale state.
 ## Log
 
 ### 2026-06-25
+- 2026-06-25: closed — Fixed stale pidfile race in Codex session watcher. Verified bash -n bin/pair bin/pair-session-watch.sh tests/pair-session-watch-test.sh; make test-session-watch; git diff --check. Full env -u PAIR_SESSION_ID -u PAIR_TAG make test reached review-apply-test and failed with empty result file after headless nvim exited 0, outside the session-watch path. --no-actual because sdlc actual reported no measurable activity for this short same-turn issue.; review verdict: FIX-THEN-SHIP
 - Live evidence: `CODEX_THREAD_ID=019eff64-6ceb-7e72-9d41-a735a97029ac`, but
   `PAIR_SESSION_ID` is empty and `config-211-codex.json` is absent.
 - The matching Codex rollout exists at
@@ -56,3 +57,5 @@ the pidfile written for the current launch, not stale state.
   session-watch path and was not introduced by the touched files.
 - Repaired the live tag `211` config manually with session id
   `019eff64-6ceb-7e72-9d41-a735a97029ac`, so Alt+x has the current value now.
+- Boundary review follow-up: updated `atlas/architecture.md` to describe the
+  pidfile mtime freshness gate and `PAIR_SESSION_WATCH_PID_WAIT_SECONDS`.
