@@ -73,19 +73,27 @@ case "$agent" in
 esac
 mkdir -p "$watch_dir"
 
-# Wait up to 2s for pair-wrap to publish the agent PID. The wrapper
-# writes it synchronously after pty.Start so it's normally instant; if
-# it never appears (older pair-wrap binary that doesn't know about the
-# pidfile), drop to the legacy snapshot-diff path so codex/agy
-# capture keeps working until the user rebuilds pair-wrap.
-pid_deadline=$(( $(date +%s) + 2 ))
-while [ ! -s "$pid_file" ] && [ "$(date +%s)" -lt "$pid_deadline" ]; do
+# Wait briefly for pair-wrap to publish this launch's agent PID. A pidfile from
+# a prior run can survive until pair-wrap overwrites it; binding to that stale
+# PID makes the watcher exit before the current agent starts.
+watch_start=$(date +%s)
+pid_wait_seconds="${PAIR_SESSION_WATCH_PID_WAIT_SECONDS:-2}"
+case "$pid_wait_seconds" in
+    ''|*[!0-9]*) pid_wait_seconds=2 ;;
+esac
+pid_deadline=$(( watch_start + pid_wait_seconds ))
+pid_fresh() {
+    [ -s "$pid_file" ] || return 1
+    mt=$(stat -f %m "$pid_file" 2>/dev/null || echo 0)
+    [ "$mt" -ge "$watch_start" ]
+}
+while ! pid_fresh && [ "$(date +%s)" -lt "$pid_deadline" ]; do
     sleep 0.1
 done
 
 root_pid=""
 agent_start=0
-if [ -s "$pid_file" ]; then
+if pid_fresh; then
     root_pid=$(cat "$pid_file" 2>/dev/null)
     # pair-wrap writes the pidfile right after pty.Start, so its mtime
     # is a tight upper bound on the agent's start epoch. Used as a
