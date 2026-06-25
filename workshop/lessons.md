@@ -463,3 +463,18 @@ must be placed immediately after the state it reports is resolved, and before
 environment/process guards, launch checks, cleanup sweeps, or IO side effects.
 For live-session-sensitive tools, verify the seam from inside the real host
 environment too — ancestry checks can fail even after env vars are scrubbed.
+
+## Atlas gates apply to invisible workflow semantics too
+
+#70 fixed a race in Codex session-id capture by changing the meaning of
+`agent-pid-<tag>` consumption: the watcher no longer accepts any non-empty
+pidfile, it waits for one whose mtime is fresh for the current launch. The code
+and test were right, but the first close used `--no-atlas` because the change
+felt like a narrow bugfix. Boundary review caught that `atlas/architecture.md`
+still described the old fallback trigger and omitted the new freshness rule.
+
+**Rule.** When a bugfix changes a persisted file's semantics, a process
+boundary, or a recovery/fallback contract, check `atlas/` even if no public UI
+changed. A "small" watcher/launcher fix can still alter the architecture map's
+truth. If you pass `--no-atlas`, verify the atlas does not already document the
+surface you changed; otherwise update the existing entry before close.
