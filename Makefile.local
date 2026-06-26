@@ -26,7 +26,7 @@
 
 BIN_DIR     := bin
 INSTALL_DIR := $(HOME)/.local/bin
-GO_BINS     := pair-scribe pair-scrollback-render pair-wrap pair-slug pair-continuation pair-changelog
+GO_BINS     := pair-scribe pair-scrollback-render pair-wrap pair-slug pair-continuation pair-changelog pair-context
 
 build: $(addprefix $(BIN_DIR)/,$(GO_BINS))
 
@@ -44,6 +44,7 @@ pair-wrap:              $(BIN_DIR)/pair-wrap
 pair-slug:              $(BIN_DIR)/pair-slug
 pair-continuation:      $(BIN_DIR)/pair-continuation
 pair-changelog:         $(BIN_DIR)/pair-changelog
+pair-context:           $(BIN_DIR)/pair-context
 
 # Tests
 #   make test       → go test ./... (cache disabled so reruns actually run)
@@ -217,8 +218,13 @@ $(BIN_DIR)/pair-scrollback-render: cmd/pair-scrollback-render/main.go go.mod
 $(BIN_DIR)/pair-wrap: cmd/pair-wrap/main.go go.mod
 	go build -o $@ ./cmd/pair-wrap
 
-$(BIN_DIR)/pair-slug: cmd/pair-slug/main.go cmd/pair-slug/slug.go cmd/internal/model/model.go go.mod
+$(BIN_DIR)/pair-slug: cmd/pair-slug/main.go cmd/pair-slug/slug.go cmd/internal/model/model.go cmd/internal/transcript/transcript.go go.mod
 	go build -o $@ ./cmd/pair-slug
+
+# pair-context — one-shot: print a pane's current context size (token count)
+# for the pair-title poller. Pure ctxmeter reader + shared transcript resolver.
+$(BIN_DIR)/pair-context: cmd/pair-context/main.go cmd/internal/ctxmeter/ctxmeter.go cmd/internal/transcript/transcript.go go.mod
+	go build -o $@ ./cmd/pair-context
 
 # pair-changelog — distills the pair TTY into the Alt+l change log (#53);
 # shares cmd/internal/model with pair-slug.
