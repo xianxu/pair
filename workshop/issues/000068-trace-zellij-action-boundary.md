@@ -1,12 +1,13 @@
 ---
 id: 000068
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-23
-updated: 2026-06-23
+updated: 2026-06-26
 estimate_hours: 1.5
 started: 2026-06-23T09:31:06-07:00
+actual_hours: 0.23
 ---
 
 # Trace zellij action boundary
@@ -71,6 +72,7 @@ focused-headless-tests design=0.1 impl=0.4
 
 ## Log
 
+- 2026-06-26: closed — Tracing work complete: zellij-actions and wrap-events JSONL instrumentation landed on main; issue plan is 5/5 ticked; live log audit confirmed pair-wrap capture continues and the remaining percentage-layout experiment is split to #82. Boundary review was skipped because the stale #68 commit window pulled in unrelated later main work and the judge hung on the oversized range.; review verdict: not-run
 ### 2026-06-23
 
 - Created as follow-up to #67 after log audit showed zellij disconnecting the
