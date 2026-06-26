@@ -3344,13 +3344,13 @@ end
 vim.api.nvim_create_user_command('PairTTYRawPath', function() _G.PairTTYRawPath() end, {})
 
 -- ---------------------------------------------------------------------------
--- Layout sizing: minimized (statusline only) ↔ small (12 rows, initial) ↔ third (1/3).
+-- Layout sizing: minimized (~5%) ↔ small (~24%, initial) ↔ third (33%).
 -- ---------------------------------------------------------------------------
 -- Two keys drive this: Alt+Up (PairLayoutBigger) and Alt+Down
 -- (PairLayoutSmaller) step along the ladder, clamped at the ends.
 --
--- Sizing is exact — zellij/layouts/main.kdl declares each rung as a
--- swap_tiled_layout with the desired draft-pane size. We step along the
+-- Sizing is percentage-based — zellij/layouts/main.kdl declares each rung as a
+-- swap_tiled_layout with the desired draft-pane share. We step along the
 -- ladder via `zellij action next-swap-layout` / `previous-swap-layout`,
 -- which re-tiles the existing agent + nvim panes onto the target swap
 -- layout. One IPC call per step, panes are preserved.
@@ -3366,8 +3366,8 @@ local LAYOUT_STATE_FILE = (vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/sh
   .. '/pair/layout-mode-' .. (vim.env.PAIR_TAG or vim.env.PAIR_AGENT or 'claude')
 
 -- Read the current rung from nvim's own pane height. The kdl pins each
--- rung to an exact size (1 / 12 / 33%), so vim.o.lines is a ground-truth
--- signal that can't drift from zellij's actual swap-layout position. We
+-- rung to a distinct percentage (5 / 24 / 33%), so vim.o.lines is a
+-- ground-truth signal that can't drift from zellij's actual swap-layout position. We
 -- previously tracked rung in a disk file and updated it after each step,
 -- which permanently desynced if any single `zellij action <swap>` was
 -- silently rejected — the clamp in PairLayoutBigger/Smaller would then
@@ -3375,8 +3375,8 @@ local LAYOUT_STATE_FILE = (vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/sh
 -- means each press recomputes from reality and is self-correcting.
 local function layout_read()
   local h = vim.o.lines
-  if h <= 2 then return 'minimized' end
-  if h <= 12 then return 'small' end
+  if h <= 4 then return 'minimized' end
+  if h <= 14 then return 'small' end
   return 'third'
 end
 
@@ -3432,7 +3432,7 @@ local function layout_goto(target)
     end
     return
   end
-  -- Shrinking to minimized takes nvim to a single row, which can't hold the
+  -- Shrinking to minimized takes nvim to a tiny pane, which can't hold the
   -- pinned-header winbar. Clear it now, before the zellij resize lands, so the
   -- resize never tries to render a winbar that doesn't fit (E36 → `-- More --`
   -- prompt that eats the next keystroke). pair_pin_header re-adds it on the
@@ -3450,7 +3450,7 @@ local function layout_goto(target)
   -- this explicit refresh the statusline reads the previous state and
   -- the minimized hint sticks around when leaving minimized.
   refresh_statusline()
-  -- Landing in minimized: nvim is now a single-row statusline strip and
+  -- Landing in minimized: nvim is now a tiny statusline-biased strip and
   -- the user can't usefully interact with it. Shift focus to the agent
   -- pane so they can keep working.
   --
@@ -3478,7 +3478,7 @@ function _G.PairLayoutSmaller()
   layout_goto(LAYOUT_BY_LEVEL[math.max(cur - 1, 1)])
 end
 
--- Seed the in-memory mirror at startup. zellij boots into the size=12
+-- Seed the in-memory mirror at startup. zellij boots into the small
 -- draft pane (see zellij/layouts/main.kdl), and the in-memory mirror is
 -- only used by callers that don't want to call layout_read; layout_read
 -- itself reads vim.o.lines so it doesn't need this.

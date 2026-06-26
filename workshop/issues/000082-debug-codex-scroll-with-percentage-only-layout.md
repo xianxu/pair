@@ -5,7 +5,7 @@ deps: ["#68"]
 github_issue:
 created: 2026-06-26
 updated: 2026-06-26
-estimate_hours:
+estimate_hours: 0.8
 started: 2026-06-26T15:49:13-07:00
 ---
 
@@ -35,7 +35,8 @@ scroll wedge disappears.
   sizes only, avoiding zellij's fixed-pane code path.
 - Preserve the user-facing ladder intent:
   - small/default draft pane,
-  - minimized draft pane,
+  - minimized draft pane, accepting that percentage-only sizing may make this a
+    small variable-height pane rather than exactly one statusline row,
   - larger one-third draft pane.
 - Keep the change easy to revert if the experiment does not help.
 - Use existing #68 logs (`zellij-actions-<tag>.jsonl`,
@@ -51,14 +52,28 @@ scroll wedge disappears.
 - The log records whether scroll wedged again and whether zellij still emits the
   fixed-pane errors.
 
+## Estimate
+
+```estimate
+model: estimate-logic-v2
+familiarity: 1.0
+item: method-b-decisions design=0.2 impl=0.4
+item: atlas-docs design=0.0 impl=0.1
+design-buffer: 0.30
+total: 0.8
+```
+
 ## Plan
 
-- [ ] Replace fixed integer draft sizes with percentage-only sizes.
-- [ ] Update layout comments/atlas if the experiment changes the intended
+- [x] Replace fixed integer draft sizes with percentage-only sizes, using a
+      small percentage for the minimized rung and recording whether it remains
+      usable.
+- [x] Update layout comments/atlas if the experiment changes the intended
       ladder semantics.
-- [ ] Run syntax/static checks that cover the touched files.
-- [ ] Start or reuse a Pair Codex session in the new mode and record the
-      dogfood result.
+- [x] Launch Pair with the changed layout and confirm zellij accepts the layout
+      with the expected two panes.
+- [ ] Start or reuse a Pair Codex session in the new mode, then record whether
+      scroll wedged and whether fixed-pane errors recur in the zellij log.
 
 ## Log
 
@@ -68,3 +83,9 @@ scroll wedge disappears.
   experiment should be tracked separately. Current hypothesis: the Codex repaint
   storm interacts badly with zellij's fixed-pane/swap-layout path, not with
   pair-wrap capture.
+- Changed the layout ladder to percentage-only draft pane sizes (`5%`, `24%`,
+  `33%`) and updated the nvim rung detector/docs accordingly.
+- Smoke-launched `pair-pct-smoke` under zellij with the changed layout. `zellij
+  action list-panes --json --command` reported two terminal panes: agent at 18
+  rows and draft at 6 rows in a 24-row test terminal, matching the 24% default
+  rung. The temporary session was deleted after verification.

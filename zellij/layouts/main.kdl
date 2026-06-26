@@ -15,8 +15,8 @@
 // outer TTY, so outer wrappers (e.g. cmux) see attention markers despite
 // zellij's escape filtering. #000011
 //
-// LAYOUT RUNGS — the draft pane has three sizes: minimized (1 row,
-// statusline only) ↔ small (fixed 12 rows, initial) ↔ third (1/3). Alt+Up /
+// LAYOUT RUNGS — the draft pane has three percentage-only sizes: minimized
+// (~5%, statusline-biased) ↔ small (~24%, initial) ↔ third (33%). Alt+Up /
 // Alt+Down step the ladder via zellij's swap layouts (defined below).
 // Swap layouts re-tile existing panes — the agent and nvim processes are
 // preserved across rung changes; zellij maps existing panes onto the new
@@ -48,16 +48,14 @@ layout {
         // ("<session>: draft") and propagates to the user's terminal /
         // multiplexer tab title. The draft is borderless (the agent
         // pane is framed for the scroll indicator; the draft must stay
-        // borderless so the `minimized` rung can collapse to 1 row),
+        // borderless so the `minimized` rung can stay very small),
         // so it has no frame title slot — the name exists only for OSC
         // 0 propagation.
         //
-        // size=12 (integer) is the middle rung ("small") — a fixed
-        // 12-row draft pane is enough for ~9-10 lines of prompt with
-        // the statusline. zellij tags integer sizes as FIXED (refusing
-        // `resize` actions), but pair drives all rung changes through
-        // swap layouts, not resize, so FIXED is harmless here.
-        pane size=12 name="draft" borderless=true focus=true {
+        // size="24%" is the middle rung ("small") — roughly equivalent to the
+        // old 12-row draft pane on common terminal heights, but percentage-only
+        // so zellij never routes Pair through the fixed-pane layout path.
+        pane size="24%" name="draft" borderless=true focus=true {
             command "sh"
             // PAIR_NVIM_PID_FILE: nvim/init.lua's VimEnter autocmd writes the
             // embed pid here so cleanup_quit_marker in bin/pair can reap
@@ -91,15 +89,15 @@ layout {
     // zellij would treat that as a request to spawn a new pane rather
     // than match an existing one.
     //
-    // The draft pane carries `borderless=true` in every rung so it can
-    // collapse to size=1 in `minimized`; the agent pane stays framed so
-    // its scroll indicator (top-right) is visible.
+    // The draft pane carries `borderless=true` in every rung so the minimized
+    // percentage can stay compact; the agent pane stays framed so its scroll
+    // indicator (top-right) is visible.
 
     swap_tiled_layout name="minimized" {
         tab exact_panes=2 {
             pane split_direction="horizontal" {
                 pane name="agent"
-                pane size=1 name="draft" borderless=true
+                pane size="5%" name="draft" borderless=true
             }
         }
     }
