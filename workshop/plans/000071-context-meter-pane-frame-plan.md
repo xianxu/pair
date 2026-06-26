@@ -152,7 +152,8 @@ func TestResolveAgy(t *testing.T) {
 }
 ```
 
-- [ ] **Step 3: Update `cmd/pair-slug/main.go`** — delete the local `claudePathEncoder` (line 175), `sessionID` (84-96), `resolveTranscript` (179-194); add `"github.com/xianxu/pair/cmd/internal/transcript"` to imports; replace call sites: `sessionID(...)` → `transcript.SessionID(...)`, `resolveTranscript(...)` → `transcript.Resolve(...)`. Leave `resolveLiveCodexTranscript` and `codexRolloutRE` in place.
+- [ ] **Step 3: Update `cmd/pair-slug/main.go`** — delete the local `claudePathEncoder` (173-175), `sessionID` (84-96), `resolveTranscript` (177-194); add `"github.com/xianxu/pair/cmd/internal/transcript"` to imports; replace call sites: `sessionID(...)` → `transcript.SessionID(...)`, `resolveTranscript(...)` → `transcript.Resolve(...)`. Leave `resolveLiveCodexTranscript` and `codexRolloutRE` in place.
+  - **Also remove the now-unused `encoding/json` import** — `json.Unmarshal` was used *only* by the deleted `sessionID` (main.go:92); leaving the import → `go build` fails "imported and not used". (`filepath`/`strings` stay used by `resolveLiveCodexTranscript`/branch logic; only `encoding/json` goes.)
 
 - [ ] **Step 4: Run the existing pair-slug suite + the new test** — Run: `cd /Users/xianxu/workspace/pair && go test ./cmd/pair-slug/... ./cmd/internal/transcript/...` — Expected: PASS (refactor preserves behavior). Also `go vet ./cmd/...`.
 
@@ -500,6 +501,8 @@ $(BIN_DIR)/pair-context: cmd/pair-context/main.go cmd/internal/ctxmeter/ctxmeter
 	go build -o $@ ./cmd/pair-context
 ```
 
+- [ ] **Step 3b: Add the new prereq to the pair-slug rule** (Makefile.local:220) — pair-slug now imports `cmd/internal/transcript`, so append `cmd/internal/transcript/transcript.go` to its prereq list, else `make` won't rebuild pair-slug when only `transcript.go` changes.
+
 - [ ] **Step 4: Build + install** — Run: `cd /Users/xianxu/workspace/pair && make build && make install` — Expected: `installed: ~/.local/bin/pair-context`. Sanity: `pair-context nonexistent claude` prints nothing, exit 0.
 - [ ] **Step 5: Commit** — `git add Makefile.local && git commit -m "#71 M2: build+install pair-context"`
 
@@ -594,27 +597,35 @@ update_frame_titles() {
 }
 ```
 
-Call `update_frame_titles` inside the loop, gated on activity (reusing `latest`/`age` already computed — only when `age` is within a refresh window, e.g. the existing "activity resolved" path). Keep it on the active branch so idle sessions don't churn.
+Call `update_frame_titles` inside the loop on the **activity-resolved branch** (after `age=$(( now - latest ))`), **OUTSIDE** the cmux `if [ "$prefix" != "$last_prefix" ]` bucket-change guard. (Critical: an active claude session keeps the same 🔴 bucket for a day, so the bucket-change guard fires only once — putting the meter inside it would refresh the count once and then freeze. The meter's own per-pane unchanged-skip cache, not the cmux bucket guard, is what prevents churn.) Gate on activity by refreshing only when `age` is within a refresh window (e.g. `age < 2*POLL_INTERVAL`) so a long-idle session stops re-rendering.
 
 - [ ] **Step 5: Make the cmux rename block-local** — wrap the existing cmux ownership + `cmux rename-workspace` block in `if [ -n "${CMUX_WORKSPACE_ID:-}" ] && command -v cmux >/dev/null 2>&1; then ... fi` so it only runs in cmux. The frame-meter loop (Step 4) runs unconditionally.
 
-- [ ] **Step 6: Update `bin/pair` reference sites** (all in lockstep):
+- [ ] **Step 6: Update `bin/pair` reference sites** (all in lockstep). These are in `rename_paths_for` (the `pair rename` command, NOT a session-end sweep) plus the poller spawn/kill:
   - Spawn (1659): `"$PAIR_HOME/bin/pair-cmux-title.sh"` → `"$PAIR_HOME/bin/pair-title.sh"`
-  - Existence check (1588): `"$DATA_DIR/cmux-title-pid-${PAIR_TAG}"` → `"$DATA_DIR/title-pid-${PAIR_TAG}"`
-  - Cleanup sweep #1 (398-401): the `for fam in ... cmux-title-pid ...` list → `title-pid`
-  - Cleanup sweep #2 (446): the case pattern `cmux-title-pid-$old_tag` → `title-pid-$old_tag`
-  - Grep to be sure none missed: `grep -rn "cmux-title-pid\|pair-cmux-title" bin/ tests/` → Expected: no hits after edits.
+  - Poller-kill in `cleanup_quit_marker` (1588): `"$DATA_DIR/cmux-title-pid-${PAIR_TAG}"` → `"$DATA_DIR/title-pid-${PAIR_TAG}"`
+  - `rename_paths_for` `for fam` list (398-401): `cmux-title-pid` → `title-pid`
+  - `rename_paths_for` case pattern (446): `cmux-title-pid-$old_tag` → `title-pid-$old_tag`
+  - Comment references (870, 1651): update the prose mentioning `pair-cmux-title.sh` → `pair-title.sh`.
+  - **Grep gate (do this, don't trust the list):** `grep -rn "cmux-title-pid\|pair-cmux-title\|PAIR_CMUX_TITLE" bin/ tests/` → Expected: **no hits** after edits. This catches any site the list above missed.
 
-- [ ] **Step 7: Add `pane-<tag>-*.json` to cleanup** — in cleanup sweep #1's `for fam in ...` add `pane` (so `pane-$tag-*` files are reaped on session end). Note: `pane-` is `<tag>-<agent>` keyed, so the per-fam `$dd/$fam-$tag` glob covers `pane-$tag-*` only if the sweep globs; verify it matches the multi-suffix pattern and adjust if the sweep is exact-match (add an explicit `rm -f "$dd"/pane-"$tag"-*.json`).
+- [ ] **Step 7: Make `pair rename` carry the pane file** (it's per-`(tag,agent)`, exactly like `config-<tag>-<agent>.json`). There is NO session-end sweep that deletes these (`cleanup_quit_marker` deliberately keeps `config-*` for resume; pane files likewise persist and are simply overwritten on next startup — that's fine, do not add a reaper). The only place that must learn about them is `rename_paths_for`, so `pair rename <old> <new>` moves them too:
+  - In the **per-agent loop** (`for a in claude codex agy`, ~407-414) that emits `config-$old_tag-$a.json`, add a sibling line emitting `pane-$old_tag-$a.json`.
+  - In the **rename `case`** (~464-467) add an arm `pane-$old_tag-*.json)` mirroring the existing `config-$old_tag-*.json)` arm, so the new-tag path is computed correctly.
+  - Verify by reading the real `bin/pair:407-414` and `:464-467` first — match their exact form (the `for fam` tag-only list at 398 is the WRONG home; `pane-` has an agent suffix).
 
-- [ ] **Step 8: Update the shell test** `tests/pair-title-poller-test.sh` — rename the `PAIR_CMUX_TITLE_TEST_CALL` hook usages → `PAIR_TITLE_TEST_CALL`; add a new test driving `update_frame_titles` with a fake `zellij` and fake `pair-context` on `PATH`:
+- [ ] **Step 8a: Make `update_frame_titles` reachable from the test hook.** The `PAIR_TITLE_TEST_CALL` hook fires (~64-69) *before* `DATA_DIR=…`/`SESSION=…` are assigned (~75-78), but `update_frame_titles` reads `$DATA_DIR`/`$SESSION`. **Move the `DATA_DIR=`/`SESSION=`/`DRAFT=` assignments ABOVE the test-hook block** (keep `mkdir`/`echo $$ > "$PIDFILE"`/`trap` below the hook — the hook `exit $?`s before those, which is correct). Without this the test's glob resolves to `/pane-…` (root) → zero renames.
+
+- [ ] **Step 8b: Update the shell test** `tests/pair-title-poller-test.sh` — rename the `PAIR_CMUX_TITLE_TEST_CALL` hook usages → `PAIR_TITLE_TEST_CALL`; add a new test driving `update_frame_titles` with a fake `zellij` + fake `pair-context` on `PATH`:
 
 ```bash
-# Fake zellij that records rename-pane calls; fake pair-context that prints a count.
+# Fake zellij records rename-pane calls; fake pair-context prints a count.
+# NOTE arg index: the poller calls `zellij --session <s> action rename-pane …`
+# so $1=--session $2=<s> $3=action $4=rename-pane.
 mk_fakes() {
     cat > "$BIN/zellij" <<'EOF'
 #!/usr/bin/env bash
-[ "$3" = "rename-pane" ] && printf '%s\n' "$*" >> "$RENAME_LOG"
+[ "$4" = "rename-pane" ] && printf '%s\n' "$*" >> "$RENAME_LOG"
 exit 0
 EOF
     cat > "$BIN/pair-context" <<'EOF'
@@ -623,9 +634,16 @@ printf '%s\n' "${FAKE_COUNT:-970k}"
 EOF
     chmod +x "$BIN/zellij" "$BIN/pair-context"
 }
-# Assert: a pane file → one rename-pane with `claude (970k) [~/repo]`; a second
-# identical tick → NO new rename (unchanged-skip).
+# Setup: PAIR_DATA_DIR=tmp with pane-T-claude.json {pane_id:7, cwd_display:"~/repo"}.
+# Invoke: PAIR_TITLE_TEST_CALL=update_frame_titles PAIR_DATA_DIR=tmp bash pair-title.sh T claude
+# Assert 1: RENAME_LOG has one line containing `claude (970k) [~/repo]` for pane-id 7.
+# Assert 2: a SECOND invocation in the SAME process path with the same count emits
+#   no new rename (unchanged-skip) — note the flat-list cache is per-process, so this
+#   is exercised by calling update_frame_titles twice inside one hook wrapper, or by a
+#   dedicated helper; document which.
 ```
+
+> **Coverage note (per spec Testing):** this drives `update_frame_titles` directly, covering the **title string** + **unchanged-skip**. The **activity-gate** (idle→no rename, touched→rename) lives in the main `while` loop, not this function — it is verified by the **manual smoke (Task 8 Step 6)**, not this unit test. State that explicitly so the gate isn't assumed-covered.
 
 - [ ] **Step 9: Run the shell tests** — Run: `cd /Users/xianxu/workspace/pair && bash tests/pair-title-poller-test.sh` — Expected: PASS (poller_alive identity + the new frame-title + unchanged-skip).
 
@@ -669,3 +687,5 @@ Before `sdlc change-code`, set `estimate_hours:` in the issue frontmatter (requi
 - **Large transcripts** (14MB+) are re-read each active tick — acceptable for v1 (≤~once/60s when active); `ReadBytes` avoids the Scanner 64KB cap. Backward/tail-read optimization is out of scope.
 - **`/clear` rotation** — proven in-place by data, but Task 8 Step 4 smoke-tests it for real; the fallback is lineage-following, NOT newest-by-mtime.
 - **Rename-site lockstep** — Task 7 Step 6 includes a `grep` gate to catch a missed reference.
+- **One agent instance per `(tag, agent)`** — the design assumes one pane per `(tag, agent)`, so `pane-<tag>-<agent>.json` / `config-<tag>-<agent>.json` are unique. Confirm this is pair's invariant (it is for the keyed config files today); two panes of the same agent in one tag would collide on both files. State it; don't silently rely on it.
+- **gofmt** — run `gofmt -w` on every new/edited `.go` file before each Go commit (the inline struct literals in this plan are not fmt-aligned); keeps a fmt-check CI step green. `go build`/`vet`/`test` pass regardless.

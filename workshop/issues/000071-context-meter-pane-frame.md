@@ -212,4 +212,19 @@ of a brainstorm + 3 spec-review rounds in ariadne#131; key conclusions carried h
 - Full review history + the lesson it produced ("verify behavioral claims vs runtime data
   before redesigning") are in ariadne#131 + ariadne/workshop/lessons.md.
 
-Next: `sdlc claim` → write durable plan (`workshop/plans/000071-...`) → `sdlc change-code`.
+Durable plan written → `workshop/plans/000071-context-meter-pane-frame-plan.md`.
+
+Plan review (fresh context; reviewer **compiled + ran** the Go core against a real 7.27MB
+transcript — `ContextTokens`→536887 matched `jq`, codex→60287, all `Humanize` vectors, valid
+`main.kdl` JSON: pure core verified correct). Shell/refactor fixes folded in:
+- Task 1: deleting `sessionID` orphans the `encoding/json` import → must drop it (build break).
+- Task 7: lines 398/446 are `rename_paths_for` (the `pair rename` cmd), NOT a session sweep;
+  pane files are per-(tag,agent) like config → carry them in the `for a` loop + a `case` arm
+  (no reaper; they persist + overwrite like config).
+- Task 7: test-hook fires before `DATA_DIR`/`SESSION` assigned → reorder; fake-`zellij` arg
+  index is `$4` not `$3`; meter must refresh OUTSIDE the cmux bucket-change guard (else
+  refreshes once then freezes); grep-gate also catches comment sites 870/1651.
+- Task 5: add `transcript.go` prereq to the pair-slug Makefile rule; `gofmt -w` before commit.
+Plan review converged (1 round + fixes); Go core independently verified.
+
+Next: set `estimate_hours` → `sdlc change-code` → execute (subagent-driven per AGENTS.md §3).
