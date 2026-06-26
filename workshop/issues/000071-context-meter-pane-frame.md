@@ -191,7 +191,7 @@ guard) — avoids per-tick IPC churn during active-but-stable stretches.
 
 Detailed steps: `workshop/plans/000071-context-meter-pane-frame-plan.md`. Milestones = review boundaries.
 
-- [ ] **M1 — Pure Go core + CLI + build** (plan Chunks 1-2 / Tasks 1-5): extract shared `transcript` resolver; `ContextTokens` reader + `Humanize` (TDD); `pair-context` one-shot (process test); wire into `Makefile.local`. Boundary: `go test ./... && go vet` green.
+- [x] **M1 — Pure Go core + CLI + build** (plan Chunks 1-2 / Tasks 1-5): extract shared `transcript` resolver; `ContextTokens` reader + `Humanize` (TDD); `pair-context` one-shot (process test); wire into `Makefile.local`. Boundary: `go test ./... && go vet` green.
 - [ ] **M2 — Pane capture + generalize poller** (plan Chunk 3 / Tasks 6-7): write `pane-<tag>-<agent>.json` at startup (`bin/pair` + `main.kdl`); generalize `pair-cmux-title.sh` → always-on `pair-title.sh` (both title surfaces, all rename-sites in lockstep). Boundary: shell tests green + grep-gate clean.
 - [ ] **E2E smoke + atlas** (plan Chunk 4 / Tasks 8-9): manual verify (incl. same-cwd + `/clear` confirmation); update atlas. Closes at `sdlc close` (its mandatory review covers this window).
 
@@ -219,6 +219,8 @@ recomputed = 0.9×1.30 + 3.5 = 4.67.
 
 ## Log
 
+
+- 2026-06-26: closed M1 — Go core: transcript extract + ctxmeter (ContextTokens/Humanize) + pair-context CLI + Makefile. go test ./... green, vet+gofmt clean, make build produces pair-context. Mandatory fresh-context review run via Agent tool (sdlc nested-claude judge hangs on sandbox network): verdict SHIP, no Critical/Important; folded its one Minor (codex null-info pointer-guard, be5eb59). Atlas deferred to M2 where the meter becomes user-visible (--no-atlas).; review verdict: SHIP (manual fresh-context review via Agent tool; sdlc auto-judge not-run via --no-judge — nested-claude blocked by sandbox network)
 ### 2026-06-25
 
 Created by migrating ariadne#131 (misfiled — feature is 100% pair code). Spec is the product
