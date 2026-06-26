@@ -1,12 +1,13 @@
 ---
 id: 000071
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-25
-updated: 2026-06-25
+updated: 2026-06-26
 estimate_hours: 4.7
 started: 2026-06-25T22:10:36-07:00
+actual_hours: 2.12
 ---
 
 # per-agent context-window meter in the zellij pane frame
@@ -193,7 +194,7 @@ Detailed steps: `workshop/plans/000071-context-meter-pane-frame-plan.md`. Milest
 
 - [x] **M1 — Pure Go core + CLI + build** (plan Chunks 1-2 / Tasks 1-5): extract shared `transcript` resolver; `ContextTokens` reader + `Humanize` (TDD); `pair-context` one-shot (process test); wire into `Makefile.local`. Boundary: `go test ./... && go vet` green.
 - [x] **M2 — Pane capture + generalize poller** (plan Chunk 3 / Tasks 6-7): write `pane-<tag>-<agent>.json` at startup (`bin/pair` + `main.kdl`); generalize `pair-cmux-title.sh` → always-on `pair-title.sh` (both title surfaces, all rename-sites in lockstep). Boundary: shell tests green + grep-gate clean.
-- [ ] **E2E smoke + atlas** (plan Chunk 4 / Tasks 8-9): manual verify (incl. same-cwd + `/clear` confirmation); update atlas. Closes at `sdlc close` (its mandatory review covers this window).
+- [x] **E2E smoke + atlas** (plan Chunk 4 / Tasks 8-9): manual verify (incl. same-cwd + `/clear` confirmation); update atlas. Closes at `sdlc close` (its mandatory review covers this window).
 
 ## Estimate
 
@@ -221,6 +222,8 @@ recomputed = 0.9×1.30 + 3.5 = 4.67.
 
 
 
+
+- 2026-06-26: closed — Live smoke PASSED: after Alt+n the zellij frame shows claude (524k) matching /context (523.9k). pair-context verified against this real session (505k earlier). go test ./... green, shell test 8/8, vet+gofmt(#71 files) clean, atlas reconciled+accurate, grep-gate clean in live tree. Three fresh-context reviews via Agent tool (sdlc judge blocked by sandbox nc-proxy): M1 SHIP, M2 FIX-THEN-SHIP->fixed->SHIP, final holistic SHIP.; review verdict: SHIP (3 manual fresh-context reviews via Agent tool; sdlc auto-judge not-run via --no-judge — sandbox nc-proxy blocks nested-claude)
 - 2026-06-26: closed M2 — Pane-file capture (bin/pair + main.kdl, valid JSON verified) + generalize pair-cmux-title.sh -> always-on pair-title.sh (frame meter + block-local cmux). shell test 8/8 (make test-pair-title), bash -n clean, grep-gate clean, go test ./... green. Fresh-context review via Agent tool (sdlc judge blocked by sandbox): FIX-THEN-SHIP; in-scope .PHONY survivor fixed; reviewer verified KDL->JSON, cmux gating, bash-3.2 cache, rename lockstep, pair rename pane-file — all by execution. Atlas reconcile deferred to close window (--no-atlas).; review verdict: FIX-THEN-SHIP fixed -> SHIP (manual fresh-context review via Agent tool; sdlc auto-judge not-run via --no-judge)
 - 2026-06-26: closed M1 — Go core: transcript extract + ctxmeter (ContextTokens/Humanize) + pair-context CLI + Makefile. go test ./... green, vet+gofmt clean, make build produces pair-context. Mandatory fresh-context review run via Agent tool (sdlc nested-claude judge hangs on sandbox network): verdict SHIP, no Critical/Important; folded its one Minor (codex null-info pointer-guard, be5eb59). Atlas deferred to M2 where the meter becomes user-visible (--no-atlas).; review verdict: SHIP (manual fresh-context review via Agent tool; sdlc auto-judge not-run via --no-judge — nested-claude blocked by sandbox network)
 ### 2026-06-25
