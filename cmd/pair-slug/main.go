@@ -25,7 +25,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -35,13 +34,14 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
 	"github.com/xianxu/pair/cmd/internal/model"
+	transcriptpkg "github.com/xianxu/pair/cmd/internal/transcript"
 )
 
 const (
-	recentTurns        = 12  // baseline recency window fed to the model
-	minUserTurns       = 3   // extend back until the window holds this many user turns
-	hardMaxTurns       = 40  // cap on how far back the user-turn extension reaches
-	perTurnChars       = 500 // truncation per turn
+	recentTurns  = 12  // baseline recency window fed to the model
+	minUserTurns = 3   // extend back until the window holds this many user turns
+	hardMaxTurns = 40  // cap on how far back the user-turn extension reaches
+	perTurnChars = 500 // truncation per turn
 )
 
 // logf writes a diagnostic line to $PAIR_SLUG_LOG if set; otherwise silent.
@@ -77,22 +77,6 @@ func repoBase(dir string) string {
 		}
 	}
 	return filepath.Base(dir)
-}
-
-// sessionID reads the session id pair recorded for (tag, agent) — written by
-// bin/pair-session-watch.sh once the agent's session file is discovered.
-func sessionID(dataDir, tag, agent string) string {
-	b, err := os.ReadFile(filepath.Join(dataDir, "config-"+tag+"-"+agent+".json"))
-	if err != nil {
-		return ""
-	}
-	var c struct {
-		SessionID string `json:"session_id"`
-	}
-	if json.Unmarshal(b, &c) != nil {
-		return ""
-	}
-	return c.SessionID
 }
 
 var codexRolloutRE = regexp.MustCompile(`^(.*/\.codex/sessions/.*/rollout-.*([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\.jsonl)$`)
@@ -170,29 +154,6 @@ func resolveLiveCodexTranscript(dataDir, tag, home string) string {
 	return ""
 }
 
-// claudePathEncoder mirrors nvim's `cwd:gsub('[./]', '-')` for the
-// ~/.claude/projects/<encoded-cwd>/ directory name.
-var claudePathEncoder = strings.NewReplacer(".", "-", "/", "-")
-
-// resolveTranscript returns the on-disk transcript path for (agent, sid), or
-// "" if it can't be located. Mirrors nvim/init.lua's session_age_hint.
-func resolveTranscript(agent, sid, cwd, home string) string {
-	switch agent {
-	case "codex":
-		// ~/.codex/sessions/YYYY/MM/DD/rollout-...-<sid>.jsonl
-		matches, _ := filepath.Glob(filepath.Join(home, ".codex", "sessions", "*", "*", "*", "rollout-*"+sid+"*.jsonl"))
-		if len(matches) > 0 {
-			return matches[0]
-		}
-		return ""
-	case "agy":
-		// ~/.gemini/antigravity-cli/brain/<sid>/.system_generated/logs/transcript.jsonl
-		return filepath.Join(home, ".gemini", "antigravity-cli", "brain", sid, ".system_generated", "logs", "transcript.jsonl")
-	default: // claude
-		return filepath.Join(home, ".claude", "projects", claudePathEncoder.Replace(cwd), sid+".jsonl")
-	}
-}
-
 func main() {
 	if os.Getenv("PAIR_SLUG_NESTED") != "" {
 		logf("nested invocation (PAIR_SLUG_NESTED); skipping to avoid recursion")
@@ -219,9 +180,9 @@ func main() {
 
 	transcript := os.Getenv("PAIR_SLUG_TRANSCRIPT")
 	if transcript == "" {
-		sid := sessionID(dataDir, tag, agent)
+		sid := transcriptpkg.SessionID(dataDir, tag, agent)
 		if sid != "" {
-			transcript = resolveTranscript(agent, sid, cwd, home)
+			transcript = transcriptpkg.Resolve(agent, sid, cwd, home)
 		}
 		if transcript == "" && agent == "codex" {
 			transcript = resolveLiveCodexTranscript(dataDir, tag, home)
