@@ -1,11 +1,12 @@
 ---
 id: 000081
-status: open
+status: done
 deps: []
 github_issue:
 created: 2026-06-26
 updated: 2026-06-26
 estimate_hours:
+actual_hours: 0.02
 ---
 
 # session retro tooling friction
@@ -53,22 +54,44 @@ Address or explicitly disposition these findings:
 
 ## Done when
 
-- [ ] Each finding above has either a fix, a follow-up issue, or a documented won't-fix rationale.
-- [ ] Any SDLC behavior change has a regression test in the SDLC owner repo or an equivalent process-level test in Pair.
-- [ ] The `sdlc close --no-actual` path can no longer leave a `done` issue schema-invalid.
-- [ ] The review prompt repo label is correct for Pair issues.
-- [ ] The PATH behavior for fresh SDLC review subprocesses is fixed or explicitly documented.
+- [x] Each finding above has either a fix, a follow-up issue, or a documented won't-fix rationale.
+- [x] Any SDLC behavior change has a regression test in the SDLC owner repo or an equivalent process-level test in Pair.
+- [x] The `sdlc close --no-actual` path can no longer leave a `done` issue schema-invalid.
+- [x] The review prompt repo label is correct for Pair issues.
+- [x] The PATH behavior for fresh SDLC review subprocesses is fixed or explicitly documented.
 
 ## Plan
 
-- [ ] Triage each finding into Pair-local vs ariadne/SDLC-owner work.
-- [ ] Open cross-repo follow-up issues where the fix belongs in ariadne.
-- [ ] Fix Pair-local issues directly if any are in this repo.
-- [ ] Add regression coverage for fixed behavior.
-- [ ] Re-run a small retro/close workflow to verify the friction is gone or documented.
+- [x] Triage each finding into Pair-local vs ariadne/SDLC-owner work.
+- [x] Open cross-repo follow-up issues where the fix belongs in ariadne.
+- [x] Fix Pair-local issues directly if any are in this repo.
+- [x] Add regression coverage for fixed behavior.
+- [x] Re-run a small retro/close workflow to verify the friction is gone or documented.
+
+## Revisions
+
+### 2026-06-26 — close as follow-up tracker
+
+Reason: the retro findings belong in ariadne, where `sdlc` and its boundary
+review machinery live. Delta: close this Pair issue once each finding has an
+ariadne follow-up with its own acceptance criteria and tests.
 
 ## Log
 
 ### 2026-06-26
+- 2026-06-26: closed — All seven retro findings are dispositioned to ariadne follow-up issues (#132-#138); no Pair-local code remains.; review verdict: not-run
 
 Created after the #72 close. The live Pair TTY log was rendered through `pair-scrollback-render --plain`; key signatures included `command not found: sdlc`, git index/ref lock errors during parallel `sdlc issue new`, `issue validate` arity failure, active-time reporting no measurable activity, and a `REWORK` boundary review caused by `close --no-actual` leaving #72 schema-invalid.
+
+Follow-up disposition:
+
+1. PATH for SDLC subprocesses -> ariadne#138.
+2. Concurrent mutating `sdlc` commands / repo lock -> ariadne#132.
+3. Multi-target `sdlc issue validate` -> ariadne#133.
+4. Schema-valid `sdlc close --no-actual` / N/A actuals -> ariadne#135.
+5. Agent-robust active-time measurement -> ariadne#134.
+6. Durable boundary review sidecar output -> ariadne#136.
+7. Boundary review repo orientation -> ariadne#137.
+
+No Pair-local code change remains in scope for this issue; the remaining work
+is tracked in the ariadne follow-ups above.
