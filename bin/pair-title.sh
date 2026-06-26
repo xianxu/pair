@@ -175,11 +175,13 @@ mkdir -p "$DATA_DIR"
 echo "$$" > "$PIDFILE"
 trap 'rm -f "$PIDFILE"' EXIT
 
-# Resolve the agent's session file path. Cached after first hit since the
-# path is stable for the session's lifetime (claude --session-id pre-
-# injection, codex/agy single-file model). /clear in claude rotates
-# the file, leaving the cache pointed at the old jsonl — that file's
-# mtime freezes, which is the desired "no recent activity" signal anyway.
+# Resolve the agent's session file path (used by the cmux activity-emoji
+# mtime check, NOT the frame meter — that reads via pair-context). Cached
+# after first hit since the path is stable for the session's lifetime
+# (claude --session-id pre-injection, codex/agy single-file model). Note:
+# claude's /clear and compaction continue writing the SAME pinned file
+# in-place (verified against real transcripts, #71) — it does NOT rotate,
+# so the cache stays valid and the mtime keeps tracking real activity.
 agent_file_cache=""
 agent_session_file() {
     if [ -n "$agent_file_cache" ] && [ -f "$agent_file_cache" ]; then
