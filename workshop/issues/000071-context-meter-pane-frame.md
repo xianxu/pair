@@ -189,7 +189,11 @@ guard) — avoids per-tick IPC churn during active-but-stable stretches.
 
 ## Plan
 
-- [ ]
+Detailed steps: `workshop/plans/000071-context-meter-pane-frame-plan.md`. Milestones = review boundaries.
+
+- [ ] **M1 — Pure Go core + CLI + build** (plan Chunks 1-2 / Tasks 1-5): extract shared `transcript` resolver; `ContextTokens` reader + `Humanize` (TDD); `pair-context` one-shot (process test); wire into `Makefile.local`. Boundary: `go test ./... && go vet` green.
+- [ ] **M2 — Pane capture + generalize poller** (plan Chunk 3 / Tasks 6-7): write `pane-<tag>-<agent>.json` at startup (`bin/pair` + `main.kdl`); generalize `pair-cmux-title.sh` → always-on `pair-title.sh` (both title surfaces, all rename-sites in lockstep). Boundary: shell tests green + grep-gate clean.
+- [ ] **E2E smoke + atlas** (plan Chunk 4 / Tasks 8-9): manual verify (incl. same-cwd + `/clear` confirmation); update atlas. Closes at `sdlc close` (its mandatory review covers this window).
 
 ## Log
 
