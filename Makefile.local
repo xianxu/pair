@@ -56,14 +56,15 @@ pair-context:           $(BIN_DIR)/pair-context
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
-test: test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-session-watch test-continue test-changelog test-copy-on-select test-cmux-title test-cmux-ownership test-zellij-trace test-review
+test: test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-session-watch test-continue test-changelog test-copy-on-select test-pair-title test-cmux-ownership test-zellij-trace test-review
 	go test ./... -count=1
 
-# Single-instance guard for the cmux activity-title poller (identity-checked
-# liveness so a recycled PID can't suppress the respawn). See
-# tests/cmux-title-poller-test.sh.
-test-cmux-title:
-	bash tests/cmux-title-poller-test.sh
+# pair-title poller: single-instance guard (identity-checked liveness so a
+# recycled PID can't suppress the respawn) + the #71 frame meter (renames each
+# agent pane to "<agent> (<count>) [<cwd>]", with unchanged-skip). See
+# tests/pair-title-poller-test.sh.
+test-pair-title:
+	bash tests/pair-title-poller-test.sh
 
 # cmux workspace ownership claim (presence beats a stale owner flag), so a
 # launch/attach/restart reclaims its workspace title. See

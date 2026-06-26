@@ -395,7 +395,7 @@ EOF
         # known agent set. Output: one absolute path per line.
         rename_paths_for() {
             local tag="$1" dd="$2" fam
-            for fam in outer-tty pair-wrap-pid cmux-title-pid \
+            for fam in outer-tty pair-wrap-pid title-pid \
                        agent agent-pid agent-output agent-picks \
                        layout-mode queue quote image-capture; do
                 printf '%s\n' "$dd/$fam-$tag"
@@ -407,6 +407,7 @@ EOF
             printf '%s\n' "$dd/nvim-pid-$tag-scrollback"
             for a in claude codex agy; do
                 printf '%s\n' "$dd/config-$tag-$a.json"
+                printf '%s\n' "$dd/pane-$tag-$a.json"
                 printf '%s\n' "$dd/scrollback-$tag-$a.ansi"
                 printf '%s\n' "$dd/scrollback-$tag-$a.raw"
                 printf '%s\n' "$dd/scrollback-$tag-$a.viewport"
@@ -443,7 +444,7 @@ EOF
             # transform is deterministic.
             case "$base" in
                 # tag-only families (suffix is "")
-                outer-tty-$old_tag|pair-wrap-pid-$old_tag|cmux-title-pid-$old_tag|\
+                outer-tty-$old_tag|pair-wrap-pid-$old_tag|title-pid-$old_tag|\
                 agent-$old_tag|agent-pid-$old_tag|agent-output-$old_tag|\
                 agent-picks-$old_tag|layout-mode-$old_tag|queue-$old_tag|\
                 quote-$old_tag|image-capture-$old_tag)
@@ -464,6 +465,10 @@ EOF
                 config-$old_tag-*.json)
                     suf="${base#config-$old_tag-}"
                     dst="$rename_dd/config-$new_tag-$suf"
+                    ;;
+                pane-$old_tag-*.json)
+                    suf="${base#pane-$old_tag-}"
+                    dst="$rename_dd/pane-$new_tag-$suf"
                     ;;
                 scrollback-$old_tag-*)
                     suf="${base#scrollback-$old_tag-}"
@@ -867,7 +872,7 @@ resolve_config_file() {
 # flag. (The earlier first-writer-wins variant deferred to any live
 # `pair-<owner>` zellij session; that froze the title when the owner had since
 # moved to a different cmux workspace, leaving a stale owner file behind.) The
-# background poller (bin/pair-cmux-title.sh) still defers to a live different-tag
+# background poller (bin/pair-title.sh) still defers to a live different-tag
 # owner, so a genuine second pair sharing this one workspace arbitrates to
 # last-launcher-wins and self-heals when one leaves. pair_owns_cmux_workspace is
 # the read-side check the quit-path title reset uses.
@@ -1590,7 +1595,7 @@ cleanup_quit_marker() {
 
         # Kill the cmux activity-prefix poller for this tag (if running)
         # so its next 60s tick doesn't race with the cwd-rename below.
-        local poller_pid_file="$DATA_DIR/cmux-title-pid-${PAIR_TAG}"
+        local poller_pid_file="$DATA_DIR/title-pid-${PAIR_TAG}"
         if [ -f "$poller_pid_file" ]; then
             local poller_pid
             poller_pid=$(cat "$poller_pid_file" 2>/dev/null)
@@ -1653,15 +1658,17 @@ record_outer_tty() {
     esac
 }
 
-# Ensure the cmux activity-title poller (bin/pair-cmux-title.sh) is running for
-# this tag. Safe to call on every entry: the poller self-guards as a per-tag
-# singleton AND re-takes over a dead/recycled prior PID, so create, attach, and
-# restart (which re-execs through the create path) all converge on exactly one
-# live poller — reviving it if a host sleep/reboot/SIGKILL killed the previous
-# one without it ever respawning. Best-effort cosmetics; never load-bearing.
-ensure_cmux_title_poller() {
+# Ensure the per-tag title poller (bin/pair-title.sh) is running for this tag.
+# It owns the zellij frame meter (#71, always-on) AND the cmux workspace title
+# (when in cmux). Safe to call on every entry: the poller self-guards as a
+# per-tag singleton AND re-takes over a dead/recycled prior PID, so create,
+# attach, and restart (which re-execs through the create path) all converge on
+# exactly one live poller — reviving it if a host sleep/reboot/SIGKILL killed
+# the previous one without it ever respawning. Best-effort cosmetics; never
+# load-bearing.
+ensure_title_poller() {
     local title_agent="$1"
-    "$PAIR_HOME/bin/pair-cmux-title.sh" "$PAIR_TAG" "$title_agent" \
+    "$PAIR_HOME/bin/pair-title.sh" "$PAIR_TAG" "$title_agent" \
         </dev/null >/dev/null 2>&1 &
     # disown so cleanup_quit_marker's `kill <pid>` later doesn't spawn a
     # "[1] Terminated:" line into the user's shell on session exit.
@@ -1684,7 +1691,7 @@ if [ "$action" = "attach" ]; then
     # session file. Falls back to $AGENT if the record's missing.
     title_agent=$(cat "$DATA_DIR/agent-$PAIR_TAG" 2>/dev/null | tr -d '\r\n[:space:]')
     [ -n "$title_agent" ] || title_agent="$AGENT"
-    ensure_cmux_title_poller "$title_agent"
+    ensure_title_poller "$title_agent"
     zellij --config-dir "$PAIR_HOME/zellij" attach "$SESSION"
     rc=$?
     cleanup_quit_marker
@@ -2226,7 +2233,7 @@ disown $! 2>/dev/null || true
 printf '\033]0;%s\007' "$SESSION"
 record_outer_tty
 cmux_rename_workspace "$SESSION"
-ensure_cmux_title_poller "$AGENT"
+ensure_title_poller "$AGENT"
 
 # Dev mode (pair-dev exports PAIR_DEV): rebuild the Go binaries from source so
 # the layout's `exec pair-wrap` below resolves to a fresh repo/bin build — first

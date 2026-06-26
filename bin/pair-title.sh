@@ -1,22 +1,26 @@
 #!/usr/bin/env bash
-# pair-cmux-title.sh — periodically prefix the cmux workspace title with
-# an activity emoji. Convention: one pair session per cmux workspace
-# (see bin/pair's cmux_rename_workspace).
+# pair-title.sh — the per-tag title poller. Always-on (spawned on every pair
+# create/attach); owns TWO title surfaces:
+#   1. The zellij FRAME title of each agent pane — "<agent> (<count>) [<cwd>]",
+#      where <count> is the agent's current context-window size (#71). Runs
+#      with or without cmux.
+#   2. The cmux WORKSPACE title — an activity heat-ramp emoji prefix. Only
+#      when running inside cmux (block-local gate in the main loop).
 #
 # Usage:
-#   pair-cmux-title.sh <tag> <agent>
+#   pair-title.sh <tag> <agent>
 #
-# Spawned in the background by bin/pair after cmux_rename_workspace, on
-# both the create and attach paths. Single-instance per tag enforced by
-# pidfile (a second invocation finds the running poller and exits).
-# Self-terminates when the pair-<tag> zellij session disappears (Alt+x,
-# host shutdown, etc.).
+# Spawned in the background by bin/pair on both the create and attach paths.
+# Single-instance per tag enforced by pidfile (a second invocation finds the
+# running poller and exits). Self-terminates when the pair-<tag> zellij
+# session disappears (Alt+x, host shutdown, etc.).
 #
 # Activity sources (most-recent mtime wins):
 #   - agent session file: claude jsonl / codex rollout / agy transcript
 #   - nvim draft: $PAIR_DATA_DIR/draft-<tag>.md
 # Both move on user typing AND agent output, so this captures both sides.
 #
+# ── cmux workspace title (surface 2) ──
 # Buckets (heat-ramp, hottest first):
 #   < 1 day   → 🔴 prefix  (today)
 #   < 3 days  → 🟠 prefix  (last few days)
@@ -38,44 +42,96 @@ TAG="${1:-}"
 AGENT="${2:-}"
 [ -z "$TAG" ] || [ -z "$AGENT" ] && exit 0
 
-# True iff $1 is a live pair-cmux-title.sh poller for THIS tag. A bare
+# Config paths — hoisted above the test hook so update_frame_titles (which the
+# hook can invoke) sees DATA_DIR / SESSION.
+DATA_DIR="${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}"
+SESSION="pair-$TAG"
+DRAFT="$DATA_DIR/draft-$TAG.md"
+PIDFILE="$DATA_DIR/title-pid-$TAG"
+
+# True iff $1 is a live pair-title.sh poller for THIS tag. A bare
 # `kill -0` is not enough for the single-instance guard: after a host
 # sleep/reboot the kernel can recycle a dead poller's PID onto an
 # unrelated process, and a naive liveness check would then read that
 # stranger as "poller still alive" and suppress the respawn — freezing
-# the workspace title even across a pair restart. Confirm the command
-# line really is our poller for this tag. The trailing space keeps tag
-# "21" from matching "211"; the agent arg always follows the tag.
-# Mirrors bin/pair's existing `ps -p <pid> -o command=` identity probe.
+# the title even across a pair restart. Confirm the command line really
+# is our poller for this tag. The trailing space keeps tag "21" from
+# matching "211"; the agent arg always follows the tag. Mirrors bin/pair's
+# existing `ps -p <pid> -o command=` identity probe.
 poller_alive() {
     local pid="$1" argv
     [ -n "$pid" ] || return 1
     kill -0 "$pid" 2>/dev/null || return 1
     argv=$(ps -p "$pid" -o command= 2>/dev/null || true)
     case "$argv" in
-        *"pair-cmux-title.sh $TAG "*) return 0 ;;
+        *"pair-title.sh $TAG "*) return 0 ;;
     esac
     return 1
 }
 
+# ── frame meter (#71): show each agent pane's context size in its zellij
+# FRAME title. Always-on (the frame exists with or without cmux); the cmux
+# WORKSPACE title (main loop, below) stays cmux-gated. ──
+
+# Abbreviate a raw cwd to ~ on a path boundary (mirrors bin/pair:1154).
+abbrev_cwd() {
+    case "$1" in
+        "$HOME")   printf '~' ;;
+        "$HOME"/*) printf '~%s' "${1#"$HOME"}" ;;
+        *)         printf '%s' "$1" ;;
+    esac
+}
+
+# Per-pane last-title cache to skip redundant renames. macOS bash 3.2 has no
+# associative arrays — use a flat "pane_id=title" newline list. pane ids are
+# numeric, so the `^id=` regex is metachar-safe.
+frame_titles=""
+frame_title_cached() { printf '%s\n' "$frame_titles" | sed -n "s/^$1=//p" | head -1; }
+frame_title_store() { frame_titles=$(printf '%s\n' "$frame_titles" | grep -v "^$1="; printf '%s=%s\n' "$1" "$2"); }
+
+# Rename every agent pane's zellij frame to "<agent> (<count>) [<cwd>]" (or
+# "<agent> [<cwd>]" when no count). Reads pane-<tag>-*.json (pane id + display
+# cwd); the count comes from `pair-context <tag> <agent>`.
+update_frame_titles() {
+    local pf agent pane_id cwd_disp count title cached
+    for pf in "$DATA_DIR"/pane-"$TAG"-*.json; do
+        [ -f "$pf" ] || continue
+        agent=$(basename "$pf" .json)
+        agent=${agent#pane-"$TAG"-}
+        pane_id=$(jq -r '.pane_id // empty' "$pf" 2>/dev/null)
+        [ -n "$pane_id" ] || continue
+        cwd_disp=$(jq -r '.cwd_display // empty' "$pf" 2>/dev/null)
+        [ -n "$cwd_disp" ] || cwd_disp=$(abbrev_cwd "$(jq -r '.cwd // empty' "$pf" 2>/dev/null)")
+        count=$(pair-context "$TAG" "$agent" 2>/dev/null)
+        if [ -n "$count" ]; then
+            title="$agent ($count) [$cwd_disp]"
+        else
+            title="$agent [$cwd_disp]"
+        fi
+        cached=$(frame_title_cached "$pane_id")
+        [ "$cached" = "$title" ] && continue
+        zellij --session "$SESSION" action rename-pane --pane-id "$pane_id" "$title" >/dev/null 2>&1 || true
+        frame_title_store "$pane_id" "$title"
+    done
+}
+
+# Test-only: two ticks with the same state — exercises the unchanged-skip
+# (second tick must emit no new rename). Invoked via PAIR_TITLE_TEST_CALL.
+_test_frame_titles_twice() {
+    update_frame_titles
+    update_frame_titles
+}
+
 # Test hook (mirrors bin/pair's PAIR_TEST_CALL): invoke a single helper
 # against the trailing args, then exit — so the harness can unit-test
-# poller_alive without a live cmux/zellij. Never set in normal use.
-if [ -n "${PAIR_CMUX_TITLE_TEST_CALL:-}" ]; then
-    _fn="$PAIR_CMUX_TITLE_TEST_CALL"
+# poller_alive / update_frame_titles without a live cmux/zellij. Never set
+# in normal use.
+if [ -n "${PAIR_TITLE_TEST_CALL:-}" ]; then
+    _fn="$PAIR_TITLE_TEST_CALL"
     shift 2 2>/dev/null || true
     "$_fn" "$@"
     exit $?
 fi
-
-# Outside cmux: nothing to do.
-[ -n "${CMUX_WORKSPACE_ID:-}" ] || exit 0
-command -v cmux >/dev/null 2>&1 || exit 0
-
-DATA_DIR="${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}"
-SESSION="pair-$TAG"
-DRAFT="$DATA_DIR/draft-$TAG.md"
-PIDFILE="$DATA_DIR/cmux-title-pid-$TAG"
 
 POLL_INTERVAL=60
 # Grace period for the zellij session to appear after spawn — covers the
@@ -234,31 +290,47 @@ while true; do
         continue
     fi
 
-    prefix=$(prefix_for_age "$age")
-    if [ "$prefix" != "$last_prefix" ]; then
-        # Workspace-title ownership (matches bin/pair's cmux_rename_workspace):
-        # if another live pair owns this cmux workspace, leave the title
-        # alone. If the owner crashed without cleanup, take over. If no
-        # owner is set, claim it so a later 2nd pair defers to us.
-        owner_file="$DATA_DIR/cmux-owner-${CMUX_WORKSPACE_ID}"
-        owner=""
-        [ -f "$owner_file" ] && owner=$(cat "$owner_file" 2>/dev/null)
-        if [ -n "$owner" ] && [ "$owner" != "$TAG" ]; then
-            if zellij list-sessions --short 2>/dev/null | grep -qx "pair-$owner"; then
-                sleep "$POLL_INTERVAL"
-                continue
+    # Frame meter (#71): refresh each agent pane's zellij FRAME title while the
+    # session is active. Gated on recent activity so idle sessions stop
+    # re-rendering; the per-pane unchanged-skip cache (NOT the cmux bucket
+    # guard below) is what prevents churn during an active-but-stable stretch.
+    # MUST be outside the cmux bucket-change guard: an active session keeps the
+    # same heat bucket for a day, so the bucket guard fires once — gating the
+    # meter on it would refresh the count once and then freeze.
+    if [ "$age" -lt $(( 2 * POLL_INTERVAL )) ]; then
+        update_frame_titles
+    fi
+
+    # cmux WORKSPACE title (cmux-only) — the heat-ramp emoji prefix. Block-local
+    # gate (replaces the old whole-script `exit 0`): the frame meter above runs
+    # with or without cmux; only this workspace-title block is cmux-specific.
+    if [ -n "${CMUX_WORKSPACE_ID:-}" ] && command -v cmux >/dev/null 2>&1; then
+        prefix=$(prefix_for_age "$age")
+        if [ "$prefix" != "$last_prefix" ]; then
+            # Workspace-title ownership (matches bin/pair's cmux_rename_workspace):
+            # if another live pair owns this cmux workspace, leave the title
+            # alone. If the owner crashed without cleanup, take over. If no
+            # owner is set, claim it so a later 2nd pair defers to us.
+            owner_file="$DATA_DIR/cmux-owner-${CMUX_WORKSPACE_ID}"
+            owner=""
+            [ -f "$owner_file" ] && owner=$(cat "$owner_file" 2>/dev/null)
+            if [ -n "$owner" ] && [ "$owner" != "$TAG" ]; then
+                if zellij list-sessions --short 2>/dev/null | grep -qx "pair-$owner"; then
+                    sleep "$POLL_INTERVAL"
+                    continue
+                fi
+                # Owner is stale; fall through and reclaim.
             fi
-            # Owner is stale; fall through and reclaim.
+            printf '%s\n' "$TAG" > "$owner_file"
+            # Personal display convention (matches bin/pair's cmux_rename_workspace):
+            # 'brain' → 🧠, 'book' → 📗, 'pair' → ♋ anywhere in the title.
+            title="${prefix}${SESSION}"
+            title="${title//brain/🧠}"
+            title="${title//book/📗}"
+            title="${title//pair/♋}"
+            cmux rename-workspace "$title" >/dev/null 2>&1 || true
+            last_prefix="$prefix"
         fi
-        printf '%s\n' "$TAG" > "$owner_file"
-        # Personal display convention (matches bin/pair's cmux_rename_workspace):
-        # 'brain' → 🧠, 'book' → 📗, 'pair' → ♋ anywhere in the title.
-        title="${prefix}${SESSION}"
-        title="${title//brain/🧠}"
-        title="${title//book/📗}"
-        title="${title//pair/♋}"
-        cmux rename-workspace "$title" >/dev/null 2>&1 || true
-        last_prefix="$prefix"
     fi
     sleep "$POLL_INTERVAL"
 done
