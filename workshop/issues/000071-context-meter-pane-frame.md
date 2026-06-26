@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-06-25
 updated: 2026-06-25
-estimate_hours: 5
+estimate_hours: 4.7
 started: 2026-06-25T22:10:36-07:00
 ---
 
@@ -194,6 +194,28 @@ Detailed steps: `workshop/plans/000071-context-meter-pane-frame-plan.md`. Milest
 - [ ] **M1 — Pure Go core + CLI + build** (plan Chunks 1-2 / Tasks 1-5): extract shared `transcript` resolver; `ContextTokens` reader + `Humanize` (TDD); `pair-context` one-shot (process test); wire into `Makefile.local`. Boundary: `go test ./... && go vet` green.
 - [ ] **M2 — Pane capture + generalize poller** (plan Chunk 3 / Tasks 6-7): write `pane-<tag>-<agent>.json` at startup (`bin/pair` + `main.kdl`); generalize `pair-cmux-title.sh` → always-on `pair-title.sh` (both title surfaces, all rename-sites in lockstep). Boundary: shell tests green + grep-gate clean.
 - [ ] **E2E smoke + atlas** (plan Chunk 4 / Tasks 8-9): manual verify (incl. same-cwd + `/clear` confirmation); update atlas. Closes at `sdlc close` (its mandatory review covers this window).
+
+## Estimate
+
+```estimate
+model: estimate-logic-v2
+familiarity: 1.0
+item: greenfield-go-module   design=0.2 impl=0.6
+item: smaller-go-module      design=0.1 impl=0.3
+item: smaller-go-module      design=0.1 impl=0.4
+item: cross-cutting-refactor design=0.4 impl=1.3
+item: atlas-docs             design=0.1 impl=0.3
+item: milestone-review       design=0.0 impl=0.3
+item: milestone-review       design=0.0 impl=0.3
+design-buffer: 0.30
+total: 4.67
+```
+
+Derivation: `ctxmeter` (ContextTokens+Humanize) = greenfield-go-module; the `transcript`
+extract + `pair-context` CLI = two smaller-go-modules; the poller generalization + pane-id
+capture (`bin/pair`, `main.kdl`, `pair-cmux-title.sh`→`pair-title.sh`) = cross-cutting-refactor
+(the risky multi-file part); atlas/e2e = atlas-docs; M1+M2 fresh reviews = 2× milestone-review.
+recomputed = 0.9×1.30 + 3.5 = 4.67.
 
 ## Log
 
