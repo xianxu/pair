@@ -29,6 +29,33 @@ func TestContextTokensCodex_LastTokenUsageNotTotal(t *testing.T) {
 	}
 }
 
+func TestContextTokensCodex_NullInfo_SkippedNotZero(t *testing.T) {
+	// a real count, then a trailing null-info token_count event → must keep 60287, not flicker to 0.
+	jsonl := strings.Join([]string{
+		`{"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":60287}}}}`,
+		`{"type":"event_msg","payload":{"type":"token_count","info":null}}`,
+	}, "\n")
+	got, ok := ContextTokens("codex", strings.NewReader(jsonl))
+	if !ok || got != 60287 {
+		t.Fatalf("got (%d,%v) want (60287,true)", got, ok)
+	}
+}
+
+func TestContextTokens_QualifyingFinalLineNoNewline(t *testing.T) {
+	// last record has no trailing newline — must still be processed.
+	jsonl := `{"type":"assistant","message":{"model":"claude-opus-4-8","usage":{"input_tokens":42,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}`
+	got, ok := ContextTokens("claude", strings.NewReader(jsonl))
+	if !ok || got != 42 {
+		t.Fatalf("got (%d,%v) want (42,true)", got, ok)
+	}
+}
+
+func TestContextTokensEmpty_None(t *testing.T) {
+	if _, ok := ContextTokens("claude", strings.NewReader("")); ok {
+		t.Fatal("empty transcript should yield no count")
+	}
+}
+
 func TestContextTokensAgy_None(t *testing.T) {
 	if _, ok := ContextTokens("agy", strings.NewReader(`{"type":"PLANNER_RESPONSE"}`)); ok {
 		t.Fatal("agy should yield no count")

@@ -38,14 +38,17 @@ func lineTokens(agent string, line []byte) (int, bool) {
 			Type    string `json:"type"`
 			Payload struct {
 				Type string `json:"type"`
-				Info struct {
+				Info *struct {
 					Last struct {
 						InputTokens int `json:"input_tokens"`
 					} `json:"last_token_usage"`
 				} `json:"info"`
 			} `json:"payload"`
 		}
-		if json.Unmarshal(line, &r) != nil || r.Type != "event_msg" || r.Payload.Type != "token_count" {
+		// Info is a pointer: an `"info":null` token_count event → nil → skip it
+		// (don't let a null-info trailing event flicker the count to 0 — the
+		// codex analog of the claude <synthetic> guard).
+		if json.Unmarshal(line, &r) != nil || r.Type != "event_msg" || r.Payload.Type != "token_count" || r.Payload.Info == nil {
 			return 0, false
 		}
 		return r.Payload.Info.Last.InputTokens, true
