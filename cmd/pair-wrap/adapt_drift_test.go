@@ -132,7 +132,10 @@ func TestOutputFilter_LogsFiredDedupedPerMarker(t *testing.T) {
 	p.adapt = adapt.New(&buf, "pair-wrap", "codex")
 
 	// Same marker twice + a different one, interleaved with normal bytes.
-	p.stripCodexSyncOutput([]byte("a\x1b[?2026hb\x1b[?2026hc\x1b[?1004hd"))
+	p.stripCodexOutputMarkers(
+		[]byte("a\x1b[?2026hb\x1b[?2026hc\x1b[?1004hd"),
+		codexSyncOutputMarkers,
+	)
 
 	recs := decodeAdapt(t, &buf)
 	if len(recs) != 2 {

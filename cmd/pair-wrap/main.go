@@ -239,7 +239,7 @@ type proxy struct {
 	// filterSeen dedups the aspect-5 output-filter signal: we log `fired`
 	// once per distinct stripped marker (presence is the signal, and the
 	// markers fire many times per turn). Touched only from the stdout pump
-	// goroutine (stripCodexSyncOutput), so no lock.
+	// goroutine (stripCodexOutputMarkers), so no lock.
 	filterSeen map[string]bool
 
 	// Scrollback log (-1 / nil when disabled)
@@ -284,11 +284,19 @@ type proxy struct {
 	traceMu      sync.Mutex
 	traceSeq     uint64
 
-	// codexSyncPassthrough disables stripCodexSyncOutput when PAIR_CODEX_SYNC_PASSTHROUGH
-	// is set — the #68 A/B switch for whether forwarding codex's DEC 2026/1004
-	// markers untouched lets zellij batch the inline repaint storm instead of
-	// tripping its client-disconnect guard. Default off preserves the #30 strip.
+	// codexSyncPassthrough disables the DEC 2026/1004 strip when
+	// PAIR_CODEX_SYNC_PASSTHROUGH is set — the #68 A/B switch for whether
+	// forwarding codex's markers untouched lets zellij batch the inline repaint
+	// storm instead of tripping its client-disconnect guard. Default off
+	// preserves the #30 strip.
 	codexSyncPassthrough bool
+
+	// codexFilterKKP strips Codex's keyboard-protocol negotiation when
+	// PAIR_CODEX_FILTER_KKP is set, or when the per-tag marker file exists in
+	// pair's data dir. This is an opt-in diagnostic switch for the intermittent
+	// zellij mouse-scroll wedge; raw scrollback still keeps the original PTY
+	// bytes.
+	codexFilterKKP bool
 }
 
 type spanEntry struct {
@@ -315,6 +323,18 @@ func (p *proxy) resolvePaths() {
 	p.capturePIDPath = filepath.Join(dir, "pair-wrap-pid-"+tag)
 	p.agentPIDPath = filepath.Join(dir, "agent-pid-"+tag)
 	p.wrapEventsPath = filepath.Join(dir, "wrap-events-"+tag+".jsonl")
+}
+
+func dataDirFlag(name string) bool {
+	tag := os.Getenv("PAIR_TAG")
+	if tag == "" {
+		return false
+	}
+	path := filepath.Join(adapt.DataDir(), name+"-"+tag)
+	if _, err := os.Stat(path); err == nil {
+		return true
+	}
+	return false
 }
 
 // ----- Debug log --------------------------------------------------------------
@@ -549,17 +569,35 @@ var codexSyncOutputMarkers = [][]byte{
 	[]byte("\x1b[?1004l"),
 }
 
+var codexKKPMarkers = [][]byte{
+	[]byte("\x1b[>4;0m"),
+	[]byte("\x1b[>7u"),
+	[]byte("\x1b[?u"),
+}
+
 func (p *proxy) stdoutChunk(data []byte) []byte {
 	if p.agentBasename != "codex" {
 		return data
 	}
-	if p.codexSyncPassthrough {
+	markers := p.codexOutputFilterMarkers()
+	if len(markers) == 0 {
 		return data
 	}
-	return p.stripCodexSyncOutput(data)
+	return p.stripCodexOutputMarkers(data, markers)
 }
 
-func (p *proxy) stripCodexSyncOutput(data []byte) []byte {
+func (p *proxy) codexOutputFilterMarkers() [][]byte {
+	var markers [][]byte
+	if !p.codexSyncPassthrough {
+		markers = append(markers, codexSyncOutputMarkers...)
+	}
+	if p.codexFilterKKP {
+		markers = append(markers, codexKKPMarkers...)
+	}
+	return markers
+}
+
+func (p *proxy) stripCodexOutputMarkers(data []byte, markers [][]byte) []byte {
 	if len(p.stdoutPending) > 0 {
 		combined := make([]byte, 0, len(p.stdoutPending)+len(data))
 		combined = append(combined, p.stdoutPending...)
@@ -571,7 +609,7 @@ func (p *proxy) stripCodexSyncOutput(data []byte) []byte {
 	out := make([]byte, 0, len(data))
 	for i := 0; i < len(data); {
 		matched := false
-		for _, marker := range codexSyncOutputMarkers {
+		for _, marker := range markers {
 			if startsWith(data[i:], marker) {
 				i += len(marker)
 				matched = true
@@ -1623,6 +1661,7 @@ argsDone:
 	p.agentBasename = filepath.Base(argv[0])
 	p.codexSyncPassthrough = envFlag("PAIR_CODEX_SYNC_PASSTHROUGH")
 	p.resolvePaths()
+	p.codexFilterKKP = envFlag("PAIR_CODEX_FILTER_KKP") || dataDirFlag("codex-filter-kkp")
 
 	// Open the always-on adaptation flight recorder. bin/pair truncates the
 	// file once per session launch, so we append. nil when PAIR_TAG is unset.
