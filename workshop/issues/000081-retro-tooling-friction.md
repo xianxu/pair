@@ -52,6 +52,16 @@ Address or explicitly disposition these findings:
    - The review prompt said `ariadne#72` for an issue in `pair`.
    - Desired outcome: prompt should identify the repo that owns the issue being reviewed.
 
+## Follow-up Tickets
+
+- ariadne#138 — SDLC subprocess PATH resolution.
+- ariadne#132 — SDLC repo transaction lock for concurrent mutating commands.
+- ariadne#133 — Multi-target `sdlc issue validate`.
+- ariadne#135 — Schema-valid `sdlc close --no-actual` with N/A actuals.
+- ariadne#134 — Agent-robust active-time and estimate handling.
+- ariadne#136 — Durable boundary review sidecar output.
+- ariadne#137 — Boundary review repo orientation.
+
 ## Done when
 
 - [x] Each finding above has either a fix, a follow-up issue, or a documented won't-fix rationale.
