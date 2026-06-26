@@ -1,12 +1,13 @@
 ---
 id: 000072
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-25
 updated: 2026-06-26
 started: 2026-06-26T10:06:43-07:00
 estimate_hours:
+actual_hours: 0.5
 ---
 
 # migration all to Go
@@ -74,5 +75,9 @@ The ordering above is intentional even though the allocated issue IDs are not st
 Issue opened to evaluate whether Pair should move "all to Go" for packaging/distribution.
 
 ### 2026-06-26
+- 2026-06-26: closed — roadmap-only reclose after boundary review: #72-#79 validate after actual_hours fix; active-time reported no measurable activity, so actual_hours is a labeled judgment estimate; no atlas change because this created migration tracker issues, not runtime architecture; review verdict: FIX-THEN-SHIP
+- 2026-06-26: closed — roadmap-only close: issue validate passed for #72-#79; sdlc judge plan found only the now-fixed #72 checklist/status closeout; no atlas change because this created migration tracker issues, not new runtime architecture; review verdict: REWORK
 
 Claimed and entered planning. Brainstorm conclusion: pursue a single primary Go `pair` binary as the target architecture, but do not treat "all to Go" as literal removal of Lua/zellij native assets or a blanket shell rewrite. The migration should be staged through merge-safe sub-issues so Pair remains usable at every intermediate state.
+
+Post-close review follow-up: the boundary review returned FIX-THEN-SHIP and asked for atlas discoverability plus enforced sub-issue ordering. Added the packaging migration target to `atlas/architecture.md` and encoded the dependency chain in #74-#79 frontmatter.

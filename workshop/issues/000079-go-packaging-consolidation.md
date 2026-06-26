@@ -1,7 +1,7 @@
 ---
 id: 000079
 status: open
-deps: []
+deps: [000077, 000078]
 github_issue:
 created: 2026-06-26
 updated: 2026-06-26

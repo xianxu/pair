@@ -29,6 +29,26 @@ zellij/config.kdl            # mouse, copy_command, keybinds, pane frames
 zellij/layouts/main.kdl      # the split + agent/draft commands + swap layouts
 ```
 
+## Packaging migration target (#72)
+
+Pair is moving toward a single primary Go `pair` binary for packaging and
+distribution. The target shape is a Go-owned CLI/dispatcher that owns session
+lifecycle, data/config path resolution, asset discovery, restart/quit/continue
+flows, and subprocess orchestration. Existing Go command surfaces should become
+internal subcommands or dispatch modes behind that primary binary (`pair wrap`,
+`pair slug`, `pair context`, `pair scrollback-render`, `pair changelog`,
+`pair continuation`, `pair scribe`) instead of staying as independently managed
+installed commands forever.
+
+Native integration layers stay native: `nvim/*.lua` remains the bundled Neovim
+surface and `zellij/*.kdl` remains the zellij layout/config surface. Packaging
+may embed those assets or install them adjacent to the binary, but the migration
+does not force Lua or KDL into Go.
+
+The migration is deliberately staged through issue #73 onward. Each step must be
+merge-safe: after any sub-issue lands, the public `pair` command, `pair-dev`,
+keybindings, scrollback, changelog, continuation, and review flows still work.
+
 ### `bin/pair` — launcher
 
 Resolves `$PAIR_HOME` from its own real path (portable bash, no `readlink -f`), prepends `$PAIR_HOME/bin` to `$PATH` (idempotent across re-launches) so all helper scripts resolve by bare name in zellij configs and keybinds, parses argv — first positional is `$PAIR_AGENT` (default `claude`), everything after `--` is joined into `$PAIR_AGENT_ARGS`, extra positionals before `--` are an error with a usage hint, defaults `$PAIR_TAG` to the cwd basename (the create-flow prompt or `pair resume <tag>` overrides it), resolves `$PAIR_DATA_DIR` to `${XDG_DATA_HOME:-$HOME/.local/share}/pair`, runs a one-time migration of any old `~/scratch/pair-{draft,log}-*` files, and dispatches:
