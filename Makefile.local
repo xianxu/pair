@@ -1,7 +1,7 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
-.PHONY: build install pair-scribe pair-scrollback-render pair-wrap pair-slug pair-changelog test test-race test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-session-watch test-continue test-changelog test-copy-on-select test-cmux-title test-cmux-ownership test-zellij-trace
+.PHONY: build install pair-scribe pair-scrollback-render pair-wrap pair-slug pair-changelog pair-context test test-race test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-session-watch test-continue test-changelog test-copy-on-select test-pair-title test-cmux-ownership test-zellij-trace
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
 # and ships with the `pair-` prefix so it doesn't collide with anything
@@ -26,7 +26,7 @@
 
 BIN_DIR     := bin
 INSTALL_DIR := $(HOME)/.local/bin
-GO_BINS     := pair-scribe pair-scrollback-render pair-wrap pair-slug pair-continuation pair-changelog
+GO_BINS     := pair-scribe pair-scrollback-render pair-wrap pair-slug pair-continuation pair-changelog pair-context
 
 build: $(addprefix $(BIN_DIR)/,$(GO_BINS))
 
@@ -44,6 +44,7 @@ pair-wrap:              $(BIN_DIR)/pair-wrap
 pair-slug:              $(BIN_DIR)/pair-slug
 pair-continuation:      $(BIN_DIR)/pair-continuation
 pair-changelog:         $(BIN_DIR)/pair-changelog
+pair-context:           $(BIN_DIR)/pair-context
 
 # Tests
 #   make test       → go test ./... (cache disabled so reruns actually run)
@@ -55,14 +56,15 @@ pair-changelog:         $(BIN_DIR)/pair-changelog
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
-test: test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-session-watch test-continue test-changelog test-copy-on-select test-cmux-title test-cmux-ownership test-zellij-trace test-review
+test: test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-emitter-health test-session-watch test-continue test-changelog test-copy-on-select test-pair-title test-cmux-ownership test-zellij-trace test-review
 	go test ./... -count=1
 
-# Single-instance guard for the cmux activity-title poller (identity-checked
-# liveness so a recycled PID can't suppress the respawn). See
-# tests/cmux-title-poller-test.sh.
-test-cmux-title:
-	bash tests/cmux-title-poller-test.sh
+# pair-title poller: single-instance guard (identity-checked liveness so a
+# recycled PID can't suppress the respawn) + the #71 frame meter (renames each
+# agent pane to "<agent> (<count>) [<cwd>]", with unchanged-skip). See
+# tests/pair-title-poller-test.sh.
+test-pair-title:
+	bash tests/pair-title-poller-test.sh
 
 # cmux workspace ownership claim (presence beats a stale owner flag), so a
 # launch/attach/restart reclaims its workspace title. See
@@ -217,8 +219,13 @@ $(BIN_DIR)/pair-scrollback-render: cmd/pair-scrollback-render/main.go go.mod
 $(BIN_DIR)/pair-wrap: cmd/pair-wrap/main.go go.mod
 	go build -o $@ ./cmd/pair-wrap
 
-$(BIN_DIR)/pair-slug: cmd/pair-slug/main.go cmd/pair-slug/slug.go cmd/internal/model/model.go go.mod
+$(BIN_DIR)/pair-slug: cmd/pair-slug/main.go cmd/pair-slug/slug.go cmd/internal/model/model.go cmd/internal/transcript/transcript.go go.mod
 	go build -o $@ ./cmd/pair-slug
+
+# pair-context — one-shot: print a pane's current context size (token count)
+# for the pair-title poller. Pure ctxmeter reader + shared transcript resolver.
+$(BIN_DIR)/pair-context: cmd/pair-context/main.go cmd/internal/ctxmeter/ctxmeter.go cmd/internal/transcript/transcript.go go.mod
+	go build -o $@ ./cmd/pair-context
 
 # pair-changelog — distills the pair TTY into the Alt+l change log (#53);
 # shares cmd/internal/model with pair-slug.
