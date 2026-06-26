@@ -52,7 +52,7 @@ Created follow-up issues:
 - #78 — port stateful shell glue where packaging/reliability payoff is clear.
 - #79 — consolidate packaging, asset handling, and obsolete compatibility shims.
 
-The ordering above is intentional even though the allocated issue IDs are not strictly chronological: the issue files were allocated while this roadmap was being created. Dependencies should be set or restated when each sub-issue is claimed.
+The ordering above is intentional even though the allocated issue IDs are not strictly chronological: the issue files were allocated while this roadmap was being created. See Revisions for the #75/#76 dependency clarification.
 
 ## Done when
 
@@ -81,3 +81,13 @@ Issue opened to evaluate whether Pair should move "all to Go" for packaging/dist
 Claimed and entered planning. Brainstorm conclusion: pursue a single primary Go `pair` binary as the target architecture, but do not treat "all to Go" as literal removal of Lua/zellij native assets or a blanket shell rewrite. The migration should be staged through merge-safe sub-issues so Pair remains usable at every intermediate state.
 
 Post-close review follow-up: the boundary review returned FIX-THEN-SHIP and asked for atlas discoverability plus enforced sub-issue ordering. Added the packaging migration target to `atlas/architecture.md` and encoded the dependency chain in #74-#79 frontmatter.
+
+Final review follow-up: clarified the #75/#76 dependency shape. They are intentionally parallel after #74; #77 depends on both.
+
+## Revisions
+
+### 2026-06-26 — #75/#76 dependency clarification
+
+Reason: final boundary review noted that the prose sequence listed #76 before #75 while the dependency graph allowed either order.
+
+Delta: #75 (Go launcher prototype) and #76 (Go helper dispatch) are intentionally parallel after #74, because the launcher prototype can exercise a guarded launcher slice without waiting for existing Go helpers to dispatch through the new command. #77 remains gated on #74, #75, and #76.
