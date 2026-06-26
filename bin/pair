@@ -1157,6 +1157,11 @@ case "$PWD" in
     *)         pane_cwd="$PWD" ;;
 esac
 export PAIR_PANE_TITLE="$AGENT [$pane_cwd]"
+# PAIR_PANE_CWD: the tilde-abbreviated cwd, exported so the in-pane layout
+# command can record it into pane-<tag>-<agent>.json for pair-title's frame
+# meter (which builds "<agent> (<count>) [<cwd>]"). Raw $PWD is also recorded
+# there for claude transcript-path encoding.
+export PAIR_PANE_CWD="$pane_cwd"
 
 # PAIR_TAG is the namespace identifier — used to name the zellij session
 # and the per-instance draft/log files. The create flow's interactive
