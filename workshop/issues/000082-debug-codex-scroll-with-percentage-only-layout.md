@@ -1,11 +1,12 @@
 ---
 id: 000082
-status: open
+status: working
 deps: ["#68"]
 github_issue:
 created: 2026-06-26
 updated: 2026-06-26
 estimate_hours:
+started: 2026-06-26T15:49:13-07:00
 ---
 
 # Debug Codex scroll with percentage-only layout
