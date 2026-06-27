@@ -44,12 +44,12 @@ scroll wedge disappears.
 
 ## Done when
 
-- `zellij/layouts/main.kdl` uses no integer `size=` values for the draft pane.
-- The layout still starts a normal Pair session and exposes the expected two
+- [x] `zellij/layouts/main.kdl` uses no integer `size=` values for the draft pane.
+- [x] The layout still starts a normal Pair session and exposes the expected two
   panes.
-- A Codex session is run for a meaningful dogfood interval in percentage-only
+- [x] A Codex session is run for a meaningful dogfood interval in percentage-only
   mode.
-- The log records whether scroll wedged again and whether zellij still emits the
+- [x] The log records whether scroll wedged again and whether zellij still emits the
   fixed-pane errors.
 
 ## Estimate
@@ -89,3 +89,27 @@ total: 0.8
   action list-panes --json --command` reported two terminal panes: agent at 18
   rows and draft at 6 rows in a 24-row test terminal, matching the 24% default
   rung. The temporary session was deleted after verification.
+- Dogfood readout from live `pair-ariadne` after the operator reported scroll
+  stopped working:
+  - Session `pair-ariadne` was running the percentage-only layout in `small`
+    mode (`layout-mode-ariadne=small`); `zellij --session pair-ariadne action
+    list-panes --json --command --geometry --state` showed the agent pane at 39
+    rows and the draft pane at 12 rows.
+  - `pair-wrap` was still alive and still writing both stdout and raw scrollback:
+    `wrap-events-ariadne.jsonl` had 111k events, and
+    `scrollback-ariadne-codex.raw` had grown to 6.8 MB.
+  - The zellij server log contained the old `Can't combine fixed panes` /
+    `Failed to focus stacked pane` / `Failed to find position of flexible pane`
+    storm at 10:59, before the percentage-only `pair-ariadne` session started at
+    18:15. The active `pair-ariadne` window showed startup warnings and
+    detached-client noise, but no recurrence of the fixed-pane errors.
+  - A targeted zellij CLI probe showed scrollback still exists and can move:
+    dumping `terminal_0`, running `zellij --session pair-ariadne action
+    scroll-up --pane-id terminal_0`, and dumping again produced different
+    visible content over a 946-line full dump. A follow-up `scroll-down` restored
+    the pane.
+  - Current conclusion: percentage-only sizing falsifies the fixed-pane error
+    storm as the sole root cause. The remaining scroll failure is narrower:
+    likely mouse/wheel routing, hover/focus targeting, or interaction with the
+    bottom borderless draft pane, not pair-wrap capture loss or absent zellij
+    scrollback.
