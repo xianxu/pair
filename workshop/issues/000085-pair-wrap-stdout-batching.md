@@ -1,12 +1,13 @@
 ---
 id: 000085
-status: working
+status: done
 deps: ["#82"]
 github_issue:
 created: 2026-06-29
 updated: 2026-06-29
 estimate_hours: 1.42
 started: 2026-06-29T15:14:39-07:00
+actual_hours: 0.18
 ---
 
 # Batch pair-wrap stdout redraws
@@ -80,6 +81,7 @@ total: 1.42
 ## Log
 
 ### 2026-06-29
+- 2026-06-29: closed — go test ./cmd/pair-wrap; go test ./...; make build; make test; sdlc issue validate workshop/issues/000085-pair-wrap-stdout-batching.md; git diff --check; review verdict: REWORK
 
 - Created as a focused follow-up to #82. Decision: batch only filtered
   `os.Stdout` delivery, not raw scrollback or detection, so the experiment lowers
@@ -95,3 +97,7 @@ total: 1.42
 - Verification passed: `go test ./cmd/pair-wrap`; `go test ./...`; `make build`;
   `make test`; `sdlc issue validate workshop/issues/000085-pair-wrap-stdout-batching.md`;
   `git diff --check`.
+- Boundary review returned `REWORK` for plan documentation only: `stdoutPump`
+  was listed as PURE despite writing through an injected `io.Writer`. Revised
+  the durable plan to classify `stdoutPump` as an integration point around the
+  pure `stdoutBatcher`.

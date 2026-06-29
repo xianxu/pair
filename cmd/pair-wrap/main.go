@@ -278,7 +278,9 @@ type proxy struct {
 	// per-agent stdout filter. It affects only bytes written to zellij;
 	// raw scrollback capture and detection still see the original PTY data.
 	stdoutPending []byte
-	stdoutPump    *stdoutPump
+
+	// stdoutPump batches already-filtered bytes before visible delivery.
+	stdoutPump *stdoutPump
 
 	// Structured forensic trace for pair-wrap ⇄ zellij/agent boundaries.
 	// It is best-effort and redacted: lengths/hashes/timing only, no raw stream.

@@ -17,7 +17,6 @@
 | Name | Lives in | Status |
 |------|----------|--------|
 | `stdoutBatcher` | `cmd/pair-wrap/main.go` | new |
-| `stdoutPump` | `cmd/pair-wrap/main.go` | new |
 
 `stdoutBatcher` accumulates already-filtered stdout bytes and exposes deterministic operations: append bytes, report pending byte/chunk counts, flush into a returned byte slice, and reset. It has no clock or writer dependency.
 
@@ -25,17 +24,17 @@
 - **DRY rationale:** Reuses the existing `stdoutChunk` filter; batching starts after filtering so the DEC marker stripping logic is not duplicated.
 - **Future extensions:** If #82 proves the experiment useful, the flush interval can become an env/config knob without changing raw capture.
 
-`stdoutPump` is a small deterministic helper that receives "queue filtered bytes", "flush tick", and "EOF" events. It owns one `stdoutBatcher`, writes flushed bytes through an injected `io.Writer`, and returns trace records for the caller to emit.
-
-- **Relationships:** `masterPump` drives one `stdoutPump` from the PTY read select loop, the 100ms ticker case, and the EOF/read-end paths.
-- **DRY rationale:** Centralizes cadence and EOF flushing in one helper instead of hand-rolling flush calls at every return path.
-- **Future extensions:** The flush interval can be made configurable by changing the ticker setup without changing pump semantics.
-
 ### Integration Points
 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
+| `stdoutPump` | `cmd/pair-wrap/main.go` | new | `io.Writer` stdout delivery |
 | `masterPump stdout flush loop` | `cmd/pair-wrap/main.go` | modified | PTY read channel, `time.Ticker`, `os.Stdout.Write` |
+
+`stdoutPump` receives "queue filtered bytes", "flush tick", and "EOF" events. It owns one pure `stdoutBatcher`, writes flushed bytes through an injected `io.Writer`, and returns trace records for the caller to emit.
+
+- **Injected into:** `proxy.handleChunk` and `masterPump` through the proxy-owned `stdoutPump`.
+- **Future extensions:** The flush interval can be made configurable by changing the ticker setup without changing pump semantics.
 
 `masterPump` appends filtered stdout to the `stdoutPump` from `handleChunk` and drives pump flushes on a 100ms ticker plus EOF. It remains the sole owner of stdout IO.
 
@@ -241,3 +240,7 @@ git diff --check
 - [x] **Step 3: Log dogfood instructions**
 
 In #85 log, record that live Pair dogfood requires `make install` before restarting Pair because zellij runs the installed `pair-wrap`.
+
+## Revisions
+
+- 2026-06-29T15:57:00-07:00 — Boundary review found the original Core Concepts table misclassified `stdoutPump` as PURE even though `flush` writes through an injected `io.Writer`. Reclassified `stdoutPump` as an integration point wrapping the pure `stdoutBatcher`; `stdoutBatcher` remains the pure core and `stdoutPump` / `masterPump` form the thin stdout IO shell (`ARCH-PURE`).
