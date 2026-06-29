@@ -82,3 +82,5 @@ total: 1.0
   redecorates ANSI spans, and relocks the viewer as read-only.
 - Verification: `nvim -l nvim/scrollback_test.lua` passed; `make test-lua`
   passed.
+- Updated `atlas/architecture.md` to record the scrollback viewer's `G` refresh
+  path and the `.ansi` file's refreshed-on-demand lifecycle.
