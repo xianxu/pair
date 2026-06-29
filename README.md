@@ -70,6 +70,7 @@ Select something with mouse on agent's pane, the selection is inserted at curren
 | **Alt+/** | any pane | Enter into scrollback viewer, at same view port of current mouse scroll state of claude pane. Search is smart-case (`/foo` = case-insensitive, `/Foo` = case-sensitive). `Esc` exits (with a Yes/No confirm if there are pending markers). |
 | **Alt+q** | scrollback viewer | Insert comment for the line, or selection |
 | **Alt+b** / **Alt+B** | scrollback viewer | Jump to previous / next prompt boundary — hop between turns instead of scrolling line-by-line |
+| **G** | scrollback viewer | Re-render the backing capture and jump to the refreshed bottom, preserving pending `Alt+q` markers and the overall comment. |
 | **Alt+l** | any pane | Open the session's distilled **change log** (LLM-summarized milestones / decisions) in a read-only full-screen viewer — the distilled counterpart to `Alt+/`. Opens instantly and refreshes in the background; `Esc` / `q` to dismiss (with a Yes/No confirm if there are pending markers). |
 | **Alt+q** | change-log viewer | Drop a 🤖 question on a line/selection; on exit it ships to the draft tagged `[change log]` (the same annotate flow as the scrollback viewer) |
 | **Alt+Backspace** | nvim (normal/insert), at `+N` | Delete the current queued prompt. |
