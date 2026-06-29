@@ -1,12 +1,13 @@
 ---
 id: 000084
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-29
 updated: 2026-06-29
 estimate_hours: 1.0
 started: 2026-06-29T11:13:55-07:00
+actual_hours: 0.13
 ---
 
 # scrollback nvim buffer refresh
@@ -68,7 +69,6 @@ total: 1.0
 ## Log
 
 ### 2026-06-29
-
 - Clarified scope: standalone semi-live Alt+/ scrollback viewer refresh, with `G`
   as the important UX path because "go to end" should mean "go to the current
   end after re-rendering the latest raw scrollback."
@@ -84,3 +84,12 @@ total: 1.0
   passed.
 - Updated `atlas/architecture.md` to record the scrollback viewer's `G` refresh
   path and the `.ansi` file's refreshed-on-demand lifecycle.
+- Close boundary review returned `REWORK`: refresh replaced the annotate-attached
+  buffer and could wipe pending `Alt+q` markers / lose the footer affordance.
+- Fixed review finding by adding a footer-aware annotate reload hook and making
+  scrollback refresh skip visible-buffer replacement when pending annotations
+  exist; added regression tests for marker-protected refresh and clean
+  footer-restoring refresh.
+- Verification after review fix: `nvim -l nvim/scrollback_test.lua` passed;
+  `make test-lua` passed; `sdlc issue validate` passed; `git diff --check`
+  passed.

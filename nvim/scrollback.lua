@@ -27,6 +27,8 @@ vim.opt.breakindent = true
 vim.opt.ignorecase = true
 vim.opt.smartcase = true
 
+local annotate
+
 -- Stub out the pair-launcher cmdline targets so a stray zellij Alt+Up
 -- / Alt+Down / Alt+x / Alt+n / Alt+d / Shift+Alt+N pressed while the
 -- scrollback viewer is the focused pane degrades silently rather than
@@ -340,10 +342,17 @@ local function refresh_scrollback_buffer(bufnr, opts)
     return false
   end
 
+  if annotate.has_pending_annotations and annotate.has_pending_annotations(bufnr) then
+    vim.notify('scrollback refresh skipped buffer reload: pending annotations kept', vim.log.levels.INFO)
+    relock_scrollback_buffer(bufnr)
+    return true
+  end
+
   vim.bo[bufnr].modifiable = true
   vim.bo[bufnr].readonly = false
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, new_lines)
   decorate_buffer(bufnr)
+  annotate.on_reloaded(bufnr)
   relock_scrollback_buffer(bufnr)
   return true
 end
@@ -392,7 +401,6 @@ end
 -- Owns the marker parse/extract core + the Alt+q add/edit flow + the quit-emit
 -- to the draft sidecar; this file keeps only the SGR rendering, Alt+b prompt
 -- jump, and the scrollback-specific viewport/key safety below.
-local annotate
 do
   local src = debug.getinfo(1, 'S').source:sub(2)
   local dir = src:match('(.*/)') or './'
@@ -443,6 +451,7 @@ _G.PairScrollbackTest = {
   scrollback_paths = scrollback_paths,
   refresh_buffer = refresh_scrollback_buffer,
   refresh_then_end = refresh_then_end,
+  annotate = annotate,
 }
 
 

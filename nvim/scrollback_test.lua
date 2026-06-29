@@ -175,6 +175,77 @@ if vim and vim.api then
     vim.api.nvim_win_close(win, true)
   end
 
+  -- 6. Refresh with a pending marker must not replace the annotate-attached
+  -- buffer, because markers are buffer text until VimLeavePre emits them.
+  do
+    local annotate = M.annotate
+    local MARKER = '\240\159\164\150'  -- 🤖
+    local dir = tmpdir()
+    local ansi = dir .. '/scrollback-test-codex.ansi'
+    vim.fn.writefile({ 'fresh one', 'fresh two' }, ansi)
+
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_name(buf, ansi)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'old line' })
+    vim.bo[buf].modifiable = false
+    vim.bo[buf].readonly = true
+    annotate.attach({ bufnr = buf, pending_path = dir .. '/pending.md', footer = true, quit_noun = 'scrollback' })
+
+    vim.bo[buf].modifiable = true
+    vim.bo[buf].readonly = false
+    vim.api.nvim_buf_set_lines(buf, 0, 1, false, { 'old line ' .. MARKER .. '[keep me]' })
+    vim.bo[buf].modifiable = false
+    vim.bo[buf].readonly = true
+    eq(annotate.has_new_markers(buf), true, 'precondition: pending marker exists')
+
+    local called = false
+    local ok = M.refresh_buffer(buf, {
+      renderer = function()
+        called = true
+        vim.fn.writefile({ 'fresh one', 'fresh two' }, ansi)
+        return true
+      end,
+    })
+    eq(ok, true, 'marker-protected refresh reports success')
+    eq(called, true, 'marker-protected refresh still renders backing ansi')
+    eq(table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n'),
+       'old line ' .. MARKER .. '[keep me]\nFor overall comment, Alt+q on this line.',
+       'marker-protected refresh keeps annotated buffer intact')
+    eq(annotate.has_new_markers(buf), true, 'pending marker still pending after skipped reload')
+    vim.b[buf].pair_annotate = false
+  end
+
+  -- 7. Clean annotate-attached refresh reloads content, rebaselines marker
+  -- state, and recreates the scrollback footer affordance at the new end.
+  do
+    local annotate = M.annotate
+    local dir = tmpdir()
+    local ansi = dir .. '/scrollback-test-codex.ansi'
+    vim.fn.writefile({ 'old line' }, ansi)
+
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_name(buf, ansi)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'old line' })
+    vim.bo[buf].modifiable = false
+    vim.bo[buf].readonly = true
+    annotate.attach({ bufnr = buf, pending_path = dir .. '/pending.md', footer = true, quit_noun = 'scrollback' })
+
+    local ok = M.refresh_buffer(buf, {
+      renderer = function()
+        vim.fn.writefile({ 'fresh one', 'fresh two' }, ansi)
+        return true
+      end,
+    })
+    eq(ok, true, 'clean annotate-attached refresh returns true')
+    eq(table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n'),
+       'fresh one\nfresh two\nFor overall comment, Alt+q on this line.',
+       'clean refresh reloads content and restores footer')
+    eq(annotate.has_new_markers(buf), false, 'clean refresh rebaselines annotate state')
+    eq(vim.bo[buf].modifiable, false, 'clean annotate refresh leaves buffer unmodifiable')
+    eq(vim.bo[buf].readonly, true, 'clean annotate refresh leaves buffer readonly')
+    vim.b[buf].pair_annotate = false
+  end
+
 else
   io.stderr:write('WARN: vim.api unavailable — prompt pattern tests skipped\n')
 end

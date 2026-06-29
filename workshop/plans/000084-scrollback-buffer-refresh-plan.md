@@ -48,7 +48,7 @@
 - Modify: `nvim/scrollback_test.lua`
 - Modify: `nvim/scrollback.lua`
 
-- [ ] **Step 1: Add test for refresh reloading changed `.ansi` content**
+- [x] **Step 1: Add test for refresh reloading changed `.ansi` content**
 
 Add a headless test that:
 - Creates temp `.raw`, `.events.jsonl`, and `.ansi` files with the scrollback filename shape.
@@ -57,7 +57,7 @@ Add a headless test that:
 - Calls `_G.PairScrollbackTest.refresh_buffer(bufnr, { renderer = fake })`.
 - Asserts the buffer now contains stripped new text, ANSI decoration was reapplied, and `modifiable=false` / `readonly=true`.
 
-- [ ] **Step 2: Add test for `G` behavior**
+- [x] **Step 2: Add test for `G` behavior**
 
 Add a headless test that:
 - Starts with a two-line `.ansi`.
@@ -65,7 +65,7 @@ Add a headless test that:
 - Calls `_G.PairScrollbackTest.refresh_then_end(bufnr, { renderer = fake })`.
 - Asserts the cursor is on line 4 after refresh.
 
-- [ ] **Step 3: Run the focused test to verify RED**
+- [x] **Step 3: Run the focused test to verify RED**
 
 Run:
 
@@ -80,7 +80,7 @@ Expected: FAIL because `refresh_buffer` / `refresh_then_end` are not implemented
 **Files:**
 - Modify: `nvim/scrollback.lua`
 
-- [ ] **Step 1: Add path derivation helper**
+- [x] **Step 1: Add path derivation helper**
 
 Implement a local helper that derives:
 - `ansi` from the current buffer name.
@@ -89,14 +89,14 @@ Implement a local helper that derives:
 
 Return `nil, message` if the buffer name is not an `.ansi` path.
 
-- [ ] **Step 2: Add renderer invocation seam**
+- [x] **Step 2: Add renderer invocation seam**
 
 Implement a local `run_renderer(paths, opts)` helper:
 - Use `opts.renderer` when supplied by tests.
 - Otherwise run `{ pair-scrollback-render, paths.raw, paths.events, paths.ansi }`.
 - Resolve the binary from `$PAIR_HOME/bin/pair-scrollback-render` when `PAIR_HOME` is set; otherwise fall back to `pair-scrollback-render` on PATH.
 
-- [ ] **Step 3: Add buffer reload helper**
+- [x] **Step 3: Add buffer reload helper**
 
 Implement `refresh_scrollback_buffer(bufnr, opts)`:
 - Save old lines so failure can leave the buffer intact.
@@ -108,14 +108,14 @@ Implement `refresh_scrollback_buffer(bufnr, opts)`:
 - Relock `modifiable=false`, `readonly=true`, `buftype=nofile`, `swapfile=false`.
 - On error, restore old lines if needed, relock, notify warning, and return `false`.
 
-- [ ] **Step 4: Add refresh-then-end helper**
+- [x] **Step 4: Add refresh-then-end helper**
 
 Implement `refresh_then_end(bufnr, opts)`:
 - Calls `refresh_scrollback_buffer`.
 - If refresh succeeds, moves cursor to last line and runs `normal! zb`.
 - If refresh fails, leaves cursor and existing content alone.
 
-- [ ] **Step 5: Expose helpers for tests**
+- [x] **Step 5: Expose helpers for tests**
 
 Extend `_G.PairScrollbackTest` with:
 - `refresh_buffer`
@@ -127,7 +127,7 @@ Extend `_G.PairScrollbackTest` with:
 **Files:**
 - Modify: `nvim/scrollback.lua`
 
-- [ ] **Step 1: Bind `G` in the BufReadPost callback**
+- [x] **Step 1: Bind `G` in the BufReadPost callback**
 
 Add a buffer-local normal-mode mapping:
 
@@ -136,7 +136,7 @@ vim.keymap.set('n', 'G', function() refresh_then_end(bufnr) end,
                { buffer = bufnr, silent = true })
 ```
 
-- [ ] **Step 2: Update statusline help**
+- [x] **Step 2: Update statusline help**
 
 Add `G refresh/end` to the statusline string so the feature is discoverable.
 
@@ -145,7 +145,7 @@ Add `G refresh/end` to the statusline string so the feature is discoverable.
 **Files:**
 - Modify: `workshop/issues/000084-scrollback-buffer-refresh.md`
 
-- [ ] **Step 1: Run focused Lua test**
+- [x] **Step 1: Run focused Lua test**
 
 Run:
 
@@ -155,7 +155,7 @@ nvim -l nvim/scrollback_test.lua
 
 Expected: PASS.
 
-- [ ] **Step 2: Run broader Lua target**
+- [x] **Step 2: Run broader Lua target**
 
 Run:
 
@@ -165,7 +165,7 @@ make test-lua
 
 Expected: PASS.
 
-- [ ] **Step 3: Validate issue**
+- [x] **Step 3: Validate issue**
 
 Run:
 
@@ -175,7 +175,7 @@ Run:
 
 Expected: conforms.
 
-- [ ] **Step 4: Commit implementation**
+- [x] **Step 4: Commit implementation**
 
 Commit paths:
 
@@ -183,3 +183,20 @@ Commit paths:
 git add nvim/scrollback.lua nvim/scrollback_test.lua workshop/issues/000084-scrollback-buffer-refresh.md workshop/plans/000084-scrollback-buffer-refresh-plan.md
 git commit -m "#84: refresh scrollback viewer on G"
 ```
+
+## Revisions
+
+### 2026-06-29 — boundary-review marker safety
+
+Reason: the close boundary review found that refreshing an annotate-attached
+scrollback buffer replaced all lines without consulting the marker reload guard,
+which could erase pending `Alt+q` annotations and lose the footer affordance.
+
+Delta:
+- `nvim/annotate.lua` owns a footer-aware reload hook:
+  `has_pending_annotations` guards destructive reloads, and `on_reloaded`
+  rebaselines markers while recreating the scrollback footer row.
+- `nvim/scrollback.lua` renders the backing `.ansi` on `G`, but skips replacing
+  the visible buffer when pending inline markers or footer comments exist.
+- `nvim/scrollback_test.lua` now covers both marker-protected refresh and clean
+  annotate-attached refresh with footer restoration.
