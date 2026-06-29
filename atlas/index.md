@@ -5,6 +5,7 @@
 ## Map
 
 - [Architecture](architecture.md) — what the pieces are and how they fit together.
+- [Go migration inventory](go-migration-inventory.md) — artifact/caller/runtime contract for the staged primary-Go-binary migration.
 - [Workflow](workflow/index.md) — issue-based development loop inherited from the ariadne base layer.
 - [How-to-bring-up-a-new-harness-cli](how-to-bring-up-a-new-harness-cli.md) — guide on integrating a new agent harness CLI.
 - [Review workbench](review-workbench.md) — embedded nvim document-review pane (#66): agent proposes edit records, nvim applies them undo-ably + journals rounds via docflow.

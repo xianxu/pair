@@ -8,6 +8,10 @@ The whole thing is deliberately small — a handful of shell scripts, one nvim i
 
 ## Pieces
 
+This section is the narrative map. The exhaustive artifact/caller/runtime
+contract for the Go packaging migration lives in
+[Go migration inventory](go-migration-inventory.md).
+
 ```
 bin/pair                     # entry point (launcher)
 bin/pair-go                  # opt-in Go dispatcher skeleton; public launcher remains bin/pair
@@ -54,6 +58,8 @@ does not force Lua or KDL into Go.
 The migration is deliberately staged through issue #73 onward. Each step must be
 merge-safe: after any sub-issue lands, the public `pair` command, `pair-dev`,
 keybindings, scrollback, changelog, continuation, and review flows still work.
+The detailed disposition table is maintained in
+[Go migration inventory](go-migration-inventory.md), not duplicated here.
 
 ### `bin/pair` — launcher
 
