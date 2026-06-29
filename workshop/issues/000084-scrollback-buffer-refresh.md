@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-06-29
 updated: 2026-06-29
-estimate_hours:
+estimate_hours: 1.0
 started: 2026-06-29T11:13:55-07:00
 ---
 
@@ -37,21 +37,33 @@ rendered output.
 
 ## Done when
 
-- [ ] Pressing `G` inside Alt+/ refreshes the scrollback content and lands at the
+- [x] Pressing `G` inside Alt+/ refreshes the scrollback content and lands at the
       newest end of the refreshed buffer.
-- [ ] Refresh reuses the existing `.ansi` viewer instead of opening another
+- [x] Refresh reuses the existing `.ansi` viewer instead of opening another
       floating pane.
-- [ ] ANSI highlighting/read-only marker behavior still works after refresh.
-- [ ] Refresh failure leaves the existing buffer visible and reports the error.
-- [ ] Headless tests cover refresh reload and `G` bottom-follow behavior.
+- [x] ANSI highlighting/read-only marker behavior still works after refresh.
+- [x] Refresh failure leaves the existing buffer visible and reports the error.
+- [x] Headless tests cover refresh reload and `G` bottom-follow behavior.
 
 ## Plan
 
-- [ ] Add a headless test for scrollback refresh reloading changed `.ansi` content.
-- [ ] Add a headless test for `G` refreshing and landing at the new end.
-- [ ] Implement the scrollback refresh helper in `nvim/scrollback.lua`.
-- [ ] Wire `G` to refresh-then-end in the scrollback viewer.
-- [ ] Run focused Lua tests and the relevant broader test target.
+- [x] Add a headless test for scrollback refresh reloading changed `.ansi` content.
+- [x] Add a headless test for `G` refreshing and landing at the new end.
+- [x] Implement the scrollback refresh helper in `nvim/scrollback.lua`.
+- [x] Wire `G` to refresh-then-end in the scrollback viewer.
+- [x] Run focused Lua tests and the relevant broader test target.
+
+Detailed implementation plan: `workshop/plans/000084-scrollback-buffer-refresh-plan.md`.
+
+## Estimate
+
+```estimate
+model: estimate-logic-v2
+familiarity: 0.9
+item: lua-neovim design=0.2 impl=0.8
+design-buffer: 0.3
+total: 1.0
+```
 
 ## Log
 
@@ -60,3 +72,13 @@ rendered output.
 - Clarified scope: standalone semi-live Alt+/ scrollback viewer refresh, with `G`
   as the important UX path because "go to end" should mean "go to the current
   end after re-rendering the latest raw scrollback."
+- Planning notes: ARCH-DRY keeps refresh on the existing Go renderer and Lua
+  decoration path; ARCH-PURE keeps path derivation/position behavior small and
+  headless-testable; ARCH-PURPOSE makes `G` refresh-before-end the required UX,
+  not a later enhancement.
+- Implemented `G` as refresh-then-end in `nvim/scrollback.lua`. The refresh path
+  derives sibling `.raw` / `.events.jsonl` paths from the current `.ansi`, runs
+  the existing `pair-scrollback-render`, reloads the current buffer in place,
+  redecorates ANSI spans, and relocks the viewer as read-only.
+- Verification: `nvim -l nvim/scrollback_test.lua` passed; `make test-lua`
+  passed.
