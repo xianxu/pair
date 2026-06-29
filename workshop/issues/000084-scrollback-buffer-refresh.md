@@ -7,7 +7,7 @@ created: 2026-06-29
 updated: 2026-06-29
 estimate_hours: 1.0
 started: 2026-06-29T11:13:55-07:00
-actual_hours: 0.13
+actual_hours: 0.26
 ---
 
 # scrollback nvim buffer refresh
@@ -69,6 +69,7 @@ total: 1.0
 ## Log
 
 ### 2026-06-29
+- 2026-06-29: closed — nvim -l nvim/scrollback_test.lua passed; make test-lua passed; sdlc issue validate workshop/issues/000084-scrollback-buffer-refresh.md passed; git diff --check passed; review verdict: FIX-THEN-SHIP
 - Clarified scope: standalone semi-live Alt+/ scrollback viewer refresh, with `G`
   as the important UX path because "go to end" should mean "go to the current
   end after re-rendering the latest raw scrollback."
@@ -90,6 +91,10 @@ total: 1.0
   scrollback refresh skip visible-buffer replacement when pending annotations
   exist; added regression tests for marker-protected refresh and clean
   footer-restoring refresh.
+- Second boundary review returned `FIX-THEN-SHIP`: no critical findings; it
+  requested explicit coverage for the non-destructive renderer-failure path.
+- Added renderer-failure coverage and extracted shared footer-line construction
+  in `nvim/annotate.lua`.
 - Verification after review fix: `nvim -l nvim/scrollback_test.lua` passed;
   `make test-lua` passed; `sdlc issue validate` passed; `git diff --check`
   passed.

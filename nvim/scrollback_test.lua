@@ -140,7 +140,32 @@ if vim and vim.api then
     eq(vim.bo[buf].readonly, true, 'refresh leaves buffer readonly')
   end
 
-  -- 5. G behavior: refresh first, then land at the refreshed end.
+  -- 5. Refresh failure: keep the old visible buffer and locked viewer state.
+  do
+    local dir = tmpdir()
+    local ansi = dir .. '/scrollback-test-codex.ansi'
+    vim.fn.writefile({ 'new on disk' }, ansi)
+
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_name(buf, ansi)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'old visible', 'still here' })
+    vim.bo[buf].modifiable = false
+    vim.bo[buf].readonly = true
+
+    local ok = M.refresh_buffer(buf, {
+      renderer = function()
+        return false, 'boom'
+      end,
+    })
+    eq(ok, false, 'refresh_buffer returns false on renderer failure')
+    eq(table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n'),
+       'old visible\nstill here',
+       'renderer failure keeps visible buffer intact')
+    eq(vim.bo[buf].modifiable, false, 'renderer failure leaves buffer unmodifiable')
+    eq(vim.bo[buf].readonly, true, 'renderer failure leaves buffer readonly')
+  end
+
+  -- 6. G behavior: refresh first, then land at the refreshed end.
   do
     assert(type(M.refresh_then_end) == 'function', 'refresh_then_end helper must exist')
     local dir = tmpdir()
@@ -175,7 +200,7 @@ if vim and vim.api then
     vim.api.nvim_win_close(win, true)
   end
 
-  -- 6. Refresh with a pending marker must not replace the annotate-attached
+  -- 7. Refresh with a pending marker must not replace the annotate-attached
   -- buffer, because markers are buffer text until VimLeavePre emits them.
   do
     local annotate = M.annotate
@@ -215,7 +240,7 @@ if vim and vim.api then
     vim.b[buf].pair_annotate = false
   end
 
-  -- 7. Clean annotate-attached refresh reloads content, rebaselines marker
+  -- 8. Clean annotate-attached refresh reloads content, rebaselines marker
   -- state, and recreates the scrollback footer affordance at the new end.
   do
     local annotate = M.annotate

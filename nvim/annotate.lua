@@ -592,14 +592,17 @@ end
 
 -- Rewrite the affordance line to reflect the stored footer comment:
 -- empty/nil → hint text, non-empty → "Overall comment: <text>".
+local function footer_line_for(st)
+  local text = st and st.footer_text
+  return (text and text ~= '') and (FOOTER_PREFIX .. text) or FOOTER_HINT
+end
+
 local function update_footer_line(bufnr)
   local st = state[bufnr]
   local row = st and st.footer_row
   if not row then return end
-  local text = st.footer_text
-  local new_line = (text and text ~= '') and (FOOTER_PREFIX .. text) or FOOTER_HINT
   set_modifiable(bufnr, true)
-  vim.api.nvim_buf_set_lines(bufnr, row - 1, row, false, { new_line })
+  vim.api.nvim_buf_set_lines(bufnr, row - 1, row, false, { footer_line_for(st) })
   set_modifiable(bufnr, false)
 end
 
@@ -755,10 +758,8 @@ function M.on_reloaded(bufnr)
   st.baseline = collect_markers_by_line(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
   if st.footer then
     local row0 = vim.api.nvim_buf_line_count(bufnr)
-    local footer_line = (st.footer_text and st.footer_text ~= '')
-      and (FOOTER_PREFIX .. st.footer_text) or FOOTER_HINT
     set_modifiable(bufnr, true)
-    vim.api.nvim_buf_set_lines(bufnr, row0, row0, false, { footer_line })
+    vim.api.nvim_buf_set_lines(bufnr, row0, row0, false, { footer_line_for(st) })
     set_modifiable(bufnr, false)
     st.footer_row = row0 + 1
   end

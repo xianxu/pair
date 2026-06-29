@@ -200,3 +200,6 @@ Delta:
   the visible buffer when pending inline markers or footer comments exist.
 - `nvim/scrollback_test.lua` now covers both marker-protected refresh and clean
   annotate-attached refresh with footer restoration.
+- A follow-up `FIX-THEN-SHIP` review requested explicit coverage for the
+  renderer-failure branch; `nvim/scrollback_test.lua` now asserts renderer
+  failure preserves visible lines and read-only viewer state.
