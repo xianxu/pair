@@ -81,6 +81,7 @@ total: 1.42
 ## Log
 
 ### 2026-06-29
+- 2026-06-29: closed — final re-close after FIX-THEN-SHIP coverage fix; go test ./cmd/pair-wrap; go test ./...; make build; make test; sdlc issue validate workshop/issues/000085-pair-wrap-stdout-batching.md; git diff --check; review verdict: SHIP
 - 2026-06-29: closed — re-close after boundary REWORK fix; go test ./cmd/pair-wrap; go test ./...; make build; make test; sdlc issue validate workshop/issues/000085-pair-wrap-stdout-batching.md; git diff --check; review verdict: FIX-THEN-SHIP
 - 2026-06-29: closed — go test ./cmd/pair-wrap; go test ./...; make build; make test; sdlc issue validate workshop/issues/000085-pair-wrap-stdout-batching.md; git diff --check; review verdict: REWORK
 
