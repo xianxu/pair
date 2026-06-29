@@ -57,13 +57,14 @@ import (
 // ----- Tunables ---------------------------------------------------------------
 
 const (
-	rateLimitS          = 500 * time.Millisecond
-	slugDebounceS       = 1 * time.Second // min gap between pair-slug spawns (#000027)
-	agentOutputSpansMax = 1000
-	agentSpanMax        = 512
-	rollingTailLen      = 512
-	pendingMax          = 64 // cap on incomplete-escape carryover
-	readBufSize         = 4096
+	rateLimitS                 = 500 * time.Millisecond
+	slugDebounceS              = 1 * time.Second // min gap between pair-slug spawns (#000027)
+	agentOutputSpansMax        = 1000
+	agentSpanMax               = 512
+	rollingTailLen             = 512
+	pendingMax                 = 64 // cap on incomplete-escape carryover
+	readBufSize                = 4096
+	defaultStdoutFlushInterval = 100 * time.Millisecond
 )
 
 var (
@@ -278,6 +279,10 @@ type proxy struct {
 	// raw scrollback capture and detection still see the original PTY data.
 	stdoutPending []byte
 
+	// stdoutPump batches already-filtered bytes before visible delivery.
+	stdoutPump       *stdoutPump
+	stdoutFlushEvery time.Duration
+
 	// Structured forensic trace for pair-wrap ⇄ zellij/agent boundaries.
 	// It is best-effort and redacted: lengths/hashes/timing only, no raw stream.
 	wrapEventsFD *os.File
@@ -304,6 +309,121 @@ type spanEntry struct {
 	text  []byte
 	count int
 	elem  *list.Element // pointer into spanOrder for O(1) move/remove
+}
+
+type stdoutBatcher struct {
+	buf    []byte
+	chunks int
+}
+
+func (b *stdoutBatcher) append(data []byte) {
+	if len(data) == 0 {
+		return
+	}
+	b.buf = append(b.buf, data...)
+	b.chunks++
+}
+
+func (b *stdoutBatcher) flush() ([]byte, int) {
+	if len(b.buf) == 0 {
+		return nil, 0
+	}
+	out := make([]byte, len(b.buf))
+	copy(out, b.buf)
+	chunks := b.chunks
+	b.buf = b.buf[:0]
+	b.chunks = 0
+	return out, chunks
+}
+
+func (b *stdoutBatcher) pendingBytes() int {
+	return len(b.buf)
+}
+
+func (b *stdoutBatcher) pendingChunks() int {
+	return b.chunks
+}
+
+type stdoutFlushRecord struct {
+	Reason   string
+	Bytes    int
+	Chunks   int
+	WriteLen int
+	Err      error
+	SHA      string
+}
+
+type stdoutPump struct {
+	batch  stdoutBatcher
+	writer io.Writer
+}
+
+func newStdoutPump(writer io.Writer) *stdoutPump {
+	return &stdoutPump{writer: writer}
+}
+
+func (p *stdoutPump) queue(data []byte) {
+	if p == nil {
+		return
+	}
+	p.batch.append(data)
+}
+
+func (p *stdoutPump) pendingBytes() int {
+	if p == nil {
+		return 0
+	}
+	return p.batch.pendingBytes()
+}
+
+func (p *stdoutPump) pendingChunks() int {
+	if p == nil {
+		return 0
+	}
+	return p.batch.pendingChunks()
+}
+
+func (p *stdoutPump) flush(reason string) stdoutFlushRecord {
+	if p == nil {
+		return stdoutFlushRecord{Reason: reason}
+	}
+	out, chunks := p.batch.flush()
+	rec := stdoutFlushRecord{
+		Reason: reason,
+		Bytes:  len(out),
+		Chunks: chunks,
+		SHA:    shortSHA256(out),
+	}
+	if len(out) == 0 || p.writer == nil {
+		return rec
+	}
+	rec.WriteLen, rec.Err = p.writer.Write(out)
+	return rec
+}
+
+func (p *proxy) flushStdout(reason string) {
+	if p.stdoutPump == nil {
+		return
+	}
+	rec := p.stdoutPump.flush(reason)
+	if rec.Bytes == 0 && rec.Chunks == 0 && rec.WriteLen == 0 && rec.Err == nil {
+		return
+	}
+	p.traceWrap("stdout-batch-flush", map[string]any{
+		"reason":           rec.Reason,
+		"stdout_len":       rec.Bytes,
+		"stdout_sha256_12": rec.SHA,
+		"chunks":           rec.Chunks,
+		"write_len":        rec.WriteLen,
+		"error":            errorString(rec.Err),
+	})
+}
+
+func (p *proxy) stdoutFlushInterval() time.Duration {
+	if p.stdoutFlushEvery > 0 {
+		return p.stdoutFlushEvery
+	}
+	return defaultStdoutFlushInterval
 }
 
 // ----- Path resolution --------------------------------------------------------
@@ -1941,6 +2061,12 @@ func (p *proxy) masterPump() {
 
 	captureTick := time.NewTicker(50 * time.Millisecond)
 	defer captureTick.Stop()
+	stdoutFlushTick := time.NewTicker(p.stdoutFlushInterval())
+	defer stdoutFlushTick.Stop()
+	if p.stdoutPump == nil {
+		p.stdoutPump = newStdoutPump(os.Stdout)
+	}
+	defer p.flushStdout("eof")
 
 	rolling := make([]byte, 0, rollingTailLen*2)
 
@@ -1990,6 +2116,8 @@ func (p *proxy) masterPump() {
 			if due {
 				p.finalizeCapture()
 			}
+		case <-stdoutFlushTick.C:
+			p.flushStdout("tick")
 		}
 	}
 }
@@ -1999,7 +2127,7 @@ func (p *proxy) masterPump() {
 //
 //  1. capture-buffer tee + early-finalize (so even a brief window snags
 //     the very next byte)
-//  2. stdout tee (user sees the bytes ASAP)
+//  2. filtered stdout queue (user-visible writes flush on masterPump's tick)
 //  3. scrollback log tee
 //  4. span extraction
 //  5. OSC/BEL detection on a rolling tail
@@ -2026,18 +2154,28 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 	}
 
 	if out := p.stdoutChunk(data); len(out) > 0 {
-		wn, err := os.Stdout.Write(out)
-		p.traceWrap("stdout-write", map[string]any{
+		if p.stdoutPump == nil {
+			p.stdoutPump = newStdoutPump(os.Stdout)
+		}
+		p.stdoutPump.queue(out)
+		p.traceWrap("stdout-queue", map[string]any{
 			"stdout_len":       len(out),
 			"stdout_sha256_12": shortSHA256(out),
-			"write_len":        wn,
 			"filtered":         len(out) != len(data),
-			"error":            errorString(err),
+			"queued_chunks":    p.stdoutPump.pendingChunks(),
+			"queued_bytes":     p.stdoutPump.pendingBytes(),
 		})
 	} else {
-		p.traceWrap("stdout-write", map[string]any{
-			"stdout_len": 0,
-			"filtered":   len(data) > 0,
+		queuedChunks, queuedBytes := 0, 0
+		if p.stdoutPump != nil {
+			queuedChunks = p.stdoutPump.pendingChunks()
+			queuedBytes = p.stdoutPump.pendingBytes()
+		}
+		p.traceWrap("stdout-queue", map[string]any{
+			"stdout_len":    0,
+			"filtered":      len(data) > 0,
+			"queued_chunks": queuedChunks,
+			"queued_bytes":  queuedBytes,
 		})
 	}
 
