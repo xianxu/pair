@@ -36,7 +36,7 @@
 - **Injected into:** `proxy.handleChunk` and `masterPump` through the proxy-owned `stdoutPump`.
 - **Future extensions:** The flush interval can be made configurable by changing the ticker setup without changing pump semantics.
 
-`masterPump` appends filtered stdout to the `stdoutPump` from `handleChunk` and drives pump flushes on a 100ms ticker plus EOF. It remains the sole owner of stdout IO.
+`masterPump` creates the production `stdoutPump`, appends filtered stdout to it from `handleChunk`, and drives pump flushes on a 100ms ticker plus EOF. `handleChunk` keeps a defensive fallback for direct unit-test use, but production stdout IO stays on the `masterPump`-owned pump.
 
 - **Injected into:** `handleChunk` receives a queueing surface instead of writing stdout directly, keeping the decision testable.
 - **Future extensions:** Add a trace-only experiment switch if dogfooding needs A/B comparison.
@@ -244,3 +244,4 @@ In #85 log, record that live Pair dogfood requires `make install` before restart
 ## Revisions
 
 - 2026-06-29T15:57:00-07:00 — Boundary review found the original Core Concepts table misclassified `stdoutPump` as PURE even though `flush` writes through an injected `io.Writer`. Reclassified `stdoutPump` as an integration point wrapping the pure `stdoutBatcher`; `stdoutBatcher` remains the pure core and `stdoutPump` / `masterPump` form the thin stdout IO shell (`ARCH-PURE`).
+- 2026-06-29T16:04:00-07:00 — Second boundary review requested integration coverage for `masterPump` itself. Added pipe-backed tests proving `masterPump` flushes queued stdout on the ticker and on EOF, using a short injected interval instead of sleeping on the production 100ms cadence.

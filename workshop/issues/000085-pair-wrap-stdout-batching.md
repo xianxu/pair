@@ -81,6 +81,7 @@ total: 1.42
 ## Log
 
 ### 2026-06-29
+- 2026-06-29: closed — re-close after boundary REWORK fix; go test ./cmd/pair-wrap; go test ./...; make build; make test; sdlc issue validate workshop/issues/000085-pair-wrap-stdout-batching.md; git diff --check; review verdict: FIX-THEN-SHIP
 - 2026-06-29: closed — go test ./cmd/pair-wrap; go test ./...; make build; make test; sdlc issue validate workshop/issues/000085-pair-wrap-stdout-batching.md; git diff --check; review verdict: REWORK
 
 - Created as a focused follow-up to #82. Decision: batch only filtered
@@ -101,3 +102,6 @@ total: 1.42
   was listed as PURE despite writing through an injected `io.Writer`. Revised
   the durable plan to classify `stdoutPump` as an integration point around the
   pure `stdoutBatcher`.
+- Second boundary review returned `FIX-THEN-SHIP` for missing `masterPump`
+  integration coverage. Added pipe-backed tests for ticker flush and EOF flush
+  through `masterPump`, with a short injected flush interval.

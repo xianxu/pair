@@ -57,14 +57,14 @@ import (
 // ----- Tunables ---------------------------------------------------------------
 
 const (
-	rateLimitS          = 500 * time.Millisecond
-	slugDebounceS       = 1 * time.Second // min gap between pair-slug spawns (#000027)
-	agentOutputSpansMax = 1000
-	agentSpanMax        = 512
-	rollingTailLen      = 512
-	pendingMax          = 64 // cap on incomplete-escape carryover
-	readBufSize         = 4096
-	stdoutFlushInterval = 100 * time.Millisecond
+	rateLimitS                 = 500 * time.Millisecond
+	slugDebounceS              = 1 * time.Second // min gap between pair-slug spawns (#000027)
+	agentOutputSpansMax        = 1000
+	agentSpanMax               = 512
+	rollingTailLen             = 512
+	pendingMax                 = 64 // cap on incomplete-escape carryover
+	readBufSize                = 4096
+	defaultStdoutFlushInterval = 100 * time.Millisecond
 )
 
 var (
@@ -280,7 +280,8 @@ type proxy struct {
 	stdoutPending []byte
 
 	// stdoutPump batches already-filtered bytes before visible delivery.
-	stdoutPump *stdoutPump
+	stdoutPump       *stdoutPump
+	stdoutFlushEvery time.Duration
 
 	// Structured forensic trace for pair-wrap ⇄ zellij/agent boundaries.
 	// It is best-effort and redacted: lengths/hashes/timing only, no raw stream.
@@ -416,6 +417,13 @@ func (p *proxy) flushStdout(reason string) {
 		"write_len":        rec.WriteLen,
 		"error":            errorString(rec.Err),
 	})
+}
+
+func (p *proxy) stdoutFlushInterval() time.Duration {
+	if p.stdoutFlushEvery > 0 {
+		return p.stdoutFlushEvery
+	}
+	return defaultStdoutFlushInterval
 }
 
 // ----- Path resolution --------------------------------------------------------
@@ -2053,7 +2061,7 @@ func (p *proxy) masterPump() {
 
 	captureTick := time.NewTicker(50 * time.Millisecond)
 	defer captureTick.Stop()
-	stdoutFlushTick := time.NewTicker(stdoutFlushInterval)
+	stdoutFlushTick := time.NewTicker(p.stdoutFlushInterval())
 	defer stdoutFlushTick.Stop()
 	if p.stdoutPump == nil {
 		p.stdoutPump = newStdoutPump(os.Stdout)

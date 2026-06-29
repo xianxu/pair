@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"os"
 	"testing"
+	"time"
 )
 
 func TestStdoutBatcherAccumulatesAndFlushes(t *testing.T) {
@@ -59,4 +61,98 @@ func TestStdoutPumpFlushesOnEOF(t *testing.T) {
 	if rec.Reason != "eof" {
 		t.Fatalf("reason = %q, want eof", rec.Reason)
 	}
+}
+
+func TestMasterPumpFlushesStdoutOnTick(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+
+	var out bytes.Buffer
+	p := &proxy{
+		ptmx:             reader,
+		agentBasename:    "claude",
+		stdoutPump:       newStdoutPump(&out),
+		stdoutFlushEvery: 5 * time.Millisecond,
+		captureWindow:    defaultCaptureWindow,
+		notifyModeActive: notifyModeDefault,
+		now:              time.Now,
+	}
+	done := make(chan struct{})
+	go func() {
+		p.masterPump()
+		close(done)
+	}()
+
+	if _, err := writer.Write([]byte("tick")); err != nil {
+		t.Fatal(err)
+	}
+	waitForStdoutBatch(t, 250*time.Millisecond, func() bool {
+		return out.String() == "tick"
+	})
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	waitForStdoutBatch(t, 250*time.Millisecond, func() bool {
+		select {
+		case <-done:
+			return true
+		default:
+			return false
+		}
+	})
+}
+
+func TestMasterPumpFlushesStdoutOnEOF(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+
+	var out bytes.Buffer
+	p := &proxy{
+		ptmx:             reader,
+		agentBasename:    "claude",
+		stdoutPump:       newStdoutPump(&out),
+		stdoutFlushEvery: time.Hour,
+		captureWindow:    defaultCaptureWindow,
+		notifyModeActive: notifyModeDefault,
+		now:              time.Now,
+	}
+	done := make(chan struct{})
+	go func() {
+		p.masterPump()
+		close(done)
+	}()
+
+	if _, err := writer.Write([]byte("eof")); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	waitForStdoutBatch(t, 250*time.Millisecond, func() bool {
+		select {
+		case <-done:
+			return out.String() == "eof"
+		default:
+			return false
+		}
+	})
+}
+
+func waitForStdoutBatch(t *testing.T, timeout time.Duration, ok func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if ok() {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("condition not met within %s", timeout)
 }
