@@ -27,6 +27,8 @@ vim.opt.breakindent = true
 vim.opt.ignorecase = true
 vim.opt.smartcase = true
 
+local annotate
+
 -- Stub out the pair-launcher cmdline targets so a stray zellij Alt+Up
 -- / Alt+Down / Alt+x / Alt+n / Alt+d / Shift+Alt+N pressed while the
 -- scrollback viewer is the focused pane degrades silently rather than
@@ -266,6 +268,107 @@ local function decorate_buffer(bufnr)
   end
 end
 
+local function scrollback_paths(bufnr)
+  local ansi = vim.api.nvim_buf_get_name(bufnr)
+  if not ansi or ansi == '' or not ansi:match('%.ansi$') then
+    return nil, 'current buffer is not a scrollback .ansi file'
+  end
+  return {
+    ansi = ansi,
+    raw = ansi:gsub('%.ansi$', '.raw'),
+    events = ansi:gsub('%.ansi$', '.events.jsonl'),
+  }
+end
+
+local function renderer_command(paths)
+  local bin
+  if vim.env.PAIR_HOME and vim.env.PAIR_HOME ~= '' then
+    bin = vim.env.PAIR_HOME .. '/bin/pair-scrollback-render'
+  else
+    bin = 'pair-scrollback-render'
+  end
+  return { bin, paths.raw, paths.events, paths.ansi }
+end
+
+local function run_renderer(paths, opts)
+  opts = opts or {}
+  if opts.renderer then
+    local ok, result, err = pcall(opts.renderer, paths)
+    if not ok then return false, tostring(result) end
+    if result == false then return false, err or 'renderer failed' end
+    return true
+  end
+
+  local cmd = renderer_command(paths)
+  local out = vim.fn.system(cmd)
+  if vim.v.shell_error ~= 0 then
+    return false, table.concat(cmd, ' ') .. ' failed: ' .. out
+  end
+  return true
+end
+
+local function relock_scrollback_buffer(bufnr)
+  if not vim.api.nvim_buf_is_valid(bufnr) then return end
+  vim.bo[bufnr].modifiable = false
+  vim.bo[bufnr].readonly = true
+  vim.bo[bufnr].buftype = 'nofile'
+  vim.bo[bufnr].swapfile = false
+end
+
+local function refresh_scrollback_buffer(bufnr, opts)
+  opts = opts or {}
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  local paths, path_err = scrollback_paths(bufnr)
+  if not paths then
+    vim.notify('scrollback refresh failed: ' .. path_err, vim.log.levels.WARN)
+    return false
+  end
+
+  local old_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local ok, render_err = run_renderer(paths, opts)
+  if not ok then
+    vim.notify('scrollback refresh failed: ' .. (render_err or 'renderer failed'), vim.log.levels.WARN)
+    relock_scrollback_buffer(bufnr)
+    return false
+  end
+
+  local read_ok, new_lines = pcall(vim.fn.readfile, paths.ansi)
+  if not read_ok then
+    vim.bo[bufnr].modifiable = true
+    vim.bo[bufnr].readonly = false
+    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, old_lines)
+    relock_scrollback_buffer(bufnr)
+    vim.notify('scrollback refresh failed: could not read rendered file', vim.log.levels.WARN)
+    return false
+  end
+
+  if annotate.has_pending_annotations and annotate.has_pending_annotations(bufnr) then
+    vim.notify('scrollback refresh skipped buffer reload: pending annotations kept', vim.log.levels.INFO)
+    relock_scrollback_buffer(bufnr)
+    return true
+  end
+
+  vim.bo[bufnr].modifiable = true
+  vim.bo[bufnr].readonly = false
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, new_lines)
+  decorate_buffer(bufnr)
+  annotate.on_reloaded(bufnr)
+  relock_scrollback_buffer(bufnr)
+  return true
+end
+
+local function refresh_then_end(bufnr, opts)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  local ok = refresh_scrollback_buffer(bufnr, opts)
+  if not ok then return false end
+  local last = vim.api.nvim_buf_line_count(bufnr)
+  if last > 0 then
+    pcall(vim.api.nvim_win_set_cursor, 0, { last, 0 })
+    vim.cmd('normal! zb')
+  end
+  return true
+end
+
 -- Per-agent user-prompt marker. Used by Alt+b to skip backward through
 -- the user's turns in the scrollback. vim's regex engine (which
 -- vim.fn.search uses) is UTF-8 aware, so the literal character in the
@@ -298,7 +401,6 @@ end
 -- Owns the marker parse/extract core + the Alt+q add/edit flow + the quit-emit
 -- to the draft sidecar; this file keeps only the SGR rendering, Alt+b prompt
 -- jump, and the scrollback-specific viewport/key safety below.
-local annotate
 do
   local src = debug.getinfo(1, 'S').source:sub(2)
   local dir = src:match('(.*/)') or './'
@@ -346,6 +448,10 @@ end
 -- tested directly in nvim/annotate_test.lua.
 _G.PairScrollbackTest = {
   prompt_pattern = prompt_pattern,
+  scrollback_paths = scrollback_paths,
+  refresh_buffer = refresh_scrollback_buffer,
+  refresh_then_end = refresh_then_end,
+  annotate = annotate,
 }
 
 
@@ -388,6 +494,8 @@ vim.api.nvim_create_autocmd('BufReadPost', {
     vim.keymap.set('n', '<M-b>', function() jump_to_prompt('prev') end,
                    { buffer = bufnr, silent = true })
     vim.keymap.set('n', '<M-B>', function() jump_to_prompt('next') end,
+                   { buffer = bufnr, silent = true })
+    vim.keymap.set('n', 'G', function() refresh_then_end(bufnr) end,
                    { buffer = bufnr, silent = true })
     -- Disable the Alt-arrow / Shift-Alt-arrow combos. Two distinct
     -- failure modes had to be neutralised:
@@ -502,4 +610,4 @@ vim.opt.cursorline = true
 -- autodetects pbcopy/pbpaste on macOS so no provider config needed.
 vim.opt.clipboard = 'unnamedplus'
 vim.opt.laststatus = 2
-vim.opt.statusline = ' pair scrollback · Esc quit (confirm) · Alt+q 🤖[] (add/edit) · Alt+b/B prompts · :N jump %= L%l/%L '
+vim.opt.statusline = ' pair scrollback · Esc quit (confirm) · G refresh/end · Alt+q 🤖[] (add/edit) · Alt+b/B prompts · :N jump %= L%l/%L '

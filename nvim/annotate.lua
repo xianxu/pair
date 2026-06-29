@@ -592,14 +592,17 @@ end
 
 -- Rewrite the affordance line to reflect the stored footer comment:
 -- empty/nil → hint text, non-empty → "Overall comment: <text>".
+local function footer_line_for(st)
+  local text = st and st.footer_text
+  return (text and text ~= '') and (FOOTER_PREFIX .. text) or FOOTER_HINT
+end
+
 local function update_footer_line(bufnr)
   local st = state[bufnr]
   local row = st and st.footer_row
   if not row then return end
-  local text = st.footer_text
-  local new_line = (text and text ~= '') and (FOOTER_PREFIX .. text) or FOOTER_HINT
   set_modifiable(bufnr, true)
-  vim.api.nvim_buf_set_lines(bufnr, row - 1, row, false, { new_line })
+  vim.api.nvim_buf_set_lines(bufnr, row - 1, row, false, { footer_line_for(st) })
   set_modifiable(bufnr, false)
 end
 
@@ -727,23 +730,39 @@ function M.emit(bufnr)
 end
 
 -- ---------------------------------------------------------------------------
--- Reload guard (changelog only). Markers are buffer TEXT; the changelog's
--- async distiller replaces all lines via M.reload, which would wipe a marker
--- added during the spinner. has_new_markers lets the viewer skip a reload
--- when annotations are present; on_reloaded realigns the baseline after a
--- reload that DID run, so the baseline tracks the reloaded content.
+-- Reload guard. Markers are buffer TEXT; a viewer reload that replaces all
+-- lines would wipe markers added after attach. has_pending_annotations lets a
+-- viewer skip a reload when annotations are present; on_reloaded realigns the
+-- baseline after a reload that DID run, so the baseline tracks the reloaded
+-- content. For footer-enabled viewers, on_reloaded also recreates the trailing
+-- footer affordance row that a full-buffer reload removes.
 
 function M.has_new_markers(bufnr)
   local st = state[bufnr]
   if not st then return false end
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  if st.footer_row and st.footer_row <= #lines then table.remove(lines, st.footer_row) end
   return new_marker_count(lines, st.baseline) > 0
+end
+
+function M.has_pending_annotations(bufnr)
+  local st = state[bufnr]
+  if not st then return false end
+  return M.has_new_markers(bufnr) or (st.footer_text and st.footer_text ~= '') or false
 end
 
 function M.on_reloaded(bufnr)
   local st = state[bufnr]
   if not st then return end
+  st.footer_row = nil
   st.baseline = collect_markers_by_line(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
+  if st.footer then
+    local row0 = vim.api.nvim_buf_line_count(bufnr)
+    set_modifiable(bufnr, true)
+    vim.api.nvim_buf_set_lines(bufnr, row0, row0, false, { footer_line_for(st) })
+    set_modifiable(bufnr, false)
+    st.footer_row = row0 + 1
+  end
   highlight_markers(bufnr)
 end
 
