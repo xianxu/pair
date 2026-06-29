@@ -44,15 +44,15 @@ Design constraints:
 
 ## Done when
 
-- [ ] `pair-wrap` buffers filtered stdout bytes and flushes them no more than
+- [x] `pair-wrap` buffers filtered stdout bytes and flushes them no more than
       once per 100ms while data is arriving continuously.
-- [ ] `pair-wrap` flushes any pending stdout bytes before exiting after PTY EOF.
-- [ ] Raw scrollback writes remain immediate and byte-for-byte original.
-- [ ] Focused Go tests cover batch timing, EOF flush, stdout filtering, and
+- [x] `pair-wrap` flushes any pending stdout bytes before exiting after PTY EOF.
+- [x] Raw scrollback writes remain immediate and byte-for-byte original.
+- [x] Focused Go tests cover batch timing, EOF flush, stdout filtering, and
       immediate scrollback capture.
-- [ ] Trace events distinguish queued filtered stdout (`stdout-queue`) from
+- [x] Trace events distinguish queued filtered stdout (`stdout-queue`) from
       actual batched writes (`stdout-batch-flush`), with byte/chunk counts.
-- [ ] Pair remains buildable/testable, and the log records how to dogfood the
+- [x] Pair remains buildable/testable, and the log records how to dogfood the
       experiment for #82.
 
 ## Estimate
@@ -68,14 +68,14 @@ total: 1.42
 
 ## Plan
 
-- [ ] Write the durable implementation plan in
+- [x] Write the durable implementation plan in
       `workshop/plans/000085-pair-wrap-stdout-batching-plan.md`.
-- [ ] Add failing tests for stdout batching and EOF flush.
-- [ ] Implement the batching seam in `cmd/pair-wrap/main.go`.
-- [ ] Extract a small testable stdout pump helper so cadence and EOF flush are
+- [x] Add failing tests for stdout batching and EOF flush.
+- [x] Implement the batching seam in `cmd/pair-wrap/main.go`.
+- [x] Extract a small testable stdout pump helper so cadence and EOF flush are
       proven without sleeping in tests.
-- [ ] Verify focused Go tests, broader Go tests, and build.
-- [ ] Update atlas/logs with the experiment behavior and dogfood command.
+- [x] Verify focused Go tests, broader Go tests, and build.
+- [x] Update atlas/logs with the experiment behavior and dogfood command.
 
 ## Log
 
@@ -87,3 +87,11 @@ total: 1.42
 - Plan-quality review rejected the first plan because it did not explicitly
   test the 100ms cadence or EOF flush. Refined the plan to add a testable stdout
   pump helper and trace field expectations before implementation.
+- Implemented `stdoutBatcher` / `stdoutPump` in `cmd/pair-wrap/main.go`.
+  `handleChunk` now emits `stdout-queue` and keeps raw scrollback immediate;
+  `masterPump` flushes `stdout-batch-flush` on a 100ms tick and at EOF. Live
+  dogfood requires `make install` before restarting Pair, because zellij runs
+  the installed `pair-wrap`.
+- Verification passed: `go test ./cmd/pair-wrap`; `go test ./...`; `make build`;
+  `make test`; `sdlc issue validate workshop/issues/000085-pair-wrap-stdout-batching.md`;
+  `git diff --check`.

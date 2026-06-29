@@ -50,7 +50,7 @@
 - Modify: `cmd/pair-wrap/main.go`
 - Test: `cmd/pair-wrap/stdout_batch_test.go`
 
-- [ ] **Step 1: Write the failing pure batcher test**
+- [x] **Step 1: Write the failing pure batcher test**
 
 ```go
 func TestStdoutBatcherAccumulatesAndFlushes(t *testing.T) {
@@ -68,17 +68,17 @@ func TestStdoutBatcherAccumulatesAndFlushes(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify RED**
+- [x] **Step 2: Run the test to verify RED**
 
 Run: `go test ./cmd/pair-wrap -run TestStdoutBatcherAccumulatesAndFlushes -count=1`
 
 Expected: FAIL because `stdoutBatcher` does not exist.
 
-- [ ] **Step 3: Implement the minimal pure batcher**
+- [x] **Step 3: Implement the minimal pure batcher**
 
 Add a small unexported struct with `append`, `flush`, and `pendingBytes`.
 
-- [ ] **Step 4: Run the test to verify GREEN**
+- [x] **Step 4: Run the test to verify GREEN**
 
 Run: `go test ./cmd/pair-wrap -run TestStdoutBatcherAccumulatesAndFlushes -count=1`
 
@@ -90,7 +90,7 @@ Expected: PASS.
 - Modify: `cmd/pair-wrap/main.go`
 - Test: `cmd/pair-wrap/wrap_events_test.go`
 
-- [ ] **Step 1: Write failing tests for filtered stdout queueing and immediate scrollback**
+- [x] **Step 1: Write failing tests for filtered stdout queueing and immediate scrollback**
 
 Extend the existing handle-chunk test so `a\x1b[?2026hb` queues `ab` in the stdout pump, while `scrollback.raw` immediately contains the original bytes including the stripped marker.
 
@@ -102,17 +102,17 @@ Expected trace fields for this step:
 - `stdout-queue.queued_bytes`: current pending byte count after queueing.
 - No `stdout-batch-flush` event is emitted until a tick or EOF flush.
 
-- [ ] **Step 2: Run the focused test to verify RED**
+- [x] **Step 2: Run the focused test to verify RED**
 
 Run: `go test ./cmd/pair-wrap -run TestHandleChunkTracesMasterStdoutAndScrollback -count=1`
 
 Expected: FAIL because `handleChunk` still writes stdout directly and has no batcher to inspect.
 
-- [ ] **Step 3: Change `handleChunk` to append filtered stdout to the pump**
+- [x] **Step 3: Change `handleChunk` to append filtered stdout to the pump**
 
 Replace the old direct `stdout-write` event on the hot path with `stdout-queue`. Do not move scrollback, span extraction, or detection behind the batch.
 
-- [ ] **Step 4: Run the focused test to verify GREEN**
+- [x] **Step 4: Run the focused test to verify GREEN**
 
 Run: `go test ./cmd/pair-wrap -run 'TestHandleChunkTracesMasterStdoutAndScrollback|TestStdoutBatcher' -count=1`
 
@@ -126,7 +126,7 @@ Expected: PASS.
 - Modify: `cmd/pair-wrap/main.go`
 - Test: `cmd/pair-wrap/stdout_batch_test.go`
 
-- [ ] **Step 1: Write failing pump tests for cadence and EOF**
+- [x] **Step 1: Write failing pump tests for cadence and EOF**
 
 Add tests around `stdoutPump` with an injected `bytes.Buffer` writer:
 
@@ -174,13 +174,13 @@ func TestStdoutPumpFlushesOnEOF(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify RED**
+- [x] **Step 2: Run the test to verify RED**
 
 Run: `go test ./cmd/pair-wrap -run 'TestStdoutPumpFlushesOnlyOnTick|TestStdoutPumpFlushesOnEOF' -count=1`
 
 Expected: FAIL because no stdout pump exists.
 
-- [ ] **Step 3: Implement `stdoutPump`**
+- [x] **Step 3: Implement `stdoutPump`**
 
 The helper writes flushed bytes to the provided writer, reports `stdout-batch-flush` fields, and becomes a no-op when the batch is empty.
 
@@ -193,7 +193,7 @@ Expected trace fields for each actual flush:
 - `stdout-batch-flush.chunks`: number of queued chunks in the batch.
 - `stdout-batch-flush.error`: write error string, if any.
 
-- [ ] **Step 4: Run focused tests to verify GREEN**
+- [x] **Step 4: Run focused tests to verify GREEN**
 
 Run: `go test ./cmd/pair-wrap -run 'TestStdoutBatcher|TestStdoutPump|TestHandleChunkTracesMasterStdoutAndScrollback' -count=1`
 
@@ -204,15 +204,15 @@ Expected: PASS.
 **Files:**
 - Modify: `cmd/pair-wrap/main.go`
 
-- [ ] **Step 1: Add the 100ms ticker**
+- [x] **Step 1: Add the 100ms ticker**
 
 In `masterPump`, create `stdoutFlushTick := time.NewTicker(100 * time.Millisecond)` and defer `Stop`.
 
-- [ ] **Step 2: Flush on tick and EOF**
+- [x] **Step 2: Flush on tick and EOF**
 
 Drive `stdoutPump.flush("tick")` in the ticker case. Before every `masterPump` return caused by closed read channel, EOF, EIO, or read failure, drive `stdoutPump.flush("eof")`.
 
-- [ ] **Step 3: Preserve existing timer behavior**
+- [x] **Step 3: Preserve existing timer behavior**
 
 Keep idle and capture timers unchanged; batching must not delay capture finalization or idle detection.
 
@@ -222,11 +222,11 @@ Keep idle and capture timers unchanged; batching must not delay capture finaliza
 - Modify: `atlas/architecture.md`
 - Modify: `workshop/issues/000085-pair-wrap-stdout-batching.md`
 
-- [ ] **Step 1: Update atlas**
+- [x] **Step 1: Update atlas**
 
 Record that pair-wrap now batches visible stdout delivery while keeping raw scrollback and detection immediate.
 
-- [ ] **Step 2: Run verification**
+- [x] **Step 2: Run verification**
 
 Run:
 
@@ -238,6 +238,6 @@ make build
 git diff --check
 ```
 
-- [ ] **Step 3: Log dogfood instructions**
+- [x] **Step 3: Log dogfood instructions**
 
 In #85 log, record that live Pair dogfood requires `make install` before restarting Pair because zellij runs the installed `pair-wrap`.
