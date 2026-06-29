@@ -1,12 +1,13 @@
 ---
 id: 000073
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-26
 updated: 2026-06-29
 estimate_hours: 2.56
 started: 2026-06-29T13:25:37-07:00
+actual_hours: 0.60
 ---
 
 # pair Go migration inventory
@@ -64,6 +65,7 @@ total: 2.56
 Created from #72 as the first executable migration milestone. This is the guardrail against an unfocused rewrite.
 
 ### 2026-06-29
+- 2026-06-29: closed — make build; make test; coverage comm check printed no missing paths; git diff -- bin cmd nvim zellij Makefile.local printed no runtime changes; git diff --check; review verdict: SHIP
 
 Claimed #73 and entered planning. Durable plan created at `workshop/plans/000073-go-migration-inventory-plan.md`. Estimate uses Method A from estimate-logic-v2; scope is inventory/atlas documentation only, with no runtime behavior changes.
 
