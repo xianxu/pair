@@ -112,7 +112,7 @@ The `pair-slug` script summarizes what the current agent session is about to dis
 
 ### Aspect 5: Mouse Scroll & PTY Output Filtering
 Some agents emit DEC synchronized-output markers or other terminal control characters that interfere with Zellij's mouse scrollback.
-- **PTY Filter:** If an agent behaves poorly with mouse scrolling, `pair-wrap` can intercept and strip specific sequences (e.g., Codex's `ESC[?2026h` synchronized-output toggles) in `updateAgentOutput()` before forwarding the stream to Zellij.
+- **PTY Filter:** If an agent behaves poorly with mouse scrolling, `pair-wrap` can intercept and strip specific sequences (e.g., Codex's `ESC[?2026h` synchronized-output toggles) in `stdoutChunk()` before queueing filtered visible stdout for batched delivery to Zellij. Raw scrollback capture remains immediate and unfiltered.
 
 **Telemetry Signal** (aspect `5`, see §3): `output-filter` from `pair-wrap` (`stripCodexSyncOutput`) — `fired` once per distinct marker stripped per session (deduped; the markers repeat many times per render, so presence is the signal). If a codex update renames a sequence, its `fired` line stops appearing — an *absence* the operator reads against the expected marker set.
 
