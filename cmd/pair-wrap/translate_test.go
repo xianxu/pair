@@ -156,14 +156,12 @@ func TestTranslateChunk(t *testing.T) {
 	}
 
 	t.Run("codex keymap", func(t *testing.T) {
-		px := &proxy{sendKM: sendKeymap{
-			plainCR: []byte{'\n'},
-			altCR:   []byte{'\r'},
-		}}
+		px := &proxy{sendKM: sendKeymapByAgent["codex"]}
 		cases := []struct{ in, want []byte }{
-			{[]byte("hi\r"), []byte("hi\n")},     // Enter → newline
-			{[]byte("hi\x1b\r"), []byte("hi\r")}, // Alt+Enter → send
-			{[]byte("a\rb\x1b\r"), []byte("a\nb\r")},
+			{[]byte("hi\r"), []byte("hi\n")},             // Enter → newline
+			{[]byte("hi\x1b\r"), []byte("hi\x1b\r")},     // legacy Alt+Enter → submit chord
+			{[]byte("hi\x1b[13;3u"), []byte("hi\x1b\r")}, // KKP Alt+Enter → submit chord
+			{[]byte("a\rb\x1b\r"), []byte("a\nb\x1b\r")},
 			{[]byte("\x1b[200~text\rmore\x1b[201~"), []byte("\x1b[200~text\rmore\x1b[201~")}, // paste untouched
 		}
 		for _, c := range cases {
