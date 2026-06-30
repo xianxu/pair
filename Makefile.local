@@ -210,7 +210,7 @@ $(BIN_DIR)/pair-scribe: cmd/pair-scribe/main.go go.mod
 # pair-scrollback-render — replays a pair-wrap raw PTY capture through
 # charmbracelet/x/vt and emits one ANSI-styled line per logical scrollback
 # row, for the Alt+/ viewer to display through nvim.
-$(BIN_DIR)/pair-scrollback-render: cmd/pair-scrollback-render/main.go go.mod
+$(BIN_DIR)/pair-scrollback-render: cmd/pair-scrollback-render/main.go cmd/internal/scrollbackcmd/scrollbackcmd.go go.mod
 	go build -o $@ ./cmd/pair-scrollback-render
 
 # pair-wrap — transparent PTY proxy around a TUI coding agent: forwards
@@ -225,7 +225,7 @@ $(BIN_DIR)/pair-slug: cmd/pair-slug/main.go cmd/pair-slug/slug.go cmd/internal/m
 
 # pair-context — one-shot: print a pane's current context size (token count)
 # for the pair-title poller. Pure ctxmeter reader + shared transcript resolver.
-$(BIN_DIR)/pair-context: cmd/pair-context/main.go cmd/internal/ctxmeter/ctxmeter.go cmd/internal/transcript/transcript.go go.mod
+$(BIN_DIR)/pair-context: cmd/pair-context/main.go cmd/internal/contextcmd/contextcmd.go cmd/internal/ctxmeter/ctxmeter.go cmd/internal/transcript/transcript.go go.mod
 	go build -o $@ ./cmd/pair-context
 
 # pair-changelog — distills the pair TTY into the Alt+l change log (#53);
@@ -241,7 +241,7 @@ $(BIN_DIR)/pair-continuation: cmd/pair-continuation/continuation.go cmd/pair-con
 
 # pair-go — development-only dispatcher skeleton for the future primary Go CLI.
 # The public launcher remains bin/pair until the entrypoint-switch issue.
-$(BIN_DIR)/pair-go: cmd/pair-go/main.go cmd/internal/dispatcher/dispatcher.go go.mod
+$(BIN_DIR)/pair-go: cmd/pair-go/main.go cmd/internal/dispatcher/dispatcher.go cmd/internal/launcher/args.go cmd/internal/launcher/datadir.go cmd/internal/launcher/decision.go cmd/internal/launcher/history.go cmd/internal/launcher/run.go cmd/internal/launcher/session.go cmd/internal/launcher/tag.go cmd/internal/launcher/zellij.go cmd/internal/contextcmd/contextcmd.go cmd/internal/scrollbackcmd/scrollbackcmd.go go.mod
 	go build -o $@ ./cmd/pair-go
 
 

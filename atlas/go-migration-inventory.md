@@ -54,8 +54,8 @@ Priority is packaging impact first, then reliability/testability:
 | `zellij/config.kdl` | zellij native asset | zellij session config from `bin/pair` | Global keybinds, copy command, scrollback buffer, pane frames. | Calls `copy-on-select.sh`, `pair-help`, `pair-scrollback-open`, `pair-changelog-open`; routes quit/restart/compact through nvim functions. | native-asset, packaged adjacent/embedded | P0 |
 | `bin/pair-wrap` / `cmd/pair-wrap` | Go binary | zellij agent pane | `pair-wrap [--scrollback-log PATH] agent [args...]`; transparent PTY proxy; long-running; failure in diagnostics is swallowed. | Reads Pair env and agent command; writes `agent-output-<tag>`, `agent-pid-<tag>`, scrollback `.raw`/`.events.jsonl`, image capture files; may invoke `pair-slug`. | go-subcommand `pair wrap`; keep old binary as compat alias for KDL until caller moves | P0 |
 | `bin/pair-slug` / `cmd/pair-slug` | Go binary | `pair-wrap` turn-end hook, tests | Env-driven, no stdin; resolves native transcript, proposes slug; exits 0 on most failures. | Requires `PAIR_TAG`, `PAIR_DATA_DIR`; reads config/transcripts/git branch; writes `slug-proposed-<tag>`; optional `PAIR_SLUG_*`, `OPENAI_API_KEY`. | go-subcommand `pair slug`; legacy binary retained during #76 | P1 |
-| `bin/pair-context` / `cmd/pair-context` | Go binary | `bin/pair-title.sh` | `pair-context <tag> <agent>`; prints humanized token count or nothing; tolerant exit 0 on failure. | Reads `PAIR_DATA_DIR`, `pane-<tag>-<agent>.json`, config, native transcripts. | go-subcommand `pair context`; legacy binary retained while title poller calls it | P1 |
-| `bin/pair-scrollback-render` / `cmd/pair-scrollback-render` | Go binary | `bin/pair-scrollback-open`, `bin/pair-changelog-open`, `nvim/scrollback.lua` refresh | `pair-scrollback-render [--plain] [--max-lines N] [--with-timestamps] raw events out`; nonzero on render/write failure. | Reads `.raw` and `.events.jsonl`; atomically writes `.ansi` or cleaned text. | go-subcommand `pair scrollback-render`; legacy binary retained for shell/Lua callers | P0 |
+| `bin/pair-context` / `cmd/pair-context` / `cmd/internal/contextcmd` | Go binary plus shared runner | `bin/pair-title.sh`; development-only `pair-go context` | `pair-context <tag> <agent>` and `pair-go context <tag> <agent>` print the same humanized token count or nothing; tolerant exit 0 on failure. | Reads `PAIR_DATA_DIR`, `pane-<tag>-<agent>.json`, config, native transcripts. | implemented helper route in `pair-go context`; legacy binary retained while title poller calls it | P1 |
+| `bin/pair-scrollback-render` / `cmd/pair-scrollback-render` / `cmd/internal/scrollbackcmd` | Go binary plus shared runner | `bin/pair-scrollback-open`, `bin/pair-changelog-open`, `nvim/scrollback.lua` refresh; development-only `pair-go scrollback-render` | `pair-scrollback-render [--plain] [--max-lines N] [--with-timestamps] raw events out` and `pair-go scrollback-render ...`; nonzero on render/write failure. | Reads `.raw` and `.events.jsonl`; atomically writes `.ansi` or cleaned text. | implemented helper route in `pair-go scrollback-render`; legacy binary retained for shell/Lua callers | P0 |
 | `bin/pair-changelog` / `cmd/pair-changelog` | Go binary | `bin/pair-changelog-open` | `pair-changelog --cleaned F --log F --anchor F [--agent A] [--model M]`; exits nonzero on required read/model/write failure. | Reads cleaned scrollback/log/anchor; calls agent model through internal model runner; atomically writes log and anchor. | go-subcommand `pair changelog`; legacy binary retained for opener | P1 |
 | `bin/pair-continuation` / `cmd/pair-continuation` | Go binary | nvim compaction prompt instructions, operator/agent shell | `pair-continuation --slug S --agent A --issues CSV --body-file F [--repo-root R ...]`; writes and commits continuation; nonzero on validation/git failure. | Reads body/stdin, git repo state; writes `workshop/continuation/*.md`; runs git commit/push. | go-subcommand `pair continuation`; legacy binary retained for agent instructions until docs change | P1 |
 | `bin/pair-scribe` / `cmd/pair-scribe` | Go binary | user shell rc outside Pair sessions | `pair-scribe -log PATH -- CMD [ARGS...]`; long-running PTY wrapper; SIGUSR1 pauses log, SIGUSR2 resumes. | Writes typescript log; wraps child PTY; independent of `PAIR_*`. | go-subcommand candidate is low value; may remain separate installed helper or become `pair scribe` with alias | P2 |
@@ -114,7 +114,7 @@ Nvim shell-outs and binary dependencies:
 
 Build/install callers:
 
-- `make build` builds seven Go binaries into `bin/`.
+- `make build` builds `GO_BINS` into `bin/`.
 - `make install` copies those binaries to `~/.local/bin`.
 - `pair-dev` relies on `make build`, then zellij's PATH lookup resolves fresh
   repo `bin/` binaries.
@@ -125,9 +125,10 @@ Build/install callers:
 - #75 and #76 can proceed in parallel after #74. The launcher prototype does not
   need helper dispatch to exist first, and helper dispatch does not need the
   launcher prototype.
-- #76 should start with existing Go helpers whose contracts are already clean:
-  `pair context`, `pair slug`, and `pair scrollback-render` are good first
-  candidates. Keep legacy binary names working.
+- #76 established the first helper-dispatch pattern with `pair-go context` and
+  `pair-go scrollback-render`, backed by shared internal runners while legacy
+  binary names remain live for shell/Lua callers. `pair slug` remains a later
+  candidate.
 - #77 is the public entrypoint switch and should wait for both #75 and #76.
 - #78 should prioritize `pair-title.sh` and `pair-session-watch.sh` if stateful
   shell remains a packaging/reliability problem after #77.
@@ -172,10 +173,20 @@ rule:
 - `bin/pair-wrap`
 - `cmd/internal/adapt/adapt.go`
 - `cmd/internal/adapt/adapt_test.go`
+- `cmd/internal/contextcmd/contextcmd.go`
+- `cmd/internal/contextcmd/contextcmd_test.go`
 - `cmd/internal/ctxmeter/ctxmeter.go`
 - `cmd/internal/ctxmeter/ctxmeter_test.go`
+- `cmd/internal/dispatcher/dispatcher.go`
+- `cmd/internal/dispatcher/dispatcher_test.go`
 - `cmd/internal/model/model.go`
 - `cmd/internal/model/model_test.go`
+- `cmd/internal/scrollbackcmd/events_test.go`
+- `cmd/internal/scrollbackcmd/render_test.go`
+- `cmd/internal/scrollbackcmd/scrollbackcmd.go`
+- `cmd/internal/scrollbackcmd/scrollbackcmd_test.go`
+- `cmd/internal/scrollbackcmd/serialize_row_test.go`
+- `cmd/internal/scrollbackcmd/timestamps_test.go`
 - `cmd/internal/transcript/transcript.go`
 - `cmd/internal/transcript/transcript_test.go`
 - `cmd/pair-changelog/distill.go`
@@ -192,12 +203,10 @@ rule:
 - `cmd/pair-continuation/git.go`
 - `cmd/pair-continuation/main.go`
 - `cmd/pair-continuation/main_test.go`
+- `cmd/pair-go/helper_equivalence_test.go`
+- `cmd/pair-go/main.go`
 - `cmd/pair-scribe/main.go`
-- `cmd/pair-scrollback-render/events_test.go`
 - `cmd/pair-scrollback-render/main.go`
-- `cmd/pair-scrollback-render/render_test.go`
-- `cmd/pair-scrollback-render/serialize_row_test.go`
-- `cmd/pair-scrollback-render/timestamps_test.go`
 - `cmd/pair-slug/main.go`
 - `cmd/pair-slug/main_test.go`
 - `cmd/pair-slug/slug.go`
