@@ -6,7 +6,7 @@
 
 **Architecture:** Keep the stateful watcher behavior split into pure session-watch decisions and a thin process/filesystem shell. `cmd/internal/sessionwatch` will own agent support, PID-tree/session-file matching, id extraction, resume-arg stripping, and config payload construction; `cmd/pair-session-watch` will own real time, process commands, atomic writes, and adapt-log emission. `bin/pair-session-watch.sh` remains the stable caller surface and execs the built Go binary for this migration window.
 
-**Tech Stack:** Go standard library, existing `cmd/internal/adapt` JSONL emitter shape where practical, shell compatibility shim, process-level shell tests with fake `ps`/`lsof`/filesystem state.
+**Tech Stack:** Go standard library, existing `cmd/internal/adapt.Open` / `adapt.Logger` for flight-recorder events, shell compatibility shim, process-level shell tests with fake `ps`/`lsof`/filesystem state.
 
 ---
 
@@ -53,6 +53,7 @@
 | `PairSessionWatchCommand` | `cmd/pair-session-watch/main.go` | new | CLI, environment, process loop |
 | `PairSessionWatchShim` | `bin/pair-session-watch.sh` | modified | legacy shell command name |
 | `SessionWatchProcessTest` | `tests/pair-session-watch-test.sh` | modified | fake PATH commands and temp HOME/data dirs |
+| `AdaptLogger` | `cmd/internal/adapt/adapt.go` | reused | adaptation flight-recorder JSONL schema |
 
 - **WatcherRuntime** — Boundary used by the command loop for process and filesystem side effects.
   - **Injected into:** `sessionwatch.Run` or equivalent orchestration function; pure helpers stay independent.
@@ -69,6 +70,10 @@
 - **SessionWatchProcessTest** — Process-level regression coverage with fake commands and temp files.
   - **Injected into:** `make test-session-watch` and the repo-wide `make test` target.
   - **Future extensions:** Add agy fixtures as its native session format evolves.
+
+- **AdaptLogger** — Existing Go logger for the shared adaptation flight-recorder schema.
+  - **Injected into:** `cmd/internal/sessionwatch` runtime setup, not pure helper functions.
+  - **Future extensions:** Keeps shell/Lua/Go emitters aligned as the remaining shell emitters move. `ARCH-DRY`: do not hand-maintain a second Go copy of the adapt JSON schema.
 
 ## Task 1: Pure Session Watch Decisions
 
@@ -161,7 +166,12 @@ Expected: FAIL until diagnostics/fallbacks are complete.
 
 - [ ] **Step 5: Finish orchestration and CLI command**
 
-Create `cmd/pair-session-watch/main.go` as a thin CLI over the runtime. Add `pair-session-watch` to `GO_BINS` and `make build` dependencies in `Makefile.local`.
+Create `cmd/pair-session-watch/main.go` as a thin CLI over the runtime. Update `Makefile.local` explicitly:
+- add `pair-session-watch` to `.PHONY`;
+- add `pair-session-watch` to `GO_BINS`;
+- add a per-binary `pair-session-watch: $(BIN_DIR)/pair-session-watch` alias;
+- add a `$(BIN_DIR)/pair-session-watch` build rule;
+- make `test-session-watch` depend on `$(BIN_DIR)/pair-session-watch` so repo-wide `make test` cannot run the shim process test before the Go binary exists.
 
 - [ ] **Step 6: Verify command package tests pass**
 
@@ -173,7 +183,7 @@ Expected: PASS.
 **Files:**
 - Modify: `bin/pair-session-watch.sh`
 - Modify: `tests/pair-session-watch-test.sh`
-- Modify: `Makefile.local` if dependency wiring needs adjustment
+- Modify: `Makefile.local`
 
 - [ ] **Step 1: Replace shell implementation with a compatibility shim**
 
@@ -214,6 +224,8 @@ Record that `pair-session-watch` is now Go-owned with a shell shim, while `pair-
 - [ ] **Step 2: Update #78 issue**
 
 Check off candidate selection and implementation items that are complete. Log the explicit split: `pair-title.sh` remains a follow-up because it owns UI title state rather than restart config discovery.
+
+Also log that short shell scripts and opener scripts remain intentionally shell-owned in this slice because #78's payoff target is stateful session discovery. This directly satisfies the Done-when item about leaving no-payoff shell glue alone.
 
 - [ ] **Step 3: Run final verification**
 

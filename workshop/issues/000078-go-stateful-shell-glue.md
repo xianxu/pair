@@ -72,3 +72,5 @@ Created from #72. This is intentionally later in the sequence; porting shell bef
 ### 2026-06-30
 
 Claimed after #77 landed. Selected `pair-session-watch.sh` as the #78 slice from the #73 migration inventory because it owns restart-config correctness and brittle PID/lsof/session-file discovery. Split `pair-title.sh` out of this issue: it remains stateful shell glue, but its UI title-poller ownership is a separate risk surface. `ARCH-DRY`: the plan centralizes agent watch patterns, id extraction, resume-arg stripping, and config JSON in Go helpers instead of scattering them across shell conditionals. `ARCH-PURE`: pure parsing and config helpers are tested without process IO; process discovery stays behind a fakeable runtime.
+
+Plan-quality returned INFO. Tightened the durable plan to reuse `cmd/internal/adapt.Open` / `adapt.Logger` directly, spell out `Makefile.local` wiring for `pair-session-watch`, and explicitly log that short shell scripts/opener scripts remain out of scope because this slice targets stateful session discovery.
