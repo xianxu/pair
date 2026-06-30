@@ -142,11 +142,15 @@ var sendKeymapByAgent = map[string]sendKeymap{
 		altBS:   []byte{0x15}, // Ctrl+U — kill to line start
 	},
 	"codex": {
-		// Codex plain Enter inserts a newline when rewritten to LF.
-		// Current Codex submit requires the modified Alt+Enter chord
-		// itself, so preserve that as legacy ESC+CR.
+		// Codex maps plain Enter to a newline (LF) and Alt+Enter to a
+		// bare CR submit — the same convention as agy. Codex's input
+		// parser reads a lone \r as the Enter key (submit / picker
+		// confirm, see #31/#34); a modified ESC+CR chord parses as
+		// Alt+Enter, which Codex does NOT bind to submit. So Alt+Enter
+		// must collapse to \r. (#87 forwarded ESC+CR and broke submit
+		// entirely; #88 reverted it.)
 		plainCR: []byte{'\n'},
-		altCR:   []byte{'\x1b', '\r'},
+		altCR:   []byte{'\r'},
 		altBS:   []byte{0x15}, // Ctrl+U — kill to line start
 	},
 	"agy": {
