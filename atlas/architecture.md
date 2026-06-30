@@ -45,10 +45,15 @@ internal subcommands or dispatch modes behind that primary binary (`pair wrap`,
 `pair continuation`, `pair scribe`) instead of staying as independently managed
 installed commands forever.
 
-As of #74, `bin/pair-go` is a development-only dispatcher skeleton built from
-`cmd/pair-go` and the pure `cmd/internal/dispatcher` parser. It lists the
-planned command families and returns explicit unsupported-command errors, but it
-does not launch sessions or replace `bin/pair`.
+As of #75, `bin/pair-go` is a development-only dispatcher with a guarded
+`pair-go launch` decision-phase prototype. The public launcher remains
+`bin/pair`; `pair-go launch` parses the launcher subset, resolves the Pair data
+dir, snapshots fakeable zellij/history state, and computes create/attach/picker
+decisions through the pure `cmd/internal/launcher` core. It then stops with an
+explicit prototype message before invoking zellij. Real zellij lifecycle,
+prompt/fzf UI, restart/quit cleanup, cmux ownership, dev rebuild, continuation,
+rename, config/session migration, and title-poller behavior remain shell-owned
+until later migration issues.
 
 Native integration layers stay native: `nvim/*.lua` remains the bundled Neovim
 surface and `zellij/*.kdl` remains the zellij layout/config surface. Packaging

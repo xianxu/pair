@@ -38,19 +38,19 @@ The implementation should keep business decisions pure (`ARCH-PURE`) and reuse t
 
 ## Done when
 
-- [ ] A guarded Go launcher path can exercise a documented subset of launcher behavior.
-- [ ] Existing `bin/pair` remains the default public launcher.
-- [ ] Tests cover the ported decision logic and at least one process-level fake for external commands.
-- [ ] Any behavior not yet ported fails explicitly rather than silently diverging.
-- [ ] Pair remains usable after merge through the existing public command.
+- [x] A guarded Go launcher path can exercise a documented subset of launcher behavior.
+- [x] Existing `bin/pair` remains the default public launcher.
+- [x] Tests cover the ported decision logic and at least one process-level fake for external commands.
+- [x] Any behavior not yet ported fails explicitly rather than silently diverging.
+- [x] Pair remains usable after merge through the existing public command.
 
 ## Plan
 
-- [ ] Select the launcher slice from #73.
-- [ ] Extract pure decision models and tests.
-- [ ] Add fake-command process tests for the selected slice.
-- [ ] Implement the guarded Go path.
-- [ ] Document remaining shell-owned launcher behavior.
+- [x] Select the launcher slice from #73.
+- [x] Extract pure decision models and tests.
+- [x] Add fake-command process tests for the selected slice.
+- [x] Implement the guarded Go path.
+- [x] Document remaining shell-owned launcher behavior.
 
 ## Estimate
 
@@ -83,3 +83,5 @@ Plan-quality gate returned FAILURE: estimate was low for the visible multi-surfa
 Second plan-quality gate returned FAILURE: the process-level test was ordered before the dispatcher route it needs, and the plan risked duplicating `dispatcher.Result`. Reordered route before process test and made `dispatcher.Result` the sole process-facing result abstraction (`ARCH-DRY`).
 
 Third plan-quality gate returned FAILURE: Task 4 still named a `LaunchResult` return despite the single-result-abstraction rule. Revised the runner contract so launcher returns domain `LaunchOutcome` values and dispatcher alone maps to `dispatcher.Result`; also named the production IO constructor and test runtime seam.
+
+Implemented `cmd/internal/launcher` as a pure decision-phase core plus fakeable zellij/history seams. `pair-go launch` now routes through the #74 dispatcher, returns explicit prototype decisions, and does not mutate zellij or replace `bin/pair`. Updated atlas architecture and the Go migration inventory to record the shell-owned boundary.
