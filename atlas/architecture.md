@@ -578,7 +578,7 @@ Per-agent surface:
 |---|---|---|---|
 | claude | `~/.claude/projects/<encoded-cwd>/<id>.jsonl` | filename | `--session-id` pre-injected by `bin/pair` (deterministic) |
 | codex | `~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<id>.jsonl` | trailing UUID in filename (regex) | `lsof -p <pid>` against agent PID + `ps`-discovered descendants, birth-time fallback |
-| agy | `~/.gemini/antigravity-cli/brain/<id>/.system_generated/logs/transcript.jsonl` | UUID directory name (3 levels up) | `lsof -p <pid>` against agent PID + `ps`-discovered descendants, birth-time fallback |
+| agy | `~/.gemini/antigravity-cli/conversations/<id>.db` | UUID database filename | `lsof -p <pid>` against agent PID + `ps`-discovered descendants, birth-time fallback |
 
 **Stored shape.** `$PAIR_DATA_DIR/config-<tag>-<agent>.json`:
 
@@ -586,7 +586,7 @@ Per-agent surface:
 { "agent": "claude", "args": ["--dangerously-skip-permissions"], "session_id": "8d745d08-..." }
 ```
 
-Single write path: jq + mktemp + rename, only after the id is in hand. So a concurrent reader either sees a complete prior config or a complete new one — never a partial. Keyed by `(tag, agent)` because the same tag can hold separate configs for different agents.
+Single write posture: structured JSON plus temp-file rename, only after the id is in hand. The shell launcher uses `jq` for synchronous claude/explicit-resume prewrites; the Go watcher uses `encoding/json` plus `os.CreateTemp`/rename for codex/agy. So a concurrent reader either sees a complete prior config or a complete new one — never a partial. Keyed by `(tag, agent)` because the same tag can hold separate configs for different agents.
 
 **Create-flow prompt (`bin/pair`).** When the create path commits a tag, pair reads `config-<tag>-<agent>.json`. If present, it runs the per-agent stale-id check (claude: `[ -f .../<id>.jsonl ]`; codex: `find ~/.codex/sessions -name "*<id>*"`; agy: check transcript file) and fzf-prompts the user with up to three options:
 

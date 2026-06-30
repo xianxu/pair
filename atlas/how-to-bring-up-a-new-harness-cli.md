@@ -58,24 +58,8 @@ If the agent presents blocking overlays, pickers (like file autocompletes), or y
 **Discovery & Watcher:**
 - **Files:** `cmd/pair-session-watch` and `cmd/internal/sessionwatch` (`bin/pair-session-watch.sh` remains a compatibility shim).
 - Since TUI agents do not always expose session IDs on stdout, `pair-session-watch` runs in the background. It finds the agent process PID from `$PAIR_DATA_DIR/agent-pid-<tag>` (written by `pair-wrap`), walks its descendants, and inspects files held open by the processes via `lsof -p <pid>`.
-- Configure the agent's session file criteria:
-  ```bash
-  agy)
-      watch_dir="$HOME/.gemini/antigravity-cli/conversations"
-      find_args=(-type f -name '*.db')
-      ;;
-  ```
-- Extract the ID from the file path or contents in `extract_id()`:
-  ```bash
-  agy)
-      # Extract UUID from SQLite DB name: ~/.gemini/antigravity-cli/conversations/<uuid>.db
-      local fn
-      fn=$(basename "$1" .db)
-      if [[ "$fn" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
-          echo "$fn"
-      fi
-      ;;
-  ```
+- Configure the agent's session file criteria in `cmd/internal/sessionwatch.SpecForAgent`, then teach `AgentSpec.Match` how to recognize that agent's file shape and return a `SessionID`.
+- For example, agy watches `~/.gemini/antigravity-cli/conversations` and extracts the UUID from `<uuid>.db`; codex watches `~/.codex/sessions` and extracts the trailing UUID from `rollout-*.jsonl`.
 - When captured, the watcher writes `{ "agent": "<agent>", "args": [...], "session_id": "<uuid>" }` into `config-<tag>-<agent>.json`.
 
 **Recovery Flags:**
@@ -95,7 +79,7 @@ If the agent presents blocking overlays, pickers (like file autocompletes), or y
       ;;
   ```
 
-**Telemetry Signal** (aspect `3`, see §3): `session-id` from `pair-session-watch` — `fired` when `ExtractSessionID` resolves an id and the config is written, **`near-miss`** when a file matching the watch pattern is found but no id can be extracted (filename/format drift), `fail` when the 60s watch window elapses with no id at all (the session file never appeared where expected). The resume mapping in `bin/pair` is the *consumer* of this id; it's static config with no separate signal.
+**Telemetry Signal** (aspect `3`, see §3): `session-id` from `pair-session-watch` — `fired` when `AgentSpec.Match` resolves an id and the config is written, **`near-miss`** when a file matching the watch pattern is found but no id can be extracted (filename/format drift), `fail` when the 60s watch window elapses with no id at all (the session file never appeared where expected). The resume mapping in `bin/pair` is the *consumer* of this id; it's static config with no separate signal.
 
 ---
 
