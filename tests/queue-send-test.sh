@@ -71,6 +71,17 @@ for body in (lc..'\n---\n'):gmatch('## %S+ %S+\n\n(.-)\n\n%-%-%-') do
   O:write('L '..body..'\n')
 end
 local d=io.open(dd..'/draft-test.md'); O:write('D '..((d and d:read('*a') or ''):gsub('%s+\$',''))..'\n'); if d then d:close() end
+local function dump_cmds(prefix, no_submit)
+  if type(_G.PairDraftSendCommands) ~= 'function' then
+    O:write('C '..prefix..' missing\n')
+    return
+  end
+  for _,cmd in ipairs(_G.PairDraftSendCommands('HELLO', no_submit)) do
+    O:write('C '..prefix..' '..cmd.label..' '..table.concat(cmd.argv, ' ')..'\n')
+  end
+end
+dump_cmds('submit', false)
+dump_cmds('append', true)
 O:close(); vim.cmd('qall!')  -- force-quit the dirtied throwaway buffer (#60)
 LUA
 }
@@ -114,6 +125,17 @@ if has "L HELLO" && has "Q 500000=AAA" && [ "$(count '^Q ')" = "1" ]; then
   pass "send from *: HELLO→history, queue untouched"
 else
   fail "send from *"; sed 's/^/    /' "$RT/result.txt"
+fi
+if has "C submit draft.send.submit zellij action send-keys Alt Enter"; then
+  pass "draft submit command uses semantic Alt Enter"
+else
+  fail "draft submit command"; sed 's/^/    /' "$RT/result.txt"
+fi
+if has "C append draft.send.newline zellij action write 13" \
+   && [ "$(count '^C append .*send-keys Alt Enter')" = "0" ]; then
+  pass "draft append-only command stays newline without submit"
+else
+  fail "draft append-only command"; sed 's/^/    /' "$RT/result.txt"
 fi
 
 if [ "$fails" -ne 0 ]; then

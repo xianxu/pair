@@ -699,6 +699,26 @@ local function send_esc_to_agent()
   PairZellijTrace.action('draft.interrupt.focus-draft', { 'zellij', 'action', 'move-focus', 'down' })
 end
 
+local function draftSendCommands(body, no_submit)
+  local cmds = {
+    { label = 'draft.send.focus-agent', argv = { 'zellij', 'action', 'move-focus', 'up' } },
+    {
+      label = 'draft.send.write-body',
+      argv = { 'zellij', 'action', 'write-chars', body },
+      opts = { redact = { [4] = body } },
+    },
+  }
+  if no_submit then
+    cmds[#cmds + 1] = { label = 'draft.send.newline', argv = { 'zellij', 'action', 'write', '13' } }
+  else
+    cmds[#cmds + 1] = { label = 'draft.send.submit', argv = { 'zellij', 'action', 'send-keys', 'Alt Enter' } }
+  end
+  cmds[#cmds + 1] = { label = 'draft.send.focus-draft', argv = { 'zellij', 'action', 'move-focus', 'down' } }
+  return cmds
+end
+
+_G.PairDraftSendCommands = draftSendCommands
+
 local function send_to_agent(body, no_submit)
   -- focus up to agent pane, type body, press Enter, focus back down.
   --
@@ -718,13 +738,12 @@ local function send_to_agent(body, no_submit)
   -- agent has time to ingest the paste and return to the input prompt
   -- before we hit submit. Single-line sends skip the wait.
   --
-  -- Submit is Alt+Enter (ESC 0x1b, then CR 0x0d), not plain Enter:
+  -- Submit is Alt+Enter, not plain Enter:
   -- pair-wrap's stdin translator rewrites incoming \r into the agent's
   -- "insert newline" sequence (claude: `\<Enter>`, codex/agy: \n),
-  -- so a bare CR here would insert a newline rather than submit.
-  -- Alt+Enter is what pair-wrap rewrites into the agent's actual
-  -- submit byte. Mirrors the keyboard convention we set up for the
-  -- user (Enter = newline, Alt+Enter = send).
+  -- so a bare CR here would insert a newline rather than submit. Use
+  -- zellij's semantic send-keys action for the modified chord instead
+  -- of synthesizing it as raw ESC+CR bytes.
   --
   -- no_submit (Alt+Shift+Enter path): land the body in the agent's
   -- composer followed by a literal newline but DON'T submit. A bare CR
@@ -733,19 +752,15 @@ local function send_to_agent(body, no_submit)
   -- *not* a submit — so it leaves the cursor on a fresh line in the
   -- composer, ready for more input.
   if not has_ui() then return end
-  PairZellijTrace.action('draft.send.focus-agent', { 'zellij', 'action', 'move-focus', 'up' })
-  PairZellijTrace.action('draft.send.write-body', { 'zellij', 'action', 'write-chars', body }, {
-    redact = { [4] = body },
-  })
+  local cmds = draftSendCommands(body, no_submit)
+  PairZellijTrace.action(cmds[1].label, cmds[1].argv, cmds[1].opts)
+  PairZellijTrace.action(cmds[2].label, cmds[2].argv, cmds[2].opts)
   if body:find('\n') or #body > 200 then
     vim.cmd('sleep 100m')
   end
-  if no_submit then
-    PairZellijTrace.action('draft.send.newline', { 'zellij', 'action', 'write', '13' })
-  else
-    PairZellijTrace.action('draft.send.submit', { 'zellij', 'action', 'write', '27', '13' })
+  for i = 3, #cmds do
+    PairZellijTrace.action(cmds[i].label, cmds[i].argv, cmds[i].opts)
   end
-  PairZellijTrace.action('draft.send.focus-draft', { 'zellij', 'action', 'move-focus', 'down' })
 end
 
 -- :PairReview <file> — PROPOSE a file for review (#66 M4a'). It does NOT open the
