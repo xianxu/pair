@@ -68,8 +68,8 @@ Priority is packaging impact first, then reliability/testability:
 | `bin/pair-changelog-open` | POSIX shell orchestrator | zellij Alt+l Run | Opens changelog viewer and starts detached render/distill singleton. | Requires Pair env; calls renderer, `pair-changelog`, setsid/perl, nvim; reads/writes `changelog-*` sidecars. | shell-glue now; candidate Go orchestration after entrypoint | P1 |
 | `nvim/changelog.lua` | Neovim native asset | `bin/pair-changelog-open` | Loaded by `nvim -u ... <log>`; read-only watcher/spinner. | Reads `PAIR_CHANGELOG_*` and Pair env. | native-asset, adjacent/embedded | P1 |
 | `bin/pair-title.sh` | Bash stateful poller | `bin/pair` ensure_title_poller | `pair-title.sh <tag> <agent>`; long-running 60s poller; test hook `PAIR_TITLE_TEST_CALL`. | Reads/writes title pid, pane json, cmux owner files; calls `pair-context`, zellij, ps, cmux. | stateful shell-glue; explicit #78 candidate | P1 |
-| `bin/pair-session-watch.sh` | Bash stateful watcher | `bin/pair` create path | `pair-session-watch.sh <agent> <tag> <cwd> [agent-args...]`; background 60s watcher; no-op for claude. | Reads agent pidfile, lsof/ps, native session dirs; writes config JSON atomically; logs adapt events. | stateful shell-glue; explicit #78 candidate | P1 |
-| `bin/lib/adapt-log.sh` | sourced shell helper | `pair-session-watch.sh` | `adapt_log comp agent aspect signal outcome [detail]`; no-op if no `PAIR_TAG` or jq. | Appends JSONL to `$PAIR_DATA_DIR/adapt-<tag>.jsonl`. | keep until shell emitters move; schema must stay DRY with Go/Lua emitters | P1 |
+| `bin/pair-session-watch.sh` / `cmd/pair-session-watch` / `cmd/internal/sessionwatch` | Shell compatibility shim plus Go stateful watcher | `bin/pair` create path | `pair-session-watch.sh <agent> <tag> <cwd> [agent-args...]` execs the Go command; background 60s watcher; no-op for claude. | Reads agent pidfile, lsof/ps, native session dirs; writes config JSON atomically; logs adapt events through `cmd/internal/adapt`. | Go-owned watcher with legacy shim retained while `bin/pair` calls the `.sh` name (#78) | P1 |
+| `bin/lib/adapt-log.sh` | sourced shell helper | remaining shell emitters | `adapt_log comp agent aspect signal outcome [detail]`; no-op if no `PAIR_TAG` or jq. | Appends JSONL to `$PAIR_DATA_DIR/adapt-<tag>.jsonl`. | keep until remaining shell emitters move; schema stays DRY with Go/Lua emitters | P1 |
 | `nvim/adapt.lua` | Lua helper | nvim doctor/adaptation surfaces, tests | Lua adaptation flight recorder emitter. | Writes same JSONL schema as Go/shell. | native-asset; keep schema aligned | P2 |
 | `doctor/README.md` / `doctor/SKILL.md` | docs/skill | operator/agent diagnostics | Documents Pair doctor flow. | Refers to `nvim/doctor.lua` and adaptation logs. | adjacent docs/skill; not Go migration target | P3 |
 | `nvim/doctor.lua` | Lua helper | `:PairDoctor` in nvim | Builds agent instruction payload. | Reads `PAIR_HOME`; sends text through draft/agent flow. | native-asset | P2 |
@@ -134,8 +134,10 @@ Build/install callers:
 - #77 made `pair-go launch ...` a meaningful Go-owned compatibility handoff to
   `bin/pair`, with argv/env preserved and missing-launcher diagnostics. The
   stable public `pair` script remains unchanged for this migration window.
-- #78 should prioritize `pair-title.sh` and `pair-session-watch.sh` if stateful
-  shell remains a packaging/reliability problem after #77.
+- #78 ported the session-id watcher to `cmd/pair-session-watch` with
+  `bin/pair-session-watch.sh` retained as a shim. `pair-title.sh` remains the
+  next stateful shell candidate because it owns a separate UI title-poller
+  surface.
 - #79 owns whether `nvim/` and `zellij/` are embedded or installed adjacent.
 
 ## Coverage Ledger
@@ -193,6 +195,11 @@ rule:
 - `cmd/internal/scrollbackcmd/timestamps_test.go`
 - `cmd/internal/transcript/transcript.go`
 - `cmd/internal/transcript/transcript_test.go`
+- `cmd/internal/sessionwatch/run.go`
+- `cmd/internal/sessionwatch/run_test.go`
+- `cmd/internal/sessionwatch/runtime.go`
+- `cmd/internal/sessionwatch/sessionwatch.go`
+- `cmd/internal/sessionwatch/sessionwatch_test.go`
 - `cmd/pair-changelog/distill.go`
 - `cmd/pair-changelog/distill_test.go`
 - `cmd/pair-changelog/e2e_test.go`
@@ -209,6 +216,8 @@ rule:
 - `cmd/pair-continuation/main_test.go`
 - `cmd/pair-go/helper_equivalence_test.go`
 - `cmd/pair-go/main.go`
+- `cmd/pair-session-watch/main.go`
+- `cmd/pair-session-watch/main_test.go`
 - `cmd/pair-scribe/main.go`
 - `cmd/pair-scrollback-render/main.go`
 - `cmd/pair-slug/main.go`

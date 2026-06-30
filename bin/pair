@@ -857,6 +857,29 @@ resolve_config_file() {
     printf '%s\n' "$canonical"
 }
 
+agent_session_exists() {
+    local agent="$1" sid="$2" cwd="${3:-$PWD}"
+    [ -n "$sid" ] || return 1
+    case "$agent" in
+        claude)
+            local encoded_cwd
+            encoded_cwd=$(printf '%s' "$cwd" | tr ./ -)
+            [ -f "$HOME/.claude/projects/$encoded_cwd/$sid.jsonl" ]
+            ;;
+        codex)
+            [ -d "$HOME/.codex/sessions" ] && \
+                find "$HOME/.codex/sessions" -type f -name "*${sid}*" 2>/dev/null \
+                    | head -1 | grep -q .
+            ;;
+        agy)
+            [ -f "$HOME/.gemini/antigravity-cli/conversations/$sid.db" ]
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 # Convention: one pair session per cmux workspace, with the cmux workspace
 # title mirroring pair's tag. CMUX_WORKSPACE_ID is set by cmux inside every
 # pane, so its presence is the "we're inside cmux" probe. Best-effort — silent
@@ -1843,28 +1866,11 @@ if [ -f "$config_file" ] && [ $_argv_has_resume -eq 0 ]; then
         fi
     done
 
-    # Stale-id check: only offer "resume" if the agent's transcript file
-    # for this session id still exists. Per-agent surface:
-    #   claude — direct path lookup (filename = session id)
-    #   codex  — recursive scan; id is in the filename
+    # Stale-id check: only offer "resume" if the agent's native session
+    # artifact for this session id still exists.
     has_resumable=false
-    if [ -n "$saved_session" ]; then
-        case "$AGENT" in
-            claude)
-                encoded_cwd=$(printf '%s' "$PWD" | tr ./ -)
-                [ -f "$HOME/.claude/projects/$encoded_cwd/$saved_session.jsonl" ] && has_resumable=true
-                ;;
-            codex)
-                if [ -d "$HOME/.codex/sessions" ] && \
-                   find "$HOME/.codex/sessions" -type f -name "*${saved_session}*" 2>/dev/null \
-                       | head -1 | grep -q .; then
-                    has_resumable=true
-                fi
-                ;;
-            agy)
-                [ -f "$HOME/.gemini/antigravity-cli/brain/$saved_session/.system_generated/logs/transcript.jsonl" ] && has_resumable=true
-                ;;
-        esac
+    if agent_session_exists "$AGENT" "$saved_session" "$PWD"; then
+        has_resumable=true
     fi
 
     saved_display="${saved_args_clean[*]:-<none>}"
@@ -2040,7 +2046,9 @@ printf '%s\n' "$AGENT" > "$DATA_DIR/agent-${PAIR_TAG}"
 # and Alt+x's saved-config display reports the right id.
 #
 # Per-agent surface:
-#   claude / agy   — flag style: `--resume <id>` / `--conversation <id>` anywhere in argv.
+#   claude — flag style: `--resume <id>` anywhere in argv.
+#   agy    — flag style: `--conversation <id>` anywhere in argv; legacy
+#            `--resume <id>` is also scrubbed if present in old saved args.
 #   codex           — subcommand: `resume <id>` at args[0..1].
 explicit_resume=""
 case "$AGENT" in

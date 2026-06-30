@@ -273,6 +273,22 @@ else
   fail "resolve_config_file: canonical config should win (out=$out)"
 fi
 
+mkdir -p "$HRT/.gemini/antigravity-cli/conversations"
+touch "$HRT/.gemini/antigravity-cli/conversations/agy-session.db"
+if ( cd "$HRT" && helper_env PAIR_TEST_CALL=agent_session_exists PAIR_TEST_ARGS="agy agy-session ''" "$PAIR" >/dev/null 2>&1 ); then
+  pass "agent_session_exists: agy uses conversations DB"
+else
+  fail "agent_session_exists: agy should use conversations/<id>.db"
+fi
+
+mkdir -p "$HRT/.gemini/antigravity-cli/brain/old-session/.system_generated/logs"
+touch "$HRT/.gemini/antigravity-cli/brain/old-session/.system_generated/logs/transcript.jsonl"
+if ( cd "$HRT" && helper_env PAIR_TEST_CALL=agent_session_exists PAIR_TEST_ARGS="agy old-session ''" "$PAIR" >/dev/null 2>&1 ); then
+  fail "agent_session_exists: agy should not use brain transcript path"
+else
+  pass "agent_session_exists: agy ignores brain transcript path"
+fi
+
 if [ "$fails" -eq 0 ]; then
   printf 'PASS pair-continue-test\n'
 else
