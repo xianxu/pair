@@ -1,12 +1,13 @@
 ---
 id: 000076
-status: working
+status: done
 deps: [000074]
 github_issue:
 created: 2026-06-26
 updated: 2026-06-30
 estimate_hours: 2.86
 started: 2026-06-30T11:58:44-07:00
+actual_hours: 0.54
 ---
 
 # pair Go helper dispatch
@@ -67,6 +68,7 @@ total: 2.86
 Created from #72. This milestone reduces packaging surface while preserving current command names.
 
 ### 2026-06-30
+- 2026-06-30: closed — go test ./cmd/internal/contextcmd ./cmd/internal/scrollbackcmd ./cmd/pair-context ./cmd/pair-scrollback-render ./cmd/internal/dispatcher ./cmd/pair-go -count=1; go test ./cmd/pair-go -run TestPairGoContextMatchesLegacyPairContext -count=1; make pair-context pair-scrollback-render pair-go; make -B pair-context pair-scrollback-render pair-go; go test ./... -count=1; git diff -- zellij nvim bin/pair bin/pair-dev bin/pair-title.sh bin/pair-scrollback-open bin/pair-changelog-open empty; rg atlas helper dispatch; git diff --check; review verdict: SHIP
 
 Claimed after #75 landed. Narrowed the first helper dispatch slice to `context` and `scrollback-render`: they are useful enough to prove the dispatcher path, but low-risk enough to avoid long-running PTY, model, git commit/push, or public launcher behavior. Existing zellij/nvim/shell callers stay on legacy binary names for this milestone (`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`).
 
