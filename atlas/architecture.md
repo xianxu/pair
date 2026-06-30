@@ -55,6 +55,14 @@ prompt/fzf UI, restart/quit cleanup, cmux ownership, dev rebuild, continuation,
 rename, config/session migration, and title-poller behavior remain shell-owned
 until later migration issues.
 
+As of #76, the same dispatcher also has the first implemented helper routes:
+`pair-go context <tag> <agent>` and `pair-go scrollback-render ...`. Both routes
+call shared internal Go runners used by the legacy `pair-context` and
+`pair-scrollback-render` binaries (`ARCH-DRY`), so behavior stays aligned while
+the old command names remain the live integration surface. `bin/pair-title.sh`,
+`bin/pair-scrollback-open`, `bin/pair-changelog-open`, and
+`nvim/scrollback.lua` have not moved to the dispatcher yet.
+
 Native integration layers stay native: `nvim/*.lua` remains the bundled Neovim
 surface and `zellij/*.kdl` remains the zellij layout/config surface. Packaging
 may embed those assets or install them adjacent to the binary, but the migration

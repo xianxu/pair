@@ -30,19 +30,19 @@ Out of scope for this milestone: `pair wrap`, `pair slug`, `pair changelog`, `pa
 
 ## Done when
 
-- [ ] Dispatcher can invoke selected existing Go helpers through `pair-go <subcommand>`.
-- [ ] Existing helper binary names still build and work.
-- [ ] Tests prove dispatch and legacy command paths reach the same behavior for at least one representative helper.
-- [ ] No zellij/nvim keybinding breaks.
-- [ ] Pair remains usable after merge.
+- [x] Dispatcher can invoke selected existing Go helpers through `pair-go <subcommand>`.
+- [x] Existing helper binary names still build and work.
+- [x] Tests prove dispatch and legacy command paths reach the same behavior for at least one representative helper.
+- [x] No zellij/nvim keybinding breaks.
+- [x] Pair remains usable after merge.
 
 ## Plan
 
 - [x] Choose the first helper set based on #73.
-- [ ] Extract reusable run functions for `pair-context` and `pair-scrollback-render`.
-- [ ] Add dispatcher routes for `context` and `scrollback-render`.
-- [ ] Preserve legacy binary names.
-- [ ] Run helper-specific and full relevant integration tests.
+- [x] Extract reusable run functions for `pair-context` and `pair-scrollback-render`.
+- [x] Add dispatcher routes for `context` and `scrollback-render`.
+- [x] Preserve legacy binary names.
+- [x] Run helper-specific and full relevant integration tests.
 
 ## Estimate
 
@@ -69,3 +69,7 @@ Created from #72. This milestone reduces packaging surface while preserving curr
 ### 2026-06-30
 
 Claimed after #75 landed. Narrowed the first helper dispatch slice to `context` and `scrollback-render`: they are useful enough to prove the dispatcher path, but low-risk enough to avoid long-running PTY, model, git commit/push, or public launcher behavior. Existing zellij/nvim/shell callers stay on legacy binary names for this milestone (`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`).
+
+Extracted `cmd/internal/contextcmd` and `cmd/internal/scrollbackcmd` runners so legacy binaries and dispatcher routes share implementation (`ARCH-DRY`, `ARCH-PURE`). Added `pair-go context` and `pair-go scrollback-render` dispatcher routes plus a process-level equivalence test proving `pair-go context` matches `pair-context` stdout/stderr/exit code on the same fixture. Updated atlas to record the current helper-dispatch state and unchanged live shell/Lua callers.
+
+Verification before close: `go test ./cmd/internal/contextcmd ./cmd/internal/scrollbackcmd ./cmd/pair-context ./cmd/pair-scrollback-render ./cmd/internal/dispatcher ./cmd/pair-go -count=1`; `go test ./cmd/pair-go -run TestPairGoContextMatchesLegacyPairContext -count=1`; `make pair-context pair-scrollback-render pair-go`; `make -B pair-context pair-scrollback-render pair-go`; `go test ./... -count=1`; `git diff -- zellij nvim bin/pair bin/pair-dev bin/pair-title.sh bin/pair-scrollback-open bin/pair-changelog-open` empty; atlas grep found `pair-go context`, `pair-go scrollback-render`, and helper dispatch; `git diff --check`.

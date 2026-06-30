@@ -67,7 +67,7 @@
 - Modify: `cmd/pair-context/main_test.go`
 - Modify: `Makefile.local`
 
-- [ ] **Step 1: Add failing runner tests**
+- [x] **Step 1: Add failing runner tests**
 
 Create `cmd/internal/contextcmd/contextcmd_test.go` with tests that call `Run(args []string, env Env, stdout io.Writer) int` directly:
 
@@ -84,13 +84,13 @@ func TestRunMissingConfigPrintsNothing(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the focused tests and confirm they fail**
+- [x] **Step 2: Run the focused tests and confirm they fail**
 
 Run: `go test ./cmd/internal/contextcmd -count=1`
 
 Expected: FAIL because the package does not exist yet.
 
-- [ ] **Step 3: Extract the runner**
+- [x] **Step 3: Extract the runner**
 
 Move the reusable context behavior into `cmd/internal/contextcmd`. Keep `cmd/pair-context/main.go` as:
 
@@ -106,13 +106,13 @@ The runner must:
 - write the same humanized token count to the injected stdout;
 - never call `os.Exit`.
 
-- [ ] **Step 4: Run the focused tests and existing package tests**
+- [x] **Step 4: Run the focused tests and existing package tests**
 
 Run: `go test ./cmd/internal/contextcmd ./cmd/pair-context -count=1`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the context extraction**
+- [x] **Step 5: Commit the context extraction**
 
 Run:
 
@@ -134,7 +134,7 @@ git commit -m "#76: extract pair-context runner"
 - Modify or create tests in: `cmd/pair-scrollback-render/*_test.go`
 - Modify: `Makefile.local`
 
-- [ ] **Step 1: Add failing runner tests**
+- [x] **Step 1: Add failing runner tests**
 
 Create tests that call `scrollbackcmd.Run(args []string, stdout, stderr io.Writer) int`:
 
@@ -152,13 +152,13 @@ func TestRunWritesOutput(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the focused tests and confirm they fail**
+- [x] **Step 2: Run the focused tests and confirm they fail**
 
 Run: `go test ./cmd/internal/scrollbackcmd -count=1`
 
 Expected: FAIL because the package does not exist yet.
 
-- [ ] **Step 3: Extract the runner**
+- [x] **Step 3: Extract the runner**
 
 Move the renderer command wrapper into `cmd/internal/scrollbackcmd`. If `render(...)` cannot be imported from `package main`, move the rendering core into this internal package too and leave the legacy command as a tiny wrapper:
 
@@ -174,13 +174,13 @@ Use a local `flag.FlagSet` so dispatcher and tests can parse independently. Pres
 - exit 0 for success;
 - same defaults for `--plain`, `--max-lines`, and `--with-timestamps`.
 
-- [ ] **Step 4: Run focused and package tests**
+- [x] **Step 4: Run focused and package tests**
 
 Run: `go test ./cmd/internal/scrollbackcmd ./cmd/pair-scrollback-render -count=1`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the renderer extraction**
+- [x] **Step 5: Commit the renderer extraction**
 
 Run:
 
@@ -202,20 +202,20 @@ git commit -m "#76: extract scrollback renderer runner"
 - Create: `cmd/pair-go/helper_equivalence_test.go`
 - Modify: `Makefile.local`
 
-- [ ] **Step 1: Add failing dispatcher tests**
+- [x] **Step 1: Add failing dispatcher tests**
 
 Add tests for:
 - `Dispatch([]string{"context", "T", "claude"})` through a fake or temp fixture returns the same output shape as `contextcmd.Run`;
 - `Dispatch([]string{"scrollback-render"})` returns renderer usage with exit 2;
 - top-level help lists `context` and `scrollback-render` as implemented helper routes, not planned-only commands.
 
-- [ ] **Step 2: Run dispatcher tests and confirm failure**
+- [x] **Step 2: Run dispatcher tests and confirm failure**
 
 Run: `go test ./cmd/internal/dispatcher -run 'TestDispatch(Context|Scrollback|Help)' -count=1`
 
 Expected: FAIL because routes are not implemented yet.
 
-- [ ] **Step 3: Add failing process-level equivalence test**
+- [x] **Step 3: Add failing process-level equivalence test**
 
 Create `cmd/pair-go/helper_equivalence_test.go` with a context helper fixture that builds both commands and runs them against the same temp Pair data/transcript tree:
 
@@ -231,13 +231,13 @@ func TestPairGoContextMatchesLegacyPairContext(t *testing.T) {
 
 This is the representative compatibility proof required by the issue done-when. It should fail before the dispatcher route exists because `pair-go context` is still planned-only.
 
-- [ ] **Step 4: Run the equivalence test and confirm failure**
+- [x] **Step 4: Run the equivalence test and confirm failure**
 
 Run: `go test ./cmd/pair-go -run TestPairGoContextMatchesLegacyPairContext -count=1`
 
 Expected: FAIL because `pair-go context` returns planned-but-not-implemented.
 
-- [ ] **Step 5: Implement routes**
+- [x] **Step 5: Implement routes**
 
 Update `Families()` statuses for selected helpers and add dispatcher branches:
 
@@ -250,7 +250,7 @@ case "scrollback-render":
 
 The dispatcher should continue returning `dispatcher.Result`. Helper runners should write into buffers so dispatcher can map stdout/stderr/exit code without adding a second process-result abstraction.
 
-- [ ] **Step 6: Run route and process tests**
+- [x] **Step 6: Run route and process tests**
 
 Run:
 
@@ -261,7 +261,7 @@ make pair-context pair-scrollback-render pair-go
 
 Expected: PASS. The `make` command is deliberately not `-B`; it verifies the updated dependency graph can rebuild normally after source changes.
 
-- [ ] **Step 7: Commit dispatcher wiring**
+- [x] **Step 7: Commit dispatcher wiring**
 
 Run:
 
@@ -282,7 +282,7 @@ git commit -m "#76: route selected helpers through pair-go"
 - Modify: `workshop/issues/000076-go-helper-dispatch.md`
 - Modify: `Makefile.local`
 
-- [ ] **Step 1: Verify legacy binaries still build**
+- [x] **Step 1: Verify legacy binaries still build**
 
 Run:
 
@@ -293,7 +293,7 @@ make -B pair-context pair-scrollback-render pair-go
 
 Expected: PASS. The non-`-B` run verifies incremental prerequisites include `cmd/internal/contextcmd`, `cmd/internal/scrollbackcmd`, and dispatcher dependencies; the `-B` run remains the forced clean rebuild check.
 
-- [ ] **Step 2: Verify selected command equivalence**
+- [x] **Step 2: Verify selected command equivalence**
 
 Run focused commands against test fixtures or package tests:
 
@@ -304,13 +304,13 @@ go test ./cmd/pair-go -run TestPairGoContextMatchesLegacyPairContext -count=1
 
 Expected: PASS; the equivalence test demonstrates the legacy `pair-context` binary and `pair-go context` process path produce identical stdout/stderr/exit code on the same fixture.
 
-- [ ] **Step 3: Verify full Go test suite**
+- [x] **Step 3: Verify full Go test suite**
 
 Run: `go test ./... -count=1`
 
 Expected: PASS.
 
-- [ ] **Step 4: Verify no live call sites moved**
+- [x] **Step 4: Verify no live call sites moved**
 
 Run:
 
@@ -320,17 +320,17 @@ git diff -- zellij nvim bin/pair bin/pair-dev bin/pair-title.sh bin/pair-scrollb
 
 Expected: empty diff, unless a test-only or documentation-only change was explicitly made.
 
-- [ ] **Step 5: Update atlas**
+- [x] **Step 5: Update atlas**
 
 Update:
 - `atlas/architecture.md` to say `pair-go context` and `pair-go scrollback-render` are implemented helper routes while public launcher and live zellij/nvim callers remain legacy.
 - `atlas/go-migration-inventory.md` rows for `pair-context` and `pair-scrollback-render` to record dispatcher availability and preserved legacy names.
 
-- [ ] **Step 6: Update issue checklist and log**
+- [x] **Step 6: Update issue checklist and log**
 
 Tick the #76 plan/done items that are complete and add a log entry with verification commands and `ARCH-*` notes.
 
-- [ ] **Step 7: Run final verification before close**
+- [x] **Step 7: Run final verification before close**
 
 Run:
 
