@@ -76,6 +76,8 @@ Implemented `cmd/internal/entrypoint` and the `cmd/pair-go` launch handoff. `pai
 
 Boundary review returned REWORK. Fixed both blockers: `make install` now links `pair` and `pair-dev` beside installed Go binaries so installed `pair-go launch ...` has the sibling launcher it requires, and `tests/pair-go-install-layout-test.sh` covers that temp-install layout. Revised the durable plan's Core concepts table to match the implemented `legacyRuntime` / `runWithLegacyRuntime` names.
 
+Pre-merge atlas/README judge caught one stale install-contract bullet. Updated `atlas/go-migration-inventory.md` to say `make install` copies `GO_BINS` and symlinks `SHELL_BINS` (`pair`, `pair-dev`) beside them so installed `pair-go launch ...` can resolve sibling `pair`.
+
 Verification passed:
 
 - `go test ./cmd/internal/entrypoint ./cmd/pair-go ./cmd/internal/dispatcher -count=1`
