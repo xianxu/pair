@@ -225,7 +225,7 @@ $(BIN_DIR)/pair-slug: cmd/pair-slug/main.go cmd/pair-slug/slug.go cmd/internal/m
 
 # pair-context — one-shot: print a pane's current context size (token count)
 # for the pair-title poller. Pure ctxmeter reader + shared transcript resolver.
-$(BIN_DIR)/pair-context: cmd/pair-context/main.go cmd/internal/ctxmeter/ctxmeter.go cmd/internal/transcript/transcript.go go.mod
+$(BIN_DIR)/pair-context: cmd/pair-context/main.go cmd/internal/contextcmd/contextcmd.go cmd/internal/ctxmeter/ctxmeter.go cmd/internal/transcript/transcript.go go.mod
 	go build -o $@ ./cmd/pair-context
 
 # pair-changelog — distills the pair TTY into the Alt+l change log (#53);
