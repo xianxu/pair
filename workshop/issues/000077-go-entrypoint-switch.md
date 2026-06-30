@@ -5,7 +5,7 @@ deps: [000074, 000075, 000076]
 github_issue:
 created: 2026-06-26
 updated: 2026-06-30
-estimate_hours: 2.5
+estimate_hours: 2.6
 started: 2026-06-30T12:42:11-07:00
 ---
 
@@ -40,6 +40,22 @@ This deliberately keeps real zellij lifecycle, prompt/fzf UI, restart/quit clean
 - [ ] Implement the thin Go handoff while keeping dispatcher helper routes intact.
 - [ ] Verify `pair`, `pair-dev`, and `pair-go launch` behavior with process fakes and targeted builds.
 - [ ] Update README/atlas packaging notes.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.25 impl=0.15
+item: greenfield-go-module design=0.35 impl=0.40
+item: skill-or-dispatcher design=0.30 impl=0.35
+item: atlas-docs design=0.20 impl=0.25
+item: milestone-review design=0.00 impl=0.20
+design-buffer: 0.15
+total: 2.62
+```
 
 ## Log
 
