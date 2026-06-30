@@ -22,7 +22,7 @@
 |------|----------|--------|
 | `AgentSpec` | `cmd/internal/sessionwatch/sessionwatch.go` | new |
 | `SessionID` | `cmd/internal/sessionwatch/sessionwatch.go` | new |
-| `ResumeArgs` | `cmd/internal/sessionwatch/sessionwatch.go` | new |
+| `StripResumeArgs` | `cmd/internal/sessionwatch/sessionwatch.go` | new |
 | `ConfigPayload` | `cmd/internal/sessionwatch/sessionwatch.go` | new |
 
 - **AgentSpec** — Per-agent watch metadata for `codex` and `agy`: watch directory suffix, filename pattern, and id extractor.
@@ -35,7 +35,7 @@
   - **DRY rationale:** `lsof`, birth-time fallback, and legacy fallback all need the same extract-or-near-miss behavior.
   - **Future extensions:** Add richer confidence reasons if diagnostics need to distinguish lsof vs fallback discovery.
 
-- **ResumeArgs** — Agent args with resume bindings removed before persistence.
+- **StripResumeArgs** — Agent args with resume bindings removed before persistence.
   - **Relationships:** N:1 from raw agent args to saved config args.
   - **DRY rationale:** Mirrors `bin/pair` stripping semantics in one Go function and tests edge cases that are awkward in shell.
   - **Future extensions:** If `bin/pair` becomes Go-owned, the same stripping function should become the single source for launcher and watcher.
@@ -86,7 +86,7 @@
 - Create: `cmd/internal/sessionwatch/sessionwatch.go`
 - Create: `cmd/internal/sessionwatch/sessionwatch_test.go`
 
-- [ ] **Step 1: Write failing tests for supported agent specs and id extraction**
+- [x] **Step 1: Write failing tests for supported agent specs and id extraction**
 
 Tests:
 - `codex` accepts paths under `~/.codex/sessions/.../rollout-*-<uuid>.jsonl`.
@@ -97,16 +97,16 @@ Tests:
 Run: `go test ./cmd/internal/sessionwatch -run 'TestAgentSpec|TestExtract' -count=1`
 Expected: FAIL because the package does not exist.
 
-- [ ] **Step 2: Implement minimal `AgentSpec` and `ExtractSessionID`**
+- [x] **Step 2: Implement minimal `AgentSpec` and `ExtractSessionID`**
 
 Use only deterministic string/path logic. Do not shell out or read files in this package function.
 
-- [ ] **Step 3: Verify pure extraction tests pass**
+- [x] **Step 3: Verify pure extraction tests pass**
 
 Run: `go test ./cmd/internal/sessionwatch -run 'TestAgentSpec|TestExtract' -count=1`
 Expected: PASS.
 
-- [ ] **Step 4: Write failing tests for resume-arg stripping and config JSON**
+- [x] **Step 4: Write failing tests for resume-arg stripping and config JSON**
 
 Tests:
 - codex leading `resume <id>` is removed.
@@ -117,11 +117,11 @@ Tests:
 Run: `go test ./cmd/internal/sessionwatch -run 'TestStrip|TestConfig' -count=1`
 Expected: FAIL until helpers exist.
 
-- [ ] **Step 5: Implement `StripResumeArgs` and `ConfigJSON`**
+- [x] **Step 5: Implement `StripResumeArgs` and `ConfigJSON`**
 
 Keep behavior byte-compatible in structure with existing shell output: object with `agent`, `args`, and `session_id`.
 
-- [ ] **Step 6: Verify all pure tests pass**
+- [x] **Step 6: Verify all pure tests pass**
 
 Run: `go test ./cmd/internal/sessionwatch -count=1`
 Expected: PASS.
@@ -135,7 +135,7 @@ Expected: PASS.
 - Create: `cmd/pair-session-watch/main.go`
 - Modify: `Makefile.local`
 
-- [ ] **Step 1: Write failing runtime tests for stale pidfile replacement**
+- [x] **Step 1: Write failing runtime tests for stale pidfile replacement**
 
 Use a fake runtime:
 - initial pidfile mtime predates watcher start and points at a dead/unrelated PID.
@@ -146,7 +146,7 @@ Use a fake runtime:
 Run: `go test ./cmd/internal/sessionwatch -run TestRunUsesFreshPidfile -count=1`
 Expected: FAIL because orchestration does not exist.
 
-- [ ] **Step 2: Implement watcher orchestration with injected runtime**
+- [x] **Step 2: Implement watcher orchestration with injected runtime**
 
 Keep the loop behavior faithful:
 - return immediately for unsupported agents.
@@ -157,19 +157,19 @@ Keep the loop behavior faithful:
 - write config via temp file plus rename.
 - emit adapt-log `near-miss`, `fired`, and `fail` outcomes.
 
-- [ ] **Step 3: Verify runtime stale-pidfile test passes**
+- [x] **Step 3: Verify runtime stale-pidfile test passes**
 
 Run: `go test ./cmd/internal/sessionwatch -run TestRunUsesFreshPidfile -count=1`
 Expected: PASS.
 
-- [ ] **Step 4: Add failing tests for near-miss, fail, and agy discovery**
+- [x] **Step 4: Add failing tests for near-miss, fail, and agy discovery**
 
 Use fake runtime with a controllable clock so the fail case does not sleep 60s.
 
 Run: `go test ./cmd/internal/sessionwatch -run 'TestRunLogs|TestRunAgy' -count=1`
 Expected: FAIL until diagnostics/fallbacks are complete.
 
-- [ ] **Step 5: Finish orchestration and CLI command**
+- [x] **Step 5: Finish orchestration and CLI command**
 
 Create `cmd/pair-session-watch/main.go` as a thin CLI over the runtime. Update `Makefile.local` explicitly:
 - add `pair-session-watch` to `.PHONY`;
@@ -178,7 +178,7 @@ Create `cmd/pair-session-watch/main.go` as a thin CLI over the runtime. Update `
 - add a `$(BIN_DIR)/pair-session-watch` build rule;
 - make `test-session-watch` depend on `$(BIN_DIR)/pair-session-watch` so repo-wide `make test` cannot run the shim process test before the Go binary exists.
 
-- [ ] **Step 6: Verify command package tests pass**
+- [x] **Step 6: Verify command package tests pass**
 
 Run: `go test ./cmd/internal/sessionwatch ./cmd/pair-session-watch -count=1`
 Expected: PASS.
@@ -190,7 +190,7 @@ Expected: PASS.
 - Modify: `tests/pair-session-watch-test.sh`
 - Modify: `Makefile.local`
 
-- [ ] **Step 1: Replace shell implementation with a compatibility shim**
+- [x] **Step 1: Replace shell implementation with a compatibility shim**
 
 The shim should:
 - resolve its real path like other Pair scripts;
@@ -198,14 +198,14 @@ The shim should:
 - exec `$PAIR_HOME/bin/pair-session-watch "$@"`;
 - print a clear diagnostic if the Go binary is missing.
 
-- [ ] **Step 2: Expand process-level test coverage**
+- [x] **Step 2: Expand process-level test coverage**
 
 Update `tests/pair-session-watch-test.sh` to exercise the shim invoking the Go binary with fake `ps`/`lsof` and temp HOME/data dirs. Keep the stale pidfile regression. Add a quoted arg in the saved config to prove JSON escaping is structured.
 
 Run: `make pair-session-watch && make test-session-watch`
 Expected: PASS.
 
-- [ ] **Step 3: Verify direct command and shim both work**
+- [x] **Step 3: Verify direct command and shim both work**
 
 Run:
 - `bin/pair-session-watch --help` or unsupported-agent smoke if no help is exposed.
@@ -222,17 +222,17 @@ Expected: all PASS.
 - Modify: `atlas/architecture.md`
 - Optionally create: follow-up issue for `pair-title.sh` if #78 does not already leave enough trace.
 
-- [ ] **Step 1: Update atlas**
+- [x] **Step 1: Update atlas**
 
 Record that `pair-session-watch` is now Go-owned with a shell shim, while `pair-title.sh` remains stateful shell glue.
 
-- [ ] **Step 2: Update #78 issue**
+- [x] **Step 2: Update #78 issue**
 
 Check off candidate selection and implementation items that are complete. Log the explicit split: `pair-title.sh` remains a follow-up because it owns UI title state rather than restart config discovery.
 
 Also log that short shell scripts and opener scripts remain intentionally shell-owned in this slice because #78's payoff target is stateful session discovery. This directly satisfies the Done-when item about leaving no-payoff shell glue alone.
 
-- [ ] **Step 3: Run final verification**
+- [x] **Step 3: Run final verification**
 
 Run:
 - `go test ./cmd/internal/sessionwatch ./cmd/pair-session-watch -count=1`
@@ -244,10 +244,11 @@ Run:
 
 Expected: all PASS.
 
-- [ ] **Step 4: Close through SDLC**
+- [x] **Step 4: Close through SDLC**
 
 Run `sdlc actual --issue 78`, then `sdlc close --issue 78 --verified '<commands>'` with the verification evidence. Let the boundary review decide whether the title-poller split is sufficiently documented.
 
 ## Revisions
 
 - 2026-06-30 — Boundary review found two corrections before shipping: near-miss candidates must not stop discovery before later valid candidates, and the Core Concepts table used the planned `WatcherRuntime` name even though implementation split the injected `Runtime` interface from concrete `OSRuntime`. Updated the plan names/locations and added tests/fixes for near-miss-before-valid ordering plus standalone `PAIR_TAG` fallback logging.
+- 2026-06-30 — Re-review found tracker drift only: the Core Concepts table still used the pre-implementation `ResumeArgs` concept name instead of the shipped `StripResumeArgs` function, and the durable-plan checklist had not been marked complete. Updated the table/prose and checked off the delivered implementation steps.
