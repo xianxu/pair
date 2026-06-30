@@ -33,7 +33,7 @@ HOME="$RT/home" \
 PAIR_DATA_DIR="$RT/data" \
 PAIR_TAG=test \
 PAIR_SESSION_WATCH_PID_WAIT_SECONDS=3 \
-"$ROOT/bin/pair-session-watch.sh" codex test "$ROOT" --no-alt-screen &
+"$ROOT/bin/pair-session-watch.sh" codex test "$ROOT" resume old-session 'say "hi"' --no-alt-screen &
 watch_pid=$!
 
 sleep 0.2
@@ -44,6 +44,12 @@ wait "$watch_pid"
 got="$(jq -r '.session_id // empty' "$RT/data/config-test-codex.json")"
 [ "$got" = "$sid" ] || {
   echo "session_id mismatch: got '$got', want '$sid'" >&2
+  exit 1
+}
+
+args="$(jq -c '.args' "$RT/data/config-test-codex.json")"
+[ "$args" = '["say \"hi\"","--no-alt-screen"]' ] || {
+  echo "args mismatch: got '$args'" >&2
   exit 1
 }
 
