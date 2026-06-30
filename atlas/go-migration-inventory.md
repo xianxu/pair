@@ -114,7 +114,7 @@ Nvim shell-outs and binary dependencies:
 
 Build/install callers:
 
-- `make build` builds seven Go binaries into `bin/`.
+- `make build` builds `GO_BINS` into `bin/`.
 - `make install` copies those binaries to `~/.local/bin`.
 - `pair-dev` relies on `make build`, then zellij's PATH lookup resolves fresh
   repo `bin/` binaries.
