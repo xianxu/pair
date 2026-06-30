@@ -1,12 +1,13 @@
 ---
 id: 000078
-status: working
+status: done
 deps: [000077]
 github_issue:
 created: 2026-06-26
 updated: 2026-06-30
 estimate_hours: 3.12
 started: 2026-06-30T15:58:17-07:00
+actual_hours: 0.46
 ---
 
 # pair Go stateful shell glue
@@ -70,6 +71,7 @@ total: 3.12
 Created from #72. This is intentionally later in the sequence; porting shell before the entrypoint shape is clear risks wasted work.
 
 ### 2026-06-30
+- 2026-06-30: closed — go test ./cmd/internal/sessionwatch ./cmd/pair-session-watch -count=1; go test ./... -count=1; make pair-session-watch; make test-session-watch; bin/pair --help; bin/pair-dev --help; bin/pair-session-watch claude test /tmp; review verdict: REWORK
 
 Claimed after #77 landed. Selected `pair-session-watch.sh` as the #78 slice from the #73 migration inventory because it owns restart-config correctness and brittle PID/lsof/session-file discovery. Split `pair-title.sh` out of this issue: it remains stateful shell glue, but its UI title-poller ownership is a separate risk surface. `ARCH-DRY`: the plan centralizes agent watch patterns, id extraction, resume-arg stripping, and config JSON in Go helpers instead of scattering them across shell conditionals. `ARCH-PURE`: pure parsing and config helpers are tested without process IO; process discovery stays behind a fakeable runtime.
 
@@ -80,6 +82,8 @@ Implemented `cmd/internal/sessionwatch` and `cmd/pair-session-watch`. The pure h
 Replaced `bin/pair-session-watch.sh` with a compatibility shim that resolves `PAIR_HOME` and execs `bin/pair-session-watch`, leaving the existing `bin/pair` create-path caller unchanged. Updated `Makefile.local` so `pair-session-watch` is a built Go binary and `make test-session-watch` depends on it. Expanded `tests/pair-session-watch-test.sh` to exercise the shim, fake `lsof`, stale pidfile wait, codex resume stripping, and quote-safe JSON args.
 
 Updated atlas migration docs to show `pair-session-watch` as Go-owned with a shell shim. `pair-title.sh` remains the next stateful shell candidate because it owns UI title-poller state. Short shell scripts and opener scripts remain intentionally shell-owned in this slice because their packaging/reliability payoff is lower than the stateful session-discovery watcher.
+
+Boundary review returned REWORK. Fixed the blocking behavior drift: near-miss session-file candidates now get remembered while discovery continues scanning later lsof paths, birth-time candidates, or legacy fallback candidates for a valid session id. Added regression tests for near-miss-before-valid ordering in both lsof and legacy fallback paths. Restored the old standalone telemetry behavior by setting `PAIR_TAG` from the positional tag before opening `cmd/internal/adapt` when the environment lacks `PAIR_TAG`. Also matched the shell's whole-second pidfile freshness comparison so a current pidfile written in the same second as watcher start is not misread as stale. Revised the durable plan's Core Concepts table to match the implemented `Runtime` and `OSRuntime` names/locations.
 
 Verification passed:
 

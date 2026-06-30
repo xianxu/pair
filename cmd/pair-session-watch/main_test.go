@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -35,5 +36,18 @@ func TestBuildOptionsFromArgsAndEnv(t *testing.T) {
 func TestBuildOptionsRejectsMissingRequiredArgs(t *testing.T) {
 	if _, ok := buildOptions([]string{"codex", "tag"}, func(string) string { return "" }); ok {
 		t.Fatalf("buildOptions should reject missing cwd")
+	}
+}
+
+func TestEnsurePairTagFallback(t *testing.T) {
+	t.Setenv("PAIR_TAG", "")
+	cleanup := ensurePairTag("from-positional")
+	defer cleanup()
+	if got := os.Getenv("PAIR_TAG"); got != "from-positional" {
+		t.Fatalf("PAIR_TAG = %q, want fallback tag", got)
+	}
+	cleanup()
+	if got := os.Getenv("PAIR_TAG"); got != "" {
+		t.Fatalf("PAIR_TAG after cleanup = %q, want empty", got)
 	}
 }

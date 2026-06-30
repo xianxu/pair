@@ -18,6 +18,8 @@ func run(args []string, getenv func(string) string, stderr *os.File) int {
 	if !ok {
 		return 0
 	}
+	cleanupPairTag := ensurePairTag(opts.Tag)
+	defer cleanupPairTag()
 	logger := adapt.Open("session-watch", opts.Agent)
 	defer logger.Close()
 	if err := sessionwatch.Run(opts, sessionwatch.NewOSRuntime(logger)); err != nil {
@@ -25,6 +27,14 @@ func run(args []string, getenv func(string) string, stderr *os.File) int {
 		return 1
 	}
 	return 0
+}
+
+func ensurePairTag(tag string) func() {
+	if os.Getenv("PAIR_TAG") != "" || tag == "" {
+		return func() {}
+	}
+	_ = os.Setenv("PAIR_TAG", tag)
+	return func() { _ = os.Unsetenv("PAIR_TAG") }
 }
 
 func buildOptions(args []string, getenv func(string) string) (sessionwatch.Options, bool) {

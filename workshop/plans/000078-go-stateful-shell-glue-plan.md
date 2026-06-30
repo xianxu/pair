@@ -49,15 +49,20 @@
 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
-| `WatcherRuntime` | `cmd/internal/sessionwatch/runtime.go` | new | process list, lsof, find/stat, sleep/clock, filesystem writes |
+| `Runtime` | `cmd/internal/sessionwatch/run.go` | new | injected process list, lsof, find/stat, sleep/clock, filesystem writes |
+| `OSRuntime` | `cmd/internal/sessionwatch/runtime.go` | new | real process list, lsof, find/stat, sleep/clock, filesystem writes |
 | `PairSessionWatchCommand` | `cmd/pair-session-watch/main.go` | new | CLI, environment, process loop |
 | `PairSessionWatchShim` | `bin/pair-session-watch.sh` | modified | legacy shell command name |
 | `SessionWatchProcessTest` | `tests/pair-session-watch-test.sh` | modified | fake PATH commands and temp HOME/data dirs |
 | `AdaptLogger` | `cmd/internal/adapt/adapt.go` | reused | adaptation flight-recorder JSONL schema |
 
-- **WatcherRuntime** — Boundary used by the command loop for process and filesystem side effects.
+- **Runtime** — Boundary used by the command loop for process and filesystem side effects.
   - **Injected into:** `sessionwatch.Run` or equivalent orchestration function; pure helpers stay independent.
   - **Future extensions:** Lets tests drive timeout/failure cases without real 60s sleeps.
+
+- **OSRuntime** — Real implementation of `Runtime` for production process and filesystem calls.
+  - **Injected into:** `cmd/pair-session-watch/main.go` after env/argv resolution.
+  - **Future extensions:** Platform-specific process and birth-time behavior stays isolated here.
 
 - **PairSessionWatchCommand** — Parses `pair-session-watch <agent> <tag> <cwd> [agent-args...]`, no-ops unsupported agents, and runs the watcher.
   - **Injected into:** Called by the shell shim and later directly by `bin/pair` or a Go entrypoint.
@@ -242,3 +247,7 @@ Expected: all PASS.
 - [ ] **Step 4: Close through SDLC**
 
 Run `sdlc actual --issue 78`, then `sdlc close --issue 78 --verified '<commands>'` with the verification evidence. Let the boundary review decide whether the title-poller split is sufficiently documented.
+
+## Revisions
+
+- 2026-06-30 — Boundary review found two corrections before shipping: near-miss candidates must not stop discovery before later valid candidates, and the Core Concepts table used the planned `WatcherRuntime` name even though implementation split the injected `Runtime` interface from concrete `OSRuntime`. Updated the plan names/locations and added tests/fixes for near-miss-before-valid ordering plus standalone `PAIR_TAG` fallback logging.

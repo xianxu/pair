@@ -49,6 +49,35 @@ func TestRunUsesFreshPidfileAndWritesConfig(t *testing.T) {
 	}
 }
 
+func TestRunTreatsSameSecondPidfileAsFresh(t *testing.T) {
+	home := "/tmp/home"
+	data := "/tmp/data"
+	sid := "019eff64-6ceb-7e72-9d41-a735a97029ac"
+	sessionFile := home + "/.codex/sessions/2026/06/25/rollout-2026-06-25T08-27-12-" + sid + ".jsonl"
+	rt := newFakeRuntime(time.Unix(100, 900_000_000))
+	rt.files[filepath.Join(data, "agent-pid-test")] = fakeFile{content: []byte("1234\n"), mod: time.Unix(100, 0)}
+	rt.alive["1234"] = true
+	rt.descendants["1234"] = []string{"1234"}
+	rt.lsof["1234"] = []string{sessionFile}
+
+	err := Run(Options{
+		Agent:   "codex",
+		Tag:     "test",
+		Cwd:     "/repo",
+		Home:    home,
+		DataDir: data,
+		PIDWait: time.Second,
+		Timeout: time.Second,
+		Poll:    100 * time.Millisecond,
+	}, rt)
+	if err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	if got := string(rt.writes[filepath.Join(data, "config-test-codex.json")]); !strings.Contains(got, sid) {
+		t.Fatalf("config write = %s, want same-second pidfile accepted", got)
+	}
+}
+
 func TestRunDiscoversAgySessionFromLsof(t *testing.T) {
 	home := "/tmp/home"
 	data := "/tmp/data"
@@ -113,6 +142,76 @@ func TestRunLogsNearMissOnce(t *testing.T) {
 	}
 }
 
+func TestRunContinuesPastLsofNearMissToValidCandidate(t *testing.T) {
+	home := "/tmp/home"
+	data := "/tmp/data"
+	sid := "019eff64-6ceb-7e72-9d41-a735a97029ac"
+	bad := home + "/.codex/sessions/2026/06/25/rollout-2026-06-25T08-27-12-not-a-uuid.jsonl"
+	good := home + "/.codex/sessions/2026/06/25/rollout-2026-06-25T08-27-12-" + sid + ".jsonl"
+	rt := newFakeRuntime(time.Unix(350, 0))
+	rt.files[filepath.Join(data, "agent-pid-tag")] = fakeFile{content: []byte("3500\n"), mod: time.Unix(350, 0)}
+	rt.alive["3500"] = true
+	rt.descendants["3500"] = []string{"3500", "3501"}
+	rt.lsof["3500"] = []string{bad}
+	rt.lsof["3501"] = []string{good}
+
+	err := Run(Options{
+		Agent:   "codex",
+		Tag:     "tag",
+		Cwd:     "/repo",
+		Home:    home,
+		DataDir: data,
+		PIDWait: time.Second,
+		Timeout: time.Second,
+		Poll:    100 * time.Millisecond,
+	}, rt)
+	if err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	got := string(rt.writes[filepath.Join(data, "config-tag-codex.json")])
+	if !strings.Contains(got, sid) {
+		t.Fatalf("config write = %s, want valid sid after near miss", got)
+	}
+	if rt.countLogs(adapt.NearMiss) != 0 {
+		t.Fatalf("near miss should not be logged when a valid candidate is found later: %+v", rt.logs)
+	}
+}
+
+func TestRunContinuesPastLegacyNearMissToValidCandidate(t *testing.T) {
+	home := "/tmp/home"
+	data := "/tmp/data"
+	sid := "019eff64-6ceb-7e72-9d41-a735a97029ac"
+	bad := home + "/.codex/sessions/2026/06/25/rollout-2026-06-25T08-27-12-not-a-uuid.jsonl"
+	good := home + "/.codex/sessions/2026/06/25/rollout-2026-06-25T08-27-12-" + sid + ".jsonl"
+	rt := newFakeRuntime(time.Unix(360, 0))
+	var sleeps int
+	rt.onSleep = func(time.Duration) {
+		sleeps++
+		if sleeps == 2 {
+			rt.files[bad] = fakeFile{mod: time.Unix(360, 0)}
+			rt.files[good] = fakeFile{mod: time.Unix(360, 0)}
+		}
+	}
+
+	err := Run(Options{
+		Agent:   "codex",
+		Tag:     "tag",
+		Cwd:     "/repo",
+		Home:    home,
+		DataDir: data,
+		PIDWait: 100 * time.Millisecond,
+		Timeout: time.Second,
+		Poll:    100 * time.Millisecond,
+	}, rt)
+	if err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	got := string(rt.writes[filepath.Join(data, "config-tag-codex.json")])
+	if !strings.Contains(got, sid) {
+		t.Fatalf("config write = %s, want valid sid after legacy near miss", got)
+	}
+}
+
 func TestRunLogsFailOnTimeout(t *testing.T) {
 	rt := newFakeRuntime(time.Unix(400, 0))
 	err := Run(Options{
@@ -171,7 +270,6 @@ func (f *fakeRuntime) Now() time.Time { return f.now }
 func (f *fakeRuntime) Sleep(d time.Duration) {
 	if f.onSleep != nil {
 		f.onSleep(d)
-		f.onSleep = nil
 	}
 	f.now = f.now.Add(d)
 }

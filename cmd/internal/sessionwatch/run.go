@@ -124,35 +124,49 @@ func freshPID(pidFile string, since time.Time, rt Runtime) (bool, time.Time) {
 	if err != nil {
 		return false, time.Time{}
 	}
-	return !mod.Before(since), mod
+	return mod.Unix() >= since.Unix(), mod
 }
 
 func discover(spec AgentSpec, rootPID string, agentStart time.Time, legacyExisting map[string]bool, rt Runtime) SessionID {
 	if rootPID != "" {
+		nearMiss := SessionID{}
 		pids, _ := rt.Descendants(rootPID)
 		for _, pid := range pids {
 			paths, _ := rt.LsofPaths(pid)
 			for _, path := range paths {
-				if result := spec.Match(path); result.ID != "" || result.NearMiss {
+				result := spec.Match(path)
+				if result.ID != "" {
 					return result
+				}
+				if result.NearMiss && !nearMiss.NearMiss {
+					nearMiss = result
 				}
 			}
 		}
 		if !agentStart.IsZero() {
-			return discoverByBirth(spec, agentStart, rt)
+			if result := discoverByBirth(spec, agentStart, rt); result.ID != "" {
+				return result
+			} else if result.NearMiss && !nearMiss.NearMiss {
+				nearMiss = result
+			}
 		}
-		return SessionID{}
+		return nearMiss
 	}
+	nearMiss := SessionID{}
 	files, _ := rt.ListFiles(spec.WatchDir)
 	for _, file := range files {
 		if legacyExisting[file] {
 			continue
 		}
-		if result := spec.Match(file); result.ID != "" || result.NearMiss {
+		result := spec.Match(file)
+		if result.ID != "" {
 			return result
 		}
+		if result.NearMiss && !nearMiss.NearMiss {
+			nearMiss = result
+		}
 	}
-	return SessionID{}
+	return nearMiss
 }
 
 func discoverByBirth(spec AgentSpec, agentStart time.Time, rt Runtime) SessionID {
@@ -170,6 +184,11 @@ func discoverByBirth(spec AgentSpec, agentStart time.Time, rt Runtime) SessionID
 	}
 	if len(candidates) == 1 {
 		return candidates[0]
+	}
+	for _, candidate := range candidates {
+		if candidate.NearMiss {
+			return candidate
+		}
 	}
 	return SessionID{}
 }

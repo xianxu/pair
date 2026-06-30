@@ -1,7 +1,6 @@
 package sessionwatch
 
 import (
-	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -141,8 +140,4 @@ func ParseDurationSeconds(s string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	return time.Duration(n) * time.Second
-}
-
-func trimCommandOutput(b []byte) string {
-	return string(bytes.TrimSpace(b))
 }
