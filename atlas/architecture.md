@@ -588,7 +588,7 @@ Per-agent surface:
 
 Single write posture: structured JSON plus temp-file rename, only after the id is in hand. The shell launcher uses `jq` for synchronous claude/explicit-resume prewrites; the Go watcher uses `encoding/json` plus `os.CreateTemp`/rename for codex/agy. So a concurrent reader either sees a complete prior config or a complete new one — never a partial. Keyed by `(tag, agent)` because the same tag can hold separate configs for different agents.
 
-**Create-flow prompt (`bin/pair`).** When the create path commits a tag, pair reads `config-<tag>-<agent>.json`. If present, it runs the per-agent stale-id check (claude: `[ -f .../<id>.jsonl ]`; codex: `find ~/.codex/sessions -name "*<id>*"`; agy: check transcript file) and fzf-prompts the user with up to three options:
+**Create-flow prompt (`bin/pair`).** When the create path commits a tag, pair reads `config-<tag>-<agent>.json`. If present, it runs the per-agent stale-id check (claude: `[ -f .../<id>.jsonl ]`; codex: `find ~/.codex/sessions -name "*<id>*"`; agy: check conversation DB) and fzf-prompts the user with up to three options:
 
 ```
 1) use params + session   args=[...]   resume=<id>

@@ -75,7 +75,7 @@ If the agent presents blocking overlays, pickers (like file autocompletes), or y
 - Support checking for active/resumable session files under `has_resumable`:
   ```bash
   agy)
-      [ -f "$HOME/.gemini/antigravity-cli/brain/$saved_session/.system_generated/logs/transcript.jsonl" ] && has_resumable=true
+      [ -f "$HOME/.gemini/antigravity-cli/conversations/$saved_session.db" ] && has_resumable=true
       ;;
   ```
 
