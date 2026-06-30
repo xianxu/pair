@@ -30,19 +30,19 @@ Selected slice: port `pair-session-watch.sh` first. It owns session-id discovery
 
 ## Done when
 
-- [ ] A prioritized subset of stateful shell glue is ported or split into smaller issues.
-- [ ] Ported behavior has process-level tests with fake external commands/files.
-- [ ] Legacy script callers either route to Go or remain as compatibility shims.
-- [ ] Short shell scripts with no packaging/reliability payoff are explicitly left alone.
-- [ ] Pair remains usable after each merge.
+- [x] A prioritized subset of stateful shell glue is ported or split into smaller issues.
+- [x] Ported behavior has process-level tests with fake external commands/files.
+- [x] Legacy script callers either route to Go or remain as compatibility shims.
+- [x] Short shell scripts with no packaging/reliability payoff are explicitly left alone.
+- [x] Pair remains usable after each merge.
 
 ## Plan
 
 - [x] Choose the candidate from #73's priority table.
-- [ ] Capture existing behavior in tests before porting.
-- [ ] Port pure decision logic and thin IO seams.
-- [ ] Keep compatibility shims until all callers move.
-- [ ] Verify live or fake end-to-end behavior.
+- [x] Capture existing behavior in tests before porting.
+- [x] Port pure decision logic and thin IO seams.
+- [x] Keep compatibility shims until all callers move.
+- [x] Verify live or fake end-to-end behavior.
 
 Detailed implementation plan: `workshop/plans/000078-go-stateful-shell-glue-plan.md`.
 
@@ -74,3 +74,19 @@ Created from #72. This is intentionally later in the sequence; porting shell bef
 Claimed after #77 landed. Selected `pair-session-watch.sh` as the #78 slice from the #73 migration inventory because it owns restart-config correctness and brittle PID/lsof/session-file discovery. Split `pair-title.sh` out of this issue: it remains stateful shell glue, but its UI title-poller ownership is a separate risk surface. `ARCH-DRY`: the plan centralizes agent watch patterns, id extraction, resume-arg stripping, and config JSON in Go helpers instead of scattering them across shell conditionals. `ARCH-PURE`: pure parsing and config helpers are tested without process IO; process discovery stays behind a fakeable runtime.
 
 Plan-quality returned INFO. Tightened the durable plan to reuse `cmd/internal/adapt.Open` / `adapt.Logger` directly, spell out `Makefile.local` wiring for `pair-session-watch`, and explicitly log that short shell scripts/opener scripts remain out of scope because this slice targets stateful session discovery.
+
+Implemented `cmd/internal/sessionwatch` and `cmd/pair-session-watch`. The pure helpers own agent watch specs, codex/agy session-id extraction, near-miss classification, resume-arg stripping, and structured config JSON. The runtime owns PID freshness, process-tree/lsof discovery, birth-time and legacy fallbacks, atomic config writes, and adapt-log `fired` / `near-miss` / `fail` events via `cmd/internal/adapt`.
+
+Replaced `bin/pair-session-watch.sh` with a compatibility shim that resolves `PAIR_HOME` and execs `bin/pair-session-watch`, leaving the existing `bin/pair` create-path caller unchanged. Updated `Makefile.local` so `pair-session-watch` is a built Go binary and `make test-session-watch` depends on it. Expanded `tests/pair-session-watch-test.sh` to exercise the shim, fake `lsof`, stale pidfile wait, codex resume stripping, and quote-safe JSON args.
+
+Updated atlas migration docs to show `pair-session-watch` as Go-owned with a shell shim. `pair-title.sh` remains the next stateful shell candidate because it owns UI title-poller state. Short shell scripts and opener scripts remain intentionally shell-owned in this slice because their packaging/reliability payoff is lower than the stateful session-discovery watcher.
+
+Verification passed:
+
+- `go test ./cmd/internal/sessionwatch ./cmd/pair-session-watch -count=1`
+- `go test ./... -count=1`
+- `make pair-session-watch`
+- `make test-session-watch`
+- `bin/pair --help`
+- `bin/pair-dev --help`
+- `bin/pair-session-watch claude test /tmp`

@@ -56,8 +56,8 @@ If the agent presents blocking overlays, pickers (like file autocompletes), or y
 `pair` features a robust restart-in-place (`Alt+n`) and session reattach (`pair resume <tag>`) mechanism. To make this work, the launcher needs to discover the agent's unique conversation/session ID as soon as it is spawned.
 
 **Discovery & Watcher:**
-- **File:** [bin/pair-session-watch.sh](file:///Users/xianxu/workspace/pair/bin/pair-session-watch.sh)
-- Since TUI agents do not always expose session IDs on stdout, `pair-session-watch.sh` runs in the background. It finds the agent process PID from `$PAIR_DATA_DIR/agent-pid-<tag>` (written by `pair-wrap`), walks its descendants, and inspects files held open by the processes via `lsof -p <pid>`.
+- **Files:** `cmd/pair-session-watch` and `cmd/internal/sessionwatch` (`bin/pair-session-watch.sh` remains a compatibility shim).
+- Since TUI agents do not always expose session IDs on stdout, `pair-session-watch` runs in the background. It finds the agent process PID from `$PAIR_DATA_DIR/agent-pid-<tag>` (written by `pair-wrap`), walks its descendants, and inspects files held open by the processes via `lsof -p <pid>`.
 - Configure the agent's session file criteria:
   ```bash
   agy)
@@ -95,7 +95,7 @@ If the agent presents blocking overlays, pickers (like file autocompletes), or y
       ;;
   ```
 
-**Telemetry Signal** (aspect `3`, see §3): `session-id` from `pair-session-watch.sh` — `fired` when `extract_id` resolves an id and the config is written, **`near-miss`** when a file matching the watch pattern is found but no id can be extracted (filename/format drift), `fail` when the 60s watch window elapses with no id at all (the session file never appeared where expected). The resume mapping in `bin/pair` is the *consumer* of this id; it's static config with no separate signal.
+**Telemetry Signal** (aspect `3`, see §3): `session-id` from `pair-session-watch` — `fired` when `ExtractSessionID` resolves an id and the config is written, **`near-miss`** when a file matching the watch pattern is found but no id can be extracted (filename/format drift), `fail` when the 60s watch window elapses with no id at all (the session file never appeared where expected). The resume mapping in `bin/pair` is the *consumer* of this id; it's static config with no separate signal.
 
 ---
 
@@ -151,7 +151,7 @@ When introducing a new agent `<name>`, ensure you complete each item:
 
 1. [ ] **Verify Return Key remapping** in `sendKeymapByAgent` (Enter = newline, Alt+Enter = send).
 2. [ ] **Check for blocking TUI overlays** and implement a PTY overlay detector in `overlayDetectorByAgent` if needed.
-3. [ ] **Implement Session Watching** in `bin/pair-session-watch.sh` (using `lsof` and target file patterns).
+3. [ ] **Implement Session Watching** in `cmd/internal/sessionwatch` / `cmd/pair-session-watch` (using `lsof` and target file patterns).
 4. [ ] **Configure Launcher Recovery** in `bin/pair` (mapping `--conversation` or `--resume` flags).
 5. [ ] **Add slug generation support** in `pair-slug` (transcript parsing + sandboxed print execution).
 6. [ ] **Confirm mouse scroll and scrollback render** work smoothly without drawing glitch issues.
@@ -200,7 +200,7 @@ write the same line shape directly):
 |---|---|---|---|---|
 | 1 Return remap | `return-remap` | pair-wrap | fired, bypass | zero `fired` / all `bypass` |
 | 2 Overlay suspend | `overlay-detect` | pair-wrap | fired, near-miss | any `near-miss` |
-| 3 Session watch | `session-id` | pair-session-watch.sh | fired, near-miss, fail | `fail` (timeout) / `near-miss` (file found, id unparsed) |
+| 3 Session watch | `session-id` | pair-session-watch | fired, near-miss, fail | `fail` (timeout) / `near-miss` (file found, id unparsed) |
 | 4 Slug gen | `slug-parse` | pair-slug | fired, near-miss, fail | `near-miss` (transcript parsed, 0 turns) / `fail` (resolved a transcript but couldn't read/parse it) |
 | 5 PTY filter | `output-filter` | pair-wrap | fired | a `fired` line that *stops* appearing (its absence is the signal — the sequence was renamed) |
 | 6 Settings | — | — | — | static config; no signal |
