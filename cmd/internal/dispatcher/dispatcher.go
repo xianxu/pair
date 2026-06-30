@@ -1,12 +1,15 @@
 package dispatcher
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/contextcmd"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/scrollbackcmd"
 )
 
 const programName = "pair-go"
@@ -29,10 +32,10 @@ type Result struct {
 func Families() []CommandFamily {
 	return []CommandFamily{
 		{Name: "launch", Summary: "session lifecycle and public pair launcher flow", Status: "prototype"},
+		{Name: "context", Summary: "agent pane context meter", Status: "implemented"},
+		{Name: "scrollback-render", Summary: "raw PTY capture to ANSI scrollback", Status: "implemented"},
 		{Name: "wrap", Summary: "PTY proxy around a TUI agent", Status: "planned"},
 		{Name: "slug", Summary: "session orientation slug generation", Status: "planned"},
-		{Name: "context", Summary: "agent pane context meter", Status: "planned"},
-		{Name: "scrollback-render", Summary: "raw PTY capture to ANSI scrollback", Status: "planned"},
 		{Name: "changelog", Summary: "TTY transcript to distilled change log", Status: "planned"},
 		{Name: "continuation", Summary: "continuation datatype writer", Status: "planned"},
 		{Name: "scribe", Summary: "PTY logging wrapper", Status: "planned"},
@@ -55,6 +58,10 @@ func Dispatch(args []string) Result {
 		}
 	case "launch":
 		return DispatchWithLauncherRuntime(args, osLauncherRuntime())
+	case "context":
+		return dispatchContext(args[1:])
+	case "scrollback-render":
+		return dispatchScrollbackRender(args[1:])
 	}
 
 	if family, ok := familyByName(args[0]); ok {
@@ -68,6 +75,18 @@ func Dispatch(args []string) Result {
 		Stderr:   fmt.Sprintf("%s: unknown command %q; run %s help\n", programName, args[0], programName),
 		ExitCode: 2,
 	}
+}
+
+func dispatchContext(args []string) Result {
+	var stdout bytes.Buffer
+	code := contextcmd.Run(args, contextcmd.EnvFromOS(), &stdout)
+	return Result{Stdout: stdout.String(), ExitCode: code}
+}
+
+func dispatchScrollbackRender(args []string) Result {
+	var stdout, stderr bytes.Buffer
+	code := scrollbackcmd.Run(args, &stdout, &stderr)
+	return Result{Stdout: stdout.String(), Stderr: stderr.String(), ExitCode: code}
 }
 
 type LauncherRuntime struct {
@@ -166,11 +185,13 @@ func Help(program string) string {
 	for _, family := range Families() {
 		if family.Status == "prototype" {
 			fmt.Fprintf(&b, "  %-17s %s (prototype; decision-phase only)\n", family.Name, family.Summary)
+		} else if family.Status == "implemented" {
+			fmt.Fprintf(&b, "  %-17s %s (implemented helper route)\n", family.Name, family.Summary)
 		}
 	}
 	b.WriteString("\nPlanned command families (not implemented in this skeleton):\n")
 	for _, family := range Families() {
-		if family.Status != "prototype" {
+		if family.Status == "planned" {
 			fmt.Fprintf(&b, "  %-17s %s (%s; not implemented in this skeleton)\n", family.Name, family.Summary, family.Status)
 		}
 	}

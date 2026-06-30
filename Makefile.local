@@ -241,7 +241,7 @@ $(BIN_DIR)/pair-continuation: cmd/pair-continuation/continuation.go cmd/pair-con
 
 # pair-go — development-only dispatcher skeleton for the future primary Go CLI.
 # The public launcher remains bin/pair until the entrypoint-switch issue.
-$(BIN_DIR)/pair-go: cmd/pair-go/main.go cmd/internal/dispatcher/dispatcher.go go.mod
+$(BIN_DIR)/pair-go: cmd/pair-go/main.go cmd/internal/dispatcher/dispatcher.go cmd/internal/launcher/args.go cmd/internal/launcher/datadir.go cmd/internal/launcher/decision.go cmd/internal/launcher/history.go cmd/internal/launcher/run.go cmd/internal/launcher/session.go cmd/internal/launcher/tag.go cmd/internal/launcher/zellij.go cmd/internal/contextcmd/contextcmd.go cmd/internal/scrollbackcmd/scrollbackcmd.go go.mod
 	go build -o $@ ./cmd/pair-go
 
 
