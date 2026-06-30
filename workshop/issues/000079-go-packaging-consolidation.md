@@ -1,11 +1,12 @@
 ---
 id: 000079
-status: open
+status: working
 deps: [000077, 000078]
 github_issue:
 created: 2026-06-26
-updated: 2026-06-26
+updated: 2026-06-30
 estimate_hours:
+started: 2026-06-30T16:59:55-07:00
 ---
 
 # pair Go packaging consolidation
