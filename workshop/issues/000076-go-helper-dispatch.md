@@ -1,11 +1,12 @@
 ---
 id: 000076
-status: open
+status: working
 deps: [000074]
 github_issue:
 created: 2026-06-26
-updated: 2026-06-26
+updated: 2026-06-30
 estimate_hours:
+started: 2026-06-30T11:58:44-07:00
 ---
 
 # pair Go helper dispatch
