@@ -1,12 +1,13 @@
 ---
 id: 000075
-status: working
+status: done
 deps: [000073, 000074]
 github_issue:
 created: 2026-06-26
 updated: 2026-06-29
 estimate_hours: 3.75
 started: 2026-06-29T21:55:46-07:00
+actual_hours: 0.98
 ---
 
 # pair Go launcher prototype
@@ -75,6 +76,8 @@ total: 3.75
 Created from #72. This issue is deliberately a prototype/vertical-slice milestone, not the public switch.
 
 ### 2026-06-29
+- 2026-06-29: closed — go test ./cmd/internal/dispatcher -run 'TestDispatch(Help|Launch)' -count=1; go test ./cmd/pair-go -run 'TestRunLaunch' -count=1; go run ./cmd/pair-go launch reached prototype decision exit 3; go run ./cmd/pair-go help lists launch as prototype; go test ./cmd/internal/launcher ./cmd/internal/dispatcher ./cmd/pair-go -count=1; make -B pair-go; go test ./... -count=1; git diff -- bin/pair empty; rg atlas boundary check; git diff --check; review verdict: SHIP
+- 2026-06-29: closed — go test ./cmd/internal/launcher ./cmd/internal/dispatcher ./cmd/pair-go -count=1; make -B pair-go; go test ./... -count=1; git diff -- bin/pair empty; rg atlas boundary check; git diff --check; review verdict: REWORK
 
 Claimed #75 after parking #82. Entered planning with `sdlc start-plan --issue 75`; design cites #73's inventory and chooses a guarded `pair-go launch` decision-phase prototype so the shell launcher remains public while the Go path exercises real launcher concepts (`ARCH-PURE`, `ARCH-DRY`, `ARCH-PURPOSE`).
 

@@ -66,6 +66,22 @@ func TestRunLaunchResumeReturnsPrototypeDecision(t *testing.T) {
 	}
 }
 
+func TestRunLaunchWithoutArgsReturnsDefaultPrototypeDecision(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := runWithLauncherRuntime([]string{"launch"}, &stdout, &stderr, testLauncherRuntime("/home/me", "", "/work/pair"))
+	if code != 3 {
+		t.Fatalf("code = %d, want 3", code)
+	}
+	if stdout.String() != "" {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	for _, want := range []string{"prototype decision", "action=create", "tag=pair", "session=pair-pair"} {
+		if !strings.Contains(stderr.String(), want) {
+			t.Fatalf("stderr missing %q:\n%s", want, stderr.String())
+		}
+	}
+}
+
 func testLauncherRuntime(home, xdg, cwd string) dispatcher.LauncherRuntime {
 	return dispatcher.LauncherRuntime{
 		Env:      dispatcher.LauncherEnv(home, xdg, cwd),

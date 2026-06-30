@@ -54,7 +54,7 @@ The launcher package must not define a second stdout/stderr/exit-code result typ
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
 | `ZellijSource` | `cmd/internal/launcher/zellij.go` | new | `zellij list-sessions`, `zellij --session ... action list-clients` |
-| `HistorySource` | `cmd/internal/launcher/history.go` | new | filesystem scan of `draft-*.md`, `log-*.md`, `queue-*` under Pair data dir |
+| `HistorySource` | `cmd/internal/launcher/history.go` | new | filesystem scan of `draft-*.md` and `log-*.md` under Pair data dir |
 | `LaunchCommand` | `cmd/internal/dispatcher/dispatcher.go` | modified | existing dispatcher route for `launch` |
 | `PairGoMain` | `cmd/pair-go/main.go` | modified | process stdout/stderr exit handling |
 
@@ -74,6 +74,14 @@ The launcher package must not define a second stdout/stderr/exit-code result typ
 **PairGoMain** — No business logic; writes dispatcher-returned streams and exits.
 - **Injected into:** none.
 - **Future extensions:** May eventually become the public `pair` binary entrypoint in #77, but not here.
+
+## Revisions
+
+### 2026-06-29 — Close review correction
+
+Reason: the close review found the integration table claimed `HistorySource` scanned `queue-*`, while the implemented #75 prototype only uses draft/log sidecars as historical tag candidates.
+
+Delta: revised the `HistorySource` integration row to list `draft-*.md` and `log-*.md` only. Queue badges remain future picker UI scope, as already noted in the `HistorySource` future extensions.
 
 ## Chunk 1: Pure Launcher Core
 

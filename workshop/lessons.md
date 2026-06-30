@@ -478,3 +478,19 @@ boundary, or a recovery/fallback contract, check `atlas/` even if no public UI
 changed. A "small" watcher/launcher fix can still alter the architecture map's
 truth. If you pass `--no-atlas`, verify the atlas does not already document the
 surface you changed; otherwise update the existing entry before close.
+
+## Default command paths need their own assertions
+
+#75's Go launcher prototype parsed an empty launch arg list as the default
+agent in `launcher.ParseArgs`, but the dispatcher intercepted `pair-go launch`
+with no args and returned help before the parser ran. The narrow parser tests
+passed while the command path violated the issue's "default agent" requirement.
+The same close review also caught a plan table that claimed `HistorySource`
+wrapped `queue-*` even though the implementation only scanned draft/log
+sidecars.
+
+**Rule.** For every command parser default, add at least one test at the outer
+dispatch/process layer that proves the empty/default invocation reaches the same
+decision path as explicit inputs. When revising scope during implementation,
+re-read the plan's core-concepts/integration tables and either implement every
+listed surface or add a `## Revisions` entry narrowing the table before close.

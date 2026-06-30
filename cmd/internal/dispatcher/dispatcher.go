@@ -28,7 +28,7 @@ type Result struct {
 // Families returns the planned command families for the Go dispatcher.
 func Families() []CommandFamily {
 	return []CommandFamily{
-		{Name: "launch", Summary: "session lifecycle and public pair launcher flow", Status: "planned"},
+		{Name: "launch", Summary: "session lifecycle and public pair launcher flow", Status: "prototype"},
 		{Name: "wrap", Summary: "PTY proxy around a TUI agent", Status: "planned"},
 		{Name: "slug", Summary: "session orientation slug generation", Status: "planned"},
 		{Name: "context", Summary: "agent pane context meter", Status: "planned"},
@@ -105,7 +105,7 @@ func DispatchWithLauncherRuntime(args []string, rt LauncherRuntime) Result {
 	if len(args) > 1 {
 		launchArgs = args[1:]
 	}
-	if len(launchArgs) == 0 || launchArgs[0] == "help" || launchArgs[0] == "--help" || launchArgs[0] == "-h" {
+	if len(launchArgs) > 0 && (launchArgs[0] == "help" || launchArgs[0] == "--help" || launchArgs[0] == "-h") {
 		return Result{Stdout: LaunchHelp(programName), ExitCode: 0}
 	}
 	outcome, err := launcher.Run(launchArgs, rt.Env, rt.Sessions, rt.History)
@@ -162,9 +162,17 @@ func Help(program string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Usage: %s <command> [args]\n\n", program)
 	b.WriteString("Development dispatcher skeleton. Public sessions still start through bin/pair.\n\n")
-	b.WriteString("Planned command families (not implemented in this skeleton):\n")
+	b.WriteString("Implemented prototype commands:\n")
 	for _, family := range Families() {
-		fmt.Fprintf(&b, "  %-17s %s (%s; not implemented in this skeleton)\n", family.Name, family.Summary, family.Status)
+		if family.Status == "prototype" {
+			fmt.Fprintf(&b, "  %-17s %s (prototype; decision-phase only)\n", family.Name, family.Summary)
+		}
+	}
+	b.WriteString("\nPlanned command families (not implemented in this skeleton):\n")
+	for _, family := range Families() {
+		if family.Status != "prototype" {
+			fmt.Fprintf(&b, "  %-17s %s (%s; not implemented in this skeleton)\n", family.Name, family.Summary, family.Status)
+		}
 	}
 	b.WriteString("\nSupported skeleton commands:\n")
 	b.WriteString("  help              show this help\n")
