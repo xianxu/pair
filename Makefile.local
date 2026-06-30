@@ -210,7 +210,7 @@ $(BIN_DIR)/pair-scribe: cmd/pair-scribe/main.go go.mod
 # pair-scrollback-render — replays a pair-wrap raw PTY capture through
 # charmbracelet/x/vt and emits one ANSI-styled line per logical scrollback
 # row, for the Alt+/ viewer to display through nvim.
-$(BIN_DIR)/pair-scrollback-render: cmd/pair-scrollback-render/main.go go.mod
+$(BIN_DIR)/pair-scrollback-render: cmd/pair-scrollback-render/main.go cmd/internal/scrollbackcmd/scrollbackcmd.go go.mod
 	go build -o $@ ./cmd/pair-scrollback-render
 
 # pair-wrap — transparent PTY proxy around a TUI coding agent: forwards
