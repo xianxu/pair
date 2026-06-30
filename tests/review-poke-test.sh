@@ -38,8 +38,8 @@ local OUT = io.open(os.getenv('RESULT'), 'w')
 local c = poke._cmds('hello', 7, 9)
 local ok_cmds = c[1][3] == 'write-chars' and c[1][4] == '--pane-id'
   and c[1][5] == '7' and c[1][6] == 'hello'
-  and c[2][3] == 'write' and c[2][4] == '--pane-id'
-  and c[2][5] == '7' and c[2][6] == '27' and c[2][7] == '13'
+  and c[2][3] == 'send-keys' and c[2][4] == '--pane-id'
+  and c[2][5] == '7' and c[2][6] == 'Alt Enter'
 OUT:write(ok_cmds and 'cmds ok\n' or 'cmds FAIL\n')
 -- send resolves agent (7) and writes by pane id without changing focus.
 poke.send('updated, please review foo.md')
@@ -54,7 +54,7 @@ pass() { printf '  ok   %s\n' "$1"; }
 fail() { printf '  FAIL %s\n' "$1"; fails=$((fails + 1)); }
 grep -q 'cmds ok' "$RESULT" && pass "_cmds builds the id-based argv" || fail "_cmds shape"
 grep -q '^action write-chars --pane-id 7 updated, please review foo.md$' "$ZLOG" && pass "writes the please-review body to agent pane" || fail "no pane-id write-chars body"
-grep -q '^action write --pane-id 7 27 13$' "$ZLOG" && pass "submits with Alt+Enter (27 13) to agent pane" || fail "no pane-id submit"
+grep -q '^action send-keys --pane-id 7 Alt Enter$' "$ZLOG" && pass "submits with semantic Alt+Enter to agent pane" || fail "no pane-id submit"
 grep -q 'focus-pane-id' "$ZLOG" && fail "changed focus while poking agent" || pass "does not change focus"
 grep -q 'move-focus' "$ZLOG" && fail "used relative move-focus (must be id-based)" || pass "no relative move-focus"
 TRACE="$RT/zellij-actions-poke.jsonl"

@@ -10,12 +10,12 @@ local M = {}
 local pair_nvim_dir = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h')
 local zellij_trace = dofile(pair_nvim_dir .. '/zellij_trace.lua')
 
--- Pure: the ordered zellij argv list for one poke. Submit is Alt+Enter
--- (write 27 13) — pair-wrap rewrites that into the agent's real submit byte.
+-- Pure: the ordered zellij argv list for one poke. Submit is a semantic
+-- Alt+Enter key event so zellij delivers one modified chord to pair-wrap.
 function M._cmds(body, agent_id, review_id)
   return {
     { 'zellij', 'action', 'write-chars', '--pane-id', tostring(agent_id), body },
-    { 'zellij', 'action', 'write', '--pane-id', tostring(agent_id), '27', '13' },
+    { 'zellij', 'action', 'send-keys', '--pane-id', tostring(agent_id), 'Alt Enter' },
   }
 end
 

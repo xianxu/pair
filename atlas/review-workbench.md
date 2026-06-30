@@ -144,7 +144,7 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   pane for reject.
 - `nvim/pair_poke.lua` — id-based agent poke: relative `move-focus` does NOT escape a
   floating pane, so it resolves the agent pane from `list-panes --json` and writes
-  directly with `write-chars --pane-id <agent>` + `write --pane-id <agent> 27 13`.
+  directly with `write-chars --pane-id <agent>` + `send-keys --pane-id <agent> "Alt Enter"`.
   The review pane keeps focus while the agent receives the poke.
 - **review-mode bar** (`nvim/init.lua`, `do`-block; `_pair_review_bar` count source +
   `_pair_review_segment` cached segment) — while a review is open, the draft's
