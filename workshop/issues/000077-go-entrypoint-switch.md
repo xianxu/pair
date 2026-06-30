@@ -25,21 +25,21 @@ This deliberately keeps real zellij lifecycle, prompt/fzf UI, restart/quit clean
 
 ## Done when
 
-- [ ] `pair-go launch ...` uses Go process code first and then invokes the real launcher with `pair`-compatible argv.
-- [ ] Existing `pair` remains the stable public entrypoint for one migration window.
-- [ ] `pair-dev` still rebuilds and launches the working tree behavior.
-- [ ] Existing create, attach, resume, continue, rename/list, quit, and restart flows are preserved through the `bin/pair` fallback.
-- [ ] The dev workflow is documented: `cmd/pair-go` is rebuilt by `../ariadne/construct/dev-aliases.sh`; no `pair-go-dev` command is needed.
-- [ ] Pair remains usable after merge; no keybinding workflow regresses.
+- [x] `pair-go launch ...` uses Go process code first and then invokes the real launcher with `pair`-compatible argv.
+- [x] Existing `pair` remains the stable public entrypoint for one migration window.
+- [x] `pair-dev` still rebuilds and launches the working tree behavior.
+- [x] Existing create, attach, resume, continue, rename/list, quit, and restart flows are preserved through the `bin/pair` fallback.
+- [x] The dev workflow is documented: `cmd/pair-go` is rebuilt by `../ariadne/construct/dev-aliases.sh`; no `pair-go-dev` command is needed.
+- [x] Pair remains usable after merge; no keybinding workflow regresses.
 
 ## Plan
 
-- [ ] Confirm prerequisites from earlier Go migration issues.
-- [ ] Add tests for `pair-go launch` argv/env handoff to `bin/pair`.
-- [ ] Add stale/missing launcher diagnostics.
-- [ ] Implement the thin Go handoff while keeping dispatcher helper routes intact.
-- [ ] Verify `pair`, `pair-dev`, and `pair-go launch` behavior with process fakes and targeted builds.
-- [ ] Update README/atlas packaging notes.
+- [x] Confirm prerequisites from earlier Go migration issues.
+- [x] Add tests for `pair-go launch` argv/env handoff to `bin/pair`.
+- [x] Add stale/missing launcher diagnostics.
+- [x] Implement the thin Go handoff while keeping dispatcher helper routes intact.
+- [x] Verify `pair`, `pair-dev`, and `pair-go launch` behavior with process fakes and targeted builds.
+- [x] Update README/atlas packaging notes.
 
 ## Estimate
 
@@ -68,3 +68,16 @@ Created from #72 as the public switch milestone. This should not be claimed unti
 Re-scoped after operator guidance: keep `cmd/pair-go` as the Go entrypoint under test, leave `pair` / `pair-dev` stable, and rely on `../ariadne/construct/dev-aliases.sh` to rebuild `cmd/pair-go` in developer shells. `ARCH-DRY`: reuse the existing launcher for real zellij behavior instead of duplicating shell-owned lifecycle paths in Go. `ARCH-PURE`: keep launch path selection testable with a pure path/argv decision plus a thin exec boundary.
 
 Plan-quality gate returned FAILURE because the plan promised argv/env handoff but did not explicitly test env propagation, and because `pair-dev --help` under-proved the dev rebuild acceptance criterion. Updated the durable plan to require an inherited-env fake-runner assertion and `make test-dev-rebuild` verification. `ARCH-PURPOSE`: compatibility claims must be pinned by tests, not implied by the shell fallback.
+
+Implemented `cmd/internal/entrypoint` and the `cmd/pair-go` launch handoff. `pair-go launch ...` now resolves sibling `bin/pair`, validates it, and execs it with preserved argv/env; missing launcher diagnostics point to `make build`, `make install`, and `../ariadne/construct/dev-aliases.sh`. Removed the stale decision-phase `pair-go launch` dispatcher surface while keeping `context` and `scrollback-render` helper routes intact. Updated README and atlas migration notes.
+
+Verification passed:
+
+- `go test ./cmd/internal/entrypoint ./cmd/pair-go ./cmd/internal/dispatcher -count=1`
+- `go test ./... -count=1`
+- `make pair-go`
+- `make test-dev-rebuild`
+- `bin/pair-go help`
+- `bin/pair-go launch --help`
+- `bin/pair --help`
+- `bin/pair-dev --help`
