@@ -66,3 +66,5 @@ Created from #72 as the public switch milestone. This should not be claimed unti
 ### 2026-06-30
 
 Re-scoped after operator guidance: keep `cmd/pair-go` as the Go entrypoint under test, leave `pair` / `pair-dev` stable, and rely on `../ariadne/construct/dev-aliases.sh` to rebuild `cmd/pair-go` in developer shells. `ARCH-DRY`: reuse the existing launcher for real zellij behavior instead of duplicating shell-owned lifecycle paths in Go. `ARCH-PURE`: keep launch path selection testable with a pure path/argv decision plus a thin exec boundary.
+
+Plan-quality gate returned FAILURE because the plan promised argv/env handoff but did not explicitly test env propagation, and because `pair-dev --help` under-proved the dev rebuild acceptance criterion. Updated the durable plan to require an inherited-env fake-runner assertion and `make test-dev-rebuild` verification. `ARCH-PURPOSE`: compatibility claims must be pinned by tests, not implied by the shell fallback.

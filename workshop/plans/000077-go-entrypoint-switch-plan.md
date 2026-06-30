@@ -111,6 +111,7 @@ Add a fake runner test that calls the test seam with args `[]string{"launch", "c
 - no dispatcher prototype text is printed;
 - runner receives sibling `bin/pair`;
 - runner receives argv `["pair", "claude", "--", "--resume"]`.
+- runner receives inherited environment entries, including a sentinel such as `PAIR_TEST_ENV=kept`, so the shell launcher sees the same env that `pair-go` received (`ARCH-PURPOSE` compatibility surface).
 
 Also add a missing-launcher test that returns a not-found stat result and asserts stderr mentions `pair-go launch`, `bin/pair`, `make build`, `make install`, and `dev-aliases.sh`.
 
@@ -212,13 +213,14 @@ Expected: PASS and `bin/pair-go` exists.
 Run:
 
 ```bash
+make test-dev-rebuild
 bin/pair-go help
 bin/pair-go launch --help
 bin/pair --help
 bin/pair-dev --help
 ```
 
-Expected: help output succeeds. `bin/pair-go launch --help` should print the existing `pair` help because it hands off to `bin/pair --help`.
+Expected: `make test-dev-rebuild` passes, proving the existing `PAIR_DEV` rebuild hook still works. Help output succeeds. `bin/pair-go launch --help` should print the existing `pair` help because it hands off to `bin/pair --help`.
 
 - [ ] **Step 5: SDLC close**
 
