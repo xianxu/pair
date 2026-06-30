@@ -60,6 +60,42 @@ func TestDispatchPlannedCommandReturnsUnsupported(t *testing.T) {
 	}
 }
 
+func TestDispatchLaunchHelpRoutesToPrototype(t *testing.T) {
+	res := Dispatch([]string{"launch", "--help"})
+	if res.ExitCode != 0 {
+		t.Fatalf("ExitCode = %d, want 0", res.ExitCode)
+	}
+	if res.Stderr != "" {
+		t.Fatalf("Stderr = %q, want empty", res.Stderr)
+	}
+	for _, want := range []string{"Usage: pair-go launch", "decision-phase prototype"} {
+		if !strings.Contains(res.Stdout, want) {
+			t.Fatalf("Stdout missing %q:\n%s", want, res.Stdout)
+		}
+	}
+}
+
+func TestDispatchLaunchReturnsPrototypeDecision(t *testing.T) {
+	res := DispatchWithLauncherRuntime([]string{"launch", "resume", "demo"}, LauncherRuntime{
+		Env: LauncherEnv("/home/me", "", "/work/pair"),
+		Sessions: StaticSessions{
+			Sessions: nil,
+		},
+		History: StaticHistory{},
+	})
+	if res.ExitCode != 3 {
+		t.Fatalf("ExitCode = %d, want 3", res.ExitCode)
+	}
+	if res.Stdout != "" {
+		t.Fatalf("Stdout = %q, want empty", res.Stdout)
+	}
+	for _, want := range []string{"pair-go launch: prototype decision", "action=create", "tag=demo", "session=pair-demo"} {
+		if !strings.Contains(res.Stderr, want) {
+			t.Fatalf("Stderr missing %q:\n%s", want, res.Stderr)
+		}
+	}
+}
+
 func TestDispatchUnknownCommandReturnsUsageHint(t *testing.T) {
 	res := Dispatch([]string{"frobnicate"})
 	if res.ExitCode != 2 {

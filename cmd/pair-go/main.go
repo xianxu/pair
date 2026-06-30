@@ -15,6 +15,15 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) int {
 	res := dispatcher.Dispatch(args)
+	return writeResult(res, stdout, stderr)
+}
+
+func runWithLauncherRuntime(args []string, stdout, stderr io.Writer, rt dispatcher.LauncherRuntime) int {
+	res := dispatcher.DispatchWithLauncherRuntime(args, rt)
+	return writeResult(res, stdout, stderr)
+}
+
+func writeResult(res dispatcher.Result, stdout, stderr io.Writer) int {
 	if res.Stdout != "" {
 		_, _ = io.WriteString(stdout, res.Stdout)
 	}
