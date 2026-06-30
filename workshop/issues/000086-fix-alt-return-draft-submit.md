@@ -1,12 +1,13 @@
 ---
 id: 000086
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-29
 updated: 2026-06-29
 estimate_hours: 0.57
 started: 2026-06-29T17:33:40-07:00
+actual_hours: 0.20
 ---
 
 # Fix Alt Return draft submit
@@ -58,6 +59,7 @@ Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `
 ## Log
 
 ### 2026-06-29
+- 2026-06-29: closed — bash tests/queue-send-test.sh; bash tests/review-poke-test.sh; make test-lua; git diff --check; atlas/architecture.md updated after boundary review caught stale raw ESC+CR submit docs; review verdict: FIX-THEN-SHIP
 
 User reported Alt+Return inserts draft text into the agent pane but leaves it unsubmitted. Investigation traced the failure boundary to raw-byte submit actions (`zellij action write 27 13`) after successful `write-chars`; zellij 0.44.3 exposes semantic `send-keys`, so the fix targets modified-key submit at the zellij action layer (`ARCH-PURPOSE`) without changing queue/history behavior.
 
