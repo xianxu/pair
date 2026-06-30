@@ -1,12 +1,13 @@
 ---
 id: 000074
-status: working
+status: done
 deps: [000073]
 github_issue:
 created: 2026-06-26
 updated: 2026-06-29
 estimate_hours: 1.39
 started: 2026-06-29T17:00:26-07:00
+actual_hours: 0.14
 ---
 
 # pair Go dispatcher skeleton
@@ -65,6 +66,7 @@ Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `
 Created from #72 as the safe first code-bearing step toward one primary Go command.
 
 ### 2026-06-29
+- 2026-06-29: closed — go test ./cmd/internal/dispatcher ./cmd/pair-go -count=1; make -B pair-go; go test ./... -count=1; bash tests/pair-continue-test.sh; git diff -- bin/pair empty; review verdict: SHIP
 
 Claimed and entered planning. Design uses a new opt-in `pair-go` binary plus pure `cmd/internal/dispatcher` package so command parsing/help/error behavior is unit-testable (`ARCH-PURE`) and `bin/pair` remains unchanged while the skeleton fulfills the issue purpose (`ARCH-PURPOSE`). Durable plan: `workshop/plans/000074-go-dispatcher-skeleton-plan.md`.
 
