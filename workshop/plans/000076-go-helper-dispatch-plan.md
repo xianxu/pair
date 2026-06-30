@@ -12,31 +12,35 @@
 
 ## Core Concepts
 
-### Pure Entities
+### Command Surfaces
 
-| Name | Lives in | Status |
-|------|----------|--------|
-| `ContextRunArgs` | `cmd/internal/contextcmd/contextcmd.go` | new |
-| `ScrollbackRenderArgs` | `cmd/internal/scrollbackcmd/scrollbackcmd.go` | new |
+| Name | Kind | Lives in | Status |
+|------|------|----------|--------|
+| `contextcmd.Env` | INTEGRATION input value | `cmd/internal/contextcmd/contextcmd.go` | new |
+| `contextcmd.Run` | INTEGRATION | `cmd/internal/contextcmd/contextcmd.go` | new |
+| `scrollbackcmd.Run` | INTEGRATION | `cmd/internal/scrollbackcmd/scrollbackcmd.go` | new |
+| `dispatcher.Dispatch` | INTEGRATION | `cmd/internal/dispatcher/dispatcher.go` | modified |
 
-**ContextRunArgs** — Parsed input for the context helper: tag, agent, home, and Pair data dir.
-- **Relationships:** 1:1 with a `pair-context`/`pair-go context` invocation; consumed by the context runner.
-- **DRY rationale:** Both legacy binary and dispatcher route need the same env/default resolution and argument validation.
+**contextcmd.Env** — Injected environment values for the context helper: home, XDG data home, and explicit Pair data dir.
+- **Relationships:** Passed to `contextcmd.Run`; populated from `EnvFromOS` only at the process boundary.
+- **DRY rationale:** Both legacy binary and dispatcher route need the same env/default resolution without re-reading OS env in tests.
 - **Future extensions:** Can widen if more commands need shared Pair environment resolution.
 
-**ScrollbackRenderArgs** — Parsed input for the renderer helper: raw capture path, events path, output path, and render flags.
-- **Relationships:** 1:1 with a render invocation; maps directly onto existing render parameters.
-- **DRY rationale:** Avoids parallel flag parsing between `pair-scrollback-render` and `pair-go scrollback-render`.
-- **Future extensions:** Can become the command-facing shape for future `pair scrollback-render` after the public entrypoint switch.
+**contextcmd.Run** — Shared command runner for `pair-context <tag> <agent>` behavior. It remains tolerant: missing config/transcript/input prints nothing and exits 0.
+- **Injected into:** legacy `cmd/pair-context/main.go` and dispatcher context route.
+- **Future extensions:** The title poller can continue using the legacy binary until #77/#78 moves call sites.
+
+**scrollbackcmd.Run** — Shared command runner for `pair-scrollback-render [--plain] [--max-lines N] [--with-timestamps] raw events out`.
+- **Injected into:** legacy `cmd/pair-scrollback-render/main.go` and dispatcher scrollback-render route.
+- **Future extensions:** `bin/pair-scrollback-open`, `bin/pair-changelog-open`, and `nvim/scrollback.lua` can move to the dispatcher after the public entrypoint is Go-owned.
 
 ### Integration Points
 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
-| `ContextRunner` | `cmd/internal/contextcmd/contextcmd.go` | new | filesystem, env, transcript files, stdout |
-| `ScrollbackRenderRunner` | `cmd/internal/scrollbackcmd/scrollbackcmd.go` | new | filesystem, flag parsing, stdout/stderr |
-| `HelperDispatchRoutes` | `cmd/internal/dispatcher/dispatcher.go` | modified | in-process calls to selected helper runners |
-| `PairGoMain` | `cmd/pair-go/main.go` | modified | process stdout/stderr exit handling |
+| `ContextRunner` (`contextcmd.Run`) | `cmd/internal/contextcmd/contextcmd.go` | new | filesystem, env, transcript files, stdout |
+| `ScrollbackRenderRunner` (`scrollbackcmd.Run`) | `cmd/internal/scrollbackcmd/scrollbackcmd.go` | new | filesystem, flag parsing, stdout/stderr |
+| `dispatcher.Dispatch` | `cmd/internal/dispatcher/dispatcher.go` | modified | in-process calls to selected helper runners |
 
 **ContextRunner** — Shared command runner for `pair-context <tag> <agent>` behavior. It remains tolerant: missing config/transcript/input prints nothing and exits 0.
 - **Injected into:** legacy `cmd/pair-context/main.go` and dispatcher context route.
@@ -46,13 +50,13 @@
 - **Injected into:** legacy `cmd/pair-scrollback-render/main.go` and dispatcher scrollback-render route.
 - **Future extensions:** `bin/pair-scrollback-open`, `bin/pair-changelog-open`, and `nvim/scrollback.lua` can move to the dispatcher after the public entrypoint is Go-owned.
 
-**HelperDispatchRoutes** — Dispatcher routes for `context` and `scrollback-render`.
+**dispatcher.Dispatch** — Dispatcher routes for `context` and `scrollback-render`.
 - **Injected into:** `cmd/pair-go`.
 - **Future extensions:** Later helper routes should follow the same runner extraction pattern, not duplicate command logic.
 
-**PairGoMain** — Existing process shell that writes dispatcher results.
-- **Injected into:** none.
-- **Future extensions:** Eventually becomes the public `pair` entrypoint in #77, but not here.
+## Revisions
+
+- 2026-06-30T12:24:41-0700 — Boundary review found the Core Concepts table still named planned parsed-args structs that the implementation did not need. Replaced `ContextRunArgs`/`ScrollbackRenderArgs` with the shipped `contextcmd.Env`, `contextcmd.Run`, and `scrollbackcmd.Run` surfaces, and classified the runners as INTEGRATION rather than PURE entities.
 
 ---
 

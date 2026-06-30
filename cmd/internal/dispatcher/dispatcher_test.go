@@ -19,7 +19,7 @@ func TestDispatchHelpListsPlannedFamiliesWithoutClaimingSupport(t *testing.T) {
 			}
 			for _, want := range []string{
 				"Usage: pair-go <command> [args]",
-				"Implemented prototype commands:",
+				"Implemented commands:",
 				"launch",
 				"decision-phase only",
 				"context",

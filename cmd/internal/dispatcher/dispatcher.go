@@ -181,7 +181,7 @@ func Help(program string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Usage: %s <command> [args]\n\n", program)
 	b.WriteString("Development dispatcher skeleton. Public sessions still start through bin/pair.\n\n")
-	b.WriteString("Implemented prototype commands:\n")
+	b.WriteString("Implemented commands:\n")
 	for _, family := range Families() {
 		if family.Status == "prototype" {
 			fmt.Fprintf(&b, "  %-17s %s (prototype; decision-phase only)\n", family.Name, family.Summary)
