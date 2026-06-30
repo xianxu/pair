@@ -35,12 +35,12 @@
 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
-| `LegacyLauncherRunner` | `cmd/pair-go/main.go` | new | `os.Executable`, `os.Stat`, `syscall.Exec` |
+| `legacyRuntime` | `cmd/pair-go/main.go` | new | `os.Executable`, `os.Stat`, `syscall.Exec` |
 | `pair-go launch` docs | `README.md`, `atlas/architecture.md`, `atlas/go-migration-inventory.md` | modified | operator-facing migration contract |
 
-**LegacyLauncherRunner** — the thin IO shell that resolves the current binary path, validates sibling `pair`, and replaces the current process with it.
+**legacyRuntime** — the thin IO shell that resolves the current binary path, validates sibling `pair`, and replaces the current process with it.
 
-- **Injected into:** `runWithLegacyRunner` in tests, so process behavior is asserted with fakes rather than actually starting zellij.
+- **Injected into:** `runWithLegacyRuntime` in tests, so process behavior is asserted with fakes rather than actually starting zellij.
 - **Future extensions:** Native launch can replace only this runner once the pure launcher core owns side effects.
 
 **pair-go launch docs** — documentation that explains the current migration boundary.
@@ -123,7 +123,7 @@ Expected: FAIL because current `pair-go launch` returns prototype exit code 3 an
 
 - [ ] **Step 3: Update main seam**
 
-Refactor `cmd/pair-go/main.go` so `run` delegates to `runWithRuntime`. For `args[0] == "launch"`, use the injected `LegacyLauncherRunner` and `entrypoint.ResolveLegacyLaunch`; otherwise preserve existing dispatcher behavior. The real runner should:
+Refactor `cmd/pair-go/main.go` so `run` delegates to `runWithLegacyRuntime`. For `args[0] == "launch"`, use the injected `legacyRuntime` and `entrypoint.ResolveLegacyLaunch`; otherwise preserve existing dispatcher behavior. The real runner should:
 
 - get `os.Executable()`;
 - resolve sibling `pair`;
@@ -148,12 +148,17 @@ Expected: PASS.
 
 **Files:**
 - Modify: `Makefile.local`
+- Create: `tests/pair-go-install-layout-test.sh`
 
 - [ ] **Step 1: Write or update dependency expectation**
 
-Inspect the `$(BIN_DIR)/pair-go` dependency list and add `cmd/internal/entrypoint/launch.go` so `make pair-go` rebuilds when the new resolver changes.
+Inspect the `$(BIN_DIR)/pair-go` dependency list and add `cmd/internal/entrypoint/launch.go` so `make pair-go` rebuilds when the new resolver changes. Install `pair` and `pair-dev` as symlinks beside installed Go binaries so copied `pair-go` can resolve sibling `pair` while the shell launcher still resolves `PAIR_HOME` back to the source tree.
 
-- [ ] **Step 2: Run build**
+- [ ] **Step 2: Add installed-layout regression test**
+
+Create `tests/pair-go-install-layout-test.sh` that runs `HOME=<tmp> make install`, asserts `$HOME/.local/bin/pair` and `pair-dev` are symlinks, and runs `$HOME/.local/bin/pair-go launch --help` to prove the installed handoff reaches the existing `pair` help.
+
+- [ ] **Step 3: Run build**
 
 Run: `make pair-go`
 
@@ -214,16 +219,23 @@ Run:
 
 ```bash
 make test-dev-rebuild
+make test-pair-go-install-layout
 bin/pair-go help
 bin/pair-go launch --help
 bin/pair --help
 bin/pair-dev --help
 ```
 
-Expected: `make test-dev-rebuild` passes, proving the existing `PAIR_DEV` rebuild hook still works. Help output succeeds. `bin/pair-go launch --help` should print the existing `pair` help because it hands off to `bin/pair --help`.
+Expected: `make test-dev-rebuild` passes, proving the existing `PAIR_DEV` rebuild hook still works. `make test-pair-go-install-layout` passes, proving `make install` creates the sibling launcher layout that `pair-go launch` requires. Help output succeeds. `bin/pair-go launch --help` should print the existing `pair` help because it hands off to `bin/pair --help`.
 
 - [ ] **Step 5: SDLC close**
 
 Run: `sdlc close --issue 77 --verified '<focused tests, full go test, build, and help smoke evidence>'`.
 
 Expected: SDLC close runs its review gate; fix any Critical/Important findings before merge.
+
+## Revisions
+
+### 2026-06-30
+
+Boundary review found two plan/code mismatches. First, the implemented integration seam is `legacyRuntime` / `runWithLegacyRuntime`, not the original `LegacyLauncherRunner` / `runWithLegacyRunner` names; the Core concepts table and implementation steps now match the code. Second, `make install` originally installed `pair-go` without sibling `pair`, making the documented recovery path false; the plan now includes shell-launcher symlink install wiring plus an installed-layout regression test.
