@@ -72,11 +72,11 @@ If the agent presents blocking overlays, pickers (like file autocompletes), or y
       agy)           resume_extra="--conversation $r_sid" ;;
   esac
   ```
-- Support checking for active/resumable session files under `has_resumable`:
+- Support checking for active/resumable native session files in `agent_session_exists()`:
   ```bash
-  agy)
-      [ -f "$HOME/.gemini/antigravity-cli/conversations/$saved_session.db" ] && has_resumable=true
-      ;;
+      agy)
+          [ -f "$HOME/.gemini/antigravity-cli/conversations/$sid.db" ]
+          ;;
   ```
 
 **Telemetry Signal** (aspect `3`, see §3): `session-id` from `pair-session-watch` — `fired` when `AgentSpec.Match` resolves an id and the config is written, **`near-miss`** when a file matching the watch pattern is found but no id can be extracted (filename/format drift), `fail` when the 60s watch window elapses with no id at all (the session file never appeared where expected). The resume mapping in `bin/pair` is the *consumer* of this id; it's static config with no separate signal.
