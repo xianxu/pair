@@ -10,6 +10,7 @@ The whole thing is deliberately small — a handful of shell scripts, one nvim i
 
 ```
 bin/pair                     # entry point (launcher)
+bin/pair-go                  # opt-in Go dispatcher skeleton; public launcher remains bin/pair
 bin/clipboard-to-pane.sh     # read clipboard, hand off to nvim's PairPasteQuote
 bin/copy-on-select.sh        # invoked by zellij copy_command on mouse-up
 bin/pair-quit.sh             # invoked by Alt+x — marks + kills session
@@ -39,6 +40,11 @@ internal subcommands or dispatch modes behind that primary binary (`pair wrap`,
 `pair slug`, `pair context`, `pair scrollback-render`, `pair changelog`,
 `pair continuation`, `pair scribe`) instead of staying as independently managed
 installed commands forever.
+
+As of #74, `bin/pair-go` is a development-only dispatcher skeleton built from
+`cmd/pair-go` and the pure `cmd/internal/dispatcher` parser. It lists the
+planned command families and returns explicit unsupported-command errors, but it
+does not launch sessions or replace `bin/pair`.
 
 Native integration layers stay native: `nvim/*.lua` remains the bundled Neovim
 surface and `zellij/*.kdl` remains the zellij layout/config surface. Packaging
