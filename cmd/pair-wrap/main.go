@@ -150,8 +150,8 @@ var sendKeymapByAgent = map[string]sendKeymap{
 		altBS:   []byte{0x15}, // Ctrl+U — kill to line start
 	},
 	"agy": {
-		// Antigravity (agy) follows the same Enter/Shift+Enter convention
-		// as codex.
+		// Antigravity (agy) maps plain Enter to newline and Alt+Enter
+		// to CR submit.
 		plainCR: []byte{'\n'},
 		altCR:   []byte{'\r'},
 		altBS:   []byte{0x15}, // Ctrl+U — kill to line start

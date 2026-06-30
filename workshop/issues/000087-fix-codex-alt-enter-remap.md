@@ -1,12 +1,13 @@
 ---
 id: 000087
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-06-29
 updated: 2026-06-29
 estimate_hours: 0.46
 started: 2026-06-29T18:25:25-07:00
+actual_hours: 0.13
 ---
 
 # Fix Codex Alt Enter remap
@@ -59,6 +60,7 @@ Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `
 ## Log
 
 ### 2026-06-29
+- 2026-06-29: closed — go test ./cmd/pair-wrap; bash tests/queue-send-test.sh; bash tests/review-poke-test.sh; git diff --check; sdlc issue validate workshop/issues/000087-fix-codex-alt-enter-remap.md; review verdict: SHIP
 
 User restarted after #86 and still saw Alt+Return insert text into Codex without submitting. Investigated live traces instead of guessing. `zellij-actions-2.jsonl` confirmed the restarted draft pane is using `send-keys Alt Enter`; `wrap-events-2.jsonl` confirmed pair-wrap receives that as Alt+Enter and currently translates it to bare `CR`. Because bare `CR` reached Codex and did not submit, the stale contract is the Codex keymap's `altCR` output, not nvim focus, Zellij delivery, or pair-wrap input recognition (`ARCH-PURPOSE`).
 

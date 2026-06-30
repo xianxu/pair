@@ -23,7 +23,7 @@ func TestSendKeymapByAgent_RegistrationTable(t *testing.T) {
 		"claude": {[]byte{'\\', '\r'}, []byte{'\r'}, ctrlU},
 		// codex: plain Enter inserts newline; Alt+Enter stays a modified submit chord.
 		"codex": {[]byte{'\n'}, []byte{'\x1b', '\r'}, ctrlU},
-		// agy: same as codex.
+		// agy: plain Enter inserts newline; Alt+Enter emits CR submit.
 		"agy": {[]byte{'\n'}, []byte{'\r'}, ctrlU},
 	}
 	if len(sendKeymapByAgent) != len(want) {
