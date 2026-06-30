@@ -7,7 +7,7 @@ created: 2026-06-26
 updated: 2026-06-30
 estimate_hours: 2.6
 started: 2026-06-30T12:42:11-07:00
-actual_hours: 0.59
+actual_hours: 0.75
 ---
 
 # pair Go entrypoint switch
@@ -65,6 +65,7 @@ total: 2.62
 Created from #72 as the public switch milestone. This should not be claimed until the earlier dispatcher/helper/launcher milestones have landed.
 
 ### 2026-06-30
+- 2026-06-30: closed — go test ./cmd/internal/entrypoint ./cmd/pair-go ./cmd/internal/dispatcher -count=1; go test ./... -count=1; make pair-go; make test-dev-rebuild; make test-pair-go-install-layout; bin/pair-go help; bin/pair-go launch --help; bin/pair --help; bin/pair-dev --help; review verdict: SHIP
 - 2026-06-30: closed — go test ./cmd/internal/entrypoint ./cmd/pair-go ./cmd/internal/dispatcher -count=1; go test ./... -count=1; make pair-go; make test-dev-rebuild; bin/pair-go help; bin/pair-go launch --help; bin/pair --help; bin/pair-dev --help; review verdict: REWORK
 
 Re-scoped after operator guidance: keep `cmd/pair-go` as the Go entrypoint under test, leave `pair` / `pair-dev` stable, and rely on `../ariadne/construct/dev-aliases.sh` to rebuild `cmd/pair-go` in developer shells. `ARCH-DRY`: reuse the existing launcher for real zellij behavior instead of duplicating shell-owned lifecycle paths in Go. `ARCH-PURE`: keep launch path selection testable with a pure path/argv decision plus a thin exec boundary.
