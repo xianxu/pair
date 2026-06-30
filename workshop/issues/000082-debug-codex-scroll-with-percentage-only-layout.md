@@ -1,10 +1,10 @@
 ---
 id: 000082
-status: working
+status: punt
 deps: ["#68"]
 github_issue:
 created: 2026-06-26
-updated: 2026-06-26
+updated: 2026-06-29
 estimate_hours:
 started: 2026-06-26T15:49:13-07:00
 ---
