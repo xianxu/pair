@@ -252,7 +252,7 @@ saved config for tag 'bugfix' (claude)
        fresh session
 ```
 
-- **use saved params + session** replays the original launch args *and* points the agent at its previous session id (claude's `--resume`, codex's `resume <id>` subcommand, agy's `--resume` / session recovery). Only shown if the agent's transcript file is still on disk.
+- **use saved params + session** replays the original launch args *and* points the agent at its previous session id (claude's `--resume`, codex's `resume <id>` subcommand, agy's `--conversation <id>`). Only shown if the agent's transcript file is still on disk.
 - **use saved params** replays the args but starts a fresh agent session.
 - **use new params + session** swaps in the args you just passed on the command line, but keeps the prior session id. Only shown when both conditions hold: the transcript is on disk AND the new args differ from the saved ones (otherwise it would be byte-identical to row 1).
 - **use new params passed in** uses your new args with a fresh session. Only shown when the new args differ from the saved ones.
