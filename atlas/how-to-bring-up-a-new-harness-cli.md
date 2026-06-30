@@ -22,9 +22,13 @@ By default, the bottom Neovim draft pane maps **Enter** to insert a newline, and
           plainCR: []byte{'\n'}, // plain Enter inserts newline
           altCR:   []byte{'\r'}, // Alt+Enter sends query
       },
+      "codex": {
+          plainCR: []byte{'\n'},       // plain Enter inserts newline
+          altCR:   []byte{'\x1b','\r'}, // Alt+Enter submit chord
+      },
   }
   ```
-- **Note:** Claude uses `\<Enter>` (`[]byte{'\\', '\r'}`) as a newline, while Codex and Antigravity (`agy`) use LF (`\n`) for newline and CR (`\r`) for send.
+- **Note:** Claude uses `\<Enter>` (`[]byte{'\\', '\r'}`) as a newline. Codex uses LF (`\n`) for newline and preserves Alt+Enter as `ESC CR` for submit. Antigravity (`agy`) uses LF (`\n`) for newline and CR (`\r`) for send.
 
 **Telemetry Signal** (aspect `1`, see §3): `return-remap` — `fired` each time a plain Enter is remapped to the agent's newline; `bypass` each time it passes through as a bare `\r` while an overlay is active. Emitted from `emitPlainCR`. The `fired:bypass` ratio is the health signal; an all-`bypass` or zero-`fired` session means the remap stopped engaging.
 

@@ -21,8 +21,8 @@ func TestSendKeymapByAgent_RegistrationTable(t *testing.T) {
 		// claude reads `\<Enter>` as newline regardless of terminal
 		// keyboard-protocol level — the documented portable path.
 		"claude": {[]byte{'\\', '\r'}, []byte{'\r'}, ctrlU},
-		// codex: Enter = send (\r), Shift+Enter = newline (\n).
-		"codex": {[]byte{'\n'}, []byte{'\r'}, ctrlU},
+		// codex: plain Enter inserts newline; Alt+Enter stays a modified submit chord.
+		"codex": {[]byte{'\n'}, []byte{'\x1b', '\r'}, ctrlU},
 		// agy: same as codex.
 		"agy": {[]byte{'\n'}, []byte{'\r'}, ctrlU},
 	}

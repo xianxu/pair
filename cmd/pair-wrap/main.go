@@ -113,7 +113,7 @@ var spanExtractionAgents = map[string]bool{
 // is jarring when the user moves between panes. When PAIR_WRAP_REMAP_RETURN
 // isn't "0", pair-wrap rewrites stdin so the agent receives the inverted
 // mapping: incoming Enter becomes the agent's "insert newline" sequence,
-// incoming Alt+Enter becomes a plain Enter (send).
+// incoming Alt+Enter becomes the agent's submit sequence.
 //
 //   - plainCR:   bytes emitted when the user hits Enter alone (\r)
 //   - altCR:     bytes emitted when the user hits Alt+Enter (\x1b\r)
@@ -142,13 +142,11 @@ var sendKeymapByAgent = map[string]sendKeymap{
 		altBS:   []byte{0x15}, // Ctrl+U — kill to line start
 	},
 	"codex": {
-		// Codex follows the textbook chat-UI convention: Enter = send,
-		// Shift+Enter = newline. Under Ghostty's KKP level-1
-		// negotiation, Shift+Enter comes through as a literal LF
-		// (\n) and plain Enter stays as \r. Probed via
-		// PAIR_WRAP_LOG=… PAIR_WRAP_REMAP_RETURN=0.
+		// Codex plain Enter inserts a newline when rewritten to LF.
+		// Current Codex submit requires the modified Alt+Enter chord
+		// itself, so preserve that as legacy ESC+CR.
 		plainCR: []byte{'\n'},
-		altCR:   []byte{'\r'},
+		altCR:   []byte{'\x1b', '\r'},
 		altBS:   []byte{0x15}, // Ctrl+U — kill to line start
 	},
 	"agy": {
