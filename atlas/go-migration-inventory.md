@@ -195,6 +195,11 @@ rule:
 - `cmd/internal/scrollbackcmd/timestamps_test.go`
 - `cmd/internal/transcript/transcript.go`
 - `cmd/internal/transcript/transcript_test.go`
+- `cmd/internal/sessionwatch/run.go`
+- `cmd/internal/sessionwatch/run_test.go`
+- `cmd/internal/sessionwatch/runtime.go`
+- `cmd/internal/sessionwatch/sessionwatch.go`
+- `cmd/internal/sessionwatch/sessionwatch_test.go`
 - `cmd/pair-changelog/distill.go`
 - `cmd/pair-changelog/distill_test.go`
 - `cmd/pair-changelog/e2e_test.go`
@@ -211,6 +216,8 @@ rule:
 - `cmd/pair-continuation/main_test.go`
 - `cmd/pair-go/helper_equivalence_test.go`
 - `cmd/pair-go/main.go`
+- `cmd/pair-session-watch/main.go`
+- `cmd/pair-session-watch/main_test.go`
 - `cmd/pair-scribe/main.go`
 - `cmd/pair-scrollback-render/main.go`
 - `cmd/pair-slug/main.go`
