@@ -1,11 +1,12 @@
 ---
 id: 000078
-status: open
+status: working
 deps: [000077]
 github_issue:
 created: 2026-06-26
-updated: 2026-06-26
+updated: 2026-06-30
 estimate_hours:
+started: 2026-06-30T15:58:17-07:00
 ---
 
 # pair Go stateful shell glue
