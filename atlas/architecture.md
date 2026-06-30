@@ -14,7 +14,7 @@ contract for the Go packaging migration lives in
 
 ```
 bin/pair                     # entry point (launcher)
-bin/pair-go                  # opt-in Go dispatcher skeleton; public launcher remains bin/pair
+bin/pair-go                  # opt-in Go dispatcher + launch handoff; public launcher remains bin/pair
 bin/clipboard-to-pane.sh     # read clipboard, hand off to nvim's PairPasteQuote
 bin/copy-on-select.sh        # invoked by zellij copy_command on mouse-up
 bin/pair-quit.sh             # invoked by Alt+x — marks + kills session
@@ -45,15 +45,19 @@ internal subcommands or dispatch modes behind that primary binary (`pair wrap`,
 `pair continuation`, `pair scribe`) instead of staying as independently managed
 installed commands forever.
 
-As of #75, `bin/pair-go` is a development-only dispatcher with a guarded
-`pair-go launch` decision-phase prototype. The public launcher remains
-`bin/pair`; `pair-go launch` parses the launcher subset, resolves the Pair data
-dir, snapshots fakeable zellij/history state, and computes create/attach/picker
-decisions through the pure `cmd/internal/launcher` core. It then stops with an
-explicit prototype message before invoking zellij. Real zellij lifecycle,
-prompt/fzf UI, restart/quit cleanup, cmux ownership, dev rebuild, continuation,
-rename, config/session migration, and title-poller behavior remain shell-owned
-until later migration issues.
+As of #77, `bin/pair-go` is the Go-owned launch entrypoint under test:
+`pair-go launch ...` resolves its own executable, finds sibling `bin/pair`, and
+execs it with the same argv/env that `pair` would have received directly. This
+makes `pair-go launch claude`, `pair-go launch resume <tag>`, `pair-go launch
+continue ...`, `pair-go launch list`, and `pair-go launch rename ...`
+meaningful dogfood commands without replacing the stable public `pair` command
+yet. A developer shell sourced from `../ariadne/construct/dev-aliases.sh`
+rebuilds `cmd/pair-go` automatically; no `pair-go-dev` command exists.
+
+The earlier #75 pure launcher core remains available as internal decision logic,
+but real zellij lifecycle, prompt/fzf UI, restart/quit cleanup, cmux ownership,
+dev rebuild, continuation, rename, config/session migration, and title-poller
+behavior remain shell-owned through `bin/pair` until later migration issues.
 
 As of #76, the same dispatcher also has the first implemented helper routes:
 `pair-go context <tag> <agent>` and `pair-go scrollback-render ...`. Both routes

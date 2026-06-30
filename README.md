@@ -200,6 +200,13 @@ pair rename <old> <new>          # rename every tag-scoped file in
 pair -h, --help                  # show full help
 ```
 
+`pair-go launch ...` is the Go-owned migration entrypoint for testing the
+launcher path. It accepts the same arguments after `launch` that `pair` accepts
+directly, then hands off to the current `pair` launcher for one migration
+window. In a dev shell sourced from `../ariadne/construct/dev-aliases.sh`,
+`pair-go` rebuilds from `cmd/pair-go` automatically before running; no
+`pair-go-dev` command is needed.
+
 Use `--` to separate pair's positional from agent flags. Without it, pair only takes `<agent>` as a positional and everything else is rejected.
 
 Agent args (after `--`) are appended to the agent command line on **create**. Reattaching to an existing session does not re-launch the agent, so the args don't apply on attach. (The picker connects you to whatever's already running.)
