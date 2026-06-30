@@ -1,11 +1,12 @@
 ---
 id: 000077
-status: open
+status: working
 deps: [000074, 000075, 000076]
 github_issue:
 created: 2026-06-26
-updated: 2026-06-26
+updated: 2026-06-30
 estimate_hours:
+started: 2026-06-30T12:42:11-07:00
 ---
 
 # pair Go entrypoint switch
