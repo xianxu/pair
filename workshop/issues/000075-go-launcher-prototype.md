@@ -1,11 +1,12 @@
 ---
 id: 000075
-status: open
+status: working
 deps: [000073, 000074]
 github_issue:
 created: 2026-06-26
-updated: 2026-06-26
+updated: 2026-06-29
 estimate_hours:
+started: 2026-06-29T21:55:46-07:00
 ---
 
 # pair Go launcher prototype
