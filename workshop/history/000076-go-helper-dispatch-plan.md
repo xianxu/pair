@@ -351,7 +351,7 @@ git diff --check
 
 Expected: all tests/builds pass, caller diff empty, atlas grep finds the new helper-dispatch documentation, and whitespace check passes.
 
-- [ ] **Step 8: Close through SDLC**
+- [x] **Step 8: Close through SDLC**
 
 Run:
 
