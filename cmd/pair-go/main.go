@@ -47,7 +47,7 @@ func runWithLegacyRuntime(args []string, stdout, stderr io.Writer, rt legacyRunt
 		return writeResult(res, stdout, stderr)
 	}
 
-	switch entrypoint.ClassifyInvocation(exe, args) {
+	switch entrypoint.ClassifyInvocation(exe, args, dispatcher.DispatchNames()) {
 	case entrypoint.ModePublicPair:
 		return runLegacyLaunch("pair", exe, args, stderr, rt)
 	case entrypoint.ModePairGoLaunch:
