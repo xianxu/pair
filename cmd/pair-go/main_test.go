@@ -42,6 +42,16 @@ func TestRunStreamingSubcommandRoutesContinuationStdin(t *testing.T) {
 	}
 }
 
+func TestRunStreamingSubcommandRoutesSessionWatch(t *testing.T) {
+	// session-watch with no args → buildOptions rejects (<3 args) → exit 0,
+	// proving the seam case is wired to sessionwatch.RunCLI.
+	var stdout, stderr bytes.Buffer
+	code := runStreamingSubcommand([]string{"session-watch"}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("code = %d, want 0 (missing args no-op)", code)
+	}
+}
+
 func TestRunStreamingSubcommandUnknownIsProgrammingError(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := runStreamingSubcommand([]string{"nope"}, strings.NewReader(""), &stdout, &stderr)

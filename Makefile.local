@@ -267,7 +267,7 @@ $(BIN_DIR)/pair-context: cmd/pair-context/main.go cmd/internal/contextcmd/contex
 
 # pair-session-watch — async codex/agy session-id discovery. Legacy
 # bin/pair-session-watch.sh remains as a compatibility shim for bin/pair.
-$(BIN_DIR)/pair-session-watch: cmd/pair-session-watch/main.go cmd/internal/sessionwatch/sessionwatch.go cmd/internal/sessionwatch/run.go cmd/internal/sessionwatch/runtime.go cmd/internal/adapt/adapt.go go.mod
+$(BIN_DIR)/pair-session-watch: cmd/pair-session-watch/main.go cmd/internal/sessionwatch/sessionwatch.go cmd/internal/sessionwatch/run.go cmd/internal/sessionwatch/runcli.go cmd/internal/sessionwatch/runtime.go cmd/internal/adapt/adapt.go go.mod
 	go build -o $@ ./cmd/pair-session-watch
 
 # pair-changelog — distills the pair TTY into the Alt+l change log (#53);

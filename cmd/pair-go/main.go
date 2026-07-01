@@ -17,6 +17,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/entrypoint"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
+	"github.com/xianxu/pair/cmd/internal/sessionwatch"
 )
 
 var defaultPairHome string
@@ -76,6 +77,8 @@ func runStreamingSubcommand(args []string, stdin io.Reader, stdout, stderr io.Wr
 		return changelogcmd.Run(args[1:], stderr)
 	case "continuation":
 		return continuationcmd.Run(args[1:], stdin, stdout, stderr, time.Now)
+	case "session-watch":
+		return sessionwatch.RunCLI(args[1:], os.Getenv, stderr)
 	default:
 		_, _ = fmt.Fprintf(stderr, "pair-go: %s: streaming subcommand has no runner wired\n", args[0])
 		return 2

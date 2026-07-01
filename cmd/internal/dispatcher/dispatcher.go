@@ -41,7 +41,7 @@ func Families() []CommandFamily {
 		{Name: "slug", Summary: "session orientation slug generation", Status: "implemented"},
 		{Name: "changelog", Summary: "TTY transcript to distilled change log", Status: "implemented", Streaming: true},
 		{Name: "continuation", Summary: "continuation datatype writer", Status: "implemented", Streaming: true},
-		{Name: "session-watch", Summary: "async codex/agy session-id discovery", Status: "planned", Streaming: true},
+		{Name: "session-watch", Summary: "async codex/agy session-id discovery", Status: "implemented", Streaming: true},
 		{Name: "scribe", Summary: "PTY logging wrapper", Status: "planned", Streaming: true},
 	}
 }
