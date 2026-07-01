@@ -238,7 +238,7 @@ test-continue: $(BIN_DIR)/pair
 # + model + nvim and assert clean → distill → write → open (changelog) and render
 # → open (scrollback). Depend on the binaries so `make test` builds + runs them
 # (the scripts SKIP if absent, which would silently no-op in CI without these).
-test-changelog: $(BIN_DIR)/pair-changelog $(BIN_DIR)/pair-scrollback-render $(BIN_DIR)/pair-changelog-open $(BIN_DIR)/pair-scrollback-open
+test-changelog: $(BIN_DIR)/pair $(BIN_DIR)/pair-changelog $(BIN_DIR)/pair-scrollback-render $(BIN_DIR)/pair-changelog-open $(BIN_DIR)/pair-scrollback-open
 	sh tests/changelog-open-test.sh
 	sh tests/changelog-session-key-test.sh
 	sh tests/scrollback-open-test.sh

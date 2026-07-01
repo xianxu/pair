@@ -28,6 +28,7 @@ type Runtime interface {
 
 	ReadFile(path string) (string, error)
 	WriteFile(path, data string) error
+	WriteAtomic(path, data string) error // temp + rename (for the .viewport a live viewer may re-read)
 	Remove(path string)
 	FileSize(path string) (int64, bool) // for `[ -s FILE ]` guards
 	Touch(path string) error            // `[ -f LOG ] || : > LOG`
@@ -53,6 +54,7 @@ func missingEnv(opts Options) bool {
 func RunScrollback(opts Options, rt Runtime, stderr io.Writer) int {
 	if missingEnv(opts) {
 		fmt.Fprintf(stderr, "pair-scrollback-open: missing PAIR_DATA_DIR / PAIR_TAG / PAIR_AGENT\n")
+		fmt.Fprintf(stderr, "  This is meant to run inside a pair session.\n")
 		rt.Sleep(3 * time.Second)
 		return 1
 	}
@@ -69,6 +71,7 @@ func RunScrollback(opts Options, rt Runtime, stderr io.Writer) int {
 	raw, events, ansi := sb+".raw", sb+".events.jsonl", sb+".ansi"
 	if sz, ok := rt.FileSize(raw); !ok || sz == 0 {
 		fmt.Fprintf(stderr, "pair-scrollback-open: no scrollback yet for %s/%s\n", opts.Tag, opts.Agent)
+		fmt.Fprintf(stderr, "  (capture starts when the agent pane begins emitting output.)\n")
 		rt.Sleep(3 * time.Second)
 		return 0
 	}
@@ -111,7 +114,9 @@ func overlayViewport(opts Options, rt Runtime, sb, ansi string) {
 		ansiLines = append(ansiLines, stripSGR(l))
 	}
 	if line, ok := matchViewport(strings.Split(dump, "\n"), ansiLines); ok {
-		_ = rt.WriteFile(sb+".viewport", strconv.Itoa(line)+"\n")
+		// Atomic (temp + rename), like the shell's `> .tmp && mv -f`: a live
+		// viewer's `G` refresh may re-read .viewport concurrently.
+		_ = rt.WriteAtomic(sb+".viewport", strconv.Itoa(line)+"\n")
 	}
 }
 
@@ -121,6 +126,7 @@ func overlayViewport(opts Options, rt Runtime, sb, ansi string) {
 func RunChangelog(opts Options, rt Runtime, stderr io.Writer) int {
 	if missingEnv(opts) {
 		fmt.Fprintf(stderr, "pair-changelog-open: missing PAIR_DATA_DIR / PAIR_TAG / PAIR_AGENT\n")
+		fmt.Fprintf(stderr, "  This is meant to run inside a pair session.\n")
 		rt.Sleep(3 * time.Second)
 		return 1
 	}

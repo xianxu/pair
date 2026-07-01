@@ -96,7 +96,7 @@ a time.
 
 - [x] M1 — title poller: port `bin/pair-title.sh` to Go (the explicit #78
       next-candidate), keep the `.sh` name as a shim.
-- [ ] M2 — scrollback/changelog openers: port `bin/pair-scrollback-open` (and the
+- [x] M2 — scrollback/changelog openers: port `bin/pair-scrollback-open` (and the
       changelog opener) to Go orchestration; `nvim/*.lua` viewers stay native.
 - [ ] M3 — review helpers: port `bin/pair-review-target` / `pair-review-open` /
       `pair-review-readiness` orchestration to Go.
@@ -109,6 +109,7 @@ a time.
 ## Log
 
 ### 2026-07-01
+- 2026-07-01: closed M2 — Both openers ported to cmd/pair-scrollback-open + cmd/pair-changelog-open on a shared cmd/internal/opener package: pure viewport scorer (high-confidence/sub-threshold/top-clamp/empty) + session keying + distiller argv unit-tested; fake-Runtime loop tests cover render→viewport→viewer wiring, re-entrancy defer, distiller singleton no-double-spawn, config-keyed base; the existing changelog-open e2e + session-key shell tests now drive the Go binary UNCHANGED + a new scrollback-open smoke; the Go binaries replace the same-named shell scripts (zellij invokes by PATH, no shim; two .gitignore negations dropped, git ls-files bin/ confirms untracked); full make test green (sandbox-off, real setsid/nvim); runtimebundle drift-check clean with both openers bundled.; review verdict: FIX-THEN-SHIP
 - 2026-07-01: closed M1 — bin/pair-title.sh ported to cmd/pair-title Go poller: titlepoller unit tests cover all 8 old shell-harness cases (identity guard incl 21-vs-211 collision; frame-meter count/no-count/cwd-fallback/unchanged-skip) + loop tests (single-instance defer, stale-pidfile reclaim, session-miss-threshold exit); shared procutil backs both OSRuntimes; context count reused in-process via contextcmd (no subprocess); bin/pair-title.sh is a thin re-exec shim preserving the argv the single-instance guard matches; full make test green (sandbox-off, real ps/kill); runtimebundle drift-check clean with bin/pair-title + shim bundled.; review verdict: FIX-THEN-SHIP
 
 **M1 review follow-ups (FIX-THEN-SHIP → SHIP).** No Critical/Important-blocking
@@ -133,6 +134,18 @@ item-for-item"). Left the whole-issue estimate at 17.4 (unchanged since M1, and
 M5's uncertainty is already disclosed in the `## Estimate` block with an explicit
 split-into-own-ticket escape); proceeded via `--no-judge` since plan-quality had
 already passed this run. Re-visit the total if M5 stays one milestone.
+
+**M2 review follow-ups (FIX-THEN-SHIP → SHIP).** No Critical. Fixed the one
+Important — added `$(BIN_DIR)/pair` to `test-changelog`'s prereqs so the
+detached-distiller e2e can't silently SKIP (it was only building via a sibling
+target's order). Minor fixes: made the `.viewport` write atomic (temp+rename,
+matching the shell's `> .tmp && mv -f`, since a live viewer's `G` refresh may
+re-read it); restored the two error paths' second explanatory line;
+documented `firstAgentPaneID`'s map-order non-determinism as moot under the
+two-pane invariant. Plan `## Revisions` records the seam-name deltas
+(`AgentPaneID`/`StartDetached`/`FileSize`+`Executable`+`Touch`) and the reviewer's
+forward note: extract a shared `osfs`/`osseam` before M3–M5 add a 4th–6th
+`OSRuntime` copy of the trivial fs primitives.
 
 Created as step 3 of the native-single-binary tracker (#91) — the load-bearing
 port. Surfaces and priorities drawn from `atlas/go-migration-inventory.md`;

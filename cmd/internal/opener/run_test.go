@@ -50,8 +50,9 @@ func (f *fakeRuntime) ReadFile(p string) (string, error) {
 	}
 	return "", fmt.Errorf("no such file: %s", p)
 }
-func (f *fakeRuntime) WriteFile(p, d string) error { f.wrote[p] = d; return nil }
-func (f *fakeRuntime) Remove(p string)             { f.removed = append(f.removed, p) }
+func (f *fakeRuntime) WriteFile(p, d string) error   { f.wrote[p] = d; return nil }
+func (f *fakeRuntime) WriteAtomic(p, d string) error { f.wrote[p] = d; return nil }
+func (f *fakeRuntime) Remove(p string)               { f.removed = append(f.removed, p) }
 func (f *fakeRuntime) FileSize(p string) (int64, bool) {
 	s, ok := f.sizes[p]
 	return s, ok

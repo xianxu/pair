@@ -245,3 +245,28 @@ changes, at each milestone close — not deferred to the end.
   `updateWorkspaceTitle` reclaim/unchanged-bucket tests — closing the promised
   Runtime-mock loop coverage. Carry a loop-body integration test as a first-class
   deliverable for M2–M5.
+
+### 2026-07-01 — M2 milestone-close review (FIX-THEN-SHIP) follow-ups
+
+- **Seam names differ from the M2 sketch (shipped surface):** `ListAgentPaneID`
+  → `AgentPaneID`; `StartDistiller(argv, statusPath)` → `StartDetached(script,
+  extraEnv, statusPath)` (the detached build is one `sh -c` string + PCL_* env,
+  not a pre-split argv — mirrors the shell). `Stat` → `FileSize`; added
+  `Executable` (the shell's `[ -x $PAIR_HOME/bin/pair ]` guard) and `Touch`.
+- **`.viewport` write IS atomic.** The sketch said `WriteAtomic`; the first cut
+  used a plain `WriteFile` (review Minor). Restored to a real temp+rename
+  (`WriteAtomic`) matching the shell's `> .tmp && mv -f`, since a live viewer's
+  `G` refresh may re-read `.viewport` concurrently. `WriteFile` (non-atomic)
+  stays for the locks (single-writer, no concurrent reader).
+- **`test-changelog` gained the `$(BIN_DIR)/pair` prereq** (review Important): the
+  changelog e2e SKIPs without a built `bin/pair`, so the detached-distiller path
+  was only covered incidentally via a sibling target's build order. Now explicit.
+- **Faithful UX restored:** the two error paths (missing-env, no-scrollback) got
+  their second explanatory line back.
+- **`firstAgentPaneID` map-iteration order** is Go-random vs jq document order —
+  moot under the two-pane invariant (exactly one candidate); documented in place
+  rather than restructured.
+- **Forward (M3–M5):** the reviewer flagged `OSRuntime` fs-primitive duplication
+  trending across `opener`/`titlepoller`/`sessionwatch`. Consider a shared
+  `osfs`/`osseam` the per-package `OSRuntime`s embed before M3/M4/M5 add a 4th–6th
+  copy (keep the domain methods per-package).

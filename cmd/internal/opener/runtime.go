@@ -35,6 +35,29 @@ func (OSRuntime) WriteFile(path, data string) error {
 	return os.WriteFile(path, []byte(data), 0644)
 }
 
+// WriteAtomic writes via a sibling temp file + rename so a concurrent reader
+// never sees a torn write (the shell's `> .tmp && mv -f` for .viewport).
+func (OSRuntime) WriteAtomic(path, data string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	if _, err := tmp.WriteString(data); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	return os.Rename(tmpPath, path)
+}
+
 func (OSRuntime) Remove(path string) { _ = os.Remove(path) }
 
 func (OSRuntime) FileSize(path string) (int64, bool) {
@@ -88,7 +111,11 @@ func (OSRuntime) AgentPaneID() string {
 }
 
 // firstAgentPaneID recursively walks the decoded JSON for the first object that
-// is a real (non-plugin, non-floating) titled pane and returns its id.
+// is a real (non-plugin, non-floating) titled pane and returns its id. Map
+// iteration order is Go-random (vs jq's document order), but that only matters
+// if >1 candidate exists — under pair's two-pane invariant the draft pane is
+// excluded by title and the floating viewers by is_floating, so exactly one pane
+// matches and the pick is deterministic in practice.
 func firstAgentPaneID(v interface{}) string {
 	switch t := v.(type) {
 	case map[string]interface{}:
