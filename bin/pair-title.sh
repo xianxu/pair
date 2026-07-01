@@ -102,7 +102,7 @@ update_frame_titles() {
         [ -n "$pane_id" ] || continue
         cwd_disp=$(jq -r '.cwd_display // empty' "$pf" 2>/dev/null)
         [ -n "$cwd_disp" ] || cwd_disp=$(abbrev_cwd "$(jq -r '.cwd // empty' "$pf" 2>/dev/null)")
-        count=$(pair-context "$TAG" "$agent" 2>/dev/null)
+        count=$(pair context "$TAG" "$agent" 2>/dev/null)
         if [ -n "$count" ]; then
             title="$agent ($count) [$cwd_disp]"
         else
