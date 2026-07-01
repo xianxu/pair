@@ -23,6 +23,43 @@ Out of scope:
 - changing public command behavior;
 - deciding final embedded-vs-adjacent asset packaging. #79 owns that decision.
 
+## Single-Binary Deployment Path
+
+#79 made the installed public `pair` command Go-owned, but the supported runtime
+layout is still an adjacent asset tree. The next deployment goal is #90:
+produce a self-contained `pair` binary that embeds the Pair-owned runtime assets
+and extracts them to a versioned runtime root on demand.
+
+This is not the same as "no external dependencies." The single-binary target is
+one Pair artifact. System programs such as `zellij`, `nvim`, clipboard tools,
+`fzf`, `jq` while retained shell needs it, and agent CLIs remain external unless
+a later issue explicitly replaces them.
+
+Execution path:
+
+1. **Embedded runtime bundle (#90):** embed the current Pair-owned runtime tree
+   (`bin/pair-shell`, shell helpers, helper binaries or dispatcher shims,
+   `nvim/`, `zellij/`, docs/help needed at runtime) into the Go binary. On run,
+   extract to a versioned cache/data root and set `PAIR_HOME` there before the
+   existing launch handoff.
+2. **Dispatcher consolidation:** move helper binaries behind `pair <subcommand>`
+   routes and leave old command names as generated compatibility shims only
+   where native callers still need them.
+3. **Go-owned orchestration:** port stateful shell orchestrators into Go in
+   dependency order: launch/session lifecycle, scrollback and changelog openers,
+   title poller, review helpers, clipboard helpers, then small quit/restart/help
+   shims.
+4. **Native single binary:** once shell ownership is gone, stop extracting shell
+   scripts. Keep only the native assets that external runtimes require, such as
+   Neovim Lua and Zellij KDL, either embedded-and-extracted or generated at
+   startup.
+
+`ARCH-PURPOSE`: #90 is only complete if a copied binary can supply all Pair-owned
+runtime assets without falling back to a source checkout. `ARCH-DRY`: use one
+runtime manifest for embedding, extraction, install verification, and package
+metadata. `ARCH-PURE`: keep manifest planning and runtime selection testable as
+pure functions, with filesystem writes confined to thin seams.
+
 ## Disposition Vocabulary
 
 - **go-subcommand**: should route through the future Go dispatcher as
