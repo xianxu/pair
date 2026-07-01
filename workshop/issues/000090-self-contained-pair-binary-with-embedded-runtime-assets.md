@@ -1,12 +1,13 @@
 ---
 id: 000090
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-07-01
 updated: 2026-07-01
 estimate_hours: 5.44
 started: 2026-07-01T00:18:42-07:00
+actual_hours: 0.77
 ---
 
 # self-contained pair binary with embedded runtime assets
@@ -121,6 +122,7 @@ total: 5.44
 ## Log
 
 ### 2026-07-01
+- 2026-07-01: closed — embedded runtime bundle verified by runtimebundle tests, drift check, build, PAIR_DATA_DIR copied-binary smoke, adjacent install smoke, full go test, issue validate, and diff check; review verdict: FIX-THEN-SHIP
 
 Created after #79 closed: #79 made `pair` Go-owned but intentionally retained
 the adjacent runtime tree. The desired final direction is a true native single
@@ -213,3 +215,10 @@ Review-fix verification passed:
 - `go test ./... -count=1`
 - `sdlc issue validate workshop/issues/000090-self-contained-pair-binary-with-embedded-runtime-assets.md`
 - `git diff --check`
+
+Second `sdlc close --issue 90` boundary review returned FIX-THEN-SHIP and the
+close gate finalized the issue. Addressed the remaining important/minor review
+items before committing the close: `runtimebundle` atomic writes now use unique
+temp files so concurrent copied-binary first-run extraction cannot race on a
+shared `.tmp` path, a concurrent `Extract` regression covers that case, and
+`README.md` now documents the `PAIR_DATA_DIR`-first runtime path.

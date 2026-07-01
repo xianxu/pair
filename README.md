@@ -205,9 +205,10 @@ the Pair asset root and hands off to `bin/pair-shell`, the retained shell
 launcher that still owns the zellij lifecycle. Source and Homebrew installs use
 their adjacent asset roots. A copied standalone `pair` binary with no adjacent
 or build-time source root extracts its embedded Pair-owned runtime assets to
-`${XDG_DATA_HOME:-$HOME/.local/share}/pair/runtime/<digest>/pair-home` and runs
-with `PAIR_HOME` pointed there. External tools such as `zellij`, `nvim`, `fzf`,
-`jq`, clipboard tools, and agent CLIs are still installed separately.
+`${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}/runtime/<digest>/pair-home`
+and runs with `PAIR_HOME` pointed there. External tools such as `zellij`,
+`nvim`, `fzf`, `jq`, clipboard tools, and agent CLIs are still installed
+separately.
 
 `pair-go launch ...` remains the explicit development dispatcher path and
 accepts the same arguments after `launch` that `pair` accepts directly. In a dev

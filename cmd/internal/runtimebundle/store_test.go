@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -72,6 +73,36 @@ func TestStoreSecondExtractIsIdempotent(t *testing.T) {
 	}
 	if first.PairHome != second.PairHome {
 		t.Fatalf("PairHome changed: %q != %q", first.PairHome, second.PairHome)
+	}
+}
+
+func TestStoreConcurrentExtractSameDigestSucceeds(t *testing.T) {
+	dir := t.TempDir()
+	content := strings.Repeat("pair shell\n", 4096)
+	manifest := RuntimeManifest{Assets: []RuntimeAsset{{Path: "bin/pair-shell", Mode: 0o755, Size: int64(len(content)), Digest: digestFor(content)}}}
+	input := StoreInput{
+		StoreRoot: dir,
+		Manifest:  manifest,
+		ReadAsset: fakeAssetReader(map[string]string{"bin/pair-shell": content}),
+		Keep:      1,
+	}
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 16)
+	for i := 0; i < 16; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := Extract(input)
+			errs <- err
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("Extract error = %v", err)
+		}
 	}
 }
 
