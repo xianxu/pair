@@ -2,7 +2,7 @@
 // extraction, model prompt/input construction, and the validate/KEEP gate.
 // No IO here — everything is a pure function so `go test` can exercise the
 // whole decision surface without a model, a repo, or a transcript on disk.
-package main
+package slugcmd
 
 import (
 	"encoding/json"

@@ -257,7 +257,7 @@ $(BIN_DIR)/pair-scrollback-render: cmd/pair-scrollback-render/main.go cmd/intern
 $(BIN_DIR)/pair-wrap: cmd/pair-wrap/main.go go.mod
 	go build -o $@ ./cmd/pair-wrap
 
-$(BIN_DIR)/pair-slug: cmd/pair-slug/main.go cmd/pair-slug/slug.go cmd/internal/model/model.go cmd/internal/transcript/transcript.go go.mod
+$(BIN_DIR)/pair-slug: cmd/pair-slug/main.go cmd/internal/slugcmd/slugcmd.go cmd/internal/slugcmd/slug.go cmd/internal/model/model.go cmd/internal/transcript/transcript.go cmd/internal/adapt/adapt.go go.mod
 	go build -o $@ ./cmd/pair-slug
 
 # pair-context — one-shot: print a pane's current context size (token count)
