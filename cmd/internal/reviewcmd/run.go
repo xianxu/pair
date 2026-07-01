@@ -9,11 +9,12 @@ import (
 )
 
 // Runtime is the IO/process boundary for the review helpers. The fs primitives
-// (ReadFile/WriteFile/Remove/FileSize) come from an embedded osfs.FS on the
-// OSRuntime; git/nvim-classify/zellij-spawn/codex-sid are the domain seams.
+// (ReadFile/WriteFile/WriteAtomic/Remove/FileSize) come from an embedded osfs.FS
+// on the OSRuntime; git/nvim-classify/zellij-spawn/codex-sid are the domain seams.
 type Runtime interface {
 	ReadFile(path string) (string, error)
 	WriteFile(path, data string) error
+	WriteAtomic(path, data string) error // for review-target-<tag>.json (nvim Alt+c re-reads it)
 	Remove(path string)
 	FileSize(path string) (int64, bool)
 
@@ -64,7 +65,7 @@ func RunTarget(opts TargetOptions, rt Runtime, stdout, stderr io.Writer) int {
 	file := rt.AbsFile(opts.File)
 
 	out := filepath.Join(opts.DataDir, "review-target-"+tag+".json")
-	_ = rt.WriteFile(out, targetJSON(file, opts.Status, sid))
+	_ = rt.WriteAtomic(out, targetJSON(file, opts.Status, sid))
 	fmt.Fprintf(stdout, "review target %s: %s (session %s)\n", opts.Status, file, orDefault(sid, "none"))
 	return 0
 }
@@ -274,7 +275,7 @@ func prepare(opts ReadinessOptions, rt Runtime, stdout io.Writer, reviewCase str
 	sid := resolveTargetSession(rt, opts.DataDir, orDefault(opts.Tag, "default"), orDefault(opts.Agent, "claude"), opts.SessionID)
 	if opts.DataDir != "" {
 		out := filepath.Join(opts.DataDir, "review-target-"+orDefault(opts.Tag, "default")+".json")
-		_ = rt.WriteFile(out, targetJSON(gi.abs, "ready", sid))
+		_ = rt.WriteAtomic(out, targetJSON(gi.abs, "ready", sid))
 	}
 
 	fmt.Fprintf(stdout, "review prepared: %s %s on %s. Do not load xx-fix for this ack; when asked to review this file, load the full xx-fix skill directly and follow its Pair review workbench protocol. Reply \"ready\".\n", action, gi.abs, reviewBranch)

@@ -1,7 +1,9 @@
 -- nvim/review/readiness.lua — pure git-readiness classifier for the review-start
 -- flow (issue #66 M4a'). Given git facts about the target file + repo, decide the
 -- review-start action; the AGENT acts on it. PURE (no IO) — the thin git-fact
--- gathering lives in bin/pair-review-readiness. The 4 cases are
+-- gathering lives in cmd/internal/reviewcmd (bin/pair-review-readiness; #93 M3),
+-- which invokes this classifier via `nvim --headless` so it stays the single
+-- source of the 4-case decision. The 4 cases are
 -- workshop/targets/review-protocol.md's "Readiness probe".
 local M = {}
 

@@ -339,4 +339,29 @@ changes, at each milestone close — not deferred to the end.
 - **Forward (M3–M5):** the reviewer flagged `OSRuntime` fs-primitive duplication
   trending across `opener`/`titlepoller`/`sessionwatch`. Consider a shared
   `osfs`/`osseam` the per-package `OSRuntime`s embed before M3/M4/M5 add a 4th–6th
-  copy (keep the domain methods per-package).
+  copy (keep the domain methods per-package). **[done in M3 — `cmd/internal/osfs`.]**
+
+### 2026-07-01 — M3 milestone-close review (FIX-THEN-SHIP) follow-ups
+
+- **`codexsid.ResolveSessionID(dataDir, tag)` shipped without the sketched
+  `home` param** — it was unused (the walk reads `$dataDir/agent-pid-<tag>` and
+  greps lsof paths, which already carry `~/.codex/...`). Correct as shipped.
+- **Pure-list re-categorization:** the sketch listed `absPath normalization` and
+  the `--prepare` action mapping under "pure (direct unit tests)". In the shipped
+  code path-resolution is on the IO seam (`AbsFile`/`LogicalDir`/`PhysicalDir` do
+  `stat`/`EvalSymlinks`) and `prepare()` is seam-orchestration (its branches
+  interleave with `show-ref`/`ls-files`/`status` results) — both tested via the
+  fake `Runtime`, not as standalone pure functions.
+- **`--prepare` `track` + `resume` coverage added** (review Important): the initial
+  cut only tested `new`. Added `TestRunReadinessPrepareTrack` (asserts the
+  add→commit→ls-files→status→checkout-b sequence + mark-ready) and
+  `TestRunReadinessPrepareResume` (asserts branch kept, no checkout).
+- **`test-review` gained the 3 review-binary prereqs** (review Important): they're
+  now built Go binaries, so a fresh-tree `make test` must build them first.
+- **Target JSON write made atomic** (review Minor): `WriteAtomic` (temp+rename)
+  since nvim's Alt+c re-reads `review-target-<tag>.json`. Strengthened
+  `TestRunReadinessJSON` to assert `scoped_file`/`file_matches`.
+- **Forward:** the codex walk is now triplicated (`codexsid` + `slug` +
+  `sessionwatch`); M3 added the canonical `codexsid` + wired review-target to it —
+  `slug`/`sessionwatch` adoption to collapse the triplication is a tracked
+  follow-up (not retrofitted in M3 to avoid touching those hot-path tested packages).

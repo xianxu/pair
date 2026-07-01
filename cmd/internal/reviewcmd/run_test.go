@@ -35,8 +35,9 @@ func (f *fakeRuntime) ReadFile(p string) (string, error) {
 	}
 	return "", fmt.Errorf("no file: %s", p)
 }
-func (f *fakeRuntime) WriteFile(p, d string) error { f.wrote[p] = d; return nil }
-func (f *fakeRuntime) Remove(p string)             { f.removed = append(f.removed, p) }
+func (f *fakeRuntime) WriteFile(p, d string) error   { f.wrote[p] = d; return nil }
+func (f *fakeRuntime) WriteAtomic(p, d string) error { f.wrote[p] = d; return nil }
+func (f *fakeRuntime) Remove(p string)               { f.removed = append(f.removed, p) }
 func (f *fakeRuntime) FileSize(p string) (int64, bool) {
 	s, ok := f.sizes[p]
 	return s, ok
@@ -148,6 +149,75 @@ func TestRunReadinessJSON(t *testing.T) {
 	}
 	if d.Case != "resume" || !d.IsGit || !d.IsTracked || d.Branch != "review/doc" || !d.OnReviewBranch || !d.IsClean {
 		t.Fatalf("doc = %+v", d)
+	}
+	// scoped_file = the log's name-only line; file_matches because top/scoped == abs.
+	if d.ScopedFile != "doc.md" || !d.FileMatches {
+		t.Fatalf("scoped_file=%q file_matches=%v, want doc.md/true", d.ScopedFile, d.FileMatches)
+	}
+}
+
+// The --prepare track path is the most consequential (mutates the repo): stage,
+// commit, verify-tracked, clean-guard, branch-create, mark ready.
+func TestRunReadinessPrepareTrack(t *testing.T) {
+	rt := newFake()
+	rt.classify = "track"
+	// After the add+commit, ls-files succeeds (tracked) and status is clean; the
+	// review branch doesn't exist yet.
+	rt.gitFn = func(dir string, args []string) (string, error) {
+		switch args[0] {
+		case "rev-parse":
+			return "/repo\n", nil
+		case "branch":
+			return "main\n", nil
+		case "status":
+			return "", nil // clean after the tracking commit
+		case "ls-files":
+			return "", nil // tracked (post-commit)
+		case "show-ref":
+			return "", fmt.Errorf("no ref")
+		}
+		return "", nil
+	}
+	var stdout bytes.Buffer
+	code := RunReadiness(ReadinessOptions{File: "/repo/doc.md", Prepare: true, PairHome: "/h", Tag: "t", DataDir: "/dd", SessionID: "sid"}, rt, &stdout, &bytes.Buffer{})
+	if code != 0 {
+		t.Fatalf("code = %d", code)
+	}
+	for _, want := range [][]string{{"add", "--", "/repo/doc.md"}, {"commit", "-q", "-m", "review: track doc.md"}, {"checkout", "-q", "-b", "review/doc"}} {
+		if !gitCalled(rt, want...) {
+			t.Fatalf("track sequence missing %v; calls=%v", want, rt.gitCalls)
+		}
+	}
+	if d := targetOf(t, rt, "t"); d.Status != "ready" {
+		t.Fatalf("track must mark ready: %+v", d)
+	}
+	if !strings.Contains(stdout.String(), "tracked and started") {
+		t.Fatalf("ack action, got %q", stdout.String())
+	}
+}
+
+// The --prepare resume path keeps the current review branch and does NOT checkout.
+func TestRunReadinessPrepareResume(t *testing.T) {
+	rt := newFake()
+	rt.classify = "resume"
+	rt.gitFn = gitScript(map[string]struct {
+		out string
+		err error
+	}{"rev-parse": {out: "/repo\n"}, "ls-files": {out: ""}, "branch": {out: "review/doc\n"}, "status": {out: ""}, "log": {out: "doc.md\n"}})
+	var stdout bytes.Buffer
+	code := RunReadiness(ReadinessOptions{File: "/repo/doc.md", Prepare: true, PairHome: "/h", Tag: "t", DataDir: "/dd", SessionID: "sid"}, rt, &stdout, &bytes.Buffer{})
+	if code != 0 {
+		t.Fatalf("code = %d", code)
+	}
+	if gitCalled(rt, "checkout", "-q", "-b", "review/doc") || gitCalled(rt, "checkout", "-q", "review/doc") {
+		t.Fatalf("resume must NOT checkout; calls=%v", rt.gitCalls)
+	}
+	if d := targetOf(t, rt, "t"); d.Status != "ready" {
+		t.Fatalf("resume must mark ready: %+v", d)
+	}
+	// "resumed" on the existing review/doc branch.
+	if !strings.Contains(stdout.String(), "review/doc") || !strings.Contains(stdout.String(), "review prepared:") {
+		t.Fatalf("ack, got %q", stdout.String())
 	}
 }
 

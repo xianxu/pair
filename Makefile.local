@@ -115,7 +115,10 @@ test-runtimebundle: runtimebundle-generate
 
 # Review workbench (#66): the integration shell tests. The pure modules
 # (record, reconstruct) run under `make test-lua`.
-test-review:
+# The review helpers are now built Go binaries (#93 M3), not committed shell
+# scripts — declare them as prereqs so a fresh-tree `make test` builds them
+# before the review suite execs `$ROOT/bin/pair-review-*`.
+test-review: $(BIN_DIR)/pair-review-target $(BIN_DIR)/pair-review-open $(BIN_DIR)/pair-review-readiness
 	bash tests/review-docflow-test.sh
 	bash tests/review-apply-test.sh
 	bash tests/review-handoff-test.sh
