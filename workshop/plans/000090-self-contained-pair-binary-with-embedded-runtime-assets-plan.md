@@ -1,6 +1,6 @@
 # Self-Contained Pair Binary Implementation Plan
 
-> **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to determine the appropriate execution approach: use superpowers-subagent-driven-development (if subagents are suitable per AGENTS.md) or superpowers-executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to determine the appropriate execution approach: use superpowers-subagent-driven-development (if subagents are suitable per AGENTS.md) or superpowers-executing-plans to implement this plan. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Build a `pair` binary that can launch from a clean copied location by extracting embedded Pair-owned runtime assets into a versioned runtime root.
 
@@ -148,7 +148,7 @@ Runtime root contract:
 - Create: `cmd/internal/runtimebundle/manifest.go`
 - Create: `cmd/internal/runtimebundle/manifest_test.go`
 
-- [ ] **Step 1: Write failing tests for manifest validation and digest stability**
+- [x] **Step 1: Write failing tests for manifest validation and digest stability**
 
 Add tests that construct a small manifest in memory and assert:
 
@@ -162,17 +162,17 @@ func TestManifestRejectsUnsafePaths(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the red tests**
+- [x] **Step 2: Run the red tests**
 
 Run: `go test ./cmd/internal/runtimebundle -run 'TestManifest' -count=1`
 
 Expected: package or symbols missing.
 
-- [ ] **Step 3: Implement `RuntimeAsset`, `RuntimeManifest`, validation, and digest**
+- [x] **Step 3: Implement `RuntimeAsset`, `RuntimeManifest`, validation, and digest**
 
 Keep this pure: no filesystem or embed access. Normalize paths with slash semantics, sort entries for hashing, and include path, mode, size, and content digest in the manifest digest.
 
-- [ ] **Step 4: Run green tests**
+- [x] **Step 4: Run green tests**
 
 Run: `go test ./cmd/internal/runtimebundle -run 'TestManifest' -count=1`
 
@@ -186,7 +186,7 @@ Expected: pass.
 - Create: `cmd/internal/runtimebundle/cleanup.go`
 - Create: `cmd/internal/runtimebundle/cleanup_test.go`
 
-- [ ] **Step 1: Write failing tests for extraction idempotency**
+- [x] **Step 1: Write failing tests for extraction idempotency**
 
 Cover these behaviors:
 
@@ -197,21 +197,21 @@ func TestPlanExtractionRefreshesMismatchedDigest(t *testing.T) {}
 func TestPlanExtractionRejectsRuntimeRootOutsideStore(t *testing.T) {}
 ```
 
-- [ ] **Step 2: Write failing tests for cleanup safety**
+- [x] **Step 2: Write failing tests for cleanup safety**
 
 Cover keeping the selected `$PAIR_DATA_DIR/runtime/<digest>/` generation, retaining the newest configured count, and deleting only directories that match the runtime root contract above.
 
-- [ ] **Step 3: Run the red tests**
+- [x] **Step 3: Run the red tests**
 
 Run: `go test ./cmd/internal/runtimebundle -run 'TestPlan|TestCleanup' -count=1`
 
 Expected: missing functions or failing behavior.
 
-- [ ] **Step 4: Implement pure planning**
+- [x] **Step 4: Implement pure planning**
 
 Represent write/skip/delete as data. Do not call `os.WriteFile`, `os.RemoveAll`, or `time.Now` from the pure functions; pass observed filesystem state and current runtime identity in.
 
-- [ ] **Step 5: Run green tests**
+- [x] **Step 5: Run green tests**
 
 Run: `go test ./cmd/internal/runtimebundle -count=1`
 
@@ -229,11 +229,11 @@ Expected: pass.
 - Modify: `Makefile.local`
 - Test: `cmd/internal/runtimebundle/embed_test.go`
 
-- [ ] **Step 1: Write failing tests that assert all required runtime assets exist in the embedded manifest**
+- [x] **Step 1: Write failing tests that assert all required runtime assets exist in the embedded manifest**
 
 Assert the exact asset boundary above: launcher shell, shell helper scripts, `bin/lib/**`, required Go helper binaries, `nvim/**`, `zellij/**`, and doctor runtime diagnostics are present; excluded entrypoints/caches/tests are absent. Use `atlas/go-migration-inventory.md` only as human review context; automated tests inspect the generated manifest, not atlas.
 
-- [ ] **Step 2: Run the red test before adding embed code**
+- [x] **Step 2: Run the red test before adding embed code**
 
 Run: `go test ./cmd/internal/runtimebundle -run TestEmbeddedManifestContainsLaunchAssets -count=1`
 
@@ -241,15 +241,15 @@ Expected: missing embedded manifest symbol. This red run happens before
 `embed.go` is added, so it does not trip Go's compile-time `//go:embed` missing
 file rule.
 
-- [ ] **Step 3: Add the deterministic generator and embedding path**
+- [x] **Step 3: Add the deterministic generator and embedding path**
 
 Implement `make runtimebundle-generate` to copy the required inputs into `cmd/internal/runtimebundle/assets/runtime/`, preserving executable bits and writing a manifest JSON with sorted paths. Add `//go:embed assets/runtime/**` and expose the embedded `RuntimeManifest` plus file reader through `RuntimeFS`.
 
-- [ ] **Step 4: Wire build, test, and staleness checks**
+- [x] **Step 4: Wire build, test, and staleness checks**
 
 Update `PAIR_GO_SRCS` so changes to runtimebundle sources rebuild `bin/pair` and `bin/pair-go`. Add `test-runtimebundle` and `runtimebundle-drift-check`; include both in the relevant test path. Ensure `make build` builds helper binaries first, regenerates the asset tree, then builds `pair`/`pair-go` so the single binary embeds current helpers without committing generated binaries.
 
-- [ ] **Step 5: Run green tests**
+- [x] **Step 5: Run green tests**
 
 Run: `make test-runtimebundle`
 
@@ -261,21 +261,21 @@ Expected: pass.
 - Create: `cmd/internal/runtimebundle/store.go`
 - Create: `cmd/internal/runtimebundle/store_test.go`
 
-- [ ] **Step 1: Write failing filesystem tests**
+- [x] **Step 1: Write failing filesystem tests**
 
 Use `t.TempDir()` and a fake embedded asset reader. Assert atomic first-run extraction, executable bits for `bin/*` scripts, idempotent second run, manifest marker write, and stale cleanup that preserves the selected runtime.
 
-- [ ] **Step 2: Run the red tests**
+- [x] **Step 2: Run the red tests**
 
 Run: `go test ./cmd/internal/runtimebundle -run 'TestStore|TestExtract' -count=1`
 
 Expected: missing store implementation.
 
-- [ ] **Step 3: Implement the thin IO shell**
+- [x] **Step 3: Implement the thin IO shell**
 
 Use temp files plus rename for file writes. Write a manifest marker after all assets land. Apply cleanup after successful extraction/selection, not before.
 
-- [ ] **Step 4: Run green tests**
+- [x] **Step 4: Run green tests**
 
 Run: `make test-runtimebundle`
 
@@ -291,7 +291,7 @@ Expected: pass.
 - Modify: `cmd/pair-go/main.go`
 - Modify: `cmd/pair-go/main_test.go`
 
-- [ ] **Step 1: Write failing tests for launch-root precedence**
+- [x] **Step 1: Write failing tests for launch-root precedence**
 
 Assert ordering:
 
@@ -300,21 +300,21 @@ Assert ordering:
 3. `defaultPairHome` wins.
 4. Embedded extracted runtime is used only when the adjacent/default candidates fail.
 
-- [ ] **Step 2: Write failing `cmd/pair-go` fake-runtime tests**
+- [x] **Step 2: Write failing `cmd/pair-go` fake-runtime tests**
 
 Extend the existing `legacyRuntime` fake so launch records `PAIR_HOME=<extracted-root>` in the exec env when embedded fallback is selected.
 
-- [ ] **Step 3: Run red tests**
+- [x] **Step 3: Run red tests**
 
 Run: `go test ./cmd/internal/entrypoint ./cmd/pair-go -run 'TestResolveAssetRoot|TestRun' -count=1`
 
 Expected: embedded fallback behavior missing.
 
-- [ ] **Step 4: Implement embedded fallback**
+- [x] **Step 4: Implement embedded fallback**
 
 Keep `ResolveAssetRoot` deterministic and side-effect-free by passing the already-prepared embedded root as an optional candidate. Let `cmd/pair-go` decide whether extraction is needed and then pass the selected root into the existing legacy launch handoff.
 
-- [ ] **Step 5: Run green tests**
+- [x] **Step 5: Run green tests**
 
 Run: `go test ./cmd/internal/entrypoint ./cmd/pair-go -count=1`
 
@@ -326,11 +326,11 @@ Expected: pass.
 - Create: `tests/pair-embedded-runtime-test.sh`
 - Modify: `Makefile.local`
 
-- [ ] **Step 1: Write the failing clean-copy help smoke test**
+- [x] **Step 1: Write the failing clean-copy help smoke test**
 
 Build `bin/pair`, copy only that binary to a temp `PATH`, set `PAIR_DATA_DIR` to a temp dir, and run a harmless launch path such as `--help` through `pair-shell`. Use fake external commands only where needed so the test does not start a real zellij session.
 
-- [ ] **Step 2: Write the failing session-asset smoke test**
+- [x] **Step 2: Write the failing session-asset smoke test**
 
 Run the copied binary through a create-path with fake `zellij`, `nvim`, `fzf`,
 `jq`, `par`, and fake agent commands on `PATH`. The fake `zellij` must record the
@@ -341,21 +341,21 @@ must verify the embedded runtime contains and can resolve `pair-wrap`,
 the copied binary reaches the compatibility launch/session asset path, not only
 the help text.
 
-- [ ] **Step 3: Add upgrade/stale-runtime assertions**
+- [x] **Step 3: Add upgrade/stale-runtime assertions**
 
 Simulate an old extracted runtime under the temp data/cache area and assert it is pruned only after the new runtime is selected; assert the current runtime remains.
 
-- [ ] **Step 4: Run the red smoke**
+- [x] **Step 4: Run the red smoke**
 
 Run: `bash tests/pair-embedded-runtime-test.sh`
 
 Expected: copied binary cannot find `pair-shell` before implementation.
 
-- [ ] **Step 5: Add the `make` target**
+- [x] **Step 5: Add the `make` target**
 
 Add `test-pair-embedded-runtime` and `runtimebundle-drift-check` to `.PHONY`; add the smoke target to the main `test` dependency list after `test-pair-go-install-layout`.
 
-- [ ] **Step 6: Run green smoke**
+- [x] **Step 6: Run green smoke**
 
 Run: `make test-pair-embedded-runtime`
 
@@ -372,15 +372,15 @@ Expected: copied-binary clean and upgrade paths pass.
 - Modify: `README.md`
 - Optional modify: sibling `../homebrew-pair/Formula/pair.rb`
 
-- [ ] **Step 1: Update atlas execution path**
+- [x] **Step 1: Update atlas execution path**
 
 Record that #90 embeds/extracts Pair-owned runtime assets and that adjacent layout remains supported for source/Homebrew compatibility.
 
-- [ ] **Step 2: Update install docs**
+- [x] **Step 2: Update install docs**
 
 Document the copied-binary deployment mode and keep external dependencies explicit.
 
-- [ ] **Step 3: Audit Homebrew notes**
+- [x] **Step 3: Audit Homebrew notes**
 
 This issue does not require moving Homebrew to binary-only packaging. If the formula still packages adjacent assets, leave behavior unchanged and document it as compatibility mode in `README.md` / atlas. Touch `../homebrew-pair/Formula/pair.rb` only if it contains false adjacent-only claims or build rules that conflict with the generated bundle; if touched, verify with `ruby -c ../homebrew-pair/Formula/pair.rb` and record the sibling commit.
 
@@ -393,7 +393,7 @@ a separate sibling commit and record that commit hash in this issue's `## Log`.
 **Files:**
 - Modify: `workshop/issues/000090-self-contained-pair-binary-with-embedded-runtime-assets.md`
 
-- [ ] **Step 1: Run focused Go tests**
+- [x] **Step 1: Run focused Go tests**
 
 Run: `make test-runtimebundle`
 
@@ -403,7 +403,7 @@ Run: `go test ./cmd/internal/entrypoint ./cmd/pair-go -count=1`
 
 Expected: pass.
 
-- [ ] **Step 2: Run smoke and build tests**
+- [x] **Step 2: Run smoke and build tests**
 
 Run: `make build`
 
@@ -413,13 +413,13 @@ Run: `make test-pair-go-install-layout test-pair-embedded-runtime`
 
 Expected: pass.
 
-- [ ] **Step 3: Run broader Go tests**
+- [x] **Step 3: Run broader Go tests**
 
 Run: `go test ./... -count=1`
 
 Expected: pass.
 
-- [ ] **Step 4: Validate issue and diff hygiene**
+- [x] **Step 4: Validate issue and diff hygiene**
 
 Run: `sdlc issue validate workshop/issues/000090-self-contained-pair-binary-with-embedded-runtime-assets.md`
 
@@ -429,6 +429,6 @@ Run: `git diff --check`
 
 Expected: no whitespace errors.
 
-- [ ] **Step 5: Update issue plan/log**
+- [x] **Step 5: Update issue plan/log**
 
 Tick completed issue plan items, add verification evidence to `## Log`, and prepare for `sdlc close --issue 90 --verified '<evidence>' --no-atlas` only if atlas truly had no new surface. This issue is expected to require atlas updates, so avoid `--no-atlas` unless the implementation scope changes.

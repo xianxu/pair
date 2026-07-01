@@ -21,14 +21,15 @@ Out of scope:
 
 - porting behavior;
 - changing public command behavior;
-- deciding final embedded-vs-adjacent asset packaging. #79 owns that decision.
+- removing adjacent asset packaging while Homebrew/source layouts still rely on
+  it.
 
 ## Single-Binary Deployment Path
 
-#79 made the installed public `pair` command Go-owned, but the supported runtime
-layout is still an adjacent asset tree. The next deployment goal is #90:
-produce a self-contained `pair` binary that embeds the Pair-owned runtime assets
-and extracts them to a versioned runtime root on demand.
+#79 made the installed public `pair` command Go-owned. #90 added a
+self-contained deployment mode: the Go binary embeds the Pair-owned runtime
+assets and extracts them to `$PAIR_DATA_DIR/runtime/<digest>/pair-home` on
+demand when no adjacent/source/Homebrew asset root is available.
 
 This is not the same as "no external dependencies." The single-binary target is
 one Pair artifact. System programs such as `zellij`, `nvim`, clipboard tools,
@@ -37,11 +38,13 @@ a later issue explicitly replaces them.
 
 Execution path:
 
-1. **Embedded runtime bundle (#90):** embed the current Pair-owned runtime tree
+1. **Embedded runtime bundle (#90):** the current Pair-owned runtime tree
    (`bin/pair-shell`, shell helpers, helper binaries or dispatcher shims,
-   `nvim/`, `zellij/`, docs/help needed at runtime) into the Go binary. On run,
-   extract to a versioned cache/data root and set `PAIR_HOME` there before the
-   existing launch handoff.
+   `bin/lib/`, `nvim/`, `zellij/`, and doctor/help assets needed at runtime) is
+   generated into a manifest-backed embedded bundle. On run, copied binaries
+   extract to a digest-named Pair data root, write a runtime marker, prune stale
+   older extracted runtimes without deleting the selected digest, and set
+   `PAIR_HOME` there before the existing launch handoff.
 2. **Dispatcher consolidation:** move helper binaries behind `pair <subcommand>`
    routes and leave old command names as generated compatibility shims only
    where native callers still need them.
@@ -84,7 +87,7 @@ Priority is packaging impact first, then reliability/testability:
 
 | Artifact | Type | Callers | Runtime contract | Files/env | Disposition | Priority |
 |---|---|---|---|---|---|---|
-| `bin/pair` / `bin/pair-shell` / `cmd/internal/launcher` / `cmd/internal/entrypoint` | Go public entrypoint plus retained shell launcher | user shell, `bin/pair-dev`, restart re-exec, tests, `pair-go launch` | `bin/pair` is generated from `cmd/pair-go` and resolves `PAIR_HOME` / sibling root / build-time `defaultPairHome`, then execs `<asset-root>/bin/pair-shell` with `pair`-compatible argv/env. `bin/pair-shell` parses `pair [agent]`, `pair resume`, `pair continue`, `pair list`, `pair rename`, `--` agent args; starts/attaches zellij; exits nonzero on invalid create flow; long-running parent of zellij. `pair-go launch ...` shares the same compatibility handoff. | `bin/pair-shell` exports `PAIR_HOME`, `PAIR_DATA_DIR`, `PAIR_TAG`, `PAIR_AGENT`, `PAIR_AGENT_ARGS`; reads/writes many tag files under data dir; uses zellij, fzf, jq, nvim, make via dev hook. `cmd/internal/entrypoint` resolves invocation mode, asset root, and compatibility request; `cmd/internal/launcher` keeps the fakeable pure decision core from #75 for later native launch work. | Public entrypoint is Go-owned as of #79; `bin/pair-shell` is retained because real zellij lifecycle, prompt UI, restart/quit cleanup, cmux ownership, dev rebuild, continuation, rename, config/session migration, and title poller remain shell-owned | P0 |
+| `bin/pair` / `bin/pair-shell` / `cmd/internal/launcher` / `cmd/internal/entrypoint` / `cmd/internal/runtimebundle` | Go public entrypoint plus retained shell launcher and embedded runtime fallback | user shell, copied-binary installs, `bin/pair-dev`, restart re-exec, tests, `pair-go launch` | `bin/pair` is generated from `cmd/pair-go` and resolves `PAIR_HOME` / sibling root / build-time `defaultPairHome`; if none exists, it extracts the embedded runtime to `$PAIR_DATA_DIR/runtime/<digest>/pair-home`; then it execs `<asset-root>/bin/pair-shell` with `pair`-compatible argv/env and `PAIR_HOME` pointed at the selected root. `bin/pair-shell` parses `pair [agent]`, `pair resume`, `pair continue`, `pair list`, `pair rename`, `--` agent args; starts/attaches zellij; exits nonzero on invalid create flow; long-running parent of zellij. `pair-go launch ...` shares the same compatibility handoff. | `bin/pair-shell` exports `PAIR_HOME`, `PAIR_DATA_DIR`, `PAIR_TAG`, `PAIR_AGENT`, `PAIR_AGENT_ARGS`; reads/writes many tag files under data dir; uses zellij, fzf, jq, nvim, make via dev hook. `cmd/internal/entrypoint` resolves invocation mode, asset root, and compatibility request; `cmd/internal/runtimebundle` owns manifest hashing, extraction planning, runtime markers, and stale-runtime cleanup; `cmd/internal/launcher` keeps the fakeable pure decision core from #75 for later native launch work. | Public entrypoint is Go-owned as of #79; copied-binary embedded fallback exists as of #90; `bin/pair-shell` is retained because real zellij lifecycle, prompt UI, restart/quit cleanup, cmux ownership, dev rebuild, continuation, rename, config/session migration, and title poller remain shell-owned | P0 |
 | `bin/pair-dev` | Bash launcher shim | developer shell | Same argv as `pair`; exports `PAIR_DEV=1` then execs sibling Go-built `pair`. | Resolves symlinks; depends on generated `bin/pair`, retained `bin/pair-shell`, and `bin/lib/dev-rebuild.sh`. | retained dev wrapper so developer launches exercise the public Go entrypoint | P1 |
 | `bin/lib/dev-rebuild.sh` | sourced shell helper | `bin/pair-shell` | Function `dev_rebuild`; no-op unless `PAIR_DEV`; always returns 0. | Reads `PAIR_HOME`; runs `make -C "$PAIR_HOME" build`; stderr warnings. | shell-glue or Go launcher dev-mode helper | P1 |
 | `zellij/layouts/main.kdl` | zellij native asset | `bin/pair-shell` via `zellij --new-session-with-layout` | Defines agent and draft panes; shell expands Pair env at pane start. | Calls `pair-wrap`; calls `nvim -u "$PAIR_HOME/nvim/init.lua"`; writes `pane-<tag>-<agent>.json`; writes draft nvim pid file. | native-asset, packaged adjacent/embedded | P0 |
@@ -151,14 +154,22 @@ Nvim shell-outs and binary dependencies:
 
 Build/install callers:
 
+- `make runtimebundle-generate` refreshes the gitignored embedded runtime asset
+  tree and manifest; `make runtimebundle-drift-check` verifies the generated
+  bundle is reproducible.
 - `make build` builds `GO_BINS` into `bin/`; `pair` and `pair-go` are both built
-  from `cmd/pair-go` with `defaultPairHome=$(CURDIR)`.
+  from `cmd/pair-go` with `defaultPairHome=$(CURDIR)`, while copied builds with
+  no adjacent/default root use the embedded fallback.
 - `make install` copies `GO_BINS` to `~/.local/bin` and symlinks only retained
   shell wrappers such as `pair-dev`. Installed `pair` is a regular Go binary;
-  if it has no sibling assets, it falls back to the build-time source root.
+  if it has no sibling assets, it falls back to the build-time source root when
+  that exists and otherwise extracts the embedded runtime.
 - Homebrew installs `bin/`, `nvim/`, and `zellij/` under `libexec`, then builds
   Go `pair`, `pair-go`, and required runtime helpers into `libexec/bin` with
   `defaultPairHome=#{libexec}`.
+- `make test-runtimebundle` runs bundle-generation-aware Go tests, and
+  `make test-pair-embedded-runtime` exercises copied-binary launch plus stale
+  runtime cleanup with fake external dependencies.
 - `pair-dev` relies on `make build`, then zellij's PATH lookup resolves fresh
   repo `bin/` binaries.
 

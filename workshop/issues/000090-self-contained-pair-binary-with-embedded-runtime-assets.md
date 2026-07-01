@@ -76,25 +76,25 @@ Architecture notes:
 
 ## Done when
 
-- [ ] A release build can produce one `pair` binary that contains the Pair-owned
+- [x] A release build can produce one `pair` binary that contains the Pair-owned
       runtime assets needed for launch/session flows.
-- [ ] Copying only that binary to a clean path works when external dependencies
+- [x] Copying only that binary to a clean path works when external dependencies
       are installed.
-- [ ] First run extracts or refreshes a versioned runtime root and points
+- [x] First run extracts or refreshes a versioned runtime root and points
       `PAIR_HOME` at it for the compatibility launch handoff.
-- [ ] Adjacent source/Homebrew layouts still work.
-- [ ] Upgrade and stale-runtime cleanup behavior is tested.
-- [ ] The execution path toward the true native single binary is documented in
+- [x] Adjacent source/Homebrew layouts still work.
+- [x] Upgrade and stale-runtime cleanup behavior is tested.
+- [x] The execution path toward the true native single binary is documented in
       atlas.
 
 ## Plan
 
-- [ ] Define the embedded runtime manifest and generated asset list.
-- [ ] Implement runtime extraction and version/manifest selection.
-- [ ] Wire `cmd/pair-go` to prefer extracted embedded runtime when no adjacent
+- [x] Define the embedded runtime manifest and generated asset list.
+- [x] Implement runtime extraction and version/manifest selection.
+- [x] Wire `cmd/pair-go` to prefer extracted embedded runtime when no adjacent
       asset root exists.
-- [ ] Add install/copy smoke tests for clean and upgrade paths.
-- [ ] Update README, atlas, and Homebrew packaging notes.
+- [x] Add install/copy smoke tests for clean and upgrade paths.
+- [x] Update README, atlas, and Homebrew packaging notes.
 
 Detailed implementation plan:
 `workshop/plans/000090-self-contained-pair-binary-with-embedded-runtime-assets-plan.md`.
@@ -154,3 +154,36 @@ add `make test-runtimebundle` as the generated-assets-before-test path after
 `embed.go` exists, keep earlier pure tests as raw `go test`, and spell out the
 peer-repo `AGENTS.local.md` / `MEMORY.md` requirement before any optional
 Homebrew tap edit.
+
+Implemented the embedded runtime path. Added the generated runtime manifest and
+bundle generator, pure manifest/extraction/cleanup planning, embedded asset
+reader, runtime extraction store, and `cmd/pair-go` fallback that extracts to
+`$PAIR_DATA_DIR/runtime/<digest>/pair-home` only after `PAIR_HOME`, executable
+sibling assets, and build-time `defaultPairHome` fail. Source/Homebrew adjacent
+layouts remain first in the selection order.
+
+Added copied-binary smoke coverage with fake external dependencies for `pair
+--help`, `pair resume smoke`, required extracted assets, `PAIR_HOME` handoff,
+and stale-runtime cleanup. During verification, parallel smoke runs exposed that
+`runtimebundle-generate` rewrote the shared output tree in place; added a
+regression test for preserving existing output on failed generation and changed
+the generator to stage output in a unique temp directory before replacing the
+published bundle (`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`).
+
+Updated `README.md`, `atlas/architecture.md`, and
+`atlas/go-migration-inventory.md` to document the implemented embedded fallback,
+manifest ownership, cleanup behavior, and remaining external dependencies.
+No Homebrew tap edit was needed because the adjacent `libexec` packaging path
+remains accurate and intentionally precedes embedded fallback.
+
+Verification passed:
+
+- `make test-runtimebundle`
+- `make runtimebundle-drift-check`
+- `go test ./cmd/internal/entrypoint ./cmd/pair-go -count=1`
+- `make build`
+- `make test-pair-go-install-layout`
+- `make test-pair-embedded-runtime`
+- `go test ./... -count=1`
+- `sdlc issue validate workshop/issues/000090-self-contained-pair-binary-with-embedded-runtime-assets.md`
+- `git diff --check`

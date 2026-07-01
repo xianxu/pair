@@ -10,6 +10,7 @@ type AssetRootInput struct {
 	PairHome        string
 	Executable      string
 	DefaultPairHome string
+	EmbeddedRoot    string
 	PairShellExists func(root string) bool
 }
 
@@ -37,6 +38,9 @@ func ResolveAssetRoot(input AssetRootInput) (AssetRoot, error) {
 	}
 	if input.DefaultPairHome != "" {
 		candidates = append(candidates, assetRootCandidate{root: input.DefaultPairHome, source: "defaultPairHome"})
+	}
+	if input.EmbeddedRoot != "" {
+		candidates = append(candidates, assetRootCandidate{root: input.EmbeddedRoot, source: "embedded runtime"})
 	}
 
 	seen := map[string]bool{}

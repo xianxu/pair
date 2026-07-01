@@ -37,3 +37,4 @@ cache/
 /GEMINI.md
 /.agents/skills/
 /construct/generated/
+/cmd/internal/runtimebundle/assets/

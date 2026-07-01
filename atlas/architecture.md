@@ -46,13 +46,21 @@ internal subcommands or dispatch modes behind that primary binary (`pair wrap`,
 `pair continuation`, `pair scribe`) instead of staying as independently managed
 installed commands forever.
 
-As of #79, the public `bin/pair` command is a Go-built entrypoint from
-`cmd/pair-go`. Direct `pair ...` and explicit `pair-go launch ...` share one
-compatibility handoff: resolve the Pair asset root, then exec
-`<asset-root>/bin/pair-shell` with `pair`-compatible argv/env. Asset root
-resolution is ordered: explicit `PAIR_HOME`, executable sibling root, then the
-build-time `defaultPairHome` injected by Make/Homebrew for copied installs.
-Native `nvim/` and `zellij/` assets remain adjacent to that root.
+As of #90, the public `bin/pair` command is a Go-built entrypoint from
+`cmd/pair-go` with an embedded Pair-owned runtime bundle. Direct `pair ...` and
+explicit `pair-go launch ...` share one compatibility handoff: resolve the Pair
+asset root, then exec `<asset-root>/bin/pair-shell` with `pair`-compatible
+argv/env. Asset root resolution is ordered: explicit `PAIR_HOME`, executable
+sibling root, the build-time `defaultPairHome` injected by Make/Homebrew, then
+an extracted embedded runtime under `$PAIR_DATA_DIR/runtime/<digest>/pair-home`
+when no adjacent/source asset root exists. Native `nvim/` and `zellij/` assets
+remain native files inside whichever asset root was selected.
+
+The embedded runtime is generated from a deterministic manifest before builds
+and tests. That manifest is the packaging source of truth for bundled Pair-owned
+shell helpers, helper binaries, `bin/lib/`, `nvim/`, `zellij/`, and doctor
+assets; external programs such as `zellij`, `nvim`, `fzf`, `jq`, clipboard
+tools, and agent CLIs remain system dependencies.
 
 `pair-go` remains the development dispatcher for helper routes and explicit
 launch testing: `pair-go launch claude`, `pair-go launch resume <tag>`,
