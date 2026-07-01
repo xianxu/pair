@@ -15,7 +15,8 @@ type fakeRuntime struct {
 	pid               string
 	alive             map[string]bool
 	commands          map[string]string
-	sessionAliveSeq   []bool // consumed per call; falls back to sessionAliveDflt
+	namedSessions     map[string]bool // per-session-name override (e.g. a foreign cmux owner)
+	sessionAliveSeq   []bool          // consumed per call for names NOT in namedSessions
 	sessionAliveIdx   int
 	sessionAliveCalls int // total SessionAlive calls (probe accounting)
 	sessionAliveDflt  bool
@@ -49,8 +50,11 @@ func (f *fakeRuntime) Sleep(time.Duration)            { f.sleeps++ }
 func (f *fakeRuntime) Getpid() string                 { return f.pid }
 func (f *fakeRuntime) ProcessAlive(p string) bool     { return f.alive[p] }
 func (f *fakeRuntime) ProcessCommand(p string) string { return f.commands[p] }
-func (f *fakeRuntime) SessionAlive(string) bool {
+func (f *fakeRuntime) SessionAlive(name string) bool {
 	f.sessionAliveCalls++
+	if v, ok := f.namedSessions[name]; ok {
+		return v // foreign-owner probes resolve by name, not by call order
+	}
 	if f.sessionAliveIdx < len(f.sessionAliveSeq) {
 		v := f.sessionAliveSeq[f.sessionAliveIdx]
 		f.sessionAliveIdx++
@@ -172,6 +176,114 @@ func TestRunReclaimsStalePidfileThenGraceTimeout(t *testing.T) {
 	}
 	if rt.wrote["/dd/title-pid-T"] != "9001\n" {
 		t.Fatalf("expected pidfile reclaimed with our pid, wrote = %v", rt.wrote)
+	}
+}
+
+// Loop integration (claim path): one active tick through Run renders BOTH the
+// zellij frame title and the cmux workspace title, wiring activityMTime → age →
+// updateFrameTitles + updateWorkspaceTitle. Then the session goes missing and
+// the loop exits.
+func TestRunRendersFrameAndCmuxTitles(t *testing.T) {
+	rt := newFake()
+	rt.pid = "9001"
+	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7", CwdDisplay: "~/repo"}}
+	rt.counts["claude"] = "970k"
+	rt.mtimes["/dd/draft-T.md"] = rt.now // fresh activity ⇒ age ≈ 0 < 2*poll
+	rt.cmuxAvail = true
+	// grace probe true, first tick true, then gone.
+	rt.sessionAliveSeq = []bool{true, true}
+	rt.sessionAliveDflt = false
+	opts := fixtureOpts()
+	opts.CmuxWorkspaceID = "WS1"
+	opts.MissThreshold = 2
+	if code := Run(opts, rt); code != 0 {
+		t.Fatalf("code = %d, want 0", code)
+	}
+	if want := "pair-T|7|claude (970k) [~/repo]"; len(rt.renamed) != 1 || rt.renamed[0] != want {
+		t.Fatalf("frame renamed = %v, want [%q]", rt.renamed, want)
+	}
+	if want := cmuxWorkspaceTitle(prefixHot+" ", "pair-T"); len(rt.cmuxRenamed) != 1 || rt.cmuxRenamed[0] != want {
+		t.Fatalf("cmux renamed = %v, want [%q]", rt.cmuxRenamed, want)
+	}
+	if rt.wrote["/dd/cmux-owner-WS1"] != "T\n" {
+		t.Fatalf("owner file = %q, want claimed by T", rt.wrote["/dd/cmux-owner-WS1"])
+	}
+}
+
+// Loop integration (defer path): a live FOREIGN owner of the cmux workspace →
+// the frame title still renders, but the workspace title is left alone.
+func TestRunDefersCmuxToLiveForeignOwner(t *testing.T) {
+	rt := newFake()
+	rt.pid = "9001"
+	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7", CwdDisplay: "~/repo"}}
+	rt.counts["claude"] = "12k"
+	rt.mtimes["/dd/draft-T.md"] = rt.now
+	rt.cmuxAvail = true
+	rt.files["/dd/cmux-owner-WS1"] = "99\n"             // owned by tag 99…
+	rt.namedSessions = map[string]bool{"pair-99": true} // …which is still alive
+	rt.sessionAliveSeq = []bool{true, true}             // pair-T: grace + tick
+	rt.sessionAliveDflt = false
+	opts := fixtureOpts()
+	opts.CmuxWorkspaceID = "WS1"
+	opts.MissThreshold = 2
+	if code := Run(opts, rt); code != 0 {
+		t.Fatalf("code = %d, want 0", code)
+	}
+	if len(rt.renamed) != 1 {
+		t.Fatalf("frame should still render, renamed = %v", rt.renamed)
+	}
+	if len(rt.cmuxRenamed) != 0 {
+		t.Fatalf("must defer to the live foreign owner, cmuxRenamed = %v", rt.cmuxRenamed)
+	}
+	if _, wrote := rt.wrote["/dd/cmux-owner-WS1"]; wrote {
+		t.Fatalf("must not overwrite a live owner's file")
+	}
+}
+
+// updateWorkspaceTitle reclaims a STALE owner (its pair-<owner> session is gone).
+func TestUpdateWorkspaceTitleReclaimsStaleOwner(t *testing.T) {
+	rt := newFake()
+	rt.cmuxAvail = true
+	rt.files["/dd/cmux-owner-WS1"] = "99\n"
+	rt.namedSessions = map[string]bool{"pair-99": false} // stale owner
+	opts := fixtureOpts()
+	opts.CmuxWorkspaceID = "WS1"
+	got := updateWorkspaceTitle(opts, rt, 1*time.Hour, "pair-T", "__init__")
+	if got != prefixHot+" " {
+		t.Fatalf("returned prefix = %q, want reclaim with hot prefix", got)
+	}
+	if len(rt.cmuxRenamed) != 1 {
+		t.Fatalf("stale owner should be reclaimed + renamed, cmuxRenamed = %v", rt.cmuxRenamed)
+	}
+	if rt.wrote["/dd/cmux-owner-WS1"] != "T\n" {
+		t.Fatalf("owner file should be reclaimed by T, got %q", rt.wrote["/dd/cmux-owner-WS1"])
+	}
+}
+
+// updateWorkspaceTitle is a no-op when the heat bucket is unchanged.
+func TestUpdateWorkspaceTitleSkipsUnchangedBucket(t *testing.T) {
+	rt := newFake()
+	rt.cmuxAvail = true
+	got := updateWorkspaceTitle(fixtureOpts(), rt, 1*time.Hour, "pair-T", prefixHot+" ")
+	if got != prefixHot+" " || len(rt.cmuxRenamed) != 0 {
+		t.Fatalf("unchanged bucket must be a no-op: prefix=%q renamed=%v", got, rt.cmuxRenamed)
+	}
+}
+
+// activityMTime picks the most recent mtime across the draft and the transcript.
+func TestActivityMTimePicksLatest(t *testing.T) {
+	rt := newFake()
+	base := rt.now
+	rt.mtimes["/dd/draft-T.md"] = base.Add(-time.Hour)
+	rt.transcripts["claude"] = "/x/transcript.jsonl"
+	rt.mtimes["/x/transcript.jsonl"] = base // newer
+	if got := activityMTime(fixtureOpts(), rt); !got.Equal(base) {
+		t.Fatalf("activityMTime = %v, want the newer transcript mtime %v", got, base)
+	}
+	// No sources resolve ⇒ zero time.
+	empty := newFake()
+	if got := activityMTime(fixtureOpts(), empty); !got.IsZero() {
+		t.Fatalf("activityMTime with no sources = %v, want zero", got)
 	}
 }
 

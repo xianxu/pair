@@ -94,7 +94,7 @@ Each `Mx` is a merge-safe review boundary closed on its own (`sdlc
 milestone-close`); the surfaces are independent enough to port and verify one at
 a time.
 
-- [ ] M1 — title poller: port `bin/pair-title.sh` to Go (the explicit #78
+- [x] M1 — title poller: port `bin/pair-title.sh` to Go (the explicit #78
       next-candidate), keep the `.sh` name as a shim.
 - [ ] M2 — scrollback/changelog openers: port `bin/pair-scrollback-open` (and the
       changelog opener) to Go orchestration; `nvim/*.lua` viewers stay native.
@@ -109,6 +109,21 @@ a time.
 ## Log
 
 ### 2026-07-01
+- 2026-07-01: closed M1 — bin/pair-title.sh ported to cmd/pair-title Go poller: titlepoller unit tests cover all 8 old shell-harness cases (identity guard incl 21-vs-211 collision; frame-meter count/no-count/cwd-fallback/unchanged-skip) + loop tests (single-instance defer, stale-pidfile reclaim, session-miss-threshold exit); shared procutil backs both OSRuntimes; context count reused in-process via contextcmd (no subprocess); bin/pair-title.sh is a thin re-exec shim preserving the argv the single-instance guard matches; full make test green (sandbox-off, real ps/kill); runtimebundle drift-check clean with bin/pair-title + shim bundled.; review verdict: FIX-THEN-SHIP
+
+**M1 review follow-ups (FIX-THEN-SHIP → SHIP).** No Critical/Important-blocking
+correctness bugs. Addressed the one Important finding — the loop body was
+untested — by adding `TestRunRendersFrameAndCmuxTitles` (claim path renders
+frame + cmux through `Run`), `TestRunDefersCmuxToLiveForeignOwner` (defer path),
+and direct `updateWorkspaceTitle` reclaim/unchanged-bucket + `activityMTime`
+tests. Recorded two deliberate refinements (not faithful copies): (1) the
+activity-transcript resolution moved from the shell's `$PWD` to paneCwd (via the
+shared `contextcmd.TranscriptPath`) — a no-op for the primary pane; (2) a brief
+double-poller window is possible on the very first spawn after upgrading from a
+still-running pre-port `bash pair-title.sh` process (the new `pair-title <tag> `
+argv guard doesn't recognize the old `.sh` argv) — self-heals when that session
+ends. Plan `## Revisions` records the dropped `Log`/adapt seam (faithful: the
+shell poller never emitted adapt) and the `latest`→`activityMTime` naming.
 
 Created as step 3 of the native-single-binary tracker (#91) — the load-bearing
 port. Surfaces and priorities drawn from `atlas/go-migration-inventory.md`;

@@ -150,3 +150,21 @@ changes, at each milestone close — not deferred to the end.
   names changed; recorded in each milestone's Log.
 - **M5 (suggestion #3):** when reached, run `sdlc start-plan` and elaborate M5 as
   its own design pass (very likely its own ticket) — not a scaled-up leaf port.
+
+### 2026-07-01 — M1 milestone-close review (FIX-THEN-SHIP) follow-ups
+
+- **No `Log`/adapt seam.** The M1 sketch listed a `Runtime.Log(...)` adapt method
+  and a runcli "open the adapt logger" step. Dropped as the *faithful* choice:
+  `bin/pair-title.sh` never emitted adapt events (unlike wrap/slug/session-watch),
+  so the poller has no adapt telemetry surface. The implemented `Runtime` has no
+  `Log`.
+- **`latest(sources)` → `activityMTime(opts, rt)`.** The pure-helper name in the
+  sketch became a seam function, since the max-mtime read is IO (`rt.ModTime`).
+  Its pure selection is exercised by `TestActivityMTimePicksLatest`.
+- **Loop-body integration test added (the Important finding).** The initial M1
+  tested `updateFrameTitles` directly but not the loop wiring. Added
+  `TestRunRendersFrameAndCmuxTitles` (claim path: one tick renders frame + cmux),
+  `TestRunDefersCmuxToLiveForeignOwner` (defer path), plus direct
+  `updateWorkspaceTitle` reclaim/unchanged-bucket tests — closing the promised
+  Runtime-mock loop coverage. Carry a loop-body integration test as a first-class
+  deliverable for M2–M5.
