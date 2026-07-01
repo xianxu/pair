@@ -111,11 +111,88 @@ disappears (miss-threshold debounced); 30s startup grace for the create-path rac
   holds across a re-spawn).
 - runtimebundle drift-check clean.
 
-## M2–M5 (milestone-level; detailed when reached)
+## M2 — scrollback/changelog openers (detailed)
 
-- **M2 — scrollback/changelog openers:** port `bin/pair-scrollback-open` (+ the
-  changelog opener) orchestration to Go; `nvim/*.lua` viewers stay native. Reuse
-  `scrollbackcmd`/`changelogcmd`.
+Port the two Alt+/ and Alt+l floating-pane launchers — `bin/pair-scrollback-open`
+(193 lines) and `bin/pair-changelog-open` (100 lines) — to Go. Both validate env,
+hold a viewer re-entrancy lock, invoke the already-Go `pair scrollback-render` /
+`pair changelog` subcommands (#92), and launch a **native** nvim viewer
+(`nvim/scrollback.lua` / `nvim/changelog.lua` — NOT ported, #95 boundary) with the
+same env contract. `nvim/*.kdl` unchanged.
+
+### Structural decision — replace in place (no shim)
+
+The only callers are `zellij/config.kdl`'s `Run "pair-scrollback-open"` /
+`Run "pair-changelog-open"` (by PATH) and the changelog e2e tests (by path). A Go
+binary of the **same name** owns the invocation identically — so there is nothing
+to shim. `git rm` the two tracked shell scripts, drop their two `.gitignore`
+negations (`!bin/pair-scrollback-open`, `!bin/pair-changelog-open`) so the built
+binaries are ignored, and let `cmd/pair-scrollback-open` / `cmd/pair-changelog-open`
+build to those paths. (Done-when: "shell name survives as a shim **or is removed
+where no caller needs it**".) Verify `git ls-files bin/` after — the memory lesson
+on `bin/` tracking fragility applies.
+
+### New package `cmd/internal/opener`
+
+- **`opener.go` — pure (direct unit tests):**
+  - `matchViewport(dump, ansi []string) (line int, ok bool)` — the awk scroll
+    -position scorer ported to Go: index `ansi` lines (len ≥ 8) → line numbers,
+    for each non-blank `dump` line collect candidate starts, score each start by
+    consecutive matches, accept the best iff ≥ 50% of non-blank dump lines match
+    (clamp start ≥ 1). This is the load-bearing extraction — unit-test the
+    high-confidence hit, the sub-threshold reject, and the top-of-buffer clamp.
+  - `changelogBase(dataDir, tag, agent, sid string) string` and
+    `resolveSessionID(envSID string, configJSON []byte) string` — the #63 per
+    -session keying (env SID → config `session_id` → legacy unsuffixed).
+  - scrollback/changelog path sets from the base; the detached-distiller argv.
+- **`Runtime` seam:** `RenderScrollback(raw, events, ansi) error` (exec `pair
+  scrollback-render`); `ListAgentPaneID() string` + `DumpScreen(paneID) (string,
+  error)` (zellij IPC for the viewport overlay); `ReadFile`/`WriteAtomic`/`Stat`;
+  `ProcessAlive(pid)` (procutil); `StartDistiller(argv, statusPath) (pid string,
+  err error)` (the `setsid`-detached render+distill — Go `SysProcAttr{Setsid:true}`
+  replaces the shell's setsid/perl fork); `RunViewer(luaPath, file, env)` (exec
+  nvim as a held child, returns on `:q`); `Getpid()`.
+- **`run.go`** — `RunScrollback(opts, rt)` / `RunChangelog(opts, rt)` orchestration
+  mirroring the shell control flow (lock → render → viewport overlay → nvim for
+  scrollback; lock → distiller-singleton → detached distill → nvim watcher for
+  changelog). Best-effort viewport overlay (any seam failure leaves the renderer's
+  `.viewport`).
+- **`runcli.go`** — `RunScrollbackCLI(args, getenv, stderr) int` (parses `--jump
+  prev|next`) and `RunChangelogCLI(args, getenv, stderr) int`.
+- **`runtime.go`** — `OSRuntime` (zellij/nvim/pair exec + setsid detach + fs +
+  procutil), reusing `procutil.Alive` for the lock liveness checks.
+
+### Shims + wiring
+
+- `cmd/pair-scrollback-open/main.go`, `cmd/pair-changelog-open/main.go` — thin
+  `RunXCLI` entries.
+- Makefile: add both to `GO_BINS`, `.PHONY`, per-binary targets, and
+  `RUNTIMEBUNDLE_HELPERS`; explicit build rules. `runtimebundlegen`'s
+  `explicitAssetPaths` already lists both paths (now built binaries, not scripts).
+
+### Tests (M2)
+
+- Go unit tests in `opener`: `matchViewport` (high-confidence hit / sub-threshold
+  reject / top clamp / empty), `resolveSessionID` (env / config / legacy),
+  `changelogBase`, distiller-argv construction.
+- The existing `tests/changelog-open-test.sh` + `tests/changelog-session-key-test.sh`
+  become **integration tests against the Go binary** unchanged (they invoke
+  `bin/pair-changelog-open` by path with fake scrollback/model/nvim and assert the
+  distilled log + anchor + nvim-open) — the process-level fake the #93 Spec wants.
+  Add a parallel scrollback-open integration smoke (fake render + fake nvim →
+  assert nvim opened on the `.ansi`, lock lifecycle) since none exists today.
+
+### M2 verification
+
+- `go test ./cmd/internal/opener` green; `make test` green incl. the changelog
+  e2e now driving the Go binary; runtimebundle drift-check clean.
+- Alt+/ (scrollback) and Alt+l (changelog) still open their nvim viewers; the
+  re-entrancy locks + detached distiller behave as before.
+- `git ls-files bin/` no longer lists the two openers; the built Go binaries are
+  gitignored.
+
+## M3–M5 (milestone-level; detailed when reached)
+
 - **M3 — review helpers:** port `bin/pair-review-target` / `pair-review-open` /
   `pair-review-readiness` orchestration to Go.
 - **M4 — clipboard helpers:** port `clipboard-to-pane.sh`, `copy-on-select.sh`,
@@ -168,3 +245,28 @@ changes, at each milestone close — not deferred to the end.
   `updateWorkspaceTitle` reclaim/unchanged-bucket tests — closing the promised
   Runtime-mock loop coverage. Carry a loop-body integration test as a first-class
   deliverable for M2–M5.
+
+### 2026-07-01 — M2 milestone-close review (FIX-THEN-SHIP) follow-ups
+
+- **Seam names differ from the M2 sketch (shipped surface):** `ListAgentPaneID`
+  → `AgentPaneID`; `StartDistiller(argv, statusPath)` → `StartDetached(script,
+  extraEnv, statusPath)` (the detached build is one `sh -c` string + PCL_* env,
+  not a pre-split argv — mirrors the shell). `Stat` → `FileSize`; added
+  `Executable` (the shell's `[ -x $PAIR_HOME/bin/pair ]` guard) and `Touch`.
+- **`.viewport` write IS atomic.** The sketch said `WriteAtomic`; the first cut
+  used a plain `WriteFile` (review Minor). Restored to a real temp+rename
+  (`WriteAtomic`) matching the shell's `> .tmp && mv -f`, since a live viewer's
+  `G` refresh may re-read `.viewport` concurrently. `WriteFile` (non-atomic)
+  stays for the locks (single-writer, no concurrent reader).
+- **`test-changelog` gained the `$(BIN_DIR)/pair` prereq** (review Important): the
+  changelog e2e SKIPs without a built `bin/pair`, so the detached-distiller path
+  was only covered incidentally via a sibling target's build order. Now explicit.
+- **Faithful UX restored:** the two error paths (missing-env, no-scrollback) got
+  their second explanatory line back.
+- **`firstAgentPaneID` map-iteration order** is Go-random vs jq document order —
+  moot under the two-pane invariant (exactly one candidate); documented in place
+  rather than restructured.
+- **Forward (M3–M5):** the reviewer flagged `OSRuntime` fs-primitive duplication
+  trending across `opener`/`titlepoller`/`sessionwatch`. Consider a shared
+  `osfs`/`osseam` the per-package `OSRuntime`s embed before M3/M4/M5 add a 4th–6th
+  copy (keep the domain methods per-package).
