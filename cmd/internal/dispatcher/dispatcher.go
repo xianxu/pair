@@ -7,6 +7,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/contextcmd"
 	"github.com/xianxu/pair/cmd/internal/scrollbackcmd"
+	"github.com/xianxu/pair/cmd/internal/slugcmd"
 )
 
 const programName = "pair-go"
@@ -37,7 +38,7 @@ func Families() []CommandFamily {
 		{Name: "context", Summary: "agent pane context meter", Status: "implemented"},
 		{Name: "scrollback-render", Summary: "raw PTY capture to ANSI scrollback", Status: "implemented"},
 		{Name: "wrap", Summary: "PTY proxy around a TUI agent", Status: "planned", Streaming: true},
-		{Name: "slug", Summary: "session orientation slug generation", Status: "planned"},
+		{Name: "slug", Summary: "session orientation slug generation", Status: "implemented"},
 		{Name: "changelog", Summary: "TTY transcript to distilled change log", Status: "planned", Streaming: true},
 		{Name: "continuation", Summary: "continuation datatype writer", Status: "planned", Streaming: true},
 		{Name: "session-watch", Summary: "async codex/agy session-id discovery", Status: "planned", Streaming: true},
@@ -101,6 +102,8 @@ func Dispatch(args []string) Result {
 		return dispatchContext(args[1:])
 	case "scrollback-render":
 		return dispatchScrollbackRender(args[1:])
+	case "slug":
+		return dispatchSlug(args[1:])
 	}
 
 	if family, ok := familyByName(args[0]); ok {
@@ -126,6 +129,13 @@ func dispatchScrollbackRender(args []string) Result {
 	var stdout, stderr bytes.Buffer
 	code := scrollbackcmd.Run(args, &stdout, &stderr)
 	return Result{Stdout: stdout.String(), Stderr: stderr.String(), ExitCode: code}
+}
+
+// dispatchSlug routes `pair slug`. slug is env-driven with no args and writes
+// only to files + $PAIR_SLUG_LOG (no stdout/stderr), so the buffered Result is
+// empty; only the exit code carries. slug.Run always returns 0 (tolerant).
+func dispatchSlug([]string) Result {
+	return Result{ExitCode: slugcmd.Run()}
 }
 
 func launchHandoffResult() Result {

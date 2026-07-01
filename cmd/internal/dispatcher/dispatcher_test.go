@@ -164,6 +164,20 @@ func TestDispatchScrollbackRenderUsage(t *testing.T) {
 	}
 }
 
+func TestDispatchSlugRoutesToRunner(t *testing.T) {
+	// No PAIR_TAG/PAIR_DATA_DIR → slug no-ops and returns 0; it writes only to
+	// files, so the buffered Result carries no stdout/stderr.
+	t.Setenv("PAIR_TAG", "")
+	t.Setenv("PAIR_DATA_DIR", "")
+	res := Dispatch([]string{"slug"})
+	if res.ExitCode != 0 {
+		t.Fatalf("ExitCode = %d, want 0", res.ExitCode)
+	}
+	if res.Stdout != "" || res.Stderr != "" {
+		t.Fatalf("slug route should produce no buffered output; got stdout=%q stderr=%q", res.Stdout, res.Stderr)
+	}
+}
+
 func TestDispatchUnknownCommandReturnsUsageHint(t *testing.T) {
 	res := Dispatch([]string{"frobnicate"})
 	if res.ExitCode != 2 {
