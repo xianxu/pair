@@ -123,6 +123,30 @@ helper-dispatch pattern #76 began (`pair-go context`, `pair-go
 scrollback-render`); `pair slug` and the remaining helpers are the concrete
 targets.
 
+**M2 shadow-sweep (ARCH-PURPOSE).** Repointed all five Pair-owned call-sites to
+`pair <sub>`: `bin/pair-title.sh` (`pair context`), `bin/pair-changelog-open`
+(`pair scrollback-render`/`changelog`, collapsing the two-token `PCL_BIN`),
+`bin/pair-scrollback-open` (`pair scrollback-render`), `nvim/scrollback.lua`
+(`pair scrollback-render`), `cmd/pair-wrap` turn-end (`pair slug`, via a
+testable `slugSpawnCmd`). `grep -rnE 'pair-(slug|changelog|continuation|context|scrollback-render|session-watch)'`
+confirms every remaining hit is intentionally retained: the
+`bin/pair-shell → pair-session-watch.sh → binary` chain (shell-owned, #93),
+the runtime-bundle manifest/generator + shim binaries (removal is later
+single-binary work), adapt logger channel names (`"pair-slug"`), runner usage
+strings, `nvim/init.lua`'s continuation-writer prose, and the equivalence
+tests. `pair session-watch` and `pair continuation` have routes but no
+repointed *production* caller here (session-watch's caller is the shell
+launcher → #93; continuation is invoked by agent procedure) — intentional
+symmetry for #93/#96 reuse, not dead code.
+
+**Runtime bundle (revises plan I3).** The plan expected to regenerate + commit
+the bundle. In this repo the entire `cmd/internal/runtimebundle/assets/` tree
+(manifest + `files/`) is **gitignored** — regenerated from source on every
+`make build` and `//go:embed`-ed — so there is nothing to commit and no
+stale-bundle / dirty-tree-at-close risk. Editing the bundled shell/lua sources
+is sufficient; the embedded runtime rebuilds from them. Verified: the generated
+`assets/.../bin/pair-title.sh` carries `pair context`.
+
 ## Revisions
 
 ### 2026-07-01 — narrow scope: carve pair-wrap + pair-scribe out to #96

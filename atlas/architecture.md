@@ -97,9 +97,14 @@ Two new architectural surfaces landed with #92 M1:
   (long-running) — use `cmd/pair-go`'s `runStreamingSubcommand` seam, which hands
   the runner real `os.Stdin/Stdout/Stderr`. `Families().Streaming` marks which.
 
-Pair-owned call-sites (`bin/pair-title.sh`, `bin/pair-changelog-open`,
-`bin/pair-scrollback-open`, `nvim/scrollback.lua`, `pair-wrap`'s turn-end spawn)
-still invoke the legacy shim names; #92 M2 repoints them to `pair <sub>`.
+Pair-owned call-sites were repointed to `pair <sub>` in #92 M2:
+`bin/pair-title.sh` (`pair context`), `bin/pair-changelog-open` and
+`bin/pair-scrollback-open` and `nvim/scrollback.lua` (`pair scrollback-render` /
+`pair changelog`), and `pair-wrap`'s turn-end spawn (`pair slug`). The one
+remaining internal caller of a shim name is `bin/pair-shell →
+bin/pair-session-watch.sh → bin/pair-session-watch`, deferred to #93 (the shell
+launcher is still shell-owned). The standalone `bin/pair-<name>` binaries remain
+as thin shims (still built + bundled); dropping them is later single-binary work.
 
 Native integration layers stay native: `nvim/*.lua` remains the bundled Neovim
 surface and `zellij/*.kdl` remains the zellij layout/config surface. Packaging
