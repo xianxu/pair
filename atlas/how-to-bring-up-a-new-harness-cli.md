@@ -88,7 +88,7 @@ The `pair-slug` script summarizes what the current agent session is about to dis
 
 **Implementation:**
 - **Transcript Parsing:** Register a parser in [cmd/internal/slugcmd/slug.go](file:///Users/xianxu/workspace/pair/cmd/internal/slugcmd/slug.go) under `parseTranscript()`. For JSONL transcripts like `agy`, extract the `content` where `type: "USER_INPUT"`.
-- **Model Sandbox Execution:** Ensure that invoking the agent in summarize mode (`agy -p "<prompt>"`) runs inside a clean sandbox (e.g. setting `cmd.Dir = os.TempDir()` in [cmd/pair-slug/main.go](file:///Users/xianxu/workspace/pair/cmd/pair-slug/main.go)). This prevents the agent from triggering expensive workspace exploration tools, speeding up slug generation from 20s to 1s.
+- **Model Sandbox Execution:** Ensure that invoking the agent in summarize mode (`agy -p "<prompt>"`) runs inside a clean sandbox (e.g. setting `cmd.Dir = os.TempDir()` in [cmd/internal/model/model.go](file:///Users/xianxu/workspace/pair/cmd/internal/model/model.go), the shared model runner). This prevents the agent from triggering expensive workspace exploration tools, speeding up slug generation from 20s to 1s.
 
 **Telemetry Signal** (aspect `4`, see §3): `slug-parse` from `pair-slug` — `fired` when the transcript parses into ≥1 turn, **`near-miss`** when a transcript is read but yields 0 turns (the transcript schema changed and the parser no longer extracts anything), `fail` when no transcript resolves at all. A run of `near-miss` lines points straight at a `parseTranscript` parser that needs updating.
 
