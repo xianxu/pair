@@ -59,10 +59,12 @@ Integration seams (headless shell tests, `make test-review`):
   round-1's output. No more clear-on-each-apply.
 - `poke_bodies.lua` — pure builders for the prose signals sent to the agent:
   review target prep, handoff applied, human turn finished, and ship requested.
-- `readiness.lua` + `bin/pair-review-readiness` — pure/classified git readiness
-  for review-start: stop / track / resume / new / interact. The nvim proposes;
-  the agent acts. The shell seam emits JSON with `jq -n` so quoted branch/path
-  facts remain valid JSON.
+- `readiness.lua` + `cmd/pair-review-readiness` (`cmd/internal/reviewcmd`, Go since
+  #93 M3) — pure/classified git readiness for review-start: stop / track / resume /
+  new / interact. The nvim proposes; the agent acts. The 4-case decision stays
+  single-source in `readiness.lua`, invoked via `nvim --headless`; the Go helper
+  gathers the git facts and emits JSON via `encoding/json` (strictly more robust
+  for quoted branch/path facts than the old `jq -n`).
 - `resolve.lua` — pure parley §5 accept/reject resolution for `🤖` marker chains;
   `nvim/review.lua` binds it to the review pane (`\a`, `\r`, `]m`, `[m`).
 - `spinner.lua` — pure compact spinner/elapsed helper wired into the review pane
