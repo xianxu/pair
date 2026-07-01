@@ -200,12 +200,13 @@ pair rename <old> <new>          # rename every tag-scoped file in
 pair -h, --help                  # show full help
 ```
 
-`pair-go launch ...` is the Go-owned migration entrypoint for testing the
-launcher path. It accepts the same arguments after `launch` that `pair` accepts
-directly, then hands off to the current `pair` launcher for one migration
-window. In a dev shell sourced from `../ariadne/construct/dev-aliases.sh`,
-`pair-go` rebuilds from `cmd/pair-go` automatically before running; no
-`pair-go-dev` command is needed.
+The installed `pair` command is Go-owned. For this migration window it resolves
+the adjacent Pair asset root and hands off to `bin/pair-shell`, the retained
+shell launcher that still owns the zellij lifecycle. `pair-go launch ...` remains
+the explicit development dispatcher path and accepts the same arguments after
+`launch` that `pair` accepts directly. In a dev shell sourced from
+`../ariadne/construct/dev-aliases.sh`, `pair` and `pair-go` rebuild from
+`cmd/pair-go` automatically before running; no `pair-go-dev` command is needed.
 
 Use `--` to separate pair's positional from agent flags. Without it, pair only takes `<agent>` as a positional and everything else is rejected.
 

@@ -13,8 +13,9 @@ contract for the Go packaging migration lives in
 [Go migration inventory](go-migration-inventory.md).
 
 ```
-bin/pair                     # entry point (launcher)
-bin/pair-go                  # opt-in Go dispatcher + launch handoff; public launcher remains bin/pair
+bin/pair                     # Go public entrypoint; execs bin/pair-shell during migration
+bin/pair-shell               # retained shell launcher: zellij lifecycle + prompt UI
+bin/pair-go                  # explicit Go dispatcher + launch handoff
 bin/clipboard-to-pane.sh     # read clipboard, hand off to nvim's PairPasteQuote
 bin/copy-on-select.sh        # invoked by zellij copy_command on mouse-up
 bin/pair-quit.sh             # invoked by Alt+x — marks + kills session
@@ -45,19 +46,26 @@ internal subcommands or dispatch modes behind that primary binary (`pair wrap`,
 `pair continuation`, `pair scribe`) instead of staying as independently managed
 installed commands forever.
 
-As of #77, `bin/pair-go` is the Go-owned launch entrypoint under test:
-`pair-go launch ...` resolves its own executable, finds sibling `bin/pair`, and
-execs it with the same argv/env that `pair` would have received directly. This
-makes `pair-go launch claude`, `pair-go launch resume <tag>`, `pair-go launch
-continue ...`, `pair-go launch list`, and `pair-go launch rename ...`
-meaningful dogfood commands without replacing the stable public `pair` command
-yet. A developer shell sourced from `../ariadne/construct/dev-aliases.sh`
-rebuilds `cmd/pair-go` automatically; no `pair-go-dev` command exists.
+As of #79, the public `bin/pair` command is a Go-built entrypoint from
+`cmd/pair-go`. Direct `pair ...` and explicit `pair-go launch ...` share one
+compatibility handoff: resolve the Pair asset root, then exec
+`<asset-root>/bin/pair-shell` with `pair`-compatible argv/env. Asset root
+resolution is ordered: explicit `PAIR_HOME`, executable sibling root, then the
+build-time `defaultPairHome` injected by Make/Homebrew for copied installs.
+Native `nvim/` and `zellij/` assets remain adjacent to that root.
+
+`pair-go` remains the development dispatcher for helper routes and explicit
+launch testing: `pair-go launch claude`, `pair-go launch resume <tag>`,
+`pair-go launch continue ...`, `pair-go launch list`, and
+`pair-go launch rename ...` all reach the same shell launcher as direct `pair`.
+A developer shell sourced from `../ariadne/construct/dev-aliases.sh` rebuilds
+`cmd/pair-go` automatically; no `pair-go-dev` command exists.
 
 The earlier #75 pure launcher core remains available as internal decision logic,
 but real zellij lifecycle, prompt/fzf UI, restart/quit cleanup, cmux ownership,
 dev rebuild, continuation, rename, config/session migration, and title-poller
-behavior remain shell-owned through `bin/pair` until later migration issues.
+behavior remain shell-owned through `bin/pair-shell` until later migration
+issues.
 
 As of #76, the same dispatcher also has the first implemented helper routes:
 `pair-go context <tag> <agent>` and `pair-go scrollback-render ...`. Both routes
@@ -78,9 +86,13 @@ keybindings, scrollback, changelog, continuation, and review flows still work.
 The detailed disposition table is maintained in
 [Go migration inventory](go-migration-inventory.md), not duplicated here.
 
-### `bin/pair` — launcher
+### `bin/pair` / `bin/pair-shell` — launcher
 
-Resolves `$PAIR_HOME` from its own real path (portable bash, no `readlink -f`), prepends `$PAIR_HOME/bin` to `$PATH` (idempotent across re-launches) so all helper scripts resolve by bare name in zellij configs and keybinds, parses argv — first positional is `$PAIR_AGENT` (default `claude`), everything after `--` is joined into `$PAIR_AGENT_ARGS`, extra positionals before `--` are an error with a usage hint, defaults `$PAIR_TAG` to the cwd basename (the create-flow prompt or `pair resume <tag>` overrides it), resolves `$PAIR_DATA_DIR` to `${XDG_DATA_HOME:-$HOME/.local/share}/pair`, runs a one-time migration of any old `~/scratch/pair-{draft,log}-*` files, and dispatches:
+`bin/pair` is the Go public entrypoint. It resolves the asset root, then execs
+`bin/pair-shell` with argv[0] presented as `pair`; the shell script below still
+owns the launcher lifecycle during this migration window.
+
+`bin/pair-shell` resolves `$PAIR_HOME` from its own real path (portable bash, no `readlink -f`), prepends `$PAIR_HOME/bin` to `$PATH` (idempotent across re-launches) so all helper scripts resolve by bare name in zellij configs and keybinds, parses argv — first positional is `$PAIR_AGENT` (default `claude`), everything after `--` is joined into `$PAIR_AGENT_ARGS`, extra positionals before `--` are an error with a usage hint, defaults `$PAIR_TAG` to the cwd basename (the create-flow prompt or `pair resume <tag>` overrides it), resolves `$PAIR_DATA_DIR` to `${XDG_DATA_HOME:-$HOME/.local/share}/pair`, runs a one-time migration of any old `~/scratch/pair-{draft,log}-*` files, and dispatches:
 
 A leading `pair resume <tag>` is recognized as a subcommand verb (alongside `list` / `help`): it skips both the picker and the name prompt, attaches if `pair-<tag>` already exists in any state, otherwise creates with that tag. When `resume` is in play, the agent is inferred from saved state on disk (`agent-<tag>` for live/recently-detached sessions; the agent embedded in the `config-<tag>-<agent>.json` filename otherwise) — so a single tag is enough to restart, regardless of which agent was originally paired with it. See "Tag-restart" below.
 

@@ -1,7 +1,7 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
-.PHONY: build install pair-scribe pair-scrollback-render pair-wrap pair-slug pair-changelog pair-context pair-session-watch pair-go test test-race test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-emitter-health test-session-watch test-continue test-changelog test-copy-on-select test-pair-title test-cmux-ownership test-zellij-trace
+.PHONY: build install pair pair-scribe pair-scrollback-render pair-wrap pair-slug pair-changelog pair-context pair-session-watch pair-go test test-race test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-emitter-health test-session-watch test-continue test-changelog test-copy-on-select test-pair-title test-cmux-ownership test-zellij-trace
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
 # and ships with the `pair-` prefix so it doesn't collide with anything
@@ -26,8 +26,9 @@
 
 BIN_DIR     := bin
 INSTALL_DIR := $(HOME)/.local/bin
-GO_BINS     := pair-scribe pair-scrollback-render pair-wrap pair-slug pair-continuation pair-changelog pair-context pair-session-watch pair-go
-SHELL_BINS  := pair pair-dev
+GO_BINS     := pair pair-scribe pair-scrollback-render pair-wrap pair-slug pair-continuation pair-changelog pair-context pair-session-watch pair-go
+SHELL_BINS  := pair-dev
+PAIR_HOME_LDFLAGS := -X main.defaultPairHome=$(CURDIR)
 
 build: $(addprefix $(BIN_DIR)/,$(GO_BINS))
 
@@ -43,6 +44,7 @@ install: build
 	done
 
 # Per-binary aliases — `make pair-scribe`, etc.
+pair:                   $(BIN_DIR)/pair
 pair-scribe:            $(BIN_DIR)/pair-scribe
 pair-scrollback-render: $(BIN_DIR)/pair-scrollback-render
 pair-wrap:              $(BIN_DIR)/pair-wrap
@@ -76,7 +78,7 @@ test-pair-title:
 # cmux workspace ownership claim (presence beats a stale owner flag), so a
 # launch/attach/restart reclaims its workspace title. See
 # tests/cmux-ownership-test.sh.
-test-cmux-ownership:
+test-cmux-ownership: $(BIN_DIR)/pair
 	bash tests/cmux-ownership-test.sh
 
 # Session id watcher must ignore stale pidfiles from prior launches and wait
@@ -187,9 +189,9 @@ test-adapt-schema:
 test-dev-rebuild:
 	bash tests/dev-rebuild-test.sh
 
-# pair-go launch handoff (#77): installed pair-go requires sibling pair. Local
-# installs link shell launchers back to the source tree so pair keeps its
-# PAIR_HOME asset resolution.
+# Go public entrypoint install layout (#79): installed pair is a regular Go
+# binary, pair-go launch shares its pair-shell handoff, and copied local
+# installs fall back to the build-time source root for adjacent assets.
 test-pair-go-install-layout:
 	bash tests/pair-go-install-layout-test.sh
 
@@ -201,7 +203,7 @@ test-emitter-health:
 # `pair continue` arg-parsing + session-name guard (#000054): tag not forced,
 # -- args forwarded, [agent] port, bare list / error paths, guard short-vs-long.
 # Drives the real bin/pair via its PAIR_DEBUG_ARGS probe. See tests/pair-continue-test.sh.
-test-continue:
+test-continue: $(BIN_DIR)/pair
 	bash tests/pair-continue-test.sh
 
 # changelog — end-to-end smoke for bin/pair-changelog-open (#53 M2): fakes the
@@ -256,11 +258,19 @@ $(BIN_DIR)/pair-changelog: cmd/pair-changelog/main.go cmd/pair-changelog/distill
 $(BIN_DIR)/pair-continuation: cmd/pair-continuation/continuation.go cmd/pair-continuation/git.go cmd/pair-continuation/main.go go.mod
 	go build -o $@ ./cmd/pair-continuation
 
-# pair-go — development dispatcher and Go-owned launch handoff.
-# `pair-go launch ...` execs sibling bin/pair for the current migration window;
+PAIR_GO_SRCS := cmd/pair-go/main.go cmd/internal/entrypoint/asset_root.go cmd/internal/entrypoint/launch.go cmd/internal/entrypoint/mode.go cmd/internal/dispatcher/dispatcher.go cmd/internal/launcher/args.go cmd/internal/launcher/datadir.go cmd/internal/launcher/decision.go cmd/internal/launcher/history.go cmd/internal/launcher/run.go cmd/internal/launcher/session.go cmd/internal/launcher/tag.go cmd/internal/launcher/zellij.go cmd/internal/contextcmd/contextcmd.go cmd/internal/scrollbackcmd/scrollbackcmd.go go.mod
+
+# pair — public Go-owned entrypoint. It execs bin/pair-shell for the current
+# shell-owned zellij lifecycle and uses the build-time defaultPairHome when a
+# copied local install has no sibling assets.
+$(BIN_DIR)/pair: $(PAIR_GO_SRCS)
+	go build -ldflags "$(PAIR_HOME_LDFLAGS)" -o $@ ./cmd/pair-go
+
+# pair-go — development dispatcher and explicit migration surface.
+# `pair-go launch ...` shares the same bin/pair-shell handoff as public pair;
 # helper routes stay in the dispatcher.
-$(BIN_DIR)/pair-go: cmd/pair-go/main.go cmd/internal/entrypoint/launch.go cmd/internal/dispatcher/dispatcher.go cmd/internal/launcher/args.go cmd/internal/launcher/datadir.go cmd/internal/launcher/decision.go cmd/internal/launcher/history.go cmd/internal/launcher/run.go cmd/internal/launcher/session.go cmd/internal/launcher/tag.go cmd/internal/launcher/zellij.go cmd/internal/contextcmd/contextcmd.go cmd/internal/scrollbackcmd/scrollbackcmd.go go.mod
-	go build -o $@ ./cmd/pair-go
+$(BIN_DIR)/pair-go: $(PAIR_GO_SRCS)
+	go build -ldflags "$(PAIR_HOME_LDFLAGS)" -o $@ ./cmd/pair-go
 
 
 # Tart VM targets (tart, tart-gui, tart-mount, tart-stop, tart-clean)

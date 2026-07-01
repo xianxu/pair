@@ -18,7 +18,7 @@
 |------|----------|--------|
 | `EntrypointMode` | `cmd/internal/entrypoint/mode.go` | new |
 | `AssetRoot` | `cmd/internal/entrypoint/asset_root.go` | new |
-| `LegacyPairRequest` | `cmd/internal/entrypoint/launch.go` | modified |
+| `LegacyLaunchRequest` | `cmd/internal/entrypoint/launch.go` | modified |
 
 **EntrypointMode** — Determines whether one executable invocation should behave as public `pair` or development `pair-go`.
 - **Relationships:** 1:1 with the executable basename; `cmd/pair-go/main.go` owns the argv/env IO and calls this pure classifier.
@@ -26,11 +26,11 @@
 - **Future extensions:** If the shell launcher is later fully ported, this mode decision becomes the dispatch point for native launch instead of compatibility exec.
 
 **AssetRoot** — Pure policy for choosing the root that owns adjacent runtime assets (`bin/pair-shell`, `nvim/`, `zellij/`).
-- **Relationships:** N:1 from local source build, local copied install, and Homebrew `libexec` install into one root decision; `LegacyPairRequest` consumes the resolved root.
+- **Relationships:** N:1 from local source build, local copied install, and Homebrew `libexec` install into one root decision; `LegacyLaunchRequest` consumes the resolved root.
 - **DRY rationale:** Prevents local install and Homebrew install from inventing separate path rules for the same asset layout (ARCH-DRY).
 - **Future extensions:** Can add an extracted-embedded asset dir later without changing launcher request construction.
 
-**LegacyPairRequest** — Describes the compatibility exec into the shell launcher.
+**LegacyLaunchRequest** — Describes the compatibility exec into the shell launcher.
 - **Relationships:** N:1 from `pair` direct mode and `pair-go launch` mode into one request builder; each mode only changes display/diagnostic wording and argv shape. Carries the selected `AssetRoot` and computes `<asset-root>/bin/pair-shell`.
 - **DRY rationale:** Keeps legacy shell handoff rules single-sourced while the actual zellij lifecycle remains shell-owned in this issue (ARCH-PURE).
 - **Future extensions:** Can be deleted once shell launch is replaced by native Go launch.
@@ -76,17 +76,17 @@
 - Create: `cmd/internal/entrypoint/mode.go`
 - Modify: `cmd/pair-go/main_test.go`
 
-- [ ] Add tests showing executable basename `pair` resolves to direct public launcher mode.
-- [ ] Add tests showing executable basename `pair-go` with `launch` still resolves to explicit launch handoff.
-- [ ] Add tests showing `pair-go` helper routes still dispatch without touching the shell launcher.
-- [ ] Add pure tests for asset-root resolution:
+- [x] Add tests showing executable basename `pair` resolves to direct public launcher mode.
+- [x] Add tests showing executable basename `pair-go` with `launch` still resolves to explicit launch handoff.
+- [x] Add tests showing `pair-go` helper routes still dispatch without touching the shell launcher.
+- [x] Add pure tests for asset-root resolution:
   - `PAIR_HOME=/repo` wins when `/repo/bin/pair-shell` exists.
   - executable `/repo/bin/pair` resolves sibling root `/repo` when `/repo/bin/pair-shell` exists.
   - copied executable `/home/me/.local/bin/pair` falls back to build-time default root `/repo` when sibling shell is absent and `/repo/bin/pair-shell` exists.
   - missing sibling and missing build-time root produces a diagnostic naming `pair-shell` and `PAIR_HOME`.
-- [ ] Run: `go test ./cmd/internal/entrypoint ./cmd/pair-go -count=1`
-- [ ] Implement `EntrypointMode`, `AssetRoot`, and shared legacy request construction.
-- [ ] Re-run: `go test ./cmd/internal/entrypoint ./cmd/pair-go -count=1`
+- [x] Run: `go test ./cmd/internal/entrypoint ./cmd/pair-go -count=1`
+- [x] Implement `EntrypointMode`, `AssetRoot`, and shared legacy request construction.
+- [x] Re-run: `go test ./cmd/internal/entrypoint ./cmd/pair-go -count=1`
 
 ### Task 2: Move shell launcher behind an internal compatibility name
 
@@ -97,13 +97,13 @@
 - Modify: `cmd/pair-go/main.go`
 - Modify: `bin/pair-dev`
 
-- [ ] Move the existing Bash launcher body to `bin/pair-shell`.
-- [ ] Update `.gitignore`: remove the `!bin/pair` tracked-script exception and add `!bin/pair-shell`; `bin/pair` stays ignored as generated Go build output.
-- [ ] Update Go direct `pair` mode to exec sibling `pair-shell` with argv[0] presented as `pair`.
-- [ ] Update `pair-go launch ...` to exec sibling `pair-shell` with the same argv compatibility as before.
-- [ ] Update `pair-dev` to export `PAIR_DEV=1` and exec sibling `pair` (the Go binary), not `pair-shell`, so dev mode exercises the public entrypoint.
-- [ ] Run: `bin/pair-go launch --help` after build and confirm it reaches the launcher help.
-- [ ] Run: `bin/pair --help` after build and confirm it reaches the same launcher help.
+- [x] Move the existing Bash launcher body to `bin/pair-shell`.
+- [x] Update `.gitignore`: remove the `!bin/pair` tracked-script exception and add `!bin/pair-shell`; `bin/pair` stays ignored as generated Go build output.
+- [x] Update Go direct `pair` mode to exec sibling `pair-shell` with argv[0] presented as `pair`.
+- [x] Update `pair-go launch ...` to exec sibling `pair-shell` with the same argv compatibility as before.
+- [x] Update `pair-dev` to export `PAIR_DEV=1` and exec sibling `pair` (the Go binary), not `pair-shell`, so dev mode exercises the public entrypoint.
+- [x] Run: `bin/pair-go launch --help` after build and confirm it reaches the launcher help.
+- [x] Run: `bin/pair --help` after build and confirm it reaches the same launcher help.
 
 ## Chunk 2: Build And Install Layout
 
@@ -113,13 +113,13 @@
 - Modify: `Makefile.local`
 - Modify: `tests/pair-go-install-layout-test.sh`
 
-- [ ] Update `GO_BINS` so `pair` is a Go-built binary and `pair-go` remains built from the same package.
-- [ ] Remove `pair` from `SHELL_BINS`; keep or explicitly drop `pair-dev` based on install behavior.
-- [ ] Add a specific `$(BIN_DIR)/pair` build rule using `go build -ldflags "-X main.defaultPairHome=$(CURDIR)" -o $@ ./cmd/pair-go`.
-- [ ] Keep `$(BIN_DIR)/pair-go` building from `./cmd/pair-go`; it may use the same `defaultPairHome` ldflag for copied local installs.
-- [ ] Update install-layout test: installed `pair` must be executable and not a symlink; installed `pair-go` remains executable; `pair-dev` may remain a symlink if still a dev wrapper.
-- [ ] Run: `make build`
-- [ ] Run: `make test-pair-go-install-layout`
+- [x] Update `GO_BINS` so `pair` is a Go-built binary and `pair-go` remains built from the same package.
+- [x] Remove `pair` from `SHELL_BINS`; keep or explicitly drop `pair-dev` based on install behavior.
+- [x] Add a specific `$(BIN_DIR)/pair` build rule using `go build -ldflags "-X main.defaultPairHome=$(CURDIR)" -o $@ ./cmd/pair-go`.
+- [x] Keep `$(BIN_DIR)/pair-go` building from `./cmd/pair-go`; it may use the same `defaultPairHome` ldflag for copied local installs.
+- [x] Update install-layout test: installed `pair` must be executable and not a symlink; installed `pair-go` remains executable; `pair-dev` may remain a symlink if still a dev wrapper.
+- [x] Run: `make build`
+- [x] Run: `make test-pair-go-install-layout`
 
 ### Task 4: Adjacent native asset install layout
 
@@ -128,12 +128,12 @@
 - Modify: `tests/pair-go-install-layout-test.sh`
 - Modify: `../homebrew-pair/Formula/pair.rb`
 
-- [ ] Keep `nvim/` and `zellij/` adjacent to `PAIR_HOME` for this issue; do not embed.
-- [ ] Local `make install` remains source-tree based for native assets: installed `pair` is copied to `~/.local/bin`, and when it has no sibling `pair-shell`, `AssetRoot` falls back to build-time `defaultPairHome=$(CURDIR)` to find the repo checkout assets.
-- [ ] Homebrew install remains `libexec`-adjacent: formula installs `bin/`, `nvim/`, and `zellij/` under `libexec`, then builds Go `pair`, `pair-go`, and required helper binaries into `libexec/bin` with `defaultPairHome=#{libexec}`.
-- [ ] Update formula comments and built-binary list so Homebrew surfaces `bin/pair` as the Go-built public command and retains `bin/pair-shell` only as an internal compatibility launcher.
-- [ ] Test that local installed `pair --help` reaches the shell help through the Go entrypoint.
-- [ ] Run: `make test-pair-go-install-layout`
+- [x] Keep `nvim/` and `zellij/` adjacent to `PAIR_HOME` for this issue; do not embed.
+- [x] Local `make install` remains source-tree based for native assets: installed `pair` is copied to `~/.local/bin`, and when it has no sibling `pair-shell`, `AssetRoot` falls back to build-time `defaultPairHome=$(CURDIR)` to find the repo checkout assets.
+- [x] Homebrew install remains `libexec`-adjacent: formula installs `bin/`, `nvim/`, and `zellij/` under `libexec`, then builds Go `pair`, `pair-go`, and required helper binaries into `libexec/bin` with `defaultPairHome=#{libexec}`.
+- [x] Update formula comments and built-binary list so Homebrew surfaces `bin/pair` as the Go-built public command and retains `bin/pair-shell` only as an internal compatibility launcher.
+- [x] Test that local installed `pair --help` reaches the shell help through the Go entrypoint.
+- [x] Run: `make test-pair-go-install-layout`
 
 ## Chunk 3: Compatibility Shim Inventory
 
@@ -146,11 +146,11 @@
 - Modify: `CHANGELOG.md` if the Homebrew/release note wording needs a packaging entry.
 - Modify: `../homebrew-pair/Formula/pair.rb`
 
-- [ ] Document `bin/pair-shell` as a retained compatibility launcher and explain why it is not obsolete yet.
-- [ ] Document `pair-dev` as retained dev-mode wrapper that runs the Go public `pair`.
-- [ ] Document legacy helper binaries retained because native zellij/nvim/shell callers still reference them.
-- [ ] Remove stale wording that says `pair-go launch` is the only Go-owned launch test surface; installed `pair` is now the public Go-owned entrypoint.
-- [ ] Update Homebrew wording: formula comments and README/CHANGELOG must say Homebrew installs a Go-built `pair` plus adjacent native assets under `libexec`.
+- [x] Document `bin/pair-shell` as a retained compatibility launcher and explain why it is not obsolete yet.
+- [x] Document `pair-dev` as retained dev-mode wrapper that runs the Go public `pair`.
+- [x] Document legacy helper binaries retained because native zellij/nvim/shell callers still reference them.
+- [x] Remove stale wording that says `pair-go launch` is the only Go-owned launch test surface; installed `pair` is now the public Go-owned entrypoint.
+- [x] Update Homebrew wording: formula comments and README/CHANGELOG must say Homebrew installs a Go-built `pair` plus adjacent native assets under `libexec`.
 
 ## Chunk 4: Verification And Closure
 
@@ -160,15 +160,29 @@
 - Modify: `workshop/issues/000079-go-packaging-consolidation.md`
 - Modify: `workshop/plans/000079-go-packaging-consolidation-plan.md`
 
-- [ ] Run focused Go tests: `go test ./cmd/internal/entrypoint ./cmd/pair-go -count=1`.
-- [ ] Run packaging tests: `make build && make test-pair-go-install-layout`.
-- [ ] Run an upgrade-layout test in `tests/pair-go-install-layout-test.sh`: seed `~/.local/bin/pair` as the old symlink-to-source-shell layout, run `make install`, then assert `~/.local/bin/pair` is now a regular executable Go binary, `bin/pair-shell` remains tracked/executable under the source root, `PAIR_HOME` override works, and default-root fallback lets installed `pair --help` reach the shell help.
-- [ ] Run a Homebrew formula dry-run/smoke if available: `brew test --formula ../homebrew-pair/Formula/pair.rb` or record the exact local blocker; at minimum run `ruby -c ../homebrew-pair/Formula/pair.rb`.
-- [ ] Run launcher smoke: `bin/pair --help`, `bin/pair-go launch --help`, `bin/pair-dev --help`.
-- [ ] Run broader impacted tests: `make test-dev-rebuild test-session-watch test-continue`.
-- [ ] If practical, run Linux smoke with the available local toolchain; otherwise record why it was not available.
-- [ ] Update issue checklist/log with verification evidence.
-- [ ] Update atlas/README and run stale-doc grep for old packaging statements.
+- [x] Run focused Go tests: `go test ./cmd/internal/entrypoint ./cmd/pair-go -count=1`.
+- [x] Run packaging tests: `make build && make test-pair-go-install-layout`.
+- [x] Run an upgrade-layout test in `tests/pair-go-install-layout-test.sh`: seed `~/.local/bin/pair` as the old symlink-to-source-shell layout, run `make install`, then assert `~/.local/bin/pair` is now a regular executable Go binary, `bin/pair-shell` remains tracked/executable under the source root, `PAIR_HOME` override works, and default-root fallback lets installed `pair --help` reach the shell help.
+- [x] Run a Homebrew formula dry-run/smoke if available: `brew test --formula ../homebrew-pair/Formula/pair.rb` or record the exact local blocker; at minimum run `ruby -c ../homebrew-pair/Formula/pair.rb`.
+- [x] Run launcher smoke: `bin/pair --help`, `bin/pair-go launch --help`, `bin/pair-dev --help`.
+- [x] Run broader impacted tests: `make test-dev-rebuild test-session-watch test-continue`.
+- [x] If practical, run Linux smoke with the available local toolchain; otherwise record why it was not available.
+- [x] Update issue checklist/log with verification evidence.
+- [x] Update atlas/README and run stale-doc grep for old packaging statements.
+
+Verification evidence captured 2026-06-30:
+`go test ./cmd/internal/entrypoint ./cmd/pair-go -count=1`; `make build`;
+`make test-pair-go-install-layout`; `bin/pair --help`; `bin/pair-go launch
+--help`; `bin/pair-dev --help`; `make test-dev-rebuild test-session-watch
+test-continue`; `go test ./... -count=1`; `ruby -c
+../homebrew-pair/Formula/pair.rb`; stale-doc grep for old #77 packaging
+wording. Homebrew tap evidence: sibling repo `../homebrew-pair` commit
+`3aeb2a6 pair: build Go public entrypoint` updates `Formula/pair.rb`.
+`brew test --formula ../homebrew-pair/Formula/pair.rb` is not
+supported by this Homebrew (`invalid option: --formula`), so formula validation
+is syntax-only unless tested through an installed tap. Linux smoke was not run
+because this local workspace is Darwin-only (`uname -s` => `Darwin`) and no
+Linux runner is configured.
 
 ## Implementation Notes
 
@@ -178,3 +192,11 @@
 - `ARCH-PURPOSE`: #79 is not complete if only docs change; installed `pair` must become the Go-owned public command.
 - `ARCH-DRY`: direct `pair` and `pair-go launch` must share one compatibility request builder.
 - `ARCH-PURE`: mode selection and request construction stay pure; filesystem/exec behavior stays in the `cmd/pair-go/main.go` runtime seam.
+
+## Revisions
+
+### 2026-06-30 — close-review REWORK traceability fixes
+
+- Corrected the Core Concepts name from planned `LegacyPairRequest` to implemented `LegacyLaunchRequest`.
+- Added exact Homebrew tap evidence: sibling repo `../homebrew-pair` commit `3aeb2a6 pair: build Go public entrypoint`.
+- Added standalone Make prerequisites for generated `bin/pair` on `test-cmux-ownership` and `test-continue`.

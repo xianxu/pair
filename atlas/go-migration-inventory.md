@@ -47,8 +47,8 @@ Priority is packaging impact first, then reliability/testability:
 
 | Artifact | Type | Callers | Runtime contract | Files/env | Disposition | Priority |
 |---|---|---|---|---|---|---|
-| `bin/pair` / `cmd/internal/launcher` / `cmd/internal/entrypoint` | Bash public launcher plus Go-owned launch handoff | user shell, `bin/pair-dev`, restart re-exec, tests, `pair-go launch` | `bin/pair` parses `pair [agent]`, `pair resume`, `pair continue`, `pair list`, `pair rename`, `--` agent args; starts/attaches zellij; exits nonzero on invalid create flow; long-running parent of zellij. `pair-go launch ...` (#77) resolves sibling `bin/pair` from the `pair-go` executable and execs it with `pair`-compatible argv/env. | `bin/pair` exports `PAIR_HOME`, `PAIR_DATA_DIR`, `PAIR_TAG`, `PAIR_AGENT`, `PAIR_AGENT_ARGS`; reads/writes many tag files under data dir; uses zellij, fzf, jq, nvim, make via dev hook. `cmd/internal/entrypoint` resolves the compatibility handoff; `cmd/internal/launcher` keeps the fakeable pure decision core from #75 for later native launch work. | Go handoff entrypoint with `bin/pair` retained as stable public launcher and compat target through #77; real zellij lifecycle, prompt UI, restart/quit cleanup, cmux ownership, dev rebuild, continuation, rename, config/session migration, and title poller remain shell-owned | P0 |
-| `bin/pair-dev` | Bash launcher shim | developer shell | Same argv as `pair`; exports `PAIR_DEV=1` then execs sibling `pair`. | Resolves symlinks; depends on `bin/pair` and `bin/lib/dev-rebuild.sh`. | compat-shim, likely stays as developer wrapper until Go entrypoint has dev mode | P1 |
+| `bin/pair` / `bin/pair-shell` / `cmd/internal/launcher` / `cmd/internal/entrypoint` | Go public entrypoint plus retained shell launcher | user shell, `bin/pair-dev`, restart re-exec, tests, `pair-go launch` | `bin/pair` is generated from `cmd/pair-go` and resolves `PAIR_HOME` / sibling root / build-time `defaultPairHome`, then execs `<asset-root>/bin/pair-shell` with `pair`-compatible argv/env. `bin/pair-shell` parses `pair [agent]`, `pair resume`, `pair continue`, `pair list`, `pair rename`, `--` agent args; starts/attaches zellij; exits nonzero on invalid create flow; long-running parent of zellij. `pair-go launch ...` shares the same compatibility handoff. | `bin/pair-shell` exports `PAIR_HOME`, `PAIR_DATA_DIR`, `PAIR_TAG`, `PAIR_AGENT`, `PAIR_AGENT_ARGS`; reads/writes many tag files under data dir; uses zellij, fzf, jq, nvim, make via dev hook. `cmd/internal/entrypoint` resolves invocation mode, asset root, and compatibility request; `cmd/internal/launcher` keeps the fakeable pure decision core from #75 for later native launch work. | Public entrypoint is Go-owned as of #79; `bin/pair-shell` is retained because real zellij lifecycle, prompt UI, restart/quit cleanup, cmux ownership, dev rebuild, continuation, rename, config/session migration, and title poller remain shell-owned | P0 |
+| `bin/pair-dev` | Bash launcher shim | developer shell | Same argv as `pair`; exports `PAIR_DEV=1` then execs sibling Go-built `pair`. | Resolves symlinks; depends on generated `bin/pair`, retained `bin/pair-shell`, and `bin/lib/dev-rebuild.sh`. | retained dev wrapper so developer launches exercise the public Go entrypoint | P1 |
 | `bin/lib/dev-rebuild.sh` | sourced shell helper | `bin/pair` | Function `dev_rebuild`; no-op unless `PAIR_DEV`; always returns 0. | Reads `PAIR_HOME`; runs `make -C "$PAIR_HOME" build`; stderr warnings. | shell-glue or Go launcher dev-mode helper | P1 |
 | `zellij/layouts/main.kdl` | zellij native asset | `bin/pair` via `zellij --new-session-with-layout` | Defines agent and draft panes; shell expands Pair env at pane start. | Calls `pair-wrap`; calls `nvim -u "$PAIR_HOME/nvim/init.lua"`; writes `pane-<tag>-<agent>.json`; writes draft nvim pid file. | native-asset, packaged adjacent/embedded | P0 |
 | `zellij/config.kdl` | zellij native asset | zellij session config from `bin/pair` | Global keybinds, copy command, scrollback buffer, pane frames. | Calls `copy-on-select.sh`, `pair-help`, `pair-scrollback-open`, `pair-changelog-open`; routes quit/restart/compact through nvim functions. | native-asset, packaged adjacent/embedded | P0 |
@@ -114,10 +114,14 @@ Nvim shell-outs and binary dependencies:
 
 Build/install callers:
 
-- `make build` builds `GO_BINS` into `bin/`.
-- `make install` copies `GO_BINS` to `~/.local/bin` and symlinks `SHELL_BINS`
-  (`pair`, `pair-dev`) beside them so installed `pair-go launch ...` can resolve
-  sibling `pair`.
+- `make build` builds `GO_BINS` into `bin/`; `pair` and `pair-go` are both built
+  from `cmd/pair-go` with `defaultPairHome=$(CURDIR)`.
+- `make install` copies `GO_BINS` to `~/.local/bin` and symlinks only retained
+  shell wrappers such as `pair-dev`. Installed `pair` is a regular Go binary;
+  if it has no sibling assets, it falls back to the build-time source root.
+- Homebrew installs `bin/`, `nvim/`, and `zellij/` under `libexec`, then builds
+  Go `pair`, `pair-go`, and required runtime helpers into `libexec/bin` with
+  `defaultPairHome=#{libexec}`.
 - `pair-dev` relies on `make build`, then zellij's PATH lookup resolves fresh
   repo `bin/` binaries.
 
@@ -132,13 +136,14 @@ Build/install callers:
   binary names remain live for shell/Lua callers. `pair slug` remains a later
   candidate.
 - #77 made `pair-go launch ...` a meaningful Go-owned compatibility handoff to
-  `bin/pair`, with argv/env preserved and missing-launcher diagnostics. The
-  stable public `pair` script remains unchanged for this migration window.
+  `bin/pair`, with argv/env preserved and missing-launcher diagnostics.
 - #78 ported the session-id watcher to `cmd/pair-session-watch` with
   `bin/pair-session-watch.sh` retained as a shim. `pair-title.sh` remains the
   next stateful shell candidate because it owns a separate UI title-poller
   surface.
-- #79 owns whether `nvim/` and `zellij/` are embedded or installed adjacent.
+- #79 made public `pair` a Go-built entrypoint, renamed the shell launcher to
+  `bin/pair-shell`, and chose adjacent `nvim/` / `zellij/` assets for local and
+  Homebrew installs.
 
 ## Coverage Ledger
 
