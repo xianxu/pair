@@ -37,12 +37,12 @@ func Families() []CommandFamily {
 		{Name: "launch", Summary: "session lifecycle and public pair launcher flow", Status: "handoff"},
 		{Name: "context", Summary: "agent pane context meter", Status: "implemented"},
 		{Name: "scrollback-render", Summary: "raw PTY capture to ANSI scrollback", Status: "implemented"},
-		{Name: "wrap", Summary: "PTY proxy around a TUI agent", Status: "planned", Streaming: true},
+		{Name: "wrap", Summary: "PTY proxy around a TUI agent", Status: "implemented", Streaming: true},
 		{Name: "slug", Summary: "session orientation slug generation", Status: "implemented"},
 		{Name: "changelog", Summary: "TTY transcript to distilled change log", Status: "implemented", Streaming: true},
 		{Name: "continuation", Summary: "continuation datatype writer", Status: "implemented", Streaming: true},
 		{Name: "session-watch", Summary: "async codex/agy session-id discovery", Status: "implemented", Streaming: true},
-		{Name: "scribe", Summary: "PTY logging wrapper", Status: "planned", Streaming: true},
+		{Name: "scribe", Summary: "PTY logging wrapper", Status: "implemented", Streaming: true},
 	}
 }
 

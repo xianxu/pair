@@ -240,8 +240,9 @@ test-changelog: $(BIN_DIR)/pair-changelog $(BIN_DIR)/pair-scrollback-render
 # pair-scribe — Go-based pty wrapper with SIGUSR1/SIGUSR2 pause/resume
 # of the typescript log. Replaces script(1) at the top of the user's
 # shell, so preexec can stop the log from filling with TUI redraw bytes
-# (claude, nvim, etc). See cmd/pair-scribe/README.md for the full why.
-$(BIN_DIR)/pair-scribe: cmd/pair-scribe/main.go go.mod
+# (claude, nvim, etc). Thin shim over cmd/internal/scribecmd (shared with
+# the `pair scribe` route, #96). See cmd/pair-scribe/README.md for the why.
+$(BIN_DIR)/pair-scribe: cmd/pair-scribe/main.go cmd/internal/scribecmd/scribecmd.go go.mod
 	go build -o $@ ./cmd/pair-scribe
 
 # pair-scrollback-render — replays a pair-wrap raw PTY capture through
@@ -253,8 +254,9 @@ $(BIN_DIR)/pair-scrollback-render: cmd/pair-scrollback-render/main.go cmd/intern
 # pair-wrap — transparent PTY proxy around a TUI coding agent: forwards
 # stdio, tees scrollback log, extracts colored spans for nvim autocomplete,
 # detects OSC/BEL and forwards as OSC 9 to the recorded outer-TTY, handles
-# SIGUSR1 image-paste capture window.
-$(BIN_DIR)/pair-wrap: cmd/pair-wrap/main.go go.mod
+# SIGUSR1 image-paste capture window. Thin shim over cmd/internal/wrapcmd
+# (shared with the `pair wrap` streaming route, #96).
+$(BIN_DIR)/pair-wrap: cmd/pair-wrap/main.go cmd/internal/wrapcmd/wrap.go cmd/internal/adapt/adapt.go go.mod
 	go build -o $@ ./cmd/pair-wrap
 
 $(BIN_DIR)/pair-slug: cmd/pair-slug/main.go cmd/internal/slugcmd/slugcmd.go cmd/internal/slugcmd/slug.go cmd/internal/model/model.go cmd/internal/transcript/transcript.go cmd/internal/adapt/adapt.go go.mod
@@ -281,7 +283,7 @@ $(BIN_DIR)/pair-changelog: cmd/pair-changelog/main.go cmd/internal/changelogcmd/
 $(BIN_DIR)/pair-continuation: cmd/pair-continuation/main.go cmd/internal/continuationcmd/continuationcmd.go cmd/internal/continuationcmd/continuation.go cmd/internal/continuationcmd/git.go go.mod
 	go build -o $@ ./cmd/pair-continuation
 
-PAIR_GO_SRCS := cmd/pair-go/main.go cmd/internal/entrypoint/asset_root.go cmd/internal/entrypoint/launch.go cmd/internal/entrypoint/mode.go cmd/internal/dispatcher/dispatcher.go cmd/internal/launcher/args.go cmd/internal/launcher/datadir.go cmd/internal/launcher/decision.go cmd/internal/launcher/history.go cmd/internal/launcher/run.go cmd/internal/launcher/session.go cmd/internal/launcher/tag.go cmd/internal/launcher/zellij.go cmd/internal/contextcmd/contextcmd.go cmd/internal/scrollbackcmd/scrollbackcmd.go cmd/internal/slugcmd/slugcmd.go cmd/internal/slugcmd/slug.go cmd/internal/changelogcmd/changelogcmd.go cmd/internal/changelogcmd/distill.go cmd/internal/changelogcmd/prompt.go cmd/internal/continuationcmd/continuationcmd.go cmd/internal/continuationcmd/continuation.go cmd/internal/continuationcmd/git.go cmd/internal/sessionwatch/sessionwatch.go cmd/internal/sessionwatch/run.go cmd/internal/sessionwatch/runcli.go cmd/internal/sessionwatch/runtime.go cmd/internal/model/model.go cmd/internal/transcript/transcript.go cmd/internal/adapt/adapt.go cmd/internal/runtimebundle/manifest.go cmd/internal/runtimebundle/plan.go cmd/internal/runtimebundle/cleanup.go cmd/internal/runtimebundle/store.go cmd/internal/runtimebundle/embed.go $(RUNTIMEBUNDLE_ASSETS) go.mod
+PAIR_GO_SRCS := cmd/pair-go/main.go cmd/internal/entrypoint/asset_root.go cmd/internal/entrypoint/launch.go cmd/internal/entrypoint/mode.go cmd/internal/dispatcher/dispatcher.go cmd/internal/launcher/args.go cmd/internal/launcher/datadir.go cmd/internal/launcher/decision.go cmd/internal/launcher/history.go cmd/internal/launcher/run.go cmd/internal/launcher/session.go cmd/internal/launcher/tag.go cmd/internal/launcher/zellij.go cmd/internal/contextcmd/contextcmd.go cmd/internal/scrollbackcmd/scrollbackcmd.go cmd/internal/slugcmd/slugcmd.go cmd/internal/slugcmd/slug.go cmd/internal/wrapcmd/wrap.go cmd/internal/scribecmd/scribecmd.go cmd/internal/changelogcmd/changelogcmd.go cmd/internal/changelogcmd/distill.go cmd/internal/changelogcmd/prompt.go cmd/internal/continuationcmd/continuationcmd.go cmd/internal/continuationcmd/continuation.go cmd/internal/continuationcmd/git.go cmd/internal/sessionwatch/sessionwatch.go cmd/internal/sessionwatch/run.go cmd/internal/sessionwatch/runcli.go cmd/internal/sessionwatch/runtime.go cmd/internal/model/model.go cmd/internal/transcript/transcript.go cmd/internal/adapt/adapt.go cmd/internal/runtimebundle/manifest.go cmd/internal/runtimebundle/plan.go cmd/internal/runtimebundle/cleanup.go cmd/internal/runtimebundle/store.go cmd/internal/runtimebundle/embed.go $(RUNTIMEBUNDLE_ASSETS) go.mod
 
 # pair — public Go-owned entrypoint. It execs bin/pair-shell for the current
 # shell-owned zellij lifecycle; source/Homebrew builds can inject

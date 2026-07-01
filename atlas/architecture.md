@@ -94,8 +94,12 @@ Two new architectural surfaces landed with #92 M1:
   `scrollback-render`, `slug`) use the buffered `Dispatch(args) → Result` path.
   Routes needing real stdio — `changelog` (live per-batch stderr for the Alt+l
   spinner), `continuation` (reads the body from stdin), `session-watch`
-  (long-running) — use `cmd/pair-go`'s `runStreamingSubcommand` seam, which hands
-  the runner real `os.Stdin/Stdout/Stderr`. `Families().Streaming` marks which.
+  (long-running), and the interactive PTY proxies `wrap` / `scribe` (#96, raw
+  terminal for the life of a session) — use `cmd/pair-go`'s
+  `runStreamingSubcommand` seam, which hands the runner real
+  `os.Stdin/Stdout/Stderr`. `Families().Streaming` marks which. The proxies keep
+  standalone shims (`bin/pair-wrap` for the KDL PATH-exec, `bin/pair-scribe` for
+  the user's `~/.zshrc`) that call the same `wrapcmd.Run` / `scribecmd.Run`.
 
 Pair-owned call-sites were repointed to `pair <sub>` in #92 M2:
 `bin/pair-title.sh` (`pair context`), `bin/pair-changelog-open` and
@@ -244,7 +248,7 @@ Alt+x leaves the draft, queue, and history intact — the next session resumes t
 
      **Stdin raw mode.** The wrapper switches its stdin (zellij's pane PTY) into termios raw mode for the duration. Without this the kernel's line discipline does local echo + canonical buffering on the bytes flowing toward the wrapped TUI, which double-echoes keystrokes and corrupts terminal-response sequences. Saved/restored in a `finally` block.
 
-     **Stdin Enter remap (per-agent).** `sendKeymapByAgent` (`cmd/pair-wrap/main.go`) translates the user's Enter / Alt+Enter to per-agent send/newline bytes so the convention matches pair's nvim draft pane (Enter = newline, Alt+Enter = send). For `claude` the user's plain Enter becomes `\<CR>` (claude's portable "insert newline" sequence); Alt+Enter becomes a bare `\r` (send). For Codex / agy, pair sends LF for plain Enter (their newline gesture) and CR for Alt+Enter (send) — Codex reads a lone `\r` as the Enter key (submit / picker confirm), so the submit chord must collapse to `\r`, not a modified `ESC CR`. The same keymap carries `altBS`: Alt+Backspace (legacy `\x1b\x7f` or KKP `\x1b[127;3u`, the same two-protocol shape as Alt+Enter) rewrites to **Ctrl+U** (`0x15`, kill-to-line-start) for every agent — so Alt+Delete in the agent pane matches the agent's Cmd+Delete and the draft pane's Alt+Delete. A lone `0x7f` (plain Backspace) isn't ESC-prefixed, so it passes through untouched. Opt out of the whole remap with `PAIR_WRAP_REMAP_RETURN=0`.
+     **Stdin Enter remap (per-agent).** `sendKeymapByAgent` (`cmd/internal/wrapcmd/wrap.go`) translates the user's Enter / Alt+Enter to per-agent send/newline bytes so the convention matches pair's nvim draft pane (Enter = newline, Alt+Enter = send). For `claude` the user's plain Enter becomes `\<CR>` (claude's portable "insert newline" sequence); Alt+Enter becomes a bare `\r` (send). For Codex / agy, pair sends LF for plain Enter (their newline gesture) and CR for Alt+Enter (send) — Codex reads a lone `\r` as the Enter key (submit / picker confirm), so the submit chord must collapse to `\r`, not a modified `ESC CR`. The same keymap carries `altBS`: Alt+Backspace (legacy `\x1b\x7f` or KKP `\x1b[127;3u`, the same two-protocol shape as Alt+Enter) rewrites to **Ctrl+U** (`0x15`, kill-to-line-start) for every agent — so Alt+Delete in the agent pane matches the agent's Cmd+Delete and the draft pane's Alt+Delete. A lone `0x7f` (plain Backspace) isn't ESC-prefixed, so it passes through untouched. Opt out of the whole remap with `PAIR_WRAP_REMAP_RETURN=0`.
 
      **Stdout filtering and batching (Codex).** Codex inline mode emits DEC synchronized-output markers (`ESC[?2026h` / `ESC[?2026l`) around frequent redraw batches. It can also enable terminal focus-event mode (`ESC[?1004h`) even though pair/zellij do not use focus events for the agent pane. `pair-wrap` strips those markers from the stdout stream sent to zellij, because zellij scrollback/mouse scrolling can behave poorly while a pane is in synchronized-output or extra terminal-event modes during generation. The filtered, user-visible stdout stream is then queued and flushed to zellij on a 100ms cadence (plus EOF) to lower redraw pressure from dense Codex repaint bursts (#85). The raw scrollback log remains immediate and unfiltered so forensic replay still captures the agent's original PTY stream and offset-keyed resize/time events stay aligned.
 
@@ -729,7 +733,7 @@ Two launch modes resolve this:
 
 ## Adjacent: `pair-scribe`
 
-`cmd/pair-scribe` is a `script(1)` replacement that lives in the pair repo for build-system convenience but is not part of pair's runtime — it's user shell tooling, typically wired at the top of `~/.zshrc` to swap for `script -q -F`. The user's preexec/precmd hooks send `SIGUSR1`/`SIGUSR2` to pause/resume the on-disk typescript around commands whose output (e.g. TUI redraws) shouldn't be captured, enabling a clean "capture last command output" flow that pair can read back from `$_ZSH_SCRIPT_LOG`. Lives at `~/.local/bin/pair-scribe` after `make install`. Full design notes and the zshrc snippet: `cmd/pair-scribe/README.md`.
+`scribe` is a `script(1)` replacement that lives in the pair repo for build-system convenience but is not part of pair's runtime — it's user shell tooling, typically wired at the top of `~/.zshrc` to swap for `script -q -F`. The user's preexec/precmd hooks send `SIGUSR1`/`SIGUSR2` to pause/resume the on-disk typescript around commands whose output (e.g. TUI redraws) shouldn't be captured, enabling a clean "capture last command output" flow that pair can read back from `$_ZSH_SCRIPT_LOG`. The logic lives in `cmd/internal/scribecmd` (`scribecmd.Run`) and is reachable two ways (#96): the `pair scribe` dispatcher route (streaming seam) and the standalone `cmd/pair-scribe` thin shim, which stays installed at `~/.local/bin/pair-scribe` after `make install` so the existing `~/.zshrc` `exec` line keeps working. Because it's shell tooling, not runtime, it is deliberately **not** in the runtime bundle. Full design notes and the zshrc snippet: `cmd/pair-scribe/README.md`.
 
 ## Design intent
 

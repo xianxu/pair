@@ -13,13 +13,14 @@ func TestDispatchNamesDeriveFromImplementedStatus(t *testing.T) {
 	// keys off DispatchNames(), so if one of these were accidentally left
 	// `planned`, `pair changelog` would fall through to the launcher (start a
 	// session) with no other test catching it.
-	for _, want := range []string{"context", "scrollback-render", "slug", "changelog", "continuation", "session-watch"} {
+	for _, want := range []string{"context", "scrollback-render", "wrap", "slug", "changelog", "continuation", "session-watch", "scribe"} {
 		if !containsStr(names, want) {
 			t.Fatalf("DispatchNames() = %v, missing implemented %q", names, want)
 		}
 	}
-	// Planned + handoff families are NOT routable subcommands.
-	for _, absent := range []string{"launch", "wrap", "scribe"} {
+	// The handoff family (launch) is NOT a routable subcommand. wrap + scribe
+	// became implemented streaming routes in #96 (PTY proxies on #92's seam).
+	for _, absent := range []string{"launch"} {
 		if containsStr(names, absent) {
 			t.Fatalf("DispatchNames() = %v, must not contain non-implemented %q", names, absent)
 		}
@@ -27,7 +28,7 @@ func TestDispatchNamesDeriveFromImplementedStatus(t *testing.T) {
 }
 
 func TestStreamingFlags(t *testing.T) {
-	for _, s := range []string{"changelog", "continuation", "session-watch"} {
+	for _, s := range []string{"wrap", "scribe", "changelog", "continuation", "session-watch"} {
 		if !IsStreaming(s) {
 			t.Errorf("IsStreaming(%q) = false, want true (stdin/live-stderr/long-running)", s)
 		}
@@ -106,17 +107,22 @@ func TestDispatchVersionIsDevelopmentSkeletonMetadata(t *testing.T) {
 	}
 }
 
-func TestDispatchPlannedCommandReturnsUnsupported(t *testing.T) {
-	res := Dispatch([]string{"wrap"})
-	if res.ExitCode != 2 {
-		t.Fatalf("ExitCode = %d, want 2", res.ExitCode)
-	}
-	if res.Stdout != "" {
-		t.Fatalf("Stdout = %q, want empty", res.Stdout)
-	}
-	for _, want := range []string{"wrap", "planned", "not implemented", "pair-go help"} {
-		if !strings.Contains(res.Stderr, want) {
-			t.Fatalf("Stderr missing %q:\n%s", want, res.Stderr)
+// wrap is an implemented STREAMING subcommand: the buffered Dispatch path must
+// refuse it (real stdio is required — it's routed via cmd/pair-go's streaming
+// seam, not Dispatch). scribe behaves the same way.
+func TestDispatchStreamingCommandRefusesBufferedPath(t *testing.T) {
+	for _, name := range []string{"wrap", "scribe"} {
+		res := Dispatch([]string{name})
+		if res.ExitCode != 2 {
+			t.Fatalf("%s: ExitCode = %d, want 2", name, res.ExitCode)
+		}
+		if res.Stdout != "" {
+			t.Fatalf("%s: Stdout = %q, want empty", name, res.Stdout)
+		}
+		for _, want := range []string{name, "streaming subcommand", "streaming seam"} {
+			if !strings.Contains(res.Stderr, want) {
+				t.Fatalf("%s: Stderr missing %q:\n%s", name, want, res.Stderr)
+			}
 		}
 	}
 }

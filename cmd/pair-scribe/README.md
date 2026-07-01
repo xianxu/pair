@@ -34,6 +34,11 @@ Same shape as `script -q -F LOG CMD`:
 
     pair-scribe -log PATH -- CMD [ARGS...]
 
+The logic now lives in `cmd/internal/scribecmd` and is also reachable as the
+`pair scribe` dispatcher route (#96) — `pair scribe -log PATH -- CMD` is
+equivalent. This `pair-scribe` binary is a thin shim over it, kept installed at
+`~/.local/bin/pair-scribe` so the zshrc wiring below is unchanged.
+
 In `~/.zshrc`, replace
 
     exec /usr/bin/script -q -F "$_ZSH_SCRIPT_LOG" /bin/zsh
