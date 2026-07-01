@@ -1,11 +1,12 @@
 ---
 id: 000096
-status: open
+status: working
 deps: [000092]
 github_issue:
 created: 2026-07-01
 updated: 2026-07-01
 estimate_hours:
+started: 2026-07-01T13:38:04-07:00
 ---
 
 # route pair-wrap and pair-scribe through dispatcher
