@@ -1,12 +1,13 @@
 ---
 id: 000096
-status: working
+status: done
 deps: [000092]
 github_issue:
 created: 2026-07-01
 updated: 2026-07-01
 estimate_hours: 3.25
 started: 2026-07-01T13:38:04-07:00
+actual_hours: 1.25
 ---
 
 # route pair-wrap and pair-scribe through dispatcher
@@ -121,6 +122,17 @@ tooling per the atlas — see Log), which is more work than deleting it.
 ## Log
 
 ### 2026-07-01
+- 2026-07-01: closed — pair wrap + pair scribe route through #92 streaming seam to wrapcmd.Run/scribecmd.Run; route-equivalence tests prove the dispatch route matches standalone bin/pair-wrap + bin/pair-scribe byte-for-byte (code+stdout+stderr); PTY child-exit tests confirm exit-code propagation through a real pty; all 14 moved pair-wrap tests pass unchanged; full make test green (sandbox-off, ptys ran for real); runtimebundle drift-check clean; scribe shim keeps ~/.zshrc wiring intact.; review verdict: SHIP
+
+**Byte-for-byte caveat (close-review Minor #4-a).** One intentional observable
+delta: the old `run()` called `os.Exit(childExit)` *inside* the function on a
+nonzero agent exit, which **skipped** the `defer` block (tty restore, scrollback
+/events/wrap-events/adapt FD close+flush, `pair-wrap-pid-<tag>`/`agent-pid-<tag>`
+removal). The new `return code, nil` lets those defers run on **both** exit
+paths. Exit codes are unchanged; the extra cleanup is benign-to-beneficial (the
+old skip was a latent inconsistency, and `bin/pair-shell` also sweeps the
+pidfiles). Post-review follow-up (bundled into the close commit): dropped the
+dead `proxy.stderr` field (Run's `stderr` param carries the error print).
 
 Carved out of #92. pair-wrap/pair-scribe are interactive PTY entrypoints, not
 internal finite calls, so they need the streaming dispatch route rather than the

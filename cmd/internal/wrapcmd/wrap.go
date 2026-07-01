@@ -197,11 +197,12 @@ type proxy struct {
 	// and pty.GetsizeFull) are non-nil and behavior is identical to the
 	// pre-extraction binary. A non-file reader/writer (a test) leaves the
 	// *File nil and the terminal ops are skipped (already isTTY-guarded).
+	// (stderr is not a field: Run() owns the only stderr write — the fatal
+	// "pair-wrap: %v" line — via its own parameter.)
 	stdin      io.Reader
 	stdinFile  *os.File
 	stdout     io.Writer
 	stdoutFile *os.File
-	stderr     io.Writer
 
 	// CLI / config
 	scrollbackLog  string
@@ -1781,7 +1782,7 @@ func (p *proxy) writeStartupBanner() {
 // name). The returned int is the process exit code: the wrapped child's exit
 // code on success, or 1 on a startup/fatal error (printed to stderr).
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	code, err := run(args, stdin, stdout, stderr)
+	code, err := run(args, stdin, stdout)
 	if err != nil {
 		fmt.Fprintf(stderr, "pair-wrap: %v\n", err)
 		return 1
@@ -1789,7 +1790,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return code
 }
 
-func run(args []string, stdin io.Reader, stdout, stderr io.Writer) (int, error) {
+func run(args []string, stdin io.Reader, stdout io.Writer) (int, error) {
 	stdinFile, _ := stdin.(*os.File)
 	stdoutFile, _ := stdout.(*os.File)
 	p := &proxy{
@@ -1797,7 +1798,6 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) (int, error) 
 		stdinFile:     stdinFile,
 		stdout:        stdout,
 		stdoutFile:    stdoutFile,
-		stderr:        stderr,
 		spans:         make(map[string]*spanEntry),
 		spanOrder:     list.New(),
 		idleS:         envDuration("PAIR_WRAP_IDLE_S", defaultIdleS),
