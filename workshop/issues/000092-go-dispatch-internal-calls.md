@@ -5,7 +5,7 @@ deps: [000090]
 github_issue:
 created: 2026-07-01
 updated: 2026-07-01
-estimate_hours:
+estimate_hours: 6.52
 started: 2026-07-01T09:40:38-07:00
 ---
 
@@ -71,15 +71,47 @@ Architecture: `ARCH-DRY` (one implementation behind dispatch, shims not forks),
 
 ## Plan
 
-- [ ] Inventory the helper binaries + their internal runner packages and every
-      Pair-owned call-site (grep nvim Lua, shell, hooks) that invokes them by name.
-- [ ] Route each remaining helper through the dispatcher (`pair <subcommand>`),
-      reusing the internal runner.
-- [ ] Reduce `bin/pair-<name>` to shims (re-exec) or drop where safe; update the
-      runtime manifest.
-- [ ] Repoint Pair-owned generated call-sites to the dispatcher form.
-- [ ] Tests: dispatch parsing, per-helper contract parity, unsupported-subcommand
-      errors; run the shell/nvim integration suites.
+Two merge-safe review boundaries. Detailed steps:
+`workshop/plans/000092-go-dispatch-internal-calls-plan.md`.
+
+- [ ] M1 — dispatcher reachability + runner consolidation (backward-compatible):
+      `Families()` routing metadata + `session-watch` entry; entrypoint peel-off
+      so `pair <sub>` dispatches; extract `slugcmd`/`changelogcmd`/`continuationcmd`
+      runners + thin shims; buffered route (`slug`) + streaming seam
+      (`changelog`/`continuation`/`session-watch`); dispatch/classification/parity
+      tests.
+- [ ] M2 — repoint Pair-owned call-sites (shadow-sweep): `pair-title.sh`,
+      `pair-changelog-open`, `pair-scrollback-open`, `nvim/scrollback.lua`,
+      `pair-wrap` turn-end spawn → `pair <sub>`; regenerate the runtime bundle;
+      full-suite verification.
+
+## Estimate
+
+Produced via `estimate-logic-v3.1` primitives (Method A), same lineage as #90.
+`sdlc estimate-source` reports the calibration source as stale, so the number is
+provisional but uses the required method. The four `smaller-go-module` items are:
+three runner extractions (`slugcmd`, `changelogcmd`, `continuationcmd` — refactors
+of existing Go: move code + `Run()` wrapper + test relocation) plus the net-new
+dispatcher plumbing (`Families()` routing metadata, the `ClassifyInvocation`
+peel-off, and the `runStreamingSubcommand` streaming seam), which is genuinely new
+abstraction rather than relocation. `session-watch`'s runner already exists, so it
+adds only a route (folded into the plumbing item).
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.20 impl=0.08
+item: smaller-go-module design=0.35 impl=0.48
+item: smaller-go-module design=0.35 impl=0.48
+item: smaller-go-module design=0.35 impl=0.48
+item: smaller-go-module design=0.35 impl=0.48
+item: cross-cutting-refactor design=0.80 impl=1.12
+item: atlas-docs design=0.25 impl=0.20
+item: milestone-review design=0.00 impl=0.20
+item: milestone-review design=0.00 impl=0.20
+design-buffer: 0.15
+total: 6.52
+```
 
 ## Log
 
