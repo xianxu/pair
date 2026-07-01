@@ -201,12 +201,20 @@ pair -h, --help                  # show full help
 ```
 
 The installed `pair` command is Go-owned. For this migration window it resolves
-the adjacent Pair asset root and hands off to `bin/pair-shell`, the retained
-shell launcher that still owns the zellij lifecycle. `pair-go launch ...` remains
-the explicit development dispatcher path and accepts the same arguments after
-`launch` that `pair` accepts directly. In a dev shell sourced from
-`../ariadne/construct/dev-aliases.sh`, `pair` and `pair-go` rebuild from
-`cmd/pair-go` automatically before running; no `pair-go-dev` command is needed.
+the Pair asset root and hands off to `bin/pair-shell`, the retained shell
+launcher that still owns the zellij lifecycle. Source and Homebrew installs use
+their adjacent asset roots. A copied standalone `pair` binary with no adjacent
+or build-time source root extracts its embedded Pair-owned runtime assets to
+`${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}/runtime/<digest>/pair-home`
+and runs with `PAIR_HOME` pointed there. External tools such as `zellij`,
+`nvim`, `fzf`, `jq`, clipboard tools, and agent CLIs are still installed
+separately.
+
+`pair-go launch ...` remains the explicit development dispatcher path and
+accepts the same arguments after `launch` that `pair` accepts directly. In a dev
+shell sourced from `../ariadne/construct/dev-aliases.sh`, `pair` and `pair-go`
+rebuild from `cmd/pair-go` automatically before running; no `pair-go-dev`
+command is needed.
 
 Use `--` to separate pair's positional from agent flags. Without it, pair only takes `<agent>` as a positional and everything else is rejected.
 

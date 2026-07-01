@@ -57,6 +57,24 @@ func TestResolveAssetRootFallsBackToDefaultPairHome(t *testing.T) {
 	}
 }
 
+func TestResolveAssetRootFallsBackToEmbeddedRootAfterAdjacentRoots(t *testing.T) {
+	root, err := ResolveAssetRoot(AssetRootInput{
+		Executable:      "/home/me/.local/bin/pair",
+		DefaultPairHome: "/default/root",
+		EmbeddedRoot:    "/data/pair/runtime/abc/pair-home",
+		PairShellExists: existingRoots("/data/pair/runtime/abc/pair-home"),
+	})
+	if err != nil {
+		t.Fatalf("ResolveAssetRoot error = %v", err)
+	}
+	if root.Root != "/data/pair/runtime/abc/pair-home" {
+		t.Fatalf("Root = %q, want embedded root", root.Root)
+	}
+	if root.Source != "embedded runtime" {
+		t.Fatalf("Source = %q, want embedded runtime", root.Source)
+	}
+}
+
 func TestResolveAssetRootReportsMissingPairShellAndPairHome(t *testing.T) {
 	_, err := ResolveAssetRoot(AssetRootInput{
 		Executable:      "/home/me/.local/bin/pair",

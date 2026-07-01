@@ -7,10 +7,13 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/xianxu/pair/cmd/internal/dispatcher"
 	"github.com/xianxu/pair/cmd/internal/entrypoint"
+	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/runtimebundle"
 )
 
 var defaultPairHome string
@@ -29,6 +32,7 @@ type legacyRuntime interface {
 	DefaultPairHome() string
 	Stat(path string) error
 	Environ() []string
+	EmbeddedAssetRoot() (string, error)
 	Exec(label string, path string, argv []string, env []string) int
 }
 
@@ -64,11 +68,28 @@ func runLegacyLaunch(label string, executable string, args []string, stderr io.W
 		},
 	})
 	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "%s: %v; run make build or make install, or source ../ariadne/construct/dev-aliases.sh in a dev shell\n", label, err)
-		return 1
+		embeddedRoot, embeddedErr := rt.EmbeddedAssetRoot()
+		if embeddedErr == nil && embeddedRoot != "" {
+			root, err = entrypoint.ResolveAssetRoot(entrypoint.AssetRootInput{
+				PairHome:        rt.PairHome(),
+				Executable:      executable,
+				DefaultPairHome: rt.DefaultPairHome(),
+				EmbeddedRoot:    embeddedRoot,
+				PairShellExists: func(root string) bool {
+					return rt.Stat(entrypoint.PairShellPath(root)) == nil
+				},
+			})
+		}
+		if err != nil {
+			if embeddedErr != nil {
+				_, _ = fmt.Fprintf(stderr, "%s: embedded runtime extraction failed: %v\n", label, embeddedErr)
+			}
+			_, _ = fmt.Fprintf(stderr, "%s: %v; run make build or make install, or source ../ariadne/construct/dev-aliases.sh in a dev shell\n", label, err)
+			return 1
+		}
 	}
 	req := entrypoint.ResolveLegacyLaunch(root, args)
-	return rt.Exec(label, req.Path, req.Argv, rt.Environ())
+	return rt.Exec(label, req.Path, req.Argv, withEnv(rt.Environ(), "PAIR_HOME", root.Root))
 }
 
 type osLegacyRuntime struct{}
@@ -101,6 +122,27 @@ func (osLegacyRuntime) Environ() []string {
 	return os.Environ()
 }
 
+func (osLegacyRuntime) EmbeddedAssetRoot() (string, error) {
+	dataDir := runtimeDataDir(os.Getenv("PAIR_DATA_DIR"), os.Getenv("HOME"), os.Getenv("XDG_DATA_HOME"))
+	res, err := runtimebundle.Extract(runtimebundle.StoreInput{
+		StoreRoot: filepath.Join(dataDir, "runtime"),
+		Manifest:  runtimebundle.EmbeddedManifest(),
+		ReadAsset: runtimebundle.EmbeddedAsset,
+		Keep:      2,
+	})
+	if err != nil {
+		return "", err
+	}
+	return res.PairHome, nil
+}
+
+func runtimeDataDir(pairDataDir, home, xdgDataHome string) string {
+	if pairDataDir != "" {
+		return pairDataDir
+	}
+	return launcher.ResolveDataDir(home, xdgDataHome)
+}
+
 func (osLegacyRuntime) Exec(label string, path string, argv []string, env []string) int {
 	if err := syscall.Exec(path, argv, env); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "%s: exec %s failed: %v\n", label, path, err)
@@ -117,4 +159,24 @@ func writeResult(res dispatcher.Result, stdout, stderr io.Writer) int {
 		_, _ = io.WriteString(stderr, res.Stderr)
 	}
 	return res.ExitCode
+}
+
+func withEnv(env []string, key, value string) []string {
+	prefix := key + "="
+	out := make([]string, 0, len(env)+1)
+	replaced := false
+	for _, entry := range env {
+		if strings.HasPrefix(entry, prefix) {
+			if !replaced {
+				out = append(out, prefix+value)
+				replaced = true
+			}
+			continue
+		}
+		out = append(out, entry)
+	}
+	if !replaced {
+		out = append(out, prefix+value)
+	}
+	return out
 }

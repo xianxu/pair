@@ -1,7 +1,7 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
-.PHONY: build install pair pair-scribe pair-scrollback-render pair-wrap pair-slug pair-changelog pair-context pair-session-watch pair-go test test-race test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-emitter-health test-session-watch test-continue test-changelog test-copy-on-select test-pair-title test-cmux-ownership test-zellij-trace
+.PHONY: build install pair pair-scribe pair-scrollback-render pair-wrap pair-slug pair-changelog pair-context pair-session-watch pair-go runtimebundle-generate runtimebundle-drift-check test-runtimebundle test test-race test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-emitter-health test-session-watch test-continue test-changelog test-copy-on-select test-pair-title test-cmux-ownership test-zellij-trace
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
 # and ships with the `pair-` prefix so it doesn't collide with anything
@@ -29,6 +29,8 @@ INSTALL_DIR := $(HOME)/.local/bin
 GO_BINS     := pair pair-scribe pair-scrollback-render pair-wrap pair-slug pair-continuation pair-changelog pair-context pair-session-watch pair-go
 SHELL_BINS  := pair-dev
 PAIR_HOME_LDFLAGS := -X main.defaultPairHome=$(CURDIR)
+RUNTIMEBUNDLE_HELPERS := pair-scrollback-render pair-wrap pair-slug pair-continuation pair-changelog pair-context pair-session-watch
+RUNTIMEBUNDLE_ASSETS := cmd/internal/runtimebundle/assets/runtime/manifest.json
 
 build: $(addprefix $(BIN_DIR)/,$(GO_BINS))
 
@@ -65,7 +67,7 @@ pair-go:                $(BIN_DIR)/pair-go
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
-test: test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-emitter-health test-session-watch test-continue test-changelog test-copy-on-select test-pair-title test-cmux-ownership test-zellij-trace test-review
+test: test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-emitter-health test-session-watch test-continue test-changelog test-copy-on-select test-pair-title test-cmux-ownership test-zellij-trace test-review
 	go test ./... -count=1
 
 # pair-title poller: single-instance guard (identity-checked liveness so a
@@ -85,6 +87,24 @@ test-cmux-ownership: $(BIN_DIR)/pair
 # for pair-wrap to publish the current agent PID.
 test-session-watch: $(BIN_DIR)/pair-session-watch
 	bash tests/pair-session-watch-test.sh
+
+runtimebundle-generate: $(addprefix $(BIN_DIR)/,$(RUNTIMEBUNDLE_HELPERS))
+	go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime
+
+$(RUNTIMEBUNDLE_ASSETS): runtimebundle-generate
+
+runtimebundle-drift-check: $(addprefix $(BIN_DIR)/,$(RUNTIMEBUNDLE_HELPERS))
+	@d1="$$(mktemp -d)"; d2="$$(mktemp -d)"; \
+	trap 'rm -rf "$$d1" "$$d2"' EXIT; \
+	go run ./cmd/internal/runtimebundle/generatecmd --repo . --out "$$d1/runtime" && \
+	go run ./cmd/internal/runtimebundle/generatecmd --repo . --out "$$d2/runtime" && \
+	diff -qr "$$d1/runtime" "$$d2/runtime" >/dev/null && \
+	find "$$d1/runtime/files" -type f -exec stat -f '%N %OLp' {} + | sed "s#$$d1/runtime/files/##" | sort > "$$d1/modes" && \
+	find "$$d2/runtime/files" -type f -exec stat -f '%N %OLp' {} + | sed "s#$$d2/runtime/files/##" | sort > "$$d2/modes" && \
+	diff -u "$$d1/modes" "$$d2/modes" >/dev/null
+
+test-runtimebundle: runtimebundle-generate
+	go test ./cmd/internal/runtimebundle -count=1
 
 # Review workbench (#66): the integration shell tests. The pure modules
 # (record, reconstruct) run under `make test-lua`.
@@ -195,6 +215,9 @@ test-dev-rebuild:
 test-pair-go-install-layout:
 	bash tests/pair-go-install-layout-test.sh
 
+test-pair-embedded-runtime:
+	bash tests/pair-embedded-runtime-test.sh
+
 # pair-doctor emitter-health probe (#000047): marker check + binary selection
 # (running-via-pidfile vs PATH). See tests/emitter-health-test.sh.
 test-emitter-health:
@@ -258,11 +281,12 @@ $(BIN_DIR)/pair-changelog: cmd/pair-changelog/main.go cmd/pair-changelog/distill
 $(BIN_DIR)/pair-continuation: cmd/pair-continuation/continuation.go cmd/pair-continuation/git.go cmd/pair-continuation/main.go go.mod
 	go build -o $@ ./cmd/pair-continuation
 
-PAIR_GO_SRCS := cmd/pair-go/main.go cmd/internal/entrypoint/asset_root.go cmd/internal/entrypoint/launch.go cmd/internal/entrypoint/mode.go cmd/internal/dispatcher/dispatcher.go cmd/internal/launcher/args.go cmd/internal/launcher/datadir.go cmd/internal/launcher/decision.go cmd/internal/launcher/history.go cmd/internal/launcher/run.go cmd/internal/launcher/session.go cmd/internal/launcher/tag.go cmd/internal/launcher/zellij.go cmd/internal/contextcmd/contextcmd.go cmd/internal/scrollbackcmd/scrollbackcmd.go go.mod
+PAIR_GO_SRCS := cmd/pair-go/main.go cmd/internal/entrypoint/asset_root.go cmd/internal/entrypoint/launch.go cmd/internal/entrypoint/mode.go cmd/internal/dispatcher/dispatcher.go cmd/internal/launcher/args.go cmd/internal/launcher/datadir.go cmd/internal/launcher/decision.go cmd/internal/launcher/history.go cmd/internal/launcher/run.go cmd/internal/launcher/session.go cmd/internal/launcher/tag.go cmd/internal/launcher/zellij.go cmd/internal/contextcmd/contextcmd.go cmd/internal/scrollbackcmd/scrollbackcmd.go cmd/internal/runtimebundle/manifest.go cmd/internal/runtimebundle/plan.go cmd/internal/runtimebundle/cleanup.go cmd/internal/runtimebundle/store.go cmd/internal/runtimebundle/embed.go $(RUNTIMEBUNDLE_ASSETS) go.mod
 
 # pair — public Go-owned entrypoint. It execs bin/pair-shell for the current
-# shell-owned zellij lifecycle and uses the build-time defaultPairHome when a
-# copied local install has no sibling assets.
+# shell-owned zellij lifecycle; source/Homebrew builds can inject
+# defaultPairHome, while copied binaries without adjacent assets use the
+# embedded runtime fallback.
 $(BIN_DIR)/pair: $(PAIR_GO_SRCS)
 	go build -ldflags "$(PAIR_HOME_LDFLAGS)" -o $@ ./cmd/pair-go
 

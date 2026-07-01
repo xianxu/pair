@@ -176,6 +176,46 @@ func TestRunDirectPairFallsBackToDefaultPairHome(t *testing.T) {
 	}
 }
 
+func TestRunDirectPairFallsBackToEmbeddedRuntimeAndSetsPairHome(t *testing.T) {
+	rt := &fakeLegacyRuntime{
+		executable:   "/home/me/.local/bin/pair",
+		embeddedRoot: "/data/pair/runtime/abc/pair-home",
+		roots:        map[string]bool{"/data/pair/runtime/abc/pair-home": true},
+		execCode:     9,
+		environ:      []string{"PATH=/bin", "PAIR_HOME=/old"},
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := runWithLegacyRuntime([]string{"--help"}, &stdout, &stderr, rt)
+
+	if code != 9 {
+		t.Fatalf("code = %d, want 9", code)
+	}
+	if rt.execPath != "/data/pair/runtime/abc/pair-home/bin/pair-shell" {
+		t.Fatalf("execPath = %q, want embedded pair-shell", rt.execPath)
+	}
+	if !containsEnv(rt.execEnv, "PAIR_HOME=/data/pair/runtime/abc/pair-home") {
+		t.Fatalf("execEnv missing embedded PAIR_HOME: %#v", rt.execEnv)
+	}
+	if containsEnv(rt.execEnv, "PAIR_HOME=/old") {
+		t.Fatalf("execEnv kept old PAIR_HOME: %#v", rt.execEnv)
+	}
+}
+
+func TestRuntimeDataDirPrefersPairDataDir(t *testing.T) {
+	got := runtimeDataDir("/pair-data", "/home/me", "/xdg")
+	if got != "/pair-data" {
+		t.Fatalf("runtimeDataDir = %q, want PAIR_DATA_DIR", got)
+	}
+}
+
+func TestRuntimeDataDirFallsBackToXDGPairDir(t *testing.T) {
+	got := runtimeDataDir("", "/home/me", "/xdg")
+	if got != "/xdg/pair" {
+		t.Fatalf("runtimeDataDir = %q, want XDG pair dir", got)
+	}
+}
+
 func TestRunPairGoHelperDoesNotProbeOrExecShellLauncher(t *testing.T) {
 	rt := &fakeLegacyRuntime{
 		executable: "/repo/bin/pair-go",
@@ -209,6 +249,9 @@ type fakeLegacyRuntime struct {
 	statErr         error
 	execCode        int
 	statCalls       int
+	embeddedRoot    string
+	embeddedErr     error
+	environ         []string
 
 	execPath  string
 	execLabel string
@@ -246,7 +289,14 @@ func (f *fakeLegacyRuntime) Stat(path string) error {
 }
 
 func (f *fakeLegacyRuntime) Environ() []string {
+	if f.environ != nil {
+		return f.environ
+	}
 	return os.Environ()
+}
+
+func (f *fakeLegacyRuntime) EmbeddedAssetRoot() (string, error) {
+	return f.embeddedRoot, f.embeddedErr
 }
 
 func (f *fakeLegacyRuntime) Exec(label string, path string, argv []string, env []string) int {
