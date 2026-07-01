@@ -91,7 +91,7 @@ frame_title_store() { frame_titles=$(printf '%s\n' "$frame_titles" | grep -v "^$
 
 # Rename every agent pane's zellij frame to "<agent> (<count>) [<cwd>]" (or
 # "<agent> [<cwd>]" when no count). Reads pane-<tag>-*.json (pane id + display
-# cwd); the count comes from `pair-context <tag> <agent>`.
+# cwd); the count comes from `pair context <tag> <agent>`.
 update_frame_titles() {
     local pf agent pane_id cwd_disp count title cached
     for pf in "$DATA_DIR"/pane-"$TAG"-*.json; do
@@ -176,7 +176,7 @@ echo "$$" > "$PIDFILE"
 trap 'rm -f "$PIDFILE"' EXIT
 
 # Resolve the agent's session file path (used by the cmux activity-emoji
-# mtime check, NOT the frame meter — that reads via pair-context). Cached
+# mtime check, NOT the frame meter — that reads via pair context). Cached
 # after first hit since the path is stable for the session's lifetime
 # (claude --session-id pre-injection, codex/agy single-file model). Note:
 # claude's /clear and compaction continue writing the SAME pinned file

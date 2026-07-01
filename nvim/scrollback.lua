@@ -453,6 +453,7 @@ _G.PairScrollbackTest = {
   refresh_buffer = refresh_scrollback_buffer,
   refresh_then_end = refresh_then_end,
   annotate = annotate,
+  renderer_command = renderer_command,
 }
 
 

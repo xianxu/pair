@@ -80,7 +80,7 @@ Two merge-safe review boundaries. Detailed steps:
       runners + thin shims; buffered route (`slug`) + streaming seam
       (`changelog`/`continuation`/`session-watch`); dispatch/classification/parity
       tests.
-- [ ] M2 — repoint Pair-owned call-sites (shadow-sweep): `pair-title.sh`,
+- [x] M2 — repoint Pair-owned call-sites (shadow-sweep): `pair-title.sh`,
       `pair-changelog-open`, `pair-scrollback-open`, `nvim/scrollback.lua`,
       `pair-wrap` turn-end spawn → `pair <sub>`; regenerate the runtime bundle;
       full-suite verification.
@@ -116,6 +116,7 @@ total: 6.52
 ## Log
 
 ### 2026-07-01
+- 2026-07-01: closed M2 — M2: repointed all 5 Pair-owned call-sites to pair <sub> (pair-title.sh→pair context; pair-changelog-open→pair scrollback-render/changelog via collapsed PCL_BIN; pair-scrollback-open→pair scrollback-render; nvim/scrollback.lua→pair scrollback-render; pair-wrap turn-end→pair slug via testable slugSpawnCmd). Full `make test` passes (all shell suites incl. pair-title/changelog-open/session-watch/embedded-runtime + go test ./...). Shadow-sweep: every remaining pair-<name> ref intentionally retained (session-watch chain→#93, bundle manifest+shim binaries, adapt logger names, runner usage strings, equivalence tests). Runtime bundle is gitignored+regenerated on make build (plan I3 revised; no commit needed).; review verdict: FIX-THEN-SHIP
 - 2026-07-01: closed M1 — M1: go test ./... all pass (env-scrubbed); make build produces pair + shims; route equivalence confirmed (pair slug≡pair-slug exit 0; pair changelog≡pair-changelog identical usage+exit 1; pair continuation exit 1); ClassifyInvocation grammar unit-tested (pair slug→dispatch, pair claude/resume/bare→launcher); streaming-seam tests (changelog live-stderr, continuation stdin passthrough, session-watch no-op); dispatcher DispatchNames/IsStreaming/IsImplemented tests. Callers still on shim names until M2.; review verdict: FIX-THEN-SHIP
 
 Created as step 2 of the native-single-binary tracker (#91). Continues the

@@ -392,3 +392,26 @@ doesn't expose.
 5. **Atlas (I1).** `atlas/architecture.md`'s dispatcher section now describes the
    four new routes, the public `pair <sub>` peel-off, and the buffered-vs-
    streaming seam (was still "#76 first routes only").
+
+### 2026-07-01 — M2 as-built (records M2 boundary-review minors)
+
+M2 milestone review (FIX-THEN-SHIP, no Critical/Important). As-built deviations:
+
+1. **`slugSpawnCmd` signature (Task 13).** Ships `slugSpawnCmd(agent string)
+   *exec.Cmd` reading `PAIR_HOME` from env, not the Core-Concepts sketch's
+   `slugSpawnCmd(pairHome, agent)`. Testable via `t.Setenv` (the two unit tests
+   do this); env-read chosen over a threaded param since the caller
+   (`maybeSpawnSlug`) has no `pairHome` in scope.
+2. **`pair-title.sh` invocation form (Task 9).** Calls bare `pair context`
+   (PATH-resolved via `pair-shell`'s `$PAIR_HOME/bin` prepend), not the plan's
+   explicit `"$PAIR_HOME/bin/pair" context`. Parity with the pre-existing bare
+   `pair-context` call it replaced; the other four call-sites use the explicit
+   `$PAIR_HOME/bin/pair` path (those already used explicit paths).
+3. **Runtime bundle (I3, restated).** `cmd/internal/runtimebundle/assets/` is
+   gitignored + regenerated on `make build`, so no bundle commit is needed and
+   there is no dirty-tree-at-close risk (supersedes Task 14 Step 3's
+   "regenerate + commit").
+4. **Viewer test gap closed.** Added a `renderer_command` assertion to
+   `nvim/scrollback_test.lua` (via `_G.PairScrollbackTest`) pinning the
+   `pair scrollback-render` invocation form — the M2 review's one flagged
+   coverage gap.

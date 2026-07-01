@@ -303,6 +303,22 @@ if vim and vim.api then
   eq(got:match('%[change log%]') == nil, true, 'scrollback emit has NO source label')
   vim.b[buf].pair_annotate = false  -- stop the exit-time VimLeavePre re-emit
   os.remove(pend)
+
+  -- renderer_command wires `pair scrollback-render` (the #92 dispatcher form),
+  -- not the legacy pair-scrollback-render binary. Pins the subcommand token so a
+  -- typo in the arg table is caught (the viewer wiring has no other test).
+  local saved_home = vim.env.PAIR_HOME
+  vim.env.PAIR_HOME = '/opt/pair'
+  local rc = M.renderer_command({ raw = 'R', events = 'E', ansi = 'A' })
+  eq(rc[1], '/opt/pair/bin/pair', 'renderer uses $PAIR_HOME/bin/pair')
+  eq(rc[2], 'scrollback-render', 'renderer passes the scrollback-render subcommand')
+  eq(rc[3], 'R', 'renderer forwards raw path')
+  eq(rc[5], 'A', 'renderer forwards ansi path')
+  vim.env.PAIR_HOME = ''
+  local rc2 = M.renderer_command({ raw = 'R', events = 'E', ansi = 'A' })
+  eq(rc2[1], 'pair', 'renderer falls back to bare pair on PATH')
+  eq(rc2[2], 'scrollback-render', 'fallback still passes the subcommand')
+  vim.env.PAIR_HOME = saved_home
 end
 
 if fails > 0 then
