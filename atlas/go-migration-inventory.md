@@ -57,6 +57,12 @@ Execution path:
    Neovim Lua and Zellij KDL, either embedded-and-extracted or generated at
    startup.
 
+**Tracking (#91).** The remaining path is carried by roadmap #91 (native single
+binary), one sub-ticket per step, deps-chained in order: #90 (embedded bundle,
+done) → #92 (dispatcher consolidation) → #93 (Go-owned orchestration) → #94 (stop
+extracting shell scripts) → #95 (native nvim/zellij startup assets). #94/#95
+together are execution-path step 4 above.
+
 `ARCH-PURPOSE`: #90 is only complete if a copied binary can supply all Pair-owned
 runtime assets without falling back to a source checkout. `ARCH-DRY`: use one
 runtime manifest for embedding, extraction, install verification, and package
