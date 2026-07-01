@@ -1,11 +1,12 @@
 ---
 id: 000092
-status: open
+status: working
 deps: [000090]
 github_issue:
 created: 2026-07-01
 updated: 2026-07-01
 estimate_hours:
+started: 2026-07-01T09:40:38-07:00
 ---
 
 # route internal calls through Go dispatcher
