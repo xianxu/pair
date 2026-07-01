@@ -60,14 +60,14 @@ Architecture: `ARCH-DRY` (one implementation behind dispatch, shims not forks),
 
 ## Done when
 
-- [ ] Each remaining Pair-owned helper is invocable as `pair <subcommand>`
+- [x] Each remaining Pair-owned helper is invocable as `pair <subcommand>`
       through the dispatcher, reusing its existing internal runner package.
-- [ ] Legacy `bin/pair-<name>` binaries are thin shims (re-exec) or removed where
+- [x] Legacy `bin/pair-<name>` binaries are thin shims (re-exec) or removed where
       no external caller needs the name; no duplicated helper logic remains.
-- [ ] Generated Pair-owned call-sites use the dispatcher form.
-- [ ] Every helper's CLI contract (flags/env/stdin/exit) is unchanged, with
+- [x] Generated Pair-owned call-sites use the dispatcher form.
+- [x] Every helper's CLI contract (flags/env/stdin/exit) is unchanged, with
       tests covering the dispatch path and unsupported-subcommand errors.
-- [ ] Pair remains usable after merge through the existing `pair` entrypoint.
+- [x] Pair remains usable after merge through the existing `pair` entrypoint.
 
 ## Plan
 
