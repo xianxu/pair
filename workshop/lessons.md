@@ -509,3 +509,25 @@ dispatch/process layer that proves the empty/default invocation reaches the same
 decision path as explicit inputs. When revising scope during implementation,
 re-read the plan's core-concepts/integration tables and either implement every
 listed surface or add a `## Revisions` entry narrowing the table before close.
+
+## `git mv` of source must be swept through the atlas before merge
+
+#92 relocated `slug`/`changelog`/`continuation` logic from `cmd/pair-<name>/`
+into shared `cmd/internal/<name>cmd/` runner packages. The milestone/close
+reviews all passed, but the `sdlc merge` **atlas/README-sync judge blocked the
+merge**: the atlas still had clickable pointers to moved files
+(`cmd/pair-slug/slug.go` in `architecture.md` + `how-to-bring-up-a-new-harness-cli.md`),
+a Coverage Ledger listing ~10 moved-away paths that no longer exist, and
+contract-table rows describing the helpers in their pre-move shape. Updating the
+prose (dispatcher section, sequence notes) was not enough — the *structured*
+atlas surfaces (file-pointer links, the inventory contract table's Files column
++ disposition, the Coverage Ledger path list) each independently go stale on a
+rename.
+
+**Rule.** After any `git mv`/rename of tracked source, before `sdlc merge`, run
+`grep -rn '<old/path>' atlas/ README.md` for every moved file and repoint the
+hits. Specifically sweep: clickable `file://` / path links, per-file lists like
+a Coverage Ledger, and any contract/inventory table row whose Files column names
+the moved path (update its disposition too). The boundary-review judges look at
+the *diff*; the merge atlas-sync judge looks at *whether the atlas still matches
+the tree* — a rename passes the former and fails the latter.
