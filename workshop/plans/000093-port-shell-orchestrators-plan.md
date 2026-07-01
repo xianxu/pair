@@ -191,10 +191,80 @@ on `bin/` tracking fragility applies.
 - `git ls-files bin/` no longer lists the two openers; the built Go binaries are
   gitignored.
 
-## M3–M5 (milestone-level; detailed when reached)
+## M3 — review helpers (detailed)
 
-- **M3 — review helpers:** port `bin/pair-review-target` / `pair-review-open` /
-  `pair-review-readiness` orchestration to Go.
+Port the three review-start orchestrators — `bin/pair-review-target` (60),
+`bin/pair-review-open` (54), `bin/pair-review-readiness` (123) — to Go, sharing a
+`cmd/internal/reviewcmd` package. Same **replace-in-place** call model as M2:
+zellij binds + `nvim/init.lua` invoke them by PATH name, so the Go binaries own
+the names (no shim; drop the 3 `.gitignore` negations). `nvim/review/*.lua` stays
+native (#95 boundary); in particular `nvim/review/readiness.lua`'s 4-case
+`classify()` is the **single source** of the readiness decision (its own
+`readiness_test.lua`), so the Go readiness helper keeps invoking it via
+`nvim --headless` — it stays "the thin git-fact / git-effect shell" its own
+comment describes.
+
+### Two shared extractions folded in (ARCH-DRY)
+
+- **`cmd/internal/osfs`** — the M2 reviewer's forward note. A `FS` struct with the
+  string-based fs primitives (`ReadFile (string,error)`, `WriteFile`,
+  `WriteAtomic`, `Remove`, `FileSize`, `ModTime`, `Touch`, `Executable`) that
+  `opener`, `titlepoller`, and the new `reviewcmd` `OSRuntime`s **embed** (each
+  package's `Runtime` interface still declares only the subset it uses; extra
+  embedded methods are harmless). `sessionwatch` stays separate — its ReadFile is
+  `[]byte`/error-based, a genuine divergence. Retrofit opener + titlepoller to
+  embed `osfs.FS` (mechanical; the interfaces + fakes are untouched, existing
+  tests catch regressions).
+- **`cmd/internal/codexsid`** — `review-target`'s session stamping is `PAIR_SESSION_ID`
+  → config `session_id` (both already covered by `transcript.SessionID`) → a
+  codex-only `agent-pid` → ps-descendants → `lsof` → `rollout-…-<uuid>.jsonl` walk.
+  That walk is a 3rd near-copy (slug + sessionwatch have it). Extract
+  `codexsid.ResolveSessionID(dataDir, tag, home) string` as the canonical home and
+  use it in review-target; note slug/sessionwatch can adopt it later (don't
+  retrofit those tested hot-path packages in M3).
+
+### New package `cmd/internal/reviewcmd`
+
+- **Pure (direct unit tests):** `slugify(path) string` (basename → lowercase →
+  non-alnum→`-` → collapse/trim — the review-branch slug), `absPath` normalization,
+  the `review-target-<tag>.json` `{file,status,session}` shape, the readiness JSON
+  `{case,is_git,is_tracked,branch,on_review_branch,scoped_file,file_matches,is_clean}`
+  shape, and the `--prepare` action mapping (stop/track/resume/new/interact →
+  git-effect plan).
+- **`Runtime` seam** (embeds `osfs.FS`): a git seam
+  `Git(dir string, args ...string) (out string, err error)` for the 11
+  read/effect git commands (rev-parse/ls-files/branch/status/log/add/commit/
+  checkout/show-ref); `Classify(facts) (string, error)` (the `nvim --headless`
+  readiness bridge); `SpawnReviewPane(dir, lua, file string) error` (the
+  `zellij run --floating … -- nvim -u review.lua` spawn); `ProcessAlive`/`Kill`
+  (single-review-pane replacement); `ResolveCodexSessionID(dataDir, tag, home)`
+  (via `codexsid`).
+- **Three CLIs:** `RunTargetCLI` / `RunOpenCLI` / `RunReadinessCLI(args, getenv,
+  stdout, stderr) int`, wiring the OSRuntime. Three thin `cmd/pair-review-*/main.go`.
+
+### Tests (M3)
+
+- Go unit tests in `reviewcmd`: `slugify`, the two JSON shapes, the
+  readiness-facts → git-command mapping, the `--prepare` action plan per case
+  (fake git seam asserts the add/commit/checkout sequence + the mark-ready write),
+  single-pane replacement (fake `ProcessAlive`/`Kill`), and the open-path spawn
+  argv. `codexsid` + `osfs` get their own focused unit tests.
+- The existing `tests/pair-review-target-test.sh`, `review-readiness-cli-test.sh`,
+  and `review-window-test.sh` become **integration tests against the Go binaries**
+  unchanged (real git temp-repo + real nvim classify; faked zellij) — the
+  process-level fakes the #93 Spec wants.
+
+### M3 verification
+
+- `go test ./cmd/internal/reviewcmd ./cmd/internal/osfs ./cmd/internal/codexsid`
+  green; `make test` green incl. the whole `test-review` suite now driving the Go
+  binaries; runtimebundle drift-check clean; opener + titlepoller tests still green
+  after the `osfs` retrofit.
+- Alt+c review-start (readiness → prepare → target) and `:PairReview` (open) flows
+  work; `git ls-files bin/` no longer lists the three review helpers.
+
+## M4–M5 (milestone-level; detailed when reached)
+
 - **M4 — clipboard helpers:** port `clipboard-to-pane.sh`, `copy-on-select.sh`,
   `flash-pane.sh` (or fold behind the dispatcher).
 - **M5 — launcher / session lifecycle:** port `bin/pair-shell`'s orchestration
@@ -269,4 +339,29 @@ changes, at each milestone close — not deferred to the end.
 - **Forward (M3–M5):** the reviewer flagged `OSRuntime` fs-primitive duplication
   trending across `opener`/`titlepoller`/`sessionwatch`. Consider a shared
   `osfs`/`osseam` the per-package `OSRuntime`s embed before M3/M4/M5 add a 4th–6th
-  copy (keep the domain methods per-package).
+  copy (keep the domain methods per-package). **[done in M3 — `cmd/internal/osfs`.]**
+
+### 2026-07-01 — M3 milestone-close review (FIX-THEN-SHIP) follow-ups
+
+- **`codexsid.ResolveSessionID(dataDir, tag)` shipped without the sketched
+  `home` param** — it was unused (the walk reads `$dataDir/agent-pid-<tag>` and
+  greps lsof paths, which already carry `~/.codex/...`). Correct as shipped.
+- **Pure-list re-categorization:** the sketch listed `absPath normalization` and
+  the `--prepare` action mapping under "pure (direct unit tests)". In the shipped
+  code path-resolution is on the IO seam (`AbsFile`/`LogicalDir`/`PhysicalDir` do
+  `stat`/`EvalSymlinks`) and `prepare()` is seam-orchestration (its branches
+  interleave with `show-ref`/`ls-files`/`status` results) — both tested via the
+  fake `Runtime`, not as standalone pure functions.
+- **`--prepare` `track` + `resume` coverage added** (review Important): the initial
+  cut only tested `new`. Added `TestRunReadinessPrepareTrack` (asserts the
+  add→commit→ls-files→status→checkout-b sequence + mark-ready) and
+  `TestRunReadinessPrepareResume` (asserts branch kept, no checkout).
+- **`test-review` gained the 3 review-binary prereqs** (review Important): they're
+  now built Go binaries, so a fresh-tree `make test` must build them first.
+- **Target JSON write made atomic** (review Minor): `WriteAtomic` (temp+rename)
+  since nvim's Alt+c re-reads `review-target-<tag>.json`. Strengthened
+  `TestRunReadinessJSON` to assert `scoped_file`/`file_matches`.
+- **Forward:** the codex walk is now triplicated (`codexsid` + `slug` +
+  `sessionwatch`); M3 added the canonical `codexsid` + wired review-target to it —
+  `slug`/`sessionwatch` adoption to collapse the triplication is a tracked
+  follow-up (not retrofitted in M3 to avoid touching those hot-path tested packages).

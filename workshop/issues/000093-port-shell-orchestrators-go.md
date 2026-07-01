@@ -98,7 +98,7 @@ a time.
       next-candidate), keep the `.sh` name as a shim.
 - [x] M2 — scrollback/changelog openers: port `bin/pair-scrollback-open` (and the
       changelog opener) to Go orchestration; `nvim/*.lua` viewers stay native.
-- [ ] M3 — review helpers: port `bin/pair-review-target` / `pair-review-open` /
+- [x] M3 — review helpers: port `bin/pair-review-target` / `pair-review-open` /
       `pair-review-readiness` orchestration to Go.
 - [ ] M4 — clipboard helpers: port `clipboard-to-pane.sh`, `copy-on-select.sh`,
       `flash-pane.sh` to Go (or fold behind the dispatcher).
@@ -109,6 +109,23 @@ a time.
 ## Log
 
 ### 2026-07-01
+
+**M3 review follow-ups (FIX-THEN-SHIP → SHIP).** No Critical. Fixed both
+Important: (1) `test-review` gained the 3 review-binary prereqs (they're built Go
+binaries now, so a fresh-tree `make test` must build them first — same class as
+M2's `test-changelog` fix); (2) added `--prepare` `track` + `resume` fake-Runtime
+tests (`track` is the consequential path — add→commit→ls-files→status→checkout-b
++ mark-ready; `resume` asserts branch kept, no checkout). Minor: made the target
+JSON write atomic (`WriteAtomic`, since nvim's Alt+c re-reads it) and strengthened
+the JSON test to assert `scoped_file`/`file_matches`; updated `readiness.lua`'s
+stale "gathering lives in bin/pair-review-readiness" comment to point at
+`cmd/internal/reviewcmd`. Plan `## Revisions` records the seam deltas
+(`codexsid` dropped the unused `home` param; path-resolution + `prepare()` are IO
+seam, not pure) and the follow-up: the codex walk is triplicated
+(`codexsid`+`slug`+`sessionwatch`) — `codexsid` is the canonical home;
+slug/sessionwatch adopt it later.
+
+- 2026-07-01: closed M3 — Three review orchestrators ported to cmd/pair-review-{target,open,readiness} on shared cmd/internal/reviewcmd: pure slugify/JSON/action-mapping unit-tested; fake-Runtime tests cover target session-priority (env/config/codex fallback), readiness JSON + --prepare (new branch-create/track-add-commit/resume/stop/interact + mark-ready + xx-fix ack), open single-pane replace+spawn; the existing pair-review-target / review-readiness-cli / review-window shell tests drive the Go binaries UNCHANGED (real git + real nvim --headless classify, incl the quoted-path/branch robustness case); the 4-case readiness decision stays single-source in nvim/review/readiness.lua; osfs + codexsid extracted (opener+titlepoller retrofitted to embed osfs.FS, their tests still green); Go binaries replace the shell scripts (no shim, 3 .gitignore negations dropped, git ls-files bin/ clean); full make test green (sandbox-off, real git/nvim); runtimebundle drift-check clean with the 3 review binaries bundled.; review verdict: FIX-THEN-SHIP
 - 2026-07-01: closed M2 — Both openers ported to cmd/pair-scrollback-open + cmd/pair-changelog-open on a shared cmd/internal/opener package: pure viewport scorer (high-confidence/sub-threshold/top-clamp/empty) + session keying + distiller argv unit-tested; fake-Runtime loop tests cover render→viewport→viewer wiring, re-entrancy defer, distiller singleton no-double-spawn, config-keyed base; the existing changelog-open e2e + session-key shell tests now drive the Go binary UNCHANGED + a new scrollback-open smoke; the Go binaries replace the same-named shell scripts (zellij invokes by PATH, no shim; two .gitignore negations dropped, git ls-files bin/ confirms untracked); full make test green (sandbox-off, real setsid/nvim); runtimebundle drift-check clean with both openers bundled.; review verdict: FIX-THEN-SHIP
 - 2026-07-01: closed M1 — bin/pair-title.sh ported to cmd/pair-title Go poller: titlepoller unit tests cover all 8 old shell-harness cases (identity guard incl 21-vs-211 collision; frame-meter count/no-count/cwd-fallback/unchanged-skip) + loop tests (single-instance defer, stale-pidfile reclaim, session-miss-threshold exit); shared procutil backs both OSRuntimes; context count reused in-process via contextcmd (no subprocess); bin/pair-title.sh is a thin re-exec shim preserving the argv the single-instance guard matches; full make test green (sandbox-off, real ps/kill); runtimebundle drift-check clean with bin/pair-title + shim bundled.; review verdict: FIX-THEN-SHIP
 
