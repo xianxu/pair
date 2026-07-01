@@ -39,6 +39,7 @@ var explicitAssetPaths = []string{
 	"bin/pair-changelog",
 	"bin/pair-continuation",
 	"bin/pair-session-watch",
+	"bin/pair-title",
 	"doctor/README.md",
 	"doctor/SKILL.md",
 	"doctor/doctor.sh",

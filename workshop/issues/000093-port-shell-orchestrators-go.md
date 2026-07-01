@@ -5,7 +5,7 @@ deps: [000092]
 github_issue:
 created: 2026-07-01
 updated: 2026-07-01
-estimate_hours:
+estimate_hours: 17.4
 started: 2026-07-01T14:39:06-07:00
 ---
 
@@ -50,6 +50,32 @@ Ordering rationale: the launcher is the last and largest surface because it owns
 the most state; the leaf orchestrators (title poller, scrollback/review/clipboard
 openers) are ported first to shrink `bin/pair-shell`'s dependency set before it
 is itself replaced.
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module design=0.4 impl=1.6
+item: smaller-go-module design=0.3 impl=1.2
+item: smaller-go-module design=0.4 impl=1.6
+item: smaller-go-module design=0.2 impl=0.9
+item: smaller-go-module design=1.0 impl=6.0
+item: milestone-review design=0.0 impl=1.5
+item: atlas-docs design=0.2 impl=0.6
+total: 17.4
+```
+
+Whole-issue estimate across M1–M5 (the five `smaller-go-module` items, in
+milestone order; `milestone-review` covers the five boundary reviews;
+design hours are weighted 1.6× per the model). The **M5 launcher** item
+(design=1.0 impl=6.0 → ~7.6h) is the dominant uncertainty — `bin/pair-shell`
+is ~2200 lines; per the Plan's granularity note it may split into its own
+ticket, which would re-scope this estimate. M1–M4 (the leaf orchestrators,
+~7.4h) are well-understood ports on the verified #78 sessionwatch template.
+Durable plan:
+`workshop/plans/000093-port-shell-orchestrators-plan.md` (M1 detailed; M2–M5
+milestone-level, detailed as reached).
 
 ## Done when
 

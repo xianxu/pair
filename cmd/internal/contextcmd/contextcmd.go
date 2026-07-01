@@ -31,13 +31,7 @@ func Run(args []string, env Env, stdout io.Writer) int {
 		return 0
 	}
 	tag, agent := args[0], args[1]
-	dataDir := resolveDataDir(env)
-	sid := transcript.SessionID(dataDir, tag, agent)
-	if sid == "" {
-		return 0
-	}
-	cwd := paneCwd(dataDir, tag, agent)
-	path := transcript.Resolve(agent, sid, cwd, env.Home)
+	path := TranscriptPath(env, tag, agent)
 	if path == "" {
 		return 0
 	}
@@ -50,6 +44,20 @@ func Run(args []string, env Env, stdout io.Writer) int {
 		fmt.Fprintln(stdout, ctxmeter.Humanize(n))
 	}
 	return 0
+}
+
+// TranscriptPath resolves the native transcript file for (tag, agent) — the
+// session-id + pane-cwd + agent-specific resolution shared by `pair context`
+// and the #93 title poller's activity-mtime check. Returns "" when the session
+// isn't resolvable yet.
+func TranscriptPath(env Env, tag, agent string) string {
+	dataDir := resolveDataDir(env)
+	sid := transcript.SessionID(dataDir, tag, agent)
+	if sid == "" {
+		return ""
+	}
+	cwd := paneCwd(dataDir, tag, agent)
+	return transcript.Resolve(agent, sid, cwd, env.Home)
 }
 
 func resolveDataDir(env Env) string {

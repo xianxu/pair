@@ -113,7 +113,7 @@ Priority is packaging impact first, then reliability/testability:
 | `nvim/scrollback.lua` | Neovim native asset | `bin/pair-scrollback-open` | Loaded by `nvim -u ... <ansi>`; interactive read-only viewer; refreshes backing render. | Reads Pair env and `.ansi`; may call `pair-scrollback-render`; writes pending marker files. | native-asset, adjacent/embedded | P0 |
 | `bin/pair-changelog-open` | POSIX shell orchestrator | zellij Alt+l Run | Opens changelog viewer and starts detached render/distill singleton. | Requires Pair env; calls `pair scrollback-render` / `pair changelog` (#92), setsid/perl, nvim; reads/writes `changelog-*` sidecars. | shell-glue now; candidate Go orchestration after entrypoint | P1 |
 | `nvim/changelog.lua` | Neovim native asset | `bin/pair-changelog-open` | Loaded by `nvim -u ... <log>`; read-only watcher/spinner. | Reads `PAIR_CHANGELOG_*` and Pair env. | native-asset, adjacent/embedded | P1 |
-| `bin/pair-title.sh` | Bash stateful poller | `bin/pair-shell` ensure_title_poller | `pair-title.sh <tag> <agent>`; long-running 60s poller; test hook `PAIR_TITLE_TEST_CALL`. | Reads/writes title pid, pane json, cmux owner files; calls `pair-context`, zellij, ps, cmux. | stateful shell-glue; explicit #78 candidate | P1 |
+| `bin/pair-title.sh` / `cmd/pair-title` / `cmd/internal/titlepoller` | Go binary plus shared runner | `bin/pair-shell` ensure_title_poller | `pair-title <tag> <agent>`; long-running 60s poller (frame meter + cmux heat-ramp). | Reads/writes title pid, pane json, cmux owner files; calls zellij/cmux/ps + in-process `contextcmd` for the count. | ported to Go (#93 M1) on the #78 sessionwatch template — pure decisions in `titlepoller`, IO behind the `Runtime` seam; `bin/pair-title.sh` retained as a thin re-exec shim | P1 |
 | `bin/pair-session-watch.sh` / `cmd/pair-session-watch` / `cmd/internal/sessionwatch` | Shell compatibility shim plus Go stateful watcher | `bin/pair-shell` create path | `pair-session-watch.sh <agent> <tag> <cwd> [agent-args...]` execs the Go command; background 60s watcher; no-op for claude. | Reads agent pidfile, lsof/ps, native session dirs; writes config JSON atomically; logs adapt events through `cmd/internal/adapt`. | Go-owned watcher with implemented `pair session-watch` route (#92, via `sessionwatch.RunCLI`); `bin/pair-session-watch.sh` shim + `bin/pair-shell` caller retained, shell-owned (#78/#93) | P1 |
 | `bin/lib/adapt-log.sh` | sourced shell helper | remaining shell emitters | `adapt_log comp agent aspect signal outcome [detail]`; no-op if no `PAIR_TAG` or jq. | Appends JSONL to `$PAIR_DATA_DIR/adapt-<tag>.jsonl`. | keep until remaining shell emitters move; schema stays DRY with Go/Lua emitters | P1 |
 | `nvim/adapt.lua` | Lua helper | nvim doctor/adaptation surfaces, tests | Lua adaptation flight recorder emitter. | Writes same JSONL schema as Go/shell. | native-asset; keep schema aligned | P2 |
@@ -193,9 +193,16 @@ Build/install callers:
   the then-shell `bin/pair`, with argv/env preserved and missing-launcher
   diagnostics.
 - #78 ported the session-id watcher to `cmd/pair-session-watch` with
-  `bin/pair-session-watch.sh` retained as a shim. `pair-title.sh` remains the
-  next stateful shell candidate because it owns a separate UI title-poller
-  surface.
+  `bin/pair-session-watch.sh` retained as a shim.
+- #93 M1 ported the title poller to `cmd/pair-title` + `cmd/internal/titlepoller`
+  on that same template — pure decisions (heat buckets, cwd abbrev, frame title,
+  argv identity guard, unchanged-skip cache) unit-tested directly; zellij/cmux/ps/fs
+  behind the `Runtime` seam; the context count reused in-process via `contextcmd`
+  (no `pair context` subprocess). `bin/pair-title.sh` is now a thin re-exec shim.
+  A shared `cmd/internal/procutil` (`Alive`/`Command`) now backs both
+  sessionwatch's and titlepoller's `OSRuntime`. The remaining stateful shell
+  surfaces (scrollback/changelog openers, review helpers, clipboard helpers, the
+  `bin/pair-shell` launcher) are #93 M2–M5.
 - #79 made public `pair` a Go-built entrypoint, renamed the shell launcher to
   `bin/pair-shell`, and chose adjacent `nvim/` / `zellij/` assets for local and
   Homebrew installs.
@@ -262,7 +269,7 @@ rule:
 - `bin/pair-scrollback-render`
 - `bin/pair-session-watch.sh`
 - `bin/pair-slug`
-- `bin/pair-title.sh`
+- `bin/pair-title.sh` (thin re-exec shim over `cmd/pair-title`, #93 M1)
 - `bin/pair-wrap`
 - `cmd/internal/adapt/adapt.go`
 - `cmd/internal/adapt/adapt_test.go`
@@ -283,6 +290,8 @@ rule:
 - `cmd/internal/dispatcher/dispatcher_test.go`
 - `cmd/internal/model/model.go`
 - `cmd/internal/model/model_test.go`
+- `cmd/internal/procutil/procutil.go`
+- `cmd/internal/procutil/procutil_test.go`
 - `cmd/internal/scribecmd/scribecmd.go`
 - `cmd/internal/scribecmd/scribecmd_test.go`
 - `cmd/internal/scrollbackcmd/events_test.go`
@@ -304,6 +313,12 @@ rule:
 - `cmd/internal/slugcmd/slug_test.go`
 - `cmd/internal/slugcmd/slugcmd.go`
 - `cmd/internal/slugcmd/slugcmd_test.go`
+- `cmd/internal/titlepoller/titlepoller.go`
+- `cmd/internal/titlepoller/titlepoller_test.go`
+- `cmd/internal/titlepoller/run.go`
+- `cmd/internal/titlepoller/run_test.go`
+- `cmd/internal/titlepoller/runcli.go`
+- `cmd/internal/titlepoller/runtime.go`
 - `cmd/internal/wrapcmd/adapt_drift_test.go`
 - `cmd/internal/wrapcmd/extract_fg_test.go`
 - `cmd/internal/wrapcmd/keymap_registry_test.go`
@@ -331,6 +346,7 @@ rule:
 - `cmd/pair-go/main.go`
 - `cmd/pair-go/pty_proxy_route_test.go`
 - `cmd/pair-session-watch/main.go`
+- `cmd/pair-title/main.go`
 - `cmd/pair-scribe/main.go` (thin shim over `cmd/internal/scribecmd`)
 - `cmd/pair-scrollback-render/main.go`
 - `cmd/pair-slug/main.go`
