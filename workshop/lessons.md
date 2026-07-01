@@ -1,5 +1,20 @@
 # Lessons
 
+## Path precedence contracts need explicit divergent-env tests
+
+#90's embedded runtime implementation documented extraction under
+`$PAIR_DATA_DIR/runtime/<digest>/pair-home`, but the first OS-backed
+implementation only used the XDG/home resolver. The copied-binary smoke unset
+`PAIR_DATA_DIR`, so the bug survived until boundary review tried
+`PAIR_DATA_DIR` and `XDG_DATA_HOME` with different roots.
+
+**Rule.** When a feature promises environment-variable precedence, add a test
+where the higher-priority and fallback variables are both set to different
+directories, then assert the selected path. Also include every Go source file
+that can change build output in Make prerequisites; a generated or embedded
+artifact path should have a dependency test or an explicit review checklist
+entry. Caught in #000090 boundary review.
+
 ## Lua patterns: `\0` is empty-position match, not NUL byte
 
 The unescape function in `nvim/scrollback.lua` first attempt used a

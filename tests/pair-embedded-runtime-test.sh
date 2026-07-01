@@ -8,7 +8,8 @@ trap 'rm -rf "$tmp"' EXIT
 bin_dir="$tmp/bin"
 home="$tmp/home"
 xdg="$tmp/xdg"
-mkdir -p "$bin_dir" "$home" "$xdg"
+pair_data="$tmp/custom-data"
+mkdir -p "$bin_dir" "$home" "$xdg" "$pair_data"
 gomodcache="$(go env GOMODCACHE)"
 gocache="$(go env GOCACHE)"
 
@@ -37,8 +38,8 @@ case "$*" in
     done
     test -f "$config/config.kdl"
     test -f "$layout"
-    case "$config" in */pair/runtime/*/pair-home/zellij) ;; *) printf 'bad config path: %s\n' "$config" >&2; exit 11 ;; esac
-    case "$layout" in */pair/runtime/*/pair-home/zellij/layouts/main.kdl) ;; *) printf 'bad layout path: %s\n' "$layout" >&2; exit 12 ;; esac
+    case "$config" in */custom-data/runtime/*/pair-home/zellij) ;; *) printf 'bad config path: %s\n' "$config" >&2; exit 11 ;; esac
+    case "$layout" in */custom-data/runtime/*/pair-home/zellij/layouts/main.kdl) ;; *) printf 'bad layout path: %s\n' "$layout" >&2; exit 12 ;; esac
     root="${config%/zellij}"
     test -x "$root/bin/pair-shell"
     test -x "$root/bin/pair-wrap"
@@ -74,11 +75,12 @@ chmod +x "$bin_dir/ps"
 export PATH="$bin_dir:$PATH"
 export HOME="$home"
 export XDG_DATA_HOME="$xdg"
+export PAIR_DATA_DIR="$pair_data"
 export GOMODCACHE="$gomodcache"
 export GOCACHE="$gocache"
 export ZELLIJ_LOG="$tmp/zellij.log"
 export PAIR_SMOKE_ROOT="$tmp/root"
-unset PAIR_DEV PAIR_HOME PAIR_TAG PAIR_AGENT PAIR_AGENT_ARGS PAIR_DATA_DIR ZELLIJ_SESSION_NAME ZELLIJ ZELLIJ_PANE_ID
+unset PAIR_DEV PAIR_HOME PAIR_TAG PAIR_AGENT PAIR_AGENT_ARGS ZELLIJ_SESSION_NAME ZELLIJ ZELLIJ_PANE_ID
 
 help_out="$("$bin_dir/pair" --help)"
 case "$help_out" in
@@ -89,24 +91,28 @@ case "$help_out" in
     ;;
 esac
 
-mkdir -p "$xdg/pair/runtime/aaaaaaaa/pair-home" \
-         "$xdg/pair/runtime/bbbbbbbb/pair-home" \
-         "$xdg/pair/runtime/cccccccc/pair-home"
-printf '{"digest":"aaaaaaaa","asset_count":0}\n' > "$xdg/pair/runtime/aaaaaaaa/manifest.json"
-printf '{"digest":"bbbbbbbb","asset_count":0}\n' > "$xdg/pair/runtime/bbbbbbbb/manifest.json"
-printf '{"digest":"cccccccc","asset_count":0}\n' > "$xdg/pair/runtime/cccccccc/manifest.json"
-touch -t 202001010000 "$xdg/pair/runtime/aaaaaaaa"
-touch -t 202001020000 "$xdg/pair/runtime/bbbbbbbb"
-touch -t 202001030000 "$xdg/pair/runtime/cccccccc"
+old_a="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+old_b="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+old_c="cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+mkdir -p "$pair_data/runtime/$old_a/pair-home" \
+         "$pair_data/runtime/$old_b/pair-home" \
+         "$pair_data/runtime/$old_c/pair-home"
+printf '{"digest":"%s","asset_count":0}\n' "$old_a" > "$pair_data/runtime/$old_a/manifest.json"
+printf '{"digest":"%s","asset_count":0}\n' "$old_b" > "$pair_data/runtime/$old_b/manifest.json"
+printf '{"digest":"%s","asset_count":0}\n' "$old_c" > "$pair_data/runtime/$old_c/manifest.json"
+touch -t 202001010000 "$pair_data/runtime/$old_a"
+touch -t 202001020000 "$pair_data/runtime/$old_b"
+touch -t 202001030000 "$pair_data/runtime/$old_c"
 
 "$bin_dir/pair" resume smoke >/dev/null
 
 test -s "$PAIR_SMOKE_ROOT"
 root="$(cat "$PAIR_SMOKE_ROOT")"
-case "$root" in */pair/runtime/*/pair-home) ;; *) printf 'bad extracted root: %s\n' "$root" >&2; exit 1 ;; esac
+case "$root" in */custom-data/runtime/*/pair-home) ;; *) printf 'bad extracted root: %s\n' "$root" >&2; exit 1 ;; esac
 test -d "$root"
-test ! -e "$xdg/pair/runtime/aaaaaaaa"
-test -d "$xdg/pair/runtime/bbbbbbbb"
-test -d "$xdg/pair/runtime/cccccccc"
+test ! -e "$pair_data/runtime/$old_a"
+test -d "$pair_data/runtime/$old_b"
+test -d "$pair_data/runtime/$old_c"
+test ! -e "$xdg/pair/runtime"
 
 printf 'pair embedded runtime smoke passed\n'

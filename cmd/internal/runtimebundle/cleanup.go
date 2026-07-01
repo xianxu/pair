@@ -56,7 +56,7 @@ func PlanCleanup(input CleanupInput) (CleanupPlan, error) {
 }
 
 func isDigestName(s string) bool {
-	if s == "" {
+	if len(s) != 64 {
 		return false
 	}
 	for _, r := range s {

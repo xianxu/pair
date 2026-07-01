@@ -157,7 +157,7 @@ func applyCleanup(storeRoot, selectedDigest string, keep int) error {
 		}
 		gens = append(gens, RuntimeGeneration{
 			Digest:    name,
-			HasMarker: markerValid(filepath.Join(storeRoot, name, "manifest.json")),
+			HasMarker: markerValid(filepath.Join(storeRoot, name, "manifest.json"), name),
 			ModUnix:   info.ModTime().Unix(),
 		})
 	}
@@ -174,7 +174,7 @@ func applyCleanup(storeRoot, selectedDigest string, keep int) error {
 	return nil
 }
 
-func markerValid(path string) bool {
+func markerValid(path, digest string) bool {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return false
@@ -183,5 +183,5 @@ func markerValid(path string) bool {
 	if err := json.Unmarshal(data, &marker); err != nil {
 		return false
 	}
-	return marker.Digest != ""
+	return marker.Digest == digest
 }

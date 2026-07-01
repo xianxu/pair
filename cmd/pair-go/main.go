@@ -123,7 +123,7 @@ func (osLegacyRuntime) Environ() []string {
 }
 
 func (osLegacyRuntime) EmbeddedAssetRoot() (string, error) {
-	dataDir := launcher.ResolveDataDir(os.Getenv("HOME"), os.Getenv("XDG_DATA_HOME"))
+	dataDir := runtimeDataDir(os.Getenv("PAIR_DATA_DIR"), os.Getenv("HOME"), os.Getenv("XDG_DATA_HOME"))
 	res, err := runtimebundle.Extract(runtimebundle.StoreInput{
 		StoreRoot: filepath.Join(dataDir, "runtime"),
 		Manifest:  runtimebundle.EmbeddedManifest(),
@@ -134,6 +134,13 @@ func (osLegacyRuntime) EmbeddedAssetRoot() (string, error) {
 		return "", err
 	}
 	return res.PairHome, nil
+}
+
+func runtimeDataDir(pairDataDir, home, xdgDataHome string) string {
+	if pairDataDir != "" {
+		return pairDataDir
+	}
+	return launcher.ResolveDataDir(home, xdgDataHome)
 }
 
 func (osLegacyRuntime) Exec(label string, path string, argv []string, env []string) int {

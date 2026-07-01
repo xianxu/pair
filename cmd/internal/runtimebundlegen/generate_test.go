@@ -3,6 +3,7 @@ package runtimebundlegen
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -32,6 +33,33 @@ func TestGeneratePreservesExistingOutputOnFailure(t *testing.T) {
 	}
 	if string(after) != string(before) {
 		t.Fatal("failed generation changed existing output manifest")
+	}
+}
+
+func TestGenerateConcurrentSameOutputSucceeds(t *testing.T) {
+	repo := t.TempDir()
+	out := filepath.Join(t.TempDir(), "runtime")
+	writeMinimalRuntimeRepo(t, repo)
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 8)
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := Generate(GenerateOptions{RepoRoot: repo, OutRoot: out})
+			errs <- err
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("Generate error = %v", err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(out, "manifest.json")); err != nil {
+		t.Fatalf("Stat(manifest) error = %v", err)
 	}
 }
 

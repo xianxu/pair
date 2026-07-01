@@ -187,3 +187,29 @@ Verification passed:
 - `go test ./... -count=1`
 - `sdlc issue validate workshop/issues/000090-self-contained-pair-binary-with-embedded-runtime-assets.md`
 - `git diff --check`
+
+First `sdlc close --issue 90` boundary review returned REWORK. Fixed the
+blocking findings by honoring `PAIR_DATA_DIR` before XDG/home fallback for
+embedded extraction, adding divergent-env copied-binary smoke coverage,
+updating the plan's `BuildManifest` path with a `## Revisions` entry, adding
+`store.go` to `PAIR_GO_SRCS`, tightening stale-runtime cleanup to 64-character
+manifest digests with matching markers, and reusing `runtimebundle` manifest
+types from the generator. Also strengthened `runtimebundle-drift-check` to
+compare generated file modes and recorded a new lesson for path precedence and
+build-prerequisite coverage. A parallel verification run also exposed a
+generator publish race; added an interprocess publish lock and concurrent
+same-output generator regression test.
+
+Review-fix verification passed:
+
+- `go test ./cmd/internal/runtimebundle ./cmd/internal/runtimebundlegen -count=1`
+- `go test ./cmd/pair-go -run 'TestRuntimeDataDir|TestRunDirectPairFallsBackToEmbeddedRuntime' -count=1`
+- `make runtimebundle-drift-check`
+- `make test-pair-embedded-runtime`
+- `make test-runtimebundle`
+- `go test ./cmd/internal/entrypoint ./cmd/pair-go -count=1`
+- `make build`
+- `make test-pair-go-install-layout test-pair-embedded-runtime`
+- `go test ./... -count=1`
+- `sdlc issue validate workshop/issues/000090-self-contained-pair-binary-with-embedded-runtime-assets.md`
+- `git diff --check`

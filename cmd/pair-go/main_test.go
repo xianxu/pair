@@ -202,6 +202,20 @@ func TestRunDirectPairFallsBackToEmbeddedRuntimeAndSetsPairHome(t *testing.T) {
 	}
 }
 
+func TestRuntimeDataDirPrefersPairDataDir(t *testing.T) {
+	got := runtimeDataDir("/pair-data", "/home/me", "/xdg")
+	if got != "/pair-data" {
+		t.Fatalf("runtimeDataDir = %q, want PAIR_DATA_DIR", got)
+	}
+}
+
+func TestRuntimeDataDirFallsBackToXDGPairDir(t *testing.T) {
+	got := runtimeDataDir("", "/home/me", "/xdg")
+	if got != "/xdg/pair" {
+		t.Fatalf("runtimeDataDir = %q, want XDG pair dir", got)
+	}
+}
+
 func TestRunPairGoHelperDoesNotProbeOrExecShellLauncher(t *testing.T) {
 	rt := &fakeLegacyRuntime{
 		executable: "/repo/bin/pair-go",

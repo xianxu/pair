@@ -3,6 +3,7 @@ package runtimebundle
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -76,11 +77,12 @@ func TestStoreSecondExtractIsIdempotent(t *testing.T) {
 
 func TestStoreCleanupPreservesSelectedRuntime(t *testing.T) {
 	dir := t.TempDir()
-	old := filepath.Join(dir, "aaaaaaaa", "pair-home")
+	oldDigest := strings.Repeat("a", 64)
+	old := filepath.Join(dir, oldDigest, "pair-home")
 	if err := os.MkdirAll(old, 0o755); err != nil {
 		t.Fatalf("MkdirAll(old) error = %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "aaaaaaaa", "manifest.json"), []byte(`{"digest":"aaaaaaaa","asset_count":0}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, oldDigest, "manifest.json"), []byte(`{"digest":"`+oldDigest+`","asset_count":0}`), 0o644); err != nil {
 		t.Fatalf("WriteFile(old marker) error = %v", err)
 	}
 	content := "pair shell\n"
@@ -98,8 +100,33 @@ func TestStoreCleanupPreservesSelectedRuntime(t *testing.T) {
 	if _, err := os.Stat(res.PairHome); err != nil {
 		t.Fatalf("selected runtime was removed: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "aaaaaaaa")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(dir, oldDigest)); !os.IsNotExist(err) {
 		t.Fatalf("old runtime still exists or stat failed unexpectedly: %v", err)
+	}
+}
+
+func TestStoreCleanupIgnoresMarkerDigestMismatch(t *testing.T) {
+	dir := t.TempDir()
+	oldDigest := strings.Repeat("b", 64)
+	if err := os.MkdirAll(filepath.Join(dir, oldDigest, "pair-home"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(old) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, oldDigest, "manifest.json"), []byte(`{"digest":"`+strings.Repeat("c", 64)+`","asset_count":0}`), 0o644); err != nil {
+		t.Fatalf("WriteFile(old marker) error = %v", err)
+	}
+	content := "pair shell\n"
+	manifest := RuntimeManifest{Assets: []RuntimeAsset{{Path: "bin/pair-shell", Mode: 0o755, Size: int64(len(content)), Digest: digestFor(content)}}}
+
+	if _, err := Extract(StoreInput{
+		StoreRoot: dir,
+		Manifest:  manifest,
+		ReadAsset: fakeAssetReader(map[string]string{"bin/pair-shell": content}),
+		Keep:      0,
+	}); err != nil {
+		t.Fatalf("Extract error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, oldDigest)); err != nil {
+		t.Fatalf("mismatched-marker runtime should be ignored, not deleted: %v", err)
 	}
 }
 

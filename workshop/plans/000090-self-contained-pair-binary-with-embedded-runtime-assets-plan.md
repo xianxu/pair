@@ -54,7 +54,7 @@
 | `RuntimeFS` | `cmd/internal/runtimebundle/embed.go` | new | `embed.FS` |
 | `RuntimeStore` | `cmd/internal/runtimebundle/store.go` | new | filesystem writes, chmod, rename |
 | `PairGoLegacyRuntime` | `cmd/pair-go/main.go` | modified | `os`, `syscall.Exec`, env |
-| `BuildManifest` | `cmd/internal/runtimebundle/generate.go`, `cmd/internal/runtimebundle/assets/**`, `Makefile.local` | new | repo file tree at build time |
+| `BuildManifest` | `cmd/internal/runtimebundlegen/generate.go`, `cmd/internal/runtimebundle/generatecmd/main.go`, `cmd/internal/runtimebundle/assets/**`, `Makefile.local` | new | repo file tree at build time |
 | `CopiedBinarySmoke` | `tests/pair-embedded-runtime-test.sh` | new | real built binary with fake external commands |
 
 - **RuntimeFS** — exposes embedded asset bytes and manifest data.
@@ -432,3 +432,16 @@ Expected: no whitespace errors.
 - [x] **Step 5: Update issue plan/log**
 
 Tick completed issue plan items, add verification evidence to `## Log`, and prepare for `sdlc close --issue 90 --verified '<evidence>' --no-atlas` only if atlas truly had no new surface. This issue is expected to require atlas updates, so avoid `--no-atlas` unless the implementation scope changes.
+
+## Revisions
+
+### 2026-07-01 — Boundary review fixes
+
+Reason: the SDLC boundary review found that the Core Concepts table named the
+generator package path incorrectly after implementation split the generator from
+the embedded runtime package.
+
+Delta: updated `BuildManifest` to point at
+`cmd/internal/runtimebundlegen/generate.go` and
+`cmd/internal/runtimebundle/generatecmd/main.go`, leaving the generated
+gitignored assets and Makefile integration as originally planned.
