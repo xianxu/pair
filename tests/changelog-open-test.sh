@@ -11,8 +11,8 @@ set -eu
 PAIR_HOME=$(cd "$(dirname "$0")/.." && pwd)
 export PAIR_HOME
 
-if [ ! -x "$PAIR_HOME/bin/pair-changelog" ] || [ ! -x "$PAIR_HOME/bin/pair-scrollback-render" ]; then
-    echo "SKIP changelog-open-test: build the binaries first (make pair-changelog pair-scrollback-render)"
+if [ ! -x "$PAIR_HOME/bin/pair" ]; then
+    echo "SKIP changelog-open-test: build the pair binary first (make build)"
     exit 0
 fi
 

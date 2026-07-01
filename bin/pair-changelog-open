@@ -74,13 +74,15 @@ distiller_running() {
 # distiller writes the log per batch + the anchor at the end; PID → DLOCK; stderr
 # (batch progress) → STATUS.
 if ! distiller_running && [ -s "$RAW" ] \
-   && [ -x "$PAIR_HOME/bin/pair-scrollback-render" ] && [ -x "$PAIR_HOME/bin/pair-changelog" ]; then
+   && [ -x "$PAIR_HOME/bin/pair" ]; then
     : > "$STATUS"
-    export PCL_RENDER="$PAIR_HOME/bin/pair-scrollback-render"
-    export PCL_DISTILL="$PAIR_HOME/bin/pair-changelog"
+    # One binary now: `pair scrollback-render` / `pair changelog` via the
+    # dispatcher (#92). PCL_BIN holds the pair binary; the subcommand is a
+    # separate token so the two-token invocation execs correctly.
+    export PCL_BIN="$PAIR_HOME/bin/pair"
     export PCL_RAW="$RAW" PCL_EVENTS="$EVENTS" PCL_CLEANED="$CLEANED"
     export PCL_LOG="$LOG" PCL_ANCHOR="$ANCHOR" PCL_AGENT="$PAIR_AGENT"
-    INNER='"$PCL_RENDER" --plain --max-lines 0 --with-timestamps "$PCL_RAW" "$PCL_EVENTS" "$PCL_CLEANED" && "$PCL_DISTILL" --cleaned "$PCL_CLEANED" --log "$PCL_LOG" --anchor "$PCL_ANCHOR" --agent "$PCL_AGENT"'
+    INNER='"$PCL_BIN" scrollback-render --plain --max-lines 0 --with-timestamps "$PCL_RAW" "$PCL_EVENTS" "$PCL_CLEANED" && "$PCL_BIN" changelog --cleaned "$PCL_CLEANED" --log "$PCL_LOG" --anchor "$PCL_ANCHOR" --agent "$PCL_AGENT"'
     if command -v setsid >/dev/null 2>&1; then
         setsid sh -c "$INNER" </dev/null >/dev/null 2>"$STATUS" &
     else
