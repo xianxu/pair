@@ -199,6 +199,18 @@ Build/install callers:
 - #79 made public `pair` a Go-built entrypoint, renamed the shell launcher to
   `bin/pair-shell`, and chose adjacent `nvim/` / `zellij/` assets for local and
   Homebrew installs.
+- #92 M1 continued the dispatcher consolidation: `slug`, `changelog`,
+  `continuation`, and `session-watch` gained shared `cmd/internal/<name>cmd`
+  runners (the #76 `contextcmd`/`scrollbackcmd` pattern) reachable as
+  `pair <sub>`. `ClassifyInvocation` now peels the reserved dispatcher
+  subcommands (`dispatcher.DispatchNames()`) off the public `pair` before the
+  launcher handoff — `pair slug` dispatches while `pair claude`/`resume`/bare
+  `pair` still launch. Finite/no-stdin `slug` uses the buffered `Dispatch`
+  path; `changelog` (live stderr spinner), `continuation` (stdin), and
+  `session-watch` (long-running) use a new streaming seam in `cmd/pair-go`
+  (`runStreamingSubcommand`) that hands the runner real stdio. Each standalone
+  `bin/pair-<name>` binary is now a thin shim over its runner; Pair-owned
+  call-sites still invoke the shim names until #92 M2 repoints them.
 
 ## Coverage Ledger
 
