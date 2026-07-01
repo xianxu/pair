@@ -31,7 +31,7 @@ func ParseArgs(argv []string) (LaunchArgs, error) {
 
 	switch argv[0] {
 	case "continue", "rename", "list", "ls":
-		return LaunchArgs{}, UsageError{Message: fmt.Sprintf("pair-go launch: %s is not implemented by pair-go launch; use bin/pair", argv[0])}
+		return LaunchArgs{}, UsageError{Message: fmt.Sprintf("pair-go launch: %s is not implemented by pair-go launch; use pair", argv[0])}
 	case "resume":
 		if len(argv) < 2 {
 			return LaunchArgs{}, UsageError{Message: "pair-go launch: 'resume' requires a tag"}

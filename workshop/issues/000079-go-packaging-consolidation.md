@@ -1,12 +1,13 @@
 ---
 id: 000079
-status: working
+status: done
 deps: [000077, 000078]
 github_issue:
 created: 2026-06-26
 updated: 2026-06-30
 estimate_hours: 3.13
 started: 2026-06-30T16:59:55-07:00
+actual_hours: 1.02
 ---
 
 # pair Go packaging consolidation
@@ -72,7 +73,10 @@ total: 3.13
 Created from #72 as the final consolidation milestone. This should land only after the command migration has already made packaging simpler in practice.
 
 ### 2026-06-30
+- 2026-06-30: closed — go test ./cmd/internal/entrypoint ./cmd/pair-go -count=1; make build; make test-pair-go-install-layout; bin/pair --help; bin/pair-go launch --help; bin/pair-dev --help; make test-dev-rebuild test-session-watch test-continue; make -n -B test-continue test-cmux-ownership confirmed bin/pair prerequisite; make test-continue test-cmux-ownership; go test ./... -count=1; ruby -c ../homebrew-pair/Formula/pair.rb; homebrew tap commit 3aeb2a6. brew test --formula is unsupported by this Homebrew; Linux smoke not run because workspace is Darwin-only.; review verdict: FIX-THEN-SHIP
 
 Claimed after #78 landed. Chose adjacent native assets and Go public entrypoint: build `cmd/pair-go` as installed `pair`, retain `pair-go` as the development dispatcher alias, and keep the current shell launcher as an internal compatibility handoff while the zellij lifecycle remains shell-owned. Wrote durable plan at `workshop/plans/000079-go-packaging-consolidation-plan.md`. Plan-quality found missing Homebrew and upgrade specificity; tightened the plan to include sibling formula `../homebrew-pair/Formula/pair.rb`, a concrete old-symlink-to-Go-binary upgrade test, and a single decided asset strategy: local installs stay source-tree adjacent, Homebrew installs an adjacent `libexec` tree. Second plan-quality pass found asset-root and tracked-file ambiguity; tightened the plan again so pure `AssetRoot` resolves `PAIR_HOME` / sibling root / build-time `defaultPairHome`, and so `bin/pair-shell` is tracked while generated `bin/pair` is ignored. Estimate derived with v3.1 calibration; calibration source is marked stale by `sdlc estimate-source`, so the number is provisional but uses the required method.
 
 Implemented #79 packaging consolidation. `bin/pair` is now generated from `cmd/pair-go`, `bin/pair-shell` is the tracked compatibility launcher, local install copies a regular Go `pair` binary, and Homebrew builds Go `pair` / `pair-go` plus required runtime helpers into `libexec/bin` with adjacent native assets. Homebrew tap evidence: sibling repo `../homebrew-pair` commit `3aeb2a6 pair: build Go public entrypoint` updates `Formula/pair.rb`. Verification: `go test ./cmd/internal/entrypoint ./cmd/pair-go -count=1`; `make build`; `make test-pair-go-install-layout`; `bin/pair --help`; `bin/pair-go launch --help`; `bin/pair-dev --help`; `make test-dev-rebuild test-session-watch test-continue`; `go test ./... -count=1`; `ruby -c ../homebrew-pair/Formula/pair.rb`; stale-doc grep for old #77 packaging wording. `brew test --formula ../homebrew-pair/Formula/pair.rb` was not available on this Homebrew (`invalid option: --formula`), so the formula was syntax-checked locally rather than installed over the operator environment. Linux smoke was not run because this workspace is Darwin-only (`uname -s` => `Darwin`) and no Linux runner is configured.
+
+Close review returned `FIX-THEN-SHIP`. Addressed the findings before committing close state: updated `atlas/how-to-bring-up-a-new-harness-cli.md` launcher-recovery guidance from generated `bin/pair` to retained `bin/pair-shell`, and changed stale `pair-go launch` unsupported-subcommand guidance from `use bin/pair` to `use pair`. Verified with `go test ./cmd/internal/launcher ./cmd/internal/entrypoint ./cmd/pair-go -count=1`, stale-text grep, and `git diff --check`.
