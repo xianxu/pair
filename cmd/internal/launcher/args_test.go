@@ -83,6 +83,9 @@ func TestParseLaunchArgsUnsupportedLaunchSubcommandsAreExplicit(t *testing.T) {
 			if !strings.Contains(err.Error(), "not implemented by pair-go launch") {
 				t.Fatalf("error = %q, want explicit unsupported message", err)
 			}
+			if !strings.Contains(err.Error(), "use pair") {
+				t.Fatalf("error = %q, want public pair guidance", err)
+			}
 		})
 	}
 }

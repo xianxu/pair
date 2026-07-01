@@ -40,6 +40,7 @@ func TestRunWritesStderrAndReturnsDispatcherCode(t *testing.T) {
 func TestRunLaunchHelp(t *testing.T) {
 	rt := &fakeLegacyRuntime{
 		executable: "/repo/bin/pair-go",
+		roots:      map[string]bool{"/repo": true},
 	}
 	var stdout, stderr bytes.Buffer
 	code := runWithLegacyRuntime([]string{"launch", "--help"}, &stdout, &stderr, rt)
@@ -52,8 +53,11 @@ func TestRunLaunchHelp(t *testing.T) {
 	if stderr.String() != "" {
 		t.Fatalf("stderr = %q, want empty", stderr.String())
 	}
-	if rt.execPath != "/repo/bin/pair" {
-		t.Fatalf("execPath = %q, want /repo/bin/pair", rt.execPath)
+	if rt.execPath != "/repo/bin/pair-shell" {
+		t.Fatalf("execPath = %q, want /repo/bin/pair-shell", rt.execPath)
+	}
+	if rt.execLabel != "pair-go launch" {
+		t.Fatalf("execLabel = %q, want pair-go launch", rt.execLabel)
 	}
 	wantArgv := []string{"pair", "--help"}
 	if !reflect.DeepEqual(rt.execArgv, wantArgv) {
@@ -65,6 +69,7 @@ func TestRunLaunchExecsLegacyPairWithArgvAndEnv(t *testing.T) {
 	t.Setenv("PAIR_TEST_ENV", "kept")
 	rt := &fakeLegacyRuntime{
 		executable: "/repo/bin/pair-go",
+		roots:      map[string]bool{"/repo": true},
 		execCode:   42,
 	}
 
@@ -80,8 +85,11 @@ func TestRunLaunchExecsLegacyPairWithArgvAndEnv(t *testing.T) {
 	if stderr.String() != "" {
 		t.Fatalf("stderr = %q, want empty", stderr.String())
 	}
-	if rt.execPath != "/repo/bin/pair" {
-		t.Fatalf("execPath = %q, want /repo/bin/pair", rt.execPath)
+	if rt.execPath != "/repo/bin/pair-shell" {
+		t.Fatalf("execPath = %q, want /repo/bin/pair-shell", rt.execPath)
+	}
+	if rt.execLabel != "pair-go launch" {
+		t.Fatalf("execLabel = %q, want pair-go launch", rt.execLabel)
 	}
 	wantArgv := []string{"pair", "claude", "--", "--resume"}
 	if !reflect.DeepEqual(rt.execArgv, wantArgv) {
@@ -95,7 +103,6 @@ func TestRunLaunchExecsLegacyPairWithArgvAndEnv(t *testing.T) {
 func TestRunLaunchReportsMissingLegacyPair(t *testing.T) {
 	rt := &fakeLegacyRuntime{
 		executable: "/repo/bin/pair-go",
-		statErr:    os.ErrNotExist,
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -107,7 +114,7 @@ func TestRunLaunchReportsMissingLegacyPair(t *testing.T) {
 	if stdout.String() != "" {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
 	}
-	for _, want := range []string{"pair-go launch", "/repo/bin/pair", "make build", "make install", "dev-aliases.sh"} {
+	for _, want := range []string{"pair-go launch", "pair-shell", "PAIR_HOME", "/repo", "make build", "make install", "dev-aliases.sh"} {
 		if !strings.Contains(stderr.String(), want) {
 			t.Fatalf("stderr missing %q:\n%s", want, stderr.String())
 		}
@@ -117,14 +124,96 @@ func TestRunLaunchReportsMissingLegacyPair(t *testing.T) {
 	}
 }
 
-type fakeLegacyRuntime struct {
-	executable string
-	statErr    error
-	execCode   int
+func TestRunDirectPairExecsLegacyShellWithAllArgs(t *testing.T) {
+	rt := &fakeLegacyRuntime{
+		executable: "/repo/bin/pair",
+		roots:      map[string]bool{"/repo": true},
+		execCode:   7,
+	}
 
-	execPath string
-	execArgv []string
-	execEnv  []string
+	var stdout, stderr bytes.Buffer
+	code := runWithLegacyRuntime([]string{"claude", "--", "--resume"}, &stdout, &stderr, rt)
+
+	if code != 7 {
+		t.Fatalf("code = %d, want 7", code)
+	}
+	if stdout.String() != "" {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if stderr.String() != "" {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	if rt.execPath != "/repo/bin/pair-shell" {
+		t.Fatalf("execPath = %q, want /repo/bin/pair-shell", rt.execPath)
+	}
+	if rt.execLabel != "pair" {
+		t.Fatalf("execLabel = %q, want pair", rt.execLabel)
+	}
+	wantArgv := []string{"pair", "claude", "--", "--resume"}
+	if !reflect.DeepEqual(rt.execArgv, wantArgv) {
+		t.Fatalf("execArgv = %#v, want %#v", rt.execArgv, wantArgv)
+	}
+}
+
+func TestRunDirectPairFallsBackToDefaultPairHome(t *testing.T) {
+	rt := &fakeLegacyRuntime{
+		executable:      "/home/me/.local/bin/pair",
+		defaultPairHome: "/repo",
+		roots:           map[string]bool{"/repo": true},
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := runWithLegacyRuntime([]string{"--help"}, &stdout, &stderr, rt)
+
+	if code != 0 {
+		t.Fatalf("code = %d, want 0", code)
+	}
+	if stderr.String() != "" {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	if rt.execPath != "/repo/bin/pair-shell" {
+		t.Fatalf("execPath = %q, want /repo/bin/pair-shell", rt.execPath)
+	}
+}
+
+func TestRunPairGoHelperDoesNotProbeOrExecShellLauncher(t *testing.T) {
+	rt := &fakeLegacyRuntime{
+		executable: "/repo/bin/pair-go",
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := runWithLegacyRuntime([]string{"help"}, &stdout, &stderr, rt)
+
+	if code != 0 {
+		t.Fatalf("code = %d, want 0", code)
+	}
+	if rt.statCalls != 0 {
+		t.Fatalf("statCalls = %d, want 0", rt.statCalls)
+	}
+	if rt.execPath != "" {
+		t.Fatalf("execPath = %q, want empty", rt.execPath)
+	}
+	if !strings.Contains(stdout.String(), "Usage: pair-go <command> [args]") {
+		t.Fatalf("stdout missing usage:\n%s", stdout.String())
+	}
+	if stderr.String() != "" {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+type fakeLegacyRuntime struct {
+	executable      string
+	pairHome        string
+	defaultPairHome string
+	roots           map[string]bool
+	statErr         error
+	execCode        int
+	statCalls       int
+
+	execPath  string
+	execLabel string
+	execArgv  []string
+	execEnv   []string
 }
 
 func (f *fakeLegacyRuntime) Executable() (string, error) {
@@ -134,15 +223,34 @@ func (f *fakeLegacyRuntime) Executable() (string, error) {
 	return f.executable, nil
 }
 
-func (f *fakeLegacyRuntime) Stat(_ string) error {
-	return f.statErr
+func (f *fakeLegacyRuntime) PairHome() string {
+	return f.pairHome
+}
+
+func (f *fakeLegacyRuntime) DefaultPairHome() string {
+	return f.defaultPairHome
+}
+
+func (f *fakeLegacyRuntime) Stat(path string) error {
+	f.statCalls++
+	if f.statErr != nil {
+		return f.statErr
+	}
+	if strings.HasSuffix(path, "/bin/pair-shell") && f.roots != nil {
+		root := strings.TrimSuffix(path, "/bin/pair-shell")
+		if f.roots[root] {
+			return nil
+		}
+	}
+	return os.ErrNotExist
 }
 
 func (f *fakeLegacyRuntime) Environ() []string {
 	return os.Environ()
 }
 
-func (f *fakeLegacyRuntime) Exec(path string, argv []string, env []string) int {
+func (f *fakeLegacyRuntime) Exec(label string, path string, argv []string, env []string) int {
+	f.execLabel = label
 	f.execPath = path
 	f.execArgv = append([]string(nil), argv...)
 	f.execEnv = append([]string(nil), env...)

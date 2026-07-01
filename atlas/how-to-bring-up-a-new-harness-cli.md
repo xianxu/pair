@@ -63,8 +63,8 @@ If the agent presents blocking overlays, pickers (like file autocompletes), or y
 - When captured, the watcher writes `{ "agent": "<agent>", "args": [...], "session_id": "<uuid>" }` into `config-<tag>-<agent>.json`.
 
 **Recovery Flags:**
-- **File:** [bin/pair](file:///Users/xianxu/workspace/pair/bin/pair)
-- Integrate the agent-specific resume argument in `bin/pair`:
+- **File:** [bin/pair-shell](../bin/pair-shell)
+- Integrate the agent-specific resume argument in `bin/pair-shell`:
   ```bash
   case "$r_agent" in
       claude)        resume_extra="--resume $r_sid" ;;
@@ -79,7 +79,7 @@ If the agent presents blocking overlays, pickers (like file autocompletes), or y
           ;;
   ```
 
-**Telemetry Signal** (aspect `3`, see §3): `session-id` from `pair-session-watch` — `fired` when `AgentSpec.Match` resolves an id and the config is written, **`near-miss`** when a file matching the watch pattern is found but no id can be extracted (filename/format drift), `fail` when the 60s watch window elapses with no id at all (the session file never appeared where expected). The resume mapping in `bin/pair` is the *consumer* of this id; it's static config with no separate signal.
+**Telemetry Signal** (aspect `3`, see §3): `session-id` from `pair-session-watch` — `fired` when `AgentSpec.Match` resolves an id and the config is written, **`near-miss`** when a file matching the watch pattern is found but no id can be extracted (filename/format drift), `fail` when the 60s watch window elapses with no id at all (the session file never appeared where expected). The resume mapping in `bin/pair-shell` is the *consumer* of this id; it's static config with no separate signal.
 
 ---
 
@@ -136,7 +136,7 @@ When introducing a new agent `<name>`, ensure you complete each item:
 1. [ ] **Verify Return Key remapping** in `sendKeymapByAgent` (Enter = newline, Alt+Enter = send).
 2. [ ] **Check for blocking TUI overlays** and implement a PTY overlay detector in `overlayDetectorByAgent` if needed.
 3. [ ] **Implement Session Watching** in `cmd/internal/sessionwatch` / `cmd/pair-session-watch` (using `lsof` and target file patterns).
-4. [ ] **Configure Launcher Recovery** in `bin/pair` (mapping `--conversation` or `--resume` flags).
+4. [ ] **Configure Launcher Recovery** in `bin/pair-shell` (mapping `--conversation` or `--resume` flags).
 5. [ ] **Add slug generation support** in `pair-slug` (transcript parsing + sandboxed print execution).
 6. [ ] **Confirm mouse scroll and scrollback render** work smoothly without drawing glitch issues.
 7. [ ] **White-list permissions** in the agent's global or workspace settings directory.
@@ -153,7 +153,7 @@ strings we froze, so they pass forever even after the live harness moves.
 
 The **adaptation flight recorder** makes drift observable. Every adaptation appends
 one JSON line per trigger to `$PAIR_DATA_DIR/adapt-<tag>.jsonl` during normal use.
-`bin/pair` truncates the file once at session launch; all components then append
+`bin/pair-shell` truncates the file once at session launch; all components then append
 (`O_APPEND`, atomic per-line across processes). A user runs `pair` normally; when
 something feels off they run **`doctor/doctor.sh`** (see [`doctor/README.md`](file:///Users/xianxu/workspace/pair/doctor/README.md)),
 which reads the trace and points at the broken aspect — no need to describe the
@@ -194,4 +194,4 @@ write the same line shape directly):
 
 **Privacy:** `detail` can carry a snippet of agent output (e.g. an unrecognized
 prompt). It is capped at 200 bytes and the file stays local under `$PAIR_DATA_DIR`,
-the same trust level as the existing scrollback logs. `bin/pair` removes it on quit.
+the same trust level as the existing scrollback logs. `bin/pair-shell` removes it on quit.

@@ -6,9 +6,9 @@ import (
 )
 
 func TestResolveLegacyLaunchDropsLaunchVerb(t *testing.T) {
-	req := ResolveLegacyLaunch("/repo/bin/pair-go", []string{"claude", "--", "--resume"})
-	if req.Path != "/repo/bin/pair" {
-		t.Fatalf("Path = %q, want /repo/bin/pair", req.Path)
+	req := ResolveLegacyLaunch(AssetRoot{Root: "/repo", ShellPath: "/repo/bin/pair-shell"}, []string{"claude", "--", "--resume"})
+	if req.Path != "/repo/bin/pair-shell" {
+		t.Fatalf("Path = %q, want /repo/bin/pair-shell", req.Path)
 	}
 	want := []string{"pair", "claude", "--", "--resume"}
 	if !reflect.DeepEqual(req.Argv, want) {
@@ -17,9 +17,9 @@ func TestResolveLegacyLaunchDropsLaunchVerb(t *testing.T) {
 }
 
 func TestResolveLegacyLaunchPreservesSubcommands(t *testing.T) {
-	req := ResolveLegacyLaunch("/repo/bin/pair-go", []string{"resume", "demo"})
-	if req.Path != "/repo/bin/pair" {
-		t.Fatalf("Path = %q, want /repo/bin/pair", req.Path)
+	req := ResolveLegacyLaunch(AssetRoot{Root: "/repo", ShellPath: "/repo/bin/pair-shell"}, []string{"resume", "demo"})
+	if req.Path != "/repo/bin/pair-shell" {
+		t.Fatalf("Path = %q, want /repo/bin/pair-shell", req.Path)
 	}
 	want := []string{"pair", "resume", "demo"}
 	if !reflect.DeepEqual(req.Argv, want) {
