@@ -1,11 +1,12 @@
 ---
 id: 000093
-status: open
+status: working
 deps: [000092]
 github_issue:
 created: 2026-07-01
 updated: 2026-07-01
 estimate_hours:
+started: 2026-07-01T14:39:06-07:00
 ---
 
 # port stateful shell orchestrators to Go
