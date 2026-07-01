@@ -9,6 +9,30 @@ import (
 	"testing"
 )
 
+func TestRunStreamingSubcommandRoutesChangelogToInjectedStderr(t *testing.T) {
+	// changelog with no flags → usage error to the *injected* stderr (proves the
+	// seam passes real stderr through, unlike the buffered Dispatch path).
+	var stdout, stderr bytes.Buffer
+	code := runStreamingSubcommand([]string{"changelog"}, strings.NewReader(""), &stdout, &stderr)
+	if code != 1 {
+		t.Fatalf("code = %d, want 1 (usage error)", code)
+	}
+	if !strings.Contains(stderr.String(), "pair-changelog: usage:") {
+		t.Fatalf("stderr missing changelog usage (seam not wired to injected stderr):\n%s", stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("changelog writes no stdout; got %q", stdout.String())
+	}
+}
+
+func TestRunStreamingSubcommandUnknownIsProgrammingError(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := runStreamingSubcommand([]string{"nope"}, strings.NewReader(""), &stdout, &stderr)
+	if code != 2 || !strings.Contains(stderr.String(), "no runner wired") {
+		t.Fatalf("code=%d stderr=%q, want 2 + 'no runner wired'", code, stderr.String())
+	}
+}
+
 func TestRunWritesStdoutAndReturnsDispatcherCode(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := run([]string{"help"}, &stdout, &stderr)

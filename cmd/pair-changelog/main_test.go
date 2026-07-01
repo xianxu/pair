@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/changelogcmd"
 )
 
 // idleFooter is an idle claude footer (empty input box + rule + status),
@@ -384,7 +386,7 @@ func TestIncrementalBatchesLongGap(t *testing.T) {
 	dir := fakeClaude(t, "- entry\n")
 	var b strings.Builder
 	b.WriteString("❯ p1\nANCHOR1\nANCHOR2\nANCHOR3\n")
-	for i := 0; i < maxSliceLines+100; i++ { // > one batch worth → ≥2 batches
+	for i := 0; i < changelogcmd.MaxSliceLines+100; i++ { // > one batch worth → ≥2 batches
 		b.WriteString("agent did work\n")
 	}
 	b.WriteString("❯ p2\n") // a new completed turn → not a no-op
@@ -396,8 +398,8 @@ func TestIncrementalBatchesLongGap(t *testing.T) {
 	if c := callCount(dir); c < 2 {
 		t.Fatalf("incremental with a >maxSliceLines gap should batch; model called %d times", c)
 	}
-	if n := stdinLines(dir); n > maxSliceLines+50 {
-		t.Fatalf("a batch fed %d stdin lines, want ~<= %d (batch size + wrapper)", n, maxSliceLines)
+	if n := stdinLines(dir); n > changelogcmd.MaxSliceLines+50 {
+		t.Fatalf("a batch fed %d stdin lines, want ~<= %d (batch size + wrapper)", n, changelogcmd.MaxSliceLines)
 	}
 }
 
@@ -410,7 +412,7 @@ func TestFirstRunBatchesLongTranscript(t *testing.T) {
 	dir := fakeClaude(t, "- batch entry\n")
 	var b strings.Builder
 	b.WriteString("❯ start\n") // 1 committed line; +2*maxSliceLines below → 2*cap+1 total
-	for i := 0; i < 2*maxSliceLines; i++ {
+	for i := 0; i < 2*changelogcmd.MaxSliceLines; i++ {
 		b.WriteString("content line\n")
 	}
 	b.WriteString(idleFooter)

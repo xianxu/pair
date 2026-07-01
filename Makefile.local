@@ -272,7 +272,7 @@ $(BIN_DIR)/pair-session-watch: cmd/pair-session-watch/main.go cmd/internal/sessi
 
 # pair-changelog — distills the pair TTY into the Alt+l change log (#53);
 # shares cmd/internal/model with pair-slug.
-$(BIN_DIR)/pair-changelog: cmd/pair-changelog/main.go cmd/pair-changelog/distill.go cmd/pair-changelog/prompt.go cmd/internal/model/model.go go.mod
+$(BIN_DIR)/pair-changelog: cmd/pair-changelog/main.go cmd/internal/changelogcmd/changelogcmd.go cmd/internal/changelogcmd/distill.go cmd/internal/changelogcmd/prompt.go cmd/internal/model/model.go go.mod
 	go build -o $@ ./cmd/pair-changelog
 
 # pair-continuation — the deterministic writer for the `continuation` datatype

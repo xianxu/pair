@@ -10,6 +10,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/xianxu/pair/cmd/internal/changelogcmd"
 	"github.com/xianxu/pair/cmd/internal/dispatcher"
 	"github.com/xianxu/pair/cmd/internal/entrypoint"
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -53,8 +54,27 @@ func runWithLegacyRuntime(args []string, stdout, stderr io.Writer, rt legacyRunt
 	case entrypoint.ModePairGoLaunch:
 		return runLegacyLaunch("pair-go launch", exe, args[1:], stderr, rt)
 	default:
+		if len(args) > 0 && dispatcher.IsImplemented(args[0]) && dispatcher.IsStreaming(args[0]) {
+			return runStreamingSubcommand(args, os.Stdin, stdout, stderr)
+		}
 		res := dispatcher.Dispatch(args)
 		return writeResult(res, stdout, stderr)
+	}
+}
+
+// runStreamingSubcommand routes subcommands that need real stdio — a live
+// stderr consumer (changelog), stdin (continuation), or a long lifetime
+// (session-watch) — straight to their runner with pass-through streams,
+// bypassing the buffered dispatcher.Dispatch. stdin is a parameter so the seam
+// is unit-testable with a fake. Only implemented streaming subcommands reach
+// here (gated by the caller), so an unknown arg is a programming error.
+func runStreamingSubcommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	switch args[0] {
+	case "changelog":
+		return changelogcmd.Run(args[1:], stderr)
+	default:
+		_, _ = fmt.Fprintf(stderr, "pair-go: %s: streaming subcommand has no runner wired\n", args[0])
+		return 2
 	}
 }
 

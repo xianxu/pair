@@ -39,7 +39,7 @@ func Families() []CommandFamily {
 		{Name: "scrollback-render", Summary: "raw PTY capture to ANSI scrollback", Status: "implemented"},
 		{Name: "wrap", Summary: "PTY proxy around a TUI agent", Status: "planned", Streaming: true},
 		{Name: "slug", Summary: "session orientation slug generation", Status: "implemented"},
-		{Name: "changelog", Summary: "TTY transcript to distilled change log", Status: "planned", Streaming: true},
+		{Name: "changelog", Summary: "TTY transcript to distilled change log", Status: "implemented", Streaming: true},
 		{Name: "continuation", Summary: "continuation datatype writer", Status: "planned", Streaming: true},
 		{Name: "session-watch", Summary: "async codex/agy session-id discovery", Status: "planned", Streaming: true},
 		{Name: "scribe", Summary: "PTY logging wrapper", Status: "planned", Streaming: true},
@@ -70,6 +70,17 @@ func StreamingNames() []string {
 		}
 	}
 	return names
+}
+
+// IsImplemented reports whether a subcommand has a dispatch route (Status ==
+// "implemented"); planned/handoff families do not.
+func IsImplemented(name string) bool {
+	for _, f := range Families() {
+		if f.Name == name {
+			return f.Status == "implemented"
+		}
+	}
+	return false
 }
 
 // IsStreaming reports whether a subcommand needs the streaming seam.
@@ -107,6 +118,15 @@ func Dispatch(args []string) Result {
 	}
 
 	if family, ok := familyByName(args[0]); ok {
+		if family.Status == "implemented" {
+			// A streaming subcommand (changelog/continuation/session-watch) is
+			// intercepted by cmd/pair-go's streaming seam before Dispatch; reaching
+			// here means it was called on the buffered path by mistake.
+			return Result{
+				Stderr:   fmt.Sprintf("%s: %s is a streaming subcommand; invoke it via cmd/pair-go's streaming seam, not the buffered Dispatch\n", programName, family.Name),
+				ExitCode: 2,
+			}
+		}
 		return Result{
 			Stderr:   fmt.Sprintf("%s: %s is planned but not implemented in this skeleton; run %s help\n", programName, family.Name, programName),
 			ExitCode: 2,
