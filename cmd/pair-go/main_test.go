@@ -25,6 +25,23 @@ func TestRunStreamingSubcommandRoutesChangelogToInjectedStderr(t *testing.T) {
 	}
 }
 
+func TestRunStreamingSubcommandRoutesContinuationStdin(t *testing.T) {
+	// The body arrives on stdin (--body-file -). It lacks a '## NEXT ACTION'
+	// section, so the writer rejects it — which proves the seam passed the real
+	// stdin through to the runner (the buffered Dispatch path has no stdin).
+	root := t.TempDir()
+	var out, errb bytes.Buffer
+	code := runStreamingSubcommand(
+		[]string{"continuation", "--repo-root", root, "--slug", "s", "--agent", "claude", "--issues", "1", "--body-file", "-"},
+		strings.NewReader("just a body, no next action\n"), &out, &errb)
+	if code != 1 {
+		t.Fatalf("code = %d, want 1 (stdin body missing NEXT ACTION)", code)
+	}
+	if !strings.Contains(errb.String(), "NEXT ACTION") {
+		t.Fatalf("stderr should reject the stdin body for missing NEXT ACTION; got %q", errb.String())
+	}
+}
+
 func TestRunStreamingSubcommandUnknownIsProgrammingError(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := runStreamingSubcommand([]string{"nope"}, strings.NewReader(""), &stdout, &stderr)

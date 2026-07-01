@@ -9,8 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/changelogcmd"
+	"github.com/xianxu/pair/cmd/internal/continuationcmd"
 	"github.com/xianxu/pair/cmd/internal/dispatcher"
 	"github.com/xianxu/pair/cmd/internal/entrypoint"
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -72,6 +74,8 @@ func runStreamingSubcommand(args []string, stdin io.Reader, stdout, stderr io.Wr
 	switch args[0] {
 	case "changelog":
 		return changelogcmd.Run(args[1:], stderr)
+	case "continuation":
+		return continuationcmd.Run(args[1:], stdin, stdout, stderr, time.Now)
 	default:
 		_, _ = fmt.Fprintf(stderr, "pair-go: %s: streaming subcommand has no runner wired\n", args[0])
 		return 2
