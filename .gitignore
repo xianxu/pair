@@ -15,14 +15,12 @@ __pycache__/
 bin/*
 !bin/*.sh
 !bin/pair-shell
-!bin/pair-changelog-open
 !bin/pair-dev
 !bin/pair-help
 !bin/pair-notify
 !bin/pair-review-open
 !bin/pair-review-readiness
 !bin/pair-review-target
-!bin/pair-scrollback-open
 !bin/lib/
 bin/lib/*
 !bin/lib/*.sh

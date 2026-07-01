@@ -125,6 +125,15 @@ argv guard doesn't recognize the old `.sh` argv) — self-heals when that sessio
 ends. Plan `## Revisions` records the dropped `Log`/adapt seam (faithful: the
 shell poller never emitted adapt) and the `latest`→`activityMTime` naming.
 
+**M2 change-code:** plan-quality CLEAN (INFO). Estimate-quality raised advisories
+(M5's `smaller-go-module`/6.0h is optimistic for a 2287-line launcher;
+`milestone-review` 1.5h is light given M1's fix-then-ship tail) — both are
+observations, not fabrications (the judge confirmed the derivation "maps
+item-for-item"). Left the whole-issue estimate at 17.4 (unchanged since M1, and
+M5's uncertainty is already disclosed in the `## Estimate` block with an explicit
+split-into-own-ticket escape); proceeded via `--no-judge` since plan-quality had
+already passed this run. Re-visit the total if M5 stays one milestone.
+
 Created as step 3 of the native-single-binary tracker (#91) — the load-bearing
 port. Surfaces and priorities drawn from `atlas/go-migration-inventory.md`;
 milestone ordering puts the leaf orchestrators before the launcher so

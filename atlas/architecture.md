@@ -101,12 +101,15 @@ Two new architectural surfaces landed with #92 M1:
   standalone shims (`bin/pair-wrap` for the KDL PATH-exec, `bin/pair-scribe` for
   the user's `~/.zshrc`) that call the same `wrapcmd.Run` / `scribecmd.Run`.
 
-Pair-owned call-sites were repointed to `pair <sub>` in #92 M2:
-`bin/pair-changelog-open` and `bin/pair-scrollback-open` and
-`nvim/scrollback.lua` (`pair scrollback-render` / `pair changelog`), and
-`pair-wrap`'s turn-end spawn (`pair slug`). (The title poller no longer calls
-`pair context` at all — #93 M1 folded the count in-process via `contextcmd`, see
-below.) The internal callers still on a *shim name* are both spawned by
+Pair-owned call-sites were repointed to `pair <sub>` in #92 M2: the changelog
+opener's detached distiller and `nvim/scrollback.lua` (`pair scrollback-render` /
+`pair changelog`), and `pair-wrap`'s turn-end spawn (`pair slug`). (Two of those
+callers have since moved in-process: the title poller no longer shells `pair
+context` — #93 M1 folded the count in via `contextcmd`; and the Alt+/ scrollback
+opener no longer shells `pair scrollback-render` — #93 M2 renders via
+`scrollbackcmd` in-process. The changelog opener's *detached* distiller still
+shells `pair scrollback-render` / `pair changelog`, since the build must survive
+the viewer closing.) The internal callers still on a *shim name* are both spawned by
 `bin/pair-shell`: `bin/pair-session-watch.sh → bin/pair-session-watch` and (since
 #93 M1) `bin/pair-title.sh → bin/pair-title`; collapsing those spawns is #93 M5
 (the shell launcher is still shell-owned). The standalone `bin/pair-<name>` binaries remain
@@ -328,7 +331,7 @@ The existing `set_winsize()` is the single entry point for both the initial PTY 
 
 `G` is a semi-live refresh affordance (#84): before jumping to EOF, the viewer derives sibling `.raw` / `.events.jsonl` paths from the current `.ansi`, reruns `pair-scrollback-render`, reloads the same buffer in place, reapplies ANSI extmarks, relocks the read-only options, and then lands at the refreshed bottom. If the user has pending `Alt+q` annotations or an overall footer comment, the render still updates the backing `.ansi` but the visible buffer is not destructively replaced; the next clean refresh or reopen will show the new snapshot after the comment is shipped. Render/read failures warn and keep the existing snapshot visible, so refresh never replaces usable scrollback with a broken buffer. This deliberately reuses the existing floating viewer instead of stacking another `pair-scrollback-open` pane.
 
-**Open (`bin/pair-scrollback-open`, POSIX sh).** Validates `PAIR_DATA_DIR` / `PAIR_TAG` / `PAIR_AGENT`, runs the renderer, then *launches* `nvim -u $PAIR_HOME/nvim/scrollback.lua $ANSI` as a child — deliberately **not** `exec`, so the script stays alive as nvim's parent and an `EXIT`/`INT`/`TERM` trap can clear the re-entrancy lock on quit. Errors print and `sleep` briefly so the message is readable before the floating pane self-closes. Bound in `zellij/config.kdl` to `Alt+/` as a 100% × 100% floating pane with `close_on_exit=true` — the user's `:q` in the viewer dismisses the pane and returns to pair's two-pane layout untouched. **Re-entrancy guard:** `Alt+/` is a global zellij bind, so pressing it again while the viewer is already focused fires another `Run` and would stack a second nvim (one `:q`/Esc per layer to unwind). zellij can't conditionally skip a `Run`, so the script self-guards: before launching nvim it writes its own PID to `$PAIR_DATA_DIR/scrollback-<tag>-<agent>.openlock`, and on entry it exits immediately if that lock already holds a *live* PID — the redundant floating pane then self-dismisses via `close_on_exit` and focus falls back to the open viewer. A stale lock (hard kill) carries a dead PID and is reclaimed by the next open's `kill -0` check. The draft pane's `Alt+b` (`--jump prev`) runs the same launcher, so it's covered too.
+**Open (`cmd/pair-scrollback-open` / `cmd/internal/opener`, Go — #93 M2).** Validates `PAIR_DATA_DIR` / `PAIR_TAG` / `PAIR_AGENT`, renders **in-process** via `scrollbackcmd` (no `pair scrollback-render` subprocess), then *launches* `nvim -u $PAIR_HOME/nvim/scrollback.lua $ANSI` as a held child (`RunViewer`) — deliberately **not** an exec-replace, so the launcher stays alive as nvim's parent and a `defer` clears the re-entrancy lock on quit (the Go analog of the old shell `EXIT`/`INT`/`TERM` trap). Errors print and `Sleep` briefly so the message is readable before the floating pane self-closes. The Go binary **replaced** the old POSIX-sh script at the same PATH name (zellij invokes it by name, so no shim is kept); the viewport scorer + session keying are pure and unit-tested in `opener`, with zellij/nvim/fs behind its `Runtime` seam. Bound in `zellij/config.kdl` to `Alt+/` as a 100% × 100% floating pane with `close_on_exit=true` — the user's `:q` in the viewer dismisses the pane and returns to pair's two-pane layout untouched. **Re-entrancy guard:** `Alt+/` is a global zellij bind, so pressing it again while the viewer is already focused fires another `Run` and would stack a second nvim (one `:q`/Esc per layer to unwind). zellij can't conditionally skip a `Run`, so the launcher self-guards: before launching nvim it writes its own PID to `$PAIR_DATA_DIR/scrollback-<tag>-<agent>.openlock`, and on entry it returns immediately if that lock already holds a *live* PID — the redundant floating pane then self-dismisses via `close_on_exit` and focus falls back to the open viewer. A stale lock (hard kill) carries a dead PID and is reclaimed by the next open's liveness check (`procutil.Alive`, i.e. `kill -0`). The draft pane's `Alt+b` (`--jump prev`) runs the same launcher, so it's covered too.
 
 **Jump-on-open shortcut — draft `Alt+b` = "Alt+/ then Alt+b".** `pair-scrollback-open` takes an optional `--jump prev|next`; it exports `PAIR_SCROLLBACK_JUMP` before launching nvim, and `scrollback.lua` calls `jump_to_prompt()` right after its normal viewport positioning — so the viewer opens already sitting on the previous (or next) user prompt, behaviourally identical to opening with Alt+/ and then pressing Alt+b. The draft pane's `Alt+b` (`nvim/init.lua`, `pair_scrollback_prev_prompt`) is the one-key trigger: it opens the same floating pane via `zellij run --floating … -- pair-scrollback-open --jump prev` (geometry mirrored from the `Alt+/` bind). Env-scoped rather than a sentinel file, so there's no staleness across plain `Alt+/` opens.
 
@@ -491,12 +494,14 @@ slug* (LLM distillation of what the operator saw), but accumulating instead of a
 one-liner.
 
 - **Orchestrate** — `Alt l` (`zellij/config.kdl`, next to `Alt /`) runs
-  `bin/pair-changelog-open` in a floating pane. It opens `nvim -u
-  nvim/changelog.lua` on the existing log **immediately**, and launches the
-  render+distill in its **own session** (`setsid`, or a `perl POSIX::setsid` shim
-  on macOS) — NOT a child of nvim, and outside the pane's process group — so a
-  long batched build keeps running even if the operator closes the viewer
-  mid-build (#58). (`nohup` alone wasn't enough: closing the zellij floating pane
+  `pair-changelog-open` (`cmd/pair-changelog-open` / `cmd/internal/opener`, Go
+  since #93 M2 — the shared `opener` package with the scrollback launcher) in a
+  floating pane. It opens `nvim -u nvim/changelog.lua` on the existing log
+  **immediately**, and launches the render+distill in its **own session** (Go
+  `SysProcAttr.Setsid`, which replaced the shell's `setsid` / `perl POSIX::setsid`
+  shim) — NOT a child of nvim, and outside the pane's process group — so a long
+  batched build keeps running even if the operator closes the viewer mid-build
+  (#58). (`nohup` alone wasn't enough: closing the zellij floating pane
   tears down the pane's process group, killing a plain background child; a new
   session escapes it.) Two locks: `openlock` (viewer singleton — a second `Alt l`
   while a viewer is up refocuses) and `distill.lock` holding the distiller PID
