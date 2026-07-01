@@ -75,13 +75,36 @@ dev rebuild, continuation, rename, config/session migration, and title-poller
 behavior remain shell-owned through `bin/pair-shell` until later migration
 issues.
 
-As of #76, the same dispatcher also has the first implemented helper routes:
-`pair-go context <tag> <agent>` and `pair-go scrollback-render ...`. Both routes
-call shared internal Go runners used by the legacy `pair-context` and
-`pair-scrollback-render` binaries (`ARCH-DRY`), so behavior stays aligned while
-the old command names remain the live integration surface. `bin/pair-title.sh`,
-`bin/pair-scrollback-open`, `bin/pair-changelog-open`, and
-`nvim/scrollback.lua` have not moved to the dispatcher yet.
+The dispatcher hosts implemented helper routes: `context` and `scrollback-render`
+(#76), then `slug`, `changelog`, `continuation`, and `session-watch` (#92 M1).
+Each route calls the shared internal Go runner (`cmd/internal/<name>cmd`) that the
+legacy `bin/pair-<name>` binary now also calls as a thin shim (`ARCH-DRY`), so a
+single implementation backs both entry points.
+
+Two new architectural surfaces landed with #92 M1:
+
+- **Public `pair <sub>` peel-off.** `entrypoint.ClassifyInvocation` takes the
+  reserved dispatcher-subcommand set (`dispatcher.DispatchNames()`, derived from
+  the single `Families()` table) and returns `ModeDispatch` when the public
+  `pair` is invoked with one — so `pair slug` dispatches while `pair claude`,
+  `pair resume`, and bare `pair` still hand off to the shell launcher. The
+  reserved names are passed in, not imported, keeping `entrypoint` free of a
+  `dispatcher` dependency.
+- **Buffered vs streaming dispatch.** Finite, no-stdin routes (`context`,
+  `scrollback-render`, `slug`) use the buffered `Dispatch(args) → Result` path.
+  Routes needing real stdio — `changelog` (live per-batch stderr for the Alt+l
+  spinner), `continuation` (reads the body from stdin), `session-watch`
+  (long-running) — use `cmd/pair-go`'s `runStreamingSubcommand` seam, which hands
+  the runner real `os.Stdin/Stdout/Stderr`. `Families().Streaming` marks which.
+
+Pair-owned call-sites were repointed to `pair <sub>` in #92 M2:
+`bin/pair-title.sh` (`pair context`), `bin/pair-changelog-open` and
+`bin/pair-scrollback-open` and `nvim/scrollback.lua` (`pair scrollback-render` /
+`pair changelog`), and `pair-wrap`'s turn-end spawn (`pair slug`). The one
+remaining internal caller of a shim name is `bin/pair-shell →
+bin/pair-session-watch.sh → bin/pair-session-watch`, deferred to #93 (the shell
+launcher is still shell-owned). The standalone `bin/pair-<name>` binaries remain
+as thin shims (still built + bundled); dropping them is later single-binary work.
 
 Native integration layers stay native: `nvim/*.lua` remains the bundled Neovim
 surface and `zellij/*.kdl` remains the zellij layout/config surface. Packaging
@@ -119,7 +142,7 @@ Detection of attached-vs-detached uses `zellij --session NAME action list-client
 
 **Title poller (`bin/pair-title.sh`) — two surfaces.** A single always-on per-tag 60s background poller, spawned via `ensure_title_poller` on *every* entry (create, attach, restart) so a poller a host sleep/reboot/SIGKILL killed is reliably revived. Single-instance guard is identity-checked (`poller_alive` `ps`-matches the command line for this tag; pidfile `$DATA_DIR/title-pid-<tag>`; not a bare `kill -0`) so a recycled PID can't suppress the respawn. It owns two title surfaces (tested in `tests/pair-title-poller-test.sh`):
 
-- **Per-pane context meter in the zellij FRAME (#71).** Each agent pane's frame title reads `<agent> (<count>) [<cwd>]`, where `<count>` is the agent's current context-window occupancy — an absolute humanized token count (`970k`), so no model→window catalog is needed. Source of truth is the agent's own session transcript: the pure `cmd/internal/ctxmeter` reader (`ContextTokens` sums the last *real* claude `message.usage`, skipping `isSidechain`/`<synthetic>` records; codex `last_token_usage.input_tokens` of the last `token_count` event; agy none) + `Humanize`, over the path from the shared `cmd/internal/transcript` resolver (extracted from `pair-slug`, ARCH-DRY). The one-shot `cmd/pair-context <tag> <agent>` wires it (tolerant: any failure prints nothing). Each pane records `{pane_id, cwd, cwd_display}` to a single-writer `pane-<tag>-<agent>.json` at startup (`main.kdl`, beside the startup rename — dodges the 3-writer race on `config-*`); the poller loops those, calls `pair-context`, and `zellij --session pair-<tag> action rename-pane`s each frame, gated on recent activity with a per-pane unchanged-skip cache. Always-on (the frame exists with or without cmux). Carried through `pair rename` like `config-*`.
+- **Per-pane context meter in the zellij FRAME (#71).** Each agent pane's frame title reads `<agent> (<count>) [<cwd>]`, where `<count>` is the agent's current context-window occupancy — an absolute humanized token count (`970k`), so no model→window catalog is needed. Source of truth is the agent's own session transcript: the pure `cmd/internal/ctxmeter` reader (`ContextTokens` sums the last *real* claude `message.usage`, skipping `isSidechain`/`<synthetic>` records; codex `last_token_usage.input_tokens` of the last `token_count` event; agy none) + `Humanize`, over the path from the shared `cmd/internal/transcript` resolver (extracted from `pair-slug`, ARCH-DRY). The one-shot `cmd/pair-context <tag> <agent>` wires it (tolerant: any failure prints nothing). Each pane records `{pane_id, cwd, cwd_display}` to a single-writer `pane-<tag>-<agent>.json` at startup (`main.kdl`, beside the startup rename — dodges the 3-writer race on `config-*`); the poller loops those, calls `pair context` (the dispatcher route, #92), and `zellij --session pair-<tag> action rename-pane`s each frame, gated on recent activity with a per-pane unchanged-skip cache. Always-on (the frame exists with or without cmux). Carried through `pair rename` like `config-*`.
 
 - **cmux workspace-title activity heat-ramp & ownership (#69, cmux-only).** Inside cmux (block-local gate), the workspace title mirrors the zellij session name with an activity-heat prefix (🔴 <1d / 🟠 <3d / 🟡 <10d / 🔵 <21d / none). Ownership of a shared workspace is recorded in `$DATA_DIR/cmux-owner-<CMUX_WORKSPACE_ID>`; `cmux_rename_workspace` claims it **unconditionally — presence beats a stale flag**: a launch/attach is provably the current occupant, so it overrides a prior owner rather than deferring to any live `pair-<owner>` session (the old first-writer-wins behavior froze the title forever when that owner had since moved to a *different* cmux workspace, leaving a stale owner file). A genuine second pair in the same workspace degrades to last-launcher-wins via the poller's own defer; when one leaves, the survivor reclaims on its next heat-bucket change (cosmetic lag). The cmux ownership helpers are hoisted into the early-helpers block (the #55 pattern) so `PAIR_TEST_CALL` can unit-test `cmux_rename_workspace` headlessly (tests/cmux-ownership-test.sh).
 
@@ -408,7 +431,7 @@ split keeps the model out of the live buffer:
   `PAIR_AGENT` set, repo cwd inherited). This is agent-agnostic by design — *not*
   a claude `Stop` hook — so the slug works for every agent and needs no
   `~/.claude` config (pair-wrap wraps every session).
-- **Propose** — `cmd/pair-slug` (Go binary). Resolves its own transcript from
+- **Propose** — `cmd/pair-slug` (thin shim over `cmd/internal/slugcmd`; also `pair slug`, #92). Resolves its own transcript from
   `config-<tag>-<agent>.json` (session_id) + the per-agent path, and parses each
   **native format** into `{role,text}` turns: claude jsonl, codex rollout
   (`response_item`/`payload.message`), agy jsonl (USER_INPUT transcript). Derives the
@@ -436,7 +459,7 @@ split keeps the model out of the live buffer:
   turn (so a user edit reaches the model, soft policy). Single writer per file
   (proposer→`slug-proposed`, nvim→`slug-<tag>`) makes the channel race-free.
 
-Pure cores are tested: `cmd/pair-slug/slug.go` (normalize/parse/decide) via
+Pure cores are tested: `cmd/internal/slugcmd/slug.go` (normalize/parse/decide) via
 `go test`, the nvim decision via `nvim -l` (`make test-lua`). Per-agent parsers
 validated against real codex/agy transcripts. Tests that drive `nvim --headless`
 through real keymap callbacks (e.g. `queue-send-test.sh` exercising `<M-CR>` →
@@ -475,7 +498,7 @@ one-liner.
   re-attaches a viewer to the in-progress build). The distiller's stderr →
   `.status` (batch progress for the spinner). The viewer is a pure **watcher**
   (`PAIR_CHANGELOG_LOG`/`DLOCK`/`STATUS`).
-- **Distill** — `cmd/pair-changelog` (Go) over the shared `cmd/internal/model`
+- **Distill** — `cmd/pair-changelog` (thin shim over `cmd/internal/changelogcmd`; also `pair changelog`, #92) over the shared `cmd/internal/model`
   dispatch (sandboxed to `os.TempDir()` like the agy path — else `claude -p`
   loads the repo's CLAUDE.md+MCP every call, a ~25s tax; 90s timeout for this
   heavier task). All logic is pure (`distill.go`). `trimLiveTail` strips the

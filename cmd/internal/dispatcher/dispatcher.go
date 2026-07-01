@@ -7,15 +7,21 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/contextcmd"
 	"github.com/xianxu/pair/cmd/internal/scrollbackcmd"
+	"github.com/xianxu/pair/cmd/internal/slugcmd"
 )
 
 const programName = "pair-go"
 
-// CommandFamily names a future Pair CLI surface without claiming it works yet.
+// CommandFamily names a Pair CLI surface. Status is the single source of
+// implemented-ness ("implemented" | "planned" | "handoff" | "prototype");
+// Streaming is the orthogonal axis: a subcommand that needs real stdin, a live
+// stdout/stderr consumer, or a long lifetime is routed through cmd/pair-go's
+// streaming seam instead of the buffered Dispatch path.
 type CommandFamily struct {
-	Name    string
-	Summary string
-	Status  string
+	Name      string
+	Summary   string
+	Status    string
+	Streaming bool
 }
 
 // Result is the process-facing outcome of a pure dispatch decision.
@@ -31,12 +37,60 @@ func Families() []CommandFamily {
 		{Name: "launch", Summary: "session lifecycle and public pair launcher flow", Status: "handoff"},
 		{Name: "context", Summary: "agent pane context meter", Status: "implemented"},
 		{Name: "scrollback-render", Summary: "raw PTY capture to ANSI scrollback", Status: "implemented"},
-		{Name: "wrap", Summary: "PTY proxy around a TUI agent", Status: "planned"},
-		{Name: "slug", Summary: "session orientation slug generation", Status: "planned"},
-		{Name: "changelog", Summary: "TTY transcript to distilled change log", Status: "planned"},
-		{Name: "continuation", Summary: "continuation datatype writer", Status: "planned"},
-		{Name: "scribe", Summary: "PTY logging wrapper", Status: "planned"},
+		{Name: "wrap", Summary: "PTY proxy around a TUI agent", Status: "planned", Streaming: true},
+		{Name: "slug", Summary: "session orientation slug generation", Status: "implemented"},
+		{Name: "changelog", Summary: "TTY transcript to distilled change log", Status: "implemented", Streaming: true},
+		{Name: "continuation", Summary: "continuation datatype writer", Status: "implemented", Streaming: true},
+		{Name: "session-watch", Summary: "async codex/agy session-id discovery", Status: "implemented", Streaming: true},
+		{Name: "scribe", Summary: "PTY logging wrapper", Status: "planned", Streaming: true},
 	}
+}
+
+// DispatchNames returns the subcommand names that are actually routable
+// (Status == "implemented"). The public `pair` entrypoint peels these off before
+// the launcher, and cmd/pair-go derives the reserved set from here — one source
+// (Families), no drift.
+func DispatchNames() []string {
+	var names []string
+	for _, f := range Families() {
+		if f.Status == "implemented" {
+			names = append(names, f.Name)
+		}
+	}
+	return names
+}
+
+// StreamingNames returns the implemented subcommands that must run through the
+// streaming seam (real os.Stdin/Stdout/Stderr) rather than the buffered Dispatch.
+func StreamingNames() []string {
+	var names []string
+	for _, f := range Families() {
+		if f.Streaming {
+			names = append(names, f.Name)
+		}
+	}
+	return names
+}
+
+// IsImplemented reports whether a subcommand has a dispatch route (Status ==
+// "implemented"); planned/handoff families do not.
+func IsImplemented(name string) bool {
+	for _, f := range Families() {
+		if f.Name == name {
+			return f.Status == "implemented"
+		}
+	}
+	return false
+}
+
+// IsStreaming reports whether a subcommand needs the streaming seam.
+func IsStreaming(name string) bool {
+	for _, f := range Families() {
+		if f.Name == name {
+			return f.Streaming
+		}
+	}
+	return false
 }
 
 // Dispatch parses argv and returns the skeleton dispatch result.
@@ -59,9 +113,20 @@ func Dispatch(args []string) Result {
 		return dispatchContext(args[1:])
 	case "scrollback-render":
 		return dispatchScrollbackRender(args[1:])
+	case "slug":
+		return dispatchSlug(args[1:])
 	}
 
 	if family, ok := familyByName(args[0]); ok {
+		if family.Status == "implemented" {
+			// A streaming subcommand (changelog/continuation/session-watch) is
+			// intercepted by cmd/pair-go's streaming seam before Dispatch; reaching
+			// here means it was called on the buffered path by mistake.
+			return Result{
+				Stderr:   fmt.Sprintf("%s: %s is a streaming subcommand; invoke it via cmd/pair-go's streaming seam, not the buffered Dispatch\n", programName, family.Name),
+				ExitCode: 2,
+			}
+		}
 		return Result{
 			Stderr:   fmt.Sprintf("%s: %s is planned but not implemented in this skeleton; run %s help\n", programName, family.Name, programName),
 			ExitCode: 2,
@@ -84,6 +149,13 @@ func dispatchScrollbackRender(args []string) Result {
 	var stdout, stderr bytes.Buffer
 	code := scrollbackcmd.Run(args, &stdout, &stderr)
 	return Result{Stdout: stdout.String(), Stderr: stderr.String(), ExitCode: code}
+}
+
+// dispatchSlug routes `pair slug`. slug is env-driven with no args and writes
+// only to files + $PAIR_SLUG_LOG (no stdout/stderr), so the buffered Result is
+// empty; only the exit code carries. slug.Run always returns 0 (tolerant).
+func dispatchSlug([]string) Result {
+	return Result{ExitCode: slugcmd.Run()}
 }
 
 func launchHandoffResult() Result {

@@ -67,14 +67,14 @@ if [ ! -s "$RAW" ]; then
     exit 0
 fi
 
-if [ ! -x "$PAIR_HOME/bin/pair-scrollback-render" ]; then
-    printf 'pair-scrollback-open: bin/pair-scrollback-render not built.\n' >&2
-    printf '  Build it:  make pair-scrollback-render\n' >&2
+if [ ! -x "$PAIR_HOME/bin/pair" ]; then
+    printf 'pair-scrollback-open: bin/pair not built.\n' >&2
+    printf '  Build it:  make build\n' >&2
     sleep 5
     exit 1
 fi
-if ! "$PAIR_HOME/bin/pair-scrollback-render" "$RAW" "$EVENTS" "$ANSI"; then
-    printf 'pair-scrollback-open: pair-scrollback-render failed; see above.\n' >&2
+if ! "$PAIR_HOME/bin/pair" scrollback-render "$RAW" "$EVENTS" "$ANSI"; then
+    printf 'pair-scrollback-open: pair scrollback-render failed; see above.\n' >&2
     sleep 5
     exit 1
 fi

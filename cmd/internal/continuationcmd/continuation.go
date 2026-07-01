@@ -5,7 +5,7 @@
 // pushes it to main — the disaster-recovery invariants that must not depend on
 // the distilling LLM remembering. The xx-datatype dispatcher does the
 // distillation (judgment); this binary does the mechanics.
-package main
+package continuationcmd
 
 import (
 	"fmt"

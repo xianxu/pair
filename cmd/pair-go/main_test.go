@@ -9,6 +9,57 @@ import (
 	"testing"
 )
 
+func TestRunStreamingSubcommandRoutesChangelogToInjectedStderr(t *testing.T) {
+	// changelog with no flags → usage error to the *injected* stderr (proves the
+	// seam passes real stderr through, unlike the buffered Dispatch path).
+	var stdout, stderr bytes.Buffer
+	code := runStreamingSubcommand([]string{"changelog"}, strings.NewReader(""), &stdout, &stderr)
+	if code != 1 {
+		t.Fatalf("code = %d, want 1 (usage error)", code)
+	}
+	if !strings.Contains(stderr.String(), "pair-changelog: usage:") {
+		t.Fatalf("stderr missing changelog usage (seam not wired to injected stderr):\n%s", stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("changelog writes no stdout; got %q", stdout.String())
+	}
+}
+
+func TestRunStreamingSubcommandRoutesContinuationStdin(t *testing.T) {
+	// The body arrives on stdin (--body-file -). It lacks a '## NEXT ACTION'
+	// section, so the writer rejects it — which proves the seam passed the real
+	// stdin through to the runner (the buffered Dispatch path has no stdin).
+	root := t.TempDir()
+	var out, errb bytes.Buffer
+	code := runStreamingSubcommand(
+		[]string{"continuation", "--repo-root", root, "--slug", "s", "--agent", "claude", "--issues", "1", "--body-file", "-"},
+		strings.NewReader("just a body, no next action\n"), &out, &errb)
+	if code != 1 {
+		t.Fatalf("code = %d, want 1 (stdin body missing NEXT ACTION)", code)
+	}
+	if !strings.Contains(errb.String(), "NEXT ACTION") {
+		t.Fatalf("stderr should reject the stdin body for missing NEXT ACTION; got %q", errb.String())
+	}
+}
+
+func TestRunStreamingSubcommandRoutesSessionWatch(t *testing.T) {
+	// session-watch with no args → buildOptions rejects (<3 args) → exit 0,
+	// proving the seam case is wired to sessionwatch.RunCLI.
+	var stdout, stderr bytes.Buffer
+	code := runStreamingSubcommand([]string{"session-watch"}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("code = %d, want 0 (missing args no-op)", code)
+	}
+}
+
+func TestRunStreamingSubcommandUnknownIsProgrammingError(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := runStreamingSubcommand([]string{"nope"}, strings.NewReader(""), &stdout, &stderr)
+	if code != 2 || !strings.Contains(stderr.String(), "no runner wired") {
+		t.Fatalf("code=%d stderr=%q, want 2 + 'no runner wired'", code, stderr.String())
+	}
+}
+
 func TestRunWritesStdoutAndReturnsDispatcherCode(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := run([]string{"help"}, &stdout, &stderr)

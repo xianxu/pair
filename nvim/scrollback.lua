@@ -281,13 +281,14 @@ local function scrollback_paths(bufnr)
 end
 
 local function renderer_command(paths)
+  -- One binary now: `pair scrollback-render` via the dispatcher (#92).
   local bin
   if vim.env.PAIR_HOME and vim.env.PAIR_HOME ~= '' then
-    bin = vim.env.PAIR_HOME .. '/bin/pair-scrollback-render'
+    bin = vim.env.PAIR_HOME .. '/bin/pair'
   else
-    bin = 'pair-scrollback-render'
+    bin = 'pair'
   end
-  return { bin, paths.raw, paths.events, paths.ansi }
+  return { bin, 'scrollback-render', paths.raw, paths.events, paths.ansi }
 end
 
 local function run_renderer(paths, opts)
@@ -452,6 +453,7 @@ _G.PairScrollbackTest = {
   refresh_buffer = refresh_scrollback_buffer,
   refresh_then_end = refresh_then_end,
   annotate = annotate,
+  renderer_command = renderer_command,
 }
 
 

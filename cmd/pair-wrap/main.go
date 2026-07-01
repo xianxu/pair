@@ -536,11 +536,21 @@ func (p *proxy) maybeSpawnSlug() {
 	}
 	p.lastSlug = now
 	p.debug("SLUG-spawn", "agent="+p.agentBasename)
-	go func() {
-		cmd := exec.Command("pair-slug")
-		cmd.Env = append(os.Environ(), "PAIR_AGENT="+p.agentBasename)
-		_ = cmd.Run()
-	}()
+	go func() { _ = slugSpawnCmd(p.agentBasename).Run() }()
+}
+
+// slugSpawnCmd builds the detached turn-end slug refresh command. It runs as a
+// separate process (fire-and-forget, failure-isolated from the proxy — a slug
+// hiccup must never disturb the agent); $PAIR_HOME/bin/pair dispatches to the
+// slug runner (#92, was the pair-slug binary). PAIR_AGENT overrides the agent.
+func slugSpawnCmd(agent string) *exec.Cmd {
+	pairBin := "pair"
+	if home := os.Getenv("PAIR_HOME"); home != "" {
+		pairBin = filepath.Join(home, "bin", "pair")
+	}
+	cmd := exec.Command(pairBin, "slug")
+	cmd.Env = append(os.Environ(), "PAIR_AGENT="+agent)
+	return cmd
 }
 
 // Rate-limited: any call within rateLimitS of the last successful emit is

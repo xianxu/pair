@@ -99,13 +99,17 @@ cat > "$RT/bin/zellij" <<'EOF'
 [ "${4:-}" = "rename-pane" ] && printf '%s\n' "$*" >> "$RENAME_LOG"
 exit 0
 EOF
-# Fake pair-context prints a fixed count (or empty when FAKE_COUNT unset/empty).
-cat > "$RT/bin/pair-context" <<'EOF'
+# Fake `pair` dispatcher: `pair context ...` prints a fixed count (or empty when
+# FAKE_COUNT unset/empty). The poller now invokes `pair context`, not the legacy
+# pair-context binary.
+cat > "$RT/bin/pair" <<'EOF'
 #!/usr/bin/env bash
-[ -n "${FAKE_COUNT:-}" ] && printf '%s\n' "$FAKE_COUNT"
+if [ "$1" = "context" ]; then
+  [ -n "${FAKE_COUNT:-}" ] && printf '%s\n' "$FAKE_COUNT"
+fi
 exit 0
 EOF
-chmod +x "$RT/bin/zellij" "$RT/bin/pair-context"
+chmod +x "$RT/bin/zellij" "$RT/bin/pair"
 
 DD="$RT/data"
 mkdir -p "$DD"

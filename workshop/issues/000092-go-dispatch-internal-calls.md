@@ -1,12 +1,13 @@
 ---
 id: 000092
-status: working
+status: done
 deps: [000090]
 github_issue:
 created: 2026-07-01
 updated: 2026-07-01
-estimate_hours:
+estimate_hours: 6.52
 started: 2026-07-01T09:40:38-07:00
+actual_hours: 2.61
 ---
 
 # route internal calls through Go dispatcher
@@ -60,35 +61,94 @@ Architecture: `ARCH-DRY` (one implementation behind dispatch, shims not forks),
 
 ## Done when
 
-- [ ] Each remaining Pair-owned helper is invocable as `pair <subcommand>`
+- [x] Each remaining Pair-owned helper is invocable as `pair <subcommand>`
       through the dispatcher, reusing its existing internal runner package.
-- [ ] Legacy `bin/pair-<name>` binaries are thin shims (re-exec) or removed where
+- [x] Legacy `bin/pair-<name>` binaries are thin shims (re-exec) or removed where
       no external caller needs the name; no duplicated helper logic remains.
-- [ ] Generated Pair-owned call-sites use the dispatcher form.
-- [ ] Every helper's CLI contract (flags/env/stdin/exit) is unchanged, with
+- [x] Generated Pair-owned call-sites use the dispatcher form.
+- [x] Every helper's CLI contract (flags/env/stdin/exit) is unchanged, with
       tests covering the dispatch path and unsupported-subcommand errors.
-- [ ] Pair remains usable after merge through the existing `pair` entrypoint.
+- [x] Pair remains usable after merge through the existing `pair` entrypoint.
 
 ## Plan
 
-- [ ] Inventory the helper binaries + their internal runner packages and every
-      Pair-owned call-site (grep nvim Lua, shell, hooks) that invokes them by name.
-- [ ] Route each remaining helper through the dispatcher (`pair <subcommand>`),
-      reusing the internal runner.
-- [ ] Reduce `bin/pair-<name>` to shims (re-exec) or drop where safe; update the
-      runtime manifest.
-- [ ] Repoint Pair-owned generated call-sites to the dispatcher form.
-- [ ] Tests: dispatch parsing, per-helper contract parity, unsupported-subcommand
-      errors; run the shell/nvim integration suites.
+Two merge-safe review boundaries. Detailed steps:
+`workshop/plans/000092-go-dispatch-internal-calls-plan.md`.
+
+- [x] M1 — dispatcher reachability + runner consolidation (backward-compatible):
+      `Families()` routing metadata + `session-watch` entry; entrypoint peel-off
+      so `pair <sub>` dispatches; extract `slugcmd`/`changelogcmd`/`continuationcmd`
+      runners + thin shims; buffered route (`slug`) + streaming seam
+      (`changelog`/`continuation`/`session-watch`); dispatch/classification/parity
+      tests.
+- [x] M2 — repoint Pair-owned call-sites (shadow-sweep): `pair-title.sh`,
+      `pair-changelog-open`, `pair-scrollback-open`, `nvim/scrollback.lua`,
+      `pair-wrap` turn-end spawn → `pair <sub>`; regenerate the runtime bundle;
+      full-suite verification.
+
+## Estimate
+
+Produced via `estimate-logic-v3.1` primitives (Method A), same lineage as #90.
+`sdlc estimate-source` reports the calibration source as stale, so the number is
+provisional but uses the required method. The four `smaller-go-module` items are:
+three runner extractions (`slugcmd`, `changelogcmd`, `continuationcmd` — refactors
+of existing Go: move code + `Run()` wrapper + test relocation) plus the net-new
+dispatcher plumbing (`Families()` routing metadata, the `ClassifyInvocation`
+peel-off, and the `runStreamingSubcommand` streaming seam), which is genuinely new
+abstraction rather than relocation. `session-watch`'s runner already exists, so it
+adds only a route (folded into the plumbing item).
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.20 impl=0.08
+item: smaller-go-module design=0.35 impl=0.48
+item: smaller-go-module design=0.35 impl=0.48
+item: smaller-go-module design=0.35 impl=0.48
+item: smaller-go-module design=0.35 impl=0.48
+item: cross-cutting-refactor design=0.80 impl=1.12
+item: atlas-docs design=0.25 impl=0.20
+item: milestone-review design=0.00 impl=0.20
+item: milestone-review design=0.00 impl=0.20
+design-buffer: 0.15
+total: 6.52
+```
 
 ## Log
 
 ### 2026-07-01
+- 2026-07-01: closed — Full `make test` passes (all shell suites + go test ./...). slug/changelog/continuation/session-watch reachable as `pair <sub>` via the entrypoint peel-off (route-equivalence + streaming-seam tests); all 5 Pair-owned call-sites repointed to `pair <sub>` (shadow-sweep clean, one session-watch chain deferred to #93). Standalone bin/pair-<name> are thin shims over shared cmd/internal/*cmd runners. Both milestone reviews FIX-THEN-SHIP, findings addressed. pair-wrap/pair-scribe carved to #96.; review verdict: SHIP
+- 2026-07-01: closed M2 — M2: repointed all 5 Pair-owned call-sites to pair <sub> (pair-title.sh→pair context; pair-changelog-open→pair scrollback-render/changelog via collapsed PCL_BIN; pair-scrollback-open→pair scrollback-render; nvim/scrollback.lua→pair scrollback-render; pair-wrap turn-end→pair slug via testable slugSpawnCmd). Full `make test` passes (all shell suites incl. pair-title/changelog-open/session-watch/embedded-runtime + go test ./...). Shadow-sweep: every remaining pair-<name> ref intentionally retained (session-watch chain→#93, bundle manifest+shim binaries, adapt logger names, runner usage strings, equivalence tests). Runtime bundle is gitignored+regenerated on make build (plan I3 revised; no commit needed).; review verdict: FIX-THEN-SHIP
+- 2026-07-01: closed M1 — M1: go test ./... all pass (env-scrubbed); make build produces pair + shims; route equivalence confirmed (pair slug≡pair-slug exit 0; pair changelog≡pair-changelog identical usage+exit 1; pair continuation exit 1); ClassifyInvocation grammar unit-tested (pair slug→dispatch, pair claude/resume/bare→launcher); streaming-seam tests (changelog live-stderr, continuation stdin passthrough, session-watch no-op); dispatcher DispatchNames/IsStreaming/IsImplemented tests. Callers still on shim names until M2.; review verdict: FIX-THEN-SHIP
 
 Created as step 2 of the native-single-binary tracker (#91). Continues the
 helper-dispatch pattern #76 began (`pair-go context`, `pair-go
 scrollback-render`); `pair slug` and the remaining helpers are the concrete
 targets.
+
+**M2 shadow-sweep (ARCH-PURPOSE).** Repointed all five Pair-owned call-sites to
+`pair <sub>`: `bin/pair-title.sh` (`pair context`), `bin/pair-changelog-open`
+(`pair scrollback-render`/`changelog`, collapsing the two-token `PCL_BIN`),
+`bin/pair-scrollback-open` (`pair scrollback-render`), `nvim/scrollback.lua`
+(`pair scrollback-render`), `cmd/pair-wrap` turn-end (`pair slug`, via a
+testable `slugSpawnCmd`). `grep -rnE 'pair-(slug|changelog|continuation|context|scrollback-render|session-watch)'`
+confirms every remaining hit is intentionally retained: the
+`bin/pair-shell → pair-session-watch.sh → binary` chain (shell-owned, #93),
+the runtime-bundle manifest/generator + shim binaries (removal is later
+single-binary work), adapt logger channel names (`"pair-slug"`), runner usage
+strings, `nvim/init.lua`'s continuation-writer prose, and the equivalence
+tests. `pair session-watch` and `pair continuation` have routes but no
+repointed *production* caller here (session-watch's caller is the shell
+launcher → #93; continuation is invoked by agent procedure) — intentional
+symmetry for #93/#96 reuse, not dead code.
+
+**Runtime bundle (revises plan I3).** The plan expected to regenerate + commit
+the bundle. In this repo the entire `cmd/internal/runtimebundle/assets/` tree
+(manifest + `files/`) is **gitignored** — regenerated from source on every
+`make build` and `//go:embed`-ed — so there is nothing to commit and no
+stale-bundle / dirty-tree-at-close risk. Editing the bundled shell/lua sources
+is sufficient; the embedded runtime rebuilds from them. Verified: the generated
+`assets/.../bin/pair-title.sh` carries `pair context`.
 
 ## Revisions
 

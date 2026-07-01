@@ -9,11 +9,15 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
+	"github.com/xianxu/pair/cmd/internal/changelogcmd"
+	"github.com/xianxu/pair/cmd/internal/continuationcmd"
 	"github.com/xianxu/pair/cmd/internal/dispatcher"
 	"github.com/xianxu/pair/cmd/internal/entrypoint"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
+	"github.com/xianxu/pair/cmd/internal/sessionwatch"
 )
 
 var defaultPairHome string
@@ -47,14 +51,37 @@ func runWithLegacyRuntime(args []string, stdout, stderr io.Writer, rt legacyRunt
 		return writeResult(res, stdout, stderr)
 	}
 
-	switch entrypoint.ClassifyInvocation(exe, args) {
+	switch entrypoint.ClassifyInvocation(exe, args, dispatcher.DispatchNames()) {
 	case entrypoint.ModePublicPair:
 		return runLegacyLaunch("pair", exe, args, stderr, rt)
 	case entrypoint.ModePairGoLaunch:
 		return runLegacyLaunch("pair-go launch", exe, args[1:], stderr, rt)
 	default:
+		if len(args) > 0 && dispatcher.IsImplemented(args[0]) && dispatcher.IsStreaming(args[0]) {
+			return runStreamingSubcommand(args, os.Stdin, stdout, stderr)
+		}
 		res := dispatcher.Dispatch(args)
 		return writeResult(res, stdout, stderr)
+	}
+}
+
+// runStreamingSubcommand routes subcommands that need real stdio — a live
+// stderr consumer (changelog), stdin (continuation), or a long lifetime
+// (session-watch) — straight to their runner with pass-through streams,
+// bypassing the buffered dispatcher.Dispatch. stdin is a parameter so the seam
+// is unit-testable with a fake. Only implemented streaming subcommands reach
+// here (gated by the caller), so an unknown arg is a programming error.
+func runStreamingSubcommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	switch args[0] {
+	case "changelog":
+		return changelogcmd.Run(args[1:], stderr)
+	case "continuation":
+		return continuationcmd.Run(args[1:], stdin, stdout, stderr, time.Now)
+	case "session-watch":
+		return sessionwatch.RunCLI(args[1:], os.Getenv, stderr)
+	default:
+		_, _ = fmt.Fprintf(stderr, "pair-go: %s: streaming subcommand has no runner wired\n", args[0])
+		return 2
 	}
 }
 

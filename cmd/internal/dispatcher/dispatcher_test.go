@@ -7,6 +7,47 @@ import (
 	"testing"
 )
 
+func TestDispatchNamesDeriveFromImplementedStatus(t *testing.T) {
+	names := DispatchNames()
+	// The full implemented set MUST be present: the public `pair <sub>` peel-off
+	// keys off DispatchNames(), so if one of these were accidentally left
+	// `planned`, `pair changelog` would fall through to the launcher (start a
+	// session) with no other test catching it.
+	for _, want := range []string{"context", "scrollback-render", "slug", "changelog", "continuation", "session-watch"} {
+		if !containsStr(names, want) {
+			t.Fatalf("DispatchNames() = %v, missing implemented %q", names, want)
+		}
+	}
+	// Planned + handoff families are NOT routable subcommands.
+	for _, absent := range []string{"launch", "wrap", "scribe"} {
+		if containsStr(names, absent) {
+			t.Fatalf("DispatchNames() = %v, must not contain non-implemented %q", names, absent)
+		}
+	}
+}
+
+func TestStreamingFlags(t *testing.T) {
+	for _, s := range []string{"changelog", "continuation", "session-watch"} {
+		if !IsStreaming(s) {
+			t.Errorf("IsStreaming(%q) = false, want true (stdin/live-stderr/long-running)", s)
+		}
+	}
+	for _, b := range []string{"slug", "context", "scrollback-render"} {
+		if IsStreaming(b) {
+			t.Errorf("IsStreaming(%q) = true, want false (buffered)", b)
+		}
+	}
+}
+
+func containsStr(xs []string, want string) bool {
+	for _, x := range xs {
+		if x == want {
+			return true
+		}
+	}
+	return false
+}
+
 func TestDispatchHelpListsPlannedFamiliesWithoutClaimingSupport(t *testing.T) {
 	for _, args := range [][]string{nil, {"help"}, {"--help"}, {"-h"}} {
 		t.Run(strings.Join(args, "_"), func(t *testing.T) {
@@ -122,6 +163,20 @@ func TestDispatchScrollbackRenderUsage(t *testing.T) {
 	}
 	if !strings.Contains(res.Stderr, "usage: pair-scrollback-render") {
 		t.Fatalf("Stderr missing usage:\n%s", res.Stderr)
+	}
+}
+
+func TestDispatchSlugRoutesToRunner(t *testing.T) {
+	// No PAIR_TAG/PAIR_DATA_DIR → slug no-ops and returns 0; it writes only to
+	// files, so the buffered Result carries no stdout/stderr.
+	t.Setenv("PAIR_TAG", "")
+	t.Setenv("PAIR_DATA_DIR", "")
+	res := Dispatch([]string{"slug"})
+	if res.ExitCode != 0 {
+		t.Fatalf("ExitCode = %d, want 0", res.ExitCode)
+	}
+	if res.Stdout != "" || res.Stderr != "" {
+		t.Fatalf("slug route should produce no buffered output; got stdout=%q stderr=%q", res.Stdout, res.Stderr)
 	}
 }
 
