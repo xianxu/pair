@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
 // OSRuntime implements Runtime with real process and filesystem calls.
@@ -103,7 +104,7 @@ func (OSRuntime) LsofPaths(pid string) ([]string, error) {
 }
 
 func (OSRuntime) ProcessAlive(pid string) bool {
-	return exec.Command("kill", "-0", pid).Run() == nil
+	return procutil.Alive(pid)
 }
 
 func (OSRuntime) AtomicWrite(path string, data []byte) error {

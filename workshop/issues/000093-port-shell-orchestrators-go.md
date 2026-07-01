@@ -5,7 +5,7 @@ deps: [000092]
 github_issue:
 created: 2026-07-01
 updated: 2026-07-01
-estimate_hours:
+estimate_hours: 17.4
 started: 2026-07-01T14:39:06-07:00
 ---
 
@@ -51,6 +51,32 @@ the most state; the leaf orchestrators (title poller, scrollback/review/clipboar
 openers) are ported first to shrink `bin/pair-shell`'s dependency set before it
 is itself replaced.
 
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module design=0.4 impl=1.6
+item: smaller-go-module design=0.3 impl=1.2
+item: smaller-go-module design=0.4 impl=1.6
+item: smaller-go-module design=0.2 impl=0.9
+item: smaller-go-module design=1.0 impl=6.0
+item: milestone-review design=0.0 impl=1.5
+item: atlas-docs design=0.2 impl=0.6
+total: 17.4
+```
+
+Whole-issue estimate across M1–M5 (the five `smaller-go-module` items, in
+milestone order; `milestone-review` covers the five boundary reviews;
+design hours are weighted 1.6× per the model). The **M5 launcher** item
+(design=1.0 impl=6.0 → ~7.6h) is the dominant uncertainty — `bin/pair-shell`
+is ~2200 lines; per the Plan's granularity note it may split into its own
+ticket, which would re-scope this estimate. M1–M4 (the leaf orchestrators,
+~7.4h) are well-understood ports on the verified #78 sessionwatch template.
+Durable plan:
+`workshop/plans/000093-port-shell-orchestrators-plan.md` (M1 detailed; M2–M5
+milestone-level, detailed as reached).
+
 ## Done when
 
 - [ ] Each listed shell orchestrator has a Go owner; the shell name survives only
@@ -68,7 +94,7 @@ Each `Mx` is a merge-safe review boundary closed on its own (`sdlc
 milestone-close`); the surfaces are independent enough to port and verify one at
 a time.
 
-- [ ] M1 — title poller: port `bin/pair-title.sh` to Go (the explicit #78
+- [x] M1 — title poller: port `bin/pair-title.sh` to Go (the explicit #78
       next-candidate), keep the `.sh` name as a shim.
 - [ ] M2 — scrollback/changelog openers: port `bin/pair-scrollback-open` (and the
       changelog opener) to Go orchestration; `nvim/*.lua` viewers stay native.
@@ -83,6 +109,21 @@ a time.
 ## Log
 
 ### 2026-07-01
+- 2026-07-01: closed M1 — bin/pair-title.sh ported to cmd/pair-title Go poller: titlepoller unit tests cover all 8 old shell-harness cases (identity guard incl 21-vs-211 collision; frame-meter count/no-count/cwd-fallback/unchanged-skip) + loop tests (single-instance defer, stale-pidfile reclaim, session-miss-threshold exit); shared procutil backs both OSRuntimes; context count reused in-process via contextcmd (no subprocess); bin/pair-title.sh is a thin re-exec shim preserving the argv the single-instance guard matches; full make test green (sandbox-off, real ps/kill); runtimebundle drift-check clean with bin/pair-title + shim bundled.; review verdict: FIX-THEN-SHIP
+
+**M1 review follow-ups (FIX-THEN-SHIP → SHIP).** No Critical/Important-blocking
+correctness bugs. Addressed the one Important finding — the loop body was
+untested — by adding `TestRunRendersFrameAndCmuxTitles` (claim path renders
+frame + cmux through `Run`), `TestRunDefersCmuxToLiveForeignOwner` (defer path),
+and direct `updateWorkspaceTitle` reclaim/unchanged-bucket + `activityMTime`
+tests. Recorded two deliberate refinements (not faithful copies): (1) the
+activity-transcript resolution moved from the shell's `$PWD` to paneCwd (via the
+shared `contextcmd.TranscriptPath`) — a no-op for the primary pane; (2) a brief
+double-poller window is possible on the very first spawn after upgrading from a
+still-running pre-port `bash pair-title.sh` process (the new `pair-title <tag> `
+argv guard doesn't recognize the old `.sh` argv) — self-heals when that session
+ends. Plan `## Revisions` records the dropped `Log`/adapt seam (faithful: the
+shell poller never emitted adapt) and the `latest`→`activityMTime` naming.
 
 Created as step 3 of the native-single-binary tracker (#91) — the load-bearing
 port. Surfaces and priorities drawn from `atlas/go-migration-inventory.md`;

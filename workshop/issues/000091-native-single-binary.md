@@ -89,9 +89,9 @@ arch-principles`):
 Tracking checklist — ticks as each sub-ticket closes:
 
 - [x] Step 1 — embed + extract runtime tree — #90 (done)
-- [ ] Step 2 — route internal calls through the Go dispatcher — #92
-- [ ] Step 2b — route pair-wrap + pair-scribe PTY proxies — #96 (carve-out of #92)
-- [ ] Step 3 — port stateful shell orchestrators to Go — #93
+- [x] Step 2 — route internal calls through the Go dispatcher — #92 (done)
+- [x] Step 2b — route pair-wrap + pair-scribe PTY proxies — #96 (done)
+- [ ] Step 3 — port stateful shell orchestrators to Go — #93 (in progress: M1 title poller done)
 - [ ] Step 4 — stop extracting shell scripts — #94
 - [ ] Step 5 — native nvim/zellij startup assets — #95
 
@@ -102,6 +102,10 @@ actual work + reviews happen in the sub-tickets.
 ## Log
 
 ### 2026-07-01
+- Steps 2 & 2b closed and merged (#92 dispatcher routing; #96 pair-wrap/pair-scribe
+  PTY proxies). Step 3 (#93) in progress: M1 (title poller → `cmd/pair-title`)
+  landed; M2–M5 (scrollback/changelog openers, review helpers, clipboard helpers,
+  launcher) remain.
 
 Created as the umbrella tracker for the remaining native-single-binary work.
 Rationale: #72 (the prior Go-migration roadmap) closed at #79, and #90's Spec

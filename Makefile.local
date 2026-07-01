@@ -1,7 +1,7 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
-.PHONY: build install pair pair-scribe pair-scrollback-render pair-wrap pair-slug pair-changelog pair-context pair-session-watch pair-go runtimebundle-generate runtimebundle-drift-check test-runtimebundle test test-race test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-emitter-health test-session-watch test-continue test-changelog test-copy-on-select test-pair-title test-cmux-ownership test-zellij-trace
+.PHONY: build install pair pair-scribe pair-scrollback-render pair-wrap pair-slug pair-changelog pair-context pair-session-watch pair-title pair-go runtimebundle-generate runtimebundle-drift-check test-runtimebundle test test-race test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-emitter-health test-session-watch test-continue test-changelog test-copy-on-select test-pair-title test-cmux-ownership test-zellij-trace
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
 # and ships with the `pair-` prefix so it doesn't collide with anything
@@ -26,10 +26,10 @@
 
 BIN_DIR     := bin
 INSTALL_DIR := $(HOME)/.local/bin
-GO_BINS     := pair pair-scribe pair-scrollback-render pair-wrap pair-slug pair-continuation pair-changelog pair-context pair-session-watch pair-go
+GO_BINS     := pair pair-scribe pair-scrollback-render pair-wrap pair-slug pair-continuation pair-changelog pair-context pair-session-watch pair-title pair-go
 SHELL_BINS  := pair-dev
 PAIR_HOME_LDFLAGS := -X main.defaultPairHome=$(CURDIR)
-RUNTIMEBUNDLE_HELPERS := pair-scrollback-render pair-wrap pair-slug pair-continuation pair-changelog pair-context pair-session-watch
+RUNTIMEBUNDLE_HELPERS := pair-scrollback-render pair-wrap pair-slug pair-continuation pair-changelog pair-context pair-session-watch pair-title
 RUNTIMEBUNDLE_ASSETS := cmd/internal/runtimebundle/assets/runtime/manifest.json
 
 build: $(addprefix $(BIN_DIR)/,$(GO_BINS))
@@ -55,6 +55,7 @@ pair-continuation:      $(BIN_DIR)/pair-continuation
 pair-changelog:         $(BIN_DIR)/pair-changelog
 pair-context:           $(BIN_DIR)/pair-context
 pair-session-watch:     $(BIN_DIR)/pair-session-watch
+pair-title:             $(BIN_DIR)/pair-title
 pair-go:                $(BIN_DIR)/pair-go
 
 # Tests
@@ -70,12 +71,13 @@ pair-go:                $(BIN_DIR)/pair-go
 test: test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-emitter-health test-session-watch test-continue test-changelog test-copy-on-select test-pair-title test-cmux-ownership test-zellij-trace test-review
 	go test ./... -count=1
 
-# pair-title poller: single-instance guard (identity-checked liveness so a
-# recycled PID can't suppress the respawn) + the #71 frame meter (renames each
-# agent pane to "<agent> (<count>) [<cwd>]", with unchanged-skip). See
-# tests/pair-title-poller-test.sh.
+# pair-title poller (#93 M1, now Go): single-instance guard (identity-checked
+# liveness so a recycled PID can't suppress the respawn) + the #71 frame meter
+# (renames each agent pane to "<agent> (<count>) [<cwd>]", with unchanged-skip)
+# + the cmux heat-ramp. The old shell harness (PAIR_TITLE_TEST_CALL hook) retired
+# with the port; its coverage moved to Go unit tests over the Runtime seam.
 test-pair-title:
-	bash tests/pair-title-poller-test.sh
+	go test ./cmd/internal/titlepoller ./cmd/internal/procutil -count=1
 
 # cmux workspace ownership claim (presence beats a stale owner flag), so a
 # launch/attach/restart reclaims its workspace title. See
@@ -269,8 +271,16 @@ $(BIN_DIR)/pair-context: cmd/pair-context/main.go cmd/internal/contextcmd/contex
 
 # pair-session-watch — async codex/agy session-id discovery. Legacy
 # bin/pair-session-watch.sh remains as a compatibility shim for bin/pair.
-$(BIN_DIR)/pair-session-watch: cmd/pair-session-watch/main.go cmd/internal/sessionwatch/sessionwatch.go cmd/internal/sessionwatch/run.go cmd/internal/sessionwatch/runcli.go cmd/internal/sessionwatch/runtime.go cmd/internal/adapt/adapt.go go.mod
+$(BIN_DIR)/pair-session-watch: cmd/pair-session-watch/main.go cmd/internal/sessionwatch/sessionwatch.go cmd/internal/sessionwatch/run.go cmd/internal/sessionwatch/runcli.go cmd/internal/sessionwatch/runtime.go cmd/internal/procutil/procutil.go cmd/internal/adapt/adapt.go go.mod
 	go build -o $@ ./cmd/pair-session-watch
+
+# pair-title — the per-tag title poller (#93 M1, ported from bin/pair-title.sh):
+# zellij frame meter (#71) + cmux workspace heat-ramp. Pure decisions in
+# cmd/internal/titlepoller; zellij/cmux/ps/fs behind the OSRuntime seam. Reuses
+# contextcmd (in-process context count) + procutil (kill-0/ps). bin/pair-title.sh
+# is the thin re-exec shim.
+$(BIN_DIR)/pair-title: cmd/pair-title/main.go cmd/internal/titlepoller/titlepoller.go cmd/internal/titlepoller/run.go cmd/internal/titlepoller/runcli.go cmd/internal/titlepoller/runtime.go cmd/internal/procutil/procutil.go cmd/internal/contextcmd/contextcmd.go cmd/internal/ctxmeter/ctxmeter.go cmd/internal/transcript/transcript.go cmd/internal/adapt/adapt.go go.mod
+	go build -o $@ ./cmd/pair-title
 
 # pair-changelog — distills the pair TTY into the Alt+l change log (#53);
 # shares cmd/internal/model with pair-slug.
@@ -283,7 +293,7 @@ $(BIN_DIR)/pair-changelog: cmd/pair-changelog/main.go cmd/internal/changelogcmd/
 $(BIN_DIR)/pair-continuation: cmd/pair-continuation/main.go cmd/internal/continuationcmd/continuationcmd.go cmd/internal/continuationcmd/continuation.go cmd/internal/continuationcmd/git.go go.mod
 	go build -o $@ ./cmd/pair-continuation
 
-PAIR_GO_SRCS := cmd/pair-go/main.go cmd/internal/entrypoint/asset_root.go cmd/internal/entrypoint/launch.go cmd/internal/entrypoint/mode.go cmd/internal/dispatcher/dispatcher.go cmd/internal/launcher/args.go cmd/internal/launcher/datadir.go cmd/internal/launcher/decision.go cmd/internal/launcher/history.go cmd/internal/launcher/run.go cmd/internal/launcher/session.go cmd/internal/launcher/tag.go cmd/internal/launcher/zellij.go cmd/internal/contextcmd/contextcmd.go cmd/internal/scrollbackcmd/scrollbackcmd.go cmd/internal/slugcmd/slugcmd.go cmd/internal/slugcmd/slug.go cmd/internal/wrapcmd/wrap.go cmd/internal/scribecmd/scribecmd.go cmd/internal/changelogcmd/changelogcmd.go cmd/internal/changelogcmd/distill.go cmd/internal/changelogcmd/prompt.go cmd/internal/continuationcmd/continuationcmd.go cmd/internal/continuationcmd/continuation.go cmd/internal/continuationcmd/git.go cmd/internal/sessionwatch/sessionwatch.go cmd/internal/sessionwatch/run.go cmd/internal/sessionwatch/runcli.go cmd/internal/sessionwatch/runtime.go cmd/internal/model/model.go cmd/internal/transcript/transcript.go cmd/internal/adapt/adapt.go cmd/internal/runtimebundle/manifest.go cmd/internal/runtimebundle/plan.go cmd/internal/runtimebundle/cleanup.go cmd/internal/runtimebundle/store.go cmd/internal/runtimebundle/embed.go $(RUNTIMEBUNDLE_ASSETS) go.mod
+PAIR_GO_SRCS := cmd/pair-go/main.go cmd/internal/entrypoint/asset_root.go cmd/internal/entrypoint/launch.go cmd/internal/entrypoint/mode.go cmd/internal/dispatcher/dispatcher.go cmd/internal/launcher/args.go cmd/internal/launcher/datadir.go cmd/internal/launcher/decision.go cmd/internal/launcher/history.go cmd/internal/launcher/run.go cmd/internal/launcher/session.go cmd/internal/launcher/tag.go cmd/internal/launcher/zellij.go cmd/internal/contextcmd/contextcmd.go cmd/internal/scrollbackcmd/scrollbackcmd.go cmd/internal/slugcmd/slugcmd.go cmd/internal/slugcmd/slug.go cmd/internal/wrapcmd/wrap.go cmd/internal/scribecmd/scribecmd.go cmd/internal/changelogcmd/changelogcmd.go cmd/internal/changelogcmd/distill.go cmd/internal/changelogcmd/prompt.go cmd/internal/continuationcmd/continuationcmd.go cmd/internal/continuationcmd/continuation.go cmd/internal/continuationcmd/git.go cmd/internal/sessionwatch/sessionwatch.go cmd/internal/sessionwatch/run.go cmd/internal/sessionwatch/runcli.go cmd/internal/sessionwatch/runtime.go cmd/internal/procutil/procutil.go cmd/internal/model/model.go cmd/internal/transcript/transcript.go cmd/internal/adapt/adapt.go cmd/internal/runtimebundle/manifest.go cmd/internal/runtimebundle/plan.go cmd/internal/runtimebundle/cleanup.go cmd/internal/runtimebundle/store.go cmd/internal/runtimebundle/embed.go $(RUNTIMEBUNDLE_ASSETS) go.mod
 
 # pair — public Go-owned entrypoint. It execs bin/pair-shell for the current
 # shell-owned zellij lifecycle; source/Homebrew builds can inject
