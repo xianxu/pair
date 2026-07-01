@@ -11,11 +11,16 @@ import (
 
 const programName = "pair-go"
 
-// CommandFamily names a future Pair CLI surface without claiming it works yet.
+// CommandFamily names a Pair CLI surface. Status is the single source of
+// implemented-ness ("implemented" | "planned" | "handoff" | "prototype");
+// Streaming is the orthogonal axis: a subcommand that needs real stdin, a live
+// stdout/stderr consumer, or a long lifetime is routed through cmd/pair-go's
+// streaming seam instead of the buffered Dispatch path.
 type CommandFamily struct {
-	Name    string
-	Summary string
-	Status  string
+	Name      string
+	Summary   string
+	Status    string
+	Streaming bool
 }
 
 // Result is the process-facing outcome of a pure dispatch decision.
@@ -31,12 +36,49 @@ func Families() []CommandFamily {
 		{Name: "launch", Summary: "session lifecycle and public pair launcher flow", Status: "handoff"},
 		{Name: "context", Summary: "agent pane context meter", Status: "implemented"},
 		{Name: "scrollback-render", Summary: "raw PTY capture to ANSI scrollback", Status: "implemented"},
-		{Name: "wrap", Summary: "PTY proxy around a TUI agent", Status: "planned"},
+		{Name: "wrap", Summary: "PTY proxy around a TUI agent", Status: "planned", Streaming: true},
 		{Name: "slug", Summary: "session orientation slug generation", Status: "planned"},
-		{Name: "changelog", Summary: "TTY transcript to distilled change log", Status: "planned"},
-		{Name: "continuation", Summary: "continuation datatype writer", Status: "planned"},
-		{Name: "scribe", Summary: "PTY logging wrapper", Status: "planned"},
+		{Name: "changelog", Summary: "TTY transcript to distilled change log", Status: "planned", Streaming: true},
+		{Name: "continuation", Summary: "continuation datatype writer", Status: "planned", Streaming: true},
+		{Name: "session-watch", Summary: "async codex/agy session-id discovery", Status: "planned", Streaming: true},
+		{Name: "scribe", Summary: "PTY logging wrapper", Status: "planned", Streaming: true},
 	}
+}
+
+// DispatchNames returns the subcommand names that are actually routable
+// (Status == "implemented"). The public `pair` entrypoint peels these off before
+// the launcher, and cmd/pair-go derives the reserved set from here — one source
+// (Families), no drift.
+func DispatchNames() []string {
+	var names []string
+	for _, f := range Families() {
+		if f.Status == "implemented" {
+			names = append(names, f.Name)
+		}
+	}
+	return names
+}
+
+// StreamingNames returns the implemented subcommands that must run through the
+// streaming seam (real os.Stdin/Stdout/Stderr) rather than the buffered Dispatch.
+func StreamingNames() []string {
+	var names []string
+	for _, f := range Families() {
+		if f.Streaming {
+			names = append(names, f.Name)
+		}
+	}
+	return names
+}
+
+// IsStreaming reports whether a subcommand needs the streaming seam.
+func IsStreaming(name string) bool {
+	for _, f := range Families() {
+		if f.Name == name {
+			return f.Streaming
+		}
+	}
+	return false
 }
 
 // Dispatch parses argv and returns the skeleton dispatch result.

@@ -7,6 +7,45 @@ import (
 	"testing"
 )
 
+func TestDispatchNamesDeriveFromImplementedStatus(t *testing.T) {
+	names := DispatchNames()
+	// Already-implemented helpers (#76) are dispatchable; each remaining helper
+	// joins DispatchNames only when its routing task flips Status→implemented.
+	for _, want := range []string{"context", "scrollback-render"} {
+		if !containsStr(names, want) {
+			t.Fatalf("DispatchNames() = %v, missing implemented %q", names, want)
+		}
+	}
+	// Planned + handoff families are NOT routable subcommands.
+	for _, absent := range []string{"launch", "wrap", "scribe"} {
+		if containsStr(names, absent) {
+			t.Fatalf("DispatchNames() = %v, must not contain non-implemented %q", names, absent)
+		}
+	}
+}
+
+func TestStreamingFlags(t *testing.T) {
+	for _, s := range []string{"changelog", "continuation", "session-watch"} {
+		if !IsStreaming(s) {
+			t.Errorf("IsStreaming(%q) = false, want true (stdin/live-stderr/long-running)", s)
+		}
+	}
+	for _, b := range []string{"slug", "context", "scrollback-render"} {
+		if IsStreaming(b) {
+			t.Errorf("IsStreaming(%q) = true, want false (buffered)", b)
+		}
+	}
+}
+
+func containsStr(xs []string, want string) bool {
+	for _, x := range xs {
+		if x == want {
+			return true
+		}
+	}
+	return false
+}
+
 func TestDispatchHelpListsPlannedFamiliesWithoutClaimingSupport(t *testing.T) {
 	for _, args := range [][]string{nil, {"help"}, {"--help"}, {"-h"}} {
 		t.Run(strings.Join(args, "_"), func(t *testing.T) {
