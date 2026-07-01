@@ -531,3 +531,28 @@ a Coverage Ledger, and any contract/inventory table row whose Files column names
 the moved path (update its disposition too). The boundary-review judges look at
 the *diff*; the merge atlas-sync judge looks at *whether the atlas still matches
 the tree* — a rename passes the former and fails the latter.
+
+## Atlas prose describing a call graph goes stale when a *caller* changes, not just on renames
+
+The `git mv` lesson above covers renamed **files**. #93 M1 surfaced the sibling
+failure: a change that alters **who-calls-what** (not a file location) leaves
+distant prose that narrated the old call relationship stale, and the merge
+atlas-sync judge blocks on it. M1 folded the title poller's context count
+in-process (dropping its `pair context` subprocess) and updated the poller's own
+architecture section — but two untouched "#92 M2 repointed call-sites" narrative
+blocks (`architecture.md`, `go-migration-inventory.md`) still listed
+`bin/pair-title.sh` as a `pair context` caller and called
+`bin/pair-session-watch.sh` "the one remaining shim-name caller." One of them
+directly **contradicted** the line M1 rewrote (in-process vs. subprocess) — an
+internal atlas self-contradiction.
+
+**Rule.** When a change alters a call graph — X stops calling Y, a new shim-name
+caller appears, a subprocess becomes in-process — updating the primary section
+isn't enough. Before `sdlc merge`, grep the atlas for *other* mentions of the
+old relationship: `grep -rn '<caller>' atlas/` and `grep -rn '<callee>\|pair <sub>' atlas/`,
+and specifically re-read any "repointed call-sites" / changelog-style narrative
+that enumerates callers or counts ("the one remaining …", "N callers still on
+…"). Those enumerations and any edited-in-place prose that now disagrees with an
+untouched distant line are exactly what the merge atlas-sync judge (matches
+atlas *against the tree/behavior*) fails on — the boundary review (diff-only)
+won't catch it.
