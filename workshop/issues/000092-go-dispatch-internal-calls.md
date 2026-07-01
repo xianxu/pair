@@ -1,12 +1,13 @@
 ---
 id: 000092
-status: working
+status: done
 deps: [000090]
 github_issue:
 created: 2026-07-01
 updated: 2026-07-01
 estimate_hours: 6.52
 started: 2026-07-01T09:40:38-07:00
+actual_hours: 2.61
 ---
 
 # route internal calls through Go dispatcher
@@ -116,6 +117,7 @@ total: 6.52
 ## Log
 
 ### 2026-07-01
+- 2026-07-01: closed — Full `make test` passes (all shell suites + go test ./...). slug/changelog/continuation/session-watch reachable as `pair <sub>` via the entrypoint peel-off (route-equivalence + streaming-seam tests); all 5 Pair-owned call-sites repointed to `pair <sub>` (shadow-sweep clean, one session-watch chain deferred to #93). Standalone bin/pair-<name> are thin shims over shared cmd/internal/*cmd runners. Both milestone reviews FIX-THEN-SHIP, findings addressed. pair-wrap/pair-scribe carved to #96.; review verdict: SHIP
 - 2026-07-01: closed M2 — M2: repointed all 5 Pair-owned call-sites to pair <sub> (pair-title.sh→pair context; pair-changelog-open→pair scrollback-render/changelog via collapsed PCL_BIN; pair-scrollback-open→pair scrollback-render; nvim/scrollback.lua→pair scrollback-render; pair-wrap turn-end→pair slug via testable slugSpawnCmd). Full `make test` passes (all shell suites incl. pair-title/changelog-open/session-watch/embedded-runtime + go test ./...). Shadow-sweep: every remaining pair-<name> ref intentionally retained (session-watch chain→#93, bundle manifest+shim binaries, adapt logger names, runner usage strings, equivalence tests). Runtime bundle is gitignored+regenerated on make build (plan I3 revised; no commit needed).; review verdict: FIX-THEN-SHIP
 - 2026-07-01: closed M1 — M1: go test ./... all pass (env-scrubbed); make build produces pair + shims; route equivalence confirmed (pair slug≡pair-slug exit 0; pair changelog≡pair-changelog identical usage+exit 1; pair continuation exit 1); ClassifyInvocation grammar unit-tested (pair slug→dispatch, pair claude/resume/bare→launcher); streaming-seam tests (changelog live-stderr, continuation stdin passthrough, session-watch no-op); dispatcher DispatchNames/IsStreaming/IsImplemented tests. Callers still on shim names until M2.; review verdict: FIX-THEN-SHIP
 
