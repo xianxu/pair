@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-07-01
 updated: 2026-07-01
-estimate_hours:
+estimate_hours: 5.44
 started: 2026-07-01T00:18:42-07:00
 ---
 
@@ -96,6 +96,28 @@ Architecture notes:
 - [ ] Add install/copy smoke tests for clean and upgrade paths.
 - [ ] Update README, atlas, and Homebrew packaging notes.
 
+Detailed implementation plan:
+`workshop/plans/000090-self-contained-pair-binary-with-embedded-runtime-assets-plan.md`.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. `sdlc estimate-source` reports the calibration
+source as stale, so the number is provisional but uses the required method.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.20 impl=0.08
+item: greenfield-go-module design=0.60 impl=0.56
+item: smaller-go-module design=0.35 impl=0.48
+item: cross-cutting-refactor design=0.80 impl=1.12
+item: atlas-docs design=0.25 impl=0.20
+item: milestone-review design=0.00 impl=0.20
+design-buffer: 0.15
+total: 5.44
+```
+
 ## Log
 
 ### 2026-07-01
@@ -104,3 +126,31 @@ Created after #79 closed: #79 made `pair` Go-owned but intentionally retained
 the adjacent runtime tree. The desired final direction is a true native single
 binary; this issue captures the lower-risk next step of embedding/extracting
 the current runtime tree first.
+
+Claimed and entered planning. `sdlc start-plan --issue 90` delivered
+`ARCH-DRY`, `ARCH-PURE`, and `ARCH-PURPOSE`; the durable plan keeps the runtime
+manifest as the packaging source of truth, pure planning/selection functions in
+Go, and copied-binary launch as the acceptance path rather than a follow-up.
+
+First `sdlc change-code --issue 90` plan-quality gate returned FAILURE: asset
+boundary, generator/staleness contract, and copied-binary smoke were too loose.
+Refined the durable plan to name exact runtime asset roots/exclusions, require a
+deterministic gitignored generator plus drift check, exercise a fake
+launch/session path, and bound Homebrew formula edits to false/conflicting
+packaging claims only.
+
+Second `sdlc change-code --issue 90` plan-quality gate returned FAILURE on
+remaining precision issues: `bin/pair-title.sh` was referenced by smoke coverage
+but missing from the required asset list, extracted runtime naming/version rules
+were implicit, and atlas wording could imply a second source. Updated the plan
+to include `pair-title.sh`, define `$PAIR_DATA_DIR/runtime/<digest>/pair-home`
+plus marker/cleanup rules, and state that automated behavior derives only from
+the generated manifest and runtime marker.
+
+Third `sdlc change-code --issue 90` plan-quality gate returned FAILURE because
+raw `go test ./cmd/internal/runtimebundle` would fail from a clean checkout once
+`//go:embed` references the gitignored generated asset tree. Updated the plan to
+add `make test-runtimebundle` as the generated-assets-before-test path after
+`embed.go` exists, keep earlier pure tests as raw `go test`, and spell out the
+peer-repo `AGENTS.local.md` / `MEMORY.md` requirement before any optional
+Homebrew tap edit.
