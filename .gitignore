@@ -18,9 +18,6 @@ bin/*
 !bin/pair-dev
 !bin/pair-help
 !bin/pair-notify
-!bin/pair-review-open
-!bin/pair-review-readiness
-!bin/pair-review-target
 !bin/lib/
 bin/lib/*
 !bin/lib/*.sh

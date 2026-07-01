@@ -5,81 +5,25 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/scrollbackcmd"
 )
 
-// OSRuntime implements Runtime with real zellij/nvim/exec/fs calls.
-type OSRuntime struct{}
+// OSRuntime implements Runtime with real zellij/nvim/exec/fs calls. The fs
+// primitives (ReadFile/WriteFile/WriteAtomic/Remove/FileSize/Touch/Executable)
+// come from the embedded osfs.FS (#93 M3).
+type OSRuntime struct{ osfs.FS }
 
 func NewOSRuntime() OSRuntime { return OSRuntime{} }
 
 func (OSRuntime) Sleep(d time.Duration)        { time.Sleep(d) }
 func (OSRuntime) Getpid() string               { return strconv.Itoa(os.Getpid()) }
 func (OSRuntime) ProcessAlive(pid string) bool { return procutil.Alive(pid) }
-
-func (OSRuntime) ReadFile(path string) (string, error) {
-	b, err := os.ReadFile(path)
-	return string(b), err
-}
-
-func (OSRuntime) WriteFile(path, data string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return err
-	}
-	return os.WriteFile(path, []byte(data), 0644)
-}
-
-// WriteAtomic writes via a sibling temp file + rename so a concurrent reader
-// never sees a torn write (the shell's `> .tmp && mv -f` for .viewport).
-func (OSRuntime) WriteAtomic(path, data string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return err
-	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".")
-	if err != nil {
-		return err
-	}
-	tmpPath := tmp.Name()
-	if _, err := tmp.WriteString(data); err != nil {
-		_ = tmp.Close()
-		_ = os.Remove(tmpPath)
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmpPath)
-		return err
-	}
-	return os.Rename(tmpPath, path)
-}
-
-func (OSRuntime) Remove(path string) { _ = os.Remove(path) }
-
-func (OSRuntime) FileSize(path string) (int64, bool) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return 0, false
-	}
-	return info.Size(), true
-}
-
-func (OSRuntime) Touch(path string) error {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	return f.Close()
-}
-
-func (OSRuntime) Executable(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && !info.IsDir() && info.Mode()&0111 != 0
-}
 
 // RenderScrollback runs `pair scrollback-render` in-process (scrollbackcmd.Run,
 // #92) rather than shelling out — the render is synchronous, so no subprocess is

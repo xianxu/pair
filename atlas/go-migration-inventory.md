@@ -126,9 +126,9 @@ Priority is packaging impact first, then reliability/testability:
 | `bin/clipboard-to-pane.sh` | Bash copy/paste helper | `copy-on-select.sh`, direct zellij run possible | Reads OS clipboard, stages quote, focuses nvim, triggers Lua paste. | Uses pbpaste/wl-paste/xclip, jq, zellij, `PAIR_DATA_DIR`, `PAIR_TAG`, `PAIR_HOME`; writes quote and debug log. | shell-glue; keep until zellij copy flow has Go owner | P2 |
 | `bin/copy-on-select.sh` | Bash copy_command helper | `zellij/config.kdl` `copy_command` | Reads selected text stdin, mirrors OS clipboard, flashes source, delegates paste unless selection was in nvim. | Uses pbcopy/wl-copy/xclip, jq, zellij, `PAIR_HOME`; calls flash and clipboard scripts. | shell-glue tied to zellij native surface | P2 |
 | `bin/flash-pane.sh` | Bash visual helper | `copy-on-select.sh`, nvim flows/tests | `flash-pane.sh [pane-id]`; best-effort pane color flash. | Uses zellij, jq; reads `PAIR_FLASH_*`. | small shell-glue | P3 |
-| `bin/pair-review-open` | POSIX shell review helper | nvim review flow | Validates target and opens floating `nvim -u nvim/review.lua`. | Requires Pair env; calls zellij/nvim. | shell-glue, review workbench can move later if packaging needs it | P2 |
-| `bin/pair-review-readiness` | POSIX shell review helper | `nvim/init.lua` review readiness | Emits readiness data from git and target helper. | Uses `PAIR_HOME`, `PAIR_REVIEW_TARGET_BIN`, git/jq. | shell-glue; possible later Go helper | P2 |
-| `bin/pair-review-target` | Bash review helper | review readiness/open/tests | Emits JSON target metadata under data dir. | Requires `PAIR_DATA_DIR`; reads config/pid files/lsof; writes `review-target-<tag>.json`. | shell-glue; possible #78 candidate if review packaging matters | P2 |
+| `cmd/pair-review-open` / `cmd/internal/reviewcmd` | Go binary plus shared runner | nvim review flow | Validates target and opens floating `nvim -u nvim/review.lua` (single review pane). | Requires Pair env; calls zellij/nvim; kills the prior review nvim. | ported to Go (#93 M3); IO behind the `Runtime` seam; **replaces** the shell script at the same PATH name (no shim) | P2 |
+| `cmd/pair-review-readiness` / `cmd/internal/reviewcmd` | Go binary plus shared runner | `nvim/init.lua` review readiness | Gathers git facts, classifies via `nvim/review/readiness.lua`, emits JSON or performs `--prepare` git effects + marks ready. | Uses `PAIR_HOME`, git, `nvim --headless` classify. | ported to Go (#93 M3); the 4-case decision stays in `readiness.lua` (single source, invoked via `nvim --headless`); replaces the shell script (no shim) | P2 |
+| `cmd/pair-review-target` / `cmd/internal/reviewcmd` | Go binary plus shared runner | review readiness/open/tests | Writes JSON target metadata under data dir, session-stamped. | Requires `PAIR_DATA_DIR`; reads config; codex fallback via `cmd/internal/codexsid` (ps/lsof); writes `review-target-<tag>.json`. | ported to Go (#93 M3); session resolution reuses `transcript`-style config read + the extracted `codexsid` walk; replaces the shell script (no shim) | P2 |
 | `nvim/init.lua` | Neovim native asset | zellij draft pane | Main draft UI and Pair key handling. | Reads many Pair env vars/data files; shell-outs to zellij, pair quit/restart/open/review helpers. | native-asset; do not port, but audit shell-outs during #77/#78 | P0 |
 | `nvim/review.lua` and `nvim/review/*.lua` | Neovim native review workbench | `pair-review-open`, draft review toggle | Review pane UI/modules. | Reads Pair env/data; calls docflow/agent seams through shell tests. | native-asset; adjacent/embedded | P2 |
 | `nvim/annotate.lua`, `nvim/marker_codec.lua`, `nvim/pair_poke.lua`, `nvim/slug.lua`, `nvim/zellij_trace.lua` | Lua native helper modules | draft/viewer/review Lua | Pure or thin Lua helpers used by nvim surfaces. | Pair env/data files; zellij shell-outs in poke/trace surfaces. | native-asset | P2 |
@@ -213,6 +213,19 @@ Build/install callers:
   it survives the viewer closing. These **replace** the same-named shell scripts
   (zellij invokes by PATH → no shim; the two `.gitignore` negations were dropped).
   The existing `changelog-open` e2e tests now drive the Go binary unchanged.
+- #93 M3 ported the three review-start orchestrators to `cmd/pair-review-target`
+  / `-open` / `-readiness`, sharing `cmd/internal/reviewcmd`: pure slugify / JSON
+  shapes / `--prepare` action-mapping are unit-tested; git effects, the
+  `nvim --headless` classify bridge, the `zellij run --floating` spawn, and the
+  codex session walk sit behind the `Runtime` seam. The 4-case readiness decision
+  stays the single source in `nvim/review/readiness.lua` (invoked via
+  `nvim --headless`). Two ARCH-DRY extractions landed with it: `cmd/internal/osfs`
+  (the shared string-based fs primitives, now embedded by opener + titlepoller +
+  reviewcmd `OSRuntime`s — sessionwatch stays byte-based/separate) and
+  `cmd/internal/codexsid` (the ps/lsof rollout-uuid walk, canonical home for the
+  copy slug/sessionwatch still carry). The Go binaries replace the shell scripts
+  (no shim; 3 `.gitignore` negations dropped); the existing `pair-review-target` /
+  `review-readiness-cli` / `review-window` shell tests drive them unchanged.
 - #79 made public `pair` a Go-built entrypoint, renamed the shell launcher to
   `bin/pair-shell`, and chose adjacent `nvim/` / `zellij/` assets for local and
   Homebrew installs.
@@ -273,9 +286,6 @@ rule:
 - `bin/pair-notify`
 - `bin/pair-quit.sh`
 - `bin/pair-restart.sh`
-- `bin/pair-review-open`
-- `bin/pair-review-readiness`
-- `bin/pair-review-target`
 - `bin/pair-scribe`
 - `bin/pair-scrollback-render`
 - `bin/pair-session-watch.sh`
@@ -299,6 +309,8 @@ rule:
 - `cmd/internal/ctxmeter/ctxmeter_test.go`
 - `cmd/internal/dispatcher/dispatcher.go`
 - `cmd/internal/dispatcher/dispatcher_test.go`
+- `cmd/internal/codexsid/codexsid.go`
+- `cmd/internal/codexsid/codexsid_test.go`
 - `cmd/internal/model/model.go`
 - `cmd/internal/model/model_test.go`
 - `cmd/internal/opener/opener.go`
@@ -307,7 +319,15 @@ rule:
 - `cmd/internal/opener/run_test.go`
 - `cmd/internal/opener/runcli.go`
 - `cmd/internal/opener/runtime.go`
+- `cmd/internal/osfs/osfs.go`
+- `cmd/internal/osfs/osfs_test.go`
 - `cmd/internal/procutil/procutil.go`
+- `cmd/internal/reviewcmd/reviewcmd.go`
+- `cmd/internal/reviewcmd/reviewcmd_test.go`
+- `cmd/internal/reviewcmd/run.go`
+- `cmd/internal/reviewcmd/run_test.go`
+- `cmd/internal/reviewcmd/runcli.go`
+- `cmd/internal/reviewcmd/runtime.go`
 - `cmd/internal/procutil/procutil_test.go`
 - `cmd/internal/scribecmd/scribecmd.go`
 - `cmd/internal/scribecmd/scribecmd_test.go`
@@ -363,6 +383,9 @@ rule:
 - `cmd/pair-go/main.go`
 - `cmd/pair-go/pty_proxy_route_test.go`
 - `cmd/pair-changelog-open/main.go`
+- `cmd/pair-review-open/main.go`
+- `cmd/pair-review-readiness/main.go`
+- `cmd/pair-review-target/main.go`
 - `cmd/pair-scrollback-open/main.go`
 - `cmd/pair-session-watch/main.go`
 - `cmd/pair-title/main.go`

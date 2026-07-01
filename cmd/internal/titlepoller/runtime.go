@@ -11,11 +11,14 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/contextcmd"
+	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
-// OSRuntime implements Runtime with real zellij/cmux/fs/process calls.
-type OSRuntime struct{}
+// OSRuntime implements Runtime with real zellij/cmux/fs/process calls. The fs
+// primitives (ReadFile/WriteFile/Remove/ModTime) come from the embedded
+// osfs.FS (#93 M3).
+type OSRuntime struct{ osfs.FS }
 
 func NewOSRuntime() OSRuntime { return OSRuntime{} }
 
@@ -52,28 +55,6 @@ func (OSRuntime) CmuxAvailable() bool {
 
 func (OSRuntime) CmuxRenameWorkspace(title string) error {
 	return exec.Command("cmux", "rename-workspace", title).Run()
-}
-
-func (OSRuntime) ReadFile(path string) (string, error) {
-	b, err := os.ReadFile(path)
-	return string(b), err
-}
-
-func (OSRuntime) WriteFile(path, data string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return err
-	}
-	return os.WriteFile(path, []byte(data), 0644)
-}
-
-func (OSRuntime) Remove(path string) { _ = os.Remove(path) }
-
-func (OSRuntime) ModTime(path string) (time.Time, bool) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return time.Time{}, false
-	}
-	return info.ModTime(), true
 }
 
 // PaneFiles globs pane-<tag>-*.json and decodes each into a PaneInfo (agent from
