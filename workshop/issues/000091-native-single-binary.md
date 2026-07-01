@@ -45,10 +45,12 @@ sub-ticket, deps-chained so the order is enforced):
 
 1. **Embed + extract the runtime tree — #90 (done).** Single Pair artifact via
    embed/extract while retaining the tested shell/nvim/zellij contracts.
-2. **Route internal calls through the Go dispatcher — #92.** `pair wrap`, `pair
-   slug`, `pair changelog`, `pair continuation`, `pair context`, etc. resolve
-   through the Go dispatcher; legacy binary names survive only as thin
-   compatibility shims.
+2. **Route internal calls through the Go dispatcher — #92 (+ #96).** `pair slug`,
+   `pair changelog`, `pair continuation`, `pair session-watch` resolve through the
+   Go dispatcher (`context`/`scrollback-render` already done in #76); legacy
+   binary names survive only as thin shims. The interactive PTY proxies
+   `pair-wrap`/`pair-scribe` are carved out to **#96** (deps #92, reuses its
+   streaming dispatch seam).
 3. **Port stateful shell orchestrators to Go — #93.** Launcher/session
    lifecycle, scrollback/changelog openers, title poller, review helpers,
    clipboard helpers — ported one at a time behind merge-safe shims.
@@ -74,7 +76,7 @@ arch-principles`):
 
 ## Done when
 
-- [ ] Sub-tickets exist for each remaining merge-safe phase (#92–#95), deps-chained.
+- [ ] Sub-tickets exist for each remaining merge-safe phase (#92–#96), deps-chained.
 - [ ] Each sub-ticket states that Pair must remain usable after its merge.
 - [ ] The true native single binary is reached: `pair` provisions its runtime
       without extracting a shell tree, and only native `nvim/`/`zellij/` assets
@@ -88,6 +90,7 @@ Tracking checklist — ticks as each sub-ticket closes:
 
 - [x] Step 1 — embed + extract runtime tree — #90 (done)
 - [ ] Step 2 — route internal calls through the Go dispatcher — #92
+- [ ] Step 2b — route pair-wrap + pair-scribe PTY proxies — #96 (carve-out of #92)
 - [ ] Step 3 — port stateful shell orchestrators to Go — #93
 - [ ] Step 4 — stop extracting shell scripts — #94
 - [ ] Step 5 — native nvim/zellij startup assets — #95
@@ -107,3 +110,9 @@ steps 2–5 were un-ticketed and discoverable only by re-reading #90 or the atla
 This issue re-establishes the tracking umbrella. #90 is step 1 (done); #92–#95
 are the remaining steps, deps-chained #90→#92→#93→#94→#95 to enforce the
 merge-safe order.
+
+Design of #92 carved the two interactive PTY proxies (`pair-wrap`, `pair-scribe`)
+out to a new step-2b sub-ticket **#96** (deps #92): they are session entrypoints
+needing the streaming dispatch route, not finite internal calls, so they belong
+on their own review boundary. #92 keeps the internal-call helpers
+(slug/changelog/continuation/session-watch) + call-site repointing.

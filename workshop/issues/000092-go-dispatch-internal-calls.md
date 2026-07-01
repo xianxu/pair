@@ -27,16 +27,25 @@ the runtime bundle can't shrink toward a single executable.
 
 ## Spec
 
-Fold the remaining Pair-owned helper binaries behind the Go dispatcher so the
-canonical invocation is `pair <subcommand>` (e.g. `pair wrap`, `pair slug`,
-`pair changelog`, `pair continuation`), reusing the existing internal runner
-packages rather than duplicating logic (`ARCH-DRY`).
+Fold the remaining Pair-owned **internal-call** helper binaries behind the Go
+dispatcher so the canonical invocation is `pair <subcommand>` — `pair slug`,
+`pair changelog`, `pair continuation`, `pair session-watch` — reusing the
+internal runner packages rather than duplicating logic (`ARCH-DRY`). `context`
+and `scrollback-render` are already routed (#76). The two interactive PTY
+proxies (`pair-wrap`, `pair-scribe`) are **carved out to #96** (see Revisions):
+they are session entrypoints, not internal calls, and need the streaming route.
 
-- Keep the standalone `bin/pair-<name>` binaries only as **thin compatibility
-  shims** that re-exec `pair <name>` (or are dropped where no external caller
-  depends on the name). Do not maintain two divergent implementations.
-- Migrate generated internal call-sites (nvim Lua, shell orchestrators,
-  `pair-wrap` hooks) to the dispatcher form where the caller is Pair-owned.
+- Two dispatch styles already exist: the **buffered** `Dispatch(args) → Result`
+  path (`context`, `scrollback-render`) and the **streaming** process handoff
+  (`launch`, via `syscall.Exec` with real stdio). `slug` and `changelog` are
+  finite, no-stdin → buffered path. `continuation` (reads stdin) and
+  `session-watch` (long-running) need a small **streaming dispatch seam**, added
+  here and reused by #96 (`ARCH-DRY`).
+- Keep the standalone `bin/pair-<name>` binaries as **thin shims** that call the
+  shared internal runner (the `cmd/pair-context/main.go` shape — `os.Exit(
+  <name>cmd.Run(...))`). Do not maintain two divergent implementations.
+- Migrate Pair-owned generated call-sites (nvim Lua, shell orchestrators,
+  `pair-wrap`'s turn-end `pair-slug` spawn) to the dispatcher form.
 - Preserve every helper's current CLI contract (flags, env, stdin/exit codes) so
   callers and tests are unaffected; changes are invocation-path only.
 - Scope is dispatch routing + shims **only**. Porting stateful shell
@@ -80,3 +89,26 @@ Created as step 2 of the native-single-binary tracker (#91). Continues the
 helper-dispatch pattern #76 began (`pair-go context`, `pair-go
 scrollback-render`); `pair slug` and the remaining helpers are the concrete
 targets.
+
+## Revisions
+
+### 2026-07-01 — narrow scope: carve pair-wrap + pair-scribe out to #96
+
+Design mapping (via an explore of the dispatcher + each helper) showed the
+remaining helpers split by dispatch style, not size:
+
+- `slug`, `changelog` — finite, no-stdin → existing **buffered** dispatch path.
+- `continuation` (stdin), `session-watch` (long-running, runner already
+  extracted) → need a small **streaming dispatch seam**, added by this issue.
+- `pair-wrap` (PTY proxy wrapping every agent turn) and `pair-scribe` (PTY
+  logging wrapper, apparently orphaned) → interactive PTY **entrypoints**, not
+  internal calls. They need the streaming route and, for pair-wrap, byte-for-byte
+  PTY/signal/exit parity verification because it wraps every turn.
+
+**Delta:** #92 now scopes only the internal-call helpers (`slug`, `changelog`,
+`continuation`, `session-watch`) + call-site repointing + the streaming seam.
+`pair-wrap`/`pair-scribe` move to new sub-ticket **#96** (deps `[000092]`, reuses
+this issue's streaming seam). Rationale: keep #92 the cohesive "route internal
+calls" consolidation; pair-wrap deserves its own review boundary. Both remain
+already-Go repackaging (no logic change), so the carve-out is about cohesion +
+focused verification, not risk. #91's sequence updated to include #96.
