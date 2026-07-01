@@ -98,14 +98,14 @@ Priority is packaging impact first, then reliability/testability:
 | `bin/lib/dev-rebuild.sh` | sourced shell helper | `bin/pair-shell` | Function `dev_rebuild`; no-op unless `PAIR_DEV`; always returns 0. | Reads `PAIR_HOME`; runs `make -C "$PAIR_HOME" build`; stderr warnings. | shell-glue or Go launcher dev-mode helper | P1 |
 | `zellij/layouts/main.kdl` | zellij native asset | `bin/pair-shell` via `zellij --new-session-with-layout` | Defines agent and draft panes; shell expands Pair env at pane start. | Calls `pair-wrap`; calls `nvim -u "$PAIR_HOME/nvim/init.lua"`; writes `pane-<tag>-<agent>.json`; writes draft nvim pid file. | native-asset, packaged adjacent/embedded | P0 |
 | `zellij/config.kdl` | zellij native asset | zellij session config from `bin/pair-shell` | Global keybinds, copy command, scrollback buffer, pane frames. | Calls `copy-on-select.sh`, `pair-help`, `pair-scrollback-open`, `pair-changelog-open`; routes quit/restart/compact through nvim functions. | native-asset, packaged adjacent/embedded | P0 |
-| `bin/pair-wrap` / `cmd/pair-wrap` | Go binary | zellij agent pane | `pair-wrap [--scrollback-log PATH] agent [args...]`; transparent PTY proxy; long-running; failure in diagnostics is swallowed. | Reads Pair env and agent command; writes `agent-output-<tag>`, `agent-pid-<tag>`, scrollback `.raw`/`.events.jsonl`, image capture files; may invoke `pair-slug`. | go-subcommand `pair wrap`; keep old binary as compat alias for KDL until caller moves | P0 |
+| `bin/pair-wrap` / `cmd/pair-wrap` / `cmd/internal/wrapcmd` | Go binary plus shared runner | zellij agent pane | `pair-wrap [--scrollback-log PATH] agent [args...]`; transparent PTY proxy; long-running; failure in diagnostics is swallowed. | Reads Pair env and agent command; writes `agent-output-<tag>`, `agent-pid-<tag>`, scrollback `.raw`/`.events.jsonl`, image capture files; may invoke `pair slug`. | implemented `pair wrap` route (#96, streaming seam — real stdio via `wrapcmd.Run`); `cmd/pair-wrap` is a thin shim over `cmd/internal/wrapcmd`; KDL still execs `pair-wrap` by PATH | P0 |
 | `bin/pair-slug` / `cmd/pair-slug` / `cmd/internal/slugcmd` | Go binary plus shared runner | `pair-wrap` turn-end hook (now `pair slug`), tests | Env-driven, no stdin; resolves native transcript, proposes slug; exits 0 on most failures. | Requires `PAIR_TAG`, `PAIR_DATA_DIR`; reads config/transcripts/git branch; writes `slug-proposed-<tag>`; optional `PAIR_SLUG_*`, `OPENAI_API_KEY`. | implemented `pair slug` route (#92, buffered `slugcmd.Run`); `bin/pair-slug` retained as thin shim | P1 |
 | `bin/pair-context` / `cmd/pair-context` / `cmd/internal/contextcmd` | Go binary plus shared runner | `bin/pair-title.sh`; development-only `pair-go context` | `pair-context <tag> <agent>` and `pair-go context <tag> <agent>` print the same humanized token count or nothing; tolerant exit 0 on failure. | Reads `PAIR_DATA_DIR`, `pane-<tag>-<agent>.json`, config, native transcripts. | implemented `pair context` route; `bin/pair-title.sh` now calls `pair context` (#92); `bin/pair-context` retained as thin shim | P1 |
 | `bin/pair-scrollback-render` / `cmd/pair-scrollback-render` / `cmd/internal/scrollbackcmd` | Go binary plus shared runner | `bin/pair-scrollback-open`, `bin/pair-changelog-open`, `nvim/scrollback.lua` refresh; development-only `pair-go scrollback-render` | `pair-scrollback-render [--plain] [--max-lines N] [--with-timestamps] raw events out` and `pair-go scrollback-render ...`; nonzero on render/write failure. | Reads `.raw` and `.events.jsonl`; atomically writes `.ansi` or cleaned text. | implemented `pair scrollback-render` route; `bin/pair-scrollback-open`, `bin/pair-changelog-open`, `nvim/scrollback.lua` now call `pair scrollback-render` (#92); `bin/pair-scrollback-render` retained as thin shim | P0 |
 | `bin/pair-changelog` / `cmd/pair-changelog` / `cmd/internal/changelogcmd` | Go binary plus shared runner | `bin/pair-changelog-open` (now `pair changelog`) | `pair-changelog --cleaned F --log F --anchor F [--agent A] [--model M]`; exits nonzero on required read/model/write failure. | Reads cleaned scrollback/log/anchor; calls agent model through internal model runner; atomically writes log and anchor. | implemented `pair changelog` route (#92, streaming seam — live per-batch stderr spinner); `bin/pair-changelog` retained as thin shim | P1 |
 | `bin/pair-continuation` / `cmd/pair-continuation` / `cmd/internal/continuationcmd` | Go binary plus shared runner | nvim compaction prompt instructions, operator/agent shell | `pair-continuation --slug S --agent A --issues CSV --body-file F [--repo-root R ...]`; writes and commits continuation; nonzero on validation/git failure. | Reads body/stdin, git repo state; writes `workshop/continuation/*.md`; runs git commit/push. | implemented `pair continuation` route (#92, streaming seam — reads body from stdin); `bin/pair-continuation` retained as thin shim; no repointed production caller yet (agent-procedure invoked) | P1 |
-| `bin/pair-scribe` / `cmd/pair-scribe` | Go binary | user shell rc outside Pair sessions | `pair-scribe -log PATH -- CMD [ARGS...]`; long-running PTY wrapper; SIGUSR1 pauses log, SIGUSR2 resumes. | Writes typescript log; wraps child PTY; independent of `PAIR_*`. | go-subcommand candidate is low value; may remain separate installed helper or become `pair scribe` with alias | P2 |
-| `cmd/internal/adapt` | Go helper package | `pair-wrap`, `pair-slug`, tests | Pure-ish emitter helpers plus file open seam; no command. | Writes `$PAIR_DATA_DIR/adapt-<tag>.jsonl`; schema shared with shell/Lua. | internal package, reuse behind dispatcher | P1 |
+| `bin/pair-scribe` / `cmd/pair-scribe` / `cmd/internal/scribecmd` | Go binary plus shared runner | user shell rc outside Pair sessions | `pair-scribe -log PATH -- CMD [ARGS...]` and `pair scribe …`; long-running PTY wrapper; SIGUSR1 pauses log, SIGUSR2 resumes. | Writes typescript log; wraps child PTY; independent of `PAIR_*`. | implemented `pair scribe` route (#96, streaming seam — `scribecmd.Run`); `cmd/pair-scribe` is a thin shim so `~/.local/bin/pair-scribe` + the user's `~/.zshrc` wiring keep working; NOT in the runtime bundle (user shell tooling, not runtime) | P2 |
+| `cmd/internal/adapt` | Go helper package | `cmd/internal/wrapcmd` (pair-wrap), `pair-slug`, tests | Pure-ish emitter helpers plus file open seam; no command. | Writes `$PAIR_DATA_DIR/adapt-<tag>.jsonl`; schema shared with shell/Lua. | internal package, reuse behind dispatcher | P1 |
 | `cmd/internal/ctxmeter` | Go helper package | `pair-context`, tests | Pure transcript token counting and humanization. | No direct IO. | internal package, keep | P1 |
 | `cmd/internal/model` | Go helper package | `pair-slug`, `pair-changelog`, tests | Model runner/response parsing. | Calls external agent/model CLIs/APIs at command layer. | internal package, keep | P1 |
 | `cmd/internal/transcript` | Go helper package | `pair-slug`, `pair-context`, tests | Resolves native transcript paths and session ids. | Reads Pair config and home paths via callers. | internal package, keep | P1 |
@@ -135,7 +135,7 @@ Priority is packaging impact first, then reliability/testability:
 | `Makefile` | build/workflow entry | developer/CI/SDLC | Includes workflow and local makefiles; `help` target. | Uses git remote; includes vendored base fragments. | packaging metadata; keep, update in #79 if install layout changes | P1 |
 | `Makefile.local` | build/install/test metadata | developer/CI/`pair-dev` | Builds and installs Go binaries, runs test matrix. | Writes `bin/` and `~/.local/bin`; invokes Go, nvim, shell tests. | build contract; #74/#76/#79 must update as dispatcher changes | P0 |
 | `README.md` | install/usage docs | users/package consumers | Homebrew install, CLI usage, keybindings, dev mode. | Documents dependencies and public commands. | docs to update at #77/#79 | P1 |
-| `cmd/pair-scribe/README.md` | helper docs | users configuring shell logging | Documents `pair-scribe` install/usage. | No runtime behavior. | docs; update if `pair scribe` route added | P3 |
+| `cmd/pair-scribe/README.md` | helper docs | users configuring shell logging | Documents `pair-scribe`/`pair scribe` install/usage; kept next to the shim. | No runtime behavior. | docs; `pair scribe` route added in #96 (README notes the route + shim) | P3 |
 | `tests/*.sh`, `tests/lib/*`, `nvim/*_test.lua`, `cmd/**/*_test.go` | test-only seams | `make test`, Go test, headless nvim | Process fakes, shell integration tests, headless nvim drivers, Go unit tests. | Create temp dirs/fake PATH commands; exercise real scripts/binaries/Lua modules. | test-only; not migrated, but must move with callers | P3 |
 
 ## Hidden Caller Map
@@ -217,8 +217,15 @@ Build/install callers:
   on a shim name is `bin/pair-shell → bin/pair-session-watch.sh → binary`,
   deferred to #93 (the shell launcher is still shell-owned). The standalone
   helper binaries remain built + bundled as shims; dropping them is later
-  single-binary work. `pair-wrap`/`pair-scribe` (interactive PTY proxies) route
-  through the streaming seam in #96.
+  single-binary work.
+- #96 routed the two interactive PTY proxies through the same streaming seam:
+  `pair wrap` (`wrapcmd.Run`) and `pair scribe` (`scribecmd.Run`), extracting the
+  logic into `cmd/internal/wrapcmd` / `cmd/internal/scribecmd` behind
+  `Run(args, stdin, stdout, stderr) int` and leaving `cmd/pair-wrap` /
+  `cmd/pair-scribe` as thin shims (so the KDL-execed `pair-wrap` and the user's
+  `~/.local/bin/pair-scribe` `~/.zshrc` wiring keep working). `pair-scribe` is
+  user shell tooling and stays out of the runtime bundle. That completes step-2
+  dispatcher routing (#91); the standalone shim names still resolve.
 
 ## Coverage Ledger
 
@@ -276,6 +283,8 @@ rule:
 - `cmd/internal/dispatcher/dispatcher_test.go`
 - `cmd/internal/model/model.go`
 - `cmd/internal/model/model_test.go`
+- `cmd/internal/scribecmd/scribecmd.go`
+- `cmd/internal/scribecmd/scribecmd_test.go`
 - `cmd/internal/scrollbackcmd/events_test.go`
 - `cmd/internal/scrollbackcmd/render_test.go`
 - `cmd/internal/scrollbackcmd/scrollbackcmd.go`
@@ -295,6 +304,22 @@ rule:
 - `cmd/internal/slugcmd/slug_test.go`
 - `cmd/internal/slugcmd/slugcmd.go`
 - `cmd/internal/slugcmd/slugcmd_test.go`
+- `cmd/internal/wrapcmd/adapt_drift_test.go`
+- `cmd/internal/wrapcmd/extract_fg_test.go`
+- `cmd/internal/wrapcmd/keymap_registry_test.go`
+- `cmd/internal/wrapcmd/osc_test.go`
+- `cmd/internal/wrapcmd/overlay_test.go`
+- `cmd/internal/wrapcmd/picker_overlay_test.go`
+- `cmd/internal/wrapcmd/run_test.go`
+- `cmd/internal/wrapcmd/slug_spawn_test.go`
+- `cmd/internal/wrapcmd/stdout_batch_test.go`
+- `cmd/internal/wrapcmd/stdout_filter_test.go`
+- `cmd/internal/wrapcmd/time_event_test.go`
+- `cmd/internal/wrapcmd/translate_stdin_test.go`
+- `cmd/internal/wrapcmd/translate_test.go`
+- `cmd/internal/wrapcmd/update_agent_output_test.go`
+- `cmd/internal/wrapcmd/wrap.go`
+- `cmd/internal/wrapcmd/wrap_events_test.go`
 - `cmd/pair-changelog/e2e_test.go`
 - `cmd/pair-changelog/main.go`
 - `cmd/pair-changelog/main_test.go`
@@ -304,25 +329,13 @@ rule:
 - `cmd/pair-continuation/main_test.go`
 - `cmd/pair-go/helper_equivalence_test.go`
 - `cmd/pair-go/main.go`
+- `cmd/pair-go/pty_proxy_route_test.go`
 - `cmd/pair-session-watch/main.go`
-- `cmd/pair-scribe/main.go`
+- `cmd/pair-scribe/main.go` (thin shim over `cmd/internal/scribecmd`)
 - `cmd/pair-scrollback-render/main.go`
 - `cmd/pair-slug/main.go`
 - `cmd/pair-slug/main_test.go`
-- `cmd/pair-wrap/adapt_drift_test.go`
-- `cmd/pair-wrap/extract_fg_test.go`
-- `cmd/pair-wrap/keymap_registry_test.go`
-- `cmd/pair-wrap/main.go`
-- `cmd/pair-wrap/osc_test.go`
-- `cmd/pair-wrap/overlay_test.go`
-- `cmd/pair-wrap/picker_overlay_test.go`
-- `cmd/pair-wrap/slug_spawn_test.go`
-- `cmd/pair-wrap/stdout_filter_test.go`
-- `cmd/pair-wrap/time_event_test.go`
-- `cmd/pair-wrap/translate_stdin_test.go`
-- `cmd/pair-wrap/translate_test.go`
-- `cmd/pair-wrap/update_agent_output_test.go`
-- `cmd/pair-wrap/wrap_events_test.go`
+- `cmd/pair-wrap/main.go` (thin shim over `cmd/internal/wrapcmd`)
 - `nvim/adapt.lua`
 - `nvim/adapt_test.lua`
 - `nvim/annotate.lua`

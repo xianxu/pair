@@ -17,7 +17,9 @@ import (
 	"github.com/xianxu/pair/cmd/internal/entrypoint"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
+	"github.com/xianxu/pair/cmd/internal/scribecmd"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
+	"github.com/xianxu/pair/cmd/internal/wrapcmd"
 )
 
 var defaultPairHome string
@@ -73,6 +75,10 @@ func runWithLegacyRuntime(args []string, stdout, stderr io.Writer, rt legacyRunt
 // here (gated by the caller), so an unknown arg is a programming error.
 func runStreamingSubcommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	switch args[0] {
+	case "wrap":
+		return wrapcmd.Run(args[1:], stdin, stdout, stderr)
+	case "scribe":
+		return scribecmd.Run(args[1:], stdin, stdout, stderr)
 	case "changelog":
 		return changelogcmd.Run(args[1:], stderr)
 	case "continuation":

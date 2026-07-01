@@ -76,14 +76,16 @@ func TestRunWritesStdoutAndReturnsDispatcherCode(t *testing.T) {
 
 func TestRunWritesStderrAndReturnsDispatcherCode(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"wrap"}, &stdout, &stderr)
+	// wrap/scribe are now implemented streaming routes (#96), so use an
+	// unknown command to exercise the buffered dispatcher's stderr + exit-2 path.
+	code := run([]string{"definitely-not-a-command"}, &stdout, &stderr)
 	if code != 2 {
 		t.Fatalf("code = %d, want 2", code)
 	}
 	if stdout.String() != "" {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
 	}
-	if !strings.Contains(stderr.String(), "wrap is planned but not implemented") {
+	if !strings.Contains(stderr.String(), "unknown command") {
 		t.Fatalf("stderr missing unsupported-command message:\n%s", stderr.String())
 	}
 }

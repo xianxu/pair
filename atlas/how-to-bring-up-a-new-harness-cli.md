@@ -14,7 +14,7 @@ By default, the bottom Neovim draft pane maps **Enter** to insert a newline, and
 - **Alt+Enter** should submit the input.
 
 **Implementation:**
-- **File:** [cmd/pair-wrap/main.go](file:///Users/xianxu/workspace/pair/cmd/pair-wrap/main.go)
+- **File:** [cmd/internal/wrapcmd/wrap.go](file:///Users/xianxu/workspace/pair/cmd/internal/wrapcmd/wrap.go)
 - Add the agent to `sendKeymapByAgent` defining `plainCR` and `altCR`:
   ```go
   var sendKeymapByAgent = map[string]sendKeymap{
@@ -36,7 +36,7 @@ If the agent presents blocking overlays, pickers (like file autocompletes), or y
 `pair-wrap` suspends remapping by registering an overlay detector function which arms a temporary `pickerActive` flag. The next plain Enter is bypass-translated to a bare `\r`, and the flag is immediately cleared.
 
 **Implementation:**
-- **File:** [cmd/pair-wrap/main.go](file:///Users/xianxu/workspace/pair/cmd/pair-wrap/main.go)
+- **File:** [cmd/internal/wrapcmd/wrap.go](file:///Users/xianxu/workspace/pair/cmd/internal/wrapcmd/wrap.go)
 - Register the detector in `overlayDetectorByAgent`:
   ```go
   var overlayDetectorByAgent = map[string]overlayDetector{
