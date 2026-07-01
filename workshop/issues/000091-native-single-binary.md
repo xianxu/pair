@@ -102,6 +102,10 @@ actual work + reviews happen in the sub-tickets.
 ## Log
 
 ### 2026-07-01
+- Steps 2 & 2b closed and merged (#92 dispatcher routing; #96 pair-wrap/pair-scribe
+  PTY proxies). Step 3 (#93) in progress: M1 (title poller → `cmd/pair-title`)
+  landed; M2–M5 (scrollback/changelog openers, review helpers, clipboard helpers,
+  launcher) remain.
 
 Created as the umbrella tracker for the remaining native-single-binary work.
 Rationale: #72 (the prior Go-migration roadmap) closed at #79, and #90's Spec

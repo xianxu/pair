@@ -102,12 +102,14 @@ Two new architectural surfaces landed with #92 M1:
   the user's `~/.zshrc`) that call the same `wrapcmd.Run` / `scribecmd.Run`.
 
 Pair-owned call-sites were repointed to `pair <sub>` in #92 M2:
-`bin/pair-title.sh` (`pair context`), `bin/pair-changelog-open` and
-`bin/pair-scrollback-open` and `nvim/scrollback.lua` (`pair scrollback-render` /
-`pair changelog`), and `pair-wrap`'s turn-end spawn (`pair slug`). The one
-remaining internal caller of a shim name is `bin/pair-shell →
-bin/pair-session-watch.sh → bin/pair-session-watch`, deferred to #93 (the shell
-launcher is still shell-owned). The standalone `bin/pair-<name>` binaries remain
+`bin/pair-changelog-open` and `bin/pair-scrollback-open` and
+`nvim/scrollback.lua` (`pair scrollback-render` / `pair changelog`), and
+`pair-wrap`'s turn-end spawn (`pair slug`). (The title poller no longer calls
+`pair context` at all — #93 M1 folded the count in-process via `contextcmd`, see
+below.) The internal callers still on a *shim name* are both spawned by
+`bin/pair-shell`: `bin/pair-session-watch.sh → bin/pair-session-watch` and (since
+#93 M1) `bin/pair-title.sh → bin/pair-title`; collapsing those spawns is #93 M5
+(the shell launcher is still shell-owned). The standalone `bin/pair-<name>` binaries remain
 as thin shims (still built + bundled); dropping them is later single-binary work.
 
 Native integration layers stay native: `nvim/*.lua` remains the bundled Neovim
