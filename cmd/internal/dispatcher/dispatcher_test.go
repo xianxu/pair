@@ -9,9 +9,11 @@ import (
 
 func TestDispatchNamesDeriveFromImplementedStatus(t *testing.T) {
 	names := DispatchNames()
-	// Already-implemented helpers (#76) are dispatchable; each remaining helper
-	// joins DispatchNames only when its routing task flips Status→implemented.
-	for _, want := range []string{"context", "scrollback-render"} {
+	// The full implemented set MUST be present: the public `pair <sub>` peel-off
+	// keys off DispatchNames(), so if one of these were accidentally left
+	// `planned`, `pair changelog` would fall through to the launcher (start a
+	// session) with no other test catching it.
+	for _, want := range []string{"context", "scrollback-render", "slug", "changelog", "continuation", "session-watch"} {
 		if !containsStr(names, want) {
 			t.Fatalf("DispatchNames() = %v, missing implemented %q", names, want)
 		}

@@ -350,3 +350,45 @@ The Alt+/ viewer's **primary** render path (missed in the first draft, I1). It h
 - **Behavior parity is the real test,** not just "it compiles": the relocated pure tests must pass unchanged, and the automated `helper_equivalence_test.go` `pair-go <sub>` ≡ `pair-<name>` diffs must match.
 - **Bundle: binary list unchanged, asset contents DO change (I3).** The standalone binaries stay in `RUNTIMEBUNDLE_HELPERS` / the manifest (still shims) — but M2 edits the bundled *shell/lua assets* (`pair-title.sh`, `pair-changelog-open`, `pair-scrollback-open`, `scrollback.lua`), which are mirrored into the embedded runtime. The bundle MUST be regenerated + committed (Task 14 Step 3); "unchanged" refers only to which binaries are packaged, not their contents.
 - **Buffered vs streaming is a correctness axis, not a style choice (I2):** a helper with a live stderr/stdout consumer (changelog's spinner) or stdin (continuation) or long lifetime (session-watch) must use the streaming seam; only truly fire-and-forget/finite output (slug) is safe buffered.
+
+## Revisions
+
+### 2026-07-01 — M1 as-built (records M1 boundary-review findings I2/I3/minor)
+
+The M1 milestone review (FIX-THEN-SHIP) flagged plan/code drift; recording the
+as-built decisions so the Core-Concepts table stops claiming surfaces the code
+doesn't expose.
+
+1. **Runner signatures as-built.** The Integration-points table showed
+   `slugcmd.Run(args, env, stdout, stderr) int` and `changelogcmd.Run(args,
+   stdout, stderr) int`; the code ships `slugcmd.Run() int` and
+   `changelogcmd.Run(args []string, stderr io.Writer) int`.
+   - `slugcmd.Run()` is **env-driven with no injected `Env`/writers** —
+     deliberate: pair-slug takes no args and writes only to files +
+     `$PAIR_SLUG_LOG` (the buffered route captures nothing), and its full
+     orchestration (transcript-resolve → model → atomic write) is already
+     exercised by the relocated binary-exec integration tests in
+     `cmd/pair-slug/` (`TestIntegrationProposesValidSlug` et al. build + run the
+     shim over `slugcmd.Run`). Behavior parity over an injection layer that would
+     add no coverage the integration tests don't already give (supersedes the
+     plan's Task 3 Step 2 injected-`Env` idea). `changelogcmd.Run` takes no
+     `stdout` because changelog writes only stderr (progress) + files.
+   - `continuationcmd.Run(args, stdin, stdout, stderr, now) int` matches the plan.
+2. **Equivalence test (Task 3 Step 5).** Added `TestPairGoSlugMatchesLegacyPairSlug`
+   to `cmd/pair-go/helper_equivalence_test.go` — a no-session parity check
+   (`pair-go slug` ≡ `pair-slug`: exit 0, no output, no proposal). Both entry
+   points call the identical `slugcmd.Run()`, so a deeper fixture would only
+   re-test the shared runner.
+3. **Flag error-handling (minor).** `changelogcmd`/`continuationcmd` parse a
+   fresh `flag.NewFlagSet(..., ContinueOnError)` over `args` and `return 1` on a
+   malformed flag, where the old binaries used `flag.CommandLine` (`ExitOnError`
+   → exit 2). Internal callers pass fixed valid flags, so no caller/test is
+   affected; recorded so the Spec's "preserve exit codes" line isn't read as
+   violated on the never-exercised malformed-flag path.
+4. **`DispatchNames` assertion (I4b).** Strengthened
+   `TestDispatchNamesDeriveFromImplementedStatus` to assert the full implemented
+   set `{context, scrollback-render, slug, changelog, continuation,
+   session-watch}` is present — the peel-off depends on it.
+5. **Atlas (I1).** `atlas/architecture.md`'s dispatcher section now describes the
+   four new routes, the public `pair <sub>` peel-off, and the buffered-vs-
+   streaming seam (was still "#76 first routes only").

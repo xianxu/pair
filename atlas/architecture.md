@@ -75,13 +75,31 @@ dev rebuild, continuation, rename, config/session migration, and title-poller
 behavior remain shell-owned through `bin/pair-shell` until later migration
 issues.
 
-As of #76, the same dispatcher also has the first implemented helper routes:
-`pair-go context <tag> <agent>` and `pair-go scrollback-render ...`. Both routes
-call shared internal Go runners used by the legacy `pair-context` and
-`pair-scrollback-render` binaries (`ARCH-DRY`), so behavior stays aligned while
-the old command names remain the live integration surface. `bin/pair-title.sh`,
-`bin/pair-scrollback-open`, `bin/pair-changelog-open`, and
-`nvim/scrollback.lua` have not moved to the dispatcher yet.
+The dispatcher hosts implemented helper routes: `context` and `scrollback-render`
+(#76), then `slug`, `changelog`, `continuation`, and `session-watch` (#92 M1).
+Each route calls the shared internal Go runner (`cmd/internal/<name>cmd`) that the
+legacy `bin/pair-<name>` binary now also calls as a thin shim (`ARCH-DRY`), so a
+single implementation backs both entry points.
+
+Two new architectural surfaces landed with #92 M1:
+
+- **Public `pair <sub>` peel-off.** `entrypoint.ClassifyInvocation` takes the
+  reserved dispatcher-subcommand set (`dispatcher.DispatchNames()`, derived from
+  the single `Families()` table) and returns `ModeDispatch` when the public
+  `pair` is invoked with one — so `pair slug` dispatches while `pair claude`,
+  `pair resume`, and bare `pair` still hand off to the shell launcher. The
+  reserved names are passed in, not imported, keeping `entrypoint` free of a
+  `dispatcher` dependency.
+- **Buffered vs streaming dispatch.** Finite, no-stdin routes (`context`,
+  `scrollback-render`, `slug`) use the buffered `Dispatch(args) → Result` path.
+  Routes needing real stdio — `changelog` (live per-batch stderr for the Alt+l
+  spinner), `continuation` (reads the body from stdin), `session-watch`
+  (long-running) — use `cmd/pair-go`'s `runStreamingSubcommand` seam, which hands
+  the runner real `os.Stdin/Stdout/Stderr`. `Families().Streaming` marks which.
+
+Pair-owned call-sites (`bin/pair-title.sh`, `bin/pair-changelog-open`,
+`bin/pair-scrollback-open`, `nvim/scrollback.lua`, `pair-wrap`'s turn-end spawn)
+still invoke the legacy shim names; #92 M2 repoints them to `pair <sub>`.
 
 Native integration layers stay native: `nvim/*.lua` remains the bundled Neovim
 surface and `zellij/*.kdl` remains the zellij layout/config surface. Packaging

@@ -74,7 +74,7 @@ Architecture: `ARCH-DRY` (one implementation behind dispatch, shims not forks),
 Two merge-safe review boundaries. Detailed steps:
 `workshop/plans/000092-go-dispatch-internal-calls-plan.md`.
 
-- [ ] M1 — dispatcher reachability + runner consolidation (backward-compatible):
+- [x] M1 — dispatcher reachability + runner consolidation (backward-compatible):
       `Families()` routing metadata + `session-watch` entry; entrypoint peel-off
       so `pair <sub>` dispatches; extract `slugcmd`/`changelogcmd`/`continuationcmd`
       runners + thin shims; buffered route (`slug`) + streaming seam
@@ -116,6 +116,7 @@ total: 6.52
 ## Log
 
 ### 2026-07-01
+- 2026-07-01: closed M1 — M1: go test ./... all pass (env-scrubbed); make build produces pair + shims; route equivalence confirmed (pair slug≡pair-slug exit 0; pair changelog≡pair-changelog identical usage+exit 1; pair continuation exit 1); ClassifyInvocation grammar unit-tested (pair slug→dispatch, pair claude/resume/bare→launcher); streaming-seam tests (changelog live-stderr, continuation stdin passthrough, session-watch no-op); dispatcher DispatchNames/IsStreaming/IsImplemented tests. Callers still on shim names until M2.; review verdict: FIX-THEN-SHIP
 
 Created as step 2 of the native-single-binary tracker (#91). Continues the
 helper-dispatch pattern #76 began (`pair-go context`, `pair-go
