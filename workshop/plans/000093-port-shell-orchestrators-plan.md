@@ -263,10 +263,70 @@ comment describes.
 - Alt+c review-start (readiness → prepare → target) and `:PairReview` (open) flows
   work; `git ls-files bin/` no longer lists the three review helpers.
 
-## M4–M5 (milestone-level; detailed when reached)
+## M4 — clipboard helpers (detailed)
 
-- **M4 — clipboard helpers:** port `clipboard-to-pane.sh`, `copy-on-select.sh`,
-  `flash-pane.sh` (or fold behind the dispatcher).
+Port the copy-on-select pipeline — `bin/copy-on-select.sh` (110), the
+`bin/clipboard-to-pane.sh` (101) hand-off, and `bin/flash-pane.sh` (57) — to Go,
+sharing a `cmd/internal/clipcmd` package. These are thin zellij-IPC + OS-clipboard
+glue; the pure logic is small (pane selection + in-nvim classification).
+
+### Structural decision — SHIM pattern (not replace-in-place), the M1 model
+
+Unlike M2/M3 (no-suffix names → replace-in-place), these have **`.sh`** names, and
+`.gitignore` has `!bin/*.sh` (all `.sh` tracked), so a Go binary at `bin/*.sh`
+would be committed. Also `tests/copy-on-select-test.sh` stubs
+`$PAIR_HOME/bin/clipboard-to-pane.sh` **by path** and asserts copy-on-select execs
+it. So: keep the 3 `.sh` names as tracked thin re-exec shims → 3 gitignored Go
+binaries (`cmd/copy-on-select` / `cmd/clipboard-to-pane` / `cmd/flash-pane`), and
+have the ported copy-on-select **still exec** `$PAIR_HOME/bin/{flash-pane,clipboard-to-pane}.sh`
+(preserving the chain the test drives). Callers unchanged: zellij
+`copy_command "copy-on-select.sh"`; copy-on-select is the only caller of the
+other two.
+
+### Extraction — `cmd/internal/zellijpane` (ARCH-DRY)
+
+The `zellij action list-panes --json` recursive-descent walk is now needed 3× (the
+existing `opener.firstAgentPaneID` + copy-on-select's focused-pane + clipboard-to-pane's
+nvim-pane). Extract `zellijpane.Parse(jsonBytes) []Pane` (`Pane{ID, TerminalCommand,
+IsFocused, IsPlugin, IsFloating}`, in recursive-descent order); callers filter by
+predicate. Use it for both clip walks (2 consumers immediately); note
+`opener.firstAgentPaneID` can adopt it later.
+
+### New package `cmd/internal/clipcmd`
+
+- **Pure (direct unit tests):** `isNvimCommand(cmd) bool` (`nvim|draft` regex on
+  `terminal_command`, NOT title — the #copy-on-select-test bug); `quoteFile(dataDir,
+  tag)` (`quote-<tag>`, tag = `PAIR_TAG || PAIR_AGENT || claude`); `focusedPane` /
+  `nvimPane` selectors over `[]zellijpane.Pane`; flash defaults (`#50fa7b`/`100`).
+- **`Runtime` seam** (embeds `osfs.FS`): `ClipboardCopy(text)` / `ClipboardPaste()
+  (string,bool)` (pbcopy/pbpaste → wl-copy/wl-paste → xclip); `ListPanes() (string,
+  error)` (`zellij action list-panes --json [--command]`); `SetPaneColor(id, bg)` +
+  `ResetPaneColorAfter(id, d)` (the detached flash reset — setsid, like the
+  changelog distiller, so it survives the caller exiting); `FocusPane(id)`;
+  `WriteKey(byte)` (`zellij action write 31`); `Exec(path, args…)` (copy-on-select →
+  flash/clipboard `.sh` chain).
+- **Three CLIs:** `RunCopyOnSelect(stdin, getenv, stderr)`, `RunClipboardToPane(
+  getenv, stderr)`, `RunFlashPane(args, getenv, stderr)` + thin `cmd/*/main.go`.
+
+### Tests (M4)
+
+- Go unit tests: `isNvimCommand`, `quoteFile`, `zellijpane.Parse` + the pane
+  selectors (focused non-plugin/non-floating; nvim by terminal_command — pin the
+  parley.nvim-cwd false-positive the shell test guards); a fake-`Runtime` loop
+  test for each Run (copy-on-select in-nvim→skip vs not→flash+handoff;
+  clipboard-to-pane stage quote + focus + Ctrl-_; flash set+reset).
+- Keep `tests/copy-on-select-test.sh` driving the Go binary unchanged (it stubs
+  the `.sh` handoff path — preserved by the exec chain). Add a `$(BIN_DIR)` prereq
+  to `test-copy-on-select` (the M2/M3 missing-prereq lesson).
+
+### M4 verification
+
+- `go test ./cmd/internal/clipcmd ./cmd/internal/zellijpane` green; `make test`
+  green incl. `test-copy-on-select` driving the Go binary; drift-check clean;
+  `git ls-files bin/` still lists the 3 `.sh` shims (now thin), not the Go binaries.
+
+## M5 (milestone-level; detailed when reached)
+
 - **M5 — launcher / session lifecycle:** port `bin/pair-shell`'s orchestration
   onto the `cmd/internal/launcher` core, retaining a shim; zellij/nvim stay
   external. Largest surface — may split into its own ticket if scope grows
