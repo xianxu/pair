@@ -77,12 +77,13 @@ total: 17.7
 ```
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
-`baseline-v3.1.md`. Method A only.* Items map to the plan (L2 split into its two
-flows since the closed vocabulary tops out at single-concern `greenfield-go-module`
-below charon-scale `greenfield-service`): L1 pure-logic completion; **L2a Runtime
-seam + create-flow orchestration and L2b attach/restart/quit/compaction — the
-dominant items + dominant uncertainty**; L3 in-process cutover + e2e; L4
-subcommands + shell retirement; the four boundary reviews; the atlas sweep.
+`baseline-v3.1.md`. Method A only.* The 5 `greenfield-go-module` items map 1:1 to
+the 5 plan milestones (the dominant work is split into two boundaries since the
+closed vocabulary tops out at single-concern `greenfield-go-module`, below
+charon-scale `greenfield-service`): M1 pure-logic completion; **M2 Runtime seam +
+create-flow and M3 attach/restart/quit/compaction — the dominant items + dominant
+uncertainty**; M4 in-process cutover + e2e; M5 subcommands + shell retirement; plus
+`milestone-review` (the five boundary reviews) and `atlas-docs` (the sweep).
 Reconciles: design Σ3.9 × 1.15 (thorough-plan-doc buffer) + impl Σ13.2 × 1.0 =
 17.69.
 
@@ -95,28 +96,33 @@ That the launcher alone ≈ #93's original whole-issue 17.4h is the point: the o
 
 ## Plan
 
-Each `Lx` is a merge-safe review boundary closed on its own (`sdlc
+Each `Mx` is a merge-safe review boundary closed on its own (`sdlc
 milestone-close`). Independently mergeable; the shell launcher stays the default
-until L3 flips it, so pair stays usable throughout.
+until M4 flips it, so pair stays usable throughout.
 
-- [ ] L1 — pure-logic completion: port the remaining pure pieces into
+- [ ] M1 — pure-logic completion: port the remaining pure pieces into
       `cmd/internal/launcher` (full `ParseArgs` incl. `continue`/`rename`/`list`;
       resume-token strip/compose — one helper for the 4 duplicated shell loops;
       config-migration decision rules; per-agent launch-arg composition — claude
       `--session-id` shape, codex `--no-alt-screen` idempotence; `rename`
       plan-build; title/`format_age`/`age_color`). Unit-tested, not yet wired —
       zero behavior change.
-- [ ] L2 — Runtime seam + native orchestration: define `launcher.Runtime`
+- [ ] M2 — Runtime seam + create-flow orchestration: define `launcher.Runtime`
       (zellij exec/query, fzf/prompt, markers, cmux, config read/write, nvim reap,
-      spawns, tty, env); build `RunLaunch` driving decision → effects → blocking
-      handoff → cleanup/restart. Fake-`Runtime` loop tests for create/attach/
-      picker/name-prompt/tag-restart/restart-re-entry/compaction/quit.
-- [ ] L3 — in-process cutover: flip `cmd/pair-go` to run the native launcher
+      spawns, tty, env); build `RunLaunch` for the **create** path (native create
+      behind `PAIR_NATIVE_LAUNCH`; shell stays default). `RunLaunch` stays a thin
+      orchestrator over pure deciders — no business logic inline. Fake-`Runtime`
+      tests for create / name-prompt / tag-restart config picker.
+- [ ] M3 — attach / restart / quit / compaction orchestration: native attach, the
+      restart-marker re-entry (in-process loop, not `exec $0`), in-session
+      compaction, quit cleanup. Fake-`Runtime` loop tests for each.
+- [ ] M4 — in-process cutover: flip `cmd/pair-go` to run the native launcher
       in-process under `PAIR_NATIVE_LAUNCH`; convert `bin/pair-shell` to a thin
-      shim → `pair-go launch`; restart re-exec → in-process loop. Full e2e vs the
-      shell, then flip the default.
-- [ ] L4 — subcommands + retirement: port `list`/`rename`/`continue`; retire the
-      shell fallback + `bin/pair-restart.sh` markers → in-process; drop the flag.
+      shim → `pair-go launch`. Full e2e vs the shell, then flip the default.
+- [ ] M5 — subcommands + retirement: port `list`/`rename`/`continue`; retire the
+      shell fallback + `bin/pair-restart.sh` markers → in-process; drop the flag;
+      resolve `bin/pair-shell` shim-vs-remove via an explicit `git ls-files bin/` +
+      caller check.
 
 ## Log
 

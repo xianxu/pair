@@ -68,26 +68,38 @@ path (cmd/pair-go/main.go — the effect seam to widen) as a **flag-gated fallba
 (`PAIR_NATIVE_LAUNCH`), so `bin/pair-shell` remains the default until native
 parity is proven, then the default flips and the shell path is retired.
 
-## Phased plan (each independently mergeable, M1–M4 template)
+## Phased plan (each an `Mx` review boundary, independently mergeable, M1–M4 template)
 
-- **L1 — pure-logic completion (no wiring, zero behavior change).** Port the
+Boundaries are tagged `Mx` (not `Lx`) — `sdlc`'s boundary discovery + the
+final-close milestone-verdict gate only recognize `M\d+`, so `Lx` rows would make
+that gate a silent no-op (change-code plan-quality finding, 2026-07-02).
+
+- **M1 — pure-logic completion (no wiring, zero behavior change).** Port the
   remaining pure pieces into `launcher`: full `ParseArgs` (`continue`/`rename`/
   `list`), resume-token strip/compose (4 duplicated shell loops → one helper —
   ARCH-DRY), config-migration decision rules, per-agent launch-arg composition
   (claude session-id shape, codex alt-screen idempotence), `rename` plan-build
   (`rename_paths_for` enumeration + transform), title/`format_age`/`age_color`
   formatting. Unit-tested directly.
-- **L2 — Runtime seam + native orchestration.** Define `launcher.Runtime`; build
-  `RunLaunch` for the full flow. Fake-`Runtime` loop tests: create, attach,
-  picker→attach/create, name-prompt, tag-restart config picker, restart-marker
-  re-entry, in-session compaction, quit cleanup.
-- **L3 — cutover.** Flip `cmd/pair-go` to run the native launcher in-process
+- **M2 — Runtime seam + create-flow orchestration.** Define `launcher.Runtime`;
+  build `RunLaunch` for the **create** path (native create behind
+  `PAIR_NATIVE_LAUNCH`; shell stays default). **`RunLaunch` stays a thin
+  orchestrator over the pure deciders — the tag-restart picker selection,
+  per-agent-arg composition, etc. are pure functions fed by the Runtime, not
+  branching business logic inline** (ARCH-PURE). Fake-`Runtime` tests: create,
+  name-prompt, tag-restart config picker.
+- **M3 — attach / restart / quit / compaction orchestration.** Native attach; the
+  restart-marker re-entry as an **in-process loop** (not `exec $0`); in-session
+  compaction; quit cleanup (`cleanup_quit_marker` — the ~130-line effect
+  sequence). Fake-`Runtime` loop tests for each.
+- **M4 — cutover.** Flip `cmd/pair-go` to run the native launcher in-process
   under `PAIR_NATIVE_LAUNCH`; convert `bin/pair-shell` to a thin shim →
-  `pair-go launch`; restart re-exec → in-process loop. Full e2e vs the shell
-  (create/attach/restart/quit/compaction), then flip the default.
-- **L4 — subcommands + retirement.** Port `list`/`rename`/`continue`; retire the
-  shell fallback + `bin/pair-restart.sh` markers → in-process; drop the flag.
-  This is what lets #94 (stop extracting a shell tree) proceed.
+  `pair-go launch`. Full e2e vs the shell (create/attach/restart/quit/compaction),
+  then flip the default.
+- **M5 — subcommands + retirement.** Port `list`/`rename`/`continue`; retire the
+  shell fallback + `bin/pair-restart.sh` markers → in-process; drop the flag;
+  resolve `bin/pair-shell` shim-vs-remove via an explicit `git ls-files bin/` +
+  caller check. This is what lets #94 (stop extracting a shell tree) proceed.
 
 ## Tests
 
@@ -104,13 +116,13 @@ Per phase: `go test ./cmd/internal/launcher …` green; the launcher shell tests
 (`tests/*launch*`, `PAIR_TEST_CALL` seams) green; a real create + attach +
 restart + quit + compaction exercised end-to-end (this is a lifecycle port —
 process-level fakes miss interaction bugs, so drive the real flow); drift-check
-clean; `git ls-files bin/` shows `bin/pair-shell` as a thin shim by L3.
+clean; `git ls-files bin/` shows `bin/pair-shell` as a thin shim by M4.
 
 ## Atlas (per-milestone)
 
 Update `atlas/go-migration-inventory.md` (the `bin/pair`/`pair-shell`/`launcher`/
 `entrypoint` row → Go-owned; Coverage Ledger) and `atlas/architecture.md` (the
-launch-flow section — the Go↔shell boundary moves each phase) at each `Lx` close.
+launch-flow section — the Go↔shell boundary moves each phase) at each `Mx` close.
 
 ## Revisions
 
