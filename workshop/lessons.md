@@ -556,3 +556,24 @@ that enumerates callers or counts ("the one remaining …", "N callers still on
 untouched distant line are exactly what the merge atlas-sync judge (matches
 atlas *against the tree/behavior*) fails on — the boundary review (diff-only)
 won't catch it.
+
+## Porting shell→Go: a side-effect's semantics are a decision, not the Go idiom's default
+
+#93 M4 ported `clipboard-to-pane.sh` et al. The shell wrote its diagnostic with
+`> "$LOG"` (truncate each run); the first Go cut used `os.OpenFile(..., O_APPEND)`
+— the idiomatic Go default — which quietly changed the behavior: the log now grew
+unbounded. The boundary review caught it (Minor), but it's the kind of drift that
+ships silently because the *feature* still works and no test observes a
+diagnostic. Same class: exit codes (a shell `exit 0` on empty input vs a Go
+error return), `set -e` short-circuits, `>>` vs `>`, backgrounded-and-`disown`ed
+subshells (→ setsid-detached in Go), and "found-but-failed vs not-found" tool
+cascades (`command -v` chains).
+
+**Rule.** When porting a shell script, treat every side effect — not just the
+happy-path logic — as a spec line to consciously preserve or *deliberately*
+change: log truncate-vs-append, exit codes per branch, file-write atomicity,
+process detachment, and the found/failed/absent distinctions of external-tool
+cascades. If you improve on the source (M4 moved the truncate to the pipeline
+head so it bounds growth *and* keeps the head's lines), say so in the plan
+`## Revisions` as a deliberate delta — don't let a Go idiom silently redefine
+behavior the source pinned.
