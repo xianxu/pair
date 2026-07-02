@@ -601,3 +601,18 @@ Put the **real** verdict in the milestone commit's `Review-Verdict:` trailer (th
 final `sdlc close` greps commits for it, not sdlc's `not-run` record), and note the
 workaround in the issue Log. This is an ariadne/sdlc bug in the first-milestone
 window computation — worth filing upstream, not just working around each time.
+
+**Second manifestation (#99 M2): `milestone-close`'s ATLAS-gate window can pick
+`base = HEAD` → empty window.** After committing the M2 code (with the atlas
+updates in an *earlier* commit of the same milestone) and running
+`sdlc milestone-close`, the atlas gate reported "no atlas/ changes in
+`<lastCommit>..HEAD`" and aborted — its window base was the just-made HEAD commit,
+so the (real, in-milestone) atlas edits a commit or two back were outside it. Same
+window-computation bug class as the review-window one above, different gate. **Fix:**
+confirm the atlas *was* updated in the true milestone window (`git diff --stat
+<prev-boundary>..HEAD -- atlas/`), then pass the precise `--no-atlas` with the
+rationale in `--verified` naming the commit that carries the atlas change. Don't
+scramble to re-touch the atlas into the narrow window — the requirement is met; the
+gate's window is wrong. Both variants point at one upstream fix: milestone-close
+should derive its gate/review windows from the milestone's first commit (or the
+prior `Mx` boundary), not a far-back base or HEAD itself.

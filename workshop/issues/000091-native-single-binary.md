@@ -91,7 +91,7 @@ Tracking checklist — ticks as each sub-ticket closes:
 - [x] Step 1 — embed + extract runtime tree — #90 (done)
 - [x] Step 2 — route internal calls through the Go dispatcher — #92 (done)
 - [x] Step 2b — route pair-wrap + pair-scribe PTY proxies — #96 (done)
-- [ ] Step 3 — port stateful shell orchestrators to Go — #93 (leaf ports M1–M4 done) + the launcher **#99** (extracted from #93 M5 — `bin/pair-shell`, P0, ~17.7h, phased M1–M5; **M1 pure-logic completion landed** — per-agent-arg/config/format helpers, unwired). #93 stays open until #99 lands.
+- [ ] Step 3 — port stateful shell orchestrators to Go — #93 (leaf ports M1–M4 done) + the launcher **#99** (extracted from #93 M5 — `bin/pair-shell`, P0, ~17.7h, phased M1–M5; **M1 pure-logic + M2 Runtime-seam/native-create-preview landed** — `launcher.Runtime` + `RunLaunch` create path behind `PAIR_NATIVE_LAUNCH`, shell still default; M3 attach/restart/quit next). #93 stays open until #99 lands.
 - [ ] Step 4 — stop extracting shell scripts — #94
 - [ ] Step 5 — native nvim/zellij startup assets — #95
 
@@ -104,7 +104,7 @@ actual work + reviews happen in the sub-tickets.
 ### 2026-07-02
 - Launcher (#93 M5, `bin/pair-shell`) extracted into its own ticket **#99** — P0,
   ~900 lines of new IO orchestration onto the `cmd/internal/launcher` core, phased
-  L1–L4, ~17.7h. #93 stays open until #99 lands.
+  M1–M5, ~17.7h. #93 stays open until #99 lands.
 
 ### 2026-07-01
 - Steps 2 & 2b closed and merged (#92 dispatcher routing; #96 pair-wrap/pair-scribe

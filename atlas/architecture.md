@@ -135,7 +135,7 @@ owns the launcher lifecycle during this migration window.
 **Native launcher (#99, in progress).** The port of `bin/pair-shell` onto the Go
 `cmd/internal/launcher` core is staged M1–M5. The pure decision + per-agent-arg
 core (#75, #99 M1) is joined in **#99 M2** by the `launcher.Runtime` effect seam
-(composed sub-interfaces — zellij / ui / proc / env / id / fs — for fake-test
+(composed sub-interfaces — zellij / snapshot / ui / proc / env / id / fs — for fake-test
 ISP), the `RunLaunch` **create-flow** orchestrator (a thin driver over the pure
 deciders: decision → name prompt → tag-restart config picker → config/id mint →
 env + sidecar spawns → the blocking `--new-session-with-layout` handoff), and the
