@@ -577,3 +577,27 @@ cascades. If you improve on the source (M4 moved the truncate to the pipeline
 head so it bounds growth *and* keeps the head's lines), say so in the plan
 `## Revisions` as a deliberate delta — don't let a Go idiom silently redefine
 behavior the source pinned.
+
+## `sdlc milestone-close`'s auto review-window can pick a wrong far-back base on a fresh ticket → `fork/exec claude: argument list too long`
+
+#99 M1 (the first milestone of a brand-new ticket branched off `main`) failed at
+`sdlc milestone-close`: the auto-computed boundary-review window was
+`<far-back-unrelated-commit>^..HEAD` — a **566-file, ~6.8 MB diff** — and the
+review dispatch `fork/exec`s the `claude` CLI with the diff/prompt inline, so the
+oversized arg vector tripped **E2BIG (`argument list too long`)**. The close then
+aborts with verdict `not-run` and leaves the issue `working`. It is NOT a PATH-size
+problem (a minimal PATH still fails) and NOT a code problem — it's the window base.
+
+**Rule / workaround.** When a milestone-close boundary review fails with
+`argument list too long`, check the window it printed: `git diff <base>^..HEAD
+--stat`. If `<base>` is a wrong far-back commit (huge diff), run the review
+yourself against the real branch base and finalize with `--no-judge`:
+
+    sdlc judge milestone-review --base "$(git merge-base main HEAD)" --head HEAD --issue N
+    # …address findings, then:
+    sdlc milestone-close --issue N --milestone Mx --actual A --verified '…' --no-judge
+
+Put the **real** verdict in the milestone commit's `Review-Verdict:` trailer (the
+final `sdlc close` greps commits for it, not sdlc's `not-run` record), and note the
+workaround in the issue Log. This is an ariadne/sdlc bug in the first-milestone
+window computation — worth filing upstream, not just working around each time.

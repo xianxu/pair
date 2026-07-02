@@ -131,3 +131,24 @@ launch-flow section — the Go↔shell boundary moves each phase) at each `Mx` c
 The design was surveyed + approved in the #93 plan and moved here on the operator's
 call to make the launcher its own ticket (#99). No content change vs the #93 M5
 detail; this file is now the record of truth.
+
+### 2026-07-02 — M1 shipped surface (matches issue #99 M1) + review follow-ups
+
+- **M1 scope reduced.** The M1 bullet above still lists "full `ParseArgs`
+  (`continue`/`rename`/`list`)" and "`rename` plan-build" as M1 work; both were
+  deferred out of M1 (to M2 / M5) — front-loading only the create/restart-flow pure
+  logic M2/M3 need, avoiding unwired M5-only code and a risky change to the live
+  `pair-go launch` parser. M1 shipped `agentargs.go` (per-agent resume compose,
+  codex alt-screen idempotence, claude session-id mint/skip, flag strip helpers),
+  `config.go` (config paths + legacy-codex migration decision + transcript paths),
+  `format.go` (age/title formatting).
+- **M1 milestone-close review (FIX-THEN-SHIP → SHIP).** No Critical. Fixed the one
+  Important: the persist-strip only covered claude's `--session-id`/`--resume`, but
+  `composeResumeArgs` handles all three agents — so `persistedConfigArgs` now also
+  strips agy `--conversation` (space + inline `=` forms) and codex's leading
+  `resume <id>` (position-sensitive), with tests, so an agy/codex resume can't
+  compound in saved args (shell 2079-2082's guard). Minor: dropped the hand-rolled
+  `itoa`/`itoa64` for `strconv` (ARCH-DRY); noted `TildeAbbrev`'s `home==""` guard
+  as a defensive extension. The review ran via `sdlc judge milestone-review --base
+  <branch-base>` because the auto-window picked a wrong far-back base (6.77 MB diff
+  → `fork/exec claude: argument list too long`); see the issue Log + lessons.
