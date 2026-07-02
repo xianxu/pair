@@ -121,6 +121,16 @@ func runLegacyLaunch(label string, executable string, args []string, stderr io.W
 			return 1
 		}
 	}
+	// Native launcher preview (#99 M2): under PAIR_NATIVE_LAUNCH, run the
+	// in-process create path. It declines (ErrFallbackToShell) anything it
+	// doesn't own yet — attach/pick, in-pane launches, unsupported verbs — so
+	// the shell below stays the default until the M4 cutover flips it.
+	if os.Getenv("PAIR_NATIVE_LAUNCH") != "" {
+		if code, err := launcher.LaunchNative(args, root.Root, stderr); err == nil {
+			return code
+		}
+	}
+
 	req := entrypoint.ResolveLegacyLaunch(root, args)
 	return rt.Exec(label, req.Path, req.Argv, withEnv(rt.Environ(), "PAIR_HOME", root.Root))
 }

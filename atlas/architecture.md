@@ -132,6 +132,21 @@ The detailed disposition table is maintained in
 `bin/pair-shell` with argv[0] presented as `pair`; the shell script below still
 owns the launcher lifecycle during this migration window.
 
+**Native launcher (#99, in progress).** The port of `bin/pair-shell` onto the Go
+`cmd/internal/launcher` core is staged M1–M5. The pure decision + per-agent-arg
+core (#75, #99 M1) is joined in **#99 M2** by the `launcher.Runtime` effect seam
+(composed sub-interfaces — zellij / ui / proc / env / id / fs — for fake-test
+ISP), the `RunLaunch` **create-flow** orchestrator (a thin driver over the pure
+deciders: decision → name prompt → tag-restart config picker → config/id mint →
+env + sidecar spawns → the blocking `--new-session-with-layout` handoff), and the
+concrete `OSRuntime`. It is wired behind **`PAIR_NATIVE_LAUNCH`** in `cmd/pair-go`
+as a *preview*: only the create path runs natively; attach/pick, in-pane launches
+(compaction), and unsupported verbs return `ErrFallbackToShell` so `bin/pair-shell`
+still handles them. The handoff is **fork+wait** (not `syscall.Exec`) so the Go
+launcher regains control for the M3 quit-cleanup / restart loop. The shell stays
+the **default** launcher until the M4 cutover flips it; nothing user-facing
+changes in M2.
+
 `bin/pair-shell` resolves `$PAIR_HOME` from its own real path (portable bash, no `readlink -f`), prepends `$PAIR_HOME/bin` to `$PATH` (idempotent across re-launches) so all helper scripts resolve by bare name in zellij configs and keybinds, parses argv — first positional is `$PAIR_AGENT` (default `claude`), everything after `--` is joined into `$PAIR_AGENT_ARGS`, extra positionals before `--` are an error with a usage hint, defaults `$PAIR_TAG` to the cwd basename (the create-flow prompt or `pair resume <tag>` overrides it), resolves `$PAIR_DATA_DIR` to `${XDG_DATA_HOME:-$HOME/.local/share}/pair`, runs a one-time migration of any old `~/scratch/pair-{draft,log}-*` files, and dispatches:
 
 A leading `pair resume <tag>` is recognized as a subcommand verb (alongside `list` / `help`): it skips both the picker and the name prompt, attaches if `pair-<tag>` already exists in any state, otherwise creates with that tag. When `resume` is in play, the agent is inferred from saved state on disk (`agent-<tag>` for live/recently-detached sessions; the agent embedded in the `config-<tag>-<agent>.json` filename otherwise) — so a single tag is enough to restart, regardless of which agent was originally paired with it. See "Tag-restart" below.
