@@ -325,12 +325,125 @@ predicate. Use it for both clip walks (2 consumers immediately); note
   green incl. `test-copy-on-select` driving the Go binary; drift-check clean;
   `git ls-files bin/` still lists the 3 `.sh` shims (now thin), not the Go binaries.
 
-## M5 (milestone-level; detailed when reached)
+## M5 — launcher / session lifecycle (detailed)
 
-- **M5 — launcher / session lifecycle:** port `bin/pair-shell`'s orchestration
-  onto the `cmd/internal/launcher` core, retaining a shim; zellij/nvim stay
-  external. Largest surface — may split into its own ticket if scope grows
-  (per the issue's granularity note).
+Port `bin/pair-shell` (2287 lines) — the last and largest surface — onto the
+`cmd/internal/launcher` core, retaining a compatibility shim. zellij/nvim stay
+external (#95 boundary). **Recommendation: extract this into its own ticket**
+(see "Structure" below); the detail here is the design regardless of wrapper.
+
+### What already exists vs the gap (survey, 2026-07-02)
+
+`cmd/internal/launcher` (from #75) already implements the **entire decision
+phase**, and it is well unit-tested — but it is a *prototype currently bypassed*:
+`cmd/pair-go` `syscall.Exec`s `bin/pair-shell` with argv `["pair", …]` + `PAIR_HOME`
+and the decision core never runs on the live path. Done already:
+`ParseArgs` (decision subset — refuses `continue`/`rename`/`list`/`ls`),
+`NormalizeTag`, `DefaultTag`, `ResolveDataDir`, `DecideLaunch`
+(+ `nextFreeTag`/`sessionBlocksReuse`/`isHistorical`/`sessionName`),
+`ZellijSource.Snapshot` (session classification), `HistorySource.Scan`, and
+`Run(argv, env, sessions, history) → LaunchOutcome` (decision only — no exec).
+
+Rough size of `bin/pair-shell`: ~600 lines pure logic (~26%, much already ported),
+**~900 lines IO orchestration (~39%, the real work — no Go home)**, ~90 lines that
+already delegate to Go (~4%), ~700 comments/help (~31%).
+
+The gap set (no Go home) — all stateful:
+- the two **blocking zellij handoffs** (`attach`, `--new-session-with-layout`);
+- three **UIs**: fzf session picker, fzf config/tag-restart picker (#000016), zsh
+  `vared` editable name-prompt (bash 3.2 lacks `read -i`);
+- **restart/quit lifecycle**: `handle_restart_marker` (re-exec `$0`),
+  `cleanup_quit_marker` (~130 lines: delete-session, reap nvim, park-nudge, rm
+  sidecars, kill poller, release cmux), `park_scrollback`;
+- **cmux** ownership + rename (presence-beats-stale owner file, emoji title subst);
+- **config/session migration**: `resolve_config_file` (legacy `-codex-codex`),
+  `~/scratch`→XDG one-time migration, `agent_session_exists`, tag-restart config
+  picker + per-agent resume-token compose;
+- **per-agent launch args**: claude deterministic `--session-id` mint (uuidgen +
+  collision retry), codex `--no-alt-screen` idempotent strip/append, explicit-resume
+  config writes;
+- **nvim orphan reaping**: `reap_nvim_for_tag`, `sweep_orphan_nvim`;
+- **guards/effects**: `in_zellij_pane` (PPID ancestry), `record_outer_tty`, env
+  exports, dev-rebuild;
+- **subcommands**: `list`/`ls`, `rename` (self-contained, ~240 lines), `help`;
+- **two child-spawns**: `ensure_title_poller` → Go `pair-title`, session-watcher →
+  Go `pair-session-watch` (both already Go — only the *spawn* is shell).
+
+Integration points (already Go — wire, don't re-port): `bin/pair-title.sh`,
+`bin/pair-session-watch.sh`, `bin/pair-wrap`, and the `$0` self-re-exec (restart /
+in-session-compaction) which becomes an **in-process loop**, not a subprocess.
+
+### Core architectural move (ARCH-DRY, ARCH-PURE)
+
+Build one native orchestration entry `launcher.RunLaunch(...)` on top of the
+existing pure core, behind a **new `launcher.Runtime` effect seam** (the M1–M4
+`OSRuntime`+`osfs.FS` pattern — the launcher today has only the two narrow
+`SessionSource`/`HistoricalScanner` sources, not a unified effect seam). The seam
+covers: zellij exec/query (`zj` timeout wrapper + blocking attach/new-session),
+fzf/prompt UIs, marker read/write, cmux, config read/write (jq → `encoding/json`),
+nvim reap, child-spawns, tty, env. Pure decisions stay pure and unit-tested;
+`RunLaunch` drives decision → effects → blocking handoff → post-handoff
+cleanup/restart, and is exercised by a fake-`Runtime`.
+
+### Compatibility shim strategy
+
+End-state: the Go `pair` binary runs the launcher **in-process** (no exec to
+`bin/pair-shell`); `bin/pair-shell` becomes a thin shim → `pair-go launch` for any
+residual external caller; the restart re-exec becomes an in-process loop. During
+transition, keep the existing `entrypoint.ResolveLegacyLaunch` + `legacyRuntime.Exec`
+path (cmd/pair-go/main.go — the effect seam to widen) as a **flag-gated fallback**
+(`PAIR_NATIVE_LAUNCH`), so `bin/pair-shell` remains the default until native
+parity is proven, then the default flips and the shell path is retired.
+
+### Phased plan (each independently mergeable, M1–M4 template)
+
+- **L1 — pure-logic completion (no wiring, zero behavior change).** Port the
+  remaining pure pieces into `launcher`: full `ParseArgs` (`continue`/`rename`/
+  `list`), resume-token strip/compose (4 duplicated shell loops → one helper —
+  ARCH-DRY), config-migration decision rules, per-agent launch-arg composition
+  (claude session-id shape, codex alt-screen idempotence), `rename` plan-build
+  (`rename_paths_for` enumeration + transform), title/`format_age`/`age_color`
+  formatting. Unit-tested directly.
+- **L2 — Runtime seam + native orchestration.** Define `launcher.Runtime`; build
+  `RunLaunch` for the full flow. Fake-`Runtime` loop tests: create, attach,
+  picker→attach/create, name-prompt, tag-restart config picker, restart-marker
+  re-entry, in-session compaction, quit cleanup.
+- **L3 — cutover.** Flip `cmd/pair-go` to run the native launcher in-process
+  under `PAIR_NATIVE_LAUNCH`; convert `bin/pair-shell` to a thin shim →
+  `pair-go launch`; restart re-exec → in-process loop. Full e2e vs the shell
+  (create/attach/restart/quit/compaction), then flip the default.
+- **L4 — subcommands + retirement.** Port `list`/`rename`/`continue`; retire the
+  shell fallback + `bin/pair-restart.sh` markers → in-process; drop the flag.
+  This is what lets #94 (stop extracting a shell tree) proceed.
+
+### Tests
+
+Follow the M1–M4 convention exactly: pure decisions unit-tested directly; the
+orchestration driven by a fake `Runtime`; the concrete `OSRuntime` sources tested
+against on-disk/exec fixtures (the established `ZellijSource` bash-stub +
+`HistorySource` sidecar-file pattern). Keep the existing `PAIR_TEST_CALL` /
+`PAIR_DEBUG_*` shell contract tests green against whichever launcher is active per
+phase; add Go coverage for every gap-set behavior before retiring its shell.
+
+### Verification
+
+Per phase: `go test ./cmd/internal/launcher …` green; the launcher shell tests
+(`tests/*launch*`, `PAIR_TEST_CALL` seams) green; a real create + attach +
+restart + quit + compaction exercised end-to-end (this is a lifecycle port —
+process-level fakes miss interaction bugs, so drive the real flow); drift-check
+clean; `git ls-files bin/` shows `bin/pair-shell` as a thin shim by L3.
+
+### Structure — recommend its own ticket (deps #93)
+
+M5 is categorically larger than the M1–M4 leaves (~900 lines of new IO
+orchestration + a new effect seam + the trickiest lifecycle logic in the tree,
+P0/load-bearing). An honest re-estimate is **~15–22h across L1–L4**, not the 6.0h
+placeholder. Extracting it to its own ticket gives it an honest estimate and
+isolated actuals, and keeps #93's M1–M4 actuals clean. #93 stays open (its
+Done-when includes a Go owner for the launcher) until that ticket lands. If instead
+kept as #93's M5, this same design applies — only the wrapper differs. **Awaiting
+the operator's call on ticket-vs-milestone before `sdlc issue new` + the durable
+plan move; implementation waits for plan approval regardless (2287-line P0 port).**
 
 ## Atlas (per-milestone)
 
