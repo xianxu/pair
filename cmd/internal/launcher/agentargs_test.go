@@ -22,16 +22,30 @@ func TestStripValuelessFlag(t *testing.T) {
 	}
 }
 
-func TestStripFlagWithValue(t *testing.T) {
-	// removes the flag AND its following value, preserving the rest.
-	got := stripFlagWithValue([]string{"--resume", "abc", "--search", "--session-id", "uuid"}, "--session-id")
-	want := []string{"--resume", "abc", "--search"}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("got %v, want %v", got, want)
+func TestStripFlagAllForms(t *testing.T) {
+	// space form: removes the flag AND its following value.
+	got := stripFlagAllForms([]string{"--resume", "abc", "--search", "--session-id", "uuid"}, "--session-id")
+	if want := []string{"--resume", "abc", "--search"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("space form: got %v, want %v", got, want)
 	}
-	// a trailing flag with no value is dropped without panicking.
-	if got := stripFlagWithValue([]string{"a", "--session-id"}, "--session-id"); !reflect.DeepEqual(got, []string{"a"}) {
+	// inline form: removes flag=value.
+	if got := stripFlagAllForms([]string{"--conversation=xyz", "--search"}, "--conversation"); !reflect.DeepEqual(got, []string{"--search"}) {
+		t.Errorf("inline form: got %v", got)
+	}
+	// a trailing space-form flag with no value is dropped without panicking.
+	if got := stripFlagAllForms([]string{"a", "--session-id"}, "--session-id"); !reflect.DeepEqual(got, []string{"a"}) {
 		t.Errorf("trailing flag: got %v", got)
+	}
+}
+
+func TestStripCodexResumeSubcommand(t *testing.T) {
+	// leading `resume <id>` is dropped (position-sensitive).
+	if got := stripCodexResumeSubcommand([]string{"resume", "id1", "--no-alt-screen"}); !reflect.DeepEqual(got, []string{"--no-alt-screen"}) {
+		t.Errorf("leading resume: got %v", got)
+	}
+	// a `resume` that is NOT at args[0] is left alone.
+	if got := stripCodexResumeSubcommand([]string{"--flag", "resume", "id1"}); !reflect.DeepEqual(got, []string{"--flag", "resume", "id1"}) {
+		t.Errorf("non-leading resume must stay: got %v", got)
 	}
 }
 
@@ -101,10 +115,23 @@ func TestShouldMintClaudeSessionID(t *testing.T) {
 	}
 }
 
+// Every agent's resume binding is stripped before persisting — the claude subset
+// AND agy --conversation (both forms) AND codex leading `resume <id>` — so a
+// resume can't compound in the saved args on relaunch (review I1).
 func TestPersistedConfigArgsStripsBinding(t *testing.T) {
-	got := persistedConfigArgs([]string{"--search", "--session-id", "u", "--resume", "r", "--no-alt-screen"})
-	want := []string{"--search", "--no-alt-screen"}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("got %v, want %v", got, want)
+	// claude subset.
+	if got := persistedConfigArgs([]string{"--search", "--session-id", "u", "--resume", "r", "--no-alt-screen"}); !reflect.DeepEqual(got, []string{"--search", "--no-alt-screen"}) {
+		t.Errorf("claude: got %v", got)
+	}
+	// agy --conversation, space + inline forms.
+	if got := persistedConfigArgs([]string{"--conversation", "cid", "--search"}); !reflect.DeepEqual(got, []string{"--search"}) {
+		t.Errorf("agy space form: got %v", got)
+	}
+	if got := persistedConfigArgs([]string{"--conversation=cid", "--search"}); !reflect.DeepEqual(got, []string{"--search"}) {
+		t.Errorf("agy inline form: got %v", got)
+	}
+	// codex leading `resume <id>` (position-sensitive) + trailing saved flags kept.
+	if got := persistedConfigArgs([]string{"resume", "sid", "--no-alt-screen"}); !reflect.DeepEqual(got, []string{"--no-alt-screen"}) {
+		t.Errorf("codex resume subcommand: got %v", got)
 	}
 }

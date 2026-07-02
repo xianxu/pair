@@ -1,5 +1,7 @@
 package launcher
 
+import "strings"
+
 // Per-agent launch-argument composition — the pure decisions behind the shell
 // launcher's resume-token / --session-id / --no-alt-screen handling (#99 M1,
 // ported from bin/pair-shell). The IO around them (uuidgen + collision stat,
@@ -29,21 +31,35 @@ func stripValuelessFlag(args []string, flag string) []string {
 	return out
 }
 
-// stripFlagWithValue removes a flag and the token that follows it (e.g.
-// --session-id <uuid>, --resume <id>). A trailing flag with no value is dropped.
-// This is the one helper that replaces the four hand-rolled strip loops the shell
-// carried (explicit-resume, claude --session-id, codex --no-alt-screen, and the
-// config-picker strip) — ARCH-DRY.
-func stripFlagWithValue(args []string, flag string) []string {
+// stripFlagAllForms removes a valued flag in both its space form (`flag value`)
+// and its inline form (`flag=value`) — e.g. --session-id <uuid>, --resume <id>,
+// and agy's --conversation <id> / --conversation=<id>. A trailing space-form flag
+// with no value is dropped. Together with stripCodexResumeSubcommand +
+// stripValuelessFlag, this is the single consolidation of the shell's several
+// hand-rolled resume/binding strip loops (ARCH-DRY).
+func stripFlagAllForms(args []string, flag string) []string {
 	out := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
 		if args[i] == flag {
-			i++ // also skip the value
+			i++ // also skip the space-form value
 			continue
+		}
+		if strings.HasPrefix(args[i], flag+"=") {
+			continue // inline form
 		}
 		out = append(out, args[i])
 	}
 	return out
+}
+
+// stripCodexResumeSubcommand drops a leading `resume <id>` — codex's resume
+// surface sits at args[0..1], so it's position-sensitive (only stripped when it
+// leads, never a `resume` that appears later as a value).
+func stripCodexResumeSubcommand(args []string) []string {
+	if len(args) >= 2 && args[0] == "resume" {
+		return append([]string(nil), args[2:]...)
+	}
+	return args
 }
 
 // resumeToken is the per-agent surface for resuming a session id: claude uses
@@ -101,12 +117,18 @@ func shouldMintClaudeSessionID(agent, explicitResume string, agentExtra []string
 		!hasFlag(agentExtra, "--session-id") && !hasFlag(agentExtra, "--fork-session")
 }
 
-// persistedConfigArgs strips the resume-binding flags from the args before they
-// are saved to config-<tag>-<agent>.json: session_id is the canonical storage for
-// the binding, so leaving --session-id / --resume in the saved args would compound
-// on every relaunch through the picker.
+// persistedConfigArgs strips every per-agent resume binding from the args before
+// they are saved to config-<tag>-<agent>.json: session_id is the canonical
+// storage for the binding, so leaving the binding in the saved args would compound
+// it on every relaunch through the picker. Handles all three agents' surfaces
+// (claude --resume / --session-id, agy --conversation incl. the inline form, codex
+// leading `resume <id>`) so an agy/codex resume can't silently accumulate — the
+// bug shell 2079-2082 guards. Agent-agnostic: stripping a form the current agent
+// never uses is a harmless no-op.
 func persistedConfigArgs(args []string) []string {
-	out := stripFlagWithValue(args, "--session-id")
-	out = stripFlagWithValue(out, "--resume")
+	out := stripCodexResumeSubcommand(args)
+	out = stripFlagAllForms(out, "--session-id")
+	out = stripFlagAllForms(out, "--resume")
+	out = stripFlagAllForms(out, "--conversation")
 	return out
 }

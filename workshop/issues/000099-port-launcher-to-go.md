@@ -130,6 +130,7 @@ until M4 flips it, so pair stays usable throughout.
 ## Log
 
 ### 2026-07-02
+- 2026-07-02: closed M1 — go test ./cmd/internal/launcher green — pure per-agent-arg/config/format helpers + named idempotence/collision/strip tests; boundary review ran via sdlc judge milestone-review --base (branch base) → FIX-THEN-SHIP, all findings fixed (agy/codex persist-strip completed, strconv dedup); go build ./... + vet clean; zero behavior change (unwired); review verdict: not-run
 - **change-code:** plan-quality CLEAN, estimate-quality INFO (branch created).
   Fixed the one blocking plan-quality finding first: boundary tags were `Lx` but
   `sdlc`'s milestone-verdict gate only recognizes `M\d+`, so `Lx` would have made

@@ -1,6 +1,9 @@
 package launcher
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 // Display formatting for the launcher's history/picker rows + pane titles (#99
 // M1, ported from bin/pair-shell). Pure string derivations.
@@ -17,7 +20,7 @@ func FormatAge(nowEpoch, thenEpoch int64) string {
 	case 1:
 		return "yesterday"
 	default:
-		return itoa64(days) + "d ago"
+		return strconv.FormatInt(days, 10) + "d ago"
 	}
 }
 
@@ -43,7 +46,7 @@ func AgeColor(days int) string {
 // or $HOME/*, so a sibling like /Users/xianxu-other is never mangled to ~-other.
 func TildeAbbrev(cwd, home string) string {
 	if home == "" {
-		return cwd
+		return cwd // defensive extension (the shell assumes $HOME is always set)
 	}
 	if cwd == home {
 		return "~"
@@ -66,26 +69,4 @@ func EmojiTitle(title string) string {
 	title = strings.ReplaceAll(title, "book", "📗")
 	title = strings.ReplaceAll(title, "pair", "♋")
 	return title
-}
-
-func itoa64(n int64) string {
-	if n == 0 {
-		return "0"
-	}
-	neg := n < 0
-	if neg {
-		n = -n
-	}
-	var buf [20]byte
-	i := len(buf)
-	for n > 0 {
-		i--
-		buf[i] = byte('0' + n%10)
-		n /= 10
-	}
-	if neg {
-		i--
-		buf[i] = '-'
-	}
-	return string(buf[i:])
 }
