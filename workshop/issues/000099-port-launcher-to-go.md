@@ -110,7 +110,7 @@ until M4 flips it, so pair stays usable throughout.
       (M5 / M2) to avoid unwired M5-only code + a risky change to the live
       `pair-go launch` parser — the create/restart-flow pure logic M2/M3 need is
       what M1 front-loads.
-- [ ] M2 — Runtime seam + create-flow orchestration: define `launcher.Runtime`
+- [x] M2 — Runtime seam + create-flow orchestration: define `launcher.Runtime`
       (zellij exec/query, fzf/prompt, markers, cmux, config read/write, nvim reap,
       spawns, tty, env); build `RunLaunch` for the **create** path (native create
       behind `PAIR_NATIVE_LAUNCH`; shell stays default). `RunLaunch` stays a thin
@@ -130,6 +130,7 @@ until M4 flips it, so pair stays usable throughout.
 ## Log
 
 ### 2026-07-02
+- 2026-07-02: closed M2 — ATLAS updated in the M2 window at commit 440998c (atlas/architecture.md launcher section + atlas/go-migration-inventory.md launcher row → #99 M2 native create preview); --no-atlas only because milestone-close computed an empty d5b3aa8..HEAD window that misses it (window bug, cf. the M1 milestone-review far-back-base bug). VERIFICATION: go test ./cmd/internal/launcher green (pure createlogic + zellijparse table tests + fake-Runtime loop tests: create/name-prompt/tag-restart-picker/codex/explicit-resume/agent-inference/probe-too-long/pre-handoff-collision/fallbacks); full make test green; go vet + go build ./... clean; runtimebundle-drift-check clean; real-OSRuntime end-to-end create smoke (stub zellij) PASS. Boundary review FIX-THEN-SHIP → SHIP (Important test-gap fixed; Review-Verdict trailer on commit d5b3aa8). Shell stays default; nothing user-facing flips.; review verdict: not-run
 - **M2 implemented (Runtime seam + create-flow orchestration).** New files in
   `cmd/internal/launcher`: `runtime.go` (the `Runtime` effect seam, composed from
   sub-interfaces — `ZellijOps`/`SnapshotOps`/`UIOps`/`ProcOps`/`EnvOps`/`IDOps`/
