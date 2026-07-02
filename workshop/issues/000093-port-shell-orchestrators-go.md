@@ -102,11 +102,18 @@ a time.
       `pair-review-readiness` orchestration to Go.
 - [x] M4 — clipboard helpers: port `clipboard-to-pane.sh`, `copy-on-select.sh`,
       `flash-pane.sh` to Go (or fold behind the dispatcher).
-- [ ] M5 — launcher / session lifecycle: port `bin/pair-shell`'s orchestration to
-      Go on the `cmd/internal/launcher` core, retaining a compatibility shim;
-      zellij/nvim stay external.
+- [ ] M5 — launcher / session lifecycle → **extracted to #99** (the launcher is
+      ~900 lines of new IO orchestration, categorically larger than the leaf ports;
+      carved out for its own estimate + actuals). #93 stays open until #99 lands —
+      its Done-when includes a Go owner for the launcher.
 
 ## Log
+
+### 2026-07-02
+- M5 (launcher / `bin/pair-shell`) extracted into its own ticket **#99** on the
+  operator's call. The design was surveyed + approved in this issue's plan and
+  moved to `workshop/plans/000099-port-launcher-to-go-plan.md`. #93 remains
+  `working` (M1–M4 leaf ports done, 4/5); it closes when #99 (the launcher) lands.
 
 ### 2026-07-01
 - 2026-07-01: closed M4 — Full make test green (exit 0) incl test-copy-on-select driving the Go copy-on-select binary (PASS: in_nvim keys on terminal_command, parley.nvim agent pane still hands off); clipcmd + zellijpane Go unit + fake-Runtime tests green; runtimebundle drift-check clean with the 3 Go binaries + .sh shims bundled; git ls-files bin/ lists only the 3 .sh shims (Go binaries gitignored); review verdict: FIX-THEN-SHIP

@@ -66,20 +66,25 @@ in-session compaction) becomes an in-process loop.
 model: estimate-logic-v3.1
 familiarity: 1.0
 item: greenfield-go-module design=0.5 impl=1.5
-item: larger-go-subsystem design=1.5 impl=4.5
+item: greenfield-go-module design=0.9 impl=2.7
+item: greenfield-go-module design=0.6 impl=1.8
 item: greenfield-go-module design=1.0 impl=2.5
 item: greenfield-go-module design=0.7 impl=2.5
 item: milestone-review design=0.0 impl=1.5
 item: atlas-docs design=0.2 impl=0.7
+design-buffer: 0.15
 total: 17.7
 ```
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
-`baseline-v3.1.md`. Method A only.* Items map to the plan: L1 pure-logic
-completion, **L2 Runtime seam + native orchestration (the dominant item + the
-dominant uncertainty)**, L3 in-process cutover + e2e, L4 subcommands + shell
-retirement, the four boundary reviews, and the atlas sweep. Design subtotal 3.9 ×
-1.15 (thorough-plan-doc buffer) = 4.5; impl subtotal 13.2; total 17.7.
+`baseline-v3.1.md`. Method A only.* Items map to the plan (L2 split into its two
+flows since the closed vocabulary tops out at single-concern `greenfield-go-module`
+below charon-scale `greenfield-service`): L1 pure-logic completion; **L2a Runtime
+seam + create-flow orchestration and L2b attach/restart/quit/compaction — the
+dominant items + dominant uncertainty**; L3 in-process cutover + e2e; L4
+subcommands + shell retirement; the four boundary reviews; the atlas sweep.
+Reconciles: design Σ3.9 × 1.15 (thorough-plan-doc buffer) + impl Σ13.2 × 1.0 =
+17.69.
 
 **Honest uncertainty:** this is interaction-heavy lifecycle work (blocking zellij
 handoffs, restart re-exec, TTY handling, quit cleanup) — the exact class the M4
