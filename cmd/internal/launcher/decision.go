@@ -1,5 +1,7 @@
 package launcher
 
+import "strconv"
+
 // LaunchAction is the guarded prototype's next launcher action.
 type LaunchAction string
 
@@ -70,7 +72,7 @@ func nextFreeTag(base string, snap SessionSnapshot) string {
 	for i := 1; i <= 100; i++ {
 		tag := base
 		if i > 1 {
-			tag = base + "-" + itoa(i)
+			tag = base + "-" + strconv.Itoa(i)
 		}
 		if !sessionBlocksReuse(snap, sessionName(tag)) && !isHistorical(snap, tag) {
 			return tag
@@ -86,18 +88,4 @@ func isHistorical(snap SessionSnapshot, tag string) bool {
 		}
 	}
 	return false
-}
-
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	var buf [20]byte
-	i := len(buf)
-	for n > 0 {
-		i--
-		buf[i] = byte('0' + n%10)
-		n /= 10
-	}
-	return string(buf[i:])
 }
