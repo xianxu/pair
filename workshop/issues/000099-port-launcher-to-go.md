@@ -130,7 +130,7 @@ until M4 flips it, so pair stays usable throughout.
 ## Log
 
 ### 2026-07-02
-- 2026-07-02: closed M1 — go test ./cmd/internal/launcher green — pure per-agent-arg/config/format helpers + named idempotence/collision/strip tests; boundary review ran via sdlc judge milestone-review --base (branch base) → FIX-THEN-SHIP, all findings fixed (agy/codex persist-strip completed, strconv dedup); go build ./... + vet clean; zero behavior change (unwired); review verdict: not-run
+- 2026-07-02: closed M1 — go test ./cmd/internal/launcher green — pure per-agent-arg/config/format helpers + named idempotence/collision/strip tests; boundary review verdict FIX-THEN-SHIP (all findings fixed: agy/codex persist-strip completed, strconv dedup); go build ./... + vet clean; zero behavior change (unwired). (The "not-run" suffix below is sdlc's `--no-judge` marker, NOT the review outcome: the boundary review DID run — via `sdlc judge milestone-review --base <branch-base>` — because milestone-close's auto-window picked a wrong far-back base → 6.8 MB diff → `fork/exec claude: argument list too long`; verdict is the FIX-THEN-SHIP above, and the M1 commit carries the real `Review-Verdict:` trailer.); review verdict: not-run
 - **change-code:** plan-quality CLEAN, estimate-quality INFO (branch created).
   Fixed the one blocking plan-quality finding first: boundary tags were `Lx` but
   `sdlc`'s milestone-verdict gate only recognizes `M\d+`, so `Lx` would have made

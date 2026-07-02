@@ -91,7 +91,7 @@ Tracking checklist — ticks as each sub-ticket closes:
 - [x] Step 1 — embed + extract runtime tree — #90 (done)
 - [x] Step 2 — route internal calls through the Go dispatcher — #92 (done)
 - [x] Step 2b — route pair-wrap + pair-scribe PTY proxies — #96 (done)
-- [ ] Step 3 — port stateful shell orchestrators to Go — #93 (leaf ports M1–M4 done) + the launcher **#99** (extracted from #93 M5 — `bin/pair-shell`, P0, ~17.7h, phased L1–L4). #93 stays open until #99 lands.
+- [ ] Step 3 — port stateful shell orchestrators to Go — #93 (leaf ports M1–M4 done) + the launcher **#99** (extracted from #93 M5 — `bin/pair-shell`, P0, ~17.7h, phased M1–M5; **M1 pure-logic completion landed** — per-agent-arg/config/format helpers, unwired). #93 stays open until #99 lands.
 - [ ] Step 4 — stop extracting shell scripts — #94
 - [ ] Step 5 — native nvim/zellij startup assets — #95
 
