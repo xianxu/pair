@@ -110,7 +110,7 @@ until M4 flips it, so pair stays usable throughout.
       (M5 / M2) to avoid unwired M5-only code + a risky change to the live
       `pair-go launch` parser — the create/restart-flow pure logic M2/M3 need is
       what M1 front-loads.
-- [ ] M2 — Runtime seam + create-flow orchestration: define `launcher.Runtime`
+- [x] M2 — Runtime seam + create-flow orchestration: define `launcher.Runtime`
       (zellij exec/query, fzf/prompt, markers, cmux, config read/write, nvim reap,
       spawns, tty, env); build `RunLaunch` for the **create** path (native create
       behind `PAIR_NATIVE_LAUNCH`; shell stays default). `RunLaunch` stays a thin
@@ -130,6 +130,53 @@ until M4 flips it, so pair stays usable throughout.
 ## Log
 
 ### 2026-07-02
+- 2026-07-02: closed M2 — ATLAS updated in the M2 window at commit 440998c (atlas/architecture.md launcher section + atlas/go-migration-inventory.md launcher row → #99 M2 native create preview); --no-atlas only because milestone-close computed an empty d5b3aa8..HEAD window that misses it (window bug, cf. the M1 milestone-review far-back-base bug). VERIFICATION: go test ./cmd/internal/launcher green (pure createlogic + zellijparse table tests + fake-Runtime loop tests: create/name-prompt/tag-restart-picker/codex/explicit-resume/agent-inference/probe-too-long/pre-handoff-collision/fallbacks); full make test green; go vet + go build ./... clean; runtimebundle-drift-check clean; real-OSRuntime end-to-end create smoke (stub zellij) PASS. Boundary review FIX-THEN-SHIP → SHIP (Important test-gap fixed; Review-Verdict trailer on commit d5b3aa8). Shell stays default; nothing user-facing flips.; review verdict: not-run
+- **M2 implemented (Runtime seam + create-flow orchestration).** New files in
+  `cmd/internal/launcher`: `runtime.go` (the `Runtime` effect seam, composed from
+  sub-interfaces — `ZellijOps`/`SnapshotOps`/`UIOps`/`ProcOps`/`EnvOps`/`IDOps`/
+  `FSOps` — per the change-code ISP INFO), `createlogic.go` (pure create-flow
+  helpers: explicit-resume extract, config JSON build/parse, tag-restart choice
+  build + selection-map + arg compose — all reusing M1's agentargs), `createflow.go`
+  (`RunLaunch` — the thin orchestrator + `promptForTag`/`runConfigPicker`/
+  `resolveConfigPath` sub-drivers), `osruntime.go` (concrete `OSRuntime`: 5s-timeout
+  zellij queries, fork+wait `LaunchSession`, zsh-vared prompt, fzf `--read0` picker,
+  cmux/tty/spawn/uuid), `runcli.go` (`LaunchNative` os-plumbing entry). Wired behind
+  `PAIR_NATIVE_LAUNCH` in `cmd/pair-go/main.go` (create-only preview; attach/pick/
+  in-pane/unsupported-verbs → `ErrFallbackToShell` → shell). Decisions worth noting:
+  (a) **fork+wait, not `syscall.Exec`** — `LaunchSession` is `cmd.Run()` with tty
+  passthrough so the launcher regains control for M3's quit/restart (change-code M3
+  crux, pinned now as the `LaunchSession` contract). (b) **`persistedConfigArgs`
+  used as the single resume-strip** at every persist + re-compose site — a superset
+  of the shell's per-site resume-only strips (it also drops a stray `--session-id`),
+  which is safer for a fresh/re-composed launch and keeps M1's ARCH-DRY
+  consolidation. (c) **agent inference** ported for the `resume <tag>` path (agent
+  unset by ParseArgs) — `InferAgent` reads `agent-<tag>` then the config-filename
+  agent, defaulting to claude. (d) `osfs.FS.Touch` now `MkdirAll`s its parent (the
+  create path Touches the draft before any `WriteAtomic` makes the data dir — the
+  shell `mkdir -p`s `$DATA_DIR` early; opener's `Touch(log)` is unaffected).
+  Verified: `go test ./cmd/internal/launcher` green (pure-helper unit tests +
+  fake-`Runtime` loop tests for create / name-prompt / tag-restart picker / codex /
+  explicit-resume / fallbacks / agent-inference); full `make test` green;
+  `go vet` clean; a **real-OSRuntime end-to-end smoke** (stub zellij+agent, temp
+  HOME/XDG) confirmed `resume <freshtag>` mints a real uuid, writes config
+  (resume-stripped) + agent record + truncated adapt recorder + seeded draft, ran
+  the name-length probe + EXITED-clear, and handed off `--new-session-with-layout
+  --session pair-<tag>`. Nothing user-facing changes (shell stays default).
+- **M2 boundary review: FIX-THEN-SHIP → SHIP** (via `sdlc judge milestone-review
+  --base <merge-base>`; the auto-window bug did not recur this milestone since
+  `main == merge-base`, but the manual base was used to be safe). No Critical. The
+  one **Important** (fixed): the `OSRuntime` zellij-output parsers (#54/#67 logic)
+  + two `RunLaunch` error branches shipped untested. Fix: extracted the row-parse
+  into pure `sessionRowState`/`familyRows`/`sessionNameRejected` (`zellijparse.go`,
+  also dedups the two IO methods — ARCH-DRY) with a table test, and added
+  fake-`Runtime` tests for the probe-too-long + pre-handoff-collision exits.
+  Minors taken: `extractExplicitResume` now keeps scanning past a bare
+  `--conversation=` (shell-faithful); the `cmd/pair-go` gate uses
+  `errors.Is(err, ErrFallbackToShell)` so only the sentinel defers to the shell
+  (a future non-fallback error is surfaced, not silently re-run). Minors left
+  (degenerate/corruption-only drifts where Go's behavior is equal-or-safer):
+  empty `agent-<tag>` falls to the config glob; a malformed config skips the
+  picker. go test + smoke re-green after fixes.
 - 2026-07-02: closed M1 — go test ./cmd/internal/launcher green — pure per-agent-arg/config/format helpers + named idempotence/collision/strip tests; boundary review verdict FIX-THEN-SHIP (all findings fixed: agy/codex persist-strip completed, strconv dedup); go build ./... + vet clean; zero behavior change (unwired). (The "not-run" suffix below is sdlc's `--no-judge` marker, NOT the review outcome: the boundary review DID run — via `sdlc judge milestone-review --base <branch-base>` — because milestone-close's auto-window picked a wrong far-back base → 6.8 MB diff → `fork/exec claude: argument list too long`; verdict is the FIX-THEN-SHIP above, and the M1 commit carries the real `Review-Verdict:` trailer.); review verdict: not-run
 - **change-code:** plan-quality CLEAN, estimate-quality INFO (branch created).
   Fixed the one blocking plan-quality finding first: boundary tags were `Lx` but

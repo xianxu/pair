@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -121,6 +122,17 @@ func runLegacyLaunch(label string, executable string, args []string, stderr io.W
 			return 1
 		}
 	}
+	// Native launcher preview (#99 M2): under PAIR_NATIVE_LAUNCH, run the
+	// in-process create path. It falls back (ErrFallbackToShell) for anything it
+	// doesn't own yet — attach/pick, in-pane launches, unsupported verbs. Only
+	// that sentinel defers to the shell below; a handled result (incl. any
+	// future non-fallback error) is returned so side effects aren't re-run.
+	if os.Getenv("PAIR_NATIVE_LAUNCH") != "" {
+		if code, err := launcher.LaunchNative(args, root.Root, stderr); !errors.Is(err, launcher.ErrFallbackToShell) {
+			return code
+		}
+	}
+
 	req := entrypoint.ResolveLegacyLaunch(root, args)
 	return rt.Exec(label, req.Path, req.Argv, withEnv(rt.Environ(), "PAIR_HOME", root.Root))
 }

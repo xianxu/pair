@@ -1,0 +1,459 @@
+package launcher
+
+import (
+	"bytes"
+	"errors"
+	"strings"
+	"testing"
+	"time"
+)
+
+// fakeRuntime is the in-memory create-flow seam for the RunLaunch loop tests.
+// Canned inputs drive decisions; recorded outputs assert the effect sequence.
+type fakeRuntime struct {
+	inPane         bool
+	sessions       []Session
+	historical     []HistoricalTag
+	blocksReuse    map[string]bool // session -> live-blocks (default false)
+	commandMissing map[string]bool // name -> absent (default: everything exists)
+	files          map[string]string
+	agentSessions  map[string]bool // "agent|sid" -> native artifact exists
+	uuids          []string        // MintUUID pops these in order
+	promptValue    string
+	promptOK       bool
+	probeErr       error
+	inferAgent     map[string]string // tag -> paired agent (for `resume <tag>`)
+	pickFunc       func(header string, options []string) string
+
+	// recorded
+	env         map[string]string
+	launched    string // session name handed to LaunchSession
+	launchCode  int
+	watchers    []string // "agent|tag|cwd|args"
+	pollers     []string // "tag|agent"
+	cmux        []string // "tag|title"
+	ttyRecorded []string
+	titles      []string
+	removed     []string
+	family      []string
+	devRebuilt  bool
+}
+
+func newFakeRuntime() *fakeRuntime {
+	return &fakeRuntime{
+		blocksReuse:    map[string]bool{},
+		commandMissing: map[string]bool{},
+		files:          map[string]string{},
+		agentSessions:  map[string]bool{},
+		inferAgent:     map[string]string{},
+		promptOK:       true,
+		env:            map[string]string{},
+	}
+}
+
+// ZellijOps
+func (f *fakeRuntime) Sessions() ([]Session, error)           { return f.sessions, nil }
+func (f *fakeRuntime) SessionBlocksReuse(session string) bool { return f.blocksReuse[session] }
+func (f *fakeRuntime) ProbeSessionName(session string) error  { return f.probeErr }
+func (f *fakeRuntime) LaunchSession(session, configDir, layout string) (int, error) {
+	f.launched = session
+	return f.launchCode, nil
+}
+
+// SnapshotOps
+func (f *fakeRuntime) ScanHistory(base string, cutoff time.Time) ([]HistoricalTag, error) {
+	return f.historical, nil
+}
+
+// UIOps
+func (f *fakeRuntime) ShowFamilyExisting(familyPrefix string) {
+	f.family = append(f.family, familyPrefix)
+}
+func (f *fakeRuntime) PromptSessionName(def string) (string, bool) {
+	if f.promptValue != "" {
+		return f.promptValue, f.promptOK
+	}
+	return def, f.promptOK
+}
+func (f *fakeRuntime) PickFromList(header string, options []string, height int) string {
+	if f.pickFunc == nil {
+		return ""
+	}
+	return f.pickFunc(header, options)
+}
+func (f *fakeRuntime) SetTerminalTitle(session string) { f.titles = append(f.titles, session) }
+
+// ProcOps
+func (f *fakeRuntime) SpawnSessionWatcher(agent, tag, cwd string, agentArgs []string) {
+	f.watchers = append(f.watchers, agent+"|"+tag+"|"+cwd+"|"+strings.Join(agentArgs, " "))
+}
+func (f *fakeRuntime) SpawnTitlePoller(tag, agent string) {
+	f.pollers = append(f.pollers, tag+"|"+agent)
+}
+func (f *fakeRuntime) DevRebuild(pairHome string) { f.devRebuilt = true }
+
+// EnvOps
+func (f *fakeRuntime) SetEnv(key, value string)       { f.env[key] = value }
+func (f *fakeRuntime) InZellijPane() bool             { return f.inPane }
+func (f *fakeRuntime) CommandExists(name string) bool { return !f.commandMissing[name] }
+func (f *fakeRuntime) RecordOuterTTY(tag string)      { f.ttyRecorded = append(f.ttyRecorded, tag) }
+func (f *fakeRuntime) CmuxRename(tag, title string)   { f.cmux = append(f.cmux, tag+"|"+title) }
+
+// IDOps
+func (f *fakeRuntime) MintUUID() string {
+	if len(f.uuids) == 0 {
+		return ""
+	}
+	u := f.uuids[0]
+	f.uuids = f.uuids[1:]
+	return u
+}
+func (f *fakeRuntime) AgentSessionExists(agent, sid, cwd string) bool {
+	return f.agentSessions[agent+"|"+sid]
+}
+func (f *fakeRuntime) InferAgent(tag string) string { return f.inferAgent[tag] }
+
+// FSOps
+func (f *fakeRuntime) ReadFile(path string) (string, error) {
+	if v, ok := f.files[path]; ok {
+		return v, nil
+	}
+	return "", errors.New("not found")
+}
+func (f *fakeRuntime) WriteAtomic(path, data string) error { f.files[path] = data; return nil }
+func (f *fakeRuntime) Remove(path string) {
+	f.removed = append(f.removed, path)
+	delete(f.files, path)
+}
+func (f *fakeRuntime) FileSize(path string) (int64, bool) {
+	v, ok := f.files[path]
+	return int64(len(v)), ok
+}
+func (f *fakeRuntime) Touch(path string) error {
+	if _, ok := f.files[path]; !ok {
+		f.files[path] = ""
+	}
+	return nil
+}
+
+func baseOpts(args LaunchArgs) LaunchOptions {
+	return LaunchOptions{
+		Args:     args,
+		Env:      Env{Home: "/home/u", Cwd: "/home/u/work", DataDir: "/data", Now: time.Unix(1_700_000_000, 0), HistoryD: 14},
+		PairHome: "/pair",
+	}
+}
+
+func run(t *testing.T, opts LaunchOptions, rt *fakeRuntime) (int, error) {
+	t.Helper()
+	var stderr bytes.Buffer
+	code, err := RunLaunch(opts, rt, &stderr)
+	if stderr.Len() > 0 {
+		t.Logf("stderr: %s", stderr.String())
+	}
+	return code, err
+}
+
+// A forced-tag create with no live session: no prompt, claude mints a session id,
+// config + agent record written, sidecars spawned, session handed off.
+func TestRunLaunchForcedCreateClaude(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.uuids = []string{"MINTED-1"}
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "bugfix"}), rt)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if code != 0 {
+		t.Fatalf("code = %d", code)
+	}
+	if rt.launched != "pair-bugfix" {
+		t.Fatalf("launched = %q", rt.launched)
+	}
+	if len(rt.family) != 0 {
+		t.Fatalf("forced create must not prompt/show family: %v", rt.family)
+	}
+	if rt.env["PAIR_TAG"] != "bugfix" || rt.env["PAIR_AGENT"] != "claude" || rt.env["PAIR_HOME"] != "/pair" {
+		t.Fatalf("env = %+v", rt.env)
+	}
+	if rt.env["PAIR_SESSION_ID"] != "MINTED-1" {
+		t.Fatalf("PAIR_SESSION_ID = %q", rt.env["PAIR_SESSION_ID"])
+	}
+	if !strings.Contains(rt.env["PAIR_AGENT_ARGS"], "--session-id MINTED-1") {
+		t.Fatalf("PAIR_AGENT_ARGS = %q", rt.env["PAIR_AGENT_ARGS"])
+	}
+	// Config written WITHOUT the resume binding (session_id is canonical storage).
+	cfg := rt.files["/data/config-bugfix-claude.json"]
+	if !strings.Contains(cfg, `"session_id":"MINTED-1"`) || strings.Contains(cfg, "--session-id") {
+		t.Fatalf("config = %q", cfg)
+	}
+	if rt.files["/data/agent-bugfix"] != "claude\n" {
+		t.Fatalf("agent record = %q", rt.files["/data/agent-bugfix"])
+	}
+	if got := rt.watchers; len(got) != 1 || !strings.HasPrefix(got[0], "claude|bugfix|/home/u/work|") {
+		t.Fatalf("watchers = %v", got)
+	}
+	if len(rt.pollers) != 1 || rt.pollers[0] != "bugfix|claude" {
+		t.Fatalf("pollers = %v", rt.pollers)
+	}
+	if len(rt.titles) != 1 || len(rt.ttyRecorded) != 1 || len(rt.cmux) != 1 {
+		t.Fatalf("title/tty/cmux effects missing: %v %v %v", rt.titles, rt.ttyRecorded, rt.cmux)
+	}
+}
+
+// Empty-state create prompts for a name; the typed value drives the tag.
+func TestRunLaunchPromptCreate(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.uuids = []string{"S1"}
+	rt.promptValue = "myproj"
+	opts := baseOpts(LaunchArgs{Agent: "claude"})
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if len(rt.family) != 1 {
+		t.Fatalf("prompt path should show family: %v", rt.family)
+	}
+	if rt.launched != "pair-myproj" || rt.env["PAIR_TAG"] != "myproj" {
+		t.Fatalf("launched=%q tag=%q", rt.launched, rt.env["PAIR_TAG"])
+	}
+}
+
+// Aborting the name prompt exits 0 (handled) without launching.
+func TestRunLaunchPromptAbort(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.promptOK = false
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude"}), rt)
+	if err != nil {
+		t.Fatalf("err=%v", err)
+	}
+	if code != 0 {
+		t.Fatalf("abort should exit 0, got %d", code)
+	}
+	if rt.launched != "" {
+		t.Fatalf("must not launch on abort: %q", rt.launched)
+	}
+}
+
+// A typed name that collides with a live session errors (exit 1, no launch).
+func TestRunLaunchPromptCollision(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.promptValue = "taken"
+	rt.blocksReuse["pair-taken"] = true
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude"}), rt)
+	if err != nil || code != 1 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.launched != "" {
+		t.Fatalf("must not launch on collision: %q", rt.launched)
+	}
+}
+
+// Codex forces --no-alt-screen and its watcher gets the final args.
+func TestRunLaunchCodexAltScreen(t *testing.T) {
+	rt := newFakeRuntime()
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "cx"}), rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.env["PAIR_AGENT_ARGS"] != "--no-alt-screen" {
+		t.Fatalf("PAIR_AGENT_ARGS = %q", rt.env["PAIR_AGENT_ARGS"])
+	}
+	// Codex does not mint a claude session id.
+	if rt.env["PAIR_SESSION_ID"] != "" {
+		t.Fatalf("codex should not mint a session id: %q", rt.env["PAIR_SESSION_ID"])
+	}
+	if len(rt.watchers) != 1 || !strings.HasSuffix(rt.watchers[0], "|--no-alt-screen") {
+		t.Fatalf("watcher args = %v", rt.watchers)
+	}
+}
+
+// The tag-restart config picker: a saved config offers reuse; picking "saved
+// params + session" composes the resume binding.
+func TestRunLaunchTagRestartPickerResume(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.files["/data/config-cx-codex.json"] = `{"agent":"codex","args":["--search"],"session_id":"CX-9"}`
+	rt.agentSessions["codex|CX-9"] = true // native session artifact exists → resumable
+	rt.pickFunc = func(header string, options []string) string {
+		return options[0] // "use saved params + session"
+	}
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "cx"}), rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	// codex resume subcommand LEADS, --no-alt-screen appended idempotently.
+	if rt.env["PAIR_AGENT_ARGS"] != "resume CX-9 --search --no-alt-screen" {
+		t.Fatalf("PAIR_AGENT_ARGS = %q", rt.env["PAIR_AGENT_ARGS"])
+	}
+}
+
+// Picking "new" drops the stale config.
+func TestRunLaunchTagRestartPickerNew(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.files["/data/config-work-claude.json"] = `{"agent":"claude","args":["--old"],"session_id":"OLD"}`
+	rt.uuids = []string{"NEW-SID"}
+	rt.pickFunc = func(header string, options []string) string {
+		for _, o := range options {
+			if strings.Contains(o, "use new params passed in") {
+				return o
+			}
+		}
+		return ""
+	}
+	opts := baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "work", AgentArgs: []string{"--fresh"}})
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if !contains(rt.removed, "/data/config-work-claude.json") {
+		t.Fatalf("new should remove stale config; removed=%v", rt.removed)
+	}
+	// The freshly-minted config replaces it (mint runs after the picker).
+	if cfg := rt.files["/data/config-work-claude.json"]; !strings.Contains(cfg, "NEW-SID") {
+		t.Fatalf("expected fresh minted config, got %q", cfg)
+	}
+}
+
+// Aborting the config picker exits 1.
+func TestRunLaunchTagRestartPickerAbort(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.files["/data/config-cx-codex.json"] = `{"agent":"codex","args":[],"session_id":""}`
+	rt.pickFunc = func(header string, options []string) string { return "" }
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "cx"}), rt)
+	if err != nil || code != 1 {
+		t.Fatalf("picker abort should exit 1: code=%d err=%v", code, err)
+	}
+	if rt.launched != "" {
+		t.Fatalf("must not launch on picker abort")
+	}
+}
+
+// An explicit --resume on argv skips the picker and pre-writes the config.
+func TestRunLaunchExplicitResumeSkipsPicker(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.files["/data/config-work-claude.json"] = `{"agent":"claude","args":["--saved"],"session_id":"SAVED"}`
+	pickerCalled := false
+	rt.pickFunc = func(header string, options []string) string { pickerCalled = true; return options[0] }
+	opts := baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "work", AgentArgs: []string{"--resume", "EXPLICIT"}})
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if pickerCalled {
+		t.Fatalf("explicit resume must skip the picker")
+	}
+	// Config pre-written with the explicit id, args stripped of the resume token.
+	cfg := rt.files["/data/config-work-claude.json"]
+	if !strings.Contains(cfg, `"session_id":"EXPLICIT"`) || strings.Contains(cfg, "--resume") {
+		t.Fatalf("config = %q", cfg)
+	}
+	if rt.env["PAIR_SESSION_ID"] != "EXPLICIT" {
+		t.Fatalf("PAIR_SESSION_ID = %q", rt.env["PAIR_SESSION_ID"])
+	}
+}
+
+// A launch from inside a zellij pane, an attach decision, and a pick decision
+// all defer to the shell.
+func TestRunLaunchFallbacks(t *testing.T) {
+	t.Run("in pane", func(t *testing.T) {
+		rt := newFakeRuntime()
+		rt.inPane = true
+		if _, err := run(t, baseOpts(LaunchArgs{Agent: "claude"}), rt); !errors.Is(err, ErrFallbackToShell) {
+			t.Fatalf("in-pane should fall back, got %v", err)
+		}
+	})
+	t.Run("attach decision", func(t *testing.T) {
+		rt := newFakeRuntime()
+		rt.sessions = []Session{{Name: "pair-live", State: SessionDetached}}
+		rt.blocksReuse["pair-live"] = true
+		if _, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "live"}), rt); !errors.Is(err, ErrFallbackToShell) {
+			t.Fatalf("attach should fall back, got %v", err)
+		}
+	})
+	t.Run("pick decision", func(t *testing.T) {
+		rt := newFakeRuntime()
+		rt.sessions = []Session{{Name: "pair-a", State: SessionDetached}}
+		if _, err := run(t, baseOpts(LaunchArgs{Agent: "claude"}), rt); !errors.Is(err, ErrFallbackToShell) {
+			t.Fatalf("pick should fall back, got %v", err)
+		}
+	})
+}
+
+// A missing agent binary errors before any session work.
+func TestRunLaunchAgentMissing(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.commandMissing["claude"] = true
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "x"}), rt)
+	if err != nil || code != 1 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.launched != "" {
+		t.Fatalf("must not launch with missing agent")
+	}
+}
+
+// `pair resume <tag>` (agent unset) infers the paired agent from disk.
+func TestRunLaunchResumeInfersAgent(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.inferAgent["oldcx"] = "codex"
+	code, err := run(t, baseOpts(LaunchArgs{ForcedTag: "oldcx"}), rt) // Agent: "" → infer
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.env["PAIR_AGENT"] != "codex" {
+		t.Fatalf("inferred agent = %q, want codex", rt.env["PAIR_AGENT"])
+	}
+	if rt.files["/data/agent-oldcx"] != "codex\n" {
+		t.Fatalf("agent record = %q", rt.files["/data/agent-oldcx"])
+	}
+}
+
+// With nothing on disk to infer from, the agent defaults to claude.
+func TestRunLaunchResumeDefaultsClaude(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.uuids = []string{"SID"}
+	code, err := run(t, baseOpts(LaunchArgs{ForcedTag: "brand-new"}), rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.env["PAIR_AGENT"] != "claude" {
+		t.Fatalf("default agent = %q, want claude", rt.env["PAIR_AGENT"])
+	}
+}
+
+// A zellij name-length rejection (#54) aborts with exit 1 before the handoff.
+func TestRunLaunchProbeTooLong(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.uuids = []string{"S"}
+	rt.probeErr = errors.New("session name too long")
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "waytoolongtag"}), rt)
+	if err != nil || code != 1 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.launched != "" {
+		t.Fatalf("must not launch when the name probe rejects: %q", rt.launched)
+	}
+}
+
+// A live session unexpectedly occupying the name at the pre-handoff guard
+// (#67 TOCTOU) aborts with exit 1 rather than colliding in --new-session.
+func TestRunLaunchPreHandoffCollision(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.uuids = []string{"S"}
+	rt.blocksReuse["pair-bugfix"] = true // forced create → no prompt collision check
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "bugfix"}), rt)
+	if err != nil || code != 1 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.launched != "" {
+		t.Fatalf("must not launch when the name is occupied at handoff: %q", rt.launched)
+	}
+}
+
+func contains(xs []string, want string) bool {
+	for _, x := range xs {
+		if x == want {
+			return true
+		}
+	}
+	return false
+}
