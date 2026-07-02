@@ -100,7 +100,7 @@ a time.
       changelog opener) to Go orchestration; `nvim/*.lua` viewers stay native.
 - [x] M3 — review helpers: port `bin/pair-review-target` / `pair-review-open` /
       `pair-review-readiness` orchestration to Go.
-- [ ] M4 — clipboard helpers: port `clipboard-to-pane.sh`, `copy-on-select.sh`,
+- [x] M4 — clipboard helpers: port `clipboard-to-pane.sh`, `copy-on-select.sh`,
       `flash-pane.sh` to Go (or fold behind the dispatcher).
 - [ ] M5 — launcher / session lifecycle: port `bin/pair-shell`'s orchestration to
       Go on the `cmd/internal/launcher` core, retaining a compatibility shim;
@@ -109,6 +109,17 @@ a time.
 ## Log
 
 ### 2026-07-01
+
+**M4 change-code:** both judges INFO (branch created, no block). Estimate-quality
+re-raised the standing M5-optimism + light-`milestone-review` advisories (same as
+M2) — deferred to M5's own design pass/ticket per plan `## Revisions`; whole-issue
+estimate stays 17.4. Plan-quality raised 3 non-blocking sharpenings, folded into
+the M4 build: (1) add a `Title` field to `zellijpane.Pane` now so opener's later
+adoption is a pure swap (its `isAgentPane` keys off title); (2) split the `Exec`
+seam into two named modes — flash is call-and-return (subprocess), the
+clipboard-to-pane hand-off is a process-replacing `exec` (syscall.Exec); (3) the
+flash `set+reset` fake test asserts the reset is *scheduled* (detached), not run
+synchronously, pinning the "don't block the caller" contract.
 
 **M3 review follow-ups (FIX-THEN-SHIP → SHIP).** No Critical. Fixed both
 Important: (1) `test-review` gained the 3 review-binary prereqs (they're built Go

@@ -123,9 +123,9 @@ Priority is packaging impact first, then reliability/testability:
 | `bin/pair-quit.sh` | Bash keybind helper | nvim `PairConfirmQuit` | Touch quit marker then kill zellij session. | Uses `ZELLIJ_SESSION_NAME`, `PAIR_KILL_CMD`; writes cache marker. | small compat shell; can fold into Go/nvim flow after entrypoint | P2 |
 | `bin/pair-restart.sh` | Bash keybind helper | nvim restart confirmations | Writes restart marker then kill zellij session; supports `--new-session`. | Uses `PAIR_TAG`, `PAIR_AGENT`, `ZELLIJ_SESSION_NAME`, cache marker files. | small compat shell; can fold after entrypoint | P2 |
 | `bin/pair-help` | Bash helper | zellij Alt+h Run | Displays `pair -h` through `less` with escape-to-quit behavior. | Calls `pair`, `less`. | compat-shim; may become `pair help` behavior | P2 |
-| `bin/clipboard-to-pane.sh` | Bash copy/paste helper | `copy-on-select.sh`, direct zellij run possible | Reads OS clipboard, stages quote, focuses nvim, triggers Lua paste. | Uses pbpaste/wl-paste/xclip, jq, zellij, `PAIR_DATA_DIR`, `PAIR_TAG`, `PAIR_HOME`; writes quote and debug log. | shell-glue; keep until zellij copy flow has Go owner | P2 |
-| `bin/copy-on-select.sh` | Bash copy_command helper | `zellij/config.kdl` `copy_command` | Reads selected text stdin, mirrors OS clipboard, flashes source, delegates paste unless selection was in nvim. | Uses pbcopy/wl-copy/xclip, jq, zellij, `PAIR_HOME`; calls flash and clipboard scripts. | shell-glue tied to zellij native surface | P2 |
-| `bin/flash-pane.sh` | Bash visual helper | `copy-on-select.sh`, nvim flows/tests | `flash-pane.sh [pane-id]`; best-effort pane color flash. | Uses zellij, jq; reads `PAIR_FLASH_*`. | small shell-glue | P3 |
+| `cmd/clipboard-to-pane` / `cmd/internal/clipcmd` (`bin/clipboard-to-pane.sh` shim) | Go binary + shared runner | `copy-on-select` (execs the `.sh`), direct zellij run possible | Reads OS clipboard, stages quote at `$PAIR_DATA_DIR/quote-<tag>`, focuses the nvim pane, triggers PairPasteQuote via Ctrl-_. | Uses pbpaste/wl-paste/xclip, zellij, `PAIR_DATA_DIR`, `PAIR_TAG`; nvim-pane pick via `cmd/internal/zellijpane`. | ported to Go (#93 M4); IO behind the `clipcmd.Runtime` seam (embeds `osfs.FS`); keeps a tracked `.sh` re-exec shim (copy-on-select execs it by path; the by-path test stub) | P2 |
+| `cmd/copy-on-select` / `cmd/internal/clipcmd` (`bin/copy-on-select.sh` shim) | Go binary + shared runner | `zellij/config.kdl` `copy_command "copy-on-select.sh"` | Reads selected text stdin, mirrors OS clipboard, flashes source pane, hands off (execs) to clipboard-to-pane — unless the focused pane was the nvim draft (in_nvim gate on `terminal_command`, not title). | Uses pbcopy/wl-copy/xclip, zellij, `PAIR_HOME`; focused-pane pick via `cmd/internal/zellijpane`; still execs the flash/clipboard `.sh` shims. | ported to Go (#93 M4); keeps a tracked `.sh` re-exec shim (zellij invokes `.sh` by name; `!bin/*.sh` in `.gitignore`) | P2 |
+| `cmd/flash-pane` / `cmd/internal/clipcmd` (`bin/flash-pane.sh` shim) | Go binary + shared runner | `copy-on-select` (execs the `.sh`), nvim flows/tests | `flash-pane [pane-id]`; best-effort pane color flash — synchronous fg set + detached (setsid) bg reset so it doesn't block the caller. | Uses zellij; reads `PAIR_FLASH_*`; focused-pane pick via `cmd/internal/zellijpane`. | ported to Go (#93 M4); keeps a tracked `.sh` re-exec shim | P3 |
 | `cmd/pair-review-open` / `cmd/internal/reviewcmd` | Go binary plus shared runner | nvim review flow | Validates target and opens floating `nvim -u nvim/review.lua` (single review pane). | Requires Pair env; calls zellij/nvim; kills the prior review nvim. | ported to Go (#93 M3); IO behind the `Runtime` seam; **replaces** the shell script at the same PATH name (no shim) | P2 |
 | `cmd/pair-review-readiness` / `cmd/internal/reviewcmd` | Go binary plus shared runner | `nvim/init.lua` review readiness | Gathers git facts, classifies via `nvim/review/readiness.lua`, emits JSON or performs `--prepare` git effects + marks ready. | Uses `PAIR_HOME`, git, `nvim --headless` classify. | ported to Go (#93 M3); the 4-case decision stays in `readiness.lua` (single source, invoked via `nvim --headless`); replaces the shell script (no shim) | P2 |
 | `cmd/pair-review-target` / `cmd/internal/reviewcmd` | Go binary plus shared runner | review readiness/open/tests | Writes JSON target metadata under data dir, session-stamped. | Requires `PAIR_DATA_DIR`; reads config; codex fallback via `cmd/internal/codexsid` (ps/lsof); writes `review-target-<tag>.json`. | ported to Go (#93 M3); session resolution reuses `transcript`-style config read + the extracted `codexsid` walk; replaces the shell script (no shim) | P2 |
@@ -272,9 +272,9 @@ rule:
 - `cmd/pair-scribe/README.md`
 - `doctor/README.md`
 - `doctor/SKILL.md`
-- `bin/clipboard-to-pane.sh`
-- `bin/copy-on-select.sh`
-- `bin/flash-pane.sh`
+- `bin/clipboard-to-pane.sh` (thin re-exec shim over `cmd/clipboard-to-pane`, #93 M4)
+- `bin/copy-on-select.sh` (thin re-exec shim over `cmd/copy-on-select`, #93 M4)
+- `bin/flash-pane.sh` (thin re-exec shim over `cmd/flash-pane`, #93 M4)
 - `bin/lib/adapt-log.sh`
 - `bin/lib/dev-rebuild.sh`
 - `bin/pair`
@@ -311,6 +311,14 @@ rule:
 - `cmd/internal/dispatcher/dispatcher_test.go`
 - `cmd/internal/codexsid/codexsid.go`
 - `cmd/internal/codexsid/codexsid_test.go`
+- `cmd/internal/clipcmd/clipcmd.go`
+- `cmd/internal/clipcmd/clipcmd_test.go`
+- `cmd/internal/clipcmd/run.go`
+- `cmd/internal/clipcmd/run_test.go`
+- `cmd/internal/clipcmd/runcli.go`
+- `cmd/internal/clipcmd/runtime.go`
+- `cmd/internal/zellijpane/zellijpane.go`
+- `cmd/internal/zellijpane/zellijpane_test.go`
 - `cmd/internal/model/model.go`
 - `cmd/internal/model/model_test.go`
 - `cmd/internal/opener/opener.go`
@@ -372,6 +380,9 @@ rule:
 - `cmd/internal/wrapcmd/update_agent_output_test.go`
 - `cmd/internal/wrapcmd/wrap.go`
 - `cmd/internal/wrapcmd/wrap_events_test.go`
+- `cmd/copy-on-select/main.go`
+- `cmd/clipboard-to-pane/main.go`
+- `cmd/flash-pane/main.go`
 - `cmd/pair-changelog/e2e_test.go`
 - `cmd/pair-changelog/main.go`
 - `cmd/pair-changelog/main_test.go`
