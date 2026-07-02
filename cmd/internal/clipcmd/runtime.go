@@ -138,7 +138,15 @@ func (OSRuntime) ExecReplace(path string, args ...string) error {
 // Log appends a line to the clipboard-debug.log diagnostic
 // (${XDG_CACHE_HOME:-$HOME/.cache}/pair/clipboard-debug.log). Best-effort — the
 // finicky copy pipeline relies on this to confirm zellij is even invoking us.
-func (OSRuntime) Log(line string) {
+func (OSRuntime) Log(line string) { writeDebugLog(line, os.O_APPEND) }
+
+// LogFresh truncates the diagnostic then writes line — copy-on-select (the
+// pipeline head) calls it once so the log holds one selection's chain and can't
+// grow unbounded. (The source truncated inside clipboard-to-pane, mid-chain,
+// which clobbered copy-on-select's own lines; truncating at the head keeps them.)
+func (OSRuntime) LogFresh(line string) { writeDebugLog(line, os.O_TRUNC) }
+
+func writeDebugLog(line string, mode int) {
 	cache := os.Getenv("XDG_CACHE_HOME")
 	if cache == "" {
 		cache = filepath.Join(os.Getenv("HOME"), ".cache")
@@ -147,7 +155,7 @@ func (OSRuntime) Log(line string) {
 	if os.MkdirAll(filepath.Dir(path), 0755) != nil {
 		return
 	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|mode, 0644)
 	if err != nil {
 		return
 	}

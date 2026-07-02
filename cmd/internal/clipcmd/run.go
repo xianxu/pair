@@ -33,6 +33,10 @@ type Runtime interface {
 	RunSubprocess(path string, args ...string) error // flash-pane.sh (call-and-return)
 	ExecReplace(path string, args ...string) error   // clipboard-to-pane.sh (process replace; only returns on error)
 
+	// LogFresh truncates the clipboard-debug.log then writes line — called once
+	// at the pipeline head (copy-on-select) so the diagnostic holds exactly one
+	// selection's chain and doesn't grow unbounded. Log appends thereafter.
+	LogFresh(line string)
 	Log(line string) // best-effort append to the clipboard-debug.log diagnostic
 }
 
@@ -47,7 +51,7 @@ type CopyOnSelectOptions struct {
 // Returns the process exit code; on the hand-off path it does not return in
 // production (ExecReplace replaces the process).
 func RunCopyOnSelect(opts CopyOnSelectOptions, stdin io.Reader, rt Runtime, stderr io.Writer) int {
-	rt.Log("=== copy-on-select invoked ===")
+	rt.LogFresh("=== copy-on-select invoked ===")
 	sel, _ := io.ReadAll(stdin)
 	if len(sel) == 0 {
 		rt.Log("empty sel, exiting")

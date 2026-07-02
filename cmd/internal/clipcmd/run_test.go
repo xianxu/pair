@@ -73,7 +73,8 @@ func (f *fakeRuntime) ExecReplace(path string, args ...string) error {
 	f.execd = append(f.execd, execCall{path, args})
 	return nil
 }
-func (f *fakeRuntime) Log(string) {}
+func (f *fakeRuntime) Log(string)      {}
+func (f *fakeRuntime) LogFresh(string) {}
 
 const (
 	agentFocusedPanes = `[

@@ -109,6 +109,20 @@ a time.
 ## Log
 
 ### 2026-07-01
+- 2026-07-01: closed M4 — Full make test green (exit 0) incl test-copy-on-select driving the Go copy-on-select binary (PASS: in_nvim keys on terminal_command, parley.nvim agent pane still hands off); clipcmd + zellijpane Go unit + fake-Runtime tests green; runtimebundle drift-check clean with the 3 Go binaries + .sh shims bundled; git ls-files bin/ lists only the 3 .sh shims (Go binaries gitignored); review verdict: FIX-THEN-SHIP
+
+**M4 review follow-ups (FIX-THEN-SHIP → SHIP).** No Critical/Important — only 3
+Minor + plan bookkeeping. Fixed: (1) the clipboard-debug log grew unbounded
+(`O_APPEND`) where the source truncated per-run — now truncated once at the
+copy-on-select pipeline head (`LogFresh`), appended thereafter, so it holds one
+selection's chain AND keeps copy-on-select's lines (the source's mid-chain
+truncate in clipboard-to-pane clobbered them); (3) trimmed the stale "nvim
+flows/tests" consumer from `flash-pane`'s inventory row (only copy-on-select +
+the shell test invoke it). Finding (2) — `opener.firstAgentPaneID` still
+open-codes the walk `zellijpane.Parse` now owns — deferred as a tracked
+follow-up (the `Title` field makes it a pure swap; not retrofitted to avoid
+touching tested opener). Plan `## Revisions` records the `Exec`→`RunSubprocess`
+/`ExecReplace` seam split, the log-truncation delta, and the opener follow-up.
 
 **M4 change-code:** both judges INFO (branch created, no block). Estimate-quality
 re-raised the standing M5-optimism + light-`milestone-review` advisories (same as
