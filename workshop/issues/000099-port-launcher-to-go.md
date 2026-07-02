@@ -161,6 +161,21 @@ until M4 flips it, so pair stays usable throughout.
   (resume-stripped) + agent record + truncated adapt recorder + seeded draft, ran
   the name-length probe + EXITED-clear, and handed off `--new-session-with-layout
   --session pair-<tag>`. Nothing user-facing changes (shell stays default).
+- **M2 boundary review: FIX-THEN-SHIP → SHIP** (via `sdlc judge milestone-review
+  --base <merge-base>`; the auto-window bug did not recur this milestone since
+  `main == merge-base`, but the manual base was used to be safe). No Critical. The
+  one **Important** (fixed): the `OSRuntime` zellij-output parsers (#54/#67 logic)
+  + two `RunLaunch` error branches shipped untested. Fix: extracted the row-parse
+  into pure `sessionRowState`/`familyRows`/`sessionNameRejected` (`zellijparse.go`,
+  also dedups the two IO methods — ARCH-DRY) with a table test, and added
+  fake-`Runtime` tests for the probe-too-long + pre-handoff-collision exits.
+  Minors taken: `extractExplicitResume` now keeps scanning past a bare
+  `--conversation=` (shell-faithful); the `cmd/pair-go` gate uses
+  `errors.Is(err, ErrFallbackToShell)` so only the sentinel defers to the shell
+  (a future non-fallback error is surfaced, not silently re-run). Minors left
+  (degenerate/corruption-only drifts where Go's behavior is equal-or-safer):
+  empty `agent-<tag>` falls to the config glob; a malformed config skips the
+  picker. go test + smoke re-green after fixes.
 - 2026-07-02: closed M1 — go test ./cmd/internal/launcher green — pure per-agent-arg/config/format helpers + named idempotence/collision/strip tests; boundary review verdict FIX-THEN-SHIP (all findings fixed: agy/codex persist-strip completed, strconv dedup); go build ./... + vet clean; zero behavior change (unwired). (The "not-run" suffix below is sdlc's `--no-judge` marker, NOT the review outcome: the boundary review DID run — via `sdlc judge milestone-review --base <branch-base>` — because milestone-close's auto-window picked a wrong far-back base → 6.8 MB diff → `fork/exec claude: argument list too long`; verdict is the FIX-THEN-SHIP above, and the M1 commit carries the real `Review-Verdict:` trailer.); review verdict: not-run
 - **change-code:** plan-quality CLEAN, estimate-quality INFO (branch created).
   Fixed the one blocking plan-quality finding first: boundary tags were `Lx` but

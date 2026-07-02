@@ -420,6 +420,35 @@ func TestRunLaunchResumeDefaultsClaude(t *testing.T) {
 	}
 }
 
+// A zellij name-length rejection (#54) aborts with exit 1 before the handoff.
+func TestRunLaunchProbeTooLong(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.uuids = []string{"S"}
+	rt.probeErr = errors.New("session name too long")
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "waytoolongtag"}), rt)
+	if err != nil || code != 1 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.launched != "" {
+		t.Fatalf("must not launch when the name probe rejects: %q", rt.launched)
+	}
+}
+
+// A live session unexpectedly occupying the name at the pre-handoff guard
+// (#67 TOCTOU) aborts with exit 1 rather than colliding in --new-session.
+func TestRunLaunchPreHandoffCollision(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.uuids = []string{"S"}
+	rt.blocksReuse["pair-bugfix"] = true // forced create → no prompt collision check
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "bugfix"}), rt)
+	if err != nil || code != 1 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.launched != "" {
+		t.Fatalf("must not launch when the name is occupied at handoff: %q", rt.launched)
+	}
+}
+
 func contains(xs []string, want string) bool {
 	for _, x := range xs {
 		if x == want {

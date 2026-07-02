@@ -50,6 +50,9 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 		// attach / pick — M3.
 		return 0, ErrFallbackToShell
 	}
+	// The shell also sweeps orphan nvim --embed processes here (sweep_orphan_nvim,
+	// shell 1243); that reaping is grouped with M3's reap_nvim_for_tag (both nvim
+	// concerns) and deferred — it's best-effort hygiene, not create-path-load-bearing.
 
 	// `pair resume <tag>` leaves the agent unset (the parse defers it): infer
 	// what the tag was last paired with from disk, defaulting to claude — so a

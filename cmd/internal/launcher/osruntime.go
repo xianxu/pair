@@ -52,21 +52,14 @@ func zj(args ...string) string {
 func (OSRuntime) Sessions() ([]Session, error) { return ZellijSource{}.Snapshot() }
 
 func (OSRuntime) SessionBlocksReuse(session string) bool {
-	raw := zj("list-sessions", "--no-formatting")
-	var row string
-	for _, line := range strings.Split(raw, "\n") {
-		fields := strings.Fields(line)
-		if len(fields) > 0 && fields[0] == session {
-			row = line
-			break
-		}
-	}
-	if row == "" {
+	present, exited := sessionRowState(zj("list-sessions", "--no-formatting"), session)
+	if !present {
 		return false // no such session — reuse is free.
 	}
-	if strings.Contains(row, "EXITED") {
-		// Stale resurrect residue (#67): delete it and report reusable.
-		exec.Command("zellij", "delete-session", session, "--force").Run()
+	if exited {
+		// Stale resurrect residue (#67): delete it and report reusable. Routed
+		// through zj so a wedged daemon socket can't hang the delete (shell zj).
+		zj("delete-session", session, "--force")
 		return false
 	}
 	return true // running/detached — still occupied.
@@ -76,7 +69,7 @@ func (OSRuntime) ProbeSessionName(session string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
 	defer cancel()
 	out, _ := exec.CommandContext(ctx, "zellij", "--session", session, "action", "list-clients").CombinedOutput()
-	if strings.Contains(string(out), "session name must be less than") {
+	if sessionNameRejected(string(out)) {
 		return fmt.Errorf("session name too long: %s", session)
 	}
 	return nil
@@ -109,17 +102,7 @@ func (r OSRuntime) ScanHistory(base string, cutoff time.Time) ([]HistoricalTag, 
 // --- UIOps -----------------------------------------------------------------
 
 func (OSRuntime) ShowFamilyExisting(familyPrefix string) {
-	raw := zj("list-sessions", "--no-formatting")
-	var rows []string
-	for _, line := range strings.Split(raw, "\n") {
-		fields := strings.Fields(line)
-		if len(fields) == 0 {
-			continue
-		}
-		if fields[0] == familyPrefix || strings.HasPrefix(fields[0], familyPrefix+"-") {
-			rows = append(rows, line)
-		}
-	}
+	rows := familyRows(zj("list-sessions", "--no-formatting"), familyPrefix)
 	if len(rows) == 0 {
 		return
 	}

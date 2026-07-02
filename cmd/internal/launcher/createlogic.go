@@ -65,8 +65,10 @@ func extractExplicitResume(agent string, args []string) string {
 			if prev == "--resume" || prev == "--conversation" {
 				return tok
 			}
-			if strings.HasPrefix(tok, "--conversation=") {
-				return tok[len("--conversation="):]
+			// Only a non-empty inline value pins the id; a bare `--conversation=`
+			// keeps scanning (the shell's `^--conversation=(.+)` needs ≥1 char).
+			if v, ok := strings.CutPrefix(tok, "--conversation="); ok && v != "" {
+				return v
 			}
 			prev = tok
 		}
