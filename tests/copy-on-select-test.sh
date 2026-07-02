@@ -17,11 +17,16 @@ set -eu
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/pair-copyonselect.XXXXXX"); trap 'rm -rf "$tmp"' EXIT
 
-# Sandbox PAIR_HOME so we can stub the scripts copy-on-select.sh execs by
-# absolute path ($PAIR_HOME/bin/{flash-pane,clipboard-to-pane}.sh).
+# Sandbox PAIR_HOME so we can stub the scripts copy-on-select execs by absolute
+# path ($PAIR_HOME/bin/{flash-pane,clipboard-to-pane}.sh). copy-on-select.sh is
+# now a thin shim (#93 M4) that recomputes PAIR_HOME from its own location and
+# re-execs the Go binary $PAIR_HOME/bin/copy-on-select, so we copy BOTH into the
+# sandbox. The Go binary still execs the .sh hand-off names, so the stubs below
+# still drive the real chain.
 export PAIR_HOME="$tmp/home"
 mkdir -p "$PAIR_HOME/bin"
 cp "$REPO/bin/copy-on-select.sh" "$PAIR_HOME/bin/"
+cp "$REPO/bin/copy-on-select"    "$PAIR_HOME/bin/"
 
 # Handoff target records that it was reached.
 cat > "$PAIR_HOME/bin/clipboard-to-pane.sh" <<EOF

@@ -425,3 +425,30 @@ changes, at each milestone close — not deferred to the end.
   `sessionwatch`); M3 added the canonical `codexsid` + wired review-target to it —
   `slug`/`sessionwatch` adoption to collapse the triplication is a tracked
   follow-up (not retrofitted in M3 to avoid touching those hot-path tested packages).
+
+### 2026-07-01 — M4 shipped surface + milestone-close review (FIX-THEN-SHIP) follow-ups
+
+- **`Exec(path, args…)` split into two named seams (shipped surface).** The M4
+  sketch (this doc's M4 section) listed a single `Exec`. The shipped
+  `clipcmd.Runtime` has two, because the shell chain has two distinct behaviors:
+  `RunSubprocess(path, args…)` (call-and-return — flash-pane, whose bg reset is
+  setsid-detached so it must not block the focus change) and `ExecReplace(path,
+  args…)` (process replace via `syscall.Exec` — the terminal clipboard-to-pane
+  hand-off, the shell's `exec`). Folds in the change-code plan-quality note #2.
+- **`clipcmd.Runtime` embeds `osfs.FS`** (declares only the `WriteFile` +
+  `Executable` subset it uses), like opener/reviewcmd — not a bespoke fs seam.
+- **clipboard-debug log truncates at the pipeline head** (review Minor). The
+  source truncated (`> "$LOG"`) inside `clipboard-to-pane.sh` — mid-chain, which
+  clobbered copy-on-select's own lines and left the log unbounded across
+  standalone runs. The Go port truncates once at the copy-on-select entry
+  (`LogFresh`) and appends thereafter, so the diagnostic holds exactly one
+  selection's chain (a deliberate improvement over the source, not a faithful copy).
+- **Faithful two-regex in-nvim distinction preserved:** copy-on-select's in_nvim
+  gate is `(?i)nvim|draft` on the focused pane's `terminal_command`; clipboard-to
+  -pane's draft finder is case-sensitive `nvim` (jq `test("nvim")`). Kept as two
+  separate checks — matching the two source scripts — not unified.
+- **Forward:** `opener.firstAgentPaneID` (cmd/internal/opener/runtime.go) still
+  open-codes the list-panes walk that `zellijpane.Parse` now owns; the `Pane`
+  struct already carries `Title` so opener's title-keyed pick is a pure swap. Not
+  retrofitted in M4 (conservative — avoids touching tested opener); tracked to
+  ride the next milestone that touches opener.

@@ -16,8 +16,8 @@ contract for the Go packaging migration lives in
 bin/pair                     # Go public entrypoint; execs bin/pair-shell during migration
 bin/pair-shell               # retained shell launcher: zellij lifecycle + prompt UI
 bin/pair-go                  # explicit Go dispatcher + launch handoff
-bin/clipboard-to-pane.sh     # read clipboard, hand off to nvim's PairPasteQuote
-bin/copy-on-select.sh        # invoked by zellij copy_command on mouse-up
+bin/clipboard-to-pane.sh     # shim → cmd/clipboard-to-pane: read clipboard, hand off to nvim's PairPasteQuote (#93 M4)
+bin/copy-on-select.sh        # shim → cmd/copy-on-select: invoked by zellij copy_command on mouse-up (#93 M4)
 bin/pair-quit.sh             # invoked by Alt+x — marks + kills session
 bin/pair-restart.sh          # invoked by Alt+n / Shift+Alt+N — marks (quit + restart) + kills session
 bin/pair-session-watch.sh    # shim to Go watcher that captures codex/agy session id (#000016, #000020, #78)
@@ -212,26 +212,28 @@ Keybinds added on top of zellij defaults (`clear-defaults=false`):
 
 The Alt+x/d/n confirms route through nvim rather than running directly so a single fat-finger doesn't tear the session down (Alt+x in particular is unrecoverable). The lua side also auto-grows out of `minimized` before showing the modal, since otherwise the prompt would land on a 1-row pane where nothing is visible.
 
-### `bin/clipboard-to-pane.sh` — clipboard read + hand off to nvim
+### `clipboard-to-pane` — clipboard read + hand off to nvim
 
-Read OS clipboard (`pbpaste` / `wl-paste` / `xclip`). Stage the raw body to `$PAIR_DATA_DIR/quote-<tag>`. All formatting decisions (par reflow, `> ` prefix) live in nvim now, conditional on cursor position — the shell is just a transport.
+Go binary `cmd/clipboard-to-pane` (logic in `cmd/internal/clipcmd`, #93 M4), reached via the tracked `bin/clipboard-to-pane.sh` re-exec shim.
 
-Find the nvim pane via `zellij action list-panes --json`, looking for the pane whose `terminal_command` contains `nvim`. Focus it via `zellij action focus-pane-id <id>` — this is critical because the script runs inside a transient `Run` pane (when invoked directly) or as a child of the zellij server (when invoked via `copy_command`), and we cannot rely on positional `move-focus` to land on nvim.
+Read OS clipboard (`pbpaste` / `wl-paste` / `xclip`). Stage the raw body to `$PAIR_DATA_DIR/quote-<tag>`. All formatting decisions (par reflow, `> ` prefix) live in nvim now, conditional on cursor position — this is just a transport.
 
-Once nvim is focused, send `Ctrl-\ Ctrl-N` (force normal) followed by `:lua PairPasteQuote()` + CR. `PairPasteQuote` reads the staged body and dispatches on cursor column — see the `nvim/init.lua` section below.
+Find the nvim pane via `zellij action list-panes --json` (parsed by `cmd/internal/zellijpane`), looking for the pane whose `terminal_command` contains `nvim`. Focus it via `zellij action focus-pane-id <id>` (bare then `terminal_<id>` form) — critical because it runs as a child of the zellij server (invoked via `copy_command`), so we cannot rely on positional `move-focus` to land on nvim.
 
-Why force normal via Ctrl-\ Ctrl-N rather than Esc: Esc + a literal char is the terminal encoding for Alt+`<char>`, which would fire `<M-...>` keymaps spuriously (e.g. `<M-i>` → `attach_image` inserting a stray `[Image #N]`). Ctrl-\ Ctrl-N has no Alt-encoding ambiguity.
+Once nvim is focused, send a single `Ctrl-_` (ASCII 31, `zellij action write 31`). On the nvim side `<C-_>` is mapped to `PairPasteQuote` **only in insert mode** — that mapping IS the gate: in normal mode (e.g. browsing prompt history with Alt+←/→) Ctrl-_ hits nvim's near-no-op default and the buffer isn't touched, so we deliberately do NOT force-normal-mode here (doing so would destroy the very mode signal that drives the gate). `PairPasteQuote` reads the staged body and dispatches on cursor column — see the `nvim/init.lua` section below.
 
-Diagnostic log lives at `${XDG_CACHE_HOME:-~/.cache}/pair/clipboard-debug.log` (overwritten each invocation).
+Diagnostic log lives at `${XDG_CACHE_HOME:-~/.cache}/pair/clipboard-debug.log` (appended, best-effort).
 
-### `bin/copy-on-select.sh` — zellij copy_command wrapper
+### `copy-on-select` — zellij copy_command wrapper
+
+Go binary `cmd/copy-on-select` (logic in `cmd/internal/clipcmd`, #93 M4), reached via the tracked `bin/copy-on-select.sh` shim — zellij's `copy_command "copy-on-select.sh"` keeps resolving by name.
 
 Receives selected text on stdin from zellij. Mirrors the text to the OS clipboard (zellij's default clipboard write is bypassed when `copy_command` is set, so this is mandatory). Then checks if the focused pane (where the selection happened) is the nvim draft pane; if so, exits without further action (selecting in nvim shouldn't loop back). Otherwise:
 
-- Flashes the focused pane's background via `zellij action set-pane-color --pane-id <id> --bg <color>`, then backgrounds a delayed `--reset` (the bash subshell outlives the script's `exec` below). Default flash color `#5a4a00`, duration 100ms (intentionally shorter than the 500ms nvim-side flash — the source flash is a quick "fired" pulse, the destination flash lingers to orient the user on where the text landed); override via `$PAIR_FLASH_BG` and `$PAIR_FLASH_MS`. Best-effort: `set-pane-color` only affects the pane's default bg, so cells the agent has actively painted won't change. Visible-or-not depends on the agent.
+- Flashes the focused pane's background via `flash-pane.sh <id>` (exec'd as a subprocess so its detached reset doesn't block the hand-off). `flash-pane` does `set-pane-color --bg <color>` then schedules a setsid-detached `--reset` that survives copy-on-select exec'ing away. Default flash color `#50fa7b` (dracula green — echoes the active-frame border), duration 100ms; override via `$PAIR_FLASH_BG` / `$PAIR_FLASH_MS`. Best-effort: `set-pane-color` only affects the pane's default bg, so cells the agent has actively painted won't change.
 - Execs `clipboard-to-pane.sh` to hand the selection off to nvim.
 
-Pane detection: parse `list-panes --json --command`, find the focused pane, check if its `title` or `terminal_command` matches `nvim|draft`.
+Pane detection: parse `list-panes --json --command` (via `cmd/internal/zellijpane`), find the focused non-plugin/non-floating pane, and match its `terminal_command` — **not** its `title` — against `nvim|draft`. Keying on `terminal_command` is the #copy-on-select-test fix: the agent overwrites its pane title with `claude [<cwd>]`, so a repo path containing `nvim` (e.g. `parley.nvim`) would misclassify the agent pane as the draft and skip the paste; `terminal_command` never embeds the cwd.
 
 ### `bin/pair-quit.sh` — Alt+x handler
 
@@ -359,7 +361,7 @@ Loaded via `nvim -u`, fully isolated from the user's main nvim config. Provides:
 - `<M-q>` — push the current buffer to the front of the queue. From `*` also clears `*`; from `+N` it's move-to-front (removes the source queue file).
 - `<M-BS>` — delete the current `+N` queue item without sending, in **both normal and insert mode** (#62 — the gesture doesn't change meaning mid-edit); "stay-near" behavior (items behind shift down, position label keeps its number, so the next item is now under the cursor for repeat-delete). Off the queue (`*`/`-N`) it's a no-op in normal mode and a kill-to-line-start (`<C-U>`) in insert mode, so the line-kill editing convenience stays on the draft.
 - `<M-i>` (Alt+i, normal+insert) — `attach_image`: capture-driven image attach. 1) Verify the OS clipboard holds image data (macOS: AppleScript `clipboard info` enumerates `PNGf`/`TIFF`/etc.; Linux: `wl-paste --list-types` or `xclip -t TARGETS`) — if not, flash `[no image in clipboard]` as inline virt_text for 1s and bail. 2) Read pair-wrap's pid from `$DATA_DIR/pair-wrap-pid-<tag>` (notify+abort if missing/dead, since pair-wrap is the whole agent I/O path). 3) `kill -USR1 <pid>` to arm a ~200ms capture window in pair-wrap, then `zellij action write 22` to send Ctrl+V to the agent pane. 4) Poll `image-capture-<tag>.done` (20ms cadence, 600ms cap); on hit, read `image-capture-<tag>`, strip ANSI, regex `%[Image[ #][^%]]+%]` (matches both claude's `[Image #N]` and agy's `[Image N-M]`) and insert the captured marker verbatim at cursor. The agent is the source of truth for the marker text — no local counter, no per-agent format hardcoded.
-- `PairPasteQuote()` (global, called from `bin/clipboard-to-pane.sh` via `:lua PairPasteQuote()`): reads the raw selection from `$PAIR_DATA_DIR/quote-<tag>` and dispatches on cursor column.
+- `PairPasteQuote()` (mapped to `<C-_>` in insert mode; triggered by `clipboard-to-pane` sending Ctrl-_ / ASCII 31): reads the raw selection from `$PAIR_DATA_DIR/quote-<tag>` and dispatches on cursor column.
   - **col == 0 (`paste_as_quote`)**: par-reflow with width 1000, prefix every line with `> `; if the cursor's line is empty, replace it, else insert above (existing line slides down); scroll first inserted line to top via `zt`; cursor on a single empty line directly below the block in insert mode; flash the quoted lines with `IncSearch` (full-line, per-line `nvim_buf_add_highlight`).
   - **col > 0 (`paste_inline`)**: par-reflow (so hard-wrapped sources collapse to one continuous run, paragraph breaks preserved), insert at the cursor via `nvim_buf_set_text` (handles multi-line splits); cursor at the end of the inserted span in insert mode; no scroll; flash the inserted span with a single multi-line extmark.
   - In both modes the highlight is cleared 500ms later via `vim.defer_fn`. Selection-finalize visual cue (issue #12).
