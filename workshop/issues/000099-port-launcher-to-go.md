@@ -100,13 +100,16 @@ Each `Mx` is a merge-safe review boundary closed on its own (`sdlc
 milestone-close`). Independently mergeable; the shell launcher stays the default
 until M4 flips it, so pair stays usable throughout.
 
-- [ ] M1 — pure-logic completion: port the remaining pure pieces into
-      `cmd/internal/launcher` (full `ParseArgs` incl. `continue`/`rename`/`list`;
-      resume-token strip/compose — one helper for the 4 duplicated shell loops;
-      config-migration decision rules; per-agent launch-arg composition — claude
-      `--session-id` shape, codex `--no-alt-screen` idempotence; `rename`
-      plan-build; title/`format_age`/`age_color`). Unit-tested, not yet wired —
-      zero behavior change.
+- [x] M1 — pure-logic completion: port the remaining pure pieces into
+      `cmd/internal/launcher` (resume-token strip/compose — one helper for the 4
+      duplicated shell loops; config-migration decision rules; per-agent launch-arg
+      composition — claude `--session-id` mint/skip, codex `--no-alt-screen`
+      idempotence; title/`format_age`/`age_color`). Unit-tested, not yet wired —
+      zero behavior change. **Scoped:** the `rename` plan-build + full-`ParseArgs`
+      (`continue`/`rename`/`list`) parse deferred to their consuming milestones
+      (M5 / M2) to avoid unwired M5-only code + a risky change to the live
+      `pair-go launch` parser — the create/restart-flow pure logic M2/M3 need is
+      what M1 front-loads.
 - [ ] M2 — Runtime seam + create-flow orchestration: define `launcher.Runtime`
       (zellij exec/query, fzf/prompt, markers, cmux, config read/write, nvim reap,
       spawns, tty, env); build `RunLaunch` for the **create** path (native create
@@ -127,6 +130,17 @@ until M4 flips it, so pair stays usable throughout.
 ## Log
 
 ### 2026-07-02
+- **change-code:** plan-quality CLEAN, estimate-quality INFO (branch created).
+  Fixed the one blocking plan-quality finding first: boundary tags were `Lx` but
+  `sdlc`'s milestone-verdict gate only recognizes `M\d+`, so `Lx` would have made
+  the final-close review gate a silent no-op — renamed to M1–M5 (splitting the
+  dominant work into M2 create-flow + M3 attach/restart/quit). INFOs to fold:
+  M1 → named unit tests for the idempotence/collision behaviors (claude
+  `--session-id` retry, codex `--no-alt-screen`); M2 → compose `Runtime` from
+  sub-interfaces (zellij/ui/markers/config), not a god-interface; M3 → the zellij
+  handoff must be fork+wait (Go regains control for `cleanup_quit_marker`), an
+  explicit `Runtime` contract, and revisit M3's impl weight (light for its
+  complexity) at M3 start with concrete scope rather than back-fitting now.
 - Created by extracting #93 M5 (the launcher) into its own ticket — the surface
   (~900 lines new IO orchestration + a new effect seam + the trickiest lifecycle
   logic in the tree, P0) is categorically larger than the M1–M4 leaf ports and
