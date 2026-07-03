@@ -1,12 +1,13 @@
 ---
 id: 000093
-status: working
+status: codecomplete
 deps: [000092]
 github_issue:
 created: 2026-07-01
-updated: 2026-07-01
+updated: 2026-07-03
 estimate_hours: 17.4
 started: 2026-07-01T14:39:06-07:00
+actual_hours: 5.41
 ---
 
 # port stateful shell orchestrators to Go
@@ -79,13 +80,13 @@ milestone-level, detailed as reached).
 
 ## Done when
 
-- [ ] Each listed shell orchestrator has a Go owner; the shell name survives only
+- [x] Each listed shell orchestrator has a Go owner; the shell name survives only
       as a thin re-exec shim (or is removed where no caller needs it).
-- [ ] Pure lifecycle/poller/target decision logic is unit-tested; zellij/nvim/
+- [x] Pure lifecycle/poller/target decision logic is unit-tested; zellij/nvim/
       cmux/filesystem interaction is behind process-tested seams.
-- [ ] `nvim/*.lua` / `zellij/*.kdl` remain native assets; their shell-outs are
+- [x] `nvim/*.lua` / `zellij/*.kdl` remain native assets; their shell-outs are
       audited and repointed to Go owners where applicable.
-- [ ] `pair`, `pair-dev`, keybindings, scrollback, changelog, continuation,
+- [x] `pair`, `pair-dev`, keybindings, scrollback, changelog, continuation,
       restart/quit, rename, and review flows work after each milestone.
 
 ## Plan
@@ -102,13 +103,16 @@ a time.
       `pair-review-readiness` orchestration to Go.
 - [x] M4 — clipboard helpers: port `clipboard-to-pane.sh`, `copy-on-select.sh`,
       `flash-pane.sh` to Go (or fold behind the dispatcher).
-- [ ] M5 — launcher / session lifecycle → **extracted to #99** (the launcher is
+- [x] M5 — launcher / session lifecycle → **extracted to #99** (the launcher is
       ~900 lines of new IO orchestration, categorically larger than the leaf ports;
-      carved out for its own estimate + actuals). #93 stays open until #99 lands —
-      its Done-when includes a Go owner for the launcher.
+      carved out for its own estimate + actuals). **#99 landed** (done + merged,
+      PRs #61/#62/#63; `bin/pair-shell` removed outright, `cmd/internal/launcher`
+      owns the flow end-to-end) — the Done-when's Go launcher owner is delivered.
 
 ## Log
 
+
+- 2026-07-03: closed — All 5 shell orchestrators now have Go owners: M1 pair-title→cmd/pair-title, M2 scrollback/changelog→cmd/pair-{scrollback,changelog}-open, M3 review helpers→cmd/pair-review-*, M4 clipboard→Go copy-on-select/flash/clipboard-to-pane, M5 launcher (bin/pair-shell, 2287 lines) removed outright & replaced by cmd/internal/launcher via #99 (done+merged, PRs #61/#62/#63, full make test green + stub-zellij dogfood smokes). M1-M4 each closed with full make test green + FIX-THEN-SHIP verdict; nvim/zellij stay native (audited, #95 owns further work). No new code in THIS close — pure rollup recognizing #99 landed.; review verdict: not-run
 ### 2026-07-02
 - M5 (launcher / `bin/pair-shell`) extracted into its own ticket **#99** on the
   operator's call. The design was surveyed + approved in this issue's plan and
