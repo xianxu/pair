@@ -57,6 +57,16 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 		return runContinueList(rt, stdout, stderr), nil
 	}
 
+	// `restart`/`quit` are the nvim-keybind lifecycle writers (#94 M1, ported from
+	// bin/pair-{restart,quit}.sh): write markers, exec kill-session. They need the
+	// live ZELLIJ_SESSION_NAME the keybind fires under.
+	if args.Command == "restart" {
+		return runRestart(rt, args, os.Getenv("ZELLIJ_SESSION_NAME"), stderr), nil
+	}
+	if args.Command == "quit" {
+		return runQuit(rt, os.Getenv("ZELLIJ_SESSION_NAME"), stderr), nil
+	}
+
 	env := Env{
 		Home:     home,
 		XDGData:  xdg,
