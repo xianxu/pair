@@ -637,3 +637,40 @@ ephemeral/uncommitted artifact (a scratchpad smoke, a `/tmp` script) as "coverag
 in committed code or comments — either commit the artifact or describe it honestly
 as a one-time boundary verification recorded in the issue Log. Caught in #99 M3
 milestone-review.
+
+## Making a launcher flow native can silently break shell-seam tests
+
+#99 M5a made the fzf session **pick** native (was `ErrFallbackToShell`). That
+removed the *only* path by which `PAIR_TEST_CALL=... bin/pair` (a bare `pair`,
+no verb) reached `bin/pair-shell`: under M4 a bare pair with sessions decided
+`ActionPick → ErrFallbackToShell → shell`, which then ran the shell helper the
+seam names. Native pick calls real `fzf`, which opened the agent's `/dev/tty`
+and **blocked forever** — `make test` looked hung for 28 min.
+
+**Rule.** `PAIR_TEST_CALL` (and `PAIR_DEBUG_*`, `PAIR_FORCE_IN_SESSION`,
+`PAIR_FAKE_IN_ZELLIJ`, `PAIR_REEXEC_CAPTURE`) are **shell-only** dispatch/debug
+seams with no native equivalent — `bin/pair-shell` short-circuits them early
+(shell 930). When you port the *next* flow native (M5b compaction / continue /
+rename), first ask *which shell-test seam reached the shell only via that flow's
+fallback*, and route those seams to the shell explicitly (M5a did this in
+`LaunchNative`: `PAIR_TEST_CALL != "" → ErrFallbackToShell`, before any
+zellij/fzf). Corollary: a native `fzf`/`vared` pick with a live controlling tty
+but no interactive user **hangs**, it doesn't error — never let a headless/test
+invocation reach it. Caught in #99 M5a (the pair-continue / cmux-ownership
+contract tests). Route removed at M5c when the shell + fallback arm retire.
+
+## `| tail` hides a running suite; `sdlc milestone-close --dry-run` mutates
+
+Two process gotchas from the #99 M5a close:
+
+1. **`make test 2>&1 | tail -N` shows NOTHING until the pipe closes** (the whole
+   suite finishes). A legitimately-running multi-minute suite then looks stalled
+   at an empty/stale log — and killing it "because it hung" throws away real work.
+   **Rule.** Redirect the suite straight to a file (`> log 2>&1`) and watch the
+   file (line count + mtime) to see progress and detect a *real* hang (mtime
+   idle > ~150s), instead of piping through `tail`.
+2. **`sdlc milestone-close --dry-run` actually ticks the milestone + appends the
+   `## Log` line** despite the flag (help says "skip close mutation"). **Rule.**
+   Don't trust `--dry-run` to be side-effect-free here — `git checkout` the issue
+   file and run for real, or fold the mutation. (Genuine `sdlc` gap; fix the
+   `--dry-run` guard in `milestoneclose.go` when convenient.)
