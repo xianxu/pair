@@ -139,13 +139,22 @@ core (#75, #99 M1) is joined in **#99 M2** by the `launcher.Runtime` effect seam
 ISP), the `RunLaunch` **create-flow** orchestrator (a thin driver over the pure
 deciders: decision → name prompt → tag-restart config picker → config/id mint →
 env + sidecar spawns → the blocking `--new-session-with-layout` handoff), and the
-concrete `OSRuntime`. It is wired behind **`PAIR_NATIVE_LAUNCH`** in `cmd/pair-go`
-as a *preview*: only the create path runs natively; attach/pick, in-pane launches
-(compaction), and unsupported verbs return `ErrFallbackToShell` so `bin/pair-shell`
-still handles them. The handoff is **fork+wait** (not `syscall.Exec`) so the Go
-launcher regains control for the M3 quit-cleanup / restart loop. The shell stays
-the **default** launcher until the M4 cutover flips it; nothing user-facing
-changes in M2.
+concrete `OSRuntime`. **#99 M3** adds the **`LifecycleOps`** sub-interface and turns
+`RunLaunch` into an **in-process restart loop** (replacing the shell's `exec $0`):
+each iteration runs `runOnce` (one create OR native **attach** — `AttachSession`,
+the blocking twin of `LaunchSession`), then `runCleanup` (the `cleanup_quit_marker`
+port: `TakeQuitMarker` → `DeleteSession` + `ReapNvim` + gated park-nudge
+[`IsTTY`+non-empty raw+`!RestartMarkerPresent` → `ConfirmParkNudge` → `ParkScrollback`]
++ sidecar removal + resume hint + `KillTitlePoller` + cmux reset), then peeks the
+restart marker (`TakeRestartMarker`) and re-decides via the pure `planRestart`
+(Alt+n resumes; Shift+Alt+N drops the config; **rename/continue re-entries return
+`ErrFallbackToShell`** — M5). `SweepOrphanNvim` runs once up front (startup nvim
+hygiene). The in-pane guard + sweep are **first-entry only** (a restart re-launch
+is the same outer process). Still behind **`PAIR_NATIVE_LAUNCH`** as a preview:
+attach + Alt+n/Shift+Alt+N restart + quit now run natively; the fzf session **pick**,
+in-pane compaction, and the rename/continue restart re-entries still return
+`ErrFallbackToShell`. The shell stays the **default** launcher until the M4 cutover
+flips it; nothing user-facing changes.
 
 `bin/pair-shell` resolves `$PAIR_HOME` from its own real path (portable bash, no `readlink -f`), prepends `$PAIR_HOME/bin` to `$PATH` (idempotent across re-launches) so all helper scripts resolve by bare name in zellij configs and keybinds, parses argv — first positional is `$PAIR_AGENT` (default `claude`), everything after `--` is joined into `$PAIR_AGENT_ARGS`, extra positionals before `--` are an error with a usage hint, defaults `$PAIR_TAG` to the cwd basename (the create-flow prompt or `pair resume <tag>` overrides it), resolves `$PAIR_DATA_DIR` to `${XDG_DATA_HOME:-$HOME/.local/share}/pair`, runs a one-time migration of any old `~/scratch/pair-{draft,log}-*` files, and dispatches:
 
