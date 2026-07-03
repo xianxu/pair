@@ -1,11 +1,12 @@
 ---
 id: 000094
-status: open
+status: working
 deps: [000093]
 github_issue:
 created: 2026-07-01
-updated: 2026-07-01
+updated: 2026-07-03
 estimate_hours:
+started: 2026-07-03T10:57:55-07:00
 ---
 
 # stop extracting shell scripts from runtime bundle
