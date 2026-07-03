@@ -13,7 +13,7 @@ func TestStoreExtractsAssetsAndWritesMarker(t *testing.T) {
 	shellContent := "pair shell\n"
 	initContent := "init\n"
 	manifest := RuntimeManifest{Assets: []RuntimeAsset{
-		{Path: "bin/pair-shell", Mode: 0o755, Size: int64(len(shellContent)), Digest: digestFor(shellContent)},
+		{Path: "bin/pair-wrap", Mode: 0o755, Size: int64(len(shellContent)), Digest: digestFor(shellContent)},
 		{Path: "nvim/init.lua", Mode: 0o644, Size: int64(len(initContent)), Digest: digestFor(initContent)},
 	}}
 
@@ -21,7 +21,7 @@ func TestStoreExtractsAssetsAndWritesMarker(t *testing.T) {
 		StoreRoot: dir,
 		Manifest:  manifest,
 		ReadAsset: fakeAssetReader(map[string]string{
-			"bin/pair-shell": shellContent,
+			"bin/pair-wrap": shellContent,
 			"nvim/init.lua":  initContent,
 		}),
 		Keep: 1,
@@ -29,20 +29,20 @@ func TestStoreExtractsAssetsAndWritesMarker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Extract error = %v", err)
 	}
-	shell := filepath.Join(res.PairHome, "bin", "pair-shell")
+	shell := filepath.Join(res.PairHome, "bin", "pair-wrap")
 	got, err := os.ReadFile(shell)
 	if err != nil {
-		t.Fatalf("ReadFile(pair-shell) error = %v", err)
+		t.Fatalf("ReadFile(pair-wrap) error = %v", err)
 	}
 	if string(got) != "pair shell\n" {
-		t.Fatalf("pair-shell content = %q", got)
+		t.Fatalf("pair-wrap content = %q", got)
 	}
 	info, err := os.Stat(shell)
 	if err != nil {
-		t.Fatalf("Stat(pair-shell) error = %v", err)
+		t.Fatalf("Stat(pair-wrap) error = %v", err)
 	}
 	if info.Mode().Perm() != 0o755 {
-		t.Fatalf("pair-shell mode = %o, want 755", info.Mode().Perm())
+		t.Fatalf("pair-wrap mode = %o, want 755", info.Mode().Perm())
 	}
 	marker, err := os.ReadFile(filepath.Join(filepath.Dir(res.PairHome), "manifest.json"))
 	if err != nil {
@@ -56,11 +56,11 @@ func TestStoreExtractsAssetsAndWritesMarker(t *testing.T) {
 func TestStoreSecondExtractIsIdempotent(t *testing.T) {
 	dir := t.TempDir()
 	content := "pair shell\n"
-	manifest := RuntimeManifest{Assets: []RuntimeAsset{{Path: "bin/pair-shell", Mode: 0o755, Size: int64(len(content)), Digest: digestFor(content)}}}
+	manifest := RuntimeManifest{Assets: []RuntimeAsset{{Path: "bin/pair-wrap", Mode: 0o755, Size: int64(len(content)), Digest: digestFor(content)}}}
 	input := StoreInput{
 		StoreRoot: dir,
 		Manifest:  manifest,
-		ReadAsset: fakeAssetReader(map[string]string{"bin/pair-shell": content}),
+		ReadAsset: fakeAssetReader(map[string]string{"bin/pair-wrap": content}),
 		Keep:      1,
 	}
 	first, err := Extract(input)
@@ -79,11 +79,11 @@ func TestStoreSecondExtractIsIdempotent(t *testing.T) {
 func TestStoreConcurrentExtractSameDigestSucceeds(t *testing.T) {
 	dir := t.TempDir()
 	content := strings.Repeat("pair shell\n", 4096)
-	manifest := RuntimeManifest{Assets: []RuntimeAsset{{Path: "bin/pair-shell", Mode: 0o755, Size: int64(len(content)), Digest: digestFor(content)}}}
+	manifest := RuntimeManifest{Assets: []RuntimeAsset{{Path: "bin/pair-wrap", Mode: 0o755, Size: int64(len(content)), Digest: digestFor(content)}}}
 	input := StoreInput{
 		StoreRoot: dir,
 		Manifest:  manifest,
-		ReadAsset: fakeAssetReader(map[string]string{"bin/pair-shell": content}),
+		ReadAsset: fakeAssetReader(map[string]string{"bin/pair-wrap": content}),
 		Keep:      1,
 	}
 
@@ -117,12 +117,12 @@ func TestStoreCleanupPreservesSelectedRuntime(t *testing.T) {
 		t.Fatalf("WriteFile(old marker) error = %v", err)
 	}
 	content := "pair shell\n"
-	manifest := RuntimeManifest{Assets: []RuntimeAsset{{Path: "bin/pair-shell", Mode: 0o755, Size: int64(len(content)), Digest: digestFor(content)}}}
+	manifest := RuntimeManifest{Assets: []RuntimeAsset{{Path: "bin/pair-wrap", Mode: 0o755, Size: int64(len(content)), Digest: digestFor(content)}}}
 
 	res, err := Extract(StoreInput{
 		StoreRoot: dir,
 		Manifest:  manifest,
-		ReadAsset: fakeAssetReader(map[string]string{"bin/pair-shell": content}),
+		ReadAsset: fakeAssetReader(map[string]string{"bin/pair-wrap": content}),
 		Keep:      0,
 	})
 	if err != nil {
@@ -146,12 +146,12 @@ func TestStoreCleanupIgnoresMarkerDigestMismatch(t *testing.T) {
 		t.Fatalf("WriteFile(old marker) error = %v", err)
 	}
 	content := "pair shell\n"
-	manifest := RuntimeManifest{Assets: []RuntimeAsset{{Path: "bin/pair-shell", Mode: 0o755, Size: int64(len(content)), Digest: digestFor(content)}}}
+	manifest := RuntimeManifest{Assets: []RuntimeAsset{{Path: "bin/pair-wrap", Mode: 0o755, Size: int64(len(content)), Digest: digestFor(content)}}}
 
 	if _, err := Extract(StoreInput{
 		StoreRoot: dir,
 		Manifest:  manifest,
-		ReadAsset: fakeAssetReader(map[string]string{"bin/pair-shell": content}),
+		ReadAsset: fakeAssetReader(map[string]string{"bin/pair-wrap": content}),
 		Keep:      0,
 	}); err != nil {
 		t.Fatalf("Extract error = %v", err)

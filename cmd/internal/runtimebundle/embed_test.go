@@ -9,7 +9,6 @@ func TestEmbeddedManifestContainsLaunchAssets(t *testing.T) {
 		paths[asset.Path] = true
 	}
 	for _, want := range []string{
-		"bin/pair-shell",
 		"bin/pair-help",
 		"bin/pair-title.sh",
 		"bin/pair-session-watch.sh",

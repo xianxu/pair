@@ -20,7 +20,6 @@ test -x "$install_bin/pair"
 test ! -L "$install_bin/pair"
 test -x "$install_bin/pair-go"
 test -L "$install_bin/pair-dev"
-test -x "$repo_root/bin/pair-shell"
 
 out="$("$install_bin/pair" --help)"
 case "$out" in

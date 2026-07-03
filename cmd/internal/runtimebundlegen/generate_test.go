@@ -20,8 +20,8 @@ func TestGeneratePreservesExistingOutputOnFailure(t *testing.T) {
 		t.Fatalf("ReadFile(initial manifest) error = %v", err)
 	}
 
-	if err := os.Remove(filepath.Join(repo, "bin", "pair-shell")); err != nil {
-		t.Fatalf("Remove(pair-shell) error = %v", err)
+	if err := os.Remove(filepath.Join(repo, "bin", "pair-wrap")); err != nil {
+		t.Fatalf("Remove(pair-wrap) error = %v", err)
 	}
 	if _, err := Generate(GenerateOptions{RepoRoot: repo, OutRoot: out}); err == nil {
 		t.Fatal("Generate error = nil, want missing asset error")

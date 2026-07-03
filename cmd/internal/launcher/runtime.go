@@ -1,7 +1,6 @@
 package launcher
 
 import (
-	"errors"
 	"time"
 )
 
@@ -13,11 +12,6 @@ import (
 // sub-interfaces (ISP): a fake test can stub one concern, and each orchestration
 // helper takes only the sub-seam it needs. The concrete OSRuntime (osruntime.go)
 // wires the real calls, embedding osfs.FS for the filesystem primitives.
-
-// ErrFallbackToShell signals that the native launcher declines this launch —
-// the decision resolved to a non-create path (attach/pick) that M2 doesn't own
-// yet. The cmd/pair-go gate falls back to exec'ing bin/pair-shell.
-var ErrFallbackToShell = errors.New("launcher: not a native create path (fallback to shell)")
 
 // ZellijOps is the zellij session boundary the create path needs.
 type ZellijOps interface {

@@ -14,7 +14,6 @@ __pycache__/
 # made them look disposable. See workshop/issues #64.)
 bin/*
 !bin/*.sh
-!bin/pair-shell
 !bin/pair-dev
 !bin/pair-help
 !bin/pair-notify

@@ -5,14 +5,14 @@ import "testing"
 func TestManifestDigestIsOrderIndependent(t *testing.T) {
 	a := RuntimeManifest{
 		Assets: []RuntimeAsset{
-			{Path: "bin/pair-shell", Mode: 0o755, Size: 3, Digest: "aaa"},
+			{Path: "bin/pair-wrap", Mode: 0o755, Size: 3, Digest: "aaa"},
 			{Path: "nvim/init.lua", Mode: 0o644, Size: 4, Digest: "bbb"},
 		},
 	}
 	b := RuntimeManifest{
 		Assets: []RuntimeAsset{
 			{Path: "nvim/init.lua", Mode: 0o644, Size: 4, Digest: "bbb"},
-			{Path: "bin/pair-shell", Mode: 0o755, Size: 3, Digest: "aaa"},
+			{Path: "bin/pair-wrap", Mode: 0o755, Size: 3, Digest: "aaa"},
 		},
 	}
 
@@ -38,13 +38,13 @@ func TestManifestRejectsUnsafePaths(t *testing.T) {
 		assets []RuntimeAsset
 	}{
 		{name: "empty", assets: []RuntimeAsset{{Path: "", Mode: 0o644, Digest: "a"}}},
-		{name: "absolute", assets: []RuntimeAsset{{Path: "/bin/pair-shell", Mode: 0o755, Digest: "a"}}},
-		{name: "dotdot", assets: []RuntimeAsset{{Path: "bin/../pair-shell", Mode: 0o755, Digest: "a"}}},
+		{name: "absolute", assets: []RuntimeAsset{{Path: "/bin/pair-wrap", Mode: 0o755, Digest: "a"}}},
+		{name: "dotdot", assets: []RuntimeAsset{{Path: "bin/../pair-wrap", Mode: 0o755, Digest: "a"}}},
 		{name: "duplicate", assets: []RuntimeAsset{
-			{Path: "bin/pair-shell", Mode: 0o755, Digest: "a"},
-			{Path: "bin/pair-shell", Mode: 0o755, Digest: "a"},
+			{Path: "bin/pair-wrap", Mode: 0o755, Digest: "a"},
+			{Path: "bin/pair-wrap", Mode: 0o755, Digest: "a"},
 		}},
-		{name: "empty digest", assets: []RuntimeAsset{{Path: "bin/pair-shell", Mode: 0o755}}},
+		{name: "empty digest", assets: []RuntimeAsset{{Path: "bin/pair-wrap", Mode: 0o755}}},
 	}
 
 	for _, tt := range tests {

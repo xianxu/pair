@@ -13,9 +13,8 @@ contract for the Go packaging migration lives in
 [Go migration inventory](go-migration-inventory.md).
 
 ```
-bin/pair                     # Go public entrypoint; execs bin/pair-shell during migration
-bin/pair-shell               # retained shell launcher: zellij lifecycle + prompt UI
-bin/pair-go                  # explicit Go dispatcher + launch handoff
+bin/pair                     # Go public entrypoint (cmd/pair-go); drives the native launcher cmd/internal/launcher in-process
+bin/pair-go                  # Go dispatcher + in-process launcher driver (same cmd/pair-go source)
 bin/clipboard-to-pane.sh     # shim → cmd/clipboard-to-pane: read clipboard, hand off to nvim's PairPasteQuote (#93 M4)
 bin/copy-on-select.sh        # shim → cmd/copy-on-select: invoked by zellij copy_command on mouse-up (#93 M4)
 bin/pair-quit.sh             # invoked by Alt+x — marks + kills session
@@ -48,9 +47,9 @@ installed commands forever.
 
 As of #90, the public `bin/pair` command is a Go-built entrypoint from
 `cmd/pair-go` with an embedded Pair-owned runtime bundle. Direct `pair ...` and
-explicit `pair-go launch ...` share one compatibility handoff: resolve the Pair
-asset root, then exec `<asset-root>/bin/pair-shell` with `pair`-compatible
-argv/env. Asset root resolution is ordered: explicit `PAIR_HOME`, executable
+explicit `pair-go launch ...` share one path: resolve the Pair asset root, then
+drive the native launcher (`cmd/internal/launcher`) in-process with
+`pair`-compatible argv/env. Asset root resolution is ordered: explicit `PAIR_HOME`, executable
 sibling root, the build-time `defaultPairHome` injected by Make/Homebrew, then
 an extracted embedded runtime under `$PAIR_DATA_DIR/runtime/<digest>/pair-home`
 when no adjacent/source asset root exists. Native `nvim/` and `zellij/` assets
@@ -65,15 +64,15 @@ tools, and agent CLIs remain system dependencies.
 `pair-go` remains the development dispatcher for helper routes and explicit
 launch testing: `pair-go launch claude`, `pair-go launch resume <tag>`,
 `pair-go launch continue ...`, `pair-go launch list`, and
-`pair-go launch rename ...` all reach the same shell launcher as direct `pair`.
+`pair-go launch rename ...` all reach the same native launcher as direct `pair`.
 A developer shell sourced from `../ariadne/construct/dev-aliases.sh` rebuilds
 `cmd/pair-go` automatically; no `pair-go-dev` command exists.
 
-The earlier #75 pure launcher core remains available as internal decision logic,
-but real zellij lifecycle, prompt/fzf UI, restart/quit cleanup, cmux ownership,
-dev rebuild, continuation, rename, config/session migration, and title-poller
-behavior remain shell-owned through `bin/pair-shell` until later migration
-issues.
+The earlier #75 pure launcher core is now the foundation of the native Go
+launcher (`cmd/internal/launcher`): real zellij lifecycle, prompt/fzf UI,
+restart/quit cleanup, cmux ownership, dev rebuild, continuation, rename,
+config/session migration, and title-poller behavior are all Go-owned as of
+#99 M1–M5c. `bin/pair-shell`, the original shell launcher, is retired.
 
 The dispatcher hosts implemented helper routes: `context` and `scrollback-render`
 (#76), then `slug`, `changelog`, `continuation`, and `session-watch` (#92 M1).
@@ -87,7 +86,7 @@ Two new architectural surfaces landed with #92 M1:
   reserved dispatcher-subcommand set (`dispatcher.DispatchNames()`, derived from
   the single `Families()` table) and returns `ModeDispatch` when the public
   `pair` is invoked with one — so `pair slug` dispatches while `pair claude`,
-  `pair resume`, and bare `pair` still hand off to the shell launcher. The
+  `pair resume`, and bare `pair` route to the native launcher. The
   reserved names are passed in, not imported, keeping `entrypoint` free of a
   `dispatcher` dependency.
 - **Buffered vs streaming dispatch.** Finite, no-stdin routes (`context`,
@@ -110,9 +109,9 @@ opener no longer shells `pair scrollback-render` — #93 M2 renders via
 `scrollbackcmd` in-process. The changelog opener's *detached* distiller still
 shells `pair scrollback-render` / `pair changelog`, since the build must survive
 the viewer closing.) The internal callers still on a *shim name* are both spawned by
-`bin/pair-shell`: `bin/pair-session-watch.sh → bin/pair-session-watch` and (since
-#93 M1) `bin/pair-title.sh → bin/pair-title`; collapsing those spawns is #93 M5
-(the shell launcher is still shell-owned). The standalone `bin/pair-<name>` binaries remain
+the launcher: `bin/pair-session-watch.sh → bin/pair-session-watch` and (since
+#93 M1) `bin/pair-title.sh → bin/pair-title`; collapsing those spawns is #93 M5.
+The standalone `bin/pair-<name>` binaries remain
 as thin shims (still built + bundled); dropping them is later single-binary work.
 
 Native integration layers stay native: `nvim/*.lua` remains the bundled Neovim
@@ -126,13 +125,15 @@ keybindings, scrollback, changelog, continuation, and review flows still work.
 The detailed disposition table is maintained in
 [Go migration inventory](go-migration-inventory.md), not duplicated here.
 
-### `bin/pair` / `bin/pair-shell` — launcher
+### `bin/pair` / `cmd/internal/launcher` — launcher
 
-`bin/pair` is the Go public entrypoint. It resolves the asset root, then execs
-`bin/pair-shell` with argv[0] presented as `pair`; the shell script below still
-owns the launcher lifecycle during this migration window.
+`bin/pair` is the Go public entrypoint (built from `cmd/pair-go`). It resolves
+the asset root, then drives the native launcher (`cmd/internal/launcher`)
+in-process with argv[0] presented as `pair`; the launcher owns the full session
+lifecycle described below. `bin/pair-shell`, the original 2287-line shell
+launcher, was retired in #99 M5c.
 
-**Native launcher (#99, in progress).** The port of `bin/pair-shell` onto the Go
+**Native launcher (#99, DONE).** The port of `bin/pair-shell` onto the Go
 `cmd/internal/launcher` core is staged M1–M5. The pure decision + per-agent-arg
 core (#75, #99 M1) is joined in **#99 M2** by the `launcher.Runtime` effect seam
 (composed sub-interfaces — zellij / snapshot / ui / proc / env / id / fs — for fake-test
@@ -150,16 +151,17 @@ restart marker (`TakeRestartMarker`) and re-decides via the pure `planRestart`
 (Alt+n resumes; Shift+Alt+N drops the config; **rename/continue re-entries return
 `ErrFallbackToShell`** — M5). `SweepOrphanNvim` runs once up front (startup nvim
 hygiene). The in-pane guard + sweep are **first-entry only** (a restart re-launch
-is the same outer process). **#99 M4** is the **cutover**: the native launcher is
-now the **DEFAULT** — `cmd/pair-go` runs it in-process for create / attach /
-Alt+n & Shift+Alt+N restart / quit, gated only by a **`PAIR_LEGACY_LAUNCH=1`**
-kill-switch (forces the shell for the whole launch; a rollout safety hatch, dropped
-in M5) that replaces the M2/M3 opt-in `PAIR_NATIVE_LAUNCH`. The native launch sits
+is the same outer process). **#99 M4** was the **cutover**: it made the native launcher
+the **DEFAULT** — `cmd/pair-go` runs it in-process for create / attach /
+Alt+n & Shift+Alt+N restart / quit. At the time this was gated by a **`PAIR_LEGACY_LAUNCH=1`**
+kill-switch (forced the shell for the whole launch; a rollout safety hatch, since
+removed in M5c) that replaced the M2/M3 opt-in `PAIR_NATIVE_LAUNCH`. The native launch sits
 behind the `cmd/pair-go` `legacyRuntime` seam (`LaunchNative` → `handled` bool) so
-the default-flip is unit-testable without real zellij. A native **decline**
-(`ErrFallbackToShell`) falls through to the **real** `bin/pair-shell`, which stays
-the fallback launcher — **NOT a shim** (a shim would loop native → fallback → shim
-→ native). **#99 M5** ports the last flows native, then retires the shell; it is
+the default-flip was unit-testable without real zellij. During the M4 window a native **decline**
+(`ErrFallbackToShell`) fell through to the real `bin/pair-shell` — **not a shim** (a shim
+would loop native → fallback → shim → native); **M5c deleted that fallback arm
+entirely** (below), so no shell fallback, `ErrFallbackToShell`, or kill-switch
+remains. **#99 M5** ported the last flows native, then retired the shell; it was
 split into three boundaries by risk. **M5a** (read-only surfaces) makes the fzf
 session **pick** native (`resolvePick` over the pure `buildPickRows` — detached-green
 rows, age-graded-grey historical rows with the amber `[⏎ N queued]` badge, the
@@ -180,14 +182,22 @@ reusing `continuationcmd.ContinuationDir`/`NextActionPreview`); (3) the offline
 journal + reverse-rollback) and the **`rename_to`/`continue` restart re-entries**
 (`planRestart` drops `ShellFallback`; the loop moves sidecars then relaunches under
 the new tag, or re-seeds the draft from the slug) — closing the M4-accepted
-degradation. `PAIR_DEBUG_ARGS`/`PAIR_DEBUG_HISTORY` join `PAIR_TEST_CALL` as
-shell-routed seams (`shellOnlySeamActive`). After M5b **only `bin/pair-shell`
-retirement + `--help` remain (M5c)** — no launch flow falls back except the
-leading-flag help and the shell-only test/debug seams. So
-as of M4 `pair` runs the Go launcher by default; `PAIR_LEGACY_LAUNCH=1` is the
-escape hatch back to the shell.
+degradation. **M5c retires the shell entirely** — `bin/pair-shell` is **removed**;
+`--help`/`help` print a native `UsageText`; the `cmd/pair-go` fallback arm
+(`PAIR_LEGACY_LAUNCH`, the `Exec` seam, `ErrFallbackToShell`, `shellOnlySeamActive`)
+is deleted, so `LaunchNative` always returns a real exit code; the defensive
+error paths (Sessions/ScanHistory/DecideLaunch/os.Getwd) print + exit instead of
+falling back. The asset-root validity marker moves from `bin/pair-shell` to the
+always-present **`zellij/layouts/main.kdl`** (tracked + bundled, unlike the built
+`bin/pair-wrap`). The `PAIR_TEST_CALL`/`PAIR_DEBUG_*`-driven shell contract tests
+(`pair-continue-test`, `cmux-ownership-test`) retire with the shell — every shell
+function they pinned has a tested Go equivalent. **`bin/pair-restart.sh`/
+`pair-quit.sh` stay** (nvim keybind marker-writers, independent of the launcher;
+converting their WRITE to an in-process `pair restart` subcommand is a separable
+follow-up). So `pair` is now a single Go launcher end-to-end; #94 (stop extracting
+a shell tree) unblocks.
 
-`bin/pair-shell` resolves `$PAIR_HOME` from its own real path (portable bash, no `readlink -f`), prepends `$PAIR_HOME/bin` to `$PATH` (idempotent across re-launches) so all helper scripts resolve by bare name in zellij configs and keybinds, parses argv — first positional is `$PAIR_AGENT` (default `claude`), everything after `--` is joined into `$PAIR_AGENT_ARGS`, extra positionals before `--` are an error with a usage hint, defaults `$PAIR_TAG` to the cwd basename (the create-flow prompt or `pair resume <tag>` overrides it), resolves `$PAIR_DATA_DIR` to `${XDG_DATA_HOME:-$HOME/.local/share}/pair`, runs a one-time migration of any old `~/scratch/pair-{draft,log}-*` files, and dispatches:
+The launcher resolves `$PAIR_HOME` from its own executable path, prepends `$PAIR_HOME/bin` to `$PATH` (idempotent across re-launches) so all helper scripts resolve by bare name in zellij configs and keybinds, parses argv — first positional is `$PAIR_AGENT` (default `claude`), everything after `--` is joined into `$PAIR_AGENT_ARGS`, extra positionals before `--` are an error with a usage hint, defaults `$PAIR_TAG` to the cwd basename (the create-flow prompt or `pair resume <tag>` overrides it), resolves `$PAIR_DATA_DIR` to `${XDG_DATA_HOME:-$HOME/.local/share}/pair`, runs a one-time migration of any old `~/scratch/pair-{draft,log}-*` files, and dispatches:
 
 A leading `pair resume <tag>` is recognized as a subcommand verb (alongside `list` / `help`): it skips both the picker and the name prompt, attaches if `pair-<tag>` already exists in any state, otherwise creates with that tag. When `resume` is in play, the agent is inferred from saved state on disk (`agent-<tag>` for live/recently-detached sessions; the agent embedded in the `config-<tag>-<agent>.json` filename otherwise) — so a single tag is enough to restart, regardless of which agent was originally paired with it. See "Tag-restart" below.
 
@@ -222,12 +232,12 @@ Detection of attached-vs-detached uses `zellij --session NAME action list-client
 
 **Startup orphan sweep.** The Alt+x reaper only runs when the user quit through pair. External terminations (`zellij kill-session`, host reboot during a session, pair upgrade mid-session) leave the embed orphaned with no marker. `sweep_orphan_nvim` runs once per `pair` invocation, just after the live pair-session list is computed: it collects candidate tags from both pidfiles and the argv of every running `nvim --embed` referencing `$DATA_DIR/`, then calls `reap_nvim_for_tag` on any tag whose `pair-<tag>` session is no longer alive. The argv walk is what catches embeds with no pidfile (autocmd errored before VimEnter, or panes that predate the autocmd). The same `reap_nvim_for_tag` is shared with `cleanup_quit_marker`, so there's exactly one reaper definition; adding a new nvim surface in pair means routing it through `$PAIR_NVIM_PID_FILE` and naming it under `$DATA_DIR/{draft,scrollback}-<tag>...`, not extending the reaper.
 
-**Reload / restart in place (Alt+n, Shift+Alt+N).** A second marker, `~/.cache/pair/restart-<session>`, is written alongside `quit-` by `bin/pair-restart.sh`, carrying the agent name + a `new_session` flag. After cleanup_quit_marker tears the session down, `handle_restart_marker` reads the marker and `exec`s pair on itself with `PAIR_FORCE_TAG=<same-tag>` set in the env (pins the new run to the killed session's tag, skipping both the picker and the name prompt). The flag controls what happens to the saved config:
+**Reload / restart in place (Alt+n, Shift+Alt+N).** A second marker, `~/.cache/pair/restart-<session>`, is written alongside `quit-` by `bin/pair-restart.sh`, carrying the agent name + a `new_session` flag. After `runCleanup` tears the session down, the launcher's restart loop reads the marker (`TakeRestartMarker`/`planRestart`) and re-enters **in-process** (no `exec $0`), pinned to the killed session's tag from the marker (skipping both the picker and the name prompt). The flag controls what happens to the saved config:
 
 - `new_session=0` (Alt+n) — keep `config-<tag>-<agent>.json`. Append the agent-appropriate resume token to the re-exec'd argv: `--resume <id>` for claude, `resume <id>` for codex, `--conversation <id>` for agy. Result: pure pair reload — same tag, same draft, same agent conversation. Useful after a binary or config rebuild.
 - `new_session=1` (Shift+Alt+N) — drop `config-<tag>-<agent>.json` so the next launch's claude `--session-id` injection (or the codex/agy watcher) writes a brand-new entry. Result: fresh agent conversation, same tag and draft.
 
-The picker is bypassed in either flavor — Alt+n's argv carries an explicit resume token, and Shift+Alt+N has no saved config to pick against. A third marker field, `continue=<slug>` (#55, written by the in-session compaction branch in `bin/pair-shell`, not `pair-restart.sh`), rides the `new_session=1` path but re-execs `pair continue <slug> <agent> -- <args>` instead of a plain restart — see "In-session compaction" below.
+The picker is bypassed in either flavor — Alt+n's argv carries an explicit resume token, and Shift+Alt+N has no saved config to pick against. A third marker field, `continue=<slug>` (#55, written by the launcher's in-session compaction branch (`compaction.go`), not `pair-restart.sh`), rides the `new_session=1` path but re-execs `pair continue <slug> <agent> -- <args>` instead of a plain restart — see "In-session compaction" below.
 
 ### `zellij/layouts/main.kdl` — pane split + swap-layout ladder
 
@@ -248,7 +258,7 @@ The bottom pane has `focus=true` (drafting pane gets focus on launch), `borderle
 Top-level config:
 
 - `mouse_click_through true` — first click on an unfocused pane goes through to the pane (so click-and-drag selects in one motion) instead of being consumed by zellij just to change focus.
-- `copy_command "copy-on-select.sh"` — on every selection finalize (mouse-up after drag), zellij pipes the selected text to this script. `copy_command` replaces zellij's default OS-clipboard write, so the script does that part too. Resolved by PATH (which `bin/pair-shell` populated).
+- `copy_command "copy-on-select.sh"` — on every selection finalize (mouse-up after drag), zellij pipes the selected text to this script. `copy_command` replaces zellij's default OS-clipboard write, so the script does that part too. Resolved by PATH (which the launcher populated).
 - `pane_frames true` — frames are enabled globally so the agent pane shows zellij's scroll-position indicator (top-right of the frame) when scrolled. The draft pane opts out via `borderless=true` in `zellij/layouts/main.kdl` so the `minimized` rung can still collapse to 1 row (a framed pane's minimum is ~3 rows). The cheatsheet still renders in nvim's statusline rather than a frame title — the draft has no frame to hold one.
 
 Keybinds added on top of zellij defaults (`clear-defaults=false`):
@@ -259,8 +269,8 @@ Keybinds added on top of zellij defaults (`clear-defaults=false`):
 - `Alt+d` — routed through nvim to `:lua PairConfirmDetach()` — Y/N modal then detach.
 - `Alt+x` — routed through nvim to `:lua PairConfirmQuit()` — Y/N modal then `pair-quit.sh` (full quit).
 - `Alt+n` — routed through nvim to `:lua PairConfirmRestart()` — Y/N modal then `pair-restart.sh` (reload pair, keep agent session).
-- `Shift+Alt+N` — routed through nvim to `:lua PairConfirmRestartNewSession()` — Y/N modal then `pair-restart.sh --new-session` (restart with a fresh agent conversation). See "Reload / restart in place" under `bin/pair-shell`.
-- `Alt+Shift+C` (`Alt C` / `Ctrl Alt c`) — routed through nvim to `:lua PairConfirmCompact()` — Y/N modal then `send_to_agent(<compaction prompt>)` (#55). Unlike the restart binds it does NOT shell out directly: distilling a continuation needs the agent's judgment, so it asks the agent to write a continuation + run `pair continue <slug>` (context-aware → compaction). See "In-session compaction" under `bin/pair-shell`.
+- `Shift+Alt+N` — routed through nvim to `:lua PairConfirmRestartNewSession()` — Y/N modal then `pair-restart.sh --new-session` (restart with a fresh agent conversation). See "Reload / restart in place" under the launcher section.
+- `Alt+Shift+C` (`Alt C` / `Ctrl Alt c`) — routed through nvim to `:lua PairConfirmCompact()` — Y/N modal then `send_to_agent(<compaction prompt>)` (#55). Unlike the restart binds it does NOT shell out directly: distilling a continuation needs the agent's judgment, so it asks the agent to write a continuation + run `pair continue <slug>` (context-aware → compaction). See "In-session compaction" below.
 - `Alt+h` — `Run "pair-help" { floating true; close_on_exit true; ... }` — pops a floating pane running `pair -h | less`.
 - `Alt+↑` / `Alt+↓` — route to nvim's `PairLayoutBigger` / `PairLayoutSmaller` — step the nvim pane along the swap-layout ladder (`minimized ↔ small (12 rows) ↔ third`).
 - `Alt+j` — `FocusNextPane` — toggle focus between the agent and draft panes. Works from either pane because it's a global zellij bind, intercepted before the focused pane sees the key. Overrides zellij's default Alt+j (`MoveFocus "Down"`), which only reached the draft and was a dead key once you were already there; the two-pane invariant makes `FocusNextPane` a clean toggle with no direction to track.
@@ -292,7 +302,7 @@ Pane detection: parse `list-panes --json --command` (via `cmd/internal/zellijpan
 
 ### `bin/pair-quit.sh` — Alt+x handler
 
-Touches the marker file `~/.cache/pair/quit-$ZELLIJ_SESSION_NAME`, then `exec zellij kill-session $ZELLIJ_SESSION_NAME`. The kill terminates the session including the script itself; on the shell launcher side, `bin/pair-shell` resumes, sees the marker, and runs `delete-session --force` to clean up the resurrect entry.
+Touches the marker file `~/.cache/pair/quit-$ZELLIJ_SESSION_NAME`, then `exec zellij kill-session $ZELLIJ_SESSION_NAME`. The kill terminates the session including the script itself; on the launcher side, the launcher's restart loop resumes when the child zellij exits, and `runCleanup` sees the marker and runs `delete-session --force` to clean up the resurrect entry.
 
 Alt+x leaves the draft, queue, and history intact — the next session resumes them. Use Shift+Alt+Backspace (`forget_all`) for the destructive "start anew" path.
 
@@ -302,7 +312,7 @@ Alt+x leaves the draft, queue, and history intact — the next session resumes t
 
 **Mechanism, in two layers:**
 
-1. **Outer-TTY capture (in `bin/pair-shell`).** Before invoking zellij, on every attach (both create and reattach branches), pair calls `tty(1)`. The result is the path of pair's controlling TTY — which is precisely the outer PTY (the one allocated by whatever wraps pair: cmux, a terminal emulator, etc.). That path gets written to `$DATA_DIR/outer-tty-<tag>`. Refreshed on every attach because the outer PTY changes across detach/reattach, while pane-shell env stays frozen at zellij session-creation time (env-var approaches would go stale).
+1. **Outer-TTY capture (in the launcher — `RecordOuterTTY`).** Before invoking zellij, on every attach (both create and reattach branches), the launcher resolves the path of its controlling TTY — which is precisely the outer PTY (the one allocated by whatever wraps pair: cmux, a terminal emulator, etc.). That path gets written to `$DATA_DIR/outer-tty-<tag>`. Refreshed on every attach because the outer PTY changes across detach/reattach, while pane-shell env stays frozen at zellij session-creation time (env-var approaches would go stale).
 
 2. **Two consumers** of the captured path:
 
@@ -374,7 +384,7 @@ The existing `set_winsize()` is the single entry point for both the initial PTY 
 
 **Continuation writer (`cmd/pair-continuation`, `continuation` datatype).** A *continuation* is the human-understanding cousin of a native `pair resume`: `resume` restores machine state (the agent's own session id, byte-faithful); a continuation distills the *rendered* session (the plain projection above) into a durable, portable markdown doc — `workshop/continuation/<YYYYMMDDTHHMMSS>-slug.md`, the `continuation` datatype defined in `construct/datatype/continuation.md` (ariadne#91) — so work resumes across time / machines / people / agent stacks. The `xx-datatype` dispatcher does the distillation (judgment); `cmd/pair-continuation` does the *mechanics* deterministically: render conformant frontmatter, allocate a collision-safe timestamped name, write, then `git add` + a **path-scoped** `commit -- <file>` (so a dirty index isn't swept in) + `push origin HEAD` — on the current branch, which lands on main when that branch merges (disaster-recovery — an unpushed recovery doc can't save state; a push failure is non-fatal so a detached park still keeps the local commit). Pure core (frontmatter / name allocation / assemble / validate) is IO-free; a thin clock/fs/git seam (the `git -C` shell-out pattern from `cmd/pair-slug`, no git library) is exercised against a real temp repo with a bare origin. `pair continue [slug] [agent]` resumes *from* a continuation: bare lists them; `<slug>` seeds a fresh session (via `draft-<tag>.md`, create-path only) to read the doc and do its NEXT ACTION; `[agent]` ports to a different stack. Unlike `resume` it does **not** force the tag — it flows through the normal name prompt so the operator picks it (a long slug must never become an over-long zellij `--session` name: zellij caps it at the sun_path socket-budget and rejects overflow with a cryptic "must be less than 0 characters" clap error, so a launch-time guard probes zellij's own validator via a no-op `action list-clients` and fails with a clear message instead — #54) — and forwards `-- <args>` to the agent like a plain `pair <agent> -- <args>`. It never reads `session_id` — that's `resume`'s job. On Alt+x, `cleanup_quit_marker` offers to **park** the session: preserve its scrollback (`.raw` + `.events.jsonl`) under a non-recyclable `parked-scrollback-<tag>-<ts>.*` so a live session can distill it later (no live agent exists at quit, so the nudge only *preserves*). The prompt is timeout-bounded — it auto-defaults to **N** (preserve nothing) after `PAIR_PARK_PROMPT_TIMEOUT` seconds (default 5, integer seam) so an unattended quit never blocks on it (#64). The park mechanics live in a shared `park_scrollback <tag> <agent> [--copy]` helper (#55, extracted from `cleanup_quit_marker` — ARCH-DRY): the quit path *moves* (session dying), the compaction path *copies* (the live `pair-wrap --scrollback-log` is still appending to `.raw`).
 
-**In-session compaction (#55, `Alt+Shift+C`).** `pair continue <slug>` is *context-aware*: run from a normal shell it fresh-starts (above); run from INSIDE its own live pane it **compacts** — copy-parks the scrollback as a recovery net, writes a restart marker carrying a new `continue=<slug>` field (same tag, `new_session=1`), and kills the session. The outer shell launcher (`bin/pair-shell`) then `handle_restart_marker`-re-execs `pair continue <slug> <agent> -- <args>` (now outside zellij → the fresh-start branch), so the session reincarnates under the same tag with a clean conversation seeded from the continuation. Detection is **ancestry-based** (`in_zellij_pane`) plus a `ZELLIJ_SESSION_NAME == pair-<tag>` confirmation — never `$ZELLIJ*` env alone, since cmux propagates those to sibling non-pair panes (a false positive would park+kill the wrong session). The branch sits *before* the `in_zellij_pane` guard (which otherwise rejects any in-pane `pair`), with `DATA_DIR` + `handle_restart_marker` hoisted above the guard so test seams can drive them. Seams (test-only): `PAIR_FORCE_IN_SESSION`, `PAIR_FAKE_IN_ZELLIJ`, `PAIR_KILL_CMD`, `PAIR_TEST_CALL`, `PAIR_REEXEC_CAPTURE`. The trigger is the `Alt+Shift+C` keybind (`Alt C` / `Ctrl Alt c` → `PairConfirmCompact` → an agent-agnostic prompt that **defers to the `continuation` datatype procedure** — flush-first, then write the continuation and run `pair continue <slug>` — rather than enumerating a section skeleton inline, so the prompt can't drift out of sync with the datatype; that drift was the bug pair#61 fixed); the outer process suppresses the Alt+x park nudge whenever a restart marker is pending (a restart isn't a quit).
+**In-session compaction (#55, `Alt+Shift+C`).** `pair continue <slug>` is *context-aware*: run from a normal shell it fresh-starts (above); run from INSIDE its own live pane it **compacts** — copy-parks the scrollback as a recovery net, writes a restart marker carrying a new `continue=<slug>` field (same tag, `new_session=1`), and kills the session. The launcher's in-process restart loop (`RunLaunch` reads the marker via `TakeRestartMarker`/`planRestart`) then re-enters with `pair continue <slug> <agent> -- <args>` (now outside zellij → the fresh-start branch), so the session reincarnates under the same tag with a clean conversation seeded from the continuation. Detection is **ancestry-based** (`InZellijPane`) plus a `ZELLIJ_SESSION_NAME == pair-<tag>` confirmation — never `$ZELLIJ*` env alone, since cmux propagates those to sibling non-pair panes (a false positive would park+kill the wrong session). The pure `compactionDecision` runs *before* the `InZellijPane` guard (which otherwise rejects any in-pane `pair`), so an in-pane `pair continue` compacts instead of being rejected. Seams (test-only): `PAIR_FORCE_IN_SESSION`, `PAIR_FAKE_IN_ZELLIJ`, `PAIR_KILL_CMD`. The trigger is the `Alt+Shift+C` keybind (`Alt C` / `Ctrl Alt c` → `PairConfirmCompact` → an agent-agnostic prompt that **defers to the `continuation` datatype procedure** — flush-first, then write the continuation and run `pair continue <slug>` — rather than enumerating a section skeleton inline, so the prompt can't drift out of sync with the datatype; that drift was the bug pair#61 fixed); the outer process suppresses the Alt+x park nudge whenever a restart marker is pending (a restart isn't a quit).
 
 ### Shared 🤖-marker annotation — `nvim/annotate.lua`
 
@@ -632,7 +642,7 @@ one-liner.
   the reset — and each session's own `.anchor` removes the cross-session
   `FullRedistill` pile-up, #63). The id is resolved the same way by both builders
   (the opener `bin/pair-changelog-open` and the draft-nvim `.ready` watcher):
-  the exported `PAIR_SESSION_ID` (set by `bin/pair-shell` at launch for claude-fresh /
+  the exported `PAIR_SESSION_ID` (set by the launcher at launch for claude-fresh /
   any resume) → the per-tag `config-<tag>-<agent>.json` `session_id` (the
   `pair-session-watch.sh` codex/agy async path) → the **legacy unsuffixed base**
   when no id is known (backward compat). Files off `<base>`: `.md` (the log,
@@ -672,10 +682,10 @@ A pair *tag* is a durable identity for a coding session: it survives Alt+d (deta
 
 **Discovery — two layers.** The session id needs to be on disk by Alt+x time so `pair resume <tag>` can replay it. Two mechanisms, picked by agent and launch shape:
 
-1. **Pre-write at launch (`bin/pair-shell`).** Two paths:
+1. **Pre-write at launch (the launcher).** Two paths:
    - `--resume <id>` / `resume <id>` / `--conversation <id>` explicit on argv: pair writes `config-<tag>-<agent>.json` directly with that id, before zellij launch.
    - **Claude fresh launch (issue #000020):** claude supports `--session-id <uuid>`, so on the new-session path pair generates a v4 UUID, injects the flag into the agent argv, and writes the config synchronously *before* spawning the watcher. The id is deterministic from the launcher's perspective, so the watcher is a no-op for claude — and the cross-tag race that existed when two pair sessions shared a cwd is structurally eliminated.
-2. **Watcher (`cmd/pair-session-watch` via `bin/pair-session-watch.sh`, codex/agy only).** Spawned in the background by `bin/pair-shell` on the create path, right before the zellij launch. The `.sh` file is now a compatibility shim; the stateful discovery logic lives in Go. Two discovery paths:
+2. **Watcher (`cmd/pair-session-watch` via `bin/pair-session-watch.sh`, codex/agy only).** Spawned in the background by the launcher on the create path, right before the zellij launch. The `.sh` file is now a compatibility shim; the stateful discovery logic lives in Go. Two discovery paths:
    - **PID-bound (preferred).** Reads `$PAIR_DATA_DIR/agent-pid-<tag>` (written by pair-wrap right after `pty.Start`) only when the pidfile's mtime is at-or-after the watcher's start, so a stale pidfile from a prior launch is ignored until pair-wrap overwrites it. Then it inspects open files in that PID's process tree via `lsof -p <pid> -Fn`. Race-free across concurrent pair sessions because lsof output is scoped to specific PIDs. Falls back internally to a birth-time-filtered directory walk if the agent doesn't keep its session file open: candidates are files with `stat -f %B >= agent_start_epoch`, and only a *single* candidate is accepted (multiple = concurrent race, refuse rather than guess).
    - **Legacy snapshot-diff (fallback).** Used when a fresh pidfile doesn't appear within 2s (`PAIR_SESSION_WATCH_PID_WAIT_SECONDS` in tests) — i.e., when the installed pair-wrap binary predates #000020 and doesn't publish the pidfile, or a stale pidfile is never refreshed. It snapshots the watch dir at start, scans new matching files, accepts the first candidate with a valid extracted id, and logs `near-miss` only when matching candidates cannot produce an id. Cross-tag races re-emerge in this path, so the proper resolution is to rebuild pair-wrap.
 
@@ -687,7 +697,7 @@ Per-agent surface:
 
 | Agent | Path | Id source | Capture mechanism |
 |---|---|---|---|
-| claude | `~/.claude/projects/<encoded-cwd>/<id>.jsonl` | filename | `--session-id` pre-injected by `bin/pair-shell` (deterministic) |
+| claude | `~/.claude/projects/<encoded-cwd>/<id>.jsonl` | filename | `--session-id` pre-injected by the launcher (deterministic) |
 | codex | `~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<id>.jsonl` | trailing UUID in filename (regex) | `lsof -p <pid>` against agent PID + `ps`-discovered descendants, birth-time fallback |
 | agy | `~/.gemini/antigravity-cli/conversations/<id>.db` | UUID database filename | `lsof -p <pid>` against agent PID + `ps`-discovered descendants, birth-time fallback |
 
@@ -697,9 +707,9 @@ Per-agent surface:
 { "agent": "claude", "args": ["--dangerously-skip-permissions"], "session_id": "8d745d08-..." }
 ```
 
-Single write posture: structured JSON plus temp-file rename, only after the id is in hand. The shell launcher uses `jq` for synchronous claude/explicit-resume prewrites; the Go watcher uses `encoding/json` plus `os.CreateTemp`/rename for codex/agy. So a concurrent reader either sees a complete prior config or a complete new one — never a partial. Keyed by `(tag, agent)` because the same tag can hold separate configs for different agents.
+Single write posture: structured JSON plus temp-file rename, only after the id is in hand. The launcher writes the synchronous claude/explicit-resume prewrites, and the Go watcher writes the codex/agy config once the id is discovered — both via `encoding/json` plus `os.CreateTemp`/rename. So a concurrent reader either sees a complete prior config or a complete new one — never a partial. Keyed by `(tag, agent)` because the same tag can hold separate configs for different agents.
 
-**Create-flow prompt (`bin/pair-shell`).** When the create path commits a tag, pair reads `config-<tag>-<agent>.json`. If present, it runs the per-agent stale-id check (claude: `[ -f .../<id>.jsonl ]`; codex: `find ~/.codex/sessions -name "*<id>*"`; agy: check conversation DB) and fzf-prompts the user with up to three options:
+**Create-flow prompt (the launcher).** When the create path commits a tag, the launcher reads `config-<tag>-<agent>.json`. If present, it runs the per-agent stale-id check (claude: `[ -f .../<id>.jsonl ]`; codex: `find ~/.codex/sessions -name "*<id>*"`; agy: check conversation DB) and fzf-prompts the user with up to three options:
 
 ```
 1) use params + session   args=[...]   resume=<id>
@@ -741,7 +751,7 @@ A tag is durable but historically frozen-at-create. `pair rename <old> <new>` li
 
 **Refusals.** The CLI refuses upfront when: (a) `pair-<old>` or `pair-<new>` is in `zellij list-sessions` (live, detached, or resurrectable), (b) any file matching the `<new>` family exists, (c) `<old>` has no files. Tested via `tests/pair-rename.sh`. `--restart-check` skips (a) for `pair-<old>` only (the inside-flow case: `pair-<old>` is the current session, about to be killed) and exits without touching disk.
 
-**Inside-flow choreography.** `nvim/init.lua`'s `pair_confirm_restart_impl` shells out `pair rename --restart-check` after the user enters a new tag, re-prompting on each rejection. On accept it execs `pair-restart.sh --rename-to <new>`. `pair-restart.sh` writes `rename_to=<new>` into the restart marker (`~/.cache/pair/restart-<SESSION>`) alongside the existing `tag`, `agent`, `new_session` fields. `handle_restart_marker` in `bin/pair-shell` runs after `cleanup_quit_marker` (so the zj delete-session has cleared the live-old gate) and if `rename_to` is set, invokes `"$0" rename <old> <new>` — full check. On success, the working tag for the re-exec is swapped to `<new>` (so `config-<new>-<agent>.json`, the just-renamed file, is what gets resumed). On failure, a 2-second visible stderr warning is printed and the restart continues with the original tag — the user is never stranded.
+**Inside-flow choreography.** `nvim/init.lua`'s `pair_confirm_restart_impl` shells out `pair rename --restart-check` after the user enters a new tag, re-prompting on each rejection. On accept it execs `pair-restart.sh --rename-to <new>`. `pair-restart.sh` writes `rename_to=<new>` into the restart marker (`~/.cache/pair/restart-<SESSION>`) alongside the existing `tag`, `agent`, `new_session` fields. In the launcher's restart loop, `planRestart` reads the marker after `runCleanup` (so the zj delete-session has cleared the live-old gate) and if `rename_to` is set, invokes the native `rename <old> <new>` — full check. On success, the working tag for the re-launch is swapped to `<new>` (so `config-<new>-<agent>.json`, the just-renamed file, is what gets resumed). On failure, a 2-second visible stderr warning is printed and the restart continues with the original tag — the user is never stranded.
 
 ## Data layout
 
@@ -763,9 +773,9 @@ Internal: `~/.cache/pair/restart-<session>` — marker written alongside `quit-`
 
 Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/outer-tty-<tag>` — single-line file containing the path to pair's controlling TTY at attach time. Read by `pair-notify` to emit OSC escapes that reach the outer terminal/wrapper. Rewritten on every attach (create or reattach); removed on full quit.
 
-Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/agent-<tag>` — single-line file recording which agent binary was launched in the session (`claude`, `codex`, ...). Written once at session create; read by `pair list` to display the agent column, and by `bin/pair-shell`'s tag-restart agent-inference. Removed on full quit. The agent isn't otherwise recoverable post-create — env vars are frozen in pane shells, and custom session names (e.g. `pair-bugfix`) don't carry the agent in the name.
+Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/agent-<tag>` — single-line file recording which agent binary was launched in the session (`claude`, `codex`, ...). Written once at session create; read by `pair list` to display the agent column, and by the launcher's tag-restart agent-inference. Removed on full quit. The agent isn't otherwise recoverable post-create — env vars are frozen in pane shells, and custom session names (e.g. `pair-bugfix`) don't carry the agent in the name.
 
-Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/config-<tag>-<agent>.json` — saved restart configuration for `(tag, agent)` (issue #000016, #000020). `{ agent, args, session_id }`. For claude, written synchronously by `bin/pair-shell` before zellij launch (`--session-id` is deterministic). For codex/agy, written by the Go `pair-session-watch` command once the agent's session file is discovered via lsof. Read by `bin/pair-shell`'s create-flow prompt and by the post-Alt+x hint. Survives Alt+x (unlike `agent-<tag>`, which is cleared) — that's the whole point: it's the bridge between two pair launches against the same tag.
+Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/config-<tag>-<agent>.json` — saved restart configuration for `(tag, agent)` (issue #000016, #000020). `{ agent, args, session_id }`. For claude, written synchronously by the launcher before zellij launch (`--session-id` is deterministic). For codex/agy, written by the Go `pair-session-watch` command once the agent's session file is discovered via lsof. Read by the launcher's create-flow prompt and by the post-Alt+x hint. Survives Alt+x (unlike `agent-<tag>`, which is cleared) — that's the whole point: it's the bridge between two pair launches against the same tag.
 
 Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/agent-pid-<tag>` — child agent PID written by `cmd/pair-wrap` immediately after `pty.Start`, removed on shutdown. Consumed by `cmd/pair-session-watch` to scope `lsof` discovery to a specific process tree (issue #000020). Mtime is also used as the agent-start epoch in the watcher's birth-time fallback.
 
@@ -777,13 +787,13 @@ Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/image-capture-<tag>` + `image-c
 
 Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/slug-proposed-<tag>` and `slug-<tag>` — the orientation-slug channel (issue #000027). `pair-slug` (spawned by pair-wrap at turn-end) writes the proposed `=== <branch> | <focus> ===` to `slug-proposed-<tag>` (atomic temp+rename); nvim applies it to draft line 1 and writes the effective line back to `slug-<tag>`, which is the `prev` the proposer reads next turn. For Codex, if `config-<tag>-codex.json` is missing, `pair-slug` can recover the live rollout by reading `agent-pid-<tag>`, walking descendants via `ps`, and checking their `lsof` paths for `~/.codex/sessions/.../rollout-*.jsonl`. Agy has two artifacts: restart/session discovery uses `~/.gemini/antigravity-cli/conversations/<session_id>.db`, while transcript summarization still reads `~/.gemini/antigravity-cli/brain/<session_id>/.system_generated/logs/transcript.jsonl`. Codex model auth is API-key first, then Codex CLI subscription auth via `codex exec`. Single writer each, so the channel is race-free.
 
-Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/adapt-<tag>.jsonl` — the adaptation flight recorder (issue #000045). One JSON line per harness-adaptation trigger (`{ts, comp, agent, aspect, signal, outcome, detail}`), appended concurrently by `cmd/pair-wrap`, `cmd/pair-slug`, `cmd/pair-session-watch`, and `nvim/adapt.lua` — all writing one shared schema. Truncated once at session launch by `bin/pair-shell` (so multi-process `O_APPEND` never races) and removed on full quit. Read by `doctor/doctor.sh` to surface integration drift (near-miss/fail signals). See `atlas/how-to-bring-up-a-new-harness-cli.md` §3 for the signal registry.
+Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/adapt-<tag>.jsonl` — the adaptation flight recorder (issue #000045). One JSON line per harness-adaptation trigger (`{ts, comp, agent, aspect, signal, outcome, detail}`), appended concurrently by `cmd/pair-wrap`, `cmd/pair-slug`, `cmd/pair-session-watch`, and `nvim/adapt.lua` — all writing one shared schema. Truncated once at session launch by the launcher (so multi-process `O_APPEND` never races) and removed on full quit. Read by `doctor/doctor.sh` to surface integration drift (near-miss/fail signals). See `atlas/how-to-bring-up-a-new-harness-cli.md` §3 for the signal registry.
 
 **Migration from v1:** the launcher detects old `~/scratch/pair-{draft,log}-*.md` files on startup and moves them to the new XDG location, stripping the redundant `pair-` prefix from filenames.
 
 ## Path resolution
 
-`bin/pair-shell` prepends `$PAIR_HOME/bin` to `$PATH` before exec'ing zellij. zellij and all its child processes (panes, copy_command, Run actions) inherit the PATH and can resolve `clipboard-to-pane.sh`, `copy-on-select.sh`, `pair-quit.sh` by bare name. This lets the zellij KDL configs reference scripts without `sh -c` env-var quoting hacks.
+The launcher prepends `$PAIR_HOME/bin` to `$PATH` before exec'ing zellij. zellij and all its child processes (panes, copy_command, Run actions) inherit the PATH and can resolve `clipboard-to-pane.sh`, `copy-on-select.sh`, `pair-quit.sh` by bare name. This lets the zellij KDL configs reference scripts without `sh -c` env-var quoting hacks.
 
 ## Binary freshness: deployed vs dev (`pair-dev`)
 
@@ -791,7 +801,7 @@ The Go binaries (`pair-wrap`, `pair-slug`, …) live in `$PAIR_HOME/bin` (first 
 
 Two launch modes resolve this:
 - **Deployed** — `pair`. Runs whatever prebuilt binary PATH finds; zero toolchain dependency. Keep `~/.local/bin` current with `make install`.
-- **Dev** — `pair-dev` (#000046). Exports `PAIR_DEV=1` and execs `pair`; the handoff into `bin/pair-shell` then runs `make build` (via `bin/lib/dev-rebuild.sh`'s `dev_rebuild`) on the **create path**, before the layout execs pair-wrap, so `$PAIR_HOME/bin` holds a fresh build. Restart-safe: `PAIR_DEV` survives `handle_restart_marker`'s `exec "$0"`, so Alt+n / Shift+Alt+N rebuild too; a plain attach (no new wrapper spawned) correctly skips it. Deployed launches (`PAIR_DEV` unset) invoke no toolchain.
+- **Dev** — `pair-dev` (#000046). Exports `PAIR_DEV=1` and execs `pair`; the launcher's `DevRebuild` then runs `make build` (still via `bin/lib/dev-rebuild.sh`'s `dev_rebuild`, sourced from Go) on the **create path**, before the layout execs pair-wrap, so `$PAIR_HOME/bin` holds a fresh build. Restart-safe: `PAIR_DEV` survives the launcher's in-process restart loop, so Alt+n / Shift+Alt+N rebuild too; a plain attach (no new wrapper spawned) correctly skips it. Deployed launches (`PAIR_DEV` unset) invoke no toolchain.
 
 `pair-doctor` *diagnoses* the same staleness `pair-dev` prevents: its emitter-health probe (`doctor/emitter-health.sh`, #000047) greps the *running* `pair-wrap`/`pair-slug` (resolved via the `pair-wrap-pid-<tag>` pidfile, else PATH) for its adapt signal strings and flags `[STALE]` when a binary has no logging code — turning the silent-emitter failure into a named finding.
 

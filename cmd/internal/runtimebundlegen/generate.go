@@ -17,7 +17,6 @@ import (
 )
 
 var explicitAssetPaths = []string{
-	"bin/pair-shell",
 	"bin/pair-help",
 	"bin/pair-notify",
 	"bin/pair-quit.sh",

@@ -41,7 +41,6 @@ case "$*" in
     case "$config" in */custom-data/runtime/*/pair-home/zellij) ;; *) printf 'bad config path: %s\n' "$config" >&2; exit 11 ;; esac
     case "$layout" in */custom-data/runtime/*/pair-home/zellij/layouts/main.kdl) ;; *) printf 'bad layout path: %s\n' "$layout" >&2; exit 12 ;; esac
     root="${config%/zellij}"
-    test -x "$root/bin/pair-shell"
     test -x "$root/bin/pair-wrap"
     test -x "$root/bin/pair-session-watch.sh"
     test -x "$root/bin/pair-title.sh"
@@ -86,7 +85,7 @@ help_out="$("$bin_dir/pair" --help)"
 case "$help_out" in
   pair\ —*) ;;
   *)
-    printf 'copied pair --help did not reach embedded pair-shell help; first bytes:\n%s\n' "$help_out" >&2
+    printf 'copied pair --help did not print the native usage; first bytes:\n%s\n' "$help_out" >&2
     exit 1
     ;;
 esac

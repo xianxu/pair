@@ -2,24 +2,36 @@ package launcher
 
 import (
 	"bytes"
-	"errors"
+	"strings"
 	"testing"
 )
 
-// The shell-only test/debug seams (bin/pair-shell short-circuits them before any
-// zellij/fzf) must each make LaunchNative decline to the shell — otherwise a bare
-// `pair`/`continue` under them enters the native path and blocks on fzf's / the
-// create prompt's /dev/tty (the M5a hang class; PAIR_DEBUG_ARGS is used by the
-// pair-continue probe tests). Guard until the shell retires at M5c.
-func TestLaunchNativeDeclinesShellOnlySeams(t *testing.T) {
-	for _, seam := range []string{"PAIR_TEST_CALL", "PAIR_DEBUG_ARGS", "PAIR_DEBUG_HISTORY"} {
-		t.Run(seam, func(t *testing.T) {
-			t.Setenv(seam, "1")
+// `pair --help` / `pair help` prints the native usage to stdout and exits 0 (#99
+// M5c — the shell that used to own help is retired).
+func TestLaunchNativeHelp(t *testing.T) {
+	for _, arg := range []string{"--help", "-h", "help"} {
+		t.Run(arg, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
-			code, err := LaunchNative(nil, "/pair", &stdout, &stderr)
-			if !errors.Is(err, ErrFallbackToShell) {
-				t.Fatalf("%s must decline to the shell; got code=%d err=%v", seam, code, err)
+			code, err := LaunchNative([]string{arg}, "/pair", &stdout, &stderr)
+			if err != nil || code != 0 {
+				t.Fatalf("%s: code=%d err=%v", arg, code, err)
+			}
+			if !strings.Contains(stdout.String(), "USAGE") || stderr.Len() != 0 {
+				t.Fatalf("%s: stdout=%q stderr=%q", arg, stdout.String(), stderr.String())
 			}
 		})
+	}
+}
+
+// A leading flag that isn't help is a usage error → stderr + exit 2 (no shell to
+// defer to).
+func TestLaunchNativeBadFlag(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code, err := LaunchNative([]string{"--nope"}, "/pair", &stdout, &stderr)
+	if err != nil || code != 2 {
+		t.Fatalf("code=%d err=%v, want 2", code, err)
+	}
+	if !strings.Contains(stderr.String(), "not an agent") || stdout.Len() != 0 {
+		t.Fatalf("stdout=%q stderr=%q", stdout.String(), stderr.String())
 	}
 }

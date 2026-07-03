@@ -27,6 +27,7 @@ type fakeRuntime struct {
 	pickFunc       func(header string, options []string) string
 	listRows       []ListRow // ListSessions rows (for `pair list`)
 	listErr        error
+	sessionsErr    error       // Sessions() error (defensive exit-1 path)
 	renameFailAt   string      // Rename returns an error when src == this (rollback test)
 	renamed        [][2]string // {src,dst} per successful Rename
 	// #99 M5b compaction/continue
@@ -85,7 +86,7 @@ func newFakeRuntime() *fakeRuntime {
 }
 
 // ZellijOps
-func (f *fakeRuntime) Sessions() ([]Session, error)           { return f.sessions, nil }
+func (f *fakeRuntime) Sessions() ([]Session, error)           { return f.sessions, f.sessionsErr }
 func (f *fakeRuntime) SessionBlocksReuse(session string) bool { return f.blocksReuse[session] }
 func (f *fakeRuntime) ProbeSessionName(session string) error  { return f.probeErr }
 func (f *fakeRuntime) LaunchSession(session, configDir, layout string) (int, error) {
@@ -461,6 +462,21 @@ func TestRunLaunchExplicitResumeSkipsPicker(t *testing.T) {
 	}
 	if rt.env["PAIR_SESSION_ID"] != "EXPLICIT" {
 		t.Fatalf("PAIR_SESSION_ID = %q", rt.env["PAIR_SESSION_ID"])
+	}
+}
+
+// A Runtime query failure (Sessions) exits 1 with a message — no shell to fall
+// back to as of M5c (the path is unreachable via OSRuntime, which swallows zellij
+// errors, but this pins the defensive branch).
+func TestRunLaunchSessionsErrorExits(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.sessionsErr = errors.New("zellij unreachable")
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "x"}), rt)
+	if err != nil || code != 1 {
+		t.Fatalf("code=%d err=%v, want a messaged exit 1", code, err)
+	}
+	if rt.launched != "" {
+		t.Fatal("a Sessions() error must not hand off")
 	}
 }
 

@@ -1,15 +1,12 @@
-// pair-go is the development dispatcher for the future primary Go CLI. Its
-// launch route is a compatibility handoff to the current shell launcher.
+// pair-go is the primary Go CLI. Its launch route drives the native launcher
+// in-process (bin/pair-shell retired, #99 M5c).
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
-	"syscall"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/changelogcmd"
@@ -38,16 +35,11 @@ type legacyRuntime interface {
 	PairHome() string
 	DefaultPairHome() string
 	Stat(path string) error
-	Environ() []string
 	EmbeddedAssetRoot() (string, error)
-	Exec(label string, path string, argv []string, env []string) int
-	// LaunchNative runs the in-process native launcher (#99 M4). handled=false
-	// means it declined (ErrFallbackToShell — the still-shell-owned in-pane
-	// compaction / continue+rename restart re-entries / leading-flag help), so
-	// the caller execs the real bin/pair-shell. stdout carries the read-only
-	// `list` subcommand's output (#99 M5a). Behind the seam so the default-flip
-	// is unit-testable without real zellij.
-	LaunchNative(args []string, root string, stdout, stderr io.Writer) (code int, handled bool)
+	// LaunchNative runs the in-process native launcher (#99 M5c — the sole
+	// launcher, bin/pair-shell retired) and returns its exit code. Behind the seam
+	// so the launch route is unit-testable without real zellij.
+	LaunchNative(args []string, root string, stdout, stderr io.Writer) int
 }
 
 func runWithLegacyRuntime(args []string, stdout, stderr io.Writer, rt legacyRuntime) int {
@@ -104,8 +96,8 @@ func runLegacyLaunch(label string, executable string, args []string, stdout, std
 		PairHome:        rt.PairHome(),
 		Executable:      executable,
 		DefaultPairHome: rt.DefaultPairHome(),
-		PairShellExists: func(root string) bool {
-			return rt.Stat(entrypoint.PairShellPath(root)) == nil
+		ValidRoot: func(root string) bool {
+			return rt.Stat(entrypoint.ValidRootMarker(root)) == nil
 		},
 	})
 	if err != nil {
@@ -116,8 +108,8 @@ func runLegacyLaunch(label string, executable string, args []string, stdout, std
 				Executable:      executable,
 				DefaultPairHome: rt.DefaultPairHome(),
 				EmbeddedRoot:    embeddedRoot,
-				PairShellExists: func(root string) bool {
-					return rt.Stat(entrypoint.PairShellPath(root)) == nil
+				ValidRoot: func(root string) bool {
+					return rt.Stat(entrypoint.ValidRootMarker(root)) == nil
 				},
 			})
 		}
@@ -129,21 +121,9 @@ func runLegacyLaunch(label string, executable string, args []string, stdout, std
 			return 1
 		}
 	}
-	// Native launcher is the DEFAULT (#99 M4 cutover): run create / attach /
-	// Alt+n & Shift+Alt+N restart / quit natively, in-process. PAIR_LEGACY_LAUNCH=1
-	// is the rollout kill-switch — it forces the shell for the whole launch
-	// (dropped in M5). A native decline (ErrFallbackToShell for the still-
-	// shell-owned fzf pick, in-pane compaction, and continue/rename restart
-	// re-entries) falls through to the REAL bin/pair-shell below — which stays the
-	// fallback launcher, NOT a shim, so the fallback can't loop back into native.
-	if os.Getenv("PAIR_LEGACY_LAUNCH") == "" {
-		if code, handled := rt.LaunchNative(args, root.Root, stdout, stderr); handled {
-			return code
-		}
-	}
-
-	req := entrypoint.ResolveLegacyLaunch(root, args)
-	return rt.Exec(label, req.Path, req.Argv, withEnv(rt.Environ(), "PAIR_HOME", root.Root))
+	// The native launcher is the sole launcher (#99 M5c — bin/pair-shell retired).
+	// It handles every flow in-process and always returns a real exit code.
+	return rt.LaunchNative(args, root.Root, stdout, stderr)
 }
 
 type osLegacyRuntime struct{}
@@ -172,10 +152,6 @@ func (osLegacyRuntime) Stat(path string) error {
 	return nil
 }
 
-func (osLegacyRuntime) Environ() []string {
-	return os.Environ()
-}
-
 func (osLegacyRuntime) EmbeddedAssetRoot() (string, error) {
 	dataDir := runtimeDataDir(os.Getenv("PAIR_DATA_DIR"), os.Getenv("HOME"), os.Getenv("XDG_DATA_HOME"))
 	res, err := runtimebundle.Extract(runtimebundle.StoreInput{
@@ -197,22 +173,11 @@ func runtimeDataDir(pairDataDir, home, xdgDataHome string) string {
 	return launcher.ResolveDataDir(home, xdgDataHome)
 }
 
-func (osLegacyRuntime) Exec(label string, path string, argv []string, env []string) int {
-	if err := syscall.Exec(path, argv, env); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "%s: exec %s failed: %v\n", label, path, err)
-		return 1
-	}
-	return 0
-}
-
-// LaunchNative drives the in-process native launcher; ErrFallbackToShell maps to
-// handled=false so the caller execs the real bin/pair-shell (#99 M4).
-func (osLegacyRuntime) LaunchNative(args []string, root string, stdout, stderr io.Writer) (int, bool) {
-	code, err := launcher.LaunchNative(args, root, stdout, stderr)
-	if errors.Is(err, launcher.ErrFallbackToShell) {
-		return 0, false
-	}
-	return code, true
+// LaunchNative drives the in-process native launcher — the sole launcher now
+// (#99 M5c); it always returns a real exit code (no shell to fall back to).
+func (osLegacyRuntime) LaunchNative(args []string, root string, stdout, stderr io.Writer) int {
+	code, _ := launcher.LaunchNative(args, root, stdout, stderr)
+	return code
 }
 
 func writeResult(res dispatcher.Result, stdout, stderr io.Writer) int {
@@ -223,24 +188,4 @@ func writeResult(res dispatcher.Result, stdout, stderr io.Writer) int {
 		_, _ = io.WriteString(stderr, res.Stderr)
 	}
 	return res.ExitCode
-}
-
-func withEnv(env []string, key, value string) []string {
-	prefix := key + "="
-	out := make([]string, 0, len(env)+1)
-	replaced := false
-	for _, entry := range env {
-		if strings.HasPrefix(entry, prefix) {
-			if !replaced {
-				out = append(out, prefix+value)
-				replaced = true
-			}
-			continue
-		}
-		out = append(out, entry)
-	}
-	if !replaced {
-		out = append(out, prefix+value)
-	}
-	return out
 }

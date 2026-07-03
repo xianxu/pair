@@ -115,10 +115,10 @@ func (r OSRuntime) ScanHistory(base string, cutoff time.Time) ([]HistoricalTag, 
 // paired with (shell 228-306). Agent resolution reuses InferAgent (agent-<tag>
 // then the config-filename agent) — broader than the shell's agent-<tag>-only
 // read on that axis (a cleared agent record still resolves from the saved config
-// rather than "?"), but it does NOT replicate the shell's pgrep backfill of
-// agent-<tag> from a live pair-wrap's env for pre-agent-tracking sessions (shell
-// 246-272), so such a legacy session shows "?" where the shell resolved it. That
-// backfill is a legacy-only path to reconcile when the shell retires (M5c).
+// rather than "?"), but it does NOT replicate the retired shell's pgrep backfill
+// of agent-<tag> from a live pair-wrap's env for pre-agent-tracking sessions, so
+// such a legacy session shows "?" for its agent. Accepted gap (ancient,
+// display-only) — a follow-up could re-add the pair-wrap env scan if it recurs.
 func (r OSRuntime) ListSessions() ([]ListRow, error) {
 	if _, err := exec.LookPath("zellij"); err != nil {
 		return nil, fmt.Errorf("zellij not found on PATH") // shell 231-234

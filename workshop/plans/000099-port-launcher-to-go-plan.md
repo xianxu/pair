@@ -352,3 +352,86 @@ files then relaunches), and a real-OSRuntime stub-zellij smoke driving `pair ren
 + an in-pane `pair continue` (honoring the seams) + a native continue/rename restart
 end-to-end. `go test ./... + -race` + full `make test` (the pair-continue /
 cmux-ownership contract tests MUST stay green — the M5b regression gate).
+
+### 2026-07-03 — M5c detailed design (post-survey, pre-implementation) — RETIREMENT
+
+M5c removes `bin/pair-shell` (2287 lines) entirely — the native launcher owns every
+flow after M5a/M5b, so nothing execs it (caller check: the only runtime caller is
+the `cmd/pair-go` fallback arm; everything else is a code comment or a bundled
+asset). Operator decision 2026-07-03: **remove outright** (not shim) — #94's point.
+Survey-grounded scope + the load-bearing ORDERING (each step must precede
+`git rm bin/pair-shell` or a launch/build/test breaks):
+
+**Scope decision — `bin/pair-restart.sh` stays (markers-in-process deferred).** The
+survey confirmed `pair-restart.sh`/`pair-quit.sh` are **independent of pair-shell**:
+nvim keybinds (`nvim/init.lua:3288`, not `config.kdl` directly) shell out to them to
+WRITE the restart/quit markers; `git rm bin/pair-shell` does not touch them. The
+launcher already READS those markers (`TakeRestartMarker`/`TakeQuitMarker`) and
+WRITES the compaction marker (`WriteRestartMarker`, M5b). Converting the keybind
+WRITE to in-process (a `pair restart [--new-session] [--rename-to X]` subcommand
+reusing `serializeRestartMarker`/`WriteRestartMarker`/`TouchQuitMarker`/
+`ExecKillSession` + repointing `nvim/init.lua:3288`) is a **separable follow-up**,
+NOT required to remove the shell launcher. M5c keeps `pair-restart.sh`; the issue
+Done-when's "markers in-process" is re-scoped to that follow-up (ARCH-PURPOSE:
+single Go **launcher** owner lands here; the keybind marker-writer is a separate
+consumer). See the issue `## Done when` revision.
+
+**Step 1 — asset-root validity marker (BEFORE removal).** `entrypoint.ResolveAssetRoot`
+today keys "valid pair home?" on `bin/pair-shell` existing (`PairShellExists` →
+`PairShellPath`). Switch the marker to **`zellij/layouts/main.kdl`** — a tracked
+source file AND bundled AND the file the launch actually reads
+(`createflow.go` builds `<root>/zellij/layouts/main.kdl`); NOT `bin/pair-wrap`
+(a built binary, gitignored, absent in a fresh checkout pre-`make build` — would
+reject an un-built root). Rename the callback (`PairShellExists`→`ValidRoot`),
+repoint the `main.go` stat, delete `AssetRoot.ShellPath` + `PairShellPath`, delete
+`launch.go` (`ResolveLegacyLaunch`/`LegacyLaunchRequest`) + `launch_test.go`, reword
+the not-found error off "pair-shell". Update `asset_root_test.go`.
+
+**Step 2 — bundle (BEFORE removal).** Remove `"bin/pair-shell"` from
+`runtimebundlegen/generate.go` `explicitAssetPaths` (KEEP `pair-restart.sh`,
+`pair-quit.sh`, `pair-help` — still nvim-invoked), regenerate
+(`make runtimebundle-generate` — `assets/` is gitignored build output, not a commit;
+`Generate` os.Stats every listed asset so a stale `bin/pair-shell` entry fails the
+gen). Fix `embed_test.go` (drop pair-shell from the required-present list) +
+`generate_test.go` (retarget the missing-asset case to `bin/pair-wrap`).
+
+**Step 3 — `cmd/pair-go` fallback arm + native `--help` + defensive errors.**
+`runLegacyLaunch` collapses to `return rt.LaunchNative(...)`: drop the
+`PAIR_LEGACY_LAUNCH` gate, the `Exec` fallback, `legacyRuntime.Exec` +
+`osLegacyRuntime.Exec` + `withEnv` (only fed the exec env; the native launcher
+exports `PAIR_HOME` itself). `LaunchNative` collapses to return `int` (drop the
+`handled` bool + the `ErrFallbackToShell` mapping); **delete the `ErrFallbackToShell`
+var** (`runtime.go:20`). In `LaunchNative`/`ParseArgs`: **`--help`/`-h` → native help
+to stdout, exit 0** (new pure `UsageText()` in a `help.go` — a CONCISE synopsis, NOT
+a transcription of the shell's ~110-line block; the full keybindings stay in
+`Alt+h`/`bin/pair-help`); other `UsageError` → stderr, exit 2; delete
+`shellOnlySeamActive` (`PAIR_TEST_CALL`/`PAIR_DEBUG_*` have no shell to reach — the
+tests using them are retired in Step 5). The defensive `ErrFallbackToShell` returns
+(`runcli.go` os.Getwd; `createflow.go` Sessions/ScanHistory/DecideLaunch/residual-pick)
+→ real messaged error exits (code 1). Rewrite `main_test.go` (the exec-to-pair-shell,
+kill-switch, decline tests) + `args_test.go` leading-flag test (now native help).
+
+**Step 4 — retire the shell contract tests (WITH `shellOnlySeamActive` deletion).**
+DELETE `tests/pair-continue-test.sh` + `tests/cmux-ownership-test.sh` (they drive
+`bin/pair`→pair-shell via `PAIR_TEST_CALL`/`PAIR_DEBUG_ARGS`; every shell fn they
+pin has a tested Go equivalent — `parseContinue`, `compactionDecision`,
+`ParkScrollback`, `planRestart`, `SessionBlocksReuse`, `resolveConfigPath`,
+`AgentSessionExists`, `CmuxRename`). EDIT `tests/pair-go-install-layout-test.sh` +
+`tests/pair-embedded-runtime-test.sh`: drop the `test -x …/bin/pair-shell` checks,
+retarget the `pair --help`→`pair —` assertions to the native `UsageText`. Remove
+`test-cmux-ownership` + `test-continue` from `Makefile.local` (target blocks + the
+aggregate `test:` line). Delete the `runcli_test.go` seam test.
+
+**Step 5 — remove.** `git rm bin/pair-shell`; remove `.gitignore`'s `!bin/pair-shell`
+negation; refresh the stale `cmd/pair-session-watch/main.go` comment + README/atlas.
+Then **`sdlc close --issue 99`** (not milestone-close — closes the whole issue,
+unblocking #93/#94). The boundary review runs the shadow-sweep: **NO reachable
+`ErrFallbackToShell` / exec-of-pair-shell remains** (grep asserts it; the var is
+deleted so a residual reference won't compile).
+
+**Verification.** `go build ./...` + `go test ./...` + `-race` + `go vet` green;
+`make runtimebundle-generate` clean; **full `make test`** (minus the retired targets)
+green with the sandbox OFF (ps → InZellijPane); a real-OSRuntime smoke: `pair --help`
+prints the native usage (exit 0), and a from-scratch asset-root resolution works with
+NO `bin/pair-shell` present (the main.kdl marker). Grep proof: no `bin/pair-shell`
+runtime reference + no `ErrFallbackToShell` remains in `cmd/`.

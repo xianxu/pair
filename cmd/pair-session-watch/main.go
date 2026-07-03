@@ -1,7 +1,7 @@
 // pair-session-watch — async codex/agy session-id discovery. Thin shim over
 // sessionwatch.RunCLI; the logic lives in cmd/internal/sessionwatch (shared
-// with the `pair session-watch` dispatcher route). Legacy
-// bin/pair-session-watch.sh remains a compatibility shim for bin/pair-shell.
+// with the `pair session-watch` dispatcher route). bin/pair-session-watch.sh is
+// the by-path re-exec shim the launcher spawns.
 package main
 
 import (
