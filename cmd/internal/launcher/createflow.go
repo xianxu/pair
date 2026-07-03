@@ -9,17 +9,16 @@ import (
 )
 
 // RunLaunch is the native launcher's in-process driver (#99 M2 create + M3
-// attach/restart/quit): a thin loop over the pure deciders (DecideLaunch +
-// createlogic.go + M1's agentargs) that maps each shell orchestration step to a
-// Runtime effect. Each iteration runs one create OR attach handoff (blocking
-// fork+wait, so control returns here), runs the Alt+x quit cleanup, then — if a
-// restart marker is present — re-decides under the marker's tag/agent, replacing
-// the shell's `exec $0`. Any error other than ErrFallbackToShell is handled:
-// user-facing messages are already on the writer and the int is the exit code.
-//
-// It falls back to bin/pair-shell (ErrFallbackToShell) for the surfaces M3
-// doesn't own: an in-pane launch, the fzf session picker (ActionPick), and the
-// rename/continue restart re-entries (M5).
+// attach/restart/quit + M5b compaction/pick/rename/continue): a thin loop over the
+// pure deciders (DecideLaunch + createlogic.go + M1's agentargs) that maps each
+// shell orchestration step to a Runtime effect. Each iteration runs one create OR
+// attach handoff (blocking fork+wait, so control returns here), runs the Alt+x
+// quit cleanup, then — if a restart marker is present — re-decides under the
+// marker's tag/agent (applying any rename_to move + continue re-seed), replacing
+// the shell's `exec $0`. As of M5b no launch path returns ErrFallbackToShell — an
+// in-pane launch compacts or is rejected natively, and the pick/rename/continue
+// re-entries are native; user-facing messages are on the writer, the int is the
+// exit code.
 func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 	env := normalizeEnv(opts.Env)
 

@@ -9,13 +9,12 @@ import (
 
 // LaunchNative is the process-level entry the cmd/pair-go launch gate calls
 // (#99 M2; the DEFAULT entry as of M4): it parses launchArgs, resolves the launch
-// Env from the OS, and drives RunLaunch (or the read-only `list` subcommand)
-// against the real OSRuntime. It returns ErrFallbackToShell for anything the
-// native launcher doesn't own yet — a still-shell verb (`continue`/`rename`), a
-// leading flag (`--help`/`-h`, shell-owned), an in-pane launch (compaction), or a
-// rename/continue restart re-entry — so the caller defers to bin/pair-shell. Any
-// other return is handled: the int is the exit code and user-facing messages are
-// already on stdout/stderr.
+// Env from the OS, and drives RunLaunch (or the read-only `list`/`ls`, the
+// `rename`/`continue` subcommands, and in-session compaction — all native as of
+// M5b) against the real OSRuntime. It returns ErrFallbackToShell only for what the
+// shell still owns until M5c: a leading flag (`--help`/`-h`) and the shell-only
+// test/debug seams (`shellOnlySeamActive`). Any other return is handled: the int
+// is the exit code and user-facing messages are already on stdout/stderr.
 func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer) (int, error) {
 	args, err := ParseArgs(launchArgs)
 	if err != nil {
@@ -92,7 +91,7 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 		}
 		docPath, docAgent, ok := rt.ResolveContinuationDoc(slug)
 		if !ok {
-			_, _ = io.WriteString(stderr, "pair: no continuation matching '"+slug+"'\n")
+			_, _ = io.WriteString(stderr, "pair: no continuation matching '"+slug+"' in "+continuationDirPath()+"\n")
 			return 1, nil
 		}
 		opts.ContinueDoc = docPath

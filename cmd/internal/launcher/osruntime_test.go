@@ -3,8 +3,71 @@ package launcher
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+// ResolveContinuationDoc / ScanContinuations do real glob+read IO the fake can't
+// exercise. Critically, "newest doc wins" is `matches[len-1]` after sort — if it
+// were `matches[0]` every fake-driven test still passes but the wrong doc seeds
+// the draft, so pin it against real files in a non-git temp cwd (git rev-parse
+// fails there → continuationDirPath falls back to cwd) (#99 M5b review, Important).
+func TestOSRuntimeResolveContinuation(t *testing.T) {
+	dir := t.TempDir()
+	orig, _ := os.Getwd()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(orig)
+	cdir := filepath.Join(dir, "workshop", "continuation")
+	if err := os.MkdirAll(cdir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, agent, next string) {
+		body := "---\nagent: " + agent + "\nissues: [#99]\n---\n## NEXT ACTION\n" + next + "\n"
+		if err := os.WriteFile(filepath.Join(cdir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("20260101T000000-demo.md", "claude", "the old one")
+	write("20260202T000000-demo.md", "codex", "the newest one") // newest by timestamp name
+	write("20260101T000000-other.md", "claude", "other work")
+
+	rt := NewOSRuntime(dir, "/pair")
+	path, agent, ok := rt.ResolveContinuationDoc("demo")
+	if !ok {
+		t.Fatal("demo should resolve")
+	}
+	if filepath.Base(path) != "20260202T000000-demo.md" {
+		t.Fatalf("newest-wins failed (got %s) — matches[0] would pick the 2026-01-01 doc", filepath.Base(path))
+	}
+	if agent != "codex" {
+		t.Fatalf("agent = %q, want codex (from the newest doc)", agent)
+	}
+	if _, _, ok := rt.ResolveContinuationDoc("missing"); ok {
+		t.Fatal("a missing slug must not resolve")
+	}
+
+	rows, gotDir := rt.ScanContinuations()
+	if !strings.HasSuffix(gotDir, filepath.Join("workshop", "continuation")) {
+		t.Fatalf("scan dir = %q", gotDir)
+	}
+	if len(rows) != 3 { // two demo docs + one other
+		t.Fatalf("rows = %d (%+v), want 3", len(rows), rows)
+	}
+	var demoRows int
+	for _, r := range rows {
+		if r.Slug == "demo" {
+			demoRows++
+			if r.Issues != "[#99]" {
+				t.Fatalf("issues = %q", r.Issues)
+			}
+		}
+	}
+	if demoRows != 2 {
+		t.Fatalf("demo rows = %d, want 2", demoRows)
+	}
+}
 
 // The OSRuntime lifecycle methods that do real filesystem IO (marker read-clear,
 // scrollback park, cmux ownership, pidfile reaping) exercised against temp dirs —

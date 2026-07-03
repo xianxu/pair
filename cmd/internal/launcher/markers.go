@@ -13,8 +13,8 @@ type RestartMarker struct {
 	Tag        string
 	Agent      string
 	NewSession bool   // Shift+Alt+N / compaction: fresh agent conversation
-	RenameTo   string // #22 inside-flow tag rename (M5-coupled → shell fallback)
-	Continue   string // #55 compaction slug (continue re-entry, M5-coupled → shell fallback)
+	RenameTo   string // #22 inside-flow tag rename (native re-entry as of M5b)
+	Continue   string // #55 compaction slug (native continue re-entry as of M5b)
 }
 
 // parseRestartMarker reads the `key=value` lines pair-restart.sh writes. Unknown

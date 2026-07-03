@@ -151,6 +151,33 @@ func TestRunRenameRestartCheckDoesNotMove(t *testing.T) {
 	}
 }
 
+// --restart-check is the in-session rename gesture's pre-kill validation — it
+// runs while pair-<old> is STILL live in zellij, so it must skip the live-old
+// gate (the whole reason the flag exists) while still refusing on a live new tag.
+func TestRunRenameRestartCheckSkipsLiveOld(t *testing.T) {
+	rt := renameFake(t)
+	rt.sessions = []Session{{Name: "pair-old", State: SessionDetached}} // old still tracked
+	var out, errBuf bytes.Buffer
+	code := runRename(rt, LaunchArgs{RenameOld: "old", RenameNew: "new", RenameCheckOnly: true}, "/data", &out, &errBuf)
+	if code != 0 {
+		t.Fatalf("--restart-check must skip the live-old gate; code=%d stderr=%s", code, errBuf.String())
+	}
+	if len(rt.renamed) != 0 {
+		t.Fatal("--restart-check must not move")
+	}
+	if !strings.Contains(out.String(), "would move") {
+		t.Fatalf("out=%q", out.String())
+	}
+	// But a live NEW tag still refuses even under --restart-check.
+	rt2 := renameFake(t)
+	rt2.sessions = []Session{{Name: "pair-new", State: SessionAttached}}
+	out.Reset()
+	errBuf.Reset()
+	if code := runRename(rt2, LaunchArgs{RenameOld: "old", RenameNew: "new", RenameCheckOnly: true}, "/data", &out, &errBuf); code != 1 {
+		t.Fatalf("live new tag must refuse even with --restart-check; code=%d", code)
+	}
+}
+
 func TestRunRenameSessionGates(t *testing.T) {
 	// old still tracked (detached) → refuse.
 	rt := renameFake(t)
