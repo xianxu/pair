@@ -14,7 +14,8 @@ export HOME="$TMP"
 export PAIR_KILL_CMD="true" # ExecKillSession runs `true <session>` instead of zellij
 export ZELLIJ_SESSION_NAME="pair-smoke"
 MARK="$TMP/.cache/pair"
-mkdir -p "$MARK" # WriteAtomic/Touch MkdirAll it too, but be explicit
+# NB: deliberately do NOT pre-create $MARK — the first `pair restart` must create
+# it via WriteAtomic/Touch's MkdirAll, so this smoke is load-bearing for that path.
 
 # (a) restart writes the restart marker (tag/new_session/rename_to) + touches quit.
 "$PAIR" restart --new-session --rename-to renamed

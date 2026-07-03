@@ -87,7 +87,7 @@ The survey (Log 2026-07-03) reframed the scope: only `pair-restart.sh`/`pair-qui
 carry real shell logic (no Go sibling) — the other five are live `.sh`→Go exec-shims
 whose callers must be repointed before removal. Two review boundaries:
 
-- [ ] M1 — port `pair-restart.sh` + `pair-quit.sh` into in-process `pair restart`
+- [x] M1 — port `pair-restart.sh` + `pair-quit.sh` into in-process `pair restart`
       `[--new-session] [--rename-to <tag>]` / `pair quit` subcommands (reusing the
       launcher's existing marker seam), repoint the two `nvim/init.lua` keybinds,
       and retire the two shims from the tree + bundle.
@@ -119,6 +119,13 @@ exec-shims remain pure deletion-after-repoint, unchanged from the original inten
 ## Log
 
 ### 2026-07-03
+- 2026-07-03: closed M1 — M1 ports pair-restart.sh/pair-quit.sh to in-process `pair restart [--new-session] [--rename-to <tag>]` / `pair quit`, reusing the launchers existing WriteRestartMarker/TouchQuitMarker/ExecKillSession/InferAgent seam (no new Runtime methods; runCompaction is the template). nvim keybinds repointed; both shims deleted from tree + explicitAssetPaths. Verified: full make test green (MAKE_EXIT=0) incl new tests/pair-restart-quit-test.sh PASS (real pair binary writes restart/quit markers to ~/.cache/pair under PAIR_KILL_CMD stub) + fake-Runtime unit tests + pure parse tests + embed_test excludes the 2 shims from the bundle.; review verdict: SHIP
+- **M1 review follow-ups (SHIP → SHIP).** No Critical/Important. Applied two Minor
+  cleanups: (1) dropped the redundant `mkdir -p` from the smoke so `pair restart`
+  now exercises the auto-`MkdirAll` cache-dir path (load-bearing); (2) documented
+  the deliberate `InferAgent`-broadening-vs-shell divergence with a code comment at
+  the call site. Cosmetic stderr-wording + the unported empty-arg skip were noted
+  as intentional, no change.
 - Claimed + planned (durable plan `workshop/plans/000094-drop-shell-runtime-assets-plan.md`).
 - **Survey reframed the scope.** `git ls-files bin/` + the manifest + caller grep
   showed the 11 bundled `.sh` split three ways: (1) `pair-restart.sh`/`pair-quit.sh`

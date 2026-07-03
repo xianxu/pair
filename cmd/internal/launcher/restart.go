@@ -19,7 +19,12 @@ func runRestart(rt Runtime, args LaunchArgs, session string, stderr io.Writer) i
 	}
 	tag := strings.TrimPrefix(session, "pair-")
 	rt.WriteRestartMarker(session, RestartMarker{
-		Tag:        tag,
+		Tag: tag,
+		// InferAgent reads agent-<tag> (always present when the keybind fires —
+		// cleanup removes it only AFTER the restart). Its config-<tag>-*.json
+		// fallback is broader than the shell's plain `cat agent-<tag>`, but it
+		// only ever fills an otherwise-empty agent=, never contradicts it —
+		// a deliberate, safe divergence from the byte-faithful shell.
 		Agent:      rt.InferAgent(tag),
 		NewSession: args.NewSession,
 		RenameTo:   args.RenameTo,
