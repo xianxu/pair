@@ -134,7 +134,7 @@ until M4 flips it, so pair stays usable throughout.
       shell without looping. (Shim conversion + shell retirement → M5.)
   M5 split into three boundaries (plan Revision 2026-07-02 — 3 distinct risk
   profiles + a load-bearing retirement; lettered tags match sdlc's `M\d+[a-z]?`):
-- [ ] M5a — read-only surfaces: port the fzf session **pick** (`ActionPick`) +
+- [x] M5a — read-only surfaces: port the fzf session **pick** (`ActionPick`) +
       `list`/`ls`. Enrich the snapshot (`HistoricalTag.MTime` — already computed in
       `Scan`; a queue-count source) so the pick-row build stays pure (ARCH-PURE);
       reuse M2's `UIOps.PickFromList` (ARCH-DRY). `ParseArgs` gains `list`/`ls`.
@@ -155,6 +155,8 @@ until M4 flips it, so pair stays usable throughout.
 
 ## Log
 
+
+- 2026-07-03: closed M5a — M5a: native fzf session pick + list/ls off bin/pair-shell; go test ./... + -race + go vet + full make test green; real-OSRuntime stub-zellij smoke (pair list / bare pair fzf pick->native attach / pick-abort->exit0) PASS; PAIR_TEST_CALL regression (native pick blocked on fzf /dev/tty when a bare `pair` ran under it — shell-only helper dispatcher; now declines in LaunchNative) fixed + pinned. Measured actual: 9.67h issue-cumulative (window 26585426→HEAD); M5a increment ≈2.46h over M4's 7.21h — includes the M5→M5a/b/c split design + the regression diagnosis (a `tail`-buffered make test looked hung; the real hang was the fzf /dev/tty block). --no-judge because the review ran manually via `sdlc judge milestone-review --base 734b5ef` (ariadne#162 window-bug workaround); the REAL verdict FIX-THEN-SHIP→SHIP is in this commit's Review-Verdict trailer, NOT sdlc's not-run. Review FIX-THEN-SHIP: 2 Importants fixed (ARCH-DRY: consolidated the two list-clients parsers → parseClientCount; runList error→stderr) + 3 minors (comments + accepted no-fzf-fallback as fzf is a hard dep); review verdict: FIX-THEN-SHIP (Importants fixed → SHIP)
 ### 2026-07-02
 - **M5 split → M5a/M5b/M5c (at start-plan).** The single M5 boundary bundled 3
   distinct risk profiles + a load-bearing retirement (≈3.2h) — the change-code
