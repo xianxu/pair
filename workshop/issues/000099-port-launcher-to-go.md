@@ -116,7 +116,7 @@ until M4 flips it, so pair stays usable throughout.
       behind `PAIR_NATIVE_LAUNCH`; shell stays default). `RunLaunch` stays a thin
       orchestrator over pure deciders — no business logic inline. Fake-`Runtime`
       tests for create / name-prompt / tag-restart config picker.
-- [x] M3 — attach / restart / quit orchestration: native attach, the restart-marker
+- [ ] M3 — attach / restart / quit orchestration: native attach, the restart-marker
       re-entry (in-process loop, not `exec $0`: Alt+n resume / Shift+Alt+N fresh),
       quit cleanup (`cleanup_quit_marker`), and nvim reap/sweep. Fake-`Runtime` loop
       tests for each + real-OSRuntime file-IO tests. **Scoped:** in-session
