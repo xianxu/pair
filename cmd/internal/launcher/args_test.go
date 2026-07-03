@@ -73,6 +73,26 @@ func TestParseLaunchArgsUnexpectedPositionalGuidesAgentArgs(t *testing.T) {
 	}
 }
 
+// A leading flag in the agent position (pair --help / -h) is not an agent — it
+// errors so LaunchNative falls back to the shell (which owns help/flags). #99 M4.
+func TestParseLaunchArgsLeadingFlagIsNotAnAgent(t *testing.T) {
+	for _, flag := range []string{"--help", "-h", "--version"} {
+		t.Run(flag, func(t *testing.T) {
+			_, err := ParseArgs([]string{flag})
+			if err == nil {
+				t.Fatalf("ParseArgs(%q) returned nil error; a leading flag must not be an agent", flag)
+			}
+			if !strings.Contains(err.Error(), "flag, not an agent") {
+				t.Fatalf("error = %q, want the leading-flag message", err)
+			}
+		})
+	}
+	// A flag AFTER the -- separator is a legitimate agent arg, not an error.
+	if _, err := ParseArgs([]string{"claude", "--", "--help"}); err != nil {
+		t.Fatalf("flag after -- should be an agent arg, got err %v", err)
+	}
+}
+
 func TestParseLaunchArgsUnsupportedLaunchSubcommandsAreExplicit(t *testing.T) {
 	for _, verb := range []string{"continue", "rename", "list"} {
 		t.Run(verb, func(t *testing.T) {

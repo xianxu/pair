@@ -123,13 +123,21 @@ until M4 flips it, so pair stays usable throughout.
       compaction, the `continue`/`rename` restart re-entries, and the fzf session
       **pick** deferred to M5 (they couple to M5's picker + `continue` parsing);
       all resolve to `ErrFallbackToShell` → shell until then.
-- [ ] M4 — in-process cutover: flip `cmd/pair-go` to run the native launcher
-      in-process under `PAIR_NATIVE_LAUNCH`; convert `bin/pair-shell` to a thin
-      shim → `pair-go launch`. Full e2e vs the shell, then flip the default.
-- [ ] M5 — subcommands + retirement: port `list`/`rename`/`continue`; retire the
-      shell fallback + `bin/pair-restart.sh` markers → in-process; drop the flag;
-      resolve `bin/pair-shell` shim-vs-remove via an explicit `git ls-files bin/` +
-      caller check.
+- [ ] M4 — flip the default (cutover): make the native launcher run by default
+      (native-first), gated by a `PAIR_LEGACY_LAUNCH=1` **kill-switch** (forces the
+      shell; dropped in M5), replacing the M2/M3 opt-in `PAIR_NATIVE_LAUNCH`. Move
+      the native launch behind the `cmd/pair-go` `legacyRuntime` seam so the flip is
+      unit-testable without real zellij. `bin/pair-shell` **stays the real fallback**
+      for the still-`ErrFallbackToShell` surfaces — do NOT shim it (would loop:
+      native → fallback → shim → native). Verify BOTH: create/attach/restart/quit
+      native by default AND pick/compaction/continue+rename still reach the real
+      shell without looping. (Shim conversion + shell retirement → M5.)
+- [ ] M5 — subcommands + retirement: port `list`/`rename`/`continue`, the fzf
+      session **pick**, in-session **compaction** detection, and the
+      **continue/rename restart re-entries** so NO flow needs the shell; only THEN
+      convert `bin/pair-shell` to a thin shim (or remove it — `git ls-files bin/` +
+      caller check), retire `bin/pair-restart.sh` markers → in-process, and drop
+      `PAIR_LEGACY_LAUNCH`.
 
 ## Log
 

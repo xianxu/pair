@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"io"
 	"os"
 	"reflect"
 	"strings"
@@ -208,6 +209,81 @@ func TestRunDirectPairExecsLegacyShellWithAllArgs(t *testing.T) {
 	}
 }
 
+// #99 M4: the native launcher is the default. When it HANDLES the launch, its
+// exit code is returned and bin/pair-shell is never exec'd.
+func TestLaunchRunsNativeByDefault(t *testing.T) {
+	t.Setenv("PAIR_LEGACY_LAUNCH", "") // ensure the kill-switch is off
+	rt := &fakeLegacyRuntime{
+		executable:          "/repo/bin/pair",
+		roots:               map[string]bool{"/repo": true},
+		launchNativeHandled: true,
+		launchNativeCode:    5,
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := runWithLegacyRuntime([]string{"claude"}, &stdout, &stderr, rt)
+
+	if code != 5 {
+		t.Fatalf("code = %d, want the native exit code 5", code)
+	}
+	if !rt.launchNativeCalled {
+		t.Fatalf("native launcher should run by default")
+	}
+	if !reflect.DeepEqual(rt.launchNativeArgs, []string{"claude"}) || rt.launchNativeRoot != "/repo" {
+		t.Fatalf("native called with args=%#v root=%q", rt.launchNativeArgs, rt.launchNativeRoot)
+	}
+	if rt.execPath != "" {
+		t.Fatalf("native-handled launch must not exec the shell; execPath=%q", rt.execPath)
+	}
+}
+
+// A native decline (ErrFallbackToShell → handled=false) still reaches the real
+// bin/pair-shell — the fallback path that pick / compaction / continue+rename
+// depend on (and must not loop, since the shell stays a real launcher, not a shim).
+func TestLaunchNativeDeclineFallsToShell(t *testing.T) {
+	t.Setenv("PAIR_LEGACY_LAUNCH", "")
+	rt := &fakeLegacyRuntime{
+		executable:          "/repo/bin/pair",
+		roots:               map[string]bool{"/repo": true},
+		launchNativeHandled: false, // decline → fall through to the shell
+		execCode:            7,
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := runWithLegacyRuntime([]string{"claude"}, &stdout, &stderr, rt)
+
+	if !rt.launchNativeCalled {
+		t.Fatalf("native launcher should be tried first")
+	}
+	if rt.execPath != "/repo/bin/pair-shell" {
+		t.Fatalf("a native decline must exec the real shell; execPath=%q", rt.execPath)
+	}
+	if code != 7 {
+		t.Fatalf("code = %d, want the shell exec code 7", code)
+	}
+}
+
+// The PAIR_LEGACY_LAUNCH kill-switch forces the whole launch to the shell —
+// the native launcher is never tried (rollout safety hatch).
+func TestLaunchLegacyKillSwitch(t *testing.T) {
+	t.Setenv("PAIR_LEGACY_LAUNCH", "1")
+	rt := &fakeLegacyRuntime{
+		executable: "/repo/bin/pair",
+		roots:      map[string]bool{"/repo": true},
+		execCode:   3,
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := runWithLegacyRuntime([]string{"claude"}, &stdout, &stderr, rt)
+
+	if rt.launchNativeCalled {
+		t.Fatalf("PAIR_LEGACY_LAUNCH=1 must not run the native launcher")
+	}
+	if rt.execPath != "/repo/bin/pair-shell" || code != 3 {
+		t.Fatalf("kill-switch should exec the shell; execPath=%q code=%d", rt.execPath, code)
+	}
+}
+
 func TestRunDirectPairFallsBackToDefaultPairHome(t *testing.T) {
 	rt := &fakeLegacyRuntime{
 		executable:      "/home/me/.local/bin/pair",
@@ -310,6 +386,13 @@ type fakeLegacyRuntime struct {
 	execLabel string
 	execArgv  []string
 	execEnv   []string
+
+	// native launcher seam (#99 M4). Default: declines (handled=false) → shell.
+	launchNativeHandled bool
+	launchNativeCode    int
+	launchNativeCalled  bool
+	launchNativeArgs    []string
+	launchNativeRoot    string
 }
 
 func (f *fakeLegacyRuntime) Executable() (string, error) {
@@ -358,6 +441,13 @@ func (f *fakeLegacyRuntime) Exec(label string, path string, argv []string, env [
 	f.execArgv = append([]string(nil), argv...)
 	f.execEnv = append([]string(nil), env...)
 	return f.execCode
+}
+
+func (f *fakeLegacyRuntime) LaunchNative(args []string, root string, stderr io.Writer) (int, bool) {
+	f.launchNativeCalled = true
+	f.launchNativeArgs = append([]string(nil), args...)
+	f.launchNativeRoot = root
+	return f.launchNativeCode, f.launchNativeHandled
 }
 
 func containsEnv(env []string, want string) bool {

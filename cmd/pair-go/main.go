@@ -41,6 +41,12 @@ type legacyRuntime interface {
 	Environ() []string
 	EmbeddedAssetRoot() (string, error)
 	Exec(label string, path string, argv []string, env []string) int
+	// LaunchNative runs the in-process native launcher (#99 M4). handled=false
+	// means it declined (ErrFallbackToShell — the still-shell-owned pick /
+	// in-pane compaction / continue+rename restart re-entries), so the caller
+	// execs the real bin/pair-shell. Behind the seam so the default-flip is
+	// unit-testable without real zellij.
+	LaunchNative(args []string, root string, stderr io.Writer) (code int, handled bool)
 }
 
 func runWithLegacyRuntime(args []string, stdout, stderr io.Writer, rt legacyRuntime) int {
@@ -122,13 +128,15 @@ func runLegacyLaunch(label string, executable string, args []string, stderr io.W
 			return 1
 		}
 	}
-	// Native launcher preview (#99 M2): under PAIR_NATIVE_LAUNCH, run the
-	// in-process create path. It falls back (ErrFallbackToShell) for anything it
-	// doesn't own yet — attach/pick, in-pane launches, unsupported verbs. Only
-	// that sentinel defers to the shell below; a handled result (incl. any
-	// future non-fallback error) is returned so side effects aren't re-run.
-	if os.Getenv("PAIR_NATIVE_LAUNCH") != "" {
-		if code, err := launcher.LaunchNative(args, root.Root, stderr); !errors.Is(err, launcher.ErrFallbackToShell) {
+	// Native launcher is the DEFAULT (#99 M4 cutover): run create / attach /
+	// Alt+n & Shift+Alt+N restart / quit natively, in-process. PAIR_LEGACY_LAUNCH=1
+	// is the rollout kill-switch — it forces the shell for the whole launch
+	// (dropped in M5). A native decline (ErrFallbackToShell for the still-
+	// shell-owned fzf pick, in-pane compaction, and continue/rename restart
+	// re-entries) falls through to the REAL bin/pair-shell below — which stays the
+	// fallback launcher, NOT a shim, so the fallback can't loop back into native.
+	if os.Getenv("PAIR_LEGACY_LAUNCH") == "" {
+		if code, handled := rt.LaunchNative(args, root.Root, stderr); handled {
 			return code
 		}
 	}
@@ -194,6 +202,16 @@ func (osLegacyRuntime) Exec(label string, path string, argv []string, env []stri
 		return 1
 	}
 	return 0
+}
+
+// LaunchNative drives the in-process native launcher; ErrFallbackToShell maps to
+// handled=false so the caller execs the real bin/pair-shell (#99 M4).
+func (osLegacyRuntime) LaunchNative(args []string, root string, stderr io.Writer) (int, bool) {
+	code, err := launcher.LaunchNative(args, root, stderr)
+	if errors.Is(err, launcher.ErrFallbackToShell) {
+		return 0, false
+	}
+	return code, true
 }
 
 func writeResult(res dispatcher.Result, stdout, stderr io.Writer) int {
