@@ -123,7 +123,7 @@ until M4 flips it, so pair stays usable throughout.
       compaction, the `continue`/`rename` restart re-entries, and the fzf session
       **pick** deferred to M5 (they couple to M5's picker + `continue` parsing);
       all resolve to `ErrFallbackToShell` → shell until then.
-- [ ] M4 — flip the default (cutover): make the native launcher run by default
+- [x] M4 — flip the default (cutover): make the native launcher run by default
       (native-first), gated by a `PAIR_LEGACY_LAUNCH=1` **kill-switch** (forces the
       shell; dropped in M5), replacing the M2/M3 opt-in `PAIR_NATIVE_LAUNCH`. Move
       the native launch behind the `cmd/pair-go` `legacyRuntime` seam so the flip is
@@ -142,6 +142,7 @@ until M4 flips it, so pair stays usable throughout.
 ## Log
 
 ### 2026-07-02
+- 2026-07-02: closed M4 — M4 cutover: native launcher is DEFAULT (PAIR_LEGACY_LAUNCH=1 kill-switch, NOT a shim). go test cmd/pair-go+launcher +race, full make test, vet, drift-check green. Fake-legacyRuntime: native-default skips shell / decline execs real bin/pair-shell (no loop) / kill-switch forces shell / --help declines. Real stub-zellij+stub-shell smoke: native attach by default w/ NO flag, kill-switch->shell, --help->shell exactly once PASS. Review FIX-THEN-SHIP->SHIP (README stale-doc fixed). ACCEPTED til M5: continue/rename restart degrade (native cleanup then shell fallback w/ original argv) mitigated by kill-switch. Measured actual: 7.21h issue-cumulative (window f44e0d9→HEAD); M4 increment ≈2.52h over M3's 4.69h — vs M4 est ~3.5h (design 1.0 + impl 2.5), ran UNDER (a gate flip is lower-risk than the lifecycle logic; the plan-quality FAILURE detour to correct the M4/M5 scope is included). --no-judge because the review ran manually (ariadne#162 window-bug workaround); the REAL verdict FIX-THEN-SHIP→SHIP is in this commit's Review-Verdict trailer, NOT sdlc's not-run; review verdict: FIX-THEN-SHIP (Important fixed → SHIP)
 - 2026-07-02: closed M3 — M3 attach + quit-cleanup + in-process restart loop; go test ./cmd/internal/launcher +race + full make test + runtimebundle-drift-check green; real-OSRuntime stub-zellij smoke attach->cleanup->re-create (ATTACH->DELETE->CREATE, markers consumed) PASS; boundary review FIX-THEN-SHIP->SHIP (2 doc/verify Importants fixed). Measured actual: 4.69h issue-cumulative (window e30b739→HEAD); M3 increment ≈2.78h over M2's 1.91h cumulative — vs M3 est ~2.4h (design 0.6 + impl 1.8), ran modestly over, confirming the "M3 impl light" change-code flag within the 13–22h band. --actual 4.69 is sdlc's suggested issue-cumulative value (measured, not typed). --no-judge because the review ran manually via `sdlc judge milestone-review --base <merge-base>` (ariadne#162 window-bug workaround); the REAL verdict FIX-THEN-SHIP→SHIP is in this commit's Review-Verdict trailer, NOT sdlc's not-run placeholder; review verdict: FIX-THEN-SHIP (Importants fixed → SHIP)
 - **M3 implemented (attach + quit-cleanup + in-process restart loop).** New file
   `lifecycle.go` (`runAttach` — the shell attach branch; `runCleanup` — the ~130-line
