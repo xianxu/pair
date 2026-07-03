@@ -44,41 +44,33 @@ func parseRestartMarker(content string) RestartMarker {
 	return m
 }
 
-// restartPlan is the decision the in-process restart loop acts on: either a
-// native re-launch (Args) or a hand-off to the shell for the M5-coupled
-// rename/continue re-entries.
+// restartPlan is the decision the in-process restart loop acts on: the next
+// launch (Args), whether to drop the saved config first, and — for a #55
+// compaction re-entry — the continuation slug to re-seed the draft from.
 type restartPlan struct {
-	Args          LaunchArgs
-	DropConfig    bool // Shift+Alt+N / compaction: drop the saved config first
-	ShellFallback bool // rename_to / continue: re-entry not yet native (M5)
+	Args         LaunchArgs
+	DropConfig   bool   // Shift+Alt+N / compaction: drop the saved config first
+	ContinueSlug string // #55 compaction re-entry: re-seed the draft from this slug
 }
 
-// planRestart maps a restart marker + the current run's (tag, agent) + the saved
-// config into the next launch. Mirrors handle_restart_marker (shell 735-810):
-// the marker's tag/agent default to the current ones; Shift+Alt+N drops the
-// config and re-launches fresh; a plain Alt+n composes the canonical resume
-// binding onto the saved args (codex's `resume` subcommand leads via
-// composeResumeArgs). rename_to / continue re-entries fall back to the shell.
-func planRestart(m RestartMarker, curTag, curAgent string, saved savedConfig) restartPlan {
-	rTag := m.Tag
-	if rTag == "" {
-		rTag = curTag
-	}
-	rAgent := m.Agent
-	if rAgent == "" {
-		rAgent = curAgent
-	}
-	if m.RenameTo != "" || m.Continue != "" {
-		return restartPlan{ShellFallback: true}
-	}
-	base := LaunchArgs{Agent: rAgent, ForcedTag: rTag}
+// planRestart maps a restart marker + the RESOLVED (tag, agent) + saved config
+// into the next launch (#99 M5b makes rename/continue native). The caller has
+// already applied the marker's tag/agent preference AND any rename_to move before
+// calling this, so tag/agent here are final. Mirrors handle_restart_marker (shell
+// 762-810): Shift+Alt+N / compaction drop the config and re-launch fresh; a plain
+// Alt+n composes the canonical resume binding onto the saved args (codex's
+// `resume` subcommand leads via composeResumeArgs).
+func planRestart(m RestartMarker, tag, agent string, saved savedConfig) restartPlan {
+	base := LaunchArgs{Agent: agent, ForcedTag: tag}
 	if m.NewSession {
 		// Fresh conversation: keep the saved args, drop the config so the create
-		// path mints a new session id rather than resuming the prior one.
+		// path mints a new session id rather than resuming the prior one. A
+		// Continue slug only ever rides new_session (shell 1055-1056), so re-seed
+		// here (the loop resolves the slug → draft).
 		base.AgentArgs = append([]string(nil), saved.Args...)
-		return restartPlan{Args: base, DropConfig: true}
+		return restartPlan{Args: base, DropConfig: true, ContinueSlug: m.Continue}
 	}
 	// Default Alt+n: resume the prior conversation via the saved id.
-	base.AgentArgs = composeResumeArgs(rAgent, saved.Args, saved.SessionID)
+	base.AgentArgs = composeResumeArgs(agent, saved.Args, saved.SessionID)
 	return restartPlan{Args: base}
 }

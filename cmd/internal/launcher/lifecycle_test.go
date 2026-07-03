@@ -1,7 +1,6 @@
 package launcher
 
 import (
-	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -185,33 +184,54 @@ func TestRunLaunchRestartLoopNewSession(t *testing.T) {
 	}
 }
 
-// A rename/continue restart re-entry is M5-coupled → the loop hands back to the
-// shell (ErrFallbackToShell) after running the quit cleanup once.
-func TestRunLaunchRestartLoopShellFallback(t *testing.T) {
-	for _, tc := range []struct {
-		name   string
-		marker RestartMarker
-	}{
-		{"rename", RestartMarker{Tag: "work", Agent: "claude", RenameTo: "renamed"}},
-		{"continue", RestartMarker{Tag: "work", Agent: "claude", NewSession: true, Continue: "slug-1"}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			rt := newFakeRuntime()
-			rt.uuids = []string{"MINT"}
-			rt.quitMarkers["pair-work"] = true
-			rt.restartMarkers["pair-work"] = tc.marker
-			_, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "work"}), rt)
-			if !errors.Is(err, ErrFallbackToShell) {
-				t.Fatalf("%s re-entry should fall back to shell, got %v", tc.name, err)
-			}
-			if rt.launchCount != 1 {
-				t.Fatalf("only the first handoff should run natively, got %d", rt.launchCount)
-			}
-			// Cleanup still ran once before handing back.
-			if len(rt.deleted) != 1 {
-				t.Fatalf("quit cleanup should run before fallback: deleted=%v", rt.deleted)
-			}
-		})
+// A rename_to restart re-entry (M5b): after the quit cleanup, the loop moves the
+// tag-scoped sidecars old→new, then re-launches natively under the NEW tag with
+// args derived from the (renamed) saved config — no shell fallback.
+func TestRunLaunchRenameReentry(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.uuids = []string{"MINT"}
+	rt.quitMarkers["pair-work"] = true
+	rt.restartMarkers["pair-work"] = RestartMarker{Tag: "work", Agent: "claude", RenameTo: "renamed"}
+	rt.files["/data"] = ""                       // data dir exists (rename gate)
+	rt.files["/data/draft-work.md"] = "the work" // a sidecar to move
+
+	opts := baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "work"})
+	opts.Env.DataDir = "/data"
+	_, err := run(t, opts, rt)
+	if err != nil {
+		t.Fatalf("rename re-entry should be native, got %v", err)
+	}
+	if rt.launchCount != 2 {
+		t.Fatalf("expected two handoffs (work, then renamed), got %d", rt.launchCount)
+	}
+	if rt.launched != "pair-renamed" {
+		t.Fatalf("relaunch tag = %q, want pair-renamed", rt.launched)
+	}
+	if _, ok := rt.files["/data/draft-renamed.md"]; !ok {
+		t.Fatalf("sidecar not renamed; files=%v", rt.files)
+	}
+}
+
+// A continue (#55 compaction) restart re-entry: drop the config, re-launch fresh
+// under the same tag, and re-seed the draft from the continuation slug.
+func TestRunLaunchContinueReentry(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.uuids = []string{"MINT"}
+	rt.quitMarkers["pair-work"] = true
+	rt.restartMarkers["pair-work"] = RestartMarker{Tag: "work", Agent: "claude", NewSession: true, Continue: "demo"}
+	rt.continuationDocs = map[string][2]string{"demo": {"/repo/workshop/continuation/20260101-demo.md", "claude"}}
+
+	opts := baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "work"})
+	opts.Env.DataDir = "/data"
+	_, err := run(t, opts, rt)
+	if err != nil {
+		t.Fatalf("continue re-entry should be native, got %v", err)
+	}
+	if rt.launchCount != 2 || rt.launched != "pair-work" {
+		t.Fatalf("relaunch = %d handoffs, tag %q (want 2, pair-work)", rt.launchCount, rt.launched)
+	}
+	if draft := rt.files["/data/draft-work.md"]; !strings.Contains(draft, "20260101-demo.md") {
+		t.Fatalf("draft not re-seeded from the continuation: %q", draft)
 	}
 }
 

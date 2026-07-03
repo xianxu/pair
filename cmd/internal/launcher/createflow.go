@@ -63,16 +63,36 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 		}
 		rTag := firstNonEmpty(m.Tag, step.tag)
 		rAgent := firstNonEmpty(m.Agent, step.agent)
-		configPath := resolveConfigPath(rt, env.DataDir, rTag, rAgent)
-		plan := planRestart(m, step.tag, step.agent, readSavedConfig(rt, configPath))
-		if plan.ShellFallback {
-			return step.code, ErrFallbackToShell // rename_to / continue re-entry (M5).
+
+		// rename_to re-entry (M5b, shell 743-750): move the tag-scoped sidecars
+		// old→new FIRST — the session was just killed, so the live-old gate passes
+		// — then the config read + relaunch below run under the new tag. A failure
+		// keeps the old tag (don't strand the user).
+		if m.RenameTo != "" {
+			if runRename(rt, LaunchArgs{RenameOld: rTag, RenameNew: m.RenameTo}, env.DataDir, io.Discard, stderr) == 0 {
+				rTag = m.RenameTo
+			} else {
+				fmt.Fprintf(stderr, "pair: rename to '%s' failed; continuing under '%s'.\n", m.RenameTo, rTag)
+			}
 		}
+
+		configPath := resolveConfigPath(rt, env.DataDir, rTag, rAgent)
+		plan := planRestart(m, rTag, rAgent, readSavedConfig(rt, configPath))
 		if plan.DropConfig {
-			rt.Remove(configPath) // Shift+Alt+N: drop the config so create mints fresh.
+			rt.Remove(configPath) // Shift+Alt+N / compaction: drop the config so create mints fresh.
 		}
 		opts.Args = plan.Args
-		opts.ContinueDoc = "" // a restart re-entry doesn't re-seed the draft.
+		// A #55 compaction re-entry re-seeds the draft from the continuation slug
+		// (M5b); every other restart re-entry leaves the draft as-is. The re-entry
+		// is the outer process (never in a pane), so ContinueSlug stays cleared —
+		// it can't re-trigger compaction, only the ContinueDoc draft re-seed.
+		opts.ContinueDoc = ""
+		opts.ContinueSlug = ""
+		if plan.ContinueSlug != "" {
+			if docPath, _, ok := rt.ResolveContinuationDoc(plan.ContinueSlug); ok {
+				opts.ContinueDoc = docPath
+			}
+		}
 	}
 }
 
