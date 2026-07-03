@@ -10,8 +10,6 @@ func TestEmbeddedManifestContainsLaunchAssets(t *testing.T) {
 	}
 	for _, want := range []string{
 		"bin/pair-help",
-		"bin/pair-title.sh",
-		"bin/pair-session-watch.sh",
 		"bin/lib/dev-rebuild.sh",
 		"bin/pair-wrap",
 		"bin/pair-slug",
@@ -19,7 +17,8 @@ func TestEmbeddedManifestContainsLaunchAssets(t *testing.T) {
 		"bin/pair-scrollback-render",
 		"bin/pair-changelog",
 		"bin/pair-continuation",
-		"bin/pair-session-watch",
+		"bin/pair-session-watch", // Go binary (the .sh shim retired #94 M2)
+		"bin/pair-title",         // Go binary (the .sh shim retired #94 M2)
 		"nvim/init.lua",
 		"nvim/review/init.lua",
 		"zellij/config.kdl",
@@ -37,6 +36,12 @@ func TestEmbeddedManifestContainsLaunchAssets(t *testing.T) {
 		"bin/pair-dev",
 		"bin/pair-quit.sh",    // #94 M1 — ported to `pair quit`, no longer bundled
 		"bin/pair-restart.sh", // #94 M1 — ported to `pair restart`, no longer bundled
+		// #94 M2 — the five exec-shims retired; their Go binaries are bundled instead.
+		"bin/copy-on-select.sh",
+		"bin/clipboard-to-pane.sh",
+		"bin/flash-pane.sh",
+		"bin/pair-title.sh",
+		"bin/pair-session-watch.sh",
 		"nvim/init_test.lua",
 	} {
 		if paths[excluded] {

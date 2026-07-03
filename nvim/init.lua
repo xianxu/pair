@@ -268,7 +268,7 @@ vim.opt.guicursor = 'n-v-c-sm:block,i-ci-ve:block-blinkon250-blinkoff250,r-cr-o:
 -- hollow box: visible at a glance, not attention-grabbing.
 --
 -- Why this matters: the copy-on-select pipeline
--- (bin/copy-on-select.sh + bin/clipboard-to-pane.sh) lands a
+-- (bin/copy-on-select + bin/clipboard-to-pane) lands a
 -- selection from any pane into the draft while the draft is
 -- unfocused. The user wants to see "this pane is the target" at a
 -- glance.
@@ -1362,8 +1362,8 @@ local function attach_image()
 end
 
 -- ---------------------------------------------------------------------------
--- PairPasteQuote: triggered from bin/clipboard-to-pane.sh after a copy_command
--- selection. The shell hands off the *raw* clipboard body via
+-- PairPasteQuote: triggered from bin/clipboard-to-pane after a copy_command
+-- selection. The hand-off delivers the *raw* clipboard body via
 -- $PAIR_DATA_DIR/quote-<tag>; we decide the formatting here based on where
 -- the cursor is.
 --
@@ -3665,7 +3665,7 @@ vim.api.nvim_create_autocmd('VimEnter', {
 })
 
 -- Insert-mode-only keymap that triggers PairPasteQuote. This is what
--- bin/clipboard-to-pane.sh sends (as a single Ctrl-_, ASCII 31) after a
+-- bin/clipboard-to-pane sends (as a single Ctrl-_, ASCII 31) after a
 -- mouse selection. Defining the keymap *only* in insert mode is the gate:
 -- if nvim is in normal mode (e.g. browsing prompt history), Ctrl-_ hits
 -- its default — a no-op-ish revins toggle — and PairPasteQuote simply

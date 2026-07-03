@@ -42,8 +42,14 @@ case "$*" in
     case "$layout" in */custom-data/runtime/*/pair-home/zellij/layouts/main.kdl) ;; *) printf 'bad layout path: %s\n' "$layout" >&2; exit 12 ;; esac
     root="${config%/zellij}"
     test -x "$root/bin/pair-wrap"
-    test -x "$root/bin/pair-session-watch.sh"
-    test -x "$root/bin/pair-title.sh"
+    # #94 M2: the launcher spawns the Go binaries directly; the .sh shims are gone.
+    test -x "$root/bin/pair-session-watch"
+    test -x "$root/bin/pair-title"
+    test ! -e "$root/bin/pair-session-watch.sh"
+    test ! -e "$root/bin/pair-title.sh"
+    test ! -e "$root/bin/copy-on-select.sh"
+    test ! -e "$root/bin/flash-pane.sh"
+    test ! -e "$root/bin/clipboard-to-pane.sh"
     test -f "$root/nvim/init.lua"
     printf '%s\n' "$root" > "${PAIR_SMOKE_ROOT:?}"
     exit 0

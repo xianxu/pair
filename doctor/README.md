@@ -39,7 +39,7 @@ The output maps to the signal registry in
 |---|---|---|
 | `overlay-detect/near-miss` (aspect 2) | harness renamed its picker; the `detail` holds the new wording | add that string to `codexPickerMarkers` / `agyPickerMarkers` (or the OSC body for claude) in `cmd/pair-wrap/main.go` |
 | `return-remap` all `bypass`, no `fired` (aspect 1) | remap stopped engaging | check `sendKeymapByAgent` / `overlayDetectorByAgent` for the agent |
-| `session-id/fail` or `near-miss` (aspect 3) | session file moved or id format changed | update `watch_dir`/`find_args`/`extract_id` in `bin/pair-session-watch.sh` |
+| `session-id/fail` or `near-miss` (aspect 3) | session file moved or id format changed | update the watch-dir / find / id-extract logic in `cmd/internal/sessionwatch` |
 | `slug-parse/near-miss` (aspect 4) | transcript schema changed | update the parser in `cmd/pair-slug/slug.go` |
 | `output-filter` *absent* for codex (aspect 5) | a sync-output sequence was renamed (no `fired` line where you'd expect one) | update `codexSyncOutputMarkers` in `cmd/pair-wrap/main.go` |
 | `prompt-search/near-miss` (aspect 7) | prompt glyph changed | update `PROMPT_PATTERN_BY_AGENT` in `nvim/scrollback.lua` |
