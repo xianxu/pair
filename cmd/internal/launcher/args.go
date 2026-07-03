@@ -23,6 +23,13 @@ type LaunchArgs struct {
 	// Command=="continue" is the bare list mode. Agent/AgentArgs above carry the
 	// optional agent port + `-- <forwarded>` args.
 	ContinueSlug string
+
+	// restart (#94 M1): `pair restart [--new-session] [--rename-to <tag>]` — the
+	// nvim-keybind lifecycle writer ported from bin/pair-restart.sh. Both fields
+	// are written into the restart marker; RenameTo is the inside-flow tag rename
+	// (distinct from the `rename` command's RenameOld/RenameNew).
+	NewSession bool
+	RenameTo   string
 }
 
 // UsageError is an operator-facing parse error.
@@ -56,6 +63,10 @@ func ParseArgs(argv []string) (LaunchArgs, error) {
 		return parseRename(argv[1:]) // #99 M5b
 	case "continue":
 		return parseContinue(argv[1:]) // #99 M5b
+	case "restart":
+		return parseRestart(argv[1:]) // #94 M1
+	case "quit":
+		return LaunchArgs{Command: "quit"}, nil // #94 M1
 	case "resume":
 		if len(argv) < 2 {
 			return LaunchArgs{}, UsageError{Message: "pair-go launch: 'resume' requires a tag"}
@@ -125,6 +136,31 @@ func parseRename(args []string) (LaunchArgs, error) {
 		return LaunchArgs{}, UsageError{Message: fmt.Sprintf("pair rename: unexpected arg '%s'", rest[2])}
 	}
 	out.RenameOld, out.RenameNew = rest[0], rest[1]
+	return out, nil
+}
+
+// parseRestart parses `restart [--new-session] [--rename-to <tag>]` (#94 M1,
+// ported from bin/pair-restart.sh:29-56). Flags only; no positionals. The tag in
+// --rename-to stays raw — nvim validates it (`pair rename --restart-check`)
+// before ever invoking restart.
+func parseRestart(args []string) (LaunchArgs, error) {
+	out := LaunchArgs{Command: "restart"}
+	i := 0
+	for i < len(args) {
+		switch args[i] {
+		case "--new-session":
+			out.NewSession = true
+			i++
+		case "--rename-to":
+			if i+1 >= len(args) || args[i+1] == "" {
+				return LaunchArgs{}, UsageError{Message: "pair restart: --rename-to requires a value"}
+			}
+			out.RenameTo = args[i+1]
+			i += 2
+		default:
+			return LaunchArgs{}, UsageError{Message: fmt.Sprintf("pair restart: unknown arg %q", args[i])}
+		}
+	}
 	return out, nil
 }
 
