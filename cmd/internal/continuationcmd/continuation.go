@@ -74,11 +74,11 @@ func Assemble(frontmatter, body string) string {
 	return "---\n" + frontmatter + "---\n\n" + strings.TrimRight(body, "\n") + "\n"
 }
 
-// HasNextAction reports whether body has a '## NEXT ACTION' heading followed by
-// at least one non-blank content line (and not immediately another heading).
-// The writer's structural guard: continuation.md makes NEXT ACTION mandatory,
-// and a bare heading with no content is as useless as a missing one (#52).
-func HasNextAction(body string) bool {
+// firstNextActionLine finds the first non-blank content line under the '## NEXT
+// ACTION' heading. found=false if the heading is absent or its section is empty;
+// isHeading=true if that first non-blank line is itself a markdown heading (an
+// empty section). The single scan HasNextAction + NextActionPreview share.
+func firstNextActionLine(body string) (line string, isHeading, found bool) {
 	lines := strings.Split(body, "\n")
 	for i, ln := range lines {
 		if strings.TrimSpace(ln) != "## NEXT ACTION" {
@@ -89,11 +89,33 @@ func HasNextAction(body string) bool {
 			if t == "" {
 				continue // skip blank lines under the heading
 			}
-			return !isATXHeading(t) // a real heading => empty section
+			return t, isATXHeading(t), true
 		}
-		return false // heading was the last non-blank line
+		return "", false, false // heading was the last non-blank line
 	}
-	return false
+	return "", false, false
+}
+
+// HasNextAction reports whether body has a '## NEXT ACTION' heading followed by
+// at least one non-blank content line (and not immediately another heading).
+// The writer's structural guard: continuation.md makes NEXT ACTION mandatory,
+// and a bare heading with no content is as useless as a missing one (#52).
+func HasNextAction(body string) bool {
+	_, isHeading, found := firstNextActionLine(body)
+	return found && !isHeading
+}
+
+// NextActionPreview returns the first non-blank content line under the '## NEXT
+// ACTION' heading (or "" if absent/empty/a nested heading) — the one-line summary
+// the `pair continue` bare list shows per doc (#99 M5b). Shares HasNextAction's
+// scan (firstNextActionLine) so the "where NEXT ACTION content lives" rule has one
+// source (ARCH-DRY).
+func NextActionPreview(body string) string {
+	line, isHeading, found := firstNextActionLine(body)
+	if !found || isHeading {
+		return ""
+	}
+	return line
 }
 
 // isATXHeading reports whether a trimmed line is a markdown ATX heading: one or

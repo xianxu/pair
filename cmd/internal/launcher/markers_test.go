@@ -21,9 +21,11 @@ func TestParseRestartMarker(t *testing.T) {
 func TestPlanRestart(t *testing.T) {
 	saved := savedConfig{Agent: "claude", Args: []string{"--flag"}, SessionID: "SID-1"}
 
-	// Default Alt+n: resume the saved session onto the saved args.
-	p := planRestart(RestartMarker{Tag: "work", Agent: "claude"}, "cur", "curagent", saved)
-	if p.ShellFallback || p.DropConfig {
+	// The caller (the loop) resolves the marker's tag/agent + any rename before
+	// calling, so planRestart takes the FINAL tag/agent. Default Alt+n: resume the
+	// saved session onto the saved args.
+	p := planRestart(RestartMarker{}, "work", "claude", saved)
+	if p.DropConfig || p.ContinueSlug != "" {
 		t.Fatalf("alt+n plan flags: %+v", p)
 	}
 	if p.Args.ForcedTag != "work" || p.Args.Agent != "claude" ||
@@ -31,26 +33,19 @@ func TestPlanRestart(t *testing.T) {
 		t.Fatalf("alt+n args = %+v", p.Args)
 	}
 
-	// Shift+Alt+N: fresh conversation → drop config, no resume token.
-	pn := planRestart(RestartMarker{Tag: "work", Agent: "claude", NewSession: true}, "cur", "curagent", saved)
-	if !pn.DropConfig || pn.ShellFallback {
+	// Shift+Alt+N: fresh conversation → drop config, no resume token, no slug.
+	pn := planRestart(RestartMarker{NewSession: true}, "work", "claude", saved)
+	if !pn.DropConfig || pn.ContinueSlug != "" {
 		t.Fatalf("new-session plan flags: %+v", pn)
 	}
 	if !reflect.DeepEqual(pn.Args.AgentArgs, []string{"--flag"}) {
 		t.Fatalf("new-session args = %v (must not carry a resume token)", pn.Args.AgentArgs)
 	}
 
-	// Marker tag/agent default to the current run's when unset.
-	pd := planRestart(RestartMarker{}, "curtag", "curagent", savedConfig{})
-	if pd.Args.ForcedTag != "curtag" || pd.Args.Agent != "curagent" {
-		t.Fatalf("defaulting = %+v", pd.Args)
-	}
-
-	// rename_to / continue → shell fallback (M5-coupled re-entries).
-	if !planRestart(RestartMarker{RenameTo: "x"}, "t", "a", saved).ShellFallback {
-		t.Fatal("rename_to should fall back")
-	}
-	if !planRestart(RestartMarker{Continue: "s"}, "t", "a", saved).ShellFallback {
-		t.Fatal("continue should fall back")
+	// #55 compaction re-entry: continue rides the new_session arm → drop config +
+	// carry the slug for the draft re-seed (never a standalone arm — shell 1055).
+	pc := planRestart(RestartMarker{NewSession: true, Continue: "demo-slug"}, "work", "claude", saved)
+	if !pc.DropConfig || pc.ContinueSlug != "demo-slug" {
+		t.Fatalf("continue re-entry = %+v", pc)
 	}
 }

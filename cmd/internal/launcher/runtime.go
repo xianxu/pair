@@ -52,6 +52,13 @@ type ListOps interface {
 	ListSessions() ([]ListRow, error)
 }
 
+// ContinuationOps resolves `pair continue` docs (#99 M5b) — the newest doc for a
+// slug (path + `agent:` frontmatter) and the bare-list scan (rows + the dir).
+type ContinuationOps interface {
+	ResolveContinuationDoc(slug string) (path, agent string, ok bool)
+	ScanContinuations() (rows []ContinuationRow, dir string)
+}
+
 // UIOps is the interactive surface — the name prompt, the config picker, and the
 // terminal-title / family-existing writes that go to the real tty.
 type UIOps interface {
@@ -123,6 +130,7 @@ type FSOps interface {
 	Remove(path string)
 	FileSize(path string) (int64, bool)
 	Touch(path string) error
+	Rename(src, dst string) error // #99 M5b: the rename subcommand's mv
 }
 
 // LifecycleOps is the post-handoff + attach effect surface (#99 M3): the blocking
@@ -147,6 +155,17 @@ type LifecycleOps interface {
 	// TakeRestartMarker read-clears the restart marker and parses it; ok=false
 	// when absent (the loop terminates), shell 717-733.
 	TakeRestartMarker(session string) (RestartMarker, bool)
+	// WriteRestartMarker writes ~/.cache/pair/restart-<session> (serialized) —
+	// the in-session compaction write twin of TakeRestartMarker (#99 M5b, shell
+	// 1052-1057).
+	WriteRestartMarker(session string, m RestartMarker)
+	// TouchQuitMarker touches ~/.cache/pair/quit-<session> so the outer loop's
+	// runCleanup fires after the compaction kill (shell 1058).
+	TouchQuitMarker(session string)
+	// ExecKillSession execs `${PAIR_KILL_CMD:-zellij kill-session} <session>` —
+	// TERMINAL (replaces the process), so the compaction pane dies and the outer
+	// bin/pair regains the tty (shell 1060). PAIR_KILL_CMD overrides for tests.
+	ExecKillSession(session string)
 	// DeleteSession removes the zellij session record (delete-session --force)
 	// and SIGKILLs any lingering `zellij --server …/<session>` process, shell
 	// 1528-1534.
@@ -183,6 +202,7 @@ type Runtime interface {
 	ZellijOps
 	SnapshotOps
 	ListOps
+	ContinuationOps
 	UIOps
 	ProcOps
 	EnvOps
@@ -201,4 +221,13 @@ type LaunchOptions struct {
 	ContinueDoc          string // seed the draft to read this continuation (create-only)
 	CodexAltScreenOptOut bool   // PAIR_CODEX_ALT_SCREEN=1: leave codex in alt-screen
 	ParkPromptTimeout    int    // PAIR_PARK_PROMPT_TIMEOUT (default 5): the quit park-nudge [y/N] bound
+
+	// #55 in-session compaction (#99 M5b). ContinueSlug != "" marks a `continue`
+	// launch; the rest come from the pane env + the (test-only) force/fake seams.
+	ContinueSlug   string // the resolved continuation slug (restart marker `continue=`)
+	PairTag        string // PAIR_TAG (compaction tag-match + marker tag)
+	PairAgent      string // PAIR_AGENT (compaction marker agent)
+	ZellijSession  string // ZELLIJ_SESSION_NAME (compaction tag-match)
+	ForceInSession bool   // PAIR_FORCE_IN_SESSION: force compaction (bypasses both halves)
+	FakeInZellij   bool   // PAIR_FAKE_IN_ZELLIJ: fake the ancestry half (real tag-match runs)
 }

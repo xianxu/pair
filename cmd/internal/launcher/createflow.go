@@ -9,26 +9,34 @@ import (
 )
 
 // RunLaunch is the native launcher's in-process driver (#99 M2 create + M3
-// attach/restart/quit): a thin loop over the pure deciders (DecideLaunch +
-// createlogic.go + M1's agentargs) that maps each shell orchestration step to a
-// Runtime effect. Each iteration runs one create OR attach handoff (blocking
-// fork+wait, so control returns here), runs the Alt+x quit cleanup, then — if a
-// restart marker is present — re-decides under the marker's tag/agent, replacing
-// the shell's `exec $0`. Any error other than ErrFallbackToShell is handled:
-// user-facing messages are already on the writer and the int is the exit code.
-//
-// It falls back to bin/pair-shell (ErrFallbackToShell) for the surfaces M3
-// doesn't own: an in-pane launch, the fzf session picker (ActionPick), and the
-// rename/continue restart re-entries (M5).
+// attach/restart/quit + M5b compaction/pick/rename/continue): a thin loop over the
+// pure deciders (DecideLaunch + createlogic.go + M1's agentargs) that maps each
+// shell orchestration step to a Runtime effect. Each iteration runs one create OR
+// attach handoff (blocking fork+wait, so control returns here), runs the Alt+x
+// quit cleanup, then — if a restart marker is present — re-decides under the
+// marker's tag/agent (applying any rename_to move + continue re-seed), replacing
+// the shell's `exec $0`. As of M5b no launch path returns ErrFallbackToShell — an
+// in-pane launch compacts or is rejected natively, and the pick/rename/continue
+// re-entries are native; user-facing messages are on the writer, the int is the
+// exit code.
 func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 	env := normalizeEnv(opts.Env)
 
-	// Launches from inside an existing zellij pane are the "already inside
-	// zellij" error or the #55 in-session compaction — both shell-owned (M5).
-	// First-entry only: a restart re-launch is the same outer process, never in
-	// a pane.
+	// #55 in-session compaction (M5b): `pair continue <slug>` from inside the
+	// matching pane parks the scrollback (copy), drops a restart marker carrying
+	// the slug, and kills the session — the outer loop below then re-launches
+	// fresh, seeded from the slug. First entry only: a restart re-launch is the
+	// same outer process, never in a pane.
+	if opts.ContinueSlug != "" &&
+		compactionDecision(opts.ForceInSession, rt.InZellijPane() || opts.FakeInZellij, opts.PairTag, opts.ZellijSession) {
+		return runCompaction(opts, rt, stderr)
+	}
+	// Otherwise a launch from inside a pane can't proceed (a nested --session
+	// would break; the create path's prompt would block) — shell 1064-1067.
 	if rt.InZellijPane() {
-		return 0, ErrFallbackToShell
+		fmt.Fprintf(stderr, "pair: already running inside a zellij session.\n")
+		fmt.Fprintf(stderr, "      detach first (Alt+d) or run pair from a fresh terminal.\n")
+		return 1, nil
 	}
 
 	// Startup nvim hygiene (shell 1243): reap embeds whose pair-<tag> session is
@@ -54,16 +62,36 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 		}
 		rTag := firstNonEmpty(m.Tag, step.tag)
 		rAgent := firstNonEmpty(m.Agent, step.agent)
-		configPath := resolveConfigPath(rt, env.DataDir, rTag, rAgent)
-		plan := planRestart(m, step.tag, step.agent, readSavedConfig(rt, configPath))
-		if plan.ShellFallback {
-			return step.code, ErrFallbackToShell // rename_to / continue re-entry (M5).
+
+		// rename_to re-entry (M5b, shell 743-750): move the tag-scoped sidecars
+		// old→new FIRST — the session was just killed, so the live-old gate passes
+		// — then the config read + relaunch below run under the new tag. A failure
+		// keeps the old tag (don't strand the user).
+		if m.RenameTo != "" {
+			if runRename(rt, LaunchArgs{RenameOld: rTag, RenameNew: m.RenameTo}, env.DataDir, io.Discard, stderr) == 0 {
+				rTag = m.RenameTo
+			} else {
+				fmt.Fprintf(stderr, "pair: rename to '%s' failed; continuing under '%s'.\n", m.RenameTo, rTag)
+			}
 		}
+
+		configPath := resolveConfigPath(rt, env.DataDir, rTag, rAgent)
+		plan := planRestart(m, rTag, rAgent, readSavedConfig(rt, configPath))
 		if plan.DropConfig {
-			rt.Remove(configPath) // Shift+Alt+N: drop the config so create mints fresh.
+			rt.Remove(configPath) // Shift+Alt+N / compaction: drop the config so create mints fresh.
 		}
 		opts.Args = plan.Args
-		opts.ContinueDoc = "" // a restart re-entry doesn't re-seed the draft.
+		// A #55 compaction re-entry re-seeds the draft from the continuation slug
+		// (M5b); every other restart re-entry leaves the draft as-is. The re-entry
+		// is the outer process (never in a pane), so ContinueSlug stays cleared —
+		// it can't re-trigger compaction, only the ContinueDoc draft re-seed.
+		opts.ContinueDoc = ""
+		opts.ContinueSlug = ""
+		if plan.ContinueSlug != "" {
+			if docPath, _, ok := rt.ResolveContinuationDoc(plan.ContinueSlug); ok {
+				opts.ContinueDoc = docPath
+			}
+		}
 	}
 }
 

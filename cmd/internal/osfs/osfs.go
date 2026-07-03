@@ -54,6 +54,9 @@ func (FS) WriteAtomic(path, data string) error {
 
 func (FS) Remove(path string) { _ = os.Remove(path) }
 
+// Rename moves src to dst (os.Rename — same-filesystem move, the shell's `mv`).
+func (FS) Rename(src, dst string) error { return os.Rename(src, dst) }
+
 func (FS) FileSize(path string) (int64, bool) {
 	info, err := os.Stat(path)
 	if err != nil {
