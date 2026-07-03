@@ -616,3 +616,24 @@ scramble to re-touch the atlas into the narrow window — the requirement is met
 gate's window is wrong. Both variants point at one upstream fix: milestone-close
 should derive its gate/review windows from the milestone's first commit (or the
 prior `Mx` boundary), not a far-back base or HEAD itself.
+
+## A milestone that defers scope must narrow its own Plan bullet in the same close
+
+#99 M3's plan/issue bullet listed "in-session compaction" as M3 work, but the
+implementation deferred compaction + the continue/rename restart re-entries + the
+fzf pick to M5 (all → `ErrFallbackToShell`). The code was right and the deferral
+was architecturally sound, but the tracker still claimed undelivered scope — the
+M3 milestone-review flagged it Important (ARCH-PURPOSE / traceability). This is a
+**recurring** shape: M1 also front-loaded/deferred pieces from its bullet. A
+milestone-close that ticks `- [x] Mx` against a bullet the code doesn't deliver
+silently over-reports progress.
+
+**Rule.** When a milestone ships less (or different) than its Plan bullet
+literally says, narrow it *in the same close*: add a plan `## Revisions` entry
+naming what moved and to which milestone, edit the `- [ ] Mx` bullet's wording to
+the shipped surface, and only then tick it. The tracker must never assert scope
+the diff doesn't contain. Corollary (from the same review, I-2): don't cite an
+ephemeral/uncommitted artifact (a scratchpad smoke, a `/tmp` script) as "coverage"
+in committed code or comments — either commit the artifact or describe it honestly
+as a one-time boundary verification recorded in the issue Log. Caught in #99 M3
+milestone-review.
