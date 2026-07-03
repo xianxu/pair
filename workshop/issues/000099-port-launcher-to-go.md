@@ -116,7 +116,7 @@ until M4 flips it, so pair stays usable throughout.
       behind `PAIR_NATIVE_LAUNCH`; shell stays default). `RunLaunch` stays a thin
       orchestrator over pure deciders — no business logic inline. Fake-`Runtime`
       tests for create / name-prompt / tag-restart config picker.
-- [ ] M3 — attach / restart / quit orchestration: native attach, the restart-marker
+- [x] M3 — attach / restart / quit orchestration: native attach, the restart-marker
       re-entry (in-process loop, not `exec $0`: Alt+n resume / Shift+Alt+N fresh),
       quit cleanup (`cleanup_quit_marker`), and nvim reap/sweep. Fake-`Runtime` loop
       tests for each + real-OSRuntime file-IO tests. **Scoped:** in-session
@@ -134,6 +134,7 @@ until M4 flips it, so pair stays usable throughout.
 ## Log
 
 ### 2026-07-02
+- 2026-07-02: closed M3 — M3 attach + quit-cleanup + in-process restart loop; go test ./cmd/internal/launcher +race + full make test + runtimebundle-drift-check green; real-OSRuntime stub-zellij smoke attach->cleanup->re-create (ATTACH->DELETE->CREATE, markers consumed) PASS; boundary review FIX-THEN-SHIP->SHIP (2 doc/verify Importants fixed). Measured actual: 4.69h issue-cumulative (window e30b739→HEAD); M3 increment ≈2.78h over M2's 1.91h cumulative — vs M3 est ~2.4h (design 0.6 + impl 1.8), ran modestly over, confirming the "M3 impl light" change-code flag within the 13–22h band. --actual 4.69 is sdlc's suggested issue-cumulative value (measured, not typed). --no-judge because the review ran manually via `sdlc judge milestone-review --base <merge-base>` (ariadne#162 window-bug workaround); the REAL verdict FIX-THEN-SHIP→SHIP is in this commit's Review-Verdict trailer, NOT sdlc's not-run placeholder; review verdict: FIX-THEN-SHIP (Importants fixed → SHIP)
 - **M3 implemented (attach + quit-cleanup + in-process restart loop).** New file
   `lifecycle.go` (`runAttach` — the shell attach branch; `runCleanup` — the ~130-line
   `cleanup_quit_marker` port; pure `liveTagsForSweep`/`tagFromEmbedArgv`). `runtime.go`
