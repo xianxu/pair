@@ -10,7 +10,10 @@ import (
 // scrollback park, cmux ownership, pidfile reaping) exercised against temp dirs —
 // the process-level coverage the fake-Runtime loop tests can't give (#99 M3; the
 // M2 review's lesson: don't ship OSRuntime IO untested). The exec-only seams
-// (zellij attach/create/delete, ps sweep) are covered by scratchpad/native-smoke.sh.
+// (zellij attach/create/delete-session, the ps orphan sweep) are exercised by the
+// M3 boundary smoke against a stub zellij (attach → cleanup → in-process re-create)
+// — a one-time end-to-end verification recorded in the issue Log, not a committed
+// unit test (the real zellij interaction has no in-test home).
 
 func mkCacheDir(t *testing.T) (home, cacheDir string) {
 	t.Helper()

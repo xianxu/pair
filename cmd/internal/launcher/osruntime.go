@@ -472,6 +472,10 @@ func (OSRuntime) ConfirmParkNudge(session string, timeoutSecs int) bool {
 		fmt.Fprintln(tty)
 		return false
 	}
+	// The reader goroutine may outlive a timeout (a /dev/tty read isn't
+	// interruptible by Close), but the buffered channel keeps its send from
+	// blocking, and this seam only runs at quit — the process exits (or loops to
+	// the next handoff) right after, so the stray reader can't steal later input.
 	ansCh := make(chan string, 1)
 	go func() {
 		line, _ := bufio.NewReader(tty).ReadString('\n')
