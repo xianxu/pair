@@ -41,6 +41,7 @@ func LaunchNative(launchArgs []string, pairHome string, stderr io.Writer) (int, 
 		Env:                  env,
 		PairHome:             pairHome,
 		CodexAltScreenOptOut: os.Getenv("PAIR_CODEX_ALT_SCREEN") == "1",
+		ParkPromptTimeout:    parkPromptTimeout(),
 	}
 	return RunLaunch(opts, NewOSRuntime(dataDir, pairHome), stderr)
 }
@@ -52,4 +53,15 @@ func historyDays() int {
 		}
 	}
 	return 14
+}
+
+// parkPromptTimeout reads PAIR_PARK_PROMPT_TIMEOUT (default 5, invalid → 5); a
+// valid 0 is a legitimate "don't wait" (shell 1562-1563).
+func parkPromptTimeout() int {
+	if v := os.Getenv("PAIR_PARK_PROMPT_TIMEOUT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			return n
+		}
+	}
+	return 5
 }

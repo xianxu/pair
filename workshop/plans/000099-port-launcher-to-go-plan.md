@@ -152,3 +152,19 @@ detail; this file is now the record of truth.
   as a defensive extension. The review ran via `sdlc judge milestone-review --base
   <branch-base>` because the auto-window picked a wrong far-back base (6.77 MB diff
   → `fork/exec claude: argument list too long`); see the issue Log + lessons.
+
+### 2026-07-02 — M3 shipped surface (scope narrowed vs the M3 bullet)
+
+The M3 bullet above over-scoped by listing **in-session compaction** as M3 work.
+M3 shipped native **attach**, the in-process **restart loop** (Alt+n resume /
+Shift+Alt+N fresh, replacing `exec $0`), **quit cleanup** (`cleanup_quit_marker`
+— delete-session + nvim reap + gated park-nudge + sidecar removal + resume hint +
+poller kill + cmux reset), and **nvim reap/sweep**. Deferred to **M5** (they
+couple to M5's fzf picker + `continue` parsing): in-session compaction detection,
+the `continue`/`rename` restart re-entries, and the fzf session **pick**. The
+deferral is safe — in-pane launches, `ActionPick`, and `continue`/`rename` restart
+markers resolve to `ErrFallbackToShell` → `bin/pair-shell`, so no partial native
+path ships. `RestartMarker.RenameTo`/`Continue` + `restartPlan.ShellFallback` are
+already the seam M5 converts to native. Shell stays default until the M4 cutover.
+(M3 milestone-review FIX-THEN-SHIP; the two Importants were doc-accuracy — this
+Revision — and recording the exec-seam boundary smoke in the close evidence.)

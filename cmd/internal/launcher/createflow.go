@@ -8,51 +8,96 @@ import (
 	"time"
 )
 
-// RunLaunch is the native create-flow orchestrator (#99 M2): a thin driver over
-// the pure deciders (DecideLaunch + createlogic.go + M1's agentargs) that maps
-// each shell create-branch step to a Runtime effect. It owns ONLY the create
-// path — a decision that resolves to attach/pick (or a launch from inside an
-// existing zellij pane) returns ErrFallbackToShell so the cmd/pair-go gate defers
-// to bin/pair-shell until M3 lands those flows. Any other return is handled:
-// RunLaunch has already written user-facing messages to stderr, and the int is
-// the process exit code (the blocking zellij child's, or an abort/error code).
+// RunLaunch is the native launcher's in-process driver (#99 M2 create + M3
+// attach/restart/quit): a thin loop over the pure deciders (DecideLaunch +
+// createlogic.go + M1's agentargs) that maps each shell orchestration step to a
+// Runtime effect. Each iteration runs one create OR attach handoff (blocking
+// fork+wait, so control returns here), runs the Alt+x quit cleanup, then — if a
+// restart marker is present — re-decides under the marker's tag/agent, replacing
+// the shell's `exec $0`. Any error other than ErrFallbackToShell is handled:
+// user-facing messages are already on the writer and the int is the exit code.
 //
-// It stops at the blocking zellij handoff. The post-handoff cleanup_quit_marker
-// + restart-marker re-entry loop are M3 (LaunchSession is fork+wait precisely so
-// the Go launcher regains control to run them).
+// It falls back to bin/pair-shell (ErrFallbackToShell) for the surfaces M3
+// doesn't own: an in-pane launch, the fzf session picker (ActionPick), and the
+// rename/continue restart re-entries (M5).
 func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 	env := normalizeEnv(opts.Env)
-	agent := opts.Args.Agent
 
-	// Launches from inside an existing zellij pane are not fresh-terminal
-	// creates — they are either the "already inside zellij" error or the #55
-	// in-session compaction, both M3. Defer the whole in-pane surface to the
-	// shell for now.
+	// Launches from inside an existing zellij pane are the "already inside
+	// zellij" error or the #55 in-session compaction — both shell-owned (M5).
+	// First-entry only: a restart re-launch is the same outer process, never in
+	// a pane.
 	if rt.InZellijPane() {
 		return 0, ErrFallbackToShell
 	}
 
+	// Startup nvim hygiene (shell 1243): reap embeds whose pair-<tag> session is
+	// gone (an external kill / reboot leaves no quit marker). Once, up front — a
+	// clean restart below leaves nothing new to sweep.
+	if sessions, err := rt.Sessions(); err == nil {
+		rt.SweepOrphanNvim(liveTagsForSweep(sessions))
+	}
+
+	for {
+		step, err := runOnce(opts, env, rt, stderr)
+		if err != nil {
+			return step.code, err // ErrFallbackToShell (in-pane / pick / decision error)
+		}
+		if !step.handedOff {
+			return step.code, nil // aborted or errored before the blocking handoff
+		}
+		runCleanup(env, rt, step, opts.ParkPromptTimeout, stderr)
+
+		m, ok := rt.TakeRestartMarker(step.session)
+		if !ok {
+			return step.code, nil // no restart pending — done.
+		}
+		rTag := firstNonEmpty(m.Tag, step.tag)
+		rAgent := firstNonEmpty(m.Agent, step.agent)
+		configPath := resolveConfigPath(rt, env.DataDir, rTag, rAgent)
+		plan := planRestart(m, step.tag, step.agent, readSavedConfig(rt, configPath))
+		if plan.ShellFallback {
+			return step.code, ErrFallbackToShell // rename_to / continue re-entry (M5).
+		}
+		if plan.DropConfig {
+			rt.Remove(configPath) // Shift+Alt+N: drop the config so create mints fresh.
+		}
+		opts.Args = plan.Args
+		opts.ContinueDoc = "" // a restart re-entry doesn't re-seed the draft.
+	}
+}
+
+// launchStep is one iteration's outcome: the exit code, the session handed off
+// (so cleanup + the restart marker key off it), the resolved tag/agent (the
+// restart plan's current-run defaults), and whether the blocking handoff ran
+// (only then do cleanup + restart apply).
+type launchStep struct {
+	code      int
+	session   string
+	tag       string
+	agent     string
+	handedOff bool
+}
+
+// runOnce runs one decision → create-or-attach handoff. It returns
+// ErrFallbackToShell for the M3-unowned surfaces (pick); a handled abort/error
+// returns handedOff=false with the exit code already messaged.
+func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchStep, error) {
+	agent := opts.Args.Agent
 	base := DefaultTag(env.Cwd)
 	cutoff := env.Now.Add(-time.Duration(env.HistoryD) * 24 * time.Hour)
 	sessions, err := rt.Sessions()
 	if err != nil {
-		return 0, ErrFallbackToShell
+		return launchStep{}, ErrFallbackToShell
 	}
 	historical, err := rt.ScanHistory(base, cutoff)
 	if err != nil {
-		return 0, ErrFallbackToShell
+		return launchStep{}, ErrFallbackToShell
 	}
 	decision, err := DecideLaunch(opts.Args, SessionSnapshot{BaseTag: base, Sessions: sessions, Historical: historical})
 	if err != nil {
-		return 0, ErrFallbackToShell
+		return launchStep{}, ErrFallbackToShell
 	}
-	if decision.Action != ActionCreate {
-		// attach / pick — M3.
-		return 0, ErrFallbackToShell
-	}
-	// The shell also sweeps orphan nvim --embed processes here (sweep_orphan_nvim,
-	// shell 1243); that reaping is grouped with M3's reap_nvim_for_tag (both nvim
-	// concerns) and deferred — it's best-effort hygiene, not create-path-load-bearing.
 
 	// `pair resume <tag>` leaves the agent unset (the parse defers it): infer
 	// what the tag was last paired with from disk, defaulting to claude — so a
@@ -64,19 +109,38 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 		}
 	}
 
-	// Validate the agent here (deferred past the decision so attach paths, once
-	// native, still work when AGENT isn't a real binary — shell 1728).
+	switch decision.Action {
+	case ActionAttach:
+		code, err := runAttach(opts, env, rt, decision.Tag, agent)
+		if err != nil {
+			fmt.Fprintf(stderr, "pair: failed to attach session 'pair-%s': %v\n", decision.Tag, err)
+			return launchStep{code: 1}, nil
+		}
+		return launchStep{code: code, session: "pair-" + decision.Tag, tag: decision.Tag, agent: agent, handedOff: true}, nil
+	case ActionCreate:
+		return runCreate(opts, env, rt, decision, base, agent, stderr)
+	default: // ActionPick — the M5 fzf session picker.
+		return launchStep{}, ErrFallbackToShell
+	}
+}
+
+// runCreate ports the shell's create branch: prompt/validate the tag, run the
+// tag-restart config picker, compose the per-agent launch args, spawn the
+// sidecars, then hand off to the blocking zellij create.
+func runCreate(opts LaunchOptions, env Env, rt Runtime, decision LaunchDecision, base, agent string, stderr io.Writer) (launchStep, error) {
+	// Validate the agent here (create-only; attach re-uses an existing pane's
+	// agent, so shell 1728 defers this past the attach branch).
 	if !rt.CommandExists(agent) {
 		fmt.Fprintf(stderr, "pair: agent '%s' not found on PATH.\n", agent)
 		fmt.Fprintf(stderr, "      install it first, then re-run.\n")
-		return 1, nil
+		return launchStep{code: 1}, nil
 	}
 
 	chosenTag := decision.Tag
 	if decision.PromptName {
 		tag, code, ok := promptForTag(rt, decision.Tag, base, stderr)
 		if !ok {
-			return code, nil
+			return launchStep{code: code}, nil
 		}
 		chosenTag = tag
 	}
@@ -91,7 +155,7 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 	// offers to reuse its args / resume its session, unless an explicit resume
 	// token on argv already made the choice.
 	if code, ok := runConfigPicker(rt, configPath, agent, chosenTag, &agentArgs, env.Cwd, stderr); !ok {
-		return code, nil
+		return launchStep{code: code}, nil
 	}
 
 	// Env exports every child (watcher, poller, zellij + its panes) inherits.
@@ -163,14 +227,14 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 	if err := rt.ProbeSessionName(session); err != nil {
 		fmt.Fprintf(stderr, "pair: tag '%s' makes zellij's session name too long for this\n", chosenTag)
 		fmt.Fprintf(stderr, "      machine's socket path (%s). Pick a shorter tag.\n", session)
-		return 1, nil
+		return launchStep{code: 1}, nil
 	}
 
 	// Free the name (clear a stale EXITED resurrect record) and guard against a
 	// live session unexpectedly occupying it before the blocking handoff.
 	if rt.SessionBlocksReuse(session) {
 		fmt.Fprintf(stderr, "pair: session '%s' already exists.\n", session)
-		return 1, nil
+		return launchStep{code: 1}, nil
 	}
 
 	configDir := filepath.Join(opts.PairHome, "zellij")
@@ -178,10 +242,9 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 	code, err := rt.LaunchSession(session, configDir, layout)
 	if err != nil {
 		fmt.Fprintf(stderr, "pair: failed to launch zellij session '%s': %v\n", session, err)
-		return 1, nil
+		return launchStep{code: 1}, nil
 	}
-	// M3: cleanup_quit_marker + handle_restart_marker re-entry loop go here.
-	return code, nil
+	return launchStep{code: code, session: session, tag: chosenTag, agent: agent, handedOff: true}, nil
 }
 
 // promptForTag runs the editable name prompt, normalizing + collision-checking

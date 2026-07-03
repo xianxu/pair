@@ -3,6 +3,7 @@ package launcher
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -25,18 +26,36 @@ type fakeRuntime struct {
 	inferAgent     map[string]string // tag -> paired agent (for `resume <tag>`)
 	pickFunc       func(header string, options []string) string
 
+	// M3 lifecycle inputs
+	isTTY          bool
+	confirmPark    bool
+	parkOK         bool                     // ParkScrollback returns ("<base>", parkOK)
+	attachCode     int                      // AttachSession exit code
+	quitMarkers    map[string]bool          // session -> Alt+x quit marker (read-cleared)
+	restartMarkers map[string]RestartMarker // session -> restart marker (peek + take-once)
+	cmuxOwned      map[string]bool          // tag -> PairOwnsCmuxWorkspace
+
 	// recorded
-	env         map[string]string
-	launched    string // session name handed to LaunchSession
-	launchCode  int
-	watchers    []string // "agent|tag|cwd|args"
-	pollers     []string // "tag|agent"
-	cmux        []string // "tag|title"
-	ttyRecorded []string
-	titles      []string
-	removed     []string
-	family      []string
-	devRebuilt  bool
+	env           map[string]string
+	launched      string // last session name handed to LaunchSession
+	launchCode    int
+	launchCount   int      // number of create handoffs (restart-loop iterations)
+	watchers      []string // "agent|tag|cwd|args"
+	pollers       []string // "tag|agent"
+	cmux          []string // "tag|title"
+	ttyRecorded   []string
+	titles        []string
+	removed       []string
+	family        []string
+	devRebuilt    bool
+	attached      []string   // sessions handed to AttachSession
+	deleted       []string   // sessions handed to DeleteSession
+	reaped        []string   // tags handed to ReapNvim
+	swept         [][]string // liveTags per SweepOrphanNvim call
+	parkPrompts   []string   // sessions prompted via ConfirmParkNudge
+	parked        []string   // "tag|agent|move" per ParkScrollback
+	killedPollers []string   // tags handed to KillTitlePoller
+	cmuxCleared   int        // ClearCmuxOwner calls
 }
 
 func newFakeRuntime() *fakeRuntime {
@@ -48,6 +67,9 @@ func newFakeRuntime() *fakeRuntime {
 		inferAgent:     map[string]string{},
 		promptOK:       true,
 		env:            map[string]string{},
+		quitMarkers:    map[string]bool{},
+		restartMarkers: map[string]RestartMarker{},
+		cmuxOwned:      map[string]bool{},
 	}
 }
 
@@ -57,6 +79,7 @@ func (f *fakeRuntime) SessionBlocksReuse(session string) bool { return f.blocksR
 func (f *fakeRuntime) ProbeSessionName(session string) error  { return f.probeErr }
 func (f *fakeRuntime) LaunchSession(session, configDir, layout string) (int, error) {
 	f.launched = session
+	f.launchCount++
 	return f.launchCode, nil
 }
 
@@ -135,6 +158,52 @@ func (f *fakeRuntime) Touch(path string) error {
 	}
 	return nil
 }
+
+// LifecycleOps
+func (f *fakeRuntime) AttachSession(session, configDir string) (int, error) {
+	f.attached = append(f.attached, session)
+	return f.attachCode, nil
+}
+func (f *fakeRuntime) TakeQuitMarker(session string) bool {
+	if f.quitMarkers[session] {
+		delete(f.quitMarkers, session) // read-clear
+		return true
+	}
+	return false
+}
+func (f *fakeRuntime) RestartMarkerPresent(session string) bool {
+	_, ok := f.restartMarkers[session]
+	return ok
+}
+func (f *fakeRuntime) TakeRestartMarker(session string) (RestartMarker, bool) {
+	m, ok := f.restartMarkers[session]
+	if ok {
+		delete(f.restartMarkers, session) // read-clear (one-shot)
+	}
+	return m, ok
+}
+func (f *fakeRuntime) DeleteSession(session string) {
+	f.deleted = append(f.deleted, session)
+	delete(f.blocksReuse, session) // the name is free for a restart re-create
+}
+func (f *fakeRuntime) ReapNvim(tag string) { f.reaped = append(f.reaped, tag) }
+func (f *fakeRuntime) SweepOrphanNvim(liveTags []string) {
+	f.swept = append(f.swept, liveTags)
+}
+func (f *fakeRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
+	f.parked = append(f.parked, fmt.Sprintf("%s|%s|%t", tag, agent, move))
+	return "/data/parked-scrollback-" + tag + "-TS", f.parkOK
+}
+func (f *fakeRuntime) ConfirmParkNudge(session string, timeoutSecs int) bool {
+	f.parkPrompts = append(f.parkPrompts, session)
+	return f.confirmPark
+}
+func (f *fakeRuntime) IsTTY() bool { return f.isTTY }
+func (f *fakeRuntime) KillTitlePoller(tag string) {
+	f.killedPollers = append(f.killedPollers, tag)
+}
+func (f *fakeRuntime) PairOwnsCmuxWorkspace(tag string) bool { return f.cmuxOwned[tag] }
+func (f *fakeRuntime) ClearCmuxOwner()                       { f.cmuxCleared++ }
 
 func baseOpts(args LaunchArgs) LaunchOptions {
 	return LaunchOptions{
@@ -351,22 +420,14 @@ func TestRunLaunchExplicitResumeSkipsPicker(t *testing.T) {
 	}
 }
 
-// A launch from inside a zellij pane, an attach decision, and a pick decision
-// all defer to the shell.
+// A launch from inside a zellij pane and a pick decision still defer to the
+// shell (attach is now native — see lifecycle_test.go).
 func TestRunLaunchFallbacks(t *testing.T) {
 	t.Run("in pane", func(t *testing.T) {
 		rt := newFakeRuntime()
 		rt.inPane = true
 		if _, err := run(t, baseOpts(LaunchArgs{Agent: "claude"}), rt); !errors.Is(err, ErrFallbackToShell) {
 			t.Fatalf("in-pane should fall back, got %v", err)
-		}
-	})
-	t.Run("attach decision", func(t *testing.T) {
-		rt := newFakeRuntime()
-		rt.sessions = []Session{{Name: "pair-live", State: SessionDetached}}
-		rt.blocksReuse["pair-live"] = true
-		if _, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "live"}), rt); !errors.Is(err, ErrFallbackToShell) {
-			t.Fatalf("attach should fall back, got %v", err)
 		}
 	})
 	t.Run("pick decision", func(t *testing.T) {

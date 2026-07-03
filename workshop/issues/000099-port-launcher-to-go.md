@@ -116,9 +116,13 @@ until M4 flips it, so pair stays usable throughout.
       behind `PAIR_NATIVE_LAUNCH`; shell stays default). `RunLaunch` stays a thin
       orchestrator over pure deciders — no business logic inline. Fake-`Runtime`
       tests for create / name-prompt / tag-restart config picker.
-- [ ] M3 — attach / restart / quit / compaction orchestration: native attach, the
-      restart-marker re-entry (in-process loop, not `exec $0`), in-session
-      compaction, quit cleanup. Fake-`Runtime` loop tests for each.
+- [x] M3 — attach / restart / quit orchestration: native attach, the restart-marker
+      re-entry (in-process loop, not `exec $0`: Alt+n resume / Shift+Alt+N fresh),
+      quit cleanup (`cleanup_quit_marker`), and nvim reap/sweep. Fake-`Runtime` loop
+      tests for each + real-OSRuntime file-IO tests. **Scoped:** in-session
+      compaction, the `continue`/`rename` restart re-entries, and the fzf session
+      **pick** deferred to M5 (they couple to M5's picker + `continue` parsing);
+      all resolve to `ErrFallbackToShell` → shell until then.
 - [ ] M4 — in-process cutover: flip `cmd/pair-go` to run the native launcher
       in-process under `PAIR_NATIVE_LAUNCH`; convert `bin/pair-shell` to a thin
       shim → `pair-go launch`. Full e2e vs the shell, then flip the default.
@@ -130,6 +134,52 @@ until M4 flips it, so pair stays usable throughout.
 ## Log
 
 ### 2026-07-02
+- 2026-07-02: closed M3 — M3 attach + quit-cleanup + in-process restart loop; go test ./cmd/internal/launcher +race + full make test + runtimebundle-drift-check green; real-OSRuntime stub-zellij smoke attach->cleanup->re-create (ATTACH->DELETE->CREATE, markers consumed) PASS; boundary review FIX-THEN-SHIP->SHIP (2 doc/verify Importants fixed). Measured actual: 4.69h issue-cumulative (window e30b739→HEAD); M3 increment ≈2.78h over M2's 1.91h cumulative — vs M3 est ~2.4h (design 0.6 + impl 1.8), ran modestly over, confirming the "M3 impl light" change-code flag within the 13–22h band. --actual 4.69 is sdlc's suggested issue-cumulative value (measured, not typed). --no-judge because the review ran manually via `sdlc judge milestone-review --base <merge-base>` (ariadne#162 window-bug workaround); the REAL verdict FIX-THEN-SHIP→SHIP is in this commit's Review-Verdict trailer, NOT sdlc's not-run placeholder; review verdict: FIX-THEN-SHIP (Importants fixed → SHIP)
+- **M3 implemented (attach + quit-cleanup + in-process restart loop).** New file
+  `lifecycle.go` (`runAttach` — the shell attach branch; `runCleanup` — the ~130-line
+  `cleanup_quit_marker` port; pure `liveTagsForSweep`/`tagFromEmbedArgv`). `runtime.go`
+  gains the `LifecycleOps` sub-interface (attach + marker read-clear/peek +
+  DeleteSession + ReapNvim + SweepOrphanNvim + ParkScrollback + ConfirmParkNudge +
+  IsTTY + KillTitlePoller + cmux ownership). `createflow.go`'s `RunLaunch` is now the
+  **in-process restart loop** (replacing `exec $0`): `runOnce` dispatches attach vs
+  create, `runCreate` is the extracted M2 body; the in-pane guard + `SweepOrphanNvim`
+  are **first-entry only**. `osruntime.go` wires the concrete seams (fork+wait attach
+  sharing `runBlockingHandoff` with `LaunchSession` — ARCH-DRY; markers under
+  `~/.cache/pair`; park move/copy via `transferFile`; ps-scan orphan sweep). Restart
+  decisions stay pure (`planRestart`): Alt+n resumes, Shift+Alt+N drops the config.
+  **Scoped to M5:** in-session compaction, the `continue`/`rename` restart re-entries,
+  and the fzf **pick** → `ErrFallbackToShell` (plan Revision 2026-07-02). Known M5
+  gap: a `continue`/`rename` restart under `PAIR_NATIVE_LAUNCH` runs the native quit
+  cleanup (faithful to shell's `cleanup → handle_restart` order) then falls back to a
+  fresh shell launch under the original tag — draft+config survive cleanup; the
+  rename/continue-seeding is M5's job. **M3's actual is the real re-price signal** the
+  M2/change-code judges asked for (impl=1.8h flagged light for the trickiest lifecycle
+  logic) — measured at close.
+- **M3 boundary review: FIX-THEN-SHIP → SHIP** (via `sdlc judge milestone-review
+  --base <merge-base>` — the auto-window bug workaround, ariadne#162). No Critical.
+  Two Importants, both doc/verification (not code correctness), fixed: (I-1) the
+  plan/issue M3 bullet over-claimed in-session compaction as M3 — narrowed via the
+  plan `## Revisions` entry + this Log + the ticked M3 checkbox; (I-2) the exec-only
+  seams (attach / delete-session / ps-sweep) had no committed test and the
+  `osruntime_test.go` comment referenced an ephemeral smoke — reworded the comment to
+  be honest and RECORDED the boundary smoke here (see VERIFICATION). Minors taken:
+  `runAttach` now pins the "agent is the inferred title agent" invariant in a comment;
+  `ConfirmParkNudge` documents its benign quit-time reader-goroutine. Minors left
+  (equal-or-safer / cosmetic): `quitAgent` uses `InferAgent`'s config-glob superset;
+  cleanup output routes to the single stderr writer (shell splits stdout + /dev/tty).
+- **VERIFICATION (M3):** `go test ./cmd/internal/launcher` green + `-race` clean —
+  fake-`Runtime` loop tests (attach / quit-full-teardown-with-park / detach-no-op /
+  park-skip-on-restart / Alt+n resume [launchCount==2, `--resume`] / Shift+Alt+N fresh
+  [config dropped, no resume] / rename+continue → `ErrFallbackToShell` after one
+  cleanup / sweep-once) + pure helper tests + **real-OSRuntime file-IO tests**
+  (`osruntime_test.go`: marker peek-vs-take, park move/copy/empty, cmux ownership,
+  pidfile reaping against temp dirs — discharges the M2 "don't ship OSRuntime IO
+  untested" lesson). Full `make test` green; `go vet`/`go build ./...` clean;
+  runtimebundle-drift-check clean. **Real-OSRuntime end-to-end smoke** (stub zellij,
+  temp HOME/XDG, scrubbed env): scenario A quit-only → attach handoff → cleanup
+  deletes session + removes sidecars + raw-removed(park-skip no-tty) + resume hint,
+  no re-create; scenario B restart → attach → cleanup delete → in-process re-create,
+  **ATTACH→DELETE→CREATE** order, both markers consumed. PASS.
 - 2026-07-02: closed M2 — ATLAS updated in the M2 window at commit 440998c (atlas/architecture.md launcher section + atlas/go-migration-inventory.md launcher row → #99 M2 native create preview); --no-atlas only because milestone-close computed an empty d5b3aa8..HEAD window that misses it (window bug, cf. the M1 milestone-review far-back-base bug). VERIFICATION: go test ./cmd/internal/launcher green (pure createlogic + zellijparse table tests + fake-Runtime loop tests: create/name-prompt/tag-restart-picker/codex/explicit-resume/agent-inference/probe-too-long/pre-handoff-collision/fallbacks); full make test green; go vet + go build ./... clean; runtimebundle-drift-check clean; real-OSRuntime end-to-end create smoke (stub zellij) PASS. Boundary review FIX-THEN-SHIP → SHIP (Important test-gap fixed; Review-Verdict trailer on commit d5b3aa8). Shell stays default; nothing user-facing flips.; review verdict: not-run
 - **M2 implemented (Runtime seam + create-flow orchestration).** New files in
   `cmd/internal/launcher`: `runtime.go` (the `Runtime` effect seam, composed from

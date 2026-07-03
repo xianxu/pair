@@ -118,7 +118,60 @@ type FSOps interface {
 	Touch(path string) error
 }
 
-// Runtime is the full create-flow effect seam.
+// LifecycleOps is the post-handoff + attach effect surface (#99 M3): the blocking
+// attach, the quit/restart marker read-clears, session teardown, nvim reaping,
+// the park-nudge, the title-poller kill, and the cmux-ownership reset. Embedded in
+// Runtime; the fake drives the loop tests and OSRuntime wires the real
+// zellij/nvim/cmux/tty calls. The markers live under ~/.cache/pair/{quit,restart}-
+// <session>; parsing + the re-launch decision stay pure (markers.go).
+type LifecycleOps interface {
+	// AttachSession runs `zellij --config-dir CFG attach SESSION` as a BLOCKING
+	// fork+wait child (tty passed through), returning the child's exit code —
+	// the attach twin of LaunchSession (NOT syscall.Exec, so the loop regains
+	// control for cleanup + restart).
+	AttachSession(session, configDir string) (int, error)
+	// TakeQuitMarker read-clears ~/.cache/pair/quit-<session>, reporting whether
+	// it was present (Alt+x). Cleanup runs its body only when it was.
+	TakeQuitMarker(session string) bool
+	// RestartMarkerPresent PEEKS ~/.cache/pair/restart-<session> WITHOUT clearing
+	// it — the park-nudge skip (a restart isn't a quit; the relaunch keeps the
+	// work), shell 1553.
+	RestartMarkerPresent(session string) bool
+	// TakeRestartMarker read-clears the restart marker and parses it; ok=false
+	// when absent (the loop terminates), shell 717-733.
+	TakeRestartMarker(session string) (RestartMarker, bool)
+	// DeleteSession removes the zellij session record (delete-session --force)
+	// and SIGKILLs any lingering `zellij --server …/<session>` process, shell
+	// 1528-1534.
+	DeleteSession(session string)
+	// ReapNvim kills this tag's nvim --embed children (pidfiles + pattern sweep),
+	// shell 1089-1112.
+	ReapNvim(tag string)
+	// SweepOrphanNvim reaps nvim --embed whose pair-<tag> is not in liveTags —
+	// startup hygiene for externally-killed sessions that left no quit marker,
+	// shell 1117-1158.
+	SweepOrphanNvim(liveTags []string)
+	// ParkScrollback preserves scrollback-<tag>-<agent>.{raw,events.jsonl} to a
+	// timestamped parked-scrollback-<tag>-<ts> base (move on quit, copy on
+	// compaction) and touches parked-<tag>; ok=false when there's nothing to
+	// park, shell 696-708.
+	ParkScrollback(tag, agent string, move bool) (base string, ok bool)
+	// ConfirmParkNudge shows the [y/N] preserve prompt bounded by timeoutSecs
+	// (auto-declines on timeout/EOF/no), shell 1564-1565.
+	ConfirmParkNudge(session string, timeoutSecs int) bool
+	// IsTTY reports whether stdin is a terminal (`[ -t 0 ]`, shell 1552).
+	IsTTY() bool
+	// KillTitlePoller SIGTERMs + clears the title-pid-<tag> poller, shell
+	// 1621-1627.
+	KillTitlePoller(tag string)
+	// PairOwnsCmuxWorkspace reports whether this tag owns the current cmux
+	// workspace (CMUX_WORKSPACE_ID set + cmux-owner-<id> == tag), shell 902-907.
+	PairOwnsCmuxWorkspace(tag string) bool
+	// ClearCmuxOwner removes the cmux-owner-<CMUX_WORKSPACE_ID> record, shell 1645.
+	ClearCmuxOwner()
+}
+
+// Runtime is the full launcher effect seam.
 type Runtime interface {
 	ZellijOps
 	SnapshotOps
@@ -127,6 +180,7 @@ type Runtime interface {
 	EnvOps
 	IDOps
 	FSOps
+	LifecycleOps
 }
 
 // LaunchOptions are RunLaunch's post-parse inputs — the resolved argv (Args),
@@ -138,4 +192,5 @@ type LaunchOptions struct {
 	PairHome             string
 	ContinueDoc          string // seed the draft to read this continuation (create-only)
 	CodexAltScreenOptOut bool   // PAIR_CODEX_ALT_SCREEN=1: leave codex in alt-screen
+	ParkPromptTimeout    int    // PAIR_PARK_PROMPT_TIMEOUT (default 5): the quit park-nudge [y/N] bound
 }
