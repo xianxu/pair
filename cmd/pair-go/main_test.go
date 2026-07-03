@@ -263,6 +263,20 @@ func TestLaunchNativeDeclineFallsToShell(t *testing.T) {
 	}
 }
 
+// The real osLegacyRuntime.LaunchNative adapter maps ErrFallbackToShell →
+// handled=false. An unsupported verb declines before any OS/zellij call, so this
+// exercises the adapter directly without a live launcher.
+func TestOSLegacyRuntimeLaunchNativeDeclineMapsUnhandled(t *testing.T) {
+	var stderr bytes.Buffer
+	code, handled := osLegacyRuntime{}.LaunchNative([]string{"list"}, "/nonexistent", &stderr)
+	if handled {
+		t.Fatalf("an ErrFallbackToShell decline must map to handled=false")
+	}
+	if code != 0 {
+		t.Fatalf("code = %d, want 0 on decline", code)
+	}
+}
+
 // The PAIR_LEGACY_LAUNCH kill-switch forces the whole launch to the shell —
 // the native launcher is never tried (rollout safety hatch).
 func TestLaunchLegacyKillSwitch(t *testing.T) {
