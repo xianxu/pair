@@ -3182,7 +3182,7 @@ function _G.PairConfirmQuit()
     end
     local ans = vim.fn.confirm(prompt, '&Yes\n&No', 2)
     if ans == 1 then
-      vim.fn.system('pair-quit.sh')
+      vim.fn.system({ 'pair', 'quit' })
     end
   end)
 end
@@ -3199,7 +3199,7 @@ function _G.PairConfirmDetach()
 end
 
 -- Shared between Alt+n (PairConfirmRestart) and Shift+Alt+N
--- (PairConfirmRestartNewSession). Differs in whether pair-restart.sh
+-- (PairConfirmRestartNewSession). Differs in whether `pair restart`
 -- is invoked with --new-session and what the prompt says.
 --
 --   Alt+n         — pure pair reload; agent session is preserved
@@ -3285,7 +3285,7 @@ local function pair_confirm_restart_impl(new_session)
       if not rename_to then return end
     end
 
-    local argv = { 'pair-restart.sh' }
+    local argv = { 'pair', 'restart' }
     if new_session then table.insert(argv, '--new-session') end
     if rename_to then
       table.insert(argv, '--rename-to')
@@ -3298,8 +3298,8 @@ end
 function _G.PairConfirmRestart()           pair_confirm_restart_impl(false) end
 function _G.PairConfirmRestartNewSession() pair_confirm_restart_impl(true)  end
 
--- Alt+Shift+C compaction (#55). Unlike the restart modals (which shell out to
--- pair-restart.sh directly), creating a continuation needs the agent's
+-- Alt+Shift+C compaction (#55). Unlike the restart modals (which invoke
+-- `pair restart` directly), creating a continuation needs the agent's
 -- judgment — so this asks the AGENT (agent-agnostic prompt, no claude-only
 -- skill name) to distill a continuation and then run `pair continue <slug>`,
 -- which is context-aware: inside this live pane it parks the scrollback, marks

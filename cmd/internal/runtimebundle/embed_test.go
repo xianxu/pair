@@ -35,6 +35,8 @@ func TestEmbeddedManifestContainsLaunchAssets(t *testing.T) {
 		"bin/pair",
 		"bin/pair-go",
 		"bin/pair-dev",
+		"bin/pair-quit.sh",    // #94 M1 — ported to `pair quit`, no longer bundled
+		"bin/pair-restart.sh", // #94 M1 — ported to `pair restart`, no longer bundled
 		"nvim/init_test.lua",
 	} {
 		if paths[excluded] {

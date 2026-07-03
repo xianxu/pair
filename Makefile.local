@@ -1,7 +1,7 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
-.PHONY: build install pair pair-scribe pair-scrollback-render pair-wrap pair-slug pair-changelog pair-context pair-session-watch pair-title pair-scrollback-open pair-changelog-open pair-review-target pair-review-open pair-review-readiness pair-go copy-on-select clipboard-to-pane flash-pane runtimebundle-generate runtimebundle-drift-check test-runtimebundle test test-race test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-emitter-health test-session-watch test-changelog test-copy-on-select test-pair-title test-zellij-trace
+.PHONY: build install pair pair-scribe pair-scrollback-render pair-wrap pair-slug pair-changelog pair-context pair-session-watch pair-title pair-scrollback-open pair-changelog-open pair-review-target pair-review-open pair-review-readiness pair-go copy-on-select clipboard-to-pane flash-pane runtimebundle-generate runtimebundle-drift-check test-runtimebundle test test-race test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-pair-title test-zellij-trace
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
 # and ships with the `pair-` prefix so it doesn't collide with anything
@@ -76,7 +76,7 @@ flash-pane:             $(BIN_DIR)/flash-pane
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
-test: test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-emitter-health test-session-watch test-changelog test-copy-on-select test-pair-title test-zellij-trace test-review
+test: test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-pair-title test-zellij-trace test-review
 	go test ./... -count=1
 
 # pair-title poller (#93 M1, now Go): single-instance guard (identity-checked
@@ -227,6 +227,11 @@ test-pair-go-install-layout:
 
 test-pair-embedded-runtime:
 	bash tests/pair-embedded-runtime-test.sh
+
+# pair restart/quit Go subcommands (#94 M1, ported from bin/pair-{restart,quit}.sh):
+# markers land in ~/.cache/pair with PAIR_KILL_CMD stubbing the terminal kill.
+test-pair-restart-quit: $(BIN_DIR)/pair
+	bash tests/pair-restart-quit-test.sh
 
 # pair-doctor emitter-health probe (#000047): marker check + binary selection
 # (running-via-pidfile vs PATH). See tests/emitter-health-test.sh.
