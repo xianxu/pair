@@ -1,12 +1,13 @@
 ---
 id: 000094
-status: working
+status: codecomplete
 deps: [000093]
 github_issue:
 created: 2026-07-01
 updated: 2026-07-03
 estimate_hours: 4.4
 started: 2026-07-03T10:57:55-07:00
+actual_hours: 2.50
 ---
 
 # stop extracting shell scripts from runtime bundle
@@ -47,16 +48,16 @@ caller is repointed.
 
 ## Done when
 
-- [ ] Every orchestrator shell script is removed from the runtime manifest and no
+- [x] Every orchestrator shell script is removed from the runtime manifest and no
       longer extracted: the five that #93 replaced (Go owner exists) have their
       callers repointed then are dropped; `pair-restart.sh`/`pair-quit.sh` — which
       had **no** Go sibling — are first ported to in-process `pair restart`/`pair
       quit` subcommands, then dropped. The generated bundle reflects this.
-- [ ] The runtimebundle drift check + copied-binary smoke tests assert the
+- [x] The runtimebundle drift check + copied-binary smoke tests assert the
       reduced extracted tree and fail if a shell asset reappears.
-- [ ] A copied `pair` binary runs launch/session/scrollback/review/continuation
+- [x] A copied `pair` binary runs launch/session/scrollback/review/continuation
       flows with the reduced bundle (external platform tools installed).
-- [ ] `atlas/go-migration-inventory.md` reflects the shell-free (or
+- [x] `atlas/go-migration-inventory.md` reflects the shell-free (or
       shell-reduced) runtime bundle.
 
 ## Estimate
@@ -119,6 +120,7 @@ exec-shims remain pure deletion-after-repoint, unchanged from the original inten
 ## Log
 
 ### 2026-07-03
+- 2026-07-03: closed — #94 removes all seven orchestrator shell shims from the runtime bundle. M1 ports pair-restart.sh/pair-quit.sh -> in-process `pair restart`/`pair quit` (reusing the launcher marker seam, no new Runtime methods). M2 repoints the five exec-shim callers (launcher SpawnSessionWatcher/SpawnTitlePoller, zellij copy_command, copy-on-selects flash/clip hand-off) to the Go binaries, then deletes them. Verified: full make test green (MAKE_EXIT=0) — embed_test + copied-binary smoke assert the 7 shims absent + Go binaries present; test-copy-on-select/session-watch/pair-restart-quit drive the real binaries; TestSidecarSpawnArgv pins the spawn targets are not .sh. Endpoint: shell-reduced — 6 non-orchestrator utilities remain. --no-verdict: both milestone boundary reviews ran via sdlc milestone-close and returned SHIP (recorded in ## Log + workshop/plans/000094-*-m{1,2}-review.md sidecars); the trailers were not committed to the milestone-close commit messages due to commit ordering (code committed before milestone-close), but the reviews genuinely ran.; review verdict: FIX-THEN-SHIP
 - 2026-07-03: closed M2 — M2 repoints the five live exec-shim callers to the Go binaries (launcher SpawnSessionWatcher/SpawnTitlePoller -> pair-session-watch/pair-title; zellij copy_command -> copy-on-select; copy-on-selects flash/clip hand-off -> Go binaries via clipcmd) then deletes all five shims from tree + explicitAssetPaths. Verified: full make test green (MAKE_EXIT=0) incl test-copy-on-select (Go binary in_nvim PASS), test-session-watch (Go binary PASS), test-runtimebundle (embed_test asserts 5 shims excluded + Go binaries present), test-pair-embedded-runtime (copied binary extracts bundle w/ Go binaries + asserts no .sh shim). Endpoint: shell-reduced — all 7 orchestrator shims gone; 6 non-orchestrator utilities remain.; review verdict: SHIP
 - **M2 review follow-ups (SHIP → SHIP).** No Critical/Important. (1) Pinned the
   silent-failure gap the reviewer flagged: extracted `sessionWatcherArgv`/

@@ -202,9 +202,9 @@ test-doctor:
 # "claude [<cwd>]", so a repo path containing "nvim" (e.g. parley.nvim) must not
 # be mistaken for the nvim draft pane (which would skip the paste). Keys on
 # terminal_command, not the cwd-polluted title. See tests/copy-on-select-test.sh.
-# copy-on-select is now the Go binary (#93 M4) reached via the bin/copy-on-select.sh
-# shim, so a fresh-tree run must build it before the test copies it into the
-# sandboxed $PAIR_HOME/bin (same missing-prereq lesson as M2/M3).
+# copy-on-select is the Go binary (#93 M4; zellij's copy_command invokes it
+# directly since #94 M2), so a fresh-tree run must build it before the test copies
+# it into the sandboxed $PAIR_HOME/bin (same missing-prereq lesson as M2/M3).
 test-copy-on-select: $(BIN_DIR)/copy-on-select
 	bash tests/copy-on-select-test.sh
 
@@ -278,16 +278,16 @@ $(BIN_DIR)/pair-slug: cmd/pair-slug/main.go cmd/internal/slugcmd/slugcmd.go cmd/
 $(BIN_DIR)/pair-context: cmd/pair-context/main.go cmd/internal/contextcmd/contextcmd.go cmd/internal/ctxmeter/ctxmeter.go cmd/internal/transcript/transcript.go go.mod
 	go build -o $@ ./cmd/pair-context
 
-# pair-session-watch — async codex/agy session-id discovery. Legacy
-# bin/pair-session-watch.sh remains as a compatibility shim for bin/pair.
+# pair-session-watch — async codex/agy session-id discovery. The launcher spawns
+# this Go binary directly (the bin/pair-session-watch.sh shim was retired #94 M2).
 $(BIN_DIR)/pair-session-watch: cmd/pair-session-watch/main.go cmd/internal/sessionwatch/sessionwatch.go cmd/internal/sessionwatch/run.go cmd/internal/sessionwatch/runcli.go cmd/internal/sessionwatch/runtime.go cmd/internal/procutil/procutil.go cmd/internal/adapt/adapt.go go.mod
 	go build -o $@ ./cmd/pair-session-watch
 
 # pair-title — the per-tag title poller (#93 M1, ported from bin/pair-title.sh):
 # zellij frame meter (#71) + cmux workspace heat-ramp. Pure decisions in
 # cmd/internal/titlepoller; zellij/cmux/ps/fs behind the OSRuntime seam. Reuses
-# contextcmd (in-process context count) + procutil (kill-0/ps). bin/pair-title.sh
-# is the thin re-exec shim.
+# contextcmd (in-process context count) + procutil (kill-0/ps). The launcher
+# spawns bin/pair-title directly (the .sh re-exec shim was retired #94 M2).
 $(BIN_DIR)/pair-title: cmd/pair-title/main.go cmd/internal/titlepoller/titlepoller.go cmd/internal/titlepoller/run.go cmd/internal/titlepoller/runcli.go cmd/internal/titlepoller/runtime.go cmd/internal/procutil/procutil.go cmd/internal/contextcmd/contextcmd.go cmd/internal/ctxmeter/ctxmeter.go cmd/internal/transcript/transcript.go cmd/internal/adapt/adapt.go go.mod
 	go build -o $@ ./cmd/pair-title
 
