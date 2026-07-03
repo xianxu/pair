@@ -1,7 +1,7 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
-.PHONY: build install pair pair-scribe pair-scrollback-render pair-wrap pair-slug pair-changelog pair-context pair-session-watch pair-title pair-scrollback-open pair-changelog-open pair-review-target pair-review-open pair-review-readiness pair-go copy-on-select clipboard-to-pane flash-pane runtimebundle-generate runtimebundle-drift-check test-runtimebundle test test-race test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-emitter-health test-session-watch test-continue test-changelog test-copy-on-select test-pair-title test-cmux-ownership test-zellij-trace
+.PHONY: build install pair pair-scribe pair-scrollback-render pair-wrap pair-slug pair-changelog pair-context pair-session-watch pair-title pair-scrollback-open pair-changelog-open pair-review-target pair-review-open pair-review-readiness pair-go copy-on-select clipboard-to-pane flash-pane runtimebundle-generate runtimebundle-drift-check test-runtimebundle test test-race test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-emitter-health test-session-watch test-changelog test-copy-on-select test-pair-title test-zellij-trace
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
 # and ships with the `pair-` prefix so it doesn't collide with anything
@@ -76,7 +76,7 @@ flash-pane:             $(BIN_DIR)/flash-pane
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
-test: test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-emitter-health test-session-watch test-continue test-changelog test-copy-on-select test-pair-title test-cmux-ownership test-zellij-trace test-review
+test: test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-emitter-health test-session-watch test-changelog test-copy-on-select test-pair-title test-zellij-trace test-review
 	go test ./... -count=1
 
 # pair-title poller (#93 M1, now Go): single-instance guard (identity-checked
@@ -86,12 +86,6 @@ test: test-run-headless test-lua test-queue test-autopair test-cr test-statuslin
 # with the port; its coverage moved to Go unit tests over the Runtime seam.
 test-pair-title:
 	go test ./cmd/internal/titlepoller ./cmd/internal/procutil -count=1
-
-# cmux workspace ownership claim (presence beats a stale owner flag), so a
-# launch/attach/restart reclaims its workspace title. See
-# tests/cmux-ownership-test.sh.
-test-cmux-ownership: $(BIN_DIR)/pair
-	bash tests/cmux-ownership-test.sh
 
 # Session id watcher must ignore stale pidfiles from prior launches and wait
 # for pair-wrap to publish the current agent PID.
@@ -239,12 +233,6 @@ test-pair-embedded-runtime:
 test-emitter-health:
 	bash tests/emitter-health-test.sh
 
-# `pair continue` arg-parsing + session-name guard (#000054): tag not forced,
-# -- args forwarded, [agent] port, bare list / error paths, guard short-vs-long.
-# Drives the real bin/pair via its PAIR_DEBUG_ARGS probe. See tests/pair-continue-test.sh.
-test-continue: $(BIN_DIR)/pair
-	bash tests/pair-continue-test.sh
-
 # changelog + scrollback openers — end-to-end smokes for the #93 M2 Go binaries
 # (bin/pair-changelog-open, bin/pair-scrollback-open): fake the scrollback capture
 # + model + nvim and assert clean → distill → write → open (changelog) and render
@@ -351,12 +339,13 @@ $(BIN_DIR)/pair-changelog: cmd/pair-changelog/main.go cmd/internal/changelogcmd/
 $(BIN_DIR)/pair-continuation: cmd/pair-continuation/main.go cmd/internal/continuationcmd/continuationcmd.go cmd/internal/continuationcmd/continuation.go cmd/internal/continuationcmd/git.go go.mod
 	go build -o $@ ./cmd/pair-continuation
 
-PAIR_GO_SRCS := cmd/pair-go/main.go cmd/internal/entrypoint/asset_root.go cmd/internal/entrypoint/launch.go cmd/internal/entrypoint/mode.go cmd/internal/dispatcher/dispatcher.go cmd/internal/launcher/args.go cmd/internal/launcher/datadir.go cmd/internal/launcher/decision.go cmd/internal/launcher/history.go cmd/internal/launcher/run.go cmd/internal/launcher/session.go cmd/internal/launcher/tag.go cmd/internal/launcher/zellij.go cmd/internal/contextcmd/contextcmd.go cmd/internal/scrollbackcmd/scrollbackcmd.go cmd/internal/slugcmd/slugcmd.go cmd/internal/slugcmd/slug.go cmd/internal/wrapcmd/wrap.go cmd/internal/scribecmd/scribecmd.go cmd/internal/changelogcmd/changelogcmd.go cmd/internal/changelogcmd/distill.go cmd/internal/changelogcmd/prompt.go cmd/internal/continuationcmd/continuationcmd.go cmd/internal/continuationcmd/continuation.go cmd/internal/continuationcmd/git.go cmd/internal/sessionwatch/sessionwatch.go cmd/internal/sessionwatch/run.go cmd/internal/sessionwatch/runcli.go cmd/internal/sessionwatch/runtime.go cmd/internal/procutil/procutil.go cmd/internal/model/model.go cmd/internal/transcript/transcript.go cmd/internal/adapt/adapt.go cmd/internal/runtimebundle/manifest.go cmd/internal/runtimebundle/plan.go cmd/internal/runtimebundle/cleanup.go cmd/internal/runtimebundle/store.go cmd/internal/runtimebundle/embed.go $(RUNTIMEBUNDLE_ASSETS) go.mod
+PAIR_GO_SRCS := cmd/pair-go/main.go cmd/internal/entrypoint/asset_root.go cmd/internal/entrypoint/mode.go cmd/internal/dispatcher/dispatcher.go cmd/internal/launcher/args.go cmd/internal/launcher/datadir.go cmd/internal/launcher/decision.go cmd/internal/launcher/history.go cmd/internal/launcher/run.go cmd/internal/launcher/session.go cmd/internal/launcher/tag.go cmd/internal/launcher/zellij.go cmd/internal/contextcmd/contextcmd.go cmd/internal/scrollbackcmd/scrollbackcmd.go cmd/internal/slugcmd/slugcmd.go cmd/internal/slugcmd/slug.go cmd/internal/wrapcmd/wrap.go cmd/internal/scribecmd/scribecmd.go cmd/internal/changelogcmd/changelogcmd.go cmd/internal/changelogcmd/distill.go cmd/internal/changelogcmd/prompt.go cmd/internal/continuationcmd/continuationcmd.go cmd/internal/continuationcmd/continuation.go cmd/internal/continuationcmd/git.go cmd/internal/sessionwatch/sessionwatch.go cmd/internal/sessionwatch/run.go cmd/internal/sessionwatch/runcli.go cmd/internal/sessionwatch/runtime.go cmd/internal/procutil/procutil.go cmd/internal/model/model.go cmd/internal/transcript/transcript.go cmd/internal/adapt/adapt.go cmd/internal/runtimebundle/manifest.go cmd/internal/runtimebundle/plan.go cmd/internal/runtimebundle/cleanup.go cmd/internal/runtimebundle/store.go cmd/internal/runtimebundle/embed.go $(RUNTIMEBUNDLE_ASSETS) go.mod
 
-# pair — public Go-owned entrypoint. It execs bin/pair-shell for the current
-# shell-owned zellij lifecycle; source/Homebrew builds can inject
-# defaultPairHome, while copied binaries without adjacent assets use the
-# embedded runtime fallback.
+# pair — the Go-owned entrypoint. It drives the native launcher in-process (#99
+# M5c — bin/pair-shell retired); source/Homebrew builds can inject defaultPairHome,
+# while copied binaries without adjacent assets use the embedded runtime fallback.
+# (PAIR_GO_SRCS is a staleness hint, not the compile set — `go build` pulls every
+# dep; it needn't list every cmd/internal/launcher file.)
 $(BIN_DIR)/pair: $(PAIR_GO_SRCS)
 	go build -ldflags "$(PAIR_HOME_LDFLAGS)" -o $@ ./cmd/pair-go
 

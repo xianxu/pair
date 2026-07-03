@@ -57,8 +57,14 @@ in-session compaction) becomes an in-process loop.
 - [ ] Every lifecycle flow works natively: create, attach, picker, name-prompt,
       tag-restart config picker, restart-marker re-entry, in-session compaction,
       quit cleanup, and the `list`/`rename`/`continue` subcommands.
-- [ ] The `bin/pair-restart.sh` marker handshake is in-process; the shell launcher
-      + its markers are retired, unblocking #94.
+- [ ] The shell **launcher** (`bin/pair-shell`) is retired (removed), unblocking #94.
+      **Re-scoped (M5c design, 2026-07-03):** `bin/pair-restart.sh`'s keybind
+      marker-WRITE (nvim → `pair-restart.sh` → `~/.cache/pair/{restart,quit}-*`)
+      is **independent of the launcher** — the launcher already reads those markers
+      + writes the compaction marker (M5b). Converting that write to an in-process
+      `pair restart` subcommand is a **separable follow-up** (a new issue), NOT
+      required to remove the shell launcher; `pair-restart.sh`/`pair-quit.sh` stay
+      (they're nvim-invoked, not pair-shell).
 
 ## Estimate
 

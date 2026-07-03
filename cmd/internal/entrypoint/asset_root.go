@@ -11,19 +11,22 @@ type AssetRootInput struct {
 	Executable      string
 	DefaultPairHome string
 	EmbeddedRoot    string
-	PairShellExists func(root string) bool
+	// ValidRoot reports whether a candidate directory is a Pair asset root. The
+	// caller checks the marker (ValidRootMarker) exists there (#99 M5c — was
+	// bin/pair-shell, now the always-present zellij layout, since the shell
+	// launcher is retired).
+	ValidRoot func(root string) bool
 }
 
 type AssetRoot struct {
-	Root      string
-	ShellPath string
-	Source    string
+	Root   string
+	Source string
 }
 
 func ResolveAssetRoot(input AssetRootInput) (AssetRoot, error) {
-	exists := input.PairShellExists
-	if exists == nil {
-		exists = func(string) bool { return false }
+	valid := input.ValidRoot
+	if valid == nil {
+		valid = func(string) bool { return false }
 	}
 
 	candidates := make([]assetRootCandidate, 0, 3)
@@ -52,23 +55,24 @@ func ResolveAssetRoot(input AssetRootInput) (AssetRoot, error) {
 		}
 		seen[root] = true
 		checked = append(checked, root)
-		if exists(root) {
-			return AssetRoot{
-				Root:      root,
-				ShellPath: PairShellPath(root),
-				Source:    candidate.source,
-			}, nil
+		if valid(root) {
+			return AssetRoot{Root: root, Source: candidate.source}, nil
 		}
 	}
 
 	if len(checked) == 0 {
 		checked = append(checked, "<none>")
 	}
-	return AssetRoot{}, fmt.Errorf("pair-shell not found; set PAIR_HOME to a Pair checkout/install root containing bin/pair-shell (checked: %s)", strings.Join(checked, ", "))
+	return AssetRoot{}, fmt.Errorf("pair assets not found; set PAIR_HOME to a Pair checkout/install root containing %s (checked: %s)",
+		filepath.Join("zellij", "layouts", "main.kdl"), strings.Join(checked, ", "))
 }
 
-func PairShellPath(root string) string {
-	return filepath.Join(root, "bin", "pair-shell")
+// ValidRootMarker is the file whose presence marks a directory as a Pair asset
+// root: the zellij layout the launch reads (createflow.go). It is a tracked source
+// file AND bundled into the embedded runtime, so it exists in both a checkout and
+// an extracted pair-home — unlike bin/pair-wrap (a built, gitignored binary).
+func ValidRootMarker(root string) string {
+	return filepath.Join(root, "zellij", "layouts", "main.kdl")
 }
 
 type assetRootCandidate struct {

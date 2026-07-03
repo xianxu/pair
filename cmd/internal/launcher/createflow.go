@@ -15,10 +15,10 @@ import (
 // attach handoff (blocking fork+wait, so control returns here), runs the Alt+x
 // quit cleanup, then — if a restart marker is present — re-decides under the
 // marker's tag/agent (applying any rename_to move + continue re-seed), replacing
-// the shell's `exec $0`. As of M5b no launch path returns ErrFallbackToShell — an
-// in-pane launch compacts or is rejected natively, and the pick/rename/continue
-// re-entries are native; user-facing messages are on the writer, the int is the
-// exit code.
+// the shell's `exec $0`. As of M5c the shell is retired — every launch path is
+// handled here (compact / reject-in-pane / pick / rename / continue all native);
+// user-facing messages are on the writer, the int is the exit code, the returned
+// error is always nil.
 func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 	env := normalizeEnv(opts.Env)
 
@@ -49,7 +49,7 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 	for {
 		step, err := runOnce(opts, env, rt, stderr)
 		if err != nil {
-			return step.code, err // ErrFallbackToShell (in-pane / pick / decision error)
+			return step.code, err // defensive: runOnce messages + returns nil now
 		}
 		if !step.handedOff {
 			return step.code, nil // aborted or errored before the blocking handoff
@@ -107,25 +107,28 @@ type launchStep struct {
 	handedOff bool
 }
 
-// runOnce runs one decision → create-or-attach handoff. It returns
-// ErrFallbackToShell for the M3-unowned surfaces (pick); a handled abort/error
-// returns handedOff=false with the exit code already messaged.
+// runOnce runs one decision → create-or-attach handoff. Every outcome is handled
+// natively (#99 M5c — no shell to fall back to): a handled abort/error returns
+// handedOff=false with the exit code already messaged on stderr.
 func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchStep, error) {
 	agent := opts.Args.Agent
 	base := DefaultTag(env.Cwd)
 	cutoff := env.Now.Add(-time.Duration(env.HistoryD) * 24 * time.Hour)
 	sessions, err := rt.Sessions()
 	if err != nil {
-		return launchStep{}, ErrFallbackToShell
+		fmt.Fprintf(stderr, "pair: failed to query zellij sessions: %v\n", err)
+		return launchStep{code: 1}, nil
 	}
 	historical, err := rt.ScanHistory(base, cutoff)
 	if err != nil {
-		return launchStep{}, ErrFallbackToShell
+		fmt.Fprintf(stderr, "pair: failed to scan session history: %v\n", err)
+		return launchStep{code: 1}, nil
 	}
 	snap := SessionSnapshot{BaseTag: base, Sessions: sessions, Historical: historical}
 	decision, err := DecideLaunch(opts.Args, snap)
 	if err != nil {
-		return launchStep{}, ErrFallbackToShell
+		fmt.Fprintf(stderr, "pair: %v\n", err)
+		return launchStep{code: 1}, nil
 	}
 
 	// Native fzf session pick (#99 M5a): resolve the pick to a concrete
@@ -163,8 +166,9 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 		return launchStep{code: code, session: "pair-" + decision.Tag, tag: decision.Tag, agent: agent, handedOff: true}, nil
 	case ActionCreate:
 		return runCreate(opts, env, rt, decision, base, agent, stderr)
-	default: // ActionPick resolved above; a residual pick is defensive-only.
-		return launchStep{}, ErrFallbackToShell
+	default: // ActionPick is resolved above — unreachable; a defensive guard.
+		fmt.Fprintf(stderr, "pair: internal error: unresolved launch decision (%s)\n", decision.Action)
+		return launchStep{code: 1}, nil
 	}
 }
 

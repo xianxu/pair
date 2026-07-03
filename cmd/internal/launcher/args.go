@@ -45,6 +45,9 @@ func ParseArgs(argv []string) (LaunchArgs, error) {
 	}
 
 	switch argv[0] {
+	case "-h", "--help", "help":
+		// Native help (#99 M5c — the shell owned this before retirement).
+		return LaunchArgs{Command: "help"}, nil
 	case "list", "ls":
 		// The read-only session listing (#99 M5a). No further args (shell
 		// `list|ls)` ignores extras); a bare command marker is enough.
@@ -79,12 +82,11 @@ func ParseArgs(argv []string) (LaunchArgs, error) {
 			continue
 		}
 		if out.Agent == "" {
-			// A leading flag (e.g. --help, -h) is not an agent name — agents
-			// never start with '-'. The shell owns help/flag handling, so refuse
-			// here; LaunchNative maps this to ErrFallbackToShell → bin/pair-shell
-			// (#99 M4, once native is the default entry).
+			// A leading flag that isn't -h/--help (handled above) is not an agent
+			// name — agents never start with '-'. Refuse with a usage error;
+			// LaunchNative prints it + exits 2 (#99 M5c — no shell to defer to).
 			if strings.HasPrefix(arg, "-") {
-				return LaunchArgs{}, UsageError{Message: fmt.Sprintf("pair-go launch: %q is a flag, not an agent (shell-owned)", arg)}
+				return LaunchArgs{}, UsageError{Message: fmt.Sprintf("pair: %q is a flag, not an agent (use '--' to forward args, or -h for help)", arg)}
 			}
 			out.Agent = arg
 			continue

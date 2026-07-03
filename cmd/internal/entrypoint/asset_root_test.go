@@ -10,7 +10,7 @@ func TestResolveAssetRootPrefersPairHome(t *testing.T) {
 		PairHome:        "/env/root",
 		Executable:      "/repo/bin/pair",
 		DefaultPairHome: "/default/root",
-		PairShellExists: existingRoots("/env/root", "/repo", "/default/root"),
+		ValidRoot:       existingRoots("/env/root", "/repo", "/default/root"),
 	})
 	if err != nil {
 		t.Fatalf("ResolveAssetRoot error = %v", err)
@@ -18,8 +18,8 @@ func TestResolveAssetRootPrefersPairHome(t *testing.T) {
 	if root.Root != "/env/root" {
 		t.Fatalf("Root = %q, want /env/root", root.Root)
 	}
-	if root.ShellPath != "/env/root/bin/pair-shell" {
-		t.Fatalf("ShellPath = %q, want /env/root/bin/pair-shell", root.ShellPath)
+	if root.Source != "PAIR_HOME" {
+		t.Fatalf("Source = %q, want PAIR_HOME", root.Source)
 	}
 }
 
@@ -27,16 +27,13 @@ func TestResolveAssetRootUsesExecutableSiblingRoot(t *testing.T) {
 	root, err := ResolveAssetRoot(AssetRootInput{
 		Executable:      "/repo/bin/pair",
 		DefaultPairHome: "/default/root",
-		PairShellExists: existingRoots("/repo", "/default/root"),
+		ValidRoot:       existingRoots("/repo", "/default/root"),
 	})
 	if err != nil {
 		t.Fatalf("ResolveAssetRoot error = %v", err)
 	}
 	if root.Root != "/repo" {
 		t.Fatalf("Root = %q, want /repo", root.Root)
-	}
-	if root.ShellPath != "/repo/bin/pair-shell" {
-		t.Fatalf("ShellPath = %q, want /repo/bin/pair-shell", root.ShellPath)
 	}
 }
 
@@ -44,16 +41,13 @@ func TestResolveAssetRootFallsBackToDefaultPairHome(t *testing.T) {
 	root, err := ResolveAssetRoot(AssetRootInput{
 		Executable:      "/home/me/.local/bin/pair",
 		DefaultPairHome: "/repo",
-		PairShellExists: existingRoots("/repo"),
+		ValidRoot:       existingRoots("/repo"),
 	})
 	if err != nil {
 		t.Fatalf("ResolveAssetRoot error = %v", err)
 	}
 	if root.Root != "/repo" {
 		t.Fatalf("Root = %q, want /repo", root.Root)
-	}
-	if root.ShellPath != "/repo/bin/pair-shell" {
-		t.Fatalf("ShellPath = %q, want /repo/bin/pair-shell", root.ShellPath)
 	}
 }
 
@@ -62,7 +56,7 @@ func TestResolveAssetRootFallsBackToEmbeddedRootAfterAdjacentRoots(t *testing.T)
 		Executable:      "/home/me/.local/bin/pair",
 		DefaultPairHome: "/default/root",
 		EmbeddedRoot:    "/data/pair/runtime/abc/pair-home",
-		PairShellExists: existingRoots("/data/pair/runtime/abc/pair-home"),
+		ValidRoot:       existingRoots("/data/pair/runtime/abc/pair-home"),
 	})
 	if err != nil {
 		t.Fatalf("ResolveAssetRoot error = %v", err)
@@ -75,19 +69,25 @@ func TestResolveAssetRootFallsBackToEmbeddedRootAfterAdjacentRoots(t *testing.T)
 	}
 }
 
-func TestResolveAssetRootReportsMissingPairShellAndPairHome(t *testing.T) {
+func TestResolveAssetRootReportsMissingRootAndPairHome(t *testing.T) {
 	_, err := ResolveAssetRoot(AssetRootInput{
 		Executable:      "/home/me/.local/bin/pair",
 		DefaultPairHome: "/repo",
-		PairShellExists: existingRoots(),
+		ValidRoot:       existingRoots(),
 	})
 	if err == nil {
 		t.Fatal("ResolveAssetRoot error = nil, want missing-root error")
 	}
-	for _, want := range []string{"pair-shell", "PAIR_HOME", "/home/me/.local", "/repo"} {
+	for _, want := range []string{"main.kdl", "PAIR_HOME", "/home/me/.local", "/repo"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("error missing %q:\n%v", want, err)
 		}
+	}
+}
+
+func TestValidRootMarker(t *testing.T) {
+	if got := ValidRootMarker("/repo"); got != "/repo/zellij/layouts/main.kdl" {
+		t.Fatalf("ValidRootMarker = %q", got)
 	}
 }
 

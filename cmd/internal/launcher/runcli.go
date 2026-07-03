@@ -7,37 +7,36 @@ import (
 	"time"
 )
 
-// LaunchNative is the process-level entry the cmd/pair-go launch gate calls
-// (#99 M2; the DEFAULT entry as of M4): it parses launchArgs, resolves the launch
-// Env from the OS, and drives RunLaunch (or the read-only `list`/`ls`, the
-// `rename`/`continue` subcommands, and in-session compaction — all native as of
-// M5b) against the real OSRuntime. It returns ErrFallbackToShell only for what the
-// shell still owns until M5c: a leading flag (`--help`/`-h`) and the shell-only
-// test/debug seams (`shellOnlySeamActive`). Any other return is handled: the int
-// is the exit code and user-facing messages are already on stdout/stderr.
+// LaunchNative is the process-level entry the cmd/pair-go launch gate calls (#99
+// M2; the sole launcher as of M5c — bin/pair-shell is retired). It parses
+// launchArgs and dispatches: `--help`/`help` → native usage; `list`/`ls`,
+// `rename`, bare `continue` → their subcommand; otherwise resolves the launch Env
+// and drives RunLaunch (create / attach / pick / restart loop / compaction). Every
+// path is handled here — the returned int is the exit code, user-facing messages
+// are already on stdout/stderr, and the error is always nil (no shell to fall back
+// to).
 func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer) (int, error) {
 	args, err := ParseArgs(launchArgs)
 	if err != nil {
-		return 0, ErrFallbackToShell // still-shell verb / leading flag — shell owns it (until M5c).
+		// A genuine usage error (a leading flag that isn't -h/--help, a bad verb
+		// arg). The shell no longer exists to defer to (#99 M5c) — print it +
+		// exit 2.
+		_, _ = io.WriteString(stderr, err.Error()+"\n")
+		return 2, nil
 	}
 
-	// Shell-only test/debug seams have no native equivalent — bin/pair-shell
-	// short-circuits them early (before any zellij/fzf), so decline here too. Under
-	// M4 they reached the shell only when the launch happened to decline (the pick
-	// fallback); making pick+compaction native removed those paths, so route them
-	// explicitly (until the shell retires at M5c). PAIR_TEST_CALL dispatches a
-	// shell helper; PAIR_DEBUG_ARGS/PAIR_DEBUG_HISTORY resolve argv/history + exit.
-	// Without this, a `pair continue …` probe would enter the native path and block
-	// on the create prompt (the M5a fzf-/dev/tty class of hang).
-	if shellOnlySeamActive() {
-		return 0, ErrFallbackToShell
+	// `pair --help` / `pair help` — native usage to stdout (#99 M5c).
+	if args.Command == "help" {
+		_, _ = io.WriteString(stdout, UsageText())
+		return 0, nil
 	}
 
 	home := os.Getenv("HOME")
 	xdg := os.Getenv("XDG_DATA_HOME")
 	cwd, err := os.Getwd()
 	if err != nil {
-		return 0, ErrFallbackToShell
+		_, _ = io.WriteString(stderr, "pair: cannot determine working directory: "+err.Error()+"\n")
+		return 1, nil
 	}
 	dataDir := ResolveDataDir(home, xdg)
 	rt := NewOSRuntime(dataDir, pairHome)
@@ -100,14 +99,6 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 	}
 
 	return RunLaunch(opts, rt, stderr)
-}
-
-// shellOnlySeamActive reports whether a shell-only test/debug seam env var is set
-// — the native launcher declines these to bin/pair-shell (until M5c).
-func shellOnlySeamActive() bool {
-	return os.Getenv("PAIR_TEST_CALL") != "" ||
-		os.Getenv("PAIR_DEBUG_ARGS") != "" ||
-		os.Getenv("PAIR_DEBUG_HISTORY") != ""
 }
 
 func historyDays() int {

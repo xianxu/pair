@@ -200,14 +200,12 @@ pair rename <old> <new>          # rename every tag-scoped file in
 pair -h, --help                  # show full help
 ```
 
-The installed `pair` command is Go-owned. As of the #99 M4 cutover it runs the
-**native Go launcher in-process by default** — create, attach, quit, and Alt+n /
-Shift+Alt+N restart all happen in the Go binary. It falls back to the retained
-`bin/pair-shell` only for the flows not yet ported (the `fzf` session picker,
-in-session compaction, `continue`/`rename` restart re-entries, and `--help`);
-those are M5. Set **`PAIR_LEGACY_LAUNCH=1`** to force the whole launch back
-through `bin/pair-shell` — the rollout kill-switch, removed once M5 retires the
-shell. Source and Homebrew installs use their adjacent asset roots. A copied
+The installed `pair` command is Go-owned. As of the #99 M5 port it runs the
+**native Go launcher in-process for every flow** — create, attach, quit, Alt+n /
+Shift+Alt+N restart, the `fzf` session picker, `list`/`rename`/`continue`,
+in-session compaction, and `--help` all happen in the Go binary. The legacy
+shell launcher `bin/pair-shell` has been **retired** (removed) — there is no
+shell fallback. Source and Homebrew installs use their adjacent asset roots. A copied
 standalone `pair` binary with no adjacent
 or build-time source root extracts its embedded Pair-owned runtime assets to
 `${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}/runtime/<digest>/pair-home`

@@ -91,258 +91,80 @@ func TestRunWritesStderrAndReturnsDispatcherCode(t *testing.T) {
 	}
 }
 
-func TestRunLaunchHelp(t *testing.T) {
-	rt := &fakeLegacyRuntime{
-		executable: "/repo/bin/pair-go",
-		roots:      map[string]bool{"/repo": true},
-	}
-	var stdout, stderr bytes.Buffer
-	code := runWithLegacyRuntime([]string{"launch", "--help"}, &stdout, &stderr, rt)
-	if code != 0 {
-		t.Fatalf("code = %d, want 0", code)
-	}
-	if stdout.String() != "" {
-		t.Fatalf("stdout = %q, want empty", stdout.String())
-	}
-	if stderr.String() != "" {
-		t.Fatalf("stderr = %q, want empty", stderr.String())
-	}
-	if rt.execPath != "/repo/bin/pair-shell" {
-		t.Fatalf("execPath = %q, want /repo/bin/pair-shell", rt.execPath)
-	}
-	if rt.execLabel != "pair-go launch" {
-		t.Fatalf("execLabel = %q, want pair-go launch", rt.execLabel)
-	}
-	wantArgv := []string{"pair", "--help"}
-	if !reflect.DeepEqual(rt.execArgv, wantArgv) {
-		t.Fatalf("execArgv = %#v, want %#v", rt.execArgv, wantArgv)
-	}
-}
-
-func TestRunLaunchExecsLegacyPairWithArgvAndEnv(t *testing.T) {
-	t.Setenv("PAIR_TEST_ENV", "kept")
-	rt := &fakeLegacyRuntime{
-		executable: "/repo/bin/pair-go",
-		roots:      map[string]bool{"/repo": true},
-		execCode:   42,
-	}
-
-	var stdout, stderr bytes.Buffer
-	code := runWithLegacyRuntime([]string{"launch", "claude", "--", "--resume"}, &stdout, &stderr, rt)
-
-	if code != 42 {
-		t.Fatalf("code = %d, want 42", code)
-	}
-	if stdout.String() != "" {
-		t.Fatalf("stdout = %q, want empty", stdout.String())
-	}
-	if stderr.String() != "" {
-		t.Fatalf("stderr = %q, want empty", stderr.String())
-	}
-	if rt.execPath != "/repo/bin/pair-shell" {
-		t.Fatalf("execPath = %q, want /repo/bin/pair-shell", rt.execPath)
-	}
-	if rt.execLabel != "pair-go launch" {
-		t.Fatalf("execLabel = %q, want pair-go launch", rt.execLabel)
-	}
-	wantArgv := []string{"pair", "claude", "--", "--resume"}
-	if !reflect.DeepEqual(rt.execArgv, wantArgv) {
-		t.Fatalf("execArgv = %#v, want %#v", rt.execArgv, wantArgv)
-	}
-	if !containsEnv(rt.execEnv, "PAIR_TEST_ENV=kept") {
-		t.Fatalf("execEnv missing PAIR_TEST_ENV=kept: %#v", rt.execEnv)
+// The launch route (public `pair` and `pair-go launch`) resolves the asset root,
+// then drives the native launcher in-process and returns its exit code — there is
+// no shell to exec (#99 M5c, bin/pair-shell retired).
+func TestLaunchDrivesNativeLauncher(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		argv []string
+		want []string
+	}{
+		{"pair-go launch", []string{"launch", "claude", "--", "--resume"}, []string{"claude", "--", "--resume"}},
+		{"direct pair", []string{"claude", "--", "--resume"}, []string{"claude", "--", "--resume"}},
+		{"pair --help", []string{"launch", "--help"}, []string{"--help"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			exe := "/repo/bin/pair"
+			if tc.argv[0] == "launch" {
+				exe = "/repo/bin/pair-go"
+			}
+			rt := &fakeLegacyRuntime{executable: exe, roots: map[string]bool{"/repo": true}, launchNativeCode: 5}
+			var stdout, stderr bytes.Buffer
+			code := runWithLegacyRuntime(tc.argv, &stdout, &stderr, rt)
+			if code != 5 {
+				t.Fatalf("code = %d, want the native exit code 5", code)
+			}
+			if !rt.launchNativeCalled || !reflect.DeepEqual(rt.launchNativeArgs, tc.want) || rt.launchNativeRoot != "/repo" {
+				t.Fatalf("native called=%v args=%#v root=%q", rt.launchNativeCalled, rt.launchNativeArgs, rt.launchNativeRoot)
+			}
+		})
 	}
 }
 
-func TestRunLaunchReportsMissingLegacyPair(t *testing.T) {
-	rt := &fakeLegacyRuntime{
-		executable: "/repo/bin/pair-go",
-	}
-
+// A missing asset root reports the marker (main.kdl) + recovery hints and never
+// runs the launcher — there's no bin/pair-shell to blame anymore.
+func TestRunLaunchReportsMissingRoot(t *testing.T) {
+	rt := &fakeLegacyRuntime{executable: "/repo/bin/pair-go"}
 	var stdout, stderr bytes.Buffer
 	code := runWithLegacyRuntime([]string{"launch", "claude"}, &stdout, &stderr, rt)
-
 	if code != 1 {
 		t.Fatalf("code = %d, want 1", code)
 	}
-	if stdout.String() != "" {
-		t.Fatalf("stdout = %q, want empty", stdout.String())
-	}
-	for _, want := range []string{"pair-go launch", "pair-shell", "PAIR_HOME", "/repo", "make build", "make install", "dev-aliases.sh"} {
+	for _, want := range []string{"pair-go launch", "main.kdl", "PAIR_HOME", "/repo", "make build", "make install", "dev-aliases.sh"} {
 		if !strings.Contains(stderr.String(), want) {
 			t.Fatalf("stderr missing %q:\n%s", want, stderr.String())
 		}
 	}
-	if rt.execPath != "" {
-		t.Fatalf("execPath = %q, want empty", rt.execPath)
-	}
-}
-
-func TestRunDirectPairExecsLegacyShellWithAllArgs(t *testing.T) {
-	rt := &fakeLegacyRuntime{
-		executable: "/repo/bin/pair",
-		roots:      map[string]bool{"/repo": true},
-		execCode:   7,
-	}
-
-	var stdout, stderr bytes.Buffer
-	code := runWithLegacyRuntime([]string{"claude", "--", "--resume"}, &stdout, &stderr, rt)
-
-	if code != 7 {
-		t.Fatalf("code = %d, want 7", code)
-	}
-	if stdout.String() != "" {
-		t.Fatalf("stdout = %q, want empty", stdout.String())
-	}
-	if stderr.String() != "" {
-		t.Fatalf("stderr = %q, want empty", stderr.String())
-	}
-	if rt.execPath != "/repo/bin/pair-shell" {
-		t.Fatalf("execPath = %q, want /repo/bin/pair-shell", rt.execPath)
-	}
-	if rt.execLabel != "pair" {
-		t.Fatalf("execLabel = %q, want pair", rt.execLabel)
-	}
-	wantArgv := []string{"pair", "claude", "--", "--resume"}
-	if !reflect.DeepEqual(rt.execArgv, wantArgv) {
-		t.Fatalf("execArgv = %#v, want %#v", rt.execArgv, wantArgv)
-	}
-}
-
-// #99 M4: the native launcher is the default. When it HANDLES the launch, its
-// exit code is returned and bin/pair-shell is never exec'd.
-func TestLaunchRunsNativeByDefault(t *testing.T) {
-	t.Setenv("PAIR_LEGACY_LAUNCH", "") // ensure the kill-switch is off
-	rt := &fakeLegacyRuntime{
-		executable:          "/repo/bin/pair",
-		roots:               map[string]bool{"/repo": true},
-		launchNativeHandled: true,
-		launchNativeCode:    5,
-	}
-
-	var stdout, stderr bytes.Buffer
-	code := runWithLegacyRuntime([]string{"claude"}, &stdout, &stderr, rt)
-
-	if code != 5 {
-		t.Fatalf("code = %d, want the native exit code 5", code)
-	}
-	if !rt.launchNativeCalled {
-		t.Fatalf("native launcher should run by default")
-	}
-	if !reflect.DeepEqual(rt.launchNativeArgs, []string{"claude"}) || rt.launchNativeRoot != "/repo" {
-		t.Fatalf("native called with args=%#v root=%q", rt.launchNativeArgs, rt.launchNativeRoot)
-	}
-	if rt.execPath != "" {
-		t.Fatalf("native-handled launch must not exec the shell; execPath=%q", rt.execPath)
-	}
-}
-
-// A native decline (ErrFallbackToShell → handled=false) still reaches the real
-// bin/pair-shell — the fallback path that pick / compaction / continue+rename
-// depend on (and must not loop, since the shell stays a real launcher, not a shim).
-func TestLaunchNativeDeclineFallsToShell(t *testing.T) {
-	t.Setenv("PAIR_LEGACY_LAUNCH", "")
-	rt := &fakeLegacyRuntime{
-		executable:          "/repo/bin/pair",
-		roots:               map[string]bool{"/repo": true},
-		launchNativeHandled: false, // decline → fall through to the shell
-		execCode:            7,
-	}
-
-	var stdout, stderr bytes.Buffer
-	code := runWithLegacyRuntime([]string{"claude"}, &stdout, &stderr, rt)
-
-	if !rt.launchNativeCalled {
-		t.Fatalf("native launcher should be tried first")
-	}
-	if rt.execPath != "/repo/bin/pair-shell" {
-		t.Fatalf("a native decline must exec the real shell; execPath=%q", rt.execPath)
-	}
-	if code != 7 {
-		t.Fatalf("code = %d, want the shell exec code 7", code)
-	}
-}
-
-// The real osLegacyRuntime.LaunchNative adapter maps ErrFallbackToShell →
-// handled=false. A leading-flag help (`--help`) is still shell-owned (until M5c)
-// and declines before any OS/zellij call, so this exercises the adapter directly
-// without a live launcher. (`list` is now handled natively — #99 M5a.)
-func TestOSLegacyRuntimeLaunchNativeDeclineMapsUnhandled(t *testing.T) {
-	var stdout, stderr bytes.Buffer
-	code, handled := osLegacyRuntime{}.LaunchNative([]string{"--help"}, "/nonexistent", &stdout, &stderr)
-	if handled {
-		t.Fatalf("an ErrFallbackToShell decline must map to handled=false")
-	}
-	if code != 0 {
-		t.Fatalf("code = %d, want 0 on decline", code)
-	}
-}
-
-// The PAIR_LEGACY_LAUNCH kill-switch forces the whole launch to the shell —
-// the native launcher is never tried (rollout safety hatch).
-func TestLaunchLegacyKillSwitch(t *testing.T) {
-	t.Setenv("PAIR_LEGACY_LAUNCH", "1")
-	rt := &fakeLegacyRuntime{
-		executable: "/repo/bin/pair",
-		roots:      map[string]bool{"/repo": true},
-		execCode:   3,
-	}
-
-	var stdout, stderr bytes.Buffer
-	code := runWithLegacyRuntime([]string{"claude"}, &stdout, &stderr, rt)
-
 	if rt.launchNativeCalled {
-		t.Fatalf("PAIR_LEGACY_LAUNCH=1 must not run the native launcher")
-	}
-	if rt.execPath != "/repo/bin/pair-shell" || code != 3 {
-		t.Fatalf("kill-switch should exec the shell; execPath=%q code=%d", rt.execPath, code)
+		t.Fatal("launcher must not run without a valid root")
 	}
 }
 
-func TestRunDirectPairFallsBackToDefaultPairHome(t *testing.T) {
-	rt := &fakeLegacyRuntime{
-		executable:      "/home/me/.local/bin/pair",
-		defaultPairHome: "/repo",
-		roots:           map[string]bool{"/repo": true},
-	}
-
+func TestRunLaunchFallsBackToDefaultPairHome(t *testing.T) {
+	rt := &fakeLegacyRuntime{executable: "/home/me/.local/bin/pair", defaultPairHome: "/repo", roots: map[string]bool{"/repo": true}}
 	var stdout, stderr bytes.Buffer
-	code := runWithLegacyRuntime([]string{"--help"}, &stdout, &stderr, rt)
-
-	if code != 0 {
+	if code := runWithLegacyRuntime([]string{"--help"}, &stdout, &stderr, rt); code != 0 {
 		t.Fatalf("code = %d, want 0", code)
 	}
-	if stderr.String() != "" {
-		t.Fatalf("stderr = %q, want empty", stderr.String())
-	}
-	if rt.execPath != "/repo/bin/pair-shell" {
-		t.Fatalf("execPath = %q, want /repo/bin/pair-shell", rt.execPath)
+	if !rt.launchNativeCalled || rt.launchNativeRoot != "/repo" {
+		t.Fatalf("native called=%v root=%q, want /repo", rt.launchNativeCalled, rt.launchNativeRoot)
 	}
 }
 
-func TestRunDirectPairFallsBackToEmbeddedRuntimeAndSetsPairHome(t *testing.T) {
+func TestRunLaunchFallsBackToEmbeddedRuntime(t *testing.T) {
 	rt := &fakeLegacyRuntime{
-		executable:   "/home/me/.local/bin/pair",
-		embeddedRoot: "/data/pair/runtime/abc/pair-home",
-		roots:        map[string]bool{"/data/pair/runtime/abc/pair-home": true},
-		execCode:     9,
-		environ:      []string{"PATH=/bin", "PAIR_HOME=/old"},
+		executable:       "/home/me/.local/bin/pair",
+		embeddedRoot:     "/data/pair/runtime/abc/pair-home",
+		roots:            map[string]bool{"/data/pair/runtime/abc/pair-home": true},
+		launchNativeCode: 9,
 	}
-
 	var stdout, stderr bytes.Buffer
-	code := runWithLegacyRuntime([]string{"--help"}, &stdout, &stderr, rt)
-
-	if code != 9 {
+	if code := runWithLegacyRuntime([]string{"--help"}, &stdout, &stderr, rt); code != 9 {
 		t.Fatalf("code = %d, want 9", code)
 	}
-	if rt.execPath != "/data/pair/runtime/abc/pair-home/bin/pair-shell" {
-		t.Fatalf("execPath = %q, want embedded pair-shell", rt.execPath)
-	}
-	if !containsEnv(rt.execEnv, "PAIR_HOME=/data/pair/runtime/abc/pair-home") {
-		t.Fatalf("execEnv missing embedded PAIR_HOME: %#v", rt.execEnv)
-	}
-	if containsEnv(rt.execEnv, "PAIR_HOME=/old") {
-		t.Fatalf("execEnv kept old PAIR_HOME: %#v", rt.execEnv)
+	if rt.launchNativeRoot != "/data/pair/runtime/abc/pair-home" {
+		t.Fatalf("native root = %q, want the embedded pair-home", rt.launchNativeRoot)
 	}
 }
 
@@ -360,7 +182,9 @@ func TestRuntimeDataDirFallsBackToXDGPairDir(t *testing.T) {
 	}
 }
 
-func TestRunPairGoHelperDoesNotProbeOrExecShellLauncher(t *testing.T) {
+// The pair-go dispatcher `help` command does not touch the launch route (no asset-
+// root probe, no launcher call).
+func TestRunPairGoHelperDoesNotProbeLaunchRoute(t *testing.T) {
 	rt := &fakeLegacyRuntime{
 		executable: "/repo/bin/pair-go",
 	}
@@ -374,8 +198,8 @@ func TestRunPairGoHelperDoesNotProbeOrExecShellLauncher(t *testing.T) {
 	if rt.statCalls != 0 {
 		t.Fatalf("statCalls = %d, want 0", rt.statCalls)
 	}
-	if rt.execPath != "" {
-		t.Fatalf("execPath = %q, want empty", rt.execPath)
+	if rt.launchNativeCalled {
+		t.Fatal("dispatcher help must not run the launcher")
 	}
 	if !strings.Contains(stdout.String(), "Usage: pair-go <command> [args]") {
 		t.Fatalf("stdout missing usage:\n%s", stdout.String())
@@ -391,23 +215,15 @@ type fakeLegacyRuntime struct {
 	defaultPairHome string
 	roots           map[string]bool
 	statErr         error
-	execCode        int
 	statCalls       int
 	embeddedRoot    string
 	embeddedErr     error
-	environ         []string
 
-	execPath  string
-	execLabel string
-	execArgv  []string
-	execEnv   []string
-
-	// native launcher seam (#99 M4). Default: declines (handled=false) → shell.
-	launchNativeHandled bool
-	launchNativeCode    int
-	launchNativeCalled  bool
-	launchNativeArgs    []string
-	launchNativeRoot    string
+	// native launcher seam (#99 M5c — the sole launcher).
+	launchNativeCode   int
+	launchNativeCalled bool
+	launchNativeArgs   []string
+	launchNativeRoot   string
 }
 
 func (f *fakeLegacyRuntime) Executable() (string, error) {
@@ -430,46 +246,22 @@ func (f *fakeLegacyRuntime) Stat(path string) error {
 	if f.statErr != nil {
 		return f.statErr
 	}
-	if strings.HasSuffix(path, "/bin/pair-shell") && f.roots != nil {
-		root := strings.TrimSuffix(path, "/bin/pair-shell")
-		if f.roots[root] {
+	const marker = "/zellij/layouts/main.kdl"
+	if strings.HasSuffix(path, marker) && f.roots != nil {
+		if f.roots[strings.TrimSuffix(path, marker)] {
 			return nil
 		}
 	}
 	return os.ErrNotExist
 }
 
-func (f *fakeLegacyRuntime) Environ() []string {
-	if f.environ != nil {
-		return f.environ
-	}
-	return os.Environ()
-}
-
 func (f *fakeLegacyRuntime) EmbeddedAssetRoot() (string, error) {
 	return f.embeddedRoot, f.embeddedErr
 }
 
-func (f *fakeLegacyRuntime) Exec(label string, path string, argv []string, env []string) int {
-	f.execLabel = label
-	f.execPath = path
-	f.execArgv = append([]string(nil), argv...)
-	f.execEnv = append([]string(nil), env...)
-	return f.execCode
-}
-
-func (f *fakeLegacyRuntime) LaunchNative(args []string, root string, stdout, stderr io.Writer) (int, bool) {
+func (f *fakeLegacyRuntime) LaunchNative(args []string, root string, stdout, stderr io.Writer) int {
 	f.launchNativeCalled = true
 	f.launchNativeArgs = append([]string(nil), args...)
 	f.launchNativeRoot = root
-	return f.launchNativeCode, f.launchNativeHandled
-}
-
-func containsEnv(env []string, want string) bool {
-	for _, got := range env {
-		if got == want {
-			return true
-		}
-	}
-	return false
+	return f.launchNativeCode
 }

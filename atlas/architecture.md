@@ -180,12 +180,20 @@ reusing `continuationcmd.ContinuationDir`/`NextActionPreview`); (3) the offline
 journal + reverse-rollback) and the **`rename_to`/`continue` restart re-entries**
 (`planRestart` drops `ShellFallback`; the loop moves sidecars then relaunches under
 the new tag, or re-seeds the draft from the slug) — closing the M4-accepted
-degradation. `PAIR_DEBUG_ARGS`/`PAIR_DEBUG_HISTORY` join `PAIR_TEST_CALL` as
-shell-routed seams (`shellOnlySeamActive`). After M5b **only `bin/pair-shell`
-retirement + `--help` remain (M5c)** — no launch flow falls back except the
-leading-flag help and the shell-only test/debug seams. So
-as of M4 `pair` runs the Go launcher by default; `PAIR_LEGACY_LAUNCH=1` is the
-escape hatch back to the shell.
+degradation. **M5c retires the shell entirely** — `bin/pair-shell` is **removed**;
+`--help`/`help` print a native `UsageText`; the `cmd/pair-go` fallback arm
+(`PAIR_LEGACY_LAUNCH`, the `Exec` seam, `ErrFallbackToShell`, `shellOnlySeamActive`)
+is deleted, so `LaunchNative` always returns a real exit code; the defensive
+error paths (Sessions/ScanHistory/DecideLaunch/os.Getwd) print + exit instead of
+falling back. The asset-root validity marker moves from `bin/pair-shell` to the
+always-present **`zellij/layouts/main.kdl`** (tracked + bundled, unlike the built
+`bin/pair-wrap`). The `PAIR_TEST_CALL`/`PAIR_DEBUG_*`-driven shell contract tests
+(`pair-continue-test`, `cmux-ownership-test`) retire with the shell — every shell
+function they pinned has a tested Go equivalent. **`bin/pair-restart.sh`/
+`pair-quit.sh` stay** (nvim keybind marker-writers, independent of the launcher;
+converting their WRITE to an in-process `pair restart` subcommand is a separable
+follow-up). So `pair` is now a single Go launcher end-to-end; #94 (stop extracting
+a shell tree) unblocks.
 
 `bin/pair-shell` resolves `$PAIR_HOME` from its own real path (portable bash, no `readlink -f`), prepends `$PAIR_HOME/bin` to `$PATH` (idempotent across re-launches) so all helper scripts resolve by bare name in zellij configs and keybinds, parses argv — first positional is `$PAIR_AGENT` (default `claude`), everything after `--` is joined into `$PAIR_AGENT_ARGS`, extra positionals before `--` are an error with a usage hint, defaults `$PAIR_TAG` to the cwd basename (the create-flow prompt or `pair resume <tag>` overrides it), resolves `$PAIR_DATA_DIR` to `${XDG_DATA_HOME:-$HOME/.local/share}/pair`, runs a one-time migration of any old `~/scratch/pair-{draft,log}-*` files, and dispatches:
 
