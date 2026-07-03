@@ -23,12 +23,21 @@ import (
 func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 	env := normalizeEnv(opts.Env)
 
-	// Launches from inside an existing zellij pane are the "already inside
-	// zellij" error or the #55 in-session compaction — both shell-owned (M5).
-	// First-entry only: a restart re-launch is the same outer process, never in
-	// a pane.
+	// #55 in-session compaction (M5b): `pair continue <slug>` from inside the
+	// matching pane parks the scrollback (copy), drops a restart marker carrying
+	// the slug, and kills the session — the outer loop below then re-launches
+	// fresh, seeded from the slug. First entry only: a restart re-launch is the
+	// same outer process, never in a pane.
+	if opts.ContinueSlug != "" &&
+		compactionDecision(opts.ForceInSession, rt.InZellijPane() || opts.FakeInZellij, opts.PairTag, opts.ZellijSession) {
+		return runCompaction(opts, rt, stderr)
+	}
+	// Otherwise a launch from inside a pane can't proceed (a nested --session
+	// would break; the create path's prompt would block) — shell 1064-1067.
 	if rt.InZellijPane() {
-		return 0, ErrFallbackToShell
+		fmt.Fprintf(stderr, "pair: already running inside a zellij session.\n")
+		fmt.Fprintf(stderr, "      detach first (Alt+d) or run pair from a fresh terminal.\n")
+		return 1, nil
 	}
 
 	// Startup nvim hygiene (shell 1243): reap embeds whose pair-<tag> session is

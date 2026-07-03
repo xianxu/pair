@@ -93,24 +93,11 @@ func TestParseLaunchArgsLeadingFlagIsNotAnAgent(t *testing.T) {
 	}
 }
 
-func TestParseLaunchArgsUnsupportedLaunchSubcommandsAreExplicit(t *testing.T) {
-	// list/ls native at M5a; rename native at M5b (Flow B). `continue` is the last
-	// shell-owned verb until M5b Flow A lands its native compaction/create path.
-	for _, verb := range []string{"continue"} {
-		t.Run(verb, func(t *testing.T) {
-			_, err := ParseArgs([]string{verb})
-			if err == nil {
-				t.Fatal("ParseArgs returned nil error")
-			}
-			if !strings.Contains(err.Error(), "not implemented by pair-go launch") {
-				t.Fatalf("error = %q, want explicit unsupported message", err)
-			}
-			if !strings.Contains(err.Error(), "use pair") {
-				t.Fatalf("error = %q, want public pair guidance", err)
-			}
-		})
-	}
-}
+// As of #99 M5b all launcher subcommands (list/ls, rename, continue) parse
+// natively — no ParseArgs verb falls back to the shell anymore; only a leading
+// flag (--help) does (TestParseLaunchArgsLeadingFlagIsNotAnAgent). The parse
+// contract for each native verb is pinned by TestParseRename / TestParseContinue
+// / TestParseListIsNative.
 
 // list/ls parse to the read-only list command marker (#99 M5a), no longer a
 // shell-fallback error.

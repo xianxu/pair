@@ -18,6 +18,11 @@ type LaunchArgs struct {
 	RenameOld       string
 	RenameNew       string
 	RenameCheckOnly bool
+
+	// continue (#99 M5b): the raw slug (normalized at resolve time). "" with
+	// Command=="continue" is the bare list mode. Agent/AgentArgs above carry the
+	// optional agent port + `-- <forwarded>` args.
+	ContinueSlug string
 }
 
 // UsageError is an operator-facing parse error.
@@ -47,7 +52,7 @@ func ParseArgs(argv []string) (LaunchArgs, error) {
 	case "rename":
 		return parseRename(argv[1:]) // #99 M5b
 	case "continue":
-		return LaunchArgs{}, UsageError{Message: fmt.Sprintf("pair-go launch: %s is not implemented by pair-go launch; use pair", argv[0])}
+		return parseContinue(argv[1:]) // #99 M5b
 	case "resume":
 		if len(argv) < 2 {
 			return LaunchArgs{}, UsageError{Message: "pair-go launch: 'resume' requires a tag"}
@@ -118,5 +123,29 @@ func parseRename(args []string) (LaunchArgs, error) {
 		return LaunchArgs{}, UsageError{Message: fmt.Sprintf("pair rename: unexpected arg '%s'", rest[2])}
 	}
 	out.RenameOld, out.RenameNew = rest[0], rest[1]
+	return out, nil
+}
+
+// parseContinue parses `continue [slug] [agent] [-- args...]` (#99 M5b, shell
+// 612-648). Bare (no slug) is the list mode. After the slug, an optional agent
+// port (unless it's `--`) overrides the doc's frontmatter agent; everything from
+// `--` onward forwards to the agent. The slug stays raw (normalized at resolve).
+func parseContinue(args []string) (LaunchArgs, error) {
+	out := LaunchArgs{Command: "continue"}
+	if len(args) == 0 {
+		return out, nil // bare list
+	}
+	out.ContinueSlug = args[0]
+	rest := args[1:]
+	if len(rest) > 0 && rest[0] != "--" {
+		out.Agent = rest[0] // explicit port
+		rest = rest[1:]
+	}
+	if len(rest) > 0 {
+		if rest[0] != "--" {
+			return LaunchArgs{}, UsageError{Message: fmt.Sprintf("pair continue: unexpected arg '%s' (use '--' to forward args)", rest[0])}
+		}
+		out.AgentArgs = rest[1:]
+	}
 	return out, nil
 }

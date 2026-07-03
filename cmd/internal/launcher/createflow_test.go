@@ -29,6 +29,13 @@ type fakeRuntime struct {
 	listErr        error
 	renameFailAt   string      // Rename returns an error when src == this (rollback test)
 	renamed        [][2]string // {src,dst} per successful Rename
+	// #99 M5b compaction/continue
+	writtenMarkers   map[string]RestartMarker // WriteRestartMarker by session
+	touchedQuit      []string                 // TouchQuitMarker sessions
+	killed           []string                 // ExecKillSession sessions
+	continuationDocs map[string][2]string     // slug -> {path, agent} for ResolveContinuationDoc
+	continuationRows []ContinuationRow        // ScanContinuations rows
+	continuationDir  string                   // ScanContinuations dir
 
 	// M3 lifecycle inputs
 	isTTY          bool
@@ -94,6 +101,17 @@ func (f *fakeRuntime) ScanHistory(base string, cutoff time.Time) ([]HistoricalTa
 
 // ListOps
 func (f *fakeRuntime) ListSessions() ([]ListRow, error) { return f.listRows, f.listErr }
+
+// ContinuationOps (#99 M5b)
+func (f *fakeRuntime) ResolveContinuationDoc(slug string) (string, string, bool) {
+	if d, ok := f.continuationDocs[slug]; ok {
+		return d[0], d[1], true
+	}
+	return "", "", false
+}
+func (f *fakeRuntime) ScanContinuations() ([]ContinuationRow, string) {
+	return f.continuationRows, f.continuationDir
+}
 
 // UIOps
 func (f *fakeRuntime) ShowFamilyExisting(familyPrefix string) {
@@ -176,6 +194,14 @@ func (f *fakeRuntime) Rename(src, dst string) error {
 	f.renamed = append(f.renamed, [2]string{src, dst})
 	return nil
 }
+func (f *fakeRuntime) WriteRestartMarker(session string, m RestartMarker) {
+	if f.writtenMarkers == nil {
+		f.writtenMarkers = map[string]RestartMarker{}
+	}
+	f.writtenMarkers[session] = m
+}
+func (f *fakeRuntime) TouchQuitMarker(session string) { f.touchedQuit = append(f.touchedQuit, session) }
+func (f *fakeRuntime) ExecKillSession(session string) { f.killed = append(f.killed, session) }
 
 // LifecycleOps
 func (f *fakeRuntime) AttachSession(session, configDir string) (int, error) {
@@ -438,17 +464,23 @@ func TestRunLaunchExplicitResumeSkipsPicker(t *testing.T) {
 	}
 }
 
-// A launch from inside a zellij pane still defers to the shell (in-session
-// compaction is M5b). Attach + the fzf session pick are now native — see
-// lifecycle_test.go and pick_test.go.
-func TestRunLaunchFallbacks(t *testing.T) {
-	t.Run("in pane", func(t *testing.T) {
-		rt := newFakeRuntime()
-		rt.inPane = true
-		if _, err := run(t, baseOpts(LaunchArgs{Agent: "claude"}), rt); !errors.Is(err, ErrFallbackToShell) {
-			t.Fatalf("in-pane should fall back, got %v", err)
-		}
-	})
+// A bare launch from inside a zellij pane (no `continue` slug → not compaction)
+// is rejected natively now (#99 M5b) — a nested --session would break. It no
+// longer falls back to the shell. (Attach + pick + compaction are native — see
+// lifecycle_test.go, pick_test.go, compaction_test.go.)
+func TestRunLaunchInPaneRejected(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.inPane = true
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude"}), rt)
+	if err != nil {
+		t.Fatalf("in-pane bare launch should be handled natively, got err %v", err)
+	}
+	if code != 1 {
+		t.Fatalf("in-pane bare launch should exit 1, got %d", code)
+	}
+	if rt.launched != "" || len(rt.attached) != 0 {
+		t.Fatal("in-pane rejection must not hand off")
+	}
 }
 
 // A missing agent binary errors before any session work.

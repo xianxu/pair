@@ -15,9 +15,10 @@ import (
 	"time"
 )
 
-// continuationDir is the repo-relative home for continuation instances
-// (matches construct/datatype/continuation.md).
-const continuationDir = "workshop/continuation"
+// ContinuationDir is the repo-relative home for continuation instances (matches
+// construct/datatype/continuation.md). Exported so the launcher's `pair continue`
+// resolver shares one source for where continuations live (#99 M5b, ARCH-DRY).
+const ContinuationDir = "workshop/continuation"
 
 // Run parses flags from args and writes the continuation. now/stdin are injected
 // (the clock-fake + stdin tests drive run() directly); real stdio is threaded in
@@ -85,7 +86,7 @@ func run(a runArgs, now func() time.Time, stdin io.Reader, stdout io.Writer) err
 		return err
 	}
 
-	dir := filepath.Join(root, continuationDir)
+	dir := filepath.Join(root, ContinuationDir)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
@@ -94,7 +95,7 @@ func run(a runArgs, now func() time.Time, stdin io.Reader, stdout io.Writer) err
 		return err
 	}
 	name := AllocName(f.Slug, ts, existing)
-	rel := filepath.ToSlash(filepath.Join(continuationDir, name))
+	rel := filepath.ToSlash(filepath.Join(ContinuationDir, name))
 	abs := filepath.Join(dir, name)
 	if err := os.WriteFile(abs, []byte(Assemble(RenderFrontmatter(f), body)), 0o644); err != nil {
 		return err

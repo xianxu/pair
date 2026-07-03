@@ -96,6 +96,30 @@ func HasNextAction(body string) bool {
 	return false
 }
 
+// NextActionPreview returns the first non-blank content line under the '## NEXT
+// ACTION' heading (or "" if absent/empty) — the one-line summary the `pair
+// continue` bare list shows per doc (#99 M5b). Shares HasNextAction's scan so the
+// "where NEXT ACTION content lives" rule has one source (ARCH-DRY).
+func NextActionPreview(body string) string {
+	lines := strings.Split(body, "\n")
+	for i, ln := range lines {
+		if strings.TrimSpace(ln) != "## NEXT ACTION" {
+			continue
+		}
+		for _, rest := range lines[i+1:] {
+			t := strings.TrimSpace(rest)
+			if t == "" {
+				continue
+			}
+			if isATXHeading(t) {
+				return ""
+			}
+			return t
+		}
+	}
+	return ""
+}
+
 // isATXHeading reports whether a trimmed line is a markdown ATX heading: one or
 // more '#' followed by a space. It deliberately does NOT match a bare '#NN'
 // issue reference (no space after the hashes) — this repo writes those

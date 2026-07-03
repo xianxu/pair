@@ -8,10 +8,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/continuationcmd"
 	"github.com/xianxu/pair/cmd/internal/osfs"
 )
 
@@ -135,6 +137,64 @@ func (r OSRuntime) ListSessions() ([]ListRow, error) {
 		rows = append(rows, row)
 	}
 	return rows, nil
+}
+
+// --- ContinuationOps -------------------------------------------------------
+
+// continuationDirPath is <git-root-or-cwd>/workshop/continuation (shell 613-614);
+// the dir constant is shared with continuationcmd (ARCH-DRY, #99 M5b).
+func continuationDirPath() string {
+	root := ""
+	if out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output(); err == nil {
+		root = strings.TrimSpace(string(out))
+	}
+	if root == "" {
+		root, _ = os.Getwd()
+	}
+	return filepath.Join(root, continuationcmd.ContinuationDir)
+}
+
+// continuationSlug strips the timestamp prefix from a continuation basename
+// (`20260101T000000-demo.md` → `demo`; shell 619's `${_cs#*-}`).
+func continuationSlug(base string) string {
+	s := strings.TrimSuffix(base, ".md")
+	if i := strings.IndexByte(s, '-'); i >= 0 {
+		return s[i+1:]
+	}
+	return s
+}
+
+func (r OSRuntime) ResolveContinuationDoc(slug string) (string, string, bool) {
+	matches, _ := filepath.Glob(filepath.Join(continuationDirPath(), "*-"+slug+".md"))
+	if len(matches) == 0 {
+		return "", "", false
+	}
+	sort.Strings(matches)
+	path := matches[len(matches)-1] // newest by timestamp-prefixed name (shell `sort | tail -1`)
+	agent := ""
+	if raw, err := r.ReadFile(path); err == nil {
+		agent = frontmatterField(raw, "agent")
+	}
+	return path, agent, true
+}
+
+func (r OSRuntime) ScanContinuations() ([]ContinuationRow, string) {
+	dir := continuationDirPath()
+	matches, _ := filepath.Glob(filepath.Join(dir, "*.md"))
+	sort.Strings(matches)
+	rows := make([]ContinuationRow, 0, len(matches))
+	for _, path := range matches {
+		raw, err := r.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		rows = append(rows, ContinuationRow{
+			Slug:    continuationSlug(filepath.Base(path)),
+			Issues:  frontmatterField(raw, "issues"),
+			Preview: continuationcmd.NextActionPreview(raw),
+		})
+	}
+	return rows, dir
 }
 
 // --- UIOps -----------------------------------------------------------------
@@ -389,6 +449,30 @@ func (r OSRuntime) TakeRestartMarker(session string) (RestartMarker, bool) {
 	}
 	r.Remove(path)
 	return parseRestartMarker(raw), true
+}
+
+// WriteRestartMarker + TouchQuitMarker are the in-session compaction write twins
+// (#99 M5b, shell 1052-1058); WriteAtomic/Touch MkdirAll the cache dir.
+func (r OSRuntime) WriteRestartMarker(session string, m RestartMarker) {
+	_ = r.WriteAtomic(filepath.Join(pairCacheDir(), "restart-"+session), serializeRestartMarker(m))
+}
+
+func (r OSRuntime) TouchQuitMarker(session string) {
+	_ = r.Touch(filepath.Join(pairCacheDir(), "quit-"+session))
+}
+
+// ExecKillSession execs `${PAIR_KILL_CMD:-zellij kill-session} <session>` and
+// does NOT return on success (syscall.Exec replaces the process — the compaction
+// pane dies, the outer bin/pair regains the tty). A missing binary falls through
+// so the caller isn't wedged (shell 1060).
+func (OSRuntime) ExecKillSession(session string) {
+	argv := []string{"zellij", "kill-session", session}
+	if kc := os.Getenv("PAIR_KILL_CMD"); kc != "" {
+		argv = append(strings.Fields(kc), session)
+	}
+	if path, err := exec.LookPath(argv[0]); err == nil {
+		_ = syscall.Exec(path, argv, os.Environ())
+	}
 }
 
 // DeleteSession removes the zellij session record, then SIGKILLs a lingering
