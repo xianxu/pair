@@ -7,13 +7,15 @@ import (
 	"time"
 )
 
-// LaunchNative is the process-level entry the cmd/pair-go PAIR_NATIVE_LAUNCH gate
-// calls (#99 M2): it parses launchArgs, resolves the launch Env from the OS, and
-// drives RunLaunch against the real OSRuntime. It returns ErrFallbackToShell for
-// anything the native create path doesn't own yet (an unsupported verb like
-// `continue`/`rename`/`list`, or a decision that resolves to attach/pick) so the
-// caller defers to bin/pair-shell. Any other return is handled: the int is the
-// exit code and user-facing messages are already on stderr.
+// LaunchNative is the process-level entry the cmd/pair-go launch gate calls
+// (#99 M2; the DEFAULT entry as of M4): it parses launchArgs, resolves the launch
+// Env from the OS, and drives RunLaunch against the real OSRuntime. It returns
+// ErrFallbackToShell for anything the native launcher doesn't own yet — an
+// unsupported verb (`continue`/`rename`/`list`), a leading flag (`--help`/`-h`,
+// shell-owned), the fzf session pick, an in-pane launch (compaction), or a
+// rename/continue restart re-entry — so the caller defers to bin/pair-shell. Any
+// other return is handled: the int is the exit code and user-facing messages are
+// already on stderr.
 func LaunchNative(launchArgs []string, pairHome string, stderr io.Writer) (int, error) {
 	args, err := ParseArgs(launchArgs)
 	if err != nil {

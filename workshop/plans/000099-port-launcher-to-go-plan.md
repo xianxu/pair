@@ -168,3 +168,39 @@ path ships. `RestartMarker.RenameTo`/`Continue` + `restartPlan.ShellFallback` ar
 already the seam M5 converts to native. Shell stays default until the M4 cutover.
 (M3 milestone-review FIX-THEN-SHIP; the two Importants were doc-accuracy — this
 Revision — and recording the exec-seam boundary smoke in the close evidence.)
+
+### 2026-07-02 — M4/M5 scope corrected (pre-implementation; plan-quality FAILURE fix)
+
+The **M4 bullet is not executable as written** — it pairs "flip the default to
+native" with "convert `bin/pair-shell` to a thin shim → `pair-go launch`". But M3
+deliberately routes the fzf session **pick**, in-session **compaction**, and the
+**continue/rename** restart re-entries to `ErrFallbackToShell` → the *real*
+`bin/pair-shell`. A shim in M4 would loop:
+`native → ErrFallbackToShell → bin/pair-shell (shim) → pair-go launch → native → …`.
+
+**Corrected split:**
+- **M4 = flip the default ONLY.** Make the native launcher run by default
+  (native-first), gated by a `PAIR_LEGACY_LAUNCH=1` **kill-switch** that forces the
+  shell for the whole launch (rollout safety; dropped in M5), replacing the M2/M3
+  opt-in `PAIR_NATIVE_LAUNCH` gate. `bin/pair-shell` is **retained as the real
+  fallback launcher** for the still-`ErrFallbackToShell` surfaces — NOT shimmed.
+  The native launch moves behind the `cmd/pair-go` `legacyRuntime` seam so the flip
+  is unit-testable without real zellij (ARCH-PURE). **Verification** must assert
+  BOTH: (a) create / attach / Alt+n / Shift+Alt+N / quit run natively by default;
+  AND (b) the still-deferred surfaces (pick / compaction / continue+rename restart)
+  still reach the real `bin/pair-shell` and do **not** loop.
+- **M5 = the actual retirement.** Port the remaining flows native — `list` /
+  `rename` / `continue`, the fzf session **pick**, in-session **compaction**
+  detection, and the **continue/rename restart re-entries** — so NO flow needs the
+  shell; only THEN convert `bin/pair-shell` to a thin shim (or remove it), retire
+  `bin/pair-restart.sh` markers → in-process, and drop `PAIR_LEGACY_LAUNCH`.
+  "Retire the shell fallback" is a strict superset of the M4 bullet's premature
+  shim (ARCH-PURPOSE: the single-Go-owner purpose only lands when *every* consumer
+  flow derives from Go — a shim in M4 would falsely claim the retirement while
+  pick/compaction/continue/rename still require the real shell).
+
+This narrows the M4/M5 `## Phased plan` bullets above (they stay as the original
+record; this Revision supersedes them), mirroring the M1/M3 deferral precedent.
+The crux was first caught in the M4 continuation and is pinned here in the durable
+plan per the M4 change-code plan-quality FAILURE (the plan is the record of truth;
+an agent reading only the plan must not walk into the loop).

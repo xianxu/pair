@@ -1,6 +1,9 @@
 package launcher
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // LaunchArgs is the pure parse result for the guarded pair-go launch prototype.
 type LaunchArgs struct {
@@ -58,6 +61,13 @@ func ParseArgs(argv []string) (LaunchArgs, error) {
 			continue
 		}
 		if out.Agent == "" {
+			// A leading flag (e.g. --help, -h) is not an agent name — agents
+			// never start with '-'. The shell owns help/flag handling, so refuse
+			// here; LaunchNative maps this to ErrFallbackToShell → bin/pair-shell
+			// (#99 M4, once native is the default entry).
+			if strings.HasPrefix(arg, "-") {
+				return LaunchArgs{}, UsageError{Message: fmt.Sprintf("pair-go launch: %q is a flag, not an agent (shell-owned)", arg)}
+			}
 			out.Agent = arg
 			continue
 		}
