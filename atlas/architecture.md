@@ -168,8 +168,22 @@ the row build is pure and only the fzf call is an effect, reusing `UIOps.PickFro
 with `--ansi`) and adds the **`list`/`ls`** subcommand (`ListOps.ListSessions` +
 the pure `formatListTable`, printed to stdout). A picked existing tag is
 resume-by-name — its agent is **inferred from the tag**, not the bare-`pair` default.
-Still shell-owned after M5a (→ M5b/M5c): in-pane **compaction**, the
-`continue`/`rename` restart re-entries, and shell-owned `--help`/leading-flags. So
+**M5b** (lifecycle write flows) makes the last three native: (1) in-session
+**compaction** — the `InZellijPane` guard becomes the native branch (pure
+`compactionDecision` honoring the `PAIR_FORCE_IN_SESSION`/`PAIR_FAKE_IN_ZELLIJ`/
+`ZELLIJ_SESSION_NAME` seams; park `--copy` + `WriteRestartMarker`/`TouchQuitMarker`
++ terminal `ExecKillSession`), else a native "already inside a zellij session"
+reject; (2) the **`continue`** subcommand (`ParseArgs` + `ContinuationOps`: bare
+lists docs, `<slug>` resolves the newest doc to seed the draft + pick the agent —
+reusing `continuationcmd.ContinuationDir`/`NextActionPreview`); (3) the offline
+**`rename`** subcommand (pure `renamePathsFor`/`renamePlan` zip, `FSOps.Rename`,
+journal + reverse-rollback) and the **`rename_to`/`continue` restart re-entries**
+(`planRestart` drops `ShellFallback`; the loop moves sidecars then relaunches under
+the new tag, or re-seeds the draft from the slug) — closing the M4-accepted
+degradation. `PAIR_DEBUG_ARGS`/`PAIR_DEBUG_HISTORY` join `PAIR_TEST_CALL` as
+shell-routed seams (`shellOnlySeamActive`). After M5b **only `bin/pair-shell`
+retirement + `--help` remain (M5c)** — no launch flow falls back except the
+leading-flag help and the shell-only test/debug seams. So
 as of M4 `pair` runs the Go launcher by default; `PAIR_LEGACY_LAUNCH=1` is the
 escape hatch back to the shell.
 
