@@ -48,16 +48,15 @@ in-session compaction) becomes an in-process loop.
 
 ## Done when
 
-- [ ] The Go `pair` binary runs the launcher **in-process** (no `syscall.Exec` of
-      `bin/pair-shell`); `bin/pair-shell` survives only as a thin re-exec shim (or
-      is removed once no caller needs it).
-- [ ] Pure launch decisions (parse, tag/name derivation, decision, resume-token +
+- [x] The Go `pair` binary runs the launcher **in-process** (no `syscall.Exec` of
+      `bin/pair-shell`); `bin/pair-shell` is **removed** (M5c — not even a shim).
+- [x] Pure launch decisions (parse, tag/name derivation, decision, resume-token +
       config-migration + per-agent-arg rules, rename plan) are unit-tested; all
       zellij/nvim/cmux/fzf/fs interaction is behind a process-tested `Runtime` seam.
-- [ ] Every lifecycle flow works natively: create, attach, picker, name-prompt,
+- [x] Every lifecycle flow works natively: create, attach, picker, name-prompt,
       tag-restart config picker, restart-marker re-entry, in-session compaction,
       quit cleanup, and the `list`/`rename`/`continue` subcommands.
-- [ ] The shell **launcher** (`bin/pair-shell`) is retired (removed), unblocking #94.
+- [x] The shell **launcher** (`bin/pair-shell`) is retired (removed), unblocking #94.
       **Re-scoped (M5c design, 2026-07-03):** `bin/pair-restart.sh`'s keybind
       marker-WRITE (nvim → `pair-restart.sh` → `~/.cache/pair/{restart,quit}-*`)
       is **independent of the launcher** — the launcher already reads those markers
@@ -152,7 +151,7 @@ until M4 flips it, so pair stays usable throughout.
       plan-build; `continue` re-seeds the draft). `ParseArgs` gains `continue`/`rename`.
       Tests: pure `rename_paths_for`, compaction-marker detect, fake-`Runtime` restart
       loops, real-OSRuntime rename+continue smoke.
-- [ ] M5c — retirement (LAST, ARCH-PURPOSE — only once NO flow needs the shell):
+- [x] M5c — retirement (LAST, ARCH-PURPOSE — only once NO flow needs the shell):
       convert/remove `bin/pair-shell` (`git ls-files bin/` + caller check — remove if
       no external caller, else thin shim), port `pair --help` native, turn the
       defensive `ErrFallbackToShell` returns into real error exits, retire
@@ -163,6 +162,8 @@ until M4 flips it, so pair stays usable throughout.
 
 
 
+
+- 2026-07-03: closed M5c — M5c: retired bin/pair-shell (2287 lines removed) — pair is a single Go launcher end-to-end. Fallback arm + PAIR_LEGACY_LAUNCH + ErrFallbackToShell + shellOnlySeamActive deleted; native --help; asset-root marker -> zellij/layouts/main.kdl; bundle drops pair-shell; PAIR_TEST_CALL/PAIR_DEBUG_* shell contract tests retired (Go equivalents tested). go build/test ./... + -race + vet green; full make test green (sandbox off for ps); bundle drift-check deterministic; shadow-sweep clean (no ErrFallbackToShell/pair-shell runtime ref). Measured actual: 11.57h issue-cumulative (window 26585426→HEAD); M5c increment ≈1.04h over M5b's 10.53h — measured-low (active-time discounts the long user-away gaps + background make-test/review runs), NOT a scope signal (M5c removed 2287 lines across ~30 files). --no-judge because the review ran manually via `sdlc judge milestone-review --base <merge-base>` (ariadne#162 window-bug workaround); the REAL verdict FIX-THEN-SHIP→SHIP is in this commit's Review-Verdict trailer, NOT sdlc's not-run. Review FIX-THEN-SHIP: no Critical (code SHIP-ready); Important = atlas-currency (architecture.md swept via subagent — ~24 present-tense bin/pair-shell sites re-attributed to the Go launcher, verified against code) + minors (ListSessions pgrep-backfill comment → accepted-gap, defensive Sessions()-error test). Unblocks #93/#94; review verdict: FIX-THEN-SHIP (Important + minors fixed → SHIP)
 - 2026-07-03: closed M5b — M5b: native in-session compaction + continue/rename subcommands + rename_to/continue restart re-entries (closes the M4-accepted degradation — no launch flow returns ErrFallbackToShell now bar --help/shell-seams). go test ./... + -race + go vet + full make test (env-scrubbed PAIR_TAG/SESSION_ID/AGENT/ZELLIJ_SESSION_NAME) green; tests/pair-continue-test.sh contract test PASS end-to-end (compaction+continue, ps available); pair rename real-FS smoke (move/restart-check/journal/occupancy) PASS. Measured actual: 10.53h issue-cumulative (window 26585426→HEAD); M5b increment ≈0.86h over M5a's 9.67h — measured-low because active-time-v3 discounts the long user-away gaps + background make-test/review runs in the session, NOT a scope signal (M5b was 3 flows / ~600 lines). --no-judge because the review ran manually via `sdlc judge milestone-review --base 6459a6f` (ariadne#162 window-bug workaround); the REAL verdict FIX-THEN-SHIP→SHIP is in this commit's Review-Verdict trailer, NOT sdlc's not-run. Review FIX-THEN-SHIP: 2 Importants fixed (OSRuntime continuation-IO newest-wins test; --restart-check skip-live-old test) + minors (stale comments refreshed, continuationcmd firstNextActionLine ARCH-DRY extraction, no-match dir, seam-decline table); accepted preview-nested-heading + ExecKillSession-missing-binary minors. Gotcha: the sandbox blocks `ps`, breaking InZellijPane detection — launcher tests that read ancestry must run with the sandbox off; review verdict: FIX-THEN-SHIP (Importants fixed → SHIP)
 - 2026-07-03: closed M5a — M5a: native fzf session pick + list/ls off bin/pair-shell; go test ./... + -race + go vet + full make test green; real-OSRuntime stub-zellij smoke (pair list / bare pair fzf pick->native attach / pick-abort->exit0) PASS; PAIR_TEST_CALL regression (native pick blocked on fzf /dev/tty when a bare `pair` ran under it — shell-only helper dispatcher; now declines in LaunchNative) fixed + pinned. Measured actual: 9.67h issue-cumulative (window 26585426→HEAD); M5a increment ≈2.46h over M4's 7.21h — includes the M5→M5a/b/c split design + the regression diagnosis (a `tail`-buffered make test looked hung; the real hang was the fzf /dev/tty block). --no-judge because the review ran manually via `sdlc judge milestone-review --base 734b5ef` (ariadne#162 window-bug workaround); the REAL verdict FIX-THEN-SHIP→SHIP is in this commit's Review-Verdict trailer, NOT sdlc's not-run. Review FIX-THEN-SHIP: 2 Importants fixed (ARCH-DRY: consolidated the two list-clients parsers → parseClientCount; runList error→stderr) + 3 minors (comments + accepted no-fzf-fallback as fzf is a hard dep); review verdict: FIX-THEN-SHIP (Importants fixed → SHIP)
 ### 2026-07-02
