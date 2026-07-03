@@ -693,3 +693,23 @@ detection to false. When a launcher contract test "hangs" at an in-pane case,
 check `ps -o comm= -p $$` first; if it's denied, re-run sandbox-off before
 suspecting the code. (Sibling of the "tail hides a running suite" gotcha above,
 and the cmux-broken-pipe-from-agent-shell memory.) Caught in #99 M5b.
+
+## A validity/existence marker must exist in EVERY deployment layout
+
+Retiring `bin/pair-shell` (#99 M5c) meant the entrypoint could no longer key
+"is this a valid Pair asset root?" on `bin/pair-shell` existing. The tempting
+replacement was `bin/pair-wrap` (a sibling the launch already needs) — but
+`bin/*` is gitignored (built binaries), so `bin/pair-wrap` is **absent in a fresh
+checkout before `make build`**. Keying the marker on it would make
+`ResolveAssetRoot` reject an un-built source tree — a launch that works after
+`make build` but not on a clean clone. The right marker is
+`zellij/layouts/main.kdl`: a **tracked source file** AND **bundled into the
+embedded runtime** AND the exact file the launch reads — so it exists in all three
+layouts (source checkout, Homebrew/adjacent install, extracted embedded pair-home)
+and can't drift from what the launch needs.
+
+**Rule.** When choosing a file whose presence marks a directory as "a valid
+install/asset root," verify it exists in **every** layout that root can take —
+source checkout, packaged install, and any embedded/extracted copy. Prefer a
+tracked, bundled asset the code actually consumes over a built artifact (gitignored
+binaries fail the clean-checkout case). Caught in #99 M5c.
