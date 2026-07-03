@@ -96,7 +96,12 @@ Tracking checklist — ticks as each sub-ticket closes:
       removed outright, `cmd/internal/launcher` owns create/attach/restart/quit/
       pick/list/continue/rename/compaction end-to-end; est 17.7h / actual 11.57h;
       PRs #61/#62/#63). Both merged + archived; no shell orchestrator remains.
-- [ ] Step 4 — stop extracting shell scripts — #94
+- [x] Step 4 — stop extracting shell scripts — **#94 done** (all seven orchestrator
+      shell shims removed from the runtime bundle: M1 ported `pair-restart.sh`/
+      `pair-quit.sh` → in-process `pair restart`/`pair quit`; M2 repointed the five
+      exec-shim callers to their Go binaries then deleted them. est 4.4h / actual
+      2.5h; PR #64. Endpoint: **shell-reduced** — six non-orchestrator utilities
+      (`lib/*.sh`, `pair-help`, `pair-notify`, `doctor/*.sh`) remain, out of scope).
 - [ ] Step 5 — native nvim/zellij startup assets — #95
 
 This is a tracking umbrella, not a coding issue: it holds no code milestones of
@@ -104,6 +109,15 @@ its own and stays `open` as a live tracker until the sequence completes. The
 actual work + reviews happen in the sub-tickets.
 
 ## Log
+
+### 2026-07-03 (later)
+- **Step 4 complete.** #94 merged (PR #64, done + archived) — all seven orchestrator
+  shell shims are gone from the runtime bundle (2 ported in M1, 5 repointed-and-dropped
+  in M2). est 4.4h / actual 2.5h. The deployed footprint no longer extracts any
+  orchestrator shell; the bundle is **shell-reduced** (six non-orchestrator utilities
+  remain — `bin/lib/*.sh`, `pair-help`, `pair-notify`, `doctor/*.sh` — never in #93's
+  scope). **Only Step 5 (#95, native nvim/zellij startup assets) remains** to reach
+  the true native single binary.
 
 ### 2026-07-03
 - **Step 3 complete.** #99 (the launcher) landed done + merged (PRs #61/#62/#63;

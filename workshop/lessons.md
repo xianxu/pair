@@ -713,3 +713,39 @@ install/asset root," verify it exists in **every** layout that root can take —
 source checkout, packaged install, and any embedded/extracted copy. Prefer a
 tracked, bundled asset the code actually consumes over a built artifact (gitignored
 binaries fail the clean-checkout case). Caught in #99 M5c.
+
+## A straggler grep that filters out comments hides stale doc as findings
+
+When a change renames or deletes a referenced symbol (e.g. #94 deleting the
+`bin/*.sh` shims), the sweep for lingering references must include comments —
+`grep ... | grep -v '// '` to drop lineage noise ALSO drops stale present-tense
+comments that describe the now-gone mechanism as current. Two such comments
+(`cmd/pair-session-watch/main.go`, `atlas/how-to-bring-up-a-new-harness-cli.md`)
+survived the M2 sweep precisely because the comment-filter hid them, and the
+end-of-issue integration review turned FIX-THEN-SHIP over exactly those two lines.
+
+**Rule.** In a rename/delete straggler sweep, grep WITHOUT filtering comments;
+then hand-classify each hit as (a) legitimate provenance ("ported from X", "mirrors
+X") — keep, or (b) a present-tense claim that X is the current mechanism — fix.
+Don't let a `grep -v` that suppresses lineage also suppress stale docs. Search
+`Makefile`, `atlas/*`, and every `cmd/*/main.go` package-doc, not just the files
+you edited. Caught in #94 M2 / close.
+
+## Commit milestone-close's OWN edits WITH the printed Review-Verdict trailer
+
+`sdlc milestone-close` (like `sdlc close`) edits the issue file (ticks the box,
+appends the Log line) and PRINTS a `Review-Verdict:`/`Review-Window:` trailer to
+paste — it does NOT commit. If you commit the milestone's CODE first and then run
+milestone-close, its file edits land in some later unrelated commit whose message
+lacks the trailer — and the eventual `sdlc close --issue N` verdict gate refuses
+("milestones M1, M2 lack Review-Verdict trailer in close commits"), forcing a
+`--no-verdict` bypass (the reviews really ran; only the bookkeeping is missing).
+
+**Rule.** Per milestone: finish the code, run `sdlc milestone-close`, then make the
+NEXT commit carry both the milestone-close's issue-file edits AND the printed
+`Review-Verdict:`/`Review-Window:` trailer lines in its message. One commit =
+{the milestone's tick+Log edit} + {the trailer}. Same for the final `sdlc close`.
+That keeps the trailer anchor on the close commit and avoids the `--no-verdict`
+detour. (Corollary: FIX-THEN-SHIP → fix → the fixes move HEAD past the reviewed
+anchor, so `sdlc merge`'s publish gate refuses → re-run `sdlc close` to re-review
+the delta + re-anchor, then merge.) Caught in #94.
