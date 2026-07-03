@@ -27,6 +27,8 @@ type fakeRuntime struct {
 	pickFunc       func(header string, options []string) string
 	listRows       []ListRow // ListSessions rows (for `pair list`)
 	listErr        error
+	renameFailAt   string      // Rename returns an error when src == this (rollback test)
+	renamed        [][2]string // {src,dst} per successful Rename
 
 	// M3 lifecycle inputs
 	isTTY          bool
@@ -161,6 +163,17 @@ func (f *fakeRuntime) Touch(path string) error {
 	if _, ok := f.files[path]; !ok {
 		f.files[path] = ""
 	}
+	return nil
+}
+func (f *fakeRuntime) Rename(src, dst string) error {
+	if f.renameFailAt != "" && src == f.renameFailAt {
+		return errors.New("mv failed (fake)")
+	}
+	if v, ok := f.files[src]; ok {
+		f.files[dst] = v
+		delete(f.files, src)
+	}
+	f.renamed = append(f.renamed, [2]string{src, dst})
 	return nil
 }
 

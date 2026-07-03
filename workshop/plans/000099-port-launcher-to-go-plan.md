@@ -268,3 +268,87 @@ shim/removal before pick+compaction+continue+rename are native would either loop
 purpose while those flows still require the real shell. **`bin/pair-shell` fate is
 decided empirically at M5c** via the caller check (leaning remove); a thin shim
 only survives a real external caller.
+
+### 2026-07-03 — M5b detailed design (post-survey, pre-implementation)
+
+M5b ports the three coupled lifecycle **write** flows off `bin/pair-shell` (survey
+of shell 307-546, 611-648, 685-811, 930-1071 + the current Go seams). Scope stays
+as the M5b bullet; this Revision pins the pure/IO split, the new seams, and the
+M5a-lesson mitigation so the plan is self-sufficient (an agent reading only the
+plan must not walk into the fzf/`PAIR_TEST_CALL`-class trap M5a hit).
+
+**Flow A — in-session compaction (#55, the WRITE side).** `pair continue <slug>`
+run from inside a live pane (or Alt+Shift+C). Today `RunLaunch`'s `InZellijPane()`
+guard (createflow.go:30) → `ErrFallbackToShell`. Native: a **pure**
+`compactionDecision(forceInSession, inPaneOrFake, pairTag, zellijSessionName) bool`
+— force via `PAIR_FORCE_IN_SESSION`, else `inPane && pairTag!="" && zellijSessionName=="pair-"+pairTag`
+(the tag-match guard against cmux leaking `ZELLIJ_SESSION_NAME` to sibling panes;
+shell 1040-1042). When true: `ParkScrollback(tag, agent, move=false)` (**copy** —
+`pair-wrap` is still appending to `.raw`; a move truncates the live capture, shell
+699/704), write the restart marker `{tag,agent,new_session:true,continue:slug}`,
+touch the quit marker, then **exec kill-session** (terminal). Invalid slug → exit 1
+**before** any marker write/kill (shell 633-635).
+- New pure: `compactionDecision`, `serializeRestartMarker(RestartMarker) string`
+  (twin of `parseRestartMarker`, markers.go:23).
+- New Runtime: `WriteRestartMarker(session, RestartMarker)` + `TouchQuitMarker(session)`
+  (write twins of `TakeRestartMarker`/`TakeQuitMarker`), `ExecKillSession(session)`
+  (honors `PAIR_KILL_CMD`), `ResolveContinuationDoc(slug)→(path,docAgent,err)` +
+  `ListContinuations()` (git-root glob + `## NEXT ACTION`/`agent:` frontmatter —
+  no Go home yet; `continuationcmd/` is the writer side). Reuse `ParkScrollback`
+  (already supports `move=false`), `InZellijPane`.
+
+**Flow B — `rename` (offline subcommand + the `rename_to=` restart re-entry).**
+`pair rename [--restart-check] <old> <new>`: `mv` every tag-scoped file old→new,
+journalled with reverse-journal rollback (shell 307-546). The renamed set is
+`rename_paths_for` (shell 396-417): exact-name enumeration (NEVER glob — `rename
+brain new` must not touch `*-brain-2-*`), tag-only families + per-(tag,agent) files
+for the hardcoded `{claude,codex,agy}` set. **ARCH-PURE win:** the Go plan is
+`zip(renamePathsFor(old,dd), renamePathsFor(new,dd))` — identical enumeration order
+makes (src,dst) pairing trivial, dropping the shell's base-name case-substitution.
+Gates: `NormalizeTag` + **≤256 length** both, refuse `old==new`, refuse if any dst
+exists, refuse if `pair-<old>` live (unless `--restart-check`) or `pair-<new>` live
+— membership over `Sessions()` **including `SessionExited`** (rename's own
+resurrectable contract; do NOT use `SessionBlocksReuse`). `--restart-check` =
+validate-only, no disk write, skip the live-old gate. The `rename_to=` re-entry
+(shell 743-750) runs the **full** subcommand post-kill (pane gone → live-old gate
+passes), tolerates failure (keep old tag), then falls through to the normal relaunch.
+- New pure: `renamePathsFor(tag,dataDir) []string`, `renamePlan(old,new,dataDir,exists)
+  →(pairs,count,err)`, the ≤256 guard, `ParseArgs` `rename [--restart-check] [--] <old> <new>`.
+- New Runtime: `FSOps.Rename(src,dst) error` (the one missing effect). Reuse
+  `Sessions()`, `WriteAtomic`/`Remove`/`FileSize` (journal + existence).
+
+**Flow C — `continue` restart re-entry (the READ side).** After a compaction pane
+dies, the outer `RunLaunch` loop catches the marker. `planRestart`'s `Continue!=""`
+arm (markers.go:71, today `ShellFallback`) goes native: it's the existing
+`NewSession` arm (drop config, args from saved config — **no** resume-token reorder)
+**plus** carrying the continuation. Add `restartPlan.ContinueSlug`; in the loop
+(createflow.go:66) make the `opts.ContinueDoc=""` reset **conditional** — for a
+continue re-entry, resolve the doc from the slug (`ResolveContinuationDoc`, shared
+with Flow A) and set `opts.ContinueDoc` so the create path re-seeds the draft
+(createflow.go:185-186 already does this). Agent from the marker, not re-derived.
+`rename_to` + `continue` can coexist: rename runs first, then the continue plan
+under the renamed tag (shell order 743→766).
+- New: extend `planRestart` (Continue + RenameTo arms native), `restartPlan.ContinueSlug`,
+  conditional re-seed. Reuse `resolveConfigPath`/`readSavedConfig`, `composeResumeArgs`.
+
+**M5a-lesson mitigation (critical).** The `pair-continue-test.sh` compaction cases
+(140-158) invoke `pair continue demo` **without** `PAIR_TEST_CALL`, so once M5b
+makes `continue` native (dropping its `ParseArgs` `UsageError`→shell fallback),
+they reach Go. The native compaction path MUST honor `PAIR_FORCE_IN_SESSION` /
+`PAIR_FAKE_IN_ZELLIJ` / `ZELLIJ_SESSION_NAME` / `PAIR_TAG` / `PAIR_AGENT` /
+`PAIR_KILL_CMD` — read via `os.Getenv` at the `LaunchNative` boundary into
+`LaunchOptions` (the established `ContinueDoc`/`CodexAltScreenOptOut` pattern),
+feeding the pure `compactionDecision` + the `PAIR_KILL_CMD`-overridable
+`ExecKillSession`. All `PAIR_TEST_CALL` invocations STAY routed to the shell
+(runcli.go:32 already declines) — M5b must NOT natively intercept them; the shell
+helpers they exercise remain until M5c.
+
+**Implementation order:** rename (Flow B — most self-contained, pure-heavy) →
+compaction (Flow A) → continue re-entry (Flow C). **Tests:** pure `renamePathsFor`
++ `renamePlan` (enumeration + collision + rollback), pure `compactionDecision` +
+`serializeRestartMarker`, fake-`Runtime` loop tests (compaction write→marker; a
+`continue` re-entry re-seeds the draft + drops config; a `rename_to` re-entry moves
+files then relaunches), and a real-OSRuntime stub-zellij smoke driving `pair rename`
++ an in-pane `pair continue` (honoring the seams) + a native continue/rename restart
+end-to-end. `go test ./... + -race` + full `make test` (the pair-continue /
+cmux-ownership contract tests MUST stay green — the M5b regression gate).

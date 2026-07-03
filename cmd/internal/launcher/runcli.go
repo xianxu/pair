@@ -48,6 +48,11 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 		return runList(rt, stdout, stderr), nil
 	}
 
+	// `rename <old> <new>` is an offline sidecar move — no launch (#99 M5b).
+	if args.Command == "rename" {
+		return runRename(rt, args, dataDir, stdout, stderr), nil
+	}
+
 	env := Env{
 		Home:     home,
 		XDGData:  xdg,

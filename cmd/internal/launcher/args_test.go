@@ -94,8 +94,9 @@ func TestParseLaunchArgsLeadingFlagIsNotAnAgent(t *testing.T) {
 }
 
 func TestParseLaunchArgsUnsupportedLaunchSubcommandsAreExplicit(t *testing.T) {
-	// continue/rename remain shell-owned until M5b; list/ls became native at M5a.
-	for _, verb := range []string{"continue", "rename"} {
+	// list/ls native at M5a; rename native at M5b (Flow B). `continue` is the last
+	// shell-owned verb until M5b Flow A lands its native compaction/create path.
+	for _, verb := range []string{"continue"} {
 		t.Run(verb, func(t *testing.T) {
 			_, err := ParseArgs([]string{verb})
 			if err == nil {

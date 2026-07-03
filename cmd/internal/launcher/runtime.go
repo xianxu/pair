@@ -123,6 +123,7 @@ type FSOps interface {
 	Remove(path string)
 	FileSize(path string) (int64, bool)
 	Touch(path string) error
+	Rename(src, dst string) error // #99 M5b: the rename subcommand's mv
 }
 
 // LifecycleOps is the post-handoff + attach effect surface (#99 M3): the blocking
