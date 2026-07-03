@@ -91,7 +91,7 @@ whose callers must be repointed before removal. Two review boundaries:
       `[--new-session] [--rename-to <tag>]` / `pair quit` subcommands (reusing the
       launcher's existing marker seam), repoint the two `nvim/init.lua` keybinds,
       and retire the two shims from the tree + bundle.
-- [ ] M2 — repoint the five live exec-shim callers to their Go binaries (launcher
+- [x] M2 — repoint the five live exec-shim callers to their Go binaries (launcher
       `SpawnSessionWatcher`/`SpawnTitlePoller`, zellij `copy_command`, and
       `copy-on-select`'s flash/clipboard hand-off), then delete the five shims from
       the tree + `explicitAssetPaths`; tighten `embed_test.go` + the copied-binary
@@ -119,6 +119,15 @@ exec-shims remain pure deletion-after-repoint, unchanged from the original inten
 ## Log
 
 ### 2026-07-03
+- 2026-07-03: closed M2 — M2 repoints the five live exec-shim callers to the Go binaries (launcher SpawnSessionWatcher/SpawnTitlePoller -> pair-session-watch/pair-title; zellij copy_command -> copy-on-select; copy-on-selects flash/clip hand-off -> Go binaries via clipcmd) then deletes all five shims from tree + explicitAssetPaths. Verified: full make test green (MAKE_EXIT=0) incl test-copy-on-select (Go binary in_nvim PASS), test-session-watch (Go binary PASS), test-runtimebundle (embed_test asserts 5 shims excluded + Go binaries present), test-pair-embedded-runtime (copied binary extracts bundle w/ Go binaries + asserts no .sh shim). Endpoint: shell-reduced — all 7 orchestrator shims gone; 6 non-orchestrator utilities remain.; review verdict: SHIP
+- **M2 review follow-ups (SHIP → SHIP).** No Critical/Important. (1) Pinned the
+  silent-failure gap the reviewer flagged: extracted `sessionWatcherArgv`/
+  `titlePollerArgv` pure helpers + `TestSidecarSpawnArgvTargetsGoBinaries` asserting
+  the spawn targets are the Go binaries (no `.sh`), so a regression back to a shim
+  target (which spawnDetached would swallow) is now caught. (2) Corrected seven
+  stale present-tense comments that still narrated the deleted shims (titlepoller,
+  osruntime/markers, transcript, wrapcmd, adapt-log) — provenance "ported from"
+  lines kept.
 - 2026-07-03: closed M1 — M1 ports pair-restart.sh/pair-quit.sh to in-process `pair restart [--new-session] [--rename-to <tag>]` / `pair quit`, reusing the launchers existing WriteRestartMarker/TouchQuitMarker/ExecKillSession/InferAgent seam (no new Runtime methods; runCompaction is the template). nvim keybinds repointed; both shims deleted from tree + explicitAssetPaths. Verified: full make test green (MAKE_EXIT=0) incl new tests/pair-restart-quit-test.sh PASS (real pair binary writes restart/quit markers to ~/.cache/pair under PAIR_KILL_CMD stub) + fake-Runtime unit tests + pure parse tests + embed_test excludes the 2 shims from the bundle.; review verdict: SHIP
 - **M1 review follow-ups (SHIP → SHIP).** No Critical/Important. Applied two Minor
   cleanups: (1) dropped the redundant `mkdir -p` from the smoke so `pair restart`

@@ -8,8 +8,8 @@ import (
 	"github.com/xianxu/pair/cmd/internal/adapt"
 )
 
-// RunCLI is the pair-title command body, shared by the bin/pair-title.sh shim
-// (which re-execs the Go binary) and any future `pair title` route. It parses
+// RunCLI is the pair-title command body (the launcher spawns bin/pair-title
+// directly since #94 M2), shared with any future `pair title` route. It parses
 // argv into Options and drives the poller; getenv/stderr are injected so it is
 // testable, and it no-ops (exit 0) when required args are missing.
 func RunCLI(args []string, getenv func(string) string, stderr io.Writer) int {

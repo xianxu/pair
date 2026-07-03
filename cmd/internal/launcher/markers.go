@@ -8,7 +8,7 @@ import "strings"
 // pure here, the read/clear IO sits on the Runtime seam.
 
 // RestartMarker is the parsed ~/.cache/pair/restart-<session> handshake dropped
-// by pair-restart.sh (Alt+n / Shift+Alt+N) or the #55 compaction branch.
+// by `pair restart` (Alt+n / Shift+Alt+N, #94 M1) or the #55 compaction branch.
 type RestartMarker struct {
 	Tag        string
 	Agent      string
@@ -17,7 +17,7 @@ type RestartMarker struct {
 	Continue   string // #55 compaction slug (native continue re-entry as of M5b)
 }
 
-// parseRestartMarker reads the `key=value` lines pair-restart.sh writes. Unknown
+// parseRestartMarker reads the `key=value` lines `pair restart` writes. Unknown
 // keys are ignored; a missing marker is the caller's concern (empty content →
 // zero value).
 func parseRestartMarker(content string) RestartMarker {
