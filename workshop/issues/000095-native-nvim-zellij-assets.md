@@ -1,11 +1,12 @@
 ---
 id: 000095
-status: open
+status: working
 deps: [000094]
 github_issue:
 created: 2026-07-01
-updated: 2026-07-01
+updated: 2026-07-03
 estimate_hours:
+started: 2026-07-03T14:17:31-07:00
 ---
 
 # native nvim and zellij startup assets
