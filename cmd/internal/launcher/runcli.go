@@ -9,17 +9,28 @@ import (
 
 // LaunchNative is the process-level entry the cmd/pair-go launch gate calls
 // (#99 M2; the DEFAULT entry as of M4): it parses launchArgs, resolves the launch
-// Env from the OS, and drives RunLaunch against the real OSRuntime. It returns
-// ErrFallbackToShell for anything the native launcher doesn't own yet — an
-// unsupported verb (`continue`/`rename`/`list`), a leading flag (`--help`/`-h`,
-// shell-owned), the fzf session pick, an in-pane launch (compaction), or a
+// Env from the OS, and drives RunLaunch (or the read-only `list` subcommand)
+// against the real OSRuntime. It returns ErrFallbackToShell for anything the
+// native launcher doesn't own yet — a still-shell verb (`continue`/`rename`), a
+// leading flag (`--help`/`-h`, shell-owned), an in-pane launch (compaction), or a
 // rename/continue restart re-entry — so the caller defers to bin/pair-shell. Any
 // other return is handled: the int is the exit code and user-facing messages are
-// already on stderr.
-func LaunchNative(launchArgs []string, pairHome string, stderr io.Writer) (int, error) {
+// already on stdout/stderr.
+func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer) (int, error) {
 	args, err := ParseArgs(launchArgs)
 	if err != nil {
-		return 0, ErrFallbackToShell // unsupported verb — shell owns it (until M5).
+		return 0, ErrFallbackToShell // still-shell verb / leading flag — shell owns it (until M5c).
+	}
+
+	// PAIR_TEST_CALL dispatches a shell-internal helper for headless unit-testing
+	// (bin/pair-shell short-circuits it early, before any zellij/fzf). The native
+	// launcher has no equivalent, so decline before touching zellij/fzf — else a
+	// bare `pair` here would enter the M5a native pick and block on fzf's /dev/tty.
+	// Under M4 these invocations reached the shell only via the pick's fallback;
+	// making the pick native removed that path, so route them explicitly (until
+	// the shell retires at M5c). Same rationale as the PAIR_LEGACY_LAUNCH gate.
+	if os.Getenv("PAIR_TEST_CALL") != "" {
+		return 0, ErrFallbackToShell
 	}
 
 	home := os.Getenv("HOME")
@@ -29,6 +40,13 @@ func LaunchNative(launchArgs []string, pairHome string, stderr io.Writer) (int, 
 		return 0, ErrFallbackToShell
 	}
 	dataDir := ResolveDataDir(home, xdg)
+	rt := NewOSRuntime(dataDir, pairHome)
+
+	// `list`/`ls` is a read-only listing that prints to stdout and exits — no
+	// launch, no zellij handoff (#99 M5a).
+	if args.Command == "list" {
+		return runList(rt, stdout), nil
+	}
 
 	env := Env{
 		Home:     home,
@@ -45,7 +63,7 @@ func LaunchNative(launchArgs []string, pairHome string, stderr io.Writer) (int, 
 		CodexAltScreenOptOut: os.Getenv("PAIR_CODEX_ALT_SCREEN") == "1",
 		ParkPromptTimeout:    parkPromptTimeout(),
 	}
-	return RunLaunch(opts, NewOSRuntime(dataDir, pairHome), stderr)
+	return RunLaunch(opts, rt, stderr)
 }
 
 func historyDays() int {

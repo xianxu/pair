@@ -157,13 +157,21 @@ kill-switch (forces the shell for the whole launch; a rollout safety hatch, drop
 in M5) that replaces the M2/M3 opt-in `PAIR_NATIVE_LAUNCH`. The native launch sits
 behind the `cmd/pair-go` `legacyRuntime` seam (`LaunchNative` → `handled` bool) so
 the default-flip is unit-testable without real zellij. A native **decline**
-(`ErrFallbackToShell` for the still-shell-owned fzf session **pick**, in-pane
-compaction, `continue`/`rename` restart re-entries, and shell-owned `--help`/flags
-— `ParseArgs` refuses a leading flag as an agent) falls through to the **real**
-`bin/pair-shell`, which stays the fallback launcher — **NOT a shim** (a shim would
-loop native → fallback → shim → native). Retiring `bin/pair-shell` + porting the
-last flows native is **M5**. So as of M4, `pair` runs the Go launcher by default;
-`PAIR_LEGACY_LAUNCH=1` is the escape hatch back to the shell.
+(`ErrFallbackToShell`) falls through to the **real** `bin/pair-shell`, which stays
+the fallback launcher — **NOT a shim** (a shim would loop native → fallback → shim
+→ native). **#99 M5** ports the last flows native, then retires the shell; it is
+split into three boundaries by risk. **M5a** (read-only surfaces) makes the fzf
+session **pick** native (`resolvePick` over the pure `buildPickRows` — detached-green
+rows, age-graded-grey historical rows with the amber `[⏎ N queued]` badge, the
+`+ new` sentinel; `HistoricalTag` now carries `MTime`+`QueueCount` from `Scan`, so
+the row build is pure and only the fzf call is an effect, reusing `UIOps.PickFromList`
+with `--ansi`) and adds the **`list`/`ls`** subcommand (`ListOps.ListSessions` +
+the pure `formatListTable`, printed to stdout). A picked existing tag is
+resume-by-name — its agent is **inferred from the tag**, not the bare-`pair` default.
+Still shell-owned after M5a (→ M5b/M5c): in-pane **compaction**, the
+`continue`/`rename` restart re-entries, and shell-owned `--help`/leading-flags. So
+as of M4 `pair` runs the Go launcher by default; `PAIR_LEGACY_LAUNCH=1` is the
+escape hatch back to the shell.
 
 `bin/pair-shell` resolves `$PAIR_HOME` from its own real path (portable bash, no `readlink -f`), prepends `$PAIR_HOME/bin` to `$PATH` (idempotent across re-launches) so all helper scripts resolve by bare name in zellij configs and keybinds, parses argv — first positional is `$PAIR_AGENT` (default `claude`), everything after `--` is joined into `$PAIR_AGENT_ARGS`, extra positionals before `--` are an error with a usage hint, defaults `$PAIR_TAG` to the cwd basename (the create-flow prompt or `pair resume <tag>` overrides it), resolves `$PAIR_DATA_DIR` to `${XDG_DATA_HOME:-$HOME/.local/share}/pair`, runs a one-time migration of any old `~/scratch/pair-{draft,log}-*` files, and dispatches:
 

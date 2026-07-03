@@ -7,6 +7,7 @@ import (
 
 // LaunchArgs is the pure parse result for the guarded pair-go launch prototype.
 type LaunchArgs struct {
+	Command     string // "" = launch; "list" = the read-only `list`/`ls` subcommand (#99 M5a)
 	Agent       string
 	ForcedTag   string
 	SelectedTag string
@@ -33,7 +34,11 @@ func ParseArgs(argv []string) (LaunchArgs, error) {
 	}
 
 	switch argv[0] {
-	case "continue", "rename", "list", "ls":
+	case "list", "ls":
+		// The read-only session listing (#99 M5a). No further args (shell
+		// `list|ls)` ignores extras); a bare command marker is enough.
+		return LaunchArgs{Command: "list"}, nil
+	case "continue", "rename":
 		return LaunchArgs{}, UsageError{Message: fmt.Sprintf("pair-go launch: %s is not implemented by pair-go launch; use pair", argv[0])}
 	case "resume":
 		if len(argv) < 2 {

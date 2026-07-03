@@ -45,6 +45,13 @@ type SnapshotOps interface {
 	ScanHistory(base string, cutoff time.Time) ([]HistoricalTag, error)
 }
 
+// ListOps gathers the `pair list`/`ls` rows (#99 M5a) — pair-<tag> sessions with
+// resolved agent, reuse state, and live client count. Its own seam (ISP): the
+// launch path never needs client counts, so this stays off ZellijOps.Sessions.
+type ListOps interface {
+	ListSessions() ([]ListRow, error)
+}
+
 // UIOps is the interactive surface — the name prompt, the config picker, and the
 // terminal-title / family-existing writes that go to the real tty.
 type UIOps interface {
@@ -175,6 +182,7 @@ type LifecycleOps interface {
 type Runtime interface {
 	ZellijOps
 	SnapshotOps
+	ListOps
 	UIOps
 	ProcOps
 	EnvOps

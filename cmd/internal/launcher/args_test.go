@@ -94,7 +94,8 @@ func TestParseLaunchArgsLeadingFlagIsNotAnAgent(t *testing.T) {
 }
 
 func TestParseLaunchArgsUnsupportedLaunchSubcommandsAreExplicit(t *testing.T) {
-	for _, verb := range []string{"continue", "rename", "list"} {
+	// continue/rename remain shell-owned until M5b; list/ls became native at M5a.
+	for _, verb := range []string{"continue", "rename"} {
 		t.Run(verb, func(t *testing.T) {
 			_, err := ParseArgs([]string{verb})
 			if err == nil {
@@ -105,6 +106,22 @@ func TestParseLaunchArgsUnsupportedLaunchSubcommandsAreExplicit(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), "use pair") {
 				t.Fatalf("error = %q, want public pair guidance", err)
+			}
+		})
+	}
+}
+
+// list/ls parse to the read-only list command marker (#99 M5a), no longer a
+// shell-fallback error.
+func TestParseLaunchArgsListIsNative(t *testing.T) {
+	for _, verb := range []string{"list", "ls"} {
+		t.Run(verb, func(t *testing.T) {
+			got, err := ParseArgs([]string{verb})
+			if err != nil {
+				t.Fatalf("ParseArgs(%q) error = %v, want nil", verb, err)
+			}
+			if got.Command != "list" {
+				t.Fatalf("Command = %q, want %q", got.Command, "list")
 			}
 		})
 	}

@@ -94,12 +94,28 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 	if err != nil {
 		return launchStep{}, ErrFallbackToShell
 	}
-	decision, err := DecideLaunch(opts.Args, SessionSnapshot{BaseTag: base, Sessions: sessions, Historical: historical})
+	snap := SessionSnapshot{BaseTag: base, Sessions: sessions, Historical: historical}
+	decision, err := DecideLaunch(opts.Args, snap)
 	if err != nil {
 		return launchStep{}, ErrFallbackToShell
 	}
 
-	// `pair resume <tag>` leaves the agent unset (the parse defers it): infer
+	// Native fzf session pick (#99 M5a): resolve the pick to a concrete
+	// attach/create decision. A pick over an existing tag is resume-by-name, so
+	// its agent must be inferred from disk (below), not the bare-`pair` claude
+	// default — only the "+ new" pick (PromptName) keeps the default agent.
+	if decision.Action == ActionPick {
+		d, aborted := resolvePick(rt, snap, base, env.Now.Unix())
+		if aborted {
+			return launchStep{code: 0}, nil // fzf ESC / empty pick → exit 0 (shell 1478/1489)
+		}
+		decision = d
+		if d.Action == ActionAttach || !d.PromptName {
+			agent = "" // existing-tag pick → infer the paired agent below
+		}
+	}
+
+	// `pair resume <tag>` / an existing-tag pick leaves the agent unset: infer
 	// what the tag was last paired with from disk, defaulting to claude — so a
 	// single tag fully restarts regardless of the original agent (shell 993-1007).
 	if agent == "" {
@@ -119,7 +135,7 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 		return launchStep{code: code, session: "pair-" + decision.Tag, tag: decision.Tag, agent: agent, handedOff: true}, nil
 	case ActionCreate:
 		return runCreate(opts, env, rt, decision, base, agent, stderr)
-	default: // ActionPick — the M5 fzf session picker.
+	default: // ActionPick resolved above; a residual pick is defensive-only.
 		return launchStep{}, ErrFallbackToShell
 	}
 }
