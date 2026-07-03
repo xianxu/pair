@@ -264,11 +264,12 @@ func TestLaunchNativeDeclineFallsToShell(t *testing.T) {
 }
 
 // The real osLegacyRuntime.LaunchNative adapter maps ErrFallbackToShell →
-// handled=false. An unsupported verb declines before any OS/zellij call, so this
-// exercises the adapter directly without a live launcher.
+// handled=false. A leading-flag help (`--help`) is still shell-owned (until M5c)
+// and declines before any OS/zellij call, so this exercises the adapter directly
+// without a live launcher. (`list` is now handled natively — #99 M5a.)
 func TestOSLegacyRuntimeLaunchNativeDeclineMapsUnhandled(t *testing.T) {
-	var stderr bytes.Buffer
-	code, handled := osLegacyRuntime{}.LaunchNative([]string{"list"}, "/nonexistent", &stderr)
+	var stdout, stderr bytes.Buffer
+	code, handled := osLegacyRuntime{}.LaunchNative([]string{"--help"}, "/nonexistent", &stdout, &stderr)
 	if handled {
 		t.Fatalf("an ErrFallbackToShell decline must map to handled=false")
 	}
@@ -457,7 +458,7 @@ func (f *fakeLegacyRuntime) Exec(label string, path string, argv []string, env [
 	return f.execCode
 }
 
-func (f *fakeLegacyRuntime) LaunchNative(args []string, root string, stderr io.Writer) (int, bool) {
+func (f *fakeLegacyRuntime) LaunchNative(args []string, root string, stdout, stderr io.Writer) (int, bool) {
 	f.launchNativeCalled = true
 	f.launchNativeArgs = append([]string(nil), args...)
 	f.launchNativeRoot = root

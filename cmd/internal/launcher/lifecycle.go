@@ -31,10 +31,10 @@ func runAttach(opts LaunchOptions, env Env, rt Runtime, tag, agent string) (int,
 	rt.SetTerminalTitle(session)
 	rt.RecordOuterTTY(tag)
 	rt.CmuxRename(tag, session)
-	// agent is already the on-disk record: attach is only reached via
-	// `pair resume <tag>`, which ParseArgs leaves Agent=="" → runOnce sets it via
-	// InferAgent(tag). If a future explicit-agent attach path appears, re-read the
-	// agent-<tag> record here (shell 1715-1716) so the poller can't drift.
+	// agent is already the on-disk record: attach is reached via `pair resume
+	// <tag>` (ParseArgs leaves Agent=="") or a live-session pick (runOnce clears
+	// Agent) — either way runOnce sets it via InferAgent(tag), so the poller
+	// matches the running pane's agent regardless of any bare-`pair` default.
 	rt.SpawnTitlePoller(tag, agent)
 
 	return rt.AttachSession(session, filepath.Join(opts.PairHome, "zellij"))

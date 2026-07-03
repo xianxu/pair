@@ -204,3 +204,67 @@ record; this Revision supersedes them), mirroring the M1/M3 deferral precedent.
 The crux was first caught in the M4 continuation and is pinned here in the durable
 plan per the M4 change-code plan-quality FAILURE (the plan is the record of truth;
 an agent reading only the plan must not walk into the loop).
+
+### 2026-07-02 — M5 split into M5a/M5b/M5c (pre-implementation, at start-plan)
+
+M5 as a single boundary (pick + list + compaction + continue/rename restart +
+retirement ≈ 3.2h) bundled **three distinct risk profiles plus a load-bearing,
+irreversible retirement** into one review — the change-code plan-quality judge
+flagged it (INFO), and the M4 status recommended splitting. Split into three
+review boundaries, each closed on its own (`sdlc milestone-close`; the final one
+`sdlc close --issue 99`). **Lettered tags M5a/M5b/M5c** — `sdlc`'s boundary
+discovery + milestone-verdict gate match `M\d+[a-z]?` (verified: `close.go`
+`milestonePlanRE`, whose doc-comment lists `M4b`), so a letter suffix is
+recognized; the lettering keeps the "M5 = final milestone" framing (contrast the
+earlier plan note, which understated the regex as `M\d+`).
+
+- **M5a — read-only surfaces (lowest risk; mostly pure).** Port the fzf session
+  **pick** (`ActionPick`, the `runOnce` `default:` arm that today → `ErrFallbackToShell`)
+  and the `list`/`ls` subcommand. **Pure/IO seam (ARCH-PURE):** enrich the snapshot
+  — `HistorySource.Scan` already computes each tag's mtime (`latest[tag]`) but
+  discards it; project it onto `HistoricalTag.MTime`, and add a queue-count source —
+  so the pick-**row** build (detached-first ordering, `FormatAge` grey-grading, the
+  amber `[⏎ N queued]` badge, the `+ new` label) is a **pure function fed by the
+  enriched snapshot**; only the fzf call + queue-count read are Runtime effects. The
+  **queue-count source is concrete** (`queue_count_for`, shell 1335): the number of
+  `[0-9]*.md` files under `$DATA_DIR/queue-<tag>/` — a `QueueCount(tag) int` Runtime
+  effect; the badge text is pure over that int.
+  **Reuse M2's `UIOps.PickFromList`** (ARCH-DRY — same fake-`Runtime` pattern as the
+  config picker). Map the pure selection back into the existing `runAttach`/`runCreate`
+  paths (picked live tag → attach; historical/`+ new` → create). `ParseArgs` gains
+  `list`/`ls` (M1-deferred); `runList` is pure formatting over one snapshot read and
+  exits (no zellij handoff). **Tests:** pure pick-row build (rows/order/badge from the
+  enriched snapshot), fake-`Runtime` pick selection → attach vs create, pure `list`
+  formatting.
+- **M5b — lifecycle write flows (highest risk; stateful).** Port in-session
+  **compaction** and the **continue/rename restart re-entries**. (a) The
+  `InZellijPane()` guard (today → `ErrFallbackToShell`) becomes the native #55
+  compaction branch: `park_scrollback --copy` + write the restart marker
+  (`continue=<slug>`, `new_session=1`). (b) `planRestart`'s `RenameTo`/`Continue`
+  arms (today `ShellFallback`) go native: **`rename`** runs the **M1-deferred
+  `rename_paths_for` plan-build** — a pure enumeration + path transform, unit-tested
+  directly (ARCH-PURE); **`continue`** re-seeds the draft from the slug then
+  re-launches fresh. `ParseArgs` gains `continue`/`rename` (M1-deferred). **Tests:**
+  pure `rename_paths_for` plan-build, compaction-marker detection, fake-`Runtime`
+  `planRestart` rename/continue loop tests, a real-OSRuntime smoke driving a native
+  rename + continue restart (the exec seam fakes can't cover).
+- **M5c — retirement (LAST; ARCH-PURPOSE).** Only lands once M5a+M5b leave **no flow
+  needing the shell**. Convert/remove `bin/pair-shell` (**caller check:** `git
+  ls-files bin/` + grep the tree — **remove** if nothing outside the Go binary
+  invokes it [#94's point], else a thin shim → `pair-go launch`); port `pair --help`
+  natively (args.go's leading-flag → shell fallback has no shell to defer to now);
+  convert the **defensive** `ErrFallbackToShell` returns (Sessions/ScanHistory/
+  DecideLaunch errors in `runOnce`) into real error exits; retire `bin/pair-restart.sh`
+  markers → in-process; drop `PAIR_LEGACY_LAUNCH` + the whole `ErrFallbackToShell`
+  fallback arm in `cmd/pair-go/main.go`. Close with **`sdlc close --issue 99`** (not
+  milestone-close) — this closes the issue, unblocking #93/#94. **Review must verify
+  NO surface reaches a (now-absent) shell** (the shadow-sweep: every consumer flow
+  derives from Go).
+
+**Sequencing (ARCH-PURPOSE):** retirement is #99's *actual purpose* (single Go
+owner; the thing that unblocks #94), so it must land **complete and last** — a
+shim/removal before pick+compaction+continue+rename are native would either loop
+(native → `ErrFallbackToShell` → shim → native) or falsely claim the single-owner
+purpose while those flows still require the real shell. **`bin/pair-shell` fate is
+decided empirically at M5c** via the caller check (leaning remove); a thin shim
+only survives a real external caller.

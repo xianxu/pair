@@ -25,6 +25,8 @@ type fakeRuntime struct {
 	probeErr       error
 	inferAgent     map[string]string // tag -> paired agent (for `resume <tag>`)
 	pickFunc       func(header string, options []string) string
+	listRows       []ListRow // ListSessions rows (for `pair list`)
+	listErr        error
 
 	// M3 lifecycle inputs
 	isTTY          bool
@@ -87,6 +89,9 @@ func (f *fakeRuntime) LaunchSession(session, configDir, layout string) (int, err
 func (f *fakeRuntime) ScanHistory(base string, cutoff time.Time) ([]HistoricalTag, error) {
 	return f.historical, nil
 }
+
+// ListOps
+func (f *fakeRuntime) ListSessions() ([]ListRow, error) { return f.listRows, f.listErr }
 
 // UIOps
 func (f *fakeRuntime) ShowFamilyExisting(familyPrefix string) {
@@ -420,21 +425,15 @@ func TestRunLaunchExplicitResumeSkipsPicker(t *testing.T) {
 	}
 }
 
-// A launch from inside a zellij pane and a pick decision still defer to the
-// shell (attach is now native — see lifecycle_test.go).
+// A launch from inside a zellij pane still defers to the shell (in-session
+// compaction is M5b). Attach + the fzf session pick are now native — see
+// lifecycle_test.go and pick_test.go.
 func TestRunLaunchFallbacks(t *testing.T) {
 	t.Run("in pane", func(t *testing.T) {
 		rt := newFakeRuntime()
 		rt.inPane = true
 		if _, err := run(t, baseOpts(LaunchArgs{Agent: "claude"}), rt); !errors.Is(err, ErrFallbackToShell) {
 			t.Fatalf("in-pane should fall back, got %v", err)
-		}
-	})
-	t.Run("pick decision", func(t *testing.T) {
-		rt := newFakeRuntime()
-		rt.sessions = []Session{{Name: "pair-a", State: SessionDetached}}
-		if _, err := run(t, baseOpts(LaunchArgs{Agent: "claude"}), rt); !errors.Is(err, ErrFallbackToShell) {
-			t.Fatalf("pick should fall back, got %v", err)
 		}
 	})
 }

@@ -44,9 +44,20 @@ func (s HistorySource) Scan(base string, cutoff time.Time) ([]HistoricalTag, err
 	sort.Strings(tags)
 	out := make([]HistoricalTag, 0, len(tags))
 	for _, tag := range tags {
-		out = append(out, HistoricalTag{Tag: tag})
+		out = append(out, HistoricalTag{Tag: tag, MTime: latest[tag], QueueCount: s.queueCount(tag)})
 	}
 	return out, nil
+}
+
+// queueCount counts the queued prompts nvim parked under queue-<tag>/ — each is a
+// <digits>.md file (queue_count_for, shell 1335). Surfaced as the picker's amber
+// badge so a forgotten queue is visible before resuming.
+func (s HistorySource) queueCount(tag string) int {
+	matches, err := filepath.Glob(filepath.Join(s.DataDir, "queue-"+tag, "[0-9]*.md"))
+	if err != nil {
+		return 0
+	}
+	return len(matches)
 }
 
 func tagFromSidecar(name string) (string, bool) {

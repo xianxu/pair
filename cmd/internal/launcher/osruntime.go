@@ -106,6 +106,37 @@ func (r OSRuntime) ScanHistory(base string, cutoff time.Time) ([]HistoricalTag, 
 	return HistorySource{DataDir: r.DataDir}.Scan(base, cutoff)
 }
 
+// --- ListOps ---------------------------------------------------------------
+
+// ListSessions gathers the `pair list`/`ls` rows: each pair-<tag> session's
+// reuse state (EXITED vs live), its live client count, and the agent it was last
+// paired with (shell 228-306). Agent resolution reuses InferAgent (agent-<tag>
+// then the config-filename agent) — broader than the shell's agent-<tag>-only
+// read on that axis (a cleared agent record still resolves from the saved config
+// rather than "?"), but it does NOT replicate the shell's pgrep backfill of
+// agent-<tag> from a live pair-wrap's env for pre-agent-tracking sessions (shell
+// 246-272), so such a legacy session shows "?" where the shell resolved it. That
+// backfill is a legacy-only path to reconcile when the shell retires (M5c).
+func (r OSRuntime) ListSessions() ([]ListRow, error) {
+	if _, err := exec.LookPath("zellij"); err != nil {
+		return nil, fmt.Errorf("zellij not found on PATH") // shell 231-234
+	}
+	raw := zj("list-sessions", "--no-formatting")
+	names := pairSessionNames(zj("list-sessions", "--short"))
+	rows := make([]ListRow, 0, len(names))
+	for _, name := range names {
+		tag := strings.TrimPrefix(name, "pair-")
+		row := ListRow{Session: name, Agent: r.InferAgent(tag), State: SessionDetached}
+		if _, exited := sessionRowState(raw, name); exited {
+			row.State = SessionExited
+		} else if row.Clients = parseClientCount(zj("--session", name, "action", "list-clients")); row.Clients > 0 {
+			row.State = SessionAttached
+		}
+		rows = append(rows, row)
+	}
+	return rows, nil
+}
+
 // --- UIOps -----------------------------------------------------------------
 
 func (OSRuntime) ShowFamilyExisting(familyPrefix string) {
@@ -156,9 +187,13 @@ func (OSRuntime) PromptSessionName(def string) (string, bool) {
 }
 
 // PickFromList presents options (NUL-separated, fzf --read0 multi-line render)
-// and returns the chosen line, or "" on abort.
+// and returns the chosen line, or "" on abort. --ansi lets callers pass
+// color-coded rows (the #99 M5a session picker greys history + ambers the queued
+// badge); fzf strips the SGR codes from the returned line, so callers key their
+// selection map by the plain text. Rows without codes (the config picker) are
+// unaffected.
 func (OSRuntime) PickFromList(header string, options []string, height int) string {
-	cmd := exec.Command("fzf", "--read0",
+	cmd := exec.Command("fzf", "--read0", "--ansi",
 		"--header", header,
 		"--height", fmt.Sprintf("%d", height),
 		"--no-info", "--layout", "reverse", "--no-multi")

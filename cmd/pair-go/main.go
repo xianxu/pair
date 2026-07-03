@@ -42,11 +42,12 @@ type legacyRuntime interface {
 	EmbeddedAssetRoot() (string, error)
 	Exec(label string, path string, argv []string, env []string) int
 	// LaunchNative runs the in-process native launcher (#99 M4). handled=false
-	// means it declined (ErrFallbackToShell — the still-shell-owned pick /
-	// in-pane compaction / continue+rename restart re-entries), so the caller
-	// execs the real bin/pair-shell. Behind the seam so the default-flip is
-	// unit-testable without real zellij.
-	LaunchNative(args []string, root string, stderr io.Writer) (code int, handled bool)
+	// means it declined (ErrFallbackToShell — the still-shell-owned in-pane
+	// compaction / continue+rename restart re-entries / leading-flag help), so
+	// the caller execs the real bin/pair-shell. stdout carries the read-only
+	// `list` subcommand's output (#99 M5a). Behind the seam so the default-flip
+	// is unit-testable without real zellij.
+	LaunchNative(args []string, root string, stdout, stderr io.Writer) (code int, handled bool)
 }
 
 func runWithLegacyRuntime(args []string, stdout, stderr io.Writer, rt legacyRuntime) int {
@@ -62,9 +63,9 @@ func runWithLegacyRuntime(args []string, stdout, stderr io.Writer, rt legacyRunt
 
 	switch entrypoint.ClassifyInvocation(exe, args, dispatcher.DispatchNames()) {
 	case entrypoint.ModePublicPair:
-		return runLegacyLaunch("pair", exe, args, stderr, rt)
+		return runLegacyLaunch("pair", exe, args, stdout, stderr, rt)
 	case entrypoint.ModePairGoLaunch:
-		return runLegacyLaunch("pair-go launch", exe, args[1:], stderr, rt)
+		return runLegacyLaunch("pair-go launch", exe, args[1:], stdout, stderr, rt)
 	default:
 		if len(args) > 0 && dispatcher.IsImplemented(args[0]) && dispatcher.IsStreaming(args[0]) {
 			return runStreamingSubcommand(args, os.Stdin, stdout, stderr)
@@ -98,7 +99,7 @@ func runStreamingSubcommand(args []string, stdin io.Reader, stdout, stderr io.Wr
 	}
 }
 
-func runLegacyLaunch(label string, executable string, args []string, stderr io.Writer, rt legacyRuntime) int {
+func runLegacyLaunch(label string, executable string, args []string, stdout, stderr io.Writer, rt legacyRuntime) int {
 	root, err := entrypoint.ResolveAssetRoot(entrypoint.AssetRootInput{
 		PairHome:        rt.PairHome(),
 		Executable:      executable,
@@ -136,7 +137,7 @@ func runLegacyLaunch(label string, executable string, args []string, stderr io.W
 	// re-entries) falls through to the REAL bin/pair-shell below — which stays the
 	// fallback launcher, NOT a shim, so the fallback can't loop back into native.
 	if os.Getenv("PAIR_LEGACY_LAUNCH") == "" {
-		if code, handled := rt.LaunchNative(args, root.Root, stderr); handled {
+		if code, handled := rt.LaunchNative(args, root.Root, stdout, stderr); handled {
 			return code
 		}
 	}
@@ -206,8 +207,8 @@ func (osLegacyRuntime) Exec(label string, path string, argv []string, env []stri
 
 // LaunchNative drives the in-process native launcher; ErrFallbackToShell maps to
 // handled=false so the caller execs the real bin/pair-shell (#99 M4).
-func (osLegacyRuntime) LaunchNative(args []string, root string, stderr io.Writer) (int, bool) {
-	code, err := launcher.LaunchNative(args, root, stderr)
+func (osLegacyRuntime) LaunchNative(args []string, root string, stdout, stderr io.Writer) (int, bool) {
+	code, err := launcher.LaunchNative(args, root, stdout, stderr)
 	if errors.Is(err, launcher.ErrFallbackToShell) {
 		return 0, false
 	}

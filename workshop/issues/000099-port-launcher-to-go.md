@@ -132,16 +132,42 @@ until M4 flips it, so pair stays usable throughout.
       native → fallback → shim → native). Verify BOTH: create/attach/restart/quit
       native by default AND pick/compaction/continue+rename still reach the real
       shell without looping. (Shim conversion + shell retirement → M5.)
-- [ ] M5 — subcommands + retirement: port `list`/`rename`/`continue`, the fzf
-      session **pick**, in-session **compaction** detection, and the
-      **continue/rename restart re-entries** so NO flow needs the shell; only THEN
-      convert `bin/pair-shell` to a thin shim (or remove it — `git ls-files bin/` +
-      caller check), retire `bin/pair-restart.sh` markers → in-process, and drop
-      `PAIR_LEGACY_LAUNCH`.
+  M5 split into three boundaries (plan Revision 2026-07-02 — 3 distinct risk
+  profiles + a load-bearing retirement; lettered tags match sdlc's `M\d+[a-z]?`):
+- [x] M5a — read-only surfaces: port the fzf session **pick** (`ActionPick`) +
+      `list`/`ls`. Enrich the snapshot (`HistoricalTag.MTime` — already computed in
+      `Scan`; a queue-count source) so the pick-row build stays pure (ARCH-PURE);
+      reuse M2's `UIOps.PickFromList` (ARCH-DRY). `ParseArgs` gains `list`/`ls`.
+      Tests: pure pick-row build, fake-`Runtime` pick→attach/create, pure `list` fmt.
+- [ ] M5b — lifecycle write flows: native in-session **compaction**
+      (`InZellijPane` branch → `park_scrollback --copy` + marker `continue=<slug>`,
+      `new_session=1`) + the **continue/rename restart re-entries** (`planRestart`
+      `RenameTo`/`Continue` → native: `rename` runs the M1-deferred `rename_paths_for`
+      plan-build; `continue` re-seeds the draft). `ParseArgs` gains `continue`/`rename`.
+      Tests: pure `rename_paths_for`, compaction-marker detect, fake-`Runtime` restart
+      loops, real-OSRuntime rename+continue smoke.
+- [ ] M5c — retirement (LAST, ARCH-PURPOSE — only once NO flow needs the shell):
+      convert/remove `bin/pair-shell` (`git ls-files bin/` + caller check — remove if
+      no external caller, else thin shim), port `pair --help` native, turn the
+      defensive `ErrFallbackToShell` returns into real error exits, retire
+      `bin/pair-restart.sh` markers → in-process, drop `PAIR_LEGACY_LAUNCH` + the
+      fallback arm. Closes #99 (`sdlc close`), unblocking #93/#94.
 
 ## Log
 
+
+- 2026-07-03: closed M5a — M5a: native fzf session pick + list/ls off bin/pair-shell; go test ./... + -race + go vet + full make test green; real-OSRuntime stub-zellij smoke (pair list / bare pair fzf pick->native attach / pick-abort->exit0) PASS; PAIR_TEST_CALL regression (native pick blocked on fzf /dev/tty when a bare `pair` ran under it — shell-only helper dispatcher; now declines in LaunchNative) fixed + pinned. Measured actual: 9.67h issue-cumulative (window 26585426→HEAD); M5a increment ≈2.46h over M4's 7.21h — includes the M5→M5a/b/c split design + the regression diagnosis (a `tail`-buffered make test looked hung; the real hang was the fzf /dev/tty block). --no-judge because the review ran manually via `sdlc judge milestone-review --base 734b5ef` (ariadne#162 window-bug workaround); the REAL verdict FIX-THEN-SHIP→SHIP is in this commit's Review-Verdict trailer, NOT sdlc's not-run. Review FIX-THEN-SHIP: 2 Importants fixed (ARCH-DRY: consolidated the two list-clients parsers → parseClientCount; runList error→stderr) + 3 minors (comments + accepted no-fzf-fallback as fzf is a hard dep); review verdict: FIX-THEN-SHIP (Importants fixed → SHIP)
 ### 2026-07-02
+- **M5 split → M5a/M5b/M5c (at start-plan).** The single M5 boundary bundled 3
+  distinct risk profiles + a load-bearing retirement (≈3.2h) — the change-code
+  plan-quality INFO + M4 status both flagged splitting. M5a = read-only surfaces
+  (fzf pick + list); M5b = lifecycle write flows (compaction + continue/rename
+  restart); M5c = retirement, LAST (ARCH-PURPOSE — only once no flow needs the
+  shell; a premature shim loops). Lettered tags recognized by sdlc's `M\d+[a-z]?`
+  (verified `close.go` `milestonePlanRE`). `bin/pair-shell` fate decided at M5c via
+  `git ls-files bin/` + caller check (leaning remove — #94's point). Plan Revision
+  2026-07-02 has the self-sufficient per-boundary scope. User was away; proceeded on
+  the recommended split per their standing "proceed on best judgment."
 - 2026-07-02: closed M4 — M4 cutover: native launcher is DEFAULT (PAIR_LEGACY_LAUNCH=1 kill-switch, NOT a shim). go test cmd/pair-go+launcher +race, full make test, vet, drift-check green. Fake-legacyRuntime: native-default skips shell / decline execs real bin/pair-shell (no loop) / kill-switch forces shell / --help declines. Real stub-zellij+stub-shell smoke: native attach by default w/ NO flag, kill-switch->shell, --help->shell exactly once PASS. Review FIX-THEN-SHIP->SHIP (README stale-doc fixed). ACCEPTED til M5: continue/rename restart degrade (native cleanup then shell fallback w/ original argv) mitigated by kill-switch. Measured actual: 7.21h issue-cumulative (window f44e0d9→HEAD); M4 increment ≈2.52h over M3's 4.69h — vs M4 est ~3.5h (design 1.0 + impl 2.5), ran UNDER (a gate flip is lower-risk than the lifecycle logic; the plan-quality FAILURE detour to correct the M4/M5 scope is included). --no-judge because the review ran manually (ariadne#162 window-bug workaround); the REAL verdict FIX-THEN-SHIP→SHIP is in this commit's Review-Verdict trailer, NOT sdlc's not-run; review verdict: FIX-THEN-SHIP (Important fixed → SHIP)
 - 2026-07-02: closed M3 — M3 attach + quit-cleanup + in-process restart loop; go test ./cmd/internal/launcher +race + full make test + runtimebundle-drift-check green; real-OSRuntime stub-zellij smoke attach->cleanup->re-create (ATTACH->DELETE->CREATE, markers consumed) PASS; boundary review FIX-THEN-SHIP->SHIP (2 doc/verify Importants fixed). Measured actual: 4.69h issue-cumulative (window e30b739→HEAD); M3 increment ≈2.78h over M2's 1.91h cumulative — vs M3 est ~2.4h (design 0.6 + impl 1.8), ran modestly over, confirming the "M3 impl light" change-code flag within the 13–22h band. --actual 4.69 is sdlc's suggested issue-cumulative value (measured, not typed). --no-judge because the review ran manually via `sdlc judge milestone-review --base <merge-base>` (ariadne#162 window-bug workaround); the REAL verdict FIX-THEN-SHIP→SHIP is in this commit's Review-Verdict trailer, NOT sdlc's not-run placeholder; review verdict: FIX-THEN-SHIP (Importants fixed → SHIP)
 - **M3 implemented (attach + quit-cleanup + in-process restart loop).** New file

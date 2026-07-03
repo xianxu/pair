@@ -1,6 +1,9 @@
 package launcher
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
 
 // Pure parsers for zellij list-sessions / list-clients output (#99 M2). The
 // OSRuntime IO methods (SessionBlocksReuse, ShowFamilyExisting, ProbeSessionName)
@@ -44,4 +47,42 @@ func familyRows(raw, familyPrefix string) []string {
 // name as too long for the machine's socket-path budget (#54).
 func sessionNameRejected(out string) bool {
 	return strings.Contains(out, "session name must be less than")
+}
+
+// pairSessionNames extracts the pair-<tag> session names from `zellij
+// list-sessions --short` output — sorted + deduped, matching the shell's
+// `awk '/^pair-/' | sort` (list flow, shell 1235/232).
+func pairSessionNames(short string) []string {
+	seen := map[string]bool{}
+	var names []string
+	for _, line := range strings.Split(short, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 || !strings.HasPrefix(fields[0], "pair-") || seen[fields[0]] {
+			continue
+		}
+		seen[fields[0]] = true
+		names = append(names, fields[0])
+	}
+	sort.Strings(names)
+	return names
+}
+
+// parseClientCount counts the clients attached to a session from `zellij
+// --session NAME action list-clients` output: a header line then one row per
+// client, so the count is the non-empty lines after the first (shell 292:
+// `tail -n +2 | wc -l`). Empty output (query failed / no session) → 0, treated
+// as detached. The single source of truth for both ListSessions and
+// ZellijSource.clientCount (ARCH-DRY).
+func parseClientCount(raw string) int {
+	lines := strings.Split(strings.TrimRight(raw, "\n"), "\n")
+	n := 0
+	for i, line := range lines {
+		if i == 0 { // header
+			continue
+		}
+		if strings.TrimSpace(line) != "" {
+			n++
+		}
+	}
+	return n
 }
