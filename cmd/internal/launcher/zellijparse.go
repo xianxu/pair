@@ -67,11 +67,13 @@ func pairSessionNames(short string) []string {
 	return names
 }
 
-// clientCount counts the clients attached to a session from `zellij --session
-// NAME action list-clients` output: a header line then one row per client, so
-// the count is the non-empty lines after the first (shell 292: `tail -n +2 | wc
-// -l`). Empty output (query failed / no session) → 0, treated as detached.
-func clientCount(raw string) int {
+// parseClientCount counts the clients attached to a session from `zellij
+// --session NAME action list-clients` output: a header line then one row per
+// client, so the count is the non-empty lines after the first (shell 292:
+// `tail -n +2 | wc -l`). Empty output (query failed / no session) → 0, treated
+// as detached. The single source of truth for both ListSessions and
+// ZellijSource.clientCount (ARCH-DRY).
+func parseClientCount(raw string) int {
 	lines := strings.Split(strings.TrimRight(raw, "\n"), "\n")
 	n := 0
 	for i, line := range lines {

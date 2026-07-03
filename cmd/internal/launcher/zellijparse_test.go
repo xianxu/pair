@@ -80,8 +80,8 @@ func TestClientCount(t *testing.T) {
 		{"CLIENT_ID ...\nc1 ...\n\nc2 ...\n", 2}, // blank lines don't count
 	}
 	for _, c := range cases {
-		if got := clientCount(c.raw); got != c.want {
-			t.Errorf("clientCount(%q) = %d, want %d", c.raw, got, c.want)
+		if got := parseClientCount(c.raw); got != c.want {
+			t.Errorf("parseClientCount(%q) = %d, want %d", c.raw, got, c.want)
 		}
 	}
 }

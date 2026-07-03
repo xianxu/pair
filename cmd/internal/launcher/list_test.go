@@ -57,8 +57,8 @@ func TestFormatListTable(t *testing.T) {
 func TestRunList(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.listRows = []ListRow{{Session: "pair-x", Agent: "claude", State: SessionDetached}}
-	var out bytes.Buffer
-	if code := runList(rt, &out); code != 0 {
+	var out, errBuf bytes.Buffer
+	if code := runList(rt, &out, &errBuf); code != 0 {
 		t.Fatalf("runList code = %d, want 0", code)
 	}
 	if !strings.Contains(out.String(), "pair-x") || !strings.Contains(out.String(), "detached") {
@@ -69,8 +69,15 @@ func TestRunList(t *testing.T) {
 func TestRunListError(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.listErr = errors.New("zellij not found")
-	var out bytes.Buffer
-	if code := runList(rt, &out); code != 1 {
+	var out, errBuf bytes.Buffer
+	if code := runList(rt, &out, &errBuf); code != 1 {
 		t.Fatalf("runList code = %d, want 1 on error", code)
+	}
+	// The error goes to stderr, never stdout — stdout stays clean for pipes.
+	if !strings.Contains(errBuf.String(), "zellij not found") {
+		t.Fatalf("error should go to stderr, got stderr=%q", errBuf.String())
+	}
+	if out.Len() != 0 {
+		t.Fatalf("stdout must stay empty on error, got %q", out.String())
 	}
 }

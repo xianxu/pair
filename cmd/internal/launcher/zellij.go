@@ -44,11 +44,7 @@ func (s ZellijSource) clientCount(session string) int {
 	if err != nil {
 		return 0
 	}
-	lines := lines(string(out))
-	if len(lines) <= 1 {
-		return 0
-	}
-	return len(lines) - 1
+	return parseClientCount(string(out)) // one parser for both call sites (ARCH-DRY)
 }
 
 func (s ZellijSource) run(args ...string) ([]byte, error) {

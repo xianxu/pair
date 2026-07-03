@@ -45,7 +45,7 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 	// `list`/`ls` is a read-only listing that prints to stdout and exits — no
 	// launch, no zellij handoff (#99 M5a).
 	if args.Command == "list" {
-		return runList(rt, stdout), nil
+		return runList(rt, stdout, stderr), nil
 	}
 
 	env := Env{

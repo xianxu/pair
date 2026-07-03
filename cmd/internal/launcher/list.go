@@ -44,13 +44,14 @@ func formatListTable(rows []ListRow) string {
 }
 
 // runList drives the `list`/`ls` subcommand: gather the rows behind the Runtime
-// seam, then print the pure table. Returns the process exit code.
-func runList(rt Runtime, out io.Writer) int {
+// seam, then print the pure table to stdout. A gather error goes to stderr (shell
+// 230: `>&2`) so it doesn't pollute `pair list | …`. Returns the exit code.
+func runList(rt Runtime, stdout, stderr io.Writer) int {
 	rows, err := rt.ListSessions()
 	if err != nil {
-		fmt.Fprintf(out, "pair: %v\n", err)
+		fmt.Fprintf(stderr, "pair: %v\n", err)
 		return 1
 	}
-	fmt.Fprint(out, formatListTable(rows))
+	fmt.Fprint(stdout, formatListTable(rows))
 	return 0
 }

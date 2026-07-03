@@ -111,9 +111,12 @@ func (r OSRuntime) ScanHistory(base string, cutoff time.Time) ([]HistoricalTag, 
 // ListSessions gathers the `pair list`/`ls` rows: each pair-<tag> session's
 // reuse state (EXITED vs live), its live client count, and the agent it was last
 // paired with (shell 228-306). Agent resolution reuses InferAgent (agent-<tag>
-// then the config-filename agent) — a superset of the shell's agent-<tag>-only
-// read, so a session whose agent record was cleared still resolves from its saved
-// config instead of showing "?".
+// then the config-filename agent) — broader than the shell's agent-<tag>-only
+// read on that axis (a cleared agent record still resolves from the saved config
+// rather than "?"), but it does NOT replicate the shell's pgrep backfill of
+// agent-<tag> from a live pair-wrap's env for pre-agent-tracking sessions (shell
+// 246-272), so such a legacy session shows "?" where the shell resolved it. That
+// backfill is a legacy-only path to reconcile when the shell retires (M5c).
 func (r OSRuntime) ListSessions() ([]ListRow, error) {
 	if _, err := exec.LookPath("zellij"); err != nil {
 		return nil, fmt.Errorf("zellij not found on PATH") // shell 231-234
@@ -126,7 +129,7 @@ func (r OSRuntime) ListSessions() ([]ListRow, error) {
 		row := ListRow{Session: name, Agent: r.InferAgent(tag), State: SessionDetached}
 		if _, exited := sessionRowState(raw, name); exited {
 			row.State = SessionExited
-		} else if row.Clients = clientCount(zj("--session", name, "action", "list-clients")); row.Clients > 0 {
+		} else if row.Clients = parseClientCount(zj("--session", name, "action", "list-clients")); row.Clients > 0 {
 			row.State = SessionAttached
 		}
 		rows = append(rows, row)
