@@ -273,12 +273,15 @@ func (OSRuntime) SetTerminalTitle(session string) {
 // --- ProcOps ---------------------------------------------------------------
 
 func (r OSRuntime) SpawnSessionWatcher(agent, tag, cwd string, agentArgs []string) {
-	args := append([]string{filepath.Join(r.PairHome, "bin", "pair-session-watch.sh"), agent, tag, cwd}, agentArgs...)
+	args := append([]string{filepath.Join(r.PairHome, "bin", "pair-session-watch"), agent, tag, cwd}, agentArgs...)
 	spawnDetached(args, nil)
 }
 
 func (r OSRuntime) SpawnTitlePoller(tag, agent string) {
-	spawnDetached([]string{filepath.Join(r.PairHome, "bin", "pair-title.sh"), tag, agent}, nil)
+	// Spawn the Go binary directly (#94 M2 — the pair-title.sh shim is gone). The
+	// running process is now "<…>/pair-title <tag> <agent>", the exact shape the
+	// poller's single-instance argv guard already matches.
+	spawnDetached([]string{filepath.Join(r.PairHome, "bin", "pair-title"), tag, agent}, nil)
 }
 
 func (OSRuntime) DevRebuild(pairHome string) {

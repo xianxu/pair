@@ -1,7 +1,7 @@
 // copy-on-select — zellij's copy_command (fires on every selection finalize).
 // Thin entry over clipcmd.RunCopyOnSelectCLI; logic in cmd/internal/clipcmd
-// (#93 M4, ported from bin/copy-on-select.sh). Reached via the bin/copy-on-
-// select.sh shim so zellij's `copy_command "copy-on-select.sh"` keeps resolving.
+// (#93 M4, ported from bin/copy-on-select.sh; the shim is retired #94 M2, so
+// zellij's `copy_command "copy-on-select"` resolves this binary directly).
 package main
 
 import (

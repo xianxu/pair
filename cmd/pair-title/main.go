@@ -1,7 +1,7 @@
 // pair-title — the per-tag title poller (zellij frame meter + cmux workspace
 // heat-ramp). Thin entry over titlepoller.RunCLI; the logic lives in
 // cmd/internal/titlepoller (#93 M1, ported from bin/pair-title.sh). Spawned in
-// the background by bin/pair on create + attach via the bin/pair-title.sh shim.
+// the background by the launcher on create + attach (directly since #94 M2).
 package main
 
 import (

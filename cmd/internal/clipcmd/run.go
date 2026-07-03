@@ -18,7 +18,7 @@ import (
 // clipboard-to-pane hand-off, the shell's `exec`).
 type Runtime interface {
 	WriteFile(path, data string) error // stage the quote file (osfs.FS)
-	Executable(path string) bool       // `[ -x $PAIR_HOME/bin/flash-pane.sh ]` (osfs.FS)
+	Executable(path string) bool       // `[ -x $PAIR_HOME/bin/flash-pane ]` (osfs.FS)
 
 	ClipboardCopy(text string) error        // pbcopy → wl-copy → xclip -i
 	ClipboardPaste() (string, bool)         // pbpaste → wl-paste → xclip -o; ok=false when no tool
@@ -30,8 +30,8 @@ type Runtime interface {
 	MoveFocus(dir string)                           // fallback when the nvim pane can't be resolved
 	WriteKey(b byte)                                // `zellij action write <n>` (31 = Ctrl-_)
 
-	RunSubprocess(path string, args ...string) error // flash-pane.sh (call-and-return)
-	ExecReplace(path string, args ...string) error   // clipboard-to-pane.sh (process replace; only returns on error)
+	RunSubprocess(path string, args ...string) error // flash-pane (call-and-return)
+	ExecReplace(path string, args ...string) error   // clipboard-to-pane (process replace; only returns on error)
 
 	// LogFresh truncates the clipboard-debug.log then writes line — called once
 	// at the pipeline head (copy-on-select) so the diagnostic holds exactly one
@@ -81,20 +81,20 @@ func RunCopyOnSelect(opts CopyOnSelectOptions, stdin io.Reader, rt Runtime, stde
 		return 0
 	}
 
-	// 3. Flash the source pane (delegated to flash-pane.sh so the flash idiom
-	// lives in one place). Call-and-return: the flash's bg reset is detached, so
-	// this doesn't block the hand-off's focus change.
-	flashScript := opts.PairHome + "/bin/flash-pane.sh"
+	// 3. Flash the source pane (delegated to the flash-pane Go binary so the flash
+	// idiom lives in one place). Call-and-return: the flash's bg reset is detached,
+	// so this doesn't block the hand-off's focus change.
+	flashScript := opts.PairHome + "/bin/flash-pane"
 	if focusedID != "" && rt.Executable(flashScript) {
 		if err := rt.RunSubprocess(flashScript, focusedID); err != nil {
 			rt.Log("flash-pane failed: " + err.Error())
 		}
 	}
 
-	// 4. Hand off to clipboard-to-pane.sh for the insert into nvim (it reads the
-	// OS clipboard populated in step 1). This replaces the process (the shell's
-	// `exec`); it only returns here on failure.
-	clipScript := opts.PairHome + "/bin/clipboard-to-pane.sh"
+	// 4. Hand off to the clipboard-to-pane Go binary for the insert into nvim (it
+	// reads the OS clipboard populated in step 1). This replaces the process (the
+	// shell's `exec`); it only returns here on failure.
+	clipScript := opts.PairHome + "/bin/clipboard-to-pane"
 	if err := rt.ExecReplace(clipScript); err != nil {
 		fmt.Fprintf(stderr, "copy-on-select: exec %s: %v\n", clipScript, err)
 		return 1
