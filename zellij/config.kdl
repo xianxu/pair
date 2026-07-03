@@ -38,7 +38,7 @@ mouse_click_through true
 //
 // bin/pair prepends $PAIR_HOME/bin to PATH so the script is resolvable by
 // bare name — avoids the fragile `sh -c '$PAIR_HOME/...'` quoting dance.
-copy_command "copy-on-select.sh"
+copy_command "copy-on-select"
 
 keybinds clear-defaults=false {
     // Release Alt+i so nvim sees it (zellij's default binds Alt+i to MoveTab
@@ -71,7 +71,7 @@ keybinds clear-defaults=false {
         // Disable Ctrl+q — zellij's default Quit leaves the session in the
         // resurrect list with dead processes inside, which is a confusing
         // half-state for pair's "long-lived agent session" model. Alt+x is
-        // the only quit path; it tears down cleanly via pair-quit.sh.
+        // the only quit path; it tears down cleanly via `pair quit`.
         unbind "Ctrl q"
 
         // Lock pair into Normal mode. pair uses zellij as a pane manager,
@@ -147,9 +147,9 @@ keybinds clear-defaults=false {
         // Alt+x — full quit: kill the session AND remove its entry from the
         // resurrect list (vs. Ctrl+q which keeps the session as a resurrect
         // candidate). Routed through nvim for a confirm prompt before the
-        // destructive action — pair-quit.sh kills the zellij session, so an
+        // destructive action — `pair quit` kills the zellij session, so an
         // accidental Alt+x mid-session is unrecoverable. PairConfirmQuit()
-        // shells out to pair-quit.sh only on Yes.
+        // invokes `pair quit` only on Yes.
         bind "Alt x" {
             MoveFocus "Down";
             Write 28;

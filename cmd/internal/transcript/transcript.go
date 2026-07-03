@@ -15,7 +15,7 @@ import (
 var ClaudePathEncoder = strings.NewReplacer(".", "-", "/", "-")
 
 // SessionID reads the session id pair recorded for (tag, agent) in
-// config-<tag>-<agent>.json (written by bin/pair / pair-session-watch.sh).
+// config-<tag>-<agent>.json (written by bin/pair / pair-session-watch).
 func SessionID(dataDir, tag, agent string) string {
 	b, err := os.ReadFile(filepath.Join(dataDir, "config-"+tag+"-"+agent+".json"))
 	if err != nil {

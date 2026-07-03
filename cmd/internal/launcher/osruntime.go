@@ -273,12 +273,26 @@ func (OSRuntime) SetTerminalTitle(session string) {
 // --- ProcOps ---------------------------------------------------------------
 
 func (r OSRuntime) SpawnSessionWatcher(agent, tag, cwd string, agentArgs []string) {
-	args := append([]string{filepath.Join(r.PairHome, "bin", "pair-session-watch.sh"), agent, tag, cwd}, agentArgs...)
-	spawnDetached(args, nil)
+	spawnDetached(sessionWatcherArgv(r.PairHome, agent, tag, cwd, agentArgs), nil)
 }
 
 func (r OSRuntime) SpawnTitlePoller(tag, agent string) {
-	spawnDetached([]string{filepath.Join(r.PairHome, "bin", "pair-title.sh"), tag, agent}, nil)
+	spawnDetached(titlePollerArgv(r.PairHome, tag, agent), nil)
+}
+
+// sessionWatcherArgv / titlePollerArgv build the detached-spawn argv for the two
+// sidecar Go binaries. Pure so a test can pin the base names: #94 M2 repointed
+// these from the .sh shims to the Go binaries directly, and spawnDetached
+// swallows a start error — so a silent regression back to "pair-title.sh" (a file
+// no longer in the bundle) would otherwise go uncaught until the poller/watcher
+// simply never started. The title poller's process must be "<…>/pair-title <tag>
+// <agent>", the exact shape titlepoller's single-instance argv guard matches.
+func sessionWatcherArgv(pairHome, agent, tag, cwd string, agentArgs []string) []string {
+	return append([]string{filepath.Join(pairHome, "bin", "pair-session-watch"), agent, tag, cwd}, agentArgs...)
+}
+
+func titlePollerArgv(pairHome, tag, agent string) []string {
+	return []string{filepath.Join(pairHome, "bin", "pair-title"), tag, agent}
 }
 
 func (OSRuntime) DevRebuild(pairHome string) {
@@ -425,7 +439,7 @@ func (OSRuntime) AttachSession(session, configDir string) (int, error) {
 	return runBlockingHandoff(exec.Command("zellij", "--config-dir", configDir, "attach", session))
 }
 
-// pairCacheDir is where pair-restart.sh drops the {quit,restart}-<session> markers.
+// pairCacheDir is where `pair restart`/`pair quit` drop the {quit,restart}-<session> markers.
 func pairCacheDir() string { return filepath.Join(os.Getenv("HOME"), ".cache", "pair") }
 
 func (r OSRuntime) TakeQuitMarker(session string) bool {

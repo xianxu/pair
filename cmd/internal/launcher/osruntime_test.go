@@ -245,3 +245,33 @@ func TestOSRuntimeReapAndPollerRemovePidfiles(t *testing.T) {
 		t.Fatal("KillTitlePoller should clear the title pidfile")
 	}
 }
+
+// The sidecar spawn argv must target the Go binaries directly — #94 M2 retired
+// the pair-title.sh/pair-session-watch.sh shims (no longer in the bundle), and
+// spawnDetached swallows a start error, so a regression back to a ".sh" target
+// would fail silently at runtime. Pin the base names (and the title poller's
+// "<…>/pair-title <tag> <agent>" shape the single-instance guard matches).
+func TestSidecarSpawnArgvTargetsGoBinaries(t *testing.T) {
+	tp := titlePollerArgv("/pair", "work", "claude")
+	if got := tp[0]; got != "/pair/bin/pair-title" {
+		t.Fatalf("title poller argv[0] = %q, want /pair/bin/pair-title (no .sh)", got)
+	}
+	if len(tp) != 3 || tp[1] != "work" || tp[2] != "claude" {
+		t.Fatalf("title poller argv = %v, want [.../pair-title work claude]", tp)
+	}
+
+	sw := sessionWatcherArgv("/pair", "codex", "work", "/cwd", []string{"--no-alt-screen"})
+	if got := sw[0]; got != "/pair/bin/pair-session-watch" {
+		t.Fatalf("session watcher argv[0] = %q, want /pair/bin/pair-session-watch (no .sh)", got)
+	}
+	if len(sw) != 5 || sw[1] != "codex" || sw[2] != "work" || sw[3] != "/cwd" || sw[4] != "--no-alt-screen" {
+		t.Fatalf("session watcher argv = %v, want [.../pair-session-watch codex work /cwd --no-alt-screen]", sw)
+	}
+
+	// Guard the invariant explicitly: no sidecar target ends in ".sh".
+	for _, argv := range [][]string{tp, sw} {
+		if strings.HasSuffix(argv[0], ".sh") {
+			t.Fatalf("sidecar spawn target must not be a .sh shim: %q", argv[0])
+		}
+	}
+}

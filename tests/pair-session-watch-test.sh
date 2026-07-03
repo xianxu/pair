@@ -33,7 +33,7 @@ HOME="$RT/home" \
 PAIR_DATA_DIR="$RT/data" \
 PAIR_TAG=test \
 PAIR_SESSION_WATCH_PID_WAIT_SECONDS=3 \
-"$ROOT/bin/pair-session-watch.sh" codex test "$ROOT" resume old-session 'say "hi"' --no-alt-screen &
+"$ROOT/bin/pair-session-watch" codex test "$ROOT" resume old-session 'say "hi"' --no-alt-screen &
 watch_pid=$!
 
 sleep 0.2

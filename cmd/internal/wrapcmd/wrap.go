@@ -1917,7 +1917,7 @@ argsDone:
 	})
 	defer ptmx.Close()
 
-	// Drop the agent's PID so pair-session-watch.sh can bind discovery to
+	// Drop the agent's PID so pair-session-watch can bind discovery to
 	// this specific child (lsof -p <pid>) instead of racing peers in the
 	// shared session dir. Best-effort: a failed write only degrades the
 	// session-id capture for codex/agy; claude doesn't need it.

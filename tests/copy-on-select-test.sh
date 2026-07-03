@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regression test for bin/copy-on-select.sh's in_nvim detection.
+# Regression test for copy-on-select's in_nvim detection.
 #
 # Bug: the agent (e.g. claude) overwrites its zellij pane title with
 # "claude [<cwd>]". The old detector matched the focused pane's TITLE against
@@ -8,8 +8,8 @@
 # the selection as "made in nvim" and exited WITHOUT pasting. The fix keys the
 # check on terminal_command (the fixed launch string), which never embeds cwd.
 #
-# We drive the real script with a fake `zellij` that emits a captured panes
-# JSON, stub the downstream handoff ($PAIR_HOME/bin/clipboard-to-pane.sh), and
+# We drive the real binary with a fake `zellij` that emits a captured panes
+# JSON, stub the downstream handoff ($PAIR_HOME/bin/clipboard-to-pane), and
 # assert the handoff is reached when (and only when) the selection was NOT in
 # the draft pane.
 set -eu
@@ -17,25 +17,23 @@ set -eu
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/pair-copyonselect.XXXXXX"); trap 'rm -rf "$tmp"' EXIT
 
-# Sandbox PAIR_HOME so we can stub the scripts copy-on-select execs by absolute
-# path ($PAIR_HOME/bin/{flash-pane,clipboard-to-pane}.sh). copy-on-select.sh is
-# now a thin shim (#93 M4) that recomputes PAIR_HOME from its own location and
-# re-execs the Go binary $PAIR_HOME/bin/copy-on-select, so we copy BOTH into the
-# sandbox. The Go binary still execs the .sh hand-off names, so the stubs below
-# still drive the real chain.
+# Sandbox PAIR_HOME so we can stub the binaries copy-on-select execs by absolute
+# path ($PAIR_HOME/bin/{flash-pane,clipboard-to-pane}). Since #94 M2 the shim is
+# retired — copy-on-select is the Go binary itself (invoked directly below), and
+# it execs the Go flash/clipboard hand-off names, so the stubs below drive the
+# real chain.
 export PAIR_HOME="$tmp/home"
 mkdir -p "$PAIR_HOME/bin"
-cp "$REPO/bin/copy-on-select.sh" "$PAIR_HOME/bin/"
-cp "$REPO/bin/copy-on-select"    "$PAIR_HOME/bin/"
+cp "$REPO/bin/copy-on-select" "$PAIR_HOME/bin/"
 
 # Handoff target records that it was reached.
-cat > "$PAIR_HOME/bin/clipboard-to-pane.sh" <<EOF
+cat > "$PAIR_HOME/bin/clipboard-to-pane" <<EOF
 #!/bin/sh
 echo reached > "$tmp/handoff"
 EOF
 # flash-pane is a no-op so the source flash doesn't shell to zellij.
-printf '#!/bin/sh\nexit 0\n' > "$PAIR_HOME/bin/flash-pane.sh"
-chmod +x "$PAIR_HOME/bin/clipboard-to-pane.sh" "$PAIR_HOME/bin/flash-pane.sh"
+printf '#!/bin/sh\nexit 0\n' > "$PAIR_HOME/bin/flash-pane"
+chmod +x "$PAIR_HOME/bin/clipboard-to-pane" "$PAIR_HOME/bin/flash-pane"
 
 # Fakes on PATH: clipboard sink + a zellij that prints $tmp/panes.json for
 # `list-panes` (jq is the real one). PATH must NOT include $PAIR_HOME/bin so
@@ -63,7 +61,7 @@ draft_pane='{"id":1,"is_plugin":false,"is_focused":FOCUS_DRAFT,"is_floating":fal
   "title":"draft",
   "terminal_command":"sh -c export PAIR_NVIM_PID_FILE=\"/data/nvim-pid-t-draft\" && exec nvim -u \"$PAIR_HOME/nvim/init.lua\" \"/data/draft-t.md\""}'
 
-run() { rm -f "$tmp/handoff"; printf '%s' 'selected text' | "$PAIR_HOME/bin/copy-on-select.sh"; }
+run() { rm -f "$tmp/handoff"; printf '%s' 'selected text' | "$PAIR_HOME/bin/copy-on-select"; }
 reached() { [ -f "$tmp/handoff" ]; }
 
 fail=0

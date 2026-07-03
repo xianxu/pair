@@ -72,11 +72,11 @@ type UIOps interface {
 
 // ProcOps spawns the (already-Go) sidecar children and the dev rebuild.
 type ProcOps interface {
-	// SpawnSessionWatcher backgrounds bin/pair-session-watch.sh (detached) to
+	// SpawnSessionWatcher backgrounds bin/pair-session-watch (detached) to
 	// capture the async agent session id for codex/agy; a no-op-ish spawn for
 	// claude (whose id is minted synchronously).
 	SpawnSessionWatcher(agent, tag, cwd string, agentArgs []string)
-	// SpawnTitlePoller backgrounds bin/pair-title.sh (detached), the per-tag
+	// SpawnTitlePoller backgrounds bin/pair-title (detached), the per-tag
 	// frame/cmux title singleton.
 	SpawnTitlePoller(tag, agent string)
 	// DevRebuild rebuilds the repo Go binaries when PAIR_DEV is set (no-op

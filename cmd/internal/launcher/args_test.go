@@ -121,3 +121,61 @@ func TestParseLaunchArgsListIsNative(t *testing.T) {
 		})
 	}
 }
+
+// restart parses `restart [--new-session] [--rename-to <tag>]` (#94 M1, ported
+// from bin/pair-restart.sh). Explicit case — without it, restart falls through
+// the general loop and becomes an agent name (Agent="restart"), the silent trap.
+func TestParseRestart(t *testing.T) {
+	cases := []struct {
+		name       string
+		argv       []string
+		newSession bool
+		renameTo   string
+		wantErr    bool
+	}{
+		{"bare", []string{"restart"}, false, "", false},
+		{"new-session", []string{"restart", "--new-session"}, true, "", false},
+		{"rename-to", []string{"restart", "--rename-to", "foo"}, false, "foo", false},
+		{"new-session+rename", []string{"restart", "--new-session", "--rename-to", "foo"}, true, "foo", false},
+		{"rename-to missing value", []string{"restart", "--rename-to"}, false, "", true},
+		{"rename-to empty value", []string{"restart", "--rename-to", ""}, false, "", true},
+		{"unknown arg", []string{"restart", "--bogus"}, false, "", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := ParseArgs(tc.argv)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("want error, got %+v", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got.Command != "restart" {
+				t.Fatalf("Command = %q, want restart", got.Command)
+			}
+			if got.NewSession != tc.newSession || got.RenameTo != tc.renameTo {
+				t.Fatalf("got {NewSession:%v RenameTo:%q}, want {%v %q}", got.NewSession, got.RenameTo, tc.newSession, tc.renameTo)
+			}
+			if got.Agent != "" {
+				t.Fatalf("Agent = %q, want empty (restart is not an agent)", got.Agent)
+			}
+		})
+	}
+}
+
+// quit parses to the quit command marker (#94 M1, ported from bin/pair-quit.sh).
+func TestParseQuit(t *testing.T) {
+	got, err := ParseArgs([]string{"quit"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Command != "quit" {
+		t.Fatalf("Command = %q, want quit", got.Command)
+	}
+	if got.Agent != "" {
+		t.Fatalf("Agent = %q, want empty (quit is not an agent)", got.Agent)
+	}
+}

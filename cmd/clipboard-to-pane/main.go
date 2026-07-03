@@ -1,7 +1,7 @@
 // clipboard-to-pane — pull the OS clipboard and inject it into the nvim draft
 // pane (triggers PairPasteQuote). Thin entry over clipcmd.RunClipboardToPaneCLI;
 // logic in cmd/internal/clipcmd (#93 M4, ported from bin/clipboard-to-pane.sh).
-// Reached via the bin/clipboard-to-pane.sh shim, which copy-on-select execs.
+// copy-on-select execs it directly (the shim is retired #94 M2).
 package main
 
 import (

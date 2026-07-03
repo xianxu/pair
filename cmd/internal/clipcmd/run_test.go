@@ -99,7 +99,7 @@ func copyOpts() CopyOnSelectOptions { return CopyOnSelectOptions{PairHome: "/h"}
 func TestCopyOnSelectAgentPaneHandsOff(t *testing.T) {
 	f := newFake()
 	f.panes = agentFocusedPanes
-	f.executable["/h/bin/flash-pane.sh"] = true
+	f.executable["/h/bin/flash-pane"] = true
 	code := RunCopyOnSelect(copyOpts(), strings.NewReader("selected text"), f, io.Discard)
 	if code != 0 {
 		t.Fatalf("exit = %d, want 0", code)
@@ -110,12 +110,12 @@ func TestCopyOnSelectAgentPaneHandsOff(t *testing.T) {
 	if !f.lastListCommand {
 		t.Error("copy-on-select must call list-panes with --command")
 	}
-	if len(f.subprocess) != 1 || f.subprocess[0].path != "/h/bin/flash-pane.sh" ||
+	if len(f.subprocess) != 1 || f.subprocess[0].path != "/h/bin/flash-pane" ||
 		len(f.subprocess[0].args) != 1 || f.subprocess[0].args[0] != "0" {
 		t.Errorf("flash-pane not called with focused id 0: %+v", f.subprocess)
 	}
-	if len(f.execd) != 1 || f.execd[0].path != "/h/bin/clipboard-to-pane.sh" {
-		t.Errorf("did not exec clipboard-to-pane.sh: %+v", f.execd)
+	if len(f.execd) != 1 || f.execd[0].path != "/h/bin/clipboard-to-pane" {
+		t.Errorf("did not exec clipboard-to-pane: %+v", f.execd)
 	}
 }
 
@@ -123,7 +123,7 @@ func TestCopyOnSelectAgentPaneHandsOff(t *testing.T) {
 func TestCopyOnSelectInNvimSkips(t *testing.T) {
 	f := newFake()
 	f.panes = draftFocusedPanes
-	f.executable["/h/bin/flash-pane.sh"] = true
+	f.executable["/h/bin/flash-pane"] = true
 	code := RunCopyOnSelect(copyOpts(), strings.NewReader("selected text"), f, io.Discard)
 	if code != 0 {
 		t.Fatalf("exit = %d, want 0", code)
@@ -150,7 +150,7 @@ func TestCopyOnSelectEmptySelection(t *testing.T) {
 	}
 }
 
-// When flash-pane.sh isn't executable, the flash is skipped but the hand-off
+// When flash-pane isn't executable, the flash is skipped but the hand-off
 // still happens (the shell's `[ -x ... ]` guard).
 func TestCopyOnSelectSkipsFlashWhenNotExecutable(t *testing.T) {
 	f := newFake()

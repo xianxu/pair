@@ -268,7 +268,7 @@ vim.opt.guicursor = 'n-v-c-sm:block,i-ci-ve:block-blinkon250-blinkoff250,r-cr-o:
 -- hollow box: visible at a glance, not attention-grabbing.
 --
 -- Why this matters: the copy-on-select pipeline
--- (bin/copy-on-select.sh + bin/clipboard-to-pane.sh) lands a
+-- (bin/copy-on-select + bin/clipboard-to-pane) lands a
 -- selection from any pane into the draft while the draft is
 -- unfocused. The user wants to see "this pane is the target" at a
 -- glance.
@@ -1362,8 +1362,8 @@ local function attach_image()
 end
 
 -- ---------------------------------------------------------------------------
--- PairPasteQuote: triggered from bin/clipboard-to-pane.sh after a copy_command
--- selection. The shell hands off the *raw* clipboard body via
+-- PairPasteQuote: triggered from bin/clipboard-to-pane after a copy_command
+-- selection. The hand-off delivers the *raw* clipboard body via
 -- $PAIR_DATA_DIR/quote-<tag>; we decide the formatting here based on where
 -- the cursor is.
 --
@@ -3182,7 +3182,7 @@ function _G.PairConfirmQuit()
     end
     local ans = vim.fn.confirm(prompt, '&Yes\n&No', 2)
     if ans == 1 then
-      vim.fn.system('pair-quit.sh')
+      vim.fn.system({ 'pair', 'quit' })
     end
   end)
 end
@@ -3199,7 +3199,7 @@ function _G.PairConfirmDetach()
 end
 
 -- Shared between Alt+n (PairConfirmRestart) and Shift+Alt+N
--- (PairConfirmRestartNewSession). Differs in whether pair-restart.sh
+-- (PairConfirmRestartNewSession). Differs in whether `pair restart`
 -- is invoked with --new-session and what the prompt says.
 --
 --   Alt+n         — pure pair reload; agent session is preserved
@@ -3285,7 +3285,7 @@ local function pair_confirm_restart_impl(new_session)
       if not rename_to then return end
     end
 
-    local argv = { 'pair-restart.sh' }
+    local argv = { 'pair', 'restart' }
     if new_session then table.insert(argv, '--new-session') end
     if rename_to then
       table.insert(argv, '--rename-to')
@@ -3298,8 +3298,8 @@ end
 function _G.PairConfirmRestart()           pair_confirm_restart_impl(false) end
 function _G.PairConfirmRestartNewSession() pair_confirm_restart_impl(true)  end
 
--- Alt+Shift+C compaction (#55). Unlike the restart modals (which shell out to
--- pair-restart.sh directly), creating a continuation needs the agent's
+-- Alt+Shift+C compaction (#55). Unlike the restart modals (which invoke
+-- `pair restart` directly), creating a continuation needs the agent's
 -- judgment — so this asks the AGENT (agent-agnostic prompt, no claude-only
 -- skill name) to distill a continuation and then run `pair continue <slug>`,
 -- which is context-aware: inside this live pane it parks the scrollback, marks
@@ -3665,7 +3665,7 @@ vim.api.nvim_create_autocmd('VimEnter', {
 })
 
 -- Insert-mode-only keymap that triggers PairPasteQuote. This is what
--- bin/clipboard-to-pane.sh sends (as a single Ctrl-_, ASCII 31) after a
+-- bin/clipboard-to-pane sends (as a single Ctrl-_, ASCII 31) after a
 -- mouse selection. Defining the keymap *only* in insert mode is the gate:
 -- if nvim is in normal mode (e.g. browsing prompt history), Ctrl-_ hits
 -- its default — a no-op-ish revins toggle — and PairPasteQuote simply

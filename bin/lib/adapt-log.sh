@@ -1,7 +1,7 @@
 # adapt-log.sh — shell emitter for the adaptation flight recorder.
 #
-# Sourced by shell components (pair-session-watch.sh, …) that need to record a
-# harness-adaptation event. Writes ONE JSON line per call to
+# Sourced by shell components that need to record a harness-adaptation event
+# (the Go orchestrators use cmd/internal/adapt instead). Writes ONE JSON line per call to
 # $PAIR_DATA_DIR/adapt-<tag>.jsonl, byte-identical in schema + field order to
 # the Go emitter (cmd/internal/adapt) and the Lua emitter (nvim/adapt.lua), so
 # doctor/doctor.sh reads every component's lines uniformly. See
