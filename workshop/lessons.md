@@ -674,3 +674,22 @@ Two process gotchas from the #99 M5a close:
    Don't trust `--dry-run` to be side-effect-free here — `git checkout` the issue
    file and run for real, or fold the mutation. (Genuine `sdlc` gap; fix the
    `--dry-run` guard in `milestoneclose.go` when convenient.)
+
+## The command sandbox blocks `ps` — breaking `InZellijPane()` ancestry detection
+
+Diagnosing a #99 M5b "hang": `tests/pair-continue-test.sh` stalled at the
+tag-mismatch compaction case (157). Root cause was NOT the native code — the
+sandbox denies `ps` (`operation not permitted`, rc=127), and both the shell's
+`in_zellij_pane` and the Go `InZellijPane()` walk the PPID ancestry via
+`ps -o comm=/-o ppid=`. With `ps` blocked they return **false**, so the "already
+inside a pane" guard never fires and the launch falls through to the create
+name-prompt (fzf/vared on `/dev/tty`) → hangs. Run with the sandbox off (`ps`
+available) and the same test PASSES (the guard fires → exit 1).
+
+**Rule.** Any launcher test that depends on `InZellijPane()` / process-ancestry
+detection (the compaction tag-guard, the in-pane reject) must run with the
+**sandbox disabled** — `ps` is blocked in-sandbox and silently flips the
+detection to false. When a launcher contract test "hangs" at an in-pane case,
+check `ps -o comm= -p $$` first; if it's denied, re-run sandbox-off before
+suspecting the code. (Sibling of the "tail hides a running suite" gotcha above,
+and the cmux-broken-pipe-from-agent-shell memory.) Caught in #99 M5b.
