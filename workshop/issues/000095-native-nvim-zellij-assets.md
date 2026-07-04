@@ -1,12 +1,13 @@
 ---
 id: 000095
-status: working
+status: codecomplete
 deps: [000094]
 github_issue:
 created: 2026-07-01
 updated: 2026-07-03
-estimate_hours:
+estimate_hours: 2.4
 started: 2026-07-03T14:17:31-07:00
+actual_hours: N/A
 ---
 
 # native nvim and zellij startup assets
@@ -55,25 +56,99 @@ Constraints:
 
 ## Done when
 
-- [ ] The nvim/zellij startup-asset strategy is decided and documented (extract
-      vs temp-file vs API/flag-driven), with the trade-offs recorded.
-- [ ] The chosen strategy is implemented and tested for copied-binary, source,
-      and Homebrew layouts.
-- [ ] `pair` reaches the native-single-binary endpoint (or the residual gap is
-      explicitly documented in atlas as an accepted limitation).
-- [ ] `atlas/go-migration-inventory.md` and `atlas/architecture.md` describe the
+- [x] The nvim/zellij startup-asset strategy is decided and documented (extract
+      vs temp-file vs API/flag-driven), with the trade-offs recorded. (Log + atlas.)
+- [x] The chosen strategy is implemented and tested for copied-binary, source,
+      and Homebrew layouts. (Extraction kept; the PATH fix is layout-agnostic — the
+      copied-binary smoke exercises it end-to-end; source/Homebrew share the same
+      `prependBinToPath(resolvedRoot)` path, differing only in the resolved root.)
+- [x] `pair` reaches the native-single-binary endpoint (or the residual gap is
+      explicitly documented in atlas as an accepted limitation). (Residual
+      zero-tree gap documented — unreachable with external nvim/zellij.)
+- [x] `atlas/go-migration-inventory.md` and `atlas/architecture.md` describe the
       final runtime-provisioning shape.
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module design=0.2 impl=0.8
+item: atlas-docs design=0.2 impl=0.6
+item: milestone-review design=0.0 impl=0.4
+total: 2.4
+```
+
+Small: the decision is documentation (extraction is unchanged), the only code is a
+pure `prependBinToPath` helper + one `RunLaunch` SetEnv line + two tests (unit +
+fake wiring) + the copied-binary smoke assertion; `atlas-docs` covers the
+cache/residual-gap reframe + the three stale-PATH-doc fixes (incl. the Homebrew
+peer `pair.rb`); one boundary review (atomic single-pass, no `Mx`). Design is
+weighted 1.6× (raw item sum 2.0 → total 2.4). Durable plan:
+`workshop/plans/000095-native-nvim-zellij-assets-plan.md`.
 
 ## Plan
 
-- [ ] Survey how `nvim`/`zellij` accept config (files, `-u`/`--config`, env, IPC)
-      and what each option costs for determinism/upgrade-safety.
-- [ ] Decide extract vs ephemeral-temp vs API-driven; record the decision + why.
-- [ ] Implement the chosen provisioning path across copied/source/Homebrew layouts.
-- [ ] Tests: startup across all three layouts; upgrade + cleanup behavior.
-- [ ] Update atlas to the final native-single-binary shape.
+- [x] Survey how `nvim`/`zellij` accept config (files, `-u`/`--config`, env, IPC)
+      and what each option costs for determinism/upgrade-safety. (See Log survey.)
+- [x] Decide extract vs ephemeral-temp vs API-driven; record the decision + why.
+      → **keep extraction, reframe as a content-addressed cache** (Log decision).
+- [x] Fix the PATH-prepend regression: `RunLaunch` prepends `$PAIR_HOME/bin` to
+      PATH (pure `prependBinToPath` + `SetEnv`), so zellij resolves the bundled
+      bare-name helpers across copied/source/Homebrew layouts.
+- [x] Tests: `prependBinToPath` unit + `RunLaunch` fake-wiring + the copied-binary
+      smoke asserting bare-name helper resolution (verified it fails without the fix,
+      exit 21).
+- [x] Update atlas to the final shape (extraction = runtime cache; documented
+      residual zero-tree gap) + fix the three stale "launcher prepends PATH" docs
+      (`atlas/architecture.md` ×2, `zellij/config.kdl`, peer `pair.rb`).
 
 ## Log
+
+### 2026-07-03 — survey + decision
+- 2026-07-03: closed — #95 closes the native-single-binary roadmap (#91 step 5). DECISION: keep the digest extraction (reframed as a content-addressed cache; true zero-tree unreachable with external nvim/zellij — documented residual gap). FIX: restored the PATH-prepend regression #99 M5c dropped — RunLaunch prepends $PAIR_HOME/bin via pure prependBinToPath so a copied/Homebrew pair resolves zellijs bare-name helpers (pair-wrap, copy-on-select, pair-help). Verified: full make test green (MAKE_EXIT=0); prependBinToPath 5-case unit; RunLaunch fake-wiring test (no pollution); copied-binary smoke asserts bare-name resolution + PROVEN to fail exit 21 without the fix. Atlas reframed + 3 stale PATH docs fixed (peer homebrew pair.rb committed+pushed). --no-actual: sdlc actuals auto-window matched an UNRELATED 2026-06-15 "#95 M5" commit (a different issue-number-95 in history — mention-fallback collision), scoping to 8.46h across ~80 issues instead of the 5-commit #95 branch (~40min actual); no --base override exists to correct it, so recording N/A rather than the collision-inflated figure.; review verdict: SHIP
+
+**Decision: keep the digest-versioned extraction; reframe it as a content-addressed
+runtime *cache*; document that true zero-tree is unreachable with external
+nvim/zellij.** Durable plan: `workshop/plans/000095-native-nvim-zellij-assets-plan.md`.
+
+**Why the endpoint ("zero Pair-owned tree extracted") is physically unreachable:**
+`nvim`/`zellij` are external processes that read config from real filesystem paths
+(`nvim -u init.lua`, `zellij --config-dir`). Go's `embed.FS` is in-memory, not a
+path — so *some* on-disk materialization is unavoidable. Worse for nvim:
+`nvim/init.lua` `dofile()`s ~5 siblings by absolute path (`review/seam.lua`,
+`slug.lua`, `doctor.lua`, `zellij_trace.lua`) → it needs a real **directory** tree,
+not one file; and viewers (scrollback/changelog/review) spawn fresh
+`nvim -u $PAIR_HOME/nvim/*.lua` **mid-session**, so the tree must persist for the
+whole session, not just launch.
+
+**Options weighed (trade-offs, Done-when #1):**
+- **(a) Keep extracting** — already deterministic (content digest), idempotent
+  (skip-unchanged), upgrade-safe + self-pruning (keep-2). A *cache*, not scratch.
+  Confined to the copied-binary layout (source + Homebrew point their asset root at
+  an adjacent real tree and never extract). **Chosen.**
+- **(b) Ephemeral temp dir** — writes the *same* 27-file nvim tree to `/tmp`; the
+  mid-session viewer spawns force session-lifetime persistence (else detach→reattach
+  breaks), so it degenerates into a worse, non-shared re-implementation of the
+  digest cache that re-writes every launch. **Rejected.**
+- **(c) API/flag-driven** — no nvim API to load a config tree from memory; `-u`
+  needs a file, `--cmd` can't carry the dofile-tree through argv. **Not viable.**
+
+**Discovered regression (folded into #95's scope):** the Go launcher never prepends
+`$PAIR_HOME/bin` to PATH, though `atlas/architecture.md` (~207, ~803),
+`zellij/config.kdl:39`, and the Homebrew `pair.rb` all claim it does — describing
+the *retired* shell `bin/pair`, whose prepend was dropped in #99 M5c. zellij execs
+`pair-wrap` (the agent pane) + `copy_command "copy-on-select"` + `Run "pair-help"`
+by **bare name**, so a copied/Homebrew `pair` (whose `bin/` isn't on the user's
+PATH) **can't launch a session**. Masked in dev because dev-aliases already put
+`bin/` on PATH. This sits directly on #95's "works across copied/source/Homebrew"
+Done-when, so #95 restores the prepend (in `RunLaunch`) + a regression-guarding
+smoke. Operator confirmed folding it into #95 (vs a separate bug).
+
+**Endpoint reached (as documented):** one Pair *executable* + a self-provisioned
+content-addressed config *cache* for the two external tools + system platform
+tools. Not literally zero bytes on disk — that's the accepted, documented residual
+gap (ARCH-PURPOSE permits documenting the final gap).
 
 ### 2026-07-01
 

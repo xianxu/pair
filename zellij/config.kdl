@@ -36,8 +36,9 @@ mouse_click_through true
 // pane other than the nvim draft, runs the Alt+n flow: reflow, >-prefix,
 // focus nvim, insert at cursor.
 //
-// bin/pair prepends $PAIR_HOME/bin to PATH so the script is resolvable by
-// bare name — avoids the fragile `sh -c '$PAIR_HOME/...'` quoting dance.
+// the launcher prepends $PAIR_HOME/bin to PATH (RunLaunch, restored #95) so the
+// binary is resolvable by bare name — avoids the fragile `sh -c '$PAIR_HOME/...'`
+// quoting dance.
 copy_command "copy-on-select"
 
 keybinds clear-defaults=false {

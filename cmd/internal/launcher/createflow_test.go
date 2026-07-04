@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -266,6 +267,23 @@ func run(t *testing.T, opts LaunchOptions, rt *fakeRuntime) (int, error) {
 		t.Logf("stderr: %s", stderr.String())
 	}
 	return code, err
+}
+
+// RunLaunch must prepend the resolved asset root's bin/ to PATH at entry (#95),
+// so zellij resolves the bundled bare-name helpers (pair-wrap, copy-on-select,
+// pair-help). Driven through the fake, so SetEnv records into f.env — no real
+// process-env pollution. The prepend is RunLaunch's 2nd line, before the handoff.
+func TestRunLaunchPrependsBinToPath(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.uuids = []string{"S"}
+	if _, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "x"}), rt); err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	got := rt.env["PATH"]
+	sep := string(os.PathListSeparator)
+	if got != "/pair/bin" && !strings.HasPrefix(got, "/pair/bin"+sep) {
+		t.Fatalf("RunLaunch did not prepend the asset-root bin/ to PATH: %q", got)
+	}
 }
 
 // A forced-tag create with no live session: no prompt, claude mints a session id,
