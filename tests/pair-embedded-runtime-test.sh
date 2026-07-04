@@ -51,6 +51,13 @@ case "$*" in
     test ! -e "$root/bin/flash-pane.sh"
     test ! -e "$root/bin/clipboard-to-pane.sh"
     test -f "$root/nvim/init.lua"
+    # #95: the launcher must have prepended $root/bin to PATH, so a bundled helper
+    # resolves by BARE NAME here (zellij execs pair-wrap/copy-on-select by bare
+    # name). This stub's own PATH does NOT include $root/bin — only the launcher's
+    # #95 prepend puts it there, so this is the regression guard for the dropped
+    # PATH prepend (#99 M5c).
+    command -v copy-on-select >/dev/null || { echo "copy-on-select not on PATH (launcher #95 PATH prepend missing)" >&2; exit 21; }
+    command -v pair-wrap      >/dev/null || { echo "pair-wrap not on PATH" >&2; exit 22; }
     printf '%s\n' "$root" > "${PAIR_SMOKE_ROOT:?}"
     exit 0
     ;;
@@ -76,6 +83,12 @@ case "$*" in
 esac
 SH
 chmod +x "$bin_dir/ps"
+
+# Stub agent CLI: the create path validates the agent resolves on PATH before the
+# zellij handoff. A no-op stub suffices — the stub zellij intercepts the handoff
+# before the agent would actually run.
+printf '#!/bin/sh\nexit 0\n' > "$bin_dir/claude"
+chmod +x "$bin_dir/claude"
 
 export PATH="$bin_dir:$PATH"
 export HOME="$home"
@@ -109,7 +122,11 @@ touch -t 202001010000 "$pair_data/runtime/$old_a"
 touch -t 202001020000 "$pair_data/runtime/$old_b"
 touch -t 202001030000 "$pair_data/runtime/$old_c"
 
-"$bin_dir/pair" resume smoke >/dev/null
+# Launch with a PATH containing ONLY the stub tools + system dirs (NOT the repo's
+# bin/), so the bare-name helper resolution asserted inside the stub zellij proves
+# the launcher's #95 PATH prepend — not a dev shell that already has repo/bin on
+# PATH. Without the #95 prepend, copy-on-select/pair-wrap won't resolve → exit 21.
+PATH="$bin_dir:/usr/bin:/bin" "$bin_dir/pair" resume smoke >/dev/null
 
 test -s "$PAIR_SMOKE_ROOT"
 root="$(cat "$PAIR_SMOKE_ROOT")"
