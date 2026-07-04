@@ -3,6 +3,7 @@ package launcher
 import (
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -21,6 +22,15 @@ import (
 // error is always nil.
 func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 	env := normalizeEnv(opts.Env)
+
+	// Prepend the resolved asset root's bin/ to PATH so zellij (and its panes:
+	// pair-wrap, copy_command "copy-on-select", Run "pair-help"/openers, and the
+	// nvim viewers) resolve the bundled helpers by bare name. The retired shell
+	// bin/pair did this; the Go launcher that replaced it (#99 M5c) dropped it, so
+	// a copied/Homebrew install (bin/ not on the user's PATH) couldn't launch (#95).
+	// RunLaunch is the sole zellij-spawning path (create/attach/resurrect/restart-
+	// loop), so once here covers them all.
+	rt.SetEnv("PATH", prependBinToPath(opts.PairHome, os.Getenv("PATH")))
 
 	// #55 in-session compaction (M5b): `pair continue <slug>` from inside the
 	// matching pane parks the scrollback (copy), drops a restart marker carrying
