@@ -1,11 +1,12 @@
 ---
 id: 000091
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-01
-updated: 2026-07-01
+updated: 2026-07-04
 estimate_hours:
+actual_hours: N/A
 ---
 
 # native single binary pair
@@ -76,12 +77,15 @@ arch-principles`):
 
 ## Done when
 
-- [ ] Sub-tickets exist for each remaining merge-safe phase (#92–#96), deps-chained.
-- [ ] Each sub-ticket states that Pair must remain usable after its merge.
-- [ ] The true native single binary is reached: `pair` provisions its runtime
+- [x] Sub-tickets exist for each remaining merge-safe phase (#92–#96), deps-chained.
+- [x] Each sub-ticket states that Pair must remain usable after its merge.
+- [x] The true native single binary is reached: `pair` provisions its runtime
       without extracting a shell tree, and only native `nvim/`/`zellij/` assets
-      (if any) plus system platform tools remain.
-- [ ] `atlas/go-migration-inventory.md` reflects the native-single-binary end
+      (if any) plus system platform tools remain. (Reached **as documented**: no
+      shell orchestrator is extracted (#93/#99/#94); the residual `nvim/`+`zellij/`
+      config tree is a content-addressed *cache*, physically unavoidable with
+      external nvim/zellij — #95 records this as the accepted final gap.)
+- [x] `atlas/go-migration-inventory.md` reflects the native-single-binary end
       state when the sequence completes.
 
 ## Plan
@@ -102,13 +106,29 @@ Tracking checklist — ticks as each sub-ticket closes:
       exec-shim callers to their Go binaries then deleted them. est 4.4h / actual
       2.5h; PR #64. Endpoint: **shell-reduced** — six non-orchestrator utilities
       (`lib/*.sh`, `pair-help`, `pair-notify`, `doctor/*.sh`) remain, out of scope).
-- [ ] Step 5 — native nvim/zellij startup assets — #95
+- [x] Step 5 — native nvim/zellij startup assets — **#95 done** (decision: keep the
+      digest extraction, reframed as a content-addressed runtime cache; true zero-tree
+      is unreachable with external nvim/zellij — documented residual gap. Also
+      restored the #99-M5c PATH-prepend regression so a copied/Homebrew `pair`
+      resolves zellij's bare-name helpers. est 2.4h / actual N/A; PR #65).
 
 This is a tracking umbrella, not a coding issue: it holds no code milestones of
 its own and stays `open` as a live tracker until the sequence completes. The
-actual work + reviews happen in the sub-tickets.
+actual work + reviews happen in the sub-tickets. **Sequence complete (2026-07-04).**
 
 ## Log
+
+### 2026-07-04 — roadmap complete
+- 2026-07-04: closed — Native-single-binary roadmap umbrella: all 5 steps landed + merged (#90 embed/extract; #92/#96 dispatcher+PTY; #93/#99 shell orchestrators+launcher→Go; #94 orchestrator shims dropped from bundle; #95 nvim/zellij provisioning decided + PATH regression fixed). Endpoint reached as documented: pair is one Go executable, no shell tree extracted; the residual nvim/zellij config is a content-addressed cache (zero-tree physically unreachable with external nvim/zellij — #95 accepted gap). --no-actual: tracking umbrella, no code of its own (work measured in sub-tickets). --no-judge: no new code in this close; every sub-ticket got its own boundary review. atlas end-state delivered by #95.; review verdict: not-run
+- **All 5 steps landed.** #90 (embed+extract) → #92/#96 (dispatcher + PTY proxies)
+  → #93/#99 (shell orchestrators + launcher ported to Go) → #94 (orchestrator shims
+  dropped from the bundle) → #95 (nvim/zellij provisioning decided + PATH regression
+  fixed). **Endpoint reached as documented:** `pair` is one Go executable that
+  provisions its runtime with no shell tree; the only extracted assets are the
+  `nvim/`+`zellij/` config, kept as a content-addressed cache because external
+  nvim/zellij read config from real filesystem paths (true zero-tree is physically
+  unreachable — #95's accepted, documented residual gap). Platform tools
+  (zellij/nvim/fzf/jq/agent CLIs) stay external. Closing this umbrella.
 
 ### 2026-07-03 (later)
 - **Step 4 complete.** #94 merged (PR #64, done + archived) — all seven orchestrator

@@ -749,3 +749,24 @@ That keeps the trailer anchor on the close commit and avoids the `--no-verdict`
 detour. (Corollary: FIX-THEN-SHIP → fix → the fixes move HEAD past the reviewed
 anchor, so `sdlc merge`'s publish gate refuses → re-run `sdlc close` to re-review
 the delta + re-anchor, then merge.) Caught in #94.
+
+## `sdlc actual` can collide on a same-numbered issue from another context
+
+Closing pair #95, `sdlc actual` suggested **8.46h** (est 2.4h) with attribution
+sprayed across ~80 issues (#1–#151). The window start `1a372eb` turned out to be a
+**2026-06-15** commit — "#95 M5: pair cutover prep — untrack AGENTS.md symlink" — an
+*unrelated* "#95" from a different numbering context that the mention-fallback
+window detector (`gitx.CommitWindow` greps commit messages for the issue number)
+latched onto, scoping the window from mid-June to now instead of the 5-commit #95
+branch (~40 min actual). `sdlc actual` has no `--base`/`--since` flag to correct the
+window.
+
+**Rule.** Treat an `sdlc actual` figure that's wildly over estimate AND attributed
+across many unrelated issues / a long time span as suspect. Verify the window start:
+`git log -1 --format='%h %ci %s' <window-start-sha>` (the sha printed as `window
+<sha> → HEAD`). If it's an unrelated same-number mention (a cross-context / historical
+collision), the measurement is polluted — close with `--no-actual` and record the
+collision + the real rough figure in `--verified`, rather than committing the
+inflated number to the velocity ledger. Do NOT hand-type a "corrected" value either
+(that's the guessing the gate forbids); N/A-with-reason is the honest handling.
+Caught in #95.
