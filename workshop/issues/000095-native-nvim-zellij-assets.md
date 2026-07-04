@@ -1,12 +1,13 @@
 ---
 id: 000095
-status: working
+status: codecomplete
 deps: [000094]
 github_issue:
 created: 2026-07-01
 updated: 2026-07-03
 estimate_hours: 2.4
 started: 2026-07-03T14:17:31-07:00
+actual_hours: N/A
 ---
 
 # native nvim and zellij startup assets
@@ -55,13 +56,16 @@ Constraints:
 
 ## Done when
 
-- [ ] The nvim/zellij startup-asset strategy is decided and documented (extract
-      vs temp-file vs API/flag-driven), with the trade-offs recorded.
-- [ ] The chosen strategy is implemented and tested for copied-binary, source,
-      and Homebrew layouts.
-- [ ] `pair` reaches the native-single-binary endpoint (or the residual gap is
-      explicitly documented in atlas as an accepted limitation).
-- [ ] `atlas/go-migration-inventory.md` and `atlas/architecture.md` describe the
+- [x] The nvim/zellij startup-asset strategy is decided and documented (extract
+      vs temp-file vs API/flag-driven), with the trade-offs recorded. (Log + atlas.)
+- [x] The chosen strategy is implemented and tested for copied-binary, source,
+      and Homebrew layouts. (Extraction kept; the PATH fix is layout-agnostic — the
+      copied-binary smoke exercises it end-to-end; source/Homebrew share the same
+      `prependBinToPath(resolvedRoot)` path, differing only in the resolved root.)
+- [x] `pair` reaches the native-single-binary endpoint (or the residual gap is
+      explicitly documented in atlas as an accepted limitation). (Residual
+      zero-tree gap documented — unreachable with external nvim/zellij.)
+- [x] `atlas/go-migration-inventory.md` and `atlas/architecture.md` describe the
       final runtime-provisioning shape.
 
 ## Estimate
@@ -89,17 +93,20 @@ weighted 1.6× (raw item sum 2.0 → total 2.4). Durable plan:
       and what each option costs for determinism/upgrade-safety. (See Log survey.)
 - [x] Decide extract vs ephemeral-temp vs API-driven; record the decision + why.
       → **keep extraction, reframe as a content-addressed cache** (Log decision).
-- [ ] Fix the PATH-prepend regression: `RunLaunch` prepends `$PAIR_HOME/bin` to
+- [x] Fix the PATH-prepend regression: `RunLaunch` prepends `$PAIR_HOME/bin` to
       PATH (pure `prependBinToPath` + `SetEnv`), so zellij resolves the bundled
       bare-name helpers across copied/source/Homebrew layouts.
-- [ ] Tests: `prependBinToPath` unit + `RunLaunch` fake-wiring + the copied-binary
-      smoke asserting bare-name helper resolution (verified it fails without the fix).
-- [ ] Update atlas to the final shape (extraction = runtime cache; documented
-      residual zero-tree gap) + fix the three stale "launcher prepends PATH" docs.
+- [x] Tests: `prependBinToPath` unit + `RunLaunch` fake-wiring + the copied-binary
+      smoke asserting bare-name helper resolution (verified it fails without the fix,
+      exit 21).
+- [x] Update atlas to the final shape (extraction = runtime cache; documented
+      residual zero-tree gap) + fix the three stale "launcher prepends PATH" docs
+      (`atlas/architecture.md` ×2, `zellij/config.kdl`, peer `pair.rb`).
 
 ## Log
 
 ### 2026-07-03 — survey + decision
+- 2026-07-03: closed — #95 closes the native-single-binary roadmap (#91 step 5). DECISION: keep the digest extraction (reframed as a content-addressed cache; true zero-tree unreachable with external nvim/zellij — documented residual gap). FIX: restored the PATH-prepend regression #99 M5c dropped — RunLaunch prepends $PAIR_HOME/bin via pure prependBinToPath so a copied/Homebrew pair resolves zellijs bare-name helpers (pair-wrap, copy-on-select, pair-help). Verified: full make test green (MAKE_EXIT=0); prependBinToPath 5-case unit; RunLaunch fake-wiring test (no pollution); copied-binary smoke asserts bare-name resolution + PROVEN to fail exit 21 without the fix. Atlas reframed + 3 stale PATH docs fixed (peer homebrew pair.rb committed+pushed). --no-actual: sdlc actuals auto-window matched an UNRELATED 2026-06-15 "#95 M5" commit (a different issue-number-95 in history — mention-fallback collision), scoping to 8.46h across ~80 issues instead of the 5-commit #95 branch (~40min actual); no --base override exists to correct it, so recording N/A rather than the collision-inflated figure.; review verdict: SHIP
 
 **Decision: keep the digest-versioned extraction; reframe it as a content-addressed
 runtime *cache*; document that true zero-tree is unreachable with external
