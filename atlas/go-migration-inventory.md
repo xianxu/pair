@@ -55,13 +55,26 @@ Execution path:
 4. **Native single binary:** once shell ownership is gone, stop extracting shell
    scripts. Keep only the native assets that external runtimes require, such as
    Neovim Lua and Zellij KDL, either embedded-and-extracted or generated at
-   startup.
+   startup. **#95 decided the endpoint:** the digest-versioned extraction is
+   *kept* but reframed as a content-addressed runtime *cache* (deterministic
+   digest, idempotent skip-unchanged writes, upgrade-safe + self-pruning keep-2)
+   confined to the **copied-binary layout** — source and Homebrew point the asset
+   root at an adjacent real tree and never extract. True zero-tree is unreachable
+   while `nvim`/`zellij` stay native (they read config from real filesystem paths;
+   `nvim/init.lua` `dofile()`s siblings by absolute path, needing a real directory
+   that persists for the session — `embed.FS` is not a path), so the endpoint is
+   one Pair *executable* + a self-provisioned config cache + external platform
+   tools, not literally zero bytes on disk (the accepted, documented residual
+   gap).
 
 **Tracking (#91).** The remaining path is carried by roadmap #91 (native single
 binary), one sub-ticket per step, deps-chained in order: #90 (embedded bundle,
 done) → #92 (dispatcher consolidation) → #93 (Go-owned orchestration) → #94 (stop
 extracting shell scripts) → #95 (native nvim/zellij startup assets). #94/#95
-together are execution-path step 4 above.
+together are execution-path step 4 above; **#95 reaches that endpoint** — a native
+single *executable* + a content-addressed config cache for the two external tools +
+system platform tools, with the residual zero-tree gap documented as an accepted
+limitation (see step 4 and the #95 milestone note below).
 
 `ARCH-PURPOSE`: #90 is only complete if a copied binary can supply all Pair-owned
 runtime assets without falling back to a source checkout. `ARCH-DRY`: use one
@@ -281,6 +294,31 @@ Build/install callers:
   shell utilities remain: `bin/pair-help`, `bin/pair-notify`,
   `bin/lib/adapt-log.sh`, `bin/lib/dev-rebuild.sh`, `doctor/doctor.sh`,
   `doctor/emitter-health.sh`.
+- **#95 (final step)** decided how the native `nvim`/`zellij` startup assets reach
+  the external processes: **keep the digest-versioned extraction, reframed as a
+  content-addressed runtime *cache*** (deterministic content digest, idempotent
+  skip-unchanged writes, upgrade-safe + self-pruning keep-2) — mechanics
+  **unchanged**, and confined to the **copied-binary layout** (source
+  `PAIR_HOME`/baked `defaultPairHome`, and Homebrew `defaultPairHome=libexec`,
+  point the asset root at an adjacent real tree and never extract). Ephemeral-temp
+  and API/flag-driven startup were weighed and rejected (both degenerate to
+  re-writing the same nvim tree, and nvim has no in-memory-config API). The only
+  **new code** is the **restored PATH prepend**: the Go launcher's `RunLaunch` now
+  calls the pure `prependBinToPath($PAIR_HOME/bin, PATH)` once at entry
+  (`cmd/internal/launcher/pathenv.go` + `createflow.go`), so zellij and its panes
+  (`pair-wrap`, `copy_command "copy-on-select"`, `Run "pair-help"`/openers, the
+  nvim viewers) resolve the bundled helpers by bare name across copied/source/
+  Homebrew. The retired shell `bin/pair` did this prepend; the Go launcher that
+  replaced it dropped it in #99 M5c — a real regression a copied/Homebrew install
+  would hit — now guarded by a `prependBinToPath` unit test + a copied-binary
+  smoke asserting bare-name helper resolution. **#91's endpoint is reached (as
+  documented):** one Pair *executable* + a self-provisioned content-addressed
+  config cache for the two external tools + system platform tools. True zero-tree
+  stays unreachable while `nvim`/`zellij` read config from real filesystem paths
+  and `nvim/init.lua` `dofile()`s siblings by absolute path (needs a real directory
+  that persists for the session — `embed.FS` is not a path), so that residual gap
+  is the accepted, documented limitation (`ARCH-PURPOSE` permits documenting the
+  final gap).
 
 ## Coverage Ledger
 

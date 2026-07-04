@@ -53,6 +53,24 @@ an extracted embedded runtime under `$PAIR_DATA_DIR/runtime/<digest>/pair-home`
 when no adjacent/source asset root exists. Native `nvim/` and `zellij/` assets
 remain native files inside whichever asset root was selected.
 
+**#95 — extraction reframed as a content-addressed runtime *cache*; the residual
+zero-tree gap.** The `$PAIR_DATA_DIR/runtime/<digest>/pair-home` extraction runs
+**only for the copied-binary layout**: source (`PAIR_HOME`=repo, or a baked
+`defaultPairHome`) and Homebrew (baked `defaultPairHome`=`libexec`) point the
+asset root at an adjacent real tree and never extract. It is best understood as a
+content-addressed runtime *cache* — not a Pair-owned install tree: a deterministic
+content digest names the directory, writes are idempotent (skip-unchanged), and it
+is upgrade-safe + self-pruning (keep-2). #95 changed **none** of that mechanism; it
+reframed the extraction and made the conscious decision to keep it. **True
+zero-tree is unreachable** while `nvim`/`zellij` stay native — they read config
+from real filesystem paths, and `nvim/init.lua` `dofile()`s its siblings by
+absolute path, so a real directory must exist and persist for the whole session
+(mid-session viewers spawn fresh `nvim -u $PAIR_HOME/nvim/*.lua`); Go's `embed.FS`
+is in-memory, not a path. The native-single-binary endpoint (#91) is therefore one
+Pair **executable** + a self-provisioned content-addressed config cache for the two
+external tools + system platform tools — not literally zero bytes on disk.
+`ARCH-PURPOSE` permits documenting this final gap.
+
 The embedded runtime is generated from a deterministic manifest before builds
 and tests. That manifest is the packaging source of truth for bundled Pair-owned
 shell helpers, helper binaries, `bin/lib/`, `nvim/`, `zellij/`, and doctor
@@ -204,7 +222,7 @@ unchanged (only the writer moved from shell into Go). The two `.sh` are removed
 from the source tree and the runtime bundle (`explicitAssetPaths`); `nvim/init.lua`
 now invokes `{ 'pair', 'quit' }` / `{ 'pair', 'restart', ... }`.
 
-The launcher resolves `$PAIR_HOME` from its own executable path, prepends `$PAIR_HOME/bin` to `$PATH` (idempotent across re-launches) so all helper scripts resolve by bare name in zellij configs and keybinds, parses argv — first positional is `$PAIR_AGENT` (default `claude`), everything after `--` is joined into `$PAIR_AGENT_ARGS`, extra positionals before `--` are an error with a usage hint, defaults `$PAIR_TAG` to the cwd basename (the create-flow prompt or `pair resume <tag>` overrides it), resolves `$PAIR_DATA_DIR` to `${XDG_DATA_HOME:-$HOME/.local/share}/pair`, runs a one-time migration of any old `~/scratch/pair-{draft,log}-*` files, and dispatches:
+The launcher resolves `$PAIR_HOME` from its own executable path, prepends `$PAIR_HOME/bin` to `$PATH` (the Go launcher's `RunLaunch` calls the pure `prependBinToPath` once at entry, idempotent across re-launches — #95 restored this: the retired shell `bin/pair` did the prepend, but the Go launcher that replaced it dropped it in #99 M5c, a regression a copied/Homebrew install would hit) so the bundled helpers resolve by bare name in zellij configs and keybinds, parses argv — first positional is `$PAIR_AGENT` (default `claude`), everything after `--` is joined into `$PAIR_AGENT_ARGS`, extra positionals before `--` are an error with a usage hint, defaults `$PAIR_TAG` to the cwd basename (the create-flow prompt or `pair resume <tag>` overrides it), resolves `$PAIR_DATA_DIR` to `${XDG_DATA_HOME:-$HOME/.local/share}/pair`, runs a one-time migration of any old `~/scratch/pair-{draft,log}-*` files, and dispatches:
 
 A leading `pair resume <tag>` is recognized as a subcommand verb (alongside `list` / `help`): it skips both the picker and the name prompt, attaches if `pair-<tag>` already exists in any state, otherwise creates with that tag. When `resume` is in play, the agent is inferred from saved state on disk (`agent-<tag>` for live/recently-detached sessions; the agent embedded in the `config-<tag>-<agent>.json` filename otherwise) — so a single tag is enough to restart, regardless of which agent was originally paired with it. See "Tag-restart" below.
 
@@ -800,7 +818,7 @@ Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/adapt-<tag>.jsonl` — the adap
 
 ## Path resolution
 
-The launcher prepends `$PAIR_HOME/bin` to `$PATH` before exec'ing zellij. zellij and all its child processes (panes, copy_command, Run actions) inherit the PATH and can resolve `clipboard-to-pane`, `copy-on-select`, and the `pair` binary (e.g. nvim's `pair quit` / `pair restart` keybinds) by bare name. This lets the zellij KDL configs reference these helpers without `sh -c` env-var quoting hacks.
+The Go launcher's `RunLaunch` prepends `$PAIR_HOME/bin` to `$PATH` once at entry (via the pure `prependBinToPath`, `cmd/internal/launcher/pathenv.go` + `createflow.go`), before exec'ing zellij. zellij and all its child processes (panes — `pair-wrap`, `copy_command "copy-on-select"`, `Run "pair-help"`/openers, the nvim viewers) inherit the PATH and resolve `clipboard-to-pane`, `copy-on-select`, and the `pair` binary (e.g. nvim's `pair quit` / `pair restart` keybinds) by bare name. This lets the zellij KDL configs reference these helpers without `sh -c` env-var quoting hacks. The retired shell `bin/pair` did this prepend; the Go launcher that replaced it dropped it in #99 M5c — a real regression for a copied/Homebrew install whose `bin/` isn't already on the user's PATH — and #95 restored it (guarded by a `prependBinToPath` unit test + a copied-binary smoke asserting bare-name helper resolution).
 
 ## Binary freshness: deployed vs dev (`pair-dev`)
 
