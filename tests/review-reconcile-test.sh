@@ -78,6 +78,21 @@ ok(msgs['cap'] and msgs['reconcile'], 'mixed: clean explain + reconcile diagnosi
 vim.api.nvim_buf_call(b3, function() vim.cmd('silent undo') end)
 ok(content(b3) == 'first line\nSECOND EDIT', 'single undo reverts the whole reconcile round')
 
+-- (f) clean edit sharing a human-changed LINE with a conflict is FOLDED into the
+-- marker, not dropped (M2-review 3.1). v0 line: "the foo and bar here"; human
+-- changed bar→baz; agent round {foo→FOO clean, bar→BAR conflict}. The whole line
+-- becomes one marker citing BOTH intents; FOO does not vanish, nothing dropped.
+local v0f = 'the foo and bar here'
+local b4 = newbuf({ 'the foo and baz here' })
+local en4, dr4, nc4 = reconcile.reconcile_round(b4, {
+  { old = 'foo', occurrence = 1, new = 'FOO', explain = 'clean' },
+  { old = 'bar', occurrence = 1, new = 'BAR', explain = 'reword' },
+}, v0f)
+ok(has(content(b4), '🤖<the foo and baz here>'), 'fold: contested line becomes one marker')
+ok(has(content(b4), 'FOO') and has(content(b4), 'BAR'), 'fold: marker cites BOTH the clean and conflict intents')
+ok(#dr4 == 0, 'fold: nothing dropped (the clean edit was folded, not overlap-dropped)')
+ok(nc4 == 1, 'fold: one synthetic conflict record for the line')
+
 OUT:write(fails == 0 and 'reconcile_test ok\n' or ('FAILED ' .. fails .. '\n'))
 OUT:close()
 LUA

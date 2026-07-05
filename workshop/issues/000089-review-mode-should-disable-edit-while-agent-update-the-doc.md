@@ -164,17 +164,17 @@ hazard.
    records get `DiffChange` highlights + `explain` diagnoses; a synthetic record's
    `new` is a marker proposal, so `apply`'s `is_marker_proposal` path sets
    `no_highlight` and it self-highlights via `render_markers` (M1) instead, with
-   the short `"reconcile"` gutter diagnosis. **Clean spans and conflict hunks are
-   disjoint *across lines*, but not always within a line:** conflict placement is
+   the short `"reconcile"` gutter diagnosis. **Clean edit sharing a human-changed
+   line with a conflict → FOLDED (M3, M2-review 3.1):** conflict placement is
    line-granular (the synthetic `old` is the whole changed hunk line) while clean
    edits are span-granular, so a clean edit sharing a *human-changed line* with a
-   conflict falls inside the synthetic `old` and `apply`'s overlap guard
-   (`apply.lua:282`) drops it — **counted in `dropped` + WARNed, never silent**,
-   re-proposed next round. This is the common prose case (a paragraph is one long
-   line), not pathological (M2-review 3.1). **M3 decides the handling** (§8):
-   fold such a clean edit into the conflict marker's intent list vs. accept the
-   counted drop. Projection snapshot dance runs as in the fast path (§8), so
-   undo/redo stays coherent.
+   conflict would fall inside the synthetic `old`. Rather than let `apply`'s overlap
+   guard drop it, `plan_conflicts` **folds** such a clean record into that hunk's
+   conflict marker (its `old→new` is surfaced in the marker's intent list) and
+   `reconcile_round` excludes it from the apply set. So the contested line becomes
+   one marker citing *all* the agent's intents for it — nothing dropped. Clean edits
+   on other lines apply span-granularly as before. Projection snapshot dance runs as
+   in the fast path (§8), so undo/redo stays coherent.
 4. **Save + poke** — save; write the landed-artifact (embedding only the *clean*
    enriched records as the agent's actual edits; accounting in §8) and poke
    `agent_applied` so the agent commits the round (Option A).
@@ -291,17 +291,16 @@ only**; `marker_end_pos`/apply are already multi-line. Needed:
 - **Agent-internal record overlap.** Two *agent* records targeting overlapping
   spans still drop as today (`apply.lua` overlap guard); this is the agent's own
   records colliding, distinct from human-vs-agent overlap (which is a conflict).
-- **Clean edit inside a conflict hunk (M2-review 3.1) — M3 decision.** When a
+- **Clean edit inside a conflict hunk (M2-review 3.1) — FOLDED (M3, done).** When a
   clean record shares a *human-changed line* with a conflict, the conflict's
-  line-granular synthetic `old` (the whole line) contains the clean record's span,
-  so `apply`'s overlap guard drops the clean record (counted + WARNed, re-proposed
-  next round — never silent). Common in prose (one paragraph = one line). **M3
-  decides:** (a) **fold** — before apply, detect a clean record whose `v1` span
-  falls inside a conflict hunk's `v1` line range and move it into that conflict's
-  intent list (surface `old→new` in the marker rather than dropping — arguably
-  *more* correct, since the whole line is contested); or (b) **accept** the counted
-  drop and leave it re-proposed. Decide with the live smoke, add a characterization
-  test either way.
+  line-granular synthetic `old` (the whole line) would contain the clean record's
+  span. `plan_conflicts(conflicts, v0, v1, hunks, clean)` **folds** such a clean
+  record into that hunk's conflict marker (its `old→new` joins the marker's intent
+  list) and returns it in a second `folded` value; `reconcile_round` excludes the
+  folded records from the apply set. So the contested line becomes one marker citing
+  all the agent's intents — nothing dropped, more correct than either the drop or a
+  half-applied line. Chosen option (a) over accepting the counted drop. Tested:
+  `reconcile_test` fold cases + `review-reconcile-test` case (f).
 - **Alt+a/Alt+r on a reconcile marker.** A `🤖<human>[reconcile — …]` is a valid
   `<quoted>[user]` chain, so `resolve.resolve` acts on it: **reject** drops the
   marker leaving the human's own text; accept is available but reconciliation is

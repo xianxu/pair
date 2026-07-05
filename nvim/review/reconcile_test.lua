@@ -146,5 +146,36 @@ do
   eq(synth[1] and synth[1].new:find('205 lines', 1, true) ~= nil, true, 'huge hunk states the line count')
 end
 
+-- fold (M2-review 3.1, option a): a CLEAN record sharing a human-changed line with
+-- a conflict would overlap the conflict's whole-line synthetic marker → absorb its
+-- intent into that marker instead of letting apply drop it. plan_conflicts takes an
+-- optional trailing `clean` and returns (synth, folded).
+do
+  local v0 = 'the foo and bar here'
+  local v1 = 'the foo and baz here'          -- human changed bar→baz
+  local hunks = { { 1, 1, 1, 1 } }
+  local conflicts = { { old = 'bar', occurrence = 1, new = 'BAR', explain = 'c' } } -- bar gone from v1
+  local clean = { { old = 'foo', occurrence = 1, new = 'FOO', explain = 'cl' } }    -- foo still in v1
+  local synth, folded = reconcile.plan_conflicts(conflicts, v0, v1, hunks, clean)
+  eq(#synth, 1, 'one synthetic record for the contested line')
+  eq(synth[1] and synth[1].new:find('BAR', 1, true) ~= nil, true, 'marker carries the conflict intent')
+  eq(synth[1] and synth[1].new:find('FOO', 1, true) ~= nil, true, 'marker ALSO carries the folded clean intent')
+  eq(#folded, 1, 'the clean record was folded (not left to be dropped)')
+  eq(folded[1] and folded[1].old, 'foo', 'the folded record is the clean one')
+end
+
+-- a clean record on a DIFFERENT line than any conflict hunk is NOT folded.
+do
+  local v0 = 'line one\nold two'
+  local v1 = 'LINE one\nHUMAN two'           -- both lines changed by human? no — line1 by clean, line2 conflict
+  -- line 1: agent clean edit 'one'→'ONE' (one still present); line 2: conflict.
+  local v1b = 'line ONE\nHUMAN two'
+  local hunks = { { 2, 1, 2, 1 } }           -- only line 2 is the conflict hunk
+  local conflicts = { { old = 'old', occurrence = 1, new = 'OLD', explain = 'c' } }
+  local clean = { { old = 'one', occurrence = 1, new = 'ONE', explain = 'cl' } }
+  local synth, folded = reconcile.plan_conflicts(conflicts, v0, v1b, hunks, clean)
+  eq(#folded, 0, 'clean edit on a different line is not folded (applies normally)')
+end
+
 if fails > 0 then os.exit(1) end
 print('reconcile_test ok')

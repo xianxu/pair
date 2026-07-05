@@ -64,9 +64,16 @@ function M.reconcile_round(buf, records, v0)
     local enriched, dropped = apply.apply(buf, records) -- vim.diff failure fallback (spec §8)
     return enriched, dropped, 0
   end
-  local synth = M.plan_conflicts(split.conflicts, v0, v1, hunks)
+  -- Fold clean records that share a human-changed line with a conflict into the
+  -- conflict markers (M2-review 3.1), so they aren't dropped by apply's overlap
+  -- guard; the folded set is excluded from the apply's clean records.
+  local synth, folded = M.plan_conflicts(split.conflicts, v0, v1, hunks, split.clean)
+  local folded_set = {}
+  for _, c in ipairs(folded) do folded_set[c] = true end
   local combined = {}
-  for _, r in ipairs(split.clean) do combined[#combined + 1] = r end
+  for _, r in ipairs(split.clean) do
+    if not folded_set[r] then combined[#combined + 1] = r end
+  end
   for _, r in ipairs(synth) do combined[#combined + 1] = r end
   local enriched, dropped = apply.apply(buf, combined)
   return enriched, dropped, #synth
@@ -116,7 +123,14 @@ end
 -- ready to feed apply.apply alongside the clean records. `hunks` is the vim.diff
 -- `result_type='indices'` output {start_a,count_a,start_b,count_b} (1-based),
 -- passed as DATA so this stays pure/testable without invoking vim.diff.
-function M.plan_conflicts(conflicts, v0, v1, hunks)
+--
+-- Optional `clean`: the classified-clean records. A clean record whose v1 line
+-- falls inside a conflict-bearing hunk's v1 range would overlap that hunk's whole-
+-- line synthetic marker → apply would drop it (M2-review 3.1). Instead we FOLD it
+-- into that hunk's intent list (surfacing its old→new in the marker), and return it
+-- in the second value so the caller excludes it from the apply set. Returns
+-- (synth, folded).
+function M.plan_conflicts(conflicts, v0, v1, hunks, clean)
   local v1_lines = split_lines(v1)
   local v1_starts, off = {}, 1
   for i, line in ipairs(v1_lines) do v1_starts[i] = off; off = off + #line + 1 end
@@ -141,6 +155,31 @@ function M.plan_conflicts(conflicts, v0, v1, hunks)
       order[#order + 1] = key
     end
     table.insert(groups[key].intents, r)
+  end
+
+  -- Fold: a clean record whose v1 line is inside a conflict-bearing hunk's v1 range
+  -- would overlap that hunk's whole-line marker → absorb its intent into the marker
+  -- (so its old→new is surfaced, not dropped by apply). folded_set keys by table
+  -- identity — no input mutation. Runs BEFORE the synth markers render below.
+  local folded, folded_set = {}, {}
+  for _, key in ipairs(order) do
+    local h = groups[key].hunk
+    if h then
+      local v1_first, v1_last = h[3], h[3] + math.max(h[4], 1) - 1 -- 1-based v1 range
+      for _, c in ipairs(clean or {}) do
+        if not folded_set[c] and c.old and c.old ~= '' then
+          local co = reconstruct.nth_offset(v1, c.old, c.occurrence or 1)
+          if co then
+            local cl = reconstruct.line_of(v1, co) + 1 -- 1-based v1 line of the clean anchor
+            if cl >= v1_first and cl <= v1_last then
+              table.insert(groups[key].intents, c)
+              folded_set[c] = true
+              folded[#folded + 1] = c
+            end
+          end
+        end
+      end
+    end
   end
 
   local synth = {}
@@ -189,7 +228,7 @@ function M.plan_conflicts(conflicts, v0, v1, hunks)
       reconcile = true,
     }
   end
-  return synth
+  return synth, folded
 end
 
 return M

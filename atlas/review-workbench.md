@@ -52,9 +52,13 @@ Integration seams (headless shell tests, `make test-review`):
   every conflict yields a marker — a blank/deleted hunk appends the marker onto the
   nearest non-empty line, huge hunks reference the region by size, and only an
   entirely-blank `v1` degenerates to an empty-`old` record `apply.apply` counts as
-  dropped + WARNs — never a silent drop). Thin glue `reconcile_round(buf, records,
-  v0)` = classify → `vim.diff` → plan_conflicts → ONE `apply.apply(clean ++
-  synthetic)`. `init.lua`'s `apply_round` calls it when `v1 ≠ v0`.
+  dropped + WARNs — never a silent drop). A clean record sharing a human-changed
+  *line* with a conflict is **folded** into that conflict's marker (its `old→new`
+  joins the intent list) rather than dropped-as-overlap — `plan_conflicts`' optional
+  `clean` arg + `folded` return (M2-review 3.1). Thin glue `reconcile_round(buf,
+  records, v0)` = classify → `vim.diff` → plan_conflicts (fold) → ONE
+  `apply.apply(kept_clean ++ synthetic)`. `init.lua`'s `apply_round` calls it when
+  `v1 ≠ v0`.
 - `docflow.lua` — thin wrapper shelling `$DOCFLOW_BIN` (ariadne's `docflow`):
   `start`/`round --side`/`status`/`ship`. The review nvim no longer calls it;
   it remains as a contract test surface for the commit shape the **agent**
