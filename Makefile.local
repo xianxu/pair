@@ -160,6 +160,7 @@ test-lua:
 	nvim -l nvim/review/spinner_test.lua
 	nvim -l nvim/review/resolve_test.lua
 	nvim -l nvim/review/menu_test.lua
+	nvim -l nvim/review/reconcile_test.lua
 
 # Integration test for nvim/init.lua's send/queue/history state machine.
 # Drives the real init.lua under headless nvim (it can't be unit-tested —
