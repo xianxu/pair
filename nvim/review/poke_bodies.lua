@@ -8,10 +8,12 @@
 local M = {}
 
 -- After the nvim applied an agent handoff: `applied` records landed, `dropped`
--- did not (the "(M dropped)" segment is omitted when none were dropped).
-function M.agent_applied(applied, dropped, file)
+-- did not, `conflicts` became 🤖<…>[reconcile] markers (#89). The "(M dropped)" /
+-- "(K to reconcile)" segments are omitted when their count is zero.
+function M.agent_applied(applied, dropped, file, conflicts)
   local drop = (dropped and dropped > 0) and string.format(' (%d dropped)', dropped) or ''
-  return string.format('applied %d edit(s)%s to %s — commit the agent round', applied, drop, file)
+  local conf = (conflicts and conflicts > 0) and string.format(' (%d to reconcile)', conflicts) or ''
+  return string.format('applied %d edit(s)%s%s to %s — commit the agent round', applied, drop, conf, file)
 end
 
 -- After the human finished their turn (the nvim saved — but did NOT git-commit;

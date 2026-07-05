@@ -17,6 +17,12 @@ eq(M.agent_applied(2, 1, '/a/doc.md'),
 eq(M.agent_applied(2, 0, '/a/doc.md'),
   'applied 2 edit(s) to /a/doc.md — commit the agent round',
   'agent_applied omits the dropped segment when dropped==0')
+eq(M.agent_applied(1, 0, '/a/doc.md', 2),
+  'applied 1 edit(s) (2 to reconcile) to /a/doc.md — commit the agent round',
+  'agent_applied includes the reconcile segment when conflicts>0 (#89)')
+eq(M.agent_applied(0, 1, '/a/doc.md', 1),
+  'applied 0 edit(s) (1 dropped) (1 to reconcile) to /a/doc.md — commit the agent round',
+  'agent_applied composes dropped + reconcile segments')
 eq(M.human_finished('/a/doc.md'),
   'finished my edits to /a/doc.md — please review in Edit posture',
   'human_finished')

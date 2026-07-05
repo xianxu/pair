@@ -109,6 +109,32 @@ local sig2 = false
 for _, b in ipairs(poked) do if b:match('applied 1 edit%(s%) %(1 dropped%) to doc.md') then sig2 = true end end
 ok(sig2, 'poke carries agent_applied(1, 1, file) for the dropped case')
 
+-- (#89 M2) concurrent-edit reconcile through on_agent_round: snapshot v0, edit the
+-- buffer concurrently so one record's span is gone → the clean record applies and
+-- the overlapped one becomes a 🤖<…>[reconcile] marker; the landed-artifact reports
+-- conflicts and its body embeds ONLY the clean record (Option A).
+vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'keep this line', 'change this line' })
+review.set_base(buf, content(buf))                                  -- v0 = what the agent reviews
+vim.api.nvim_buf_set_lines(buf, 1, 2, false, { 'HUMAN rewrote it' }) -- concurrent edit on line 2
+poked = {}
+review.on_agent_round(buf, {
+  { old = 'keep', occurrence = 1, new = 'KEEP', explain = 'clean edit' },            -- line 1 untouched → clean
+  { old = 'change this line', occurrence = 1, new = 'CHANGE', explain = 'reword' },  -- line 2 gone → conflict
+})
+local rc = content(buf)
+ok(rc:find('KEEP this line', 1, true) ~= nil, 'reconcile: clean record applied')
+ok(rc:find('🤖<HUMAN rewrote it>', 1, true) ~= nil, 'reconcile: overlap became a marker on the human hunk')
+ok(rc:find('reconcile', 1, true) ~= nil and rc:find('CHANGE', 1, true) ~= nil, 'reconcile: marker carries the agent intent')
+local lf2 = io.open(handoff.landed_path('doc'), 'r')
+local landed2 = lf2 and vim.json.decode(lf2:read('*a')) or {}
+if lf2 then lf2:close() end
+ok(landed2.applied == 1 and landed2.conflicts == 1, 'reconcile: landed reports applied=1 conflicts=1')
+local lrecs2 = landed2.body and record.extract_from_body(landed2.body)
+ok(lrecs2 and #lrecs2 == 1 and lrecs2[1].new == 'KEEP', 'reconcile: body embeds ONLY the clean record (Option A)')
+local sig3 = false
+for _, b in ipairs(poked) do if b:find('applied 1 edit(s) (1 to reconcile) to doc.md', 1, true) then sig3 = true end end
+ok(sig3, 'reconcile: poke reports applied 1 (1 to reconcile)')
+
 review.stop(buf)
 OUT:write(fails == 0 and 'loop_test ok\n' or ('FAILED ' .. fails .. '\n'))
 OUT:close()
