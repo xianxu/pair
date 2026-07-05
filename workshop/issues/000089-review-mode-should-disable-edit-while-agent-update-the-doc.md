@@ -14,7 +14,7 @@ started: 2026-07-05T12:07:32-07:00
 > the human keeps editing and the agent's round is merged onto their live edits,
 > surfacing only genuine overlaps as reconcilable markers. The two "minor
 > improvements" split out: smart-case search → **#101**; ask-to-squash-on-ship →
-> its own issue (mostly ariadne `docflow`/`xx-fix`).
+> **ariadne#164** (mostly ariadne `docflow`/`xx-fix`).
 
 ## Problem
 
@@ -306,7 +306,7 @@ writing-plans skill.)
   concurrent edits, so the lock only guarded overlaps + occurrence-shift.
 - **Delta:** part 1 "disable edit" → per-record concurrent-edit reconciliation
   with conflict-as-marker (this Spec). Part 1's two "minor improvements" removed
-  from scope: smart-case search → **#101**; ask-to-squash-on-ship → its own issue.
+  from scope: smart-case search → **#101**; ask-to-squash-on-ship → **ariadne#164**.
 
 ### 2026-07-05 — spec-review pass (mechanism change)
 - **Why:** the first draft used a whole-doc `git merge-file`, which is
