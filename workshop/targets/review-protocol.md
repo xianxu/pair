@@ -35,7 +35,7 @@ Why this split (not nvim-shells-docflow, which M1 scaffolded):
 |---|------|--------|--------|---------|--------|
 | 1 | open-state file `$PAIR_DATA_DIR/review-<tag>.open` | review nvim (pid on VimEnter; removed on VimLeave) | draft nvim (`PairReviewToggle` liveness; review-mode cue) | one line: the pane nvim's pid | **BUILT** — `review-toggle-test`, `review-window-test` |
 | 2 | handoff file (agent → nvim) | agent | review nvim (`handoff.watch` poll) | `{old, occurrence, new, explain}[]` (`record.lua`; == agent commit body) | **BUILT** — `review-handoff-test`, `review-loop-test` |
-| 2b | landed-artifact `$XDG_DATA_HOME/pair/review-landed-<tag>.json` (nvim → agent; the handoff's reverse channel, co-located with seam #2) | review nvim (`on_agent_round`, post-apply; `handoff.write_landed`) | agent (commits the round verbatim) | `{summary, body=record.embed_in_body(enriched), applied, dropped}` — what actually landed (drops filtered, `new_occurrence` computed) | **BUILT** (pair side) — `review-loop-test` (agent-owns-git e2e + dropped case) |
+| 2b | landed-artifact `$XDG_DATA_HOME/pair/review-landed-<tag>.json` (nvim → agent; the handoff's reverse channel, co-located with seam #2) | review nvim (`apply_round`, post-apply; `handoff.write_landed`) | agent (commits the round verbatim) | `{summary, body=record.embed_in_body(clean_enriched), applied, dropped, conflicts}` — what actually landed (drops filtered, `new_occurrence` computed; body carries **only the clean records** — conflict markers live in the committed doc, `conflicts` = their count, #89 M2) | **BUILT** (pair side) — `review-loop-test` (agent-owns-git e2e + dropped + reconcile case) |
 | 3 | poke channel (nvim → agent) | review nvim (zellij `write-chars`, agent addressed by **absolute pane id**) | agent pane | NL instruction, carrying the **absolute** doc path | **BUILT** — `review-poke-test` (abs-path 2026-06-19) |
 | 4 | git: `review/<slug>` branch + round commits | **AGENT** (`docflow`, in the doc's repo) | review nvim **reads** (reconstruct decorations + indicator counts) | `review(<slug>): <side> r<N> — …`, per-hunk explains in body | **read** BUILT; **write** proven via `fake-agent-v2` (`review-loop-test`), real agent = ariadne **#000121** (live smoke) |
 | 5 | mode file `$PAIR_DATA_DIR/review-<tag>.mode` | **AGENT** (on a mode switch from either channel) | review nvim + draft bar (display the `🪄 <Mode>`) | one line: the active mode | **BUILT (pair side, M4c)** — `seam_test`, `review-indicator-test`, `review-window-test` |
@@ -68,12 +68,42 @@ the fallback chain.
 - **idle** — no open-state file. Draft shows the normal pair-slug. `Alt+c` → file-select. **BUILT.**
 - **open / rendering** — review nvim open on `<file>`; doc + 🤖 markers rendered; draft line-1 becomes the **review indicator** (slug generation suppressed). `Alt+c` ⇄ visibility. **BUILT** (indicator: M3-close item). In review nvim, `Alt+a` accepts, `Alt+r` rejects, and `Alt+q` inserts `🤖[]` or wraps the visual selection as `🤖<selection>[]`. The context poke defaults the agent to **Copy Edit** posture and tells it to resolve `🤖[]` human comments as edits when possible, or punt explicitly when not.
 - **agent-proposing** *(M4)* — the SKILL recognizes "please review", does memory discovery, and on the **first** round creates `review/<slug>` **in the doc's repo** (the abs path from poke #3 tells it which repo), then writes the handoff records. This IS the **xx-fix-under-docflow flow** (see *What "review" means here* below) — not a review skill the agent picks by vibe.
-- **applying** — review nvim polls the handoff → applies undo-ably → renders → **saves** → pokes "applied N edits to `<abs>`". **BUILT** (apply/render/save); the post-apply poke is the **commit signal**.
+- **applying** — review nvim polls the handoff → applies undo-ably → renders → **saves** → pokes "applied N edits to `<abs>`". **BUILT** (apply/render/save); the post-apply poke is the **commit signal**. When the human edited the doc since the agent reviewed it, this is the **reconcile** path (below), not a plain apply.
 - **agent-committing** *(M4)* — the agent commits the agent round (records in body) **only after** the "applied" poke (apply can drop unanchorable records, so the agent must not blind-commit its own proposal). `agent-count++`.
 - **human-editing** — the human edits in the review pane. **BUILT.**
 - **human-finish** (`Alt+Return`) — review nvim **saves** → pokes "updated, please commit this human round + re-review `<abs>`" in Copy Edit posture, with `🤖[]` comments handled as fulfill-or-punt instructions. **BUILT** (save + poke); the commit is the agent's.
 - **human-committing** *(M4)* — the agent commits the human round. `human-count++`.
 - **ship** *(M4)* — "ship it" or `:PairReviewShip` → the agent runs `docflow ship` (merge `--no-ff` + branch delete). The review nvim only pokes; it never shells `docflow ship`.
+
+## Concurrent-edit reconciliation (#89 M2) — BUILT
+
+The human keeps editing while the agent produces a round; there is **no lock**.
+The apply authority (`init.lua` `apply_round`) reconciles the round against the
+human's live edits:
+
+- **`v0` base.** At send (`finish_human_turn` → `review.set_base`), the review nvim
+  snapshots the just-saved content — exactly what the agent is about to review.
+- **Fast path** (`v1 == v0`, human waited): today's `apply.apply`, unchanged.
+- **Reconcile path** (`v1 ≠ v0`): per-record (`reconcile.lua`). Each record whose
+  `old` still anchors in the live buffer applies normally (span-granular — a
+  non-overlapping edit to the *same line* is NOT a conflict). Each record whose
+  span the human changed becomes a **`🤖<human's current hunk>[reconcile — agent
+  wanted: • old → new (why …)]` marker**, placed on the human's changed hunk
+  (located via `vim.diff`). The whole reconcile is ONE `apply.apply` call (clean
+  records + synthetic conflict records), so one undo block and identical decoration.
+- **Conflicts are ordinary requests.** A `[reconcile — …]` marker is a `🤖[…]`
+  human request: on the next round the agent reconciles it (reads the human's text
+  + its own blocked intent, produces a record replacing the marker). No conflict
+  state machine; the human may resolve it by hand (`Alt+r`) or resubmit as-is.
+- **Attribution (Option A).** The reconciled doc — which includes the human's
+  concurrent edits — is committed as the *agent* round. The landed-artifact body
+  carries only the clean records; the conflict markers ride in the committed doc.
+- **Durability (M3).** The human's edits are never lost: the pane saves on defer
+  and on `VimLeave`. A pending round dropped on quit/crash is re-derived by a
+  resubmit (idempotent).
+- **The agent must recognize reconcile markers** — see the `xx-fix` skill's
+  workbench section; a `🤖<…>[reconcile — …]` can wrap git-diff-like text and
+  carries the agent's own blocked intent to fold back in.
 
 ## What "review" means here (xx-fix, not doc-review)
 
