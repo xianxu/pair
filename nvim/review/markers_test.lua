@@ -65,9 +65,9 @@ local mml = M.parse_markers({ '🤖[line one', 'line two]' })
 eq(#mml, 1, 'multi-line section parses')
 eq(mml[1].sections[1].text, 'line one\nline two', 'multi-line section text')
 
--- a stray opener beyond MULTILINE_LINE_BUDGET (50) yields no section
+-- a stray opener beyond MULTILINE_LINE_BUDGET (200) yields no section
 local budget = { '🤖{' }
-for _ = 1, 60 do budget[#budget + 1] = 'x' end
+for _ = 1, 210 do budget[#budget + 1] = 'x' end
 budget[#budget + 1] = '}'
 eq(#M.parse_markers(budget), 0, 'stray { beyond the newline budget yields no marker')
 
@@ -105,6 +105,17 @@ eq(mq ~= nil, true, 'multi-line quoted span present')
 eq(mq.row, 0, 'multi-line quoted starts row 0')
 eq(mq.col, 7, 'multi-line quoted starts at 🤖 col 7')
 eq(mq.end_row, 1, 'multi-line quoted ends row 1')
+
+-- budget (#89 M1): a 🤖<…> whose quoted body has >50 newlines still closes at
+-- budget 200 (conflict hunks can be large; the reconciler caps them at 200).
+do
+  local blines = { '🤖<L0' }
+  for i = 1, 60 do blines[#blines + 1] = 'L' .. i end
+  blines[#blines + 1] = 'END>[x]'
+  local bm = M.parse_markers(blines)
+  eq(#bm, 1, '60-line quoted marker parses')
+  eq(bm[1].quoted ~= nil, true, '60-line quoted body closes (budget ≥ 60)')
+end
 
 if fails > 0 then os.exit(1) end
 print('markers_test ok')

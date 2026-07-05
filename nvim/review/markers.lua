@@ -15,7 +15,9 @@ local marker_codec = dofile(here .. '../marker_codec.lua')
 local MARKER_CHAR = "🤖"
 local MARKER_BYTE_LEN = 4
 -- Per-section newline budget — a stray opener absorbs at most this many lines.
-local MULTILINE_LINE_BUDGET = 50
+-- Raised to 200 for #89: reconcile conflict markers wrap the human's changed
+-- hunk (which the reconciler caps at 200 lines), so the quoted body can be large.
+local MULTILINE_LINE_BUDGET = 200
 
 -- Find the close matching `open` at `start`, tracking nesting depth.
 -- opts.budget: max newlines crossed before giving up; opts.is_excluded(off): a
