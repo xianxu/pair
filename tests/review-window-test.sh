@@ -357,6 +357,10 @@ local function check()
   OUT4:write((_G.PairReviewPane.has_pending() and 'defer-has-pending\n') or 'NO-defer-has-pending\n')
   OUT4:write((tostring(_G.PairReviewPane.winbar()):find('results ready', 1, true) and 'defer-winbar\n')
     or ('NO-defer-winbar ' .. tostring(_G.PairReviewPane.winbar()) .. '\n'))
+  -- coherence: while pending (winbar up), the statusline is NOT the awaiting spinner
+  -- (defer cleared awaiting_since — the agent already replied, we're not waiting).
+  OUT4:write((not vim.o.statusline:find('%{v:lua._pair_review_elapsed()}', 1, true) and 'defer-no-spinner\n')
+    or ('NO-defer-no-spinner ' .. vim.o.statusline .. '\n'))
   -- Alt+Return with a pending round APPLIES it (consumes the slot + winbar), no submit
   vim.api.nvim_buf_set_lines(gbuf, 0, -1, false, { 'please apply this' })
   _G.PairReviewPane.on_defer(gbuf, { { old = 'apply', occurrence = 1, new = 'APPLIED', explain = 'e' } })
@@ -433,6 +437,7 @@ grep -q '^pane-state$' "$RT/r3" && pass "pane_state exposes focused + mode for t
 grep -q '^defer-saves-to-disk$' "$RT/r3" && pass "defer saves the human's edits to disk (durability)" || fail "defer save-on-disk"
 grep -q '^defer-has-pending$' "$RT/r3" && pass "defer stashes the round as pending" || fail "defer pending slot"
 grep -q '^defer-winbar$' "$RT/r3" && pass "defer raises the results-ready winbar" || fail "defer winbar"
+grep -q '^defer-no-spinner$' "$RT/r3" && pass "winbar and awaiting-spinner are mutually exclusive" || fail "defer/spinner coherence"
 grep -q '^pending-consumed$' "$RT/r3" && pass "Alt+Return consumes the pending round" || fail "pending consume"
 grep -q '^pending-applied$' "$RT/r3" && pass "Alt+Return applies the pending round to the buffer" || fail "pending apply"
 grep -q '^pending-winbar-cleared$' "$RT/r3" && pass "applying a pending round clears the winbar" || fail "pending winbar clear"
