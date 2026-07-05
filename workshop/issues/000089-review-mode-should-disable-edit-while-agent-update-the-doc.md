@@ -62,10 +62,11 @@ decide_apply(v0, v1, focused, mode):
 
 - Cases 1–3 → `on_agent_round` runs immediately (fast path when `v1==v0`, else
   the reconcile engine below).
-- Case 4 → stash the records as a **pending round** and show a prominent
-  **`winbar`** at the top of the pane: `✨ agent results ready · ⌥⏎ to apply`
-  (visible even while heads-down in insert; the awaiting-spinner statusline flips
-  to this). Nothing applies until the human acts.
+- Case 4 → **save the human's buffer first** (secure their in-progress edits to
+  disk — §8 durability), then stash the records as a **pending round** and show a
+  prominent **`winbar`** at the top of the pane: `✨ agent results ready · ⌥⏎ to
+  apply` (visible even while heads-down in insert; the awaiting-spinner statusline
+  flips to this). Nothing applies until the human acts.
 
 Focus is tracked via `FocusGained`/`FocusLost` (the pane already wires
 `FocusGained`); mode via `vim.fn.mode()` (`n` = apply; `i`/`R`/`v`/`V`/`^V`/`s` =
@@ -219,11 +220,22 @@ only**; `marker_end_pos`/apply are already multi-line. Needed:
   is expected. Defensively, a second handoff **replaces** the pending records
   (same `v0` — no new send happened, so the base is unchanged). Single pending
   slot.
-- **Abandon with a pending round (`VimLeave`).** `handoff.watch` already unlinked
-  the handoff file on arrival, so the stashed records live only in memory. On
-  quit with a round pending we **drop it** (log a notify) — the agent's round is
-  left uncommitted, recoverable by re-review/resume (the reconstruct-on-open
-  path). No new persistence; quitting is the human's choice to abandon.
+- **Human-edit durability (invariant: never lose the human's work).** The pending
+  window is the one place the human's post-submit edits are unsaved (last write was
+  at submit = `v0`). Two saves close it: (1) **save-on-defer** — case 4 writes the
+  buffer *before* stashing the round (§1); (2) **save-on-`VimLeave`** if modified —
+  the existing teardown autocmd (`review.lua`) also writes, covering edits typed
+  after the defer while the winbar is up. The review pane is a live workbench under
+  agent/git governance (nvim writes no git — this only touches the working file),
+  so auto-persisting on exit is safe, not a surprise.
+- **Abandon the pending *round* on quit/crash — acceptable, idempotent recovery.**
+  `handoff.watch` unlinked the handoff on arrival, so the stashed records live only
+  in memory; a true pane close (not the common Alt+c *hide*, which keeps the nvim
+  alive) **drops** them. That's fine by design: the human's edits are already on
+  disk (above), so on reopen the doc is their saved `v1`; a resubmit re-triggers
+  the agent to review the *current* state and re-propose. The dropped round is
+  recomputed, not lost work — "resubmit old change + new edits" converges. **No
+  pending-round persistence** (confirmed with operator).
 - **`FocusLost` reliability.** Case 2 ("not focused → apply") depends on
   `FocusLost` firing on a zellij pane switch, which terminal focus events may not
   guarantee. Failure mode is **benign**: `focused` stays true, so we fall through
@@ -266,8 +278,10 @@ only**; `marker_end_pos`/apply are already multi-line. Needed:
   (`v1==v0`) is unchanged. Landed-artifact accounts `applied`/`conflicts`.
   Protocol docs updated. Headless-tested.
 - **M3**: `decide_apply` returns apply/defer correctly for cases 1–4; a case-4
-  handoff defers (no buffer change) and shows the winbar; Alt+Return with a
-  pending round applies it (and without one, submits). Headless-tested.
+  handoff defers (no *agent* buffer change) **but saves the human's edits to disk**
+  and shows the winbar; a modified buffer is also saved on `VimLeave`; Alt+Return
+  with a pending round applies it (and without one, submits). Headless-tested
+  (incl. asserting the file on disk holds the human's edits after a defer).
 
 ## Plan
 
@@ -278,7 +292,8 @@ only**; `marker_end_pos`/apply are already multi-line. Needed:
   conflict placement → `🤖<…>[reconcile — …]`, landed-artifact accounting,
   reconcile-path decorate/save/poke) + protocol docs + tests
 - [ ] M3 — apply-gate UX (pure `decide_apply`, defer-on-case-4 + winbar, focus/
-  mode tracking, Alt+Return dual dispatch) + tests
+  mode tracking, Alt+Return dual dispatch, save-on-defer + save-on-`VimLeave`
+  durability) + tests
 
 (Detailed implementation plan → `workshop/plans/000089-*-plan.md` via the
 writing-plans skill.)
@@ -333,4 +348,10 @@ writing-plans skill.)
   the marker gets `no_highlight`; `apply.exact_replacement_marker` needs an agent
   `{}` section our `[user]` marker lacks → inserts verbatim) in lieu of a third
   full pass; residual detail carried into the plan (with its own review gate).
+- Operator raised: dropping a pending round could risk the human's *unsaved*
+  post-submit edits. Correct — the defer window is the one place edits are unsaved.
+  Decision: **save-on-defer + save-on-`VimLeave`** make human edits durable (a
+  hard invariant); the *agent* round stays droppable on quit/crash because a
+  resubmit re-derives it (idempotent recovery — operator OK with this). No
+  pending-round persistence. §1 / §8 / M3 updated.
 
