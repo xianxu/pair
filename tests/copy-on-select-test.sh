@@ -62,7 +62,10 @@ draft_pane='{"id":1,"is_plugin":false,"is_focused":FOCUS_DRAFT,"is_floating":fal
   "terminal_command":"sh -c export PAIR_NVIM_PID_FILE=\"/data/nvim-pid-t-draft\" && exec nvim -u \"$PAIR_HOME/nvim/init.lua\" \"/data/draft-t.md\""}'
 
 run() { rm -f "$tmp/handoff"; printf '%s' 'selected text' | "$PAIR_HOME/bin/copy-on-select"; }
-reached() { [ -f "$tmp/handoff" ]; }
+# Since #100 the hook returns immediately and the paste runs in a DETACHED
+# `copy-on-select --orchestrate` (so zellij can't reap it mid-chain). The hand-off
+# is therefore asynchronous: poll for the stub's marker instead of reading it once.
+wait_reached() { for _ in $(seq 1 60); do [ -f "$tmp/handoff" ] && return 0; sleep 0.05; done; return 1; }
 
 fail=0
 
@@ -72,14 +75,17 @@ fail=0
 printf '[%s,%s]\n' \
   "${agent_pane/FOCUS_AGENT/true}" "${draft_pane/FOCUS_DRAFT/false}" > "$tmp/panes.json"
 run
-reached || { echo "FAIL (a) parley.nvim agent-pane selection did not hand off (paste skipped)"; fail=1; }
+wait_reached || { echo "FAIL (a) parley.nvim agent-pane selection did not hand off (paste skipped)"; fail=1; }
 
-# (b) Selection in the DRAFT (nvim) pane → must NOT hand off (in_nvim=true),
-#     else copy-on-select would insert your own selection beneath itself.
+# (b) Selection in the DRAFT (nvim) pane → must NOT hand off (in_nvim=true), else
+#     copy-on-select would insert your own selection beneath itself. The detached
+#     orchestrator decides quickly against the fake zellij; a 1s grace is ample for
+#     it to run and skip, after which the marker's absence proves the gate held.
 printf '[%s,%s]\n' \
   "${agent_pane/FOCUS_AGENT/false}" "${draft_pane/FOCUS_DRAFT/true}" > "$tmp/panes.json"
 run
-reached && { echo "FAIL (b) draft-pane selection handed off (would self-insert)"; fail=1; }
+sleep 1
+[ -f "$tmp/handoff" ] && { echo "FAIL (b) draft-pane selection handed off (would self-insert)"; fail=1; }
 
 if [ "$fail" -eq 0 ]; then
   echo "PASS copy-on-select in_nvim detection (terminal_command, not cwd-polluted title)"

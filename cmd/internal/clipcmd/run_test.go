@@ -23,10 +23,12 @@ type fakeRuntime struct {
 	copied    string
 	pasteText string
 	pasteOK   bool
-	// panes: returned for any ListPanes call; lastListCommand records the flag
+	// panes: returned for any ListPanes call; lastListCommand records the flag,
+	// listCalls counts calls (so a test can assert the hook makes none inline).
 	panes           string
 	panesErr        error
 	lastListCommand bool
+	listCalls       int
 	// fs
 	wrote      map[string]string
 	executable map[string]bool
@@ -39,6 +41,7 @@ type fakeRuntime struct {
 	// spawn/exec
 	subprocess []execCall
 	execd      []execCall
+	spawned    []execCall
 }
 
 func newFake() *fakeRuntime {
@@ -53,6 +56,7 @@ func (f *fakeRuntime) ClipboardCopy(t string) error {
 }
 func (f *fakeRuntime) ClipboardPaste() (string, bool) { return f.pasteText, f.pasteOK }
 func (f *fakeRuntime) ListPanes(command bool) (string, error) {
+	f.listCalls++
 	f.lastListCommand = command
 	return f.panes, f.panesErr
 }
@@ -72,6 +76,9 @@ func (f *fakeRuntime) RunSubprocess(path string, args ...string) error {
 func (f *fakeRuntime) ExecReplace(path string, args ...string) error {
 	f.execd = append(f.execd, execCall{path, args})
 	return nil
+}
+func (f *fakeRuntime) SpawnDetached(path string, args ...string) {
+	f.spawned = append(f.spawned, execCall{path, args})
 }
 func (f *fakeRuntime) Log(string)      {}
 func (f *fakeRuntime) LogFresh(string) {}
@@ -94,21 +101,52 @@ const (
 
 func copyOpts() CopyOnSelectOptions { return CopyOnSelectOptions{PairHome: "/h"} }
 
-// (a) The regression: selection in the AGENT pane while cwd is parley.nvim (title
-// contains "nvim") must still hand off — in_nvim keys on terminal_command.
-func TestCopyOnSelectAgentPaneHandsOff(t *testing.T) {
+// (a) The HOOK mirrors the selection and detaches the orchestrator. It must run
+// NONE of the slow zellij chain inline — that in-hook chain is exactly what zellij
+// reaped mid-paste (#100), so the reap fix is "hook does nothing slow".
+func TestCopyOnSelectHookMirrorsThenDetaches(t *testing.T) {
 	f := newFake()
-	f.panes = agentFocusedPanes
-	f.executable["/h/bin/flash-pane"] = true
 	code := RunCopyOnSelect(copyOpts(), strings.NewReader("selected text"), f, io.Discard)
 	if code != 0 {
 		t.Fatalf("exit = %d, want 0", code)
 	}
 	if f.copied != "selected text" {
-		t.Errorf("clipboard copied %q", f.copied)
+		t.Errorf("clipboard copied %q, want the selection mirrored", f.copied)
+	}
+	if len(f.spawned) != 1 || f.spawned[0].path != "/h/bin/copy-on-select" ||
+		len(f.spawned[0].args) != 1 || f.spawned[0].args[0] != "--orchestrate" {
+		t.Errorf("want one detached `/h/bin/copy-on-select --orchestrate`, got %+v", f.spawned)
+	}
+	if f.listCalls != 0 || len(f.subprocess) != 0 || len(f.execd) != 0 {
+		t.Errorf("hook ran the slow chain inline: listCalls=%d subprocess=%+v execd=%+v",
+			f.listCalls, f.subprocess, f.execd)
+	}
+}
+
+func TestCopyOnSelectEmptySelection(t *testing.T) {
+	f := newFake()
+	code := RunCopyOnSelect(copyOpts(), strings.NewReader(""), f, io.Discard)
+	if code != 0 {
+		t.Fatalf("exit = %d, want 0", code)
+	}
+	if f.copied != "" || len(f.spawned) != 0 {
+		t.Errorf("empty selection should do nothing: copied=%q spawned=%+v", f.copied, f.spawned)
+	}
+}
+
+// (b) The detached orchestrator flashes the source pane and hands off. Regression
+// fixture: a selection in the AGENT pane while cwd is parley.nvim (title contains
+// "nvim") must still hand off — in_nvim keys on terminal_command, not the title.
+func TestCopyOnSelectOrchestrateHandsOff(t *testing.T) {
+	f := newFake()
+	f.panes = agentFocusedPanes
+	f.executable["/h/bin/flash-pane"] = true
+	code := RunCopyOnSelectOrchestrate(copyOpts(), f, io.Discard)
+	if code != 0 {
+		t.Fatalf("exit = %d, want 0", code)
 	}
 	if !f.lastListCommand {
-		t.Error("copy-on-select must call list-panes with --command")
+		t.Error("orchestrator must call list-panes with --command")
 	}
 	if len(f.subprocess) != 1 || f.subprocess[0].path != "/h/bin/flash-pane" ||
 		len(f.subprocess[0].args) != 1 || f.subprocess[0].args[0] != "0" {
@@ -119,17 +157,14 @@ func TestCopyOnSelectAgentPaneHandsOff(t *testing.T) {
 	}
 }
 
-// (b) Selection in the DRAFT (nvim) pane must NOT hand off (else it self-inserts).
-func TestCopyOnSelectInNvimSkips(t *testing.T) {
+// (c) Selection in the DRAFT (nvim) pane must NOT hand off (else it self-inserts).
+func TestCopyOnSelectOrchestrateInNvimSkips(t *testing.T) {
 	f := newFake()
 	f.panes = draftFocusedPanes
 	f.executable["/h/bin/flash-pane"] = true
-	code := RunCopyOnSelect(copyOpts(), strings.NewReader("selected text"), f, io.Discard)
+	code := RunCopyOnSelectOrchestrate(copyOpts(), f, io.Discard)
 	if code != 0 {
 		t.Fatalf("exit = %d, want 0", code)
-	}
-	if f.copied != "selected text" {
-		t.Errorf("clipboard still mirrored even in nvim: %q", f.copied)
 	}
 	if len(f.subprocess) != 0 {
 		t.Errorf("must not flash when in nvim: %+v", f.subprocess)
@@ -139,23 +174,12 @@ func TestCopyOnSelectInNvimSkips(t *testing.T) {
 	}
 }
 
-func TestCopyOnSelectEmptySelection(t *testing.T) {
-	f := newFake()
-	code := RunCopyOnSelect(copyOpts(), strings.NewReader(""), f, io.Discard)
-	if code != 0 {
-		t.Fatalf("exit = %d, want 0", code)
-	}
-	if f.copied != "" || len(f.execd) != 0 {
-		t.Errorf("empty selection should do nothing: copied=%q execd=%+v", f.copied, f.execd)
-	}
-}
-
-// When flash-pane isn't executable, the flash is skipped but the hand-off
-// still happens (the shell's `[ -x ... ]` guard).
-func TestCopyOnSelectSkipsFlashWhenNotExecutable(t *testing.T) {
+// When flash-pane isn't executable, the flash is skipped but the hand-off still
+// happens (the shell's `[ -x ... ]` guard).
+func TestCopyOnSelectOrchestrateSkipsFlashWhenNotExecutable(t *testing.T) {
 	f := newFake()
 	f.panes = agentFocusedPanes // executable map left empty
-	code := RunCopyOnSelect(copyOpts(), strings.NewReader("x"), f, io.Discard)
+	code := RunCopyOnSelectOrchestrate(copyOpts(), f, io.Discard)
 	if code != 0 {
 		t.Fatalf("exit = %d", code)
 	}

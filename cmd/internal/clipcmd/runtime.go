@@ -84,6 +84,23 @@ func (OSRuntime) SetPaneColor(id, bg string) {
 	_ = exec.Command("zellij", "action", "set-pane-color", "--pane-id", id, "--bg", bg).Run()
 }
 
+// startDetached launches cmd in its own session (setsid) with /dev/null stdio and
+// returns immediately (does NOT wait) — the shared detach idiom for work that must
+// outlive this process: the flash's bg reset, and copy-on-select's post-hook paste
+// orchestrator (#100). Closing our devNull handle after Start() is safe — the child
+// already holds its own dup'd fds. Extracted so both detaching callers share one
+// copy (ARCH-DRY).
+func startDetached(cmd *exec.Cmd) {
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if devNull, err := os.Open(os.DevNull); err == nil {
+		cmd.Stdin, cmd.Stdout, cmd.Stderr = devNull, devNull, devNull
+		defer devNull.Close()
+	}
+	if cmd.Start() == nil {
+		go func() { _ = cmd.Wait() }()
+	}
+}
+
 // ResetPaneColorAfter schedules the flash's bg reset in a detached session
 // (setsid), so it survives the caller exiting — copy-on-select execs into
 // clipboard-to-pane immediately after the flash, replacing itself. Mirrors
@@ -93,17 +110,17 @@ func (OSRuntime) ResetPaneColorAfter(id string, d time.Duration) {
 	secs := fmt.Sprintf("%.3f", d.Seconds())
 	// Pass secs + id as positional args to sh so nothing is interpolated into
 	// the script text (injection-safe, though ids come from zellij's own output).
-	cmd := exec.Command("sh", "-c",
+	startDetached(exec.Command("sh", "-c",
 		`sleep "$1"; zellij action set-pane-color --pane-id "$2" --reset`,
-		"sh", secs, id)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	if devNull, err := os.Open(os.DevNull); err == nil {
-		cmd.Stdin, cmd.Stdout, cmd.Stderr = devNull, devNull, devNull
-		defer devNull.Close()
-	}
-	if cmd.Start() == nil {
-		go func() { _ = cmd.Wait() }()
-	}
+		"sh", secs, id))
+}
+
+// SpawnDetached starts path in its own session (setsid) with /dev/null stdio,
+// inheriting the environment, and returns immediately — the copy-on-select hook's
+// escape from zellij's copy_command reap (#100): the hook returns fast while the
+// orchestrator runs on, unreaped. Shares startDetached with the flash's bg reset.
+func (OSRuntime) SpawnDetached(path string, args ...string) {
+	startDetached(exec.Command(path, args...))
 }
 
 // FocusPane targets a pane by id, trying the bare form then the terminal_<id>

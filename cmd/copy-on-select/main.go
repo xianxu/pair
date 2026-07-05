@@ -11,5 +11,5 @@ import (
 )
 
 func main() {
-	os.Exit(clipcmd.RunCopyOnSelectCLI(os.Stdin, os.Getenv, os.Stderr))
+	os.Exit(clipcmd.RunCopyOnSelectCLI(os.Args[1:], os.Stdin, os.Getenv, os.Stderr))
 }
