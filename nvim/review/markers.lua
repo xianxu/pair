@@ -216,31 +216,38 @@ M.unescape = marker_codec.unescape
 -- Exposed for the highlighter (the per-line section seam).
 M._parse_marker_sections = parse_marker_sections
 
--- Per-line highlight spans for 🤖 markers (issue #66 M3). Pure: lines → spans
--- { row (0-based), col_start (0-based byte), col_end (0-based byte, exclusive),
--- hl_group }. Ported from parley's highlighter (per-line 🤖 scan). Groups:
+-- Multi-line highlight spans for 🤖 markers (issue #89 M1; supersedes the per-line
+-- highlight_spans). Pure: lines → spans { row, col (0-based start), end_row,
+-- end_col (0-based byte, exclusive), hl_group }. Derived from the multi-line
+-- parse_markers, so a 🤖<…>/section span may cross rows (end_row > row) — the
+-- reconcile conflict markers (#89) are inherently multi-line. Groups:
 -- ParleyReviewQuoted (🤖<…>), ParleyReviewStrike (🤖~…~), ParleyReviewUser ([…]),
--- ParleyReviewAgent ({…}). Scans per LINE (not the whole doc) — markers used as
--- review requests sit on one line; the multi-line parser is parse_markers.
-function M.highlight_spans(lines)
+-- ParleyReviewAgent ({…}). Byte-accurate: quoted/strike start at the 🤖 itself,
+-- sections at their bracket — matching the retired per-line highlighter.
+function M.spans_multiline(lines)
+  local line_starts, off = {}, 1
+  for i, line in ipairs(lines) do line_starts[i] = off; off = off + #line + 1 end
+  -- 1-based doc offset → (row0, col0); same search parse_markers.offset_to_pos uses.
+  local function pos_of(offset)
+    local lo, hi = 1, #line_starts
+    while lo < hi do
+      local mid = math.floor((lo + hi) / 2) + 1
+      if line_starts[mid] <= offset then lo = mid else hi = mid - 1 end
+    end
+    return lo - 1, offset - line_starts[lo]
+  end
   local spans = {}
-  for i, line in ipairs(lines) do
-    local row = i - 1
-    local search_start = 1
-    while true do
-      local pos = line:find(MARKER_CHAR, search_start, true)
-      if not pos then break end
-      local sections, end_pos, quoted, strike = parse_marker_sections(line, pos, MARKER_BYTE_LEN)
-      if quoted then
-        spans[#spans + 1] = { row = row, col_start = pos - 1, col_end = quoted.byte_end, hl_group = 'ParleyReviewQuoted' }
-      elseif strike and strike.text ~= '' then
-        spans[#spans + 1] = { row = row, col_start = pos - 1, col_end = strike.byte_end, hl_group = 'ParleyReviewStrike' }
-      end
-      for _, section in ipairs(sections) do
-        local hl = section.type == 'agent' and 'ParleyReviewAgent' or 'ParleyReviewUser'
-        spans[#spans + 1] = { row = row, col_start = section.byte_start - 1, col_end = section.byte_end, hl_group = hl }
-      end
-      search_start = (end_pos > pos) and end_pos or (pos + MARKER_BYTE_LEN)
+  -- closer = 1-based doc offset of the closing char; exclusive end = pos just after it.
+  local function push(sr, sc, closer, hl)
+    local er, ec = pos_of(closer + 1)
+    spans[#spans + 1] = { row = sr, col = sc, end_row = er, end_col = ec, hl_group = hl }
+  end
+  for _, m in ipairs(M.parse_markers(lines)) do
+    if m.quoted then push(m.line, m.col, m.quoted.byte_end, 'ParleyReviewQuoted') end
+    if m.strike and m.strike.text ~= '' then push(m.line, m.col, m.strike.byte_end, 'ParleyReviewStrike') end
+    for _, s in ipairs(m.sections) do
+      local sr, sc = pos_of(s.byte_start)
+      push(sr, sc, s.byte_end, s.type == 'agent' and 'ParleyReviewAgent' or 'ParleyReviewUser')
     end
   end
   return spans

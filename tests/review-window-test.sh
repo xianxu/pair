@@ -112,6 +112,14 @@ local function check()
   OUT:write((ship_cmd and 'ship-cmd\n') or 'NO-ship-cmd\n')
   OUT:write((sf_ok and 'state-file\n') or 'NO-state\n')
   OUT:write(((#marks >= 1) and 'markers\n') or 'NO-markers\n')
+  -- multi-line 🤖<…> renders a span crossing rows (issue #89 M1)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'x 🤖<a', 'b>[note] y' })
+  _G.PairReviewPane.render_markers(buf)
+  local ml_cross = false
+  for _, mk in ipairs(vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, { details = true })) do
+    if mk[4] and mk[4].end_row and mk[4].end_row > mk[2] then ml_cross = true end
+  end
+  OUT:write((ml_cross and 'ml-marker-span\n') or 'NO-ml-marker-span\n')
   OUT:write((vim.o.clipboard:find('unnamedplus', 1, true) and 'review-clipboard\n') or ('NO-review-clipboard ' .. vim.o.clipboard .. '\n'))
   OUT:write((vim.o.guicursor:find('blinkon', 1, true) and 'review-blink-cursor\n') or ('NO-review-blink-cursor ' .. vim.o.guicursor .. '\n'))
   OUT:write((vim.o.breakindent and 'review-breakindent\n') or 'NO-review-breakindent\n')
@@ -332,6 +340,7 @@ grep -q '^mode-menu-map$' "$RT/r3" && pass "Alt+Shift+Return send menu keymap wi
 grep -q '^ship-cmd$' "$RT/r3" && pass ":PairReviewShip command wired" || fail ":PairReviewShip missing"
 grep -q '^state-file$' "$RT/r3" && pass "open-state file written" || fail "no state file"
 grep -q '^markers$' "$RT/r3" && pass "🤖 markers rendered" || fail "no marker extmarks"
+grep -q '^ml-marker-span$' "$RT/r3" && pass "multi-line 🤖<…> renders a cross-row span" || fail "multi-line marker span"
 grep -q '^review-clipboard$' "$RT/r3" && pass "review pane yanks to system clipboard" || fail "review clipboard option"
 grep -q '^review-blink-cursor$' "$RT/r3" && pass "review pane uses blinking cursor" || fail "review cursor blink option"
 grep -q '^review-breakindent$' "$RT/r3" && pass "review pane indents soft-wrapped lines" || fail "review breakindent option"

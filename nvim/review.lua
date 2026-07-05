@@ -247,9 +247,9 @@ local function render_markers(buf)
   if not vim.api.nvim_buf_is_valid(buf) then return end
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   vim.api.nvim_buf_clear_namespace(buf, MARK_NS, 0, -1)
-  for _, s in ipairs(markers.highlight_spans(lines)) do
-    pcall(vim.api.nvim_buf_set_extmark, buf, MARK_NS, s.row, s.col_start, {
-      end_col = s.col_end, hl_group = s.hl_group,
+  for _, s in ipairs(markers.spans_multiline(lines)) do
+    pcall(vim.api.nvim_buf_set_extmark, buf, MARK_NS, s.row, s.col, {
+      end_row = s.end_row, end_col = s.end_col, hl_group = s.hl_group,
     })
   end
 end
