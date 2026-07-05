@@ -39,6 +39,39 @@ function M.conflict_marker(hunk_text, intents)
   return table.concat(lines, '\n') .. ']'
 end
 
+-- Glue (the only vim-touching function): reconcile an agent round onto the live
+-- buffer. Clean records apply as-is; conflicts (located via vim.diff hunks) become
+-- synthetic replacement records, and the WHOLE reconcile is ONE apply.apply call
+-- (one snapshot, one undo block, apply.apply unchanged). Returns
+-- (enriched, dropped, n_conflicts). apply is lazy-loaded so the pure module + its
+-- test don't pull the buffer-manipulation module at load.
+local _apply
+local function apply_mod()
+  _apply = _apply or dofile(here .. 'apply.lua')
+  return _apply
+end
+
+function M.reconcile_round(buf, records, v0)
+  local apply = apply_mod()
+  local v1 = apply.buf_content(buf)
+  local split = M.classify(records, v1)
+  if #split.conflicts == 0 then
+    local enriched, dropped = apply.apply(buf, split.clean)
+    return enriched, dropped, 0
+  end
+  local ok, hunks = pcall(vim.diff, v0 or '', v1, { result_type = 'indices' })
+  if not ok or type(hunks) ~= 'table' then
+    local enriched, dropped = apply.apply(buf, records) -- vim.diff failure fallback (spec §8)
+    return enriched, dropped, 0
+  end
+  local synth = M.plan_conflicts(split.conflicts, v0, v1, hunks)
+  local combined = {}
+  for _, r in ipairs(split.clean) do combined[#combined + 1] = r end
+  for _, r in ipairs(synth) do combined[#combined + 1] = r end
+  local enriched, dropped = apply.apply(buf, combined)
+  return enriched, dropped, #synth
+end
+
 local function split_lines(s)
   local out, from = {}, 1
   while true do

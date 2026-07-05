@@ -118,6 +118,7 @@ test-runtimebundle: runtimebundle-generate
 test-review: $(BIN_DIR)/pair-review-target $(BIN_DIR)/pair-review-open $(BIN_DIR)/pair-review-readiness
 	bash tests/review-docflow-test.sh
 	bash tests/review-apply-test.sh
+	bash tests/review-reconcile-test.sh
 	bash tests/review-handoff-test.sh
 	bash tests/review-loop-test.sh
 	bash tests/review-projection-test.sh
