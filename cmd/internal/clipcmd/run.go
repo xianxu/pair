@@ -120,6 +120,9 @@ func RunCopyOnSelectOrchestrate(opts CopyOnSelectOptions, rt Runtime, stderr io.
 	// shell's `exec`); it only returns here on failure.
 	clipScript := opts.PairHome + "/bin/clipboard-to-pane"
 	if err := rt.ExecReplace(clipScript); err != nil {
+		// Detached: stderr is /dev/null, so the debug log is the ONLY channel a
+		// failed hand-off can surface on — record it there too (close-review #100).
+		rt.Log(fmt.Sprintf("exec %s failed: %v", clipScript, err))
 		fmt.Fprintf(stderr, "copy-on-select: exec %s: %v\n", clipScript, err)
 		return 1
 	}
