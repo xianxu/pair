@@ -39,4 +39,103 @@ function M.conflict_marker(hunk_text, intents)
   return table.concat(lines, '\n') .. ']'
 end
 
+local function split_lines(s)
+  local out, from = {}, 1
+  while true do
+    local nl = s:find('\n', from, true)
+    if not nl then out[#out + 1] = s:sub(from); break end
+    out[#out + 1] = s:sub(from, nl - 1); from = nl + 1
+  end
+  return out
+end
+
+-- Positional occurrence index of `needle` at 1-based byte offset `at` in `hay`:
+-- non-overlapping count of matches strictly before `at`, +1. So a synthetic
+-- record anchors the SPECIFIC v1 hunk region even when its text repeats elsewhere.
+local function occurrence_at(hay, needle, at)
+  local n, from = 0, 1
+  while needle ~= '' do
+    local s, e = hay:find(needle, from, true)
+    if not s or s >= at then break end
+    n = n + 1; from = e + 1
+  end
+  return n + 1
+end
+
+local MAX_HUNK_LINES = 200
+
+-- Turn conflict records into SYNTHETIC replacement records (one per changed hunk),
+-- ready to feed apply.apply alongside the clean records. `hunks` is the vim.diff
+-- `result_type='indices'` output {start_a,count_a,start_b,count_b} (1-based),
+-- passed as DATA so this stays pure/testable without invoking vim.diff.
+function M.plan_conflicts(conflicts, v0, v1, hunks)
+  local v1_lines = split_lines(v1)
+  local v1_starts, off = {}, 1
+  for i, line in ipairs(v1_lines) do v1_starts[i] = off; off = off + #line + 1 end
+
+  -- group conflicts by the hunk their v0 line-span intersects (fallback: own group)
+  local groups, order = {}, {}
+  for _, r in ipairs(conflicts or {}) do
+    local s0 = reconstruct.nth_offset(v0, r.old, r.occurrence or 1)
+    local hi
+    if s0 then
+      local first = reconstruct.line_of(v0, s0)
+      local last = reconstruct.line_of(v0, s0 + math.max(#r.old, 1) - 1)
+      for i, h in ipairs(hunks or {}) do
+        local a0 = h[1] - 1
+        local a1 = a0 + math.max(h[2], 1) - 1 -- 0-based v0 line range of the hunk
+        if not (last < a0 or first > a1) then hi = i; break end -- intersects
+      end
+    end
+    local key = hi and ('h' .. hi) or ('f' .. (#order + 1)) -- no hunk → own fallback group
+    if not groups[key] then
+      groups[key] = { hunk = hi and hunks[hi] or nil, intents = {} }
+      order[#order + 1] = key
+    end
+    table.insert(groups[key].intents, r)
+  end
+
+  local synth = {}
+  for _, key in ipairs(order) do
+    local g = groups[key]
+    local h = g.hunk
+    local anchor_old, anchor_at, new
+    if h and h[4] and h[4] >= 1 then
+      local sb, cb = h[3], h[4]
+      local capped = math.min(cb, MAX_HUNK_LINES)
+      local slice = {}
+      for i = sb, sb + capped - 1 do slice[#slice + 1] = v1_lines[i] end
+      local hunk_text = table.concat(slice, '\n')
+      anchor_at = v1_starts[sb] or 1
+      if cb > MAX_HUNK_LINES then
+        -- huge hunk: don't quote (or discard) it — prepend a marker to the first
+        -- line and keep the human's text intact.
+        anchor_old = v1_lines[sb] or ''
+        new = M.conflict_marker(string.format('(region changed — %d lines)', cb), g.intents)
+          .. '\n' .. anchor_old
+      else
+        anchor_old = hunk_text
+        new = M.conflict_marker(hunk_text, g.intents) -- replace the hunk with the wrapped marker
+      end
+    else
+      -- deletion (cb==0) or no hunk: anchor on a nearby kept v1 line, append a
+      -- marker (empty quoted body) so the intent is never silently dropped.
+      local idx = h and math.max(math.min(h[3] - 1, #v1_lines), 1) or 1
+      anchor_old = v1_lines[idx] or ''
+      anchor_at = v1_starts[idx] or 1
+      new = anchor_old .. '\n' .. M.conflict_marker('', g.intents)
+    end
+    if anchor_old ~= '' then
+      synth[#synth + 1] = {
+        old = anchor_old,
+        occurrence = occurrence_at(v1, anchor_old, anchor_at),
+        new = new,
+        explain = 'reconcile',
+        reconcile = true,
+      }
+    end
+  end
+  return synth
+end
+
 return M

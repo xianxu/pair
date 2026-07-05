@@ -62,5 +62,49 @@ do
     'multi-line quoted body round-trips')
 end
 
+-- plan_conflicts: coalesce conflicts by the changed hunk they fall in → one
+-- synthetic replacement record per hunk (old = v1 hunk text, tagged reconcile=true).
+do
+  local v0 = 'title\nold para here\ntail'
+  local v1 = 'title\nHUMAN para now\ntail'
+  local hunks = { { 2, 1, 2, 1 } } -- v0 line 2 (1 line) ↔ v1 line 2 (1 line)
+  local conflicts = {
+    { old = 'old', occurrence = 1, new = 'OLD', explain = 'x' },
+    { old = 'para here', occurrence = 1, new = 'PARA', explain = 'y' },
+  }
+  local synth = reconcile.plan_conflicts(conflicts, v0, v1, hunks)
+  eq(#synth, 1, 'two conflicts in one hunk coalesce')
+  eq(synth[1] and synth[1].old, 'HUMAN para now', 'old = v1 hunk text')
+  eq(synth[1] and synth[1].new:find('OLD', 1, true) ~= nil, true, 'intent OLD present')
+  eq(synth[1] and synth[1].new:find('PARA', 1, true) ~= nil, true, 'intent PARA present')
+  eq(synth[1] and synth[1].reconcile, true, 'synthetic tagged reconcile=true for body filter')
+end
+
+-- repeated hunk text: the changed line's text also appears earlier verbatim → the
+-- synthetic record's occurrence must anchor the changed (2nd) copy, not the 1st.
+do
+  local v0 = 'dup line\nZ\ndup line\ntail'
+  local v1 = 'dup line\ndup line\ndup line\ntail'
+  local hunks = { { 2, 1, 2, 1 } }
+  local conflicts = { { old = 'Z', occurrence = 1, new = 'ZED', explain = 'z' } }
+  local synth = reconcile.plan_conflicts(conflicts, v0, v1, hunks)
+  eq(#synth, 1, 'one synthetic record')
+  eq(synth[1] and synth[1].old, 'dup line', 'hunk text is the changed line')
+  eq(synth[1] and synth[1].occurrence, 2, 'anchors the 2nd (changed) occurrence')
+end
+
+-- deletion (cb==0): the human removed the region → never drop the intent; append a
+-- marker anchored on a nearby kept line.
+do
+  local v0 = 'keep\ndrop me\ntail'
+  local v1 = 'keep\ntail'
+  local hunks = { { 2, 1, 2, 0 } } -- v0 line 2 deleted; nothing on the v1 side
+  local conflicts = { { old = 'drop me', occurrence = 1, new = 'DROP', explain = 'd' } }
+  local synth = reconcile.plan_conflicts(conflicts, v0, v1, hunks)
+  eq(#synth, 1, 'deletion still yields a synthetic record (no silent drop)')
+  eq(synth[1] and synth[1].new:find('reconcile', 1, true) ~= nil, true, 'carries a reconcile marker')
+  eq(synth[1] and synth[1].reconcile, true, 'deletion synthetic tagged reconcile=true')
+end
+
 if fails > 0 then os.exit(1) end
 print('reconcile_test ok')
