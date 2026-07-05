@@ -433,8 +433,47 @@ local function clear_awaiting()
   refresh_statusline()
 end
 
+-- Buffer content joined exactly as apply.buf_content does (no trailing newline), so
+-- the v0 snapshot compares equal to the reconcile engine's v1 (#89 M3).
+local function buf_content(buf)
+  return table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n')
+end
+
+-- Apply-gate state (#89 M3). The human is never locked; a landed round only DEFERS
+-- while they're mid-edit on the pane. pending_records holds the single deferred
+-- round; the winbar is the "results ready" cue.
+local pane_focused = true -- the pane is created focused
+local pending_records = nil
+
+-- Track pane focus for the gate (case 2: not focused → apply immediately). Terminal
+-- focus events may not fire on a zellij pane switch — the failure mode is benign
+-- (focused stays true → at worst we DEFER when we could have applied, never a wrong
+-- apply; spec §8). BufEnter/BufLeave cover the in-nvim case.
+vim.api.nvim_create_autocmd({ 'FocusGained', 'BufEnter' }, { callback = function() pane_focused = true end })
+vim.api.nvim_create_autocmd({ 'FocusLost' }, { callback = function() pane_focused = false end })
+
+local function show_winbar(on)
+  vim.wo.winbar = on and '%#WarningMsg# ✨ agent results ready · ⌥⏎ to apply ' or ''
+end
+
+-- Injected into review.on_agent_round's gate (init.lua): focus + current mode.
+review.pane_state = function(_)
+  return { focused = pane_focused, mode = vim.fn.mode() }
+end
+
+-- Deferral (gate → defer): secure the human's edits to disk FIRST (durability
+-- invariant §8), stash the round, drop the spinner (the agent has replied), raise
+-- the winbar. Nothing of the agent's applies until the human acts.
+review.on_defer = function(buf, records)
+  pending_records = records
+  review.human_round(buf, 'defer') -- saves; reuses the one save path (ARCH-DRY)
+  clear_awaiting()
+  show_winbar(true)
+end
+
 review.after_agent_round = function(buf)
   clear_awaiting()
+  show_winbar(false)
   render_active_diagnostic(buf)
 end
 
@@ -450,9 +489,22 @@ end
 
 local function finish_human_turn(buf, file, mode_name, instruction)
   if vim.fn.mode():match('^i') then vim.cmd('stopinsert') end
+  -- Pending round waiting (#89 M3): Alt+Return APPLIES it (reconcile against the
+  -- standing v0 base) rather than starting a new send. Consumes the pending slot +
+  -- winbar; apply_round pokes the agent to commit the round.
+  if pending_records then
+    local r = pending_records
+    pending_records = nil
+    show_winbar(false)
+    return review.apply_round(buf, r)
+  end
   review.clear_decorations(buf)
   render_active_diagnostic(buf)
   review.human_round(buf, 'updated') -- saves; the agent commits the human round
+  -- Snapshot v0 = the just-saved content (what the agent reviews). AFTER the save,
+  -- and here (not mark_awaiting — request_ship also calls that WITHOUT saving), so
+  -- the base is the submitted buffer, not an unsaved one (#89 M3, spec §8).
+  review.set_base(buf, buf_content(buf))
   -- Poke the agent with the commit-request signal (absolute path: the agent pane's
   -- cwd is pair's, not the doc's repo). The agent commits the human round + reviews.
   -- (Once ariadne#000121's SKILL recognizes review-mode from these signals, this is
@@ -473,6 +525,12 @@ local function request_ship(file)
 end
 
 local function open_mode_menu(buf, file)
+  -- With a round pending, Alt+Shift+Return APPLIES it too — a mode/instruction
+  -- selector is meaningless against results already produced (#89 M3). The menu is
+  -- only offered in the no-pending state.
+  if pending_records then
+    return finish_human_turn(buf, file)
+  end
   local modes = mode.list(here .. 'review/modes')
   return menu.open({
     modes = modes,
@@ -556,6 +614,12 @@ local function start_review(buf, file)
   -- poll timer + projection autocmd + state file when the pane nvim exits.
   vim.api.nvim_create_autocmd('VimLeave', {
     callback = function()
+      -- Durability (#89 M3, §8): persist any unsaved edits before the pane closes
+      -- (edits typed after a defer, while the winbar is up, are otherwise only in
+      -- the buffer). Reuse human_round's save — never init's file-local `save`.
+      if vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].modified then
+        pcall(review.human_round, buf, 'exit')
+      end
       pcall(review.stop, buf)
       if sf then pcall(os.remove, sf) end
       if status_timer then pcall(status_timer.stop, status_timer); pcall(status_timer.close, status_timer) end
@@ -576,7 +640,13 @@ _G.PairReviewPane = { start_review = start_review, render_markers = render_marke
   resolve_paragraph_to_cursor = resolve_paragraph_to_cursor,
   quote_selection = quote_selection, current_mode = current_mode, mode_label = mode_label,
   active_diagnostic = active_diagnostic, render_active_diagnostic = render_active_diagnostic,
-  open_diagnostic_float = open_review_diagnostic_float }
+  open_diagnostic_float = open_review_diagnostic_float,
+  -- #89 M3 apply-gate hooks, exposed for the window test.
+  pane_state = function() return review.pane_state(vim.api.nvim_get_current_buf()) end,
+  set_focused = function(v) pane_focused = v end,
+  on_defer = function(buf, recs) return review.on_defer(buf or vim.api.nvim_get_current_buf(), recs) end,
+  has_pending = function() return pending_records ~= nil end,
+  winbar = function() return vim.wo.winbar end }
 
 -- Start once the file is loaded (the buffer doesn't exist yet at init time).
 vim.api.nvim_create_autocmd('VimEnter', {

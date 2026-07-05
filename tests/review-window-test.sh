@@ -339,6 +339,34 @@ local function check()
   vim.api.nvim_buf_set_lines(buf, -1, -1, false, { 'menu submit edit' })
   local h = _G.PairReviewPane.open_mode_menu('doc.md')
   if h then h.submit() end
+
+  -- #89 M3 apply-gate + durability — on a SEPARATE file so doc.md's earlier
+  -- disk assertions ('a human edit' / 'menu submit edit') stay intact.
+  local OUT4 = io.open(os.getenv('RESULT2'), 'a')
+  local gatefile = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(buf), ':h') .. '/gate.md'
+  vim.fn.writefile({ 'seed line' }, gatefile)
+  vim.cmd('edit ' .. vim.fn.fnameescape(gatefile))
+  local gbuf = vim.api.nvim_get_current_buf()
+  local ps = _G.PairReviewPane.pane_state()
+  OUT4:write((type(ps) == 'table' and ps.focused ~= nil and ps.mode ~= nil and 'pane-state\n') or 'NO-pane-state\n')
+  -- defer: saves the human's edits to disk, stashes pending, raises the winbar
+  vim.api.nvim_buf_set_lines(gbuf, 0, -1, false, { 'deferred human edit line' })
+  _G.PairReviewPane.on_defer(gbuf, { { old = 'zzz', occurrence = 1, new = 'YYY', explain = 'e' } })
+  local df = io.open(gatefile, 'r'); local disk = df and df:read('*a') or ''; if df then df:close() end
+  OUT4:write((disk:find('deferred human edit line', 1, true) and 'defer-saves-to-disk\n') or 'NO-defer-saves-to-disk\n')
+  OUT4:write((_G.PairReviewPane.has_pending() and 'defer-has-pending\n') or 'NO-defer-has-pending\n')
+  OUT4:write((tostring(_G.PairReviewPane.winbar()):find('results ready', 1, true) and 'defer-winbar\n')
+    or ('NO-defer-winbar ' .. tostring(_G.PairReviewPane.winbar()) .. '\n'))
+  -- Alt+Return with a pending round APPLIES it (consumes the slot + winbar), no submit
+  vim.api.nvim_buf_set_lines(gbuf, 0, -1, false, { 'please apply this' })
+  _G.PairReviewPane.on_defer(gbuf, { { old = 'apply', occurrence = 1, new = 'APPLIED', explain = 'e' } })
+  pcall(_G.PairReviewPane.finish_human_turn, gbuf, gatefile)
+  local c_after = vim.api.nvim_buf_get_lines(gbuf, 0, 1, false)[1] or ''
+  OUT4:write((not _G.PairReviewPane.has_pending() and 'pending-consumed\n') or 'NO-pending-consumed\n')
+  OUT4:write((c_after:find('APPLIED', 1, true) and 'pending-applied\n') or ('NO-pending-applied ' .. c_after .. '\n'))
+  OUT4:write((_G.PairReviewPane.winbar() == '' and 'pending-winbar-cleared\n') or 'NO-pending-winbar-cleared\n')
+  OUT4:close()
+
   vim.cmd('qa!')
 end
 if vim.v.vim_did_enter == 1 then vim.schedule(check)
@@ -400,6 +428,14 @@ grep -q 'write-chars --pane-id .* finished my edits .*Proofread posture.*keep th
 grep -q '^proofread-mode-persisted$' "$RT/r3" && pass "menu send persists selected review mode" || fail "selected review mode not persisted"
 grep -q 'menu submit edit' "$REPO/doc.md" && pass "send menu submit saves the reviewed document buffer" || fail "send menu submit did not save reviewed document"
 grep -q 'Review workbench open on' "$RT/zlog" && fail "review pane still sends redundant open handshake" || pass "review pane does not send redundant open handshake"
+# #89 M3 apply-gate + durability
+grep -q '^pane-state$' "$RT/r3" && pass "pane_state exposes focused + mode for the gate" || fail "pane_state shape"
+grep -q '^defer-saves-to-disk$' "$RT/r3" && pass "defer saves the human's edits to disk (durability)" || fail "defer save-on-disk"
+grep -q '^defer-has-pending$' "$RT/r3" && pass "defer stashes the round as pending" || fail "defer pending slot"
+grep -q '^defer-winbar$' "$RT/r3" && pass "defer raises the results-ready winbar" || fail "defer winbar"
+grep -q '^pending-consumed$' "$RT/r3" && pass "Alt+Return consumes the pending round" || fail "pending consume"
+grep -q '^pending-applied$' "$RT/r3" && pass "Alt+Return applies the pending round to the buffer" || fail "pending apply"
+grep -q '^pending-winbar-cleared$' "$RT/r3" && pass "applying a pending round clears the winbar" || fail "pending winbar clear"
 
 [ "$fails" -eq 0 ] || { printf 'review-window-test FAILED (%d)\n' "$fails"; exit 1; }
 printf 'review-window-test ok\n'
