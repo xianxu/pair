@@ -97,6 +97,21 @@ end
 
 local MAX_HUNK_LINES = 200
 
+-- Nearest NON-EMPTY line to `start_idx` (1-based), searching backward first (so a
+-- deletion's marker lands on the preceding kept line, where the content was), then
+-- forward. Returns the index, or nil when every line is empty (degenerate blank doc).
+local function nearest_nonempty(lines, start_idx)
+  local n = #lines
+  start_idx = math.max(1, math.min(start_idx or 1, n))
+  for d = 0, n do
+    local b = start_idx - d
+    if b >= 1 and lines[b] ~= '' then return b end
+    local f = start_idx + d
+    if f <= n and lines[f] ~= '' then return f end
+  end
+  return nil
+end
+
 -- Turn conflict records into SYNTHETIC replacement records (one per changed hunk),
 -- ready to feed apply.apply alongside the clean records. `hunks` is the vim.diff
 -- `result_type='indices'` output {start_a,count_a,start_b,count_b} (1-based),
@@ -132,41 +147,47 @@ function M.plan_conflicts(conflicts, v0, v1, hunks)
   for _, key in ipairs(order) do
     local g = groups[key]
     local h = g.hunk
+    local sb = h and h[3] or 1     -- v1 start line (1-based)
+    local cb = h and (h[4] or 0) or 0 -- v1 line count
     local anchor_old, anchor_at, new
-    if h and h[4] and h[4] >= 1 then
-      local sb, cb = h[3], h[4]
-      local capped = math.min(cb, MAX_HUNK_LINES)
+
+    -- Primary: a non-empty changed hunk → REPLACE the human's hunk text with the
+    -- wrapped marker (this is the in-place reconcile placement).
+    if cb >= 1 and cb <= MAX_HUNK_LINES then
       local slice = {}
-      for i = sb, sb + capped - 1 do slice[#slice + 1] = v1_lines[i] end
+      for i = sb, sb + cb - 1 do slice[#slice + 1] = v1_lines[i] end
       local hunk_text = table.concat(slice, '\n')
-      anchor_at = v1_starts[sb] or 1
-      if cb > MAX_HUNK_LINES then
-        -- huge hunk: don't quote (or discard) it — prepend a marker to the first
-        -- line and keep the human's text intact.
-        anchor_old = v1_lines[sb] or ''
-        new = M.conflict_marker(string.format('(region changed — %d lines)', cb), g.intents)
-          .. '\n' .. anchor_old
-      else
-        anchor_old = hunk_text
-        new = M.conflict_marker(hunk_text, g.intents) -- replace the hunk with the wrapped marker
+      if hunk_text ~= '' then
+        anchor_old, anchor_at = hunk_text, v1_starts[sb] or 1
+        new = M.conflict_marker(hunk_text, g.intents)
       end
-    else
-      -- deletion (cb==0) or no hunk: anchor on a nearby kept v1 line, append a
-      -- marker (empty quoted body) so the intent is never silently dropped.
-      local idx = h and math.max(math.min(h[3] - 1, #v1_lines), 1) or 1
-      anchor_old = v1_lines[idx] or ''
-      anchor_at = v1_starts[idx] or 1
-      new = anchor_old .. '\n' .. M.conflict_marker('', g.intents)
     end
-    if anchor_old ~= '' then
-      synth[#synth + 1] = {
-        old = anchor_old,
-        occurrence = occurrence_at(v1, anchor_old, anchor_at),
-        new = new,
-        explain = 'reconcile',
-        reconcile = true,
-      }
+
+    -- Fallback: deletion (cb==0), blank hunk, huge hunk, or no hunk. APPEND the
+    -- marker onto the nearest NON-EMPTY v1 line so a conflict is NEVER silently
+    -- dropped (the whole point of the issue). Huge hunks reference their size
+    -- instead of quoting the whole region.
+    if not new then
+      local idx = nearest_nonempty(v1_lines, sb)
+      local quoted = (cb > MAX_HUNK_LINES) and string.format('(region changed — %d lines)', cb) or ''
+      if idx then
+        anchor_old, anchor_at = v1_lines[idx], v1_starts[idx]
+        new = anchor_old .. '\n' .. M.conflict_marker(quoted, g.intents)
+      else
+        -- degenerate: v1 is entirely blank. Emit with an empty `old` so apply.apply
+        -- drops it as 'empty old' — COUNTED + WARNed, never silent.
+        anchor_old, anchor_at = '', 1
+        new = M.conflict_marker(quoted, g.intents)
+      end
     end
+
+    synth[#synth + 1] = {
+      old = anchor_old,
+      occurrence = occurrence_at(v1, anchor_old, anchor_at),
+      new = new,
+      explain = 'reconcile',
+      reconcile = true,
+    }
   end
   return synth
 end

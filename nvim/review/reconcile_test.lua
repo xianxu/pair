@@ -104,6 +104,46 @@ do
   eq(#synth, 1, 'deletion still yields a synthetic record (no silent drop)')
   eq(synth[1] and synth[1].new:find('reconcile', 1, true) ~= nil, true, 'carries a reconcile marker')
   eq(synth[1] and synth[1].reconcile, true, 'deletion synthetic tagged reconcile=true')
+  eq(synth[1] and synth[1].old ~= '' and v1:find(synth[1].old, 1, true) ~= nil, true,
+    'deletion anchors on a real kept v1 line')
+end
+
+-- blank hunk (M2 review 3.1): the human BLANKED the exact line the agent targeted →
+-- the changed hunk's v1 text is '' → must still yield a marker (never a silent drop).
+do
+  local v0 = 'alpha\nbeta content\ngamma'
+  local v1 = 'alpha\n\ngamma'                 -- line 2 blanked
+  local hunks = { { 2, 1, 2, 1 } }             -- v0 line 2 ↔ v1 line 2 (empty)
+  local conflicts = { { old = 'beta content', occurrence = 1, new = 'BETA', explain = 'x' } }
+  local synth = reconcile.plan_conflicts(conflicts, v0, v1, hunks)
+  eq(#synth, 1, 'blank hunk still yields a synthetic record (no silent drop)')
+  eq(synth[1] and synth[1].old ~= '', true, 'blank hunk anchors on a non-empty line')
+  eq(synth[1] and synth[1].new:find('BETA', 1, true) ~= nil, true, 'blank hunk carries the agent intent')
+end
+
+-- blank-line-1 fallback (M2 review 3.1): no hunk, doc starts with a blank line →
+-- the fallback must skip the empty line and anchor on a real one.
+do
+  local v0 = '\nsecond line here'
+  local v1 = '\nHUMAN wrote this'
+  local conflicts = { { old = 'second line here', occurrence = 1, new = 'SEC', explain = 'y' } }
+  local synth = reconcile.plan_conflicts(conflicts, v0, v1, {}) -- no hunks → fallback group
+  eq(#synth, 1, 'no-hunk fallback yields a synthetic record')
+  eq(synth[1] and synth[1].old ~= '', true, 'fallback skips the blank line-1 anchor')
+end
+
+-- huge hunk (>200 lines) — keep the human text, reference the region by size.
+do
+  local v0lines, v1lines = {}, {}
+  for i = 1, 205 do v0lines[i] = 'v0 line ' .. i; v1lines[i] = 'HUMAN line ' .. i end
+  local v0 = table.concat(v0lines, '\n')
+  local v1 = table.concat(v1lines, '\n')
+  local hunks = { { 1, 205, 1, 205 } }
+  local conflicts = { { old = 'v0 line 3', occurrence = 1, new = 'X', explain = 'z' } }
+  local synth = reconcile.plan_conflicts(conflicts, v0, v1, hunks)
+  eq(#synth, 1, 'huge hunk yields a synthetic record')
+  eq(synth[1] and synth[1].new:find('region changed', 1, true) ~= nil, true, 'huge hunk references the region size')
+  eq(synth[1] and synth[1].new:find('205 lines', 1, true) ~= nil, true, 'huge hunk states the line count')
 end
 
 if fails > 0 then os.exit(1) end

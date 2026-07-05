@@ -48,8 +48,11 @@ Integration seams (headless shell tests, `make test-review`):
   vs conflict), `conflict_marker(hunk_text, intents)` (the `🤖<…>[reconcile — …]`
   wire format, both sections `esc_quote`'d), `plan_conflicts(conflicts, v0, v1,
   hunks)` (coalesce conflicts by the `vim.diff` hunk they fall in → SYNTHETIC
-  replacement records tagged `reconcile=true`, occurrence repeated-hunk-safe,
-  deletions/huge-hunks never dropped). Thin glue `reconcile_round(buf, records,
+  replacement records tagged `reconcile=true`, occurrence repeated-hunk-safe;
+  every conflict yields a marker — a blank/deleted hunk appends the marker onto the
+  nearest non-empty line, huge hunks reference the region by size, and only an
+  entirely-blank `v1` degenerates to an empty-`old` record `apply.apply` counts as
+  dropped + WARNs — never a silent drop). Thin glue `reconcile_round(buf, records,
   v0)` = classify → `vim.diff` → plan_conflicts → ONE `apply.apply(clean ++
   synthetic)`. `init.lua`'s `apply_round` calls it when `v1 ≠ v0`.
 - `docflow.lua` — thin wrapper shelling `$DOCFLOW_BIN` (ariadne's `docflow`):

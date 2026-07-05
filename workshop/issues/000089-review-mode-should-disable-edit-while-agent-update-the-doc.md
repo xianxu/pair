@@ -311,7 +311,7 @@ only**; `marker_end_pos`/apply are already multi-line. Needed:
 
 - [x] M1 — multi-line `🤖<…>` support (highlight across lines, within-range
   `resolve_at_cursor`, section-budget for conflict-sized blocks) + tests
-- [ ] M2 — reconcile engine `nvim/review/reconcile.lua` (`v0` snapshot at send,
+- [x] M2 — reconcile engine `nvim/review/reconcile.lua` (`v0` snapshot at send,
   fast/reconcile branch in `on_agent_round`, per-record classify, `vim.diff`
   conflict placement → `🤖<…>[reconcile — …]`, landed-artifact accounting,
   reconcile-path decorate/save/poke) + protocol docs + tests
@@ -350,6 +350,7 @@ writing-plans skill.)
 ### 2026-06-30
 
 ### 2026-07-05
+- 2026-07-05: closed M2 — full make test green (exit 0); reconcile.lua pure classify/conflict_marker/plan_conflicts + reconcile_round glue; review-reconcile-test (clean-only/conflict/mixed-one-undo, real vim.diff) + loop-test concurrent-edit case; init apply_round fast/reconcile branch + landed conflicts accounting; protocol docs (pair + ariadne); review verdict: FIX-THEN-SHIP
 - 2026-07-05: closed M1 — make test-lua + make test-review green (exit 0); new asserts: spans_multiline cross-row span, resolve_at_cursor within-range on a multi-line marker, multi-line paragraph resolve, budget-200 parse (markers_test + review-window-test); review verdict: SHIP
 - Rescoped after brainstorm (superpowers-brainstorming). Confirmed with operator:
   reconciliation over lock; commit attribution Option A; milestones M1→M2→M3;
@@ -386,5 +387,23 @@ writing-plans skill.)
   `resolve_at_cursor` matches a marker from any line it spans. 1.3 audited
   `jump_marker`/`resolve_paragraph_to_cursor` — already multi-line-correct
   (characterization test, no code change). 1.4 `MULTILINE_LINE_BUDGET` 50→200.
-  `make test-lua` + `make test-review` green.
+  `make test-lua` + `make test-review` green. Review verdict: SHIP.
+- **M2 done** (reconcile engine). `reconcile.lua` pure `classify`/`conflict_marker`/
+  `plan_conflicts` + `reconcile_round` glue (one `apply.apply`); `init.lua`
+  `apply_round` fast/reconcile branch off the `v0` base; landed-artifact partitions
+  clean (body) vs conflict (count); protocol docs (pair target + ariadne `xx-fix`
+  on `main`). Full `make test` green.
+- **M2 review: FIX-THEN-SHIP** (first dispatch hit a 401 auth error → verdict
+  "unknown"; the close correctly did NOT finalize; re-ran after `/login`). Fixed 3.1
+  (the real one): `plan_conflicts` silently dropped a conflict when the anchor line
+  was blank (human blanked the exact line, or the fallback hit a blank line) —
+  defeating the issue's core purpose. Now every conflict yields a marker via a
+  nearest-non-empty anchor (backward-first); only an all-blank `v1` degenerates to an
+  empty-`old` record `apply.apply` counts as dropped+WARNs (never silent). Added
+  blank-hunk / blank-line-1 / huge-hunk / no-hunk tests (closed coverage gaps 5b/5c);
+  atlas guarantee corrected. 3.2 (ariadne `xx-fix` note) was already delivered on
+  ariadne `main`; the reviewer read it "missing" only because the shared ariadne
+  checkout was transiently on a peer branch (`000145`). Minor findings
+  (occurrence-counter family DRY, `#synth` vs authoritative count) noted,
+  non-blocking.
 
