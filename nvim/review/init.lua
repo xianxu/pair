@@ -15,6 +15,7 @@ local here = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
 local handoff = dofile(here .. 'handoff.lua')
 local apply   = dofile(here .. 'apply.lua')
 local reconcile = dofile(here .. 'reconcile.lua') -- concurrent-edit reconcile (#89 M2)
+local gate    = dofile(here .. 'gate.lua')        -- apply-gate decision (#89 M3)
 local record  = dofile(here .. 'record.lua')
 local reconstruct = dofile(here .. 'reconstruct.lua') -- resume repaint (reconstruct-on-open)
 local projection = dofile(here .. 'projection.lua')
@@ -23,6 +24,7 @@ local poke_bodies = dofile(here .. 'poke_bodies.lua')
 -- The agent-poke seam, injectable: on_agent_round is driven directly by the
 -- headless tests, which swap `M.poke` for a recorder so they never shell zellij.
 M.poke = dofile(here .. '../pair_poke.lua')
+M.gate = gate -- exposed so tests / the UI layer share the one gate decision
 
 local sessions = {} -- buf → { tag, file, stop }
 
@@ -109,9 +111,20 @@ function M.apply_round(buf, records)
   return enriched, dropped
 end
 
--- The handoff-watcher entry. M3 gates here (defer while the human is mid-edit);
--- for M2 it applies immediately. Exposed for testing.
+-- The handoff-watcher entry. Consults the pure apply-gate (#89 M3): if the human is
+-- focused on the pane AND mid-edit AND the buffer changed since the agent reviewed
+-- it, DEFER (stash the round via the injected on_defer, show the winbar) instead of
+-- applying. pane_state/on_defer are injected by the UI layer (review.lua); nil in
+-- headless apply tests → focused=false default → always applies (preserves M2 tests).
+-- Exposed for testing.
 function M.on_agent_round(buf, records)
+  local v0 = (sessions[buf] or {}).base
+  local v1 = apply.buf_content(buf)
+  local st = (M.pane_state and M.pane_state(buf)) or { focused = false, mode = 'n' }
+  if M.gate.decide_apply(v0, v1, st.focused, st.mode) == 'defer' and M.on_defer then
+    M.on_defer(buf, records)
+    return
+  end
   return M.apply_round(buf, records)
 end
 
