@@ -29,15 +29,18 @@ The record model already reconciles *non-overlapping* concurrent edits for free:
 the human didn't touch still anchors and applies. Two failure modes remain:
 
 - **Overlap** — the human edited the exact span the agent targeted → `old` isn't
-  found → the record is silently dropped (`'not found'`, WARN only).
+  found → the record is silently dropped (`'not found'`, WARN only). **This is
+  what this issue addresses**: surface it as a reconcilable marker instead of a
+  silent drop.
 - **Occurrence-shift** — the human added/removed an earlier copy of the record's
   `old` text → "the Nth occurrence" now resolves to the *wrong* instance → a
-  silent, *incorrect* edit. A latent correctness bug that concurrent editing
-  makes reachable.
+  silent, *incorrect* edit. A distinct latent bug; **out of scope here** (this
+  design keeps today's occurrence-against-live-buffer resolution). Noted so it
+  isn't mistaken for fixed.
 
 The lock exists only to preserve the invariant *what-the-agent-saw ==
 what's-in-the-buffer*. We make that invariant explicit and reconcile against it
-instead of enforcing it by disabling the human.
+per-record instead of enforcing it by disabling the human.
 
 ## Spec
 
@@ -80,42 +83,89 @@ pending (the human's insight):
 - **No pending round** → today's `finish_human_turn` (save + poke the agent to
   review).
 
+While a round is pending, the send-menu variant `Alt+Shift+Return`
+(`<M-S-CR>`) also **applies the pending round** (there is nothing to "send" — a
+mode/instruction selector is meaningless against results already produced); the
+menu is offered only in the no-pending state.
+
 ### 3. The reconcile engine — what `on_agent_round` does when `v1 ≠ v0`
 
-1. `v0.1 = apply(records, v0)` in a scratch buffer — faithful, since the agent's
-   occurrences were computed against `v0` (this also fixes the occurrence-shift
-   misapply).
-2. `merged = git merge-file -p <v1> <v0> <v0.1>` (ours = human, base = v0,
-   theirs = agent). git is already required — the doc must be in a repo. Three
-   temp files under `PAIR_DATA_DIR`.
-3. Rewrite each `<<<<<<< … ======= … >>>>>>>` conflict block into
-   `🤖<…both sides…>[please reconcile]` (`esc_quote`'d; `esc_quote` already
-   escapes `<`/`>`/`[`/`]`/`{`/`}`/`\`, so git-conflict content is marker-safe).
-4. Load `merged` into the buffer as one undo block; save. Decorate the
-   cleanly-merged records via the existing resume path,
-   `reconstruct.decorate(clean_records, merged, 'new')` (locates records by their
-   `new` text). Conflicts self-highlight as `ParleyReview*` markers.
-5. Write the landed-artifact + poke `agent_applied` so the agent commits the
-   round (Option A, below).
+**Reconcile per-record, not by whole-document merge.** A line-granular
+whole-doc merge (e.g. `git merge-file`) regresses prose: a markdown paragraph is
+often a single long line, so two edits to *different words of the same paragraph*
+would falsely conflict. Today's record model is span-granular (each `old` is
+anchored by exact text, independent of lines), and we preserve that.
 
-When `v1 == v0` (fast path), `on_agent_round` is today's `apply.apply` unchanged
-— full per-record highlights + diagnoses.
+Lives in a new pure-ish module `nvim/review/reconcile.lua` with clear seams. The
+key move: **a conflict becomes a synthetic replacement record**, so the *whole*
+reconcile is a single `apply.apply` call — resolving clean edits and conflict
+placements against one buffer snapshot, in one undo block, with no ordering
+hazard.
+
+1. **Classify** (pure) — `classify(records, v1) → {clean, conflicts}`: a record is
+   `clean` iff `reconstruct.nth_offset(v1, r.old, r.occurrence or 1)` resolves
+   (its `old` still exists in the live buffer — the *exact* anchor test + `or 1`
+   fallback `apply.apply` uses, so classify faithfully predicts what apply will
+   land). Records that don't resolve are `conflicts` (the human edited that exact
+   span). Span-granular: non-overlapping same-line edits stay clean, **no
+   regression**.
+2. **Build each conflict as a synthetic record** — resolve the conflict record's
+   `old`@occurrence against **v0** → its base line; `vim.diff(v0, v1,
+   {result_type='indices'})` (nvim builtin — no external process, no temp files) →
+   the changed hunk covering that base line → the hunk's **v1** line-range is the
+   human's current text for that region. Coalesce conflicts by hunk; for each
+   conflicted hunk emit a synthetic record
+   `{ old = «exact v1 hunk text», occurrence = «its nth in v1», new =
+   reconcile.conflict_marker(hunk_text, intents), explain = "reconcile" }` where
+   the marker (pure, unit-tested builder) is:
+
+   ```
+   🤖<«human's current hunk text»>[reconcile — agent wanted:
+     • «old» → «new» (why: «explain»)
+     • …]
+   ```
+
+   **Both** the `<…>` human text **and** the `[…]` intents are escaped through the
+   marker codec (`esc_quote`) so unbalanced brackets in quoted code (`arr[0`, a
+   stray `]`) can never break the marker's parse — closing the "a marker never
+   fails to parse" invariant. `\[` etc. remain readable in the raw buffer;
+   `render_markers`/resolve `unescape` them for display and resolution.
+3. **Apply clean + conflicts in one `apply.apply(buf, clean ++ synthetic)`** —
+   **unchanged**. `apply.apply` resolves every record's span against a *single*
+   live-buffer (`v1`) snapshot up front (`apply.lua:261`), sorts, applies
+   bottom-to-top in **one** undo block, and decorates. This is what dissolves the
+   ordering/coordinate hazard: conflicts are just replacements resolved against the
+   same `v1` as the clean edits — no "place first vs apply first" tension. Clean
+   records get `DiffChange` highlights + `explain` diagnoses; a synthetic record's
+   `new` is a marker proposal, so `apply`'s `is_marker_proposal` path sets
+   `no_highlight` and it self-highlights via `render_markers` (M1) instead, with
+   the short `"reconcile"` gutter diagnosis. Clean spans and conflict hunks are
+   disjoint by construction; `apply`'s overlap guard (`apply.lua:282`) covers any
+   pathological coincidence. Projection snapshot dance runs as in the fast path
+   (§8), so undo/redo stays coherent.
+4. **Save + poke** — save; write the landed-artifact (embedding only the *clean*
+   enriched records as the agent's actual edits; accounting in §8) and poke
+   `agent_applied` so the agent commits the round (Option A).
+
+When `v1 == v0` (fast path), `on_agent_round` is today's `apply.apply(buf,
+records)` unchanged — full per-record highlights + diagnoses.
 
 ### 4. Conflicts = prefilled instructions (no special mode)
 
-A conflict is just a `🤖<…>[please reconcile]` marker in the doc. There is no
-conflict state machine: the human waits, keeps editing, resolves it by hand, or
-resubmits immediately — and on the next Alt+Return it rides to the agent as an
+A conflict is just a `🤖<…>[reconcile — …]` marker in the doc. There is no
+conflict state machine: the human waits, keeps editing, resolves it by hand
+(Alt+r rejects the marker back to their own text; Alt+a is available too — §8),
+or resubmits immediately — and on the next Alt+Return it rides to the agent as an
 ordinary `🤖[…]` request (which `xx-fix` already fulfills). The reconcile loop is
 the existing round-trip.
 
 ### 5. Commit attribution — Option A
 
-The merged doc (which includes the human's concurrent v0→v1 edits) is committed
-as the **agent** round. Simple; everything is preserved in git; the human/agent
-alternation in docflow history is slightly muddied (the human's post-send edits
-ride into the agent round commit). Accepted — the cleaner Option B (a separate
-"commit, don't review" human round) is out of scope.
+The reconciled doc (which includes the human's concurrent v0→v1 edits) is
+committed as the **agent** round. Simple; everything is preserved in git; the
+human/agent alternation in docflow history is slightly muddied (the human's
+post-send edits ride into the agent round commit). Accepted — the cleaner Option
+B (a separate "commit, don't review" human round) is out of scope.
 
 ### 6. Multi-line `🤖<…>` support (prerequisite)
 
@@ -129,14 +179,79 @@ only**; `marker_end_pos`/apply are already multi-line. Needed:
   doc-offset spans, converting offsets → row/col, instead of the per-line
   `highlight_spans`);
 - `resolve_at_cursor` matching anywhere in `[start_line, end_line]`;
-- a budget bump / large-conflict cap so a big conflict block still parses.
+- **audit the other marker-position consumers** for multi-line: `jump_marker`
+  and `resolve_paragraph_to_cursor` also key off `m.line` (the marker *start*
+  line, `review.lua`) — confirm/repair their behavior for a marker spanning a
+  paragraph boundary;
+- raise `MULTILINE_LINE_BUDGET` to **200** and have the reconciler cap any single
+  conflict hunk it wraps at that budget (larger hunks split or fall back to a
+  short "region changed" marker) so a marker never fails to parse.
 
 ### 7. Protocol touches
 
 - **pair** `workshop/targets/review-protocol.md` — document the reconcile state:
-  the `v0` snapshot, merge-on-concurrent-edit, and conflict-marker semantics.
-- **ariadne** `xx-fix` SKILL — a note that `🤖<…>[please reconcile]` can wrap
-  git-style conflict text and how the agent reconciles it (small, cross-repo).
+  the `v0` snapshot, per-record reconcile-on-concurrent-edit, and conflict-marker
+  semantics.
+- **ariadne** `xx-fix` SKILL — a note that `🤖<…>[reconcile — …]` markers carry a
+  human region plus the agent's blocked intents, and how the agent reconciles
+  them (small, cross-repo).
+
+### 8. Edge cases & lifecycle
+
+- **`v0` threading + `on_agent_round` signature.** `v0` is snapshotted at each
+  send (in `mark_awaiting`) and stored on the review session
+  (`sessions[buf].base` in `init.lua`) via a new `review.set_base(buf, content)`;
+  `on_agent_round` reads it (its signature gains `v0` from the session, not a new
+  positional arg — the handoff watcher passes only records). Both `decide_apply`
+  (case 1) and the fast/reconcile branch read this `v0`. **First round / nil base:**
+  the normal flow always sends first (so `base` is set), but if `base` is nil
+  (never sent, or a stray handoff) `on_agent_round` treats it as the fast path —
+  `apply.apply(buf, records)` on the live buffer — and never reaches `vim.diff`.
+- **Gate ↔ spinner ↔ winbar wiring.** On DEFER, `on_agent_round` does not run, so
+  its `after_agent_round`→`clear_awaiting` never fires. Defer therefore
+  **explicitly** calls `clear_awaiting()` (the spinner meant "waiting for the
+  agent"; the agent has now replied) and raises the winbar. The winbar is the
+  single "pending" signal. Consuming the pending round (Alt+Return) clears the
+  winbar and runs `on_agent_round`; `VimLeave` teardown also clears it.
+- **At most one pending round; stray second handoff.** By protocol the agent
+  awaits the `agent_applied` commit poke before its next round, and that poke only
+  fires *after* apply — so while a round is pending (unapplied) no second handoff
+  is expected. Defensively, a second handoff **replaces** the pending records
+  (same `v0` — no new send happened, so the base is unchanged). Single pending
+  slot.
+- **Abandon with a pending round (`VimLeave`).** `handoff.watch` already unlinked
+  the handoff file on arrival, so the stashed records live only in memory. On
+  quit with a round pending we **drop it** (log a notify) — the agent's round is
+  left uncommitted, recoverable by re-review/resume (the reconstruct-on-open
+  path). No new persistence; quitting is the human's choice to abandon.
+- **`FocusLost` reliability.** Case 2 ("not focused → apply") depends on
+  `FocusLost` firing on a zellij pane switch, which terminal focus events may not
+  guarantee. Failure mode is **benign**: `focused` stays true, so we fall through
+  to the mode check and at worst DEFER (show the winbar) when we could have
+  applied — never an incorrect apply. Assumption stated; no extra machinery.
+- **`vim.diff` failure.** `vim.diff` is a pure builtin; if it errors (shouldn't),
+  the reconciler falls back to today's `apply.apply(buf, records)` on the live
+  buffer (best-effort; non-anchoring records drop with the existing WARN) rather
+  than blocking the round.
+- **Landed-artifact accounting (reconcile path).** `applied` = count of `clean`
+  records that landed; `conflicts` = count of conflict *markers* placed;
+  `dropped` = records `apply.apply` still rejects (empty-old / agent-internal
+  record overlap — unchanged, rare). `body` = `record.embed_in_body` of the
+  `clean` enriched records (the agent's actual applied edits); the conflict
+  markers live in the committed doc, and the poke summary reads
+  `"«N» edit(s)«, M conflict(s)»"`. The agent commits the working tree verbatim.
+- **Undo/redo decoration coherence.** Because reconcile is a *single*
+  `apply.apply` call (clean + synthetic-conflict records), the fast path's
+  projection dance (`projection.record_empty_for`/`record`/`ensure_watch`) applies
+  verbatim — one snapshot, one undo block — so undo/redo restores decorations with
+  no reconcile-specific handling.
+- **Agent-internal record overlap.** Two *agent* records targeting overlapping
+  spans still drop as today (`apply.lua` overlap guard); this is the agent's own
+  records colliding, distinct from human-vs-agent overlap (which is a conflict).
+- **Alt+a/Alt+r on a reconcile marker.** A `🤖<human>[reconcile — …]` is a valid
+  `<quoted>[user]` chain, so `resolve.resolve` acts on it: **reject** drops the
+  marker leaving the human's own text; accept is available but reconciliation is
+  normally the agent's job on resubmit. Confirmed intended.
 
 ## Done when
 
@@ -144,9 +259,12 @@ only**; `marker_end_pos`/apply are already multi-line. Needed:
   accepts/rejects it with the cursor on any of its lines; a conflict-sized block
   parses. Asserted headless in `make test-lua` / `make test-review`.
 - **M2**: with a concurrent edit seeded (`v1 ≠ v0`), driving an agent round
-  produces a git-merged buffer; non-overlapping edits merge cleanly (decorated),
-  overlaps become `🤖<…>[please reconcile]` markers; the fast path (`v1==v0`) is
-  unchanged. Protocol docs updated. Headless-tested.
+  reconciles per-record — records whose `old` still anchors apply cleanly
+  (decorated, span-granular: a non-overlapping edit to the *same line* stays
+  clean); records whose span the human changed become `🤖<…>[reconcile — …]`
+  markers placed on the human's changed hunk (`vim.diff`); the fast path
+  (`v1==v0`) is unchanged. Landed-artifact accounts `applied`/`conflicts`.
+  Protocol docs updated. Headless-tested.
 - **M3**: `decide_apply` returns apply/defer correctly for cases 1–4; a case-4
   handoff defers (no buffer change) and shows the winbar; Alt+Return with a
   pending round applies it (and without one, submits). Headless-tested.
@@ -155,8 +273,9 @@ only**; `marker_end_pos`/apply are already multi-line. Needed:
 
 - [ ] M1 — multi-line `🤖<…>` support (highlight across lines, within-range
   `resolve_at_cursor`, section-budget for conflict-sized blocks) + tests
-- [ ] M2 — reconcile engine (`v0` snapshot at send, fast/reconcile branch in
-  `on_agent_round`, `git merge-file`, conflict→`🤖<…>[please reconcile]`,
+- [ ] M2 — reconcile engine `nvim/review/reconcile.lua` (`v0` snapshot at send,
+  fast/reconcile branch in `on_agent_round`, per-record classify, `vim.diff`
+  conflict placement → `🤖<…>[reconcile — …]`, landed-artifact accounting,
   reconcile-path decorate/save/poke) + protocol docs + tests
 - [ ] M3 — apply-gate UX (pure `decide_apply`, defer-on-case-4 + winbar, focus/
   mode tracking, Alt+Return dual dispatch) + tests
@@ -170,9 +289,22 @@ writing-plans skill.)
 - **Why:** a hard modifiable=false lock is a workflow degradation; the human
   would rather keep editing. The record model already reconciles non-overlapping
   concurrent edits, so the lock only guarded overlaps + occurrence-shift.
-- **Delta:** part 1 "disable edit" → base-aware 3-way reconciliation with
-  conflict-as-marker (this Spec). Part 1's two "minor improvements" removed from
-  scope: smart-case search → **#101**; ask-to-squash-on-ship → its own issue.
+- **Delta:** part 1 "disable edit" → per-record concurrent-edit reconciliation
+  with conflict-as-marker (this Spec). Part 1's two "minor improvements" removed
+  from scope: smart-case search → **#101**; ask-to-squash-on-ship → its own issue.
+
+### 2026-07-05 — spec-review pass (mechanism change)
+- **Why:** the first draft used a whole-doc `git merge-file`, which is
+  line-granular and regresses prose (a paragraph is one long line → same-paragraph
+  edits falsely conflict); flagged by the spec-document-reviewer.
+- **Delta:** §3 reconciles **per-record** — anchor each record against the live
+  buffer (span-granular, today's behavior; no regression), and only records whose
+  span the human changed become conflicts, placed via `vim.diff` (nvim builtin,
+  no temp files/external process). Dropped the `git merge-file`/scratch-`v0.1`
+  path. Retracted the "fixes occurrence-shift" claim (kept as a noted out-of-scope
+  edge). Added §8 (edge cases & lifecycle) covering gate↔spinner↔winbar wiring,
+  single pending slot, `VimLeave`-abandon, `FocusLost` fallback, `v0` threading,
+  landed-artifact accounting, projection coherence, and reconcile-marker resolve.
 
 ## Log
 
@@ -186,4 +318,19 @@ writing-plans skill.)
   `markers.lua` (parse crosses lines w/ 50-line budget; highlighter is per-line),
   `marker_codec.lua` (`esc_quote` covers conflict delimiters), ariadne
   `docflow.sh` (`ship` is `--no-ff`, no squash).
+- Spec-review (spec-document-reviewer, fresh context) → Issues Found. Key finding:
+  whole-doc `git merge-file` is line-granular → prose regression. Reworked §3 to
+  per-record reconcile + `vim.diff` placement; added §8 for the enumerated
+  edge/lifecycle gaps (spinner↔winbar, pending-slot, abandon, focus, v0 threading,
+  landed accounting, projection, marker resolve).
+- Spec-review pass 2 → both prior blockers confirmed resolved + all code-grounding
+  verified; 2 new §3 wrinkles. Fixed: (a) escape **both** marker sections (`<…>`
+  and `[…]`) so unbalanced brackets in quoted code can't break the parse; (b)
+  dissolved the clean-vs-conflict ordering/undo tension by modeling each conflict
+  as a **synthetic replacement record** — the whole reconcile is one `apply.apply`
+  call (one snapshot, one undo block, `apply.apply` unchanged). Code-verified the
+  synthetic-record claim directly (`reconstruct.is_marker_proposal` → `🤖[<{~]` so
+  the marker gets `no_highlight`; `apply.exact_replacement_marker` needs an agent
+  `{}` section our `[user]` marker lacks → inserts verbatim) in lieu of a third
+  full pass; residual detail carried into the plan (with its own review gate).
 
