@@ -6,14 +6,21 @@ import (
 	"path/filepath"
 )
 
-// RunCopyOnSelectCLI is the copy-on-select command body (zellij copy_command).
-// The selection arrives on stdin.
-func RunCopyOnSelectCLI(stdin io.Reader, getenv func(string) string, stderr io.Writer) int {
+// RunCopyOnSelectCLI is the copy-on-select command body. Invoked two ways: by
+// zellij's copy_command with the selection on stdin (the fast HOOK), and by the
+// hook itself as `copy-on-select --orchestrate` (the detached paste orchestrator,
+// #100). The hook mirrors the selection and spawns the orchestrator; the
+// orchestrator does the slow flash + hand-off out from under zellij's reap.
+func RunCopyOnSelectCLI(args []string, stdin io.Reader, getenv func(string) string, stderr io.Writer) int {
 	home := getenv("PAIR_HOME")
 	if home == "" {
 		home = repoRootFromExe()
 	}
-	return RunCopyOnSelect(CopyOnSelectOptions{PairHome: home}, stdin, NewOSRuntime(), stderr)
+	opts := CopyOnSelectOptions{PairHome: home}
+	if len(args) > 0 && args[0] == "--orchestrate" {
+		return RunCopyOnSelectOrchestrate(opts, NewOSRuntime(), stderr)
+	}
+	return RunCopyOnSelect(opts, stdin, NewOSRuntime(), stderr)
 }
 
 // RunClipboardToPaneCLI is the clipboard-to-pane command body.

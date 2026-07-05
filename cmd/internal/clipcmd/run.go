@@ -33,6 +33,11 @@ type Runtime interface {
 	RunSubprocess(path string, args ...string) error // flash-pane (call-and-return)
 	ExecReplace(path string, args ...string) error   // clipboard-to-pane (process replace; only returns on error)
 
+	// SpawnDetached starts path in a new session (setsid) and does NOT wait — the
+	// copy-on-select hook uses it to hand the flash+paste to a process that
+	// outlives zellij's reap of the copy_command child (#100).
+	SpawnDetached(path string, args ...string)
+
 	// LogFresh truncates the clipboard-debug.log then writes line — called once
 	// at the pipeline head (copy-on-select) so the diagnostic holds exactly one
 	// selection's chain and doesn't grow unbounded. Log appends thereafter.
@@ -45,11 +50,12 @@ type CopyOnSelectOptions struct {
 	PairHome string
 }
 
-// RunCopyOnSelect is zellij's copy_command body: mirror the selection to the OS
-// clipboard, and — unless the selection was made in the nvim draft pane — flash
-// the source pane and hand off to clipboard-to-pane for the insert into nvim.
-// Returns the process exit code; on the hand-off path it does not return in
-// production (ExecReplace replaces the process).
+// RunCopyOnSelect is zellij's copy_command body — the HOOK: mirror the selection
+// to the OS clipboard, then hand the flash + paste to a DETACHED orchestrator and
+// return immediately. Keeping the slow zellij round-trips out of the hook is what
+// stops zellij reaping the copy_command child mid-paste (#100): the hook must
+// return fast on any machine, cold or warm. The orchestrator (setsid) reads the
+// selection back off the clipboard, so no data crosses the process boundary.
 func RunCopyOnSelect(opts CopyOnSelectOptions, stdin io.Reader, rt Runtime, stderr io.Writer) int {
 	rt.LogFresh("=== copy-on-select invoked ===")
 	sel, _ := io.ReadAll(stdin)
@@ -58,12 +64,30 @@ func RunCopyOnSelect(opts CopyOnSelectOptions, stdin io.Reader, rt Runtime, stde
 		return 0
 	}
 
-	// 1. Mirror to the OS clipboard so other apps see it (best-effort).
+	// Mirror to the OS clipboard so other apps see it AND so the detached
+	// orchestrator can read it back (via clipboard-to-pane). Best-effort. This
+	// completes before the spawn below, so the orchestrator's paste is populated.
 	if err := rt.ClipboardCopy(string(sel)); err != nil {
 		rt.Log("clipboard copy failed: " + err.Error())
 	}
 
-	// 2. Inspect the focused pane (where the selection happened).
+	// Detach the rest: the orchestrator (setsid) survives zellij's reap of this
+	// copy_command child, so the paste completes even when the chain is slow.
+	rt.SpawnDetached(opts.PairHome+"/bin/copy-on-select", "--orchestrate")
+	rt.Log(fmt.Sprintf("sel bytes: %d — detached orchestrator spawned; hook returning", len(sel)))
+	return 0
+}
+
+// RunCopyOnSelectOrchestrate is the detached second half (#100): inspect the
+// focused pane, and — unless the selection was made in the nvim draft pane — flash
+// the source pane and hand off to clipboard-to-pane for the insert into nvim. Runs
+// setsid'd (spawned by the hook), so zellij's reap of the copy_command child can't
+// truncate it. The selection is already on the OS clipboard (the hook mirrored it),
+// so this reads no stdin.
+func RunCopyOnSelectOrchestrate(opts CopyOnSelectOptions, rt Runtime, stderr io.Writer) int {
+	rt.Log("=== copy-on-select --orchestrate ===")
+
+	// Inspect the focused pane (where the selection happened).
 	focusedID := ""
 	inNvim := false
 	if out, err := rt.ListPanes(true); err == nil {
@@ -72,7 +96,7 @@ func RunCopyOnSelect(opts CopyOnSelectOptions, stdin io.Reader, rt Runtime, stde
 			inNvim = isNvimCommand(p.TerminalCommand)
 		}
 	}
-	rt.Log(fmt.Sprintf("sel bytes: %d in_nvim: %v focused_id: %q", len(sel), inNvim, focusedID))
+	rt.Log(fmt.Sprintf("in_nvim: %v focused_id: %q", inNvim, focusedID))
 
 	// When the selection happened in nvim, skip flash + hand-off — otherwise it
 	// would loop back and insert the selection beneath itself. (The "only paste
@@ -81,7 +105,7 @@ func RunCopyOnSelect(opts CopyOnSelectOptions, stdin io.Reader, rt Runtime, stde
 		return 0
 	}
 
-	// 3. Flash the source pane (delegated to the flash-pane Go binary so the flash
+	// Flash the source pane (delegated to the flash-pane Go binary so the flash
 	// idiom lives in one place). Call-and-return: the flash's bg reset is detached,
 	// so this doesn't block the hand-off's focus change.
 	flashScript := opts.PairHome + "/bin/flash-pane"
@@ -91,11 +115,14 @@ func RunCopyOnSelect(opts CopyOnSelectOptions, stdin io.Reader, rt Runtime, stde
 		}
 	}
 
-	// 4. Hand off to the clipboard-to-pane Go binary for the insert into nvim (it
-	// reads the OS clipboard populated in step 1). This replaces the process (the
+	// Hand off to the clipboard-to-pane Go binary for the insert into nvim (it
+	// reads the OS clipboard populated by the hook). This replaces the process (the
 	// shell's `exec`); it only returns here on failure.
 	clipScript := opts.PairHome + "/bin/clipboard-to-pane"
 	if err := rt.ExecReplace(clipScript); err != nil {
+		// Detached: stderr is /dev/null, so the debug log is the ONLY channel a
+		// failed hand-off can surface on — record it there too (close-review #100).
+		rt.Log(fmt.Sprintf("exec %s failed: %v", clipScript, err))
 		fmt.Fprintf(stderr, "copy-on-select: exec %s: %v\n", clipScript, err)
 		return 1
 	}

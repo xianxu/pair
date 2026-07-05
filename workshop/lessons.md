@@ -770,3 +770,28 @@ collision + the real rough figure in `--verified`, rather than committing the
 inflated number to the velocity ledger. Do NOT hand-type a "corrected" value either
 (that's the guessing the gate forbids); N/A-with-reason is the honest handling.
 Caught in #95.
+
+## Don't run slow, multi-round-trip orchestration inside a hook the invoker reaps
+
+#100: the whole copy-on-select paste chain (mirror → in_nvim probe → flash →
+focus → write, ~5 sequential `zellij action` client spawns at ~400ms each cold,
+~1.5–2s total) ran *inside* zellij's `copy_command` child. zellij SIGKILL-reaps
+that child after ~1s, so when the binaries were cold (dev-mode fleet rebuild on
+every restart → macOS first-run scan + cold page-in on first exec) the first copy
+after a restart was killed mid-chain and the paste silently dropped. Warm copies
+finished under the deadline, so it looked intermittent ("first copy fails, rest
+work"). The Go migration surfaced it: shell helpers needed no rebuild and had no
+fresh-binary first-exec cost.
+
+**Rule.** A hook invoked by an external supervisor (zellij `copy_command`, a git
+hook, an editor `formatexpr`, a shell `PROMPT_COMMAND`) runs on *that
+supervisor's* deadline, not yours — assume it can be reaped. Keep the hook to the
+one fast thing it owes the supervisor (here: mirror the selection to the
+clipboard) and `setsid`-detach anything slow so it outlives the reap. Diagnostic
+signature of an external reap vs. a code bug: the process dies at a **variable**
+point across runs with **no catchable signal** logged (SIGKILL) and nothing hung
+in `ps` — a code bug dies at the *same* spot every time. Prewarming only narrows
+the window and stays machine-speed dependent; detaching removes the deadline
+dependency entirely (the root-cause fix). Also: once a side effect is detached its
+stderr is `/dev/null`, so a debug-log line becomes the *only* channel a failure
+can surface on — log failures explicitly. Caught in #100 (diagnosis + close review).
