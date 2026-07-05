@@ -26,7 +26,10 @@ Pure core (run under `nvim -l`, colocated `*_test.lua`, `make test-lua`):
 - `markers.lua` (M2) — pure 🤖 review-request parser (ported from parley):
   `🤖<quoted>?(~strike~)?([user]|{agent})*` → marker records with `ready`/`pending`
   (last-section rule), excluding markers in fenced/inline code. The human's
-  in-doc review requests; M3 highlights from it, M4's agent reads it.
+  in-doc review requests; M3 highlights from it, M4's agent reads it. `spans_multiline`
+  (#89 M1) derives multi-line-aware highlight spans (`{row,col,end_row,end_col}`)
+  from the parser — a `🤖<…>` may cross rows (retiring the per-line `highlight_spans`);
+  `MULTILINE_LINE_BUDGET` = 200 so a large conflict-hunk quote still parses.
 - `mode.lua` (M2/M4d) — pure pair-side UI metadata for the 3 human assistance
   levels: Generate, Edit, Proofread. Pair does not carry prompt prose for these;
   their meanings live in ariadne's `xx-fix` skill. `menu.lua` (M4c/M4d) presents
@@ -104,9 +107,9 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
 - `nvim/review.lua` — the pane init (`nvim -u nvim/review.lua <file>`): dofiles the
   review core + poke + markers, `review.start{}`, wires **Alt+Return = finish human
   turn** (`human_round` save + `human_finished` poke), renders 🤖 markers
-  (`markers.highlight_spans` → `ParleyReview*` extmarks, re-rendered on
-  TextChanged), supports accept/reject on the cursor line (`Alt+a`/`Alt+r`, with
-  `\a`/`\r` fallbacks); when `Alt+a` is pressed outside a marker but inside an
+  (`markers.spans_multiline` → multi-line `ParleyReview*` extmarks, re-rendered on
+  TextChanged), supports accept/reject on any line a marker spans (`Alt+a`/`Alt+r`,
+  with `\a`/`\r` fallbacks; multi-line-aware since #89 M1); when `Alt+a` is pressed outside a marker but inside an
   agent-applied highlight, it clears that highlight + matching diagnosis as an
   acceptance gesture. It inserts human comment markers (`Alt+q` bare marker or visual
   quote), exposes `:PairReviewShip` as an agent-owned ship request, plus marker

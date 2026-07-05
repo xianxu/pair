@@ -309,7 +309,7 @@ only**; `marker_end_pos`/apply are already multi-line. Needed:
 
 ## Plan
 
-- [ ] M1 — multi-line `🤖<…>` support (highlight across lines, within-range
+- [x] M1 — multi-line `🤖<…>` support (highlight across lines, within-range
   `resolve_at_cursor`, section-budget for conflict-sized blocks) + tests
 - [ ] M2 — reconcile engine `nvim/review/reconcile.lua` (`v0` snapshot at send,
   fast/reconcile branch in `on_agent_round`, per-record classify, `vim.diff`
@@ -378,4 +378,12 @@ writing-plans skill.)
   hard invariant); the *agent* round stays droppable on quit/crash because a
   resubmit re-derives it (idempotent recovery — operator OK with this). No
   pending-round persistence. §1 / §8 / M3 updated.
+- change-code gates passed: plan-quality CLEAN (high), estimate-quality INFO
+  (non-blocking). Branch `000089-…` in place; `estimate_hours: 11.66`.
+- **M1 done** (multi-line markers). 1.1 `spans_multiline` supersedes the per-line
+  `highlight_spans` (multi-line extmarks; ARCH-DRY, one highlight path). 1.2
+  `resolve_at_cursor` matches a marker from any line it spans. 1.3 audited
+  `jump_marker`/`resolve_paragraph_to_cursor` — already multi-line-correct
+  (characterization test, no code change). 1.4 `MULTILINE_LINE_BUDGET` 50→200.
+  `make test-lua` + `make test-review` green.
 
