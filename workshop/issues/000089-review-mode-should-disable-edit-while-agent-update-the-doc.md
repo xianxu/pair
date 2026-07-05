@@ -350,6 +350,7 @@ writing-plans skill.)
 ### 2026-06-30
 
 ### 2026-07-05
+- 2026-07-05: closed M1 — make test-lua + make test-review green (exit 0); new asserts: spans_multiline cross-row span, resolve_at_cursor within-range on a multi-line marker, multi-line paragraph resolve, budget-200 parse (markers_test + review-window-test); review verdict: SHIP
 - Rescoped after brainstorm (superpowers-brainstorming). Confirmed with operator:
   reconciliation over lock; commit attribution Option A; milestones M1→M2→M3;
   smart-case split to #101.
