@@ -5,6 +5,7 @@ deps: []
 created: 2026-06-30
 updated: 2026-07-05
 started: 2026-07-05T12:07:32-07:00
+estimate_hours: 11.66
 ---
 
 # review mode should disable edit while agent update the doc
@@ -41,6 +42,29 @@ the human didn't touch still anchors and applies. Two failure modes remain:
 The lock exists only to preserve the invariant *what-the-agent-saw ==
 what's-in-the-buffer*. We make that invariant explicit and reconcile against it
 per-record instead of enforcing it by disabling the human.
+
+## Estimate
+
+Derived against `estimate-logic-v3.1` (ship wall-clock, AI-paired). Itemized by the
+plan's milestones: M1 = one focused Lua/Neovim unit (multi-line markers); M2 splits
+into the pure reconcile module + the glue/`init.lua` wiring; M3 = the apply-gate +
+pane wiring (the heaviest — focus/mode/winbar/save + live smoke). Plus one
+`milestone-review` per boundary and the atlas/protocol/skill docs.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+design-buffer: 0.30
+item: lua-neovim         design=0.4 impl=1.2
+item: lua-neovim         design=0.6 impl=1.8
+item: lua-neovim         design=0.5 impl=2.0
+item: lua-neovim         design=0.7 impl=2.6
+item: milestone-review   design=0.0 impl=0.2
+item: milestone-review   design=0.0 impl=0.2
+item: milestone-review   design=0.0 impl=0.2
+item: atlas-docs         design=0.0 impl=0.6
+total: 11.66
+```
 
 ## Spec
 
