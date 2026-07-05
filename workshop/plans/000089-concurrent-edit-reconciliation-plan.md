@@ -89,51 +89,53 @@ do
   end
   assert(quoted, 'expected a quoted span')
   assert(quoted.row == 0, 'quoted starts on row 0, got ' .. tostring(quoted.row))
+  assert(quoted.col == 7, 'quoted starts at the 🤖 col (after "before "), got ' .. tostring(quoted.col))
   assert(quoted.end_row == 1, 'quoted ends on row 1, got ' .. tostring(quoted.end_row))
 end
 ```
+
+(The `col == 7` assertion pins the start to the 🤖 itself — `highlight_spans` starts the quoted/strike span at the marker, not at the `<`.)
 
 - [ ] **Step 2: Run to verify it fails.** `nvim -l nvim/review/markers_test.lua` → FAIL (`spans_multiline` nil).
 
 - [ ] **Step 3: Implement `M.spans_multiline`** in `markers.lua`. Reuse `parse_markers` (already multi-line) and convert its doc-offset spans to (row,col). Add near `highlight_spans`:
 
 ```lua
--- Doc-offset (1-based into table.concat(lines,'\n')) → (row0, col0).
-local function offset_to_rowcol(line_starts, offset)
-  local lo, hi = 1, #line_starts
-  while lo < hi do
-    local mid = math.floor((lo + hi) / 2) + 1
-    if line_starts[mid] <= offset then lo = mid else hi = mid - 1 end
-  end
-  return lo - 1, offset - line_starts[lo]
-end
-
 -- Multi-line highlight spans from the multi-line parser. Unlike highlight_spans
 -- (per-line), a 🤖<…>/section span may cross rows (end_row > row).
 function M.spans_multiline(lines)
   local line_starts, off = {}, 1
   for i, line in ipairs(lines) do line_starts[i] = off; off = off + #line + 1 end
-  local function span(a, b, hl)
-    local r0, c0 = offset_to_rowcol(line_starts, a)
-    local r1, c1 = offset_to_rowcol(line_starts, b)
-    return { row = r0, col = c0, end_row = r1, end_col = c1, hl_group = hl }
+  -- 1-based doc offset → (row0, col0); same binary search parse_markers uses.
+  local function pos_of(offset)
+    local lo, hi = 1, #line_starts
+    while lo < hi do
+      local mid = math.floor((lo + hi) / 2) + 1
+      if line_starts[mid] <= offset then lo = mid else hi = mid - 1 end
+    end
+    return lo - 1, offset - line_starts[lo]
   end
   local spans = {}
   for _, m in ipairs(M.parse_markers(lines)) do
-    if m.quoted then spans[#spans+1] = span(m.quoted.byte_start - 1, m.quoted.byte_end, 'ParleyReviewQuoted') end
-    if m.strike and m.strike.text ~= '' then
-      spans[#spans+1] = span(m.strike.byte_start - 1, m.strike.byte_end, 'ParleyReviewStrike')
+    -- push(start_row, start_col, end_offset_1based, hl)
+    local function push(sr, sc, endoff, hl)
+      local er, ec = pos_of(endoff)
+      spans[#spans + 1] = { row = sr, col = sc, end_row = er, end_col = ec, hl_group = hl }
     end
+    -- quoted/strike start at the 🤖 itself (m.line,m.col) — NOT at `<`/`~` —
+    -- matching highlight_spans (col_start = pos-1 = the marker). end = the closer.
+    if m.quoted then push(m.line, m.col, m.quoted.byte_end, 'ParleyReviewQuoted') end
+    if m.strike and m.strike.text ~= '' then push(m.line, m.col, m.strike.byte_end, 'ParleyReviewStrike') end
     for _, s in ipairs(m.sections) do
-      local hl = s.type == 'agent' and 'ParleyReviewAgent' or 'ParleyReviewUser'
-      spans[#spans+1] = span(s.byte_start - 1, s.byte_end, hl)
+      local sr, sc = pos_of(s.byte_start)  -- start at the [ / { bracket
+      push(sr, sc, s.byte_end, s.type == 'agent' and 'ParleyReviewAgent' or 'ParleyReviewUser')
     end
   end
   return spans
 end
 ```
 
-Note: `parse_markers`' `quoted.byte_start`/section `byte_start` are the bracket positions in the joined doc; `-1`/no-offset mirrors `highlight_spans`' existing `col_start = byte_start - 1, col_end = byte_end`. Verify against `highlight_spans` for the single-line case when writing.
+Note: `m.line`/`m.col` are the 🤖's 0-based row/col (from `parse_markers`); `quoted.byte_end`/section `byte_end` are the closer's 1-based doc offset. This mirrors `highlight_spans` exactly (quoted/strike from the 🤖, sections from their bracket) — just allowing `end_row > row`. Verify against `highlight_spans` for a single-line marker when writing (same cols).
 
 - [ ] **Step 4: Run to verify it passes.** `nvim -l nvim/review/markers_test.lua` → PASS.
 
@@ -294,7 +296,7 @@ do
   -- both sections escaped: no raw unescaped ] before the intended closer
   assert(s:match('^🤖<'), 'starts with quoted marker')
   local markers = dofile(here .. 'markers.lua')
-  local parsed = markers.parse_markers({ s })  -- single line? multi-line ok too
+  local parsed = markers.parse_markers(vim.split(s, '\n', { plain = true }))  -- feed as buffer lines
   assert(#parsed == 1, 'exactly one marker parses; got ' .. #parsed)
   assert(parsed[1].quoted.text == 'human [text]', 'quoted round-trips unescaped')
 end
@@ -345,17 +347,30 @@ do
   assert(#synth == 1, 'two conflicts in one hunk coalesce; got ' .. #synth)
   assert(synth[1].old == 'HUMAN para now', 'old = v1 hunk text')
   assert(synth[1].new:match('OLD') and synth[1].new:match('PARA'), 'both intents present')
+  assert(synth[1].reconcile == true, 'synthetic record is tagged for the body filter')
+end
+
+-- Repeated hunk text: the changed hunk's v1 text also appears earlier verbatim →
+-- the synthetic record's occurrence must point at the SECOND (changed) copy.
+do
+  local v0 = 'dup line\nZ\ndup line\ntail'   -- line 2 changes
+  local v1 = 'dup line\ndup line\ndup line\ntail'
+  local hunks = { { 2, 1, 2, 1 } }           -- v0 line 2 ↔ v1 line 2
+  local conflicts = { { old = 'Z', occurrence = 1, new = 'ZED', explain = 'z' } }
+  local synth = reconcile.plan_conflicts(conflicts, v0, v1, hunks)
+  assert(#synth == 1 and synth[1].old == 'dup line', 'hunk text is the changed line')
+  assert(synth[1].occurrence == 2, 'anchors the 2nd occurrence (the changed one), got ' .. tostring(synth[1].occurrence))
 end
 ```
 
 - [ ] **Step 2: Run** → FAIL.
 
 - [ ] **Step 3: Implement** `plan_conflicts`:
-  - Build `v0_lines`, `v1_lines` (split on `\n`). Precompute `v0` line-start offsets.
-  - For each conflict: `off = reconstruct.nth_offset(v0, r.old, r.occurrence or 1)`; `base_line = reconstruct.line_of(v0, off)` (0-based; use the `reconstruct` export verified in the spec — confirm the exact name, `line_of`/`pos_at`, when implementing).
-  - Find the hunk whose v0 range `[start_a-1, start_a-1+count_a)` (0-based) contains `base_line`. Group conflicts by that hunk index.
-  - For each group: extract the hunk's v1 text = `v1_lines[start_b .. start_b+count_b-1]` joined by `\n` (cap at 200 lines; if larger, use a short `"(region changed — N lines)"` placeholder text). `new = M.conflict_marker(hunk_text, intents_of_group)`. `occurrence` = which occurrence of `hunk_text` in `v1` (use `nth_offset` counting, or 1 if unique). `explain = "reconcile"`.
-  - Return the synthetic records (document order by hunk).
+  - Build `v0_lines`, `v1_lines` (`vim.split(..., '\n', {plain=true})`). `reconstruct.line_of(v0, off)` gives the 0-based line of an offset (verified export, `reconstruct.lua:26`).
+  - For each conflict record, resolve its **v0 line-span**: `s = nth_offset(v0, r.old, r.occurrence or 1)`; `first = line_of(v0, s)`, `last = line_of(v0, s + #r.old - 1)` — a record whose `old` spans lines must match a hunk it touches, not only its first line.
+  - Find the hunk whose **v0 range** `[start_a-1, start_a-1+max(count_a,1))` (0-based) **intersects** `[first, last]`. Group conflicts by that hunk index. (A conflict is classified as such because its `old` no longer exists in `v1` — so the human changed those bytes — so its v0 span always intersects some hunk. If, defensively, none intersects, emit a fallback single-line marker at the record's `first` line so the intent is never silently dropped — the exact bug this issue exists to kill.)
+  - For each group: `hunk_text = table.concat({v1_lines[start_b .. start_b+max(count_b,1)-1]}, '\n')` (cap at 200 lines; if larger, `hunk_text = string.format('(region changed — %d lines)', count_b)`). Compute the synthetic `old`'s **true positional occurrence** in `v1`: count non-overlapping matches of `hunk_text` in `v1` strictly before this hunk's v1 byte offset, `+1` (do **not** hardcode `1` — an identical hunk text elsewhere in `v1`, or two hunks sharing text, would otherwise anchor the marker at the wrong region). Emit `{ old = hunk_text, occurrence = <computed>, new = M.conflict_marker(hunk_text, intents_of_group), explain = 'reconcile', reconcile = true }`.
+  - Return the synthetic records in document order (by hunk v1 offset). The `reconcile = true` tag is what Task 2.5 filters on for the landed-artifact body.
 
 - [ ] **Step 4: Run** → PASS.
 
@@ -420,7 +435,16 @@ end
   - Add `reconcile = dofile(here .. 'reconcile.lua')`.
   - `function M.set_base(buf, content) if sessions[buf] then sessions[buf].base = content end end`.
   - Rename the current `on_agent_round` body to `M.apply_round(buf, records)`; at its top read `local v0 = (sessions[buf] or {}).base`; branch: `if v0 == nil or apply.buf_content(buf) == v0 then` → today's `apply.apply(buf, records)` path; `else` → `reconcile.reconcile_round(buf, records, v0)`. Keep the existing `before_agent_round`/save/`write_landed`/poke/`after_agent_round` scaffolding; capture `n_conflicts` from the reconcile branch (0 on fast path) for the landed accounting.
-  - Landed accounting: `summary = string.format('%d edit(s)%s', #enriched_clean, n_conflicts>0 and string.format(', %d conflict(s)', n_conflicts) or '')`; `applied = #enriched_clean`; add `conflicts = n_conflicts`. Embed only the *clean* enriched in the body (filter out synthetic — a synthetic record's `new` starts with `🤖<`, or track the split; prefer tracking `#split.clean` count so you embed exactly those).
+  - Landed accounting — **filter by the `reconcile` tag, not by count or by `new` prefix.** `apply.apply` sorts records by offset and drops some (`apply.lua:274`), so `enriched` is neither input-ordered nor 1:1 with input; and a *clean* exact-replacement's enriched `new` is itself a `🤖<old>{new}` marker (`display_new_for_record`, `apply.lua:106`), so a `🤖<`-prefix filter would wrongly drop clean marker-replacements. Because `plan_conflicts` stamps each synthetic record with `reconcile = true` and `apply.apply` copies extra record fields into `enriched` via `vim.tbl_extend('force', {}, it.rec)` (`apply.lua:313`), partition `enriched`:
+    ```lua
+    local clean_enriched, conflict_enriched = {}, {}
+    for _, nr in ipairs(enriched) do
+      if nr.reconcile then conflict_enriched[#conflict_enriched+1] = nr
+      else clean_enriched[#clean_enriched+1] = nr end
+    end
+    local n_applied, n_conf = #clean_enriched, #conflict_enriched
+    ```
+    `summary = string.format('%d edit(s)%s', n_applied, n_conf>0 and string.format(', %d conflict(s)', n_conf) or '')`; `applied = n_applied`; `conflicts = n_conf`; embed only `clean_enriched` in the body (`record.embed_in_body(summary, clean_enriched)`). This makes the counts and the committed body correct even when apply drops a record.
   - `M.on_agent_round(buf, records)` stays the watcher callback but now delegates: for M2 it simply calls `apply_round` (the gate arrives in M3). Keep it a thin wrapper so M3 only edits the wrapper.
 
 - [ ] **Step 4: Implement** `poke_bodies.agent_applied` conflict segment (+ its pure test): append ` (M to reconcile)` when conflicts > 0. Update `poke_bodies_test.lua`.
@@ -514,6 +538,8 @@ end
 
 `pane_state`/`on_defer` are nil in headless apply tests → default `{focused=false}` → always applies (preserves M2 tests). Injected by `review.lua` (Task 3.3).
 
+Note the nil-base edge: `decide_apply(nil, v1, true, 'i')` returns `'defer'` (case-1 `v1==v0` can't fire for a nil base). Benign — a stray first-round handoff mid-edit just defers, and Alt+Return → `apply_round` → nil base → fast path applies it. Acceptable; no special-case needed.
+
 - [ ] **Step 4: Run** → PASS. **Step 5: Commit** `#89 M3: init.lua on_agent_round consults the gate`.
 
 ### Task 3.3: pane wiring in `review.lua` — pane_state, defer, save, Alt+Return, winbar
@@ -533,11 +559,11 @@ end
   - `review.pane_state = function(_) return { focused = focused, mode = vim.fn.mode() } end`.
   - Pending slot: `local pending_records = nil`.
   - `review.on_defer = function(buf, records) pending_records = records; review.human_round(buf, 'defer') --[[saves]] ; clear_awaiting(); show_winbar(true) end`. (Uses `review.human_round`'s existing save so save-on-defer reuses one save path — ARCH-DRY.)
-  - `mark_awaiting`: after capturing the base, call `review.set_base(buf, apply_buf_content)` — snapshot `v0` = the just-saved content. (`finish_human_turn` saves via `human_round` *before* `mark_awaiting`, so the on-disk/base content is the submitted `v0`.)
-  - `finish_human_turn` (Alt+Return): at the top, `if pending_records then local r = pending_records; pending_records = nil; show_winbar(false); return review.apply_round(buf, r) end` — consume the pending round instead of submitting. (Wire the same guard into the `<M-S-CR>` menu handler: pending → apply, else open menu.)
+  - **Snapshot `v0` in `finish_human_turn`, not `mark_awaiting`.** After `review.human_round(buf, 'updated')` saves (existing line, `review.lua:452`), call `review.set_base(buf, apply.buf_content(buf))` — the just-saved submitted content. Do NOT put `set_base` in `mark_awaiting`: `request_ship` (`review.lua:466`) also calls `mark_awaiting` but does *not* save first, so a base captured there would be the unsaved buffer. (A ship produces no reconcile round, so it needs no base.) `finish_human_turn`'s save-then-`set_base` ordering matches the spec §8 v0 contract.
+  - `finish_human_turn` (Alt+Return): at the very top (before the save), `if pending_records then local r = pending_records; pending_records = nil; show_winbar(false); return review.apply_round(buf, r) end` — consume the pending round instead of submitting. (Wire the same guard into the `<M-S-CR>` menu handler: pending → apply, else open menu.)
   - `show_winbar(on)`: `vim.wo.winbar = on and '%#WarningMsg#✨ agent results ready · ⌥⏎ to apply' or ''`. Clear it in `after_agent_round` and on consume.
-  - `VimLeave` (extend the existing teardown autocmd): `if vim.bo[buf].modified then pcall(save, buf) end`.
-  - Expose `review.apply_round`, `review.set_base` from `init.lua` (they exist there); `review.human_round` already exposed.
+  - `VimLeave` (extend the existing teardown autocmd, `review.lua:554`): `if vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].modified then pcall(review.human_round, buf, 'exit') end` — reuse the exposed `human_round` save; **do not** reference `init.lua`'s file-local `save` (out of scope here).
+  - Expose `review.apply_round`, `review.set_base` from `init.lua` (add them to the returned `M`); `review.human_round` is already exposed.
 
 - [ ] **Step 4: Run** `make test-lua && bash tests/review-window-test.sh && bash tests/review-loop-test.sh` → PASS.
 
