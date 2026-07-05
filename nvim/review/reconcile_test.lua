@@ -34,5 +34,33 @@ do
   eq(#r.clean, 1, 'missing occurrence defaults to 1 (clean)')
 end
 
+-- conflict_marker: 🤖<human hunk>[reconcile — agent wanted: …]. BOTH sections
+-- escaped, so unbalanced brackets in quoted code (a[0], stray ]) can't break parse.
+do
+  local markers = dofile(here .. 'markers.lua')
+  local s = reconcile.conflict_marker('human [text]', {
+    { old = 'a[0]', new = 'b', explain = 'why' },
+  })
+  eq(s:sub(1, #'🤖<'), '🤖<', 'starts with quoted marker')
+  local parsed = markers.parse_markers(vim.split(s, '\n', { plain = true }))
+  eq(#parsed, 1, 'exactly one marker parses despite brackets in code')
+  eq(parsed[1] and parsed[1].quoted and parsed[1].quoted.text, 'human [text]',
+    'quoted body round-trips unescaped')
+  -- the agent's blocked intent (old → new) is carried in the [...] section
+  local sect = parsed[1] and parsed[1].sections[1]
+  eq(sect ~= nil and sect.text:find('a[0]', 1, true) ~= nil, true, 'intent old present')
+  eq(sect ~= nil and sect.text:find('→ b', 1, true) ~= nil, true, 'intent new present')
+end
+
+-- multi-line hunk → multi-line quoted body still parses (budget 200, M1).
+do
+  local markers = dofile(here .. 'markers.lua')
+  local s = reconcile.conflict_marker('line one\nline two', { { old = 'o', new = 'n' } })
+  local parsed = markers.parse_markers(vim.split(s, '\n', { plain = true }))
+  eq(#parsed, 1, 'multi-line hunk marker parses')
+  eq(parsed[1] and parsed[1].quoted and parsed[1].quoted.text, 'line one\nline two',
+    'multi-line quoted body round-trips')
+end
+
 if fails > 0 then os.exit(1) end
 print('reconcile_test ok')

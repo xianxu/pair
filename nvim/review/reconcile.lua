@@ -24,4 +24,19 @@ function M.classify(records, v1)
   return { clean = clean, conflicts = conflicts }
 end
 
+-- One conflict marker: 🤖<human hunk>[reconcile — agent wanted: • old → new (why …)].
+-- BOTH the <…> body and every variable field inside [...] (old/new/explain) run
+-- through esc_quote (escapes <>[]{}\), so brackets in quoted code can never break
+-- the marker's parse — the only unescaped `]` is the closer. Structural text
+-- (the bullets, arrows, "why:") carries no marker delimiters. Pure.
+function M.conflict_marker(hunk_text, intents)
+  local esc = marker_codec.esc_quote
+  local lines = { '🤖<' .. esc(hunk_text) .. '>[reconcile — agent wanted:' }
+  for _, it in ipairs(intents or {}) do
+    local why = (it.explain and it.explain ~= '') and (' (why: ' .. esc(it.explain) .. ')') or ''
+    lines[#lines + 1] = '  • ' .. esc(it.old or '') .. ' → ' .. esc(it.new or '') .. why
+  end
+  return table.concat(lines, '\n') .. ']'
+end
+
 return M
