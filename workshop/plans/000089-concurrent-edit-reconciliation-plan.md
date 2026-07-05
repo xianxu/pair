@@ -475,6 +475,29 @@ end
 
 **Milestone review boundary.** Closes with `sdlc milestone-close --issue 89 --milestone M3`, then `sdlc close`.
 
+### Task 3.0: clean-edit-inside-conflict-hunk decision (M2-review 3.1)
+
+**Context:** the M2 boundary review found that a *clean* record sharing a
+human-changed line with a *conflict* is dropped by `apply`'s overlap guard (the
+conflict's line-granular synthetic `old` contains the clean record's span). Counted
++ WARNed, never silent, but a clean edit vanishes for a round. Common in prose (one
+paragraph = one line). Dormant until the live path exists — so decide it here,
+before the M3 live smoke.
+
+- [ ] **Step 1: characterization test** in `nvim/review/reconcile_test.lua` (or the
+  reconcile process test): `v0="the foo and bar here"`, `v1="the foo and baz here"`
+  (human changed `bar→baz`), records `{foo→FOO clean, bar→BAR conflict}`. Assert the
+  chosen behavior.
+- [ ] **Step 2: decide + implement.** Recommended **(a) fold**: in `reconcile_round`
+  (after `classify` + `plan_conflicts`, before the combined `apply.apply`), move any
+  clean record whose `v1` anchor offset falls within a synthetic conflict record's
+  `v1` line span out of `clean` and into that conflict's intent list (so its
+  `old→new` appears in the marker, and it no longer overlaps). This surfaces the
+  agent's full intent for the contested line in one marker. Fallback **(b) accept**
+  the counted drop — only if fold proves fiddly; document the choice.
+- [ ] **Step 3: run** `nvim -l nvim/review/reconcile_test.lua` + `make test-review` → PASS.
+- [ ] **Step 4: commit** `#89 M3: <fold|accept> clean-edit-inside-conflict-hunk (M2-review 3.1)`.
+
 ### Task 3.1: `gate.decide_apply` (pure)
 
 **Files:**
@@ -591,3 +614,17 @@ Note the nil-base edge: `decide_apply(nil, v1, true, 'i')` returns `'defer'` (ca
 - **ARCH-PURE:** the reasoning is pure and unit-tested without IO — `gate.decide_apply`, `reconcile.classify`/`conflict_marker`/`plan_conflicts`, `markers.spans_multiline`. The IO seams (`reconcile_round`'s `vim.diff` + `apply.apply`; `init.lua` orchestration; `review.lua` focus/mode/winbar/save) are thin and inject the pure results. `plan_conflicts` deliberately takes `hunks` as data so the hard mapping logic is testable without `vim.diff`.
 - **ARCH-DRY:** the whole reconcile is one `apply.apply` call (no second apply path); `classify` reuses `reconstruct.nth_offset` (the same anchor test apply runs); `spans_multiline` derives from `parse_markers` (the one multi-line parser), retiring the per-line `highlight_spans` for rendering; save-on-defer reuses `human_round`'s save.
 - **ARCH-PURPOSE:** the protocol docs (Task 2.6) make the *agent* consumer derive the reconcile-marker semantics — the point isn't just that pair renders the marker, it's that the agent reconciles it; leaving the agent side as un-updated docs would be under-delivering the purpose.
+
+## Revisions
+
+### 2026-07-05 — M2-review 3.1: clean edit inside a conflict hunk
+- **Why:** the M2 boundary review found the spec/plan claim "clean spans and
+  conflict hunks are disjoint by construction" is false *within a line*: conflict
+  placement is line-granular (synthetic `old` = the whole changed line) while clean
+  edits are span-granular, so a clean edit sharing a human-changed line with a
+  conflict is dropped by `apply`'s overlap guard (counted + WARNed, re-proposed next
+  round — never silent). Common in prose (one paragraph = one long line).
+- **Delta:** corrected the invariant in the issue Spec §3/§8; added **Task 3.0** to
+  decide the handling (recommended: fold the clean edit into the conflict marker's
+  intent list) with a characterization test, before the M3 live smoke. No M2 code
+  change — dormant until M3 wires the live `v0` path.

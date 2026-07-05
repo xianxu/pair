@@ -164,10 +164,17 @@ hazard.
    records get `DiffChange` highlights + `explain` diagnoses; a synthetic record's
    `new` is a marker proposal, so `apply`'s `is_marker_proposal` path sets
    `no_highlight` and it self-highlights via `render_markers` (M1) instead, with
-   the short `"reconcile"` gutter diagnosis. Clean spans and conflict hunks are
-   disjoint by construction; `apply`'s overlap guard (`apply.lua:282`) covers any
-   pathological coincidence. Projection snapshot dance runs as in the fast path
-   (§8), so undo/redo stays coherent.
+   the short `"reconcile"` gutter diagnosis. **Clean spans and conflict hunks are
+   disjoint *across lines*, but not always within a line:** conflict placement is
+   line-granular (the synthetic `old` is the whole changed hunk line) while clean
+   edits are span-granular, so a clean edit sharing a *human-changed line* with a
+   conflict falls inside the synthetic `old` and `apply`'s overlap guard
+   (`apply.lua:282`) drops it — **counted in `dropped` + WARNed, never silent**,
+   re-proposed next round. This is the common prose case (a paragraph is one long
+   line), not pathological (M2-review 3.1). **M3 decides the handling** (§8):
+   fold such a clean edit into the conflict marker's intent list vs. accept the
+   counted drop. Projection snapshot dance runs as in the fast path (§8), so
+   undo/redo stays coherent.
 4. **Save + poke** — save; write the landed-artifact (embedding only the *clean*
    enriched records as the agent's actual edits; accounting in §8) and poke
    `agent_applied` so the agent commits the round (Option A).
@@ -284,6 +291,17 @@ only**; `marker_end_pos`/apply are already multi-line. Needed:
 - **Agent-internal record overlap.** Two *agent* records targeting overlapping
   spans still drop as today (`apply.lua` overlap guard); this is the agent's own
   records colliding, distinct from human-vs-agent overlap (which is a conflict).
+- **Clean edit inside a conflict hunk (M2-review 3.1) — M3 decision.** When a
+  clean record shares a *human-changed line* with a conflict, the conflict's
+  line-granular synthetic `old` (the whole line) contains the clean record's span,
+  so `apply`'s overlap guard drops the clean record (counted + WARNed, re-proposed
+  next round — never silent). Common in prose (one paragraph = one line). **M3
+  decides:** (a) **fold** — before apply, detect a clean record whose `v1` span
+  falls inside a conflict hunk's `v1` line range and move it into that conflict's
+  intent list (surface `old→new` in the marker rather than dropping — arguably
+  *more* correct, since the whole line is contested); or (b) **accept** the counted
+  drop and leave it re-proposed. Decide with the live smoke, add a characterization
+  test either way.
 - **Alt+a/Alt+r on a reconcile marker.** A `🤖<human>[reconcile — …]` is a valid
   `<quoted>[user]` chain, so `resolve.resolve` acts on it: **reject** drops the
   marker leaving the human's own text; accept is available but reconciliation is
@@ -350,6 +368,7 @@ writing-plans skill.)
 ### 2026-06-30
 
 ### 2026-07-05
+- 2026-07-05: closed M2 — M2 boundary review FIX-THEN-SHIP fix applied: plan_conflicts never silently drops a blank-anchor conflict (nearest-non-empty fallback + all-blank-doc counted); blank-hunk/blank-line/huge-hunk/no-hunk tests added; full make test green; 3.2 note already on ariadne main; review verdict: FIX-THEN-SHIP
 - 2026-07-05: closed M2 — full make test green (exit 0); reconcile.lua pure classify/conflict_marker/plan_conflicts + reconcile_round glue; review-reconcile-test (clean-only/conflict/mixed-one-undo, real vim.diff) + loop-test concurrent-edit case; init apply_round fast/reconcile branch + landed conflicts accounting; protocol docs (pair + ariadne); review verdict: FIX-THEN-SHIP
 - 2026-07-05: closed M1 — make test-lua + make test-review green (exit 0); new asserts: spans_multiline cross-row span, resolve_at_cursor within-range on a multi-line marker, multi-line paragraph resolve, budget-200 parse (markers_test + review-window-test); review verdict: SHIP
 - Rescoped after brainstorm (superpowers-brainstorming). Confirmed with operator:
@@ -406,4 +425,13 @@ writing-plans skill.)
   checkout was transiently on a peer branch (`000145`). Minor findings
   (occurrence-counter family DRY, `#synth` vs authoritative count) noted,
   non-blocking.
+- **M2 re-review: FIX-THEN-SHIP again** — confirmed the 3.1 silent-drop fix + the
+  ariadne note (both good), but found a *new* real invariant violation: a **clean**
+  record sharing a human-changed line with a **conflict** is dropped by `apply`'s
+  overlap guard (the conflict's line-granular synthetic `old` swallows the clean
+  span) — counted+WARNed, never silent, but a clean edit vanishes for a round. The
+  spec's "disjoint by construction" claim was false within a line (common prose
+  case). Dormant until M3. Corrected the invariant in Spec §3/§8 + plan Revisions;
+  added **Task 3.0** to decide the handling (recommended: fold the clean edit into
+  the conflict marker's intents) before the M3 live smoke. No M2 code change.
 
