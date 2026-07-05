@@ -41,7 +41,17 @@ Integration seams (headless shell tests, `make test-review`):
   sequence so the round is separate from prior history; edits 2..N `undojoin`,
   E790-safe), **bottom-to-top** to avoid offset drift, decorates from the actual
   edited ranges, returns records enriched with `new_occurrence`. No file reload
-  (a reload would reset undo).
+  (a reload would reset undo). Copies extra record fields (e.g. `reconcile`) into
+  the enriched output via `tbl_extend`.
+- `reconcile.lua` (#89 M2) — concurrent-edit reconciliation. Pure core:
+  `classify(records, v1)` (clean = `old` still anchors via `reconstruct.nth_offset`
+  vs conflict), `conflict_marker(hunk_text, intents)` (the `🤖<…>[reconcile — …]`
+  wire format, both sections `esc_quote`'d), `plan_conflicts(conflicts, v0, v1,
+  hunks)` (coalesce conflicts by the `vim.diff` hunk they fall in → SYNTHETIC
+  replacement records tagged `reconcile=true`, occurrence repeated-hunk-safe,
+  deletions/huge-hunks never dropped). Thin glue `reconcile_round(buf, records,
+  v0)` = classify → `vim.diff` → plan_conflicts → ONE `apply.apply(clean ++
+  synthetic)`. `init.lua`'s `apply_round` calls it when `v1 ≠ v0`.
 - `docflow.lua` — thin wrapper shelling `$DOCFLOW_BIN` (ariadne's `docflow`):
   `start`/`round --side`/`status`/`ship`. The review nvim no longer calls it;
   it remains as a contract test surface for the commit shape the **agent**
@@ -202,10 +212,13 @@ docflow rounds.
 ## Tests
 
 - `make test-lua` — `record`, `reconstruct`, `markers`, `seam`, `mode`, `poke_bodies`,
-  `readiness`, `resolve`, `spinner`, `menu` (pure/headless).
+  `readiness`, `resolve`, `spinner`, `menu`, `reconcile` (classify/conflict_marker/
+  plan_conflicts, #89) (pure/headless).
 - `make test-review` — `docflow` (+ hermetic `tests/lib/fake-docflow.sh` and a
   gated smoke against the real ariadne `docflow.sh`), `apply` (incl. snapshot
-  round-trip), `handoff`, the `loop` e2e (with `tests/lib/fake-review-agent.sh`),
+  round-trip), `reconcile` (reconcile_round: clean-only / conflict / mixed one-undo,
+  #89), `handoff`, the `loop` e2e (with `tests/lib/fake-review-agent.sh`, + the
+  concurrent-edit reconcile case),
   and `projection` (undo/redo coherence + riding + round-2 idempotence); M3 adds
   `poke` (id-based agent poke, no relative move-focus), `window` (:PairReview +
   pair-review-open + review.lua: keymap/state/markers + Alt+Return round-trip),
