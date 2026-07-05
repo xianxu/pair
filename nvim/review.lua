@@ -285,10 +285,13 @@ local function resolve_at_cursor(buf, action)
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   local target
   for _, m in ipairs(markers.parse_markers(lines)) do
-    if m.line == row0 then
-      local _, end_col = marker_end_pos(m)
-      if not target then target = m end -- same-line fallback for legacy cursor placement
-      if cur[2] >= m.col and cur[2] < end_col then target = m; break end
+    local end_row, end_col = marker_end_pos(m)
+    if row0 >= m.line and row0 <= end_row then -- cursor on any line the marker spans (#89 M1)
+      if not target then target = m end -- first marker overlapping this line
+      -- precise containment across the (possibly multi-line) marker span
+      local after_start = row0 > m.line or cur[2] >= m.col
+      local before_end = row0 < end_row or cur[2] < end_col
+      if after_start and before_end then target = m; break end
     end
   end
   if not target then

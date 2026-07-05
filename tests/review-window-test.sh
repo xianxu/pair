@@ -192,6 +192,15 @@ local function check()
   local reject_line = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1]
   OUT:write((reject_line == 'hello old' and 'alt-r-reject\n') or ('NO-alt-r-reject ' .. tostring(reject_line) .. '\n'))
 
+  -- multi-line marker: cursor on the marker's SECOND line still resolves it (#89 M1)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'x 🤖<a', 'b>{c}', 'y' })
+  vim.api.nvim_win_set_cursor(0, { 2, 0 })  -- row 2 = the marker's second line
+  if _G.PairReviewPane and _G.PairReviewPane.resolve_at_cursor then
+    _G.PairReviewPane.resolve_at_cursor(buf, 'accept')
+  end
+  local ml_resolved = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n')
+  OUT:write((ml_resolved == 'x c\ny' and 'ml-resolve-in-range\n') or ('NO-ml-resolve-in-range ' .. tostring(ml_resolved) .. '\n'))
+
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'one 🤖<a>{A} two 🤖<b>{B}' })
   vim.api.nvim_win_set_cursor(0, { 1, 24 })
   if _G.PairReviewPane and _G.PairReviewPane.resolve_at_cursor then
@@ -356,6 +365,7 @@ grep -q '^cursor-scoped-diagnostic-lines$' "$RT/r3" && pass "diagnostic virtual 
 grep -q '^failed-poke-no-spinner$' "$RT/r3" && pass "failed poke does not leave spinner awaiting" || fail "failed-poke spinner behavior"
 grep -q '^alt-a-accept$' "$RT/r3" && pass "Alt+a accepts quoted agent replacement" || fail "Alt+a accept behavior"
 grep -q '^alt-r-reject$' "$RT/r3" && pass "Alt+r rejects to original quoted text" || fail "Alt+r reject behavior"
+grep -q '^ml-resolve-in-range$' "$RT/r3" && pass "resolve_at_cursor matches a multi-line marker from any of its lines" || fail "multi-line resolve-in-range"
 grep -q '^alt-a-under-cursor$' "$RT/r3" && pass "Alt+a resolves the marker under cursor" || fail "Alt+a marker-under-cursor behavior"
 grep -q '^alt-shift-a-paragraph-prefix$' "$RT/r3" && pass "Alt+Shift+a accepts paragraph suggestions through cursor" || fail "Alt+Shift+a paragraph-prefix behavior"
 grep -q '^alt-shift-r-paragraph-prefix$' "$RT/r3" && pass "Alt+Shift+r rejects paragraph suggestions through cursor" || fail "Alt+Shift+r paragraph-prefix behavior"
