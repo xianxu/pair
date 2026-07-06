@@ -126,6 +126,17 @@ local function check()
   OUT:write((vim.o.smoothscroll and 'review-smoothscroll\n') or 'NO-review-smoothscroll\n')
   OUT:write((vim.g.colors_name and 'review-colorscheme\n') or 'NO-review-colorscheme\n')
   OUT:write((vim.o.cmdheight == 0 and 'review-hidden-cmdline\n') or ('NO-review-hidden-cmdline ' .. tostring(vim.o.cmdheight) .. '\n'))
+  -- #101: smartcase search — assert both the flags AND the actual search behavior
+  -- (a regression that flips only one option would pass a flag-only check but fail
+  -- here). vim.fn.search honors ignorecase/smartcase.
+  OUT:write((vim.o.ignorecase and vim.o.smartcase and 'review-smartcase-opt\n') or ('NO-review-smartcase-opt ic=' .. tostring(vim.o.ignorecase) .. ' sc=' .. tostring(vim.o.smartcase) .. '\n'))
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'aaa', 'Foo' })
+  vim.api.nvim_win_set_cursor(0, { 1, 0 })
+  local ci_hit = vim.fn.search('foo', 'nW')   -- lowercase query, ignorecase → matches 'Foo' on line 2
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'aaa', 'foo' })
+  vim.api.nvim_win_set_cursor(0, { 1, 0 })
+  local cs_miss = vim.fn.search('Foo', 'nW')  -- uppercase query, smartcase → case-sensitive, no match on 'foo'
+  OUT:write((ci_hit == 2 and cs_miss == 0 and 'review-smartcase-search\n') or ('NO-review-smartcase-search ci=' .. ci_hit .. ' cs=' .. cs_miss .. '\n'))
   local status = vim.o.statusline
   local compact_status = status:find('🪄 Edit • %t%m', 1, true) and status:find('L%l/%L', 1, true)
     and not status:find('Alt+', 1, true)
@@ -402,6 +413,8 @@ grep -q '^review-breakindent$' "$RT/r3" && pass "review pane indents soft-wrappe
 grep -q '^review-smoothscroll$' "$RT/r3" && pass "review pane smooth-scrolls soft-wrapped lines" || fail "review smoothscroll option"
 grep -q '^review-colorscheme$' "$RT/r3" && pass "review pane loads a colorscheme" || fail "review colorscheme not loaded"
 grep -q '^review-hidden-cmdline$' "$RT/r3" && pass "review pane hides command line until : commands" || fail "review pane cmdheight"
+grep -q '^review-smartcase-opt$' "$RT/r3" && pass "review pane sets ignorecase+smartcase" || fail "review smartcase options"
+grep -q '^review-smartcase-search$' "$RT/r3" && pass "review search is smartcase (/foo matches Foo, /Foo does not match foo)" || fail "review smartcase search behavior"
 grep -q '^compact-mode-statusline$' "$RT/r3" && pass "review statusline is compact in mode state" || fail "review compact mode statusline"
 grep -q '^review-user-hl$' "$RT/r3" && pass "review user marker highlight matches parley" || fail "review user marker highlight"
 grep -q '^review-agent-hl$' "$RT/r3" && pass "review agent marker highlight matches parley" || fail "review agent marker highlight"

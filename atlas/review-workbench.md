@@ -130,8 +130,10 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   agent-applied highlight, it clears that highlight + matching diagnosis as an
   acceptance gesture. It inserts human comment markers (`Alt+q` bare marker or visual
   quote), exposes `:PairReviewShip` as an agent-owned ship request, plus marker
-  navigation (`]m`/`[m`), sets review-local clipboard/cursor defaults (`unnamedplus`,
-  blinking cursor), writes the open-state file (line 1 = pane nvim `pid` for
+  navigation (`]m`/`[m`), sets review-local clipboard/cursor/search defaults
+  (`unnamedplus`, blinking cursor, `ignorecase`+`smartcase` so `/foo` matches
+  case-insensitively but `/Foo` stays case-sensitive — #101), writes the
+  open-state file (line 1 = pane nvim `pid` for
   liveness, line 2 = the absolute doc path for the indicator), and tears down on
   `VimLeave`. Also defines `PairReviewToggle()` = hide-self (the case where Alt+c
   fires from inside the focused floating review pane). Pane-open no longer sends a
