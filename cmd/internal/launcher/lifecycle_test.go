@@ -81,7 +81,10 @@ func TestRunLaunchQuitCleanup(t *testing.T) {
 	if contains(rt.removed, "/data/scrollback-bugfix-claude.raw") {
 		t.Fatalf("parked raw must be preserved; removed=%v", rt.removed)
 	}
-	for _, want := range []string{"/data/outer-tty-bugfix", "/data/agent-bugfix", "/data/scrollback-bugfix-claude.ansi", "/data/adapt-bugfix.jsonl"} {
+	// #97: the agent's pane file is a per-(tag,agent) sidecar too — quit must
+	// remove it (quitAgent falls back to step.agent="claude" here) so no stale
+	// twin survives to mislead the frame poller.
+	for _, want := range []string{"/data/outer-tty-bugfix", "/data/agent-bugfix", "/data/scrollback-bugfix-claude.ansi", "/data/adapt-bugfix.jsonl", "/data/pane-bugfix-claude.json"} {
 		if !contains(rt.removed, want) {
 			t.Fatalf("sidecar %q not removed; removed=%v", want, rt.removed)
 		}

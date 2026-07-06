@@ -78,7 +78,11 @@ func runCleanup(env Env, rt Runtime, step launchStep, parkTimeout int, out io.Wr
 		}
 	}
 
-	// Remove the per-tag sidecars (shell 1583-1591).
+	// Remove the per-tag sidecars (shell 1583-1591). pane-<tag>-<quitAgent>.json
+	// (written by the agent pane's zellij layout, main.kdl) was historically
+	// omitted here — the leak behind #97: a surviving twin misled the frame
+	// poller when the tag was later paired with a different agent. Cleaning it on
+	// quit stops new twins at the source (the poller also filters defensively).
 	for _, rel := range []string{
 		"outer-tty-" + step.tag,
 		"agent-" + step.tag,
@@ -87,6 +91,7 @@ func runCleanup(env Env, rt Runtime, step launchStep, parkTimeout int, out io.Wr
 		"adapt-" + step.tag + ".jsonl",
 		"image-capture-" + step.tag,
 		"image-capture-" + step.tag + ".done",
+		"pane-" + step.tag + "-" + quitAgent + ".json",
 	} {
 		rt.Remove(filepath.Join(dataDir, rel))
 	}
