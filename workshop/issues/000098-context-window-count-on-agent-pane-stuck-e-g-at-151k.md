@@ -1,11 +1,12 @@
 ---
 id: 000098
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-07-01
-updated: 2026-07-01
+updated: 2026-07-05
 estimate_hours:
+started: 2026-07-05T21:45:50-07:00
 ---
 
 # context-window count on agent pane stuck (e.g. at 151k)
