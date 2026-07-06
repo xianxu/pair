@@ -1,11 +1,12 @@
 ---
 id: 000101
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-07-05
-updated: 2026-07-05
+updated: 2026-07-06
 estimate_hours:
+started: 2026-07-06T14:46:52-07:00
 ---
 
 # review nvim search should be case-insensitive (smartcase)
