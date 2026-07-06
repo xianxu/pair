@@ -367,6 +367,7 @@ writing-plans skill.)
 ### 2026-06-30
 
 ### 2026-07-05
+- 2026-07-05: closed M3 — full make test green (exit 0); M3: gate.decide_apply (5-case pure gate), init on_agent_round defers on mid-edit, review.lua pane_state/on_defer/winbar/pending-consume/save-on-defer+VimLeave, Task 3.0 fold clean-edit-inside-conflict; gate_test + reconcile fold tests + review-window M3 asserts; review verdict: FIX-THEN-SHIP
 - 2026-07-05: closed M2 — M2 boundary review FIX-THEN-SHIP fix applied: plan_conflicts never silently drops a blank-anchor conflict (nearest-non-empty fallback + all-blank-doc counted); blank-hunk/blank-line/huge-hunk/no-hunk tests added; full make test green; 3.2 note already on ariadne main; review verdict: FIX-THEN-SHIP
 - 2026-07-05: closed M2 — full make test green (exit 0); reconcile.lua pure classify/conflict_marker/plan_conflicts + reconcile_round glue; review-reconcile-test (clean-only/conflict/mixed-one-undo, real vim.diff) + loop-test concurrent-edit case; init apply_round fast/reconcile branch + landed conflicts accounting; protocol docs (pair + ariadne); review verdict: FIX-THEN-SHIP
 - 2026-07-05: closed M1 — make test-lua + make test-review green (exit 0); new asserts: spans_multiline cross-row span, resolve_at_cursor within-range on a multi-line marker, multi-line paragraph resolve, budget-200 parse (markers_test + review-window-test); review verdict: SHIP
@@ -433,4 +434,16 @@ writing-plans skill.)
   case). Dormant until M3. Corrected the invariant in Spec §3/§8 + plan Revisions;
   added **Task 3.0** to decide the handling (recommended: fold the clean edit into
   the conflict marker's intents) before the M3 live smoke. No M2 code change.
+- **M3 done** (apply-gate + durability). Task 3.0 fold (clean-inside-conflict →
+  marker's intents; the M2-review 3.1 finding, genuinely fixed). `gate.decide_apply`
+  (pure 5-case) → `init.on_agent_round` defers on mid-edit → `review.lua` pane
+  wiring (`pane_state`, `on_defer` save+winbar, single pending slot, Alt+Return dual
+  dispatch, `v0` snapshot after save, save-on-`VimLeave`). Full `make test` green.
+- **M3 review: FIX-THEN-SHIP** — gate/defer/fold/durability all confirmed correct;
+  one Important (save-on-`VimLeave` was code-only) + 4 minor. All fixed: added the
+  VimLeave-save headless test; clear `pending_records` on a direct apply (stale-Alt+
+  Return edge); DRY'd `buf_content` (shared `review.buf_content = apply.buf_content`);
+  corrected two comments. `make test` green. **Remaining: the live pane smoke**
+  (real zellij focus + winbar + agent round-trip, incl. defer→quit→reopen durability)
+  — can't run headless; must be recorded from an actual keyboard run at issue close.
 
