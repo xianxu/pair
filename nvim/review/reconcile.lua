@@ -104,9 +104,10 @@ end
 
 local MAX_HUNK_LINES = 200
 
--- Nearest NON-EMPTY line to `start_idx` (1-based), searching backward first (so a
--- deletion's marker lands on the preceding kept line, where the content was), then
--- forward. Returns the index, or nil when every line is empty (degenerate blank doc).
+-- Nearest NON-EMPTY line to `start_idx` (1-based). Checks start_idx itself first
+-- (d=0), then walks outward backward-before-forward at each distance. Returns the
+-- index, or nil when every line is empty (degenerate blank doc). So a deletion's
+-- marker lands on the hunk's own v1 line if non-empty, else the closest kept line.
 local function nearest_nonempty(lines, start_idx)
   local n = #lines
   start_idx = math.max(1, math.min(start_idx or 1, n))

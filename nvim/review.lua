@@ -433,11 +433,9 @@ local function clear_awaiting()
   refresh_statusline()
 end
 
--- Buffer content joined exactly as apply.buf_content does (no trailing newline), so
--- the v0 snapshot compares equal to the reconcile engine's v1 (#89 M3).
-local function buf_content(buf)
-  return table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n')
-end
+-- The v0 snapshot must join exactly as the reconcile engine's v1 (apply.buf_content),
+-- so use the one shared implementation rather than re-deriving it (#89 M3).
+local buf_content = review.buf_content
 
 -- Apply-gate state (#89 M3). The human is never locked; a landed round only DEFERS
 -- while they're mid-edit on the pane. pending_records holds the single deferred
@@ -448,7 +446,7 @@ local pending_records = nil
 -- Track pane focus for the gate (case 2: not focused → apply immediately). Terminal
 -- focus events may not fire on a zellij pane switch — the failure mode is benign
 -- (focused stays true → at worst we DEFER when we could have applied, never a wrong
--- apply; spec §8). BufEnter/BufLeave cover the in-nvim case.
+-- apply; spec §8). FocusGained/BufEnter re-assert focus on return; FocusLost drops it.
 vim.api.nvim_create_autocmd({ 'FocusGained', 'BufEnter' }, { callback = function() pane_focused = true end })
 vim.api.nvim_create_autocmd({ 'FocusLost' }, { callback = function() pane_focused = false end })
 
@@ -472,6 +470,11 @@ review.on_defer = function(buf, records)
 end
 
 review.after_agent_round = function(buf)
+  -- Any round that actually APPLIED supersedes a stale pending slot (§8: a fresh
+  -- round replaces the pending one). on_defer never reaches here, so this clears
+  -- pending only when a round landed — the direct-apply-while-pending edge (a
+  -- second handoff arriving in normal mode) no longer leaves a stale Alt+Return.
+  pending_records = nil
   clear_awaiting()
   show_winbar(false)
   render_active_diagnostic(buf)

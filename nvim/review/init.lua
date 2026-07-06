@@ -25,6 +25,7 @@ local poke_bodies = dofile(here .. 'poke_bodies.lua')
 -- headless tests, which swap `M.poke` for a recorder so they never shell zellij.
 M.poke = dofile(here .. '../pair_poke.lua')
 M.gate = gate -- exposed so tests / the UI layer share the one gate decision
+M.buf_content = apply.buf_content -- one join, shared with review.lua's v0 snapshot
 
 local sessions = {} -- buf → { tag, file, stop }
 
