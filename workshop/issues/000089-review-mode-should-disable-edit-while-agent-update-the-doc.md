@@ -449,5 +449,6 @@ writing-plans skill.)
 - Verdict-trailer anchor: the M2/M3 `Review-Verdict:` trailers first landed on
   `--allow-empty` commits, which `sdlc close` can't see (it greps the trailer on
   commits that touch the issue file). Re-anchored onto issue-file-touching commits
-  (this + the next).
+  (M2 + M3).
+- M3 verdict trailer re-anchored on this commit (see 68a4e497 for the M3 close note).
 
