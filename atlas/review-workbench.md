@@ -190,6 +190,19 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   `Alt+Return` keeps the current mode and sends directly. Send and ship pokes mark the
   pane as awaiting the agent, displayed by the statusline spinner until the next
   handoff clears it.
+- **apply-gate + durability** (`nvim/review/gate.lua`, `nvim/review.lua`; #89 M3) —
+  the human is never locked while the agent produces a round. `finish_human_turn`
+  snapshots `v0` (the just-saved buffer) via `review.set_base` **after** the save.
+  When the round lands, `on_agent_round` consults the pure `gate.decide_apply(v0, v1,
+  focused, mode)`: apply now unless the human is focused on the pane AND mid-edit AND
+  the buffer changed (`v1≠v0`) — then it DEFERS (`review.on_defer`): saves the human's
+  edits, drops the spinner, stashes the round in a single `pending_records` slot, and
+  raises a **`winbar`** (`✨ agent results ready · ⌥⏎ to apply`). `Alt+Return` (and the
+  send menu) then *applies* the pending round instead of submitting. Durability (§8):
+  save-on-defer + save-on-`VimLeave` (both via `human_round`) mean the human's edits
+  are never lost; a pending round dropped on quit/crash is re-derived by a resubmit.
+  Focus tracked via `FocusGained`/`BufEnter`/`FocusLost` (benign fallback: a missed
+  `FocusLost` only over-defers, never mis-applies).
 - **docflow degradation** (`nvim/review/docflow.lua`) — missing `docflow` still has
   a calm contract-test path, but the review pane no longer shells docflow at runtime.
   Round commits are agent-side. See `workshop/targets/review-protocol.md` for the
@@ -211,6 +224,14 @@ direct-change highlighting, and diagnostic-only marker proposals. Fact-check is
 not a mode; it is requested through the one-round instruction field or agent
 prompt and handled by the review agent's skill workflow.
 
+**Concurrent-edit reconciliation (#89)** — the human keeps editing while the agent
+produces a round. M1 multi-line `🤖<…>` markers, M2 the per-record reconcile engine
+(`reconcile.lua`: clean edits apply span-granularly, overlaps become
+`🤖<…>[reconcile]` markers via `vim.diff`, clean-inside-conflict folds into the
+marker), M3 the apply-gate (`gate.lua`: defer only while mid-edit) + winbar +
+save-on-defer/`VimLeave` durability. All headless-tested; the live pane smoke
+(focus/winbar rendering + real agent round-trip) is the remaining manual proof.
+
 The real-agent half lives in ariadne #000121. Until that lands, pair proves the
 protocol with `tests/lib/fake-review-agent.sh`; the real live smoke remains the
 cross-repo proof that the persistent agent recognizes review mode and owns the
@@ -220,7 +241,7 @@ docflow rounds.
 
 - `make test-lua` — `record`, `reconstruct`, `markers`, `seam`, `mode`, `poke_bodies`,
   `readiness`, `resolve`, `spinner`, `menu`, `reconcile` (classify/conflict_marker/
-  plan_conflicts, #89) (pure/headless).
+  plan_conflicts/fold, #89), `gate` (decide_apply five cases, #89) (pure/headless).
 - `make test-review` — `docflow` (+ hermetic `tests/lib/fake-docflow.sh` and a
   gated smoke against the real ariadne `docflow.sh`), `apply` (incl. snapshot
   round-trip), `reconcile` (reconcile_round: clean-only / conflict / mixed one-undo,

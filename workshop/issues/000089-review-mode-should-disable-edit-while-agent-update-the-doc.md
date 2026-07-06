@@ -332,9 +332,9 @@ only**; `marker_end_pos`/apply are already multi-line. Needed:
   fast/reconcile branch in `on_agent_round`, per-record classify, `vim.diff`
   conflict placement → `🤖<…>[reconcile — …]`, landed-artifact accounting,
   reconcile-path decorate/save/poke) + protocol docs + tests
-- [ ] M3 — apply-gate UX (pure `decide_apply`, defer-on-case-4 + winbar, focus/
+- [x] M3 — apply-gate UX (pure `decide_apply`, defer-on-case-4 + winbar, focus/
   mode tracking, Alt+Return dual dispatch, save-on-defer + save-on-`VimLeave`
-  durability) + tests
+  durability, + Task 3.0 fold clean-edit-inside-conflict) + tests
 
 (Detailed implementation plan → `workshop/plans/000089-*-plan.md` via the
 writing-plans skill.)
