@@ -139,6 +139,36 @@ func TestUpdateFrameTitlesUnchangedSkip(t *testing.T) {
 	}
 }
 
+// #97 regression: a stale pane-<tag>-<other>.json twin sharing the live pane_id
+// must NOT hijack the frame. The glob (PaneFiles) can return both the active
+// agent's file and a stale twin from a prior session on the same pane_id; before
+// the fix, the pane_id-keyed frameCache rendered a different title for the same
+// pane per file → alphabetical last-wins (codex > claude) + a per-tick flip-flop.
+// With opts.Agent="claude" the active agent, exactly one rename to claude must
+// fire, and it must stay stable across a second identical tick (no flip-flop).
+//
+// NOTE: this relies on the frame updater filtering pane.Agent==opts.Agent. If a
+// future change reorders PaneFiles or drops that filter, the assertion below
+// (single rename, to claude) is what catches the regression.
+func TestUpdateFrameTitlesIgnoresStaleAgentTwin(t *testing.T) {
+	rt := newFake()
+	// Same pane_id "0" for both; alphabetical order would pick codex without the
+	// active-agent filter. claude is the active agent (fixtureOpts).
+	rt.panes = []PaneInfo{
+		{Agent: "claude", PaneID: "0", CwdDisplay: "~/repo"},
+		{Agent: "codex", PaneID: "0", CwdDisplay: "~/repo"},
+	}
+	rt.counts["claude"] = "970k"
+	rt.counts["codex"] = "512k"
+	cache := frameCache{}
+	updateFrameTitles(fixtureOpts(), rt, cache, "pair-T")
+	updateFrameTitles(fixtureOpts(), rt, cache, "pair-T") // second tick: must not flip-flop
+	want := "pair-T|0|claude (970k) [~/repo]"
+	if len(rt.renamed) != 1 || rt.renamed[0] != want {
+		t.Fatalf("renamed = %v, want exactly [%q] (active agent, no stale-twin hijack)", rt.renamed, want)
+	}
+}
+
 // Single-instance guard: a live poller for this tag already recorded in the
 // pidfile → Run returns immediately without ever probing the session.
 func TestRunDefersToLiveInstance(t *testing.T) {

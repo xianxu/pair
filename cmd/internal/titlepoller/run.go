@@ -165,11 +165,21 @@ func activityMTime(opts Options, rt Runtime) time.Time {
 	return latest
 }
 
-// updateFrameTitles renames every agent pane's zellij frame to
+// updateFrameTitles renames the active agent's zellij frame to
 // "<agent> (<count>) [<cwd>]", skipping panes whose title is unchanged.
+//
+// PaneFiles globs pane-<tag>-*.json, which can match a STALE twin left by a
+// prior session that paired this tag with a different agent (nothing cleaned it
+// up before #97's runCleanup fix, and a crash still bypasses that cleanup). The
+// two-pane invariant means exactly one agent pane is live per tag, and opts.Agent
+// authoritatively names it (the poller is respawned each entry with the agent
+// resolved fresh from agent-<tag>), so we render only that pane. Without this a
+// stale twin sharing the live pane_id makes the pane_id-keyed frameCache render a
+// different title for the same pane every tick → alphabetical last-wins + churn
+// (the #97 bug: "claude" pane labelled "codex").
 func updateFrameTitles(opts Options, rt Runtime, cache frameCache, session string) {
 	for _, pane := range rt.PaneFiles(opts.DataDir, opts.Tag) {
-		if pane.PaneID == "" {
+		if pane.PaneID == "" || pane.Agent != opts.Agent {
 			continue
 		}
 		cwdDisp := pane.CwdDisplay
