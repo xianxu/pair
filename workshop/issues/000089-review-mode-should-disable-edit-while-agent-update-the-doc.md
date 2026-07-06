@@ -1,11 +1,12 @@
 ---
 id: 000089
-status: working
+status: codecomplete
 deps: []
 created: 2026-06-30
 updated: 2026-07-05
 started: 2026-07-05T12:07:32-07:00
 estimate_hours: 11.66
+actual_hours: 6.96
 ---
 
 # review mode should disable edit while agent update the doc
@@ -367,6 +368,7 @@ writing-plans skill.)
 ### 2026-06-30
 
 ### 2026-07-05
+- 2026-07-05: closed — full make test green (exit 0): test-lua reconcile/gate + test-review reconcile/loop/window (M3 gate/defer/pending/winbar/VimLeave durability). 3 milestone boundary reviews (M1 SHIP; M2 & M3 FIX-THEN-SHIP, all findings fixed). LIVE PANE SMOKE DEFERRED to operator per "land this, I test later" — zellij focus/winbar + real agent round-trip + defer→quit→reopen durability not yet keyboard-verified.; review verdict: SHIP
 - 2026-07-05: closed M3 — full make test green (exit 0); M3: gate.decide_apply (5-case pure gate), init on_agent_round defers on mid-edit, review.lua pane_state/on_defer/winbar/pending-consume/save-on-defer+VimLeave, Task 3.0 fold clean-edit-inside-conflict; gate_test + reconcile fold tests + review-window M3 asserts; review verdict: FIX-THEN-SHIP
 - 2026-07-05: closed M2 — M2 boundary review FIX-THEN-SHIP fix applied: plan_conflicts never silently drops a blank-anchor conflict (nearest-non-empty fallback + all-blank-doc counted); blank-hunk/blank-line/huge-hunk/no-hunk tests added; full make test green; 3.2 note already on ariadne main; review verdict: FIX-THEN-SHIP
 - 2026-07-05: closed M2 — full make test green (exit 0); reconcile.lua pure classify/conflict_marker/plan_conflicts + reconcile_round glue; review-reconcile-test (clean-only/conflict/mixed-one-undo, real vim.diff) + loop-test concurrent-edit case; init apply_round fast/reconcile branch + landed conflicts accounting; protocol docs (pair + ariadne); review verdict: FIX-THEN-SHIP
