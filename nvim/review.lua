@@ -18,6 +18,11 @@ vim.opt.cmdheight = 0
 -- + a stable sign column for the review diagnostics.
 vim.opt.number = true
 vim.opt.signcolumn = 'yes'
+-- Smartcase search (#101): `/foo` matches case-insensitively, but a query with any
+-- uppercase (`/Foo`) stays case-sensitive. Pane-local — this self-contained
+-- `nvim -u` init never touches the draft nvim or the user's own config.
+vim.opt.ignorecase = true
+vim.opt.smartcase = true
 
 local REVIEW_DIAG_NS = vim.api.nvim_create_namespace('review_diag')
 local ACTIVE_DIAG_NS = vim.api.nvim_create_namespace('review_active_diag')
