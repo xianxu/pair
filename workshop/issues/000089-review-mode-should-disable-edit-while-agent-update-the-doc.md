@@ -446,4 +446,8 @@ writing-plans skill.)
   corrected two comments. `make test` green. **Remaining: the live pane smoke**
   (real zellij focus + winbar + agent round-trip, incl. defer→quit→reopen durability)
   — can't run headless; must be recorded from an actual keyboard run at issue close.
+- Verdict-trailer anchor: the M2/M3 `Review-Verdict:` trailers first landed on
+  `--allow-empty` commits, which `sdlc close` can't see (it greps the trailer on
+  commits that touch the issue file). Re-anchored onto issue-file-touching commits
+  (this + the next).
 
