@@ -118,6 +118,7 @@ test-runtimebundle: runtimebundle-generate
 test-review: $(BIN_DIR)/pair-review-target $(BIN_DIR)/pair-review-open $(BIN_DIR)/pair-review-readiness
 	bash tests/review-docflow-test.sh
 	bash tests/review-apply-test.sh
+	bash tests/review-reconcile-test.sh
 	bash tests/review-handoff-test.sh
 	bash tests/review-loop-test.sh
 	bash tests/review-projection-test.sh
@@ -160,6 +161,8 @@ test-lua:
 	nvim -l nvim/review/spinner_test.lua
 	nvim -l nvim/review/resolve_test.lua
 	nvim -l nvim/review/menu_test.lua
+	nvim -l nvim/review/reconcile_test.lua
+	nvim -l nvim/review/gate_test.lua
 
 # Integration test for nvim/init.lua's send/queue/history state machine.
 # Drives the real init.lua under headless nvim (it can't be unit-tested —

@@ -247,9 +247,9 @@ local function render_markers(buf)
   if not vim.api.nvim_buf_is_valid(buf) then return end
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   vim.api.nvim_buf_clear_namespace(buf, MARK_NS, 0, -1)
-  for _, s in ipairs(markers.highlight_spans(lines)) do
-    pcall(vim.api.nvim_buf_set_extmark, buf, MARK_NS, s.row, s.col_start, {
-      end_col = s.col_end, hl_group = s.hl_group,
+  for _, s in ipairs(markers.spans_multiline(lines)) do
+    pcall(vim.api.nvim_buf_set_extmark, buf, MARK_NS, s.row, s.col, {
+      end_row = s.end_row, end_col = s.end_col, hl_group = s.hl_group,
     })
   end
 end
@@ -285,10 +285,13 @@ local function resolve_at_cursor(buf, action)
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   local target
   for _, m in ipairs(markers.parse_markers(lines)) do
-    if m.line == row0 then
-      local _, end_col = marker_end_pos(m)
-      if not target then target = m end -- same-line fallback for legacy cursor placement
-      if cur[2] >= m.col and cur[2] < end_col then target = m; break end
+    local end_row, end_col = marker_end_pos(m)
+    if row0 >= m.line and row0 <= end_row then -- cursor on any line the marker spans (#89 M1)
+      if not target then target = m end -- first marker overlapping this line
+      -- precise containment across the (possibly multi-line) marker span
+      local after_start = row0 > m.line or cur[2] >= m.col
+      local before_end = row0 < end_row or cur[2] < end_col
+      if after_start and before_end then target = m; break end
     end
   end
   if not target then
@@ -430,8 +433,50 @@ local function clear_awaiting()
   refresh_statusline()
 end
 
-review.after_agent_round = function(buf)
+-- The v0 snapshot must join exactly as the reconcile engine's v1 (apply.buf_content),
+-- so use the one shared implementation rather than re-deriving it (#89 M3).
+local buf_content = review.buf_content
+
+-- Apply-gate state (#89 M3). The human is never locked; a landed round only DEFERS
+-- while they're mid-edit on the pane. pending_records holds the single deferred
+-- round; the winbar is the "results ready" cue.
+local pane_focused = true -- the pane is created focused
+local pending_records = nil
+
+-- Track pane focus for the gate (case 2: not focused → apply immediately). Terminal
+-- focus events may not fire on a zellij pane switch — the failure mode is benign
+-- (focused stays true → at worst we DEFER when we could have applied, never a wrong
+-- apply; spec §8). FocusGained/BufEnter re-assert focus on return; FocusLost drops it.
+vim.api.nvim_create_autocmd({ 'FocusGained', 'BufEnter' }, { callback = function() pane_focused = true end })
+vim.api.nvim_create_autocmd({ 'FocusLost' }, { callback = function() pane_focused = false end })
+
+local function show_winbar(on)
+  vim.wo.winbar = on and '%#WarningMsg# ✨ agent results ready · ⌥⏎ to apply ' or ''
+end
+
+-- Injected into review.on_agent_round's gate (init.lua): focus + current mode.
+review.pane_state = function(_)
+  return { focused = pane_focused, mode = vim.fn.mode() }
+end
+
+-- Deferral (gate → defer): secure the human's edits to disk FIRST (durability
+-- invariant §8), stash the round, drop the spinner (the agent has replied), raise
+-- the winbar. Nothing of the agent's applies until the human acts.
+review.on_defer = function(buf, records)
+  pending_records = records
+  review.human_round(buf, 'defer') -- saves; reuses the one save path (ARCH-DRY)
   clear_awaiting()
+  show_winbar(true)
+end
+
+review.after_agent_round = function(buf)
+  -- Any round that actually APPLIED supersedes a stale pending slot (§8: a fresh
+  -- round replaces the pending one). on_defer never reaches here, so this clears
+  -- pending only when a round landed — the direct-apply-while-pending edge (a
+  -- second handoff arriving in normal mode) no longer leaves a stale Alt+Return.
+  pending_records = nil
+  clear_awaiting()
+  show_winbar(false)
   render_active_diagnostic(buf)
 end
 
@@ -447,9 +492,22 @@ end
 
 local function finish_human_turn(buf, file, mode_name, instruction)
   if vim.fn.mode():match('^i') then vim.cmd('stopinsert') end
+  -- Pending round waiting (#89 M3): Alt+Return APPLIES it (reconcile against the
+  -- standing v0 base) rather than starting a new send. Consumes the pending slot +
+  -- winbar; apply_round pokes the agent to commit the round.
+  if pending_records then
+    local r = pending_records
+    pending_records = nil
+    show_winbar(false)
+    return review.apply_round(buf, r)
+  end
   review.clear_decorations(buf)
   render_active_diagnostic(buf)
   review.human_round(buf, 'updated') -- saves; the agent commits the human round
+  -- Snapshot v0 = the just-saved content (what the agent reviews). AFTER the save,
+  -- and here (not mark_awaiting — request_ship also calls that WITHOUT saving), so
+  -- the base is the submitted buffer, not an unsaved one (#89 M3, spec §8).
+  review.set_base(buf, buf_content(buf))
   -- Poke the agent with the commit-request signal (absolute path: the agent pane's
   -- cwd is pair's, not the doc's repo). The agent commits the human round + reviews.
   -- (Once ariadne#000121's SKILL recognizes review-mode from these signals, this is
@@ -470,6 +528,12 @@ local function request_ship(file)
 end
 
 local function open_mode_menu(buf, file)
+  -- With a round pending, Alt+Shift+Return APPLIES it too — a mode/instruction
+  -- selector is meaningless against results already produced (#89 M3). The menu is
+  -- only offered in the no-pending state.
+  if pending_records then
+    return finish_human_turn(buf, file)
+  end
   local modes = mode.list(here .. 'review/modes')
   return menu.open({
     modes = modes,
@@ -553,6 +617,12 @@ local function start_review(buf, file)
   -- poll timer + projection autocmd + state file when the pane nvim exits.
   vim.api.nvim_create_autocmd('VimLeave', {
     callback = function()
+      -- Durability (#89 M3, §8): persist any unsaved edits before the pane closes
+      -- (edits typed after a defer, while the winbar is up, are otherwise only in
+      -- the buffer). Reuse human_round's save — never init's file-local `save`.
+      if vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].modified then
+        pcall(review.human_round, buf, 'exit')
+      end
       pcall(review.stop, buf)
       if sf then pcall(os.remove, sf) end
       if status_timer then pcall(status_timer.stop, status_timer); pcall(status_timer.close, status_timer) end
@@ -573,7 +643,13 @@ _G.PairReviewPane = { start_review = start_review, render_markers = render_marke
   resolve_paragraph_to_cursor = resolve_paragraph_to_cursor,
   quote_selection = quote_selection, current_mode = current_mode, mode_label = mode_label,
   active_diagnostic = active_diagnostic, render_active_diagnostic = render_active_diagnostic,
-  open_diagnostic_float = open_review_diagnostic_float }
+  open_diagnostic_float = open_review_diagnostic_float,
+  -- #89 M3 apply-gate hooks, exposed for the window test.
+  pane_state = function() return review.pane_state(vim.api.nvim_get_current_buf()) end,
+  set_focused = function(v) pane_focused = v end,
+  on_defer = function(buf, recs) return review.on_defer(buf or vim.api.nvim_get_current_buf(), recs) end,
+  has_pending = function() return pending_records ~= nil end,
+  winbar = function() return vim.wo.winbar end }
 
 -- Start once the file is loaded (the buffer doesn't exist yet at init time).
 vim.api.nvim_create_autocmd('VimEnter', {

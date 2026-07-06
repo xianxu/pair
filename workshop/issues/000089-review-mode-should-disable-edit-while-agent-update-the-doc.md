@@ -1,11 +1,12 @@
 ---
 id: 000089
-status: working
+status: codecomplete
 deps: []
 created: 2026-06-30
 updated: 2026-07-05
 started: 2026-07-05T12:07:32-07:00
 estimate_hours: 11.66
+actual_hours: 6.96
 ---
 
 # review mode should disable edit while agent update the doc
@@ -164,10 +165,17 @@ hazard.
    records get `DiffChange` highlights + `explain` diagnoses; a synthetic record's
    `new` is a marker proposal, so `apply`'s `is_marker_proposal` path sets
    `no_highlight` and it self-highlights via `render_markers` (M1) instead, with
-   the short `"reconcile"` gutter diagnosis. Clean spans and conflict hunks are
-   disjoint by construction; `apply`'s overlap guard (`apply.lua:282`) covers any
-   pathological coincidence. Projection snapshot dance runs as in the fast path
-   (§8), so undo/redo stays coherent.
+   the short `"reconcile"` gutter diagnosis. **Clean edit sharing a human-changed
+   line with a conflict → FOLDED (M3, M2-review 3.1):** conflict placement is
+   line-granular (the synthetic `old` is the whole changed hunk line) while clean
+   edits are span-granular, so a clean edit sharing a *human-changed line* with a
+   conflict would fall inside the synthetic `old`. Rather than let `apply`'s overlap
+   guard drop it, `plan_conflicts` **folds** such a clean record into that hunk's
+   conflict marker (its `old→new` is surfaced in the marker's intent list) and
+   `reconcile_round` excludes it from the apply set. So the contested line becomes
+   one marker citing *all* the agent's intents for it — nothing dropped. Clean edits
+   on other lines apply span-granularly as before. Projection snapshot dance runs as
+   in the fast path (§8), so undo/redo stays coherent.
 4. **Save + poke** — save; write the landed-artifact (embedding only the *clean*
    enriched records as the agent's actual edits; accounting in §8) and poke
    `agent_applied` so the agent commits the round (Option A).
@@ -284,6 +292,16 @@ only**; `marker_end_pos`/apply are already multi-line. Needed:
 - **Agent-internal record overlap.** Two *agent* records targeting overlapping
   spans still drop as today (`apply.lua` overlap guard); this is the agent's own
   records colliding, distinct from human-vs-agent overlap (which is a conflict).
+- **Clean edit inside a conflict hunk (M2-review 3.1) — FOLDED (M3, done).** When a
+  clean record shares a *human-changed line* with a conflict, the conflict's
+  line-granular synthetic `old` (the whole line) would contain the clean record's
+  span. `plan_conflicts(conflicts, v0, v1, hunks, clean)` **folds** such a clean
+  record into that hunk's conflict marker (its `old→new` joins the marker's intent
+  list) and returns it in a second `folded` value; `reconcile_round` excludes the
+  folded records from the apply set. So the contested line becomes one marker citing
+  all the agent's intents — nothing dropped, more correct than either the drop or a
+  half-applied line. Chosen option (a) over accepting the counted drop. Tested:
+  `reconcile_test` fold cases + `review-reconcile-test` case (f).
 - **Alt+a/Alt+r on a reconcile marker.** A `🤖<human>[reconcile — …]` is a valid
   `<quoted>[user]` chain, so `resolve.resolve` acts on it: **reject** drops the
   marker leaving the human's own text; accept is available but reconciliation is
@@ -309,15 +327,15 @@ only**; `marker_end_pos`/apply are already multi-line. Needed:
 
 ## Plan
 
-- [ ] M1 — multi-line `🤖<…>` support (highlight across lines, within-range
+- [x] M1 — multi-line `🤖<…>` support (highlight across lines, within-range
   `resolve_at_cursor`, section-budget for conflict-sized blocks) + tests
-- [ ] M2 — reconcile engine `nvim/review/reconcile.lua` (`v0` snapshot at send,
+- [x] M2 — reconcile engine `nvim/review/reconcile.lua` (`v0` snapshot at send,
   fast/reconcile branch in `on_agent_round`, per-record classify, `vim.diff`
   conflict placement → `🤖<…>[reconcile — …]`, landed-artifact accounting,
   reconcile-path decorate/save/poke) + protocol docs + tests
-- [ ] M3 — apply-gate UX (pure `decide_apply`, defer-on-case-4 + winbar, focus/
+- [x] M3 — apply-gate UX (pure `decide_apply`, defer-on-case-4 + winbar, focus/
   mode tracking, Alt+Return dual dispatch, save-on-defer + save-on-`VimLeave`
-  durability) + tests
+  durability, + Task 3.0 fold clean-edit-inside-conflict) + tests
 
 (Detailed implementation plan → `workshop/plans/000089-*-plan.md` via the
 writing-plans skill.)
@@ -350,6 +368,11 @@ writing-plans skill.)
 ### 2026-06-30
 
 ### 2026-07-05
+- 2026-07-05: closed — full make test green (exit 0): test-lua reconcile/gate + test-review reconcile/loop/window (M3 gate/defer/pending/winbar/VimLeave durability). 3 milestone boundary reviews (M1 SHIP; M2 & M3 FIX-THEN-SHIP, all findings fixed). LIVE PANE SMOKE DEFERRED to operator per "land this, I test later" — zellij focus/winbar + real agent round-trip + defer→quit→reopen durability not yet keyboard-verified.; review verdict: SHIP
+- 2026-07-05: closed M3 — full make test green (exit 0); M3: gate.decide_apply (5-case pure gate), init on_agent_round defers on mid-edit, review.lua pane_state/on_defer/winbar/pending-consume/save-on-defer+VimLeave, Task 3.0 fold clean-edit-inside-conflict; gate_test + reconcile fold tests + review-window M3 asserts; review verdict: FIX-THEN-SHIP
+- 2026-07-05: closed M2 — M2 boundary review FIX-THEN-SHIP fix applied: plan_conflicts never silently drops a blank-anchor conflict (nearest-non-empty fallback + all-blank-doc counted); blank-hunk/blank-line/huge-hunk/no-hunk tests added; full make test green; 3.2 note already on ariadne main; review verdict: FIX-THEN-SHIP
+- 2026-07-05: closed M2 — full make test green (exit 0); reconcile.lua pure classify/conflict_marker/plan_conflicts + reconcile_round glue; review-reconcile-test (clean-only/conflict/mixed-one-undo, real vim.diff) + loop-test concurrent-edit case; init apply_round fast/reconcile branch + landed conflicts accounting; protocol docs (pair + ariadne); review verdict: FIX-THEN-SHIP
+- 2026-07-05: closed M1 — make test-lua + make test-review green (exit 0); new asserts: spans_multiline cross-row span, resolve_at_cursor within-range on a multi-line marker, multi-line paragraph resolve, budget-200 parse (markers_test + review-window-test); review verdict: SHIP
 - Rescoped after brainstorm (superpowers-brainstorming). Confirmed with operator:
   reconciliation over lock; commit attribution Option A; milestones M1→M2→M3;
   smart-case split to #101.
@@ -378,4 +401,56 @@ writing-plans skill.)
   hard invariant); the *agent* round stays droppable on quit/crash because a
   resubmit re-derives it (idempotent recovery — operator OK with this). No
   pending-round persistence. §1 / §8 / M3 updated.
+- change-code gates passed: plan-quality CLEAN (high), estimate-quality INFO
+  (non-blocking). Branch `000089-…` in place; `estimate_hours: 11.66`.
+- **M1 done** (multi-line markers). 1.1 `spans_multiline` supersedes the per-line
+  `highlight_spans` (multi-line extmarks; ARCH-DRY, one highlight path). 1.2
+  `resolve_at_cursor` matches a marker from any line it spans. 1.3 audited
+  `jump_marker`/`resolve_paragraph_to_cursor` — already multi-line-correct
+  (characterization test, no code change). 1.4 `MULTILINE_LINE_BUDGET` 50→200.
+  `make test-lua` + `make test-review` green. Review verdict: SHIP.
+- **M2 done** (reconcile engine). `reconcile.lua` pure `classify`/`conflict_marker`/
+  `plan_conflicts` + `reconcile_round` glue (one `apply.apply`); `init.lua`
+  `apply_round` fast/reconcile branch off the `v0` base; landed-artifact partitions
+  clean (body) vs conflict (count); protocol docs (pair target + ariadne `xx-fix`
+  on `main`). Full `make test` green.
+- **M2 review: FIX-THEN-SHIP** (first dispatch hit a 401 auth error → verdict
+  "unknown"; the close correctly did NOT finalize; re-ran after `/login`). Fixed 3.1
+  (the real one): `plan_conflicts` silently dropped a conflict when the anchor line
+  was blank (human blanked the exact line, or the fallback hit a blank line) —
+  defeating the issue's core purpose. Now every conflict yields a marker via a
+  nearest-non-empty anchor (backward-first); only an all-blank `v1` degenerates to an
+  empty-`old` record `apply.apply` counts as dropped+WARNs (never silent). Added
+  blank-hunk / blank-line-1 / huge-hunk / no-hunk tests (closed coverage gaps 5b/5c);
+  atlas guarantee corrected. 3.2 (ariadne `xx-fix` note) was already delivered on
+  ariadne `main`; the reviewer read it "missing" only because the shared ariadne
+  checkout was transiently on a peer branch (`000145`). Minor findings
+  (occurrence-counter family DRY, `#synth` vs authoritative count) noted,
+  non-blocking.
+- **M2 re-review: FIX-THEN-SHIP again** — confirmed the 3.1 silent-drop fix + the
+  ariadne note (both good), but found a *new* real invariant violation: a **clean**
+  record sharing a human-changed line with a **conflict** is dropped by `apply`'s
+  overlap guard (the conflict's line-granular synthetic `old` swallows the clean
+  span) — counted+WARNed, never silent, but a clean edit vanishes for a round. The
+  spec's "disjoint by construction" claim was false within a line (common prose
+  case). Dormant until M3. Corrected the invariant in Spec §3/§8 + plan Revisions;
+  added **Task 3.0** to decide the handling (recommended: fold the clean edit into
+  the conflict marker's intents) before the M3 live smoke. No M2 code change.
+- **M3 done** (apply-gate + durability). Task 3.0 fold (clean-inside-conflict →
+  marker's intents; the M2-review 3.1 finding, genuinely fixed). `gate.decide_apply`
+  (pure 5-case) → `init.on_agent_round` defers on mid-edit → `review.lua` pane
+  wiring (`pane_state`, `on_defer` save+winbar, single pending slot, Alt+Return dual
+  dispatch, `v0` snapshot after save, save-on-`VimLeave`). Full `make test` green.
+- **M3 review: FIX-THEN-SHIP** — gate/defer/fold/durability all confirmed correct;
+  one Important (save-on-`VimLeave` was code-only) + 4 minor. All fixed: added the
+  VimLeave-save headless test; clear `pending_records` on a direct apply (stale-Alt+
+  Return edge); DRY'd `buf_content` (shared `review.buf_content = apply.buf_content`);
+  corrected two comments. `make test` green. **Remaining: the live pane smoke**
+  (real zellij focus + winbar + agent round-trip, incl. defer→quit→reopen durability)
+  — can't run headless; must be recorded from an actual keyboard run at issue close.
+- Verdict-trailer anchor: the M2/M3 `Review-Verdict:` trailers first landed on
+  `--allow-empty` commits, which `sdlc close` can't see (it greps the trailer on
+  commits that touch the issue file). Re-anchored onto issue-file-touching commits
+  (M2 + M3).
+- M3 verdict trailer re-anchored on this commit (see 68a4e497 for the M3 close note).
 

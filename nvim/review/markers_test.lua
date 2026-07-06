@@ -65,9 +65,9 @@ local mml = M.parse_markers({ '🤖[line one', 'line two]' })
 eq(#mml, 1, 'multi-line section parses')
 eq(mml[1].sections[1].text, 'line one\nline two', 'multi-line section text')
 
--- a stray opener beyond MULTILINE_LINE_BUDGET (50) yields no section
+-- a stray opener beyond MULTILINE_LINE_BUDGET (200) yields no section
 local budget = { '🤖{' }
-for _ = 1, 60 do budget[#budget + 1] = 'x' end
+for _ = 1, 210 do budget[#budget + 1] = 'x' end
 budget[#budget + 1] = '}'
 eq(#M.parse_markers(budget), 0, 'stray { beyond the newline budget yields no marker')
 
@@ -76,22 +76,46 @@ local mlc = M.parse_markers({ 'x', 'ab🤖[y]' })
 eq(mlc[1].line, 1, 'marker line (0-based)')
 eq(mlc[1].col, 2, 'marker col (0-based byte)')
 
--- highlight_spans (#66 M3): per-line spans for the ParleyReview* groups
+-- spans_multiline (#89 M1): multi-line-aware ParleyReview* spans, supersedes the
+-- per-line highlight_spans. Spans carry {row, col, end_row, end_col} (0-based,
+-- end_col exclusive) and may cross rows.
 local function find_hl(spans, hl)
   for _, s in ipairs(spans) do if s.hl_group == hl then return s end end
 end
-local hsp = M.highlight_spans({ 'before 🤖<q>[u]{a} after' })
+-- single line: byte-accurate, preserving the retired highlight_spans behavior.
+local hsp = M.spans_multiline({ 'before 🤖<q>[u]{a} after' })
 eq(find_hl(hsp, 'ParleyReviewQuoted') ~= nil, true, 'quoted span present')
 eq(find_hl(hsp, 'ParleyReviewUser') ~= nil, true, 'user span present')
 eq(find_hl(hsp, 'ParleyReviewAgent') ~= nil, true, 'agent span present')
-eq(hsp[1].row, 0, 'span row is 0-based')
+local q1 = find_hl(hsp, 'ParleyReviewQuoted')
+eq(q1.row, 0, 'quoted row is 0-based')
 -- byte-accurate: 'before ' = 7 bytes → 🤖 starts at 0-based col 7
-eq(find_hl(hsp, 'ParleyReviewQuoted').col_start, 7, 'quoted col_start = 0-based 🤖 start')
--- '🤖<q>' spans 1-based bytes 8..14 → quoted closes at byte 14 → col_end 14
-eq(find_hl(hsp, 'ParleyReviewQuoted').col_end, 14, 'quoted col_end through >')
-local ss = M.highlight_spans({ '🤖~old~' })
+eq(q1.col, 7, 'quoted col = 0-based 🤖 start')
+eq(q1.end_row, 0, 'quoted end_row 0 (single line)')
+-- '🤖<q>' → '>' at 1-based byte 14 → exclusive end_col 14
+eq(q1.end_col, 14, 'quoted end_col exclusive through >')
+local ss = M.spans_multiline({ '🤖~old~' })
 eq(find_hl(ss, 'ParleyReviewStrike') ~= nil, true, 'strike span present')
-eq(#M.highlight_spans({ 'no markers here' }), 0, 'no markers → no spans')
+eq(#M.spans_multiline({ 'no markers here' }), 0, 'no markers → no spans')
+-- multi-line: a 🤖<…> whose quoted body spans two lines → end_row > row, span
+-- starting at the 🤖 itself (col 7 after 'before ').
+local ml = M.spans_multiline({ 'before 🤖<first', 'second>[note] after' })
+local mq = find_hl(ml, 'ParleyReviewQuoted')
+eq(mq ~= nil, true, 'multi-line quoted span present')
+eq(mq.row, 0, 'multi-line quoted starts row 0')
+eq(mq.col, 7, 'multi-line quoted starts at 🤖 col 7')
+eq(mq.end_row, 1, 'multi-line quoted ends row 1')
+
+-- budget (#89 M1): a 🤖<…> whose quoted body has >50 newlines still closes at
+-- budget 200 (conflict hunks can be large; the reconciler caps them at 200).
+do
+  local blines = { '🤖<L0' }
+  for i = 1, 60 do blines[#blines + 1] = 'L' .. i end
+  blines[#blines + 1] = 'END>[x]'
+  local bm = M.parse_markers(blines)
+  eq(#bm, 1, '60-line quoted marker parses')
+  eq(bm[1].quoted ~= nil, true, '60-line quoted body closes (budget ≥ 60)')
+end
 
 if fails > 0 then os.exit(1) end
 print('markers_test ok')

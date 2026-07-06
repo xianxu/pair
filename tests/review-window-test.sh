@@ -112,6 +112,14 @@ local function check()
   OUT:write((ship_cmd and 'ship-cmd\n') or 'NO-ship-cmd\n')
   OUT:write((sf_ok and 'state-file\n') or 'NO-state\n')
   OUT:write(((#marks >= 1) and 'markers\n') or 'NO-markers\n')
+  -- multi-line 🤖<…> renders a span crossing rows (issue #89 M1)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'x 🤖<a', 'b>[note] y' })
+  _G.PairReviewPane.render_markers(buf)
+  local ml_cross = false
+  for _, mk in ipairs(vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, { details = true })) do
+    if mk[4] and mk[4].end_row and mk[4].end_row > mk[2] then ml_cross = true end
+  end
+  OUT:write((ml_cross and 'ml-marker-span\n') or 'NO-ml-marker-span\n')
   OUT:write((vim.o.clipboard:find('unnamedplus', 1, true) and 'review-clipboard\n') or ('NO-review-clipboard ' .. vim.o.clipboard .. '\n'))
   OUT:write((vim.o.guicursor:find('blinkon', 1, true) and 'review-blink-cursor\n') or ('NO-review-blink-cursor ' .. vim.o.guicursor .. '\n'))
   OUT:write((vim.o.breakindent and 'review-breakindent\n') or 'NO-review-breakindent\n')
@@ -183,6 +191,24 @@ local function check()
   end
   local reject_line = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1]
   OUT:write((reject_line == 'hello old' and 'alt-r-reject\n') or ('NO-alt-r-reject ' .. tostring(reject_line) .. '\n'))
+
+  -- multi-line marker: cursor on the marker's SECOND line still resolves it (#89 M1)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'x 🤖<a', 'b>{c}', 'y' })
+  vim.api.nvim_win_set_cursor(0, { 2, 0 })  -- row 2 = the marker's second line
+  if _G.PairReviewPane and _G.PairReviewPane.resolve_at_cursor then
+    _G.PairReviewPane.resolve_at_cursor(buf, 'accept')
+  end
+  local ml_resolved = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n')
+  OUT:write((ml_resolved == 'x c\ny' and 'ml-resolve-in-range\n') or ('NO-ml-resolve-in-range ' .. tostring(ml_resolved) .. '\n'))
+
+  -- paragraph resolve with a multi-line marker in the paragraph, other para untouched (#89 M1)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'para one 🤖<a', 'b>{c} tail', '', 'para two 🤖<d>{D}' })
+  vim.api.nvim_win_set_cursor(0, { 2, 9 })  -- after the multi-line marker, still in para one
+  if _G.PairReviewPane and _G.PairReviewPane.resolve_paragraph_to_cursor then
+    _G.PairReviewPane.resolve_paragraph_to_cursor(buf, 'accept')
+  end
+  local ml_para = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n')
+  OUT:write((ml_para == 'para one c tail\n\npara two 🤖<d>{D}' and 'ml-paragraph-resolve\n') or ('NO-ml-paragraph-resolve ' .. tostring(ml_para) .. '\n'))
 
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'one 🤖<a>{A} two 🤖<b>{B}' })
   vim.api.nvim_win_set_cursor(0, { 1, 24 })
@@ -313,6 +339,43 @@ local function check()
   vim.api.nvim_buf_set_lines(buf, -1, -1, false, { 'menu submit edit' })
   local h = _G.PairReviewPane.open_mode_menu('doc.md')
   if h then h.submit() end
+
+  -- #89 M3 apply-gate + durability — APPEND-only on the session buffer (doc.md) so
+  -- its earlier disk assertions ('a human edit' / 'menu submit edit') stay intact,
+  -- and the VimLeave save (which targets this session buffer) is testable.
+  local OUT4 = io.open(os.getenv('RESULT2'), 'a')
+  vim.api.nvim_set_current_buf(buf)
+  local ps = _G.PairReviewPane.pane_state()
+  OUT4:write((type(ps) == 'table' and ps.focused ~= nil and ps.mode ~= nil and 'pane-state\n') or 'NO-pane-state\n')
+  -- defer: saves the human's edits to disk, stashes pending, raises the winbar
+  vim.api.nvim_buf_set_lines(buf, -1, -1, false, { 'deferred human edit line' })
+  _G.PairReviewPane.on_defer(buf, { { old = 'zzz', occurrence = 1, new = 'YYY', explain = 'e' } })
+  local df = io.open(vim.api.nvim_buf_get_name(buf), 'r'); local disk = df and df:read('*a') or ''; if df then df:close() end
+  OUT4:write((disk:find('deferred human edit line', 1, true) and 'defer-saves-to-disk\n') or 'NO-defer-saves-to-disk\n')
+  OUT4:write((_G.PairReviewPane.has_pending() and 'defer-has-pending\n') or 'NO-defer-has-pending\n')
+  OUT4:write((tostring(_G.PairReviewPane.winbar()):find('results ready', 1, true) and 'defer-winbar\n')
+    or ('NO-defer-winbar ' .. tostring(_G.PairReviewPane.winbar()) .. '\n'))
+  -- coherence: while pending (winbar up), the statusline is NOT the awaiting spinner
+  -- (defer cleared awaiting_since — the agent already replied, we're not waiting).
+  OUT4:write((not vim.o.statusline:find('%{v:lua._pair_review_elapsed()}', 1, true) and 'defer-no-spinner\n')
+    or ('NO-defer-no-spinner ' .. vim.o.statusline .. '\n'))
+  -- Alt+Return with a pending round APPLIES it (consumes the slot + winbar), no submit
+  vim.api.nvim_buf_set_lines(buf, -1, -1, false, { 'please apply this' })
+  _G.PairReviewPane.on_defer(buf, { { old = 'apply', occurrence = 1, new = 'APPLIED', explain = 'e' } })
+  pcall(_G.PairReviewPane.finish_human_turn, buf, 'doc.md')
+  local applied_doc = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n')
+  OUT4:write((not _G.PairReviewPane.has_pending() and 'pending-consumed\n') or 'NO-pending-consumed\n')
+  OUT4:write((applied_doc:find('APPLIED', 1, true) and 'pending-applied\n') or ('NO-pending-applied ' .. applied_doc .. '\n'))
+  OUT4:write((_G.PairReviewPane.winbar() == '' and 'pending-winbar-cleared\n') or 'NO-pending-winbar-cleared\n')
+  -- save-on-VimLeave (§8): an edit typed AFTER a defer (buffer modified, winbar was
+  -- up) is persisted when the pane closes. Append, then fire the registered VimLeave
+  -- teardown; assert the file on disk holds the post-defer edit.
+  vim.api.nvim_buf_set_lines(buf, -1, -1, false, { 'post-defer edit survives' })
+  vim.api.nvim_exec_autocmds('VimLeave', {})
+  local vf = io.open(vim.api.nvim_buf_get_name(buf), 'r'); local vdisk = vf and vf:read('*a') or ''; if vf then vf:close() end
+  OUT4:write((vdisk:find('post-defer edit survives', 1, true) and 'vimleave-saves\n') or ('NO-vimleave-saves ' .. vdisk .. '\n'))
+  OUT4:close()
+
   vim.cmd('qa!')
 end
 if vim.v.vim_did_enter == 1 then vim.schedule(check)
@@ -332,6 +395,7 @@ grep -q '^mode-menu-map$' "$RT/r3" && pass "Alt+Shift+Return send menu keymap wi
 grep -q '^ship-cmd$' "$RT/r3" && pass ":PairReviewShip command wired" || fail ":PairReviewShip missing"
 grep -q '^state-file$' "$RT/r3" && pass "open-state file written" || fail "no state file"
 grep -q '^markers$' "$RT/r3" && pass "🤖 markers rendered" || fail "no marker extmarks"
+grep -q '^ml-marker-span$' "$RT/r3" && pass "multi-line 🤖<…> renders a cross-row span" || fail "multi-line marker span"
 grep -q '^review-clipboard$' "$RT/r3" && pass "review pane yanks to system clipboard" || fail "review clipboard option"
 grep -q '^review-blink-cursor$' "$RT/r3" && pass "review pane uses blinking cursor" || fail "review cursor blink option"
 grep -q '^review-breakindent$' "$RT/r3" && pass "review pane indents soft-wrapped lines" || fail "review breakindent option"
@@ -347,6 +411,8 @@ grep -q '^cursor-scoped-diagnostic-lines$' "$RT/r3" && pass "diagnostic virtual 
 grep -q '^failed-poke-no-spinner$' "$RT/r3" && pass "failed poke does not leave spinner awaiting" || fail "failed-poke spinner behavior"
 grep -q '^alt-a-accept$' "$RT/r3" && pass "Alt+a accepts quoted agent replacement" || fail "Alt+a accept behavior"
 grep -q '^alt-r-reject$' "$RT/r3" && pass "Alt+r rejects to original quoted text" || fail "Alt+r reject behavior"
+grep -q '^ml-resolve-in-range$' "$RT/r3" && pass "resolve_at_cursor matches a multi-line marker from any of its lines" || fail "multi-line resolve-in-range"
+grep -q '^ml-paragraph-resolve$' "$RT/r3" && pass "resolve_paragraph_to_cursor handles a multi-line marker; leaves other paragraphs" || fail "multi-line paragraph resolve"
 grep -q '^alt-a-under-cursor$' "$RT/r3" && pass "Alt+a resolves the marker under cursor" || fail "Alt+a marker-under-cursor behavior"
 grep -q '^alt-shift-a-paragraph-prefix$' "$RT/r3" && pass "Alt+Shift+a accepts paragraph suggestions through cursor" || fail "Alt+Shift+a paragraph-prefix behavior"
 grep -q '^alt-shift-r-paragraph-prefix$' "$RT/r3" && pass "Alt+Shift+r rejects paragraph suggestions through cursor" || fail "Alt+Shift+r paragraph-prefix behavior"
@@ -371,6 +437,16 @@ grep -q 'write-chars --pane-id .* finished my edits .*Proofread posture.*keep th
 grep -q '^proofread-mode-persisted$' "$RT/r3" && pass "menu send persists selected review mode" || fail "selected review mode not persisted"
 grep -q 'menu submit edit' "$REPO/doc.md" && pass "send menu submit saves the reviewed document buffer" || fail "send menu submit did not save reviewed document"
 grep -q 'Review workbench open on' "$RT/zlog" && fail "review pane still sends redundant open handshake" || pass "review pane does not send redundant open handshake"
+# #89 M3 apply-gate + durability
+grep -q '^pane-state$' "$RT/r3" && pass "pane_state exposes focused + mode for the gate" || fail "pane_state shape"
+grep -q '^defer-saves-to-disk$' "$RT/r3" && pass "defer saves the human's edits to disk (durability)" || fail "defer save-on-disk"
+grep -q '^defer-has-pending$' "$RT/r3" && pass "defer stashes the round as pending" || fail "defer pending slot"
+grep -q '^defer-winbar$' "$RT/r3" && pass "defer raises the results-ready winbar" || fail "defer winbar"
+grep -q '^defer-no-spinner$' "$RT/r3" && pass "winbar and awaiting-spinner are mutually exclusive" || fail "defer/spinner coherence"
+grep -q '^pending-consumed$' "$RT/r3" && pass "Alt+Return consumes the pending round" || fail "pending consume"
+grep -q '^pending-applied$' "$RT/r3" && pass "Alt+Return applies the pending round to the buffer" || fail "pending apply"
+grep -q '^pending-winbar-cleared$' "$RT/r3" && pass "applying a pending round clears the winbar" || fail "pending winbar clear"
+grep -q '^vimleave-saves$' "$RT/r3" && pass "VimLeave saves a modified buffer (post-defer edit durability)" || fail "VimLeave save-on-exit"
 
 [ "$fails" -eq 0 ] || { printf 'review-window-test FAILED (%d)\n' "$fails"; exit 1; }
 printf 'review-window-test ok\n'

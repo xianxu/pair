@@ -26,7 +26,10 @@ Pure core (run under `nvim -l`, colocated `*_test.lua`, `make test-lua`):
 - `markers.lua` (M2) — pure 🤖 review-request parser (ported from parley):
   `🤖<quoted>?(~strike~)?([user]|{agent})*` → marker records with `ready`/`pending`
   (last-section rule), excluding markers in fenced/inline code. The human's
-  in-doc review requests; M3 highlights from it, M4's agent reads it.
+  in-doc review requests; M3 highlights from it, M4's agent reads it. `spans_multiline`
+  (#89 M1) derives multi-line-aware highlight spans (`{row,col,end_row,end_col}`)
+  from the parser — a `🤖<…>` may cross rows (retiring the per-line `highlight_spans`);
+  `MULTILINE_LINE_BUDGET` = 200 so a large conflict-hunk quote still parses.
 - `mode.lua` (M2/M4d) — pure pair-side UI metadata for the 3 human assistance
   levels: Generate, Edit, Proofread. Pair does not carry prompt prose for these;
   their meanings live in ariadne's `xx-fix` skill. `menu.lua` (M4c/M4d) presents
@@ -38,7 +41,24 @@ Integration seams (headless shell tests, `make test-review`):
   sequence so the round is separate from prior history; edits 2..N `undojoin`,
   E790-safe), **bottom-to-top** to avoid offset drift, decorates from the actual
   edited ranges, returns records enriched with `new_occurrence`. No file reload
-  (a reload would reset undo).
+  (a reload would reset undo). Copies extra record fields (e.g. `reconcile`) into
+  the enriched output via `tbl_extend`.
+- `reconcile.lua` (#89 M2) — concurrent-edit reconciliation. Pure core:
+  `classify(records, v1)` (clean = `old` still anchors via `reconstruct.nth_offset`
+  vs conflict), `conflict_marker(hunk_text, intents)` (the `🤖<…>[reconcile — …]`
+  wire format, both sections `esc_quote`'d), `plan_conflicts(conflicts, v0, v1,
+  hunks)` (coalesce conflicts by the `vim.diff` hunk they fall in → SYNTHETIC
+  replacement records tagged `reconcile=true`, occurrence repeated-hunk-safe;
+  every conflict yields a marker — a blank/deleted hunk appends the marker onto the
+  nearest non-empty line, huge hunks reference the region by size, and only an
+  entirely-blank `v1` degenerates to an empty-`old` record `apply.apply` counts as
+  dropped + WARNs — never a silent drop). A clean record sharing a human-changed
+  *line* with a conflict is **folded** into that conflict's marker (its `old→new`
+  joins the intent list) rather than dropped-as-overlap — `plan_conflicts`' optional
+  `clean` arg + `folded` return (M2-review 3.1). Thin glue `reconcile_round(buf,
+  records, v0)` = classify → `vim.diff` → plan_conflicts (fold) → ONE
+  `apply.apply(kept_clean ++ synthetic)`. `init.lua`'s `apply_round` calls it when
+  `v1 ≠ v0`.
 - `docflow.lua` — thin wrapper shelling `$DOCFLOW_BIN` (ariadne's `docflow`):
   `start`/`round --side`/`status`/`ship`. The review nvim no longer calls it;
   it remains as a contract test surface for the commit shape the **agent**
@@ -104,9 +124,9 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
 - `nvim/review.lua` — the pane init (`nvim -u nvim/review.lua <file>`): dofiles the
   review core + poke + markers, `review.start{}`, wires **Alt+Return = finish human
   turn** (`human_round` save + `human_finished` poke), renders 🤖 markers
-  (`markers.highlight_spans` → `ParleyReview*` extmarks, re-rendered on
-  TextChanged), supports accept/reject on the cursor line (`Alt+a`/`Alt+r`, with
-  `\a`/`\r` fallbacks); when `Alt+a` is pressed outside a marker but inside an
+  (`markers.spans_multiline` → multi-line `ParleyReview*` extmarks, re-rendered on
+  TextChanged), supports accept/reject on any line a marker spans (`Alt+a`/`Alt+r`,
+  with `\a`/`\r` fallbacks; multi-line-aware since #89 M1); when `Alt+a` is pressed outside a marker but inside an
   agent-applied highlight, it clears that highlight + matching diagnosis as an
   acceptance gesture. It inserts human comment markers (`Alt+q` bare marker or visual
   quote), exposes `:PairReviewShip` as an agent-owned ship request, plus marker
@@ -170,6 +190,19 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   `Alt+Return` keeps the current mode and sends directly. Send and ship pokes mark the
   pane as awaiting the agent, displayed by the statusline spinner until the next
   handoff clears it.
+- **apply-gate + durability** (`nvim/review/gate.lua`, `nvim/review.lua`; #89 M3) —
+  the human is never locked while the agent produces a round. `finish_human_turn`
+  snapshots `v0` (the just-saved buffer) via `review.set_base` **after** the save.
+  When the round lands, `on_agent_round` consults the pure `gate.decide_apply(v0, v1,
+  focused, mode)`: apply now unless the human is focused on the pane AND mid-edit AND
+  the buffer changed (`v1≠v0`) — then it DEFERS (`review.on_defer`): saves the human's
+  edits, drops the spinner, stashes the round in a single `pending_records` slot, and
+  raises a **`winbar`** (`✨ agent results ready · ⌥⏎ to apply`). `Alt+Return` (and the
+  send menu) then *applies* the pending round instead of submitting. Durability (§8):
+  save-on-defer + save-on-`VimLeave` (both via `human_round`) mean the human's edits
+  are never lost; a pending round dropped on quit/crash is re-derived by a resubmit.
+  Focus tracked via `FocusGained`/`BufEnter`/`FocusLost` (benign fallback: a missed
+  `FocusLost` only over-defers, never mis-applies).
 - **docflow degradation** (`nvim/review/docflow.lua`) — missing `docflow` still has
   a calm contract-test path, but the review pane no longer shells docflow at runtime.
   Round commits are agent-side. See `workshop/targets/review-protocol.md` for the
@@ -191,6 +224,14 @@ direct-change highlighting, and diagnostic-only marker proposals. Fact-check is
 not a mode; it is requested through the one-round instruction field or agent
 prompt and handled by the review agent's skill workflow.
 
+**Concurrent-edit reconciliation (#89)** — the human keeps editing while the agent
+produces a round. M1 multi-line `🤖<…>` markers, M2 the per-record reconcile engine
+(`reconcile.lua`: clean edits apply span-granularly, overlaps become
+`🤖<…>[reconcile]` markers via `vim.diff`, clean-inside-conflict folds into the
+marker), M3 the apply-gate (`gate.lua`: defer only while mid-edit) + winbar +
+save-on-defer/`VimLeave` durability. All headless-tested; the live pane smoke
+(focus/winbar rendering + real agent round-trip) is the remaining manual proof.
+
 The real-agent half lives in ariadne #000121. Until that lands, pair proves the
 protocol with `tests/lib/fake-review-agent.sh`; the real live smoke remains the
 cross-repo proof that the persistent agent recognizes review mode and owns the
@@ -199,10 +240,13 @@ docflow rounds.
 ## Tests
 
 - `make test-lua` — `record`, `reconstruct`, `markers`, `seam`, `mode`, `poke_bodies`,
-  `readiness`, `resolve`, `spinner`, `menu` (pure/headless).
+  `readiness`, `resolve`, `spinner`, `menu`, `reconcile` (classify/conflict_marker/
+  plan_conflicts/fold, #89), `gate` (decide_apply five cases, #89) (pure/headless).
 - `make test-review` — `docflow` (+ hermetic `tests/lib/fake-docflow.sh` and a
   gated smoke against the real ariadne `docflow.sh`), `apply` (incl. snapshot
-  round-trip), `handoff`, the `loop` e2e (with `tests/lib/fake-review-agent.sh`),
+  round-trip), `reconcile` (reconcile_round: clean-only / conflict / mixed one-undo,
+  #89), `handoff`, the `loop` e2e (with `tests/lib/fake-review-agent.sh`, + the
+  concurrent-edit reconcile case),
   and `projection` (undo/redo coherence + riding + round-2 idempotence); M3 adds
   `poke` (id-based agent poke, no relative move-focus), `window` (:PairReview +
   pair-review-open + review.lua: keymap/state/markers + Alt+Return round-trip),

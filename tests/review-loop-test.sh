@@ -109,6 +109,51 @@ local sig2 = false
 for _, b in ipairs(poked) do if b:match('applied 1 edit%(s%) %(1 dropped%) to doc.md') then sig2 = true end end
 ok(sig2, 'poke carries agent_applied(1, 1, file) for the dropped case')
 
+-- (#89 M2) concurrent-edit reconcile through on_agent_round: snapshot v0, edit the
+-- buffer concurrently so one record's span is gone → the clean record applies and
+-- the overlapped one becomes a 🤖<…>[reconcile] marker; the landed-artifact reports
+-- conflicts and its body embeds ONLY the clean record (Option A).
+vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'keep this line', 'change this line' })
+review.set_base(buf, content(buf))                                  -- v0 = what the agent reviews
+vim.api.nvim_buf_set_lines(buf, 1, 2, false, { 'HUMAN rewrote it' }) -- concurrent edit on line 2
+poked = {}
+review.on_agent_round(buf, {
+  { old = 'keep', occurrence = 1, new = 'KEEP', explain = 'clean edit' },            -- line 1 untouched → clean
+  { old = 'change this line', occurrence = 1, new = 'CHANGE', explain = 'reword' },  -- line 2 gone → conflict
+})
+local rc = content(buf)
+ok(rc:find('KEEP this line', 1, true) ~= nil, 'reconcile: clean record applied')
+ok(rc:find('🤖<HUMAN rewrote it>', 1, true) ~= nil, 'reconcile: overlap became a marker on the human hunk')
+ok(rc:find('reconcile', 1, true) ~= nil and rc:find('CHANGE', 1, true) ~= nil, 'reconcile: marker carries the agent intent')
+local lf2 = io.open(handoff.landed_path('doc'), 'r')
+local landed2 = lf2 and vim.json.decode(lf2:read('*a')) or {}
+if lf2 then lf2:close() end
+ok(landed2.applied == 1 and landed2.conflicts == 1, 'reconcile: landed reports applied=1 conflicts=1')
+local lrecs2 = landed2.body and record.extract_from_body(landed2.body)
+ok(lrecs2 and #lrecs2 == 1 and lrecs2[1].new == 'KEEP', 'reconcile: body embeds ONLY the clean record (Option A)')
+local sig3 = false
+for _, b in ipairs(poked) do if b:find('applied 1 edit(s) (1 to reconcile) to doc.md', 1, true) then sig3 = true end end
+ok(sig3, 'reconcile: poke reports applied 1 (1 to reconcile)')
+
+-- (#89 M3) the apply-gate defers when the human is focused + mid-edit + buffer
+-- changed since the agent reviewed it: on_agent_round stashes via on_defer instead
+-- of applying (buffer untouched by the agent).
+vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'gate base line' })
+review.set_base(buf, content(buf))                       -- v0 = agent's base
+vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'human is editing now' }) -- v1 ≠ v0
+local deferred = nil
+review.pane_state = function(_) return { focused = true, mode = 'i' } end -- mid-edit on the pane
+review.on_defer = function(_, recs) deferred = recs end
+review.on_agent_round(buf, { { old = 'is', occurrence = 1, new = 'IS', explain = 'g' } })
+ok(deferred ~= nil and #deferred == 1, 'gate: mid-edit round is deferred (stashed, not applied)')
+ok(content(buf) == 'human is editing now', 'gate: buffer untouched while deferred')
+-- and when NOT mid-edit (normal mode), it applies immediately
+review.pane_state = function(_) return { focused = true, mode = 'n' } end
+deferred = nil
+review.on_agent_round(buf, { { old = 'is', occurrence = 1, new = 'IS', explain = 'g' } })
+ok(deferred == nil and content(buf):find('IS', 1, true) ~= nil, 'gate: normal-mode round applies immediately')
+review.pane_state, review.on_defer = nil, nil
+
 review.stop(buf)
 OUT:write(fails == 0 and 'loop_test ok\n' or ('FAILED ' .. fails .. '\n'))
 OUT:close()
