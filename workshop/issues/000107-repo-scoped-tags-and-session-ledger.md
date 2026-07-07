@@ -384,6 +384,19 @@ semantics and added the required plan `## Revisions` entry. Verified with
 ./...`, `git diff --check`, `bash tests/pair-restart-quit-test.sh`, and full
 `make test`.
 
+Third `sdlc close --issue 107` returned `Review-Verdict: REWORK`. Addressed
+the critical blockers (ARCH-PURPOSE): `LaunchNative` now resolves the git root
+once and uses it as `Env.RepoRoot` for scope/data/session-name/ledger identity
+while preserving the original cwd for the launched agent; unindexed live legacy
+sessions are recoverable only when flat pane metadata proves the pane cwd is
+inside the current repo root; quit cleanup now prints `pair resume <tag>` using
+the repo-local tag instead of the public zellij session name; and the durable
+plan core-concepts table now matches the implemented entity/file names. Also
+moved ledger appends after deterministic zellij-name preflight, while keeping
+ledger/index writes before the blocking handoff so active sessions have identity
+state while running. Verified with focused blocker regressions and `go test
+./cmd/internal/launcher -count=1`.
+
 Second `sdlc close --issue 107` returned `Review-Verdict: REWORK`. Addressed
 the remaining scoped lifecycle gaps (ARCH-PURPOSE/Root Cause): explicit
 `agent -- <args>` launches now bypass the picker and create a new session for

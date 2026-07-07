@@ -3,7 +3,10 @@ package launcher
 import (
 	"io"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -38,8 +41,9 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 		_, _ = io.WriteString(stderr, "pair: cannot determine working directory: "+err.Error()+"\n")
 		return 1, nil
 	}
+	repoRoot := gitRootOrCwd(cwd)
 	dataDir := ResolveDataDir(home, xdg)
-	launchDataDir := ScopedLaunchDataDir(dataDir, cwd)
+	launchDataDir := ScopedLaunchDataDir(dataDir, repoRoot)
 	if explicit := os.Getenv("PAIR_DATA_DIR"); explicit != "" {
 		launchDataDir = explicit
 	}
@@ -47,6 +51,7 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 		Home:     home,
 		XDGData:  xdg,
 		Cwd:      cwd,
+		RepoRoot: repoRoot,
 		Now:      time.Now(),
 		HistoryD: historyDays(),
 		DataDir:  launchDataDir,
@@ -113,6 +118,25 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 	}
 
 	return RunLaunch(opts, rt, stderr)
+}
+
+func gitRootOrCwd(cwd string) string {
+	out, err := exec.Command("git", "-C", cwd, "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		return canonicalPath(cwd)
+	}
+	root := strings.TrimSpace(string(out))
+	if root == "" {
+		return canonicalPath(cwd)
+	}
+	return canonicalPath(root)
+}
+
+func canonicalPath(path string) string {
+	if real, err := filepath.EvalSymlinks(path); err == nil {
+		return real
+	}
+	return path
 }
 
 func historyDays() int {

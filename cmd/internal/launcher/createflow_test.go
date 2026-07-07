@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -47,6 +48,7 @@ type fakeRuntime struct {
 	confirmPark    bool
 	parkOK         bool                     // ParkScrollback returns ("<base>", parkOK)
 	attachCode     int                      // AttachSession exit code
+	launchErr      error                    // LaunchSession error
 	quitMarkers    map[string]bool          // session -> Alt+x quit marker (read-cleared)
 	restartMarkers map[string]RestartMarker // session -> restart marker (peek + take-once)
 	cmuxOwned      map[string]bool          // tag -> PairOwnsCmuxWorkspace
@@ -97,7 +99,7 @@ func (f *fakeRuntime) ProbeSessionName(session string) error  { return f.probeEr
 func (f *fakeRuntime) LaunchSession(session, configDir, layout string) (int, error) {
 	f.launched = session
 	f.launchCount++
-	return f.launchCode, nil
+	return f.launchCode, f.launchErr
 }
 
 // SnapshotOps
@@ -466,6 +468,36 @@ func TestRunLaunchBareIgnoresUnindexedLiveSessions(t *testing.T) {
 	}
 }
 
+func TestRunLaunchBareAttachesLegacyLiveSessionWithCurrentRepoPaneEvidence(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.sessions = []Session{{Name: "pair-work", State: SessionDetached}}
+	rt.inferAgent["work"] = "codex"
+	rt.attachCode = 0
+	rt.files["/global/pane-work-codex.json"] = `{"cwd":"/home/u/work","cwd_display":"~/work"}`
+	rt.pickFunc = func(header string, options []string) string {
+		for _, option := range options {
+			plain := stripANSI(option)
+			if plain == "work/work  codex  (detached)" {
+				return plain
+			}
+		}
+		t.Fatalf("picker options = %q, want legacy current-repo live row", options)
+		return ""
+	}
+	opts := baseOpts(LaunchArgs{Agent: "claude"})
+	opts.GlobalDataDir = "/global"
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if !reflect.DeepEqual(rt.attached, []string{"pair-work"}) {
+		t.Fatalf("attached = %v, want legacy live pair-work", rt.attached)
+	}
+	if len(rt.pollers) != 1 || rt.pollers[0] != "work|codex" {
+		t.Fatalf("pollers = %v, want codex inferred from legacy tag", rt.pollers)
+	}
+}
+
 // Aborting the name prompt exits 0 (handled) without launching.
 func TestRunLaunchPromptAbort(t *testing.T) {
 	rt := newFakeRuntime()
@@ -493,6 +525,22 @@ func TestRunLaunchPromptCollision(t *testing.T) {
 	}
 	if rt.launched != "" {
 		t.Fatalf("must not launch on collision: %q", rt.launched)
+	}
+}
+
+func TestRunLaunchFailedPreflightDoesNotAppendLedgerOrSessionIndex(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.uuids = []string{"SID"}
+	rt.probeErr = errors.New("too long")
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "bugfix"}), rt)
+	if err != nil || code != 1 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if len(rt.ledger["bugfix"]) != 0 {
+		t.Fatalf("ledger should not be appended before preflight succeeds: %+v", rt.ledger["bugfix"])
+	}
+	if len(rt.sessionIndex.Entries) != 0 {
+		t.Fatalf("session index should not be appended before preflight succeeds: %+v", rt.sessionIndex)
 	}
 }
 

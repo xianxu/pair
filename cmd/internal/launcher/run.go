@@ -9,6 +9,7 @@ type Env struct {
 	Home     string
 	XDGData  string
 	Cwd      string
+	RepoRoot string
 	Now      time.Time
 	HistoryD int
 	DataDir  string
@@ -41,6 +42,9 @@ func Run(argv []string, env Env, sessions SessionSource, history HistoricalScann
 	if env.DataDir == "" {
 		env.DataDir = ResolveDataDir(env.Home, env.XDGData)
 	}
+	if env.RepoRoot == "" {
+		env.RepoRoot = env.Cwd
+	}
 	if env.HistoryD == 0 {
 		env.HistoryD = 14
 	}
@@ -52,7 +56,7 @@ func Run(argv []string, env Env, sessions SessionSource, history HistoricalScann
 	if err != nil {
 		return LaunchOutcome{}, err
 	}
-	base := DefaultTag(env.Cwd)
+	base := DefaultTag(env.RepoRoot)
 	historical, err := history.Scan(base, env.Now.Add(-time.Duration(env.HistoryD)*24*time.Hour))
 	if err != nil {
 		return LaunchOutcome{}, err

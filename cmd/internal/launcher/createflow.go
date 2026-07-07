@@ -131,7 +131,8 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 	// resolves a DIFFERENT agent (resume-by-name inference), those args are
 	// agent-specific and invalid for it — the guard after inference drops them.
 	requestedAgent := agent
-	base := DefaultTag(env.Cwd)
+	scopeRoot := envScopeRoot(env)
+	base := DefaultTag(scopeRoot)
 	cutoff := env.Now.Add(-time.Duration(env.HistoryD) * 24 * time.Hour)
 	sessions, err := rt.Sessions()
 	if err != nil {
@@ -143,7 +144,7 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 		fmt.Fprintf(stderr, "pair: failed to scan session history: %v\n", err)
 		return launchStep{code: 1}, nil
 	}
-	scopedSessions, sessionNames, sessionNameEntries, ok := assignLaunchSessionNames(rt, sessions, env.Cwd, opts.Args, base, stderr)
+	scopedSessions, sessionNames, sessionNameEntries, ok := assignLaunchSessionNames(rt, sessions, scopeRoot, opts.GlobalDataDir, opts.Args, base, stderr)
 	if !ok {
 		return launchStep{code: 1}, nil
 	}
@@ -205,8 +206,8 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 	}
 }
 
-func assignLaunchSessionNames(rt Runtime, live []Session, cwd string, args LaunchArgs, base string, stderr io.Writer) ([]Session, map[string]string, map[string]SessionNameEntry, bool) {
-	scope, err := ResolveRepoScope(cwd)
+func assignLaunchSessionNames(rt Runtime, live []Session, repoRoot, globalDataDir string, args LaunchArgs, base string, stderr io.Writer) ([]Session, map[string]string, map[string]SessionNameEntry, bool) {
+	scope, err := ResolveRepoScope(repoRoot)
 	if err != nil {
 		return live, nil, nil, true
 	}
@@ -215,6 +216,7 @@ func assignLaunchSessionNames(rt Runtime, live []Session, cwd string, args Launc
 		index = SessionNameIndex{}
 	}
 	scopedLive := SessionsForScope(live, index, scope)
+	scopedLive = append(scopedLive, legacyLiveSessionsForScope(rt, live, index, scope, globalDataDir)...)
 	tags := launchNameTags(args, base)
 	if len(tags) == 0 {
 		return scopedLive, nil, nil, true
@@ -279,7 +281,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 
 	session := decision.SessionName
 	if session == "" || chosenTag != decision.Tag {
-		name, entry, ok := assignSingleSessionName(rt, live, env.Cwd, chosenTag, stderr)
+		name, entry, ok := assignSingleSessionName(rt, live, envScopeRoot(env), chosenTag, stderr)
 		if !ok {
 			return launchStep{code: 1}, nil
 		}
@@ -352,17 +354,6 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		agentArgs = codexAltScreenArgs(agentArgs, opts.CodexAltScreenOptOut)
 	}
 
-	_ = rt.AppendLedger(chosenTag, LedgerEntry{
-		Agent:        agent,
-		Args:         persistedConfigArgs(agentArgs),
-		SessionID:    firstNonEmpty(explicitResume, newSid),
-		Started:      env.Now,
-		LastActive:   env.Now,
-		RepoRoot:     env.Cwd,
-		RepoName:     DefaultTag(env.Cwd),
-		LegacyImport: legacyImported,
-	})
-
 	rt.SetEnv("PAIR_AGENT_ARGS", strings.Join(agentArgs, " "))
 	rt.SetEnv("PAIR_SESSION_ID", firstNonEmpty(explicitResume, newSid))
 	rt.SetEnv("PAIR_PANE_TITLE", PaneTitle(agent, env.Cwd, env.Home))
@@ -394,6 +385,16 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		fmt.Fprintf(stderr, "pair: session '%s' already exists.\n", session)
 		return launchStep{code: 1}, nil
 	}
+	_ = rt.AppendLedger(chosenTag, LedgerEntry{
+		Agent:        agent,
+		Args:         persistedConfigArgs(agentArgs),
+		SessionID:    firstNonEmpty(explicitResume, newSid),
+		Started:      env.Now,
+		LastActive:   env.Now,
+		RepoRoot:     envScopeRoot(env),
+		RepoName:     DefaultTag(envScopeRoot(env)),
+		LegacyImport: legacyImported,
+	})
 	if sessionEntry.SessionName != "" {
 		_ = rt.AppendSessionNameIndex(sessionEntry)
 	}
@@ -545,6 +546,9 @@ func normalizeEnv(env Env) Env {
 	if env.DataDir == "" {
 		env.DataDir = ResolveDataDir(env.Home, env.XDGData)
 	}
+	if env.RepoRoot == "" {
+		env.RepoRoot = env.Cwd
+	}
 	if env.HistoryD == 0 {
 		env.HistoryD = 14
 	}
@@ -552,6 +556,13 @@ func normalizeEnv(env Env) Env {
 		env.Now = time.Now()
 	}
 	return env
+}
+
+func envScopeRoot(env Env) string {
+	if env.RepoRoot != "" {
+		return env.RepoRoot
+	}
+	return env.Cwd
 }
 
 func firstNonEmpty(vals ...string) string {

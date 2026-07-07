@@ -105,11 +105,11 @@ func runCleanup(env Env, rt Runtime, step launchStep, parkTimeout int, out io.Wr
 	}
 
 	// Resume hint: a saved config for this (tag, agent) means the resume path
-	// will work next time — surface the one-liner (shell 1602-1617). SESSION
-	// (pair-<tag>) matches the UI tab; `resume` strips the pair- prefix.
+	// will work next time — surface the repo-local tag, not the public zellij
+	// session name.
 	if raw, err := rt.ReadFile(resolveConfigPath(rt, dataDir, step.tag, quitAgent)); err == nil {
-		fmt.Fprintf(out, "pair: saved session config for tag \"%s\" (%s).\n", step.session, quitAgent)
-		fmt.Fprintf(out, "      resume with: pair resume %s\n", step.session)
+		fmt.Fprintf(out, "pair: saved session config for tag \"%s\" (%s).\n", step.tag, quitAgent)
+		fmt.Fprintf(out, "      resume with: pair resume %s\n", step.tag)
 		if cfg, err := parseConfig(raw); err == nil && cfg.SessionID != "" {
 			fmt.Fprintf(out, "      session id:  %s\n", cfg.SessionID)
 		}

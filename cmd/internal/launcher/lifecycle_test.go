@@ -106,7 +106,9 @@ func TestRunLaunchQuitCleanup(t *testing.T) {
 		t.Fatalf("ClearCmuxOwner calls = %d", rt.cmuxCleared)
 	}
 	// Resume hint on stderr.
-	if !strings.Contains(stderr.String(), "pair resume pair-work-bugfix") || !strings.Contains(stderr.String(), "session id:  SID") {
+	if !strings.Contains(stderr.String(), "saved session config for tag \"bugfix\"") ||
+		!strings.Contains(stderr.String(), "pair resume bugfix") ||
+		!strings.Contains(stderr.String(), "session id:  SID") {
 		t.Fatalf("resume hint missing: %q", stderr.String())
 	}
 }

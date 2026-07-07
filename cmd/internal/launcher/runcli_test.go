@@ -3,6 +3,7 @@ package launcher
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -106,6 +107,72 @@ func TestLaunchNativeRestartInfersAgentFromScopedDataDir(t *testing.T) {
 	marker := parseRestartMarker(string(raw))
 	if marker.Agent != "codex" {
 		t.Fatalf("restart marker agent = %q, want scoped codex; raw marker:\n%s", marker.Agent, string(raw))
+	}
+}
+
+func TestLaunchNativeUsesGitRootForScopedDataDirFromSubdir(t *testing.T) {
+	home := t.TempDir()
+	repo := filepath.Join(home, "work", "pair")
+	subdir := filepath.Join(repo, "cmd", "pair")
+	if err := os.MkdirAll(subdir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := exec.Command("git", "-C", repo, "init").Run(); err != nil {
+		t.Skipf("git init unavailable: %v", err)
+	}
+	if real, err := filepath.EvalSymlinks(repo); err == nil {
+		repo = real
+	}
+	oldwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(subdir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(oldwd); err != nil {
+			t.Fatalf("restore cwd: %v", err)
+		}
+	})
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", "")
+	t.Setenv("PAIR_DATA_DIR", "")
+	t.Setenv("PAIR_TAG", "work")
+	t.Setenv("ZELLIJ_SESSION_NAME", "pair-pair-work")
+	t.Setenv("PAIR_KILL_CMD", "__pair_no_such_command__")
+
+	globalDataDir := filepath.Join(home, ".local", "share", "pair")
+	scopedDataDir := ScopedLaunchDataDir(globalDataDir, repo)
+	if err := os.MkdirAll(scopedDataDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	line, err := BuildLedgerLine(LedgerEntry{
+		Agent:      "codex",
+		Started:    time.Unix(10, 0),
+		LastActive: time.Unix(10, 0),
+		RepoRoot:   repo,
+		RepoName:   "pair",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(scopedDataDir, "ledger-work.jsonl"), []byte(line+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code, err := LaunchNative([]string{"restart"}, "/pair", &stdout, &stderr)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v stderr=%q", code, err, stderr.String())
+	}
+	raw, err := os.ReadFile(filepath.Join(home, ".cache", "pair", "restart-pair-pair-work"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	marker := parseRestartMarker(string(raw))
+	if marker.Agent != "codex" {
+		t.Fatalf("restart marker agent = %q, want scoped codex from repo root; raw marker:\n%s", marker.Agent, string(raw))
 	}
 }
 

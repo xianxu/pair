@@ -17,44 +17,44 @@
 | Name | Lives in | Status |
 |------|----------|--------|
 | `RepoScope` | `cmd/internal/launcher/scope.go` | new |
-| `ScopedTag` | `cmd/internal/launcher/scope.go` | new |
+| repo-local tag | `cmd/internal/launcher/tag.go` / `cmd/internal/launcher/session.go` | modified |
 | `ScopedPaths` | `cmd/internal/launcher/scoped_paths.go` | new |
-| `SessionLedger` | `cmd/internal/launcher/ledger.go` | new |
+| `LedgerEntry` | `cmd/internal/launcher/ledger.go` | new |
 | `SessionNameIndex` | `cmd/internal/launcher/session_index.go` | new |
-| `ScopedSessionName` | `cmd/internal/launcher/sessionname.go` | modified |
-| `ScopedSnapshot` | `cmd/internal/launcher/session.go` | modified |
+| public session-name helpers | `cmd/internal/launcher/session_index.go` | new |
+| `SessionSnapshot` | `cmd/internal/launcher/session.go` | modified |
 
 - **RepoScope** — hidden repo scope key plus display repo name and absolute repo path.
-  - **Relationships:** 1:N with `ScopedTag`; one repo scope owns many local tags.
+  - **Relationships:** 1:N with repo-local tags; one repo scope owns many local tags.
   - **DRY rationale:** Replaces basename-prefix filtering in `history.go`, bare `pair-<tag>` zellij names in `decision.go`, and flat sidecar paths in `createflow.go` with one source of repo identity.
   - **Future extensions:** Repo default agent (#83) can attach to `RepoScope` without changing tag semantics.
 
-- **ScopedTag** — display tag plus owning `RepoScope`.
-  - **Relationships:** N:1 with `RepoScope`; 1:N with `SessionLedger` entries.
+- **repo-local tag** — the display tag string plus its owning `RepoScope` at the call site.
+  - **Relationships:** N:1 with `RepoScope`; 1:N with `LedgerEntry` rows.
   - **DRY rationale:** Keeps "what the user typed" separate from the hidden collision-safe filesystem key.
   - **Future extensions:** Peer-repo touches can record a secondary cwd on ledger entries without moving the tag home.
 
 - **ScopedPaths** — pure path derivation for draft/log/queue/config/agent/pane/scrollback/changelog/adapt/outer-tty sidecars under the repo scope dir.
-  - **Relationships:** 1:1 with `ScopedTag` for tag-level paths; 1:1 with `(ScopedTag, agent)` for agent-level paths.
+  - **Relationships:** 1:1 with a repo-local tag for tag-level paths; 1:1 with `(tag, agent)` for agent-level paths.
   - **DRY rationale:** Removes scattered string formatting such as `draft-"+tag+".md`, `config-"+tag+"-"+agent+".json`, and zellij layout fallback expressions.
   - **Future extensions:** Can grow a compatibility reader list while keeping writers scoped-only.
 
-- **SessionLedger** — append-only JSONL ledger for a tag's sessions.
-  - **Relationships:** 1:N with `ScopedTag`; each entry records one agent session launch or discovery.
+- **LedgerEntry** — append-only JSONL row for a tag's sessions.
+  - **Relationships:** 1:N with a repo-local tag; each entry records one agent session launch or discovery.
   - **DRY rationale:** Becomes source of truth for last agent/params/session, while `agent-<tag>` and `config-<tag>-<agent>.json` remain derived compatibility caches.
   - **Future extensions:** Retention policy can compact old rows while preserving last-per-agent entries.
 
-- **SessionNameIndex** — global append-only/public-name registry mapping `session_name -> {scope_key, repo_root, repo_name, tag, assigned_at, last_seen}`.
+- **SessionNameIndex** — global append-only/public-name registry mapping `session_name -> {scope_key, repo_root, repo_name, tag}`.
   - **Relationships:** N:1 with `RepoScope`; one scope can own many active or remembered public names.
   - **DRY rationale:** Solves same-name repo collisions without putting the hidden scope key in zellij's user-visible session namespace.
   - **Future extensions:** Can become the source for `pair list --all-repos` and stale-name repair.
 
-- **ScopedSessionName** — zellij-safe, globally unique public session name. Format is `pair-<repo-component>-<tag-component>` for the first scope and `pair-<repo-component>-<tag-component>-N` for later same-public-name collisions, where `N` is the lowest stable positive integer assigned by `SessionNameIndex`. If zellij rejects that readable base for #54 length, the builder deterministically shortens the repo/tag components, never replacing them with a hash.
-  - **Relationships:** 1:1 with a live `ScopedTag` attempt; the index maps the public name back to a scope and tag.
+- **public session-name helpers** — zellij-safe, globally unique public session names. Format is `pair-<repo-component>-<tag-component>` for the first scope and `pair-<repo-component>-<tag-component>-N` for later same-public-name collisions, where `N` is the lowest stable positive integer assigned by `SessionNameIndex`. If zellij rejects that readable base for #54 length, the builder deterministically shortens the repo/tag components, never replacing them with a hash.
+  - **Relationships:** 1:1 with a live repo-local tag attempt; the index maps the public name back to a scope and tag.
   - **DRY rationale:** Replaces direct `sessionName(tag)` calls and keeps #54 length probing centralized while honoring the no-hash-in-UI constraint.
   - **Future extensions:** If zellij exposes structured metadata later, the numeric suffix can remain only as compatibility, with metadata carrying the stable key.
 
-- **ScopedSnapshot** — launch decision snapshot filtered to the current repo scope, with live rows annotated by tag, session name, and last agent.
+- **SessionSnapshot** — launch decision snapshot filtered to the current repo scope, with live rows annotated by tag, session name, and last agent.
   - **Relationships:** 1:1 with each startup decision; contains current-scope live sessions and history rows.
   - **DRY rationale:** Prevents each consumer from rediscovering repo filtering independently.
   - **Future extensions:** Supports a future "all repos" list by adding an explicit broader query instead of weakening default scope.
@@ -63,7 +63,7 @@
 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
-| `ScopeResolver` | `cmd/internal/launcher/osruntime.go` | new | cwd/git filesystem |
+| `ScopeResolver` | `cmd/internal/launcher/runcli.go` / `cmd/internal/launcher/scope.go` | new | cwd/git filesystem |
 | `SessionNameStore` | `cmd/internal/launcher/osruntime.go` | new | global session-name index JSONL |
 | `ScopedHistorySource` | `cmd/internal/launcher/history.go` | modified | scoped data dir + legacy flat data dir |
 | `LedgerStore` | `cmd/internal/launcher/ledger.go` | new | JSONL files + atomic writes |
@@ -163,7 +163,6 @@ Expected: PASS.
 
 **Files:**
 - Modify: `cmd/internal/launcher/decision.go`
-- Create or modify: `cmd/internal/launcher/sessionname.go`
 - Create: `cmd/internal/launcher/session_index.go`
 - Test: `cmd/internal/launcher/decision_test.go`
 - Test: `cmd/internal/launcher/session_index_test.go`
@@ -179,7 +178,7 @@ Cover:
 - hidden hash/key is present only in the index record and scoped data-dir path.
 - generated names still pass through `ProbeSessionName`.
 
-Run: `go test ./cmd/internal/launcher -run 'TestScopedSessionName|TestSessionNameIndex|TestDecideLaunch'`
+Run: `go test ./cmd/internal/launcher -run 'TestSessionNameIndex|TestDecideLaunch'`
 Expected: FAIL for missing scoped session-name API.
 
 - [x] **Step 2: Implement public-name assignment**
@@ -196,7 +195,7 @@ Keep `LaunchDecision.Tag` as the repo-local tag. Make every decision use the ass
 
 - [x] **Step 4: Verify green**
 
-Run: `go test ./cmd/internal/launcher -run 'TestScopedSessionName|TestSessionNameIndex|TestDecideLaunch'`
+Run: `go test ./cmd/internal/launcher -run 'TestSessionNameIndex|TestDecideLaunch'`
 Expected: PASS.
 
 ## Chunk 2: Ledger and Launcher Source of Truth
@@ -215,7 +214,7 @@ Cover:
 - latest per agent is retained when compacting.
 - malformed rows are skipped without losing valid rows.
 
-Run: `go test ./cmd/internal/launcher -run TestSessionLedger`
+Run: `go test ./cmd/internal/launcher -run TestLedger`
 Expected: FAIL for missing ledger implementation.
 
 - [x] **Step 2: Implement pure ledger types and selectors**
@@ -229,7 +228,7 @@ Add pure helpers:
 
 - [x] **Step 3: Verify green**
 
-Run: `go test ./cmd/internal/launcher -run TestSessionLedger`
+Run: `go test ./cmd/internal/launcher -run TestLedger`
 Expected: PASS.
 
 ### Task 5: Make ledger drive agent/config inference
@@ -307,7 +306,7 @@ Build a snapshot with this exact mapping order:
 
 - [x] **Step 3: Update picker rows**
 
-Use labels such as `pair <repo>/<tag>  <agent>  (...)` while returning plain text keys that map to `ScopedTag`. Keep fzf ANSI handling unchanged.
+Use labels such as `pair <repo>/<tag>  <agent>  (...)` while returning plain text keys that map to repo-local tags. Keep fzf ANSI handling unchanged.
 
 - [x] **Step 4: Verify green**
 
@@ -504,3 +503,21 @@ enrich and sort historical rows from the ledger, preserve scoped live session
 names when the picker attaches, keep generated review artifacts out of the
 branch diff, and align the completed plan checklist before rerunning the close
 gate.
+
+### 2026-07-07 — third close-review REWORK follow-up
+
+Reason: the third `sdlc close --issue 107` boundary review returned REWORK. It
+found that repo identity was still cwd-scoped for subdirectory launches, live
+legacy unscoped sessions were hidden even when flat pane metadata proved current
+repo ownership, quit cleanup printed a `pair resume <public-session-name>` hint
+instead of the repo-local tag, and the core-concepts table named planned
+entities that the implementation did not create.
+
+Delta: resolve git root once in `LaunchNative` and use it as `Env.RepoRoot` for
+scope/data/session-name/ledger identity while preserving the original cwd for
+the launched agent; recover unindexed live legacy sessions only when flat pane
+metadata cwd is inside the current repo root; print resume hints with the
+repo-local tag; update the plan's core-concepts table to the implemented names;
+and move ledger appends after deterministic zellij-name preflight. Ledger/index
+state still writes before the blocking zellij handoff intentionally, so active
+sessions have identity state while running.
