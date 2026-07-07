@@ -68,6 +68,16 @@ Implementation follows the durable plan at `workshop/plans/000105-altc-determini
 
 ## Revisions
 
+### 2026-07-07 — re-smoke: detection fixed, but kill-session still blocked under sandbox; whole flow verified unsandboxed
+
+Re-smoked the `PAIR_FAKE_IN_ZELLIJ` detection fix (prior revision) via a live `alt+shift+c`. **Detection is now fixed** — compaction fired under the sandboxed agent shell ("compacting pair-ariadne — parking scrollback…"), so the proc-walk half of `compactionDecision` is resolved.
+
+**But the restart still did not complete: `zellij kill-session` could not reach zellij's server socket from the agent's command sandbox.** The kill runs from the agent's shell, so it inherits the sandbox's unix-socket restrictions. The restart finally completed by running the `pair continuation` writer **unsandboxed** (`dangerouslyDisableSandbox`), which confirms the entire compaction flow (proc-walk detection + kill-session + outer relaunch) is correct end-to-end — **the sandbox was the sole remaining blocker.**
+
+This **corrects the earlier re-close Log line** ("kill-session verified unblocked under sandbox") — premature; the re-smoke showed the socket was still blocked whenever the agent is sandboxed.
+
+**Scope call:** this is a sandbox policy/packaging decision, **not a #105 code bug**. #105's two deliverables — deterministic writer-triggered restart (`PAIR_FAKE_IN_ZELLIJ`) and draft-WIP fold — are complete and verified end-to-end (unsandboxed), and ship regardless. The remaining kill-session-under-sandbox gap is a separate concern: resolve by either allowlisting zellij's server socket in the agent's command sandbox, or making pair's kill sandbox-robust (defer it to a non-sandboxed process). Open for the operator.
+
 ### 2026-07-06 — live smoke found the REAL root cause: sandbox blocks in-pane detection
 
 The operator-run live `alt+shift+c` smoke (dogfooded on this session) exposed that the writer-triggered restart **misfired** with `operation not permitted` — the session wrote the continuation (commit + push OK, fold correctly no-op on a comment-only draft) but did **not** restart. Diagnosis: the restart's `pair continue` decides whether to compact via the launcher's `InZellijPane()`, which **walks the process ancestry** (`procComm`/`procPPID`); the agent's command **sandbox blocks process introspection** (`ps -p $PPID` → EPERM), while `zellij kill-session` itself is *not* blocked. So under a sandboxed agent shell the child can't detect the pane → `compactionDecision` goes false → it misfires toward a launch → EPERM.
