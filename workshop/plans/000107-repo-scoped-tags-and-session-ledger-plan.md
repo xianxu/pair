@@ -4,7 +4,7 @@
 
 **Goal:** Make Pair tags repo-local work items with a per-tag session ledger, so tags, picker rows, sidecars, and live zellij sessions no longer collide across repos or conflate tag with agent.
 
-**Architecture:** Add a pure scoped identity layer that derives hidden repo scope keys, display repo names, session names, and per-repo data paths from one model (ARCH-DRY, ARCH-PURE). Then migrate launcher consumers to use that model before updating nvim/shell/zellij sidecar paths and grandfathering legacy flat data. The issue is not complete until live sessions, history, picker rows, ledger writes, config/agent caches, and existing flat data all derive from or migrate into the scoped model (ARCH-PURPOSE).
+**Architecture:** Add a pure scoped identity layer that derives hidden repo scope keys, display repo names, session names, and per-repo data paths from one model (ARCH-DRY, ARCH-PURE). Zellij session names stay human-readable as `pair-<repo>-<tag>` with a numeric suffix only when two distinct repo scopes need the same public name; the hidden scope key is stored in a global session-name index and scoped data directory, never in names/titles/picker labels. Then migrate launcher consumers to use that model before updating nvim/shell/zellij sidecar paths and grandfathering legacy flat data. The issue is not complete until live sessions, history, picker rows, ledger writes, config/agent caches, and existing flat data all derive from or migrate into the scoped model (ARCH-PURPOSE).
 
 **Tech Stack:** Go launcher modules and tests, shell smoke tests, Lua/nvim sidecar consumers, zellij KDL layout, atlas docs.
 
@@ -20,6 +20,7 @@
 | `ScopedTag` | `cmd/internal/launcher/scope.go` | new |
 | `ScopedPaths` | `cmd/internal/launcher/scoped_paths.go` | new |
 | `SessionLedger` | `cmd/internal/launcher/ledger.go` | new |
+| `SessionNameIndex` | `cmd/internal/launcher/session_index.go` | new |
 | `ScopedSessionName` | `cmd/internal/launcher/sessionname.go` | modified |
 | `ScopedSnapshot` | `cmd/internal/launcher/session.go` | modified |
 
@@ -43,10 +44,15 @@
   - **DRY rationale:** Becomes source of truth for last agent/params/session, while `agent-<tag>` and `config-<tag>-<agent>.json` remain derived compatibility caches.
   - **Future extensions:** Retention policy can compact old rows while preserving last-per-agent entries.
 
-- **ScopedSessionName** — zellij-safe, globally unique session name with repo name and tag visible, hidden scope used only as needed for collision avoidance.
-  - **Relationships:** 1:1 with a live `ScopedTag` attempt; may include a numeric disambiguator from `nextFreeTag`.
-  - **DRY rationale:** Replaces direct `sessionName(tag)` calls and keeps #54 length probing centralized.
-  - **Future extensions:** If zellij exposes structured metadata later, hidden suffixes can be dropped from names without touching picker logic.
+- **SessionNameIndex** — global append-only/public-name registry mapping `session_name -> {scope_key, repo_root, repo_name, tag, assigned_at, last_seen}`.
+  - **Relationships:** N:1 with `RepoScope`; one scope can own many active or remembered public names.
+  - **DRY rationale:** Solves same-name repo collisions without putting the hidden scope key in zellij's user-visible session namespace.
+  - **Future extensions:** Can become the source for `pair list --all-repos` and stale-name repair.
+
+- **ScopedSessionName** — zellij-safe, globally unique public session name. Format is `pair-<repo-component>-<tag-component>` for the first scope and `pair-<repo-component>-<tag-component>-N` for later same-public-name collisions, where `N` is the lowest stable positive integer assigned by `SessionNameIndex`.
+  - **Relationships:** 1:1 with a live `ScopedTag` attempt; the index maps the public name back to a scope and tag.
+  - **DRY rationale:** Replaces direct `sessionName(tag)` calls and keeps #54 length probing centralized while honoring the no-hash-in-UI constraint.
+  - **Future extensions:** If zellij exposes structured metadata later, the numeric suffix can remain only as compatibility, with metadata carrying the stable key.
 
 - **ScopedSnapshot** — launch decision snapshot filtered to the current repo scope, with live rows annotated by tag, session name, and last agent.
   - **Relationships:** 1:1 with each startup decision; contains current-scope live sessions and history rows.
@@ -58,6 +64,7 @@
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
 | `ScopeResolver` | `cmd/internal/launcher/osruntime.go` | new | cwd/git filesystem |
+| `SessionNameStore` | `cmd/internal/launcher/osruntime.go` | new | global session-name index JSONL |
 | `ScopedHistorySource` | `cmd/internal/launcher/history.go` | modified | scoped data dir + legacy flat data dir |
 | `LedgerStore` | `cmd/internal/launcher/ledger.go` | new | JSONL files + atomic writes |
 | `ScopedOSRuntime` | `cmd/internal/launcher/osruntime.go` | modified | zellij, fzf, filesystem, process env |
@@ -67,6 +74,10 @@
 - **ScopeResolver** — resolves repo root, repo display name, hidden key, and scope directory once per launch.
   - **Injected into:** `RunLaunch` through `Env`/runtime setup; pure derivation is unit-tested with fake cwd/root values.
   - **Future extensions:** Alternate root detection for non-git directories.
+
+- **SessionNameStore** — reads/appends the global public-name index under the global Pair data dir.
+  - **Injected into:** session-name assignment, live-session filtering, picker rows, list, restart, and legacy attach.
+  - **Future extensions:** Can add pruning of stale names after zellij sessions and scoped ledgers disappear.
 
 - **ScopedHistorySource** — lists historical tags from the current scope dir, with compatibility reads from flat data when no scoped copy exists.
   - **Injected into:** `OSRuntime.ScanHistory`.
@@ -153,26 +164,37 @@ Expected: PASS.
 **Files:**
 - Modify: `cmd/internal/launcher/decision.go`
 - Create or modify: `cmd/internal/launcher/sessionname.go`
+- Create: `cmd/internal/launcher/session_index.go`
 - Test: `cmd/internal/launcher/decision_test.go`
+- Test: `cmd/internal/launcher/session_index_test.go`
 
 - [ ] **Step 1: Write failing tests for scoped session naming**
 
 Cover:
-- same repo/tag keeps readable `pair-<repo>-<tag>` or equivalent display.
-- two same-name repos with different scope keys do not collide after disambiguation.
+- same repo/tag keeps readable `pair-<repo>-<tag>` when unclaimed.
+- two same-name repos with different scope keys get stable `pair-<repo>-<tag>` and `pair-<repo>-<tag>-2` assignments.
+- the same scope/tag reuses its prior public session name when zellij still has it or the index marks it current.
 - hidden hash/key is not present in picker labels or pane titles.
+- hidden hash/key is present only in the index record and scoped data-dir path.
 - generated names still pass through `ProbeSessionName`.
 
-Run: `go test ./cmd/internal/launcher -run 'TestScopedSessionName|TestDecideLaunch'`
+Run: `go test ./cmd/internal/launcher -run 'TestScopedSessionName|TestSessionNameIndex|TestDecideLaunch'`
 Expected: FAIL for missing scoped session-name API.
 
-- [ ] **Step 2: Modify decisions to carry session name separately from tag**
+- [ ] **Step 2: Implement public-name assignment**
 
-Keep `LaunchDecision.Tag` as the repo-local tag. Make every decision use the scoped session-name helper instead of `sessionName(tag)`. Do not infer repo scope inside pure decisions; pass a pure naming context.
+Implement pure helpers:
+- `PublicSessionBase(scope RepoScope, tag string) string` -> `pair-<repo-component>-<tag-component>`.
+- `AssignSessionName(index SessionNameIndex, live []Session, scope RepoScope, tag string) (name string, updated SessionNameIndex)`.
+- Assignment rule: reuse the existing index binding for the same `(scope_key, tag)` when possible; otherwise choose the lowest `-N` public suffix whose live/index owner is absent or the same scope/tag. Never embed the scope key in the returned name.
 
-- [ ] **Step 3: Verify green**
+- [ ] **Step 3: Modify decisions to carry session name separately from tag**
 
-Run: `go test ./cmd/internal/launcher -run 'TestScopedSessionName|TestDecideLaunch'`
+Keep `LaunchDecision.Tag` as the repo-local tag. Make every decision use the assigned public session name instead of `sessionName(tag)`. Do not infer repo scope inside pure decisions; pass a pure naming context and session-name index snapshot.
+
+- [ ] **Step 4: Verify green**
+
+Run: `go test ./cmd/internal/launcher -run 'TestScopedSessionName|TestSessionNameIndex|TestDecideLaunch'`
 Expected: PASS.
 
 ## Chunk 2: Ledger and Launcher Source of Truth
@@ -269,13 +291,17 @@ Cover:
 - detached sessions from another repo do not trigger the picker.
 - picker rows annotate agent, repo display name, and tag.
 - no hidden scope key appears in picker plain or colored rows.
+- live session mapping reads `SessionNameIndex` first and scoped pane metadata second; unindexed sessions are treated as legacy candidates, never as current-scope proof by name alone.
 
 Run: `go test ./cmd/internal/launcher -run 'TestHistory|TestBuildPickRows|TestPairSessionNames'`
 Expected: FAIL with current flat filtering.
 
 - [ ] **Step 2: Implement scoped snapshots**
 
-Build a snapshot that maps live zellij session names back to current-scope tags using the session-name helper and/or pane metadata. Keep old flat sessions visible only through grandfathering logic for the current repo.
+Build a snapshot with this exact mapping order:
+1. If `SessionNameIndex` binds the zellij session name to the current `scope_key`, include it as current-scope live.
+2. If no index entry exists, read scoped pane metadata written at launch (`scope_key`, `repo_root`, `tag`, `agent`, `session_name`) and include only when `scope_key` or cleaned `repo_root` matches current scope.
+3. If neither exists, classify as `LegacyUnscoped`; do not include it in the normal current-scope picker. Task 9 defines the explicit recovery path.
 
 - [ ] **Step 3: Update picker rows**
 
@@ -365,12 +391,18 @@ Expected: PASS.
 Cover:
 - flat `draft-work.md`, `log-work.md`, `config-work-claude.json`, `queue-work/`, and scrollback files are copied or moved into the current scope on first use without deleting data before successful write.
 - live old `pair-work` in the same repo can be attached/resumed.
-- flat artifacts from another repo with same basename are not silently claimed unless pane metadata proves they belong to current repo.
+- flat artifacts from another repo with same basename are not silently claimed unless pane metadata or transcript cwd evidence proves they belong to current repo.
+- ambiguous flat artifacts with no cwd evidence are listed as `legacy unscoped` recovery rows and are copied into the current scope only after the user explicitly selects that row.
 
 Run: `go test ./cmd/internal/launcher -run 'TestGrandfather|TestMigrate'`
 Expected: FAIL for missing migration.
 
 - [ ] **Step 2: Implement conservative migration**
+
+Implement these ownership rules:
+1. **Proven current repo:** pane metadata `cwd`/`cwd_display`, scoped pane metadata, or transcript path proves the repo root. Copy into the current scope automatically on first current-scope launch/resume.
+2. **Proven other repo:** leave untouched and exclude from current-scope history/picker.
+3. **Ambiguous legacy:** leave flat files untouched; show a separate picker row labeled `legacy unscoped <tag> (manual import)` only when the tag matches the current repo's historical/default family. Selecting it copies into the current scope and writes a ledger row with `legacy_import: true`.
 
 Prefer copy-then-atomic-rename patterns for files Pair can race on. Record a migration marker in the scope dir after success. Never delete a flat source unless the operation is explicitly a move for a lifecycle cleanup and the scoped copy exists.
 
@@ -436,4 +468,3 @@ Run:
 - any live/manual smoke required by the final diff, especially `zellij setup --check --config-dir zellij` if `main.kdl` or config changes.
 
 Expected: PASS. Use this evidence in `sdlc close --issue 107 --verified '<evidence>'`.
-

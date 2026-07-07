@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-07-07
 updated: 2026-07-07
-estimate_hours: 5.8
+estimate_hours: 8.2
 started: 2026-07-07T11:23:27-07:00
 ---
 
@@ -169,13 +169,13 @@ Repro test already staged.
 ```estimate
 model: estimate-logic-v3.1
 familiarity: 1.0
-item: cross-cutting-refactor design=1.0 impl=2.0
-item: greenfield-go-module design=0.5 impl=0.8
-item: lua-neovim design=0.25 impl=0.45
-item: atlas-docs design=0.1 impl=0.2
-item: milestone-review design=0.0 impl=0.2
+item: cross-cutting-refactor design=1.4 impl=3.0
+item: greenfield-go-module design=0.7 impl=1.2
+item: lua-neovim design=0.3 impl=0.6
+item: atlas-docs design=0.1 impl=0.25
+item: milestone-review design=0.0 impl=0.25
 design-buffer: 0.15
-total: 5.78
+total: 8.18
 ```
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md`
@@ -221,3 +221,12 @@ Claimed issue via `sdlc claim --issue 107`, entered planning via
 Architecture decisions in the plan cite ARCH-DRY (centralized scoped identity
 and paths), ARCH-PURE (pure model with thin IO seams), and ARCH-PURPOSE (all
 consumers and legacy data must migrate, not just the crash guard).
+
+Plan-quality gate returned FAILURE: session-name encoding, same-name repo
+mapping, and ambiguous legacy ownership were underspecified. Revised the durable
+plan to make public zellij names concrete (`pair-<repo>-<tag>[-N]`), add a
+global `SessionNameIndex` mapping public names back to hidden scope keys, define
+live-session mapping order (index → scoped pane metadata → legacy recovery), and
+define ambiguous flat sidecars as explicit manual-import recovery rather than
+silent ownership. Increased estimate to 8.2h to reflect the clarified registry
+and migration work.
