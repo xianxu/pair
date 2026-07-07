@@ -67,7 +67,7 @@ Durable plan: `workshop/plans/000104-single-pair-binary-plan.md` (3 milestones).
   `dispatcher.Families()` with group/leaf nesting (`review|scrollback|changelog|
   clip <leaf>`) + streaming routes + minimal busybox `argv[0]` prefix-strip. Pure
   Go; no consumer changes; standalone binaries still build; backward compatible.
-- [ ] M2 — Rewrite every owned call site to `pair <sub>` (launcher Go + title-
+- [x] M2 — Rewrite every owned call site to `pair <sub>` (launcher Go + title-
   poller guard, clipcmd, distiller, nvim, `.claude`, zellij KDL + bundle mirror),
   family-by-family. Helpers stay built → each commit green.
 - [ ] M3 — `GO_BINS := pair`, drop the `pair-go` twin, stop bundling helper
@@ -102,6 +102,7 @@ total: 9.06
 ## Log
 
 ### 2026-07-06
+- 2026-07-06: closed M2 — make test green (146 ok pkgs, 0 FAIL); every owned caller rewritten to pair <sub> (launcher self-exec + title-poller guard, clipcmd, distiller, nvim review/scrollback, zellij copy_command/Run/exec); caller sweep confirms no standalone-name invocations remain; test-review + test-lua + rewritten copy-on-select test pass; review verdict: FIX-THEN-SHIP
 - 2026-07-06: closed M1 — make test green (146 ok pkgs, 0 FAIL); 30/30 go pkgs; nested pair<sub> routes + aliases + pair-slug busybox symlink smoke-verified on a real build; fresh-eyes boundary review done via subagent (sdlc claude dispatch hit E2BIG on the mis-computed ancient boundary base a9c32ef/#61, ~19.6k insertions) — verdict SHIP, all correctness areas clean, 2 minor cleanups (dead code + busybox prefix guard) applied in follow-up commit; review verdict: not-run
 
 - Designed via brainstorm + code sweep. Key finding: the #93/#96/#99 milestones

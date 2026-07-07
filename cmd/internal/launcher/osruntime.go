@@ -273,20 +273,22 @@ func (OSRuntime) SetTerminalTitle(session string) {
 // --- ProcOps ---------------------------------------------------------------
 
 func (r OSRuntime) SpawnSessionWatcher(agent, tag, cwd string, agentArgs []string) {
-	spawnDetached(sessionWatcherArgv(selfPairExe(r.PairHome), agent, tag, cwd, agentArgs), nil)
+	spawnDetached(sessionWatcherArgv(runningPairExe(r.PairHome), agent, tag, cwd, agentArgs), nil)
 }
 
 func (r OSRuntime) SpawnTitlePoller(tag, agent string) {
-	spawnDetached(titlePollerArgv(selfPairExe(r.PairHome), tag, agent), nil)
+	spawnDetached(titlePollerArgv(runningPairExe(r.PairHome), tag, agent), nil)
 }
 
-// selfPairExe resolves the running `pair` executable for the self-exec sidecar
-// spawns (#104 M2 folded pair-title/pair-session-watch into `pair title` /
-// `pair session-watch`). os.Executable() is the running binary itself, so it
-// works in the copied/Homebrew layout where $PAIR_HOME/bin holds no `pair`
-// (pair is never in its own runtime bundle); it falls back to $PAIR_HOME/bin/pair
-// only if os.Executable() is unavailable.
-func selfPairExe(pairHome string) string {
+// runningPairExe resolves the running `pair` executable for the self-exec
+// sidecar spawns (#104 M2 folded pair-title/pair-session-watch into `pair title`
+// / `pair session-watch`). The launcher is always `pair`, so os.Executable() is
+// the pair binary directly — this works in the copied/Homebrew layout where
+// $PAIR_HOME/bin holds no `pair` (pair is never in its own runtime bundle).
+// (cf. clipcmd.siblingPairExe, which may run under a helper's name and so
+// resolves the pair sibling instead.) Falls back to $PAIR_HOME/bin/pair only if
+// os.Executable() is unavailable.
+func runningPairExe(pairHome string) string {
 	if exe, err := os.Executable(); err == nil && exe != "" {
 		return exe
 	}
