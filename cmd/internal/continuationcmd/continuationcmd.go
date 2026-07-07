@@ -60,9 +60,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer, now func() ti
 		if err != nil {
 			return err
 		}
-		c := exec.Command(exe, "continue", slug)
-		c.Stdin, c.Stdout, c.Stderr = stdin, stdout, stderr
-		return c.Run()
+		return newContinueRestartCmd(exe, slug, stdin, stdout, stderr).Run()
 	}
 
 	if err := run(a, env, now, stdin, stdout, restart); err != nil {
@@ -81,6 +79,25 @@ type runArgs struct {
 // Populated in Run from the real environment; injected in tests.
 type runEnv struct {
 	pairTag, dataDir, zellijSession string
+}
+
+// newContinueRestartCmd builds the `pair continue <slug>` command the writer runs
+// to trigger the compaction restart. It sets PAIR_FAKE_IN_ZELLIJ=1 for a specific
+// reason (found by #105's live smoke): the writer has ALREADY confirmed the
+// compaction context via InCompactionContext (the ZELLIJ_SESSION_NAME tag-match,
+// which needs no process introspection), but the child `pair continue` re-derives
+// "am I in a pane?" through a process-ancestry walk (the launcher's InZellijPane),
+// and the agent's command sandbox blocks process introspection (EPERM). Without
+// the fake, that walk fails under a sandboxed agent shell and the restart misfires
+// (compactionDecision goes false → it tries to launch instead of compact). This is
+// the actual "restart stopped working" root cause. PAIR_FAKE_IN_ZELLIJ fakes ONLY
+// the ancestry half; `pair continue`'s own ZELLIJ_SESSION_NAME tag-match still runs,
+// so it can't compact the wrong session.
+func newContinueRestartCmd(exe, slug string, stdin io.Reader, stdout, stderr io.Writer) *exec.Cmd {
+	c := exec.Command(exe, "continue", slug)
+	c.Stdin, c.Stdout, c.Stderr = stdin, stdout, stderr
+	c.Env = append(os.Environ(), "PAIR_FAKE_IN_ZELLIJ=1")
+	return c
 }
 
 // run is the thin orchestration over the pure core: resolve inputs, write the

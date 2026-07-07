@@ -1,6 +1,6 @@
 ---
 id: 000105
-status: codecomplete
+status: working
 deps: []
 github_issue:
 created: 2026-07-06
@@ -35,7 +35,7 @@ Two changes, both making the flow deterministic (no agent judgment):
 
 ## Done when
 
-- `alt+shift+c` reliably: agent writes a continuation → the writer **automatically** restarts the tag with the same config (pair/pair-dev) + a new session → the fresh session continues from the doc's NEXT ACTION. No agent step required for the restart; hardening COMPACT_PROMPT step 2 is not the fix — removing the dependence on it is.
+- `alt+shift+c` reliably: agent writes a continuation → the writer **automatically** restarts the tag with the same config (pair/pair-dev) + a new session → the fresh session continues from the doc's NEXT ACTION. No agent step required for the restart; hardening COMPACT_PROMPT step 2 is not the fix — removing the dependence on it is. **The restart must fire even under a sandboxed agent shell** (where `InZellijPane`'s proc-ancestry walk is blocked) — the writer passes `PAIR_FAKE_IN_ZELLIJ=1` to the exec'd `pair continue` since it already confirmed the context via the env tag-match.
 - When the draft had non-comment WIP at compaction time, that WIP (sans `===` comments) appears in the continuation's NEXT ACTION and thus survives into the new session.
 - Standalone `pair continuation` **outside a compaction context** (not running in a matching live pane, or `--no-restart`) still just writes — no restart, no fold. (In-pane + tag-match is the compaction proxy; a deliberate in-pane manual write uses `--no-restart`.)
 - Tests: writer-triggers-restart via an injected exec seam (asserted called with the slug in compaction context, not called standalone); draft-fold covered by pure unit tests (`StripStickyComments`, `FoldDraftIntoNextAction`) **plus** a `run()`-level integration test (real temp git) that the folded WIP lands in the written doc; `StripStickyComments` pinned to the Lua source by a comment + Go fixture test (no cross-language drift harness — see Revisions); existing suites stay green.
@@ -67,6 +67,14 @@ Implementation follows the durable plan at `workshop/plans/000105-altc-determini
 - [x] Verify: `go test ./...` green, real-binary standalone smoke, lua/bundle checks (live `alt+shift+c` smoke = documented manual step, see Log)
 
 ## Revisions
+
+### 2026-07-06 — live smoke found the REAL root cause: sandbox blocks in-pane detection
+
+The operator-run live `alt+shift+c` smoke (dogfooded on this session) exposed that the writer-triggered restart **misfired** with `operation not permitted` — the session wrote the continuation (commit + push OK, fold correctly no-op on a comment-only draft) but did **not** restart. Diagnosis: the restart's `pair continue` decides whether to compact via the launcher's `InZellijPane()`, which **walks the process ancestry** (`procComm`/`procPPID`); the agent's command **sandbox blocks process introspection** (`ps -p $PPID` → EPERM), while `zellij kill-session` itself is *not* blocked. So under a sandboxed agent shell the child can't detect the pane → `compactionDecision` goes false → it misfires toward a launch → EPERM.
+
+**This is very likely the actual "restart stopped working" bug** — deeper than the original "agent skips COMPACT_PROMPT step 2" framing: even when the agent *did* run `pair continue`, it misfired under the sandbox. The deterministic-writer change (removing the agent's role) is still correct and necessary, but insufficient on its own.
+
+**Fix (folded into this issue):** the writer already confirmed the compaction context via `InCompactionContext` (the `ZELLIJ_SESSION_NAME` tag-match — no process introspection needed), so when it execs `pair continue` it sets **`PAIR_FAKE_IN_ZELLIJ=1`** (`newContinueRestartCmd`, `continuationcmd.go`). That fakes *only* the sandbox-blocked ancestry half of `compactionDecision`; `pair continue`'s own real `ZELLIJ_SESSION_NAME` tag-match still guards against compacting the wrong session. Unit test `TestNewContinueRestartCmd_FakesInZellij` pins the env. Re-smoke required to confirm the restart now fires end-to-end.
 
 ### 2026-07-06 — change-code plan-quality reconciliations (judge: INFO)
 

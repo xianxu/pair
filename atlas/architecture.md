@@ -231,6 +231,14 @@ inserts it), so parked draft text survives the restart that would otherwise
 overwrite the draft with a seed line. `nvim/init.lua`'s `PairConfirmCompact` saves
 the draft first so the writer reads fresh WIP off disk.
 
+The writer's restart exec (`newContinueRestartCmd`) sets **`PAIR_FAKE_IN_ZELLIJ=1`**:
+the child `pair continue` re-derives "in a pane?" via `InZellijPane`'s process-ancestry
+walk, which the **agent's command sandbox blocks** (process introspection → EPERM) —
+the actual "restart stopped working" root cause found by #105's live smoke, since the
+old agent-run `pair continue` hit the same wall. The writer already confirmed the
+context via the `ZELLIJ_SESSION_NAME` tag-match (no introspection), so it fakes *only*
+that ancestry half; `pair continue`'s own tag-match still guards the session identity.
+
 **Restart/quit ported (#94 M1).** The two nvim-keybind marker-writers
 `bin/pair-restart.sh`/`pair-quit.sh` are now in-process Go subcommands —
 `pair restart [--new-session] [--rename-to <tag>]` and `pair quit`

@@ -118,6 +118,24 @@ func TestRun_TriggersRestartInCompaction(t *testing.T) {
 	}
 }
 
+func TestNewContinueRestartCmd_FakesInZellij(t *testing.T) {
+	c := newContinueRestartCmd("/opt/pair", "myslug", nil, nil, nil)
+	if len(c.Args) != 3 || c.Args[1] != "continue" || c.Args[2] != "myslug" {
+		t.Fatalf("args = %v, want [exe continue myslug]", c.Args)
+	}
+	found := false
+	for _, e := range c.Env {
+		if e == "PAIR_FAKE_IN_ZELLIJ=1" {
+			found = true
+		}
+	}
+	if !found {
+		// The agent's command sandbox blocks the proc-ancestry walk InZellijPane
+		// uses; without this fake the restart misfires under a sandboxed shell (#105).
+		t.Error("restart command must set PAIR_FAKE_IN_ZELLIJ=1")
+	}
+}
+
 func TestRun_NoRestartFlagSuppressesInCompaction(t *testing.T) {
 	repo := initTempRepo(t)
 	dataDir := t.TempDir()
