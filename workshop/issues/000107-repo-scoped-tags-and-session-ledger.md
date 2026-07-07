@@ -1,11 +1,12 @@
 ---
 id: 000107
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-07-07
 updated: 2026-07-07
 estimate_hours:
+started: 2026-07-07T11:23:27-07:00
 ---
 
 # repo-scoped tags and session ledger
