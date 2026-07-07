@@ -367,6 +367,35 @@ Build/install callers:
   are left as-is. Standalone helper binaries still build in M2; M3 deletes them,
   collapses `GO_BINS := pair`, and stops bundling helper binaries.
 
+- **#104 M3 (collapse to one binary — the migration's endpoint)** deletes the
+  17 thin `cmd/<helper>` shims (their logic stays in `cmd/internal/*`), drops the
+  `pair-go` output twin (the `cmd/pair-go` *package* remains the source of `pair`),
+  and stops bundling helper binaries. Net:
+  - **`GO_BINS := pair`** — one binary. `make build` links it once (was 19
+    binaries). `BUSYBOX_LINKS := pair-slug` is the only symlink → pair, emitted by
+    build+install for the external Claude Stop hook (the only bare-name caller
+    pair doesn't own); every in-repo caller uses `pair <sub>`. `PAIR_GO_SRCS` is
+    now a `find cmd -name '*.go'` staleness hint (no hand-maintained drift).
+  - **Runtime bundle = config + shell shims only** (`runtimebundlegen`:
+    `pair-help`, `pair-notify`, `doctor/*`; no `pair-*` Go binaries). `bin/pair`
+    dropped from **81 MB → ~11 MB** (the embedded helpers were ~85% of it).
+  - **`pair`-on-PATH** (no store symlink): `launcher/pathenv.go` fronts BOTH
+    `$PAIR_HOME/bin` and `dir(os.Executable())` on the session PATH — the latter
+    is where the installed `pair` lives in the copied/Homebrew layout (pair is
+    never self-embedded), so `pair <sub>` resolves inside a deployed session.
+    Deduped + idempotent (no PATH growth on restart);
+    `tests/pair-embedded-runtime-test.sh` runs pair from a dir OFF the base PATH
+    and asserts `command -v pair` resolves inside the session + no helper binary
+    is bundled.
+  - Transitional flat aliases `scrollback-render`/`changelog` removed from the
+    dispatcher. `pair-scribe` folds into `pair scribe` (`~/.zshrc` → `exec pair
+    scribe`, out-of-repo); its README moved to `docs/pair-scribe.md`.
+
+  **`ARCH-PURPOSE` shadow-sweep:** every former helper is reached as `pair <sub>`
+  by every owned caller; the only non-`pair`/non-shim artifact is the `pair-slug`
+  symlink (external hook). The single-primary-Go-binary migration (#72/#91) is
+  complete: one `pair` executable + config cache for nvim/zellij + system tools.
+
 ## Coverage Ledger
 
 The logical rows above group files where a per-file migration row would add

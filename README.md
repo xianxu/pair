@@ -213,17 +213,18 @@ and runs with `PAIR_HOME` pointed there. External tools such as `zellij`,
 `nvim`, `fzf`, `jq`, clipboard tools, and agent CLIs are still installed
 separately.
 
-`pair-go launch ...` remains the explicit development dispatcher path and
-accepts the same arguments after `launch` that `pair` accepts directly. In a dev
-shell sourced from `../ariadne/construct/dev-aliases.sh`, `pair` and `pair-go`
-rebuild from `cmd/pair-go` automatically before running; no `pair-go-dev`
-command is needed.
+`pair` is a **single binary** (built from `cmd/pair-go`): every helper is a
+`pair <subcommand>` (`pair wrap`, `pair scribe`, `pair review open`,
+`pair scrollback render`, `pair clip copy-on-select`, …), reached inside a
+session because the launcher fronts pair's own dir on the session PATH. In a dev
+shell sourced from `../ariadne/construct/dev-aliases.sh`, `pair` rebuilds from
+`cmd/pair-go` automatically before running.
 
 Use `--` to separate pair's positional from agent flags. Without it, pair only takes `<agent>` as a positional and everything else is rejected.
 
 Agent args (after `--`) are appended to the agent command line on **create**. Reattaching to an existing session does not re-launch the agent, so the args don't apply on attach. (The picker connects you to whatever's already running.)
 
-**Hacking on pair?** Use `pair-dev` instead of `pair` — same arguments, but it rebuilds pair's Go binaries from source (`make build`) on launch *and* on every Alt+n / Shift+Alt+N restart, so the zellij-spawned `pair-wrap` always matches your working tree. (Deployed installs run `pair`, which uses the prebuilt binary and needs no Go toolchain.)
+**Hacking on pair?** Use `pair-dev` instead of `pair` — same arguments, but it rebuilds the `pair` binary from source (`make build`) on launch *and* on every Alt+n / Shift+Alt+N restart, so the zellij-spawned `pair wrap` always matches your working tree. (Deployed installs run `pair`, which uses the prebuilt binary and needs no Go toolchain.)
 
 When `pair` runs and there's anything to pick — a detached `pair-*` session **or** a tag from this cwd used within the last 14 days — it shows an `fzf` picker. Detached rows come first, then historical rows annotated `(Nd ago, no live session)`, then a `+ new <agent> session` sentinel. A historical row whose session has prompts parked in its queue also carries an amber `[⏎ N queued]` badge, so you don't resume a session without remembering the work you queued up in it. Picking a historical row reuses the name and any surviving draft / saved agent config (same path as `pair resume <tag>`). Override the 14-day window with `PAIR_HISTORY_DAYS`; `PAIR_DEBUG_HISTORY=1 pair` prints the scan and exits without launching.
 

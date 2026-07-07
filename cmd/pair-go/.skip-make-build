@@ -1,0 +1,3 @@
+# The base-layer `make build` cmd/*/ scanner must NOT build this into bin/pair-go
+# (that was the twin dropped in #104 M3). Makefile.local's $(BIN_DIR)/pair recipe
+# builds bin/pair from ./cmd/pair-go with the defaultPairHome ldflags.
