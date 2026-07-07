@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-07-06
 updated: 2026-07-06
-estimate_hours:
+estimate_hours: 2.68
 started: 2026-07-06T22:04:17-07:00
 ---
 
@@ -36,12 +36,44 @@ Two changes, both making the flow deterministic (no agent judgment):
 
 - `alt+shift+c` reliably: agent writes a continuation → the writer **automatically** restarts the tag with the same config (pair/pair-dev) + a new session → the fresh session continues from the doc's NEXT ACTION. No agent step required for the restart; hardening COMPACT_PROMPT step 2 is not the fix — removing the dependence on it is.
 - When the draft had non-comment WIP at compaction time, that WIP (sans `===` comments) appears in the continuation's NEXT ACTION and thus survives into the new session.
-- Standalone `pair continuation` (non-compaction) still just writes — no restart, no fold.
-- Tests: writer-triggers-restart on the fake Runtime (marker written + kill sequence observed); draft-fold unit (comment strip + NEXT-ACTION insertion) + the Go/Lua strip drift test; the existing `pair continue` compaction path stays green.
+- Standalone `pair continuation` **outside a compaction context** (not running in a matching live pane, or `--no-restart`) still just writes — no restart, no fold. (In-pane + tag-match is the compaction proxy; a deliberate in-pane manual write uses `--no-restart`.)
+- Tests: writer-triggers-restart via an injected exec seam (asserted called with the slug in compaction context, not called standalone); draft-fold covered by pure unit tests (`StripStickyComments`, `FoldDraftIntoNextAction`) **plus** a `run()`-level integration test (real temp git) that the folded WIP lands in the written doc; `StripStickyComments` pinned to the Lua source by a comment + Go fixture test (no cross-language drift harness — see Revisions); existing suites stay green.
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* Thorough plan doc → +15% design buffer; familiarity 1.0 (traced the whole flow for the plan; reuses `adapt.DataDir`, `isATXHeading`, the `pair continue` path). Items: three pure `draft.go` entities + unit tests; the `continuationcmd` wiring (fold read + injected restart seam + tests) is the meat; a `lua-neovim` item (single-step prompt + save-draft + bundle mirror); a small atlas note for the writer-owned compaction flow; the one close-boundary review.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+design-buffer: 0.15
+item: smaller-go-module design=0.15 impl=0.4
+item: smaller-go-module design=0.2  impl=0.7
+item: lua-neovim        design=0.15 impl=0.5
+item: atlas-docs        design=0.0  impl=0.3
+item: milestone-review  design=0.0  impl=0.2
+total: 2.68
+```
 
 ## Plan
 
-- [ ]
+Implementation follows the durable plan at `workshop/plans/000105-altc-deterministic-restart-draft-fold-plan.md` (7 TDD tasks, single review boundary). Summary:
+
+- [ ] Pure `draft.go`: `StripStickyComments`, `FoldDraftIntoNextAction`, `InCompactionContext` (+ unit tests)
+- [ ] Writer wiring: fold stripped draft into NEXT ACTION when in compaction context (`continuationcmd.go`)
+- [ ] Writer-triggered restart: injected exec-self seam calling `pair continue <slug>` after write (+ `--no-restart`)
+- [ ] nvim: save draft + collapse `COMPACT_PROMPT` to a single step; sync bundle mirror
+- [ ] Verify: `go test ./...`, standalone-write negative check, live `alt+shift+c` smoke
+
+## Revisions
+
+### 2026-07-06 — change-code plan-quality reconciliations (judge: INFO)
+
+The plan-quality judge (non-blocking INFO) surfaced three refinements; folded in before implementation so the close gate reads a consistent contract:
+
+- **Drift test → pinning comment + Go fixture (resolves the Spec's open fork).** The Spec originally floated "pin the Go/Lua strip with a drift test" and an early Done-when named it as a deliverable. Decision: pair has **no Lua unit-test harness** (only `tests/*.sh`), and the `^\s*===` comment rule is a trivial, stable one-liner — a headless-nvim cross-language drift test is disproportionate (the [[inline-copy + drift test]] lesson's own "wrong vs. merely less-ergonomic" test lands on less-ergonomic). Substitute: a Go fixture unit test + a comment in `StripStickyComments` pinning it to `nvim/init.lua:995`. Done-when updated to match; this is **not** an unmet deliverable at close.
+- **`run()`-level tests are integration tests built from scratch.** `continuation_test.go` has only pure-unit tests, and `run()` constructs `gitRunner{root}` internally (real git IO, non-injected). So the fold/restart `run()` tests init a real temp repo, set `repoRoot` to skip `rev-parse`, and tolerate the non-fatal `git push` failure (no `origin`). The plan's Task 4 gets an explicit harness step.
+- **Gate breadth documented.** `InCompactionContext` = in-pane + tag-match is a *proxy* for "compaction requested" (mirrors only the tag-match half of `compactionDecision`). Correct for real usage (the compaction prompt is the sole in-pane invoker); a manual in-pane write uses `--no-restart`. Noted in the writer comment + Done-when.
 
 ## Log
 
