@@ -305,3 +305,8 @@ ownership exists: a detached session owned by another repo no longer forces the
 current repo into the picker, while session-name assignment still sees all live
 names for global zellij disambiguation. Verified with
 `GOCACHE=/private/tmp/pair-go-cache go test ./cmd/internal/launcher`.
+
+Updated the zellij draft pane consumer to honor inherited `PAIR_DATA_DIR`
+instead of reconstructing the flat global data dir, regenerated the embedded
+runtime asset, and added a bundle test for the invariant. Verified with
+`GOCACHE=/private/tmp/pair-go-cache go test ./...`.
