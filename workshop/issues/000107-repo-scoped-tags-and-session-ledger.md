@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-07-07
 updated: 2026-07-07
-estimate_hours:
+estimate_hours: 5.8
 started: 2026-07-07T11:23:27-07:00
 ---
 
@@ -164,10 +164,42 @@ Repro test already staged.
   behavior for the peer repo's picker.
 - Interaction with #83 (per-repo default agent) for mode 1.3.
 
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: cross-cutting-refactor design=1.0 impl=2.0
+item: greenfield-go-module design=0.5 impl=0.8
+item: lua-neovim design=0.25 impl=0.45
+item: atlas-docs design=0.1 impl=0.2
+item: milestone-review design=0.0 impl=0.2
+design-buffer: 0.15
+total: 5.78
+```
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md`
+against `baseline-v3.1.md`. Method A only. Calibration source is currently
+marked stale by `sdlc estimate-source`, so the per-primitive values are
+provisional but derived from the required source.
+
 ## Plan
 
-- [ ] Brainstorm → durable plan (`superpowers-writing-plans` → `workshop/plans/`)
+- [x] Brainstorm → durable plan (`superpowers-writing-plans` → `workshop/plans/`)
       before implementation; resolve open questions above.
+- [ ] Add scoped identity/path/session-name pure model with failing tests first.
+- [ ] Add per-tag session ledger as source of truth, while emitting derived
+      `agent-<tag>` and `config-<tag>-<agent>.json` caches.
+- [ ] Migrate launcher decisions, history, picker, list, rename, restart, and
+      cleanup to current-repo scoped snapshots and sidecar paths.
+- [ ] Update zellij/nvim/shell consumers so inherited scoped `PAIR_DATA_DIR` is
+      authoritative.
+- [ ] Grandfather existing flat sidecars and live unscoped sessions without data
+      loss.
+- [ ] Add acceptance tests for same-tag multi-repo isolation, picker agent
+      annotation, explicit-agent arg safety, bare `pair` ledger continuation,
+      and legacy recovery.
+- [ ] Update atlas docs and run final verification.
 
 ## Log
 
@@ -182,3 +214,10 @@ recorded in Spec: repo as a real scope dimension with repo-local tags (retire th
 append-only session ledger as source of truth. Not #83 — #83 (per-repo default
 agent) layers on top (mode 1.3). Next: decouple + ship the crash guard; claim
 this issue and run it through brainstorming into a durable plan.
+
+Claimed issue via `sdlc claim --issue 107`, entered planning via
+`sdlc start-plan --issue 107`, and wrote durable plan
+`workshop/plans/000107-repo-scoped-tags-and-session-ledger-plan.md`.
+Architecture decisions in the plan cite ARCH-DRY (centralized scoped identity
+and paths), ARCH-PURE (pure model with thin IO seams), and ARCH-PURPOSE (all
+consumers and legacy data must migrate, not just the crash guard).
