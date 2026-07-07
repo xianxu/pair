@@ -226,7 +226,7 @@ Agent args (after `--`) are appended to the agent command line on **create**. Re
 
 **Hacking on pair?** Use `pair-dev` instead of `pair` — same arguments, but it rebuilds the `pair` binary from source (`make build`) on launch *and* on every Alt+n / Shift+Alt+N restart, so the zellij-spawned `pair wrap` always matches your working tree. (Deployed installs run `pair`, which uses the prebuilt binary and needs no Go toolchain.)
 
-When `pair` runs and there's anything to pick — a detached `pair-*` session **or** a tag from this cwd used within the last 14 days — it shows an `fzf` picker. Detached rows come first, then historical rows annotated `(Nd ago, no live session)`, then a `+ new <agent> session` sentinel. A historical row whose session has prompts parked in its queue also carries an amber `[⏎ N queued]` badge, so you don't resume a session without remembering the work you queued up in it. Picking a historical row reuses the name and any surviving draft / saved agent config (same path as `pair resume <tag>`). Override the 14-day window with `PAIR_HISTORY_DAYS`; `PAIR_DEBUG_HISTORY=1 pair` prints the scan and exits without launching.
+When `pair` runs and there's anything to pick — a detached Pair session owned by this repo **or** a tag from this repo used within the last 14 days — it shows an `fzf` picker. Detached rows come first, then historical rows annotated `(Nd ago, no live session)`, then a `+ new <agent> session` sentinel. A historical row whose session has prompts parked in its queue also carries an amber `[⏎ N queued]` badge, so you don't resume a session without remembering the work you queued up in it. Picking a historical row reuses the repo-local tag and any surviving draft / saved agent config (same path as `pair resume <tag>`). Override the 14-day window with `PAIR_HISTORY_DAYS`; `PAIR_DEBUG_HISTORY=1 pair` prints the scan and exits without launching.
 
 When the create flow runs, it prompts for the session name with the auto-suggested name as the default:
 
@@ -270,9 +270,13 @@ saved config for tag 'bugfix' (claude)
 - **use new params + session** swaps in the args you just passed on the command line, but keeps the prior session id. Only shown when both conditions hold: the native session file is on disk AND the new args differ from the saved ones (otherwise it would be byte-identical to row 1).
 - **use new params passed in** uses your new args with a fresh session. Only shown when the new args differ from the saved ones.
 
-The agent (claude / codex / agy) is inferred from saved state, so `pair resume <tag>` is enough on its own — no need to repeat the agent positional. If `pair-<tag>` is still a running zellij session (e.g. you only `Alt+d` detached), `pair resume <tag>` re-attaches without prompting.
+The agent (claude / codex / agy) is inferred from the tag ledger, so `pair resume <tag>` is enough on its own — no need to repeat the agent positional. If the tag's public zellij session is still running (for example, `pair-<repo>-<tag>` after `Alt+d` detach), `pair resume <tag>` re-attaches without prompting.
 
-Saved configs live at `${XDG_DATA_HOME:-~/.local/share}/pair/config-<tag>-<agent>.json`.
+Saved configs and ledgers live under the repo-scoped data dir:
+`${XDG_DATA_HOME:-~/.local/share}/pair/repos/<scope-key>/config-<tag>-<agent>.json`
+and `ledger-<tag>.jsonl`. The hidden `<scope-key>` keeps two repos with the
+same tag independent; picker labels and session names show the readable repo/tag
+instead.
 
 ### `resume` vs `continue`
 

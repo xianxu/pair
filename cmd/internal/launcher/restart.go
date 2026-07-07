@@ -12,12 +12,15 @@ import (
 // already live on OSRuntime, so nothing new is added to the seam. ExecKillSession
 // is terminal on the real runtime (syscall.Exec replaces the process), so the
 // return is reached only when the kill binary is missing or under the fake.
-func runRestart(rt Runtime, args LaunchArgs, session string, stderr io.Writer) int {
+func runRestart(rt Runtime, args LaunchArgs, session, pairTag string, stderr io.Writer) int {
 	if session == "" {
 		_, _ = io.WriteString(stderr, "pair restart: ZELLIJ_SESSION_NAME unset; cannot restart cleanly.\n")
 		return 1
 	}
-	tag := strings.TrimPrefix(session, "pair-")
+	tag := pairTag
+	if tag == "" {
+		tag = strings.TrimPrefix(session, "pair-")
+	}
 	rt.WriteRestartMarker(session, RestartMarker{
 		Tag: tag,
 		// InferAgent reads agent-<tag> (always present when the keybind fires —

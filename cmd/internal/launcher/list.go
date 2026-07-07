@@ -7,9 +7,10 @@ import (
 )
 
 // The `pair list` / `ls` subcommand (#99 M5a, ported from bin/pair-shell 228-306).
-// A read-only listing of pair-<tag> zellij sessions with their resolved agent and
-// attach state. The row gather (zellij queries + agent resolution + client counts)
-// is a Runtime effect (ListSessions); the table + status-string rendering is pure.
+// A read-only listing of current-scope Pair zellij sessions with their resolved
+// agent and attach state. The row gather (zellij queries + agent resolution +
+// client counts) is a Runtime effect (ListSessions); the table + status-string
+// rendering is pure.
 
 // listStatus renders a row's STATUS column purely from its state + client count:
 // an exited resurrect record, a detached (0-client) live session, or an attached

@@ -11,7 +11,7 @@ func TestRunRestartWritesMarkersAndKills(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.inferAgent = map[string]string{"demo": "codex"} // the fake's InferAgent source
 	var stderr bytes.Buffer
-	code := runRestart(rt, LaunchArgs{Command: "restart", NewSession: true, RenameTo: "renamed"}, "pair-demo", &stderr)
+	code := runRestart(rt, LaunchArgs{Command: "restart", NewSession: true, RenameTo: "renamed"}, "pair-demo", "", &stderr)
 	if code != 0 {
 		t.Fatalf("exit %d, stderr=%q", code, stderr.String())
 	}
@@ -30,10 +30,27 @@ func TestRunRestartWritesMarkersAndKills(t *testing.T) {
 	}
 }
 
+func TestRunRestartUsesPairTagForScopedPublicSession(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.inferAgent = map[string]string{"bugfix": "codex"}
+	var stderr bytes.Buffer
+	code := runRestart(rt, LaunchArgs{Command: "restart"}, "pair-work-bugfix", "bugfix", &stderr)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr=%q", code, stderr.String())
+	}
+	m, ok := rt.writtenMarkers["pair-work-bugfix"]
+	if !ok {
+		t.Fatal("no restart marker written for scoped public session")
+	}
+	if m.Tag != "bugfix" || m.Agent != "codex" {
+		t.Fatalf("marker = %+v, want repo-local tag bugfix/codex", m)
+	}
+}
+
 func TestRunRestartBareDefaults(t *testing.T) {
 	rt := newFakeRuntime()
 	var stderr bytes.Buffer
-	if code := runRestart(rt, LaunchArgs{Command: "restart"}, "pair-solo", &stderr); code != 0 {
+	if code := runRestart(rt, LaunchArgs{Command: "restart"}, "pair-solo", "", &stderr); code != 0 {
 		t.Fatalf("exit %d", code)
 	}
 	m := rt.writtenMarkers["pair-solo"]
@@ -68,7 +85,7 @@ func TestRunQuitTouchesQuitAndKills(t *testing.T) {
 func TestRunRestartMissingSession(t *testing.T) {
 	rt := newFakeRuntime()
 	var stderr bytes.Buffer
-	if code := runRestart(rt, LaunchArgs{Command: "restart"}, "", &stderr); code != 1 {
+	if code := runRestart(rt, LaunchArgs{Command: "restart"}, "", "", &stderr); code != 1 {
 		t.Fatalf("want exit 1 on empty session, got %d", code)
 	}
 	if len(rt.writtenMarkers) != 0 || len(rt.killed) != 0 {

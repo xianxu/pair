@@ -73,7 +73,7 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 	// bin/pair-{restart,quit}.sh): write markers, exec kill-session. They need the
 	// live ZELLIJ_SESSION_NAME the keybind fires under.
 	if args.Command == "restart" {
-		return runRestart(rt, args, os.Getenv("ZELLIJ_SESSION_NAME"), stderr), nil
+		return runRestart(rt, args, os.Getenv("ZELLIJ_SESSION_NAME"), os.Getenv("PAIR_TAG"), stderr), nil
 	}
 	if args.Command == "quit" {
 		return runQuit(rt, os.Getenv("ZELLIJ_SESSION_NAME"), stderr), nil

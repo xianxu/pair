@@ -64,6 +64,7 @@ func TestLaunchNativeRestartInfersAgentFromScopedDataDir(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_DATA_HOME", "")
 	t.Setenv("PAIR_DATA_DIR", "")
+	t.Setenv("PAIR_TAG", "")
 	t.Setenv("ZELLIJ_SESSION_NAME", "pair-work")
 	t.Setenv("PAIR_KILL_CMD", "__pair_no_such_command__")
 

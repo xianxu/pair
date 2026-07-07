@@ -1,6 +1,7 @@
 package sessionwatch
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"strings"
 	"time"
@@ -34,6 +35,16 @@ type Runtime interface {
 	ProcessAlive(pid string) bool
 	AtomicWrite(path string, data []byte) error
 	Log(outcome adapt.Outcome, detail string)
+}
+
+type sessionLedgerEntry struct {
+	Agent      string    `json:"agent"`
+	Args       []string  `json:"args"`
+	SessionID  string    `json:"session_id"`
+	Started    time.Time `json:"started"`
+	LastActive time.Time `json:"last_active"`
+	RepoRoot   string    `json:"repo_root"`
+	RepoName   string    `json:"repo_name"`
 }
 
 // Run discovers the async agent session id and writes config-<tag>-<agent>.json.
@@ -104,6 +115,17 @@ func Run(opts Options, rt Runtime) error {
 			if err := rt.AtomicWrite(out, payload); err != nil {
 				return err
 			}
+			if err := appendSessionLedger(rt, filepath.Join(opts.DataDir, "ledger-"+opts.Tag+".jsonl"), sessionLedgerEntry{
+				Agent:      opts.Agent,
+				Args:       StripResumeArgs(opts.Agent, opts.Args),
+				SessionID:  result.ID,
+				Started:    watchStart,
+				LastActive: rt.Now(),
+				RepoRoot:   opts.Cwd,
+				RepoName:   filepath.Base(filepath.Clean(opts.Cwd)),
+			}); err != nil {
+				return err
+			}
 			rt.Log(adapt.Fired, "session_id="+result.ID)
 			return nil
 		}
@@ -117,6 +139,22 @@ func Run(opts Options, rt Runtime) error {
 
 	rt.Log(adapt.Fail, "no session id within 60s deadline (agent="+opts.Agent+")")
 	return nil
+}
+
+func appendSessionLedger(rt Runtime, path string, entry sessionLedgerEntry) error {
+	raw := ""
+	if existing, err := rt.ReadFile(path); err == nil {
+		raw = string(existing)
+	}
+	line, err := json.Marshal(entry)
+	if err != nil {
+		return err
+	}
+	if raw != "" && !strings.HasSuffix(raw, "\n") {
+		raw += "\n"
+	}
+	raw += string(line) + "\n"
+	return rt.AtomicWrite(path, []byte(raw))
 }
 
 func freshPID(pidFile string, since time.Time, rt Runtime) (bool, time.Time) {

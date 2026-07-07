@@ -23,7 +23,11 @@ func compactionDecision(forceInSession, inPaneOrFake bool, pairTag, zellijSessio
 	if forceInSession {
 		return true
 	}
-	return inPaneOrFake && pairTag != "" && zellijSession == "pair-"+pairTag
+	return inPaneOrFake && pairTag != "" && sessionMatchesTag(zellijSession, pairTag)
+}
+
+func sessionMatchesTag(session, tag string) bool {
+	return session == "pair-"+tag || (strings.HasPrefix(session, "pair-") && strings.HasSuffix(session, "-"+tag))
 }
 
 // serializeRestartMarker renders a RestartMarker as the `key=value` text
@@ -58,8 +62,11 @@ func runCompaction(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error
 		return 1, nil
 	}
 	agent := firstNonEmpty(opts.PairAgent, opts.Args.Agent, "claude")
-	fmt.Fprintf(stderr, "pair: compacting pair-%s — parking scrollback, restarting from continuation…\n", tag)
-	session := "pair-" + tag
+	session := opts.ZellijSession
+	if session == "" {
+		session = "pair-" + tag
+	}
+	fmt.Fprintf(stderr, "pair: compacting %s — parking scrollback, restarting from continuation…\n", session)
 	rt.ParkScrollback(tag, agent, false) // copy: the live .raw is still being appended
 	rt.WriteRestartMarker(session, RestartMarker{Tag: tag, Agent: agent, NewSession: true, Continue: opts.ContinueSlug})
 	rt.TouchQuitMarker(session)

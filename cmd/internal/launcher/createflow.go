@@ -198,7 +198,7 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 		}
 		return launchStep{code: code, session: decision.SessionName, tag: decision.Tag, agent: agent, handedOff: true}, nil
 	case ActionCreate:
-		return runCreate(opts, env, rt, decision, base, agent, sessionNameEntries[decision.Tag], stderr)
+		return runCreate(opts, env, rt, sessions, decision, base, agent, sessionNameEntries[decision.Tag], stderr)
 	default: // ActionPick is resolved above — unreachable; a defensive guard.
 		fmt.Fprintf(stderr, "pair: internal error: unresolved launch decision (%s)\n", decision.Action)
 		return launchStep{code: 1}, nil
@@ -262,7 +262,7 @@ func launchNameTags(args LaunchArgs, base string) []string {
 // runCreate ports the shell's create branch: prompt/validate the tag, run the
 // tag-restart config picker, compose the per-agent launch args, spawn the
 // sidecars, then hand off to the blocking zellij create.
-func runCreate(opts LaunchOptions, env Env, rt Runtime, decision LaunchDecision, base, agent string, sessionEntry SessionNameEntry, stderr io.Writer) (launchStep, error) {
+func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision LaunchDecision, base, agent string, sessionEntry SessionNameEntry, stderr io.Writer) (launchStep, error) {
 	// Validate the agent here (create-only; attach re-uses an existing pane's
 	// agent, so shell 1728 defers this past the attach branch).
 	if !rt.CommandExists(agent) {
@@ -282,7 +282,12 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, decision LaunchDecision,
 
 	session := decision.SessionName
 	if session == "" || chosenTag != decision.Tag {
-		session = "pair-" + chosenTag
+		name, entry, ok := assignSingleSessionName(rt, live, env.Cwd, chosenTag, stderr)
+		if !ok {
+			return launchStep{code: 1}, nil
+		}
+		session = name
+		sessionEntry = entry
 	}
 	dataDir := env.DataDir
 	legacyImported := false
@@ -404,6 +409,28 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, decision LaunchDecision,
 		return launchStep{code: 1}, nil
 	}
 	return launchStep{code: code, session: session, tag: chosenTag, agent: agent, handedOff: true}, nil
+}
+
+func assignSingleSessionName(rt Runtime, live []Session, cwd, tag string, stderr io.Writer) (string, SessionNameEntry, bool) {
+	scope, err := ResolveRepoScope(cwd)
+	if err != nil {
+		return sessionName(tag), SessionNameEntry{}, true
+	}
+	index, err := rt.ReadSessionNameIndex()
+	if err != nil {
+		index = SessionNameIndex{}
+	}
+	name, updated, err := AssignSessionName(index, live, scope, tag, func(session string) bool {
+		return rt.ProbeSessionName(session) == nil
+	})
+	if err != nil {
+		fmt.Fprintf(stderr, "pair: %v\n", err)
+		return "", SessionNameEntry{}, false
+	}
+	if len(updated.Entries) > len(index.Entries) {
+		return name, updated.Entries[len(updated.Entries)-1], true
+	}
+	return name, SessionNameEntry{}, true
 }
 
 // promptForTag runs the editable name prompt, normalizing + collision-checking

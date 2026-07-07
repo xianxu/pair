@@ -47,6 +47,13 @@ func TestRunUsesFreshPidfileAndWritesConfig(t *testing.T) {
 	if !rt.hasLog(adapt.Fired, "session_id="+sid) {
 		t.Fatalf("logs = %+v, want fired session id", rt.logs)
 	}
+	ledger := string(rt.writes[filepath.Join(data, "ledger-test.jsonl")])
+	if !strings.Contains(ledger, `"agent":"codex"`) || !strings.Contains(ledger, `"session_id":"`+sid+`"`) || !strings.Contains(ledger, `"repo_root":"/repo"`) {
+		t.Fatalf("ledger write = %s", ledger)
+	}
+	if strings.Contains(ledger, "old") || !strings.Contains(ledger, `say \"hi\"`) {
+		t.Fatalf("ledger args = %s", ledger)
+	}
 }
 
 func TestRunTreatsSameSecondPidfileAsFresh(t *testing.T) {

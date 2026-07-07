@@ -413,8 +413,15 @@ func TestRunLaunchPromptCreate(t *testing.T) {
 	if len(rt.family) != 1 {
 		t.Fatalf("prompt path should show family: %v", rt.family)
 	}
-	if rt.launched != "pair-myproj" || rt.env["PAIR_TAG"] != "myproj" {
+	if rt.launched != "pair-work-myproj" || rt.env["PAIR_TAG"] != "myproj" {
 		t.Fatalf("launched=%q tag=%q", rt.launched, rt.env["PAIR_TAG"])
+	}
+	if len(rt.sessionIndex.Entries) != 1 {
+		t.Fatalf("session index = %#v, want one entry", rt.sessionIndex)
+	}
+	entry := rt.sessionIndex.Entries[0]
+	if entry.SessionName != "pair-work-myproj" || entry.Tag != "myproj" || entry.RepoName != "work" {
+		t.Fatalf("session index entry = %#v", entry)
 	}
 }
 

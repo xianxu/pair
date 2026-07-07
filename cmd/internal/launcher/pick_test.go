@@ -176,8 +176,8 @@ func TestRunLaunchPickNewCreates(t *testing.T) {
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	if rt.launched != "pair-work-2" {
-		t.Fatalf("launched = %q, want pair-work-2 (prompted free-slot create)", rt.launched)
+	if rt.launched != "pair-work-work-2" {
+		t.Fatalf("launched = %q, want pair-work-work-2 (prompted free-slot create)", rt.launched)
 	}
 	if len(rt.pollers) != 1 || rt.pollers[0] != "work-2|claude" {
 		t.Fatalf("pollers = %v, want [work-2|claude]", rt.pollers)

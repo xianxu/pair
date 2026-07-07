@@ -15,6 +15,7 @@ func TestCompactionDecision(t *testing.T) {
 	}{
 		{"force wins", true, false, "", "", true},
 		{"tag match in pane", false, true, "demo", "pair-demo", true},
+		{"scoped public session match in pane", false, true, "demo", "pair-work-demo", true},
 		{"tag mismatch", false, true, "demo", "pair-other", false},
 		{"not in pane", false, false, "demo", "pair-demo", false},
 		{"empty tag", false, true, "", "pair-", false},
@@ -79,6 +80,29 @@ func TestRunLaunchCompactionForced(t *testing.T) {
 	}
 	if rt.launched != "" { // compaction is terminal — no create handoff
 		t.Fatalf("compaction must not create a session, launched=%q", rt.launched)
+	}
+}
+
+func TestRunLaunchCompactionUsesScopedPublicSession(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.parkOK = true
+	opts := compactOpts(false, true, "pair-work-demo")
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	m, ok := rt.writtenMarkers["pair-work-demo"]
+	if !ok {
+		t.Fatalf("restart markers = %#v, want scoped public session", rt.writtenMarkers)
+	}
+	if m.Tag != "demo" || m.Agent != "claude" || !m.NewSession || m.Continue != "demo" {
+		t.Fatalf("restart marker = %+v", m)
+	}
+	if len(rt.touchedQuit) != 1 || rt.touchedQuit[0] != "pair-work-demo" {
+		t.Fatalf("quit marker = %v", rt.touchedQuit)
+	}
+	if len(rt.killed) != 1 || rt.killed[0] != "pair-work-demo" {
+		t.Fatalf("killed = %v", rt.killed)
 	}
 }
 

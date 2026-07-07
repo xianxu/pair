@@ -470,3 +470,20 @@ Run:
 - any live/manual smoke required by the final diff, especially `zellij setup --check --config-dir zellij` if `main.kdl` or config changes.
 
 Expected: PASS. Use this evidence in `sdlc close --issue 107 --verified '<evidence>'`.
+
+## Revisions
+
+### 2026-07-07 — close-review REWORK follow-up
+
+Reason: the first `sdlc close --issue 107` boundary review returned REWORK. It
+found that the implementation still had deferred consumers of the scoped
+identity model after the checklist had been ticked: prompted custom tags
+reconstructed `pair-<tag>`, restart/compaction parsed or reconstructed public
+session names, sessionwatch wrote only the derived config cache after async
+session-id discovery, and README/comments still described flat `pair-<tag>` /
+config paths.
+
+Delta: add explicit follow-up coverage and fixes for prompted-create scoped
+session-name assignment, pair-tag-aware restart, scoped compaction marker/kill
+targets, sessionwatch ledger append on discovered session id, README user docs,
+and stale comments. Re-run the close gate after those fixes.

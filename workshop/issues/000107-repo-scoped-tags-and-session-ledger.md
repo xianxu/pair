@@ -368,3 +368,18 @@ Verified with `bash tests/run-headless-test.sh`, `bash
 tests/review-apply-test.sh`, `bash tests/review-reconcile-test.sh`, `bash
 tests/pair-review-target-test.sh`, full `make test`, `go test ./...`, and
 `git diff --check`.
+
+First `sdlc close --issue 107` returned `Review-Verdict: REWORK` and wrote the
+review sidecar at
+`workshop/plans/000107-repo-scoped-tags-and-session-ledger-close-review.md`.
+Addressed the blockers (ARCH-PURPOSE/ARCH-DRY): prompted custom tags now assign
+and append scoped public session names after the typed tag is finalized;
+restart prefers pane `PAIR_TAG` instead of parsing public zellij names;
+compaction accepts and targets the actual scoped public session name; and
+`pair session-watch` appends a later ledger row when it discovers async codex/agy
+session ids, keeping the ledger as source of truth rather than only updating the
+derived config cache. Updated README/comments for scoped session/config
+semantics and added the required plan `## Revisions` entry. Verified with
+`go test ./cmd/internal/launcher ./cmd/internal/sessionwatch -count=1`, `go test
+./...`, `git diff --check`, `bash tests/pair-restart-quit-test.sh`, and full
+`make test`.
