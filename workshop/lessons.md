@@ -795,3 +795,30 @@ the window and stays machine-speed dependent; detaching removes the deadline
 dependency entirely (the root-cause fix). Also: once a side effect is detached its
 stderr is `/dev/null`, so a debug-log line becomes the *only* channel a failure
 can surface on — log failures explicitly. Caught in #100 (diagnosis + close review).
+
+## Removing a transitional alias: sweep every caller, and never let a test pin the doomed token
+
+#104 M3 removed the transitional flat dispatch aliases `scrollback-render` /
+`changelog` (kept in M2 so callers could migrate incrementally). The M2 caller
+sweep repointed the obvious call sites but missed `nvim/scrollback.lua`'s
+`renderer_command` (the Alt+/ viewer's in-buffer refresh), which kept emitting
+`pair scrollback-render`. Once M3 dropped the alias, that argv classified as the
+public launcher (`ModePublicPair`) and fell through to *launch a session* → the
+refresh silently failed in every session. **The unit test made it worse:** the
+one test exercising `renderer_command` asserted `rc[2] == 'scrollback-render'` —
+it *pinned the value the removal was about to invalidate*, so `make test` stayed
+green while the runtime path was dead. Only a fresh-eyes boundary review that
+actually ran `pair scrollback-render` against the built binary caught it.
+
+**Rule.** Removing a token/alias/flag that other code passes as a *string
+argument* (not a symbol the compiler checks) is a repo-wide grep obligation, not
+a "rewrite the callers I know about" task — sweep `*.lua`, `*.kdl`, `*.sh`, shell
+heredocs, and any arg-table/command-string builder for the literal before
+deleting it, because the type system won't. And when a test *pins* a value you
+plan to remove, that test is load-bearing for the migration: update it **in the
+same change** as the removal (and make it assert the *new* form), or it will
+enshrine the broken value and green-light the regression. Prefer, where possible,
+a runtime assertion that the built binary actually routes the string (an e2e that
+execs `pair <sub>`), since a pure-unit test that only inspects the arg table
+proves the table's shape, not that the dispatcher accepts it. Caught in #104 M3
+boundary review.
