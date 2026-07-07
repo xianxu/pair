@@ -1,12 +1,13 @@
 ---
 id: 000105
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-06
 updated: 2026-07-06
 estimate_hours: 2.68
 started: 2026-07-06T22:04:17-07:00
+actual_hours: 0.78
 ---
 
 # alt+shift+c: deterministic writer-triggered restart + fold draft WIP into continuation NEXT ACTION
@@ -78,6 +79,7 @@ The plan-quality judge (non-blocking INFO) surfaced three refinements; folded in
 ## Log
 
 ### 2026-07-06
+- 2026-07-06: closed — go test ./... ALL GREEN (continuationcmd unit tests for the 3 pure entities + 4 run()-level integration tests: draft WIP folds under NEXT ACTION, restart seam called with slug in compaction context, standalone no-op, --no-restart suppresses both). Real-binary standalone smoke: pair continuation in a temp repo w/o PAIR_TAG writes a correct doc, no fold/restart, exit 0. luacheck 0 errors; runtime-bundle drift-check green. Live alt+shift+c zellij smoke documented as operator manual step (only the composed writer-execs-pair-continue seam is not headless-testable; each half is covered).; review verdict: SHIP
 
 **Implemented + verified (2026-07-06).** All 7 plan tasks landed on branch `000105-altc-deterministic-restart-draft-fold`. Commits: pure `draft.go` entities (d969e05), writer fold+restart wiring (8351e74), nvim single-step prompt + save-draft (91b26b3 reconciliation; nvim in a later commit). Verification evidence:
 - `go test ./...` — **ALL GREEN** (incl. `continuationcmd` unit + 4 `run()`-level integration tests: fold lands under NEXT ACTION, restart seam called with the slug in compaction context, standalone no-op, `--no-restart` suppresses both).

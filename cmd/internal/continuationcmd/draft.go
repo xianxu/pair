@@ -65,7 +65,23 @@ func FoldDraftIntoNextAction(body, wip string) string {
 	for insert > start+1 && strings.TrimSpace(lines[insert-1]) == "" {
 		insert--
 	}
-	block := append([]string{"", "_Parked draft at compaction:_", ""}, strings.Split(wip, "\n")...)
+	hasExisting := false
+	for _, l := range lines[start+1 : insert] {
+		if strings.TrimSpace(l) != "" {
+			hasExisting = true
+			break
+		}
+	}
+	// A label distinguishes folded WIP from the agent's own NEXT ACTION content.
+	// But when the section was empty, the WIP *is* the next action — emitting a
+	// label there would make it the first content line, so NextActionPreview (the
+	// `pair continue` list summary) would show the label instead of the WIP.
+	var block []string
+	if hasExisting {
+		block = append([]string{"", "_Parked draft at compaction:_", ""}, strings.Split(wip, "\n")...)
+	} else {
+		block = append([]string{""}, strings.Split(wip, "\n")...)
+	}
 	out := make([]string, 0, len(lines)+len(block))
 	out = append(out, lines[:insert]...)
 	out = append(out, block...)

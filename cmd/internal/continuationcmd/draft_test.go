@@ -66,6 +66,15 @@ func TestFoldDraftIntoNextAction(t *testing.T) {
 	if ena, ewip, esop := strings.Index(empty, "## NEXT ACTION"), strings.Index(empty, "rescued wip"), strings.Index(empty, "## State of play"); !(ena < ewip && ewip < esop) {
 		t.Errorf("empty-heading fold mispositioned:\n%s", empty)
 	}
+	// empty section: WIP is the next action → NextActionPreview must surface the
+	// WIP, not the fold label (close-review minor: no label leak in the preview).
+	if empty := FoldDraftIntoNextAction("## NEXT ACTION\n", "rescued wip"); NextActionPreview(empty) != "rescued wip" {
+		t.Errorf("empty-section rescue: preview = %q, want the WIP (no label leak)\n%s", NextActionPreview(empty), empty)
+	}
+	// non-empty section: the label IS present (distinguishes folded WIP).
+	if got := FoldDraftIntoNextAction(body, "extra"); !strings.Contains(got, "_Parked draft at compaction:_") {
+		t.Errorf("non-empty section should label the folded WIP:\n%s", got)
+	}
 }
 
 func TestInCompactionContext(t *testing.T) {
