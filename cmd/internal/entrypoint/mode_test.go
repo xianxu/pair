@@ -29,3 +29,37 @@ func TestClassifyInvocation(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveInvocation(t *testing.T) {
+	names := []string{"slug", "changelog", "context", "review", "scrollback", "clip"}
+	cases := []struct {
+		name     string
+		exe      string
+		args     []string
+		wantMode EntrypointMode
+		wantArgs []string
+	}{
+		{"pair dispatch passes args through", "/x/bin/pair", []string{"slug"}, ModeDispatch, []string{"slug"}},
+		{"pair nested group passes through", "/x/bin/pair", []string{"review", "open"}, ModeDispatch, []string{"review", "open"}},
+		{"pair launch stays public", "/x/bin/pair", []string{"claude"}, ModePublicPair, []string{"claude"}},
+		{"busybox pair-slug prepends subcommand", "/x/bin/pair-slug", nil, ModeDispatch, []string{"slug"}},
+		{"busybox pair-slug keeps its args", "/x/bin/pair-slug", []string{"--foo"}, ModeDispatch, []string{"slug", "--foo"}},
+		{"pair-go launch is a handoff", "/x/bin/pair-go", []string{"launch"}, ModePairGoLaunch, []string{"launch"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			gotMode, gotArgs := ResolveInvocation(c.exe, c.args, names)
+			if gotMode != c.wantMode {
+				t.Errorf("mode = %v, want %v", gotMode, c.wantMode)
+			}
+			if len(gotArgs) != len(c.wantArgs) {
+				t.Fatalf("args = %v, want %v", gotArgs, c.wantArgs)
+			}
+			for i := range gotArgs {
+				if gotArgs[i] != c.wantArgs[i] {
+					t.Fatalf("args = %v, want %v", gotArgs, c.wantArgs)
+				}
+			}
+		})
+	}
+}

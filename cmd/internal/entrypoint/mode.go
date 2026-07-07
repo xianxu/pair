@@ -29,6 +29,22 @@ func ClassifyInvocation(executable string, args []string, dispatchNames []string
 	return ModeDispatch
 }
 
+// ResolveInvocation classifies an invocation and returns the args the
+// dispatcher should see. It is ClassifyInvocation plus busybox arg-rewrite: when
+// pair is invoked under a helper's base name (a symlink, e.g. the external
+// pair-slug Stop hook), the resolved subcommand is prepended to args so the
+// dispatcher runs it. For the `pair` launcher and the launch handoff, args pass
+// through unchanged.
+func ResolveInvocation(executable string, args []string, dispatchNames []string) (EntrypointMode, []string) {
+	mode := ClassifyInvocation(executable, args, dispatchNames)
+	if mode == ModeDispatch && filepath.Base(executable) != "pair" {
+		if sub, ok := busyboxSubcommand(filepath.Base(executable), dispatchNames); ok {
+			return ModeDispatch, append([]string{sub}, args...)
+		}
+	}
+	return mode, args
+}
+
 func contains(xs []string, s string) bool {
 	for _, x := range xs {
 		if x == s {
