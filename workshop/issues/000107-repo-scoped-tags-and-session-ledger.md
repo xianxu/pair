@@ -409,3 +409,13 @@ generated close-review artifact out of the branch diff and aligned the durable
 plan checklist/revision log. Verified with targeted launcher regressions, `go test
 ./cmd/internal/launcher -count=1`, `go test ./...`, `git diff --check`, and full
 `make test`.
+
+Fourth `sdlc close --issue 107` returned `Review-Verdict: REWORK`. Addressed
+the blocking source-of-truth and preflight ordering gaps: final
+`ProbeSessionName`/`SessionBlocksReuse` checks now run before create sidecars,
+env exports, helper spawns, and ledger/index writes; ledger and session-name
+index append failures now print explicit errors and abort before zellij handoff;
+native `pair --help` now describes repo-scoped live tags/listing; and the plan
+now describes the implemented scoped-`DataDir` bridge instead of claiming every
+existing sidecar consumer directly uses `ScopedPaths`. Verified with focused
+launcher regressions.

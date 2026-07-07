@@ -15,26 +15,28 @@ import (
 // fakeRuntime is the in-memory create-flow seam for the RunLaunch loop tests.
 // Canned inputs drive decisions; recorded outputs assert the effect sequence.
 type fakeRuntime struct {
-	inPane         bool
-	sessions       []Session
-	historical     []HistoricalTag
-	blocksReuse    map[string]bool // session -> live-blocks (default false)
-	commandMissing map[string]bool // name -> absent (default: everything exists)
-	files          map[string]string
-	ledger         map[string][]LedgerEntry
-	sessionIndex   SessionNameIndex
-	agentSessions  map[string]bool // "agent|sid" -> native artifact exists
-	uuids          []string        // MintUUID pops these in order
-	promptValue    string
-	promptOK       bool
-	probeErr       error
-	inferAgent     map[string]string // tag -> paired agent (for `resume <tag>`)
-	pickFunc       func(header string, options []string) string
-	listRows       []ListRow // ListSessions rows (for `pair list`)
-	listErr        error
-	sessionsErr    error       // Sessions() error (defensive exit-1 path)
-	renameFailAt   string      // Rename returns an error when src == this (rollback test)
-	renamed        [][2]string // {src,dst} per successful Rename
+	inPane          bool
+	sessions        []Session
+	historical      []HistoricalTag
+	blocksReuse     map[string]bool // session -> live-blocks (default false)
+	commandMissing  map[string]bool // name -> absent (default: everything exists)
+	files           map[string]string
+	ledger          map[string][]LedgerEntry
+	sessionIndex    SessionNameIndex
+	agentSessions   map[string]bool // "agent|sid" -> native artifact exists
+	uuids           []string        // MintUUID pops these in order
+	promptValue     string
+	promptOK        bool
+	probeErr        error
+	appendLedgerErr error
+	appendIndexErr  error
+	inferAgent      map[string]string // tag -> paired agent (for `resume <tag>`)
+	pickFunc        func(header string, options []string) string
+	listRows        []ListRow // ListSessions rows (for `pair list`)
+	listErr         error
+	sessionsErr     error       // Sessions() error (defensive exit-1 path)
+	renameFailAt    string      // Rename returns an error when src == this (rollback test)
+	renamed         [][2]string // {src,dst} per successful Rename
 	// #99 M5b compaction/continue
 	writtenMarkers   map[string]RestartMarker // WriteRestartMarker by session
 	touchedQuit      []string                 // TouchQuitMarker sessions
@@ -177,6 +179,9 @@ func (f *fakeRuntime) ReadLedger(tag string) ([]LedgerEntry, error) {
 	return append([]LedgerEntry(nil), f.ledger[tag]...), nil
 }
 func (f *fakeRuntime) AppendLedger(tag string, entry LedgerEntry) error {
+	if f.appendLedgerErr != nil {
+		return f.appendLedgerErr
+	}
 	f.ledger[tag] = append(f.ledger[tag], entry)
 	return nil
 }
@@ -184,6 +189,9 @@ func (f *fakeRuntime) ReadSessionNameIndex() (SessionNameIndex, error) {
 	return f.sessionIndex, nil
 }
 func (f *fakeRuntime) AppendSessionNameIndex(entry SessionNameEntry) error {
+	if f.appendIndexErr != nil {
+		return f.appendIndexErr
+	}
 	f.sessionIndex.Entries = append(f.sessionIndex.Entries, entry)
 	return nil
 }
@@ -541,6 +549,47 @@ func TestRunLaunchFailedPreflightDoesNotAppendLedgerOrSessionIndex(t *testing.T)
 	}
 	if len(rt.sessionIndex.Entries) != 0 {
 		t.Fatalf("session index should not be appended before preflight succeeds: %+v", rt.sessionIndex)
+	}
+	if len(rt.files) != 0 {
+		t.Fatalf("preflight failure should not write sidecars: %+v", rt.files)
+	}
+	if len(rt.watchers) != 0 || len(rt.pollers) != 0 || len(rt.titles) != 0 || len(rt.cmux) != 0 || rt.devRebuilt {
+		t.Fatalf("preflight failure started side effects: watchers=%v pollers=%v titles=%v cmux=%v dev=%v", rt.watchers, rt.pollers, rt.titles, rt.cmux, rt.devRebuilt)
+	}
+	if len(rt.env) != 1 { // PATH is set at RunLaunch entry.
+		t.Fatalf("preflight failure should only set PATH env, got %+v", rt.env)
+	}
+}
+
+func TestRunLaunchLedgerAppendFailureAbortsBeforeHandoff(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.uuids = []string{"SID"}
+	rt.appendLedgerErr = errors.New("ledger write failed")
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "bugfix"}), rt)
+	if err != nil || code != 1 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.launched != "" || rt.launchCount != 0 {
+		t.Fatalf("must not launch when ledger append fails: launched=%q count=%d", rt.launched, rt.launchCount)
+	}
+	if len(rt.ledger["bugfix"]) != 0 {
+		t.Fatalf("ledger append failure should not record row: %+v", rt.ledger["bugfix"])
+	}
+}
+
+func TestRunLaunchSessionIndexAppendFailureAbortsBeforeHandoff(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.uuids = []string{"SID"}
+	rt.appendIndexErr = errors.New("index write failed")
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "bugfix"}), rt)
+	if err != nil || code != 1 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.launched != "" || rt.launchCount != 0 {
+		t.Fatalf("must not launch when session index append fails: launched=%q count=%d", rt.launched, rt.launchCount)
+	}
+	if len(rt.sessionIndex.Entries) != 0 {
+		t.Fatalf("session index append failure should not record entry: %+v", rt.sessionIndex)
 	}
 }
 

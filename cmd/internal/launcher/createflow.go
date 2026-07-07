@@ -288,6 +288,20 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		session = name
 		sessionEntry = entry
 	}
+	// A too-long tag makes zellij reject the session name (#54); probe its own
+	// validator and translate the rejection before writing sidecars or spawning
+	// helpers.
+	if err := rt.ProbeSessionName(session); err != nil {
+		fmt.Fprintf(stderr, "pair: tag '%s' makes zellij's session name too long for this\n", chosenTag)
+		fmt.Fprintf(stderr, "      machine's socket path (%s). Pick a shorter tag.\n", session)
+		return launchStep{code: 1}, nil
+	}
+	// Free the name (clear a stale EXITED resurrect record) and guard against a
+	// live session unexpectedly occupying it before any source-of-truth writes.
+	if rt.SessionBlocksReuse(session) {
+		fmt.Fprintf(stderr, "pair: session '%s' already exists.\n", session)
+		return launchStep{code: 1}, nil
+	}
 	dataDir := env.DataDir
 	legacyImported := false
 	if decision.LegacyImport {
@@ -371,21 +385,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	rt.SpawnTitlePoller(chosenTag, agent)
 	rt.DevRebuild(opts.PairHome)
 
-	// A too-long tag makes zellij reject the session name (#54); probe its own
-	// validator and translate the rejection.
-	if err := rt.ProbeSessionName(session); err != nil {
-		fmt.Fprintf(stderr, "pair: tag '%s' makes zellij's session name too long for this\n", chosenTag)
-		fmt.Fprintf(stderr, "      machine's socket path (%s). Pick a shorter tag.\n", session)
-		return launchStep{code: 1}, nil
-	}
-
-	// Free the name (clear a stale EXITED resurrect record) and guard against a
-	// live session unexpectedly occupying it before the blocking handoff.
-	if rt.SessionBlocksReuse(session) {
-		fmt.Fprintf(stderr, "pair: session '%s' already exists.\n", session)
-		return launchStep{code: 1}, nil
-	}
-	_ = rt.AppendLedger(chosenTag, LedgerEntry{
+	if err := rt.AppendLedger(chosenTag, LedgerEntry{
 		Agent:        agent,
 		Args:         persistedConfigArgs(agentArgs),
 		SessionID:    firstNonEmpty(explicitResume, newSid),
@@ -394,9 +394,15 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		RepoRoot:     envScopeRoot(env),
 		RepoName:     DefaultTag(envScopeRoot(env)),
 		LegacyImport: legacyImported,
-	})
+	}); err != nil {
+		fmt.Fprintf(stderr, "pair: failed to append ledger for tag '%s': %v\n", chosenTag, err)
+		return launchStep{code: 1}, nil
+	}
 	if sessionEntry.SessionName != "" {
-		_ = rt.AppendSessionNameIndex(sessionEntry)
+		if err := rt.AppendSessionNameIndex(sessionEntry); err != nil {
+			fmt.Fprintf(stderr, "pair: failed to append session-name index for '%s': %v\n", sessionEntry.SessionName, err)
+			return launchStep{code: 1}, nil
+		}
 	}
 
 	configDir := filepath.Join(opts.PairHome, "zellij")

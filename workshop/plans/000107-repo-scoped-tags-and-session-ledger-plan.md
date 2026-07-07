@@ -335,9 +335,12 @@ Cover:
 Run: `go test ./cmd/internal/launcher -run 'TestRunList|TestRename|TestRestart|TestCleanup|TestPark'`
 Expected: FAIL where flat paths are still assumed.
 
-- [x] **Step 2: Migrate each consumer to `ScopedPaths`**
+- [x] **Step 2: Migrate each consumer to scoped `DataDir`**
 
-Replace hand-built paths in these files with `ScopedPaths`. Keep the runtime interfaces small; avoid passing a large path bag into helpers that only need one path family.
+Ensure these consumers operate under the repo-scoped `DataDir`. Some call sites
+still hand-build tag sidecar basenames inside that scoped dir; that is the
+implemented bridge for this issue, while `ScopedPaths` owns the central path
+model for new direct derivations.
 
 - [x] **Step 3: Verify green**
 
@@ -521,3 +524,18 @@ repo-local tag; update the plan's core-concepts table to the implemented names;
 and move ledger appends after deterministic zellij-name preflight. Ledger/index
 state still writes before the blocking zellij handoff intentionally, so active
 sessions have identity state while running.
+
+### 2026-07-07 — fourth close-review REWORK follow-up
+
+Reason: the fourth `sdlc close --issue 107` boundary review returned REWORK. It
+found that final session-name preflight was still positioned after sidecar/env
+and helper-spawn effects, and source-of-truth ledger/session-index append errors
+were ignored. It also noted stale native help text and plan wording that
+overclaimed that every path consumer had been rewritten directly to
+`ScopedPaths`.
+
+Delta: move the final `ProbeSessionName`/`SessionBlocksReuse` guards before any
+create sidecars, env exports, or helper spawns; make ledger and session-name
+index append failures abort before zellij handoff with clear errors; update the
+native help text for repo-scoped live sessions/listing; and revise the plan to
+describe the implemented scoped-`DataDir` bridge for existing sidecar consumers.
