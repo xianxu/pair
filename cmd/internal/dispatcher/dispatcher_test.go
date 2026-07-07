@@ -40,6 +40,61 @@ func TestStreamingFlags(t *testing.T) {
 	}
 }
 
+func TestResolveNestedFlatAndAlias(t *testing.T) {
+	cases := []struct {
+		args     []string
+		wantName string
+		wantRest []string
+		wantOK   bool
+	}{
+		{[]string{"review", "open", "f"}, "review open", []string{"f"}, true},
+		{[]string{"scrollback", "render"}, "scrollback render", []string{}, true},
+		{[]string{"clip", "copy-on-select", "--orchestrate"}, "clip copy-on-select", []string{"--orchestrate"}, true},
+		{[]string{"context", "T", "claude"}, "context", []string{"T", "claude"}, true},
+		{[]string{"scrollback-render"}, "scrollback-render", []string{}, true}, // transitional alias
+		{[]string{"changelog"}, "changelog", []string{}, true},                 // transitional alias
+		{[]string{"review"}, "", nil, false},                                   // group token alone is not a family
+		{[]string{"frobnicate"}, "", nil, false},
+	}
+	for _, c := range cases {
+		f, rest, ok := Resolve(c.args)
+		if ok != c.wantOK || f.Name != c.wantName {
+			t.Errorf("Resolve(%v) = (%q, %v), want (%q, %v)", c.args, f.Name, ok, c.wantName, c.wantOK)
+			continue
+		}
+		if ok && len(rest) != len(c.wantRest) {
+			t.Errorf("Resolve(%v) rest = %v, want %v", c.args, rest, c.wantRest)
+		}
+	}
+}
+
+func TestDispatchNamesAreTopLevelTokens(t *testing.T) {
+	names := DispatchNames()
+	for _, want := range []string{"review", "scrollback", "changelog", "clip", "title"} {
+		if !containsStr(names, want) {
+			t.Errorf("DispatchNames() = %v, missing group/flat token %q", names, want)
+		}
+	}
+	// Nested leaves are NOT peel-off tokens — the entrypoint only needs the first
+	// token to decide dispatch-vs-launch.
+	for _, absent := range []string{"review open", "clip copy-on-select"} {
+		if containsStr(names, absent) {
+			t.Errorf("DispatchNames() = %v, must not contain nested name %q", names, absent)
+		}
+	}
+}
+
+func TestDispatchNestedStreamingRefusesBufferedPath(t *testing.T) {
+	// A nested streaming family reached on the buffered Dispatch path is a
+	// programming error (it should go through cmd/pair-go's streaming seam).
+	for _, args := range [][]string{{"clip", "copy-on-select"}, {"changelog", "render"}} {
+		res := Dispatch(args)
+		if res.ExitCode != 2 || !strings.Contains(res.Stderr, "streaming subcommand") {
+			t.Errorf("Dispatch(%v) = code %d stderr %q, want 2 + 'streaming subcommand'", args, res.ExitCode, res.Stderr)
+		}
+	}
+}
+
 func containsStr(xs []string, want string) bool {
 	for _, x := range xs {
 		if x == want {
@@ -65,7 +120,7 @@ func TestDispatchHelpListsPlannedFamiliesWithoutClaimingSupport(t *testing.T) {
 				"launch",
 				"compatibility handoff",
 				"context",
-				"scrollback-render",
+				"scrollback render",
 				"wrap",
 				"slug",
 				"not implemented in this skeleton",

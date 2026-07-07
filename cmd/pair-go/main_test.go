@@ -14,7 +14,7 @@ func TestRunStreamingSubcommandRoutesChangelogToInjectedStderr(t *testing.T) {
 	// changelog with no flags → usage error to the *injected* stderr (proves the
 	// seam passes real stderr through, unlike the buffered Dispatch path).
 	var stdout, stderr bytes.Buffer
-	code := runStreamingSubcommand([]string{"changelog"}, strings.NewReader(""), &stdout, &stderr)
+	code := runStreamingSubcommand("changelog render", nil, strings.NewReader(""), &stdout, &stderr)
 	if code != 1 {
 		t.Fatalf("code = %d, want 1 (usage error)", code)
 	}
@@ -33,7 +33,8 @@ func TestRunStreamingSubcommandRoutesContinuationStdin(t *testing.T) {
 	root := t.TempDir()
 	var out, errb bytes.Buffer
 	code := runStreamingSubcommand(
-		[]string{"continuation", "--repo-root", root, "--slug", "s", "--agent", "claude", "--issues", "1", "--body-file", "-"},
+		"continuation",
+		[]string{"--repo-root", root, "--slug", "s", "--agent", "claude", "--issues", "1", "--body-file", "-"},
 		strings.NewReader("just a body, no next action\n"), &out, &errb)
 	if code != 1 {
 		t.Fatalf("code = %d, want 1 (stdin body missing NEXT ACTION)", code)
@@ -47,7 +48,7 @@ func TestRunStreamingSubcommandRoutesSessionWatch(t *testing.T) {
 	// session-watch with no args → buildOptions rejects (<3 args) → exit 0,
 	// proving the seam case is wired to sessionwatch.RunCLI.
 	var stdout, stderr bytes.Buffer
-	code := runStreamingSubcommand([]string{"session-watch"}, strings.NewReader(""), &stdout, &stderr)
+	code := runStreamingSubcommand("session-watch", nil, strings.NewReader(""), &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("code = %d, want 0 (missing args no-op)", code)
 	}
@@ -55,7 +56,7 @@ func TestRunStreamingSubcommandRoutesSessionWatch(t *testing.T) {
 
 func TestRunStreamingSubcommandUnknownIsProgrammingError(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	code := runStreamingSubcommand([]string{"nope"}, strings.NewReader(""), &stdout, &stderr)
+	code := runStreamingSubcommand("nope", nil, strings.NewReader(""), &stdout, &stderr)
 	if code != 2 || !strings.Contains(stderr.String(), "no runner wired") {
 		t.Fatalf("code=%d stderr=%q, want 2 + 'no runner wired'", code, stderr.String())
 	}
