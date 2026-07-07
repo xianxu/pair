@@ -899,4 +899,32 @@ func TestRunLaunchPickInferredAgentMustNotInheritCliArgs(t *testing.T) {
 	if !strings.Contains(rt.env["PAIR_AGENT_ARGS"], "--sandbox") {
 		t.Fatalf("codex args were not preserved: PAIR_AGENT_ARGS=%q", rt.env["PAIR_AGENT_ARGS"])
 	}
+	if rt.launched != "pair-work-work-2" {
+		t.Fatalf("launched = %q, want scoped next-free public session name", rt.launched)
+	}
+}
+
+func TestRunLaunchPickNewDefaultUsesScopedNextFreeSessionName(t *testing.T) {
+	rt := newFakeRuntime()
+	scope := mustScope(t, "/home/u/work")
+	rt.sessionIndex.Entries = []SessionNameEntry{{
+		SessionName: "pair-work-work",
+		ScopeKey:    scope.Key,
+		RepoRoot:    scope.Root,
+		RepoName:    scope.DisplayName,
+		Tag:         "work",
+	}}
+	rt.sessions = []Session{{Name: "pair-work-work", State: SessionDetached}}
+	rt.uuids = []string{"SID"}
+	rt.pickFunc = func(header string, options []string) string {
+		return "+ new work session"
+	}
+
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude"}), rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.launched != "pair-work-work-2" {
+		t.Fatalf("launched = %q, want scoped next-free public session name", rt.launched)
+	}
 }

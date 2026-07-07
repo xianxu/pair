@@ -570,3 +570,19 @@ persist the session-name index before the create ledger row so index failure
 cannot leave false ledger truth, and remove the legacy prompt-time
 `pair-<tag>` collision check in favor of the scoped preflight on the assigned
 public zellij session name.
+
+### 2026-07-07 — seventh close-review REWORK follow-up
+
+Reason: the seventh `sdlc close --issue 107` boundary review returned REWORK. It
+found that prompted next-free creates could still fall back to legacy
+`pair-<tag>` names when the accepted prompt value matched the proposed tag, for
+example explicit agent+args with existing `work` history or picker `+ new` from
+a current-scope live `work` row. It also noted a non-blocking robustness concern:
+JSONL source-of-truth stores currently use read/replace writes rather than
+append/locking semantics for concurrent writers.
+
+Delta: always route prompted creates through the scoped public session-name
+allocator after the prompt, even when the accepted value equals the proposed
+next-free tag; add regressions for explicit agent+args and picker `+ new` default
+acceptance. Track JSONL append/locking as follow-up durability work rather than
+part of this close blocker.

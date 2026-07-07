@@ -438,3 +438,12 @@ failure cannot leave false ledger truth for a session that never launched, and
 prompted tag validation no longer rejects unrelated legacy `pair-<tag>` names
 before the scoped public-name preflight. Verified with focused red/green
 regressions and `go test ./cmd/internal/launcher -count=1`.
+
+Seventh `sdlc close --issue 107` returned `Review-Verdict: REWORK`. Addressed
+the remaining ARCH-PURPOSE blocker: prompted creates now always assign through
+the scoped public session-name allocator, even when the user accepts a proposed
+next-free default tag such as `work-2`, so explicit agent+args and picker `+ new`
+launch `pair-<repo>-<tag>` names instead of falling back to legacy `pair-<tag>`.
+Added regressions for both paths. The review also noted JSONL read/replace
+append durability as an Important follow-up for concurrent writers. Verified
+with focused red/green regressions and `go test ./cmd/internal/launcher -count=1`.

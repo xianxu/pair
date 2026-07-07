@@ -280,7 +280,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	}
 
 	session := decision.SessionName
-	if session == "" || chosenTag != decision.Tag {
+	if session == "" || decision.PromptName || chosenTag != decision.Tag {
 		name, entry, ok := assignSingleSessionName(rt, live, envScopeRoot(env), chosenTag, stderr)
 		if !ok {
 			return launchStep{code: 1}, nil
