@@ -63,7 +63,7 @@ Design: `workshop/plans/000104-single-pair-binary-plan.md`.
 
 Durable plan: `workshop/plans/000104-single-pair-binary-plan.md` (3 milestones).
 
-- [ ] M1 — Complete + reorganize the surface: fold the remaining families into
+- [x] M1 — Complete + reorganize the surface: fold the remaining families into
   `dispatcher.Families()` with group/leaf nesting (`review|scrollback|changelog|
   clip <leaf>`) + streaming routes + minimal busybox `argv[0]` prefix-strip. Pure
   Go; no consumer changes; standalone binaries still build; backward compatible.
@@ -102,6 +102,7 @@ total: 9.06
 ## Log
 
 ### 2026-07-06
+- 2026-07-06: closed M1 — make test green (146 ok pkgs, 0 FAIL); 30/30 go pkgs; nested pair<sub> routes + aliases + pair-slug busybox symlink smoke-verified on a real build; fresh-eyes boundary review done via subagent (sdlc claude dispatch hit E2BIG on the mis-computed ancient boundary base a9c32ef/#61, ~19.6k insertions) — verdict SHIP, all correctness areas clean, 2 minor cleanups (dead code + busybox prefix guard) applied in follow-up commit; review verdict: not-run
 
 - Designed via brainstorm + code sweep. Key finding: the #93/#96/#99 milestones
   already ported every helper into `cmd/internal/*cmd` with `RunXxxCLI` seams and
