@@ -230,4 +230,8 @@ type LaunchOptions struct {
 	ZellijSession  string // ZELLIJ_SESSION_NAME (compaction tag-match)
 	ForceInSession bool   // PAIR_FORCE_IN_SESSION: force compaction (bypasses both halves)
 	FakeInZellij   bool   // PAIR_FAKE_IN_ZELLIJ: fake the ancestry half (real tag-match runs)
+
+	// Internal restart-loop state: a restart marker already selected the args
+	// for the next create, so the normal saved-config picker must not re-open.
+	SkipConfigPicker bool
 }

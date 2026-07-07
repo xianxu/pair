@@ -241,7 +241,7 @@ Expected: PASS.
 - Test: `cmd/internal/launcher/createflow_test.go`
 - Test: `cmd/internal/launcher/osruntime_test.go`
 
-- [ ] **Step 1: Write failing tests for ledger-backed inference**
+- [x] **Step 1: Write failing tests for ledger-backed inference**
 
 Cover:
 - `InferAgent(tag)` prefers ledger latest entry, falls back to `agent-<tag>`, then config filename.
@@ -251,7 +251,7 @@ Cover:
 Run: `go test ./cmd/internal/launcher -run 'Test.*Ledger|TestRunLaunch.*Latest'`
 Expected: FAIL because inference ignores ledger.
 
-- [ ] **Step 2: Add runtime store methods**
+- [x] **Step 2: Add runtime store methods**
 
 Extend the runtime seam narrowly, for example:
 - `ReadLedger(tag string) ([]LedgerEntry, error)`
@@ -260,7 +260,7 @@ Extend the runtime seam narrowly, for example:
 
 Update fake runtime and `OSRuntime`.
 
-- [ ] **Step 3: Wire create flow**
+- [x] **Step 3: Wire create flow**
 
 When launching:
 - resolve scoped paths before creating draft/config.
@@ -268,7 +268,7 @@ When launching:
 - when async session watcher later captures the id, update by appending a newer row rather than mutating old rows.
 - continue writing compatibility caches from the ledger/source launch data.
 
-- [ ] **Step 4: Verify green**
+- [x] **Step 4: Verify green**
 
 Run: `go test ./cmd/internal/launcher -run 'Test.*Ledger|TestRunLaunch.*Latest|TestRunLaunchPickInferredAgentMustNotInheritCliArgs'`
 Expected: PASS.

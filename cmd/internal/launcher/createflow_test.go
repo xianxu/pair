@@ -572,6 +572,36 @@ func TestRunLaunchResumeInfersAgent(t *testing.T) {
 	}
 }
 
+func TestRunLaunchResumeUsesLedgerAgentAndArgsWhenConfigMissing(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.ledger["work"] = []LedgerEntry{{
+		Agent:      "codex",
+		Args:       []string{"--search"},
+		SessionID:  "CX-9",
+		LastActive: time.Unix(1_700_000_010, 0),
+	}}
+	rt.agentSessions["codex|CX-9"] = true
+	rt.pickFunc = func(header string, options []string) string {
+		for _, o := range options {
+			if strings.Contains(o, "use saved params + session") {
+				return o
+			}
+		}
+		return ""
+	}
+
+	code, err := run(t, baseOpts(LaunchArgs{ForcedTag: "work"}), rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.env["PAIR_AGENT"] != "codex" {
+		t.Fatalf("PAIR_AGENT = %q, want codex", rt.env["PAIR_AGENT"])
+	}
+	if rt.env["PAIR_AGENT_ARGS"] != "resume CX-9 --search --no-alt-screen" {
+		t.Fatalf("PAIR_AGENT_ARGS = %q", rt.env["PAIR_AGENT_ARGS"])
+	}
+}
+
 // With nothing on disk to infer from, the agent defaults to claude.
 func TestRunLaunchResumeDefaultsClaude(t *testing.T) {
 	rt := newFakeRuntime()

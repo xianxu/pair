@@ -95,6 +95,7 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 			rt.Remove(configPath) // Shift+Alt+N / compaction: drop the config so create mints fresh.
 		}
 		opts.Args = plan.Args
+		opts.SkipConfigPicker = true
 		// A #55 compaction re-entry re-seeds the draft from the continuation slug
 		// (M5b); every other restart re-entry leaves the draft as-is. The re-entry
 		// is the outer process (never in a pane), so ContinueSlug stays cleared —
@@ -224,14 +225,17 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, decision LaunchDecision,
 	session := "pair-" + chosenTag
 	dataDir := env.DataDir
 	configPath := resolveConfigPath(rt, dataDir, chosenTag, agent)
+	savedForPicker := readSavedConfigForTag(rt, configPath, chosenTag, agent)
 
 	agentArgs := append([]string(nil), opts.Args.AgentArgs...)
 
 	// Tag-restart config picker (#000016): a saved config for this (tag, agent)
 	// offers to reuse its args / resume its session, unless an explicit resume
 	// token on argv already made the choice.
-	if code, ok := runConfigPicker(rt, configPath, agent, chosenTag, &agentArgs, env.Cwd, stderr); !ok {
-		return launchStep{code: code}, nil
+	if !opts.SkipConfigPicker {
+		if code, ok := runConfigPicker(rt, configPath, savedForPicker, agent, chosenTag, &agentArgs, env.Cwd, stderr); !ok {
+			return launchStep{code: code}, nil
+		}
 	}
 
 	// Env exports every child (watcher, poller, zellij + its panes) inherits.
@@ -361,25 +365,17 @@ func promptForTag(rt Runtime, prefill, base string, stderr io.Writer) (tag strin
 // the resolved launch vector. ok=false means abort with the returned exit code.
 // When no saved config applies (absent, or an explicit resume already chose),
 // it is a no-op that returns ok=true.
-func runConfigPicker(rt Runtime, configPath, agent, chosenTag string, agentArgs *[]string, cwd string, stderr io.Writer) (code int, ok bool) {
+func runConfigPicker(rt Runtime, configPath string, saved savedConfig, agent, chosenTag string, agentArgs *[]string, cwd string, stderr io.Writer) (code int, ok bool) {
 	if extractExplicitResume(agent, *agentArgs) != "" {
 		return 0, true // argv already pinned a resume — nothing to offer.
 	}
-	if _, exists := rt.FileSize(configPath); !exists {
-		return 0, true
-	}
-	raw, err := rt.ReadFile(configPath)
-	if err != nil {
-		return 0, true
-	}
-	cfg, err := parseConfig(raw)
-	if err != nil {
+	if saved.Agent == "" {
 		return 0, true // unusable config — proceed as if none.
 	}
 
-	savedArgsClean := persistedConfigArgs(cfg.Args)
-	hasResumable := rt.AgentSessionExists(agent, cfg.SessionID, cwd)
-	choices := buildConfigChoices(hasResumable, savedArgsClean, *agentArgs, cfg.SessionID)
+	savedArgsClean := persistedConfigArgs(saved.Args)
+	hasResumable := rt.AgentSessionExists(agent, saved.SessionID, cwd)
+	choices := buildConfigChoices(hasResumable, savedArgsClean, *agentArgs, saved.SessionID)
 
 	labels := make([]string, len(choices))
 	for i, c := range choices {
@@ -395,8 +391,24 @@ func runConfigPicker(rt Runtime, configPath, agent, chosenTag string, agentArgs 
 	if action == "new" {
 		rt.Remove(configPath) // clean overwrite — the watcher writes a fresh one.
 	}
-	*agentArgs = composeTagRestartArgs(action, agent, savedArgsClean, *agentArgs, cfg.SessionID)
+	*agentArgs = composeTagRestartArgs(action, agent, savedArgsClean, *agentArgs, saved.SessionID)
 	return 0, true
+}
+
+func readSavedConfigForTag(rt Runtime, configPath, tag, agent string) savedConfig {
+	if raw, err := rt.ReadFile(configPath); err == nil {
+		if cfg, err := parseConfig(raw); err == nil {
+			return cfg
+		}
+	}
+	entries, err := rt.ReadLedger(tag)
+	if err != nil {
+		return savedConfig{}
+	}
+	if latest, ok := LatestLedgerEntryForAgent(entries, agent); ok {
+		return savedConfig{Agent: latest.Agent, Args: latest.Args, SessionID: latest.SessionID}
+	}
+	return savedConfig{}
 }
 
 // resolveConfigPath returns config-<tag>-<agent>.json, migrating a legacy

@@ -188,7 +188,7 @@ provisional but derived from the required source.
 - [x] Brainstorm → durable plan (`superpowers-writing-plans` → `workshop/plans/`)
       before implementation; resolve open questions above.
 - [x] Add scoped identity/path/session-name pure model with failing tests first.
-- [ ] Add per-tag session ledger as source of truth, while emitting derived
+- [x] Add per-tag session ledger as source of truth, while emitting derived
       `agent-<tag>` and `config-<tag>-<agent>.json` caches.
 - [ ] Migrate launcher decisions, history, picker, list, rename, restart, and
       cleanup to current-repo scoped snapshots and sidecar paths.
@@ -265,3 +265,10 @@ row during create after final agent args are known. Verified with:
 `go test ./cmd/internal/launcher -run
 'TestOSRuntimeInferAgentPrefersLedger|TestRunLaunchForcedCreateClaude'` and
 `go test ./cmd/internal/launcher`.
+
+Finished Task 5: when the derived config cache is missing, tag resume can use
+the ledger's latest agent entry as saved params/session; restart re-entry skips
+the normal saved-config picker because restart markers already selected args.
+Verified with `go test ./cmd/internal/launcher -run
+'TestRunLaunchRestartLoopNewSession|TestRunLaunchContinueReentry|Test.*Ledger|TestRunLaunch.*Latest|TestRunLaunchResumeUsesLedgerAgentAndArgsWhenConfigMissing|TestRunLaunchPickInferredAgentMustNotInheritCliArgs'`
+and `go test ./cmd/internal/launcher`.
