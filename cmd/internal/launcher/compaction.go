@@ -19,11 +19,21 @@ import (
 // otherwise it needs the ancestry/fake half AND a tag-match — the guard against
 // cmux leaking ZELLIJ_SESSION_NAME to sibling non-pair panes (env-only detection
 // would park+kill the wrong session).
-func compactionDecision(forceInSession, inPaneOrFake bool, pairTag, zellijSession string) bool {
+func compactionDecision(forceInSession, inPaneOrFake bool, pairTag, zellijSession, pairSession string) bool {
 	if forceInSession {
 		return true
 	}
-	return inPaneOrFake && pairTag != "" && zellijSession == "pair-"+pairTag
+	return inPaneOrFake && pairTag != "" && sessionMatchesTag(zellijSession, pairTag, pairSession)
+}
+
+func sessionMatchesTag(session, tag, pairSession string) bool {
+	if session == "" || tag == "" {
+		return false
+	}
+	if pairSession != "" {
+		return session == pairSession
+	}
+	return session == "pair-"+tag
 }
 
 // serializeRestartMarker renders a RestartMarker as the `key=value` text
@@ -58,8 +68,11 @@ func runCompaction(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error
 		return 1, nil
 	}
 	agent := firstNonEmpty(opts.PairAgent, opts.Args.Agent, "claude")
-	fmt.Fprintf(stderr, "pair: compacting pair-%s — parking scrollback, restarting from continuation…\n", tag)
-	session := "pair-" + tag
+	session := opts.ZellijSession
+	if session == "" {
+		session = firstNonEmpty(opts.PairSession, "pair-"+tag)
+	}
+	fmt.Fprintf(stderr, "pair: compacting %s — parking scrollback, restarting from continuation…\n", session)
 	rt.ParkScrollback(tag, agent, false) // copy: the live .raw is still being appended
 	rt.WriteRestartMarker(session, RestartMarker{Tag: tag, Agent: agent, NewSession: true, Continue: opts.ContinueSlug})
 	rt.TouchQuitMarker(session)

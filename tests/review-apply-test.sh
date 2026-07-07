@@ -299,6 +299,7 @@ OUT:close()
 LUA
 
 PAIR_ROOT="$ROOT" RESULT="$RESULT" \
+  XDG_STATE_HOME="$RT/state" XDG_DATA_HOME="$RT/xdg" XDG_CACHE_HOME="$RT/cache" \
   run_headless --timeout 30 -- nvim --headless -u NONE -c "luafile $RT/driver.lua" -c 'qa!'
 
 echo "--- results ---"; cat "$RESULT"

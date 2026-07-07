@@ -1,12 +1,13 @@
 ---
 id: 000107
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-07
 updated: 2026-07-07
-estimate_hours:
+estimate_hours: 8.2
 started: 2026-07-07T11:23:27-07:00
+actual_hours: 7.55
 ---
 
 # repo-scoped tags and session ledger
@@ -164,14 +165,47 @@ Repro test already staged.
   behavior for the peer repo's picker.
 - Interaction with #83 (per-repo default agent) for mode 1.3.
 
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: cross-cutting-refactor design=1.4 impl=3.0
+item: greenfield-go-module design=0.7 impl=1.2
+item: lua-neovim design=0.3 impl=0.6
+item: atlas-docs design=0.1 impl=0.25
+item: milestone-review design=0.0 impl=0.25
+design-buffer: 0.15
+total: 8.18
+```
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md`
+against `baseline-v3.1.md`. Method A only. Calibration source is currently
+marked stale by `sdlc estimate-source`, so the per-primitive values are
+provisional but derived from the required source.
+
 ## Plan
 
-- [ ] Brainstorm → durable plan (`superpowers-writing-plans` → `workshop/plans/`)
+- [x] Brainstorm → durable plan (`superpowers-writing-plans` → `workshop/plans/`)
       before implementation; resolve open questions above.
+- [x] Add scoped identity/path/session-name pure model with failing tests first.
+- [x] Add per-tag session ledger as source of truth, while emitting derived
+      `agent-<tag>` and `config-<tag>-<agent>.json` caches.
+- [x] Migrate launcher decisions, history, picker, list, rename, restart, and
+      cleanup to current-repo scoped snapshots and sidecar paths.
+- [x] Update zellij/nvim/shell consumers so inherited scoped `PAIR_DATA_DIR` is
+      authoritative.
+- [x] Grandfather existing flat sidecars and live unscoped sessions without data
+      loss.
+- [x] Add acceptance tests for same-tag multi-repo isolation, picker agent
+      annotation, explicit-agent arg safety, bare `pair` ledger continuation,
+      and legacy recovery.
+- [x] Update atlas docs and run final verification.
 
 ## Log
 
 ### 2026-07-07
+- 2026-07-07: closed — Focused lifecycle regressions passed: go test ./cmd/internal/launcher ./cmd/internal/continuationcmd -run 'TestRunLaunchSweepsOnce|TestLiveTagsForSweep|TestCompactionDecision|TestInCompactionContext|TestRunLaunchRenameReentryIgnoresOtherScopeTargetTag' -count=1; affected packages passed: go test ./cmd/internal/launcher ./cmd/internal/continuationcmd -count=1; repository regression passed: go test ./...; whitespace check passed: git diff --check; full suite passed: make test.; review verdict: FIX-THEN-SHIP
 
 Created from a live design discussion. Started from the `pair-dev codex --
 --sandbox danger-full-access` crash (codex args leaked onto claude; root-caused
@@ -182,3 +216,281 @@ recorded in Spec: repo as a real scope dimension with repo-local tags (retire th
 append-only session ledger as source of truth. Not #83 — #83 (per-repo default
 agent) layers on top (mode 1.3). Next: decouple + ship the crash guard; claim
 this issue and run it through brainstorming into a durable plan.
+
+Claimed issue via `sdlc claim --issue 107`, entered planning via
+`sdlc start-plan --issue 107`, and wrote durable plan
+`workshop/plans/000107-repo-scoped-tags-and-session-ledger-plan.md`.
+Architecture decisions in the plan cite ARCH-DRY (centralized scoped identity
+and paths), ARCH-PURE (pure model with thin IO seams), and ARCH-PURPOSE (all
+consumers and legacy data must migrate, not just the crash guard).
+
+Plan-quality gate returned FAILURE: session-name encoding, same-name repo
+mapping, and ambiguous legacy ownership were underspecified. Revised the durable
+plan to make public zellij names concrete (`pair-<repo>-<tag>[-N]`), add a
+global `SessionNameIndex` mapping public names back to hidden scope keys, define
+live-session mapping order (index → scoped pane metadata → legacy recovery), and
+define ambiguous flat sidecars as explicit manual-import recovery rather than
+silent ownership. Increased estimate to 8.2h to reflect the clarified registry
+and migration work.
+
+Second plan-quality gate found the length-budget fallback and ambiguous legacy
+predicate still too loose. Revised the plan with a deterministic session-name
+candidate algorithm: full readable name first, then trim the longer repo/tag
+component while preserving at least 4 normalized chars each and the numeric
+suffix; abort before sidecar writes if no probed candidate passes zellij. Also
+made the ambiguous legacy recovery predicate exact:
+`tag == DefaultTag(currentRepoRoot)` or `strings.HasPrefix(tag,
+DefaultTag(currentRepoRoot)+"-")`.
+
+Implemented the first pure identity slice with TDD: `RepoScope`,
+`ScopedPaths`, `SessionNameIndex`, public session-name candidate assignment, and
+optional assigned session names in `DecideLaunch`. Verified with:
+`go test ./cmd/internal/launcher -run
+'TestRepoScope|TestNormalizeDisplayComponent|TestDefaultTag'`,
+`go test ./cmd/internal/launcher -run
+'TestScopedPaths|TestCanonicalConfigPath|TestConfigPaths'`,
+`go test ./cmd/internal/launcher -run
+'TestScopedSessionName|TestSessionNameIndex|TestAssignSessionName|TestDecideLaunch'`,
+and `go test ./cmd/internal/launcher`.
+
+Implemented the pure ledger slice with TDD: `LedgerEntry`, JSONL
+parse/render, latest-entry selection, latest-per-agent selection, and
+compaction that keeps recent rows plus latest per agent. Verified with:
+`go test ./cmd/internal/launcher -run
+'TestSessionLedger|TestLatestLedger|TestCompactLedger'` and
+`go test ./cmd/internal/launcher`.
+
+Started ledger source-of-truth wiring: added `ReadLedger`/`AppendLedger` to the
+runtime seam, made `OSRuntime.InferAgent` and the fake runtime prefer latest
+ledger entries before derived `agent-<tag>`/config caches, and append a ledger
+row during create after final agent args are known. Verified with:
+`go test ./cmd/internal/launcher -run
+'TestOSRuntimeInferAgentPrefersLedger|TestRunLaunchForcedCreateClaude'` and
+`go test ./cmd/internal/launcher`.
+
+Finished Task 5: when the derived config cache is missing, tag resume can use
+the ledger's latest agent entry as saved params/session; restart re-entry skips
+the normal saved-config picker because restart markers already selected args.
+Verified with `go test ./cmd/internal/launcher -run
+'TestRunLaunchRestartLoopNewSession|TestRunLaunchContinueReentry|Test.*Ledger|TestRunLaunch.*Latest|TestRunLaunchResumeUsesLedgerAgentAndArgsWhenConfigMissing|TestRunLaunchPickInferredAgentMustNotInheritCliArgs'`
+and `go test ./cmd/internal/launcher`.
+
+Started Task 6: `HistorySource` now treats its `DataDir` as the current repo
+scope directory and lists all tag sidecars there instead of filtering by cwd
+basename prefix. Picker row rendering accepts optional repo/agent metadata for
+annotated rows (`repo/tag  agent`) while preserving legacy text when metadata is
+absent. Verified with `go test ./cmd/internal/launcher -run
+'TestHistory|TestBuildPickRows'` and `go test ./cmd/internal/launcher`.
+
+Added the concrete session-name index JSONL store: pure index rows round-trip
+while skipping malformed lines, and `OSRuntime` can append/read
+`session-names.jsonl` under the Pair data dir. Verified with `go test
+./cmd/internal/launcher -run
+'TestOSRuntimeSessionNameIndexStore|TestSessionNameIndex|TestAssignSessionName|TestSessionsForScope'`
+and `go test ./cmd/internal/launcher`.
+
+Wired the session-name index into explicit-tag launch decisions: forced
+create/attach now use the assigned scoped public name (`pair-<repo>-<tag>`)
+instead of reconstructing `pair-<tag>`, and successful creates append the
+registry entry before handoff. Existing tests were updated to seed indexed live
+sessions where they mean current-repo scoped sessions. Verified with `go test
+./cmd/internal/launcher`.
+
+Started concrete sidecar scoping: `LaunchNative` now derives the launch data
+dir as `<global>/repos/<scope-key>` while `OSRuntime` keeps a separate global
+data dir for `session-names.jsonl`. This lets launch sidecars move under the
+repo scope without splitting the global public-name registry. Verified with
+`GOCACHE=/private/tmp/pair-go-cache go test ./cmd/internal/launcher`.
+
+Filtered launch decision snapshots through the session-name index when indexed
+ownership exists: a detached session owned by another repo no longer forces the
+current repo into the picker, while session-name assignment still sees all live
+names for global zellij disambiguation. Verified with
+`GOCACHE=/private/tmp/pair-go-cache go test ./cmd/internal/launcher`.
+
+Updated the zellij draft pane consumer to honor inherited `PAIR_DATA_DIR`
+instead of reconstructing the flat global data dir, regenerated the embedded
+runtime asset, and added a bundle test for the invariant. Verified with
+`GOCACHE=/private/tmp/pair-go-cache go test ./...`.
+
+Debugged a live Alt+n wrong-session recovery: the restarted pane came back with
+flat `PAIR_DATA_DIR=/Users/xianxu/.local/share/pair` and resumed the stale
+`config-2-codex.json` session (`019f15d3...`) instead of the #107 scoped
+session. Root cause was `LaunchNative` dispatching `restart`/`quit` before
+constructing the repo-scoped runtime, so `runRestart` inferred the agent from
+flat sidecars and wrote a marker that drove the outer restart loop back through
+old flat config. Added a regression where flat `agent-work=claude` conflicts
+with scoped ledger `work=codex`; `pair restart` now writes `agent=codex`.
+Moved lifecycle dispatch and rename/list sidecar commands onto the scoped
+runtime/data dir. Verified with `go test ./cmd/internal/launcher -count=1`,
+`go test ./...`, and `git diff --check`.
+
+Finished the scoped launcher/consumer migration slice (ARCH-PURPOSE): `pair
+list` now filters indexed live rows to the current scope, `pair rename` gates
+against scoped public session names from `session-names.jsonl`, and
+`LaunchNative` honors an explicit `PAIR_DATA_DIR` override for in-session and
+test-harness subcommands while keeping the global data root separate for the
+session-name registry. Updated nvim's layout-mode state file to use
+`pair_data_dir()` and refreshed the embedded runtime copy, closing the remaining
+scoped `PAIR_DATA_DIR` consumer found by the shadow sweep. Verified with
+`go test ./cmd/internal/launcher -count=1`, the targeted runtimebundle
+embedded-asset tests, `go test ./...`, `git diff --check`, and `bash
+tests/pair-rename.sh`.
+
+Implemented conservative legacy flat-sidecar grandfathering (ARCH-PURPOSE +
+Root Cause): scoped history now surfaces eligible basename-family flat tags as
+`legacy unscoped <tag> (manual import)` rows instead of silently claiming them.
+Selecting that row copies missing flat sidecars into the current scoped data dir,
+preserves the flat source files, avoids overwriting scoped files, and marks the
+launch ledger row with `legacy_import: true`. Flat rows outside the current
+repo basename family stay hidden from the current repo picker. Verified with
+`go test ./cmd/internal/launcher -run 'TestLegacyImportPlan|TestGrandfather|TestMigrate|TestHistory' -count=1`,
+`go test ./cmd/internal/launcher -count=1`, `go test ./...`, and
+`git diff --check`.
+
+Added acceptance-level coverage for same-tag multi-repo isolation: one test now
+ties scoped paths, readable disambiguated public session names, hidden-key
+non-disclosure, and current-scope live-session filtering together. This sits
+alongside the existing picker annotation, explicit-agent arg safety,
+ledger-backed continuation, and legacy recovery tests. Verified with
+`go test ./cmd/internal/launcher -run 'TestAcceptance|TestRunLaunchPickInferredAgentMustNotInheritCliArgs|TestRunLaunchResumeUsesLedgerAgentAndArgsWhenConfigMissing|TestRunLaunchPickLegacyImportsFlatFiles' -count=1`.
+
+Added `atlas/session-identity.md` and linked it from `atlas/index.md`, mapping
+the #107 identity model: repo scope, display tag, agent, native session id,
+scoped data layout, public zellij session names, ledger-vs-cache ownership,
+current-scope picker/list behavior, and legacy flat-data recovery.
+
+Final verification exposed live-environment leakage in shell smoke tests rather
+than #107 product failures: the running Pair session's `PAIR_SESSION_ID`
+changed expected no-session/config-fallback filenames, and headless Neovim tried
+to write ShaDa/state outside the sandbox. Isolated those harnesses by clearing
+session env where config/no-session behavior is under test and by giving
+`run_headless` disposable state/cache roots while preserving caller data roots.
+Verified with `bash tests/run-headless-test.sh`, `bash
+tests/review-apply-test.sh`, `bash tests/review-reconcile-test.sh`, `bash
+tests/pair-review-target-test.sh`, full `make test`, `go test ./...`, and
+`git diff --check`.
+
+First `sdlc close --issue 107` returned `Review-Verdict: REWORK` and wrote the
+review sidecar at
+`workshop/plans/000107-repo-scoped-tags-and-session-ledger-close-review.md`.
+Addressed the blockers (ARCH-PURPOSE/ARCH-DRY): prompted custom tags now assign
+and append scoped public session names after the typed tag is finalized;
+restart prefers pane `PAIR_TAG` instead of parsing public zellij names;
+compaction accepts and targets the actual scoped public session name; and
+`pair session-watch` appends a later ledger row when it discovers async codex/agy
+session ids, keeping the ledger as source of truth rather than only updating the
+derived config cache. Updated README/comments for scoped session/config
+semantics and added the required plan `## Revisions` entry. Verified with
+`go test ./cmd/internal/launcher ./cmd/internal/sessionwatch -count=1`, `go test
+./...`, `git diff --check`, `bash tests/pair-restart-quit-test.sh`, and full
+`make test`.
+
+Third `sdlc close --issue 107` returned `Review-Verdict: REWORK`. Addressed
+the critical blockers (ARCH-PURPOSE): `LaunchNative` now resolves the git root
+once and uses it as `Env.RepoRoot` for scope/data/session-name/ledger identity
+while preserving the original cwd for the launched agent; unindexed live legacy
+sessions are recoverable only when flat pane metadata proves the pane cwd is
+inside the current repo root; quit cleanup now prints `pair resume <tag>` using
+the repo-local tag instead of the public zellij session name; and the durable
+plan core-concepts table now matches the implemented entity/file names. Also
+moved ledger appends after deterministic zellij-name preflight, while keeping
+ledger/index writes before the blocking handoff so active sessions have identity
+state while running. Verified with focused blocker regressions and `go test
+./cmd/internal/launcher -count=1`.
+
+Second `sdlc close --issue 107` returned `Review-Verdict: REWORK`. Addressed
+the remaining scoped lifecycle gaps (ARCH-PURPOSE/Root Cause): explicit
+`agent -- <args>` launches now bypass the picker and create a new session for
+that agent; an empty `session-names.jsonl` no longer proves any live `pair-*`
+belongs to the current repo; scoped historical rows are enriched and sorted from
+the latest ledger entry so bare continuation has repo/agent/session metadata;
+and live picker selections carry the actual scoped public zellij session name
+through to attach instead of reconstructing legacy `pair-<tag>`. Kept the
+generated close-review artifact out of the branch diff and aligned the durable
+plan checklist/revision log. Verified with targeted launcher regressions, `go test
+./cmd/internal/launcher -count=1`, `go test ./...`, `git diff --check`, and full
+`make test`.
+
+Fourth `sdlc close --issue 107` returned `Review-Verdict: REWORK`. Addressed
+the blocking source-of-truth and preflight ordering gaps: final
+`ProbeSessionName`/`SessionBlocksReuse` checks now run before create sidecars,
+env exports, helper spawns, and ledger/index writes; ledger and session-name
+index append failures now print explicit errors and abort before zellij handoff;
+native `pair --help` now describes repo-scoped live tags/listing; and the plan
+now describes the implemented scoped-`DataDir` bridge instead of claiming every
+existing sidecar consumer directly uses `ScopedPaths`. Verified with focused
+launcher regressions.
+
+Fifth `sdlc close --issue 107` returned `Review-Verdict: REWORK`. Addressed
+the remaining ARCH-PURPOSE source-of-truth gap: the session watcher now receives
+canonical repo root/name separately from pane cwd and writes those fields into
+async ledger rows, so subdirectory launches cannot replace repo-root identity
+with cwd-derived identity. Also moved source-of-truth appends before draft,
+config, adapt, agent, title, watcher, poller, cmux, and dev-rebuild effects, and
+aligned stale comments/plan wording around scoped session names and implemented
+pane env. Verified with focused red/green regressions and `go test
+./cmd/internal/launcher ./cmd/internal/sessionwatch -count=1`.
+
+Sixth `sdlc close --issue 107` returned `Review-Verdict: REWORK`. Addressed
+the remaining data-preservation/source-of-truth blockers: legacy queue import
+now skips existing scoped queue files instead of overwriting queued prompts,
+session-name index persistence runs before the create ledger row so an index
+failure cannot leave false ledger truth for a session that never launched, and
+prompted tag validation no longer rejects unrelated legacy `pair-<tag>` names
+before the scoped public-name preflight. Verified with focused red/green
+regressions and `go test ./cmd/internal/launcher -count=1`.
+
+Seventh `sdlc close --issue 107` returned `Review-Verdict: REWORK`. Addressed
+the remaining ARCH-PURPOSE blocker: prompted creates now always assign through
+the scoped public session-name allocator, even when the user accepts a proposed
+next-free default tag such as `work-2`, so explicit agent+args and picker `+ new`
+launch `pair-<repo>-<tag>` names instead of falling back to legacy `pair-<tag>`.
+Added regressions for both paths. The review also noted JSONL read/replace
+append durability as an Important follow-up for concurrent writers. Verified
+with focused red/green regressions and `go test ./cmd/internal/launcher -count=1`.
+
+Eighth `sdlc close --issue 107` returned `Review-Verdict: REWORK`. Addressed
+the remaining ledger consumer gaps: `pair rename` now moves
+`ledger-<tag>.jsonl`, history scans `ledger-*.jsonl` as scoped tag sources so
+ledger-only tags are visible to bare `pair`, and sessionwatch appends the
+source-of-truth ledger row before writing the derived config cache. Also cleaned
+the stale titlepoller `pair-<tag>` comments. Verified with focused red/green
+regressions and `go test ./cmd/internal/launcher ./cmd/internal/sessionwatch
+-count=1`.
+
+Ninth `sdlc close --issue 107` returned `Review-Verdict: REWORK`. Addressed
+the remaining lifecycle consumers that reconstructed legacy session names:
+launcher title-poller spawns now pass the actual public zellij session name into
+`pair title`, titlepoller watches/renames that session with legacy fallback, and
+continuation compaction recognizes scoped `pair-<repo>-<tag>` session names for
+the same tag. Added focused regressions for scoped titlepoller and scoped
+compaction context. Verified with `go test ./cmd/internal/launcher
+./cmd/internal/titlepoller ./cmd/internal/continuationcmd -count=1`.
+
+Tenth `sdlc close --issue 107` returned `Review-Verdict: REWORK`. Addressed
+the historical picker scoped-name escape hatch: non-live picker rows now clear
+legacy fallback session names before create, forcing `runCreate` through the
+scoped session-name allocator for historical and legacy imports. Also added
+snake_case JSON tags to `SessionNameEntry` so `session-names.jsonl` matches the
+documented wire format. Verified with focused red/green regressions and
+`go test ./cmd/internal/launcher -count=1`.
+
+Eleventh `sdlc close --issue 107` returned `Review-Verdict: REWORK`. Addressed
+the remaining lifecycle identity leaks: startup nvim sweep now resolves live
+public session names through `session-names.jsonl` and the current repo scope,
+compaction requires the exact exported `PAIR_SESSION_NAME` for scoped public
+names instead of suffix-matching another repo's same tag, and restart-loop rename
+passes the current scope into the collision gate. Added regressions for scoped
+sweep, same-tag cross-repo compaction rejection, and scoped restart rename.
+Verified with focused red/green regressions and
+`go test ./cmd/internal/launcher ./cmd/internal/continuationcmd -count=1`.
+
+Twelfth `sdlc close --issue 107` returned `Review-Verdict: FIX-THEN-SHIP`.
+Addressed the remaining important findings: titlepoller cmux owner files now
+write `tag<TAB>public-session` and probe the stored public session name, while
+still reading legacy one-field tag files; `atlas/architecture.md` no longer
+restates flat data dirs, legacy `pair-<tag>` attach/picker/sweep, or suffix-based
+compaction as current behavior. Added a scoped live foreign-owner regression and
+recorded the ownership-file lesson. Verified with
+`go test ./cmd/internal/titlepoller -count=1`.

@@ -53,6 +53,20 @@ func TestDecideLaunchShowsPickerWhenDetachedOrHistoricalExist(t *testing.T) {
 	}
 }
 
+func TestDecideLaunchExplicitAgentArgsCreateWithoutPicker(t *testing.T) {
+	decision, err := DecideLaunch(LaunchArgs{Agent: "codex", AgentArgs: []string{"--sandbox", "workspace-write"}}, SessionSnapshot{
+		BaseTag:    "pair",
+		Sessions:   []Session{{Name: "pair-pair-old", Tag: "old", State: SessionDetached}},
+		Historical: []HistoricalTag{{Tag: "pair"}},
+	})
+	if err != nil {
+		t.Fatalf("DecideLaunch returned error: %v", err)
+	}
+	if decision.Action != ActionCreate || decision.Tag != "pair-2" || !decision.PromptName {
+		t.Fatalf("decision = %#v, want prompted create for next free explicit-agent tag", decision)
+	}
+}
+
 func TestDecideLaunchHistoricalSelectionCreatesByTag(t *testing.T) {
 	decision, err := DecideLaunch(LaunchArgs{Agent: "claude", SelectedTag: "pair-old"}, SessionSnapshot{
 		BaseTag:    "pair",
@@ -63,5 +77,17 @@ func TestDecideLaunchHistoricalSelectionCreatesByTag(t *testing.T) {
 	}
 	if decision.Action != ActionCreate || decision.Tag != "pair-old" || decision.SessionName != "pair-pair-old" || decision.PromptName {
 		t.Fatalf("decision = %#v, want create historical tag without prompt", decision)
+	}
+}
+
+func TestDecideLaunchUsesAssignedSessionName(t *testing.T) {
+	decision, err := DecideLaunch(LaunchArgs{ForcedTag: "work"}, SessionSnapshot{
+		SessionNames: map[string]string{"work": "pair-pair-work-2"},
+	})
+	if err != nil {
+		t.Fatalf("DecideLaunch returned error: %v", err)
+	}
+	if decision.Action != ActionCreate || decision.Tag != "work" || decision.SessionName != "pair-pair-work-2" {
+		t.Fatalf("decision = %#v, want assigned session name", decision)
 	}
 }

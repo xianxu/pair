@@ -3395,8 +3395,8 @@ vim.api.nvim_create_user_command('PairTTYRawPath', function() _G.PairTTYRawPath(
 -- and Alt+Up (bigger) maps to prev-swap from {small, minimized}.
 -- The state machine in PairLayoutBigger / PairLayoutSmaller clamps at
 -- the rung extremes so we never wrap past them.
-local LAYOUT_STATE_FILE = (vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/share'))
-  .. '/pair/layout-mode-' .. (vim.env.PAIR_TAG or vim.env.PAIR_AGENT or 'claude')
+local LAYOUT_STATE_FILE = pair_data_dir()
+  .. '/layout-mode-' .. (vim.env.PAIR_TAG or vim.env.PAIR_AGENT or 'claude')
 
 -- Read the current rung from nvim's own pane height. The kdl pins each
 -- rung to an exact size (1 / 12 / 33%), so vim.o.lines is a ground-truth

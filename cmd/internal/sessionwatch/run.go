@@ -1,6 +1,7 @@
 package sessionwatch
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"strings"
 	"time"
@@ -10,15 +11,17 @@ import (
 
 // Options are the watcher inputs after CLI/env resolution.
 type Options struct {
-	Agent   string
-	Tag     string
-	Cwd     string
-	Args    []string
-	Home    string
-	DataDir string
-	PIDWait time.Duration
-	Timeout time.Duration
-	Poll    time.Duration
+	Agent    string
+	Tag      string
+	Cwd      string
+	RepoRoot string
+	RepoName string
+	Args     []string
+	Home     string
+	DataDir  string
+	PIDWait  time.Duration
+	Timeout  time.Duration
+	Poll     time.Duration
 }
 
 // Runtime is the IO boundary for the session watcher.
@@ -36,6 +39,16 @@ type Runtime interface {
 	Log(outcome adapt.Outcome, detail string)
 }
 
+type sessionLedgerEntry struct {
+	Agent      string    `json:"agent"`
+	Args       []string  `json:"args"`
+	SessionID  string    `json:"session_id"`
+	Started    time.Time `json:"started"`
+	LastActive time.Time `json:"last_active"`
+	RepoRoot   string    `json:"repo_root"`
+	RepoName   string    `json:"repo_name"`
+}
+
 // Run discovers the async agent session id and writes config-<tag>-<agent>.json.
 func Run(opts Options, rt Runtime) error {
 	spec, ok := SpecForAgent(opts.Agent, opts.Home)
@@ -50,6 +63,14 @@ func Run(opts Options, rt Runtime) error {
 	}
 	if opts.Poll <= 0 {
 		opts.Poll = 100 * time.Millisecond
+	}
+	repoRoot := opts.RepoRoot
+	if repoRoot == "" {
+		repoRoot = opts.Cwd
+	}
+	repoName := opts.RepoName
+	if repoName == "" {
+		repoName = filepath.Base(filepath.Clean(repoRoot))
 	}
 
 	watchStart := rt.Now()
@@ -101,6 +122,17 @@ func Run(opts Options, rt Runtime) error {
 			if err != nil {
 				return err
 			}
+			if err := appendSessionLedger(rt, filepath.Join(opts.DataDir, "ledger-"+opts.Tag+".jsonl"), sessionLedgerEntry{
+				Agent:      opts.Agent,
+				Args:       StripResumeArgs(opts.Agent, opts.Args),
+				SessionID:  result.ID,
+				Started:    watchStart,
+				LastActive: rt.Now(),
+				RepoRoot:   repoRoot,
+				RepoName:   repoName,
+			}); err != nil {
+				return err
+			}
 			if err := rt.AtomicWrite(out, payload); err != nil {
 				return err
 			}
@@ -117,6 +149,22 @@ func Run(opts Options, rt Runtime) error {
 
 	rt.Log(adapt.Fail, "no session id within 60s deadline (agent="+opts.Agent+")")
 	return nil
+}
+
+func appendSessionLedger(rt Runtime, path string, entry sessionLedgerEntry) error {
+	raw := ""
+	if existing, err := rt.ReadFile(path); err == nil {
+		raw = string(existing)
+	}
+	line, err := json.Marshal(entry)
+	if err != nil {
+		return err
+	}
+	if raw != "" && !strings.HasSuffix(raw, "\n") {
+		raw += "\n"
+	}
+	raw += string(line) + "\n"
+	return rt.AtomicWrite(path, []byte(raw))
 }
 
 func freshPID(pidFile string, since time.Time, rt Runtime) (bool, time.Time) {

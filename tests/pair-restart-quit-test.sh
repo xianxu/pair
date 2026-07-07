@@ -13,6 +13,7 @@ trap 'rm -rf "$TMP"' EXIT
 export HOME="$TMP"
 export PAIR_KILL_CMD="true" # ExecKillSession runs `true <session>` instead of zellij
 export ZELLIJ_SESSION_NAME="pair-smoke"
+export PAIR_TAG="smoke"
 MARK="$TMP/.cache/pair"
 # NB: deliberately do NOT pre-create $MARK — the first `pair restart` must create
 # it via WriteAtomic/Touch's MkdirAll, so this smoke is load-bearing for that path.

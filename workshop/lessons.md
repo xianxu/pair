@@ -822,3 +822,19 @@ a runtime assertion that the built binary actually routes the string (an e2e tha
 execs `pair <sub>`), since a pure-unit test that only inspects the arg table
 proves the table's shape, not that the dispatcher accepts it. Caught in #104 M3
 boundary review.
+
+## Ownership files must store the canonical resource id, not only a display key
+
+#107's repo-scoped session model moved zellij ownership from `pair-<tag>` to a
+public session name assigned by `session-names.jsonl`, but the cmux owner file
+still stored only the repo-local tag. The title poller then tested a foreign
+owner's liveness by reconstructing `pair-<tag>`, so a live scoped owner such as
+`pair-pair-work` looked stale and another session could reclaim the workspace
+title.
+
+**Rule.** When a lock/owner/lease file guards a resource whose runtime identity
+can differ from its display key, store the canonical runtime id alongside the
+display key. Readers may support old one-field files as legacy, but new writes
+must include the canonical id and liveness probes must use it. Add a regression
+where the display key and runtime id deliberately differ. Caught in #107 close
+review.

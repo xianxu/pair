@@ -1,6 +1,9 @@
 package runtimebundle
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // Since #104 M3 the runtime bundle is config + shell shims ONLY — no helper
 // binaries. Every former helper is a `pair <subcommand>` reached via the single
@@ -53,5 +56,27 @@ func TestEmbeddedManifestIsConfigAndShimsOnly(t *testing.T) {
 		if paths[excluded] {
 			t.Fatalf("EmbeddedManifest includes excluded path %q", excluded)
 		}
+	}
+}
+
+func TestEmbeddedMainLayoutHonorsPairDataDirForDraft(t *testing.T) {
+	data, err := EmbeddedAsset("zellij/layouts/main.kdl")
+	if err != nil {
+		t.Fatalf("EmbeddedAsset(main.kdl): %v", err)
+	}
+	layout := string(data)
+	if !strings.Contains(layout, `${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}`) {
+		t.Fatalf("draft pane must inherit PAIR_DATA_DIR before falling back to the global data dir")
+	}
+}
+
+func TestEmbeddedNvimLayoutStateHonorsPairDataDir(t *testing.T) {
+	data, err := EmbeddedAsset("nvim/init.lua")
+	if err != nil {
+		t.Fatalf("EmbeddedAsset(nvim/init.lua): %v", err)
+	}
+	init := string(data)
+	if !strings.Contains(init, "local LAYOUT_STATE_FILE = pair_data_dir()") {
+		t.Fatalf("layout state must use inherited PAIR_DATA_DIR instead of reconstructing the flat data dir")
 	}
 }

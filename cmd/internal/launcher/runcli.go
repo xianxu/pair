@@ -3,7 +3,10 @@ package launcher
 import (
 	"io"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -38,8 +41,22 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 		_, _ = io.WriteString(stderr, "pair: cannot determine working directory: "+err.Error()+"\n")
 		return 1, nil
 	}
+	repoRoot := gitRootOrCwd(cwd)
 	dataDir := ResolveDataDir(home, xdg)
-	rt := NewOSRuntime(dataDir, pairHome)
+	launchDataDir := ScopedLaunchDataDir(dataDir, repoRoot)
+	if explicit := os.Getenv("PAIR_DATA_DIR"); explicit != "" {
+		launchDataDir = explicit
+	}
+	env := Env{
+		Home:     home,
+		XDGData:  xdg,
+		Cwd:      cwd,
+		RepoRoot: repoRoot,
+		Now:      time.Now(),
+		HistoryD: historyDays(),
+		DataDir:  launchDataDir,
+	}
+	rt := NewScopedOSRuntime(dataDir, env.DataDir, pairHome)
 
 	// `list`/`ls` is a read-only listing that prints to stdout and exits — no
 	// launch, no zellij handoff (#99 M5a).
@@ -49,7 +66,7 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 
 	// `rename <old> <new>` is an offline sidecar move — no launch (#99 M5b).
 	if args.Command == "rename" {
-		return runRename(rt, args, dataDir, stdout, stderr), nil
+		return runRenameScoped(rt, args, env.DataDir, scopeKeyFromDataDir(dataDir, env.DataDir), stdout, stderr), nil
 	}
 
 	// Bare `continue` lists the docs + exits; it never launches (#99 M5b).
@@ -61,24 +78,16 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 	// bin/pair-{restart,quit}.sh): write markers, exec kill-session. They need the
 	// live ZELLIJ_SESSION_NAME the keybind fires under.
 	if args.Command == "restart" {
-		return runRestart(rt, args, os.Getenv("ZELLIJ_SESSION_NAME"), stderr), nil
+		return runRestart(rt, args, os.Getenv("ZELLIJ_SESSION_NAME"), os.Getenv("PAIR_TAG"), stderr), nil
 	}
 	if args.Command == "quit" {
 		return runQuit(rt, os.Getenv("ZELLIJ_SESSION_NAME"), stderr), nil
-	}
-
-	env := Env{
-		Home:     home,
-		XDGData:  xdg,
-		Cwd:      cwd,
-		Now:      time.Now(),
-		HistoryD: historyDays(),
-		DataDir:  dataDir,
 	}
 	opts := LaunchOptions{
 		Args:                 args,
 		Env:                  env,
 		PairHome:             pairHome,
+		GlobalDataDir:        dataDir,
 		CodexAltScreenOptOut: os.Getenv("PAIR_CODEX_ALT_SCREEN") == "1",
 		ParkPromptTimeout:    parkPromptTimeout(),
 		// #55 compaction env, read from the pane (only consulted when a `continue`
@@ -86,6 +95,7 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 		PairTag:        os.Getenv("PAIR_TAG"),
 		PairAgent:      os.Getenv("PAIR_AGENT"),
 		ZellijSession:  os.Getenv("ZELLIJ_SESSION_NAME"),
+		PairSession:    os.Getenv("PAIR_SESSION_NAME"),
 		ForceInSession: os.Getenv("PAIR_FORCE_IN_SESSION") == "1",
 		FakeInZellij:   os.Getenv("PAIR_FAKE_IN_ZELLIJ") == "1",
 	}
@@ -109,6 +119,25 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 	}
 
 	return RunLaunch(opts, rt, stderr)
+}
+
+func gitRootOrCwd(cwd string) string {
+	out, err := exec.Command("git", "-C", cwd, "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		return canonicalPath(cwd)
+	}
+	root := strings.TrimSpace(string(out))
+	if root == "" {
+		return canonicalPath(cwd)
+	}
+	return canonicalPath(root)
+}
+
+func canonicalPath(path string) string {
+	if real, err := filepath.EvalSymlinks(path); err == nil {
+		return real
+	}
+	return path
 }
 
 func historyDays() int {

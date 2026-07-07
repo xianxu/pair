@@ -7,7 +7,7 @@
 //
 // Single-instance per tag via a pidfile whose liveness is identity-checked (not
 // a bare kill -0), so a recycled PID left by a dead poller can't wedge the
-// respawn. Self-terminates when the pair-<tag> zellij session disappears
+// respawn. Self-terminates when the Pair zellij session disappears
 // (miss-threshold debounced). Following the #78 sessionwatch template, the pure
 // decisions live here and the IO/process interaction is behind the Runtime seam.
 package titlepoller

@@ -25,13 +25,18 @@ import (
 // deliberately un-timed.
 type OSRuntime struct {
 	osfs.FS
-	DataDir  string
-	PairHome string
+	DataDir       string
+	GlobalDataDir string
+	PairHome      string
 }
 
 // NewOSRuntime builds the concrete runtime for a resolved data dir + asset root.
 func NewOSRuntime(dataDir, pairHome string) *OSRuntime {
-	return &OSRuntime{DataDir: dataDir, PairHome: pairHome}
+	return NewScopedOSRuntime(dataDir, dataDir, pairHome)
+}
+
+func NewScopedOSRuntime(globalDataDir, dataDir, pairHome string) *OSRuntime {
+	return &OSRuntime{DataDir: dataDir, GlobalDataDir: globalDataDir, PairHome: pairHome}
 }
 
 const zjTimeout = 5 * time.Second
@@ -105,12 +110,12 @@ func runBlockingHandoff(cmd *exec.Cmd) (int, error) {
 // --- SnapshotOps -----------------------------------------------------------
 
 func (r OSRuntime) ScanHistory(base string, cutoff time.Time) ([]HistoricalTag, error) {
-	return HistorySource{DataDir: r.DataDir}.Scan(base, cutoff)
+	return HistorySource{DataDir: r.DataDir, LegacyDataDir: r.globalDataDir()}.Scan(base, cutoff)
 }
 
 // --- ListOps ---------------------------------------------------------------
 
-// ListSessions gathers the `pair list`/`ls` rows: each pair-<tag> session's
+// ListSessions gathers the `pair list`/`ls` rows: each Pair session's
 // reuse state (EXITED vs live), its live client count, and the agent it was last
 // paired with (shell 228-306). Agent resolution reuses InferAgent (agent-<tag>
 // then the config-filename agent) — broader than the shell's agent-<tag>-only
@@ -125,18 +130,10 @@ func (r OSRuntime) ListSessions() ([]ListRow, error) {
 	}
 	raw := zj("list-sessions", "--no-formatting")
 	names := pairSessionNames(zj("list-sessions", "--short"))
-	rows := make([]ListRow, 0, len(names))
-	for _, name := range names {
-		tag := strings.TrimPrefix(name, "pair-")
-		row := ListRow{Session: name, Agent: r.InferAgent(tag), State: SessionDetached}
-		if _, exited := sessionRowState(raw, name); exited {
-			row.State = SessionExited
-		} else if row.Clients = parseClientCount(zj("--session", name, "action", "list-clients")); row.Clients > 0 {
-			row.State = SessionAttached
-		}
-		rows = append(rows, row)
-	}
-	return rows, nil
+	index, _ := r.ReadSessionNameIndex()
+	return buildListRowsForScope(names, raw, index, scopeKeyFromDataDir(r.GlobalDataDir, r.DataDir), r.InferAgent, func(session string) int {
+		return parseClientCount(zj("--session", session, "action", "list-clients"))
+	}), nil
 }
 
 // --- ContinuationOps -------------------------------------------------------
@@ -272,12 +269,12 @@ func (OSRuntime) SetTerminalTitle(session string) {
 
 // --- ProcOps ---------------------------------------------------------------
 
-func (r OSRuntime) SpawnSessionWatcher(agent, tag, cwd string, agentArgs []string) {
-	spawnDetached(sessionWatcherArgv(runningPairExe(r.PairHome), agent, tag, cwd, agentArgs), nil)
+func (r OSRuntime) SpawnSessionWatcher(agent, tag, cwd, repoRoot, repoName string, agentArgs []string) {
+	spawnDetached(sessionWatcherArgv(runningPairExe(r.PairHome), agent, tag, cwd, repoRoot, repoName, agentArgs), nil)
 }
 
-func (r OSRuntime) SpawnTitlePoller(tag, agent string) {
-	spawnDetached(titlePollerArgv(runningPairExe(r.PairHome), tag, agent), nil)
+func (r OSRuntime) SpawnTitlePoller(tag, agent, session string) {
+	spawnDetached(titlePollerArgv(runningPairExe(r.PairHome), tag, agent, session), nil)
 }
 
 // runningPairExe resolves the running `pair` executable for the self-exec
@@ -299,14 +296,15 @@ func runningPairExe(pairHome string) string {
 // sidecar routes, now self-execing `pair` (#104 M2). Pure (exe injected) so a
 // test can pin the shape: spawnDetached swallows a start error, so a silent
 // regression in the argv would otherwise go uncaught until the poller/watcher
-// simply never started. The title poller's process must be "<…>/pair title <tag>
-// <agent>", the exact shape titlepoller's single-instance argv guard matches.
-func sessionWatcherArgv(exe, agent, tag, cwd string, agentArgs []string) []string {
-	return append([]string{exe, "session-watch", agent, tag, cwd}, agentArgs...)
+// simply never started. The title poller's process must start with
+// "<…>/pair title <tag> <agent>", the exact shape titlepoller's single-instance
+// argv guard matches.
+func sessionWatcherArgv(exe, agent, tag, cwd, repoRoot, repoName string, agentArgs []string) []string {
+	return append([]string{exe, "session-watch", agent, tag, cwd, "--repo-root", repoRoot, "--repo-name", repoName, "--"}, agentArgs...)
 }
 
-func titlePollerArgv(exe, tag, agent string) []string {
-	return []string{exe, "title", tag, agent}
+func titlePollerArgv(exe, tag, agent, session string) []string {
+	return []string{exe, "title", tag, agent, session}
 }
 
 func (OSRuntime) DevRebuild(pairHome string) {
@@ -408,6 +406,11 @@ func (OSRuntime) MintUUID() string {
 // InferAgent reads the agent-<tag> record (primary) or the agent encoded in a
 // config-<tag>-<agent>.json filename (fallback for Alt+x'd sessions).
 func (r OSRuntime) InferAgent(tag string) string {
+	if entries, err := r.ReadLedger(tag); err == nil {
+		if latest, ok := LatestLedgerEntry(entries); ok && latest.Agent != "" {
+			return latest.Agent
+		}
+	}
 	if raw, err := r.ReadFile(filepath.Join(r.DataDir, "agent-"+tag)); err == nil {
 		if a := strings.TrimSpace(raw); a != "" {
 			return a
@@ -422,6 +425,63 @@ func (r OSRuntime) InferAgent(tag string) string {
 		}
 	}
 	return ""
+}
+
+func (r OSRuntime) ReadLedger(tag string) ([]LedgerEntry, error) {
+	raw, err := r.ReadFile(filepath.Join(r.DataDir, "ledger-"+tag+".jsonl"))
+	if err != nil {
+		return nil, err
+	}
+	return ParseLedger(raw), nil
+}
+
+func (r OSRuntime) AppendLedger(tag string, entry LedgerEntry) error {
+	path := filepath.Join(r.DataDir, "ledger-"+tag+".jsonl")
+	var raw string
+	if existing, err := r.ReadFile(path); err == nil {
+		raw = existing
+	}
+	line, err := BuildLedgerLine(entry)
+	if err != nil {
+		return err
+	}
+	if raw != "" && !strings.HasSuffix(raw, "\n") {
+		raw += "\n"
+	}
+	raw += line + "\n"
+	return r.WriteAtomic(path, raw)
+}
+
+func (r OSRuntime) ReadSessionNameIndex() (SessionNameIndex, error) {
+	raw, err := r.ReadFile(filepath.Join(r.globalDataDir(), "session-names.jsonl"))
+	if err != nil {
+		return SessionNameIndex{}, err
+	}
+	return ParseSessionNameIndex(raw), nil
+}
+
+func (r OSRuntime) AppendSessionNameIndex(entry SessionNameEntry) error {
+	path := filepath.Join(r.globalDataDir(), "session-names.jsonl")
+	var raw string
+	if existing, err := r.ReadFile(path); err == nil {
+		raw = existing
+	}
+	line, err := BuildSessionNameIndexLine(entry)
+	if err != nil {
+		return err
+	}
+	if raw != "" && !strings.HasSuffix(raw, "\n") {
+		raw += "\n"
+	}
+	raw += line + "\n"
+	return r.WriteAtomic(path, raw)
+}
+
+func (r OSRuntime) globalDataDir() string {
+	if r.GlobalDataDir != "" {
+		return r.GlobalDataDir
+	}
+	return r.DataDir
 }
 
 func (OSRuntime) AgentSessionExists(agent, sid, cwd string) bool {
@@ -529,7 +589,7 @@ func (r OSRuntime) ReapNvim(tag string) {
 	pkillF("nvim --embed.*" + r.DataDir + "/scrollback-" + tag + "-")
 }
 
-// SweepOrphanNvim reaps nvim --embed processes whose pair-<tag> is not live —
+// SweepOrphanNvim reaps nvim --embed processes whose Pair session is not live —
 // candidates come from the nvim-pid-* sidecars and a full `ps` argv scan (catches
 // embeds with no pidfile), shell 1117-1158.
 func (r OSRuntime) SweepOrphanNvim(liveTags []string) {

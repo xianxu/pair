@@ -42,7 +42,7 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 	// fresh, seeded from the slug. First entry only: a restart re-launch is the
 	// same outer process, never in a pane.
 	if opts.ContinueSlug != "" &&
-		compactionDecision(opts.ForceInSession, rt.InZellijPane() || opts.FakeInZellij, opts.PairTag, opts.ZellijSession) {
+		compactionDecision(opts.ForceInSession, rt.InZellijPane() || opts.FakeInZellij, opts.PairTag, opts.ZellijSession, opts.PairSession) {
 		return runCompaction(opts, rt, stderr)
 	}
 	// Otherwise a launch from inside a pane can't proceed (a nested --session
@@ -53,11 +53,12 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 		return 1, nil
 	}
 
-	// Startup nvim hygiene (shell 1243): reap embeds whose pair-<tag> session is
+	// Startup nvim hygiene (shell 1243): reap embeds whose Pair session is
 	// gone (an external kill / reboot leaves no quit marker). Once, up front — a
 	// clean restart below leaves nothing new to sweep.
 	if sessions, err := rt.Sessions(); err == nil {
-		rt.SweepOrphanNvim(liveTagsForSweep(sessions))
+		index, _ := rt.ReadSessionNameIndex()
+		rt.SweepOrphanNvim(liveTagsForSweep(sessions, index, scopeKeyFromDataDir(opts.GlobalDataDir, env.DataDir)))
 	}
 
 	for {
@@ -82,7 +83,7 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 		// — then the config read + relaunch below run under the new tag. A failure
 		// keeps the old tag (don't strand the user).
 		if m.RenameTo != "" {
-			if runRename(rt, LaunchArgs{RenameOld: rTag, RenameNew: m.RenameTo}, env.DataDir, io.Discard, stderr) == 0 {
+			if runRenameScoped(rt, LaunchArgs{RenameOld: rTag, RenameNew: m.RenameTo}, env.DataDir, scopeKeyFromDataDir(opts.GlobalDataDir, env.DataDir), io.Discard, stderr) == 0 {
 				rTag = m.RenameTo
 			} else {
 				fmt.Fprintf(stderr, "pair: rename to '%s' failed; continuing under '%s'.\n", m.RenameTo, rTag)
@@ -95,6 +96,7 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 			rt.Remove(configPath) // Shift+Alt+N / compaction: drop the config so create mints fresh.
 		}
 		opts.Args = plan.Args
+		opts.SkipConfigPicker = true
 		// A #55 compaction re-entry re-seeds the draft from the continuation slug
 		// (M5b); every other restart re-entry leaves the draft as-is. The re-entry
 		// is the outer process (never in a pane), so ContinueSlug stays cleared —
@@ -130,7 +132,8 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 	// resolves a DIFFERENT agent (resume-by-name inference), those args are
 	// agent-specific and invalid for it — the guard after inference drops them.
 	requestedAgent := agent
-	base := DefaultTag(env.Cwd)
+	scopeRoot := envScopeRoot(env)
+	base := DefaultTag(scopeRoot)
 	cutoff := env.Now.Add(-time.Duration(env.HistoryD) * 24 * time.Hour)
 	sessions, err := rt.Sessions()
 	if err != nil {
@@ -142,7 +145,11 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 		fmt.Fprintf(stderr, "pair: failed to scan session history: %v\n", err)
 		return launchStep{code: 1}, nil
 	}
-	snap := SessionSnapshot{BaseTag: base, Sessions: sessions, Historical: historical}
+	scopedSessions, sessionNames, sessionNameEntries, ok := assignLaunchSessionNames(rt, sessions, scopeRoot, opts.GlobalDataDir, opts.Args, base, stderr)
+	if !ok {
+		return launchStep{code: 1}, nil
+	}
+	snap := SessionSnapshot{BaseTag: base, Sessions: scopedSessions, Historical: historical, SessionNames: sessionNames}
 	decision, err := DecideLaunch(opts.Args, snap)
 	if err != nil {
 		fmt.Fprintf(stderr, "pair: %v\n", err)
@@ -186,24 +193,76 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 
 	switch decision.Action {
 	case ActionAttach:
-		code, err := runAttach(opts, env, rt, decision.Tag, agent)
+		code, err := runAttach(opts, env, rt, decision.Tag, decision.SessionName, agent)
 		if err != nil {
-			fmt.Fprintf(stderr, "pair: failed to attach session 'pair-%s': %v\n", decision.Tag, err)
+			fmt.Fprintf(stderr, "pair: failed to attach session '%s': %v\n", decision.SessionName, err)
 			return launchStep{code: 1}, nil
 		}
-		return launchStep{code: code, session: "pair-" + decision.Tag, tag: decision.Tag, agent: agent, handedOff: true}, nil
+		return launchStep{code: code, session: decision.SessionName, tag: decision.Tag, agent: agent, handedOff: true}, nil
 	case ActionCreate:
-		return runCreate(opts, env, rt, decision, base, agent, stderr)
+		return runCreate(opts, env, rt, sessions, decision, base, agent, sessionNameEntries[decision.Tag], stderr)
 	default: // ActionPick is resolved above — unreachable; a defensive guard.
 		fmt.Fprintf(stderr, "pair: internal error: unresolved launch decision (%s)\n", decision.Action)
 		return launchStep{code: 1}, nil
 	}
 }
 
+func assignLaunchSessionNames(rt Runtime, live []Session, repoRoot, globalDataDir string, args LaunchArgs, base string, stderr io.Writer) ([]Session, map[string]string, map[string]SessionNameEntry, bool) {
+	scope, err := ResolveRepoScope(repoRoot)
+	if err != nil {
+		return live, nil, nil, true
+	}
+	index, err := rt.ReadSessionNameIndex()
+	if err != nil {
+		index = SessionNameIndex{}
+	}
+	scopedLive := SessionsForScope(live, index, scope)
+	scopedLive = append(scopedLive, legacyLiveSessionsForScope(rt, live, index, scope, globalDataDir)...)
+	tags := launchNameTags(args, base)
+	if len(tags) == 0 {
+		return scopedLive, nil, nil, true
+	}
+	names := map[string]string{}
+	newEntries := map[string]SessionNameEntry{}
+	for _, tag := range tags {
+		if tag == "" {
+			continue
+		}
+		name, updated, err := AssignSessionName(index, live, scope, tag, func(session string) bool {
+			return rt.ProbeSessionName(session) == nil
+		})
+		if err != nil {
+			fmt.Fprintf(stderr, "pair: %v\n", err)
+			return nil, nil, nil, false
+		}
+		if len(updated.Entries) > len(index.Entries) {
+			entry := updated.Entries[len(updated.Entries)-1]
+			newEntries[tag] = entry
+		}
+		index = updated
+		names[tag] = name
+	}
+	return scopedLive, names, newEntries, true
+}
+
+func launchNameTags(args LaunchArgs, base string) []string {
+	switch {
+	case args.SelectedTag != "":
+		return []string{args.SelectedTag}
+	case args.ForcedTag != "":
+		return []string{args.ForcedTag}
+	default:
+		if base == "" {
+			base = "pair"
+		}
+		return []string{base}
+	}
+}
+
 // runCreate ports the shell's create branch: prompt/validate the tag, run the
 // tag-restart config picker, compose the per-agent launch args, spawn the
 // sidecars, then hand off to the blocking zellij create.
-func runCreate(opts LaunchOptions, env Env, rt Runtime, decision LaunchDecision, base, agent string, stderr io.Writer) (launchStep, error) {
+func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision LaunchDecision, base, agent string, sessionEntry SessionNameEntry, stderr io.Writer) (launchStep, error) {
 	// Validate the agent here (create-only; attach re-uses an existing pane's
 	// agent, so shell 1728 defers this past the attach branch).
 	if !rt.CommandExists(agent) {
@@ -221,41 +280,52 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, decision LaunchDecision,
 		chosenTag = tag
 	}
 
-	session := "pair-" + chosenTag
+	session := decision.SessionName
+	if session == "" || decision.PromptName || chosenTag != decision.Tag {
+		name, entry, ok := assignSingleSessionName(rt, live, envScopeRoot(env), chosenTag, stderr)
+		if !ok {
+			return launchStep{code: 1}, nil
+		}
+		session = name
+		sessionEntry = entry
+	}
+	// A too-long tag makes zellij reject the session name (#54); probe its own
+	// validator and translate the rejection before writing sidecars or spawning
+	// helpers.
+	if err := rt.ProbeSessionName(session); err != nil {
+		fmt.Fprintf(stderr, "pair: tag '%s' makes zellij's session name too long for this\n", chosenTag)
+		fmt.Fprintf(stderr, "      machine's socket path (%s). Pick a shorter tag.\n", session)
+		return launchStep{code: 1}, nil
+	}
+	// Free the name (clear a stale EXITED resurrect record) and guard against a
+	// live session unexpectedly occupying it before any source-of-truth writes.
+	if rt.SessionBlocksReuse(session) {
+		fmt.Fprintf(stderr, "pair: session '%s' already exists.\n", session)
+		return launchStep{code: 1}, nil
+	}
 	dataDir := env.DataDir
+	legacyImported := false
+	if decision.LegacyImport {
+		legacyImported = importLegacyFlatTag(rt, chosenTag, opts.GlobalDataDir, dataDir)
+	}
 	configPath := resolveConfigPath(rt, dataDir, chosenTag, agent)
+	savedForPicker := readSavedConfigForTag(rt, configPath, chosenTag, agent)
 
 	agentArgs := append([]string(nil), opts.Args.AgentArgs...)
 
 	// Tag-restart config picker (#000016): a saved config for this (tag, agent)
 	// offers to reuse its args / resume its session, unless an explicit resume
 	// token on argv already made the choice.
-	if code, ok := runConfigPicker(rt, configPath, agent, chosenTag, &agentArgs, env.Cwd, stderr); !ok {
-		return launchStep{code: code}, nil
+	if !opts.SkipConfigPicker {
+		if code, ok := runConfigPicker(rt, configPath, savedForPicker, agent, chosenTag, &agentArgs, env.Cwd, stderr); !ok {
+			return launchStep{code: code}, nil
+		}
 	}
-
-	// Env exports every child (watcher, poller, zellij + its panes) inherits.
-	rt.SetEnv("PAIR_HOME", opts.PairHome)
-	rt.SetEnv("PAIR_DATA_DIR", dataDir)
-	rt.SetEnv("PAIR_TAG", chosenTag)
-	rt.SetEnv("PAIR_AGENT", agent)
-
-	draft := filepath.Join(dataDir, "draft-"+chosenTag+".md")
-	_ = rt.Touch(draft)
-	if opts.ContinueDoc != "" {
-		_ = rt.WriteAtomic(draft, fmt.Sprintf("Read workshop/continuation/%s and continue from its NEXT ACTION.\n", filepath.Base(opts.ContinueDoc)))
-	}
-
-	// Record the agent for `pair list` / the title poller (survives detach).
-	_ = rt.WriteAtomic(filepath.Join(dataDir, "agent-"+chosenTag), agent+"\n")
 
 	// Pre-capture the session id an explicit --resume/--conversation/`resume`
 	// pinned: the watcher only catches NEW jsonl files, so an explicit resume
 	// needs the config written synchronously (shell 2053-2110).
 	explicitResume := extractExplicitResume(agent, agentArgs)
-	if explicitResume != "" {
-		writeConfig(rt, configPath, agent, persistedConfigArgs(agentArgs), explicitResume)
-	}
 
 	// Claude: mint a deterministic --session-id (uuidgen + collision retry) so
 	// two tags in one cwd can't race for the same new jsonl (#20). Codex/agy
@@ -271,7 +341,6 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, decision LaunchDecision,
 		}
 		if newSid != "" {
 			agentArgs = append(agentArgs, "--session-id", newSid)
-			writeConfig(rt, configPath, agent, persistedConfigArgs(agentArgs), newSid)
 		}
 	}
 
@@ -281,8 +350,51 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, decision LaunchDecision,
 		agentArgs = codexAltScreenArgs(agentArgs, opts.CodexAltScreenOptOut)
 	}
 
+	sessionID := firstNonEmpty(explicitResume, newSid)
+	persistedArgs := persistedConfigArgs(agentArgs)
+	repoRoot := envScopeRoot(env)
+	repoName := DefaultTag(repoRoot)
+	if sessionEntry.SessionName != "" {
+		if err := rt.AppendSessionNameIndex(sessionEntry); err != nil {
+			fmt.Fprintf(stderr, "pair: failed to append session-name index for '%s': %v\n", sessionEntry.SessionName, err)
+			return launchStep{code: 1}, nil
+		}
+	}
+	if err := rt.AppendLedger(chosenTag, LedgerEntry{
+		Agent:        agent,
+		Args:         persistedArgs,
+		SessionID:    sessionID,
+		Started:      env.Now,
+		LastActive:   env.Now,
+		RepoRoot:     repoRoot,
+		RepoName:     repoName,
+		LegacyImport: legacyImported,
+	}); err != nil {
+		fmt.Fprintf(stderr, "pair: failed to append ledger for tag '%s': %v\n", chosenTag, err)
+		return launchStep{code: 1}, nil
+	}
+
+	// Env exports every child (watcher, poller, zellij + its panes) inherits.
+	rt.SetEnv("PAIR_HOME", opts.PairHome)
+	rt.SetEnv("PAIR_DATA_DIR", dataDir)
+	rt.SetEnv("PAIR_TAG", chosenTag)
+	rt.SetEnv("PAIR_AGENT", agent)
+	rt.SetEnv("PAIR_SESSION_NAME", session)
+
+	draft := filepath.Join(dataDir, "draft-"+chosenTag+".md")
+	_ = rt.Touch(draft)
+	if opts.ContinueDoc != "" {
+		_ = rt.WriteAtomic(draft, fmt.Sprintf("Read workshop/continuation/%s and continue from its NEXT ACTION.\n", filepath.Base(opts.ContinueDoc)))
+	}
+
+	// Record the agent for `pair list` / the title poller (survives detach).
+	_ = rt.WriteAtomic(filepath.Join(dataDir, "agent-"+chosenTag), agent+"\n")
+	if sessionID != "" {
+		writeConfig(rt, configPath, agent, persistedArgs, sessionID)
+	}
+
 	rt.SetEnv("PAIR_AGENT_ARGS", strings.Join(agentArgs, " "))
-	rt.SetEnv("PAIR_SESSION_ID", firstNonEmpty(explicitResume, newSid))
+	rt.SetEnv("PAIR_SESSION_ID", sessionID)
 	rt.SetEnv("PAIR_PANE_TITLE", PaneTitle(agent, env.Cwd, env.Home))
 	rt.SetEnv("PAIR_PANE_CWD", TildeAbbrev(env.Cwd, env.Home))
 
@@ -291,27 +403,12 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, decision LaunchDecision,
 
 	// Spawn the (already-Go) sidecars + set the frame title. agentArgs is the
 	// final resolved vector (post mint / codex / resume compose).
-	rt.SpawnSessionWatcher(agent, chosenTag, env.Cwd, agentArgs)
+	rt.SpawnSessionWatcher(agent, chosenTag, env.Cwd, repoRoot, repoName, agentArgs)
 	rt.SetTerminalTitle(session)
 	rt.RecordOuterTTY(chosenTag)
 	rt.CmuxRename(chosenTag, session)
-	rt.SpawnTitlePoller(chosenTag, agent)
+	rt.SpawnTitlePoller(chosenTag, agent, session)
 	rt.DevRebuild(opts.PairHome)
-
-	// A too-long tag makes zellij reject the session name (#54); probe its own
-	// validator and translate the rejection.
-	if err := rt.ProbeSessionName(session); err != nil {
-		fmt.Fprintf(stderr, "pair: tag '%s' makes zellij's session name too long for this\n", chosenTag)
-		fmt.Fprintf(stderr, "      machine's socket path (%s). Pick a shorter tag.\n", session)
-		return launchStep{code: 1}, nil
-	}
-
-	// Free the name (clear a stale EXITED resurrect record) and guard against a
-	// live session unexpectedly occupying it before the blocking handoff.
-	if rt.SessionBlocksReuse(session) {
-		fmt.Fprintf(stderr, "pair: session '%s' already exists.\n", session)
-		return launchStep{code: 1}, nil
-	}
 
 	configDir := filepath.Join(opts.PairHome, "zellij")
 	layout := filepath.Join(opts.PairHome, "zellij", "layouts", "main.kdl")
@@ -321,6 +418,28 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, decision LaunchDecision,
 		return launchStep{code: 1}, nil
 	}
 	return launchStep{code: code, session: session, tag: chosenTag, agent: agent, handedOff: true}, nil
+}
+
+func assignSingleSessionName(rt Runtime, live []Session, cwd, tag string, stderr io.Writer) (string, SessionNameEntry, bool) {
+	scope, err := ResolveRepoScope(cwd)
+	if err != nil {
+		return sessionName(tag), SessionNameEntry{}, true
+	}
+	index, err := rt.ReadSessionNameIndex()
+	if err != nil {
+		index = SessionNameIndex{}
+	}
+	name, updated, err := AssignSessionName(index, live, scope, tag, func(session string) bool {
+		return rt.ProbeSessionName(session) == nil
+	})
+	if err != nil {
+		fmt.Fprintf(stderr, "pair: %v\n", err)
+		return "", SessionNameEntry{}, false
+	}
+	if len(updated.Entries) > len(index.Entries) {
+		return name, updated.Entries[len(updated.Entries)-1], true
+	}
+	return name, SessionNameEntry{}, true
 }
 
 // promptForTag runs the editable name prompt, normalizing + collision-checking
@@ -340,10 +459,6 @@ func promptForTag(rt Runtime, prefill, base string, stderr io.Writer) (tag strin
 		fmt.Fprintf(stderr, "pair: invalid name '%s' (allowed: letters, digits, dash, underscore)\n", value)
 		return "", 1, false
 	}
-	if rt.SessionBlocksReuse("pair-" + tag) {
-		fmt.Fprintf(stderr, "pair: session 'pair-%s' already exists.\n", tag)
-		return "", 1, false
-	}
 	return tag, 0, true
 }
 
@@ -351,25 +466,17 @@ func promptForTag(rt Runtime, prefill, base string, stderr io.Writer) (tag strin
 // the resolved launch vector. ok=false means abort with the returned exit code.
 // When no saved config applies (absent, or an explicit resume already chose),
 // it is a no-op that returns ok=true.
-func runConfigPicker(rt Runtime, configPath, agent, chosenTag string, agentArgs *[]string, cwd string, stderr io.Writer) (code int, ok bool) {
+func runConfigPicker(rt Runtime, configPath string, saved savedConfig, agent, chosenTag string, agentArgs *[]string, cwd string, stderr io.Writer) (code int, ok bool) {
 	if extractExplicitResume(agent, *agentArgs) != "" {
 		return 0, true // argv already pinned a resume — nothing to offer.
 	}
-	if _, exists := rt.FileSize(configPath); !exists {
-		return 0, true
-	}
-	raw, err := rt.ReadFile(configPath)
-	if err != nil {
-		return 0, true
-	}
-	cfg, err := parseConfig(raw)
-	if err != nil {
+	if saved.Agent == "" {
 		return 0, true // unusable config — proceed as if none.
 	}
 
-	savedArgsClean := persistedConfigArgs(cfg.Args)
-	hasResumable := rt.AgentSessionExists(agent, cfg.SessionID, cwd)
-	choices := buildConfigChoices(hasResumable, savedArgsClean, *agentArgs, cfg.SessionID)
+	savedArgsClean := persistedConfigArgs(saved.Args)
+	hasResumable := rt.AgentSessionExists(agent, saved.SessionID, cwd)
+	choices := buildConfigChoices(hasResumable, savedArgsClean, *agentArgs, saved.SessionID)
 
 	labels := make([]string, len(choices))
 	for i, c := range choices {
@@ -385,8 +492,24 @@ func runConfigPicker(rt Runtime, configPath, agent, chosenTag string, agentArgs 
 	if action == "new" {
 		rt.Remove(configPath) // clean overwrite — the watcher writes a fresh one.
 	}
-	*agentArgs = composeTagRestartArgs(action, agent, savedArgsClean, *agentArgs, cfg.SessionID)
+	*agentArgs = composeTagRestartArgs(action, agent, savedArgsClean, *agentArgs, saved.SessionID)
 	return 0, true
+}
+
+func readSavedConfigForTag(rt Runtime, configPath, tag, agent string) savedConfig {
+	if raw, err := rt.ReadFile(configPath); err == nil {
+		if cfg, err := parseConfig(raw); err == nil {
+			return cfg
+		}
+	}
+	entries, err := rt.ReadLedger(tag)
+	if err != nil {
+		return savedConfig{}
+	}
+	if latest, ok := LatestLedgerEntryForAgent(entries, agent); ok {
+		return savedConfig{Agent: latest.Agent, Args: latest.Args, SessionID: latest.SessionID}
+	}
+	return savedConfig{}
 }
 
 // resolveConfigPath returns config-<tag>-<agent>.json, migrating a legacy
@@ -430,6 +553,9 @@ func normalizeEnv(env Env) Env {
 	if env.DataDir == "" {
 		env.DataDir = ResolveDataDir(env.Home, env.XDGData)
 	}
+	if env.RepoRoot == "" {
+		env.RepoRoot = env.Cwd
+	}
 	if env.HistoryD == 0 {
 		env.HistoryD = 14
 	}
@@ -437,6 +563,13 @@ func normalizeEnv(env Env) Env {
 		env.Now = time.Now()
 	}
 	return env
+}
+
+func envScopeRoot(env Env) string {
+	if env.RepoRoot != "" {
+		return env.RepoRoot
+	}
+	return env.Cwd
 }
 
 func firstNonEmpty(vals ...string) string {

@@ -91,13 +91,19 @@ func FoldDraftIntoNextAction(body, wip string) string {
 
 // InCompactionContext reports whether the writer is running inside its own live
 // pair pane — the gate for folding the draft + triggering the restart. It mirrors
-// the tag-match half of the launcher's compactionDecision (compaction.go), which
-// guards against a sibling pane's leaked ZELLIJ_SESSION_NAME.
+// the session-match half of the launcher's compactionDecision (compaction.go),
+// which guards against a sibling pane's leaked ZELLIJ_SESSION_NAME.
 //
 // This is a proxy for "compaction was requested": the compaction prompt is the
 // sole in-pane invoker of `pair continuation`, so in practice in-pane + tag-match
 // means compaction. A deliberate manual in-pane write uses --no-restart to opt
 // out of both the restart and the fold.
-func InCompactionContext(pairTag, zellijSession string) bool {
-	return pairTag != "" && zellijSession == "pair-"+pairTag
+func InCompactionContext(pairTag, zellijSession, pairSessionName string) bool {
+	if pairTag == "" || zellijSession == "" {
+		return false
+	}
+	if pairSessionName != "" {
+		return zellijSession == pairSessionName
+	}
+	return zellijSession == "pair-"+pairTag
 }

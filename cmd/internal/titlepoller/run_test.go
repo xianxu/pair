@@ -235,8 +235,28 @@ func TestRunRendersFrameAndCmuxTitles(t *testing.T) {
 	if want := cmuxWorkspaceTitle(prefixHot+" ", "pair-T"); len(rt.cmuxRenamed) != 1 || rt.cmuxRenamed[0] != want {
 		t.Fatalf("cmux renamed = %v, want [%q]", rt.cmuxRenamed, want)
 	}
-	if rt.wrote["/dd/cmux-owner-WS1"] != "T\n" {
+	if rt.wrote["/dd/cmux-owner-WS1"] != "T\tpair-T\n" {
 		t.Fatalf("owner file = %q, want claimed by T", rt.wrote["/dd/cmux-owner-WS1"])
+	}
+}
+
+func TestRunUsesScopedPublicSessionName(t *testing.T) {
+	rt := newFake()
+	rt.pid = "9001"
+	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7", CwdDisplay: "~/repo"}}
+	rt.counts["claude"] = "970k"
+	rt.mtimes["/dd/draft-T.md"] = rt.now
+	rt.sessionAliveSeq = []bool{true, true}
+	rt.sessionAliveDflt = false
+	opts := fixtureOpts()
+	opts.SessionName = "pair-work-T"
+	opts.MissThreshold = 1
+
+	if code := Run(opts, rt); code != 0 {
+		t.Fatalf("code = %d, want 0", code)
+	}
+	if want := "pair-work-T|7|claude (970k) [~/repo]"; len(rt.renamed) != 1 || rt.renamed[0] != want {
+		t.Fatalf("frame renamed = %v, want [%q]", rt.renamed, want)
 	}
 }
 
@@ -270,6 +290,34 @@ func TestRunDefersCmuxToLiveForeignOwner(t *testing.T) {
 	}
 }
 
+func TestRunDefersCmuxToLiveScopedForeignOwner(t *testing.T) {
+	rt := newFake()
+	rt.pid = "9001"
+	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7", CwdDisplay: "~/repo"}}
+	rt.counts["claude"] = "12k"
+	rt.mtimes["/dd/draft-T.md"] = rt.now
+	rt.cmuxAvail = true
+	rt.files["/dd/cmux-owner-WS1"] = "99\tpair-pair-99\n"
+	rt.namedSessions = map[string]bool{
+		"pair-99":      false,
+		"pair-pair-99": true,
+	}
+	rt.sessionAliveSeq = []bool{true, true} // pair-T: grace + tick
+	rt.sessionAliveDflt = false
+	opts := fixtureOpts()
+	opts.CmuxWorkspaceID = "WS1"
+	opts.MissThreshold = 2
+	if code := Run(opts, rt); code != 0 {
+		t.Fatalf("code = %d, want 0", code)
+	}
+	if len(rt.cmuxRenamed) != 0 {
+		t.Fatalf("must defer to the live scoped foreign owner, cmuxRenamed = %v", rt.cmuxRenamed)
+	}
+	if _, wrote := rt.wrote["/dd/cmux-owner-WS1"]; wrote {
+		t.Fatalf("must not overwrite a live scoped owner's file")
+	}
+}
+
 // updateWorkspaceTitle reclaims a STALE owner (its pair-<owner> session is gone).
 func TestUpdateWorkspaceTitleReclaimsStaleOwner(t *testing.T) {
 	rt := newFake()
@@ -285,7 +333,7 @@ func TestUpdateWorkspaceTitleReclaimsStaleOwner(t *testing.T) {
 	if len(rt.cmuxRenamed) != 1 {
 		t.Fatalf("stale owner should be reclaimed + renamed, cmuxRenamed = %v", rt.cmuxRenamed)
 	}
-	if rt.wrote["/dd/cmux-owner-WS1"] != "T\n" {
+	if rt.wrote["/dd/cmux-owner-WS1"] != "T\tpair-T\n" {
 		t.Fatalf("owner file should be reclaimed by T, got %q", rt.wrote["/dd/cmux-owner-WS1"])
 	}
 }

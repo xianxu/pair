@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -14,24 +15,28 @@ import (
 // fakeRuntime is the in-memory create-flow seam for the RunLaunch loop tests.
 // Canned inputs drive decisions; recorded outputs assert the effect sequence.
 type fakeRuntime struct {
-	inPane         bool
-	sessions       []Session
-	historical     []HistoricalTag
-	blocksReuse    map[string]bool // session -> live-blocks (default false)
-	commandMissing map[string]bool // name -> absent (default: everything exists)
-	files          map[string]string
-	agentSessions  map[string]bool // "agent|sid" -> native artifact exists
-	uuids          []string        // MintUUID pops these in order
-	promptValue    string
-	promptOK       bool
-	probeErr       error
-	inferAgent     map[string]string // tag -> paired agent (for `resume <tag>`)
-	pickFunc       func(header string, options []string) string
-	listRows       []ListRow // ListSessions rows (for `pair list`)
-	listErr        error
-	sessionsErr    error       // Sessions() error (defensive exit-1 path)
-	renameFailAt   string      // Rename returns an error when src == this (rollback test)
-	renamed        [][2]string // {src,dst} per successful Rename
+	inPane          bool
+	sessions        []Session
+	historical      []HistoricalTag
+	blocksReuse     map[string]bool // session -> live-blocks (default false)
+	commandMissing  map[string]bool // name -> absent (default: everything exists)
+	files           map[string]string
+	ledger          map[string][]LedgerEntry
+	sessionIndex    SessionNameIndex
+	agentSessions   map[string]bool // "agent|sid" -> native artifact exists
+	uuids           []string        // MintUUID pops these in order
+	promptValue     string
+	promptOK        bool
+	probeErr        error
+	appendLedgerErr error
+	appendIndexErr  error
+	inferAgent      map[string]string // tag -> paired agent (for `resume <tag>`)
+	pickFunc        func(header string, options []string) string
+	listRows        []ListRow // ListSessions rows (for `pair list`)
+	listErr         error
+	sessionsErr     error       // Sessions() error (defensive exit-1 path)
+	renameFailAt    string      // Rename returns an error when src == this (rollback test)
+	renamed         [][2]string // {src,dst} per successful Rename
 	// #99 M5b compaction/continue
 	writtenMarkers   map[string]RestartMarker // WriteRestartMarker by session
 	touchedQuit      []string                 // TouchQuitMarker sessions
@@ -45,6 +50,7 @@ type fakeRuntime struct {
 	confirmPark    bool
 	parkOK         bool                     // ParkScrollback returns ("<base>", parkOK)
 	attachCode     int                      // AttachSession exit code
+	launchErr      error                    // LaunchSession error
 	quitMarkers    map[string]bool          // session -> Alt+x quit marker (read-cleared)
 	restartMarkers map[string]RestartMarker // session -> restart marker (peek + take-once)
 	cmuxOwned      map[string]bool          // tag -> PairOwnsCmuxWorkspace
@@ -77,6 +83,7 @@ func newFakeRuntime() *fakeRuntime {
 		blocksReuse:    map[string]bool{},
 		commandMissing: map[string]bool{},
 		files:          map[string]string{},
+		ledger:         map[string][]LedgerEntry{},
 		agentSessions:  map[string]bool{},
 		inferAgent:     map[string]string{},
 		promptOK:       true,
@@ -94,7 +101,7 @@ func (f *fakeRuntime) ProbeSessionName(session string) error  { return f.probeEr
 func (f *fakeRuntime) LaunchSession(session, configDir, layout string) (int, error) {
 	f.launched = session
 	f.launchCount++
-	return f.launchCode, nil
+	return f.launchCode, f.launchErr
 }
 
 // SnapshotOps
@@ -135,10 +142,10 @@ func (f *fakeRuntime) PickFromList(header string, options []string, height int) 
 func (f *fakeRuntime) SetTerminalTitle(session string) { f.titles = append(f.titles, session) }
 
 // ProcOps
-func (f *fakeRuntime) SpawnSessionWatcher(agent, tag, cwd string, agentArgs []string) {
-	f.watchers = append(f.watchers, agent+"|"+tag+"|"+cwd+"|"+strings.Join(agentArgs, " "))
+func (f *fakeRuntime) SpawnSessionWatcher(agent, tag, cwd, repoRoot, repoName string, agentArgs []string) {
+	f.watchers = append(f.watchers, agent+"|"+tag+"|"+cwd+"|"+repoRoot+"|"+repoName+"|"+strings.Join(agentArgs, " "))
 }
-func (f *fakeRuntime) SpawnTitlePoller(tag, agent string) {
+func (f *fakeRuntime) SpawnTitlePoller(tag, agent, session string) {
 	f.pollers = append(f.pollers, tag+"|"+agent)
 }
 func (f *fakeRuntime) DevRebuild(pairHome string) { f.devRebuilt = true }
@@ -162,7 +169,32 @@ func (f *fakeRuntime) MintUUID() string {
 func (f *fakeRuntime) AgentSessionExists(agent, sid, cwd string) bool {
 	return f.agentSessions[agent+"|"+sid]
 }
-func (f *fakeRuntime) InferAgent(tag string) string { return f.inferAgent[tag] }
+func (f *fakeRuntime) InferAgent(tag string) string {
+	if latest, ok := LatestLedgerEntry(f.ledger[tag]); ok && latest.Agent != "" {
+		return latest.Agent
+	}
+	return f.inferAgent[tag]
+}
+func (f *fakeRuntime) ReadLedger(tag string) ([]LedgerEntry, error) {
+	return append([]LedgerEntry(nil), f.ledger[tag]...), nil
+}
+func (f *fakeRuntime) AppendLedger(tag string, entry LedgerEntry) error {
+	if f.appendLedgerErr != nil {
+		return f.appendLedgerErr
+	}
+	f.ledger[tag] = append(f.ledger[tag], entry)
+	return nil
+}
+func (f *fakeRuntime) ReadSessionNameIndex() (SessionNameIndex, error) {
+	return f.sessionIndex, nil
+}
+func (f *fakeRuntime) AppendSessionNameIndex(entry SessionNameEntry) error {
+	if f.appendIndexErr != nil {
+		return f.appendIndexErr
+	}
+	f.sessionIndex.Entries = append(f.sessionIndex.Entries, entry)
+	return nil
+}
 
 // FSOps
 func (f *fakeRuntime) ReadFile(path string) (string, error) {
@@ -196,6 +228,19 @@ func (f *fakeRuntime) Rename(src, dst string) error {
 	}
 	f.renamed = append(f.renamed, [2]string{src, dst})
 	return nil
+}
+func (f *fakeRuntime) ReadDir(path string) ([]string, error) {
+	prefix := strings.TrimSuffix(path, "/") + "/"
+	var out []string
+	for p := range f.files {
+		if strings.HasPrefix(p, prefix) {
+			out = append(out, strings.TrimPrefix(p, prefix))
+		}
+	}
+	if len(out) == 0 {
+		return nil, errors.New("not found")
+	}
+	return out, nil
 }
 func (f *fakeRuntime) WriteRestartMarker(session string, m RestartMarker) {
 	if f.writtenMarkers == nil {
@@ -306,7 +351,7 @@ func TestRunLaunchForcedCreateClaude(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d", code)
 	}
-	if rt.launched != "pair-bugfix" {
+	if rt.launched != "pair-work-bugfix" {
 		t.Fatalf("launched = %q", rt.launched)
 	}
 	if len(rt.family) != 0 {
@@ -329,6 +374,10 @@ func TestRunLaunchForcedCreateClaude(t *testing.T) {
 	if rt.files["/data/agent-bugfix"] != "claude\n" {
 		t.Fatalf("agent record = %q", rt.files["/data/agent-bugfix"])
 	}
+	ledger := rt.ledger["bugfix"]
+	if len(ledger) != 1 || ledger[0].Agent != "claude" || ledger[0].SessionID != "MINTED-1" {
+		t.Fatalf("ledger = %+v, want claude/MINTED-1", ledger)
+	}
 	if got := rt.watchers; len(got) != 1 || !strings.HasPrefix(got[0], "claude|bugfix|/home/u/work|") {
 		t.Fatalf("watchers = %v", got)
 	}
@@ -337,6 +386,27 @@ func TestRunLaunchForcedCreateClaude(t *testing.T) {
 	}
 	if len(rt.titles) != 1 || len(rt.ttyRecorded) != 1 || len(rt.cmux) != 1 {
 		t.Fatalf("title/tty/cmux effects missing: %v %v %v", rt.titles, rt.ttyRecorded, rt.cmux)
+	}
+}
+
+func TestRunLaunchForcedCreateUsesScopedSessionName(t *testing.T) {
+	rt := newFakeRuntime()
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "bugfix"}), rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.launched != "pair-work-bugfix" {
+		t.Fatalf("launched = %q", rt.launched)
+	}
+	if rt.env["PAIR_TAG"] != "bugfix" {
+		t.Fatalf("PAIR_TAG = %q", rt.env["PAIR_TAG"])
+	}
+	if len(rt.sessionIndex.Entries) != 1 {
+		t.Fatalf("session index = %#v, want one entry", rt.sessionIndex)
+	}
+	entry := rt.sessionIndex.Entries[0]
+	if entry.SessionName != "pair-work-bugfix" || entry.Tag != "bugfix" || entry.RepoName != "work" {
+		t.Fatalf("session index entry = %#v", entry)
 	}
 }
 
@@ -353,8 +423,86 @@ func TestRunLaunchPromptCreate(t *testing.T) {
 	if len(rt.family) != 1 {
 		t.Fatalf("prompt path should show family: %v", rt.family)
 	}
-	if rt.launched != "pair-myproj" || rt.env["PAIR_TAG"] != "myproj" {
+	if rt.launched != "pair-work-myproj" || rt.env["PAIR_TAG"] != "myproj" {
 		t.Fatalf("launched=%q tag=%q", rt.launched, rt.env["PAIR_TAG"])
+	}
+	if len(rt.sessionIndex.Entries) != 1 {
+		t.Fatalf("session index = %#v, want one entry", rt.sessionIndex)
+	}
+	entry := rt.sessionIndex.Entries[0]
+	if entry.SessionName != "pair-work-myproj" || entry.Tag != "myproj" || entry.RepoName != "work" {
+		t.Fatalf("session index entry = %#v", entry)
+	}
+}
+
+func TestRunLaunchBareIgnoresOtherRepoIndexedSessions(t *testing.T) {
+	rt := newFakeRuntime()
+	otherScope := mustScope(t, "/other/work")
+	rt.sessions = []Session{{Name: "pair-work-work", State: SessionDetached}}
+	rt.sessionIndex = SessionNameIndex{Entries: []SessionNameEntry{{
+		SessionName: "pair-work-work",
+		ScopeKey:    otherScope.Key,
+		RepoRoot:    otherScope.Root,
+		RepoName:    otherScope.DisplayName,
+		Tag:         "work",
+	}}}
+	opts := baseOpts(LaunchArgs{Agent: "codex"})
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.launched != "pair-work-work-2" {
+		t.Fatalf("launched = %q, want current repo disambiguated from indexed other repo", rt.launched)
+	}
+}
+
+func TestRunLaunchBareIgnoresUnindexedLiveSessions(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.sessions = []Session{{Name: "pair-work", State: SessionDetached}}
+	rt.pickFunc = func(header string, options []string) string {
+		t.Fatalf("picker should not show unindexed live sessions: %q", options)
+		return ""
+	}
+	opts := baseOpts(LaunchArgs{Agent: "codex"})
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if len(rt.attached) != 0 {
+		t.Fatalf("attached = %v, want no unindexed attach", rt.attached)
+	}
+	if rt.launched != "pair-work-work" {
+		t.Fatalf("launched = %q, want current-scope create", rt.launched)
+	}
+}
+
+func TestRunLaunchBareAttachesLegacyLiveSessionWithCurrentRepoPaneEvidence(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.sessions = []Session{{Name: "pair-work", State: SessionDetached}}
+	rt.inferAgent["work"] = "codex"
+	rt.attachCode = 0
+	rt.files["/global/pane-work-codex.json"] = `{"cwd":"/home/u/work","cwd_display":"~/work"}`
+	rt.pickFunc = func(header string, options []string) string {
+		for _, option := range options {
+			plain := stripANSI(option)
+			if plain == "work/work  codex  (detached)" {
+				return plain
+			}
+		}
+		t.Fatalf("picker options = %q, want legacy current-repo live row", options)
+		return ""
+	}
+	opts := baseOpts(LaunchArgs{Agent: "claude"})
+	opts.GlobalDataDir = "/global"
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if !reflect.DeepEqual(rt.attached, []string{"pair-work"}) {
+		t.Fatalf("attached = %v, want legacy live pair-work", rt.attached)
+	}
+	if len(rt.pollers) != 1 || rt.pollers[0] != "work|codex" {
+		t.Fatalf("pollers = %v, want codex inferred from legacy tag", rt.pollers)
 	}
 }
 
@@ -378,13 +526,99 @@ func TestRunLaunchPromptAbort(t *testing.T) {
 func TestRunLaunchPromptCollision(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.promptValue = "taken"
-	rt.blocksReuse["pair-taken"] = true
+	rt.blocksReuse["pair-work-taken"] = true
 	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude"}), rt)
 	if err != nil || code != 1 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
 	if rt.launched != "" {
 		t.Fatalf("must not launch on collision: %q", rt.launched)
+	}
+}
+
+func TestRunLaunchFailedPreflightDoesNotAppendLedgerOrSessionIndex(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.uuids = []string{"SID"}
+	rt.probeErr = errors.New("too long")
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "bugfix"}), rt)
+	if err != nil || code != 1 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if len(rt.ledger["bugfix"]) != 0 {
+		t.Fatalf("ledger should not be appended before preflight succeeds: %+v", rt.ledger["bugfix"])
+	}
+	if len(rt.sessionIndex.Entries) != 0 {
+		t.Fatalf("session index should not be appended before preflight succeeds: %+v", rt.sessionIndex)
+	}
+	if len(rt.files) != 0 {
+		t.Fatalf("preflight failure should not write sidecars: %+v", rt.files)
+	}
+	if len(rt.watchers) != 0 || len(rt.pollers) != 0 || len(rt.titles) != 0 || len(rt.cmux) != 0 || rt.devRebuilt {
+		t.Fatalf("preflight failure started side effects: watchers=%v pollers=%v titles=%v cmux=%v dev=%v", rt.watchers, rt.pollers, rt.titles, rt.cmux, rt.devRebuilt)
+	}
+	if len(rt.env) != 1 { // PATH is set at RunLaunch entry.
+		t.Fatalf("preflight failure should only set PATH env, got %+v", rt.env)
+	}
+}
+
+func TestRunLaunchLedgerAppendFailureAbortsBeforeHandoff(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.uuids = []string{"SID"}
+	rt.appendLedgerErr = errors.New("ledger write failed")
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "bugfix"}), rt)
+	if err != nil || code != 1 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.launched != "" || rt.launchCount != 0 {
+		t.Fatalf("must not launch when ledger append fails: launched=%q count=%d", rt.launched, rt.launchCount)
+	}
+	if len(rt.ledger["bugfix"]) != 0 {
+		t.Fatalf("ledger append failure should not record row: %+v", rt.ledger["bugfix"])
+	}
+	if len(rt.files) != 0 {
+		t.Fatalf("ledger append failure should not write sidecars: %+v", rt.files)
+	}
+	if len(rt.watchers) != 0 || len(rt.pollers) != 0 || len(rt.titles) != 0 || len(rt.cmux) != 0 || rt.devRebuilt {
+		t.Fatalf("ledger append failure started side effects: watchers=%v pollers=%v titles=%v cmux=%v dev=%v", rt.watchers, rt.pollers, rt.titles, rt.cmux, rt.devRebuilt)
+	}
+}
+
+func TestRunLaunchSessionIndexAppendFailureAbortsBeforeHandoff(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.uuids = []string{"SID"}
+	rt.appendIndexErr = errors.New("index write failed")
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "bugfix"}), rt)
+	if err != nil || code != 1 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.launched != "" || rt.launchCount != 0 {
+		t.Fatalf("must not launch when session index append fails: launched=%q count=%d", rt.launched, rt.launchCount)
+	}
+	if len(rt.sessionIndex.Entries) != 0 {
+		t.Fatalf("session index append failure should not record entry: %+v", rt.sessionIndex)
+	}
+	if len(rt.ledger["bugfix"]) != 0 {
+		t.Fatalf("session index append failure should not leave a false ledger row: %+v", rt.ledger["bugfix"])
+	}
+	if len(rt.files) != 0 {
+		t.Fatalf("session index append failure should not write sidecars: %+v", rt.files)
+	}
+	if len(rt.watchers) != 0 || len(rt.pollers) != 0 || len(rt.titles) != 0 || len(rt.cmux) != 0 || rt.devRebuilt {
+		t.Fatalf("session index append failure started side effects: watchers=%v pollers=%v titles=%v cmux=%v dev=%v", rt.watchers, rt.pollers, rt.titles, rt.cmux, rt.devRebuilt)
+	}
+}
+
+func TestRunLaunchPromptedTagIgnoresUnrelatedLegacySessionName(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.promptValue = "bugfix"
+	rt.blocksReuse["pair-bugfix"] = true
+	rt.uuids = []string{"SID"}
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude"}), rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.launched != "pair-work-bugfix" {
+		t.Fatalf("launched = %q, want scoped session name despite unrelated legacy pair-bugfix", rt.launched)
 	}
 }
 
@@ -554,6 +788,36 @@ func TestRunLaunchResumeInfersAgent(t *testing.T) {
 	}
 }
 
+func TestRunLaunchResumeUsesLedgerAgentAndArgsWhenConfigMissing(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.ledger["work"] = []LedgerEntry{{
+		Agent:      "codex",
+		Args:       []string{"--search"},
+		SessionID:  "CX-9",
+		LastActive: time.Unix(1_700_000_010, 0),
+	}}
+	rt.agentSessions["codex|CX-9"] = true
+	rt.pickFunc = func(header string, options []string) string {
+		for _, o := range options {
+			if strings.Contains(o, "use saved params + session") {
+				return o
+			}
+		}
+		return ""
+	}
+
+	code, err := run(t, baseOpts(LaunchArgs{ForcedTag: "work"}), rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.env["PAIR_AGENT"] != "codex" {
+		t.Fatalf("PAIR_AGENT = %q, want codex", rt.env["PAIR_AGENT"])
+	}
+	if rt.env["PAIR_AGENT_ARGS"] != "resume CX-9 --search --no-alt-screen" {
+		t.Fatalf("PAIR_AGENT_ARGS = %q", rt.env["PAIR_AGENT_ARGS"])
+	}
+}
+
 // With nothing on disk to infer from, the agent defaults to claude.
 func TestRunLaunchResumeDefaultsClaude(t *testing.T) {
 	rt := newFakeRuntime()
@@ -586,7 +850,7 @@ func TestRunLaunchProbeTooLong(t *testing.T) {
 func TestRunLaunchPreHandoffCollision(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.uuids = []string{"S"}
-	rt.blocksReuse["pair-bugfix"] = true // forced create → no prompt collision check
+	rt.blocksReuse["pair-work-bugfix"] = true // forced create → no prompt collision check
 	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "bugfix"}), rt)
 	if err != nil || code != 1 {
 		t.Fatalf("code=%d err=%v", code, err)
@@ -611,11 +875,9 @@ var ansiEscapeRE = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 // fzf returns the plain text (which buildPickRows keys byPlain on).
 func stripANSI(s string) string { return ansiEscapeRE.ReplaceAllString(s, "") }
 
-// Agent-scoped CLI-args guard (#107): `pair codex -- <codex-only args>` with
-// history present routes to the session picker (DecideLaunch ignores the agent).
-// Picking an existing CLAUDE tag is resume-by-name → the agent re-infers to
-// claude; the codex-intended CLI args must NOT ride along onto claude (which
-// would choke on them at launch). The guard drops them on agent mismatch.
+// Agent-scoped CLI-args guard (#107): `pair codex -- <codex-only args>` must not
+// route through the picker and resume an existing claude tag. Explicit
+// agent+args means "create a new session for that agent".
 func TestRunLaunchPickInferredAgentMustNotInheritCliArgs(t *testing.T) {
 	rt := newFakeRuntime()
 	// A historical claude tag (base tag for cwd /home/u/work is "work").
@@ -623,18 +885,46 @@ func TestRunLaunchPickInferredAgentMustNotInheritCliArgs(t *testing.T) {
 	rt.inferAgent["work"] = "claude"
 	rt.uuids = []string{"SID"}
 	rt.pickFunc = func(header string, options []string) string {
-		return stripANSI(options[0]) // pick the historical claude row
+		t.Fatalf("explicit agent+args should not show picker: %q", options)
+		return ""
 	}
 	opts := baseOpts(LaunchArgs{Agent: "codex", AgentArgs: []string{"--sandbox", "danger-full-access"}})
 	code, err := run(t, opts, rt)
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	if rt.env["PAIR_AGENT"] != "claude" {
-		t.Fatalf("precondition: resume-by-name should infer claude, got %q", rt.env["PAIR_AGENT"])
+	if rt.env["PAIR_AGENT"] != "codex" {
+		t.Fatalf("PAIR_AGENT = %q, want codex", rt.env["PAIR_AGENT"])
 	}
-	// The codex-only args must NOT reach claude.
-	if strings.Contains(rt.env["PAIR_AGENT_ARGS"], "--sandbox") {
-		t.Fatalf("claude inherited codex CLI args: PAIR_AGENT_ARGS=%q", rt.env["PAIR_AGENT_ARGS"])
+	if !strings.Contains(rt.env["PAIR_AGENT_ARGS"], "--sandbox") {
+		t.Fatalf("codex args were not preserved: PAIR_AGENT_ARGS=%q", rt.env["PAIR_AGENT_ARGS"])
+	}
+	if rt.launched != "pair-work-work-2" {
+		t.Fatalf("launched = %q, want scoped next-free public session name", rt.launched)
+	}
+}
+
+func TestRunLaunchPickNewDefaultUsesScopedNextFreeSessionName(t *testing.T) {
+	rt := newFakeRuntime()
+	scope := mustScope(t, "/home/u/work")
+	rt.sessionIndex.Entries = []SessionNameEntry{{
+		SessionName: "pair-work-work",
+		ScopeKey:    scope.Key,
+		RepoRoot:    scope.Root,
+		RepoName:    scope.DisplayName,
+		Tag:         "work",
+	}}
+	rt.sessions = []Session{{Name: "pair-work-work", State: SessionDetached}}
+	rt.uuids = []string{"SID"}
+	rt.pickFunc = func(header string, options []string) string {
+		return "+ new work session"
+	}
+
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude"}), rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.launched != "pair-work-work-2" {
+		t.Fatalf("launched = %q, want scoped next-free public session name", rt.launched)
 	}
 }

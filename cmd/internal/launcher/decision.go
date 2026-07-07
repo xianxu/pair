@@ -12,24 +12,34 @@ const (
 )
 
 // LaunchDecision is a pure create/attach/pick decision. Tag is canonical bare
-// form; SessionName is derived as pair-<tag> when a zellij session is named.
+// form; SessionName is the assigned public zellij session name when known.
 type LaunchDecision struct {
-	Action      LaunchAction
-	Tag         string
-	SessionName string
-	PromptName  bool
+	Action       LaunchAction
+	Tag          string
+	SessionName  string
+	PromptName   bool
+	LegacyImport bool
 }
 
 // DecideLaunch decides the launch action without touching zellij, fzf, or disk.
 func DecideLaunch(args LaunchArgs, snap SessionSnapshot) (LaunchDecision, error) {
 	if args.SelectedTag != "" {
-		return createDecision(args.SelectedTag, false), nil
+		return createDecision(args.SelectedTag, sessionNameForTag(snap, args.SelectedTag), false), nil
 	}
 	if args.ForcedTag != "" {
-		if sessionBlocksReuse(snap, sessionName(args.ForcedTag)) {
-			return LaunchDecision{Action: ActionAttach, Tag: args.ForcedTag, SessionName: sessionName(args.ForcedTag)}, nil
+		name := sessionNameForTag(snap, args.ForcedTag)
+		if sessionBlocksReuse(snap, name) {
+			return LaunchDecision{Action: ActionAttach, Tag: args.ForcedTag, SessionName: name}, nil
 		}
-		return createDecision(args.ForcedTag, false), nil
+		return createDecision(args.ForcedTag, name, false), nil
+	}
+	if args.Agent != "" && len(args.AgentArgs) > 0 {
+		tag := snap.BaseTag
+		if tag == "" {
+			tag = "pair"
+		}
+		tag = nextFreeTag(tag, snap)
+		return createDecision(tag, sessionNameForTag(snap, tag), true), nil
 	}
 	if hasDetached(snap) || len(snap.Historical) > 0 {
 		return LaunchDecision{Action: ActionPick}, nil
@@ -38,15 +48,25 @@ func DecideLaunch(args LaunchArgs, snap SessionSnapshot) (LaunchDecision, error)
 	if tag == "" {
 		tag = "pair"
 	}
-	return createDecision(nextFreeTag(tag, snap), true), nil
+	tag = nextFreeTag(tag, snap)
+	return createDecision(tag, sessionNameForTag(snap, tag), true), nil
 }
 
-func createDecision(tag string, prompt bool) LaunchDecision {
-	return LaunchDecision{Action: ActionCreate, Tag: tag, SessionName: sessionName(tag), PromptName: prompt}
+func createDecision(tag, session string, prompt bool) LaunchDecision {
+	return LaunchDecision{Action: ActionCreate, Tag: tag, SessionName: session, PromptName: prompt}
 }
 
 func sessionName(tag string) string {
 	return "pair-" + tag
+}
+
+func sessionNameForTag(snap SessionSnapshot, tag string) string {
+	if snap.SessionNames != nil {
+		if name := snap.SessionNames[tag]; name != "" {
+			return name
+		}
+	}
+	return sessionName(tag)
 }
 
 func hasDetached(snap SessionSnapshot) bool {
@@ -74,7 +94,7 @@ func nextFreeTag(base string, snap SessionSnapshot) string {
 		if i > 1 {
 			tag = base + "-" + strconv.Itoa(i)
 		}
-		if !sessionBlocksReuse(snap, sessionName(tag)) && !isHistorical(snap, tag) {
+		if !sessionBlocksReuse(snap, sessionNameForTag(snap, tag)) && !isHistorical(snap, tag) {
 			return tag
 		}
 	}

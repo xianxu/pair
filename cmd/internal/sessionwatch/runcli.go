@@ -46,15 +46,37 @@ func buildOptions(args []string, getenv func(string) string) (Options, bool) {
 	if dataDir == "" {
 		dataDir = adapt.DataDir()
 	}
+	repoRoot := ""
+	repoName := ""
+	agentArgs := append([]string(nil), args[3:]...)
+	for len(agentArgs) > 0 {
+		if agentArgs[0] == "--" {
+			agentArgs = append([]string(nil), agentArgs[1:]...)
+			break
+		}
+		if len(agentArgs) >= 2 && agentArgs[0] == "--repo-root" {
+			repoRoot = agentArgs[1]
+			agentArgs = agentArgs[2:]
+			continue
+		}
+		if len(agentArgs) >= 2 && agentArgs[0] == "--repo-name" {
+			repoName = agentArgs[1]
+			agentArgs = agentArgs[2:]
+			continue
+		}
+		break
+	}
 	return Options{
-		Agent:   args[0],
-		Tag:     args[1],
-		Cwd:     args[2],
-		Args:    append([]string(nil), args[3:]...),
-		Home:    home,
-		DataDir: dataDir,
-		PIDWait: ParseDurationSeconds(getenv("PAIR_SESSION_WATCH_PID_WAIT_SECONDS"), 2*time.Second),
-		Timeout: 60 * time.Second,
-		Poll:    100 * time.Millisecond,
+		Agent:    args[0],
+		Tag:      args[1],
+		Cwd:      args[2],
+		RepoRoot: repoRoot,
+		RepoName: repoName,
+		Args:     agentArgs,
+		Home:     home,
+		DataDir:  dataDir,
+		PIDWait:  ParseDurationSeconds(getenv("PAIR_SESSION_WATCH_PID_WAIT_SECONDS"), 2*time.Second),
+		Timeout:  60 * time.Second,
+		Poll:     100 * time.Millisecond,
 	}, true
 }

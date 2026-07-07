@@ -39,7 +39,7 @@ type SnapshotOps interface {
 	ScanHistory(base string, cutoff time.Time) ([]HistoricalTag, error)
 }
 
-// ListOps gathers the `pair list`/`ls` rows (#99 M5a) — pair-<tag> sessions with
+// ListOps gathers the `pair list`/`ls` rows (#99 M5a) — Pair sessions with
 // resolved agent, reuse state, and live client count. Its own seam (ISP): the
 // launch path never needs client counts, so this stays off ZellijOps.Sessions.
 type ListOps interface {
@@ -75,10 +75,10 @@ type ProcOps interface {
 	// SpawnSessionWatcher backgrounds bin/pair-session-watch (detached) to
 	// capture the async agent session id for codex/agy; a no-op-ish spawn for
 	// claude (whose id is minted synchronously).
-	SpawnSessionWatcher(agent, tag, cwd string, agentArgs []string)
+	SpawnSessionWatcher(agent, tag, cwd, repoRoot, repoName string, agentArgs []string)
 	// SpawnTitlePoller backgrounds bin/pair-title (detached), the per-tag
 	// frame/cmux title singleton.
-	SpawnTitlePoller(tag, agent string)
+	SpawnTitlePoller(tag, agent, session string)
 	// DevRebuild rebuilds the repo Go binaries when PAIR_DEV is set (no-op
 	// otherwise) so the layout's `exec pair-wrap` resolves a fresh build (#46).
 	DevRebuild(pairHome string)
@@ -117,6 +117,16 @@ type IDOps interface {
 	InferAgent(tag string) string
 }
 
+type LedgerOps interface {
+	ReadLedger(tag string) ([]LedgerEntry, error)
+	AppendLedger(tag string, entry LedgerEntry) error
+}
+
+type SessionNameStoreOps interface {
+	ReadSessionNameIndex() (SessionNameIndex, error)
+	AppendSessionNameIndex(entry SessionNameEntry) error
+}
+
 // FSOps is the filesystem subset the create path uses (satisfied by osfs.FS).
 type FSOps interface {
 	ReadFile(path string) (string, error)
@@ -125,6 +135,7 @@ type FSOps interface {
 	FileSize(path string) (int64, bool)
 	Touch(path string) error
 	Rename(src, dst string) error // #99 M5b: the rename subcommand's mv
+	ReadDir(path string) ([]string, error)
 }
 
 // LifecycleOps is the post-handoff + attach effect surface (#99 M3): the blocking
@@ -167,7 +178,7 @@ type LifecycleOps interface {
 	// ReapNvim kills this tag's nvim --embed children (pidfiles + pattern sweep),
 	// shell 1089-1112.
 	ReapNvim(tag string)
-	// SweepOrphanNvim reaps nvim --embed whose pair-<tag> is not in liveTags —
+	// SweepOrphanNvim reaps nvim --embed whose Pair session is not in liveTags —
 	// startup hygiene for externally-killed sessions that left no quit marker,
 	// shell 1117-1158.
 	SweepOrphanNvim(liveTags []string)
@@ -201,6 +212,8 @@ type Runtime interface {
 	ProcOps
 	EnvOps
 	IDOps
+	LedgerOps
+	SessionNameStoreOps
 	FSOps
 	LifecycleOps
 }
@@ -212,6 +225,7 @@ type LaunchOptions struct {
 	Args                 LaunchArgs
 	Env                  Env
 	PairHome             string
+	GlobalDataDir        string
 	ContinueDoc          string // seed the draft to read this continuation (create-only)
 	CodexAltScreenOptOut bool   // PAIR_CODEX_ALT_SCREEN=1: leave codex in alt-screen
 	ParkPromptTimeout    int    // PAIR_PARK_PROMPT_TIMEOUT (default 5): the quit park-nudge [y/N] bound
@@ -222,6 +236,11 @@ type LaunchOptions struct {
 	PairTag        string // PAIR_TAG (compaction tag-match + marker tag)
 	PairAgent      string // PAIR_AGENT (compaction marker agent)
 	ZellijSession  string // ZELLIJ_SESSION_NAME (compaction tag-match)
+	PairSession    string // PAIR_SESSION_NAME (exact public session owned by this pane)
 	ForceInSession bool   // PAIR_FORCE_IN_SESSION: force compaction (bypasses both halves)
 	FakeInZellij   bool   // PAIR_FAKE_IN_ZELLIJ: fake the ancestry half (real tag-match runs)
+
+	// Internal restart-loop state: a restart marker already selected the args
+	// for the next create, so the normal saved-config picker must not re-open.
+	SkipConfigPicker bool
 }

@@ -6,7 +6,7 @@ import (
 )
 
 // The fzf session picker (#99 M5a, ported from bin/pair-shell 1428-1508). When a
-// bare `pair` finds detached and/or historical pair-<tag> sessions, fzf offers
+// bare `pair` finds detached and/or historical Pair sessions, fzf offers
 // them plus a "+ new" row. The row *build* is a pure function over the decision
 // snapshot (detached-first ordering, age grey-grading, the queued badge); only
 // the fzf call itself (resolvePick) is a Runtime effect. Picking an existing tag
@@ -16,8 +16,10 @@ import (
 // pickSelection is what a chosen picker row resolves to: a specific tag, or the
 // "+ new" row (create a fresh free-slot tag with the name prompt).
 type pickSelection struct {
-	tag   string
-	isNew bool
+	tag         string
+	sessionName string
+	isNew       bool
+	legacy      bool
 }
 
 const (
@@ -31,13 +33,13 @@ const (
 // to its selection. Order mirrors the shell: live detached sessions (green)
 // first, then historical "no live session" rows (age-graded grey + amber queued
 // badge), then the "+ new <base> session" row. Historical tags that still have a
-// live pair-<tag> (any state) are deduped out — they already show as their own
+// live Pair sessions (any state) are deduped out — they already show as their own
 // live row (shell 1387).
 func buildPickRows(snap SessionSnapshot, base string, nowEpoch int64) (display []string, byPlain map[string]pickSelection) {
 	byPlain = map[string]pickSelection{}
 	live := map[string]bool{}
 	for _, s := range snap.Sessions {
-		live[strings.TrimPrefix(s.Name, "pair-")] = true
+		live[sessionTag(s)] = true
 	}
 
 	add := func(plain, colored string, sel pickSelection) {
@@ -49,14 +51,20 @@ func buildPickRows(snap SessionSnapshot, base string, nowEpoch int64) (display [
 		if s.State != SessionDetached {
 			continue
 		}
-		add(s.Name, ansiGreen+s.Name+ansiReset, pickSelection{tag: strings.TrimPrefix(s.Name, "pair-")})
+		plain := livePickLabel(s)
+		add(plain, ansiGreen+plain+ansiReset, pickSelection{tag: sessionTag(s), sessionName: s.Name})
 	}
 
 	for _, h := range snap.Historical {
 		if live[h.Tag] {
 			continue // already surfaced as a live row
 		}
-		baseRow := fmt.Sprintf("pair-%s  (%s, no live session)", h.Tag, FormatAge(nowEpoch, h.MTime.Unix()))
+		if h.LegacyUnscoped {
+			plain := fmt.Sprintf("legacy unscoped %s  (manual import)", h.Tag)
+			add(plain, AgeColor(int((nowEpoch-h.MTime.Unix())/secondsPerDay))+plain+ansiReset, pickSelection{tag: h.Tag, legacy: true})
+			continue
+		}
+		baseRow := historicalPickLabel(h, nowEpoch)
 		badgePlain, badgeColored := "", ""
 		if h.QueueCount > 0 {
 			badgePlain = fmt.Sprintf("   [⏎ %d queued]", h.QueueCount)
@@ -69,6 +77,44 @@ func buildPickRows(snap SessionSnapshot, base string, nowEpoch int64) (display [
 	newLabel := fmt.Sprintf("+ new %s session", base)
 	add(newLabel, newLabel, pickSelection{isNew: true})
 	return display, byPlain
+}
+
+func sessionTag(s Session) string {
+	if s.Tag != "" {
+		return s.Tag
+	}
+	return strings.TrimPrefix(s.Name, "pair-")
+}
+
+func livePickLabel(s Session) string {
+	if s.RepoName != "" || s.Agent != "" {
+		agent := s.Agent
+		if agent == "" {
+			agent = "?"
+		}
+		repo := s.RepoName
+		if repo == "" {
+			repo = "?"
+		}
+		return fmt.Sprintf("%s/%s  %s  (detached)", repo, sessionTag(s), agent)
+	}
+	return s.Name
+}
+
+func historicalPickLabel(h HistoricalTag, nowEpoch int64) string {
+	age := FormatAge(nowEpoch, h.MTime.Unix())
+	if h.RepoName != "" || h.Agent != "" {
+		agent := h.Agent
+		if agent == "" {
+			agent = "?"
+		}
+		repo := h.RepoName
+		if repo == "" {
+			repo = "?"
+		}
+		return fmt.Sprintf("%s/%s  %s  (%s, no live session)", repo, h.Tag, agent, age)
+	}
+	return fmt.Sprintf("pair-%s  (%s, no live session)", h.Tag, age)
 }
 
 // resolvePick presents the picker and maps the choice into a concrete launch
@@ -87,8 +133,16 @@ func resolvePick(rt Runtime, snap SessionSnapshot, base string, nowEpoch int64) 
 		return LaunchDecision{}, true // fzf returned an unmapped line — abort safely.
 	}
 	if sel.isNew {
-		return createDecision(nextFreeTag(base, snap), true), false
+		tag := nextFreeTag(base, snap)
+		return createDecision(tag, sessionNameForTag(snap, tag), true), false
+	}
+	if sel.sessionName != "" {
+		return LaunchDecision{Action: ActionAttach, Tag: sel.tag, SessionName: sel.sessionName}, false
 	}
 	d, _ := DecideLaunch(LaunchArgs{ForcedTag: sel.tag}, snap) // never errors (no pick recursion)
+	if d.Action == ActionCreate {
+		d.SessionName = ""
+	}
+	d.LegacyImport = sel.legacy
 	return d, false
 }

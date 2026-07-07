@@ -3,8 +3,10 @@ package launcher
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 // ResolveContinuationDoc / ScanContinuations do real glob+read IO the fake can't
@@ -223,6 +225,69 @@ func TestOSRuntimeCmuxOwnership(t *testing.T) {
 	}
 }
 
+func TestOSRuntimeInferAgentPrefersLedger(t *testing.T) {
+	dataDir := t.TempDir()
+	rt := NewOSRuntime(dataDir, "/pair")
+	entry := LedgerEntry{
+		Agent:      "codex",
+		SessionID:  "SID",
+		LastActive: timeUnix(40),
+	}
+	line, err := BuildLedgerLine(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dataDir, "ledger-work.jsonl"), []byte(line+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dataDir, "agent-work"), []byte("claude\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := rt.InferAgent("work"); got != "codex" {
+		t.Fatalf("InferAgent = %q, want ledger codex", got)
+	}
+}
+
+func TestOSRuntimeSessionNameIndexStore(t *testing.T) {
+	dataDir := t.TempDir()
+	rt := NewOSRuntime(dataDir, "/pair")
+	entry := SessionNameEntry{
+		SessionName: "pair-pair-work",
+		ScopeKey:    "scope1",
+		RepoRoot:    "/repo",
+		RepoName:    "pair",
+		Tag:         "work",
+	}
+	if err := rt.AppendSessionNameIndex(entry); err != nil {
+		t.Fatalf("AppendSessionNameIndex: %v", err)
+	}
+	index, err := rt.ReadSessionNameIndex()
+	if err != nil {
+		t.Fatalf("ReadSessionNameIndex: %v", err)
+	}
+	if len(index.Entries) != 1 || index.Entries[0] != entry {
+		t.Fatalf("index = %#v, want one appended entry", index)
+	}
+}
+
+func TestOSRuntimeSessionNameIndexUsesGlobalDataDir(t *testing.T) {
+	globalDir := t.TempDir()
+	scopedDir := t.TempDir()
+	rt := NewScopedOSRuntime(globalDir, scopedDir, "/pair")
+	entry := SessionNameEntry{SessionName: "pair-pair-work", ScopeKey: "scope1", Tag: "work"}
+	if err := rt.AppendSessionNameIndex(entry); err != nil {
+		t.Fatalf("AppendSessionNameIndex: %v", err)
+	}
+	if _, ok := rt.FileSize(filepath.Join(globalDir, "session-names.jsonl")); !ok {
+		t.Fatalf("session index was not written under global data dir")
+	}
+	if _, ok := rt.FileSize(filepath.Join(scopedDir, "session-names.jsonl")); ok {
+		t.Fatalf("session index must not be written under scoped data dir")
+	}
+}
+
+func timeUnix(sec int64) time.Time { return time.Unix(sec, 0).UTC() }
+
 func TestOSRuntimeReapAndPollerRemovePidfiles(t *testing.T) {
 	dataDir := t.TempDir()
 	rt := NewOSRuntime(dataDir, "/pair")
@@ -250,17 +315,19 @@ func TestOSRuntimeReapAndPollerRemovePidfiles(t *testing.T) {
 // subcommand — #104 M2 folded pair-title/pair-session-watch into `pair title` /
 // `pair session-watch`. spawnDetached swallows a start error, so a regression in
 // the argv shape would fail silently at runtime. Pin the subcommand + the title
-// poller's "<…>/pair title <tag> <agent>" shape the single-instance guard matches.
+// poller's "<…>/pair title <tag> <agent>" prefix the single-instance guard matches.
 func TestSidecarSpawnArgvSelfExecsPair(t *testing.T) {
 	const exe = "/pair/bin/pair"
-	tp := titlePollerArgv(exe, "work", "claude")
-	if len(tp) != 4 || tp[0] != exe || tp[1] != "title" || tp[2] != "work" || tp[3] != "claude" {
-		t.Fatalf("title poller argv = %v, want [%s title work claude]", tp, exe)
+	tp := titlePollerArgv(exe, "work", "claude", "pair-pair-work")
+	wantTP := []string{exe, "title", "work", "claude", "pair-pair-work"}
+	if !reflect.DeepEqual(tp, wantTP) {
+		t.Fatalf("title poller argv = %v, want %v", tp, wantTP)
 	}
 
-	sw := sessionWatcherArgv(exe, "codex", "work", "/cwd", []string{"--no-alt-screen"})
-	if len(sw) != 6 || sw[0] != exe || sw[1] != "session-watch" || sw[2] != "codex" || sw[3] != "work" || sw[4] != "/cwd" || sw[5] != "--no-alt-screen" {
-		t.Fatalf("session watcher argv = %v, want [%s session-watch codex work /cwd --no-alt-screen]", sw, exe)
+	sw := sessionWatcherArgv(exe, "codex", "work", "/cwd/sub", "/cwd", "pair", []string{"--no-alt-screen"})
+	want := []string{exe, "session-watch", "codex", "work", "/cwd/sub", "--repo-root", "/cwd", "--repo-name", "pair", "--", "--no-alt-screen"}
+	if !reflect.DeepEqual(sw, want) {
+		t.Fatalf("session watcher argv = %v, want %v", sw, want)
 	}
 
 	// Guard the invariant explicitly: no sidecar target is a standalone helper

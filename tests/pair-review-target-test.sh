@@ -17,7 +17,7 @@ got="$(jq -r '.session' "$RT/review-target-test.json")"
 [ "$got" = envsid ] && pass "uses PAIR_SESSION_ID when set" || fail "env session stamp ($got)"
 
 printf '{"agent":"codex","args":[],"session_id":"cfgsid"}\n' > "$RT/config-test-codex.json"
-PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=codex \
+PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=codex PAIR_SESSION_ID="" \
   "$ROOT/bin/pair" review target "$doc" ready >/dev/null
 got="$(jq -r '.session' "$RT/review-target-test.json")"
 [ "$got" = cfgsid ] && pass "falls back to config session_id" || fail "config session stamp ($got)"

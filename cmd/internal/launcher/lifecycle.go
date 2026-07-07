@@ -13,18 +13,21 @@ import (
 // the loop itself (createflow.go) re-decides create-vs-attach each iteration.
 
 // runAttach ports the shell's attach branch (1701-1723): re-attach to a live
-// pair-<tag> session (`pair resume <livetag>`). Like create it exports the tag +
+// Pair session (`pair resume <tag>`). Like create it exports the tag +
 // refreshes the outer-tty/title/cmux/poller, but it re-uses the existing pane's
 // agent (no fresh spawn, no arg composition) and blocks on the attach handoff so
 // the loop regains control for cleanup + restart. agent is the inferred title
 // agent (the on-disk agent-<tag> record, resolved by the caller).
-func runAttach(opts LaunchOptions, env Env, rt Runtime, tag, agent string) (int, error) {
-	session := "pair-" + tag
+func runAttach(opts LaunchOptions, env Env, rt Runtime, tag, session, agent string) (int, error) {
+	if session == "" {
+		session = "pair-" + tag
+	}
 	// Export what the spawned poller inherits (pair-shell exports these globally
 	// before the branch; the attach branch itself only re-exports PAIR_TAG).
 	rt.SetEnv("PAIR_HOME", opts.PairHome)
 	rt.SetEnv("PAIR_DATA_DIR", env.DataDir)
 	rt.SetEnv("PAIR_TAG", tag)
+	rt.SetEnv("PAIR_SESSION_NAME", session)
 
 	// zellij creates the draft on new-session but not on attach; ensure it.
 	_ = rt.Touch(filepath.Join(env.DataDir, "draft-"+tag+".md"))
@@ -35,7 +38,7 @@ func runAttach(opts LaunchOptions, env Env, rt Runtime, tag, agent string) (int,
 	// <tag>` (ParseArgs leaves Agent=="") or a live-session pick (runOnce clears
 	// Agent) — either way runOnce sets it via InferAgent(tag), so the poller
 	// matches the running pane's agent regardless of any bare-`pair` default.
-	rt.SpawnTitlePoller(tag, agent)
+	rt.SpawnTitlePoller(tag, agent, session)
 
 	return rt.AttachSession(session, filepath.Join(opts.PairHome, "zellij"))
 }
@@ -103,11 +106,11 @@ func runCleanup(env Env, rt Runtime, step launchStep, parkTimeout int, out io.Wr
 	}
 
 	// Resume hint: a saved config for this (tag, agent) means the resume path
-	// will work next time — surface the one-liner (shell 1602-1617). SESSION
-	// (pair-<tag>) matches the UI tab; `resume` strips the pair- prefix.
+	// will work next time — surface the repo-local tag, not the public zellij
+	// session name.
 	if raw, err := rt.ReadFile(resolveConfigPath(rt, dataDir, step.tag, quitAgent)); err == nil {
-		fmt.Fprintf(out, "pair: saved session config for tag \"%s\" (%s).\n", step.session, quitAgent)
-		fmt.Fprintf(out, "      resume with: pair resume %s\n", step.session)
+		fmt.Fprintf(out, "pair: saved session config for tag \"%s\" (%s).\n", step.tag, quitAgent)
+		fmt.Fprintf(out, "      resume with: pair resume %s\n", step.tag)
 		if cfg, err := parseConfig(raw); err == nil && cfg.SessionID != "" {
 			fmt.Fprintf(out, "      session id:  %s\n", cfg.SessionID)
 		}
@@ -140,14 +143,21 @@ func readSavedConfig(rt Runtime, configPath string) savedConfig {
 	return cfg
 }
 
-// liveTagsForSweep projects the live pair session names to their bare tags for
-// SweepOrphanNvim — every pair-<tag> row (attached, detached, or exited) counts
-// as live, so the sweep only reaps embeds with NO session record at all (matches
-// the shell's all_pair, the full `list-sessions --short` list).
-func liveTagsForSweep(sessions []Session) []string {
+// liveTagsForSweep projects live public session names to repo-local tags for
+// SweepOrphanNvim. Indexed scoped names only count for the current repo scope;
+// legacy unindexed pair-<tag> names still count as their bare tag.
+func liveTagsForSweep(sessions []Session, index SessionNameIndex, scopeKey string) []string {
 	tags := make([]string, 0, len(sessions))
 	for _, s := range sessions {
-		tags = append(tags, strings.TrimPrefix(s.Name, "pair-"))
+		if entry, ok := index.ownerOf(s.Name); ok {
+			if scopeKey == "" || entry.ScopeKey == scopeKey {
+				tags = append(tags, entry.Tag)
+			}
+			continue
+		}
+		if strings.HasPrefix(s.Name, "pair-") {
+			tags = append(tags, strings.TrimPrefix(s.Name, "pair-"))
+		}
 	}
 	return tags
 }
