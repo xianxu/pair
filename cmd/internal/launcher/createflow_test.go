@@ -269,10 +269,12 @@ func run(t *testing.T, opts LaunchOptions, rt *fakeRuntime) (int, error) {
 	return code, err
 }
 
-// RunLaunch must prepend the resolved asset root's bin/ to PATH at entry (#95),
-// so zellij resolves the bundled bare-name helpers (pair-wrap, copy-on-select,
-// pair-help). Driven through the fake, so SetEnv records into f.env — no real
-// process-env pollution. The prepend is RunLaunch's 2nd line, before the handoff.
+// RunLaunch must front the resolved asset root's bin/ on PATH at entry (#95),
+// so zellij resolves the shell shims (pair-help/pair-notify) and, in dev, `pair`.
+// Since #104 M3 it also fronts the running executable's dir (where `pair` lives
+// in the copied/Homebrew layout) — so the asset-root bin/ is among the first two
+// front entries (the exe dir, here the go-test binary's dir, precedes it).
+// Driven through the fake, so SetEnv records into f.env — no real env pollution.
 func TestRunLaunchPrependsBinToPath(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.uuids = []string{"S"}
@@ -281,8 +283,13 @@ func TestRunLaunchPrependsBinToPath(t *testing.T) {
 	}
 	got := rt.env["PATH"]
 	sep := string(os.PathListSeparator)
-	if got != "/pair/bin" && !strings.HasPrefix(got, "/pair/bin"+sep) {
-		t.Fatalf("RunLaunch did not prepend the asset-root bin/ to PATH: %q", got)
+	parts := strings.Split(got, sep)
+	front := parts
+	if len(front) > 2 {
+		front = front[:2]
+	}
+	if !containsStr(front, "/pair/bin") {
+		t.Fatalf("RunLaunch did not front the asset-root bin/ on PATH: %q", got)
 	}
 }
 
