@@ -1,7 +1,9 @@
 package launcher
 
 import (
+	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 const minSessionComponentRunes = 4
@@ -16,6 +18,30 @@ type SessionNameEntry struct {
 
 type SessionNameIndex struct {
 	Entries []SessionNameEntry
+}
+
+func BuildSessionNameIndexLine(entry SessionNameEntry) (string, error) {
+	data, err := json.Marshal(entry)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func ParseSessionNameIndex(raw string) SessionNameIndex {
+	var index SessionNameIndex
+	for _, line := range strings.Split(raw, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var entry SessionNameEntry
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			continue
+		}
+		index.Entries = append(index.Entries, entry)
+	}
+	return index
 }
 
 type SessionNameExhausted struct {

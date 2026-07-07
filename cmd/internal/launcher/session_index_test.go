@@ -106,6 +106,27 @@ func TestSessionsForScopeFiltersAndAnnotatesIndexedSessions(t *testing.T) {
 	}
 }
 
+func TestSessionNameIndexRoundTripSkipsMalformedRows(t *testing.T) {
+	entry := SessionNameEntry{
+		SessionName: "pair-pair-work",
+		ScopeKey:    "scope1",
+		RepoRoot:    "/repo",
+		RepoName:    "pair",
+		Tag:         "work",
+	}
+	line, err := BuildSessionNameIndexLine(entry)
+	if err != nil {
+		t.Fatalf("BuildSessionNameIndexLine: %v", err)
+	}
+	index := ParseSessionNameIndex(line + "\nnot-json\n")
+	if len(index.Entries) != 1 {
+		t.Fatalf("entries = %#v, want one valid entry", index.Entries)
+	}
+	if index.Entries[0] != entry {
+		t.Fatalf("entry = %#v, want %#v", index.Entries[0], entry)
+	}
+}
+
 func acceptAllSessionNames(string) bool { return true }
 
 func mustScope(t *testing.T, root string) RepoScope {

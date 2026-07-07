@@ -247,6 +247,28 @@ func TestOSRuntimeInferAgentPrefersLedger(t *testing.T) {
 	}
 }
 
+func TestOSRuntimeSessionNameIndexStore(t *testing.T) {
+	dataDir := t.TempDir()
+	rt := NewOSRuntime(dataDir, "/pair")
+	entry := SessionNameEntry{
+		SessionName: "pair-pair-work",
+		ScopeKey:    "scope1",
+		RepoRoot:    "/repo",
+		RepoName:    "pair",
+		Tag:         "work",
+	}
+	if err := rt.AppendSessionNameIndex(entry); err != nil {
+		t.Fatalf("AppendSessionNameIndex: %v", err)
+	}
+	index, err := rt.ReadSessionNameIndex()
+	if err != nil {
+		t.Fatalf("ReadSessionNameIndex: %v", err)
+	}
+	if len(index.Entries) != 1 || index.Entries[0] != entry {
+		t.Fatalf("index = %#v, want one appended entry", index)
+	}
+}
+
 func timeUnix(sec int64) time.Time { return time.Unix(sec, 0).UTC() }
 
 func TestOSRuntimeReapAndPollerRemovePidfiles(t *testing.T) {

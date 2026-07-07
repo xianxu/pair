@@ -454,6 +454,31 @@ func (r OSRuntime) AppendLedger(tag string, entry LedgerEntry) error {
 	return r.WriteAtomic(path, raw)
 }
 
+func (r OSRuntime) ReadSessionNameIndex() (SessionNameIndex, error) {
+	raw, err := r.ReadFile(filepath.Join(r.DataDir, "session-names.jsonl"))
+	if err != nil {
+		return SessionNameIndex{}, err
+	}
+	return ParseSessionNameIndex(raw), nil
+}
+
+func (r OSRuntime) AppendSessionNameIndex(entry SessionNameEntry) error {
+	path := filepath.Join(r.DataDir, "session-names.jsonl")
+	var raw string
+	if existing, err := r.ReadFile(path); err == nil {
+		raw = existing
+	}
+	line, err := BuildSessionNameIndexLine(entry)
+	if err != nil {
+		return err
+	}
+	if raw != "" && !strings.HasSuffix(raw, "\n") {
+		raw += "\n"
+	}
+	raw += line + "\n"
+	return r.WriteAtomic(path, raw)
+}
+
 func (OSRuntime) AgentSessionExists(agent, sid, cwd string) bool {
 	if sid == "" {
 		return false

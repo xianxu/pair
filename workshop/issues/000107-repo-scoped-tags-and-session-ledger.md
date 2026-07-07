@@ -279,3 +279,10 @@ basename prefix. Picker row rendering accepts optional repo/agent metadata for
 annotated rows (`repo/tag  agent`) while preserving legacy text when metadata is
 absent. Verified with `go test ./cmd/internal/launcher -run
 'TestHistory|TestBuildPickRows'` and `go test ./cmd/internal/launcher`.
+
+Added the concrete session-name index JSONL store: pure index rows round-trip
+while skipping malformed lines, and `OSRuntime` can append/read
+`session-names.jsonl` under the Pair data dir. Verified with `go test
+./cmd/internal/launcher -run
+'TestOSRuntimeSessionNameIndexStore|TestSessionNameIndex|TestAssignSessionName|TestSessionsForScope'`
+and `go test ./cmd/internal/launcher`.
