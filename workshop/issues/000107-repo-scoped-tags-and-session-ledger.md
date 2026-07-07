@@ -196,7 +196,7 @@ provisional but derived from the required source.
       authoritative.
 - [x] Grandfather existing flat sidecars and live unscoped sessions without data
       loss.
-- [ ] Add acceptance tests for same-tag multi-repo isolation, picker agent
+- [x] Add acceptance tests for same-tag multi-repo isolation, picker agent
       annotation, explicit-agent arg safety, bare `pair` ledger continuation,
       and legacy recovery.
 - [ ] Update atlas docs and run final verification.
@@ -345,3 +345,10 @@ repo basename family stay hidden from the current repo picker. Verified with
 `go test ./cmd/internal/launcher -run 'TestLegacyImportPlan|TestGrandfather|TestMigrate|TestHistory' -count=1`,
 `go test ./cmd/internal/launcher -count=1`, `go test ./...`, and
 `git diff --check`.
+
+Added acceptance-level coverage for same-tag multi-repo isolation: one test now
+ties scoped paths, readable disambiguated public session names, hidden-key
+non-disclosure, and current-scope live-session filtering together. This sits
+alongside the existing picker annotation, explicit-agent arg safety,
+ledger-backed continuation, and legacy recovery tests. Verified with
+`go test ./cmd/internal/launcher -run 'TestAcceptance|TestRunLaunchPickInferredAgentMustNotInheritCliArgs|TestRunLaunchResumeUsesLedgerAgentAndArgsWhenConfigMissing|TestRunLaunchPickLegacyImportsFlatFiles' -count=1`.
