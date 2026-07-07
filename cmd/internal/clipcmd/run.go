@@ -48,6 +48,11 @@ type Runtime interface {
 // CopyOnSelectOptions carries copy-on-select's resolved env.
 type CopyOnSelectOptions struct {
 	PairHome string
+	// SelfExe is the running `pair` executable. The orchestrator + flash + paste
+	// hand-offs self-exec it as `pair clip <leaf>` (#104 M2 folded copy-on-select
+	// / flash-pane / clipboard-to-pane into `pair clip …`), resolved at the CLI
+	// boundary so run.go stays pure.
+	SelfExe string
 }
 
 // RunCopyOnSelect is zellij's copy_command body — the HOOK: mirror the selection
@@ -73,7 +78,7 @@ func RunCopyOnSelect(opts CopyOnSelectOptions, stdin io.Reader, rt Runtime, stde
 
 	// Detach the rest: the orchestrator (setsid) survives zellij's reap of this
 	// copy_command child, so the paste completes even when the chain is slow.
-	rt.SpawnDetached(opts.PairHome+"/bin/copy-on-select", "--orchestrate")
+	rt.SpawnDetached(opts.SelfExe, "clip", "copy-on-select", "--orchestrate")
 	rt.Log(fmt.Sprintf("sel bytes: %d — detached orchestrator spawned; hook returning", len(sel)))
 	return 0
 }
@@ -105,25 +110,23 @@ func RunCopyOnSelectOrchestrate(opts CopyOnSelectOptions, rt Runtime, stderr io.
 		return 0
 	}
 
-	// Flash the source pane (delegated to the flash-pane Go binary so the flash
-	// idiom lives in one place). Call-and-return: the flash's bg reset is detached,
-	// so this doesn't block the hand-off's focus change.
-	flashScript := opts.PairHome + "/bin/flash-pane"
-	if focusedID != "" && rt.Executable(flashScript) {
-		if err := rt.RunSubprocess(flashScript, focusedID); err != nil {
+	// Flash the source pane (delegated to `pair clip flash-pane` so the flash idiom
+	// lives in one place). Call-and-return: the flash's bg reset is detached, so
+	// this doesn't block the hand-off's focus change.
+	if focusedID != "" && rt.Executable(opts.SelfExe) {
+		if err := rt.RunSubprocess(opts.SelfExe, "clip", "flash-pane", focusedID); err != nil {
 			rt.Log("flash-pane failed: " + err.Error())
 		}
 	}
 
-	// Hand off to the clipboard-to-pane Go binary for the insert into nvim (it
-	// reads the OS clipboard populated by the hook). This replaces the process (the
+	// Hand off to `pair clip clipboard-to-pane` for the insert into nvim (it reads
+	// the OS clipboard populated by the hook). This replaces the process (the
 	// shell's `exec`); it only returns here on failure.
-	clipScript := opts.PairHome + "/bin/clipboard-to-pane"
-	if err := rt.ExecReplace(clipScript); err != nil {
+	if err := rt.ExecReplace(opts.SelfExe, "clip", "clipboard-to-pane"); err != nil {
 		// Detached: stderr is /dev/null, so the debug log is the ONLY channel a
 		// failed hand-off can surface on — record it there too (close-review #100).
-		rt.Log(fmt.Sprintf("exec %s failed: %v", clipScript, err))
-		fmt.Fprintf(stderr, "copy-on-select: exec %s: %v\n", clipScript, err)
+		rt.Log(fmt.Sprintf("exec %s clip clipboard-to-pane failed: %v", opts.SelfExe, err))
+		fmt.Fprintf(stderr, "copy-on-select: exec %s clip clipboard-to-pane: %v\n", opts.SelfExe, err)
 		return 1
 	}
 	return 0

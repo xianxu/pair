@@ -16,11 +16,22 @@ func RunCopyOnSelectCLI(args []string, stdin io.Reader, getenv func(string) stri
 	if home == "" {
 		home = repoRootFromExe()
 	}
-	opts := CopyOnSelectOptions{PairHome: home}
+	opts := CopyOnSelectOptions{PairHome: home, SelfExe: selfPairExe(home)}
 	if len(args) > 0 && args[0] == "--orchestrate" {
 		return RunCopyOnSelectOrchestrate(opts, NewOSRuntime(), stderr)
 	}
 	return RunCopyOnSelect(opts, stdin, NewOSRuntime(), stderr)
+}
+
+// selfPairExe resolves the running `pair` executable for the self-exec hand-offs
+// (`pair clip …`). os.Executable() is the running binary itself, so it works in
+// the copied/Homebrew layout where $PAIR_HOME/bin holds no `pair`; it falls back
+// to <home>/bin/pair only if os.Executable() is unavailable.
+func selfPairExe(home string) string {
+	if exe, err := os.Executable(); err == nil && exe != "" {
+		return exe
+	}
+	return filepath.Join(home, "bin", "pair")
 }
 
 // RunClipboardToPaneCLI is the clipboard-to-pane command body.
