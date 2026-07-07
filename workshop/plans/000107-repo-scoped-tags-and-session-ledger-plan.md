@@ -207,7 +207,7 @@ Expected: PASS.
 - Create: `cmd/internal/launcher/ledger.go`
 - Test: `cmd/internal/launcher/ledger_test.go`
 
-- [ ] **Step 1: Write failing ledger tests**
+- [x] **Step 1: Write failing ledger tests**
 
 Cover:
 - append/read JSONL entries with `agent`, `args`, `session_id`, `started`, `last_active`, `repo_root`, `repo_name`.
@@ -218,7 +218,7 @@ Cover:
 Run: `go test ./cmd/internal/launcher -run TestSessionLedger`
 Expected: FAIL for missing ledger implementation.
 
-- [ ] **Step 2: Implement pure ledger types and selectors**
+- [x] **Step 2: Implement pure ledger types and selectors**
 
 Add pure helpers:
 - `ParseLedger(raw string) []LedgerEntry`
@@ -227,7 +227,7 @@ Add pure helpers:
 - `LatestLedgerEntryForAgent(entries []LedgerEntry, agent string) (LedgerEntry, bool)`
 - `CompactLedger(entries []LedgerEntry, keepRecent int) []LedgerEntry`
 
-- [ ] **Step 3: Verify green**
+- [x] **Step 3: Verify green**
 
 Run: `go test ./cmd/internal/launcher -run TestSessionLedger`
 Expected: PASS.

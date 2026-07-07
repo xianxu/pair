@@ -250,3 +250,10 @@ optional assigned session names in `DecideLaunch`. Verified with:
 `go test ./cmd/internal/launcher -run
 'TestScopedSessionName|TestSessionNameIndex|TestAssignSessionName|TestDecideLaunch'`,
 and `go test ./cmd/internal/launcher`.
+
+Implemented the pure ledger slice with TDD: `LedgerEntry`, JSONL
+parse/render, latest-entry selection, latest-per-agent selection, and
+compaction that keeps recent rows plus latest per agent. Verified with:
+`go test ./cmd/internal/launcher -run
+'TestSessionLedger|TestLatestLedger|TestCompactLedger'` and
+`go test ./cmd/internal/launcher`.
