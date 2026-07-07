@@ -28,6 +28,12 @@ func busyboxSubcommand(base string, valid []string) (string, bool) {
 	if nonBusybox[base] {
 		return "", false
 	}
+	// Require the pair- prefix: every installed busybox symlink carries it, so a
+	// bare tool on PATH named exactly like a subcommand (e.g. `slug`) never
+	// resolves.
+	if !strings.HasPrefix(base, "pair-") {
+		return "", false
+	}
 	sub := strings.TrimPrefix(base, "pair-")
 	for _, v := range valid {
 		if v == sub {

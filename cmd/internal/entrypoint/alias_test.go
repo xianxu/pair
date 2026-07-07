@@ -25,6 +25,8 @@ func TestBusyboxSubcommand(t *testing.T) {
 		{"pair-review-open", "", false},    // nested family — never a busybox name
 		{"pair-frob", "", false},           // pair-<x> but x not implemented
 		{"randomtool", "", false},          // arbitrary PATH tool never resolves
+		{"slug", "", false},                // bare token without pair- prefix never resolves
+		{"title", "", false},               // ditto
 	}
 	for _, c := range cases {
 		sub, ok := busyboxSubcommand(c.base, valid)

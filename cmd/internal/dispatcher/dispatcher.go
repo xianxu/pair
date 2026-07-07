@@ -114,29 +114,6 @@ func Resolve(args []string) (CommandFamily, []string, bool) {
 	return CommandFamily{}, nil, false
 }
 
-// StreamingNames returns the implemented subcommands that must run through the
-// streaming seam (real os.Stdin/Stdout/Stderr) rather than the buffered Dispatch.
-func StreamingNames() []string {
-	var names []string
-	for _, f := range Families() {
-		if f.Streaming {
-			names = append(names, f.Name)
-		}
-	}
-	return names
-}
-
-// IsImplemented reports whether a subcommand has a dispatch route (Status ==
-// "implemented"); planned/handoff families do not.
-func IsImplemented(name string) bool {
-	for _, f := range Families() {
-		if f.Name == name {
-			return f.Status == "implemented"
-		}
-	}
-	return false
-}
-
 // IsStreaming reports whether a subcommand needs the streaming seam.
 func IsStreaming(name string) bool {
 	for _, f := range Families() {
