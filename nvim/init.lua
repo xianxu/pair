@@ -3307,13 +3307,17 @@ end
 function _G.PairConfirmRestart()           pair_confirm_restart_impl(false) end
 function _G.PairConfirmRestartNewSession() pair_confirm_restart_impl(true)  end
 
--- Alt+Shift+C compaction (#55). Unlike the restart modals (which invoke
--- `pair restart` directly), creating a continuation needs the agent's
--- judgment — so this asks the AGENT (agent-agnostic prompt, no claude-only
--- skill name) to distill a continuation and then run `pair continue <slug>`,
--- which is context-aware: inside this live pane it parks the scrollback, marks
--- a continue= restart, and kills the session → the outer pair reincarnates the
--- same tag with a fresh conversation seeded from the doc.
+-- Alt+Shift+C compaction (#55). Distilling a continuation needs the agent's
+-- judgment, so this asks the AGENT (agent-agnostic prompt, no claude-only skill
+-- name) to write the continuation. But the RESTART is no longer the agent's job
+-- (pair#105): the `pair continuation` writer, run inside this live pane, triggers
+-- the restart itself after writing — it re-invokes `pair continue <slug>`, which
+-- parks the scrollback, marks a continue= restart, and kills the session → the
+-- outer pair reincarnates the same tag (same config; PAIR_DEV rides the env)
+-- seeded from the doc. So the prompt is ONE step now — no fragile "then run
+-- `pair continue`" the agent could skip (that was the "restart stopped working"
+-- bug). The writer also folds this draft pane's WIP (sans `===` stickies) into
+-- the continuation's NEXT ACTION, so parked draft text survives the restart.
 --
 -- The prompt DEFERS to the project's continuation DATATYPE procedure rather than
 -- enumerating a section skeleton inline. The skeleton + authoring steps live in
@@ -3322,24 +3326,28 @@ function _G.PairConfirmRestartNewSession() pair_confirm_restart_impl(true)  end
 -- drift out of sync with it — that drift WAS the bug pair#61 fixed, so do not
 -- re-add a skeleton list. Keep it agent-agnostic: no skill name, no hardcoded path.
 local COMPACT_PROMPT = table.concat({
-  'Compact this session:',
-  "1. Write a continuation doc for this session NOW by following this project's",
-  '   continuation DATATYPE procedure — first flush key exchanges to pensive,',
-  '   then distill per that procedure and finalize with `pair continuation`',
-  '   writer (workshop/continuation/). Choose a short slug.',
-  '2. Then run:  pair continue <that-slug>',
-  '   (or  pair-dev continue <that-slug>  if this is a dev checkout)',
-  '   That restarts this session with a fresh conversation seeded from the',
-  '   continuation. Do this as your immediate next action.',
+  'Compact this session: write a continuation doc for this session NOW by',
+  "following this project's continuation DATATYPE procedure — first flush key",
+  'exchanges to pensive, then distill per that procedure and finalize with the',
+  '`pair continuation` writer (workshop/continuation/). Choose a short slug.',
+  'The writer restarts this session automatically once the doc is written, seeded',
+  'from it — do NOT run `pair continue` yourself; writing the continuation is your',
+  'whole task.',
 }, '\n')
 
 function _G.PairConfirmCompact()
   pair_ensure_visible_then(function()
     local ans = vim.fn.confirm(
-      'Compact this session?\n\nThe agent will write a continuation, then'
-        .. '\n`pair continue <slug>` restarts this tag fresh, seeded from it.',
+      'Compact this session?\n\nThe agent writes a continuation; the writer then'
+        .. '\nrestarts this tag fresh, seeded from it. Your draft WIP is folded'
+        .. '\ninto its NEXT ACTION.',
       '&Yes\n&No', 2)
     if ans ~= 1 then return end
+    -- Persist the draft so the writer reads fresh WIP off disk to fold into
+    -- NEXT ACTION (pair#105). The draft pane is the current buffer here (the
+    -- Alt+Shift+C binding focuses it first); autosave usually has it, but a
+    -- deterministic fold shouldn't depend on autosave timing.
+    pcall(vim.cmd, 'silent! write')
     send_to_agent(COMPACT_PROMPT)
   end)
 end
