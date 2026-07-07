@@ -391,8 +391,8 @@ that agent; an empty `session-names.jsonl` no longer proves any live `pair-*`
 belongs to the current repo; scoped historical rows are enriched and sorted from
 the latest ledger entry so bare continuation has repo/agent/session metadata;
 and live picker selections carry the actual scoped public zellij session name
-through to attach instead of reconstructing legacy `pair-<tag>`. Normalized the
-generated close-review artifact and aligned the durable plan checklist/revision
-log. Verified with targeted launcher regressions, `go test
+through to attach instead of reconstructing legacy `pair-<tag>`. Kept the
+generated close-review artifact out of the branch diff and aligned the durable
+plan checklist/revision log. Verified with targeted launcher regressions, `go test
 ./cmd/internal/launcher -count=1`, `go test ./...`, `git diff --check`, and full
 `make test`.

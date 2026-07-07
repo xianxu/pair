@@ -494,11 +494,13 @@ Reason: the second `sdlc close --issue 107` boundary review returned REWORK. It
 found remaining scoped lifecycle gaps: explicit agent args could still be routed
 through the picker, empty session-name indexes treated every live `pair-*` as
 current scope, scoped historical rows lacked repo/agent metadata for useful
-resume ordering, the generated close-review artifact failed `git diff --check`,
-and the durable plan checkboxes lagged implementation state.
+resume ordering, the generated close-review artifact polluted the review window
+and failed `git diff --check`, and the durable plan checkboxes lagged
+implementation state.
 
 Delta: bypass the picker for explicit `agent -- <args>` creates, require
 session-name index ownership before surfacing live current-scope sessions,
 enrich and sort historical rows from the ledger, preserve scoped live session
-names when the picker attaches, normalize the generated review artifact, and
-align the completed plan checklist before rerunning the close gate.
+names when the picker attaches, keep generated review artifacts out of the
+branch diff, and align the completed plan checklist before rerunning the close
+gate.
