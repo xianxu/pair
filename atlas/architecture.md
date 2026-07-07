@@ -212,6 +212,25 @@ always-present **`zellij/layouts/main.kdl`** (tracked + bundled, unlike the buil
 function they pinned has a tested Go equivalent. So `pair` is now a single Go
 launcher end-to-end; #94 (stop extracting a shell tree) unblocks.
 
+**Alt+Shift+C compaction is writer-owned + draft-preserving (#105, unblocked by
+#104's single binary).** Previously `COMPACT_PROMPT` asked the agent to write a
+continuation *and then* run `pair continue <slug>` — a two-step NL instruction
+whose second step the agent could skip, so the "automatic restart" was
+non-deterministic (the reported "restart stopped working"). Now the `pair
+continuation` writer (`cmd/internal/continuationcmd`) owns the restart: when it
+detects it is running inside its own live pane (pure `InCompactionContext` =
+`PAIR_TAG` + matching `ZELLIJ_SESSION_NAME`, mirroring `compactionDecision`'s
+tag-match), it re-invokes `pair continue <slug>` on `os.Executable()` after a
+successful write+commit — reusing the tested `runCompaction` → reincarnation-loop
+path, with `PAIR_DEV` riding the env so pair/pair-dev config is preserved. The
+prompt is a single step; `--no-restart` opts out (a deliberate manual in-pane
+write). The writer also **folds the draft pane's WIP** into the continuation's
+`## NEXT ACTION` before writing (pure `StripStickyComments` drops the `=== … ===`
+stickies — a Go mirror of nvim's `strip_comments` — then `FoldDraftIntoNextAction`
+inserts it), so parked draft text survives the restart that would otherwise
+overwrite the draft with a seed line. `nvim/init.lua`'s `PairConfirmCompact` saves
+the draft first so the writer reads fresh WIP off disk.
+
 **Restart/quit ported (#94 M1).** The two nvim-keybind marker-writers
 `bin/pair-restart.sh`/`pair-quit.sh` are now in-process Go subcommands —
 `pair restart [--new-session] [--rename-to <tag>]` and `pair quit`

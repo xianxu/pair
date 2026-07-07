@@ -59,11 +59,11 @@ total: 2.68
 
 Implementation follows the durable plan at `workshop/plans/000105-altc-deterministic-restart-draft-fold-plan.md` (7 TDD tasks, single review boundary). Summary:
 
-- [ ] Pure `draft.go`: `StripStickyComments`, `FoldDraftIntoNextAction`, `InCompactionContext` (+ unit tests)
-- [ ] Writer wiring: fold stripped draft into NEXT ACTION when in compaction context (`continuationcmd.go`)
-- [ ] Writer-triggered restart: injected exec-self seam calling `pair continue <slug>` after write (+ `--no-restart`)
-- [ ] nvim: save draft + collapse `COMPACT_PROMPT` to a single step; sync bundle mirror
-- [ ] Verify: `go test ./...`, standalone-write negative check, live `alt+shift+c` smoke
+- [x] Pure `draft.go`: `StripStickyComments`, `FoldDraftIntoNextAction`, `InCompactionContext` (+ unit tests)
+- [x] Writer wiring: fold stripped draft into NEXT ACTION when in compaction context (`continuationcmd.go`)
+- [x] Writer-triggered restart: injected exec-self seam calling `pair continue <slug>` after write (+ `--no-restart`)
+- [x] nvim: save draft + collapse `COMPACT_PROMPT` to a single step; bundle regenerates from source (gitignored, drift-check green)
+- [x] Verify: `go test ./...` green, real-binary standalone smoke, lua/bundle checks (live `alt+shift+c` smoke = documented manual step, see Log)
 
 ## Revisions
 
@@ -78,5 +78,11 @@ The plan-quality judge (non-blocking INFO) surfaced three refinements; folded in
 ## Log
 
 ### 2026-07-06
+
+**Implemented + verified (2026-07-06).** All 7 plan tasks landed on branch `000105-altc-deterministic-restart-draft-fold`. Commits: pure `draft.go` entities (d969e05), writer fold+restart wiring (8351e74), nvim single-step prompt + save-draft (91b26b3 reconciliation; nvim in a later commit). Verification evidence:
+- `go test ./...` — **ALL GREEN** (incl. `continuationcmd` unit + 4 `run()`-level integration tests: fold lands under NEXT ACTION, restart seam called with the slug in compaction context, standalone no-op, `--no-restart` suppresses both).
+- **Real-binary standalone smoke:** built `pair`, ran `pair continuation` in a temp repo with no `PAIR_TAG` → wrote a correct continuation, no fold, no restart, exit 0 (standalone contract preserved).
+- Lua: `luacheck` 0 errors (only expected `vim` global warnings); runtime-bundle drift-check green (source→bundle consistent; bundle is gitignored/generated).
+- **Manual smoke (operator, the one path units can't drive — needs a live zellij pair session):** in a real session, type WIP into the draft, hit `alt+shift+c`, confirm → expect a continuation written under `workshop/continuation/` with the parked WIP (sans `===`) in its NEXT ACTION, and the tag restarts fresh (pair/pair-dev preserved) seeded from the doc, **without** the agent running `pair continue` itself. The composed writer-execs-`pair continue` seam is the only untested link (each half — the writer, and `pair continue`→`runCompaction` — is covered).
 
 Created from ariadne#159 (moved). Traced the full post-#104 flow: binding `zellij/config.kdl` → `PairConfirmCompact`/`COMPACT_PROMPT` (`nvim/init.lua:3324`) → agent → `pair continuation` writer (`cmd/internal/continuationcmd/continuationcmd.go`; assemble/NEXT-ACTION helpers in `continuation.go`) + agent-run `pair continue` → `runCompaction` (`cmd/internal/launcher/compaction.go:54`) → outer relaunch loop + draft re-seed (`createflow.go:63-109`, seed at `227-229`). Root cause of "restart stopped working": restart is agent judgment (COMPACT_PROMPT step 2), not code. Draft-fold rationale: the re-seed overwrites the draft, so parked WIP is lost without the fold. Next: `sdlc start-plan` → durable plan resolving the design fork above → change-code → implement.
