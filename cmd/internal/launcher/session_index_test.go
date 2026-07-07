@@ -84,6 +84,28 @@ func TestAssignSessionNameErrorsWhenNoCandidateFits(t *testing.T) {
 	}
 }
 
+func TestSessionsForScopeFiltersAndAnnotatesIndexedSessions(t *testing.T) {
+	pair := mustScope(t, "/Users/a/work/pair")
+	other := mustScope(t, "/tmp/other/pair")
+	index := SessionNameIndex{Entries: []SessionNameEntry{
+		{SessionName: "pair-pair-work", ScopeKey: pair.Key, RepoRoot: pair.Root, RepoName: pair.DisplayName, Tag: "work"},
+		{SessionName: "pair-pair-work-2", ScopeKey: other.Key, RepoRoot: other.Root, RepoName: other.DisplayName, Tag: "work"},
+	}}
+	sessions := []Session{
+		{Name: "pair-pair-work", State: SessionDetached},
+		{Name: "pair-pair-work-2", State: SessionDetached},
+		{Name: "pair-legacy", State: SessionDetached},
+	}
+
+	got := SessionsForScope(sessions, index, pair)
+	if len(got) != 1 {
+		t.Fatalf("SessionsForScope returned %#v, want one current-scope session", got)
+	}
+	if got[0].Name != "pair-pair-work" || got[0].Tag != "work" || got[0].RepoName != "pair" {
+		t.Fatalf("session = %#v, want annotated current-scope work", got[0])
+	}
+}
+
 func acceptAllSessionNames(string) bool { return true }
 
 func mustScope(t *testing.T, root string) RepoScope {

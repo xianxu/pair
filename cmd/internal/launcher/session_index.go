@@ -130,3 +130,17 @@ func liveOwnedByOther(sessionName string, live []Session, index SessionNameIndex
 	e, ok := index.ownerOf(sessionName)
 	return !ok || e.ScopeKey != scopeKey || e.Tag != tag
 }
+
+func SessionsForScope(sessions []Session, index SessionNameIndex, scope RepoScope) []Session {
+	var out []Session
+	for _, session := range sessions {
+		entry, ok := index.ownerOf(session.Name)
+		if !ok || entry.ScopeKey != scope.Key {
+			continue
+		}
+		session.Tag = entry.Tag
+		session.RepoName = entry.RepoName
+		out = append(out, session)
+	}
+	return out
+}
