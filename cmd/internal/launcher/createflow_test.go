@@ -405,6 +405,27 @@ func TestRunLaunchPromptCreate(t *testing.T) {
 	}
 }
 
+func TestRunLaunchBareIgnoresOtherRepoIndexedSessions(t *testing.T) {
+	rt := newFakeRuntime()
+	otherScope := mustScope(t, "/other/work")
+	rt.sessions = []Session{{Name: "pair-work-work", State: SessionDetached}}
+	rt.sessionIndex = SessionNameIndex{Entries: []SessionNameEntry{{
+		SessionName: "pair-work-work",
+		ScopeKey:    otherScope.Key,
+		RepoRoot:    otherScope.Root,
+		RepoName:    otherScope.DisplayName,
+		Tag:         "work",
+	}}}
+	opts := baseOpts(LaunchArgs{Agent: "codex"})
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.launched != "pair-work-work-2" {
+		t.Fatalf("launched = %q, want current repo disambiguated from indexed other repo", rt.launched)
+	}
+}
+
 // Aborting the name prompt exits 0 (handled) without launching.
 func TestRunLaunchPromptAbort(t *testing.T) {
 	rt := newFakeRuntime()

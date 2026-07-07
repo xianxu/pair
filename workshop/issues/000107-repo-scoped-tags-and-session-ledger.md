@@ -299,3 +299,9 @@ dir as `<global>/repos/<scope-key>` while `OSRuntime` keeps a separate global
 data dir for `session-names.jsonl`. This lets launch sidecars move under the
 repo scope without splitting the global public-name registry. Verified with
 `GOCACHE=/private/tmp/pair-go-cache go test ./cmd/internal/launcher`.
+
+Filtered launch decision snapshots through the session-name index when indexed
+ownership exists: a detached session owned by another repo no longer forces the
+current repo into the picker, while session-name assignment still sees all live
+names for global zellij disambiguation. Verified with
+`GOCACHE=/private/tmp/pair-go-cache go test ./cmd/internal/launcher`.

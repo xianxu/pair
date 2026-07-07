@@ -143,11 +143,11 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 		fmt.Fprintf(stderr, "pair: failed to scan session history: %v\n", err)
 		return launchStep{code: 1}, nil
 	}
-	sessionNames, sessionNameEntries, ok := assignLaunchSessionNames(rt, sessions, env.Cwd, opts.Args, base, stderr)
+	scopedSessions, sessionNames, sessionNameEntries, ok := assignLaunchSessionNames(rt, sessions, env.Cwd, opts.Args, base, stderr)
 	if !ok {
 		return launchStep{code: 1}, nil
 	}
-	snap := SessionSnapshot{BaseTag: base, Sessions: sessions, Historical: historical, SessionNames: sessionNames}
+	snap := SessionSnapshot{BaseTag: base, Sessions: scopedSessions, Historical: historical, SessionNames: sessionNames}
 	decision, err := DecideLaunch(opts.Args, snap)
 	if err != nil {
 		fmt.Fprintf(stderr, "pair: %v\n", err)
@@ -205,18 +205,22 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 	}
 }
 
-func assignLaunchSessionNames(rt Runtime, live []Session, cwd string, args LaunchArgs, base string, stderr io.Writer) (map[string]string, map[string]SessionNameEntry, bool) {
+func assignLaunchSessionNames(rt Runtime, live []Session, cwd string, args LaunchArgs, base string, stderr io.Writer) ([]Session, map[string]string, map[string]SessionNameEntry, bool) {
 	scope, err := ResolveRepoScope(cwd)
 	if err != nil {
-		return nil, nil, true
+		return live, nil, nil, true
 	}
 	index, err := rt.ReadSessionNameIndex()
 	if err != nil {
 		index = SessionNameIndex{}
 	}
+	scopedLive := live
+	if len(index.Entries) > 0 {
+		scopedLive = SessionsForScope(live, index, scope)
+	}
 	tags := launchNameTags(args, base)
 	if len(tags) == 0 {
-		return nil, nil, true
+		return scopedLive, nil, nil, true
 	}
 	names := map[string]string{}
 	newEntries := map[string]SessionNameEntry{}
@@ -229,7 +233,7 @@ func assignLaunchSessionNames(rt Runtime, live []Session, cwd string, args Launc
 		})
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
-			return nil, nil, false
+			return nil, nil, nil, false
 		}
 		if len(updated.Entries) > len(index.Entries) {
 			entry := updated.Entries[len(updated.Entries)-1]
@@ -238,7 +242,7 @@ func assignLaunchSessionNames(rt Runtime, live []Session, cwd string, args Launc
 		index = updated
 		names[tag] = name
 	}
-	return names, newEntries, true
+	return scopedLive, names, newEntries, true
 }
 
 func launchNameTags(args LaunchArgs, base string) []string {
