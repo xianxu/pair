@@ -1,5 +1,5 @@
 #!/bin/sh
-# End-to-end smoke test for bin/pair-changelog-open (#53/#58).
+# End-to-end smoke test for bin/pair changelog open (#53/#58).
 #
 # The orchestrator launches render+distill as a DETACHED background process
 # (survives the viewer closing) and opens nvim as a watcher. This test fakes the
@@ -47,7 +47,7 @@ EOF
 chmod +x "$fakebin/claude" "$fakebin/nvim"
 export PATH="$fakebin:$PATH"
 
-"$PAIR_HOME/bin/pair-changelog-open"
+"$PAIR_HOME/bin/pair" changelog open
 
 # Wait for the detached distiller (its PID is in distill.lock) to finish.
 DLOCK="$PAIR_DATA_DIR/changelog-t-claude.distill.lock"

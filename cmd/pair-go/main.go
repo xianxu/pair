@@ -84,7 +84,7 @@ func runStreamingSubcommand(name string, rest []string, stdin io.Reader, stdout,
 		return wrapcmd.Run(rest, stdin, stdout, stderr)
 	case "scribe":
 		return scribecmd.Run(rest, stdin, stdout, stderr)
-	case "changelog render", "changelog":
+	case "changelog render":
 		return changelogcmd.Run(rest, stderr)
 	case "continuation":
 		return continuationcmd.Run(rest, stdin, stdout, stderr, time.Now)

@@ -67,9 +67,6 @@ func Families() []CommandFamily {
 		{Name: "clip copy-on-select", Summary: "copy selection to the clipboard", Status: "implemented", Streaming: true},
 		{Name: "clip clipboard-to-pane", Summary: "paste the clipboard into a pane", Status: "implemented"},
 		{Name: "clip flash-pane", Summary: "flash a pane border", Status: "implemented"},
-		// transitional flat aliases — removed in #104 M3 once callers migrate.
-		{Name: "scrollback-render", Summary: "alias of `scrollback render`", Status: "implemented", Alias: true},
-		{Name: "changelog", Summary: "alias of `changelog render`", Status: "implemented", Streaming: true, Alias: true},
 	}
 }
 
@@ -170,7 +167,7 @@ func Dispatch(args []string) Result {
 		return dispatchContext(rest)
 	case "slug":
 		return dispatchSlug(rest)
-	case "scrollback render", "scrollback-render":
+	case "scrollback render":
 		return dispatchScrollbackRender(rest)
 	case "scrollback open":
 		return bufferedStderr(func(stderr *bytes.Buffer) int { return opener.RunScrollbackCLI(rest, os.Getenv, stderr) })

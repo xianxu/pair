@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tests/review-window-test.sh — the M3 review pane wiring (#66 Task 1):
 #   1. :PairReview exists in the draft init with complete=file
-#   2. pair-review-open validates + spawns `zellij run --floating ... nvim -u review.lua`
+#   2. pair review open validates + spawns `zellij run --floating ... nvim -u review.lua`
 #   3. nvim/review.lua, on a real doc, starts the review (Alt+Return map),
 #      writes the open-state file, renders 🤖 markers, and wires Alt+a/r/q.
 # Live zellij pane behaviour is manual smoke; here zellij/tput/docflow are stubbed.
@@ -44,14 +44,14 @@ LUA
     run_headless --timeout 30 -- nvim --headless -u "$ROOT/nvim/init.lua" "$RT/draft.md" -c "luafile $RT/cmd.lua" -c 'qa!' )
 grep -q 'cmd ok' "$RT/r1" && pass ":PairReview exists with complete=file" || fail ":PairReview command/completion"
 
-# ── 2. pair-review-open ───────────────────────────────────────────────────────
-if PATH="$RT/bin:$PATH" PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_HOME="$ROOT" "$ROOT/bin/pair-review-open" "$RT/nope.md" 2>/dev/null; then
-  fail "pair-review-open should error on a missing file"
+# ── 2. pair review open ───────────────────────────────────────────────────────
+if PATH="$RT/bin:$PATH" PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_HOME="$ROOT" "$ROOT/bin/pair" review open "$RT/nope.md" 2>/dev/null; then
+  fail "pair review open should error on a missing file"
 else
-  pass "pair-review-open errors on a missing file"
+  pass "pair review open errors on a missing file"
 fi
 echo hi > "$RT/doc.md"; : > "$RT/zlog"
-PATH="$RT/bin:$PATH" PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_HOME="$ROOT" "$ROOT/bin/pair-review-open" "$RT/doc.md" || true
+PATH="$RT/bin:$PATH" PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_HOME="$ROOT" "$ROOT/bin/pair" review open "$RT/doc.md" || true
 z="$(cat "$RT/zlog")"
 case "$z" in *"run --floating"*) pass "spawns a floating pane";; *) fail "no floating run ($z)";; esac
 case "$z" in *"nvim -u $ROOT/nvim/review.lua"*) pass "launches nvim -u nvim/review.lua";; *) fail "no review.lua launch ($z)";; esac

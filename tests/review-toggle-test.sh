@@ -98,7 +98,7 @@ local prepbin = vim.env.PAIR_DATA_DIR .. '/prep-ok'
 vim.fn.writefile({
   '#!/usr/bin/env bash',
   'set -eu',
-  '"' .. vim.env.PAIR_HOME .. '/bin/pair-review-target" "$2" ready >/dev/null',
+  '"' .. vim.env.PAIR_HOME .. '/bin/pair" review target "$2" ready >/dev/null',
   'printf "%s\\n" "review prepared: $2 on review/draft. Reply \\"ready\\"."',
 }, prepbin)
 vim.fn.system({ 'chmod', '+x', prepbin })
@@ -177,7 +177,7 @@ d = new_since(n)
 OUT:write((not has(d, 'run --floating') and not has(d, 'hide-floating-panes')
   and not has(d, 'show-floating-panes')) and 'prompt ok\n' or 'prompt FAIL\n')
 
--- no live pane, target READY → open the pane (pair-review-open → zellij run)
+-- no live pane, target READY → open the pane (pair review open → zellij run)
 R.write_target(draft, 'ready')
 n = #read_zlog(); _G.PairReviewToggle()
 d = new_since(n)
@@ -224,7 +224,7 @@ grep -q 'pure-show ok'    "$RESULT" && pass "pure: alive+hidden → show"       
 grep -q '^hide ok$'       "$RESULT" && pass "live+visible → hide-floating-panes" || fail "hide branch"
 grep -q '^show ok$'       "$RESULT" && pass "live+hidden → show-floating-panes" || fail "show branch"
 grep -q '^prompt ok$'     "$RESULT" && pass "no target → :PairReview prompt (no open/show/hide)" || fail "prompt branch"
-grep -q '^targetopen ok$' "$RESULT" && pass "target ready → opens the pane (pair-review-open)" || fail "open branch"
+grep -q '^targetopen ok$' "$RESULT" && pass "target ready → opens the pane (pair review open)" || fail "open branch"
 grep -q '^wait ok$'       "$RESULT" && pass "target proposed → wait (no open)" || fail "wait branch"
 grep -q '^footgun ok$'    "$RESULT" && pass "never toggle-floating-panes" || fail "footgun (toggle-floating-panes used)"
 

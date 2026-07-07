@@ -6,15 +6,16 @@ tmp="$(mktemp -d "${TMPDIR:-/tmp}/pair-embedded-runtime.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
 bin_dir="$tmp/bin"
+pairbin="$tmp/pairbin"   # pair lives APART from the stub tools (see the launch below)
 home="$tmp/home"
 xdg="$tmp/xdg"
 pair_data="$tmp/custom-data"
-mkdir -p "$bin_dir" "$home" "$xdg" "$pair_data"
+mkdir -p "$bin_dir" "$pairbin" "$home" "$xdg" "$pair_data"
 gomodcache="$(go env GOMODCACHE)"
 gocache="$(go env GOCACHE)"
 
 make -C "$repo_root" runtimebundle-generate >/dev/null
-go build -o "$bin_dir/pair" "$repo_root/cmd/pair-go"
+go build -o "$pairbin/pair" "$repo_root/cmd/pair-go"
 
 cat >"$bin_dir/zellij" <<'SH'
 #!/usr/bin/env bash
@@ -41,23 +42,23 @@ case "$*" in
     case "$config" in */custom-data/runtime/*/pair-home/zellij) ;; *) printf 'bad config path: %s\n' "$config" >&2; exit 11 ;; esac
     case "$layout" in */custom-data/runtime/*/pair-home/zellij/layouts/main.kdl) ;; *) printf 'bad layout path: %s\n' "$layout" >&2; exit 12 ;; esac
     root="${config%/zellij}"
-    test -x "$root/bin/pair-wrap"
-    # #94 M2: the launcher spawns the Go binaries directly; the .sh shims are gone.
-    test -x "$root/bin/pair-session-watch"
-    test -x "$root/bin/pair-title"
-    test ! -e "$root/bin/pair-session-watch.sh"
-    test ! -e "$root/bin/pair-title.sh"
-    test ! -e "$root/bin/copy-on-select.sh"
-    test ! -e "$root/bin/flash-pane.sh"
-    test ! -e "$root/bin/clipboard-to-pane.sh"
+    # #104 M3: the bundle carries config + shell shims ONLY — NO helper binaries
+    # (every former helper is a `pair <sub>`). The shims are still bundled.
+    test -x "$root/bin/pair-help"
+    test -x "$root/bin/pair-notify"
+    test ! -e "$root/bin/pair-wrap"
+    test ! -e "$root/bin/pair-session-watch"
+    test ! -e "$root/bin/pair-title"
+    test ! -e "$root/bin/copy-on-select"
+    test ! -e "$root/bin/pair-scrollback-render"
+    test ! -e "$root/bin/pair"   # pair is never self-embedded
     test -f "$root/nvim/init.lua"
-    # #95: the launcher must have prepended $root/bin to PATH, so a bundled helper
-    # resolves by BARE NAME here (zellij execs pair-wrap/copy-on-select by bare
-    # name). This stub's own PATH does NOT include $root/bin — only the launcher's
-    # #95 prepend puts it there, so this is the regression guard for the dropped
-    # PATH prepend (#99 M5c).
-    command -v copy-on-select >/dev/null || { echo "copy-on-select not on PATH (launcher #95 PATH prepend missing)" >&2; exit 21; }
-    command -v pair-wrap      >/dev/null || { echo "pair-wrap not on PATH" >&2; exit 22; }
+    # #104 M3: the launcher fronts the RUNNING pair's dir (dir os.Executable) on
+    # PATH, so `pair` — and thus every `pair <sub>` — resolves inside the session
+    # even though pair lives OUTSIDE this stub's PATH ($pairbin, not on PATH; see
+    # the launch below). This is the regression guard for the "pair-on-PATH"
+    # mechanism (no bundled helper binaries to resolve anymore).
+    command -v pair >/dev/null || { echo "pair not on PATH (launcher pair-on-PATH prepend missing)" >&2; exit 21; }
     printf '%s\n' "$root" > "${PAIR_SMOKE_ROOT:?}"
     exit 0
     ;;
@@ -100,7 +101,7 @@ export ZELLIJ_LOG="$tmp/zellij.log"
 export PAIR_SMOKE_ROOT="$tmp/root"
 unset PAIR_DEV PAIR_HOME PAIR_TAG PAIR_AGENT PAIR_AGENT_ARGS ZELLIJ_SESSION_NAME ZELLIJ ZELLIJ_PANE_ID
 
-help_out="$("$bin_dir/pair" --help)"
+help_out="$("$pairbin/pair" --help)"
 case "$help_out" in
   pair\ —*) ;;
   *)
@@ -122,11 +123,12 @@ touch -t 202001010000 "$pair_data/runtime/$old_a"
 touch -t 202001020000 "$pair_data/runtime/$old_b"
 touch -t 202001030000 "$pair_data/runtime/$old_c"
 
-# Launch with a PATH containing ONLY the stub tools + system dirs (NOT the repo's
-# bin/), so the bare-name helper resolution asserted inside the stub zellij proves
-# the launcher's #95 PATH prepend — not a dev shell that already has repo/bin on
-# PATH. Without the #95 prepend, copy-on-select/pair-wrap won't resolve → exit 21.
-PATH="$bin_dir:/usr/bin:/bin" "$bin_dir/pair" resume smoke >/dev/null
+# Launch with a PATH containing ONLY the stub tools + system dirs — crucially NOT
+# $pairbin (where the pair binary lives). pair is invoked by absolute path, so it
+# runs; the `command -v pair` check inside the stub zellij then proves the
+# launcher fronted $pairbin (dir os.Executable) on the session PATH. Without that
+# #104-M3 prepend, `pair` wouldn't resolve inside → exit 21.
+PATH="$bin_dir:/usr/bin:/bin" "$pairbin/pair" resume smoke >/dev/null
 
 test -s "$PAIR_SMOKE_ROOT"
 root="$(cat "$PAIR_SMOKE_ROOT")"

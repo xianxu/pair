@@ -1,5 +1,5 @@
 #!/bin/sh
-# End-to-end smoke for bin/pair-scrollback-open (#93 M2, the Go port of the
+# End-to-end smoke for bin/pair scrollback open (#93 M2, the Go port of the
 # floating-pane Alt+/ launcher). Fakes the captured PTY scrollback and nvim, runs
 # the launcher, and asserts it rendered the .ansi and opened the viewer on it.
 # No zellij on PATH ⇒ the viewport overlay is skipped gracefully (best-effort).
@@ -8,7 +8,7 @@ set -eu
 PAIR_HOME=$(cd "$(dirname "$0")/.." && pwd)
 export PAIR_HOME
 
-if [ ! -x "$PAIR_HOME/bin/pair-scrollback-open" ]; then
+if [ ! -x "$PAIR_HOME/bin/pair" ]; then
     echo "SKIP scrollback-open-test: build the binaries first (make build)"
     exit 0
 fi
@@ -40,7 +40,7 @@ EOF
 chmod +x "$fakebin/nvim"
 export PATH="$fakebin:$PATH"
 
-"$PAIR_HOME/bin/pair-scrollback-open"
+"$PAIR_HOME/bin/pair" scrollback open
 
 ANSI="$PAIR_DATA_DIR/scrollback-t-claude.ansi"
 fail=0

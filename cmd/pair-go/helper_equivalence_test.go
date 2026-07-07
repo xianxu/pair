@@ -9,45 +9,42 @@ import (
 	"testing"
 )
 
-func TestPairGoContextMatchesLegacyPairContext(t *testing.T) {
+// Binary-level route smokes (#104 M3: the standalone helpers are gone, so these
+// assert the built `pair` binary's subcommand routes reach their runners rather
+// than comparing against a deleted standalone — the in-process routing is
+// covered by dispatcher_test.go).
+
+func TestPairGoContextRouteReachesRunner(t *testing.T) {
 	bin := t.TempDir()
-	pairContext := filepath.Join(bin, "pair-context")
 	pairGo := filepath.Join(bin, "pair-go")
-	buildCommand(t, pairContext, "../pair-context")
 	buildCommand(t, pairGo, ".")
 
 	home, data := writeContextFixture(t)
 	env := append(os.Environ(), "HOME="+home, "PAIR_DATA_DIR="+data)
 
-	legacy := runCommand(t, env, pairContext, "T", "claude")
-	dispatch := runCommand(t, env, pairGo, "context", "T", "claude")
-	if dispatch.code != legacy.code || dispatch.stdout != legacy.stdout || dispatch.stderr != legacy.stderr {
-		t.Fatalf("pair-go context mismatch\nlegacy:   code=%d stdout=%q stderr=%q\ndispatch: code=%d stdout=%q stderr=%q",
-			legacy.code, legacy.stdout, legacy.stderr,
-			dispatch.code, dispatch.stdout, dispatch.stderr)
+	r := runCommand(t, env, pairGo, "context", "T", "claude")
+	if r.code != 0 {
+		t.Fatalf("pair context route exit = %d, want 0\nstderr=%q", r.code, r.stderr)
+	}
+	if strings.TrimSpace(r.stdout) != "398k" {
+		t.Fatalf("pair context route stdout = %q, want 398k", r.stdout)
 	}
 }
 
-func TestPairGoSlugMatchesLegacyPairSlug(t *testing.T) {
+func TestPairGoSlugRouteReachesRunner(t *testing.T) {
 	bin := t.TempDir()
-	pairSlug := filepath.Join(bin, "pair-slug")
 	pairGo := filepath.Join(bin, "pair-go")
-	buildCommand(t, pairSlug, "../pair-slug")
 	buildCommand(t, pairGo, ".")
 
-	// Empty data dir → no config → both resolve no session_id and no-op (exit 0,
-	// no output, no slug-proposed). Both entry points call the identical
-	// slugcmd.Run(), so the `pair slug` route and the pair-slug shim must agree.
+	// Empty data dir → no config → slugcmd.Run resolves no session_id and no-ops
+	// (exit 0, no output, no slug-proposed file).
 	data := t.TempDir()
 	env := append(os.Environ(),
 		"PAIR_TAG=T", "PAIR_DATA_DIR="+data, "PAIR_AGENT=claude", "PAIR_SLUG_NESTED=")
 
-	legacy := runCommand(t, env, pairSlug)
-	dispatch := runCommand(t, env, pairGo, "slug")
-	if dispatch.code != legacy.code || dispatch.stdout != legacy.stdout || dispatch.stderr != legacy.stderr {
-		t.Fatalf("pair-go slug mismatch\nlegacy:   code=%d stdout=%q stderr=%q\ndispatch: code=%d stdout=%q stderr=%q",
-			legacy.code, legacy.stdout, legacy.stderr,
-			dispatch.code, dispatch.stdout, dispatch.stderr)
+	r := runCommand(t, env, pairGo, "slug")
+	if r.code != 0 || r.stdout != "" || r.stderr != "" {
+		t.Fatalf("pair slug route: code=%d stdout=%q stderr=%q, want 0/empty/empty", r.code, r.stdout, r.stderr)
 	}
 	if _, err := os.Stat(filepath.Join(data, "slug-proposed-T")); !os.IsNotExist(err) {
 		t.Fatalf("no-session slug must not write a proposal")

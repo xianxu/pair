@@ -13,7 +13,7 @@ func TestDispatchNamesDeriveFromImplementedStatus(t *testing.T) {
 	// keys off DispatchNames(), so if one of these were accidentally left
 	// `planned`, `pair changelog` would fall through to the launcher (start a
 	// session) with no other test catching it.
-	for _, want := range []string{"context", "scrollback-render", "wrap", "slug", "changelog", "continuation", "session-watch", "scribe"} {
+	for _, want := range []string{"context", "scrollback", "wrap", "slug", "changelog", "continuation", "session-watch", "scribe", "review", "clip", "title"} {
 		if !containsStr(names, want) {
 			t.Fatalf("DispatchNames() = %v, missing implemented %q", names, want)
 		}
@@ -28,12 +28,12 @@ func TestDispatchNamesDeriveFromImplementedStatus(t *testing.T) {
 }
 
 func TestStreamingFlags(t *testing.T) {
-	for _, s := range []string{"wrap", "scribe", "changelog", "continuation", "session-watch"} {
+	for _, s := range []string{"wrap", "scribe", "changelog render", "continuation", "session-watch", "title", "clip copy-on-select"} {
 		if !IsStreaming(s) {
 			t.Errorf("IsStreaming(%q) = false, want true (stdin/live-stderr/long-running)", s)
 		}
 	}
-	for _, b := range []string{"slug", "context", "scrollback-render"} {
+	for _, b := range []string{"slug", "context", "scrollback render", "scrollback open", "clip flash-pane"} {
 		if IsStreaming(b) {
 			t.Errorf("IsStreaming(%q) = true, want false (buffered)", b)
 		}
@@ -51,9 +51,9 @@ func TestResolveNestedFlatAndAlias(t *testing.T) {
 		{[]string{"scrollback", "render"}, "scrollback render", []string{}, true},
 		{[]string{"clip", "copy-on-select", "--orchestrate"}, "clip copy-on-select", []string{"--orchestrate"}, true},
 		{[]string{"context", "T", "claude"}, "context", []string{"T", "claude"}, true},
-		{[]string{"scrollback-render"}, "scrollback-render", []string{}, true}, // transitional alias
-		{[]string{"changelog"}, "changelog", []string{}, true},                 // transitional alias
-		{[]string{"review"}, "", nil, false},                                   // group token alone is not a family
+		{[]string{"scrollback-render"}, "", nil, false}, // the M2 transitional alias is gone (#104 M3)
+		{[]string{"changelog"}, "", nil, false},         // bare group token is not a family
+		{[]string{"review"}, "", nil, false},            // group token alone is not a family
 		{[]string{"frobnicate"}, "", nil, false},
 	}
 	for _, c := range cases {
@@ -215,7 +215,7 @@ func TestDispatchContextReturnsHelperOutput(t *testing.T) {
 }
 
 func TestDispatchScrollbackRenderUsage(t *testing.T) {
-	res := Dispatch([]string{"scrollback-render"})
+	res := Dispatch([]string{"scrollback", "render"})
 	if res.ExitCode != 2 {
 		t.Fatalf("ExitCode = %d, want 2", res.ExitCode)
 	}

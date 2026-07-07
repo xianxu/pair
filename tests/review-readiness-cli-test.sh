@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/review-readiness-cli-test.sh — pair-review-readiness JSON shell seam.
+# tests/review-readiness-cli-test.sh — pair review readiness JSON shell seam.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 RT="$(mktemp -d "${TMPDIR:-/tmp}/pair-readiness-cli-test.XXXXXX")"
@@ -19,7 +19,7 @@ REPO="$RT/repo"; mkdir -p "$REPO"
   git checkout -q -b 'review/a"b'
 )
 
-out="$(PAIR_HOME="$ROOT" "$ROOT/bin/pair-review-readiness" "$REPO/doc \"quoted\".md")"
+out="$(PAIR_HOME="$ROOT" "$ROOT/bin/pair" review readiness "$REPO/doc \"quoted\".md")"
 if printf '%s\n' "$out" | jq -e '.case and .branch and .scoped_file' >/dev/null; then
   pass "emits valid JSON with quoted branch/path fields"
 else
@@ -36,7 +36,7 @@ PREP="$RT/prep"; mkdir -p "$PREP"
   git commit -q -m init
 )
 prep_out="$(PAIR_HOME="$ROOT" PAIR_DATA_DIR="$RT" PAIR_TAG=prep PAIR_SESSION_ID=sid \
-  "$ROOT/bin/pair-review-readiness" --prepare "$PREP/doc.md" 2>&1 || true)"
+  "$ROOT/bin/pair" review readiness --prepare "$PREP/doc.md" 2>&1 || true)"
 prep_branch="$(cd "$PREP" && git branch --show-current)"
 prep_abs="$(cd "$PREP" && pwd -P)/doc.md"
 target=""

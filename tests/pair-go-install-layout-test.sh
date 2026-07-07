@@ -18,8 +18,12 @@ HOME="$tmp_home" GOMODCACHE="$gomodcache" GOCACHE="$gocache" make -C "$repo_root
 
 test -x "$install_bin/pair"
 test ! -L "$install_bin/pair"
-test -x "$install_bin/pair-go"
 test -L "$install_bin/pair-dev"
+# #104 M3: the single binary — no separate pair-go; the only busybox symlink is
+# pair-slug (external Stop hook), pointing at pair.
+test ! -e "$install_bin/pair-go"
+test -L "$install_bin/pair-slug"
+test "$(readlink "$install_bin/pair-slug")" = pair
 
 out="$("$install_bin/pair" --help)"
 case "$out" in
@@ -30,14 +34,9 @@ case "$out" in
         ;;
 esac
 
-out="$("$install_bin/pair-go" launch --help)"
-case "$out" in
-    pair\ —*) ;;
-    *)
-        printf 'pair-go launch --help did not reach pair help; first bytes:\n%s\n' "$out" >&2
-        exit 1
-        ;;
-esac
+# The pair-slug busybox symlink routes to `pair slug` (env-less → tolerant no-op,
+# exit 0) — proves argv[0] dispatch resolves the external Stop-hook name.
+PAIR_TAG="" PAIR_DATA_DIR="" "$install_bin/pair-slug"
 
 out="$(PAIR_HOME="$repo_root" "$install_bin/pair" --help)"
 case "$out" in
