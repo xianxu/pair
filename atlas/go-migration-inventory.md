@@ -341,6 +341,32 @@ Build/install callers:
   callers and M3 collapses `GO_BINS := pair`, stops bundling helper binaries, and
   folds in `pair-scribe` (`~/.zshrc` → `exec pair scribe`).
 
+- **#104 M2 (rewrite every owned caller to `pair <sub>`)** repointed all in-repo
+  call sites from the standalone helper names to the single `pair` binary,
+  family-by-family (helpers stay built so each commit is green):
+  - launcher `SpawnTitlePoller`/`SpawnSessionWatcher` self-exec `pair title` /
+    `pair session-watch` via `selfPairExe` (os.Executable, works in the copied
+    layout where `$PAIR_HOME/bin` holds no `pair`). The title poller's
+    single-instance guard `pollerArgvMatches` now matches `"pair title <tag> "`
+    (co-located — the self-exec changed the process argv).
+  - `cmd/internal/clipcmd` orchestrator self-execs `pair clip copy-on-select` /
+    `pair clip flash-pane` / `pair clip clipboard-to-pane` (SelfExe =
+    `dir(os.Executable())/pair`, the pair sibling).
+  - the changelog distiller (`opener.distillerInner`) calls
+    `$PCL_BIN scrollback render` / `$PCL_BIN changelog render` — the last caller
+    of the transitional flat aliases, which M3 removes.
+  - `nvim/init.lua`: `pair review readiness --prepare` / `pair review open` /
+    `zellij run -- pair scrollback open` (the `PAIR_REVIEW_READINESS_BIN` test
+    seam still takes the readiness CLI directly).
+  - `zellij/config.kdl`: `copy_command "pair clip copy-on-select"`, and Alt+/ /
+    Alt+l `Run "pair" "scrollback|changelog" "open"` (verified two-token form
+    against zellij 0.44.3 — `copy_command`/`Run` whitespace-split, no shell);
+    `zellij/layouts/main.kdl` agent pane `exec pair wrap …`.
+  The `.claude/settings*.json` `bin/pair-wrap`/`bin/pair-continuation` allowlist
+  entries are historical exact-match permission grants (not runtime callers) and
+  are left as-is. Standalone helper binaries still build in M2; M3 deletes them,
+  collapses `GO_BINS := pair`, and stops bundling helper binaries.
+
 ## Coverage Ledger
 
 The logical rows above group files where a per-file migration row would add
