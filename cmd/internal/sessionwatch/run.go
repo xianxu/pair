@@ -122,9 +122,6 @@ func Run(opts Options, rt Runtime) error {
 			if err != nil {
 				return err
 			}
-			if err := rt.AtomicWrite(out, payload); err != nil {
-				return err
-			}
 			if err := appendSessionLedger(rt, filepath.Join(opts.DataDir, "ledger-"+opts.Tag+".jsonl"), sessionLedgerEntry{
 				Agent:      opts.Agent,
 				Args:       StripResumeArgs(opts.Agent, opts.Args),
@@ -134,6 +131,9 @@ func Run(opts Options, rt Runtime) error {
 				RepoRoot:   repoRoot,
 				RepoName:   repoName,
 			}); err != nil {
+				return err
+			}
+			if err := rt.AtomicWrite(out, payload); err != nil {
 				return err
 			}
 			rt.Log(adapt.Fired, "session_id="+result.ID)

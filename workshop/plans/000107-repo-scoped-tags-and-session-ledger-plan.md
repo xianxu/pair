@@ -586,3 +586,16 @@ allocator after the prompt, even when the accepted value equals the proposed
 next-free tag; add regressions for explicit agent+args and picker `+ new` default
 acceptance. Track JSONL append/locking as follow-up durability work rather than
 part of this close blocker.
+
+### 2026-07-07 — eighth close-review REWORK follow-up
+
+Reason: the eighth `sdlc close --issue 107` boundary review returned REWORK. It
+found that `pair rename` did not move `ledger-<tag>.jsonl`, history did not
+discover ledger-only tags, and sessionwatch wrote the derived config cache before
+the source-of-truth ledger row. Those left ledger consumers outside the issue's
+source-of-truth model.
+
+Delta: add `ledger-<tag>.jsonl` to rename's exact-name sidecar enumeration,
+include scoped `ledger-*.jsonl` files as history/tag sources using ledger
+`last_active` for row time, append sessionwatch ledger rows before config cache
+writes, and add focused regressions for all three paths.

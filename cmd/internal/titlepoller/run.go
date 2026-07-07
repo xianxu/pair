@@ -56,7 +56,7 @@ type Runtime interface {
 	TranscriptPath(tag, agent string) string
 }
 
-// Run drives the poller until the pair-<tag> session disappears (or a startup
+// Run drives the poller until the Pair session disappears (or a startup
 // race is lost). Returns a process exit code (always 0 — like the shell poller,
 // it exits cleanly on session-gone and never surfaces an error).
 func Run(opts Options, rt Runtime) int {

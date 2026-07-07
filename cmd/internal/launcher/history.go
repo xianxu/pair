@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// HistorySource scans Pair draft/log sidecars under the data directory.
+// HistorySource scans Pair draft/log/ledger sidecars under the data directory.
 type HistorySource struct {
 	DataDir       string
 	LegacyDataDir string
@@ -16,7 +16,7 @@ type HistorySource struct {
 
 func (s HistorySource) Scan(base string, cutoff time.Time) ([]HistoricalTag, error) {
 	latest := map[string]time.Time{}
-	for _, pattern := range []string{"draft-*.md", "log-*.md"} {
+	for _, pattern := range []string{"draft-*.md", "log-*.md", "ledger-*.jsonl"} {
 		matches, err := filepath.Glob(filepath.Join(s.DataDir, pattern))
 		if err != nil {
 			return nil, err
@@ -30,11 +30,17 @@ func (s HistorySource) Scan(base string, cutoff time.Time) ([]HistoricalTag, err
 			if err != nil {
 				continue
 			}
-			if info.ModTime().Before(cutoff) {
+			mtime := info.ModTime()
+			if strings.HasPrefix(filepath.Base(path), "ledger-") {
+				if entry, ok := s.latestLedgerEntry(tag); ok && !entry.LastActive.IsZero() {
+					mtime = entry.LastActive
+				}
+			}
+			if mtime.Before(cutoff) {
 				continue
 			}
-			if info.ModTime().After(latest[tag]) {
-				latest[tag] = info.ModTime()
+			if mtime.After(latest[tag]) {
+				latest[tag] = mtime
 			}
 		}
 	}
@@ -127,6 +133,8 @@ func tagFromSidecar(name string) (string, bool) {
 		return strings.TrimSuffix(strings.TrimPrefix(name, "draft-"), ".md"), true
 	case strings.HasPrefix(name, "log-") && strings.HasSuffix(name, ".md"):
 		return strings.TrimSuffix(strings.TrimPrefix(name, "log-"), ".md"), true
+	case strings.HasPrefix(name, "ledger-") && strings.HasSuffix(name, ".jsonl"):
+		return strings.TrimSuffix(strings.TrimPrefix(name, "ledger-"), ".jsonl"), true
 	default:
 		return "", false
 	}

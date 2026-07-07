@@ -35,6 +35,7 @@ func renamePathsFor(tag, dataDir string) []string {
 		filepath.Join(dataDir, "image-capture-"+tag+".done"),
 		filepath.Join(dataDir, "draft-"+tag+".md"),
 		filepath.Join(dataDir, "log-"+tag+".md"),
+		filepath.Join(dataDir, "ledger-"+tag+".jsonl"),
 		filepath.Join(dataDir, "nvim-pid-"+tag+"-draft"),
 		filepath.Join(dataDir, "nvim-pid-"+tag+"-scrollback"),
 	)

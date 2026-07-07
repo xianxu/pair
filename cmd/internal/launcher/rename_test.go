@@ -31,6 +31,10 @@ func TestRenamePathsForZip(t *testing.T) {
 	if i < 0 || nw[i] != "/d/config-mind-claude.json" {
 		t.Fatalf("config zip: new=%q", nw[i])
 	}
+	i = find(old, "/d/ledger-brain.jsonl")
+	if i < 0 || nw[i] != "/d/ledger-mind.jsonl" {
+		t.Fatalf("ledger zip: new=%q", nw[i])
+	}
 	i = find(old, "/d/scrollback-brain-codex.events.jsonl")
 	if i < 0 || nw[i] != "/d/scrollback-mind-codex.events.jsonl" {
 		t.Fatalf("scrollback events zip: new=%q", nw[i])
@@ -105,6 +109,7 @@ func renameFake(t *testing.T) *fakeRuntime {
 	rt.files["/data"] = "" // the data dir exists
 	rt.files["/data/draft-old.md"] = "draft"
 	rt.files["/data/config-old-claude.json"] = "cfg"
+	rt.files["/data/ledger-old.jsonl"] = "ledger\n"
 	return rt
 }
 
@@ -123,6 +128,12 @@ func TestRunRenameHappyPath(t *testing.T) {
 	}
 	if _, ok := rt.files["/data/config-new-claude.json"]; !ok {
 		t.Fatal("config not moved")
+	}
+	if got := rt.files["/data/ledger-new.jsonl"]; got != "ledger\n" {
+		t.Fatalf("ledger not moved: %q", got)
+	}
+	if _, ok := rt.files["/data/ledger-old.jsonl"]; ok {
+		t.Fatal("old ledger should be gone after move")
 	}
 	// Journal written then removed on success.
 	if _, ok := rt.files["/data/.rename-old-to-new.journal"]; ok {
