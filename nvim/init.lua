@@ -914,9 +914,18 @@ do
     local abs = vim.fn.fnamemodify(file, ':p')
     write_target(abs, 'proposed')
     local home = vim.env.PAIR_HOME or ''
-    local bin = vim.env.PAIR_REVIEW_READINESS_BIN
-    if not bin or bin == '' then bin = (home ~= '') and (home .. '/bin/pair-review-readiness') or 'pair-review-readiness' end
-    local out = table.concat(vim.fn.systemlist({ bin, '--prepare', abs }), '\n')
+    -- PAIR_REVIEW_READINESS_BIN (test seam) is a binary implementing the readiness
+    -- CLI directly (`--prepare <abs>`); the default self-execs the single pair as
+    -- `pair review readiness --prepare <abs>` (#104 M2).
+    local override = vim.env.PAIR_REVIEW_READINESS_BIN
+    local cmd
+    if override and override ~= '' then
+      cmd = { override, '--prepare', abs }
+    else
+      local pair = (home ~= '') and (home .. '/bin/pair') or 'pair'
+      cmd = { pair, 'review', 'readiness', '--prepare', abs }
+    end
+    local out = table.concat(vim.fn.systemlist(cmd), '\n')
     local ok = vim.v.shell_error == 0
     if out ~= '' then send_to_agent(out) end
     if not ok then
@@ -963,8 +972,8 @@ do
     local action = toggle_action(false, false, t and t.status)
     if action == 'open' then
       local home = vim.env.PAIR_HOME or ''
-      local bin = (home ~= '') and (home .. '/bin/pair-review-open') or 'pair-review-open'
-      vim.fn.system({ bin, t.file })
+      local pair = (home ~= '') and (home .. '/bin/pair') or 'pair'
+      vim.fn.system({ pair, 'review', 'open', t.file })
       if vim.v.shell_error ~= 0 then
         vim.notify('PairReview: open failed — ' .. vim.fn.fnamemodify(t.file, ':t'), vim.log.levels.WARN)
       end
@@ -3502,7 +3511,7 @@ layout_write('small')
 -- Alt+b — open the scrollback viewer already positioned on the previous
 -- user prompt. This is a one-key shortcut for "Alt+/ then Alt+b": it opens
 -- the same floating pane Alt+/ does (geometry mirrored from the Alt+/ bind
--- in zellij/config.kdl), but passes `--jump prev` so pair-scrollback-open
+-- in zellij/config.kdl), but passes `--jump prev` so `pair scrollback open`
 -- exports PAIR_SCROLLBACK_JUMP and nvim/scrollback.lua jumps to the prior
 -- prompt right after positioning — identical to pressing Alt+b inside the
 -- viewer. `zellij run` panes inherit the session env (PAIR_DATA_DIR etc.),
@@ -3512,7 +3521,7 @@ local function pair_scrollback_prev_prompt()
   vim.fn.system({
     'zellij', 'run', '--floating', '--close-on-exit', '--name', 'scrollback',
     '--width', '100%', '--height', '100%', '--x', '0', '--y', '0',
-    '--', 'pair-scrollback-open', '--jump', 'prev',
+    '--', 'pair', 'scrollback', 'open', '--jump', 'prev',
   })
 end
 
