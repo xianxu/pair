@@ -126,6 +126,10 @@ type launchStep struct {
 // handedOff=false with the exit code already messaged on stderr.
 func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchStep, error) {
 	agent := opts.Args.Agent
+	// The agent the forwarded `-- <args>` were typed against. If a pick below
+	// resolves a DIFFERENT agent (resume-by-name inference), those args are
+	// agent-specific and invalid for it — the guard after inference drops them.
+	requestedAgent := agent
 	base := DefaultTag(env.Cwd)
 	cutoff := env.Now.Add(-time.Duration(env.HistoryD) * 24 * time.Hour)
 	sessions, err := rt.Sessions()
@@ -168,6 +172,16 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 		if agent == "" {
 			agent = "claude"
 		}
+	}
+
+	// Agent-scoped CLI-args guard (#107): forwarded `-- <args>` belong to the
+	// agent the user named (requestedAgent). When a pick resolves a different
+	// agent — e.g. `pair codex -- --sandbox …` picks an existing claude tag, so
+	// the agent re-infers to claude — those args (codex's `--sandbox`) would ride
+	// onto and crash the wrong agent. Drop them; the resumed tag uses its own
+	// saved config. requestedAgent=="" is `pair resume <tag>` (no args typed).
+	if requestedAgent != "" && agent != requestedAgent {
+		opts.Args.AgentArgs = nil
 	}
 
 	switch decision.Action {

@@ -611,10 +611,11 @@ var ansiEscapeRE = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 // fzf returns the plain text (which buildPickRows keys byPlain on).
 func stripANSI(s string) string { return ansiEscapeRE.ReplaceAllString(s, "") }
 
-// Repro (bug): `pair codex -- <codex-only args>` with history present routes to
-// the session picker (DecideLaunch ignores the agent). Picking an existing
-// CLAUDE tag is resume-by-name → the agent is inferred as claude, but the
-// codex-intended CLI args ride along onto claude, which chokes on them at launch.
+// Agent-scoped CLI-args guard (#107): `pair codex -- <codex-only args>` with
+// history present routes to the session picker (DecideLaunch ignores the agent).
+// Picking an existing CLAUDE tag is resume-by-name → the agent re-infers to
+// claude; the codex-intended CLI args must NOT ride along onto claude (which
+// would choke on them at launch). The guard drops them on agent mismatch.
 func TestRunLaunchPickInferredAgentMustNotInheritCliArgs(t *testing.T) {
 	rt := newFakeRuntime()
 	// A historical claude tag (base tag for cwd /home/u/work is "work").
