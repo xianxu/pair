@@ -9,7 +9,7 @@
 # check on terminal_command (the fixed launch string), which never embeds cwd.
 #
 # We drive the real binary with a fake `zellij` that emits a captured panes
-# JSON, stub the downstream handoff ($PAIR_HOME/bin/clipboard-to-pane), and
+# JSON, stub the downstream handoff (`pair clip clipboard-to-pane`), and
 # assert the handoff is reached when (and only when) the selection was NOT in
 # the draft pane.
 set -eu
@@ -17,23 +17,30 @@ set -eu
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/pair-copyonselect.XXXXXX"); trap 'rm -rf "$tmp"' EXIT
 
-# Sandbox PAIR_HOME so we can stub the binaries copy-on-select execs by absolute
-# path ($PAIR_HOME/bin/{flash-pane,clipboard-to-pane}). Since #94 M2 the shim is
-# retired — copy-on-select is the Go binary itself (invoked directly below), and
-# it execs the Go flash/clipboard hand-off names, so the stubs below drive the
-# real chain.
+# Sandbox PAIR_HOME. Since #104 M2 copy-on-select self-execs the `pair` SIBLING
+# of its own binary as `pair clip <leaf>` (dir(os.Executable())/pair), so we place
+# a fake `$PAIR_HOME/bin/pair` next to the real copy-on-select: it routes the
+# detached `clip copy-on-select --orchestrate` back to the real copy-on-select and
+# stubs the flash/clipboard hand-off leaves, so the stub drives the real chain.
 export PAIR_HOME="$tmp/home"
 mkdir -p "$PAIR_HOME/bin"
 cp "$REPO/bin/copy-on-select" "$PAIR_HOME/bin/"
 
-# Handoff target records that it was reached.
-cat > "$PAIR_HOME/bin/clipboard-to-pane" <<EOF
+# Fake pair sibling: route `clip copy-on-select [--orchestrate]` to the real
+# copy-on-select; the flash leaf is a no-op; the clipboard-to-pane leaf records
+# that the hand-off was reached.
+cat > "$PAIR_HOME/bin/pair" <<EOF
 #!/bin/sh
-echo reached > "$tmp/handoff"
+if [ "\$1" = clip ] && [ "\$2" = copy-on-select ]; then
+  shift 2
+  exec "$PAIR_HOME/bin/copy-on-select" "\$@"
+elif [ "\$1" = clip ] && [ "\$2" = clipboard-to-pane ]; then
+  echo reached > "$tmp/handoff"
+elif [ "\$1" = clip ] && [ "\$2" = flash-pane ]; then
+  exit 0
+fi
 EOF
-# flash-pane is a no-op so the source flash doesn't shell to zellij.
-printf '#!/bin/sh\nexit 0\n' > "$PAIR_HOME/bin/flash-pane"
-chmod +x "$PAIR_HOME/bin/clipboard-to-pane" "$PAIR_HOME/bin/flash-pane"
+chmod +x "$PAIR_HOME/bin/pair"
 
 # Fakes on PATH: clipboard sink + a zellij that prints $tmp/panes.json for
 # `list-panes` (jq is the real one). PATH must NOT include $PAIR_HOME/bin so

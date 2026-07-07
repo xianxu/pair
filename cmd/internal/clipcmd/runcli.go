@@ -23,13 +23,16 @@ func RunCopyOnSelectCLI(args []string, stdin io.Reader, getenv func(string) stri
 	return RunCopyOnSelect(opts, stdin, NewOSRuntime(), stderr)
 }
 
-// selfPairExe resolves the running `pair` executable for the self-exec hand-offs
-// (`pair clip …`). os.Executable() is the running binary itself, so it works in
-// the copied/Homebrew layout where $PAIR_HOME/bin holds no `pair`; it falls back
-// to <home>/bin/pair only if os.Executable() is unavailable.
+// selfPairExe resolves the `pair` executable for the self-exec hand-offs
+// (`pair clip …`). It targets the `pair` SIBLING of the running binary
+// (dir(os.Executable())/pair): in production the hook runs as `pair` so the
+// sibling is pair itself, and it works in the copied/Homebrew layout (pair is
+// never in its own $PAIR_HOME/bin bundle). Resolving the sibling — rather than
+// os.Executable() — also keeps the flow correct if invoked under a helper's name.
+// Falls back to <home>/bin/pair only if os.Executable() is unavailable.
 func selfPairExe(home string) string {
 	if exe, err := os.Executable(); err == nil && exe != "" {
-		return exe
+		return filepath.Join(filepath.Dir(exe), "pair")
 	}
 	return filepath.Join(home, "bin", "pair")
 }
