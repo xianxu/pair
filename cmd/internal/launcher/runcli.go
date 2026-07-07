@@ -39,7 +39,15 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 		return 1, nil
 	}
 	dataDir := ResolveDataDir(home, xdg)
-	rt := NewOSRuntime(dataDir, pairHome)
+	env := Env{
+		Home:     home,
+		XDGData:  xdg,
+		Cwd:      cwd,
+		Now:      time.Now(),
+		HistoryD: historyDays(),
+		DataDir:  ScopedLaunchDataDir(dataDir, cwd),
+	}
+	rt := NewScopedOSRuntime(dataDir, env.DataDir, pairHome)
 
 	// `list`/`ls` is a read-only listing that prints to stdout and exits — no
 	// launch, no zellij handoff (#99 M5a).
@@ -49,7 +57,7 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 
 	// `rename <old> <new>` is an offline sidecar move — no launch (#99 M5b).
 	if args.Command == "rename" {
-		return runRename(rt, args, dataDir, stdout, stderr), nil
+		return runRename(rt, args, env.DataDir, stdout, stderr), nil
 	}
 
 	// Bare `continue` lists the docs + exits; it never launches (#99 M5b).
@@ -66,16 +74,6 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 	if args.Command == "quit" {
 		return runQuit(rt, os.Getenv("ZELLIJ_SESSION_NAME"), stderr), nil
 	}
-
-	env := Env{
-		Home:     home,
-		XDGData:  xdg,
-		Cwd:      cwd,
-		Now:      time.Now(),
-		HistoryD: historyDays(),
-		DataDir:  ScopedLaunchDataDir(dataDir, cwd),
-	}
-	rt = NewScopedOSRuntime(dataDir, env.DataDir, pairHome)
 	opts := LaunchOptions{
 		Args:                 args,
 		Env:                  env,

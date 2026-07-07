@@ -310,3 +310,15 @@ Updated the zellij draft pane consumer to honor inherited `PAIR_DATA_DIR`
 instead of reconstructing the flat global data dir, regenerated the embedded
 runtime asset, and added a bundle test for the invariant. Verified with
 `GOCACHE=/private/tmp/pair-go-cache go test ./...`.
+
+Debugged a live Alt+n wrong-session recovery: the restarted pane came back with
+flat `PAIR_DATA_DIR=/Users/xianxu/.local/share/pair` and resumed the stale
+`config-2-codex.json` session (`019f15d3...`) instead of the #107 scoped
+session. Root cause was `LaunchNative` dispatching `restart`/`quit` before
+constructing the repo-scoped runtime, so `runRestart` inferred the agent from
+flat sidecars and wrote a marker that drove the outer restart loop back through
+old flat config. Added a regression where flat `agent-work=claude` conflicts
+with scoped ledger `work=codex`; `pair restart` now writes `agent=codex`.
+Moved lifecycle dispatch and rename/list sidecar commands onto the scoped
+runtime/data dir. Verified with `go test ./cmd/internal/launcher -count=1`,
+`go test ./...`, and `git diff --check`.
