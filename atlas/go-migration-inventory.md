@@ -320,6 +320,27 @@ Build/install callers:
   is the accepted, documented limitation (`ARCH-PURPOSE` permits documenting the
   final gap).
 
+- **#104 M1 (single-binary consolidation — surface + reorg)** completes and
+  reorganizes the `pair <sub>` surface ahead of folding the standalone binaries
+  out entirely. All remaining helpers are now `dispatcher.Families()` rows (the
+  single source of the subcommand surface), and the crowded flat families nest
+  under one level of grouping: `pair review target|open|readiness`,
+  `pair scrollback render|open`, `pair changelog render|open`, and
+  `pair clip copy-on-select|clipboard-to-pane|flash-pane`; the rest stay flat
+  (`wrap`, `scribe`, `session-watch`, `title`, `context`, `slug`, `continuation`).
+  `dispatcher.Resolve` matches a two-token "group leaf" over a one-token flat
+  name; `DispatchNames()` returns deduped top-level tokens for the entrypoint
+  peel-off; the streaming seam keys on the resolved family name. Transitional
+  flat aliases `scrollback-render` / `changelog` are retained (hidden from help)
+  until their callers migrate in M2, then removed in M3. `entrypoint` gains a
+  pure busybox layer (`busyboxSubcommand` + `ResolveInvocation`) so pair invoked
+  under a helper's base name (a symlink) routes to the matching subcommand — the
+  surviving need is the external `pair-slug` Stop-hook symlink; every in-repo
+  caller migrates to `pair <sub>` in M2. No consumer changed and every standalone
+  binary still builds in M1 — this is the pure-Go groundwork; M2 rewrites the
+  callers and M3 collapses `GO_BINS := pair`, stops bundling helper binaries, and
+  folds in `pair-scribe` (`~/.zshrc` → `exec pair scribe`).
+
 ## Coverage Ledger
 
 The logical rows above group files where a per-file migration row would add
