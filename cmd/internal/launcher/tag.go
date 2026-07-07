@@ -27,16 +27,5 @@ func DefaultTag(cwd string) string {
 	if base == "." || base == string(filepath.Separator) {
 		return "pair"
 	}
-	var b strings.Builder
-	for _, r := range base {
-		if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
-			b.WriteRune(r)
-		} else {
-			b.WriteByte('_')
-		}
-	}
-	if b.Len() == 0 {
-		return "pair"
-	}
-	return b.String()
+	return NormalizeDisplayComponent(base)
 }
