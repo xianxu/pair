@@ -207,16 +207,38 @@ func updateWorkspaceTitle(opts Options, rt Runtime, age time.Duration, session, 
 		return lastPrefix
 	}
 	ownerPath := filepath.Join(opts.DataDir, "cmux-owner-"+opts.CmuxWorkspaceID)
-	owner := ""
+	ownerTag, ownerSession := "", ""
 	if raw, err := rt.ReadFile(ownerPath); err == nil {
-		owner = strings.TrimSpace(raw)
+		ownerTag, ownerSession = parseCmuxOwner(raw)
 	}
-	if owner != "" && owner != opts.Tag {
-		if !shouldClaimWorkspace(owner, opts.Tag, rt.SessionAlive("pair-"+owner)) {
+	if ownerTag != "" && ownerTag != opts.Tag {
+		if ownerSession == "" {
+			ownerSession = "pair-" + ownerTag
+		}
+		if !shouldClaimWorkspace(ownerTag, opts.Tag, rt.SessionAlive(ownerSession)) {
 			return lastPrefix // another live pair owns it; leave the title alone
 		}
 	}
-	_ = rt.WriteFile(ownerPath, opts.Tag+"\n")
+	_ = rt.WriteFile(ownerPath, formatCmuxOwner(opts.Tag, session))
 	_ = rt.CmuxRenameWorkspace(cmuxWorkspaceTitle(prefix, session))
 	return prefix
+}
+
+func parseCmuxOwner(raw string) (tag, session string) {
+	fields := strings.Fields(strings.TrimSpace(raw))
+	if len(fields) == 0 {
+		return "", ""
+	}
+	tag = fields[0]
+	if len(fields) > 1 {
+		session = fields[1]
+	}
+	return tag, session
+}
+
+func formatCmuxOwner(tag, session string) string {
+	if session == "" {
+		return tag + "\n"
+	}
+	return tag + "\t" + session + "\n"
 }

@@ -1,12 +1,13 @@
 ---
 id: 000107
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-07
 updated: 2026-07-07
 estimate_hours: 8.2
 started: 2026-07-07T11:23:27-07:00
+actual_hours: 7.55
 ---
 
 # repo-scoped tags and session ledger
@@ -204,6 +205,7 @@ provisional but derived from the required source.
 ## Log
 
 ### 2026-07-07
+- 2026-07-07: closed — Focused lifecycle regressions passed: go test ./cmd/internal/launcher ./cmd/internal/continuationcmd -run 'TestRunLaunchSweepsOnce|TestLiveTagsForSweep|TestCompactionDecision|TestInCompactionContext|TestRunLaunchRenameReentryIgnoresOtherScopeTargetTag' -count=1; affected packages passed: go test ./cmd/internal/launcher ./cmd/internal/continuationcmd -count=1; repository regression passed: go test ./...; whitespace check passed: git diff --check; full suite passed: make test.; review verdict: FIX-THEN-SHIP
 
 Created from a live design discussion. Started from the `pair-dev codex --
 --sandbox danger-full-access` crash (codex args leaked onto claude; root-caused
@@ -483,3 +485,12 @@ passes the current scope into the collision gate. Added regressions for scoped
 sweep, same-tag cross-repo compaction rejection, and scoped restart rename.
 Verified with focused red/green regressions and
 `go test ./cmd/internal/launcher ./cmd/internal/continuationcmd -count=1`.
+
+Twelfth `sdlc close --issue 107` returned `Review-Verdict: FIX-THEN-SHIP`.
+Addressed the remaining important findings: titlepoller cmux owner files now
+write `tag<TAB>public-session` and probe the stored public session name, while
+still reading legacy one-field tag files; `atlas/architecture.md` no longer
+restates flat data dirs, legacy `pair-<tag>` attach/picker/sweep, or suffix-based
+compaction as current behavior. Added a scoped live foreign-owner regression and
+recorded the ownership-file lesson. Verified with
+`go test ./cmd/internal/titlepoller -count=1`.
