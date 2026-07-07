@@ -78,7 +78,7 @@ type ProcOps interface {
 	SpawnSessionWatcher(agent, tag, cwd, repoRoot, repoName string, agentArgs []string)
 	// SpawnTitlePoller backgrounds bin/pair-title (detached), the per-tag
 	// frame/cmux title singleton.
-	SpawnTitlePoller(tag, agent string)
+	SpawnTitlePoller(tag, agent, session string)
 	// DevRebuild rebuilds the repo Go binaries when PAIR_DEV is set (no-op
 	// otherwise) so the layout's `exec pair-wrap` resolves a fresh build (#46).
 	DevRebuild(pairHome string)

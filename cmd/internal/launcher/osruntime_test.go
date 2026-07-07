@@ -315,12 +315,13 @@ func TestOSRuntimeReapAndPollerRemovePidfiles(t *testing.T) {
 // subcommand — #104 M2 folded pair-title/pair-session-watch into `pair title` /
 // `pair session-watch`. spawnDetached swallows a start error, so a regression in
 // the argv shape would fail silently at runtime. Pin the subcommand + the title
-// poller's "<…>/pair title <tag> <agent>" shape the single-instance guard matches.
+// poller's "<…>/pair title <tag> <agent>" prefix the single-instance guard matches.
 func TestSidecarSpawnArgvSelfExecsPair(t *testing.T) {
 	const exe = "/pair/bin/pair"
-	tp := titlePollerArgv(exe, "work", "claude")
-	if len(tp) != 4 || tp[0] != exe || tp[1] != "title" || tp[2] != "work" || tp[3] != "claude" {
-		t.Fatalf("title poller argv = %v, want [%s title work claude]", tp, exe)
+	tp := titlePollerArgv(exe, "work", "claude", "pair-pair-work")
+	wantTP := []string{exe, "title", "work", "claude", "pair-pair-work"}
+	if !reflect.DeepEqual(tp, wantTP) {
+		t.Fatalf("title poller argv = %v, want %v", tp, wantTP)
 	}
 
 	sw := sessionWatcherArgv(exe, "codex", "work", "/cwd/sub", "/cwd", "pair", []string{"--no-alt-screen"})

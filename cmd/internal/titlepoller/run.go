@@ -10,6 +10,7 @@ import (
 type Options struct {
 	Tag             string
 	Agent           string
+	SessionName     string
 	DataDir         string
 	Home            string
 	CmuxWorkspaceID string // CMUX_WORKSPACE_ID; empty ⇒ skip the cmux surface
@@ -73,7 +74,10 @@ func Run(opts Options, rt Runtime) int {
 		opts.MissThreshold = 5
 	}
 
-	session := "pair-" + opts.Tag
+	session := opts.SessionName
+	if session == "" {
+		session = "pair-" + opts.Tag
+	}
 	pidfile := filepath.Join(opts.DataDir, "title-pid-"+opts.Tag)
 
 	// Single-instance: bail only if a prior poller for this tag is genuinely

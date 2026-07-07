@@ -273,8 +273,8 @@ func (r OSRuntime) SpawnSessionWatcher(agent, tag, cwd, repoRoot, repoName strin
 	spawnDetached(sessionWatcherArgv(runningPairExe(r.PairHome), agent, tag, cwd, repoRoot, repoName, agentArgs), nil)
 }
 
-func (r OSRuntime) SpawnTitlePoller(tag, agent string) {
-	spawnDetached(titlePollerArgv(runningPairExe(r.PairHome), tag, agent), nil)
+func (r OSRuntime) SpawnTitlePoller(tag, agent, session string) {
+	spawnDetached(titlePollerArgv(runningPairExe(r.PairHome), tag, agent, session), nil)
 }
 
 // runningPairExe resolves the running `pair` executable for the self-exec
@@ -296,14 +296,15 @@ func runningPairExe(pairHome string) string {
 // sidecar routes, now self-execing `pair` (#104 M2). Pure (exe injected) so a
 // test can pin the shape: spawnDetached swallows a start error, so a silent
 // regression in the argv would otherwise go uncaught until the poller/watcher
-// simply never started. The title poller's process must be "<…>/pair title <tag>
-// <agent>", the exact shape titlepoller's single-instance argv guard matches.
+// simply never started. The title poller's process must start with
+// "<…>/pair title <tag> <agent>", the exact shape titlepoller's single-instance
+// argv guard matches.
 func sessionWatcherArgv(exe, agent, tag, cwd, repoRoot, repoName string, agentArgs []string) []string {
 	return append([]string{exe, "session-watch", agent, tag, cwd, "--repo-root", repoRoot, "--repo-name", repoName, "--"}, agentArgs...)
 }
 
-func titlePollerArgv(exe, tag, agent string) []string {
-	return []string{exe, "title", tag, agent}
+func titlePollerArgv(exe, tag, agent, session string) []string {
+	return []string{exe, "title", tag, agent, session}
 }
 
 func (OSRuntime) DevRebuild(pairHome string) {

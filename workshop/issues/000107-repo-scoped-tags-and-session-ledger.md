@@ -456,3 +456,12 @@ source-of-truth ledger row before writing the derived config cache. Also cleaned
 the stale titlepoller `pair-<tag>` comments. Verified with focused red/green
 regressions and `go test ./cmd/internal/launcher ./cmd/internal/sessionwatch
 -count=1`.
+
+Ninth `sdlc close --issue 107` returned `Review-Verdict: REWORK`. Addressed
+the remaining lifecycle consumers that reconstructed legacy session names:
+launcher title-poller spawns now pass the actual public zellij session name into
+`pair title`, titlepoller watches/renames that session with legacy fallback, and
+continuation compaction recognizes scoped `pair-<repo>-<tag>` session names for
+the same tag. Added focused regressions for scoped titlepoller and scoped
+compaction context. Verified with `go test ./cmd/internal/launcher
+./cmd/internal/titlepoller ./cmd/internal/continuationcmd -count=1`.

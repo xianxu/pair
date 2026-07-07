@@ -405,7 +405,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	rt.SetTerminalTitle(session)
 	rt.RecordOuterTTY(chosenTag)
 	rt.CmuxRename(chosenTag, session)
-	rt.SpawnTitlePoller(chosenTag, agent)
+	rt.SpawnTitlePoller(chosenTag, agent, session)
 	rt.DevRebuild(opts.PairHome)
 
 	configDir := filepath.Join(opts.PairHome, "zellij")

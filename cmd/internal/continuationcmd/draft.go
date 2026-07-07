@@ -99,5 +99,8 @@ func FoldDraftIntoNextAction(body, wip string) string {
 // means compaction. A deliberate manual in-pane write uses --no-restart to opt
 // out of both the restart and the fold.
 func InCompactionContext(pairTag, zellijSession string) bool {
-	return pairTag != "" && zellijSession == "pair-"+pairTag
+	if pairTag == "" {
+		return false
+	}
+	return zellijSession == "pair-"+pairTag || strings.HasSuffix(zellijSession, "-"+pairTag)
 }

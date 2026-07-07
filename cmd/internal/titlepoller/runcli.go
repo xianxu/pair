@@ -34,5 +34,8 @@ func RunCLI(args []string, getenv func(string) string, stderr io.Writer) int {
 		Home:            getenv("HOME"),
 		CmuxWorkspaceID: getenv("CMUX_WORKSPACE_ID"),
 	}
+	if len(args) >= 3 {
+		opts.SessionName = args[2]
+	}
 	return Run(opts, NewOSRuntime())
 }

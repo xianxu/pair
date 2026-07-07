@@ -599,3 +599,17 @@ Delta: add `ledger-<tag>.jsonl` to rename's exact-name sidecar enumeration,
 include scoped `ledger-*.jsonl` files as history/tag sources using ledger
 `last_active` for row time, append sessionwatch ledger rows before config cache
 writes, and add focused regressions for all three paths.
+
+### 2026-07-07 — ninth close-review REWORK follow-up
+
+Reason: the ninth `sdlc close --issue 107` boundary review returned REWORK. It
+found two remaining lifecycle consumers still using legacy `pair-<tag>` session
+names: titlepoller watched `pair-<tag>` instead of the assigned public scoped
+session name, and continuation compaction only matched exact legacy session
+names.
+
+Delta: pass the assigned public zellij session name through launcher
+`SpawnTitlePoller` into `pair title`, make titlepoller use that session with
+legacy fallback, and teach continuation compaction to recognize scoped
+`pair-<repo>-<tag>` names for the same tag. Add focused regressions for both
+lifecycle paths.

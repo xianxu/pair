@@ -145,7 +145,7 @@ func (f *fakeRuntime) SetTerminalTitle(session string) { f.titles = append(f.tit
 func (f *fakeRuntime) SpawnSessionWatcher(agent, tag, cwd, repoRoot, repoName string, agentArgs []string) {
 	f.watchers = append(f.watchers, agent+"|"+tag+"|"+cwd+"|"+repoRoot+"|"+repoName+"|"+strings.Join(agentArgs, " "))
 }
-func (f *fakeRuntime) SpawnTitlePoller(tag, agent string) {
+func (f *fakeRuntime) SpawnTitlePoller(tag, agent, session string) {
 	f.pollers = append(f.pollers, tag+"|"+agent)
 }
 func (f *fakeRuntime) DevRebuild(pairHome string) { f.devRebuilt = true }

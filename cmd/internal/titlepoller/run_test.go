@@ -240,6 +240,26 @@ func TestRunRendersFrameAndCmuxTitles(t *testing.T) {
 	}
 }
 
+func TestRunUsesScopedPublicSessionName(t *testing.T) {
+	rt := newFake()
+	rt.pid = "9001"
+	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7", CwdDisplay: "~/repo"}}
+	rt.counts["claude"] = "970k"
+	rt.mtimes["/dd/draft-T.md"] = rt.now
+	rt.sessionAliveSeq = []bool{true, true}
+	rt.sessionAliveDflt = false
+	opts := fixtureOpts()
+	opts.SessionName = "pair-work-T"
+	opts.MissThreshold = 1
+
+	if code := Run(opts, rt); code != 0 {
+		t.Fatalf("code = %d, want 0", code)
+	}
+	if want := "pair-work-T|7|claude (970k) [~/repo]"; len(rt.renamed) != 1 || rt.renamed[0] != want {
+		t.Fatalf("frame renamed = %v, want [%q]", rt.renamed, want)
+	}
+}
+
 // Loop integration (defer path): a live FOREIGN owner of the cmux workspace →
 // the frame title still renders, but the workspace title is left alone.
 func TestRunDefersCmuxToLiveForeignOwner(t *testing.T) {

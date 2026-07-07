@@ -81,6 +81,9 @@ func TestInCompactionContext(t *testing.T) {
 	if !InCompactionContext("mytag", "pair-mytag") {
 		t.Error("matching tag+session should be compaction context")
 	}
+	if !InCompactionContext("mytag", "pair-work-mytag") {
+		t.Error("scoped public session should be compaction context")
+	}
 	if InCompactionContext("", "pair-") {
 		t.Error("empty tag is never compaction")
 	}
