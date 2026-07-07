@@ -293,3 +293,9 @@ instead of reconstructing `pair-<tag>`, and successful creates append the
 registry entry before handoff. Existing tests were updated to seed indexed live
 sessions where they mean current-repo scoped sessions. Verified with `go test
 ./cmd/internal/launcher`.
+
+Started concrete sidecar scoping: `LaunchNative` now derives the launch data
+dir as `<global>/repos/<scope-key>` while `OSRuntime` keeps a separate global
+data dir for `session-names.jsonl`. This lets launch sidecars move under the
+repo scope without splitting the global public-name registry. Verified with
+`GOCACHE=/private/tmp/pair-go-cache go test ./cmd/internal/launcher`.

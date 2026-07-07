@@ -25,13 +25,18 @@ import (
 // deliberately un-timed.
 type OSRuntime struct {
 	osfs.FS
-	DataDir  string
-	PairHome string
+	DataDir       string
+	GlobalDataDir string
+	PairHome      string
 }
 
 // NewOSRuntime builds the concrete runtime for a resolved data dir + asset root.
 func NewOSRuntime(dataDir, pairHome string) *OSRuntime {
-	return &OSRuntime{DataDir: dataDir, PairHome: pairHome}
+	return NewScopedOSRuntime(dataDir, dataDir, pairHome)
+}
+
+func NewScopedOSRuntime(globalDataDir, dataDir, pairHome string) *OSRuntime {
+	return &OSRuntime{DataDir: dataDir, GlobalDataDir: globalDataDir, PairHome: pairHome}
 }
 
 const zjTimeout = 5 * time.Second
@@ -455,7 +460,7 @@ func (r OSRuntime) AppendLedger(tag string, entry LedgerEntry) error {
 }
 
 func (r OSRuntime) ReadSessionNameIndex() (SessionNameIndex, error) {
-	raw, err := r.ReadFile(filepath.Join(r.DataDir, "session-names.jsonl"))
+	raw, err := r.ReadFile(filepath.Join(r.globalDataDir(), "session-names.jsonl"))
 	if err != nil {
 		return SessionNameIndex{}, err
 	}
@@ -463,7 +468,7 @@ func (r OSRuntime) ReadSessionNameIndex() (SessionNameIndex, error) {
 }
 
 func (r OSRuntime) AppendSessionNameIndex(entry SessionNameEntry) error {
-	path := filepath.Join(r.DataDir, "session-names.jsonl")
+	path := filepath.Join(r.globalDataDir(), "session-names.jsonl")
 	var raw string
 	if existing, err := r.ReadFile(path); err == nil {
 		raw = existing
@@ -477,6 +482,13 @@ func (r OSRuntime) AppendSessionNameIndex(entry SessionNameEntry) error {
 	}
 	raw += line + "\n"
 	return r.WriteAtomic(path, raw)
+}
+
+func (r OSRuntime) globalDataDir() string {
+	if r.GlobalDataDir != "" {
+		return r.GlobalDataDir
+	}
+	return r.DataDir
 }
 
 func (OSRuntime) AgentSessionExists(agent, sid, cwd string) bool {

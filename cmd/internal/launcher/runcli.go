@@ -73,8 +73,9 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 		Cwd:      cwd,
 		Now:      time.Now(),
 		HistoryD: historyDays(),
-		DataDir:  dataDir,
+		DataDir:  ScopedLaunchDataDir(dataDir, cwd),
 	}
+	rt = NewScopedOSRuntime(dataDir, env.DataDir, pairHome)
 	opts := LaunchOptions{
 		Args:                 args,
 		Env:                  env,

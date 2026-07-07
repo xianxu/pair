@@ -9,3 +9,11 @@ func ResolveDataDir(home, xdgDataHome string) string {
 	}
 	return filepath.Join(home, ".local", "share", "pair")
 }
+
+func ScopedLaunchDataDir(globalDataDir, cwd string) string {
+	scope, err := ResolveRepoScope(cwd)
+	if err != nil {
+		return globalDataDir
+	}
+	return NewScopedPaths(globalDataDir, scope, "").ScopeDir()
+}

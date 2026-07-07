@@ -1,6 +1,9 @@
 package launcher
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 func TestResolveDataDir(t *testing.T) {
 	for _, tc := range []struct {
@@ -17,5 +20,15 @@ func TestResolveDataDir(t *testing.T) {
 				t.Fatalf("ResolveDataDir(%q, %q) = %q, want %q", tc.home, tc.xdg, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestScopedLaunchDataDir(t *testing.T) {
+	global := "/home/me/.local/share/pair"
+	got := ScopedLaunchDataDir(global, "/work/pair")
+	scope := mustScope(t, "/work/pair")
+	want := filepath.Join(global, "repos", scope.Key)
+	if got != want {
+		t.Fatalf("ScopedLaunchDataDir = %q, want %q", got, want)
 	}
 }

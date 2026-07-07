@@ -269,6 +269,22 @@ func TestOSRuntimeSessionNameIndexStore(t *testing.T) {
 	}
 }
 
+func TestOSRuntimeSessionNameIndexUsesGlobalDataDir(t *testing.T) {
+	globalDir := t.TempDir()
+	scopedDir := t.TempDir()
+	rt := NewScopedOSRuntime(globalDir, scopedDir, "/pair")
+	entry := SessionNameEntry{SessionName: "pair-pair-work", ScopeKey: "scope1", Tag: "work"}
+	if err := rt.AppendSessionNameIndex(entry); err != nil {
+		t.Fatalf("AppendSessionNameIndex: %v", err)
+	}
+	if _, ok := rt.FileSize(filepath.Join(globalDir, "session-names.jsonl")); !ok {
+		t.Fatalf("session index was not written under global data dir")
+	}
+	if _, ok := rt.FileSize(filepath.Join(scopedDir, "session-names.jsonl")); ok {
+		t.Fatalf("session index must not be written under scoped data dir")
+	}
+}
+
 func timeUnix(sec int64) time.Time { return time.Unix(sec, 0).UTC() }
 
 func TestOSRuntimeReapAndPollerRemovePidfiles(t *testing.T) {
