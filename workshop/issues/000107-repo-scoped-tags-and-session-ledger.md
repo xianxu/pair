@@ -190,9 +190,9 @@ provisional but derived from the required source.
 - [x] Add scoped identity/path/session-name pure model with failing tests first.
 - [x] Add per-tag session ledger as source of truth, while emitting derived
       `agent-<tag>` and `config-<tag>-<agent>.json` caches.
-- [ ] Migrate launcher decisions, history, picker, list, rename, restart, and
+- [x] Migrate launcher decisions, history, picker, list, rename, restart, and
       cleanup to current-repo scoped snapshots and sidecar paths.
-- [ ] Update zellij/nvim/shell consumers so inherited scoped `PAIR_DATA_DIR` is
+- [x] Update zellij/nvim/shell consumers so inherited scoped `PAIR_DATA_DIR` is
       authoritative.
 - [ ] Grandfather existing flat sidecars and live unscoped sessions without data
       loss.
@@ -322,3 +322,15 @@ with scoped ledger `work=codex`; `pair restart` now writes `agent=codex`.
 Moved lifecycle dispatch and rename/list sidecar commands onto the scoped
 runtime/data dir. Verified with `go test ./cmd/internal/launcher -count=1`,
 `go test ./...`, and `git diff --check`.
+
+Finished the scoped launcher/consumer migration slice (ARCH-PURPOSE): `pair
+list` now filters indexed live rows to the current scope, `pair rename` gates
+against scoped public session names from `session-names.jsonl`, and
+`LaunchNative` honors an explicit `PAIR_DATA_DIR` override for in-session and
+test-harness subcommands while keeping the global data root separate for the
+session-name registry. Updated nvim's layout-mode state file to use
+`pair_data_dir()` and refreshed the embedded runtime copy, closing the remaining
+scoped `PAIR_DATA_DIR` consumer found by the shadow sweep. Verified with
+`go test ./cmd/internal/launcher -count=1`, the targeted runtimebundle
+embedded-asset tests, `go test ./...`, `git diff --check`, and `bash
+tests/pair-rename.sh`.

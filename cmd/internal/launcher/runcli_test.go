@@ -63,6 +63,7 @@ func TestLaunchNativeRestartInfersAgentFromScopedDataDir(t *testing.T) {
 	})
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_DATA_HOME", "")
+	t.Setenv("PAIR_DATA_DIR", "")
 	t.Setenv("ZELLIJ_SESSION_NAME", "pair-work")
 	t.Setenv("PAIR_KILL_CMD", "__pair_no_such_command__")
 
@@ -104,5 +105,45 @@ func TestLaunchNativeRestartInfersAgentFromScopedDataDir(t *testing.T) {
 	marker := parseRestartMarker(string(raw))
 	if marker.Agent != "codex" {
 		t.Fatalf("restart marker agent = %q, want scoped codex; raw marker:\n%s", marker.Agent, string(raw))
+	}
+}
+
+func TestLaunchNativeRenameHonorsPairDataDirOverride(t *testing.T) {
+	home := t.TempDir()
+	repo := filepath.Join(home, "work", "pair")
+	if err := os.MkdirAll(repo, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	oldwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(repo); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(oldwd); err != nil {
+			t.Fatalf("restore cwd: %v", err)
+		}
+	})
+
+	dataDir := filepath.Join(home, "explicit-data")
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dataDir, "draft-old.md"), []byte("draft"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", "")
+	t.Setenv("PAIR_DATA_DIR", dataDir)
+
+	var stdout, stderr bytes.Buffer
+	code, err := LaunchNative([]string{"rename", "old", "new"}, "/pair", &stdout, &stderr)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v stdout=%q stderr=%q", code, err, stdout.String(), stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(dataDir, "draft-new.md")); err != nil {
+		t.Fatalf("rename did not use PAIR_DATA_DIR override: %v", err)
 	}
 }

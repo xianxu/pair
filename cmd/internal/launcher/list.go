@@ -3,6 +3,7 @@ package launcher
 import (
 	"fmt"
 	"io"
+	"strings"
 )
 
 // The `pair list` / `ls` subcommand (#99 M5a, ported from bin/pair-shell 228-306).
@@ -54,4 +55,36 @@ func runList(rt Runtime, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprint(stdout, formatListTable(rows))
 	return 0
+}
+
+func buildListRowsForScope(names []string, raw string, index SessionNameIndex, scopeKey string, inferAgent func(string) string, clientCount func(string) int) []ListRow {
+	rows := make([]ListRow, 0, len(names))
+	for _, name := range names {
+		tag := ""
+		if scopeKey != "" {
+			entry, ok := index.ownerOf(name)
+			if !ok || entry.ScopeKey != scopeKey {
+				continue
+			}
+			tag = entry.Tag
+		}
+		if tag == "" {
+			tag = tagFromPublicSessionName(name)
+		}
+		row := ListRow{Session: name, Agent: inferAgent(tag), State: SessionDetached}
+		if _, exited := sessionRowState(raw, name); exited {
+			row.State = SessionExited
+		} else if row.Clients = clientCount(name); row.Clients > 0 {
+			row.State = SessionAttached
+		}
+		rows = append(rows, row)
+	}
+	return rows
+}
+
+func tagFromPublicSessionName(session string) string {
+	if entry, ok := strings.CutPrefix(session, "pair-"); ok {
+		return entry
+	}
+	return session
 }

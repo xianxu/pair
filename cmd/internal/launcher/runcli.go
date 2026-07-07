@@ -39,13 +39,17 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 		return 1, nil
 	}
 	dataDir := ResolveDataDir(home, xdg)
+	launchDataDir := ScopedLaunchDataDir(dataDir, cwd)
+	if explicit := os.Getenv("PAIR_DATA_DIR"); explicit != "" {
+		launchDataDir = explicit
+	}
 	env := Env{
 		Home:     home,
 		XDGData:  xdg,
 		Cwd:      cwd,
 		Now:      time.Now(),
 		HistoryD: historyDays(),
-		DataDir:  ScopedLaunchDataDir(dataDir, cwd),
+		DataDir:  launchDataDir,
 	}
 	rt := NewScopedOSRuntime(dataDir, env.DataDir, pairHome)
 
@@ -57,7 +61,7 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 
 	// `rename <old> <new>` is an offline sidecar move — no launch (#99 M5b).
 	if args.Command == "rename" {
-		return runRename(rt, args, env.DataDir, stdout, stderr), nil
+		return runRenameScoped(rt, args, env.DataDir, scopeKeyFromDataDir(dataDir, env.DataDir), stdout, stderr), nil
 	}
 
 	// Bare `continue` lists the docs + exits; it never launches (#99 M5b).

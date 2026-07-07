@@ -199,6 +199,28 @@ func TestRunRenameSessionGates(t *testing.T) {
 	}
 }
 
+func TestRunRenameSessionGatesUseScopedSessionNames(t *testing.T) {
+	scope := mustScope(t, "/work/pair")
+
+	rt := renameFake(t)
+	rt.sessionIndex = SessionNameIndex{Entries: []SessionNameEntry{{
+		SessionName: "pair-pair-new",
+		ScopeKey:    scope.Key,
+		RepoRoot:    scope.Root,
+		RepoName:    scope.DisplayName,
+		Tag:         "new",
+	}}}
+	rt.sessions = []Session{{Name: "pair-pair-new", State: SessionDetached}}
+
+	var out, errBuf bytes.Buffer
+	if code := runRename(rt, LaunchArgs{RenameOld: "old", RenameNew: "new"}, "/data", &out, &errBuf); code != 1 {
+		t.Fatalf("scoped live new tag should refuse; code=%d stdout=%s stderr=%s", code, out.String(), errBuf.String())
+	}
+	if len(rt.renamed) != 0 {
+		t.Fatalf("must not move when scoped new tag is live: %v", rt.renamed)
+	}
+}
+
 func TestRunRenameRollback(t *testing.T) {
 	rt := renameFake(t)
 	// draft-old.md moves first (enumeration order), config-old-claude.json second.

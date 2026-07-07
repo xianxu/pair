@@ -126,11 +126,30 @@ func sessionTracked(sessions []Session, name string) bool {
 	return false
 }
 
+func sessionTrackedForTag(sessions []Session, index SessionNameIndex, scopeKey, tag string) bool {
+	for _, entry := range index.Entries {
+		if entry.Tag != tag {
+			continue
+		}
+		if scopeKey != "" && entry.ScopeKey != scopeKey {
+			continue
+		}
+		if sessionTracked(sessions, entry.SessionName) {
+			return true
+		}
+	}
+	return sessionTracked(sessions, "pair-"+tag)
+}
+
 // runRename drives `pair rename [--restart-check] <old> <new>` (shell 307-546):
 // validate the tags, gate on tracked sessions, build the pure move plan, then
 // (unless --restart-check) journal + mv with reverse-rollback on failure. Returns
 // the exit code; the offline subcommand never launches zellij.
 func runRename(rt Runtime, args LaunchArgs, dataDir string, stdout, stderr io.Writer) int {
+	return runRenameScoped(rt, args, dataDir, "", stdout, stderr)
+}
+
+func runRenameScoped(rt Runtime, args LaunchArgs, dataDir, scopeKey string, stdout, stderr io.Writer) int {
 	old, newTag, err := validateRenameTags(args.RenameOld, args.RenameNew)
 	if err != nil {
 		fmt.Fprintf(stderr, "pair rename: %v\n", err)
@@ -145,12 +164,13 @@ func runRename(rt Runtime, args LaunchArgs, dataDir string, stdout, stderr io.Wr
 	// the shell's `|| true` (gate skipped). --restart-check skips the live-old
 	// gate (the real mv runs post-kill from the restart re-entry).
 	sessions, _ := rt.Sessions()
-	if !args.RenameCheckOnly && sessionTracked(sessions, "pair-"+old) {
+	index, _ := rt.ReadSessionNameIndex()
+	if !args.RenameCheckOnly && sessionTrackedForTag(sessions, index, scopeKey, old) {
 		fmt.Fprintf(stderr, "pair rename: session 'pair-%s' is still tracked by zellij.\n", old)
 		fmt.Fprintf(stderr, "             Quit it first (Alt+x), or use the in-session rename.\n")
 		return 1
 	}
-	if sessionTracked(sessions, "pair-"+newTag) {
+	if sessionTrackedForTag(sessions, index, scopeKey, newTag) {
 		fmt.Fprintf(stderr, "pair rename: session 'pair-%s' already exists in zellij.\n", newTag)
 		return 1
 	}

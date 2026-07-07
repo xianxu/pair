@@ -17,3 +17,15 @@ func ScopedLaunchDataDir(globalDataDir, cwd string) string {
 	}
 	return NewScopedPaths(globalDataDir, scope, "").ScopeDir()
 }
+
+func scopeKeyFromDataDir(globalDataDir, dataDir string) string {
+	rel, err := filepath.Rel(globalDataDir, dataDir)
+	if err != nil {
+		return ""
+	}
+	dir, key := filepath.Split(rel)
+	if filepath.Clean(dir) != "repos" || key == "" {
+		return ""
+	}
+	return key
+}

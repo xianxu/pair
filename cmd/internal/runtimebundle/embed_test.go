@@ -69,3 +69,14 @@ func TestEmbeddedMainLayoutHonorsPairDataDirForDraft(t *testing.T) {
 		t.Fatalf("draft pane must inherit PAIR_DATA_DIR before falling back to the global data dir")
 	}
 }
+
+func TestEmbeddedNvimLayoutStateHonorsPairDataDir(t *testing.T) {
+	data, err := EmbeddedAsset("nvim/init.lua")
+	if err != nil {
+		t.Fatalf("EmbeddedAsset(nvim/init.lua): %v", err)
+	}
+	init := string(data)
+	if !strings.Contains(init, "local LAYOUT_STATE_FILE = pair_data_dir()") {
+		t.Fatalf("layout state must use inherited PAIR_DATA_DIR instead of reconstructing the flat data dir")
+	}
+}

@@ -32,3 +32,16 @@ func TestScopedLaunchDataDir(t *testing.T) {
 		t.Fatalf("ScopedLaunchDataDir = %q, want %q", got, want)
 	}
 }
+
+func TestScopeKeyFromDataDir(t *testing.T) {
+	global := "/home/me/.local/share/pair"
+	if got := scopeKeyFromDataDir(global, filepath.Join(global, "repos", "abc123")); got != "abc123" {
+		t.Fatalf("scoped key = %q, want abc123", got)
+	}
+	if got := scopeKeyFromDataDir(global, global); got != "" {
+		t.Fatalf("flat data dir key = %q, want empty", got)
+	}
+	if got := scopeKeyFromDataDir(global, filepath.Join(global, "other", "abc123")); got != "" {
+		t.Fatalf("non-scope data dir key = %q, want empty", got)
+	}
+}

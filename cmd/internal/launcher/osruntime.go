@@ -130,18 +130,10 @@ func (r OSRuntime) ListSessions() ([]ListRow, error) {
 	}
 	raw := zj("list-sessions", "--no-formatting")
 	names := pairSessionNames(zj("list-sessions", "--short"))
-	rows := make([]ListRow, 0, len(names))
-	for _, name := range names {
-		tag := strings.TrimPrefix(name, "pair-")
-		row := ListRow{Session: name, Agent: r.InferAgent(tag), State: SessionDetached}
-		if _, exited := sessionRowState(raw, name); exited {
-			row.State = SessionExited
-		} else if row.Clients = parseClientCount(zj("--session", name, "action", "list-clients")); row.Clients > 0 {
-			row.State = SessionAttached
-		}
-		rows = append(rows, row)
-	}
-	return rows, nil
+	index, _ := r.ReadSessionNameIndex()
+	return buildListRowsForScope(names, raw, index, scopeKeyFromDataDir(r.GlobalDataDir, r.DataDir), r.InferAgent, func(session string) int {
+		return parseClientCount(zj("--session", session, "action", "list-clients"))
+	}), nil
 }
 
 // --- ContinuationOps -------------------------------------------------------

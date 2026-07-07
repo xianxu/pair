@@ -81,3 +81,40 @@ func TestRunListError(t *testing.T) {
 		t.Fatalf("stdout must stay empty on error, got %q", out.String())
 	}
 }
+
+func TestBuildListRowsForScopeFiltersBySessionNameIndex(t *testing.T) {
+	scope := mustScope(t, "/work/pair")
+	other := mustScope(t, "/other/pair")
+	index := SessionNameIndex{Entries: []SessionNameEntry{
+		{SessionName: "pair-pair-work", ScopeKey: scope.Key, RepoName: "pair", Tag: "work"},
+		{SessionName: "pair-pair-work-2", ScopeKey: other.Key, RepoName: "pair", Tag: "work"},
+	}}
+
+	rows := buildListRowsForScope(
+		[]string{"pair-pair-work", "pair-pair-work-2", "pair-unindexed"},
+		"pair-pair-work [Created]\npair-pair-work-2 [Created]\npair-unindexed [Created]\n",
+		index,
+		scope.Key,
+		func(tag string) string {
+			if tag != "work" {
+				t.Fatalf("InferAgent called for tag %q; want only current-scope tag work", tag)
+			}
+			return "codex"
+		},
+		func(session string) int {
+			if session == "pair-pair-work" {
+				return 2
+			}
+			t.Fatalf("client count called for filtered session %q", session)
+			return 0
+		},
+	)
+
+	if len(rows) != 1 {
+		t.Fatalf("rows = %+v, want one current-scope indexed row", rows)
+	}
+	row := rows[0]
+	if row.Session != "pair-pair-work" || row.Agent != "codex" || row.State != SessionAttached || row.Clients != 2 {
+		t.Fatalf("row = %+v", row)
+	}
+}
