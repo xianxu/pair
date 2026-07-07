@@ -286,3 +286,10 @@ while skipping malformed lines, and `OSRuntime` can append/read
 ./cmd/internal/launcher -run
 'TestOSRuntimeSessionNameIndexStore|TestSessionNameIndex|TestAssignSessionName|TestSessionsForScope'`
 and `go test ./cmd/internal/launcher`.
+
+Wired the session-name index into explicit-tag launch decisions: forced
+create/attach now use the assigned scoped public name (`pair-<repo>-<tag>`)
+instead of reconstructing `pair-<tag>`, and successful creates append the
+registry entry before handoff. Existing tests were updated to seed indexed live
+sessions where they mean current-repo scoped sessions. Verified with `go test
+./cmd/internal/launcher`.

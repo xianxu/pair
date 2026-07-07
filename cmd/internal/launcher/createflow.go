@@ -143,7 +143,11 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 		fmt.Fprintf(stderr, "pair: failed to scan session history: %v\n", err)
 		return launchStep{code: 1}, nil
 	}
-	snap := SessionSnapshot{BaseTag: base, Sessions: sessions, Historical: historical}
+	sessionNames, sessionNameEntries, ok := assignLaunchSessionNames(rt, sessions, env.Cwd, opts.Args, base, stderr)
+	if !ok {
+		return launchStep{code: 1}, nil
+	}
+	snap := SessionSnapshot{BaseTag: base, Sessions: sessions, Historical: historical, SessionNames: sessionNames}
 	decision, err := DecideLaunch(opts.Args, snap)
 	if err != nil {
 		fmt.Fprintf(stderr, "pair: %v\n", err)
@@ -187,24 +191,74 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 
 	switch decision.Action {
 	case ActionAttach:
-		code, err := runAttach(opts, env, rt, decision.Tag, agent)
+		code, err := runAttach(opts, env, rt, decision.Tag, decision.SessionName, agent)
 		if err != nil {
-			fmt.Fprintf(stderr, "pair: failed to attach session 'pair-%s': %v\n", decision.Tag, err)
+			fmt.Fprintf(stderr, "pair: failed to attach session '%s': %v\n", decision.SessionName, err)
 			return launchStep{code: 1}, nil
 		}
-		return launchStep{code: code, session: "pair-" + decision.Tag, tag: decision.Tag, agent: agent, handedOff: true}, nil
+		return launchStep{code: code, session: decision.SessionName, tag: decision.Tag, agent: agent, handedOff: true}, nil
 	case ActionCreate:
-		return runCreate(opts, env, rt, decision, base, agent, stderr)
+		return runCreate(opts, env, rt, decision, base, agent, sessionNameEntries[decision.Tag], stderr)
 	default: // ActionPick is resolved above — unreachable; a defensive guard.
 		fmt.Fprintf(stderr, "pair: internal error: unresolved launch decision (%s)\n", decision.Action)
 		return launchStep{code: 1}, nil
 	}
 }
 
+func assignLaunchSessionNames(rt Runtime, live []Session, cwd string, args LaunchArgs, base string, stderr io.Writer) (map[string]string, map[string]SessionNameEntry, bool) {
+	scope, err := ResolveRepoScope(cwd)
+	if err != nil {
+		return nil, nil, true
+	}
+	index, err := rt.ReadSessionNameIndex()
+	if err != nil {
+		index = SessionNameIndex{}
+	}
+	tags := launchNameTags(args, base)
+	if len(tags) == 0 {
+		return nil, nil, true
+	}
+	names := map[string]string{}
+	newEntries := map[string]SessionNameEntry{}
+	for _, tag := range tags {
+		if tag == "" {
+			continue
+		}
+		name, updated, err := AssignSessionName(index, live, scope, tag, func(session string) bool {
+			return rt.ProbeSessionName(session) == nil
+		})
+		if err != nil {
+			fmt.Fprintf(stderr, "pair: %v\n", err)
+			return nil, nil, false
+		}
+		if len(updated.Entries) > len(index.Entries) {
+			entry := updated.Entries[len(updated.Entries)-1]
+			newEntries[tag] = entry
+		}
+		index = updated
+		names[tag] = name
+	}
+	return names, newEntries, true
+}
+
+func launchNameTags(args LaunchArgs, base string) []string {
+	switch {
+	case args.SelectedTag != "":
+		return []string{args.SelectedTag}
+	case args.ForcedTag != "":
+		return []string{args.ForcedTag}
+	default:
+		if base == "" {
+			base = "pair"
+		}
+		return []string{base}
+	}
+}
+
 // runCreate ports the shell's create branch: prompt/validate the tag, run the
 // tag-restart config picker, compose the per-agent launch args, spawn the
 // sidecars, then hand off to the blocking zellij create.
-func runCreate(opts LaunchOptions, env Env, rt Runtime, decision LaunchDecision, base, agent string, stderr io.Writer) (launchStep, error) {
+func runCreate(opts LaunchOptions, env Env, rt Runtime, decision LaunchDecision, base, agent string, sessionEntry SessionNameEntry, stderr io.Writer) (launchStep, error) {
 	// Validate the agent here (create-only; attach re-uses an existing pane's
 	// agent, so shell 1728 defers this past the attach branch).
 	if !rt.CommandExists(agent) {
@@ -222,7 +276,10 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, decision LaunchDecision,
 		chosenTag = tag
 	}
 
-	session := "pair-" + chosenTag
+	session := decision.SessionName
+	if session == "" || chosenTag != decision.Tag {
+		session = "pair-" + chosenTag
+	}
 	dataDir := env.DataDir
 	configPath := resolveConfigPath(rt, dataDir, chosenTag, agent)
 	savedForPicker := readSavedConfigForTag(rt, configPath, chosenTag, agent)
@@ -325,6 +382,9 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, decision LaunchDecision,
 	if rt.SessionBlocksReuse(session) {
 		fmt.Fprintf(stderr, "pair: session '%s' already exists.\n", session)
 		return launchStep{code: 1}, nil
+	}
+	if sessionEntry.SessionName != "" {
+		_ = rt.AppendSessionNameIndex(sessionEntry)
 	}
 
 	configDir := filepath.Join(opts.PairHome, "zellij")

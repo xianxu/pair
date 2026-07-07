@@ -21,6 +21,7 @@ type fakeRuntime struct {
 	commandMissing map[string]bool // name -> absent (default: everything exists)
 	files          map[string]string
 	ledger         map[string][]LedgerEntry
+	sessionIndex   SessionNameIndex
 	agentSessions  map[string]bool // "agent|sid" -> native artifact exists
 	uuids          []string        // MintUUID pops these in order
 	promptValue    string
@@ -177,6 +178,13 @@ func (f *fakeRuntime) AppendLedger(tag string, entry LedgerEntry) error {
 	f.ledger[tag] = append(f.ledger[tag], entry)
 	return nil
 }
+func (f *fakeRuntime) ReadSessionNameIndex() (SessionNameIndex, error) {
+	return f.sessionIndex, nil
+}
+func (f *fakeRuntime) AppendSessionNameIndex(entry SessionNameEntry) error {
+	f.sessionIndex.Entries = append(f.sessionIndex.Entries, entry)
+	return nil
+}
 
 // FSOps
 func (f *fakeRuntime) ReadFile(path string) (string, error) {
@@ -320,7 +328,7 @@ func TestRunLaunchForcedCreateClaude(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d", code)
 	}
-	if rt.launched != "pair-bugfix" {
+	if rt.launched != "pair-work-bugfix" {
 		t.Fatalf("launched = %q", rt.launched)
 	}
 	if len(rt.family) != 0 {
@@ -355,6 +363,27 @@ func TestRunLaunchForcedCreateClaude(t *testing.T) {
 	}
 	if len(rt.titles) != 1 || len(rt.ttyRecorded) != 1 || len(rt.cmux) != 1 {
 		t.Fatalf("title/tty/cmux effects missing: %v %v %v", rt.titles, rt.ttyRecorded, rt.cmux)
+	}
+}
+
+func TestRunLaunchForcedCreateUsesScopedSessionName(t *testing.T) {
+	rt := newFakeRuntime()
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "bugfix"}), rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.launched != "pair-work-bugfix" {
+		t.Fatalf("launched = %q", rt.launched)
+	}
+	if rt.env["PAIR_TAG"] != "bugfix" {
+		t.Fatalf("PAIR_TAG = %q", rt.env["PAIR_TAG"])
+	}
+	if len(rt.sessionIndex.Entries) != 1 {
+		t.Fatalf("session index = %#v, want one entry", rt.sessionIndex)
+	}
+	entry := rt.sessionIndex.Entries[0]
+	if entry.SessionName != "pair-work-bugfix" || entry.Tag != "bugfix" || entry.RepoName != "work" {
+		t.Fatalf("session index entry = %#v", entry)
 	}
 }
 
@@ -634,7 +663,7 @@ func TestRunLaunchProbeTooLong(t *testing.T) {
 func TestRunLaunchPreHandoffCollision(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.uuids = []string{"S"}
-	rt.blocksReuse["pair-bugfix"] = true // forced create → no prompt collision check
+	rt.blocksReuse["pair-work-bugfix"] = true // forced create → no prompt collision check
 	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "bugfix"}), rt)
 	if err != nil || code != 1 {
 		t.Fatalf("code=%d err=%v", code, err)

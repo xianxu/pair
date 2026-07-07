@@ -122,6 +122,11 @@ type LedgerOps interface {
 	AppendLedger(tag string, entry LedgerEntry) error
 }
 
+type SessionNameStoreOps interface {
+	ReadSessionNameIndex() (SessionNameIndex, error)
+	AppendSessionNameIndex(entry SessionNameEntry) error
+}
+
 // FSOps is the filesystem subset the create path uses (satisfied by osfs.FS).
 type FSOps interface {
 	ReadFile(path string) (string, error)
@@ -207,6 +212,7 @@ type Runtime interface {
 	EnvOps
 	IDOps
 	LedgerOps
+	SessionNameStoreOps
 	FSOps
 	LifecycleOps
 }

@@ -18,8 +18,10 @@ import (
 // agent (no fresh spawn, no arg composition) and blocks on the attach handoff so
 // the loop regains control for cleanup + restart. agent is the inferred title
 // agent (the on-disk agent-<tag> record, resolved by the caller).
-func runAttach(opts LaunchOptions, env Env, rt Runtime, tag, agent string) (int, error) {
-	session := "pair-" + tag
+func runAttach(opts LaunchOptions, env Env, rt Runtime, tag, session, agent string) (int, error) {
+	if session == "" {
+		session = "pair-" + tag
+	}
 	// Export what the spawned poller inherits (pair-shell exports these globally
 	// before the branch; the attach branch itself only re-exports PAIR_TAG).
 	rt.SetEnv("PAIR_HOME", opts.PairHome)
