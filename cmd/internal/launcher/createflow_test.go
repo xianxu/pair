@@ -219,6 +219,19 @@ func (f *fakeRuntime) Rename(src, dst string) error {
 	f.renamed = append(f.renamed, [2]string{src, dst})
 	return nil
 }
+func (f *fakeRuntime) ReadDir(path string) ([]string, error) {
+	prefix := strings.TrimSuffix(path, "/") + "/"
+	var out []string
+	for p := range f.files {
+		if strings.HasPrefix(p, prefix) {
+			out = append(out, strings.TrimPrefix(p, prefix))
+		}
+	}
+	if len(out) == 0 {
+		return nil, errors.New("not found")
+	}
+	return out, nil
+}
 func (f *fakeRuntime) WriteRestartMarker(session string, m RestartMarker) {
 	if f.writtenMarkers == nil {
 		f.writtenMarkers = map[string]RestartMarker{}

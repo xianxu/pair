@@ -82,6 +82,7 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 		Args:                 args,
 		Env:                  env,
 		PairHome:             pairHome,
+		GlobalDataDir:        dataDir,
 		CodexAltScreenOptOut: os.Getenv("PAIR_CODEX_ALT_SCREEN") == "1",
 		ParkPromptTimeout:    parkPromptTimeout(),
 		// #55 compaction env, read from the pane (only consulted when a `continue`

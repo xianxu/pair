@@ -90,6 +90,58 @@ func TestBuildPickRowsAnnotatesRepoAndAgent(t *testing.T) {
 	}
 }
 
+func TestBuildPickRowsLabelsLegacyUnscopedManualImport(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	snap := SessionSnapshot{Historical: []HistoricalTag{{
+		Tag:            "pair-old",
+		MTime:          now,
+		LegacyUnscoped: true,
+	}}}
+	display, byPlain := buildPickRows(snap, "pair", now.Unix())
+	plain := "legacy unscoped pair-old  (manual import)"
+	if len(display) != 2 {
+		t.Fatalf("display = %q, want legacy row + new", display)
+	}
+	if _, ok := byPlain[plain]; !ok {
+		t.Fatalf("byPlain = %#v, want %q", byPlain, plain)
+	}
+	if sel := byPlain[plain]; sel.tag != "pair-old" || !sel.legacy {
+		t.Fatalf("selection = %#v, want legacy pair-old", sel)
+	}
+}
+
+func TestRunLaunchPickLegacyImportsFlatFiles(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.historical = []HistoricalTag{{Tag: "pair-old", MTime: time.Unix(1_700_000_000, 0), LegacyUnscoped: true}}
+	rt.files["/global/draft-pair-old.md"] = "legacy draft"
+	rt.files["/global/queue-pair-old/000001.md"] = "queued prompt"
+	rt.pickFunc = func(header string, options []string) string {
+		return "legacy unscoped pair-old  (manual import)"
+	}
+	opts := baseOpts(LaunchArgs{Agent: "claude"})
+	opts.GlobalDataDir = "/global"
+
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if got := rt.files["/data/draft-pair-old.md"]; got != "legacy draft" {
+		t.Fatalf("imported draft = %q", got)
+	}
+	if got := rt.files["/global/draft-pair-old.md"]; got != "legacy draft" {
+		t.Fatalf("legacy source should be preserved, got %q", got)
+	}
+	if got := rt.files["/data/queue-pair-old/000001.md"]; got != "queued prompt" {
+		t.Fatalf("imported queue prompt = %q", got)
+	}
+	if got := rt.files["/global/queue-pair-old/000001.md"]; got != "queued prompt" {
+		t.Fatalf("legacy queue source should be preserved, got %q", got)
+	}
+	if entries := rt.ledger["pair-old"]; len(entries) == 0 || !entries[0].LegacyImport {
+		t.Fatalf("ledger entries = %#v, want legacy import marker", entries)
+	}
+}
+
 // Picking a live detached session attaches it — and the agent is inferred from
 // the picked tag (resume-by-name), NOT the bare-`pair` claude default, so a
 // detached codex session attaches as codex.

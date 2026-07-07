@@ -9,6 +9,7 @@ package osfs
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -56,6 +57,27 @@ func (FS) Remove(path string) { _ = os.Remove(path) }
 
 // Rename moves src to dst (os.Rename — same-filesystem move, the shell's `mv`).
 func (FS) Rename(src, dst string) error { return os.Rename(src, dst) }
+
+func (FS) ReadDir(path string) ([]string, error) {
+	var out []string
+	err := filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(path, p)
+		if err != nil {
+			return err
+		}
+		if rel != "." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			out = append(out, rel)
+		}
+		return nil
+	})
+	return out, err
+}
 
 func (FS) FileSize(path string) (int64, bool) {
 	info, err := os.Stat(path)

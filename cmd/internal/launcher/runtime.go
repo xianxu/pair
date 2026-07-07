@@ -135,6 +135,7 @@ type FSOps interface {
 	FileSize(path string) (int64, bool)
 	Touch(path string) error
 	Rename(src, dst string) error // #99 M5b: the rename subcommand's mv
+	ReadDir(path string) ([]string, error)
 }
 
 // LifecycleOps is the post-handoff + attach effect surface (#99 M3): the blocking
@@ -224,6 +225,7 @@ type LaunchOptions struct {
 	Args                 LaunchArgs
 	Env                  Env
 	PairHome             string
+	GlobalDataDir        string
 	ContinueDoc          string // seed the draft to read this continuation (create-only)
 	CodexAltScreenOptOut bool   // PAIR_CODEX_ALT_SCREEN=1: leave codex in alt-screen
 	ParkPromptTimeout    int    // PAIR_PARK_PROMPT_TIMEOUT (default 5): the quit park-nudge [y/N] bound

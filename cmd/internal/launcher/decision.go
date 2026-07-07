@@ -14,10 +14,11 @@ const (
 // LaunchDecision is a pure create/attach/pick decision. Tag is canonical bare
 // form; SessionName is derived as pair-<tag> when a zellij session is named.
 type LaunchDecision struct {
-	Action      LaunchAction
-	Tag         string
-	SessionName string
-	PromptName  bool
+	Action       LaunchAction
+	Tag          string
+	SessionName  string
+	PromptName   bool
+	LegacyImport bool
 }
 
 // DecideLaunch decides the launch action without touching zellij, fzf, or disk.

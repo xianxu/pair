@@ -24,11 +24,12 @@ type Session struct {
 // MTime + QueueCount are populated by HistorySource.Scan (the decision path only
 // reads Tag; the #99 M5a fzf pick-row build reads all three, purely).
 type HistoricalTag struct {
-	Tag        string
-	MTime      time.Time // latest draft/log sidecar mtime (picker age grading)
-	QueueCount int       // queued prompts under queue-<tag>/ (picker badge)
-	RepoName   string
-	Agent      string
+	Tag            string
+	MTime          time.Time // latest draft/log sidecar mtime (picker age grading)
+	QueueCount     int       // queued prompts under queue-<tag>/ (picker badge)
+	RepoName       string
+	Agent          string
+	LegacyUnscoped bool
 }
 
 // SessionSnapshot is the pure input to launcher decision-making.

@@ -110,7 +110,7 @@ func runBlockingHandoff(cmd *exec.Cmd) (int, error) {
 // --- SnapshotOps -----------------------------------------------------------
 
 func (r OSRuntime) ScanHistory(base string, cutoff time.Time) ([]HistoricalTag, error) {
-	return HistorySource{DataDir: r.DataDir}.Scan(base, cutoff)
+	return HistorySource{DataDir: r.DataDir, LegacyDataDir: r.globalDataDir()}.Scan(base, cutoff)
 }
 
 // --- ListOps ---------------------------------------------------------------

@@ -194,7 +194,7 @@ provisional but derived from the required source.
       cleanup to current-repo scoped snapshots and sidecar paths.
 - [x] Update zellij/nvim/shell consumers so inherited scoped `PAIR_DATA_DIR` is
       authoritative.
-- [ ] Grandfather existing flat sidecars and live unscoped sessions without data
+- [x] Grandfather existing flat sidecars and live unscoped sessions without data
       loss.
 - [ ] Add acceptance tests for same-tag multi-repo isolation, picker agent
       annotation, explicit-agent arg safety, bare `pair` ledger continuation,
@@ -334,3 +334,14 @@ scoped `PAIR_DATA_DIR` consumer found by the shadow sweep. Verified with
 `go test ./cmd/internal/launcher -count=1`, the targeted runtimebundle
 embedded-asset tests, `go test ./...`, `git diff --check`, and `bash
 tests/pair-rename.sh`.
+
+Implemented conservative legacy flat-sidecar grandfathering (ARCH-PURPOSE +
+Root Cause): scoped history now surfaces eligible basename-family flat tags as
+`legacy unscoped <tag> (manual import)` rows instead of silently claiming them.
+Selecting that row copies missing flat sidecars into the current scoped data dir,
+preserves the flat source files, avoids overwriting scoped files, and marks the
+launch ledger row with `legacy_import: true`. Flat rows outside the current
+repo basename family stay hidden from the current repo picker. Verified with
+`go test ./cmd/internal/launcher -run 'TestLegacyImportPlan|TestGrandfather|TestMigrate|TestHistory' -count=1`,
+`go test ./cmd/internal/launcher -count=1`, `go test ./...`, and
+`git diff --check`.

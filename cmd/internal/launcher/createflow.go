@@ -285,6 +285,10 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, decision LaunchDecision,
 		session = "pair-" + chosenTag
 	}
 	dataDir := env.DataDir
+	legacyImported := false
+	if decision.LegacyImport {
+		legacyImported = importLegacyFlatTag(rt, chosenTag, opts.GlobalDataDir, dataDir)
+	}
 	configPath := resolveConfigPath(rt, dataDir, chosenTag, agent)
 	savedForPicker := readSavedConfigForTag(rt, configPath, chosenTag, agent)
 
@@ -347,13 +351,14 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, decision LaunchDecision,
 	}
 
 	_ = rt.AppendLedger(chosenTag, LedgerEntry{
-		Agent:      agent,
-		Args:       persistedConfigArgs(agentArgs),
-		SessionID:  firstNonEmpty(explicitResume, newSid),
-		Started:    env.Now,
-		LastActive: env.Now,
-		RepoRoot:   env.Cwd,
-		RepoName:   DefaultTag(env.Cwd),
+		Agent:        agent,
+		Args:         persistedConfigArgs(agentArgs),
+		SessionID:    firstNonEmpty(explicitResume, newSid),
+		Started:      env.Now,
+		LastActive:   env.Now,
+		RepoRoot:     env.Cwd,
+		RepoName:     DefaultTag(env.Cwd),
+		LegacyImport: legacyImported,
 	})
 
 	rt.SetEnv("PAIR_AGENT_ARGS", strings.Join(agentArgs, " "))
