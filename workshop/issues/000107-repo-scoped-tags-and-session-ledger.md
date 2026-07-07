@@ -199,7 +199,7 @@ provisional but derived from the required source.
 - [x] Add acceptance tests for same-tag multi-repo isolation, picker agent
       annotation, explicit-agent arg safety, bare `pair` ledger continuation,
       and legacy recovery.
-- [ ] Update atlas docs and run final verification.
+- [x] Update atlas docs and run final verification.
 
 ## Log
 
@@ -352,3 +352,19 @@ non-disclosure, and current-scope live-session filtering together. This sits
 alongside the existing picker annotation, explicit-agent arg safety,
 ledger-backed continuation, and legacy recovery tests. Verified with
 `go test ./cmd/internal/launcher -run 'TestAcceptance|TestRunLaunchPickInferredAgentMustNotInheritCliArgs|TestRunLaunchResumeUsesLedgerAgentAndArgsWhenConfigMissing|TestRunLaunchPickLegacyImportsFlatFiles' -count=1`.
+
+Added `atlas/session-identity.md` and linked it from `atlas/index.md`, mapping
+the #107 identity model: repo scope, display tag, agent, native session id,
+scoped data layout, public zellij session names, ledger-vs-cache ownership,
+current-scope picker/list behavior, and legacy flat-data recovery.
+
+Final verification exposed live-environment leakage in shell smoke tests rather
+than #107 product failures: the running Pair session's `PAIR_SESSION_ID`
+changed expected no-session/config-fallback filenames, and headless Neovim tried
+to write ShaDa/state outside the sandbox. Isolated those harnesses by clearing
+session env where config/no-session behavior is under test and by giving
+`run_headless` disposable state/cache roots while preserving caller data roots.
+Verified with `bash tests/run-headless-test.sh`, `bash
+tests/review-apply-test.sh`, `bash tests/review-reconcile-test.sh`, `bash
+tests/pair-review-target-test.sh`, full `make test`, `go test ./...`, and
+`git diff --check`.

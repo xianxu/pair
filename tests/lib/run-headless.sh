@@ -40,8 +40,11 @@ run_headless() {
     return 2
   fi
 
-  local out rc
+  local out rc xdg_tmp xdg_state xdg_cache
   out="$(mktemp "${TMPDIR:-/tmp}/run-headless.XXXXXX")"
+  xdg_tmp="$(mktemp -d "${TMPDIR:-/tmp}/run-headless-xdg.XXXXXX")"
+  xdg_state="${XDG_STATE_HOME:-$xdg_tmp/state}"
+  xdg_cache="${XDG_CACHE_HOME:-$xdg_tmp/cache}"
 
   local to_bin=''
   if   command -v timeout  >/dev/null 2>&1; then to_bin='timeout'
@@ -50,7 +53,8 @@ run_headless() {
 
   if [ -n "$to_bin" ]; then
     # -k 2: if the TERM at the deadline is ignored, SIGKILL 2s later.
-    if "$to_bin" -k 2 "$timeout_s" "$@" >"$out" 2>&1 </dev/null; then
+    if env XDG_STATE_HOME="$xdg_state" XDG_CACHE_HOME="$xdg_cache" \
+      "$to_bin" -k 2 "$timeout_s" "$@" >"$out" 2>&1 </dev/null; then
       rc=0
     else
       rc=$?
@@ -58,7 +62,8 @@ run_headless() {
   else
     # Portable fallback: background + poll + kill. `set -e`-safe — every
     # non-zero exit is consumed by a condition, never a bare statement.
-    "$@" >"$out" 2>&1 </dev/null &
+    env XDG_STATE_HOME="$xdg_state" XDG_CACHE_HOME="$xdg_cache" \
+      "$@" >"$out" 2>&1 </dev/null &
     local pid=$! waited=0
     rc=''
     while kill -0 "$pid" 2>/dev/null; do
@@ -90,5 +95,6 @@ run_headless() {
     } >&2
   fi
   rm -f "$out"
+  rm -rf "$xdg_tmp"
   return "$rc"
 }

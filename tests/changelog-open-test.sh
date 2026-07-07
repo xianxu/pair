@@ -23,6 +23,7 @@ trap 'rm -rf "$tmp"' EXIT
 export PAIR_DATA_DIR="$tmp/data"
 export PAIR_TAG="t"
 export PAIR_AGENT="claude"
+export PAIR_SESSION_ID=""
 mkdir -p "$PAIR_DATA_DIR"
 
 # Fake captured scrollback (a ❯ prompt line → one completed turn).
