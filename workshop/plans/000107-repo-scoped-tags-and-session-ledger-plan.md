@@ -613,3 +613,15 @@ Delta: pass the assigned public zellij session name through launcher
 legacy fallback, and teach continuation compaction to recognize scoped
 `pair-<repo>-<tag>` names for the same tag. Add focused regressions for both
 lifecycle paths.
+
+### 2026-07-07 — tenth close-review REWORK follow-up
+
+Reason: the tenth `sdlc close --issue 107` boundary review returned REWORK. It
+found that selecting a historical picker row still re-entered the forced-tag
+path with a legacy fallback `pair-<tag>` session name, and that
+`session-names.jsonl` used Go field names rather than the documented snake_case
+wire format.
+
+Delta: clear fallback session names for non-live picker creates so historical
+and legacy imports are assigned through the scoped public-name allocator, and add
+explicit snake_case JSON tags to `SessionNameEntry` with round-trip coverage.

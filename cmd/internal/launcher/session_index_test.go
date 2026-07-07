@@ -118,6 +118,11 @@ func TestSessionNameIndexRoundTripSkipsMalformedRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildSessionNameIndexLine: %v", err)
 	}
+	for _, want := range []string{`"session_name"`, `"scope_key"`, `"repo_root"`, `"repo_name"`, `"tag"`} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("index line = %s, want key %s", line, want)
+		}
+	}
 	index := ParseSessionNameIndex(line + "\nnot-json\n")
 	if len(index.Entries) != 1 {
 		t.Fatalf("entries = %#v, want one valid entry", index.Entries)

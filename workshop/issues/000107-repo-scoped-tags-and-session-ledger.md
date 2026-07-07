@@ -465,3 +465,11 @@ continuation compaction recognizes scoped `pair-<repo>-<tag>` session names for
 the same tag. Added focused regressions for scoped titlepoller and scoped
 compaction context. Verified with `go test ./cmd/internal/launcher
 ./cmd/internal/titlepoller ./cmd/internal/continuationcmd -count=1`.
+
+Tenth `sdlc close --issue 107` returned `Review-Verdict: REWORK`. Addressed
+the historical picker scoped-name escape hatch: non-live picker rows now clear
+legacy fallback session names before create, forcing `runCreate` through the
+scoped session-name allocator for historical and legacy imports. Also added
+snake_case JSON tags to `SessionNameEntry` so `session-names.jsonl` matches the
+documented wire format. Verified with focused red/green regressions and
+`go test ./cmd/internal/launcher -count=1`.

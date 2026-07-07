@@ -9,11 +9,11 @@ import (
 const minSessionComponentRunes = 4
 
 type SessionNameEntry struct {
-	SessionName string
-	ScopeKey    string
-	RepoRoot    string
-	RepoName    string
-	Tag         string
+	SessionName string `json:"session_name"`
+	ScopeKey    string `json:"scope_key"`
+	RepoRoot    string `json:"repo_root"`
+	RepoName    string `json:"repo_name"`
+	Tag         string `json:"tag"`
 }
 
 type SessionNameIndex struct {

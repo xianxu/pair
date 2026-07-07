@@ -216,8 +216,8 @@ func TestRunLaunchPickHistoricalCreatesByName(t *testing.T) {
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	if rt.launched != "pair-gone" {
-		t.Fatalf("launched = %q, want pair-gone", rt.launched)
+	if rt.launched != "pair-work-gone" {
+		t.Fatalf("launched = %q, want pair-work-gone", rt.launched)
 	}
 	if len(rt.pollers) != 1 || rt.pollers[0] != "gone|codex" {
 		t.Fatalf("pollers = %v, want [gone|codex] (agent inferred)", rt.pollers)

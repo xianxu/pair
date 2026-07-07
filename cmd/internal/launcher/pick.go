@@ -140,6 +140,9 @@ func resolvePick(rt Runtime, snap SessionSnapshot, base string, nowEpoch int64) 
 		return LaunchDecision{Action: ActionAttach, Tag: sel.tag, SessionName: sel.sessionName}, false
 	}
 	d, _ := DecideLaunch(LaunchArgs{ForcedTag: sel.tag}, snap) // never errors (no pick recursion)
+	if d.Action == ActionCreate {
+		d.SessionName = ""
+	}
 	d.LegacyImport = sel.legacy
 	return d, false
 }
