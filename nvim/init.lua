@@ -3343,10 +3343,11 @@ function _G.PairConfirmCompact()
         .. '\ninto its NEXT ACTION.',
       '&Yes\n&No', 2)
     if ans ~= 1 then return end
-    -- Persist the draft so the writer reads fresh WIP off disk to fold into
-    -- NEXT ACTION (pair#105). The draft pane is the current buffer here (the
-    -- Alt+Shift+C binding focuses it first); autosave usually has it, but a
-    -- deterministic fold shouldn't depend on autosave timing.
+    -- Best-effort: persist the currently-displayed buffer so the writer reads
+    -- fresh WIP off disk to fold into NEXT ACTION (pair#105). The Alt+Shift+C
+    -- binding focuses the draft *pane*, but the displayed buffer may be a nav
+    -- slot (-N/+N) rather than the `*` draft — autosave is the real freshness
+    -- guarantee for draft-<tag>.md, so this `:w` only helps when `*` is current.
     pcall(vim.cmd, 'silent! write')
     send_to_agent(COMPACT_PROMPT)
   end)

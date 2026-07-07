@@ -51,3 +51,64 @@ confidence: high
 - **ARCH-PURPOSE — PASS (shadow-sweep clean):** the issue's purpose was *deterministic restart with no agent step to forget*. The consumers are: (a) the writer, which now owns the restart — enforced in code, not prose; (b) `COMPACT_PROMPT`, collapsed to one step with the second step *removed* (`nvim/init.lua:3329-3337`), not merely reworded; (c) the atlas, updated. No hand-maintained restatement of the old two-step remains in active docs (the surviving `pair continue <slug>` references in README/createflow/compaction are the legitimate standalone command + pre-existing seed path, not the removed step). The purpose is fulfilled, not deferred.
 
 **7. Plan revision recommendations** — none. The plan's Core-concepts table matches the code exactly (all three entities at `draft.go`, new, pure, IO-injected as described), the Revisions already reconcile the drift-test substitution and the integration-test framing, and every checklist item is delivered. No `## Revisions` entry needed.
+
+---
+
+## Re-review — 2026-07-06T23:35:02-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 105 — alt+shift+c: deterministic writer-triggered restart + fold draft WIP into continuation NEXT ACTION |
+| repo | pair |
+| issue file | workshop/issues/000105-altc-deterministic-restart-draft-fold.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | b9dc30a9e64da75e8a6c0e0606c25292a5bcb529..HEAD |
+| command | sdlc close --issue 105 |
+| reviewer | claude |
+| timestamp | 2026-07-06T23:35:02-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+I have a complete picture. Let me record the pending-smoke verification framing by checking the exact Revisions wording once more, then write the verdict.
+
+The verification is complete. Here is my review.
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+**Summary.** The code is SHIP-quality: the three `draft.go` entities are genuinely pure and unit-tested without IO; the draft-read and restart-exec are correctly isolated as injected seams (`run()` takes `env runEnv` + `restart func(string) error`); the Lua→Go strip port is byte-faithful (I traced the line-split/edge-trim semantics against `nvim/init.lua:995`); the `PAIR_FAKE_IN_ZELLIJ=1` fake correctly flows into `compactionDecision(opts.ForceInSession, rt.InZellijPane() || opts.FakeInZellij, …)` at `createflow.go:45` with the real tag-match still guarding the session; build + full `go test ./...` are green. The one thing blocking a clean SHIP is **documentation drift, not code**: the diff added a new "writer-owned compaction" paragraph to `atlas/architecture.md` but left **two older atlas passages (L326 and L442) still describing the removed agent-runs-`pair continue` two-step flow** as current — the atlas now self-contradicts on the exact flow this issue changed. That is precisely the Docs-gate + ARCH-PURPOSE shadow-sweep class, and the prior close-review's claim "no hand-maintained restatement of the old two-step remains in active docs" is incorrect. Fix those two lines, then ship.
+
+**1. Strengths**
+- **ARCH-PURE done right** (`draft.go`, `continuationcmd.go:46-64`): env read + `os.Executable()` exec seam built at the outer `Run` boundary and threaded into `run()`; the pure fold/strip/gate functions need no mocks. Textbook pure-core/thin-shell.
+- **Faithful, honestly-scoped port** (`draft.go:5-14`): I verified `StripStickyComments` matches Lua `strip_comments` on the drift-prone edges (trailing newline → `["a",""]` then trailed off; leading/comment-only/indented-`===`). The pinning comment names the source; the Revisions justify skipping a cross-language harness with the repo's own "wrong vs. less-ergonomic" lesson test — a defensible call.
+- **Correct fake-env wiring** (verified end-to-end): `newContinueRestartCmd` inherits `os.Environ()` (so `PAIR_TAG`/`ZELLIJ_SESSION_NAME` ride through) + adds `PAIR_FAKE_IN_ZELLIJ=1`; the child's real tag-match still runs, so it can't compact the wrong session. This is the actual root-cause fix and it's wired soundly.
+- **Durable-first, non-fatal restart** (`continuationcmd.go:184-194`): restart fires only after write+commit; a restart error is logged, not fatal — the continuation survives a relaunch-seam failure.
+- **Fold ordering is deliberate and correct** (`continuationcmd.go:121-132`, `draft.go:40-89`): folding before the `HasNextAction` guard lets WIP rescue a thin section; inserting after existing content keeps `NextActionPreview` stable; the empty-section branch omits the label so the preview surfaces the WIP, not `_Parked draft…_`. All test-pinned.
+- **Test coverage matches the Done-when point-for-point**: fold-lands, restart-called-with-slug, standalone-no-op, `--no-restart` suppresses both, fake-env pinned.
+
+**2. Critical findings** — none.
+
+**3. Important findings**
+- **Atlas self-contradicts on the changed flow — two stale passages** (`atlas/architecture.md:326` and `:442`). The diff added the new writer-owned paragraph (L215-238) but did not update:
+  - **L326** (keybinding table): "…so it asks the agent to write a continuation + run `pair continue <slug>` (context-aware → compaction)."
+  - **L442** (In-session compaction section): "…an agent-agnostic prompt that defers to the `continuation` datatype procedure — flush-first, then write the continuation **and run `pair continue <slug>`** — rather than enumerating…"
+  Both describe the removed step-2 as current behavior, directly contradicting the new paragraph and the shipped code (writer owns the restart; `COMPACT_PROMPT` now says "do NOT run `pair continue` yourself"). Fix sketch: rewrite L326 to "…asks the agent to write a continuation via `pair continuation`; the writer then triggers the restart itself (#105)" and edit L442's parenthetical to drop "and run `pair continue <slug>`" (the writer restarts). This is the Docs-gate finding (atlas is the "always-current" map) and the ARCH-PURPOSE shadow-sweep miss.
+
+**4. Minor findings**
+- `PairConfirmCompact`'s `pcall(vim.cmd, 'silent! write')` (`nvim/init.lua:3350`) saves *whichever buffer is focused*; `pair_ensure_visible_then` (`nvim/init.lua:3086`) only un-minimizes, it does **not** refocus the draft — so the comment "the Alt+Shift+C binding focuses it first" is inaccurate. If the operator sits on a history/queue slot buffer, `:w` writes that file and the fold reads the autosaved draft instead of the freshest WIP. Harmless (pcall-guarded, autosave fallback), but the comment overstates the guarantee — soften it and verify in the live smoke.
+- `InCompactionContext` proxy breadth (`draft.go:101`): any in-pane `pair continuation` restarts, not just the Alt+Shift+C prompt. Documented + `--no-restart` escape, but an agent invoking the writer in-pane for a non-compaction reason has no signal to pass the flag. Dogfood watch-item.
+- No `run()`-level test asserts the *fold-rescues-empty-NEXT-ACTION-then-write-succeeds* path (fold before `HasNextAction`); the unit test + wiring order make it adequately implied — not worth adding.
+
+**5. Test coverage notes**
+- Strong on every automatable surface. The **composed real-exec link** (`os.Executable()` → `pair continue <slug>` → `runCompaction` → relaunch) is inherently un-headless-testable; correctly confined to the injected seam. Note for the operator: the Revisions state "**Re-smoke required to confirm the restart now fires end-to-end**" after the `PAIR_FAKE_IN_ZELLIJ` fix — the headline Done-when ("alt+shift+c reliably restarts, even under the sandbox") rests on that specific re-smoke, which the Log frames as a still-pending manual step. Run it before trusting the close.
+
+**6. Architectural notes for upcoming work**
+- **ARCH-DRY — PASS:** reuses `adapt.DataDir()`, `isATXHeading`, the `pair continue`→`runCompaction` path, and mirrors `compactionDecision`'s tag-match (`InCompactionContext`). `StripStickyComments` is a deliberate, pinned cross-language mirror — the one acceptable duplication, justified in-comment.
+- **ARCH-PURE — PASS:** pure string core; the only IO (`os.ReadFile`, `exec.Command`, `os.Getenv`) lives in `Run`/the seam, injected into `run()`.
+- **ARCH-PURPOSE — FLAG (= the Important finding):** the *code* fulfills the purpose (restart enforced in code, `COMPACT_PROMPT` step-2 removed, not reworded). But the single-source shadow-sweep is incomplete: the atlas has three consumers of "how compaction restarts," and two of them (L326, L442) still restate the removed model as current. Per ARCH-PURPOSE a hand-maintained restatement that no longer derives is an unfinished consumer — reconcile them as part of this boundary.
+
+**7. Plan revision recommendations** — none. The Core-concepts table matches the code exactly (all three entities at `draft.go`, new, pure, IO-injected), and the Revisions already reconcile the drift-test substitution, the integration-test framing, and the `PAIR_FAKE_IN_ZELLIJ` root cause. No `## Revisions` entry needed; the gap is in the atlas, not the plan.
