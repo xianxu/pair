@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/adapt"
 )
 
 // ContinuationDir is the repo-relative home for continuation instances (matches
@@ -36,11 +38,32 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer, now func() ti
 	fs.StringVar(&a.worktree, "worktree", "", "local worktree path (a hint, not portable)")
 	fs.StringVar(&a.supersedes, "supersedes", "", "prior continuation slug")
 	fs.StringVar(&a.bodyFile, "body-file", "", "file holding the continuation body; '-' = stdin (required)")
+	fs.BoolVar(&a.noRestart, "no-restart", false, "don't restart the session after writing (escape hatch for a manual in-pane write)")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
 
-	if err := run(a, now, stdin, stdout); err != nil {
+	// Env inputs are read here (the non-injected outer seam) and threaded into
+	// run() so the fold + restart logic stays testable with a fake env + seam.
+	env := runEnv{
+		pairTag:       os.Getenv("PAIR_TAG"),
+		dataDir:       adapt.DataDir(),
+		zellijSession: os.Getenv("ZELLIJ_SESSION_NAME"),
+	}
+	// Real restart seam: re-invoke `pair continue <slug>` on ourselves. Inherits
+	// the env (PAIR_DEV/PAIR_TAG/ZELLIJ_SESSION_NAME ride through), so it re-enters
+	// compaction (compactionDecision fires) under the SAME config, then the outer
+	// reincarnation loop relaunches. The kill-session inside tears this process
+	// down too — that's fine, the continuation is already written + pushed.
+	restart := func(slug string) error {
+		exe, err := os.Executable()
+		if err != nil {
+			return err
+		}
+		return newContinueRestartCmd(exe, slug, stdin, stdout, stderr).Run()
+	}
+
+	if err := run(a, env, now, stdin, stdout, restart); err != nil {
 		fmt.Fprintf(stderr, "pair-continuation: %v\n", err)
 		return 1
 	}
@@ -49,13 +72,39 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer, now func() ti
 
 type runArgs struct {
 	repoRoot, slug, agent, sessionID, issuesCSV, branch, worktree, supersedes, bodyFile string
+	noRestart                                                                           bool
+}
+
+// runEnv are the process-env inputs the writer's compaction behavior keys off.
+// Populated in Run from the real environment; injected in tests.
+type runEnv struct {
+	pairTag, dataDir, zellijSession string
+}
+
+// newContinueRestartCmd builds the `pair continue <slug>` command the writer runs
+// to trigger the compaction restart. It sets PAIR_FAKE_IN_ZELLIJ=1 for a specific
+// reason (found by #105's live smoke): the writer has ALREADY confirmed the
+// compaction context via InCompactionContext (the ZELLIJ_SESSION_NAME tag-match,
+// which needs no process introspection), but the child `pair continue` re-derives
+// "am I in a pane?" through a process-ancestry walk (the launcher's InZellijPane),
+// and the agent's command sandbox blocks process introspection (EPERM). Without
+// the fake, that walk fails under a sandboxed agent shell and the restart misfires
+// (compactionDecision goes false → it tries to launch instead of compact). This is
+// the actual "restart stopped working" root cause. PAIR_FAKE_IN_ZELLIJ fakes ONLY
+// the ancestry half; `pair continue`'s own ZELLIJ_SESSION_NAME tag-match still runs,
+// so it can't compact the wrong session.
+func newContinueRestartCmd(exe, slug string, stdin io.Reader, stdout, stderr io.Writer) *exec.Cmd {
+	c := exec.Command(exe, "continue", slug)
+	c.Stdin, c.Stdout, c.Stderr = stdin, stdout, stderr
+	c.Env = append(os.Environ(), "PAIR_FAKE_IN_ZELLIJ=1")
+	return c
 }
 
 // run is the thin orchestration over the pure core: resolve inputs, write the
 // file, then commit + push. Clock and stdin are injected so it's testable; git
 // + fs are the real IO seam (the integration test drives the built binary
 // against a real temp repo).
-func run(a runArgs, now func() time.Time, stdin io.Reader, stdout io.Writer) error {
+func run(a runArgs, env runEnv, now func() time.Time, stdin io.Reader, stdout io.Writer, restart func(string) error) error {
 	root := a.repoRoot
 	if root == "" {
 		out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
@@ -68,6 +117,18 @@ func run(a runArgs, now func() time.Time, stdin io.Reader, stdout io.Writer) err
 	body, err := readBody(a.bodyFile, stdin)
 	if err != nil {
 		return err
+	}
+	// #105: in a compaction context, fold the operator's parked draft WIP into
+	// NEXT ACTION *before* writing, so the persisted+committed doc carries it —
+	// otherwise the restart's draft re-seed (createflow.go) discards it. Done
+	// before the HasNextAction guard so folded WIP can round out a thin section.
+	if !a.noRestart && InCompactionContext(env.pairTag, env.zellijSession) {
+		draft := filepath.Join(env.dataDir, "draft-"+env.pairTag+".md")
+		if raw, rerr := os.ReadFile(draft); rerr == nil {
+			if wip := StripStickyComments(string(raw)); wip != "" {
+				body = FoldDraftIntoNextAction(body, wip)
+			}
+		}
 	}
 	// The writer is the structural guard (Spec Done-when): continuation.md
 	// makes NEXT ACTION mandatory, so refuse a body that lacks it — or that has
@@ -121,6 +182,16 @@ func run(a runArgs, now func() time.Time, stdin io.Reader, stdout io.Writer) err
 		fmt.Fprintf(os.Stderr, "pair-continuation: push failed (commit kept locally): %v\n%s\n", err, out)
 	}
 	fmt.Fprintln(stdout, abs)
+
+	// #105: in a compaction context, the writer OWNS the restart — no agent step
+	// to forget. Fires only after a successful write+commit (the doc is durable
+	// first). --no-restart opts out (manual in-pane write). The seam kills the
+	// session; the outer reincarnation loop relaunches fresh, seeded from the doc.
+	if !a.noRestart && InCompactionContext(env.pairTag, env.zellijSession) {
+		if err := restart(f.Slug); err != nil {
+			fmt.Fprintf(os.Stderr, "pair-continuation: restart failed (continuation kept): %v\n", err)
+		}
+	}
 	return nil
 }
 
