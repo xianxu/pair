@@ -70,7 +70,7 @@ Durable plan: `workshop/plans/000104-single-pair-binary-plan.md` (3 milestones).
 - [x] M2 — Rewrite every owned call site to `pair <sub>` (launcher Go + title-
   poller guard, clipcmd, distiller, nvim, `.claude`, zellij KDL + bundle mirror),
   family-by-family. Helpers stay built → each commit green.
-- [ ] M3 — `GO_BINS := pair`, drop the `pair-go` twin, stop bundling helper
+- [x] M3 — `GO_BINS := pair`, drop the `pair-go` twin, stop bundling helper
   binaries (pair shrinks), guarantee `pair`-on-PATH, keep only the `pair-slug`
   symlink, delete `cmd/<helper>` dirs + old flat aliases, measure. Atlas/README at
   close. (`~/.zshrc`→`pair scribe` and the `pair-slug` hook are out-of-repo.)
@@ -102,6 +102,7 @@ total: 9.06
 ## Log
 
 ### 2026-07-06
+- 2026-07-06: closed M3 — make test green (142 ok pkgs, 0 FAIL); one binary — bin/pair 81MB→11MB, incremental make build ~1s (one link, was 19); pair-embedded-runtime smoke proves pair-on-PATH via exeDir prepend with ZERO bundled helper binaries; ARCH-PURPOSE shadow-sweep clean (every helper reached as pair <sub>, only pair-slug symlink residual). Fresh-eyes boundary review via subagent (sdlc claude dispatch E2BIGs on the large M3 window): verdict FIX-THEN-SHIP — Critical (scrollback.lua refresh still called the removed scrollback-render alias → fixed to pair scrollback render, test now pins both tokens) + Important (relocated the #59 render→distill seam e2e to cmd/pair-go + 14 changelogcmd.Run behavioral tests to cmd/internal/changelogcmd) all fixed + re-verified green; review verdict: not-run
 - 2026-07-06: closed M2 — make test green (146 ok pkgs, 0 FAIL); every owned caller rewritten to pair <sub> (launcher self-exec + title-poller guard, clipcmd, distiller, nvim review/scrollback, zellij copy_command/Run/exec); caller sweep confirms no standalone-name invocations remain; test-review + test-lua + rewritten copy-on-select test pass; review verdict: FIX-THEN-SHIP
 - 2026-07-06: closed M1 — make test green (146 ok pkgs, 0 FAIL); 30/30 go pkgs; nested pair<sub> routes + aliases + pair-slug busybox symlink smoke-verified on a real build; fresh-eyes boundary review done via subagent (sdlc claude dispatch hit E2BIG on the mis-computed ancient boundary base a9c32ef/#61, ~19.6k insertions) — verdict SHIP, all correctness areas clean, 2 minor cleanups (dead code + busybox prefix guard) applied in follow-up commit; review verdict: not-run
 
