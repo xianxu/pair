@@ -320,6 +320,82 @@ Build/install callers:
   is the accepted, documented limitation (`ARCH-PURPOSE` permits documenting the
   final gap).
 
+- **#104 M1 (single-binary consolidation — surface + reorg)** completes and
+  reorganizes the `pair <sub>` surface ahead of folding the standalone binaries
+  out entirely. All remaining helpers are now `dispatcher.Families()` rows (the
+  single source of the subcommand surface), and the crowded flat families nest
+  under one level of grouping: `pair review target|open|readiness`,
+  `pair scrollback render|open`, `pair changelog render|open`, and
+  `pair clip copy-on-select|clipboard-to-pane|flash-pane`; the rest stay flat
+  (`wrap`, `scribe`, `session-watch`, `title`, `context`, `slug`, `continuation`).
+  `dispatcher.Resolve` matches a two-token "group leaf" over a one-token flat
+  name; `DispatchNames()` returns deduped top-level tokens for the entrypoint
+  peel-off; the streaming seam keys on the resolved family name. Transitional
+  flat aliases `scrollback-render` / `changelog` are retained (hidden from help)
+  until their callers migrate in M2, then removed in M3. `entrypoint` gains a
+  pure busybox layer (`busyboxSubcommand` + `ResolveInvocation`) so pair invoked
+  under a helper's base name (a symlink) routes to the matching subcommand — the
+  surviving need is the external `pair-slug` Stop-hook symlink; every in-repo
+  caller migrates to `pair <sub>` in M2. No consumer changed and every standalone
+  binary still builds in M1 — this is the pure-Go groundwork; M2 rewrites the
+  callers and M3 collapses `GO_BINS := pair`, stops bundling helper binaries, and
+  folds in `pair-scribe` (`~/.zshrc` → `exec pair scribe`).
+
+- **#104 M2 (rewrite every owned caller to `pair <sub>`)** repointed all in-repo
+  call sites from the standalone helper names to the single `pair` binary,
+  family-by-family (helpers stay built so each commit is green):
+  - launcher `SpawnTitlePoller`/`SpawnSessionWatcher` self-exec `pair title` /
+    `pair session-watch` via `selfPairExe` (os.Executable, works in the copied
+    layout where `$PAIR_HOME/bin` holds no `pair`). The title poller's
+    single-instance guard `pollerArgvMatches` now matches `"pair title <tag> "`
+    (co-located — the self-exec changed the process argv).
+  - `cmd/internal/clipcmd` orchestrator self-execs `pair clip copy-on-select` /
+    `pair clip flash-pane` / `pair clip clipboard-to-pane` (SelfExe =
+    `dir(os.Executable())/pair`, the pair sibling).
+  - the changelog distiller (`opener.distillerInner`) calls
+    `$PCL_BIN scrollback render` / `$PCL_BIN changelog render` — the last caller
+    of the transitional flat aliases, which M3 removes.
+  - `nvim/init.lua`: `pair review readiness --prepare` / `pair review open` /
+    `zellij run -- pair scrollback open` (the `PAIR_REVIEW_READINESS_BIN` test
+    seam still takes the readiness CLI directly).
+  - `zellij/config.kdl`: `copy_command "pair clip copy-on-select"`, and Alt+/ /
+    Alt+l `Run "pair" "scrollback|changelog" "open"` (verified two-token form
+    against zellij 0.44.3 — `copy_command`/`Run` whitespace-split, no shell);
+    `zellij/layouts/main.kdl` agent pane `exec pair wrap …`.
+  The `.claude/settings*.json` `bin/pair-wrap`/`bin/pair-continuation` allowlist
+  entries are historical exact-match permission grants (not runtime callers) and
+  are left as-is. Standalone helper binaries still build in M2; M3 deletes them,
+  collapses `GO_BINS := pair`, and stops bundling helper binaries.
+
+- **#104 M3 (collapse to one binary — the migration's endpoint)** deletes the
+  17 thin `cmd/<helper>` shims (their logic stays in `cmd/internal/*`), drops the
+  `pair-go` output twin (the `cmd/pair-go` *package* remains the source of `pair`),
+  and stops bundling helper binaries. Net:
+  - **`GO_BINS := pair`** — one binary. `make build` links it once (was 19
+    binaries). `BUSYBOX_LINKS := pair-slug` is the only symlink → pair, emitted by
+    build+install for the external Claude Stop hook (the only bare-name caller
+    pair doesn't own); every in-repo caller uses `pair <sub>`. `PAIR_GO_SRCS` is
+    now a `find cmd -name '*.go'` staleness hint (no hand-maintained drift).
+  - **Runtime bundle = config + shell shims only** (`runtimebundlegen`:
+    `pair-help`, `pair-notify`, `doctor/*`; no `pair-*` Go binaries). `bin/pair`
+    dropped from **81 MB → ~11 MB** (the embedded helpers were ~85% of it).
+  - **`pair`-on-PATH** (no store symlink): `launcher/pathenv.go` fronts BOTH
+    `$PAIR_HOME/bin` and `dir(os.Executable())` on the session PATH — the latter
+    is where the installed `pair` lives in the copied/Homebrew layout (pair is
+    never self-embedded), so `pair <sub>` resolves inside a deployed session.
+    Deduped + idempotent (no PATH growth on restart);
+    `tests/pair-embedded-runtime-test.sh` runs pair from a dir OFF the base PATH
+    and asserts `command -v pair` resolves inside the session + no helper binary
+    is bundled.
+  - Transitional flat aliases `scrollback-render`/`changelog` removed from the
+    dispatcher. `pair-scribe` folds into `pair scribe` (`~/.zshrc` → `exec pair
+    scribe`, out-of-repo); its README moved to `docs/pair-scribe.md`.
+
+  **`ARCH-PURPOSE` shadow-sweep:** every former helper is reached as `pair <sub>`
+  by every owned caller; the only non-`pair`/non-shim artifact is the `pair-slug`
+  symlink (external hook). The single-primary-Go-binary migration (#72/#91) is
+  complete: one `pair` executable + config cache for nvim/zellij + system tools.
+
 ## Coverage Ledger
 
 The logical rows above group files where a per-file migration row would add

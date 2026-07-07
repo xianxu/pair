@@ -30,7 +30,11 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 	// a copied/Homebrew install (bin/ not on the user's PATH) couldn't launch (#95).
 	// RunLaunch is the sole zellij-spawning path (create/attach/resurrect/restart-
 	// loop), so once here covers them all.
-	rt.SetEnv("PATH", prependBinToPath(opts.PairHome, os.Getenv("PATH")))
+	exeDir := ""
+	if exe, err := os.Executable(); err == nil {
+		exeDir = filepath.Dir(exe)
+	}
+	rt.SetEnv("PATH", prependBinToPath(opts.PairHome, exeDir, os.Getenv("PATH")))
 
 	// #55 in-session compaction (M5b): `pair continue <slug>` from inside the
 	// matching pane parks the scrollback (copy), drops a restart marker carrying

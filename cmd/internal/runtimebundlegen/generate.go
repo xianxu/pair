@@ -16,25 +16,15 @@ import (
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
 )
 
+// explicitAssetPaths lists the individual files bundled into the extracted
+// runtime. Since #104 M3 it carries NO helper binaries — every former helper is
+// a `pair <subcommand>` reached via the single `pair` on the session PATH (the
+// launcher fronts pair's own dir, cf. launcher/pathenv.go). Only the two shell
+// shims (invoked by bare name inside a session) and the doctor assets remain;
+// `pair` itself is never bundled (no self-embed).
 var explicitAssetPaths = []string{
 	"bin/pair-help",
 	"bin/pair-notify",
-	"bin/pair-scrollback-open",
-	"bin/pair-changelog-open",
-	"bin/pair-review-open",
-	"bin/pair-review-readiness",
-	"bin/pair-review-target",
-	"bin/pair-wrap",
-	"bin/pair-slug",
-	"bin/pair-context",
-	"bin/pair-scrollback-render",
-	"bin/pair-changelog",
-	"bin/pair-continuation",
-	"bin/pair-session-watch",
-	"bin/pair-title",
-	"bin/copy-on-select",
-	"bin/clipboard-to-pane",
-	"bin/flash-pane",
 	"doctor/README.md",
 	"doctor/SKILL.md",
 	"doctor/doctor.sh",

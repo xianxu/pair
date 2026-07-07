@@ -67,19 +67,19 @@ func TestCmuxWorkspaceTitle(t *testing.T) {
 
 // Mirrors the shell harness Part A (poller_alive identity guard).
 func TestPollerArgvMatches(t *testing.T) {
-	const bin = "/Users/x/.local/share/pair/runtime/abc/pair-home/bin/pair-title"
+	const bin = "/Users/x/.local/share/pair/runtime/abc/pair-home/bin/pair"
 	cases := []struct {
 		name string
 		argv string
 		tag  string
 		want bool
 	}{
-		{"live poller for the tag", bin + " 211 claude", "211", true},
+		{"live poller for the tag", bin + " title 211 claude", "211", true},
 		{"recycled pid (unrelated process)", "/usr/sbin/cupsd", "211", false},
-		{"tag prefix collision 21 vs 211", bin + " 211 claude", "21", false},
+		{"tag prefix collision 21 vs 211", bin + " title 211 claude", "21", false},
 		{"empty argv", "", "211", false},
-		{"empty tag", bin + " 211 claude", "", false},
-		{"the .sh shim itself is not the running poller", "/bin/bash /x/bin/pair-title.sh 211 claude", "211", false},
+		{"empty tag", bin + " title 211 claude", "", false},
+		{"the pre-fold pair-title binary is not the running poller", "/x/bin/pair-title 211 claude", "211", false},
 	}
 	for _, c := range cases {
 		if got := pollerArgvMatches(c.argv, c.tag); got != c.want {

@@ -1,33 +1,23 @@
-package main
+package changelogcmd
 
 import (
+	"bytes"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/xianxu/pair/cmd/internal/changelogcmd"
 )
 
 // idleFooter is an idle claude footer (empty input box + rule + status),
 // appended to test transcripts so trimLiveTail does its precise empty-box cut
 // as on a real TTY (short fixtures would otherwise hit the coarse skip-4 path).
-const idleFooter = "\u276f \n\u2500\u2500\u2500\u2500\n\u23f5\u23f5 bypass permissions\n"
-
-func buildBinary(t *testing.T) string {
-	t.Helper()
-	bin := filepath.Join(t.TempDir(), "pair-changelog")
-	out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput()
-	if err != nil {
-		t.Fatalf("go build: %v\n%s", err, out)
-	}
-	return bin
-}
+const idleFooter = "❯ \n────\n⏵⏵ bypass permissions\n"
 
 // fakeClaude writes a PATH-shimmed `claude` that drains stdin, records that it
 // ran (an "invoked" sentinel), and prints `body` — a process-level fake. It
 // returns the dir holding the sentinel so a test can assert (non-)invocation.
+// changelogcmd.Run → model.Run still execs the agent CLI by name, so a fake
+// `claude` on PATH works in-process exactly as it did for the standalone binary.
 func fakeClaude(t *testing.T, body string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -67,17 +57,18 @@ func stdinLines(dir string) int {
 	return strings.Count(string(b), "\n")
 }
 
-// run writes the cleaned/log/anchor fixtures, runs the binary, and returns the
-// resulting log + anchor contents.
-func run(t *testing.T, bin, cleaned, priorLog, priorAnchor string) (log, anchor string) {
+// runFixture writes the cleaned/log/anchor fixtures, calls Run in-process, and
+// returns the resulting log + anchor contents.
+func runFixture(t *testing.T, cleaned, priorLog, priorAnchor string) (log, anchor string) {
 	t.Helper()
-	return runIn(t, bin, t.TempDir(), cleaned, priorLog, priorAnchor)
+	return runIn(t, t.TempDir(), cleaned, priorLog, priorAnchor)
 }
 
-// runIn is run() with an explicit dir so a test can inspect the sidecar files a
-// run produces (e.g. the "<base>.ready" marker). run() wraps it with a fresh
-// temp dir; the log/anchor live at changelog.md / changelog.anchor under `dir`.
-func runIn(t *testing.T, bin, dir, cleaned, priorLog, priorAnchor string) (log, anchor string) {
+// runIn is runFixture() with an explicit dir so a test can inspect the sidecar
+// files a run produces (e.g. the "<base>.ready" marker). runFixture() wraps it
+// with a fresh temp dir; the log/anchor live at changelog.md / changelog.anchor
+// under `dir`.
+func runIn(t *testing.T, dir, cleaned, priorLog, priorAnchor string) (log, anchor string) {
 	t.Helper()
 	cleanedPath := filepath.Join(dir, "cleaned.txt")
 	logPath := filepath.Join(dir, "changelog.md")
@@ -89,12 +80,13 @@ func runIn(t *testing.T, bin, dir, cleaned, priorLog, priorAnchor string) (log, 
 	if priorAnchor != "" {
 		mustWrite(t, anchorPath, priorAnchor)
 	}
-	out, err := exec.Command(bin,
+	var stderr bytes.Buffer
+	code := Run([]string{
 		"--cleaned", cleanedPath, "--log", logPath, "--anchor", anchorPath,
 		"--agent", "claude",
-	).CombinedOutput()
-	if err != nil {
-		t.Fatalf("run: %v\n%s", err, out)
+	}, &stderr)
+	if code != 0 {
+		t.Fatalf("Run exited %d\n%s", code, stderr.String())
 	}
 	return readOr(logPath), readOr(anchorPath)
 }
@@ -115,10 +107,9 @@ func readOr(path string) string {
 }
 
 func TestFirstRun(t *testing.T) {
-	bin := buildBinary(t)
 	fakeClaude(t, "- entry one\n\n- entry two\n")
 	cleaned := "❯ start\nintro line\nLAST1\nLAST2\nLAST3\n" + idleFooter
-	log, anchor := run(t, bin, cleaned, "", "")
+	log, anchor := runFixture(t, cleaned, "", "")
 
 	want := "- entry one\n\n- entry two\n"
 	if log != want {
@@ -130,14 +121,13 @@ func TestFirstRun(t *testing.T) {
 }
 
 func TestIncrementalFreezesPrefixAndRevisesLast(t *testing.T) {
-	bin := buildBinary(t)
 	fakeClaude(t, "- two-revised\n\n- three\n")
 	// A new turn (2 boundaries > prior 1) triggers the distill; the anchor is
 	// present mid-stream with new content after it.
 	cleaned := "❯ first\nintro\n❯ second\nANCHOR1\nANCHOR2\nANCHOR3\nnew work a\nnew work b\n" + idleFooter
 	priorLog := "- one\n\n- two\n"
 	priorAnchor := "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n"
-	log, anchor := run(t, bin, cleaned, priorLog, priorAnchor)
+	log, anchor := runFixture(t, cleaned, priorLog, priorAnchor)
 
 	frozen := "- one\n\n"
 	if !strings.HasPrefix(log, frozen) {
@@ -154,12 +144,11 @@ func TestIncrementalFreezesPrefixAndRevisesLast(t *testing.T) {
 }
 
 func TestReviseOnlyNeverDropsLast(t *testing.T) {
-	bin := buildBinary(t)
 	fakeClaude(t, "- two-revised\n") // only the revised last entry, no new
 	cleaned := "❯ a\nintro\n❯ b\nANCHOR1\nANCHOR2\nANCHOR3\nnew tail\n" + idleFooter
 	priorLog := "- one\n\n- two\n"
 	priorAnchor := "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n"
-	log, _ := run(t, bin, cleaned, priorLog, priorAnchor)
+	log, _ := runFixture(t, cleaned, priorLog, priorAnchor)
 
 	want := "- one\n\n- two-revised\n"
 	if log != want {
@@ -171,11 +160,10 @@ func TestReviseOnlyNeverDropsLast(t *testing.T) {
 // markers) dates each day's entries under its own ## YYYY-MM-DD header — real
 // change-time, not the distill date (#59). The markers are stripped from the log.
 func TestTwoDayDating(t *testing.T) {
-	bin := buildBinary(t)
 	fakeClaude(t, "- worked\n\n- more\n")
 	cleaned := "⟦pair:ts 2026-06-13⟧\n❯ p1\nday 13 work\n" +
 		"⟦pair:ts 2026-06-14⟧\n❯ p2\nday 14 work\nTAIL1\nTAIL2\nTAIL3\n" + idleFooter
-	log, _ := run(t, bin, cleaned, "", "")
+	log, _ := runFixture(t, cleaned, "", "")
 
 	i13 := strings.Index(log, "## 2026-06-13")
 	i14 := strings.Index(log, "## 2026-06-14")
@@ -195,14 +183,13 @@ func TestTwoDayDating(t *testing.T) {
 // header, frozen prefix intact (boundary-review #59 Important: the cross-press
 // dated path; pure-level coverage is TestAssembleDated).
 func TestIncrementalDatedAppend(t *testing.T) {
-	bin := buildBinary(t)
 	fakeClaude(t, "- two-revised\n\n- three\n")
 	// 2 boundaries > prior 1 → distill (not a no-op). The new turn's content is
 	// marked 2026-06-14; the prior log's last header is 2026-06-13.
 	cleaned := "❯ p0\nANCHOR1\nANCHOR2\nANCHOR3\n⟦pair:ts 2026-06-14⟧\n❯ p1\nnew work\n" + idleFooter
 	priorLog := "## 2026-06-13\n\n- one\n\n- two\n"
 	priorAnchor := "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n"
-	log, _ := run(t, bin, cleaned, priorLog, priorAnchor)
+	log, _ := runFixture(t, cleaned, priorLog, priorAnchor)
 
 	if n := strings.Count(log, "## 2026-06-13"); n != 1 {
 		t.Fatalf("prior day's header should appear exactly once, got %d:\n%s", n, log)
@@ -222,10 +209,9 @@ func TestIncrementalDatedAppend(t *testing.T) {
 // pre-#59 session, or capture not yet running) produces a header-free log —
 // byte-identical to the #58 behavior. Markers are the only thing that adds dates.
 func TestNoMarkerHeaderFree(t *testing.T) {
-	bin := buildBinary(t)
 	fakeClaude(t, "- entry\n")
 	cleaned := "❯ p\nsome work\nL1\nL2\nL3\n" + idleFooter
-	log, _ := run(t, bin, cleaned, "", "")
+	log, _ := runFixture(t, cleaned, "", "")
 
 	if strings.Contains(log, "## ") {
 		t.Fatalf("undated stream produced a date header:\n%s", log)
@@ -240,13 +226,12 @@ func TestNoMarkerHeaderFree(t *testing.T) {
 // transcript as "new activity" yet still keeps the frozen prefix (only the last
 // entry is model-revised). This pins that subtle seam behavior.
 func TestFullRedistillWithPriorLogKeepsFrozenPrefix(t *testing.T) {
-	bin := buildBinary(t)
 	dir := fakeClaude(t, "- two-revised\n\n- three\n")
 	// 2 boundaries > prior 1 → not a no-op; OLD1-3 absent → FullRedistill.
 	cleaned := "❯ p\n❯ q\nfresh1\nfresh2\nfresh3\n" + idleFooter
 	priorLog := "- one\n\n- two\n"
 	priorAnchor := "turns:1\nOLD1\nOLD2\nOLD3\n" // absent in cleaned → FullRedistill
-	log, anchor := run(t, bin, cleaned, priorLog, priorAnchor)
+	log, anchor := runFixture(t, cleaned, priorLog, priorAnchor)
 
 	if !invoked(dir) {
 		t.Fatal("full-redistill should still call the model")
@@ -268,7 +253,6 @@ func TestFullRedistillWithPriorLogKeepsFrozenPrefix(t *testing.T) {
 // model is not called and the log is untouched, even though the trailing lines
 // churned. This is the turn-count no-op that replaces the brittle byte-flush one.
 func TestNoOpWhenNoNewTurn(t *testing.T) {
-	bin := buildBinary(t)
 	dir := fakeClaude(t, "- should not appear\n")
 	cleaned := "❯ a\nwork churned a bit\nLAST1\nLAST2\nLAST3\n" + idleFooter // still 1 boundary
 	priorLog := "- one\n\n- two\n"
@@ -276,7 +260,7 @@ func TestNoOpWhenNoNewTurn(t *testing.T) {
 	// A no-op requires the anchor to still be found — an absent anchor means the
 	// session reset, which must re-distill (TestSessionResetDistillsNotNoOp).
 	priorAnchor := "turns:1\nLAST1\nLAST2\nLAST3\n"
-	log, _ := run(t, bin, cleaned, priorLog, priorAnchor)
+	log, _ := runFixture(t, cleaned, priorLog, priorAnchor)
 
 	if log != priorLog {
 		t.Fatalf("log changed on no-op:\n%q", log)
@@ -292,7 +276,6 @@ func TestNoOpWhenNoNewTurn(t *testing.T) {
 // the new session never distilled. The anchor is a per-session marker, so when
 // it no longer locates (FullRedistill) we must distill, not no-op (#58 follow-up).
 func TestSessionResetDistillsNotNoOp(t *testing.T) {
-	bin := buildBinary(t)
 	dir := fakeClaude(t, "- new-session entry\n")
 	// New session: one prompt boundary, content that does NOT contain the stale
 	// anchor snippet below.
@@ -301,7 +284,7 @@ func TestSessionResetDistillsNotNoOp(t *testing.T) {
 	// Stale anchor from the prior, longer session: high turn count + a snippet
 	// that won't be found in the new cleaned → locate returns FullRedistill.
 	priorAnchor := "turns:9\nOLD_SESSION_TAIL_A\nOLD_SESSION_TAIL_B\nOLD_SESSION_TAIL_C\n"
-	log, anchor := run(t, bin, cleaned, priorLog, priorAnchor)
+	log, anchor := runFixture(t, cleaned, priorLog, priorAnchor)
 
 	if !invoked(dir) {
 		t.Fatal("model NOT called after a session reset (no-op fired on a stale-anchor turn count)")
@@ -324,14 +307,13 @@ func TestSessionResetDistillsNotNoOp(t *testing.T) {
 // every later press re-runs the model — a #58 regression the boundary review
 // caught. The anchor tracks "processed up to here", not "the text changed".
 func TestAnchorAdvancesOnNoTextualChange(t *testing.T) {
-	bin := buildBinary(t)
 	dir := t.TempDir()
 
 	// Phase 1: a new turn (2 boundaries > prior 1), but the model returns the
 	// unchanged last entry → newLog == priorLog. Anchor must advance to turns:2.
 	d1 := fakeClaude(t, "- two\n")
 	cleaned := "❯ p1\nANCHOR1\nANCHOR2\nANCHOR3\n❯ p2\nmore work\n" + idleFooter
-	log, anchor := runIn(t, bin, dir, cleaned,
+	log, anchor := runIn(t, dir, cleaned,
 		"- one\n\n- two\n", "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n")
 	if !invoked(d1) {
 		t.Fatal("phase 1: model should run for a new turn")
@@ -347,7 +329,7 @@ func TestAnchorAdvancesOnNoTextualChange(t *testing.T) {
 	// the press is now a no-op — the model is NOT called. (Empty prior args leave
 	// phase 1's log + anchor in place.)
 	d2 := fakeClaude(t, "- should not run\n")
-	runIn(t, bin, dir, cleaned, "", "")
+	runIn(t, dir, cleaned, "", "")
 	if invoked(d2) {
 		t.Fatal("phase 2: model re-ran — advanced anchor did not gate the follow-up no-op (#58 regression)")
 	}
@@ -358,18 +340,16 @@ func TestAnchorAdvancesOnNoTextualChange(t *testing.T) {
 // press (no new turn) must NOT drop it — the operator shouldn't be flashed for a
 // build that produced nothing.
 func TestReadyMarkerWrittenOnChangeOnly(t *testing.T) {
-	bin := buildBinary(t)
-
 	changeDir := t.TempDir()
 	fakeClaude(t, "- entry\n")
-	runIn(t, bin, changeDir, "❯ start\nL1\nL2\nL3\n"+idleFooter, "", "")
+	runIn(t, changeDir, "❯ start\nL1\nL2\nL3\n"+idleFooter, "", "")
 	if _, err := os.Stat(filepath.Join(changeDir, "changelog.ready")); err != nil {
 		t.Fatalf("ready marker missing after a change build: %v", err)
 	}
 
 	noopDir := t.TempDir()
 	fakeClaude(t, "- should not appear\n")
-	runIn(t, bin, noopDir,
+	runIn(t, noopDir,
 		"❯ a\nwork churned\nL1\nL2\nL3\n"+idleFooter,
 		"- one\n", "turns:1\nL1\nL2\nL3\n")
 	if _, err := os.Stat(filepath.Join(noopDir, "changelog.ready")); err == nil {
@@ -382,24 +362,23 @@ func TestReadyMarkerWrittenOnChangeOnly(t *testing.T) {
 // first-run-only cap. And each batch's input stays bounded (~<= maxSliceLines)
 // (#58). Cap-relative so it survives future maxSliceLines changes (#59).
 func TestIncrementalBatchesLongGap(t *testing.T) {
-	bin := buildBinary(t)
 	dir := fakeClaude(t, "- entry\n")
 	var b strings.Builder
 	b.WriteString("❯ p1\nANCHOR1\nANCHOR2\nANCHOR3\n")
-	for i := 0; i < changelogcmd.MaxSliceLines+100; i++ { // > one batch worth → ≥2 batches
+	for i := 0; i < MaxSliceLines+100; i++ { // > one batch worth → ≥2 batches
 		b.WriteString("agent did work\n")
 	}
 	b.WriteString("❯ p2\n") // a new completed turn → not a no-op
 	b.WriteString(idleFooter)
 	priorLog := "- one\n"
 	priorAnchor := "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n"
-	run(t, bin, b.String(), priorLog, priorAnchor)
+	runFixture(t, b.String(), priorLog, priorAnchor)
 
 	if c := callCount(dir); c < 2 {
 		t.Fatalf("incremental with a >maxSliceLines gap should batch; model called %d times", c)
 	}
-	if n := stdinLines(dir); n > changelogcmd.MaxSliceLines+50 {
-		t.Fatalf("a batch fed %d stdin lines, want ~<= %d (batch size + wrapper)", n, changelogcmd.MaxSliceLines)
+	if n := stdinLines(dir); n > MaxSliceLines+50 {
+		t.Fatalf("a batch fed %d stdin lines, want ~<= %d (batch size + wrapper)", n, MaxSliceLines)
 	}
 }
 
@@ -408,15 +387,14 @@ func TestIncrementalBatchesLongGap(t *testing.T) {
 // is called once per chunk with the accumulating log carried forward (#58).
 // Cap-relative: 2*maxSliceLines+1 committed lines → exactly 3 batches (#59).
 func TestFirstRunBatchesLongTranscript(t *testing.T) {
-	bin := buildBinary(t)
 	dir := fakeClaude(t, "- batch entry\n")
 	var b strings.Builder
 	b.WriteString("❯ start\n") // 1 committed line; +2*maxSliceLines below → 2*cap+1 total
-	for i := 0; i < 2*changelogcmd.MaxSliceLines; i++ {
+	for i := 0; i < 2*MaxSliceLines; i++ {
 		b.WriteString("content line\n")
 	}
 	b.WriteString(idleFooter)
-	log, _ := run(t, bin, b.String(), "", "")
+	log, _ := runFixture(t, b.String(), "", "")
 
 	if c := callCount(dir); c != 3 {
 		t.Fatalf("model called %d times, want 3 (2*maxSliceLines+1 lines / maxSliceLines per batch)", c)
@@ -431,13 +409,12 @@ func TestFirstRunBatchesLongTranscript(t *testing.T) {
 // This is the #58 bug: footer churn used to break the anchor → re-distill every
 // press.
 func TestFooterChurnIsNoOp(t *testing.T) {
-	bin := buildBinary(t)
 	dir := fakeClaude(t, "- should not appear\n")
 	stable := "❯ a prompt\nagent work\nANCHOR1\nANCHOR2\nANCHOR3"
 	cleaned := stable + "\n❯ \n────────\n  ⏵⏵ bypass · 5 shells · NEW STATUS\n"
 	priorLog := "- one\n\n- two\n"
 	priorAnchor := "turns:1\nANCHOR1\nANCHOR2\nANCHOR3\n"
-	log, _ := run(t, bin, cleaned, priorLog, priorAnchor)
+	log, _ := runFixture(t, cleaned, priorLog, priorAnchor)
 	if invoked(dir) {
 		t.Fatal("footer-only change triggered a model call (no-op should fire)")
 	}

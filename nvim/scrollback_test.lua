@@ -304,20 +304,24 @@ if vim and vim.api then
   vim.b[buf].pair_annotate = false  -- stop the exit-time VimLeavePre re-emit
   os.remove(pend)
 
-  -- renderer_command wires `pair scrollback-render` (the #92 dispatcher form),
-  -- not the legacy pair-scrollback-render binary. Pins the subcommand token so a
-  -- typo in the arg table is caught (the viewer wiring has no other test).
+  -- renderer_command wires the NESTED `pair scrollback render` route (#104 M3
+  -- dropped the flat `scrollback-render` alias). Pins both subcommand tokens +
+  -- arg positions so a typo is caught (the viewer wiring has no other test, and
+  -- pinning the wrong tokens is exactly how the M3 regression hid — the alias was
+  -- removed but this caller kept `scrollback-render` and fell through to launch).
   local saved_home = vim.env.PAIR_HOME
   vim.env.PAIR_HOME = '/opt/pair'
   local rc = M.renderer_command({ raw = 'R', events = 'E', ansi = 'A' })
   eq(rc[1], '/opt/pair/bin/pair', 'renderer uses $PAIR_HOME/bin/pair')
-  eq(rc[2], 'scrollback-render', 'renderer passes the scrollback-render subcommand')
-  eq(rc[3], 'R', 'renderer forwards raw path')
-  eq(rc[5], 'A', 'renderer forwards ansi path')
+  eq(rc[2], 'scrollback', 'renderer passes the scrollback group token')
+  eq(rc[3], 'render', 'renderer passes the render leaf token')
+  eq(rc[4], 'R', 'renderer forwards raw path')
+  eq(rc[6], 'A', 'renderer forwards ansi path')
   vim.env.PAIR_HOME = ''
   local rc2 = M.renderer_command({ raw = 'R', events = 'E', ansi = 'A' })
   eq(rc2[1], 'pair', 'renderer falls back to bare pair on PATH')
-  eq(rc2[2], 'scrollback-render', 'fallback still passes the subcommand')
+  eq(rc2[2], 'scrollback', 'fallback still passes the scrollback group token')
+  eq(rc2[3], 'render', 'fallback still passes the render leaf token')
   vim.env.PAIR_HOME = saved_home
 end
 

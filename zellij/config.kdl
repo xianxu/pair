@@ -39,7 +39,7 @@ mouse_click_through true
 // the launcher prepends $PAIR_HOME/bin to PATH (RunLaunch, restored #95) so the
 // binary is resolvable by bare name — avoids the fragile `sh -c '$PAIR_HOME/...'`
 // quoting dance.
-copy_command "copy-on-select"
+copy_command "pair clip copy-on-select"
 
 keybinds clear-defaults=false {
     // Release Alt+i so nvim sees it (zellij's default binds Alt+i to MoveTab
@@ -183,7 +183,7 @@ keybinds clear-defaults=false {
         // the rendered .ansi. The viewer's own <Esc> keybind dismisses
         // the floating pane via close_on_exit.
         bind "Alt /" {
-            Run "pair-scrollback-open" {
+            Run "pair" "scrollback" "open" {
                 floating true
                 close_on_exit true
                 name "scrollback"
@@ -221,7 +221,7 @@ keybinds clear-defaults=false {
         // then runs nvim on the change-log markdown. <Esc>/q dismisses the
         // floating pane via close_on_exit.
         bind "Alt l" {
-            Run "pair-changelog-open" {
+            Run "pair" "changelog" "open" {
                 floating true
                 close_on_exit true
                 name "changelog"

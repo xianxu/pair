@@ -1,5 +1,5 @@
 #!/bin/sh
-# Focused keying test for bin/pair-changelog-open (#63): the change-log base is
+# Focused keying test for bin/pair changelog open (#63): the change-log base is
 # keyed on the resolved session id (PAIR_SESSION_ID -> config -> none). No model
 # or distiller runs -- $RAW is empty, so the orchestrator's distiller block is
 # skipped (its `[ -s "$RAW" ]` guard); the opener only resolves the base, touches
@@ -22,7 +22,7 @@ chmod +x "$fakebin/nvim"; export PATH="$fakebin:$PATH"
 
 fail=0
 opened() { cat "$tmp/nvim-arg" 2>/dev/null; }
-run() { rm -f "$tmp/nvim-arg"; "$PAIR_HOME/bin/pair-changelog-open"; }
+run() { rm -f "$tmp/nvim-arg"; "$PAIR_HOME/bin/pair" changelog open; }
 
 A=aaaa1111-2222-3333-4444-555566667777
 B=bbbb1111-2222-3333-4444-555566667777

@@ -13,7 +13,7 @@ func TestDispatchNamesDeriveFromImplementedStatus(t *testing.T) {
 	// keys off DispatchNames(), so if one of these were accidentally left
 	// `planned`, `pair changelog` would fall through to the launcher (start a
 	// session) with no other test catching it.
-	for _, want := range []string{"context", "scrollback-render", "wrap", "slug", "changelog", "continuation", "session-watch", "scribe"} {
+	for _, want := range []string{"context", "scrollback", "wrap", "slug", "changelog", "continuation", "session-watch", "scribe", "review", "clip", "title"} {
 		if !containsStr(names, want) {
 			t.Fatalf("DispatchNames() = %v, missing implemented %q", names, want)
 		}
@@ -28,14 +28,69 @@ func TestDispatchNamesDeriveFromImplementedStatus(t *testing.T) {
 }
 
 func TestStreamingFlags(t *testing.T) {
-	for _, s := range []string{"wrap", "scribe", "changelog", "continuation", "session-watch"} {
+	for _, s := range []string{"wrap", "scribe", "changelog render", "continuation", "session-watch", "title", "clip copy-on-select"} {
 		if !IsStreaming(s) {
 			t.Errorf("IsStreaming(%q) = false, want true (stdin/live-stderr/long-running)", s)
 		}
 	}
-	for _, b := range []string{"slug", "context", "scrollback-render"} {
+	for _, b := range []string{"slug", "context", "scrollback render", "scrollback open", "clip flash-pane"} {
 		if IsStreaming(b) {
 			t.Errorf("IsStreaming(%q) = true, want false (buffered)", b)
+		}
+	}
+}
+
+func TestResolveNestedFlatAndAlias(t *testing.T) {
+	cases := []struct {
+		args     []string
+		wantName string
+		wantRest []string
+		wantOK   bool
+	}{
+		{[]string{"review", "open", "f"}, "review open", []string{"f"}, true},
+		{[]string{"scrollback", "render"}, "scrollback render", []string{}, true},
+		{[]string{"clip", "copy-on-select", "--orchestrate"}, "clip copy-on-select", []string{"--orchestrate"}, true},
+		{[]string{"context", "T", "claude"}, "context", []string{"T", "claude"}, true},
+		{[]string{"scrollback-render"}, "", nil, false}, // the M2 transitional alias is gone (#104 M3)
+		{[]string{"changelog"}, "", nil, false},         // bare group token is not a family
+		{[]string{"review"}, "", nil, false},            // group token alone is not a family
+		{[]string{"frobnicate"}, "", nil, false},
+	}
+	for _, c := range cases {
+		f, rest, ok := Resolve(c.args)
+		if ok != c.wantOK || f.Name != c.wantName {
+			t.Errorf("Resolve(%v) = (%q, %v), want (%q, %v)", c.args, f.Name, ok, c.wantName, c.wantOK)
+			continue
+		}
+		if ok && len(rest) != len(c.wantRest) {
+			t.Errorf("Resolve(%v) rest = %v, want %v", c.args, rest, c.wantRest)
+		}
+	}
+}
+
+func TestDispatchNamesAreTopLevelTokens(t *testing.T) {
+	names := DispatchNames()
+	for _, want := range []string{"review", "scrollback", "changelog", "clip", "title"} {
+		if !containsStr(names, want) {
+			t.Errorf("DispatchNames() = %v, missing group/flat token %q", names, want)
+		}
+	}
+	// Nested leaves are NOT peel-off tokens — the entrypoint only needs the first
+	// token to decide dispatch-vs-launch.
+	for _, absent := range []string{"review open", "clip copy-on-select"} {
+		if containsStr(names, absent) {
+			t.Errorf("DispatchNames() = %v, must not contain nested name %q", names, absent)
+		}
+	}
+}
+
+func TestDispatchNestedStreamingRefusesBufferedPath(t *testing.T) {
+	// A nested streaming family reached on the buffered Dispatch path is a
+	// programming error (it should go through cmd/pair-go's streaming seam).
+	for _, args := range [][]string{{"clip", "copy-on-select"}, {"changelog", "render"}} {
+		res := Dispatch(args)
+		if res.ExitCode != 2 || !strings.Contains(res.Stderr, "streaming subcommand") {
+			t.Errorf("Dispatch(%v) = code %d stderr %q, want 2 + 'streaming subcommand'", args, res.ExitCode, res.Stderr)
 		}
 	}
 }
@@ -65,7 +120,7 @@ func TestDispatchHelpListsPlannedFamiliesWithoutClaimingSupport(t *testing.T) {
 				"launch",
 				"compatibility handoff",
 				"context",
-				"scrollback-render",
+				"scrollback render",
 				"wrap",
 				"slug",
 				"not implemented in this skeleton",
@@ -160,7 +215,7 @@ func TestDispatchContextReturnsHelperOutput(t *testing.T) {
 }
 
 func TestDispatchScrollbackRenderUsage(t *testing.T) {
-	res := Dispatch([]string{"scrollback-render"})
+	res := Dispatch([]string{"scrollback", "render"})
 	if res.ExitCode != 2 {
 		t.Fatalf("ExitCode = %d, want 2", res.ExitCode)
 	}

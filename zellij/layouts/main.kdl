@@ -42,7 +42,7 @@ layout {
             // explicit targeting, this would silently rename draft.
             // Errors swallowed: if the IPC call fails we still launch
             // the agent.
-            args "-c" "_pdd=\"${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}\"; printf '{\"pane_id\":\"%s\",\"cwd\":\"%s\",\"cwd_display\":\"%s\"}\\n' \"$ZELLIJ_PANE_ID\" \"$PWD\" \"${PAIR_PANE_CWD:-$PWD}\" > \"$_pdd/pane-${PAIR_TAG:-${PAIR_AGENT:-claude}}-${PAIR_AGENT:-claude}.json\" 2>/dev/null; zellij action rename-pane --pane-id \"$ZELLIJ_PANE_ID\" \"${PAIR_PANE_TITLE:-agent}\" 2>/dev/null; exec pair-wrap --scrollback-log \"${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}/scrollback-${PAIR_TAG:-${PAIR_AGENT:-claude}}-${PAIR_AGENT:-claude}.raw\" ${PAIR_AGENT:-claude} ${PAIR_AGENT_ARGS:-}"
+            args "-c" "_pdd=\"${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}\"; printf '{\"pane_id\":\"%s\",\"cwd\":\"%s\",\"cwd_display\":\"%s\"}\\n' \"$ZELLIJ_PANE_ID\" \"$PWD\" \"${PAIR_PANE_CWD:-$PWD}\" > \"$_pdd/pane-${PAIR_TAG:-${PAIR_AGENT:-claude}}-${PAIR_AGENT:-claude}.json\" 2>/dev/null; zellij action rename-pane --pane-id \"$ZELLIJ_PANE_ID\" \"${PAIR_PANE_TITLE:-agent}\" 2>/dev/null; exec pair wrap --scrollback-log \"${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}/scrollback-${PAIR_TAG:-${PAIR_AGENT:-claude}}-${PAIR_AGENT:-claude}.raw\" ${PAIR_AGENT:-claude} ${PAIR_AGENT_ARGS:-}"
         }
         // Pane name "draft" appears in zellij's OSC 0 terminal title
         // ("<session>: draft") and propagates to the user's terminal /

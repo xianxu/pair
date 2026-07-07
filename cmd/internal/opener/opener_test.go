@@ -106,7 +106,7 @@ func TestDistillerEnvAndInner(t *testing.T) {
 		t.Fatalf("missing env entries: %v", want)
 	}
 	// The inner script runs render then changelog, gated on success (&&).
-	for _, frag := range []string{"scrollback-render", "changelog", "&&", "$PCL_BIN", "$PCL_LOG"} {
+	for _, frag := range []string{"scrollback render", "changelog render", "&&", "$PCL_BIN", "$PCL_LOG"} {
 		if !strings.Contains(distillerInner, frag) {
 			t.Fatalf("distillerInner missing %q", frag)
 		}

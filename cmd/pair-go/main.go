@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/changelogcmd"
+	"github.com/xianxu/pair/cmd/internal/clipcmd"
 	"github.com/xianxu/pair/cmd/internal/continuationcmd"
 	"github.com/xianxu/pair/cmd/internal/dispatcher"
 	"github.com/xianxu/pair/cmd/internal/entrypoint"
@@ -17,6 +18,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
 	"github.com/xianxu/pair/cmd/internal/scribecmd"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
+	"github.com/xianxu/pair/cmd/internal/titlepoller"
 	"github.com/xianxu/pair/cmd/internal/wrapcmd"
 )
 
@@ -53,40 +55,47 @@ func runWithLegacyRuntime(args []string, stdout, stderr io.Writer, rt legacyRunt
 		return writeResult(res, stdout, stderr)
 	}
 
-	switch entrypoint.ClassifyInvocation(exe, args, dispatcher.DispatchNames()) {
+	mode, dispatchArgs := entrypoint.ResolveInvocation(exe, args, dispatcher.DispatchNames())
+	switch mode {
 	case entrypoint.ModePublicPair:
 		return runLegacyLaunch("pair", exe, args, stdout, stderr, rt)
 	case entrypoint.ModePairGoLaunch:
 		return runLegacyLaunch("pair-go launch", exe, args[1:], stdout, stderr, rt)
 	default:
-		if len(args) > 0 && dispatcher.IsImplemented(args[0]) && dispatcher.IsStreaming(args[0]) {
-			return runStreamingSubcommand(args, os.Stdin, stdout, stderr)
+		if fam, rest, ok := dispatcher.Resolve(dispatchArgs); ok && fam.Status == "implemented" && fam.Streaming {
+			return runStreamingSubcommand(fam.Name, rest, os.Stdin, stdout, stderr)
 		}
-		res := dispatcher.Dispatch(args)
+		res := dispatcher.Dispatch(dispatchArgs)
 		return writeResult(res, stdout, stderr)
 	}
 }
 
 // runStreamingSubcommand routes subcommands that need real stdio — a live
-// stderr consumer (changelog), stdin (continuation), or a long lifetime
-// (session-watch) — straight to their runner with pass-through streams,
-// bypassing the buffered dispatcher.Dispatch. stdin is a parameter so the seam
-// is unit-testable with a fake. Only implemented streaming subcommands reach
-// here (gated by the caller), so an unknown arg is a programming error.
-func runStreamingSubcommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	switch args[0] {
+// stderr consumer (changelog render), stdin (continuation, clip copy-on-select),
+// or a long lifetime (session-watch, title) — straight to their runner with
+// pass-through streams, bypassing the buffered dispatcher.Dispatch. `name` is
+// the resolved family name (dispatcher.Resolve) and `rest` the args after the
+// command tokens; stdin is a parameter so the seam is unit-testable with a fake.
+// Only implemented streaming families reach here (gated by the caller), so an
+// unknown name is a programming error.
+func runStreamingSubcommand(name string, rest []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	switch name {
 	case "wrap":
-		return wrapcmd.Run(args[1:], stdin, stdout, stderr)
+		return wrapcmd.Run(rest, stdin, stdout, stderr)
 	case "scribe":
-		return scribecmd.Run(args[1:], stdin, stdout, stderr)
-	case "changelog":
-		return changelogcmd.Run(args[1:], stderr)
+		return scribecmd.Run(rest, stdin, stdout, stderr)
+	case "changelog render":
+		return changelogcmd.Run(rest, stderr)
 	case "continuation":
-		return continuationcmd.Run(args[1:], stdin, stdout, stderr, time.Now)
+		return continuationcmd.Run(rest, stdin, stdout, stderr, time.Now)
 	case "session-watch":
-		return sessionwatch.RunCLI(args[1:], os.Getenv, stderr)
+		return sessionwatch.RunCLI(rest, os.Getenv, stderr)
+	case "title":
+		return titlepoller.RunCLI(rest, os.Getenv, stderr)
+	case "clip copy-on-select":
+		return clipcmd.RunCopyOnSelectCLI(rest, stdin, os.Getenv, stderr)
 	default:
-		_, _ = fmt.Fprintf(stderr, "pair-go: %s: streaming subcommand has no runner wired\n", args[0])
+		_, _ = fmt.Fprintf(stderr, "pair-go: %s: streaming subcommand has no runner wired\n", name)
 		return 2
 	}
 }

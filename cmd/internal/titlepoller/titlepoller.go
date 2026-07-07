@@ -88,16 +88,16 @@ func cmuxWorkspaceTitle(prefix, session string) string {
 }
 
 // pollerArgvMatches is the single-instance identity guard: true iff argv is a
-// live pair-title poller for THIS tag. The Go poller runs as
-// "<…>/pair-title <tag> <agent> …" (the launcher spawns the Go binary directly
-// since #94 M2), so we match the substring "pair-title <tag> " — the trailing
-// space keeps tag 21 from matching 211, as pair-title.sh's `*"pair-title.sh
-// $TAG "*` guard did before the port.
+// live title poller for THIS tag. Since #104 M2 the launcher self-execs the
+// single `pair` binary as "<…>/pair title <tag> <agent> …" (the poller folded
+// into `pair title`), so we match the substring "pair title <tag> " — the
+// trailing space keeps tag 21 from matching 211, mirroring the pre-fold
+// "pair-title <tag> " guard.
 func pollerArgvMatches(argv, tag string) bool {
 	if argv == "" || tag == "" {
 		return false
 	}
-	return strings.Contains(argv, "pair-title "+tag+" ")
+	return strings.Contains(argv, "pair title "+tag+" ")
 }
 
 // shouldClaimWorkspace decides cmux workspace-title ownership (mirrors bin/pair's

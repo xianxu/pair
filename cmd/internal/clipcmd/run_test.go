@@ -99,7 +99,9 @@ const (
 	]`
 )
 
-func copyOpts() CopyOnSelectOptions { return CopyOnSelectOptions{PairHome: "/h"} }
+func copyOpts() CopyOnSelectOptions {
+	return CopyOnSelectOptions{PairHome: "/h", SelfExe: "/h/bin/pair"}
+}
 
 // (a) The HOOK mirrors the selection and detaches the orchestrator. It must run
 // NONE of the slow zellij chain inline — that in-hook chain is exactly what zellij
@@ -113,9 +115,10 @@ func TestCopyOnSelectHookMirrorsThenDetaches(t *testing.T) {
 	if f.copied != "selected text" {
 		t.Errorf("clipboard copied %q, want the selection mirrored", f.copied)
 	}
-	if len(f.spawned) != 1 || f.spawned[0].path != "/h/bin/copy-on-select" ||
-		len(f.spawned[0].args) != 1 || f.spawned[0].args[0] != "--orchestrate" {
-		t.Errorf("want one detached `/h/bin/copy-on-select --orchestrate`, got %+v", f.spawned)
+	if len(f.spawned) != 1 || f.spawned[0].path != "/h/bin/pair" ||
+		len(f.spawned[0].args) != 3 || f.spawned[0].args[0] != "clip" ||
+		f.spawned[0].args[1] != "copy-on-select" || f.spawned[0].args[2] != "--orchestrate" {
+		t.Errorf("want one detached `/h/bin/pair clip copy-on-select --orchestrate`, got %+v", f.spawned)
 	}
 	if f.listCalls != 0 || len(f.subprocess) != 0 || len(f.execd) != 0 {
 		t.Errorf("hook ran the slow chain inline: listCalls=%d subprocess=%+v execd=%+v",
@@ -140,7 +143,7 @@ func TestCopyOnSelectEmptySelection(t *testing.T) {
 func TestCopyOnSelectOrchestrateHandsOff(t *testing.T) {
 	f := newFake()
 	f.panes = agentFocusedPanes
-	f.executable["/h/bin/flash-pane"] = true
+	f.executable["/h/bin/pair"] = true
 	code := RunCopyOnSelectOrchestrate(copyOpts(), f, io.Discard)
 	if code != 0 {
 		t.Fatalf("exit = %d, want 0", code)
@@ -148,12 +151,14 @@ func TestCopyOnSelectOrchestrateHandsOff(t *testing.T) {
 	if !f.lastListCommand {
 		t.Error("orchestrator must call list-panes with --command")
 	}
-	if len(f.subprocess) != 1 || f.subprocess[0].path != "/h/bin/flash-pane" ||
-		len(f.subprocess[0].args) != 1 || f.subprocess[0].args[0] != "0" {
-		t.Errorf("flash-pane not called with focused id 0: %+v", f.subprocess)
+	if len(f.subprocess) != 1 || f.subprocess[0].path != "/h/bin/pair" ||
+		len(f.subprocess[0].args) != 3 || f.subprocess[0].args[0] != "clip" ||
+		f.subprocess[0].args[1] != "flash-pane" || f.subprocess[0].args[2] != "0" {
+		t.Errorf("flash-pane not called as `pair clip flash-pane 0`: %+v", f.subprocess)
 	}
-	if len(f.execd) != 1 || f.execd[0].path != "/h/bin/clipboard-to-pane" {
-		t.Errorf("did not exec clipboard-to-pane: %+v", f.execd)
+	if len(f.execd) != 1 || f.execd[0].path != "/h/bin/pair" ||
+		len(f.execd[0].args) != 2 || f.execd[0].args[0] != "clip" || f.execd[0].args[1] != "clipboard-to-pane" {
+		t.Errorf("did not exec `pair clip clipboard-to-pane`: %+v", f.execd)
 	}
 }
 
@@ -161,7 +166,7 @@ func TestCopyOnSelectOrchestrateHandsOff(t *testing.T) {
 func TestCopyOnSelectOrchestrateInNvimSkips(t *testing.T) {
 	f := newFake()
 	f.panes = draftFocusedPanes
-	f.executable["/h/bin/flash-pane"] = true
+	f.executable["/h/bin/pair"] = true
 	code := RunCopyOnSelectOrchestrate(copyOpts(), f, io.Discard)
 	if code != 0 {
 		t.Fatalf("exit = %d, want 0", code)

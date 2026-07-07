@@ -1,7 +1,7 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
-.PHONY: build install pair pair-scribe pair-scrollback-render pair-wrap pair-slug pair-changelog pair-context pair-session-watch pair-title pair-scrollback-open pair-changelog-open pair-review-target pair-review-open pair-review-readiness pair-go copy-on-select clipboard-to-pane flash-pane runtimebundle-generate runtimebundle-drift-check test-runtimebundle test test-race test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-pair-title test-zellij-trace
+.PHONY: build install pair runtimebundle-generate runtimebundle-drift-check test-runtimebundle test test-race test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-pair-title test-zellij-trace test-review
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
 # and ships with the `pair-` prefix so it doesn't collide with anything
@@ -26,13 +26,20 @@
 
 BIN_DIR     := bin
 INSTALL_DIR := $(HOME)/.local/bin
-GO_BINS     := pair pair-scribe pair-scrollback-render pair-wrap pair-slug pair-continuation pair-changelog pair-context pair-session-watch pair-title pair-scrollback-open pair-changelog-open pair-review-target pair-review-open pair-review-readiness pair-go copy-on-select clipboard-to-pane flash-pane
+# The single binary (#104). Every former helper is a `pair <subcommand>`.
+GO_BINS     := pair
+# BUSYBOX_LINKS: pair invoked under one of these names routes to the matching
+# subcommand (entrypoint busybox dispatch). Only pair-slug survives — the
+# external Claude Stop hook may still call it by bare name. Emitted as symlinks
+# → pair by BOTH `build` and `install`: `build` is load-bearing because pair-dev
+# rebuilds via `make build` (not install) and the session PATH fronts the repo
+# bin/, while `install` covers ~/.local/bin.
+BUSYBOX_LINKS := pair-slug
 SHELL_BINS  := pair-dev
 PAIR_HOME_LDFLAGS := -X main.defaultPairHome=$(CURDIR)
-RUNTIMEBUNDLE_HELPERS := pair-scrollback-render pair-wrap pair-slug pair-continuation pair-changelog pair-context pair-session-watch pair-title pair-scrollback-open pair-changelog-open pair-review-target pair-review-open pair-review-readiness copy-on-select clipboard-to-pane flash-pane
 RUNTIMEBUNDLE_ASSETS := cmd/internal/runtimebundle/assets/runtime/manifest.json
 
-build: $(addprefix $(BIN_DIR)/,$(GO_BINS))
+build: $(addprefix $(BIN_DIR)/,$(GO_BINS)) $(addprefix $(BIN_DIR)/,$(BUSYBOX_LINKS))
 
 install: build
 	@mkdir -p $(INSTALL_DIR)
@@ -40,31 +47,19 @@ install: build
 	    install -m 755 $(BIN_DIR)/$$b $(INSTALL_DIR)/$$b && \
 	    echo "installed: $(INSTALL_DIR)/$$b"; \
 	done
+	@for l in $(BUSYBOX_LINKS); do \
+	    ln -sf pair "$(INSTALL_DIR)/$$l" && \
+	    echo "linked: $(INSTALL_DIR)/$$l -> pair"; \
+	done
 	@for b in $(SHELL_BINS); do \
 	    ln -sf "$(CURDIR)/$(BIN_DIR)/$$b" "$(INSTALL_DIR)/$$b" && \
 	    echo "linked: $(INSTALL_DIR)/$$b -> $(CURDIR)/$(BIN_DIR)/$$b"; \
 	done
 
-# Per-binary aliases — `make pair-scribe`, etc.
-pair:                   $(BIN_DIR)/pair
-pair-scribe:            $(BIN_DIR)/pair-scribe
-pair-scrollback-render: $(BIN_DIR)/pair-scrollback-render
-pair-wrap:              $(BIN_DIR)/pair-wrap
-pair-slug:              $(BIN_DIR)/pair-slug
-pair-continuation:      $(BIN_DIR)/pair-continuation
-pair-changelog:         $(BIN_DIR)/pair-changelog
-pair-context:           $(BIN_DIR)/pair-context
-pair-session-watch:     $(BIN_DIR)/pair-session-watch
-pair-title:             $(BIN_DIR)/pair-title
-pair-scrollback-open:   $(BIN_DIR)/pair-scrollback-open
-pair-changelog-open:    $(BIN_DIR)/pair-changelog-open
-pair-review-target:     $(BIN_DIR)/pair-review-target
-pair-review-open:       $(BIN_DIR)/pair-review-open
-pair-review-readiness:  $(BIN_DIR)/pair-review-readiness
-pair-go:                $(BIN_DIR)/pair-go
-copy-on-select:         $(BIN_DIR)/copy-on-select
-clipboard-to-pane:      $(BIN_DIR)/clipboard-to-pane
-flash-pane:             $(BIN_DIR)/flash-pane
+# `make pair` builds the single binary (the recipe below also emits the busybox
+# symlinks, so `build`/`install`/`pair` all get them without a recipe on `build`,
+# which would clash with the base layer's `build` target).
+pair: $(BIN_DIR)/pair
 
 # Tests
 #   make test       → go test ./... (cache disabled so reruns actually run)
@@ -89,15 +84,17 @@ test-pair-title:
 
 # Session id watcher must ignore stale pidfiles from prior launches and wait
 # for pair-wrap to publish the current agent PID.
-test-session-watch: $(BIN_DIR)/pair-session-watch
+test-session-watch: $(BIN_DIR)/pair
 	bash tests/pair-session-watch-test.sh
 
-runtimebundle-generate: $(addprefix $(BIN_DIR)/,$(RUNTIMEBUNDLE_HELPERS))
+# The bundle carries config + shell shims only (#104 M3) — no helper binaries to
+# build first, so no prereq.
+runtimebundle-generate:
 	go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime
 
 $(RUNTIMEBUNDLE_ASSETS): runtimebundle-generate
 
-runtimebundle-drift-check: $(addprefix $(BIN_DIR)/,$(RUNTIMEBUNDLE_HELPERS))
+runtimebundle-drift-check:
 	@d1="$$(mktemp -d)"; d2="$$(mktemp -d)"; \
 	trap 'rm -rf "$$d1" "$$d2"' EXIT; \
 	go run ./cmd/internal/runtimebundle/generatecmd --repo . --out "$$d1/runtime" && \
@@ -115,7 +112,7 @@ test-runtimebundle: runtimebundle-generate
 # The review helpers are now built Go binaries (#93 M3), not committed shell
 # scripts — declare them as prereqs so a fresh-tree `make test` builds them
 # before the review suite execs `$ROOT/bin/pair-review-*`.
-test-review: $(BIN_DIR)/pair-review-target $(BIN_DIR)/pair-review-open $(BIN_DIR)/pair-review-readiness
+test-review: $(BIN_DIR)/pair
 	bash tests/review-docflow-test.sh
 	bash tests/review-apply-test.sh
 	bash tests/review-reconcile-test.sh
@@ -208,7 +205,7 @@ test-doctor:
 # copy-on-select is the Go binary (#93 M4; zellij's copy_command invokes it
 # directly since #94 M2), so a fresh-tree run must build it before the test copies
 # it into the sandboxed $PAIR_HOME/bin (same missing-prereq lesson as M2/M3).
-test-copy-on-select: $(BIN_DIR)/copy-on-select
+test-copy-on-select: $(BIN_DIR)/pair
 	bash tests/copy-on-select-test.sh
 
 # Cross-emitter contract for the flight recorder: Go == shell == Lua schema,
@@ -246,108 +243,18 @@ test-emitter-health:
 # + model + nvim and assert clean → distill → write → open (changelog) and render
 # → open (scrollback). Depend on the binaries so `make test` builds + runs them
 # (the scripts SKIP if absent, which would silently no-op in CI without these).
-test-changelog: $(BIN_DIR)/pair $(BIN_DIR)/pair-changelog $(BIN_DIR)/pair-scrollback-render $(BIN_DIR)/pair-changelog-open $(BIN_DIR)/pair-scrollback-open
+test-changelog: $(BIN_DIR)/pair
 	sh tests/changelog-open-test.sh
 	sh tests/changelog-session-key-test.sh
 	sh tests/scrollback-open-test.sh
 
-# pair-scribe — Go-based pty wrapper with SIGUSR1/SIGUSR2 pause/resume
-# of the typescript log. Replaces script(1) at the top of the user's
-# shell, so preexec can stop the log from filling with TUI redraw bytes
-# (claude, nvim, etc). Thin shim over cmd/internal/scribecmd (shared with
-# the `pair scribe` route, #96). See cmd/pair-scribe/README.md for the why.
-$(BIN_DIR)/pair-scribe: cmd/pair-scribe/main.go cmd/internal/scribecmd/scribecmd.go go.mod
-	go build -o $@ ./cmd/pair-scribe
+# All former helper binaries are gone (#104 M3) — each is a `pair <subcommand>`
+# built into the single `pair` below. Their logic still lives in cmd/internal/*.
 
-# pair-scrollback-render — replays a pair-wrap raw PTY capture through
-# charmbracelet/x/vt and emits one ANSI-styled line per logical scrollback
-# row, for the Alt+/ viewer to display through nvim.
-$(BIN_DIR)/pair-scrollback-render: cmd/pair-scrollback-render/main.go cmd/internal/scrollbackcmd/scrollbackcmd.go go.mod
-	go build -o $@ ./cmd/pair-scrollback-render
-
-# pair-wrap — transparent PTY proxy around a TUI coding agent: forwards
-# stdio, tees scrollback log, extracts colored spans for nvim autocomplete,
-# detects OSC/BEL and forwards as OSC 9 to the recorded outer-TTY, handles
-# SIGUSR1 image-paste capture window. Thin shim over cmd/internal/wrapcmd
-# (shared with the `pair wrap` streaming route, #96).
-$(BIN_DIR)/pair-wrap: cmd/pair-wrap/main.go cmd/internal/wrapcmd/wrap.go cmd/internal/adapt/adapt.go go.mod
-	go build -o $@ ./cmd/pair-wrap
-
-$(BIN_DIR)/pair-slug: cmd/pair-slug/main.go cmd/internal/slugcmd/slugcmd.go cmd/internal/slugcmd/slug.go cmd/internal/model/model.go cmd/internal/transcript/transcript.go cmd/internal/adapt/adapt.go go.mod
-	go build -o $@ ./cmd/pair-slug
-
-# pair-context — one-shot: print a pane's current context size (token count)
-# for the pair-title poller. Pure ctxmeter reader + shared transcript resolver.
-$(BIN_DIR)/pair-context: cmd/pair-context/main.go cmd/internal/contextcmd/contextcmd.go cmd/internal/ctxmeter/ctxmeter.go cmd/internal/transcript/transcript.go go.mod
-	go build -o $@ ./cmd/pair-context
-
-# pair-session-watch — async codex/agy session-id discovery. The launcher spawns
-# this Go binary directly (the bin/pair-session-watch.sh shim was retired #94 M2).
-$(BIN_DIR)/pair-session-watch: cmd/pair-session-watch/main.go cmd/internal/sessionwatch/sessionwatch.go cmd/internal/sessionwatch/run.go cmd/internal/sessionwatch/runcli.go cmd/internal/sessionwatch/runtime.go cmd/internal/procutil/procutil.go cmd/internal/adapt/adapt.go go.mod
-	go build -o $@ ./cmd/pair-session-watch
-
-# pair-title — the per-tag title poller (#93 M1, ported from bin/pair-title.sh):
-# zellij frame meter (#71) + cmux workspace heat-ramp. Pure decisions in
-# cmd/internal/titlepoller; zellij/cmux/ps/fs behind the OSRuntime seam. Reuses
-# contextcmd (in-process context count) + procutil (kill-0/ps). The launcher
-# spawns bin/pair-title directly (the .sh re-exec shim was retired #94 M2).
-$(BIN_DIR)/pair-title: cmd/pair-title/main.go cmd/internal/titlepoller/titlepoller.go cmd/internal/titlepoller/run.go cmd/internal/titlepoller/runcli.go cmd/internal/titlepoller/runtime.go cmd/internal/procutil/procutil.go cmd/internal/contextcmd/contextcmd.go cmd/internal/ctxmeter/ctxmeter.go cmd/internal/transcript/transcript.go cmd/internal/adapt/adapt.go go.mod
-	go build -o $@ ./cmd/pair-title
-
-# pair-scrollback-open / pair-changelog-open — the Alt+/ and Alt+l floating-pane
-# viewer launchers (#93 M2, ported from the same-named shell scripts). Pure
-# viewport scorer + session keying in cmd/internal/opener; zellij/nvim/setsid/fs
-# behind the OSRuntime seam. Reuse scrollbackcmd (in-process render) + procutil.
-# The Go binaries replace the shell scripts at the same PATH names (zellij invokes
-# them by name), so no .sh shim is kept.
-OPENER_SRCS := cmd/internal/opener/opener.go cmd/internal/opener/run.go cmd/internal/opener/runcli.go cmd/internal/opener/runtime.go cmd/internal/procutil/procutil.go cmd/internal/scrollbackcmd/scrollbackcmd.go go.mod
-$(BIN_DIR)/pair-scrollback-open: cmd/pair-scrollback-open/main.go $(OPENER_SRCS)
-	go build -o $@ ./cmd/pair-scrollback-open
-$(BIN_DIR)/pair-changelog-open: cmd/pair-changelog-open/main.go $(OPENER_SRCS)
-	go build -o $@ ./cmd/pair-changelog-open
-
-# pair-review-{target,open,readiness} — the review-start orchestrators (#93 M3,
-# ported from the same-named shell scripts). Pure slugify/JSON/action-mapping in
-# cmd/internal/reviewcmd; git/nvim-classify/zellij-spawn/codex-sid behind the
-# OSRuntime seam (embeds osfs.FS). nvim/review/readiness.lua stays the single
-# source of the 4-case decision (invoked via nvim --headless). The Go binaries
-# replace the shell scripts at the same PATH names (no shim).
-REVIEW_SRCS := cmd/internal/reviewcmd/reviewcmd.go cmd/internal/reviewcmd/run.go cmd/internal/reviewcmd/runcli.go cmd/internal/reviewcmd/runtime.go cmd/internal/osfs/osfs.go cmd/internal/codexsid/codexsid.go cmd/internal/procutil/procutil.go go.mod
-$(BIN_DIR)/pair-review-target: cmd/pair-review-target/main.go $(REVIEW_SRCS)
-	go build -o $@ ./cmd/pair-review-target
-$(BIN_DIR)/pair-review-open: cmd/pair-review-open/main.go $(REVIEW_SRCS)
-	go build -o $@ ./cmd/pair-review-open
-$(BIN_DIR)/pair-review-readiness: cmd/pair-review-readiness/main.go $(REVIEW_SRCS)
-	go build -o $@ ./cmd/pair-review-readiness
-
-# copy-on-select / clipboard-to-pane / flash-pane — the copy-on-select clipboard
-# pipeline (#93 M4, ported from the same-named shell scripts). Pure in_nvim
-# classify + pane selection + quote/flash resolution in cmd/internal/clipcmd;
-# clipboard/zellij-IPC/spawn/exec behind the OSRuntime seam (embeds osfs.FS).
-# The zellij list-panes walk is shared via cmd/internal/zellijpane. Unlike M2/M3,
-# these keep tracked bin/*.sh re-exec shims (see .gitignore's !bin/*.sh + the
-# by-path stubs in tests/copy-on-select-test.sh); copy-on-select still execs the
-# flash/clipboard .sh shims, preserving that chain.
-CLIP_SRCS := cmd/internal/clipcmd/clipcmd.go cmd/internal/clipcmd/run.go cmd/internal/clipcmd/runcli.go cmd/internal/clipcmd/runtime.go cmd/internal/zellijpane/zellijpane.go cmd/internal/osfs/osfs.go go.mod
-$(BIN_DIR)/copy-on-select: cmd/copy-on-select/main.go $(CLIP_SRCS)
-	go build -o $@ ./cmd/copy-on-select
-$(BIN_DIR)/clipboard-to-pane: cmd/clipboard-to-pane/main.go $(CLIP_SRCS)
-	go build -o $@ ./cmd/clipboard-to-pane
-$(BIN_DIR)/flash-pane: cmd/flash-pane/main.go $(CLIP_SRCS)
-	go build -o $@ ./cmd/flash-pane
-
-# pair-changelog — distills the pair TTY into the Alt+l change log (#53);
-# shares cmd/internal/model with pair-slug.
-$(BIN_DIR)/pair-changelog: cmd/pair-changelog/main.go cmd/internal/changelogcmd/changelogcmd.go cmd/internal/changelogcmd/distill.go cmd/internal/changelogcmd/prompt.go cmd/internal/model/model.go go.mod
-	go build -o $@ ./cmd/pair-changelog
-
-# pair-continuation — the deterministic writer for the `continuation` datatype
-# (ariadne#91): renders frontmatter, allocates a collision-safe timestamped
-# name under workshop/continuation/, writes, then commits + pushes (recovery).
-$(BIN_DIR)/pair-continuation: cmd/pair-continuation/main.go cmd/internal/continuationcmd/continuationcmd.go cmd/internal/continuationcmd/continuation.go cmd/internal/continuationcmd/git.go go.mod
-	go build -o $@ ./cmd/pair-continuation
-
-PAIR_GO_SRCS := cmd/pair-go/main.go cmd/internal/entrypoint/asset_root.go cmd/internal/entrypoint/mode.go cmd/internal/dispatcher/dispatcher.go cmd/internal/launcher/args.go cmd/internal/launcher/datadir.go cmd/internal/launcher/decision.go cmd/internal/launcher/history.go cmd/internal/launcher/run.go cmd/internal/launcher/session.go cmd/internal/launcher/tag.go cmd/internal/launcher/zellij.go cmd/internal/contextcmd/contextcmd.go cmd/internal/scrollbackcmd/scrollbackcmd.go cmd/internal/slugcmd/slugcmd.go cmd/internal/slugcmd/slug.go cmd/internal/wrapcmd/wrap.go cmd/internal/scribecmd/scribecmd.go cmd/internal/changelogcmd/changelogcmd.go cmd/internal/changelogcmd/distill.go cmd/internal/changelogcmd/prompt.go cmd/internal/continuationcmd/continuationcmd.go cmd/internal/continuationcmd/continuation.go cmd/internal/continuationcmd/git.go cmd/internal/sessionwatch/sessionwatch.go cmd/internal/sessionwatch/run.go cmd/internal/sessionwatch/runcli.go cmd/internal/sessionwatch/runtime.go cmd/internal/procutil/procutil.go cmd/internal/model/model.go cmd/internal/transcript/transcript.go cmd/internal/adapt/adapt.go cmd/internal/runtimebundle/manifest.go cmd/internal/runtimebundle/plan.go cmd/internal/runtimebundle/cleanup.go cmd/internal/runtimebundle/store.go cmd/internal/runtimebundle/embed.go $(RUNTIMEBUNDLE_ASSETS) go.mod
+# Staleness hint for the pair recipe (NOT the compile set — `go build` pulls
+# every dep). A find over cmd/*.go avoids the drift the old hand-maintained list
+# risked; the runtime assets are a prereq so a bundle change rebuilds pair too.
+PAIR_GO_SRCS := $(shell find cmd -name '*.go' -not -name '*_test.go' 2>/dev/null) go.mod $(RUNTIMEBUNDLE_ASSETS) cmd/pair-go/main.go cmd/internal/entrypoint/asset_root.go cmd/internal/entrypoint/mode.go cmd/internal/dispatcher/dispatcher.go cmd/internal/launcher/args.go cmd/internal/launcher/datadir.go cmd/internal/launcher/decision.go cmd/internal/launcher/history.go cmd/internal/launcher/run.go cmd/internal/launcher/session.go cmd/internal/launcher/tag.go cmd/internal/launcher/zellij.go cmd/internal/contextcmd/contextcmd.go cmd/internal/scrollbackcmd/scrollbackcmd.go cmd/internal/slugcmd/slugcmd.go cmd/internal/slugcmd/slug.go cmd/internal/wrapcmd/wrap.go cmd/internal/scribecmd/scribecmd.go cmd/internal/changelogcmd/changelogcmd.go cmd/internal/changelogcmd/distill.go cmd/internal/changelogcmd/prompt.go cmd/internal/continuationcmd/continuationcmd.go cmd/internal/continuationcmd/continuation.go cmd/internal/continuationcmd/git.go cmd/internal/sessionwatch/sessionwatch.go cmd/internal/sessionwatch/run.go cmd/internal/sessionwatch/runcli.go cmd/internal/sessionwatch/runtime.go cmd/internal/procutil/procutil.go cmd/internal/model/model.go cmd/internal/transcript/transcript.go cmd/internal/adapt/adapt.go cmd/internal/runtimebundle/manifest.go cmd/internal/runtimebundle/plan.go cmd/internal/runtimebundle/cleanup.go cmd/internal/runtimebundle/store.go cmd/internal/runtimebundle/embed.go $(RUNTIMEBUNDLE_ASSETS) go.mod
 
 # pair — the Go-owned entrypoint. It drives the native launcher in-process (#99
 # M5c — bin/pair-shell retired); source/Homebrew builds can inject defaultPairHome,
@@ -357,11 +264,11 @@ PAIR_GO_SRCS := cmd/pair-go/main.go cmd/internal/entrypoint/asset_root.go cmd/in
 $(BIN_DIR)/pair: $(PAIR_GO_SRCS)
 	go build -ldflags "$(PAIR_HOME_LDFLAGS)" -o $@ ./cmd/pair-go
 
-# pair-go — development dispatcher and explicit migration surface.
-# `pair-go launch ...` shares the same bin/pair-shell handoff as public pair;
-# helper routes stay in the dispatcher.
-$(BIN_DIR)/pair-go: $(PAIR_GO_SRCS)
-	go build -ldflags "$(PAIR_HOME_LDFLAGS)" -o $@ ./cmd/pair-go
+# Busybox symlinks (pair-slug → pair): a real target each, so `build` restores a
+# deleted symlink even when bin/pair is already up-to-date (not only when the pair
+# recipe fires). `install` re-links them into $(INSTALL_DIR) separately.
+$(addprefix $(BIN_DIR)/,$(BUSYBOX_LINKS)): $(BIN_DIR)/pair
+	@ln -sf pair $@
 
 
 # Tart VM targets (tart, tart-gui, tart-mount, tart-stop, tart-clean)

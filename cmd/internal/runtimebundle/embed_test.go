@@ -2,23 +2,19 @@ package runtimebundle
 
 import "testing"
 
-func TestEmbeddedManifestContainsLaunchAssets(t *testing.T) {
+// Since #104 M3 the runtime bundle is config + shell shims ONLY — no helper
+// binaries. Every former helper is a `pair <subcommand>` reached via the single
+// `pair` on the session PATH; nothing named `pair-*` (a Go binary) is bundled.
+func TestEmbeddedManifestIsConfigAndShimsOnly(t *testing.T) {
 	manifest := EmbeddedManifest()
 	paths := map[string]bool{}
 	for _, asset := range manifest.Assets {
 		paths[asset.Path] = true
 	}
 	for _, want := range []string{
-		"bin/pair-help",
+		"bin/pair-help",   // shell shim (invoked by bare name in a session)
+		"bin/pair-notify", // shell shim (Claude hooks)
 		"bin/lib/dev-rebuild.sh",
-		"bin/pair-wrap",
-		"bin/pair-slug",
-		"bin/pair-context",
-		"bin/pair-scrollback-render",
-		"bin/pair-changelog",
-		"bin/pair-continuation",
-		"bin/pair-session-watch", // Go binary (the .sh shim retired #94 M2)
-		"bin/pair-title",         // Go binary (the .sh shim retired #94 M2)
 		"nvim/init.lua",
 		"nvim/review/init.lua",
 		"zellij/config.kdl",
@@ -31,17 +27,27 @@ func TestEmbeddedManifestContainsLaunchAssets(t *testing.T) {
 		}
 	}
 	for _, excluded := range []string{
-		"bin/pair",
-		"bin/pair-go",
+		"bin/pair",    // never self-embed
+		"bin/pair-go", // legacy twin, dropped #104 M3
 		"bin/pair-dev",
-		"bin/pair-quit.sh",    // #94 M1 — ported to `pair quit`, no longer bundled
-		"bin/pair-restart.sh", // #94 M1 — ported to `pair restart`, no longer bundled
-		// #94 M2 — the five exec-shims retired; their Go binaries are bundled instead.
-		"bin/copy-on-select.sh",
-		"bin/clipboard-to-pane.sh",
-		"bin/flash-pane.sh",
-		"bin/pair-title.sh",
-		"bin/pair-session-watch.sh",
+		// #104 M3 — the helper binaries fold into `pair <sub>`; none are bundled.
+		"bin/pair-wrap",
+		"bin/pair-slug",
+		"bin/pair-title",
+		"bin/pair-session-watch",
+		"bin/pair-context",
+		"bin/pair-continuation",
+		"bin/pair-scrollback-render",
+		"bin/pair-scrollback-open",
+		"bin/pair-changelog",
+		"bin/pair-changelog-open",
+		"bin/pair-review-open",
+		"bin/pair-review-readiness",
+		"bin/pair-review-target",
+		"bin/copy-on-select",
+		"bin/clipboard-to-pane",
+		"bin/flash-pane",
+		"bin/pair-scribe", // folds to `pair scribe`
 		"nvim/init_test.lua",
 	} {
 		if paths[excluded] {

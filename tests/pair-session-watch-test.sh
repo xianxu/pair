@@ -33,7 +33,7 @@ HOME="$RT/home" \
 PAIR_DATA_DIR="$RT/data" \
 PAIR_TAG=test \
 PAIR_SESSION_WATCH_PID_WAIT_SECONDS=3 \
-"$ROOT/bin/pair-session-watch" codex test "$ROOT" resume old-session 'say "hi"' --no-alt-screen &
+"$ROOT/bin/pair" session-watch codex test "$ROOT" resume old-session 'say "hi"' --no-alt-screen &
 watch_pid=$!
 
 sleep 0.2
@@ -53,4 +53,4 @@ args="$(jq -c '.args' "$RT/data/config-test-codex.json")"
   exit 1
 }
 
-echo "pair-session-watch stale pidfile test PASS"
+echo "pair session-watch stale pidfile test PASS"

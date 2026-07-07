@@ -38,7 +38,7 @@ local function list_panes()
 end
 
 -- The agent pane: a real terminal (not plugin), tiled (not floating), not the
--- draft — the same predicate pair-scrollback-open uses to find it.
+-- draft — the same predicate `pair scrollback open` uses to find it.
 local function find_agent(panes)
   for _, p in ipairs(panes) do
     if p.is_plugin == false and p.is_floating == false

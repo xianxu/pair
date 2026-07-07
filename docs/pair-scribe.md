@@ -1,4 +1,4 @@
-# pair-scribe
+# pair scribe
 
 A `script(1)`-replacement that supports pause/resume of the typescript via
 signals. Built because macOS `script(1)`:
@@ -11,13 +11,15 @@ signals. Built because macOS `script(1)`:
   …) floods the typescript with redraw bytes that aren't useful for
   "copy last command output."
 
-`pair-scribe` is signal-controllable: `SIGUSR1` pauses on-disk capture,
+`pair scribe` is signal-controllable: `SIGUSR1` pauses on-disk capture,
 `SIGUSR2` resumes. Terminal output to the user is never paused — only the
 log file.
 
-Lives under `cmd/` in the pair repo for build-system convenience, but
-isn't part of pair's runtime — it's user shell tooling that swaps for
-`script(1)` at the top of the zsh session.
+It isn't part of pair's runtime — it's user shell tooling that swaps for
+`script(1)` at the top of the zsh session. The logic lives in
+`cmd/internal/scribecmd`; since #104 it is reached only as the `pair scribe`
+subcommand (the standalone `pair-scribe` binary was folded into the single
+`pair` — there is no separate binary to maintain).
 
 ## Build
 
@@ -25,19 +27,13 @@ From the pair repo root:
 
     make install
 
-Produces `~/.local/bin/pair-scribe` (and the other Go binaries). Static
-binary, no runtime deps.
+Produces `~/.local/bin/pair` (the single binary). Static, no runtime deps.
 
 ## Use
 
 Same shape as `script -q -F LOG CMD`:
 
-    pair-scribe -log PATH -- CMD [ARGS...]
-
-The logic now lives in `cmd/internal/scribecmd` and is also reachable as the
-`pair scribe` dispatcher route (#96) — `pair scribe -log PATH -- CMD` is
-equivalent. This `pair-scribe` binary is a thin shim over it, kept installed at
-`~/.local/bin/pair-scribe` so the zshrc wiring below is unchanged.
+    pair scribe -log PATH -- CMD [ARGS...]
 
 In `~/.zshrc`, replace
 
@@ -45,7 +41,7 @@ In `~/.zshrc`, replace
 
 with
 
-    exec ~/.local/bin/pair-scribe -log "$_ZSH_SCRIPT_LOG" -- /bin/zsh
+    exec pair scribe -log "$_ZSH_SCRIPT_LOG" -- /bin/zsh
 
 Then in `preexec` / `precmd`, send signals to `$_ZSH_SCRIPT_LOG_OWNER`
 around commands whose output you don't want captured.

@@ -16,11 +16,26 @@ func RunCopyOnSelectCLI(args []string, stdin io.Reader, getenv func(string) stri
 	if home == "" {
 		home = repoRootFromExe()
 	}
-	opts := CopyOnSelectOptions{PairHome: home}
+	opts := CopyOnSelectOptions{PairHome: home, SelfExe: siblingPairExe(home)}
 	if len(args) > 0 && args[0] == "--orchestrate" {
 		return RunCopyOnSelectOrchestrate(opts, NewOSRuntime(), stderr)
 	}
 	return RunCopyOnSelect(opts, stdin, NewOSRuntime(), stderr)
+}
+
+// siblingPairExe resolves the `pair` executable for the self-exec hand-offs
+// (`pair clip …`). It targets the `pair` SIBLING of the running binary
+// (dir(os.Executable())/pair): in production the hook runs as `pair` so the
+// sibling is pair itself, and it works in the copied/Homebrew layout (pair is
+// never in its own $PAIR_HOME/bin bundle). Resolving the sibling — rather than
+// os.Executable() directly (cf. launcher.runningPairExe, which is always pair) —
+// also keeps the flow correct if invoked under a helper's name. Falls back to
+// <home>/bin/pair only if os.Executable() is unavailable.
+func siblingPairExe(home string) string {
+	if exe, err := os.Executable(); err == nil && exe != "" {
+		return filepath.Join(filepath.Dir(exe), "pair")
+	}
+	return filepath.Join(home, "bin", "pair")
 }
 
 // RunClipboardToPaneCLI is the clipboard-to-pane command body.

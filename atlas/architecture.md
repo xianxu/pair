@@ -13,17 +13,16 @@ contract for the Go packaging migration lives in
 [Go migration inventory](go-migration-inventory.md).
 
 ```
-bin/pair                     # Go public entrypoint (cmd/pair-go); drives the native launcher cmd/internal/launcher in-process
-bin/pair-go                  # Go dispatcher + in-process launcher driver (same cmd/pair-go source)
-bin/clipboard-to-pane        # cmd/clipboard-to-pane: read clipboard, hand off to nvim's PairPasteQuote (#93 M4)
-bin/copy-on-select           # cmd/copy-on-select: invoked by zellij copy_command on mouse-up (#93 M4)
-bin/pair-session-watch       # Go watcher that captures codex/agy session id (#000016, #000020, #78)
-bin/pair-wrap                # PTY proxy: OSC translation + scrollback capture
+bin/pair                     # THE Go binary (cmd/pair-go): launcher + EVERY helper as `pair <sub>` (#104)
+bin/pair-slug -> pair        # busybox symlink: the external Claude Stop hook's bare name (#104 M3)
+bin/pair-dev                 # dev wrapper: rebuild-on-launch (make build), then exec pair
+bin/pair-help                # shell shim: `pair -h` in an ESC-to-quit pager
 bin/pair-notify              # hook-driven OSC notifier (e.g. claude Notification)
-bin/pair-scrollback-render   # raw PTY capture → ANSI-colored line dump (#000017)
-bin/pair-scrollback-open     # Alt+/ orchestrator: render + open viewer
-bin/pair-changelog           # TTY → distilled change log (LLM, incremental) (#53)
-bin/pair-changelog-open      # Alt+l orchestrator: open viewer; clean+distill run in the background (#53)
+#   former standalone helpers are now subcommands of the single binary:
+#     pair wrap · pair scribe · pair session-watch · pair title · pair context ·
+#     pair slug · pair continuation · pair scrollback render|open ·
+#     pair changelog render|open · pair review target|open|readiness ·
+#     pair clip copy-on-select|clipboard-to-pane|flash-pane
 nvim/init.lua                # bundled nvim config (loaded via -u)
 nvim/scrollback.lua          # read-only ANSI viewer for the scrollback dump
 nvim/changelog.lua           # read-only viewer for the distilled change log (#53)
@@ -34,20 +33,24 @@ zellij/layouts/main.kdl      # the split + agent/draft commands + swap layouts
 
 ## Packaging migration target (#72)
 
-Pair is moving toward a single primary Go `pair` binary for packaging and
-distribution. The target shape is a Go-owned CLI/dispatcher that owns session
-lifecycle, data/config path resolution, asset discovery, restart/quit/continue
-flows, and subprocess orchestration. Existing Go command surfaces should become
-internal subcommands or dispatch modes behind that primary binary (`pair wrap`,
-`pair slug`, `pair context`, `pair scrollback-render`, `pair changelog`,
-`pair continuation`, `pair scribe`) instead of staying as independently managed
-installed commands forever.
+**Complete as of #104.** Pair is a single primary Go `pair` binary: a Go-owned
+CLI/dispatcher that owns session lifecycle, data/config path resolution, asset
+discovery, restart/quit/continue flows, and subprocess orchestration. Every
+former Go command surface is now an internal subcommand (`pair wrap`,
+`pair slug`, `pair context`, `pair scrollback render`, `pair changelog render`,
+`pair continuation`, `pair scribe`, `pair review …`, `pair clip …`, `pair title`,
+`pair session-watch`) reached inside a session because the launcher fronts pair's
+own dir on the session PATH. The only other installed artifacts are the shell
+shims (`pair-dev`, `pair-help`, `pair-notify`) and the `pair-slug`→`pair` busybox
+symlink for the external Claude Stop hook. See the
+[Go migration inventory](go-migration-inventory.md) #104 rows for the endpoint.
 
 As of #90, the public `bin/pair` command is a Go-built entrypoint from
-`cmd/pair-go` with an embedded Pair-owned runtime bundle. Direct `pair ...` and
-explicit `pair-go launch ...` share one path: resolve the Pair asset root, then
-drive the native launcher (`cmd/internal/launcher`) in-process with
-`pair`-compatible argv/env. Asset root resolution is ordered: explicit `PAIR_HOME`, executable
+`cmd/pair-go` with an embedded Pair-owned runtime bundle. It resolves the Pair
+asset root, then drives the native launcher (`cmd/internal/launcher`) in-process.
+(The `cmd/pair-go` package still handles an internal `<self> launch …` mode; the
+`pair-go` *output* binary was dropped in #104 M3 — there is one binary, `pair`.)
+Asset root resolution is ordered: explicit `PAIR_HOME`, executable
 sibling root, the build-time `defaultPairHome` injected by Make/Homebrew, then
 an extracted embedded runtime under `$PAIR_DATA_DIR/runtime/<digest>/pair-home`
 when no adjacent/source asset root exists. Native `nvim/` and `zellij/` assets
@@ -72,17 +75,15 @@ external tools + system platform tools — not literally zero bytes on disk.
 `ARCH-PURPOSE` permits documenting this final gap.
 
 The embedded runtime is generated from a deterministic manifest before builds
-and tests. That manifest is the packaging source of truth for bundled Pair-owned
-shell helpers, helper binaries, `bin/lib/`, `nvim/`, `zellij/`, and doctor
-assets; external programs such as `zellij`, `nvim`, `fzf`, `jq`, clipboard
-tools, and agent CLIs remain system dependencies.
+and tests. Since #104 M3 that manifest carries **config + shell shims only** —
+the two shell shims (`bin/pair-help`, `bin/pair-notify`), `bin/lib/`, `nvim/`,
+`zellij/`, and doctor assets — and **no helper binaries** (every former helper is
+a `pair <sub>`, reached via the single `pair` the launcher fronts on the session
+PATH). `pair` itself is never self-embedded. External programs such as `zellij`,
+`nvim`, `fzf`, `jq`, clipboard tools, and agent CLIs remain system dependencies.
 
-`pair-go` remains the development dispatcher for helper routes and explicit
-launch testing: `pair-go launch claude`, `pair-go launch resume <tag>`,
-`pair-go launch continue ...`, `pair-go launch list`, and
-`pair-go launch rename ...` all reach the same native launcher as direct `pair`.
-A developer shell sourced from `../ariadne/construct/dev-aliases.sh` rebuilds
-`cmd/pair-go` automatically; no `pair-go-dev` command exists.
+A developer shell sourced from `../ariadne/construct/dev-aliases.sh` (or
+`pair-dev`) rebuilds `cmd/pair-go` automatically before running.
 
 The earlier #75 pure launcher core is now the foundation of the native Go
 launcher (`cmd/internal/launcher`): real zellij lifecycle, prompt/fzf UI,

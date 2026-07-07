@@ -1,4 +1,4 @@
--- nvim/scrollback.lua — read-only viewer for pair-scrollback-render output.
+-- nvim/scrollback.lua — read-only viewer for `pair scrollback render` output.
 --
 -- Loaded via `nvim -u $PAIR_HOME/nvim/scrollback.lua <path-to-.ansi>`.
 -- The .ansi file has SGR escapes inline (`\x1b[...m`); this init strips
@@ -281,14 +281,15 @@ local function scrollback_paths(bufnr)
 end
 
 local function renderer_command(paths)
-  -- One binary now: `pair scrollback-render` via the dispatcher (#92).
+  -- One binary: the nested `pair scrollback render` route (#104 M3 dropped the
+  -- transitional flat `scrollback-render` alias, so the two tokens are required).
   local bin
   if vim.env.PAIR_HOME and vim.env.PAIR_HOME ~= '' then
     bin = vim.env.PAIR_HOME .. '/bin/pair'
   else
     bin = 'pair'
   end
-  return { bin, 'scrollback-render', paths.raw, paths.events, paths.ansi }
+  return { bin, 'scrollback', 'render', paths.raw, paths.events, paths.ansi }
 end
 
 local function run_renderer(paths, opts)
