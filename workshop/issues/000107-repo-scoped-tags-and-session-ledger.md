@@ -230,3 +230,12 @@ live-session mapping order (index → scoped pane metadata → legacy recovery),
 define ambiguous flat sidecars as explicit manual-import recovery rather than
 silent ownership. Increased estimate to 8.2h to reflect the clarified registry
 and migration work.
+
+Second plan-quality gate found the length-budget fallback and ambiguous legacy
+predicate still too loose. Revised the plan with a deterministic session-name
+candidate algorithm: full readable name first, then trim the longer repo/tag
+component while preserving at least 4 normalized chars each and the numeric
+suffix; abort before sidecar writes if no probed candidate passes zellij. Also
+made the ambiguous legacy recovery predicate exact:
+`tag == DefaultTag(currentRepoRoot)` or `strings.HasPrefix(tag,
+DefaultTag(currentRepoRoot)+"-")`.

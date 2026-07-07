@@ -49,7 +49,7 @@
   - **DRY rationale:** Solves same-name repo collisions without putting the hidden scope key in zellij's user-visible session namespace.
   - **Future extensions:** Can become the source for `pair list --all-repos` and stale-name repair.
 
-- **ScopedSessionName** — zellij-safe, globally unique public session name. Format is `pair-<repo-component>-<tag-component>` for the first scope and `pair-<repo-component>-<tag-component>-N` for later same-public-name collisions, where `N` is the lowest stable positive integer assigned by `SessionNameIndex`.
+- **ScopedSessionName** — zellij-safe, globally unique public session name. Format is `pair-<repo-component>-<tag-component>` for the first scope and `pair-<repo-component>-<tag-component>-N` for later same-public-name collisions, where `N` is the lowest stable positive integer assigned by `SessionNameIndex`. If zellij rejects that readable base for #54 length, the builder deterministically shortens the repo/tag components, never replacing them with a hash.
   - **Relationships:** 1:1 with a live `ScopedTag` attempt; the index maps the public name back to a scope and tag.
   - **DRY rationale:** Replaces direct `sessionName(tag)` calls and keeps #54 length probing centralized while honoring the no-hash-in-UI constraint.
   - **Future extensions:** If zellij exposes structured metadata later, the numeric suffix can remain only as compatibility, with metadata carrying the stable key.
@@ -174,6 +174,7 @@ Cover:
 - same repo/tag keeps readable `pair-<repo>-<tag>` when unclaimed.
 - two same-name repos with different scope keys get stable `pair-<repo>-<tag>` and `pair-<repo>-<tag>-2` assignments.
 - the same scope/tag reuses its prior public session name when zellij still has it or the index marks it current.
+- over-long names are shortened by trimming the longer component first, preserving at least 4 normalized characters of repo and tag plus the numeric suffix; if no candidate passes `ProbeSessionName`, launch fails with "repo/tag too long for zellij socket path; choose a shorter tag" before writing sidecars.
 - hidden hash/key is not present in picker labels or pane titles.
 - hidden hash/key is present only in the index record and scoped data-dir path.
 - generated names still pass through `ProbeSessionName`.
@@ -185,8 +186,9 @@ Expected: FAIL for missing scoped session-name API.
 
 Implement pure helpers:
 - `PublicSessionBase(scope RepoScope, tag string) string` -> `pair-<repo-component>-<tag-component>`.
+- `BuildSessionNameCandidates(scope RepoScope, tag string, suffix int) []string` -> full readable candidate first, then deterministic shorter candidates. Shortening rule: reserve `len("pair--") + len(optional "-N")`, repeatedly remove one rune from the longer of repo component and tag component until both are at the 4-rune floor, and never emit a candidate containing the scope key/hash.
 - `AssignSessionName(index SessionNameIndex, live []Session, scope RepoScope, tag string) (name string, updated SessionNameIndex)`.
-- Assignment rule: reuse the existing index binding for the same `(scope_key, tag)` when possible; otherwise choose the lowest `-N` public suffix whose live/index owner is absent or the same scope/tag. Never embed the scope key in the returned name.
+- Assignment rule: reuse the existing index binding for the same `(scope_key, tag)` when possible; otherwise choose the lowest `-N` public suffix whose live/index owner is absent or the same scope/tag. For each suffix, probe candidates from `BuildSessionNameCandidates` in order and reserve the first accepted name. Never embed the scope key in the returned name. If every candidate for suffixes 1..100 is rejected or occupied, return a typed `SessionNameExhausted` error and abort before creating sidecars.
 
 - [ ] **Step 3: Modify decisions to carry session name separately from tag**
 
@@ -402,7 +404,7 @@ Expected: FAIL for missing migration.
 Implement these ownership rules:
 1. **Proven current repo:** pane metadata `cwd`/`cwd_display`, scoped pane metadata, or transcript path proves the repo root. Copy into the current scope automatically on first current-scope launch/resume.
 2. **Proven other repo:** leave untouched and exclude from current-scope history/picker.
-3. **Ambiguous legacy:** leave flat files untouched; show a separate picker row labeled `legacy unscoped <tag> (manual import)` only when the tag matches the current repo's historical/default family. Selecting it copies into the current scope and writes a ledger row with `legacy_import: true`.
+3. **Ambiguous legacy:** leave flat files untouched; show a separate picker row labeled `legacy unscoped <tag> (manual import)` only when `tag == DefaultTag(currentRepoRoot)` or `strings.HasPrefix(tag, DefaultTag(currentRepoRoot)+"-")`. Selecting it copies into the current scope and writes a ledger row with `legacy_import: true`.
 
 Prefer copy-then-atomic-rename patterns for files Pair can race on. Record a migration marker in the scope dir after success. Never delete a flat source unless the operation is explicitly a move for a lifecycle cleanup and the scoped copy exists.
 
