@@ -39,7 +39,7 @@ SHELL_BINS  := pair-dev
 PAIR_HOME_LDFLAGS := -X main.defaultPairHome=$(CURDIR)
 RUNTIMEBUNDLE_ASSETS := cmd/internal/runtimebundle/assets/runtime/manifest.json
 
-build: $(addprefix $(BIN_DIR)/,$(GO_BINS))
+build: $(addprefix $(BIN_DIR)/,$(GO_BINS)) $(addprefix $(BIN_DIR)/,$(BUSYBOX_LINKS))
 
 install: build
 	@mkdir -p $(INSTALL_DIR)
@@ -263,7 +263,12 @@ PAIR_GO_SRCS := $(shell find cmd -name '*.go' -not -name '*_test.go' 2>/dev/null
 # dep; it needn't list every cmd/internal/launcher file.)
 $(BIN_DIR)/pair: $(PAIR_GO_SRCS)
 	go build -ldflags "$(PAIR_HOME_LDFLAGS)" -o $@ ./cmd/pair-go
-	@for l in $(BUSYBOX_LINKS); do ln -sf pair $(BIN_DIR)/$$l; done
+
+# Busybox symlinks (pair-slug → pair): a real target each, so `build` restores a
+# deleted symlink even when bin/pair is already up-to-date (not only when the pair
+# recipe fires). `install` re-links them into $(INSTALL_DIR) separately.
+$(addprefix $(BIN_DIR)/,$(BUSYBOX_LINKS)): $(BIN_DIR)/pair
+	@ln -sf pair $@
 
 
 # Tart VM targets (tart, tart-gui, tart-mount, tart-stop, tart-clean)

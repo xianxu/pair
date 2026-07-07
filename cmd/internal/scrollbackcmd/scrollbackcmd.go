@@ -161,7 +161,7 @@ func feedSegments(em *vt.Emulator, raw []byte, events []scrollbackEvent) []dateM
 }
 
 // tsMarkerLine is the wire format the distiller parses (#59). MUST stay in sync
-// with tsMarkerRe in cmd/pair-changelog/distill.go — the contract is pinned by
+// with tsMarkerRe in cmd/internal/changelogcmd/distill.go — the contract is pinned by
 // the render→clean→distill e2e test cmd/pair-changelog/e2e_test.go
 // (TestEndToEndMarkerSurvival), which feeds real time events through both binaries.
 func tsMarkerLine(date string) string {

@@ -273,7 +273,7 @@ func lastHeaderDate(log string) string {
 }
 
 // tsMarkerRe matches a render-emitted day marker line (#59). MUST stay in sync
-// with tsMarkerLine in cmd/pair-scrollback-render/main.go — the contract is
+// with tsMarkerLine in cmd/internal/scrollbackcmd/scrollbackcmd.go — the contract is
 // pinned by the render→clean→distill e2e test e2e_test.go
 // (TestEndToEndMarkerSurvival), which feeds real time events through both binaries.
 var tsMarkerRe = regexp.MustCompile(`^⟦pair:ts (\d{4}-\d{2}-\d{2})⟧$`)
