@@ -42,7 +42,7 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 	// fresh, seeded from the slug. First entry only: a restart re-launch is the
 	// same outer process, never in a pane.
 	if opts.ContinueSlug != "" &&
-		compactionDecision(opts.ForceInSession, rt.InZellijPane() || opts.FakeInZellij, opts.PairTag, opts.ZellijSession) {
+		compactionDecision(opts.ForceInSession, rt.InZellijPane() || opts.FakeInZellij, opts.PairTag, opts.ZellijSession, opts.PairSession) {
 		return runCompaction(opts, rt, stderr)
 	}
 	// Otherwise a launch from inside a pane can't proceed (a nested --session
@@ -57,7 +57,8 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 	// gone (an external kill / reboot leaves no quit marker). Once, up front — a
 	// clean restart below leaves nothing new to sweep.
 	if sessions, err := rt.Sessions(); err == nil {
-		rt.SweepOrphanNvim(liveTagsForSweep(sessions))
+		index, _ := rt.ReadSessionNameIndex()
+		rt.SweepOrphanNvim(liveTagsForSweep(sessions, index, scopeKeyFromDataDir(opts.GlobalDataDir, env.DataDir)))
 	}
 
 	for {
@@ -82,7 +83,7 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 		// — then the config read + relaunch below run under the new tag. A failure
 		// keeps the old tag (don't strand the user).
 		if m.RenameTo != "" {
-			if runRename(rt, LaunchArgs{RenameOld: rTag, RenameNew: m.RenameTo}, env.DataDir, io.Discard, stderr) == 0 {
+			if runRenameScoped(rt, LaunchArgs{RenameOld: rTag, RenameNew: m.RenameTo}, env.DataDir, scopeKeyFromDataDir(opts.GlobalDataDir, env.DataDir), io.Discard, stderr) == 0 {
 				rTag = m.RenameTo
 			} else {
 				fmt.Fprintf(stderr, "pair: rename to '%s' failed; continuing under '%s'.\n", m.RenameTo, rTag)
@@ -378,6 +379,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	rt.SetEnv("PAIR_DATA_DIR", dataDir)
 	rt.SetEnv("PAIR_TAG", chosenTag)
 	rt.SetEnv("PAIR_AGENT", agent)
+	rt.SetEnv("PAIR_SESSION_NAME", session)
 
 	draft := filepath.Join(dataDir, "draft-"+chosenTag+".md")
 	_ = rt.Touch(draft)

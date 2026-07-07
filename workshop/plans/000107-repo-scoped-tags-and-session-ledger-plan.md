@@ -625,3 +625,17 @@ wire format.
 Delta: clear fallback session names for non-live picker creates so historical
 and legacy imports are assigned through the scoped public-name allocator, and add
 explicit snake_case JSON tags to `SessionNameEntry` with round-trip coverage.
+
+### 2026-07-07 — eleventh close-review REWORK follow-up
+
+Reason: the eleventh `sdlc close --issue 107` boundary review returned REWORK.
+It found three remaining lifecycle consumers still inferring tag ownership from
+public zellij names: startup nvim sweep stripped `pair-` from scoped public
+session names, compaction accepted any `pair-*` suffix ending in the tag, and
+restart-loop rename checked same-tag collisions without the current repo scope.
+
+Delta: project startup sweep live names through `session-names.jsonl` for the
+current scope with legacy `pair-<tag>` fallback, export `PAIR_SESSION_NAME` on
+create/attach and require exact scoped session identity for compaction, and pass
+the current scope key into restart-loop rename. Add focused regressions for each
+review finding.

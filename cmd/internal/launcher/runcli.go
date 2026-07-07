@@ -95,6 +95,7 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 		PairTag:        os.Getenv("PAIR_TAG"),
 		PairAgent:      os.Getenv("PAIR_AGENT"),
 		ZellijSession:  os.Getenv("ZELLIJ_SESSION_NAME"),
+		PairSession:    os.Getenv("PAIR_SESSION_NAME"),
 		ForceInSession: os.Getenv("PAIR_FORCE_IN_SESSION") == "1",
 		FakeInZellij:   os.Getenv("PAIR_FAKE_IN_ZELLIJ") == "1",
 	}

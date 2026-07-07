@@ -225,6 +225,33 @@ func TestRunLaunchRenameReentry(t *testing.T) {
 	}
 }
 
+func TestRunLaunchRenameReentryIgnoresOtherScopeTargetTag(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.uuids = []string{"MINT"}
+	rt.sessions = []Session{{Name: "pair-other-renamed", State: SessionAttached}}
+	rt.sessionIndex = SessionNameIndex{Entries: []SessionNameEntry{
+		{SessionName: "pair-other-renamed", ScopeKey: "scope2", Tag: "renamed"},
+	}}
+	rt.quitMarkers["pair-work-work"] = true
+	rt.restartMarkers["pair-work-work"] = RestartMarker{Tag: "work", Agent: "claude", RenameTo: "renamed"}
+	rt.files["/global/repos/scope1"] = ""
+	rt.files["/global/repos/scope1/draft-work.md"] = "the work"
+
+	opts := baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "work"})
+	opts.GlobalDataDir = "/global"
+	opts.Env.DataDir = "/global/repos/scope1"
+	_, err := run(t, opts, rt)
+	if err != nil {
+		t.Fatalf("rename re-entry should be native, got %v", err)
+	}
+	if rt.launched != "pair-work-renamed" {
+		t.Fatalf("relaunch tag = %q, want pair-work-renamed", rt.launched)
+	}
+	if _, ok := rt.files["/global/repos/scope1/draft-renamed.md"]; !ok {
+		t.Fatalf("sidecar not renamed; files=%v", rt.files)
+	}
+}
+
 // A continue (#55 compaction) restart re-entry: drop the config, re-launch fresh
 // under the same tag, and re-seed the draft from the continuation slug.
 func TestRunLaunchContinueReentry(t *testing.T) {
@@ -248,16 +275,25 @@ func TestRunLaunchContinueReentry(t *testing.T) {
 	}
 }
 
-// SweepOrphanNvim runs once at startup with the bare tags of every live pair-*
-// session (attached/detached/exited all count as live).
+// SweepOrphanNvim runs once at startup with the repo-local tags of every live
+// session in the current scope (attached/detached/exited all count as live).
 func TestRunLaunchSweepsOnce(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.uuids = []string{"SID"}
 	rt.sessions = []Session{
-		{Name: "pair-a", State: SessionAttached},
-		{Name: "pair-b", State: SessionExited},
+		{Name: "pair-work-a", State: SessionAttached},
+		{Name: "pair-work-b", State: SessionExited},
+		{Name: "pair-other-a", State: SessionAttached},
 	}
-	if _, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "fresh"}), rt); err != nil {
+	rt.sessionIndex = SessionNameIndex{Entries: []SessionNameEntry{
+		{SessionName: "pair-work-a", ScopeKey: "scope1", Tag: "a"},
+		{SessionName: "pair-work-b", ScopeKey: "scope1", Tag: "b"},
+		{SessionName: "pair-other-a", ScopeKey: "scope2", Tag: "a"},
+	}}
+	opts := baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "fresh"})
+	opts.GlobalDataDir = "/global"
+	opts.Env.DataDir = "/global/repos/scope1"
+	if _, err := run(t, opts, rt); err != nil {
 		t.Fatalf("err=%v", err)
 	}
 	if len(rt.swept) != 1 {
@@ -269,8 +305,12 @@ func TestRunLaunchSweepsOnce(t *testing.T) {
 }
 
 func TestLiveTagsForSweep(t *testing.T) {
-	got := liveTagsForSweep([]Session{{Name: "pair-x"}, {Name: "pair-y-2"}, {Name: "other"}})
-	if !reflect.DeepEqual(got, []string{"x", "y-2", "other"}) {
+	index := SessionNameIndex{Entries: []SessionNameEntry{
+		{SessionName: "pair-work-x", ScopeKey: "scope1", Tag: "x"},
+		{SessionName: "pair-work-y", ScopeKey: "scope2", Tag: "y"},
+	}}
+	got := liveTagsForSweep([]Session{{Name: "pair-work-x"}, {Name: "pair-work-y"}, {Name: "pair-legacy"}, {Name: "other"}}, index, "scope1")
+	if !reflect.DeepEqual(got, []string{"x", "legacy"}) {
 		t.Fatalf("liveTagsForSweep = %v", got)
 	}
 }

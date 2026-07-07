@@ -46,9 +46,10 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer, now func() ti
 	// Env inputs are read here (the non-injected outer seam) and threaded into
 	// run() so the fold + restart logic stays testable with a fake env + seam.
 	env := runEnv{
-		pairTag:       os.Getenv("PAIR_TAG"),
-		dataDir:       adapt.DataDir(),
-		zellijSession: os.Getenv("ZELLIJ_SESSION_NAME"),
+		pairTag:         os.Getenv("PAIR_TAG"),
+		dataDir:         adapt.DataDir(),
+		zellijSession:   os.Getenv("ZELLIJ_SESSION_NAME"),
+		pairSessionName: os.Getenv("PAIR_SESSION_NAME"),
 	}
 	// Real restart seam: re-invoke `pair continue <slug>` on ourselves. Inherits
 	// the env (PAIR_DEV/PAIR_TAG/ZELLIJ_SESSION_NAME ride through), so it re-enters
@@ -78,7 +79,7 @@ type runArgs struct {
 // runEnv are the process-env inputs the writer's compaction behavior keys off.
 // Populated in Run from the real environment; injected in tests.
 type runEnv struct {
-	pairTag, dataDir, zellijSession string
+	pairTag, dataDir, zellijSession, pairSessionName string
 }
 
 // newContinueRestartCmd builds the `pair continue <slug>` command the writer runs
@@ -122,7 +123,7 @@ func run(a runArgs, env runEnv, now func() time.Time, stdin io.Reader, stdout io
 	// NEXT ACTION *before* writing, so the persisted+committed doc carries it —
 	// otherwise the restart's draft re-seed (createflow.go) discards it. Done
 	// before the HasNextAction guard so folded WIP can round out a thin section.
-	if !a.noRestart && InCompactionContext(env.pairTag, env.zellijSession) {
+	if !a.noRestart && InCompactionContext(env.pairTag, env.zellijSession, env.pairSessionName) {
 		draft := filepath.Join(env.dataDir, "draft-"+env.pairTag+".md")
 		if raw, rerr := os.ReadFile(draft); rerr == nil {
 			if wip := StripStickyComments(string(raw)); wip != "" {
@@ -187,7 +188,7 @@ func run(a runArgs, env runEnv, now func() time.Time, stdin io.Reader, stdout io
 	// to forget. Fires only after a successful write+commit (the doc is durable
 	// first). --no-restart opts out (manual in-pane write). The seam kills the
 	// session; the outer reincarnation loop relaunches fresh, seeded from the doc.
-	if !a.noRestart && InCompactionContext(env.pairTag, env.zellijSession) {
+	if !a.noRestart && InCompactionContext(env.pairTag, env.zellijSession, env.pairSessionName) {
 		if err := restart(f.Slug); err != nil {
 			fmt.Fprintf(os.Stderr, "pair-continuation: restart failed (continuation kept): %v\n", err)
 		}

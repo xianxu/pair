@@ -27,6 +27,7 @@ func runAttach(opts LaunchOptions, env Env, rt Runtime, tag, session, agent stri
 	rt.SetEnv("PAIR_HOME", opts.PairHome)
 	rt.SetEnv("PAIR_DATA_DIR", env.DataDir)
 	rt.SetEnv("PAIR_TAG", tag)
+	rt.SetEnv("PAIR_SESSION_NAME", session)
 
 	// zellij creates the draft on new-session but not on attach; ensure it.
 	_ = rt.Touch(filepath.Join(env.DataDir, "draft-"+tag+".md"))
@@ -142,14 +143,21 @@ func readSavedConfig(rt Runtime, configPath string) savedConfig {
 	return cfg
 }
 
-// liveTagsForSweep projects the live pair session names to their bare tags for
-// SweepOrphanNvim — every Pair session row (attached, detached, or exited) counts
-// as live, so the sweep only reaps embeds with NO session record at all (matches
-// the shell's all_pair, the full `list-sessions --short` list).
-func liveTagsForSweep(sessions []Session) []string {
+// liveTagsForSweep projects live public session names to repo-local tags for
+// SweepOrphanNvim. Indexed scoped names only count for the current repo scope;
+// legacy unindexed pair-<tag> names still count as their bare tag.
+func liveTagsForSweep(sessions []Session, index SessionNameIndex, scopeKey string) []string {
 	tags := make([]string, 0, len(sessions))
 	for _, s := range sessions {
-		tags = append(tags, strings.TrimPrefix(s.Name, "pair-"))
+		if entry, ok := index.ownerOf(s.Name); ok {
+			if scopeKey == "" || entry.ScopeKey == scopeKey {
+				tags = append(tags, entry.Tag)
+			}
+			continue
+		}
+		if strings.HasPrefix(s.Name, "pair-") {
+			tags = append(tags, strings.TrimPrefix(s.Name, "pair-"))
+		}
 	}
 	return tags
 }

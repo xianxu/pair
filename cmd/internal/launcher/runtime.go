@@ -236,6 +236,7 @@ type LaunchOptions struct {
 	PairTag        string // PAIR_TAG (compaction tag-match + marker tag)
 	PairAgent      string // PAIR_AGENT (compaction marker agent)
 	ZellijSession  string // ZELLIJ_SESSION_NAME (compaction tag-match)
+	PairSession    string // PAIR_SESSION_NAME (exact public session owned by this pane)
 	ForceInSession bool   // PAIR_FORCE_IN_SESSION: force compaction (bypasses both halves)
 	FakeInZellij   bool   // PAIR_FAKE_IN_ZELLIJ: fake the ancestry half (real tag-match runs)
 

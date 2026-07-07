@@ -7,21 +7,22 @@ import (
 
 func TestCompactionDecision(t *testing.T) {
 	cases := []struct {
-		name         string
-		force        bool
-		inPaneOrFake bool
-		tag, session string
-		want         bool
+		name              string
+		force             bool
+		inPaneOrFake      bool
+		tag, session, own string
+		want              bool
 	}{
-		{"force wins", true, false, "", "", true},
-		{"tag match in pane", false, true, "demo", "pair-demo", true},
-		{"scoped public session match in pane", false, true, "demo", "pair-work-demo", true},
-		{"tag mismatch", false, true, "demo", "pair-other", false},
-		{"not in pane", false, false, "demo", "pair-demo", false},
-		{"empty tag", false, true, "", "pair-", false},
+		{"force wins", true, false, "", "", "", true},
+		{"legacy tag match in pane", false, true, "demo", "pair-demo", "", true},
+		{"own scoped public session match in pane", false, true, "demo", "pair-work-demo", "pair-work-demo", true},
+		{"other repo scoped public session does not match", false, true, "demo", "pair-work-demo", "", false},
+		{"tag mismatch", false, true, "demo", "pair-other", "", false},
+		{"not in pane", false, false, "demo", "pair-demo", "", false},
+		{"empty tag", false, true, "", "pair-", "", false},
 	}
 	for _, c := range cases {
-		if got := compactionDecision(c.force, c.inPaneOrFake, c.tag, c.session); got != c.want {
+		if got := compactionDecision(c.force, c.inPaneOrFake, c.tag, c.session, c.own); got != c.want {
 			t.Errorf("%s: compactionDecision = %v, want %v", c.name, got, c.want)
 		}
 	}
@@ -87,6 +88,7 @@ func TestRunLaunchCompactionUsesScopedPublicSession(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.parkOK = true
 	opts := compactOpts(false, true, "pair-work-demo")
+	opts.PairSession = "pair-work-demo"
 	code, err := run(t, opts, rt)
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)

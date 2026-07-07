@@ -473,3 +473,13 @@ scoped session-name allocator for historical and legacy imports. Also added
 snake_case JSON tags to `SessionNameEntry` so `session-names.jsonl` matches the
 documented wire format. Verified with focused red/green regressions and
 `go test ./cmd/internal/launcher -count=1`.
+
+Eleventh `sdlc close --issue 107` returned `Review-Verdict: REWORK`. Addressed
+the remaining lifecycle identity leaks: startup nvim sweep now resolves live
+public session names through `session-names.jsonl` and the current repo scope,
+compaction requires the exact exported `PAIR_SESSION_NAME` for scoped public
+names instead of suffix-matching another repo's same tag, and restart-loop rename
+passes the current scope into the collision gate. Added regressions for scoped
+sweep, same-tag cross-repo compaction rejection, and scoped restart rename.
+Verified with focused red/green regressions and
+`go test ./cmd/internal/launcher ./cmd/internal/continuationcmd -count=1`.

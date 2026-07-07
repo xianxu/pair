@@ -78,19 +78,22 @@ func TestFoldDraftIntoNextAction(t *testing.T) {
 }
 
 func TestInCompactionContext(t *testing.T) {
-	if !InCompactionContext("mytag", "pair-mytag") {
+	if !InCompactionContext("mytag", "pair-mytag", "") {
 		t.Error("matching tag+session should be compaction context")
 	}
-	if !InCompactionContext("mytag", "pair-work-mytag") {
-		t.Error("scoped public session should be compaction context")
+	if !InCompactionContext("mytag", "pair-work-mytag", "pair-work-mytag") {
+		t.Error("own scoped public session should be compaction context")
 	}
-	if InCompactionContext("", "pair-") {
+	if InCompactionContext("mytag", "pair-work-mytag", "") {
+		t.Error("other repo scoped public session must not be compaction context")
+	}
+	if InCompactionContext("", "pair-", "") {
 		t.Error("empty tag is never compaction")
 	}
-	if InCompactionContext("mytag", "pair-other") {
+	if InCompactionContext("mytag", "pair-other", "") {
 		t.Error("sibling session (leaked env) must not match")
 	}
-	if InCompactionContext("mytag", "") {
+	if InCompactionContext("mytag", "", "") {
 		t.Error("no zellij session -> not in a pane")
 	}
 }
