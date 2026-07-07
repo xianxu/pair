@@ -112,3 +112,58 @@ confidence: high
 - **ARCH-PURPOSE — FLAG (= the Important finding):** the *code* fulfills the purpose (restart enforced in code, `COMPACT_PROMPT` step-2 removed, not reworded). But the single-source shadow-sweep is incomplete: the atlas has three consumers of "how compaction restarts," and two of them (L326, L442) still restate the removed model as current. Per ARCH-PURPOSE a hand-maintained restatement that no longer derives is an unfinished consumer — reconcile them as part of this boundary.
 
 **7. Plan revision recommendations** — none. The Core-concepts table matches the code exactly (all three entities at `draft.go`, new, pure, IO-injected), and the Revisions already reconcile the drift-test substitution, the integration-test framing, and the `PAIR_FAKE_IN_ZELLIJ` root cause. No `## Revisions` entry needed; the gap is in the atlas, not the plan.
+
+---
+
+## Re-review — 2026-07-07T01:02:21-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 105 — alt+shift+c: deterministic writer-triggered restart + fold draft WIP into continuation NEXT ACTION |
+| repo | pair |
+| issue file | workshop/issues/000105-altc-deterministic-restart-draft-fold.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | b9dc30a9e64da75e8a6c0e0606c25292a5bcb529..HEAD |
+| command | sdlc close --issue 105 |
+| reviewer | claude |
+| timestamp | 2026-07-07T01:02:21-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+Shadow-sweep complete. The atlas passages the prior re-review flagged (L326, L442) are now fixed, but the sweep surfaced a **fourth consumer the re-review's enumeration missed**: `zellij/config.kdl:273` still describes the removed two-step flow. Everything else — code, tests, wiring, ARCH principles — is clean. Full suite green, build + vet clean.
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+**Summary.** The code is SHIP-quality and the headline bug is fixed at the root: the `pair continuation` writer now owns the restart (`continuationcmd.go:186-194`) instead of relying on a skippable agent step, and `PAIR_FAKE_IN_ZELLIJ=1` correctly threads into `compactionDecision(opts.ForceInSession, rt.InZellijPane() || opts.FakeInZellij, …)` at `createflow.go:45` with the real `ZELLIJ_SESSION_NAME` tag-match still guarding the session — the actual sandbox root-cause. The three `draft.go` entities are genuinely pure and unit-tested without IO; the draft-read and exec-restart are cleanly injected seams; the Lua→Go strip port is byte-faithful (I traced `strip_comments` at `nvim/init.lua:995` against `StripStickyComments` on the drift-prone edges — trailing-newline element count, leading/comment-only/indented-`===`, and the leading-vs-trailing trim order is order-independent). `go build ./...`, `go vet`, and the full `go test ./...` are all green. What blocks a clean SHIP is **one residual documentation drift, not code**: the prior FIX-THEN-SHIP re-review's shadow-sweep enumerated the atlas consumers and reconciled L326/L442, but **missed a fourth consumer** — `zellij/config.kdl:273` still says the binding "prompts the agent to write a continuation **and run `pair continue <slug>`**", the exact removed two-step. It's the most natural place a reader looks to learn what Alt+Shift+C does, and it now contradicts the shipped flow. One-line comment fix, then ship.
+
+**1. Strengths**
+- **ARCH-PURE done right** (`draft.go`, `continuationcmd.go:46-64`): env read + `os.Executable()` exec seam built at the outer `Run` boundary and threaded into `run()` as `env runEnv` + `restart func(string) error`; the pure fold/strip/gate functions need no mocks. Textbook pure-core/thin-shell.
+- **Root-cause fix, wired soundly** (`continuationcmd.go:96-101` → `runcli.go:90` → `createflow.go:45`): `newContinueRestartCmd` inherits `os.Environ()` (so `PAIR_DEV`/`PAIR_TAG`/`ZELLIJ_SESSION_NAME` ride through — pair/pair-dev preserved with no explicit branch) plus `PAIR_FAKE_IN_ZELLIJ=1`; the child's real tag-match still runs, so it can't compact the wrong session.
+- **Durable-first, non-fatal restart** (`continuationcmd.go:184-194`): restart fires only after write+commit+push; a restart error is logged, not fatal — the continuation survives a relaunch-seam failure.
+- **Fold ordering is deliberate and correct** (`continuationcmd.go:121-132`, `draft.go:40-89`): folding *before* the `HasNextAction` guard lets parked WIP rescue a thin/empty section; inserting *after* existing content keeps `NextActionPreview` stable; the empty-section branch *omits* the label (`draft.go:79-84`) so the preview surfaces the WIP, not `_Parked draft…_`. All test-pinned, incl. the empty-section `NextActionPreview` assertion (`draft_test.go:71-73`).
+- **Test coverage matches the Done-when point-for-point**: fold-lands (`TestRun_FoldsDraftWhenInCompaction`), restart-called-with-slug (`TestRun_TriggersRestartInCompaction`), standalone-no-op (`TestRun_NoFoldOrRestartStandalone`), `--no-restart` suppresses both (`TestRun_NoRestartFlagSuppressesInCompaction`), fake-env pinned (`TestNewContinueRestartCmd_FakesInZellij`).
+
+**2. Critical findings** — none.
+
+**3. Important findings**
+- **Fourth stale consumer missed by the prior shadow-sweep** (`zellij/config.kdl:273`). The comment on the `Alt C`/`Ctrl Alt c` binding still reads: "Routes to nvim, which asks Y/N then prompts the agent to **write a continuation and run `pair continue <slug>`**." That is the removed two-step — the writer now owns the restart and `COMPACT_PROMPT` explicitly says "do NOT run `pair continue` yourself" (`nvim/init.lua:3334`). Same Docs-gate / ARCH-PURPOSE class the re-review flagged for atlas L326/L442, in a consumer its enumeration didn't reach — so the sweep is still incomplete. **Fix sketch:** rewrite `config.kdl:272-273` to "Routes to nvim, which asks Y/N then prompts the agent to write a continuation via `pair continuation`; the writer then triggers the restart itself (#105)." Cheap, non-blocking.
+
+**4. Minor findings**
+- `InCompactionContext` proxy breadth (`draft.go:101`): any in-pane `pair continuation` restarts, not just the Alt+Shift+C prompt. Documented + `--no-restart` escape, but an agent invoking the writer in-pane for a non-compaction reason has no signal to pass the flag — dogfood watch-item.
+- `TestNewContinueRestartCmd_FakesInZellij` (`run_test.go:120-135`) pins `PAIR_FAKE_IN_ZELLIJ=1` but does not assert the env *inheritance* (`os.Environ()` ride-through) that carries `PAIR_DEV` — the pair/pair-dev-preservation claim rests on reading the one-liner, not a test. Very minor; a `len(c.Env) > 1` or ride-through assertion would close it.
+
+**5. Test coverage notes**
+- Strong on every automatable surface. The **composed real-exec link** (`os.Executable()` → `pair continue <slug>` → `runCompaction` → relaunch) is inherently un-headless-testable and correctly confined to the injected seam. Per the issue's 2026-07-07 Revision, the live re-smoke confirmed detection now fires under the sandbox but `zellij kill-session` is still blocked by the sandbox's unix-socket restriction; the flow was verified end-to-end **unsandboxed**, and the remaining gap is scoped as a sandbox-policy decision, not a #105 code bug. That scope call is defensible and documented — the two #105 deliverables are verified. No code change owed here.
+- No `run()`-level test asserts the fold-rescues-empty-NEXT-ACTION-then-write-succeeds path, but the `draft.go` unit test plus the fold-before-`HasNextAction` wiring order make it adequately implied. Not worth adding.
+
+**6. Architectural notes for upcoming work**
+- **ARCH-DRY — PASS:** reuses `adapt.DataDir()`, `isATXHeading`, the `pair continue`→`runCompaction` path, and mirrors `compactionDecision`'s tag-match in `InCompactionContext`. `StripStickyComments` is a deliberate, in-comment-pinned cross-language mirror — the one acceptable duplication (no Lua unit harness; `^\s*===` is trivial and stable). `FoldDraftIntoNextAction`'s section scan and `firstNextActionLine` are genuinely different scans (insert-bounds vs first-content-line) and both reuse `isATXHeading`; no extraction warranted today.
+- **ARCH-PURE — PASS:** pure string core; the only IO in the fold/restart path (`os.ReadFile`, `exec.Command`, `os.Getenv`) lives in `Run`/the seam, injected into `run()`.
+- **ARCH-PURPOSE — FLAG (= the Important finding):** the *code* fulfills the purpose (restart enforced in code; `COMPACT_PROMPT` step-2 *removed*, not reworded). But the single-source shadow-sweep is still one consumer short: `zellij/config.kdl:273` remains a hand-maintained restatement of the removed two-step model that no longer derives from the shipped behavior — reconcile it as part of this boundary. Atlas ×2 are now clean; this is the last one.
+
+**7. Plan revision recommendations** — none. The plan's Core-concepts table matches the code exactly (all three entities at `draft.go`, new, pure, IO-injected), and the Revisions already reconcile the drift-test substitution, the integration-test framing, and the `PAIR_FAKE_IN_ZELLIJ` root cause. The `zellij/config.kdl` gap is an *omission* (the plan's Task 6 updated the nvim comment but never listed the kdl comment), not a false claim the plan makes — so no `## Revisions` entry is owed; fix the comment and note it in the issue `## Log` alongside the atlas reconciliation.

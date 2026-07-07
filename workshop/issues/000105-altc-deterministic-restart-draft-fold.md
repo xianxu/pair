@@ -4,10 +4,10 @@ status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-06
-updated: 2026-07-06
+updated: 2026-07-07
 estimate_hours: 2.68
 started: 2026-07-06T22:04:17-07:00
-actual_hours: 1.51
+actual_hours: 1.78
 ---
 
 # alt+shift+c: deterministic writer-triggered restart + fold draft WIP into continuation NEXT ACTION
@@ -96,6 +96,9 @@ The plan-quality judge (non-blocking INFO) surfaced three refinements; folded in
 
 ## Log
 
+
+- 2026-07-07: closed — go test ./... green; #105 deliverables (deterministic writer-triggered restart via PAIR_FAKE_IN_ZELLIJ + draft-WIP fold) verified end-to-end unsandboxed, detection re-smoke fires under sandbox; doc-only delta since last close (Revisions correction + kill-session-under-sandbox gap split to #106); review verdict: FIX-THEN-SHIP
+- 2026-07-07: FIX-THEN-SHIP applied — boundary review found a 4th stale consumer the prior atlas shadow-sweep missed: `zellij/config.kdl:272-273` still described the removed two-step ("write a continuation and run `pair continue`"). Rewrote it to the writer-owned model ("write via `pair continuation`; the writer triggers the restart — no agent `pair continue`"); regenerated the gitignored runtime bundle (mirror now consistent) and `go test ./cmd/internal/runtimebundle` green. Docs-gate/ARCH-PURPOSE reconciliation completes the sweep (atlas ×2 were fixed at the prior re-close; this was the last consumer).
 ### 2026-07-06
 - 2026-07-06: closed — Live smoke found + fixed the real root cause: restart misfired because the agent sandbox blocks InZellijPane proc-ancestry walk (ps EPERM) while zellij kill-session works; writer now sets PAIR_FAKE_IN_ZELLIJ=1 on the exec (it already confirmed context via ZELLIJ_SESSION_NAME tag-match). go test ./... green incl. TestNewContinueRestartCmd_FakesInZellij + 4 run()-level tests; kill-session verified unblocked under sandbox; end-to-end restart confirmed via the re-smoke (this session restarting).; review verdict: FIX-THEN-SHIP
 - 2026-07-06: closed — go test ./... ALL GREEN (continuationcmd unit tests for the 3 pure entities + 4 run()-level integration tests: draft WIP folds under NEXT ACTION, restart seam called with slug in compaction context, standalone no-op, --no-restart suppresses both). Real-binary standalone smoke: pair continuation in a temp repo w/o PAIR_TAG writes a correct doc, no fold/restart, exit 0. luacheck 0 errors; runtime-bundle drift-check green. Live alt+shift+c zellij smoke documented as operator manual step (only the composed writer-execs-pair-continue seam is not headless-testable; each half is covered).; review verdict: SHIP
