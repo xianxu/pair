@@ -20,6 +20,7 @@ type fakeRuntime struct {
 	blocksReuse    map[string]bool // session -> live-blocks (default false)
 	commandMissing map[string]bool // name -> absent (default: everything exists)
 	files          map[string]string
+	ledger         map[string][]LedgerEntry
 	agentSessions  map[string]bool // "agent|sid" -> native artifact exists
 	uuids          []string        // MintUUID pops these in order
 	promptValue    string
@@ -77,6 +78,7 @@ func newFakeRuntime() *fakeRuntime {
 		blocksReuse:    map[string]bool{},
 		commandMissing: map[string]bool{},
 		files:          map[string]string{},
+		ledger:         map[string][]LedgerEntry{},
 		agentSessions:  map[string]bool{},
 		inferAgent:     map[string]string{},
 		promptOK:       true,
@@ -162,7 +164,19 @@ func (f *fakeRuntime) MintUUID() string {
 func (f *fakeRuntime) AgentSessionExists(agent, sid, cwd string) bool {
 	return f.agentSessions[agent+"|"+sid]
 }
-func (f *fakeRuntime) InferAgent(tag string) string { return f.inferAgent[tag] }
+func (f *fakeRuntime) InferAgent(tag string) string {
+	if latest, ok := LatestLedgerEntry(f.ledger[tag]); ok && latest.Agent != "" {
+		return latest.Agent
+	}
+	return f.inferAgent[tag]
+}
+func (f *fakeRuntime) ReadLedger(tag string) ([]LedgerEntry, error) {
+	return append([]LedgerEntry(nil), f.ledger[tag]...), nil
+}
+func (f *fakeRuntime) AppendLedger(tag string, entry LedgerEntry) error {
+	f.ledger[tag] = append(f.ledger[tag], entry)
+	return nil
+}
 
 // FSOps
 func (f *fakeRuntime) ReadFile(path string) (string, error) {
@@ -328,6 +342,10 @@ func TestRunLaunchForcedCreateClaude(t *testing.T) {
 	}
 	if rt.files["/data/agent-bugfix"] != "claude\n" {
 		t.Fatalf("agent record = %q", rt.files["/data/agent-bugfix"])
+	}
+	ledger := rt.ledger["bugfix"]
+	if len(ledger) != 1 || ledger[0].Agent != "claude" || ledger[0].SessionID != "MINTED-1" {
+		t.Fatalf("ledger = %+v, want claude/MINTED-1", ledger)
 	}
 	if got := rt.watchers; len(got) != 1 || !strings.HasPrefix(got[0], "claude|bugfix|/home/u/work|") {
 		t.Fatalf("watchers = %v", got)

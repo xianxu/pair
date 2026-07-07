@@ -408,6 +408,11 @@ func (OSRuntime) MintUUID() string {
 // InferAgent reads the agent-<tag> record (primary) or the agent encoded in a
 // config-<tag>-<agent>.json filename (fallback for Alt+x'd sessions).
 func (r OSRuntime) InferAgent(tag string) string {
+	if entries, err := r.ReadLedger(tag); err == nil {
+		if latest, ok := LatestLedgerEntry(entries); ok && latest.Agent != "" {
+			return latest.Agent
+		}
+	}
 	if raw, err := r.ReadFile(filepath.Join(r.DataDir, "agent-"+tag)); err == nil {
 		if a := strings.TrimSpace(raw); a != "" {
 			return a
@@ -422,6 +427,31 @@ func (r OSRuntime) InferAgent(tag string) string {
 		}
 	}
 	return ""
+}
+
+func (r OSRuntime) ReadLedger(tag string) ([]LedgerEntry, error) {
+	raw, err := r.ReadFile(filepath.Join(r.DataDir, "ledger-"+tag+".jsonl"))
+	if err != nil {
+		return nil, err
+	}
+	return ParseLedger(raw), nil
+}
+
+func (r OSRuntime) AppendLedger(tag string, entry LedgerEntry) error {
+	path := filepath.Join(r.DataDir, "ledger-"+tag+".jsonl")
+	var raw string
+	if existing, err := r.ReadFile(path); err == nil {
+		raw = existing
+	}
+	line, err := BuildLedgerLine(entry)
+	if err != nil {
+		return err
+	}
+	if raw != "" && !strings.HasSuffix(raw, "\n") {
+		raw += "\n"
+	}
+	raw += line + "\n"
+	return r.WriteAtomic(path, raw)
 }
 
 func (OSRuntime) AgentSessionExists(agent, sid, cwd string) bool {

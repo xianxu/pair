@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // ResolveContinuationDoc / ScanContinuations do real glob+read IO the fake can't
@@ -222,6 +223,31 @@ func TestOSRuntimeCmuxOwnership(t *testing.T) {
 		t.Fatal("outside cmux (no CMUX_WORKSPACE_ID) nothing is owned")
 	}
 }
+
+func TestOSRuntimeInferAgentPrefersLedger(t *testing.T) {
+	dataDir := t.TempDir()
+	rt := NewOSRuntime(dataDir, "/pair")
+	entry := LedgerEntry{
+		Agent:      "codex",
+		SessionID:  "SID",
+		LastActive: timeUnix(40),
+	}
+	line, err := BuildLedgerLine(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dataDir, "ledger-work.jsonl"), []byte(line+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dataDir, "agent-work"), []byte("claude\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := rt.InferAgent("work"); got != "codex" {
+		t.Fatalf("InferAgent = %q, want ledger codex", got)
+	}
+}
+
+func timeUnix(sec int64) time.Time { return time.Unix(sec, 0).UTC() }
 
 func TestOSRuntimeReapAndPollerRemovePidfiles(t *testing.T) {
 	dataDir := t.TempDir()

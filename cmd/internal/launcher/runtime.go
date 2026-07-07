@@ -117,6 +117,11 @@ type IDOps interface {
 	InferAgent(tag string) string
 }
 
+type LedgerOps interface {
+	ReadLedger(tag string) ([]LedgerEntry, error)
+	AppendLedger(tag string, entry LedgerEntry) error
+}
+
 // FSOps is the filesystem subset the create path uses (satisfied by osfs.FS).
 type FSOps interface {
 	ReadFile(path string) (string, error)
@@ -201,6 +206,7 @@ type Runtime interface {
 	ProcOps
 	EnvOps
 	IDOps
+	LedgerOps
 	FSOps
 	LifecycleOps
 }

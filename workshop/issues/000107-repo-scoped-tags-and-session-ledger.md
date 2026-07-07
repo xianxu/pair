@@ -257,3 +257,11 @@ compaction that keeps recent rows plus latest per agent. Verified with:
 `go test ./cmd/internal/launcher -run
 'TestSessionLedger|TestLatestLedger|TestCompactLedger'` and
 `go test ./cmd/internal/launcher`.
+
+Started ledger source-of-truth wiring: added `ReadLedger`/`AppendLedger` to the
+runtime seam, made `OSRuntime.InferAgent` and the fake runtime prefer latest
+ledger entries before derived `agent-<tag>`/config caches, and append a ledger
+row during create after final agent args are known. Verified with:
+`go test ./cmd/internal/launcher -run
+'TestOSRuntimeInferAgentPrefersLedger|TestRunLaunchForcedCreateClaude'` and
+`go test ./cmd/internal/launcher`.

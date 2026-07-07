@@ -281,6 +281,16 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, decision LaunchDecision,
 		agentArgs = codexAltScreenArgs(agentArgs, opts.CodexAltScreenOptOut)
 	}
 
+	_ = rt.AppendLedger(chosenTag, LedgerEntry{
+		Agent:      agent,
+		Args:       persistedConfigArgs(agentArgs),
+		SessionID:  firstNonEmpty(explicitResume, newSid),
+		Started:    env.Now,
+		LastActive: env.Now,
+		RepoRoot:   env.Cwd,
+		RepoName:   DefaultTag(env.Cwd),
+	})
+
 	rt.SetEnv("PAIR_AGENT_ARGS", strings.Join(agentArgs, " "))
 	rt.SetEnv("PAIR_SESSION_ID", firstNonEmpty(explicitResume, newSid))
 	rt.SetEnv("PAIR_PANE_TITLE", PaneTitle(agent, env.Cwd, env.Home))
