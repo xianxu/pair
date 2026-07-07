@@ -65,3 +65,15 @@ func TestDecideLaunchHistoricalSelectionCreatesByTag(t *testing.T) {
 		t.Fatalf("decision = %#v, want create historical tag without prompt", decision)
 	}
 }
+
+func TestDecideLaunchUsesAssignedSessionName(t *testing.T) {
+	decision, err := DecideLaunch(LaunchArgs{ForcedTag: "work"}, SessionSnapshot{
+		SessionNames: map[string]string{"work": "pair-pair-work-2"},
+	})
+	if err != nil {
+		t.Fatalf("DecideLaunch returned error: %v", err)
+	}
+	if decision.Action != ActionCreate || decision.Tag != "work" || decision.SessionName != "pair-pair-work-2" {
+		t.Fatalf("decision = %#v, want assigned session name", decision)
+	}
+}

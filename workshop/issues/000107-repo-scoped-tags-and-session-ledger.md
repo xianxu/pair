@@ -187,7 +187,7 @@ provisional but derived from the required source.
 
 - [x] Brainstorm → durable plan (`superpowers-writing-plans` → `workshop/plans/`)
       before implementation; resolve open questions above.
-- [ ] Add scoped identity/path/session-name pure model with failing tests first.
+- [x] Add scoped identity/path/session-name pure model with failing tests first.
 - [ ] Add per-tag session ledger as source of truth, while emitting derived
       `agent-<tag>` and `config-<tag>-<agent>.json` caches.
 - [ ] Migrate launcher decisions, history, picker, list, rename, restart, and
@@ -239,3 +239,14 @@ suffix; abort before sidecar writes if no probed candidate passes zellij. Also
 made the ambiguous legacy recovery predicate exact:
 `tag == DefaultTag(currentRepoRoot)` or `strings.HasPrefix(tag,
 DefaultTag(currentRepoRoot)+"-")`.
+
+Implemented the first pure identity slice with TDD: `RepoScope`,
+`ScopedPaths`, `SessionNameIndex`, public session-name candidate assignment, and
+optional assigned session names in `DecideLaunch`. Verified with:
+`go test ./cmd/internal/launcher -run
+'TestRepoScope|TestNormalizeDisplayComponent|TestDefaultTag'`,
+`go test ./cmd/internal/launcher -run
+'TestScopedPaths|TestCanonicalConfigPath|TestConfigPaths'`,
+`go test ./cmd/internal/launcher -run
+'TestScopedSessionName|TestSessionNameIndex|TestAssignSessionName|TestDecideLaunch'`,
+and `go test ./cmd/internal/launcher`.

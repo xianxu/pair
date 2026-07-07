@@ -108,7 +108,7 @@
 - Test: `cmd/internal/launcher/scope_test.go`
 - Modify: `cmd/internal/launcher/tag.go`
 
-- [ ] **Step 1: Write failing tests for scope derivation**
+- [x] **Step 1: Write failing tests for scope derivation**
 
 Cover:
 - same basename at different absolute paths gets different hidden keys.
@@ -119,14 +119,14 @@ Cover:
 Run: `go test ./cmd/internal/launcher -run 'TestRepoScope|TestDefaultTag'`
 Expected: FAIL because `RepoScope` does not exist.
 
-- [ ] **Step 2: Implement minimal pure model**
+- [x] **Step 2: Implement minimal pure model**
 
 Add `RepoScope{Root, DisplayName, Key}` and helpers:
 - `ResolveRepoScope(root string) (RepoScope, error)` for pure normalized input.
 - `NormalizeDisplayComponent` only for filesystem/session-name unsafe contexts.
 - Keep `DefaultTag(cwd)` behavior until create flow is migrated; tests should document the transition.
 
-- [ ] **Step 3: Verify green**
+- [x] **Step 3: Verify green**
 
 Run: `go test ./cmd/internal/launcher -run 'TestRepoScope|TestDefaultTag'`
 Expected: PASS.
@@ -138,7 +138,7 @@ Expected: PASS.
 - Test: `cmd/internal/launcher/scoped_paths_test.go`
 - Modify: `cmd/internal/launcher/config.go`
 
-- [ ] **Step 1: Write failing path tests**
+- [x] **Step 1: Write failing path tests**
 
 Cover every existing sidecar family found in the shadow sweep:
 - `draft`, `log`, `queue`
@@ -150,11 +150,11 @@ Cover every existing sidecar family found in the shadow sweep:
 Run: `go test ./cmd/internal/launcher -run 'TestScopedPaths|TestCanonicalConfigPath'`
 Expected: FAIL for missing `ScopedPaths`.
 
-- [ ] **Step 2: Implement `ScopedPaths` and bridge config helpers**
+- [x] **Step 2: Implement `ScopedPaths` and bridge config helpers**
 
 Add a constructor taking `(globalDataDir, RepoScope, tag)` and returning `ScopeDir = <globalDataDir>/repos/<scope-key>` or equivalent hidden subdir. Keep `CanonicalConfigPath` as a wrapper over the new path helper where callers have only `(dataDir, tag, agent)` until all call sites are migrated.
 
-- [ ] **Step 3: Verify green**
+- [x] **Step 3: Verify green**
 
 Run: `go test ./cmd/internal/launcher -run 'TestScopedPaths|TestCanonicalConfigPath'`
 Expected: PASS.
@@ -168,7 +168,7 @@ Expected: PASS.
 - Test: `cmd/internal/launcher/decision_test.go`
 - Test: `cmd/internal/launcher/session_index_test.go`
 
-- [ ] **Step 1: Write failing tests for scoped session naming**
+- [x] **Step 1: Write failing tests for scoped session naming**
 
 Cover:
 - same repo/tag keeps readable `pair-<repo>-<tag>` when unclaimed.
@@ -182,7 +182,7 @@ Cover:
 Run: `go test ./cmd/internal/launcher -run 'TestScopedSessionName|TestSessionNameIndex|TestDecideLaunch'`
 Expected: FAIL for missing scoped session-name API.
 
-- [ ] **Step 2: Implement public-name assignment**
+- [x] **Step 2: Implement public-name assignment**
 
 Implement pure helpers:
 - `PublicSessionBase(scope RepoScope, tag string) string` -> `pair-<repo-component>-<tag-component>`.
@@ -190,11 +190,11 @@ Implement pure helpers:
 - `AssignSessionName(index SessionNameIndex, live []Session, scope RepoScope, tag string) (name string, updated SessionNameIndex)`.
 - Assignment rule: reuse the existing index binding for the same `(scope_key, tag)` when possible; otherwise choose the lowest `-N` public suffix whose live/index owner is absent or the same scope/tag. For each suffix, probe candidates from `BuildSessionNameCandidates` in order and reserve the first accepted name. Never embed the scope key in the returned name. If every candidate for suffixes 1..100 is rejected or occupied, return a typed `SessionNameExhausted` error and abort before creating sidecars.
 
-- [ ] **Step 3: Modify decisions to carry session name separately from tag**
+- [x] **Step 3: Modify decisions to carry session name separately from tag**
 
 Keep `LaunchDecision.Tag` as the repo-local tag. Make every decision use the assigned public session name instead of `sessionName(tag)`. Do not infer repo scope inside pure decisions; pass a pure naming context and session-name index snapshot.
 
-- [ ] **Step 4: Verify green**
+- [x] **Step 4: Verify green**
 
 Run: `go test ./cmd/internal/launcher -run 'TestScopedSessionName|TestSessionNameIndex|TestDecideLaunch'`
 Expected: PASS.

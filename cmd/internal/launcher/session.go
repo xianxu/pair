@@ -31,6 +31,9 @@ type SessionSnapshot struct {
 	BaseTag    string
 	Sessions   []Session
 	Historical []HistoricalTag
+	// SessionNames optionally maps repo-local tags to already assigned public
+	// zellij session names. Empty preserves the legacy pair-<tag> behavior.
+	SessionNames map[string]string
 }
 
 // ListRow is one `pair list`/`ls` row: a pair-<tag> session with its resolved

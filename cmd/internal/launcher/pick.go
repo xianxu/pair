@@ -87,7 +87,8 @@ func resolvePick(rt Runtime, snap SessionSnapshot, base string, nowEpoch int64) 
 		return LaunchDecision{}, true // fzf returned an unmapped line — abort safely.
 	}
 	if sel.isNew {
-		return createDecision(nextFreeTag(base, snap), true), false
+		tag := nextFreeTag(base, snap)
+		return createDecision(tag, sessionNameForTag(snap, tag), true), false
 	}
 	d, _ := DecideLaunch(LaunchArgs{ForcedTag: sel.tag}, snap) // never errors (no pick recursion)
 	return d, false
