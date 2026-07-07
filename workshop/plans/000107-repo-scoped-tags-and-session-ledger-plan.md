@@ -554,3 +554,19 @@ pane cwd, persist those fields in watcher-appended ledger rows, keep
 ledger/session-index append failures before draft/config/adapt sidecars and
 helper spawns, and align the `ScopedPaneEnv` plan row with the implemented
 `PAIR_DATA_DIR`/`PAIR_TAG` environment.
+
+### 2026-07-07 — sixth close-review REWORK follow-up
+
+Reason: the sixth `sdlc close --issue 107` boundary review returned REWORK. It
+found two remaining close blockers: legacy queue import could overwrite an
+already-scoped queued prompt with a flat legacy file of the same name, and a
+session-name index append failure after a successful create ledger append could
+leave a false source-of-truth row for a session that never launched. It also
+noted that prompted tag validation still checked legacy `pair-<tag>` names
+before the scoped public-session-name preflight.
+
+Delta: skip existing destination files while copying legacy queue directories,
+persist the session-name index before the create ledger row so index failure
+cannot leave false ledger truth, and remove the legacy prompt-time
+`pair-<tag>` collision check in favor of the scoped preflight on the assigned
+public zellij session name.

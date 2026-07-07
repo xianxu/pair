@@ -429,3 +429,12 @@ config, adapt, agent, title, watcher, poller, cmux, and dev-rebuild effects, and
 aligned stale comments/plan wording around scoped session names and implemented
 pane env. Verified with focused red/green regressions and `go test
 ./cmd/internal/launcher ./cmd/internal/sessionwatch -count=1`.
+
+Sixth `sdlc close --issue 107` returned `Review-Verdict: REWORK`. Addressed
+the remaining data-preservation/source-of-truth blockers: legacy queue import
+now skips existing scoped queue files instead of overwriting queued prompts,
+session-name index persistence runs before the create ledger row so an index
+failure cannot leave false ledger truth for a session that never launched, and
+prompted tag validation no longer rejects unrelated legacy `pair-<tag>` names
+before the scoped public-name preflight. Verified with focused red/green
+regressions and `go test ./cmd/internal/launcher -count=1`.

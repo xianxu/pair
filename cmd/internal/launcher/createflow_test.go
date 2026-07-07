@@ -526,7 +526,7 @@ func TestRunLaunchPromptAbort(t *testing.T) {
 func TestRunLaunchPromptCollision(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.promptValue = "taken"
-	rt.blocksReuse["pair-taken"] = true
+	rt.blocksReuse["pair-work-taken"] = true
 	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude"}), rt)
 	if err != nil || code != 1 {
 		t.Fatalf("code=%d err=%v", code, err)
@@ -597,11 +597,28 @@ func TestRunLaunchSessionIndexAppendFailureAbortsBeforeHandoff(t *testing.T) {
 	if len(rt.sessionIndex.Entries) != 0 {
 		t.Fatalf("session index append failure should not record entry: %+v", rt.sessionIndex)
 	}
+	if len(rt.ledger["bugfix"]) != 0 {
+		t.Fatalf("session index append failure should not leave a false ledger row: %+v", rt.ledger["bugfix"])
+	}
 	if len(rt.files) != 0 {
 		t.Fatalf("session index append failure should not write sidecars: %+v", rt.files)
 	}
 	if len(rt.watchers) != 0 || len(rt.pollers) != 0 || len(rt.titles) != 0 || len(rt.cmux) != 0 || rt.devRebuilt {
 		t.Fatalf("session index append failure started side effects: watchers=%v pollers=%v titles=%v cmux=%v dev=%v", rt.watchers, rt.pollers, rt.titles, rt.cmux, rt.devRebuilt)
+	}
+}
+
+func TestRunLaunchPromptedTagIgnoresUnrelatedLegacySessionName(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.promptValue = "bugfix"
+	rt.blocksReuse["pair-bugfix"] = true
+	rt.uuids = []string{"SID"}
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude"}), rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.launched != "pair-work-bugfix" {
+		t.Fatalf("launched = %q, want scoped session name despite unrelated legacy pair-bugfix", rt.launched)
 	}
 }
 

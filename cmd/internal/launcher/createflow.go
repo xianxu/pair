@@ -353,6 +353,12 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	persistedArgs := persistedConfigArgs(agentArgs)
 	repoRoot := envScopeRoot(env)
 	repoName := DefaultTag(repoRoot)
+	if sessionEntry.SessionName != "" {
+		if err := rt.AppendSessionNameIndex(sessionEntry); err != nil {
+			fmt.Fprintf(stderr, "pair: failed to append session-name index for '%s': %v\n", sessionEntry.SessionName, err)
+			return launchStep{code: 1}, nil
+		}
+	}
 	if err := rt.AppendLedger(chosenTag, LedgerEntry{
 		Agent:        agent,
 		Args:         persistedArgs,
@@ -365,12 +371,6 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	}); err != nil {
 		fmt.Fprintf(stderr, "pair: failed to append ledger for tag '%s': %v\n", chosenTag, err)
 		return launchStep{code: 1}, nil
-	}
-	if sessionEntry.SessionName != "" {
-		if err := rt.AppendSessionNameIndex(sessionEntry); err != nil {
-			fmt.Fprintf(stderr, "pair: failed to append session-name index for '%s': %v\n", sessionEntry.SessionName, err)
-			return launchStep{code: 1}, nil
-		}
 	}
 
 	// Env exports every child (watcher, poller, zellij + its panes) inherits.
@@ -455,10 +455,6 @@ func promptForTag(rt Runtime, prefill, base string, stderr io.Writer) (tag strin
 	tag, err := NormalizeTag(value)
 	if err != nil {
 		fmt.Fprintf(stderr, "pair: invalid name '%s' (allowed: letters, digits, dash, underscore)\n", value)
-		return "", 1, false
-	}
-	if rt.SessionBlocksReuse("pair-" + tag) {
-		fmt.Fprintf(stderr, "pair: session 'pair-%s' already exists.\n", tag)
 		return "", 1, false
 	}
 	return tag, 0, true

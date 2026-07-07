@@ -47,6 +47,9 @@ func importLegacyFlatTag(rt Runtime, tag, globalDataDir, scopedDataDir string) b
 
 func copyLegacyPath(rt Runtime, src, dst string) bool {
 	if raw, err := rt.ReadFile(src); err == nil {
+		if _, ok := rt.FileSize(dst); ok {
+			return false
+		}
 		return rt.WriteAtomic(dst, raw) == nil
 	}
 	entries, err := rt.ReadDir(src)
@@ -55,11 +58,15 @@ func copyLegacyPath(rt Runtime, src, dst string) bool {
 	}
 	imported := false
 	for _, rel := range entries {
+		target := filepath.Join(dst, rel)
+		if _, ok := rt.FileSize(target); ok {
+			continue
+		}
 		raw, err := rt.ReadFile(filepath.Join(src, rel))
 		if err != nil {
 			continue
 		}
-		if err := rt.WriteAtomic(filepath.Join(dst, rel), raw); err == nil {
+		if err := rt.WriteAtomic(target, raw); err == nil {
 			imported = true
 		}
 	}

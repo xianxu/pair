@@ -31,3 +31,20 @@ func TestLegacyImportPlanCopiesMissingScopedFilesOnly(t *testing.T) {
 		t.Fatalf("exact tag import must not copy work-2 family: %#v", pairs)
 	}
 }
+
+func TestImportLegacyFlatTagDoesNotOverwriteScopedQueueFiles(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.files["/global/queue-work/000001.md"] = "legacy queued prompt"
+	rt.files["/scoped/queue-work/000001.md"] = "scoped queued prompt"
+	rt.files["/global/queue-work/000002.md"] = "second legacy prompt"
+
+	if !importLegacyFlatTag(rt, "work", "/global", "/scoped") {
+		t.Fatalf("legacy import should copy at least one missing queue file")
+	}
+	if got := rt.files["/scoped/queue-work/000001.md"]; got != "scoped queued prompt" {
+		t.Fatalf("existing scoped queue file overwritten: %q", got)
+	}
+	if got := rt.files["/scoped/queue-work/000002.md"]; got != "second legacy prompt" {
+		t.Fatalf("missing scoped queue file not copied: %q", got)
+	}
+}
