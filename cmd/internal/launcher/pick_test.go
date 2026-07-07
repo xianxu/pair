@@ -35,7 +35,7 @@ func TestBuildPickRows(t *testing.T) {
 	}
 
 	wantPlain := map[string]pickSelection{
-		"pair-a": {tag: "a"},
+		"pair-a": {tag: "a", sessionName: "pair-a"},
 		"pair-old  (today, no live session)   [⏎ 2 queued]": {tag: "old"},
 		"+ new work session": {isNew: true},
 	}
@@ -147,17 +147,34 @@ func TestRunLaunchPickLegacyImportsFlatFiles(t *testing.T) {
 // detached codex session attaches as codex.
 func TestRunLaunchPickAttachInfersAgent(t *testing.T) {
 	rt := newFakeRuntime()
-	rt.sessions = []Session{{Name: "pair-svc", State: SessionDetached}}
+	scope := mustScope(t, "/home/u/work")
+	rt.sessions = []Session{{Name: "pair-work-svc", State: SessionDetached}}
+	rt.sessionIndex = SessionNameIndex{Entries: []SessionNameEntry{{
+		SessionName: "pair-work-svc",
+		ScopeKey:    scope.Key,
+		RepoRoot:    scope.Root,
+		RepoName:    scope.DisplayName,
+		Tag:         "svc",
+	}}}
 	rt.inferAgent = map[string]string{"svc": "codex"}
 	rt.attachCode = 0
-	rt.pickFunc = func(header string, options []string) string { return "pair-svc" }
+	rt.pickFunc = func(header string, options []string) string {
+		for _, option := range options {
+			plain := stripANSI(option)
+			if plain == "work/svc  ?  (detached)" {
+				return plain
+			}
+		}
+		t.Fatalf("picker options = %q, want scoped svc row", options)
+		return ""
+	}
 
 	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude"}), rt)
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	if len(rt.attached) != 1 || rt.attached[0] != "pair-svc" {
-		t.Fatalf("attached = %v, want [pair-svc]", rt.attached)
+	if len(rt.attached) != 1 || rt.attached[0] != "pair-work-svc" {
+		t.Fatalf("attached = %v, want [pair-work-svc]", rt.attached)
 	}
 	if len(rt.pollers) != 1 || rt.pollers[0] != "svc|codex" {
 		t.Fatalf("pollers = %v, want [svc|codex] (agent inferred from the picked tag)", rt.pollers)
@@ -213,7 +230,15 @@ func TestRunLaunchPickHistoricalCreatesByName(t *testing.T) {
 // Dismissing the picker (fzf ESC → empty) exits 0 without any handoff.
 func TestRunLaunchPickAbort(t *testing.T) {
 	rt := newFakeRuntime()
-	rt.sessions = []Session{{Name: "pair-a", State: SessionDetached}}
+	scope := mustScope(t, "/home/u/work")
+	rt.sessions = []Session{{Name: "pair-work-a", State: SessionDetached}}
+	rt.sessionIndex = SessionNameIndex{Entries: []SessionNameEntry{{
+		SessionName: "pair-work-a",
+		ScopeKey:    scope.Key,
+		RepoRoot:    scope.Root,
+		RepoName:    scope.DisplayName,
+		Tag:         "a",
+	}}}
 	rt.pickFunc = func(header string, options []string) string { return "" }
 
 	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude"}), rt)

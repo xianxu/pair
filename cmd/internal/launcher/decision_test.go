@@ -53,6 +53,20 @@ func TestDecideLaunchShowsPickerWhenDetachedOrHistoricalExist(t *testing.T) {
 	}
 }
 
+func TestDecideLaunchExplicitAgentArgsCreateWithoutPicker(t *testing.T) {
+	decision, err := DecideLaunch(LaunchArgs{Agent: "codex", AgentArgs: []string{"--sandbox", "workspace-write"}}, SessionSnapshot{
+		BaseTag:    "pair",
+		Sessions:   []Session{{Name: "pair-pair-old", Tag: "old", State: SessionDetached}},
+		Historical: []HistoricalTag{{Tag: "pair"}},
+	})
+	if err != nil {
+		t.Fatalf("DecideLaunch returned error: %v", err)
+	}
+	if decision.Action != ActionCreate || decision.Tag != "pair-2" || !decision.PromptName {
+		t.Fatalf("decision = %#v, want prompted create for next free explicit-agent tag", decision)
+	}
+}
+
 func TestDecideLaunchHistoricalSelectionCreatesByTag(t *testing.T) {
 	decision, err := DecideLaunch(LaunchArgs{Agent: "claude", SelectedTag: "pair-old"}, SessionSnapshot{
 		BaseTag:    "pair",

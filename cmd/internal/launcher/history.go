@@ -45,7 +45,15 @@ func (s HistorySource) Scan(base string, cutoff time.Time) ([]HistoricalTag, err
 	sort.Strings(tags)
 	out := make([]HistoricalTag, 0, len(tags))
 	for _, tag := range tags {
-		out = append(out, HistoricalTag{Tag: tag, MTime: latest[tag], QueueCount: s.queueCount(tag)})
+		row := HistoricalTag{Tag: tag, MTime: latest[tag], QueueCount: s.queueCount(tag)}
+		if entry, ok := s.latestLedgerEntry(tag); ok {
+			row.Agent = entry.Agent
+			row.RepoName = entry.RepoName
+			if entry.LastActive.After(row.MTime) {
+				row.MTime = entry.LastActive
+			}
+		}
+		out = append(out, row)
 	}
 	if s.LegacyDataDir != "" && s.LegacyDataDir != s.DataDir {
 		legacy, err := s.scanLegacy(base, cutoff, latest)
@@ -53,8 +61,8 @@ func (s HistorySource) Scan(base string, cutoff time.Time) ([]HistoricalTag, err
 			return nil, err
 		}
 		out = append(out, legacy...)
-		sort.Slice(out, func(i, j int) bool { return out[i].Tag < out[j].Tag })
 	}
+	sortHistoricalRows(out)
 	return out, nil
 }
 
@@ -126,4 +134,21 @@ func tagFromSidecar(name string) (string, bool) {
 
 func matchesHistoryBase(tag, base string) bool {
 	return tag == base || strings.HasPrefix(tag, base+"-")
+}
+
+func (s HistorySource) latestLedgerEntry(tag string) (LedgerEntry, bool) {
+	raw, err := os.ReadFile(filepath.Join(s.DataDir, "ledger-"+tag+".jsonl"))
+	if err != nil {
+		return LedgerEntry{}, false
+	}
+	return LatestLedgerEntry(ParseLedger(string(raw)))
+}
+
+func sortHistoricalRows(rows []HistoricalTag) {
+	sort.SliceStable(rows, func(i, j int) bool {
+		if rows[i].MTime.Equal(rows[j].MTime) {
+			return rows[i].Tag < rows[j].Tag
+		}
+		return rows[i].MTime.After(rows[j].MTime)
+	})
 }

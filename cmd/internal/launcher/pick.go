@@ -16,9 +16,10 @@ import (
 // pickSelection is what a chosen picker row resolves to: a specific tag, or the
 // "+ new" row (create a fresh free-slot tag with the name prompt).
 type pickSelection struct {
-	tag    string
-	isNew  bool
-	legacy bool
+	tag         string
+	sessionName string
+	isNew       bool
+	legacy      bool
 }
 
 const (
@@ -51,7 +52,7 @@ func buildPickRows(snap SessionSnapshot, base string, nowEpoch int64) (display [
 			continue
 		}
 		plain := livePickLabel(s)
-		add(plain, ansiGreen+plain+ansiReset, pickSelection{tag: sessionTag(s)})
+		add(plain, ansiGreen+plain+ansiReset, pickSelection{tag: sessionTag(s), sessionName: s.Name})
 	}
 
 	for _, h := range snap.Historical {
@@ -134,6 +135,9 @@ func resolvePick(rt Runtime, snap SessionSnapshot, base string, nowEpoch int64) 
 	if sel.isNew {
 		tag := nextFreeTag(base, snap)
 		return createDecision(tag, sessionNameForTag(snap, tag), true), false
+	}
+	if sel.sessionName != "" {
+		return LaunchDecision{Action: ActionAttach, Tag: sel.tag, SessionName: sel.sessionName}, false
 	}
 	d, _ := DecideLaunch(LaunchArgs{ForcedTag: sel.tag}, snap) // never errors (no pick recursion)
 	d.LegacyImport = sel.legacy

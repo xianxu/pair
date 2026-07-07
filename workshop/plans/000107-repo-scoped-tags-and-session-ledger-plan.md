@@ -1,6 +1,6 @@
 # Repo-Scoped Tags and Session Ledger Implementation Plan
 
-> **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to determine the appropriate execution approach: use superpowers-subagent-driven-development (if subagents are suitable per AGENTS.md) or superpowers-executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to determine the appropriate execution approach: use superpowers-subagent-driven-development (if subagents are suitable per AGENTS.md) or superpowers-executing-plans to implement this plan. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Make Pair tags repo-local work items with a per-tag session ledger, so tags, picker rows, sidecars, and live zellij sessions no longer collide across repos or conflate tag with agent.
 
@@ -286,7 +286,7 @@ Expected: PASS.
 - Test: `cmd/internal/launcher/pick_test.go`
 - Test: `cmd/internal/launcher/zellijparse_test.go`
 
-- [ ] **Step 1: Write failing repo-filter tests**
+- [x] **Step 1: Write failing repo-filter tests**
 
 Cover:
 - history scan lists only current scope dir and no longer uses basename prefix.
@@ -298,18 +298,18 @@ Cover:
 Run: `go test ./cmd/internal/launcher -run 'TestHistory|TestBuildPickRows|TestPairSessionNames'`
 Expected: FAIL with current flat filtering.
 
-- [ ] **Step 2: Implement scoped snapshots**
+- [x] **Step 2: Implement scoped snapshots**
 
 Build a snapshot with this exact mapping order:
 1. If `SessionNameIndex` binds the zellij session name to the current `scope_key`, include it as current-scope live.
 2. If no index entry exists, read scoped pane metadata written at launch (`scope_key`, `repo_root`, `tag`, `agent`, `session_name`) and include only when `scope_key` or cleaned `repo_root` matches current scope.
 3. If neither exists, classify as `LegacyUnscoped`; do not include it in the normal current-scope picker. Task 9 defines the explicit recovery path.
 
-- [ ] **Step 3: Update picker rows**
+- [x] **Step 3: Update picker rows**
 
 Use labels such as `pair <repo>/<tag>  <agent>  (...)` while returning plain text keys that map to `ScopedTag`. Keep fzf ANSI handling unchanged.
 
-- [ ] **Step 4: Verify green**
+- [x] **Step 4: Verify green**
 
 Run: `go test ./cmd/internal/launcher -run 'TestHistory|TestBuildPickRows|TestPairSessionNames'`
 Expected: PASS.
@@ -325,7 +325,7 @@ Expected: PASS.
 - Test: `cmd/internal/launcher/restart_test.go`
 - Test: `cmd/internal/launcher/lifecycle_test.go`
 
-- [ ] **Step 1: Write failing behavior tests**
+- [x] **Step 1: Write failing behavior tests**
 
 Cover:
 - `pair list` shows current repo rows by default and keeps agent/status columns.
@@ -336,11 +336,11 @@ Cover:
 Run: `go test ./cmd/internal/launcher -run 'TestRunList|TestRename|TestRestart|TestCleanup|TestPark'`
 Expected: FAIL where flat paths are still assumed.
 
-- [ ] **Step 2: Migrate each consumer to `ScopedPaths`**
+- [x] **Step 2: Migrate each consumer to `ScopedPaths`**
 
 Replace hand-built paths in these files with `ScopedPaths`. Keep the runtime interfaces small; avoid passing a large path bag into helpers that only need one path family.
 
-- [ ] **Step 3: Verify green**
+- [x] **Step 3: Verify green**
 
 Run: `go test ./cmd/internal/launcher -run 'TestRunList|TestRename|TestRestart|TestCleanup|TestPark'`
 Expected: PASS.
@@ -355,7 +355,7 @@ Expected: PASS.
 - Modify as needed: `bin/pair-notify`, `bin/lib/adapt-log.sh`, `bin/pair-changelog-open`, `bin/pair-scrollback-open`
 - Test: existing shell/Lua tests under `tests/`, plus targeted new tests if a helper path is not covered.
 
-- [ ] **Step 1: Write failing smoke tests for scoped `PAIR_DATA_DIR`**
+- [x] **Step 1: Write failing smoke tests for scoped `PAIR_DATA_DIR`**
 
 Add tests proving:
 - zellij layout uses inherited `PAIR_DATA_DIR` instead of recomputing global flat data dir.
@@ -370,11 +370,11 @@ Run the smallest applicable tests first, for example:
 
 Expected: FAIL for any helper still deriving the old global path.
 
-- [ ] **Step 2: Update consumers to treat `PAIR_DATA_DIR` as authoritative**
+- [x] **Step 2: Update consumers to treat `PAIR_DATA_DIR` as authoritative**
 
 Do not recompute `${XDG_DATA_HOME:-$HOME/.local/share}/pair` in panes or helpers when `PAIR_DATA_DIR` is already exported. If a helper needs the global root, pass a separate env such as `PAIR_GLOBAL_DATA_DIR`.
 
-- [ ] **Step 3: Verify green**
+- [x] **Step 3: Verify green**
 
 Run the same shell/Lua tests.
 Expected: PASS.
@@ -388,7 +388,7 @@ Expected: PASS.
 - Modify: `cmd/internal/launcher/history.go`
 - Modify: `cmd/internal/launcher/osruntime.go`
 
-- [ ] **Step 1: Write failing grandfathering tests**
+- [x] **Step 1: Write failing grandfathering tests**
 
 Cover:
 - flat `draft-work.md`, `log-work.md`, `config-work-claude.json`, `queue-work/`, and scrollback files are copied or moved into the current scope on first use without deleting data before successful write.
@@ -399,7 +399,7 @@ Cover:
 Run: `go test ./cmd/internal/launcher -run 'TestGrandfather|TestMigrate'`
 Expected: FAIL for missing migration.
 
-- [ ] **Step 2: Implement conservative migration**
+- [x] **Step 2: Implement conservative migration**
 
 Implement these ownership rules:
 1. **Proven current repo:** pane metadata `cwd`/`cwd_display`, scoped pane metadata, or transcript path proves the repo root. Copy into the current scope automatically on first current-scope launch/resume.
@@ -408,7 +408,7 @@ Implement these ownership rules:
 
 Prefer copy-then-atomic-rename patterns for files Pair can race on. Record a migration marker in the scope dir after success. Never delete a flat source unless the operation is explicitly a move for a lifecycle cleanup and the scoped copy exists.
 
-- [ ] **Step 3: Verify green**
+- [x] **Step 3: Verify green**
 
 Run: `go test ./cmd/internal/launcher -run 'TestGrandfather|TestMigrate|TestHistory'`
 Expected: PASS.
@@ -422,7 +422,7 @@ Expected: PASS.
 - Modify: `tests/pair-rename.sh` if scoped shell coverage is needed
 - Modify: `Makefile` only if a new test script is added
 
-- [ ] **Step 1: Add acceptance-level tests**
+- [x] **Step 1: Add acceptance-level tests**
 
 Cover Done-when directly:
 - two repos each have `work` with independent sidecars and live session names.
@@ -434,7 +434,7 @@ Cover Done-when directly:
 Run: `go test ./cmd/internal/launcher`
 Expected: FAIL until previous tasks are fully wired.
 
-- [ ] **Step 2: Verify full local suite**
+- [x] **Step 2: Verify full local suite**
 
 Run:
 - `go test ./...`
@@ -449,7 +449,7 @@ Expected: PASS.
 - Modify or create: an atlas page describing Pair identity/session storage, likely `atlas/session-identity.md`
 - Modify: `workshop/issues/000107-repo-scoped-tags-and-session-ledger.md`
 
-- [ ] **Step 1: Update docs**
+- [x] **Step 1: Update docs**
 
 Document:
 - repo scope vs display tag vs agent vs session id.
@@ -457,11 +457,11 @@ Document:
 - ledger source-of-truth and derived caches.
 - compatibility/grandfathering behavior.
 
-- [ ] **Step 2: Check plan boxes and log verification**
+- [x] **Step 2: Check plan boxes and log verification**
 
 Update #107 `## Plan` checkboxes as tasks complete. Add `## Log` notes with commands and any ARCH-* decisions.
 
-- [ ] **Step 3: Run final verification for close**
+- [x] **Step 3: Run final verification for close**
 
 Run:
 - `git diff --check`
@@ -487,3 +487,18 @@ Delta: add explicit follow-up coverage and fixes for prompted-create scoped
 session-name assignment, pair-tag-aware restart, scoped compaction marker/kill
 targets, sessionwatch ledger append on discovered session id, README user docs,
 and stale comments. Re-run the close gate after those fixes.
+
+### 2026-07-07 — second close-review REWORK follow-up
+
+Reason: the second `sdlc close --issue 107` boundary review returned REWORK. It
+found remaining scoped lifecycle gaps: explicit agent args could still be routed
+through the picker, empty session-name indexes treated every live `pair-*` as
+current scope, scoped historical rows lacked repo/agent metadata for useful
+resume ordering, the generated close-review artifact failed `git diff --check`,
+and the durable plan checkboxes lagged implementation state.
+
+Delta: bypass the picker for explicit `agent -- <args>` creates, require
+session-name index ownership before surfacing live current-scope sessions,
+enrich and sort historical rows from the ledger, preserve scoped live session
+names when the picker attaches, normalize the generated review artifact, and
+align the completed plan checklist before rerunning the close gate.

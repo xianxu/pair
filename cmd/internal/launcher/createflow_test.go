@@ -446,6 +446,26 @@ func TestRunLaunchBareIgnoresOtherRepoIndexedSessions(t *testing.T) {
 	}
 }
 
+func TestRunLaunchBareIgnoresUnindexedLiveSessions(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.sessions = []Session{{Name: "pair-work", State: SessionDetached}}
+	rt.pickFunc = func(header string, options []string) string {
+		t.Fatalf("picker should not show unindexed live sessions: %q", options)
+		return ""
+	}
+	opts := baseOpts(LaunchArgs{Agent: "codex"})
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if len(rt.attached) != 0 {
+		t.Fatalf("attached = %v, want no unindexed attach", rt.attached)
+	}
+	if rt.launched != "pair-work-work" {
+		t.Fatalf("launched = %q, want current-scope create", rt.launched)
+	}
+}
+
 // Aborting the name prompt exits 0 (handled) without launching.
 func TestRunLaunchPromptAbort(t *testing.T) {
 	rt := newFakeRuntime()
@@ -729,11 +749,9 @@ var ansiEscapeRE = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 // fzf returns the plain text (which buildPickRows keys byPlain on).
 func stripANSI(s string) string { return ansiEscapeRE.ReplaceAllString(s, "") }
 
-// Agent-scoped CLI-args guard (#107): `pair codex -- <codex-only args>` with
-// history present routes to the session picker (DecideLaunch ignores the agent).
-// Picking an existing CLAUDE tag is resume-by-name → the agent re-infers to
-// claude; the codex-intended CLI args must NOT ride along onto claude (which
-// would choke on them at launch). The guard drops them on agent mismatch.
+// Agent-scoped CLI-args guard (#107): `pair codex -- <codex-only args>` must not
+// route through the picker and resume an existing claude tag. Explicit
+// agent+args means "create a new session for that agent".
 func TestRunLaunchPickInferredAgentMustNotInheritCliArgs(t *testing.T) {
 	rt := newFakeRuntime()
 	// A historical claude tag (base tag for cwd /home/u/work is "work").
@@ -741,18 +759,18 @@ func TestRunLaunchPickInferredAgentMustNotInheritCliArgs(t *testing.T) {
 	rt.inferAgent["work"] = "claude"
 	rt.uuids = []string{"SID"}
 	rt.pickFunc = func(header string, options []string) string {
-		return stripANSI(options[0]) // pick the historical claude row
+		t.Fatalf("explicit agent+args should not show picker: %q", options)
+		return ""
 	}
 	opts := baseOpts(LaunchArgs{Agent: "codex", AgentArgs: []string{"--sandbox", "danger-full-access"}})
 	code, err := run(t, opts, rt)
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	if rt.env["PAIR_AGENT"] != "claude" {
-		t.Fatalf("precondition: resume-by-name should infer claude, got %q", rt.env["PAIR_AGENT"])
+	if rt.env["PAIR_AGENT"] != "codex" {
+		t.Fatalf("PAIR_AGENT = %q, want codex", rt.env["PAIR_AGENT"])
 	}
-	// The codex-only args must NOT reach claude.
-	if strings.Contains(rt.env["PAIR_AGENT_ARGS"], "--sandbox") {
-		t.Fatalf("claude inherited codex CLI args: PAIR_AGENT_ARGS=%q", rt.env["PAIR_AGENT_ARGS"])
+	if !strings.Contains(rt.env["PAIR_AGENT_ARGS"], "--sandbox") {
+		t.Fatalf("codex args were not preserved: PAIR_AGENT_ARGS=%q", rt.env["PAIR_AGENT_ARGS"])
 	}
 }

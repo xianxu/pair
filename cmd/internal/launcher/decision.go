@@ -33,6 +33,14 @@ func DecideLaunch(args LaunchArgs, snap SessionSnapshot) (LaunchDecision, error)
 		}
 		return createDecision(args.ForcedTag, name, false), nil
 	}
+	if args.Agent != "" && len(args.AgentArgs) > 0 {
+		tag := snap.BaseTag
+		if tag == "" {
+			tag = "pair"
+		}
+		tag = nextFreeTag(tag, snap)
+		return createDecision(tag, sessionNameForTag(snap, tag), true), nil
+	}
 	if hasDetached(snap) || len(snap.Historical) > 0 {
 		return LaunchDecision{Action: ActionPick}, nil
 	}

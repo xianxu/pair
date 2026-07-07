@@ -191,12 +191,13 @@ pair [<agent>] -- <args...>      # forward args to agent on create
                                  # e.g. pair claude -- --resume
                                  #      pair -- --dangerously-skip-permissions
                                  #      pair codex -- -p "say hi"
-pair list                        # list pair-* sessions and attach state
+pair list                        # list this repo's Pair sessions and attach state
 pair rename <old> <new>          # rename every tag-scoped file in
                                  # $PAIR_DATA_DIR from <old> to <new>;
-                                 # refuses if pair-<old> is still tracked
-                                 # by zellij (use Ctrl+Alt+n's (R) inside
-                                 # a session for the live equivalent)
+                                 # refuses if the old tag still has a
+                                 # current-scope zellij session (use
+                                 # Ctrl+Alt+n's (R) inside a session for
+                                 # the live equivalent)
 pair -h, --help                  # show full help
 ```
 

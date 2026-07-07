@@ -214,10 +214,7 @@ func assignLaunchSessionNames(rt Runtime, live []Session, cwd string, args Launc
 	if err != nil {
 		index = SessionNameIndex{}
 	}
-	scopedLive := live
-	if len(index.Entries) > 0 {
-		scopedLive = SessionsForScope(live, index, scope)
-	}
+	scopedLive := SessionsForScope(live, index, scope)
 	tags := launchNameTags(args, base)
 	if len(tags) == 0 {
 		return scopedLive, nil, nil, true
