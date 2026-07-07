@@ -6,7 +6,7 @@ import (
 )
 
 // The fzf session picker (#99 M5a, ported from bin/pair-shell 1428-1508). When a
-// bare `pair` finds detached and/or historical pair-<tag> sessions, fzf offers
+// bare `pair` finds detached and/or historical Pair sessions, fzf offers
 // them plus a "+ new" row. The row *build* is a pure function over the decision
 // snapshot (detached-first ordering, age grey-grading, the queued badge); only
 // the fzf call itself (resolvePick) is a Runtime effect. Picking an existing tag
@@ -33,7 +33,7 @@ const (
 // to its selection. Order mirrors the shell: live detached sessions (green)
 // first, then historical "no live session" rows (age-graded grey + amber queued
 // badge), then the "+ new <base> session" row. Historical tags that still have a
-// live pair-<tag> (any state) are deduped out — they already show as their own
+// live Pair sessions (any state) are deduped out — they already show as their own
 // live row (shell 1387).
 func buildPickRows(snap SessionSnapshot, base string, nowEpoch int64) (display []string, byPlain map[string]pickSelection) {
 	byPlain = map[string]pickSelection{}

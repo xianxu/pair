@@ -142,8 +142,8 @@ func (f *fakeRuntime) PickFromList(header string, options []string, height int) 
 func (f *fakeRuntime) SetTerminalTitle(session string) { f.titles = append(f.titles, session) }
 
 // ProcOps
-func (f *fakeRuntime) SpawnSessionWatcher(agent, tag, cwd string, agentArgs []string) {
-	f.watchers = append(f.watchers, agent+"|"+tag+"|"+cwd+"|"+strings.Join(agentArgs, " "))
+func (f *fakeRuntime) SpawnSessionWatcher(agent, tag, cwd, repoRoot, repoName string, agentArgs []string) {
+	f.watchers = append(f.watchers, agent+"|"+tag+"|"+cwd+"|"+repoRoot+"|"+repoName+"|"+strings.Join(agentArgs, " "))
 }
 func (f *fakeRuntime) SpawnTitlePoller(tag, agent string) {
 	f.pollers = append(f.pollers, tag+"|"+agent)
@@ -575,6 +575,12 @@ func TestRunLaunchLedgerAppendFailureAbortsBeforeHandoff(t *testing.T) {
 	if len(rt.ledger["bugfix"]) != 0 {
 		t.Fatalf("ledger append failure should not record row: %+v", rt.ledger["bugfix"])
 	}
+	if len(rt.files) != 0 {
+		t.Fatalf("ledger append failure should not write sidecars: %+v", rt.files)
+	}
+	if len(rt.watchers) != 0 || len(rt.pollers) != 0 || len(rt.titles) != 0 || len(rt.cmux) != 0 || rt.devRebuilt {
+		t.Fatalf("ledger append failure started side effects: watchers=%v pollers=%v titles=%v cmux=%v dev=%v", rt.watchers, rt.pollers, rt.titles, rt.cmux, rt.devRebuilt)
+	}
 }
 
 func TestRunLaunchSessionIndexAppendFailureAbortsBeforeHandoff(t *testing.T) {
@@ -590,6 +596,12 @@ func TestRunLaunchSessionIndexAppendFailureAbortsBeforeHandoff(t *testing.T) {
 	}
 	if len(rt.sessionIndex.Entries) != 0 {
 		t.Fatalf("session index append failure should not record entry: %+v", rt.sessionIndex)
+	}
+	if len(rt.files) != 0 {
+		t.Fatalf("session index append failure should not write sidecars: %+v", rt.files)
+	}
+	if len(rt.watchers) != 0 || len(rt.pollers) != 0 || len(rt.titles) != 0 || len(rt.cmux) != 0 || rt.devRebuilt {
+		t.Fatalf("session index append failure started side effects: watchers=%v pollers=%v titles=%v cmux=%v dev=%v", rt.watchers, rt.pollers, rt.titles, rt.cmux, rt.devRebuilt)
 	}
 }
 

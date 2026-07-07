@@ -11,15 +11,17 @@ import (
 
 // Options are the watcher inputs after CLI/env resolution.
 type Options struct {
-	Agent   string
-	Tag     string
-	Cwd     string
-	Args    []string
-	Home    string
-	DataDir string
-	PIDWait time.Duration
-	Timeout time.Duration
-	Poll    time.Duration
+	Agent    string
+	Tag      string
+	Cwd      string
+	RepoRoot string
+	RepoName string
+	Args     []string
+	Home     string
+	DataDir  string
+	PIDWait  time.Duration
+	Timeout  time.Duration
+	Poll     time.Duration
 }
 
 // Runtime is the IO boundary for the session watcher.
@@ -61,6 +63,14 @@ func Run(opts Options, rt Runtime) error {
 	}
 	if opts.Poll <= 0 {
 		opts.Poll = 100 * time.Millisecond
+	}
+	repoRoot := opts.RepoRoot
+	if repoRoot == "" {
+		repoRoot = opts.Cwd
+	}
+	repoName := opts.RepoName
+	if repoName == "" {
+		repoName = filepath.Base(filepath.Clean(repoRoot))
 	}
 
 	watchStart := rt.Now()
@@ -121,8 +131,8 @@ func Run(opts Options, rt Runtime) error {
 				SessionID:  result.ID,
 				Started:    watchStart,
 				LastActive: rt.Now(),
-				RepoRoot:   opts.Cwd,
-				RepoName:   filepath.Base(filepath.Clean(opts.Cwd)),
+				RepoRoot:   repoRoot,
+				RepoName:   repoName,
 			}); err != nil {
 				return err
 			}

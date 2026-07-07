@@ -115,7 +115,7 @@ func (r OSRuntime) ScanHistory(base string, cutoff time.Time) ([]HistoricalTag, 
 
 // --- ListOps ---------------------------------------------------------------
 
-// ListSessions gathers the `pair list`/`ls` rows: each pair-<tag> session's
+// ListSessions gathers the `pair list`/`ls` rows: each Pair session's
 // reuse state (EXITED vs live), its live client count, and the agent it was last
 // paired with (shell 228-306). Agent resolution reuses InferAgent (agent-<tag>
 // then the config-filename agent) — broader than the shell's agent-<tag>-only
@@ -269,8 +269,8 @@ func (OSRuntime) SetTerminalTitle(session string) {
 
 // --- ProcOps ---------------------------------------------------------------
 
-func (r OSRuntime) SpawnSessionWatcher(agent, tag, cwd string, agentArgs []string) {
-	spawnDetached(sessionWatcherArgv(runningPairExe(r.PairHome), agent, tag, cwd, agentArgs), nil)
+func (r OSRuntime) SpawnSessionWatcher(agent, tag, cwd, repoRoot, repoName string, agentArgs []string) {
+	spawnDetached(sessionWatcherArgv(runningPairExe(r.PairHome), agent, tag, cwd, repoRoot, repoName, agentArgs), nil)
 }
 
 func (r OSRuntime) SpawnTitlePoller(tag, agent string) {
@@ -298,8 +298,8 @@ func runningPairExe(pairHome string) string {
 // regression in the argv would otherwise go uncaught until the poller/watcher
 // simply never started. The title poller's process must be "<…>/pair title <tag>
 // <agent>", the exact shape titlepoller's single-instance argv guard matches.
-func sessionWatcherArgv(exe, agent, tag, cwd string, agentArgs []string) []string {
-	return append([]string{exe, "session-watch", agent, tag, cwd}, agentArgs...)
+func sessionWatcherArgv(exe, agent, tag, cwd, repoRoot, repoName string, agentArgs []string) []string {
+	return append([]string{exe, "session-watch", agent, tag, cwd, "--repo-root", repoRoot, "--repo-name", repoName, "--"}, agentArgs...)
 }
 
 func titlePollerArgv(exe, tag, agent string) []string {
@@ -588,7 +588,7 @@ func (r OSRuntime) ReapNvim(tag string) {
 	pkillF("nvim --embed.*" + r.DataDir + "/scrollback-" + tag + "-")
 }
 
-// SweepOrphanNvim reaps nvim --embed processes whose pair-<tag> is not live —
+// SweepOrphanNvim reaps nvim --embed processes whose Pair session is not live —
 // candidates come from the nvim-pid-* sidecars and a full `ps` argv scan (catches
 // embeds with no pidfile), shell 1117-1158.
 func (r OSRuntime) SweepOrphanNvim(liveTags []string) {

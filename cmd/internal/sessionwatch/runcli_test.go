@@ -33,6 +33,24 @@ func TestBuildOptionsFromArgsAndEnv(t *testing.T) {
 	}
 }
 
+func TestBuildOptionsParsesRepoIdentityBeforeAgentArgs(t *testing.T) {
+	opts, ok := buildOptions([]string{"codex", "tag", "/repo/sub", "--repo-root", "/repo", "--repo-name", "pair", "--", "resume", "old", "--repo-root", "agent-value"}, func(k string) string {
+		if k == "HOME" {
+			return "/home/me"
+		}
+		return ""
+	})
+	if !ok {
+		t.Fatalf("buildOptions returned !ok")
+	}
+	if opts.Cwd != "/repo/sub" || opts.RepoRoot != "/repo" || opts.RepoName != "pair" {
+		t.Fatalf("opts identity = %+v", opts)
+	}
+	if !reflect.DeepEqual(opts.Args, []string{"resume", "old", "--repo-root", "agent-value"}) {
+		t.Fatalf("opts args = %#v", opts.Args)
+	}
+}
+
 func TestBuildOptionsRejectsMissingRequiredArgs(t *testing.T) {
 	if _, ok := buildOptions([]string{"codex", "tag"}, func(string) string { return "" }); ok {
 		t.Fatalf("buildOptions should reject missing cwd")

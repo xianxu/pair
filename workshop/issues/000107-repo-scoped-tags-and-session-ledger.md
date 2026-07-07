@@ -419,3 +419,13 @@ native `pair --help` now describes repo-scoped live tags/listing; and the plan
 now describes the implemented scoped-`DataDir` bridge instead of claiming every
 existing sidecar consumer directly uses `ScopedPaths`. Verified with focused
 launcher regressions.
+
+Fifth `sdlc close --issue 107` returned `Review-Verdict: REWORK`. Addressed
+the remaining ARCH-PURPOSE source-of-truth gap: the session watcher now receives
+canonical repo root/name separately from pane cwd and writes those fields into
+async ledger rows, so subdirectory launches cannot replace repo-root identity
+with cwd-derived identity. Also moved source-of-truth appends before draft,
+config, adapt, agent, title, watcher, poller, cmux, and dev-rebuild effects, and
+aligned stale comments/plan wording around scoped session names and implemented
+pane env. Verified with focused red/green regressions and `go test
+./cmd/internal/launcher ./cmd/internal/sessionwatch -count=1`.

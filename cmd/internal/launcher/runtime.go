@@ -39,7 +39,7 @@ type SnapshotOps interface {
 	ScanHistory(base string, cutoff time.Time) ([]HistoricalTag, error)
 }
 
-// ListOps gathers the `pair list`/`ls` rows (#99 M5a) — pair-<tag> sessions with
+// ListOps gathers the `pair list`/`ls` rows (#99 M5a) — Pair sessions with
 // resolved agent, reuse state, and live client count. Its own seam (ISP): the
 // launch path never needs client counts, so this stays off ZellijOps.Sessions.
 type ListOps interface {
@@ -75,7 +75,7 @@ type ProcOps interface {
 	// SpawnSessionWatcher backgrounds bin/pair-session-watch (detached) to
 	// capture the async agent session id for codex/agy; a no-op-ish spawn for
 	// claude (whose id is minted synchronously).
-	SpawnSessionWatcher(agent, tag, cwd string, agentArgs []string)
+	SpawnSessionWatcher(agent, tag, cwd, repoRoot, repoName string, agentArgs []string)
 	// SpawnTitlePoller backgrounds bin/pair-title (detached), the per-tag
 	// frame/cmux title singleton.
 	SpawnTitlePoller(tag, agent string)
@@ -178,7 +178,7 @@ type LifecycleOps interface {
 	// ReapNvim kills this tag's nvim --embed children (pidfiles + pattern sweep),
 	// shell 1089-1112.
 	ReapNvim(tag string)
-	// SweepOrphanNvim reaps nvim --embed whose pair-<tag> is not in liveTags —
+	// SweepOrphanNvim reaps nvim --embed whose Pair session is not in liveTags —
 	// startup hygiene for externally-killed sessions that left no quit marker,
 	// shell 1117-1158.
 	SweepOrphanNvim(liveTags []string)

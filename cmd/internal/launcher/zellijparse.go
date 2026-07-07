@@ -49,7 +49,7 @@ func sessionNameRejected(out string) bool {
 	return strings.Contains(out, "session name must be less than")
 }
 
-// pairSessionNames extracts the pair-<tag> session names from `zellij
+// pairSessionNames extracts the Pair session names from `zellij
 // list-sessions --short` output — sorted + deduped, matching the shell's
 // `awk '/^pair-/' | sort` (list flow, shell 1235/232).
 func pairSessionNames(short string) []string {

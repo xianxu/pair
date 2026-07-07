@@ -38,11 +38,11 @@ type SessionSnapshot struct {
 	Sessions   []Session
 	Historical []HistoricalTag
 	// SessionNames optionally maps repo-local tags to already assigned public
-	// zellij session names. Empty preserves the legacy pair-<tag> behavior.
+	// zellij session names. Empty preserves the legacy unscoped behavior.
 	SessionNames map[string]string
 }
 
-// ListRow is one `pair list`/`ls` row: a pair-<tag> session with its resolved
+// ListRow is one `pair list`/`ls` row: a Pair session with its resolved
 // agent and reuse state, plus the live client count (0 for detached/exited) so
 // the pure formatter can render "attached (N clients)" (#99 M5a).
 type ListRow struct {

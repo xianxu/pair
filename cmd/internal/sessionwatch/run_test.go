@@ -56,6 +56,42 @@ func TestRunUsesFreshPidfileAndWritesConfig(t *testing.T) {
 	}
 }
 
+func TestRunUsesRepoIdentityForLedgerWhenCwdIsSubdir(t *testing.T) {
+	home := "/tmp/home"
+	data := "/tmp/data"
+	sid := "019eff64-6ceb-7e72-9d41-a735a97029ac"
+	sessionFile := home + "/.codex/sessions/2026/06/25/rollout-2026-06-25T08-27-12-" + sid + ".jsonl"
+	rt := newFakeRuntime(time.Unix(100, 0))
+	rt.files[filepath.Join(data, "agent-pid-test")] = fakeFile{content: []byte("1234\n"), mod: time.Unix(100, 0)}
+	rt.alive["1234"] = true
+	rt.descendants["1234"] = []string{"1234"}
+	rt.lsof["1234"] = []string{sessionFile}
+
+	err := Run(Options{
+		Agent:    "codex",
+		Tag:      "test",
+		Cwd:      "/repo/cmd/pair",
+		RepoRoot: "/repo",
+		RepoName: "pair",
+		Home:     home,
+		DataDir:  data,
+		PIDWait:  time.Second,
+		Timeout:  time.Second,
+		Poll:     100 * time.Millisecond,
+	}, rt)
+	if err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+
+	ledger := string(rt.writes[filepath.Join(data, "ledger-test.jsonl")])
+	if !strings.Contains(ledger, `"repo_root":"/repo"`) || !strings.Contains(ledger, `"repo_name":"pair"`) {
+		t.Fatalf("ledger write = %s, want repo identity rather than cwd-derived identity", ledger)
+	}
+	if strings.Contains(ledger, `/repo/cmd/pair`) || strings.Contains(ledger, `"repo_name":"cmd"`) {
+		t.Fatalf("ledger write = %s, should not persist pane cwd as repo identity", ledger)
+	}
+}
+
 func TestRunTreatsSameSecondPidfileAsFresh(t *testing.T) {
 	home := "/tmp/home"
 	data := "/tmp/data"

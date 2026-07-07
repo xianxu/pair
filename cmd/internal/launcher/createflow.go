@@ -53,7 +53,7 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 		return 1, nil
 	}
 
-	// Startup nvim hygiene (shell 1243): reap embeds whose pair-<tag> session is
+	// Startup nvim hygiene (shell 1243): reap embeds whose Pair session is
 	// gone (an external kill / reboot leaves no quit marker). Once, up front — a
 	// clean restart below leaves nothing new to sweep.
 	if sessions, err := rt.Sessions(); err == nil {
@@ -321,28 +321,10 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		}
 	}
 
-	// Env exports every child (watcher, poller, zellij + its panes) inherits.
-	rt.SetEnv("PAIR_HOME", opts.PairHome)
-	rt.SetEnv("PAIR_DATA_DIR", dataDir)
-	rt.SetEnv("PAIR_TAG", chosenTag)
-	rt.SetEnv("PAIR_AGENT", agent)
-
-	draft := filepath.Join(dataDir, "draft-"+chosenTag+".md")
-	_ = rt.Touch(draft)
-	if opts.ContinueDoc != "" {
-		_ = rt.WriteAtomic(draft, fmt.Sprintf("Read workshop/continuation/%s and continue from its NEXT ACTION.\n", filepath.Base(opts.ContinueDoc)))
-	}
-
-	// Record the agent for `pair list` / the title poller (survives detach).
-	_ = rt.WriteAtomic(filepath.Join(dataDir, "agent-"+chosenTag), agent+"\n")
-
 	// Pre-capture the session id an explicit --resume/--conversation/`resume`
 	// pinned: the watcher only catches NEW jsonl files, so an explicit resume
 	// needs the config written synchronously (shell 2053-2110).
 	explicitResume := extractExplicitResume(agent, agentArgs)
-	if explicitResume != "" {
-		writeConfig(rt, configPath, agent, persistedConfigArgs(agentArgs), explicitResume)
-	}
 
 	// Claude: mint a deterministic --session-id (uuidgen + collision retry) so
 	// two tags in one cwd can't race for the same new jsonl (#20). Codex/agy
@@ -358,7 +340,6 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		}
 		if newSid != "" {
 			agentArgs = append(agentArgs, "--session-id", newSid)
-			writeConfig(rt, configPath, agent, persistedConfigArgs(agentArgs), newSid)
 		}
 	}
 
@@ -368,31 +349,18 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		agentArgs = codexAltScreenArgs(agentArgs, opts.CodexAltScreenOptOut)
 	}
 
-	rt.SetEnv("PAIR_AGENT_ARGS", strings.Join(agentArgs, " "))
-	rt.SetEnv("PAIR_SESSION_ID", firstNonEmpty(explicitResume, newSid))
-	rt.SetEnv("PAIR_PANE_TITLE", PaneTitle(agent, env.Cwd, env.Home))
-	rt.SetEnv("PAIR_PANE_CWD", TildeAbbrev(env.Cwd, env.Home))
-
-	// Truncate the adaptation flight recorder once, before any appender starts.
-	_ = rt.WriteAtomic(filepath.Join(dataDir, "adapt-"+chosenTag+".jsonl"), "")
-
-	// Spawn the (already-Go) sidecars + set the frame title. agentArgs is the
-	// final resolved vector (post mint / codex / resume compose).
-	rt.SpawnSessionWatcher(agent, chosenTag, env.Cwd, agentArgs)
-	rt.SetTerminalTitle(session)
-	rt.RecordOuterTTY(chosenTag)
-	rt.CmuxRename(chosenTag, session)
-	rt.SpawnTitlePoller(chosenTag, agent)
-	rt.DevRebuild(opts.PairHome)
-
+	sessionID := firstNonEmpty(explicitResume, newSid)
+	persistedArgs := persistedConfigArgs(agentArgs)
+	repoRoot := envScopeRoot(env)
+	repoName := DefaultTag(repoRoot)
 	if err := rt.AppendLedger(chosenTag, LedgerEntry{
 		Agent:        agent,
-		Args:         persistedConfigArgs(agentArgs),
-		SessionID:    firstNonEmpty(explicitResume, newSid),
+		Args:         persistedArgs,
+		SessionID:    sessionID,
 		Started:      env.Now,
 		LastActive:   env.Now,
-		RepoRoot:     envScopeRoot(env),
-		RepoName:     DefaultTag(envScopeRoot(env)),
+		RepoRoot:     repoRoot,
+		RepoName:     repoName,
 		LegacyImport: legacyImported,
 	}); err != nil {
 		fmt.Fprintf(stderr, "pair: failed to append ledger for tag '%s': %v\n", chosenTag, err)
@@ -404,6 +372,41 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 			return launchStep{code: 1}, nil
 		}
 	}
+
+	// Env exports every child (watcher, poller, zellij + its panes) inherits.
+	rt.SetEnv("PAIR_HOME", opts.PairHome)
+	rt.SetEnv("PAIR_DATA_DIR", dataDir)
+	rt.SetEnv("PAIR_TAG", chosenTag)
+	rt.SetEnv("PAIR_AGENT", agent)
+
+	draft := filepath.Join(dataDir, "draft-"+chosenTag+".md")
+	_ = rt.Touch(draft)
+	if opts.ContinueDoc != "" {
+		_ = rt.WriteAtomic(draft, fmt.Sprintf("Read workshop/continuation/%s and continue from its NEXT ACTION.\n", filepath.Base(opts.ContinueDoc)))
+	}
+
+	// Record the agent for `pair list` / the title poller (survives detach).
+	_ = rt.WriteAtomic(filepath.Join(dataDir, "agent-"+chosenTag), agent+"\n")
+	if sessionID != "" {
+		writeConfig(rt, configPath, agent, persistedArgs, sessionID)
+	}
+
+	rt.SetEnv("PAIR_AGENT_ARGS", strings.Join(agentArgs, " "))
+	rt.SetEnv("PAIR_SESSION_ID", sessionID)
+	rt.SetEnv("PAIR_PANE_TITLE", PaneTitle(agent, env.Cwd, env.Home))
+	rt.SetEnv("PAIR_PANE_CWD", TildeAbbrev(env.Cwd, env.Home))
+
+	// Truncate the adaptation flight recorder once, before any appender starts.
+	_ = rt.WriteAtomic(filepath.Join(dataDir, "adapt-"+chosenTag+".jsonl"), "")
+
+	// Spawn the (already-Go) sidecars + set the frame title. agentArgs is the
+	// final resolved vector (post mint / codex / resume compose).
+	rt.SpawnSessionWatcher(agent, chosenTag, env.Cwd, repoRoot, repoName, agentArgs)
+	rt.SetTerminalTitle(session)
+	rt.RecordOuterTTY(chosenTag)
+	rt.CmuxRename(chosenTag, session)
+	rt.SpawnTitlePoller(chosenTag, agent)
+	rt.DevRebuild(opts.PairHome)
 
 	configDir := filepath.Join(opts.PairHome, "zellij")
 	layout := filepath.Join(opts.PairHome, "zellij", "layouts", "main.kdl")

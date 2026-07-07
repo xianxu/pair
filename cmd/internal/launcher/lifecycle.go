@@ -13,7 +13,7 @@ import (
 // the loop itself (createflow.go) re-decides create-vs-attach each iteration.
 
 // runAttach ports the shell's attach branch (1701-1723): re-attach to a live
-// pair-<tag> session (`pair resume <livetag>`). Like create it exports the tag +
+// Pair session (`pair resume <tag>`). Like create it exports the tag +
 // refreshes the outer-tty/title/cmux/poller, but it re-uses the existing pane's
 // agent (no fresh spawn, no arg composition) and blocks on the attach handoff so
 // the loop regains control for cleanup + restart. agent is the inferred title
@@ -143,7 +143,7 @@ func readSavedConfig(rt Runtime, configPath string) savedConfig {
 }
 
 // liveTagsForSweep projects the live pair session names to their bare tags for
-// SweepOrphanNvim — every pair-<tag> row (attached, detached, or exited) counts
+// SweepOrphanNvim — every Pair session row (attached, detached, or exited) counts
 // as live, so the sweep only reaps embeds with NO session record at all (matches
 // the shell's all_pair, the full `list-sessions --short` list).
 func liveTagsForSweep(sessions []Session) []string {

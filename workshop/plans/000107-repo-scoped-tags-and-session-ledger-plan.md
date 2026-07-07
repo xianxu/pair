@@ -68,7 +68,7 @@
 | `ScopedHistorySource` | `cmd/internal/launcher/history.go` | modified | scoped data dir + legacy flat data dir |
 | `LedgerStore` | `cmd/internal/launcher/ledger.go` | new | JSONL files + atomic writes |
 | `ScopedOSRuntime` | `cmd/internal/launcher/osruntime.go` | modified | zellij, fzf, filesystem, process env |
-| `ScopedPaneEnv` | `zellij/layouts/main.kdl` and `nvim/init.lua` | modified | inherited `PAIR_DATA_DIR`, `PAIR_TAG`, `PAIR_SCOPE_DIR` |
+| `ScopedPaneEnv` | `zellij/layouts/main.kdl` and `nvim/init.lua` | modified | inherited `PAIR_DATA_DIR`, `PAIR_TAG` |
 | `LegacyGrandfathering` | `cmd/internal/launcher/migrate.go` | new | existing flat sidecars and live unscoped sessions |
 
 - **ScopeResolver** — resolves repo root, repo display name, hidden key, and scope directory once per launch.
@@ -93,7 +93,7 @@
 
 - **ScopedPaneEnv** — makes panes consume the scoped data dir rather than reconstructing flat `~/.local/share/pair` paths.
   - **Injected into:** zellij environment only; nvim reads the same env.
-  - **Future extensions:** Additional pane helpers should consume `PAIR_DATA_DIR`/`PAIR_SCOPE_DIR`, not derive paths.
+  - **Future extensions:** Additional pane helpers should consume `PAIR_DATA_DIR`, not derive paths.
 
 - **LegacyGrandfathering** — moves or aliases old flat sidecars into the current repo scope without deleting source data until successful.
   - **Injected into:** first scoped launch, history scan, and attach/resume of live old sessions.
@@ -539,3 +539,18 @@ create sidecars, env exports, or helper spawns; make ledger and session-name
 index append failures abort before zellij handoff with clear errors; update the
 native help text for repo-scoped live sessions/listing; and revise the plan to
 describe the implemented scoped-`DataDir` bridge for existing sidecar consumers.
+
+### 2026-07-07 — fifth close-review REWORK follow-up
+
+Reason: the fifth `sdlc close --issue 107` boundary review returned REWORK. It
+found that `pair session-watch` still derived async ledger `repo_root`/`repo_name`
+from the pane cwd, so a launch from a subdirectory could overwrite the latest
+ledger row with non-root identity. It also rechecked that source-of-truth append
+failures must not leave create sidecars or helper processes behind, and noted the
+stale `PAIR_SCOPE_DIR` plan wording.
+
+Delta: pass canonical repo root/name into the session watcher separately from
+pane cwd, persist those fields in watcher-appended ledger rows, keep
+ledger/session-index append failures before draft/config/adapt sidecars and
+helper spawns, and align the `ScopedPaneEnv` plan row with the implemented
+`PAIR_DATA_DIR`/`PAIR_TAG` environment.

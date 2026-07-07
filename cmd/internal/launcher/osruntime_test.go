@@ -3,6 +3,7 @@ package launcher
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -322,9 +323,10 @@ func TestSidecarSpawnArgvSelfExecsPair(t *testing.T) {
 		t.Fatalf("title poller argv = %v, want [%s title work claude]", tp, exe)
 	}
 
-	sw := sessionWatcherArgv(exe, "codex", "work", "/cwd", []string{"--no-alt-screen"})
-	if len(sw) != 6 || sw[0] != exe || sw[1] != "session-watch" || sw[2] != "codex" || sw[3] != "work" || sw[4] != "/cwd" || sw[5] != "--no-alt-screen" {
-		t.Fatalf("session watcher argv = %v, want [%s session-watch codex work /cwd --no-alt-screen]", sw, exe)
+	sw := sessionWatcherArgv(exe, "codex", "work", "/cwd/sub", "/cwd", "pair", []string{"--no-alt-screen"})
+	want := []string{exe, "session-watch", "codex", "work", "/cwd/sub", "--repo-root", "/cwd", "--repo-name", "pair", "--", "--no-alt-screen"}
+	if !reflect.DeepEqual(sw, want) {
+		t.Fatalf("session watcher argv = %v, want %v", sw, want)
 	}
 
 	// Guard the invariant explicitly: no sidecar target is a standalone helper
