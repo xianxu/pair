@@ -273,26 +273,38 @@ func (OSRuntime) SetTerminalTitle(session string) {
 // --- ProcOps ---------------------------------------------------------------
 
 func (r OSRuntime) SpawnSessionWatcher(agent, tag, cwd string, agentArgs []string) {
-	spawnDetached(sessionWatcherArgv(r.PairHome, agent, tag, cwd, agentArgs), nil)
+	spawnDetached(sessionWatcherArgv(selfPairExe(r.PairHome), agent, tag, cwd, agentArgs), nil)
 }
 
 func (r OSRuntime) SpawnTitlePoller(tag, agent string) {
-	spawnDetached(titlePollerArgv(r.PairHome, tag, agent), nil)
+	spawnDetached(titlePollerArgv(selfPairExe(r.PairHome), tag, agent), nil)
+}
+
+// selfPairExe resolves the running `pair` executable for the self-exec sidecar
+// spawns (#104 M2 folded pair-title/pair-session-watch into `pair title` /
+// `pair session-watch`). os.Executable() is the running binary itself, so it
+// works in the copied/Homebrew layout where $PAIR_HOME/bin holds no `pair`
+// (pair is never in its own runtime bundle); it falls back to $PAIR_HOME/bin/pair
+// only if os.Executable() is unavailable.
+func selfPairExe(pairHome string) string {
+	if exe, err := os.Executable(); err == nil && exe != "" {
+		return exe
+	}
+	return filepath.Join(pairHome, "bin", "pair")
 }
 
 // sessionWatcherArgv / titlePollerArgv build the detached-spawn argv for the two
-// sidecar Go binaries. Pure so a test can pin the base names: #94 M2 repointed
-// these from the .sh shims to the Go binaries directly, and spawnDetached
-// swallows a start error — so a silent regression back to "pair-title.sh" (a file
-// no longer in the bundle) would otherwise go uncaught until the poller/watcher
-// simply never started. The title poller's process must be "<…>/pair-title <tag>
+// sidecar routes, now self-execing `pair` (#104 M2). Pure (exe injected) so a
+// test can pin the shape: spawnDetached swallows a start error, so a silent
+// regression in the argv would otherwise go uncaught until the poller/watcher
+// simply never started. The title poller's process must be "<…>/pair title <tag>
 // <agent>", the exact shape titlepoller's single-instance argv guard matches.
-func sessionWatcherArgv(pairHome, agent, tag, cwd string, agentArgs []string) []string {
-	return append([]string{filepath.Join(pairHome, "bin", "pair-session-watch"), agent, tag, cwd}, agentArgs...)
+func sessionWatcherArgv(exe, agent, tag, cwd string, agentArgs []string) []string {
+	return append([]string{exe, "session-watch", agent, tag, cwd}, agentArgs...)
 }
 
-func titlePollerArgv(pairHome, tag, agent string) []string {
-	return []string{filepath.Join(pairHome, "bin", "pair-title"), tag, agent}
+func titlePollerArgv(exe, tag, agent string) []string {
+	return []string{exe, "title", tag, agent}
 }
 
 func (OSRuntime) DevRebuild(pairHome string) {

@@ -175,7 +175,7 @@ func TestRunDefersToLiveInstance(t *testing.T) {
 	rt := newFake()
 	rt.files["/dd/title-pid-T"] = "4242\n"
 	rt.alive["4242"] = true
-	rt.commands["4242"] = "/x/bin/pair-title T claude"
+	rt.commands["4242"] = "/x/bin/pair title T claude"
 	rt.sessionAliveDflt = true // would loop forever if the guard failed to short-circuit
 	code := Run(fixtureOpts(), rt)
 	if code != 0 {

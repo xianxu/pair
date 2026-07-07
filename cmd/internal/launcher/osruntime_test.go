@@ -246,32 +246,28 @@ func TestOSRuntimeReapAndPollerRemovePidfiles(t *testing.T) {
 	}
 }
 
-// The sidecar spawn argv must target the Go binaries directly — #94 M2 retired
-// the pair-title.sh/pair-session-watch.sh shims (no longer in the bundle), and
-// spawnDetached swallows a start error, so a regression back to a ".sh" target
-// would fail silently at runtime. Pin the base names (and the title poller's
-// "<…>/pair-title <tag> <agent>" shape the single-instance guard matches).
-func TestSidecarSpawnArgvTargetsGoBinaries(t *testing.T) {
-	tp := titlePollerArgv("/pair", "work", "claude")
-	if got := tp[0]; got != "/pair/bin/pair-title" {
-		t.Fatalf("title poller argv[0] = %q, want /pair/bin/pair-title (no .sh)", got)
-	}
-	if len(tp) != 3 || tp[1] != "work" || tp[2] != "claude" {
-		t.Fatalf("title poller argv = %v, want [.../pair-title work claude]", tp)
+// The sidecar spawn argv must self-exec the single `pair` binary as a
+// subcommand — #104 M2 folded pair-title/pair-session-watch into `pair title` /
+// `pair session-watch`. spawnDetached swallows a start error, so a regression in
+// the argv shape would fail silently at runtime. Pin the subcommand + the title
+// poller's "<…>/pair title <tag> <agent>" shape the single-instance guard matches.
+func TestSidecarSpawnArgvSelfExecsPair(t *testing.T) {
+	const exe = "/pair/bin/pair"
+	tp := titlePollerArgv(exe, "work", "claude")
+	if len(tp) != 4 || tp[0] != exe || tp[1] != "title" || tp[2] != "work" || tp[3] != "claude" {
+		t.Fatalf("title poller argv = %v, want [%s title work claude]", tp, exe)
 	}
 
-	sw := sessionWatcherArgv("/pair", "codex", "work", "/cwd", []string{"--no-alt-screen"})
-	if got := sw[0]; got != "/pair/bin/pair-session-watch" {
-		t.Fatalf("session watcher argv[0] = %q, want /pair/bin/pair-session-watch (no .sh)", got)
-	}
-	if len(sw) != 5 || sw[1] != "codex" || sw[2] != "work" || sw[3] != "/cwd" || sw[4] != "--no-alt-screen" {
-		t.Fatalf("session watcher argv = %v, want [.../pair-session-watch codex work /cwd --no-alt-screen]", sw)
+	sw := sessionWatcherArgv(exe, "codex", "work", "/cwd", []string{"--no-alt-screen"})
+	if len(sw) != 6 || sw[0] != exe || sw[1] != "session-watch" || sw[2] != "codex" || sw[3] != "work" || sw[4] != "/cwd" || sw[5] != "--no-alt-screen" {
+		t.Fatalf("session watcher argv = %v, want [%s session-watch codex work /cwd --no-alt-screen]", sw, exe)
 	}
 
-	// Guard the invariant explicitly: no sidecar target ends in ".sh".
+	// Guard the invariant explicitly: no sidecar target is a standalone helper
+	// binary or a .sh shim — it self-execs `pair` with a subcommand.
 	for _, argv := range [][]string{tp, sw} {
-		if strings.HasSuffix(argv[0], ".sh") {
-			t.Fatalf("sidecar spawn target must not be a .sh shim: %q", argv[0])
+		if strings.HasSuffix(argv[0], ".sh") || strings.HasSuffix(argv[0], "pair-title") || strings.HasSuffix(argv[0], "pair-session-watch") {
+			t.Fatalf("sidecar spawn target must self-exec pair, not a standalone binary: %q", argv[0])
 		}
 	}
 }
