@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -602,4 +603,37 @@ func contains(xs []string, want string) bool {
 		}
 	}
 	return false
+}
+
+var ansiEscapeRE = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+// stripANSI mimics fzf --ansi: the picker rows are ANSI-colored for display, but
+// fzf returns the plain text (which buildPickRows keys byPlain on).
+func stripANSI(s string) string { return ansiEscapeRE.ReplaceAllString(s, "") }
+
+// Repro (bug): `pair codex -- <codex-only args>` with history present routes to
+// the session picker (DecideLaunch ignores the agent). Picking an existing
+// CLAUDE tag is resume-by-name → the agent is inferred as claude, but the
+// codex-intended CLI args ride along onto claude, which chokes on them at launch.
+func TestRunLaunchPickInferredAgentMustNotInheritCliArgs(t *testing.T) {
+	rt := newFakeRuntime()
+	// A historical claude tag (base tag for cwd /home/u/work is "work").
+	rt.historical = []HistoricalTag{{Tag: "work", MTime: time.Unix(1_699_000_000, 0)}}
+	rt.inferAgent["work"] = "claude"
+	rt.uuids = []string{"SID"}
+	rt.pickFunc = func(header string, options []string) string {
+		return stripANSI(options[0]) // pick the historical claude row
+	}
+	opts := baseOpts(LaunchArgs{Agent: "codex", AgentArgs: []string{"--sandbox", "danger-full-access"}})
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.env["PAIR_AGENT"] != "claude" {
+		t.Fatalf("precondition: resume-by-name should infer claude, got %q", rt.env["PAIR_AGENT"])
+	}
+	// The codex-only args must NOT reach claude.
+	if strings.Contains(rt.env["PAIR_AGENT_ARGS"], "--sandbox") {
+		t.Fatalf("claude inherited codex CLI args: PAIR_AGENT_ARGS=%q", rt.env["PAIR_AGENT_ARGS"])
+	}
 }
