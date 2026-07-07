@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func TestHistorySourceScansCwdPrefixedDraftAndLogSidecars(t *testing.T) {
+func TestHistorySourceScansAllTagsInScopeDir(t *testing.T) {
 	dir := t.TempDir()
 	now := time.Unix(2000, 0)
 	for _, name := range []string{"draft-pair.md", "log-pair-old.md", "draft-other.md"} {
@@ -24,10 +24,10 @@ func TestHistorySourceScansCwdPrefixedDraftAndLogSidecars(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan returned error: %v", err)
 	}
-	if len(got) != 2 {
-		t.Fatalf("Scan returned %#v, want 2 pair-prefixed tags", got)
+	if len(got) != 3 {
+		t.Fatalf("Scan returned %#v, want all 3 scoped tags", got)
 	}
-	if got[0].Tag != "pair" || got[1].Tag != "pair-old" {
-		t.Fatalf("Scan returned %#v, want sorted pair tags", got)
+	if got[0].Tag != "other" || got[1].Tag != "pair" || got[2].Tag != "pair-old" {
+		t.Fatalf("Scan returned %#v, want sorted scoped tags", got)
 	}
 }

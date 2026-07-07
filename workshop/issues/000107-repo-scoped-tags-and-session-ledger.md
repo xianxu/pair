@@ -272,3 +272,10 @@ the normal saved-config picker because restart markers already selected args.
 Verified with `go test ./cmd/internal/launcher -run
 'TestRunLaunchRestartLoopNewSession|TestRunLaunchContinueReentry|Test.*Ledger|TestRunLaunch.*Latest|TestRunLaunchResumeUsesLedgerAgentAndArgsWhenConfigMissing|TestRunLaunchPickInferredAgentMustNotInheritCliArgs'`
 and `go test ./cmd/internal/launcher`.
+
+Started Task 6: `HistorySource` now treats its `DataDir` as the current repo
+scope directory and lists all tag sidecars there instead of filtering by cwd
+basename prefix. Picker row rendering accepts optional repo/agent metadata for
+annotated rows (`repo/tag  agent`) while preserving legacy text when metadata is
+absent. Verified with `go test ./cmd/internal/launcher -run
+'TestHistory|TestBuildPickRows'` and `go test ./cmd/internal/launcher`.

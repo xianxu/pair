@@ -22,7 +22,7 @@ func (s HistorySource) Scan(base string, cutoff time.Time) ([]HistoricalTag, err
 		}
 		for _, path := range matches {
 			tag, ok := tagFromSidecar(filepath.Base(path))
-			if !ok || !matchesHistoryBase(tag, base) {
+			if !ok {
 				continue
 			}
 			info, err := os.Stat(path)

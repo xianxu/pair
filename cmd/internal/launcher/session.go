@@ -13,8 +13,11 @@ const (
 
 // Session is a zellij session row projected into launcher decision space.
 type Session struct {
-	Name  string
-	State SessionState
+	Name     string
+	Tag      string
+	RepoName string
+	Agent    string
+	State    SessionState
 }
 
 // HistoricalTag is a recently touched Pair tag with no live zellij session.
@@ -24,6 +27,8 @@ type HistoricalTag struct {
 	Tag        string
 	MTime      time.Time // latest draft/log sidecar mtime (picker age grading)
 	QueueCount int       // queued prompts under queue-<tag>/ (picker badge)
+	RepoName   string
+	Agent      string
 }
 
 // SessionSnapshot is the pure input to launcher decision-making.

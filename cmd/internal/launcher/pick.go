@@ -37,7 +37,7 @@ func buildPickRows(snap SessionSnapshot, base string, nowEpoch int64) (display [
 	byPlain = map[string]pickSelection{}
 	live := map[string]bool{}
 	for _, s := range snap.Sessions {
-		live[strings.TrimPrefix(s.Name, "pair-")] = true
+		live[sessionTag(s)] = true
 	}
 
 	add := func(plain, colored string, sel pickSelection) {
@@ -49,14 +49,15 @@ func buildPickRows(snap SessionSnapshot, base string, nowEpoch int64) (display [
 		if s.State != SessionDetached {
 			continue
 		}
-		add(s.Name, ansiGreen+s.Name+ansiReset, pickSelection{tag: strings.TrimPrefix(s.Name, "pair-")})
+		plain := livePickLabel(s)
+		add(plain, ansiGreen+plain+ansiReset, pickSelection{tag: sessionTag(s)})
 	}
 
 	for _, h := range snap.Historical {
 		if live[h.Tag] {
 			continue // already surfaced as a live row
 		}
-		baseRow := fmt.Sprintf("pair-%s  (%s, no live session)", h.Tag, FormatAge(nowEpoch, h.MTime.Unix()))
+		baseRow := historicalPickLabel(h, nowEpoch)
 		badgePlain, badgeColored := "", ""
 		if h.QueueCount > 0 {
 			badgePlain = fmt.Sprintf("   [⏎ %d queued]", h.QueueCount)
@@ -69,6 +70,44 @@ func buildPickRows(snap SessionSnapshot, base string, nowEpoch int64) (display [
 	newLabel := fmt.Sprintf("+ new %s session", base)
 	add(newLabel, newLabel, pickSelection{isNew: true})
 	return display, byPlain
+}
+
+func sessionTag(s Session) string {
+	if s.Tag != "" {
+		return s.Tag
+	}
+	return strings.TrimPrefix(s.Name, "pair-")
+}
+
+func livePickLabel(s Session) string {
+	if s.RepoName != "" || s.Agent != "" {
+		agent := s.Agent
+		if agent == "" {
+			agent = "?"
+		}
+		repo := s.RepoName
+		if repo == "" {
+			repo = "?"
+		}
+		return fmt.Sprintf("%s/%s  %s  (detached)", repo, sessionTag(s), agent)
+	}
+	return s.Name
+}
+
+func historicalPickLabel(h HistoricalTag, nowEpoch int64) string {
+	age := FormatAge(nowEpoch, h.MTime.Unix())
+	if h.RepoName != "" || h.Agent != "" {
+		agent := h.Agent
+		if agent == "" {
+			agent = "?"
+		}
+		repo := h.RepoName
+		if repo == "" {
+			repo = "?"
+		}
+		return fmt.Sprintf("%s/%s  %s  (%s, no live session)", repo, h.Tag, agent, age)
+	}
+	return fmt.Sprintf("pair-%s  (%s, no live session)", h.Tag, age)
 }
 
 // resolvePick presents the picker and maps the choice into a concrete launch

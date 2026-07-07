@@ -59,6 +59,37 @@ func TestBuildPickRowsNoBadge(t *testing.T) {
 	}
 }
 
+func TestBuildPickRowsAnnotatesRepoAndAgent(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	snap := SessionSnapshot{
+		Sessions: []Session{{
+			Name:     "pair-pair-work",
+			Tag:      "work",
+			RepoName: "pair",
+			Agent:    "codex",
+			State:    SessionDetached,
+		}},
+		Historical: []HistoricalTag{{
+			Tag:        "old",
+			MTime:      now,
+			RepoName:   "pair",
+			Agent:      "claude",
+			QueueCount: 1,
+		}},
+	}
+	display, byPlain := buildPickRows(snap, "work", now.Unix())
+
+	if len(display) != 3 {
+		t.Fatalf("display rows = %d (%q), want live + historical + new", len(display), display)
+	}
+	if _, ok := byPlain["pair/work  codex  (detached)"]; !ok {
+		t.Fatalf("byPlain = %#v, want annotated live row", byPlain)
+	}
+	if _, ok := byPlain["pair/old  claude  (today, no live session)   [⏎ 1 queued]"]; !ok {
+		t.Fatalf("byPlain = %#v, want annotated historical row", byPlain)
+	}
+}
+
 // Picking a live detached session attaches it — and the agent is inferred from
 // the picked tag (resume-by-name), NOT the bare-`pair` claude default, so a
 // detached codex session attaches as codex.
