@@ -953,7 +953,7 @@ do
   -- nvim (Alt+d-style) so the branch happens in a real nvim, not a transient shell
   -- pane. A LIVE pane → flip visibility (`are-floating-panes-visible` →
   -- show/hide-floating-panes; never the toggle-floating-panes footgun). Otherwise
-  -- branch on the review target (seam #6): ready→open via pair-review-open,
+  -- branch on the review target (seam #6): ready→open via `pair review open`,
   -- proposed→"prep in progress", none→drop into `:PairReview ` (file-select). The
   -- review pane defines its own PairReviewToggle() (hide-self) for Alt+c from inside
   -- the focused floating pane. No has_ui() guard so the headless test records calls.
@@ -1371,7 +1371,7 @@ local function attach_image()
 end
 
 -- ---------------------------------------------------------------------------
--- PairPasteQuote: triggered from bin/clipboard-to-pane after a copy_command
+-- PairPasteQuote: triggered from `pair clip clipboard-to-pane` after a copy_command
 -- selection. The hand-off delivers the *raw* clipboard body via
 -- $PAIR_DATA_DIR/quote-<tag>; we decide the formatting here based on where
 -- the cursor is.
@@ -3325,7 +3325,7 @@ local COMPACT_PROMPT = table.concat({
   'Compact this session:',
   "1. Write a continuation doc for this session NOW by following this project's",
   '   continuation DATATYPE procedure — first flush key exchanges to pensive,',
-  '   then distill per that procedure and finalize with the pair-continuation',
+  '   then distill per that procedure and finalize with `pair continuation`',
   '   writer (workshop/continuation/). Choose a short slug.',
   '2. Then run:  pair continue <that-slug>',
   '   (or  pair-dev continue <that-slug>  if this is a dev checkout)',
@@ -3346,7 +3346,7 @@ end
 
 -- :PairTTYRawPath / _G.PairTTYRawPath() — print THIS session's raw scrollback
 -- path (the VT byte stream pair-wrap --scrollback-log captures; the substrate
--- pair-scrollback-render replays). It lives in the XDG data dir, NOT the repo,
+-- `pair scrollback render` replays). It lives in the XDG data dir, NOT the repo,
 -- and is RAW bytes, not cleaned text. Grab it mid-session while the file is
 -- live — at Alt+x quit it's deleted unless preserved (see cleanup_quit_marker),
 -- and the next same-tag launch O_TRUNCs it. The path is copied to the + register.

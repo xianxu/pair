@@ -1,4 +1,4 @@
--- nvim/scrollback.lua — read-only viewer for pair-scrollback-render output.
+-- nvim/scrollback.lua — read-only viewer for `pair scrollback render` output.
 --
 -- Loaded via `nvim -u $PAIR_HOME/nvim/scrollback.lua <path-to-.ansi>`.
 -- The .ansi file has SGR escapes inline (`\x1b[...m`); this init strips
