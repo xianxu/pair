@@ -1,12 +1,13 @@
 ---
 id: 000110
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-07
 updated: 2026-07-07
 estimate_hours: 0.5
 started: 2026-07-07T21:15:56-07:00
+actual_hours: 0.06
 ---
 
 # launcher cannot resume selected scoped codex session
@@ -62,6 +63,7 @@ total: 0.50
 ## Log
 
 ### 2026-07-07
+- 2026-07-07: closed — Root cause fixed by reusing transcript.Resolve for Codex nested rollout session discovery; RED verified with go test ./cmd/internal/launcher -run TestOSRuntimeAgentSessionExistsFindsNestedCodexRollout -count=1 before fix; GREEN verified with focused regression, go test ./cmd/internal/launcher -count=1, go test ./..., and git diff --check. No atlas update: existing atlas/session-identity.md already documents Codex session identity/storage and this only corrects a runtime probe to match it.; review verdict: SHIP
 - Created and claimed from a live report: after exiting a `pair-misc` Codex
   session, bare `pair` can select the scoped tag/agent but then finds no
   historical session to attach/resume. Investigation points to Codex
