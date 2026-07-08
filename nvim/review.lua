@@ -452,6 +452,7 @@ local pending_records = nil
 local pending_definition = nil
 local definition_timer = nil
 local write_review_context
+local DEF_PENDING = vim.api.nvim_create_namespace('review_definition_pending')
 
 -- Track pane focus for the gate (case 2: not focused → apply immediately). Terminal
 -- focus events may not fire on a zellij pane switch — the failure mode is benign
@@ -568,18 +569,45 @@ local function stop_definition_poll()
   end
 end
 
+local function clear_pending_definition(buf)
+  if pending_definition and pending_definition.mark_id then
+    pcall(vim.api.nvim_buf_del_extmark, buf, DEF_PENDING, pending_definition.mark_id)
+  end
+  pending_definition = nil
+end
+
+local function pending_definition_range(buf)
+  if pending_definition and pending_definition.mark_id then
+    local mark = vim.api.nvim_buf_get_extmark_by_id(buf, DEF_PENDING, pending_definition.mark_id, { details = true })
+    if mark and #mark >= 3 and mark[3] and mark[3].end_row and mark[3].end_col then
+      return mark[1] + 1, mark[2], mark[3].end_row + 1, mark[3].end_col - 1
+    end
+  end
+  return pending_definition.l1, pending_definition.c1, pending_definition.l2, pending_definition.c2
+end
+
 local function apply_definition_result(buf)
   local result = definition_seam.read_result(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
   if not result or not pending_definition then return false end
   if result.request_id ~= pending_definition.request_id then return false end
   local base = buf_content(buf)
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local l1, c1, l2, c2 = pending_definition_range(buf)
+  local current_term = define.slice_selection(lines, l1, c1, l2, c2):gsub('^%s*(.-)%s*$', '%1')
+  if current_term ~= pending_definition.term then
+    vim.notify('review: definition selection changed; request ignored', vim.log.levels.WARN)
+    clear_pending_definition(buf)
+    definition_seam.clear_result(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
+    clear_awaiting()
+    stop_definition_poll()
+    return false
+  end
   local applied = define.apply_definition_footnote(
     lines,
-    pending_definition.l1,
-    pending_definition.c1,
-    pending_definition.l2,
-    pending_definition.c2,
+    l1,
+    c1,
+    l2,
+    c2,
     result.term or pending_definition.term,
     result.definition
   )
@@ -591,7 +619,7 @@ local function apply_definition_result(buf)
     review.rehydrate_definitions(buf)
     render_active_diagnostic(buf)
   end)
-  pending_definition = nil
+  clear_pending_definition(buf)
   definition_seam.clear_result(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
   clear_awaiting()
   stop_definition_poll()
@@ -632,6 +660,13 @@ local function request_definition(buf, file, start_pos, end_pos, opts)
     vim.notify('review: could not write definition request', vim.log.levels.ERROR)
     return nil
   end
+  clear_pending_definition(buf)
+  local mark_id = vim.api.nvim_buf_set_extmark(buf, DEF_PENDING, srow - 1, scol, {
+    end_row = erow - 1,
+    end_col = ecol + 1,
+    right_gravity = false,
+    end_right_gravity = true,
+  })
   pending_definition = {
     request_id = request.request_id,
     term = term,
@@ -639,6 +674,7 @@ local function request_definition(buf, file, start_pos, end_pos, opts)
     c1 = scol,
     l2 = erow,
     c2 = ecol,
+    mark_id = mark_id,
   }
   if opts.poke ~= false then
     if poke.send(poke_bodies.definition_requested(request.file, request.request_id, term)) then

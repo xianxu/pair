@@ -1,12 +1,13 @@
 ---
 id: 000112
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-08
 updated: 2026-07-08
 estimate_hours: 3.30
 started: 2026-07-08T14:24:21-07:00
+actual_hours: 1.29
 ---
 
 # review pane inline definitions
@@ -105,6 +106,7 @@ total: 3.30
 ## Log
 
 ### 2026-07-08
+- 2026-07-08: closed — Fixed close-review REWORK rounds for visual selection, stripped continued-review context, CLI write errors, docs, managed-footer shape, multi-word phrase rehydration, and undo/redo projection. Verified with nvim -l nvim/review/define_test.lua, bash tests/review-definition-test.sh, make test-lua, make test-review, go test ./..., git diff --check, and full make test; after final projection fix reran make test-lua, make test-review, and git diff --check.; review verdict: FIX-THEN-SHIP
 - Close review returned REWORK for four issues: visual mark end-column handling,
   continued-review context still exposing the managed footnote footer, ignored
   `pair review definition` atomic-write errors, and missing README docs. Added
@@ -127,6 +129,11 @@ total: 3.30
   definition extmarks/diagnostics. Added a projected mutation wrapper for
   definition apply, opened a fresh undo block for the buffer rewrite, and added
   a real undo/redo regression in the review-definition integration test.
+- Close review then returned FIX-THEN-SHIP for stale pending coordinates when
+  the buffer changes before a definition result arrives. Pending selections now
+  track an extmark, apply resolves the live extmark range and validates the term
+  before mutating, and the integration test covers inserting text before the
+  selection while a request is pending.
 - Updated `atlas/review-workbench.md` for the definition keybinding,
   request/result seam, durable footnote storage, exact-span rendering, and
   projection behavior. Ran `make runtimebundle-generate`; generated runtime was

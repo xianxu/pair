@@ -58,6 +58,24 @@ ok(content(buf):match('ASIN%[%^asin%] in context') ~= nil,
 vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'here is ASIN in context' })
 apply.clear_all(buf)
 
+local stale_req = _G.PairReviewPane.request_definition(buf, file, { 1, 8 }, { 1, 11 }, { poke = false })
+vim.api.nvim_buf_set_text(buf, 0, 0, 0, 0, { 'PREFIX ' })
+local stale_result = os.getenv('PAIR_DATA_DIR') .. '/review-definition-result-def.json'
+vim.fn.writefile({
+  vim.json.encode({
+    request_id = stale_req.request_id,
+    term = 'ASIN',
+    definition = 'Shifted definition.',
+    session = 'sid',
+  })
+}, stale_result)
+ok(_G.PairReviewPane.apply_definition_result(buf) == true, 'shifted pending result applies')
+ok(content(buf):match('PREFIX here is ASIN%[%^asin%] in context') ~= nil,
+  'pending definition follows inserted text before selection')
+
+vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'here is ASIN in context' })
+apply.clear_all(buf)
+
 local req = _G.PairReviewPane.request_definition(buf, file, { 1, 8 }, { 1, 11 }, { poke = false })
 ok(type(req) == 'table' and req.request_id ~= nil and req.term == 'ASIN', 'request helper returns request metadata')
 local req_path = os.getenv('PAIR_DATA_DIR') .. '/review-definition-request-def.json'
