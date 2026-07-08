@@ -19,7 +19,8 @@ func TestExtractExplicitResume(t *testing.T) {
 		{"agy inline form", "agy", []string{"--conversation=conv-inline"}, "conv-inline"},
 		{"agy legacy resume", "agy", []string{"--resume", "old-a"}, "old-a"},
 		{"codex leading resume", "codex", []string{"resume", "cx-2", "--search"}, "cx-2"},
-		{"codex resume not leading", "codex", []string{"--search", "resume", "cx-2"}, ""},
+		{"codex global option before resume", "codex", []string{"--search", "resume", "cx-2"}, "cx-2"},
+		{"codex prompt before resume", "codex", []string{"please", "resume", "cx-2"}, ""},
 		{"codex resume no id", "codex", []string{"resume"}, ""},
 		{"unknown agent", "gemini", []string{"--resume", "z"}, ""},
 	}

@@ -56,8 +56,8 @@ func buildConfigJSON(agent string, args []string, sid string) (string, error) {
 func extractExplicitResume(agent string, args []string) string {
 	switch agent {
 	case "codex":
-		if len(args) >= 2 && args[0] == "resume" && args[1] != "" {
-			return args[1]
+		if i := codexResumeCommandIndex(args); i >= 0 {
+			return args[i+1]
 		}
 	case "claude", "agy":
 		prev := ""

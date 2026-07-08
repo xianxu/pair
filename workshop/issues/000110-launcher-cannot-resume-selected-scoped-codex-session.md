@@ -1,13 +1,12 @@
 ---
 id: 000110
-status: codecomplete
+status: working
 deps: []
 github_issue:
 created: 2026-07-07
 updated: 2026-07-07
 estimate_hours: 0.5
 started: 2026-07-07T21:15:56-07:00
-actual_hours: 0.06
 ---
 
 # launcher cannot resume selected scoped codex session
@@ -37,12 +36,21 @@ offers a resume option. The fix should not invent a new ledger model or picker
 path; it should make the existing saved-config/ledger path correctly validate
 Codex's on-disk native session artifact.
 
+Codex resume detection must also recognize Codex's own CLI grammar:
+`codex [OPTIONS] resume <session>`. A manual or saved Pair invocation such as
+`pair-dev codex -- --sandbox danger-full-access resume <sid>` must be treated as
+an explicit resume and must persist clean args with the resume binding stripped,
+because `session_id` is the canonical stored binding (`ARCH-PURPOSE`,
+`ARCH-DRY`).
+
 ## Done when
 
 - A regression test fails on the current direct-child Codex glob and passes for
   a nested `~/.codex/sessions/YYYY/MM/DD/rollout-...<sid>.jsonl` file.
 - A saved Codex config/ledger entry with that sid is considered resumable, so
   the tag-restart picker can offer "use saved params + session".
+- Codex explicit resume is detected and stripped when valid Codex global options
+  precede `resume <sid>`, preventing duplicate resume tokens in saved config.
 - Launcher tests pass.
 
 ## Estimate
@@ -58,7 +66,17 @@ total: 0.50
 
 - [x] Add a failing test for nested Codex session existence.
 - [x] Update the Codex native-session probe to search the nested rollout shape.
+- [x] Add a failing test for Codex global options before `resume <sid>`.
+- [x] Update Codex resume detection/persistence to parse that valid argv shape.
 - [x] Run focused launcher tests and a wider regression command.
+
+## Revisions
+
+- 2026-07-07T21:45:00-07:00 — live retest showed a second root cause: the first
+  failed bare `pair` run likely used the pre-fix binary, and the workaround
+  `pair-dev codex -- --sandbox danger-full-access resume <sid>` exposed that
+  Pair only recognized Codex `resume <sid>` when it was args[0..1]. Expand scope
+  to cover Codex global options before the `resume` command.
 
 ## Log
 
@@ -76,4 +94,22 @@ total: 0.50
   `transcript.Resolve("codex", ...)` (`ARCH-DRY`, `ARCH-PURE`), then the focused
   regression and `go test ./cmd/internal/launcher -count=1` passed.
 - Wider verification passed: `go test ./...`; whitespace verification passed:
+  `git diff --check`.
+- Reopened from `codecomplete` after live retest. Evidence from
+  `/Users/xianxu/.local/share/pair/repos/e108517d46ab4575`: config and ledger
+  recorded `session_id=019f3feb-29f5-7940-a976-cb1d1ce13d0f`, but the manual
+  workaround persisted args containing `--sandbox danger-full-access resume
+  <sid> --no-alt-screen`, proving Codex resume detection/stripping missed valid
+  global-options-before-command argv.
+- RED: focused launcher argument tests failed for `--sandbox danger-full-access
+  resume <sid>`: explicit resume was not detected and persisted config args kept
+  the embedded resume token. GREEN: Codex resume command scanning now consumes
+  known Codex global options before `resume <sid>` and is reused by explicit
+  resume detection plus persisted-arg stripping (`ARCH-DRY`).
+- Added live-shape regression for an already-polluted saved Codex config; the
+  tag-restart picker now composes exactly `resume <sid> --sandbox
+  danger-full-access --no-alt-screen`. Verification passed:
+  `go test ./cmd/internal/launcher -run
+  'TestStripCodexResumeSubcommand|TestExtractExplicitResumeCodexAllowsGlobalOptionsBeforeCommand|TestPersistedConfigArgsStripsBinding|TestExtractExplicitResume|TestOSRuntimeAgentSessionExistsFindsNestedCodexRollout'
+  -count=1`, `go test ./cmd/internal/launcher -count=1`, `go test ./...`, and
   `git diff --check`.
