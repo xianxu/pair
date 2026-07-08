@@ -572,6 +572,7 @@ local function apply_definition_result(buf)
   local result = definition_seam.read_result(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
   if not result or not pending_definition then return false end
   if result.request_id ~= pending_definition.request_id then return false end
+  local base = buf_content(buf)
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   local applied = define.apply_definition_footnote(
     lines,
@@ -582,11 +583,16 @@ local function apply_definition_result(buf)
     result.term or pending_definition.term,
     result.definition
   )
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, applied.lines)
+  review.projected_mutation(buf, base, function()
+    vim.api.nvim_buf_call(buf, function()
+      vim.cmd('silent! let &undolevels = &undolevels')
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, applied.lines)
+    end)
+    review.rehydrate_definitions(buf)
+    render_active_diagnostic(buf)
+  end)
   pending_definition = nil
   definition_seam.clear_result(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
-  review.rehydrate_definitions(buf)
-  render_active_diagnostic(buf)
   clear_awaiting()
   stop_definition_poll()
   pcall(function() vim.cmd('silent keepalt write') end)

@@ -122,6 +122,11 @@ total: 3.30
   only the final word plus footnote ref. Reworked pure span derivation to find
   the preceding suffix whose `footnote_id` matches the ref id and added a
   multi-word phrase regression.
+- Fourth close review returned REWORK because definition application bypassed
+  the projection state machine; undo could remove the text while leaving stale
+  definition extmarks/diagnostics. Added a projected mutation wrapper for
+  definition apply, opened a fresh undo block for the buffer rewrite, and added
+  a real undo/redo regression in the review-definition integration test.
 - Updated `atlas/review-workbench.md` for the definition keybinding,
   request/result seam, durable footnote storage, exact-span rendering, and
   projection behavior. Ran `make runtimebundle-generate`; generated runtime was

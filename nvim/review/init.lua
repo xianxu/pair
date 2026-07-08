@@ -143,6 +143,19 @@ function M.clear_decorations(buf)
   projection.reset(buf)
 end
 
+function M.projected_mutation(buf, base_content, mutate)
+  projection.set_applying(buf, true)
+  local ok, err = pcall(mutate)
+  if not ok then
+    projection.set_applying(buf, false)
+    error(err)
+  end
+  projection.record_empty_for(buf, base_content)
+  projection.record(buf)
+  projection.ensure_watch(buf)
+  projection.set_applying(buf, false)
+end
+
 function M.rehydrate_definitions(buf)
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   apply.place_definitions(buf, define.footnote_diagnostics(lines))

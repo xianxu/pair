@@ -90,6 +90,25 @@ local diags = vim.diagnostic.get(buf, { namespace = apply.DIAG })
 ok(#diags == 1 and diags[1].lnum == 0 and diags[1].col == 8 and diags[1].end_col == 19
   and diags[1].message:match('ASIN') and diags[1].message:match('Amazon Standard'),
   'definition diagnostic uses exact span and stored definition')
+vim.api.nvim_buf_call(buf, function() vim.cmd('silent undo') end)
+vim.api.nvim_exec_autocmds('TextChanged', { buffer = buf })
+ok(content(buf) == 'here is ASIN in context', 'undo removes definition text')
+ok(#vim.api.nvim_buf_get_extmarks(buf, apply.DEF_HL, 0, -1, {}) == 0,
+  'undo clears definition highlights through projection')
+ok(#vim.diagnostic.get(buf, { namespace = apply.DIAG }) == 0,
+  'undo clears definition diagnostics through projection')
+vim.api.nvim_buf_call(buf, function() vim.cmd('silent redo') end)
+vim.api.nvim_exec_autocmds('TextChanged', { buffer = buf })
+ok(content(buf) == table.concat({
+  'here is ASIN[^asin] in context',
+  '',
+  '---',
+  '',
+  '[^asin]: Amazon Standard Identification Number.',
+}, '\n'), 'redo restores definition text')
+marks = vim.api.nvim_buf_get_extmarks(buf, apply.DEF_HL, 0, -1, { details = true })
+ok(#marks == 1 and marks[1][3] == 8 and marks[1][4].end_col == 19,
+  'redo restores definition highlight through projection')
 
 local req2 = _G.PairReviewPane.request_definition(buf, file, { 1, 8 }, { 1, 11 }, { poke = false })
 local request_doc2 = read_json(req_path)
