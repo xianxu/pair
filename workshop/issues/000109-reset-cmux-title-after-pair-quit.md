@@ -25,6 +25,10 @@ workspace.
   - title-poller format: `tag<TAB>public-session`
 - Keep the existing cleanup flow: only reset the cmux workspace title when this
   pair owns the workspace, then clear the owner record (ARCH-DRY, ARCH-PURE).
+- Do not loosen ownership to "any cmux owner file exists": a foreign live pair
+  must still prevent this session from resetting a shared workspace title.
+- The reset title remains the current launcher behavior: the basename of the
+  shell cwd, with the existing fallback for empty/root paths.
 
 ## Done when
 
