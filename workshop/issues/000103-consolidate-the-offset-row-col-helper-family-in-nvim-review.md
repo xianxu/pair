@@ -1,12 +1,13 @@
 ---
 id: 000103
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-05
 updated: 2026-07-07
 estimate_hours: 0.75
 started: 2026-07-07T22:18:55-07:00
+actual_hours: 0.27
 ---
 
 # consolidate the offset→(row,col) helper family in nvim/review
@@ -89,6 +90,7 @@ total: 0.75
 ### 2026-07-05
 
 ### 2026-07-07
+- 2026-07-07: closed — RED: nvim -l nvim/review/reconstruct_test.lua failed on missing line_starts before implementation. GREEN: nvim -l nvim/review/reconstruct_test.lua, nvim -l nvim/review/markers_test.lua, and nvim -l nvim/review/reconcile_test.lua passed. Final verification: make test-lua passed; make test-review passed; git diff --check HEAD~1..HEAD passed. No atlas update: pure internal consolidation of existing nvim/review offset helper behavior, no new surface.; review verdict: SHIP
 
 - Claimed and entered planning. Scope stays within the existing issue plan:
   consolidate duplicated offset helpers into pure `reconstruct.lua`
