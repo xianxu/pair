@@ -7,7 +7,7 @@ created: 2026-07-08
 updated: 2026-07-08
 estimate_hours: 3.30
 started: 2026-07-08T14:24:21-07:00
-actual_hours: 1.29
+actual_hours: 1.72
 ---
 
 # review pane inline definitions
@@ -106,6 +106,7 @@ total: 3.30
 ## Log
 
 ### 2026-07-08
+- 2026-07-08: closed — Reclosed after addressing FIX-THEN-SHIP stale pending-selection finding. Pending definitions now track extmarks and validate live term before apply. Verified with bash tests/review-definition-test.sh, make test-lua, make test-review, git diff --check, prior go test ./... and full make test.; review verdict: SHIP
 - 2026-07-08: closed — Fixed close-review REWORK rounds for visual selection, stripped continued-review context, CLI write errors, docs, managed-footer shape, multi-word phrase rehydration, and undo/redo projection. Verified with nvim -l nvim/review/define_test.lua, bash tests/review-definition-test.sh, make test-lua, make test-review, go test ./..., git diff --check, and full make test; after final projection fix reran make test-lua, make test-review, and git diff --check.; review verdict: FIX-THEN-SHIP
 - Close review returned REWORK for four issues: visual mark end-column handling,
   continued-review context still exposing the managed footnote footer, ignored
