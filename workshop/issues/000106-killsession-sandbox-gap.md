@@ -1,6 +1,6 @@
 ---
 id: 000106
-status: open
+status: wontfix
 deps: []
 github_issue:
 created: 2026-07-07
@@ -62,9 +62,15 @@ plan):
 
 ## Plan
 
-- [ ]
+- [x] Mark stale as wontfix after confirming the normal `Alt+Shift+C`
+      continuation/restart workflow now succeeds.
 
 ## Log
 
 ### 2026-07-07
+- 2026-07-07: wontfix — stale as written. The reported operator workflow now
+  succeeds in normal use: `Alt+Shift+C` writes the continuation and restarts pair
+  after capture completes. Pair has not landed the larger self-contained
+  outside-sandbox teardown design; the observed failure no longer reproduces in
+  the current environment, so this issue is no longer actionable.
 - Filed from #105. Root cause isolated there: detection fixed (`PAIR_FAKE_IN_ZELLIJ`), but `zellij kill-session` can't reach the server socket from the sandboxed agent shell; restart completes only when the writer runs unsandboxed. This issue tracks closing that last gap.
