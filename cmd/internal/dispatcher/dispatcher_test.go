@@ -48,6 +48,7 @@ func TestResolveNestedFlatAndAlias(t *testing.T) {
 		wantOK   bool
 	}{
 		{[]string{"review", "open", "f"}, "review open", []string{"f"}, true},
+		{[]string{"review", "definition", "req", "text"}, "review definition", []string{"req", "text"}, true},
 		{[]string{"scrollback", "render"}, "scrollback render", []string{}, true},
 		{[]string{"clip", "copy-on-select", "--orchestrate"}, "clip copy-on-select", []string{"--orchestrate"}, true},
 		{[]string{"context", "T", "claude"}, "context", []string{"T", "claude"}, true},

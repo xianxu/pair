@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // RunTargetCLI is the pair-review-target command body.
@@ -20,6 +21,28 @@ func RunTargetCLI(args []string, getenv func(string) string, stdout, stderr io.W
 		Agent:     getenv("PAIR_AGENT"),
 		DataDir:   getenv("PAIR_DATA_DIR"),
 		SessionID: getenv("PAIR_SESSION_ID"),
+	}, NewOSRuntime(), stdout, stderr)
+}
+
+// RunDefinitionCLI is the pair-review-definition command body.
+func RunDefinitionCLI(args []string, getenv func(string) string, stdout, stderr io.Writer) int {
+	term := ""
+	if len(args) >= 2 && args[0] == "--term" {
+		term = args[1]
+		args = args[2:]
+	}
+	if len(args) < 2 {
+		fmt.Fprintf(stderr, "usage: pair-review-definition [--term TERM] <request-id> <definition...>\n")
+		return 2
+	}
+	return RunDefinition(DefinitionOptions{
+		RequestID:  args[0],
+		Term:       term,
+		Definition: strings.Join(args[1:], " "),
+		Tag:        getenv("PAIR_TAG"),
+		Agent:      getenv("PAIR_AGENT"),
+		DataDir:    getenv("PAIR_DATA_DIR"),
+		SessionID:  getenv("PAIR_SESSION_ID"),
 	}, NewOSRuntime(), stdout, stderr)
 }
 

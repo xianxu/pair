@@ -107,6 +107,57 @@ func TestRunTargetInvalidStatus(t *testing.T) {
 	}
 }
 
+func definitionOf(t *testing.T, rt *fakeRuntime, tag string) definitionDoc {
+	t.Helper()
+	var d definitionDoc
+	path := "/dd/review-definition-result-" + tag + ".json"
+	if err := json.Unmarshal([]byte(rt.wrote[path]), &d); err != nil {
+		t.Fatalf("definition json: %v (%q)", err, rt.wrote[path])
+	}
+	return d
+}
+
+func TestRunDefinitionWritesResult(t *testing.T) {
+	rt := newFake()
+	code := RunDefinition(DefinitionOptions{
+		RequestID:  "req-123",
+		Term:       "ASIN",
+		Definition: "Amazon Standard Identification Number.",
+		Tag:        "t",
+		Agent:      "codex",
+		DataDir:    "/dd",
+		SessionID:  "envsid",
+	}, rt, &bytes.Buffer{}, &bytes.Buffer{})
+	if code != 0 {
+		t.Fatalf("code = %d, want 0", code)
+	}
+	d := definitionOf(t, rt, "t")
+	if d.RequestID != "req-123" || d.Term != "ASIN" || d.Definition != "Amazon Standard Identification Number." || d.Session != "envsid" {
+		t.Fatalf("definition = %+v", d)
+	}
+}
+
+func TestRunDefinitionValidation(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		opts DefinitionOptions
+	}{
+		{name: "missing data dir", opts: DefinitionOptions{RequestID: "r", Definition: "d"}},
+		{name: "missing request", opts: DefinitionOptions{DataDir: "/dd", Definition: "d"}},
+		{name: "missing definition", opts: DefinitionOptions{DataDir: "/dd", RequestID: "r"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rt := newFake()
+			if code := RunDefinition(tc.opts, rt, &bytes.Buffer{}, &bytes.Buffer{}); code == 0 {
+				t.Fatalf("code = 0, want failure")
+			}
+			if len(rt.wrote) != 0 {
+				t.Fatalf("unexpected writes: %+v", rt.wrote)
+			}
+		})
+	}
+}
+
 // gitScript maps a git subcommand (args[0]) to (out, err) — enough to drive the
 // readiness fact-gathering + prepare effects.
 func gitScript(m map[string]struct {

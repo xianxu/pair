@@ -96,7 +96,7 @@ total: 3.30
 ## Plan
 
 - [x] Add pure definition-footnote helpers and tests under `nvim/review/`.
-- [ ] Add the `pair review definition` response helper and tests.
+- [x] Add the `pair review definition` response helper and tests.
 - [ ] Wire review-pane visual definition request/result handling, durable
       rendering, and projection/reopen rehydration.
 - [ ] Strip managed definition footers from review agent context/poke bodies.
@@ -105,6 +105,13 @@ total: 3.30
 ## Log
 
 ### 2026-07-08
+- TDD Chunk 2: `go test ./cmd/internal/reviewcmd ./cmd/internal/dispatcher
+  -count=1` first failed on missing `DefinitionOptions`, `definitionDoc`,
+  `RunDefinition`, and `review definition` dispatch resolution. Added the
+  `pair review definition [--term TERM] <request-id> <definition...>` result
+  writer, using the existing review session priority and atomic data-dir seam.
+  GREEN: `go test ./cmd/internal/reviewcmd ./cmd/internal/dispatcher -count=1`
+  passed.
 - TDD Chunk 1: `nvim -l nvim/review/define_test.lua` first failed because
   `nvim/review/define.lua` was missing. Added pure definition helpers for
   selection slicing, footnote id/formatting, managed footer insertion/update,
