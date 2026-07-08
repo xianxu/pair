@@ -779,7 +779,7 @@ fzf renders each option multi-line via `--read0` so long args / full session ids
 
 - claude — flag style. Strip any pre-existing `--resume <X>` from saved args, then append `--resume <session_id>`.
 - agy — flag style. Strip any pre-existing `--conversation <X>` from saved args, then append `--conversation <session_id>`.
-- codex — subcommand. `codex resume <id>` is the syntax, so prepend `resume <id>` ahead of any saved flags. The strip phase also drops a leading `resume <X>` at args[0..1] from saved args (the codex case where the user originally launched with `codex resume <foo>`).
+- codex — subcommand. `codex [OPTIONS] resume <id>` is the syntax, so strip any saved `resume <X>` command after recognized Codex global options, then prepend the canonical `resume <session_id>` ahead of the cleaned saved flags. This covers both `codex resume <foo>` and launches such as `codex --sandbox danger-full-access resume <foo>`.
 
 The shape `compose = saved_args (stripped of any prior resume tokens) + agent's resume invocation` keeps the composed line idempotent under repeated restarts.
 

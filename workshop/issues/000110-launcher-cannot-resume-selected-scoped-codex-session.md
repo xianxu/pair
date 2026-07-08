@@ -81,6 +81,7 @@ total: 0.50
 ## Log
 
 ### 2026-07-07
+- 2026-07-07: closed — Fixed both #107 resume regressions: Codex native session existence uses transcript.Resolve for nested rollout files, and Codex resume detection now supports valid 'codex [OPTIONS] resume <sid>' argv while stripping that binding from saved config args. RED/GREEN covered nested rollout discovery, global-options-before-resume explicit detection, persisted-arg stripping, and an already-polluted saved config composing exactly one resume token. Verified with focused launcher tests, go test ./cmd/internal/launcher -count=1, go test ./..., git diff --check, and rebuilt bin/pair via make build for live retest. No atlas update: this corrects existing documented session identity behavior, no new surface.; review verdict: FIX-THEN-SHIP
 - 2026-07-07: closed — Root cause fixed by reusing transcript.Resolve for Codex nested rollout session discovery; RED verified with go test ./cmd/internal/launcher -run TestOSRuntimeAgentSessionExistsFindsNestedCodexRollout -count=1 before fix; GREEN verified with focused regression, go test ./cmd/internal/launcher -count=1, go test ./..., and git diff --check. No atlas update: existing atlas/session-identity.md already documents Codex session identity/storage and this only corrects a runtime probe to match it.; review verdict: SHIP
 - Created and claimed from a live report: after exiting a `pair-misc` Codex
   session, bare `pair` can select the scoped tag/agent but then finds no
@@ -113,3 +114,6 @@ total: 0.50
   'TestStripCodexResumeSubcommand|TestExtractExplicitResumeCodexAllowsGlobalOptionsBeforeCommand|TestPersistedConfigArgsStripsBinding|TestExtractExplicitResume|TestOSRuntimeAgentSessionExistsFindsNestedCodexRollout'
   -count=1`, `go test ./cmd/internal/launcher -count=1`, `go test ./...`, and
   `git diff --check`.
+- Boundary review returned FIX-THEN-SHIP for one stale atlas consumer:
+  `atlas/architecture.md` still described Codex stripping as args[0..1] only.
+  Updated it to document `codex [OPTIONS] resume <sid>`.

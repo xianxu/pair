@@ -10,53 +10,53 @@
 | window | 9213a7329049a81cb457a20d6dcad03fd0dfad23..HEAD |
 | command | sdlc close --issue 110 |
 | reviewer | codex |
-| timestamp | 2026-07-07T21:21:15-07:00 |
-| verdict | SHIP |
+| timestamp | 2026-07-07T21:55:00-07:00 |
+| verdict | FIX-THEN-SHIP |
 
 ## Verdict
 
 ```verdict
-verdict: SHIP
+verdict: FIX-THEN-SHIP
 confidence: high
 ```
 
 ## Summary
 
-The diff delivers the issue's stated purpose: Codex session existence now reuses
-the shared transcript resolver, which finds the nested
-`~/.codex/sessions/YYYY/MM/DD/rollout-*<sid>*.jsonl` shape, and the launcher
-resume picker already consumes `AgentSessionExists` to expose the saved-session
-option. No blocking or non-blocking findings were reported.
+The code change delivers the issue behavior: Codex nested rollout session files
+are recognized through the shared transcript resolver, and
+`codex [OPTIONS] resume <sid>` is detected and stripped for persisted config
+args. The review found one docs-gate miss: `atlas/architecture.md` still
+documented the old args[0..1]-only Codex strip rule.
 
 ## Findings
 
 - Critical: none.
-- Important: none.
+- Important: `atlas/architecture.md` needed to document that Pair strips
+  `resume <X>` after recognized Codex global options, then prepends the
+  canonical `resume <session_id>`.
 - Minor: none.
 
-## Strengths
+## Resolution
 
-- `cmd/internal/launcher/osruntime.go` reuses `transcript.Resolve` instead of
-  adding a second Codex path convention (`ARCH-DRY`).
-- `cmd/internal/launcher/osruntime_test.go` pins the real nested rollout path
-  that caused the regression.
-- Existing picker tests confirm resumable sessions produce `use saved params +
-  session` and compose Codex `resume <sid>` correctly.
+Updated `atlas/architecture.md` to describe `codex [OPTIONS] resume <id>` and
+the corresponding strip-then-prepend behavior.
 
 ## Verification
 
 - `go test ./cmd/internal/launcher -count=1`
+- `go test ./cmd/internal/transcript -count=1`
 - `go test ./...`
 - `git diff --check 9213a7329049a81cb457a20d6dcad03fd0dfad23..HEAD`
 
 ## Architecture
 
-- `ARCH-DRY`: pass. Codex path discovery is centralized through
-  `cmd/internal/transcript`.
-- `ARCH-PURE`: pass. The IO remains in the runtime boundary; picker logic stays
-  behind the existing `AgentSessionExists` seam.
-- `ARCH-PURPOSE`: pass. The fix addresses the stated launcher resume failure
-  without adding a new ledger or picker path.
+- `ARCH-DRY`: pass in code; Codex path discovery now uses the shared transcript
+  resolver and Codex resume parsing is shared by explicit-resume detection and
+  persisted-arg stripping.
+- `ARCH-PURE`: pass; argv grammar logic stays pure and filesystem checks remain
+  at the runtime boundary.
+- `ARCH-PURPOSE`: pass after the atlas update; the documented consumer now
+  matches the delivered resume behavior.
 
 ## Plan Revisions
 
