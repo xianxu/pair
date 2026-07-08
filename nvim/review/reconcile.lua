@@ -89,19 +89,6 @@ local function split_lines(s)
   return out
 end
 
--- Positional occurrence index of `needle` at 1-based byte offset `at` in `hay`:
--- non-overlapping count of matches strictly before `at`, +1. So a synthetic
--- record anchors the SPECIFIC v1 hunk region even when its text repeats elsewhere.
-local function occurrence_at(hay, needle, at)
-  local n, from = 0, 1
-  while needle ~= '' do
-    local s, e = hay:find(needle, from, true)
-    if not s or s >= at then break end
-    n = n + 1; from = e + 1
-  end
-  return n + 1
-end
-
 local MAX_HUNK_LINES = 200
 
 -- Nearest NON-EMPTY line to `start_idx` (1-based). Checks start_idx itself first
@@ -133,8 +120,7 @@ end
 -- (synth, folded).
 function M.plan_conflicts(conflicts, v0, v1, hunks, clean)
   local v1_lines = split_lines(v1)
-  local v1_starts, off = {}, 1
-  for i, line in ipairs(v1_lines) do v1_starts[i] = off; off = off + #line + 1 end
+  local v1_starts = reconstruct.line_starts(v1_lines)
 
   -- group conflicts by the hunk their v0 line-span intersects (fallback: own group)
   local groups, order = {}, {}
@@ -223,7 +209,7 @@ function M.plan_conflicts(conflicts, v0, v1, hunks, clean)
 
     synth[#synth + 1] = {
       old = anchor_old,
-      occurrence = occurrence_at(v1, anchor_old, anchor_at),
+      occurrence = reconstruct.occurrence_at(v1, anchor_old, anchor_at),
       new = new,
       explain = 'reconcile',
       reconcile = true,

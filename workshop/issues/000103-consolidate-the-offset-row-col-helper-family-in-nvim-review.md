@@ -1,12 +1,13 @@
 ---
 id: 000103
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-05
 updated: 2026-07-07
 estimate_hours: 0.75
 started: 2026-07-07T22:18:55-07:00
+actual_hours: 0.27
 ---
 
 # consolidate the offset→(row,col) helper family in nvim/review
@@ -78,19 +79,33 @@ total: 0.75
 
 ## Plan
 
-- [ ] Add the shared `line_starts` + binary-search `pos_of` to `reconstruct.lua`
+- [x] Add the shared `line_starts` + binary-search `pos_of` to `reconstruct.lua`
   (+ a colocated unit test for the new helper)
-- [ ] Repoint `markers.lua` (`parse_markers`, `spans_multiline`) — retire the twins
-- [ ] Repoint `reconcile.lua` (`plan_conflicts` `v1_starts`); reconcile the counters
-- [ ] `make test-lua` + `make test-review` green, unchanged assertions
+- [x] Repoint `markers.lua` (`parse_markers`, `spans_multiline`) — retire the twins
+- [x] Repoint `reconcile.lua` (`plan_conflicts` `v1_starts`); reconcile the counters
+- [x] `make test-lua` + `make test-review` green, unchanged assertions
 
 ## Log
 
 ### 2026-07-05
 
 ### 2026-07-07
+- 2026-07-07: closed — RED: nvim -l nvim/review/reconstruct_test.lua failed on missing line_starts before implementation. GREEN: nvim -l nvim/review/reconstruct_test.lua, nvim -l nvim/review/markers_test.lua, and nvim -l nvim/review/reconcile_test.lua passed. Final verification: make test-lua passed; make test-review passed; git diff --check HEAD~1..HEAD passed. No atlas update: pure internal consolidation of existing nvim/review offset helper behavior, no new surface.; review verdict: SHIP
 
 - Claimed and entered planning. Scope stays within the existing issue plan:
   consolidate duplicated offset helpers into pure `reconstruct.lua`
   (`ARCH-DRY`, `ARCH-PURE`) and repoint every listed consumer rather than
   landing only the easy subset (`ARCH-PURPOSE`).
+- Added `reconstruct.line_starts` and `reconstruct.pos_of` as the shared
+  offset→position source; `reconstruct.line_of`/`pos_at` now wrap the shared
+  helper, while `markers.parse_markers`, `markers.spans_multiline`, and
+  `reconcile.plan_conflicts` derive from it.
+- Counter decision from the plan-quality INFO note: `occurrence_at` shares cleanly
+  as `reconstruct.occurrence_at` with the same non-overlapping count semantics,
+  so `reconcile` now derives from that helper too.
+- RED/GREEN evidence: `nvim -l nvim/review/reconstruct_test.lua` first failed on
+  missing `line_starts`; after implementation, `reconstruct_test`, `markers_test`,
+  and `reconcile_test` passed.
+- Verification: `make test-lua` and `make test-review` passed. Grep sweep shows
+  the remaining line-start/binary-search implementation is in `reconstruct.lua`;
+  consumers call it.

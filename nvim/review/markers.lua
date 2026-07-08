@@ -11,6 +11,7 @@
 local M = {}
 local here = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
 local marker_codec = dofile(here .. '../marker_codec.lua')
+local reconstruct = dofile(here .. 'reconstruct.lua')
 
 local MARKER_CHAR = "🤖"
 local MARKER_BYTE_LEN = 4
@@ -143,23 +144,7 @@ M.parse_markers = function(lines)
   local fence_ranges = compute_fence_ranges(lines)
   local doc = table.concat(lines, "\n")
 
-  local line_starts = {}
-  do
-    local off = 1
-    for i, line in ipairs(lines) do
-      line_starts[i] = off
-      off = off + #line + 1
-    end
-  end
-
-  local function offset_to_pos(offset)
-    local lo, hi = 1, #line_starts
-    while lo < hi do
-      local mid = math.floor((lo + hi) / 2) + 1
-      if line_starts[mid] <= offset then lo = mid else hi = mid - 1 end
-    end
-    return lo - 1, offset - line_starts[lo]
-  end
+  local line_starts = reconstruct.line_starts(lines)
 
   local excluded = {}
   for i, line in ipairs(lines) do
@@ -195,7 +180,7 @@ M.parse_markers = function(lines)
     if strike and strike.text == "" then strike = nil end
     if #sections > 0 or quoted or strike then
       local last = sections[#sections]
-      local line0, col0 = offset_to_pos(pos)
+      local line0, col0 = reconstruct.pos_of(line_starts, pos)
       local ready = (not strike) and last and last.type == "user" and last.text ~= "" or false
       local pending = last and last.type == "agent" and last.text ~= "" or false
       table.insert(markers, {
@@ -227,28 +212,18 @@ M._parse_marker_sections = parse_marker_sections
 -- ParleyReviewAgent ({…}). Byte-accurate: quoted/strike start at the 🤖 itself,
 -- sections at their bracket — matching the retired per-line highlighter.
 function M.spans_multiline(lines)
-  local line_starts, off = {}, 1
-  for i, line in ipairs(lines) do line_starts[i] = off; off = off + #line + 1 end
-  -- 1-based doc offset → (row0, col0); same search parse_markers.offset_to_pos uses.
-  local function pos_of(offset)
-    local lo, hi = 1, #line_starts
-    while lo < hi do
-      local mid = math.floor((lo + hi) / 2) + 1
-      if line_starts[mid] <= offset then lo = mid else hi = mid - 1 end
-    end
-    return lo - 1, offset - line_starts[lo]
-  end
+  local line_starts = reconstruct.line_starts(lines)
   local spans = {}
   -- closer = 1-based doc offset of the closing char; exclusive end = pos just after it.
   local function push(sr, sc, closer, hl)
-    local er, ec = pos_of(closer + 1)
+    local er, ec = reconstruct.pos_of(line_starts, closer + 1)
     spans[#spans + 1] = { row = sr, col = sc, end_row = er, end_col = ec, hl_group = hl }
   end
   for _, m in ipairs(M.parse_markers(lines)) do
     if m.quoted then push(m.line, m.col, m.quoted.byte_end, 'ParleyReviewQuoted') end
     if m.strike and m.strike.text ~= '' then push(m.line, m.col, m.strike.byte_end, 'ParleyReviewStrike') end
     for _, s in ipairs(m.sections) do
-      local sr, sc = pos_of(s.byte_start)
+      local sr, sc = reconstruct.pos_of(line_starts, s.byte_start)
       push(sr, sc, s.byte_end, s.type == 'agent' and 'ParleyReviewAgent' or 'ParleyReviewUser')
     end
   end
