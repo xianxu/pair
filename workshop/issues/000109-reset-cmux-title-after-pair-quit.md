@@ -1,12 +1,13 @@
 ---
 id: 000109
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-07
 updated: 2026-07-07
 estimate_hours: 0.25
 started: 2026-07-07T17:48:57-07:00
+actual_hours: 0.05
 ---
 
 # Reset cmux title after pair quit
@@ -61,6 +62,7 @@ total: 0.25
 ## Log
 
 ### 2026-07-07
+- 2026-07-07: closed — Regression covered owner records written as tag and tag+session; go test ./cmd/internal/launcher -run TestOSRuntimeCmuxOwnership -count=1; go test ./cmd/internal/launcher -count=1; go test ./...; git diff --check; sdlc issue validate workshop/issues/000109-reset-cmux-title-after-pair-quit.md; no atlas update because existing cmux cleanup contract only.; review verdict: SHIP
 - Root cause: `cmd/internal/titlepoller` writes cmux owner records as
   `tag<TAB>public-session`, but `cmd/internal/launcher.OSRuntime`
   `PairOwnsCmuxWorkspace` only accepted `strings.TrimSpace(raw) == tag`. Once
