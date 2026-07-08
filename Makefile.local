@@ -126,6 +126,7 @@ test-review: $(BIN_DIR)/pair
 	bash tests/review-readiness-cli-test.sh
 	bash tests/review-indicator-test.sh
 	bash tests/review-resume-test.sh
+	bash tests/review-definition-test.sh
 
 test-race:
 	go test -count=1 -race ./cmd/pair-wrap/

@@ -32,6 +32,12 @@ function M.ship_requested(file)
   return string.format('ship %s — run docflow ship for the active review branch; the agent owns git', file)
 end
 
+function M.definition_requested(file, request_id, term)
+  return string.format(
+    'Definition requested in %s for %q. Read the tag-scoped review-definition-request artifact for context, answer concisely, then run: pair review definition --term %q %s <definition>',
+    file, term or '', term or '', request_id)
+end
+
 -- Sent ONCE when the review pane opens — the missing review-START signal (M4a
 -- smoke: a chat "please review" carried no workbench cue, so the agent fell back
 -- to a standalone summarize-and-ask). Establishes context WITHOUT triggering a

@@ -19,6 +19,7 @@ local markers = dofile(here .. 'markers.lua')
 local wrap = dofile(here .. 'wrap.lua')
 
 local HL = vim.api.nvim_create_namespace('review')
+local DEF_HL = vim.api.nvim_create_namespace('review_define')
 local DIAG = vim.api.nvim_create_namespace('review_diag')
 
 -- Index of the match of `needle` starting at `target_off`, counted
@@ -112,13 +113,15 @@ end
 -- diagnostic layer is replaced via vim.diagnostic.set (empty here).
 local function clear(buf)
   vim.api.nvim_buf_clear_namespace(buf, HL, 0, -1)
+  vim.api.nvim_buf_clear_namespace(buf, DEF_HL, 0, -1)
   vim.diagnostic.set(DIAG, buf, {}, {})
 end
 
 -- Highlight the exact inserted/new span. Marker-rendered proposals already show
 -- the delta inline, and empty deletions have no new bytes to highlight.
-local function hl_extmark(buf, h)
+local function hl_extmark(buf, h, ns)
   if h.no_highlight then return end
+  ns = ns or HL
   local last = math.max(0, vim.api.nvim_buf_line_count(buf) - 1)
   local sl = math.max(0, math.min(h.line or 0, last))
   local el = math.max(sl, math.min(h.end_line or sl, last))
@@ -133,7 +136,7 @@ local function hl_extmark(buf, h)
   local el_text = vim.api.nvim_buf_get_lines(buf, el, el + 1, false)[1] or ''
   ec = math.max(0, math.min(ec, #el_text))
   if sl == el and sc == ec then return end
-  pcall(vim.api.nvim_buf_set_extmark, buf, HL, sl, sc, {
+  pcall(vim.api.nvim_buf_set_extmark, buf, ns, sl, sc, {
     end_row = el, end_col = ec, hl_group = 'DiffChange',
     right_gravity = true,
     end_right_gravity = false,
@@ -159,7 +162,7 @@ local function diag_of(d)
     message = wrap.wrap(d.message or '', diag_wrap_width()),
     -- short source: it surfaces as the inline "header" (was 'review' = 6 cols →
     -- 🤖 ≈ 2 cols, M4a issue 2.2).
-    severity = vim.diagnostic.severity.INFO, source = '🤖',
+    severity = vim.diagnostic.severity.INFO, source = d.source or '🤖',
   }
 end
 
@@ -187,15 +190,23 @@ function M.snapshot(buf)
       end_line = details.end_row or m[2], end_col = details.end_col or m[3],
     }
   end
+  local def_hl = {}
+  for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, DEF_HL, 0, -1, { details = true })) do
+    local details = m[4] or {}
+    def_hl[#def_hl + 1] = {
+      line = m[2], col = m[3],
+      end_line = details.end_row or m[2], end_col = details.end_col or m[3],
+    }
+  end
   local diags = {}
   for _, d in ipairs(vim.diagnostic.get(buf, { namespace = DIAG })) do
     diags[#diags + 1] = {
       lnum = d.lnum, col = d.col,
       end_lnum = d.end_lnum, end_col = d.end_col,
-      message = d.message,
+      message = d.message, source = d.source,
     }
   end
-  return { hl = hl, diags = diags }
+  return { hl = hl, def_hl = def_hl, diags = diags }
 end
 
 -- Restore a snapshot (undo/redo coherence). Independent layers; shares clear().
@@ -203,9 +214,48 @@ function M.apply_snapshot(buf, snap)
   clear(buf)
   snap = snap or {}
   for _, h in ipairs(snap.hl or {}) do hl_extmark(buf, h) end
+  for _, h in ipairs(snap.def_hl or {}) do hl_extmark(buf, h, DEF_HL) end
   local diags = {}
   for _, d in ipairs(snap.diags or {}) do diags[#diags + 1] = diag_of(d) end
   vim.diagnostic.set(DIAG, buf, diags, {})
+end
+
+local function definition_message(d)
+  local term = d.term or d.id or 'definition'
+  local definition = d.definition or '(no definition)'
+  return term .. ' — ' .. definition
+end
+
+local function is_definition_diag(d)
+  return d.source == '📖'
+end
+
+function M.place_definitions(buf, definitions)
+  vim.api.nvim_buf_clear_namespace(buf, DEF_HL, 0, -1)
+  local kept = {}
+  for _, d in ipairs(vim.diagnostic.get(buf, { namespace = DIAG })) do
+    if not is_definition_diag(d) then
+      kept[#kept + 1] = {
+        lnum = d.lnum, col = d.col,
+        end_lnum = d.end_lnum, end_col = d.end_col,
+        message = d.message, source = d.source,
+        severity = d.severity,
+      }
+    end
+  end
+  for _, d in ipairs(definitions or {}) do
+    local deco = {
+      line = d.line or d.lnum,
+      col = d.col or 0,
+      end_line = d.end_line or d.end_lnum or d.line or d.lnum,
+      end_col = d.end_col,
+      message = definition_message(d),
+      source = '📖',
+    }
+    hl_extmark(buf, deco, DEF_HL)
+    kept[#kept + 1] = diag_of(deco)
+  end
+  vim.diagnostic.set(DIAG, buf, kept, {})
 end
 
 local function overlaps_line(first, last, row)
@@ -345,6 +395,6 @@ function M.render(buf, records, content)
   vim.diagnostic.set(DIAG, buf, diags, {})
 end
 
-M.HL, M.DIAG = HL, DIAG
+M.HL, M.DEF_HL, M.DIAG = HL, DEF_HL, DIAG
 M.buf_content = buf_content -- shared (init/projection) so the join lives in one place
 return M

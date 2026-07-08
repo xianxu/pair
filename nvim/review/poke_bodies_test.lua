@@ -35,6 +35,16 @@ eq(M.ship_requested('/a/doc.md'),
   'ship /a/doc.md — run docflow ship for the active review branch; the agent owns git',
   'ship_requested')
 
+do -- definition_requested: the body names the result command and request artifact, not document content
+  local s = M.definition_requested('/a/doc.md', 'req-1', 'ASIN')
+  local function has(sub, msg) if not s:find(sub, 1, true) then
+    io.stderr:write('FAIL definition_requested ' .. msg .. ': ' .. s .. '\n'); fails = fails + 1 end end
+  has('/a/doc.md', 'names the file')
+  has('ASIN', 'names the term')
+  has('review-definition-request', 'points at request artifact')
+  has('pair review definition --term "ASIN" req-1 <definition>', 'names the response command')
+end
+
 do -- review_opened: the review-START announce poke names the file + the workbench protocol
   local s = M.review_opened('/a/doc.md')
   local function has(sub, msg) if not s:find(sub, 1, true) then

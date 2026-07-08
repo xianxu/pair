@@ -97,14 +97,24 @@ total: 3.30
 
 - [x] Add pure definition-footnote helpers and tests under `nvim/review/`.
 - [x] Add the `pair review definition` response helper and tests.
-- [ ] Wire review-pane visual definition request/result handling, durable
+- [x] Wire review-pane visual definition request/result handling, durable
       rendering, and projection/reopen rehydration.
-- [ ] Strip managed definition footers from review agent context/poke bodies.
+- [x] Strip managed definition footers from review agent context/poke bodies.
 - [ ] Update atlas/runtime bundle and run focused plus full verification.
 
 ## Log
 
 ### 2026-07-08
+- TDD Chunks 3/4: `bash tests/review-definition-test.sh` first failed on
+  missing `_G.PairReviewPane.request_definition`, then later on missing
+  `rehydrate_definitions`; `nvim -l nvim/review/poke_bodies_test.lua` failed
+  until the definition poke named the request artifact. Added the tag-scoped
+  definition request/result seam, visual `<M-d>` request handling, result
+  polling/application, exact-span definition decorations, rehydration from
+  durable footnotes, and stripped request context. GREEN:
+  `bash tests/review-definition-test.sh`, `nvim -l
+  nvim/review/poke_bodies_test.lua`, `bash tests/review-apply-test.sh`,
+  `bash tests/review-projection-test.sh`, and `make test-lua` passed.
 - TDD Chunk 2: `go test ./cmd/internal/reviewcmd ./cmd/internal/dispatcher
   -count=1` first failed on missing `DefinitionOptions`, `definitionDoc`,
   `RunDefinition`, and `review definition` dispatch resolution. Added the
