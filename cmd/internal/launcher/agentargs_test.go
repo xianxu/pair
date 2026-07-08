@@ -43,9 +43,13 @@ func TestStripCodexResumeSubcommand(t *testing.T) {
 	if got := stripCodexResumeSubcommand([]string{"resume", "id1", "--no-alt-screen"}); !reflect.DeepEqual(got, []string{"--no-alt-screen"}) {
 		t.Errorf("leading resume: got %v", got)
 	}
-	// a `resume` that is NOT at args[0] is left alone.
-	if got := stripCodexResumeSubcommand([]string{"--flag", "resume", "id1"}); !reflect.DeepEqual(got, []string{"--flag", "resume", "id1"}) {
-		t.Errorf("non-leading resume must stay: got %v", got)
+	// Codex accepts global options before the command: codex [OPTIONS] resume <id>.
+	if got := stripCodexResumeSubcommand([]string{"--sandbox", "danger-full-access", "resume", "id1", "--no-alt-screen"}); !reflect.DeepEqual(got, []string{"--sandbox", "danger-full-access", "--no-alt-screen"}) {
+		t.Errorf("global options before resume: got %v", got)
+	}
+	// A prompt containing "resume" is not a resume subcommand.
+	if got := stripCodexResumeSubcommand([]string{"please", "resume", "id1"}); !reflect.DeepEqual(got, []string{"please", "resume", "id1"}) {
+		t.Errorf("prompt resume must stay: got %v", got)
 	}
 }
 
@@ -64,6 +68,16 @@ func TestResumeTokenPerAgent(t *testing.T) {
 		if got := resumeToken(c.agent, c.sid); !reflect.DeepEqual(got, c.want) {
 			t.Errorf("resumeToken(%q,%q) = %v, want %v", c.agent, c.sid, got, c.want)
 		}
+	}
+}
+
+func TestExtractExplicitResumeCodexAllowsGlobalOptionsBeforeCommand(t *testing.T) {
+	got := extractExplicitResume("codex", []string{"--sandbox", "danger-full-access", "resume", "sid-1", "--no-alt-screen"})
+	if got != "sid-1" {
+		t.Fatalf("extractExplicitResume codex with globals = %q, want sid-1", got)
+	}
+	if got := extractExplicitResume("codex", []string{"please", "resume", "sid-1"}); got != "" {
+		t.Fatalf("prompt text should not be treated as explicit resume, got %q", got)
 	}
 }
 
@@ -133,5 +147,9 @@ func TestPersistedConfigArgsStripsBinding(t *testing.T) {
 	// codex leading `resume <id>` (position-sensitive) + trailing saved flags kept.
 	if got := persistedConfigArgs([]string{"resume", "sid", "--no-alt-screen"}); !reflect.DeepEqual(got, []string{"--no-alt-screen"}) {
 		t.Errorf("codex resume subcommand: got %v", got)
+	}
+	// codex global options may precede the resume command.
+	if got := persistedConfigArgs([]string{"--sandbox", "danger-full-access", "resume", "sid", "--no-alt-screen"}); !reflect.DeepEqual(got, []string{"--sandbox", "danger-full-access", "--no-alt-screen"}) {
+		t.Errorf("codex global-options resume subcommand: got %v", got)
 	}
 }

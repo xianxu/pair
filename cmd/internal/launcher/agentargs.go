@@ -52,14 +52,83 @@ func stripFlagAllForms(args []string, flag string) []string {
 	return out
 }
 
-// stripCodexResumeSubcommand drops a leading `resume <id>` — codex's resume
-// surface sits at args[0..1], so it's position-sensitive (only stripped when it
-// leads, never a `resume` that appears later as a value).
+// stripCodexResumeSubcommand drops `resume <id>` from Codex argv. Codex accepts
+// global options before the command (`codex [OPTIONS] resume <id>`), so the
+// command is position-sensitive only after those options have been consumed.
 func stripCodexResumeSubcommand(args []string) []string {
-	if len(args) >= 2 && args[0] == "resume" {
-		return append([]string(nil), args[2:]...)
+	if i := codexResumeCommandIndex(args); i >= 0 {
+		out := append([]string(nil), args[:i]...)
+		return append(out, args[i+2:]...)
 	}
 	return args
+}
+
+func codexResumeCommandIndex(args []string) int {
+	for i := 0; i < len(args); {
+		if args[i] == "resume" && i+1 < len(args) && args[i+1] != "" {
+			return i
+		}
+		if n := codexGlobalOptionWidth(args, i); n > 0 {
+			i += n
+			continue
+		}
+		return -1
+	}
+	return -1
+}
+
+func codexGlobalOptionWidth(args []string, i int) int {
+	arg := args[i]
+	if codexBoolGlobalOption(arg) {
+		return 1
+	}
+	if codexValueGlobalOption(arg) {
+		if strings.Contains(arg, "=") {
+			return 1
+		}
+		if i+1 < len(args) {
+			return 2
+		}
+		return 0
+	}
+	return 0
+}
+
+func codexBoolGlobalOption(arg string) bool {
+	switch arg {
+	case "--oss", "--strict-config", "--dangerously-bypass-approvals-and-sandbox",
+		"--dangerously-bypass-hook-trust", "--search", "--no-alt-screen":
+		return true
+	default:
+		return false
+	}
+}
+
+func codexValueGlobalOption(arg string) bool {
+	if strings.HasPrefix(arg, "--config=") ||
+		strings.HasPrefix(arg, "--enable=") ||
+		strings.HasPrefix(arg, "--disable=") ||
+		strings.HasPrefix(arg, "--remote=") ||
+		strings.HasPrefix(arg, "--remote-auth-token-env=") ||
+		strings.HasPrefix(arg, "--image=") ||
+		strings.HasPrefix(arg, "--model=") ||
+		strings.HasPrefix(arg, "--local-provider=") ||
+		strings.HasPrefix(arg, "--profile=") ||
+		strings.HasPrefix(arg, "--sandbox=") ||
+		strings.HasPrefix(arg, "--cd=") ||
+		strings.HasPrefix(arg, "--add-dir=") ||
+		strings.HasPrefix(arg, "--ask-for-approval=") {
+		return true
+	}
+	switch arg {
+	case "-c", "--config", "--enable", "--disable", "--remote",
+		"--remote-auth-token-env", "-i", "--image", "-m", "--model",
+		"--local-provider", "-p", "--profile", "-s", "--sandbox",
+		"-C", "--cd", "--add-dir", "-a", "--ask-for-approval":
+		return true
+	default:
+		return false
+	}
 }
 
 // resumeToken is the per-agent surface for resuming a session id: claude uses

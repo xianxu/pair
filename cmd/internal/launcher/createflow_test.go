@@ -660,6 +660,23 @@ func TestRunLaunchTagRestartPickerResume(t *testing.T) {
 	}
 }
 
+func TestRunLaunchTagRestartPickerResumeStripsCodexResumeAfterGlobals(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.files["/data/config-cx-codex.json"] = `{"agent":"codex","args":["--sandbox","danger-full-access","resume","CX-9","--no-alt-screen"],"session_id":"CX-9"}`
+	rt.agentSessions["codex|CX-9"] = true
+	rt.pickFunc = func(header string, options []string) string {
+		return options[0] // "use saved params + session"
+	}
+
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "cx"}), rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.env["PAIR_AGENT_ARGS"] != "resume CX-9 --sandbox danger-full-access --no-alt-screen" {
+		t.Fatalf("PAIR_AGENT_ARGS = %q", rt.env["PAIR_AGENT_ARGS"])
+	}
+}
+
 // Picking "new" drops the stale config.
 func TestRunLaunchTagRestartPickerNew(t *testing.T) {
 	rt := newFakeRuntime()

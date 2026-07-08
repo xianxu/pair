@@ -254,6 +254,23 @@ func TestOSRuntimeInferAgentPrefersLedger(t *testing.T) {
 	}
 }
 
+func TestOSRuntimeAgentSessionExistsFindsNestedCodexRollout(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	sid := "12345678-1234-1234-1234-123456789abc"
+	path := filepath.Join(home, ".codex", "sessions", "2026", "07", "07", "rollout-2026-07-07T21-00-00-"+sid+".jsonl")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if !(OSRuntime{}).AgentSessionExists("codex", sid, "/repo") {
+		t.Fatal("AgentSessionExists(codex) did not find nested rollout file")
+	}
+}
+
 func TestOSRuntimeSessionNameIndexStore(t *testing.T) {
 	dataDir := t.TempDir()
 	rt := NewOSRuntime(dataDir, "/pair")
