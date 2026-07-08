@@ -15,6 +15,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/continuationcmd"
 	"github.com/xianxu/pair/cmd/internal/osfs"
+	"github.com/xianxu/pair/cmd/internal/transcript"
 )
 
 // OSRuntime is the concrete create-flow Runtime: real zellij/fzf/cmux/tty/exec
@@ -495,13 +496,7 @@ func (OSRuntime) AgentSessionExists(agent, sid, cwd string) bool {
 	case "agy":
 		return fileExists(AgyConversationPath(home, sid))
 	case "codex":
-		matches, _ := filepath.Glob(filepath.Join(CodexSessionsDir(home), "*"+sid+"*"))
-		for _, m := range matches {
-			if fileExists(m) {
-				return true
-			}
-		}
-		return false
+		return transcript.Resolve("codex", sid, cwd, home) != ""
 	}
 	return false
 }
