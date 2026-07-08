@@ -100,11 +100,15 @@ total: 3.30
 - [x] Wire review-pane visual definition request/result handling, durable
       rendering, and projection/reopen rehydration.
 - [x] Strip managed definition footers from review agent context/poke bodies.
-- [ ] Update atlas/runtime bundle and run focused plus full verification.
+- [x] Update atlas/runtime bundle and run focused plus full verification.
 
 ## Log
 
 ### 2026-07-08
+- Updated `atlas/review-workbench.md` for the definition keybinding,
+  request/result seam, durable footnote storage, exact-span rendering, and
+  projection behavior. Ran `make runtimebundle-generate`; generated runtime was
+  already in sync with the source changes.
 - TDD Chunks 3/4: `bash tests/review-definition-test.sh` first failed on
   missing `_G.PairReviewPane.request_definition`, then later on missing
   `rehydrate_definitions`; `nvim -l nvim/review/poke_bodies_test.lua` failed
