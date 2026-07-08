@@ -95,7 +95,7 @@ total: 3.30
 
 ## Plan
 
-- [ ] Add pure definition-footnote helpers and tests under `nvim/review/`.
+- [x] Add pure definition-footnote helpers and tests under `nvim/review/`.
 - [ ] Add the `pair review definition` response helper and tests.
 - [ ] Wire review-pane visual definition request/result handling, durable
       rendering, and projection/reopen rehydration.
@@ -105,6 +105,11 @@ total: 3.30
 ## Log
 
 ### 2026-07-08
+- TDD Chunk 1: `nvim -l nvim/review/define_test.lua` first failed because
+  `nvim/review/define.lua` was missing. Added pure definition helpers for
+  selection slicing, footnote id/formatting, managed footer insertion/update,
+  footer stripping, and exact-span diagnostic derivation. GREEN:
+  `nvim -l nvim/review/define_test.lua` and `make test-lua` passed.
 - Created from user request to port the parley definition feature into pair
   review, using parley.nvim#161 for the original inline-definition interaction
   and parley.nvim#166/#167 for the durable footnote and exact-span behavior.

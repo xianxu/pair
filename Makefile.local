@@ -149,6 +149,7 @@ test-lua:
 	nvim -l nvim/doctor_test.lua
 	nvim -l nvim/review/record_test.lua
 	nvim -l nvim/review/reconstruct_test.lua
+	nvim -l nvim/review/define_test.lua
 	nvim -l nvim/review/markers_test.lua
 	nvim -l nvim/review/seam_test.lua
 	nvim -l nvim/review/mode_test.lua
