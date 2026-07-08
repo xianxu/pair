@@ -1,11 +1,12 @@
 ---
 id: 000103
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-07-05
-updated: 2026-07-05
+updated: 2026-07-07
 estimate_hours:
+started: 2026-07-07T22:18:55-07:00
 ---
 
 # consolidate the offset→(row,col) helper family in nvim/review
