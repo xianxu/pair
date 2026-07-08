@@ -10,6 +10,22 @@ local function eq(got, want, msg)
   end
 end
 
+-- Shared offset helpers: line_starts accepts the line array shape used by
+-- markers.lua, and pos_of maps 1-based document byte offsets to 0-based row/col.
+local starts = M.line_starts({ 'abc', 'de', 'f' })
+eq(starts[1], 1, 'line_starts line 1 starts at byte 1')
+eq(starts[2], 5, 'line_starts line 2 starts after first newline')
+eq(starts[3], 8, 'line_starts line 3 starts after second newline')
+local r1, c1 = M.pos_of(starts, 1)
+eq(r1, 0, 'pos_of byte 1 row')
+eq(c1, 0, 'pos_of byte 1 col')
+local r2, c2 = M.pos_of(starts, 6)
+eq(r2, 1, 'pos_of middle byte row')
+eq(c2, 1, 'pos_of middle byte col')
+local r3, c3 = M.pos_of(starts, 10)
+eq(r3, 2, 'pos_of EOF byte row')
+eq(c3, 2, 'pos_of EOF byte col')
+
 -- which='new' locates by NEW_OCCURRENCE (Nth match of `new`), not `occurrence`.
 local content = 'alpha\nthe value\nbeta\nthe value\n'
 local out = M.decorate({ { new = 'the value', new_occurrence = 1, explain = 'first' } }, content, 'new')
