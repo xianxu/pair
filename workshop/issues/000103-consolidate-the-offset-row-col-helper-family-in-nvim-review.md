@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-07-05
 updated: 2026-07-07
-estimate_hours:
+estimate_hours: 0.75
 started: 2026-07-07T22:18:55-07:00
 ---
 
@@ -66,6 +66,16 @@ should keep them green with no edits, which is the proof it's behavior-preservin
   unchanged) — or with only additive tests for the new shared helper.
 - No remaining second implementation of the same offset→position math (grep clean).
 
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: lua-neovim design=0.15 impl=0.60
+design-buffer: 0.0
+total: 0.75
+```
+
 ## Plan
 
 - [ ] Add the shared `line_starts` + binary-search `pos_of` to `reconstruct.lua`
@@ -77,3 +87,10 @@ should keep them green with no edits, which is the proof it's behavior-preservin
 ## Log
 
 ### 2026-07-05
+
+### 2026-07-07
+
+- Claimed and entered planning. Scope stays within the existing issue plan:
+  consolidate duplicated offset helpers into pure `reconstruct.lua`
+  (`ARCH-DRY`, `ARCH-PURE`) and repoint every listed consumer rather than
+  landing only the easy subset (`ARCH-PURPOSE`).
