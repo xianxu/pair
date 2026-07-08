@@ -23,6 +23,7 @@ type fakeRuntime struct {
 	classErr error
 	spawn    *spawnCall
 	codexSID string
+	writeErr error
 }
 
 func newFake() *fakeRuntime {
@@ -35,9 +36,21 @@ func (f *fakeRuntime) ReadFile(p string) (string, error) {
 	}
 	return "", fmt.Errorf("no file: %s", p)
 }
-func (f *fakeRuntime) WriteFile(p, d string) error   { f.wrote[p] = d; return nil }
-func (f *fakeRuntime) WriteAtomic(p, d string) error { f.wrote[p] = d; return nil }
-func (f *fakeRuntime) Remove(p string)               { f.removed = append(f.removed, p) }
+func (f *fakeRuntime) WriteFile(p, d string) error {
+	if f.writeErr != nil {
+		return f.writeErr
+	}
+	f.wrote[p] = d
+	return nil
+}
+func (f *fakeRuntime) WriteAtomic(p, d string) error {
+	if f.writeErr != nil {
+		return f.writeErr
+	}
+	f.wrote[p] = d
+	return nil
+}
+func (f *fakeRuntime) Remove(p string) { f.removed = append(f.removed, p) }
 func (f *fakeRuntime) FileSize(p string) (int64, bool) {
 	s, ok := f.sizes[p]
 	return s, ok
@@ -155,6 +168,31 @@ func TestRunDefinitionValidation(t *testing.T) {
 				t.Fatalf("unexpected writes: %+v", rt.wrote)
 			}
 		})
+	}
+}
+
+func TestRunDefinitionWriteError(t *testing.T) {
+	rt := newFake()
+	rt.writeErr = fmt.Errorf("disk full")
+	var stdout, stderr bytes.Buffer
+	code := RunDefinition(DefinitionOptions{
+		RequestID:  "req-123",
+		Term:       "ASIN",
+		Definition: "Amazon Standard Identification Number.",
+		Tag:        "t",
+		DataDir:    "/dd",
+	}, rt, &stdout, &stderr)
+	if code == 0 {
+		t.Fatalf("code = 0, want failure")
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("unexpected stdout: %q", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "write") || !strings.Contains(stderr.String(), "disk full") {
+		t.Fatalf("stderr = %q, want write error", stderr.String())
+	}
+	if len(rt.wrote) != 0 {
+		t.Fatalf("unexpected writes: %+v", rt.wrote)
 	}
 }
 

@@ -37,6 +37,27 @@ vim.api.nvim_set_current_buf(buf)
 vim.api.nvim_buf_set_name(buf, file)
 vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'here is ASIN in context' })
 
+vim.fn.setpos("'<", { 0, 1, 9, 0 })
+vim.fn.setpos("'>", { 0, 1, 12, 0 })
+local visual_req = _G.PairReviewPane.request_visual_definition(buf, file, { poke = false })
+ok(type(visual_req) == 'table' and visual_req.term == 'ASIN',
+  'visual definition normalizes 1-based inclusive marks to selected term')
+local visual_result = os.getenv('PAIR_DATA_DIR') .. '/review-definition-result-def.json'
+vim.fn.writefile({
+  vim.json.encode({
+    request_id = visual_req.request_id,
+    term = 'ASIN',
+    definition = 'Visual path definition.',
+    session = 'sid',
+  })
+}, visual_result)
+ok(_G.PairReviewPane.apply_definition_result(buf) == true, 'visual result applies')
+ok(content(buf):match('ASIN%[%^asin%] in context') ~= nil,
+  'visual definition inserts ref immediately after selected term')
+
+vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'here is ASIN in context' })
+apply.clear_all(buf)
+
 local req = _G.PairReviewPane.request_definition(buf, file, { 1, 8 }, { 1, 11 }, { poke = false })
 ok(type(req) == 'table' and req.request_id ~= nil and req.term == 'ASIN', 'request helper returns request metadata')
 local req_path = os.getenv('PAIR_DATA_DIR') .. '/review-definition-request-def.json'
@@ -97,6 +118,10 @@ _G.PairReviewPane.rehydrate_definitions(buf)
 local restored = vim.api.nvim_buf_get_extmarks(buf, apply.DEF_HL, 0, -1, { details = true })
 ok(#restored == 1 and restored[1][3] == 8 and restored[1][4].end_col == 19,
   'rehydrate_definitions redraws exact span from durable footnote')
+local context_path = _G.PairReviewPane.write_review_context(buf)
+local context_body = table.concat(vim.fn.readfile(context_path), '\n')
+ok(context_body == 'here is ASIN[^asin] in context',
+  'continued-review context artifact strips managed definition footer')
 end)
 
 if not ok_run then

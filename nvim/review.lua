@@ -451,6 +451,7 @@ local pane_focused = true -- the pane is created focused
 local pending_records = nil
 local pending_definition = nil
 local definition_timer = nil
+local write_review_context
 
 -- Track pane focus for the gate (case 2: not focused → apply immediately). Terminal
 -- focus events may not fire on a zellij pane switch — the failure mode is benign
@@ -524,9 +525,10 @@ local function finish_human_turn(buf, file, mode_name, instruction)
   -- the whole trigger — the M3 `/xx-fix` stopgap is retired here.)
   local m = seam.normalize_mode(mode_name or current_mode())
   seam.write_mode(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG, m)
+  local context_path = write_review_context(buf)
   refresh_statusline()
   if poke.send(poke_bodies.human_finished(vim.fn.fnamemodify(file, ':p'), m,
-      instruction or '', seam.mode_label(m))) then
+      instruction or '', seam.mode_label(m), context_path)) then
     mark_awaiting()
   end
 end
@@ -535,6 +537,27 @@ local function request_ship(file)
   if poke.send(poke_bodies.ship_requested(vim.fn.fnamemodify(file, ':p'))) then
     mark_awaiting()
   end
+end
+
+function write_review_context(buf)
+  local data_dir = vim.env.PAIR_DATA_DIR
+  if not data_dir or data_dir == '' then return nil end
+  local tag = (vim.env.PAIR_TAG and vim.env.PAIR_TAG ~= '') and vim.env.PAIR_TAG or 'default'
+  local path = data_dir .. '/review-context-' .. tag .. '.md'
+  local tmp = path .. '.tmp'
+  local body = define.strip_definition_footnote_footer(buf_content(buf))
+  local ok = pcall(vim.fn.writefile, vim.split(body, '\n', { plain = true }), tmp)
+  if not ok then
+    vim.notify('review: could not write stripped review context', vim.log.levels.ERROR)
+    return nil
+  end
+  local renamed_ok, renamed = pcall(vim.fn.rename, tmp, path)
+  if not renamed_ok or renamed ~= 0 then
+    pcall(os.remove, tmp)
+    vim.notify('review: could not publish stripped review context', vim.log.levels.ERROR)
+    return nil
+  end
+  return path
 end
 
 local function stop_definition_poll()
@@ -620,10 +643,10 @@ local function request_definition(buf, file, start_pos, end_pos, opts)
   return request
 end
 
-local function request_visual_definition(buf, file)
+local function request_visual_definition(buf, file, opts)
   local a = vim.fn.getpos("'<")
   local b = vim.fn.getpos("'>")
-  request_definition(buf, file, { a[2], math.max(a[3] - 1, 0) }, { b[2], b[3] })
+  return request_definition(buf, file, { a[2], math.max(a[3] - 1, 0) }, { b[2], math.max(b[3] - 1, 0) }, opts)
 end
 
 local function open_mode_menu(buf, file)
@@ -683,7 +706,7 @@ local function start_review(buf, file)
     { buffer = buf, silent = true, desc = 'review: insert human comment marker' })
   vim.keymap.set('x', '<M-q>', function() quote_visual_selection(buf) end,
     { buffer = buf, silent = true, desc = 'review: quote selection for human comment' })
-  vim.keymap.set('x', '<M-d>', function() request_visual_definition(buf, file) end,
+  vim.keymap.set('x', '<M-D>', function() request_visual_definition(buf, file) end,
     { buffer = buf, silent = true, desc = 'review: define selection' })
   vim.keymap.set('n', ']m', function() jump_marker(buf, 1) end,
     { buffer = buf, silent = true, desc = 'review: next 🤖 marker' })
@@ -742,7 +765,9 @@ _G.PairReviewPane = { start_review = start_review, render_markers = render_marke
     return open_mode_menu(vim.api.nvim_get_current_buf(), file)
   end,
   request_definition = request_definition,
+  request_visual_definition = request_visual_definition,
   apply_definition_result = apply_definition_result,
+  write_review_context = write_review_context,
   rehydrate_definitions = function(buf) return review.rehydrate_definitions(buf or vim.api.nvim_get_current_buf()) end,
   resolve_at_cursor = resolve_at_cursor, insert_review_marker = insert_review_marker,
   resolve_paragraph_to_cursor = resolve_paragraph_to_cursor,

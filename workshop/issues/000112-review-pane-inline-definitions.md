@@ -105,6 +105,13 @@ total: 3.30
 ## Log
 
 ### 2026-07-08
+- Close review returned REWORK for four issues: visual mark end-column handling,
+  continued-review context still exposing the managed footnote footer, ignored
+  `pair review definition` atomic-write errors, and missing README docs. Added
+  regressions for each, fixed the visual path, wrote a stripped
+  `review-context-<tag>.md` artifact into the human-finished poke, surfaced
+  definition-result write failures, and documented the command plus the usable
+  `Shift+Alt+d` visual binding (avoiding the existing global `Alt+d` detach).
 - Updated `atlas/review-workbench.md` for the definition keybinding,
   request/result seam, durable footnote storage, exact-span rendering, and
   projection behavior. Ran `make runtimebundle-generate`; generated runtime was
@@ -113,7 +120,7 @@ total: 3.30
   missing `_G.PairReviewPane.request_definition`, then later on missing
   `rehydrate_definitions`; `nvim -l nvim/review/poke_bodies_test.lua` failed
   until the definition poke named the request artifact. Added the tag-scoped
-  definition request/result seam, visual `<M-d>` request handling, result
+  definition request/result seam, visual `Shift+Alt+d` request handling, result
   polling/application, exact-span definition decorations, rehydration from
   durable footnotes, and stripped request context. GREEN:
   `bash tests/review-definition-test.sh`, `nvim -l

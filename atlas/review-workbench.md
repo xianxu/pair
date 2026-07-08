@@ -194,7 +194,7 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   handoff clears it.
 - **inline definitions** (`nvim/review/define.lua`,
   `nvim/review/definition_seam.lua`, `pair review definition`; #112) —
-  visual-select a term in the review pane and press `Alt+d` to ask the existing
+  visual-select a term in the review pane and press `Shift+Alt+d` to ask the existing
   pair agent for a concise definition. The pane writes
   `review-definition-request-<tag>.json` with the selected term, byte range, file,
   request id, and document context after stripping only the managed definition

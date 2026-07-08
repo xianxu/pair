@@ -31,6 +31,10 @@ eq(M.human_finished('/a/doc.md', 'proofread', 'keep the title', 'Proofread'),
   'finished my edits to /a/doc.md — please review in Proofread posture; instruction: keep the title',
   'human_finished with mode and instruction')
 
+eq(M.human_finished('/a/doc.md', 'edit', '', 'Edit', '/tmp/review-context-t.md'),
+  'finished my edits to /a/doc.md — please review in Edit posture; use stripped review context at /tmp/review-context-t.md for reading, while editing the actual file',
+  'human_finished with stripped definition context')
+
 eq(M.ship_requested('/a/doc.md'),
   'ship /a/doc.md — run docflow ship for the active review branch; the agent owns git',
   'ship_requested')

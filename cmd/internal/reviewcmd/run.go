@@ -96,7 +96,10 @@ func RunDefinition(opts DefinitionOptions, rt Runtime, stdout, stderr io.Writer)
 	agent := orDefault(opts.Agent, "claude")
 	sid := resolveTargetSession(rt, opts.DataDir, tag, agent, opts.SessionID)
 	out := filepath.Join(opts.DataDir, "review-definition-result-"+tag+".json")
-	_ = rt.WriteAtomic(out, definitionJSON(opts.RequestID, opts.Term, opts.Definition, sid))
+	if err := rt.WriteAtomic(out, definitionJSON(opts.RequestID, opts.Term, opts.Definition, sid)); err != nil {
+		fmt.Fprintf(stderr, "pair-review-definition: write %s: %v\n", out, err)
+		return 1
+	}
 	fmt.Fprintf(stdout, "review definition %s: %s (session %s)\n", opts.RequestID, orDefault(opts.Term, "definition"), orDefault(sid, "none"))
 	return 0
 }
