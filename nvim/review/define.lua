@@ -73,8 +73,9 @@ end
 local function managed_footer_start(lines)
   for i = #lines, 1, -1 do
     if is_divider(lines[i]) then
+      if trim(lines[i + 1] or '') ~= '' then return nil end
       local has_footnote = false
-      for j = i + 1, #lines do
+      for j = i + 2, #lines do
         local line = lines[j] or ''
         if trim(line) ~= '' then
           if not is_footnote_line(line) then return nil end

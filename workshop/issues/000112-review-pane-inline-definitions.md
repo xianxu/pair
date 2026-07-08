@@ -112,6 +112,11 @@ total: 3.30
   `review-context-<tag>.md` artifact into the human-finished poke, surfaced
   definition-result write failures, and documented the command plus the usable
   `Shift+Alt+d` visual binding (avoiding the existing global `Alt+d` detach).
+- Second close review returned REWORK because the managed-footer recognizer also
+  treated ordinary trailing `---` + Markdown footnotes as pair definitions.
+  Tightened the recognizer to the exact managed shape Pair writes (`---`, blank
+  line, footnotes) and added pure regressions proving ordinary divider
+  footnotes are neither stripped nor rehydrated.
 - Updated `atlas/review-workbench.md` for the definition keybinding,
   request/result seam, durable footnote storage, exact-span rendering, and
   projection behavior. Ran `make runtimebundle-generate`; generated runtime was

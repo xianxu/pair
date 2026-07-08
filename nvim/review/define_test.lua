@@ -80,6 +80,14 @@ local ordinary = table.concat({
 }, '\n')
 eq(define.strip_definition_footnote_footer(ordinary), ordinary,
   'strip_definition_footnote_footer preserves ordinary trailing divider prose')
+local ordinary_footnotes = table.concat({
+  'main text[^source]',
+  '',
+  '---',
+  '[^source]: ordinary existing footnote',
+}, '\n')
+eq(define.strip_definition_footnote_footer(ordinary_footnotes), ordinary_footnotes,
+  'strip_definition_footnote_footer preserves ordinary divider footnotes without managed blank')
 eq(define.strip_definition_footnote_footer(table.concat(redefined.lines, '\n')),
   'here is ASIN[^asin] in context',
   'strip_definition_footnote_footer removes only final managed footnote footer')
@@ -95,6 +103,12 @@ eq(define.footnote_diagnostics(redefined.lines), {
     end_col = 19,
   },
 }, 'footnote_diagnostics derives exact span and stored definition')
+eq(define.footnote_diagnostics({
+  'main text[^source]',
+  '',
+  '---',
+  '[^source]: ordinary existing footnote',
+}), {}, 'footnote_diagnostics ignores ordinary divider footnotes without managed blank')
 
 if failures > 0 then
   error(string.format('define_test failed: %d failure(s)', failures))
