@@ -63,6 +63,15 @@ func TestCmuxWorkspaceTitle(t *testing.T) {
 	if got := cmuxWorkspaceTitle("", "pair-21"); got != "♋-21" {
 		t.Errorf("cold prefix: %q", got)
 	}
+	if got := cmuxWorkspaceTitle("", "brain"); got != "brain" {
+		t.Errorf("single brain should stay literal: %q", got)
+	}
+	if got := cmuxWorkspaceTitle("", "pair"); got != "pair" {
+		t.Errorf("single pair should stay literal: %q", got)
+	}
+	if got := cmuxWorkspaceTitle("", "book"); got != "book" {
+		t.Errorf("single book should stay literal: %q", got)
+	}
 }
 
 // Mirrors the shell harness Part A (poller_alive identity guard).

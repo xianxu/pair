@@ -1,12 +1,13 @@
 ---
 id: 000111
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-07
 updated: 2026-07-07
 estimate_hours: 0.40
 started: 2026-07-07T23:38:22-07:00
+actual_hours: 0.21
 ---
 
 # conditional replacement of brain/pair word
@@ -39,7 +40,8 @@ There are two active implementations of the convention:
 ## Done when
 
 - `EmojiTitle("pair-brain-book") == "♋-🧠-📗"` still holds.
-- `EmojiTitle("brain") == "brain"` and `EmojiTitle("pair") == "pair"`.
+- `EmojiTitle("brain") == "brain"`, `EmojiTitle("pair") == "pair"`, and
+  `EmojiTitle("book") == "book"`.
 - `cmuxWorkspaceTitle` follows the same behavior through the title poller.
 - Focused Go tests cover both direct launcher formatting and title poller titles.
 
@@ -55,17 +57,31 @@ total: 0.40
 
 ## Plan
 
-- [ ] Add RED tests for single-word preservation and compound replacement in
+- [x] Add RED tests for single-word preservation and compound replacement in
   `cmd/internal/launcher` and `cmd/internal/titlepoller`.
-- [ ] Extract/share the pure emoji-title rule so launcher and title poller derive
-  from one implementation.
-- [ ] Verify focused packages and the wider Go suite.
+- [x] Extract/share the pure emoji-title rule in a neutral internal helper package
+  so launcher and title poller derive from one implementation.
+- [x] Verify focused packages and the wider Go suite.
 
 ## Log
 
 ### 2026-07-07
+- 2026-07-07: closed — RED: go test ./cmd/internal/launcher -run TestEmojiTitle -count=1 failed on single-word brain/pair/book replacements, and failed again on repair becoming re♋ before tightening token boundaries. GREEN: go test ./cmd/internal/launcher -run TestEmojiTitle -count=1 and go test ./cmd/internal/titlepoller -run TestCmuxWorkspaceTitle -count=1 passed. Final verification: go test ./cmd/internal/launcher ./cmd/internal/titlepoller ./cmd/internal/titlefmt -count=1 passed; go test ./... passed; git diff --check passed. Atlas updated for the shared cmux titlefmt rule.; review verdict: SHIP
 
 - Claimed and planned. Root cause: the cmux title convention uses unconditional
   `strings.ReplaceAll` in both launcher and titlepoller. The fix should be a
   shared pure rule, not two parallel conditional edits (`ARCH-DRY`,
   `ARCH-PURE`), and it must preserve both affected consumers (`ARCH-PURPOSE`).
+- Plan-quality INFO tightened before implementation: the shared helper home will
+  be a neutral internal package (not a launcher↔titlepoller dependency), and the
+  RED tests will include single-word `book` preservation.
+- RED evidence: `go test ./cmd/internal/launcher -run TestEmojiTitle -count=1`
+  failed on `brain`, `pair`, and `book` single-word replacements; after adding a
+  substring guard it also failed on `repair` becoming `re♋`.
+- Implemented `cmd/internal/titlefmt.EmojiTitle` as the shared pure helper:
+  hyphen-separated tokens are substituted, while single words and substrings
+  inside larger words remain literal.
+- GREEN/final verification: `go test ./cmd/internal/launcher -run TestEmojiTitle
+  -count=1`, `go test ./cmd/internal/titlepoller -run TestCmuxWorkspaceTitle
+  -count=1`, `go test ./cmd/internal/launcher ./cmd/internal/titlepoller
+  ./cmd/internal/titlefmt -count=1`, and `go test ./...` passed.
