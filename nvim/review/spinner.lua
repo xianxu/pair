@@ -6,12 +6,18 @@ local M = {}
 
 M.frames = { '⣾', '⣽', '⣻', '⢿', '⡿', '⣟', '⣯', '⣷' }
 
--- compact elapsed, ≤4 visible cols: 45s / 2m / 3h.
+-- compact elapsed: 45s / 2m 0s / 5m 10s / 1h 2m.
 function M.elapsed(secs)
   if not secs or secs < 0 then secs = 0 end
   if secs < 60 then return secs .. 's' end
-  if secs < 3600 then return math.floor(secs / 60) .. 'm' end
-  return math.floor(secs / 3600) .. 'h'
+  if secs < 3600 then
+    local minutes = math.floor(secs / 60)
+    local seconds = secs % 60
+    return minutes .. 'm ' .. seconds .. 's'
+  end
+  local hours = math.floor(secs / 3600)
+  local minutes = math.floor((secs % 3600) / 60)
+  return hours .. 'h ' .. minutes .. 'm'
 end
 
 -- The statusline's leading cell while awaiting the agent: braille frame + elapsed

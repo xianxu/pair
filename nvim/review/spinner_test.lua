@@ -13,8 +13,10 @@ end
 
 eq(M.elapsed(0), '0s', 'elapsed 0')
 eq(M.elapsed(45), '45s', 'elapsed seconds')
-eq(M.elapsed(120), '2m', 'elapsed minutes')
-eq(M.elapsed(7200), '2h', 'elapsed hours')
+eq(M.elapsed(120), '2m 0s', 'elapsed minutes include seconds')
+eq(M.elapsed(310), '5m 10s', 'elapsed minutes keep seconds')
+eq(M.elapsed(3600), '1h 0m', 'elapsed hours include minutes')
+eq(M.elapsed(3723), '1h 2m', 'elapsed hours drop seconds')
 eq(M.elapsed(-5), '0s', 'elapsed clamps negative')
 
 eq(M.cell(nil, 100, 0), '', 'idle → empty cell')
