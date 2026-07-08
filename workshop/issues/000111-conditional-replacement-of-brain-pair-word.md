@@ -1,11 +1,12 @@
 ---
 id: 000111
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-07-07
 updated: 2026-07-07
 estimate_hours:
+started: 2026-07-07T23:38:22-07:00
 ---
 
 # conditional replacement of brain/pair word
