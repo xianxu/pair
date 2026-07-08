@@ -117,6 +117,11 @@ total: 3.30
   Tightened the recognizer to the exact managed shape Pair writes (`---`, blank
   line, footnotes) and added pure regressions proving ordinary divider
   footnotes are neither stripped nor rehydrated.
+- Third close review returned REWORK because durable rehydration only expanded
+  definition spans backward over a single word, so multi-word terms highlighted
+  only the final word plus footnote ref. Reworked pure span derivation to find
+  the preceding suffix whose `footnote_id` matches the ref id and added a
+  multi-word phrase regression.
 - Updated `atlas/review-workbench.md` for the definition keybinding,
   request/result seam, durable footnote storage, exact-span rendering, and
   projection behavior. Ran `make runtimebundle-generate`; generated runtime was

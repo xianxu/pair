@@ -158,16 +158,17 @@ function M.apply_definition_footnote(lines, l1, c1, l2, c2, term, definition)
   }
 end
 
-local function is_term_byte(ch)
-  return ch:match('[%w_-]') ~= nil
-end
-
-local function expand_term_start(line, ref_start)
-  local start = ref_start
-  while start > 1 and is_term_byte(line:sub(start - 1, start - 1)) do
-    start = start - 1
+local function matching_term_start(line, ref_start, id)
+  local before = line:sub(1, ref_start - 1)
+  for start = 1, #before do
+    local candidate = before:sub(start)
+    local leading = candidate:match('^%s*') or ''
+    local term = candidate:sub(#leading + 1)
+    if term ~= '' and M.footnote_id(term) == id then
+      return start + #leading
+    end
   end
-  return start
+  return ref_start
 end
 
 function M.footnote_diagnostics(lines)
@@ -190,7 +191,7 @@ function M.footnote_diagnostics(lines)
       if not ref_start then break end
       local definition = definitions[id]
       if definition then
-        local term_start = expand_term_start(line, ref_start)
+        local term_start = matching_term_start(line, ref_start, id)
         local term = line:sub(term_start, ref_start - 1)
         diagnostics[#diagnostics + 1] = {
           id = id,

@@ -103,6 +103,23 @@ eq(define.footnote_diagnostics(redefined.lines), {
     end_col = 19,
   },
 }, 'footnote_diagnostics derives exact span and stored definition')
+local phrase = define.apply_definition_footnote(
+  { 'define Amazon Standard Identification Number here' },
+  1, 7, 1, 43,
+  'Amazon Standard Identification Number',
+  'A product identifier.'
+)
+eq(define.footnote_diagnostics(phrase.lines), {
+  {
+    id = 'amazon-standard-identification-number',
+    term = 'Amazon Standard Identification Number',
+    definition = 'A product identifier.',
+    line = 0,
+    col = 7,
+    end_line = 0,
+    end_col = 84,
+  },
+}, 'footnote_diagnostics rehydrates the full selected phrase span')
 eq(define.footnote_diagnostics({
   'main text[^source]',
   '',
