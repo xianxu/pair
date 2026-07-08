@@ -719,7 +719,8 @@ func (r OSRuntime) PairOwnsCmuxWorkspace(tag string) bool {
 		return false
 	}
 	raw, err := r.ReadFile(filepath.Join(r.DataDir, "cmux-owner-"+wsID))
-	return err == nil && strings.TrimSpace(raw) == tag
+	fields := strings.Fields(strings.TrimSpace(raw))
+	return err == nil && len(fields) > 0 && fields[0] == tag
 }
 
 func (r OSRuntime) ClearCmuxOwner() {

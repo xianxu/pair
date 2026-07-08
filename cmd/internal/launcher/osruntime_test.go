@@ -211,6 +211,12 @@ func TestOSRuntimeCmuxOwnership(t *testing.T) {
 	if !rt.PairOwnsCmuxWorkspace("work") {
 		t.Fatal("owner-file == tag should own")
 	}
+	if err := os.WriteFile(owner, []byte("work\tpair-work\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !rt.PairOwnsCmuxWorkspace("work") {
+		t.Fatal("owner-file tag+session should own")
+	}
 	if rt.PairOwnsCmuxWorkspace("other") {
 		t.Fatal("owner-file mismatch should not own")
 	}

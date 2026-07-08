@@ -52,11 +52,11 @@ total: 0.25
 
 ## Plan
 
-- [ ] Add a failing OSRuntime cmux ownership test for a two-field
+- [x] Add a failing OSRuntime cmux ownership test for a two-field
       `tag<TAB>public-session` owner file.
-- [ ] Update the launcher ownership check to compare the parsed owner tag, while
+- [x] Update the launcher ownership check to compare the parsed owner tag, while
       preserving legacy single-field support.
-- [ ] Run focused launcher tests and formatting checks.
+- [x] Run focused launcher tests and formatting checks.
 
 ## Log
 
@@ -65,3 +65,8 @@ total: 0.25
   `tag<TAB>public-session`, but `cmd/internal/launcher.OSRuntime`
   `PairOwnsCmuxWorkspace` only accepted `strings.TrimSpace(raw) == tag`. Once
   the poller touched the owner file, quit cleanup skipped the cmux reset.
+- TDD: RED `go test ./cmd/internal/launcher -run TestOSRuntimeCmuxOwnership -count=1`
+  failed on `owner-file tag+session should own`; GREEN after parsing the owner
+  record's first field.
+- Verification: `go test ./cmd/internal/launcher -run TestOSRuntimeCmuxOwnership -count=1`
+  passed; `go test ./cmd/internal/launcher -count=1` passed.

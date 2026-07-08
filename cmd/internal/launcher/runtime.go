@@ -196,7 +196,7 @@ type LifecycleOps interface {
 	// 1621-1627.
 	KillTitlePoller(tag string)
 	// PairOwnsCmuxWorkspace reports whether this tag owns the current cmux
-	// workspace (CMUX_WORKSPACE_ID set + cmux-owner-<id> == tag), shell 902-907.
+	// workspace (CMUX_WORKSPACE_ID set + cmux-owner-<id>'s tag field matches).
 	PairOwnsCmuxWorkspace(tag string) bool
 	// ClearCmuxOwner removes the cmux-owner-<CMUX_WORKSPACE_ID> record, shell 1645.
 	ClearCmuxOwner()
