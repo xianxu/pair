@@ -1,12 +1,13 @@
 ---
 id: 000111
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-07
 updated: 2026-07-07
 estimate_hours: 0.40
 started: 2026-07-07T23:38:22-07:00
+actual_hours: 0.21
 ---
 
 # conditional replacement of brain/pair word
@@ -65,6 +66,7 @@ total: 0.40
 ## Log
 
 ### 2026-07-07
+- 2026-07-07: closed — RED: go test ./cmd/internal/launcher -run TestEmojiTitle -count=1 failed on single-word brain/pair/book replacements, and failed again on repair becoming re♋ before tightening token boundaries. GREEN: go test ./cmd/internal/launcher -run TestEmojiTitle -count=1 and go test ./cmd/internal/titlepoller -run TestCmuxWorkspaceTitle -count=1 passed. Final verification: go test ./cmd/internal/launcher ./cmd/internal/titlepoller ./cmd/internal/titlefmt -count=1 passed; go test ./... passed; git diff --check passed. Atlas updated for the shared cmux titlefmt rule.; review verdict: SHIP
 
 - Claimed and planned. Root cause: the cmux title convention uses unconditional
   `strings.ReplaceAll` in both launcher and titlepoller. The fix should be a
