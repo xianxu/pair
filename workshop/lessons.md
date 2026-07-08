@@ -1,5 +1,18 @@
 # Lessons
 
+## Generated review sidecars must stay bounded
+
+`sdlc close` writes a review sidecar, and that sidecar becomes part of later
+diffs. If it stores the full raw prompt/transcript, it can bloat the reviewed
+diff and carry whitespace-sensitive embedded patches.
+
+**Rule.** Keep committed review sidecars to the durable facts: verdict, window,
+findings, verification, and resolution. Avoid committing full prompt/diff
+transcripts unless the generator normalizes them and they remain small enough
+for future review prompts.
+
+Caught while closing #000108.
+
 ## Path precedence contracts need explicit divergent-env tests
 
 #90's embedded runtime implementation documented extraction under
