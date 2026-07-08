@@ -45,7 +45,8 @@ the stale repo-local calibration source reported by `sdlc start-plan`.
 ```estimate
 model: estimate-logic-v3.1
 familiarity: 1.0
-item: go-launcher-bugfix design=0.05 impl=0.15
+item: smaller-go-module design=0.05 impl=0.15
+design-buffer: 0.05
 total: 0.25
 ```
 
