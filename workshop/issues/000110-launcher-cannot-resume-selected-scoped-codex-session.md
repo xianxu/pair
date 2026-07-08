@@ -1,12 +1,13 @@
 ---
 id: 000110
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-07
 updated: 2026-07-07
 estimate_hours: 0.5
 started: 2026-07-07T21:15:56-07:00
+actual_hours: 0.92
 ---
 
 # launcher cannot resume selected scoped codex session
@@ -81,6 +82,7 @@ total: 0.50
 ## Log
 
 ### 2026-07-07
+- 2026-07-07: closed — Fixed both #107 resume regressions and resolved boundary review finding. Codex native session existence uses transcript.Resolve for nested rollout files; Codex resume detection supports valid 'codex [OPTIONS] resume <sid>' argv and strips that binding from saved config args; atlas now documents that rule. Verified with focused launcher tests, go test ./cmd/internal/launcher -count=1, go test ./..., git diff --check, and make build refreshed bin/pair for live retest.; review verdict: SHIP
 - 2026-07-07: closed — Fixed both #107 resume regressions: Codex native session existence uses transcript.Resolve for nested rollout files, and Codex resume detection now supports valid 'codex [OPTIONS] resume <sid>' argv while stripping that binding from saved config args. RED/GREEN covered nested rollout discovery, global-options-before-resume explicit detection, persisted-arg stripping, and an already-polluted saved config composing exactly one resume token. Verified with focused launcher tests, go test ./cmd/internal/launcher -count=1, go test ./..., git diff --check, and rebuilt bin/pair via make build for live retest. No atlas update: this corrects existing documented session identity behavior, no new surface.; review verdict: FIX-THEN-SHIP
 - 2026-07-07: closed — Root cause fixed by reusing transcript.Resolve for Codex nested rollout session discovery; RED verified with go test ./cmd/internal/launcher -run TestOSRuntimeAgentSessionExistsFindsNestedCodexRollout -count=1 before fix; GREEN verified with focused regression, go test ./cmd/internal/launcher -count=1, go test ./..., and git diff --check. No atlas update: existing atlas/session-identity.md already documents Codex session identity/storage and this only corrects a runtime probe to match it.; review verdict: SHIP
 - Created and claimed from a live report: after exiting a `pair-misc` Codex

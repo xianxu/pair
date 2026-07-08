@@ -10,36 +10,41 @@
 | window | 9213a7329049a81cb457a20d6dcad03fd0dfad23..HEAD |
 | command | sdlc close --issue 110 |
 | reviewer | codex |
-| timestamp | 2026-07-07T21:55:00-07:00 |
-| verdict | FIX-THEN-SHIP |
+| timestamp | 2026-07-07T22:00:00-07:00 |
+| verdict | SHIP |
 
 ## Verdict
 
 ```verdict
-verdict: FIX-THEN-SHIP
+verdict: SHIP
 confidence: high
 ```
 
 ## Summary
 
-The code change delivers the issue behavior: Codex nested rollout session files
-are recognized through the shared transcript resolver, and
-`codex [OPTIONS] resume <sid>` is detected and stripped for persisted config
-args. The review found one docs-gate miss: `atlas/architecture.md` still
-documented the old args[0..1]-only Codex strip rule.
+The diff satisfies pair#110's Spec/Plan: Codex nested rollout files are
+recognized through the shared transcript resolver, Codex
+`codex [OPTIONS] resume <sid>` is detected and stripped in the saved-config path,
+and the atlas consumer that previously described args[0..1]-only behavior is
+updated. No blocking findings were reported.
 
 ## Findings
 
 - Critical: none.
-- Important: `atlas/architecture.md` needed to document that Pair strips
-  `resume <X>` after recognized Codex global options, then prepends the
-  canonical `resume <session_id>`.
-- Minor: none.
+- Important: none.
+- Minor: `cmd/internal/launcher/createlogic.go` still says Codex uses the
+  "leading" `resume <id>` subcommand. Non-blocking wording only.
 
-## Resolution
+## Strengths
 
-Updated `atlas/architecture.md` to describe `codex [OPTIONS] resume <id>` and
-the corresponding strip-then-prepend behavior.
+- `cmd/internal/launcher/osruntime.go` reuses `transcript.Resolve` for Codex
+  session existence (`ARCH-DRY`, `ARCH-PURE`).
+- `cmd/internal/launcher/agentargs.go` centralizes Codex resume command parsing
+  and reuses it for explicit-resume extraction and persisted-arg stripping.
+- `cmd/internal/launcher/createflow_test.go` covers the polluted saved-config
+  shape end to end through picker composition.
+- `cmd/internal/launcher/osruntime_test.go` pins nested rollout discovery with
+  a real filesystem regression test.
 
 ## Verification
 
@@ -50,13 +55,12 @@ the corresponding strip-then-prepend behavior.
 
 ## Architecture
 
-- `ARCH-DRY`: pass in code; Codex path discovery now uses the shared transcript
-  resolver and Codex resume parsing is shared by explicit-resume detection and
-  persisted-arg stripping.
-- `ARCH-PURE`: pass; argv grammar logic stays pure and filesystem checks remain
-  at the runtime boundary.
-- `ARCH-PURPOSE`: pass after the atlas update; the documented consumer now
-  matches the delivered resume behavior.
+- `ARCH-DRY`: pass. No remaining changed-code duplicate of the Codex rollout
+  lookup or resume parser.
+- `ARCH-PURE`: pass. Arg grammar stays pure; filesystem lookup remains at
+  `OSRuntime`.
+- `ARCH-PURPOSE`: pass. The fix covers both stated root causes and the relevant
+  atlas consumer.
 
 ## Plan Revisions
 
