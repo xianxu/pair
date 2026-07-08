@@ -3,6 +3,8 @@ package launcher
 import (
 	"strconv"
 	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/titlefmt"
 )
 
 // Display formatting for the launcher's history/picker rows + pane titles (#99
@@ -63,10 +65,7 @@ func PaneTitle(agent, cwd, home string) string {
 }
 
 // EmojiTitle applies the personal cmux display convention — 'brain' → 🧠,
-// 'book' → 📗, 'pair' → ♋ anywhere in the title — uniformly on every rename.
+// 'book' → 📗, 'pair' → ♋ in compound titles — uniformly on every rename.
 func EmojiTitle(title string) string {
-	title = strings.ReplaceAll(title, "brain", "🧠")
-	title = strings.ReplaceAll(title, "book", "📗")
-	title = strings.ReplaceAll(title, "pair", "♋")
-	return title
+	return titlefmt.EmojiTitle(title)
 }

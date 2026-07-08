@@ -67,6 +67,21 @@ func TestEmojiTitle(t *testing.T) {
 	if got := EmojiTitle("pair-brain-book"); got != "♋-🧠-📗" {
 		t.Errorf("EmojiTitle = %q", got)
 	}
+	if got := EmojiTitle("brain"); got != "brain" {
+		t.Errorf("EmojiTitle single brain = %q", got)
+	}
+	if got := EmojiTitle("pair"); got != "pair" {
+		t.Errorf("EmojiTitle single pair = %q", got)
+	}
+	if got := EmojiTitle("book"); got != "book" {
+		t.Errorf("EmojiTitle single book = %q", got)
+	}
+	if got := EmojiTitle("repair"); got != "repair" {
+		t.Errorf("EmojiTitle must not replace substrings inside words: %q", got)
+	}
+	if got := EmojiTitle("work-pair"); got != "work-♋" {
+		t.Errorf("EmojiTitle compound pair token = %q", got)
+	}
 	if got := EmojiTitle("plain"); got != "plain" {
 		t.Errorf("EmojiTitle passthrough = %q", got)
 	}

@@ -16,6 +16,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/titlefmt"
 )
 
 // Heat-ramp thresholds + CJK-wide emoji prefixes for the cmux workspace title
@@ -78,13 +80,9 @@ func frameTitle(agent, count, cwdDisp string) string {
 
 // cmuxWorkspaceTitle builds the cmux workspace title from a heat prefix and the
 // zellij session name, applying the personal display convention (brain→🧠,
-// book→📗, pair→♋ anywhere in the title). Mirrors bin/pair's cmux_rename_workspace.
+// book→📗, pair→♋ in compound titles).
 func cmuxWorkspaceTitle(prefix, session string) string {
-	title := prefix + session
-	title = strings.ReplaceAll(title, "brain", "🧠")
-	title = strings.ReplaceAll(title, "book", "📗")
-	title = strings.ReplaceAll(title, "pair", "♋")
-	return title
+	return prefix + titlefmt.EmojiTitle(session)
 }
 
 // pollerArgvMatches is the single-instance identity guard: true iff argv is a
