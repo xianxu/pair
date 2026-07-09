@@ -1,6 +1,6 @@
 ---
 id: 000113
-status: working
+status: punt
 deps: []
 github_issue:
 created: 2026-07-08
@@ -60,10 +60,27 @@ total: 0.81
 
 - [x] Find the pure/helper code that extracts the final review question and
       chooses the answer insertion point.
-- [x] Add a failing regression for a final `💬:` followed by Markdown footnotes.
-- [x] Teach the range/insertion calculation to treat a leading `[^...]:`
-      footnote definition as the trailing metadata boundary.
-- [x] Run focused review/question tests and close #113.
+- [x] Determine that the owner is peer repo `../parley.nvim`, not `pair`.
+- [x] Land the regression and parser fix in `../parley.nvim`.
+- [x] Record the pair close-review outcome and punt this misfiled pair ticket.
+
+## Revisions
+
+### 2026-07-08T22:58:00-07:00
+
+- Reason: close review correctly rejected #113 as a pair boundary because the
+  implementation lives in peer repo `../parley.nvim`.
+- Delta: #113 is no longer a pair implementation ticket. It records the
+  diagnosis, the peer commit, and the failed pair close review; the pair issue is
+  punted instead of closed.
+
+### 2026-07-08T22:50:00-07:00
+
+- Reason: the managed definition footer includes an optional `---` divider
+  immediately before footnote definitions.
+- Delta: insertion target changed from splitting immediately above the first
+  `[^...]:` line to keeping the divider with the footer, so answers land above
+  the managed footer as a unit.
 
 ## Log
 
@@ -85,3 +102,7 @@ total: 0.81
   `nvim --headless --noplugin -u tests/minimal_init.vim -c
   "PlenaryBustedFile tests/unit/build_messages_spec.lua"`, and `make test` in
   `../parley.nvim`.
+- Pair close review returned `REWORK`: the pair diff only contained tracker
+  edits, while the implementation and regressions are in `../parley.nvim`. That
+  is correct for a pair boundary, so #113 is punted as a misfiled pair issue
+  rather than forced closed.
