@@ -26,9 +26,9 @@ For review question submission:
 - A line beginning with a Markdown footnote definition, matching
   `^%[%^[^%]]+%]:`, starts a footnote section.
 - The final question body stops before the first such footnote-definition line.
-- Agent answers for that question are inserted above the first footnote
-  definition line, with one blank line separating the answer block from the
-  footnotes.
+- Agent answers for that question are inserted above the managed footnote
+  footer. If a `---` divider immediately precedes the footnote definitions,
+  keep it with the footer instead of splitting the footer.
 - Existing behavior is preserved when no footnote-definition line follows the
   final question.
 
@@ -42,8 +42,8 @@ footnote detection in the UI shell.
 
 - A regression reproduces `💬:` followed by `---` and `[^acos]: ...`, proving
   only the question text is submitted.
-- A regression proves the answer insertion point is above the first
-  footnote-definition line with a blank line before the footnotes.
+- A regression proves the answer insertion point is above the managed footnote
+  footer.
 - Existing review question tests still pass.
 
 ## Estimate
@@ -58,12 +58,12 @@ total: 0.81
 
 ## Plan
 
-- [ ] Find the pure/helper code that extracts the final review question and
+- [x] Find the pure/helper code that extracts the final review question and
       chooses the answer insertion point.
-- [ ] Add a failing regression for a final `💬:` followed by Markdown footnotes.
-- [ ] Teach the range/insertion calculation to treat a leading `[^...]:`
+- [x] Add a failing regression for a final `💬:` followed by Markdown footnotes.
+- [x] Teach the range/insertion calculation to treat a leading `[^...]:`
       footnote definition as the trailing metadata boundary.
-- [ ] Run focused review/question tests and close #113.
+- [x] Run focused review/question tests and close #113.
 
 ## Log
 
@@ -71,3 +71,17 @@ total: 0.81
 - Created from reported bug: final review question followed by definition
   footnotes gets submitted together with the footnotes, and the answer is
   inserted below the footnote block.
+- Root cause is in peer `../parley.nvim`: `chat_parser.parse_chat` finalized a
+  trailing open `💬:` question at EOF, so the exchange model counted the
+  managed footnote footer as part of the question and inserted the answer after
+  it.
+- Implemented in `../parley.nvim/lua/parley/chat_parser.lua`: a final open
+  question now treats a trailing column-1 `[^...]:` footnote block as metadata,
+  and keeps an immediately preceding `---` divider with that footer.
+- Added regressions in `../parley.nvim/tests/unit/parse_chat_spec.lua` for
+  submitted question content and model insertion point.
+- Verified with `nvim --headless --noplugin -u tests/minimal_init.vim -c
+  "PlenaryBustedFile tests/unit/parse_chat_spec.lua"`,
+  `nvim --headless --noplugin -u tests/minimal_init.vim -c
+  "PlenaryBustedFile tests/unit/build_messages_spec.lua"`, and `make test` in
+  `../parley.nvim`.
