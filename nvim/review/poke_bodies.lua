@@ -18,11 +18,15 @@ end
 
 -- After the human finished their turn (the nvim saved — but did NOT git-commit;
 -- the agent commits the human round). "finished", not "committed" — precise.
-function M.human_finished(file, mode, instruction, label)
+function M.human_finished(file, mode, instruction, label, context_path)
   label = label or 'Edit'
   local suffix = ''
   if instruction and instruction ~= '' then
     suffix = '; instruction: ' .. instruction
+  end
+  if context_path and context_path ~= '' then
+    suffix = suffix .. '; use stripped review context at ' .. context_path
+      .. ' for reading, while editing the actual file'
   end
   return string.format('finished my edits to %s — please review in %s posture%s',
     file, label, suffix)
@@ -30,6 +34,12 @@ end
 
 function M.ship_requested(file)
   return string.format('ship %s — run docflow ship for the active review branch; the agent owns git', file)
+end
+
+function M.definition_requested(file, request_id, term)
+  return string.format(
+    'Definition requested in %s for %q. Read the tag-scoped review-definition-request artifact for context, answer concisely, then run: pair review definition --term %q %s <definition>',
+    file, term or '', term or '', request_id)
 end
 
 -- Sent ONCE when the review pane opens — the missing review-START signal (M4a

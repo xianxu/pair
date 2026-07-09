@@ -126,6 +126,7 @@ test-review: $(BIN_DIR)/pair
 	bash tests/review-readiness-cli-test.sh
 	bash tests/review-indicator-test.sh
 	bash tests/review-resume-test.sh
+	bash tests/review-definition-test.sh
 
 test-race:
 	go test -count=1 -race ./cmd/pair-wrap/
@@ -149,6 +150,7 @@ test-lua:
 	nvim -l nvim/doctor_test.lua
 	nvim -l nvim/review/record_test.lua
 	nvim -l nvim/review/reconstruct_test.lua
+	nvim -l nvim/review/define_test.lua
 	nvim -l nvim/review/markers_test.lua
 	nvim -l nvim/review/seam_test.lua
 	nvim -l nvim/review/mode_test.lua

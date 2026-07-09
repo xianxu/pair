@@ -235,6 +235,8 @@ local resolve = dofile(here .. 'review/resolve.lua')
 local mode = dofile(here .. 'review/mode.lua')
 local menu = dofile(here .. 'review/menu.lua')
 local spinner = dofile(here .. 'review/spinner.lua')
+local define = dofile(here .. 'review/define.lua')
+local definition_seam = dofile(here .. 'review/definition_seam.lua')
 
 -- 🤖 marker highlight groups. Keep these aligned with parley.nvim's review mode
 -- so pair and parley render the marker language consistently across themes.
@@ -447,6 +449,10 @@ local buf_content = review.buf_content
 -- round; the winbar is the "results ready" cue.
 local pane_focused = true -- the pane is created focused
 local pending_records = nil
+local pending_definition = nil
+local definition_timer = nil
+local write_review_context
+local DEF_PENDING = vim.api.nvim_create_namespace('review_definition_pending')
 
 -- Track pane focus for the gate (case 2: not focused → apply immediately). Terminal
 -- focus events may not fire on a zellij pane switch — the failure mode is benign
@@ -482,6 +488,7 @@ review.after_agent_round = function(buf)
   pending_records = nil
   clear_awaiting()
   show_winbar(false)
+  review.rehydrate_definitions(buf)
   render_active_diagnostic(buf)
 end
 
@@ -519,9 +526,10 @@ local function finish_human_turn(buf, file, mode_name, instruction)
   -- the whole trigger — the M3 `/xx-fix` stopgap is retired here.)
   local m = seam.normalize_mode(mode_name or current_mode())
   seam.write_mode(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG, m)
+  local context_path = write_review_context(buf)
   refresh_statusline()
   if poke.send(poke_bodies.human_finished(vim.fn.fnamemodify(file, ':p'), m,
-      instruction or '', seam.mode_label(m))) then
+      instruction or '', seam.mode_label(m), context_path)) then
     mark_awaiting()
   end
 end
@@ -530,6 +538,157 @@ local function request_ship(file)
   if poke.send(poke_bodies.ship_requested(vim.fn.fnamemodify(file, ':p'))) then
     mark_awaiting()
   end
+end
+
+function write_review_context(buf)
+  local data_dir = vim.env.PAIR_DATA_DIR
+  if not data_dir or data_dir == '' then return nil end
+  local tag = (vim.env.PAIR_TAG and vim.env.PAIR_TAG ~= '') and vim.env.PAIR_TAG or 'default'
+  local path = data_dir .. '/review-context-' .. tag .. '.md'
+  local tmp = path .. '.tmp'
+  local body = define.strip_definition_footnote_footer(buf_content(buf))
+  local ok = pcall(vim.fn.writefile, vim.split(body, '\n', { plain = true }), tmp)
+  if not ok then
+    vim.notify('review: could not write stripped review context', vim.log.levels.ERROR)
+    return nil
+  end
+  local renamed_ok, renamed = pcall(vim.fn.rename, tmp, path)
+  if not renamed_ok or renamed ~= 0 then
+    pcall(os.remove, tmp)
+    vim.notify('review: could not publish stripped review context', vim.log.levels.ERROR)
+    return nil
+  end
+  return path
+end
+
+local function stop_definition_poll()
+  if definition_timer then
+    pcall(definition_timer.stop, definition_timer)
+    pcall(definition_timer.close, definition_timer)
+    definition_timer = nil
+  end
+end
+
+local function clear_pending_definition(buf)
+  if pending_definition and pending_definition.mark_id then
+    pcall(vim.api.nvim_buf_del_extmark, buf, DEF_PENDING, pending_definition.mark_id)
+  end
+  pending_definition = nil
+end
+
+local function pending_definition_range(buf)
+  if pending_definition and pending_definition.mark_id then
+    local mark = vim.api.nvim_buf_get_extmark_by_id(buf, DEF_PENDING, pending_definition.mark_id, { details = true })
+    if mark and #mark >= 3 and mark[3] and mark[3].end_row and mark[3].end_col then
+      return mark[1] + 1, mark[2], mark[3].end_row + 1, mark[3].end_col - 1
+    end
+  end
+  return pending_definition.l1, pending_definition.c1, pending_definition.l2, pending_definition.c2
+end
+
+local function apply_definition_result(buf)
+  local result = definition_seam.read_result(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
+  if not result or not pending_definition then return false end
+  if result.request_id ~= pending_definition.request_id then return false end
+  local base = buf_content(buf)
+  local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local l1, c1, l2, c2 = pending_definition_range(buf)
+  local current_term = define.slice_selection(lines, l1, c1, l2, c2):gsub('^%s*(.-)%s*$', '%1')
+  if current_term ~= pending_definition.term then
+    vim.notify('review: definition selection changed; request ignored', vim.log.levels.WARN)
+    clear_pending_definition(buf)
+    definition_seam.clear_result(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
+    clear_awaiting()
+    stop_definition_poll()
+    return false
+  end
+  local applied = define.apply_definition_footnote(
+    lines,
+    l1,
+    c1,
+    l2,
+    c2,
+    result.term or pending_definition.term,
+    result.definition
+  )
+  review.projected_mutation(buf, base, function()
+    vim.api.nvim_buf_call(buf, function()
+      vim.cmd('silent! let &undolevels = &undolevels')
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, applied.lines)
+    end)
+    review.rehydrate_definitions(buf)
+    render_active_diagnostic(buf)
+  end)
+  clear_pending_definition(buf)
+  definition_seam.clear_result(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
+  clear_awaiting()
+  stop_definition_poll()
+  pcall(function() vim.cmd('silent keepalt write') end)
+  return true
+end
+
+local function start_definition_poll(buf)
+  stop_definition_poll()
+  definition_timer = vim.loop.new_timer()
+  if not definition_timer then return end
+  definition_timer:start(500, 500, vim.schedule_wrap(function()
+    pcall(apply_definition_result, buf)
+  end))
+end
+
+local function request_definition(buf, file, start_pos, end_pos, opts)
+  opts = opts or {}
+  local srow, scol = start_pos[1], start_pos[2]
+  local erow, ecol = end_pos[1], end_pos[2]
+  if erow < srow or (erow == srow and ecol < scol) then
+    srow, erow, scol, ecol = erow, srow, ecol, scol
+  end
+  local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local term = define.slice_selection(lines, srow, scol, erow, ecol):gsub('^%s*(.-)%s*$', '%1')
+  if term == '' then
+    vim.notify('review: select text to define', vim.log.levels.INFO)
+    return nil
+  end
+  local request = {
+    request_id = string.format('def-%s', tostring(vim.loop.hrtime())),
+    file = vim.fn.fnamemodify(file, ':p'),
+    term = term,
+    range = { l1 = srow, c1 = scol, l2 = erow, c2 = ecol },
+    context = define.strip_definition_footnote_footer(buf_content(buf)),
+  }
+  if not definition_seam.write_request(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG, request) then
+    vim.notify('review: could not write definition request', vim.log.levels.ERROR)
+    return nil
+  end
+  clear_pending_definition(buf)
+  local mark_id = vim.api.nvim_buf_set_extmark(buf, DEF_PENDING, srow - 1, scol, {
+    end_row = erow - 1,
+    end_col = ecol + 1,
+    right_gravity = false,
+    end_right_gravity = true,
+  })
+  pending_definition = {
+    request_id = request.request_id,
+    term = term,
+    l1 = srow,
+    c1 = scol,
+    l2 = erow,
+    c2 = ecol,
+    mark_id = mark_id,
+  }
+  if opts.poke ~= false then
+    if poke.send(poke_bodies.definition_requested(request.file, request.request_id, term)) then
+      mark_awaiting()
+      start_definition_poll(buf)
+    end
+  end
+  return request
+end
+
+local function request_visual_definition(buf, file, opts)
+  local a = vim.fn.getpos("'<")
+  local b = vim.fn.getpos("'>")
+  return request_definition(buf, file, { a[2], math.max(a[3] - 1, 0) }, { b[2], math.max(b[3] - 1, 0) }, opts)
 end
 
 local function open_mode_menu(buf, file)
@@ -589,6 +748,8 @@ local function start_review(buf, file)
     { buffer = buf, silent = true, desc = 'review: insert human comment marker' })
   vim.keymap.set('x', '<M-q>', function() quote_visual_selection(buf) end,
     { buffer = buf, silent = true, desc = 'review: quote selection for human comment' })
+  vim.keymap.set('x', '<M-D>', function() request_visual_definition(buf, file) end,
+    { buffer = buf, silent = true, desc = 'review: define selection' })
   vim.keymap.set('n', ']m', function() jump_marker(buf, 1) end,
     { buffer = buf, silent = true, desc = 'review: next 🤖 marker' })
   vim.keymap.set('n', '[m', function() jump_marker(buf, -1) end,
@@ -631,6 +792,7 @@ local function start_review(buf, file)
       pcall(review.stop, buf)
       if sf then pcall(os.remove, sf) end
       if status_timer then pcall(status_timer.stop, status_timer); pcall(status_timer.close, status_timer) end
+      stop_definition_poll()
     end,
   })
   refresh_statusline()
@@ -644,6 +806,11 @@ _G.PairReviewPane = { start_review = start_review, render_markers = render_marke
   open_mode_menu = function(file)
     return open_mode_menu(vim.api.nvim_get_current_buf(), file)
   end,
+  request_definition = request_definition,
+  request_visual_definition = request_visual_definition,
+  apply_definition_result = apply_definition_result,
+  write_review_context = write_review_context,
+  rehydrate_definitions = function(buf) return review.rehydrate_definitions(buf or vim.api.nvim_get_current_buf()) end,
   resolve_at_cursor = resolve_at_cursor, insert_review_marker = insert_review_marker,
   resolve_paragraph_to_cursor = resolve_paragraph_to_cursor,
   quote_selection = quote_selection, current_mode = current_mode, mode_label = mode_label,

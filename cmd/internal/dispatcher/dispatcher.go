@@ -57,6 +57,7 @@ func Families() []CommandFamily {
 		{Name: "review target", Summary: "record the review-target pane", Status: "implemented"},
 		{Name: "review open", Summary: "open/refresh the review pane", Status: "implemented"},
 		{Name: "review readiness", Summary: "prepare review-readiness data", Status: "implemented"},
+		{Name: "review definition", Summary: "record a review-pane definition result", Status: "implemented"},
 		// scrollback group
 		{Name: "scrollback render", Summary: "raw PTY capture to ANSI scrollback", Status: "implemented"},
 		{Name: "scrollback open", Summary: "open the scrollback viewer pane", Status: "implemented"},
@@ -178,7 +179,13 @@ func Dispatch(args []string) Result {
 	case "review open":
 		return bufferedStderr(func(stderr *bytes.Buffer) int { return reviewcmd.RunOpenCLI(rest, os.Getenv, stderr) })
 	case "review readiness":
-		return bufferedStdoutStderr(func(stdout, stderr *bytes.Buffer) int { return reviewcmd.RunReadinessCLI(rest, os.Getenv, stdout, stderr) })
+		return bufferedStdoutStderr(func(stdout, stderr *bytes.Buffer) int {
+			return reviewcmd.RunReadinessCLI(rest, os.Getenv, stdout, stderr)
+		})
+	case "review definition":
+		return bufferedStdoutStderr(func(stdout, stderr *bytes.Buffer) int {
+			return reviewcmd.RunDefinitionCLI(rest, os.Getenv, stdout, stderr)
+		})
 	case "clip clipboard-to-pane":
 		return bufferedStderr(func(stderr *bytes.Buffer) int { return clipcmd.RunClipboardToPaneCLI(os.Getenv, stderr) })
 	case "clip flash-pane":

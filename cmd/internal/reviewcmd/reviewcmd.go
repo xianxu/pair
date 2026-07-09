@@ -39,6 +39,25 @@ func targetJSON(file, status, session string) string {
 	return string(b)
 }
 
+// definitionDoc is the review-definition-result-<tag>.json shape. The request
+// id disambiguates multiple requests over one tag-scoped result path.
+type definitionDoc struct {
+	RequestID  string `json:"request_id"`
+	Term       string `json:"term,omitempty"`
+	Definition string `json:"definition"`
+	Session    string `json:"session"`
+}
+
+func definitionJSON(requestID, term, definition, session string) string {
+	b, _ := json.Marshal(definitionDoc{
+		RequestID:  requestID,
+		Term:       term,
+		Definition: definition,
+		Session:    session,
+	})
+	return string(b)
+}
+
 // readinessDoc is the JSON-mode output of pair-review-readiness.
 type readinessDoc struct {
 	Case           string `json:"case"`

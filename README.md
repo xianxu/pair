@@ -59,6 +59,7 @@ Select something with mouse on agent's pane, the selection is inserted at curren
 | **Alt+Return** | nvim (normal/insert) | Send buffer to agent. Note for consistency, claude's keybinding also changed to Alt+return as send, and return as newline |
 | **Alt+Shift+Return** | nvim (normal/insert) | Append buffer to the agent's composer followed by a newline, but do **not** submit — leaves the cursor on a fresh line in the agent input for more typing. Logs + clears the draft like Alt+Return. |
 | **Alt+c** | any pane | Open/show/hide the review collaboration pane. If no review target exists, starts `:PairReview`. |
+| **Shift+Alt+d** | review pane (visual) | Define the selected term inline. The pair agent answers through `pair review definition`, and the pane stores the result as a durable footnote. |
 | **Ctrl+C** | nvim (normal/insert) | Send ESC (0x1b) to the agent pane — interrupts claude's in-flight stream without leaving the draft |
 | **Alt+←** / **Alt+→** | nvim (normal/insert) | Walk through prompt history (`-N`) and queued prompts (`+N`) one slot at a time. |
 | **Alt+↑** / **Alt+↓** | any pane | Step the nvim pane along a `minimized` ↔ `12 lines` ↔ `1/3` ladder one rung at a time. When minimized, claude pane always have focus |
@@ -216,7 +217,7 @@ separately.
 
 `pair` is a **single binary** (built from `cmd/pair-go`): every helper is a
 `pair <subcommand>` (`pair wrap`, `pair scribe`, `pair review open`,
-`pair scrollback render`, `pair clip copy-on-select`, …), reached inside a
+`pair review definition`, `pair scrollback render`, `pair clip copy-on-select`, …), reached inside a
 session because the launcher fronts pair's own dir on the session PATH. In a dev
 shell sourced from `../ariadne/construct/dev-aliases.sh`, `pair` rebuilds from
 `cmd/pair-go` automatically before running.

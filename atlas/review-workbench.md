@@ -192,6 +192,22 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   `Alt+Return` keeps the current mode and sends directly. Send and ship pokes mark the
   pane as awaiting the agent, displayed by the statusline spinner until the next
   handoff clears it.
+- **inline definitions** (`nvim/review/define.lua`,
+  `nvim/review/definition_seam.lua`, `pair review definition`; #112) —
+  visual-select a term in the review pane and press `Shift+Alt+d` to ask the existing
+  pair agent for a concise definition. The pane writes
+  `review-definition-request-<tag>.json` with the selected term, byte range, file,
+  request id, and document context after stripping only the managed definition
+  footer; then it pokes the agent to answer by running
+  `pair review definition --term <term> <request-id> <definition>`, which writes
+  `review-definition-result-<tag>.json`. On result, the pane rewrites the selected
+  text to `term[^id]`, appends or updates a managed final `---` footnote block,
+  and rehydrates diagnostics/highlights from the durable footnotes. Definition
+  highlights live in a dedicated `review_define` extmark namespace but diagnostics
+  share the review diagnostic namespace, so the existing cursor-scoped diagnostic
+  display works; projection snapshots include the definition extmarks so undo/redo
+  preserves exact column spans. Re-defining the same term updates the footer
+  without duplicating the inline reference.
 - **apply-gate + durability** (`nvim/review/gate.lua`, `nvim/review.lua`; #89 M3) —
   the human is never locked while the agent produces a round. `finish_human_turn`
   snapshots `v0` (the just-saved buffer) via `review.set_base` **after** the save.

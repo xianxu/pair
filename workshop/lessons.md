@@ -1,5 +1,19 @@
 # Lessons
 
+## Async buffer requests need live anchors, not saved coordinates
+
+Pair review definitions originally stored the selected line/column range while
+the agent produced an answer. If the user inserted text before the selected term
+before the result arrived, the response applied to stale coordinates and inserted
+the footnote reference into the wrong text.
+
+**Rule.** Any Neovim request that crosses an async boundary and later mutates the
+same buffer must anchor the target with an extmark (or re-locate/validate the
+target from content) before applying the result. Raw row/column pairs are only a
+snapshot. Add an integration regression that mutates text before the target while
+the request is pending, then verifies the result follows the target or aborts
+cleanly. Caught in #000112 close review.
+
 ## Generated review sidecars must stay bounded
 
 `sdlc close` writes a review sidecar, and that sidecar becomes part of later

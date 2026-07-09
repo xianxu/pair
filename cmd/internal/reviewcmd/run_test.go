@@ -23,6 +23,7 @@ type fakeRuntime struct {
 	classErr error
 	spawn    *spawnCall
 	codexSID string
+	writeErr error
 }
 
 func newFake() *fakeRuntime {
@@ -35,9 +36,21 @@ func (f *fakeRuntime) ReadFile(p string) (string, error) {
 	}
 	return "", fmt.Errorf("no file: %s", p)
 }
-func (f *fakeRuntime) WriteFile(p, d string) error   { f.wrote[p] = d; return nil }
-func (f *fakeRuntime) WriteAtomic(p, d string) error { f.wrote[p] = d; return nil }
-func (f *fakeRuntime) Remove(p string)               { f.removed = append(f.removed, p) }
+func (f *fakeRuntime) WriteFile(p, d string) error {
+	if f.writeErr != nil {
+		return f.writeErr
+	}
+	f.wrote[p] = d
+	return nil
+}
+func (f *fakeRuntime) WriteAtomic(p, d string) error {
+	if f.writeErr != nil {
+		return f.writeErr
+	}
+	f.wrote[p] = d
+	return nil
+}
+func (f *fakeRuntime) Remove(p string) { f.removed = append(f.removed, p) }
 func (f *fakeRuntime) FileSize(p string) (int64, bool) {
 	s, ok := f.sizes[p]
 	return s, ok
@@ -104,6 +117,82 @@ func TestRunTargetInvalidStatus(t *testing.T) {
 	rt := newFake()
 	if code := RunTarget(TargetOptions{File: "/r/d.md", Status: "bogus", DataDir: "/dd"}, rt, &bytes.Buffer{}, &bytes.Buffer{}); code != 2 {
 		t.Fatalf("code = %d, want 2", code)
+	}
+}
+
+func definitionOf(t *testing.T, rt *fakeRuntime, tag string) definitionDoc {
+	t.Helper()
+	var d definitionDoc
+	path := "/dd/review-definition-result-" + tag + ".json"
+	if err := json.Unmarshal([]byte(rt.wrote[path]), &d); err != nil {
+		t.Fatalf("definition json: %v (%q)", err, rt.wrote[path])
+	}
+	return d
+}
+
+func TestRunDefinitionWritesResult(t *testing.T) {
+	rt := newFake()
+	code := RunDefinition(DefinitionOptions{
+		RequestID:  "req-123",
+		Term:       "ASIN",
+		Definition: "Amazon Standard Identification Number.",
+		Tag:        "t",
+		Agent:      "codex",
+		DataDir:    "/dd",
+		SessionID:  "envsid",
+	}, rt, &bytes.Buffer{}, &bytes.Buffer{})
+	if code != 0 {
+		t.Fatalf("code = %d, want 0", code)
+	}
+	d := definitionOf(t, rt, "t")
+	if d.RequestID != "req-123" || d.Term != "ASIN" || d.Definition != "Amazon Standard Identification Number." || d.Session != "envsid" {
+		t.Fatalf("definition = %+v", d)
+	}
+}
+
+func TestRunDefinitionValidation(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		opts DefinitionOptions
+	}{
+		{name: "missing data dir", opts: DefinitionOptions{RequestID: "r", Definition: "d"}},
+		{name: "missing request", opts: DefinitionOptions{DataDir: "/dd", Definition: "d"}},
+		{name: "missing definition", opts: DefinitionOptions{DataDir: "/dd", RequestID: "r"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rt := newFake()
+			if code := RunDefinition(tc.opts, rt, &bytes.Buffer{}, &bytes.Buffer{}); code == 0 {
+				t.Fatalf("code = 0, want failure")
+			}
+			if len(rt.wrote) != 0 {
+				t.Fatalf("unexpected writes: %+v", rt.wrote)
+			}
+		})
+	}
+}
+
+func TestRunDefinitionWriteError(t *testing.T) {
+	rt := newFake()
+	rt.writeErr = fmt.Errorf("disk full")
+	var stdout, stderr bytes.Buffer
+	code := RunDefinition(DefinitionOptions{
+		RequestID:  "req-123",
+		Term:       "ASIN",
+		Definition: "Amazon Standard Identification Number.",
+		Tag:        "t",
+		DataDir:    "/dd",
+	}, rt, &stdout, &stderr)
+	if code == 0 {
+		t.Fatalf("code = 0, want failure")
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("unexpected stdout: %q", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "write") || !strings.Contains(stderr.String(), "disk full") {
+		t.Fatalf("stderr = %q, want write error", stderr.String())
+	}
+	if len(rt.wrote) != 0 {
+		t.Fatalf("unexpected writes: %+v", rt.wrote)
 	}
 }
 
