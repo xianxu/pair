@@ -51,13 +51,13 @@ total: 0.45
 
 ## Plan
 
-- [ ] Expose or isolate the draft completer mode guard enough for a headless
+- [x] Expose or isolate the draft completer mode guard enough for a headless
       regression.
-- [ ] Add a failing regression for a scheduled completer execution outside
+- [x] Add a failing regression for a scheduled completer execution outside
       Insert mode.
-- [ ] Guard the shared completion runner before any completer can call
+- [x] Guard the shared completion runner before any completer can call
       `vim.fn.complete()`.
-- [ ] Run focused nvim tests and close #114.
+- [x] Run focused nvim tests and close #114.
 
 ## Log
 
@@ -65,3 +65,13 @@ total: 0.45
 - Created from reported stack trace:
   `Vim:E785: complete() can only be used in Insert mode` from
   `word_complete()` via scheduled `run_completers()`.
+- Added `tests/draft-complete-mode-test.sh`; before the guard it failed with
+  `Vim:E785: complete() can only be used in Insert mode`, reproducing the
+  reported error through the real `nvim/init.lua` runner.
+- Fixed the shared draft completer runner to no-op unless Neovim reports an
+  Insert-mode variant, covering path, word, and spell typeahead from the single
+  `run_completers()` entry point (`ARCH-DRY`, `ARCH-PURPOSE`).
+- Verification passed: `bash tests/draft-complete-mode-test.sh`,
+  `bash tests/autopair-test.sh`, `bash tests/cr-newline-test.sh`,
+  `make test-lua`, `make test-draft-complete`, `git diff --check`, and
+  `make test`.

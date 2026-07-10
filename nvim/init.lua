@@ -3834,7 +3834,13 @@ end
 -- run 30ms after the last event.
 local complete_last_fire = 0
 local complete_pending = nil
+function _G.PairDraftCompletionCanRun()
+  local mode = vim.api.nvim_get_mode().mode or ''
+  return mode:sub(1, 1) == 'i'
+end
+
 local function run_completers()
+  if not _G.PairDraftCompletionCanRun() then return end
   -- The explicit z= gesture (spell_suggest_popup) owns the popup while it's
   -- active, so the as-you-type completers must stay out of its way. Without
   -- this guard, startinsert's TextChangedI drives spell_complete to pop its own
@@ -3847,6 +3853,13 @@ local function run_completers()
   if word_complete() then return end
   spell_complete()
 end
+-- Exposed for tests/draft-complete-mode-test.sh. The live path reaches this
+-- runner through TextChangedI/P, but the regression drives the runner directly
+-- from Normal mode to keep the E785 failure deterministic under headless nvim.
+_G.PairDraftCompleteTest = {
+  can_run = _G.PairDraftCompletionCanRun,
+  run_completers = run_completers,
+}
 vim.api.nvim_create_autocmd({ 'TextChangedI', 'TextChangedP' }, {
   group = pair_aug,
   callback = function()
