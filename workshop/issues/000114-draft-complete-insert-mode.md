@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-07-10
 updated: 2026-07-10
-estimate_hours:
+estimate_hours: 0.45
 started: 2026-07-10T07:54:48-07:00
 ---
 
@@ -13,16 +13,55 @@ started: 2026-07-10T07:54:48-07:00
 
 ## Problem
 
+Draft-pane typeahead completion is scheduled from `TextChangedI/P`. If the user
+leaves Insert mode before a debounced callback runs, the callback can still call
+`vim.fn.complete()`. Neovim raises `E785: complete() can only be used in Insert
+mode`, currently observed when selecting a word around spell-check/completion
+flows.
+
 ## Spec
+
+- The draft completion runner must no-op unless the current mode is Insert or
+  completion-select mode.
+- Delayed/debounced callbacks must re-check mode at execution time, not only at
+  scheduling time.
+- Existing path, word, and spell completion behavior in Insert mode is
+  preserved.
+
+ARCH-PURPOSE: the fix must prevent every `run_completers()` path from reaching
+`complete()` outside Insert mode, not only one completer.
+ARCH-DRY: put the guard at the shared completion runner, not separately in
+`path_complete`, `word_complete`, and `spell_complete`.
 
 ## Done when
 
--
+- A regression simulates the draft completer running in Normal/Visual mode and
+  proves it does not call `complete()` or raise `E785`.
+- Existing nvim headless tests pass for the draft completion area.
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 0.9
+item: lua-neovim design=0.10 impl=0.20
+item: milestone-review design=0.00 impl=0.15
+total: 0.45
+```
 
 ## Plan
 
-- [ ]
+- [ ] Expose or isolate the draft completer mode guard enough for a headless
+      regression.
+- [ ] Add a failing regression for a scheduled completer execution outside
+      Insert mode.
+- [ ] Guard the shared completion runner before any completer can call
+      `vim.fn.complete()`.
+- [ ] Run focused nvim tests and close #114.
 
 ## Log
 
 ### 2026-07-10
+- Created from reported stack trace:
+  `Vim:E785: complete() can only be used in Insert mode` from
+  `word_complete()` via scheduled `run_completers()`.
