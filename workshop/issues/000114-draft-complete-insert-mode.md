@@ -1,12 +1,13 @@
 ---
 id: 000114
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-10
 updated: 2026-07-10
 estimate_hours: 0.45
 started: 2026-07-10T07:54:48-07:00
+actual_hours: 0.15
 ---
 
 # draft completion should skip outside insert mode
@@ -62,6 +63,7 @@ total: 0.45
 ## Log
 
 ### 2026-07-10
+- 2026-07-10: closed — Fixed draft typeahead E785 by guarding the shared run_completers() entry point to only run in Insert-mode variants; reproduced pre-fix failure with bash tests/draft-complete-mode-test.sh. Verified bash tests/draft-complete-mode-test.sh; bash tests/autopair-test.sh; bash tests/cr-newline-test.sh; make test-lua; make test-draft-complete; git diff --check; make test. No atlas update: no new user-facing surface or architecture, only a guard and regression test for existing draft completion behavior.; review verdict: FIX-THEN-SHIP
 - Created from reported stack trace:
   `Vim:E785: complete() can only be used in Insert mode` from
   `word_complete()` via scheduled `run_completers()`.
@@ -75,3 +77,6 @@ total: 0.45
   `bash tests/autopair-test.sh`, `bash tests/cr-newline-test.sh`,
   `make test-lua`, `make test-draft-complete`, `git diff --check`, and
   `make test`.
+- Addressed close-review findings by keeping the production guard local to
+  `run_completers()` instead of globally mutable, and extending the regression
+  across Normal mode, Visual mode, and a scheduled post-Insert callback.

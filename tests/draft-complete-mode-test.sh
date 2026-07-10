@@ -32,16 +32,43 @@ end
 check(type(_G.PairDraftCompleteTest) == 'table', 'test seam exported')
 check(type(_G.PairDraftCompleteTest.run_completers) == 'function', 'runner exported')
 
--- Prefix "complet" has a same-buffer candidate "completion", so without the
--- shared mode guard run_completers reaches word_complete() and vim.fn.complete().
-vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'complet completion' })
-vim.api.nvim_win_set_cursor(0, { 1, #'complet' })
-vim.cmd('stopinsert')
-local mode = vim.api.nvim_get_mode().mode
-check(mode:sub(1, 1) ~= 'i', 'driver is outside insert mode', mode)
+local function exit_to_normal()
+  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Esc>', true, false, true), 'nx', false)
+  vim.cmd('stopinsert')
+end
 
-local ok, err = pcall(_G.PairDraftCompleteTest.run_completers)
-check(ok, 'runner skips outside insert mode without E785', err)
+local function prime_completion_candidate()
+  exit_to_normal()
+  -- Prefix "complet" has a same-buffer candidate "completion", so without the
+  -- shared mode guard run_completers reaches word_complete() and vim.fn.complete().
+  vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'complet completion' })
+  vim.api.nvim_win_set_cursor(0, { 1, #'complet' })
+end
+
+local function runner_skips(label, enter_mode)
+  prime_completion_candidate()
+  enter_mode()
+  local mode = vim.api.nvim_get_mode().mode
+  check(mode:sub(1, 1) ~= 'i', label .. ': driver is outside insert mode', mode)
+  local ok, err = pcall(_G.PairDraftCompleteTest.run_completers)
+  check(ok, label .. ': runner skips without E785', err)
+end
+
+runner_skips('normal', function() vim.cmd('stopinsert') end)
+runner_skips('visual', function() vim.cmd('normal! v') end)
+
+prime_completion_candidate()
+vim.cmd('startinsert')
+exit_to_normal()
+local scheduled = false
+vim.schedule(function()
+  local mode = vim.api.nvim_get_mode().mode
+  check(mode:sub(1, 1) ~= 'i', 'scheduled: driver is outside insert mode', mode)
+  local ok, err = pcall(_G.PairDraftCompleteTest.run_completers)
+  check(ok, 'scheduled: runner skips without E785', err)
+  scheduled = true
+end)
+check(vim.wait(100, function() return scheduled end), 'scheduled callback ran')
 
 O:write('TOTAL_FAILS=' .. fails .. '\n')
 O:close()
