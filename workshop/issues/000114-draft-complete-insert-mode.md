@@ -63,7 +63,8 @@ total: 0.45
 ## Log
 
 ### 2026-07-10
-- 2026-07-10: closed — Fixed draft typeahead E785 by guarding the shared run_completers() entry point to only run in Insert-mode variants; reproduced pre-fix failure with bash tests/draft-complete-mode-test.sh. Verified bash tests/draft-complete-mode-test.sh; bash tests/autopair-test.sh; bash tests/cr-newline-test.sh; make test-lua; make test-draft-complete; git diff --check; make test. No atlas update: no new user-facing surface or architecture, only a guard and regression test for existing draft completion behavior.; review verdict: FIX-THEN-SHIP
+- 2026-07-10: close gate — Addressed the FIX-THEN-SHIP close-review findings: production guard is local to run_completers(), and the regression now covers Normal mode, Visual mode, and a scheduled post-Insert callback. Verified bash tests/draft-complete-mode-test.sh; bash tests/autopair-test.sh; bash tests/cr-newline-test.sh; make test-lua; git diff --check; make test. No atlas update: no new user-facing surface or architecture, only a guard and regression test for existing draft completion behavior.; review verdict: FIX-THEN-SHIP
+- 2026-07-10: close gate — Fixed draft typeahead E785 by guarding the shared run_completers() entry point to only run in Insert-mode variants; reproduced pre-fix failure with bash tests/draft-complete-mode-test.sh. Verified bash tests/draft-complete-mode-test.sh; bash tests/autopair-test.sh; bash tests/cr-newline-test.sh; make test-lua; make test-draft-complete; git diff --check; make test. No atlas update: no new user-facing surface or architecture, only a guard and regression test for existing draft completion behavior.; review verdict: FIX-THEN-SHIP
 - Created from reported stack trace:
   `Vim:E785: complete() can only be used in Insert mode` from
   `word_complete()` via scheduled `run_completers()`.
@@ -80,3 +81,5 @@ total: 0.45
 - Addressed close-review findings by keeping the production guard local to
   `run_completers()` instead of globally mutable, and extending the regression
   across Normal mode, Visual mode, and a scheduled post-Insert callback.
+- Condensed the generated close-review sidecar to a bounded durable summary so
+  it records the verdict and resolutions without embedding full transcripts.

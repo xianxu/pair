@@ -3852,8 +3852,8 @@ local function run_completers()
   spell_complete()
 end
 -- Exposed for tests/draft-complete-mode-test.sh. The live path reaches this
--- runner through TextChangedI/P, but the regression drives the runner directly
--- from Normal mode to keep the E785 failure deterministic under headless nvim.
+-- runner through TextChangedI/P; the regression drives Normal, Visual, and
+-- scheduled post-Insert executions deterministically under headless nvim.
 _G.PairDraftCompleteTest = {
   run_completers = run_completers,
 }
