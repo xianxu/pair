@@ -1,7 +1,7 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
-.PHONY: build install pair runtimebundle-generate runtimebundle-drift-check test-runtimebundle test test-race test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-pair-title test-zellij-trace test-review
+.PHONY: build install pair runtimebundle-generate runtimebundle-drift-check test-runtimebundle test test-race test-run-headless test-lua test-queue test-autopair test-draft-complete test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-pair-title test-zellij-trace test-review
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
 # and ships with the `pair-` prefix so it doesn't collide with anything
@@ -71,7 +71,7 @@ pair: $(BIN_DIR)/pair
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
-test: test-run-headless test-lua test-queue test-autopair test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-pair-title test-zellij-trace test-review
+test: test-run-headless test-lua test-queue test-autopair test-draft-complete test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-pair-title test-zellij-trace test-review
 	go test ./... -count=1
 
 # pair-title poller (#93 M1, now Go): single-instance guard (identity-checked
@@ -179,6 +179,13 @@ test-zellij-trace:
 # opener's expr output. See tests/autopair-test.sh.
 test-autopair:
 	bash tests/autopair-test.sh
+
+# Regression test for the draft typeahead completer mode guard (nvim/init.lua,
+# run_completers). Drives the real init.lua headlessly and asserts the shared
+# runner no-ops outside Insert mode before any vim.fn.complete() call can raise
+# E785. See tests/draft-complete-mode-test.sh.
+test-draft-complete:
+	bash tests/draft-complete-mode-test.sh
 
 # Regression test for the insert-mode <CR> decision (nvim/init.lua, cr_keys /
 # _G.PairCRKeys, #65): Return must always insert a newline when no completion
