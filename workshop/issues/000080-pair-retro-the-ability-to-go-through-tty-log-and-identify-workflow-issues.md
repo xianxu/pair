@@ -1,11 +1,12 @@
 ---
 id: 000080
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-06-26
-updated: 2026-06-29
+updated: 2026-07-12
 estimate_hours:
+started: 2026-07-12T15:12:39-07:00
 ---
 
 # pair retro: the ability to go through tty log and identify workflow issues
