@@ -1,6 +1,6 @@
 ---
 id: 000080
-status: working
+status: wontfix
 deps: []
 github_issue:
 created: 2026-06-26
@@ -26,6 +26,8 @@ form without essence.
 The useful output is not a generic session summary. The useful output is an
 evidence-backed list of process/tooling frictions that can become follow-up
 issues, instruction changes, or binary improvements.
+
+On the other hand, all it takes seems to just for operator to ask for a retro, this ticket might seem overly complicated. just need to keep things we want to retro on in a skill I think. our retro is around development process (sdlc and surroundings).
 
 ## Spec
 
@@ -84,7 +86,24 @@ Initial detection areas:
 - [ ] Add tests for the fixture and detector categorization.
 - [ ] Leave SDLC close integration as a documented future/configured mode, not a default requirement.
 
+## Revisions
+
+### 2026-07-12 — moved to Ariadne
+
+Reason: the retrospective concerns the shared development process rather than
+Pair product behavior, and the binary-backed design is premature.
+
+Delta: ariadne#168 replaces the CLI/detector plan with an exported,
+skill-only `session-retro` workflow that reuses existing harness evidence.
+
 ## Log
+
+### 2026-07-12
+
+Moved to ariadne#168 as the exported `session-retro` skill. The capability is a
+general development-process retrospective rather than Pair product behavior.
+The original binary-backed design was rejected as premature; the approved scope
+reuses existing harness transcript and Pair scrollback surfaces through a skill.
 
 ### 2026-06-26
 
