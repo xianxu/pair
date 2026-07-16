@@ -4,7 +4,7 @@ date: 2026-06-15
 topic: user-model as the cross-session throughline
 mode: eureka
 description: The real thread under the continuation work is making agents build AND persist a model of the user across sessions — #61/#105 persist it, #103 maintains it live, #90 is the docflow sibling.
-references: [workshop/issues/000061-pair-continuation-improvements.md, ../ariadne/workshop/history/000105-continuation-datatype-connective-narrative-procedure-flush-to-pensive-thread-arc-user-model-open-questions-lessons.md, ../ariadne/workshop/issues/000103-agents-md-instruction-user-intention.md]
+references: [workshop/issues/000061-pair-continuation-improvements.md, ../ariadne/workshop/history/issues/000105-continuation-datatype-connective-narrative-procedure-flush-to-pensive-thread-arc-user-model-open-questions-lessons.md, ../ariadne/workshop/issues/000103-agents-md-instruction-user-intention.md]
 ---
 
 # Pensive: User-model as the cross-session throughline

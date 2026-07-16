@@ -87,7 +87,7 @@ NEXT ACTION.
 ## Artifact map
 
 Read-first ordering (issues are NOT auto-loaded; CLAUDE.md is):
-- **`workshop/history/000099-port-launcher-to-go.md`** + **`...-plan.md`** — the
+- **`workshop/history/issues/000099-port-launcher-to-go.md`** + **`...-plan.md`** — the
   archived #99 issue + durable plan (record of truth). The plan's `## Revisions`
   carry the per-milestone corrected scope (M5→M5a/b/c split, M5c retirement design
   incl. the `pair-restart.sh` deferral + the asset-root-marker rationale). The
