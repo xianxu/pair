@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-07-16
 updated: 2026-07-16
-estimate_hours: 4.34
+estimate_hours: 9.58
 started: 2026-07-16T12:17:57-07:00
 ---
 
@@ -294,15 +294,27 @@ model: estimate-logic-v3.1
 familiarity: 1.0
 item: issue-spec design=0.8 impl=0.08
 item: smaller-go-module design=0.06 impl=0.16
-item: greenfield-go-module design=0.2 impl=0.24
+item: smaller-go-module design=0.06 impl=0.16
+item: smaller-go-module design=0.06 impl=0.16
+item: greenfield-go-module design=0.3 impl=0.28
+item: greenfield-go-module design=0.3 impl=0.28
+item: greenfield-go-module design=0.3 impl=0.28
+item: greenfield-go-module design=0.3 impl=0.28
+item: greenfield-go-module design=0.3 impl=0.28
 item: greenfield-go-module design=0.3 impl=0.28
 item: tui-screen design=0.4 impl=0.4
+item: tui-screen design=0.4 impl=0.4
 item: cross-cutting-refactor design=0.1 impl=0.2
-item: real-api-discovery design=0.0 impl=0.16
+item: cross-cutting-refactor design=0.1 impl=0.2
+item: lua-neovim design=0.2 impl=0.4
 item: atlas-docs design=0.05 impl=0.05
-item: milestone-review design=0.08 impl=0.48
+item: milestone-review design=0.08 impl=0.12
+item: milestone-review design=0.08 impl=0.12
+item: milestone-review design=0.08 impl=0.12
+item: milestone-review design=0.08 impl=0.12
+item: milestone-review design=0.08 impl=0.12
 design-buffer: 0.15
-total: 4.34
+total: 9.58
 ```
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md`
@@ -364,3 +376,13 @@ stop intent is distinct from observed teardown, queue and draft mutations retain
 inode evidence for reconciliation, stale recovery has its own atomic claim, and
 transcript-unavailable paths require separate confirmation. The plan was
 approved chunk by chunk after fresh-context review.
+
+### 2026-07-16T15:53:01-07:00 — code-entry gate refinement
+
+The plan-quality gate found that the first estimate aggregated four milestone
+reviews plus the issue-close review into one item and underrepresented the 18
+implementation tasks. Re-derived the v3.1 estimate as 9.58 hours with five
+explicit review primitives and per-module/UI/Lua/refactor items. It also found
+two readiness JSON descriptions; the plan now puts the wire schema and codec in
+one shared `cmd/internal/readiness` package consumed by launcher and pair-wrap
+(ARCH-DRY).

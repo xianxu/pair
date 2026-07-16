@@ -460,11 +460,11 @@ Expected: `git log -1 --format=%B` contains both review trailers and the co-auth
 
 | Name | Lives in | Status |
 |------|----------|--------|
-| `ReadyRecord` / `ReadyIdentity` | `cmd/internal/launcher/readiness.go` | new |
+| `ReadyRecord` / `ReadyIdentity` wire contract | `cmd/internal/readiness/record.go` | new |
 | `SessionLaunchRequest` | `cmd/internal/launcher/readiness.go` | new |
 | `LaunchArgDecision` | `cmd/internal/launcher/launch_args_policy.go` | modified |
 
-- **`ReadyRecord` / `ReadyIdentity`** — JSON evidence and expected identity for one agent PTY startup.
+- **`ReadyRecord` / `ReadyIdentity`** — the single shared JSON codec and expected identity for one agent PTY startup; launcher and pair-wrap import this package rather than defining parallel schemas.
   - **Relationships:** one launch nonce maps to at most one accepted record; identity includes tag, agent, public session, nonce, and PID.
   - **DRY rationale:** ordinary create, target handoff, and source recovery share one exact matching rule.
   - **Future extensions:** health/version fields can be added without weakening identity.
@@ -502,6 +502,8 @@ Expected: `git log -1 --format=%B` contains both review trailers and the co-auth
 ### Task 5: Define and emit exact readiness evidence
 
 **Files:**
+- Create: `cmd/internal/readiness/record.go`
+- Create: `cmd/internal/readiness/record_test.go`
 - Create: `cmd/internal/launcher/readiness.go`
 - Create: `cmd/internal/launcher/readiness_test.go`
 - Modify: `cmd/internal/launcher/scoped_paths.go`
@@ -531,9 +533,9 @@ Run: `go test ./cmd/internal/launcher -run 'Test(Ready|ScopedPathsReady)' -count
 
 Expected: FAIL because readiness types/path do not exist.
 
-- [ ] **Step 2: Implement the pure codec/matcher and path**
+- [ ] **Step 2: Implement the pure codec/matcher once in `cmd/internal/readiness` and the launcher path separately**
 
-Use `encoding/json` with stable keys `tag`, `agent`, `session`, `nonce`, `pid`; reject missing identity fields and non-positive PID before matching.
+Use `encoding/json` with stable keys `tag`, `agent`, `session`, `nonce`, `pid`; reject missing identity fields and non-positive PID before matching. `cmd/internal/launcher/readiness.go` may expose type aliases for local call-site readability, but owns no JSON fields or marshal/unmarshal implementation. Both launcher reads and wrapcmd writes call the shared codec; a golden round-trip test encodes through the producer-facing API and decodes/matches through the consumer-facing API.
 
 Run: `go test ./cmd/internal/launcher -run 'Test(Ready|ScopedPathsReady)' -count=1`
 
@@ -547,9 +549,9 @@ Run: `go test ./cmd/internal/wrapcmd -run 'TestReadyRecord' -count=1`
 
 Expected: FAIL because pair-wrap has no emitter.
 
-- [ ] **Step 4: Implement pair-wrap emission immediately after the existing `agent-pid-<tag>` write**
+- [ ] **Step 4: Implement pair-wrap emission immediately after the existing `agent-pid-<tag>` write using the shared codec**
 
-Read `PAIR_TAG`, `PAIR_AGENT`, `PAIR_SESSION_NAME`, and `PAIR_LAUNCH_NONCE`; use sibling-temp + rename for `agent-ready-<tag>.json`. Treat a readiness write failure as startup-significant: log it and continue the agent so the launcher times out visibly rather than killing a usable process.
+Read `PAIR_TAG`, `PAIR_AGENT`, `PAIR_SESSION_NAME`, and `PAIR_LAUNCH_NONCE`; construct `readiness.Record`, encode it with `cmd/internal/readiness`, and use sibling-temp + rename for `agent-ready-<tag>.json`. Treat a readiness write failure as startup-significant: log it and continue the agent so the launcher times out visibly rather than killing a usable process.
 
 - [ ] **Step 5: Run wrap and launcher readiness tests**
 
@@ -560,7 +562,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit readiness evidence**
 
 ```bash
-git add cmd/internal/launcher/readiness.go cmd/internal/launcher/readiness_test.go cmd/internal/launcher/scoped_paths.go cmd/internal/launcher/scoped_paths_test.go cmd/internal/wrapcmd/readiness.go cmd/internal/wrapcmd/readiness_test.go cmd/internal/wrapcmd/wrap.go
+git add cmd/internal/readiness cmd/internal/launcher/readiness.go cmd/internal/launcher/readiness_test.go cmd/internal/launcher/scoped_paths.go cmd/internal/launcher/scoped_paths_test.go cmd/internal/wrapcmd/readiness.go cmd/internal/wrapcmd/readiness_test.go cmd/internal/wrapcmd/wrap.go
 git commit -m "#115 M2: publish nonce-bound agent readiness" \
   -m "Co-Authored-By: OpenAI Codex <noreply@openai.com>"
 ```
@@ -1554,3 +1556,13 @@ Require a real `SHIP` or `FIX-THEN-SHIP` verdict. For `FIX-THEN-SHIP`, apply eve
 - [ ] **Step 4: Commit the codecomplete integration anchor**
 
 Stage only issue #115 plus any integration fixes/docs/lessons, run `git diff --cached --check`, and commit with subject `#115: close exclusive agent handoff`, a why-focused body, the real `Review-Verdict:`/`Review-Window:` trailers, and `Co-Authored-By: OpenAI Codex <noreply@openai.com>`. Verify the issue is `codecomplete`, every M1-M4 row is checked, `git log -1 --format=%B` contains the real trailers, and unrelated user changes remain unstaged. Do not run `sdlc push` or merge without a separate user instruction.
+
+## Revisions
+
+### 2026-07-16T15:53:01-07:00 — code-entry gate refinement
+
+The plan-quality gate required the readiness producer and consumer to share one
+wire schema rather than maintain parallel JSON definitions. Task 5 now places
+the codec in `cmd/internal/readiness`; launcher and pair-wrap both consume it,
+with a cross-facing golden round trip. The issue estimate was independently
+re-derived to count all 18 tasks and all five review boundaries.
