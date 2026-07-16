@@ -1022,10 +1022,20 @@ type HandoffStoreOps interface {
     ReadHandoffJournal(tag, txnID string) (HandoffJournal, error)
     WriteHandoffJournal(HandoffJournal) error
     BackupHandoffInput(tag, txnID string, keys []string, replacementBody string) (SnapshotBackup, error)
+    CommitHandoffDraft(HandoffJournal) error
+    ReconcileHandoffDraft(HandoffJournal) (DraftCommitObservation, error)
     RestoreHandoffInput(HandoffJournal) error
     FinalizeHandoffRollback(HandoffJournal) error
     ReleaseTagLock(tag, txnID string) error
 }
+
+type DraftCommitObservation string
+
+const (
+    DraftStillOriginal DraftCommitObservation = "original"
+    DraftInstalledByTransaction DraftCommitObservation = "installed-by-transaction"
+    DraftCommitConflict DraftCommitObservation = "conflict"
+)
 
 type RecoveryClaim struct {
     ClaimID string
@@ -1047,11 +1057,11 @@ type TagLockRecord struct {
 }
 ```
 
-Use `procutil.Alive` for owner liveness. A stale recovery claimant first creates `handoff-<tag>.recovery.lock` with `O_EXCL`, then re-reads the ordinary lock and proceeds only if its complete record matches the observed dead owner; ordinary acquisition refuses while that recovery claim exists. If the recovery-claim owner is dead, contenders re-read the complete claim and atomically rename the one canonical claim path to a claim-ID quarantine path; only the rename winner retries `O_EXCL`, and quarantines remain forensic. Release active locks only by matching transaction/claim IDs. `FinalizeHandoffRollback` validates a pre-commit state, atomically writes a `rolled-back` terminal tombstone, and is idempotent for the same transaction; stale-journal scans ignore terminal `complete`/`rolled-back` transactions. For every durable write: fsync file contents before rename/link, fsync the containing transaction directory after publication, and fsync its parent after creating/renaming transaction directories. Keep lock/store mechanics in `handoff_store.go`, not the already-large `osruntime.go`; OSRuntime delegates.
+Use `procutil.Alive` for owner liveness. A stale recovery claimant first creates `handoff-<tag>.recovery.lock` with `O_EXCL`, then re-reads the ordinary lock and proceeds only if its complete record matches the observed dead owner; ordinary acquisition refuses while that recovery claim exists. If the recovery-claim owner is dead, contenders re-read the complete claim and atomically rename the one canonical claim path to a claim-ID quarantine path; only the rename winner retries `O_EXCL`, and quarantines remain forensic. Release active locks only by matching transaction/claim IDs. `CommitHandoffDraft` accepts only `queue-committed`, verifies the current draft is still the snapshot's original absence/digest, hard-links the retained instruction inode to a sibling temp, renames it over the draft, and fsyncs the draft directory. `ReconcileHandoffDraft` returns original, `os.SameFile`-proven installed, or conflict; rollback restores only the installed variant and refuses conflict. `FinalizeHandoffRollback` validates a pre-commit state, atomically writes a `rolled-back` terminal tombstone, and is idempotent for the same transaction; stale-journal scans ignore terminal `complete`/`rolled-back` transactions. For every durable write: fsync file contents before rename/link, fsync the containing transaction directory after publication, and fsync its parent after creating/renaming transaction directories. Keep lock/store mechanics in `handoff_store.go`, not the already-large `osruntime.go`; OSRuntime delegates.
 
 - [ ] **Step 3: Implement storage minimally and run concurrency/race tests**
 
-Before implementation, add RED cases for `FinalizeHandoffRollback`: valid finalization from each pre-commit state, rejection at/after `target-ready`, idempotent replay for the same transaction, old-or-new durable tombstone visibility, and `FindUnresolvedHandoff` ignoring `complete`/`rolled-back` while returning a nonterminal transaction. Assert the returned `SnapshotBackup` contains exact draft/instruction/queue size, digest, path, backup, and retained-inode fields. Race `ClaimStaleTagLock` callers and prove exactly one recovery owner plus transaction/owner mismatch rejection; then kill that claimant and prove exactly one contender quarantines/replaces it while all others lose.
+Before implementation, add RED cases for `CommitHandoffDraft` and `ReconcileHandoffDraft`: wrong-state rejection, absent/original draft success, changed-original conflict before rename, installed-inode recognition, same-content/different-inode conflict, no torn reader-visible body, fsynced publication, and idempotent recovery after an effect-before-journal crash. Add `FinalizeHandoffRollback` cases for valid finalization from each pre-commit state, rejection at/after `target-ready`, idempotent replay for the same transaction, old-or-new durable tombstone visibility, and `FindUnresolvedHandoff` ignoring `complete`/`rolled-back` while returning a nonterminal transaction. Assert the returned `SnapshotBackup` contains exact draft/instruction/queue size, digest, path, backup, and retained-inode fields. Race `ClaimStaleTagLock` callers and prove exactly one recovery owner plus transaction/owner mismatch rejection; then kill that claimant and prove exactly one contender quarantines/replaces it while all others lose.
 
 Run: `go test ./cmd/internal/launcher -run 'TestOSHandOffStore' -race -count=1`
 
@@ -1394,7 +1404,7 @@ Expected: PASS.
 
 - [ ] **Step 3: Implement the coordinator by interpreting pure plans**
 
-Keep state decisions in `handoff_state.go`; `handoff.go` performs only the next planned effect then durably advances. Reuse `queuecmd.PushFrontPlanned`, `PublishTranscriptBundle`, `StartSession`, `StopJournaledLaunch`, and `AgentDefaultOps`; do not call `RunLaunch` recursively. Pass the immutable cutoff captured immediately after source quiescence to transcript publication. A render error invokes the new transcript-failure confirmation: decline rolls back, affirm records `TranscriptMaterial{Available:false}` and builds the tag-state-only instruction. Queue insertion must create the exact key already journaled by `snapshot-complete`; retain both draft-backup and instruction inodes through terminal resolution so crash recovery can prove ownership of either effect. A typed pre-link collision aborts without removal; an owned link found after restart is removed during reconciliation. Durable `queue-committed` authorizes owned-key removal and draft-replacement reconciliation; `input-committed` records both mutations complete.
+Keep state decisions in `handoff_state.go`; `handoff.go` performs only the next planned effect then durably advances. Reuse `queuecmd.PushFrontPlanned`, `PublishTranscriptBundle`, `CommitHandoffDraft`, `StartSession`, `StopJournaledLaunch`, and `AgentDefaultOps`; do not call `RunLaunch` recursively or perform filesystem mutation directly. Pass the immutable cutoff captured immediately after source quiescence to transcript publication. A render error invokes the new transcript-failure confirmation: decline rolls back, affirm records `TranscriptMaterial{Available:false}` and builds the tag-state-only instruction. Queue insertion must create the exact key already journaled by `snapshot-complete`; retain both draft-backup and instruction inodes through terminal resolution so crash recovery can prove ownership of either effect. A typed pre-link collision aborts without removal; an owned link found after restart is removed during reconciliation. Durable `queue-committed` authorizes the store's owned-key removal and `ReconcileHandoffDraft`; `input-committed` records both mutations complete.
 
 - [ ] **Step 4: Test dead-owner recovery on launcher entry**
 
@@ -1566,3 +1576,13 @@ wire schema rather than maintain parallel JSON definitions. Task 5 now places
 the codec in `cmd/internal/readiness`; launcher and pair-wrap both consume it,
 with a cross-facing golden round trip. The issue estimate was independently
 re-derived to count all 18 tasks and all five review boundaries.
+
+### 2026-07-16T15:55:14-07:00 — forward draft seam and service-scale estimate
+
+The second code-entry review found the coordinator's forward draft install had
+no injected filesystem owner. Added `CommitHandoffDraft` and
+`ReconcileHandoffDraft` to the store seam with collision, inode-ownership,
+durability, and effect-before-journal tests (ARCH-PURE). Reclassified the
+coordinated lock/journal/process recovery and crash matrix as a greenfield
+service plus two OS integrations rather than hiding them in generic module
+counts; the issue estimate now derives to 16.70 hours.

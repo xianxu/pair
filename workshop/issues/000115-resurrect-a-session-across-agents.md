@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-07-16
 updated: 2026-07-16
-estimate_hours: 9.58
+estimate_hours: 16.70
 started: 2026-07-16T12:17:57-07:00
 ---
 
@@ -300,8 +300,9 @@ item: greenfield-go-module design=0.3 impl=0.28
 item: greenfield-go-module design=0.3 impl=0.28
 item: greenfield-go-module design=0.3 impl=0.28
 item: greenfield-go-module design=0.3 impl=0.28
-item: greenfield-go-module design=0.3 impl=0.28
-item: greenfield-go-module design=0.3 impl=0.28
+item: greenfield-service design=3.0 impl=3.2
+item: api-integration design=0.4 impl=0.4
+item: api-integration design=0.4 impl=0.4
 item: tui-screen design=0.4 impl=0.4
 item: tui-screen design=0.4 impl=0.4
 item: cross-cutting-refactor design=0.1 impl=0.2
@@ -314,7 +315,7 @@ item: milestone-review design=0.08 impl=0.12
 item: milestone-review design=0.08 impl=0.12
 item: milestone-review design=0.08 impl=0.12
 design-buffer: 0.15
-total: 9.58
+total: 16.70
 ```
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md`
@@ -386,3 +387,15 @@ explicit review primitives and per-module/UI/Lua/refactor items. It also found
 two readiness JSON descriptions; the plan now puts the wire schema and codec in
 one shared `cmd/internal/readiness` package consumed by launcher and pair-wrap
 (ARCH-DRY).
+
+### 2026-07-16T15:55:14-07:00 — second code-entry refinement
+
+The next gate found that module counting still hid the dominant work: the
+journaled multi-process coordinator, OS teardown/recovery, and hermetic crash
+matrix form a service-scale subsystem. Re-derived the estimate as 16.70 hours:
+four bounded Go modules cover defaults/readiness/queue/transcript, one
+greenfield-service primitive covers coordinator+locking+recovery, and two
+integration primitives cover Zellij/process and native-agent boundaries. The
+gate also identified a missing forward draft-write seam; the plan now adds
+store-owned `CommitHandoffDraft`/`ReconcileHandoffDraft` operations and OS/fake
+tests so orchestration remains a thin effect interpreter (ARCH-PURE).
