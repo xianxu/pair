@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-07-16
 updated: 2026-07-16
-estimate_hours:
+estimate_hours: 4.34
 started: 2026-07-16T12:17:57-07:00
 ---
 
@@ -123,7 +123,9 @@ Pair performs a handoff in these phases:
    path that can create, attach, resume, rename, or hand off that tag honors the
    lock. A lock contains a transaction ID, owner PID, source session, and start
    time; live owners reject competitors, while a dead owner routes through the
-   journal recovery procedure before new work proceeds.
+   journal recovery procedure before new work proceeds. Recovery first wins an
+   atomic claim sidecar and compare-validates the observed dead-owner record,
+   so only one launcher may replay a stale journal.
 2. Under the lock, resolve and validate the source evidence, target arguments,
    target command/session name, and source recovery material without changing
    the live session. Source recovery material is valid only when it can compose
@@ -135,13 +137,17 @@ Pair performs a handoff in these phases:
    intent and preflight data: the tag, agents, public session, launch nonces,
    and recovery inputs. It must not treat a live draft digest, queue manifest,
    or proposed queue key as authoritative.
-4. Stop the source in handoff mode, which suppresses normal quit cleanup of
-   tag-scoped and scrollback files, and wait for its pair-wrap and draft Neovim
-   processes to exit. That exit is the quiescence boundary: only afterward may
-   Pair snapshot the final draft, queue, raw transcript, and resize events. The
-   journal advances atomically only to `source-stopped`; step 6 publishes the
-   single `snapshot-complete` transition after every authoritative backup and
-   manifest field exists.
+4. Advance durably to `source-stop-requested`, then stop the source in handoff
+   mode, which suppresses normal quit cleanup of tag-scoped and scrollback
+   files, and wait for its pair-wrap and draft Neovim processes to exit. That
+   exit is the quiescence boundary: only afterward may Pair snapshot the final
+   draft, queue, raw transcript, and resize events. Pair then advances to
+   `source-stopped`; step 6 publishes the single `snapshot-complete` transition
+   after every authoritative backup and manifest field exists. Recovery from
+   `source-stop-requested` first observes the exact source: a bounded-stable
+   intact source is left running and the handoff rolls back, while a partially
+   stopping or quiescent source completes quiescence and relaunches when
+   recoverable. This closes the crash gap without turning intent into evidence.
 5. Publish a collision-safe immutable transcript bundle by building a temporary
    directory and renaming it into
    `parked/<tag>/<timestamp>-<agent>-<transaction-id>/`. The bundle contains
@@ -161,10 +167,12 @@ Pair performs a handoff in these phases:
    and backup paths as the sole authoritative recovery state; it replaces, and
    never validates against, any pre-stop observation.
 7. Commit the input transition as two individually atomic writes under the
-   journal: create the new queue item first, atomically replace the draft
-   second, then advance to `input-committed`. Recovery is idempotent at every
-   boundary: it removes only the journaled inserted key and restores the backed
-   up draft. History is never part of the mutation.
+   journal: create the new queue item first, advance to `queue-committed`,
+   atomically replace the draft second, then advance to `input-committed`.
+   Transaction-retained inodes let recovery prove whether either effect landed
+   before its following journal write; it never removes a colliding file or
+   restores over unrelated draft content. History is never part of the
+   mutation.
 8. Launch the target under the same tag/public session identity and an exact
    launch nonce. No target starts before the source is quiescent. Pair advances
    to `target-ready` only after receiving the matching readiness signal, then
@@ -279,9 +287,34 @@ agent.
 - Atlas documentation describes tag-as-work identity, exclusive agent drivers,
   handoff state ownership, and repository-scoped agent defaults.
 
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.8 impl=0.08
+item: smaller-go-module design=0.06 impl=0.16
+item: greenfield-go-module design=0.2 impl=0.24
+item: greenfield-go-module design=0.3 impl=0.28
+item: tui-screen design=0.4 impl=0.4
+item: cross-cutting-refactor design=0.1 impl=0.2
+item: real-api-discovery design=0.0 impl=0.16
+item: atlas-docs design=0.05 impl=0.05
+item: milestone-review design=0.08 impl=0.48
+design-buffer: 0.15
+total: 4.34
+```
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md`
+against `baseline-v3.1.md`. Method A only.*
+
 ## Plan
 
-- [ ] Write the durable implementation plan after the approved spec passes review.
+- [x] Write the durable implementation plan after the approved spec passes review.
+- [ ] M1 — Define explicit launch intent, repo-agent default precedence, driver classification, and picker policy.
+- [ ] M2 — Add nonce-bound readiness and wire automatic repo-agent defaults.
+- [ ] M3 — Add the crash-safe lock/journal, shared queue push-front, and immutable transcript bundle.
+- [ ] M4 — Wire exclusive handoff into the normal picker and prove end-to-end recovery.
 
 ## Log
 
@@ -322,3 +355,12 @@ Removed an accidental early `snapshot-complete` transition: quiescence records
 only `source-stopped`, and the authoritative manifest publishes
 `snapshot-complete` exactly once. Qualified acceptance recovery as pre-commit;
 failures at or after `target-ready` finalize forward.
+
+### 2026-07-16T15:13:48-07:00 — durable implementation plan
+
+Added the reviewed four-milestone implementation plan and calibrated v3.1
+estimate. Planning made every effect-before-journal window explicit: source
+stop intent is distinct from observed teardown, queue and draft mutations retain
+inode evidence for reconciliation, stale recovery has its own atomic claim, and
+transcript-unavailable paths require separate confirmation. The plan was
+approved chunk by chunk after fresh-context review.
