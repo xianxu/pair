@@ -551,7 +551,7 @@ Expected: FAIL because pair-wrap has no emitter.
 
 - [ ] **Step 4: Implement pair-wrap emission immediately after the existing `agent-pid-<tag>` write using the shared codec**
 
-Read `PAIR_TAG`, `PAIR_AGENT`, `PAIR_SESSION_NAME`, and `PAIR_LAUNCH_NONCE`; construct `readiness.Record`, encode it with `cmd/internal/readiness`, and use sibling-temp + rename for `agent-ready-<tag>.json`. Treat a readiness write failure as startup-significant: log it and continue the agent so the launcher times out visibly rather than killing a usable process.
+Read `PAIR_TAG`, `PAIR_AGENT`, `PAIR_SESSION_NAME`, and `PAIR_LAUNCH_NONCE`; construct `readiness.Record`, encode it with `cmd/internal/readiness`, and publish `agent-ready-<tag>.json` through injected `osfs.FS.WriteAtomic`. Do not add another sibling-temp/rename implementation; if readiness later requires stronger durability, extend and test the shared primitive. Treat a readiness write failure as startup-significant: log it and continue the agent so the launcher times out visibly rather than killing a usable process.
 
 - [ ] **Step 5: Run wrap and launcher readiness tests**
 
@@ -890,6 +890,7 @@ type HandoffJournal struct {
     State HandoffState
     Snapshot *SnapshotManifest
     ExplicitDefault *AgentDefault
+    DefaultPersisted bool
 }
 ```
 
@@ -939,6 +940,7 @@ const (
     RecoveryClearHandoffMarker RecoveryStepKind = "clear-handoff-marker"
     RecoveryStartSource RecoveryStepKind = "start-source"
     RecoveryWaitSourceReady RecoveryStepKind = "wait-source-ready"
+    RecoveryPersistExplicitDefault RecoveryStepKind = "persist-explicit-default"
     RecoveryFinalizeRollback RecoveryStepKind = "finalize-rollback"
     RecoveryFinalizeForward RecoveryStepKind = "finalize-forward"
     RecoveryReleaseLock RecoveryStepKind = "release-lock"
@@ -959,11 +961,11 @@ Expected matrix:
 - `snapshot-complete`: `[reconcile-queue-insert, clear-handoff-marker, start-source, wait-source-ready, finalize-rollback, release-lock]`; reconciliation removes only an insertion proven to be this transaction's, and no draft mutation has happened yet;
 - `queue-committed`: exactly `[stop-target, wait-target-quiescent, reconcile-draft-replace, restore-input, clear-handoff-marker, start-source, wait-source-ready, finalize-rollback, release-lock]`; reconciliation distinguishes unchanged original draft from this transaction's staged instruction inode and refuses any third-party content;
 - `input-committed`: exactly `[stop-target, wait-target-quiescent, restore-input, clear-handoff-marker, start-source, wait-source-ready, finalize-rollback, release-lock]`;
-- `target-ready`: `[finalize-forward, release-lock]`, never restore/recover source;
+- `target-ready` with a pending explicit default: `[persist-explicit-default, finalize-forward, release-lock]`; without one or after its durable persistence marker: `[finalize-forward, release-lock]`; neither variant restores/recovers source;
 - `complete` or `rolled-back`: `[release-lock]`; and
 - contradiction `TargetReady=true` before durable journal `target-ready`: the pre-commit stop/quiescence/rollback sequence still applies.
 
-Include source start/wait steps only when both the durable `j.SourceRecovery.Available` and current `RecoveryObservation.SourceRecoveryAvailable` are true; contradiction tests cover either side being false. An `intact` source means the exact public session and every authoritative recorded process remain alive, no teardown helper is live, and the observation is stable across a bounded recheck; any missing/changing evidence is `partially-stopping`, never optimistically intact. Otherwise omit start/wait-source but retain required source/target quiescence, queue reconciliation, input restoration, and marker clearing, then durably `finalize-rollback` before releasing the lock. M4 executes steps strictly in order and refuses `restore-input` unless the preceding target-quiescence observation succeeded. `finalize-rollback` atomically publishes the terminal tombstone only after every applicable reconcile/restore/recovery step succeeds; future scans treat the transaction as resolved.
+Include source start/wait steps only when both the durable `j.SourceRecovery.Available` and current `RecoveryObservation.SourceRecoveryAvailable` are true; contradiction tests cover either side being false. An `intact` source means the exact public session and every authoritative recorded process remain alive, no teardown helper is live, and the observation is stable across a bounded recheck; any missing/changing evidence is `partially-stopping`, never optimistically intact. Otherwise omit start/wait-source but retain required source/target quiescence, queue reconciliation, input restoration, and marker clearing, then durably `finalize-rollback` before releasing the lock. At `target-ready`, `persist-explicit-default` performs the idempotent write and atomically marks `DefaultPersisted=true`; an effect-before-journal crash safely repeats the same value, while a write failure leaves the state/lock at `target-ready` and never runs `finalize-forward`. M4 executes steps strictly in order and refuses `restore-input` unless the preceding target-quiescence observation succeeded. `finalize-rollback` atomically publishes the terminal tombstone only after every applicable reconcile/restore/recovery step succeeds; future scans treat the transaction as resolved.
 
 - [ ] **Step 4: Implement minimal recovery planning and run tests**
 
@@ -1022,12 +1024,23 @@ type HandoffStoreOps interface {
     ReadHandoffJournal(tag, txnID string) (HandoffJournal, error)
     WriteHandoffJournal(HandoffJournal) error
     BackupHandoffInput(tag, txnID string, keys []string, replacementBody string) (SnapshotBackup, error)
+    CommitHandoffQueue(HandoffJournal) error
+    ReconcileHandoffQueue(HandoffJournal) (QueueCommitObservation, error)
     CommitHandoffDraft(HandoffJournal) error
     ReconcileHandoffDraft(HandoffJournal) (DraftCommitObservation, error)
+    MarkHandoffDefaultPersisted(HandoffJournal) error
     RestoreHandoffInput(HandoffJournal) error
     FinalizeHandoffRollback(HandoffJournal) error
     ReleaseTagLock(tag, txnID string) error
 }
+
+type QueueCommitObservation string
+
+const (
+    QueueInsertAbsent QueueCommitObservation = "absent"
+    QueueInsertedByTransaction QueueCommitObservation = "inserted-by-transaction"
+    QueueInsertConflict QueueCommitObservation = "conflict"
+)
 
 type DraftCommitObservation string
 
@@ -1057,11 +1070,11 @@ type TagLockRecord struct {
 }
 ```
 
-Use `procutil.Alive` for owner liveness. A stale recovery claimant first creates `handoff-<tag>.recovery.lock` with `O_EXCL`, then re-reads the ordinary lock and proceeds only if its complete record matches the observed dead owner; ordinary acquisition refuses while that recovery claim exists. If the recovery-claim owner is dead, contenders re-read the complete claim and atomically rename the one canonical claim path to a claim-ID quarantine path; only the rename winner retries `O_EXCL`, and quarantines remain forensic. Release active locks only by matching transaction/claim IDs. `CommitHandoffDraft` accepts only `queue-committed`, verifies the current draft is still the snapshot's original absence/digest, hard-links the retained instruction inode to a sibling temp, renames it over the draft, and fsyncs the draft directory. `ReconcileHandoffDraft` returns original, `os.SameFile`-proven installed, or conflict; rollback restores only the installed variant and refuses conflict. `FinalizeHandoffRollback` validates a pre-commit state, atomically writes a `rolled-back` terminal tombstone, and is idempotent for the same transaction; stale-journal scans ignore terminal `complete`/`rolled-back` transactions. For every durable write: fsync file contents before rename/link, fsync the containing transaction directory after publication, and fsync its parent after creating/renaming transaction directories. Keep lock/store mechanics in `handoff_store.go`, not the already-large `osruntime.go`; OSRuntime delegates.
+Use `procutil.Alive` for owner liveness. A stale recovery claimant first creates `handoff-<tag>.recovery.lock` with `O_EXCL`, then re-reads the ordinary lock and proceeds only if its complete record matches the observed dead owner; ordinary acquisition refuses while that recovery claim exists. If the recovery-claim owner is dead, contenders re-read the complete claim and atomically rename the one canonical claim path to a claim-ID quarantine path; only the rename winner retries `O_EXCL`, and quarantines remain forensic. Release active locks only by matching transaction/claim IDs. `CommitHandoffQueue` accepts only `snapshot-complete` and delegates the exact retained-inode hard link to `queuecmd.PushFrontPlanned`; `ReconcileHandoffQueue` returns absent, `os.SameFile`-proven inserted, or conflict. `CommitHandoffDraft` accepts only `queue-committed`, verifies the current draft is still the snapshot's original absence/digest, hard-links the retained instruction inode to a sibling temp, renames it over the draft, and fsyncs the draft directory. `ReconcileHandoffDraft` returns original, `os.SameFile`-proven installed, or conflict; rollback restores only the installed variant and refuses conflict. `MarkHandoffDefaultPersisted` accepts only `target-ready`, requires an explicit default, and atomically rewrites that same state with `DefaultPersisted=true`; repeat writes are idempotent. `FinalizeHandoffRollback` validates a pre-commit state, atomically writes a `rolled-back` terminal tombstone, and is idempotent for the same transaction; stale-journal scans ignore terminal `complete`/`rolled-back` transactions. For every durable write: fsync file contents before rename/link, fsync the containing transaction directory after publication, and fsync its parent after creating/renaming transaction directories. Keep lock/store mechanics in `handoff_store.go`, not the already-large `osruntime.go`; OSRuntime delegates.
 
 - [ ] **Step 3: Implement storage minimally and run concurrency/race tests**
 
-Before implementation, add RED cases for `CommitHandoffDraft` and `ReconcileHandoffDraft`: wrong-state rejection, absent/original draft success, changed-original conflict before rename, installed-inode recognition, same-content/different-inode conflict, no torn reader-visible body, fsynced publication, and idempotent recovery after an effect-before-journal crash. Add `FinalizeHandoffRollback` cases for valid finalization from each pre-commit state, rejection at/after `target-ready`, idempotent replay for the same transaction, old-or-new durable tombstone visibility, and `FindUnresolvedHandoff` ignoring `complete`/`rolled-back` while returning a nonterminal transaction. Assert the returned `SnapshotBackup` contains exact draft/instruction/queue size, digest, path, backup, and retained-inode fields. Race `ClaimStaleTagLock` callers and prove exactly one recovery owner plus transaction/owner mismatch rejection; then kill that claimant and prove exactly one contender quarantines/replaces it while all others lose.
+Before implementation, add RED cases for `CommitHandoffQueue`/`ReconcileHandoffQueue`: wrong-state rejection, exact retained-inode publication, absent/owned/conflict observations, fsync, and crash-after-link reconciliation without real IO in coordinator tests. Add `CommitHandoffDraft`/`ReconcileHandoffDraft` cases for wrong-state rejection, absent/original draft success, changed-original conflict before rename, installed-inode recognition, same-content/different-inode conflict, no torn reader-visible body, fsynced publication, and idempotent recovery after an effect-before-journal crash. Add `MarkHandoffDefaultPersisted` cases for wrong state, no-default rejection, idempotence, and old-or-new durable `target-ready` visibility. Add `FinalizeHandoffRollback` cases for valid finalization from each pre-commit state, rejection at/after `target-ready`, idempotent replay for the same transaction, old-or-new durable tombstone visibility, and `FindUnresolvedHandoff` ignoring `complete`/`rolled-back` while returning a nonterminal transaction. Assert the returned `SnapshotBackup` contains exact draft/instruction/queue size, digest, path, backup, and retained-inode fields. Race `ClaimStaleTagLock` callers and prove exactly one recovery owner plus transaction/owner mismatch rejection; then kill that claimant and prove exactly one contender quarantines/replaces it while all others lose.
 
 Run: `go test ./cmd/internal/launcher -run 'TestOSHandOffStore' -race -count=1`
 
@@ -1386,7 +1399,7 @@ git commit -m "#115 M4: define exclusive handoff preflight" \
 
 For success, assert this exact order: acquire/revalidate/confirm → write `prepared` → write `source-stop-requested` → set transaction handoff marker → stop source → receive marker-consumed cleanup acknowledgement and prove source quiescence → write `source-stopped` → publish bundle (or obtain the new post-render-failure affirmative), build the instruction, and durably retain input backups plus staged instruction → write `snapshot-complete` → hard-link the retained draft-backup inode to the allocated front key → write `queue-committed` → atomically install `*` from the retained instruction inode → write `input-committed` → start exact target → accept matching readiness → write `target-ready` → persist/clear explicit target default when requested → write `complete` → release lock → wait on the attached target child. For an empty draft, advance through `queue-committed` without creating a queue item so the transition sequence stays uniform.
 
-Inject a crash/error before and after every external effect and every journal write, including: immediately after `source-stop-requested` before marker; after marker with a bounded-stable intact source; during partial teardown; after full quiescence before `source-stopped`; queue-link-before-`queue-committed`; draft-replace-before-`input-committed`; target-start-before-ready; and ready-before-`target-ready`. `prepared` leaves source/input unchanged. `source-stop-requested` + intact clears marker and rolls back without stop/relaunch—even when recovery is unavailable; partial teardown completes quiescence and relaunches when recoverable; already-quiescent relaunches directly. At `snapshot-complete`, reconcile the exact key: absent is clean, `os.SameFile` with the retained backup is this transaction's effect and is removed, and any other inode is a collision requiring operator resolution. At `queue-committed`, similarly distinguish the unchanged original draft from the retained instruction inode; restore the latter and refuse unrelated content. Later pre-commit states stop any partial target through journal-only identity, prove quiescence, restore only journal-owned input, clear the marker, recover source when available, write `rolled-back`, and release. At/after durable `target-ready`, never stop target/restore source and retry only default persistence/forward finalization. Default-write failure warns and leaves a retryable `target-ready` journal with target live.
+Inject a crash/error before and after every external effect and every journal write, including: immediately after `source-stop-requested` before marker; after marker with a bounded-stable intact source; during partial teardown; after full quiescence before `source-stopped`; queue-link-before-`queue-committed`; draft-replace-before-`input-committed`; target-start-before-ready; ready-before-`target-ready`; default-write-before-`DefaultPersisted`; and default-marker-before-`complete`. `prepared` leaves source/input unchanged. `source-stop-requested` + intact clears marker and rolls back without stop/relaunch—even when recovery is unavailable; partial teardown completes quiescence and relaunches when recoverable; already-quiescent relaunches directly. At `snapshot-complete`, reconcile the exact key through the injected store: absent is clean, `os.SameFile` with the retained backup is this transaction's effect and is removed, and any other inode is a collision requiring operator resolution. At `queue-committed`, similarly distinguish the unchanged original draft from the retained instruction inode; restore the latter and refuse unrelated content. Later pre-commit states stop any partial target through journal-only identity, prove quiescence, restore only journal-owned input, clear the marker, recover source when available, write `rolled-back`, and release. At/after durable `target-ready`, never stop target/restore source: retry the same explicit default until `DefaultPersisted=true`, then finalize forward. Default-write failure warns and leaves a retryable `target-ready` journal/lock with target live; fake-runtime tests inject it without real queue/filesystem IO.
 
 Run: `go test ./cmd/internal/launcher -run 'TestHandoff(Coordinator|Recovery)' -count=1`
 
@@ -1404,7 +1417,7 @@ Expected: PASS.
 
 - [ ] **Step 3: Implement the coordinator by interpreting pure plans**
 
-Keep state decisions in `handoff_state.go`; `handoff.go` performs only the next planned effect then durably advances. Reuse `queuecmd.PushFrontPlanned`, `PublishTranscriptBundle`, `CommitHandoffDraft`, `StartSession`, `StopJournaledLaunch`, and `AgentDefaultOps`; do not call `RunLaunch` recursively or perform filesystem mutation directly. Pass the immutable cutoff captured immediately after source quiescence to transcript publication. A render error invokes the new transcript-failure confirmation: decline rolls back, affirm records `TranscriptMaterial{Available:false}` and builds the tag-state-only instruction. Queue insertion must create the exact key already journaled by `snapshot-complete`; retain both draft-backup and instruction inodes through terminal resolution so crash recovery can prove ownership of either effect. A typed pre-link collision aborts without removal; an owned link found after restart is removed during reconciliation. Durable `queue-committed` authorizes the store's owned-key removal and `ReconcileHandoffDraft`; `input-committed` records both mutations complete.
+Keep state decisions in `handoff_state.go`; `handoff.go` performs only the next planned effect then durably advances. Invoke injected `CommitHandoffQueue`, `PublishTranscriptBundle`, `CommitHandoffDraft`, `StartSession`, `StopJournaledLaunch`, and `AgentDefaultOps`; do not call `RunLaunch` recursively, call `queuecmd` directly, or perform filesystem mutation directly. Pass the immutable cutoff captured immediately after source quiescence to transcript publication. A render error invokes the new transcript-failure confirmation: decline rolls back, affirm records `TranscriptMaterial{Available:false}` and builds the tag-state-only instruction. Queue insertion must create the exact key already journaled by `snapshot-complete`; retain both draft-backup and instruction inodes through terminal resolution so crash recovery can prove ownership of either effect. A typed pre-link collision aborts without removal; an owned link found after restart is removed during reconciliation. Durable `queue-committed` authorizes the store's owned-key removal and `ReconcileHandoffDraft`; `input-committed` records both mutations complete. After matching target readiness, write `target-ready`, then persist any explicit default and call `MarkHandoffDefaultPersisted` before `complete`; failure in either write stops forward finalization but never rolls back the ready target.
 
 - [ ] **Step 4: Test dead-owner recovery on launcher entry**
 
@@ -1586,3 +1599,14 @@ durability, and effect-before-journal tests (ARCH-PURE). Reclassified the
 coordinated lock/journal/process recovery and crash matrix as a greenfield
 service plus two OS integrations rather than hiding them in generic module
 counts; the issue estimate now derives to 16.70 hours.
+
+### 2026-07-16T16:00:15-07:00 — queue seam and post-commit default recovery
+
+The third code-entry review found queue IO still crossed the pure coordinator
+boundary, so `CommitHandoffQueue`/`ReconcileHandoffQueue` now own that effect and
+its fake/OS failure cases. `target-ready` recovery now explicitly persists the
+requested repo-agent default and durably marks it before forward finalization;
+effect-before-marker replay is idempotent. Pair-wrap readiness publication
+reuses `osfs.FS.WriteAtomic`. The estimate now counts M3's durability substrate
+and M4's live coordinator as two distinct service-scale items, deriving to
+23.35 hours.

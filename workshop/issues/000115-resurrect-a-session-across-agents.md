@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-07-16
 updated: 2026-07-16
-estimate_hours: 16.70
+estimate_hours: 23.35
 started: 2026-07-16T12:17:57-07:00
 ---
 
@@ -301,6 +301,7 @@ item: greenfield-go-module design=0.3 impl=0.28
 item: greenfield-go-module design=0.3 impl=0.28
 item: greenfield-go-module design=0.3 impl=0.28
 item: greenfield-service design=3.0 impl=3.2
+item: greenfield-service design=3.0 impl=3.2
 item: api-integration design=0.4 impl=0.4
 item: api-integration design=0.4 impl=0.4
 item: tui-screen design=0.4 impl=0.4
@@ -315,11 +316,17 @@ item: milestone-review design=0.08 impl=0.12
 item: milestone-review design=0.08 impl=0.12
 item: milestone-review design=0.08 impl=0.12
 design-buffer: 0.15
-total: 16.70
+total: 23.35
 ```
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md`
 against `baseline-v3.1.md`. Method A only.*
+
+The two service-scale items are distinct: M3's durable lock/journal/input
+substrate and M4's live process coordinator/recovery/acceptance harness. Four
+Go-module items cover defaults, shared readiness, queue, and transcript; the
+remaining items map picker/confirmation UI, launcher refactors, Lua integration,
+two OS/provider integrations, docs, issue design, and all five review gates.
 
 ## Plan
 
@@ -399,3 +406,14 @@ integration primitives cover Zellij/process and native-agent boundaries. The
 gate also identified a missing forward draft-write seam; the plan now adds
 store-owned `CommitHandoffDraft`/`ReconcileHandoffDraft` operations and OS/fake
 tests so orchestration remains a thin effect interpreter (ARCH-PURE).
+
+### 2026-07-16T16:00:15-07:00 — third code-entry refinement
+
+Made queue publication/reconciliation an injected store effect so coordinator
+failure tests need no real filesystem (ARCH-PURE). Made explicit-default
+persistence a named `target-ready` recovery step with a durable idempotence
+marker, preventing forward finalization from silently dropping requested args
+(ARCH-PURPOSE). Readiness publication now reuses `osfs.FS.WriteAtomic`
+(ARCH-DRY). The task mapping exposed two separate service-scale systems—the M3
+durability substrate and M4 live process coordinator—bringing the calibrated
+estimate to 23.35 hours.
