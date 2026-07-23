@@ -1,11 +1,12 @@
 ---
 id: 000116
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-07-23
 updated: 2026-07-23
 estimate_hours:
+started: 2026-07-23T16:16:22-07:00
 ---
 
 # Three-panel Pair layout with user terminal
