@@ -230,7 +230,9 @@ grep -q '^footgun ok$'    "$RESULT" && pass "never toggle-floating-panes" || fai
 
 # ── config lint ───────────────────────────────────────────────────────────────
 grep -q 'bind "Alt c"' "$ROOT/zellij/config.kdl" && pass "Alt+c bound in config.kdl" || fail "no Alt+c bind"
-grep -q ':lua PairReviewToggle()' "$ROOT/zellij/config.kdl" && pass "Alt+c routes to :lua PairReviewToggle()" || fail "Alt+c target wrong"
+grep -Fq 'bind "Alt c" { WriteChars "\u{1b}[99;3u"; }' "$ROOT/zellij/config.kdl" \
+  && pass "Alt+c forwards to focused process for draft routing" \
+  || fail "Alt+c target wrong"
 grep -Fq 'bind "Alt r" { Write 27; Write 114; }' "$ROOT/zellij/config.kdl" \
   && pass "Alt+r forwards ESC+r for review-pane reject" \
   || fail "Alt+r does not forward to focused pane"
