@@ -213,3 +213,12 @@ Live smoke showed Zellij hover focus crosses from the tiled left layer into the
 pinned floating terminal but does not cross back symmetrically. Revert to
 explicit `focus_follows_mouse false`; click and Pair's pane-focus shortcuts
 remain predictable in both directions.
+
+### 2026-07-24 — Focus draft for confirmation globals
+
+Pane-id routing guarantees delivery but leaves confirmation dialogs hidden when
+another pane is focused. Before invoking `PairConfirmDetach`,
+`PairConfirmQuit`, `PairConfirmRestart`, or `PairConfirmAgentRestart`, focus the
+validated draft pane by id. Layout growth/shrink and review toggle remain
+focus-preserving. The shared shortcut decision must carry this policy so agent,
+terminal, and Neovim-overlay consumers cannot drift.
