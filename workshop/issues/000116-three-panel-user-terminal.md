@@ -207,3 +207,7 @@ total: 4.53
   `Alt+k`/`Alt+j` pane boundaries, while `Alt+t`, `Alt+w`, and `Alt+r` pass
   through to the inner zellij, whose config binds them to native tab create,
   close, and rename.
+- Dogfood screenshot showed the inner zellij default layout was visually noisy
+  inside Pair's right pane. Added a minimal inner layout with only a shell pane
+  and changed `pair term` to attach to an existing inner session or create a new
+  one with that layout, avoiding nested default tab/status/plugin chrome.

@@ -106,10 +106,21 @@ func TestPumpStdinDecodesSplitAltChord(t *testing.T) {
 
 func TestInnerZellijCommand(t *testing.T) {
 	name, args := innerZellijCommand("/pair", "work")
-	got := name + " " + strings.Join(args, " ")
-	want := "env -u ZELLIJ -u ZELLIJ_SESSION_NAME zellij --config-dir /pair/zellij/terminal attach --create pair-work-terminal"
-	if got != want {
-		t.Fatalf("command = %q, want %q", got, want)
+	if name != "sh" {
+		t.Fatalf("name = %q, want sh", name)
+	}
+	got := strings.Join(args, "\x00")
+	for _, want := range []string{
+		"unset ZELLIJ ZELLIJ_SESSION_NAME",
+		`zellij --config-dir "$cfg" attach "$session"`,
+		`zellij --config-dir "$cfg" --layout "$layout" --session "$session"`,
+		"/pair/zellij/terminal",
+		"/pair/zellij/terminal/layouts/main.kdl",
+		"pair-work-terminal",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("inner command missing %q in %#v", want, args)
+		}
 	}
 }
 

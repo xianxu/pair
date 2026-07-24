@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -271,12 +270,19 @@ func (OSRuntime) ShellCommand() (string, []string) {
 }
 
 func innerZellijCommand(pairHome, tag string) (string, []string) {
-	return "env", []string{
-		"-u", "ZELLIJ",
-		"-u", "ZELLIJ_SESSION_NAME",
-		"zellij",
-		"--config-dir", filepath.Join(pairHome, "zellij", "terminal"),
-		"attach", "--create", "pair-" + tag + "-terminal",
+	script := `unset ZELLIJ ZELLIJ_SESSION_NAME
+cfg="$1"
+layout="$2"
+session="$3"
+if zellij list-sessions --short 2>/dev/null | grep -Fxq "$session"; then
+  exec zellij --config-dir "$cfg" attach "$session"
+fi
+exec zellij --config-dir "$cfg" --layout "$layout" --session "$session"`
+	return "sh", []string{
+		"-c", script, "pair-term-zellij",
+		pairHome + "/zellij/terminal",
+		pairHome + "/zellij/terminal/layouts/main.kdl",
+		"pair-" + tag + "-terminal",
 	}
 }
 
