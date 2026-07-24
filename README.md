@@ -6,10 +6,19 @@ Pair's 100% [AI generated](https://xianxu.dev/2026/05/a-saturday-coding-session/
 
 ## What it does
 
-Launches a `zellij` session split into two panes:
+Launches a `zellij` workbench in one of two layouts:
 
-- **Top** — the coding agent, `Claude`, `Codex`, `Antigravity`, ...
-- **Bottom (~12 rows)** — Neovim on a persistent draft file. 
+- **Layout 2 (default)** — the original coding-agent pane above Neovim on a
+  persistent draft file.
+- **Layout 3 (`--layout3`)** — the same Pair-owned stack on the left plus a
+  user-owned terminal on the right, where you can run a shell or full Neovim.
+
+Layout flags are Pair-owned and may appear before or after the agent name but
+before `--`, for example `pair codex --layout3` or
+`pair claude --layout2 -- --other-claude-flag`. Pair records the selected
+layout per tag; omitting the flag reuses that record. Explicitly changing a
+live tag's layout asks before recreating the workbench because arbitrary
+terminal state cannot be recovered.
 
 You compose prompts with full editor power, scrolling the agent output independently. When you are done, `Alt+Return` to send your text to the agent.
 
@@ -58,6 +67,13 @@ Select something with mouse on agent's pane, the selection is inserted at curren
 | **Alt+h** | any pane | Pop up the full keybind help in a floating pane (press `q` to dismiss). |
 | **Alt+Return** | nvim (normal/insert) | Send buffer to agent. Note for consistency, claude's keybinding also changed to Alt+return as send, and return as newline |
 | **Alt+Shift+Return** | nvim (normal/insert) | Append buffer to the agent's composer followed by a newline, but do **not** submit — leaves the cursor on a fresh line in the agent input for more typing. Logs + clears the draft like Alt+Return. |
+| **Alt+Shift+Return** | layout 3 terminal | Toggle the floating terminal between 1/2 and 2/3 width without recreating its processes. |
+| **Alt+j** | left Pair stack | Move vertically between the agent and draft panes. No-op in the user terminal. |
+| **Alt+k** | layout 3 agent/draft/terminal | Move between the last-focused left Pair pane and the right terminal. |
+| **Alt+t** | layout 3 terminal | Create a Pair-owned local terminal tab. |
+| **Alt+w** | layout 3 terminal | Close the active local terminal tab. |
+| **Alt+r** | layout 3 terminal | Rename the active local terminal tab. |
+| **Alt+←** / **Alt+→** | layout 3 terminal | Switch local terminal tabs. |
 | **Alt+c** | any pane | Open/show/hide the review collaboration pane. If no review target exists, starts `:PairReview`. |
 | **Shift+Alt+d** | review pane (visual) | Define the selected term inline. The pair agent answers through `pair review definition`, and the pane stores the result as a durable footnote. |
 | **Ctrl+C** | nvim (normal/insert) | Send ESC (0x1b) to the agent pane — interrupts claude's in-flight stream without leaving the draft |

@@ -30,11 +30,18 @@ type fakeRuntime struct {
 	probeErr        error
 	appendLedgerErr error
 	appendIndexErr  error
+	writeFailAt     string
 	inferAgent      map[string]string // tag -> paired agent (for `resume <tag>`)
 	pickFunc        func(header string, options []string) string
 	listRows        []ListRow // ListSessions rows (for `pair list`)
 	listErr         error
-	sessionsErr     error       // Sessions() error (defensive exit-1 path)
+	sessionsErr     error // Sessions() error (defensive exit-1 path)
+	liveLayouts     map[string]LayoutMode
+	liveLayoutErr   error
+	confirmLayout   bool
+	layoutPrompts   []string
+	deleteErr       error
+	keepDeletedLive bool
 	renameFailAt    string      // Rename returns an error when src == this (rollback test)
 	renamed         [][2]string // {src,dst} per successful Rename
 	// #99 M5b compaction/continue
@@ -58,6 +65,7 @@ type fakeRuntime struct {
 	// recorded
 	env           map[string]string
 	launched      string // last session name handed to LaunchSession
+	launchLayout  string
 	launchCode    int
 	launchCount   int      // number of create handoffs (restart-loop iterations)
 	watchers      []string // "agent|tag|cwd|args"
@@ -91,6 +99,7 @@ func newFakeRuntime() *fakeRuntime {
 		quitMarkers:    map[string]bool{},
 		restartMarkers: map[string]RestartMarker{},
 		cmuxOwned:      map[string]bool{},
+		liveLayouts:    map[string]LayoutMode{},
 	}
 }
 
@@ -100,6 +109,7 @@ func (f *fakeRuntime) SessionBlocksReuse(session string) bool { return f.blocksR
 func (f *fakeRuntime) ProbeSessionName(session string) error  { return f.probeErr }
 func (f *fakeRuntime) LaunchSession(session, configDir, layout string) (int, error) {
 	f.launched = session
+	f.launchLayout = layout
 	f.launchCount++
 	return f.launchCode, f.launchErr
 }
@@ -140,6 +150,20 @@ func (f *fakeRuntime) PickFromList(header string, options []string, height int) 
 	return f.pickFunc(header, options)
 }
 func (f *fakeRuntime) SetTerminalTitle(session string) { f.titles = append(f.titles, session) }
+func (f *fakeRuntime) ConfirmLayoutChange(tag string, from, to LayoutMode) bool {
+	f.layoutPrompts = append(f.layoutPrompts, fmt.Sprintf("%s|%s|%s", tag, from, to))
+	return f.confirmLayout
+}
+
+func (f *fakeRuntime) ProbeLiveLayout(session string) (LayoutMode, error) {
+	if f.liveLayoutErr != nil {
+		return "", f.liveLayoutErr
+	}
+	if mode, ok := f.liveLayouts[session]; ok {
+		return mode, nil
+	}
+	return Layout2, nil
+}
 
 // ProcOps
 func (f *fakeRuntime) SpawnSessionWatcher(agent, tag, cwd, repoRoot, repoName string, agentArgs []string) {
@@ -203,7 +227,13 @@ func (f *fakeRuntime) ReadFile(path string) (string, error) {
 	}
 	return "", errors.New("not found")
 }
-func (f *fakeRuntime) WriteAtomic(path, data string) error { f.files[path] = data; return nil }
+func (f *fakeRuntime) WriteAtomic(path, data string) error {
+	if path == f.writeFailAt {
+		return errors.New("write failed (fake)")
+	}
+	f.files[path] = data
+	return nil
+}
 func (f *fakeRuntime) Remove(path string) {
 	f.removed = append(f.removed, path)
 	delete(f.files, path)
@@ -274,9 +304,22 @@ func (f *fakeRuntime) TakeRestartMarker(session string) (RestartMarker, bool) {
 	}
 	return m, ok
 }
-func (f *fakeRuntime) DeleteSession(session string) {
+func (f *fakeRuntime) DeleteSession(session string) error {
 	f.deleted = append(f.deleted, session)
+	if f.deleteErr != nil {
+		return f.deleteErr
+	}
 	delete(f.blocksReuse, session) // the name is free for a restart re-create
+	if !f.keepDeletedLive {
+		kept := f.sessions[:0]
+		for _, existing := range f.sessions {
+			if existing.Name != session {
+				kept = append(kept, existing)
+			}
+		}
+		f.sessions = kept
+	}
+	return nil
 }
 func (f *fakeRuntime) ReapNvim(tag string) { f.reaped = append(f.reaped, tag) }
 func (f *fakeRuntime) SweepOrphanNvim(liveTags []string) {

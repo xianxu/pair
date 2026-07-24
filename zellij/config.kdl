@@ -10,12 +10,13 @@
 //   scroll-position indicator (top-right) when scrolled — the only way
 //   to surface scrollback position, since zellij doesn't expose pane
 //   scroll offset to plugins or the CLI. The draft pane opts out via
-//   `borderless=true` in zellij/layouts/main.kdl so the "minimized"
+//   `borderless=true` in both zellij/layouts/main-{2,3}.kdl so the "minimized"
 //   layout rung can still collapse to 1 row (framed minimum is ~3
 //   rows). Cost on the agent pane: ~2 rows + 2 cols of frame chrome.
 mouse_hover_effects false
 advanced_mouse_actions false
 show_release_notes false
+show_startup_tips false
 pane_frames true
 
 // Cap zellij's per-pane scroll-back at 2000 rows. Matches the
@@ -251,17 +252,15 @@ keybinds clear-defaults=false {
             Write 13;
         }
 
-        // Shift+Alt+N — restart with a fresh agent conversation: same
-        // tag + agent + args, but the saved config-<tag>-<agent>.json
-        // is dropped so the new run starts a brand-new agent session
-        // (vs. Alt+n which resumes the prior session). Same nvim-routed
-        // confirm guard.
+        // Shift+Alt+N — restart only the supervised agent child with a fresh
+        // conversation. The zellij workbench, draft, and user terminal remain
+        // alive; pair wrap reconstructs the launch without restoration args.
         bind "Alt N" {
             MoveFocus "Left";
             MoveFocus "Down";
             Write 28;
             Write 14;
-            WriteChars ":lua PairConfirmRestartNewSession()";
+            WriteChars ":lua PairConfirmAgentRestart()";
             Write 13;
         }
     }

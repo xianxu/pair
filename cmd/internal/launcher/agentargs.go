@@ -201,3 +201,9 @@ func persistedConfigArgs(args []string) []string {
 	out = stripFlagAllForms(out, "--conversation")
 	return out
 }
+
+// FreshAgentArgs preserves user-authored launch options while removing every
+// generated conversation-restoration binding.
+func FreshAgentArgs(args []string) []string {
+	return persistedConfigArgs(args)
+}

@@ -47,6 +47,75 @@ func TestParseLaunchArgsDefaultAgentWithForwardedArgs(t *testing.T) {
 	}
 }
 
+func TestParseArgsLayoutFlags(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		argv      []string
+		agent     string
+		tag       string
+		layout    LayoutMode
+		forwarded []string
+	}{
+		{"layout2 only", []string{"--layout2"}, "claude", "", Layout2, nil},
+		{"before agent", []string{"--layout3", "codex"}, "codex", "", Layout3, nil},
+		{"after agent", []string{"codex", "--layout2"}, "codex", "", Layout2, nil},
+		{"resume suffix", []string{"resume", "tag", "--layout3"}, "", "tag", Layout3, nil},
+		{"resume prefix", []string{"--layout2", "resume", "tag"}, "", "tag", Layout2, nil},
+		{
+			"pair flag before separator",
+			[]string{"claude", "--layout2", "--", "--other-claude-flags", "other-claude-params"},
+			"claude", "", Layout2, []string{"--other-claude-flags", "other-claude-params"},
+		},
+		{
+			"layout-shaped agent arg after separator",
+			[]string{"--layout3", "claude", "--", "--layout2"},
+			"claude", "", Layout3, []string{"--layout2"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := ParseArgs(tc.argv)
+			if err != nil {
+				t.Fatalf("ParseArgs(%q): %v", tc.argv, err)
+			}
+			if got.Agent != tc.agent || got.ForcedTag != tc.tag {
+				t.Fatalf("ParseArgs(%q) agent/tag = %q/%q, want %q/%q", tc.argv, got.Agent, got.ForcedTag, tc.agent, tc.tag)
+			}
+			if got.Layout != (LayoutRequest{Mode: tc.layout, Explicit: true}) {
+				t.Fatalf("ParseArgs(%q) layout = %+v", tc.argv, got.Layout)
+			}
+			if strings.Join(got.AgentArgs, "\x00") != strings.Join(tc.forwarded, "\x00") {
+				t.Fatalf("ParseArgs(%q) forwarded = %#v, want %#v", tc.argv, got.AgentArgs, tc.forwarded)
+			}
+		})
+	}
+}
+
+func TestParseArgsRejectsConflictingLayoutFlags(t *testing.T) {
+	_, err := ParseArgs([]string{"--layout2", "codex", "--layout3"})
+	if err == nil || !strings.Contains(err.Error(), "conflicting layout flags") {
+		t.Fatalf("ParseArgs conflict error = %v", err)
+	}
+}
+
+func TestParseArgsRejectsLayoutOnNonLaunchVerbs(t *testing.T) {
+	for _, argv := range [][]string{
+		{"--layout2", "help"},
+		{"list", "--layout2"},
+		{"--layout3", "ls"},
+		{"rename", "old", "new", "--layout3"},
+		{"restart", "--layout2"},
+		{"quit", "--layout3"},
+		{"continue", "--layout2"},
+	} {
+		t.Run(strings.Join(argv, " "), func(t *testing.T) {
+			_, err := ParseArgs(argv)
+			if err == nil || !strings.Contains(err.Error(), "layout flags do not apply") {
+				t.Fatalf("ParseArgs(%q) error = %v", argv, err)
+			}
+		})
+	}
+}
+
 func TestParseLaunchArgsResumeNormalizesForcedTag(t *testing.T) {
 	args, err := ParseArgs([]string{"resume", "pair-demo"})
 	if err != nil {

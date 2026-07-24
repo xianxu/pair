@@ -12,6 +12,7 @@ type LaunchArgs struct {
 	ForcedTag   string
 	SelectedTag string
 	AgentArgs   []string
+	Layout      LayoutRequest
 
 	// rename (#99 M5b): `pair rename [--restart-check] <old> <new>`. Raw tags —
 	// normalized + gated in runRename so it owns the operator-facing messages.
@@ -45,6 +46,22 @@ func (e UsageError) Error() string {
 // decision-phase subset for #75; unsupported shell-owned launcher verbs fail
 // explicitly.
 func ParseArgs(argv []string) (LaunchArgs, error) {
+	clean, layout, err := extractLayoutRequest(argv)
+	if err != nil {
+		return LaunchArgs{}, err
+	}
+	out, err := parseArgs(clean)
+	if err != nil {
+		return LaunchArgs{}, err
+	}
+	if layout.Explicit && !launchArgsAcceptLayout(out) {
+		return LaunchArgs{}, UsageError{Message: fmt.Sprintf("pair: layout flags do not apply to %q", firstNonEmpty(out.Command, "this command"))}
+	}
+	out.Layout = layout
+	return out, nil
+}
+
+func parseArgs(argv []string) (LaunchArgs, error) {
 	var out LaunchArgs
 	if len(argv) == 0 {
 		out.Agent = "claude"
@@ -109,6 +126,39 @@ func ParseArgs(argv []string) (LaunchArgs, error) {
 		out.Agent = "claude"
 	}
 	return out, nil
+}
+
+func extractLayoutRequest(argv []string) ([]string, LayoutRequest, error) {
+	clean := make([]string, 0, len(argv))
+	var request LayoutRequest
+	for i, arg := range argv {
+		if arg == "--" {
+			clean = append(clean, argv[i:]...)
+			break
+		}
+		var mode LayoutMode
+		switch arg {
+		case "--layout2":
+			mode = Layout2
+		case "--layout3":
+			mode = Layout3
+		default:
+			clean = append(clean, arg)
+			continue
+		}
+		if request.Explicit && request.Mode != mode {
+			return nil, LayoutRequest{}, UsageError{Message: fmt.Sprintf("pair: conflicting layout flags %q and %q", "--"+string(request.Mode), arg)}
+		}
+		request = LayoutRequest{Mode: mode, Explicit: true}
+	}
+	return clean, request, nil
+}
+
+func launchArgsAcceptLayout(args LaunchArgs) bool {
+	if args.Command == "" {
+		return true
+	}
+	return args.Command == "continue" && args.ContinueSlug != ""
 }
 
 // parseRename parses `rename [--restart-check] [--] <old> <new>` (#99 M5b, shell

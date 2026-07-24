@@ -27,7 +27,7 @@ func renamePathsFor(tag, dataDir string) []string {
 	for _, fam := range []string{
 		"outer-tty", "pair-wrap-pid", "title-pid",
 		"agent", "agent-pid", "agent-output", "agent-picks",
-		"layout-mode", "queue", "quote", "image-capture",
+		"layout-mode", "workbench-layout", "queue", "quote", "image-capture",
 	} {
 		out = append(out, filepath.Join(dataDir, fam+"-"+tag))
 	}

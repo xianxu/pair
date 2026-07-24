@@ -40,7 +40,7 @@ case "$*" in
     test -f "$config/config.kdl"
     test -f "$layout"
     case "$config" in */custom-data/runtime/*/pair-home/zellij) ;; *) printf 'bad config path: %s\n' "$config" >&2; exit 11 ;; esac
-    case "$layout" in */custom-data/runtime/*/pair-home/zellij/layouts/main.kdl) ;; *) printf 'bad layout path: %s\n' "$layout" >&2; exit 12 ;; esac
+    case "$layout" in */custom-data/runtime/*/pair-home/zellij/layouts/main-2.kdl) ;; *) printf 'bad layout path: %s\n' "$layout" >&2; exit 12 ;; esac
     root="${config%/zellij}"
     # #104 M3: the bundle carries config + shell shims ONLY — NO helper binaries
     # (every former helper is a `pair <sub>`). The shims are still bundled.

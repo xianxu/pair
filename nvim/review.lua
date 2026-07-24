@@ -210,7 +210,7 @@ vim.api.nvim_create_autocmd({ 'FocusGained', 'BufEnter' }, {
 -- the review pane is focused degrades silently (same rationale as scrollback.lua).
 for _, name in ipairs({
   'PairLayoutBigger', 'PairLayoutSmaller', 'PairConfirmQuit',
-  'PairConfirmDetach', 'PairConfirmRestart', 'PairConfirmRestartNewSession',
+  'PairConfirmDetach', 'PairConfirmRestart', 'PairConfirmRestartNewSession', 'PairConfirmAgentRestart',
 }) do
   _G[name] = function() end
 end

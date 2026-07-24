@@ -80,7 +80,7 @@ type ShortcutDecision struct {
 }
 
 func RoleForPane(p zellijpane.Pane) PaneRole {
-	if p.IsFloating || p.IsPlugin {
+	if p.IsPlugin {
 		return PaneRoleOther
 	}
 	cmd := strings.ToLower(p.TerminalCommand)
@@ -153,35 +153,49 @@ func handle(action ShortcutAction) ShortcutDecision {
 	return ShortcutDecision{Disposition: DispositionHandle, Action: action}
 }
 
+var chordSequences = []struct {
+	sequence string
+	chord    Chord
+}{
+	{"\x1bj", ChordAltJ}, {"\x1b[106;3u", ChordAltJ},
+	{"\x1bk", ChordAltK}, {"\x1b[107;3u", ChordAltK},
+	{"\x1bt", ChordAltT}, {"\x1b[116;3u", ChordAltT},
+	{"\x1bw", ChordAltW}, {"\x1b[119;3u", ChordAltW},
+	{"\x1br", ChordAltR}, {"\x1b[114;3u", ChordAltR},
+	{"\x1bx", ChordAltX}, {"\x1b[120;3u", ChordAltX},
+	{"\x1b/", ChordAltSlash}, {"\x1b[47;3u", ChordAltSlash},
+	{"\x1bC", ChordAltShiftC}, {"\x1b[67;3u", ChordAltShiftC},
+	{"\x1b[99;7u", ChordCtrlAltC},
+	{"\x1b[1;3D", ChordAltLeft}, {"\x1b[1;9D", ChordAltLeft}, {"\x1b[3D", ChordAltLeft},
+	{"\x1b[1;3C", ChordAltRight}, {"\x1b[1;9C", ChordAltRight}, {"\x1b[3C", ChordAltRight},
+	{"\x1b[13;4u", ChordAltShiftEnter},
+}
+
 func DecodeChord(data []byte) (Chord, bool) {
-	switch string(data) {
-	case "\x1bj", "\x1b[106;3u":
-		return ChordAltJ, true
-	case "\x1bk", "\x1b[107;3u":
-		return ChordAltK, true
-	case "\x1bt", "\x1b[116;3u":
-		return ChordAltT, true
-	case "\x1bw", "\x1b[119;3u":
-		return ChordAltW, true
-	case "\x1br", "\x1b[114;3u":
-		return ChordAltR, true
-	case "\x1bx", "\x1b[120;3u":
-		return ChordAltX, true
-	case "\x1b/", "\x1b[47;3u":
-		return ChordAltSlash, true
-	case "\x1bC", "\x1b[67;3u":
-		return ChordAltShiftC, true
-	case "\x1b[99;7u":
-		return ChordCtrlAltC, true
-	case "\x1b[1;3D", "\x1b[1;9D", "\x1b[3D":
-		return ChordAltLeft, true
-	case "\x1b[1;3C", "\x1b[1;9C", "\x1b[3C":
-		return ChordAltRight, true
-	case "\x1b[13;4u":
-		return ChordAltShiftEnter, true
-	default:
-		return ChordUnknown, false
+	for _, candidate := range chordSequences {
+		if string(data) == candidate.sequence {
+			return candidate.chord, true
+		}
 	}
+	return ChordUnknown, false
+}
+
+func DecodeChordPrefix(data []byte) (Chord, []byte, bool) {
+	for _, candidate := range chordSequences {
+		if strings.HasPrefix(string(data), candidate.sequence) {
+			return candidate.chord, data[len(candidate.sequence):], true
+		}
+	}
+	return ChordUnknown, data, false
+}
+
+func IsChordPrefix(data []byte) bool {
+	for _, candidate := range chordSequences {
+		if len(data) < len(candidate.sequence) && strings.HasPrefix(candidate.sequence, string(data)) {
+			return true
+		}
+	}
+	return false
 }
 
 type LastLeftPaneStore struct {

@@ -47,7 +47,7 @@ local annotate
 for _, name in ipairs({
   'PairLayoutBigger', 'PairLayoutSmaller',
   'PairConfirmQuit',  'PairConfirmDetach',
-  'PairConfirmRestart', 'PairConfirmRestartNewSession',
+  'PairConfirmRestart', 'PairConfirmRestartNewSession', 'PairConfirmAgentRestart',
 }) do
   _G[name] = function() end
 end

@@ -29,7 +29,7 @@ type Pane struct {
 // Parse decodes the `list-panes --json` output and returns every pane object it
 // finds, in a deterministic depth-first order (map children visited in
 // sorted-key order — jq's `..` uses document order, but that only matters when
-// >1 pane matches a predicate, which pair's two-pane invariant rules out; the
+// >1 pane matches a predicate, which Pair's one-pane-per-role invariant rules out; the
 // selectors in clipcmd pick a unique pane). Invalid JSON yields nil.
 func Parse(data []byte) []Pane {
 	var root interface{}

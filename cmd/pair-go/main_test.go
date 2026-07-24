@@ -123,7 +123,7 @@ func TestLaunchDrivesNativeLauncher(t *testing.T) {
 	}
 }
 
-// A missing asset root reports the marker (main.kdl) + recovery hints and never
+// A missing asset root reports both layout markers + recovery hints and never
 // runs the launcher — there's no bin/pair-shell to blame anymore.
 func TestRunLaunchReportsMissingRoot(t *testing.T) {
 	rt := &fakeLegacyRuntime{executable: "/repo/bin/pair-go"}
@@ -132,13 +132,28 @@ func TestRunLaunchReportsMissingRoot(t *testing.T) {
 	if code != 1 {
 		t.Fatalf("code = %d, want 1", code)
 	}
-	for _, want := range []string{"pair-go launch", "main.kdl", "PAIR_HOME", "/repo", "make build", "make install", "dev-aliases.sh"} {
+	for _, want := range []string{"pair-go launch", "main-2.kdl", "main-3.kdl", "PAIR_HOME", "/repo", "make build", "make install", "dev-aliases.sh"} {
 		if !strings.Contains(stderr.String(), want) {
 			t.Fatalf("stderr missing %q:\n%s", want, stderr.String())
 		}
 	}
 	if rt.launchNativeCalled {
 		t.Fatal("launcher must not run without a valid root")
+	}
+}
+
+func TestRunLaunchRejectsRootMissingEitherLayout(t *testing.T) {
+	rt := &fakeLegacyRuntime{
+		executable:    "/repo/bin/pair-go",
+		roots:         map[string]bool{"/repo": true},
+		missingMarker: "/zellij/layouts/main-3.kdl",
+	}
+	var stdout, stderr bytes.Buffer
+	if code := runWithLegacyRuntime([]string{"launch", "claude"}, &stdout, &stderr, rt); code != 1 {
+		t.Fatalf("code = %d, want 1", code)
+	}
+	if rt.launchNativeCalled {
+		t.Fatal("root missing main-3.kdl must not launch")
 	}
 }
 
@@ -216,6 +231,7 @@ type fakeLegacyRuntime struct {
 	defaultPairHome string
 	roots           map[string]bool
 	statErr         error
+	missingMarker   string
 	statCalls       int
 	embeddedRoot    string
 	embeddedErr     error
@@ -247,10 +263,14 @@ func (f *fakeLegacyRuntime) Stat(path string) error {
 	if f.statErr != nil {
 		return f.statErr
 	}
-	const marker = "/zellij/layouts/main.kdl"
-	if strings.HasSuffix(path, marker) && f.roots != nil {
-		if f.roots[strings.TrimSuffix(path, marker)] {
-			return nil
+	if f.missingMarker != "" && strings.HasSuffix(path, f.missingMarker) {
+		return os.ErrNotExist
+	}
+	for _, marker := range []string{"/zellij/layouts/main-2.kdl", "/zellij/layouts/main-3.kdl"} {
+		if strings.HasSuffix(path, marker) && f.roots != nil {
+			if f.roots[strings.TrimSuffix(path, marker)] {
+				return nil
+			}
 		}
 	}
 	return os.ErrNotExist

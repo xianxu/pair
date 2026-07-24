@@ -2,13 +2,34 @@
 
 > **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to determine the appropriate execution approach: use superpowers-subagent-driven-development (if subagents are suitable per AGENTS.md) or superpowers-executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make Pair open as a left-side agent/draft stack plus a right-side user terminal with pane-local workbench shortcuts.
+**Goal:** Support both the original two-pane Pair workbench (default) and an
+explicit/recorded three-pane workbench with a user terminal and pane-local
+shortcuts.
 
-**Architecture:** Keep zellij KDL responsible for static geometry, and move pane-local shortcuts out of global KDL binds into the focused pane processes: `pair wrap` handles agent-pane chords, draft nvim handles draft-pane chords, and a new `pair term` wrapper handles right-terminal chords. Reuse `cmd/internal/zellijpane` for focused-pane discovery where a pane needs to target another pane (`ARCH-DRY`), and keep shortcut decisions as pure functions with thin PTY/zellij IO shells (`ARCH-PURE`). The plan fulfills the issue by delivering left-only Pair shortcuts, right-only tab helpers, and `Alt+k` last-left-pane navigation (`ARCH-PURPOSE`).
+**Architecture:** Keep two explicit Zellij KDL assets behind a pure
+`LayoutMode` selector: unrecorded tags choose layout 2, while explicit or
+recorded layout 3 adds the layered user terminal. In layout 3, pane-local
+shortcuts live in focused pane processes: `pair wrap` handles agent chords,
+draft nvim handles draft chords, and `pair term` handles terminal chords. Reuse
+`cmd/internal/zellijpane` for focused/live-pane discovery (`ARCH-DRY`), keep
+shortcut and topology decisions pure with thin PTY/filesystem/Zellij shells
+(`ARCH-PURE`), and carry the selected topology through every launch lifecycle
+consumer (`ARCH-PURPOSE`).
 
 **Tech Stack:** Go 1.x, `github.com/creack/pty`, `golang.org/x/term`, zellij KDL/actions 0.44.3, shell fake integration tests, runtime-bundle generator.
 
 ## Revisions
+
+### 2026-07-24 — Reconcile the final local-tab implementation record
+
+The close review read the pre-implementation `HEAD` and surfaced stale plan
+rows from the abandoned outer-Zellij-tab design. The delivered terminal uses
+Pair-owned local PTY tabs inside `pair term`, as already specified by the
+revised issue and later execution-state note. Update the Core Concepts table to
+the actual `run.go` runtime seam and `main-3.kdl` terminal asset; layout 2
+deliberately has no terminal. The same review found a real stream-framing gap:
+terminal input now consumes shortcut and SGR-mouse prefixes while preserving
+coalesced payload bytes, with red/green regressions for both shapes.
 
 ### 2026-07-24 — Preserve pane identity during width-toggle collapse
 
@@ -34,9 +55,76 @@ collapse one Zellij resize step before the balanced split. Reconciliation now
 uses a 1% target tolerance and, when the next discrete resize step is worse,
 reverses that step so the pane remains at the closest reachable width.
 
+### 2026-07-24 — Layer the terminal over a tiled filler
+
+Operator testing confirmed that iterative tiled resizing was both slow and
+semantically wrong: expansion must cover part of the left stack rather than
+shrink it. The base tiled tree now contains the half-width agent/draft stack
+plus an inert borderless filler. The terminal remains permanently floating
+above the filler and toggles between exact 50% and 67% coordinates with one
+`change-floating-pane-coordinates` action.
+
+### 2026-07-24 — Use live filler geometry as the normal-state anchor
+
+The live pane report can mark both the tiled draft and floating terminal as
+focused, and percentage rounding placed the terminal one column over the left
+frame. Terminal discovery now scans all focused panes for the floating terminal
+instead of stopping at the draft. At startup and on collapse, normal geometry
+anchors to the filler's reported `pane_x`, preserving the left frame exactly.
+
+### 2026-07-24 — Restart only the supervised agent for context refresh
+
+The user-owned terminal makes whole-session restart an unsafe routine mechanism:
+Pair cannot reconstruct arbitrary shell, process, or local-tab state. Rebind
+Alt+Shift+N to confirm and signal the stable `pair wrap` supervisor. The wrapper
+replaces only its agent child, preserving the Zellij pane and every other pane.
+The replacement command reuses user-authored arguments through the launcher's
+canonical persistence transform while dropping `resume`, `--resume`,
+`--session-id`, and agent-equivalent restoration bindings. Alt+N remains the
+explicit whole-workbench reload path.
+
+### 2026-07-24 — Make the pane frame the sole terminal-tab chrome
+
+The in-pane inverse-video tab strip duplicates the floating pane title and
+forces SGR mouse reporting across plain shells. Remove the strip, its reserved
+PTY row, click ranges, forced mouse modes, and resize redraw. Local tabs remain
+named in the Zellij frame and switch through Alt+Left/Alt+Right. Applications
+that request mouse input receive it normally; plain shells leave wheel handling
+to Zellij, preventing resize-time device/mouse response chunks from leaking as
+literal shell input.
+
+### 2026-07-24 — Make two- and three-pane topology selectable
+
+The three-pane workbench must coexist with the original two-pane workbench.
+`pair` defaults to layout 2 for a tag with no topology record; `--layout2` and
+`--layout3` are Pair-owned flags accepted on either side of the agent name and
+before `--`, and are never forwarded to the agent. A tag records its selected
+topology in `workbench-layout-<tag>` (distinct from the existing
+`layout-mode-<tag>` draft-height diagnostic). An omitted flag reuses that
+record; an explicit flag wins. When the selected tag is already live and the
+explicit topology conflicts, Pair asks for confirmation and then uses its
+existing whole-workbench restart loop to recreate the same tag with the new
+layout. This is intentionally destructive to user-terminal state and is never
+performed for an implicit request.
+
+This revision applies `ARCH-PURE` by making argument parsing, precedence, asset
+selection, and conflict decisions deterministic functions; `ARCH-DRY` by using
+one `LayoutMode` model and one tag-scoped record across create, attach, restart,
+rename, and cleanup; and `ARCH-PURPOSE` by covering every consumer that can
+select or carry workbench topology rather than changing only the initial launch.
+
 ---
 
 ## Core Concepts
+
+> **Execution state:** Chunks 1–4 and automated steps 1–4 of Chunk 5 were
+> implemented and verified before the selectable-topology revision. Their
+> checked boxes below are historical evidence, not a current implementation
+> prescription; their abandoned outer/inner-Zellij tab experiments are
+> superseded by the revision and issue Log recording Pair-owned local terminal
+> tabs. Chunk 6 is the only implementation work remaining; its asset split
+> promotes the completed three-pane `main.kdl` to `main-3.kdl` and restores
+> layout 2 as the default.
 
 ### Pure Entities
 
@@ -72,10 +160,10 @@ reverses that step so the pane remains at the closest reachable width.
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
 | `pair term` | `cmd/internal/termcmd/run.go` | new | PTY child shell + stdin/stdout |
-| `TermRuntime` | `cmd/internal/termcmd/runtime.go` | new | zellij IPC + process exec |
+| `TermRuntime` | `cmd/internal/termcmd/run.go` | new | zellij IPC + process exec |
 | `pair wrap` shortcut hook | `cmd/internal/wrapcmd/wrap.go` | modified | agent-pane PTY stdin |
 | `draft nvim` shortcut maps | `nvim/init.lua` | modified | draft-pane key mappings |
-| `main.kdl` terminal pane | `zellij/layouts/main.kdl` | modified | zellij layout |
+| `main-3.kdl` terminal pane | `zellij/layouts/main-3.kdl` | new | zellij layout |
 | `config.kdl` global unbinds | `zellij/config.kdl` | modified | zellij global keybinds |
 
 - **pair term** — transparent wrapper for the right user shell. It starts `$SHELL` (fallback `/bin/sh`), forwards bytes, recognizes only the agreed workbench chords, and leaves all other shell/nvim input untouched.
@@ -94,8 +182,12 @@ reverses that step so the pane remains at the closest reachable width.
   - **Injected into:** `nvim/init.lua` alongside existing Pair layout/restart mappings.
   - **Future extensions:** If nvim Lua grows too large, extract a `nvim/workbench.lua` helper.
 
-- **main.kdl terminal pane** — zellij static geometry: root left/right split; left child keeps agent over draft; right child runs `pair term`.
-  - **Injected into:** launcher `--new-session-with-layout` flow already reading `zellij/layouts/main.kdl`.
+- **main-3.kdl terminal pane** — layered zellij geometry: a half-width
+  agent/draft stack and inert filler form the tiled base; a floating
+  `pair term` pane covers the filler at normal width and part of the left stack
+  at expanded width. `main-2.kdl` deliberately retains only agent/draft.
+  - **Injected into:** launcher `--new-session-with-layout` flow through the
+    pure `LayoutMode` asset selector.
   - **Future extensions:** Width percentage can be tuned without changing command wrappers.
 
 - **config.kdl global unbinds** — zellij must release pane-local chords so the focused pane process can decide whether to handle or ignore them.
@@ -112,7 +204,7 @@ reverses that step so the pane remains at the closest reachable width.
 - Create: `cmd/internal/workbenchshortcut/shortcut.go`
 - Test: `cmd/internal/workbenchshortcut/shortcut_test.go`
 
-- [ ] **Step 1: Write failing tests for role classification**
+- [x] **Step 1: Write failing tests for role classification**
 
 Cover:
 - `pair wrap` command => left agent role.
@@ -123,11 +215,11 @@ Cover:
 Run: `go test ./cmd/internal/workbenchshortcut -run TestPaneRole -count=1`
 Expected: fails because package does not exist.
 
-- [ ] **Step 2: Implement role classification**
+- [x] **Step 2: Implement role classification**
 
 Use `zellijpane.Pane` as input. Match `terminal_command` for stable commands, with title only as a fallback for the new terminal pane name. Avoid cwd-sensitive title matching.
 
-- [ ] **Step 3: Write failing tests for shortcut decisions**
+- [x] **Step 3: Write failing tests for shortcut decisions**
 
 Cover:
 - Right terminal: `Alt+t` => new tab, `Alt+w` => close tab, `Alt+r` => rename-tab prompt, `Alt+j` => swallow/no-op, `Alt+k` => focus last left pane or draft fallback.
@@ -137,11 +229,11 @@ Cover:
 Run: `go test ./cmd/internal/workbenchshortcut -run TestShortcutDecision -count=1`
 Expected: fails until decisions exist.
 
-- [ ] **Step 4: Implement `ShortcutDecision`**
+- [x] **Step 4: Implement `ShortcutDecision`**
 
 Represent decisions without IO: `Pass`, `Swallow`, `FocusPane(id)`, `MoveFocus(direction)`, `RecordLastLeftAndFocusTerminal`, `FocusLastLeftOrDraft`, `NewTab`, `CloseTab`, `RenameTabPrompt`, `OpenScrollback`, `Compact`. The decision receives current last-left id as input; persistence is owned by `LastLeftPaneStore`.
 
-- [ ] **Step 5: Add sidecar path/read-write tests**
+- [x] **Step 5: Add sidecar path/read-write tests**
 
 Cover:
 - `LastLeftPath("/data", "work") == "/data/last-left-pane-work"`;
@@ -151,7 +243,7 @@ Cover:
 Run: `go test ./cmd/internal/workbenchshortcut -run TestLastLeft -count=1`
 Expected: PASS after helpers exist.
 
-- [ ] **Step 6: Run focused tests**
+- [x] **Step 6: Run focused tests**
 
 Run: `go test ./cmd/internal/workbenchshortcut -count=1`
 Expected: PASS.
@@ -163,18 +255,18 @@ Expected: PASS.
 - Modify: `cmd/pair-go/main.go`
 - Test: `cmd/internal/dispatcher/dispatcher_test.go`
 
-- [ ] **Step 1: Add failing dispatcher tests**
+- [x] **Step 1: Add failing dispatcher tests**
 
 Extend `TestDispatchNamesDeriveFromImplementedStatus` and `TestStreamingFlags` to include `term`.
 
 Run: `go test ./cmd/internal/dispatcher -run 'TestDispatchNamesDeriveFromImplementedStatus|TestStreamingFlags' -count=1`
 Expected: fails because `term` is not registered.
 
-- [ ] **Step 2: Register `term` as an implemented streaming command**
+- [x] **Step 2: Register `term` as an implemented streaming command**
 
 Add `{Name: "term", Summary: "user terminal pane wrapper", Status: "implemented", Streaming: true}` and wire `runStreamingSubcommand("term", ...)` to `termcmd.Run`.
 
-- [ ] **Step 3: Run dispatcher tests**
+- [x] **Step 3: Run dispatcher tests**
 
 Run: `go test ./cmd/internal/dispatcher ./cmd/pair-go -count=1`
 Expected: PASS.
@@ -190,7 +282,7 @@ Expected: PASS.
 - Create: `cmd/internal/termcmd/runtime.go`
 - Test: `cmd/internal/termcmd/run_test.go`
 
-- [ ] **Step 1: Write failing run-level tests with fakes**
+- [x] **Step 1: Write failing run-level tests with fakes**
 
 Use a fake runtime that records zellij actions and a fake child command. Cover:
 - no args starts `$SHELL`, fallback `/bin/sh`;
@@ -203,11 +295,11 @@ Use a fake runtime that records zellij actions and a fake child command. Cover:
 Run: `go test ./cmd/internal/termcmd -run TestRun -count=1`
 Expected: fails until runtime exists.
 
-- [ ] **Step 2: Implement PTY wrapper**
+- [x] **Step 2: Implement PTY wrapper**
 
 Mirror the existing `wrapcmd`/`scribecmd` PTY pattern: `pty.Start`, raw stdin when stdin is an `*os.File`, SIGWINCH size propagation, stdin byte pump, stdout byte pump, child exit code propagation. Keep only shortcut decoding in the stdin pump; do not inspect or mutate child stdout.
 
-- [ ] **Step 3: Implement zellij runtime actions**
+- [x] **Step 3: Implement zellij runtime actions**
 
 Commands:
 - list panes: `zellij action list-panes --json --command`
@@ -216,7 +308,7 @@ Commands:
 - close tab: `zellij action close-tab`
 - rename tab: `pair term` temporarily enters an internal line prompt in the terminal pane, then calls `zellij action rename-tab <name>` when the user presses Enter. `Esc` or an empty name cancels and restores normal pass-through. This avoids global KDL `TabNameInput` so review-pane `Alt+r` remains local.
 
-- [ ] **Step 4: Run focused tests**
+- [x] **Step 4: Run focused tests**
 
 Run: `go test ./cmd/internal/termcmd -count=1`
 Expected: PASS.
@@ -231,7 +323,7 @@ Expected: PASS.
 - Modify: `zellij/layouts/main.kdl`
 - Generated: `cmd/internal/runtimebundle/assets/runtime/files/zellij/layouts/main.kdl`
 
-- [ ] **Step 1: Update layout**
+- [x] **Step 1: Update layout**
 
 Default geometry:
 - root `split_direction="vertical"`
@@ -244,7 +336,7 @@ Swap layouts:
 - preserve right terminal leaf in every swap layout
 - only vary draft height inside the left stack
 
-- [ ] **Step 2: Validate layout**
+- [x] **Step 2: Validate layout**
 
 Run: `zellij setup --dump-layout zellij/layouts/main.kdl`
 Expected: exit 0.
@@ -256,11 +348,11 @@ Expected: exit 0.
 - Generated: `cmd/internal/runtimebundle/assets/runtime/files/zellij/config.kdl`
 - Test: existing review tests plus any new shell test
 
-- [ ] **Step 1: Release pane-local chords from global KDL**
+- [x] **Step 1: Release pane-local chords from global KDL**
 
 Remove global Pair/zellij handling for pane-local chords that must be owned by focused pane processes: `Alt+j`, `Alt+k`, `Alt+t`, `Alt+w`, `Alt+r`, `Alt+/`, and `Alt C` / `Ctrl Alt c`. Keep non-pane-local Pair safety flows such as detach/quit/restart routed through draft nvim if they are still intended to work from every pane.
 
-- [ ] **Step 2: Add agent-pane shortcut handling in `pair wrap`**
+- [x] **Step 2: Add agent-pane shortcut handling in `pair wrap`**
 
 Intercept recognized left-agent chords before forwarding to the wrapped agent:
 - `Alt+j`: focus draft.
@@ -270,7 +362,7 @@ Intercept recognized left-agent chords before forwarding to the wrapped agent:
 
 All other bytes pass through exactly as today.
 
-- [ ] **Step 3: Add wrapcmd shortcut tests**
+- [x] **Step 3: Add wrapcmd shortcut tests**
 
 Extend `cmd/internal/wrapcmd/translate_test.go` or add a focused test file. Cover:
 - recognized workbench chords are intercepted even when `sendKM` is empty, so no-Return-remap agents still get pane-local shortcuts;
@@ -281,7 +373,7 @@ Extend `cmd/internal/wrapcmd/translate_test.go` or add a focused test file. Cove
 Run: `go test ./cmd/internal/wrapcmd -run 'TestTranslate|TestWorkbenchShortcut' -count=1`
 Expected: PASS.
 
-- [ ] **Step 4: Add draft-pane shortcut mappings**
+- [x] **Step 4: Add draft-pane shortcut mappings**
 
 In `nvim/init.lua`, map:
 - `Alt+j`: focus agent.
@@ -290,11 +382,11 @@ In `nvim/init.lua`, map:
 - `Alt+Shift+C` / `Ctrl+Alt+c`: existing compaction confirm.
 - `Alt+t`, `Alt+w`, `Alt+r`: no-op in the draft pane, so right-terminal tab helpers do not leak left. Do not change `nvim/review.lua`'s `Alt+r` reject mapping.
 
-- [ ] **Step 5: Keep right-terminal tab helpers inside `pair term`**
+- [x] **Step 5: Keep right-terminal tab helpers inside `pair term`**
 
 Ensure `Alt+t`, `Alt+w`, and `Alt+r` are only decoded by `pair term`. The review pane must keep its own `Alt+r` reject behavior because zellij no longer owns a global `Alt+r`.
 
-- [ ] **Step 6: Validate config**
+- [x] **Step 6: Validate config**
 
 Run: `zellij --config-dir zellij setup --check`
 Expected: exit 0.
@@ -309,7 +401,7 @@ Expected: exit 0.
 - Create: `tests/term-pane-shortcuts-test.sh`
 - Modify: `Makefile.local`
 
-- [ ] **Step 1: Write fake-zellij shell test**
+- [x] **Step 1: Write fake-zellij shell test**
 
 Use the real `bin/pair` and fake `zellij` output like `tests/copy-on-select-test.sh`. Assert:
 - focused terminal + `pair term --test-shortcut Alt+t` records new-tab;
@@ -320,11 +412,11 @@ Use the real `bin/pair` and fake `zellij` output like `tests/copy-on-select-test
 
 If direct keystroke driving is awkward, add a test-only `pair term --test-shortcut <name>` path that exercises the same pure decision + runtime action path without starting a PTY.
 
-- [ ] **Step 2: Add Make target**
+- [x] **Step 2: Add Make target**
 
 Add `test-term-pane-shortcuts` and include it in `test`.
 
-- [ ] **Step 3: Run focused integration test**
+- [x] **Step 3: Run focused integration test**
 
 Run: `bash tests/term-pane-shortcuts-test.sh`
 Expected: PASS.
@@ -336,16 +428,16 @@ Expected: PASS.
 - Modify: `atlas/index.md` if a new section/link is needed
 - Generated: `cmd/internal/runtimebundle/assets/runtime/**`
 
-- [ ] **Step 1: Update architecture docs**
+- [x] **Step 1: Update architecture docs**
 
 Replace the two-pane invariant text with the new three-pane workbench: left Pair stack, right user terminal, pane-local shortcuts, and right-terminal tab helper limits.
 
-- [ ] **Step 2: Regenerate runtime bundle assets**
+- [x] **Step 2: Regenerate runtime bundle assets**
 
 Run: `make runtimebundle-generate`
 Expected: generated KDL/runtime files match source changes.
 
-- [ ] **Step 3: Runtime bundle drift check**
+- [x] **Step 3: Runtime bundle drift check**
 
 Run: `make runtimebundle-drift-check`
 Expected: PASS.
@@ -359,12 +451,12 @@ Expected: PASS.
 **Files:**
 - Modify issue checklist/log after verification.
 
-- [ ] **Step 1: Run focused Go tests**
+- [x] **Step 1: Run focused Go tests**
 
 Run: `go test ./cmd/internal/workbenchshortcut ./cmd/internal/termcmd ./cmd/internal/wrapcmd ./cmd/internal/dispatcher ./cmd/pair-go ./cmd/internal/zellijpane -count=1`
 Expected: PASS.
 
-- [ ] **Step 2: Run affected integration tests**
+- [x] **Step 2: Run affected integration tests**
 
 Run: `bash tests/term-pane-shortcuts-test.sh`
 Expected: PASS.
@@ -375,7 +467,7 @@ Expected: PASS.
 Run: `bash tests/review-toggle-test.sh`
 Expected: PASS, including `Alt+r` not globally stolen.
 
-- [ ] **Step 3: Validate zellij assets**
+- [x] **Step 3: Validate zellij assets**
 
 Run: `zellij --config-dir zellij setup --check`
 Expected: PASS.
@@ -383,7 +475,7 @@ Expected: PASS.
 Run: `zellij setup --dump-layout zellij/layouts/main.kdl`
 Expected: PASS.
 
-- [ ] **Step 4: Run broader tests**
+- [x] **Step 4: Run broader tests**
 
 Run: `go test ./... -count=1`
 Expected: PASS.
@@ -391,26 +483,373 @@ Expected: PASS.
 Run: `make test-lua`
 Expected: PASS.
 
-- [ ] **Step 5: Manual smoke**
+- [x] **Step 5: Manual smoke — superseded by Task 13 Step 4**
 
-Start a dev session after `make build`:
+This original single-topology smoke contract is retired by the
+2026-07-24 selectable-topology revision. Do not execute the obsolete command or
+expectation list below; Task 13 Step 4 is the sole current operator smoke.
 
-```bash
-PAIR_DEV=1 bin/pair codex
+- [x] **Step 6: Update issue and close — superseded by Task 13**
+
+Closing is intentionally deferred until Chunk 6 passes automated verification,
+the operator completes Task 13 Step 4, and the operator separately authorizes
+commit/landing.
+
+---
+
+## Chunk 6: Selectable Workbench Topology
+
+### Core concept addendum
+
+#### Pure entities
+
+| Name | Lives in | Status |
+|------|----------|--------|
+| `LayoutMode` | `cmd/internal/launcher/layout.go` | new |
+| `LayoutRequest` | `cmd/internal/launcher/layout.go` | new |
+| `LayoutResolution` | `cmd/internal/launcher/layout.go` | new |
+
+- **`LayoutMode`** — the closed topology choice `layout2` or `layout3`.
+  - **Relationships:** one selected mode per Pair tag; one mode maps to one KDL
+    asset.
+  - **DRY rationale:** parsing, persistence, restart, and asset selection must
+    not each invent strings or defaults.
+  - **Future extensions:** a new topology adds one validated value and one asset
+    mapping.
+- **`LayoutRequest`** — a requested mode plus whether the operator supplied it
+  explicitly.
+  - **Relationships:** one request per launcher invocation; explicitness is
+    preserved independently from the mode so an omitted default cannot be
+    mistaken for an override.
+  - **DRY rationale:** centralizes the user-intention rule used by both create
+    and attach decisions.
+- **`LayoutResolution`** — the pure result of explicit request, recorded mode,
+  and live state: selected mode plus whether a confirmed restart is required.
+  - **Relationships:** consumes one request and zero-or-one recorded mode.
+  - **DRY rationale:** one precedence table serves launch, attach, and restart
+    tests.
+
+#### Integration points
+
+| Name | Lives in | Status | Wraps |
+|------|----------|--------|-------|
+| Workbench layout record | `cmd/internal/launcher/layout.go`, `cmd/internal/launcher/createflow.go` | new | `workbench-layout-<tag>` filesystem sidecar |
+| Live layout-change confirmation | `cmd/internal/launcher/runtime.go`, `cmd/internal/launcher/osruntime.go` | new | `/dev/tty` operator prompt |
+| Live topology probe | `cmd/internal/launcher/layoutflow.go`, `cmd/internal/launcher/osruntime.go` | new | session-scoped Zellij pane report |
+| Layout assets | `zellij/layouts/main-2.kdl`, `zellij/layouts/main-3.kdl` | new | Zellij KDL |
+
+- **Workbench layout record** — thin read/write helpers around the tag-owned
+  topology record. Missing or malformed content resolves to layout 2 without
+  rewriting until create has passed every preflight and is ready to hand off.
+  The record is durable resumable-tag state: ordinary quit and restart preserve
+  it; only explicit topology selection, tag rename, or deliberate tag-state
+  deletion changes it.
+  - **Injected into:** `runOnce`/`runCreate` through the existing `Runtime`
+    filesystem seam.
+  - **Future extensions:** migration can recognize retired mode spellings in
+    the pure decoder.
+- **Live layout-change confirmation** — asks before an explicit conflicting
+  request destroys and recreates a live session. Decline/EOF leaves the session
+  and record untouched.
+  - **Injected into:** the attach branch only after pure conflict detection.
+  - **Future extensions:** the prompt can enumerate topology-specific state at
+    risk without changing the decision model.
+- **Live topology probe** — classifies a pre-record rollout session from its
+  actual panes: the terminal filler/floating terminal signature is layout 3;
+  the original agent/draft pair is layout 2. A process-level fake supplies the
+  same JSON as Zellij in integration tests.
+  - **Injected into:** attach conflict resolution only when the durable record
+    is missing or malformed; recorded sessions never pay for the probe.
+  - **Future extensions:** new modes add a pure pane-signature classifier.
+- **Layout assets** — preserve the original agent/draft workbench as layout 2
+  and the current layered terminal workbench as layout 3.
+  - **Injected into:** the existing `LaunchSession(..., layout)` boundary via a
+    pure mode-to-path helper.
+  - **Future extensions:** structural tests remain the enforcement point for
+    shared agent/draft behavior across the two unavoidable static KDL products.
+
+### Task 9: Parse Pair-owned layout flags
+
+**Files:**
+- Create: `cmd/internal/launcher/layout.go`
+- Create: `cmd/internal/launcher/layout_test.go`
+- Modify: `cmd/internal/launcher/args.go`
+- Modify: `cmd/internal/launcher/args_test.go`
+- Modify: `cmd/internal/launcher/help.go`
+
+- [x] **Step 1: Write failing table tests for layout values and precedence**
+
+Cover:
+- no request + no record → layout 2;
+- no request + recorded layout 3 → layout 3;
+- explicit layout 2 + recorded layout 3 → layout 2 with conflict;
+- explicit layout 3 + recorded layout 2 → layout 3 with conflict;
+- same explicit and recorded mode → no conflict;
+- malformed record → layout 2.
+
+Run: `go test ./cmd/internal/launcher -run 'TestResolveLayout|TestParseLayoutMode' -count=1`
+Expected: FAIL because the model does not exist.
+
+- [x] **Step 2: Implement the pure layout model**
+
+Define validated constants, `LayoutRequest{Mode, Explicit}`,
+`ResolveLayout(request, recorded)`, record decoding, and the KDL basename
+mapping in `layout.go`. Keep all defaulting here.
+
+- [x] **Step 3: Write failing argument-parser permutations**
+
+Cover at minimum:
+
+```text
+pair
+pair --layout2
+pair --layout3 codex
+pair codex --layout2
+pair claude --layout2 -- --other-claude-flags other-claude-params
+pair --layout3 claude -- --layout2
+pair resume tag --layout3
+pair --layout2 resume tag
 ```
 
-Verify:
-- initial layout is left agent/draft stack plus right terminal;
-- right terminal opens a shell and can run `nvim`;
-- `Alt+t`, `Alt+w`, `Alt+r` work from right terminal only;
-- `Alt+j` toggles agent/draft only from left;
-- `Alt+k` goes right and returns to the last left pane;
-- `Alt+Shift+C` / `Ctrl+Alt+c` and `Alt+/` do nothing from right terminal and work from left panes.
+Assert Pair consumes flags only before `--`, forwards every token after `--`
+verbatim, rejects duplicate conflicting Pair layout flags, and preserves the
+explicit bit. Reject layout flags on non-launch lifecycle verbs (`list`,
+`rename`, `restart`, and `quit`) rather than silently accepting a value those
+commands cannot honor; `resume` and `continue <slug>` remain launch forms and
+accept them.
 
-- [ ] **Step 6: Update issue and close**
+Run: `go test ./cmd/internal/launcher -run 'TestParseArgs.*Layout' -count=1`
+Expected: FAIL against the current parser.
 
-Check off plan items in `workshop/issues/000116-three-panel-user-terminal.md`, add a dated log entry with verification, then run:
+- [x] **Step 4: Refactor parsing around a pre-separator Pair-option pass**
+
+Consume layout flags anywhere before `--` without treating them as an agent.
+Pass the remaining command/agent tokens into the existing verb-specific parsing,
+then attach the single parsed `LayoutRequest` to `LaunchArgs`. Do not teach
+agent-specific code about Pair layout flags.
+
+- [x] **Step 5: Update native help and run parser tests**
+
+Document defaulting, persistence, explicit override, destructive live-switch
+confirmation, and the `--` boundary.
+
+Run: `go test ./cmd/internal/launcher -run 'TestParseArgs|TestUsageText|TestResolveLayout' -count=1`
+Expected: PASS.
+
+### Task 10: Persist and select topology on create
+
+**Files:**
+- Modify: `cmd/internal/launcher/createflow.go`
+- Create: `cmd/internal/launcher/layoutflow.go`
+- Create: `cmd/internal/launcher/layoutflow_test.go`
+- Modify: `cmd/internal/launcher/createflow_test.go`
+- Modify: `cmd/internal/launcher/rename.go`
+- Modify: `cmd/internal/launcher/rename_test.go`
+
+- [x] **Step 1: Write failing create-flow tests**
+
+Using the existing fake runtime, assert:
+- an unrecorded tag launches `main-2.kdl` and records `layout2`;
+- a recorded layout 3 tag launches `main-3.kdl` when no flag is passed;
+- explicit layout 2/3 wins and updates the record only as part of create;
+- failed preflight/ledger/session-index work does not mutate the layout record;
+- record write failure aborts before Zellij launch;
+- an immediate `LaunchSession` error restores the prior record bytes (or removes
+  a newly created record), while a successful handoff keeps the selection.
+
+Run: `go test ./cmd/internal/launcher -run 'TestRunLaunch.*Layout' -count=1`
+Expected: FAIL because create always chooses `main.kdl`.
+
+- [x] **Step 2: Thread one resolved mode through the create boundary**
+
+Read `workbench-layout-<tag>` after the tag is final, resolve it with
+`LaunchArgs.Layout`, export `PAIR_WORKBENCH_LAYOUT`, and pass the pure asset path
+to `LaunchSession`. After every existing fallible preflight succeeds and
+immediately before the blocking handoff, atomically write the selected record.
+If that write fails, abort without launching. If `LaunchSession` returns an
+immediate invocation error, atomically restore the previous bytes or remove a
+previously absent record. A normal blocking handoff return keeps the record,
+regardless of the eventual session exit code.
+
+- [x] **Step 3: Add rename and persistence coverage**
+
+Add `workbench-layout-<tag>` to exact-name rename enumeration. Assert that full
+quit, Alt+N, compaction, and agent-only restart do not remove or rewrite it, and
+that omitted-flag resume after a full quit selects the durable mode. Keep
+`layout-mode-<tag>` unchanged because it remains the draft-height rung
+diagnostic.
+
+Run: `go test ./cmd/internal/launcher -run 'Test(Rename|RunCleanup|RunLaunch).*Layout' -count=1`
+Expected: PASS.
+
+### Task 11: Override a live topology safely
+
+**Files:**
+- Modify: `cmd/internal/launcher/runtime.go`
+- Modify: `cmd/internal/launcher/osruntime.go`
+- Modify: `cmd/internal/launcher/createflow.go`
+- Modify: `cmd/internal/launcher/layoutflow.go`
+- Modify: `cmd/internal/launcher/layoutflow_test.go`
+
+- [x] **Step 1: Write failing attach conflict tests**
+
+Cover:
+- omitted flag attaches without prompting and leaves the record unchanged;
+- explicit same mode attaches without prompting;
+- a live pre-record layout-2 or layout-3 session is classified from a
+  session-scoped pane report before conflict resolution;
+- explicit conflicting mode prompts with the tag, old/new modes, and warning
+  that terminal state will be lost;
+- decline/EOF exits without attach, kill, marker, or record mutation;
+- accept performs one nonterminal teardown transition, then the outer launcher
+  loop recreates the same tag with the requested asset;
+- restart failure does not pre-write a false topology record.
+
+Run: `go test ./cmd/internal/launcher -run 'TestRunLaunch.*LiveLayout' -count=1`
+Expected: FAIL because attach ignores topology.
+
+- [x] **Step 2: Add confirmation and live-probe seams**
+
+Add `ConfirmLayoutChange(tag, from, to string) bool` to `UIOps` and its
+`/dev/tty` implementation. Add `ProbeLiveLayout(session string)` to the Zellij
+runtime seam; invoke
+`zellij --session <session> action list-panes --json --command --state`, reuse
+`zellijpane.Parse`, and classify its command/floating signature with a pure
+helper. Missing/malformed records use this probe only for live sessions; a probe
+failure aborts an explicit override rather than guessing.
+Change the existing `DeleteSession` effect to return an error: ordinary
+post-handoff cleanup may report and continue as today, while a pre-attach
+topology switch must refuse to retry when teardown was not confirmed.
+
+- [x] **Step 3: Add a nonterminal relaunch transition**
+
+Extend `launchStep` with a relaunch outcome that the outer `RunLaunch` loop
+handles before the `handedOff`/cleanup path. Before `runAttach`, resolve the live
+tag's topology. On confirmed conflict:
+
+1. delete the live Zellij session without writing quit/restart markers;
+2. re-query sessions and require that the deleted session is absent;
+3. reap only the tag's embedded Neovim process and stop its title poller;
+4. return `relaunch=true` with the same forced tag and explicit layout request;
+5. have the outer loop immediately re-run create for that tag.
+
+This transition preserves draft, config, ledger, layout record, terminal capture,
+and other resumable tag state until the new create reaches its atomic layout
+record commit point. On ordinary attach, perform no topology IO. If teardown
+fails, abort rather than entering a retry loop.
+
+- [x] **Step 4: Preserve layout across every restart flavor**
+
+Assert and implement:
+- Alt+N whole-workbench restart uses the recorded mode;
+- Alt+Shift+N agent-only restart never touches topology;
+- compaction and rename restart preserve the record;
+- only a confirmed explicit live override changes topology.
+- a deletion error or still-present session aborts without entering relaunch.
+
+Run: `go test ./cmd/internal/launcher -run 'TestRunLaunch.*(LiveLayout|Restart.*Layout|Quit.*Layout)' -count=1`
+Expected: PASS.
+
+### Task 12: Split and package both KDL assets
+
+**Files:**
+- Create: `zellij/layouts/main-2.kdl`
+- Create: `zellij/layouts/main-3.kdl`
+- Delete: `zellij/layouts/main.kdl`
+- Modify: `cmd/internal/entrypoint/asset_root.go`
+- Modify: `cmd/internal/entrypoint/asset_root_test.go`
+- Modify: `cmd/internal/runtimebundle/embed_test.go`
+- Modify: `cmd/pair-go/main_test.go`
+- Modify: `tests/pair-embedded-runtime-test.sh`
+- Modify: `tests/term-pane-shortcuts-test.sh`
+- Modify: `zellij/config.kdl`
+- Generated: `cmd/internal/runtimebundle/assets/runtime/**`
+
+- [x] **Step 1: Add failing asset-contract tests**
+
+Require both layout files in source and embedded runtime. Assert layout 2 has
+exactly agent+draft and preserves all draft rungs; assert layout 3 has
+agent+draft+filler plus the floating terminal and its coordinate contract.
+Make the asset-root marker require both files, reporting the missing basename.
+
+- [x] **Step 2: Restore layout 2 and rename the current topology**
+
+Restore `main-2.kdl` from the parent of the first three-pane commit
+(`git show 7a552be2^:zellij/layouts/main.kdl`). Move the current layered
+implementation to `main-3.kdl`. Update `zellij/config.kdl` comments and static
+tests to address the correct asset. Add a structural comparison test for the
+shared agent/draft launch commands and draft rung definitions so changes cannot
+silently drift between static products (`ARCH-DRY` enforcement).
+
+- [x] **Step 3: Validate both layouts with installed Zellij**
+
+Run:
 
 ```bash
-sdlc close --issue 116 --verified '<tests and smoke evidence>'
+zellij setup --dump-layout zellij/layouts/main-2.kdl
+zellij setup --dump-layout zellij/layouts/main-3.kdl
+zellij --config-dir zellij setup --check
 ```
+
+Expected: all exit 0.
+
+- [x] **Step 4: Regenerate and verify the embedded runtime**
+
+Run:
+
+```bash
+make runtimebundle-generate
+make runtimebundle-drift-check
+bash tests/pair-embedded-runtime-test.sh
+```
+
+Expected: PASS and both KDL assets are present in the extracted runtime.
+
+### Task 13: Verify both modes and await operator smoke
+
+**Files:**
+- Modify: `atlas/architecture.md`
+- Modify: `atlas/go-migration-inventory.md`
+- Modify: `workshop/issues/000116-three-panel-user-terminal.md`
+
+- [x] **Step 1: Update architecture and issue records**
+
+Document `LayoutMode`, `workbench-layout-<tag>`, precedence, explicit live
+override semantics, and the two KDL assets. Update every stale assertion that
+Pair has only one topology (`ARCH-PURPOSE` shadow sweep).
+
+- [x] **Step 2: Run automated verification**
+
+Run:
+
+```bash
+go test ./cmd/internal/launcher ./cmd/internal/entrypoint ./cmd/internal/runtimebundle ./cmd/pair-go -count=1
+go test ./... -count=1
+make test-lua
+bash tests/term-pane-shortcuts-test.sh
+bash tests/pair-embedded-runtime-test.sh
+git diff --check
+```
+
+Expected: PASS.
+
+- [x] **Step 3: Install for live testing**
+
+Run `make install`, then verify the running `pair` resolves to the newly
+installed binary per `workshop/lessons.md`.
+
+- [x] **Step 4: Operator smoke test — do not commit or land before approval**
+
+Ask the operator to verify:
+- a new `pair` session is the original two-pane workbench;
+- `pair --layout3 codex` creates the layered three-pane workbench;
+- detaching and invoking `pair resume <tag>` preserves the recorded mode;
+- `pair claude --layout2 -- --other-claude-flags other-claude-params` consumes
+  the Pair flag and forwards only the post-`--` values;
+- an explicit conflicting layout prompts, decline is inert, accept recreates
+  the same tag in the requested topology;
+- Alt+N preserves topology, Alt+Shift+N restarts only the agent;
+- layout 3 terminal tabs and the 50%↔67% overlay toggle still work.
+
+Stop after reporting automated evidence. Commit and landing require a separate,
+explicit operator signal after this smoke test.

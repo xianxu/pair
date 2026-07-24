@@ -1,6 +1,6 @@
 // pair-wrap — transparent PTY proxy around a TUI coding agent.
 //
-// Installed at bin/pair-wrap and invoked by zellij/layouts/main.kdl on
+// Installed at bin/pair-wrap and invoked by zellij/layouts/main-{2,3}.kdl on
 // pair startup. (Originally ported from a Python prototype, #000011; the
 // Python original was retired in #000019.)
 //
@@ -36,6 +36,7 @@ package wrapcmd
 import (
 	"bytes"
 	"container/list"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -58,6 +59,8 @@ import (
 	"golang.org/x/term"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
+	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/sessionwatch"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
@@ -223,6 +226,8 @@ type proxy struct {
 	// PTY
 	ptmx *os.File
 	cmd  *exec.Cmd
+
+	restartFresh atomic.Bool
 
 	// Notify
 	notifyModeActive string
@@ -1905,6 +1910,132 @@ func (p *proxy) writeStartupBanner() {
 
 // ----- Main -------------------------------------------------------------------
 
+type freshExecRequest struct {
+	argv        []string
+	env         []string
+	watcherArgv []string
+}
+
+func (e *freshExecRequest) Error() string { return "restart fresh agent" }
+
+var execProcess = syscall.Exec
+
+func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv []string, env []string) (*freshExecRequest, error) {
+	if len(currentArgv) == 0 {
+		return nil, errors.New("missing agent command")
+	}
+	agent := filepath.Base(currentArgv[0])
+	freshArgs := launcher.FreshAgentArgs(currentArgv[1:])
+	configArgs := append([]string(nil), freshArgs...)
+	sessionID := ""
+	if agent == "claude" {
+		sessionID = freshUUID()
+		if sessionID == "" {
+			return nil, errors.New("cannot mint fresh claude session id")
+		}
+		freshArgs = append(freshArgs, "--session-id", sessionID)
+	}
+
+	dataDir := envValue(env, "PAIR_DATA_DIR")
+	if dataDir == "" {
+		dataDir = adapt.DataDir()
+	}
+	tag := envValue(env, "PAIR_TAG")
+	if dataDir != "" && tag != "" {
+		configPath := filepath.Join(dataDir, "config-"+tag+"-"+agent+".json")
+		if agent == "claude" {
+			payload, err := sessionwatch.ConfigJSON(sessionwatch.ConfigPayload{
+				Agent: agent, Args: configArgs, SessionID: sessionID,
+			})
+			if err != nil {
+				return nil, err
+			}
+			if err := writeAtomic(configPath, payload); err != nil {
+				return nil, err
+			}
+		} else if err := os.Remove(configPath); err != nil && !os.IsNotExist(err) {
+			return nil, err
+		}
+	}
+
+	nextEnv := setEnv(env, "PAIR_SESSION_ID", sessionID)
+	nextEnv = setEnv(nextEnv, "PAIR_AGENT_ARGS", strings.Join(freshArgs, " "))
+	nextArgv := []string{wrapperExecutable, "wrap"}
+	if scrollbackLog != "" {
+		nextArgv = append(nextArgv, "--scrollback-log", scrollbackLog)
+	}
+	nextArgv = append(nextArgv, currentArgv[0])
+	nextArgv = append(nextArgv, freshArgs...)
+	var watcherArgv []string
+	if agent == "codex" || agent == "agy" {
+		tag := envValue(nextEnv, "PAIR_TAG")
+		cwd, _ := os.Getwd()
+		watcherArgv = []string{wrapperExecutable, "session-watch", agent, tag, cwd, "--"}
+		watcherArgv = append(watcherArgv, freshArgs...)
+	}
+	return &freshExecRequest{argv: nextArgv, env: nextEnv, watcherArgv: watcherArgv}, nil
+}
+
+func mustFreshExecRequest(wrapperExecutable, scrollbackLog string, currentArgv []string, env []string) error {
+	request, err := freshAgentInvocation(wrapperExecutable, scrollbackLog, currentArgv, env)
+	if err != nil {
+		return err
+	}
+	return request
+}
+
+func freshUUID() string {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return ""
+	}
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
+		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
+func envValue(env []string, key string) string {
+	prefix := key + "="
+	for i := len(env) - 1; i >= 0; i-- {
+		if strings.HasPrefix(env[i], prefix) {
+			return strings.TrimPrefix(env[i], prefix)
+		}
+	}
+	return ""
+}
+
+func setEnv(env []string, key, value string) []string {
+	prefix := key + "="
+	out := make([]string, 0, len(env)+1)
+	for _, item := range env {
+		if !strings.HasPrefix(item, prefix) {
+			out = append(out, item)
+		}
+	}
+	return append(out, prefix+value)
+}
+
+func writeAtomic(path string, data []byte) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	f, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*.tmp")
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	defer os.Remove(tmp)
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
+}
+
 // Run is the process-facing entry for the PTY proxy. It is called by the
 // standalone bin/pair-wrap shim and by the `pair wrap` dispatcher route, both
 // with real os.Stdin/os.Stdout/os.Stderr. args is os.Args[1:] (no program
@@ -1913,6 +2044,22 @@ func (p *proxy) writeStartupBanner() {
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	code, err := run(args, stdin, stdout)
 	if err != nil {
+		var restart *freshExecRequest
+		if errors.As(err, &restart) {
+			if len(restart.watcherArgv) > 0 {
+				watcher := exec.Command(restart.watcherArgv[0], restart.watcherArgv[1:]...)
+				watcher.Env = restart.env
+				watcher.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+				if startErr := watcher.Start(); startErr == nil {
+					_ = watcher.Process.Release()
+				}
+			}
+			if execErr := execProcess(restart.argv[0], restart.argv, restart.env); execErr != nil {
+				fmt.Fprintf(stderr, "pair-wrap: restart agent: %v\n", execErr)
+				return 1
+			}
+			return 0
+		}
 		fmt.Fprintf(stderr, "pair-wrap: %v\n", err)
 		return 1
 	}
@@ -2114,7 +2261,8 @@ argsDone:
 
 	// Signal handling.
 	sigCh := make(chan os.Signal, 4)
-	signal.Notify(sigCh, syscall.SIGWINCH, syscall.SIGUSR1)
+	signal.Notify(sigCh, syscall.SIGWINCH, syscall.SIGUSR1, syscall.SIGUSR2)
+	defer signal.Stop(sigCh)
 	go func() {
 		for s := range sigCh {
 			switch s {
@@ -2122,6 +2270,20 @@ argsDone:
 				p.setWinsize()
 			case syscall.SIGUSR1:
 				p.armCapture()
+			case syscall.SIGUSR2:
+				if p.restartFresh.CompareAndSwap(false, true) && p.cmd != nil && p.cmd.Process != nil {
+					p.traceWrap("agent-restart-request", nil)
+					pid := p.cmd.Process.Pid
+					if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil {
+						_ = p.cmd.Process.Kill()
+					}
+					go func() {
+						time.Sleep(time.Second)
+						if p.restartFresh.Load() {
+							_ = syscall.Kill(-pid, syscall.SIGKILL)
+						}
+					}()
+				}
 			}
 		}
 	}()
@@ -2144,6 +2306,13 @@ argsDone:
 	// binary called os.Exit(exitErr.ExitCode()) here; Run now returns the
 	// code so both entrypoints (shim + `pair wrap`) propagate it identically.
 	werr := cmd.Wait()
+	if p.restartFresh.Load() {
+		executable, err := os.Executable()
+		if err != nil {
+			return 0, err
+		}
+		return 0, mustFreshExecRequest(executable, p.scrollbackLog, argv, os.Environ())
+	}
 	if exitErr, ok := werr.(*exec.ExitError); ok {
 		p.traceWrap("child-exit", map[string]any{
 			"exit_code": exitErr.ExitCode(),

@@ -21,7 +21,8 @@ func TestEmbeddedManifestIsConfigAndShimsOnly(t *testing.T) {
 		"nvim/init.lua",
 		"nvim/review/init.lua",
 		"zellij/config.kdl",
-		"zellij/layouts/main.kdl",
+		"zellij/layouts/main-2.kdl",
+		"zellij/layouts/main-3.kdl",
 		"doctor/SKILL.md",
 		"doctor/doctor.sh",
 	} {
@@ -59,14 +60,15 @@ func TestEmbeddedManifestIsConfigAndShimsOnly(t *testing.T) {
 	}
 }
 
-func TestEmbeddedMainLayoutHonorsPairDataDirForDraft(t *testing.T) {
-	data, err := EmbeddedAsset("zellij/layouts/main.kdl")
-	if err != nil {
-		t.Fatalf("EmbeddedAsset(main.kdl): %v", err)
-	}
-	layout := string(data)
-	if !strings.Contains(layout, `${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}`) {
-		t.Fatalf("draft pane must inherit PAIR_DATA_DIR before falling back to the global data dir")
+func TestEmbeddedMainLayoutsHonorPairDataDirForDraft(t *testing.T) {
+	for _, path := range []string{"zellij/layouts/main-2.kdl", "zellij/layouts/main-3.kdl"} {
+		data, err := EmbeddedAsset(path)
+		if err != nil {
+			t.Fatalf("EmbeddedAsset(%s): %v", path, err)
+		}
+		if !strings.Contains(string(data), `${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}`) {
+			t.Fatalf("%s draft pane must inherit PAIR_DATA_DIR", path)
+		}
 	}
 }
 

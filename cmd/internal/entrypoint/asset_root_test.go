@@ -78,16 +78,18 @@ func TestResolveAssetRootReportsMissingRootAndPairHome(t *testing.T) {
 	if err == nil {
 		t.Fatal("ResolveAssetRoot error = nil, want missing-root error")
 	}
-	for _, want := range []string{"main.kdl", "PAIR_HOME", "/home/me/.local", "/repo"} {
+	for _, want := range []string{"main-2.kdl", "main-3.kdl", "PAIR_HOME", "/home/me/.local", "/repo"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("error missing %q:\n%v", want, err)
 		}
 	}
 }
 
-func TestValidRootMarker(t *testing.T) {
-	if got := ValidRootMarker("/repo"); got != "/repo/zellij/layouts/main.kdl" {
-		t.Fatalf("ValidRootMarker = %q", got)
+func TestValidRootMarkers(t *testing.T) {
+	got := ValidRootMarkers("/repo")
+	want := []string{"/repo/zellij/layouts/main-2.kdl", "/repo/zellij/layouts/main-3.kdl"}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("ValidRootMarkers = %q", got)
 	}
 }
 

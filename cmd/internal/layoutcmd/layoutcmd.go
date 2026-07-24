@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"strconv"
 
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
@@ -14,6 +15,39 @@ import (
 type Runtime interface {
 	ListPanesJSON() ([]byte, error)
 	RunZellijAction(args ...string) error
+}
+
+func AlignFloatingTerminal(rt Runtime) error {
+	panesJSON, err := rt.ListPanesJSON()
+	if err != nil {
+		return err
+	}
+	panes := zellijpane.Parse(panesJSON)
+	var terminal zellijpane.Pane
+	for _, pane := range panes {
+		if pane.IsFloating && isRightTerminal(pane) {
+			terminal = pane
+			break
+		}
+	}
+	fillerX := terminalFillerX(panes)
+	screenColumns, screenRows := tiledScreenSize(panes)
+	if terminal.ID == "" || fillerX == 0 || screenColumns <= fillerX || screenRows == 0 {
+		return nil
+	}
+	if terminal.X == fillerX && terminal.Columns == screenColumns-fillerX {
+		return nil
+	}
+	return rt.RunZellijAction(
+		"change-floating-pane-coordinates",
+		"--pane-id", terminal.ID,
+		"--x", strconv.Itoa(fillerX),
+		"--y", "0",
+		"--width", strconv.Itoa(screenColumns-fillerX),
+		"--height", strconv.Itoa(screenRows),
+		"--borderless", "false",
+		"--pinned", "true",
+	)
 }
 
 func RunToggleFocused(args []string, rt Runtime, stderr io.Writer) int {
@@ -31,16 +65,9 @@ func RunToggleFocused(args []string, rt Runtime, stderr io.Writer) int {
 	if !ok {
 		return 0
 	}
-	leftWidth, terminalWidth := workbenchWidths(panes, focused.ID)
-	if leftWidth == 0 || terminalWidth == 0 {
-		return 0
-	}
-	targetNumerator, targetDenominator := 2, 3
-	if terminalWidth*100 >= (leftWidth+terminalWidth)*60 {
-		targetNumerator, targetDenominator = 1, 2
-	}
-	if err := reconcileTerminalWidth(focused.ID, targetNumerator, targetDenominator, panes, rt); err != nil {
-		fmt.Fprintf(stderr, "pair layout toggle-focused: resize terminal: %v\n", err)
+	action := floatingTerminalCoordinates(focused, panes)
+	if err := rt.RunZellijAction(action...); err != nil {
+		fmt.Fprintf(stderr, "pair layout toggle-focused: change terminal coordinates: %v\n", err)
 		return 1
 	}
 	return 0
@@ -51,77 +78,67 @@ func focusedRightTerminal(panes []zellijpane.Pane) (zellijpane.Pane, bool) {
 		if pane.IsPlugin || !pane.IsFocused {
 			continue
 		}
-		if pane.IsFloating || !isRightTerminal(pane) {
-			return zellijpane.Pane{}, false
+		if !pane.IsFloating || !isRightTerminal(pane) {
+			continue
 		}
 		return pane, true
 	}
 	return zellijpane.Pane{}, false
 }
 
-func reconcileTerminalWidth(paneID string, targetNumerator, targetDenominator int, panes []zellijpane.Pane, rt Runtime) error {
-	const maxAttempts = 20
-	previousDifference := int(^uint(0) >> 1)
-	lastResize := ""
-	for range maxAttempts {
-		leftWidth, terminalWidth := workbenchWidths(panes, paneID)
-		if leftWidth == 0 || terminalWidth == 0 {
-			return nil
-		}
-		totalWidth := leftWidth + terminalWidth
-		delta := terminalWidth*targetDenominator - totalWidth*targetNumerator
-		difference := delta
-		if difference < 0 {
-			difference = -difference
-		}
-		if difference <= totalWidth*targetDenominator/100 {
-			return nil
-		}
-		if difference >= previousDifference {
-			if lastResize != "" {
-				inverse := "increase"
-				if lastResize == "increase" {
-					inverse = "decrease"
-				}
-				return rt.RunZellijAction("resize", inverse, "left", "--pane-id", paneID)
+func floatingTerminalCoordinates(terminal zellijpane.Pane, panes []zellijpane.Pane) []string {
+	x, y, width, height := "33%", "0%", "67%", "100%"
+	screenColumns, screenRows := tiledScreenSize(panes)
+	if screenColumns > 0 && screenRows > 0 {
+		targetX, targetWidth := screenColumns/3, screenColumns-screenColumns/3
+		if terminal.Columns*100 >= screenColumns*60 {
+			if fillerX := terminalFillerX(panes); fillerX > 0 {
+				targetX, targetWidth = fillerX, screenColumns-fillerX
+			} else {
+				targetX, targetWidth = screenColumns/2, screenColumns-screenColumns/2
 			}
-			return nil
 		}
-		previousDifference = difference
-		resize := "increase"
-		if delta > 0 {
-			resize = "decrease"
-		}
-		if err := rt.RunZellijAction("resize", resize, "left", "--pane-id", paneID); err != nil {
-			return err
-		}
-		lastResize = resize
-		panesJSON, err := rt.ListPanesJSON()
-		if err != nil {
-			return err
-		}
-		panes = zellijpane.Parse(panesJSON)
+		x, y = strconv.Itoa(targetX), "0"
+		width, height = strconv.Itoa(targetWidth), strconv.Itoa(screenRows)
 	}
-	return nil
+	return []string{
+		"change-floating-pane-coordinates",
+		"--pane-id", terminal.ID,
+		"--x", x,
+		"--y", y,
+		"--width", width,
+		"--height", height,
+		"--borderless", "false",
+		"--pinned", "true",
+	}
 }
 
-func workbenchWidths(panes []zellijpane.Pane, terminalPaneID string) (int, int) {
-	var leftWidth, terminalWidth int
+func tiledScreenSize(panes []zellijpane.Pane) (int, int) {
+	var columns, rows int
 	for _, pane := range panes {
 		if pane.IsPlugin || pane.IsFloating {
 			continue
 		}
-		switch {
-		case pane.ID == terminalPaneID:
-			terminalWidth = pane.Columns
-		case workbenchshortcut.RoleForPane(pane) == workbenchshortcut.PaneRoleLeftAgent,
-			workbenchshortcut.RoleForPane(pane) == workbenchshortcut.PaneRoleLeftDraft:
-			if pane.Columns > leftWidth {
-				leftWidth = pane.Columns
-			}
+		if right := pane.X + pane.Columns; right > columns {
+			columns = right
+		}
+		if pane.Rows > rows {
+			rows = pane.Rows
 		}
 	}
-	return leftWidth, terminalWidth
+	return columns, rows
+}
+
+func terminalFillerX(panes []zellijpane.Pane) int {
+	for _, pane := range panes {
+		if pane.IsPlugin || pane.IsFloating {
+			continue
+		}
+		if pane.Title == "terminal-filler" {
+			return pane.X
+		}
+	}
+	return 0
 }
 
 func isRightTerminal(pane zellijpane.Pane) bool {

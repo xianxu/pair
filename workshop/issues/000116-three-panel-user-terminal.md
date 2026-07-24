@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-07-23
 updated: 2026-07-24
-estimate_hours: 4.53
+estimate_hours: 7.02
 started: 2026-07-23T16:16:22-07:00
 ---
 
@@ -33,10 +33,11 @@ can run a shell or launch `nvim` without stealing the agent/draft panes.
 - The user terminal starts as an ordinary interactive shell.
 - From that terminal, the user can either stay in the shell or open `nvim`
   normally.
-- The right terminal's intended zellij affordance is the small Pair-provided
-  tab vocabulary below. This issue does not restore zellij's mode-switch
-  defaults or promise every stock zellij pane/resize binding; those remain
-  governed by Pair's existing quiet-zellij config.
+- The right terminal provides Pair-owned local terminal tabs inside that pane.
+  Outer Zellij tabs are deliberately not used because they replace the whole
+  workbench rather than tabbing only the user-terminal surface. This issue does
+  not restore Zellij's mode-switch defaults or promise every stock Zellij
+  pane/resize binding; those remain governed by Pair's quiet config.
 - Pair's added workbench shortcuts are pane-local, not raw global zellij
   shortcuts:
   - `Alt+j` moves vertically between the agent and draft panes when focus is in
@@ -45,10 +46,10 @@ can run a shell or launch `nvim` without stealing the agent/draft panes.
     terminal. Returning from the right terminal focuses the last left Pair pane
     that had focus; if no left focus has been recorded yet, it falls back to the
     draft pane.
-  - `Alt+t` creates a zellij tab only when focus is in the right terminal.
-  - `Alt+w` closes the active zellij tab only when focus is in the right
+  - `Alt+t` creates a local terminal tab only when focus is in the right terminal.
+  - `Alt+w` closes the active local terminal tab only when focus is in the right
     terminal.
-  - `Alt+r` renames the active zellij tab only when focus is in the right
+  - `Alt+r` renames the active local terminal tab only when focus is in the right
     terminal. This must not steal review-pane `Alt+r` reject behavior.
   - `Alt+Shift+C` / `Ctrl+Alt+c` compaction and `Alt+/` scrollback viewer work
     only in the left Pair stack.
@@ -65,17 +66,31 @@ can run a shell or launch `nvim` without stealing the agent/draft panes.
   rather than by binding every shortcut directly in zellij config. ARCH-DRY:
   reuse the shared `zellijpane` parser for focused-pane classification rather
   than re-open-coding `list-panes` JSON walks.
+- Pair supports both workbench topologies:
+  - `pair` and `pair --layout2` select the original agent/draft-only topology
+    when a tag has no recorded layout;
+  - `pair --layout3` selects the three-pane topology described above;
+  - layout flags are Pair-owned, may appear before or after the agent name but
+    before `--`, and are never forwarded to the coding agent;
+  - when no layout flag is typed, Pair reuses the tag's recorded topology;
+  - an explicit flag overrides the recorded topology. If that tag is live and
+    the topology differs, Pair must confirm before restarting the whole
+    workbench because arbitrary user-terminal state cannot be recovered.
 
 ## Done when
 
-- A normal Pair session opens with the agent pane above the draft pane on the
-  left and a user terminal panel available as the other main panel.
+- A new unrecorded Pair tag without a layout flag opens the original two-pane
+  agent/draft workbench.
+- `pair --layout3` opens the agent/draft stack on the left with a user terminal
+  panel on the right, and a recorded layout-3 tag resumes that topology when no
+  layout flag is supplied.
 - The terminal panel starts in an interactive shell and can launch `nvim`
   without breaking Pair's agent/draft workflow.
 - The right terminal remains an ordinary shell, so users can run `nvim` or any
   other terminal program there.
-- `Alt+t`, `Alt+w`, and `Alt+r` affect zellij tabs from the right terminal and
-  do nothing from the agent, draft, scrollback, changelog, or review panes.
+- `Alt+t`, `Alt+w`, and `Alt+r` affect Pair-owned local terminal tabs from the
+  right terminal and do nothing from the agent, draft, scrollback, changelog,
+  or review panes.
 - `Alt+j` moves between agent and draft from the left stack and does nothing
   from the right terminal.
 - `Alt+k` moves from the focused left Pair pane to the right terminal, then
@@ -84,6 +99,11 @@ can run a shell or launch `nvim` without stealing the agent/draft panes.
 - `Alt+Shift+C` / `Ctrl+Alt+c` and `Alt+/` work from the left Pair stack and do
   nothing from the right terminal.
 - Existing Pair key flows still work from their expected panes.
+- A new unrecorded tag defaults to the two-pane topology; a recorded tag
+  resumes its recorded topology; an explicit conflicting layout changes a live
+  tag only after operator confirmation.
+- `pair claude --layout2 -- --other-claude-flags other-claude-params` consumes
+  `--layout2` itself and forwards only the tokens after `--` to Claude.
 - Automated layout/config checks cover the changed zellij assets, and manual
   smoke steps record the terminal, `nvim`, and zellij-tab behavior.
 
@@ -105,7 +125,15 @@ item: tui-screen design=0.40 impl=0.40
 item: api-integration design=0.40 impl=0.40
 item: atlas-docs design=0.05 impl=0.05
 item: milestone-review design=0.08 impl=0.12
-total: 4.53
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: greenfield-go-module design=0.20 impl=0.28
+item: api-integration design=0.20 impl=0.24
+item: cross-cutting-refactor design=0.20 impl=0.20
+item: tui-screen design=0.20 impl=0.30
+item: atlas-docs design=0.05 impl=0.05
+item: milestone-review design=0.08 impl=0.12
+total: 7.02
 ```
 
 ## Plan
@@ -115,8 +143,15 @@ total: 4.53
 - [x] Design the three-panel geometry and focus/keybinding behavior.
 - [x] Update the zellij layout/config and any pane metadata assumptions.
 - [x] Add or update tests/checks for the layout/config assets.
-- [ ] Smoke a live Pair session: shell in terminal panel, `nvim` from terminal,
-      normal agent/draft send, and right-terminal zellij tab helpers.
+- [x] Add pure layout parsing/precedence plus tag-scoped topology persistence.
+- [x] Split the original and layered workbenches into validated layout 2 and
+      layout 3 assets, with layout 2 as the unrecorded default.
+- [x] Implement confirmed live-layout override and preserve topology across
+      attach, quit, restart, compaction, and rename.
+- [x] Update embedded assets and architecture consumers for both modes.
+- [x] Smoke a live Pair session: shell in terminal panel, `nvim` from terminal,
+      normal agent/draft send, right-terminal local tab helpers, two-pane
+      default, recorded resume, and explicit live override.
 
 ## Log
 
@@ -138,6 +173,54 @@ total: 4.53
   explicit Pair tab helpers.
 
 ### 2026-07-24
+
+- Extended the approved design to support both topologies. The original
+  two-pane workbench is the default for unrecorded tags; the three-pane
+  workbench is opt-in via `--layout3`. Omitted flags reuse a tag-scoped
+  `workbench-layout` record, while an explicit conflicting flag requires a
+  confirmed whole-workbench restart. The record is deliberately distinct from
+  the existing `layout-mode` draft-height diagnostic (`ARCH-DRY`,
+  `ARCH-PURPOSE`).
+- Recalibrated the estimate from 4.53h to 7.02h after the topology-selection
+  revision added launcher parsing, durable persistence, live Zellij probing,
+  confirmed relaunch, dual embedded assets, and a second operator smoke pass.
+  The added primitives use the same v3.1 Method A calibration as the original
+  estimate; its source currently reports stale pending the fleet recalibration
+  tracked in ariadne#127.
+- Implemented the approved dual-topology contract. `LayoutMode` is a pure
+  selection model; `workbench-layout-<tag>` is the durable topology record;
+  Pair-owned flags are consumed before `--`; and live explicit conflicts take
+  a confirmed nonterminal teardown/relaunch path. Missing rollout records are
+  classified from a session-scoped Zellij pane report. This keeps policy in the
+  pure core and Zellij/filesystem/prompt effects at injected boundaries
+  (`ARCH-PURE`, `ARCH-DRY`).
+- Split the validated static products into `main-2.kdl` and `main-3.kdl`,
+  requiring both in source and embedded-runtime asset roots. Structural tests
+  compare their shared agent/draft commands while preserving their deliberate
+  topology difference (`ARCH-PURPOSE` shadow sweep).
+- Fresh automated verification passed: `make runtimebundle-drift-check`,
+  `go test ./... -count=1`, `make test-lua`,
+  `bash tests/term-pane-shortcuts-test.sh`,
+  `bash tests/pair-embedded-runtime-test.sh`, `bash tests/pair-rename.sh`, and
+  `git diff --check`. Both KDL layouts and the Zellij config also passed the
+  installed Zellij parser/checker earlier in this implementation window.
+- Rebuilt `bin/pair` for live testing. `~/.local/bin/pair` is a symlink to that
+  exact workspace binary, so `make install` correctly rebuilt the live target
+  but macOS `install` then reported its same-file guard; `command -v pair`
+  resolves to `/Users/xianxu/workspace/pair/bin/pair`, whose help shows the new
+  layout flags.
+- Operator smoke confirmed the installed dual-topology behavior works and
+  approved landing.
+- First close review returned REWORK. It found one production bug in the
+  terminal byte pump: a shortcut or SGR mouse event coalesced with following
+  shell bytes was forwarded as one opaque chunk. Added red/green regressions
+  and a prefix-consuming stream loop that handles the event while preserving
+  the remaining payload. Reconciled the durable plan's stale pre-revision
+  outer-Zellij-tab paths with the delivered local PTY tabs, and documented the
+  public layout flags/topology-specific keys in README. The review's
+  clean-`HEAD` embedded-asset and unchecked-plan observations came from the
+  pre-landing commit state; the generated assets and completed plan are present
+  in the working transaction that will become the reviewed landing commit.
 
 - Implemented the three-pane workbench shape: zellij layout now keeps
   agent/draft as the left stack and starts a right-side `pair term` user
@@ -301,3 +384,39 @@ total: 4.53
   Zellij resize step early. Tightened the tolerance to 1% and added closest-step
   rollback when a resize overshoots. Regression coverage includes the observed
   early-stop geometry and an expansion overshoot.
+- Replaced the checkpointed tiled-resize experiment with the operator's
+  two-layer model. The tiled base is a half-width agent/draft stack plus an
+  inert borderless filler; a permanently floating terminal exactly covers the
+  filler at 50% and overlays the right third of the left stack at 67%.
+  Alt+Shift+Return now performs one precise coordinate update, with no resize
+  loop, embed, retiling, or process replacement. Floating terminal role
+  classification is explicit while unrelated floating review panes remain
+  outside the workbench role set. ARCH-PURPOSE: the filler exists only to keep
+  the left stack laid out at its visible width beneath the overlay.
+- Live smoke exposed two real-report details absent from the first fixture:
+  Zellij marked both draft and floating terminal focused, and on an odd-width
+  screen `x=50%` rounded one column left of the filler's boundary. Terminal
+  discovery now scans past other focused panes; terminal startup and collapse
+  anchor normal geometry to the filler's reported `pane_x`. A live expand/
+  collapse probe produced `(x=57,width=114)` then `(x=86,width=85)` in one
+  action each, preserving the left frame.
+- Added agent-only context refresh for the now-long-lived workbench.
+  Alt+Shift+N confirms in the draft and runs `pair agent restart`, which signals
+  the stable `pair wrap` supervisor. The wrapper terminates only its agent PTY
+  child, reconstructs arguments through the launcher's canonical persistence
+  transform (dropping resume/session bindings), refreshes Claude or async
+  Codex/agy session tracking, and `exec`s itself in the same Zellij pane.
+  Alt+N remains the explicit whole-workbench reload. Process-level coverage
+  verifies SIGUSR2 reaches a replacement wrapper invocation while preserving
+  user-authored flags and removing the prior session ID.
+- Removed the redundant in-pane terminal tab strip now that local-tab state is
+  carried by the floating pane frame title. The strip had reserved one PTY row
+  and globally enabled SGR mouse reporting; after resize, a device-attributes
+  response combined with mouse press/release bytes could bypass the single-
+  event parser and appear as literal shell input. Child PTYs now use the full
+  pane height, no synthetic mouse mode is enabled, and non-wheel mouse input is
+  passed directly to applications that request it.
+- Disabled Zellij's startup-tip popup with its supported
+  `show_startup_tips false` option. The right terminal intentionally remains
+  pinned; Zellij exposes no deterministic arbitrary z-order between a pinned
+  pane and startup popup, so suppressing the redundant tip is the direct fix.

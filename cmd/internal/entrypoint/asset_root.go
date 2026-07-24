@@ -12,7 +12,7 @@ type AssetRootInput struct {
 	DefaultPairHome string
 	EmbeddedRoot    string
 	// ValidRoot reports whether a candidate directory is a Pair asset root. The
-	// caller checks the marker (ValidRootMarker) exists there (#99 M5c — was
+	// caller checks every marker (ValidRootMarkers) exists there (#99 M5c — was
 	// bin/pair-shell, now the always-present zellij layout, since the shell
 	// launcher is retired).
 	ValidRoot func(root string) bool
@@ -63,16 +63,18 @@ func ResolveAssetRoot(input AssetRootInput) (AssetRoot, error) {
 	if len(checked) == 0 {
 		checked = append(checked, "<none>")
 	}
-	return AssetRoot{}, fmt.Errorf("pair assets not found; set PAIR_HOME to a Pair checkout/install root containing %s (checked: %s)",
-		filepath.Join("zellij", "layouts", "main.kdl"), strings.Join(checked, ", "))
+	return AssetRoot{}, fmt.Errorf("pair assets not found; set PAIR_HOME to a Pair checkout/install root containing %s and %s (checked: %s)",
+		filepath.Join("zellij", "layouts", "main-2.kdl"),
+		filepath.Join("zellij", "layouts", "main-3.kdl"),
+		strings.Join(checked, ", "))
 }
 
-// ValidRootMarker is the file whose presence marks a directory as a Pair asset
-// root: the zellij layout the launch reads (createflow.go). It is a tracked source
-// file AND bundled into the embedded runtime, so it exists in both a checkout and
-// an extracted pair-home — unlike bin/pair-wrap (a built, gitignored binary).
-func ValidRootMarker(root string) string {
-	return filepath.Join(root, "zellij", "layouts", "main.kdl")
+// ValidRootMarkers are the tracked layouts every Pair asset root must carry.
+func ValidRootMarkers(root string) []string {
+	return []string{
+		filepath.Join(root, "zellij", "layouts", "main-2.kdl"),
+		filepath.Join(root, "zellij", "layouts", "main-3.kdl"),
+	}
 }
 
 type assetRootCandidate struct {

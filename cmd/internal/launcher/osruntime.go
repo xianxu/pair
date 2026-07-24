@@ -16,6 +16,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/continuationcmd"
 	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/transcript"
+	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
 
 // OSRuntime is the concrete create-flow Runtime: real zellij/fzf/cmux/tty/exec
@@ -90,6 +91,21 @@ func (OSRuntime) LaunchSession(session, configDir, layout string) (int, error) {
 		"--config-dir", configDir,
 		"--new-session-with-layout", layout,
 		"--session", session))
+}
+
+func (OSRuntime) ProbeLiveLayout(session string) (LayoutMode, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "zellij", "--session", session, "action",
+		"list-panes", "--json", "--command", "--state").Output()
+	if err != nil {
+		return "", err
+	}
+	mode, ok := ClassifyLiveLayout(zellijpane.Parse(out))
+	if !ok {
+		return "", fmt.Errorf("unrecognized pane signature")
+	}
+	return mode, nil
 }
 
 // runBlockingHandoff runs cmd with the tty passed straight through (NOT
@@ -242,6 +258,19 @@ func (OSRuntime) PromptSessionName(def string) (string, bool) {
 		return "", false // EOF with no input — abort (shell's `read` non-zero).
 	}
 	return line, true // an empty line falls through to the default in RunLaunch.
+}
+
+func (OSRuntime) ConfirmLayoutChange(tag string, from, to LayoutMode) bool {
+	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
+	if err != nil {
+		return false
+	}
+	defer tty.Close()
+	fmt.Fprintf(tty, "pair: switch tag %q from %s to %s? This restarts the whole workbench and loses user-terminal state. [y/N]: ", tag, from, to)
+	line, _ := bufio.NewReader(tty).ReadString('\n')
+	fmt.Fprintln(tty)
+	answer := strings.TrimSpace(line)
+	return answer == "y" || answer == "Y"
 }
 
 // PickFromList presents options (NUL-separated, fzf --read0 multi-line render)
@@ -560,9 +589,14 @@ func (OSRuntime) ExecKillSession(session string) {
 
 // DeleteSession removes the zellij session record, then SIGKILLs a lingering
 // `zellij --server …/<session>` that re-registered the record on a heartbeat.
-func (OSRuntime) DeleteSession(session string) {
-	zj("delete-session", session, "--force")
+func (OSRuntime) DeleteSession(session string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
+	defer cancel()
+	if out, err := exec.CommandContext(ctx, "zellij", "delete-session", session, "--force").CombinedOutput(); err != nil {
+		return fmt.Errorf("%s: %w", strings.TrimSpace(string(out)), err)
+	}
 	pkillF("zellij --server .*/" + session + "$")
+	return nil
 }
 
 // pkillF runs `pkill -9 -f <pattern>` (best-effort; macOS pkill -f is BRE).

@@ -3306,6 +3306,30 @@ end
 function _G.PairConfirmRestart()           pair_confirm_restart_impl(false) end
 function _G.PairConfirmRestartNewSession() pair_confirm_restart_impl(true)  end
 
+function _G.PairConfirmAgentRestart()
+  pair_ensure_visible_then(function()
+    local cfg = pair_read_saved_config()
+    local prompt = 'Restart only the coding agent with a fresh conversation?'
+      .. '\n\nThe draft, terminal, and workbench layout will remain running.'
+    if cfg then
+      local args_line = '<none>'
+      if type(cfg.args) == 'table' and #cfg.args > 0 then
+        args_line = table.concat(cfg.args, ' ')
+      end
+      prompt = prompt
+        .. '\n\nRe-launching with:'
+        .. '\n  agent: ' .. cfg.agent
+        .. '\n  args:  ' .. args_line
+    end
+    if vim.fn.confirm(prompt, '&Yes\n&No', 2) == 1 then
+      local out = vim.fn.system({ 'pair', 'agent', 'restart' })
+      if vim.v.shell_error ~= 0 then
+        vim.notify((out:gsub('%s+$', '')), vim.log.levels.ERROR)
+      end
+    end
+  end)
+end
+
 -- Alt+Shift+C compaction (#55). Distilling a continuation needs the agent's
 -- judgment, so this asks the AGENT (agent-agnostic prompt, no claude-only skill
 -- name) to write the continuation. But the RESTART is no longer the agent's job
@@ -3381,7 +3405,7 @@ vim.api.nvim_create_user_command('PairTTYRawPath', function() _G.PairTTYRawPath(
 -- Two keys drive this: Alt+Up (PairLayoutBigger) and Alt+Down
 -- (PairLayoutSmaller) step along the ladder, clamped at the ends.
 --
--- Sizing is exact — zellij/layouts/main.kdl declares each rung as a
+-- Sizing is exact — zellij/layouts/main-{2,3}.kdl declare each rung as a
 -- swap_tiled_layout with the desired draft-pane size. We step along the
 -- ladder via `zellij action next-swap-layout` / `previous-swap-layout`,
 -- which re-tiles the existing agent + nvim panes onto the target swap
@@ -3511,7 +3535,7 @@ function _G.PairLayoutSmaller()
 end
 
 -- Seed the in-memory mirror at startup. zellij boots into the size=12
--- draft pane (see zellij/layouts/main.kdl), and the in-memory mirror is
+-- draft pane (see zellij/layouts/main-{2,3}.kdl), and the in-memory mirror is
 -- only used by callers that don't want to call layout_read; layout_read
 -- itself reads vim.o.lines so it doesn't need this.
 layout_write('small')

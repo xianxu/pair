@@ -3,6 +3,7 @@
 package termcmd
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
@@ -173,6 +174,7 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 
 func runShell(stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
 	name, args := rt.ShellCommand()
+	_ = layoutcmd.AlignFloatingTerminal(rt)
 	stdinFile, _ := stdin.(*os.File)
 	var oldState *term.State
 	if stdinFile != nil {
@@ -224,7 +226,6 @@ type ptyWriter interface {
 	renameActive(string)
 	previousTab()
 	nextTab()
-	switchTabAtColumn(int)
 	appMouseMode() bool
 }
 
@@ -236,37 +237,40 @@ func pumpStdin(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Writer) {
 		if n > 0 {
 			data := append(held, buf[:n]...)
 			held = nil
-			if len(data) == 1 && data[0] == 0x1b {
-				held = append(held, data...)
-			} else if chord, ok := workbenchshortcut.DecodeChord(data); ok {
-				if handleTerminalChord(chord, mux, rt, stdin, stdout) {
+			for len(data) > 0 {
+				if chord, rest, ok := workbenchshortcut.DecodeChordPrefix(data); ok {
+					if !handleTerminalChord(chord, mux, rt, stdin, stdout) {
+						_ = handleChord(chord, rt, stdin, stdout)
+					}
+					data = rest
 					continue
 				}
-				_ = handleChord(chord, rt, stdin, stdout)
-			} else if event, ok := parseSGRMousePress(data); ok {
-				switch event.button {
-				case 64:
-					if mux.appMouseMode() {
-						mux.writeActive(data)
-						continue
+				if event, raw, rest, ok := parseSGRMousePressPrefix(data); ok {
+					switch event.button {
+					case 64:
+						if mux.appMouseMode() {
+							mux.writeActive(raw)
+						} else {
+							_ = rt.RunZellijAction("scroll-up")
+						}
+					case 65:
+						if mux.appMouseMode() {
+							mux.writeActive(raw)
+						} else {
+							_ = rt.RunZellijAction("scroll-down")
+						}
+					default:
+						mux.writeActive(raw)
 					}
-					_ = rt.RunZellijAction("scroll-up")
-					continue
-				case 65:
-					if mux.appMouseMode() {
-						mux.writeActive(data)
-						continue
-					}
-					_ = rt.RunZellijAction("scroll-down")
+					data = rest
 					continue
 				}
-				if event.y == 1 {
-					mux.switchTabAtColumn(event.x)
-					continue
+				if workbenchshortcut.IsChordPrefix(data) || isSGRMousePrefix(data) {
+					held = append(held, data...)
+					break
 				}
 				mux.writeActive(data)
-			} else {
-				mux.writeActive(data)
+				data = nil
 			}
 		}
 		if err != nil {
@@ -346,6 +350,27 @@ func parseSGRMousePress(data []byte) (mousePressEvent, bool) {
 	return event, true
 }
 
+func parseSGRMousePressPrefix(data []byte) (mousePressEvent, []byte, []byte, bool) {
+	if !bytes.HasPrefix(data, []byte("\x1b[<")) {
+		return mousePressEvent{}, nil, data, false
+	}
+	end := bytes.IndexByte(data, 'M')
+	if end < 0 {
+		return mousePressEvent{}, nil, data, false
+	}
+	raw := data[:end+1]
+	event, ok := parseSGRMousePress(raw)
+	if !ok {
+		return mousePressEvent{}, nil, data, false
+	}
+	return event, raw, data[end+1:], true
+}
+
+func isSGRMousePrefix(data []byte) bool {
+	return bytes.HasPrefix([]byte("\x1b[<"), data) ||
+		(bytes.HasPrefix(data, []byte("\x1b[<")) && bytes.IndexByte(data, 'M') < 0)
+}
+
 func readRawPrompt(stdin io.Reader, stdout io.Writer, prompt string) string {
 	_, _ = io.WriteString(stdout, "\r\n"+prompt)
 	var b strings.Builder
@@ -405,15 +430,8 @@ type terminalMux struct {
 	nextID    int
 	output    chan ptyChunk
 	done      chan struct{}
-	ranges    []tabRange
 	rows      uint16
 	cols      uint16
-}
-
-type tabRange struct {
-	start int
-	end   int
-	index int
 }
 
 func newTerminalMux(shellName string, shellArgs []string, stdout, stderr io.Writer, rt Runtime) *terminalMux {
@@ -450,7 +468,6 @@ func (m *terminalMux) newTab() error {
 	m.active = len(m.tabs) - 1
 	m.mu.Unlock()
 	m.renamePane()
-	m.renderTabStrip()
 
 	go m.readPTY(tab)
 	return nil
@@ -570,7 +587,6 @@ func (m *terminalMux) renameActive(name string) {
 	}
 	m.mu.Unlock()
 	m.renamePane()
-	m.renderTabStrip()
 }
 
 func (m *terminalMux) previousTab() {
@@ -591,28 +607,6 @@ func (m *terminalMux) switchRelative(delta int) {
 	tab := m.activeTabLocked()
 	m.mu.Unlock()
 	m.renamePane()
-	m.renderTabStrip()
-	m.redrawTab(tab)
-}
-
-func (m *terminalMux) switchTabAtColumn(x int) {
-	m.mu.Lock()
-	target := -1
-	for _, r := range m.ranges {
-		if x >= r.start && x <= r.end {
-			target = r.index
-			break
-		}
-	}
-	if target < 0 || target >= len(m.tabs) || target == m.active {
-		m.mu.Unlock()
-		return
-	}
-	m.active = target
-	tab := m.activeTabLocked()
-	m.mu.Unlock()
-	m.renamePane()
-	m.renderTabStrip()
 	m.redrawTab(tab)
 }
 
@@ -653,7 +647,6 @@ func (m *terminalMux) removeTab(id int) {
 		return
 	}
 	m.renamePane()
-	m.renderTabStrip()
 	m.redrawTab(active)
 }
 
@@ -670,7 +663,6 @@ func (m *terminalMux) inheritSize(stdinFile *os.File) {
 	childSize := m.childSizeLocked()
 	m.mu.Unlock()
 	m.resizeAll(childSize)
-	m.renderTabStrip()
 }
 
 func (m *terminalMux) captureSize(stdinFile *os.File) {
@@ -688,11 +680,7 @@ func (m *terminalMux) childSizeLocked() *pty.Winsize {
 	if m.rows == 0 || m.cols == 0 {
 		return nil
 	}
-	rows := m.rows
-	if rows > 1 {
-		rows--
-	}
-	return &pty.Winsize{Rows: rows, Cols: m.cols}
+	return &pty.Winsize{Rows: m.rows, Cols: m.cols}
 }
 
 func (m *terminalMux) applyPTYSize(f *os.File) {
@@ -752,59 +740,16 @@ func (m *terminalMux) paneTitleLocked() string {
 	return strings.Join(parts, " ")
 }
 
-func (m *terminalMux) renderTabStrip() {
-	m.mu.Lock()
-	cols := int(m.cols)
-	rows := m.rows
-	if cols <= 0 {
-		cols = 80
-	}
-	line, ranges := m.tabStripLocked(cols)
-	m.ranges = ranges
-	m.mu.Unlock()
-	_, _ = io.WriteString(m.stdout, "\x1b[?1000h\x1b[?1006h")
-	_, _ = io.WriteString(m.stdout, "\x1b7\x1b[1;1H\x1b[7m"+line+"\x1b[0m\x1b8")
-	if rows > 1 {
-		_, _ = fmt.Fprintf(m.stdout, "\x1b[2;%dr", rows)
-	}
-	_, _ = io.WriteString(m.stdout, "\x1b[2;1H")
-}
-
-func (m *terminalMux) tabStripLocked(cols int) (string, []tabRange) {
-	var b strings.Builder
-	ranges := make([]tabRange, 0, len(m.tabs))
-	for i, tab := range m.tabs {
-		if b.Len() > 0 {
-			b.WriteByte(' ')
-		}
-		start := b.Len() + 1
-		label := fmt.Sprintf(" %d:%s ", i+1, tab.name)
-		if i == m.active {
-			label = "[" + strings.TrimSpace(label) + "]"
-		}
-		b.WriteString(label)
-		ranges = append(ranges, tabRange{start: start, end: b.Len(), index: i})
-	}
-	line := b.String()
-	if len(line) > cols {
-		line = line[:cols]
-	}
-	if len(line) < cols {
-		line += strings.Repeat(" ", cols-len(line))
-	}
-	return line, ranges
-}
-
 func (m *terminalMux) redrawTab(tab *terminalTab) {
 	if tab == nil {
 		return
 	}
-	_, _ = io.WriteString(m.stdout, "\x1b[2;1H\x1b[J")
+	_, _ = io.WriteString(m.stdout, "\x1b[1;1H\x1b[J")
 	_, _ = m.stdout.Write(tab.buffer)
 }
 
 func (m *terminalMux) restoreTerminal() {
-	_, _ = io.WriteString(m.stdout, "\x1b[?1000l\x1b[?1006l\x1b[r")
+	_, _ = io.WriteString(m.stdout, "\x1b[r")
 }
 
 func (OSRuntime) ListPanesJSON() ([]byte, error) {

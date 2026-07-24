@@ -35,6 +35,13 @@ func TestRenamePathsForZip(t *testing.T) {
 	if i < 0 || nw[i] != "/d/ledger-mind.jsonl" {
 		t.Fatalf("ledger zip: new=%q", nw[i])
 	}
+	i = find(old, "/d/workbench-layout-brain")
+	if i < 0 {
+		t.Fatal("workbench layout missing from rename enumeration")
+	}
+	if nw[i] != "/d/workbench-layout-mind" {
+		t.Fatalf("workbench layout zip: new=%q", nw[i])
+	}
 	i = find(old, "/d/scrollback-brain-codex.events.jsonl")
 	if i < 0 || nw[i] != "/d/scrollback-mind-codex.events.jsonl" {
 		t.Fatalf("scrollback events zip: new=%q", nw[i])
@@ -110,6 +117,7 @@ func renameFake(t *testing.T) *fakeRuntime {
 	rt.files["/data/draft-old.md"] = "draft"
 	rt.files["/data/config-old-claude.json"] = "cfg"
 	rt.files["/data/ledger-old.jsonl"] = "ledger\n"
+	rt.files["/data/workbench-layout-old"] = "layout3\n"
 	return rt
 }
 
@@ -134,6 +142,9 @@ func TestRunRenameHappyPath(t *testing.T) {
 	}
 	if _, ok := rt.files["/data/ledger-old.jsonl"]; ok {
 		t.Fatal("old ledger should be gone after move")
+	}
+	if got := rt.files["/data/workbench-layout-new"]; got != "layout3\n" {
+		t.Fatalf("workbench layout not moved: %q", got)
 	}
 	// Journal written then removed on success.
 	if _, ok := rt.files["/data/.rename-old-to-new.journal"]; ok {

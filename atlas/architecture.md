@@ -28,7 +28,8 @@ nvim/scrollback.lua          # read-only ANSI viewer for the scrollback dump
 nvim/changelog.lua           # read-only viewer for the distilled change log (#53)
 nvim/annotate.lua            # shared 🤖-marker annotation subsystem (Alt+q) for both viewers (#57)
 zellij/config.kdl            # mouse, copy_command, keybinds, pane frames
-zellij/layouts/main.kdl      # the three-pane workbench + commands + swap layouts
+zellij/layouts/main-2.kdl    # original agent/draft workbench
+zellij/layouts/main-3.kdl    # layered agent/draft + user-terminal workbench
 ```
 
 ## Packaging migration target (#72)
@@ -206,8 +207,9 @@ degradation. **M5c retires the shell entirely** — `bin/pair-shell` is **remove
 is deleted, so `LaunchNative` always returns a real exit code; the defensive
 error paths (Sessions/ScanHistory/DecideLaunch/os.Getwd) print + exit instead of
 falling back. The asset-root validity marker moves from `bin/pair-shell` to the
-always-present **`zellij/layouts/main.kdl`** (tracked + bundled, unlike the built
-`bin/pair-wrap`). The `PAIR_TEST_CALL`/`PAIR_DEBUG_*`-driven shell contract tests
+always-present **pair of `zellij/layouts/main-{2,3}.kdl` assets** (tracked +
+bundled, unlike the built `bin/pair-wrap`). A root is valid only when both are
+present. The `PAIR_TEST_CALL`/`PAIR_DEBUG_*`-driven shell contract tests
 (`pair-continue-test`, `cmux-ownership-test`) retire with the shell — every shell
 function they pinned has a tested Go equivalent. So `pair` is now a single Go
 launcher end-to-end; #94 (stop extracting a shell tree) unblocks.
@@ -293,9 +295,36 @@ Detection of attached-vs-detached uses `zellij --session NAME action list-client
 
 The picker is bypassed in either flavor — Alt+n's argv carries an explicit resume token, and Shift+Alt+N has no saved config to pick against. A third marker field, `continue=<slug>` (#55, written by the launcher's in-session compaction branch (`compaction.go`), not `pair restart`), rides the `new_session=1` path but re-execs `pair continue <slug> <agent> -- <args>` instead of a plain restart — see "In-session compaction" below.
 
-### `zellij/layouts/main.kdl` — pane split + swap-layout ladder
+### `zellij/layouts/main-{2,3}.kdl` — selectable workbench topologies
 
-Root vertical split. The left column is Pair-owned: top pane runs `$PAIR_AGENT $PAIR_AGENT_ARGS` under `pair wrap`, and bottom pane is `size=12` (fixed 12 rows) running `nvim -u $PAIR_HOME/nvim/init.lua` on the per-tag draft file. The right pane is a user-owned terminal running `pair term`, which starts the user's shell and gates the right-only tab helpers. Integer sizes are FIXED in zellij (refusing the `resize` action), but pair drives all draft-rung changes through swap layouts, not resize, so FIXED is harmless.
+The pure launcher `LayoutMode` model selects one of two static products.
+`layout2` is the default for a tag with no topology record and restores the
+original agent/draft-only workbench. `layout3` adds the layered user terminal
+described below. A durable tag-owned
+`${PAIR_DATA_DIR}/workbench-layout-<tag>` record remembers the selection across
+attach, ordinary quit, Alt+n, Alt+Shift+n, and compaction; rename carries it
+with the tag. This is intentionally distinct from `layout-mode-<tag>`, which
+only mirrors the draft-height rung.
+
+`--layout2` and `--layout3` are Pair-owned options accepted anywhere before
+`--`; the separator keeps every later token verbatim for the coding agent.
+Omitting the option reuses a valid record. For a live pre-record rollout
+session, Pair probes the session-scoped pane report once and records the
+classified topology on its next create. An explicit request that conflicts
+with a live topology prompts before deleting the Zellij session and relaunching
+the same tag; declining is inert, while accepting warns that arbitrary
+user-terminal state is lost.
+
+Both assets share the Pair-owned agent/draft column: the top pane runs
+`$PAIR_AGENT $PAIR_AGENT_ARGS` under `pair wrap`, and the bottom pane is
+`size=12` (fixed 12 rows) running
+`nvim -u $PAIR_HOME/nvim/init.lua` on the per-tag draft file. Layout 2 contains
+only this stack. Layout 3 adds a borderless inert filler in the tiled base and
+a permanently floating `pair term` user terminal above it; its width switches
+directly between 50% and 67%, covering the filler exactly or overlaying part of
+the left stack. Integer sizes are FIXED in zellij (refusing the `resize`
+action), but Pair drives draft-rung changes through swap layouts, not resize,
+so FIXED is harmless.
 
 The panes wrap their command in `sh -c "..."` so the shell expands `$PAIR_AGENT`, `$PAIR_AGENT_ARGS`, `$PAIR_TAG`, and `$PAIR_HOME` at exec time — zellij itself does not interpolate env vars in `command`/`args` fields.
 
@@ -303,9 +332,9 @@ The panes wrap their command in `sh -c "..."` so the shell expands `$PAIR_AGENT`
 
 The draft pane has `focus=true` (drafting pane gets focus on launch), `borderless=true` (so the `minimized` rung can collapse to 1 row — see "pane frame asymmetry" below), and `name="draft"` — used by zellij in the OSC 0 terminal title (`pair-<tag>: draft`) which propagates to the user's terminal/multiplexer tab title. The draft is borderless so it has no frame title slot; the keybind cheatsheet that used to live in the frame title lives in nvim's statusline (right-aligned, see `nvim/init.lua`).
 
-**Pane frame asymmetry.** `pane_frames true` is set globally in `zellij/config.kdl` so the **agent and terminal panes** render frames. The agent frame surfaces the scroll-position indicator zellij draws in the top-right of a framed pane (e.g. `500/540`), which is the only way to see scrollback position (zellij doesn't expose scroll offset to plugins or the CLI). The **draft pane** opts out via `borderless=true` in every layout (default + both swap layouts), because a framed pane has a ~3-row minimum and the `minimized` rung needs `size=1`. Cost: framed panes lose 2 rows + 2 cols to chrome.
+**Pane frame asymmetry.** `pane_frames true` is set globally in `zellij/config.kdl` so the **agent pane and layout-3 terminal** render frames. The agent frame surfaces the scroll-position indicator zellij draws in the top-right of a framed pane (e.g. `500/540`), which is the only way to see scrollback position (zellij doesn't expose scroll offset to plugins or the CLI). The **draft pane** opts out via `borderless=true` in every layout (default + both swap layouts), because a framed pane has a ~3-row minimum and the `minimized` rung needs `size=1`. Cost: framed panes lose 2 rows + 2 cols to chrome.
 
-**Swap layouts.** Two `swap_tiled_layout` entries — `minimized` (draft `size=1`) and `third` (draft `size="33%"`) — sit alongside the default layout above. Each is gated by `exact_panes=3` so it only applies when the current pane structure matches what pair builds. `nvim/init.lua` drives them via `zellij action next-swap-layout` / `previous-swap-layout`, which re-tile the existing agent + nvim + terminal panes onto the target layout positionally — running pane processes (`pair wrap`, `nvim`, `pair term`) survive each swap. Cycle from default(small) is `[minimized, third]`: `next-swap-layout` from small → minimized, from minimized → third, from third → wraps to small. The lua side maps Alt+Down to next-swap (smaller rung) and Alt+Up to prev-swap (bigger rung), with a state-machine clamp at the rung extremes.
+**Swap layouts.** Two `swap_tiled_layout` entries — `minimized` (draft `size=1`) and `third` (draft `size="33%"`) — sit alongside each default layout. Layout 2 gates its two-pane tiled tree with `exact_panes=2`; layout 3 gates its agent/draft/filler tiled tree with `exact_panes=3` (the floating terminal is outside that count). `nvim/init.lua` drives them via `zellij action next-swap-layout` / `previous-swap-layout`, which re-tile the existing processes without recreation. Cycle from default(small) is `[minimized, third]`: `next-swap-layout` from small → minimized, from minimized → third, from third → wraps to small. The lua side maps Alt+Down to next-swap (smaller rung) and Alt+Up to prev-swap (bigger rung), with a state-machine clamp at the rung extremes.
 
 ### `zellij/config.kdl` — mouse, copy, keybinds
 
@@ -313,7 +342,7 @@ Top-level config:
 
 - `mouse_click_through true` — first click on an unfocused pane goes through to the pane (so click-and-drag selects in one motion) instead of being consumed by zellij just to change focus.
 - `copy_command "copy-on-select"` — on every selection finalize (mouse-up after drag), zellij pipes the selected text to this binary. `copy_command` replaces zellij's default OS-clipboard write, so the binary does that part too. Resolved by PATH (which the launcher populated).
-- `pane_frames true` — frames are enabled globally so the agent pane shows zellij's scroll-position indicator (top-right of the frame) when scrolled. The draft pane opts out via `borderless=true` in `zellij/layouts/main.kdl` so the `minimized` rung can still collapse to 1 row (a framed pane's minimum is ~3 rows). The cheatsheet still renders in nvim's statusline rather than a frame title — the draft has no frame to hold one.
+- `pane_frames true` — frames are enabled globally so the agent pane shows zellij's scroll-position indicator (top-right of the frame) when scrolled. The draft pane opts out via `borderless=true` in both `zellij/layouts/main-{2,3}.kdl` assets so the `minimized` rung can still collapse to 1 row (a framed pane's minimum is ~3 rows). The cheatsheet still renders in nvim's statusline rather than a frame title — the draft has no frame to hold one.
 
 Keybinds added on top of zellij defaults (`clear-defaults=false`):
 
@@ -372,7 +401,7 @@ Alt+x leaves the draft, queue, and history intact — the next session resumes t
 
 2. **Two consumers** of the captured path:
 
-   - **`bin/pair-wrap`** (Go, `cmd/pair-wrap`). Transparent PTY proxy. The zellij agent pane runs `pair-wrap $PAIR_AGENT $PAIR_AGENT_ARGS` instead of the agent directly (wired in `zellij/layouts/main.kdl`). The wrapper allocates a fresh PTY for the agent, forwards stdin/stdout transparently with SIGWINCH propagation, and watches the agent's output stream for OSC notifications. On detection it writes OSC 9 directly to the recorded outer-TTY path — bypassing zellij.
+   - **`bin/pair-wrap`** (Go, `cmd/pair-wrap`). Transparent PTY proxy. The zellij agent pane runs `pair-wrap $PAIR_AGENT $PAIR_AGENT_ARGS` instead of the agent directly (wired identically in `zellij/layouts/main-{2,3}.kdl`). The wrapper allocates a fresh PTY for the agent, forwards stdin/stdout transparently with SIGWINCH propagation, and watches the agent's output stream for OSC notifications. On detection it writes OSC 9 directly to the recorded outer-TTY path — bypassing zellij.
 
      **Stdin raw mode.** The wrapper switches its stdin (zellij's pane PTY) into termios raw mode for the duration. Without this the kernel's line discipline does local echo + canonical buffering on the bytes flowing toward the wrapped TUI, which double-echoes keystrokes and corrupts terminal-response sequences. Saved/restored in a `finally` block.
 
@@ -421,7 +450,7 @@ Alt+x leaves the draft, queue, and history intact — the next session resumes t
 
 ### Colored scrollback dump — `pair-wrap`, `pair-scrollback-render`, `pair-scrollback-open`, `nvim/scrollback.lua`
 
-**Why.** zellij now renders a frame on the agent pane, which surfaces a scroll-position indicator (e.g. `500/540`) in the top-right. Knowing the position is half the value — the other half is being able to *jump back* to a remembered line. zellij's built-in `EditScrollback` strips ANSI styles when dumping (its scrollback is a styled cell grid internally, but the dump is plain text) and opens in a new tiled pane that breaks pair's two-pane invariant. Filed as #000017.
+**Why.** zellij now renders a frame on the agent pane, which surfaces a scroll-position indicator (e.g. `500/540`) in the top-right. Knowing the position is half the value — the other half is being able to *jump back* to a remembered line. zellij's built-in `EditScrollback` strips ANSI styles when dumping (its scrollback is a styled cell grid internally, but the dump is plain text) and opens in a new tiled pane that breaks Pair's managed topology invariant. Filed as #000017.
 
 **Capture (in `pair-wrap`).** When invoked with `--scrollback-log <path>`, pair-wrap opens `<path>` (truncated) and tees every chunk read from the agent's master PTY into it. Alongside it, `<path-without-.raw>.events.jsonl` collects one offset-keyed JSON line per out-of-band event — `resize` boundaries and (#59) minute-debounced `time` stamps:
 
@@ -432,7 +461,7 @@ Alt+x leaves the draft, queue, and history intact — the next session resumes t
 
 The `time` events (one generic `logScrollbackEvent` writer, ARCH-DRY; pure `dueForTimeEvent` debounce + a `p.now` clock seam, ARCH-PURE) let the change-log render date entries by real change-time — the raw byte stream stays byte-faithful (the scrollback render replays it), since the timestamp lives in the sidecar, not injected into the TTY (#59).
 
-The existing `set_winsize()` is the single entry point for both the initial PTY size (called once after `pty.fork`) and every SIGWINCH (the registered handler). Threading `log_scrollback_event()` through it covers both. `SCROLLBACK_BYTES` is bumped after each successful write to the raw fd, so the offset on each resize event demarcates "from this byte onward, apply these new (cols, rows)" — which is what the renderer needs to replay each segment at its correct width. Failure mode is unchanged: any tee or sidecar write error is `debug()`-logged and swallowed; the proxy never blocks the agent on a logging hiccup. `zellij/layouts/main.kdl` passes the flag by default, so capture runs automatically for every pair session.
+The existing `set_winsize()` is the single entry point for both the initial PTY size (called once after `pty.fork`) and every SIGWINCH (the registered handler). Threading `log_scrollback_event()` through it covers both. `SCROLLBACK_BYTES` is bumped after each successful write to the raw fd, so the offset on each resize event demarcates "from this byte onward, apply these new (cols, rows)" — which is what the renderer needs to replay each segment at its correct width. Failure mode is unchanged: any tee or sidecar write error is `debug()`-logged and swallowed; the proxy never blocks the agent on a logging hiccup. Both `zellij/layouts/main-{2,3}.kdl` assets pass the flag by default, so capture runs automatically for every pair session.
 
 **Replay (`bin/pair-scrollback-render`, Go).** Reads `<raw>` and `<events.jsonl>`, feeds the bytes to a `charmbracelet/x/vt` emulator in a single offset-ordered walk over all events (`feedSegments`): write up to each offset, then `Resize` on a resize event or snapshot `Scrollback().Len()` on a `time` event (#59). The emulator runs the same VT100 interpretation zellij does live (width-based wrap, alternate-screen flips, scroll regions), so its row count matches what the user saw in zellij's indicator. After feeding, the renderer walks the scrolled-out history followed by the visible buffer, and emits one ANSI-decorated line per row to `<out.ansi>`: full-reset SGR + per-row attrs + the row's characters + `\x1b[0m`. With `--with-timestamps` (the change-log path only — never the Alt+/ viewer) the pure `interleaveDateMarkers` then inserts `⟦pair:ts DATE⟧` lines at each day boundary from the time snapshots (#59). Built into `bin/pair-scrollback-render` via `make pair-scrollback-render`; single static binary, no runtime dep. Its raw inputs live in `$PAIR_DATA_DIR` as `scrollback-<tag>-<agent>.{raw,events.jsonl}` (RAW VT bytes, NOT in the repo); `:PairTTYRawPath` / `_G.PairTTYRawPath()` (nvim, #56) prints the current session's live `.raw` path on demand and copies it to the `+` register — useful for grabbing the byte stream mid-session, since an Alt+x quit deletes it unless preserved.
 
@@ -454,7 +483,7 @@ The existing `set_winsize()` is the single entry point for both the initial PTY 
 
 `G` is a semi-live refresh affordance (#84): before jumping to EOF, the viewer derives sibling `.raw` / `.events.jsonl` paths from the current `.ansi`, reruns `pair-scrollback-render`, reloads the same buffer in place, reapplies ANSI extmarks, relocks the read-only options, and then lands at the refreshed bottom. If the user has pending `Alt+q` annotations or an overall footer comment, the render still updates the backing `.ansi` but the visible buffer is not destructively replaced; the next clean refresh or reopen will show the new snapshot after the comment is shipped. Render/read failures warn and keep the existing snapshot visible, so refresh never replaces usable scrollback with a broken buffer. This deliberately reuses the existing floating viewer instead of stacking another `pair-scrollback-open` pane.
 
-**Open (`cmd/pair-scrollback-open` / `cmd/internal/opener`, Go — #93 M2).** Validates `PAIR_DATA_DIR` / `PAIR_TAG` / `PAIR_AGENT`, renders **in-process** via `scrollbackcmd` (no `pair scrollback-render` subprocess), then *launches* `nvim -u $PAIR_HOME/nvim/scrollback.lua $ANSI` as a held child (`RunViewer`) — deliberately **not** an exec-replace, so the launcher stays alive as nvim's parent and a `defer` clears the re-entrancy lock on quit (the Go analog of the old shell `EXIT`/`INT`/`TERM` trap). Errors print and `Sleep` briefly so the message is readable before the floating pane self-closes. The Go binary **replaced** the old POSIX-sh script at the same PATH name (zellij invokes it by name, so no shim is kept); the viewport scorer + session keying are pure and unit-tested in `opener`, with zellij/nvim/fs behind its `Runtime` seam. `Alt+/` is now a left-stack pane-local shortcut: `pair wrap` handles it from the agent pane and `nvim/init.lua` handles it from the draft pane, each launching the same 100% × 100% floating viewer with `close_on_exit=true`. The user's `:q` in the viewer dismisses the pane and returns to the three-pane workbench untouched. **Re-entrancy guard:** pressing `Alt+/` again while the viewer is already focused should not stack another nvim (one `:q`/Esc per layer to unwind). zellij can't conditionally skip a `Run`, so the launcher self-guards: before launching nvim it writes its own PID to `$PAIR_DATA_DIR/scrollback-<tag>-<agent>.openlock`, and on entry it returns immediately if that lock already holds a *live* PID — the redundant floating pane then self-dismisses via `close_on_exit` and focus falls back to the open viewer. A stale lock (hard kill) carries a dead PID and is reclaimed by the next open's liveness check (`procutil.Alive`, i.e. `kill -0`). The draft pane's `Alt+b` (`--jump prev`) runs the same launcher, so it's covered too.
+**Open (`cmd/pair-scrollback-open` / `cmd/internal/opener`, Go — #93 M2).** Validates `PAIR_DATA_DIR` / `PAIR_TAG` / `PAIR_AGENT`, renders **in-process** via `scrollbackcmd` (no `pair scrollback-render` subprocess), then *launches* `nvim -u $PAIR_HOME/nvim/scrollback.lua $ANSI` as a held child (`RunViewer`) — deliberately **not** an exec-replace, so the launcher stays alive as nvim's parent and a `defer` clears the re-entrancy lock on quit (the Go analog of the old shell `EXIT`/`INT`/`TERM` trap). Errors print and `Sleep` briefly so the message is readable before the floating pane self-closes. The Go binary **replaced** the old POSIX-sh script at the same PATH name (zellij invokes it by name, so no shim is kept); the viewport scorer + session keying are pure and unit-tested in `opener`, with zellij/nvim/fs behind its `Runtime` seam. `Alt+/` is now a left-stack pane-local shortcut: `pair wrap` handles it from the agent pane and `nvim/init.lua` handles it from the draft pane, each launching the same 100% × 100% floating viewer with `close_on_exit=true`. The user's `:q` in the viewer dismisses the pane and returns to the selected workbench topology untouched. **Re-entrancy guard:** pressing `Alt+/` again while the viewer is already focused should not stack another nvim (one `:q`/Esc per layer to unwind). zellij can't conditionally skip a `Run`, so the launcher self-guards: before launching nvim it writes its own PID to `$PAIR_DATA_DIR/scrollback-<tag>-<agent>.openlock`, and on entry it returns immediately if that lock already holds a *live* PID — the redundant floating pane then self-dismisses via `close_on_exit` and focus falls back to the open viewer. A stale lock (hard kill) carries a dead PID and is reclaimed by the next open's liveness check (`procutil.Alive`, i.e. `kill -0`). The draft pane's `Alt+b` (`--jump prev`) runs the same launcher, so it's covered too.
 
 **Jump-on-open shortcut — draft `Alt+b` = "Alt+/ then Alt+b".** `pair-scrollback-open` takes an optional `--jump prev|next`; it exports `PAIR_SCROLLBACK_JUMP` before launching nvim, and `scrollback.lua` calls `jump_to_prompt()` right after its normal viewport positioning — so the viewer opens already sitting on the previous (or next) user prompt, behaviourally identical to opening with Alt+/ and then pressing Alt+b. The draft pane's `Alt+b` (`nvim/init.lua`, `pair_scrollback_prev_prompt`) is the one-key trigger: it opens the same floating pane via `zellij run --floating … -- pair-scrollback-open --jump prev` (geometry mirrored from the `Alt+/` bind). Env-scoped rather than a sentinel file, so there's no staleness across plain `Alt+/` opens.
 
@@ -798,7 +827,7 @@ A tag is durable but historically frozen-at-create. `pair rename <old> <new>` li
 
 **File-family enumeration is the canonical place to look up "what is scoped to a tag."** The launcher walks two shapes:
 
-1. **Tag-only families** (filename is `<prefix>-<tag>[<ext>]`, no further structure): `agent`, `agent-pid`, `agent-output`, `agent-picks`, `outer-tty`, `pair-wrap-pid`, `title-pid`, `layout-mode`, `queue` (dir), `quote`, `image-capture` + `.done`, `draft-<tag>.md`, `log-<tag>.md`, `nvim-pid-<tag>-{draft,scrollback}`.
+1. **Tag-only families** (filename is `<prefix>-<tag>[<ext>]`, no further structure): `agent`, `agent-pid`, `agent-output`, `agent-picks`, `outer-tty`, `pair-wrap-pid`, `title-pid`, `layout-mode`, `workbench-layout`, `queue` (dir), `quote`, `image-capture` + `.done`, `draft-<tag>.md`, `log-<tag>.md`, `nvim-pid-<tag>-{draft,scrollback}`.
 2. **Per-(tag, agent) families** anchored on `config-<tag>-<agent>.json` — also `pane-<tag>-<agent>.json` (#71 frame-meter pane id + cwd), `scrollback-<tag>-<agent>.{ansi,raw,viewport,events.jsonl}` and the per-agent draft `draft-<tag>-<agent>.md`. The set of agent suffixes is hardcoded (`claude codex agy`) — adding a new agent to pair requires updating that list in lockstep.
 
 **Substring safety is enforced by construction**, never by filtering. The enumerator computes exact filenames like `$DD/config-$old-claude.json`; it never globs `$DD/config-$old-*.json`. This is why `pair rename brain newname` cannot accidentally pick up `brain-2`'s files — the `brain-2`'s filenames are never constructed.
@@ -835,7 +864,7 @@ Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/config-<tag>-<agent>.json` — 
 
 Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/agent-pid-<tag>` — child agent PID written by `cmd/pair-wrap` immediately after `pty.Start`, removed on shutdown. Consumed by `cmd/pair-session-watch` to scope `lsof` discovery to a specific process tree (issue #000020). Mtime is also used as the agent-start epoch in the watcher's birth-time fallback.
 
-Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/nvim-pid-<tag>-{draft,scrollback}` — single-line file containing the pid of an `nvim --embed` server child. Written at VimEnter by `nvim/init.lua` (for the draft pane) and `nvim/scrollback.lua` (for the Alt+/ floating viewer) when `$PAIR_NVIM_PID_FILE` is set; the launch sites (`zellij/layouts/main.kdl` for draft, `bin/pair-scrollback-open` for scrollback) export the env var pointing at a tag-scoped path. Read and removed by `cleanup_quit_marker` on Alt+x to SIGKILL the embed deterministically — without this, the embed sometimes survives zellij's pane teardown and accumulates as a PPID=1 orphan, dragging the host into memory pressure across many quits.
+Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/nvim-pid-<tag>-{draft,scrollback}` — single-line file containing the pid of an `nvim --embed` server child. Written at VimEnter by `nvim/init.lua` (for the draft pane) and `nvim/scrollback.lua` (for the Alt+/ floating viewer) when `$PAIR_NVIM_PID_FILE` is set; the launch sites (`zellij/layouts/main-{2,3}.kdl` for draft, `bin/pair-scrollback-open` for scrollback) export the env var pointing at a tag-scoped path. Read and removed by `cleanup_quit_marker` on Alt+x to SIGKILL the embed deterministically — without this, the embed sometimes survives zellij's pane teardown and accumulates as a PPID=1 orphan, dragging the host into memory pressure across many quits.
 
 Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/pair-wrap-pid-<tag>` — single-line file containing pair-wrap's pid, written at startup by `bin/pair-wrap` if `PAIR_TAG` is set. Read by nvim's Alt+i (`attach_image`) so it can `kill -USR1 <pid>` to arm an image-capture window. Removed by pair-wrap on exit (the `finally` block in `main()`) and by `cleanup_quit_marker` as belt-and-suspenders on Alt+x.
 

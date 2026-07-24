@@ -24,7 +24,7 @@
 
 layout {
     pane split_direction="vertical" {
-        pane split_direction="horizontal" {
+        pane size="50%" split_direction="horizontal" {
             pane name="agent" {
                 command "sh"
                 // --scrollback-log captures the raw PTY stream + a resize
@@ -68,7 +68,22 @@ layout {
                 args "-c" "DATA_DIR=\"${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}\" && mkdir -p \"$DATA_DIR\" && export PAIR_NVIM_PID_FILE=\"$DATA_DIR/nvim-pid-${PAIR_TAG:-${PAIR_AGENT:-claude}}-draft\" && exec nvim -u \"$PAIR_HOME/nvim/init.lua\" \"$DATA_DIR/draft-${PAIR_TAG:-${PAIR_AGENT:-claude}}.md\""
             }
         }
-        pane name="terminal" {
+        // Keep the tiled split tree at the visible left-stack width. The
+        // permanently floating terminal covers this inert right-side filler
+        // in both of its coordinate states, so the filler is never visible or
+        // part of Pair's focus navigation.
+        pane name="terminal-filler" borderless=true {
+            command "sh"
+            args "-c" "exec tail -f /dev/null"
+        }
+    }
+
+    // The user terminal stays floating for its entire lifetime. Normal width
+    // exactly covers the tiled filler; expanded width overlays the rightmost
+    // third of the left stack as well. Because the pane never embeds, changing
+    // its coordinates cannot alter the tiled split tree or recreate processes.
+    floating_panes {
+        pane name="terminal" x="50%" y="0%" width="50%" height="100%" pinned=true {
             command "sh"
             args "-c" "zellij action rename-pane --pane-id \"$ZELLIJ_PANE_ID\" terminal 2>/dev/null; exec pair term"
         }
@@ -87,9 +102,8 @@ layout {
     // Alt+Up → prev-swap-layout (bigger rung), with a state-machine clamp
     // at each end so we never call past the rung extremes.
     //
-    // exact_panes=3 constrains the swap layout to apply only when the
-    // current pane count matches what we built (agent + draft + terminal). pair
-    // never has any other pane shape, so this is always satisfied.
+    // exact_panes=3 constrains each tiled swap layout to the agent, draft, and
+    // filler panes. The permanently floating terminal is outside this tree.
     //
     // Leaf panes carry only structural attributes (name, size,
     // borderless) — no `command` block. zellij maps existing panes onto
@@ -104,11 +118,11 @@ layout {
     swap_tiled_layout name="minimized" {
         tab exact_panes=3 {
             pane split_direction="vertical" {
-                pane split_direction="horizontal" {
+                pane size="50%" split_direction="horizontal" {
                     pane name="agent"
                     pane size=1 name="draft" borderless=true
                 }
-                pane name="terminal"
+                pane name="terminal-filler" borderless=true
             }
         }
     }
@@ -116,11 +130,11 @@ layout {
     swap_tiled_layout name="third" {
         tab exact_panes=3 {
             pane split_direction="vertical" {
-                pane split_direction="horizontal" {
+                pane size="50%" split_direction="horizontal" {
                     pane name="agent"
                     pane size="33%" name="draft" borderless=true
                 }
-                pane name="terminal"
+                pane name="terminal-filler" borderless=true
             }
         }
     }

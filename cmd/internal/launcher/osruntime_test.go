@@ -91,6 +91,36 @@ func mkCacheDir(t *testing.T) (home, cacheDir string) {
 	return home, cacheDir
 }
 
+func TestOSRuntimeProbeLiveLayoutUsesSessionScopedPaneReport(t *testing.T) {
+	bin := t.TempDir()
+	argsLog := filepath.Join(bin, "args")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > " + argsLog + "\n" +
+		"printf '%s\\n' '{\"0\":[" +
+		"{\"id\":0,\"title\":\"codex\",\"terminal_command\":\"pair wrap codex\"}," +
+		"{\"id\":1,\"title\":\"draft\",\"terminal_command\":\"nvim /data/draft-work.md\"}," +
+		"{\"id\":2,\"title\":\"terminal-filler\",\"terminal_command\":\"tail -f /dev/null\"}," +
+		"{\"id\":3,\"title\":\"terminal\",\"terminal_command\":\"pair term\",\"is_floating\":true}" +
+		"]}'\n"
+	zellij := filepath.Join(bin, "zellij")
+	if err := os.WriteFile(zellij, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	mode, err := (OSRuntime{}).ProbeLiveLayout("pair-work")
+	if err != nil || mode != Layout3 {
+		t.Fatalf("ProbeLiveLayout = (%q,%v), want (layout3,nil)", mode, err)
+	}
+	got, err := os.ReadFile(argsLog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "--session\npair-work\naction\nlist-panes\n--json\n--command\n--state\n"
+	if string(got) != want {
+		t.Fatalf("zellij argv = %q, want %q", got, want)
+	}
+}
+
 func TestOSRuntimeQuitMarker(t *testing.T) {
 	_, cacheDir := mkCacheDir(t)
 	rt := NewOSRuntime(t.TempDir(), "/pair")

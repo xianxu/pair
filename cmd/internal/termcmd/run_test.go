@@ -2,7 +2,6 @@ package termcmd
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -10,9 +9,10 @@ import (
 
 func TestRunTestShortcutRightTerminalActions(t *testing.T) {
 	panes := `[
-		{"id":1,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_columns":75,"title":"codex","terminal_command":"pair wrap codex"},
-		{"id":2,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_columns":75,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
-		{"id":3,"is_focused":true,"is_floating":false,"is_plugin":false,"pane_columns":75,"title":"terminal","terminal_command":"pair term"}
+		{"id":1,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
+		{"id":2,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
+		{"id":3,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal-filler","terminal_command":"tail -f /dev/null"},
+		{"id":4,"is_focused":true,"is_floating":true,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term"}
 	]`
 	tests := []struct {
 		name    string
@@ -33,9 +33,8 @@ func TestRunTestShortcutRightTerminalActions(t *testing.T) {
 		{name: "alt j swallowed", chord: "Alt+j"},
 		{name: "alt k last left", chord: "Alt+k", last: "1", wantOps: []string{"focus-pane-id 1"}},
 		{name: "alt k draft fallback", chord: "Alt+k", wantOps: []string{"focus-pane-id 2"}},
-		{name: "alt shift enter routes tiled resize", chord: "Alt+Shift+Enter", wantOps: []string{
-			"resize increase left --pane-id 3",
-			"resize decrease left --pane-id 3",
+		{name: "alt shift enter changes floating geometry once", chord: "Alt+Shift+Enter", wantOps: []string{
+			"change-floating-pane-coordinates --pane-id 4 --x 50 --y 0 --width 100 --height 51 --borderless false --pinned true",
 		}},
 	}
 
@@ -136,13 +135,15 @@ func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 		{name: "previous tab", chunks: [][]byte{[]byte("\x1b[1;3D")}, wantMux: "prev-tab"},
 		{name: "next tab", chunks: [][]byte{[]byte("\x1b[1;3C")}, wantMux: "next-tab"},
 		{name: "alt x routes quit to draft", chunks: [][]byte{[]byte("\x1b[120;3u")}, wantRTOps: "focus-pane-id 2,write 28,write 14,write-chars :lua PairConfirmQuit(),write 13"},
-		{name: "layout toggle", chunks: [][]byte{[]byte("\x1b[13;4u")}, wantRTOps: "resize increase left --pane-id 3,resize decrease left --pane-id 3"},
-		{name: "mouse top row", chunks: [][]byte{[]byte("\x1b[<0;8;1M")}, wantMux: "switch-at:8"},
+		{name: "layout toggle", chunks: [][]byte{[]byte("\x1b[13;4u")}, wantRTOps: "change-floating-pane-coordinates --pane-id 4 --x 50 --y 0 --width 100 --height 51 --borderless false --pinned true"},
+		{name: "mouse top row passes to child", chunks: [][]byte{[]byte("\x1b[<0;8;1M")}, wantMux: "write:\x1b[<0;8;1M"},
 		{name: "mouse shell row passes through", chunks: [][]byte{[]byte("\x1b[<0;8;2M")}, wantMux: "write:\x1b[<0;8;2M"},
 		{name: "mouse wheel up scrolls zellij viewport", chunks: [][]byte{[]byte("\x1b[<64;8;5M")}, wantRTOps: "scroll-up"},
 		{name: "mouse wheel down scrolls zellij viewport", chunks: [][]byte{[]byte("\x1b[<65;8;5M")}, wantRTOps: "scroll-down"},
 		{name: "mouse wheel passes through when app enabled mouse", chunks: [][]byte{[]byte("\x1b[<64;8;5M")}, appMouse: true, wantMux: "write:\x1b[<64;8;5M"},
 		{name: "plain bytes", chunks: [][]byte{[]byte("ls\n")}, wantMux: "write:ls\n"},
+		{name: "shortcut then payload in one read", chunks: [][]byte{[]byte("\x1btls\n")}, wantMux: "new-tab,write:ls\n"},
+		{name: "mouse wheel then payload in one read", chunks: [][]byte{[]byte("\x1b[<64;8;5Mls\n")}, wantMux: "write:ls\n", wantRTOps: "scroll-up"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -206,23 +207,11 @@ func TestTerminalMuxPaneTitleShowsTabs(t *testing.T) {
 	}
 }
 
-func TestTerminalMuxTabStripRanges(t *testing.T) {
-	mux := &terminalMux{
-		tabs: []*terminalTab{
-			{id: 1, name: "terminal 1"},
-			{id: 2, name: "work"},
-		},
-		active: 0,
-	}
-	line, ranges := mux.tabStripLocked(40)
-	if !strings.Contains(line, "[1:terminal 1]") || !strings.Contains(line, " 2:work ") {
-		t.Fatalf("line = %q", line)
-	}
-	if len(ranges) != 2 {
-		t.Fatalf("ranges = %+v", ranges)
-	}
-	if ranges[0].start != 1 || ranges[0].index != 0 || ranges[1].index != 1 {
-		t.Fatalf("ranges = %+v", ranges)
+func TestTerminalMuxChildUsesFullPaneHeight(t *testing.T) {
+	mux := &terminalMux{rows: 51, cols: 80}
+	got := mux.childSizeLocked()
+	if got.Rows != 51 || got.Cols != 80 {
+		t.Fatalf("child size = %+v, want full 51x80 pane", got)
 	}
 }
 
@@ -238,9 +227,8 @@ func TestTerminalMuxSwitchTabAtColumn(t *testing.T) {
 		},
 		active: 0,
 		cols:   40,
-		ranges: []tabRange{{start: 1, end: 14, index: 0}, {start: 16, end: 23, index: 1}},
 	}
-	mux.switchTabAtColumn(18)
+	mux.nextTab()
 	if mux.active != 1 {
 		t.Fatalf("active = %d, want 1", mux.active)
 	}
@@ -249,6 +237,9 @@ func TestTerminalMuxSwitchTabAtColumn(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "two") {
 		t.Fatalf("stdout = %q, want redraw of second tab", stdout.String())
+	}
+	if strings.Contains(stdout.String(), "\x1b[7m") {
+		t.Fatalf("stdout contains obsolete inverse-video tab strip: %q", stdout.String())
 	}
 }
 
@@ -265,9 +256,10 @@ type fakeRuntime struct {
 func (f *fakeRuntime) ListPanesJSON() ([]byte, error) {
 	if f.panesJSON == "" {
 		return []byte(`[
-			{"id":1,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_columns":75,"title":"codex","terminal_command":"pair wrap codex"},
-			{"id":2,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_columns":75,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
-			{"id":3,"is_focused":true,"is_floating":false,"is_plugin":false,"pane_columns":75,"title":"terminal","terminal_command":"pair term"}
+			{"id":1,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
+			{"id":2,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
+			{"id":3,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal-filler","terminal_command":"tail -f /dev/null"},
+			{"id":4,"is_focused":true,"is_floating":true,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term"}
 		]`), nil
 	}
 	return []byte(f.panesJSON), nil
@@ -319,10 +311,6 @@ func (f *fakeMux) previousTab() {
 
 func (f *fakeMux) nextTab() {
 	f.ops = append(f.ops, "next-tab")
-}
-
-func (f *fakeMux) switchTabAtColumn(x int) {
-	f.ops = append(f.ops, fmt.Sprintf("switch-at:%d", x))
 }
 
 func (f *fakeMux) appMouseMode() bool {

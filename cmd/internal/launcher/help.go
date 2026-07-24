@@ -10,6 +10,8 @@ func UsageText() string {
 USAGE
   pair                          claude in the default session
   pair <agent>                  e.g. pair codex / pair agy
+  pair [<agent>] --layout2      original agent/draft workbench
+  pair [<agent>] --layout3      layered workbench with user terminal
   pair resume <tag>             attach this repo's tag if live, else create it
                                 (agent inferred from saved state)
   pair continue [slug] [agent]  resume from a continuation doc; bare lists them
@@ -20,6 +22,9 @@ USAGE
 
 Use ` + "`--`" + ` to separate pair's args from the agent's. When creating a
 session you're prompted for a name; ` + "`resume <tag>`" + ` skips the prompt.
-In-session keybindings are on Alt+h.
+Layout flags are Pair arguments before ` + "`--`" + ` and may appear before or
+after the agent. A new tag defaults to layout2; an omitted flag reuses the tag's
+recorded layout. Changing a live tag explicitly asks before recreating the whole
+workbench. In-session keybindings are on Alt+h.
 `
 }

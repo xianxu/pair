@@ -33,6 +33,12 @@ func TestPaneRole(t *testing.T) {
 			want: PaneRoleRightTerminal,
 		},
 		{
+			name: "floating right terminal command",
+			pane: zellijpane.Pane{ID: "4", IsFocused: true, IsFloating: true,
+				TerminalCommand: "pair term"},
+			want: PaneRoleRightTerminal,
+		},
+		{
 			name: "right terminal title fallback",
 			pane: zellijpane.Pane{ID: "3", IsFocused: true, Title: "terminal"},
 			want: PaneRoleRightTerminal,
