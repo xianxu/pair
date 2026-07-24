@@ -257,6 +257,89 @@ func TestTranslateStdinHandlesSplitWorkbenchShortcut(t *testing.T) {
 	}
 }
 
+type fakeDraftRouteRuntime struct {
+	panes []byte
+	ops   []string
+}
+
+func (f *fakeDraftRouteRuntime) ListPanesJSON() ([]byte, error) {
+	return f.panes, nil
+}
+
+func (f *fakeDraftRouteRuntime) RunZellijAction(args ...string) error {
+	f.ops = append(f.ops, strings.Join(args, " "))
+	return nil
+}
+
+func TestTranslateStdinRoutesGlobalHotkeysThroughRuntime(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		lua  string
+	}{
+		{name: "alt d", in: "\x1b[100;3u", lua: "PairConfirmDetach"},
+		{name: "alt x", in: "\x1b[120;3u", lua: "PairConfirmQuit"},
+		{name: "alt n", in: "\x1b[110;3u", lua: "PairConfirmRestart"},
+		{name: "ctrl alt n", in: "\x1b[110;7u", lua: "PairConfirmRestart"},
+		{name: "shift alt n", in: "\x1b[78;4u", lua: "PairConfirmAgentRestart"},
+		{name: "alt up", in: "\x1b[1;3A", lua: "PairLayoutBigger"},
+		{name: "alt down", in: "\x1b[1;3B", lua: "PairLayoutSmaller"},
+		{name: "alt c", in: "\x1b[99;3u", lua: "PairReviewToggle"},
+	}
+	panes := []byte(`[
+		{"id":1,"is_focused":true,"is_plugin":false,"terminal_command":"pair wrap codex"},
+		{"id":2,"is_focused":false,"is_plugin":false,"terminal_command":"nvim -u /pair/nvim/init.lua /data/draft.md"}
+	]`)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rt := &fakeDraftRouteRuntime{panes: panes}
+			var reported []string
+			p := &proxy{
+				draftRouteRuntime: rt,
+				shortcutErrorReporter: func(err error) {
+					reported = append(reported, err.Error())
+				},
+			}
+			var out bytes.Buffer
+
+			p.translateStdinFrom(strings.NewReader(tt.in), &out, time.Millisecond)
+
+			if out.Len() != 0 {
+				t.Fatalf("child bytes = %q, want none", out.String())
+			}
+			want := "write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua " +
+				tt.lua + "(),write --pane-id 2 13"
+			if got := strings.Join(rt.ops, ","); got != want {
+				t.Fatalf("ops = %q, want %q", got, want)
+			}
+			if len(reported) != 0 {
+				t.Fatalf("reported = %v, want none", reported)
+			}
+		})
+	}
+}
+
+func TestTranslateStdinConsumesGlobalHotkeyWhenDraftMissing(t *testing.T) {
+	rt := &fakeDraftRouteRuntime{panes: []byte(`[{"id":1,"is_focused":true,"terminal_command":"pair wrap codex"}]`)}
+	var reported []string
+	p := &proxy{
+		draftRouteRuntime: rt,
+		shortcutErrorReporter: func(err error) {
+			reported = append(reported, err.Error())
+		},
+	}
+	var out bytes.Buffer
+
+	p.translateStdinFrom(strings.NewReader("\x1b[110;3u"), &out, time.Millisecond)
+
+	if out.Len() != 0 {
+		t.Fatalf("child bytes = %q, want none", out.String())
+	}
+	if len(reported) != 1 || !strings.Contains(reported[0], "draft pane") {
+		t.Fatalf("reported = %v, want missing draft pane", reported)
+	}
+}
+
 func TestHandleWorkbenchShortcutRunsAgentProductionPath(t *testing.T) {
 	dir := t.TempDir()
 	fakebin := filepath.Join(dir, "bin")

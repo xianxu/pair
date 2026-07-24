@@ -59,6 +59,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
+	"github.com/xianxu/pair/cmd/internal/draftroute"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
@@ -207,6 +208,7 @@ type proxy struct {
 	stdinFile  *os.File
 	stdout     io.Writer
 	stdoutFile *os.File
+	stderr     io.Writer
 
 	// CLI / config
 	scrollbackLog  string
@@ -333,6 +335,8 @@ type proxy struct {
 	// workbenchShortcutHandler is injected by tests. Production uses
 	// handleWorkbenchShortcut, which performs the thin zellij/sidecar IO shell.
 	workbenchShortcutHandler func(string) bool
+	draftRouteRuntime        draftroute.Runtime
+	shortcutErrorReporter    func(error)
 }
 
 type spanEntry struct {
@@ -1442,6 +1446,24 @@ func (p *proxy) handleWorkbenchChord(chord workbenchshortcut.Chord) bool {
 }
 
 func (p *proxy) executeWorkbenchDecision(decision workbenchshortcut.ShortcutDecision) bool {
+	if decision.DraftLuaFunction != "" {
+		rt := p.draftRouteRuntime
+		if rt == nil {
+			rt = osDraftRouteRuntime{}
+		}
+		if err := draftroute.RouteLua(rt, decision.DraftLuaFunction); err != nil {
+			if p.shortcutErrorReporter != nil {
+				p.shortcutErrorReporter(err)
+			} else {
+				stderr := p.stderr
+				if stderr == nil {
+					stderr = os.Stderr
+				}
+				fmt.Fprintf(stderr, "pair-wrap: global shortcut: %v\n", err)
+			}
+		}
+		return true
+	}
 	switch decision.Action {
 	case workbenchshortcut.ActionFocusLeftDraft:
 		_ = runZellijAction("move-focus", "down")
@@ -1464,13 +1486,6 @@ func (p *proxy) executeWorkbenchDecision(decision workbenchshortcut.ShortcutDeci
 		_ = runZellijAction("write-chars", ":lua PairConfirmCompact()")
 		_ = runZellijAction("write", "13")
 		return true
-	case workbenchshortcut.ActionConfirmQuit:
-		_ = runZellijAction("move-focus", "down")
-		_ = runZellijAction("write", "28")
-		_ = runZellijAction("write", "14")
-		_ = runZellijAction("write-chars", ":lua PairConfirmQuit()")
-		_ = runZellijAction("write", "13")
-		return true
 	case workbenchshortcut.ActionNone:
 		return true
 	default:
@@ -1488,6 +1503,16 @@ func (p *proxy) handleWorkbenchShortcut(name string) bool {
 func runZellijAction(args ...string) error {
 	cmdArgs := append([]string{"action"}, args...)
 	return exec.Command("zellij", cmdArgs...).Run()
+}
+
+type osDraftRouteRuntime struct{}
+
+func (osDraftRouteRuntime) ListPanesJSON() ([]byte, error) {
+	return exec.Command("zellij", "action", "list-panes", "--json", "--command", "--state").Output()
+}
+
+func (osDraftRouteRuntime) RunZellijAction(args ...string) error {
+	return runZellijAction(args...)
 }
 
 // checkOverlayOpen flips pickerActive when the current agent's output
@@ -2021,7 +2046,7 @@ func writeAtomic(path string, data []byte) error {
 // name). The returned int is the process exit code: the wrapped child's exit
 // code on success, or 1 on a startup/fatal error (printed to stderr).
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	code, err := run(args, stdin, stdout)
+	code, err := run(args, stdin, stdout, stderr)
 	if err != nil {
 		var restart *freshExecRequest
 		if errors.As(err, &restart) {
@@ -2045,7 +2070,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return code
 }
 
-func run(args []string, stdin io.Reader, stdout io.Writer) (int, error) {
+func run(args []string, stdin io.Reader, stdout, stderr io.Writer) (int, error) {
 	stdinFile, _ := stdin.(*os.File)
 	stdoutFile, _ := stdout.(*os.File)
 	p := &proxy{
@@ -2053,6 +2078,7 @@ func run(args []string, stdin io.Reader, stdout io.Writer) (int, error) {
 		stdinFile:     stdinFile,
 		stdout:        stdout,
 		stdoutFile:    stdoutFile,
+		stderr:        stderr,
 		spans:         make(map[string]*spanEntry),
 		spanOrder:     list.New(),
 		idleS:         envDuration("PAIR_WRAP_IDLE_S", defaultIdleS),
