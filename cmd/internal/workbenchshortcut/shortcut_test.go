@@ -94,6 +94,12 @@ func TestShortcutDecision(t *testing.T) {
 			want:  ShortcutDecision{Disposition: DispositionSwallow},
 		},
 		{
+			name:  "right terminal alt shift enter toggles focused layout",
+			role:  PaneRoleRightTerminal,
+			chord: ChordAltShiftEnter,
+			want:  ShortcutDecision{Disposition: DispositionHandle, Action: ActionToggleFocusedLayout},
+		},
+		{
 			name:     "right terminal alt k returns to last left pane",
 			role:     PaneRoleRightTerminal,
 			chord:    ChordAltK,
@@ -138,6 +144,12 @@ func TestShortcutDecision(t *testing.T) {
 			want:  ShortcutDecision{Disposition: DispositionSwallow},
 		},
 		{
+			name:  "left draft alt shift enter toggles focused layout",
+			role:  PaneRoleLeftDraft,
+			chord: ChordAltShiftEnter,
+			want:  ShortcutDecision{Disposition: DispositionHandle, Action: ActionToggleFocusedLayout},
+		},
+		{
 			name:  "other panes pass through",
 			role:  PaneRoleOther,
 			chord: ChordAltR,
@@ -174,6 +186,7 @@ func TestDecodeChord(t *testing.T) {
 		{name: "legacy alt shift c", in: []byte("\x1bC"), want: ChordAltShiftC, ok: true},
 		{name: "kkp alt t", in: []byte("\x1b[116;3u"), want: ChordAltT, ok: true},
 		{name: "kkp ctrl alt c", in: []byte("\x1b[99;7u"), want: ChordCtrlAltC, ok: true},
+		{name: "kkp alt shift enter", in: []byte("\x1b[13;4u"), want: ChordAltShiftEnter, ok: true},
 		{name: "ordinary text", in: []byte("t"), ok: false},
 	}
 

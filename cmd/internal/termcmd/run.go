@@ -14,6 +14,7 @@ import (
 	"syscall"
 
 	"github.com/creack/pty"
+	"github.com/xianxu/pair/cmd/internal/layoutcmd"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 	"golang.org/x/term"
@@ -79,6 +80,8 @@ func namedChord(name string) (workbenchshortcut.Chord, bool) {
 		return workbenchshortcut.ChordAltLeft, true
 	case "alt+right", "alt+right-arrow":
 		return workbenchshortcut.ChordAltRight, true
+	case "alt+shift+enter", "alt+shift+return":
+		return workbenchshortcut.ChordAltShiftEnter, true
 	default:
 		return workbenchshortcut.ChordUnknown, false
 	}
@@ -154,6 +157,11 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 			return nil
 		}
 		return rt.RunZellijAction("focus-pane-id", panes.terminal.ID)
+	case workbenchshortcut.ActionToggleFocusedLayout:
+		if layoutcmd.RunToggleFocused(nil, rt, io.Discard) != 0 {
+			return fmt.Errorf("toggle focused layout failed")
+		}
+		return nil
 	default:
 		return nil
 	}

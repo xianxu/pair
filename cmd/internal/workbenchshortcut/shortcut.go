@@ -35,6 +35,7 @@ const (
 	ChordCtrlAltC
 	ChordAltLeft
 	ChordAltRight
+	ChordAltShiftEnter
 )
 
 type Disposition int
@@ -58,6 +59,7 @@ const (
 	ActionFocusRightTerminal
 	ActionOpenScrollback
 	ActionConfirmCompact
+	ActionToggleFocusedLayout
 )
 
 type ShortcutInput struct {
@@ -109,6 +111,8 @@ func Decide(in ShortcutInput) ShortcutDecision {
 				target = in.DraftPaneID
 			}
 			return ShortcutDecision{Disposition: DispositionHandle, Action: ActionFocusPane, TargetPaneID: target}
+		case ChordAltShiftEnter:
+			return handle(ActionToggleFocusedLayout)
 		case ChordAltJ, ChordAltSlash, ChordAltShiftC, ChordCtrlAltC:
 			return ShortcutDecision{Disposition: DispositionSwallow}
 		default:
@@ -131,6 +135,8 @@ func Decide(in ShortcutInput) ShortcutDecision {
 			return handle(ActionOpenScrollback)
 		case ChordAltShiftC, ChordCtrlAltC:
 			return handle(ActionConfirmCompact)
+		case ChordAltShiftEnter:
+			return handle(ActionToggleFocusedLayout)
 		case ChordAltT, ChordAltW, ChordAltR:
 			return ShortcutDecision{Disposition: DispositionSwallow}
 		default:
@@ -167,6 +173,8 @@ func DecodeChord(data []byte) (Chord, bool) {
 		return ChordAltLeft, true
 	case "\x1b[1;3C", "\x1b[1;9C", "\x1b[3C":
 		return ChordAltRight, true
+	case "\x1b[13;4u":
+		return ChordAltShiftEnter, true
 	default:
 		return ChordUnknown, false
 	}

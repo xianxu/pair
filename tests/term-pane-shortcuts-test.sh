@@ -110,5 +110,9 @@ write_panes review
 run_shortcut "Alt+r"
 check_eq "review Alt+r does not rename tab" "$(actions)" ""
 
+grep -Fq 'bind "Alt Shift Enter" { WriteChars "\u{1b}[13;4u"; }' "$ROOT/zellij/config.kdl" \
+  && pass "Alt+Shift+Enter forwards distinct KKP sequence" \
+  || { printf 'FAIL Alt+Shift+Enter bind missing\n'; fail=1; }
+
 [ "$fail" -eq 0 ] || { printf 'term-pane-shortcuts-test FAILED\n'; exit 1; }
 printf 'term-pane-shortcuts-test ok\n'

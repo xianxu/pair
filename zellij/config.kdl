@@ -76,6 +76,7 @@ keybinds clear-defaults=false {
         unbind "Alt /"
         unbind "Alt C"
         unbind "Ctrl Alt c"
+        unbind "Alt Shift Enter"
     }
 
     shared_except "locked" {
@@ -98,6 +99,7 @@ keybinds clear-defaults=false {
         bind "Alt /" { Write 27; Write 47; }
         bind "Alt C" { Write 27; Write 67; }
         bind "Ctrl Alt c" { WriteChars "\u{1b}[99;7u"; }
+        bind "Alt Shift Enter" { WriteChars "\u{1b}[13;4u"; }
 
         // Disable Ctrl+q — zellij's default Quit leaves the session in the
         // resurrect list with dead processes inside, which is a confusing

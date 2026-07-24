@@ -240,3 +240,8 @@ total: 4.53
   child DEC private mouse mode enable/disable sequences per local tab; wheel
   events scroll zellij only for plain shells, and pass through when the active
   PTY app has requested mouse input.
+- Added `Alt+Shift+Return` as a focused-side width toggle for the three-panel
+  workbench. zellij forwards a distinct KKP sequence (`ESC[13;4u`) so the
+  chord no longer collapses to Return in the right terminal; Pair then applies
+  a geometry-derived override layout where the focused side toggles between the
+  default split and 67% width, preserving the current draft height rung.

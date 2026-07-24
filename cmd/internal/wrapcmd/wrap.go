@@ -1238,6 +1238,7 @@ var workbenchShortcutPatterns = []workbenchShortcutPattern{
 	{[]byte("\x1b[47;3u"), "Alt+/"},
 	{[]byte("\x1b[67;3u"), "Alt+Shift+C"},
 	{[]byte("\x1b[99;7u"), "Ctrl+Alt+c"},
+	{[]byte("\x1b[13;4u"), "Alt+Shift+Enter"},
 }
 
 // pendingFlushAfter is the timeout for held-back bytes that haven't
@@ -1480,6 +1481,9 @@ func (p *proxy) handleWorkbenchShortcut(name string) bool {
 		_ = runZellijAction("write", "14")
 		_ = runZellijAction("write-chars", ":lua PairConfirmCompact()")
 		_ = runZellijAction("write", "13")
+		return true
+	case "Alt+Shift+Enter":
+		_ = exec.Command("pair", "layout", "toggle-focused").Run()
 		return true
 	case "Alt+t", "Alt+w", "Alt+r":
 		return true

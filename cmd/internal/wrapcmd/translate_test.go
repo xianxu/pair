@@ -192,21 +192,35 @@ func TestTranslateChunk(t *testing.T) {
 }
 
 func TestTranslateStdinHandlesWorkbenchShortcutWithoutReturnRemap(t *testing.T) {
-	p := &proxy{}
-	var handled []string
-	p.workbenchShortcutHandler = func(chord string) bool {
-		handled = append(handled, chord)
-		return true
+	tests := []struct {
+		name        string
+		in          string
+		wantHandled string
+		wantOut     string
+	}{
+		{name: "alt k", in: "\x1bkhello\r", wantHandled: "Alt+k", wantOut: "hello\r"},
+		{name: "alt shift enter", in: "\x1b[13;4u", wantHandled: "Alt+Shift+Enter"},
 	}
-	var out bytes.Buffer
 
-	p.translateStdinFrom(strings.NewReader("\x1bkhello\r"), &out, time.Millisecond)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &proxy{}
+			var handled []string
+			p.workbenchShortcutHandler = func(chord string) bool {
+				handled = append(handled, chord)
+				return true
+			}
+			var out bytes.Buffer
 
-	if got := strings.Join(handled, ","); got != "Alt+k" {
-		t.Fatalf("handled = %q, want Alt+k", got)
-	}
-	if got := out.String(); got != "hello\r" {
-		t.Fatalf("out = %q, want pass-through hello CR", got)
+			p.translateStdinFrom(strings.NewReader(tt.in), &out, time.Millisecond)
+
+			if got := strings.Join(handled, ","); got != tt.wantHandled {
+				t.Fatalf("handled = %q, want %q", got, tt.wantHandled)
+			}
+			if got := out.String(); got != tt.wantOut {
+				t.Fatalf("out = %q, want %q", got, tt.wantOut)
+			}
+		})
 	}
 }
 

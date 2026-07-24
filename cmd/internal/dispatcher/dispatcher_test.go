@@ -13,7 +13,7 @@ func TestDispatchNamesDeriveFromImplementedStatus(t *testing.T) {
 	// keys off DispatchNames(), so if one of these were accidentally left
 	// `planned`, `pair changelog` would fall through to the launcher (start a
 	// session) with no other test catching it.
-	for _, want := range []string{"context", "scrollback", "wrap", "term", "slug", "changelog", "continuation", "session-watch", "scribe", "review", "clip", "title"} {
+	for _, want := range []string{"context", "layout", "scrollback", "wrap", "term", "slug", "changelog", "continuation", "session-watch", "scribe", "review", "clip", "title"} {
 		if !containsStr(names, want) {
 			t.Fatalf("DispatchNames() = %v, missing implemented %q", names, want)
 		}
@@ -33,7 +33,7 @@ func TestStreamingFlags(t *testing.T) {
 			t.Errorf("IsStreaming(%q) = false, want true (stdin/live-stderr/long-running)", s)
 		}
 	}
-	for _, b := range []string{"slug", "context", "scrollback render", "scrollback open", "clip flash-pane"} {
+	for _, b := range []string{"slug", "context", "layout toggle-focused", "scrollback render", "scrollback open", "clip flash-pane"} {
 		if IsStreaming(b) {
 			t.Errorf("IsStreaming(%q) = true, want false (buffered)", b)
 		}
@@ -49,6 +49,7 @@ func TestResolveNestedFlatAndAlias(t *testing.T) {
 	}{
 		{[]string{"review", "open", "f"}, "review open", []string{"f"}, true},
 		{[]string{"review", "definition", "req", "text"}, "review definition", []string{"req", "text"}, true},
+		{[]string{"layout", "toggle-focused"}, "layout toggle-focused", []string{}, true},
 		{[]string{"scrollback", "render"}, "scrollback render", []string{}, true},
 		{[]string{"clip", "copy-on-select", "--orchestrate"}, "clip copy-on-select", []string{"--orchestrate"}, true},
 		{[]string{"context", "T", "claude"}, "context", []string{"T", "claude"}, true},
@@ -71,7 +72,7 @@ func TestResolveNestedFlatAndAlias(t *testing.T) {
 
 func TestDispatchNamesAreTopLevelTokens(t *testing.T) {
 	names := DispatchNames()
-	for _, want := range []string{"review", "scrollback", "changelog", "clip", "title"} {
+	for _, want := range []string{"review", "layout", "scrollback", "changelog", "clip", "title"} {
 		if !containsStr(names, want) {
 			t.Errorf("DispatchNames() = %v, missing group/flat token %q", names, want)
 		}
