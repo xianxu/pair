@@ -116,7 +116,7 @@ func TestInnerZellijCommand(t *testing.T) {
 		`zellij --config-dir "$cfg" --layout "$layout" --session "$session"`,
 		"/pair/zellij/terminal",
 		"/pair/zellij/terminal/layouts/main.kdl",
-		"pair-work-terminal",
+		"pair-work-terminal-v2",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("inner command missing %q in %#v", want, args)

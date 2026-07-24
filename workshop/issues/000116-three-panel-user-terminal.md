@@ -215,3 +215,9 @@ total: 4.53
   tabs. Fixed the inner terminal config to disable pane frames and set
   `default_layout "main"`, so native `Alt+t` tabs also use Pair's quiet inner
   layout instead of zellij's built-in default layout.
+- Another dogfood pass still showed the old nested chrome because `pair term`
+  reattached to an already-created inner terminal session. Zellij applies
+  `pane_frames` and `default_layout` at session creation, so the existing
+  `pair-<tag>-terminal` sessions masked the config fix. Bumped the inner
+  terminal session suffix to `-terminal-v2` so new Pair runs create a fresh
+  quiet inner session without manual cleanup.

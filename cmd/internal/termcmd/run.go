@@ -26,6 +26,8 @@ type Runtime interface {
 	ShellCommand() (string, []string)
 }
 
+const innerTerminalSessionSuffix = "-terminal-v2"
+
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return RunWithRuntime(args, stdin, stdout, stderr, OSRuntime{})
 }
@@ -282,7 +284,7 @@ exec zellij --config-dir "$cfg" --layout "$layout" --session "$session"`
 		"-c", script, "pair-term-zellij",
 		pairHome + "/zellij/terminal",
 		pairHome + "/zellij/terminal/layouts/main.kdl",
-		"pair-" + tag + "-terminal",
+		"pair-" + tag + innerTerminalSessionSuffix,
 	}
 }
 
