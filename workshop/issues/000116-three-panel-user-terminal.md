@@ -235,3 +235,8 @@ total: 4.53
   `scroll-up`/`scroll-down`, while keeping non-wheel shell-row mouse events as
   PTY input. ARCH-PURE: the mouse parser stays unit-tested separately from the
   IO action dispatch.
+- Follow-up dogfood showed that unconditional wheel-to-zellij routing broke
+  mouse scroll inside nvim running in the right terminal. `pair term` now tracks
+  child DEC private mouse mode enable/disable sequences per local tab; wheel
+  events scroll zellij only for plain shells, and pass through when the active
+  PTY app has requested mouse input.

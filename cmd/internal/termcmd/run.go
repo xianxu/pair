@@ -213,6 +213,7 @@ type ptyWriter interface {
 	previousTab()
 	nextTab()
 	switchTabAtColumn(int)
+	appMouseMode() bool
 }
 
 func pumpStdin(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Writer) {
@@ -233,9 +234,17 @@ func pumpStdin(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Writer) {
 			} else if event, ok := parseSGRMousePress(data); ok {
 				switch event.button {
 				case 64:
+					if mux.appMouseMode() {
+						mux.writeActive(data)
+						continue
+					}
 					_ = rt.RunZellijAction("scroll-up")
 					continue
 				case 65:
+					if mux.appMouseMode() {
+						mux.writeActive(data)
+						continue
+					}
 					_ = rt.RunZellijAction("scroll-down")
 					continue
 				}
@@ -337,6 +346,7 @@ type terminalTab struct {
 	cmd    *exec.Cmd
 	pty    *os.File
 	buffer []byte
+	mouse  bool
 }
 
 type ptyChunk struct {
@@ -453,7 +463,32 @@ func (m *terminalMux) appendBuffer(id int, data []byte) {
 		if len(tab.buffer) > 128*1024 {
 			tab.buffer = tab.buffer[len(tab.buffer)-128*1024:]
 		}
+		tab.mouse = updateMouseMode(tab.mouse, data)
 		return
+	}
+}
+
+func updateMouseMode(current bool, data []byte) bool {
+	s := string(data)
+	for {
+		idx := strings.Index(s, "\x1b[?")
+		if idx < 0 {
+			return current
+		}
+		s = s[idx+3:]
+		end := strings.IndexAny(s, "hl")
+		if end < 0 {
+			return current
+		}
+		mode := s[end]
+		params := s[:end]
+		for _, param := range strings.FieldsFunc(params, func(r rune) bool { return r == ';' || r == ':' }) {
+			switch param {
+			case "1000", "1002", "1003", "1006":
+				current = mode == 'h'
+			}
+		}
+		s = s[end+1:]
 	}
 }
 
@@ -541,6 +576,13 @@ func (m *terminalMux) switchTabAtColumn(x int) {
 	m.renamePane()
 	m.renderTabStrip()
 	m.redrawTab(tab)
+}
+
+func (m *terminalMux) appMouseMode() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	tab := m.activeTabLocked()
+	return tab != nil && tab.mouse
 }
 
 func (m *terminalMux) removeTab(id int) {

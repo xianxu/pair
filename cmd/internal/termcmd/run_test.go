@@ -98,6 +98,7 @@ func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 	tests := []struct {
 		name      string
 		chunks    [][]byte
+		appMouse  bool
 		wantMux   string
 		wantRTOps string
 	}{
@@ -110,12 +111,13 @@ func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 		{name: "mouse shell row passes through", chunks: [][]byte{[]byte("\x1b[<0;8;2M")}, wantMux: "write:\x1b[<0;8;2M"},
 		{name: "mouse wheel up scrolls zellij viewport", chunks: [][]byte{[]byte("\x1b[<64;8;5M")}, wantRTOps: "scroll-up"},
 		{name: "mouse wheel down scrolls zellij viewport", chunks: [][]byte{[]byte("\x1b[<65;8;5M")}, wantRTOps: "scroll-down"},
+		{name: "mouse wheel passes through when app enabled mouse", chunks: [][]byte{[]byte("\x1b[<64;8;5M")}, appMouse: true, wantMux: "write:\x1b[<64;8;5M"},
 		{name: "plain bytes", chunks: [][]byte{[]byte("ls\n")}, wantMux: "write:ls\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rt := &fakeRuntime{}
-			mux := &fakeMux{}
+			mux := &fakeMux{appMouse: tt.appMouse}
 			var stdout bytes.Buffer
 			pumpStdin(&splitReader{chunks: tt.chunks}, mux, rt, &stdout)
 			if strings.Join(mux.ops, ",") != tt.wantMux {
@@ -135,6 +137,28 @@ func TestParseSGRMousePress(t *testing.T) {
 	}
 	if _, ok := parseSGRMousePress([]byte("\x1b[<0;12;1m")); ok {
 		t.Fatal("release event should not parse as press")
+	}
+}
+
+func TestUpdateMouseMode(t *testing.T) {
+	tests := []struct {
+		name  string
+		start bool
+		data  []byte
+		want  bool
+	}{
+		{name: "enable basic mouse", data: []byte("\x1b[?1000h"), want: true},
+		{name: "enable sgr mouse", data: []byte("\x1b[?1006h"), want: true},
+		{name: "enable multiple modes", data: []byte("\x1b[?1000;1006h"), want: true},
+		{name: "disable mouse", start: true, data: []byte("\x1b[?1000l"), want: false},
+		{name: "unrelated private mode preserves state", start: true, data: []byte("\x1b[?25l"), want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := updateMouseMode(tt.start, tt.data); got != tt.want {
+				t.Fatalf("updateMouseMode(%v, %q) = %v, want %v", tt.start, tt.data, got, tt.want)
+			}
+		})
 	}
 }
 
@@ -231,7 +255,8 @@ func (f *fakeRuntime) ShellCommand() (string, []string) {
 }
 
 type fakeMux struct {
-	ops []string
+	ops      []string
+	appMouse bool
 }
 
 func (f *fakeMux) writeActive(data []byte) {
@@ -261,6 +286,10 @@ func (f *fakeMux) nextTab() {
 
 func (f *fakeMux) switchTabAtColumn(x int) {
 	f.ops = append(f.ops, fmt.Sprintf("switch-at:%d", x))
+}
+
+func (f *fakeMux) appMouseMode() bool {
+	return f.appMouse
 }
 
 type splitReader struct {
