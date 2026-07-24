@@ -228,6 +228,13 @@ total: 7.02
   regressions for agent-wrapper and draft-Neovim `Alt+j`/`Alt+k` effects. The
   draft regression uses an explicit test-only UI seam to execute the same
   production function while headless.
+- Third close review found payload-before-shortcut framing and a duplicated
+  agent shortcut policy that incorrectly captured terminal-only
+  Alt+Shift+Return. Added red/green regressions for payload on both sides of
+  chords and mouse events, centralized chord scanning/name conversion in
+  `workbenchshortcut`, and made `pair wrap` execute the pure left-agent
+  decision. Agent Alt+Shift+Return now passes through; only `pair term` toggles
+  terminal width.
 
 - Implemented the three-pane workbench shape: zellij layout now keeps
   agent/draft as the left stack and starts a right-side `pair term` user

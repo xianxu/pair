@@ -139,6 +139,8 @@ func Decide(in ShortcutInput) ShortcutDecision {
 			return handle(ActionOpenScrollback)
 		case ChordAltShiftC, ChordCtrlAltC:
 			return handle(ActionConfirmCompact)
+		case ChordAltX:
+			return handle(ActionConfirmQuit)
 		case ChordAltT, ChordAltW, ChordAltR:
 			return ShortcutDecision{Disposition: DispositionSwallow}
 		default:
@@ -187,6 +189,58 @@ func DecodeChordPrefix(data []byte) (Chord, []byte, bool) {
 		}
 	}
 	return ChordUnknown, data, false
+}
+
+func FindChord(data []byte) ([]byte, Chord, []byte, []byte, bool) {
+	for offset := range data {
+		for _, candidate := range chordSequences {
+			if strings.HasPrefix(string(data[offset:]), candidate.sequence) {
+				end := offset + len(candidate.sequence)
+				return data[:offset], candidate.chord, data[offset:end], data[end:], true
+			}
+		}
+	}
+	return data, ChordUnknown, nil, nil, false
+}
+
+func ChordName(chord Chord) string {
+	switch chord {
+	case ChordAltJ:
+		return "Alt+j"
+	case ChordAltK:
+		return "Alt+k"
+	case ChordAltT:
+		return "Alt+t"
+	case ChordAltW:
+		return "Alt+w"
+	case ChordAltR:
+		return "Alt+r"
+	case ChordAltX:
+		return "Alt+x"
+	case ChordAltSlash:
+		return "Alt+/"
+	case ChordAltShiftC:
+		return "Alt+Shift+C"
+	case ChordCtrlAltC:
+		return "Ctrl+Alt+c"
+	case ChordAltLeft:
+		return "Alt+Left"
+	case ChordAltRight:
+		return "Alt+Right"
+	case ChordAltShiftEnter:
+		return "Alt+Shift+Enter"
+	default:
+		return ""
+	}
+}
+
+func ChordFromName(name string) (Chord, bool) {
+	for _, candidate := range chordSequences {
+		if ChordName(candidate.chord) == name {
+			return candidate.chord, true
+		}
+	}
+	return ChordUnknown, false
 }
 
 func IsChordPrefix(data []byte) bool {

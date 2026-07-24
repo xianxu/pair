@@ -202,7 +202,8 @@ func TestTranslateStdinHandlesWorkbenchShortcutWithoutReturnRemap(t *testing.T) 
 	}{
 		{name: "alt k", in: "\x1bkhello\r", wantHandled: "Alt+k", wantOut: "hello\r"},
 		{name: "alt x", in: "\x1b[120;3u", wantHandled: "Alt+x"},
-		{name: "alt shift enter", in: "\x1b[13;4u", wantHandled: "Alt+Shift+Enter"},
+		{name: "agent alt shift enter passes through", in: "\x1b[13;4u", wantOut: "\x1b[13;4u"},
+		{name: "payload before alt k", in: "hello\r\x1bk", wantHandled: "Alt+k", wantOut: "hello\r"},
 	}
 
 	for _, tt := range tests {

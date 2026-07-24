@@ -238,31 +238,39 @@ func pumpStdin(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Writer) {
 			data := append(held, buf[:n]...)
 			held = nil
 			for len(data) > 0 {
-				if chord, rest, ok := workbenchshortcut.DecodeChordPrefix(data); ok {
+				chordBefore, chord, _, chordRest, chordOK := workbenchshortcut.FindChord(data)
+				mouseBefore, event, rawMouse, mouseRest, mouseOK := findSGRMousePress(data)
+				if chordOK && (!mouseOK || len(chordBefore) <= len(mouseBefore)) {
+					if len(chordBefore) > 0 {
+						mux.writeActive(chordBefore)
+					}
 					if !handleTerminalChord(chord, mux, rt, stdin, stdout) {
 						_ = handleChord(chord, rt, stdin, stdout)
 					}
-					data = rest
+					data = chordRest
 					continue
 				}
-				if event, raw, rest, ok := parseSGRMousePressPrefix(data); ok {
+				if mouseOK {
+					if len(mouseBefore) > 0 {
+						mux.writeActive(mouseBefore)
+					}
 					switch event.button {
 					case 64:
 						if mux.appMouseMode() {
-							mux.writeActive(raw)
+							mux.writeActive(rawMouse)
 						} else {
 							_ = rt.RunZellijAction("scroll-up")
 						}
 					case 65:
 						if mux.appMouseMode() {
-							mux.writeActive(raw)
+							mux.writeActive(rawMouse)
 						} else {
 							_ = rt.RunZellijAction("scroll-down")
 						}
 					default:
-						mux.writeActive(raw)
+						mux.writeActive(rawMouse)
 					}
-					data = rest
+					data = mouseRest
 					continue
 				}
 				if workbenchshortcut.IsChordPrefix(data) || isSGRMousePrefix(data) {
@@ -364,6 +372,18 @@ func parseSGRMousePressPrefix(data []byte) (mousePressEvent, []byte, []byte, boo
 		return mousePressEvent{}, nil, data, false
 	}
 	return event, raw, data[end+1:], true
+}
+
+func findSGRMousePress(data []byte) ([]byte, mousePressEvent, []byte, []byte, bool) {
+	start := bytes.Index(data, []byte("\x1b[<"))
+	if start < 0 {
+		return data, mousePressEvent{}, nil, nil, false
+	}
+	event, raw, rest, ok := parseSGRMousePressPrefix(data[start:])
+	if !ok {
+		return data, mousePressEvent{}, nil, nil, false
+	}
+	return data[:start], event, raw, rest, true
 }
 
 func isSGRMousePrefix(data []byte) bool {

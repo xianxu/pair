@@ -1222,32 +1222,6 @@ var holdbackPatterns = [][]byte{
 	altBSKKP, altBSLegacy,
 }
 
-type workbenchShortcutPattern struct {
-	seq  []byte
-	name string
-}
-
-var workbenchShortcutPatterns = []workbenchShortcutPattern{
-	{[]byte("\x1bj"), "Alt+j"},
-	{[]byte("\x1bk"), "Alt+k"},
-	{[]byte("\x1bt"), "Alt+t"},
-	{[]byte("\x1bw"), "Alt+w"},
-	{[]byte("\x1br"), "Alt+r"},
-	{[]byte("\x1bx"), "Alt+x"},
-	{[]byte("\x1b/"), "Alt+/"},
-	{[]byte("\x1bC"), "Alt+Shift+C"},
-	{[]byte("\x1b[106;3u"), "Alt+j"},
-	{[]byte("\x1b[107;3u"), "Alt+k"},
-	{[]byte("\x1b[116;3u"), "Alt+t"},
-	{[]byte("\x1b[119;3u"), "Alt+w"},
-	{[]byte("\x1b[114;3u"), "Alt+r"},
-	{[]byte("\x1b[120;3u"), "Alt+x"},
-	{[]byte("\x1b[47;3u"), "Alt+/"},
-	{[]byte("\x1b[67;3u"), "Alt+Shift+C"},
-	{[]byte("\x1b[99;7u"), "Ctrl+Alt+c"},
-	{[]byte("\x1b[13;4u"), "Alt+Shift+Enter"},
-}
-
 // pendingFlushAfter is the timeout for held-back bytes that haven't
 // completed into a known marker. Real terminals dispatch chorded
 // keystrokes (Alt+Enter, KKP CSI sequences) in microseconds, so 30 ms
@@ -1383,43 +1357,48 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 				data = append(pending, data...)
 				pending = nil
 			}
-			if name, rest, ok := splitWorkbenchInput(data); ok {
-				if p.handleWorkbenchShortcutName(name) {
-					data = rest
-					if len(data) == 0 {
-						pending = nil
-						inPaste = false
-						disarmTimer()
-						continue
+			for len(data) > 0 {
+				before, chord, rawChord, rest, found := workbenchshortcut.FindChord(data)
+				segment := data
+				if found {
+					segment = before
+				}
+				var outBytes, leftover []byte
+				if p.hasReturnRemap() {
+					outBytes, leftover, inPaste = p.translateChunk(segment, inPaste)
+				} else {
+					outBytes, leftover = p.passThroughChunk(segment)
+					inPaste = false
+				}
+				if len(outBytes) > 0 {
+					wn, werr := out.Write(outBytes)
+					p.traceWrap("stdin-write-pty", map[string]any{
+						"write_len":        wn,
+						"translated_len":   len(outBytes),
+						"translated_sha12": shortSHA256(outBytes),
+						"leftover_len":     len(leftover),
+						"in_paste":         inPaste,
+						"error":            errorString(werr),
+						"mode":             "translate",
+					})
+					if werr != nil {
+						return
 					}
 				}
-			}
-			var outBytes []byte
-			var leftover []byte
-			var newInPaste bool
-			if p.hasReturnRemap() {
-				outBytes, leftover, newInPaste = p.translateChunk(data, inPaste)
-				inPaste = newInPaste
-			} else {
-				outBytes, leftover = p.passThroughChunk(data)
-				newInPaste = false
-				inPaste = false
-			}
-			pending = leftover
-			if len(outBytes) > 0 {
-				wn, werr := out.Write(outBytes)
-				p.traceWrap("stdin-write-pty", map[string]any{
-					"write_len":        wn,
-					"translated_len":   len(outBytes),
-					"translated_sha12": shortSHA256(outBytes),
-					"leftover_len":     len(leftover),
-					"in_paste":         inPaste,
-					"error":            errorString(werr),
-					"mode":             "translate",
-				})
-				if werr != nil {
-					return
+				if len(leftover) > 0 {
+					pending = append(leftover, data[len(segment):]...)
+					break
 				}
+				if !found {
+					data = nil
+					break
+				}
+				if !p.handleWorkbenchChord(chord) {
+					if _, err := out.Write(rawChord); err != nil {
+						return
+					}
+				}
+				data = rest
 			}
 			if len(pending) > 0 {
 				armTimer()
@@ -1438,10 +1417,8 @@ func (p *proxy) hasReturnRemap() bool {
 }
 
 func (p *proxy) passThroughChunk(data []byte) ([]byte, []byte) {
-	for _, pat := range workbenchShortcutPatterns {
-		if isPrefixOf(data, pat.seq) && len(data) < len(pat.seq) {
-			return nil, append([]byte(nil), data...)
-		}
+	if workbenchshortcut.IsChordPrefix(data) {
+		return nil, append([]byte(nil), data...)
 	}
 	if len(data) == 1 && data[0] == 0x1b {
 		return nil, append([]byte(nil), data...)
@@ -1449,61 +1426,63 @@ func (p *proxy) passThroughChunk(data []byte) ([]byte, []byte) {
 	return data, nil
 }
 
-func (p *proxy) handleWorkbenchShortcutName(name string) bool {
-	handler := p.workbenchShortcutHandler
-	if handler == nil {
-		handler = p.handleWorkbenchShortcut
+func (p *proxy) handleWorkbenchChord(chord workbenchshortcut.Chord) bool {
+	decision := workbenchshortcut.Decide(workbenchshortcut.ShortcutInput{
+		Role:          workbenchshortcut.PaneRoleLeftAgent,
+		Chord:         chord,
+		FocusedPaneID: os.Getenv("ZELLIJ_PANE_ID"),
+	})
+	if decision.Disposition == workbenchshortcut.DispositionPass {
+		return false
 	}
-	return handler(name)
+	if p.workbenchShortcutHandler != nil {
+		return p.workbenchShortcutHandler(workbenchshortcut.ChordName(chord))
+	}
+	return p.executeWorkbenchDecision(decision)
 }
 
-func splitWorkbenchInput(data []byte) (string, []byte, bool) {
-	for _, pat := range workbenchShortcutPatterns {
-		if startsWith(data, pat.seq) {
-			return pat.name, data[len(pat.seq):], true
-		}
-	}
-	return "", data, false
-}
-
-func (p *proxy) handleWorkbenchShortcut(name string) bool {
-	switch name {
-	case "Alt+j":
+func (p *proxy) executeWorkbenchDecision(decision workbenchshortcut.ShortcutDecision) bool {
+	switch decision.Action {
+	case workbenchshortcut.ActionFocusLeftDraft:
 		_ = runZellijAction("move-focus", "down")
 		return true
-	case "Alt+k":
+	case workbenchshortcut.ActionFocusRightTerminal:
 		store := workbenchshortcut.LastLeftPaneStore{DataDir: adapt.DataDir(), Tag: os.Getenv("PAIR_TAG")}
-		_ = store.Write(os.Getenv("ZELLIJ_PANE_ID"))
+		_ = store.Write(decision.RecordLastLeftPaneID)
 		_ = runZellijAction("move-focus", "right")
 		return true
-	case "Alt+/":
+	case workbenchshortcut.ActionOpenScrollback:
 		_ = exec.Command("zellij", "run",
 			"--floating", "--close-on-exit", "--name", "scrollback",
 			"--width", "100%", "--height", "100%", "--x", "0", "--y", "0",
 			"--", "pair", "scrollback", "open").Run()
 		return true
-	case "Alt+Shift+C", "Ctrl+Alt+c":
+	case workbenchshortcut.ActionConfirmCompact:
 		_ = runZellijAction("move-focus", "down")
 		_ = runZellijAction("write", "28")
 		_ = runZellijAction("write", "14")
 		_ = runZellijAction("write-chars", ":lua PairConfirmCompact()")
 		_ = runZellijAction("write", "13")
 		return true
-	case "Alt+x":
+	case workbenchshortcut.ActionConfirmQuit:
 		_ = runZellijAction("move-focus", "down")
 		_ = runZellijAction("write", "28")
 		_ = runZellijAction("write", "14")
 		_ = runZellijAction("write-chars", ":lua PairConfirmQuit()")
 		_ = runZellijAction("write", "13")
 		return true
-	case "Alt+Shift+Enter":
-		_ = exec.Command("pair", "layout", "toggle-focused").Run()
-		return true
-	case "Alt+t", "Alt+w", "Alt+r":
+	case workbenchshortcut.ActionNone:
 		return true
 	default:
-		return false
+		return decision.Disposition == workbenchshortcut.DispositionSwallow
 	}
+}
+
+func (p *proxy) handleWorkbenchShortcut(name string) bool {
+	if chord, ok := workbenchshortcut.ChordFromName(name); ok {
+		return p.handleWorkbenchChord(chord)
+	}
+	return false
 }
 
 func runZellijAction(args ...string) error {

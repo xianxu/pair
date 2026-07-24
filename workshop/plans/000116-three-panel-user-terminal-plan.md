@@ -20,6 +20,19 @@ consumer (`ARCH-PURPOSE`).
 
 ## Revisions
 
+### 2026-07-24 — Make shortcut routing framing-independent and single-sourced
+
+The third close review found that both PTY wrappers recognized complete chords
+only at byte zero, so payload preceding a chord in the same read could leak the
+escape sequence to the child. It also found that the agent wrapper's duplicated
+shortcut table had drifted by treating terminal-only Alt+Shift+Return as a
+layout toggle. Move sequence discovery/name conversion to
+`workbenchshortcut`, scan for the earliest chord regardless of read framing,
+and make `pair wrap` execute the pure left-agent `Decide` result. The terminal
+scanner applies the same chord finder alongside its SGR-mouse finder.
+Alt+Shift+Return now passes through in the agent pane and toggles geometry only
+in `pair term`, while draft Neovim retains send-without-submit.
+
 ### 2026-07-24 — Correct entity classification and production-path coverage
 
 The second close review caught two Core Concepts bookkeeping errors:
