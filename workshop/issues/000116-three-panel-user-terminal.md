@@ -281,3 +281,23 @@ total: 4.53
   `go test ./... -count=1`, `bash tests/queue-send-test.sh`,
   `bash tests/review-window-test.sh`, `bash tests/scrollback-open-test.sh`,
   `make runtimebundle-drift-check`, and `git diff --check`.
+- Further live smoke identified the width-toggle root causes: expansion
+  explicitly requested a borderless floating pane, and collapse used
+  `override-layout`, allowing Zellij to reconstruct the tab instead of
+  preserving its processes. Replaced the collapse re-layout with localized,
+  pane-id-targeted resize reconciliation after embedding the same terminal
+  pane, and retained the floating pane frame. ARCH-PURE: width reconciliation
+  derives only from reported pane geometry; ARCH-PURPOSE: the toggle changes
+  geometry without changing pane identity or process ownership.
+- The next smoke pass exposed a deeper Zellij constraint: embedding the same
+  pane preserves its process but not its original position in the split tree.
+  Zellij reinserted the terminal beside the agent, leaving Neovim spanning the
+  bottom. Removed floating/embed operations entirely. Both toggle directions
+  now reconcile the tiled terminal's left boundary in place—balanced to 2/3
+  when expanding and 1/2 when collapsing—so topology, pane IDs, processes, and
+  frames remain unchanged.
+- Follow-up smoke showed collapse stopping with a visibly larger right pane.
+  Root cause was the 5% target tolerance, which accepted the split one discrete
+  Zellij resize step early. Tightened the tolerance to 1% and added closest-step
+  rollback when a resize overshoots. Regression coverage includes the observed
+  early-stop geometry and an expansion overshoot.

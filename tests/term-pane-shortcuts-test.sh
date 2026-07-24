@@ -35,9 +35,9 @@ EOF
 chmod +x "$fakebin/zellij"
 export PATH="$fakebin:$PAIR_HOME/bin:$PATH"
 
-agent='{"id":1,"is_plugin":false,"is_focused":FOCUS_AGENT,"is_floating":false,"title":"codex","terminal_command":"pair wrap codex"}'
-draft='{"id":2,"is_plugin":false,"is_focused":FOCUS_DRAFT,"is_floating":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"}'
-terminal='{"id":3,"is_plugin":false,"is_focused":FOCUS_TERM,"is_floating":false,"title":"terminal","terminal_command":"pair term"}'
+agent='{"id":1,"is_plugin":false,"is_focused":FOCUS_AGENT,"is_floating":false,"pane_columns":75,"title":"codex","terminal_command":"pair wrap codex"}'
+draft='{"id":2,"is_plugin":false,"is_focused":FOCUS_DRAFT,"is_floating":false,"pane_columns":75,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"}'
+terminal='{"id":3,"is_plugin":false,"is_focused":FOCUS_TERM,"is_floating":false,"pane_columns":75,"title":"terminal","terminal_command":"pair term"}'
 review='{"id":4,"is_plugin":false,"is_focused":FOCUS_REVIEW,"is_floating":true,"title":"review","terminal_command":"nvim -u /pair/nvim/review.lua /tmp/review.md"}'
 
 write_panes() {
@@ -102,8 +102,8 @@ check_eq "right Alt+j is no-op" "$(actions)" ""
 
 write_panes terminal
 run_shortcut "Alt+Shift+Enter"
-check_eq "right Alt+Shift+Enter floats terminal" "$(actions)" "toggle-pane-embed-or-floating --pane-id 3
-change-floating-pane-coordinates --pane-id 3 --x 33% --y 0% --width 67% --height 100% --borderless true --pinned true"
+check_eq "right Alt+Shift+Enter routes tiled resize" "$(actions)" "resize increase left --pane-id 3
+resize decrease left --pane-id 3"
 
 write_panes terminal
 rm -f "$PAIR_DATA_DIR/last-left-pane-t"

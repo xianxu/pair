@@ -10,9 +10,9 @@ import (
 
 func TestRunTestShortcutRightTerminalActions(t *testing.T) {
 	panes := `[
-		{"id":1,"is_focused":false,"is_floating":false,"is_plugin":false,"title":"codex","terminal_command":"pair wrap codex"},
-		{"id":2,"is_focused":false,"is_floating":false,"is_plugin":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
-		{"id":3,"is_focused":true,"is_floating":false,"is_plugin":false,"title":"terminal","terminal_command":"pair term"}
+		{"id":1,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_columns":75,"title":"codex","terminal_command":"pair wrap codex"},
+		{"id":2,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_columns":75,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
+		{"id":3,"is_focused":true,"is_floating":false,"is_plugin":false,"pane_columns":75,"title":"terminal","terminal_command":"pair term"}
 	]`
 	tests := []struct {
 		name    string
@@ -33,9 +33,9 @@ func TestRunTestShortcutRightTerminalActions(t *testing.T) {
 		{name: "alt j swallowed", chord: "Alt+j"},
 		{name: "alt k last left", chord: "Alt+k", last: "1", wantOps: []string{"focus-pane-id 1"}},
 		{name: "alt k draft fallback", chord: "Alt+k", wantOps: []string{"focus-pane-id 2"}},
-		{name: "alt shift enter floats terminal", chord: "Alt+Shift+Enter", wantOps: []string{
-			"toggle-pane-embed-or-floating --pane-id 3",
-			"change-floating-pane-coordinates --pane-id 3 --x 33% --y 0% --width 67% --height 100% --borderless true --pinned true",
+		{name: "alt shift enter routes tiled resize", chord: "Alt+Shift+Enter", wantOps: []string{
+			"resize increase left --pane-id 3",
+			"resize decrease left --pane-id 3",
 		}},
 	}
 
@@ -136,7 +136,7 @@ func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 		{name: "previous tab", chunks: [][]byte{[]byte("\x1b[1;3D")}, wantMux: "prev-tab"},
 		{name: "next tab", chunks: [][]byte{[]byte("\x1b[1;3C")}, wantMux: "next-tab"},
 		{name: "alt x routes quit to draft", chunks: [][]byte{[]byte("\x1b[120;3u")}, wantRTOps: "focus-pane-id 2,write 28,write 14,write-chars :lua PairConfirmQuit(),write 13"},
-		{name: "layout toggle", chunks: [][]byte{[]byte("\x1b[13;4u")}, wantRTOps: "toggle-pane-embed-or-floating --pane-id 3,change-floating-pane-coordinates --pane-id 3 --x 33% --y 0% --width 67% --height 100% --borderless true --pinned true"},
+		{name: "layout toggle", chunks: [][]byte{[]byte("\x1b[13;4u")}, wantRTOps: "resize increase left --pane-id 3,resize decrease left --pane-id 3"},
 		{name: "mouse top row", chunks: [][]byte{[]byte("\x1b[<0;8;1M")}, wantMux: "switch-at:8"},
 		{name: "mouse shell row passes through", chunks: [][]byte{[]byte("\x1b[<0;8;2M")}, wantMux: "write:\x1b[<0;8;2M"},
 		{name: "mouse wheel up scrolls zellij viewport", chunks: [][]byte{[]byte("\x1b[<64;8;5M")}, wantRTOps: "scroll-up"},
@@ -265,9 +265,9 @@ type fakeRuntime struct {
 func (f *fakeRuntime) ListPanesJSON() ([]byte, error) {
 	if f.panesJSON == "" {
 		return []byte(`[
-			{"id":1,"is_focused":false,"is_floating":false,"is_plugin":false,"title":"codex","terminal_command":"pair wrap codex"},
-			{"id":2,"is_focused":false,"is_floating":false,"is_plugin":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
-			{"id":3,"is_focused":true,"is_floating":false,"is_plugin":false,"title":"terminal","terminal_command":"pair term"}
+			{"id":1,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_columns":75,"title":"codex","terminal_command":"pair wrap codex"},
+			{"id":2,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_columns":75,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
+			{"id":3,"is_focused":true,"is_floating":false,"is_plugin":false,"pane_columns":75,"title":"terminal","terminal_command":"pair term"}
 		]`), nil
 	}
 	return []byte(f.panesJSON), nil

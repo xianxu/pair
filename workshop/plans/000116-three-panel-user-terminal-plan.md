@@ -8,6 +8,32 @@
 
 **Tech Stack:** Go 1.x, `github.com/creack/pty`, `golang.org/x/term`, zellij KDL/actions 0.44.3, shell fake integration tests, runtime-bundle generator.
 
+## Revisions
+
+### 2026-07-24 — Preserve pane identity during width-toggle collapse
+
+Live smoke testing showed that the initial floating-overlay implementation
+removed the terminal frame and restored the three-pane shape with
+`override-layout`, which could recreate panes and lose the running agent and
+Neovim processes. The toggle now keeps the overlay framed and collapses by
+embedding the same terminal pane, then uses pane-targeted resize actions until
+the existing left and right panes are balanced. No layout is reapplied.
+
+### 2026-07-24 — Preserve the tiled split tree in both directions
+
+The embed-based collapse preserved pane identity but Zellij reinserted the
+terminal at a different node in the split tree, leaving Neovim across the
+bottom and agent/terminal across the top. Expansion and collapse now both keep
+the terminal tiled and resize only its left boundary, targeting 2/3 and 1/2
+width respectively. This preserves topology as well as pane identity.
+
+### 2026-07-24 — Reconcile to the closest reachable width
+
+Smoke testing showed that the original 5% acceptance tolerance stopped
+collapse one Zellij resize step before the balanced split. Reconciliation now
+uses a 1% target tolerance and, when the next discrete resize step is worse,
+reverses that step so the pane remains at the closest reachable width.
+
 ---
 
 ## Core Concepts
