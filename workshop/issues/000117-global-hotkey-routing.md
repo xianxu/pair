@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-07-24
 updated: 2026-07-24
-estimate_hours:
+estimate_hours: 4.02
 started: 2026-07-24T13:52:38-07:00
 ---
 
@@ -102,9 +102,31 @@ shortcuts need the same routing invariant rather than ad hoc focus movement.
   Headless Neovim tests cover draft-local and overlay-routed behavior. Static
   KDL inventory tests supplement but do not replace these behavioral tests.
 
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. The calibration source is currently marked
+stale, so the estimate is provisional.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 0.90
+item: issue-spec design=0.20 impl=0.08
+item: greenfield-go-module design=0.30 impl=0.28
+item: smaller-go-module design=0.06 impl=0.16
+item: smaller-go-module design=0.06 impl=0.16
+item: smaller-go-module design=0.06 impl=0.16
+item: lua-neovim design=0.20 impl=0.40
+item: api-integration design=0.40 impl=0.40
+item: tui-screen design=0.40 impl=0.40
+item: atlas-docs design=0.05 impl=0.05
+item: milestone-review design=0.08 impl=0.12
+total: 4.02
+```
+
 ## Plan
 
-- [ ] Write and approve a durable implementation plan.
+- [x] Write and approve a durable implementation plan.
 - [ ] Implement the audited routing with test-first regressions.
 - [ ] Update README/atlas shortcut ownership and verify the full workbench
       integration suite.
@@ -126,3 +148,24 @@ shortcuts need the same routing invariant rather than ad hoc focus movement.
   production-path non-leakage coverage. ARCH-DRY: extend the existing shared
   shortcut model; ARCH-PURE: keep pane discovery/writes injected; ARCH-PURPOSE:
   cover every KDL consumer rather than only the reported Alt+n path.
+- Wrote the durable implementation plan at
+  `workshop/plans/000117-global-hotkey-routing-plan.md`. It extends the existing
+  pure registry, uses pane-id-addressed IO shells, and sequences every behavior
+  change test-first.
+
+## Revisions
+
+### 2026-07-24 — Reconcile plan review
+
+The first plan review found that overlay discovery requires Zellij command and
+state metadata, and that the wrapper did not yet expose the injected runtime
+assumed by the draft plan. Add a shared `draftroute` integration helper used by
+both Go wrappers, explicit non-fatal error reporters, the exact `list-panes
+--json --command --state` invocation, and separate pure Lua versus process-fake
+Neovim tests. The added greenfield helper and wrapper adapter expand the
+estimate from 3.20 to 4.02 hours. A second review identified changelog as an
+independent Neovim initializer rather than a scrollback bootstrap consumer; the
+plan now names and tests `nvim/changelog.lua` directly. The final arithmetic
+review restored the calibrated 0.12-hour close-review implementation primitive
+and made the distinct Ctrl+Alt+n encoding an explicit mapping/test case in
+every Neovim consumer.
