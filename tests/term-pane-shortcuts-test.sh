@@ -179,9 +179,9 @@ grep -Fq 'show_startup_tips false' "$ROOT/zellij/config.kdl" \
   && pass "Zellij startup tips are disabled" \
   || { printf 'FAIL Zellij startup tips are enabled\n'; fail=1; }
 
-grep -Fq 'focus_follows_mouse true' "$ROOT/zellij/config.kdl" \
-  && pass "Zellij focus follows the mouse" \
-  || { printf 'FAIL Zellij focus-follows-mouse is disabled\n'; fail=1; }
+grep -Fq 'focus_follows_mouse false' "$ROOT/zellij/config.kdl" \
+  && pass "Zellij focus does not follow the mouse across asymmetric layers" \
+  || { printf 'FAIL Zellij focus-follows-mouse is enabled\n'; fail=1; }
 
 [ "$fail" -eq 0 ] || { printf 'term-pane-shortcuts-test FAILED\n'; exit 1; }
 printf 'term-pane-shortcuts-test ok\n'

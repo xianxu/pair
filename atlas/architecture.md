@@ -353,8 +353,9 @@ The draft pane has `focus=true` (drafting pane gets focus on launch), `borderles
 Top-level config:
 
 - `mouse_click_through true` — first click on an unfocused pane goes through to the pane (so click-and-drag selects in one motion) instead of being consumed by zellij just to change focus.
-- `focus_follows_mouse true` — moving the pointer across panes changes keyboard
-  focus without requiring a click.
+- `focus_follows_mouse false` — hover focus is deliberately disabled. Zellij's
+  pinned floating terminal can acquire hover focus from the tiled layer but
+  does not symmetrically return it, so explicit click/keys are less surprising.
 - `copy_command "copy-on-select"` — on every selection finalize (mouse-up after drag), zellij pipes the selected text to this binary. `copy_command` replaces zellij's default OS-clipboard write, so the binary does that part too. Resolved by PATH (which the launcher populated).
 - `pane_frames true` — frames are enabled globally so the agent pane shows zellij's scroll-position indicator (top-right of the frame) when scrolled. The draft pane opts out via `borderless=true` in both `zellij/layouts/main-{2,3}.kdl` assets so the `minimized` rung can still collapse to 1 row (a framed pane's minimum is ~3 rows). The cheatsheet still renders in nvim's statusline rather than a frame title — the draft has no frame to hold one.
 

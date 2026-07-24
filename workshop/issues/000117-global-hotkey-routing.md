@@ -206,3 +206,10 @@ hotkeys remain deterministic regardless of which pane the pointer focuses.
 Change the Alt+Shift+Return expanded geometry from two-thirds to three-quarters
 of the workbench. Preserve the exact one-action resize and filler-anchored
 half-width collapse behavior.
+
+### 2026-07-24 — Revert pointer-followed focus
+
+Live smoke showed Zellij hover focus crosses from the tiled left layer into the
+pinned floating terminal but does not cross back symmetrically. Revert to
+explicit `focus_follows_mouse false`; click and Pair's pane-focus shortcuts
+remain predictable in both directions.

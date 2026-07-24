@@ -15,7 +15,7 @@
 //   rows). Cost on the agent pane: ~2 rows + 2 cols of frame chrome.
 mouse_hover_effects false
 advanced_mouse_actions false
-focus_follows_mouse true
+focus_follows_mouse false
 show_release_notes false
 show_startup_tips false
 pane_frames true
