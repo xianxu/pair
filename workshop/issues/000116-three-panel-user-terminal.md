@@ -171,3 +171,10 @@ total: 4.53
   with the same right-terminal shortcut wrapper instead of another Pair
   workbench. Regression coverage updated in `cmd/internal/termcmd` and
   `tests/term-pane-shortcuts-test.sh`.
+- Second dogfood pass showed the running zellij session still had the old
+  two-pane `new_tab_template`; source KDL changes do not mutate an already
+  running zellij session. Also hardened future sessions by making zellij
+  forward workbench chords (`Alt+j/k/t/w/r//`, `Alt+Shift+C`, `Ctrl+Alt+c`) as
+  literal Meta bytes to the focused pane process instead of relying on default
+  unbinds. That keeps the behavior pane-local while overriding zellij's own
+  shared defaults such as `Alt+j`/`Alt+k`.

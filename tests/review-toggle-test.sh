@@ -231,7 +231,12 @@ grep -q '^footgun ok$'    "$RESULT" && pass "never toggle-floating-panes" || fai
 # ── config lint ───────────────────────────────────────────────────────────────
 grep -q 'bind "Alt c"' "$ROOT/zellij/config.kdl" && pass "Alt+c bound in config.kdl" || fail "no Alt+c bind"
 grep -q ':lua PairReviewToggle()' "$ROOT/zellij/config.kdl" && pass "Alt+c routes to :lua PairReviewToggle()" || fail "Alt+c target wrong"
-grep -Eq '^[[:space:]]*bind "Alt r"' "$ROOT/zellij/config.kdl" && fail "Alt+r still globally bound" || pass "Alt+r free for review-pane reject"
+grep -Fq 'bind "Alt r" { Write 27; Write 114; }' "$ROOT/zellij/config.kdl" \
+  && pass "Alt+r forwards ESC+r for review-pane reject" \
+  || fail "Alt+r does not forward to focused pane"
+grep -Eq '^[[:space:]]*bind "Alt r"[^{]*\\{.*(RenameTab|TabNameInput|NewTab)' "$ROOT/zellij/config.kdl" \
+  && fail "Alt+r still globally owns tab behavior" \
+  || pass "Alt+r has no global tab action"
 grep -q 'unbind "Alt o"' "$ROOT/zellij/config.kdl" && pass "Alt+o default zellij tab-move disabled" || fail "Alt+o still captured by zellij"
 grep -q 'Run "pair-review-toggle"' "$ROOT/zellij/config.kdl" && fail "Alt+c still spawns the old toggle pane" || pass "old pair-review-toggle pane gone"
 

@@ -79,6 +79,26 @@ keybinds clear-defaults=false {
     }
 
     shared_except "locked" {
+        // Workbench-local shortcuts are forwarded as ordinary Meta bytes to
+        // the focused pane process. pair wrap, nvim/init.lua, pair term, and
+        // nvim/review.lua then decide locally what the chord means.
+        unbind "Alt j"
+        unbind "Alt k"
+        unbind "Alt t"
+        unbind "Alt w"
+        unbind "Alt r"
+        unbind "Alt /"
+        unbind "Alt C"
+        unbind "Ctrl Alt c"
+        bind "Alt j" { Write 27; Write 106; }
+        bind "Alt k" { Write 27; Write 107; }
+        bind "Alt t" { Write 27; Write 116; }
+        bind "Alt w" { Write 27; Write 119; }
+        bind "Alt r" { Write 27; Write 114; }
+        bind "Alt /" { Write 27; Write 47; }
+        bind "Alt C" { Write 27; Write 67; }
+        bind "Ctrl Alt c" { WriteChars "\u{1b}[99;7u"; }
+
         // Disable Ctrl+q — zellij's default Quit leaves the session in the
         // resurrect list with dead processes inside, which is a confusing
         // half-state for pair's "long-lived agent session" model. Alt+x is
