@@ -38,6 +38,11 @@ func TestPaneRole(t *testing.T) {
 			want: PaneRoleRightTerminal,
 		},
 		{
+			name: "right terminal tab strip title fallback",
+			pane: zellijpane.Pane{ID: "3", IsFocused: true, Title: "terminal 1 [work] terminal 3"},
+			want: PaneRoleRightTerminal,
+		},
+		{
 			name: "floating review is other",
 			pane: zellijpane.Pane{ID: "4", IsFocused: true, IsFloating: true,
 				TerminalCommand: "nvim -u /pair/nvim/review.lua /tmp/review.md"},
@@ -86,6 +91,12 @@ func TestShortcutDecision(t *testing.T) {
 			role:  PaneRoleRightTerminal,
 			chord: ChordAltR,
 			want:  ShortcutDecision{Disposition: DispositionHandle, Action: ActionRenameTab},
+		},
+		{
+			name:  "right terminal alt x handles quit outside shell",
+			role:  PaneRoleRightTerminal,
+			chord: ChordAltX,
+			want:  ShortcutDecision{Disposition: DispositionHandle, Action: ActionConfirmQuit},
 		},
 		{
 			name:  "right terminal alt j is no-op",
@@ -182,9 +193,11 @@ func TestDecodeChord(t *testing.T) {
 	}{
 		{name: "legacy alt j", in: []byte("\x1bj"), want: ChordAltJ, ok: true},
 		{name: "legacy alt k", in: []byte("\x1bk"), want: ChordAltK, ok: true},
+		{name: "legacy alt x", in: []byte("\x1bx"), want: ChordAltX, ok: true},
 		{name: "legacy alt slash", in: []byte("\x1b/"), want: ChordAltSlash, ok: true},
 		{name: "legacy alt shift c", in: []byte("\x1bC"), want: ChordAltShiftC, ok: true},
 		{name: "kkp alt t", in: []byte("\x1b[116;3u"), want: ChordAltT, ok: true},
+		{name: "kkp alt x", in: []byte("\x1b[120;3u"), want: ChordAltX, ok: true},
 		{name: "kkp ctrl alt c", in: []byte("\x1b[99;7u"), want: ChordCtrlAltC, ok: true},
 		{name: "kkp alt shift enter", in: []byte("\x1b[13;4u"), want: ChordAltShiftEnter, ok: true},
 		{name: "ordinary text", in: []byte("t"), ok: false},

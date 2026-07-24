@@ -199,6 +199,7 @@ func TestTranslateStdinHandlesWorkbenchShortcutWithoutReturnRemap(t *testing.T) 
 		wantOut     string
 	}{
 		{name: "alt k", in: "\x1bkhello\r", wantHandled: "Alt+k", wantOut: "hello\r"},
+		{name: "alt x", in: "\x1b[120;3u", wantHandled: "Alt+x"},
 		{name: "alt shift enter", in: "\x1b[13;4u", wantHandled: "Alt+Shift+Enter"},
 	}
 

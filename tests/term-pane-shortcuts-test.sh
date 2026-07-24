@@ -89,6 +89,14 @@ run_shortcut "Alt+r"
 check_eq "right Alt+r stays local to pair term" "$(actions)" ""
 
 write_panes terminal
+run_shortcut "Alt+x"
+check_eq "right Alt+x routes quit to draft" "$(actions)" "focus-pane-id 2
+write 28
+write 14
+write-chars :lua PairConfirmQuit()
+write 13"
+
+write_panes terminal
 run_shortcut "Alt+j"
 check_eq "right Alt+j is no-op" "$(actions)" ""
 
@@ -118,6 +126,10 @@ check_eq "review Alt+r does not rename tab" "$(actions)" ""
 grep -Fq 'bind "Alt Shift Enter" { WriteChars "\u{1b}[13;4u"; }' "$ROOT/zellij/config.kdl" \
   && pass "Alt+Shift+Enter forwards distinct KKP sequence" \
   || { printf 'FAIL Alt+Shift+Enter bind missing\n'; fail=1; }
+
+grep -Fq 'bind "Alt x" { WriteChars "\u{1b}[120;3u"; }' "$ROOT/zellij/config.kdl" \
+  && pass "Alt+x forwards distinct KKP sequence" \
+  || { printf 'FAIL Alt+x bind missing\n'; fail=1; }
 
 [ "$fail" -eq 0 ] || { printf 'term-pane-shortcuts-test FAILED\n'; exit 1; }
 printf 'term-pane-shortcuts-test ok\n'

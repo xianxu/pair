@@ -1228,6 +1228,7 @@ var workbenchShortcutPatterns = []workbenchShortcutPattern{
 	{[]byte("\x1bt"), "Alt+t"},
 	{[]byte("\x1bw"), "Alt+w"},
 	{[]byte("\x1br"), "Alt+r"},
+	{[]byte("\x1bx"), "Alt+x"},
 	{[]byte("\x1b/"), "Alt+/"},
 	{[]byte("\x1bC"), "Alt+Shift+C"},
 	{[]byte("\x1b[106;3u"), "Alt+j"},
@@ -1235,6 +1236,7 @@ var workbenchShortcutPatterns = []workbenchShortcutPattern{
 	{[]byte("\x1b[116;3u"), "Alt+t"},
 	{[]byte("\x1b[119;3u"), "Alt+w"},
 	{[]byte("\x1b[114;3u"), "Alt+r"},
+	{[]byte("\x1b[120;3u"), "Alt+x"},
 	{[]byte("\x1b[47;3u"), "Alt+/"},
 	{[]byte("\x1b[67;3u"), "Alt+Shift+C"},
 	{[]byte("\x1b[99;7u"), "Ctrl+Alt+c"},
@@ -1480,6 +1482,13 @@ func (p *proxy) handleWorkbenchShortcut(name string) bool {
 		_ = runZellijAction("write", "28")
 		_ = runZellijAction("write", "14")
 		_ = runZellijAction("write-chars", ":lua PairConfirmCompact()")
+		_ = runZellijAction("write", "13")
+		return true
+	case "Alt+x":
+		_ = runZellijAction("move-focus", "down")
+		_ = runZellijAction("write", "28")
+		_ = runZellijAction("write", "14")
+		_ = runZellijAction("write-chars", ":lua PairConfirmQuit()")
 		_ = runZellijAction("write", "13")
 		return true
 	case "Alt+Shift+Enter":

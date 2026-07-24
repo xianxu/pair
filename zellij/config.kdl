@@ -73,6 +73,7 @@ keybinds clear-defaults=false {
         unbind "Alt t"
         unbind "Alt w"
         unbind "Alt r"
+        unbind "Alt x"
         unbind "Alt /"
         unbind "Alt C"
         unbind "Ctrl Alt c"
@@ -88,6 +89,7 @@ keybinds clear-defaults=false {
         unbind "Alt t"
         unbind "Alt w"
         unbind "Alt r"
+        unbind "Alt x"
         unbind "Alt /"
         unbind "Alt C"
         unbind "Ctrl Alt c"
@@ -96,6 +98,7 @@ keybinds clear-defaults=false {
         bind "Alt t" { Write 27; Write 116; }
         bind "Alt w" { Write 27; Write 119; }
         bind "Alt r" { Write 27; Write 114; }
+        bind "Alt x" { WriteChars "\u{1b}[120;3u"; }
         bind "Alt /" { Write 27; Write 47; }
         bind "Alt C" { Write 27; Write 67; }
         bind "Ctrl Alt c" { WriteChars "\u{1b}[99;7u"; }
@@ -167,21 +170,6 @@ keybinds clear-defaults=false {
             Write 28;
             Write 14;
             WriteChars ":lua PairLayoutSmaller()";
-            Write 13;
-        }
-
-        // Alt+x — full quit: kill the session AND remove its entry from the
-        // resurrect list (vs. Ctrl+q which keeps the session as a resurrect
-        // candidate). Routed through nvim for a confirm prompt before the
-        // destructive action — `pair quit` kills the zellij session, so an
-        // accidental Alt+x mid-session is unrecoverable. PairConfirmQuit()
-        // invokes `pair quit` only on Yes.
-        bind "Alt x" {
-            MoveFocus "Left";
-            MoveFocus "Down";
-            Write 28;
-            Write 14;
-            WriteChars ":lua PairConfirmQuit()";
             Write 13;
         }
 

@@ -95,6 +95,7 @@ local function check()
   local mapqn = vim.fn.maparg('<M-q>', 'n') ~= ''
   local mapqi = vim.fn.maparg('<M-q>', 'i') ~= ''
   local mapqx = vim.fn.maparg('<M-q>', 'x') ~= ''
+  local mapx = vim.fn.maparg('<M-x>', 'n') ~= '' and vim.fn.maparg('<M-x>', 'i') ~= ''
   local mapdefine = vim.fn.maparg('<M-D>', 'x') ~= ''
   local mapo = vim.fn.maparg('<M-o>', 'n') == ''
   local mapshiftcr = vim.fn.maparg('<M-S-CR>', 'n') ~= ''
@@ -108,6 +109,7 @@ local function check()
   OUT:write((pane and 'pane-loaded\n') or 'NO-pane\n')
   OUT:write((map and 'altcr-map\n') or 'NO-altcr\n')
   OUT:write((mapa and mapr and mapshifta and mapshiftr and mapqn and mapqi and mapqx and 'review-alt-maps\n') or 'NO-review-alt-maps\n')
+  OUT:write((mapx and 'review-alt-x-map\n') or 'NO-review-alt-x-map\n')
   OUT:write((mapdefine and 'definition-map\n') or 'NO-definition-map\n')
   OUT:write((mapo and 'no-alt-o-map\n') or 'HAS-alt-o-map\n')
   OUT:write((mapshiftcr and 'mode-menu-map\n') or 'NO-mode-menu-map\n')
@@ -403,6 +405,7 @@ LUA
 grep -q 'pane-loaded' "$RT/r3" && pass "review.lua loaded the review core" || fail "review.lua did not load"
 grep -q 'altcr-map' "$RT/r3" && pass "Alt+Return keymap wired" || fail "no Alt+Return keymap"
 grep -q 'review-alt-maps' "$RT/r3" && pass "Alt+a/Alt+r/Alt+q review maps wired" || fail "review Alt maps missing"
+grep -q '^review-alt-x-map$' "$RT/r3" && pass "Alt+x no-op map wired in review pane" || fail "review Alt+x map missing"
 grep -q '^definition-map$' "$RT/r3" && pass "Shift+Alt+d definition map wired" || fail "definition map missing"
 grep -q '^no-alt-o-map$' "$RT/r3" && pass "Alt+o is not bound in review pane" || fail "Alt+o still bound"
 grep -q '^mode-menu-map$' "$RT/r3" && pass "Alt+Shift+Return send menu keymap wired" || fail "send menu map missing"

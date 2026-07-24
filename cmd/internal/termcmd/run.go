@@ -70,6 +70,8 @@ func namedChord(name string) (workbenchshortcut.Chord, bool) {
 		return workbenchshortcut.ChordAltW, true
 	case "alt+r":
 		return workbenchshortcut.ChordAltR, true
+	case "alt+x":
+		return workbenchshortcut.ChordAltX, true
 	case "alt+/":
 		return workbenchshortcut.ChordAltSlash, true
 	case "alt+shift+c":
@@ -157,6 +159,8 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 			return nil
 		}
 		return rt.RunZellijAction("focus-pane-id", panes.terminal.ID)
+	case workbenchshortcut.ActionConfirmQuit:
+		return routeDraftLua(panes, rt, "PairConfirmQuit")
 	case workbenchshortcut.ActionToggleFocusedLayout:
 		if layoutcmd.RunToggleFocused(nil, rt, io.Discard) != 0 {
 			return fmt.Errorf("toggle focused layout failed")
@@ -287,6 +291,11 @@ func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, rt Runtim
 			mux.renameActive(strings.TrimSpace(name))
 		}
 		return true
+	case workbenchshortcut.ChordAltX:
+		if panes, err := focusedWorkbenchPanes(rt); err == nil {
+			_ = routeDraftLua(panes, rt, "PairConfirmQuit")
+		}
+		return true
 	case workbenchshortcut.ChordAltLeft:
 		mux.previousTab()
 		return true
@@ -299,6 +308,24 @@ func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, rt Runtim
 	default:
 		return false
 	}
+}
+
+func routeDraftLua(panes workbenchPanes, rt Runtime, fn string) error {
+	if panes.draft.ID == "" {
+		return nil
+	}
+	for _, action := range [][]string{
+		{"focus-pane-id", panes.draft.ID},
+		{"write", "28"},
+		{"write", "14"},
+		{"write-chars", ":lua " + fn + "()"},
+		{"write", "13"},
+	} {
+		if err := rt.RunZellijAction(action...); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type mousePressEvent struct {

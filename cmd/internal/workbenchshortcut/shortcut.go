@@ -30,6 +30,7 @@ const (
 	ChordAltT
 	ChordAltW
 	ChordAltR
+	ChordAltX
 	ChordAltSlash
 	ChordAltShiftC
 	ChordCtrlAltC
@@ -59,6 +60,7 @@ const (
 	ActionFocusRightTerminal
 	ActionOpenScrollback
 	ActionConfirmCompact
+	ActionConfirmQuit
 	ActionToggleFocusedLayout
 )
 
@@ -88,7 +90,7 @@ func RoleForPane(p zellijpane.Pane) PaneRole {
 		return PaneRoleLeftAgent
 	case strings.Contains(cmd, "nvim") && strings.Contains(cmd, "/nvim/init.lua"):
 		return PaneRoleLeftDraft
-	case strings.Contains(cmd, "pair term"), title == "terminal":
+	case strings.Contains(cmd, "pair term"), title == "terminal", strings.HasPrefix(title, "terminal "):
 		return PaneRoleRightTerminal
 	default:
 		return PaneRoleOther
@@ -105,6 +107,8 @@ func Decide(in ShortcutInput) ShortcutDecision {
 			return handle(ActionCloseTab)
 		case ChordAltR:
 			return handle(ActionRenameTab)
+		case ChordAltX:
+			return handle(ActionConfirmQuit)
 		case ChordAltK:
 			target := in.LastLeftPaneID
 			if target == "" {
@@ -161,6 +165,8 @@ func DecodeChord(data []byte) (Chord, bool) {
 		return ChordAltW, true
 	case "\x1br", "\x1b[114;3u":
 		return ChordAltR, true
+	case "\x1bx", "\x1b[120;3u":
+		return ChordAltX, true
 	case "\x1b/", "\x1b[47;3u":
 		return ChordAltSlash, true
 	case "\x1bC", "\x1b[67;3u":

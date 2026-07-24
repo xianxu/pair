@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"strconv"
 
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
@@ -61,17 +62,45 @@ func toggleFocusedActions(panes []zellijpane.Pane) ([][]string, bool) {
 	}
 	return [][]string{
 		toggle,
-		{
-			"change-floating-pane-coordinates",
-			"--pane-id", focused.ID,
-			"--x", "33%",
-			"--y", "0%",
-			"--width", "67%",
-			"--height", "100%",
-			"--borderless", "true",
-			"--pinned", "true",
-		},
+		expandedTerminalCoordinates(focused.ID, panes),
 	}, true
+}
+
+func expandedTerminalCoordinates(paneID string, panes []zellijpane.Pane) []string {
+	x, y, width, height := "33%", "0%", "67%", "100%"
+	if cols, rows := screenSize(panes); cols > 0 && rows > 0 {
+		left := cols / 3
+		x = strconv.Itoa(left)
+		y = "0"
+		width = strconv.Itoa(cols - left)
+		height = strconv.Itoa(rows)
+	}
+	return []string{
+		"change-floating-pane-coordinates",
+		"--pane-id", paneID,
+		"--x", x,
+		"--y", y,
+		"--width", width,
+		"--height", height,
+		"--borderless", "true",
+		"--pinned", "true",
+	}
+}
+
+func screenSize(panes []zellijpane.Pane) (int, int) {
+	var cols, rows int
+	for _, pane := range panes {
+		if pane.IsPlugin || pane.IsFloating {
+			continue
+		}
+		if right := pane.X + pane.Columns; right > cols {
+			cols = right
+		}
+		if pane.Rows > rows {
+			rows = pane.Rows
+		}
+	}
+	return cols, rows
 }
 
 func balancedLayout() string {

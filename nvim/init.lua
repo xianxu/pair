@@ -3071,8 +3071,8 @@ vim.keymap.set('n', 'ZQ', function() PairQuitWarn() end, { silent = true, desc =
 -- here instead of running the action directly. Both are easy to fat-finger
 -- — Alt+x is unrecoverable (kills the zellij session and its processes)
 -- and Alt+d drops the user out of a long-running attached session. The
--- zellij side moves focus to nvim, ESCs into normal mode, and runs one of
--- these via cmdline; vim.fn.confirm pops a modal Y/N (default No), and the
+-- zellij side, pair wrap, or pair term routes the request into draft nvim;
+-- vim.fn.confirm pops a modal Y/N (default No), and the
 -- action only fires on Yes. Y is shelled out via vim.fn.system because
 -- nvim has no direct zellij IPC and re-binding zellij keybindings to first
 -- check a flag is more state than this is worth.
@@ -3602,6 +3602,8 @@ vim.keymap.set({ 'n', 'i' }, '<M-w>', function() end,
   { silent = true, desc = 'pair: right-terminal tab helper disabled in draft' })
 vim.keymap.set({ 'n', 'i' }, '<M-r>', function() end,
   { silent = true, desc = 'pair: right-terminal tab helper disabled in draft' })
+vim.keymap.set({ 'n', 'i' }, '<M-x>', function() _G.PairConfirmQuit() end,
+  { silent = true, desc = 'pair: confirm quit' })
 
 vim.keymap.set({ 'n', 'i' }, '<M-i>', attach_image,
   { silent = true, desc = 'pair: attach clipboard image (Ctrl+V to agent + ref)' })

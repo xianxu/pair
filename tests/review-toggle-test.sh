@@ -239,21 +239,12 @@ grep -Eq '^[[:space:]]*bind "Alt r"[^{]*\\{.*(RenameTab|TabNameInput|NewTab)' "$
   || pass "Alt+r has no global tab action"
 grep -q 'unbind "Alt o"' "$ROOT/zellij/config.kdl" && pass "Alt+o default zellij tab-move disabled" || fail "Alt+o still captured by zellij"
 grep -q 'Run "pair-review-toggle"' "$ROOT/zellij/config.kdl" && fail "Alt+c still spawns the old toggle pane" || pass "old pair-review-toggle pane gone"
-python3 - "$ROOT/zellij/config.kdl" <<'PY' && pass "Alt+x routes via left stack before draft command" || fail "Alt+x can write quit prompt into right terminal"
-import re
-import sys
-
-cfg = open(sys.argv[1], encoding="utf-8").read()
-m = re.search(r'bind "Alt x" \{(?P<body>.*?)\n        \}', cfg, re.S)
-if not m:
-    sys.exit(1)
-body = m.group("body")
-left = body.find('MoveFocus "Left";')
-down = body.find('MoveFocus "Down";')
-quit_cmd = body.find('WriteChars ":lua PairConfirmQuit()"')
-if not (0 <= left < down < quit_cmd):
-    sys.exit(1)
-PY
+grep -Fq 'bind "Alt x" { WriteChars "\u{1b}[120;3u"; }' "$ROOT/zellij/config.kdl" \
+  && pass "Alt+x forwards to focused process for local routing" \
+  || fail "Alt+x is not locally routed"
+grep -Fq 'WriteChars ":lua PairConfirmQuit()"' "$ROOT/zellij/config.kdl" \
+  && fail "Alt+x can still write quit prompt into right terminal" \
+  || pass "Alt+x no longer injects quit command from zellij"
 
 [ "$fails" -eq 0 ] || { printf 'review-toggle-test FAILED (%d)\n' "$fails"; exit 1; }
 printf 'review-toggle-test ok\n'

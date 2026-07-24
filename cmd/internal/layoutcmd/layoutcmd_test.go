@@ -24,6 +24,28 @@ func TestToggleFocusedFloatsRightTerminalOverlay(t *testing.T) {
 	}
 }
 
+func TestToggleFocusedUsesIntegerGeometryWhenAvailable(t *testing.T) {
+	rt := &fakeRuntime{panesJSON: []byte(`[
+		{"id":1,"is_plugin":false,"is_focused":false,"is_floating":false,"pane_x":0,"pane_columns":85,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
+		{"id":2,"is_plugin":false,"is_focused":false,"is_floating":false,"pane_x":0,"pane_columns":85,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
+		{"id":3,"is_plugin":false,"is_focused":true,"is_floating":false,"pane_x":85,"pane_columns":85,"pane_rows":51,"title":"terminal 1 [work]","terminal_command":""}
+	]`)}
+	var stderr bytes.Buffer
+
+	code := RunToggleFocused(nil, rt, &stderr)
+
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%q", code, stderr.String())
+	}
+	want := strings.Join([]string{
+		"toggle-pane-embed-or-floating --pane-id 3",
+		"change-floating-pane-coordinates --pane-id 3 --x 56 --y 0 --width 114 --height 51 --borderless true --pinned true",
+	}, "\n")
+	if got := strings.Join(rt.ops, "\n"); got != want {
+		t.Fatalf("ops = %q, want %q", got, want)
+	}
+}
+
 func TestToggleFocusedEmbedsFloatingRightTerminal(t *testing.T) {
 	rt := &fakeRuntime{panesJSON: panesJSON("terminal", true)}
 	var stderr bytes.Buffer
@@ -39,6 +61,25 @@ func TestToggleFocusedEmbedsFloatingRightTerminal(t *testing.T) {
 	}
 	if strings.Contains(got, `size="67%"`) {
 		t.Fatalf("ops = %q, restore layout must not keep 67%% width", got)
+	}
+}
+
+func TestToggleFocusedEmbedsFloatingTerminalWithTabStripTitle(t *testing.T) {
+	rt := &fakeRuntime{panesJSON: []byte(`[
+		{"id":1,"is_plugin":false,"is_focused":false,"is_floating":false,"title":"codex","terminal_command":"pair wrap codex"},
+		{"id":2,"is_plugin":false,"is_focused":false,"is_floating":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
+		{"id":3,"is_plugin":false,"is_focused":true,"is_floating":true,"title":"terminal 1 [work]","terminal_command":""}
+	]`)}
+	var stderr bytes.Buffer
+
+	code := RunToggleFocused(nil, rt, &stderr)
+
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%q", code, stderr.String())
+	}
+	got := strings.Join(rt.ops, "\n")
+	if !strings.HasPrefix(got, "toggle-pane-embed-or-floating --pane-id 3\noverride-layout --apply-only-to-active-tab --layout-string ") {
+		t.Fatalf("ops = %q, want embed then override-layout", got)
 	}
 }
 

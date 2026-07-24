@@ -4,7 +4,7 @@ status: working
 deps: []
 github_issue:
 created: 2026-07-23
-updated: 2026-07-23
+updated: 2026-07-24
 estimate_hours: 4.53
 started: 2026-07-23T16:16:22-07:00
 ---
@@ -262,3 +262,22 @@ total: 4.53
   `Alt+Shift+Return` before that classifier, so the right-terminal process can
   collapse its own floating pane. The overlay is also borderless to avoid a
   double frame around `pair term`'s local tab strip.
+- Follow-up dogfood showed two more right-terminal edge cases. `Alt+x` still
+  used zellij-side focus moves plus `WriteChars ":lua PairConfirmQuit()"`, so a
+  focused right terminal could receive the literal Lua command in the shell.
+  zellij now forwards `Alt+x` as `ESC[120;3u`; `pair term` routes that chord to
+  the draft nvim quit prompt, `pair wrap` handles the same chord from the agent
+  pane, and draft nvim maps `<M-x>` directly. The expanded terminal toggle also
+  now recognizes tab-strip titles like `terminal 1 [work]` and uses integer
+  screen geometry when zellij reports it, avoiding percentage rounding at the
+  right edge.
+- Verification for this pass: red tests first for missing `Alt+x` decode,
+  terminal routing, wrap translation, and geometry rounding; then green
+  `go test ./cmd/internal/workbenchshortcut ./cmd/internal/termcmd
+  ./cmd/internal/layoutcmd ./cmd/internal/wrapcmd -count=1`,
+  `bash tests/term-pane-shortcuts-test.sh`,
+  `bash tests/review-toggle-test.sh`,
+  `zellij --config-dir zellij setup --check`,
+  `go test ./... -count=1`, `bash tests/queue-send-test.sh`,
+  `bash tests/review-window-test.sh`, `bash tests/scrollback-open-test.sh`,
+  `make runtimebundle-drift-check`, and `git diff --check`.

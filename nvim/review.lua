@@ -214,6 +214,8 @@ for _, name in ipairs({
 }) do
   _G[name] = function() end
 end
+vim.keymap.set({ 'n', 'i' }, '<M-x>', function() _G.PairConfirmQuit() end,
+  { silent = true, desc = 'pair: quit disabled in review pane' })
 
 -- Alt+c pressed while THIS review pane is focused: the zellij bind's relative
 -- MoveFocus Down may not escape a floating pane, so the `:lua PairReviewToggle()`
