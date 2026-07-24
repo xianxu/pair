@@ -29,27 +29,10 @@ vim.opt.smartcase = true
 
 local annotate
 
--- Stub out the pair-launcher cmdline targets so a stray zellij Alt+Up
--- / Alt+Down / Alt+x / Alt+n / Alt+d / Shift+Alt+N pressed while the
--- scrollback viewer is the focused pane degrades silently rather than
--- erroring on an undefined global.
---
--- zellij's bindings for those chords issue `MoveFocus Down` and then
--- `WriteChars ":lua PairLayoutBigger()"` (plus a CR). The MoveFocus
--- assumes the destination is the draft pane (where init.lua defines
--- the Pair* globals), but from inside the Alt+/ floating viewer the
--- focus shift doesn't escape the floating layer — the cmdline call
--- lands here instead. Defining the names as no-ops at scrollback-
--- nvim scope side-steps the error without touching zellij's
--- assumptions. Performing the actual layout / quit / restart action
--- from within scrollback would be the wrong default anyway; the user
--- almost certainly meant to act on the draft.
-for _, name in ipairs({
-  'PairLayoutBigger', 'PairLayoutSmaller',
-  'PairConfirmQuit',  'PairConfirmDetach',
-  'PairConfirmRestart', 'PairConfirmRestartNewSession', 'PairConfirmAgentRestart',
-}) do
-  _G[name] = function() end
+do
+  local here = debug.getinfo(1, 'S').source:sub(2):match('(.*/)') or './'
+  local workbench_route = dofile(here .. 'workbench_route.lua')
+  workbench_route.install_global_maps(false)
 end
 
 -- See init.lua for the full rationale: this writes the embed nvim's pid to

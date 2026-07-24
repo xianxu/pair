@@ -3626,8 +3626,12 @@ vim.keymap.set({ 'n', 'i' }, '<M-w>', function() end,
   { silent = true, desc = 'pair: right-terminal tab helper disabled in draft' })
 vim.keymap.set({ 'n', 'i' }, '<M-r>', function() end,
   { silent = true, desc = 'pair: right-terminal tab helper disabled in draft' })
-vim.keymap.set({ 'n', 'i' }, '<M-x>', function() _G.PairConfirmQuit() end,
-  { silent = true, desc = 'pair: confirm quit' })
+
+do
+  local here = debug.getinfo(1, 'S').source:sub(2):match('(.*/)') or './'
+  local workbench_route = dofile(here .. 'workbench_route.lua')
+  workbench_route.install_global_maps(true)
+end
 
 vim.keymap.set({ 'n', 'i' }, '<M-i>', attach_image,
   { silent = true, desc = 'pair: attach clipboard image (Ctrl+V to agent + ref)' })

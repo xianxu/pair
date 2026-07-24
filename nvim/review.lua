@@ -206,25 +206,10 @@ vim.api.nvim_create_autocmd({ 'FocusGained', 'BufEnter' }, {
   end,
 })
 
--- Stub the draft-pane globals so a stray zellij Alt+Up/Down/x/n/d pressed while
--- the review pane is focused degrades silently (same rationale as scrollback.lua).
-for _, name in ipairs({
-  'PairLayoutBigger', 'PairLayoutSmaller', 'PairConfirmQuit',
-  'PairConfirmDetach', 'PairConfirmRestart', 'PairConfirmRestartNewSession', 'PairConfirmAgentRestart',
-}) do
-  _G[name] = function() end
-end
-vim.keymap.set({ 'n', 'i' }, '<M-x>', function() _G.PairConfirmQuit() end,
-  { silent = true, desc = 'pair: quit disabled in review pane' })
-
--- Alt+c pressed while THIS review pane is focused: the zellij bind's relative
--- MoveFocus Down may not escape a floating pane, so the `:lua PairReviewToggle()`
--- it types lands here instead of in the draft. The review pane only ever needs to
--- hide itself (it's necessarily visible to receive the keystrokes); focus falls
--- back to the tiled layer. The draft's PairReviewToggle owns open/show; this one
--- is the hide half (robust whether or not MoveFocus escapes).
-function _G.PairReviewToggle()
-  vim.fn.system({ 'zellij', 'action', 'hide-floating-panes' })
+do
+  local here = debug.getinfo(1, 'S').source:sub(2):match('(.*/)') or './'
+  local workbench_route = dofile(here .. 'workbench_route.lua')
+  workbench_route.install_global_maps(false)
 end
 
 local here = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
