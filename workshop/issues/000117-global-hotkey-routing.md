@@ -219,6 +219,15 @@ remain predictable in both directions.
 Pane-id routing guarantees delivery but leaves confirmation dialogs hidden when
 another pane is focused. Before invoking `PairConfirmDetach`,
 `PairConfirmQuit`, `PairConfirmRestart`, or `PairConfirmAgentRestart`, focus the
-validated draft pane by id. Layout growth/shrink and review toggle remain
-focus-preserving. The shared shortcut decision must carry this policy so agent,
-terminal, and Neovim-overlay consumers cannot drift.
+validated draft pane by id. `focus-pane-id <draft>` must succeed before any
+control or Lua write begins. On focus failure, consume the chord, report the
+failure, and issue no writes; a hidden confirmation is not an acceptable
+fallback. Layout growth/shrink and review toggle remain focus-preserving. The
+shared shortcut decision carries `FocusDraft` (or equivalent) while the
+injected Go and Lua IO shells own focus/write ordering, so agent, terminal, and
+Neovim-overlay consumers cannot drift.
+
+Done additionally requires production-path tests for both Go consumers and
+every Pair-owned Neovim overlay asserting exact focus-before-write ordering,
+zero writes after focus failure, and no `focus-pane-id` action for grow,
+shrink, or review toggle.
