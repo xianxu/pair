@@ -138,7 +138,7 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 	}
 	switch decision.Action {
 	case workbenchshortcut.ActionNewTab:
-		return rt.RunZellijAction("new-tab")
+		return rt.RunZellijAction("new-tab", "--name", "terminal", "--", "pair", "term")
 	case workbenchshortcut.ActionCloseTab:
 		return rt.RunZellijAction("close-tab")
 	case workbenchshortcut.ActionRenameTab:

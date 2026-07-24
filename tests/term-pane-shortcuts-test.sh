@@ -74,7 +74,7 @@ check_eq() {
 
 write_panes terminal
 run_shortcut "Alt+t"
-check_eq "right Alt+t creates tab" "$(actions)" "new-tab"
+check_eq "right Alt+t creates terminal tab" "$(actions)" "new-tab --name terminal -- pair term"
 
 write_panes terminal
 run_shortcut "Alt+w"

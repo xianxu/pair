@@ -18,7 +18,7 @@ func TestRunTestShortcutRightTerminalActions(t *testing.T) {
 		last    string
 		wantOps []string
 	}{
-		{name: "new tab", chord: "Alt+t", wantOps: []string{"new-tab"}},
+		{name: "new tab", chord: "Alt+t", wantOps: []string{"new-tab --name terminal -- pair term"}},
 		{name: "close tab", chord: "Alt+w", wantOps: []string{"close-tab"}},
 		{name: "rename tab", chord: "Alt+r", wantOps: []string{"rename-tab work"}},
 		{name: "alt j swallowed", chord: "Alt+j"},

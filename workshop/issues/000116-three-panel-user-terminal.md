@@ -164,3 +164,10 @@ total: 4.53
 - Live nested Pair smoke is still unchecked in this noninteractive run; the
   automated fake-zellij test covers the shortcut decisions and zellij asset
   validation covers the static layout/config.
+- Live dogfood found that right-terminal `Alt+t` used bare
+  `zellij action new-tab`, which could instantiate the session's Pair layout
+  and make the agent panes look restarted. Fixed `Alt+t` to create a new tab
+  whose initial command is `pair term`, so it opens another plain terminal tab
+  with the same right-terminal shortcut wrapper instead of another Pair
+  workbench. Regression coverage updated in `cmd/internal/termcmd` and
+  `tests/term-pane-shortcuts-test.sh`.
