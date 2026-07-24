@@ -96,18 +96,21 @@ func TestPumpStdinDecodesSplitAltChord(t *testing.T) {
 
 func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 	tests := []struct {
-		name   string
-		chunks [][]byte
-		want   string
+		name      string
+		chunks    [][]byte
+		wantMux   string
+		wantRTOps string
 	}{
-		{name: "new tab", chunks: [][]byte{{0x1b, 't'}}, want: "new-tab"},
-		{name: "close tab", chunks: [][]byte{{0x1b, 'w'}}, want: "close-tab"},
-		{name: "rename tab", chunks: [][]byte{{0x1b, 'r'}, []byte("work\r")}, want: "rename:work"},
-		{name: "previous tab", chunks: [][]byte{[]byte("\x1b[1;3D")}, want: "prev-tab"},
-		{name: "next tab", chunks: [][]byte{[]byte("\x1b[1;3C")}, want: "next-tab"},
-		{name: "mouse top row", chunks: [][]byte{[]byte("\x1b[<0;8;1M")}, want: "switch-at:8"},
-		{name: "mouse shell row passes through", chunks: [][]byte{[]byte("\x1b[<0;8;2M")}, want: "write:\x1b[<0;8;2M"},
-		{name: "plain bytes", chunks: [][]byte{[]byte("ls\n")}, want: "write:ls\n"},
+		{name: "new tab", chunks: [][]byte{{0x1b, 't'}}, wantMux: "new-tab"},
+		{name: "close tab", chunks: [][]byte{{0x1b, 'w'}}, wantMux: "close-tab"},
+		{name: "rename tab", chunks: [][]byte{{0x1b, 'r'}, []byte("work\r")}, wantMux: "rename:work"},
+		{name: "previous tab", chunks: [][]byte{[]byte("\x1b[1;3D")}, wantMux: "prev-tab"},
+		{name: "next tab", chunks: [][]byte{[]byte("\x1b[1;3C")}, wantMux: "next-tab"},
+		{name: "mouse top row", chunks: [][]byte{[]byte("\x1b[<0;8;1M")}, wantMux: "switch-at:8"},
+		{name: "mouse shell row passes through", chunks: [][]byte{[]byte("\x1b[<0;8;2M")}, wantMux: "write:\x1b[<0;8;2M"},
+		{name: "mouse wheel up scrolls zellij viewport", chunks: [][]byte{[]byte("\x1b[<64;8;5M")}, wantRTOps: "scroll-up"},
+		{name: "mouse wheel down scrolls zellij viewport", chunks: [][]byte{[]byte("\x1b[<65;8;5M")}, wantRTOps: "scroll-down"},
+		{name: "plain bytes", chunks: [][]byte{[]byte("ls\n")}, wantMux: "write:ls\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -115,19 +118,22 @@ func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 			mux := &fakeMux{}
 			var stdout bytes.Buffer
 			pumpStdin(&splitReader{chunks: tt.chunks}, mux, rt, &stdout)
-			if strings.Join(mux.ops, ",") != tt.want {
-				t.Fatalf("mux ops = %q, want %q", strings.Join(mux.ops, ","), tt.want)
+			if strings.Join(mux.ops, ",") != tt.wantMux {
+				t.Fatalf("mux ops = %q, want %q", strings.Join(mux.ops, ","), tt.wantMux)
+			}
+			if strings.Join(rt.ops, ",") != tt.wantRTOps {
+				t.Fatalf("runtime ops = %q, want %q", strings.Join(rt.ops, ","), tt.wantRTOps)
 			}
 		})
 	}
 }
 
 func TestParseSGRMousePress(t *testing.T) {
-	x, y, ok := parseSGRMousePress([]byte("\x1b[<0;12;1M"))
-	if !ok || x != 12 || y != 1 {
-		t.Fatalf("mouse = (%d,%d,%v), want (12,1,true)", x, y, ok)
+	event, ok := parseSGRMousePress([]byte("\x1b[<64;12;1M"))
+	if !ok || event.button != 64 || event.x != 12 || event.y != 1 {
+		t.Fatalf("mouse = (%+v,%v), want ({button:64 x:12 y:1},true)", event, ok)
 	}
-	if _, _, ok := parseSGRMousePress([]byte("\x1b[<0;12;1m")); ok {
+	if _, ok := parseSGRMousePress([]byte("\x1b[<0;12;1m")); ok {
 		t.Fatal("release event should not parse as press")
 	}
 }

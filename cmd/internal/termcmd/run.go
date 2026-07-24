@@ -230,9 +230,17 @@ func pumpStdin(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Writer) {
 					continue
 				}
 				_ = handleChord(chord, rt, stdin, stdout)
-			} else if x, y, ok := parseSGRMousePress(data); ok {
-				if y == 1 {
-					mux.switchTabAtColumn(x)
+			} else if event, ok := parseSGRMousePress(data); ok {
+				switch event.button {
+				case 64:
+					_ = rt.RunZellijAction("scroll-up")
+					continue
+				case 65:
+					_ = rt.RunZellijAction("scroll-down")
+					continue
+				}
+				if event.y == 1 {
+					mux.switchTabAtColumn(event.x)
 					continue
 				}
 				mux.writeActive(data)
@@ -273,16 +281,22 @@ func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, stdin io.
 	}
 }
 
-func parseSGRMousePress(data []byte) (x int, y int, ok bool) {
+type mousePressEvent struct {
+	button int
+	x      int
+	y      int
+}
+
+func parseSGRMousePress(data []byte) (mousePressEvent, bool) {
 	s := string(data)
 	if !strings.HasPrefix(s, "\x1b[<") || !strings.HasSuffix(s, "M") {
-		return 0, 0, false
+		return mousePressEvent{}, false
 	}
-	var button int
-	if _, err := fmt.Sscanf(s, "\x1b[<%d;%d;%dM", &button, &x, &y); err != nil {
-		return 0, 0, false
+	var event mousePressEvent
+	if _, err := fmt.Sscanf(s, "\x1b[<%d;%d;%dM", &event.button, &event.x, &event.y); err != nil {
+		return mousePressEvent{}, false
 	}
-	return x, y, true
+	return event, true
 }
 
 func readRawPrompt(stdin io.Reader, stdout io.Writer, prompt string) string {

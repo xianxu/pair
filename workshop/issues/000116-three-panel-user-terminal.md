@@ -229,3 +229,9 @@ total: 4.53
   `Alt+Left`/`Alt+Right` switch to the previous/next local terminal tab, and
   `pair term` draws a one-line tab strip with SGR mouse tracking so clicking a
   tab label on that first row switches the active PTY.
+- Follow-up dogfood showed the SGR mouse mode needed for tab-strip clicks also
+  captured wheel events before zellij could use them for shell scrollback.
+  `pair term` now maps wheel-up/wheel-down mouse events to zellij
+  `scroll-up`/`scroll-down`, while keeping non-wheel shell-row mouse events as
+  PTY input. ARCH-PURE: the mouse parser stays unit-tested separately from the
+  IO action dispatch.
