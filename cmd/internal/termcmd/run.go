@@ -26,6 +26,12 @@ type Runtime interface {
 	ShellCommand() (string, []string)
 }
 
+const terminalTabLayout = `layout {
+    pane command="pair" name="terminal" {
+        args "term"
+    }
+}`
+
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return RunWithRuntime(args, stdin, stdout, stderr, OSRuntime{})
 }
@@ -138,7 +144,7 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 	}
 	switch decision.Action {
 	case workbenchshortcut.ActionNewTab:
-		return rt.RunZellijAction("new-tab", "--name", "terminal", "--", "pair", "term")
+		return rt.RunZellijAction("new-tab", "--name", "terminal", "--layout-string", terminalTabLayout)
 	case workbenchshortcut.ActionCloseTab:
 		return rt.RunZellijAction("close-tab")
 	case workbenchshortcut.ActionRenameTab:

@@ -2,6 +2,8 @@ package termcmd
 
 import (
 	"bytes"
+	"io"
+	"os"
 	"strings"
 	"testing"
 )
@@ -18,7 +20,7 @@ func TestRunTestShortcutRightTerminalActions(t *testing.T) {
 		last    string
 		wantOps []string
 	}{
-		{name: "new tab", chord: "Alt+t", wantOps: []string{"new-tab --name terminal -- pair term"}},
+		{name: "new tab", chord: "Alt+t", wantOps: []string{"new-tab --name terminal --layout-string " + terminalTabLayout}},
 		{name: "close tab", chord: "Alt+w", wantOps: []string{"close-tab"}},
 		{name: "rename tab", chord: "Alt+r", wantOps: []string{"rename-tab work"}},
 		{name: "alt j swallowed", chord: "Alt+j"},
@@ -80,6 +82,28 @@ func TestRunTestShortcutRecordsLeftPane(t *testing.T) {
 	}
 }
 
+func TestPumpStdinDecodesSplitAltChord(t *testing.T) {
+	panes := `[
+		{"id":1,"is_focused":false,"is_floating":false,"is_plugin":false,"title":"codex","terminal_command":"pair wrap codex"},
+		{"id":2,"is_focused":false,"is_floating":false,"is_plugin":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
+		{"id":3,"is_focused":true,"is_floating":false,"is_plugin":false,"title":"terminal","terminal_command":"pair term"}
+	]`
+	rt := &fakeRuntime{panesJSON: panes}
+	stdin := splitReader{chunks: [][]byte{{0x1b}, {'t'}}}
+	readEnd, writeEnd, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer readEnd.Close()
+	defer writeEnd.Close()
+
+	pumpStdin(&stdin, writeEnd, rt, &bytes.Buffer{})
+
+	if strings.Join(rt.ops, ",") != "new-tab --name terminal --layout-string "+terminalTabLayout {
+		t.Fatalf("ops = %v, want split Alt+t to open terminal tab", rt.ops)
+	}
+}
+
 type fakeRuntime struct {
 	panesJSON string
 	lastLeft  string
@@ -106,4 +130,18 @@ func (f *fakeRuntime) RunZellijAction(args ...string) error {
 
 func (f *fakeRuntime) ShellCommand() (string, []string) {
 	return "/bin/sh", []string{"-i"}
+}
+
+type splitReader struct {
+	chunks [][]byte
+}
+
+func (r *splitReader) Read(p []byte) (int, error) {
+	if len(r.chunks) == 0 {
+		return 0, io.EOF
+	}
+	chunk := r.chunks[0]
+	r.chunks = r.chunks[1:]
+	copy(p, chunk)
+	return len(chunk), nil
 }

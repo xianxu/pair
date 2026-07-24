@@ -178,3 +178,11 @@ total: 4.53
   literal Meta bytes to the focused pane process instead of relying on default
   unbinds. That keeps the behavior pane-local while overriding zellij's own
   shared defaults such as `Alt+j`/`Alt+k`.
+- Follow-up dogfood from a fresh `pair-dev codex -- --sandbox
+  danger-full-access` session showed `Alt+t` could still produce a new Pair-like
+  workbench tab. The stale-session explanation was incomplete. Reproduced the
+  zellij boundary in a detached probe session and verified that
+  `new-tab --layout-string` with a one-pane `pair term` layout creates exactly
+  one terminal pane. Updated right-terminal `Alt+t` to use that explicit layout
+  string so it cannot inherit the session's tab template and respawn
+  agent/draft panes.
