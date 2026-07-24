@@ -211,3 +211,7 @@ total: 4.53
   inside Pair's right pane. Added a minimal inner layout with only a shell pane
   and changed `pair term` to attach to an existing inner session or create a new
   one with that layout, avoiding nested default tab/status/plugin chrome.
+- Follow-up screenshot still showed nested chrome after creating right-pane
+  tabs. Fixed the inner terminal config to disable pane frames and set
+  `default_layout "main"`, so native `Alt+t` tabs also use Pair's quiet inner
+  layout instead of zellij's built-in default layout.

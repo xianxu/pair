@@ -6,6 +6,8 @@
 // the whole Pair workbench.
 
 show_release_notes false
+pane_frames false
+default_layout "main"
 
 keybinds clear-defaults=false {
     normal {
