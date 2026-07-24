@@ -256,3 +256,9 @@ total: 4.53
   original half-width split after embedding it back from the floating overlay.
   The collapse half now embeds the terminal and then applies the balanced
   three-pane layout, making `Alt+Shift+Return` a real expand/collapse toggle.
+- Follow-up dogfood showed the collapse chord still did not fire from the
+  floating terminal because the shared workbench classifier deliberately treats
+  floating panes as non-workbench panes. `pair term` now handles
+  `Alt+Shift+Return` before that classifier, so the right-terminal process can
+  collapse its own floating pane. The overlay is also borderless to avoid a
+  double frame around `pair term`'s local tab strip.

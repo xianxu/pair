@@ -68,6 +68,7 @@ func toggleFocusedActions(panes []zellijpane.Pane) ([][]string, bool) {
 			"--y", "0%",
 			"--width", "67%",
 			"--height", "100%",
+			"--borderless", "true",
 			"--pinned", "true",
 		},
 	}, true

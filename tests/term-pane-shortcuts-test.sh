@@ -95,7 +95,7 @@ check_eq "right Alt+j is no-op" "$(actions)" ""
 write_panes terminal
 run_shortcut "Alt+Shift+Enter"
 check_eq "right Alt+Shift+Enter floats terminal" "$(actions)" "toggle-pane-embed-or-floating --pane-id 3
-change-floating-pane-coordinates --pane-id 3 --x 33% --y 0% --width 67% --height 100% --pinned true"
+change-floating-pane-coordinates --pane-id 3 --x 33% --y 0% --width 67% --height 100% --borderless true --pinned true"
 
 write_panes terminal
 rm -f "$PAIR_DATA_DIR/last-left-pane-t"

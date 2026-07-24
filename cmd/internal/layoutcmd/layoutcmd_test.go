@@ -17,7 +17,7 @@ func TestToggleFocusedFloatsRightTerminalOverlay(t *testing.T) {
 	}
 	want := strings.Join([]string{
 		"toggle-pane-embed-or-floating --pane-id 3",
-		"change-floating-pane-coordinates --pane-id 3 --x 33% --y 0% --width 67% --height 100% --pinned true",
+		"change-floating-pane-coordinates --pane-id 3 --x 33% --y 0% --width 67% --height 100% --borderless true --pinned true",
 	}, "\n")
 	if got := strings.Join(rt.ops, "\n"); got != want {
 		t.Fatalf("ops = %q, want %q", got, want)

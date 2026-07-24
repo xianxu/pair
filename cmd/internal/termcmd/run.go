@@ -235,7 +235,7 @@ func pumpStdin(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Writer) {
 			if len(data) == 1 && data[0] == 0x1b {
 				held = append(held, data...)
 			} else if chord, ok := workbenchshortcut.DecodeChord(data); ok {
-				if handleTerminalChord(chord, mux, stdin, stdout) {
+				if handleTerminalChord(chord, mux, rt, stdin, stdout) {
 					continue
 				}
 				_ = handleChord(chord, rt, stdin, stdout)
@@ -274,7 +274,7 @@ func pumpStdin(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Writer) {
 	}
 }
 
-func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, stdin io.Reader, stdout io.Writer) bool {
+func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, rt Runtime, stdin io.Reader, stdout io.Writer) bool {
 	switch chord {
 	case workbenchshortcut.ChordAltT:
 		_ = mux.newTab()
@@ -292,6 +292,9 @@ func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, stdin io.
 		return true
 	case workbenchshortcut.ChordAltRight:
 		mux.nextTab()
+		return true
+	case workbenchshortcut.ChordAltShiftEnter:
+		_ = layoutcmd.RunToggleFocused(nil, rt, io.Discard)
 		return true
 	default:
 		return false
