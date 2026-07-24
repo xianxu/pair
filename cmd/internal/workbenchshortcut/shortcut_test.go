@@ -106,6 +106,7 @@ func TestShortcutDecision(t *testing.T) {
 				Disposition:      DispositionHandle,
 				Action:           ActionConfirmQuit,
 				DraftLuaFunction: "PairConfirmQuit",
+				FocusDraft:       true,
 			},
 		},
 		{
@@ -258,15 +259,16 @@ func TestGlobalDecisionMatrix(t *testing.T) {
 		chord  Chord
 		action ShortcutAction
 		lua    string
+		focus  bool
 	}{
-		{ChordAltD, ActionConfirmDetach, "PairConfirmDetach"},
-		{ChordAltX, ActionConfirmQuit, "PairConfirmQuit"},
-		{ChordAltN, ActionRestartPair, "PairConfirmRestart"},
-		{ChordCtrlAltN, ActionRestartPair, "PairConfirmRestart"},
-		{ChordAltShiftN, ActionRestartAgent, "PairConfirmAgentRestart"},
-		{ChordAltUp, ActionGrowDraft, "PairLayoutBigger"},
-		{ChordAltDown, ActionShrinkDraft, "PairLayoutSmaller"},
-		{ChordAltC, ActionToggleReview, "PairReviewToggle"},
+		{ChordAltD, ActionConfirmDetach, "PairConfirmDetach", true},
+		{ChordAltX, ActionConfirmQuit, "PairConfirmQuit", true},
+		{ChordAltN, ActionRestartPair, "PairConfirmRestart", true},
+		{ChordCtrlAltN, ActionRestartPair, "PairConfirmRestart", true},
+		{ChordAltShiftN, ActionRestartAgent, "PairConfirmAgentRestart", true},
+		{ChordAltUp, ActionGrowDraft, "PairLayoutBigger", false},
+		{ChordAltDown, ActionShrinkDraft, "PairLayoutSmaller", false},
+		{ChordAltC, ActionToggleReview, "PairReviewToggle", false},
 	}
 	roles := []PaneRole{PaneRoleLeftAgent, PaneRoleLeftDraft, PaneRoleRightTerminal}
 	for _, global := range globals {
@@ -276,11 +278,23 @@ func TestGlobalDecisionMatrix(t *testing.T) {
 				Disposition:      DispositionHandle,
 				Action:           global.action,
 				DraftLuaFunction: global.lua,
+				FocusDraft:       global.focus,
 			}
 			if got != want {
 				t.Fatalf("Decide(role=%v, chord=%v) = %#v, want %#v", role, global.chord, got, want)
 			}
 		}
+	}
+}
+
+func TestRenderedLuaGlobalMapsMatchCommittedFile(t *testing.T) {
+	want := RenderLuaGlobalMaps()
+	got, err := os.ReadFile(filepath.Join("..", "..", "..", "nvim", "workbench_actions.lua"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != want {
+		t.Fatalf("nvim/workbench_actions.lua is stale\n\ngot:\n%s\nwant:\n%s", got, want)
 	}
 }
 

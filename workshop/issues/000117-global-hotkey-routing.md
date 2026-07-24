@@ -131,7 +131,7 @@ total: 4.98
 
 - [x] Write and approve a durable implementation plan.
 - [x] Implement the audited routing with test-first regressions.
-- [ ] Update README/atlas shortcut ownership and verify the full workbench
+- [x] Update README/atlas shortcut ownership and verify the full workbench
       integration suite.
 
 ## Log
@@ -174,6 +174,14 @@ total: 4.98
   processes fall back safely. The full Go/Lua/shell/runtime/KDL/layout
   verification matrix passes. Enabled and pinned `focus_follows_mouse true` at
   the operator's request.
+- Added one authoritative `GlobalBinding` registry for Lua target and focus
+  policy, with deterministic generation of `nvim/workbench_actions.lua` and an
+  exact parity test. Confirmation globals focus the validated draft pane before
+  any write; resize and review globals retain focus.
+- Regression coverage now exercises both Go PTY consumers and the headless
+  Neovim process boundary. A failed `focus-pane-id` is reported and produces
+  zero control/Lua writes. Focused and full Go, Lua, terminal shortcut, review
+  toggle, and whitespace verification pass.
 
 ## Revisions
 

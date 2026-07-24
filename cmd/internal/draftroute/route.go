@@ -50,7 +50,7 @@ type Runtime interface {
 	RunZellijAction(args ...string) error
 }
 
-func RouteLua(rt Runtime, function string) error {
+func RouteLua(rt Runtime, function string, focusDraft bool) error {
 	draftID, ok := rt.CachedDraftPaneID()
 	if !ok {
 		data, err := rt.ListPanesJSON()
@@ -66,6 +66,11 @@ func RouteLua(rt Runtime, function string) error {
 	}
 	if draftID == "" {
 		return errors.New("draft pane not found")
+	}
+	if focusDraft {
+		if err := rt.RunZellijAction("focus-pane-id", draftID); err != nil {
+			return fmt.Errorf("focus draft pane %s: %w", draftID, err)
+		}
 	}
 	for _, action := range [][]string{
 		{"write", "--pane-id", draftID, "28"},

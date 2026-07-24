@@ -551,7 +551,7 @@ git commit -m "#117: document deterministic global hotkeys"
 - Modify: `nvim/workbench_route_test.lua`
 - Modify: `tests/workbench-route-nvim-test.sh`
 
-- [ ] **Step 1: Write failing pure-policy tests**
+- [x] **Step 1: Write failing pure-policy tests**
 
 Assert `FocusDraft=true` for detach, quit, pair restart aliases, and agent
 restart; assert false for grow, shrink, and review. Keep the function target
@@ -559,7 +559,7 @@ mapping unchanged. Add a renderer/parity assertion: the committed
 `nvim/workbench_actions.lua` must exactly equal the Lua serialization of the
 authoritative Go `GlobalBinding` registry.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 ```bash
 go test ./cmd/internal/workbenchshortcut -run TestGlobalDecisionMatrix -count=1
@@ -567,7 +567,7 @@ go test ./cmd/internal/workbenchshortcut -run TestGlobalDecisionMatrix -count=1
 
 Expected: failure because `ShortcutDecision` has no focus policy.
 
-- [ ] **Step 3: Add the minimal shared policy**
+- [x] **Step 3: Add the minimal shared policy**
 
 Add `FocusDraft bool` to the decision and derive it in the single
 `GlobalBinding` registry. Add a deterministic Lua renderer and generate
@@ -575,7 +575,7 @@ Add `FocusDraft bool` to the decision and derive it in the single
 Do not infer confirmation behavior from Lua function-name prefixes or maintain
 a second Lua policy table.
 
-- [ ] **Step 4: Write failing IO-order and failure tests**
+- [x] **Step 4: Write failing IO-order and failure tests**
 
 For `draftroute`, both production PTY streams, and the Neovim process fake,
 assert:
@@ -591,7 +591,7 @@ write --pane-id <draft> 13
 Inject focus failure and assert zero write actions plus reported error. Assert
 grow/shrink/review produce the existing four writes and no focus action.
 
-- [ ] **Step 5: Verify RED**
+- [x] **Step 5: Verify RED**
 
 ```bash
 go test ./cmd/internal/draftroute ./cmd/internal/termcmd ./cmd/internal/wrapcmd -run 'Focus|Global' -count=1
@@ -601,14 +601,14 @@ bash tests/workbench-route-nvim-test.sh
 
 Expected: ordering/failure assertions fail.
 
-- [ ] **Step 6: Implement focus-before-write in thin IO shells**
+- [x] **Step 6: Implement focus-before-write in thin IO shells**
 
 Pass the explicit policy into `draftroute.RouteLua`. In Lua, consume generated
 records `{ fn, focus }`; draft-local execution ignores the routing flag, while
 overlays focus the discovered pane before `send_to_draft`. Stop and report on
 focus failure.
 
-- [ ] **Step 7: Verify GREEN**
+- [x] **Step 7: Verify GREEN**
 
 Run the commands from Step 5 plus:
 
@@ -622,7 +622,7 @@ git diff --check
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add cmd/internal/workbenchshortcut cmd/internal/draftroute cmd/internal/termcmd cmd/internal/wrapcmd nvim tests workshop/issues/000117-global-hotkey-routing.md workshop/plans/000117-global-hotkey-routing-plan.md

@@ -2,16 +2,8 @@
 -- panes. Draft executes locally; overlays address the draft pane explicitly.
 local M = {}
 
-M.global_maps = {
-  ['<M-d>'] = 'PairConfirmDetach',
-  ['<M-x>'] = 'PairConfirmQuit',
-  ['<M-n>'] = 'PairConfirmRestart',
-  ['<C-M-n>'] = 'PairConfirmRestart',
-  ['<M-N>'] = 'PairConfirmAgentRestart',
-  ['<M-Up>'] = 'PairLayoutBigger',
-  ['<M-Down>'] = 'PairLayoutSmaller',
-  ['<M-c>'] = 'PairReviewToggle',
-}
+local here = debug.getinfo(1, 'S').source:sub(2):match('(.*/)') or './'
+M.global_maps = dofile(here .. 'workbench_actions.lua')
 
 local function pane_id(pane)
   local id = pane.id
@@ -36,14 +28,19 @@ function M.find_draft_pane(root)
   return nil
 end
 
-function M.draft_commands(id, fn)
+function M.draft_commands(id, fn, focus)
   id = tostring(id)
-  return {
+  local commands = {}
+  if focus then
+    table.insert(commands, { 'zellij', 'action', 'focus-pane-id', id })
+  end
+  vim.list_extend(commands, {
     { 'zellij', 'action', 'write', '--pane-id', id, '28' },
     { 'zellij', 'action', 'write', '--pane-id', id, '14' },
     { 'zellij', 'action', 'write-chars', '--pane-id', id, ':lua ' .. fn .. '()' },
     { 'zellij', 'action', 'write', '--pane-id', id, '13' },
-  }
+  })
+  return commands
 end
 
 function M.validate_cached_draft(raw, session, alive)
@@ -80,8 +77,8 @@ local function report(message)
   end)
 end
 
-local function send_to_draft(id, fn)
-  for _, command in ipairs(M.draft_commands(id, fn)) do
+local function send_to_draft(id, fn, focus)
+  for _, command in ipairs(M.draft_commands(id, fn, focus)) do
     vim.fn.system(command)
     if vim.v.shell_error ~= 0 then
       report('failed to route ' .. fn)
@@ -91,9 +88,9 @@ local function send_to_draft(id, fn)
   return true
 end
 
-function M.route(fn)
+function M.route(fn, focus)
   local id = cached_draft_pane()
-  if id then return send_to_draft(id, fn) end
+  if id then return send_to_draft(id, fn, focus) end
   local raw = vim.fn.system({
     'zellij', 'action', 'list-panes', '--json', '--command', '--state',
   })
@@ -107,23 +104,23 @@ function M.route(fn)
     report('draft pane not found')
     return false
   end
-  return send_to_draft(id, fn)
+  return send_to_draft(id, fn, focus)
 end
 
 function M.install_global_maps(is_draft)
-  for key, fn in pairs(M.global_maps) do
+  for key, binding in pairs(M.global_maps) do
     vim.keymap.set({ 'n', 'i' }, key, function()
       if is_draft then
-        local action = _G[fn]
+        local action = _G[binding.fn]
         if type(action) == 'function' then
           action()
         else
-          report(fn .. ' is unavailable')
+          report(binding.fn .. ' is unavailable')
         end
       else
-        M.route(fn)
+        M.route(binding.fn, binding.focus)
       end
-    end, { silent = true, desc = 'pair global: ' .. fn })
+    end, { silent = true, desc = 'pair global: ' .. binding.fn })
   end
 end
 

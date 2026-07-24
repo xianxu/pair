@@ -91,6 +91,30 @@ type ShortcutDecision struct {
 	TargetPaneID         string
 	RecordLastLeftPaneID string
 	DraftLuaFunction     string
+	FocusDraft           bool
+}
+
+type GlobalBinding struct {
+	Chord       Chord
+	Action      ShortcutAction
+	LuaFunction string
+	NvimKey     string
+	FocusDraft  bool
+}
+
+var globalBindings = []GlobalBinding{
+	{ChordAltD, ActionConfirmDetach, "PairConfirmDetach", "<M-d>", true},
+	{ChordAltX, ActionConfirmQuit, "PairConfirmQuit", "<M-x>", true},
+	{ChordAltN, ActionRestartPair, "PairConfirmRestart", "<M-n>", true},
+	{ChordCtrlAltN, ActionRestartPair, "PairConfirmRestart", "<C-M-n>", true},
+	{ChordAltShiftN, ActionRestartAgent, "PairConfirmAgentRestart", "<M-N>", true},
+	{ChordAltUp, ActionGrowDraft, "PairLayoutBigger", "<M-Up>", false},
+	{ChordAltDown, ActionShrinkDraft, "PairLayoutSmaller", "<M-Down>", false},
+	{ChordAltC, ActionToggleReview, "PairReviewToggle", "<M-c>", false},
+}
+
+func GlobalBindings() []GlobalBinding {
+	return append([]GlobalBinding(nil), globalBindings...)
 }
 
 func RoleForPane(p zellijpane.Pane) PaneRole {
@@ -113,11 +137,12 @@ func RoleForPane(p zellijpane.Pane) PaneRole {
 
 func Decide(in ShortcutInput) ShortcutDecision {
 	if in.Role == PaneRoleLeftAgent || in.Role == PaneRoleLeftDraft || in.Role == PaneRoleRightTerminal {
-		if action, fn, ok := globalDraftAction(in.Chord); ok {
+		if binding, ok := globalDraftAction(in.Chord); ok {
 			return ShortcutDecision{
 				Disposition:      DispositionHandle,
-				Action:           action,
-				DraftLuaFunction: fn,
+				Action:           binding.Action,
+				DraftLuaFunction: binding.LuaFunction,
+				FocusDraft:       binding.FocusDraft,
 			}
 		}
 	}
@@ -170,25 +195,13 @@ func Decide(in ShortcutInput) ShortcutDecision {
 	}
 }
 
-func globalDraftAction(chord Chord) (ShortcutAction, string, bool) {
-	switch chord {
-	case ChordAltD:
-		return ActionConfirmDetach, "PairConfirmDetach", true
-	case ChordAltX:
-		return ActionConfirmQuit, "PairConfirmQuit", true
-	case ChordAltN, ChordCtrlAltN:
-		return ActionRestartPair, "PairConfirmRestart", true
-	case ChordAltShiftN:
-		return ActionRestartAgent, "PairConfirmAgentRestart", true
-	case ChordAltUp:
-		return ActionGrowDraft, "PairLayoutBigger", true
-	case ChordAltDown:
-		return ActionShrinkDraft, "PairLayoutSmaller", true
-	case ChordAltC:
-		return ActionToggleReview, "PairReviewToggle", true
-	default:
-		return ActionNone, "", false
+func globalDraftAction(chord Chord) (GlobalBinding, bool) {
+	for _, binding := range globalBindings {
+		if binding.Chord == chord {
+			return binding, true
+		}
 	}
+	return GlobalBinding{}, false
 }
 
 func handle(action ShortcutAction) ShortcutDecision {

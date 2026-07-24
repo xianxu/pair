@@ -151,7 +151,7 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 		}
 	}
 	if decision.DraftLuaFunction != "" {
-		return draftroute.RouteLua(rt, decision.DraftLuaFunction)
+		return draftroute.RouteLua(rt, decision.DraftLuaFunction, decision.FocusDraft)
 	}
 	switch decision.Action {
 	case workbenchshortcut.ActionNewTab, workbenchshortcut.ActionCloseTab, workbenchshortcut.ActionRenameTab:

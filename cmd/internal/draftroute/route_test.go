@@ -84,17 +84,18 @@ func (f *fakeRuntime) RunZellijAction(args ...string) error {
 	return nil
 }
 
-func TestRouteLuaAddressesEveryWriteToDraft(t *testing.T) {
+func TestRouteLuaFocusesBeforeAddressingEveryWriteToDraft(t *testing.T) {
 	rt := &fakeRuntime{panes: []byte(`[
 		{"id":1,"is_focused":false,"is_plugin":false,"terminal_command":"pair wrap codex"},
 		{"id":2,"is_focused":false,"is_plugin":false,"terminal_command":"nvim -u /pair/nvim/init.lua /data/draft.md"},
 		{"id":4,"is_focused":true,"is_floating":true,"is_plugin":false,"terminal_command":"pair term"}
 	]`)}
 
-	if err := RouteLua(rt, "PairConfirmRestart"); err != nil {
+	if err := RouteLua(rt, "PairConfirmRestart", true); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{
+		"focus-pane-id 2",
 		"write --pane-id 2 28",
 		"write --pane-id 2 14",
 		"write-chars --pane-id 2 :lua PairConfirmRestart()",
@@ -108,7 +109,7 @@ func TestRouteLuaAddressesEveryWriteToDraft(t *testing.T) {
 func TestRouteLuaUsesValidatedCachedDraftWithoutListingPanes(t *testing.T) {
 	rt := &fakeRuntime{cached: "42"}
 
-	if err := RouteLua(rt, "PairConfirmRestart"); err != nil {
+	if err := RouteLua(rt, "PairConfirmRestart", false); err != nil {
 		t.Fatal(err)
 	}
 	if rt.listCalls != 0 {
@@ -119,9 +120,30 @@ func TestRouteLuaUsesValidatedCachedDraftWithoutListingPanes(t *testing.T) {
 	}
 }
 
+func TestRouteLuaFocusFailurePerformsNoWrites(t *testing.T) {
+	rt := &fakeRuntime{cached: "42", errAt: 1}
+	err := RouteLua(rt, "PairConfirmRestart", true)
+	if err == nil || !strings.Contains(err.Error(), "focus") {
+		t.Fatalf("error = %v, want focus failure", err)
+	}
+	if got := strings.Join(rt.ops, "\n"); got != "focus-pane-id 42" {
+		t.Fatalf("ops = %q, want focus only", got)
+	}
+}
+
+func TestRouteLuaNonConfirmationDoesNotFocus(t *testing.T) {
+	rt := &fakeRuntime{cached: "42"}
+	if err := RouteLua(rt, "PairLayoutBigger", false); err != nil {
+		t.Fatal(err)
+	}
+	if got := rt.ops[0]; got != "write --pane-id 42 28" {
+		t.Fatalf("first op = %q, want write without focus", got)
+	}
+}
+
 func TestRouteLuaReportsMissingDraft(t *testing.T) {
 	rt := &fakeRuntime{panes: []byte(`[{"id":4,"is_focused":true,"terminal_command":"pair term"}]`)}
-	err := RouteLua(rt, "PairConfirmRestart")
+	err := RouteLua(rt, "PairConfirmRestart", true)
 	if err == nil || !strings.Contains(err.Error(), "draft pane") {
 		t.Fatalf("error = %v, want missing draft pane", err)
 	}
@@ -135,7 +157,7 @@ func TestRouteLuaStopsAndReturnsActionFailure(t *testing.T) {
 		panes: []byte(`[{"id":2,"is_focused":false,"is_plugin":false,"terminal_command":"nvim -u /pair/nvim/init.lua /data/draft.md"}]`),
 		errAt: 2,
 	}
-	err := RouteLua(rt, "PairConfirmRestart")
+	err := RouteLua(rt, "PairConfirmRestart", false)
 	if err == nil || !strings.Contains(err.Error(), "action failed") {
 		t.Fatalf("error = %v, want action failure", err)
 	}

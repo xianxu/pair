@@ -1451,7 +1451,7 @@ func (p *proxy) executeWorkbenchDecision(decision workbenchshortcut.ShortcutDeci
 		if rt == nil {
 			rt = osDraftRouteRuntime{}
 		}
-		if err := draftroute.RouteLua(rt, decision.DraftLuaFunction); err != nil {
+		if err := draftroute.RouteLua(rt, decision.DraftLuaFunction, decision.FocusDraft); err != nil {
 			if p.shortcutErrorReporter != nil {
 				p.shortcutErrorReporter(err)
 			} else {
