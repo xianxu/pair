@@ -98,6 +98,11 @@ Select something with mouse on agent's pane, the selection is inserted at curren
 | **Alt+n** (or **Ctrl+Alt+n**) | any pane | Reload pair — kill the session and re-launch with the same tag, agent, args, AND agent session. Ctrl+Alt+n is the macOS-friendly alias — adding Ctrl defeats the Option+n dead-tilde composer on newer macOS / terminal combos that ignore the Option-as-Meta setting. Press Alt+n twice works as well. |
 | **Shift+Alt+N** | any pane | Restart only the supervised coding agent with the same agent and user args but a new conversation. Pair, Zellij, the draft, and the user terminal's local tabs remain alive. |
 
+“Any pane” includes Pair’s review, scrollback, and change-log Neovim overlays.
+These global chords are consumed by the focused Pair process, which addresses
+the draft pane directly; they do not change focus or type command text into the
+focused shell.
+
 ## Prompt history & queue
 
 The nvim pane is a virtual cursor over `[ ... -2 -1 ] * [ +1 +2 ... ]`.
