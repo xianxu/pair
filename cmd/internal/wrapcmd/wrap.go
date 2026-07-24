@@ -58,6 +58,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
+	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
 // ----- Tunables ---------------------------------------------------------------
@@ -323,6 +324,10 @@ type proxy struct {
 	// zellij mouse-scroll wedge; raw scrollback still keeps the original PTY
 	// bytes.
 	codexFilterKKP bool
+
+	// workbenchShortcutHandler is injected by tests. Production uses
+	// handleWorkbenchShortcut, which performs the thin zellij/sidecar IO shell.
+	workbenchShortcutHandler func(string) bool
 }
 
 type spanEntry struct {
@@ -1212,6 +1217,29 @@ var holdbackPatterns = [][]byte{
 	altBSKKP, altBSLegacy,
 }
 
+type workbenchShortcutPattern struct {
+	seq  []byte
+	name string
+}
+
+var workbenchShortcutPatterns = []workbenchShortcutPattern{
+	{[]byte("\x1bj"), "Alt+j"},
+	{[]byte("\x1bk"), "Alt+k"},
+	{[]byte("\x1bt"), "Alt+t"},
+	{[]byte("\x1bw"), "Alt+w"},
+	{[]byte("\x1br"), "Alt+r"},
+	{[]byte("\x1b/"), "Alt+/"},
+	{[]byte("\x1bC"), "Alt+Shift+C"},
+	{[]byte("\x1b[106;3u"), "Alt+j"},
+	{[]byte("\x1b[107;3u"), "Alt+k"},
+	{[]byte("\x1b[116;3u"), "Alt+t"},
+	{[]byte("\x1b[119;3u"), "Alt+w"},
+	{[]byte("\x1b[114;3u"), "Alt+r"},
+	{[]byte("\x1b[47;3u"), "Alt+/"},
+	{[]byte("\x1b[67;3u"), "Alt+Shift+C"},
+	{[]byte("\x1b[99;7u"), "Ctrl+Alt+c"},
+}
+
 // pendingFlushAfter is the timeout for held-back bytes that haven't
 // completed into a known marker. Real terminals dispatch chorded
 // keystrokes (Alt+Enter, KKP CSI sequences) in microseconds, so 30 ms
@@ -1347,8 +1375,28 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 				data = append(pending, data...)
 				pending = nil
 			}
-			outBytes, leftover, newInPaste := p.translateChunk(data, inPaste)
-			inPaste = newInPaste
+			if name, rest, ok := splitWorkbenchInput(data); ok {
+				if p.handleWorkbenchShortcutName(name) {
+					data = rest
+					if len(data) == 0 {
+						pending = nil
+						inPaste = false
+						disarmTimer()
+						continue
+					}
+				}
+			}
+			var outBytes []byte
+			var leftover []byte
+			var newInPaste bool
+			if p.hasReturnRemap() {
+				outBytes, leftover, newInPaste = p.translateChunk(data, inPaste)
+				inPaste = newInPaste
+			} else {
+				outBytes, leftover = p.passThroughChunk(data)
+				newInPaste = false
+				inPaste = false
+			}
 			pending = leftover
 			if len(outBytes) > 0 {
 				wn, werr := out.Write(outBytes)
@@ -1375,6 +1423,74 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 			flushPending()
 		}
 	}
+}
+
+func (p *proxy) hasReturnRemap() bool {
+	return p.sendKM.plainCR != nil || p.sendKM.altCR != nil || p.sendKM.altBS != nil
+}
+
+func (p *proxy) passThroughChunk(data []byte) ([]byte, []byte) {
+	for _, pat := range workbenchShortcutPatterns {
+		if isPrefixOf(data, pat.seq) && len(data) < len(pat.seq) {
+			return nil, append([]byte(nil), data...)
+		}
+	}
+	if len(data) == 1 && data[0] == 0x1b {
+		return nil, append([]byte(nil), data...)
+	}
+	return data, nil
+}
+
+func (p *proxy) handleWorkbenchShortcutName(name string) bool {
+	handler := p.workbenchShortcutHandler
+	if handler == nil {
+		handler = p.handleWorkbenchShortcut
+	}
+	return handler(name)
+}
+
+func splitWorkbenchInput(data []byte) (string, []byte, bool) {
+	for _, pat := range workbenchShortcutPatterns {
+		if startsWith(data, pat.seq) {
+			return pat.name, data[len(pat.seq):], true
+		}
+	}
+	return "", data, false
+}
+
+func (p *proxy) handleWorkbenchShortcut(name string) bool {
+	switch name {
+	case "Alt+j":
+		_ = runZellijAction("move-focus", "down")
+		return true
+	case "Alt+k":
+		store := workbenchshortcut.LastLeftPaneStore{DataDir: adapt.DataDir(), Tag: os.Getenv("PAIR_TAG")}
+		_ = store.Write(os.Getenv("ZELLIJ_PANE_ID"))
+		_ = runZellijAction("move-focus", "right")
+		return true
+	case "Alt+/":
+		_ = exec.Command("zellij", "run",
+			"--floating", "--close-on-exit", "--name", "scrollback",
+			"--width", "100%", "--height", "100%", "--x", "0", "--y", "0",
+			"--", "pair", "scrollback", "open").Run()
+		return true
+	case "Alt+Shift+C", "Ctrl+Alt+c":
+		_ = runZellijAction("move-focus", "down")
+		_ = runZellijAction("write", "28")
+		_ = runZellijAction("write", "14")
+		_ = runZellijAction("write-chars", ":lua PairConfirmCompact()")
+		_ = runZellijAction("write", "13")
+		return true
+	case "Alt+t", "Alt+w", "Alt+r":
+		return true
+	default:
+		return false
+	}
+}
+
+func runZellijAction(args ...string) error {
+	cmdArgs := append([]string{"action"}, args...)
+	return exec.Command("zellij", cmdArgs...).Run()
 }
 
 // checkOverlayOpen flips pickerActive when the current agent's output
@@ -2004,42 +2120,7 @@ argsDone:
 	go func() {
 		// stdin → master. EOF on stdin doesn't kill the proxy — the child
 		// may still be producing output. We just stop forwarding.
-		if p.sendKM.plainCR == nil && p.sendKM.altCR == nil {
-			// No remap configured. Pass-through, but log raw chunks
-			// when PAIR_WRAP_LOG is set — useful for probing what
-			// bytes a terminal sends for a given keystroke (e.g.
-			// figuring out a new agent's send/newline encoding).
-			if p.debugLogPath != "" {
-				buf := make([]byte, 4096)
-				for {
-					n, err := p.stdin.Read(buf)
-					if n > 0 {
-						p.debug("STDIN", fmt.Sprintf("%q", buf[:n]))
-						p.traceWrap("stdin-read", map[string]any{
-							"raw_len":       n,
-							"raw_sha256_12": shortSHA256(buf[:n]),
-							"mode":          "passthrough",
-						})
-						wn, werr := ptmx.Write(buf[:n])
-						p.traceWrap("stdin-write-pty", map[string]any{
-							"write_len": wn,
-							"error":     errorString(werr),
-							"mode":      "passthrough",
-						})
-						if werr != nil {
-							break
-						}
-					}
-					if err != nil {
-						break
-					}
-				}
-			} else {
-				_, _ = io.Copy(ptmx, p.stdin)
-			}
-		} else {
-			p.translateStdin()
-		}
+		p.translateStdin()
 		close(stdinDone)
 	}()
 

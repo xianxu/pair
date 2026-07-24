@@ -2,7 +2,10 @@ package wrapcmd
 
 import (
 	"bytes"
+	"io"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestTranslateChunk(t *testing.T) {
@@ -185,5 +188,53 @@ func TestTranslateChunk(t *testing.T) {
 				t.Errorf("paste: got %v, want %v", gotPaste, tc.wantPaste)
 			}
 		})
+	}
+}
+
+func TestTranslateStdinHandlesWorkbenchShortcutWithoutReturnRemap(t *testing.T) {
+	p := &proxy{}
+	var handled []string
+	p.workbenchShortcutHandler = func(chord string) bool {
+		handled = append(handled, chord)
+		return true
+	}
+	var out bytes.Buffer
+
+	p.translateStdinFrom(strings.NewReader("\x1bkhello\r"), &out, time.Millisecond)
+
+	if got := strings.Join(handled, ","); got != "Alt+k" {
+		t.Fatalf("handled = %q, want Alt+k", got)
+	}
+	if got := out.String(); got != "hello\r" {
+		t.Fatalf("out = %q, want pass-through hello CR", got)
+	}
+}
+
+func TestTranslateStdinHandlesSplitWorkbenchShortcut(t *testing.T) {
+	p := &proxy{}
+	var handled []string
+	p.workbenchShortcutHandler = func(chord string) bool {
+		handled = append(handled, chord)
+		return true
+	}
+	reader, writer := io.Pipe()
+	var out bytes.Buffer
+	done := make(chan struct{})
+	go func() {
+		p.translateStdinFrom(reader, &out, 50*time.Millisecond)
+		close(done)
+	}()
+
+	_, _ = writer.Write([]byte("\x1b"))
+	time.Sleep(5 * time.Millisecond)
+	_, _ = writer.Write([]byte("j"))
+	_ = writer.Close()
+	<-done
+
+	if got := strings.Join(handled, ","); got != "Alt+j" {
+		t.Fatalf("handled = %q, want Alt+j", got)
+	}
+	if got := out.String(); got != "" {
+		t.Fatalf("out = %q, want empty", got)
 	}
 }

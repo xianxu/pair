@@ -110,11 +110,11 @@ total: 4.53
 
 ## Plan
 
-- [ ] Inspect the existing zellij layout/config ownership and document the
+- [x] Inspect the existing zellij layout/config ownership and document the
       current agent/draft assumptions.
-- [ ] Design the three-panel geometry and focus/keybinding behavior.
-- [ ] Update the zellij layout/config and any pane metadata assumptions.
-- [ ] Add or update tests/checks for the layout/config assets.
+- [x] Design the three-panel geometry and focus/keybinding behavior.
+- [x] Update the zellij layout/config and any pane metadata assumptions.
+- [x] Add or update tests/checks for the layout/config assets.
 - [ ] Smoke a live Pair session: shell in terminal panel, `nvim` from terminal,
       normal agent/draft send, and right-terminal zellij tab helpers.
 
@@ -136,3 +136,31 @@ total: 4.53
   locked-normal zellij config. Resolved by specifying last-left-pane return
   semantics for `Alt+k` and narrowing the right terminal contract to the
   explicit Pair tab helpers.
+
+### 2026-07-24
+
+- Implemented the three-pane workbench shape: zellij layout now keeps
+  agent/draft as the left stack and starts a right-side `pair term` user
+  terminal. Swap layouts preserve all three panes while resizing only the draft
+  rung.
+- Moved pane-local shortcuts out of global zellij KDL. `pair wrap` owns
+  agent-pane `Alt+j`/`Alt+k`/`Alt+/`/compaction and swallows right-tab helpers;
+  `nvim/init.lua` owns the draft equivalents and records the last left pane;
+  `pair term` owns right-terminal `Alt+t`/`Alt+w`/`Alt+r` and right-to-left
+  `Alt+k` return. `nvim/review.lua` keeps pane-local `Alt+r` reject.
+- Added pure workbench shortcut decisions and sidecar helpers in
+  `cmd/internal/workbenchshortcut`, the right-terminal wrapper in
+  `cmd/internal/termcmd`, wrapper regression coverage for no-remap and split
+  escape chunks, and `tests/term-pane-shortcuts-test.sh` for fake-zellij pane
+  gating.
+- Verification passed: focused Go packages
+  (`workbenchshortcut`, `termcmd`, `wrapcmd`, `dispatcher`, `pair-go`,
+  `zellijpane`), `bash tests/term-pane-shortcuts-test.sh`,
+  `bash tests/copy-on-select-test.sh`, `bash tests/review-toggle-test.sh`,
+  `zellij --config-dir zellij setup --check`,
+  `zellij setup --dump-layout zellij/layouts/main.kdl`,
+  `make runtimebundle-drift-check`, `make test-lua`, `git diff --check`, and
+  `go test ./... -count=1`.
+- Live nested Pair smoke is still unchecked in this noninteractive run; the
+  automated fake-zellij test covers the shortcut decisions and zellij asset
+  validation covers the static layout/config.

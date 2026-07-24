@@ -18,6 +18,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
 	"github.com/xianxu/pair/cmd/internal/scribecmd"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
+	"github.com/xianxu/pair/cmd/internal/termcmd"
 	"github.com/xianxu/pair/cmd/internal/titlepoller"
 	"github.com/xianxu/pair/cmd/internal/wrapcmd"
 )
@@ -82,6 +83,8 @@ func runStreamingSubcommand(name string, rest []string, stdin io.Reader, stdout,
 	switch name {
 	case "wrap":
 		return wrapcmd.Run(rest, stdin, stdout, stderr)
+	case "term":
+		return termcmd.Run(rest, stdin, stdout, stderr)
 	case "scribe":
 		return scribecmd.Run(rest, stdin, stdout, stderr)
 	case "changelog render":

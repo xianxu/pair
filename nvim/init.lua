@@ -3534,6 +3534,41 @@ local function pair_scrollback_prev_prompt()
   })
 end
 
+function _G.PairScrollbackOpen()
+  vim.fn.system({
+    'zellij', 'run', '--floating', '--close-on-exit', '--name', 'scrollback',
+    '--width', '100%', '--height', '100%', '--x', '0', '--y', '0',
+    '--', 'pair', 'scrollback', 'open',
+  })
+end
+
+function _G.PairLastLeftPaneFile()
+  return pair_data_dir() .. '/last-left-pane-' .. (vim.env.PAIR_TAG or 'pair')
+end
+
+function _G.PairRecordLeftPane()
+  local pane_id = vim.env.ZELLIJ_PANE_ID
+  if not pane_id or pane_id == '' then return end
+  local f = io.open(_G.PairLastLeftPaneFile(), 'w')
+  if f then
+    f:write(pane_id .. '\n')
+    f:close()
+  end
+end
+
+function _G.PairFocusAgent()
+  if has_ui() then
+    vim.fn.system({ 'zellij', 'action', 'move-focus', 'up' })
+  end
+end
+
+function _G.PairFocusTerminal()
+  _G.PairRecordLeftPane()
+  if has_ui() then
+    vim.fn.system({ 'zellij', 'action', 'move-focus', 'right' })
+  end
+end
+
 -- ---------------------------------------------------------------------------
 -- keymaps
 -- ---------------------------------------------------------------------------
@@ -3546,6 +3581,28 @@ vim.keymap.set({ 'n', 'i' }, '<S-M-CR>', function() send_and_clear(true) end,
 
 vim.keymap.set({ 'n', 'i' }, '<M-b>', pair_scrollback_prev_prompt,
   { silent = true, desc = 'pair: open scrollback on previous prompt (Alt+/ then Alt+b)' })
+
+vim.keymap.set({ 'n', 'i' }, '<M-/>', function() _G.PairScrollbackOpen() end,
+  { silent = true, desc = 'pair: open scrollback viewer' })
+
+vim.keymap.set({ 'n', 'i' }, '<M-j>', function() _G.PairFocusAgent() end,
+  { silent = true, desc = 'pair: focus agent pane' })
+
+vim.keymap.set({ 'n', 'i' }, '<M-k>', function() _G.PairFocusTerminal() end,
+  { silent = true, desc = 'pair: focus terminal pane' })
+
+vim.keymap.set({ 'n', 'i' }, '<M-C>', function() _G.PairConfirmCompact() end,
+  { silent = true, desc = 'pair: compact session' })
+
+vim.keymap.set({ 'n', 'i' }, '<C-M-c>', function() _G.PairConfirmCompact() end,
+  { silent = true, desc = 'pair: compact session' })
+
+vim.keymap.set({ 'n', 'i' }, '<M-t>', function() end,
+  { silent = true, desc = 'pair: right-terminal tab helper disabled in draft' })
+vim.keymap.set({ 'n', 'i' }, '<M-w>', function() end,
+  { silent = true, desc = 'pair: right-terminal tab helper disabled in draft' })
+vim.keymap.set({ 'n', 'i' }, '<M-r>', function() end,
+  { silent = true, desc = 'pair: right-terminal tab helper disabled in draft' })
 
 vim.keymap.set({ 'n', 'i' }, '<M-i>', attach_image,
   { silent = true, desc = 'pair: attach clipboard image (Ctrl+V to agent + ref)' })

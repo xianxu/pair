@@ -49,6 +49,7 @@ func Families() []CommandFamily {
 		{Name: "context", Summary: "agent pane context meter", Status: "implemented"},
 		{Name: "slug", Summary: "session orientation slug generation", Status: "implemented"},
 		{Name: "wrap", Summary: "PTY proxy around a TUI agent", Status: "implemented", Streaming: true},
+		{Name: "term", Summary: "right workbench terminal with pane-local shortcuts", Status: "implemented", Streaming: true},
 		{Name: "scribe", Summary: "PTY logging wrapper", Status: "implemented", Streaming: true},
 		{Name: "session-watch", Summary: "async codex/agy session-id discovery", Status: "implemented", Streaming: true},
 		{Name: "title", Summary: "agent pane title poller", Status: "implemented", Streaming: true},

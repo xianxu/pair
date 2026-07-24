@@ -13,7 +13,7 @@ func TestDispatchNamesDeriveFromImplementedStatus(t *testing.T) {
 	// keys off DispatchNames(), so if one of these were accidentally left
 	// `planned`, `pair changelog` would fall through to the launcher (start a
 	// session) with no other test catching it.
-	for _, want := range []string{"context", "scrollback", "wrap", "slug", "changelog", "continuation", "session-watch", "scribe", "review", "clip", "title"} {
+	for _, want := range []string{"context", "scrollback", "wrap", "term", "slug", "changelog", "continuation", "session-watch", "scribe", "review", "clip", "title"} {
 		if !containsStr(names, want) {
 			t.Fatalf("DispatchNames() = %v, missing implemented %q", names, want)
 		}
@@ -28,7 +28,7 @@ func TestDispatchNamesDeriveFromImplementedStatus(t *testing.T) {
 }
 
 func TestStreamingFlags(t *testing.T) {
-	for _, s := range []string{"wrap", "scribe", "changelog render", "continuation", "session-watch", "title", "clip copy-on-select"} {
+	for _, s := range []string{"wrap", "term", "scribe", "changelog render", "continuation", "session-watch", "title", "clip copy-on-select"} {
 		if !IsStreaming(s) {
 			t.Errorf("IsStreaming(%q) = false, want true (stdin/live-stderr/long-running)", s)
 		}
@@ -163,11 +163,11 @@ func TestDispatchVersionIsDevelopmentSkeletonMetadata(t *testing.T) {
 	}
 }
 
-// wrap is an implemented STREAMING subcommand: the buffered Dispatch path must
-// refuse it (real stdio is required — it's routed via cmd/pair-go's streaming
+// wrap/term are implemented STREAMING subcommands: the buffered Dispatch path must
+// refuse them (real stdio is required — they're routed via cmd/pair-go's streaming
 // seam, not Dispatch). scribe behaves the same way.
 func TestDispatchStreamingCommandRefusesBufferedPath(t *testing.T) {
-	for _, name := range []string{"wrap", "scribe"} {
+	for _, name := range []string{"wrap", "term", "scribe"} {
 		res := Dispatch([]string{name})
 		if res.ExitCode != 2 {
 			t.Fatalf("%s: ExitCode = %d, want 2", name, res.ExitCode)
