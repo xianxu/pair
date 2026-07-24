@@ -5,7 +5,7 @@ deps: [117]
 github_issue:
 created: 2026-07-24
 updated: 2026-07-24
-estimate_hours:
+estimate_hours: 2.48
 ---
 
 # Rename terminal tabs in the pane frame
@@ -75,6 +75,25 @@ PTY multiplexer tabs inside one Zellij floating pane.
   that rename-mode bytes never reach the child PTY.
 - Existing tab create/close/switch behavior and pane-title inventory remain
   unchanged outside rename mode.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. The calibration source is marked stale, so
+the estimate is provisional.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 0.90
+item: issue-spec design=0.20 impl=0.08
+item: tui-screen design=0.40 impl=0.40
+item: smaller-go-module design=0.06 impl=0.16
+item: api-integration design=0.20 impl=0.20
+item: ux-iteration design=0.16 impl=0.08
+item: atlas-docs design=0.05 impl=0.05
+item: milestone-review design=0.08 impl=0.12
+total: 2.48
+```
 
 ## Plan
 

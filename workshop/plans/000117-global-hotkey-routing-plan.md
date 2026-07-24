@@ -44,6 +44,15 @@ validated locator contract (`ARCH-DRY`), separates validation from IO
 (`ARCH-PURE`), and removes the latency from every consumer rather than only the
 reported terminal path (`ARCH-PURPOSE`).
 
+### 2026-07-24 — Focus draft before confirmations
+
+The operator confirmed that pane-id delivery alone is insufficient for a modal:
+the draft must also become focused so the prompt is visible and answerable.
+Extend the shared decision with a focus policy and make focus success an atomic
+precondition for confirmation writes. Grow/shrink/review remain
+focus-preserving. This applies across both Go PTY consumers and every Neovim
+overlay (`ARCH-DRY`, `ARCH-PURPOSE`).
+
 ## Core concepts
 
 ### Pure entities
@@ -54,6 +63,7 @@ reported terminal path (`ARCH-PURPOSE`).
 | `ShortcutAction` global variants | `cmd/internal/workbenchshortcut/shortcut.go` | modified |
 | `DraftLuaTarget` | `cmd/internal/workbenchshortcut/shortcut.go` | new |
 | `ShortcutDecision` | `cmd/internal/workbenchshortcut/shortcut.go` | modified |
+| `GlobalBinding` | `cmd/internal/workbenchshortcut/shortcut.go` | new |
 | `OverlayRoutePlan` | `nvim/workbench_route.lua` | new |
 
 - **`Chord` global variants** — the decoded identities for Alt+d, Alt+x,
@@ -91,6 +101,15 @@ reported terminal path (`ARCH-PURPOSE`).
     route globally.
   - **Future extensions:** Additional destinations can be represented without
     embedding Zellij calls in the decision core.
+
+- **`GlobalBinding`** — the authoritative Go record for chord, action, Lua
+  target, and confirmation-focus policy; it renders the committed Lua consumer
+  table.
+  - **Relationships:** 1:N registry to generated Neovim mappings.
+  - **DRY rationale:** Go and Lua cannot hand-maintain independent focus policy;
+    a structural generation/parity test makes drift fail CI (`ARCH-DRY`).
+  - **Future extensions:** Additional cross-language routing fields widen this
+    record and its renderer.
 
 - **`OverlayRoutePlan`** — pure Lua functions that select the draft from
   `list-panes --json --command --state` data and build the addressed action
@@ -175,6 +194,11 @@ reported terminal path (`ARCH-PURPOSE`).
   three overlay consumers.
 - Task 5: `atlas-docs`; `issue-spec` covers the durable design/spec work and
   `milestone-review` represents the single close review boundary.
+- Task 6 revision: one added `smaller-go-module` row covers `FocusDraft` plus
+  generated Lua parity; one `lua-neovim` row covers overlay consumption; one
+  `api-integration` row covers atomic focus/write failure handling in both
+  injected IO shells. These rows were added to the issue estimate when the
+  post-smoke scope was approved.
 
 ## Chunk 1: Pure registry and Go production routes
 
@@ -507,4 +531,100 @@ layout, and review actions. Record operator verification before landing.
 ```bash
 git add README.md atlas/architecture.md workshop/issues/000117-global-hotkey-routing.md
 git commit -m "#117: document deterministic global hotkeys"
+```
+
+## Chunk 3: Confirmation visibility revision
+
+### Task 6: Focus draft atomically before confirmation delivery
+
+**Files:**
+- Modify: `cmd/internal/workbenchshortcut/shortcut.go`
+- Modify: `cmd/internal/workbenchshortcut/shortcut_test.go`
+- Create: `nvim/workbench_actions.lua` (generated)
+- Modify: `cmd/internal/draftroute/route.go`
+- Modify: `cmd/internal/draftroute/route_test.go`
+- Modify: `cmd/internal/termcmd/run.go`
+- Modify: `cmd/internal/termcmd/run_test.go`
+- Modify: `cmd/internal/wrapcmd/wrap.go`
+- Modify: `cmd/internal/wrapcmd/translate_test.go`
+- Modify: `nvim/workbench_route.lua`
+- Modify: `nvim/workbench_route_test.lua`
+- Modify: `tests/workbench-route-nvim-test.sh`
+
+- [ ] **Step 1: Write failing pure-policy tests**
+
+Assert `FocusDraft=true` for detach, quit, pair restart aliases, and agent
+restart; assert false for grow, shrink, and review. Keep the function target
+mapping unchanged. Add a renderer/parity assertion: the committed
+`nvim/workbench_actions.lua` must exactly equal the Lua serialization of the
+authoritative Go `GlobalBinding` registry.
+
+- [ ] **Step 2: Verify RED**
+
+```bash
+go test ./cmd/internal/workbenchshortcut -run TestGlobalDecisionMatrix -count=1
+```
+
+Expected: failure because `ShortcutDecision` has no focus policy.
+
+- [ ] **Step 3: Add the minimal shared policy**
+
+Add `FocusDraft bool` to the decision and derive it in the single
+`GlobalBinding` registry. Add a deterministic Lua renderer and generate
+`nvim/workbench_actions.lua`; `workbench_route.lua` loads that generated table.
+Do not infer confirmation behavior from Lua function-name prefixes or maintain
+a second Lua policy table.
+
+- [ ] **Step 4: Write failing IO-order and failure tests**
+
+For `draftroute`, both production PTY streams, and the Neovim process fake,
+assert:
+
+```text
+focus-pane-id <draft>
+write --pane-id <draft> 28
+write --pane-id <draft> 14
+write-chars --pane-id <draft> :lua PairConfirm…()
+write --pane-id <draft> 13
+```
+
+Inject focus failure and assert zero write actions plus reported error. Assert
+grow/shrink/review produce the existing four writes and no focus action.
+
+- [ ] **Step 5: Verify RED**
+
+```bash
+go test ./cmd/internal/draftroute ./cmd/internal/termcmd ./cmd/internal/wrapcmd -run 'Focus|Global' -count=1
+nvim -l nvim/workbench_route_test.lua
+bash tests/workbench-route-nvim-test.sh
+```
+
+Expected: ordering/failure assertions fail.
+
+- [ ] **Step 6: Implement focus-before-write in thin IO shells**
+
+Pass the explicit policy into `draftroute.RouteLua`. In Lua, consume generated
+records `{ fn, focus }`; draft-local execution ignores the routing flag, while
+overlays focus the discovered pane before `send_to_draft`. Stop and report on
+focus failure.
+
+- [ ] **Step 7: Verify GREEN**
+
+Run the commands from Step 5 plus:
+
+```bash
+go test ./... -count=1
+make test-lua
+bash tests/term-pane-shortcuts-test.sh
+bash tests/review-toggle-test.sh
+git diff --check
+```
+
+Expected: PASS.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add cmd/internal/workbenchshortcut cmd/internal/draftroute cmd/internal/termcmd cmd/internal/wrapcmd nvim tests workshop/issues/000117-global-hotkey-routing.md workshop/plans/000117-global-hotkey-routing-plan.md
+git commit -m "#117: focus draft before global confirmations"
 ```

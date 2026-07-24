@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-07-24
 updated: 2026-07-24
-estimate_hours: 4.34
+estimate_hours: 4.98
 started: 2026-07-24T13:52:38-07:00
 ---
 
@@ -121,7 +121,10 @@ item: api-integration design=0.40 impl=0.40
 item: tui-screen design=0.40 impl=0.40
 item: atlas-docs design=0.05 impl=0.05
 item: milestone-review design=0.08 impl=0.12
-total: 4.34
+item: smaller-go-module design=0.03 impl=0.08
+item: lua-neovim design=0.10 impl=0.20
+item: api-integration design=0.10 impl=0.10
+total: 4.98
 ```
 
 ## Plan
@@ -231,3 +234,11 @@ Done additionally requires production-path tests for both Go consumers and
 every Pair-owned Neovim overlay asserting exact focus-before-write ordering,
 zero writes after focus failure, and no `focus-pane-id` action for grow,
 shrink, or review toggle.
+
+The Go `GlobalBinding` registry is authoritative for the focus policy. A
+generated `nvim/workbench_actions.lua` table and structural parity test prevent
+the Neovim consumer from becoming a second hand-maintained registry.
+
+The added cross-language registry, Lua consumer, and atomic focus IO work add
+0.23 design and 0.38 implementation hours. Under the existing v3.1 formula the
+estimate changes from 4.34 to 4.98 hours.
