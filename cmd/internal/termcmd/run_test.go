@@ -3,7 +3,6 @@ package termcmd
 import (
 	"bytes"
 	"io"
-	"os"
 	"strings"
 	"testing"
 )
@@ -83,44 +82,52 @@ func TestRunTestShortcutRecordsLeftPane(t *testing.T) {
 }
 
 func TestPumpStdinDecodesSplitAltChord(t *testing.T) {
-	panes := `[
-		{"id":1,"is_focused":false,"is_floating":false,"is_plugin":false,"title":"codex","terminal_command":"pair wrap codex"},
-		{"id":2,"is_focused":false,"is_floating":false,"is_plugin":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
-		{"id":3,"is_focused":true,"is_floating":false,"is_plugin":false,"title":"terminal","terminal_command":"pair term"}
-	]`
-	rt := &fakeRuntime{panesJSON: panes}
+	rt := &fakeRuntime{}
 	stdin := splitReader{chunks: [][]byte{{0x1b}, {'t'}}}
-	readEnd, writeEnd, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer readEnd.Close()
-	defer writeEnd.Close()
+	mux := &fakeMux{}
 
-	pumpStdin(&stdin, writeEnd, rt, &bytes.Buffer{})
+	pumpStdin(&stdin, mux, rt, &bytes.Buffer{})
 
-	if len(rt.ops) != 0 {
-		t.Fatalf("ops = %v, want split Alt+t to pass through to inner zellij", rt.ops)
+	if strings.Join(mux.ops, ",") != "new-tab" {
+		t.Fatalf("mux ops = %v, want new-tab", mux.ops)
 	}
 }
 
-func TestInnerZellijCommand(t *testing.T) {
-	name, args := innerZellijCommand("/pair", "work")
-	if name != "sh" {
-		t.Fatalf("name = %q, want sh", name)
+func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
+	tests := []struct {
+		name   string
+		chunks [][]byte
+		want   string
+	}{
+		{name: "new tab", chunks: [][]byte{{0x1b, 't'}}, want: "new-tab"},
+		{name: "close tab", chunks: [][]byte{{0x1b, 'w'}}, want: "close-tab"},
+		{name: "rename tab", chunks: [][]byte{{0x1b, 'r'}, []byte("work\r")}, want: "rename:work"},
+		{name: "plain bytes", chunks: [][]byte{[]byte("ls\n")}, want: "write:ls\n"},
 	}
-	got := strings.Join(args, "\x00")
-	for _, want := range []string{
-		"unset ZELLIJ ZELLIJ_SESSION_NAME",
-		`zellij --config-dir "$cfg" attach "$session"`,
-		`zellij --config-dir "$cfg" --layout "$layout" --session "$session"`,
-		"/pair/zellij/terminal",
-		"/pair/zellij/terminal/layouts/main.kdl",
-		"pair-work-terminal-v2",
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("inner command missing %q in %#v", want, args)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rt := &fakeRuntime{}
+			mux := &fakeMux{}
+			var stdout bytes.Buffer
+			pumpStdin(&splitReader{chunks: tt.chunks}, mux, rt, &stdout)
+			if strings.Join(mux.ops, ",") != tt.want {
+				t.Fatalf("mux ops = %q, want %q", strings.Join(mux.ops, ","), tt.want)
+			}
+		})
+	}
+}
+
+func TestTerminalMuxPaneTitleShowsTabs(t *testing.T) {
+	mux := &terminalMux{
+		tabs: []*terminalTab{
+			{id: 1, name: "terminal 1"},
+			{id: 2, name: "work"},
+			{id: 3, name: "terminal 3"},
+		},
+		active: 1,
+	}
+	if got := mux.paneTitleLocked(); got != "terminal 1 [work] terminal 3" {
+		t.Fatalf("pane title = %q", got)
 	}
 }
 
@@ -152,6 +159,27 @@ func (f *fakeRuntime) ShellCommand() (string, []string) {
 	return "/bin/sh", []string{"-i"}
 }
 
+type fakeMux struct {
+	ops []string
+}
+
+func (f *fakeMux) writeActive(data []byte) {
+	f.ops = append(f.ops, "write:"+string(data))
+}
+
+func (f *fakeMux) newTab() error {
+	f.ops = append(f.ops, "new-tab")
+	return nil
+}
+
+func (f *fakeMux) closeActive() {
+	f.ops = append(f.ops, "close-tab")
+}
+
+func (f *fakeMux) renameActive(name string) {
+	f.ops = append(f.ops, "rename:"+name)
+}
+
 type splitReader struct {
 	chunks [][]byte
 }
@@ -161,7 +189,11 @@ func (r *splitReader) Read(p []byte) (int, error) {
 		return 0, io.EOF
 	}
 	chunk := r.chunks[0]
-	r.chunks = r.chunks[1:]
-	copy(p, chunk)
-	return len(chunk), nil
+	n := copy(p, chunk)
+	if n == len(chunk) {
+		r.chunks = r.chunks[1:]
+	} else {
+		r.chunks[0] = chunk[n:]
+	}
+	return n, nil
 }

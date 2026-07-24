@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/creack/pty"
@@ -25,8 +26,6 @@ type Runtime interface {
 	RunZellijAction(args ...string) error
 	ShellCommand() (string, []string)
 }
-
-const innerTerminalSessionSuffix = "-terminal-v2"
 
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return RunWithRuntime(args, stdin, stdout, stderr, OSRuntime{})
@@ -139,6 +138,8 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 		}
 	}
 	switch decision.Action {
+	case workbenchshortcut.ActionNewTab, workbenchshortcut.ActionCloseTab, workbenchshortcut.ActionRenameTab:
+		return nil
 	case workbenchshortcut.ActionFocusPane:
 		if decision.TargetPaneID == "" {
 			return nil
@@ -156,15 +157,6 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 
 func runShell(stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
 	name, args := rt.ShellCommand()
-	cmd := exec.Command(name, args...)
-	cmd.Env = os.Environ()
-	ptmx, err := pty.Start(cmd)
-	if err != nil {
-		fmt.Fprintf(stderr, "term: pty.Start: %v\n", err)
-		return 1
-	}
-	defer func() { _ = ptmx.Close() }()
-
 	stdinFile, _ := stdin.(*os.File)
 	var oldState *term.State
 	if stdinFile != nil {
@@ -175,36 +167,44 @@ func runShell(stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
 		}
 		oldState = s
 		defer func() { _ = term.Restore(int(stdinFile.Fd()), oldState) }()
+	}
 
+	mux := newTerminalMux(name, args, stdout, stderr, rt)
+	if err := mux.newTab(); err != nil {
+		fmt.Fprintf(stderr, "term: %v\n", err)
+		return 1
+	}
+	defer mux.closeAll()
+
+	if stdinFile != nil {
 		winch := make(chan os.Signal, 1)
 		signal.Notify(winch, syscall.SIGWINCH)
 		defer signal.Stop(winch)
 		go func() {
 			for range winch {
-				_ = pty.InheritSize(stdinFile, ptmx)
+				mux.inheritSize(stdinFile)
 			}
 		}()
 		winch <- syscall.SIGWINCH
 	}
 
-	go pumpStdin(stdin, ptmx, rt, stdout)
-	_, _ = io.Copy(stdout, ptmx)
+	go pumpStdin(stdin, mux, rt, stdout)
+	mux.copyActiveOutput()
 
 	if stdinFile != nil && oldState != nil {
 		_ = term.Restore(int(stdinFile.Fd()), oldState)
 	}
-	werr := cmd.Wait()
-	if exitErr, ok := werr.(*exec.ExitError); ok {
-		return exitErr.ExitCode()
-	}
-	if werr != nil {
-		fmt.Fprintf(stderr, "term: cmd.Wait: %v\n", werr)
-		return 1
-	}
 	return 0
 }
 
-func pumpStdin(stdin io.Reader, ptmx *os.File, rt Runtime, stdout io.Writer) {
+type ptyWriter interface {
+	writeActive([]byte)
+	newTab() error
+	closeActive()
+	renameActive(string)
+}
+
+func pumpStdin(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Writer) {
 	buf := make([]byte, 4096)
 	var held []byte
 	for {
@@ -215,21 +215,287 @@ func pumpStdin(stdin io.Reader, ptmx *os.File, rt Runtime, stdout io.Writer) {
 			if len(data) == 1 && data[0] == 0x1b {
 				held = append(held, data...)
 			} else if chord, ok := workbenchshortcut.DecodeChord(data); ok {
+				if handleTerminalChord(chord, mux, stdin, stdout) {
+					continue
+				}
 				_ = handleChord(chord, rt, stdin, stdout)
 			} else {
-				_, _ = ptmx.Write(data)
+				mux.writeActive(data)
 			}
 		}
 		if err != nil {
 			if len(held) > 0 {
-				_, _ = ptmx.Write(held)
+				mux.writeActive(held)
 			}
 			return
 		}
 	}
 }
 
+func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, stdin io.Reader, stdout io.Writer) bool {
+	switch chord {
+	case workbenchshortcut.ChordAltT:
+		_ = mux.newTab()
+		return true
+	case workbenchshortcut.ChordAltW:
+		mux.closeActive()
+		return true
+	case workbenchshortcut.ChordAltR:
+		if name := readRawPrompt(stdin, stdout, "tab name: "); strings.TrimSpace(name) != "" {
+			mux.renameActive(strings.TrimSpace(name))
+		}
+		return true
+	default:
+		return false
+	}
+}
+
+func readRawPrompt(stdin io.Reader, stdout io.Writer, prompt string) string {
+	_, _ = io.WriteString(stdout, "\r\n"+prompt)
+	var b strings.Builder
+	buf := make([]byte, 1)
+	for {
+		n, err := stdin.Read(buf)
+		if n > 0 {
+			c := buf[0]
+			switch c {
+			case '\r', '\n':
+				_, _ = io.WriteString(stdout, "\r\n")
+				return b.String()
+			case 0x7f, '\b':
+				s := b.String()
+				if len(s) > 0 {
+					b.Reset()
+					b.WriteString(s[:len(s)-1])
+					_, _ = io.WriteString(stdout, "\b \b")
+				}
+			default:
+				b.WriteByte(c)
+				_, _ = stdout.Write(buf[:1])
+			}
+		}
+		if err != nil {
+			return b.String()
+		}
+	}
+}
+
 type OSRuntime struct{}
+
+type terminalTab struct {
+	id   int
+	name string
+	cmd  *exec.Cmd
+	pty  *os.File
+}
+
+type ptyChunk struct {
+	id   int
+	data []byte
+	err  error
+}
+
+type terminalMux struct {
+	mu        sync.Mutex
+	shellName string
+	shellArgs []string
+	stdout    io.Writer
+	stderr    io.Writer
+	rt        Runtime
+	tabs      []*terminalTab
+	active    int
+	nextID    int
+	output    chan ptyChunk
+	done      chan struct{}
+}
+
+func newTerminalMux(shellName string, shellArgs []string, stdout, stderr io.Writer, rt Runtime) *terminalMux {
+	return &terminalMux{
+		shellName: shellName,
+		shellArgs: shellArgs,
+		stdout:    stdout,
+		stderr:    stderr,
+		rt:        rt,
+		active:    -1,
+		output:    make(chan ptyChunk, 64),
+		done:      make(chan struct{}),
+	}
+}
+
+func (m *terminalMux) newTab() error {
+	m.mu.Lock()
+	m.nextID++
+	id := m.nextID
+	name := fmt.Sprintf("terminal %d", id)
+	m.mu.Unlock()
+
+	cmd := exec.Command(m.shellName, m.shellArgs...)
+	cmd.Env = os.Environ()
+	ptmx, err := pty.Start(cmd)
+	if err != nil {
+		return fmt.Errorf("pty.Start: %w", err)
+	}
+	tab := &terminalTab{id: id, name: name, cmd: cmd, pty: ptmx}
+
+	m.mu.Lock()
+	m.tabs = append(m.tabs, tab)
+	m.active = len(m.tabs) - 1
+	m.mu.Unlock()
+	m.renamePane()
+
+	go m.readPTY(tab)
+	return nil
+}
+
+func (m *terminalMux) readPTY(tab *terminalTab) {
+	buf := make([]byte, 4096)
+	for {
+		n, err := tab.pty.Read(buf)
+		if n > 0 {
+			chunk := make([]byte, n)
+			copy(chunk, buf[:n])
+			m.output <- ptyChunk{id: tab.id, data: chunk}
+		}
+		if err != nil {
+			m.output <- ptyChunk{id: tab.id, err: err}
+			return
+		}
+	}
+}
+
+func (m *terminalMux) copyActiveOutput() {
+	for {
+		select {
+		case chunk := <-m.output:
+			if chunk.err != nil {
+				m.removeTab(chunk.id)
+				continue
+			}
+			if m.isActive(chunk.id) {
+				_, _ = m.stdout.Write(chunk.data)
+			}
+		case <-m.done:
+			return
+		}
+	}
+}
+
+func (m *terminalMux) isActive(id int) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.active < 0 || m.active >= len(m.tabs) {
+		return false
+	}
+	return m.tabs[m.active].id == id
+}
+
+func (m *terminalMux) writeActive(data []byte) {
+	m.mu.Lock()
+	tab := m.activeTabLocked()
+	m.mu.Unlock()
+	if tab != nil {
+		_, _ = tab.pty.Write(data)
+	}
+}
+
+func (m *terminalMux) closeActive() {
+	m.mu.Lock()
+	if len(m.tabs) <= 1 {
+		m.mu.Unlock()
+		return
+	}
+	tab := m.activeTabLocked()
+	m.mu.Unlock()
+	if tab == nil {
+		return
+	}
+	_ = tab.pty.Close()
+	_ = tab.cmd.Process.Kill()
+}
+
+func (m *terminalMux) renameActive(name string) {
+	m.mu.Lock()
+	if tab := m.activeTabLocked(); tab != nil {
+		tab.name = name
+	}
+	m.mu.Unlock()
+	m.renamePane()
+}
+
+func (m *terminalMux) removeTab(id int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i, tab := range m.tabs {
+		if tab.id != id {
+			continue
+		}
+		_ = tab.pty.Close()
+		_ = tab.cmd.Wait()
+		m.tabs = append(m.tabs[:i], m.tabs[i+1:]...)
+		if len(m.tabs) == 0 {
+			close(m.done)
+			return
+		}
+		if m.active >= len(m.tabs) {
+			m.active = len(m.tabs) - 1
+		}
+		go m.renamePane()
+		return
+	}
+}
+
+func (m *terminalMux) activeTabLocked() *terminalTab {
+	if m.active < 0 || m.active >= len(m.tabs) {
+		return nil
+	}
+	return m.tabs[m.active]
+}
+
+func (m *terminalMux) inheritSize(stdinFile *os.File) {
+	m.mu.Lock()
+	tabs := append([]*terminalTab(nil), m.tabs...)
+	m.mu.Unlock()
+	for _, tab := range tabs {
+		_ = pty.InheritSize(stdinFile, tab.pty)
+	}
+}
+
+func (m *terminalMux) closeAll() {
+	m.mu.Lock()
+	tabs := append([]*terminalTab(nil), m.tabs...)
+	m.mu.Unlock()
+	for _, tab := range tabs {
+		_ = tab.pty.Close()
+		if tab.cmd.Process != nil {
+			_ = tab.cmd.Process.Kill()
+		}
+	}
+}
+
+func (m *terminalMux) renamePane() {
+	m.mu.Lock()
+	title := m.paneTitleLocked()
+	m.mu.Unlock()
+	if title == "" {
+		return
+	}
+	_ = m.rt.RunZellijAction("rename-pane", title)
+}
+
+func (m *terminalMux) paneTitleLocked() string {
+	if len(m.tabs) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(m.tabs))
+	for i, tab := range m.tabs {
+		if i == m.active {
+			parts = append(parts, "["+tab.name+"]")
+		} else {
+			parts = append(parts, tab.name)
+		}
+	}
+	return strings.Join(parts, " ")
+}
 
 func (OSRuntime) ListPanesJSON() ([]byte, error) {
 	return exec.Command("zellij", "action", "list-panes", "--json", "--command", "--state").Output()
@@ -259,33 +525,11 @@ func runZellij(args ...string) error {
 }
 
 func (OSRuntime) ShellCommand() (string, []string) {
-	pairHome := os.Getenv("PAIR_HOME")
-	tag := os.Getenv("PAIR_TAG")
-	if pairHome != "" && tag != "" && os.Getenv("PAIR_TERM_INNER_ZELLIJ") != "0" {
-		return innerZellijCommand(pairHome, tag)
-	}
 	shell := os.Getenv("SHELL")
 	if shell == "" {
 		shell = "/bin/sh"
 	}
 	return shell, []string{"-i"}
-}
-
-func innerZellijCommand(pairHome, tag string) (string, []string) {
-	script := `unset ZELLIJ ZELLIJ_SESSION_NAME
-cfg="$1"
-layout="$2"
-session="$3"
-if zellij list-sessions --short 2>/dev/null | grep -Fxq "$session"; then
-  exec zellij --config-dir "$cfg" attach "$session"
-fi
-exec zellij --config-dir "$cfg" --layout "$layout" --session "$session"`
-	return "sh", []string{
-		"-c", script, "pair-term-zellij",
-		pairHome + "/zellij/terminal",
-		pairHome + "/zellij/terminal/layouts/main.kdl",
-		"pair-" + tag + innerTerminalSessionSuffix,
-	}
 }
 
 func pairDataDir() string {

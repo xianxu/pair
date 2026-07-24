@@ -78,15 +78,15 @@ check_eq() {
 
 write_panes terminal
 run_shortcut "Alt+t"
-check_eq "right Alt+t passes through to inner zellij" "$(actions)" ""
+check_eq "right Alt+t stays local to pair term" "$(actions)" ""
 
 write_panes terminal
 run_shortcut "Alt+w"
-check_eq "right Alt+w passes through to inner zellij" "$(actions)" ""
+check_eq "right Alt+w stays local to pair term" "$(actions)" ""
 
 write_panes terminal
 run_shortcut "Alt+r"
-check_eq "right Alt+r passes through to inner zellij" "$(actions)" ""
+check_eq "right Alt+r stays local to pair term" "$(actions)" ""
 
 write_panes terminal
 run_shortcut "Alt+j"
@@ -109,22 +109,6 @@ check_eq "left Alt+k records last left pane" "$(cat "$PAIR_DATA_DIR/last-left-pa
 write_panes review
 run_shortcut "Alt+r"
 check_eq "review Alt+r does not rename tab" "$(actions)" ""
-
-grep -Fq 'bind "Alt t" { NewTab; }' "$ROOT/zellij/terminal/config.kdl" \
-  && pass "inner terminal Alt+t creates tab" \
-  || { printf 'FAIL inner terminal Alt+t missing\n'; fail=1; }
-grep -Fq 'bind "Alt w" { CloseTab; }' "$ROOT/zellij/terminal/config.kdl" \
-  && pass "inner terminal Alt+w closes tab" \
-  || { printf 'FAIL inner terminal Alt+w missing\n'; fail=1; }
-grep -Fq 'bind "Alt r" { SwitchToMode "RenameTab"; TabNameInput 0; }' "$ROOT/zellij/terminal/config.kdl" \
-  && pass "inner terminal Alt+r renames tab" \
-  || { printf 'FAIL inner terminal Alt+r missing\n'; fail=1; }
-grep -Fq 'pane_frames false' "$ROOT/zellij/terminal/config.kdl" \
-  && pass "inner terminal hides nested pane frames" \
-  || { printf 'FAIL inner terminal pane frames still enabled\n'; fail=1; }
-grep -Fq 'default_layout "main"' "$ROOT/zellij/terminal/config.kdl" \
-  && pass "inner terminal new tabs use quiet layout" \
-  || { printf 'FAIL inner terminal default layout not quiet\n'; fail=1; }
 
 [ "$fail" -eq 0 ] || { printf 'term-pane-shortcuts-test FAILED\n'; exit 1; }
 printf 'term-pane-shortcuts-test ok\n'

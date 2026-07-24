@@ -221,3 +221,7 @@ total: 4.53
   `pair-<tag>-terminal` sessions masked the config fix. Bumped the inner
   terminal session suffix to `-terminal-v2` so new Pair runs create a fresh
   quiet inner session without manual cleanup.
+- Follow-up screenshots showed nested zellij remained visually unacceptable
+  even with quiet config. Abandoned the inner-zellij approach. `pair term` now
+  runs shell PTYs directly again and owns local `Alt+t`/`Alt+w`/`Alt+r` tab
+  actions in-process, leaving the right pane visually as a normal Pair terminal.
