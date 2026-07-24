@@ -170,7 +170,7 @@ the estimate to map the added integration surface explicitly.
 - Modify: `cmd/internal/workbenchshortcut/shortcut.go`
 - Test: `cmd/internal/workbenchshortcut/shortcut_test.go`
 
-- [ ] **Step 1: Add failing table-driven decoder and decision tests**
+- [x] **Step 1: Add failing table-driven decoder and decision tests**
 
 Cover the actual forwarded encodings:
 
@@ -189,7 +189,7 @@ For each logical action, assert `Decide` returns `DispositionHandle` and the
 same Lua target for left-agent, left-draft, and right-terminal roles. Retain
 the current pass/swallow behavior for all pane-local chords.
 
-- [ ] **Step 2: Run the focused test and verify RED**
+- [x] **Step 2: Run the focused test and verify RED**
 
 Run:
 
@@ -200,7 +200,7 @@ go test ./cmd/internal/workbenchshortcut -run 'TestDecodeGlobalChord|TestGlobalD
 Expected: FAIL because the new chord/action identities and Lua target do not
 exist.
 
-- [ ] **Step 3: Implement the minimal pure registry**
+- [x] **Step 3: Implement the minimal pure registry**
 
 Add the chord/action constants and sequences, extend `ShortcutDecision` with a
 `DraftLuaFunction string`, and make the global branch precede role-local
@@ -219,7 +219,7 @@ if action, fn, ok := globalDraftAction(in.Chord); ok {
 Keep `globalDraftAction` pure and exhaustive. `ChordFromName`/`ChordName` must
 round-trip all new names so wrapper tests can use semantic chord fixtures.
 
-- [ ] **Step 4: Run focused tests and verify GREEN**
+- [x] **Step 4: Run focused tests and verify GREEN**
 
 Run:
 
@@ -229,7 +229,7 @@ go test ./cmd/internal/workbenchshortcut -count=1
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cmd/internal/workbenchshortcut/shortcut.go cmd/internal/workbenchshortcut/shortcut_test.go
@@ -246,7 +246,7 @@ git commit -m "#117: model global workbench hotkeys"
 - Modify: `cmd/internal/wrapcmd/wrap.go`
 - Modify: `cmd/internal/wrapcmd/wrap_test.go`
 
-- [ ] **Step 1: Add failing injected-runtime and stream tests**
+- [x] **Step 1: Add failing injected-runtime and stream tests**
 
 First add a fake-runtime test for `draftroute.Router`: pane metadata identifies
 draft id 2 and produces:
@@ -270,7 +270,7 @@ missing-draft and action-failure cases: the chord remains consumed, no bytes
 reach the child, and the terminal stderr or wrapper error-reporter fake records
 the failure.
 
-- [ ] **Step 2: Run focused tests and verify RED**
+- [x] **Step 2: Run focused tests and verify RED**
 
 Run:
 
@@ -282,7 +282,7 @@ Expected: FAIL because the shared package/injected wrapper runtime do not exist,
 only Alt+x is intercepted, and terminal routing still focuses the draft before
 unaddressed writes.
 
-- [ ] **Step 3: Implement pane-id-addressed routing**
+- [x] **Step 3: Implement pane-id-addressed routing**
 
 Implement `draftroute.Router` once. Have both wrappers consume
 `decision.DraftLuaFunction` and delegate to it. Add the narrow production
@@ -291,7 +291,7 @@ Every write includes `--pane-id <draft-id>` and no focus action occurs. Missing
 draft and action errors are reported non-fatally while the recognized chord
 remains handled; they are never converted to `DispositionPass`.
 
-- [ ] **Step 4: Run focused packages and verify GREEN**
+- [x] **Step 4: Run focused packages and verify GREEN**
 
 Run:
 
@@ -301,7 +301,7 @@ go test ./cmd/internal/draftroute ./cmd/internal/termcmd ./cmd/internal/wrapcmd 
 
 Expected: PASS with no child-byte leakage.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cmd/internal/draftroute cmd/internal/termcmd cmd/internal/wrapcmd
@@ -317,14 +317,14 @@ git commit -m "#117: route global chords to draft by pane id"
 - Modify: `tests/term-pane-shortcuts-test.sh`
 - Modify: `tests/review-toggle-test.sh`
 
-- [ ] **Step 1: Add failing static inventory checks**
+- [x] **Step 1: Add failing static inventory checks**
 
 Assert each authoritative global binding emits only its expected sequence.
 Reject `MoveFocus` and `WriteChars ":lua` within those bindings. Assert Alt+h
 and Alt+l remain direct `Run` actions and all focused-process bindings retain
 their current sequences.
 
-- [ ] **Step 2: Run shell tests and verify RED**
+- [x] **Step 2: Run shell tests and verify RED**
 
 Run:
 
@@ -335,12 +335,12 @@ bash tests/review-toggle-test.sh
 
 Expected: FAIL on current Alt+d/n/N/Up/Down/c focus-and-write blocks.
 
-- [ ] **Step 3: Rewrite only the global KDL bindings**
+- [x] **Step 3: Rewrite only the global KDL bindings**
 
 Use one `WriteChars` sequence per binding, including the existing Alt+x KKP
 sequence. Preserve direct and pane-local actions exactly.
 
-- [ ] **Step 4: Validate KDL and verify GREEN**
+- [x] **Step 4: Validate KDL and verify GREEN**
 
 Run:
 
@@ -352,7 +352,7 @@ bash tests/review-toggle-test.sh
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add zellij/config.kdl tests/term-pane-shortcuts-test.sh tests/review-toggle-test.sh
@@ -371,7 +371,7 @@ git commit -m "#117: forward global chords to focused panes"
 - Modify: `nvim/changelog.lua`
 - Modify: `Makefile`
 
-- [ ] **Step 1: Add failing pure/helper and headless integration tests**
+- [x] **Step 1: Add failing pure/helper and headless integration tests**
 
 Test pane JSON classification and construction of pane-id-addressed action argv
 as pure Lua functions in `workbench_route_test.lua`; these tests invoke no
@@ -390,7 +390,7 @@ the distinct Ctrl+Alt+n alias for Alt+n—in:
 Assert the fake receives `list-panes --json --command --state`, every write is
 pane-id addressed, and failures notify/log while consuming the key.
 
-- [ ] **Step 2: Run Lua tests and verify RED**
+- [x] **Step 2: Run Lua tests and verify RED**
 
 Run:
 
@@ -403,7 +403,7 @@ make test-lua
 Expected: FAIL because the module does not exist and overlays still define
 no-op globals.
 
-- [ ] **Step 3: Implement the shared Lua IO module and maps**
+- [x] **Step 3: Implement the shared Lua IO module and maps**
 
 Keep parsing/action construction in testable pure functions. The runtime
 function calls `zellij action list-panes --json --command --state`, selects the draft by the same
@@ -420,7 +420,7 @@ Replace overlay no-op globals and review-local Alt+c hide behavior with shared
 routing in review, scrollback, and the separately launched `changelog.lua`
 initializer. Add explicit local keymaps in draft init for all seven actions.
 
-- [ ] **Step 4: Run Lua and affected shell suites and verify GREEN**
+- [x] **Step 4: Run Lua and affected shell suites and verify GREEN**
 
 Run:
 
@@ -434,7 +434,7 @@ bash tests/term-pane-shortcuts-test.sh
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add nvim/workbench_route.lua nvim/workbench_route_test.lua nvim/init.lua nvim/review.lua nvim/scrollback.lua nvim/changelog.lua Makefile tests/workbench-route-nvim-test.sh
@@ -450,19 +450,19 @@ git commit -m "#117: route overlay globals through draft nvim"
 - Modify: `atlas/architecture.md`
 - Modify: `workshop/issues/000117-global-hotkey-routing.md`
 
-- [ ] **Step 1: Update README and atlas**
+- [x] **Step 1: Update README and atlas**
 
 Document that Zellij forwards global chords to the focused Pair process, which
 routes them by current draft pane id; direct global surfaces and pane-local
 shortcuts remain distinct. Remove all claims that global actions use relative
 focus choreography or overlay no-op fallbacks.
 
-- [ ] **Step 2: Complete issue checkboxes and log evidence**
+- [x] **Step 2: Complete issue checkboxes and log evidence**
 
 Record the shortcut inventory, TDD red/green commands, and final verification.
 Do not mark the issue done; `sdlc close` owns that transition.
 
-- [ ] **Step 3: Run complete verification**
+- [x] **Step 3: Run complete verification**
 
 Run:
 
@@ -488,7 +488,7 @@ the draft confirmation and the shell receives no visible bytes. Open review,
 scrollback, and changelog overlays and repeat representative destructive,
 layout, and review actions. Record operator verification before landing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add README.md atlas/architecture.md workshop/issues/000117-global-hotkey-routing.md

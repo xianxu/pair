@@ -127,7 +127,7 @@ total: 4.34
 ## Plan
 
 - [x] Write and approve a durable implementation plan.
-- [ ] Implement the audited routing with test-first regressions.
+- [x] Implement the audited routing with test-first regressions.
 - [ ] Update README/atlas shortcut ownership and verify the full workbench
       integration suite.
 
@@ -152,6 +152,16 @@ total: 4.34
   `workshop/plans/000117-global-hotkey-routing-plan.md`. It extends the existing
   pure registry, uses pane-id-addressed IO shells, and sequences every behavior
   change test-first.
+- Implemented the shared global registry and one `draftroute` Go IO helper for
+  both production PTY consumers. Table-driven stream tests cover every
+  distinctive sequence, all pane roles, missing-draft failures, and the
+  no-byte-leak invariant.
+- Replaced KDL focus/write choreography with one forwarded sequence per global
+  chord. Added `nvim/workbench_route.lua`; draft executes locally while review,
+  scrollback, and change-log initializers discover and address draft by pane id.
+- Verification passed: `go test ./... -count=1`, `make test-lua`, both affected
+  shell integration suites, runtime-bundle drift check, Zellij config and both
+  layout parsers, and `git diff --check`.
 
 ## Revisions
 
