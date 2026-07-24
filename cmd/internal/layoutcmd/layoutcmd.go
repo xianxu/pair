@@ -54,7 +54,10 @@ func toggleFocusedActions(panes []zellijpane.Pane) ([][]string, bool) {
 	}
 	toggle := []string{"toggle-pane-embed-or-floating", "--pane-id", focused.ID}
 	if focused.IsFloating {
-		return [][]string{toggle}, true
+		return [][]string{
+			toggle,
+			{"override-layout", "--apply-only-to-active-tab", "--layout-string", balancedLayout()},
+		}, true
 	}
 	return [][]string{
 		toggle,
@@ -68,6 +71,21 @@ func toggleFocusedActions(panes []zellijpane.Pane) ([][]string, bool) {
 			"--pinned", "true",
 		},
 	}, true
+}
+
+func balancedLayout() string {
+	return `layout {
+    tab exact_panes=3 {
+        pane split_direction="vertical" {
+            pane split_direction="horizontal" {
+                pane name="agent"
+                pane size=12 name="draft" borderless=true
+            }
+            pane name="terminal"
+        }
+    }
+}
+`
 }
 
 func isRightTerminal(pane zellijpane.Pane) bool {

@@ -252,3 +252,7 @@ total: 4.53
   `height=100%`; pressing it again embeds the terminal back without resizing
   the left panes. Draft nvim keeps its prior `Alt+Shift+Return` send-without-
   submit behavior.
+- Follow-up dogfood showed zellij did not restore the tiled terminal to the
+  original half-width split after embedding it back from the floating overlay.
+  The collapse half now embeds the terminal and then applies the balanced
+  three-pane layout, making `Alt+Shift+Return` a real expand/collapse toggle.

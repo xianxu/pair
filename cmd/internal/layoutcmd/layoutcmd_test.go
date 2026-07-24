@@ -33,8 +33,12 @@ func TestToggleFocusedEmbedsFloatingRightTerminal(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d stderr=%q", code, stderr.String())
 	}
-	if got, want := strings.Join(rt.ops, "\n"), "toggle-pane-embed-or-floating --pane-id 3"; got != want {
-		t.Fatalf("ops = %q, want %q", got, want)
+	got := strings.Join(rt.ops, "\n")
+	if !strings.HasPrefix(got, "toggle-pane-embed-or-floating --pane-id 3\noverride-layout --apply-only-to-active-tab --layout-string ") {
+		t.Fatalf("ops = %q, want embed then override-layout", got)
+	}
+	if strings.Contains(got, `size="67%"`) {
+		t.Fatalf("ops = %q, restore layout must not keep 67%% width", got)
 	}
 }
 
