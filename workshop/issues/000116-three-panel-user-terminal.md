@@ -221,6 +221,13 @@ total: 7.02
   clean-`HEAD` embedded-asset and unchecked-plan observations came from the
   pre-landing commit state; the generated assets and completed plan are present
   in the working transaction that will become the reviewed landing commit.
+- Second close review affirmed the topology implementation and narrowed its
+  findings to plan entity classification plus production-path navigation
+  coverage. Moved the filesystem-backed `LastLeftPaneStore` to Integration,
+  corrected the terminal seam's greppable name to `Runtime`, and added direct
+  regressions for agent-wrapper and draft-Neovim `Alt+j`/`Alt+k` effects. The
+  draft regression uses an explicit test-only UI seam to execute the same
+  production function while headless.
 
 - Implemented the three-pane workbench shape: zellij layout now keeps
   agent/draft as the left stack and starts a right-side `pair term` user

@@ -3,6 +3,8 @@ package wrapcmd
 import (
 	"bytes"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -251,5 +253,45 @@ func TestTranslateStdinHandlesSplitWorkbenchShortcut(t *testing.T) {
 	}
 	if got := out.String(); got != "" {
 		t.Fatalf("out = %q, want empty", got)
+	}
+}
+
+func TestHandleWorkbenchShortcutRunsAgentProductionPath(t *testing.T) {
+	dir := t.TempDir()
+	fakebin := filepath.Join(dir, "bin")
+	if err := os.MkdirAll(fakebin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	logPath := filepath.Join(dir, "zellij.log")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " + logPath + "\n"
+	if err := os.WriteFile(filepath.Join(fakebin, "zellij"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", fakebin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("PAIR_DATA_DIR", dir)
+	t.Setenv("PAIR_TAG", "work")
+	t.Setenv("ZELLIJ_PANE_ID", "17")
+
+	p := &proxy{}
+	if !p.handleWorkbenchShortcut("Alt+k") {
+		t.Fatal("Alt+k was not handled")
+	}
+	if !p.handleWorkbenchShortcut("Alt+j") {
+		t.Fatal("Alt+j was not handled")
+	}
+
+	sidecar, err := os.ReadFile(filepath.Join(dir, "last-left-pane-work"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(sidecar) != "17\n" {
+		t.Fatalf("last-left pane = %q, want 17", sidecar)
+	}
+	logged, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(logged) != "action move-focus right\naction move-focus down\n" {
+		t.Fatalf("zellij actions = %q", logged)
 	}
 }

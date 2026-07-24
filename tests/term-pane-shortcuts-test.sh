@@ -116,9 +116,11 @@ run_shortcut "Alt+k"
 check_eq "right Alt+k returns to last left pane" "$(actions)" "focus-pane-id 1"
 
 write_panes agent
-run_shortcut "Alt+k"
-check_eq "left Alt+k focuses terminal" "$(actions)" "focus-pane-id 4"
-check_eq "left Alt+k records last left pane" "$(cat "$PAIR_DATA_DIR/last-left-pane-t")" "1"
+rm -f "$tmp/actions.log" "$PAIR_DATA_DIR/last-left-pane-t"
+ZELLIJ_PANE_ID=2 nvim --headless -u "$ROOT/nvim/init.lua" "$tmp/draft.md" \
+  -c 'lua vim.g.pair_test_has_ui = true; PairFocusTerminal()' -c 'qa!' >/dev/null 2>&1
+check_eq "draft Alt+k production path moves right" "$(actions)" "move-focus right"
+check_eq "draft Alt+k production path records pane" "$(cat "$PAIR_DATA_DIR/last-left-pane-t")" "2"
 
 write_panes review
 run_shortcut "Alt+r"

@@ -20,6 +20,18 @@ consumer (`ARCH-PURPOSE`).
 
 ## Revisions
 
+### 2026-07-24 — Correct entity classification and production-path coverage
+
+The second close review caught two Core Concepts bookkeeping errors:
+`LastLeftPaneStore` owns filesystem IO and therefore belongs under Integration
+Points, and the terminal seam's actual greppable name is `Runtime`, not
+`TermRuntime`. Correct both classifications. The shared Go decision model
+remains the semantic source for role/action policy; the agent wrapper and draft
+Neovim boundary necessarily execute in different runtimes. Add tests at those
+actual production boundaries for `Alt+j`/`Alt+k`, including the stable pane-id
+sidecar and emitted Zellij action, rather than relying on `pair term
+--test-shortcut` as a proxy.
+
 ### 2026-07-24 — Reconcile the final local-tab implementation record
 
 The close review read the pre-implementation `HEAD` and surfaced stale plan
@@ -133,7 +145,6 @@ select or carry workbench topology rather than changing only the initial launch.
 | `PaneRole` | `cmd/internal/workbenchshortcut/shortcut.go` | new |
 | `ShortcutAction` | `cmd/internal/workbenchshortcut/shortcut.go` | new |
 | `ShortcutDecision` | `cmd/internal/workbenchshortcut/shortcut.go` | new |
-| `LastLeftPaneStore` | `cmd/internal/workbenchshortcut/shortcut.go` | new |
 
 - **PaneRole** — classifies a focused pane as left agent, left draft, right terminal, or other.
   - **Relationships:** 1:1 with a focused `zellijpane.Pane`; role is derived from `title`/`terminal_command`, not filesystem cwd.
@@ -160,7 +171,8 @@ select or carry workbench topology rather than changing only the initial launch.
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
 | `pair term` | `cmd/internal/termcmd/run.go` | new | PTY child shell + stdin/stdout |
-| `TermRuntime` | `cmd/internal/termcmd/run.go` | new | zellij IPC + process exec |
+| `Runtime` | `cmd/internal/termcmd/run.go` | new | zellij IPC + process exec |
+| `LastLeftPaneStore` | `cmd/internal/workbenchshortcut/shortcut.go` | new | tag-scoped filesystem sidecar |
 | `pair wrap` shortcut hook | `cmd/internal/wrapcmd/wrap.go` | modified | agent-pane PTY stdin |
 | `draft nvim` shortcut maps | `nvim/init.lua` | modified | draft-pane key mappings |
 | `main-3.kdl` terminal pane | `zellij/layouts/main-3.kdl` | new | zellij layout |
@@ -170,7 +182,7 @@ select or carry workbench topology rather than changing only the initial launch.
   - **Injected into:** zellij layout command for the right terminal pane.
   - **Future extensions:** More pane-local helpers can be added to the pure shortcut registry.
 
-- **TermRuntime** — side-effect seam for listing panes, focusing panes, and running zellij tab actions.
+- **Runtime** — side-effect seam for listing panes, focusing panes, and running zellij tab actions.
   - **Injected into:** `Run` so tests can use fakes for zellij and a fake child command.
   - **Future extensions:** Process-level fake can grow to cover live rename prompt behavior.
 

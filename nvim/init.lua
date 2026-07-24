@@ -688,7 +688,7 @@ end
 
 -- Check if Neovim has a UI attached (false indicates headless mode, e.g. tests)
 local function has_ui()
-  return #vim.api.nvim_list_uis() > 0
+  return vim.g.pair_test_has_ui == true or #vim.api.nvim_list_uis() > 0
 end
 
 local function send_esc_to_agent()
