@@ -333,7 +333,7 @@ Both assets share the Pair-owned agent/draft column: the top pane runs
 `nvim -u $PAIR_HOME/nvim/init.lua` on the per-tag draft file. Layout 2 contains
 only this stack. Layout 3 adds a borderless inert filler in the tiled base and
 a permanently floating `pair term` user terminal above it; its width switches
-directly between 50% and 67%, covering the filler exactly or overlaying part of
+directly between 50% and 75%, covering the filler exactly or overlaying part of
 the left stack. Integer sizes are FIXED in zellij (refusing the `resize`
 action), but Pair drives draft-rung changes through swap layouts, not resize,
 so FIXED is harmless.

@@ -103,7 +103,7 @@ check_eq "right Alt+j is no-op" "$(actions)" ""
 
 write_panes terminal
 run_shortcut "Alt+Shift+Enter"
-check_eq "right Alt+Shift+Enter changes floating geometry once" "$(actions)" "change-floating-pane-coordinates --pane-id 4 --x 50 --y 0 --width 100 --height 51 --borderless false --pinned true"
+check_eq "right Alt+Shift+Enter changes floating geometry once" "$(actions)" "change-floating-pane-coordinates --pane-id 4 --x 37 --y 0 --width 113 --height 51 --borderless false --pinned true"
 
 write_panes terminal
 rm -f "$PAIR_DATA_DIR/last-left-pane-t"

@@ -15,7 +15,7 @@ func TestToggleFocusedExpandsFloatingTerminalInOnePreciseAction(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d stderr=%q", code, stderr.String())
 	}
-	want := "change-floating-pane-coordinates --pane-id 4 --x 50 --y 0 --width 100 --height 51 --borderless false --pinned true"
+	want := "change-floating-pane-coordinates --pane-id 4 --x 37 --y 0 --width 113 --height 51 --borderless false --pinned true"
 	if got := strings.Join(rt.ops, "\n"); got != want {
 		t.Fatalf("ops = %q, want one precise action %q", got, want)
 	}
@@ -80,7 +80,7 @@ func TestToggleFocusedUsesPercentageFallbackWithoutTiledGeometry(t *testing.T) {
 	if code := RunToggleFocused(nil, rt, &stderr); code != 0 {
 		t.Fatalf("code = %d stderr=%q", code, stderr.String())
 	}
-	want := "change-floating-pane-coordinates --pane-id 4 --x 33% --y 0% --width 67% --height 100% --borderless false --pinned true"
+	want := "change-floating-pane-coordinates --pane-id 4 --x 25% --y 0% --width 75% --height 100% --borderless false --pinned true"
 	if got := strings.Join(rt.ops, "\n"); got != want {
 		t.Fatalf("ops = %q, want percentage fallback %q", got, want)
 	}

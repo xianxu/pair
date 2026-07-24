@@ -67,7 +67,7 @@ Select something with mouse on agent's pane, the selection is inserted at curren
 | **Alt+h** | any pane | Pop up the full keybind help in a floating pane (press `q` to dismiss). |
 | **Alt+Return** | nvim (normal/insert) | Send buffer to agent. Note for consistency, claude's keybinding also changed to Alt+return as send, and return as newline |
 | **Alt+Shift+Return** | nvim (normal/insert) | Append buffer to the agent's composer followed by a newline, but do **not** submit — leaves the cursor on a fresh line in the agent input for more typing. Logs + clears the draft like Alt+Return. |
-| **Alt+Shift+Return** | layout 3 terminal | Toggle the floating terminal between 1/2 and 2/3 width without recreating its processes. |
+| **Alt+Shift+Return** | layout 3 terminal | Toggle the floating terminal between 1/2 and 3/4 width without recreating its processes. |
 | **Alt+j** | left Pair stack | Move vertically between the agent and draft panes. No-op in the user terminal. |
 | **Alt+k** | layout 3 agent/draft/terminal | Move between the last-focused left Pair pane and the right terminal. |
 | **Alt+t** | layout 3 terminal | Create a Pair-owned local terminal tab. |

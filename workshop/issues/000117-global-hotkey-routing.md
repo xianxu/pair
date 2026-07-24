@@ -200,3 +200,9 @@ The operator reversed the earlier decision to leave Zellij hover focus out of
 scope. Set `focus_follows_mouse true` and pin it in the workbench configuration
 regression. This is independent of the pane-id routing invariant: global
 hotkeys remain deterministic regardless of which pane the pointer focuses.
+
+### 2026-07-24 — Expand the right terminal to three-quarters
+
+Change the Alt+Shift+Return expanded geometry from two-thirds to three-quarters
+of the workbench. Preserve the exact one-action resize and filler-anchored
+half-width collapse behavior.
