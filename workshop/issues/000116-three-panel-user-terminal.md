@@ -33,15 +33,18 @@ can run a shell or launch `nvim` without stealing the agent/draft panes.
 - The user terminal starts as an ordinary interactive shell.
 - From that terminal, the user can either stay in the shell or open `nvim`
   normally.
-- Zellij should remain fully usable from the terminal panel, including creating
-  tabs, splitting panes, moving focus, resizing, and other normal zellij
-  operations.
+- The right terminal's intended zellij affordance is the small Pair-provided
+  tab vocabulary below. This issue does not restore zellij's mode-switch
+  defaults or promise every stock zellij pane/resize binding; those remain
+  governed by Pair's existing quiet-zellij config.
 - Pair's added workbench shortcuts are pane-local, not raw global zellij
   shortcuts:
   - `Alt+j` moves vertically between the agent and draft panes when focus is in
     the left Pair stack, and has no effect in the right terminal.
   - `Alt+k` moves horizontally between the left Pair stack and the right
-    terminal.
+    terminal. Returning from the right terminal focuses the last left Pair pane
+    that had focus; if no left focus has been recorded yet, it falls back to the
+    draft pane.
   - `Alt+t` creates a zellij tab only when focus is in the right terminal.
   - `Alt+w` closes the active zellij tab only when focus is in the right
     terminal.
@@ -69,12 +72,15 @@ can run a shell or launch `nvim` without stealing the agent/draft panes.
   left and a user terminal panel available as the other main panel.
 - The terminal panel starts in an interactive shell and can launch `nvim`
   without breaking Pair's agent/draft workflow.
-- Standard zellij tab and pane operations work from the terminal panel.
+- The right terminal remains an ordinary shell, so users can run `nvim` or any
+  other terminal program there.
 - `Alt+t`, `Alt+w`, and `Alt+r` affect zellij tabs from the right terminal and
   do nothing from the agent, draft, scrollback, changelog, or review panes.
 - `Alt+j` moves between agent and draft from the left stack and does nothing
   from the right terminal.
-- `Alt+k` moves between the left Pair stack and the right terminal.
+- `Alt+k` moves from the focused left Pair pane to the right terminal, then
+  returns from the right terminal to the same left pane; before any recorded
+  left focus exists, it returns to the draft pane.
 - `Alt+Shift+C` / `Ctrl+Alt+c` and `Alt+/` work from the left Pair stack and do
   nothing from the right terminal.
 - Existing Pair key flows still work from their expected panes.
@@ -89,7 +95,7 @@ can run a shell or launch `nvim` without stealing the agent/draft panes.
 - [ ] Update the zellij layout/config and any pane metadata assumptions.
 - [ ] Add or update tests/checks for the layout/config assets.
 - [ ] Smoke a live Pair session: shell in terminal panel, `nvim` from terminal,
-      normal agent/draft send, and zellij tab/pane operations.
+      normal agent/draft send, and right-terminal zellij tab helpers.
 
 ## Log
 
@@ -104,3 +110,8 @@ can run a shell or launch `nvim` without stealing the agent/draft panes.
   `Alt+r`), and `Alt+k` as the horizontal bridge. ARCH-PURPOSE rules out global
   zellij binds that fire in the wrong pane; ARCH-DRY points to reusing
   `cmd/internal/zellijpane` for pane classification.
+- Spec review found two Important clarity gaps: `Alt+k` needed a concrete return
+  target, and "normal zellij operations" over-promised against Pair's existing
+  locked-normal zellij config. Resolved by specifying last-left-pane return
+  semantics for `Alt+k` and narrowing the right terminal contract to the
+  explicit Pair tab helpers.
