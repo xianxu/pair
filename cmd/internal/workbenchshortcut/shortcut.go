@@ -33,6 +33,8 @@ const (
 	ChordAltSlash
 	ChordAltShiftC
 	ChordCtrlAltC
+	ChordAltLeft
+	ChordAltRight
 )
 
 type Disposition int
@@ -161,6 +163,10 @@ func DecodeChord(data []byte) (Chord, bool) {
 		return ChordAltShiftC, true
 	case "\x1b[99;7u":
 		return ChordCtrlAltC, true
+	case "\x1b[1;3D", "\x1b[1;9D", "\x1b[3D":
+		return ChordAltLeft, true
+	case "\x1b[1;3C", "\x1b[1;9C", "\x1b[3C":
+		return ChordAltRight, true
 	default:
 		return ChordUnknown, false
 	}

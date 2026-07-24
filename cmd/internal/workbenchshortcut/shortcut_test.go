@@ -187,6 +187,24 @@ func TestDecodeChord(t *testing.T) {
 	}
 }
 
+func TestDecodeAltArrowChords(t *testing.T) {
+	tests := []struct {
+		seq  string
+		want Chord
+	}{
+		{seq: "\x1b[1;3D", want: ChordAltLeft},
+		{seq: "\x1b[1;3C", want: ChordAltRight},
+		{seq: "\x1b[1;9D", want: ChordAltLeft},
+		{seq: "\x1b[1;9C", want: ChordAltRight},
+	}
+	for _, tt := range tests {
+		got, ok := DecodeChord([]byte(tt.seq))
+		if !ok || got != tt.want {
+			t.Fatalf("DecodeChord(%q) = %v,%v; want %v,true", tt.seq, got, ok, tt.want)
+		}
+	}
+}
+
 func TestLastLeftPaneStore(t *testing.T) {
 	dir := t.TempDir()
 	store := LastLeftPaneStore{DataDir: dir, Tag: "pair"}

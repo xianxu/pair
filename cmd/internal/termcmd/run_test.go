@@ -2,6 +2,7 @@ package termcmd
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -19,9 +20,9 @@ func TestRunTestShortcutRightTerminalActions(t *testing.T) {
 		last    string
 		wantOps []string
 	}{
-		{name: "new tab passes to inner zellij", chord: "Alt+t"},
-		{name: "close tab passes to inner zellij", chord: "Alt+w"},
-		{name: "rename tab passes to inner zellij", chord: "Alt+r"},
+		{name: "new tab stays local", chord: "Alt+t"},
+		{name: "close tab stays local", chord: "Alt+w"},
+		{name: "rename tab stays local", chord: "Alt+r"},
 		{name: "alt j swallowed", chord: "Alt+j"},
 		{name: "alt k last left", chord: "Alt+k", last: "1", wantOps: []string{"focus-pane-id 1"}},
 		{name: "alt k draft fallback", chord: "Alt+k", wantOps: []string{"focus-pane-id 2"}},
@@ -102,6 +103,10 @@ func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 		{name: "new tab", chunks: [][]byte{{0x1b, 't'}}, want: "new-tab"},
 		{name: "close tab", chunks: [][]byte{{0x1b, 'w'}}, want: "close-tab"},
 		{name: "rename tab", chunks: [][]byte{{0x1b, 'r'}, []byte("work\r")}, want: "rename:work"},
+		{name: "previous tab", chunks: [][]byte{[]byte("\x1b[1;3D")}, want: "prev-tab"},
+		{name: "next tab", chunks: [][]byte{[]byte("\x1b[1;3C")}, want: "next-tab"},
+		{name: "mouse top row", chunks: [][]byte{[]byte("\x1b[<0;8;1M")}, want: "switch-at:8"},
+		{name: "mouse shell row passes through", chunks: [][]byte{[]byte("\x1b[<0;8;2M")}, want: "write:\x1b[<0;8;2M"},
 		{name: "plain bytes", chunks: [][]byte{[]byte("ls\n")}, want: "write:ls\n"},
 	}
 	for _, tt := range tests {
@@ -117,6 +122,16 @@ func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 	}
 }
 
+func TestParseSGRMousePress(t *testing.T) {
+	x, y, ok := parseSGRMousePress([]byte("\x1b[<0;12;1M"))
+	if !ok || x != 12 || y != 1 {
+		t.Fatalf("mouse = (%d,%d,%v), want (12,1,true)", x, y, ok)
+	}
+	if _, _, ok := parseSGRMousePress([]byte("\x1b[<0;12;1m")); ok {
+		t.Fatal("release event should not parse as press")
+	}
+}
+
 func TestTerminalMuxPaneTitleShowsTabs(t *testing.T) {
 	mux := &terminalMux{
 		tabs: []*terminalTab{
@@ -129,6 +144,56 @@ func TestTerminalMuxPaneTitleShowsTabs(t *testing.T) {
 	if got := mux.paneTitleLocked(); got != "terminal 1 [work] terminal 3" {
 		t.Fatalf("pane title = %q", got)
 	}
+}
+
+func TestTerminalMuxTabStripRanges(t *testing.T) {
+	mux := &terminalMux{
+		tabs: []*terminalTab{
+			{id: 1, name: "terminal 1"},
+			{id: 2, name: "work"},
+		},
+		active: 0,
+	}
+	line, ranges := mux.tabStripLocked(40)
+	if !strings.Contains(line, "[1:terminal 1]") || !strings.Contains(line, " 2:work ") {
+		t.Fatalf("line = %q", line)
+	}
+	if len(ranges) != 2 {
+		t.Fatalf("ranges = %+v", ranges)
+	}
+	if ranges[0].start != 1 || ranges[0].index != 0 || ranges[1].index != 1 {
+		t.Fatalf("ranges = %+v", ranges)
+	}
+}
+
+func TestTerminalMuxSwitchTabAtColumn(t *testing.T) {
+	var stdout bytes.Buffer
+	rt := &fakeRuntime{}
+	mux := &terminalMux{
+		stdout: stdoutWriter{&stdout},
+		rt:     rt,
+		tabs: []*terminalTab{
+			{id: 1, name: "terminal 1", buffer: []byte("one")},
+			{id: 2, name: "work", buffer: []byte("two")},
+		},
+		active: 0,
+		cols:   40,
+		ranges: []tabRange{{start: 1, end: 14, index: 0}, {start: 16, end: 23, index: 1}},
+	}
+	mux.switchTabAtColumn(18)
+	if mux.active != 1 {
+		t.Fatalf("active = %d, want 1", mux.active)
+	}
+	if !strings.Contains(strings.Join(rt.ops, ","), "rename-pane terminal 1 [work]") {
+		t.Fatalf("ops = %v", rt.ops)
+	}
+	if !strings.Contains(stdout.String(), "two") {
+		t.Fatalf("stdout = %q, want redraw of second tab", stdout.String())
+	}
+}
+
+type stdoutWriter struct {
+	*bytes.Buffer
 }
 
 type fakeRuntime struct {
@@ -178,6 +243,18 @@ func (f *fakeMux) closeActive() {
 
 func (f *fakeMux) renameActive(name string) {
 	f.ops = append(f.ops, "rename:"+name)
+}
+
+func (f *fakeMux) previousTab() {
+	f.ops = append(f.ops, "prev-tab")
+}
+
+func (f *fakeMux) nextTab() {
+	f.ops = append(f.ops, "next-tab")
+}
+
+func (f *fakeMux) switchTabAtColumn(x int) {
+	f.ops = append(f.ops, fmt.Sprintf("switch-at:%d", x))
 }
 
 type splitReader struct {

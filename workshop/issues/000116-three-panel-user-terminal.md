@@ -225,3 +225,7 @@ total: 4.53
   even with quiet config. Abandoned the inner-zellij approach. `pair term` now
   runs shell PTYs directly again and owns local `Alt+t`/`Alt+w`/`Alt+r` tab
   actions in-process, leaving the right pane visually as a normal Pair terminal.
+- Added right-terminal tab navigation on top of the local tab layer:
+  `Alt+Left`/`Alt+Right` switch to the previous/next local terminal tab, and
+  `pair term` draws a one-line tab strip with SGR mouse tracking so clicking a
+  tab label on that first row switches the active PTY.
