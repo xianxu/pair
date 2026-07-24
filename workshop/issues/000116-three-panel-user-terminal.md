@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-07-23
 updated: 2026-07-23
-estimate_hours: 4.15
+estimate_hours: 4.53
 started: 2026-07-23T16:16:22-07:00
 ---
 
@@ -95,13 +95,17 @@ Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
 ```estimate
 model: estimate-logic-v3.1
 familiarity: 0.80
-item: zellij-layout-and-config design=0.35 impl=0.45
-item: pane-local-shortcut-core design=0.35 impl=0.50
-item: terminal-pty-wrapper design=0.45 impl=0.95
-item: dispatcher-runtime-bundle design=0.20 impl=0.30
-item: integration-tests-and-docs design=0.45 impl=0.75
-item: boundary-review-and-smoke design=0.00 impl=0.20
-total: 4.15
+item: issue-spec design=0.20 impl=0.08
+item: greenfield-go-module design=0.30 impl=0.28
+item: greenfield-go-module design=0.30 impl=0.28
+item: smaller-go-module design=0.06 impl=0.16
+item: smaller-go-module design=0.06 impl=0.16
+item: lua-neovim design=0.20 impl=0.40
+item: tui-screen design=0.40 impl=0.40
+item: api-integration design=0.40 impl=0.40
+item: atlas-docs design=0.05 impl=0.05
+item: milestone-review design=0.08 impl=0.12
+total: 4.53
 ```
 
 ## Plan
