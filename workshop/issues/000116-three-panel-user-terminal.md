@@ -186,3 +186,11 @@ total: 4.53
   one terminal pane. Updated right-terminal `Alt+t` to use that explicit layout
   string so it cannot inherit the session's tab template and respawn
   agent/draft panes.
+- Additional dogfood found two right-terminal regressions. `Alt+x` still used
+  the old two-pane `MoveFocus Down` route and wrote the nvim quit command into
+  the terminal; zellij's nvim-routed global binds now move left before moving
+  down so the draft receives the command from either side of the three-pane
+  workbench. `Alt+r` no longer prompts inside the terminal wrapper; it opens a
+  small floating `pair term rename-tab-prompt` pane that reads the new name and
+  calls `zellij action rename-tab`, keeping shell input separate from Pair's tab
+  helper.

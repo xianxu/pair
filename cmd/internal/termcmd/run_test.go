@@ -22,7 +22,7 @@ func TestRunTestShortcutRightTerminalActions(t *testing.T) {
 	}{
 		{name: "new tab", chord: "Alt+t", wantOps: []string{"new-tab --name terminal --layout-string " + terminalTabLayout}},
 		{name: "close tab", chord: "Alt+w", wantOps: []string{"close-tab"}},
-		{name: "rename tab", chord: "Alt+r", wantOps: []string{"rename-tab work"}},
+		{name: "rename tab", chord: "Alt+r", wantOps: []string{"run --floating --close-on-exit --name rename tab -- pair term rename-tab-prompt"}},
 		{name: "alt j swallowed", chord: "Alt+j"},
 		{name: "alt k last left", chord: "Alt+k", last: "1", wantOps: []string{"focus-pane-id 1"}},
 		{name: "alt k draft fallback", chord: "Alt+k", wantOps: []string{"focus-pane-id 2"}},
@@ -101,6 +101,21 @@ func TestPumpStdinDecodesSplitAltChord(t *testing.T) {
 
 	if strings.Join(rt.ops, ",") != "new-tab --name terminal --layout-string "+terminalTabLayout {
 		t.Fatalf("ops = %v, want split Alt+t to open terminal tab", rt.ops)
+	}
+}
+
+func TestRenameTabPromptRenamesFromFloatingPane(t *testing.T) {
+	rt := &fakeRuntime{}
+	var stdout, stderr bytes.Buffer
+	code := RunWithRuntime([]string{"rename-tab-prompt"}, strings.NewReader("work\n"), &stdout, &stderr, rt)
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%q", code, stderr.String())
+	}
+	if strings.Join(rt.ops, ",") != "rename-tab work" {
+		t.Fatalf("ops = %v, want rename-tab work", rt.ops)
+	}
+	if stdout.String() != "tab name: " {
+		t.Fatalf("stdout = %q", stdout.String())
 	}
 }
 

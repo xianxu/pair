@@ -3,6 +3,7 @@
 package termcmd
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"io"
@@ -37,6 +38,10 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 }
 
 func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
+	if len(args) > 0 && args[0] == "rename-tab-prompt" {
+		return runRenameTabPrompt(stdin, stdout, stderr, rt)
+	}
+
 	fs := flag.NewFlagSet("term", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	testShortcut := fs.String("test-shortcut", "", "exercise a workbench shortcut without starting a shell")
@@ -148,15 +153,8 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 	case workbenchshortcut.ActionCloseTab:
 		return rt.RunZellijAction("close-tab")
 	case workbenchshortcut.ActionRenameTab:
-		name, err := promptLine(stdin, stdout, "tab name: ")
-		if err != nil {
-			return err
-		}
-		name = strings.TrimSpace(name)
-		if name == "" {
-			return nil
-		}
-		return rt.RunZellijAction("rename-tab", name)
+		return rt.RunZellijAction("run", "--floating", "--close-on-exit", "--name", "rename tab",
+			"--", "pair", "term", "rename-tab-prompt")
 	case workbenchshortcut.ActionFocusPane:
 		if decision.TargetPaneID == "" {
 			return nil
@@ -170,6 +168,27 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 	default:
 		return nil
 	}
+}
+
+func runRenameTabPrompt(stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
+	if _, err := io.WriteString(stdout, "tab name: "); err != nil {
+		fmt.Fprintf(stderr, "term: %v\n", err)
+		return 1
+	}
+	name, err := bufio.NewReader(stdin).ReadString('\n')
+	if err != nil {
+		fmt.Fprintf(stderr, "term: %v\n", err)
+		return 1
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return 0
+	}
+	if err := rt.RunZellijAction("rename-tab", name); err != nil {
+		fmt.Fprintf(stderr, "term: %v\n", err)
+		return 1
+	}
+	return 0
 }
 
 func promptLine(stdin io.Reader, stdout io.Writer, prompt string) (string, error) {

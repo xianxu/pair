@@ -85,8 +85,8 @@ run_shortcut "Alt+w"
 check_eq "right Alt+w closes tab" "$(actions)" "close-tab"
 
 write_panes terminal
-run_shortcut_with_stdin "Alt+r" "work"
-check_eq "right Alt+r renames tab" "$(actions)" "rename-tab work"
+run_shortcut "Alt+r"
+check_eq "right Alt+r opens rename prompt" "$(actions)" "run --floating --close-on-exit --name rename tab -- pair term rename-tab-prompt"
 
 write_panes terminal
 run_shortcut "Alt+j"

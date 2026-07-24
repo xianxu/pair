@@ -123,9 +123,10 @@ keybinds clear-defaults=false {
 
         // Alt+d — detach from the current pair session. Routed through nvim
         // for a confirm prompt before the actual detach (muscle-memory guard;
-        // accidental Alt+d while in the agent pane is annoying to recover
-        // from on long-running sessions). MoveFocus Down lands in nvim,
-        // <C-\><C-n> (bytes 28, 14) forces normal mode from any state
+        // accidental Alt+d while in the agent or terminal pane is annoying to
+        // recover from on long-running sessions). MoveFocus Left then Down
+        // lands in the draft from either side of the workbench; <C-\><C-n>
+        // (bytes 28, 14) forces normal mode from any state
         // (insert, terminal, visual, op-pending, select) — a bare ESC is
         // unreliable when a completion popup, telescope prompt, or :terminal
         // is focused, in which case the colon command would get typed into
@@ -133,6 +134,7 @@ keybinds clear-defaults=false {
         // PairConfirmDetach() shells out to `zellij action detach` only on
         // Yes.
         bind "Alt d" {
+            MoveFocus "Left";
             MoveFocus "Down";
             Write 28;
             Write 14;
@@ -146,10 +148,11 @@ keybinds clear-defaults=false {
         // each is clamped at the end of the ladder. Routed through nvim because zellij's
         // keybind language can't run a shell command silently and the step
         // needs persistent state plus a loop of `zellij action resize`
-        // calls. MoveFocus Down lands in nvim whether the user started in
-        // the agent pane or in nvim; the <C-\><C-n> + cmdline dance matches
-        // the Alt+d / Alt+x flow.
+        // calls. MoveFocus Left then Down lands in nvim whether the user
+        // started in the left stack or the right terminal; the <C-\><C-n> +
+        // cmdline dance matches the Alt+d / Alt+x flow.
         bind "Alt Up" {
+            MoveFocus "Left";
             MoveFocus "Down";
             Write 28;
             Write 14;
@@ -157,6 +160,7 @@ keybinds clear-defaults=false {
             Write 13;
         }
         bind "Alt Down" {
+            MoveFocus "Left";
             MoveFocus "Down";
             Write 28;
             Write 14;
@@ -171,6 +175,7 @@ keybinds clear-defaults=false {
         // accidental Alt+x mid-session is unrecoverable. PairConfirmQuit()
         // invokes `pair quit` only on Yes.
         bind "Alt x" {
+            MoveFocus "Left";
             MoveFocus "Down";
             Write 28;
             Write 14;
@@ -204,9 +209,10 @@ keybinds clear-defaults=false {
         // in nvim — not in a transient 20%x1 floating shell pane — kills the
         // ~1s open delay, the auto-hide, and the half-size bugs the old
         // pair-review-toggle pane caused. When Alt+c is pressed from inside the
-        // focused (floating) review pane, MoveFocus Down may not escape it, so the
+        // focused (floating) review pane, MoveFocus may not escape it, so the
         // review pane defines its own PairReviewToggle() (hide-self).
         bind "Alt c" {
+            MoveFocus "Left";
             MoveFocus "Down";
             Write 28;
             Write 14;
@@ -247,6 +253,7 @@ keybinds clear-defaults=false {
         // reaches zellij on the first press. Alt+n is kept for users whose
         // terminal is configured with Option-as-Meta.
         bind "Alt n" "Ctrl Alt n" {
+            MoveFocus "Left";
             MoveFocus "Down";
             Write 28;
             Write 14;
@@ -260,6 +267,7 @@ keybinds clear-defaults=false {
         // (vs. Alt+n which resumes the prior session). Same nvim-routed
         // confirm guard.
         bind "Alt N" {
+            MoveFocus "Left";
             MoveFocus "Down";
             Write 28;
             Write 14;
