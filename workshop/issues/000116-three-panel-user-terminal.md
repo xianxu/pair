@@ -26,21 +26,42 @@ can run a shell or launch `nvim` without stealing the agent/draft panes.
 ## Spec
 
 - Pair's main layout should become a three-panel workbench.
-- The left side preserves the current Pair split:
+- The left side preserves the current Pair split and remains Pair-owned:
   - left top: agent pane;
   - left bottom: draft pane.
-- The remaining large panel is a user terminal pane.
-- The user terminal should start as an ordinary interactive shell.
+- The right side is a user-owned terminal pane.
+- The user terminal starts as an ordinary interactive shell.
 - From that terminal, the user can either stay in the shell or open `nvim`
   normally.
 - Zellij should remain fully usable from the terminal panel, including creating
   tabs, splitting panes, moving focus, resizing, and other normal zellij
   operations.
+- Pair's added workbench shortcuts are pane-local, not raw global zellij
+  shortcuts:
+  - `Alt+j` moves vertically between the agent and draft panes when focus is in
+    the left Pair stack, and has no effect in the right terminal.
+  - `Alt+k` moves horizontally between the left Pair stack and the right
+    terminal.
+  - `Alt+t` creates a zellij tab only when focus is in the right terminal.
+  - `Alt+w` closes the active zellij tab only when focus is in the right
+    terminal.
+  - `Alt+r` renames the active zellij tab only when focus is in the right
+    terminal. This must not steal review-pane `Alt+r` reject behavior.
+  - `Alt+Shift+C` / `Ctrl+Alt+c` compaction and `Alt+/` scrollback viewer work
+    only in the left Pair stack.
 - Existing agent/draft behaviors should continue to work: draft send, prompt
   history/future queue, copy-on-select into the draft, scrollback viewer,
   restart/quit flows, and pane/frame metadata.
 - The design should be explicit about which pane owns Pair-specific automation
-  and which pane is deliberately user-owned terminal space.
+  and which pane is deliberately user-owned terminal space. ARCH-PURPOSE:
+  right-terminal shortcuts must be unavailable from the left Pair panes, and
+  left-Pair shortcuts must be unavailable from the right terminal.
+- Because zellij KDL keybinds are global, pane-local shortcut behavior should
+  be implemented at a Pair-owned pane boundary, for example a transparent
+  terminal wrapper around the right shell plus existing left-pane handlers,
+  rather than by binding every shortcut directly in zellij config. ARCH-DRY:
+  reuse the shared `zellijpane` parser for focused-pane classification rather
+  than re-open-coding `list-panes` JSON walks.
 
 ## Done when
 
@@ -49,6 +70,13 @@ can run a shell or launch `nvim` without stealing the agent/draft panes.
 - The terminal panel starts in an interactive shell and can launch `nvim`
   without breaking Pair's agent/draft workflow.
 - Standard zellij tab and pane operations work from the terminal panel.
+- `Alt+t`, `Alt+w`, and `Alt+r` affect zellij tabs from the right terminal and
+  do nothing from the agent, draft, scrollback, changelog, or review panes.
+- `Alt+j` moves between agent and draft from the left stack and does nothing
+  from the right terminal.
+- `Alt+k` moves between the left Pair stack and the right terminal.
+- `Alt+Shift+C` / `Ctrl+Alt+c` and `Alt+/` work from the left Pair stack and do
+  nothing from the right terminal.
 - Existing Pair key flows still work from their expected panes.
 - Automated layout/config checks cover the changed zellij assets, and manual
   smoke steps record the terminal, `nvim`, and zellij-tab behavior.
@@ -70,3 +98,9 @@ can run a shell or launch `nvim` without stealing the agent/draft panes.
 - Created after checking active and punted issues: no existing ticket tracks the
   requested three-panel workbench layout. #82 is only a punted percentage-only
   two-pane layout experiment, and #113 is unrelated.
+- Claimed #116 and entered planning. The agreed design is left Pair stack plus
+  right user terminal, with pane-gated shortcuts: left-only Pair flows
+  (`Alt+j`, `Alt+Shift+C`, `Alt+/`), right-only tab helpers (`Alt+t`, `Alt+w`,
+  `Alt+r`), and `Alt+k` as the horizontal bridge. ARCH-PURPOSE rules out global
+  zellij binds that fire in the wrong pane; ARCH-DRY points to reusing
+  `cmd/internal/zellijpane` for pane classification.
