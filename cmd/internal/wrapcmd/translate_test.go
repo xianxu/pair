@@ -258,8 +258,13 @@ func TestTranslateStdinHandlesSplitWorkbenchShortcut(t *testing.T) {
 }
 
 type fakeDraftRouteRuntime struct {
-	panes []byte
-	ops   []string
+	panes  []byte
+	cached string
+	ops    []string
+}
+
+func (f *fakeDraftRouteRuntime) CachedDraftPaneID() (string, bool) {
+	return f.cached, f.cached != ""
 }
 
 func (f *fakeDraftRouteRuntime) ListPanesJSON() ([]byte, error) {

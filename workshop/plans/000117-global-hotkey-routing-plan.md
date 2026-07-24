@@ -30,6 +30,20 @@ helper, explicit non-fatal error reporters in both stream shells, and separate
 pure Lua parsing/argv tests from process-level Neovim integration tests. Revise
 the estimate to map the added integration surface explicitly.
 
+### 2026-07-24 — Remove synchronous pane discovery from the hot path
+
+Fresh layout-3 smoke found a roughly one-second delay before a right-pane
+Alt+n reached draft. Live timing isolates `zellij action list-panes --json
+--command --state` at 0.62–0.84 seconds per call. Preserve metadata discovery
+as the safe fallback, but have draft Neovim publish its session name, pane id,
+and live process id at startup. Both shared routers validate the record against
+the caller's Zellij session and process liveness before using it. Add a
+test-first fast-path assertion that routing performs no pane-list call for a
+valid record, plus stale-session/dead-process fallback coverage. This keeps one
+validated locator contract (`ARCH-DRY`), separates validation from IO
+(`ARCH-PURE`), and removes the latency from every consumer rather than only the
+reported terminal path (`ARCH-PURPOSE`).
+
 ## Core concepts
 
 ### Pure entities

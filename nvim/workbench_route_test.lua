@@ -39,4 +39,16 @@ assert(vim.deep_equal(route.draft_commands(42, 'PairConfirmRestart'), {
   { 'zellij', 'action', 'write', '--pane-id', '42', '13' },
 }))
 
+local record = vim.json.encode({
+  session = 'pair-work',
+  pane_id = '42',
+  pid = 9001,
+})
+assert(route.validate_cached_draft(record, 'pair-work', function(pid)
+  return pid == 9001
+end) == '42')
+assert(route.validate_cached_draft(record, 'pair-other', function() return true end) == nil)
+assert(route.validate_cached_draft(record, 'pair-work', function() return false end) == nil)
+assert(route.validate_cached_draft('bad json', 'pair-work', function() return true end) == nil)
+
 print('workbench_route_test ok')

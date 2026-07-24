@@ -312,10 +312,15 @@ type stdoutWriter struct {
 }
 
 type fakeRuntime struct {
-	panesJSON string
-	lastLeft  string
-	ops       []string
-	reported  []string
+	panesJSON   string
+	cachedDraft string
+	lastLeft    string
+	ops         []string
+	reported    []string
+}
+
+func (f *fakeRuntime) CachedDraftPaneID() (string, bool) {
+	return f.cachedDraft, f.cachedDraft != ""
 }
 
 func (f *fakeRuntime) ListPanesJSON() ([]byte, error) {

@@ -1507,6 +1507,10 @@ func runZellijAction(args ...string) error {
 
 type osDraftRouteRuntime struct{}
 
+func (osDraftRouteRuntime) CachedDraftPaneID() (string, bool) {
+	return draftroute.CachedDraftPaneIDFromEnv()
+}
+
 func (osDraftRouteRuntime) ListPanesJSON() ([]byte, error) {
 	return exec.Command("zellij", "action", "list-panes", "--json", "--command", "--state").Output()
 }

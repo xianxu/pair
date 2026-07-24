@@ -1,22 +1,79 @@
 package draftroute
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
 
+func TestValidateCachedDraftPane(t *testing.T) {
+	body, err := json.Marshal(CachedPaneRecord{
+		Session: "pair-work",
+		PaneID:  "42",
+		PID:     "9001",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	alive := func(pid string) bool { return pid == "9001" }
+
+	if got, ok := ValidateCachedDraftPane(body, "pair-work", alive); !ok || got != "42" {
+		t.Fatalf("valid record = %q, %v; want 42, true", got, ok)
+	}
+	if _, ok := ValidateCachedDraftPane(body, "pair-other", alive); ok {
+		t.Fatal("stale session accepted")
+	}
+	if _, ok := ValidateCachedDraftPane(body, "pair-work", func(string) bool { return false }); ok {
+		t.Fatal("dead draft process accepted")
+	}
+	if _, ok := ValidateCachedDraftPane([]byte("bad json"), "pair-work", alive); ok {
+		t.Fatal("invalid record accepted")
+	}
+}
+
+func TestCachedDraftPaneIDFromEnv(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("PAIR_DATA_DIR", dir)
+	t.Setenv("PAIR_TAG", "work")
+	t.Setenv("ZELLIJ_SESSION_NAME", "pair-work")
+	body, err := json.Marshal(CachedPaneRecord{
+		Session: "pair-work",
+		PaneID:  "42",
+		PID:     fmt.Sprint(os.Getpid()),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "draft-pane-work.json"), body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := CachedDraftPaneIDFromEnv(); !ok || got != "42" {
+		t.Fatalf("cached pane = %q, %v; want 42, true", got, ok)
+	}
+}
+
 type fakeRuntime struct {
-	panes []byte
-	ops   []string
-	errAt int
+	panes     []byte
+	cached    string
+	listCalls int
+	ops       []string
+	errAt     int
 }
 
 func (f *fakeRuntime) ListPanesJSON() ([]byte, error) {
+	f.listCalls++
 	if f.errAt == -1 {
 		return nil, errors.New("list failed")
 	}
 	return f.panes, nil
+}
+
+func (f *fakeRuntime) CachedDraftPaneID() (string, bool) {
+	return f.cached, f.cached != ""
 }
 
 func (f *fakeRuntime) RunZellijAction(args ...string) error {
@@ -45,6 +102,20 @@ func TestRouteLuaAddressesEveryWriteToDraft(t *testing.T) {
 	}
 	if strings.Join(rt.ops, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("ops:\n%s\nwant:\n%s", strings.Join(rt.ops, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+func TestRouteLuaUsesValidatedCachedDraftWithoutListingPanes(t *testing.T) {
+	rt := &fakeRuntime{cached: "42"}
+
+	if err := RouteLua(rt, "PairConfirmRestart"); err != nil {
+		t.Fatal(err)
+	}
+	if rt.listCalls != 0 {
+		t.Fatalf("list calls = %d, want 0 on cached fast path", rt.listCalls)
+	}
+	if got := rt.ops[0]; got != "write --pane-id 42 28" {
+		t.Fatalf("first op = %q, want cached pane 42", got)
 	}
 }
 

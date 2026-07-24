@@ -23,6 +23,7 @@ import (
 )
 
 type Runtime interface {
+	CachedDraftPaneID() (string, bool)
 	ListPanesJSON() ([]byte, error)
 	LastLeftPaneID() (string, error)
 	RecordLastLeftPaneID(string) error
@@ -770,6 +771,10 @@ func (m *terminalMux) restoreTerminal() {
 
 func (OSRuntime) ListPanesJSON() ([]byte, error) {
 	return exec.Command("zellij", "action", "list-panes", "--json", "--command", "--state").Output()
+}
+
+func (OSRuntime) CachedDraftPaneID() (string, bool) {
+	return draftroute.CachedDraftPaneIDFromEnv()
 }
 
 func (OSRuntime) LastLeftPaneID() (string, error) {

@@ -46,26 +46,41 @@ function M.draft_commands(id, fn)
   }
 end
 
+function M.validate_cached_draft(raw, session, alive)
+  local ok, record = pcall(vim.json.decode, raw)
+  if not ok or type(record) ~= 'table'
+      or type(record.session) ~= 'string' or record.session == ''
+      or record.session ~= session
+      or record.pane_id == nil or tostring(record.pane_id) == ''
+      or not alive(tonumber(record.pid)) then
+    return nil
+  end
+  return tostring(record.pane_id)
+end
+
+local function cached_draft_pane()
+  local data_dir = vim.env.PAIR_DATA_DIR
+  local tag = vim.env.PAIR_TAG
+  local session = vim.env.ZELLIJ_SESSION_NAME
+  if not data_dir or data_dir == '' or not tag or tag == ''
+      or not session or session == '' then
+    return nil
+  end
+  local ok, lines = pcall(vim.fn.readfile, data_dir .. '/draft-pane-' .. tag .. '.json')
+  if not ok then return nil end
+  return M.validate_cached_draft(table.concat(lines, '\n'), session, function(pid)
+    if not pid then return false end
+    return vim.uv.kill(pid, 0) == 0
+  end)
+end
+
 local function report(message)
   vim.schedule(function()
     vim.notify('pair shortcut: ' .. message, vim.log.levels.ERROR)
   end)
 end
 
-function M.route(fn)
-  local raw = vim.fn.system({
-    'zellij', 'action', 'list-panes', '--json', '--command', '--state',
-  })
-  if vim.v.shell_error ~= 0 then
-    report('cannot inspect panes')
-    return false
-  end
-  local ok, panes = pcall(vim.json.decode, raw)
-  local id = ok and M.find_draft_pane(panes) or nil
-  if not id then
-    report('draft pane not found')
-    return false
-  end
+local function send_to_draft(id, fn)
   for _, command in ipairs(M.draft_commands(id, fn)) do
     vim.fn.system(command)
     if vim.v.shell_error ~= 0 then
@@ -74,6 +89,25 @@ function M.route(fn)
     end
   end
   return true
+end
+
+function M.route(fn)
+  local id = cached_draft_pane()
+  if id then return send_to_draft(id, fn) end
+  local raw = vim.fn.system({
+    'zellij', 'action', 'list-panes', '--json', '--command', '--state',
+  })
+  if vim.v.shell_error ~= 0 then
+    report('cannot inspect panes')
+    return false
+  end
+  local ok, panes = pcall(vim.json.decode, raw)
+  id = ok and M.find_draft_pane(panes) or nil
+  if not id then
+    report('draft pane not found')
+    return false
+  end
+  return send_to_draft(id, fn)
 end
 
 function M.install_global_maps(is_draft)

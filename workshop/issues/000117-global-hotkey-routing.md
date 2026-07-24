@@ -162,6 +162,15 @@ total: 4.34
 - Verification passed: `go test ./... -count=1`, `make test-lua`, both affected
   shell integration suites, runtime-bundle drift check, Zellij config and both
   layout parsers, and `git diff --check`.
+- Fresh smoke exposed a performance defect: routing from the right pane waited
+  about one second before draft showed the action. Timed the synchronous
+  `list-panes --json --command --state` boundary at 0.62–0.84 seconds, making
+  pane discovery—not key decoding or confirmation rendering—the root cause.
+- Added a validated startup-published draft locator fast path; tests assert a
+  valid record performs zero pane-list calls, while stale sessions and dead
+  processes fall back safely. The full Go/Lua/shell/runtime/KDL/layout
+  verification matrix passes. Enabled and pinned `focus_follows_mouse true` at
+  the operator's request.
 
 ## Revisions
 
@@ -184,3 +193,10 @@ The deterministic estimate-reconciliation gate applies the v3.1 formula
 `Σdesign×1.30 + Σimpl×familiarity`; with familiarity 0.90, the same primitive
 rows produce 4.34 hours rather than their 4.02 raw sum. Correct the declared
 total and frontmatter without changing scope.
+
+### 2026-07-24 — Enable pointer-followed focus
+
+The operator reversed the earlier decision to leave Zellij hover focus out of
+scope. Set `focus_follows_mouse true` and pin it in the workbench configuration
+regression. This is independent of the pane-id routing invariant: global
+hotkeys remain deterministic regardless of which pane the pointer focuses.

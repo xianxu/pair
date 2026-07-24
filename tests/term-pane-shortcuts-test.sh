@@ -92,11 +92,10 @@ check_eq "right Alt+r stays local to pair term" "$(actions)" ""
 
 write_panes terminal
 run_shortcut "Alt+x"
-check_eq "right Alt+x routes quit to draft" "$(actions)" "focus-pane-id 2
-write 28
-write 14
-write-chars :lua PairConfirmQuit()
-write 13"
+check_eq "right Alt+x routes quit to draft" "$(actions)" "write --pane-id 2 28
+write --pane-id 2 14
+write-chars --pane-id 2 :lua PairConfirmQuit()
+write --pane-id 2 13"
 
 write_panes terminal
 run_shortcut "Alt+j"
@@ -179,6 +178,10 @@ grep -Fq 'bind "Alt N" { WriteChars "\u{1b}[78;4u"; }' "$ROOT/zellij/config.kdl"
 grep -Fq 'show_startup_tips false' "$ROOT/zellij/config.kdl" \
   && pass "Zellij startup tips are disabled" \
   || { printf 'FAIL Zellij startup tips are enabled\n'; fail=1; }
+
+grep -Fq 'focus_follows_mouse true' "$ROOT/zellij/config.kdl" \
+  && pass "Zellij focus follows the mouse" \
+  || { printf 'FAIL Zellij focus-follows-mouse is disabled\n'; fail=1; }
 
 [ "$fail" -eq 0 ] || { printf 'term-pane-shortcuts-test FAILED\n'; exit 1; }
 printf 'term-pane-shortcuts-test ok\n'

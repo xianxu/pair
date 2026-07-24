@@ -26,6 +26,31 @@ do
   end
 end
 
+-- Publish the draft's stable pane id so global shortcuts can route without the
+-- ~0.7s synchronous `zellij action list-panes` call. Consumers validate both
+-- this Zellij session and the live nvim pid before trusting the record.
+do
+  local data_dir = vim.env.PAIR_DATA_DIR
+  local tag = vim.env.PAIR_TAG
+  local session = vim.env.ZELLIJ_SESSION_NAME
+  local pane_id = vim.env.ZELLIJ_PANE_ID
+  if data_dir and data_dir ~= '' and tag and tag ~= ''
+      and session and session ~= '' and pane_id and pane_id ~= '' then
+    vim.api.nvim_create_autocmd('VimEnter', {
+      once = true,
+      callback = function()
+        local path = data_dir .. '/draft-pane-' .. tag .. '.json'
+        local body = vim.json.encode({
+          session = session,
+          pane_id = pane_id,
+          pid = vim.fn.getpid(),
+        })
+        pcall(vim.fn.writefile, { body }, path)
+      end,
+    })
+  end
+end
+
 -- Enable filetype detection + default syntax. Loaded via `nvim -u`, which
 -- doesn't bypass nvim's bundled runtime but doesn't auto-enable these
 -- either. The draft file is `.md`, so this picks up markdown highlighting.
