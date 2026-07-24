@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-07-24
 updated: 2026-07-24
-estimate_hours: 4.02
+estimate_hours: 4.34
 started: 2026-07-24T13:52:38-07:00
 ---
 
@@ -121,7 +121,7 @@ item: api-integration design=0.40 impl=0.40
 item: tui-screen design=0.40 impl=0.40
 item: atlas-docs design=0.05 impl=0.05
 item: milestone-review design=0.08 impl=0.12
-total: 4.02
+total: 4.34
 ```
 
 ## Plan
@@ -169,3 +169,8 @@ plan now names and tests `nvim/changelog.lua` directly. The final arithmetic
 review restored the calibrated 0.12-hour close-review implementation primitive
 and made the distinct Ctrl+Alt+n encoding an explicit mapping/test case in
 every Neovim consumer.
+
+The deterministic estimate-reconciliation gate applies the v3.1 formula
+`Σdesign×1.30 + Σimpl×familiarity`; with familiarity 0.90, the same primitive
+rows produce 4.34 hours rather than their 4.02 raw sum. Correct the declared
+total and frontmatter without changing scope.
