@@ -245,3 +245,10 @@ total: 4.53
   chord no longer collapses to Return in the right terminal; Pair then applies
   a geometry-derived override layout where the focused side toggles between the
   default split and 67% width, preserving the current draft height rung.
+- Corrected the width toggle after dogfood: retiling the whole workbench shrank
+  the left panes, which violated the desired "right terminal floats over the
+  left stack" behavior. `Alt+Shift+Return` is now right-terminal-only: embedded
+  terminal panes become a pinned floating overlay at `x=33%`, `width=67%`,
+  `height=100%`; pressing it again embeds the terminal back without resizing
+  the left panes. Draft nvim keeps its prior `Alt+Shift+Return` send-without-
+  submit behavior.

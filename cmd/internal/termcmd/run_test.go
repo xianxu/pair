@@ -26,6 +26,10 @@ func TestRunTestShortcutRightTerminalActions(t *testing.T) {
 		{name: "alt j swallowed", chord: "Alt+j"},
 		{name: "alt k last left", chord: "Alt+k", last: "1", wantOps: []string{"focus-pane-id 1"}},
 		{name: "alt k draft fallback", chord: "Alt+k", wantOps: []string{"focus-pane-id 2"}},
+		{name: "alt shift enter floats terminal", chord: "Alt+Shift+Enter", wantOps: []string{
+			"toggle-pane-embed-or-floating --pane-id 3",
+			"change-floating-pane-coordinates --pane-id 3 --x 33% --y 0% --width 67% --height 100% --pinned true",
+		}},
 	}
 
 	for _, tt := range tests {
@@ -79,6 +83,23 @@ func TestRunTestShortcutRecordsLeftPane(t *testing.T) {
 	}
 	if strings.Join(rt.ops, ",") != "focus-pane-id 3" {
 		t.Fatalf("ops = %v, want focus terminal", rt.ops)
+	}
+}
+
+func TestRunTestShortcutIgnoresLeftLayoutToggle(t *testing.T) {
+	panes := `[
+		{"id":1,"is_focused":true,"is_floating":false,"is_plugin":false,"title":"codex","terminal_command":"pair wrap codex"},
+		{"id":2,"is_focused":false,"is_floating":false,"is_plugin":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
+		{"id":3,"is_focused":false,"is_floating":false,"is_plugin":false,"title":"terminal","terminal_command":"pair term"}
+	]`
+	rt := &fakeRuntime{panesJSON: panes}
+	var stderr bytes.Buffer
+	code := RunWithRuntime([]string{"--test-shortcut", "Alt+Shift+Enter"}, strings.NewReader(""), &bytes.Buffer{}, &stderr, rt)
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%q", code, stderr.String())
+	}
+	if len(rt.ops) != 0 {
+		t.Fatalf("ops = %v, want none", rt.ops)
 	}
 }
 

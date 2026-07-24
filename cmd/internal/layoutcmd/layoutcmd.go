@@ -27,100 +27,55 @@ func RunToggleFocused(args []string, rt Runtime, stderr io.Writer) int {
 		return 1
 	}
 	panes := zellijpane.Parse(panesJSON)
-	layout, ok := toggleFocusedLayout(panes)
+	actions, ok := toggleFocusedActions(panes)
 	if !ok {
-		fmt.Fprintln(stderr, "pair layout toggle-focused: no focused Pair workbench pane")
-		return 1
+		return 0
 	}
-	if err := rt.RunZellijAction("override-layout", "--apply-only-to-active-tab", "--layout-string", layout); err != nil {
-		fmt.Fprintf(stderr, "pair layout toggle-focused: override layout: %v\n", err)
-		return 1
+	for _, action := range actions {
+		if err := rt.RunZellijAction(action...); err != nil {
+			fmt.Fprintf(stderr, "pair layout toggle-focused: %s: %v\n", action[0], err)
+			return 1
+		}
 	}
 	return 0
 }
 
-func toggleFocusedLayout(panes []zellijpane.Pane) (string, bool) {
+func toggleFocusedActions(panes []zellijpane.Pane) ([][]string, bool) {
 	var focused zellijpane.Pane
-	leftWidth := 0
-	rightWidth := 0
-	draftRows := 12
 	for _, pane := range panes {
-		if pane.IsFloating || pane.IsPlugin {
+		if pane.IsPlugin || !pane.IsFocused {
 			continue
 		}
-		role := workbenchshortcut.RoleForPane(pane)
-		if pane.IsFocused {
-			focused = pane
-		}
-		switch role {
-		case workbenchshortcut.PaneRoleLeftAgent:
-			if pane.Columns > leftWidth {
-				leftWidth = pane.Columns
-			}
-		case workbenchshortcut.PaneRoleLeftDraft:
-			if pane.Columns > leftWidth {
-				leftWidth = pane.Columns
-			}
-			if pane.Rows > 0 {
-				draftRows = pane.Rows
-			}
-		case workbenchshortcut.PaneRoleRightTerminal:
-			if pane.Columns > rightWidth {
-				rightWidth = pane.Columns
-			}
-		}
+		focused = pane
+		break
 	}
-	focusedRole := workbenchshortcut.RoleForPane(focused)
-	if focusedRole != workbenchshortcut.PaneRoleLeftAgent &&
-		focusedRole != workbenchshortcut.PaneRoleLeftDraft &&
-		focusedRole != workbenchshortcut.PaneRoleRightTerminal {
-		return "", false
+	if !isRightTerminal(focused) {
+		return nil, false
 	}
-	total := leftWidth + rightWidth
-	leftWide := total > 0 && leftWidth*100 >= total*60
-	rightWide := total > 0 && rightWidth*100 >= total*60
-	target := "balanced"
-	if focusedRole == workbenchshortcut.PaneRoleRightTerminal {
-		if !rightWide {
-			target = "right"
-		}
-	} else if !leftWide {
-		target = "left"
+	toggle := []string{"toggle-pane-embed-or-floating", "--pane-id", focused.ID}
+	if focused.IsFloating {
+		return [][]string{toggle}, true
 	}
-	return workbenchLayout(target, draftRows), true
+	return [][]string{
+		toggle,
+		{
+			"change-floating-pane-coordinates",
+			"--pane-id", focused.ID,
+			"--x", "33%",
+			"--y", "0%",
+			"--width", "67%",
+			"--height", "100%",
+			"--pinned", "true",
+		},
+	}, true
 }
 
-func workbenchLayout(widthMode string, draftRows int) string {
-	leftSize := ""
-	terminalSize := ""
-	switch widthMode {
-	case "left":
-		leftSize = ` size="67%"`
-	case "right":
-		terminalSize = ` size="67%"`
+func isRightTerminal(pane zellijpane.Pane) bool {
+	if pane.ID == "" {
+		return false
 	}
-	return `layout {
-    tab exact_panes=3 {
-        pane split_direction="vertical" {
-            pane` + leftSize + ` split_direction="horizontal" {
-                pane name="agent"
-                ` + draftPaneLine(draftRows) + `
-            }
-            pane` + terminalSize + ` name="terminal"
-        }
-    }
-}
-`
-}
-
-func draftPaneLine(rows int) string {
-	if rows <= 2 {
-		return `pane size=1 name="draft" borderless=true`
-	}
-	if rows <= 12 {
-		return `pane size=12 name="draft" borderless=true`
-	}
-	return `pane size="33%" name="draft" borderless=true`
+	pane.IsFloating = false
+	return workbenchshortcut.RoleForPane(pane) == workbenchshortcut.PaneRoleRightTerminal
 }
 
 type OSRuntime struct{}

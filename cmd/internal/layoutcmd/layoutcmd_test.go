@@ -2,13 +2,12 @@ package layoutcmd
 
 import (
 	"bytes"
-	"strconv"
 	"strings"
 	"testing"
 )
 
-func TestToggleFocusedWidensLeftSide(t *testing.T) {
-	rt := &fakeRuntime{panesJSON: panesJSON("agent", 50, 50)}
+func TestToggleFocusedFloatsRightTerminalOverlay(t *testing.T) {
+	rt := &fakeRuntime{panesJSON: panesJSON("terminal", false)}
 	var stderr bytes.Buffer
 
 	code := RunToggleFocused(nil, rt, &stderr)
@@ -16,20 +15,17 @@ func TestToggleFocusedWidensLeftSide(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d stderr=%q", code, stderr.String())
 	}
-	got := strings.Join(rt.ops, "\n")
-	if !strings.Contains(got, "override-layout --apply-only-to-active-tab --layout-string") {
-		t.Fatalf("ops = %v, want override-layout", rt.ops)
-	}
-	if !strings.Contains(got, `pane size="67%" split_direction="horizontal"`) {
-		t.Fatalf("layout = %q, want left side 67%%", got)
-	}
-	if strings.Contains(got, `pane size="67%" name="terminal"`) {
-		t.Fatalf("layout = %q, terminal must not be wide", got)
+	want := strings.Join([]string{
+		"toggle-pane-embed-or-floating --pane-id 3",
+		"change-floating-pane-coordinates --pane-id 3 --x 33% --y 0% --width 67% --height 100% --pinned true",
+	}, "\n")
+	if got := strings.Join(rt.ops, "\n"); got != want {
+		t.Fatalf("ops = %q, want %q", got, want)
 	}
 }
 
-func TestToggleFocusedWidensRightSide(t *testing.T) {
-	rt := &fakeRuntime{panesJSON: panesJSON("terminal", 50, 50)}
+func TestToggleFocusedEmbedsFloatingRightTerminal(t *testing.T) {
+	rt := &fakeRuntime{panesJSON: panesJSON("terminal", true)}
 	var stderr bytes.Buffer
 
 	code := RunToggleFocused(nil, rt, &stderr)
@@ -37,17 +33,13 @@ func TestToggleFocusedWidensRightSide(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d stderr=%q", code, stderr.String())
 	}
-	got := strings.Join(rt.ops, "\n")
-	if !strings.Contains(got, `pane size="67%" name="terminal"`) {
-		t.Fatalf("layout = %q, want terminal side 67%%", got)
-	}
-	if strings.Contains(got, `pane size="67%" split_direction="horizontal"`) {
-		t.Fatalf("layout = %q, left side must not be wide", got)
+	if got, want := strings.Join(rt.ops, "\n"), "toggle-pane-embed-or-floating --pane-id 3"; got != want {
+		t.Fatalf("ops = %q, want %q", got, want)
 	}
 }
 
-func TestToggleFocusedWideSideReturnsToBalanced(t *testing.T) {
-	rt := &fakeRuntime{panesJSON: panesJSON("terminal", 33, 67)}
+func TestToggleFocusedIgnoresLeftFocus(t *testing.T) {
+	rt := &fakeRuntime{panesJSON: panesJSON("agent", false)}
 	var stderr bytes.Buffer
 
 	code := RunToggleFocused(nil, rt, &stderr)
@@ -55,32 +47,12 @@ func TestToggleFocusedWideSideReturnsToBalanced(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d stderr=%q", code, stderr.String())
 	}
-	got := strings.Join(rt.ops, "\n")
-	if strings.Contains(got, `size="67%"`) {
-		t.Fatalf("layout = %q, want balanced layout with no horizontal 67%% size", got)
+	if len(rt.ops) != 0 {
+		t.Fatalf("ops = %v, want no-op for left focus", rt.ops)
 	}
 }
 
-func TestToggleFocusedPreservesDraftRung(t *testing.T) {
-	rt := &fakeRuntime{panesJSON: panesJSONWithDraftRows("agent", 50, 50, 20)}
-	var stderr bytes.Buffer
-
-	code := RunToggleFocused(nil, rt, &stderr)
-
-	if code != 0 {
-		t.Fatalf("code = %d stderr=%q", code, stderr.String())
-	}
-	got := strings.Join(rt.ops, "\n")
-	if !strings.Contains(got, `pane size="33%" name="draft" borderless=true`) {
-		t.Fatalf("layout = %q, want third-height draft rung preserved", got)
-	}
-}
-
-func panesJSON(focused string, leftCols, rightCols int) []byte {
-	return panesJSONWithDraftRows(focused, leftCols, rightCols, 12)
-}
-
-func panesJSONWithDraftRows(focused string, leftCols, rightCols, draftRows int) []byte {
+func panesJSON(focused string, terminalFloating bool) []byte {
 	focusAgent := "false"
 	focusDraft := "false"
 	focusTerminal := "false"
@@ -92,15 +64,15 @@ func panesJSONWithDraftRows(focused string, leftCols, rightCols, draftRows int) 
 	case "terminal":
 		focusTerminal = "true"
 	}
+	floating := "false"
+	if terminalFloating {
+		floating = "true"
+	}
 	return []byte(`[
-		{"id":1,"is_plugin":false,"is_focused":` + focusAgent + `,"is_floating":false,"title":"codex","terminal_command":"pair wrap codex","pane_x":0,"pane_columns":` + itoa(leftCols) + `,"pane_rows":28},
-		{"id":2,"is_plugin":false,"is_focused":` + focusDraft + `,"is_floating":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md","pane_x":0,"pane_columns":` + itoa(leftCols) + `,"pane_rows":` + itoa(draftRows) + `},
-		{"id":3,"is_plugin":false,"is_focused":` + focusTerminal + `,"is_floating":false,"title":"terminal","terminal_command":"pair term","pane_x":` + itoa(leftCols) + `,"pane_columns":` + itoa(rightCols) + `,"pane_rows":40}
+		{"id":1,"is_plugin":false,"is_focused":` + focusAgent + `,"is_floating":false,"title":"codex","terminal_command":"pair wrap codex"},
+		{"id":2,"is_plugin":false,"is_focused":` + focusDraft + `,"is_floating":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
+		{"id":3,"is_plugin":false,"is_focused":` + focusTerminal + `,"is_floating":` + floating + `,"title":"terminal","terminal_command":"pair term"}
 	]`)
-}
-
-func itoa(n int) string {
-	return strconv.Itoa(n)
 }
 
 type fakeRuntime struct {

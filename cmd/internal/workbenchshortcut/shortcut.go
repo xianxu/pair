@@ -135,8 +135,6 @@ func Decide(in ShortcutInput) ShortcutDecision {
 			return handle(ActionOpenScrollback)
 		case ChordAltShiftC, ChordCtrlAltC:
 			return handle(ActionConfirmCompact)
-		case ChordAltShiftEnter:
-			return handle(ActionToggleFocusedLayout)
 		case ChordAltT, ChordAltW, ChordAltR:
 			return ShortcutDecision{Disposition: DispositionSwallow}
 		default:

@@ -144,10 +144,10 @@ func TestShortcutDecision(t *testing.T) {
 			want:  ShortcutDecision{Disposition: DispositionSwallow},
 		},
 		{
-			name:  "left draft alt shift enter toggles focused layout",
+			name:  "left draft alt shift enter passes through",
 			role:  PaneRoleLeftDraft,
 			chord: ChordAltShiftEnter,
-			want:  ShortcutDecision{Disposition: DispositionHandle, Action: ActionToggleFocusedLayout},
+			want:  ShortcutDecision{Disposition: DispositionPass},
 		},
 		{
 			name:  "other panes pass through",

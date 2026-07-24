@@ -1533,8 +1533,8 @@ end
 
 -- ---------------------------------------------------------------------------
 -- send_and_clear: Alt+Return sends the entire buffer, logs it, clears the
--- draft, and resets to *. The no_submit path is kept as a callable helper for
--- tests/experiments, but Alt+Shift+Return is now the workbench width toggle.
+-- draft, and resets to *. With no_submit=true (Alt+Shift+Return) the body lands
+-- in the agent's composer followed by a literal newline but is NOT submitted.
 -- ---------------------------------------------------------------------------
 
 local function send_and_clear(no_submit)
@@ -3510,13 +3510,6 @@ function _G.PairLayoutSmaller()
   layout_goto(LAYOUT_BY_LEVEL[math.max(cur - 1, 1)])
 end
 
-function _G.PairLayoutToggleFocused()
-  if has_ui() then
-    vim.fn.system({ 'pair', 'layout', 'toggle-focused' })
-  end
-  vim.cmd('startinsert')
-end
-
 -- Seed the in-memory mirror at startup. zellij boots into the size=12
 -- draft pane (see zellij/layouts/main.kdl), and the in-memory mirror is
 -- only used by callers that don't want to call layout_read; layout_read
@@ -3582,8 +3575,8 @@ end
 vim.keymap.set({ 'n', 'i' }, '<M-CR>', send_and_clear,
   { silent = true, desc = 'pair: send buffer + clear' })
 
-vim.keymap.set({ 'n', 'i' }, '<S-M-CR>', function() _G.PairLayoutToggleFocused() end,
-  { silent = true, desc = 'pair: toggle focused pane width' })
+vim.keymap.set({ 'n', 'i' }, '<S-M-CR>', function() send_and_clear(true) end,
+  { silent = true, desc = 'pair: append buffer to agent (newline, no send) + clear' })
 
 vim.keymap.set({ 'n', 'i' }, '<M-b>', pair_scrollback_prev_prompt,
   { silent = true, desc = 'pair: open scrollback on previous prompt (Alt+/ then Alt+b)' })
