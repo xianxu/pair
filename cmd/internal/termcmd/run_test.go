@@ -20,8 +20,8 @@ func TestRunTestShortcutRightTerminalActions(t *testing.T) {
 		last    string
 		wantOps []string
 	}{
-		{name: "new tab", chord: "Alt+t", wantOps: []string{"new-tab --name terminal --layout-string " + terminalTabLayout}},
-		{name: "close tab", chord: "Alt+w", wantOps: []string{"close-tab"}},
+		{name: "new tab", chord: "Alt+t", wantOps: []string{"new-pane --stacked --near-current-pane --name terminal -- pair term"}},
+		{name: "close tab", chord: "Alt+w", wantOps: []string{"close-pane"}},
 		{name: "rename tab", chord: "Alt+r", wantOps: []string{"run --floating --close-on-exit --name rename tab -- pair term rename-tab-prompt"}},
 		{name: "alt j swallowed", chord: "Alt+j"},
 		{name: "alt k last left", chord: "Alt+k", last: "1", wantOps: []string{"focus-pane-id 1"}},
@@ -99,7 +99,7 @@ func TestPumpStdinDecodesSplitAltChord(t *testing.T) {
 
 	pumpStdin(&stdin, writeEnd, rt, &bytes.Buffer{})
 
-	if strings.Join(rt.ops, ",") != "new-tab --name terminal --layout-string "+terminalTabLayout {
+	if strings.Join(rt.ops, ",") != "new-pane --stacked --near-current-pane --name terminal -- pair term" {
 		t.Fatalf("ops = %v, want split Alt+t to open terminal tab", rt.ops)
 	}
 }
@@ -139,6 +139,11 @@ func (f *fakeRuntime) RecordLastLeftPaneID(id string) error {
 }
 
 func (f *fakeRuntime) RunZellijAction(args ...string) error {
+	f.ops = append(f.ops, strings.Join(args, " "))
+	return nil
+}
+
+func (f *fakeRuntime) RunZellij(args ...string) error {
 	f.ops = append(f.ops, strings.Join(args, " "))
 	return nil
 }

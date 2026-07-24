@@ -26,6 +26,10 @@ if [ "\$1" = "action" ]; then
   printf '%s\n' "\$*" >> "$tmp/actions.log"
   exit 0
 fi
+if [ "\$1" = "run" ]; then
+  printf '%s\n' "\$*" >> "$tmp/actions.log"
+  exit 0
+fi
 exit 0
 EOF
 chmod +x "$fakebin/zellij"
@@ -74,15 +78,11 @@ check_eq() {
 
 write_panes terminal
 run_shortcut "Alt+t"
-check_eq "right Alt+t creates terminal tab" "$(actions)" "new-tab --name terminal --layout-string layout {
-    pane command=\"pair\" name=\"terminal\" {
-        args \"term\"
-    }
-}"
+check_eq "right Alt+t creates terminal tab" "$(actions)" "new-pane --stacked --near-current-pane --name terminal -- pair term"
 
 write_panes terminal
 run_shortcut "Alt+w"
-check_eq "right Alt+w closes tab" "$(actions)" "close-tab"
+check_eq "right Alt+w closes tab" "$(actions)" "close-pane"
 
 write_panes terminal
 run_shortcut "Alt+r"

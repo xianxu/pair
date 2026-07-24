@@ -194,3 +194,9 @@ total: 4.53
   small floating `pair term rename-tab-prompt` pane that reads the new name and
   calls `zellij action rename-tab`, keeping shell input separate from Pair's tab
   helper.
+- Follow-up dogfood clarified that right-terminal `Alt+t` must stay inside the
+  right pane instead of creating a whole-session zellij tab. Changed `Alt+t` to
+  create a stacked terminal pane near the current right terminal, and changed
+  `Alt+w` to close the focused terminal pane. Also fixed the rename prompt
+  launch to call top-level `zellij run`; `run` is not a `zellij action`
+  subcommand in zellij 0.44.3.

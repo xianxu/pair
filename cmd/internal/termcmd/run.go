@@ -24,14 +24,9 @@ type Runtime interface {
 	LastLeftPaneID() (string, error)
 	RecordLastLeftPaneID(string) error
 	RunZellijAction(args ...string) error
+	RunZellij(args ...string) error
 	ShellCommand() (string, []string)
 }
-
-const terminalTabLayout = `layout {
-    pane command="pair" name="terminal" {
-        args "term"
-    }
-}`
 
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return RunWithRuntime(args, stdin, stdout, stderr, OSRuntime{})
@@ -149,11 +144,12 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 	}
 	switch decision.Action {
 	case workbenchshortcut.ActionNewTab:
-		return rt.RunZellijAction("new-tab", "--name", "terminal", "--layout-string", terminalTabLayout)
+		return rt.RunZellijAction("new-pane", "--stacked", "--near-current-pane", "--name", "terminal",
+			"--", "pair", "term")
 	case workbenchshortcut.ActionCloseTab:
-		return rt.RunZellijAction("close-tab")
+		return rt.RunZellijAction("close-pane")
 	case workbenchshortcut.ActionRenameTab:
-		return rt.RunZellijAction("run", "--floating", "--close-on-exit", "--name", "rename tab",
+		return rt.RunZellij("run", "--floating", "--close-on-exit", "--name", "rename tab",
 			"--", "pair", "term", "rename-tab-prompt")
 	case workbenchshortcut.ActionFocusPane:
 		if decision.TargetPaneID == "" {
@@ -318,7 +314,15 @@ func (OSRuntime) RecordLastLeftPaneID(id string) error {
 
 func (OSRuntime) RunZellijAction(args ...string) error {
 	cmdArgs := append([]string{"action"}, args...)
-	cmd := exec.Command("zellij", cmdArgs...)
+	return runZellij(cmdArgs...)
+}
+
+func (OSRuntime) RunZellij(args ...string) error {
+	return runZellij(args...)
+}
+
+func runZellij(args ...string) error {
+	cmd := exec.Command("zellij", args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
