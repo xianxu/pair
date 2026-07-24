@@ -21,6 +21,7 @@ func TestEmbeddedManifestIsConfigAndShimsOnly(t *testing.T) {
 		"nvim/init.lua",
 		"nvim/review/init.lua",
 		"zellij/config.kdl",
+		"zellij/terminal/config.kdl",
 		"zellij/layouts/main.kdl",
 		"doctor/SKILL.md",
 		"doctor/doctor.sh",

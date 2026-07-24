@@ -20,9 +20,9 @@ func TestRunTestShortcutRightTerminalActions(t *testing.T) {
 		last    string
 		wantOps []string
 	}{
-		{name: "new tab", chord: "Alt+t", wantOps: []string{"new-pane --stacked --near-current-pane --name terminal -- pair term"}},
-		{name: "close tab", chord: "Alt+w", wantOps: []string{"close-pane"}},
-		{name: "rename tab", chord: "Alt+r", wantOps: []string{"run --floating --close-on-exit --name rename tab -- pair term rename-tab-prompt"}},
+		{name: "new tab passes to inner zellij", chord: "Alt+t"},
+		{name: "close tab passes to inner zellij", chord: "Alt+w"},
+		{name: "rename tab passes to inner zellij", chord: "Alt+r"},
 		{name: "alt j swallowed", chord: "Alt+j"},
 		{name: "alt k last left", chord: "Alt+k", last: "1", wantOps: []string{"focus-pane-id 1"}},
 		{name: "alt k draft fallback", chord: "Alt+k", wantOps: []string{"focus-pane-id 2"}},
@@ -99,23 +99,17 @@ func TestPumpStdinDecodesSplitAltChord(t *testing.T) {
 
 	pumpStdin(&stdin, writeEnd, rt, &bytes.Buffer{})
 
-	if strings.Join(rt.ops, ",") != "new-pane --stacked --near-current-pane --name terminal -- pair term" {
-		t.Fatalf("ops = %v, want split Alt+t to open terminal tab", rt.ops)
+	if len(rt.ops) != 0 {
+		t.Fatalf("ops = %v, want split Alt+t to pass through to inner zellij", rt.ops)
 	}
 }
 
-func TestRenameTabPromptRenamesFromFloatingPane(t *testing.T) {
-	rt := &fakeRuntime{}
-	var stdout, stderr bytes.Buffer
-	code := RunWithRuntime([]string{"rename-tab-prompt"}, strings.NewReader("work\n"), &stdout, &stderr, rt)
-	if code != 0 {
-		t.Fatalf("code = %d stderr=%q", code, stderr.String())
-	}
-	if strings.Join(rt.ops, ",") != "rename-tab work" {
-		t.Fatalf("ops = %v, want rename-tab work", rt.ops)
-	}
-	if stdout.String() != "tab name: " {
-		t.Fatalf("stdout = %q", stdout.String())
+func TestInnerZellijCommand(t *testing.T) {
+	name, args := innerZellijCommand("/pair", "work")
+	got := name + " " + strings.Join(args, " ")
+	want := "env -u ZELLIJ -u ZELLIJ_SESSION_NAME zellij --config-dir /pair/zellij/terminal attach --create pair-work-terminal"
+	if got != want {
+		t.Fatalf("command = %q, want %q", got, want)
 	}
 }
 
@@ -139,11 +133,6 @@ func (f *fakeRuntime) RecordLastLeftPaneID(id string) error {
 }
 
 func (f *fakeRuntime) RunZellijAction(args ...string) error {
-	f.ops = append(f.ops, strings.Join(args, " "))
-	return nil
-}
-
-func (f *fakeRuntime) RunZellij(args ...string) error {
 	f.ops = append(f.ops, strings.Join(args, " "))
 	return nil
 }

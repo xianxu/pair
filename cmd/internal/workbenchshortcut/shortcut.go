@@ -47,9 +47,6 @@ type ShortcutAction int
 
 const (
 	ActionNone ShortcutAction = iota
-	ActionNewTab
-	ActionCloseTab
-	ActionRenameTab
 	ActionFocusPane
 	ActionFocusLeftAgent
 	ActionFocusLeftDraft
@@ -95,12 +92,6 @@ func Decide(in ShortcutInput) ShortcutDecision {
 	switch in.Role {
 	case PaneRoleRightTerminal:
 		switch in.Chord {
-		case ChordAltT:
-			return handle(ActionNewTab)
-		case ChordAltW:
-			return handle(ActionCloseTab)
-		case ChordAltR:
-			return handle(ActionRenameTab)
 		case ChordAltK:
 			target := in.LastLeftPaneID
 			if target == "" {

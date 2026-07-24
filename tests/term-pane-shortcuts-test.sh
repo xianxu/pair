@@ -78,15 +78,15 @@ check_eq() {
 
 write_panes terminal
 run_shortcut "Alt+t"
-check_eq "right Alt+t creates terminal tab" "$(actions)" "new-pane --stacked --near-current-pane --name terminal -- pair term"
+check_eq "right Alt+t passes through to inner zellij" "$(actions)" ""
 
 write_panes terminal
 run_shortcut "Alt+w"
-check_eq "right Alt+w closes tab" "$(actions)" "close-pane"
+check_eq "right Alt+w passes through to inner zellij" "$(actions)" ""
 
 write_panes terminal
 run_shortcut "Alt+r"
-check_eq "right Alt+r opens rename prompt" "$(actions)" "run --floating --close-on-exit --name rename tab -- pair term rename-tab-prompt"
+check_eq "right Alt+r passes through to inner zellij" "$(actions)" ""
 
 write_panes terminal
 run_shortcut "Alt+j"
@@ -109,6 +109,16 @@ check_eq "left Alt+k records last left pane" "$(cat "$PAIR_DATA_DIR/last-left-pa
 write_panes review
 run_shortcut "Alt+r"
 check_eq "review Alt+r does not rename tab" "$(actions)" ""
+
+grep -Fq 'bind "Alt t" { NewTab; }' "$ROOT/zellij/terminal/config.kdl" \
+  && pass "inner terminal Alt+t creates tab" \
+  || { printf 'FAIL inner terminal Alt+t missing\n'; fail=1; }
+grep -Fq 'bind "Alt w" { CloseTab; }' "$ROOT/zellij/terminal/config.kdl" \
+  && pass "inner terminal Alt+w closes tab" \
+  || { printf 'FAIL inner terminal Alt+w missing\n'; fail=1; }
+grep -Fq 'bind "Alt r" { SwitchToMode "RenameTab"; TabNameInput 0; }' "$ROOT/zellij/terminal/config.kdl" \
+  && pass "inner terminal Alt+r renames tab" \
+  || { printf 'FAIL inner terminal Alt+r missing\n'; fail=1; }
 
 [ "$fail" -eq 0 ] || { printf 'term-pane-shortcuts-test FAILED\n'; exit 1; }
 printf 'term-pane-shortcuts-test ok\n'

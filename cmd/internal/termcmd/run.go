@@ -3,13 +3,13 @@
 package termcmd
 
 import (
-	"bufio"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -24,7 +24,6 @@ type Runtime interface {
 	LastLeftPaneID() (string, error)
 	RecordLastLeftPaneID(string) error
 	RunZellijAction(args ...string) error
-	RunZellij(args ...string) error
 	ShellCommand() (string, []string)
 }
 
@@ -33,10 +32,6 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 }
 
 func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
-	if len(args) > 0 && args[0] == "rename-tab-prompt" {
-		return runRenameTabPrompt(stdin, stdout, stderr, rt)
-	}
-
 	fs := flag.NewFlagSet("term", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	testShortcut := fs.String("test-shortcut", "", "exercise a workbench shortcut without starting a shell")
@@ -143,14 +138,6 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 		}
 	}
 	switch decision.Action {
-	case workbenchshortcut.ActionNewTab:
-		return rt.RunZellijAction("new-pane", "--stacked", "--near-current-pane", "--name", "terminal",
-			"--", "pair", "term")
-	case workbenchshortcut.ActionCloseTab:
-		return rt.RunZellijAction("close-pane")
-	case workbenchshortcut.ActionRenameTab:
-		return rt.RunZellij("run", "--floating", "--close-on-exit", "--name", "rename tab",
-			"--", "pair", "term", "rename-tab-prompt")
 	case workbenchshortcut.ActionFocusPane:
 		if decision.TargetPaneID == "" {
 			return nil
@@ -163,61 +150,6 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 		return rt.RunZellijAction("focus-pane-id", panes.terminal.ID)
 	default:
 		return nil
-	}
-}
-
-func runRenameTabPrompt(stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
-	if _, err := io.WriteString(stdout, "tab name: "); err != nil {
-		fmt.Fprintf(stderr, "term: %v\n", err)
-		return 1
-	}
-	name, err := bufio.NewReader(stdin).ReadString('\n')
-	if err != nil {
-		fmt.Fprintf(stderr, "term: %v\n", err)
-		return 1
-	}
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return 0
-	}
-	if err := rt.RunZellijAction("rename-tab", name); err != nil {
-		fmt.Fprintf(stderr, "term: %v\n", err)
-		return 1
-	}
-	return 0
-}
-
-func promptLine(stdin io.Reader, stdout io.Writer, prompt string) (string, error) {
-	if _, err := io.WriteString(stdout, prompt); err != nil {
-		return "", err
-	}
-	var b strings.Builder
-	buf := make([]byte, 1)
-	for {
-		n, err := stdin.Read(buf)
-		if n > 0 {
-			switch buf[0] {
-			case '\r', '\n':
-				_, _ = io.WriteString(stdout, "\r\n")
-				return b.String(), nil
-			case 0x7f, '\b':
-				s := b.String()
-				if len(s) > 0 {
-					b.Reset()
-					b.WriteString(s[:len(s)-1])
-					_, _ = io.WriteString(stdout, "\b \b")
-				}
-			default:
-				b.WriteByte(buf[0])
-				_, _ = stdout.Write(buf[:1])
-			}
-		}
-		if err != nil {
-			if err == io.EOF {
-				return b.String(), nil
-			}
-			return "", err
-		}
 	}
 }
 
@@ -317,10 +249,6 @@ func (OSRuntime) RunZellijAction(args ...string) error {
 	return runZellij(cmdArgs...)
 }
 
-func (OSRuntime) RunZellij(args ...string) error {
-	return runZellij(args...)
-}
-
 func runZellij(args ...string) error {
 	cmd := exec.Command("zellij", args...)
 	cmd.Stdin = os.Stdin
@@ -330,11 +258,26 @@ func runZellij(args ...string) error {
 }
 
 func (OSRuntime) ShellCommand() (string, []string) {
+	pairHome := os.Getenv("PAIR_HOME")
+	tag := os.Getenv("PAIR_TAG")
+	if pairHome != "" && tag != "" && os.Getenv("PAIR_TERM_INNER_ZELLIJ") != "0" {
+		return innerZellijCommand(pairHome, tag)
+	}
 	shell := os.Getenv("SHELL")
 	if shell == "" {
 		shell = "/bin/sh"
 	}
 	return shell, []string{"-i"}
+}
+
+func innerZellijCommand(pairHome, tag string) (string, []string) {
+	return "env", []string{
+		"-u", "ZELLIJ",
+		"-u", "ZELLIJ_SESSION_NAME",
+		"zellij",
+		"--config-dir", filepath.Join(pairHome, "zellij", "terminal"),
+		"attach", "--create", "pair-" + tag + "-terminal",
+	}
 }
 
 func pairDataDir() string {

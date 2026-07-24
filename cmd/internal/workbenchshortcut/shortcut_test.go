@@ -70,22 +70,22 @@ func TestShortcutDecision(t *testing.T) {
 		want     ShortcutDecision
 	}{
 		{
-			name:  "right terminal new tab",
+			name:  "right terminal new tab passes through",
 			role:  PaneRoleRightTerminal,
 			chord: ChordAltT,
-			want:  ShortcutDecision{Disposition: DispositionHandle, Action: ActionNewTab},
+			want:  ShortcutDecision{Disposition: DispositionPass},
 		},
 		{
-			name:  "right terminal close tab",
+			name:  "right terminal close tab passes through",
 			role:  PaneRoleRightTerminal,
 			chord: ChordAltW,
-			want:  ShortcutDecision{Disposition: DispositionHandle, Action: ActionCloseTab},
+			want:  ShortcutDecision{Disposition: DispositionPass},
 		},
 		{
-			name:  "right terminal rename tab",
+			name:  "right terminal rename tab passes through",
 			role:  PaneRoleRightTerminal,
 			chord: ChordAltR,
-			want:  ShortcutDecision{Disposition: DispositionHandle, Action: ActionRenameTab},
+			want:  ShortcutDecision{Disposition: DispositionPass},
 		},
 		{
 			name:  "right terminal alt j is no-op",

@@ -200,3 +200,10 @@ total: 4.53
   `Alt+w` to close the focused terminal pane. Also fixed the rename prompt
   launch to call top-level `zellij run`; `run` is not a `zellij action`
   subcommand in zellij 0.44.3.
+- Final right-pane tab correction: outer zellij cannot provide true tabs inside
+  only the right pane; its tabs replace the whole workbench, and stacked panes
+  are not the requested tab model. `pair term` now runs an inner zellij session
+  in the right pane with a minimal terminal config. The outer wrapper still owns
+  `Alt+k`/`Alt+j` pane boundaries, while `Alt+t`, `Alt+w`, and `Alt+r` pass
+  through to the inner zellij, whose config binds them to native tab create,
+  close, and rename.
