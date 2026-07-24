@@ -642,6 +642,10 @@ func (m *terminalMux) removeTab(id int) {
 	var removed *terminalTab
 	var active *terminalTab
 	empty := false
+	activeID := 0
+	if tab := m.activeTabLocked(); tab != nil {
+		activeID = tab.id
+	}
 	for i, tab := range m.tabs {
 		if tab.id != id {
 			continue
@@ -650,8 +654,18 @@ func (m *terminalMux) removeTab(id int) {
 		m.tabs = append(m.tabs[:i], m.tabs[i+1:]...)
 		if len(m.tabs) == 0 {
 			empty = true
-		} else if m.active >= len(m.tabs) {
-			m.active = len(m.tabs) - 1
+		} else {
+			activeFound := false
+			for j, remaining := range m.tabs {
+				if remaining.id == activeID {
+					m.active = j
+					activeFound = true
+					break
+				}
+			}
+			if !activeFound && m.active >= len(m.tabs) {
+				m.active = len(m.tabs) - 1
+			}
 		}
 		active = m.activeTabLocked()
 		break

@@ -1,12 +1,13 @@
 ---
 id: 000116
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-23
 updated: 2026-07-24
 estimate_hours: 7.02
 started: 2026-07-23T16:16:22-07:00
+actual_hours: 5.03
 ---
 
 # Three-panel Pair layout with user terminal
@@ -173,6 +174,7 @@ total: 7.02
   explicit Pair tab helpers.
 
 ### 2026-07-24
+- 2026-07-24: closed — Full Go/Lua and shell integration suites pass; framing-independent shared shortcut scanner regressions pass for payload before/after chords and mouse events; agent/draft production navigation tests pass; both Zellij layouts/config and embedded runtime validate; operator smoke approved.; review verdict: FIX-THEN-SHIP
 
 - Extended the approved design to support both topologies. The original
   two-pane workbench is the default for unrecorded tags; the three-pane
@@ -434,3 +436,8 @@ total: 7.02
   `show_startup_tips false` option. The right terminal intentionally remains
   pinned; Zellij exposes no deterministic arbitrary z-order between a pinned
   pane and startup popup, so suppressing the redundant tip is the direct fix.
+- Resolved the final `FIX-THEN-SHIP` review findings without rerunning the close
+  gate. `terminalMux.removeTab` now preserves the selected local tab by stable
+  id when an earlier background tab exits, with a three-tab regression.
+  README, atlas, plan classification, and Zellij comments now describe the
+  delivered left-only scrollback and agent-only Shift+Alt+N behavior.

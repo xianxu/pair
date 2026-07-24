@@ -3,6 +3,8 @@ package termcmd
 import (
 	"bytes"
 	"io"
+	"os"
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -242,6 +244,44 @@ func TestTerminalMuxSwitchTabAtColumn(t *testing.T) {
 	}
 	if strings.Contains(stdout.String(), "\x1b[7m") {
 		t.Fatalf("stdout contains obsolete inverse-video tab strip: %q", stdout.String())
+	}
+}
+
+func TestTerminalMuxBackgroundExitPreservesActiveTab(t *testing.T) {
+	pty1, peer1, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer peer1.Close()
+	pty2, peer2, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer peer2.Close()
+	defer pty2.Close()
+	pty3, peer3, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer peer3.Close()
+	defer pty3.Close()
+
+	mux := &terminalMux{
+		stdout: io.Discard,
+		rt:     &fakeRuntime{},
+		done:   make(chan struct{}),
+		tabs: []*terminalTab{
+			{id: 1, name: "one", cmd: exec.Command("true"), pty: pty1},
+			{id: 2, name: "two", cmd: exec.Command("true"), pty: pty2},
+			{id: 3, name: "three", cmd: exec.Command("true"), pty: pty3},
+		},
+		active: 1,
+	}
+
+	mux.removeTab(1)
+
+	if got := mux.activeTabLocked(); got == nil || got.id != 2 {
+		t.Fatalf("active tab after background exit = %+v, want id 2", got)
 	}
 }
 

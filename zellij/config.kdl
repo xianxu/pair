@@ -229,13 +229,9 @@ keybinds clear-defaults=false {
             };
         }
 
-        // Alt+n / Ctrl+Alt+n — restart: kill the current pair session AND
-        // re-launch with the same tag, agent, and agent args, but a fresh
-        // agent conversation (the saved per-(tag,agent) config is dropped
-        // before re-exec, so the new run starts the agent from a clean slate
-        // rather than offering to resume). Routed through nvim for the same
-        // fat-finger guard as Alt+x — destroying the agent's in-progress
-        // context is irreversible.
+        // Alt+n / Ctrl+Alt+n — reload the whole workbench with the same tag,
+        // agent, args, and resumed agent conversation. Routed through nvim for
+        // the same fat-finger guard as Alt+x.
         //
         // Ctrl+Alt+n is a duplicate alias for macOS users on Tahoe (and any
         // future OS / terminal combo that lets Option+n fire the dead-tilde

@@ -20,6 +20,15 @@ consumer (`ARCH-PURPOSE`).
 
 ## Revisions
 
+### 2026-07-24 — Reconcile final review findings
+
+The final close review found that a background local-tab exit could change the
+selected tab because `removeTab` preserved a slice index rather than tab
+identity. Preserve the active tab id across removal and cover the three-tab
+case. Reconcile README, atlas, and Zellij comments with the delivered
+agent-only Shift+Alt+N behavior, and keep the filesystem-backed
+`LastLeftPaneStore` description under Integration Points.
+
 ### 2026-07-24 — Make shortcut routing framing-independent and single-sourced
 
 The third close review found that both PTY wrappers recognized complete chords
@@ -174,11 +183,6 @@ select or carry workbench topology rather than changing only the initial launch.
   - **DRY rationale:** Keeps pane gating testable without spawning zellij or shells.
   - **Future extensions:** Persist more navigation state if Pair adds multiple user panes.
 
-- **LastLeftPaneStore** — path contract and atomic read/write helpers for the last focused left Pair pane id.
-  - **Relationships:** 1:1 with a Pair tag under `$PAIR_DATA_DIR/last-left-pane-<tag>`. Written by agent/draft local shortcut handlers before moving right; read by `pair term` before moving left.
-  - **DRY rationale:** One shared sidecar path prevents `pair wrap`, nvim, and `pair term` from inventing incompatible state keys.
-  - **Future extensions:** If Pair tracks more pane focus history, the file can become JSON with versioned fields.
-
 ### Integration Points
 
 | Name | Lives in | Status | Wraps |
@@ -190,6 +194,11 @@ select or carry workbench topology rather than changing only the initial launch.
 | `draft nvim` shortcut maps | `nvim/init.lua` | modified | draft-pane key mappings |
 | `main-3.kdl` terminal pane | `zellij/layouts/main-3.kdl` | new | zellij layout |
 | `config.kdl` global unbinds | `zellij/config.kdl` | modified | zellij global keybinds |
+
+- **LastLeftPaneStore** — path contract and atomic read/write helpers for the last focused left Pair pane id.
+  - **Relationships:** 1:1 with a Pair tag under `$PAIR_DATA_DIR/last-left-pane-<tag>`. Written by agent/draft local shortcut handlers before moving right; read by `pair term` before moving left.
+  - **DRY rationale:** One shared sidecar path prevents `pair wrap`, nvim, and `pair term` from inventing incompatible state keys.
+  - **Future extensions:** If Pair tracks more pane focus history, the file can become JSON with versioned fields.
 
 - **pair term** — transparent wrapper for the right user shell. It starts `$SHELL` (fallback `/bin/sh`), forwards bytes, recognizes only the agreed workbench chords, and leaves all other shell/nvim input untouched.
   - **Injected into:** zellij layout command for the right terminal pane.
