@@ -2,7 +2,12 @@ package wrapcmd
 
 import (
 	"bytes"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestTranslateChunk(t *testing.T) {
@@ -185,5 +190,109 @@ func TestTranslateChunk(t *testing.T) {
 				t.Errorf("paste: got %v, want %v", gotPaste, tc.wantPaste)
 			}
 		})
+	}
+}
+
+func TestTranslateStdinHandlesWorkbenchShortcutWithoutReturnRemap(t *testing.T) {
+	tests := []struct {
+		name        string
+		in          string
+		wantHandled string
+		wantOut     string
+	}{
+		{name: "alt k", in: "\x1bkhello\r", wantHandled: "Alt+k", wantOut: "hello\r"},
+		{name: "alt x", in: "\x1b[120;3u", wantHandled: "Alt+x"},
+		{name: "agent alt shift enter passes through", in: "\x1b[13;4u", wantOut: "\x1b[13;4u"},
+		{name: "payload before alt k", in: "hello\r\x1bk", wantHandled: "Alt+k", wantOut: "hello\r"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &proxy{}
+			var handled []string
+			p.workbenchShortcutHandler = func(chord string) bool {
+				handled = append(handled, chord)
+				return true
+			}
+			var out bytes.Buffer
+
+			p.translateStdinFrom(strings.NewReader(tt.in), &out, time.Millisecond)
+
+			if got := strings.Join(handled, ","); got != tt.wantHandled {
+				t.Fatalf("handled = %q, want %q", got, tt.wantHandled)
+			}
+			if got := out.String(); got != tt.wantOut {
+				t.Fatalf("out = %q, want %q", got, tt.wantOut)
+			}
+		})
+	}
+}
+
+func TestTranslateStdinHandlesSplitWorkbenchShortcut(t *testing.T) {
+	p := &proxy{}
+	var handled []string
+	p.workbenchShortcutHandler = func(chord string) bool {
+		handled = append(handled, chord)
+		return true
+	}
+	reader, writer := io.Pipe()
+	var out bytes.Buffer
+	done := make(chan struct{})
+	go func() {
+		p.translateStdinFrom(reader, &out, 50*time.Millisecond)
+		close(done)
+	}()
+
+	_, _ = writer.Write([]byte("\x1b"))
+	time.Sleep(5 * time.Millisecond)
+	_, _ = writer.Write([]byte("j"))
+	_ = writer.Close()
+	<-done
+
+	if got := strings.Join(handled, ","); got != "Alt+j" {
+		t.Fatalf("handled = %q, want Alt+j", got)
+	}
+	if got := out.String(); got != "" {
+		t.Fatalf("out = %q, want empty", got)
+	}
+}
+
+func TestHandleWorkbenchShortcutRunsAgentProductionPath(t *testing.T) {
+	dir := t.TempDir()
+	fakebin := filepath.Join(dir, "bin")
+	if err := os.MkdirAll(fakebin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	logPath := filepath.Join(dir, "zellij.log")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " + logPath + "\n"
+	if err := os.WriteFile(filepath.Join(fakebin, "zellij"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", fakebin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("PAIR_DATA_DIR", dir)
+	t.Setenv("PAIR_TAG", "work")
+	t.Setenv("ZELLIJ_PANE_ID", "17")
+
+	p := &proxy{}
+	if !p.handleWorkbenchShortcut("Alt+k") {
+		t.Fatal("Alt+k was not handled")
+	}
+	if !p.handleWorkbenchShortcut("Alt+j") {
+		t.Fatal("Alt+j was not handled")
+	}
+
+	sidecar, err := os.ReadFile(filepath.Join(dir, "last-left-pane-work"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(sidecar) != "17\n" {
+		t.Fatalf("last-left pane = %q, want 17", sidecar)
+	}
+	logged, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(logged) != "action move-focus right\naction move-focus down\n" {
+		t.Fatalf("zellij actions = %q", logged)
 	}
 }

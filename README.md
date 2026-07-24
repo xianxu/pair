@@ -6,10 +6,19 @@ Pair's 100% [AI generated](https://xianxu.dev/2026/05/a-saturday-coding-session/
 
 ## What it does
 
-Launches a `zellij` session split into two panes:
+Launches a `zellij` workbench in one of two layouts:
 
-- **Top** — the coding agent, `Claude`, `Codex`, `Antigravity`, ...
-- **Bottom (~12 rows)** — Neovim on a persistent draft file. 
+- **Layout 2 (default)** — the original coding-agent pane above Neovim on a
+  persistent draft file.
+- **Layout 3 (`--layout3`)** — the same Pair-owned stack on the left plus a
+  user-owned terminal on the right, where you can run a shell or full Neovim.
+
+Layout flags are Pair-owned and may appear before or after the agent name but
+before `--`, for example `pair codex --layout3` or
+`pair claude --layout2 -- --other-claude-flag`. Pair records the selected
+layout per tag; omitting the flag reuses that record. Explicitly changing a
+live tag's layout asks before recreating the workbench because arbitrary
+terminal state cannot be recovered.
 
 You compose prompts with full editor power, scrolling the agent output independently. When you are done, `Alt+Return` to send your text to the agent.
 
@@ -58,6 +67,13 @@ Select something with mouse on agent's pane, the selection is inserted at curren
 | **Alt+h** | any pane | Pop up the full keybind help in a floating pane (press `q` to dismiss). |
 | **Alt+Return** | nvim (normal/insert) | Send buffer to agent. Note for consistency, claude's keybinding also changed to Alt+return as send, and return as newline |
 | **Alt+Shift+Return** | nvim (normal/insert) | Append buffer to the agent's composer followed by a newline, but do **not** submit — leaves the cursor on a fresh line in the agent input for more typing. Logs + clears the draft like Alt+Return. |
+| **Alt+Shift+Return** | layout 3 terminal | Toggle the floating terminal between 1/2 and 2/3 width without recreating its processes. |
+| **Alt+j** | left Pair stack | Move vertically between the agent and draft panes. No-op in the user terminal. |
+| **Alt+k** | layout 3 agent/draft/terminal | Move between the last-focused left Pair pane and the right terminal. |
+| **Alt+t** | layout 3 terminal | Create a Pair-owned local terminal tab. |
+| **Alt+w** | layout 3 terminal | Close the active local terminal tab. |
+| **Alt+r** | layout 3 terminal | Rename the active local terminal tab. |
+| **Alt+←** / **Alt+→** | layout 3 terminal | Switch local terminal tabs. |
 | **Alt+c** | any pane | Open/show/hide the review collaboration pane. If no review target exists, starts `:PairReview`. |
 | **Shift+Alt+d** | review pane (visual) | Define the selected term inline. The pair agent answers through `pair review definition`, and the pane stores the result as a durable footnote. |
 | **Ctrl+C** | nvim (normal/insert) | Send ESC (0x1b) to the agent pane — interrupts claude's in-flight stream without leaving the draft |
@@ -68,7 +84,7 @@ Select something with mouse on agent's pane, the selection is inserted at curren
 | **1**…**9** | nvim (z= spell popup visible) | Pick the Nth spell suggestion. `z=` opens the popup for the word under the cursor (tagged `1`…`9`); picking — or `Esc` to dismiss — leaves you in normal mode |
 | **Shift+Alt+←** / **Shift+Alt+→** | nvim (normal/insert) | Jump to the next region boundary: oldest-history, newest-history, `*`, front-of-queue, back-of-queue. |
 | **Alt+q** | nvim (normal/insert) | Push current buffer to the front of the queue (`+1`). From `*` clears the draft; from `+N` it's move-to-front. |
-| **Alt+/** | any pane | Enter into scrollback viewer, at same view port of current mouse scroll state of claude pane. Search is smart-case (`/foo` = case-insensitive, `/Foo` = case-sensitive). `Esc` exits (with a Yes/No confirm if there are pending markers). |
+| **Alt+/** | left Pair stack | Enter into scrollback viewer, at same view port of current mouse scroll state of claude pane. Search is smart-case (`/foo` = case-insensitive, `/Foo` = case-sensitive). `Esc` exits (with a Yes/No confirm if there are pending markers). |
 | **Alt+q** | scrollback viewer | Insert comment for the line, or selection |
 | **Alt+b** / **Alt+B** | scrollback viewer | Jump to previous / next prompt boundary — hop between turns instead of scrolling line-by-line |
 | **G** | scrollback viewer | Re-render the backing capture and jump to the refreshed bottom, preserving pending `Alt+q` markers and the overall comment. |
@@ -80,7 +96,7 @@ Select something with mouse on agent's pane, the selection is inserted at curren
 | **Alt+d** | any pane | Detach from the current session (re-attach later via `pair`). |
 | **Alt+x** | any pane | Full quit — kill the session and all processes inside. Pair captures the agent's session id alongside the launch args, so the session is resumable later via `pair resume <tag>`. Before discarding the scrollback it offers to **park** the session (preserve its capture) so you can later distill it into a durable `continuation` — see `pair continue`. |
 | **Alt+n** (or **Ctrl+Alt+n**) | any pane | Reload pair — kill the session and re-launch with the same tag, agent, args, AND agent session. Ctrl+Alt+n is the macOS-friendly alias — adding Ctrl defeats the Option+n dead-tilde composer on newer macOS / terminal combos that ignore the Option-as-Meta setting. Press Alt+n twice works as well. |
-| **Shift+Alt+N** | any pane | Restart with a fresh agent conversation — same tag, agent, and args as Alt+n, but the saved per-(tag,agent) config is dropped before relaunch so the agent starts a brand-new session. |
+| **Shift+Alt+N** | any pane | Restart only the supervised coding agent with the same agent and user args but a new conversation. Pair, Zellij, the draft, and the user terminal's local tabs remain alive. |
 
 ## Prompt history & queue
 
@@ -203,8 +219,8 @@ pair -h, --help                  # show full help
 ```
 
 The installed `pair` command is Go-owned. As of the #99 M5 port it runs the
-**native Go launcher in-process for every flow** — create, attach, quit, Alt+n /
-Shift+Alt+N restart, the `fzf` session picker, `list`/`rename`/`continue`,
+**native Go launcher in-process for every flow** — create, attach, quit, Alt+n
+restart, the `fzf` session picker, `list`/`rename`/`continue`,
 in-session compaction, and `--help` all happen in the Go binary. The legacy
 shell launcher `bin/pair-shell` has been **retired** (removed) — there is no
 shell fallback. Source and Homebrew installs use their adjacent asset roots. A copied
@@ -226,7 +242,7 @@ Use `--` to separate pair's positional from agent flags. Without it, pair only t
 
 Agent args (after `--`) are appended to the agent command line on **create**. Reattaching to an existing session does not re-launch the agent, so the args don't apply on attach. (The picker connects you to whatever's already running.)
 
-**Hacking on pair?** Use `pair-dev` instead of `pair` — same arguments, but it rebuilds the `pair` binary from source (`make build`) on launch *and* on every Alt+n / Shift+Alt+N restart, so the zellij-spawned `pair wrap` always matches your working tree. (Deployed installs run `pair`, which uses the prebuilt binary and needs no Go toolchain.)
+**Hacking on pair?** Use `pair-dev` instead of `pair` — same arguments, but it rebuilds the `pair` binary from source (`make build`) on launch and on every Alt+n whole-workbench reload, so the zellij-spawned `pair wrap` always matches your working tree. Shift+Alt+N restarts only the already-running wrapper's agent child. (Deployed installs run `pair`, which uses the prebuilt binary and needs no Go toolchain.)
 
 When `pair` runs and there's anything to pick — a detached Pair session owned by this repo **or** a tag from this repo used within the last 14 days — it shows an `fzf` picker. Detached rows come first, then historical rows annotated `(Nd ago, no live session)`, then a `+ new <agent> session` sentinel. A historical row whose session has prompts parked in its queue also carries an amber `[⏎ N queued]` badge, so you don't resume a session without remembering the work you queued up in it. Picking a historical row reuses the repo-local tag and any surviving draft / saved agent config (same path as `pair resume <tag>`). Override the 14-day window with `PAIR_HISTORY_DAYS`; `PAIR_DEBUG_HISTORY=1 pair` prints the scan and exits without launching.
 

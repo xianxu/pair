@@ -1,6 +1,6 @@
 // pair-wrap — transparent PTY proxy around a TUI coding agent.
 //
-// Installed at bin/pair-wrap and invoked by zellij/layouts/main.kdl on
+// Installed at bin/pair-wrap and invoked by zellij/layouts/main-{2,3}.kdl on
 // pair startup. (Originally ported from a Python prototype, #000011; the
 // Python original was retired in #000019.)
 //
@@ -36,6 +36,7 @@ package wrapcmd
 import (
 	"bytes"
 	"container/list"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -58,6 +59,9 @@ import (
 	"golang.org/x/term"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
+	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/sessionwatch"
+	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
 // ----- Tunables ---------------------------------------------------------------
@@ -223,6 +227,8 @@ type proxy struct {
 	ptmx *os.File
 	cmd  *exec.Cmd
 
+	restartFresh atomic.Bool
+
 	// Notify
 	notifyModeActive string
 	endOfTurnRe      *regexp.Regexp
@@ -323,6 +329,10 @@ type proxy struct {
 	// zellij mouse-scroll wedge; raw scrollback still keeps the original PTY
 	// bytes.
 	codexFilterKKP bool
+
+	// workbenchShortcutHandler is injected by tests. Production uses
+	// handleWorkbenchShortcut, which performs the thin zellij/sidecar IO shell.
+	workbenchShortcutHandler func(string) bool
 }
 
 type spanEntry struct {
@@ -1347,23 +1357,48 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 				data = append(pending, data...)
 				pending = nil
 			}
-			outBytes, leftover, newInPaste := p.translateChunk(data, inPaste)
-			inPaste = newInPaste
-			pending = leftover
-			if len(outBytes) > 0 {
-				wn, werr := out.Write(outBytes)
-				p.traceWrap("stdin-write-pty", map[string]any{
-					"write_len":        wn,
-					"translated_len":   len(outBytes),
-					"translated_sha12": shortSHA256(outBytes),
-					"leftover_len":     len(leftover),
-					"in_paste":         inPaste,
-					"error":            errorString(werr),
-					"mode":             "translate",
-				})
-				if werr != nil {
-					return
+			for len(data) > 0 {
+				before, chord, rawChord, rest, found := workbenchshortcut.FindChord(data)
+				segment := data
+				if found {
+					segment = before
 				}
+				var outBytes, leftover []byte
+				if p.hasReturnRemap() {
+					outBytes, leftover, inPaste = p.translateChunk(segment, inPaste)
+				} else {
+					outBytes, leftover = p.passThroughChunk(segment)
+					inPaste = false
+				}
+				if len(outBytes) > 0 {
+					wn, werr := out.Write(outBytes)
+					p.traceWrap("stdin-write-pty", map[string]any{
+						"write_len":        wn,
+						"translated_len":   len(outBytes),
+						"translated_sha12": shortSHA256(outBytes),
+						"leftover_len":     len(leftover),
+						"in_paste":         inPaste,
+						"error":            errorString(werr),
+						"mode":             "translate",
+					})
+					if werr != nil {
+						return
+					}
+				}
+				if len(leftover) > 0 {
+					pending = append(leftover, data[len(segment):]...)
+					break
+				}
+				if !found {
+					data = nil
+					break
+				}
+				if !p.handleWorkbenchChord(chord) {
+					if _, err := out.Write(rawChord); err != nil {
+						return
+					}
+				}
+				data = rest
 			}
 			if len(pending) > 0 {
 				armTimer()
@@ -1375,6 +1410,84 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 			flushPending()
 		}
 	}
+}
+
+func (p *proxy) hasReturnRemap() bool {
+	return p.sendKM.plainCR != nil || p.sendKM.altCR != nil || p.sendKM.altBS != nil
+}
+
+func (p *proxy) passThroughChunk(data []byte) ([]byte, []byte) {
+	if workbenchshortcut.IsChordPrefix(data) {
+		return nil, append([]byte(nil), data...)
+	}
+	if len(data) == 1 && data[0] == 0x1b {
+		return nil, append([]byte(nil), data...)
+	}
+	return data, nil
+}
+
+func (p *proxy) handleWorkbenchChord(chord workbenchshortcut.Chord) bool {
+	decision := workbenchshortcut.Decide(workbenchshortcut.ShortcutInput{
+		Role:          workbenchshortcut.PaneRoleLeftAgent,
+		Chord:         chord,
+		FocusedPaneID: os.Getenv("ZELLIJ_PANE_ID"),
+	})
+	if decision.Disposition == workbenchshortcut.DispositionPass {
+		return false
+	}
+	if p.workbenchShortcutHandler != nil {
+		return p.workbenchShortcutHandler(workbenchshortcut.ChordName(chord))
+	}
+	return p.executeWorkbenchDecision(decision)
+}
+
+func (p *proxy) executeWorkbenchDecision(decision workbenchshortcut.ShortcutDecision) bool {
+	switch decision.Action {
+	case workbenchshortcut.ActionFocusLeftDraft:
+		_ = runZellijAction("move-focus", "down")
+		return true
+	case workbenchshortcut.ActionFocusRightTerminal:
+		store := workbenchshortcut.LastLeftPaneStore{DataDir: adapt.DataDir(), Tag: os.Getenv("PAIR_TAG")}
+		_ = store.Write(decision.RecordLastLeftPaneID)
+		_ = runZellijAction("move-focus", "right")
+		return true
+	case workbenchshortcut.ActionOpenScrollback:
+		_ = exec.Command("zellij", "run",
+			"--floating", "--close-on-exit", "--name", "scrollback",
+			"--width", "100%", "--height", "100%", "--x", "0", "--y", "0",
+			"--", "pair", "scrollback", "open").Run()
+		return true
+	case workbenchshortcut.ActionConfirmCompact:
+		_ = runZellijAction("move-focus", "down")
+		_ = runZellijAction("write", "28")
+		_ = runZellijAction("write", "14")
+		_ = runZellijAction("write-chars", ":lua PairConfirmCompact()")
+		_ = runZellijAction("write", "13")
+		return true
+	case workbenchshortcut.ActionConfirmQuit:
+		_ = runZellijAction("move-focus", "down")
+		_ = runZellijAction("write", "28")
+		_ = runZellijAction("write", "14")
+		_ = runZellijAction("write-chars", ":lua PairConfirmQuit()")
+		_ = runZellijAction("write", "13")
+		return true
+	case workbenchshortcut.ActionNone:
+		return true
+	default:
+		return decision.Disposition == workbenchshortcut.DispositionSwallow
+	}
+}
+
+func (p *proxy) handleWorkbenchShortcut(name string) bool {
+	if chord, ok := workbenchshortcut.ChordFromName(name); ok {
+		return p.handleWorkbenchChord(chord)
+	}
+	return false
+}
+
+func runZellijAction(args ...string) error {
+	cmdArgs := append([]string{"action"}, args...)
+	return exec.Command("zellij", cmdArgs...).Run()
 }
 
 // checkOverlayOpen flips pickerActive when the current agent's output
@@ -1776,6 +1889,132 @@ func (p *proxy) writeStartupBanner() {
 
 // ----- Main -------------------------------------------------------------------
 
+type freshExecRequest struct {
+	argv        []string
+	env         []string
+	watcherArgv []string
+}
+
+func (e *freshExecRequest) Error() string { return "restart fresh agent" }
+
+var execProcess = syscall.Exec
+
+func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv []string, env []string) (*freshExecRequest, error) {
+	if len(currentArgv) == 0 {
+		return nil, errors.New("missing agent command")
+	}
+	agent := filepath.Base(currentArgv[0])
+	freshArgs := launcher.FreshAgentArgs(currentArgv[1:])
+	configArgs := append([]string(nil), freshArgs...)
+	sessionID := ""
+	if agent == "claude" {
+		sessionID = freshUUID()
+		if sessionID == "" {
+			return nil, errors.New("cannot mint fresh claude session id")
+		}
+		freshArgs = append(freshArgs, "--session-id", sessionID)
+	}
+
+	dataDir := envValue(env, "PAIR_DATA_DIR")
+	if dataDir == "" {
+		dataDir = adapt.DataDir()
+	}
+	tag := envValue(env, "PAIR_TAG")
+	if dataDir != "" && tag != "" {
+		configPath := filepath.Join(dataDir, "config-"+tag+"-"+agent+".json")
+		if agent == "claude" {
+			payload, err := sessionwatch.ConfigJSON(sessionwatch.ConfigPayload{
+				Agent: agent, Args: configArgs, SessionID: sessionID,
+			})
+			if err != nil {
+				return nil, err
+			}
+			if err := writeAtomic(configPath, payload); err != nil {
+				return nil, err
+			}
+		} else if err := os.Remove(configPath); err != nil && !os.IsNotExist(err) {
+			return nil, err
+		}
+	}
+
+	nextEnv := setEnv(env, "PAIR_SESSION_ID", sessionID)
+	nextEnv = setEnv(nextEnv, "PAIR_AGENT_ARGS", strings.Join(freshArgs, " "))
+	nextArgv := []string{wrapperExecutable, "wrap"}
+	if scrollbackLog != "" {
+		nextArgv = append(nextArgv, "--scrollback-log", scrollbackLog)
+	}
+	nextArgv = append(nextArgv, currentArgv[0])
+	nextArgv = append(nextArgv, freshArgs...)
+	var watcherArgv []string
+	if agent == "codex" || agent == "agy" {
+		tag := envValue(nextEnv, "PAIR_TAG")
+		cwd, _ := os.Getwd()
+		watcherArgv = []string{wrapperExecutable, "session-watch", agent, tag, cwd, "--"}
+		watcherArgv = append(watcherArgv, freshArgs...)
+	}
+	return &freshExecRequest{argv: nextArgv, env: nextEnv, watcherArgv: watcherArgv}, nil
+}
+
+func mustFreshExecRequest(wrapperExecutable, scrollbackLog string, currentArgv []string, env []string) error {
+	request, err := freshAgentInvocation(wrapperExecutable, scrollbackLog, currentArgv, env)
+	if err != nil {
+		return err
+	}
+	return request
+}
+
+func freshUUID() string {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return ""
+	}
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
+		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
+func envValue(env []string, key string) string {
+	prefix := key + "="
+	for i := len(env) - 1; i >= 0; i-- {
+		if strings.HasPrefix(env[i], prefix) {
+			return strings.TrimPrefix(env[i], prefix)
+		}
+	}
+	return ""
+}
+
+func setEnv(env []string, key, value string) []string {
+	prefix := key + "="
+	out := make([]string, 0, len(env)+1)
+	for _, item := range env {
+		if !strings.HasPrefix(item, prefix) {
+			out = append(out, item)
+		}
+	}
+	return append(out, prefix+value)
+}
+
+func writeAtomic(path string, data []byte) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	f, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*.tmp")
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	defer os.Remove(tmp)
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
+}
+
 // Run is the process-facing entry for the PTY proxy. It is called by the
 // standalone bin/pair-wrap shim and by the `pair wrap` dispatcher route, both
 // with real os.Stdin/os.Stdout/os.Stderr. args is os.Args[1:] (no program
@@ -1784,6 +2023,22 @@ func (p *proxy) writeStartupBanner() {
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	code, err := run(args, stdin, stdout)
 	if err != nil {
+		var restart *freshExecRequest
+		if errors.As(err, &restart) {
+			if len(restart.watcherArgv) > 0 {
+				watcher := exec.Command(restart.watcherArgv[0], restart.watcherArgv[1:]...)
+				watcher.Env = restart.env
+				watcher.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+				if startErr := watcher.Start(); startErr == nil {
+					_ = watcher.Process.Release()
+				}
+			}
+			if execErr := execProcess(restart.argv[0], restart.argv, restart.env); execErr != nil {
+				fmt.Fprintf(stderr, "pair-wrap: restart agent: %v\n", execErr)
+				return 1
+			}
+			return 0
+		}
 		fmt.Fprintf(stderr, "pair-wrap: %v\n", err)
 		return 1
 	}
@@ -1985,7 +2240,8 @@ argsDone:
 
 	// Signal handling.
 	sigCh := make(chan os.Signal, 4)
-	signal.Notify(sigCh, syscall.SIGWINCH, syscall.SIGUSR1)
+	signal.Notify(sigCh, syscall.SIGWINCH, syscall.SIGUSR1, syscall.SIGUSR2)
+	defer signal.Stop(sigCh)
 	go func() {
 		for s := range sigCh {
 			switch s {
@@ -1993,6 +2249,20 @@ argsDone:
 				p.setWinsize()
 			case syscall.SIGUSR1:
 				p.armCapture()
+			case syscall.SIGUSR2:
+				if p.restartFresh.CompareAndSwap(false, true) && p.cmd != nil && p.cmd.Process != nil {
+					p.traceWrap("agent-restart-request", nil)
+					pid := p.cmd.Process.Pid
+					if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil {
+						_ = p.cmd.Process.Kill()
+					}
+					go func() {
+						time.Sleep(time.Second)
+						if p.restartFresh.Load() {
+							_ = syscall.Kill(-pid, syscall.SIGKILL)
+						}
+					}()
+				}
 			}
 		}
 	}()
@@ -2004,42 +2274,7 @@ argsDone:
 	go func() {
 		// stdin → master. EOF on stdin doesn't kill the proxy — the child
 		// may still be producing output. We just stop forwarding.
-		if p.sendKM.plainCR == nil && p.sendKM.altCR == nil {
-			// No remap configured. Pass-through, but log raw chunks
-			// when PAIR_WRAP_LOG is set — useful for probing what
-			// bytes a terminal sends for a given keystroke (e.g.
-			// figuring out a new agent's send/newline encoding).
-			if p.debugLogPath != "" {
-				buf := make([]byte, 4096)
-				for {
-					n, err := p.stdin.Read(buf)
-					if n > 0 {
-						p.debug("STDIN", fmt.Sprintf("%q", buf[:n]))
-						p.traceWrap("stdin-read", map[string]any{
-							"raw_len":       n,
-							"raw_sha256_12": shortSHA256(buf[:n]),
-							"mode":          "passthrough",
-						})
-						wn, werr := ptmx.Write(buf[:n])
-						p.traceWrap("stdin-write-pty", map[string]any{
-							"write_len": wn,
-							"error":     errorString(werr),
-							"mode":      "passthrough",
-						})
-						if werr != nil {
-							break
-						}
-					}
-					if err != nil {
-						break
-					}
-				}
-			} else {
-				_, _ = io.Copy(ptmx, p.stdin)
-			}
-		} else {
-			p.translateStdin()
-		}
+		p.translateStdin()
 		close(stdinDone)
 	}()
 
@@ -2050,6 +2285,13 @@ argsDone:
 	// binary called os.Exit(exitErr.ExitCode()) here; Run now returns the
 	// code so both entrypoints (shim + `pair wrap`) propagate it identically.
 	werr := cmd.Wait()
+	if p.restartFresh.Load() {
+		executable, err := os.Executable()
+		if err != nil {
+			return 0, err
+		}
+		return 0, mustFreshExecRequest(executable, p.scrollbackLog, argv, os.Environ())
+	}
 	if exitErr, ok := werr.(*exec.ExitError); ok {
 		p.traceWrap("child-exit", map[string]any{
 			"exit_code": exitErr.ExitCode(),

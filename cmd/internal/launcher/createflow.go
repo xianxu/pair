@@ -66,6 +66,11 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 		if err != nil {
 			return step.code, err // defensive: runOnce messages + returns nil now
 		}
+		if step.relaunch {
+			opts.Args.ForcedTag = step.tag
+			opts.Args.SelectedTag = ""
+			continue
+		}
 		if !step.handedOff {
 			return step.code, nil // aborted or errored before the blocking handoff
 		}
@@ -121,6 +126,7 @@ type launchStep struct {
 	tag       string
 	agent     string
 	handedOff bool
+	relaunch  bool
 }
 
 // runOnce runs one decision → create-or-attach handoff. Every outcome is handled
@@ -193,6 +199,32 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 
 	switch decision.Action {
 	case ActionAttach:
+		layoutResolution, err := resolveLiveLayout(rt, env.DataDir, decision.Tag, decision.SessionName, opts.Args.Layout)
+		if err != nil {
+			fmt.Fprintf(stderr, "pair: %v\n", err)
+			return launchStep{code: 1}, nil
+		}
+		if layoutResolution.Conflict {
+			if !rt.ConfirmLayoutChange(decision.Tag, oppositeLayout(layoutResolution.Mode), layoutResolution.Mode) {
+				return launchStep{code: 0}, nil
+			}
+			if err := rt.DeleteSession(decision.SessionName); err != nil {
+				fmt.Fprintf(stderr, "pair: failed to remove live session '%s': %v\n", decision.SessionName, err)
+				return launchStep{code: 1}, nil
+			}
+			remaining, err := rt.Sessions()
+			if err != nil {
+				fmt.Fprintf(stderr, "pair: failed to verify removal of session '%s': %v\n", decision.SessionName, err)
+				return launchStep{code: 1}, nil
+			}
+			if sessionStillPresent(remaining, decision.SessionName) {
+				fmt.Fprintf(stderr, "pair: session '%s' is still present after removal; refusing layout change\n", decision.SessionName)
+				return launchStep{code: 1}, nil
+			}
+			rt.ReapNvim(decision.Tag)
+			rt.KillTitlePoller(decision.Tag)
+			return launchStep{code: 0, session: decision.SessionName, tag: decision.Tag, agent: agent, relaunch: true}, nil
+		}
 		code, err := runAttach(opts, env, rt, decision.Tag, decision.SessionName, agent)
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: failed to attach session '%s': %v\n", decision.SessionName, err)
@@ -205,6 +237,13 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 		fmt.Fprintf(stderr, "pair: internal error: unresolved launch decision (%s)\n", decision.Action)
 		return launchStep{code: 1}, nil
 	}
+}
+
+func oppositeLayout(mode LayoutMode) LayoutMode {
+	if mode == Layout2 {
+		return Layout3
+	}
+	return Layout2
 }
 
 func assignLaunchSessionNames(rt Runtime, live []Session, repoRoot, globalDataDir string, args LaunchArgs, base string, stderr io.Writer) ([]Session, map[string]string, map[string]SessionNameEntry, bool) {
@@ -374,12 +413,19 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		return launchStep{code: 1}, nil
 	}
 
+	layoutResolution, priorLayout := readLayoutSelection(rt, dataDir, chosenTag, opts.Args.Layout)
+	if err := writeLayoutRecord(rt, dataDir, chosenTag, layoutResolution.Mode); err != nil {
+		fmt.Fprintf(stderr, "pair: failed to record workbench layout for tag '%s': %v\n", chosenTag, err)
+		return launchStep{code: 1}, nil
+	}
+
 	// Env exports every child (watcher, poller, zellij + its panes) inherits.
 	rt.SetEnv("PAIR_HOME", opts.PairHome)
 	rt.SetEnv("PAIR_DATA_DIR", dataDir)
 	rt.SetEnv("PAIR_TAG", chosenTag)
 	rt.SetEnv("PAIR_AGENT", agent)
 	rt.SetEnv("PAIR_SESSION_NAME", session)
+	rt.SetEnv("PAIR_WORKBENCH_LAYOUT", string(layoutResolution.Mode))
 
 	draft := filepath.Join(dataDir, "draft-"+chosenTag+".md")
 	_ = rt.Touch(draft)
@@ -411,9 +457,10 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	rt.DevRebuild(opts.PairHome)
 
 	configDir := filepath.Join(opts.PairHome, "zellij")
-	layout := filepath.Join(opts.PairHome, "zellij", "layouts", "main.kdl")
+	layout := filepath.Join(opts.PairHome, "zellij", "layouts", LayoutAssetBasename(layoutResolution.Mode))
 	code, err := rt.LaunchSession(session, configDir, layout)
 	if err != nil {
+		restoreLayoutRecord(rt, dataDir, chosenTag, priorLayout)
 		fmt.Fprintf(stderr, "pair: failed to launch zellij session '%s': %v\n", session, err)
 		return launchStep{code: 1}, nil
 	}

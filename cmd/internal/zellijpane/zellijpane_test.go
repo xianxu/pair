@@ -69,6 +69,17 @@ func TestParseStringPaneID(t *testing.T) {
 	}
 }
 
+func TestParseGeometry(t *testing.T) {
+	js := `[{"id":7,"is_focused":true,"pane_x":3,"pane_columns":99,"pane_rows":12}]`
+	panes := Parse([]byte(js))
+	if len(panes) != 1 {
+		t.Fatalf("want one pane, got %+v", panes)
+	}
+	if panes[0].X != 3 || panes[0].Columns != 99 || panes[0].Rows != 12 {
+		t.Fatalf("geometry = %+v, want x=3 cols=99 rows=12", panes[0])
+	}
+}
+
 func TestParseInvalidJSON(t *testing.T) {
 	if got := Parse([]byte("not json")); got != nil {
 		t.Fatalf("invalid JSON → nil, got %+v", got)

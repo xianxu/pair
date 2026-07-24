@@ -688,7 +688,7 @@ end
 
 -- Check if Neovim has a UI attached (false indicates headless mode, e.g. tests)
 local function has_ui()
-  return #vim.api.nvim_list_uis() > 0
+  return vim.g.pair_test_has_ui == true or #vim.api.nvim_list_uis() > 0
 end
 
 local function send_esc_to_agent()
@@ -1532,10 +1532,9 @@ function _G.PairPasteQuote()
 end
 
 -- ---------------------------------------------------------------------------
--- send_and_clear: Alt+Return — send entire buffer, log, clear, reset.
--- With no_submit=true (Alt+Shift+Return) the body lands in the agent's
--- composer followed by a literal newline but is NOT submitted; everything
--- else (strip, log, queue handling, clear, reset to *) is identical.
+-- send_and_clear: Alt+Return sends the entire buffer, logs it, clears the
+-- draft, and resets to *. With no_submit=true (Alt+Shift+Return) the body lands
+-- in the agent's composer followed by a literal newline but is NOT submitted.
 -- ---------------------------------------------------------------------------
 
 local function send_and_clear(no_submit)
@@ -3072,8 +3071,8 @@ vim.keymap.set('n', 'ZQ', function() PairQuitWarn() end, { silent = true, desc =
 -- here instead of running the action directly. Both are easy to fat-finger
 -- — Alt+x is unrecoverable (kills the zellij session and its processes)
 -- and Alt+d drops the user out of a long-running attached session. The
--- zellij side moves focus to nvim, ESCs into normal mode, and runs one of
--- these via cmdline; vim.fn.confirm pops a modal Y/N (default No), and the
+-- zellij side, pair wrap, or pair term routes the request into draft nvim;
+-- vim.fn.confirm pops a modal Y/N (default No), and the
 -- action only fires on Yes. Y is shelled out via vim.fn.system because
 -- nvim has no direct zellij IPC and re-binding zellij keybindings to first
 -- check a flag is more state than this is worth.
@@ -3307,6 +3306,30 @@ end
 function _G.PairConfirmRestart()           pair_confirm_restart_impl(false) end
 function _G.PairConfirmRestartNewSession() pair_confirm_restart_impl(true)  end
 
+function _G.PairConfirmAgentRestart()
+  pair_ensure_visible_then(function()
+    local cfg = pair_read_saved_config()
+    local prompt = 'Restart only the coding agent with a fresh conversation?'
+      .. '\n\nThe draft, terminal, and workbench layout will remain running.'
+    if cfg then
+      local args_line = '<none>'
+      if type(cfg.args) == 'table' and #cfg.args > 0 then
+        args_line = table.concat(cfg.args, ' ')
+      end
+      prompt = prompt
+        .. '\n\nRe-launching with:'
+        .. '\n  agent: ' .. cfg.agent
+        .. '\n  args:  ' .. args_line
+    end
+    if vim.fn.confirm(prompt, '&Yes\n&No', 2) == 1 then
+      local out = vim.fn.system({ 'pair', 'agent', 'restart' })
+      if vim.v.shell_error ~= 0 then
+        vim.notify((out:gsub('%s+$', '')), vim.log.levels.ERROR)
+      end
+    end
+  end)
+end
+
 -- Alt+Shift+C compaction (#55). Distilling a continuation needs the agent's
 -- judgment, so this asks the AGENT (agent-agnostic prompt, no claude-only skill
 -- name) to write the continuation. But the RESTART is no longer the agent's job
@@ -3382,7 +3405,7 @@ vim.api.nvim_create_user_command('PairTTYRawPath', function() _G.PairTTYRawPath(
 -- Two keys drive this: Alt+Up (PairLayoutBigger) and Alt+Down
 -- (PairLayoutSmaller) step along the ladder, clamped at the ends.
 --
--- Sizing is exact — zellij/layouts/main.kdl declares each rung as a
+-- Sizing is exact — zellij/layouts/main-{2,3}.kdl declare each rung as a
 -- swap_tiled_layout with the desired draft-pane size. We step along the
 -- ladder via `zellij action next-swap-layout` / `previous-swap-layout`,
 -- which re-tiles the existing agent + nvim panes onto the target swap
@@ -3512,7 +3535,7 @@ function _G.PairLayoutSmaller()
 end
 
 -- Seed the in-memory mirror at startup. zellij boots into the size=12
--- draft pane (see zellij/layouts/main.kdl), and the in-memory mirror is
+-- draft pane (see zellij/layouts/main-{2,3}.kdl), and the in-memory mirror is
 -- only used by callers that don't want to call layout_read; layout_read
 -- itself reads vim.o.lines so it doesn't need this.
 layout_write('small')
@@ -3534,6 +3557,41 @@ local function pair_scrollback_prev_prompt()
   })
 end
 
+function _G.PairScrollbackOpen()
+  vim.fn.system({
+    'zellij', 'run', '--floating', '--close-on-exit', '--name', 'scrollback',
+    '--width', '100%', '--height', '100%', '--x', '0', '--y', '0',
+    '--', 'pair', 'scrollback', 'open',
+  })
+end
+
+function _G.PairLastLeftPaneFile()
+  return pair_data_dir() .. '/last-left-pane-' .. (vim.env.PAIR_TAG or 'pair')
+end
+
+function _G.PairRecordLeftPane()
+  local pane_id = vim.env.ZELLIJ_PANE_ID
+  if not pane_id or pane_id == '' then return end
+  local f = io.open(_G.PairLastLeftPaneFile(), 'w')
+  if f then
+    f:write(pane_id .. '\n')
+    f:close()
+  end
+end
+
+function _G.PairFocusAgent()
+  if has_ui() then
+    vim.fn.system({ 'zellij', 'action', 'move-focus', 'up' })
+  end
+end
+
+function _G.PairFocusTerminal()
+  _G.PairRecordLeftPane()
+  if has_ui() then
+    vim.fn.system({ 'zellij', 'action', 'move-focus', 'right' })
+  end
+end
+
 -- ---------------------------------------------------------------------------
 -- keymaps
 -- ---------------------------------------------------------------------------
@@ -3546,6 +3604,30 @@ vim.keymap.set({ 'n', 'i' }, '<S-M-CR>', function() send_and_clear(true) end,
 
 vim.keymap.set({ 'n', 'i' }, '<M-b>', pair_scrollback_prev_prompt,
   { silent = true, desc = 'pair: open scrollback on previous prompt (Alt+/ then Alt+b)' })
+
+vim.keymap.set({ 'n', 'i' }, '<M-/>', function() _G.PairScrollbackOpen() end,
+  { silent = true, desc = 'pair: open scrollback viewer' })
+
+vim.keymap.set({ 'n', 'i' }, '<M-j>', function() _G.PairFocusAgent() end,
+  { silent = true, desc = 'pair: focus agent pane' })
+
+vim.keymap.set({ 'n', 'i' }, '<M-k>', function() _G.PairFocusTerminal() end,
+  { silent = true, desc = 'pair: focus terminal pane' })
+
+vim.keymap.set({ 'n', 'i' }, '<M-C>', function() _G.PairConfirmCompact() end,
+  { silent = true, desc = 'pair: compact session' })
+
+vim.keymap.set({ 'n', 'i' }, '<C-M-c>', function() _G.PairConfirmCompact() end,
+  { silent = true, desc = 'pair: compact session' })
+
+vim.keymap.set({ 'n', 'i' }, '<M-t>', function() end,
+  { silent = true, desc = 'pair: right-terminal tab helper disabled in draft' })
+vim.keymap.set({ 'n', 'i' }, '<M-w>', function() end,
+  { silent = true, desc = 'pair: right-terminal tab helper disabled in draft' })
+vim.keymap.set({ 'n', 'i' }, '<M-r>', function() end,
+  { silent = true, desc = 'pair: right-terminal tab helper disabled in draft' })
+vim.keymap.set({ 'n', 'i' }, '<M-x>', function() _G.PairConfirmQuit() end,
+  { silent = true, desc = 'pair: confirm quit' })
 
 vim.keymap.set({ 'n', 'i' }, '<M-i>', attach_image,
   { silent = true, desc = 'pair: attach clipboard image (Ctrl+V to agent + ref)' })

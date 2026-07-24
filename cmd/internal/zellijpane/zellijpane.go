@@ -12,9 +12,8 @@ import (
 )
 
 // Pane is the subset of a zellij pane manifest the pair helpers key off. Title
-// is carried even though the two M4 clip consumers don't read it, so opener's
-// title-keyed agent-pane pick (cmd/internal/opener/runtime.go:isAgentPane) can
-// adopt this parser later as a pure swap, not a struct edit.
+// supports title-keyed role fallbacks, and geometry supports workbench layout
+// decisions when callers request `list-panes --geometry`.
 type Pane struct {
 	ID              string
 	TerminalCommand string
@@ -22,12 +21,15 @@ type Pane struct {
 	IsFocused       bool
 	IsPlugin        bool
 	IsFloating      bool
+	X               int
+	Columns         int
+	Rows            int
 }
 
 // Parse decodes the `list-panes --json` output and returns every pane object it
 // finds, in a deterministic depth-first order (map children visited in
 // sorted-key order — jq's `..` uses document order, but that only matters when
-// >1 pane matches a predicate, which pair's two-pane invariant rules out; the
+// >1 pane matches a predicate, which Pair's one-pane-per-role invariant rules out; the
 // selectors in clipcmd pick a unique pane). Invalid JSON yields nil.
 func Parse(data []byte) []Pane {
 	var root interface{}
@@ -88,6 +90,9 @@ func paneFrom(m map[string]interface{}) (Pane, bool) {
 		IsFocused:       focused,
 		IsPlugin:        plugin,
 		IsFloating:      floating,
+		X:               intNumber(m["pane_x"]),
+		Columns:         intNumber(m["pane_columns"]),
+		Rows:            intNumber(m["pane_rows"]),
 	}, true
 }
 
@@ -101,4 +106,15 @@ func idString(v interface{}) string {
 		return n
 	}
 	return ""
+}
+
+func intNumber(v interface{}) int {
+	switch n := v.(type) {
+	case float64:
+		return int(n)
+	case int:
+		return n
+	default:
+		return 0
+	}
 }

@@ -5,6 +5,14 @@ import (
 	"testing"
 )
 
+func TestFreshAgentArgsDropsRestorationAndKeepsUserOptions(t *testing.T) {
+	got := FreshAgentArgs([]string{"--sandbox", "danger-full-access", "resume", "old-id", "--model", "gpt-5"})
+	want := []string{"--sandbox", "danger-full-access", "--model", "gpt-5"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("FreshAgentArgs() = %v, want %v", got, want)
+	}
+}
+
 func TestHasFlag(t *testing.T) {
 	if !hasFlag([]string{"a", "--session-id", "b"}, "--session-id") {
 		t.Error("should find --session-id")

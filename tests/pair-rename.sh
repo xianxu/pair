@@ -38,6 +38,7 @@ seed_tag() {
     : > "$dd/outer-tty-$tag"
     : > "$dd/pair-wrap-pid-$tag"
     : > "$dd/layout-mode-$tag"
+    printf 'layout3\n' > "$dd/workbench-layout-$tag"
     : > "$dd/quote-$tag"
     mkdir -p "$dd/queue-$tag"; : > "$dd/queue-$tag/some-prompt.md"
     : > "$dd/draft-$tag.md"
@@ -95,11 +96,13 @@ DD="$(mktemp -d "${TMPDIR:-/tmp}/pair-rename-t1.XXXXXX")"
 seed_tag "$DD" t1 claude
 run_rename "$DD" t1 t2 >/dev/null
 for f in agent-t1 agent-pid-t1 outer-tty-t1 draft-t1.md log-t1.md \
+         workbench-layout-t1 \
          config-t1-claude.json scrollback-t1-claude.raw queue-t1 \
          nvim-pid-t1-draft; do
     assert_gone "$DD/$f"
 done
 for f in agent-t2 agent-pid-t2 outer-tty-t2 draft-t2.md log-t2.md \
+         workbench-layout-t2 \
          config-t2-claude.json scrollback-t2-claude.raw queue-t2 \
          nvim-pid-t2-draft; do
     assert_exists "$DD/$f"

@@ -47,7 +47,7 @@ local annotate
 for _, name in ipairs({
   'PairLayoutBigger', 'PairLayoutSmaller',
   'PairConfirmQuit',  'PairConfirmDetach',
-  'PairConfirmRestart', 'PairConfirmRestartNewSession',
+  'PairConfirmRestart', 'PairConfirmRestartNewSession', 'PairConfirmAgentRestart',
 }) do
   _G[name] = function() end
 end
@@ -491,7 +491,9 @@ vim.api.nvim_create_autocmd('BufReadPost', {
     -- something to ship (user-added markers beyond the baseline, or a footer
     -- comment); passive reads quit instantly, no friction.
     vim.keymap.set('n', '<Esc>', function() annotate.confirm_quit(bufnr) end,
-                   { buffer = bufnr, silent = true })
+      { buffer = bufnr, silent = true })
+    vim.keymap.set({ 'n', 'i' }, '<M-x>', function() _G.PairConfirmQuit() end,
+      { buffer = bufnr, silent = true, desc = 'pair: quit disabled in scrollback viewer' })
     vim.keymap.set('n', 'ZZ', '<nop>', { buffer = bufnr, silent = true })
     vim.keymap.set('n', 'ZQ', '<nop>', { buffer = bufnr, silent = true })
     vim.keymap.set('n', '<M-b>', function() jump_to_prompt('prev') end,

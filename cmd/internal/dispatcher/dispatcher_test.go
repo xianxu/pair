@@ -13,7 +13,7 @@ func TestDispatchNamesDeriveFromImplementedStatus(t *testing.T) {
 	// keys off DispatchNames(), so if one of these were accidentally left
 	// `planned`, `pair changelog` would fall through to the launcher (start a
 	// session) with no other test catching it.
-	for _, want := range []string{"context", "scrollback", "wrap", "slug", "changelog", "continuation", "session-watch", "scribe", "review", "clip", "title"} {
+	for _, want := range []string{"agent", "context", "layout", "scrollback", "wrap", "term", "slug", "changelog", "continuation", "session-watch", "scribe", "review", "clip", "title"} {
 		if !containsStr(names, want) {
 			t.Fatalf("DispatchNames() = %v, missing implemented %q", names, want)
 		}
@@ -28,12 +28,12 @@ func TestDispatchNamesDeriveFromImplementedStatus(t *testing.T) {
 }
 
 func TestStreamingFlags(t *testing.T) {
-	for _, s := range []string{"wrap", "scribe", "changelog render", "continuation", "session-watch", "title", "clip copy-on-select"} {
+	for _, s := range []string{"wrap", "term", "scribe", "changelog render", "continuation", "session-watch", "title", "clip copy-on-select"} {
 		if !IsStreaming(s) {
 			t.Errorf("IsStreaming(%q) = false, want true (stdin/live-stderr/long-running)", s)
 		}
 	}
-	for _, b := range []string{"slug", "context", "scrollback render", "scrollback open", "clip flash-pane"} {
+	for _, b := range []string{"slug", "context", "layout toggle-focused", "scrollback render", "scrollback open", "clip flash-pane"} {
 		if IsStreaming(b) {
 			t.Errorf("IsStreaming(%q) = true, want false (buffered)", b)
 		}
@@ -48,7 +48,9 @@ func TestResolveNestedFlatAndAlias(t *testing.T) {
 		wantOK   bool
 	}{
 		{[]string{"review", "open", "f"}, "review open", []string{"f"}, true},
+		{[]string{"agent", "restart"}, "agent restart", []string{}, true},
 		{[]string{"review", "definition", "req", "text"}, "review definition", []string{"req", "text"}, true},
+		{[]string{"layout", "toggle-focused"}, "layout toggle-focused", []string{}, true},
 		{[]string{"scrollback", "render"}, "scrollback render", []string{}, true},
 		{[]string{"clip", "copy-on-select", "--orchestrate"}, "clip copy-on-select", []string{"--orchestrate"}, true},
 		{[]string{"context", "T", "claude"}, "context", []string{"T", "claude"}, true},
@@ -71,7 +73,7 @@ func TestResolveNestedFlatAndAlias(t *testing.T) {
 
 func TestDispatchNamesAreTopLevelTokens(t *testing.T) {
 	names := DispatchNames()
-	for _, want := range []string{"review", "scrollback", "changelog", "clip", "title"} {
+	for _, want := range []string{"review", "layout", "scrollback", "changelog", "clip", "title"} {
 		if !containsStr(names, want) {
 			t.Errorf("DispatchNames() = %v, missing group/flat token %q", names, want)
 		}
@@ -163,11 +165,11 @@ func TestDispatchVersionIsDevelopmentSkeletonMetadata(t *testing.T) {
 	}
 }
 
-// wrap is an implemented STREAMING subcommand: the buffered Dispatch path must
-// refuse it (real stdio is required — it's routed via cmd/pair-go's streaming
+// wrap/term are implemented STREAMING subcommands: the buffered Dispatch path must
+// refuse them (real stdio is required — they're routed via cmd/pair-go's streaming
 // seam, not Dispatch). scribe behaves the same way.
 func TestDispatchStreamingCommandRefusesBufferedPath(t *testing.T) {
-	for _, name := range []string{"wrap", "scribe"} {
+	for _, name := range []string{"wrap", "term", "scribe"} {
 		res := Dispatch([]string{name})
 		if res.ExitCode != 2 {
 			t.Fatalf("%s: ExitCode = %d, want 2", name, res.ExitCode)

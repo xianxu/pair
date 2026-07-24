@@ -31,6 +31,9 @@ type ZellijOps interface {
 	// code when the pane exits. It must NOT syscall.Exec — the Go launcher has
 	// to regain control afterward for the M3 quit-cleanup / restart loop.
 	LaunchSession(session, configDir, layout string) (int, error)
+	// ProbeLiveLayout inspects a live session's actual pane signature. It is the
+	// rollout fallback for sessions created before workbench-layout-<tag>.
+	ProbeLiveLayout(session string) (LayoutMode, error)
 }
 
 // SnapshotOps supplies the historical-tag half of the launch decision snapshot
@@ -66,6 +69,9 @@ type UIOps interface {
 	// PickFromList presents options via fzf (--read0 multi-line) under header and
 	// returns the chosen line, or "" if the user aborted.
 	PickFromList(header string, options []string, height int) string
+	// ConfirmLayoutChange warns that changing a live topology recreates the
+	// entire workbench and loses arbitrary user-terminal state.
+	ConfirmLayoutChange(tag string, from, to LayoutMode) bool
 	// SetTerminalTitle emits the OSC title escape for session.
 	SetTerminalTitle(session string)
 }
@@ -174,7 +180,7 @@ type LifecycleOps interface {
 	// DeleteSession removes the zellij session record (delete-session --force)
 	// and SIGKILLs any lingering `zellij --server …/<session>` process, shell
 	// 1528-1534.
-	DeleteSession(session string)
+	DeleteSession(session string) error
 	// ReapNvim kills this tag's nvim --embed children (pidfiles + pattern sweep),
 	// shell 1089-1112.
 	ReapNvim(tag string)

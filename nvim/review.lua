@@ -210,10 +210,12 @@ vim.api.nvim_create_autocmd({ 'FocusGained', 'BufEnter' }, {
 -- the review pane is focused degrades silently (same rationale as scrollback.lua).
 for _, name in ipairs({
   'PairLayoutBigger', 'PairLayoutSmaller', 'PairConfirmQuit',
-  'PairConfirmDetach', 'PairConfirmRestart', 'PairConfirmRestartNewSession',
+  'PairConfirmDetach', 'PairConfirmRestart', 'PairConfirmRestartNewSession', 'PairConfirmAgentRestart',
 }) do
   _G[name] = function() end
 end
+vim.keymap.set({ 'n', 'i' }, '<M-x>', function() _G.PairConfirmQuit() end,
+  { silent = true, desc = 'pair: quit disabled in review pane' })
 
 -- Alt+c pressed while THIS review pane is focused: the zellij bind's relative
 -- MoveFocus Down may not escape a floating pane, so the `:lua PairReviewToggle()`

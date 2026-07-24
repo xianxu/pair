@@ -18,6 +18,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
 	"github.com/xianxu/pair/cmd/internal/scribecmd"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
+	"github.com/xianxu/pair/cmd/internal/termcmd"
 	"github.com/xianxu/pair/cmd/internal/titlepoller"
 	"github.com/xianxu/pair/cmd/internal/wrapcmd"
 )
@@ -82,6 +83,8 @@ func runStreamingSubcommand(name string, rest []string, stdin io.Reader, stdout,
 	switch name {
 	case "wrap":
 		return wrapcmd.Run(rest, stdin, stdout, stderr)
+	case "term":
+		return termcmd.Run(rest, stdin, stdout, stderr)
 	case "scribe":
 		return scribecmd.Run(rest, stdin, stdout, stderr)
 	case "changelog render":
@@ -106,7 +109,7 @@ func runLegacyLaunch(label string, executable string, args []string, stdout, std
 		Executable:      executable,
 		DefaultPairHome: rt.DefaultPairHome(),
 		ValidRoot: func(root string) bool {
-			return rt.Stat(entrypoint.ValidRootMarker(root)) == nil
+			return validAssetRoot(rt, root)
 		},
 	})
 	if err != nil {
@@ -118,7 +121,7 @@ func runLegacyLaunch(label string, executable string, args []string, stdout, std
 				DefaultPairHome: rt.DefaultPairHome(),
 				EmbeddedRoot:    embeddedRoot,
 				ValidRoot: func(root string) bool {
-					return rt.Stat(entrypoint.ValidRootMarker(root)) == nil
+					return validAssetRoot(rt, root)
 				},
 			})
 		}
@@ -133,6 +136,15 @@ func runLegacyLaunch(label string, executable string, args []string, stdout, std
 	// The native launcher is the sole launcher (#99 M5c — bin/pair-shell retired).
 	// It handles every flow in-process and always returns a real exit code.
 	return rt.LaunchNative(args, root.Root, stdout, stderr)
+}
+
+func validAssetRoot(rt legacyRuntime, root string) bool {
+	for _, marker := range entrypoint.ValidRootMarkers(root) {
+		if rt.Stat(marker) != nil {
+			return false
+		}
+	}
+	return true
 }
 
 type osLegacyRuntime struct{}

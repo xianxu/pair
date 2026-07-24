@@ -63,7 +63,7 @@ func runCleanup(env Env, rt Runtime, step launchStep, parkTimeout int, out io.Wr
 		quitAgent = step.agent
 	}
 
-	rt.DeleteSession(step.session)
+	_ = rt.DeleteSession(step.session)
 	rt.ReapNvim(step.tag)
 
 	// Park-nudge (ariadne#91): the scrollback is the only on-disk record and
@@ -82,7 +82,7 @@ func runCleanup(env Env, rt Runtime, step launchStep, parkTimeout int, out io.Wr
 	}
 
 	// Remove the per-tag sidecars (shell 1583-1591). pane-<tag>-<quitAgent>.json
-	// (written by the agent pane's zellij layout, main.kdl) was historically
+	// (written by the agent pane in both main-{2,3}.kdl layouts) was historically
 	// omitted here — the leak behind #97: a surviving twin misled the frame
 	// poller when the tag was later paired with a different agent. Cleaning it on
 	// quit stops new twins at the source (the poller also filters defensively).

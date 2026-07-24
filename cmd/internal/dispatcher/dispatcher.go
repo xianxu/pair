@@ -6,8 +6,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/xianxu/pair/cmd/internal/agentcmd"
 	"github.com/xianxu/pair/cmd/internal/clipcmd"
 	"github.com/xianxu/pair/cmd/internal/contextcmd"
+	"github.com/xianxu/pair/cmd/internal/layoutcmd"
 	"github.com/xianxu/pair/cmd/internal/opener"
 	"github.com/xianxu/pair/cmd/internal/reviewcmd"
 	"github.com/xianxu/pair/cmd/internal/scrollbackcmd"
@@ -47,8 +49,11 @@ func Families() []CommandFamily {
 		{Name: "launch", Summary: "session lifecycle and public pair launcher flow", Status: "handoff"},
 		// flat helpers
 		{Name: "context", Summary: "agent pane context meter", Status: "implemented"},
+		{Name: "agent restart", Summary: "restart only the supervised agent conversation", Status: "implemented"},
+		{Name: "layout toggle-focused", Summary: "toggle focused workbench side width", Status: "implemented"},
 		{Name: "slug", Summary: "session orientation slug generation", Status: "implemented"},
 		{Name: "wrap", Summary: "PTY proxy around a TUI agent", Status: "implemented", Streaming: true},
+		{Name: "term", Summary: "right workbench terminal with pane-local shortcuts", Status: "implemented", Streaming: true},
 		{Name: "scribe", Summary: "PTY logging wrapper", Status: "implemented", Streaming: true},
 		{Name: "session-watch", Summary: "async codex/agy session-id discovery", Status: "implemented", Streaming: true},
 		{Name: "title", Summary: "agent pane title poller", Status: "implemented", Streaming: true},
@@ -166,8 +171,14 @@ func Dispatch(args []string) Result {
 	switch family.Name {
 	case "context":
 		return dispatchContext(rest)
+	case "agent restart":
+		return bufferedStderr(func(stderr *bytes.Buffer) int {
+			return agentcmd.RunRestart(rest, os.Getenv, agentcmd.OSRuntime{}, stderr)
+		})
 	case "slug":
 		return dispatchSlug(rest)
+	case "layout toggle-focused":
+		return bufferedStderr(func(stderr *bytes.Buffer) int { return layoutcmd.RunToggleFocused(rest, layoutcmd.OSRuntime{}, stderr) })
 	case "scrollback render":
 		return dispatchScrollbackRender(rest)
 	case "scrollback open":

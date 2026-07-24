@@ -10,12 +10,13 @@
 //   scroll-position indicator (top-right) when scrolled — the only way
 //   to surface scrollback position, since zellij doesn't expose pane
 //   scroll offset to plugins or the CLI. The draft pane opts out via
-//   `borderless=true` in zellij/layouts/main.kdl so the "minimized"
+//   `borderless=true` in both zellij/layouts/main-{2,3}.kdl so the "minimized"
 //   layout rung can still collapse to 1 row (framed minimum is ~3
 //   rows). Cost on the agent pane: ~2 rows + 2 cols of frame chrome.
 mouse_hover_effects false
 advanced_mouse_actions false
 show_release_notes false
+show_startup_tips false
 pane_frames true
 
 // Cap zellij's per-pane scroll-back at 2000 rows. Matches the
@@ -66,9 +67,44 @@ keybinds clear-defaults=false {
         unbind "Alt n"
         unbind "Alt N"
         unbind "Alt o"
+        // Workbench-local keys are handled by the focused pane process:
+        // pair wrap (agent), nvim/init.lua (draft), or pair term (right shell).
+        unbind "Alt j"
+        unbind "Alt k"
+        unbind "Alt t"
+        unbind "Alt w"
+        unbind "Alt r"
+        unbind "Alt x"
+        unbind "Alt /"
+        unbind "Alt C"
+        unbind "Ctrl Alt c"
+        unbind "Alt Shift Enter"
     }
 
     shared_except "locked" {
+        // Workbench-local shortcuts are forwarded as ordinary Meta bytes to
+        // the focused pane process. pair wrap, nvim/init.lua, pair term, and
+        // nvim/review.lua then decide locally what the chord means.
+        unbind "Alt j"
+        unbind "Alt k"
+        unbind "Alt t"
+        unbind "Alt w"
+        unbind "Alt r"
+        unbind "Alt x"
+        unbind "Alt /"
+        unbind "Alt C"
+        unbind "Ctrl Alt c"
+        bind "Alt j" { Write 27; Write 106; }
+        bind "Alt k" { Write 27; Write 107; }
+        bind "Alt t" { Write 27; Write 116; }
+        bind "Alt w" { Write 27; Write 119; }
+        bind "Alt r" { Write 27; Write 114; }
+        bind "Alt x" { WriteChars "\u{1b}[120;3u"; }
+        bind "Alt /" { Write 27; Write 47; }
+        bind "Alt C" { Write 27; Write 67; }
+        bind "Ctrl Alt c" { WriteChars "\u{1b}[99;7u"; }
+        bind "Alt Shift Enter" { WriteChars "\u{1b}[13;4u"; }
+
         // Disable Ctrl+q — zellij's default Quit leaves the session in the
         // resurrect list with dead processes inside, which is a confusing
         // half-state for pair's "long-lived agent session" model. Alt+x is
@@ -93,9 +129,10 @@ keybinds clear-defaults=false {
 
         // Alt+d — detach from the current pair session. Routed through nvim
         // for a confirm prompt before the actual detach (muscle-memory guard;
-        // accidental Alt+d while in the agent pane is annoying to recover
-        // from on long-running sessions). MoveFocus Down lands in nvim,
-        // <C-\><C-n> (bytes 28, 14) forces normal mode from any state
+        // accidental Alt+d while in the agent or terminal pane is annoying to
+        // recover from on long-running sessions). MoveFocus Left then Down
+        // lands in the draft from either side of the workbench; <C-\><C-n>
+        // (bytes 28, 14) forces normal mode from any state
         // (insert, terminal, visual, op-pending, select) — a bare ESC is
         // unreliable when a completion popup, telescope prompt, or :terminal
         // is focused, in which case the colon command would get typed into
@@ -103,6 +140,7 @@ keybinds clear-defaults=false {
         // PairConfirmDetach() shells out to `zellij action detach` only on
         // Yes.
         bind "Alt d" {
+            MoveFocus "Left";
             MoveFocus "Down";
             Write 28;
             Write 14;
@@ -116,10 +154,11 @@ keybinds clear-defaults=false {
         // each is clamped at the end of the ladder. Routed through nvim because zellij's
         // keybind language can't run a shell command silently and the step
         // needs persistent state plus a loop of `zellij action resize`
-        // calls. MoveFocus Down lands in nvim whether the user started in
-        // the agent pane or in nvim; the <C-\><C-n> + cmdline dance matches
-        // the Alt+d / Alt+x flow.
+        // calls. MoveFocus Left then Down lands in nvim whether the user
+        // started in the left stack or the right terminal; the <C-\><C-n> +
+        // cmdline dance matches the Alt+d / Alt+x flow.
         bind "Alt Up" {
+            MoveFocus "Left";
             MoveFocus "Down";
             Write 28;
             Write 14;
@@ -127,35 +166,11 @@ keybinds clear-defaults=false {
             Write 13;
         }
         bind "Alt Down" {
+            MoveFocus "Left";
             MoveFocus "Down";
             Write 28;
             Write 14;
             WriteChars ":lua PairLayoutSmaller()";
-            Write 13;
-        }
-
-        // Alt+j — toggle focus between the agent and draft panes. Works from
-        // *either* pane because it's a global zellij bind, intercepted before
-        // the focused pane's process (agent TUI or nvim) ever sees the key.
-        // pair's layout is always exactly two tiled panes, so FocusNextPane is
-        // a clean toggle with no direction to track — unlike zellij's default
-        // Alt+j (MoveFocus "Down"), which only reaches the draft and is a
-        // dead key once you're already there. This bind overrides that default.
-        bind "Alt j" {
-            FocusNextPane;
-        }
-
-        // Alt+x — full quit: kill the session AND remove its entry from the
-        // resurrect list (vs. Ctrl+q which keeps the session as a resurrect
-        // candidate). Routed through nvim for a confirm prompt before the
-        // destructive action — `pair quit` kills the zellij session, so an
-        // accidental Alt+x mid-session is unrecoverable. PairConfirmQuit()
-        // invokes `pair quit` only on Yes.
-        bind "Alt x" {
-            MoveFocus "Down";
-            Write 28;
-            Write 14;
-            WriteChars ":lua PairConfirmQuit()";
             Write 13;
         }
 
@@ -175,25 +190,6 @@ keybinds clear-defaults=false {
             };
         }
 
-        // Alt+/ — open the agent pane's full scrollback in a read-only,
-        // ANSI-colored nvim viewer (#000017). pair-wrap captures the raw
-        // PTY stream alongside resize events; pair-scrollback-open replays
-        // through charmbracelet/x/vt (Go, post #000019) to recover line
-        // numbers that match zellij's frame indicator, then execs nvim on
-        // the rendered .ansi. The viewer's own <Esc> keybind dismisses
-        // the floating pane via close_on_exit.
-        bind "Alt /" {
-            Run "pair" "scrollback" "open" {
-                floating true
-                close_on_exit true
-                name "scrollback"
-                width "100%"
-                height "100%"
-                x "0"
-                y "0"
-            };
-        }
-
         // Alt+c — collaboration/review workbench toggle (#66 M3/M4b). Routed through the draft
         // nvim exactly like Alt+d / Alt+x (MoveFocus Down lands in nvim from
         // either tiled pane; <C-\><C-n> = bytes 28,14 forces normal mode), then
@@ -204,9 +200,10 @@ keybinds clear-defaults=false {
         // in nvim — not in a transient 20%x1 floating shell pane — kills the
         // ~1s open delay, the auto-hide, and the half-size bugs the old
         // pair-review-toggle pane caused. When Alt+c is pressed from inside the
-        // focused (floating) review pane, MoveFocus Down may not escape it, so the
+        // focused (floating) review pane, MoveFocus may not escape it, so the
         // review pane defines its own PairReviewToggle() (hide-self).
         bind "Alt c" {
+            MoveFocus "Left";
             MoveFocus "Down";
             Write 28;
             Write 14;
@@ -232,13 +229,9 @@ keybinds clear-defaults=false {
             };
         }
 
-        // Alt+n / Ctrl+Alt+n — restart: kill the current pair session AND
-        // re-launch with the same tag, agent, and agent args, but a fresh
-        // agent conversation (the saved per-(tag,agent) config is dropped
-        // before re-exec, so the new run starts the agent from a clean slate
-        // rather than offering to resume). Routed through nvim for the same
-        // fat-finger guard as Alt+x — destroying the agent's in-progress
-        // context is irreversible.
+        // Alt+n / Ctrl+Alt+n — reload the whole workbench with the same tag,
+        // agent, args, and resumed agent conversation. Routed through nvim for
+        // the same fat-finger guard as Alt+x.
         //
         // Ctrl+Alt+n is a duplicate alias for macOS users on Tahoe (and any
         // future OS / terminal combo that lets Option+n fire the dead-tilde
@@ -247,6 +240,7 @@ keybinds clear-defaults=false {
         // reaches zellij on the first press. Alt+n is kept for users whose
         // terminal is configured with Option-as-Meta.
         bind "Alt n" "Ctrl Alt n" {
+            MoveFocus "Left";
             MoveFocus "Down";
             Write 28;
             Write 14;
@@ -254,29 +248,15 @@ keybinds clear-defaults=false {
             Write 13;
         }
 
-        // Shift+Alt+N — restart with a fresh agent conversation: same
-        // tag + agent + args, but the saved config-<tag>-<agent>.json
-        // is dropped so the new run starts a brand-new agent session
-        // (vs. Alt+n which resumes the prior session). Same nvim-routed
-        // confirm guard.
+        // Shift+Alt+N — restart only the supervised agent child with a fresh
+        // conversation. The zellij workbench, draft, and user terminal remain
+        // alive; pair wrap reconstructs the launch without restoration args.
         bind "Alt N" {
+            MoveFocus "Left";
             MoveFocus "Down";
             Write 28;
             Write 14;
-            WriteChars ":lua PairConfirmRestartNewSession()";
-            Write 13;
-        }
-        // Alt+Shift+C — compaction (#55). Capital C IS shift (no Shift token,
-        // cf. "Alt N"). The "Ctrl Alt c" alias defeats the macOS Option-as-
-        // dead-key composer (Option+c is a live composer), mirroring "Alt n"'s
-        // "Ctrl Alt n" alias. Routes to nvim, which asks Y/N then prompts the
-        // agent to write a continuation via `pair continuation`; the writer
-        // then triggers the restart itself (#105) — no agent `pair continue`.
-        bind "Alt C" "Ctrl Alt c" {
-            MoveFocus "Down";
-            Write 28;
-            Write 14;
-            WriteChars ":lua PairConfirmCompact()";
+            WriteChars ":lua PairConfirmAgentRestart()";
             Write 13;
         }
     }

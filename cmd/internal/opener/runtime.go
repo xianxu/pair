@@ -57,7 +57,7 @@ func (OSRuntime) AgentPaneID() string {
 // firstAgentPaneID recursively walks the decoded JSON for the first object that
 // is a real (non-plugin, non-floating) titled pane and returns its id. Map
 // iteration order is Go-random (vs jq's document order), but that only matters
-// if >1 candidate exists — under pair's two-pane invariant the draft pane is
+// if >1 candidate exists — under Pair's one-draft-pane invariant the draft pane is
 // excluded by title and the floating viewers by is_floating, so exactly one pane
 // matches and the pick is deterministic in practice.
 func firstAgentPaneID(v interface{}) string {

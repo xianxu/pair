@@ -49,6 +49,8 @@ case "$(cat "$tmp/nvim-arg" 2>/dev/null)" in
     *scrollback-t-claude.ansi) ;;
     *) echo "FAIL: nvim not opened on the .ansi: $(cat "$tmp/nvim-arg" 2>/dev/null)"; fail=1 ;;
 esac
+grep -Fq "'<M-x>'" "$PAIR_HOME/nvim/scrollback.lua" \
+    || { echo "FAIL: scrollback viewer does not consume Alt+x"; fail=1; }
 # The re-entrancy openlock is cleared on a clean exit.
 [ -f "$PAIR_DATA_DIR/scrollback-t-claude.openlock" ] \
     && { echo "FAIL: openlock left behind"; fail=1; }
