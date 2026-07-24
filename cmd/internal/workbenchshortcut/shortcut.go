@@ -30,7 +30,14 @@ const (
 	ChordAltT
 	ChordAltW
 	ChordAltR
+	ChordAltD
 	ChordAltX
+	ChordAltN
+	ChordCtrlAltN
+	ChordAltShiftN
+	ChordAltUp
+	ChordAltDown
+	ChordAltC
 	ChordAltSlash
 	ChordAltShiftC
 	ChordCtrlAltC
@@ -60,7 +67,13 @@ const (
 	ActionFocusRightTerminal
 	ActionOpenScrollback
 	ActionConfirmCompact
+	ActionConfirmDetach
 	ActionConfirmQuit
+	ActionRestartPair
+	ActionRestartAgent
+	ActionGrowDraft
+	ActionShrinkDraft
+	ActionToggleReview
 	ActionToggleFocusedLayout
 )
 
@@ -77,6 +90,7 @@ type ShortcutDecision struct {
 	Action               ShortcutAction
 	TargetPaneID         string
 	RecordLastLeftPaneID string
+	DraftLuaFunction     string
 }
 
 func RoleForPane(p zellijpane.Pane) PaneRole {
@@ -98,6 +112,15 @@ func RoleForPane(p zellijpane.Pane) PaneRole {
 }
 
 func Decide(in ShortcutInput) ShortcutDecision {
+	if in.Role == PaneRoleLeftAgent || in.Role == PaneRoleLeftDraft || in.Role == PaneRoleRightTerminal {
+		if action, fn, ok := globalDraftAction(in.Chord); ok {
+			return ShortcutDecision{
+				Disposition:      DispositionHandle,
+				Action:           action,
+				DraftLuaFunction: fn,
+			}
+		}
+	}
 	switch in.Role {
 	case PaneRoleRightTerminal:
 		switch in.Chord {
@@ -107,8 +130,6 @@ func Decide(in ShortcutInput) ShortcutDecision {
 			return handle(ActionCloseTab)
 		case ChordAltR:
 			return handle(ActionRenameTab)
-		case ChordAltX:
-			return handle(ActionConfirmQuit)
 		case ChordAltK:
 			target := in.LastLeftPaneID
 			if target == "" {
@@ -139,8 +160,6 @@ func Decide(in ShortcutInput) ShortcutDecision {
 			return handle(ActionOpenScrollback)
 		case ChordAltShiftC, ChordCtrlAltC:
 			return handle(ActionConfirmCompact)
-		case ChordAltX:
-			return handle(ActionConfirmQuit)
 		case ChordAltT, ChordAltW, ChordAltR:
 			return ShortcutDecision{Disposition: DispositionSwallow}
 		default:
@@ -148,6 +167,27 @@ func Decide(in ShortcutInput) ShortcutDecision {
 		}
 	default:
 		return ShortcutDecision{Disposition: DispositionPass}
+	}
+}
+
+func globalDraftAction(chord Chord) (ShortcutAction, string, bool) {
+	switch chord {
+	case ChordAltD:
+		return ActionConfirmDetach, "PairConfirmDetach", true
+	case ChordAltX:
+		return ActionConfirmQuit, "PairConfirmQuit", true
+	case ChordAltN, ChordCtrlAltN:
+		return ActionRestartPair, "PairConfirmRestart", true
+	case ChordAltShiftN:
+		return ActionRestartAgent, "PairConfirmAgentRestart", true
+	case ChordAltUp:
+		return ActionGrowDraft, "PairLayoutBigger", true
+	case ChordAltDown:
+		return ActionShrinkDraft, "PairLayoutSmaller", true
+	case ChordAltC:
+		return ActionToggleReview, "PairReviewToggle", true
+	default:
+		return ActionNone, "", false
 	}
 }
 
@@ -164,7 +204,14 @@ var chordSequences = []struct {
 	{"\x1bt", ChordAltT}, {"\x1b[116;3u", ChordAltT},
 	{"\x1bw", ChordAltW}, {"\x1b[119;3u", ChordAltW},
 	{"\x1br", ChordAltR}, {"\x1b[114;3u", ChordAltR},
+	{"\x1b[100;3u", ChordAltD},
 	{"\x1bx", ChordAltX}, {"\x1b[120;3u", ChordAltX},
+	{"\x1b[110;3u", ChordAltN},
+	{"\x1b[110;7u", ChordCtrlAltN},
+	{"\x1b[78;4u", ChordAltShiftN},
+	{"\x1b[1;3A", ChordAltUp},
+	{"\x1b[1;3B", ChordAltDown},
+	{"\x1b[99;3u", ChordAltC},
 	{"\x1b/", ChordAltSlash}, {"\x1b[47;3u", ChordAltSlash},
 	{"\x1bC", ChordAltShiftC}, {"\x1b[67;3u", ChordAltShiftC},
 	{"\x1b[99;7u", ChordCtrlAltC},
@@ -215,8 +262,22 @@ func ChordName(chord Chord) string {
 		return "Alt+w"
 	case ChordAltR:
 		return "Alt+r"
+	case ChordAltD:
+		return "Alt+d"
 	case ChordAltX:
 		return "Alt+x"
+	case ChordAltN:
+		return "Alt+n"
+	case ChordCtrlAltN:
+		return "Ctrl+Alt+n"
+	case ChordAltShiftN:
+		return "Alt+Shift+N"
+	case ChordAltUp:
+		return "Alt+Up"
+	case ChordAltDown:
+		return "Alt+Down"
+	case ChordAltC:
+		return "Alt+c"
 	case ChordAltSlash:
 		return "Alt+/"
 	case ChordAltShiftC:
