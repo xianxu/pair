@@ -107,7 +107,7 @@ closed-vocabulary `api-integration` primitive. Hours and scope are unchanged.
 ## Plan
 
 - [x] Write and approve a durable implementation plan.
-- [ ] Implement the pure rename editor and terminal input mode test-first.
+- [x] Implement the pure rename editor and terminal input mode test-first.
 - [ ] Verify the terminal integration suite and live Neovim-child behavior.
 
 ## Log
@@ -121,6 +121,19 @@ closed-vocabulary `api-integration` primitive. Hours and scope are unchanged.
   estimate primitive. Its only plan suggestion was to name the authoritative
   shortcut source; Task 2 now points directly at
   `workbenchshortcut.FindChord`/`IsChordPrefix`.
+- RED/GREEN editor tests established rune-indexed insert/move/delete,
+  whitespace-trimmed commit, empty-name retention, and cancel semantics.
+- RED/GREEN decoder matrices split every supported navigation sequence,
+  representative UTF-8 rune, shortcut/mouse input, and bracketed-paste input
+  across read boundaries. Invalid bytes and same-read exit suffixes are
+  consumed without child leakage.
+- Replaced the content-area prompt with one lifetime stdin reader and an
+  injected 50ms Escape timer. Production-stream tests cover frame previews,
+  commit/cancel, timeout versus completed controls, suffix consumption, and
+  initial/refresh/finish title failures.
+- Full verification passed: `go test ./... -count=1`, `make test-lua`, terminal
+  shortcut and review-toggle shell suites, runtime-bundle drift check, Zellij
+  config validation, and `git diff --check`.
 
 ## Revisions
 

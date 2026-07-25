@@ -72,7 +72,7 @@ Select something with mouse on agent's pane, the selection is inserted at curren
 | **Alt+k** | layout 3 agent/draft/terminal | Move between the last-focused left Pair pane and the right terminal. |
 | **Alt+t** | layout 3 terminal | Create a Pair-owned local terminal tab. |
 | **Alt+w** | layout 3 terminal | Close the active local terminal tab. |
-| **Alt+r** | layout 3 terminal | Rename the active local terminal tab. |
+| **Alt+r** | layout 3 terminal | Rename the active local terminal tab in the pane frame; Enter commits and Escape cancels. |
 | **Alt+←** / **Alt+→** | layout 3 terminal | Switch local terminal tabs. |
 | **Alt+c** | any pane | Open/show/hide the review collaboration pane. If no review target exists, starts `:PairReview`. |
 | **Shift+Alt+d** | review pane (visual) | Define the selected term inline. The pair agent answers through `pair review definition`, and the pane stores the result as a durable footnote. |

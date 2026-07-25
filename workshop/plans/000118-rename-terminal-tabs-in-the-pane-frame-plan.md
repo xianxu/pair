@@ -304,12 +304,12 @@ git commit -m "#118: rename terminal tabs in the pane frame"
 - Modify: `atlas/architecture.md`
 - Modify: `workshop/issues/000118-rename-terminal-tabs-in-the-pane-frame.md`
 
-- [ ] **Step 1: Update docs and issue evidence**
+- [x] **Step 1: Update docs and issue evidence**
 
 Document Alt+r's frame editor and its child-independent input ownership. Check
 completed plan rows and record red/green evidence.
 
-- [ ] **Step 2: Run complete verification**
+- [x] **Step 2: Run complete verification**
 
 ```bash
 go test ./... -count=1
@@ -330,7 +330,7 @@ edit a Unicode tab name with cursor/Delete/Backspace, cancel once, then commit.
 Confirm the Neovim screen receives no bytes and the frame returns to ordinary
 inventory. Operator verification is required before close/landing.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add README.md atlas/architecture.md workshop/issues/000118-rename-terminal-tabs-in-the-pane-frame.md workshop/plans/000118-rename-terminal-tabs-in-the-pane-frame-plan.md
