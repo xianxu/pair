@@ -2,6 +2,7 @@ package termcmd
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -328,6 +329,8 @@ type fakeRuntime struct {
 	panesJSON   string
 	cachedDraft string
 	lastLeft    string
+	listCalls   int
+	failList    bool
 	ops         []string
 	reported    []string
 	failFocus   bool
@@ -338,6 +341,10 @@ func (f *fakeRuntime) CachedDraftPaneID() (string, bool) {
 }
 
 func (f *fakeRuntime) ListPanesJSON() ([]byte, error) {
+	f.listCalls++
+	if f.failList {
+		return nil, errors.New("pane inventory must not run")
+	}
 	if f.panesJSON == "" {
 		return []byte(`[
 			{"id":1,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
@@ -347,6 +354,24 @@ func (f *fakeRuntime) ListPanesJSON() ([]byte, error) {
 		]`), nil
 	}
 	return []byte(f.panesJSON), nil
+}
+
+func TestPumpStdinRoutesCachedGlobalWithoutPaneInventory(t *testing.T) {
+	rt := &fakeRuntime{cachedDraft: "2", failList: true}
+	mux := &fakeMux{}
+
+	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1b[110;3u")}}, mux, rt, io.Discard)
+
+	if rt.listCalls != 0 {
+		t.Fatalf("list calls = %d, want 0 for global chord", rt.listCalls)
+	}
+	if len(rt.reported) != 0 {
+		t.Fatalf("reported = %v, want successful cached route", rt.reported)
+	}
+	want := "focus-pane-id 2,write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairConfirmRestart(),write --pane-id 2 13"
+	if got := strings.Join(rt.ops, ","); got != want {
+		t.Fatalf("runtime ops = %q, want %q", got, want)
+	}
 }
 
 func (f *fakeRuntime) LastLeftPaneID() (string, error) {

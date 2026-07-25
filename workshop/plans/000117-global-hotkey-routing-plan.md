@@ -53,6 +53,15 @@ precondition for confirmation writes. Grow/shrink/review remain
 focus-preserving. This applies across both Go PTY consumers and every Neovim
 overlay (`ARCH-DRY`, `ARCH-PURPOSE`).
 
+### 2026-07-24 — Bypass pane classification for terminal globals
+
+The cached-locator fast path was still preceded by `pair term`'s generic
+focused-pane inventory. Resolve a global chord directly from the authoritative
+registry before entering the pane-relative decision path. Add a production
+stream regression whose pane inventory fails while cached Alt+n routing must
+still succeed, proving the hot path performs no inventory IO (`ARCH-PURE`,
+`ARCH-PURPOSE`).
+
 ## Core concepts
 
 ### Pure entities
