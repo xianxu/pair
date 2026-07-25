@@ -1,11 +1,12 @@
 ---
 id: 000118
-status: open
+status: working
 deps: [117]
 github_issue:
 created: 2026-07-24
 updated: 2026-07-24
 estimate_hours: 2.48
+started: 2026-07-24T17:04:26-07:00
 ---
 
 # Rename terminal tabs in the pane frame
@@ -89,15 +90,23 @@ item: issue-spec design=0.20 impl=0.08
 item: tui-screen design=0.40 impl=0.40
 item: smaller-go-module design=0.06 impl=0.16
 item: api-integration design=0.20 impl=0.20
-item: ux-iteration design=0.16 impl=0.08
+item: api-integration design=0.16 impl=0.08
 item: atlas-docs design=0.05 impl=0.05
 item: milestone-review design=0.08 impl=0.12
 total: 2.48
 ```
 
+## Revisions
+
+### 2026-07-24 — Reconcile estimate vocabulary
+
+The implementation gate rejected the non-canonical `ux-iteration` estimate
+label. Classify the same live terminal/title seam and revision risk under the
+closed-vocabulary `api-integration` primitive. Hours and scope are unchanged.
+
 ## Plan
 
-- [ ] Write and approve a durable implementation plan.
+- [x] Write and approve a durable implementation plan.
 - [ ] Implement the pure rename editor and terminal input mode test-first.
 - [ ] Verify the terminal integration suite and live Neovim-child behavior.
 
@@ -108,6 +117,10 @@ total: 2.48
 - Confirmed the right-side tabs are Pair-owned PTYs, so Zellij's native
   rename-tab editor targets the wrong abstraction. Selected a Pair-owned
   frame-title editor that works independently of the foreground child.
+- The implementation gate passed with INFO after replacing the unsupported
+  estimate primitive. Its only plan suggestion was to name the authoritative
+  shortcut source; Task 2 now points directly at
+  `workbenchshortcut.FindChord`/`IsChordPrefix`.
 
 ## Revisions
 

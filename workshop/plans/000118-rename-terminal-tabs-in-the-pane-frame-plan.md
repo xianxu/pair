@@ -24,6 +24,13 @@ and EOF behavior, add an injected reset/stop/drain timer plus one lifetime
 reader-result channel, and pin same-read Alt+r transition semantics. Add the
 missing task-to-estimate mapping. The implementation scope is unchanged.
 
+### 2026-07-24 — Reconcile estimate vocabulary
+
+The implementation gate rejected the non-canonical `ux-iteration` estimate
+label. Map that unchanged live terminal/title risk to a second
+`api-integration` row from the closed vocabulary; no hours or implementation
+scope change.
+
 ## Core concepts
 
 ### Pure entities
@@ -111,8 +118,8 @@ missing task-to-estimate mapping. The implementation scope is unchanged.
 - Issue authoring/spec work maps to `issue-spec`.
 - Task 1's rune/cursor state machine maps to `tui-screen`.
 - Task 2's pure streaming decoder maps to `smaller-go-module`.
-- Task 3's single-reader/timer loop and Zellij title boundary map to
-  `api-integration`; live feel/revision risk maps to `ux-iteration`.
+- Task 3's single-reader/timer loop, Zellij title boundary, and live
+  feel/revision risk map to two `api-integration` rows.
 - Task 4 maps to `atlas-docs`; the one issue-close fresh review maps to
   `milestone-review`.
 - The v3.1 total is `Σdesign×1.30 + Σimpl×0.90 = 2.476`, rounded to 2.48.
@@ -171,8 +178,8 @@ Right (`ESC [ C`, `ESC O C`), Home (`ESC [ H`, `ESC O H`, `ESC [ 1 ~`), End
 (`ESC [ F`, `ESC O F`, `ESC [ 4 ~`), Delete (`ESC [ 3 ~`), and bare Escape.
 Consume SGR mouse (`ESC [ < … M/m`), bracketed-paste start/end
 (`ESC [ 200 ~` / `ESC [ 201 ~`) and all enclosed payload, and every sequence in
-the authoritative workbench shortcut registry (including `ESC`+letter and KKP
-forms).
+the authoritative `cmd/internal/workbenchshortcut/shortcut.go` registry through
+`FindChord`/`IsChordPrefix` (including `ESC`+letter and KKP forms).
 
 Split every recognized multi-byte control sequence at every byte boundary and
 assert equivalence with unsplit input. Do the same for representative 2-, 3-,
