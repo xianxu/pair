@@ -92,11 +92,11 @@ check_eq "right Alt+r stays local to pair term" "$(actions)" ""
 
 write_panes terminal
 run_shortcut "Alt+x"
-check_eq "right Alt+x routes quit to draft" "$(actions)" "focus-pane-id 2
-write 28
-write 14
-write-chars :lua PairConfirmQuit()
-write 13"
+check_eq "right Alt+x focuses then routes quit to draft" "$(actions)" "focus-pane-id 2
+write --pane-id 2 28
+write --pane-id 2 14
+write-chars --pane-id 2 :lua PairConfirmQuit()
+write --pane-id 2 13"
 
 write_panes terminal
 run_shortcut "Alt+j"
@@ -104,7 +104,7 @@ check_eq "right Alt+j is no-op" "$(actions)" ""
 
 write_panes terminal
 run_shortcut "Alt+Shift+Enter"
-check_eq "right Alt+Shift+Enter changes floating geometry once" "$(actions)" "change-floating-pane-coordinates --pane-id 4 --x 50 --y 0 --width 100 --height 51 --borderless false --pinned true"
+check_eq "right Alt+Shift+Enter changes floating geometry once" "$(actions)" "change-floating-pane-coordinates --pane-id 4 --x 37 --y 0 --width 113 --height 51 --borderless false --pinned true"
 
 write_panes terminal
 rm -f "$PAIR_DATA_DIR/last-left-pane-t"
@@ -134,6 +134,27 @@ grep -Fq 'bind "Alt x" { WriteChars "\u{1b}[120;3u"; }' "$ROOT/zellij/config.kdl
   && pass "Alt+x forwards distinct KKP sequence" \
   || { printf 'FAIL Alt+x bind missing\n'; fail=1; }
 
+for binding in \
+  'bind "Alt d" { WriteChars "\u{1b}[100;3u"; }' \
+  'bind "Alt n" { WriteChars "\u{1b}[110;3u"; }' \
+  'bind "Ctrl Alt n" { WriteChars "\u{1b}[110;7u"; }' \
+  'bind "Alt N" { WriteChars "\u{1b}[78;4u"; }' \
+  'bind "Alt Up" { WriteChars "\u{1b}[1;3A"; }' \
+  'bind "Alt Down" { WriteChars "\u{1b}[1;3B"; }' \
+  'bind "Alt c" { WriteChars "\u{1b}[99;3u"; }'
+do
+  grep -Fq "$binding" "$ROOT/zellij/config.kdl" \
+    || { printf 'FAIL global forwarding bind missing: %s\n' "$binding"; fail=1; }
+done
+[ "$fail" -ne 0 ] || pass "all draft-routed globals forward one distinct sequence"
+
+if grep -Fq 'WriteChars ":lua ' "$ROOT/zellij/config.kdl"; then
+  printf 'FAIL zellij still injects draft Lua commands directly\n'
+  fail=1
+else
+  pass "global KDL contains no draft Lua injection"
+fi
+
 grep -Fq 'pane name="terminal-filler" borderless=true {' "$ROOT/zellij/layouts/main-3.kdl" \
   && grep -Fq 'pane name="terminal" x="50%" y="0%" width="50%" height="100%" pinned=true {' "$ROOT/zellij/layouts/main-3.kdl" \
   && pass "terminal uses permanent floating layer over filler" \
@@ -150,7 +171,7 @@ test "$shared2" = "$shared3" \
   && pass "layout2 and layout3 share agent and draft launch commands" \
   || { printf 'FAIL shared layout commands drifted\n'; fail=1; }
 
-grep -Fq 'WriteChars ":lua PairConfirmAgentRestart()";' "$ROOT/zellij/config.kdl" \
+grep -Fq 'bind "Alt N" { WriteChars "\u{1b}[78;4u"; }' "$ROOT/zellij/config.kdl" \
   && grep -Fq 'function _G.PairConfirmAgentRestart()' "$ROOT/nvim/init.lua" \
   && pass "Alt+Shift+N restarts only supervised agent" \
   || { printf 'FAIL agent-only restart binding missing\n'; fail=1; }
@@ -158,6 +179,10 @@ grep -Fq 'WriteChars ":lua PairConfirmAgentRestart()";' "$ROOT/zellij/config.kdl
 grep -Fq 'show_startup_tips false' "$ROOT/zellij/config.kdl" \
   && pass "Zellij startup tips are disabled" \
   || { printf 'FAIL Zellij startup tips are enabled\n'; fail=1; }
+
+grep -Fq 'focus_follows_mouse false' "$ROOT/zellij/config.kdl" \
+  && pass "Zellij focus does not follow the mouse across asymmetric layers" \
+  || { printf 'FAIL Zellij focus-follows-mouse is enabled\n'; fail=1; }
 
 [ "$fail" -eq 0 ] || { printf 'term-pane-shortcuts-test FAILED\n'; exit 1; }
 printf 'term-pane-shortcuts-test ok\n'

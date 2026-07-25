@@ -333,7 +333,7 @@ Both assets share the Pair-owned agent/draft column: the top pane runs
 `nvim -u $PAIR_HOME/nvim/init.lua` on the per-tag draft file. Layout 2 contains
 only this stack. Layout 3 adds a borderless inert filler in the tiled base and
 a permanently floating `pair term` user terminal above it; its width switches
-directly between 50% and 67%, covering the filler exactly or overlaying part of
+directly between 50% and 75%, covering the filler exactly or overlaying part of
 the left stack. Integer sizes are FIXED in zellij (refusing the `resize`
 action), but Pair drives draft-rung changes through swap layouts, not resize,
 so FIXED is harmless.
@@ -353,6 +353,9 @@ The draft pane has `focus=true` (drafting pane gets focus on launch), `borderles
 Top-level config:
 
 - `mouse_click_through true` — first click on an unfocused pane goes through to the pane (so click-and-drag selects in one motion) instead of being consumed by zellij just to change focus.
+- `focus_follows_mouse false` — hover focus is deliberately disabled. Zellij's
+  pinned floating terminal can acquire hover focus from the tiled layer but
+  does not symmetrically return it, so explicit click/keys are less surprising.
 - `copy_command "copy-on-select"` — on every selection finalize (mouse-up after drag), zellij pipes the selected text to this binary. `copy_command` replaces zellij's default OS-clipboard write, so the binary does that part too. Resolved by PATH (which the launcher populated).
 - `pane_frames true` — frames are enabled globally so the agent pane shows zellij's scroll-position indicator (top-right of the frame) when scrolled. The draft pane opts out via `borderless=true` in both `zellij/layouts/main-{2,3}.kdl` assets so the `minimized` rung can still collapse to 1 row (a framed pane's minimum is ~3 rows). The cheatsheet still renders in nvim's statusline rather than a frame title — the draft has no frame to hold one.
 
@@ -362,15 +365,26 @@ Keybinds added on top of zellij defaults (`clear-defaults=false`):
 - `unbind "Alt n"` — release Alt+n (zellij's default `NewPane` would break pair's managed workbench shape; we rebind it below for restart).
 - `unbind "Alt j"`, `Alt k`, `Alt t`, `Alt w`, `Alt r`, `Alt /`, `Alt C`, and `Ctrl Alt c` — release pane-local workbench chords so the focused pane process owns them. `pair wrap` handles left-agent shortcuts, `nvim/init.lua` handles draft shortcuts, and `pair term` handles right-terminal shortcuts.
 - Mode-locking — every default chord that would switch zellij modes (`Ctrl+g/p/t/n/h/s/o/b`) is unbound, and `Ctrl+q` (zellij's resurrect-leaving Quit) is unbound too — Alt+x is the only quit path.
-- `Alt+d` — routed through nvim to `:lua PairConfirmDetach()` — Y/N modal then detach.
-- `Alt+x` — routed through nvim to `:lua PairConfirmQuit()` — Y/N modal then `pair quit` (full quit).
-- `Alt+n` — routed through nvim to `:lua PairConfirmRestart()` — Y/N modal then `pair restart` (reload pair, keep agent session).
-- `Shift+Alt+N` — routed through nvim to `:lua PairConfirmAgentRestart()` — Y/N modal then signal the stable `pair wrap` supervisor to replace only its coding-agent child with the same user args and no restoration token. See "Reload / restart in place" under the launcher section.
+- Draft-routed globals (`Alt+d`, `Alt+x`, `Alt+n` / `Ctrl+Alt+n`,
+  `Shift+Alt+N`, `Alt+↑`, `Alt+↓`, and `Alt+c`) are encoded by KDL as one
+  distinctive sequence sent to the focused process. `pair wrap`, `pair term`,
+  and Pair-owned Neovim overlays consume it, discover the draft through
+  `list-panes --json --command --state`, and address every
+  `<C-\><C-n>:lua …<CR>` write with the draft pane id. Draft Neovim executes
+  the same mapping locally. This keeps the action independent of focus,
+  floating layers, and split topology and prevents control/Lua bytes from
+  leaking into a shell. The shared Go registry is
+  `cmd/internal/workbenchshortcut`; the shared overlay router is
+  `nvim/workbench_route.lua`.
+- `Alt+d` invokes `PairConfirmDetach()` — Y/N modal then detach.
+- `Alt+x` invokes `PairConfirmQuit()` — Y/N modal then `pair quit` (full quit).
+- `Alt+n` invokes `PairConfirmRestart()` — Y/N modal then `pair restart` (reload pair, keep agent session).
+- `Shift+Alt+N` invokes `PairConfirmAgentRestart()` — Y/N modal then signal the stable `pair wrap` supervisor to replace only its coding-agent child with the same user args and no restoration token. See "Reload / restart in place" under the launcher section.
 - `Alt+h` — `Run "pair-help" { floating true; close_on_exit true; ... }` — pops a floating pane running `pair -h | less`.
 - `Alt+↑` / `Alt+↓` — route to nvim's `PairLayoutBigger` / `PairLayoutSmaller` — step the nvim pane along the swap-layout ladder (`minimized ↔ small (12 rows) ↔ third`).
 - Pane-local shortcuts (#116): `Alt+j` toggles vertically only in the left stack; `Alt+k` bridges left/right, returning from the terminal to the last focused left pane via `$PAIR_DATA_DIR/last-left-pane-<tag>`; `Alt+t`/`Alt+w`/`Alt+r` create, close, and rename tabs only in the right terminal; `Alt+/` and `Alt+Shift+C` / `Ctrl+Alt+c` work only in the left stack.
 
-The Alt+x/d/n confirms route through nvim rather than running directly so a single fat-finger doesn't tear the session down (Alt+x in particular is unrecoverable). The lua side also auto-grows out of `minimized` before showing the modal, since otherwise the prompt would land on a 1-row pane where nothing is visible.
+The Alt+x/d/n confirms execute in draft Neovim rather than running directly so a single fat-finger doesn't tear the session down (Alt+x in particular is unrecoverable). The lua side also auto-grows out of `minimized` before showing the modal, since otherwise the prompt would land on a 1-row pane where nothing is visible.
 
 ### `clipboard-to-pane` — clipboard read + hand off to nvim
 

@@ -2,6 +2,7 @@ package termcmd
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -27,16 +28,16 @@ func TestRunTestShortcutRightTerminalActions(t *testing.T) {
 		{name: "rename tab stays local", chord: "Alt+r"},
 		{name: "alt x routes quit to draft", chord: "Alt+x", wantOps: []string{
 			"focus-pane-id 2",
-			"write 28",
-			"write 14",
-			"write-chars :lua PairConfirmQuit()",
-			"write 13",
+			"write --pane-id 2 28",
+			"write --pane-id 2 14",
+			"write-chars --pane-id 2 :lua PairConfirmQuit()",
+			"write --pane-id 2 13",
 		}},
 		{name: "alt j swallowed", chord: "Alt+j"},
 		{name: "alt k last left", chord: "Alt+k", last: "1", wantOps: []string{"focus-pane-id 1"}},
 		{name: "alt k draft fallback", chord: "Alt+k", wantOps: []string{"focus-pane-id 2"}},
 		{name: "alt shift enter changes floating geometry once", chord: "Alt+Shift+Enter", wantOps: []string{
-			"change-floating-pane-coordinates --pane-id 4 --x 50 --y 0 --width 100 --height 51 --borderless false --pinned true",
+			"change-floating-pane-coordinates --pane-id 4 --x 37 --y 0 --width 113 --height 51 --borderless false --pinned true",
 		}},
 	}
 
@@ -136,8 +137,15 @@ func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 		{name: "rename tab", chunks: [][]byte{{0x1b, 'r'}, []byte("work\r")}, wantMux: "rename:work"},
 		{name: "previous tab", chunks: [][]byte{[]byte("\x1b[1;3D")}, wantMux: "prev-tab"},
 		{name: "next tab", chunks: [][]byte{[]byte("\x1b[1;3C")}, wantMux: "next-tab"},
-		{name: "alt x routes quit to draft", chunks: [][]byte{[]byte("\x1b[120;3u")}, wantRTOps: "focus-pane-id 2,write 28,write 14,write-chars :lua PairConfirmQuit(),write 13"},
-		{name: "layout toggle", chunks: [][]byte{[]byte("\x1b[13;4u")}, wantRTOps: "change-floating-pane-coordinates --pane-id 4 --x 50 --y 0 --width 100 --height 51 --borderless false --pinned true"},
+		{name: "alt d routes detach to draft", chunks: [][]byte{[]byte("\x1b[100;3u")}, wantRTOps: "focus-pane-id 2,write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairConfirmDetach(),write --pane-id 2 13"},
+		{name: "alt x routes quit to draft", chunks: [][]byte{[]byte("\x1b[120;3u")}, wantRTOps: "focus-pane-id 2,write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairConfirmQuit(),write --pane-id 2 13"},
+		{name: "alt n routes restart to draft", chunks: [][]byte{[]byte("\x1b[110;3u")}, wantRTOps: "focus-pane-id 2,write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairConfirmRestart(),write --pane-id 2 13"},
+		{name: "ctrl alt n routes restart to draft", chunks: [][]byte{[]byte("\x1b[110;7u")}, wantRTOps: "focus-pane-id 2,write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairConfirmRestart(),write --pane-id 2 13"},
+		{name: "shift alt n routes agent restart to draft", chunks: [][]byte{[]byte("\x1b[78;4u")}, wantRTOps: "focus-pane-id 2,write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairConfirmAgentRestart(),write --pane-id 2 13"},
+		{name: "alt up routes grow to draft", chunks: [][]byte{[]byte("\x1b[1;3A")}, wantRTOps: "write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairLayoutBigger(),write --pane-id 2 13"},
+		{name: "alt down routes shrink to draft", chunks: [][]byte{[]byte("\x1b[1;3B")}, wantRTOps: "write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairLayoutSmaller(),write --pane-id 2 13"},
+		{name: "alt c routes review toggle to draft", chunks: [][]byte{[]byte("\x1b[99;3u")}, wantRTOps: "write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairReviewToggle(),write --pane-id 2 13"},
+		{name: "layout toggle", chunks: [][]byte{[]byte("\x1b[13;4u")}, wantRTOps: "change-floating-pane-coordinates --pane-id 4 --x 37 --y 0 --width 113 --height 51 --borderless false --pinned true"},
 		{name: "mouse top row passes to child", chunks: [][]byte{[]byte("\x1b[<0;8;1M")}, wantMux: "write:\x1b[<0;8;1M"},
 		{name: "mouse shell row passes through", chunks: [][]byte{[]byte("\x1b[<0;8;2M")}, wantMux: "write:\x1b[<0;8;2M"},
 		{name: "mouse wheel up scrolls zellij viewport", chunks: [][]byte{[]byte("\x1b[<64;8;5M")}, wantRTOps: "scroll-up"},
@@ -162,6 +170,34 @@ func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 				t.Fatalf("runtime ops = %q, want %q", strings.Join(rt.ops, ","), tt.wantRTOps)
 			}
 		})
+	}
+}
+
+func TestPumpStdinReportsFocusFailureWithoutWriting(t *testing.T) {
+	rt := &fakeRuntime{cachedDraft: "2", failFocus: true}
+	mux := &fakeMux{}
+	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1b[110;3u")}}, mux, rt, io.Discard)
+	if got := strings.Join(rt.ops, ","); got != "focus-pane-id 2" {
+		t.Fatalf("runtime ops = %q, want focus only", got)
+	}
+	if len(rt.reported) != 1 || !strings.Contains(rt.reported[0], "focus") {
+		t.Fatalf("reported = %v, want focus error", rt.reported)
+	}
+}
+
+func TestPumpStdinConsumesGlobalChordWhenDraftMissing(t *testing.T) {
+	rt := &fakeRuntime{panesJSON: `[
+		{"id":4,"is_focused":true,"is_floating":true,"is_plugin":false,"title":"terminal","terminal_command":"pair term"}
+	]`}
+	mux := &fakeMux{}
+
+	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1b[110;3u")}}, mux, rt, io.Discard)
+
+	if len(mux.ops) != 0 {
+		t.Fatalf("mux ops = %v, want recognized chord consumed", mux.ops)
+	}
+	if len(rt.reported) != 1 || !strings.Contains(rt.reported[0], "draft pane") {
+		t.Fatalf("reported = %v, want missing draft pane error", rt.reported)
 	}
 }
 
@@ -290,12 +326,25 @@ type stdoutWriter struct {
 }
 
 type fakeRuntime struct {
-	panesJSON string
-	lastLeft  string
-	ops       []string
+	panesJSON   string
+	cachedDraft string
+	lastLeft    string
+	listCalls   int
+	failList    bool
+	ops         []string
+	reported    []string
+	failFocus   bool
+}
+
+func (f *fakeRuntime) CachedDraftPaneID() (string, bool) {
+	return f.cachedDraft, f.cachedDraft != ""
 }
 
 func (f *fakeRuntime) ListPanesJSON() ([]byte, error) {
+	f.listCalls++
+	if f.failList {
+		return nil, errors.New("pane inventory must not run")
+	}
 	if f.panesJSON == "" {
 		return []byte(`[
 			{"id":1,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
@@ -305,6 +354,24 @@ func (f *fakeRuntime) ListPanesJSON() ([]byte, error) {
 		]`), nil
 	}
 	return []byte(f.panesJSON), nil
+}
+
+func TestPumpStdinRoutesCachedGlobalWithoutPaneInventory(t *testing.T) {
+	rt := &fakeRuntime{cachedDraft: "2", failList: true}
+	mux := &fakeMux{}
+
+	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1b[110;3u")}}, mux, rt, io.Discard)
+
+	if rt.listCalls != 0 {
+		t.Fatalf("list calls = %d, want 0 for global chord", rt.listCalls)
+	}
+	if len(rt.reported) != 0 {
+		t.Fatalf("reported = %v, want successful cached route", rt.reported)
+	}
+	want := "focus-pane-id 2,write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairConfirmRestart(),write --pane-id 2 13"
+	if got := strings.Join(rt.ops, ","); got != want {
+		t.Fatalf("runtime ops = %q, want %q", got, want)
+	}
 }
 
 func (f *fakeRuntime) LastLeftPaneID() (string, error) {
@@ -318,7 +385,14 @@ func (f *fakeRuntime) RecordLastLeftPaneID(id string) error {
 
 func (f *fakeRuntime) RunZellijAction(args ...string) error {
 	f.ops = append(f.ops, strings.Join(args, " "))
+	if f.failFocus && len(args) > 0 && args[0] == "focus-pane-id" {
+		return exec.ErrNotFound
+	}
 	return nil
+}
+
+func (f *fakeRuntime) ReportShortcutError(err error) {
+	f.reported = append(f.reported, err.Error())
 }
 
 func (f *fakeRuntime) ShellCommand() (string, []string) {

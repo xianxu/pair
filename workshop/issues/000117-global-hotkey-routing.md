@@ -1,12 +1,13 @@
 ---
 id: 000117
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-24
-updated: 2026-07-24
-estimate_hours: 4.34
+updated: 2026-07-25
+estimate_hours: 4.98
 started: 2026-07-24T13:52:38-07:00
+actual_hours: 0.84
 ---
 
 # Route global hotkeys through draft pane
@@ -121,18 +122,23 @@ item: api-integration design=0.40 impl=0.40
 item: tui-screen design=0.40 impl=0.40
 item: atlas-docs design=0.05 impl=0.05
 item: milestone-review design=0.08 impl=0.12
-total: 4.34
+item: smaller-go-module design=0.03 impl=0.08
+item: lua-neovim design=0.10 impl=0.20
+item: api-integration design=0.10 impl=0.10
+total: 4.98
 ```
 
 ## Plan
 
 - [x] Write and approve a durable implementation plan.
-- [ ] Implement the audited routing with test-first regressions.
-- [ ] Update README/atlas shortcut ownership and verify the full workbench
+- [x] Implement the audited routing with test-first regressions.
+- [x] Update README/atlas shortcut ownership and verify the full workbench
       integration suite.
 
 ## Log
 
+
+- 2026-07-25: closed — Full Go/Lua suites pass; real review, scrollback, and change-log keymaps pass fake-Zellij focus-first, atomic focus-failure, and focus-preserving routing checks; terminal/review integrations, Zellij config/layout parsing, diff checks, and operator live Alt+n latency/focus smoke pass.; review verdict: FIX-THEN-SHIP
 ### 2026-07-24
 
 - Reproduced the failure shape from the reported literal
@@ -152,6 +158,68 @@ total: 4.34
   `workshop/plans/000117-global-hotkey-routing-plan.md`. It extends the existing
   pure registry, uses pane-id-addressed IO shells, and sequences every behavior
   change test-first.
+- Implemented the shared global registry and one `draftroute` Go IO helper for
+  both production PTY consumers. Table-driven stream tests cover every
+  distinctive sequence, all pane roles, missing-draft failures, and the
+  no-byte-leak invariant.
+- Replaced KDL focus/write choreography with one forwarded sequence per global
+  chord. Added `nvim/workbench_route.lua`; draft executes locally while review,
+  scrollback, and change-log initializers discover and address draft by pane id.
+- Verification passed: `go test ./... -count=1`, `make test-lua`, both affected
+  shell integration suites, runtime-bundle drift check, Zellij config and both
+  layout parsers, and `git diff --check`.
+- Fresh smoke exposed a performance defect: routing from the right pane waited
+  about one second before draft showed the action. Timed the synchronous
+  `list-panes --json --command --state` boundary at 0.62–0.84 seconds, making
+  pane discovery—not key decoding or confirmation rendering—the root cause.
+- Added a validated startup-published draft locator fast path; tests assert a
+  valid record performs zero pane-list calls, while stale sessions and dead
+  processes fall back safely. The full Go/Lua/shell/runtime/KDL/layout
+  verification matrix passes. Enabled and pinned `focus_follows_mouse true` at
+  the operator's request.
+- Added one authoritative `GlobalBinding` registry for Lua target and focus
+  policy, with deterministic generation of `nvim/workbench_actions.lua` and an
+  exact parity test. Confirmation globals focus the validated draft pane before
+  any write; resize and review globals retain focus.
+- Regression coverage now exercises both Go PTY consumers and the headless
+  Neovim process boundary. A failed `focus-pane-id` is reported and produces
+  zero control/Lua writes. Focused and full Go, Lua, terminal shortcut, review
+  toggle, and whitespace verification pass.
+- A second right-terminal smoke still measured roughly two seconds for Alt+n.
+  The cached router itself was fast, but `pair term` called
+  `focusedWorkbenchPanes` before reaching it, causing the same synchronous
+  Zellij pane inventory the cache was intended to avoid. Global decisions now
+  resolve directly from the authoritative chord registry; only pane-relative
+  actions inspect pane state. A regression makes pane inventory fail and proves
+  cached Alt+n still focuses and routes successfully (`ARCH-PURE`,
+  `ARCH-PURPOSE`).
+- Isolated-branch verification exposed that the shell process test still
+  asserted the pre-focus Alt+x sequence; the corrected assertion had
+  accidentally lived only on the stacked #118 branch. Moved the focus-first
+  contract into #117 so its own integration boundary tests the behavior it
+  ships.
+- Close review found scrollback-local mappings shadowing the shared overlay
+  router for Alt+x and Alt+Up/Down. Added a live buffer-mapping regression,
+  removed the stale quit override, and limited arrow suppression to visual
+  mode. Corrected the plan entity table and focus documentation. The #118 issue
+  and plan were intentionally authored in this design window when frame rename
+  was split into a dependent issue; #117 carries no #118 implementation, and
+  its issue state is synchronized with main.
+- Follow-up review corrected the final stale plan entity name
+  (`RouteLua`/`Runtime`, not a nonexistent `draftroute.Router`) and strengthened
+  the process test to load each review, scrollback, and change-log
+  configuration, invoke its effective Alt+x and Alt+Up callbacks, and assert
+  focus-first success, atomic focus failure, and focus-preserving layout
+  routing.
+- Operator completed the final right-terminal Alt+n smoke and explicitly
+  approved shipping: confirmation focus and latency are good enough in the
+  live layout.
+- Final review found the cross-language locator mismatch behind the remaining
+  latency: Neovim emits numeric JSON for `getpid()`, while Go decoded only a
+  string PID and silently fell back to pane inventory. `ProcessID` now accepts
+  both the real numeric record and legacy string records, with an exact numeric
+  fixture regression. Review verdict: FIX-THEN-SHIP; remediation completed
+  before the close commit.
 
 ## Revisions
 
@@ -174,3 +242,58 @@ The deterministic estimate-reconciliation gate applies the v3.1 formula
 `Σdesign×1.30 + Σimpl×familiarity`; with familiarity 0.90, the same primitive
 rows produce 4.34 hours rather than their 4.02 raw sum. Correct the declared
 total and frontmatter without changing scope.
+
+### 2026-07-24 — Enable pointer-followed focus
+
+The operator reversed the earlier decision to leave Zellij hover focus out of
+scope. Set `focus_follows_mouse true` and pin it in the workbench configuration
+regression. This is independent of the pane-id routing invariant: global
+hotkeys remain deterministic regardless of which pane the pointer focuses.
+
+### 2026-07-24 — Expand the right terminal to three-quarters
+
+Change the Alt+Shift+Return expanded geometry from two-thirds to three-quarters
+of the workbench. Preserve the exact one-action resize and filler-anchored
+half-width collapse behavior.
+
+### 2026-07-24 — Remove the remaining terminal inventory hop
+
+The first latency revision optimized draft lookup inside the shared router but
+left `pair term`'s generic pane-relative decision prelude intact. Global chords
+do not depend on focused-pane classification: the wrapper itself establishes
+the right-terminal role, and the shared registry completely determines their
+route. Resolve those chords before pane inventory and retain the existing
+inventory path only for pane-relative shortcuts.
+
+### 2026-07-24 — Revert pointer-followed focus
+
+Live smoke showed Zellij hover focus crosses from the tiled left layer into the
+pinned floating terminal but does not cross back symmetrically. Revert to
+explicit `focus_follows_mouse false`; click and Pair's pane-focus shortcuts
+remain predictable in both directions.
+
+### 2026-07-24 — Focus draft for confirmation globals
+
+Pane-id routing guarantees delivery but leaves confirmation dialogs hidden when
+another pane is focused. Before invoking `PairConfirmDetach`,
+`PairConfirmQuit`, `PairConfirmRestart`, or `PairConfirmAgentRestart`, focus the
+validated draft pane by id. `focus-pane-id <draft>` must succeed before any
+control or Lua write begins. On focus failure, consume the chord, report the
+failure, and issue no writes; a hidden confirmation is not an acceptable
+fallback. Layout growth/shrink and review toggle remain focus-preserving. The
+shared shortcut decision carries `FocusDraft` (or equivalent) while the
+injected Go and Lua IO shells own focus/write ordering, so agent, terminal, and
+Neovim-overlay consumers cannot drift.
+
+Done additionally requires production-path tests for both Go consumers and
+every Pair-owned Neovim overlay asserting exact focus-before-write ordering,
+zero writes after focus failure, and no `focus-pane-id` action for grow,
+shrink, or review toggle.
+
+The Go `GlobalBinding` registry is authoritative for the focus policy. A
+generated `nvim/workbench_actions.lua` table and structural parity test prevent
+the Neovim consumer from becoming a second hand-maintained registry.
+
+The added cross-language registry, Lua consumer, and atomic focus IO work add
+0.23 design and 0.38 implementation hours. Under the existing v3.1 formula the
+estimate changes from 4.34 to 4.98 hours.

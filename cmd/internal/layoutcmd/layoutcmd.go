@@ -87,10 +87,10 @@ func focusedRightTerminal(panes []zellijpane.Pane) (zellijpane.Pane, bool) {
 }
 
 func floatingTerminalCoordinates(terminal zellijpane.Pane, panes []zellijpane.Pane) []string {
-	x, y, width, height := "33%", "0%", "67%", "100%"
+	x, y, width, height := "25%", "0%", "75%", "100%"
 	screenColumns, screenRows := tiledScreenSize(panes)
 	if screenColumns > 0 && screenRows > 0 {
-		targetX, targetWidth := screenColumns/3, screenColumns-screenColumns/3
+		targetX, targetWidth := screenColumns/4, screenColumns-screenColumns/4
 		if terminal.Columns*100 >= screenColumns*60 {
 			if fillerX := terminalFillerX(panes); fillerX > 0 {
 				targetX, targetWidth = fillerX, screenColumns-fillerX

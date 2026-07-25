@@ -15,6 +15,7 @@
 //   rows). Cost on the agent pane: ~2 rows + 2 cols of frame chrome.
 mouse_hover_effects false
 advanced_mouse_actions false
+focus_follows_mouse false
 show_release_notes false
 show_startup_tips false
 pane_frames true
@@ -127,52 +128,18 @@ keybinds clear-defaults=false {
         unbind "Ctrl o"
         unbind "Ctrl b"
 
-        // Alt+d — detach from the current pair session. Routed through nvim
-        // for a confirm prompt before the actual detach (muscle-memory guard;
-        // accidental Alt+d while in the agent or terminal pane is annoying to
-        // recover from on long-running sessions). MoveFocus Left then Down
-        // lands in the draft from either side of the workbench; <C-\><C-n>
-        // (bytes 28, 14) forces normal mode from any state
-        // (insert, terminal, visual, op-pending, select) — a bare ESC is
-        // unreliable when a completion popup, telescope prompt, or :terminal
-        // is focused, in which case the colon command would get typed into
-        // the buffer. The colon command pops a confirm, and
-        // PairConfirmDetach() shells out to `zellij action detach` only on
-        // Yes.
-        bind "Alt d" {
-            MoveFocus "Left";
-            MoveFocus "Down";
-            Write 28;
-            Write 14;
-            WriteChars ":lua PairConfirmDetach()";
-            Write 13;
-        }
+        // Draft-routed globals are forwarded to the focused process as
+        // distinctive sequences. pair wrap, pair term, and every Pair-owned
+        // nvim surface resolve the draft by pane id and invoke the action
+        // there, without changing focus or depending on split topology.
+        bind "Alt d" { WriteChars "\u{1b}[100;3u"; }
 
         // Alt+Up / Alt+Down — step the nvim draft pane along a three-rung
         // ladder: minimized (statusline only, cursor hidden) ↔ 12 lines
         // (initial) ↔ 1/2. Up steps toward bigger nvim, Down toward smaller;
-        // each is clamped at the end of the ladder. Routed through nvim because zellij's
-        // keybind language can't run a shell command silently and the step
-        // needs persistent state plus a loop of `zellij action resize`
-        // calls. MoveFocus Left then Down lands in nvim whether the user
-        // started in the left stack or the right terminal; the <C-\><C-n> +
-        // cmdline dance matches the Alt+d / Alt+x flow.
-        bind "Alt Up" {
-            MoveFocus "Left";
-            MoveFocus "Down";
-            Write 28;
-            Write 14;
-            WriteChars ":lua PairLayoutBigger()";
-            Write 13;
-        }
-        bind "Alt Down" {
-            MoveFocus "Left";
-            MoveFocus "Down";
-            Write 28;
-            Write 14;
-            WriteChars ":lua PairLayoutSmaller()";
-            Write 13;
-        }
+        // each is clamped at the end of the ladder.
+        bind "Alt Up" { WriteChars "\u{1b}[1;3A"; }
+        bind "Alt Down" { WriteChars "\u{1b}[1;3B"; }
 
         // Alt+h — pop up a large floating pane with `pair -h` in a pager.
         // pair-help wraps `less` with a custom keymap so ESC (in addition to
@@ -190,26 +157,17 @@ keybinds clear-defaults=false {
             };
         }
 
-        // Alt+c — collaboration/review workbench toggle (#66 M3/M4b). Routed through the draft
-        // nvim exactly like Alt+d / Alt+x (MoveFocus Down lands in nvim from
-        // either tiled pane; <C-\><C-n> = bytes 28,14 forces normal mode), then
-        // `:lua PairReviewToggle()` runs the branch IN nvim: with no review open
+        // Alt+c — collaboration/review workbench toggle (#66 M3/M4b).
+        // `PairReviewToggle()` runs the branch IN draft nvim: with no review open
         // it drops into `:PairReview ` (tab-complete a file → a 100% review pane);
         // with one open it flips visibility (are-floating-panes-visible →
         // show/hide, never the toggle-floating-panes footgun). Doing the branch
         // in nvim — not in a transient 20%x1 floating shell pane — kills the
         // ~1s open delay, the auto-hide, and the half-size bugs the old
         // pair-review-toggle pane caused. When Alt+c is pressed from inside the
-        // focused (floating) review pane, MoveFocus may not escape it, so the
-        // review pane defines its own PairReviewToggle() (hide-self).
-        bind "Alt c" {
-            MoveFocus "Left";
-            MoveFocus "Down";
-            Write 28;
-            Write 14;
-            WriteChars ":lua PairReviewToggle()";
-            Write 13;
-        }
+        // focused (floating) review pane, the shared router addresses draft
+        // directly instead of hiding the review pane locally.
+        bind "Alt c" { WriteChars "\u{1b}[99;3u"; }
 
         // Alt+l — open the session's distilled change log in a read-only nvim
         // viewer (#53). The distilled counterpart to Alt+/: pair-changelog-open
@@ -239,25 +197,12 @@ keybinds clear-defaults=false {
         // chord defeats the composer at the OS layer, so the binding
         // reaches zellij on the first press. Alt+n is kept for users whose
         // terminal is configured with Option-as-Meta.
-        bind "Alt n" "Ctrl Alt n" {
-            MoveFocus "Left";
-            MoveFocus "Down";
-            Write 28;
-            Write 14;
-            WriteChars ":lua PairConfirmRestart()";
-            Write 13;
-        }
+        bind "Alt n" { WriteChars "\u{1b}[110;3u"; }
+        bind "Ctrl Alt n" { WriteChars "\u{1b}[110;7u"; }
 
         // Shift+Alt+N — restart only the supervised agent child with a fresh
         // conversation. The zellij workbench, draft, and user terminal remain
         // alive; pair wrap reconstructs the launch without restoration args.
-        bind "Alt N" {
-            MoveFocus "Left";
-            MoveFocus "Down";
-            Write 28;
-            Write 14;
-            WriteChars ":lua PairConfirmAgentRestart()";
-            Write 13;
-        }
+        bind "Alt N" { WriteChars "\u{1b}[78;4u"; }
     }
 }

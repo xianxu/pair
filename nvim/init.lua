@@ -26,6 +26,31 @@ do
   end
 end
 
+-- Publish the draft's stable pane id so global shortcuts can route without the
+-- ~0.7s synchronous `zellij action list-panes` call. Consumers validate both
+-- this Zellij session and the live nvim pid before trusting the record.
+do
+  local data_dir = vim.env.PAIR_DATA_DIR
+  local tag = vim.env.PAIR_TAG
+  local session = vim.env.ZELLIJ_SESSION_NAME
+  local pane_id = vim.env.ZELLIJ_PANE_ID
+  if data_dir and data_dir ~= '' and tag and tag ~= ''
+      and session and session ~= '' and pane_id and pane_id ~= '' then
+    vim.api.nvim_create_autocmd('VimEnter', {
+      once = true,
+      callback = function()
+        local path = data_dir .. '/draft-pane-' .. tag .. '.json'
+        local body = vim.json.encode({
+          session = session,
+          pane_id = pane_id,
+          pid = vim.fn.getpid(),
+        })
+        pcall(vim.fn.writefile, { body }, path)
+      end,
+    })
+  end
+end
+
 -- Enable filetype detection + default syntax. Loaded via `nvim -u`, which
 -- doesn't bypass nvim's bundled runtime but doesn't auto-enable these
 -- either. The draft file is `.md`, so this picks up markdown highlighting.
@@ -955,8 +980,8 @@ do
   -- show/hide-floating-panes; never the toggle-floating-panes footgun). Otherwise
   -- branch on the review target (seam #6): ready→open via `pair review open`,
   -- proposed→"prep in progress", none→drop into `:PairReview ` (file-select). The
-  -- review pane defines its own PairReviewToggle() (hide-self) for Alt+c from inside
-  -- the focused floating pane. No has_ui() guard so the headless test records calls.
+  -- Pair-owned overlays route Alt+c back to this authoritative function.
+  -- No has_ui() guard so the headless test records calls.
   function _G.PairReviewToggle()
     local alive, sf = is_alive()
     if alive then
@@ -3626,8 +3651,12 @@ vim.keymap.set({ 'n', 'i' }, '<M-w>', function() end,
   { silent = true, desc = 'pair: right-terminal tab helper disabled in draft' })
 vim.keymap.set({ 'n', 'i' }, '<M-r>', function() end,
   { silent = true, desc = 'pair: right-terminal tab helper disabled in draft' })
-vim.keymap.set({ 'n', 'i' }, '<M-x>', function() _G.PairConfirmQuit() end,
-  { silent = true, desc = 'pair: confirm quit' })
+
+do
+  local here = debug.getinfo(1, 'S').source:sub(2):match('(.*/)') or './'
+  local workbench_route = dofile(here .. 'workbench_route.lua')
+  workbench_route.install_global_maps(true)
+end
 
 vim.keymap.set({ 'n', 'i' }, '<M-i>', attach_image,
   { silent = true, desc = 'pair: attach clipboard image (Ctrl+V to agent + ref)' })

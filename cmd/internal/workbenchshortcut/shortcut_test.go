@@ -102,7 +102,12 @@ func TestShortcutDecision(t *testing.T) {
 			name:  "right terminal alt x handles quit outside shell",
 			role:  PaneRoleRightTerminal,
 			chord: ChordAltX,
-			want:  ShortcutDecision{Disposition: DispositionHandle, Action: ActionConfirmQuit},
+			want: ShortcutDecision{
+				Disposition:      DispositionHandle,
+				Action:           ActionConfirmQuit,
+				DraftLuaFunction: "PairConfirmQuit",
+				FocusDraft:       true,
+			},
 		},
 		{
 			name:  "right terminal alt j is no-op",
@@ -216,6 +221,80 @@ func TestDecodeChord(t *testing.T) {
 				t.Fatalf("DecodeChord(%q) = (%v, %v), want (%v, %v)", tt.in, got, ok, tt.want, tt.ok)
 			}
 		})
+	}
+}
+
+func TestDecodeGlobalChord(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want Chord
+	}{
+		{name: "alt d", in: "\x1b[100;3u", want: ChordAltD},
+		{name: "alt x", in: "\x1b[120;3u", want: ChordAltX},
+		{name: "alt n", in: "\x1b[110;3u", want: ChordAltN},
+		{name: "ctrl alt n", in: "\x1b[110;7u", want: ChordCtrlAltN},
+		{name: "shift alt n", in: "\x1b[78;4u", want: ChordAltShiftN},
+		{name: "alt up", in: "\x1b[1;3A", want: ChordAltUp},
+		{name: "alt down", in: "\x1b[1;3B", want: ChordAltDown},
+		{name: "alt c", in: "\x1b[99;3u", want: ChordAltC},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := DecodeChord([]byte(tt.in))
+			if !ok || got != tt.want {
+				t.Fatalf("DecodeChord(%q) = %v,%v; want %v,true", tt.in, got, ok, tt.want)
+			}
+			name := ChordName(got)
+			roundTrip, ok := ChordFromName(name)
+			if !ok || roundTrip != got {
+				t.Fatalf("ChordFromName(ChordName(%v)) = %v,%v", got, roundTrip, ok)
+			}
+		})
+	}
+}
+
+func TestGlobalDecisionMatrix(t *testing.T) {
+	globals := []struct {
+		chord  Chord
+		action ShortcutAction
+		lua    string
+		focus  bool
+	}{
+		{ChordAltD, ActionConfirmDetach, "PairConfirmDetach", true},
+		{ChordAltX, ActionConfirmQuit, "PairConfirmQuit", true},
+		{ChordAltN, ActionRestartPair, "PairConfirmRestart", true},
+		{ChordCtrlAltN, ActionRestartPair, "PairConfirmRestart", true},
+		{ChordAltShiftN, ActionRestartAgent, "PairConfirmAgentRestart", true},
+		{ChordAltUp, ActionGrowDraft, "PairLayoutBigger", false},
+		{ChordAltDown, ActionShrinkDraft, "PairLayoutSmaller", false},
+		{ChordAltC, ActionToggleReview, "PairReviewToggle", false},
+	}
+	roles := []PaneRole{PaneRoleLeftAgent, PaneRoleLeftDraft, PaneRoleRightTerminal}
+	for _, global := range globals {
+		for _, role := range roles {
+			got := Decide(ShortcutInput{Role: role, Chord: global.chord})
+			want := ShortcutDecision{
+				Disposition:      DispositionHandle,
+				Action:           global.action,
+				DraftLuaFunction: global.lua,
+				FocusDraft:       global.focus,
+			}
+			if got != want {
+				t.Fatalf("Decide(role=%v, chord=%v) = %#v, want %#v", role, global.chord, got, want)
+			}
+		}
+	}
+}
+
+func TestRenderedLuaGlobalMapsMatchCommittedFile(t *testing.T) {
+	want := RenderLuaGlobalMaps()
+	got, err := os.ReadFile(filepath.Join("..", "..", "..", "nvim", "workbench_actions.lua"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != want {
+		t.Fatalf("nvim/workbench_actions.lua is stale\n\ngot:\n%s\nwant:\n%s", got, want)
 	}
 }
 

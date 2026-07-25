@@ -15,6 +15,7 @@ import (
 	"syscall"
 
 	"github.com/creack/pty"
+	"github.com/xianxu/pair/cmd/internal/draftroute"
 	"github.com/xianxu/pair/cmd/internal/layoutcmd"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
@@ -22,10 +23,12 @@ import (
 )
 
 type Runtime interface {
+	CachedDraftPaneID() (string, bool)
 	ListPanesJSON() ([]byte, error)
 	LastLeftPaneID() (string, error)
 	RecordLastLeftPaneID(string) error
 	RunZellijAction(args ...string) error
+	ReportShortcutError(error)
 	ShellCommand() (string, []string)
 }
 
@@ -91,6 +94,9 @@ func namedChord(name string) (workbenchshortcut.Chord, bool) {
 }
 
 func handleChord(chord workbenchshortcut.Chord, rt Runtime, stdin io.Reader, stdout io.Writer) error {
+	if decision, ok := workbenchshortcut.DecideGlobal(chord); ok {
+		return runDecision(decision, workbenchPanes{}, rt, stdin, stdout)
+	}
 	panes, err := focusedWorkbenchPanes(rt)
 	if err != nil {
 		return err
@@ -147,6 +153,9 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 			return err
 		}
 	}
+	if decision.DraftLuaFunction != "" {
+		return draftroute.RouteLua(rt, decision.DraftLuaFunction, decision.FocusDraft)
+	}
 	switch decision.Action {
 	case workbenchshortcut.ActionNewTab, workbenchshortcut.ActionCloseTab, workbenchshortcut.ActionRenameTab:
 		return nil
@@ -160,8 +169,6 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 			return nil
 		}
 		return rt.RunZellijAction("focus-pane-id", panes.terminal.ID)
-	case workbenchshortcut.ActionConfirmQuit:
-		return routeDraftLua(panes, rt, "PairConfirmQuit")
 	case workbenchshortcut.ActionToggleFocusedLayout:
 		if layoutcmd.RunToggleFocused(nil, rt, io.Discard) != 0 {
 			return fmt.Errorf("toggle focused layout failed")
@@ -245,7 +252,9 @@ func pumpStdin(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Writer) {
 						mux.writeActive(chordBefore)
 					}
 					if !handleTerminalChord(chord, mux, rt, stdin, stdout) {
-						_ = handleChord(chord, rt, stdin, stdout)
+						if err := handleChord(chord, rt, stdin, stdout); err != nil {
+							rt.ReportShortcutError(err)
+						}
 					}
 					data = chordRest
 					continue
@@ -303,11 +312,6 @@ func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, rt Runtim
 			mux.renameActive(strings.TrimSpace(name))
 		}
 		return true
-	case workbenchshortcut.ChordAltX:
-		if panes, err := focusedWorkbenchPanes(rt); err == nil {
-			_ = routeDraftLua(panes, rt, "PairConfirmQuit")
-		}
-		return true
 	case workbenchshortcut.ChordAltLeft:
 		mux.previousTab()
 		return true
@@ -320,24 +324,6 @@ func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, rt Runtim
 	default:
 		return false
 	}
-}
-
-func routeDraftLua(panes workbenchPanes, rt Runtime, fn string) error {
-	if panes.draft.ID == "" {
-		return nil
-	}
-	for _, action := range [][]string{
-		{"focus-pane-id", panes.draft.ID},
-		{"write", "28"},
-		{"write", "14"},
-		{"write-chars", ":lua " + fn + "()"},
-		{"write", "13"},
-	} {
-		if err := rt.RunZellijAction(action...); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 type mousePressEvent struct {
@@ -790,6 +776,10 @@ func (OSRuntime) ListPanesJSON() ([]byte, error) {
 	return exec.Command("zellij", "action", "list-panes", "--json", "--command", "--state").Output()
 }
 
+func (OSRuntime) CachedDraftPaneID() (string, bool) {
+	return draftroute.CachedDraftPaneIDFromEnv()
+}
+
 func (OSRuntime) LastLeftPaneID() (string, error) {
 	store := workbenchshortcut.LastLeftPaneStore{DataDir: pairDataDir(), Tag: os.Getenv("PAIR_TAG")}
 	return store.Read()
@@ -803,6 +793,10 @@ func (OSRuntime) RecordLastLeftPaneID(id string) error {
 func (OSRuntime) RunZellijAction(args ...string) error {
 	cmdArgs := append([]string{"action"}, args...)
 	return runZellij(cmdArgs...)
+}
+
+func (OSRuntime) ReportShortcutError(err error) {
+	fmt.Fprintf(os.Stderr, "pair term: global shortcut: %v\n", err)
 }
 
 func runZellij(args ...string) error {
