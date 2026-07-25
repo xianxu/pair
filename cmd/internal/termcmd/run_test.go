@@ -2,11 +2,13 @@ package termcmd
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRunTestShortcutRightTerminalActions(t *testing.T) {
@@ -133,7 +135,7 @@ func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 	}{
 		{name: "new tab", chunks: [][]byte{{0x1b, 't'}}, wantMux: "new-tab"},
 		{name: "close tab", chunks: [][]byte{{0x1b, 'w'}}, wantMux: "close-tab"},
-		{name: "rename tab", chunks: [][]byte{{0x1b, 'r'}, []byte("work\r")}, wantMux: "rename:work"},
+		{name: "rename tab", chunks: [][]byte{{0x1b, 'r'}, []byte("work\r")}, wantMux: "rename-begin:,rename-preview:w:1,rename-preview:wo:2,rename-preview:wor:3,rename-preview:work:4,rename-finish:1:work"},
 		{name: "previous tab", chunks: [][]byte{[]byte("\x1b[1;3D")}, wantMux: "prev-tab"},
 		{name: "next tab", chunks: [][]byte{[]byte("\x1b[1;3C")}, wantMux: "next-tab"},
 		{name: "alt d routes detach to draft", chunks: [][]byte{[]byte("\x1b[100;3u")}, wantRTOps: "focus-pane-id 2,write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairConfirmDetach(),write --pane-id 2 13"},
@@ -197,6 +199,161 @@ func TestPumpStdinConsumesGlobalChordWhenDraftMissing(t *testing.T) {
 	}
 	if len(rt.reported) != 1 || !strings.Contains(rt.reported[0], "draft pane") {
 		t.Fatalf("reported = %v, want missing draft pane error", rt.reported)
+	}
+}
+
+func TestPumpStdinRenameCommitsInFrameWithoutChildPrompt(t *testing.T) {
+	rt := &fakeRuntime{}
+	mux := &fakeMux{activeName: "work"}
+	var stdout bytes.Buffer
+
+	pumpStdin(&splitReader{chunks: [][]byte{
+		[]byte("\x1br"),
+		[]byte("界\r"),
+		[]byte("ls\n"),
+	}}, mux, rt, &stdout)
+
+	want := "rename-begin:work,rename-preview:work界:5,rename-finish:1:work界,write:ls\n"
+	if got := strings.Join(mux.ops, ","); got != want {
+		t.Fatalf("ops = %q, want %q", got, want)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want no content-area prompt", stdout.String())
+	}
+}
+
+func TestPumpStdinRenameConsumesSameReadSuffix(t *testing.T) {
+	rt := &fakeRuntime{}
+	mux := &fakeMux{activeName: "work"}
+
+	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1brx\rls\n")}}, mux, rt, io.Discard)
+
+	want := "rename-begin:work,rename-preview:workx:5,rename-finish:1:workx"
+	if got := strings.Join(mux.ops, ","); got != want {
+		t.Fatalf("ops = %q, want %q", got, want)
+	}
+}
+
+func TestPumpStdinRenameCancelsOnEOF(t *testing.T) {
+	rt := &fakeRuntime{}
+	mux := &fakeMux{activeName: "work"}
+
+	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1br"), []byte("x")}}, mux, rt, io.Discard)
+
+	want := "rename-begin:work,rename-preview:workx:5,rename-finish:2:work"
+	if got := strings.Join(mux.ops, ","); got != want {
+		t.Fatalf("ops = %q, want %q", got, want)
+	}
+}
+
+func TestPumpStdinRenameEntryFailureConsumesInput(t *testing.T) {
+	rt := &fakeRuntime{}
+	mux := &fakeMux{activeName: "work", beginRenameErr: exec.ErrNotFound}
+
+	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1brx\r")}}, mux, rt, io.Discard)
+
+	if got := strings.Join(mux.ops, ","); got != "rename-begin:work" {
+		t.Fatalf("ops = %q, want failed begin only", got)
+	}
+	if len(rt.reported) != 1 {
+		t.Fatalf("reported = %v, want one rename error", rt.reported)
+	}
+}
+
+func TestPumpStdinRenameRefreshAndFinishFailuresPreserveOutcome(t *testing.T) {
+	rt := &fakeRuntime{}
+	mux := &fakeMux{
+		activeName:       "work",
+		refreshRenameErr: exec.ErrNotFound,
+		finishRenameErr:  exec.ErrNotFound,
+	}
+
+	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1brx\r")}}, mux, rt, io.Discard)
+
+	if mux.activeName != "workx" {
+		t.Fatalf("active name = %q, want committed workx", mux.activeName)
+	}
+	if len(rt.reported) != 2 {
+		t.Fatalf("reported = %v, want refresh and finish errors", rt.reported)
+	}
+}
+
+func TestPumpStdinRenameConsumesShortcutMouseAndPaste(t *testing.T) {
+	rt := &fakeRuntime{}
+	mux := &fakeMux{activeName: "work"}
+	input := "\x1br\x1b[110;3u\x1b[<0;3;2M\x1b[200~hidden\x1b[201~\r"
+
+	pumpStdin(&splitReader{chunks: [][]byte{[]byte(input)}}, mux, rt, io.Discard)
+
+	want := "rename-begin:work,rename-finish:1:work"
+	if got := strings.Join(mux.ops, ","); got != want {
+		t.Fatalf("ops = %q, want %q", got, want)
+	}
+}
+
+func TestPumpStdinRenameBareEscapeCancelsOnTimer(t *testing.T) {
+	rt := &fakeRuntime{}
+	finished := make(chan RenameOutcome, 1)
+	mux := &fakeMux{activeName: "work", renameFinished: finished}
+	reader := &gatedEOFReader{data: []byte("\x1br\x1b"), release: make(chan struct{})}
+	timer := newFiringRenameTimer()
+	done := make(chan struct{})
+
+	go func() {
+		pumpStdinWithTimer(reader, mux, rt, io.Discard, timer)
+		close(done)
+	}()
+
+	select {
+	case outcome := <-finished:
+		if outcome.Kind != RenameOutcomeCancel || outcome.Name != "work" {
+			t.Fatalf("outcome = %#v, want cancel work", outcome)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("rename timer did not cancel")
+	}
+	close(reader.release)
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("stdin pump did not finish after EOF")
+	}
+}
+
+func TestPumpStdinRenameEscapeContinuationBeatsTimer(t *testing.T) {
+	rt := &fakeRuntime{}
+	mux := &fakeMux{activeName: "work"}
+	timer := newFiringRenameTimer()
+	timer.autoFire = false
+
+	pumpStdinWithTimer(&splitReader{chunks: [][]byte{
+		[]byte("\x1br\x1b"),
+		[]byte("[D"),
+		[]byte("\r"),
+	}}, mux, rt, io.Discard, timer)
+
+	want := "rename-begin:work,rename-preview:work:3,rename-finish:1:work"
+	if got := strings.Join(mux.ops, ","); got != want {
+		t.Fatalf("ops = %q, want %q", got, want)
+	}
+	if timer.resets == 0 || timer.stops == 0 {
+		t.Fatalf("timer resets=%d stops=%d, want both exercised", timer.resets, timer.stops)
+	}
+}
+
+func TestRenamePaneTitlePlacesCursorInActiveFrameField(t *testing.T) {
+	mux := &terminalMux{
+		tabs: []*terminalTab{
+			{name: "terminal 1"},
+			{name: "work"},
+			{name: "terminal 3"},
+		},
+		active: 1,
+	}
+	editor := NewRenameEditor("work")
+	editor, _ = editor.Apply(RenameEvent{Kind: RenameMoveLeft})
+	if got := mux.renamePaneTitleLocked(editor); got != "terminal 1 [rename: wor│k] terminal 3" {
+		t.Fatalf("rename title = %q", got)
 	}
 }
 
@@ -375,8 +532,13 @@ func (f *fakeRuntime) ShellCommand() (string, []string) {
 }
 
 type fakeMux struct {
-	ops      []string
-	appMouse bool
+	ops              []string
+	appMouse         bool
+	activeName       string
+	beginRenameErr   error
+	refreshRenameErr error
+	finishRenameErr  error
+	renameFinished   chan RenameOutcome
 }
 
 func (f *fakeMux) writeActive(data []byte) {
@@ -392,8 +554,25 @@ func (f *fakeMux) closeActive() {
 	f.ops = append(f.ops, "close-tab")
 }
 
-func (f *fakeMux) renameActive(name string) {
-	f.ops = append(f.ops, "rename:"+name)
+func (f *fakeMux) beginRename() (RenameEditor, error) {
+	f.ops = append(f.ops, "rename-begin:"+f.activeName)
+	return NewRenameEditor(f.activeName), f.beginRenameErr
+}
+
+func (f *fakeMux) refreshRename(editor RenameEditor) error {
+	f.ops = append(f.ops, fmt.Sprintf("rename-preview:%s:%d", editor.Text(), editor.Cursor()))
+	return f.refreshRenameErr
+}
+
+func (f *fakeMux) finishRename(outcome RenameOutcome) error {
+	f.ops = append(f.ops, fmt.Sprintf("rename-finish:%d:%s", outcome.Kind, outcome.Name))
+	if outcome.Kind == RenameOutcomeCommit {
+		f.activeName = outcome.Name
+	}
+	if f.renameFinished != nil {
+		f.renameFinished <- outcome
+	}
+	return f.finishRenameErr
 }
 
 func (f *fakeMux) previousTab() {
@@ -410,6 +589,55 @@ func (f *fakeMux) appMouseMode() bool {
 
 type splitReader struct {
 	chunks [][]byte
+}
+
+type gatedEOFReader struct {
+	data    []byte
+	sent    bool
+	release chan struct{}
+}
+
+func (r *gatedEOFReader) Read(p []byte) (int, error) {
+	if !r.sent {
+		r.sent = true
+		return copy(p, r.data), nil
+	}
+	<-r.release
+	return 0, io.EOF
+}
+
+type firingRenameTimer struct {
+	ch       chan time.Time
+	autoFire bool
+	resets   int
+	stops    int
+}
+
+func newFiringRenameTimer() *firingRenameTimer {
+	return &firingRenameTimer{ch: make(chan time.Time, 1), autoFire: true}
+}
+
+func (t *firingRenameTimer) C() <-chan time.Time {
+	return t.ch
+}
+
+func (t *firingRenameTimer) Reset(time.Duration) {
+	t.resets++
+	if !t.autoFire {
+		return
+	}
+	select {
+	case t.ch <- time.Now():
+	default:
+	}
+}
+
+func (t *firingRenameTimer) StopAndDrain() {
+	t.stops++
+	select {
+	case <-t.ch:
+	default:
+	}
 }
 
 func (r *splitReader) Read(p []byte) (int, error) {

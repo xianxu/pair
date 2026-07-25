@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/draftroute"
@@ -227,87 +228,216 @@ type ptyWriter interface {
 	writeActive([]byte)
 	newTab() error
 	closeActive()
-	renameActive(string)
+	beginRename() (RenameEditor, error)
+	refreshRename(RenameEditor) error
+	finishRename(RenameOutcome) error
 	previousTab()
 	nextTab()
 	appMouseMode() bool
 }
 
-func pumpStdin(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Writer) {
-	buf := make([]byte, 4096)
-	var held []byte
-	for {
-		n, err := stdin.Read(buf)
-		if n > 0 {
-			data := append(held, buf[:n]...)
-			held = nil
-			for len(data) > 0 {
-				chordBefore, chord, _, chordRest, chordOK := workbenchshortcut.FindChord(data)
-				mouseBefore, event, rawMouse, mouseRest, mouseOK := findSGRMousePress(data)
-				if chordOK && (!mouseOK || len(chordBefore) <= len(mouseBefore)) {
-					if len(chordBefore) > 0 {
-						mux.writeActive(chordBefore)
-					}
-					if !handleTerminalChord(chord, mux, rt, stdin, stdout) {
-						if err := handleChord(chord, rt, stdin, stdout); err != nil {
-							rt.ReportShortcutError(err)
-						}
-					}
-					data = chordRest
-					continue
-				}
-				if mouseOK {
-					if len(mouseBefore) > 0 {
-						mux.writeActive(mouseBefore)
-					}
-					switch event.button {
-					case 64:
-						if mux.appMouseMode() {
-							mux.writeActive(rawMouse)
-						} else {
-							_ = rt.RunZellijAction("scroll-up")
-						}
-					case 65:
-						if mux.appMouseMode() {
-							mux.writeActive(rawMouse)
-						} else {
-							_ = rt.RunZellijAction("scroll-down")
-						}
-					default:
-						mux.writeActive(rawMouse)
-					}
-					data = mouseRest
-					continue
-				}
-				if workbenchshortcut.IsChordPrefix(data) || isSGRMousePrefix(data) {
-					held = append(held, data...)
-					break
-				}
-				mux.writeActive(data)
-				data = nil
-			}
-		}
-		if err != nil {
-			if len(held) > 0 {
-				mux.writeActive(held)
-			}
-			return
+type RenameTimer interface {
+	C() <-chan time.Time
+	Reset(time.Duration)
+	StopAndDrain()
+}
+
+type realRenameTimer struct {
+	timer *time.Timer
+}
+
+func newRealRenameTimer() *realRenameTimer {
+	timer := time.NewTimer(time.Hour)
+	if !timer.Stop() {
+		<-timer.C
+	}
+	return &realRenameTimer{timer: timer}
+}
+
+func (t *realRenameTimer) C() <-chan time.Time {
+	return t.timer.C
+}
+
+func (t *realRenameTimer) Reset(after time.Duration) {
+	t.StopAndDrain()
+	t.timer.Reset(after)
+}
+
+func (t *realRenameTimer) StopAndDrain() {
+	if !t.timer.Stop() {
+		select {
+		case <-t.timer.C:
+		default:
 		}
 	}
 }
 
-func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, rt Runtime, stdin io.Reader, stdout io.Writer) bool {
+type stdinResult struct {
+	data []byte
+	err  error
+}
+
+type renameSession struct {
+	editor  RenameEditor
+	decoder RenameDecoderState
+}
+
+func pumpStdin(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Writer) {
+	pumpStdinWithTimer(stdin, mux, rt, stdout, newRealRenameTimer())
+}
+
+func pumpStdinWithTimer(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Writer, timer RenameTimer) {
+	results := make(chan stdinResult, 1)
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := stdin.Read(buf)
+			result := stdinResult{err: err}
+			if n > 0 {
+				result.data = append([]byte(nil), buf[:n]...)
+			}
+			results <- result
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	var held []byte
+	var rename *renameSession
+
+	applyRename := func(data []byte, flushEscape, eof bool) {
+		if rename == nil {
+			return
+		}
+		var events []RenameEvent
+		var exited bool
+		rename.decoder, events, exited = DecodeRenameInput(rename.decoder, data, flushEscape, eof)
+		for _, event := range events {
+			if event.Kind == RenameConsume {
+				continue
+			}
+			var outcome RenameOutcome
+			rename.editor, outcome = rename.editor.Apply(event)
+			if outcome.Kind != RenameOutcomeNone {
+				if err := mux.finishRename(outcome); err != nil {
+					rt.ReportShortcutError(err)
+				}
+				timer.StopAndDrain()
+				rename = nil
+				return
+			}
+			if err := mux.refreshRename(rename.editor); err != nil {
+				rt.ReportShortcutError(err)
+			}
+		}
+		if exited {
+			timer.StopAndDrain()
+			rename = nil
+			return
+		}
+		if len(rename.decoder.Pending) == 1 && rename.decoder.Pending[0] == 0x1b {
+			timer.Reset(50 * time.Millisecond)
+		} else {
+			timer.StopAndDrain()
+		}
+	}
+
+	for {
+		select {
+		case <-timer.C():
+			applyRename(nil, true, false)
+		case result := <-results:
+			if len(result.data) > 0 {
+				if rename != nil {
+					applyRename(result.data, false, false)
+					if result.err != nil {
+						if rename != nil {
+							applyRename(nil, false, true)
+						}
+						return
+					}
+					continue
+				}
+				data := append(held, result.data...)
+				held = nil
+				for len(data) > 0 {
+					chordBefore, chord, _, chordRest, chordOK := workbenchshortcut.FindChord(data)
+					mouseBefore, event, rawMouse, mouseRest, mouseOK := findSGRMousePress(data)
+					if chordOK && (!mouseOK || len(chordBefore) <= len(mouseBefore)) {
+						if len(chordBefore) > 0 {
+							mux.writeActive(chordBefore)
+						}
+						if chord == workbenchshortcut.ChordAltR {
+							editor, err := mux.beginRename()
+							if err != nil {
+								rt.ReportShortcutError(err)
+								data = nil
+								continue
+							}
+							rename = &renameSession{editor: editor}
+							applyRename(chordRest, false, false)
+							data = nil
+							continue
+						}
+						if !handleTerminalChord(chord, mux, rt) {
+							if err := handleChord(chord, rt, stdin, stdout); err != nil {
+								rt.ReportShortcutError(err)
+							}
+						}
+						data = chordRest
+						continue
+					}
+					if mouseOK {
+						if len(mouseBefore) > 0 {
+							mux.writeActive(mouseBefore)
+						}
+						switch event.button {
+						case 64:
+							if mux.appMouseMode() {
+								mux.writeActive(rawMouse)
+							} else {
+								_ = rt.RunZellijAction("scroll-up")
+							}
+						case 65:
+							if mux.appMouseMode() {
+								mux.writeActive(rawMouse)
+							} else {
+								_ = rt.RunZellijAction("scroll-down")
+							}
+						default:
+							mux.writeActive(rawMouse)
+						}
+						data = mouseRest
+						continue
+					}
+					if workbenchshortcut.IsChordPrefix(data) || isSGRMousePrefix(data) {
+						held = append(held, data...)
+						break
+					}
+					mux.writeActive(data)
+					data = nil
+				}
+			}
+			if result.err != nil {
+				if rename != nil {
+					applyRename(nil, false, true)
+				} else if len(held) > 0 {
+					mux.writeActive(held)
+				}
+				return
+			}
+		}
+	}
+}
+
+func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, rt Runtime) bool {
 	switch chord {
 	case workbenchshortcut.ChordAltT:
 		_ = mux.newTab()
 		return true
 	case workbenchshortcut.ChordAltW:
 		mux.closeActive()
-		return true
-	case workbenchshortcut.ChordAltR:
-		if name := readRawPrompt(stdin, stdout, "tab name: "); strings.TrimSpace(name) != "" {
-			mux.renameActive(strings.TrimSpace(name))
-		}
 		return true
 	case workbenchshortcut.ChordAltLeft:
 		mux.previousTab()
@@ -372,36 +502,6 @@ func findSGRMousePress(data []byte) ([]byte, mousePressEvent, []byte, []byte, bo
 func isSGRMousePrefix(data []byte) bool {
 	return bytes.HasPrefix([]byte("\x1b[<"), data) ||
 		(bytes.HasPrefix(data, []byte("\x1b[<")) && bytes.IndexByte(data, 'M') < 0)
-}
-
-func readRawPrompt(stdin io.Reader, stdout io.Writer, prompt string) string {
-	_, _ = io.WriteString(stdout, "\r\n"+prompt)
-	var b strings.Builder
-	buf := make([]byte, 1)
-	for {
-		n, err := stdin.Read(buf)
-		if n > 0 {
-			c := buf[0]
-			switch c {
-			case '\r', '\n':
-				_, _ = io.WriteString(stdout, "\r\n")
-				return b.String()
-			case 0x7f, '\b':
-				s := b.String()
-				if len(s) > 0 {
-					b.Reset()
-					b.WriteString(s[:len(s)-1])
-					_, _ = io.WriteString(stdout, "\b \b")
-				}
-			default:
-				b.WriteByte(c)
-				_, _ = stdout.Write(buf[:1])
-			}
-		}
-		if err != nil {
-			return b.String()
-		}
-	}
 }
 
 type OSRuntime struct{}
@@ -583,13 +683,45 @@ func (m *terminalMux) closeActive() {
 	_ = tab.cmd.Process.Kill()
 }
 
-func (m *terminalMux) renameActive(name string) {
+func (m *terminalMux) beginRename() (RenameEditor, error) {
 	m.mu.Lock()
-	if tab := m.activeTabLocked(); tab != nil {
-		tab.name = name
+	tab := m.activeTabLocked()
+	if tab == nil {
+		m.mu.Unlock()
+		return RenameEditor{}, fmt.Errorf("rename terminal tab: no active tab")
 	}
+	editor := NewRenameEditor(tab.name)
+	title := m.renamePaneTitleLocked(editor)
 	m.mu.Unlock()
-	m.renamePane()
+	if err := m.setPaneTitle(title); err != nil {
+		return RenameEditor{}, fmt.Errorf("start terminal tab rename: %w", err)
+	}
+	return editor, nil
+}
+
+func (m *terminalMux) refreshRename(editor RenameEditor) error {
+	m.mu.Lock()
+	title := m.renamePaneTitleLocked(editor)
+	m.mu.Unlock()
+	if err := m.setPaneTitle(title); err != nil {
+		return fmt.Errorf("refresh terminal tab rename: %w", err)
+	}
+	return nil
+}
+
+func (m *terminalMux) finishRename(outcome RenameOutcome) error {
+	m.mu.Lock()
+	if outcome.Kind == RenameOutcomeCommit {
+		if tab := m.activeTabLocked(); tab != nil {
+			tab.name = outcome.Name
+		}
+	}
+	title := m.paneTitleLocked()
+	m.mu.Unlock()
+	if err := m.setPaneTitle(title); err != nil {
+		return fmt.Errorf("finish terminal tab rename: %w", err)
+	}
+	return nil
 }
 
 func (m *terminalMux) previousTab() {
@@ -739,7 +871,11 @@ func (m *terminalMux) renamePane() {
 	if title == "" {
 		return
 	}
-	_ = m.rt.RunZellijAction("rename-pane", title)
+	_ = m.setPaneTitle(title)
+}
+
+func (m *terminalMux) setPaneTitle(title string) error {
+	return m.rt.RunZellijAction("rename-pane", title)
 }
 
 func (m *terminalMux) paneTitleLocked() string {
@@ -750,6 +886,30 @@ func (m *terminalMux) paneTitleLocked() string {
 	for i, tab := range m.tabs {
 		if i == m.active {
 			parts = append(parts, "["+tab.name+"]")
+		} else {
+			parts = append(parts, tab.name)
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+func (m *terminalMux) renamePaneTitleLocked(editor RenameEditor) string {
+	if len(m.tabs) == 0 {
+		return ""
+	}
+	text := []rune(editor.Text())
+	cursor := editor.Cursor()
+	if cursor < 0 {
+		cursor = 0
+	}
+	if cursor > len(text) {
+		cursor = len(text)
+	}
+	field := string(text[:cursor]) + "│" + string(text[cursor:])
+	parts := make([]string, 0, len(m.tabs))
+	for i, tab := range m.tabs {
+		if i == m.active {
+			parts = append(parts, "[rename: "+field+"]")
 		} else {
 			parts = append(parts, tab.name)
 		}

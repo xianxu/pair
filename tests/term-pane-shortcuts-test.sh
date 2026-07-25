@@ -92,10 +92,18 @@ check_eq "right Alt+r stays local to pair term" "$(actions)" ""
 
 write_panes terminal
 run_shortcut "Alt+x"
-check_eq "right Alt+x routes quit to draft" "$(actions)" "write --pane-id 2 28
+check_eq "right Alt+x focuses then routes quit to draft" "$(actions)" "focus-pane-id 2
+write --pane-id 2 28
 write --pane-id 2 14
 write-chars --pane-id 2 :lua PairConfirmQuit()
 write --pane-id 2 13"
+
+if grep -Fq "readRawPrompt" "$ROOT/cmd/internal/termcmd/run.go"; then
+  printf 'FAIL Alt+r still uses a content-area prompt\n'
+  fail=1
+else
+  printf 'PASS Alt+r no longer uses a content-area prompt\n'
+fi
 
 write_panes terminal
 run_shortcut "Alt+j"

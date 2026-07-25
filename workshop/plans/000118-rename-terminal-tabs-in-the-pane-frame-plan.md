@@ -132,14 +132,14 @@ scope change.
 - Create: `cmd/internal/termcmd/rename.go`
 - Create: `cmd/internal/termcmd/rename_test.go`
 
-- [ ] **Step 1: Write failing table-driven editor tests**
+- [x] **Step 1: Write failing table-driven editor tests**
 
 Cover insertion at the cursor, Unicode rune movement, Home/End,
 Backspace/Delete boundaries, whitespace-trimmed non-empty commit,
 empty-commit retention, cancel, and consumed no-op events. Assert the original
 name is never mutated before commit.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run:
 
@@ -149,16 +149,16 @@ go test ./cmd/internal/termcmd -run 'TestRenameEditor' -count=1
 
 Expected: build failure because the editor types/functions do not exist.
 
-- [ ] **Step 3: Implement the minimal pure editor**
+- [x] **Step 3: Implement the minimal pure editor**
 
 Use `[]rune` and a cursor index. Keep transition input/output value-like; do not
 call terminal or Zellij code.
 
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
 
 Run the focused command above; expected PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cmd/internal/termcmd/rename.go cmd/internal/termcmd/rename_test.go
@@ -171,7 +171,7 @@ git commit -m "#118: model terminal tab rename editing"
 - Create: `cmd/internal/termcmd/rename_input.go`
 - Create: `cmd/internal/termcmd/rename_input_test.go`
 
-- [ ] **Step 1: Write failing decoder matrices**
+- [x] **Step 1: Write failing decoder matrices**
 
 Accept Enter (`CR`, `LF`), Backspace (`DEL`, `BS`), Left (`ESC [ D`, `ESC O D`),
 Right (`ESC [ C`, `ESC O C`), Home (`ESC [ H`, `ESC O H`, `ESC [ 1 ~`), End
@@ -191,7 +191,7 @@ an unknown/malformed control sequence, consume only the longest prefix proven
 invalid, then reprocess the first later byte that can begin printable input so
 a following rune is not lost.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 ```bash
 go test ./cmd/internal/termcmd -run 'TestDecodeRenameInput' -count=1
@@ -199,17 +199,17 @@ go test ./cmd/internal/termcmd -run 'TestDecodeRenameInput' -count=1
 
 Expected: build failure for the missing decoder.
 
-- [ ] **Step 3: Implement the pure streaming transition**
+- [x] **Step 3: Implement the pure streaming transition**
 
 Recognize complete sequences before treating Escape as cancel; buffer every
 valid prefix and incomplete UTF-8. Flush a lone Escape only when explicitly
 requested by the caller. Once commit/cancel occurs, consume the batch suffix.
 
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
 
 Run the focused decoder suite; expected PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cmd/internal/termcmd/rename_input.go cmd/internal/termcmd/rename_input_test.go
@@ -225,7 +225,7 @@ git commit -m "#118: decode streaming rename input"
 - Modify: `cmd/internal/termcmd/run_test.go`
 - Modify: `tests/term-pane-shortcuts-test.sh`
 
-- [ ] **Step 1: Write failing production-stream tests**
+- [x] **Step 1: Write failing production-stream tests**
 
 Drive Alt+r through `pumpStdinWithTimer` with a fake mux/runtime and manually
 fired timer. Assert:
@@ -244,7 +244,7 @@ fired timer. Assert:
 - one read containing `Alt+r + edits + Enter/Escape + suffix` feeds the bytes
   after Alt+r directly into rename decoding and consumes the suffix.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 ```bash
 go test ./cmd/internal/termcmd -run 'TestPumpStdinRename|TestRenameTitleFailure' -count=1
@@ -252,7 +252,7 @@ go test ./cmd/internal/termcmd -run 'TestPumpStdinRename|TestRenameTitleFailure'
 
 Expected: failures because Alt+r still calls `readRawPrompt`.
 
-- [ ] **Step 3: Implement one rename-aware input loop**
+- [x] **Step 3: Implement one rename-aware input loop**
 
 Remove `readRawPrompt`. Add rename state to `pumpStdin`; use one lifetime
 reader goroutine that copies each read into:
@@ -280,7 +280,7 @@ active-name, preview-title, commit, and restore operations. Keep
 `RunZellijAction` as the only title IO boundary and report errors through
 `ReportShortcutError`.
 
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
 
 ```bash
 go test ./cmd/internal/termcmd -count=1
@@ -290,7 +290,7 @@ bash tests/term-pane-shortcuts-test.sh
 
 Expected: PASS; the shell inventory still classifies Alt+r as terminal-local.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cmd/internal/termcmd/run.go cmd/internal/termcmd/run_test.go tests/term-pane-shortcuts-test.sh
