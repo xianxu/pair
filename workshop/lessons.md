@@ -24,7 +24,9 @@ to reconcile the durable design record with the actual API.
 row: `rg` the exact entity name at the declared path, and either point to the
 real symbol or revise the row to the implemented function/type. Conceptual
 groupings must be explicitly labeled as such, not formatted like nonexistent
-APIs. Caught in #000117 close review.
+APIs. Also search completed task prose and unchecked rows—the revisions section
+does not cancel stale contradictory instructions elsewhere in the same plan.
+Caught in #000117 close review.
 
 ## Async buffer requests need live anchors, not saved coordinates
 

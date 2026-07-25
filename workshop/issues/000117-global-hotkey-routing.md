@@ -208,6 +208,9 @@ total: 4.98
   configuration, invoke its effective Alt+x and Alt+Up callbacks, and assert
   focus-first success, atomic focus failure, and focus-preserving layout
   routing.
+- Operator completed the final right-terminal Alt+n smoke and explicitly
+  approved shipping: confirmation focus and latency are good enough in the
+  live layout.
 
 ## Revisions
 

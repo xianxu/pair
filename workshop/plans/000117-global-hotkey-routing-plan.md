@@ -193,6 +193,10 @@ Correct that table/narrative and exercise the effective keymaps from each
 review, scrollback, and change-log configuration at the fake-Zellij process
 boundary, covering focus-first confirmation, atomic focus failure, and
 focus-preserving layout routing (`ARCH-PURPOSE`).
+
+The operator’s final right-terminal Alt+n smoke confirmed prompt latency and
+focus behavior were good enough to ship. Mark the manual-smoke row complete and
+update Task 2’s older pre-focus prose to the later approved focus policy.
   - **Injected into:** Zellij normal mode.
   - **Future extensions:** The static inventory test forces every new binding
     to be classified.
@@ -301,7 +305,7 @@ git commit -m "#117: model global workbench hotkeys"
 
 - [x] **Step 1: Add failing injected-runtime and stream tests**
 
-First add a fake-runtime test for `draftroute.Router`: pane metadata identifies
+First add a fake-runtime test for `RouteLua` over the injected `Runtime`: pane metadata identifies
 draft id 2 and produces:
 
 ```text
@@ -337,11 +341,12 @@ unaddressed writes.
 
 - [x] **Step 3: Implement pane-id-addressed routing**
 
-Implement `draftroute.Router` once. Have both wrappers consume
+Implement `RouteLua` once over the shared `Runtime`. Have both wrappers consume
 `decision.DraftLuaFunction` and delegate to it. Add the narrow production
 runtime/error reporter to `wrapcmd` and an stderr sink to the terminal mux.
-Every write includes `--pane-id <draft-id>` and no focus action occurs. Missing
-draft and action errors are reported non-fatally while the recognized chord
+Every write includes `--pane-id <draft-id>`; confirmation globals first focus
+the draft atomically, while layout/review globals preserve focus. Missing draft,
+focus, and action errors are reported non-fatally while the recognized chord
 remains handled; they are never converted to `DispositionPass`.
 
 - [x] **Step 4: Run focused packages and verify GREEN**
@@ -533,7 +538,7 @@ git diff --check
 
 Expected: all commands exit 0.
 
-- [ ] **Step 4: Manual smoke**
+- [x] **Step 4: Manual smoke**
 
 In a fresh layout-3 `pair-dev` session, focus each of agent, draft, and right
 terminal and exercise all seven globals. Confirm Alt+n from the terminal opens
