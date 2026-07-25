@@ -28,6 +28,19 @@ APIs. Also search completed task prose and unchecked rows—the revisions sectio
 does not cancel stale contradictory instructions elsewhere in the same plan.
 Caught in #000117 close review.
 
+## Cross-language cache tests must use the producer's exact JSON types
+
+Draft Neovim wrote its PID with `vim.fn.getpid()`, producing a JSON number.
+The Go cache reader modeled PID as a string, so decoding failed and quietly
+re-enabled the slow fallback. Tests passed because they marshaled the Go
+consumer struct—thereby generating the consumer’s preferred string shape,
+not the producer’s real numeric shape.
+
+**Rule.** For a cache or sidecar crossing language boundaries, keep at least
+one consumer fixture as literal output in the producer’s exact schema,
+including number-vs-string types. Producer-derived fixtures catch wire-format
+drift; consumer-self-marshaled fixtures do not. Caught in #000117 close review.
+
 ## Async buffer requests need live anchors, not saved coordinates
 
 Pair review definitions originally stored the selected line/column range while

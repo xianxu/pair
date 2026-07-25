@@ -1,12 +1,13 @@
 ---
 id: 000117
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-24
-updated: 2026-07-24
+updated: 2026-07-25
 estimate_hours: 4.98
 started: 2026-07-24T13:52:38-07:00
+actual_hours: 0.84
 ---
 
 # Route global hotkeys through draft pane
@@ -136,6 +137,8 @@ total: 4.98
 
 ## Log
 
+
+- 2026-07-25: closed — Full Go/Lua suites pass; real review, scrollback, and change-log keymaps pass fake-Zellij focus-first, atomic focus-failure, and focus-preserving routing checks; terminal/review integrations, Zellij config/layout parsing, diff checks, and operator live Alt+n latency/focus smoke pass.; review verdict: FIX-THEN-SHIP
 ### 2026-07-24
 
 - Reproduced the failure shape from the reported literal
@@ -211,6 +214,12 @@ total: 4.98
 - Operator completed the final right-terminal Alt+n smoke and explicitly
   approved shipping: confirmation focus and latency are good enough in the
   live layout.
+- Final review found the cross-language locator mismatch behind the remaining
+  latency: Neovim emits numeric JSON for `getpid()`, while Go decoded only a
+  string PID and silently fell back to pane inventory. `ProcessID` now accepts
+  both the real numeric record and legacy string records, with an exact numeric
+  fixture regression. Review verdict: FIX-THEN-SHIP; remediation completed
+  before the close commit.
 
 ## Revisions
 

@@ -14,7 +14,7 @@ func TestValidateCachedDraftPane(t *testing.T) {
 	body, err := json.Marshal(CachedPaneRecord{
 		Session: "pair-work",
 		PaneID:  "42",
-		PID:     "9001",
+		PID:     ProcessID("9001"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -35,6 +35,15 @@ func TestValidateCachedDraftPane(t *testing.T) {
 	}
 }
 
+func TestValidateCachedDraftPaneAcceptsNumericPIDFromNeovim(t *testing.T) {
+	body := []byte(`{"session":"pair-work","pane_id":"42","pid":9001}`)
+	alive := func(pid string) bool { return pid == "9001" }
+
+	if got, ok := ValidateCachedDraftPane(body, "pair-work", alive); !ok || got != "42" {
+		t.Fatalf("numeric-pid record = %q, %v; want 42, true", got, ok)
+	}
+}
+
 func TestCachedDraftPaneIDFromEnv(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PAIR_DATA_DIR", dir)
@@ -43,7 +52,7 @@ func TestCachedDraftPaneIDFromEnv(t *testing.T) {
 	body, err := json.Marshal(CachedPaneRecord{
 		Session: "pair-work",
 		PaneID:  "42",
-		PID:     fmt.Sprint(os.Getpid()),
+		PID:     ProcessID(fmt.Sprint(os.Getpid())),
 	})
 	if err != nil {
 		t.Fatal(err)
