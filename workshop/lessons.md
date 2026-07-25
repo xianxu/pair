@@ -1,5 +1,18 @@
 # Lessons
 
+## Global keymaps need post-setup buffer-local shadow tests
+
+Pair installed shared workbench-global mappings before scrollback buffer setup,
+but older buffer-local safety maps later replaced Alt+x and Alt+Up/Down. Pure
+router tests and static “module loaded” checks stayed green while the live
+buffer used the wrong callbacks.
+
+**Rule.** For a global Neovim mapping consumed by specialized buffers, open a
+real representative buffer after every setup autocmd and inspect `maparg(...,
+false, true)`. Assert the resolved description/callback and that no unintended
+buffer-local mapping shadows it. Static source greps do not prove effective
+mapping precedence. Caught in #000117 close review.
+
 ## Async buffer requests need live anchors, not saved coordinates
 
 Pair review definitions originally stored the selected line/column range while

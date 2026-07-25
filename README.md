@@ -100,8 +100,9 @@ Select something with mouse on agent's pane, the selection is inserted at curren
 
 “Any pane” includes Pair’s review, scrollback, and change-log Neovim overlays.
 These global chords are consumed by the focused Pair process, which addresses
-the draft pane directly; they do not change focus or type command text into the
-focused shell.
+the draft pane directly and never type command text into the focused shell.
+Confirmation chords focus the draft so their modal is visible; resize and
+review chords preserve the current focus.
 
 ## Prompt history & queue
 

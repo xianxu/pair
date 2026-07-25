@@ -195,6 +195,13 @@ total: 4.98
   accidentally lived only on the stacked #118 branch. Moved the focus-first
   contract into #117 so its own integration boundary tests the behavior it
   ships.
+- Close review found scrollback-local mappings shadowing the shared overlay
+  router for Alt+x and Alt+Up/Down. Added a live buffer-mapping regression,
+  removed the stale quit override, and limited arrow suppression to visual
+  mode. Corrected the plan entity table and focus documentation. The #118 issue
+  and plan were intentionally authored in this design window when frame rename
+  was split into a dependent issue; #117 carries no #118 implementation, and
+  its issue state is synchronized with main.
 
 ## Revisions
 

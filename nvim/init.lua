@@ -980,8 +980,8 @@ do
   -- show/hide-floating-panes; never the toggle-floating-panes footgun). Otherwise
   -- branch on the review target (seam #6): ready→open via `pair review open`,
   -- proposed→"prep in progress", none→drop into `:PairReview ` (file-select). The
-  -- review pane defines its own PairReviewToggle() (hide-self) for Alt+c from inside
-  -- the focused floating pane. No has_ui() guard so the headless test records calls.
+  -- Pair-owned overlays route Alt+c back to this authoritative function.
+  -- No has_ui() guard so the headless test records calls.
   function _G.PairReviewToggle()
     local alive, sf = is_alive()
     if alive then

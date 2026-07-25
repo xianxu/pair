@@ -475,8 +475,6 @@ vim.api.nvim_create_autocmd('BufReadPost', {
     -- comment); passive reads quit instantly, no friction.
     vim.keymap.set('n', '<Esc>', function() annotate.confirm_quit(bufnr) end,
       { buffer = bufnr, silent = true })
-    vim.keymap.set({ 'n', 'i' }, '<M-x>', function() _G.PairConfirmQuit() end,
-      { buffer = bufnr, silent = true, desc = 'pair: quit disabled in scrollback viewer' })
     vim.keymap.set('n', 'ZZ', '<nop>', { buffer = bufnr, silent = true })
     vim.keymap.set('n', 'ZQ', '<nop>', { buffer = bufnr, silent = true })
     vim.keymap.set('n', '<M-b>', function() jump_to_prompt('prev') end,
@@ -500,10 +498,15 @@ vim.api.nvim_create_autocmd('BufReadPost', {
     -- into a single <M-Arrow> chord before our <Esc> handler sees a
     -- bare ESC.
     for _, key in ipairs({
-      '<M-Up>', '<M-Down>', '<M-Left>', '<M-Right>',
+      '<M-Left>', '<M-Right>',
       '<M-S-Up>', '<M-S-Down>', '<M-S-Left>', '<M-S-Right>',
     }) do
       vim.keymap.set({ 'n', 'x' }, key, '<nop>', { buffer = bufnr, silent = true })
+    end
+    -- Alt+Up/Down are workbench globals in normal mode; suppress their
+    -- read-only-buffer defaults only while a visual selection owns the chord.
+    for _, key in ipairs({ '<M-Up>', '<M-Down>' }) do
+      vim.keymap.set('x', key, '<nop>', { buffer = bufnr, silent = true })
     end
     vim.opt.ttimeoutlen = 100
 

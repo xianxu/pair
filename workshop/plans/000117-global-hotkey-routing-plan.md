@@ -70,10 +70,9 @@ still succeed, proving the hot path performs no inventory IO (`ARCH-PURE`,
 |------|----------|--------|
 | `Chord` global variants | `cmd/internal/workbenchshortcut/shortcut.go` | modified |
 | `ShortcutAction` global variants | `cmd/internal/workbenchshortcut/shortcut.go` | modified |
-| `DraftLuaTarget` | `cmd/internal/workbenchshortcut/shortcut.go` | new |
 | `ShortcutDecision` | `cmd/internal/workbenchshortcut/shortcut.go` | modified |
 | `GlobalBinding` | `cmd/internal/workbenchshortcut/shortcut.go` | new |
-| `OverlayRoutePlan` | `nvim/workbench_route.lua` | new |
+| `find_draft_pane` / `draft_commands` | `nvim/workbench_route.lua` | new |
 
 - **`Chord` global variants** — the decoded identities for Alt+d, Alt+x,
   Alt+n/Ctrl+Alt+n, Shift+Alt+N, Alt+Up/Down, and Alt+c.
@@ -86,22 +85,11 @@ still succeed, proving the hot path performs no inventory IO (`ARCH-PURE`,
 
 - **`ShortcutAction` global variants** — semantic global actions independent of
   the concrete Lua function spelling.
-  - **Relationships:** 1:1 with a `DraftLuaTarget` for draft-routed globals.
+  - **Relationships:** 1:1 with a `GlobalBinding` for draft-routed globals.
   - **DRY rationale:** Role policy and Lua dispatch share one semantic action
     registry (`ARCH-DRY`).
   - **Future extensions:** Non-Lua global destinations can remain actions with
     no draft target.
-
-- **`DraftLuaTarget`** — pure action-to-function lookup for
-  `PairConfirmDetach`, `PairConfirmQuit`, `PairConfirmRestart`,
-  `PairConfirmAgentRestart`, `PairLayoutBigger`, `PairLayoutSmaller`, and
-  `PairReviewToggle`.
-  - **Relationships:** N:1 chords-to-action for aliases; 1:1
-    action-to-function.
-  - **DRY rationale:** Replaces hard-coded `"PairConfirmQuit"` dispatch in both
-    wrappers with one authoritative mapping.
-  - **Future extensions:** Return an explicit absent target for direct or
-    pane-local actions.
 
 - **`ShortcutDecision`** — extended pure result carrying the global action and
   draft Lua target for every applicable `PaneRole`.
@@ -120,7 +108,7 @@ still succeed, proving the hot path performs no inventory IO (`ARCH-PURE`,
   - **Future extensions:** Additional cross-language routing fields widen this
     record and its renderer.
 
-- **`OverlayRoutePlan`** — pure Lua functions that select the draft from
+- **`find_draft_pane` / `draft_commands`** — pure Lua functions that select the draft from
   `list-panes --json --command --state` data and build the addressed action
   argv.
   - **Relationships:** N:1 pane records to one draft destination; 1:N from one
@@ -171,7 +159,7 @@ still succeed, proving the hot path performs no inventory IO (`ARCH-PURE`,
     incrementally without changing the pure shortcut model.
 
 - **`workbench_route`** — overlay-only Lua router that invokes `list-panes
-  --json --command --state`, applies `OverlayRoutePlan`, and performs
+  --json --command --state`, applies `find_draft_pane` / `draft_commands`, and performs
   pane-id-addressed writes. It swallows the mapping and uses `vim.notify` for
   missing-draft/action failures.
   - **Injected into:** review, scrollback, and changelog initializers.
@@ -186,7 +174,17 @@ still succeed, proving the hot path performs no inventory IO (`ARCH-PURE`,
 
 - **Global KDL bindings** — encode only the focused-pane sequence. They contain
   no `MoveFocus`, `WriteChars ":lua ..."`, or dependent multi-action sequence
-  (`ARCH-PURPOSE`).
+(`ARCH-PURPOSE`).
+
+### 2026-07-24 — Reconcile close review
+
+The implemented pure model uses `GlobalBinding` directly for action-to-Lua
+and focus policy; there is no separate `DraftLuaTarget` entity. The overlay
+pure core consists of the named `find_draft_pane` and `draft_commands`
+functions rather than an `OverlayRoutePlan` type. Correct the Core concepts
+table and narrative accordingly. Also preserve the shared overlay mappings
+after scrollback buffer setup; remove its stale Alt+x override and keep
+Alt+Up/Down no-ops visual-mode-only.
   - **Injected into:** Zellij normal mode.
   - **Future extensions:** The static inventory test forces every new binding
     to be classified.
