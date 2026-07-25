@@ -13,6 +13,19 @@ false, true)`. Assert the resolved description/callback and that no unintended
 buffer-local mapping shadows it. Static source greps do not prove effective
 mapping precedence. Caught in #000117 close review.
 
+## Plan entity tables must name implemented symbols
+
+The #117 plan described conceptual entities (`DraftLuaTarget`,
+`OverlayRoutePlan`, then `draftroute.Router`) that never existed as named code
+symbols. The implementation was sound, but the boundary review repeatedly had
+to reconcile the durable design record with the actual API.
+
+**Rule.** Before a boundary review, mechanically walk every Core concepts table
+row: `rg` the exact entity name at the declared path, and either point to the
+real symbol or revise the row to the implemented function/type. Conceptual
+groupings must be explicitly labeled as such, not formatted like nonexistent
+APIs. Caught in #000117 close review.
+
 ## Async buffer requests need live anchors, not saved coordinates
 
 Pair review definitions originally stored the selected line/column range while

@@ -202,6 +202,12 @@ total: 4.98
   and plan were intentionally authored in this design window when frame rename
   was split into a dependent issue; #117 carries no #118 implementation, and
   its issue state is synchronized with main.
+- Follow-up review corrected the final stale plan entity name
+  (`RouteLua`/`Runtime`, not a nonexistent `draftroute.Router`) and strengthened
+  the process test to load each review, scrollback, and change-log
+  configuration, invoke its effective Alt+x and Alt+Up callbacks, and assert
+  focus-first success, atomic focus failure, and focus-preserving layout
+  routing.
 
 ## Revisions
 

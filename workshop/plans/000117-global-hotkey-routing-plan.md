@@ -122,7 +122,7 @@ still succeed, proving the hot path performs no inventory IO (`ARCH-PURE`,
 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
-| `draftroute.Router` | `cmd/internal/draftroute/route.go` | new | Zellij pane listing and pane-id writes |
+| `RouteLua` / `Runtime` | `cmd/internal/draftroute/route.go` | new | cached draft lookup, fallback pane listing, and pane-id writes |
 | Terminal global-route adapter | `cmd/internal/termcmd/run.go` | modified | terminal stream error reporting |
 | Agent global-route adapter | `cmd/internal/wrapcmd/wrap.go` | modified | wrapper runtime injection and error reporting |
 | `workbench_route` | `nvim/workbench_route.lua` | new | Zellij pane listing and pane-id writes from Neovim overlays |
@@ -133,9 +133,10 @@ still succeed, proving the hot path performs no inventory IO (`ARCH-PURE`,
 | Global KDL bindings | `zellij/config.kdl` | modified | focused-pane key forwarding |
 | Workbench shortcut integration suite | `tests/term-pane-shortcuts-test.sh`, `tests/review-toggle-test.sh` | modified | fake Zellij process boundary |
 
-- **`draftroute.Router`** — the single Go IO implementation that requests
-  `list-panes --json --command --state`, identifies the draft through
-  `zellijpane.Parse` plus `workbenchshortcut.RoleForPane`, and sends
+- **`RouteLua` / `Runtime`** — the single Go IO implementation that first uses
+  the validated cached draft locator, falls back to
+  `list-panes --json --command --state` plus `zellijpane.Parse` /
+  `workbenchshortcut.RoleForPane`, and sends
   `<C-\><C-n>:lua Target()<CR>` with `--pane-id` on every write.
   - **Injected into:** terminal and wrapper stream handlers through a small
     `Runtime` interface (`ListPanes` plus `RunZellijAction`).
@@ -185,6 +186,13 @@ functions rather than an `OverlayRoutePlan` type. Correct the Core concepts
 table and narrative accordingly. Also preserve the shared overlay mappings
 after scrollback buffer setup; remove its stale Alt+x override and keep
 Alt+Up/Down no-ops visual-mode-only.
+
+The next review found one more stale planned name: the Go integration is the
+`RouteLua` function over an injected `Runtime`, not a `draftroute.Router` type.
+Correct that table/narrative and exercise the effective keymaps from each
+review, scrollback, and change-log configuration at the fake-Zellij process
+boundary, covering focus-first confirmation, atomic focus failure, and
+focus-preserving layout routing (`ARCH-PURPOSE`).
   - **Injected into:** Zellij normal mode.
   - **Future extensions:** The static inventory test forces every new binding
     to be classified.
