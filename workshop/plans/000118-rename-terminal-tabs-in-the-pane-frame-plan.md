@@ -31,6 +31,13 @@ label. Map that unchanged live terminal/title risk to a second
 `api-integration` row from the closed vocabulary; no hours or implementation
 scope change.
 
+### 2026-07-24 — Add KKP Cmd+Delete editing
+
+Extend the existing pure editor/decoder rather than adding an input special
+case in the terminal loop. Decode KKP Super+Backspace (`ESC[127;9u`) into a
+delete-to-start event; cover Unicode suffix preservation, every split boundary,
+and production-stream non-leakage. Do not enable or alter a terminal protocol.
+
 ## Core concepts
 
 ### Pure entities

@@ -48,6 +48,13 @@ func TestRenameEditorTransitions(t *testing.T) {
 			wantCursor: 1,
 		},
 		{
+			name:       "delete to start preserves unicode suffix",
+			start:      "ab🙂cd",
+			events:     []RenameEvent{{Kind: RenameMoveLeft}, {Kind: RenameMoveLeft}, {Kind: RenameDeleteToStart}},
+			wantText:   "cd",
+			wantCursor: 0,
+		},
+		{
 			name:       "commit trims nonempty text",
 			start:      "old",
 			events:     []RenameEvent{{Kind: RenameHome}, {Kind: RenameInsert, Rune: ' '}, {Kind: RenameEnd}, {Kind: RenameInsert, Rune: ' '}, {Kind: RenameCommit}},

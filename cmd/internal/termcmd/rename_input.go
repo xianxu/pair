@@ -27,6 +27,7 @@ var renameControlSequences = []struct {
 	{"\x1bOF", RenameEnd},
 	{"\x1b[4~", RenameEnd},
 	{"\x1b[3~", RenameDelete},
+	{"\x1b[127;9u", RenameDeleteToStart},
 }
 
 var (

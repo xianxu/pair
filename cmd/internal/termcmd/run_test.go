@@ -234,6 +234,21 @@ func TestPumpStdinRenameConsumesSameReadSuffix(t *testing.T) {
 	}
 }
 
+func TestPumpStdinRenameCmdDeleteDeletesToStart(t *testing.T) {
+	rt := &fakeRuntime{}
+	mux := &fakeMux{activeName: "work"}
+
+	pumpStdin(&splitReader{chunks: [][]byte{
+		[]byte("\x1br\x1b[D"),
+		[]byte("\x1b[127;9u\r"),
+	}}, mux, rt, io.Discard)
+
+	want := "rename-begin:work,rename-preview:work:3,rename-preview:k:0,rename-finish:1:k"
+	if got := strings.Join(mux.ops, ","); got != want {
+		t.Fatalf("ops = %q, want %q", got, want)
+	}
+}
+
 func TestPumpStdinRenameCancelsOnEOF(t *testing.T) {
 	rt := &fakeRuntime{}
 	mux := &fakeMux{activeName: "work"}

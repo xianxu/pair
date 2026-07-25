@@ -134,6 +134,10 @@ closed-vocabulary `api-integration` primitive. Hours and scope are unchanged.
 - Full verification passed: `go test ./... -count=1`, `make test-lua`, terminal
   shortcut and review-toggle shell suites, runtime-bundle drift check, Zellij
   config validation, and `git diff --check`.
+- Added KKP Super+Backspace (`ESC[127;9u`) as delete-to-start during rename.
+  RED/GREEN tests cover Unicode suffix preservation, every sequence split, the
+  production stdin path, and child non-leakage. The full Go suite, terminal
+  shortcut suite, runtime drift check, and whitespace check pass.
 
 ## Revisions
 
@@ -143,3 +147,11 @@ Define the 50ms Escape-prefix disambiguation boundary, fragmented UTF-8 policy,
 same-read exit consumption, explicit handling for shortcuts/mouse/bracketed
 paste, and deterministic title-IO failure semantics. Expand Done criteria to
 prove every supported sequence split and every no-leak production boundary.
+
+### 2026-07-24 — Add KKP Cmd+Delete editing
+
+During rename mode, Kitty keyboard protocol Super+Backspace
+(`ESC [ 127 ; 9 u`) deletes all runes before the cursor and preserves the
+suffix. Keep this KKP-only: do not alias Ctrl+U or change Pair's mouse/terminal
+protocol configuration. Split-boundary decoder and production-stream tests
+must prove the sequence never reaches the child PTY.

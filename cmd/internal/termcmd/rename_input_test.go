@@ -42,6 +42,7 @@ func TestDecodeRenameInputControlsAtEverySplit(t *testing.T) {
 		{"end ss3", "\x1bOF", RenameEnd},
 		{"end tilde", "\x1b[4~", RenameEnd},
 		{"delete", "\x1b[3~", RenameDelete},
+		{"super backspace", "\x1b[127;9u", RenameDeleteToStart},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

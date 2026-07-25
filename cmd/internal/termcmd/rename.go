@@ -13,6 +13,7 @@ const (
 	RenameEnd
 	RenameBackspace
 	RenameDelete
+	RenameDeleteToStart
 	RenameCommit
 	RenameCancel
 )
@@ -87,6 +88,9 @@ func (e RenameEditor) Apply(event RenameEvent) (RenameEditor, RenameOutcome) {
 		if e.cursor < len(e.text) {
 			e.text = append(e.text[:e.cursor], e.text[e.cursor+1:]...)
 		}
+	case RenameDeleteToStart:
+		e.text = append([]rune(nil), e.text[e.cursor:]...)
+		e.cursor = 0
 	case RenameCommit:
 		name := strings.TrimSpace(string(e.text))
 		if name == "" {
