@@ -138,6 +138,10 @@ closed-vocabulary `api-integration` primitive. Hours and scope are unchanged.
   RED/GREEN tests cover Unicode suffix preservation, every sequence split, the
   production stdin path, and child non-leakage. The full Go suite, terminal
   shortcut suite, runtime drift check, and whitespace check pass.
+- Live smoke still produced no delete-to-start event. The installed Zellij
+  exposes KKP as a restart-required session option and Pair had not pinned it.
+  Added `support_kitty_keyboard_protocol true` without changing any mouse
+  option; the configuration regression and Zellij parser pass.
 
 ## Revisions
 
@@ -155,3 +159,10 @@ During rename mode, Kitty keyboard protocol Super+Backspace
 suffix. Keep this KKP-only: do not alias Ctrl+U or change Pair's mouse/terminal
 protocol configuration. Split-boundary decoder and production-stream tests
 must prove the sequence never reaches the child PTY.
+
+### 2026-07-24 — Enable KKP for the Pair session
+
+Live smoke showed the decoder never receives Super+Backspace. Explicitly enable
+Zellij's `support_kitty_keyboard_protocol` session option so a supporting host
+terminal can emit the already-decoded `ESC[127;9u`. Keep mouse settings
+unchanged and require a completely fresh Pair/Zellij session for verification.

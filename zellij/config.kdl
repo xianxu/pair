@@ -16,6 +16,7 @@
 mouse_hover_effects false
 advanced_mouse_actions false
 focus_follows_mouse false
+support_kitty_keyboard_protocol true
 show_release_notes false
 show_startup_tips false
 pane_frames true

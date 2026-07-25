@@ -191,5 +191,9 @@ grep -Fq 'focus_follows_mouse false' "$ROOT/zellij/config.kdl" \
   && pass "Zellij focus does not follow the mouse across asymmetric layers" \
   || { printf 'FAIL Zellij focus-follows-mouse is enabled\n'; fail=1; }
 
+grep -Fq 'support_kitty_keyboard_protocol true' "$ROOT/zellij/config.kdl" \
+  && pass "Zellij explicitly enables Kitty keyboard protocol" \
+  || { printf 'FAIL Zellij Kitty keyboard protocol is not enabled\n'; fail=1; }
+
 [ "$fail" -eq 0 ] || { printf 'term-pane-shortcuts-test FAILED\n'; exit 1; }
 printf 'term-pane-shortcuts-test ok\n'

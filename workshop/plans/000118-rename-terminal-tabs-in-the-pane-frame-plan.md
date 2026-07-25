@@ -38,6 +38,13 @@ case in the terminal loop. Decode KKP Super+Backspace (`ESC[127;9u`) into a
 delete-to-start event; cover Unicode suffix preservation, every split boundary,
 and production-stream non-leakage. Do not enable or alter a terminal protocol.
 
+### 2026-07-24 — Enable KKP for the Pair session
+
+The KKP-only decoder passed but live Zellij emitted no matching sequence.
+Explicitly set `support_kitty_keyboard_protocol true` in `zellij/config.kdl`
+and pin it in the terminal shortcut configuration regression. Preserve every
+mouse option unchanged; this experiment requires a fresh Zellij session.
+
 ## Core concepts
 
 ### Pure entities
