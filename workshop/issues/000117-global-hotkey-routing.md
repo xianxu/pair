@@ -190,6 +190,11 @@ total: 4.98
   actions inspect pane state. A regression makes pane inventory fail and proves
   cached Alt+n still focuses and routes successfully (`ARCH-PURE`,
   `ARCH-PURPOSE`).
+- Isolated-branch verification exposed that the shell process test still
+  asserted the pre-focus Alt+x sequence; the corrected assertion had
+  accidentally lived only on the stacked #118 branch. Moved the focus-first
+  contract into #117 so its own integration boundary tests the behavior it
+  ships.
 
 ## Revisions
 

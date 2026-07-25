@@ -92,7 +92,8 @@ check_eq "right Alt+r stays local to pair term" "$(actions)" ""
 
 write_panes terminal
 run_shortcut "Alt+x"
-check_eq "right Alt+x routes quit to draft" "$(actions)" "write --pane-id 2 28
+check_eq "right Alt+x focuses then routes quit to draft" "$(actions)" "focus-pane-id 2
+write --pane-id 2 28
 write --pane-id 2 14
 write-chars --pane-id 2 :lua PairConfirmQuit()
 write --pane-id 2 13"
