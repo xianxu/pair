@@ -137,13 +137,8 @@ func RoleForPane(p zellijpane.Pane) PaneRole {
 
 func Decide(in ShortcutInput) ShortcutDecision {
 	if in.Role == PaneRoleLeftAgent || in.Role == PaneRoleLeftDraft || in.Role == PaneRoleRightTerminal {
-		if binding, ok := globalDraftAction(in.Chord); ok {
-			return ShortcutDecision{
-				Disposition:      DispositionHandle,
-				Action:           binding.Action,
-				DraftLuaFunction: binding.LuaFunction,
-				FocusDraft:       binding.FocusDraft,
-			}
+		if decision, ok := DecideGlobal(in.Chord); ok {
+			return decision
 		}
 	}
 	switch in.Role {
@@ -193,6 +188,21 @@ func Decide(in ShortcutInput) ShortcutDecision {
 	default:
 		return ShortcutDecision{Disposition: DispositionPass}
 	}
+}
+
+// DecideGlobal resolves a workbench-wide chord without requiring pane
+// inventory. Pair-owned input wrappers already establish that the chord came
+// from a primary pane; only pane-relative shortcuts need Role/geometry data.
+func DecideGlobal(chord Chord) (ShortcutDecision, bool) {
+	if binding, ok := globalDraftAction(chord); ok {
+		return ShortcutDecision{
+			Disposition:      DispositionHandle,
+			Action:           binding.Action,
+			DraftLuaFunction: binding.LuaFunction,
+			FocusDraft:       binding.FocusDraft,
+		}, true
+	}
+	return ShortcutDecision{}, false
 }
 
 func globalDraftAction(chord Chord) (GlobalBinding, bool) {

@@ -95,6 +95,9 @@ func namedChord(name string) (workbenchshortcut.Chord, bool) {
 }
 
 func handleChord(chord workbenchshortcut.Chord, rt Runtime, stdin io.Reader, stdout io.Writer) error {
+	if decision, ok := workbenchshortcut.DecideGlobal(chord); ok {
+		return runDecision(decision, workbenchPanes{}, rt, stdin, stdout)
+	}
 	panes, err := focusedWorkbenchPanes(rt)
 	if err != nil {
 		return err

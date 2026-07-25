@@ -182,6 +182,14 @@ total: 4.98
   Neovim process boundary. A failed `focus-pane-id` is reported and produces
   zero control/Lua writes. Focused and full Go, Lua, terminal shortcut, review
   toggle, and whitespace verification pass.
+- A second right-terminal smoke still measured roughly two seconds for Alt+n.
+  The cached router itself was fast, but `pair term` called
+  `focusedWorkbenchPanes` before reaching it, causing the same synchronous
+  Zellij pane inventory the cache was intended to avoid. Global decisions now
+  resolve directly from the authoritative chord registry; only pane-relative
+  actions inspect pane state. A regression makes pane inventory fail and proves
+  cached Alt+n still focuses and routes successfully (`ARCH-PURE`,
+  `ARCH-PURPOSE`).
 
 ## Revisions
 
@@ -217,6 +225,15 @@ hotkeys remain deterministic regardless of which pane the pointer focuses.
 Change the Alt+Shift+Return expanded geometry from two-thirds to three-quarters
 of the workbench. Preserve the exact one-action resize and filler-anchored
 half-width collapse behavior.
+
+### 2026-07-24 — Remove the remaining terminal inventory hop
+
+The first latency revision optimized draft lookup inside the shared router but
+left `pair term`'s generic pane-relative decision prelude intact. Global chords
+do not depend on focused-pane classification: the wrapper itself establishes
+the right-terminal role, and the shared registry completely determines their
+route. Resolve those chords before pane inventory and retain the existing
+inventory path only for pane-relative shortcuts.
 
 ### 2026-07-24 — Revert pointer-followed focus
 
