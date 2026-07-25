@@ -1,0 +1,226 @@
+package termcmd
+
+import (
+	"bytes"
+	"unicode/utf8"
+
+	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
+)
+
+type RenameDecoderState struct {
+	Pending []byte
+	InPaste bool
+}
+
+var renameControlSequences = []struct {
+	sequence string
+	event    RenameEventKind
+}{
+	{"\x1b[D", RenameMoveLeft},
+	{"\x1bOD", RenameMoveLeft},
+	{"\x1b[C", RenameMoveRight},
+	{"\x1bOC", RenameMoveRight},
+	{"\x1b[H", RenameHome},
+	{"\x1bOH", RenameHome},
+	{"\x1b[1~", RenameHome},
+	{"\x1b[F", RenameEnd},
+	{"\x1bOF", RenameEnd},
+	{"\x1b[4~", RenameEnd},
+	{"\x1b[3~", RenameDelete},
+}
+
+var (
+	bracketedPasteStart = []byte("\x1b[200~")
+	bracketedPasteEnd   = []byte("\x1b[201~")
+)
+
+func DecodeRenameInput(state RenameDecoderState, data []byte, flushEscape, eof bool) (RenameDecoderState, []RenameEvent, bool) {
+	input := append(append([]byte(nil), state.Pending...), data...)
+	state.Pending = nil
+	var events []RenameEvent
+
+	for len(input) > 0 {
+		if state.InPaste {
+			if end := bytes.Index(input, bracketedPasteEnd); end >= 0 {
+				input = input[end+len(bracketedPasteEnd):]
+				state.InPaste = false
+				events = append(events, RenameEvent{Kind: RenameConsume})
+				continue
+			}
+			keep := longestSuffixPrefix(input, bracketedPasteEnd)
+			state.Pending = append(state.Pending, input[len(input)-keep:]...)
+			input = nil
+			break
+		}
+
+		switch input[0] {
+		case '\r', '\n':
+			events = append(events, RenameEvent{Kind: RenameCommit})
+			state.Pending = nil
+			return state, events, true
+		case 0x7f, '\b':
+			events = append(events, RenameEvent{Kind: RenameBackspace})
+			input = input[1:]
+			continue
+		case 0x1b:
+			if len(input) == 1 {
+				if flushEscape || eof {
+					events = append(events, RenameEvent{Kind: RenameCancel})
+					return RenameDecoderState{}, events, true
+				}
+				state.Pending = append(state.Pending, input...)
+				return state, events, false
+			}
+			if bytes.HasPrefix(input, bracketedPasteStart) {
+				events = append(events, RenameEvent{Kind: RenameConsume})
+				state.InPaste = true
+				input = input[len(bracketedPasteStart):]
+				continue
+			}
+			if !eof && bytes.HasPrefix(bracketedPasteStart, input) {
+				state.Pending = append(state.Pending, input...)
+				return state, events, false
+			}
+			if event, size, ok := completeRenameControl(input); ok {
+				events = append(events, RenameEvent{Kind: event})
+				input = input[size:]
+				continue
+			}
+			if !eof && renameControlPrefix(input) {
+				state.Pending = append(state.Pending, input...)
+				return state, events, false
+			}
+			if _, rest, ok := workbenchshortcut.DecodeChordPrefix(input); ok {
+				size := len(input) - len(rest)
+				events = append(events, RenameEvent{Kind: RenameConsume})
+				input = input[size:]
+				continue
+			}
+			if !eof && workbenchshortcut.IsChordPrefix(input) {
+				state.Pending = append(state.Pending, input...)
+				return state, events, false
+			}
+			if size, complete := sgrMouseSize(input); complete {
+				events = append(events, RenameEvent{Kind: RenameConsume})
+				input = input[size:]
+				continue
+			}
+			if !eof && (bytes.HasPrefix([]byte("\x1b[<"), input) || bytes.HasPrefix(input, []byte("\x1b[<")) && !sgrMouseTerminated(input)) {
+				state.Pending = append(state.Pending, input...)
+				return state, events, false
+			}
+			if flushEscape {
+				events = append(events, RenameEvent{Kind: RenameCancel})
+				return RenameDecoderState{}, events, true
+			}
+			size, preserveLast := malformedEscapeSize(input)
+			events = append(events, RenameEvent{Kind: RenameConsume})
+			input = input[size:]
+			if preserveLast {
+				continue
+			}
+			continue
+		}
+
+		if input[0] < utf8.RuneSelf {
+			if input[0] >= 0x20 {
+				events = append(events, RenameEvent{Kind: RenameInsert, Rune: rune(input[0])})
+			} else {
+				events = append(events, RenameEvent{Kind: RenameConsume})
+			}
+			input = input[1:]
+			continue
+		}
+		if !utf8.FullRune(input) {
+			state.Pending = append(state.Pending, input...)
+			input = nil
+			break
+		}
+		r, size := utf8.DecodeRune(input)
+		if r == utf8.RuneError && size == 1 {
+			events = append(events, RenameEvent{Kind: RenameConsume})
+			input = input[1:]
+			continue
+		}
+		events = append(events, RenameEvent{Kind: RenameInsert, Rune: r})
+		input = input[size:]
+	}
+
+	if eof {
+		state.Pending = nil
+		state.InPaste = false
+		events = append(events, RenameEvent{Kind: RenameCancel})
+		return state, events, true
+	}
+	return state, events, false
+}
+
+func completeRenameControl(input []byte) (RenameEventKind, int, bool) {
+	for _, candidate := range renameControlSequences {
+		if bytes.HasPrefix(input, []byte(candidate.sequence)) {
+			return candidate.event, len(candidate.sequence), true
+		}
+	}
+	return RenameConsume, 0, false
+}
+
+func renameControlPrefix(input []byte) bool {
+	for _, candidate := range renameControlSequences {
+		if len(input) < len(candidate.sequence) && bytes.HasPrefix([]byte(candidate.sequence), input) {
+			return true
+		}
+	}
+	return false
+}
+
+func sgrMouseSize(input []byte) (int, bool) {
+	if !bytes.HasPrefix(input, []byte("\x1b[<")) {
+		return 0, false
+	}
+	for i := 3; i < len(input); i++ {
+		if input[i] == 'M' || input[i] == 'm' {
+			return i + 1, true
+		}
+	}
+	return 0, false
+}
+
+func sgrMouseTerminated(input []byte) bool {
+	_, ok := sgrMouseSize(input)
+	return ok
+}
+
+func malformedEscapeSize(input []byte) (int, bool) {
+	if len(input) < 2 {
+		return len(input), false
+	}
+	if input[1] != '[' && input[1] != 'O' {
+		return 2, false
+	}
+	for i := 2; i < len(input); i++ {
+		c := input[i]
+		if c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' {
+			if i > 2 && bytes.ContainsAny(input[2:i], "?;") {
+				return i, true
+			}
+			return i + 1, false
+		}
+		if c == '~' {
+			return i + 1, false
+		}
+	}
+	return len(input), false
+}
+
+func longestSuffixPrefix(input, prefix []byte) int {
+	max := len(input)
+	if max >= len(prefix) {
+		max = len(prefix) - 1
+	}
+	for size := max; size > 0; size-- {
+		if bytes.Equal(input[len(input)-size:], prefix[:size]) {
+			return size
+		}
+	}
+	return 0
+}
