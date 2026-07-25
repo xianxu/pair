@@ -90,11 +90,19 @@ item: issue-spec design=0.20 impl=0.08
 item: tui-screen design=0.40 impl=0.40
 item: smaller-go-module design=0.06 impl=0.16
 item: api-integration design=0.20 impl=0.20
-item: ux-iteration design=0.16 impl=0.08
+item: api-integration design=0.16 impl=0.08
 item: atlas-docs design=0.05 impl=0.05
 item: milestone-review design=0.08 impl=0.12
 total: 2.48
 ```
+
+## Revisions
+
+### 2026-07-24 — Reconcile estimate vocabulary
+
+The implementation gate rejected the non-canonical `ux-iteration` estimate
+label. Classify the same live terminal/title seam and revision risk under the
+closed-vocabulary `api-integration` primitive. Hours and scope are unchanged.
 
 ## Plan
 
