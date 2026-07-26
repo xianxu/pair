@@ -33,17 +33,45 @@ lets a browser reach the local Pair daemon through an outbound connection.
   an outbound long-poll connection from the local daemon and authenticated browser
   requests from a paired device. It does not read repos, execute shell commands,
   inspect Pair sidecars directly, or persist sensitive state.
-- Implement a pairing/authentication model for one or more trusted devices:
-  short-lived pairing secret, durable per-device credential, command allowlist,
-  and auditable command records.
+- Implement `pair remote login` as the local enrollment flow. It opens the
+  browser for the same OAuth/OIDC provider used by the relay, verifies the
+  authenticated issuer+subject locally, registers the local daemon to that
+  account, creates a daemon keypair, and stores the daemon private key only on
+  the local machine.
+- Implement a pairing/authentication model for one or more trusted browser
+  devices: short-lived pairing secret, durable per-device credential, command
+  allowlist, and auditable command records.
+- Use OAuth/OIDC for relay admission and account ownership, but keep Pair-local
+  grants as the final authority. The relay verifies that a logged-in user may
+  reach a registered daemon; the daemon verifies that the signed device command
+  is allowed for this machine and session.
+- Bind identity to OIDC issuer+subject, not mutable email alone. Email may be
+  displayed but is not the durable authorization key.
+- Condition authorization on request class/origin:
+  `local-cli` can configure grants, revoke devices, rotate keys, and start the
+  daemon; `relay-browser` can only use capabilities granted locally; relay-side
+  components may route envelopes but never grant Pair actions; unknown origins
+  are denied.
+- Implement explicit v1 capabilities: `session.list`, `session.new`, and
+  `session.renew`. `session.new` maps to the fresh-session restart gesture
+  (`Alt+Shift+N`): keep the Pair tag/workbench identity, drop native agent resume
+  config, and start a clean agent session. `session.renew` maps to the context
+  refresh gesture (`Alt+Shift+C`) but owns the whole transaction locally: run the
+  continuation writer, verify the continuation file, restart fresh, seed the new
+  session with a fixed "read this continuation and continue" first message, and
+  send it.
 - Implement a remote session list using existing Pair identity/state sources
   rather than a second session database (`ARCH-DRY`): repo scope, display tag,
   agent, live/detached/exited state, last activity when available, and current
   context signal when available.
-- Implement one remote lifecycle action: refresh a session from an existing or
-  just-created continuation using Pair's existing restart/continue machinery.
-  The daemon may invoke Pair's public lifecycle entrypoints or extracted shared
-  launcher logic, but it must not create a parallel restart protocol.
+- Implement remote lifecycle actions using Pair's existing restart/continue
+  machinery. The daemon may invoke Pair's public lifecycle entrypoints or
+  extracted shared launcher logic, but it must not create a parallel restart
+  protocol (`ARCH-DRY`).
+- Treat `session.renew` as more privileged than `session.new`: the browser sends
+  intent only, not arbitrary prompt text. The daemon generates the first message
+  locally from a fixed template and a verified continuation path under the
+  expected repo continuation directory.
 - Keep v1 out of scope for terminal streaming, artifact browsing, arbitrary file
   reads, arbitrary shell commands, and annotation.
 - Keep core decisions testable as pure functions (`ARCH-PURE`): request
@@ -54,26 +82,43 @@ lets a browser reach the local Pair daemon through an outbound connection.
 
 - A local daemon can connect outbound to a relay and publish the current Pair
   session list to an authenticated browser.
-- The browser can trigger the approved refresh/restart action for a selected
-  session, and the local daemon routes it through the existing Pair lifecycle.
+- `pair remote login` authenticates the local daemon with the same OAuth/OIDC
+  identity the relay uses and stores a local daemon keypair.
+- Local authorization grants can allow or deny `session.list`, `session.new`, and
+  `session.renew` separately for a paired browser device.
+- The browser can trigger approved `session.new` and `session.renew` actions for
+  a selected session, and the local daemon routes both through the existing Pair
+  lifecycle.
 - Relay and daemon reject unauthenticated requests, stale commands, unknown
   actions, mismatched device/session IDs, and replayed command IDs.
+- The daemon rejects remote prompt text for `session.renew`; the sent first
+  message is generated locally from a fixed template and verified continuation
+  file.
 - The relay stores no repo contents, file contents, transcripts, scrollback, or
   shell output.
 - Tests cover auth envelope validation, session-list projection, command
-  allowlisting, stale/replayed command rejection, and the daemon's lifecycle
-  command dispatch seam.
+  allowlisting, local grant decisions by request class, stale/replayed command
+  rejection, and the daemon's lifecycle command dispatch seam.
 
 ## Plan
 
-- [ ] Define the daemon/relay/browser protocol envelope and auth model.
-- [ ] Add pure session-list and command-authorization cores that derive from
-  existing Pair state.
-- [ ] Add the local daemon IO shell and lifecycle dispatch seam.
-- [ ] Add the Oracle-friendly relay IO shell with long-poll transport.
-- [ ] Add a minimal web dashboard for session list + refresh action.
-- [ ] Add unit/integration tests and a local smoke path that does not require
-  Oracle deployment.
+- [ ] M1 — Authentication and grants: design and implement `pair remote login`,
+  OAuth/OIDC issuer+subject binding, daemon key registration, paired browser
+  device credentials, request-class-aware local grants, revocation, and signed
+  command envelope validation.
+- [ ] M2 — Relay and session list: implement the Oracle-friendly relay as a
+  dumb authenticated mailbox, local daemon long-poll connection, authenticated
+  web session list, short TTLs, replay rejection, and audit records. Reuse
+  existing Pair session identity/state sources (`ARCH-DRY`).
+- [ ] M3 — Remote lifecycle actions: implement locally authorized `session.new`
+  and transactional `session.renew` over the relay. `session.new` maps to the
+  fresh-session restart path; `session.renew` runs continuation generation,
+  verifies the continuation, restarts fresh, and sends the locally generated
+  continuation prompt as the new session's first message.
+- [ ] M4 — Hardening and smoke: add end-to-end local fake-relay tests, stale and
+  replay command tests, grant downgrade/revocation tests, relay non-retention
+  checks, and a manual smoke path for using an iPad/browser against a real local
+  Pair session.
 
 ## Log
 
@@ -82,3 +127,12 @@ lets a browser reach the local Pair daemon through an outbound connection.
 Seeded from remote Pair brainstorming. First slice is intentionally remote
 control only: a dead-simple proxy plus local daemon so an iPad can refresh a
 Claude session near context-full without exposing local files or terminal output.
+
+### 2026-07-26
+
+Refined security model: `pair remote login` authenticates the local daemon with
+the same OAuth/OIDC identity as the relay, but OAuth is admission rather than the
+final Pair authority. Pair-local grants and signed device commands decide whether
+`session.list`, `session.new`, or `session.renew` can run. `session.renew` is a
+single local transaction: continuation generation, verified continuation file,
+fresh restart, and locally templated first prompt send.
