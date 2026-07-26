@@ -1,11 +1,12 @@
 ---
 id: 000121
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-07-26
 updated: 2026-07-26
 estimate_hours:
+started: 2026-07-26T11:20:10-07:00
 ---
 
 # Remote Pair control relay
