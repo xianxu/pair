@@ -52,6 +52,15 @@ lets a browser reach the local Pair daemon through an outbound connection.
   daemon; `relay-browser` can only use capabilities granted locally; relay-side
   components may route envelopes but never grant Pair actions; unknown origins
   are denied.
+- Provide an account-level nuclear reset: from an authenticated relay session
+  for the same OAuth/OIDC issuer+subject, the user can revoke every browser
+  session, paired browser credential, daemon registration, pending command, and
+  refresh token known to the relay for that account. The relay records a
+  monotonically increasing account revocation epoch; local daemons must compare
+  it on every successful relay contact and disable remote access until
+  `pair remote login` re-enrolls locally. This is Pair's own revocation plane;
+  Google/OIDC logout is not enough because it cannot erase Pair-local keys on
+  offline machines.
 - Implement explicit v1 capabilities: `session.list`, `session.new`, and
   `session.renew`. `session.new` maps to the fresh-session restart gesture
   (`Alt+Shift+N`): keep the Pair tag/workbench identity, drop native agent resume
@@ -86,6 +95,11 @@ lets a browser reach the local Pair daemon through an outbound connection.
   identity the relay uses and stores a local daemon keypair.
 - Local authorization grants can allow or deny `session.list`, `session.new`, and
   `session.renew` separately for a paired browser device.
+- An authenticated relay account can trigger a nuclear reset that logs out all
+  Pair web sessions for that OAuth/OIDC subject, revokes all relay-side device
+  and daemon registrations, clears pending commands, bumps the account
+  revocation epoch, and causes every subsequently reconnecting local daemon to
+  disable remote access until local re-login.
 - The browser can trigger approved `session.new` and `session.renew` actions for
   a selected session, and the local daemon routes both through the existing Pair
   lifecycle.
@@ -104,8 +118,9 @@ lets a browser reach the local Pair daemon through an outbound connection.
 
 - [ ] M1 — Authentication and grants: design and implement `pair remote login`,
   OAuth/OIDC issuer+subject binding, daemon key registration, paired browser
-  device credentials, request-class-aware local grants, revocation, and signed
-  command envelope validation.
+  device credentials, request-class-aware local grants, local revocation,
+  account-wide relay nuclear reset semantics, and signed command envelope
+  validation.
 - [ ] M2 — Relay and session list: implement the Oracle-friendly relay as a
   dumb authenticated mailbox, local daemon long-poll connection, authenticated
   web session list, short TTLs, replay rejection, and audit records. Reuse
@@ -117,8 +132,8 @@ lets a browser reach the local Pair daemon through an outbound connection.
   continuation prompt as the new session's first message.
 - [ ] M4 — Hardening and smoke: add end-to-end local fake-relay tests, stale and
   replay command tests, grant downgrade/revocation tests, relay non-retention
-  checks, and a manual smoke path for using an iPad/browser against a real local
-  Pair session.
+  checks, account nuclear-reset tests, reconnect-after-reset tests, and a manual
+  smoke path for using an iPad/browser against a real local Pair session.
 
 ## Log
 
@@ -136,3 +151,12 @@ final Pair authority. Pair-local grants and signed device commands decide whethe
 `session.list`, `session.new`, or `session.renew` can run. `session.renew` is a
 single local transaction: continuation generation, verified continuation file,
 fresh restart, and locally templated first prompt send.
+
+### 2026-07-26
+
+Added the account-level nuclear reset requirement. Relay-side OAuth login can
+initiate "log all Pair sessions out" for the same issuer+subject, but the durable
+security property is Pair-owned: the relay revokes every known web session,
+device credential, daemon registration, pending command, and token for that
+account, bumps a revocation epoch, and local daemons disable remote access on
+next contact until re-enrolled with `pair remote login`.
