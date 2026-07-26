@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-07-26
 updated: 2026-07-26
-estimate_hours:
+estimate_hours: 24.52
 started: 2026-07-26T11:20:10-07:00
 ---
 
@@ -81,6 +81,14 @@ lets a browser reach the local Pair daemon through an outbound connection.
   intent only, not arbitrary prompt text. The daemon generates the first message
   locally from a fixed template and a verified continuation path under the
   expected repo continuation directory.
+- Before remote control ships, improve the local Alt+Shift+C compaction flow into
+  the exact local primitive `session.renew` needs: continuation generation,
+  verified continuation-backed fresh restart, locally generated first prompt, and
+  at-most-once automatic send in the new session. If Pair cannot prove the send
+  is safe after a crash or restart, it must leave the seeded draft visible and
+  ask the user to send manually rather than risk duplicate agent input. Manual
+  `pair continue <slug>` should keep the current inspect/edit-before-send
+  behavior.
 - Keep v1 out of scope for terminal streaming, artifact browsing, arbitrary file
   reads, arbitrary shell commands, and annotation.
 - Keep core decisions testable as pure functions (`ARCH-PURE`): request
@@ -114,23 +122,64 @@ lets a browser reach the local Pair daemon through an outbound connection.
   allowlisting, local grant decisions by request class, stale/replayed command
   rejection, and the daemon's lifecycle command dispatch seam.
 
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. `sdlc estimate-source` reports the calibration
+source as stale, so the number is provisional but uses the required method.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.80 impl=0.08
+item: lua-neovim design=0.40 impl=0.40
+item: smaller-go-module design=0.06 impl=0.16
+item: cross-cutting-refactor design=0.10 impl=0.20
+item: greenfield-go-module design=0.40 impl=0.32
+item: greenfield-go-module design=0.40 impl=0.32
+item: greenfield-go-module design=0.40 impl=0.32
+item: api-integration design=0.60 impl=0.60
+item: greenfield-service design=3.00 impl=3.20
+item: greenfield-service design=3.00 impl=3.20
+item: tui-screen design=0.40 impl=0.40
+item: api-integration design=0.40 impl=0.40
+item: cross-cutting-refactor design=0.80 impl=1.12
+item: atlas-docs design=0.25 impl=0.20
+item: milestone-review design=0.08 impl=0.12
+item: milestone-review design=0.08 impl=0.12
+item: milestone-review design=0.08 impl=0.12
+item: milestone-review design=0.08 impl=0.12
+item: milestone-review design=0.08 impl=0.12
+design-buffer: 0.15
+total: 24.52
+```
+
+The two service-scale items are distinct: the local daemon/control-plane
+orchestration and the Oracle-friendly relay/web service. The three greenfield
+modules cover the auth/grant core, signed envelopes/replay, and relay mailbox /
+session projections.
+
 ## Plan
 
-- [ ] M1 — Authentication and grants: design and implement `pair remote login`,
+- [ ] M1 — Local renew substrate: improve Alt+Shift+C so continuation compaction
+  restarts fresh, seeds the verified continuation prompt, and sends it at most
+  once in the new session, with visible manual recovery if the one-shot state is
+  ambiguous after a crash. Keep manual `pair continue <slug>` as seed-only.
+- [ ] M2 — Authentication and grants: design and implement `pair remote login`,
   OAuth/OIDC issuer+subject binding, daemon key registration, paired browser
-  device credentials, request-class-aware local grants, local revocation,
-  account-wide relay nuclear reset semantics, and signed command envelope
-  validation.
-- [ ] M2 — Relay and session list: implement the Oracle-friendly relay as a
+  device credentials, browser pairing secrets, request-class-aware local grants,
+  local revocation, and signed command envelope validation.
+- [ ] M3 — Relay and session list: implement the Oracle-friendly relay as a
   dumb authenticated mailbox, local daemon long-poll connection, authenticated
-  web session list, short TTLs, replay rejection, and audit records. Reuse
-  existing Pair session identity/state sources (`ARCH-DRY`).
-- [ ] M3 — Remote lifecycle actions: implement locally authorized `session.new`
+  web session list, short TTLs, replay rejection, durable relay security
+  metadata, account-wide relay nuclear reset semantics, reset tombstones, and
+  audit records. Reuse existing Pair session identity/state sources (`ARCH-DRY`).
+- [ ] M4 — Remote lifecycle actions: implement locally authorized `session.new`
   and transactional `session.renew` over the relay. `session.new` maps to the
   fresh-session restart path; `session.renew` runs continuation generation,
   verifies the continuation, restarts fresh, and sends the locally generated
   continuation prompt as the new session's first message.
-- [ ] M4 — Hardening and smoke: add end-to-end local fake-relay tests, stale and
+- [ ] M5 — Hardening and smoke: add end-to-end local fake-relay tests, stale and
   replay command tests, grant downgrade/revocation tests, relay non-retention
   checks, account nuclear-reset tests, reconnect-after-reset tests, and a manual
   smoke path for using an iPad/browser against a real local Pair session.
@@ -160,3 +209,21 @@ security property is Pair-owned: the relay revokes every known web session,
 device credential, daemon registration, pending command, and token for that
 account, bumps a revocation epoch, and local daemons disable remote access on
 next contact until re-enrolled with `pair remote login`.
+
+### 2026-07-26
+
+Added the local renew substrate milestone and durable implementation plan at
+`workshop/plans/000121-remote-pair-control-relay-plan.md`. The remote
+`session.renew` command will call a local behavior first proven through
+Alt+Shift+C, instead of teaching the remote layer how to synthesize prompts.
+
+### 2026-07-26
+
+Fresh plan review found six issues: reset state was not durable, reset could
+hide the revocation epoch from revoked daemons, browser pairing was
+underspecified, M2/M3 reset scope was misaligned, exactly-once auto-send was not
+crash-coherent, and continuation validation was not named as a pure entity.
+Revised the issue and durable plan to make relay security metadata durable in
+v1, add reset tombstones, add explicit browser pairing, move reset semantics to
+the relay/session-list milestone, define auto-send as at-most-once with visible
+manual recovery, and add `VerifiedContinuation`.
