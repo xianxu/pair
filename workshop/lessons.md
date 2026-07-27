@@ -1,5 +1,30 @@
 # Lessons
 
+## Activating an empty terminal tab must still redraw
+
+`Alt+t` created a new terminal tab and made it active, but `newTab` only updated
+the pane title and waited for async child PTY output. The old tab's viewport
+stayed visible until the new shell wrote over part of it, leaving confusing
+residue in the newly selected tab.
+
+**Rule.** Any terminal-tab activation path must redraw the selected tab
+immediately, even when its buffer is empty. The clear-screen prefix is the
+observable behavior; child output arriving later is not a substitute for the
+activation redraw. Add a regression that creates a fresh tab and asserts stdout
+starts with the redraw clear sequence. Caught after #000118 close.
+
+## Async terminal modes must keep target identity
+
+Terminal tab rename originally looked up `activeTabLocked()` again at commit
+time. If the tab being renamed exited while rename mode was open, `removeTab`
+could promote another tab to active and Enter would rename that replacement tab.
+
+**Rule.** When an async mode starts against a terminal tab, capture the tab's
+stable ID at mode entry and pass that ID through every refresh/finish path.
+Never re-resolve by "current active" after an async boundary. Add a regression
+where the target tab exits mid-mode and the replacement active tab keeps its
+original name. Caught in #000118 re-close review.
+
 ## Zellij pane self-mutations must pass `--pane-id`
 
 Terminal tab rename originally called `zellij action rename-pane <title>` from
@@ -932,3 +957,29 @@ display key. Readers may support old one-field files as legacy, but new writes
 must include the canonical id and liveness probes must use it. Add a regression
 where the display key and runtime id deliberately differ. Caught in #107 close
 review.
+
+## Async lifecycle paths must respect active modal ownership
+
+#118's terminal rename mode correctly consumed stdin bytes in the frame-title
+editor, but PTY-exit cleanup still called the ordinary title redraw and active
+viewport redraw path. A background tab exit could erase the rename title while
+stdin stayed in rename mode.
+
+**Rule.** When adding a modal interaction, audit async lifecycle callbacks
+separately from the direct input path. The mode owner needs enough shared state
+for cleanup/repaint code to preserve the mode's visible surface, and tests
+should trigger the lifecycle event while the mode is active.
+
+## Escape decoders must distinguish prefixes from unknown complete controls
+
+#118's rename decoder treated every `ESC[<...` byte string without `M`/`m` as an
+incomplete SGR mouse report. A malformed complete sequence such as
+`ESC[<0;12;4X` could then stay pending and swallow later input.
+
+**Rule.** For terminal escape parsing, buffer only when the byte string is still
+a real prefix with no final byte. Once a CSI/SS3 final byte arrives, unsupported
+or malformed controls must be consumed as complete input. Add split-boundary
+tests where the final byte arrives in a later read. Use the same final-byte
+predicate for both "is this sequence complete?" and "how much malformed input
+should be consumed?" so a control like `ESC[@z` cannot swallow the following
+printable `z`.

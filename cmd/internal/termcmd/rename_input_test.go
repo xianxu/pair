@@ -152,12 +152,17 @@ func TestDecodeRenameInputConsumesUnknownEscapeTerminators(t *testing.T) {
 		"\x1b[1;5D",
 		"\x1b[999~",
 		"\x1bOX",
+		"\x1b[<0;12;4X",
+		"\x1b[@",
+		"\x1bO@",
 	} {
 		t.Run(fmt.Sprintf("%q", seq), func(t *testing.T) {
-			events, state, exited := decodeRenameChunks([]byte(seq + "x"))
-			want := []RenameEvent{{Kind: RenameConsume}, {Kind: RenameInsert, Rune: 'x'}}
-			if exited || !reflect.DeepEqual(events, want) || len(state.Pending) != 0 {
-				t.Fatalf("events=%#v pending=%q exited=%v, want %#v", events, state.Pending, exited, want)
+			for split := 0; split <= len(seq); split++ {
+				events, state, exited := decodeRenameChunks([]byte(seq[:split]), []byte(seq[split:]+"z"))
+				want := []RenameEvent{{Kind: RenameConsume}, {Kind: RenameInsert, Rune: 'z'}}
+				if exited || !reflect.DeepEqual(events, want) || len(state.Pending) != 0 {
+					t.Fatalf("split %d events=%#v pending=%q exited=%v, want %#v", split, events, state.Pending, exited, want)
+				}
 			}
 		})
 	}

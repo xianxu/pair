@@ -7,7 +7,7 @@ created: 2026-07-24
 updated: 2026-07-27
 estimate_hours: 2.48
 started: 2026-07-24T17:04:26-07:00
-actual_hours: 2.15
+actual_hours: 2.61
 ---
 
 # Rename terminal tabs in the pane frame
@@ -154,6 +154,7 @@ the production boundary with `TestPumpStdinRenameEscapeTimeoutThenNextReadForwar
   option; the configuration regression and Zellij parser pass.
 
 ### 2026-07-27
+- 2026-07-27: closed — go test ./cmd/internal/termcmd -count=1; go test ./... -count=1; make test-lua; bash tests/term-pane-shortcuts-test.sh; bash tests/review-toggle-test.sh; zellij --config-dir zellij setup --check; git diff --check; live temporary ./bin/pair term smoke verified Alt+t new tab clears old-tab marker residue before child output; review verdict: SHIP
 - 2026-07-27: closed — go test ./... -count=1; make test-lua; bash tests/term-pane-shortcuts-test.sh; bash tests/review-toggle-test.sh; make runtimebundle-drift-check; zellij --config-dir zellij setup --check; git diff --check; live layout-3 smoke in temporary ./bin/pair term pane with Neovim child verified pane-id-targeted frame-title edit/cancel/commit and no child viewport bytes; review verdict: FIX-THEN-SHIP
 
 - Whole-issue close review returned `REWORK`: the required live Neovim-child
@@ -180,6 +181,37 @@ the production boundary with `TestPumpStdinRenameEscapeTimeoutThenNextReadForwar
   cancels only after the 50ms timeout. Added
   `TestPumpStdinRenameEscapeTimeoutThenNextReadForwards` and clarified the
   Done-when wording.
+- User reported `Alt+t` left old-tab residue in the terminal where it was
+  pressed. Live repro in a temporary `./bin/pair term` pane showed `newTab`
+  switched the active tab and let new child output arrive without first clearing
+  the pane viewport, so the old tab contents remained behind the new tab's shell
+  startup output. Added `TestTerminalMuxNewTabClearsPreviousTabViewport` and
+  redraw the new tab's empty buffer immediately after `renamePane`.
+- Post-fix re-close review found rename commit/cancel still addressed the
+  currently active tab at finish time. Captured the tab ID at rename entry and
+  pass it through refresh/finish so a tab exit during rename cannot rename the
+  replacement active tab. Added
+  `TestTerminalMuxRenameCommitDoesNotRenameReplacementActiveTab`.
+- Re-close review found tab lifecycle redraw still bypassed active rename mode:
+  a PTY exit could restore the ordinary pane title and redraw the active
+  viewport while stdin kept consuming rename input. `terminalMux` now tracks the
+  active rename preview, preserves that frame title across tab removal, and
+  suppresses lifecycle viewport redraw until finish/cancel clears rename mode.
+  Added `TestTerminalMuxBackgroundExitPreservesRenameTitleAndViewport`.
+- Re-close review found malformed SGR-mouse-like escape sequences with a
+  non-mouse terminator could stay buffered indefinitely. Generalized unknown
+  CSI/SS3 buffering so incomplete sequences are held across reads, but sequences
+  with any final terminator are consumed as one malformed control. Extended
+  `TestDecodeRenameInputConsumesUnknownEscapeTerminators` across every split for
+  `ESC[<0;12;4X`.
+- Defined target-tab removal during rename: if the renamed tab exits, the mux
+  keeps an explicit detached `[rename: ...]` field visible until Enter/Escape
+  clears rename mode, and commit still does not rename the replacement active
+  tab.
+- Re-close review found malformed sizing still used a narrower terminator set
+  than incomplete detection, so `ESC[@z` and `ESCO@z` consumed the following
+  printable `z`. Added split-boundary coverage for both and centralized the
+  terminal final-byte predicate.
 
 ## Revisions
 
@@ -204,3 +236,23 @@ Live smoke showed the decoder never receives Super+Backspace. Explicitly enable
 Zellij's `support_kitty_keyboard_protocol` session option so a supporting host
 terminal can emit the already-decoded `ESC[127;9u`. Keep mouse settings
 unchanged and require a completely fresh Pair/Zellij session for verification.
+
+### 2026-07-27 — Preserve rename ownership during tab lifecycle events
+
+Tab removal while rename mode is active must not restore the ordinary frame
+title or redraw the active child viewport. `terminalMux` keeps the active rename
+preview as mux state and only clears it through explicit finish/cancel, so
+background PTY exits do not disturb the frame-title editor.
+
+### 2026-07-27 — Consume malformed SGR-like controls
+
+Malformed SGR-mouse-looking controls such as `ESC[<0;12;4X` are unknown control
+sequences, not incomplete mouse reports. The decoder now buffers only CSI/SS3
+sequences without a final byte; once any final byte arrives, unsupported
+sequences are consumed and following printable text remains editable.
+
+### 2026-07-27 — Share escape final-byte semantics
+
+Unknown-control buffering and malformed-control sizing must use the same final
+byte predicate. Non-letter CSI/SS3 finals such as `@` now consume only the
+control sequence and preserve following printable rename input.

@@ -8,45 +8,53 @@
 | boundary | whole-issue close |
 | window | `1245357..HEAD` |
 | reviewer | codex |
-| timestamp | 2026-07-27T11:48:57-07:00 |
-| verdict | FIX-THEN-SHIP |
+| timestamp | 2026-07-27 |
+| verdict | SHIP |
 
 ## Summary
 
-The boundary review found no Critical issues. It accepted the core implementation:
-the pure rename editor/decoder, frame-title rendering, pane-id-targeted
-`rename-pane`, live Neovim-child smoke evidence, and docs/atlas updates.
+The final close review accepted the frame-title rename implementation and found
+no Critical, Important, or Minor findings. Earlier rework during close addressed
+the `Alt+t` stale viewport residue, rename target drift across tab removal,
+rename-title preservation during tab lifecycle cleanup, and malformed CSI/SS3
+decoder handling.
 
-## Finding
+## Strengths
 
-- Important: the issue and plan claimed production-stream coverage for
-  `edit+Escape+suffix`, but bare Escape cancellation is timeout-driven. The
-  reviewed code covered `edit+Enter+suffix`, timer Escape cancel without suffix,
-  and decoder-level Escape suffix consumption, but not the production boundary
-  where only a later stdin read may resume child forwarding.
+- `RenameEditor` remains a pure rune/cursor state machine.
+- `RenameDecoderState` cleanly separates streaming byte decoding from editor
+  transitions.
+- Rename sessions carry the target tab ID through begin/refresh/finish.
+- `terminalMux` tracks the active rename preview so async tab lifecycle events
+  preserve the frame-title editor.
+- README and atlas document the new `Alt+r` frame-title behavior.
 
-## Resolution
+## Prior Rework Resolved
 
-- Added `TestPumpStdinRenameEscapeTimeoutThenNextReadForwards` in
-  `cmd/internal/termcmd/run_test.go`.
-- Clarified the issue Done-when and durable plan: same-read Escape suffix bytes
-  are still rename-mode input until the 50ms timer fires; child forwarding resumes
-  only on a subsequent read after timeout cancellation.
+- `Alt+t` now redraws the new active tab immediately so old-tab viewport content
+  is cleared before child output arrives.
+- Rename commit/cancel uses the captured tab ID, not the active tab at finish
+  time.
+- Tab removal during rename preserves the visible rename field and suppresses
+  active viewport redraw.
+- Malformed SGR-like and unknown CSI/SS3 controls consume through the terminal
+  final byte and preserve following printable input.
 
 ## Verification
 
-- `go test ./cmd/internal/termcmd ./cmd/internal/workbenchshortcut -count=1`
+- `go test ./cmd/internal/termcmd -count=1`
 - `go test ./... -count=1`
 - `make test-lua`
 - `bash tests/term-pane-shortcuts-test.sh`
 - `bash tests/review-toggle-test.sh`
-- `make runtimebundle-drift-check`
 - `zellij --config-dir zellij setup --check`
 - `git diff --check`
+- Live temporary `./bin/pair term` smoke verified `Alt+t` new tab clears the
+  old-tab marker residue before child output.
 
 ## Close Trailers
 
 ```text
-Review-Verdict: FIX-THEN-SHIP
+Review-Verdict: SHIP
 Review-Window: 1245357..HEAD
 ```

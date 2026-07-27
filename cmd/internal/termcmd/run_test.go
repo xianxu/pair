@@ -135,6 +135,7 @@ func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 		wantRTOps string
 	}{
 		{name: "new tab", chunks: [][]byte{{0x1b, 't'}}, wantMux: "new-tab"},
+		{name: "new tab kkp", chunks: [][]byte{[]byte("\x1b[116;3u")}, wantMux: "new-tab"},
 		{name: "close tab", chunks: [][]byte{{0x1b, 'w'}}, wantMux: "close-tab"},
 		{name: "rename tab", chunks: [][]byte{{0x1b, 'r'}, []byte("work\r")}, wantMux: "rename-begin:,rename-preview:w:1,rename-preview:wo:2,rename-preview:wor:3,rename-preview:work:4,rename-finish:1:work"},
 		{name: "previous tab", chunks: [][]byte{[]byte("\x1b[1;3D")}, wantMux: "prev-tab"},
@@ -170,6 +171,25 @@ func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 			}
 			if strings.Join(rt.ops, ",") != tt.wantRTOps {
 				t.Fatalf("runtime ops = %q, want %q", strings.Join(rt.ops, ","), tt.wantRTOps)
+			}
+		})
+	}
+}
+
+func TestPumpStdinTerminalShortcutsDoNotLeakWhenSplit(t *testing.T) {
+	for _, seq := range []string{"\x1bt", "\x1b[116;3u"} {
+		t.Run(fmt.Sprintf("%q", seq), func(t *testing.T) {
+			for split := 1; split < len(seq); split++ {
+				rt := &fakeRuntime{}
+				mux := &fakeMux{}
+				pumpStdin(&splitReader{chunks: [][]byte{
+					[]byte(seq[:split]),
+					[]byte(seq[split:]),
+				}}, mux, rt, io.Discard)
+
+				if got := strings.Join(mux.ops, ","); got != "new-tab" {
+					t.Fatalf("split %d ops = %q, want new-tab without residue", split, got)
+				}
 			}
 		})
 	}
@@ -326,7 +346,7 @@ func TestTerminalMuxChildOutputDoesNotRestoreTitleDuringRename(t *testing.T) {
 		close(copied)
 	}()
 
-	editor, err := mux.beginRename()
+	tabID, editor, err := mux.beginRename()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -344,7 +364,7 @@ func TestTerminalMuxChildOutputDoesNotRestoreTitleDuringRename(t *testing.T) {
 	if got := strings.Join(rt.ops, ","); got != "rename-pane [rename: work│]" {
 		t.Fatalf("runtime ops after child output = %q, want only rename preview", got)
 	}
-	if err := mux.finishRename(RenameOutcome{Kind: RenameOutcomeCancel, Name: editor.Original()}); err != nil {
+	if err := mux.finishRename(tabID, RenameOutcome{Kind: RenameOutcomeCancel, Name: editor.Original()}); err != nil {
 		t.Fatal(err)
 	}
 	close(mux.done)
@@ -444,15 +464,15 @@ func TestPumpStdinRenameEscapeContinuationBeatsTimer(t *testing.T) {
 func TestRenamePaneTitlePlacesCursorInActiveFrameField(t *testing.T) {
 	mux := &terminalMux{
 		tabs: []*terminalTab{
-			{name: "terminal 1"},
-			{name: "work"},
-			{name: "terminal 3"},
+			{id: 1, name: "terminal 1"},
+			{id: 2, name: "work"},
+			{id: 3, name: "terminal 3"},
 		},
 		active: 1,
 	}
 	editor := NewRenameEditor("work")
 	editor, _ = editor.Apply(RenameEvent{Kind: RenameMoveLeft})
-	if got := mux.renamePaneTitleLocked(editor); got != "terminal 1 [rename: wor│k] terminal 3" {
+	if got := mux.renamePaneTitleLocked(2, editor); got != "terminal 1 [rename: wor│k] terminal 3" {
 		t.Fatalf("rename title = %q", got)
 	}
 }
@@ -550,6 +570,19 @@ func TestTerminalMuxSwitchTabAtColumn(t *testing.T) {
 	}
 }
 
+func TestTerminalMuxNewTabClearsPreviousTabViewport(t *testing.T) {
+	var stdout bytes.Buffer
+	mux := newTerminalMux("/bin/sh", []string{"-c", "sleep 1"}, &stdout, io.Discard, &fakeRuntime{})
+	if err := mux.newTab(); err != nil {
+		t.Fatal(err)
+	}
+	mux.closeAll()
+
+	if got := stdout.String(); !strings.HasPrefix(got, "\x1b[1;1H\x1b[J") {
+		t.Fatalf("stdout = %q, want new active tab to clear stale viewport", got)
+	}
+}
+
 func TestTerminalMuxBackgroundExitPreservesActiveTab(t *testing.T) {
 	pty1, peer1, err := os.Pipe()
 	if err != nil {
@@ -585,6 +618,107 @@ func TestTerminalMuxBackgroundExitPreservesActiveTab(t *testing.T) {
 
 	if got := mux.activeTabLocked(); got == nil || got.id != 2 {
 		t.Fatalf("active tab after background exit = %+v, want id 2", got)
+	}
+}
+
+func TestTerminalMuxRenameCommitDoesNotRenameReplacementActiveTab(t *testing.T) {
+	pty1, peer1, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer peer1.Close()
+	defer pty1.Close()
+	pty2, peer2, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer peer2.Close()
+	defer pty2.Close()
+
+	rt := &fakeRuntime{}
+	mux := &terminalMux{
+		stdout: io.Discard,
+		rt:     rt,
+		done:   make(chan struct{}),
+		tabs: []*terminalTab{
+			{id: 1, name: "one", cmd: exec.Command("true"), pty: pty1},
+			{id: 2, name: "two", cmd: exec.Command("true"), pty: pty2},
+		},
+		active: 0,
+	}
+	tabID, editor, err := mux.beginRename()
+	if err != nil {
+		t.Fatal(err)
+	}
+	editor, outcome := editor.Apply(RenameEvent{Kind: RenameInsert, Rune: 'x'})
+	if outcome.Kind != RenameOutcomeNone {
+		t.Fatalf("insert outcome = %#v, want none", outcome)
+	}
+	if err := mux.refreshRename(tabID, editor); err != nil {
+		t.Fatal(err)
+	}
+	_, outcome = editor.Apply(RenameEvent{Kind: RenameCommit})
+	rt.ops = nil
+
+	mux.removeTab(1)
+	if got := strings.Join(rt.ops, ","); got != "rename-pane two [rename: onex│]" {
+		t.Fatalf("runtime ops after target removal = %q, want visible detached rename field", got)
+	}
+	if err := mux.finishRename(tabID, outcome); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := mux.tabs[0].name; got != "two" {
+		t.Fatalf("remaining tab name = %q, want original two", got)
+	}
+}
+
+func TestTerminalMuxBackgroundExitPreservesRenameTitleAndViewport(t *testing.T) {
+	pty1, peer1, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer peer1.Close()
+	pty2, peer2, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer peer2.Close()
+	defer pty2.Close()
+
+	var stdout bytes.Buffer
+	rt := &fakeRuntime{}
+	mux := &terminalMux{
+		stdout: stdoutWriter{&stdout},
+		rt:     rt,
+		done:   make(chan struct{}),
+		tabs: []*terminalTab{
+			{id: 1, name: "one", cmd: exec.Command("true"), pty: pty1},
+			{id: 2, name: "two", cmd: exec.Command("true"), pty: pty2, buffer: []byte("active output")},
+		},
+		active: 1,
+	}
+	tabID, editor, err := mux.beginRename()
+	if err != nil {
+		t.Fatal(err)
+	}
+	editor, outcome := editor.Apply(RenameEvent{Kind: RenameInsert, Rune: 'x'})
+	if outcome.Kind != RenameOutcomeNone {
+		t.Fatalf("insert outcome = %#v, want none", outcome)
+	}
+	if err := mux.refreshRename(tabID, editor); err != nil {
+		t.Fatal(err)
+	}
+	stdout.Reset()
+	rt.ops = nil
+
+	mux.removeTab(1)
+
+	if got := strings.Join(rt.ops, ","); got != "rename-pane [rename: twox│]" {
+		t.Fatalf("runtime ops = %q, want rename title preserved without removed tab", got)
+	}
+	if got := stdout.String(); got != "" {
+		t.Fatalf("stdout = %q, want no active viewport redraw during rename", got)
 	}
 }
 
@@ -689,17 +823,17 @@ func (f *fakeMux) closeActive() {
 	f.ops = append(f.ops, "close-tab")
 }
 
-func (f *fakeMux) beginRename() (RenameEditor, error) {
+func (f *fakeMux) beginRename() (int, RenameEditor, error) {
 	f.ops = append(f.ops, "rename-begin:"+f.activeName)
-	return NewRenameEditor(f.activeName), f.beginRenameErr
+	return 1, NewRenameEditor(f.activeName), f.beginRenameErr
 }
 
-func (f *fakeMux) refreshRename(editor RenameEditor) error {
+func (f *fakeMux) refreshRename(_ int, editor RenameEditor) error {
 	f.ops = append(f.ops, fmt.Sprintf("rename-preview:%s:%d", editor.Text(), editor.Cursor()))
 	return f.refreshRenameErr
 }
 
-func (f *fakeMux) finishRename(outcome RenameOutcome) error {
+func (f *fakeMux) finishRename(_ int, outcome RenameOutcome) error {
 	f.ops = append(f.ops, fmt.Sprintf("rename-finish:%d:%s", outcome.Kind, outcome.Name))
 	if outcome.Kind == RenameOutcomeCommit {
 		f.activeName = outcome.Name

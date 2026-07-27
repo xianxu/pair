@@ -231,9 +231,9 @@ type ptyWriter interface {
 	writeActive([]byte)
 	newTab() error
 	closeActive()
-	beginRename() (RenameEditor, error)
-	refreshRename(RenameEditor) error
-	finishRename(RenameOutcome) error
+	beginRename() (int, RenameEditor, error)
+	refreshRename(int, RenameEditor) error
+	finishRename(int, RenameOutcome) error
 	previousTab()
 	nextTab()
 	appMouseMode() bool
@@ -281,6 +281,7 @@ type stdinResult struct {
 }
 
 type renameSession struct {
+	tabID   int
 	editor  RenameEditor
 	decoder RenameDecoderState
 }
@@ -323,14 +324,14 @@ func pumpStdinWithTimer(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Wr
 			var outcome RenameOutcome
 			rename.editor, outcome = rename.editor.Apply(event)
 			if outcome.Kind != RenameOutcomeNone {
-				if err := mux.finishRename(outcome); err != nil {
+				if err := mux.finishRename(rename.tabID, outcome); err != nil {
 					rt.ReportShortcutError(err)
 				}
 				timer.StopAndDrain()
 				rename = nil
 				return
 			}
-			if err := mux.refreshRename(rename.editor); err != nil {
+			if err := mux.refreshRename(rename.tabID, rename.editor); err != nil {
 				rt.ReportShortcutError(err)
 			}
 		}
@@ -372,13 +373,13 @@ func pumpStdinWithTimer(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Wr
 							mux.writeActive(chordBefore)
 						}
 						if chord == workbenchshortcut.ChordAltR {
-							editor, err := mux.beginRename()
+							tabID, editor, err := mux.beginRename()
 							if err != nil {
 								rt.ReportShortcutError(err)
 								data = nil
 								continue
 							}
-							rename = &renameSession{editor: editor}
+							rename = &renameSession{tabID: tabID, editor: editor}
 							applyRename(chordRest, false, false)
 							data = nil
 							continue
@@ -539,6 +540,12 @@ type terminalMux struct {
 	done      chan struct{}
 	rows      uint16
 	cols      uint16
+	rename    *activeRename
+}
+
+type activeRename struct {
+	tabID  int
+	editor RenameEditor
 }
 
 func newTerminalMux(shellName string, shellArgs []string, stdout, stderr io.Writer, rt Runtime) *terminalMux {
@@ -576,6 +583,7 @@ func (m *terminalMux) newTab() error {
 	m.active = len(m.tabs) - 1
 	m.mu.Unlock()
 	m.renamePane()
+	m.redrawTab(tab)
 
 	go m.readPTY(tab)
 	return nil
@@ -688,25 +696,33 @@ func (m *terminalMux) closeActive() {
 	_ = tab.cmd.Process.Kill()
 }
 
-func (m *terminalMux) beginRename() (RenameEditor, error) {
+func (m *terminalMux) beginRename() (int, RenameEditor, error) {
 	m.mu.Lock()
 	tab := m.activeTabLocked()
 	if tab == nil {
 		m.mu.Unlock()
-		return RenameEditor{}, fmt.Errorf("rename terminal tab: no active tab")
+		return 0, RenameEditor{}, fmt.Errorf("rename terminal tab: no active tab")
 	}
 	editor := NewRenameEditor(tab.name)
-	title := m.renamePaneTitleLocked(editor)
+	tabID := tab.id
+	m.rename = &activeRename{tabID: tabID, editor: editor}
+	title := m.renamePaneTitleLocked(tabID, editor)
 	m.mu.Unlock()
 	if err := m.setPaneTitle(title); err != nil {
-		return RenameEditor{}, fmt.Errorf("start terminal tab rename: %w", err)
+		m.mu.Lock()
+		if m.rename != nil && m.rename.tabID == tabID {
+			m.rename = nil
+		}
+		m.mu.Unlock()
+		return 0, RenameEditor{}, fmt.Errorf("start terminal tab rename: %w", err)
 	}
-	return editor, nil
+	return tabID, editor, nil
 }
 
-func (m *terminalMux) refreshRename(editor RenameEditor) error {
+func (m *terminalMux) refreshRename(tabID int, editor RenameEditor) error {
 	m.mu.Lock()
-	title := m.renamePaneTitleLocked(editor)
+	m.rename = &activeRename{tabID: tabID, editor: editor}
+	title := m.renamePaneTitleLocked(tabID, editor)
 	m.mu.Unlock()
 	if err := m.setPaneTitle(title); err != nil {
 		return fmt.Errorf("refresh terminal tab rename: %w", err)
@@ -714,13 +730,14 @@ func (m *terminalMux) refreshRename(editor RenameEditor) error {
 	return nil
 }
 
-func (m *terminalMux) finishRename(outcome RenameOutcome) error {
+func (m *terminalMux) finishRename(tabID int, outcome RenameOutcome) error {
 	m.mu.Lock()
 	if outcome.Kind == RenameOutcomeCommit {
-		if tab := m.activeTabLocked(); tab != nil {
+		if tab := m.tabByIDLocked(tabID); tab != nil {
 			tab.name = outcome.Name
 		}
 	}
+	m.rename = nil
 	title := m.paneTitleLocked()
 	m.mu.Unlock()
 	if err := m.setPaneTitle(title); err != nil {
@@ -763,6 +780,8 @@ func (m *terminalMux) removeTab(id int) {
 	var active *terminalTab
 	empty := false
 	activeID := 0
+	title := ""
+	preserveRename := false
 	if tab := m.activeTabLocked(); tab != nil {
 		activeID = tab.id
 	}
@@ -788,6 +807,12 @@ func (m *terminalMux) removeTab(id int) {
 			}
 		}
 		active = m.activeTabLocked()
+		if m.rename != nil {
+			title = m.renamePaneTitleLocked(m.rename.tabID, m.rename.editor)
+			preserveRename = true
+		} else {
+			title = m.paneTitleLocked()
+		}
 		break
 	}
 	m.mu.Unlock()
@@ -800,8 +825,10 @@ func (m *terminalMux) removeTab(id int) {
 		close(m.done)
 		return
 	}
-	m.renamePane()
-	m.redrawTab(active)
+	_ = m.setPaneTitle(title)
+	if !preserveRename {
+		m.redrawTab(active)
+	}
 }
 
 func (m *terminalMux) activeTabLocked() *terminalTab {
@@ -809,6 +836,15 @@ func (m *terminalMux) activeTabLocked() *terminalTab {
 		return nil
 	}
 	return m.tabs[m.active]
+}
+
+func (m *terminalMux) tabByIDLocked(id int) *terminalTab {
+	for _, tab := range m.tabs {
+		if tab.id == id {
+			return tab
+		}
+	}
+	return nil
 }
 
 func (m *terminalMux) inheritSize(stdinFile *os.File) {
@@ -901,7 +937,7 @@ func (m *terminalMux) paneTitleLocked() string {
 	return strings.Join(parts, " ")
 }
 
-func (m *terminalMux) renamePaneTitleLocked(editor RenameEditor) string {
+func (m *terminalMux) renamePaneTitleLocked(tabID int, editor RenameEditor) string {
 	if len(m.tabs) == 0 {
 		return ""
 	}
@@ -915,12 +951,17 @@ func (m *terminalMux) renamePaneTitleLocked(editor RenameEditor) string {
 	}
 	field := string(text[:cursor]) + "│" + string(text[cursor:])
 	parts := make([]string, 0, len(m.tabs))
-	for i, tab := range m.tabs {
-		if i == m.active {
+	found := false
+	for _, tab := range m.tabs {
+		if tab.id == tabID {
+			found = true
 			parts = append(parts, "[rename: "+field+"]")
 		} else {
 			parts = append(parts, tab.name)
 		}
+	}
+	if !found {
+		parts = append(parts, "[rename: "+field+"]")
 	}
 	return strings.Join(parts, " ")
 }

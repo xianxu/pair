@@ -106,7 +106,7 @@ func DecodeRenameInput(state RenameDecoderState, data []byte, flushEscape, eof b
 				input = input[size:]
 				continue
 			}
-			if !eof && (bytes.HasPrefix([]byte("\x1b[<"), input) || bytes.HasPrefix(input, []byte("\x1b[<")) && !sgrMouseTerminated(input)) {
+			if !eof && escapeSequenceIncomplete(input) {
 				state.Pending = append(state.Pending, input...)
 				return state, events, false
 			}
@@ -183,9 +183,23 @@ func sgrMouseSize(input []byte) (int, bool) {
 	return 0, false
 }
 
-func sgrMouseTerminated(input []byte) bool {
-	_, ok := sgrMouseSize(input)
-	return ok
+func escapeSequenceIncomplete(input []byte) bool {
+	if len(input) < 2 {
+		return bytes.Equal(input, []byte{0x1b})
+	}
+	switch input[1] {
+	case '[':
+		for i := 2; i < len(input); i++ {
+			if isTerminalFinalByte(input[i]) {
+				return false
+			}
+		}
+		return true
+	case 'O':
+		return len(input) < 3
+	default:
+		return false
+	}
 }
 
 func malformedEscapeSize(input []byte) int {
@@ -196,15 +210,15 @@ func malformedEscapeSize(input []byte) int {
 		return 2
 	}
 	for i := 2; i < len(input); i++ {
-		c := input[i]
-		if c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' {
-			return i + 1
-		}
-		if c == '~' {
+		if isTerminalFinalByte(input[i]) {
 			return i + 1
 		}
 	}
 	return len(input)
+}
+
+func isTerminalFinalByte(c byte) bool {
+	return c >= 0x40 && c <= 0x7e
 }
 
 func longestSuffixPrefix(input, prefix []byte) int {
