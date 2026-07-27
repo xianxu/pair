@@ -1,5 +1,46 @@
 # Lessons
 
+## Global keymaps need post-setup buffer-local shadow tests
+
+Pair installed shared workbench-global mappings before scrollback buffer setup,
+but older buffer-local safety maps later replaced Alt+x and Alt+Up/Down. Pure
+router tests and static “module loaded” checks stayed green while the live
+buffer used the wrong callbacks.
+
+**Rule.** For a global Neovim mapping consumed by specialized buffers, open a
+real representative buffer after every setup autocmd and inspect `maparg(...,
+false, true)`. Assert the resolved description/callback and that no unintended
+buffer-local mapping shadows it. Static source greps do not prove effective
+mapping precedence. Caught in #000117 close review.
+
+## Plan entity tables must name implemented symbols
+
+The #117 plan described conceptual entities (`DraftLuaTarget`,
+`OverlayRoutePlan`, then `draftroute.Router`) that never existed as named code
+symbols. The implementation was sound, but the boundary review repeatedly had
+to reconcile the durable design record with the actual API.
+
+**Rule.** Before a boundary review, mechanically walk every Core concepts table
+row: `rg` the exact entity name at the declared path, and either point to the
+real symbol or revise the row to the implemented function/type. Conceptual
+groupings must be explicitly labeled as such, not formatted like nonexistent
+APIs. Also search completed task prose and unchecked rows—the revisions section
+does not cancel stale contradictory instructions elsewhere in the same plan.
+Caught in #000117 close review.
+
+## Cross-language cache tests must use the producer's exact JSON types
+
+Draft Neovim wrote its PID with `vim.fn.getpid()`, producing a JSON number.
+The Go cache reader modeled PID as a string, so decoding failed and quietly
+re-enabled the slow fallback. Tests passed because they marshaled the Go
+consumer struct—thereby generating the consumer’s preferred string shape,
+not the producer’s real numeric shape.
+
+**Rule.** For a cache or sidecar crossing language boundaries, keep at least
+one consumer fixture as literal output in the producer’s exact schema,
+including number-vs-string types. Producer-derived fixtures catch wire-format
+drift; consumer-self-marshaled fixtures do not. Caught in #000117 close review.
+
 ## Async buffer requests need live anchors, not saved coordinates
 
 Pair review definitions originally stored the selected line/column range while

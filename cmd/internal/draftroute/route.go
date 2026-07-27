@@ -15,16 +15,37 @@ import (
 )
 
 type CachedPaneRecord struct {
-	Session string `json:"session"`
-	PaneID  string `json:"pane_id"`
-	PID     string `json:"pid"`
+	Session string    `json:"session"`
+	PaneID  string    `json:"pane_id"`
+	PID     ProcessID `json:"pid"`
+}
+
+// ProcessID accepts the numeric JSON emitted by Neovim's getpid() and the
+// string form used by older tests/cache records.
+type ProcessID string
+
+func (p *ProcessID) UnmarshalJSON(data []byte) error {
+	var text string
+	if err := json.Unmarshal(data, &text); err == nil {
+		*p = ProcessID(text)
+		return nil
+	}
+	var number json.Number
+	if err := json.Unmarshal(data, &number); err != nil {
+		return err
+	}
+	if _, err := number.Int64(); err != nil {
+		return err
+	}
+	*p = ProcessID(number.String())
+	return nil
 }
 
 func ValidateCachedDraftPane(data []byte, session string, alive func(string) bool) (string, bool) {
 	var record CachedPaneRecord
 	if json.Unmarshal(data, &record) != nil ||
 		record.Session == "" || record.Session != session ||
-		record.PaneID == "" || !alive(record.PID) {
+		record.PaneID == "" || !alive(string(record.PID)) {
 		return "", false
 	}
 	return record.PaneID, true

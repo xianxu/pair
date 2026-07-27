@@ -70,10 +70,9 @@ still succeed, proving the hot path performs no inventory IO (`ARCH-PURE`,
 |------|----------|--------|
 | `Chord` global variants | `cmd/internal/workbenchshortcut/shortcut.go` | modified |
 | `ShortcutAction` global variants | `cmd/internal/workbenchshortcut/shortcut.go` | modified |
-| `DraftLuaTarget` | `cmd/internal/workbenchshortcut/shortcut.go` | new |
 | `ShortcutDecision` | `cmd/internal/workbenchshortcut/shortcut.go` | modified |
 | `GlobalBinding` | `cmd/internal/workbenchshortcut/shortcut.go` | new |
-| `OverlayRoutePlan` | `nvim/workbench_route.lua` | new |
+| `find_draft_pane` / `draft_commands` | `nvim/workbench_route.lua` | new |
 
 - **`Chord` global variants** — the decoded identities for Alt+d, Alt+x,
   Alt+n/Ctrl+Alt+n, Shift+Alt+N, Alt+Up/Down, and Alt+c.
@@ -86,22 +85,11 @@ still succeed, proving the hot path performs no inventory IO (`ARCH-PURE`,
 
 - **`ShortcutAction` global variants** — semantic global actions independent of
   the concrete Lua function spelling.
-  - **Relationships:** 1:1 with a `DraftLuaTarget` for draft-routed globals.
+  - **Relationships:** 1:1 with a `GlobalBinding` for draft-routed globals.
   - **DRY rationale:** Role policy and Lua dispatch share one semantic action
     registry (`ARCH-DRY`).
   - **Future extensions:** Non-Lua global destinations can remain actions with
     no draft target.
-
-- **`DraftLuaTarget`** — pure action-to-function lookup for
-  `PairConfirmDetach`, `PairConfirmQuit`, `PairConfirmRestart`,
-  `PairConfirmAgentRestart`, `PairLayoutBigger`, `PairLayoutSmaller`, and
-  `PairReviewToggle`.
-  - **Relationships:** N:1 chords-to-action for aliases; 1:1
-    action-to-function.
-  - **DRY rationale:** Replaces hard-coded `"PairConfirmQuit"` dispatch in both
-    wrappers with one authoritative mapping.
-  - **Future extensions:** Return an explicit absent target for direct or
-    pane-local actions.
 
 - **`ShortcutDecision`** — extended pure result carrying the global action and
   draft Lua target for every applicable `PaneRole`.
@@ -120,7 +108,7 @@ still succeed, proving the hot path performs no inventory IO (`ARCH-PURE`,
   - **Future extensions:** Additional cross-language routing fields widen this
     record and its renderer.
 
-- **`OverlayRoutePlan`** — pure Lua functions that select the draft from
+- **`find_draft_pane` / `draft_commands`** — pure Lua functions that select the draft from
   `list-panes --json --command --state` data and build the addressed action
   argv.
   - **Relationships:** N:1 pane records to one draft destination; 1:N from one
@@ -134,7 +122,7 @@ still succeed, proving the hot path performs no inventory IO (`ARCH-PURE`,
 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
-| `draftroute.Router` | `cmd/internal/draftroute/route.go` | new | Zellij pane listing and pane-id writes |
+| `RouteLua` / `Runtime` | `cmd/internal/draftroute/route.go` | new | cached draft lookup, fallback pane listing, and pane-id writes |
 | Terminal global-route adapter | `cmd/internal/termcmd/run.go` | modified | terminal stream error reporting |
 | Agent global-route adapter | `cmd/internal/wrapcmd/wrap.go` | modified | wrapper runtime injection and error reporting |
 | `workbench_route` | `nvim/workbench_route.lua` | new | Zellij pane listing and pane-id writes from Neovim overlays |
@@ -145,9 +133,10 @@ still succeed, proving the hot path performs no inventory IO (`ARCH-PURE`,
 | Global KDL bindings | `zellij/config.kdl` | modified | focused-pane key forwarding |
 | Workbench shortcut integration suite | `tests/term-pane-shortcuts-test.sh`, `tests/review-toggle-test.sh` | modified | fake Zellij process boundary |
 
-- **`draftroute.Router`** — the single Go IO implementation that requests
-  `list-panes --json --command --state`, identifies the draft through
-  `zellijpane.Parse` plus `workbenchshortcut.RoleForPane`, and sends
+- **`RouteLua` / `Runtime`** — the single Go IO implementation that first uses
+  the validated cached draft locator, falls back to
+  `list-panes --json --command --state` plus `zellijpane.Parse` /
+  `workbenchshortcut.RoleForPane`, and sends
   `<C-\><C-n>:lua Target()<CR>` with `--pane-id` on every write.
   - **Injected into:** terminal and wrapper stream handlers through a small
     `Runtime` interface (`ListPanes` plus `RunZellijAction`).
@@ -171,7 +160,7 @@ still succeed, proving the hot path performs no inventory IO (`ARCH-PURE`,
     incrementally without changing the pure shortcut model.
 
 - **`workbench_route`** — overlay-only Lua router that invokes `list-panes
-  --json --command --state`, applies `OverlayRoutePlan`, and performs
+  --json --command --state`, applies `find_draft_pane` / `draft_commands`, and performs
   pane-id-addressed writes. It swallows the mapping and uses `vim.notify` for
   missing-draft/action failures.
   - **Injected into:** review, scrollback, and changelog initializers.
@@ -186,7 +175,28 @@ still succeed, proving the hot path performs no inventory IO (`ARCH-PURE`,
 
 - **Global KDL bindings** — encode only the focused-pane sequence. They contain
   no `MoveFocus`, `WriteChars ":lua ..."`, or dependent multi-action sequence
-  (`ARCH-PURPOSE`).
+(`ARCH-PURPOSE`).
+
+### 2026-07-24 — Reconcile close review
+
+The implemented pure model uses `GlobalBinding` directly for action-to-Lua
+and focus policy; there is no separate `DraftLuaTarget` entity. The overlay
+pure core consists of the named `find_draft_pane` and `draft_commands`
+functions rather than an `OverlayRoutePlan` type. Correct the Core concepts
+table and narrative accordingly. Also preserve the shared overlay mappings
+after scrollback buffer setup; remove its stale Alt+x override and keep
+Alt+Up/Down no-ops visual-mode-only.
+
+The next review found one more stale planned name: the Go integration is the
+`RouteLua` function over an injected `Runtime`, not a `draftroute.Router` type.
+Correct that table/narrative and exercise the effective keymaps from each
+review, scrollback, and change-log configuration at the fake-Zellij process
+boundary, covering focus-first confirmation, atomic focus failure, and
+focus-preserving layout routing (`ARCH-PURPOSE`).
+
+The operator’s final right-terminal Alt+n smoke confirmed prompt latency and
+focus behavior were good enough to ship. Mark the manual-smoke row complete and
+update Task 2’s older pre-focus prose to the later approved focus policy.
   - **Injected into:** Zellij normal mode.
   - **Future extensions:** The static inventory test forces every new binding
     to be classified.
@@ -295,7 +305,7 @@ git commit -m "#117: model global workbench hotkeys"
 
 - [x] **Step 1: Add failing injected-runtime and stream tests**
 
-First add a fake-runtime test for `draftroute.Router`: pane metadata identifies
+First add a fake-runtime test for `RouteLua` over the injected `Runtime`: pane metadata identifies
 draft id 2 and produces:
 
 ```text
@@ -331,11 +341,12 @@ unaddressed writes.
 
 - [x] **Step 3: Implement pane-id-addressed routing**
 
-Implement `draftroute.Router` once. Have both wrappers consume
+Implement `RouteLua` once over the shared `Runtime`. Have both wrappers consume
 `decision.DraftLuaFunction` and delegate to it. Add the narrow production
 runtime/error reporter to `wrapcmd` and an stderr sink to the terminal mux.
-Every write includes `--pane-id <draft-id>` and no focus action occurs. Missing
-draft and action errors are reported non-fatally while the recognized chord
+Every write includes `--pane-id <draft-id>`; confirmation globals first focus
+the draft atomically, while layout/review globals preserve focus. Missing draft,
+focus, and action errors are reported non-fatally while the recognized chord
 remains handled; they are never converted to `DispositionPass`.
 
 - [x] **Step 4: Run focused packages and verify GREEN**
@@ -527,7 +538,7 @@ git diff --check
 
 Expected: all commands exit 0.
 
-- [ ] **Step 4: Manual smoke**
+- [x] **Step 4: Manual smoke**
 
 In a fresh layout-3 `pair-dev` session, focus each of agent, draft, and right
 terminal and exercise all seven globals. Confirm Alt+n from the terminal opens

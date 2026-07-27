@@ -1,12 +1,13 @@
 ---
 id: 000117
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-07-24
-updated: 2026-07-24
+updated: 2026-07-25
 estimate_hours: 4.98
 started: 2026-07-24T13:52:38-07:00
+actual_hours: 0.84
 ---
 
 # Route global hotkeys through draft pane
@@ -136,6 +137,8 @@ total: 4.98
 
 ## Log
 
+
+- 2026-07-25: closed — Full Go/Lua suites pass; real review, scrollback, and change-log keymaps pass fake-Zellij focus-first, atomic focus-failure, and focus-preserving routing checks; terminal/review integrations, Zellij config/layout parsing, diff checks, and operator live Alt+n latency/focus smoke pass.; review verdict: FIX-THEN-SHIP
 ### 2026-07-24
 
 - Reproduced the failure shape from the reported literal
@@ -190,6 +193,33 @@ total: 4.98
   actions inspect pane state. A regression makes pane inventory fail and proves
   cached Alt+n still focuses and routes successfully (`ARCH-PURE`,
   `ARCH-PURPOSE`).
+- Isolated-branch verification exposed that the shell process test still
+  asserted the pre-focus Alt+x sequence; the corrected assertion had
+  accidentally lived only on the stacked #118 branch. Moved the focus-first
+  contract into #117 so its own integration boundary tests the behavior it
+  ships.
+- Close review found scrollback-local mappings shadowing the shared overlay
+  router for Alt+x and Alt+Up/Down. Added a live buffer-mapping regression,
+  removed the stale quit override, and limited arrow suppression to visual
+  mode. Corrected the plan entity table and focus documentation. The #118 issue
+  and plan were intentionally authored in this design window when frame rename
+  was split into a dependent issue; #117 carries no #118 implementation, and
+  its issue state is synchronized with main.
+- Follow-up review corrected the final stale plan entity name
+  (`RouteLua`/`Runtime`, not a nonexistent `draftroute.Router`) and strengthened
+  the process test to load each review, scrollback, and change-log
+  configuration, invoke its effective Alt+x and Alt+Up callbacks, and assert
+  focus-first success, atomic focus failure, and focus-preserving layout
+  routing.
+- Operator completed the final right-terminal Alt+n smoke and explicitly
+  approved shipping: confirmation focus and latency are good enough in the
+  live layout.
+- Final review found the cross-language locator mismatch behind the remaining
+  latency: Neovim emits numeric JSON for `getpid()`, while Go decoded only a
+  string PID and silently fell back to pane inventory. `ProcessID` now accepts
+  both the real numeric record and legacy string records, with an exact numeric
+  fixture regression. Review verdict: FIX-THEN-SHIP; remediation completed
+  before the close commit.
 
 ## Revisions
 

@@ -24,6 +24,25 @@ end
 
 -- Headless Neovim test: we have the vim API available!
 if vim and vim.api then
+  -- Buffer setup must preserve the shared overlay-global mappings. Historical
+  -- scrollback-local guards used to shadow Alt+x and Alt+Up/Down after the
+  -- router installed them globally.
+  do
+    local path = vim.fn.tempname() .. '.ansi'
+    vim.fn.writefile({ 'scrollback' }, path)
+    vim.cmd('edit ' .. vim.fn.fnameescape(path))
+    for key, target in pairs({
+      ['<M-x>'] = 'PairConfirmQuit',
+      ['<M-Up>'] = 'PairLayoutBigger',
+      ['<M-Down>'] = 'PairLayoutSmaller',
+    }) do
+      local mapping = vim.fn.maparg(key, 'n', false, true)
+      eq(mapping.desc, 'pair global: ' .. target,
+         key .. ' retains shared global route after scrollback setup')
+      eq(mapping.buffer, 0, key .. ' is not shadowed by a buffer-local map')
+    end
+  end
+
   local function test_agent_pattern(agent, lines_to_test, expected_matches)
     vim.env.PAIR_AGENT = agent
     local pat = M.prompt_pattern()
