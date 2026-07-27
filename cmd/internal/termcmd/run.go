@@ -531,6 +531,7 @@ type terminalMux struct {
 	stdout    io.Writer
 	stderr    io.Writer
 	rt        Runtime
+	paneID    string
 	tabs      []*terminalTab
 	active    int
 	nextID    int
@@ -547,6 +548,7 @@ func newTerminalMux(shellName string, shellArgs []string, stdout, stderr io.Writ
 		stdout:    stdout,
 		stderr:    stderr,
 		rt:        rt,
+		paneID:    os.Getenv("ZELLIJ_PANE_ID"),
 		active:    -1,
 		output:    make(chan ptyChunk, 64),
 		done:      make(chan struct{}),
@@ -878,6 +880,9 @@ func (m *terminalMux) renamePane() {
 }
 
 func (m *terminalMux) setPaneTitle(title string) error {
+	if m.paneID != "" {
+		return m.rt.RunZellijAction("rename-pane", "--pane-id", m.paneID, title)
+	}
 	return m.rt.RunZellijAction("rename-pane", title)
 }
 

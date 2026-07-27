@@ -114,12 +114,9 @@ func DecodeRenameInput(state RenameDecoderState, data []byte, flushEscape, eof b
 				events = append(events, RenameEvent{Kind: RenameCancel})
 				return RenameDecoderState{}, events, true
 			}
-			size, preserveLast := malformedEscapeSize(input)
+			size := malformedEscapeSize(input)
 			events = append(events, RenameEvent{Kind: RenameConsume})
 			input = input[size:]
-			if preserveLast {
-				continue
-			}
 			continue
 		}
 
@@ -191,26 +188,23 @@ func sgrMouseTerminated(input []byte) bool {
 	return ok
 }
 
-func malformedEscapeSize(input []byte) (int, bool) {
+func malformedEscapeSize(input []byte) int {
 	if len(input) < 2 {
-		return len(input), false
+		return len(input)
 	}
 	if input[1] != '[' && input[1] != 'O' {
-		return 2, false
+		return 2
 	}
 	for i := 2; i < len(input); i++ {
 		c := input[i]
 		if c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' {
-			if i > 2 && bytes.ContainsAny(input[2:i], "?;") {
-				return i, true
-			}
-			return i + 1, false
+			return i + 1
 		}
 		if c == '~' {
-			return i + 1, false
+			return i + 1
 		}
 	}
-	return len(input), false
+	return len(input)
 }
 
 func longestSuffixPrefix(input, prefix []byte) int {

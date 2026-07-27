@@ -1,12 +1,13 @@
 ---
 id: 000118
-status: working
+status: codecomplete
 deps: [117]
 github_issue:
 created: 2026-07-24
-updated: 2026-07-24
+updated: 2026-07-27
 estimate_hours: 2.48
 started: 2026-07-24T17:04:26-07:00
+actual_hours: 2.15
 ---
 
 # Rename terminal tabs in the pane frame
@@ -71,9 +72,10 @@ PTY multiplexer tabs inside one Zellij floating pane.
 - Unicode insertion, cursor movement, Backspace/Delete, empty-name handling,
   and fragmented escape sequences and UTF-8 have table-driven tests. Every
   supported sequence is split at every byte boundary.
-- Production-stream tests cover edit+Enter+suffix, edit+Escape+suffix,
-  shortcuts, mouse input, bracketed paste, and injected title failures, proving
-  that rename-mode bytes never reach the child PTY.
+- Production-stream tests cover edit+Enter+same-read suffix, Escape timeout
+  followed by subsequent-read child forwarding, shortcuts, mouse input,
+  bracketed paste, and injected title failures, proving that rename-mode bytes
+  never reach the child PTY.
 - Existing tab create/close/switch behavior and pane-title inventory remain
   unchanged outside rename mode.
 
@@ -104,11 +106,19 @@ The implementation gate rejected the non-canonical `ux-iteration` estimate
 label. Classify the same live terminal/title seam and revision risk under the
 closed-vocabulary `api-integration` primitive. Hours and scope are unchanged.
 
+### 2026-07-27 — Clarify Escape suffix production behavior
+
+Bare Escape cancellation is timeout-driven, so same-read Escape suffix bytes are
+rename-mode input rather than child input. The production contract is: Escape
+times out and cancels, then only a subsequent stdin read resumes child
+forwarding. Keep the decoder-level flush test for suffix consumption and pin
+the production boundary with `TestPumpStdinRenameEscapeTimeoutThenNextReadForwards`.
+
 ## Plan
 
 - [x] Write and approve a durable implementation plan.
 - [x] Implement the pure rename editor and terminal input mode test-first.
-- [ ] Verify the terminal integration suite and live Neovim-child behavior.
+- [x] Verify the terminal integration suite and live Neovim-child behavior.
 
 ## Log
 
@@ -142,6 +152,34 @@ closed-vocabulary `api-integration` primitive. Hours and scope are unchanged.
   exposes KKP as a restart-required session option and Pair had not pinned it.
   Added `support_kitty_keyboard_protocol true` without changing any mouse
   option; the configuration regression and Zellij parser pass.
+
+### 2026-07-27
+- 2026-07-27: closed — go test ./... -count=1; make test-lua; bash tests/term-pane-shortcuts-test.sh; bash tests/review-toggle-test.sh; make runtimebundle-drift-check; zellij --config-dir zellij setup --check; git diff --check; live layout-3 smoke in temporary ./bin/pair term pane with Neovim child verified pane-id-targeted frame-title edit/cancel/commit and no child viewport bytes; review verdict: FIX-THEN-SHIP
+
+- Whole-issue close review returned `REWORK`: the required live Neovim-child
+  smoke was still unchecked, and production-stream tests did not pin child
+  output during active rename. Added
+  `TestTerminalMuxChildOutputDoesNotRestoreTitleDuringRename`.
+- Live smoke in the active layout-3 session exposed a real title-targeting bug:
+  `rename-pane` without `--pane-id` renamed the draft pane when Pair's floating
+  terminal and draft pane both appeared focused. `terminalMux` now passes its
+  own `$ZELLIJ_PANE_ID` to every frame-title update, with
+  `TestTerminalMuxSetPaneTitleTargetsOwnPane` pinning the action shape.
+- Fresh temporary `./bin/pair term` pane smoke passed against Neovim: Alt+r
+  entered frame-title rename on the terminal pane, Unicode insertion plus
+  Left/Backspace/Delete updated only the frame title, Escape canceled and
+  restored `[terminal 1]`, Enter committed `[terminal 1smok]`, and the Neovim
+  viewport remained unchanged throughout.
+- Addressed the second close review's decoder finding: unknown CSI/SS3 escape
+  sequences now consume their final terminator instead of preserving it as
+  printable rename text. Added regression coverage for `ESC[1;5D`,
+  `ESC[999~`, and `ESCOX`, and changed rename shortcut tests to iterate the
+  authoritative `workbenchshortcut.ChordSequences()` registry.
+- Addressed the close review's `FIX-THEN-SHIP` traceability finding: same-read
+  bare-Escape suffix forwarding is not a production behavior because Escape
+  cancels only after the 50ms timeout. Added
+  `TestPumpStdinRenameEscapeTimeoutThenNextReadForwards` and clarified the
+  Done-when wording.
 
 ## Revisions
 

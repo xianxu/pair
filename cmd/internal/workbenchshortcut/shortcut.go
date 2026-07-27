@@ -243,6 +243,14 @@ var chordSequences = []struct {
 	{"\x1b[13;4u", ChordAltShiftEnter},
 }
 
+func ChordSequences() []string {
+	sequences := make([]string, 0, len(chordSequences))
+	for _, candidate := range chordSequences {
+		sequences = append(sequences, candidate.sequence)
+	}
+	return sequences
+}
+
 func DecodeChord(data []byte) (Chord, bool) {
 	for _, candidate := range chordSequences {
 		if string(data) == candidate.sequence {

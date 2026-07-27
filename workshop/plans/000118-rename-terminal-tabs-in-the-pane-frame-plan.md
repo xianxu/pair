@@ -45,6 +45,32 @@ Explicitly set `support_kitty_keyboard_protocol true` in `zellij/config.kdl`
 and pin it in the terminal shortcut configuration regression. Preserve every
 mouse option unchanged; this experiment requires a fresh Zellij session.
 
+### 2026-07-27 — Target terminal frame title by pane ID
+
+Whole-issue close review caught the unchecked live-smoke requirement and a
+missing child-output-during-rename assertion. Running the smoke exposed the
+reason the manual check mattered: implicit `rename-pane` targeted the draft pane
+when Pair's floating terminal and draft both appeared focused. Keep the existing
+title boundary, but pass `$ZELLIJ_PANE_ID` explicitly and pin both child-output
+and own-pane title targeting with tests.
+
+### 2026-07-27 — Consume unknown escape terminators
+
+The second close review found unknown CSI/SS3 sequences could preserve their
+final byte as printable rename text. The decoder contract is stricter: consume
+the complete unknown escape sequence, including its final terminator, and only
+reprocess bytes after that terminator as candidate text. Rename shortcut tests
+now iterate `workbenchshortcut.ChordSequences()` so the decoder coverage follows
+the authoritative shortcut registry.
+
+### 2026-07-27 — Clarify Escape suffix production behavior
+
+Bare Escape cancellation is timeout-driven, so same-read suffix bytes after a
+bare Escape are still rename-mode input until the 50ms timer fires. The
+production boundary to pin is Escape timeout canceling rename input, then only a
+subsequent stdin read resuming child forwarding. The decoder still has a
+flush-mode suffix test for the pure state transition.
+
 ## Core concepts
 
 ### Pure entities
@@ -198,12 +224,12 @@ the authoritative `cmd/internal/workbenchshortcut/shortcut.go` registry through
 Split every recognized multi-byte control sequence at every byte boundary and
 assert equivalence with unsplit input. Do the same for representative 2-, 3-,
 and 4-byte UTF-8 (`é`, `界`, `🙂`). Cover bare Escape before/after
-`flushEscape=true`, invalid UTF-8, and both `edit+Enter+suffix` /
-`edit+Escape+suffix`. At EOF, a held bare Escape cancels; any other incomplete
-control/UTF-8 prefix is consumed and EOF cancels/restores the rename mode. For
-an unknown/malformed control sequence, consume only the longest prefix proven
-invalid, then reprocess the first later byte that can begin printable input so
-a following rune is not lost.
+`flushEscape=true`, invalid UTF-8, `edit+Enter+suffix`, and
+flush-mode `edit+Escape+suffix`. At EOF, a held bare Escape cancels; any other
+incomplete control/UTF-8 prefix is consumed and EOF cancels/restores the rename
+mode. For an unknown/malformed control sequence, consume through the sequence
+terminator, then reprocess the first later byte that can begin printable input
+so a following rune is not lost.
 
 - [x] **Step 2: Verify RED**
 
@@ -252,11 +278,13 @@ fired timer. Assert:
 - entry-title failure aborts mode; refresh failure retains it; commit/cancel
   restoration failures preserve the specified name/mode outcome and report.
 - bare Escape cancels on timeout; a recognized continuation before timeout
-  edits without cancellation; a continuation after timeout is handled by the
+  edits without cancellation; a subsequent read after timeout is handled by the
   now-normal stream; EOF flushes a held prefix; and the sole reader remains
   active without stealing bytes across rename exit.
-- one read containing `Alt+r + edits + Enter/Escape + suffix` feeds the bytes
-  after Alt+r directly into rename decoding and consumes the suffix.
+- one read containing `Alt+r + edits + Enter + suffix` feeds the bytes after
+  Alt+r directly into rename decoding and consumes the suffix; bare Escape is
+  timeout-driven, so its production suffix boundary is timeout cancel followed
+  by a subsequent read.
 
 - [x] **Step 2: Verify RED**
 
@@ -337,12 +365,19 @@ git diff --check
 
 Expected: all commands exit 0.
 
-- [ ] **Step 3: Manual smoke**
+- [x] **Step 3: Manual smoke**
 
 In a fresh layout-3 `pair-dev`, run Neovim in the right terminal, press Alt+r,
 edit a Unicode tab name with cursor/Delete/Backspace, cancel once, then commit.
 Confirm the Neovim screen receives no bytes and the frame returns to ordinary
 inventory. Operator verification is required before close/landing.
+
+Evidence: 2026-07-27 smoke used a fresh temporary `./bin/pair term` pane in the
+active layout-3 Zellij session. `Alt+r` rendered `[rename: terminal 1│]` on the
+terminal pane; Unicode insertion, Left, Backspace, and Delete changed only the
+frame title; Escape restored `[terminal 1]`; a second edit committed
+`[terminal 1smok]`; `dump-screen --pane-id 4` showed the Neovim child viewport
+unchanged throughout.
 
 - [x] **Step 4: Commit**
 

@@ -307,6 +307,53 @@ func TestPumpStdinRenameConsumesShortcutMouseAndPaste(t *testing.T) {
 	}
 }
 
+func TestTerminalMuxChildOutputDoesNotRestoreTitleDuringRename(t *testing.T) {
+	var stdout bytes.Buffer
+	rt := &fakeRuntime{}
+	mux := &terminalMux{
+		stdout: &stdout,
+		rt:     rt,
+		output: make(chan ptyChunk, 1),
+		done:   make(chan struct{}),
+		tabs: []*terminalTab{
+			{id: 1, name: "work"},
+		},
+		active: 0,
+	}
+	copied := make(chan struct{})
+	go func() {
+		mux.copyActiveOutput()
+		close(copied)
+	}()
+
+	editor, err := mux.beginRename()
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux.output <- ptyChunk{id: 1, data: []byte("child redraw\n")}
+
+	deadline := time.After(time.Second)
+	for stdout.String() != "child redraw\n" {
+		select {
+		case <-deadline:
+			t.Fatalf("stdout = %q, want child output copied", stdout.String())
+		default:
+			time.Sleep(time.Millisecond)
+		}
+	}
+	if got := strings.Join(rt.ops, ","); got != "rename-pane [rename: work│]" {
+		t.Fatalf("runtime ops after child output = %q, want only rename preview", got)
+	}
+	if err := mux.finishRename(RenameOutcome{Kind: RenameOutcomeCancel, Name: editor.Original()}); err != nil {
+		t.Fatal(err)
+	}
+	close(mux.done)
+	<-copied
+	if got := strings.Join(rt.ops, ","); got != "rename-pane [rename: work│],rename-pane [work]" {
+		t.Fatalf("runtime ops after finish = %q, want restore only on finish", got)
+	}
+}
+
 func TestPumpStdinRenameBareEscapeCancelsOnTimer(t *testing.T) {
 	rt := &fakeRuntime{}
 	finished := make(chan RenameOutcome, 1)
@@ -333,6 +380,43 @@ func TestPumpStdinRenameBareEscapeCancelsOnTimer(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("stdin pump did not finish after EOF")
+	}
+}
+
+func TestPumpStdinRenameEscapeTimeoutThenNextReadForwards(t *testing.T) {
+	rt := &fakeRuntime{}
+	finished := make(chan RenameOutcome, 1)
+	releaseNext := make(chan struct{})
+	mux := &fakeMux{activeName: "work", renameFinished: finished}
+	reader := &gatedChunksReader{
+		chunks:  [][]byte{[]byte("\x1brx\x1b"), []byte("ls\n")},
+		release: releaseNext,
+	}
+	timer := newFiringRenameTimer()
+	done := make(chan struct{})
+
+	go func() {
+		pumpStdinWithTimer(reader, mux, rt, io.Discard, timer)
+		close(done)
+	}()
+
+	select {
+	case outcome := <-finished:
+		if outcome.Kind != RenameOutcomeCancel || outcome.Name != "work" {
+			t.Fatalf("outcome = %#v, want cancel work", outcome)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("rename timer did not cancel")
+	}
+	close(releaseNext)
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("stdin pump did not finish after second chunk")
+	}
+	want := "rename-begin:work,rename-preview:workx:5,rename-finish:2:work,write:ls\n"
+	if got := strings.Join(mux.ops, ","); got != want {
+		t.Fatalf("ops = %q, want %q", got, want)
 	}
 }
 
@@ -370,6 +454,17 @@ func TestRenamePaneTitlePlacesCursorInActiveFrameField(t *testing.T) {
 	editor, _ = editor.Apply(RenameEvent{Kind: RenameMoveLeft})
 	if got := mux.renamePaneTitleLocked(editor); got != "terminal 1 [rename: wor│k] terminal 3" {
 		t.Fatalf("rename title = %q", got)
+	}
+}
+
+func TestTerminalMuxSetPaneTitleTargetsOwnPane(t *testing.T) {
+	rt := &fakeRuntime{}
+	mux := &terminalMux{rt: rt, paneID: "7"}
+	if err := mux.setPaneTitle("[rename: work│]"); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(rt.ops, ","); got != "rename-pane --pane-id 7 [rename: work│]" {
+		t.Fatalf("runtime ops = %q, want own-pane rename", got)
 	}
 }
 
@@ -644,6 +739,23 @@ func (r *gatedEOFReader) Read(p []byte) (int, error) {
 	}
 	<-r.release
 	return 0, io.EOF
+}
+
+type gatedChunksReader struct {
+	chunks  [][]byte
+	release <-chan struct{}
+}
+
+func (r *gatedChunksReader) Read(p []byte) (int, error) {
+	if len(r.chunks) == 0 {
+		return 0, io.EOF
+	}
+	if len(r.chunks) == 1 {
+		<-r.release
+	}
+	chunk := r.chunks[0]
+	r.chunks = r.chunks[1:]
+	return copy(p, chunk), nil
 }
 
 type firingRenameTimer struct {

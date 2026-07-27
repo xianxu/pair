@@ -1,5 +1,31 @@
 # Lessons
 
+## Zellij pane self-mutations must pass `--pane-id`
+
+Terminal tab rename originally called `zellij action rename-pane <title>` from
+inside `pair term`, relying on Zellij's focused pane. Live layout-3 smoke showed
+the floating terminal and draft pane can both appear focused in `list-panes`, and
+the implicit rename targeted the draft pane instead of the terminal pane.
+
+**Rule.** Any process running inside a Zellij pane that mutates its own pane
+state must pass `--pane-id "$ZELLIJ_PANE_ID"` when the action supports it
+(`rename-pane`, geometry, close/focus variants, etc.). Add a fake-runtime test
+asserting the exact `--pane-id` action shape, then run a live smoke for focus
+ambiguity when floating panes are involved. Caught in #000118 close review.
+
+## Unknown escape terminators are part of the escape sequence
+
+Rename-mode input first treated some unknown CSI sequences as malformed prefixes
+and preserved their final byte for reprocessing. `ESC[1;5D` then consumed the
+escape prefix but inserted `D` into the tab name, violating the "unknown
+controls are consumed" contract.
+
+**Rule.** When consuming an unknown terminal control sequence, consume through
+the protocol terminator (`A`-`Z`, `a`-`z`, `~`, etc.) and reprocess only bytes
+after that terminator. Add regression cases with known-looking but unsupported
+controls such as `ESC[1;5D`; recognized-control tests alone do not prove the
+malformed/unknown path. Caught in #000118 close review.
+
 ## Global keymaps need post-setup buffer-local shadow tests
 
 Pair installed shared workbench-global mappings before scrollback buffer setup,

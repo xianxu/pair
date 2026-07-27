@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
 func decodeRenameChunks(chunks ...[]byte) ([]RenameEvent, RenameDecoderState, bool) {
@@ -78,15 +80,17 @@ func TestDecodeRenameInputUTF8AtEverySplit(t *testing.T) {
 }
 
 func TestDecodeRenameInputConsumesWorkbenchShortcutsAndMouse(t *testing.T) {
-	for _, seq := range []string{
-		"\x1br",
-		"\x1b[114;3u",
-		"\x1b[110;7u",
-		"\x1b[1;3A",
-		"\x1b[13;4u",
-		"\x1b[<0;12;4M",
-		"\x1b[<0;12;4m",
-	} {
+	for _, seq := range workbenchshortcut.ChordSequences() {
+		t.Run(fmt.Sprintf("%q", seq), func(t *testing.T) {
+			for split := 0; split <= len(seq); split++ {
+				events, state, exited := decodeRenameChunks([]byte(seq[:split]), []byte(seq[split:]))
+				if exited || !reflect.DeepEqual(events, []RenameEvent{{Kind: RenameConsume}}) || len(state.Pending) != 0 {
+					t.Fatalf("%q split %d = %#v pending %q exited=%v", seq, split, events, state.Pending, exited)
+				}
+			}
+		})
+	}
+	for _, seq := range []string{"\x1b[<0;12;4M", "\x1b[<0;12;4m"} {
 		t.Run(fmt.Sprintf("%q", seq), func(t *testing.T) {
 			for split := 0; split <= len(seq); split++ {
 				events, state, exited := decodeRenameChunks([]byte(seq[:split]), []byte(seq[split:]))
@@ -136,10 +140,26 @@ func TestDecodeRenameInputConsumesInvalidAndPreservesFollowingRune(t *testing.T)
 		t.Fatalf("invalid = %#v pending=%q exited=%v, want %#v", events, state.Pending, exited, want)
 	}
 
-	events, state, exited = decodeRenameChunks([]byte("\x1b[?;x"))
-	want = []RenameEvent{{Kind: RenameConsume}, {Kind: RenameInsert, Rune: 'x'}}
+	events, state, exited = decodeRenameChunks([]byte("\x1b[?;xz"))
+	want = []RenameEvent{{Kind: RenameConsume}, {Kind: RenameInsert, Rune: 'z'}}
 	if exited || !reflect.DeepEqual(events, want) || len(state.Pending) != 0 {
 		t.Fatalf("malformed = %#v pending=%q exited=%v, want %#v", events, state.Pending, exited, want)
+	}
+}
+
+func TestDecodeRenameInputConsumesUnknownEscapeTerminators(t *testing.T) {
+	for _, seq := range []string{
+		"\x1b[1;5D",
+		"\x1b[999~",
+		"\x1bOX",
+	} {
+		t.Run(fmt.Sprintf("%q", seq), func(t *testing.T) {
+			events, state, exited := decodeRenameChunks([]byte(seq + "x"))
+			want := []RenameEvent{{Kind: RenameConsume}, {Kind: RenameInsert, Rune: 'x'}}
+			if exited || !reflect.DeepEqual(events, want) || len(state.Pending) != 0 {
+				t.Fatalf("events=%#v pending=%q exited=%v, want %#v", events, state.Pending, exited, want)
+			}
+		})
 	}
 }
 
