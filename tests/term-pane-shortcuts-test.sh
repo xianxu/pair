@@ -92,8 +92,7 @@ check_eq "right Alt+r stays local to pair term" "$(actions)" ""
 
 write_panes terminal
 run_shortcut "Alt+Shift+d"
-check_eq "right Alt+Shift+d splits terminal down by explicit right geometry and locks floating panes" "$(actions)" 'change-floating-pane-coordinates --pane-id 4 --x 75 --y 0 --width 75 --height 25 --borderless false --pinned true
-new-pane --floating --pinned true --borderless false --x 75 --y 25 --width 75 --height 26 --name terminal -- sh -c zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term'
+check_eq "right Alt+Shift+d splits terminal down as a native tiled split" "$(actions)" 'new-pane --direction down --name terminal -- sh -c zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term'
 
 write_panes terminal
 run_shortcut "Alt+x"
@@ -229,10 +228,11 @@ grep -Fq '"move-focus", "right"' "$ROOT/cmd/internal/wrapcmd/wrap.go" \
   && { printf 'FAIL agent Alt+k still uses relative move-focus right (terminal-filler trap)\n'; fail=1; } \
   || pass "agent Alt+k no longer uses relative move-focus right"
 
-grep -Fq '"--borderless", "false"' "$ROOT/cmd/internal/termcmd/run.go" \
-  && ! grep -Fq '"--borderless", "true"' "$ROOT/cmd/internal/termcmd/run.go" \
-  && pass "right terminal split panes keep frames (visible divider + tab title)" \
-  || { printf 'FAIL right terminal split panes are borderless (no divider between splits)\n'; fail=1; }
+# Tiled panes are framed by zellij default (pane_frames true); the split must
+# not opt out — the frame is the divider and carries the #118 tab title.
+! grep -Fq '"--borderless"' "$ROOT/cmd/internal/termcmd/run.go" \
+  && pass "right terminal split panes keep zellij default frames" \
+  || { printf 'FAIL right terminal split passes --borderless (frames are the divider)\n'; fail=1; }
 
 layout_terminal_shell=$(grep 'exec pair term' "$ROOT/zellij/layouts/main-3.kdl" | sed 's/^[[:space:]]*args "-c" "//; s/"$//; s/\\"/"/g')
 grep -Fq "$layout_terminal_shell" "$ROOT/cmd/internal/termcmd/run.go" \

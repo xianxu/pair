@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -477,43 +476,17 @@ func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, rt Runtim
 }
 
 func splitTerminalDown(rt Runtime) error {
-	terminal, ok, err := currentRightTerminalPane(rt)
-	if err != nil {
+	if _, ok, err := currentRightTerminalPane(rt); err != nil {
 		return err
-	}
-	if !ok {
+	} else if !ok {
 		return fmt.Errorf("right terminal pane not found")
 	}
-	if terminal.Columns <= 0 || terminal.Rows <= 3 {
-		return fmt.Errorf("right terminal pane is too small to split")
-	}
-	topRows := terminal.Rows / 2
-	bottomRows := terminal.Rows - topRows
-	bottomY := topRows + terminal.Y
-	x := strconv.Itoa(terminal.X)
-	y := strconv.Itoa(terminal.Y)
-	width := strconv.Itoa(terminal.Columns)
-	if err := rt.RunZellijAction(
-		"change-floating-pane-coordinates",
-		"--pane-id", terminal.ID,
-		"--x", x,
-		"--y", y,
-		"--width", width,
-		"--height", strconv.Itoa(topRows),
-		"--borderless", "false",
-		"--pinned", "true",
-	); err != nil {
-		return err
-	}
+	// Native tiled split: the invoking terminal holds client focus (the chord
+	// arrived on its stdin), so zellij splits this pane downward. Quiet
+	// because new-pane prints the created pane id to stdout.
 	return rt.RunZellijActionQuiet(
 		"new-pane",
-		"--floating",
-		"--pinned", "true",
-		"--borderless", "false",
-		"--x", x,
-		"--y", strconv.Itoa(bottomY),
-		"--width", width,
-		"--height", strconv.Itoa(bottomRows),
+		"--direction", "down",
 		"--name", "terminal",
 		"--",
 		"sh",
