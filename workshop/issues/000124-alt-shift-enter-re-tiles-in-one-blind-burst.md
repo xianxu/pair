@@ -49,9 +49,9 @@ nothing (user decision: "just do 1/3, 2/3 expansion").
   delay (the only remaining latency is zellij's own application), both
   split and unsplit.
 - Unit tests cover the planner's direction/refusal cases and the
-  two-action burst contract; the stateful-resize fake and settle-delay
+  burst contract; the stateful-resize fake and settle-delay
   tests are removed with the loop.
-- `tests/term-pane-shortcuts-test.sh` expects the two-op burst.
+- `tests/term-pane-shortcuts-test.sh` expects the burst ops.
 
 ## Estimate
 
