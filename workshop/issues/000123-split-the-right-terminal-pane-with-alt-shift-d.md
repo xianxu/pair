@@ -50,6 +50,22 @@ manually invoke Zellij splitting. The desired workflow is one terminal shortcut:
 - Tests cover the shortcut routing/action shape and prove left/review contexts do
   not claim `Alt+Shift+d` unexpectedly.
 
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. `sdlc estimate-source` reports the calibration
+source as stale, so the number is provisional but uses the required method.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.08 impl=0.04
+item: smaller-go-module design=0.27 impl=0.25
+item: atlas-docs design=0.05 impl=0.05
+design-buffer: 0.15
+total: 0.80
+```
+
 ## Plan
 
 - [ ] Add failing shortcut/config tests for right-terminal `Alt+Shift+d`.
