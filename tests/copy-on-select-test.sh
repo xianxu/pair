@@ -38,8 +38,12 @@ cp "$REPO/bin/pair" "$PAIR_HOME/bin/pair"
 # selection so the hand-off stages a non-empty quote file. PATH must NOT include
 # $PAIR_HOME/bin so the `command -v` clipboard resolutions find these fakes.
 fakebin="$tmp/fakebin"; mkdir -p "$fakebin"
-printf '#!/bin/sh\ncat >/dev/null\n' > "$fakebin/pbcopy"
-printf '#!/bin/sh\nprintf %%s "selected text"\n' > "$fakebin/pbpaste"
+printf '#!/bin/sh
+cat > "%s/clipboard"
+' "$tmp" > "$fakebin/pbcopy"
+printf '#!/bin/sh
+cat "%s/clipboard" 2>/dev/null
+' "$tmp" > "$fakebin/pbpaste"
 cat > "$fakebin/zellij" <<EOF
 #!/bin/sh
 case "\$*" in
@@ -66,7 +70,7 @@ term_pane='{"id":4,"is_plugin":false,"is_focused":true,"is_floating":false,
   "title":"terminal","terminal_command":"sh -c exec pair term"}'
 
 quote="$PAIR_DATA_DIR/quote-t"
-run() { rm -f "$quote"; printf '%s' 'selected text' | "$PAIR_HOME/bin/pair" clip copy-on-select; }
+run() { rm -f "$quote" "$tmp/clipboard"; printf '%s' 'selected text' | "$PAIR_HOME/bin/pair" clip copy-on-select; }
 # The hand-off exec-replaces into clipboard-to-pane, so poll for the staged file.
 wait_staged() { for _ in $(seq 1 60); do [ -f "$quote" ] && return 0; sleep 0.05; done; return 1; }
 

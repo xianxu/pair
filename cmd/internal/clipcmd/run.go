@@ -110,13 +110,27 @@ func RunCopyOnSelectOrchestrate(opts CopyOnSelectOptions, rt Runtime, stderr io.
 			inNvim = isNvimCommand(p.TerminalCommand)
 			terminalIDs, err := rt.TerminalPaneIDs()
 			if err != nil {
-				terminalIDs = nil // degrade to command/title classification
+				// Degrade to command/title classification — but SAY SO. This runs
+				// setsid'd with stderr on /dev/null, so the debug log is the only
+				// channel; and the degradation is behavior-changing: split halves
+				// stop being recognized and start auto-pasting again, which is
+				// the exact symptom this gate exists to remove. (LiveIDs returns
+				// (nil, nil) for a missing file, so this fires only on real IO
+				// errors — no log noise in the normal case.)
+				rt.Log("terminal registry read failed: " + err.Error())
+				terminalIDs = nil
 			}
 			inRightTerminal = workbenchshortcut.RoleForPaneWith(p, terminalIDs) == workbenchshortcut.PaneRoleRightTerminal
 		}
 	}
 	rt.Log(fmt.Sprintf("in_nvim: %v in_right_terminal: %v focused_id: %q", inNvim, inRightTerminal, focusedID))
 
+	// NOTE: isNvimCommand and RoleForPaneWith deliberately overlap and must NOT
+	// be collapsed into one `switch role`. isNvimCommand is the BROADER of the
+	// two (`(?i)nvim|draft`), while RoleForPane's PaneRoleLeftDraft requires
+	// `/nvim/init.lua` — merging them would narrow the skip and start
+	// auto-pasting from the review pane and any other plain-nvim pane.
+	//
 	// When the selection happened in nvim, skip flash + hand-off — otherwise it
 	// would loop back and insert the selection beneath itself. (The "only paste
 	// in insert mode" gate lives on the nvim side; see clipboard-to-pane.)

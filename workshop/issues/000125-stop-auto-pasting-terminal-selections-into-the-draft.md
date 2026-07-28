@@ -1,12 +1,13 @@
 ---
 id: 000125
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-28
 updated: 2026-07-28
 estimate_hours: 0.45
 started: 2026-07-28T12:27:14-07:00
+actual_hours: 1.43
 ---
 
 # Stop auto-pasting terminal selections into the draft
@@ -177,6 +178,7 @@ total: 0.45
 ## Log
 
 ### 2026-07-28
+- 2026-07-28: closed — Source-pane gate: agent-pane selections still auto-paste into the draft (quote reflow); right-terminal selections only reach the OS clipboard. Mutation-proven at both layers — removing the gate fails TestCopyOnSelectOrchestrateSkipsRightTerminal, TestCopyOnSelectOrchestrateSkipsSplitTerminalHalfViaRegistry, and shell case (c). Split halves are covered via #123 terminal-pane registry (zellij reports them with no terminal_command and a [terminal N] title, so a plain role check would miss them). The process-level in_nvim regression is preserved. Full env -u make test green through its pre-existing scrollback-open Alt+x abort (identical on main), post-abort targets run separately and green; zellij setup --check; git diff --check. USER LIVE-VERIFIED after restart: agent-pane paste works, terminal stays quiet.; review verdict: FIX-THEN-SHIP
 - Implemented mirror-only: RED first (renamed `TestCopyOnSelectHookMirrorsOnly`,
   inverted its spawn assertion) then deleted the one `SpawnDetached` call.
   Mutation-proven at BOTH layers: restoring the spawn fails the unit test and

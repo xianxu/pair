@@ -847,19 +847,19 @@ type stdoutWriter struct {
 }
 
 type fakeRuntime struct {
-	panesJSON        string
-	cachedDraft      string
-	currentPaneID    string
-	lastLeft         string
+	panesJSON              string
+	cachedDraft            string
+	currentPaneID          string
+	lastLeft               string
 	lastTerminal           string
 	recordedTerminal       []string
 	terminalPaneIDs        []string
 	registeredTerminalPane bool
-	listCalls        int
-	failList         bool
-	ops              []string
-	reported         []string
-	failFocus        bool
+	listCalls              int
+	failList               bool
+	ops                    []string
+	reported               []string
+	failFocus              bool
 }
 
 func (f *fakeRuntime) LastTerminalPaneID() (string, error) {

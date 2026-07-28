@@ -27,11 +27,9 @@ func NewOSRuntime() OSRuntime { return OSRuntime{} }
 // half, which zellij reports with no terminal_command and a "[terminal N]"
 // title.
 func (OSRuntime) TerminalPaneIDs() ([]string, error) {
-	reg := workbenchshortcut.TerminalPaneRegistry{
-		DataDir: workbenchshortcut.DataDirFromEnv(),
-		Tag:     os.Getenv("PAIR_TAG"),
-	}
-	return reg.LiveIDs(func(pid int) bool { return procutil.Alive(strconv.Itoa(pid)) })
+	return workbenchshortcut.LiveTerminalPaneIDsFromEnv(func(pid int) bool {
+		return procutil.Alive(strconv.Itoa(pid))
+	})
 }
 
 // clipboardTool is one candidate OS-clipboard command tried in preference order.
