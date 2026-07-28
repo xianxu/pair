@@ -172,3 +172,18 @@ total: 0.80
   live isolated-session replay — draft↔terminal round trip lands keyboard on
   the floating terminal (probe: `Pane Terminal(3) is already focused`), split
   still works, and Alt+k returns to the layer-focused split pane.
+- Mouse-drag exposure accepted as a Zellij limitation (user sign-off after a
+  live drag reproduced the pane moving off-position). Root cause verified in
+  Zellij 0.44.3 source (`zellij-server/src/tab/mouse_handler.rs`,
+  `determine_mouse_action`): a plain left-press on a floating pane's frame
+  unconditionally returns `StartMovingFloatingPane` — no config gates it; and a
+  plain left-drag on a tiled pane's frame edge starts a boundary resize, also
+  ungated. `advanced_mouse_actions false` only disables hover effects/grouping
+  in this version, and `mouse_mode false` (the one switch that would freeze
+  drags) is off the table because it kills click-to-focus (the focus-lockout
+  rescue), copy-on-select, and scroll. Revisit if a future Zellij adds a gate
+  for frame-drag move/resize (e.g. folding them under
+  `advanced_mouse_actions`); a pair-side geometry guard (snap-back via
+  `change-floating-pane-coordinates` riding the titlepoller loop) was designed
+  but not built — the drag would still visibly happen and only be undone a
+  poll-tick later.
