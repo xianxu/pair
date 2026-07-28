@@ -111,11 +111,13 @@ write_panes terminal
 run_shortcut "Alt+j"
 check_eq "right Alt+j is no-op" "$(actions)" ""
 
-# The stateless fake zellij reports unchanged geometry after the first resize
-# step, so the toggle's no-progress guard stops after one op.
+# The toggle is a blind three-step burst (#124): zellij's tiled resize step is
+# a stable 5% of the screen, so 1/2 <-> ~2/3 is always exactly three actions.
 write_panes terminal
 run_shortcut "Alt+Shift+Enter"
-check_eq "right Alt+Shift+Enter steps tiled resize toward two thirds" "$(actions)" "resize increase left"
+check_eq "right Alt+Shift+Enter fires the three-step expand burst" "$(actions)" "resize increase left
+resize increase left
+resize increase left"
 
 write_panes terminal
 rm -f "$PAIR_DATA_DIR/last-left-pane-t"

@@ -7,17 +7,11 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
-
-// resizeSettleDelay is how long the toggle loop waits after issuing a resize
-// before re-reading geometry — zellij applies resizes asynchronously (IO
-// pacing, so it lives here rather than in the pure resizeplan.go).
-const resizeSettleDelay = 80 * time.Millisecond
 
 type Runtime interface {
 	ListPanesJSON() ([]byte, error)
@@ -104,10 +98,9 @@ func RunFocusTerminal(args []string, rt Runtime, stderr io.Writer) int {
 }
 
 // RunToggleFocused re-tiles the right terminal column between half the
-// screen and two thirds. Zellij's only tiled resize primitive is a step of
-// runtime-defined size, so the executor loops read-geometry → plan → act
-// (planner in resizeplan.go) until the width converges, makes no progress
-// (zellij refusing), or hits the step cap.
+// screen and ~two thirds by firing the planner's fixed three-step burst
+// (resizeplan.go) back-to-back — no geometry re-reads, no pacing (live #124:
+// consecutive resize actions all apply).
 func RunToggleFocused(args []string, rt Runtime, stderr io.Writer) int {
 	if len(args) > 0 {
 		fmt.Fprintln(stderr, "usage: pair layout toggle-focused")
@@ -130,34 +123,15 @@ func RunToggleFocused(args []string, rt Runtime, stderr io.Writer) int {
 		return 0
 	}
 	screenCols, _ := tiledScreenSize(panes)
-	target, ok := terminalResizeTarget(focused.Columns, screenCols)
+	burst, ok := terminalToggleBurst(focused.Columns, screenCols)
 	if !ok {
 		return 0
 	}
-	current := focused.Columns
-	for i := 0; i < terminalResizeMaxSteps; i++ {
-		action, done := terminalResizeStep(current, target)
-		if done {
-			break
-		}
+	for _, action := range burst {
 		if err := rt.RunZellijAction(action...); err != nil {
 			fmt.Fprintf(stderr, "pair layout toggle-focused: resize: %v\n", err)
 			return 1
 		}
-		// zellij applies resizes asynchronously; without a settle pause the
-		// re-read races the application and the no-progress guard stops the
-		// loop short of the target (seen live: collapse stuck at ~55%).
-		time.Sleep(resizeSettleDelay)
-		panesJSON, err := rt.ListPanesJSON()
-		if err != nil {
-			fmt.Fprintf(stderr, "pair layout toggle-focused: list panes: %v\n", err)
-			return 1
-		}
-		next, ok := focusedRightTerminal(zellijpane.Parse(panesJSON), terminalIDs)
-		if !ok || abs(target-next.Columns) >= abs(target-current) {
-			break
-		}
-		current = next.Columns
 	}
 	return 0
 }

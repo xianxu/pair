@@ -338,13 +338,17 @@ be dragged off position by its frame with no config gate, so the terminal
 moved into the tiled tree: tiled panes have no mouse-move operation at all,
 making the workbench drag-immune while keeping frames and full mouse support.
 The filler (and its key-swallowing focus trap) is gone. `Alt+Shift+Enter`
-re-tiles the column boundary between 50% and 2/3 width via
+re-tiles the column boundary between 50% and ~2/3 width via
 `pair layout toggle-focused` — the left stack genuinely narrows and reflows
-while expanded (no overlay; nothing floats). Integer sizes are FIXED in zellij
-(refusing the `resize` action), but Pair drives draft-rung changes through
-swap layouts, not resize, so FIXED is harmless; the terminal column itself is
-percent-sized, which is what lets the width toggle step `zellij action
-resize` against it.
+while expanded (no overlay; nothing floats). The toggle is a blind
+three-action `zellij action resize increase|decrease left` burst (#124):
+zellij's tiled resize step is a stable 5% of the screen (RESIZE_PERCENT), so
+1/2 ↔ ~2/3 is always exactly three steps — no geometry re-reads or settle
+pauses (state classified once: terminal ≥60% of screen width = expanded).
+Integer sizes are FIXED in zellij (refusing the `resize` action), but Pair
+drives draft-rung changes through swap layouts, not resize, so FIXED is
+harmless; the terminal column itself is percent-sized, which is what lets the
+width toggle step `zellij action resize` against it.
 
 The panes wrap their command in `sh -c "..."` so the shell expands `$PAIR_AGENT`, `$PAIR_AGENT_ARGS`, `$PAIR_TAG`, and `$PAIR_HOME` at exec time — zellij itself does not interpolate env vars in `command`/`args` fields.
 
