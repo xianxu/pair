@@ -5,6 +5,13 @@
 // - Disable hover help-text tooltips on pane frames.
 // - Disable advanced mouse actions (pane grouping, etc.) to keep mouse
 //   behavior predictable for selection and our copy_command flow.
+// - Mouse support itself stays ON. `mouse_mode false` (tried for #123 to
+//   freeze pane drag/resize) also kills click-to-focus, text selection, the
+//   copy_command flow, and scroll — and click-to-focus is the last-resort
+//   escape when keyboard focus lands somewhere unexpected. Split terminal
+//   panes stay pinned and keep their frames (the frame is the only visible
+//   divider between the split halves and carries the tab title); the residual
+//   frame-drag exposure is the accepted trade-off.
 // - Suppress "what's new" release-notes popup on version bumps.
 // - Enable pane frames globally so the agent pane shows zellij's
 //   scroll-position indicator (top-right) when scrolled — the only way
@@ -16,6 +23,7 @@
 mouse_hover_effects false
 advanced_mouse_actions false
 focus_follows_mouse false
+support_kitty_keyboard_protocol true
 show_release_notes false
 show_startup_tips false
 pane_frames true
@@ -77,6 +85,7 @@ keybinds clear-defaults=false {
         unbind "Alt r"
         unbind "Alt x"
         unbind "Alt /"
+        unbind "Alt D"
         unbind "Alt C"
         unbind "Ctrl Alt c"
         unbind "Alt Shift Enter"
@@ -93,6 +102,7 @@ keybinds clear-defaults=false {
         unbind "Alt r"
         unbind "Alt x"
         unbind "Alt /"
+        unbind "Alt D"
         unbind "Alt C"
         unbind "Ctrl Alt c"
         bind "Alt j" { Write 27; Write 106; }
@@ -102,6 +112,7 @@ keybinds clear-defaults=false {
         bind "Alt r" { Write 27; Write 114; }
         bind "Alt x" { WriteChars "\u{1b}[120;3u"; }
         bind "Alt /" { Write 27; Write 47; }
+        bind "Alt D" { WriteChars "\u{1b}[68;4u"; }
         bind "Alt C" { Write 27; Write 67; }
         bind "Ctrl Alt c" { WriteChars "\u{1b}[99;7u"; }
         bind "Alt Shift Enter" { WriteChars "\u{1b}[13;4u"; }

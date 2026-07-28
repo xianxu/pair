@@ -24,6 +24,53 @@ and EOF behavior, add an injected reset/stop/drain timer plus one lifetime
 reader-result channel, and pin same-read Alt+r transition semantics. Add the
 missing task-to-estimate mapping. The implementation scope is unchanged.
 
+### 2026-07-24 — Reconcile estimate vocabulary
+
+The implementation gate rejected the non-canonical `ux-iteration` estimate
+label. Map that unchanged live terminal/title risk to a second
+`api-integration` row from the closed vocabulary; no hours or implementation
+scope change.
+
+### 2026-07-24 — Add KKP Cmd+Delete editing
+
+Extend the existing pure editor/decoder rather than adding an input special
+case in the terminal loop. Decode KKP Super+Backspace (`ESC[127;9u`) into a
+delete-to-start event; cover Unicode suffix preservation, every split boundary,
+and production-stream non-leakage. Do not enable or alter a terminal protocol.
+
+### 2026-07-24 — Enable KKP for the Pair session
+
+The KKP-only decoder passed but live Zellij emitted no matching sequence.
+Explicitly set `support_kitty_keyboard_protocol true` in `zellij/config.kdl`
+and pin it in the terminal shortcut configuration regression. Preserve every
+mouse option unchanged; this experiment requires a fresh Zellij session.
+
+### 2026-07-27 — Target terminal frame title by pane ID
+
+Whole-issue close review caught the unchecked live-smoke requirement and a
+missing child-output-during-rename assertion. Running the smoke exposed the
+reason the manual check mattered: implicit `rename-pane` targeted the draft pane
+when Pair's floating terminal and draft both appeared focused. Keep the existing
+title boundary, but pass `$ZELLIJ_PANE_ID` explicitly and pin both child-output
+and own-pane title targeting with tests.
+
+### 2026-07-27 — Consume unknown escape terminators
+
+The second close review found unknown CSI/SS3 sequences could preserve their
+final byte as printable rename text. The decoder contract is stricter: consume
+the complete unknown escape sequence, including its final terminator, and only
+reprocess bytes after that terminator as candidate text. Rename shortcut tests
+now iterate `workbenchshortcut.ChordSequences()` so the decoder coverage follows
+the authoritative shortcut registry.
+
+### 2026-07-27 — Clarify Escape suffix production behavior
+
+Bare Escape cancellation is timeout-driven, so same-read suffix bytes after a
+bare Escape are still rename-mode input until the 50ms timer fires. The
+production boundary to pin is Escape timeout canceling rename input, then only a
+subsequent stdin read resuming child forwarding. The decoder still has a
+flush-mode suffix test for the pure state transition.
+
 ## Core concepts
 
 ### Pure entities
@@ -111,8 +158,8 @@ missing task-to-estimate mapping. The implementation scope is unchanged.
 - Issue authoring/spec work maps to `issue-spec`.
 - Task 1's rune/cursor state machine maps to `tui-screen`.
 - Task 2's pure streaming decoder maps to `smaller-go-module`.
-- Task 3's single-reader/timer loop and Zellij title boundary map to
-  `api-integration`; live feel/revision risk maps to `ux-iteration`.
+- Task 3's single-reader/timer loop, Zellij title boundary, and live
+  feel/revision risk map to two `api-integration` rows.
 - Task 4 maps to `atlas-docs`; the one issue-close fresh review maps to
   `milestone-review`.
 - The v3.1 total is `Σdesign×1.30 + Σimpl×0.90 = 2.476`, rounded to 2.48.
@@ -125,14 +172,14 @@ missing task-to-estimate mapping. The implementation scope is unchanged.
 - Create: `cmd/internal/termcmd/rename.go`
 - Create: `cmd/internal/termcmd/rename_test.go`
 
-- [ ] **Step 1: Write failing table-driven editor tests**
+- [x] **Step 1: Write failing table-driven editor tests**
 
 Cover insertion at the cursor, Unicode rune movement, Home/End,
 Backspace/Delete boundaries, whitespace-trimmed non-empty commit,
 empty-commit retention, cancel, and consumed no-op events. Assert the original
 name is never mutated before commit.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run:
 
@@ -142,16 +189,16 @@ go test ./cmd/internal/termcmd -run 'TestRenameEditor' -count=1
 
 Expected: build failure because the editor types/functions do not exist.
 
-- [ ] **Step 3: Implement the minimal pure editor**
+- [x] **Step 3: Implement the minimal pure editor**
 
 Use `[]rune` and a cursor index. Keep transition input/output value-like; do not
 call terminal or Zellij code.
 
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
 
 Run the focused command above; expected PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cmd/internal/termcmd/rename.go cmd/internal/termcmd/rename_test.go
@@ -164,27 +211,27 @@ git commit -m "#118: model terminal tab rename editing"
 - Create: `cmd/internal/termcmd/rename_input.go`
 - Create: `cmd/internal/termcmd/rename_input_test.go`
 
-- [ ] **Step 1: Write failing decoder matrices**
+- [x] **Step 1: Write failing decoder matrices**
 
 Accept Enter (`CR`, `LF`), Backspace (`DEL`, `BS`), Left (`ESC [ D`, `ESC O D`),
 Right (`ESC [ C`, `ESC O C`), Home (`ESC [ H`, `ESC O H`, `ESC [ 1 ~`), End
 (`ESC [ F`, `ESC O F`, `ESC [ 4 ~`), Delete (`ESC [ 3 ~`), and bare Escape.
 Consume SGR mouse (`ESC [ < … M/m`), bracketed-paste start/end
 (`ESC [ 200 ~` / `ESC [ 201 ~`) and all enclosed payload, and every sequence in
-the authoritative workbench shortcut registry (including `ESC`+letter and KKP
-forms).
+the authoritative `cmd/internal/workbenchshortcut/shortcut.go` registry through
+`FindChord`/`IsChordPrefix` (including `ESC`+letter and KKP forms).
 
 Split every recognized multi-byte control sequence at every byte boundary and
 assert equivalence with unsplit input. Do the same for representative 2-, 3-,
 and 4-byte UTF-8 (`é`, `界`, `🙂`). Cover bare Escape before/after
-`flushEscape=true`, invalid UTF-8, and both `edit+Enter+suffix` /
-`edit+Escape+suffix`. At EOF, a held bare Escape cancels; any other incomplete
-control/UTF-8 prefix is consumed and EOF cancels/restores the rename mode. For
-an unknown/malformed control sequence, consume only the longest prefix proven
-invalid, then reprocess the first later byte that can begin printable input so
-a following rune is not lost.
+`flushEscape=true`, invalid UTF-8, `edit+Enter+suffix`, and
+flush-mode `edit+Escape+suffix`. At EOF, a held bare Escape cancels; any other
+incomplete control/UTF-8 prefix is consumed and EOF cancels/restores the rename
+mode. For an unknown/malformed control sequence, consume through the sequence
+terminator, then reprocess the first later byte that can begin printable input
+so a following rune is not lost.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 ```bash
 go test ./cmd/internal/termcmd -run 'TestDecodeRenameInput' -count=1
@@ -192,17 +239,17 @@ go test ./cmd/internal/termcmd -run 'TestDecodeRenameInput' -count=1
 
 Expected: build failure for the missing decoder.
 
-- [ ] **Step 3: Implement the pure streaming transition**
+- [x] **Step 3: Implement the pure streaming transition**
 
 Recognize complete sequences before treating Escape as cancel; buffer every
 valid prefix and incomplete UTF-8. Flush a lone Escape only when explicitly
 requested by the caller. Once commit/cancel occurs, consume the batch suffix.
 
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
 
 Run the focused decoder suite; expected PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cmd/internal/termcmd/rename_input.go cmd/internal/termcmd/rename_input_test.go
@@ -218,7 +265,7 @@ git commit -m "#118: decode streaming rename input"
 - Modify: `cmd/internal/termcmd/run_test.go`
 - Modify: `tests/term-pane-shortcuts-test.sh`
 
-- [ ] **Step 1: Write failing production-stream tests**
+- [x] **Step 1: Write failing production-stream tests**
 
 Drive Alt+r through `pumpStdinWithTimer` with a fake mux/runtime and manually
 fired timer. Assert:
@@ -231,13 +278,15 @@ fired timer. Assert:
 - entry-title failure aborts mode; refresh failure retains it; commit/cancel
   restoration failures preserve the specified name/mode outcome and report.
 - bare Escape cancels on timeout; a recognized continuation before timeout
-  edits without cancellation; a continuation after timeout is handled by the
+  edits without cancellation; a subsequent read after timeout is handled by the
   now-normal stream; EOF flushes a held prefix; and the sole reader remains
   active without stealing bytes across rename exit.
-- one read containing `Alt+r + edits + Enter/Escape + suffix` feeds the bytes
-  after Alt+r directly into rename decoding and consumes the suffix.
+- one read containing `Alt+r + edits + Enter + suffix` feeds the bytes after
+  Alt+r directly into rename decoding and consumes the suffix; bare Escape is
+  timeout-driven, so its production suffix boundary is timeout cancel followed
+  by a subsequent read.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 ```bash
 go test ./cmd/internal/termcmd -run 'TestPumpStdinRename|TestRenameTitleFailure' -count=1
@@ -245,7 +294,7 @@ go test ./cmd/internal/termcmd -run 'TestPumpStdinRename|TestRenameTitleFailure'
 
 Expected: failures because Alt+r still calls `readRawPrompt`.
 
-- [ ] **Step 3: Implement one rename-aware input loop**
+- [x] **Step 3: Implement one rename-aware input loop**
 
 Remove `readRawPrompt`. Add rename state to `pumpStdin`; use one lifetime
 reader goroutine that copies each read into:
@@ -273,7 +322,7 @@ active-name, preview-title, commit, and restore operations. Keep
 `RunZellijAction` as the only title IO boundary and report errors through
 `ReportShortcutError`.
 
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
 
 ```bash
 go test ./cmd/internal/termcmd -count=1
@@ -283,7 +332,7 @@ bash tests/term-pane-shortcuts-test.sh
 
 Expected: PASS; the shell inventory still classifies Alt+r as terminal-local.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cmd/internal/termcmd/run.go cmd/internal/termcmd/run_test.go tests/term-pane-shortcuts-test.sh
@@ -297,12 +346,12 @@ git commit -m "#118: rename terminal tabs in the pane frame"
 - Modify: `atlas/architecture.md`
 - Modify: `workshop/issues/000118-rename-terminal-tabs-in-the-pane-frame.md`
 
-- [ ] **Step 1: Update docs and issue evidence**
+- [x] **Step 1: Update docs and issue evidence**
 
 Document Alt+r's frame editor and its child-independent input ownership. Check
 completed plan rows and record red/green evidence.
 
-- [ ] **Step 2: Run complete verification**
+- [x] **Step 2: Run complete verification**
 
 ```bash
 go test ./... -count=1
@@ -316,14 +365,21 @@ git diff --check
 
 Expected: all commands exit 0.
 
-- [ ] **Step 3: Manual smoke**
+- [x] **Step 3: Manual smoke**
 
 In a fresh layout-3 `pair-dev`, run Neovim in the right terminal, press Alt+r,
 edit a Unicode tab name with cursor/Delete/Backspace, cancel once, then commit.
 Confirm the Neovim screen receives no bytes and the frame returns to ordinary
 inventory. Operator verification is required before close/landing.
 
-- [ ] **Step 4: Commit**
+Evidence: 2026-07-27 smoke used a fresh temporary `./bin/pair term` pane in the
+active layout-3 Zellij session. `Alt+r` rendered `[rename: terminal 1│]` on the
+terminal pane; Unicode insertion, Left, Backspace, and Delete changed only the
+frame title; Escape restored `[terminal 1]`; a second edit committed
+`[terminal 1smok]`; `dump-screen --pane-id 4` showed the Neovim child viewport
+unchanged throughout.
+
+- [x] **Step 4: Commit**
 
 ```bash
 git add README.md atlas/architecture.md workshop/issues/000118-rename-terminal-tabs-in-the-pane-frame.md workshop/plans/000118-rename-terminal-tabs-in-the-pane-frame-plan.md

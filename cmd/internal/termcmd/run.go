@@ -13,10 +13,12 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/draftroute"
 	"github.com/xianxu/pair/cmd/internal/layoutcmd"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 	"golang.org/x/term"
@@ -24,13 +26,21 @@ import (
 
 type Runtime interface {
 	CachedDraftPaneID() (string, bool)
+	CurrentPaneID() string
 	ListPanesJSON() ([]byte, error)
 	LastLeftPaneID() (string, error)
 	RecordLastLeftPaneID(string) error
+	LastTerminalPaneID() (string, error)
+	RecordLastTerminalPaneID(string) error
+	TerminalPaneIDs() ([]string, error)
+	RegisterTerminalPane() error
 	RunZellijAction(args ...string) error
+	RunZellijActionQuiet(args ...string) error
 	ReportShortcutError(error)
 	ShellCommand() (string, []string)
 }
+
+const rightTerminalPaneShell = `zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term`
 
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return RunWithRuntime(args, stdin, stdout, stderr, OSRuntime{})
@@ -74,6 +84,8 @@ func namedChord(name string) (workbenchshortcut.Chord, bool) {
 		return workbenchshortcut.ChordAltW, true
 	case "alt+r":
 		return workbenchshortcut.ChordAltR, true
+	case "alt+shift+d":
+		return workbenchshortcut.ChordAltShiftD, true
 	case "alt+x":
 		return workbenchshortcut.ChordAltX, true
 	case "alt+/":
@@ -105,8 +117,12 @@ func handleChord(chord workbenchshortcut.Chord, rt Runtime, stdin io.Reader, std
 	if err != nil {
 		return err
 	}
+	terminalIDs, err := rt.TerminalPaneIDs()
+	if err != nil {
+		terminalIDs = nil
+	}
 	decision := workbenchshortcut.Decide(workbenchshortcut.ShortcutInput{
-		Role:           workbenchshortcut.RoleForPane(panes.focused),
+		Role:           workbenchshortcut.RoleForPaneWith(panes.focused, terminalIDs),
 		Chord:          chord,
 		FocusedPaneID:  panes.focused.ID,
 		LastLeftPaneID: lastLeft,
@@ -116,9 +132,8 @@ func handleChord(chord workbenchshortcut.Chord, rt Runtime, stdin io.Reader, std
 }
 
 type workbenchPanes struct {
-	focused  zellijpane.Pane
-	draft    zellijpane.Pane
-	terminal zellijpane.Pane
+	focused zellijpane.Pane
+	draft   zellijpane.Pane
 }
 
 func focusedWorkbenchPanes(rt Runtime) (workbenchPanes, error) {
@@ -127,15 +142,21 @@ func focusedWorkbenchPanes(rt Runtime) (workbenchPanes, error) {
 		return workbenchPanes{}, err
 	}
 	var out workbenchPanes
+	var haveOwn bool
+	current := rt.CurrentPaneID()
 	for _, pane := range zellijpane.Parse(data) {
-		if pane.IsFocused {
+		// Bytes on pair term's stdin can only mean its OWN pane is the input
+		// target, so the process's pane id outranks the is_focused scan —
+		// zellij reports per-client focus and several panes can carry
+		// is_focused at once (draft + terminal seen live in the tiled smoke).
+		if !pane.IsPlugin && current != "" && pane.ID == current {
+			out.focused, haveOwn = pane, true
+		}
+		if pane.IsFocused && !haveOwn {
 			out.focused = pane
 		}
-		switch workbenchshortcut.RoleForPane(pane) {
-		case workbenchshortcut.PaneRoleLeftDraft:
+		if workbenchshortcut.RoleForPane(pane) == workbenchshortcut.PaneRoleLeftDraft {
 			out.draft = pane
-		case workbenchshortcut.PaneRoleRightTerminal:
-			out.terminal = pane
 		}
 	}
 	if out.focused.ID == "" {
@@ -153,6 +174,11 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 			return err
 		}
 	}
+	if decision.RecordLastTerminalPaneID != "" {
+		if err := rt.RecordLastTerminalPaneID(decision.RecordLastTerminalPaneID); err != nil {
+			return err
+		}
+	}
 	if decision.DraftLuaFunction != "" {
 		return draftroute.RouteLua(rt, decision.DraftLuaFunction, decision.FocusDraft)
 	}
@@ -165,10 +191,11 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 		}
 		return rt.RunZellijAction("focus-pane-id", decision.TargetPaneID)
 	case workbenchshortcut.ActionFocusRightTerminal:
-		if panes.terminal.ID == "" {
-			return nil
-		}
-		return rt.RunZellijAction("focus-pane-id", panes.terminal.ID)
+		// One picker for the right-terminal jump (shared with draft nvim and
+		// pair wrap): id-based, preferring the recorded last-used split half.
+		return layoutcmd.FocusRightTerminal(rt)
+	case workbenchshortcut.ActionSplitTerminalDown:
+		return splitTerminalDown(rt)
 	case workbenchshortcut.ActionToggleFocusedLayout:
 		if layoutcmd.RunToggleFocused(nil, rt, io.Discard) != 0 {
 			return fmt.Errorf("toggle focused layout failed")
@@ -181,7 +208,13 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 
 func runShell(stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
 	name, args := rt.ShellCommand()
-	_ = layoutcmd.AlignFloatingTerminal(rt)
+	// Self-register this pane as a live right terminal: zellij's pane report
+	// can't identify split panes (no terminal_command for --direction-created
+	// panes; #118 tab-strip titles), so the registry is how every consumer —
+	// including this process's own chord routing — recognizes them.
+	if err := rt.RegisterTerminalPane(); err != nil {
+		fmt.Fprintf(stderr, "term: register terminal pane: %v\n", err)
+	}
 	stdinFile, _ := stdin.(*os.File)
 	var oldState *term.State
 	if stdinFile != nil {
@@ -230,76 +263,211 @@ type ptyWriter interface {
 	writeActive([]byte)
 	newTab() error
 	closeActive()
-	renameActive(string)
+	beginRename() (int, RenameEditor, error)
+	refreshRename(int, RenameEditor) error
+	finishRename(int, RenameOutcome) error
 	previousTab()
 	nextTab()
 	appMouseMode() bool
 }
 
-func pumpStdin(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Writer) {
-	buf := make([]byte, 4096)
-	var held []byte
-	for {
-		n, err := stdin.Read(buf)
-		if n > 0 {
-			data := append(held, buf[:n]...)
-			held = nil
-			for len(data) > 0 {
-				chordBefore, chord, _, chordRest, chordOK := workbenchshortcut.FindChord(data)
-				mouseBefore, event, rawMouse, mouseRest, mouseOK := findSGRMousePress(data)
-				if chordOK && (!mouseOK || len(chordBefore) <= len(mouseBefore)) {
-					if len(chordBefore) > 0 {
-						mux.writeActive(chordBefore)
-					}
-					if !handleTerminalChord(chord, mux, rt, stdin, stdout) {
-						if err := handleChord(chord, rt, stdin, stdout); err != nil {
-							rt.ReportShortcutError(err)
-						}
-					}
-					data = chordRest
-					continue
-				}
-				if mouseOK {
-					if len(mouseBefore) > 0 {
-						mux.writeActive(mouseBefore)
-					}
-					switch event.button {
-					case 64:
-						if mux.appMouseMode() {
-							mux.writeActive(rawMouse)
-						} else {
-							_ = rt.RunZellijAction("scroll-up")
-						}
-					case 65:
-						if mux.appMouseMode() {
-							mux.writeActive(rawMouse)
-						} else {
-							_ = rt.RunZellijAction("scroll-down")
-						}
-					default:
-						mux.writeActive(rawMouse)
-					}
-					data = mouseRest
-					continue
-				}
-				if workbenchshortcut.IsChordPrefix(data) || isSGRMousePrefix(data) {
-					held = append(held, data...)
-					break
-				}
-				mux.writeActive(data)
-				data = nil
-			}
-		}
-		if err != nil {
-			if len(held) > 0 {
-				mux.writeActive(held)
-			}
-			return
+type RenameTimer interface {
+	C() <-chan time.Time
+	Reset(time.Duration)
+	StopAndDrain()
+}
+
+type realRenameTimer struct {
+	timer *time.Timer
+}
+
+func newRealRenameTimer() *realRenameTimer {
+	timer := time.NewTimer(time.Hour)
+	if !timer.Stop() {
+		<-timer.C
+	}
+	return &realRenameTimer{timer: timer}
+}
+
+func (t *realRenameTimer) C() <-chan time.Time {
+	return t.timer.C
+}
+
+func (t *realRenameTimer) Reset(after time.Duration) {
+	t.StopAndDrain()
+	t.timer.Reset(after)
+}
+
+func (t *realRenameTimer) StopAndDrain() {
+	if !t.timer.Stop() {
+		select {
+		case <-t.timer.C:
+		default:
 		}
 	}
 }
 
-func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, rt Runtime, stdin io.Reader, stdout io.Writer) bool {
+type stdinResult struct {
+	data []byte
+	err  error
+}
+
+type renameSession struct {
+	tabID   int
+	editor  RenameEditor
+	decoder RenameDecoderState
+}
+
+func pumpStdin(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Writer) {
+	pumpStdinWithTimer(stdin, mux, rt, stdout, newRealRenameTimer())
+}
+
+func pumpStdinWithTimer(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Writer, timer RenameTimer) {
+	results := make(chan stdinResult, 1)
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := stdin.Read(buf)
+			result := stdinResult{err: err}
+			if n > 0 {
+				result.data = append([]byte(nil), buf[:n]...)
+			}
+			results <- result
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	var held []byte
+	var rename *renameSession
+
+	applyRename := func(data []byte, flushEscape, eof bool) {
+		if rename == nil {
+			return
+		}
+		var events []RenameEvent
+		var exited bool
+		rename.decoder, events, exited = DecodeRenameInput(rename.decoder, data, flushEscape, eof)
+		for _, event := range events {
+			if event.Kind == RenameConsume {
+				continue
+			}
+			var outcome RenameOutcome
+			rename.editor, outcome = rename.editor.Apply(event)
+			if outcome.Kind != RenameOutcomeNone {
+				if err := mux.finishRename(rename.tabID, outcome); err != nil {
+					rt.ReportShortcutError(err)
+				}
+				timer.StopAndDrain()
+				rename = nil
+				return
+			}
+			if err := mux.refreshRename(rename.tabID, rename.editor); err != nil {
+				rt.ReportShortcutError(err)
+			}
+		}
+		if exited {
+			timer.StopAndDrain()
+			rename = nil
+			return
+		}
+		if len(rename.decoder.Pending) == 1 && rename.decoder.Pending[0] == 0x1b {
+			timer.Reset(50 * time.Millisecond)
+		} else {
+			timer.StopAndDrain()
+		}
+	}
+
+	for {
+		select {
+		case <-timer.C():
+			applyRename(nil, true, false)
+		case result := <-results:
+			if len(result.data) > 0 {
+				if rename != nil {
+					applyRename(result.data, false, false)
+					if result.err != nil {
+						if rename != nil {
+							applyRename(nil, false, true)
+						}
+						return
+					}
+					continue
+				}
+				data := append(held, result.data...)
+				held = nil
+				for len(data) > 0 {
+					chordBefore, chord, _, chordRest, chordOK := workbenchshortcut.FindChord(data)
+					mouseBefore, event, rawMouse, mouseRest, mouseOK := findSGRMousePress(data)
+					if chordOK && (!mouseOK || len(chordBefore) <= len(mouseBefore)) {
+						if len(chordBefore) > 0 {
+							mux.writeActive(chordBefore)
+						}
+						if chord == workbenchshortcut.ChordAltR {
+							tabID, editor, err := mux.beginRename()
+							if err != nil {
+								rt.ReportShortcutError(err)
+								data = nil
+								continue
+							}
+							rename = &renameSession{tabID: tabID, editor: editor}
+							applyRename(chordRest, false, false)
+							data = nil
+							continue
+						}
+						if !handleTerminalChord(chord, mux, rt) {
+							if err := handleChord(chord, rt, stdin, stdout); err != nil {
+								rt.ReportShortcutError(err)
+							}
+						}
+						data = chordRest
+						continue
+					}
+					if mouseOK {
+						if len(mouseBefore) > 0 {
+							mux.writeActive(mouseBefore)
+						}
+						switch event.button {
+						case 64:
+							if mux.appMouseMode() {
+								mux.writeActive(rawMouse)
+							} else {
+								_ = rt.RunZellijAction("scroll-up")
+							}
+						case 65:
+							if mux.appMouseMode() {
+								mux.writeActive(rawMouse)
+							} else {
+								_ = rt.RunZellijAction("scroll-down")
+							}
+						default:
+							mux.writeActive(rawMouse)
+						}
+						data = mouseRest
+						continue
+					}
+					if workbenchshortcut.IsChordPrefix(data) || isSGRMousePrefix(data) {
+						held = append(held, data...)
+						break
+					}
+					mux.writeActive(data)
+					data = nil
+				}
+			}
+			if result.err != nil {
+				if rename != nil {
+					applyRename(nil, false, true)
+				} else if len(held) > 0 {
+					mux.writeActive(held)
+				}
+				return
+			}
+		}
+	}
+}
+
+func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, rt Runtime) bool {
 	switch chord {
 	case workbenchshortcut.ChordAltT:
 		_ = mux.newTab()
@@ -307,16 +475,16 @@ func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, rt Runtim
 	case workbenchshortcut.ChordAltW:
 		mux.closeActive()
 		return true
-	case workbenchshortcut.ChordAltR:
-		if name := readRawPrompt(stdin, stdout, "tab name: "); strings.TrimSpace(name) != "" {
-			mux.renameActive(strings.TrimSpace(name))
-		}
-		return true
 	case workbenchshortcut.ChordAltLeft:
 		mux.previousTab()
 		return true
 	case workbenchshortcut.ChordAltRight:
 		mux.nextTab()
+		return true
+	case workbenchshortcut.ChordAltShiftD:
+		if err := splitTerminalDown(rt); err != nil {
+			rt.ReportShortcutError(err)
+		}
 		return true
 	case workbenchshortcut.ChordAltShiftEnter:
 		_ = layoutcmd.RunToggleFocused(nil, rt, io.Discard)
@@ -324,6 +492,63 @@ func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, rt Runtim
 	default:
 		return false
 	}
+}
+
+func splitTerminalDown(rt Runtime) error {
+	if _, ok, err := currentRightTerminalPane(rt); err != nil {
+		return err
+	} else if !ok {
+		return fmt.Errorf("right terminal pane not found")
+	}
+	// Native tiled split: the invoking terminal holds the client focus (the
+	// chord arrived on its stdin, which only happens when this pane is
+	// focused), so `--direction down` splits this pane. Deliberately NO
+	// --near-current-pane: live smoke showed it makes zellij 0.44.3 create
+	// the pane invisibly (process spawned, pane absent from the layout).
+	// Quiet because new-pane prints the created pane id to stdout.
+	return rt.RunZellijActionQuiet(
+		"new-pane",
+		"--direction", "down",
+		"--name", "terminal",
+		"--",
+		"sh",
+		"-c",
+		rightTerminalPaneShell,
+	)
+}
+
+func currentRightTerminalPane(rt Runtime) (zellijpane.Pane, bool, error) {
+	data, err := rt.ListPanesJSON()
+	if err != nil {
+		return zellijpane.Pane{}, false, err
+	}
+	panes := zellijpane.Parse(data)
+	terminalIDs, err := rt.TerminalPaneIDs()
+	if err != nil {
+		terminalIDs = nil
+	}
+	isTerminal := func(pane zellijpane.Pane) bool {
+		return workbenchshortcut.RoleForPaneWith(pane, terminalIDs) == workbenchshortcut.PaneRoleRightTerminal
+	}
+	currentID := rt.CurrentPaneID()
+	if currentID != "" {
+		for _, pane := range panes {
+			if pane.ID == currentID && isTerminal(pane) {
+				return pane, true, nil
+			}
+		}
+	}
+	for _, pane := range panes {
+		if pane.IsFocused && isTerminal(pane) {
+			return pane, true, nil
+		}
+	}
+	for _, pane := range panes {
+		if isTerminal(pane) {
+			return pane, true, nil
+		}
+	}
+	return zellijpane.Pane{}, false, nil
 }
 
 type mousePressEvent struct {
@@ -377,36 +602,6 @@ func isSGRMousePrefix(data []byte) bool {
 		(bytes.HasPrefix(data, []byte("\x1b[<")) && bytes.IndexByte(data, 'M') < 0)
 }
 
-func readRawPrompt(stdin io.Reader, stdout io.Writer, prompt string) string {
-	_, _ = io.WriteString(stdout, "\r\n"+prompt)
-	var b strings.Builder
-	buf := make([]byte, 1)
-	for {
-		n, err := stdin.Read(buf)
-		if n > 0 {
-			c := buf[0]
-			switch c {
-			case '\r', '\n':
-				_, _ = io.WriteString(stdout, "\r\n")
-				return b.String()
-			case 0x7f, '\b':
-				s := b.String()
-				if len(s) > 0 {
-					b.Reset()
-					b.WriteString(s[:len(s)-1])
-					_, _ = io.WriteString(stdout, "\b \b")
-				}
-			default:
-				b.WriteByte(c)
-				_, _ = stdout.Write(buf[:1])
-			}
-		}
-		if err != nil {
-			return b.String()
-		}
-	}
-}
-
 type OSRuntime struct{}
 
 type terminalTab struct {
@@ -431,6 +626,7 @@ type terminalMux struct {
 	stdout    io.Writer
 	stderr    io.Writer
 	rt        Runtime
+	paneID    string
 	tabs      []*terminalTab
 	active    int
 	nextID    int
@@ -438,6 +634,12 @@ type terminalMux struct {
 	done      chan struct{}
 	rows      uint16
 	cols      uint16
+	rename    *activeRename
+}
+
+type activeRename struct {
+	tabID  int
+	editor RenameEditor
 }
 
 func newTerminalMux(shellName string, shellArgs []string, stdout, stderr io.Writer, rt Runtime) *terminalMux {
@@ -447,6 +649,7 @@ func newTerminalMux(shellName string, shellArgs []string, stdout, stderr io.Writ
 		stdout:    stdout,
 		stderr:    stderr,
 		rt:        rt,
+		paneID:    os.Getenv("ZELLIJ_PANE_ID"),
 		active:    -1,
 		output:    make(chan ptyChunk, 64),
 		done:      make(chan struct{}),
@@ -474,6 +677,7 @@ func (m *terminalMux) newTab() error {
 	m.active = len(m.tabs) - 1
 	m.mu.Unlock()
 	m.renamePane()
+	m.redrawTab(tab)
 
 	go m.readPTY(tab)
 	return nil
@@ -586,13 +790,54 @@ func (m *terminalMux) closeActive() {
 	_ = tab.cmd.Process.Kill()
 }
 
-func (m *terminalMux) renameActive(name string) {
+func (m *terminalMux) beginRename() (int, RenameEditor, error) {
 	m.mu.Lock()
-	if tab := m.activeTabLocked(); tab != nil {
-		tab.name = name
+	tab := m.activeTabLocked()
+	if tab == nil {
+		m.mu.Unlock()
+		return 0, RenameEditor{}, fmt.Errorf("rename terminal tab: no active tab")
 	}
+	editor := NewRenameEditor(tab.name)
+	tabID := tab.id
+	m.rename = &activeRename{tabID: tabID, editor: editor}
+	title := m.renamePaneTitleLocked(tabID, editor)
 	m.mu.Unlock()
-	m.renamePane()
+	if err := m.setPaneTitle(title); err != nil {
+		m.mu.Lock()
+		if m.rename != nil && m.rename.tabID == tabID {
+			m.rename = nil
+		}
+		m.mu.Unlock()
+		return 0, RenameEditor{}, fmt.Errorf("start terminal tab rename: %w", err)
+	}
+	return tabID, editor, nil
+}
+
+func (m *terminalMux) refreshRename(tabID int, editor RenameEditor) error {
+	m.mu.Lock()
+	m.rename = &activeRename{tabID: tabID, editor: editor}
+	title := m.renamePaneTitleLocked(tabID, editor)
+	m.mu.Unlock()
+	if err := m.setPaneTitle(title); err != nil {
+		return fmt.Errorf("refresh terminal tab rename: %w", err)
+	}
+	return nil
+}
+
+func (m *terminalMux) finishRename(tabID int, outcome RenameOutcome) error {
+	m.mu.Lock()
+	if outcome.Kind == RenameOutcomeCommit {
+		if tab := m.tabByIDLocked(tabID); tab != nil {
+			tab.name = outcome.Name
+		}
+	}
+	m.rename = nil
+	title := m.paneTitleLocked()
+	m.mu.Unlock()
+	if err := m.setPaneTitle(title); err != nil {
+		return fmt.Errorf("finish terminal tab rename: %w", err)
+	}
+	return nil
 }
 
 func (m *terminalMux) previousTab() {
@@ -629,6 +874,8 @@ func (m *terminalMux) removeTab(id int) {
 	var active *terminalTab
 	empty := false
 	activeID := 0
+	title := ""
+	preserveRename := false
 	if tab := m.activeTabLocked(); tab != nil {
 		activeID = tab.id
 	}
@@ -654,6 +901,12 @@ func (m *terminalMux) removeTab(id int) {
 			}
 		}
 		active = m.activeTabLocked()
+		if m.rename != nil {
+			title = m.renamePaneTitleLocked(m.rename.tabID, m.rename.editor)
+			preserveRename = true
+		} else {
+			title = m.paneTitleLocked()
+		}
 		break
 	}
 	m.mu.Unlock()
@@ -666,8 +919,10 @@ func (m *terminalMux) removeTab(id int) {
 		close(m.done)
 		return
 	}
-	m.renamePane()
-	m.redrawTab(active)
+	_ = m.setPaneTitle(title)
+	if !preserveRename {
+		m.redrawTab(active)
+	}
 }
 
 func (m *terminalMux) activeTabLocked() *terminalTab {
@@ -675,6 +930,15 @@ func (m *terminalMux) activeTabLocked() *terminalTab {
 		return nil
 	}
 	return m.tabs[m.active]
+}
+
+func (m *terminalMux) tabByIDLocked(id int) *terminalTab {
+	for _, tab := range m.tabs {
+		if tab.id == id {
+			return tab
+		}
+	}
+	return nil
 }
 
 func (m *terminalMux) inheritSize(stdinFile *os.File) {
@@ -742,7 +1006,14 @@ func (m *terminalMux) renamePane() {
 	if title == "" {
 		return
 	}
-	_ = m.rt.RunZellijAction("rename-pane", title)
+	_ = m.setPaneTitle(title)
+}
+
+func (m *terminalMux) setPaneTitle(title string) error {
+	if m.paneID != "" {
+		return m.rt.RunZellijAction("rename-pane", "--pane-id", m.paneID, title)
+	}
+	return m.rt.RunZellijAction("rename-pane", title)
 }
 
 func (m *terminalMux) paneTitleLocked() string {
@@ -756,6 +1027,35 @@ func (m *terminalMux) paneTitleLocked() string {
 		} else {
 			parts = append(parts, tab.name)
 		}
+	}
+	return strings.Join(parts, " ")
+}
+
+func (m *terminalMux) renamePaneTitleLocked(tabID int, editor RenameEditor) string {
+	if len(m.tabs) == 0 {
+		return ""
+	}
+	text := []rune(editor.Text())
+	cursor := editor.Cursor()
+	if cursor < 0 {
+		cursor = 0
+	}
+	if cursor > len(text) {
+		cursor = len(text)
+	}
+	field := string(text[:cursor]) + "│" + string(text[cursor:])
+	parts := make([]string, 0, len(m.tabs))
+	found := false
+	for _, tab := range m.tabs {
+		if tab.id == tabID {
+			found = true
+			parts = append(parts, "[rename: "+field+"]")
+		} else {
+			parts = append(parts, tab.name)
+		}
+	}
+	if !found {
+		parts = append(parts, "[rename: "+field+"]")
 	}
 	return strings.Join(parts, " ")
 }
@@ -780,29 +1080,62 @@ func (OSRuntime) CachedDraftPaneID() (string, bool) {
 	return draftroute.CachedDraftPaneIDFromEnv()
 }
 
+func (OSRuntime) CurrentPaneID() string {
+	return os.Getenv("ZELLIJ_PANE_ID")
+}
+
 func (OSRuntime) LastLeftPaneID() (string, error) {
-	store := workbenchshortcut.LastLeftPaneStore{DataDir: pairDataDir(), Tag: os.Getenv("PAIR_TAG")}
+	store := workbenchshortcut.LastLeftPaneStore{DataDir: workbenchshortcut.DataDirFromEnv(), Tag: os.Getenv("PAIR_TAG")}
 	return store.Read()
 }
 
 func (OSRuntime) RecordLastLeftPaneID(id string) error {
-	store := workbenchshortcut.LastLeftPaneStore{DataDir: pairDataDir(), Tag: os.Getenv("PAIR_TAG")}
+	store := workbenchshortcut.LastLeftPaneStore{DataDir: workbenchshortcut.DataDirFromEnv(), Tag: os.Getenv("PAIR_TAG")}
+	return store.Write(id)
+}
+
+func (OSRuntime) LastTerminalPaneID() (string, error) {
+	store := workbenchshortcut.LastTerminalPaneStore{DataDir: workbenchshortcut.DataDirFromEnv(), Tag: os.Getenv("PAIR_TAG")}
+	return store.Read()
+}
+
+func (OSRuntime) TerminalPaneIDs() ([]string, error) {
+	reg := workbenchshortcut.TerminalPaneRegistry{DataDir: workbenchshortcut.DataDirFromEnv(), Tag: os.Getenv("PAIR_TAG")}
+	return reg.LiveIDs(func(pid int) bool { return procutil.Alive(fmt.Sprintf("%d", pid)) })
+}
+
+func (OSRuntime) RegisterTerminalPane() error {
+	paneID := os.Getenv("ZELLIJ_PANE_ID")
+	if paneID == "" {
+		return nil
+	}
+	reg := workbenchshortcut.TerminalPaneRegistry{DataDir: workbenchshortcut.DataDirFromEnv(), Tag: os.Getenv("PAIR_TAG")}
+	return reg.Register(paneID, os.Getpid())
+}
+
+func (OSRuntime) RecordLastTerminalPaneID(id string) error {
+	store := workbenchshortcut.LastTerminalPaneStore{DataDir: workbenchshortcut.DataDirFromEnv(), Tag: os.Getenv("PAIR_TAG")}
 	return store.Write(id)
 }
 
 func (OSRuntime) RunZellijAction(args ...string) error {
 	cmdArgs := append([]string{"action"}, args...)
-	return runZellij(cmdArgs...)
+	return runZellij(cmdArgs, os.Stdout)
+}
+
+func (OSRuntime) RunZellijActionQuiet(args ...string) error {
+	cmdArgs := append([]string{"action"}, args...)
+	return runZellij(cmdArgs, io.Discard)
 }
 
 func (OSRuntime) ReportShortcutError(err error) {
 	fmt.Fprintf(os.Stderr, "pair term: global shortcut: %v\n", err)
 }
 
-func runZellij(args ...string) error {
+func runZellij(args []string, stdout io.Writer) error {
 	cmd := exec.Command("zellij", args...)
 	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
+	cmd.Stdout = stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
@@ -815,15 +1148,3 @@ func (OSRuntime) ShellCommand() (string, []string) {
 	return shell, []string{"-i"}
 }
 
-func pairDataDir() string {
-	if v := os.Getenv("PAIR_DATA_DIR"); v != "" {
-		return v
-	}
-	if v := os.Getenv("XDG_DATA_HOME"); v != "" {
-		return v + "/pair"
-	}
-	if v := os.Getenv("HOME"); v != "" {
-		return v + "/.local/share/pair"
-	}
-	return "."
-}

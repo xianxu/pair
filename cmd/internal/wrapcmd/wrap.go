@@ -61,6 +61,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/adapt"
 	"github.com/xianxu/pair/cmd/internal/draftroute"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/layoutcmd"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
@@ -1471,7 +1472,11 @@ func (p *proxy) executeWorkbenchDecision(decision workbenchshortcut.ShortcutDeci
 	case workbenchshortcut.ActionFocusRightTerminal:
 		store := workbenchshortcut.LastLeftPaneStore{DataDir: adapt.DataDir(), Tag: os.Getenv("PAIR_TAG")}
 		_ = store.Write(decision.RecordLastLeftPaneID)
-		_ = runZellijAction("move-focus", "right")
+		// Focus by pane id, not `move-focus right` — the id-based jump
+		// targets a specific split half (preferring the recorded last-used
+		// one) and is immune to whatever pane sits in between; the rule that
+		// fixed the #123 focus lockout.
+		_ = layoutcmd.FocusRightTerminal(layoutcmd.OSRuntime{})
 		return true
 	case workbenchshortcut.ActionOpenScrollback:
 		_ = exec.Command("zellij", "run",

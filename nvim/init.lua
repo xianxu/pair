@@ -3613,7 +3613,11 @@ end
 function _G.PairFocusTerminal()
   _G.PairRecordLeftPane()
   if has_ui() then
-    vim.fn.system({ 'zellij', 'action', 'move-focus', 'right' })
+    -- Focus by pane id (`pair layout focus-terminal`), not `move-focus
+    -- right`: the id-based jump targets a specific split half (preferring
+    -- the recorded last-used one) and is immune to whatever pane sits in
+    -- between — the rule that fixed the #123 focus lockout.
+    vim.fn.system({ 'pair', 'layout', 'focus-terminal' })
   end
 end
 

@@ -22,6 +22,7 @@ type Pane struct {
 	IsPlugin        bool
 	IsFloating      bool
 	X               int
+	Y               int
 	Columns         int
 	Rows            int
 }
@@ -91,6 +92,7 @@ func paneFrom(m map[string]interface{}) (Pane, bool) {
 		IsPlugin:        plugin,
 		IsFloating:      floating,
 		X:               intNumber(m["pane_x"]),
+		Y:               intNumber(m["pane_y"]),
 		Columns:         intNumber(m["pane_columns"]),
 		Rows:            intNumber(m["pane_rows"]),
 	}, true

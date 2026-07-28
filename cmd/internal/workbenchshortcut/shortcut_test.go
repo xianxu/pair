@@ -99,6 +99,12 @@ func TestShortcutDecision(t *testing.T) {
 			want:  ShortcutDecision{Disposition: DispositionHandle, Action: ActionRenameTab},
 		},
 		{
+			name:  "right terminal split down",
+			role:  PaneRoleRightTerminal,
+			chord: ChordAltShiftD,
+			want:  ShortcutDecision{Disposition: DispositionHandle, Action: ActionSplitTerminalDown},
+		},
+		{
 			name:  "right terminal alt x handles quit outside shell",
 			role:  PaneRoleRightTerminal,
 			chord: ChordAltX,
@@ -122,19 +128,31 @@ func TestShortcutDecision(t *testing.T) {
 			want:  ShortcutDecision{Disposition: DispositionHandle, Action: ActionToggleFocusedLayout},
 		},
 		{
-			name:     "right terminal alt k returns to last left pane",
+			name:     "right terminal alt k returns to last left pane and records the leaving half",
 			role:     PaneRoleRightTerminal,
 			chord:    ChordAltK,
 			lastLeft: "1",
 			draft:    "2",
-			want:     ShortcutDecision{Disposition: DispositionHandle, Action: ActionFocusPane, TargetPaneID: "1"},
+			focused:  "4",
+			want: ShortcutDecision{
+				Disposition:              DispositionHandle,
+				Action:                   ActionFocusPane,
+				TargetPaneID:             "1",
+				RecordLastTerminalPaneID: "4",
+			},
 		},
 		{
-			name:  "right terminal alt k falls back to draft",
-			role:  PaneRoleRightTerminal,
-			chord: ChordAltK,
-			draft: "2",
-			want:  ShortcutDecision{Disposition: DispositionHandle, Action: ActionFocusPane, TargetPaneID: "2"},
+			name:    "right terminal alt k falls back to draft",
+			role:    PaneRoleRightTerminal,
+			chord:   ChordAltK,
+			draft:   "2",
+			focused: "4",
+			want: ShortcutDecision{
+				Disposition:              DispositionHandle,
+				Action:                   ActionFocusPane,
+				TargetPaneID:             "2",
+				RecordLastTerminalPaneID: "4",
+			},
 		},
 		{
 			name:    "left agent alt k records focused pane then focuses terminal",
@@ -209,6 +227,7 @@ func TestDecodeChord(t *testing.T) {
 		{name: "legacy alt shift c", in: []byte("\x1bC"), want: ChordAltShiftC, ok: true},
 		{name: "kkp alt t", in: []byte("\x1b[116;3u"), want: ChordAltT, ok: true},
 		{name: "kkp alt x", in: []byte("\x1b[120;3u"), want: ChordAltX, ok: true},
+		{name: "kkp alt shift d", in: []byte("\x1b[68;4u"), want: ChordAltShiftD, ok: true},
 		{name: "kkp ctrl alt c", in: []byte("\x1b[99;7u"), want: ChordCtrlAltC, ok: true},
 		{name: "kkp alt shift enter", in: []byte("\x1b[13;4u"), want: ChordAltShiftEnter, ok: true},
 		{name: "ordinary text", in: []byte("t"), ok: false},
@@ -345,5 +364,65 @@ func TestLastLeftPaneStore(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "last-left-pane-pair")); err != nil {
 		t.Fatalf("expected written sidecar: %v", err)
+	}
+}
+
+func TestLastTerminalPaneStoreIsDistinctFromLastLeft(t *testing.T) {
+	dir := t.TempDir()
+	store := LastTerminalPaneStore{DataDir: dir, Tag: "pair"}
+	if got := store.Path(); got != filepath.Join(dir, "last-terminal-pane-pair") {
+		t.Fatalf("Path() = %q", got)
+	}
+	if err := store.Write("7"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := store.Read(); err != nil || got != "7" {
+		t.Fatalf("Read() = (%q, %v), want 7 nil", got, err)
+	}
+	left := LastLeftPaneStore{DataDir: dir, Tag: "pair"}
+	if got, err := left.Read(); err != nil || got != "" {
+		t.Fatalf("left store polluted: (%q, %v)", got, err)
+	}
+}
+
+func TestTerminalPaneRegistry(t *testing.T) {
+	dir := t.TempDir()
+	reg := TerminalPaneRegistry{DataDir: dir, Tag: "pair"}
+	if err := reg.Register("4", 100); err != nil {
+		t.Fatal(err)
+	}
+	if err := reg.Register("7", 200); err != nil {
+		t.Fatal(err)
+	}
+	alive := func(pid int) bool { return pid == 100 }
+	ids, err := reg.LiveIDs(alive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 1 || ids[0] != "4" {
+		t.Fatalf("LiveIDs = %v, want [4] (dead pids filtered)", ids)
+	}
+	empty := TerminalPaneRegistry{DataDir: dir, Tag: "other"}
+	if ids, err := empty.LiveIDs(alive); err != nil || len(ids) != 0 {
+		t.Fatalf("missing registry = (%v, %v), want empty nil", ids, err)
+	}
+}
+
+func TestRoleForPaneWithRegisteredTerminals(t *testing.T) {
+	// zellij 0.44.3 reports terminal_command=null for panes created via
+	// `action new-pane --direction`, and the #118 tab-strip title
+	// ("[terminal 1]") defeats the title fallback — the registry is the
+	// authoritative signal for pair-owned terminal panes.
+	split := zellijpane.Pane{ID: "4", IsFocused: true, Title: "[terminal 1]"}
+	if got := RoleForPane(split); got != PaneRoleOther {
+		t.Fatalf("RoleForPane = %v, want Other without registry", got)
+	}
+	if got := RoleForPaneWith(split, []string{"4"}); got != PaneRoleRightTerminal {
+		t.Fatalf("RoleForPaneWith = %v, want RightTerminal via registry", got)
+	}
+	review := zellijpane.Pane{ID: "9", IsFocused: true, Title: "review",
+		TerminalCommand: "nvim -u /pair/nvim/review.lua /tmp/review.md"}
+	if got := RoleForPaneWith(review, []string{"4"}); got != PaneRoleOther {
+		t.Fatalf("RoleForPaneWith(review) = %v, want Other", got)
 	}
 }

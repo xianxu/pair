@@ -1,5 +1,100 @@
 # Lessons
 
+## Zellij's pane report cannot identify action-created panes
+
+The tiled split (`action new-pane --direction down`) creates panes for which
+zellij 0.44.3 reports `terminal_command: null`, and pane titles are pair-owned
+mutable UI (#118 tab strips, user-renamable). Classifying workbench panes from
+the zellij report alone therefore silently fails for exactly the panes pair
+creates at runtime — live smoke showed split halves invisible to chord routing
+and to the focus picker.
+
+**Rule.** Pair-owned pane identity comes from self-registration (the process
+writes its own `$ZELLIJ_PANE_ID` + pid to a sidecar; readers filter by pid
+liveness), never from report heuristics. When adding a new pair-owned pane
+kind, register it and overlay the registry onto `RoleForPane`
+(`RoleForPaneWith`). Zellij `is_focused` is per-client and stale for
+unfocused-side panes — a pair-authored record outranks it. Caught in #123
+tiled-pivot smoke.
+
+## Drive zellij live smokes through a real attached client
+
+CLI actions (`zellij --session X action write|focus-pane-id|new-pane`) run as
+ephemeral clients: their focus state diverges from the attached client, writes
+land on stale focus, splits target the wrong pane, and `--near-current-pane`
+creates invisible orphan panes. Results look like product bugs but are harness
+artifacts.
+
+**Rule.** Smoke zellij interactively via a PTY-attached client (expect spawn +
+fifo-fed keystrokes) sending the real byte encodings (`\x1bk`, `\x1bD`, SGR
+mouse). Use CLI `list-panes` only for observation. Restart the session after
+every rebuild — resident pair processes do not pick up new binaries. Caught in
+#123 tiled-pivot smoke.
+
+## Zellij forwarded bytes must preserve every focused surface using the chord
+
+`Alt+Shift+d` was added as a right-terminal split shortcut by rebinding Zellij
+to forward the KKP sequence `ESC[68;4u`. The terminal wrapper understood that
+sequence, but the review pane already used the same physical chord as `<M-D>` for
+visual definitions, and Neovim did not treat the forwarded KKP bytes as `<M-D>`.
+
+**Rule.** When changing a Zellij binding for a physical chord, inventory every
+focused surface that already uses that chord and test the exact forwarded bytes
+against each consumer. For Neovim surfaces, add a map for the raw forwarded byte
+sequence when KKP does not resolve to the existing `<M-...>` mapping. Caught in
+#000123 close review.
+
+## Activating an empty terminal tab must still redraw
+
+`Alt+t` created a new terminal tab and made it active, but `newTab` only updated
+the pane title and waited for async child PTY output. The old tab's viewport
+stayed visible until the new shell wrote over part of it, leaving confusing
+residue in the newly selected tab.
+
+**Rule.** Any terminal-tab activation path must redraw the selected tab
+immediately, even when its buffer is empty. The clear-screen prefix is the
+observable behavior; child output arriving later is not a substitute for the
+activation redraw. Add a regression that creates a fresh tab and asserts stdout
+starts with the redraw clear sequence. Caught after #000118 close.
+
+## Async terminal modes must keep target identity
+
+Terminal tab rename originally looked up `activeTabLocked()` again at commit
+time. If the tab being renamed exited while rename mode was open, `removeTab`
+could promote another tab to active and Enter would rename that replacement tab.
+
+**Rule.** When an async mode starts against a terminal tab, capture the tab's
+stable ID at mode entry and pass that ID through every refresh/finish path.
+Never re-resolve by "current active" after an async boundary. Add a regression
+where the target tab exits mid-mode and the replacement active tab keeps its
+original name. Caught in #000118 re-close review.
+
+## Zellij pane self-mutations must pass `--pane-id`
+
+Terminal tab rename originally called `zellij action rename-pane <title>` from
+inside `pair term`, relying on Zellij's focused pane. Live layout-3 smoke showed
+the floating terminal and draft pane can both appear focused in `list-panes`, and
+the implicit rename targeted the draft pane instead of the terminal pane.
+
+**Rule.** Any process running inside a Zellij pane that mutates its own pane
+state must pass `--pane-id "$ZELLIJ_PANE_ID"` when the action supports it
+(`rename-pane`, geometry, close/focus variants, etc.). Add a fake-runtime test
+asserting the exact `--pane-id` action shape, then run a live smoke for focus
+ambiguity when floating panes are involved. Caught in #000118 close review.
+
+## Unknown escape terminators are part of the escape sequence
+
+Rename-mode input first treated some unknown CSI sequences as malformed prefixes
+and preserved their final byte for reprocessing. `ESC[1;5D` then consumed the
+escape prefix but inserted `D` into the tab name, violating the "unknown
+controls are consumed" contract.
+
+**Rule.** When consuming an unknown terminal control sequence, consume through
+the protocol terminator (`A`-`Z`, `a`-`z`, `~`, etc.) and reprocess only bytes
+after that terminator. Add regression cases with known-looking but unsupported
+controls such as `ESC[1;5D`; recognized-control tests alone do not prove the
+malformed/unknown path. Caught in #000118 close review.
+
 ## Global keymaps need post-setup buffer-local shadow tests
 
 Pair installed shared workbench-global mappings before scrollback buffer setup,
@@ -906,3 +1001,57 @@ display key. Readers may support old one-field files as legacy, but new writes
 must include the canonical id and liveness probes must use it. Add a regression
 where the display key and runtime id deliberately differ. Caught in #107 close
 review.
+
+## Async lifecycle paths must respect active modal ownership
+
+#118's terminal rename mode correctly consumed stdin bytes in the frame-title
+editor, but PTY-exit cleanup still called the ordinary title redraw and active
+viewport redraw path. A background tab exit could erase the rename title while
+stdin stayed in rename mode.
+
+**Rule.** When adding a modal interaction, audit async lifecycle callbacks
+separately from the direct input path. The mode owner needs enough shared state
+for cleanup/repaint code to preserve the mode's visible surface, and tests
+should trigger the lifecycle event while the mode is active.
+
+## Escape decoders must distinguish prefixes from unknown complete controls
+
+#118's rename decoder treated every `ESC[<...` byte string without `M`/`m` as an
+incomplete SGR mouse report. A malformed complete sequence such as
+`ESC[<0;12;4X` could then stay pending and swallow later input.
+
+**Rule.** For terminal escape parsing, buffer only when the byte string is still
+a real prefix with no final byte. Once a CSI/SS3 final byte arrives, unsupported
+or malformed controls must be consumed as complete input. Add split-boundary
+tests where the final byte arrives in a later read. Use the same final-byte
+predicate for both "is this sequence complete?" and "how much malformed input
+should be consumed?" so a control like `ESC[@z` cannot swallow the following
+printable `z`.
+
+## Never disable an input layer without auditing the escape hatches it provides
+
+#123 set `mouse_mode false` to stop mouse drags from moving workbench panes.
+That single global switch also removed click-to-focus — which turned a latent
+keyboard trap (left→right `move-focus right` landing on the invisible
+terminal-filler pane, which swallows all keys) into a total focus lockout,
+and silently killed copy-on-select and scroll.
+
+**Rule.** Before disabling a whole input modality (mouse, a keyboard protocol,
+a bind table), enumerate what recovery paths and features ride on it; prefer
+the narrowest mechanism that fixes the reported problem. And test focus
+navigation as full round trips from *every* pane, driven through the real
+input path (`zellij action write` into the pane), not only via `--test-shortcut`
+harness calls — the trap here lived in the pane the chord *lands on*, not the
+pane that handles it.
+
+## Pane navigation must be id-based, not relative
+
+The draft/agent → terminal jump used `zellij action move-focus right`, which
+addresses the tiled layer only and cannot reach a floating pane; it focused the
+filler behind the terminal. tests/review-poke-test.sh already encoded this rule
+for the review pane ("no relative move-focus (must be id-based)").
+
+**Rule.** Any cross-pane focus change in the workbench goes through pane-id
+addressing (`focus-pane-id`, now via `pair layout focus-terminal` for the right
+terminal). Relative `move-focus` is acceptable only within the tiled left stack
+(agent ↕ draft) where no floating layer is involved.

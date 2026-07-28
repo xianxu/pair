@@ -15,6 +15,14 @@
 // outer TTY, so outer wrappers (e.g. cmux) see attention markers despite
 // zellij's escape filtering. #000011
 //
+// The right terminal is a TILED pane (#123). It was floating for most of its
+// life; zellij 0.44.3 lets any floating pane be dragged off position by its
+// frame with no config gate, so the terminal moved into the tiled tree —
+// tiled panes have no mouse-move operation at all, making the workbench
+// drag-immune while keeping frames (divider, tab title, scroll indicator)
+// and full mouse support. This also removed the old invisible right-side
+// filler pane and its focus-trap.
+//
 // LAYOUT RUNGS — the left column's draft pane has three sizes: minimized
 // (1 row, statusline only) ↔ small (fixed 12 rows, initial) ↔ third (1/3).
 // Alt+Up / Alt+Down step the ladder via zellij's swap layouts (defined below).
@@ -68,22 +76,11 @@ layout {
                 args "-c" "DATA_DIR=\"${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}\" && mkdir -p \"$DATA_DIR\" && export PAIR_NVIM_PID_FILE=\"$DATA_DIR/nvim-pid-${PAIR_TAG:-${PAIR_AGENT:-claude}}-draft\" && exec nvim -u \"$PAIR_HOME/nvim/init.lua\" \"$DATA_DIR/draft-${PAIR_TAG:-${PAIR_AGENT:-claude}}.md\""
             }
         }
-        // Keep the tiled split tree at the visible left-stack width. The
-        // permanently floating terminal covers this inert right-side filler
-        // in both of its coordinate states, so the filler is never visible or
-        // part of Pair's focus navigation.
-        pane name="terminal-filler" borderless=true {
-            command "sh"
-            args "-c" "exec tail -f /dev/null"
-        }
-    }
-
-    // The user terminal stays floating for its entire lifetime. Normal width
-    // exactly covers the tiled filler; expanded width overlays the rightmost
-    // third of the left stack as well. Because the pane never embeds, changing
-    // its coordinates cannot alter the tiled split tree or recreate processes.
-    floating_panes {
-        pane name="terminal" x="50%" y="0%" width="50%" height="100%" pinned=true {
+        // The user terminal. Alt+Shift+d splits it into two stacked tiled
+        // terminals (see the *-split swap variants below); Alt+Shift+Enter
+        // re-tiles the column boundary between 50% and 2/3 width via
+        // `pair layout toggle-focused`.
+        pane name="terminal" {
             command "sh"
             args "-c" "zellij action rename-pane --pane-id \"$ZELLIJ_PANE_ID\" terminal 2>/dev/null; exec pair term"
         }
@@ -102,8 +99,11 @@ layout {
     // Alt+Up → prev-swap-layout (bigger rung), with a state-machine clamp
     // at each end so we never call past the rung extremes.
     //
-    // exact_panes=3 constrains each tiled swap layout to the agent, draft, and
-    // filler panes. The permanently floating terminal is outside this tree.
+    // Each rung has two variants: exact_panes=3 (agent, draft, terminal)
+    // and exact_panes=4 (right column split into two stacked terminals by
+    // Alt+Shift+d). zellij skips swap layouts whose constraint doesn't
+    // match the live pane count, so rung adjacency is preserved in both
+    // states.
     //
     // Leaf panes carry only structural attributes (name, size,
     // borderless) — no `command` block. zellij maps existing panes onto
@@ -122,7 +122,22 @@ layout {
                     pane name="agent"
                     pane size=1 name="draft" borderless=true
                 }
-                pane name="terminal-filler" borderless=true
+                pane name="terminal"
+            }
+        }
+    }
+
+    swap_tiled_layout name="minimized-split" {
+        tab exact_panes=4 {
+            pane split_direction="vertical" {
+                pane size="50%" split_direction="horizontal" {
+                    pane name="agent"
+                    pane size=1 name="draft" borderless=true
+                }
+                pane split_direction="horizontal" {
+                    pane name="terminal"
+                    pane name="terminal"
+                }
             }
         }
     }
@@ -134,7 +149,48 @@ layout {
                     pane name="agent"
                     pane size="33%" name="draft" borderless=true
                 }
-                pane name="terminal-filler" borderless=true
+                pane name="terminal"
+            }
+        }
+    }
+
+    swap_tiled_layout name="third-split" {
+        tab exact_panes=4 {
+            pane split_direction="vertical" {
+                pane size="50%" split_direction="horizontal" {
+                    pane name="agent"
+                    pane size="33%" name="draft" borderless=true
+                }
+                pane split_direction="horizontal" {
+                    pane name="terminal"
+                    pane name="terminal"
+                }
+            }
+        }
+    }
+
+    // With 4 panes the BASE layout (the implicit "small" rung) does not
+    // participate in the swap cycle — zellij only re-tiles onto swap
+    // layouts whose constraint matches — so "small" needs an explicit
+    // 4-pane variant or the ladder loses its middle rung after a split
+    // (observed live: next-swap cycled minimized-split ↔ third-split).
+    // Placed LAST deliberately: the 4-pane cycle order
+    // [minimized-split, third-split, small-split] reproduces exactly the
+    // next/prev transition semantics nvim's layout_step assumes for the
+    // 3-pane cycle [base(small), minimized, third] — small→next→minimized,
+    // small→prev→third, third→next→small, minimized→prev→small — so the
+    // lua rung state machine works unchanged in both pane counts.
+    swap_tiled_layout name="small-split" {
+        tab exact_panes=4 {
+            pane split_direction="vertical" {
+                pane size="50%" split_direction="horizontal" {
+                    pane name="agent"
+                    pane size=12 name="draft" borderless=true
+                }
+                pane split_direction="horizontal" {
+                    pane name="terminal"
+                    pane name="terminal"
+                }
             }
         }
     }

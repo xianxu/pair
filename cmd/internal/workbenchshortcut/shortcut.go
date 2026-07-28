@@ -5,10 +5,13 @@ package workbenchshortcut
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
+	"github.com/xianxu/pair/cmd/internal/adapt"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
 
@@ -31,6 +34,7 @@ const (
 	ChordAltW
 	ChordAltR
 	ChordAltD
+	ChordAltShiftD
 	ChordAltX
 	ChordAltN
 	ChordCtrlAltN
@@ -71,6 +75,7 @@ const (
 	ActionConfirmQuit
 	ActionRestartPair
 	ActionRestartAgent
+	ActionSplitTerminalDown
 	ActionGrowDraft
 	ActionShrinkDraft
 	ActionToggleReview
@@ -86,12 +91,13 @@ type ShortcutInput struct {
 }
 
 type ShortcutDecision struct {
-	Disposition          Disposition
-	Action               ShortcutAction
-	TargetPaneID         string
-	RecordLastLeftPaneID string
-	DraftLuaFunction     string
-	FocusDraft           bool
+	Disposition              Disposition
+	Action                   ShortcutAction
+	TargetPaneID             string
+	RecordLastLeftPaneID     string
+	RecordLastTerminalPaneID string
+	DraftLuaFunction         string
+	FocusDraft               bool
 }
 
 type GlobalBinding struct {
@@ -150,12 +156,23 @@ func Decide(in ShortcutInput) ShortcutDecision {
 			return handle(ActionCloseTab)
 		case ChordAltR:
 			return handle(ActionRenameTab)
+		case ChordAltShiftD:
+			return handle(ActionSplitTerminalDown)
 		case ChordAltK:
 			target := in.LastLeftPaneID
 			if target == "" {
 				target = in.DraftPaneID
 			}
-			return ShortcutDecision{Disposition: DispositionHandle, Action: ActionFocusPane, TargetPaneID: target}
+			// Record which split half the user is leaving: in the tiled tree
+			// no right terminal reports is_focused while focus sits in the
+			// left stack, so this file is the only memory the return jump
+			// (FocusRightTerminal) has of the last-used half.
+			return ShortcutDecision{
+				Disposition:              DispositionHandle,
+				Action:                   ActionFocusPane,
+				TargetPaneID:             target,
+				RecordLastTerminalPaneID: in.FocusedPaneID,
+			}
 		case ChordAltShiftEnter:
 			return handle(ActionToggleFocusedLayout)
 		case ChordAltJ, ChordAltSlash, ChordAltShiftC, ChordCtrlAltC:
@@ -228,6 +245,7 @@ var chordSequences = []struct {
 	{"\x1bw", ChordAltW}, {"\x1b[119;3u", ChordAltW},
 	{"\x1br", ChordAltR}, {"\x1b[114;3u", ChordAltR},
 	{"\x1b[100;3u", ChordAltD},
+	{"\x1bD", ChordAltShiftD}, {"\x1b[68;4u", ChordAltShiftD},
 	{"\x1bx", ChordAltX}, {"\x1b[120;3u", ChordAltX},
 	{"\x1b[110;3u", ChordAltN},
 	{"\x1b[110;7u", ChordCtrlAltN},
@@ -241,6 +259,14 @@ var chordSequences = []struct {
 	{"\x1b[1;3D", ChordAltLeft}, {"\x1b[1;9D", ChordAltLeft}, {"\x1b[3D", ChordAltLeft},
 	{"\x1b[1;3C", ChordAltRight}, {"\x1b[1;9C", ChordAltRight}, {"\x1b[3C", ChordAltRight},
 	{"\x1b[13;4u", ChordAltShiftEnter},
+}
+
+func ChordSequences() []string {
+	sequences := make([]string, 0, len(chordSequences))
+	for _, candidate := range chordSequences {
+		sequences = append(sequences, candidate.sequence)
+	}
+	return sequences
 }
 
 func DecodeChord(data []byte) (Chord, bool) {
@@ -287,6 +313,8 @@ func ChordName(chord Chord) string {
 		return "Alt+r"
 	case ChordAltD:
 		return "Alt+d"
+	case ChordAltShiftD:
+		return "Alt+Shift+d"
 	case ChordAltX:
 		return "Alt+x"
 	case ChordAltN:
@@ -336,21 +364,122 @@ func IsChordPrefix(data []byte) bool {
 	return false
 }
 
+// LastLeftPaneStore and LastTerminalPaneStore remember the pane the user last
+// left on each side of the workbench, so the opposite jump (Alt+k) can return
+// to it. Same file shape, distinct sidecars per tag.
 type LastLeftPaneStore struct {
 	DataDir string
 	Tag     string
 }
 
-func (s LastLeftPaneStore) Path() string {
-	tag := s.Tag
+func (s LastLeftPaneStore) Path() string              { return paneIDPath(s.DataDir, s.Tag, "last-left-pane-") }
+func (s LastLeftPaneStore) Read() (string, error)     { return readPaneID(s.Path()) }
+func (s LastLeftPaneStore) Write(paneID string) error { return writePaneID(s.Path(), paneID) }
+
+type LastTerminalPaneStore struct {
+	DataDir string
+	Tag     string
+}
+
+func (s LastTerminalPaneStore) Path() string {
+	return paneIDPath(s.DataDir, s.Tag, "last-terminal-pane-")
+}
+func (s LastTerminalPaneStore) Read() (string, error)     { return readPaneID(s.Path()) }
+func (s LastTerminalPaneStore) Write(paneID string) error { return writePaneID(s.Path(), paneID) }
+
+// TerminalPaneRegistry records which zellij pane ids host a live `pair term`
+// process. It exists because pane identity cannot be derived from zellij's
+// pane report alone: zellij 0.44.3 omits `terminal_command` for panes created
+// via `action new-pane --direction` (the Alt+Shift+d split), and the #118
+// tab-strip pane title ("[terminal 1]", tabs user-renamable) defeats any
+// title heuristic. Each `pair term` appends its pane id + pid at startup;
+// readers filter by process liveness, so stale entries self-expire.
+type TerminalPaneRegistry struct {
+	DataDir string
+	Tag     string
+}
+
+func (r TerminalPaneRegistry) Path() string {
+	return paneIDPath(r.DataDir, r.Tag, "terminal-panes-")
+}
+
+func (r TerminalPaneRegistry) Register(paneID string, pid int) error {
+	path := r.Path()
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = fmt.Fprintf(f, "%s %d\n", strings.TrimSpace(paneID), pid)
+	return err
+}
+
+// LiveIDs returns the pane ids whose registering process is still alive —
+// first live entry per id wins (file order; dead pids never block newer
+// entries for other ids). The sidecar is append-only with no compaction:
+// entries are one short line per pair-term start, so growth is negligible
+// and liveness filtering makes stale lines inert. Liveness is injected so
+// the filtering stays testable without real processes.
+func (r TerminalPaneRegistry) LiveIDs(alive func(pid int) bool) ([]string, error) {
+	data, err := os.ReadFile(r.Path())
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	seen := map[string]bool{}
+	for _, line := range strings.Split(string(data), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) != 2 || seen[fields[0]] {
+			continue
+		}
+		pid, err := strconv.Atoi(fields[1])
+		if err != nil || !alive(pid) {
+			continue
+		}
+		seen[fields[0]] = true
+		ids = append(ids, fields[0])
+	}
+	return ids, nil
+}
+
+// RoleForPaneWith is RoleForPane with the terminal-pane registry overlaid:
+// a pane whose id is registered as a live `pair term` is a right terminal
+// even when zellij's pane report carries no usable command or title.
+func RoleForPaneWith(p zellijpane.Pane, terminalPaneIDs []string) PaneRole {
+	role := RoleForPane(p)
+	if role != PaneRoleOther || p.IsPlugin || p.ID == "" {
+		return role
+	}
+	for _, id := range terminalPaneIDs {
+		if id == p.ID {
+			return PaneRoleRightTerminal
+		}
+	}
+	return role
+}
+
+// DataDirFromEnv resolves pair's data dir by delegating to the canonical
+// resolver (adapt.DataDir) — one source for the PAIR_DATA_DIR → XDG →
+// ~/.local/share/pair chain.
+func DataDirFromEnv() string {
+	return adapt.DataDir()
+}
+
+func paneIDPath(dataDir, tag, prefix string) string {
 	if tag == "" {
 		tag = "pair"
 	}
-	return filepath.Join(s.DataDir, "last-left-pane-"+tag)
+	return filepath.Join(dataDir, prefix+tag)
 }
 
-func (s LastLeftPaneStore) Read() (string, error) {
-	data, err := os.ReadFile(s.Path())
+func readPaneID(path string) (string, error) {
+	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return "", nil
 	}
@@ -360,8 +489,7 @@ func (s LastLeftPaneStore) Read() (string, error) {
 	return strings.TrimSpace(string(data)), nil
 }
 
-func (s LastLeftPaneStore) Write(paneID string) error {
-	path := s.Path()
+func writePaneID(path, paneID string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
