@@ -5,6 +5,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
 
@@ -23,6 +24,11 @@ type Runtime interface {
 	ClipboardCopy(text string) error        // pbcopy → wl-copy → xclip -i
 	ClipboardPaste() (string, bool)         // pbpaste → wl-paste → xclip -o; ok=false when no tool
 	ListPanes(command bool) (string, error) // `zellij action list-panes --json [--command]`
+	// TerminalPaneIDs returns the live registered `pair term` pane ids (#123's
+	// registry). Needed because an Alt+Shift+d split half reports no
+	// terminal_command and a "[terminal N]" title, so neither identifies it —
+	// without this the right-pane gate below would miss split halves.
+	TerminalPaneIDs() ([]string, error)
 
 	SetPaneColor(id, bg string)                     // synchronous fg phase of the flash
 	ResetPaneColorAfter(id string, d time.Duration) // detached (setsid) bg reset — survives caller exit
@@ -78,6 +84,8 @@ func RunCopyOnSelect(opts CopyOnSelectOptions, stdin io.Reader, rt Runtime, stde
 
 	// Detach the rest: the orchestrator (setsid) survives zellij's reap of this
 	// copy_command child, so the paste completes even when the chain is slow.
+	// The orchestrator decides whether to hand off at all — since #125 a
+	// selection in the RIGHT TERMINAL does not auto-paste.
 	rt.SpawnDetached(opts.SelfExe, "clip", "copy-on-select", "--orchestrate")
 	rt.Log(fmt.Sprintf("sel bytes: %d — detached orchestrator spawned; hook returning", len(sel)))
 	return 0
@@ -95,18 +103,47 @@ func RunCopyOnSelectOrchestrate(opts CopyOnSelectOptions, rt Runtime, stderr io.
 	// Inspect the focused pane (where the selection happened).
 	focusedID := ""
 	inNvim := false
+	inRightTerminal := false
 	if out, err := rt.ListPanes(true); err == nil {
 		if p, ok := focusedPane(zellijpane.Parse([]byte(out))); ok {
 			focusedID = p.ID
 			inNvim = isNvimCommand(p.TerminalCommand)
+			terminalIDs, err := rt.TerminalPaneIDs()
+			if err != nil {
+				// Degrade to command/title classification — but SAY SO. This runs
+				// setsid'd with stderr on /dev/null, so the debug log is the only
+				// channel; and the degradation is behavior-changing: split halves
+				// stop being recognized and start auto-pasting again, which is
+				// the exact symptom this gate exists to remove. (LiveIDs returns
+				// (nil, nil) for a missing file, so this fires only on real IO
+				// errors — no log noise in the normal case.)
+				rt.Log("terminal registry read failed: " + err.Error())
+				terminalIDs = nil
+			}
+			inRightTerminal = workbenchshortcut.RoleForPaneWith(p, terminalIDs) == workbenchshortcut.PaneRoleRightTerminal
 		}
 	}
-	rt.Log(fmt.Sprintf("in_nvim: %v focused_id: %q", inNvim, focusedID))
+	rt.Log(fmt.Sprintf("in_nvim: %v in_right_terminal: %v focused_id: %q", inNvim, inRightTerminal, focusedID))
 
+	// NOTE: isNvimCommand and RoleForPaneWith deliberately overlap and must NOT
+	// be collapsed into one `switch role`. isNvimCommand is the BROADER of the
+	// two (`(?i)nvim|draft`), while RoleForPane's PaneRoleLeftDraft requires
+	// `/nvim/init.lua` — merging them would narrow the skip and start
+	// auto-pasting from the review pane and any other plain-nvim pane.
+	//
 	// When the selection happened in nvim, skip flash + hand-off — otherwise it
 	// would loop back and insert the selection beneath itself. (The "only paste
 	// in insert mode" gate lives on the nvim side; see clipboard-to-pane.)
 	if inNvim {
+		return 0
+	}
+
+	// #125: a selection in the RIGHT TERMINAL does not auto-paste either. The
+	// agent pane keeps it — selecting something the agent said to quote it back
+	// is the point of the feature — but selecting a path or a command in the
+	// terminal is usually just a copy, and having that hijack the draft (flash,
+	// focus steal, `> ` insert) was distracting.
+	if inRightTerminal {
 		return 0
 	}
 

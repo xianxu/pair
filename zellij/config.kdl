@@ -7,7 +7,7 @@
 //   behavior predictable for selection and our copy_command flow.
 // - Mouse support itself stays ON. `mouse_mode false` (tried for #123 to
 //   freeze pane drag/resize) also kills click-to-focus, text selection, the
-//   copy_command flow, and scroll — and click-to-focus is the last-resort
+//   copy_command clipboard mirror, and scroll — and click-to-focus is the last-resort
 //   escape when keyboard focus lands somewhere unexpected. Split terminal
 //   panes stay pinned and keep their frames (the frame is the only visible
 //   divider between the split halves and carries the tab title); the residual
@@ -42,9 +42,13 @@ scroll_buffer_size 2000
 mouse_click_through true
 
 // On selection finalize (mouse up), pipe the selected text to our wrapper.
-// The wrapper mirrors to the OS clipboard AND, if the selection was in a
-// pane other than the nvim draft, runs the Alt+n flow: reflow, >-prefix,
-// focus nvim, insert at cursor.
+// The wrapper mirrors it to the OS clipboard AND, for a selection made in the
+// AGENT pane, hands off to the draft: reflow, >-prefix, focus nvim, insert at
+// cursor. Since #125 a selection in the RIGHT TERMINAL only mirrors — copying a
+// path there is usually just a copy, and the hand-off hijacked the draft.
+// Selections in the draft itself are skipped (they would insert beneath
+// themselves). (An older comment here credited "the Alt+n flow"; Alt+n is
+// PairConfirmRestart and never triggered this.)
 //
 // the launcher prepends $PAIR_HOME/bin to PATH (RunLaunch, restored #95) so the
 // binary is resolvable by bare name — avoids the fragile `sh -c '$PAIR_HOME/...'`

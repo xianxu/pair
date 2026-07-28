@@ -11,6 +11,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
+	"strconv"
 )
 
 type Runtime interface {
@@ -181,8 +182,9 @@ func (OSRuntime) LastTerminalPaneID() (string, error) {
 }
 
 func (OSRuntime) TerminalPaneIDs() ([]string, error) {
-	reg := workbenchshortcut.TerminalPaneRegistry{DataDir: workbenchshortcut.DataDirFromEnv(), Tag: os.Getenv("PAIR_TAG")}
-	return reg.LiveIDs(func(pid int) bool { return procutil.Alive(fmt.Sprintf("%d", pid)) })
+	return workbenchshortcut.LiveTerminalPaneIDsFromEnv(func(pid int) bool {
+		return procutil.Alive(strconv.Itoa(pid))
+	})
 }
 
 func (OSRuntime) RunZellijAction(args ...string) error {

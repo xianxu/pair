@@ -464,6 +464,18 @@ func RoleForPaneWith(p zellijpane.Pane, terminalPaneIDs []string) PaneRole {
 	return role
 }
 
+// LiveTerminalPaneIDsFromEnv reads the terminal-pane registry for the current
+// PAIR_DATA_DIR/PAIR_TAG and returns the pane ids whose registering process is
+// still alive. Every OSRuntime that needs "which panes are pair terminals"
+// delegates here — layoutcmd (focus + width toggle), termcmd (chord routing),
+// and clipcmd (the #125 auto-paste gate) — so the registry construction has one
+// source rather than a copy per consumer. Liveness is injected so callers can
+// keep using their own procutil wrapper without this package importing it.
+func LiveTerminalPaneIDsFromEnv(alive func(pid int) bool) ([]string, error) {
+	reg := TerminalPaneRegistry{DataDir: DataDirFromEnv(), Tag: os.Getenv("PAIR_TAG")}
+	return reg.LiveIDs(alive)
+}
+
 // DataDirFromEnv resolves pair's data dir by delegating to the canonical
 // resolver (adapt.DataDir) — one source for the PAIR_DATA_DIR → XDG →
 // ~/.local/share/pair chain.
