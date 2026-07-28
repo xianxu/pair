@@ -4,10 +4,10 @@ status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-27
-updated: 2026-07-27
+updated: 2026-07-28
 estimate_hours: 1.6
 started: 2026-07-27T17:29:35-07:00
-actual_hours: 1.23
+actual_hours: 5.56
 ---
 
 # Split the right terminal pane with Alt+Shift+d
@@ -216,6 +216,7 @@ rebuild + live smoke). +0.8 total, matching the issue Revisions delta.
   poll-tick later.
 
 ### 2026-07-28
+- 2026-07-28: closed — Chunk 2 tiled pivot: full make test green (pre-existing scrollback-open Alt+x drift + parley golden excepted); zellij setup --check; git diff --check; live smoke in isolated zellij session with real client keystrokes — tiled inventory no filler, Alt+Shift+d native split, draft<->terminal round trip returns to recorded half, mouse click-to-focus, #118 tabs in split half, Alt+Shift+Enter 50%<->2/3 both split and unsplit (collapse exactly 50%), full rung ladder with split present via small-split, ClassifyLiveLayout=layout3 against live pane dump (kept as env-gated conformance probe). Frame-drag pane-move structurally impossible: no floating workbench panes exist.
 - Chunk 2 (tiled pivot) implemented per plan Tasks 4–8: layout pivoted to a
   tiled right terminal (floating layer + filler deleted, swap rungs gained
   4-pane `-split` variants incl. an explicit `small-split` placed last),

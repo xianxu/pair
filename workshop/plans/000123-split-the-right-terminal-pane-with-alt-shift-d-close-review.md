@@ -5731,3 +5731,68 @@ The #123 split path is implemented in the existing shortcut pipeline and the foc
 
 7. Plan revision recommendations:
 - None required if the compatibility test/fix is added under the existing Task 1/Task 2 scope.
+
+---
+
+## Re-review — 2026-07-28T00:23:14-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 123 — Split the right terminal pane with Alt+Shift+d |
+| repo | pair |
+| issue file | workshop/issues/000123-split-the-right-terminal-pane-with-alt-shift-d.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 1245357ec1fbf8a15d00466661a48929ce6ddd63..HEAD |
+| command | sdlc close --issue 123 |
+| reviewer | claude |
+| timestamp | 2026-07-28T00:23:14-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+All verification is done. Writing up the review now.
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+This boundary delivers the issue's real purpose the hard way and it holds up: after three rounds of floating-layer mitigation each traded something away, the tiled pivot makes drag-immunity architectural (no floating workbench pane exists for zellij's drag-move path to grab), and every relaxation of the original Spec is honestly reconciled in `## Revisions` rather than silently dropped. The prior close-review's Important finding (review-pane `Shift+Alt+d` regression) is fixed with byte-level coverage (`nvim/review.lua:738` maps the raw `ESC[68;4u` alias; `tests/review-window-test.sh` pins it — verified passing). I independently ran the six touched Go packages, `tests/term-pane-shortcuts-test.sh`, and `tests/review-window-test.sh`: all green (two initial failures were my sandbox blocking PTY allocation, not regressions). What keeps this at FIX-THEN-SHIP rather than SHIP: a checked-off plan step (`resizeplan_test.go` with direct planner tests) that was never delivered, and a 5,733-line review sidecar that violates the repo's own bounded-sidecar lesson. Both are cheap; neither blocks the gate.
+
+**1. Strengths**
+
+- **The TerminalPaneRegistry is the right root-cause fix** (`cmd/internal/workbenchshortcut/shortcut.go`, `TerminalPaneRegistry`): zellij 0.44.3 genuinely cannot identify `--direction`-created panes (no `terminal_command`, user-renamable titles), so self-registration with pid-liveness filtering is the only sound identity signal. Injected liveness keeps the filter testable; the `RoleForPaneWith` overlay applies the registry only when the base heuristic returns `Other`, so a review pane can't be misclassified even if its id somehow leaked into the sidecar (pinned by `TestRoleForPaneWithRegisteredTerminals`).
+- **One picker for every left→right jump** (`layoutcmd.FocusRightTerminal`, consumed by draft nvim via `pair layout focus-terminal`, `pair wrap`, and `pair term`): the id-based rule that fixed the #123 focus lockout is now a single shared helper, with layout2's relative-move fallback preserved. Strong ARCH-DRY consolidation.
+- **The stateful resize fake models the real dependency** (`layoutcmd_test.go` `fakeRuntime`): each `resize` op mutates the geometry the next `ListPanesJSON` read reports, so convergence, no-progress, and step-cap paths are all genuinely exercised — plus an env-gated live conformance probe (`launcher/live_classify_probe_test.go`) checks the classifier against a real pane dump. Exactly the ARCH-MOCK shape.
+- **Backward-compatible classification** (`launcher/layoutflow.go` `ClassifyLiveLayout`): the legacy filler+floating signature is still recognized with a comment explaining why, so probing a session started by an older binary can't misclassify as Layout2 and corrupt attach/resume records.
+- **`focusedWorkbenchPanes` own-pane-first resolution** (`termcmd/run.go`) encodes a subtle zellij truth — bytes on stdin can only mean the process's own pane is the input target, outranking multi-client `is_focused` — and `TestChordRoleResolvesOwnPaneUnderAmbiguousFocus` pins it.
+
+**2. Critical findings** — none.
+
+**3. Important findings**
+
+- **Plan claims a test file that doesn't exist** — `workshop/plans/000123-...-plan.md` Task 7 Step 1 (checked `[x]`) says "Create: `cmd/internal/layoutcmd/resizeplan_test.go`" with specific direct planner cases (grow/shrink targets, tolerance, absurd geometry) and a RED verification step. No such file exists; `terminalResizeTarget`/`terminalResizeStep` are covered only indirectly through the executor-loop tests with the stateful fake. The pure planner is trivially unit-testable with zero IO (ARCH-PURE at-review: a pure entity should be tested directly). Fix: either add the small direct test file (a few table cases, ~5 minutes) or revise the plan step to state the tests were folded into `layoutcmd_test.go`'s executor coverage. Either way the checked step must match reality.
+- **Review sidecar violates the repo's own bounded-sidecar rule** — `workshop/plans/000123-...-close-review.md` is 5,733 lines: its `## Review` section embeds the entire prior codex transcript, including a full copy of the reviewed diff. `workshop/lessons.md` ("Generated review sidecars must stay bounded", caught at #108) says to keep sidecars to verdict/window/findings/verification and avoid full prompt/diff transcripts, precisely because they bloat later review windows — this very review's diff carries all 5,733 lines. The #118 sidecar in the same range shows the correct bounded shape (60 lines). If the `sdlc close` generator wrote this, the fix belongs in the generator; either way, trim the committed artifact to the durable facts before this compounds at the next boundary.
+
+**4. Minor findings**
+
+- ARCH-DRY: `workbenchshortcut.DataDirFromEnv` duplicates `adapt.DataDir` (identical PAIR_DATA_DIR → XDG → ~/.local/share/pair chain; `wrapcmd` still writes the last-left store via `adapt.DataDir` while `termcmd` reads via `DataDirFromEnv`). They agree today; one should delegate to the other so the resolution order has a single source.
+- `TerminalPaneRegistry.LiveIDs` doc comment says "newest first deduplicated" but iteration is file order — the *oldest* live entry wins per id. Behavior is fine (dead pids don't block newer entries); the comment is wrong. Also the sidecar is append-only with no compaction — harmless at this scale, worth a note.
+- `TestSplitHalfChordsWorkViaRegistry` fixture assigns pane id `1` to both the agent and a split half — zellij ids are unique per session; the fixture is misleading even though the assertion targets id 4.
+- `FocusRightTerminal`/`RunToggleFocused` silently blank out `LastTerminalPaneID`/`TerminalPaneIDs` errors into fallback behavior. Deliberate graceful degradation and consistent across the diff, but a one-line comment on the intent would prevent a future "add error return" refactor from breaking the jump.
+
+**5. Test coverage notes**
+
+Verified green by running them: `go test` on `termcmd`, `layoutcmd`, `workbenchshortcut`, `launcher`, `wrapcmd`, `dispatcher`; `tests/term-pane-shortcuts-test.sh` (25 assertions incl. the tiled-layout, swap-variant-ordering, mouse-stays-enabled, and shell-command-parity pins); `tests/review-window-test.sh` (both `<M-D>` and forwarded-KKP definition maps). Coverage is notably strong on exactly the bug classes this issue shipped earlier: ambiguous multi-client focus, registry-only pane identity, stale recorded ids, chord split-boundary leaks, and the drift guard tying `rightTerminalPaneShell` to the KDL layout. The one gap is the direct planner tests above. The live-smoke items that can't be automated (mouse drag, real client focus) are recorded with evidence in the issue Log and partially pinned by the env-gated live probe — a reasonable ceiling for zellij-dependent behavior.
+
+**6. Architectural notes (per-marker)**
+
+- **ARCH-DRY: pass** (with the minor DataDir duplication). The chord joins the shared registry; the split command is one constant with a drift test against the KDL; the pane-id stores share `paneIDPath`/`readPaneID`/`writePaneID` helpers; the focus jump is one shared function across three consumers.
+- **ARCH-PURE: pass, one flag.** The resize planner, rename editor, and rename decoder are pure and IO-free; the 80ms settle pause correctly lives in the IO executor with a comment saying exactly that. Flag: the pure planner lacks direct unit tests (Important finding above).
+- **ARCH-PURPOSE: pass.** The diff delivers the hard purpose (structural drag-immunity) instead of the previously-accepted easy subset (residual drag exposure), and the shadow-sweep holds: `floating_panes`, `terminal-filler`, `AlignFloatingTerminal`, `floatingTerminalCoordinates`, `terminalFillerX` are all actually deleted, with shell assertions preventing their return; the prior round's review-pane chord regression was fixed, not deferred. Done-when relaxations went through `## Revisions` with reasons.
+- **ARCH-MOCK: pass.** The zellij dependency stays behind the injected `Runtime` seam in all three packages; the toggle's fake is stateful (models zellij's per-step resize across calls); the registry's liveness is injected; and a live conformance probe plus documented PTY-attached smoke check the modeled behavior against the real binary — including the lesson-worthy discovery that CLI-driven smokes are themselves untrustworthy.
+
+**7. Plan revision recommendations**
+
+- Add a `## Revisions` entry to `000123-...-plan.md` under Task 7: either "planner tests folded into `layoutcmd_test.go` executor coverage; `resizeplan_test.go` not created" (if taking the plan-revision route) or note the file's late addition (if adding the direct tests). The current checked-off Step 1 claims a RED-verified file that was never written.

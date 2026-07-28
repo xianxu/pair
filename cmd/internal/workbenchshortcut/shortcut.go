@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/xianxu/pair/cmd/internal/adapt"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
 
@@ -416,9 +417,12 @@ func (r TerminalPaneRegistry) Register(paneID string, pid int) error {
 	return err
 }
 
-// LiveIDs returns the pane ids whose registering process is still alive,
-// newest first deduplicated. Liveness is injected so the pure filtering
-// stays testable without real processes.
+// LiveIDs returns the pane ids whose registering process is still alive —
+// first live entry per id wins (file order; dead pids never block newer
+// entries for other ids). The sidecar is append-only with no compaction:
+// entries are one short line per pair-term start, so growth is negligible
+// and liveness filtering makes stale lines inert. Liveness is injected so
+// the filtering stays testable without real processes.
 func (r TerminalPaneRegistry) LiveIDs(alive func(pid int) bool) ([]string, error) {
 	data, err := os.ReadFile(r.Path())
 	if errors.Is(err, os.ErrNotExist) {
@@ -460,19 +464,11 @@ func RoleForPaneWith(p zellijpane.Pane, terminalPaneIDs []string) PaneRole {
 	return role
 }
 
-// DataDirFromEnv resolves pair's data dir the way every pane process does:
-// PAIR_DATA_DIR, then XDG_DATA_HOME/pair, then ~/.local/share/pair.
+// DataDirFromEnv resolves pair's data dir by delegating to the canonical
+// resolver (adapt.DataDir) — one source for the PAIR_DATA_DIR → XDG →
+// ~/.local/share/pair chain.
 func DataDirFromEnv() string {
-	if v := os.Getenv("PAIR_DATA_DIR"); v != "" {
-		return v
-	}
-	if v := os.Getenv("XDG_DATA_HOME"); v != "" {
-		return v + "/pair"
-	}
-	if v := os.Getenv("HOME"); v != "" {
-		return v + "/.local/share/pair"
-	}
-	return "."
+	return adapt.DataDir()
 }
 
 func paneIDPath(dataDir, tag, prefix string) string {

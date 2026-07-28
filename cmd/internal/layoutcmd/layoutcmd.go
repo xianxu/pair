@@ -44,6 +44,9 @@ func FocusRightTerminal(rt Runtime) error {
 	if err != nil {
 		return err
 	}
+	// Sidecar reads degrade gracefully by design: a missing/corrupt record or
+	// registry must never break the focus jump — the picker just loses its
+	// preference signal and falls back to zellij focus / pane order.
 	lastTerminal, err := rt.LastTerminalPaneID()
 	if err != nil {
 		lastTerminal = ""
@@ -116,6 +119,8 @@ func RunToggleFocused(args []string, rt Runtime, stderr io.Writer) int {
 		return 1
 	}
 	panes := zellijpane.Parse(panesJSON)
+	// Graceful degradation as in FocusRightTerminal: a registry read error
+	// only narrows classification to report-derived signals.
 	terminalIDs, err := rt.TerminalPaneIDs()
 	if err != nil {
 		terminalIDs = nil

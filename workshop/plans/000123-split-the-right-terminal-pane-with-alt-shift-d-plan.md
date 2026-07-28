@@ -199,6 +199,18 @@ issues; all fixed and re-verified live:
    conformance probe (`live_classify_probe_test.go`, env-gated) checks
    `ClassifyLiveLayout` against a real pane dump.
 
+### 2026-07-28 — close-review reconciliation
+
+Task 7 Step 1's `resizeplan_test.go` was not written RED-first as the plan
+claimed — the planner was initially covered only through the executor-loop
+tests in `layoutcmd_test.go`. The close review flagged the gap; direct
+planner unit tests (`resizeplan_test.go`: target selection incl. the 60%
+threshold and refusal cases, step direction, tolerance boundary) were added
+with the FIX-THEN-SHIP fixes. Also folded in: `DataDirFromEnv` now delegates
+to the canonical `adapt.DataDir` (ARCH-DRY), registry `LiveIDs` comment
+corrected (file order wins per id; append-only, liveness makes stale lines
+inert), and graceful-degradation intent documented at the sidecar-read sites.
+
 ## Chunk 2: Tiled Right Terminal (Revision)
 
 **Goal:** The right terminal (and its Alt+Shift+d split) live in the tiled
