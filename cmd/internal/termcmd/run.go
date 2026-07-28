@@ -192,7 +192,6 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 
 func runShell(stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
 	name, args := rt.ShellCommand()
-	_ = layoutcmd.AlignFloatingTerminal(rt)
 	stdinFile, _ := stdin.(*os.File)
 	var oldState *term.State
 	if stdinFile != nil {

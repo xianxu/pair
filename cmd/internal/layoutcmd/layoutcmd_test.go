@@ -2,94 +2,78 @@ package layoutcmd
 
 import (
 	"bytes"
+	"strconv"
 	"strings"
 	"testing"
 )
 
-func TestToggleFocusedExpandsFloatingTerminalInOnePreciseAction(t *testing.T) {
-	rt := &fakeRuntime{panesJSON: layeredWorkbenchJSON(75, 75)}
-	var stderr bytes.Buffer
+// The toggle tests run against a STATEFUL fake: each resize action mutates the
+// geometry the next ListPanesJSON read reports, because zellij's per-step
+// resize amount is a runtime detail pair never hardcodes — the executor loops
+// read → step → act until the width converges. Live smoke item 4 is the
+// conformance check for this modeled behavior.
 
-	code := RunToggleFocused(nil, rt, &stderr)
-
-	if code != 0 {
-		t.Fatalf("code = %d stderr=%q", code, stderr.String())
-	}
-	want := "change-floating-pane-coordinates --pane-id 4 --x 37 --y 0 --width 113 --height 51 --borderless false --pinned true"
-	if got := strings.Join(rt.ops, "\n"); got != want {
-		t.Fatalf("ops = %q, want one precise action %q", got, want)
-	}
-}
-
-func TestToggleFocusedCollapsesFloatingTerminalInOnePreciseAction(t *testing.T) {
-	rt := &fakeRuntime{panesJSON: layeredWorkbenchJSON(50, 100)}
-	var stderr bytes.Buffer
-
-	code := RunToggleFocused(nil, rt, &stderr)
-
-	if code != 0 {
-		t.Fatalf("code = %d stderr=%q", code, stderr.String())
-	}
-	want := "change-floating-pane-coordinates --pane-id 4 --x 75 --y 0 --width 75 --height 51 --borderless false --pinned true"
-	if got := strings.Join(rt.ops, "\n"); got != want {
-		t.Fatalf("ops = %q, want one precise action %q", got, want)
-	}
-}
-
-func TestToggleFocusedUsesFillerBoundaryRatherThanRoundedHalf(t *testing.T) {
-	rt := &fakeRuntime{panesJSON: []byte(`[
-		{"id":1,"is_plugin":false,"is_focused":false,"is_floating":false,"pane_x":0,"pane_columns":86,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
-		{"id":2,"is_plugin":false,"is_focused":true,"is_floating":false,"pane_x":0,"pane_columns":86,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
-		{"id":3,"is_plugin":false,"is_focused":false,"is_floating":false,"pane_x":86,"pane_columns":85,"pane_rows":51,"title":"terminal-filler","terminal_command":"tail -f /dev/null"},
-		{"id":4,"is_plugin":false,"is_focused":true,"is_floating":true,"pane_x":57,"pane_columns":114,"pane_rows":51,"title":"terminal","terminal_command":"pair term"}
-	]`)}
+func TestToggleFocusedExpandsTiledTerminalToTwoThirds(t *testing.T) {
+	rt := &fakeRuntime{screenCols: 150, terminalCols: 75, resizeDelta: 8}
 	var stderr bytes.Buffer
 
 	if code := RunToggleFocused(nil, rt, &stderr); code != 0 {
 		t.Fatalf("code = %d stderr=%q", code, stderr.String())
 	}
-	want := "change-floating-pane-coordinates --pane-id 4 --x 86 --y 0 --width 85 --height 51 --borderless false --pinned true"
-	if got := strings.Join(rt.ops, "\n"); got != want {
-		t.Fatalf("ops = %q, want filler-anchored collapse %q", got, want)
+	// 75 → 83 → 91 → 99, |99-100| within tolerance.
+	want := "resize increase left,resize increase left,resize increase left"
+	if got := strings.Join(rt.ops, ","); got != want {
+		t.Fatalf("ops = %q, want %q", got, want)
+	}
+	if rt.terminalCols != 99 {
+		t.Fatalf("terminalCols = %d, want 99 (~2/3 of 150)", rt.terminalCols)
 	}
 }
 
-func TestAlignFloatingTerminalUsesFillerBoundaryAtStartup(t *testing.T) {
-	rt := &fakeRuntime{panesJSON: []byte(`[
-		{"id":1,"is_plugin":false,"is_focused":false,"is_floating":false,"pane_x":0,"pane_columns":86,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
-		{"id":2,"is_plugin":false,"is_focused":true,"is_floating":false,"pane_x":0,"pane_columns":86,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
-		{"id":3,"is_plugin":false,"is_focused":false,"is_floating":false,"pane_x":86,"pane_columns":85,"pane_rows":51,"title":"terminal-filler","terminal_command":"tail -f /dev/null"},
-		{"id":4,"is_plugin":false,"is_focused":true,"is_floating":true,"pane_x":85,"pane_columns":85,"pane_rows":51,"title":"terminal","terminal_command":"pair term"}
-	]`)}
-
-	if err := AlignFloatingTerminal(rt); err != nil {
-		t.Fatal(err)
-	}
-	want := "change-floating-pane-coordinates --pane-id 4 --x 86 --y 0 --width 85 --height 51 --borderless false --pinned true"
-	if got := strings.Join(rt.ops, "\n"); got != want {
-		t.Fatalf("ops = %q, want startup alignment %q", got, want)
-	}
-}
-
-func TestToggleFocusedUsesPercentageFallbackWithoutTiledGeometry(t *testing.T) {
-	rt := &fakeRuntime{panesJSON: []byte(`[
-		{"id":4,"is_plugin":false,"is_focused":true,"is_floating":true,"title":"terminal","terminal_command":"pair term"}
-	]`)}
+func TestToggleFocusedCollapsesTiledTerminalToHalf(t *testing.T) {
+	rt := &fakeRuntime{screenCols: 150, terminalCols: 100, resizeDelta: 8}
 	var stderr bytes.Buffer
 
 	if code := RunToggleFocused(nil, rt, &stderr); code != 0 {
 		t.Fatalf("code = %d stderr=%q", code, stderr.String())
 	}
-	want := "change-floating-pane-coordinates --pane-id 4 --x 25% --y 0% --width 75% --height 100% --borderless false --pinned true"
-	if got := strings.Join(rt.ops, "\n"); got != want {
-		t.Fatalf("ops = %q, want percentage fallback %q", got, want)
+	// 100 ≥ 60% of 150 reads as expanded; 100 → 92 → 84 → 76, |76-75| within tolerance.
+	want := "resize decrease left,resize decrease left,resize decrease left"
+	if got := strings.Join(rt.ops, ","); got != want {
+		t.Fatalf("ops = %q, want %q", got, want)
+	}
+}
+
+func TestToggleFocusedStopsWhenResizeHasNoEffect(t *testing.T) {
+	// zellij refusing the resize (FIXED pane, minimum sizes) must not spin
+	// the loop: no progress → stop after the first attempt.
+	rt := &fakeRuntime{screenCols: 150, terminalCols: 75, resizeDelta: 0}
+	var stderr bytes.Buffer
+
+	if code := RunToggleFocused(nil, rt, &stderr); code != 0 {
+		t.Fatalf("code = %d stderr=%q", code, stderr.String())
+	}
+	if len(rt.ops) != 1 {
+		t.Fatalf("ops = %v, want exactly one attempted resize", rt.ops)
+	}
+}
+
+func TestToggleFocusedRespectsStepCap(t *testing.T) {
+	rt := &fakeRuntime{screenCols: 150, terminalCols: 75, resizeDelta: 1}
+	var stderr bytes.Buffer
+
+	if code := RunToggleFocused(nil, rt, &stderr); code != 0 {
+		t.Fatalf("code = %d stderr=%q", code, stderr.String())
+	}
+	if len(rt.ops) != terminalResizeMaxSteps {
+		t.Fatalf("len(ops) = %d, want cap %d", len(rt.ops), terminalResizeMaxSteps)
 	}
 }
 
 func TestToggleFocusedIgnoresLeftFocus(t *testing.T) {
 	rt := &fakeRuntime{panesJSON: []byte(`[
 		{"id":1,"is_plugin":false,"is_focused":true,"is_floating":false,"title":"codex","terminal_command":"pair wrap codex"},
-		{"id":4,"is_plugin":false,"is_focused":false,"is_floating":true,"title":"terminal","terminal_command":"pair term"}
+		{"id":4,"is_plugin":false,"is_focused":false,"is_floating":false,"pane_x":75,"title":"terminal","terminal_command":"pair term"}
 	]`)}
 	var stderr bytes.Buffer
 
@@ -101,28 +85,18 @@ func TestToggleFocusedIgnoresLeftFocus(t *testing.T) {
 	}
 }
 
-func layeredWorkbenchJSON(terminalX, terminalWidth int) []byte {
-	return []byte(`[
-		{"id":1,"is_plugin":false,"is_focused":false,"is_floating":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
-		{"id":2,"is_plugin":false,"is_focused":true,"is_floating":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
-		{"id":3,"is_plugin":false,"is_focused":false,"is_floating":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal-filler","terminal_command":"tail -f /dev/null"},
-		{"id":4,"is_plugin":false,"is_focused":true,"is_floating":true,"pane_x":` + intString(terminalX) + `,"pane_columns":` + intString(terminalWidth) + `,"pane_rows":51,"title":"terminal","terminal_command":"pair term"}
-	]`)
-}
+func TestToggleFocusedRefusesWithoutGeometry(t *testing.T) {
+	rt := &fakeRuntime{panesJSON: []byte(`[
+		{"id":4,"is_plugin":false,"is_focused":true,"is_floating":false,"title":"terminal","terminal_command":"pair term"}
+	]`)}
+	var stderr bytes.Buffer
 
-func intString(value int) string {
-	const digits = "0123456789"
-	if value == 0 {
-		return "0"
+	if code := RunToggleFocused(nil, rt, &stderr); code != 0 {
+		t.Fatalf("code = %d stderr=%q", code, stderr.String())
 	}
-	var reversed [20]byte
-	i := len(reversed)
-	for value > 0 {
-		i--
-		reversed[i] = digits[value%10]
-		value /= 10
+	if len(rt.ops) != 0 {
+		t.Fatalf("ops = %v, want no-op without tiled geometry", rt.ops)
 	}
-	return string(reversed[i:])
 }
 
 func TestFocusRightTerminalFocusesTiledTerminalByID(t *testing.T) {
@@ -199,6 +173,13 @@ type fakeRuntime struct {
 	panesJSON    []byte
 	ops          []string
 	lastTerminal string
+	// Stateful tiled geometry, active when screenCols > 0: ListPanesJSON
+	// renders a workbench from terminalCols, and each resize action mutates
+	// terminalCols by ±resizeDelta — modeling that zellij applies some
+	// runtime-defined amount per resize step.
+	screenCols   int
+	terminalCols int
+	resizeDelta  int
 }
 
 func (f *fakeRuntime) LastTerminalPaneID() (string, error) {
@@ -206,10 +187,25 @@ func (f *fakeRuntime) LastTerminalPaneID() (string, error) {
 }
 
 func (f *fakeRuntime) ListPanesJSON() ([]byte, error) {
+	if f.screenCols > 0 {
+		leftCols := f.screenCols - f.terminalCols
+		return []byte(`[
+			{"id":1,"is_plugin":false,"is_focused":false,"is_floating":false,"pane_x":0,"pane_columns":` + strconv.Itoa(leftCols) + `,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
+			{"id":2,"is_plugin":false,"is_focused":false,"is_floating":false,"pane_x":0,"pane_columns":` + strconv.Itoa(leftCols) + `,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
+			{"id":4,"is_plugin":false,"is_focused":true,"is_floating":false,"pane_x":` + strconv.Itoa(leftCols) + `,"pane_columns":` + strconv.Itoa(f.terminalCols) + `,"pane_rows":51,"title":"terminal","terminal_command":"pair term"}
+		]`), nil
+	}
 	return f.panesJSON, nil
 }
 
 func (f *fakeRuntime) RunZellijAction(args ...string) error {
-	f.ops = append(f.ops, strings.Join(args, " "))
+	op := strings.Join(args, " ")
+	f.ops = append(f.ops, op)
+	switch op {
+	case "resize increase left":
+		f.terminalCols += f.resizeDelta
+	case "resize decrease left":
+		f.terminalCols -= f.resizeDelta
+	}
 	return nil
 }

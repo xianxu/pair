@@ -37,16 +37,14 @@ export PATH="$fakebin:$PAIR_HOME/bin:$PATH"
 
 agent='{"id":1,"is_plugin":false,"is_focused":FOCUS_AGENT,"is_floating":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"}'
 draft='{"id":2,"is_plugin":false,"is_focused":FOCUS_DRAFT,"is_floating":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"}'
-filler='{"id":3,"is_plugin":false,"is_focused":false,"is_floating":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal-filler","terminal_command":"tail -f /dev/null"}'
-terminal='{"id":4,"is_plugin":false,"is_focused":FOCUS_TERM,"is_floating":true,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term"}'
+terminal='{"id":4,"is_plugin":false,"is_focused":FOCUS_TERM,"is_floating":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term"}'
 review='{"id":4,"is_plugin":false,"is_focused":FOCUS_REVIEW,"is_floating":true,"title":"review","terminal_command":"nvim -u /pair/nvim/review.lua /tmp/review.md"}'
 
 write_panes() {
   focus="$1"
-  printf '[%s,%s,%s,%s,%s]\n' \
+  printf '[%s,%s,%s,%s]\n' \
     "${agent/FOCUS_AGENT/$([ "$focus" = agent ] && echo true || echo false)}" \
     "${draft/FOCUS_DRAFT/$([ "$focus" = draft ] && echo true || echo false)}" \
-    "$filler" \
     "${terminal/FOCUS_TERM/$([ "$focus" = terminal ] && echo true || echo false)}" \
     "${review/FOCUS_REVIEW/$([ "$focus" = review ] && echo true || echo false)}" \
     > "$tmp/panes.json"
@@ -113,9 +111,11 @@ write_panes terminal
 run_shortcut "Alt+j"
 check_eq "right Alt+j is no-op" "$(actions)" ""
 
+# The stateless fake zellij reports unchanged geometry after the first resize
+# step, so the toggle's no-progress guard stops after one op.
 write_panes terminal
 run_shortcut "Alt+Shift+Enter"
-check_eq "right Alt+Shift+Enter changes floating geometry once" "$(actions)" "change-floating-pane-coordinates --pane-id 4 --x 37 --y 0 --width 113 --height 51 --borderless false --pinned true"
+check_eq "right Alt+Shift+Enter steps tiled resize toward two thirds" "$(actions)" "resize increase left"
 
 write_panes terminal
 rm -f "$PAIR_DATA_DIR/last-left-pane-t"
@@ -225,7 +225,7 @@ grep -Fq "'pair', 'layout', 'focus-terminal'" "$ROOT/nvim/init.lua" \
   || { printf 'FAIL draft Alt+k does not use pair layout focus-terminal\n'; fail=1; }
 
 grep -Fq '"move-focus", "right"' "$ROOT/cmd/internal/wrapcmd/wrap.go" \
-  && { printf 'FAIL agent Alt+k still uses relative move-focus right (terminal-filler trap)\n'; fail=1; } \
+  && { printf 'FAIL agent Alt+k still uses relative move-focus right (must target a split half by id)\n'; fail=1; } \
   || pass "agent Alt+k no longer uses relative move-focus right"
 
 # Tiled panes are framed by zellij default (pane_frames true); the split must
