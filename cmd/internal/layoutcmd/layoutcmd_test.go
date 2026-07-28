@@ -7,67 +7,44 @@ import (
 	"testing"
 )
 
-// The toggle tests run against a STATEFUL fake: each resize action mutates the
-// geometry the next ListPanesJSON read reports, because zellij's per-step
-// resize amount is a runtime detail pair never hardcodes — the executor loops
-// read → step → act until the width converges. Live smoke item 4 is the
-// conformance check for this modeled behavior.
+// The toggle fires a fixed three-action burst (zellij's tiled resize step is
+// a stable 5% of the screen, so 1/2 ↔ ~2/3 is always exactly three steps) —
+// no settle pauses, no re-reads. #124.
 
-func TestToggleFocusedExpandsTiledTerminalToTwoThirds(t *testing.T) {
-	rt := &fakeRuntime{screenCols: 150, terminalCols: 75, resizeDelta: 8}
+func TestToggleFocusedExpandsInOneBurst(t *testing.T) {
+	rt := &fakeRuntime{panesJSON: []byte(tiledWorkbenchJSON(75, 150))}
 	var stderr bytes.Buffer
 
 	if code := RunToggleFocused(nil, rt, &stderr); code != 0 {
 		t.Fatalf("code = %d stderr=%q", code, stderr.String())
 	}
-	// 75 → 83 → 91 → 99, |99-100| within tolerance.
 	want := "resize increase left,resize increase left,resize increase left"
 	if got := strings.Join(rt.ops, ","); got != want {
 		t.Fatalf("ops = %q, want %q", got, want)
 	}
-	if rt.terminalCols != 99 {
-		t.Fatalf("terminalCols = %d, want 99 (~2/3 of 150)", rt.terminalCols)
-	}
 }
 
-func TestToggleFocusedCollapsesTiledTerminalToHalf(t *testing.T) {
-	rt := &fakeRuntime{screenCols: 150, terminalCols: 100, resizeDelta: 8}
+func TestToggleFocusedCollapsesInOneBurst(t *testing.T) {
+	// 105/150 = 70% ≥ 60% reads as expanded.
+	rt := &fakeRuntime{panesJSON: []byte(tiledWorkbenchJSON(105, 150))}
 	var stderr bytes.Buffer
 
 	if code := RunToggleFocused(nil, rt, &stderr); code != 0 {
 		t.Fatalf("code = %d stderr=%q", code, stderr.String())
 	}
-	// 100 ≥ 60% of 150 reads as expanded; 100 → 92 → 84 → 76, |76-75| within tolerance.
 	want := "resize decrease left,resize decrease left,resize decrease left"
 	if got := strings.Join(rt.ops, ","); got != want {
 		t.Fatalf("ops = %q, want %q", got, want)
 	}
 }
 
-func TestToggleFocusedStopsWhenResizeHasNoEffect(t *testing.T) {
-	// zellij refusing the resize (FIXED pane, minimum sizes) must not spin
-	// the loop: no progress → stop after the first attempt.
-	rt := &fakeRuntime{screenCols: 150, terminalCols: 75, resizeDelta: 0}
-	var stderr bytes.Buffer
-
-	if code := RunToggleFocused(nil, rt, &stderr); code != 0 {
-		t.Fatalf("code = %d stderr=%q", code, stderr.String())
-	}
-	if len(rt.ops) != 1 {
-		t.Fatalf("ops = %v, want exactly one attempted resize", rt.ops)
-	}
-}
-
-func TestToggleFocusedRespectsStepCap(t *testing.T) {
-	rt := &fakeRuntime{screenCols: 150, terminalCols: 75, resizeDelta: 1}
-	var stderr bytes.Buffer
-
-	if code := RunToggleFocused(nil, rt, &stderr); code != 0 {
-		t.Fatalf("code = %d stderr=%q", code, stderr.String())
-	}
-	if len(rt.ops) != terminalResizeMaxSteps {
-		t.Fatalf("len(ops) = %d, want cap %d", len(rt.ops), terminalResizeMaxSteps)
-	}
+func tiledWorkbenchJSON(terminalCols, screenCols int) string {
+	left := strconv.Itoa(screenCols - terminalCols)
+	return `[
+		{"id":1,"is_plugin":false,"is_focused":false,"is_floating":false,"pane_x":0,"pane_columns":` + left + `,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
+		{"id":2,"is_plugin":false,"is_focused":false,"is_floating":false,"pane_x":0,"pane_columns":` + left + `,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
+		{"id":4,"is_plugin":false,"is_focused":true,"is_floating":false,"pane_x":` + left + `,"pane_columns":` + strconv.Itoa(terminalCols) + `,"pane_rows":51,"title":"terminal","terminal_command":"pair term"}
+	]`
 }
 
 func TestToggleFocusedIgnoresLeftFocus(t *testing.T) {
@@ -192,13 +169,6 @@ type fakeRuntime struct {
 	ops             []string
 	lastTerminal    string
 	terminalPaneIDs []string
-	// Stateful tiled geometry, active when screenCols > 0: ListPanesJSON
-	// renders a workbench from terminalCols, and each resize action mutates
-	// terminalCols by ±resizeDelta — modeling that zellij applies some
-	// runtime-defined amount per resize step.
-	screenCols   int
-	terminalCols int
-	resizeDelta  int
 }
 
 func (f *fakeRuntime) LastTerminalPaneID() (string, error) {
@@ -210,25 +180,10 @@ func (f *fakeRuntime) TerminalPaneIDs() ([]string, error) {
 }
 
 func (f *fakeRuntime) ListPanesJSON() ([]byte, error) {
-	if f.screenCols > 0 {
-		leftCols := f.screenCols - f.terminalCols
-		return []byte(`[
-			{"id":1,"is_plugin":false,"is_focused":false,"is_floating":false,"pane_x":0,"pane_columns":` + strconv.Itoa(leftCols) + `,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
-			{"id":2,"is_plugin":false,"is_focused":false,"is_floating":false,"pane_x":0,"pane_columns":` + strconv.Itoa(leftCols) + `,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
-			{"id":4,"is_plugin":false,"is_focused":true,"is_floating":false,"pane_x":` + strconv.Itoa(leftCols) + `,"pane_columns":` + strconv.Itoa(f.terminalCols) + `,"pane_rows":51,"title":"terminal","terminal_command":"pair term"}
-		]`), nil
-	}
 	return f.panesJSON, nil
 }
 
 func (f *fakeRuntime) RunZellijAction(args ...string) error {
-	op := strings.Join(args, " ")
-	f.ops = append(f.ops, op)
-	switch op {
-	case "resize increase left":
-		f.terminalCols += f.resizeDelta
-	case "resize decrease left":
-		f.terminalCols -= f.resizeDelta
-	}
+	f.ops = append(f.ops, strings.Join(args, " "))
 	return nil
 }
