@@ -79,3 +79,7 @@ total: 0.80
 - Claimed locally. Broadcast failed because this checkout has no `main` worktree.
 - Design approved: Zellij-native top/bottom split in the right terminal area,
   focus the new bottom pane, preserve mouse boundary resizing.
+- Plan-quality found the split action command shape under-specified. Refined the
+  durable plan to pin `new-pane --direction down --name terminal -- sh -c ...`,
+  require the layout-3 `pair term` shell command shape, keep pane borders, and
+  avoid disabling Zellij mouse mode while preserving `focus_follows_mouse false`.

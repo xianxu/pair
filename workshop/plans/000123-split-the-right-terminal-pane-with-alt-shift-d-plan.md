@@ -4,7 +4,7 @@
 
 **Goal:** Add `Alt+Shift+d` as a terminal-local layout-3 shortcut that creates a Zellij top/bottom split in the right terminal area and focuses the new lower pane.
 
-**Architecture:** Reuse the existing terminal-local shortcut pipeline (`workbenchshortcut` → `pair term` stdin pump → injected `Runtime.RunZellijAction`) so the behavior stays inside the current shortcut ownership model (`ARCH-DRY`). Use Zellij-native panes for the split, not Pair's internal terminal-tab mux, so Zellij owns mouse boundary resizing (`ARCH-PURPOSE`).
+**Architecture:** Reuse the existing terminal-local shortcut pipeline (`workbenchshortcut` → `pair term` stdin pump → injected `Runtime.RunZellijAction`) so the behavior stays inside the current shortcut ownership model (`ARCH-DRY`). Use Zellij-native panes for the split, not Pair's internal terminal-tab mux, so Zellij owns mouse boundary resizing (`ARCH-PURPOSE`). The split action must create the same Pair terminal command shape as `zellij/layouts/main-3.kdl`: `zellij action new-pane --direction down --name terminal -- sh -c 'zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term'`.
 
 **Tech Stack:** Go terminal command routing, generated workbench shortcut registry, Zellij KDL config/layouts, shell integration tests.
 
@@ -32,9 +32,13 @@
 
 - **TerminalSplitDownAction** — terminal-local handler that invokes Zellij to split the focused right terminal pane downward.
   - **Injected into:** `pumpStdinWithTimer` through the existing `Runtime` fake.
+  - **Action contract:** `RunZellijAction("new-pane", "--direction", "down", "--name", "terminal", "--", "sh", "-c", rightTerminalPaneShell)`.
+  - **Command contract:** `rightTerminalPaneShell` is the same shell string used by layout 3's right terminal pane: `zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term`.
+  - **Mouse contract:** do not pass `--borderless true`; Zellij pane borders must remain available for mouse boundary dragging.
   - **Future extensions:** Adjacent right-pane management actions such as close split or move focus between split panes.
 - **ZellijMouseResizeConfig** — the minimal config needed so real Zellij pane boundaries remain mouse-draggable.
   - **Injected into:** Zellij at session start through the existing config file.
+  - **Config contract:** do not set `mouse_mode false`; keep `focus_follows_mouse false`. `advanced_mouse_actions false` may remain because the default config documents it as hover/grouping behavior, not basic pane-boundary resizing.
   - **Future extensions:** Only widen if a live smoke proves boundary drag still cannot work.
 
 ## Task 1: Pin Shortcut Routing
@@ -47,7 +51,7 @@
 
 - [ ] **Step 1: Write failing registry/routing tests**
 
-Add coverage that `Alt+Shift+d` decodes through the shared shortcut registry and that `pair term` maps it to the expected Zellij split action.
+Add coverage that `Alt+Shift+d` decodes through the shared shortcut registry and that `pair term` maps it to `RunZellijAction("new-pane", "--direction", "down", "--name", "terminal", "--", "sh", "-c", rightTerminalPaneShell)`.
 
 - [ ] **Step 2: Verify RED**
 
@@ -62,7 +66,7 @@ Expected: fail because the chord/action is not registered or routed.
 
 - [ ] **Step 3: Implement minimal routing**
 
-Add the chord to the registry and route it in `handleTerminalChord` to the injected Zellij runtime action.
+Add the chord to the registry, define the right-terminal shell command once in `cmd/internal/termcmd/run.go`, and route it in `handleTerminalChord` to the injected Zellij runtime action.
 
 - [ ] **Step 4: Verify GREEN**
 
@@ -77,7 +81,7 @@ Run the same commands. Expected: pass.
 
 - [ ] **Step 1: Write failing config/layout assertions**
 
-Add shell assertions that `Alt+Shift+d` is terminal-local and that the config leaves Zellij pane boundary dragging enabled without enabling focus-follows-mouse.
+Add shell assertions that `Alt+Shift+d` is terminal-local, the split action creates a named `pair term` pane rather than a raw shell, no split pane is borderless, and the config leaves Zellij pane boundary dragging enabled without enabling focus-follows-mouse.
 
 - [ ] **Step 2: Verify RED**
 
@@ -92,7 +96,7 @@ Expected: fail until the config/action is updated.
 
 - [ ] **Step 3: Implement minimal config/layout changes**
 
-Prefer Zellij's normal pane splitting and mouse boundary resizing. Keep `focus_follows_mouse false`.
+Prefer Zellij's normal pane splitting and mouse boundary resizing. Keep `focus_follows_mouse false`, keep the new pane bordered, and avoid setting `mouse_mode false`.
 
 - [ ] **Step 4: Verify GREEN**
 
