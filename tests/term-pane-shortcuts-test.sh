@@ -175,10 +175,23 @@ else
   pass "global KDL contains no draft Lua injection"
 fi
 
-grep -Fq 'pane name="terminal-filler" borderless=true {' "$ROOT/zellij/layouts/main-3.kdl" \
-  && grep -Fq 'pane name="terminal" x="50%" y="0%" width="50%" height="100%" pinned=true {' "$ROOT/zellij/layouts/main-3.kdl" \
-  && pass "terminal uses permanent floating layer over filler" \
-  || { printf 'FAIL layered terminal layout missing\n'; fail=1; }
+# #123 tiled pivot: the right terminal lives in the tiled tree. Floating
+# panes are frame-draggable with no zellij 0.44.3 config gate; tiled panes
+# have no mouse-move operation at all, so drag-immunity is architectural.
+! grep -Fq 'floating_panes' "$ROOT/zellij/layouts/main-3.kdl" \
+  && ! grep -Fq 'terminal-filler' "$ROOT/zellij/layouts/main-3.kdl" \
+  && grep -Fq 'pane name="terminal" {' "$ROOT/zellij/layouts/main-3.kdl" \
+  && pass "right terminal is a tiled pane (no floating layer, no filler)" \
+  || { printf 'FAIL right terminal is not tiled (floating layer or filler remains)\n'; fail=1; }
+
+grep -Fq 'swap_tiled_layout name="minimized"' "$ROOT/zellij/layouts/main-3.kdl" \
+  && grep -Fq 'swap_tiled_layout name="minimized-split"' "$ROOT/zellij/layouts/main-3.kdl" \
+  && grep -Fq 'swap_tiled_layout name="third"' "$ROOT/zellij/layouts/main-3.kdl" \
+  && grep -Fq 'swap_tiled_layout name="third-split"' "$ROOT/zellij/layouts/main-3.kdl" \
+  && [ "$(grep -c 'tab exact_panes=3' "$ROOT/zellij/layouts/main-3.kdl")" = 2 ] \
+  && [ "$(grep -c 'tab exact_panes=4' "$ROOT/zellij/layouts/main-3.kdl")" = 2 ] \
+  && pass "draft rungs have 3-pane and 4-pane (split) swap variants" \
+  || { printf 'FAIL swap layouts missing split variants (rung ladder breaks after Alt+Shift+d)\n'; fail=1; }
 
 test ! -e "$ROOT/zellij/layouts/main.kdl" \
   && ! grep -Fq 'pair term' "$ROOT/zellij/layouts/main-2.kdl" \
