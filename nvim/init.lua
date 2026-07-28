@@ -292,12 +292,11 @@ vim.opt.guicursor = 'n-v-c-sm:block,i-ci-ve:block-blinkon250-blinkoff250,r-cr-o:
 -- `_` lands as a quiet typewriter-style underline inside zellij's
 -- hollow box: visible at a glance, not attention-grabbing.
 --
--- Why this mattered: the copy-on-select pipeline
--- (pair clip copy-on-select + clipboard-to-pane) landed a
--- selection from any pane into the draft while the draft was
--- unfocused, so the user wanted "this pane is the target" at a
--- glance. That auto-paste is unwired since #125 (see #126); the
--- cursor styling stands on its own merits.
+-- Why this matters: the copy-on-select pipeline
+-- (pair clip copy-on-select + clipboard-to-pane) lands an
+-- agent-pane selection into the draft while the draft is
+-- unfocused. The user wants to see "this pane is the target" at a
+-- glance.
 --
 -- The block blinks by toggling the extmark every BLINK_MS. Defaults
 -- to 500 ms on / 500 ms off so the eye picks up motion without being
@@ -1397,10 +1396,9 @@ local function attach_image()
 end
 
 -- ---------------------------------------------------------------------------
--- PairPasteQuote: UNWIRED SINCE #125 — no production caller. It was triggered
--- from `pair clip clipboard-to-pane` after a copy_command selection; that
--- auto-paste was removed as distracting, and #126 will give this a deliberate
--- keybind. The hand-off delivers the *raw* clipboard body via
+-- PairPasteQuote: triggered from `pair clip clipboard-to-pane` after a copy_command
+-- selection in the AGENT pane (#125 excludes right-terminal selections, which only
+-- mirror to the clipboard). The hand-off delivers the *raw* clipboard body via
 -- $PAIR_DATA_DIR/quote-<tag>; we decide the formatting here based on where
 -- the cursor is.
 --
@@ -3800,10 +3798,9 @@ vim.api.nvim_create_autocmd('VimEnter', {
   end,
 })
 
--- Insert-mode-only keymap that triggers PairPasteQuote. UNWIRED SINCE #125 —
--- nothing sends this anymore. It is what `pair clip clipboard-to-pane` sent
--- (as a single Ctrl-_, ASCII 31) after a mouse selection; #126 will restore a
--- deliberate trigger. Defining the keymap *only* in insert mode is the gate:
+-- Insert-mode-only keymap that triggers PairPasteQuote. This is what
+-- `pair clip clipboard-to-pane` sends (as a single Ctrl-_, ASCII 31) after a
+-- mouse selection in the agent pane. Defining the keymap *only* in insert mode is the gate:
 -- if nvim is in normal mode (e.g. browsing prompt history), Ctrl-_ hits
 -- its default — a no-op-ish revins toggle — and PairPasteQuote simply
 -- doesn't fire. No buffer mutation, no policy code.

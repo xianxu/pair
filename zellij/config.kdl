@@ -42,17 +42,13 @@ scroll_buffer_size 2000
 mouse_click_through true
 
 // On selection finalize (mouse up), pipe the selected text to our wrapper.
-// The wrapper mirrors it to the OS clipboard and stops (#125). It used to also
-// hand off to the draft — reflow, >-prefix, focus nvim, insert at cursor — but
-// that auto-paste hijacked the draft on every selection made merely to copy
-// something. The hand-off machinery is unwired, not deleted; #126 gives it a
-// deliberate keybind. (The old comment here credited "the Alt+n flow"; Alt+n is
+// The wrapper mirrors it to the OS clipboard AND, for a selection made in the
+// AGENT pane, hands off to the draft: reflow, >-prefix, focus nvim, insert at
+// cursor. Since #125 a selection in the RIGHT TERMINAL only mirrors — copying a
+// path there is usually just a copy, and the hand-off hijacked the draft.
+// Selections in the draft itself are skipped (they would insert beneath
+// themselves). (An older comment here credited "the Alt+n flow"; Alt+n is
 // PairConfirmRestart and never triggered this.)
-//
-// copy_command is KEPT rather than dropped so the clipboard write stays on our
-// tested seam (pbcopy/wl-copy/xclip). Dropping it would hand the write to
-// zellij's native OSC 52 path — a different mechanism, with different failure
-// modes, outside any seam our fakes can drive.
 //
 // the launcher prepends $PAIR_HOME/bin to PATH (RunLaunch, restored #95) so the
 // binary is resolvable by bare name — avoids the fragile `sh -c '$PAIR_HOME/...'`

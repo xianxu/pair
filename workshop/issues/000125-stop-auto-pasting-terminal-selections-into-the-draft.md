@@ -25,8 +25,9 @@ at `quote-<tag>`, focus draft, send Ctrl-_) → nvim `PairPasteQuote`.
 
 ## Spec
 
-- Selecting text no longer flashes any pane, moves focus, or inserts into the
-  draft.
+- A selection in the RIGHT TERMINAL no longer flashes, moves focus, or inserts
+  into the draft. A selection in the AGENT pane still does — that is the
+  feature's purpose and is explicitly retained (see ## Revisions).
 - Selecting text STILL copies to the OS clipboard, **by the same mechanism as
   today** (user decision 2026-07-28: disable the auto-paste half only, not
   `copy_on_select` itself).
@@ -64,6 +65,24 @@ at `quote-<tag>`, focus draft, send Ctrl-_) → nvim `PairPasteQuote`.
   detach", so the change is pinned at the unit layer.
 - `tests/copy-on-select-test.sh` asserts the new contract ("selection does not
   auto-paste into the draft") instead of driving the old chain end-to-end.
+
+## Revisions
+
+- 2026-07-28 (scope correction): the first implementation disabled the
+  auto-paste for EVERY source pane. The request was "disable the copy on select
+  and paste **from right pane** to draft nvim" — the user confirmed after
+  restart that agent-pane auto-paste had stopped working, which they still
+  want. Selecting something the agent said and having it land in the draft as a
+  quote is the point of the feature; only the terminal case is noise. Corrected
+  to a SOURCE-PANE GATE: the hook detaches the orchestrator again (restoring
+  #100's shape) and the orchestrator skips the hand-off when the selection was
+  made in the right terminal, in addition to the existing draft/nvim skip.
+  Split halves are covered via #123's terminal-pane registry, since zellij
+  reports them with no `terminal_command` and a `[terminal N]` title — a plain
+  role check would miss them and they would keep auto-pasting. The docs written
+  during the first pass ("unwired since #125", "REMOVED in #125") were
+  corrected to "narrowed": nothing is unwired, and #126 remains useful only as
+  a *deliberate* trigger, not as the sole surviving path.
 
 ## Estimate
 
@@ -132,7 +151,7 @@ total: 0.45
       `zellij/config.kdl:8-11`. The block that genuinely needs rewriting is
       `zellij/config.kdl:45-50`, whose "runs the Alt+n flow" is already wrong
       today (Alt+n is `PairConfirmRestart`).
-- [ ] **Verify.** `env -u PAIR_SESSION_ID -u PAIR_TAG make test` (session env
+- [x] **Verify.** `env -u PAIR_SESSION_ID -u PAIR_TAG make test` (session env
       leaks cause false failures); `zellij --config-dir zellij setup --check`
       (KDL syntax ONLY — it cannot tell you the copy path still works). Then
       live: `make build` AND install/`pair restart` first — the live check runs
@@ -165,3 +184,6 @@ total: 0.45
 - Verified: `go test ./cmd/internal/clipcmd`; full `env -u ... make test` green
   through its pre-existing scrollback-open Alt+x abort (same on main), with the
   post-abort targets run separately; `zellij setup --check`; `git diff --check`.
+- Live-verified by the user after a restart: selecting text in the right
+  terminal copies to the clipboard and the draft is untouched — no flash, no
+  focus change, no auto-paste. Closing on that.

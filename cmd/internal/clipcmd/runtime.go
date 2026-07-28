@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/osfs"
+	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
 // OSRuntime implements Runtime with real clipboard / zellij / exec / fs calls.
@@ -18,6 +20,19 @@ import (
 type OSRuntime struct{ osfs.FS }
 
 func NewOSRuntime() OSRuntime { return OSRuntime{} }
+
+// TerminalPaneIDs reads #123's terminal-pane registry: every `pair term`
+// self-registers its pane id + pid at startup, and readers filter by process
+// liveness. This is the only reliable way to recognize an Alt+Shift+d split
+// half, which zellij reports with no terminal_command and a "[terminal N]"
+// title.
+func (OSRuntime) TerminalPaneIDs() ([]string, error) {
+	reg := workbenchshortcut.TerminalPaneRegistry{
+		DataDir: workbenchshortcut.DataDirFromEnv(),
+		Tag:     os.Getenv("PAIR_TAG"),
+	}
+	return reg.LiveIDs(func(pid int) bool { return procutil.Alive(strconv.Itoa(pid)) })
+}
 
 // clipboardTool is one candidate OS-clipboard command tried in preference order.
 type clipboardTool struct {

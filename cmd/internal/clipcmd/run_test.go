@@ -19,6 +19,7 @@ type execCall struct {
 
 // fakeRuntime is a scriptable Runtime for the clip-pipeline orchestration tests.
 type fakeRuntime struct {
+	terminalPaneIDs []string
 	// clipboard
 	copied    string
 	pasteText string
@@ -54,7 +55,9 @@ func (f *fakeRuntime) ClipboardCopy(t string) error {
 	f.copied = t
 	return nil
 }
-func (f *fakeRuntime) ClipboardPaste() (string, bool) { return f.pasteText, f.pasteOK }
+func (f *fakeRuntime) ClipboardPaste() (string, bool)     { return f.pasteText, f.pasteOK }
+func (f *fakeRuntime) TerminalPaneIDs() ([]string, error) { return f.terminalPaneIDs, nil }
+
 func (f *fakeRuntime) ListPanes(command bool) (string, error) {
 	f.listCalls++
 	f.lastListCommand = command
@@ -91,6 +94,23 @@ const (
 	  {"id":1,"is_plugin":false,"is_focused":false,"is_floating":false,
 	   "title":"draft","terminal_command":"sh -c exec nvim -u /h/init.lua /d/draft-t.md"}
 	]`
+	// A selection made in the RIGHT TERMINAL. Its command identifies it.
+	terminalFocusedPanes = `[
+	  {"id":0,"is_plugin":false,"is_focused":false,"is_floating":false,
+	   "title":"claude","terminal_command":"sh -c exec pair-wrap claude"},
+	  {"id":4,"is_plugin":false,"is_focused":true,"is_floating":false,
+	   "title":"terminal","terminal_command":"sh -c exec pair term"}
+	]`
+
+	// An Alt+Shift+d split half: zellij reports NO terminal_command and a
+	// tab-strip title, so only #123's registry identifies it.
+	splitHalfFocusedPanes = `[
+	  {"id":0,"is_plugin":false,"is_focused":false,"is_floating":false,
+	   "title":"claude","terminal_command":"sh -c exec pair-wrap claude"},
+	  {"id":5,"is_plugin":false,"is_focused":true,"is_floating":false,
+	   "title":"[terminal 1]","terminal_command":null}
+	]`
+
 	draftFocusedPanes = `[
 	  {"id":0,"is_plugin":false,"is_focused":false,"is_floating":false,
 	   "title":"claude","terminal_command":"sh -c exec pair-wrap claude"},
@@ -103,13 +123,11 @@ func copyOpts() CopyOnSelectOptions {
 	return CopyOnSelectOptions{PairHome: "/h", SelfExe: "/h/bin/pair"}
 }
 
-// (a) The HOOK mirrors the selection to the OS clipboard and does NOTHING else
-// (#125). It used to detach an orchestrator that flashed the source pane, stole
-// focus to the draft, and inserted the selection as a `> ` quote; that
-// auto-paste was distracting, so the hook is now mirror-only. It still must run
-// none of the slow zellij chain inline — that in-hook chain is what zellij
-// reaped mid-paste (#100).
-func TestCopyOnSelectHookMirrorsOnly(t *testing.T) {
+// (a) The HOOK mirrors the selection and detaches the orchestrator. It must run
+// NONE of the slow zellij chain inline — that in-hook chain is exactly what zellij
+// reaped mid-paste (#100), so the reap fix is "hook does nothing slow". WHETHER
+// the hand-off happens is the orchestrator's call (#125 gates it on pane role).
+func TestCopyOnSelectHookMirrorsThenDetaches(t *testing.T) {
 	f := newFake()
 	code := RunCopyOnSelect(copyOpts(), strings.NewReader("selected text"), f, io.Discard)
 	if code != 0 {
@@ -118,8 +136,10 @@ func TestCopyOnSelectHookMirrorsOnly(t *testing.T) {
 	if f.copied != "selected text" {
 		t.Errorf("clipboard copied %q, want the selection mirrored", f.copied)
 	}
-	if len(f.spawned) != 0 {
-		t.Errorf("hook must not spawn the auto-paste orchestrator (#125), got %+v", f.spawned)
+	if len(f.spawned) != 1 || f.spawned[0].path != "/h/bin/pair" ||
+		len(f.spawned[0].args) != 3 || f.spawned[0].args[0] != "clip" ||
+		f.spawned[0].args[1] != "copy-on-select" || f.spawned[0].args[2] != "--orchestrate" {
+		t.Errorf("want one detached `/h/bin/pair clip copy-on-select --orchestrate`, got %+v", f.spawned)
 	}
 	if f.listCalls != 0 || len(f.subprocess) != 0 || len(f.execd) != 0 {
 		t.Errorf("hook ran the slow chain inline: listCalls=%d subprocess=%+v execd=%+v",
@@ -133,10 +153,8 @@ func TestCopyOnSelectEmptySelection(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit = %d, want 0", code)
 	}
-	// The spawn check that used to live here is vacuous since #125 — the hook
-	// never spawns. The clipboard write is the real assertion.
-	if f.copied != "" {
-		t.Errorf("empty selection should not touch the clipboard: copied=%q", f.copied)
+	if f.copied != "" || len(f.spawned) != 0 {
+		t.Errorf("empty selection should do nothing: copied=%q spawned=%+v", f.copied, f.spawned)
 	}
 }
 
@@ -320,5 +338,40 @@ func TestFlashPaneOverrides(t *testing.T) {
 	}
 	if f.scheduledReset[0].d != 250*time.Millisecond {
 		t.Errorf("ms override ignored: %+v", f.scheduledReset)
+	}
+}
+
+// (d) #125: a selection in the RIGHT TERMINAL must NOT hand off. Selecting a
+// path or a command there is usually just a copy, and having it hijack the
+// draft (flash + focus steal + `> ` insert) was distracting. The AGENT pane
+// keeps the hand-off — case (b) above — because quoting what the agent said
+// back into the draft is the point of the feature.
+func TestCopyOnSelectOrchestrateSkipsRightTerminal(t *testing.T) {
+	f := newFake()
+	f.panes = terminalFocusedPanes
+	f.executable["/h/bin/pair"] = true
+	if code := RunCopyOnSelectOrchestrate(copyOpts(), f, io.Discard); code != 0 {
+		t.Fatalf("exit = %d, want 0", code)
+	}
+	if len(f.execd) != 0 || len(f.subprocess) != 0 {
+		t.Errorf("right-terminal selection must not flash or hand off: execd=%+v subprocess=%+v",
+			f.execd, f.subprocess)
+	}
+}
+
+// (e) The same gate must hold for an Alt+Shift+d SPLIT HALF, which zellij
+// reports with no terminal_command and a "[terminal N]" title — neither
+// identifies it, so the gate depends on #123's registry.
+func TestCopyOnSelectOrchestrateSkipsSplitTerminalHalfViaRegistry(t *testing.T) {
+	f := newFake()
+	f.panes = splitHalfFocusedPanes
+	f.terminalPaneIDs = []string{"4", "5"}
+	f.executable["/h/bin/pair"] = true
+	if code := RunCopyOnSelectOrchestrate(copyOpts(), f, io.Discard); code != 0 {
+		t.Fatalf("exit = %d, want 0", code)
+	}
+	if len(f.execd) != 0 || len(f.subprocess) != 0 {
+		t.Errorf("split-half selection must not hand off: execd=%+v subprocess=%+v",
+			f.execd, f.subprocess)
 	}
 }

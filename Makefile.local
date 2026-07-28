@@ -213,8 +213,7 @@ test-doctor:
 # "claude [<cwd>]", so a repo path containing "nvim" (e.g. parley.nvim) must not
 # be mistaken for the nvim draft pane (which would skip the paste). Keys on
 # terminal_command, not the cwd-polluted title. See tests/copy-on-select-test.sh.
-# Since #125 the hook is mirror-only and the script drives the orchestrator leaf
-# directly for the in_nvim cases (see the script header).
+# Since #125 the script also pins the right-terminal gate (see its header).
 # copy-on-select is the Go binary (#93 M4; zellij's copy_command invokes it
 # directly since #94 M2), so a fresh-tree run must build it before the test copies
 # it into the sandboxed $PAIR_HOME/bin (same missing-prereq lesson as M2/M3).
