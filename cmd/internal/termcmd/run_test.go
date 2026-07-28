@@ -30,8 +30,8 @@ func TestRunTestShortcutRightTerminalActions(t *testing.T) {
 		{name: "close tab stays local", chord: "Alt+w"},
 		{name: "rename tab stays local", chord: "Alt+r"},
 		{name: "alt shift d splits terminal down", chord: "Alt+Shift+d", wantOps: []string{
-			"change-floating-pane-coordinates --pane-id 4 --x 75 --y 0 --width 75 --height 25 --borderless true --pinned true",
-			`quiet new-pane --floating --pinned true --borderless true --x 75 --y 25 --width 75 --height 26 --name terminal -- sh -c zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term`,
+			"change-floating-pane-coordinates --pane-id 4 --x 75 --y 0 --width 75 --height 25 --borderless false --pinned true",
+			`quiet new-pane --floating --pinned true --borderless false --x 75 --y 25 --width 75 --height 26 --name terminal -- sh -c zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term`,
 		}},
 		{name: "alt x routes quit to draft", chord: "Alt+x", wantOps: []string{
 			"focus-pane-id 2",
@@ -149,7 +149,7 @@ func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 		{name: "rename tab", chunks: [][]byte{{0x1b, 'r'}, []byte("work\r")}, wantMux: "rename-begin:,rename-preview:w:1,rename-preview:wo:2,rename-preview:wor:3,rename-preview:work:4,rename-finish:1:work"},
 		{name: "previous tab", chunks: [][]byte{[]byte("\x1b[1;3D")}, wantMux: "prev-tab"},
 		{name: "next tab", chunks: [][]byte{[]byte("\x1b[1;3C")}, wantMux: "next-tab"},
-		{name: "split terminal down by explicit right pane geometry and locks floating panes in place", chunks: [][]byte{[]byte("\x1b[68;4u")}, wantRTOps: `change-floating-pane-coordinates --pane-id 4 --x 75 --y 0 --width 75 --height 25 --borderless true --pinned true,quiet new-pane --floating --pinned true --borderless true --x 75 --y 25 --width 75 --height 26 --name terminal -- sh -c zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term`},
+		{name: "split terminal down by explicit right pane geometry and locks floating panes in place", chunks: [][]byte{[]byte("\x1b[68;4u")}, wantRTOps: `change-floating-pane-coordinates --pane-id 4 --x 75 --y 0 --width 75 --height 25 --borderless false --pinned true,quiet new-pane --floating --pinned true --borderless false --x 75 --y 25 --width 75 --height 26 --name terminal -- sh -c zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term`},
 		{name: "alt d routes detach to draft", chunks: [][]byte{[]byte("\x1b[100;3u")}, wantRTOps: "focus-pane-id 2,write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairConfirmDetach(),write --pane-id 2 13"},
 		{name: "alt x routes quit to draft", chunks: [][]byte{[]byte("\x1b[120;3u")}, wantRTOps: "focus-pane-id 2,write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairConfirmQuit(),write --pane-id 2 13"},
 		{name: "alt n routes restart to draft", chunks: [][]byte{[]byte("\x1b[110;3u")}, wantRTOps: "focus-pane-id 2,write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairConfirmRestart(),write --pane-id 2 13"},
@@ -231,8 +231,8 @@ func TestSplitTerminalDownUsesCurrentPaneIDWhenFocusIsAmbiguous(t *testing.T) {
 	}
 
 	want := []string{
-		"change-floating-pane-coordinates --pane-id 4 --x 75 --y 2 --width 75 --height 24 --borderless true --pinned true",
-		`quiet new-pane --floating --pinned true --borderless true --x 75 --y 26 --width 75 --height 25 --name terminal -- sh -c zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term`,
+		"change-floating-pane-coordinates --pane-id 4 --x 75 --y 2 --width 75 --height 24 --borderless false --pinned true",
+		`quiet new-pane --floating --pinned true --borderless false --x 75 --y 26 --width 75 --height 25 --name terminal -- sh -c zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term`,
 	}
 	if strings.Join(rt.ops, ",") != strings.Join(want, ",") {
 		t.Fatalf("ops = %v, want %v", rt.ops, want)

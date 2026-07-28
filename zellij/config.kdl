@@ -8,8 +8,10 @@
 // - Mouse support itself stays ON. `mouse_mode false` (tried for #123 to
 //   freeze pane drag/resize) also kills click-to-focus, text selection, the
 //   copy_command flow, and scroll — and click-to-focus is the last-resort
-//   escape when keyboard focus lands somewhere unexpected. Drag exposure is
-//   reduced instead by keeping the split terminal panes borderless + pinned.
+//   escape when keyboard focus lands somewhere unexpected. Split terminal
+//   panes stay pinned and keep their frames (the frame is the only visible
+//   divider between the split halves and carries the tab title); the residual
+//   frame-drag exposure is the accepted trade-off.
 // - Suppress "what's new" release-notes popup on version bumps.
 // - Enable pane frames globally so the agent pane shows zellij's
 //   scroll-position indicator (top-right) when scrolled — the only way

@@ -500,7 +500,7 @@ func splitTerminalDown(rt Runtime) error {
 		"--y", y,
 		"--width", width,
 		"--height", strconv.Itoa(topRows),
-		"--borderless", "true",
+		"--borderless", "false",
 		"--pinned", "true",
 	); err != nil {
 		return err
@@ -509,7 +509,7 @@ func splitTerminalDown(rt Runtime) error {
 		"new-pane",
 		"--floating",
 		"--pinned", "true",
-		"--borderless", "true",
+		"--borderless", "false",
 		"--x", x,
 		"--y", strconv.Itoa(bottomY),
 		"--width", width,

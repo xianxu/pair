@@ -74,9 +74,13 @@ manually invoke Zellij splitting. The desired workflow is one terminal shortcut:
   `pair layout focus-terminal` (layoutcmd.FocusRightTerminal) focuses the
   floating right terminal by pane id (preferring the layer-focused split pane),
   used by draft nvim and pair wrap; `mouse_mode false` reverted — it also
-  killed click-to-focus, copy-on-select, and scroll. Drag exposure remains
-  mitigated only by borderless+pinned split panes; the "no drag/resize by
+  killed click-to-focus, copy-on-select, and scroll. The "no drag/resize by
   mouse" Done-when line is relaxed accordingly (needs a live mouse check).
+- 2026-07-27 (post-close rework 2): live testing showed borderless split panes
+  render with no visible divider between the halves. Reverted the split panes
+  to bordered (`--borderless false`, still pinned): the frame is the divider
+  and carries the #118 tab title and scroll indicator. Residual frame-drag
+  exposure is the accepted trade-off.
 
 ## Estimate
 
