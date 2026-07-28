@@ -996,3 +996,31 @@ tests where the final byte arrives in a later read. Use the same final-byte
 predicate for both "is this sequence complete?" and "how much malformed input
 should be consumed?" so a control like `ESC[@z` cannot swallow the following
 printable `z`.
+
+## Never disable an input layer without auditing the escape hatches it provides
+
+#123 set `mouse_mode false` to stop mouse drags from moving workbench panes.
+That single global switch also removed click-to-focus — which turned a latent
+keyboard trap (left→right `move-focus right` landing on the invisible
+terminal-filler pane, which swallows all keys) into a total focus lockout,
+and silently killed copy-on-select and scroll.
+
+**Rule.** Before disabling a whole input modality (mouse, a keyboard protocol,
+a bind table), enumerate what recovery paths and features ride on it; prefer
+the narrowest mechanism that fixes the reported problem. And test focus
+navigation as full round trips from *every* pane, driven through the real
+input path (`zellij action write` into the pane), not only via `--test-shortcut`
+harness calls — the trap here lived in the pane the chord *lands on*, not the
+pane that handles it.
+
+## Pane navigation must be id-based, not relative
+
+The draft/agent → terminal jump used `zellij action move-focus right`, which
+addresses the tiled layer only and cannot reach a floating pane; it focused the
+filler behind the terminal. tests/review-poke-test.sh already encoded this rule
+for the review pane ("no relative move-focus (must be id-based)").
+
+**Rule.** Any cross-pane focus change in the workbench goes through pane-id
+addressing (`focus-pane-id`, now via `pair layout focus-terminal` for the right
+terminal). Relative `move-focus` is acceptable only within the tiled left stack
+(agent ↕ draft) where no floating layer is involved.

@@ -3613,7 +3613,11 @@ end
 function _G.PairFocusTerminal()
   _G.PairRecordLeftPane()
   if has_ui() then
-    vim.fn.system({ 'zellij', 'action', 'move-focus', 'right' })
+    -- Focus by pane id (`pair layout focus-terminal`), not `move-focus
+    -- right`: the relative move lands tiled focus on the terminal-filler
+    -- behind the floating terminal, which swallows all further keys
+    -- (#123 focus lockout).
+    vim.fn.system({ 'pair', 'layout', 'focus-terminal' })
   end
 end
 

@@ -131,7 +131,7 @@ write_panes agent
 rm -f "$tmp/actions.log" "$PAIR_DATA_DIR/last-left-pane-t"
 ZELLIJ_PANE_ID=2 nvim --headless -u "$ROOT/nvim/init.lua" "$tmp/draft.md" \
   -c 'lua vim.g.pair_test_has_ui = true; PairFocusTerminal()' -c 'qa!' >/dev/null 2>&1
-check_eq "draft Alt+k production path moves right" "$(actions)" "move-focus right"
+check_eq "draft Alt+k production path focuses terminal by id" "$(actions)" "focus-pane-id 4"
 check_eq "draft Alt+k production path records pane" "$(cat "$PAIR_DATA_DIR/last-left-pane-t")" "2"
 
 write_panes review
@@ -204,9 +204,17 @@ grep -Fq 'focus_follows_mouse false' "$ROOT/zellij/config.kdl" \
   && pass "Zellij focus does not follow the mouse across asymmetric layers" \
   || { printf 'FAIL Zellij focus-follows-mouse is enabled\n'; fail=1; }
 
-grep -Fq 'mouse_mode false' "$ROOT/zellij/config.kdl" \
-  && pass "Zellij mouse layout manipulation is disabled" \
-  || { printf 'FAIL Zellij mouse layout manipulation is enabled\n'; fail=1; }
+grep -Eq '^[[:space:]]*mouse_mode[[:space:]]+false' "$ROOT/zellij/config.kdl" \
+  && { printf 'FAIL Zellij mouse support is disabled (kills click-to-focus rescue + copy-on-select, #123 lockout)\n'; fail=1; } \
+  || pass "Zellij mouse support stays enabled"
+
+grep -Fq "'pair', 'layout', 'focus-terminal'" "$ROOT/nvim/init.lua" \
+  && pass "draft Alt+k focuses terminal by pane id" \
+  || { printf 'FAIL draft Alt+k does not use pair layout focus-terminal\n'; fail=1; }
+
+grep -Fq '"move-focus", "right"' "$ROOT/cmd/internal/wrapcmd/wrap.go" \
+  && { printf 'FAIL agent Alt+k still uses relative move-focus right (terminal-filler trap)\n'; fail=1; } \
+  || pass "agent Alt+k no longer uses relative move-focus right"
 
 grep -Fq '"--borderless", "true"' "$ROOT/cmd/internal/termcmd/run.go" \
   && pass "right terminal split locks floating panes against mouse dragging" \

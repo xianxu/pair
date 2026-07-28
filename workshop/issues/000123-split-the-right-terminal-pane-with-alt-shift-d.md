@@ -62,6 +62,21 @@ manually invoke Zellij splitting. The desired workflow is one terminal shortcut:
   of place, and left workbench boundaries still resized by mouse drag. The
   implementation was revised again to create borderless split terminal panes and
   disable Zellij mouse layout manipulation for the fixed workbench.
+- 2026-07-27 (post-close rework): dogfooding the branch produced a total focus
+  lockout — "focus on the right pane" could not be moved and no chord reached
+  draft/agent. Root cause (reproduced in an isolated Zellij session): every
+  left→right jump (`PairFocusTerminal` in draft nvim, `ActionFocusRightTerminal`
+  in pair wrap) used relative `zellij action move-focus right`, which lands
+  tiled focus on the invisible terminal-filler (`tail -f /dev/null`) behind the
+  pinned floating terminal; the filler swallows all keys. On main a mouse click
+  was the (unnoticed) rescue; this branch's `mouse_mode false` removed it,
+  converting the latent trap into a hard lockout. Fix: new shared
+  `pair layout focus-terminal` (layoutcmd.FocusRightTerminal) focuses the
+  floating right terminal by pane id (preferring the layer-focused split pane),
+  used by draft nvim and pair wrap; `mouse_mode false` reverted — it also
+  killed click-to-focus, copy-on-select, and scroll. Drag exposure remains
+  mitigated only by borderless+pinned split panes; the "no drag/resize by
+  mouse" Done-when line is relaxed accordingly (needs a live mouse check).
 
 ## Estimate
 
@@ -141,3 +156,15 @@ total: 0.80
   mouse-movable, and global mouse mode enables mouse layout manipulation for
   tiled boundaries. Switched the split panes to `--borderless true` and set
   `mouse_mode false` in the Pair Zellij config so the workbench stays fixed.
+- Post-close rework (focus lockout): reproduced the reported "focus stuck on
+  right pane" in an isolated session (`zellij action write 27 107` into draft →
+  probe showed `Pane Terminal(1) is already focused`, i.e. keyboard captured by
+  terminal-filler). Fixed left→right navigation to `focus-pane-id` via new
+  `pair layout focus-terminal` (ARCH-DRY: one helper shared by nvim draft,
+  pair wrap, and pair term's pane pick, mirroring review-poke's existing
+  "id-based, never relative move-focus" rule) and reverted `mouse_mode false`.
+  Verified GREEN: go test layoutcmd/wrapcmd/termcmd/workbenchshortcut/
+  dispatcher; tests/term-pane-shortcuts-test.sh; zellij setup --check; and a
+  live isolated-session replay — draft↔terminal round trip lands keyboard on
+  the floating terminal (probe: `Pane Terminal(3) is already focused`), split
+  still works, and Alt+k returns to the layer-focused split pane.

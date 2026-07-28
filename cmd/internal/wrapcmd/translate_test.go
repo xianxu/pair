@@ -385,7 +385,12 @@ func TestHandleWorkbenchShortcutRunsAgentProductionPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	logPath := filepath.Join(dir, "zellij.log")
-	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " + logPath + "\n"
+	script := "#!/bin/sh\n" +
+		"if [ \"$1 $2\" = \"action list-panes\" ]; then\n" +
+		"  printf '[{\"id\":9,\"is_focused\":false,\"is_floating\":true,\"title\":\"terminal\",\"terminal_command\":\"pair term\"}]\\n'\n" +
+		"  exit 0\n" +
+		"fi\n" +
+		"printf '%s\\n' \"$*\" >> " + logPath + "\n"
 	if err := os.WriteFile(filepath.Join(fakebin, "zellij"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -413,7 +418,7 @@ func TestHandleWorkbenchShortcutRunsAgentProductionPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(logged) != "action move-focus right\naction move-focus down\n" {
+	if string(logged) != "action focus-pane-id 9\naction move-focus down\n" {
 		t.Fatalf("zellij actions = %q", logged)
 	}
 }

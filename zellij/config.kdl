@@ -5,8 +5,11 @@
 // - Disable hover help-text tooltips on pane frames.
 // - Disable advanced mouse actions (pane grouping, etc.) to keep mouse
 //   behavior predictable for selection and our copy_command flow.
-// - Disable zellij mouse layout manipulation so Pair's fixed workbench panes
-//   do not move or resize when dragged.
+// - Mouse support itself stays ON. `mouse_mode false` (tried for #123 to
+//   freeze pane drag/resize) also kills click-to-focus, text selection, the
+//   copy_command flow, and scroll — and click-to-focus is the last-resort
+//   escape when keyboard focus lands somewhere unexpected. Drag exposure is
+//   reduced instead by keeping the split terminal panes borderless + pinned.
 // - Suppress "what's new" release-notes popup on version bumps.
 // - Enable pane frames globally so the agent pane shows zellij's
 //   scroll-position indicator (top-right) when scrolled — the only way
@@ -18,7 +21,6 @@
 mouse_hover_effects false
 advanced_mouse_actions false
 focus_follows_mouse false
-mouse_mode false
 support_kitty_keyboard_protocol true
 show_release_notes false
 show_startup_tips false

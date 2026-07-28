@@ -73,7 +73,7 @@ Select something with mouse on agent's pane, the selection is inserted at curren
 | **Alt+t** | layout 3 terminal | Create a Pair-owned local terminal tab. |
 | **Alt+w** | layout 3 terminal | Close the active local terminal tab. |
 | **Alt+r** | layout 3 terminal | Rename the active local terminal tab in the pane frame; Enter commits, Escape cancels, and Cmd+Delete deletes to the beginning. |
-| **Alt+Shift+d** | layout 3 terminal | Split the right terminal downward into Zellij panes; the new lower pane runs `pair term` and is mouse-resizable at the boundary. |
+| **Alt+Shift+d** | layout 3 terminal | Split the right terminal downward into Zellij panes; the new lower pane runs `pair term` and takes focus. `Alt+k` from the left returns to the split pane last used. |
 | **Alt+←** / **Alt+→** | layout 3 terminal | Switch local terminal tabs. |
 | **Alt+c** | any pane | Open/show/hide the review collaboration pane. If no review target exists, starts `:PairReview`. |
 | **Shift+Alt+d** | review pane (visual) | Define the selected term inline. The pair agent answers through `pair review definition`, and the pane stores the result as a durable footnote. |

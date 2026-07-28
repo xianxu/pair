@@ -50,6 +50,57 @@ func AlignFloatingTerminal(rt Runtime) error {
 	)
 }
 
+// FocusRightTerminal focuses the floating right workbench terminal by pane id,
+// which also re-activates zellij's floating layer. A relative `move-focus
+// right` must never be used for this jump: the floating terminal only covers
+// the inert terminal-filler pane, so relative movement lands tiled focus on
+// the filler, which then swallows every keystroke (the #123 focus lockout).
+// When no floating right terminal exists (layout2), fall back to the relative
+// move so two-pane layouts keep their old behavior.
+func FocusRightTerminal(rt Runtime) error {
+	panesJSON, err := rt.ListPanesJSON()
+	if err != nil {
+		return err
+	}
+	terminal, ok := pickRightTerminal(zellijpane.Parse(panesJSON))
+	if !ok {
+		return rt.RunZellijAction("move-focus", "right")
+	}
+	return rt.RunZellijAction("focus-pane-id", terminal.ID)
+}
+
+// pickRightTerminal prefers the floating-layer-focused right terminal — after
+// an Alt+Shift+d split there are two, and zellij keeps is_focused on the one
+// the user last used — then falls back to the first floating right terminal.
+func pickRightTerminal(panes []zellijpane.Pane) (zellijpane.Pane, bool) {
+	var first zellijpane.Pane
+	var found bool
+	for _, pane := range panes {
+		if pane.IsPlugin || !pane.IsFloating || !isRightTerminal(pane) {
+			continue
+		}
+		if pane.IsFocused {
+			return pane, true
+		}
+		if !found {
+			first, found = pane, true
+		}
+	}
+	return first, found
+}
+
+func RunFocusTerminal(args []string, rt Runtime, stderr io.Writer) int {
+	if len(args) > 0 {
+		fmt.Fprintln(stderr, "usage: pair layout focus-terminal")
+		return 2
+	}
+	if err := FocusRightTerminal(rt); err != nil {
+		fmt.Fprintf(stderr, "pair layout focus-terminal: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
 func RunToggleFocused(args []string, rt Runtime, stderr io.Writer) int {
 	if len(args) > 0 {
 		fmt.Fprintln(stderr, "usage: pair layout toggle-focused")

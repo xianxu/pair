@@ -143,7 +143,12 @@ func focusedWorkbenchPanes(rt Runtime) (workbenchPanes, error) {
 		case workbenchshortcut.PaneRoleLeftDraft:
 			out.draft = pane
 		case workbenchshortcut.PaneRoleRightTerminal:
-			out.terminal = pane
+			// After an Alt+Shift+d split there are two right terminals; keep
+			// the floating-layer-focused one (the pane the user last used)
+			// over positional order.
+			if out.terminal.ID == "" || (pane.IsFloating && pane.IsFocused) {
+				out.terminal = pane
+			}
 		}
 	}
 	if out.focused.ID == "" {

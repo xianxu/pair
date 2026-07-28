@@ -125,6 +125,46 @@ func intString(value int) string {
 	return string(reversed[i:])
 }
 
+func TestFocusRightTerminalFocusesFloatingTerminalByID(t *testing.T) {
+	rt := &fakeRuntime{panesJSON: []byte(`[
+		{"id":2,"is_focused":true,"is_floating":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua d.md"},
+		{"id":1,"is_focused":false,"is_floating":false,"title":"terminal-filler","terminal_command":"tail -f /dev/null"},
+		{"id":4,"is_focused":false,"is_floating":true,"title":"terminal","terminal_command":"pair term"}
+	]`)}
+	if err := FocusRightTerminal(rt); err != nil {
+		t.Fatal(err)
+	}
+	if len(rt.ops) != 1 || rt.ops[0] != "focus-pane-id 4" {
+		t.Fatalf("ops = %v, want [focus-pane-id 4]", rt.ops)
+	}
+}
+
+func TestFocusRightTerminalPrefersLayerFocusedSplitPane(t *testing.T) {
+	rt := &fakeRuntime{panesJSON: []byte(`[
+		{"id":3,"is_focused":false,"is_floating":true,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"},
+		{"id":4,"is_focused":true,"is_floating":true,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"}
+	]`)}
+	if err := FocusRightTerminal(rt); err != nil {
+		t.Fatal(err)
+	}
+	if len(rt.ops) != 1 || rt.ops[0] != "focus-pane-id 4" {
+		t.Fatalf("ops = %v, want [focus-pane-id 4]", rt.ops)
+	}
+}
+
+func TestFocusRightTerminalFallsBackToRelativeMoveWithoutFloatingTerminal(t *testing.T) {
+	rt := &fakeRuntime{panesJSON: []byte(`[
+		{"id":0,"is_focused":true,"is_floating":false,"title":"agent","terminal_command":"pair wrap claude"},
+		{"id":2,"is_focused":false,"is_floating":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua d.md"}
+	]`)}
+	if err := FocusRightTerminal(rt); err != nil {
+		t.Fatal(err)
+	}
+	if len(rt.ops) != 1 || rt.ops[0] != "move-focus right" {
+		t.Fatalf("ops = %v, want [move-focus right]", rt.ops)
+	}
+}
+
 type fakeRuntime struct {
 	panesJSON []byte
 	ops       []string
