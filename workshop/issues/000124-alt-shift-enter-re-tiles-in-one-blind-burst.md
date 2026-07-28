@@ -1,12 +1,13 @@
 ---
 id: 000124
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-28
 updated: 2026-07-28
 estimate_hours: 0.15
 started: 2026-07-28T08:11:35-07:00
+actual_hours: 0.21
 ---
 
 # Alt+Shift+Enter re-tiles in one blind burst
@@ -76,6 +77,7 @@ total: 0.15
 ## Log
 
 ### 2026-07-28
+- 2026-07-28: closed — Blind 3-step burst: go test ./... green; tests/term-pane-shortcuts-test.sh expects the burst; live smoke in isolated zellij session with real client keystrokes — expand 75->97/150 (64.7% ~ 2/3), collapse 97->75 exactly, identical with a split present; zero pair-added delay (settle loop deleted). Atlas mechanism note updated.; review verdict: FIX-THEN-SHIP
 - Implemented the blind burst; live calibration in an isolated session
   corrected the step model: zellij's `resize` step is 5% of the screen
   (not 10% — successive reads during application caused the earlier

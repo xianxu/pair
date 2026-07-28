@@ -2,8 +2,8 @@ package layoutcmd
 
 // Pure planning for the Alt+Shift+Enter terminal-width toggle. The right
 // terminal column re-tiles between half the screen (normal, 50/50) and about
-// two thirds (expanded, 65/35 — the 1/3–2/3 arrangement). Zellij 0.44.3's
-// tiled resize step is a stable fraction of the screen (RESIZE_PERCENT = 5%
+// two thirds (expanded, 65/35 — the 1/3–2/3 arrangement). Zellij's (as of
+// 0.44.3) tiled resize step is a stable fraction of the screen (RESIZE_PERCENT = 5%
 // per `resize increase|decrease left`; measured live: 7–8 cols on a 150-col
 // screen, and back-to-back actions all apply), so the toggle delta is always
 // exactly three steps — fired blind as one burst (#124), replacing the #123

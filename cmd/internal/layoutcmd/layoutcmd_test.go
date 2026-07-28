@@ -7,9 +7,9 @@ import (
 	"testing"
 )
 
-// The toggle fires a fixed two-action burst (zellij's tiled resize step is a
-// stable 10% of the screen, so 1/2 ↔ ~2/3 is always exactly two steps) — no
-// settle pauses, no re-reads. #124.
+// The toggle fires a fixed three-action burst (zellij's tiled resize step is
+// a stable 5% of the screen, so 1/2 ↔ ~2/3 is always exactly three steps) —
+// no settle pauses, no re-reads. #124.
 
 func TestToggleFocusedExpandsInOneBurst(t *testing.T) {
 	rt := &fakeRuntime{panesJSON: []byte(tiledWorkbenchJSON(75, 150))}
