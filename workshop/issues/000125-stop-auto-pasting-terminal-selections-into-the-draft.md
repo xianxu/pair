@@ -31,7 +31,10 @@ at `quote-<tag>`, focus draft, send Ctrl-_) → nvim `PairPasteQuote`.
 - Selecting text STILL copies to the OS clipboard, **by the same mechanism as
   today** (user decision 2026-07-28: disable the auto-paste half only, not
   `copy_on_select` itself).
-- **Approach: keep `copy_command`, make the hook mirror-only.** `RunCopyOnSelect`
+- **[SUPERSEDED by the 2026-07-28 scope correction — the hook detaches again;
+  the gate moved into the orchestrator. The `copy_command` reasoning below still
+  holds and is why it was never dropped.]**
+  **Approach: keep `copy_command`, make the hook mirror-only.** `RunCopyOnSelect`
   keeps its `ClipboardCopy` and drops the `SpawnDetached(... --orchestrate)`.
   The tempting one-liner — deleting `copy_command` from the config — would hand
   the clipboard write to zellij's native path, which uses OSC 52 to the host
@@ -40,7 +43,9 @@ at `quote-<tag>`, focus draft, send Ctrl-_) → nvim `PairPasteQuote`.
   any seam our fakes can drive, making it manual-verification-only. Mirror-only
   keeps the write on our tested `clipcmd.Runtime` seam (pbcopy/wl-copy/xclip),
   changes exactly one behavior, and stays unit-testable.
-- The rest of the `pair clip` chain and `PairPasteQuote` stay in place,
+- **[SUPERSEDED — nothing is unwired: the agent-pane path still drives the whole
+  chain. #126 remains valuable as a DELIBERATE trigger, not as the only one.]**
+  The rest of the `pair clip` chain and `PairPasteQuote` stay in place,
   unwired: `RunCopyOnSelectOrchestrate`, `RunClipboardToPane`, `RunFlashPane`,
   the `quote-<tag>` staging file, and the insert-mode `<C-_>` map. They are the
   machinery **#126** (deliberate quote-paste keybind) will bind; deleting them
@@ -48,7 +53,9 @@ at `quote-<tag>`, focus draft, send Ctrl-_) → nvim `PairPasteQuote`.
   don't demolish). Every such site is annotated "unwired since #125 — no
   production caller; see #126" so a reader can tell dormant-by-design from
   orphaned.
-- Recorded consequence: there is currently NO manual trigger for
+- **[SUPERSEDED — the `> `-reflow capability is retained for agent-pane
+  selections; only the right terminal lost it.]**
+  Recorded consequence: there is currently NO manual trigger for
   `PairPasteQuote`. Its only caller is the copy-on-select hand-off, and the
   insert-mode `<C-_>` keymap exists solely as that hand-off's delivery gate
   (Alt+n is `PairConfirmRestart`, not quote-paste). So this removes the
@@ -60,9 +67,14 @@ at `quote-<tag>`, focus draft, send Ctrl-_) → nvim `PairPasteQuote`.
 - A live selection in the terminal populates the clipboard (`pbpaste` returns
   the selected text) and does nothing else — no pane flash, no focus change,
   no draft insert.
-- `RunCopyOnSelect` no longer spawns the orchestrator;
-  `TestCopyOnSelectHookMirrorsThenDetaches` becomes "mirrors and does NOT
-  detach", so the change is pinned at the unit layer.
+- **[SUPERSEDED]** ~~`RunCopyOnSelect` no longer spawns the orchestrator.~~
+  Current: the hook still detaches; `RunCopyOnSelectOrchestrate` skips the
+  hand-off for right-terminal sources (including registry-identified split
+  halves), pinned by `TestCopyOnSelectOrchestrateSkipsRightTerminal` and
+  `...SkipsSplitTerminalHalfViaRegistry`.
+- A selection in the AGENT pane still hands off — verified live by the user
+  after restart, and pinned by `TestCopyOnSelectOrchestrateHandsOff` plus shell
+  case (a).
 - `tests/copy-on-select-test.sh` asserts the new contract ("selection does not
   auto-paste into the draft") instead of driving the old chain end-to-end.
 
@@ -187,3 +199,9 @@ total: 0.45
 - Live-verified by the user after a restart: selecting text in the right
   terminal copies to the clipboard and the draft is untouched — no flash, no
   focus change, no auto-paste. Closing on that.
+- Scope correction implemented and live-verified by the user: agent-pane
+  selections paste into the draft as before; right-terminal selections only
+  reach the clipboard. Mutation-proven — removing the gate fails both new unit
+  cases and shell case (c). Full `env -u ... make test` green through the
+  pre-existing scrollback-open Alt+x abort (identical on main), post-abort
+  targets green, `zellij setup --check`, `git diff --check`.
