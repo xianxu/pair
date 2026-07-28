@@ -384,3 +384,45 @@ func TestLastTerminalPaneStoreIsDistinctFromLastLeft(t *testing.T) {
 		t.Fatalf("left store polluted: (%q, %v)", got, err)
 	}
 }
+
+func TestTerminalPaneRegistry(t *testing.T) {
+	dir := t.TempDir()
+	reg := TerminalPaneRegistry{DataDir: dir, Tag: "pair"}
+	if err := reg.Register("4", 100); err != nil {
+		t.Fatal(err)
+	}
+	if err := reg.Register("7", 200); err != nil {
+		t.Fatal(err)
+	}
+	alive := func(pid int) bool { return pid == 100 }
+	ids, err := reg.LiveIDs(alive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 1 || ids[0] != "4" {
+		t.Fatalf("LiveIDs = %v, want [4] (dead pids filtered)", ids)
+	}
+	empty := TerminalPaneRegistry{DataDir: dir, Tag: "other"}
+	if ids, err := empty.LiveIDs(alive); err != nil || len(ids) != 0 {
+		t.Fatalf("missing registry = (%v, %v), want empty nil", ids, err)
+	}
+}
+
+func TestRoleForPaneWithRegisteredTerminals(t *testing.T) {
+	// zellij 0.44.3 reports terminal_command=null for panes created via
+	// `action new-pane --direction`, and the #118 tab-strip title
+	// ("[terminal 1]") defeats the title fallback — the registry is the
+	// authoritative signal for pair-owned terminal panes.
+	split := zellijpane.Pane{ID: "4", IsFocused: true, Title: "[terminal 1]"}
+	if got := RoleForPane(split); got != PaneRoleOther {
+		t.Fatalf("RoleForPane = %v, want Other without registry", got)
+	}
+	if got := RoleForPaneWith(split, []string{"4"}); got != PaneRoleRightTerminal {
+		t.Fatalf("RoleForPaneWith = %v, want RightTerminal via registry", got)
+	}
+	review := zellijpane.Pane{ID: "9", IsFocused: true, Title: "review",
+		TerminalCommand: "nvim -u /pair/nvim/review.lua /tmp/review.md"}
+	if got := RoleForPaneWith(review, []string{"4"}); got != PaneRoleOther {
+		t.Fatalf("RoleForPaneWith(review) = %v, want Other", got)
+	}
+}

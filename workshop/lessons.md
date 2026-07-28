@@ -1,5 +1,36 @@
 # Lessons
 
+## Zellij's pane report cannot identify action-created panes
+
+The tiled split (`action new-pane --direction down`) creates panes for which
+zellij 0.44.3 reports `terminal_command: null`, and pane titles are pair-owned
+mutable UI (#118 tab strips, user-renamable). Classifying workbench panes from
+the zellij report alone therefore silently fails for exactly the panes pair
+creates at runtime — live smoke showed split halves invisible to chord routing
+and to the focus picker.
+
+**Rule.** Pair-owned pane identity comes from self-registration (the process
+writes its own `$ZELLIJ_PANE_ID` + pid to a sidecar; readers filter by pid
+liveness), never from report heuristics. When adding a new pair-owned pane
+kind, register it and overlay the registry onto `RoleForPane`
+(`RoleForPaneWith`). Zellij `is_focused` is per-client and stale for
+unfocused-side panes — a pair-authored record outranks it. Caught in #123
+tiled-pivot smoke.
+
+## Drive zellij live smokes through a real attached client
+
+CLI actions (`zellij --session X action write|focus-pane-id|new-pane`) run as
+ephemeral clients: their focus state diverges from the attached client, writes
+land on stale focus, splits target the wrong pane, and `--near-current-pane`
+creates invisible orphan panes. Results look like product bugs but are harness
+artifacts.
+
+**Rule.** Smoke zellij interactively via a PTY-attached client (expect spawn +
+fifo-fed keystrokes) sending the real byte encodings (`\x1bk`, `\x1bD`, SGR
+mouse). Use CLI `list-panes` only for observation. Restart the session after
+every rebuild — resident pair processes do not pick up new binaries. Caught in
+#123 tiled-pivot smoke.
+
 ## Zellij forwarded bytes must preserve every focused surface using the chord
 
 `Alt+Shift+d` was added as a right-terminal split shortcut by rebinding Zellij

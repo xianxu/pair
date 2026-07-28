@@ -254,6 +254,54 @@ func TestTerminalAltKRecordsLeavingSplitHalf(t *testing.T) {
 	}
 }
 
+func TestSplitHalfChordsWorkViaRegistry(t *testing.T) {
+	// The live shape of an Alt+Shift+d split half in zellij 0.44.3: the pane
+	// report carries NO terminal_command (--direction-created) and the #118
+	// tab-strip title ("[terminal 1]") defeats the title fallback. Only the
+	// terminal-pane registry identifies it.
+	panes := `[
+		{"id":1,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
+		{"id":2,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
+		{"id":1,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":26,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"},
+		{"id":4,"is_focused":true,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_y":26,"pane_columns":75,"pane_rows":25,"title":"[terminal 1]","terminal_command":null}
+	]`
+	rt := &fakeRuntime{panesJSON: panes, currentPaneID: "4", terminalPaneIDs: []string{"1", "4"}, lastLeft: "2"}
+	var stderr bytes.Buffer
+	code := RunWithRuntime([]string{"--test-shortcut", "Alt+k"}, strings.NewReader(""), &bytes.Buffer{}, &stderr, rt)
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%q", code, stderr.String())
+	}
+	if strings.Join(rt.recordedTerminal, ",") != "4" {
+		t.Fatalf("recorded terminal = %v, want [4]", rt.recordedTerminal)
+	}
+	if strings.Join(rt.ops, ",") != "focus-pane-id 2" {
+		t.Fatalf("ops = %v, want focus-pane-id 2", rt.ops)
+	}
+}
+
+func TestChordRoleResolvesOwnPaneUnderAmbiguousFocus(t *testing.T) {
+	// zellij can report several panes focused at once (per-client focus; seen
+	// live in the tiled smoke: draft AND terminal both is_focused). Bytes on
+	// pair term's stdin can only mean its OWN pane is the input target, so
+	// role resolution must prefer ZELLIJ_PANE_ID over the is_focused scan —
+	// otherwise the draft wins by list order and the chord silently passes.
+	panes := `[
+		{"id":1,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
+		{"id":4,"is_focused":true,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term"},
+		{"id":2,"is_focused":true,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"}
+	]`
+	rt := &fakeRuntime{panesJSON: panes, currentPaneID: "4"}
+	var stderr bytes.Buffer
+	code := RunWithRuntime([]string{"--test-shortcut", "Alt+Shift+d"}, strings.NewReader(""), &bytes.Buffer{}, &stderr, rt)
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%q", code, stderr.String())
+	}
+	want := `quiet new-pane --direction down --name terminal -- sh -c zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term`
+	if strings.Join(rt.ops, ",") != want {
+		t.Fatalf("ops = %v, want the split (role must resolve to own terminal pane)", rt.ops)
+	}
+}
+
 func TestSplitTerminalDownRefusesWithoutRightTerminal(t *testing.T) {
 	rt := &fakeRuntime{panesJSON: `[
 		{"id":1,"is_focused":true,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
@@ -803,8 +851,10 @@ type fakeRuntime struct {
 	cachedDraft      string
 	currentPaneID    string
 	lastLeft         string
-	lastTerminal     string
-	recordedTerminal []string
+	lastTerminal           string
+	recordedTerminal       []string
+	terminalPaneIDs        []string
+	registeredTerminalPane bool
 	listCalls        int
 	failList         bool
 	ops              []string
@@ -814,6 +864,15 @@ type fakeRuntime struct {
 
 func (f *fakeRuntime) LastTerminalPaneID() (string, error) {
 	return f.lastTerminal, nil
+}
+
+func (f *fakeRuntime) TerminalPaneIDs() ([]string, error) {
+	return f.terminalPaneIDs, nil
+}
+
+func (f *fakeRuntime) RegisterTerminalPane() error {
+	f.registeredTerminalPane = true
+	return nil
 }
 
 func (f *fakeRuntime) RecordLastTerminalPaneID(id string) error {

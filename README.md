@@ -67,13 +67,13 @@ Select something with mouse on agent's pane, the selection is inserted at curren
 | **Alt+h** | any pane | Pop up the full keybind help in a floating pane (press `q` to dismiss). |
 | **Alt+Return** | nvim (normal/insert) | Send buffer to agent. Note for consistency, claude's keybinding also changed to Alt+return as send, and return as newline |
 | **Alt+Shift+Return** | nvim (normal/insert) | Append buffer to the agent's composer followed by a newline, but do **not** submit — leaves the cursor on a fresh line in the agent input for more typing. Logs + clears the draft like Alt+Return. |
-| **Alt+Shift+Return** | layout 3 terminal | Toggle the floating terminal between 1/2 and 3/4 width without recreating its processes. |
+| **Alt+Shift+Return** | layout 3 terminal | Re-tile the terminal column between 1/2 and 2/3 width (the left stack narrows and reflows while expanded) without recreating any processes. |
 | **Alt+j** | left Pair stack | Move vertically between the agent and draft panes. No-op in the user terminal. |
 | **Alt+k** | layout 3 agent/draft/terminal | Move between the last-focused left Pair pane and the right terminal. |
 | **Alt+t** | layout 3 terminal | Create a Pair-owned local terminal tab. |
 | **Alt+w** | layout 3 terminal | Close the active local terminal tab. |
 | **Alt+r** | layout 3 terminal | Rename the active local terminal tab in the pane frame; Enter commits, Escape cancels, and Cmd+Delete deletes to the beginning. |
-| **Alt+Shift+d** | layout 3 terminal | Split the right terminal downward into Zellij panes; the new lower pane runs `pair term` and takes focus. `Alt+k` from the left returns to the split pane last used. |
+| **Alt+Shift+d** | layout 3 terminal | Split the right terminal downward into tiled Zellij panes; the new lower pane runs `pair term` and takes focus. `Alt+k` from the left returns to the split pane last used. Workbench panes are tiled, so the mouse cannot drag them out of position. |
 | **Alt+←** / **Alt+→** | layout 3 terminal | Switch local terminal tabs. |
 | **Alt+c** | any pane | Open/show/hide the review collaboration pane. If no review target exists, starts `:PairReview`. |
 | **Shift+Alt+d** | review pane (visual) | Define the selected term inline. The pair agent answers through `pair review definition`, and the pane stores the result as a durable footnote. |

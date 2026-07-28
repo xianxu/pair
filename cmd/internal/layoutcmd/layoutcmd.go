@@ -7,10 +7,17 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"time"
 
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
+
+// resizeSettleDelay is how long the toggle loop waits after issuing a resize
+// before re-reading geometry — zellij applies resizes asynchronously (IO
+// pacing, so it lives here rather than in the pure resizeplan.go).
+const resizeSettleDelay = 80 * time.Millisecond
 
 type Runtime interface {
 	ListPanesJSON() ([]byte, error)
@@ -20,6 +27,10 @@ type Runtime interface {
 	// terminal reports is_focused while focus sits in the left stack, so the
 	// record is the only last-used-half memory the return jump has.
 	LastTerminalPaneID() (string, error)
+	// TerminalPaneIDs returns the live registered `pair term` pane ids —
+	// required to recognize Alt+Shift+d split halves, whose zellij pane
+	// report carries no terminal_command and a #118 tab-strip title.
+	TerminalPaneIDs() ([]string, error)
 }
 
 // FocusRightTerminal focuses the tiled right workbench terminal by pane id.
@@ -37,7 +48,11 @@ func FocusRightTerminal(rt Runtime) error {
 	if err != nil {
 		lastTerminal = ""
 	}
-	terminal, ok := pickRightTerminal(zellijpane.Parse(panesJSON), lastTerminal)
+	terminalIDs, err := rt.TerminalPaneIDs()
+	if err != nil {
+		terminalIDs = nil
+	}
+	terminal, ok := pickRightTerminal(zellijpane.Parse(panesJSON), lastTerminal, terminalIDs)
 	if !ok {
 		return rt.RunZellijAction("move-focus", "right")
 	}
@@ -45,28 +60,30 @@ func FocusRightTerminal(rt Runtime) error {
 }
 
 // pickRightTerminal chooses among the tiled right terminals — after an
-// Alt+Shift+d split there are two. A half actively holding focus wins;
-// otherwise the recorded last-used half (written when Alt+k leaves the
-// terminal side); otherwise the first in pane order.
-func pickRightTerminal(panes []zellijpane.Pane, lastTerminalID string) (zellijpane.Pane, bool) {
-	var recorded, first zellijpane.Pane
-	var haveRecorded, found bool
+// Alt+Shift+d split there are two. The recorded last-used half (written by
+// pair at the moment Alt+k left the terminal side) wins: it is pair-authored
+// ground truth, whereas zellij's is_focused flag on unfocused-side panes is
+// stale memory (live smoke: it pointed at the top half right after the user
+// left the bottom one). zellij focus is the fallback signal, then pane order.
+func pickRightTerminal(panes []zellijpane.Pane, lastTerminalID string, terminalPaneIDs []string) (zellijpane.Pane, bool) {
+	var focused, first zellijpane.Pane
+	var haveFocused, found bool
 	for _, pane := range panes {
-		if pane.IsPlugin || !isRightTerminal(pane) {
+		if pane.IsPlugin || !isRightTerminal(pane, terminalPaneIDs) {
 			continue
 		}
-		if pane.IsFocused {
+		if pane.ID == lastTerminalID && lastTerminalID != "" {
 			return pane, true
 		}
-		if pane.ID == lastTerminalID {
-			recorded, haveRecorded = pane, true
+		if pane.IsFocused && !haveFocused {
+			focused, haveFocused = pane, true
 		}
 		if !found {
 			first, found = pane, true
 		}
 	}
-	if haveRecorded {
-		return recorded, true
+	if haveFocused {
+		return focused, true
 	}
 	return first, found
 }
@@ -99,7 +116,11 @@ func RunToggleFocused(args []string, rt Runtime, stderr io.Writer) int {
 		return 1
 	}
 	panes := zellijpane.Parse(panesJSON)
-	focused, ok := focusedRightTerminal(panes)
+	terminalIDs, err := rt.TerminalPaneIDs()
+	if err != nil {
+		terminalIDs = nil
+	}
+	focused, ok := focusedRightTerminal(panes, terminalIDs)
 	if !ok {
 		return 0
 	}
@@ -118,12 +139,16 @@ func RunToggleFocused(args []string, rt Runtime, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "pair layout toggle-focused: resize: %v\n", err)
 			return 1
 		}
+		// zellij applies resizes asynchronously; without a settle pause the
+		// re-read races the application and the no-progress guard stops the
+		// loop short of the target (seen live: collapse stuck at ~55%).
+		time.Sleep(resizeSettleDelay)
 		panesJSON, err := rt.ListPanesJSON()
 		if err != nil {
 			fmt.Fprintf(stderr, "pair layout toggle-focused: list panes: %v\n", err)
 			return 1
 		}
-		next, ok := focusedRightTerminal(zellijpane.Parse(panesJSON))
+		next, ok := focusedRightTerminal(zellijpane.Parse(panesJSON), terminalIDs)
 		if !ok || abs(target-next.Columns) >= abs(target-current) {
 			break
 		}
@@ -132,9 +157,9 @@ func RunToggleFocused(args []string, rt Runtime, stderr io.Writer) int {
 	return 0
 }
 
-func focusedRightTerminal(panes []zellijpane.Pane) (zellijpane.Pane, bool) {
+func focusedRightTerminal(panes []zellijpane.Pane, terminalPaneIDs []string) (zellijpane.Pane, bool) {
 	for _, pane := range panes {
-		if pane.IsPlugin || !pane.IsFocused || !isRightTerminal(pane) {
+		if pane.IsPlugin || !pane.IsFocused || !isRightTerminal(pane, terminalPaneIDs) {
 			continue
 		}
 		return pane, true
@@ -158,11 +183,11 @@ func tiledScreenSize(panes []zellijpane.Pane) (int, int) {
 	return columns, rows
 }
 
-func isRightTerminal(pane zellijpane.Pane) bool {
+func isRightTerminal(pane zellijpane.Pane, terminalPaneIDs []string) bool {
 	if pane.ID == "" {
 		return false
 	}
-	return workbenchshortcut.RoleForPane(pane) == workbenchshortcut.PaneRoleRightTerminal
+	return workbenchshortcut.RoleForPaneWith(pane, terminalPaneIDs) == workbenchshortcut.PaneRoleRightTerminal
 }
 
 type OSRuntime struct{}
@@ -174,6 +199,11 @@ func (OSRuntime) ListPanesJSON() ([]byte, error) {
 func (OSRuntime) LastTerminalPaneID() (string, error) {
 	store := workbenchshortcut.LastTerminalPaneStore{DataDir: workbenchshortcut.DataDirFromEnv(), Tag: os.Getenv("PAIR_TAG")}
 	return store.Read()
+}
+
+func (OSRuntime) TerminalPaneIDs() ([]string, error) {
+	reg := workbenchshortcut.TerminalPaneRegistry{DataDir: workbenchshortcut.DataDirFromEnv(), Tag: os.Getenv("PAIR_TAG")}
+	return reg.LiveIDs(func(pid int) bool { return procutil.Alive(fmt.Sprintf("%d", pid)) })
 }
 
 func (OSRuntime) RunZellijAction(args ...string) error {

@@ -331,12 +331,20 @@ Both assets share the Pair-owned agent/draft column: the top pane runs
 `$PAIR_AGENT $PAIR_AGENT_ARGS` under `pair wrap`, and the bottom pane is
 `size=12` (fixed 12 rows) running
 `nvim -u $PAIR_HOME/nvim/init.lua` on the per-tag draft file. Layout 2 contains
-only this stack. Layout 3 adds a borderless inert filler in the tiled base and
-a permanently floating `pair term` user terminal above it; its width switches
-directly between 50% and 75%, covering the filler exactly or overlaying part of
-the left stack. Integer sizes are FIXED in zellij (refusing the `resize`
-action), but Pair drives draft-rung changes through swap layouts, not resize,
-so FIXED is harmless.
+only this stack. Layout 3 adds the `pair term` user terminal as a **tiled**
+right pane at 50% width (#123 pivot). It was floating for most of its life —
+covering an invisible tiled filler — but zellij 0.44.3 lets any floating pane
+be dragged off position by its frame with no config gate, so the terminal
+moved into the tiled tree: tiled panes have no mouse-move operation at all,
+making the workbench drag-immune while keeping frames and full mouse support.
+The filler (and its key-swallowing focus trap) is gone. `Alt+Shift+Enter`
+re-tiles the column boundary between 50% and 2/3 width via
+`pair layout toggle-focused` — the left stack genuinely narrows and reflows
+while expanded (no overlay; nothing floats). Integer sizes are FIXED in zellij
+(refusing the `resize` action), but Pair drives draft-rung changes through
+swap layouts, not resize, so FIXED is harmless; the terminal column itself is
+percent-sized, which is what lets the width toggle step `zellij action
+resize` against it.
 
 The panes wrap their command in `sh -c "..."` so the shell expands `$PAIR_AGENT`, `$PAIR_AGENT_ARGS`, `$PAIR_TAG`, and `$PAIR_HOME` at exec time — zellij itself does not interpolate env vars in `command`/`args` fields.
 
@@ -346,7 +354,7 @@ The draft pane has `focus=true` (drafting pane gets focus on launch), `borderles
 
 **Pane frame asymmetry.** `pane_frames true` is set globally in `zellij/config.kdl` so the **agent pane and layout-3 terminal** render frames. The agent frame surfaces the scroll-position indicator zellij draws in the top-right of a framed pane (e.g. `500/540`), which is the only way to see scrollback position (zellij doesn't expose scroll offset to plugins or the CLI). The **draft pane** opts out via `borderless=true` in every layout (default + both swap layouts), because a framed pane has a ~3-row minimum and the `minimized` rung needs `size=1`. Cost: framed panes lose 2 rows + 2 cols to chrome.
 
-**Swap layouts.** Two `swap_tiled_layout` entries — `minimized` (draft `size=1`) and `third` (draft `size="33%"`) — sit alongside each default layout. Layout 2 gates its two-pane tiled tree with `exact_panes=2`; layout 3 gates its agent/draft/filler tiled tree with `exact_panes=3` (the floating terminal is outside that count). `nvim/init.lua` drives them via `zellij action next-swap-layout` / `previous-swap-layout`, which re-tile the existing processes without recreation. Cycle from default(small) is `[minimized, third]`: `next-swap-layout` from small → minimized, from minimized → third, from third → wraps to small. The lua side maps Alt+Down to next-swap (smaller rung) and Alt+Up to prev-swap (bigger rung), with a state-machine clamp at the rung extremes.
+**Swap layouts.** Each draft rung — `minimized` (draft `size=1`) and `third` (draft `size="33%"`) — sits alongside the default layout. Layout 2 gates its two-pane tiled tree with `exact_panes=2`. Layout 3 carries each rung in two variants: `exact_panes=3` (agent/draft/terminal) and a `-split` twin at `exact_panes=4` (right column split into two stacked terminals by `Alt+Shift+d`); zellij skips swap layouts whose constraint doesn't match the live pane count, so rung adjacency is preserved in both states. `nvim/init.lua` drives them via `zellij action next-swap-layout` / `previous-swap-layout`, which re-tile the existing processes without recreation. Cycle from default(small) is `[minimized, third]`: `next-swap-layout` from small → minimized, from minimized → third, from third → wraps to small. The lua side maps Alt+Down to next-swap (smaller rung) and Alt+Up to prev-swap (bigger rung), with a state-machine clamp at the rung extremes.
 
 ### `zellij/config.kdl` — mouse, copy, keybinds
 
@@ -382,7 +390,7 @@ Keybinds added on top of zellij defaults (`clear-defaults=false`):
 - `Shift+Alt+N` invokes `PairConfirmAgentRestart()` — Y/N modal then signal the stable `pair wrap` supervisor to replace only its coding-agent child with the same user args and no restoration token. See "Reload / restart in place" under the launcher section.
 - `Alt+h` — `Run "pair-help" { floating true; close_on_exit true; ... }` — pops a floating pane running `pair -h | less`.
 - `Alt+↑` / `Alt+↓` — route to nvim's `PairLayoutBigger` / `PairLayoutSmaller` — step the nvim pane along the swap-layout ladder (`minimized ↔ small (12 rows) ↔ third`).
-- Pane-local shortcuts (#116/#123): `Alt+j` toggles vertically only in the left stack; `Alt+k` bridges left/right, returning from the terminal to the last focused left pane via `$PAIR_DATA_DIR/last-left-pane-<tag>`; `Alt+t`/`Alt+w` create and close tabs only in the right terminal; `Alt+r` enters the terminal wrapper's frame-title rename editor (#118), whose pure rune editor and streaming decoder consume all edit/control bytes before the child PTY and use `rename-pane` as the sole title IO boundary; `Alt+Shift+d` in the right terminal splits by explicit floating geometry — it shrinks the invoking terminal to the upper half (`change-floating-pane-coordinates`) and creates a pinned bordered floating lower pane running the layout-3 `pair term` shell (the frame is the visible divider between the halves and carries the #118 tab title); `Alt+/` and `Alt+Shift+C` / `Ctrl+Alt+c` work only in the left stack. Every left→right jump is id-based: draft nvim and `pair wrap` call `pair layout focus-terminal` (`layoutcmd.FocusRightTerminal`), which focuses the floating right terminal via `focus-pane-id`, preferring the layer-focused split pane — never relative `move-focus right`, which would land tiled focus on the key-swallowing terminal-filler (the #123 focus lockout).
+- Pane-local shortcuts (#116/#123): `Alt+j` toggles vertically only in the left stack; `Alt+k` bridges left/right, returning from the terminal to the last focused left pane via `$PAIR_DATA_DIR/last-left-pane-<tag>`; `Alt+t`/`Alt+w` create and close tabs only in the right terminal; `Alt+r` enters the terminal wrapper's frame-title rename editor (#118), whose pure rune editor and streaming decoder consume all edit/control bytes before the child PTY and use `rename-pane` as the sole title IO boundary; `Alt+Shift+d` in the right terminal is a native tiled split — `new-pane --direction down` on the invoking (client-focused) terminal, running the layout-3 `pair term` shell (frames stay by zellij default; the frame is the visible divider between the halves and carries the #118 tab title); `Alt+/` and `Alt+Shift+C` / `Ctrl+Alt+c` work only in the left stack. Every left→right jump is id-based: draft nvim and `pair wrap` call `pair layout focus-terminal` (`layoutcmd.FocusRightTerminal`), which focuses the tiled right terminal via `focus-pane-id` — the recorded last-used half wins (`$PAIR_DATA_DIR/last-terminal-pane-<tag>`, written when `Alt+k` leaves the terminal side; zellij's `is_focused` on right-side panes is stale memory while focus sits in the left stack), else a zellij-focused half, else the first. Split halves are recognized via the `terminal-panes-<tag>` **TerminalPaneRegistry** (each `pair term` self-registers pane id + pid at startup; readers filter by pid liveness): zellij 0.44.3 omits `terminal_command` for `--direction`-created panes and the #118 tab-strip title is user-renamable, so neither is a usable signal. Never relative `move-focus right` — the id-based rule that fixed the #123 focus lockout survives the filler's deletion because it also targets a specific split half.
 
 The Alt+x/d/n confirms execute in draft Neovim rather than running directly so a single fat-finger doesn't tear the session down (Alt+x in particular is unrecoverable). The lua side also auto-grows out of `minimized` before showing the modal, since otherwise the prompt would land on a 1-row pane where nothing is visible.
 

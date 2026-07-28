@@ -163,6 +163,42 @@ the layout" line instead of the logged relaxation).
 - Estimate delta: +0.8h (layout pivot 0.3, resize planner 0.2, focus/split
   rework 0.15, docs/tests/smoke 0.15) → issue `estimate_hours: 1.6`.
 
+### 2026-07-28 — live-smoke findings (Chunk 2, Task 8)
+
+The isolated-session smoke (real client keystrokes via a PTY-attached driven
+client — CLI `action write` proved untrustworthy, see finding 4) surfaced four
+issues; all fixed and re-verified live:
+
+1. **Split halves were invisible to every classifier.** zellij 0.44.3 omits
+   `terminal_command` for panes created via `action new-pane --direction`, and
+   the #118 tab-strip title (`[terminal 1]`, tabs user-renamable) defeats
+   RoleForPane's title fallback — so the new half's own chords passed through
+   to its shell and the draft-side picker couldn't target it. Fix: a
+   pid-verified **TerminalPaneRegistry** (`terminal-panes-<tag>` sidecar; each
+   `pair term` self-registers pane id + pid at startup; readers filter by
+   liveness) overlaid via `RoleForPaneWith`, threaded through termcmd,
+   layoutcmd, and the toggle. Additionally, `focusedWorkbenchPanes` resolves
+   pair term's OWN pane (`ZELLIJ_PANE_ID`) ahead of the `is_focused` scan —
+   zellij reports several panes focused at once, and the draft was winning by
+   list order.
+2. **`--near-current-pane` is harmful for tiled splits**: it makes zellij
+   create the pane invisibly (process spawned, pane absent from the layout).
+   Reverted to plain `--direction down` — correct because the chord can only
+   arrive when the invoking terminal holds the real client focus.
+3. **Recorded-half must outrank zellij focus in the picker**: zellij's
+   `is_focused` on right-side panes is stale memory (it pointed at the top
+   half right after the user left the bottom one). `pickRightTerminal` now
+   prefers the pair-authored record, then zellij focus, then pane order.
+4. **Rung ladder lost the 12-row rung with a split present** (the base layout
+   doesn't join the 4-pane swap cycle) — fixed by the planned `small-split`
+   fallback, placed LAST so the 4-pane cycle order
+   `[minimized-split, third-split, small-split]` reproduces the 3-pane
+   next/prev semantics; the nvim clamp needed no changes. Also: the toggle's
+   resize loop needed an 80ms settle pause (zellij applies resizes
+   asynchronously; without it the no-progress guard stops short), and a live
+   conformance probe (`live_classify_probe_test.go`, env-gated) checks
+   `ClassifyLiveLayout` against a real pane dump.
+
 ## Chunk 2: Tiled Right Terminal (Revision)
 
 **Goal:** The right terminal (and its Alt+Shift+d split) live in the tiled
@@ -259,7 +295,7 @@ layoutcmd tests (`ARCH-MOCK`).
 - Modify: `zellij/layouts/main-3.kdl`
 - Modify: `tests/term-pane-shortcuts-test.sh` (layout assertions)
 
-- [ ] **Step 1: Write failing layout assertions**
+- [x] **Step 1: Write failing layout assertions**
 
 In `tests/term-pane-shortcuts-test.sh`, assert `main-3.kdl` has no
 `floating_panes` block and no `terminal-filler`, has a tiled
@@ -268,11 +304,11 @@ In `tests/term-pane-shortcuts-test.sh`, assert `main-3.kdl` has no
 `minimized`, `minimized-split`, `third`, `third-split` with
 `exact_panes=3/4/3/4` respectively.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `bash tests/term-pane-shortcuts-test.sh` — expect the new assertions fail.
 
-- [ ] **Step 3: Rewrite the layout**
+- [x] **Step 3: Rewrite the layout**
 
 Right pane tiled at 50% running the terminal command; delete floating block and
 filler; update swap layouts per the delta table (keep draft `borderless=true`
@@ -280,11 +316,11 @@ and agent framed in every variant; keep `size=12`/`size=1`/`size="33%"` rungs).
 Update the file's comment block: the "permanently floating" rationale is
 replaced by the tiled drag-immunity rationale.
 
-- [ ] **Step 4: Verify GREEN + config check**
+- [x] **Step 4: Verify GREEN + config check**
 
 Run: `bash tests/term-pane-shortcuts-test.sh && zellij --config-dir zellij setup --check` — expect pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 `#123: move right terminal into the tiled tree`
 
@@ -295,25 +331,25 @@ Run: `bash tests/term-pane-shortcuts-test.sh && zellij --config-dir zellij setup
 - Modify: `cmd/internal/termcmd/run_test.go`
 - Modify: `tests/term-pane-shortcuts-test.sh`
 
-- [ ] **Step 1: Update expected op strings to the new contract (RED)**
+- [x] **Step 1: Update expected op strings to the new contract (RED)**
 
 `run_test.go` split cases expect exactly:
 `quiet new-pane --direction down --name terminal -- sh -c <rightTerminalPaneShell>`
 with no preceding `change-floating-pane-coordinates` op. Run
 `go test ./cmd/internal/termcmd -count=1` — expect FAIL.
 
-- [ ] **Step 2: Reimplement `splitTerminalDown` (GREEN)**
+- [x] **Step 2: Reimplement `splitTerminalDown` (GREEN)**
 
 Drop geometry lookup/shrink; keep a minimal guard that a right terminal exists
 via `currentRightTerminalPane` (no change needed there — it selects via
 `RoleForPane`, which matches on command/title and is floating-agnostic). Run
 the same test — expect PASS.
 
-- [ ] **Step 3: Full package + shell suite**
+- [x] **Step 3: Full package + shell suite**
 
 Run: `go test ./cmd/internal/workbenchshortcut ./cmd/internal/termcmd -count=1 && bash tests/term-pane-shortcuts-test.sh` — expect pass.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 `#123: split right terminal as a native tiled split`
 
@@ -327,7 +363,7 @@ Run: `go test ./cmd/internal/workbenchshortcut ./cmd/internal/termcmd -count=1 &
 - Modify: `cmd/internal/launcher/layoutflow_test.go`, `cmd/internal/launcher/osruntime_test.go` (fixtures)
 - Modify: `nvim/init.lua` (filler-trap rationale comments, ~3617)
 
-- [ ] **Step 1: Write failing selection tests**
+- [x] **Step 1: Write failing selection tests**
 
 `pickRightTerminal`/`focusedRightTerminal` must select *tiled* right terminals
 (`IsFloating` no longer required; keep `isRightTerminal` position/command
@@ -341,7 +377,7 @@ prefer. Keep the layout2 relative-move fallback when no right terminal exists.
 Run `go test ./cmd/internal/layoutcmd ./cmd/internal/termcmd -count=1` —
 expect FAIL.
 
-- [ ] **Step 2: Write failing layout-classification tests**
+- [x] **Step 2: Write failing layout-classification tests**
 
 `ClassifyLiveLayout` currently identifies Layout3 by `filler && floatingTerminal`
 and Layout2 by their absence — after Task 4 a live layout-3 session matches the
@@ -351,7 +387,7 @@ fixtures: Layout3 = agent + draft + a *tiled* right `pair term` terminal pane;
 Layout2 = agent + draft, no right terminal. Run
 `go test ./cmd/internal/launcher -count=1` — expect FAIL.
 
-- [ ] **Step 3: Implement (GREEN)**
+- [x] **Step 3: Implement (GREEN)**
 
 Focus stays id-based via `focus-pane-id` (the "never relative move-focus for
 this jump" rule still holds — cheap insurance and unchanged consumers in draft
@@ -361,11 +397,11 @@ comment: the filler-trap rationale is gone; the id-based rule stays for
 robustness. Same for the filler-trap comments in `nvim/init.lua` (~3617) —
 update to the tiled rationale unconditionally, not only if clamps change.
 
-- [ ] **Step 4: Cross-package verification**
+- [x] **Step 4: Cross-package verification**
 
 Run: `go test ./cmd/internal/layoutcmd ./cmd/internal/termcmd ./cmd/internal/wrapcmd ./cmd/internal/dispatcher ./cmd/internal/launcher -count=1` — expect pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 `#123: tiled focus routing and layout classification`
 
@@ -378,7 +414,7 @@ Run: `go test ./cmd/internal/layoutcmd ./cmd/internal/termcmd ./cmd/internal/wra
 - Modify: `cmd/internal/layoutcmd/layoutcmd_test.go` (delete `TestAlignFloatingTerminalUsesFillerBoundaryAtStartup`)
 - Modify: `cmd/internal/termcmd/run.go` (remove the `AlignFloatingTerminal` startup call, ~line 199)
 
-- [ ] **Step 1: Write failing planner tests**
+- [x] **Step 1: Write failing planner tests**
 
 `terminalResizeStep` cases: at 50% → target 2/3 (grow via
 `resize increase left`, not done); at ≥60% → target 1/2 (shrink via
@@ -386,13 +422,16 @@ Run: `go test ./cmd/internal/layoutcmd ./cmd/internal/termcmd ./cmd/internal/wra
 zero/absurd geometry → done (refuse). Run
 `go test ./cmd/internal/layoutcmd -count=1` — expect FAIL.
 
-- [ ] **Step 2: Implement planner + executor loop (GREEN)**
+- [x] **Step 2: Implement planner + executor loop (GREEN)**
 
 Pure planner in `resizeplan.go` (no IO); `RunToggleFocused` loops
-read-geometry → step → act, cap 12, using the existing `Runtime` fake in
-tests for the loop behavior (converges, respects cap).
+read-geometry → step → act, cap 12. The loop test's `Runtime` fake must be
+*stateful* (`ARCH-MOCK`): each `resize` action mutates the geometry the next
+`ListPanesJSON` read reports (crude ±N columns per step is fine) — otherwise
+convergence is untestable and only the cap path executes. Live smoke item 4 is
+the conformance check for that modeled behavior.
 
-- [ ] **Step 3: Delete dead floating helpers**
+- [x] **Step 3: Delete dead floating helpers**
 
 Remove `floatingTerminalCoordinates`, `terminalFillerX`,
 `AlignFloatingTerminal` (dead once the floating pane is gone — today it runs
@@ -405,11 +444,11 @@ must come back empty except `zellijpane`'s parser field (keep the field —
 it's how tests assert no floating panes exist) and any hit must be justified
 in the commit body.
 
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
 
 Run: `go test ./cmd/internal/layoutcmd -count=1 && go test ./... -count=1` — expect pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 `#123: expand terminal by tiled resize, delete floating layer helpers`
 
@@ -420,13 +459,13 @@ Run: `go test ./cmd/internal/layoutcmd -count=1 && go test ./... -count=1` — e
 - Modify: `workshop/issues/000123-split-the-right-terminal-pane-with-alt-shift-d.md`
 - Modify: `nvim/init.lua` (only if the live rung smoke demands clamp changes)
 
-- [ ] **Step 1: Update docs**
+- [x] **Step 1: Update docs**
 
 README keybinding notes (`Alt+Shift+Enter` now re-tiles 50/50 ↔ 1/3–2/3;
 panes cannot be mouse-dragged) and atlas architecture description of layout 3
 (tiled right terminal, no floating layer, no filler).
 
-- [ ] **Step 2: Full automated verification**
+- [x] **Step 2: Full automated verification**
 
 Run the FULL suite (repo lesson: partial verification gets caught as REWORK),
 scrubbing the pair-session env leak:
@@ -440,7 +479,7 @@ git diff --check
 Expected: all pass (known pre-existing failure allowed: parley's
 `parley_harness_golden` 7/7).
 
-- [ ] **Step 3: Rebuild before the live smoke**
+- [x] **Step 3: Rebuild before the live smoke**
 
 `main-3.kdl` and `nvim/init.lua` ship inside the embedded runtime bundle;
 edits do not reach a live session until regeneration + rebuild (Chunk 1 was
@@ -448,7 +487,7 @@ bitten by exactly this — see its stale-binary inode check in the Log). Run
 `make build` (regenerates the runtime bundle), then confirm the live `pair`
 processes will use the fresh `bin/pair` (compare inode/mtime as in Chunk 1).
 
-- [ ] **Step 4: Live smoke in an isolated zellij session (driven via `zellij action write`)**
+- [x] **Step 4: Live smoke in an isolated zellij session (driven via `zellij action write`)**
 
 Checklist (each risky item has a named fallback):
 1. Session starts: agent/draft left, tiled terminal right, no filler pane in
@@ -471,6 +510,6 @@ Checklist (each risky item has a named fallback):
 8. Launcher attach/resume probe classifies the session as layout 3
    (`ClassifyLiveLayout` via a fresh `pair` attach or its test-hook).
 
-- [ ] **Step 5: Record evidence, update issue log, commit**
+- [x] **Step 5: Record evidence, update issue log, commit**
 
 `#123: docs + smoke for tiled right terminal`

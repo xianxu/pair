@@ -187,10 +187,18 @@ grep -Fq 'swap_tiled_layout name="minimized"' "$ROOT/zellij/layouts/main-3.kdl" 
   && grep -Fq 'swap_tiled_layout name="minimized-split"' "$ROOT/zellij/layouts/main-3.kdl" \
   && grep -Fq 'swap_tiled_layout name="third"' "$ROOT/zellij/layouts/main-3.kdl" \
   && grep -Fq 'swap_tiled_layout name="third-split"' "$ROOT/zellij/layouts/main-3.kdl" \
+  && grep -Fq 'swap_tiled_layout name="small-split"' "$ROOT/zellij/layouts/main-3.kdl" \
   && [ "$(grep -c 'tab exact_panes=3' "$ROOT/zellij/layouts/main-3.kdl")" = 2 ] \
-  && [ "$(grep -c 'tab exact_panes=4' "$ROOT/zellij/layouts/main-3.kdl")" = 2 ] \
-  && pass "draft rungs have 3-pane and 4-pane (split) swap variants" \
+  && [ "$(grep -c 'tab exact_panes=4' "$ROOT/zellij/layouts/main-3.kdl")" = 3 ] \
+  && pass "draft rungs have 3-pane and 4-pane (split) swap variants incl. small" \
   || { printf 'FAIL swap layouts missing split variants (rung ladder breaks after Alt+Shift+d)\n'; fail=1; }
+
+# small-split must be the LAST swap layout: the 4-pane cycle order
+# [minimized-split, third-split, small-split] is what keeps nvim's
+# next/prev rung semantics identical to the 3-pane cycle.
+[ "$(grep 'swap_tiled_layout name=' "$ROOT/zellij/layouts/main-3.kdl" | tail -1)" = "$(grep 'swap_tiled_layout name="small-split"' "$ROOT/zellij/layouts/main-3.kdl")" ] \
+  && pass "small-split is the last swap layout (cycle order preserved)" \
+  || { printf 'FAIL small-split is not last in the swap cycle\n'; fail=1; }
 
 test ! -e "$ROOT/zellij/layouts/main.kdl" \
   && ! grep -Fq 'pair term' "$ROOT/zellij/layouts/main-2.kdl" \

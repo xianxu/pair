@@ -18,6 +18,7 @@ import (
 	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/draftroute"
 	"github.com/xianxu/pair/cmd/internal/layoutcmd"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 	"golang.org/x/term"
@@ -31,6 +32,8 @@ type Runtime interface {
 	RecordLastLeftPaneID(string) error
 	LastTerminalPaneID() (string, error)
 	RecordLastTerminalPaneID(string) error
+	TerminalPaneIDs() ([]string, error)
+	RegisterTerminalPane() error
 	RunZellijAction(args ...string) error
 	RunZellijActionQuiet(args ...string) error
 	ReportShortcutError(error)
@@ -114,8 +117,12 @@ func handleChord(chord workbenchshortcut.Chord, rt Runtime, stdin io.Reader, std
 	if err != nil {
 		return err
 	}
+	terminalIDs, err := rt.TerminalPaneIDs()
+	if err != nil {
+		terminalIDs = nil
+	}
 	decision := workbenchshortcut.Decide(workbenchshortcut.ShortcutInput{
-		Role:           workbenchshortcut.RoleForPane(panes.focused),
+		Role:           workbenchshortcut.RoleForPaneWith(panes.focused, terminalIDs),
 		Chord:          chord,
 		FocusedPaneID:  panes.focused.ID,
 		LastLeftPaneID: lastLeft,
@@ -135,8 +142,17 @@ func focusedWorkbenchPanes(rt Runtime) (workbenchPanes, error) {
 		return workbenchPanes{}, err
 	}
 	var out workbenchPanes
+	var haveOwn bool
+	current := rt.CurrentPaneID()
 	for _, pane := range zellijpane.Parse(data) {
-		if pane.IsFocused {
+		// Bytes on pair term's stdin can only mean its OWN pane is the input
+		// target, so the process's pane id outranks the is_focused scan —
+		// zellij reports per-client focus and several panes can carry
+		// is_focused at once (draft + terminal seen live in the tiled smoke).
+		if !pane.IsPlugin && current != "" && pane.ID == current {
+			out.focused, haveOwn = pane, true
+		}
+		if pane.IsFocused && !haveOwn {
 			out.focused = pane
 		}
 		if workbenchshortcut.RoleForPane(pane) == workbenchshortcut.PaneRoleLeftDraft {
@@ -192,6 +208,13 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 
 func runShell(stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
 	name, args := rt.ShellCommand()
+	// Self-register this pane as a live right terminal: zellij's pane report
+	// can't identify split panes (no terminal_command for --direction-created
+	// panes; #118 tab-strip titles), so the registry is how every consumer —
+	// including this process's own chord routing — recognizes them.
+	if err := rt.RegisterTerminalPane(); err != nil {
+		fmt.Fprintf(stderr, "term: register terminal pane: %v\n", err)
+	}
 	stdinFile, _ := stdin.(*os.File)
 	var oldState *term.State
 	if stdinFile != nil {
@@ -477,9 +500,12 @@ func splitTerminalDown(rt Runtime) error {
 	} else if !ok {
 		return fmt.Errorf("right terminal pane not found")
 	}
-	// Native tiled split: the invoking terminal holds client focus (the chord
-	// arrived on its stdin), so zellij splits this pane downward. Quiet
-	// because new-pane prints the created pane id to stdout.
+	// Native tiled split: the invoking terminal holds the client focus (the
+	// chord arrived on its stdin, which only happens when this pane is
+	// focused), so `--direction down` splits this pane. Deliberately NO
+	// --near-current-pane: live smoke showed it makes zellij 0.44.3 create
+	// the pane invisibly (process spawned, pane absent from the layout).
+	// Quiet because new-pane prints the created pane id to stdout.
 	return rt.RunZellijActionQuiet(
 		"new-pane",
 		"--direction", "down",
@@ -497,21 +523,28 @@ func currentRightTerminalPane(rt Runtime) (zellijpane.Pane, bool, error) {
 		return zellijpane.Pane{}, false, err
 	}
 	panes := zellijpane.Parse(data)
+	terminalIDs, err := rt.TerminalPaneIDs()
+	if err != nil {
+		terminalIDs = nil
+	}
+	isTerminal := func(pane zellijpane.Pane) bool {
+		return workbenchshortcut.RoleForPaneWith(pane, terminalIDs) == workbenchshortcut.PaneRoleRightTerminal
+	}
 	currentID := rt.CurrentPaneID()
 	if currentID != "" {
 		for _, pane := range panes {
-			if pane.ID == currentID && workbenchshortcut.RoleForPane(pane) == workbenchshortcut.PaneRoleRightTerminal {
+			if pane.ID == currentID && isTerminal(pane) {
 				return pane, true, nil
 			}
 		}
 	}
 	for _, pane := range panes {
-		if pane.IsFocused && workbenchshortcut.RoleForPane(pane) == workbenchshortcut.PaneRoleRightTerminal {
+		if pane.IsFocused && isTerminal(pane) {
 			return pane, true, nil
 		}
 	}
 	for _, pane := range panes {
-		if workbenchshortcut.RoleForPane(pane) == workbenchshortcut.PaneRoleRightTerminal {
+		if isTerminal(pane) {
 			return pane, true, nil
 		}
 	}
@@ -1064,6 +1097,20 @@ func (OSRuntime) RecordLastLeftPaneID(id string) error {
 func (OSRuntime) LastTerminalPaneID() (string, error) {
 	store := workbenchshortcut.LastTerminalPaneStore{DataDir: workbenchshortcut.DataDirFromEnv(), Tag: os.Getenv("PAIR_TAG")}
 	return store.Read()
+}
+
+func (OSRuntime) TerminalPaneIDs() ([]string, error) {
+	reg := workbenchshortcut.TerminalPaneRegistry{DataDir: workbenchshortcut.DataDirFromEnv(), Tag: os.Getenv("PAIR_TAG")}
+	return reg.LiveIDs(func(pid int) bool { return procutil.Alive(fmt.Sprintf("%d", pid)) })
+}
+
+func (OSRuntime) RegisterTerminalPane() error {
+	paneID := os.Getenv("ZELLIJ_PANE_ID")
+	if paneID == "" {
+		return nil
+	}
+	reg := workbenchshortcut.TerminalPaneRegistry{DataDir: workbenchshortcut.DataDirFromEnv(), Tag: os.Getenv("PAIR_TAG")}
+	return reg.Register(paneID, os.Getpid())
 }
 
 func (OSRuntime) RecordLastTerminalPaneID(id string) error {

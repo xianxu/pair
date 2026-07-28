@@ -44,8 +44,10 @@ manually invoke Zellij splitting. The desired workflow is one terminal shortcut:
 
 - `Alt+Shift+d` in the right terminal creates a top/bottom Zellij split and
   focuses the new lower pane.
-- Dragging the right split panes or left workbench boundaries does not move or
-  resize Pair's fixed layout.
+- Dragging the right split panes or left workbench boundaries does not move
+  Pair's layout. (Boundary drag may still *resize* panes — Zellij 0.44.3 has
+  no gate for tiled boundary resize; reconciled 2026-07-27 with the tiled
+  pivot, see Revisions.)
 - Existing terminal shortcuts (`Alt+t`, `Alt+w`, `Alt+r`, tab switching,
   geometry toggle) still behave as before.
 - Tests cover the shortcut routing/action shape and prove left/review contexts do
@@ -106,8 +108,18 @@ item: issue-spec design=0.08 impl=0.04
 item: smaller-go-module design=0.27 impl=0.25
 item: atlas-docs design=0.05 impl=0.05
 design-buffer: 0.15
-total: 0.80
+item: cross-cutting-refactor design=0.10 impl=0.30
+item: smaller-go-module design=0.05 impl=0.15
+item: atlas-docs design=0.05 impl=0.05
+item: scope-pivot design=0.05 impl=0.05
+total: 1.60
 ```
+
+Revision 2026-07-27 (tiled pivot): four items appended for plan Chunk 2 —
+cross-cutting-refactor (layout pivot + focus/classification rework across
+kdl/termcmd/layoutcmd/launcher/nvim), smaller-go-module (resize planner),
+atlas-docs (README/atlas updates), scope-pivot (mid-flight pivot overhead:
+rebuild + live smoke). +0.8 total, matching the issue Revisions delta.
 
 ## Plan
 
@@ -115,10 +127,10 @@ total: 0.80
 - [x] Implement the minimal Zellij action routing and config updates.
 - [x] Update docs/atlas for the new keybinding.
 - [x] Run focused and full verification.
-- [ ] Chunk 2: pivot `main-3.kdl` to a tiled right terminal (no floating layer, no filler).
-- [ ] Chunk 2: native tiled split action + tiled focus routing.
-- [ ] Chunk 2: `Alt+Shift+Enter` expand as tiled resize (50/50 ↔ 1/3–2/3), delete floating helpers.
-- [ ] Chunk 2: docs, full verification, live smoke.
+- [x] Chunk 2: pivot `main-3.kdl` to a tiled right terminal (no floating layer, no filler).
+- [x] Chunk 2: native tiled split action + tiled focus routing.
+- [x] Chunk 2: `Alt+Shift+Enter` expand as tiled resize (50/50 ↔ 1/3–2/3), delete floating helpers.
+- [x] Chunk 2: docs, full verification, live smoke.
 
 ## Log
 
@@ -202,3 +214,31 @@ total: 0.80
   `change-floating-pane-coordinates` riding the titlepoller loop) was designed
   but not built — the drag would still visibly happen and only be undone a
   poll-tick later.
+
+### 2026-07-28
+- Chunk 2 (tiled pivot) implemented per plan Tasks 4–8: layout pivoted to a
+  tiled right terminal (floating layer + filler deleted, swap rungs gained
+  4-pane `-split` variants incl. an explicit `small-split` placed last),
+  native `new-pane --direction down` split, tiled focus routing with a
+  recorded last-used split half (`LastTerminalPaneStore`), launcher
+  `ClassifyLiveLayout` re-keyed on the tiled terminal (legacy floating
+  signature still recognized), and `Alt+Shift+Enter` as a pure-planner tiled
+  resize loop (50% ↔ 2/3) with an 80ms async-settle pause.
+- Live smoke (isolated zellij session, real client keystrokes through a
+  PTY-attached driven client) surfaced four defects, all fixed + re-verified
+  live (details in plan Revisions 2026-07-28): split halves invisible to all
+  classifiers (zellij omits `terminal_command` for `--direction`-created
+  panes + #118 titles defeat the fallback → new pid-verified
+  `TerminalPaneRegistry` sidecar + `RoleForPaneWith` overlay + own-pane-first
+  focus resolution in pair term); `--near-current-pane` creates invisible
+  orphan panes (reverted); recorded-half must outrank zellij's stale
+  `is_focused` in the picker; rung ladder needed `small-split`. Smoke items
+  all pass: tiled inventory, split, draft↔terminal round trip returning to
+  the recorded half, mouse click-to-focus, tabs in the split half, toggle
+  both split/unsplit (collapse lands exactly 50%), full rung ladder with a
+  split present, and `ClassifyLiveLayout` = layout3 against the live pane
+  dump (kept as env-gated conformance probe
+  `launcher/live_classify_probe_test.go`). Frame-drag pane-move is now
+  structurally impossible (no floating workbench panes exist; zellij's
+  drag-move path requires one); boundary drag may still resize (reconciled
+  Done-when).

@@ -5,8 +5,10 @@ package workbenchshortcut
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
@@ -383,6 +385,80 @@ func (s LastTerminalPaneStore) Path() string {
 }
 func (s LastTerminalPaneStore) Read() (string, error)     { return readPaneID(s.Path()) }
 func (s LastTerminalPaneStore) Write(paneID string) error { return writePaneID(s.Path(), paneID) }
+
+// TerminalPaneRegistry records which zellij pane ids host a live `pair term`
+// process. It exists because pane identity cannot be derived from zellij's
+// pane report alone: zellij 0.44.3 omits `terminal_command` for panes created
+// via `action new-pane --direction` (the Alt+Shift+d split), and the #118
+// tab-strip pane title ("[terminal 1]", tabs user-renamable) defeats any
+// title heuristic. Each `pair term` appends its pane id + pid at startup;
+// readers filter by process liveness, so stale entries self-expire.
+type TerminalPaneRegistry struct {
+	DataDir string
+	Tag     string
+}
+
+func (r TerminalPaneRegistry) Path() string {
+	return paneIDPath(r.DataDir, r.Tag, "terminal-panes-")
+}
+
+func (r TerminalPaneRegistry) Register(paneID string, pid int) error {
+	path := r.Path()
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = fmt.Fprintf(f, "%s %d\n", strings.TrimSpace(paneID), pid)
+	return err
+}
+
+// LiveIDs returns the pane ids whose registering process is still alive,
+// newest first deduplicated. Liveness is injected so the pure filtering
+// stays testable without real processes.
+func (r TerminalPaneRegistry) LiveIDs(alive func(pid int) bool) ([]string, error) {
+	data, err := os.ReadFile(r.Path())
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	seen := map[string]bool{}
+	for _, line := range strings.Split(string(data), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) != 2 || seen[fields[0]] {
+			continue
+		}
+		pid, err := strconv.Atoi(fields[1])
+		if err != nil || !alive(pid) {
+			continue
+		}
+		seen[fields[0]] = true
+		ids = append(ids, fields[0])
+	}
+	return ids, nil
+}
+
+// RoleForPaneWith is RoleForPane with the terminal-pane registry overlaid:
+// a pane whose id is registered as a live `pair term` is a right terminal
+// even when zellij's pane report carries no usable command or title.
+func RoleForPaneWith(p zellijpane.Pane, terminalPaneIDs []string) PaneRole {
+	role := RoleForPane(p)
+	if role != PaneRoleOther || p.IsPlugin || p.ID == "" {
+		return role
+	}
+	for _, id := range terminalPaneIDs {
+		if id == p.ID {
+			return PaneRoleRightTerminal
+		}
+	}
+	return role
+}
 
 // DataDirFromEnv resolves pair's data dir the way every pane process does:
 // PAIR_DATA_DIR, then XDG_DATA_HOME/pair, then ~/.local/share/pair.

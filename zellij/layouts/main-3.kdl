@@ -168,4 +168,30 @@ layout {
             }
         }
     }
+
+    // With 4 panes the BASE layout (the implicit "small" rung) does not
+    // participate in the swap cycle — zellij only re-tiles onto swap
+    // layouts whose constraint matches — so "small" needs an explicit
+    // 4-pane variant or the ladder loses its middle rung after a split
+    // (observed live: next-swap cycled minimized-split ↔ third-split).
+    // Placed LAST deliberately: the 4-pane cycle order
+    // [minimized-split, third-split, small-split] reproduces exactly the
+    // next/prev transition semantics nvim's layout_step assumes for the
+    // 3-pane cycle [base(small), minimized, third] — small→next→minimized,
+    // small→prev→third, third→next→small, minimized→prev→small — so the
+    // lua rung state machine works unchanged in both pane counts.
+    swap_tiled_layout name="small-split" {
+        tab exact_panes=4 {
+            pane split_direction="vertical" {
+                pane size="50%" split_direction="horizontal" {
+                    pane name="agent"
+                    pane size=12 name="draft" borderless=true
+                }
+                pane split_direction="horizontal" {
+                    pane name="terminal"
+                    pane name="terminal"
+                }
+            }
+        }
+    }
 }
