@@ -33,6 +33,9 @@ type Runtime interface {
 	RunSubprocess(path string, args ...string) error // flash-pane (call-and-return)
 	ExecReplace(path string, args ...string) error   // clipboard-to-pane (process replace; only returns on error)
 
+	// SpawnDetached has NO production caller since #125 (the copy-on-select hook
+	// stopped detaching the auto-paste orchestrator). The seam method stays for
+	// #126's deliberate quote-paste trigger — unwire, don't demolish.
 	// SpawnDetached starts path in a new session (setsid) and does NOT wait — the
 	// copy-on-select hook uses it to hand the flash+paste to a process that
 	// outlives zellij's reap of the copy_command child (#100).
@@ -76,10 +79,15 @@ func RunCopyOnSelect(opts CopyOnSelectOptions, stdin io.Reader, rt Runtime, stde
 		rt.Log("clipboard copy failed: " + err.Error())
 	}
 
-	// Detach the rest: the orchestrator (setsid) survives zellij's reap of this
-	// copy_command child, so the paste completes even when the chain is slow.
-	rt.SpawnDetached(opts.SelfExe, "clip", "copy-on-select", "--orchestrate")
-	rt.Log(fmt.Sprintf("sel bytes: %d — detached orchestrator spawned; hook returning", len(sel)))
+	// #125: mirror-only. This used to detach an orchestrator that flashed the
+	// source pane, focused the draft, and inserted the selection as a `> `
+	// quote. That auto-paste hijacked the draft on every selection made merely
+	// to copy something, so it is gone; selecting text now just populates the
+	// clipboard. The rest of the chain (RunCopyOnSelectOrchestrate,
+	// RunClipboardToPane, RunFlashPane, nvim's PairPasteQuote) is intentionally
+	// left in place, unwired, as the machinery #126 will bind to a deliberate
+	// quote-paste keybind — a binding, not a rewrite.
+	rt.Log(fmt.Sprintf("sel bytes: %d — mirrored to clipboard; hook returning (no auto-paste, #125)", len(sel)))
 	return 0
 }
 

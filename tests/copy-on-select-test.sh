@@ -8,13 +8,19 @@
 # the selection as "made in nvim" and exited WITHOUT pasting. The fix keys the
 # check on terminal_command (the fixed launch string), which never embeds cwd.
 #
-# Since #104 copy-on-select is `pair clip copy-on-select`: the hook mirrors the
-# selection to the OS clipboard and detaches `pair clip copy-on-select
-# --orchestrate`, which — unless the selection was in the nvim draft pane —
-# hands off in-chain to `pair clip clipboard-to-pane`. The hand-off is observable
-# here as the staged quote file $PAIR_DATA_DIR/quote-<tag>. We drive the real
-# `pair` binary with a fake `zellij` that emits a captured panes JSON, and assert
-# the quote file is staged when (and only when) the selection was NOT in the draft.
+# Since #125 the HOOK (`pair clip copy-on-select`) is mirror-only: it populates
+# the clipboard and stops. It no longer detaches the orchestrator, so a selection
+# never auto-pastes into the draft — case (c) below pins that.
+#
+# The orchestrator itself (`pair clip copy-on-select --orchestrate`) is still a
+# live CLI entry and still holds the in_nvim regression, so cases (a) and (b)
+# drive it DIRECTLY rather than through the hook. Keeping them here matters: this
+# is the only test that runs the real `pair` binary against a process-level fake
+# `zellij`/`pbcopy`/`pbpaste` (ARCH-MOCK); degrading it to a mirror-only smoke
+# would leave the whole `zellij action` seam covered by fakeRuntime alone. When
+# #126 binds a deliberate quote-paste keybind, that path re-enters here.
+#
+# The hand-off is observable as the staged quote file $PAIR_DATA_DIR/quote-<tag>.
 set -eu
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
@@ -59,33 +65,44 @@ draft_pane='{"id":1,"is_plugin":false,"is_focused":FOCUS_DRAFT,"is_floating":fal
   "terminal_command":"sh -c export PAIR_NVIM_PID_FILE=\"/data/nvim-pid-t-draft\" && exec nvim -u \"$PAIR_HOME/nvim/init.lua\" \"/data/draft-t.md\""}'
 
 quote="$PAIR_DATA_DIR/quote-t"
-run() { rm -f "$quote"; printf '%s' 'selected text' | "$PAIR_HOME/bin/pair" clip copy-on-select; }
-# Since #100 the hook returns immediately and the paste runs in a DETACHED
-# `pair clip copy-on-select --orchestrate` (so zellij can't reap it mid-chain).
-# The hand-off is therefore asynchronous: poll for the staged quote file.
+# The orchestrator leaf, driven directly (#125: the hook no longer spawns it).
+run() { rm -f "$quote"; "$PAIR_HOME/bin/pair" clip copy-on-select --orchestrate >/dev/null 2>&1 || true; }
+# The hook, which since #125 must mirror and do nothing else.
+run_hook() { rm -f "$quote"; printf '%s' 'selected text' | "$PAIR_HOME/bin/pair" clip copy-on-select; }
+# The hand-off exec-replaces into clipboard-to-pane, so poll for the staged file.
 wait_staged() { for _ in $(seq 1 60); do [ -f "$quote" ] && return 0; sleep 0.05; done; return 1; }
 
 fail=0
 
-# (a) Selection in the AGENT pane while cwd is parley.nvim → must hand off
-#     (in_nvim=false). This is the regression: title contains "nvim" but the
-#     paste must still happen.
+# (a) Orchestrator with the AGENT pane focused while cwd is parley.nvim → must
+#     hand off (in_nvim=false). This is the regression: the title contains
+#     "nvim" but in_nvim keys on terminal_command, so the hand-off must happen.
 printf '[%s,%s]\n' \
   "${agent_pane/FOCUS_AGENT/true}" "${draft_pane/FOCUS_DRAFT/false}" > "$tmp/panes.json"
 run
 wait_staged || { echo "FAIL (a) parley.nvim agent-pane selection did not hand off (quote not staged)"; fail=1; }
 
-# (b) Selection in the DRAFT (nvim) pane → must NOT hand off (in_nvim=true), else
-#     copy-on-select would insert your own selection beneath itself. The detached
-#     orchestrator decides quickly against the fake zellij; a 1s grace is ample for
-#     it to run and skip, after which the quote file's absence proves the gate held.
+# (b) Orchestrator with the DRAFT (nvim) pane focused → must NOT hand off
+#     (in_nvim=true), else it would insert the selection beneath itself. It
+#     decides quickly against the fake zellij; a 1s grace is ample, after which
+#     the quote file's absence proves the gate held.
 printf '[%s,%s]\n' \
   "${agent_pane/FOCUS_AGENT/false}" "${draft_pane/FOCUS_DRAFT/true}" > "$tmp/panes.json"
 run
 sleep 1
 [ -f "$quote" ] && { echo "FAIL (b) draft-pane selection handed off (would self-insert)"; fail=1; }
 
+# (c) #125: the HOOK mirrors to the clipboard and does nothing else — no
+#     hand-off, so no quote is staged and the draft is never touched. The agent
+#     pane is focused (the case that WOULD have auto-pasted before #125).
+printf '[%s,%s]\n' \
+  "${agent_pane/FOCUS_AGENT/true}" "${draft_pane/FOCUS_DRAFT/false}" > "$tmp/panes.json"
+run_hook
+sleep 1
+[ -f "$quote" ] && { echo "FAIL (c) hook auto-pasted into the draft (#125: it must mirror only)"; fail=1; }
+[ "$(pbpaste 2>/dev/null)" = "selected text" ] || { echo "FAIL (c) hook did not mirror the selection to the clipboard"; fail=1; }
+
 if [ "$fail" -eq 0 ]; then
-  echo "PASS copy-on-select in_nvim detection (terminal_command, not cwd-polluted title)"
+  echo "PASS copy-on-select in_nvim detection + mirror-only hook (#125)"
 fi
 exit "$fail"

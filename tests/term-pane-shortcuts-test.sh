@@ -227,7 +227,7 @@ grep -Fq 'focus_follows_mouse false' "$ROOT/zellij/config.kdl" \
   || { printf 'FAIL Zellij focus-follows-mouse is enabled\n'; fail=1; }
 
 grep -Eq '^[[:space:]]*mouse_mode[[:space:]]+false' "$ROOT/zellij/config.kdl" \
-  && { printf 'FAIL Zellij mouse support is disabled (kills click-to-focus rescue + copy-on-select, #123 lockout)\n'; fail=1; } \
+  && { printf 'FAIL Zellij mouse support is disabled (kills click-to-focus rescue + the copy-on-select clipboard mirror, #123 lockout)\n'; fail=1; } \
   || pass "Zellij mouse support stays enabled"
 
 grep -Fq "'pair', 'layout', 'focus-terminal'" "$ROOT/nvim/init.lua" \

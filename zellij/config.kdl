@@ -7,7 +7,7 @@
 //   behavior predictable for selection and our copy_command flow.
 // - Mouse support itself stays ON. `mouse_mode false` (tried for #123 to
 //   freeze pane drag/resize) also kills click-to-focus, text selection, the
-//   copy_command flow, and scroll — and click-to-focus is the last-resort
+//   copy_command clipboard mirror, and scroll — and click-to-focus is the last-resort
 //   escape when keyboard focus lands somewhere unexpected. Split terminal
 //   panes stay pinned and keep their frames (the frame is the only visible
 //   divider between the split halves and carries the tab title); the residual
@@ -42,9 +42,17 @@ scroll_buffer_size 2000
 mouse_click_through true
 
 // On selection finalize (mouse up), pipe the selected text to our wrapper.
-// The wrapper mirrors to the OS clipboard AND, if the selection was in a
-// pane other than the nvim draft, runs the Alt+n flow: reflow, >-prefix,
-// focus nvim, insert at cursor.
+// The wrapper mirrors it to the OS clipboard and stops (#125). It used to also
+// hand off to the draft — reflow, >-prefix, focus nvim, insert at cursor — but
+// that auto-paste hijacked the draft on every selection made merely to copy
+// something. The hand-off machinery is unwired, not deleted; #126 gives it a
+// deliberate keybind. (The old comment here credited "the Alt+n flow"; Alt+n is
+// PairConfirmRestart and never triggered this.)
+//
+// copy_command is KEPT rather than dropped so the clipboard write stays on our
+// tested seam (pbcopy/wl-copy/xclip). Dropping it would hand the write to
+// zellij's native OSC 52 path — a different mechanism, with different failure
+// modes, outside any seam our fakes can drive.
 //
 // the launcher prepends $PAIR_HOME/bin to PATH (RunLaunch, restored #95) so the
 // binary is resolvable by bare name — avoids the fragile `sh -c '$PAIR_HOME/...'`

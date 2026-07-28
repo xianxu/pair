@@ -103,10 +103,13 @@ func copyOpts() CopyOnSelectOptions {
 	return CopyOnSelectOptions{PairHome: "/h", SelfExe: "/h/bin/pair"}
 }
 
-// (a) The HOOK mirrors the selection and detaches the orchestrator. It must run
-// NONE of the slow zellij chain inline — that in-hook chain is exactly what zellij
-// reaped mid-paste (#100), so the reap fix is "hook does nothing slow".
-func TestCopyOnSelectHookMirrorsThenDetaches(t *testing.T) {
+// (a) The HOOK mirrors the selection to the OS clipboard and does NOTHING else
+// (#125). It used to detach an orchestrator that flashed the source pane, stole
+// focus to the draft, and inserted the selection as a `> ` quote; that
+// auto-paste was distracting, so the hook is now mirror-only. It still must run
+// none of the slow zellij chain inline — that in-hook chain is what zellij
+// reaped mid-paste (#100).
+func TestCopyOnSelectHookMirrorsOnly(t *testing.T) {
 	f := newFake()
 	code := RunCopyOnSelect(copyOpts(), strings.NewReader("selected text"), f, io.Discard)
 	if code != 0 {
@@ -115,10 +118,8 @@ func TestCopyOnSelectHookMirrorsThenDetaches(t *testing.T) {
 	if f.copied != "selected text" {
 		t.Errorf("clipboard copied %q, want the selection mirrored", f.copied)
 	}
-	if len(f.spawned) != 1 || f.spawned[0].path != "/h/bin/pair" ||
-		len(f.spawned[0].args) != 3 || f.spawned[0].args[0] != "clip" ||
-		f.spawned[0].args[1] != "copy-on-select" || f.spawned[0].args[2] != "--orchestrate" {
-		t.Errorf("want one detached `/h/bin/pair clip copy-on-select --orchestrate`, got %+v", f.spawned)
+	if len(f.spawned) != 0 {
+		t.Errorf("hook must not spawn the auto-paste orchestrator (#125), got %+v", f.spawned)
 	}
 	if f.listCalls != 0 || len(f.subprocess) != 0 || len(f.execd) != 0 {
 		t.Errorf("hook ran the slow chain inline: listCalls=%d subprocess=%+v execd=%+v",
@@ -132,8 +133,10 @@ func TestCopyOnSelectEmptySelection(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit = %d, want 0", code)
 	}
-	if f.copied != "" || len(f.spawned) != 0 {
-		t.Errorf("empty selection should do nothing: copied=%q spawned=%+v", f.copied, f.spawned)
+	// The spawn check that used to live here is vacuous since #125 — the hook
+	// never spawns. The clipboard write is the real assertion.
+	if f.copied != "" {
+		t.Errorf("empty selection should not touch the clipboard: copied=%q", f.copied)
 	}
 }
 
