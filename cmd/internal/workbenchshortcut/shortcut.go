@@ -31,6 +31,7 @@ const (
 	ChordAltW
 	ChordAltR
 	ChordAltD
+	ChordAltShiftD
 	ChordAltX
 	ChordAltN
 	ChordCtrlAltN
@@ -71,6 +72,7 @@ const (
 	ActionConfirmQuit
 	ActionRestartPair
 	ActionRestartAgent
+	ActionSplitTerminalDown
 	ActionGrowDraft
 	ActionShrinkDraft
 	ActionToggleReview
@@ -150,6 +152,8 @@ func Decide(in ShortcutInput) ShortcutDecision {
 			return handle(ActionCloseTab)
 		case ChordAltR:
 			return handle(ActionRenameTab)
+		case ChordAltShiftD:
+			return handle(ActionSplitTerminalDown)
 		case ChordAltK:
 			target := in.LastLeftPaneID
 			if target == "" {
@@ -228,6 +232,7 @@ var chordSequences = []struct {
 	{"\x1bw", ChordAltW}, {"\x1b[119;3u", ChordAltW},
 	{"\x1br", ChordAltR}, {"\x1b[114;3u", ChordAltR},
 	{"\x1b[100;3u", ChordAltD},
+	{"\x1bD", ChordAltShiftD}, {"\x1b[68;4u", ChordAltShiftD},
 	{"\x1bx", ChordAltX}, {"\x1b[120;3u", ChordAltX},
 	{"\x1b[110;3u", ChordAltN},
 	{"\x1b[110;7u", ChordCtrlAltN},
@@ -295,6 +300,8 @@ func ChordName(chord Chord) string {
 		return "Alt+r"
 	case ChordAltD:
 		return "Alt+d"
+	case ChordAltShiftD:
+		return "Alt+Shift+d"
 	case ChordAltX:
 		return "Alt+x"
 	case ChordAltN:

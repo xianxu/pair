@@ -91,6 +91,11 @@ run_shortcut "Alt+r"
 check_eq "right Alt+r stays local to pair term" "$(actions)" ""
 
 write_panes terminal
+run_shortcut "Alt+Shift+d"
+check_eq "right Alt+Shift+d splits terminal down by explicit right geometry and locks floating panes" "$(actions)" 'change-floating-pane-coordinates --pane-id 4 --x 75 --y 0 --width 75 --height 25 --borderless true --pinned true
+new-pane --floating --pinned true --borderless true --x 75 --y 25 --width 75 --height 26 --name terminal -- sh -c zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term'
+
+write_panes terminal
 run_shortcut "Alt+x"
 check_eq "right Alt+x focuses then routes quit to draft" "$(actions)" "focus-pane-id 2
 write --pane-id 2 28
@@ -133,9 +138,17 @@ write_panes review
 run_shortcut "Alt+r"
 check_eq "review Alt+r does not rename tab" "$(actions)" ""
 
+write_panes review
+run_shortcut "Alt+Shift+d"
+check_eq "review Alt+Shift+d is not hijacked by terminal split" "$(actions)" ""
+
 grep -Fq 'bind "Alt Shift Enter" { WriteChars "\u{1b}[13;4u"; }' "$ROOT/zellij/config.kdl" \
   && pass "Alt+Shift+Enter forwards distinct KKP sequence" \
   || { printf 'FAIL Alt+Shift+Enter bind missing\n'; fail=1; }
+
+grep -Fq 'bind "Alt D" { WriteChars "\u{1b}[68;4u"; }' "$ROOT/zellij/config.kdl" \
+  && pass "Alt+Shift+d forwards distinct KKP sequence" \
+  || { printf 'FAIL Alt+Shift+d bind missing\n'; fail=1; }
 
 grep -Fq 'bind "Alt x" { WriteChars "\u{1b}[120;3u"; }' "$ROOT/zellij/config.kdl" \
   && pass "Alt+x forwards distinct KKP sequence" \
@@ -190,6 +203,19 @@ grep -Fq 'show_startup_tips false' "$ROOT/zellij/config.kdl" \
 grep -Fq 'focus_follows_mouse false' "$ROOT/zellij/config.kdl" \
   && pass "Zellij focus does not follow the mouse across asymmetric layers" \
   || { printf 'FAIL Zellij focus-follows-mouse is enabled\n'; fail=1; }
+
+grep -Fq 'mouse_mode false' "$ROOT/zellij/config.kdl" \
+  && pass "Zellij mouse layout manipulation is disabled" \
+  || { printf 'FAIL Zellij mouse layout manipulation is enabled\n'; fail=1; }
+
+grep -Fq '"--borderless", "true"' "$ROOT/cmd/internal/termcmd/run.go" \
+  && pass "right terminal split locks floating panes against mouse dragging" \
+  || { printf 'FAIL right terminal split does not lock floating panes\n'; fail=1; }
+
+layout_terminal_shell=$(grep 'exec pair term' "$ROOT/zellij/layouts/main-3.kdl" | sed 's/^[[:space:]]*args "-c" "//; s/"$//; s/\\"/"/g')
+grep -Fq "$layout_terminal_shell" "$ROOT/cmd/internal/termcmd/run.go" \
+  && pass "right terminal split command matches layout3 terminal command" \
+  || { printf 'FAIL right terminal split command drifted from layout3 terminal command\n'; fail=1; }
 
 grep -Fq 'support_kitty_keyboard_protocol true' "$ROOT/zellij/config.kdl" \
   && pass "Zellij explicitly enables Kitty keyboard protocol" \

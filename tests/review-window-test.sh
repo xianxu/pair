@@ -97,6 +97,7 @@ local function check()
   local mapqx = vim.fn.maparg('<M-q>', 'x') ~= ''
   local mapx = vim.fn.maparg('<M-x>', 'n') ~= '' and vim.fn.maparg('<M-x>', 'i') ~= ''
   local mapdefine = vim.fn.maparg('<M-D>', 'x') ~= ''
+  local mapdefine_kkp = vim.fn.maparg('\027[68;4u', 'x') ~= ''
   local mapo = vim.fn.maparg('<M-o>', 'n') == ''
   local mapshiftcr = vim.fn.maparg('<M-S-CR>', 'n') ~= ''
   local ship_cmd = vim.api.nvim_get_commands({}).PairReviewShip ~= nil
@@ -111,6 +112,7 @@ local function check()
   OUT:write((mapa and mapr and mapshifta and mapshiftr and mapqn and mapqi and mapqx and 'review-alt-maps\n') or 'NO-review-alt-maps\n')
   OUT:write((mapx and 'review-alt-x-map\n') or 'NO-review-alt-x-map\n')
   OUT:write((mapdefine and 'definition-map\n') or 'NO-definition-map\n')
+  OUT:write((mapdefine_kkp and 'definition-kkp-map\n') or 'NO-definition-kkp-map\n')
   OUT:write((mapo and 'no-alt-o-map\n') or 'HAS-alt-o-map\n')
   OUT:write((mapshiftcr and 'mode-menu-map\n') or 'NO-mode-menu-map\n')
   OUT:write((ship_cmd and 'ship-cmd\n') or 'NO-ship-cmd\n')
@@ -407,6 +409,7 @@ grep -q 'altcr-map' "$RT/r3" && pass "Alt+Return keymap wired" || fail "no Alt+R
 grep -q 'review-alt-maps' "$RT/r3" && pass "Alt+a/Alt+r/Alt+q review maps wired" || fail "review Alt maps missing"
 grep -q '^review-alt-x-map$' "$RT/r3" && pass "Alt+x no-op map wired in review pane" || fail "review Alt+x map missing"
 grep -q '^definition-map$' "$RT/r3" && pass "Shift+Alt+d definition map wired" || fail "definition map missing"
+grep -q '^definition-kkp-map$' "$RT/r3" && pass "Shift+Alt+d forwarded KKP definition map wired" || fail "definition KKP map missing"
 grep -q '^no-alt-o-map$' "$RT/r3" && pass "Alt+o is not bound in review pane" || fail "Alt+o still bound"
 grep -q '^mode-menu-map$' "$RT/r3" && pass "Alt+Shift+Return send menu keymap wired" || fail "send menu map missing"
 grep -q '^ship-cmd$' "$RT/r3" && pass ":PairReviewShip command wired" || fail ":PairReviewShip missing"

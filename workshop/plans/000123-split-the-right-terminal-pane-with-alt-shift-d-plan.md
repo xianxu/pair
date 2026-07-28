@@ -49,11 +49,11 @@
 - Modify: `cmd/internal/termcmd/run_test.go`
 - Modify: `tests/term-pane-shortcuts-test.sh`
 
-- [ ] **Step 1: Write failing registry/routing tests**
+- [x] **Step 1: Write failing registry/routing tests**
 
 Add coverage that `Alt+Shift+d` decodes through the shared shortcut registry and that `pair term` maps it to `RunZellijAction("new-pane", "--direction", "down", "--name", "terminal", "--", "sh", "-c", rightTerminalPaneShell)`.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run:
 
@@ -64,11 +64,11 @@ bash tests/term-pane-shortcuts-test.sh
 
 Expected: fail because the chord/action is not registered or routed.
 
-- [ ] **Step 3: Implement minimal routing**
+- [x] **Step 3: Implement minimal routing**
 
 Add the chord to the registry, define the right-terminal shell command once in `cmd/internal/termcmd/run.go`, and route it in `handleTerminalChord` to the injected Zellij runtime action.
 
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
 
 Run the same commands. Expected: pass.
 
@@ -79,11 +79,11 @@ Run the same commands. Expected: pass.
 - Modify: `zellij/layouts/main-3.kdl` if the split action needs a command-compatible terminal pane shape.
 - Modify: `tests/term-pane-shortcuts-test.sh`
 
-- [ ] **Step 1: Write failing config/layout assertions**
+- [x] **Step 1: Write failing config/layout assertions**
 
 Add shell assertions that `Alt+Shift+d` is terminal-local, the split action creates a named `pair term` pane rather than a raw shell, no split pane is borderless, and the config leaves Zellij pane boundary dragging enabled without enabling focus-follows-mouse.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run:
 
@@ -94,11 +94,11 @@ zellij --config-dir zellij setup --check
 
 Expected: fail until the config/action is updated.
 
-- [ ] **Step 3: Implement minimal config/layout changes**
+- [x] **Step 3: Implement minimal config/layout changes**
 
 Prefer Zellij's normal pane splitting and mouse boundary resizing. Keep `focus_follows_mouse false`, keep the new pane bordered, and avoid setting `mouse_mode false`.
 
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
 
 Run the same commands. Expected: pass.
 
@@ -109,11 +109,11 @@ Run the same commands. Expected: pass.
 - Modify: `atlas/architecture.md`
 - Modify: `workshop/issues/000123-split-the-right-terminal-pane-with-alt-shift-d.md`
 
-- [ ] **Step 1: Document the keybinding**
+- [x] **Step 1: Document the keybinding**
 
 Add the new `Alt+Shift+d` right-terminal split behavior to README and atlas.
 
-- [ ] **Step 2: Run complete verification**
+- [x] **Step 2: Run complete verification**
 
 Run:
 
@@ -129,6 +129,6 @@ git diff --check
 
 Expected: all pass.
 
-- [ ] **Step 3: Record evidence and commit**
+- [x] **Step 3: Record evidence and commit**
 
 Update the issue log with test evidence and commit the implementation.

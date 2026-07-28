@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -25,13 +26,17 @@ import (
 
 type Runtime interface {
 	CachedDraftPaneID() (string, bool)
+	CurrentPaneID() string
 	ListPanesJSON() ([]byte, error)
 	LastLeftPaneID() (string, error)
 	RecordLastLeftPaneID(string) error
 	RunZellijAction(args ...string) error
+	RunZellijActionQuiet(args ...string) error
 	ReportShortcutError(error)
 	ShellCommand() (string, []string)
 }
+
+const rightTerminalPaneShell = `zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term`
 
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return RunWithRuntime(args, stdin, stdout, stderr, OSRuntime{})
@@ -75,6 +80,8 @@ func namedChord(name string) (workbenchshortcut.Chord, bool) {
 		return workbenchshortcut.ChordAltW, true
 	case "alt+r":
 		return workbenchshortcut.ChordAltR, true
+	case "alt+shift+d":
+		return workbenchshortcut.ChordAltShiftD, true
 	case "alt+x":
 		return workbenchshortcut.ChordAltX, true
 	case "alt+/":
@@ -170,6 +177,8 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 			return nil
 		}
 		return rt.RunZellijAction("focus-pane-id", panes.terminal.ID)
+	case workbenchshortcut.ActionSplitTerminalDown:
+		return splitTerminalDown(rt)
 	case workbenchshortcut.ActionToggleFocusedLayout:
 		if layoutcmd.RunToggleFocused(nil, rt, io.Discard) != 0 {
 			return fmt.Errorf("toggle focused layout failed")
@@ -449,12 +458,90 @@ func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, rt Runtim
 	case workbenchshortcut.ChordAltRight:
 		mux.nextTab()
 		return true
+	case workbenchshortcut.ChordAltShiftD:
+		if err := splitTerminalDown(rt); err != nil {
+			rt.ReportShortcutError(err)
+		}
+		return true
 	case workbenchshortcut.ChordAltShiftEnter:
 		_ = layoutcmd.RunToggleFocused(nil, rt, io.Discard)
 		return true
 	default:
 		return false
 	}
+}
+
+func splitTerminalDown(rt Runtime) error {
+	terminal, ok, err := currentRightTerminalPane(rt)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("right terminal pane not found")
+	}
+	if terminal.Columns <= 0 || terminal.Rows <= 3 {
+		return fmt.Errorf("right terminal pane is too small to split")
+	}
+	topRows := terminal.Rows / 2
+	bottomRows := terminal.Rows - topRows
+	bottomY := topRows + terminal.Y
+	x := strconv.Itoa(terminal.X)
+	y := strconv.Itoa(terminal.Y)
+	width := strconv.Itoa(terminal.Columns)
+	if err := rt.RunZellijAction(
+		"change-floating-pane-coordinates",
+		"--pane-id", terminal.ID,
+		"--x", x,
+		"--y", y,
+		"--width", width,
+		"--height", strconv.Itoa(topRows),
+		"--borderless", "true",
+		"--pinned", "true",
+	); err != nil {
+		return err
+	}
+	return rt.RunZellijActionQuiet(
+		"new-pane",
+		"--floating",
+		"--pinned", "true",
+		"--borderless", "true",
+		"--x", x,
+		"--y", strconv.Itoa(bottomY),
+		"--width", width,
+		"--height", strconv.Itoa(bottomRows),
+		"--name", "terminal",
+		"--",
+		"sh",
+		"-c",
+		rightTerminalPaneShell,
+	)
+}
+
+func currentRightTerminalPane(rt Runtime) (zellijpane.Pane, bool, error) {
+	data, err := rt.ListPanesJSON()
+	if err != nil {
+		return zellijpane.Pane{}, false, err
+	}
+	panes := zellijpane.Parse(data)
+	currentID := rt.CurrentPaneID()
+	if currentID != "" {
+		for _, pane := range panes {
+			if pane.ID == currentID && workbenchshortcut.RoleForPane(pane) == workbenchshortcut.PaneRoleRightTerminal {
+				return pane, true, nil
+			}
+		}
+	}
+	for _, pane := range panes {
+		if pane.IsFocused && workbenchshortcut.RoleForPane(pane) == workbenchshortcut.PaneRoleRightTerminal {
+			return pane, true, nil
+		}
+	}
+	for _, pane := range panes {
+		if workbenchshortcut.RoleForPane(pane) == workbenchshortcut.PaneRoleRightTerminal {
+			return pane, true, nil
+		}
+	}
+	return zellijpane.Pane{}, false, nil
 }
 
 type mousePressEvent struct {
@@ -986,6 +1073,10 @@ func (OSRuntime) CachedDraftPaneID() (string, bool) {
 	return draftroute.CachedDraftPaneIDFromEnv()
 }
 
+func (OSRuntime) CurrentPaneID() string {
+	return os.Getenv("ZELLIJ_PANE_ID")
+}
+
 func (OSRuntime) LastLeftPaneID() (string, error) {
 	store := workbenchshortcut.LastLeftPaneStore{DataDir: pairDataDir(), Tag: os.Getenv("PAIR_TAG")}
 	return store.Read()
@@ -998,17 +1089,22 @@ func (OSRuntime) RecordLastLeftPaneID(id string) error {
 
 func (OSRuntime) RunZellijAction(args ...string) error {
 	cmdArgs := append([]string{"action"}, args...)
-	return runZellij(cmdArgs...)
+	return runZellij(cmdArgs, os.Stdout)
+}
+
+func (OSRuntime) RunZellijActionQuiet(args ...string) error {
+	cmdArgs := append([]string{"action"}, args...)
+	return runZellij(cmdArgs, io.Discard)
 }
 
 func (OSRuntime) ReportShortcutError(err error) {
 	fmt.Fprintf(os.Stderr, "pair term: global shortcut: %v\n", err)
 }
 
-func runZellij(args ...string) error {
+func runZellij(args []string, stdout io.Writer) error {
 	cmd := exec.Command("zellij", args...)
 	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
+	cmd.Stdout = stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }

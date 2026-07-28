@@ -735,8 +735,10 @@ local function start_review(buf, file)
     { buffer = buf, silent = true, desc = 'review: insert human comment marker' })
   vim.keymap.set('x', '<M-q>', function() quote_visual_selection(buf) end,
     { buffer = buf, silent = true, desc = 'review: quote selection for human comment' })
-  vim.keymap.set('x', '<M-D>', function() request_visual_definition(buf, file) end,
-    { buffer = buf, silent = true, desc = 'review: define selection' })
+  for _, define_key in ipairs({ '<M-D>', '\027[68;4u' }) do
+    vim.keymap.set('x', define_key, function() request_visual_definition(buf, file) end,
+      { buffer = buf, silent = true, desc = 'review: define selection' })
+  end
   vim.keymap.set('n', ']m', function() jump_marker(buf, 1) end,
     { buffer = buf, silent = true, desc = 'review: next 🤖 marker' })
   vim.keymap.set('n', '[m', function() jump_marker(buf, -1) end,

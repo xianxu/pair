@@ -1,5 +1,18 @@
 # Lessons
 
+## Zellij forwarded bytes must preserve every focused surface using the chord
+
+`Alt+Shift+d` was added as a right-terminal split shortcut by rebinding Zellij
+to forward the KKP sequence `ESC[68;4u`. The terminal wrapper understood that
+sequence, but the review pane already used the same physical chord as `<M-D>` for
+visual definitions, and Neovim did not treat the forwarded KKP bytes as `<M-D>`.
+
+**Rule.** When changing a Zellij binding for a physical chord, inventory every
+focused surface that already uses that chord and test the exact forwarded bytes
+against each consumer. For Neovim surfaces, add a map for the raw forwarded byte
+sequence when KKP does not resolve to the existing `<M-...>` mapping. Caught in
+#000123 close review.
+
 ## Activating an empty terminal tab must still redraw
 
 `Alt+t` created a new terminal tab and made it active, but `newTab` only updated

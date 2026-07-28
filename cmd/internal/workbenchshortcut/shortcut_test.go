@@ -99,6 +99,12 @@ func TestShortcutDecision(t *testing.T) {
 			want:  ShortcutDecision{Disposition: DispositionHandle, Action: ActionRenameTab},
 		},
 		{
+			name:  "right terminal split down",
+			role:  PaneRoleRightTerminal,
+			chord: ChordAltShiftD,
+			want:  ShortcutDecision{Disposition: DispositionHandle, Action: ActionSplitTerminalDown},
+		},
+		{
 			name:  "right terminal alt x handles quit outside shell",
 			role:  PaneRoleRightTerminal,
 			chord: ChordAltX,
@@ -209,6 +215,7 @@ func TestDecodeChord(t *testing.T) {
 		{name: "legacy alt shift c", in: []byte("\x1bC"), want: ChordAltShiftC, ok: true},
 		{name: "kkp alt t", in: []byte("\x1b[116;3u"), want: ChordAltT, ok: true},
 		{name: "kkp alt x", in: []byte("\x1b[120;3u"), want: ChordAltX, ok: true},
+		{name: "kkp alt shift d", in: []byte("\x1b[68;4u"), want: ChordAltShiftD, ok: true},
 		{name: "kkp ctrl alt c", in: []byte("\x1b[99;7u"), want: ChordCtrlAltC, ok: true},
 		{name: "kkp alt shift enter", in: []byte("\x1b[13;4u"), want: ChordAltShiftEnter, ok: true},
 		{name: "ordinary text", in: []byte("t"), ok: false},

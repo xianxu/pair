@@ -2,7 +2,7 @@
 
 ## What pair is
 
-A launcher that starts a zellij workbench with a left Pair stack and a right user terminal. The left stack runs a TUI coding agent above Neovim on a persistent draft file; the right pane is an ordinary shell where the user can run commands or launch `nvim`. Keystrokes — and mouse-up after a selection — drive bidirectional flow between the Pair-owned panes via `zellij action write-chars` and `zellij action focus-pane-id`, while the terminal pane stays user-owned.
+A launcher that starts a zellij workbench with a left Pair stack and a right user terminal area. The left stack runs a TUI coding agent above Neovim on a persistent draft file; the right area is an ordinary shell surface where the user can run commands or launch `nvim`, and it can split into multiple Zellij panes while each pane still runs `pair term`. Keystrokes — and mouse-up after a selection — drive bidirectional flow between the Pair-owned panes via `zellij action write-chars` and `zellij action focus-pane-id`, while the terminal area stays user-owned.
 
 The whole thing is deliberately small — a handful of shell scripts, one nvim init, and two zellij KDL files. Required deps: `zellij`, `nvim`, `fzf`, `jq`, `par`, plus the agent itself.
 
@@ -363,7 +363,7 @@ Keybinds added on top of zellij defaults (`clear-defaults=false`):
 
 - `unbind "Alt i"` — release Alt+i (zellij's default binds it to MoveTab; we want nvim to see it for image attach).
 - `unbind "Alt n"` — release Alt+n (zellij's default `NewPane` would break pair's managed workbench shape; we rebind it below for restart).
-- `unbind "Alt j"`, `Alt k`, `Alt t`, `Alt w`, `Alt r`, `Alt /`, `Alt C`, and `Ctrl Alt c` — release pane-local workbench chords so the focused pane process owns them. `pair wrap` handles left-agent shortcuts, `nvim/init.lua` handles draft shortcuts, and `pair term` handles right-terminal shortcuts.
+- `unbind "Alt j"`, `Alt k`, `Alt t`, `Alt w`, `Alt r`, `Alt /`, `Alt D`, `Alt C`, and `Ctrl Alt c` — release pane-local workbench chords so the focused pane process owns them. `pair wrap` handles left-agent shortcuts, `nvim/init.lua` handles draft shortcuts, and `pair term` handles right-terminal shortcuts.
 - Mode-locking — every default chord that would switch zellij modes (`Ctrl+g/p/t/n/h/s/o/b`) is unbound, and `Ctrl+q` (zellij's resurrect-leaving Quit) is unbound too — Alt+x is the only quit path.
 - Draft-routed globals (`Alt+d`, `Alt+x`, `Alt+n` / `Ctrl+Alt+n`,
   `Shift+Alt+N`, `Alt+↑`, `Alt+↓`, and `Alt+c`) are encoded by KDL as one
@@ -382,7 +382,7 @@ Keybinds added on top of zellij defaults (`clear-defaults=false`):
 - `Shift+Alt+N` invokes `PairConfirmAgentRestart()` — Y/N modal then signal the stable `pair wrap` supervisor to replace only its coding-agent child with the same user args and no restoration token. See "Reload / restart in place" under the launcher section.
 - `Alt+h` — `Run "pair-help" { floating true; close_on_exit true; ... }` — pops a floating pane running `pair -h | less`.
 - `Alt+↑` / `Alt+↓` — route to nvim's `PairLayoutBigger` / `PairLayoutSmaller` — step the nvim pane along the swap-layout ladder (`minimized ↔ small (12 rows) ↔ third`).
-- Pane-local shortcuts (#116): `Alt+j` toggles vertically only in the left stack; `Alt+k` bridges left/right, returning from the terminal to the last focused left pane via `$PAIR_DATA_DIR/last-left-pane-<tag>`; `Alt+t`/`Alt+w` create and close tabs only in the right terminal; `Alt+r` enters the terminal wrapper's frame-title rename editor (#118), whose pure rune editor and streaming decoder consume all edit/control bytes before the child PTY and use `rename-pane` as the sole title IO boundary; `Alt+/` and `Alt+Shift+C` / `Ctrl+Alt+c` work only in the left stack.
+- Pane-local shortcuts (#116/#123): `Alt+j` toggles vertically only in the left stack; `Alt+k` bridges left/right, returning from the terminal to the last focused left pane via `$PAIR_DATA_DIR/last-left-pane-<tag>`; `Alt+t`/`Alt+w` create and close tabs only in the right terminal; `Alt+r` enters the terminal wrapper's frame-title rename editor (#118), whose pure rune editor and streaming decoder consume all edit/control bytes before the child PTY and use `rename-pane` as the sole title IO boundary; `Alt+Shift+d` in the right terminal runs `zellij action new-pane --direction down --name terminal -- sh -c 'zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term'`, leaving the new lower pane bordered so Zellij owns mouse boundary resizing; `Alt+/` and `Alt+Shift+C` / `Ctrl+Alt+c` work only in the left stack.
 
 The Alt+x/d/n confirms execute in draft Neovim rather than running directly so a single fat-finger doesn't tear the session down (Alt+x in particular is unrecoverable). The lua side also auto-grows out of `minimized` before showing the modal, since otherwise the prompt would land on a 1-row pane where nothing is visible.
 
