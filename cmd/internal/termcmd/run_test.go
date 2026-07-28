@@ -238,6 +238,21 @@ func TestSplitTerminalDownIsNativeTiledSplit(t *testing.T) {
 	}
 }
 
+func TestTerminalAltKRecordsLeavingSplitHalf(t *testing.T) {
+	rt := &fakeRuntime{lastLeft: "1"}
+	var stderr bytes.Buffer
+	code := RunWithRuntime([]string{"--test-shortcut", "Alt+k"}, strings.NewReader(""), &bytes.Buffer{}, &stderr, rt)
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%q", code, stderr.String())
+	}
+	if strings.Join(rt.recordedTerminal, ",") != "4" {
+		t.Fatalf("recorded terminal = %v, want [4] (the focused terminal pane)", rt.recordedTerminal)
+	}
+	if strings.Join(rt.ops, ",") != "focus-pane-id 1" {
+		t.Fatalf("ops = %v, want focus-pane-id 1", rt.ops)
+	}
+}
+
 func TestSplitTerminalDownRefusesWithoutRightTerminal(t *testing.T) {
 	rt := &fakeRuntime{panesJSON: `[
 		{"id":1,"is_focused":true,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
@@ -783,15 +798,27 @@ type stdoutWriter struct {
 }
 
 type fakeRuntime struct {
-	panesJSON     string
-	cachedDraft   string
-	currentPaneID string
-	lastLeft      string
-	listCalls     int
-	failList      bool
-	ops           []string
-	reported      []string
-	failFocus     bool
+	panesJSON        string
+	cachedDraft      string
+	currentPaneID    string
+	lastLeft         string
+	lastTerminal     string
+	recordedTerminal []string
+	listCalls        int
+	failList         bool
+	ops              []string
+	reported         []string
+	failFocus        bool
+}
+
+func (f *fakeRuntime) LastTerminalPaneID() (string, error) {
+	return f.lastTerminal, nil
+}
+
+func (f *fakeRuntime) RecordLastTerminalPaneID(id string) error {
+	f.recordedTerminal = append(f.recordedTerminal, id)
+	f.lastTerminal = id
+	return nil
 }
 
 func (f *fakeRuntime) CachedDraftPaneID() (string, bool) {

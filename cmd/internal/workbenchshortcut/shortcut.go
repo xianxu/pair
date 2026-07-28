@@ -88,12 +88,13 @@ type ShortcutInput struct {
 }
 
 type ShortcutDecision struct {
-	Disposition          Disposition
-	Action               ShortcutAction
-	TargetPaneID         string
-	RecordLastLeftPaneID string
-	DraftLuaFunction     string
-	FocusDraft           bool
+	Disposition              Disposition
+	Action                   ShortcutAction
+	TargetPaneID             string
+	RecordLastLeftPaneID     string
+	RecordLastTerminalPaneID string
+	DraftLuaFunction         string
+	FocusDraft               bool
 }
 
 type GlobalBinding struct {
@@ -159,7 +160,16 @@ func Decide(in ShortcutInput) ShortcutDecision {
 			if target == "" {
 				target = in.DraftPaneID
 			}
-			return ShortcutDecision{Disposition: DispositionHandle, Action: ActionFocusPane, TargetPaneID: target}
+			// Record which split half the user is leaving: in the tiled tree
+			// no right terminal reports is_focused while focus sits in the
+			// left stack, so this file is the only memory the return jump
+			// (FocusRightTerminal) has of the last-used half.
+			return ShortcutDecision{
+				Disposition:              DispositionHandle,
+				Action:                   ActionFocusPane,
+				TargetPaneID:             target,
+				RecordLastTerminalPaneID: in.FocusedPaneID,
+			}
 		case ChordAltShiftEnter:
 			return handle(ActionToggleFocusedLayout)
 		case ChordAltJ, ChordAltSlash, ChordAltShiftC, ChordCtrlAltC:
@@ -351,21 +361,53 @@ func IsChordPrefix(data []byte) bool {
 	return false
 }
 
+// LastLeftPaneStore and LastTerminalPaneStore remember the pane the user last
+// left on each side of the workbench, so the opposite jump (Alt+k) can return
+// to it. Same file shape, distinct sidecars per tag.
 type LastLeftPaneStore struct {
 	DataDir string
 	Tag     string
 }
 
-func (s LastLeftPaneStore) Path() string {
-	tag := s.Tag
+func (s LastLeftPaneStore) Path() string              { return paneIDPath(s.DataDir, s.Tag, "last-left-pane-") }
+func (s LastLeftPaneStore) Read() (string, error)     { return readPaneID(s.Path()) }
+func (s LastLeftPaneStore) Write(paneID string) error { return writePaneID(s.Path(), paneID) }
+
+type LastTerminalPaneStore struct {
+	DataDir string
+	Tag     string
+}
+
+func (s LastTerminalPaneStore) Path() string {
+	return paneIDPath(s.DataDir, s.Tag, "last-terminal-pane-")
+}
+func (s LastTerminalPaneStore) Read() (string, error)     { return readPaneID(s.Path()) }
+func (s LastTerminalPaneStore) Write(paneID string) error { return writePaneID(s.Path(), paneID) }
+
+// DataDirFromEnv resolves pair's data dir the way every pane process does:
+// PAIR_DATA_DIR, then XDG_DATA_HOME/pair, then ~/.local/share/pair.
+func DataDirFromEnv() string {
+	if v := os.Getenv("PAIR_DATA_DIR"); v != "" {
+		return v
+	}
+	if v := os.Getenv("XDG_DATA_HOME"); v != "" {
+		return v + "/pair"
+	}
+	if v := os.Getenv("HOME"); v != "" {
+		return v + "/.local/share/pair"
+	}
+	return "."
+}
+
+func paneIDPath(dataDir, tag, prefix string) string {
 	if tag == "" {
 		tag = "pair"
 	}
-	return filepath.Join(s.DataDir, "last-left-pane-"+tag)
+	return filepath.Join(dataDir, prefix+tag)
 }
 
-func (s LastLeftPaneStore) Read() (string, error) {
-	data, err := os.ReadFile(s.Path())
+func readPaneID(path string) (string, error) {
+	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return "", nil
 	}
@@ -375,8 +417,7 @@ func (s LastLeftPaneStore) Read() (string, error) {
 	return strings.TrimSpace(string(data)), nil
 }
 
-func (s LastLeftPaneStore) Write(paneID string) error {
-	path := s.Path()
+func writePaneID(path, paneID string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}

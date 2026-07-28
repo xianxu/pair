@@ -128,19 +128,31 @@ func TestShortcutDecision(t *testing.T) {
 			want:  ShortcutDecision{Disposition: DispositionHandle, Action: ActionToggleFocusedLayout},
 		},
 		{
-			name:     "right terminal alt k returns to last left pane",
+			name:     "right terminal alt k returns to last left pane and records the leaving half",
 			role:     PaneRoleRightTerminal,
 			chord:    ChordAltK,
 			lastLeft: "1",
 			draft:    "2",
-			want:     ShortcutDecision{Disposition: DispositionHandle, Action: ActionFocusPane, TargetPaneID: "1"},
+			focused:  "4",
+			want: ShortcutDecision{
+				Disposition:              DispositionHandle,
+				Action:                   ActionFocusPane,
+				TargetPaneID:             "1",
+				RecordLastTerminalPaneID: "4",
+			},
 		},
 		{
-			name:  "right terminal alt k falls back to draft",
-			role:  PaneRoleRightTerminal,
-			chord: ChordAltK,
-			draft: "2",
-			want:  ShortcutDecision{Disposition: DispositionHandle, Action: ActionFocusPane, TargetPaneID: "2"},
+			name:    "right terminal alt k falls back to draft",
+			role:    PaneRoleRightTerminal,
+			chord:   ChordAltK,
+			draft:   "2",
+			focused: "4",
+			want: ShortcutDecision{
+				Disposition:              DispositionHandle,
+				Action:                   ActionFocusPane,
+				TargetPaneID:             "2",
+				RecordLastTerminalPaneID: "4",
+			},
 		},
 		{
 			name:    "left agent alt k records focused pane then focuses terminal",
@@ -352,5 +364,23 @@ func TestLastLeftPaneStore(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "last-left-pane-pair")); err != nil {
 		t.Fatalf("expected written sidecar: %v", err)
+	}
+}
+
+func TestLastTerminalPaneStoreIsDistinctFromLastLeft(t *testing.T) {
+	dir := t.TempDir()
+	store := LastTerminalPaneStore{DataDir: dir, Tag: "pair"}
+	if got := store.Path(); got != filepath.Join(dir, "last-terminal-pane-pair") {
+		t.Fatalf("Path() = %q", got)
+	}
+	if err := store.Write("7"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := store.Read(); err != nil || got != "7" {
+		t.Fatalf("Read() = (%q, %v), want 7 nil", got, err)
+	}
+	left := LastLeftPaneStore{DataDir: dir, Tag: "pair"}
+	if got, err := left.Read(); err != nil || got != "" {
+		t.Fatalf("left store polluted: (%q, %v)", got, err)
 	}
 }

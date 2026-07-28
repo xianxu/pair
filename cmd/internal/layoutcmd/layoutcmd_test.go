@@ -125,11 +125,10 @@ func intString(value int) string {
 	return string(reversed[i:])
 }
 
-func TestFocusRightTerminalFocusesFloatingTerminalByID(t *testing.T) {
+func TestFocusRightTerminalFocusesTiledTerminalByID(t *testing.T) {
 	rt := &fakeRuntime{panesJSON: []byte(`[
 		{"id":2,"is_focused":true,"is_floating":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua d.md"},
-		{"id":1,"is_focused":false,"is_floating":false,"title":"terminal-filler","terminal_command":"tail -f /dev/null"},
-		{"id":4,"is_focused":false,"is_floating":true,"title":"terminal","terminal_command":"pair term"}
+		{"id":4,"is_focused":false,"is_floating":false,"pane_x":75,"title":"terminal","terminal_command":"pair term"}
 	]`)}
 	if err := FocusRightTerminal(rt); err != nil {
 		t.Fatal(err)
@@ -139,10 +138,13 @@ func TestFocusRightTerminalFocusesFloatingTerminalByID(t *testing.T) {
 	}
 }
 
-func TestFocusRightTerminalPrefersLayerFocusedSplitPane(t *testing.T) {
-	rt := &fakeRuntime{panesJSON: []byte(`[
-		{"id":3,"is_focused":false,"is_floating":true,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"},
-		{"id":4,"is_focused":true,"is_floating":true,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"}
+func TestFocusRightTerminalPrefersRecordedSplitHalf(t *testing.T) {
+	// Focus sits in the left stack, so neither tiled right terminal reports
+	// is_focused; the recorded last-terminal pane id picks the half.
+	rt := &fakeRuntime{lastTerminal: "4", panesJSON: []byte(`[
+		{"id":2,"is_focused":true,"is_floating":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua d.md"},
+		{"id":3,"is_focused":false,"is_floating":false,"pane_x":75,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"},
+		{"id":4,"is_focused":false,"is_floating":false,"pane_x":75,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"}
 	]`)}
 	if err := FocusRightTerminal(rt); err != nil {
 		t.Fatal(err)
@@ -152,7 +154,35 @@ func TestFocusRightTerminalPrefersLayerFocusedSplitPane(t *testing.T) {
 	}
 }
 
-func TestFocusRightTerminalFallsBackToRelativeMoveWithoutFloatingTerminal(t *testing.T) {
+func TestFocusRightTerminalPrefersFocusedOverStaleRecord(t *testing.T) {
+	// A right terminal actively holding focus beats the recorded id (the
+	// record can go stale when the user moves by mouse).
+	rt := &fakeRuntime{lastTerminal: "3", panesJSON: []byte(`[
+		{"id":3,"is_focused":false,"is_floating":false,"pane_x":75,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"},
+		{"id":4,"is_focused":true,"is_floating":false,"pane_x":75,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"}
+	]`)}
+	if err := FocusRightTerminal(rt); err != nil {
+		t.Fatal(err)
+	}
+	if len(rt.ops) != 1 || rt.ops[0] != "focus-pane-id 4" {
+		t.Fatalf("ops = %v, want [focus-pane-id 4]", rt.ops)
+	}
+}
+
+func TestFocusRightTerminalIgnoresStaleRecordedID(t *testing.T) {
+	rt := &fakeRuntime{lastTerminal: "9", panesJSON: []byte(`[
+		{"id":2,"is_focused":true,"is_floating":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua d.md"},
+		{"id":3,"is_focused":false,"is_floating":false,"pane_x":75,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"}
+	]`)}
+	if err := FocusRightTerminal(rt); err != nil {
+		t.Fatal(err)
+	}
+	if len(rt.ops) != 1 || rt.ops[0] != "focus-pane-id 3" {
+		t.Fatalf("ops = %v, want [focus-pane-id 3]", rt.ops)
+	}
+}
+
+func TestFocusRightTerminalFallsBackToRelativeMoveWithoutTerminal(t *testing.T) {
 	rt := &fakeRuntime{panesJSON: []byte(`[
 		{"id":0,"is_focused":true,"is_floating":false,"title":"agent","terminal_command":"pair wrap claude"},
 		{"id":2,"is_focused":false,"is_floating":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua d.md"}
@@ -166,8 +196,13 @@ func TestFocusRightTerminalFallsBackToRelativeMoveWithoutFloatingTerminal(t *tes
 }
 
 type fakeRuntime struct {
-	panesJSON []byte
-	ops       []string
+	panesJSON    []byte
+	ops          []string
+	lastTerminal string
+}
+
+func (f *fakeRuntime) LastTerminalPaneID() (string, error) {
+	return f.lastTerminal, nil
 }
 
 func (f *fakeRuntime) ListPanesJSON() ([]byte, error) {

@@ -29,6 +29,8 @@ type Runtime interface {
 	ListPanesJSON() ([]byte, error)
 	LastLeftPaneID() (string, error)
 	RecordLastLeftPaneID(string) error
+	LastTerminalPaneID() (string, error)
+	RecordLastTerminalPaneID(string) error
 	RunZellijAction(args ...string) error
 	RunZellijActionQuiet(args ...string) error
 	ReportShortcutError(error)
@@ -123,9 +125,8 @@ func handleChord(chord workbenchshortcut.Chord, rt Runtime, stdin io.Reader, std
 }
 
 type workbenchPanes struct {
-	focused  zellijpane.Pane
-	draft    zellijpane.Pane
-	terminal zellijpane.Pane
+	focused zellijpane.Pane
+	draft   zellijpane.Pane
 }
 
 func focusedWorkbenchPanes(rt Runtime) (workbenchPanes, error) {
@@ -138,16 +139,8 @@ func focusedWorkbenchPanes(rt Runtime) (workbenchPanes, error) {
 		if pane.IsFocused {
 			out.focused = pane
 		}
-		switch workbenchshortcut.RoleForPane(pane) {
-		case workbenchshortcut.PaneRoleLeftDraft:
+		if workbenchshortcut.RoleForPane(pane) == workbenchshortcut.PaneRoleLeftDraft {
 			out.draft = pane
-		case workbenchshortcut.PaneRoleRightTerminal:
-			// After an Alt+Shift+d split there are two right terminals; keep
-			// the floating-layer-focused one (the pane the user last used)
-			// over positional order.
-			if out.terminal.ID == "" || (pane.IsFloating && pane.IsFocused) {
-				out.terminal = pane
-			}
 		}
 	}
 	if out.focused.ID == "" {
@@ -165,6 +158,11 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 			return err
 		}
 	}
+	if decision.RecordLastTerminalPaneID != "" {
+		if err := rt.RecordLastTerminalPaneID(decision.RecordLastTerminalPaneID); err != nil {
+			return err
+		}
+	}
 	if decision.DraftLuaFunction != "" {
 		return draftroute.RouteLua(rt, decision.DraftLuaFunction, decision.FocusDraft)
 	}
@@ -177,10 +175,9 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 		}
 		return rt.RunZellijAction("focus-pane-id", decision.TargetPaneID)
 	case workbenchshortcut.ActionFocusRightTerminal:
-		if panes.terminal.ID == "" {
-			return nil
-		}
-		return rt.RunZellijAction("focus-pane-id", panes.terminal.ID)
+		// One picker for the right-terminal jump (shared with draft nvim and
+		// pair wrap): id-based, preferring the recorded last-used split half.
+		return layoutcmd.FocusRightTerminal(rt)
 	case workbenchshortcut.ActionSplitTerminalDown:
 		return splitTerminalDown(rt)
 	case workbenchshortcut.ActionToggleFocusedLayout:
@@ -1056,12 +1053,22 @@ func (OSRuntime) CurrentPaneID() string {
 }
 
 func (OSRuntime) LastLeftPaneID() (string, error) {
-	store := workbenchshortcut.LastLeftPaneStore{DataDir: pairDataDir(), Tag: os.Getenv("PAIR_TAG")}
+	store := workbenchshortcut.LastLeftPaneStore{DataDir: workbenchshortcut.DataDirFromEnv(), Tag: os.Getenv("PAIR_TAG")}
 	return store.Read()
 }
 
 func (OSRuntime) RecordLastLeftPaneID(id string) error {
-	store := workbenchshortcut.LastLeftPaneStore{DataDir: pairDataDir(), Tag: os.Getenv("PAIR_TAG")}
+	store := workbenchshortcut.LastLeftPaneStore{DataDir: workbenchshortcut.DataDirFromEnv(), Tag: os.Getenv("PAIR_TAG")}
+	return store.Write(id)
+}
+
+func (OSRuntime) LastTerminalPaneID() (string, error) {
+	store := workbenchshortcut.LastTerminalPaneStore{DataDir: workbenchshortcut.DataDirFromEnv(), Tag: os.Getenv("PAIR_TAG")}
+	return store.Read()
+}
+
+func (OSRuntime) RecordLastTerminalPaneID(id string) error {
+	store := workbenchshortcut.LastTerminalPaneStore{DataDir: workbenchshortcut.DataDirFromEnv(), Tag: os.Getenv("PAIR_TAG")}
 	return store.Write(id)
 }
 
@@ -1095,15 +1102,3 @@ func (OSRuntime) ShellCommand() (string, []string) {
 	return shell, []string{"-i"}
 }
 
-func pairDataDir() string {
-	if v := os.Getenv("PAIR_DATA_DIR"); v != "" {
-		return v
-	}
-	if v := os.Getenv("XDG_DATA_HOME"); v != "" {
-		return v + "/pair"
-	}
-	if v := os.Getenv("HOME"); v != "" {
-		return v + "/.local/share/pair"
-	}
-	return "."
-}

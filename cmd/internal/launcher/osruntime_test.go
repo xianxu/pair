@@ -98,8 +98,7 @@ func TestOSRuntimeProbeLiveLayoutUsesSessionScopedPaneReport(t *testing.T) {
 		"printf '%s\\n' '{\"0\":[" +
 		"{\"id\":0,\"title\":\"codex\",\"terminal_command\":\"pair wrap codex\"}," +
 		"{\"id\":1,\"title\":\"draft\",\"terminal_command\":\"nvim /data/draft-work.md\"}," +
-		"{\"id\":2,\"title\":\"terminal-filler\",\"terminal_command\":\"tail -f /dev/null\"}," +
-		"{\"id\":3,\"title\":\"terminal\",\"terminal_command\":\"pair term\",\"is_floating\":true}" +
+		"{\"id\":3,\"title\":\"terminal\",\"terminal_command\":\"pair term\"}" +
 		"]}'\n"
 	zellij := filepath.Join(bin, "zellij")
 	if err := os.WriteFile(zellij, []byte(script), 0o755); err != nil {

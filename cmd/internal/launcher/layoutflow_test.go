@@ -130,7 +130,28 @@ func TestClassifyLiveLayout(t *testing.T) {
 			ok:   true,
 		},
 		{
-			name: "layout3 filler and floating terminal",
+			name: "layout3 tiled terminal",
+			panes: []zellijpane.Pane{
+				{Title: "codex", TerminalCommand: "pair wrap codex"},
+				{Title: "draft", TerminalCommand: "nvim /data/draft-work.md"},
+				{Title: "terminal", TerminalCommand: "pair term"},
+			},
+			want: Layout3,
+			ok:   true,
+		},
+		{
+			name: "layout3 tiled terminals after split",
+			panes: []zellijpane.Pane{
+				{Title: "codex", TerminalCommand: "pair wrap codex"},
+				{Title: "draft", TerminalCommand: "nvim /data/draft-work.md"},
+				{Title: "[terminal 1]", TerminalCommand: "sh -c exec pair term"},
+				{Title: "[terminal 1]", TerminalCommand: "sh -c exec pair term"},
+			},
+			want: Layout3,
+			ok:   true,
+		},
+		{
+			name: "layout3 legacy filler and floating terminal",
 			panes: []zellijpane.Pane{
 				{Title: "codex", TerminalCommand: "pair wrap codex"},
 				{Title: "draft", TerminalCommand: "nvim /data/draft-work.md"},

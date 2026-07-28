@@ -3614,9 +3614,9 @@ function _G.PairFocusTerminal()
   _G.PairRecordLeftPane()
   if has_ui() then
     -- Focus by pane id (`pair layout focus-terminal`), not `move-focus
-    -- right`: the relative move lands tiled focus on the terminal-filler
-    -- behind the floating terminal, which swallows all further keys
-    -- (#123 focus lockout).
+    -- right`: the id-based jump targets a specific split half (preferring
+    -- the recorded last-used one) and is immune to whatever pane sits in
+    -- between — the rule that fixed the #123 focus lockout.
     vim.fn.system({ 'pair', 'layout', 'focus-terminal' })
   end
 end

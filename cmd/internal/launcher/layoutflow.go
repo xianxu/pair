@@ -38,8 +38,12 @@ func restoreLayoutRecord(rt FSOps, dataDir, tag string, snapshot layoutRecordSna
 }
 
 // ClassifyLiveLayout recognizes the two supported workbench pane signatures.
+// Layout3's signature is a right terminal in the tiled tree (#123 pivot); the
+// pre-pivot signature — invisible filler covered by a floating terminal — is
+// still recognized so probing a live session started by an older binary
+// doesn't misclassify it as Layout2.
 func ClassifyLiveLayout(panes []zellijpane.Pane) (LayoutMode, bool) {
-	var agent, draft, filler, floatingTerminal bool
+	var agent, draft, filler, floatingTerminal, tiledTerminal bool
 	for _, pane := range panes {
 		command := pane.TerminalCommand
 		switch {
@@ -51,14 +55,18 @@ func ClassifyLiveLayout(panes []zellijpane.Pane) (LayoutMode, bool) {
 		if pane.Title == "terminal-filler" || strings.Contains(command, "tail -f /dev/null") {
 			filler = true
 		}
-		if pane.IsFloating && (pane.Title == "terminal" || strings.Contains(command, "pair term")) {
-			floatingTerminal = true
+		if pane.Title == "terminal" || strings.HasPrefix(pane.Title, "[terminal") || strings.Contains(command, "pair term") {
+			if pane.IsFloating {
+				floatingTerminal = true
+			} else {
+				tiledTerminal = true
+			}
 		}
 	}
-	if agent && draft && filler && floatingTerminal {
+	if agent && draft && (tiledTerminal || (filler && floatingTerminal)) {
 		return Layout3, true
 	}
-	if agent && draft && !filler && !floatingTerminal {
+	if agent && draft && !tiledTerminal && !filler && !floatingTerminal {
 		return Layout2, true
 	}
 	return "", false

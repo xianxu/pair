@@ -5,6 +5,7 @@ package layoutcmd
 import (
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strconv"
 
@@ -15,6 +16,11 @@ import (
 type Runtime interface {
 	ListPanesJSON() ([]byte, error)
 	RunZellijAction(args ...string) error
+	// LastTerminalPaneID returns the recorded pane id of the split half the
+	// user last left (empty when none recorded). In the tiled tree no right
+	// terminal reports is_focused while focus sits in the left stack, so the
+	// record is the only last-used-half memory the return jump has.
+	LastTerminalPaneID() (string, error)
 }
 
 func AlignFloatingTerminal(rt Runtime) error {
@@ -50,41 +56,51 @@ func AlignFloatingTerminal(rt Runtime) error {
 	)
 }
 
-// FocusRightTerminal focuses the floating right workbench terminal by pane id,
-// which also re-activates zellij's floating layer. A relative `move-focus
-// right` must never be used for this jump: the floating terminal only covers
-// the inert terminal-filler pane, so relative movement lands tiled focus on
-// the filler, which then swallows every keystroke (the #123 focus lockout).
-// When no floating right terminal exists (layout2), fall back to the relative
-// move so two-pane layouts keep their old behavior.
+// FocusRightTerminal focuses the tiled right workbench terminal by pane id.
+// The id-based jump (never a relative `move-focus right`) predates the tiled
+// pivot and stays: it is immune to whatever pane happens to sit between the
+// caller and the terminal, and after an Alt+Shift+d split it is the only way
+// to target a specific half. When no right terminal exists (layout2), fall
+// back to the relative move so two-pane layouts keep their old behavior.
 func FocusRightTerminal(rt Runtime) error {
 	panesJSON, err := rt.ListPanesJSON()
 	if err != nil {
 		return err
 	}
-	terminal, ok := pickRightTerminal(zellijpane.Parse(panesJSON))
+	lastTerminal, err := rt.LastTerminalPaneID()
+	if err != nil {
+		lastTerminal = ""
+	}
+	terminal, ok := pickRightTerminal(zellijpane.Parse(panesJSON), lastTerminal)
 	if !ok {
 		return rt.RunZellijAction("move-focus", "right")
 	}
 	return rt.RunZellijAction("focus-pane-id", terminal.ID)
 }
 
-// pickRightTerminal prefers the floating-layer-focused right terminal — after
-// an Alt+Shift+d split there are two, and zellij keeps is_focused on the one
-// the user last used — then falls back to the first floating right terminal.
-func pickRightTerminal(panes []zellijpane.Pane) (zellijpane.Pane, bool) {
-	var first zellijpane.Pane
-	var found bool
+// pickRightTerminal chooses among the tiled right terminals — after an
+// Alt+Shift+d split there are two. A half actively holding focus wins;
+// otherwise the recorded last-used half (written when Alt+k leaves the
+// terminal side); otherwise the first in pane order.
+func pickRightTerminal(panes []zellijpane.Pane, lastTerminalID string) (zellijpane.Pane, bool) {
+	var recorded, first zellijpane.Pane
+	var haveRecorded, found bool
 	for _, pane := range panes {
-		if pane.IsPlugin || !pane.IsFloating || !isRightTerminal(pane) {
+		if pane.IsPlugin || !isRightTerminal(pane) {
 			continue
 		}
 		if pane.IsFocused {
 			return pane, true
 		}
+		if pane.ID == lastTerminalID {
+			recorded, haveRecorded = pane, true
+		}
 		if !found {
 			first, found = pane, true
 		}
+	}
+	if haveRecorded {
+		return recorded, true
 	}
 	return first, found
 }
@@ -204,6 +220,11 @@ type OSRuntime struct{}
 
 func (OSRuntime) ListPanesJSON() ([]byte, error) {
 	return exec.Command("zellij", "action", "list-panes", "--json", "--command", "--state", "--geometry").Output()
+}
+
+func (OSRuntime) LastTerminalPaneID() (string, error) {
+	store := workbenchshortcut.LastTerminalPaneStore{DataDir: workbenchshortcut.DataDirFromEnv(), Tag: os.Getenv("PAIR_TAG")}
+	return store.Read()
 }
 
 func (OSRuntime) RunZellijAction(args ...string) error {
