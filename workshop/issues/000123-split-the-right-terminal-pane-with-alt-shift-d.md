@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-07-27
 updated: 2026-07-27
-estimate_hours: 0.8
+estimate_hours: 1.6
 started: 2026-07-27T17:29:35-07:00
 actual_hours: 1.23
 ---
@@ -81,6 +81,17 @@ manually invoke Zellij splitting. The desired workflow is one terminal shortcut:
   to bordered (`--borderless false`, still pinned): the frame is the divider
   and carries the #118 tab title and scroll indicator. Residual frame-drag
   exposure is the accepted trade-off.
+- 2026-07-27 (tiled pivot): after a live drag reproduced the pane moving off
+  position, the user first accepted the exposure as a Zellij 0.44.3 limitation
+  (see Log), then chose the structural fix: move the right terminal from the
+  floating layer into the tiled tree. Tiled panes have no mouse-move operation,
+  so drag-immunity is architectural; frames (divider, #118 title, scroll
+  indicator) and full mouse support are kept, and the terminal-filler
+  focus-trap class disappears with the floating layer. `Alt+Shift+Enter`
+  expand becomes a tiled boundary resize toggling 50/50 ↔ 1/3–2/3 (user
+  decision; left stack reflows while expanded). Plan Chunk 2 in the plan file
+  carries the design; estimate revised 0.8 → 1.6 (+0.3 layout pivot, +0.2
+  resize planner, +0.15 focus/split rework, +0.15 docs/tests/smoke).
 
 ## Estimate
 
@@ -104,6 +115,10 @@ total: 0.80
 - [x] Implement the minimal Zellij action routing and config updates.
 - [x] Update docs/atlas for the new keybinding.
 - [x] Run focused and full verification.
+- [ ] Chunk 2: pivot `main-3.kdl` to a tiled right terminal (no floating layer, no filler).
+- [ ] Chunk 2: native tiled split action + tiled focus routing.
+- [ ] Chunk 2: `Alt+Shift+Enter` expand as tiled resize (50/50 ↔ 1/3–2/3), delete floating helpers.
+- [ ] Chunk 2: docs, full verification, live smoke.
 
 ## Log
 
