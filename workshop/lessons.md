@@ -1055,3 +1055,49 @@ for the review pane ("no relative move-focus (must be id-based)").
 addressing (`focus-pane-id`, now via `pair layout focus-terminal` for the right
 terminal). Relative `move-focus` is acceptable only within the tiled left stack
 (agent ↕ draft) where no floating layer is involved.
+
+## Paired protocol terminators need one constant, not one per site
+
+#127: an SGR mouse event ends with `M` (press) **or** `m` (release). Two sites
+framed it — `parseSGRMousePressPrefix` and `isSGRMousePrefix` — and both looked
+only for `M`, so a release read as "sequence not finished". It went into the
+`held` buffer along with every keystroke behind it: a dead keyboard, plus a
+child stuck in an unmatched mouse drag (nvim: stuck in visual mode). A third
+site, `sgrMouseSize`, already knew both forms — the protocol wasn't unknown, the
+sites just disagreed.
+
+**Rule.** When a protocol has paired/alternate terminators, define them once and
+derive every framing site from that constant. If you find two sites making the
+same framing decision independently, that IS the bug, not a style issue —
+consolidate before adding a third. Same for "where does this CSI end": one
+scanner per package.
+
+## Any pure byte-scanner gets a fuzz test, not just valid-input cases
+
+#127's close review found a panic in brand-new code: `isParameterizedOSCQuery`
+checked a 4-byte prefix and a 2-byte suffix that **overlap** on a short body, so
+`\x1b]4;?` satisfied both and inverted a slice bound. Reachable from ordinary
+child output, on the tab-switch path the same issue had just added — it would
+have killed `pair term` and every shell in the pane. Thirty hand-written test
+cases missed it because every one fed a *syntactically valid* sequence.
+
+**Rule.** A function that scans attacker-shaped or device-shaped bytes (terminal
+output, transcripts, clipboard) gets a `Fuzz*` asserting "never panics" plus a
+cheap invariant (output ≤ input) — seeded with the malformed forms. Cost is ~10
+lines. Separately: when a prefix check and a suffix check can overlap, guard the
+minimum length explicitly; `len(x) >= prefix+suffix` is load-bearing, not
+defensive.
+
+## Assert behavior, not the implementation's current location
+
+`tests/scrollback-open-test.sh` grepped for a literal `'<M-x>'` inside
+`nvim/scrollback.lua`. #117 moved global chord handling into the shared
+`workbench_route` / `workbench_actions` pair — behavior unchanged, assertion
+dead. `make test` was red on main and stayed that way.
+
+**Rule.** Pin the wiring plus the generated table (does the viewer install the
+global maps, does the action table still carry the chord), not a string in
+whichever file happens to hold it today. Corollary: a test that would stay green
+if the behavior were *fixed* isn't a pin — #127 shipped a "pins the accepted
+residual" test that never built a second tab, making it a duplicate of the test
+above it.
