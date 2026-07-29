@@ -88,7 +88,12 @@ func parseArgs(argv []string) (LaunchArgs, error) {
 		if len(argv) < 2 {
 			return LaunchArgs{}, UsageError{Message: "pair-go launch: 'resume' requires a tag"}
 		}
-		tag, err := NormalizeTag(argv[1])
+		// A pasted session name is resolved through the ledger before charset
+		// validation (#130). NormalizeTag strips the legacy `pair-` prefix itself,
+		// but the 📁 scheme has no string inverse — and 📁 is not in NormalizeTag's
+		// charset, so without this a user pasting the tab-title text gets
+		// "contains invalid character".
+		tag, err := ResumeTagFromArg(argv[1])
 		if err != nil {
 			return LaunchArgs{}, UsageError{Message: fmt.Sprintf("pair-go launch: invalid tag: %v", err)}
 		}
@@ -236,4 +241,20 @@ func parseContinue(args []string) (LaunchArgs, error) {
 		out.AgentArgs = rest[1:]
 	}
 	return out, nil
+}
+
+// ResumeTagFromArg accepts what a user may type after `pair resume`: a bare tag,
+// a legacy `pair-<tag>` name, or a 📁 session name pasted out of the tab title /
+// `zellij list-sessions`.
+//
+// It stays PURE, so it cannot resolve the 📁 form — that needs the ledger, and
+// ParseArgs has no Runtime. A 📁 value is therefore passed through verbatim and
+// resolved later by resolveResumeTag, at the first point the index is in hand.
+// Without this, NormalizeTag's charset loop rejects 📁 outright and the paste a
+// user is most likely to make fails (#130).
+func ResumeTagFromArg(raw string) (string, error) {
+	if strings.HasPrefix(raw, sessionPrefix) {
+		return raw, nil
+	}
+	return NormalizeTag(raw)
 }

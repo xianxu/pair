@@ -20,7 +20,9 @@ import (
 // agent (the on-disk agent-<tag> record, resolved by the caller).
 func runAttach(opts LaunchOptions, env Env, rt Runtime, tag, session, agent string) (int, error) {
 	if session == "" {
-		session = "pair-" + tag
+		// Degraded fallback: callers pass the resolved name. Reached only when
+		// attach was invoked without one (#130).
+		session = legacySessionPrefix + tag
 	}
 	// Export what the spawned poller inherits (pair-shell exports these globally
 	// before the branch; the attach branch itself only re-exports PAIR_TAG).
@@ -155,8 +157,11 @@ func liveTagsForSweep(sessions []Session, index SessionNameIndex, scopeKey strin
 			}
 			continue
 		}
-		if strings.HasPrefix(s.Name, "pair-") {
-			tags = append(tags, strings.TrimPrefix(s.Name, "pair-"))
+		// legacySessionPrefix only, for the same reason as legacy_live.go: this
+		// strip is the legacy scheme's inverse, and the 📁 scheme has none. Every
+		// 📁 session is indexed, so it is served by the ownerOf branch above.
+		if strings.HasPrefix(s.Name, legacySessionPrefix) {
+			tags = append(tags, strings.TrimPrefix(s.Name, legacySessionPrefix))
 		}
 	}
 	return tags

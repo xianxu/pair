@@ -16,13 +16,18 @@ func legacyLiveSessionsForScope(rt Runtime, live []Session, index SessionNameInd
 	}
 	var out []Session
 	for _, session := range live {
-		if session.State == SessionExited || !strings.HasPrefix(session.Name, "pair-") {
+		// Deliberately legacySessionPrefix, NOT isPairSessionName (#130): this
+		// function filters and then TrimPrefixes to recover a tag, and that
+		// inverse only exists for the legacy scheme. A 📁 name is always in the
+		// ledger, so it is handled by the ownerOf branch below and never needs
+		// this path; teaching the filter 📁 would mint plausible wrong tags.
+		if session.State == SessionExited || !strings.HasPrefix(session.Name, legacySessionPrefix) {
 			continue
 		}
 		if _, ok := index.ownerOf(session.Name); ok {
 			continue
 		}
-		tag := strings.TrimPrefix(session.Name, "pair-")
+		tag := strings.TrimPrefix(session.Name, legacySessionPrefix)
 		agent, ok := legacyPaneAgentForScope(rt, globalDataDir, scope, tag)
 		if !ok {
 			continue

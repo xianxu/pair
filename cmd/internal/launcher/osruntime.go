@@ -66,9 +66,15 @@ func (OSRuntime) SessionBlocksReuse(session string) bool {
 		return false // no such session — reuse is free.
 	}
 	if exited {
-		// Stale resurrect residue (#67): delete it and report reusable. Routed
-		// through zj so a wedged daemon socket can't hang the delete (shell zj).
-		zj("delete-session", session, "--force")
+		// Stale resurrect residue (#67): delete it and report reusable.
+		//
+		// The delete goes through DeleteSession rather than a `zj` call inlined
+		// here (#130). It used to be inlined, which put the only destructive act
+		// in this flow BELOW the Runtime seam — invisible to the fake, so a test
+		// asserting "a foreign session is never deleted" could pass while the
+		// hazard sat untouched. Routing it through the seam makes the deletion
+		// observable by construction.
+		_ = OSRuntime{}.DeleteSession(session)
 		return false
 	}
 	return true // running/detached — still occupied.
@@ -416,7 +422,7 @@ func (r OSRuntime) CmuxRename(tag, title string) {
 		return
 	}
 	_ = r.WriteAtomic(filepath.Join(r.DataDir, "cmux-owner-"+wsID), tag+"\n")
-	exec.Command("cmux", "rename-workspace", EmojiTitle(title)).Run()
+	exec.Command("cmux", "rename-workspace", title).Run()
 }
 
 // --- IDOps -----------------------------------------------------------------

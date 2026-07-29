@@ -33,7 +33,10 @@ func sessionMatchesTag(session, tag, pairSession string) bool {
 	if pairSession != "" {
 		return session == pairSession
 	}
-	return session == "pair-"+tag
+	// Legacy shape, reached only when PAIR_SESSION_NAME is unset. The 📁 scheme
+	// is not derivable from a tag, so there is nothing better to compare against
+	// here — the pairSession branch above is the real answer (#130).
+	return session == legacySessionPrefix+tag
 }
 
 // serializeRestartMarker renders a RestartMarker as the `key=value` text
@@ -70,7 +73,9 @@ func runCompaction(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error
 	agent := firstNonEmpty(opts.PairAgent, opts.Args.Agent, "claude")
 	session := opts.ZellijSession
 	if session == "" {
-		session = firstNonEmpty(opts.PairSession, "pair-"+tag)
+		// PAIR_SESSION_NAME is authoritative; the legacy spelling is a last-resort
+		// fallback for a pre-#130 session whose env is missing it.
+		session = firstNonEmpty(opts.PairSession, legacySessionPrefix+tag)
 	}
 	fmt.Fprintf(stderr, "pair: compacting %s — parking scrollback, restarting from continuation…\n", session)
 	rt.ParkScrollback(tag, agent, false) // copy: the live .raw is still being appended

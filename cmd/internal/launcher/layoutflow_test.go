@@ -179,9 +179,9 @@ func liveLayoutRuntime(t *testing.T, recorded string) *fakeRuntime {
 	t.Helper()
 	rt := newFakeRuntime()
 	scope := mustScope(t, "/home/u/work")
-	rt.sessions = []Session{{Name: "pair-work-work", State: SessionDetached}}
+	rt.sessions = []Session{{Name: "📁work", State: SessionDetached}}
 	rt.sessionIndex.Entries = []SessionNameEntry{{
-		SessionName: "pair-work-work",
+		SessionName: "📁work",
 		ScopeKey:    scope.Key,
 		RepoRoot:    scope.Root,
 		RepoName:    scope.DisplayName,
@@ -243,7 +243,7 @@ func TestRunLaunchConfirmedLiveLayoutChangeRelaunchesSameTag(t *testing.T) {
 	if len(rt.deleted) != 1 || len(rt.reaped) != 1 || len(rt.killedPollers) != 1 {
 		t.Fatalf("deleted=%v reaped=%v pollers=%v", rt.deleted, rt.reaped, rt.killedPollers)
 	}
-	if len(rt.attached) != 0 || rt.launchCount != 1 || rt.launched != "pair-work-work" {
+	if len(rt.attached) != 0 || rt.launchCount != 1 || rt.launched != "📁work" {
 		t.Fatalf("attached=%v launches=%d launched=%q", rt.attached, rt.launchCount, rt.launched)
 	}
 	if rt.launchLayout != "/pair/zellij/layouts/main-2.kdl" {
@@ -253,7 +253,7 @@ func TestRunLaunchConfirmedLiveLayoutChangeRelaunchesSameTag(t *testing.T) {
 
 func TestRunLaunchPreRecordLiveSessionUsesProbe(t *testing.T) {
 	rt := liveLayoutRuntime(t, "")
-	rt.liveLayouts["pair-work-work"] = Layout3
+	rt.liveLayouts["📁work"] = Layout3
 	args := LaunchArgs{ForcedTag: "work", Layout: LayoutRequest{Mode: Layout2, Explicit: true}}
 	code, err := run(t, baseOpts(args), rt)
 	if err != nil || code != 0 {
@@ -266,7 +266,7 @@ func TestRunLaunchPreRecordLiveSessionUsesProbe(t *testing.T) {
 
 func TestRunLaunchImplicitPreRecordSessionPersistsDetectedLayout(t *testing.T) {
 	rt := liveLayoutRuntime(t, "")
-	rt.liveLayouts["pair-work-work"] = Layout3
+	rt.liveLayouts["📁work"] = Layout3
 	code, err := run(t, baseOpts(LaunchArgs{ForcedTag: "work"}), rt)
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)

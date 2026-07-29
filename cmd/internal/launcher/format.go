@@ -3,8 +3,6 @@ package launcher
 import (
 	"strconv"
 	"strings"
-
-	"github.com/xianxu/pair/cmd/internal/titlefmt"
 )
 
 // Display formatting for the launcher's history/picker rows + pane titles (#99
@@ -62,10 +60,4 @@ func TildeAbbrev(cwd, home string) string {
 // PaneTitle is the "<agent> [<tilde-cwd>]" string exported as PAIR_PANE_TITLE.
 func PaneTitle(agent, cwd, home string) string {
 	return agent + " [" + TildeAbbrev(cwd, home) + "]"
-}
-
-// EmojiTitle applies the personal cmux display convention — 'brain' → 🧠,
-// 'book' → 📗, 'pair' → ♋ in compound titles — uniformly on every rename.
-func EmojiTitle(title string) string {
-	return titlefmt.EmojiTitle(title)
 }

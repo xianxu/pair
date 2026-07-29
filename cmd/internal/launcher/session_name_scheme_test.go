@@ -11,10 +11,10 @@ func TestIsPairSessionName(t *testing.T) {
 		name string
 		want bool
 	}{
-		{"pair-x", true},          // legacy scheme
-		{"pair-pair-pair", true},  // legacy, fully spelled
-		{"📁x", true},              // new scheme
-		{"📁parley-nvim", true},    // new scheme with residual
+		{"pair-x", true},             // legacy scheme
+		{"pair-pair-pair", true},     // legacy, fully spelled
+		{"📁x", true},                 // new scheme
+		{"📁parley-nvim", true},       // new scheme with residual
 		{"fabulous-aardvark", false}, // a real foreign session seen in the global list
 		{"", false},
 		{"repair-shop", false}, // must not match `pair-` mid-word

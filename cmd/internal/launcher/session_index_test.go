@@ -11,8 +11,8 @@ func TestAssignSessionNameUsesReadableBaseWhenFree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AssignSessionName returned error: %v", err)
 	}
-	if name != "pair-pair-work" {
-		t.Fatalf("name = %q, want pair-pair-work", name)
+	if name != "📁pair-work" {
+		t.Fatalf("name = %q, want 📁pair-work", name)
 	}
 	if strings.Contains(name, scope.Key) {
 		t.Fatalf("name %q exposed hidden key %q", name, scope.Key)
@@ -23,38 +23,78 @@ func TestAssignSessionNameDisambiguatesSameRepoNameDifferentScope(t *testing.T) 
 	first := mustScope(t, "/Users/a/work/pair")
 	second := mustScope(t, "/tmp/other/pair")
 	index := SessionNameIndex{Entries: []SessionNameEntry{{
-		SessionName: "pair-pair-work",
+		SessionName: "📁pair-work",
 		ScopeKey:    first.Key,
 		RepoRoot:    first.Root,
 		RepoName:    first.DisplayName,
 		Tag:         "work",
 	}}}
 
-	name, _, err := AssignSessionName(index, []Session{{Name: "pair-pair-work", State: SessionDetached}}, second, "work", acceptAllSessionNames)
+	name, _, err := AssignSessionName(index, []Session{{Name: "📁pair-work", State: SessionDetached}}, second, "work", acceptAllSessionNames)
 	if err != nil {
 		t.Fatalf("AssignSessionName returned error: %v", err)
 	}
-	if name != "pair-pair-work-2" {
-		t.Fatalf("name = %q, want pair-pair-work-2", name)
+	if name != "📁pair-work-2" {
+		t.Fatalf("name = %q, want 📁pair-work-2", name)
 	}
 }
 
 func TestAssignSessionNameReusesSameScopeBinding(t *testing.T) {
 	scope := mustScope(t, "/Users/a/work/pair")
 	index := SessionNameIndex{Entries: []SessionNameEntry{{
-		SessionName: "pair-pair-work-2",
+		SessionName: "📁pair-work-2",
 		ScopeKey:    scope.Key,
 		RepoRoot:    scope.Root,
 		RepoName:    scope.DisplayName,
 		Tag:         "work",
 	}}}
 
-	name, _, err := AssignSessionName(index, []Session{{Name: "pair-pair-work-2", State: SessionDetached}}, scope, "work", acceptAllSessionNames)
+	name, _, err := AssignSessionName(index, []Session{{Name: "📁pair-work-2", State: SessionDetached}}, scope, "work", acceptAllSessionNames)
 	if err != nil {
 		t.Fatalf("AssignSessionName returned error: %v", err)
 	}
-	if name != "pair-pair-work-2" {
+	if name != "📁pair-work-2" {
 		t.Fatalf("name = %q, want prior binding", name)
+	}
+}
+
+// The transition, and the reason the reuse short-circuit is prefix-gated (#130):
+// a legacy binding must NOT be reused, or the new scheme never reaches any tag
+// that already has a ledger row.
+func TestAssignSessionNameMigratesLegacyBinding(t *testing.T) {
+	scope := mustScope(t, "/Users/a/work/pair")
+	index := SessionNameIndex{Entries: []SessionNameEntry{{
+		SessionName: "pair-📁work-2",
+		ScopeKey:    scope.Key,
+		RepoRoot:    scope.Root,
+		RepoName:    scope.DisplayName,
+		Tag:         "work",
+	}}}
+
+	name, updated, err := AssignSessionName(index, []Session{{Name: "pair-📁work-2", State: SessionExited}}, scope, "work", acceptAllSessionNames)
+	if err != nil {
+		t.Fatalf("AssignSessionName returned error: %v", err)
+	}
+	if name != "📁pair-work" {
+		t.Fatalf("name = %q, want the migrated 📁pair-work", name)
+	}
+	entry := updated.Entries[len(updated.Entries)-1]
+	if entry.Superseded != "pair-📁work-2" {
+		t.Fatalf("Superseded = %q, want the legacy name it replaced", entry.Superseded)
+	}
+
+	// Second create must NOT append again: the fresh row is already 📁-prefixed,
+	// so it short-circuits. Without the prefix gate this grows without bound.
+	before := len(updated.Entries)
+	name2, updated2, err := AssignSessionName(updated, nil, scope, "work", acceptAllSessionNames)
+	if err != nil {
+		t.Fatalf("second AssignSessionName: %v", err)
+	}
+	if name2 != "📁pair-work" {
+		t.Fatalf("second name = %q, want the same migrated name", name2)
+	}
+	if len(updated2.Entries) != before {
+		t.Fatalf("ledger grew from %d to %d entries on a repeat create", before, len(updated2.Entries))
 	}
 }
 
@@ -72,8 +112,8 @@ func TestAssignSessionNameShortensOverlongReadableName(t *testing.T) {
 	if strings.Contains(name, scope.Key) {
 		t.Fatalf("name %q exposed hidden key %q", name, scope.Key)
 	}
-	if !strings.HasPrefix(name, "pair-") {
-		t.Fatalf("name = %q, want pair prefix", name)
+	if !strings.HasPrefix(name, "📁") {
+		t.Fatalf("name = %q, want the 📁 prefix", name)
 	}
 }
 
@@ -88,12 +128,12 @@ func TestSessionsForScopeFiltersAndAnnotatesIndexedSessions(t *testing.T) {
 	pair := mustScope(t, "/Users/a/work/pair")
 	other := mustScope(t, "/tmp/other/pair")
 	index := SessionNameIndex{Entries: []SessionNameEntry{
-		{SessionName: "pair-pair-work", ScopeKey: pair.Key, RepoRoot: pair.Root, RepoName: pair.DisplayName, Tag: "work"},
-		{SessionName: "pair-pair-work-2", ScopeKey: other.Key, RepoRoot: other.Root, RepoName: other.DisplayName, Tag: "work"},
+		{SessionName: "📁pair-work", ScopeKey: pair.Key, RepoRoot: pair.Root, RepoName: pair.DisplayName, Tag: "work"},
+		{SessionName: "📁pair-work-2", ScopeKey: other.Key, RepoRoot: other.Root, RepoName: other.DisplayName, Tag: "work"},
 	}}
 	sessions := []Session{
-		{Name: "pair-pair-work", State: SessionDetached},
-		{Name: "pair-pair-work-2", State: SessionDetached},
+		{Name: "📁pair-work", State: SessionDetached},
+		{Name: "📁pair-work-2", State: SessionDetached},
 		{Name: "pair-legacy", State: SessionDetached},
 	}
 
@@ -101,14 +141,14 @@ func TestSessionsForScopeFiltersAndAnnotatesIndexedSessions(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("SessionsForScope returned %#v, want one current-scope session", got)
 	}
-	if got[0].Name != "pair-pair-work" || got[0].Tag != "work" || got[0].RepoName != "pair" {
+	if got[0].Name != "📁pair-work" || got[0].Tag != "work" || got[0].RepoName != "pair" {
 		t.Fatalf("session = %#v, want annotated current-scope work", got[0])
 	}
 }
 
 func TestSessionNameIndexRoundTripSkipsMalformedRows(t *testing.T) {
 	entry := SessionNameEntry{
-		SessionName: "pair-pair-work",
+		SessionName: "📁pair-work",
 		ScopeKey:    "scope1",
 		RepoRoot:    "/repo",
 		RepoName:    "pair",

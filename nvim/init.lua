@@ -3261,22 +3261,22 @@ local function pair_rename_prompt(current_tag)
       cancelreturn = '',
     })
     if input == nil or input == '' then return nil end
-    -- Strip optional pair- prefix to match `pair resume` / `pair rename`
-    -- accepting either form.
-    local new_tag = input:gsub('^pair%-', '')
+    -- No prefix-stripping and no charset check here (#130). Both used to be Lua
+    -- twins of rules the binary already owns, and the 📁 scheme made keeping them
+    -- in sync actively harmful: the tab title now reads `📁repo-tag`, so pasting
+    -- it is the natural move, and a local `^[%w_-]+$` test rejects it before
+    -- `pair rename` ever gets the chance to resolve it through the ledger.
+    -- One implementation of the rule, in the binary.
+    local new_tag = input
     if new_tag == current_tag then
       vim.api.nvim_echo({ { '\nnew tag matches current tag; nothing to do', 'WarningMsg' } }, false, {})
       return nil
     end
-    if not new_tag:match('^[%w_-]+$') then
-      vim.api.nvim_echo({ { '\ninvalid tag (allowed: letters, digits, dash, underscore) — try again', 'WarningMsg' } }, false, {})
-    else
-      local out = vim.fn.system({ 'pair', 'rename', '--restart-check', current_tag, new_tag })
-      if vim.v.shell_error == 0 then
-        return new_tag
-      end
-      vim.api.nvim_echo({ { '\n' .. (out:gsub('%s+$', '')) .. ' — try again', 'WarningMsg' } }, false, {})
+    local out = vim.fn.system({ 'pair', 'rename', '--restart-check', current_tag, new_tag })
+    if vim.v.shell_error == 0 then
+      return new_tag
     end
+    vim.api.nvim_echo({ { '\n' .. (out:gsub('%s+$', '')) .. ' — try again', 'WarningMsg' } }, false, {})
   end
 end
 

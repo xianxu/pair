@@ -304,7 +304,7 @@ func TestOSRuntimeSessionNameIndexStore(t *testing.T) {
 	dataDir := t.TempDir()
 	rt := NewOSRuntime(dataDir, "/pair")
 	entry := SessionNameEntry{
-		SessionName: "pair-pair-work",
+		SessionName: "📁pair-work",
 		ScopeKey:    "scope1",
 		RepoRoot:    "/repo",
 		RepoName:    "pair",
@@ -326,7 +326,7 @@ func TestOSRuntimeSessionNameIndexUsesGlobalDataDir(t *testing.T) {
 	globalDir := t.TempDir()
 	scopedDir := t.TempDir()
 	rt := NewScopedOSRuntime(globalDir, scopedDir, "/pair")
-	entry := SessionNameEntry{SessionName: "pair-pair-work", ScopeKey: "scope1", Tag: "work"}
+	entry := SessionNameEntry{SessionName: "📁pair-work", ScopeKey: "scope1", Tag: "work"}
 	if err := rt.AppendSessionNameIndex(entry); err != nil {
 		t.Fatalf("AppendSessionNameIndex: %v", err)
 	}
@@ -370,8 +370,8 @@ func TestOSRuntimeReapAndPollerRemovePidfiles(t *testing.T) {
 // poller's "<…>/pair title <tag> <agent>" prefix the single-instance guard matches.
 func TestSidecarSpawnArgvSelfExecsPair(t *testing.T) {
 	const exe = "/pair/bin/pair"
-	tp := titlePollerArgv(exe, "work", "claude", "pair-pair-work")
-	wantTP := []string{exe, "title", "work", "claude", "pair-pair-work"}
+	tp := titlePollerArgv(exe, "work", "claude", "📁pair-work")
+	wantTP := []string{exe, "title", "work", "claude", "📁pair-work"}
 	if !reflect.DeepEqual(tp, wantTP) {
 		t.Fatalf("title poller argv = %v, want %v", tp, wantTP)
 	}

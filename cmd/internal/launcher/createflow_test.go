@@ -394,7 +394,7 @@ func TestRunLaunchForcedCreateClaude(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d", code)
 	}
-	if rt.launched != "pair-work-bugfix" {
+	if rt.launched != "📁work-bugfix" {
 		t.Fatalf("launched = %q", rt.launched)
 	}
 	if len(rt.family) != 0 {
@@ -438,7 +438,7 @@ func TestRunLaunchForcedCreateUsesScopedSessionName(t *testing.T) {
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	if rt.launched != "pair-work-bugfix" {
+	if rt.launched != "📁work-bugfix" {
 		t.Fatalf("launched = %q", rt.launched)
 	}
 	if rt.env["PAIR_TAG"] != "bugfix" {
@@ -448,7 +448,7 @@ func TestRunLaunchForcedCreateUsesScopedSessionName(t *testing.T) {
 		t.Fatalf("session index = %#v, want one entry", rt.sessionIndex)
 	}
 	entry := rt.sessionIndex.Entries[0]
-	if entry.SessionName != "pair-work-bugfix" || entry.Tag != "bugfix" || entry.RepoName != "work" {
+	if entry.SessionName != "📁work-bugfix" || entry.Tag != "bugfix" || entry.RepoName != "work" {
 		t.Fatalf("session index entry = %#v", entry)
 	}
 }
@@ -466,14 +466,14 @@ func TestRunLaunchPromptCreate(t *testing.T) {
 	if len(rt.family) != 1 {
 		t.Fatalf("prompt path should show family: %v", rt.family)
 	}
-	if rt.launched != "pair-work-myproj" || rt.env["PAIR_TAG"] != "myproj" {
+	if rt.launched != "📁work-myproj" || rt.env["PAIR_TAG"] != "myproj" {
 		t.Fatalf("launched=%q tag=%q", rt.launched, rt.env["PAIR_TAG"])
 	}
 	if len(rt.sessionIndex.Entries) != 1 {
 		t.Fatalf("session index = %#v, want one entry", rt.sessionIndex)
 	}
 	entry := rt.sessionIndex.Entries[0]
-	if entry.SessionName != "pair-work-myproj" || entry.Tag != "myproj" || entry.RepoName != "work" {
+	if entry.SessionName != "📁work-myproj" || entry.Tag != "myproj" || entry.RepoName != "work" {
 		t.Fatalf("session index entry = %#v", entry)
 	}
 }
@@ -481,9 +481,9 @@ func TestRunLaunchPromptCreate(t *testing.T) {
 func TestRunLaunchBareIgnoresOtherRepoIndexedSessions(t *testing.T) {
 	rt := newFakeRuntime()
 	otherScope := mustScope(t, "/other/work")
-	rt.sessions = []Session{{Name: "pair-work-work", State: SessionDetached}}
+	rt.sessions = []Session{{Name: "📁work", State: SessionDetached}}
 	rt.sessionIndex = SessionNameIndex{Entries: []SessionNameEntry{{
-		SessionName: "pair-work-work",
+		SessionName: "📁work",
 		ScopeKey:    otherScope.Key,
 		RepoRoot:    otherScope.Root,
 		RepoName:    otherScope.DisplayName,
@@ -494,7 +494,7 @@ func TestRunLaunchBareIgnoresOtherRepoIndexedSessions(t *testing.T) {
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	if rt.launched != "pair-work-work-2" {
+	if rt.launched != "📁work-2" {
 		t.Fatalf("launched = %q, want current repo disambiguated from indexed other repo", rt.launched)
 	}
 }
@@ -514,7 +514,7 @@ func TestRunLaunchBareIgnoresUnindexedLiveSessions(t *testing.T) {
 	if len(rt.attached) != 0 {
 		t.Fatalf("attached = %v, want no unindexed attach", rt.attached)
 	}
-	if rt.launched != "pair-work-work" {
+	if rt.launched != "📁work" {
 		t.Fatalf("launched = %q, want current-scope create", rt.launched)
 	}
 }
@@ -569,7 +569,7 @@ func TestRunLaunchPromptAbort(t *testing.T) {
 func TestRunLaunchPromptCollision(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.promptValue = "taken"
-	rt.blocksReuse["pair-work-taken"] = true
+	rt.blocksReuse["📁work-taken"] = true
 	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude"}), rt)
 	if err != nil || code != 1 {
 		t.Fatalf("code=%d err=%v", code, err)
@@ -660,7 +660,7 @@ func TestRunLaunchPromptedTagIgnoresUnrelatedLegacySessionName(t *testing.T) {
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	if rt.launched != "pair-work-bugfix" {
+	if rt.launched != "📁work-bugfix" {
 		t.Fatalf("launched = %q, want scoped session name despite unrelated legacy pair-bugfix", rt.launched)
 	}
 }
@@ -910,7 +910,7 @@ func TestRunLaunchProbeTooLong(t *testing.T) {
 func TestRunLaunchPreHandoffCollision(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.uuids = []string{"S"}
-	rt.blocksReuse["pair-work-bugfix"] = true // forced create → no prompt collision check
+	rt.blocksReuse["📁work-bugfix"] = true // forced create → no prompt collision check
 	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "bugfix"}), rt)
 	if err != nil || code != 1 {
 		t.Fatalf("code=%d err=%v", code, err)
@@ -959,7 +959,7 @@ func TestRunLaunchPickInferredAgentMustNotInheritCliArgs(t *testing.T) {
 	if !strings.Contains(rt.env["PAIR_AGENT_ARGS"], "--sandbox") {
 		t.Fatalf("codex args were not preserved: PAIR_AGENT_ARGS=%q", rt.env["PAIR_AGENT_ARGS"])
 	}
-	if rt.launched != "pair-work-work-2" {
+	if rt.launched != "📁work-2" {
 		t.Fatalf("launched = %q, want scoped next-free public session name", rt.launched)
 	}
 }
@@ -968,13 +968,13 @@ func TestRunLaunchPickNewDefaultUsesScopedNextFreeSessionName(t *testing.T) {
 	rt := newFakeRuntime()
 	scope := mustScope(t, "/home/u/work")
 	rt.sessionIndex.Entries = []SessionNameEntry{{
-		SessionName: "pair-work-work",
+		SessionName: "📁work",
 		ScopeKey:    scope.Key,
 		RepoRoot:    scope.Root,
 		RepoName:    scope.DisplayName,
 		Tag:         "work",
 	}}
-	rt.sessions = []Session{{Name: "pair-work-work", State: SessionDetached}}
+	rt.sessions = []Session{{Name: "📁work", State: SessionDetached}}
 	rt.uuids = []string{"SID"}
 	rt.pickFunc = func(header string, options []string) string {
 		return "+ new work session"
@@ -984,7 +984,7 @@ func TestRunLaunchPickNewDefaultUsesScopedNextFreeSessionName(t *testing.T) {
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	if rt.launched != "pair-work-work-2" {
+	if rt.launched != "📁work-2" {
 		t.Fatalf("launched = %q, want scoped next-free public session name", rt.launched)
 	}
 }

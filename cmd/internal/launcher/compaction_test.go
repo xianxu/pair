@@ -15,8 +15,8 @@ func TestCompactionDecision(t *testing.T) {
 	}{
 		{"force wins", true, false, "", "", "", true},
 		{"legacy tag match in pane", false, true, "demo", "pair-demo", "", true},
-		{"own scoped public session match in pane", false, true, "demo", "pair-work-demo", "pair-work-demo", true},
-		{"other repo scoped public session does not match", false, true, "demo", "pair-work-demo", "", false},
+		{"own scoped public session match in pane", false, true, "demo", "📁work-demo", "📁work-demo", true},
+		{"other repo scoped public session does not match", false, true, "demo", "📁work-demo", "", false},
 		{"tag mismatch", false, true, "demo", "pair-other", "", false},
 		{"not in pane", false, false, "demo", "pair-demo", "", false},
 		{"empty tag", false, true, "", "pair-", "", false},
@@ -87,23 +87,23 @@ func TestRunLaunchCompactionForced(t *testing.T) {
 func TestRunLaunchCompactionUsesScopedPublicSession(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.parkOK = true
-	opts := compactOpts(false, true, "pair-work-demo")
-	opts.PairSession = "pair-work-demo"
+	opts := compactOpts(false, true, "📁work-demo")
+	opts.PairSession = "📁work-demo"
 	code, err := run(t, opts, rt)
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	m, ok := rt.writtenMarkers["pair-work-demo"]
+	m, ok := rt.writtenMarkers["📁work-demo"]
 	if !ok {
 		t.Fatalf("restart markers = %#v, want scoped public session", rt.writtenMarkers)
 	}
 	if m.Tag != "demo" || m.Agent != "claude" || !m.NewSession || m.Continue != "demo" {
 		t.Fatalf("restart marker = %+v", m)
 	}
-	if len(rt.touchedQuit) != 1 || rt.touchedQuit[0] != "pair-work-demo" {
+	if len(rt.touchedQuit) != 1 || rt.touchedQuit[0] != "📁work-demo" {
 		t.Fatalf("quit marker = %v", rt.touchedQuit)
 	}
-	if len(rt.killed) != 1 || rt.killed[0] != "pair-work-demo" {
+	if len(rt.killed) != 1 || rt.killed[0] != "📁work-demo" {
 		t.Fatalf("killed = %v", rt.killed)
 	}
 }

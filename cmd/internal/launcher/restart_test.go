@@ -34,11 +34,11 @@ func TestRunRestartUsesPairTagForScopedPublicSession(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.inferAgent = map[string]string{"bugfix": "codex"}
 	var stderr bytes.Buffer
-	code := runRestart(rt, LaunchArgs{Command: "restart"}, "pair-work-bugfix", "bugfix", &stderr)
+	code := runRestart(rt, LaunchArgs{Command: "restart"}, "📁work-bugfix", "bugfix", &stderr)
 	if code != 0 {
 		t.Fatalf("exit %d, stderr=%q", code, stderr.String())
 	}
-	m, ok := rt.writtenMarkers["pair-work-bugfix"]
+	m, ok := rt.writtenMarkers["📁work-bugfix"]
 	if !ok {
 		t.Fatal("no restart marker written for scoped public session")
 	}

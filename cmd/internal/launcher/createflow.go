@@ -151,6 +151,15 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 		fmt.Fprintf(stderr, "pair: failed to scan session history: %v\n", err)
 		return launchStep{code: 1}, nil
 	}
+	// A 📁 name typed at `pair resume` is still a NAME here; turn it into a tag
+	// before anything keys off it. Both assignLaunchSessionNames and DecideLaunch
+	// read ForcedTag, so the resolution has to land on opts.Args itself (#130).
+	if resolved, ok := resolveResumeTag(rt, opts.Args.ForcedTag); ok {
+		opts.Args.ForcedTag = resolved
+	} else if opts.Args.ForcedTag != "" && strings.HasPrefix(opts.Args.ForcedTag, sessionPrefix) {
+		fmt.Fprintf(stderr, "pair: '%s' is a session name with no ledger entry; resume by its tag instead.\n", opts.Args.ForcedTag)
+		return launchStep{code: 1}, nil
+	}
 	scopedSessions, sessionNames, sessionNameEntries, ok := assignLaunchSessionNames(rt, sessions, scopeRoot, opts.GlobalDataDir, opts.Args, base, stderr)
 	if !ok {
 		return launchStep{code: 1}, nil
@@ -312,7 +321,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 
 	chosenTag := decision.Tag
 	if decision.PromptName {
-		tag, code, ok := promptForTag(rt, decision.Tag, base, stderr)
+		tag, code, ok := promptForTag(rt, decision.Tag, sessionFamilyPrefix(env, base), stderr)
 		if !ok {
 			return launchStep{code: code}, nil
 		}
@@ -397,6 +406,21 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		if err := rt.AppendSessionNameIndex(sessionEntry); err != nil {
 			fmt.Fprintf(stderr, "pair: failed to append session-name index for '%s': %v\n", sessionEntry.SessionName, err)
 			return launchStep{code: 1}, nil
+		}
+		// Reclaim the record this name migrated away from (#130). It sits HERE,
+		// at the commit point beside the ledger write, and not in
+		// assignLaunchSessionNames — that runs before DecideLaunch, the picker
+		// and the name prompt, so reclaiming there would force-delete a
+		// resurrectable session on a `pair` the user attaches with or abandons.
+		//
+		// Only an already-EXITED record is reclaimed. An attached session is
+		// someone's live terminal; a detached one is resumable work the user can
+		// still reach through the picker or `pair resume`. Migration must not be
+		// the thing that destroys either — see sessionReclaimable.
+		if old := sessionEntry.Superseded; old != "" && sessionReclaimable(live, old) {
+			if err := rt.DeleteSession(old); err != nil {
+				fmt.Fprintf(stderr, "pair: migrated to '%s'; could not remove the old session '%s': %v\n", sessionEntry.SessionName, old, err)
+			}
 		}
 	}
 	if err := rt.AppendLedger(chosenTag, LedgerEntry{
@@ -492,8 +516,8 @@ func assignSingleSessionName(rt Runtime, live []Session, cwd, tag string, stderr
 // promptForTag runs the editable name prompt, normalizing + collision-checking
 // the result. ok=false means the caller should exit with the returned code
 // (0 on user abort, 1 on invalid name / collision).
-func promptForTag(rt Runtime, prefill, base string, stderr io.Writer) (tag string, code int, ok bool) {
-	rt.ShowFamilyExisting("pair-" + base)
+func promptForTag(rt Runtime, prefill, familyPrefix string, stderr io.Writer) (tag string, code int, ok bool) {
+	rt.ShowFamilyExisting(familyPrefix)
 	value, entered := rt.PromptSessionName(prefill)
 	if !entered {
 		return "", 0, false // user aborted (ESC / EOF)
@@ -626,4 +650,32 @@ func firstNonEmpty(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+// resolveResumeTag maps a 📁 session name to its tag through the ledger. Bare
+// tags pass through untouched (ok=true); a 📁 name absent from the ledger yields
+// ok=false, because the scheme has no string inverse and guessing would resume
+// the wrong thing.
+func resolveResumeTag(rt Runtime, arg string) (string, bool) {
+	if arg == "" || !strings.HasPrefix(arg, sessionPrefix) {
+		return arg, true
+	}
+	index, err := rt.ReadSessionNameIndex()
+	if err != nil {
+		return "", false
+	}
+	return TagForSessionName(index, arg)
+}
+
+// sessionFamilyPrefix is the name stem the prompt lists existing sessions under.
+// It has to be COMPOSED, not spelled (#130): the family for base tag `pair` in
+// repo `pair` is `📁pair`, and showing `pair-pair` would list a family that no
+// longer exists. Falls back to the legacy stem when the scope won't resolve,
+// which is the same degraded path the rest of the create flow takes.
+func sessionFamilyPrefix(env Env, base string) string {
+	scope, err := ResolveRepoScope(envScopeRoot(env))
+	if err != nil {
+		return legacySessionPrefix + base
+	}
+	return ComposeSessionName(scope, base)
 }

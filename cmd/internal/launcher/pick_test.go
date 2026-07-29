@@ -36,7 +36,7 @@ func TestBuildPickRows(t *testing.T) {
 
 	wantPlain := map[string]pickSelection{
 		"pair-a": {tag: "a", sessionName: "pair-a"},
-		"pair-old  (today, no live session)   [⏎ 2 queued]": {tag: "old"},
+		"old  (today, no live session)   [⏎ 2 queued]": {tag: "old"},
 		"+ new work session": {isNew: true},
 	}
 	if len(byPlain) != len(wantPlain) {
@@ -54,7 +54,7 @@ func TestBuildPickRowsNoBadge(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	snap := SessionSnapshot{Historical: []HistoricalTag{{Tag: "solo", MTime: now}}}
 	_, byPlain := buildPickRows(snap, "work", now.Unix())
-	if _, ok := byPlain["pair-solo  (today, no live session)"]; !ok {
+	if _, ok := byPlain["solo  (today, no live session)"]; !ok {
 		t.Fatalf("byPlain = %#v, want an unbadged historical row", byPlain)
 	}
 }
@@ -63,7 +63,7 @@ func TestBuildPickRowsAnnotatesRepoAndAgent(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	snap := SessionSnapshot{
 		Sessions: []Session{{
-			Name:     "pair-pair-work",
+			Name:     "📁pair-work",
 			Tag:      "work",
 			RepoName: "pair",
 			Agent:    "codex",
@@ -148,9 +148,9 @@ func TestRunLaunchPickLegacyImportsFlatFiles(t *testing.T) {
 func TestRunLaunchPickAttachInfersAgent(t *testing.T) {
 	rt := newFakeRuntime()
 	scope := mustScope(t, "/home/u/work")
-	rt.sessions = []Session{{Name: "pair-work-svc", State: SessionDetached}}
+	rt.sessions = []Session{{Name: "📁work-svc", State: SessionDetached}}
 	rt.sessionIndex = SessionNameIndex{Entries: []SessionNameEntry{{
-		SessionName: "pair-work-svc",
+		SessionName: "📁work-svc",
 		ScopeKey:    scope.Key,
 		RepoRoot:    scope.Root,
 		RepoName:    scope.DisplayName,
@@ -173,8 +173,8 @@ func TestRunLaunchPickAttachInfersAgent(t *testing.T) {
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	if len(rt.attached) != 1 || rt.attached[0] != "pair-work-svc" {
-		t.Fatalf("attached = %v, want [pair-work-svc]", rt.attached)
+	if len(rt.attached) != 1 || rt.attached[0] != "📁work-svc" {
+		t.Fatalf("attached = %v, want [📁work-svc]", rt.attached)
 	}
 	if len(rt.pollers) != 1 || rt.pollers[0] != "svc|codex" {
 		t.Fatalf("pollers = %v, want [svc|codex] (agent inferred from the picked tag)", rt.pollers)
@@ -193,8 +193,8 @@ func TestRunLaunchPickNewCreates(t *testing.T) {
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	if rt.launched != "pair-work-work-2" {
-		t.Fatalf("launched = %q, want pair-work-work-2 (prompted free-slot create)", rt.launched)
+	if rt.launched != "📁work-2" {
+		t.Fatalf("launched = %q, want 📁work-2 (prompted free-slot create)", rt.launched)
 	}
 	if len(rt.pollers) != 1 || rt.pollers[0] != "work-2|claude" {
 		t.Fatalf("pollers = %v, want [work-2|claude]", rt.pollers)
@@ -209,15 +209,15 @@ func TestRunLaunchPickHistoricalCreatesByName(t *testing.T) {
 	rt.historical = []HistoricalTag{{Tag: "gone", MTime: time.Unix(1_700_000_000, 0)}}
 	rt.inferAgent = map[string]string{"gone": "codex"}
 	rt.pickFunc = func(header string, options []string) string {
-		return "pair-gone  (today, no live session)"
+		return "gone  (today, no live session)"
 	}
 
 	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude"}), rt)
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	if rt.launched != "pair-work-gone" {
-		t.Fatalf("launched = %q, want pair-work-gone", rt.launched)
+	if rt.launched != "📁work-gone" {
+		t.Fatalf("launched = %q, want 📁work-gone", rt.launched)
 	}
 	if len(rt.pollers) != 1 || rt.pollers[0] != "gone|codex" {
 		t.Fatalf("pollers = %v, want [gone|codex] (agent inferred)", rt.pollers)
@@ -231,9 +231,9 @@ func TestRunLaunchPickHistoricalCreatesByName(t *testing.T) {
 func TestRunLaunchPickAbort(t *testing.T) {
 	rt := newFakeRuntime()
 	scope := mustScope(t, "/home/u/work")
-	rt.sessions = []Session{{Name: "pair-work-a", State: SessionDetached}}
+	rt.sessions = []Session{{Name: "📁work-a", State: SessionDetached}}
 	rt.sessionIndex = SessionNameIndex{Entries: []SessionNameEntry{{
-		SessionName: "pair-work-a",
+		SessionName: "📁work-a",
 		ScopeKey:    scope.Key,
 		RepoRoot:    scope.Root,
 		RepoName:    scope.DisplayName,

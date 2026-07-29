@@ -139,7 +139,7 @@ func TestLaunchNativeUsesGitRootForScopedDataDirFromSubdir(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", "")
 	t.Setenv("PAIR_DATA_DIR", "")
 	t.Setenv("PAIR_TAG", "work")
-	t.Setenv("ZELLIJ_SESSION_NAME", "pair-pair-work")
+	t.Setenv("ZELLIJ_SESSION_NAME", "📁pair-work")
 	t.Setenv("PAIR_KILL_CMD", "__pair_no_such_command__")
 
 	globalDataDir := filepath.Join(home, ".local", "share", "pair")
@@ -166,7 +166,7 @@ func TestLaunchNativeUsesGitRootForScopedDataDirFromSubdir(t *testing.T) {
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v stderr=%q", code, err, stderr.String())
 	}
-	raw, err := os.ReadFile(filepath.Join(home, ".cache", "pair", "restart-pair-pair-work"))
+	raw, err := os.ReadFile(filepath.Join(home, ".cache", "pair", "restart-📁pair-work"))
 	if err != nil {
 		t.Fatal(err)
 	}

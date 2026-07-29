@@ -342,7 +342,7 @@ Single review boundary — no `Mx` tags.
       tokens" but surprising enough to pin), and **case** (repo `Pair`, tag
       `pair` — `NormalizeDisplayComponent` preserves case, so exact-match
       tokenization leaves the redundancy in place).
-- [ ] **Rewrite the ladder against the composed base — full contract, not "convert
+- [x] **Rewrite the ladder against the composed base — full contract, not "convert
       to bytes".** Today `BuildSessionNameCandidates(scope, tag, suffix)` (`:60`)
       shortens `repo` and `tagPart` *independently*, each floored at
       `minSessionComponentRunes = 4`, then rebuilds via `publicSessionName`. Once
@@ -382,7 +382,7 @@ Single review boundary — no `Mx` tags.
       `NormalizeDisplayComponent` makes impossible); a base at exactly the limit
       whose suffixed form still fits; and that no candidate ever ends in a
       partial residual token or a split rune.
-- [ ] **Tighten the ledger short-circuit so the new format is reachable at all.**
+- [x] **Tighten the ledger short-circuit so the new format is reachable at all.**
       `AssignSessionName` (`session_index.go:98-100`) returns the prior ledger
       name whenever `accepts` tolerates its *length*, which means a tag with an
       existing row keeps `pair-…` forever and the headline outcome never happens.
@@ -487,7 +487,7 @@ Single review boundary — no `Mx` tags.
       failure with three accidental spellings.
       Test: the pure decision (name + limit → over/under + message), driven
       directly; the prompt loop is the thin IO shell around it (`ARCH-PURE`).
-- [ ] **Retire `titlefmt.EmojiTitle`** (operator decision, 2026-07-29). With `📁`
+- [x] **Retire `titlefmt.EmojiTitle`** (operator decision, 2026-07-29). With `📁`
       glued to the repo token, no token in a **session name** can ever match
       `emojiWords` again. (Precisely: not *wholly* unreachable — `CmuxRename` is
       also called with a cwd basename at `lifecycle.go:130`
@@ -512,7 +512,7 @@ Single review boundary — no `Mx` tags.
       Test: the predicate over `pair-x`, `📁x`, `fabulous-aardvark`, `""`.
       **The other two sites named in the original plan are a different question,
       not the same predicate** — see the next item.
-- [ ] **Keep prefix-strip→tag recovery on `pair-` only.** `legacy_live.go:19,25`
+- [x] **Keep prefix-strip→tag recovery on `pair-` only.** `legacy_live.go:19,25`
       and `lifecycle.go:158` (`liveTagsForSweep`) both filter *and then*
       `TrimPrefix` to recover the tag. That inverse is only valid for the legacy
       scheme: stripping `📁` off `📁parley-nvim` yields `parley-nvim`, which is
@@ -523,7 +523,7 @@ Single review boundary — no `Mx` tags.
       So these stay `pair-`-only, and that is a correctness requirement, not an
       oversight. Test: a `📁` session absent from the index yields **no** tag from
       either site (rather than a plausible-looking wrong one).
-- [ ] **Three more strip→tag sites have no index at all — fix, don't leave.** The
+- [x] **Three more strip→tag sites have no index at all — fix, don't leave.** The
       "already consults the index first" justification above holds for those two
       and *not* for these, which `TrimPrefix` blind:
       `restart.go:22` (`tag = TrimPrefix(session, "pair-")` when `PAIR_TAG` is
@@ -550,7 +550,7 @@ Single review boundary — no `Mx` tags.
         even when unresolvable.
       Extend the same test criterion to all three, with `pick.go`'s asserting two
       unresolvable rows stay distinct rather than merging.
-- [ ] **Sweep the remaining `"pair-"` sites** — wider than first inventoried.
+- [x] **Sweep the remaining `"pair-"` sites** — wider than first inventoried.
       Writers (mint a name; must go through the new scheme or an index lookup):
       `decision.go:60` (`sessionName`), `lifecycle.go:23` (attach fallback),
       `compaction.go:73`, `titlepoller/run.go:79`, `titlepoller/run.go:216`
@@ -620,7 +620,7 @@ Single review boundary — no `Mx` tags.
       An unindexed `📁` old-tag errors with what it is, rather than being guessed
       at. Test: one case per site — resume, rename-old, rename-new — plus
       `pair continue` proving the slug path is untouched.
-- [ ] **The scheme has a fourth consumer language — `nvim/init.lua`.**
+- [x] **The scheme has a fourth consumer language — `nvim/init.lua`.**
       `pair_rename_prompt` carries a Lua twin of both Go rules:
       `input:gsub('^pair%-', '')` (`:3266`) and
       `new_tag:match('^[%w_-]+$')` (`:3271`). This sits directly on a Done-when
@@ -679,7 +679,7 @@ Single review boundary — no `Mx` tags.
       the previous item creates: what `pair list` shows for a **re-minted** tag
       whose legacy row is `EXITED` — exactly one row, the `📁` one, because the
       superseded record was reclaimed.
-- [ ] **`pair list` alignment: pad by display width, not runes.** `formatListTable`
+- [x] **`pair list` alignment: pad by display width, not runes.** `formatListTable`
       (`list.go:37,43`) pads with `%-30s`, and Go counts that in **runes**. `📁`
       is 1 rune but **2 terminal columns**, so every new-format row would sit one
       column left of its header — the same unit confusion as the rune-vs-byte
@@ -687,7 +687,7 @@ Single review boundary — no `Mx` tags.
       list` … works against a `📁` session". Pad by display width.
       Test: a table mixing a legacy `pair-x` row and a `📁y` row asserts both
       columns start at the same offset.
-- [ ] **Re-baseline the existing test corpus — a design pass, not find/replace.**
+- [x] **Re-baseline the existing test corpus — a design pass, not find/replace.**
       Roughly 300 `"pair-…"` literals across ~39 test files encode the old
       scheme: `lifecycle_test.go` (35), `pick_test.go` (22),
       `titlepoller/run_test.go` (21), `createflow_test.go` (20),

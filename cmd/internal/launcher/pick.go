@@ -79,11 +79,23 @@ func buildPickRows(snap SessionSnapshot, base string, nowEpoch int64) (display [
 	return display, byPlain
 }
 
+// sessionTag is the picker's per-row tag. SessionsForScope populates s.Tag from
+// the ledger; the fallbacks below only run for a session it could not resolve.
+//
+// This one must never return "" (#130). It feeds both the live-dedup key
+// (`live[sessionTag(s)]`) and the row's pickSelection, so an empty tag would
+// collapse every unresolved row into one dedup bucket and make selection resolve
+// to no tag at all. Falling back to the full name keeps the row distinct and
+// selectable even when the tag is unrecoverable — which is exactly the case for
+// a 📁 name missing from the ledger, since that scheme has no string inverse.
 func sessionTag(s Session) string {
 	if s.Tag != "" {
 		return s.Tag
 	}
-	return strings.TrimPrefix(s.Name, "pair-")
+	if tag, ok := strings.CutPrefix(s.Name, legacySessionPrefix); ok && tag != "" {
+		return tag
+	}
+	return s.Name
 }
 
 func livePickLabel(s Session) string {
@@ -114,7 +126,10 @@ func historicalPickLabel(h HistoricalTag, nowEpoch int64) string {
 		}
 		return fmt.Sprintf("%s/%s  %s  (%s, no live session)", repo, h.Tag, agent, age)
 	}
-	return fmt.Sprintf("pair-%s  (%s, no live session)", h.Tag, age)
+	// Bare tag, not a spelled-out session name (#130): under the 📁 scheme this
+	// row would otherwise read `pair-work` right next to a live `📁repo-work`
+	// row for the same tag.
+	return fmt.Sprintf("%s  (%s, no live session)", h.Tag, age)
 }
 
 // resolvePick presents the picker and maps the choice into a concrete launch
