@@ -1,11 +1,12 @@
 ---
 id: 000130
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-07-29
 updated: 2026-07-29
 estimate_hours:
+started: 2026-07-29T10:51:47-07:00
 ---
 
 # session names: folder prefix, repo token, no redundant tag
