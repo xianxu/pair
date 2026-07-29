@@ -297,7 +297,7 @@ under-estimating (#125 est 0.45 / actual 1.43).
 
 Single review boundary — no `Mx` tags.
 
-- [ ] **`ComposeSessionName(scope RepoScope, tag string) string`** — one pure
+- [x] **`ComposeSessionName(scope RepoScope, tag string) string`** — one pure
       function implementing rules 1–4, living beside the existing scheme in
       `launcher/session_index.go`. Composes on top of the existing
       `NormalizeDisplayComponent` (`scope.go:44`) rather than re-deriving
@@ -305,9 +305,11 @@ Single review boundary — no `Mx` tags.
       "first alphanumeric run of the normalised value" (`ARCH-DRY`).
       *Deliberately not named `PublicSessionName`* — `publicSessionName` already
       exists at `:86` and also mints names; two functions differing only in
-      leading case is a grep hazard. That one is simultaneously renamed
-      `withCollisionSuffix(base string, suffix int) string`, which is all it
-      actually does once composition moves out. And `PublicSessionBase` (`:56`)
+      leading case is a grep hazard. That one is renamed
+      `withCollisionSuffix(base string, suffix int) string` — all it actually
+      does once composition moves out — **with the ladder rewrite**, since both
+      edits land in the same function (tracked on that item, not this one).
+      And `PublicSessionBase` (`:56`)
       is **deleted**: it hardcodes `"pair-"`, and a tree-wide grep finds zero
       callers — leaving it is a second, stale minter (`ARCH-DRY`).
       **One tokenizer, one prefix const.** The ladder's signature wants
@@ -479,7 +481,7 @@ Single review boundary — no `Mx` tags.
       (`CmuxRename`) and `titlepoller/titlepoller.go:85`
       (`cmuxWorkspaceTitle`) — pass the session name through verbatim. Note the
       Spec undercounts these as one call site; there are two.
-- [ ] **Dual-prefix ownership predicate.** One predicate (`isPairSessionName`)
+- [x] **Dual-prefix ownership predicate.** One predicate (`isPairSessionName`)
       accepting `pair-` **and** `📁`, shared by the two sites that ask *"is this
       name in pair's namespace?"*: `zellij.go:27` (snapshot filter) and
       `zellijparse.go:60` (`pairSessionNames`). Not four edited literals — four
@@ -1094,3 +1096,25 @@ ledger append — so the rounds earned their cost. Round 6 produced no blocking
 design finding and its three items are fixed above, which is exactly the
 "findings dropped to Minor/Advisory" condition for using the flag. Recording it
 here rather than letting a seventh round re-derive the same plan.
+
+## Log (implementation)
+
+### 2026-07-29 — pure core landed
+
+- `sessionPrefix`/`legacySessionPrefix` consts, `isPairSessionName`,
+  `sessionNameParts`, `ComposeSessionName`, `alnumTokens` added to
+  `session_index.go`; `PublicSessionBase` deleted (zero callers, confirmed
+  tree-wide). `session_name_scheme_test.go` covers the predicate (including a
+  dedicated foreign-session rejection test), the four spec rows, and the
+  interaction cases. All green; `go build ./...` clean.
+- **Spec rule 4 needed a reading decided at the keyboard.** "Drop the tag's
+  leading tokens that match the repo's" is ambiguous between *drop the leading
+  run* and *drop a one-token prefix*. My first implementation dropped the run and
+  a test caught it. **Decided: drop exactly one**, because the repo side is a
+  single token (rule 2) so the spec's prefix is one token long — and because
+  dropping the run folds distinct tags onto one name: tag `pair-pair-x` and tag
+  `pair-x` would both compose to `📁pair-x`, and `ownedByOther` would resolve the
+  collision with an opaque numeric suffix. Pinned by `TestSessionNameParts`.
+- Pre-existing, unrelated: `wrapcmd.TestSIGUSR2ReExecsWrapperWithoutReplacingPaneProcess`
+  fails identically on a stashed clean tree — the sandbox PTY limitation noted in
+  the session lessons, not a regression from this change.
