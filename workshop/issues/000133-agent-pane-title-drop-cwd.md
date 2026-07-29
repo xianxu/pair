@@ -1,11 +1,12 @@
 ---
 id: 000133
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-07-29
 updated: 2026-07-29
 estimate_hours:
+started: 2026-07-29T15:42:55-07:00
 ---
 
 # agent pane title drops the cwd suffix
