@@ -1,6 +1,6 @@
 ---
 id: 000129
-status: working
+status: wontfix
 deps: [pair#130]
 github_issue:
 created: 2026-07-29
@@ -165,6 +165,10 @@ force the `layout_step` fallback. Row (d) and `milestone-review` carry that.
   for non-ASCII names, and it would become permanent under an emoji prefix.
   Recorded here because it belongs to the session-naming issue, not this one.
 
+- **Closed `wontfix`; superseded by #133** (operator decision). The remaining
+  delta after the revert was two format strings and a dead-function deletion, and
+  the branch held nothing worth rebasing — see the third Revisions entry.
+
 ## Revisions
 
 **2026-07-29 — estimate 0.89 → 1.83; scope was under-counted.** The first block
@@ -198,3 +202,37 @@ Estimate is not re-derived, because the remaining work is one format string and
 its tests — the block below is left as the record of what was estimated for the
 larger scope, which is the honest comparison for the ledger. Actual will be
 recorded against it at close.
+
+
+**2026-07-29 — `wontfix`; branch abandoned, delta re-issued as #133** (operator
+decision). The goal is unchanged and still wanted; what is abandoned is this
+issue's branch and its estimate block, not the outcome.
+
+Why the branch was not rebased. Its one surviving code artifact was the
+`titlefmt` consolidation, and #130 **deleted** `cmd/internal/titlefmt` outright
+when it retired `EmojiTitle` (that function was the whole package). So a rebase
+means resolving a delete/modify conflict and then undoing the resolution. The
+consolidation is obsolete on its merits too: with the cwd suffix gone,
+`abbrevCwd`'s only non-test caller (`run.go:194`) disappears, so the `ARCH-DRY`
+duplication resolves by deleting the twin, not by rehousing it. The branch's
+tests add no coverage either — main's `TestTildeAbbrev` (`format_test.go:43`)
+already covers the surviving function including the sibling-not-mangled and
+empty-home edges, and `TestAbbrevCwd` dies with `abbrevCwd`. So the correction to
+the previous entry: of "the abbreviator consolidation, the swap-layout finding,
+and `titlefmt`'s first test file", only the **swap-layout finding** survives — and
+it is carried into #133's `## Log` along with the `frameCache` consequence.
+
+History preserved at tag `abandoned/000129-prefix-scope` (`33845c7`) so the four
+commits stay reachable and this est-vs-actual record remains auditable.
+
+**Actuals, with their limitation stated.** `sdlc actual --issue 129` measures
+**0.22h** against window `4dacb12 → HEAD`, and reports a 100% mention-fallback
+attribution shared with #130 (both were interleaved in 10:04–10:29). That window
+anchors on the one #129 commit that reached main, so it **excludes** three of the
+four commits where the work actually happened. The commit record, for whoever
+calibrates this later: claimed `10:04:38`, `f58c687` 10:15:20 (plan), `4dacb12`
+10:29:29 (spec→main), `97aacb5` 10:40:23 (build), `ac6b879` 10:48:39 (revert),
+`33845c7` 10:49:17 (re-scope). No hours are hand-typed here — the measured 0.22h
+is the only number, and it is an undercount by construction. #133 carries a fresh
+estimate for the remaining delta, so the wrong-turn cost stays on this row rather
+than flattering that one.
