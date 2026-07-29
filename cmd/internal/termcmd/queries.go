@@ -41,12 +41,12 @@ import "bytes"
 // here `\x1b[>1u` must SURVIVE. Two policy tables is deliberate; sharing the
 // *framing* code is tracked separately.
 var terminalQueryLiterals = [][]byte{
-	[]byte("\x1b[c"),   // DA1 — primary device attributes
-	[]byte("\x1b[0c"),  // DA1, explicit-zero form
-	[]byte("\x1b[>c"),  // DA2 — secondary device attributes
-	[]byte("\x1b[>q"),  // XTVERSION
-	[]byte("\x1b[?u"),  // Kitty keyboard — query current flags
-	[]byte("\x1b[6n"),  // DSR — cursor position report
+	[]byte("\x1b[c"),    // DA1 — primary device attributes
+	[]byte("\x1b[0c"),   // DA1, explicit-zero form
+	[]byte("\x1b[>c"),   // DA2 — secondary device attributes
+	[]byte("\x1b[>q"),   // XTVERSION
+	[]byte("\x1b[?u"),   // Kitty keyboard — query current flags
+	[]byte("\x1b[6n"),   // DSR — cursor position report
 	[]byte("\x1b]10;?"), // OSC 10 — foreground colour
 	[]byte("\x1b]11;?"), // OSC 11 — background colour
 }
@@ -66,8 +66,15 @@ func stripTerminalQueries(buf []byte) []byte {
 	out := make([]byte, 0, len(buf))
 	for i := 0; i < len(buf); {
 		if buf[i] != 0x1b {
-			out = append(out, buf[i])
-			i++
+			// Bulk-copy the run up to the next escape rather than byte-at-a-time:
+			// this path is ~all of a 128 KiB replay.
+			next := bytes.IndexByte(buf[i:], 0x1b)
+			if next < 0 {
+				out = append(out, buf[i:]...)
+				break
+			}
+			out = append(out, buf[i:i+next]...)
+			i += next
 			continue
 		}
 		size, isQuery, ok := terminalSequenceAt(buf[i:])
@@ -122,7 +129,10 @@ func terminalSequenceAt(buf []byte) (size int, isQuery bool, ok bool) {
 }
 
 // csiEnd returns the length of the CSI sequence at the start of buf, or -1 when
-// it is not terminated within buf. Reuses the shared final-byte test.
+// it is not terminated within buf. The one final-byte scan in this package —
+// escapeSequenceIncomplete and malformedEscapeSize both derive from it, since
+// three independent copies of "where does this CSI end" is the divergence class
+// that caused this issue's first defect.
 func csiEnd(buf []byte) int {
 	for i := 2; i < len(buf); i++ {
 		if isTerminalFinalByte(buf[i]) {
@@ -172,7 +182,12 @@ func isParameterizedOSCQuery(seq []byte) bool {
 	}
 	body := bytes.TrimRight(seq, "\x07")
 	body = bytes.TrimSuffix(body, []byte("\x1b\\"))
-	if !bytes.HasSuffix(body, []byte(";?")) {
+	// len >= 6 is load-bearing, not defensive: the 4-byte prefix and the 2-byte
+	// suffix can OVERLAP on a short body. `\x1b]4;?` satisfies both (index 3 is
+	// both the prefix's ';' and the suffix's ';'), and the slice below would
+	// then invert into a panic — which, on the tab-switch path, would take down
+	// pair term and every shell in the pane.
+	if len(body) < 6 || !bytes.HasSuffix(body, []byte(";?")) {
 		return false
 	}
 	digits := body[4 : len(body)-2]

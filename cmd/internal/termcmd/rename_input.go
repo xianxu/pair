@@ -190,12 +190,7 @@ func escapeSequenceIncomplete(input []byte) bool {
 	}
 	switch input[1] {
 	case '[':
-		for i := 2; i < len(input); i++ {
-			if isTerminalFinalByte(input[i]) {
-				return false
-			}
-		}
-		return true
+		return csiEnd(input) < 0
 	case 'O':
 		return len(input) < 3
 	default:
@@ -210,10 +205,8 @@ func malformedEscapeSize(input []byte) int {
 	if input[1] != '[' && input[1] != 'O' {
 		return 2
 	}
-	for i := 2; i < len(input); i++ {
-		if isTerminalFinalByte(input[i]) {
-			return i + 1
-		}
+	if end := csiEnd(input); end >= 0 {
+		return end
 	}
 	return len(input)
 }

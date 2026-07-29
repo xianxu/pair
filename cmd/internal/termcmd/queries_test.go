@@ -62,6 +62,12 @@ func TestStripTerminalQueriesPreservesLegitimateSequences(t *testing.T) {
 		{"DECRPM report", "\x1b[?2026;2$y", "reply terminates $y, not $p"},
 		{"kitty flags reply", "\x1b[?0u", "reply, not the \\x1b[?u query literal"},
 		{"DSR cursor report", "\x1b[24;1R", "the reply to 6n"},
+		// Malformed OSC 4: the 4-byte prefix and 2-byte suffix checks OVERLAP
+		// here, which used to invert a slice bound and panic (found at close
+		// review). Not a query — must pass through.
+		{"malformed OSC 4 BEL", "\x1b]4;?\x07", "prefix/suffix overlap; must not panic or match"},
+		{"malformed OSC 4 ST", "\x1b]4;?\x1b\\", "same, ST terminated"},
+		{"malformed OSC 4 no index", "\x1b]4;;?\x07", "empty index is not a colour query"},
 	}
 	for _, k := range keep {
 		t.Run(k.name, func(t *testing.T) {
@@ -136,6 +142,13 @@ func TestLiveQueryPathIsUnfiltered(t *testing.T) {
 	}
 }
 
+// Replies must reach the app: one arriving while its own tab is active is
+// solicited, and dropping it would break capability negotiation. This also shows
+// the shape of the ACCEPTED RESIDUAL — delivery follows whichever tab is active,
+// so a query in flight across a tab switch lands its reply on the new tab.
+// That residual is recorded in ## Log and atlas/architecture.md rather than
+// pinned by a test: pinning it honestly needs two real PTY-backed tabs, and a
+// single-mux assertion would stay green even if the residual were fixed.
 func TestPumpStdinForwardsRepliesToChild(t *testing.T) {
 	for _, reply := range []string{"\x1b[?62;4;52c", "\x1b[24;1R", "\x1b[?2026;2$y"} {
 		t.Run(reply, func(t *testing.T) {
@@ -145,18 +158,6 @@ func TestPumpStdinForwardsRepliesToChild(t *testing.T) {
 				t.Fatalf("mux ops = %q, want %q — replies must reach the app", got, want)
 			}
 		})
-	}
-}
-
-// The accepted residual, pinned so it reads as a known boundary rather than a
-// latent bug: a query in flight from tab A when the user switches to B still
-// delivers its reply to B. Closing it needs outstanding-query state this issue
-// deliberately does not build.
-func TestReplyGoesToActiveTabNotTheQueryingTab(t *testing.T) {
-	mux := &fakeMux{}
-	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1b[?62;4;52c")}}, mux, &fakeRuntime{}, io.Discard)
-	if got := strings.Join(mux.ops, ","); got != "write:\x1b[?62;4;52c" {
-		t.Fatalf("mux ops = %q — the reply is delivered to whichever tab is active", got)
 	}
 }
 
@@ -205,4 +206,25 @@ func (w *lockedWriter) String() string {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return w.buf.String()
+}
+
+// The structural guard C1 was missing: strip must never panic and never grow
+// the buffer, for ANY input. Child output is arbitrary bytes (`cat` a binary and
+// a malformed OSC 4 arrives), and every other strip test feeds a syntactically
+// valid sequence — which is exactly how the \x1b]4;? slice-bound panic shipped.
+func FuzzStripTerminalQueries(f *testing.F) {
+	seeds := []string{
+		"", "\x1b", "\x1b[", "\x1b]", "\x1b]4;?\x07", "\x1b]4;\x07",
+		"\x1b[?$p", "\x1b[?u", "\x1b]11;?", "\x1b[c\x1b]4;12;?\x07plain",
+		"\x1b]4;?\x1b\\", "\x1bP+q\x1b\\", "\x1b[?1006h\x1b[?2026$p",
+	}
+	for _, s := range seeds {
+		f.Add([]byte(s))
+	}
+	f.Fuzz(func(t *testing.T, in []byte) {
+		out := stripTerminalQueries(in) // must not panic
+		if len(out) > len(in) {
+			t.Fatalf("strip grew the buffer: %d > %d", len(out), len(in))
+		}
+	})
 }

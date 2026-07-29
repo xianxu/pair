@@ -51,16 +51,16 @@ detection.
 - `termcmd/queries.go` and `wrapcmd`'s stripper both call it.
 - The opposed-policy note in `atlas/architecture.md` still reads true.
 
-## Spec
-
-## Done when
-
--
-
-## Plan
-
-- [ ]
-
 ## Log
 
 ### 2026-07-28
+
+- Filed from pair#127's close. #127 added `termcmd/queries.go`, which frames CSI
+  and OSC for a second time in this binary; the deferral and its reasoning are
+  recorded in #127's Plan and in `atlas/architecture.md`.
+- Note for whoever picks this up: the deny-list's two failure directions are NOT
+  symmetric. A missed query degrades benignly, but an **over-strip** silently
+  removes mouse mode, Kitty encoding, or the cursor shape. #127 added
+  `FuzzStripTerminalQueries` as the cheap structural guard; the shared framing
+  helper is the natural place to attach a real conformance check against
+  emitters if that ever becomes worth building.

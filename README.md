@@ -12,6 +12,7 @@ Launches a `zellij` workbench in one of two layouts:
   persistent draft file.
 - **Layout 3 (`--layout3`)** — the same Pair-owned stack on the left plus a
   user-owned terminal on the right, where you can run a shell or full Neovim.
+  It has its own tabs (`Alt+t` / `Alt+w` / `Alt+r`) and can split (`Alt+Shift+d`).
 
 Layout flags are Pair-owned and may appear before or after the agent name but
 before `--`, for example `pair codex --layout3` or
@@ -58,13 +59,44 @@ All of those prompts are persisted on disk, keyed on the session's name. So next
 Select something with mouse on agent's pane, the selection is inserted at current mouse location in nvim, like: 
 
 ```
-> Copid text from agent's window, reflowed to remove extra line breaks
+> Copied text from agent's window, reflowed to remove extra line breaks
 ```
+
+**A distilled change log of the session (`Alt+l`)**
+
+The raw scrollback (`Alt+/`) is everything the agent said; the change log is the
+LLM-summarized version — milestones and decisions, dated by when they actually
+happened. It opens instantly on what's already been distilled and refreshes in
+the background, so a long session stays reviewable. `Alt+q` drops a 🤖 question
+on a line and ships it to the draft on exit, same as the scrollback viewer.
+
+**A review pane for documents (`Alt+c`)**
+
+An embedded Neovim pane for reviewing a markdown document *with* the agent: the
+agent proposes edits as records, nvim applies them undo-ably, and each round is
+journaled. Select a term and `Shift+Alt+d` to have the agent define it inline as
+a durable footnote. Useful for specs, plans, and prose where a diff is the wrong
+unit of collaboration.
+
+**Session continuity, at three scopes**
+
+`Alt+n` reloads the workbench in place (same tag, agent, args, agent session).
+`pair resume <tag>` picks a tag back up days later. `Alt+Shift+C` /
+`pair continue <slug>` distill the session into a portable, version-controlled
+doc you can resume from on another machine — or under another agent. See
+[`resume` vs `continue`](#resume-vs-continue).
+
+**Context meter in the pane frame**
+
+The agent pane's frame reads `<agent> (<count>) [<cwd>]` — `<count>` is the
+agent's live context-window occupancy (e.g. `970k`), read from its own
+transcript, so you can watch the window fill without asking.
+
 ## Keybindings
 
 | Key | Scope | Action |
 |---|---|---|
-| **Alt+h** | any pane | Pop up the full keybind help in a floating pane (press `q` to dismiss). |
+| **Alt+h** | any pane | Pop up pair's help in a floating pane (`q` or `Esc` to dismiss). |
 | **Alt+Return** | nvim (normal/insert) | Send buffer to agent. Note for consistency, claude's keybinding also changed to Alt+return as send, and return as newline |
 | **Alt+Shift+Return** | nvim (normal/insert) | Append buffer to the agent's composer followed by a newline, but do **not** submit — leaves the cursor on a fresh line in the agent input for more typing. Logs + clears the draft like Alt+Return. |
 | **Alt+Shift+Return** | layout 3 terminal | Re-tile the terminal column between 1/2 and 2/3 width (the left stack narrows and reflows while expanded) without recreating any processes. |
@@ -73,7 +105,7 @@ Select something with mouse on agent's pane, the selection is inserted at curren
 | **Alt+t** | layout 3 terminal | Create a Pair-owned local terminal tab. |
 | **Alt+w** | layout 3 terminal | Close the active local terminal tab. |
 | **Alt+r** | layout 3 terminal | Rename the active local terminal tab in the pane frame; Enter commits, Escape cancels, and Cmd+Delete deletes to the beginning. |
-| **Alt+Shift+d** | layout 3 terminal | Split the right terminal downward into tiled Zellij panes; the new lower pane runs `pair term` and takes focus. `Alt+k` from the left returns to the split pane last used. Workbench panes are tiled, so the mouse cannot drag them out of position. |
+| **Alt+Shift+d** | layout 3 terminal | Split the right terminal downward; the new lower pane takes focus. `Alt+k` from the left returns to the split pane last used. |
 | **Alt+←** / **Alt+→** | layout 3 terminal | Switch local terminal tabs. |
 | **Alt+c** | any pane | Open/show/hide the review collaboration pane. If no review target exists, starts `:PairReview`. |
 | **Shift+Alt+d** | review pane (visual) | Define the selected term inline. The pair agent answers through `pair review definition`, and the pane stores the result as a durable footnote. |
@@ -81,23 +113,24 @@ Select something with mouse on agent's pane, the selection is inserted at curren
 | **Alt+←** / **Alt+→** | nvim (normal/insert) | Walk through prompt history (`-N`) and queued prompts (`+N`) one slot at a time. |
 | **Alt+↑** / **Alt+↓** | any pane | Step the nvim pane along a `minimized` ↔ `12 lines` ↔ `1/3` ladder one rung at a time. When minimized, claude pane always have focus |
 | **Alt+i** | nvim (normal/insert) | Attach clipboard image to the agent and insert anchor text at cursor location |
-| **Alt+1**…**Alt+9** | nvim (insert, popup visible) | Quick-pick the Nth visible completion item. The popup tags its first nine items with indices (e.g. `⌥1 bin/pair-wrap`); past 9, use arrows or `<C-n>` / `<C-p>` |
+| **Alt+1**…**Alt+9** | nvim (insert, popup visible) | Quick-pick the Nth visible completion item (counting from the top of the popup). |
 | **1**…**9** | nvim (z= spell popup visible) | Pick the Nth spell suggestion. `z=` opens the popup for the word under the cursor (tagged `1`…`9`); picking — or `Esc` to dismiss — leaves you in normal mode |
 | **Shift+Alt+←** / **Shift+Alt+→** | nvim (normal/insert) | Jump to the next region boundary: oldest-history, newest-history, `*`, front-of-queue, back-of-queue. |
 | **Alt+q** | nvim (normal/insert) | Push current buffer to the front of the queue (`+1`). From `*` clears the draft; from `+N` it's move-to-front. |
-| **Alt+/** | left Pair stack | Enter into scrollback viewer, at same view port of current mouse scroll state of claude pane. Search is smart-case (`/foo` = case-insensitive, `/Foo` = case-sensitive). `Esc` exits (with a Yes/No confirm if there are pending markers). |
+| **Alt+/** | left Pair stack | Enter the scrollback viewer at the agent pane's current scroll position. Search is smart-case (`/foo` = case-insensitive, `/Foo` = case-sensitive). `Esc` exits (confirms if markers are pending). |
 | **Alt+q** | scrollback viewer | Insert comment for the line, or selection |
 | **Alt+b** / **Alt+B** | scrollback viewer | Jump to previous / next prompt boundary — hop between turns instead of scrolling line-by-line |
 | **G** | scrollback viewer | Re-render the backing capture and jump to the refreshed bottom, preserving pending `Alt+q` markers and the overall comment. |
-| **Alt+l** | any pane | Open the session's distilled **change log** (LLM-summarized milestones / decisions) in a read-only full-screen viewer — the distilled counterpart to `Alt+/`. Opens instantly and refreshes in the background; `Esc` / `q` to dismiss (with a Yes/No confirm if there are pending markers). |
+| **Alt+l** | any pane | Open the session's distilled **change log** in a read-only viewer — the summarized counterpart to `Alt+/`. Opens instantly, refreshes in the background; `Esc` / `q` to dismiss. |
 | **Alt+q** | change-log viewer | Drop a 🤖 question on a line/selection; on exit it ships to the draft tagged `[change log]` (the same annotate flow as the scrollback viewer) |
 | **Alt+Backspace** | nvim (normal/insert), at `+N` | Delete the current queued prompt. |
 | **Alt+Backspace** | agent pane | Delete to start of line — forwarded to the agent as Ctrl+U, matching its Cmd+Delete. |
 | **Shift+Alt+Backspace** | nvim (normal/insert) | Erase history, draft, and queue for this session to "start anew". |
 | **Alt+d** | any pane | Detach from the current session (re-attach later via `pair`). |
-| **Alt+x** | any pane | Full quit — kill the session and all processes inside. Pair captures the agent's session id alongside the launch args, so the session is resumable later via `pair resume <tag>`. Before discarding the scrollback it offers to **park** the session (preserve its capture) so you can later distill it into a durable `continuation` — see `pair continue`. |
-| **Alt+n** (or **Ctrl+Alt+n**) | any pane | Reload pair — kill the session and re-launch with the same tag, agent, args, AND agent session. Ctrl+Alt+n is the macOS-friendly alias — adding Ctrl defeats the Option+n dead-tilde composer on newer macOS / terminal combos that ignore the Option-as-Meta setting. Press Alt+n twice works as well. |
-| **Shift+Alt+N** | any pane | Restart only the supervised coding agent with the same agent and user args but a new conversation. Pair, Zellij, the draft, and the user terminal's local tabs remain alive. |
+| **Alt+x** | any pane | Full quit — kill the session and everything in it. The agent's session id is saved, so it's resumable via `pair resume <tag>`; before discarding the scrollback pair offers to **park** it for a later `pair continue`. |
+| **Alt+n** (or **Ctrl+Alt+n**) | any pane | Reload pair — re-launch with the same tag, agent, args, AND agent session. Ctrl+Alt+n is the macOS alias (Option+n is a dead-tilde composer on newer macOS); pressing Alt+n twice also works. |
+| **Shift+Alt+N** | any pane | Restart only the coding agent, with a new conversation. Pair, Zellij, the draft, and terminal tabs stay alive. |
+| **Alt+Shift+C** (or **Ctrl+Alt+c**) | any pane | Compact in place: distill this session into a `continuation` doc (folding in the parked draft), then reincarnate the tag with a clean conversation seeded from it. Scrollback is parked first as a recovery net. |
 
 “Any pane” includes Pair’s review, scrollback, and change-log Neovim overlays.
 These global chords are consumed by the focused Pair process, which addresses
@@ -131,7 +164,7 @@ History is immutable. If you edit a `-N` slot, the position label shows the dirt
 - `d/D` — drop the edit and continue navigating.
 - Enter / ESC / anything else — stay where you are.
 
-queue `+N` and draft `*` are mutable: edits autosave to disk on navigate-away or focus loss, no prompt. `Alt+q` from draft `*` parks the current draft for later; from history `-N` it forks the history entry into the queue; from `+N` it bumps the item to the front. `Alt+Backspace` deletes the current `+N` (no-op anywhere else). When you mouse-select text in the agent pane, the selection always goes to the OS clipboard, but the auto-quote-into-nvim only fires when nvim is in **insert mode** — so browsing history in normal mode doesn't get its buffer overwritten. to indicate where we are in the session.
+queue `+N` and draft `*` are mutable: edits autosave to disk on navigate-away or focus loss, no prompt. `Alt+q` from draft `*` parks the current draft for later; from history `-N` it forks the history entry into the queue; from `+N` it bumps the item to the front. `Alt+Backspace` deletes the current `+N` (no-op anywhere else). When you mouse-select text in the agent pane, the selection always goes to the OS clipboard, but the auto-quote-into-nvim only fires when nvim is in **insert mode** — so browsing history in normal mode doesn't get its buffer overwritten.
 
 ## Draft comments (`===`)
 
@@ -158,20 +191,27 @@ Only the second line reaches the agent.
 
 Visual feedback is provided on inserted text.
 
+Selecting in the layout-3 **user terminal** only copies to the OS clipboard — it
+does not flash, steal focus, or insert into the draft. A selection made just to
+grab a path shouldn't hijack what you're writing.
+
 ## Dependencies
 
-**Required**
-
-Automatically installed with `homebrew`.
+**Required** — automatically installed with `homebrew`.
 
 | Tool | Purpose |
 |---|---|
-| [`zellij`](https://zellij.dev/) | terminal multiplexer hosting the two-pane session |
+| [`zellij`](https://zellij.dev/) | terminal multiplexer hosting the workbench |
 | [`nvim`](https://neovim.io/) | the input/drafting pane |
 | [`fzf`](https://github.com/junegunn/fzf) | session picker |
-| [`jq`](https://jqlang.github.io/jq/) | JSON parsing for pane targeting |
-| [`par`](https://www.nicemice.net/par/) | paragraph reflow when pasting from the agent pane |
 | an agent | `claude`, `codex`, `agy`, or any TUI agent you want to drive |
+
+**Optional** — features degrade quietly if absent.
+
+| Tool | Purpose |
+|---|---|
+| [`par`](https://www.nicemice.net/par/) | paragraph reflow when quoting from the agent pane (without it, text is quoted unreflowed) |
+| [`jq`](https://jqlang.github.io/jq/) | adaptation telemetry and `pair-doctor` |
 
 ## Terminal setup
 
@@ -199,13 +239,20 @@ brew tap xianxu/pair && brew install pair
 brew update; brew upgrade pair
 ```
 
-That installs `zellij`, `neovim`, `fzf`, `jq`, and `par` if they aren't already present. The agent (`claude`, `codex`, `agy`) you install separately. Then:
+That installs `zellij`, `neovim`, `fzf`, `jq`, and `par` if they aren't already present. The agent (`claude`, `codex`, `agy`) you install separately.
+
+`pair` is a **single Go binary** — the launcher and every helper (`pair wrap`,
+`pair review …`, `pair scrollback …`, `pair clip …`, …) live in one executable,
+with Neovim and Zellij config carried alongside it. There is no Python and no
+shell runtime; `zellij`, `nvim`, `fzf`, and the agent CLIs are the only external
+programs.
 
 ## Command Usage
 
 ```sh
 pair                             # default: claude
 pair <agent>                     # claude / codex / agy
+pair <agent> --layout3           # workbench with the user terminal on the right
 pair resume <tag>                # restart a tag with its saved config (native session)
 pair continue                    # list saved continuations (durable session handoffs)
 pair continue <slug> [agent]     # new session seeded from a continuation doc; prompts
@@ -225,29 +272,12 @@ pair rename <old> <new>          # rename every tag-scoped file in
 pair -h, --help                  # show full help
 ```
 
-The installed `pair` command is Go-owned. As of the #99 M5 port it runs the
-**native Go launcher in-process for every flow** — create, attach, quit, Alt+n
-restart, the `fzf` session picker, `list`/`rename`/`continue`,
-in-session compaction, and `--help` all happen in the Go binary. The legacy
-shell launcher `bin/pair-shell` has been **retired** (removed) — there is no
-shell fallback. Source and Homebrew installs use their adjacent asset roots. A copied
-standalone `pair` binary with no adjacent
-or build-time source root extracts its embedded Pair-owned runtime assets to
-`${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}/runtime/<digest>/pair-home`
-and runs with `PAIR_HOME` pointed there. External tools such as `zellij`,
-`nvim`, `fzf`, `jq`, clipboard tools, and agent CLIs are still installed
-separately.
-
-`pair` is a **single binary** (built from `cmd/pair-go`): every helper is a
-`pair <subcommand>` (`pair wrap`, `pair scribe`, `pair review open`,
-`pair review definition`, `pair scrollback render`, `pair clip copy-on-select`, …), reached inside a
-session because the launcher fronts pair's own dir on the session PATH. In a dev
-shell sourced from `../ariadne/construct/dev-aliases.sh`, `pair` rebuilds from
-`cmd/pair-go` automatically before running.
-
 Use `--` to separate pair's positional from agent flags. Without it, pair only takes `<agent>` as a positional and everything else is rejected.
 
 Agent args (after `--`) are appended to the agent command line on **create**. Reattaching to an existing session does not re-launch the agent, so the args don't apply on attach. (The picker connects you to whatever's already running.)
+
+Sessions are scoped **per repo**: the tag you type (`work`, `bugfix`) is
+repo-local, so the same name in two checkouts stays independent.
 
 **Hacking on pair?** Use `pair-dev` instead of `pair` — same arguments, but it rebuilds the `pair` binary from source (`make build`) on launch and on every Alt+n whole-workbench reload, so the zellij-spawned `pair wrap` always matches your working tree. Shift+Alt+N restarts only the already-running wrapper's agent child. (Deployed installs run `pair`, which uses the prebuilt binary and needs no Go toolchain.)
 
@@ -272,48 +302,47 @@ pair: saved session config for tag "pair-bugfix" (claude).
       resume with: pair resume pair-bugfix
 ```
 
-Run that command and the picker + name prompt are skipped. Pair offers three options for what to do with the saved config:
+Run that command and the picker + name prompt are skipped. Pair then offers up to four things to do with the saved config:
 
-```
-saved config for tag 'bugfix' (claude)
-  1) use saved params + session
-       args=[--dangerously-skip-permissions]
-       resume=8d745d08-4ecc-4474-969a-53c98a6fa5f0
-  2) use saved params
-       args=[--dangerously-skip-permissions]
-       fresh session
-  3) use new params + session            (only if you passed new args that differ)
-       args=[<whatever you passed on this command>]
-       resume=8d745d08-4ecc-4474-969a-53c98a6fa5f0
-  4) use new params passed in            (only if you passed new args that differ)
-       args=[<whatever you passed on this command>]
-       fresh session
-```
+1. **saved params + session** — replay the original args *and* point the agent at
+   its previous session id (claude's `--resume`, codex's `resume <id>`, agy's
+   `--conversation <id>`). Shown only if the agent's native session file is still
+   on disk.
+2. **saved params** — replay the args, fresh agent session.
+3. **new params + session** — the args you just passed, prior session id. Shown
+   only when the native session file exists *and* the new args differ.
+4. **new params** — the args you just passed, fresh session. Shown only when the
+   new args differ.
 
-- **use saved params + session** replays the original launch args *and* points the agent at its previous session id (claude's `--resume`, codex's `resume <id>` subcommand, agy's `--conversation <id>`). Only shown if the agent's native session file is still on disk.
-- **use saved params** replays the args but starts a fresh agent session.
-- **use new params + session** swaps in the args you just passed on the command line, but keeps the prior session id. Only shown when both conditions hold: the native session file is on disk AND the new args differ from the saved ones (otherwise it would be byte-identical to row 1).
-- **use new params passed in** uses your new args with a fresh session. Only shown when the new args differ from the saved ones.
-
-The agent (claude / codex / agy) is inferred from the tag ledger, so `pair resume <tag>` is enough on its own — no need to repeat the agent positional. If the tag's public zellij session is still running (for example, `pair-<repo>-<tag>` after `Alt+d` detach), `pair resume <tag>` re-attaches without prompting.
+The agent (claude / codex / agy) is inferred from the tag ledger, so `pair resume <tag>` is enough on its own — no need to repeat the agent positional. If the tag's public zellij session is still running (for example, after `Alt+d` detach), `pair resume <tag>` re-attaches without prompting.
 
 Saved configs and ledgers live under the repo-scoped data dir:
-`${XDG_DATA_HOME:-~/.local/share}/pair/repos/<scope-key>/config-<tag>-<agent>.json`
-and `ledger-<tag>.jsonl`. The hidden `<scope-key>` keeps two repos with the
-same tag independent; picker labels and session names show the readable repo/tag
-instead.
+`${XDG_DATA_HOME:-~/.local/share}/pair/repos/<scope-key>/`. The hidden
+`<scope-key>` keeps two repos with the same tag independent; picker labels and
+session names show the readable repo/tag instead.
 
 ### `resume` vs `continue`
 
 `pair resume` and `pair continue` restore two different *kinds* of state:
 
 - **`pair resume <tag>`** reattaches the agent's **native** session — its own transcript and session id, byte-faithful. It needs that session to still exist on this machine, with the same agent.
-- **`pair continue <slug> [agent]`** seeds a fresh session from a **continuation** doc — a durable, version-controlled distillation of the session's *human-meaningful* state (next action, open threads, decisions/dead-ends), written to `workshop/continuation/` and committed to the repo. It's portable across time, machines, people, and agent stacks, and the optional `[agent]` lets you continue under a *different* stack. Unlike `resume`, it does **not** force the tag: you name the session at the normal prompt (so a long slug can't overflow zellij's socket-path name budget), and `-- <args>` forward to the agent just like a plain `pair <agent> -- <args>`. Bare `pair continue` lists the saved continuations.
+- **`pair continue <slug> [agent]`** seeds a fresh session from a **continuation** doc — a durable, version-controlled distillation of the session's *human-meaningful* state (next action, open threads, decisions/dead-ends), written to `workshop/continuation/` and committed to the repo. It's portable across time, machines, people, and agent stacks, and the optional `[agent]` lets you continue under a *different* stack. Unlike `resume`, it does **not** force the tag: you name the session at the normal prompt, and `-- <args>` forward to the agent just like a plain `pair <agent> -- <args>`. Bare `pair continue` lists the saved continuations.
 
-You produce a continuation by asking the agent to "park this session" (it distills the rendered scrollback via the `continuation` datatype), or by accepting the **Alt+x park prompt** to preserve a session's scrollback for distillation later.
+You produce a continuation by pressing **`Alt+Shift+C`** (compact in place — it writes the doc *and* restarts the session on it), by asking the agent to "park this session", or by accepting the **Alt+x park prompt** to preserve a session's scrollback for distillation later.
 
 ## Notifications
 
 Pair forwards "agent needs attention" signals to your outer terminal automatically — useful for outer wrappers like [cmux](https://github.com/saharNooby/cmux) that surface badges per session.
 
-For readers interested in details in design rationale and architecture, see [the original pensive](docs/vision/2026-05-02-01-pensive-nvim-as-input-field-for-tui-coding-agents.md) and [`atlas/architecture.md`](atlas/architecture.md).
+## Troubleshooting
+
+Pair adapts to each agent's TUI (picker strings, transcript shapes, Enter
+remapping), and agents change those without warning — an adaptation stops firing
+silently rather than erroring. Run `:PairDoctor` inside the draft pane to read
+the session's adaptation flight recorder and see which integration drifted; see
+[`doctor/README.md`](doctor/README.md).
+
+---
+
+Release notes: [`CHANGELOG.md`](CHANGELOG.md). For design rationale and
+architecture, see [the original pensive](docs/vision/2026-05-02-01-pensive-nvim-as-input-field-for-tui-coding-agents.md) and [`atlas/architecture.md`](atlas/architecture.md).

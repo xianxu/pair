@@ -116,7 +116,6 @@ Design hours are low because the diagnosis was complete before this block was
 written — both root causes were read out of `pumpStdin`/`redrawTab` and confirmed
 (the terminator bug by a failing test, the replay bug by decoding the reported
 escape bytes as DA1/DECRPM/Kitty *replies*). What remains is implementation.
-Design buffer is +30%: the plan lives in this issue, not a separate `workshop/plans/` doc.
 
 ```estimate
 model: estimate-logic-v3.1
@@ -131,11 +130,12 @@ total: 1.40
 ```
 
 Item mapping: `issue-spec` = this file plus the follow-up issue filed at close;
-the three `smaller-go-module` rows are the terminator fix (plus the
-`sgrMouseSize` dedup), the `stripTerminalQueries` filter (table + CSI/OSC framing
-+ the `redrawTab(buf)` signature change at three call sites), and the test suite
-priced on its own row; `atlas-docs` = the `atlas/architecture.md` note on
-`pair term` stream hygiene.
+the **two** `smaller-go-module` rows are the terminator fix (plus the
+`sgrMouseSize` dedup) and the `stripTerminalQueries` filter (table + CSI/OSC
+framing + the `redrawTab(buf)` signature change at three call sites), each
+carrying its own tests per v2 Step 2.5; `milestone-review` = the one mandatory
+close boundary; `atlas-docs` = the `atlas/architecture.md` note on `pair term`
+stream hygiene.
 
 ## Revisions
 
@@ -406,3 +406,22 @@ Single review boundary — no `Mx` tags: one branch, one close.
 - Verified: `go test -race ./cmd/internal/termcmd/` green; full `make test`
   exit 0 (the only `fail` strings in the log are test *names* about
   failure-handling).
+
+**2026-07-28 — corrections from the close boundary review.**
+
+- **Landed estimate is 1.40, not 1.47.** The "1.05 → 1.47" line above records the
+  intermediate step before the estimate-quality gate's notes were applied
+  (design buffer 0.30 → 0.15 per v2.1 Step 6, since the ×0.2 spec-quality
+  discount was already taken; the separate test row folded back into the module
+  rows as a partial double-count; a `milestone-review` row added). The block and
+  frontmatter both carry **1.40** — design 0.43 × 1.15 + impl 0.91 — and the
+  contradictory "+30%" sentence and "three `smaller-go-module` rows" mapping have
+  been deleted.
+- **"Pin the accepted residual" was ticked but not delivered.** The test written
+  for it used a single `fakeMux` with no second tab and no switch, so it asserted
+  only "a reply reaches the active tab" — byte-identical to the first subcase of
+  `TestPumpStdinForwardsRepliesToChild`, and it would have stayed green even if
+  the residual were fixed. Taking option (b): the duplicate is deleted, its
+  reasoning moved onto the real test, and the residual is recorded in `## Log`
+  and `atlas/architecture.md` rather than claimed as pinned. Honestly pinning it
+  needs two PTY-backed tabs, which is more than a documented boundary is worth.
