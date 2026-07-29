@@ -120,7 +120,12 @@ it has to move ahead of the prefix (map the repo token, then prepend `📁`).
   `session-names.jsonl` is authoritative, but it is a larger claim than the
   single-case paragraph above.
 
-### Ledger migration: grandfather live sessions, re-mint once they're gone
+### Ledger migration: full migration, no grandfathering
+
+**Operator decision, 2026-07-29 (supersedes the round-4/5 grandfather design).**
+Every legacy `pair-…` name migrates. The transition is a one-time event the
+operator drives from a quiesced state — all other sessions concluded, all other
+zellij sessions cleaned up — rather than a behavior the code carries indefinitely.
 
 `AssignSessionName` (`session_index.go:98-100`) short-circuits on the ledger
 before any composition:
@@ -132,51 +137,33 @@ if prior, ok := index.latestFor(scope.Key, tag); ok && accepts(prior.SessionName
 ```
 
 `accepts` only asks whether zellij tolerates the *name's length*, not whether a
-session exists — so as written, any tag with a ledger row keeps its `pair-…` name
+session exists — so untouched, any tag with a ledger row keeps its `pair-…` name
 permanently and the new scheme never reaches the tags that motivated the issue.
-Tightening the short-circuit is therefore part of the change, and the condition
-picks the one behavior that satisfies both Done-when clauses at once:
 
-**Grandfather iff the prior name is (live and not `EXITED`) OR already carries
-`sessionPrefix`.** The second clause is not decoration — without it the ledger
-grows without bound. Today the short-circuit means the append at
+**The condition becomes simply: short-circuit iff the prior name already carries
+`sessionPrefix`.** A legacy row always falls through and re-mints; a new-format
+row stays pinned by the ledger exactly as today.
+
+That prefix clause is load-bearing, not decoration — it is what stops the ledger
+growing without bound. Today the short-circuit means the append at
 `session_index.go:106-113` never runs for a known (scope, tag), so
-`session-names.jsonl` holds one row per pair ever. Gate it on liveness *alone*
-and the second create for a tag whose session is gone falls through, recomposes
-the same `📁pair`, passes `ownedByOther` (same scope + tag) and `liveOwnedByOther`
-(not live), and appends an **identical** row — which `createflow.go:396-401` then
-persists, once per create, forever. With the prefix clause, a legacy name
-re-mints exactly once and new-format names stay pinned by the ledger exactly as
-they are today. Belt and braces: skip the append when the chosen candidate
-already equals `latestFor`'s name.
+`session-names.jsonl` holds one row per pair ever. Remove the short-circuit
+outright and every create recomposes the same `📁pair`, passes `ownedByOther`
+(same scope + tag) and `liveOwnedByOther` (not live), and appends an **identical**
+row that `createflow.go:396-401` persists — once per create, forever. With the
+prefix clause a legacy name re-mints exactly once and then pins.
 
-Neither clause needs new IO: `live []Session` is already a parameter, already
-pair-filtered, and already carries state.
-
-- A **live or detached** legacy session keeps its name, so `pair resume` and the
-  picker keep reattaching to the thing that exists (Done-when 3). Renaming a
-  running zellij session out from under itself is not possible anyway.
-- An **`EXITED`** row is precisely the "old session is gone" case, so the tag
-  graduates to `📁…` on the next create (Done-when 1).
-- Net effect for this repo: `pair-pair-pair` keeps working, and the first `pair`
-  after quitting it mints `📁pair`. The *name binding* is never orphaned and
-  nothing is renamed in place.
-
-The rejected alternative — pure grandfathering, where a ledger row wins forever —
-is simpler but never delivers the issue's headline outcome without a manual
-ledger edit.
-
-**Reclaim the superseded zellij record.** The name binding migrating cleanly is
-not the whole story: the `EXITED` legacy session is still a row in `zellij
-list-sessions`, and `index.ownerOf` still resolves it to this scope, so
-`SessionsForScope` keeps feeding it to `pair list` as a permanent second
-`status: exited` row for the same tag. Nothing would ever clean it up, because
-`delete-session --force` only ever fires against a name pair is *about to reuse*
-(`OSRuntime.SessionBlocksReuse`) or the session that just exited
-(`lifecycle.go:66`) — and after graduation nothing ever names `pair-pair-pair`
-again. So re-minting also deletes the superseded `EXITED` session through the
-`DeleteSession` seam, which is the same seam the destructive-path item is already
-lifting the force-delete into. This lands on Done-when bullets 3 and 5.
+**Reclaim the superseded zellij record — but never an attached one.** The old
+`pair-…` session is still a row in `zellij list-sessions`, and `index.ownerOf`
+still resolves it to this scope, so `SessionsForScope` would keep feeding it to
+`pair list` as a permanent second row for the same tag. Nothing would ever clean
+it up, because `delete-session --force` only fires against a name pair is *about
+to reuse* (`OSRuntime.SessionBlocksReuse`) or the session that just exited
+(`lifecycle.go:66`) — and after migration nothing ever names `pair-pair-pair`
+again. So re-minting also deletes the superseded session through the
+`DeleteSession` seam. **Guard: skip the reclaim when the superseded session is
+`SessionAttached`** — force-deleting a session with a live client would kill a
+terminal out from under someone. Detached and `EXITED` both reclaim.
 
 **The reclaim must fire at the commit point, not at name-assignment time**
 (`ARCH-PURE`). `AssignSessionName` is pure, so the IO lives in a caller — and the
@@ -184,15 +171,34 @@ two callers are not interchangeable. `assignLaunchSessionNames`
 (`createflow.go:249-284`) runs at `createflow.go:154`, *before* `DecideLaunch`
 (`:159`), before the picker (`:169`), before `promptForTag` (`:315`) — on **every**
 launch invocation, including ones that resolve to attach and ones the user ESCs
-out of. A reclaim there would force-delete a resurrectable `EXITED` record on an
-abandoned `pair`, which is strictly more destructive than today, where deletion is
-gated behind commitment (`rt.SessionBlocksReuse` at `:341`, post-prompt).
+out of. A reclaim there would force-delete a resurrectable record on an abandoned
+`pair`, which is strictly more destructive than today, where deletion is gated
+behind commitment (`rt.SessionBlocksReuse` at `:341`, post-prompt).
 The plan already solved exactly this for the ledger *write*: `AssignSessionName`
 returns the entry, `assignLaunchSessionNames` stashes it, and `runCreate` commits
 it at `:396-401`. The reclaim rides that same seam — `AssignSessionName` gains a
 second return naming the superseded session, the caller stashes it next to
 `newEntries`, and the `DeleteSession` call sits beside `AppendSessionNameIndex`
 at the commit point. Decision pure, IO at commitment.
+
+### The session running this work migrates last
+
+Pair cannot rename a live zellij session underneath itself — there is no
+`rename-session`, and a session's panes do not survive being recreated. So the
+session hosting this implementation is the one case the code cannot migrate: it
+migrates when it is quit and relaunched, at which point the ledger's legacy row
+re-mints to `📁pair` on the normal create path.
+
+That makes the final step a deliberate handoff rather than a code path:
+
+1. Operator concludes every other pair session and clears the other zellij
+   sessions, so only this one is live.
+2. Land the implementation and verify it against a **fresh tag** first (the
+   migration path is exercised without betting the working session on it).
+3. Quit this session; relaunch; confirm it comes back as `📁pair`.
+
+**A continuation is written before step 3** so the work survives the restart —
+and survives the restart *failing*. See `workshop/continuation/`.
 
 ### Why the ownership prefix cannot simply be dropped
 
@@ -204,11 +210,17 @@ scoping this). The prefix is load-bearing; only its cost is negotiable.
 
 ## Done when
 
-- A tag with **no surviving legacy session** mints the new format:
-  `pair-pair-pair` → `📁pair`; `pair-parley_nvim-parley_nvim` → `📁parley-nvim`,
-  untruncated. (Reworded in round 4 — see *Ledger migration* below. The old
-  phrasing was unreachable: `AssignSessionName` short-circuits on the ledger row,
-  so a tag that already has one would keep its `pair-…` name forever.)
+- **Every** legacy name migrates: `pair-pair-pair` → `📁pair`;
+  `pair-parley_nvim-parley_nvim` → `📁parley-nvim`, untruncated. No tag keeps a
+  `pair-…` name once its session is gone. (Round 4 found the original phrasing
+  unreachable — `AssignSessionName` short-circuits on the ledger row — and
+  round 7 replaced the grandfather answer with full migration; see *Ledger
+  migration*.)
+- The superseded zellij record is reclaimed, so a migrated tag shows **one** row
+  in `pair list`, not a permanent second `status: exited` one. An **attached**
+  session is never reclaimed.
+- The session hosting the implementation comes back as `📁pair` after a quit and
+  relaunch, and a continuation exists that survives that restart failing.
 - A tag that would overflow the budget is refused at the name prompt with the
   real limit quoted, not silently shortened.
 - Existing `pair-*` sessions — live, detached, and historical ledger rows — are
@@ -375,16 +387,26 @@ Single review boundary — no `Mx` tags.
       name whenever `accepts` tolerates its *length*, which means a tag with an
       existing row keeps `pair-…` forever and the headline outcome never happens.
       Add the condition specified in the Spec's *Ledger migration* section:
-      grandfather iff the prior name is **(live and not `EXITED`) OR already
-      carries `sessionPrefix`** — the second clause stops the ledger appending an
-      identical row on every subsequent create — and skip the append when the
-      chosen candidate already equals `latestFor`'s name. `live []Session` is
-      already a parameter, already pair-filtered, already carries state — no new
-      IO, and the decision stays pure (`ARCH-PURE`).
+      **short-circuit iff the prior name already carries `sessionPrefix`.** A
+      legacy row always falls through and re-mints (full migration, operator
+      decision); the prefix clause is what stops the ledger appending an
+      identical row on every subsequent create. The decision stays pure
+      (`ARCH-PURE`) and needs no liveness input at all — simpler than the
+      grandfather design it replaces.
+      **Ordering constraint, found by landing it early and watching a test
+      fail:** this hunk must ship *with* the ladder rewrite, never before it.
+      While `BuildSessionNameCandidates` still emits `pair-…`, a legacy row that
+      falls through re-mints **another legacy name** and appends a duplicate
+      ledger row on every create — the exact unbounded-growth defect round 5
+      caught, reintroduced by intermediate state rather than by design.
+      `TestAssignSessionNameReusesSameScopeBinding` fails loudly on it; a comment
+      at the call site records the constraint.
       Then **reclaim the superseded record at the commit point**: on re-mint,
-      delete the `EXITED` legacy session through the `DeleteSession` seam the
+      delete the legacy session through the `DeleteSession` seam the
       destructive-path item is already creating, so it does not linger forever as
-      a second `status: exited` row in `pair list` — but wire it beside
+      a second `status: exited` row in `pair list` — **skipping the reclaim when
+      that session is `SessionAttached`**, since force-deleting a session with a
+      live client kills a terminal out from under someone — but wire it beside
       `AppendSessionNameIndex` in `runCreate` (`createflow.go:396-401`), **not**
       in `assignLaunchSessionNames`, which runs at `:154` before the picker and
       the prompt. See the Spec's *Ledger migration* for why: a reclaim at
@@ -392,11 +414,12 @@ Single review boundary — no `Mx` tags.
       `pair`. `AssignSessionName` gains a second return naming the superseded
       session; the decision stays pure and the IO sits at commitment
       (`ARCH-PURE`).
-      Test: (a) a detached legacy session keeps its name; (b) an `EXITED` row for
-      the same tag re-mints to `📁…` and appends a fresh ledger entry; (c) no
-      ledger row at all mints `📁…`; (d) an attached legacy session keeps its
-      name; (e) **two consecutive creates for one tag with no live session yield
-      exactly one new ledger row** — the unbounded-growth guard; (f) the
+      Test: (a) a legacy row re-mints to `📁…` regardless of the old session's
+      state; (b) a detached legacy session is reclaimed; (c) no ledger row at all
+      mints `📁…`; (d) an **attached** legacy session re-mints but is **not**
+      reclaimed; (e) **two consecutive creates for one tag yield exactly one new
+      ledger row** — the unbounded-growth guard, and the second create
+      short-circuits on the `📁` row; (f) the
       superseded `EXITED` session reaches `DeleteSession` exactly once
       (exercising the new stateful fake); (g) an invocation that resolves to
       **attach**, or that the user aborts at the picker or the prompt, reaches
@@ -1118,3 +1141,42 @@ here rather than letting a seventh round re-derive the same plan.
 - Pre-existing, unrelated: `wrapcmd.TestSIGUSR2ReExecsWrapperWithoutReplacingPaneProcess`
   fails identically on a stashed clean tree — the sandbox PTY limitation noted in
   the session lessons, not a regression from this change.
+
+### 2026-07-29T14:20 — operator decision: full migration, no grandfathering
+
+**Reason.** Operator chose to migrate everything in one deliberate event from a
+quiesced state — concluding all other sessions and clearing the other zellij
+sessions — rather than have the code carry a grandfather rule indefinitely.
+
+**Delta.**
+
+- *Ledger migration* rewritten. The short-circuit condition drops its liveness
+  clause entirely: **short-circuit iff the prior name already carries
+  `sessionPrefix`.** A legacy row always falls through and re-mints. This is
+  strictly simpler than the round-4/5 design — no liveness input, two fewer test
+  cases — and the prefix clause still carries the anti-unbounded-append duty
+  round 5 identified.
+- Reclaim gains one guard: **never reclaim a `SessionAttached` session.**
+  Force-deleting a session with a live client would kill a terminal out from
+  under someone. Detached and `EXITED` both reclaim.
+- New Spec section, *The session running this work migrates last*: pair cannot
+  rename a live zellij session underneath itself, so the hosting session migrates
+  only by being quit and relaunched. That makes the last step an operator
+  handoff, sequenced as: verify against a fresh tag first, then quit/relaunch
+  this one — with a continuation written beforehand so the work survives the
+  restart, and survives the restart failing.
+- Done-when bullets updated: every legacy name migrates; a migrated tag shows one
+  `pair list` row, not a permanent second `exited` one; the hosting session comes
+  back as `📁pair`.
+
+**Implementation-order hazard found immediately, by landing the hunk and running
+the tests.** Applied on its own it turns `TestAssignSessionNameReusesSameScopeBinding`
+red — because with the ladder still emitting `pair-…`, falling through re-mints
+another *legacy* name and appends a duplicate row per create. Six plan-quality
+rounds named the defect in its designed form but not this intermediate-state
+form. The hunk is reverted with a comment recording the constraint, and the plan
+item now states it: land it with the ladder rewrite, never before.
+
+**Estimate unchanged at 4.31h.** The code gets simpler (no liveness clause, two
+fewer cases) while the operator runbook and the attached-guard add roughly the
+same back.

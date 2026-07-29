@@ -183,6 +183,11 @@ func AssignSessionName(index SessionNameIndex, live []Session, scope RepoScope, 
 	if accepts == nil {
 		accepts = func(string) bool { return true }
 	}
+	// #130 full migration adds `&& strings.HasPrefix(prior.SessionName,
+	// sessionPrefix)` here, so a legacy row falls through and re-mints. It MUST
+	// land together with the ladder rewrite, never before: while
+	// BuildSessionNameCandidates still emits `pair-…`, falling through re-mints
+	// another legacy name and appends a duplicate ledger row on every create.
 	if prior, ok := index.latestFor(scope.Key, tag); ok && accepts(prior.SessionName) {
 		return prior.SessionName, index, nil
 	}
