@@ -137,7 +137,52 @@ scoping this). The prefix is load-bearing; only its cost is negotiable.
 
 ## Plan
 
-- [ ]
+Single review boundary — no `Mx` tags.
+
+- [ ] **`PublicSessionName(repoDisplay, tag) string`** — one pure function
+      implementing rules 1–4, living beside the existing scheme in
+      `launcher/session_index.go`. Composes on top of the existing
+      `NormalizeDisplayComponent` (`scope.go:44`) rather than re-deriving
+      sanitisation: that already maps `parley.nvim` → `parley_nvim`, so rule 2 is
+      "first alphanumeric run of the normalised value" (`ARCH-DRY`).
+      Test `TestPublicSessionName` — table over the four spec rows, plus the
+      cases where the rules interact: tag equal to repo, tag prefixed by repo,
+      tag unrelated, repo with no alphanumerics (normaliser's `"pair"`
+      fallback), empty tag.
+- [ ] **Byte-based truncation.** `BuildSessionNameCandidates` (`:60`) shortens
+      `[]rune` against a byte budget. Convert to bytes. This is a prerequisite,
+      not a cleanup: `📁` is 1 rune / 4 bytes, so every candidate would otherwise
+      be 3 bytes longer than the generator believes.
+      Test: a candidate list for a multi-byte component — fails today.
+- [ ] **Refuse early rather than truncate.** With `📁` the budget is 20 bytes.
+      When the composed name overflows, the create flow's name prompt refuses and
+      quotes the real limit instead of silently shortening.
+      Test: the pure decision (name → over/under budget + message), driven
+      directly; the prompt loop is the thin IO shell around it (`ARCH-PURE`).
+- [ ] **Dual-prefix discovery.** All four filters must accept `pair-` **and**
+      `📁` while only `📁` is ever emitted: `zellij.go:27`, `zellijparse.go:60`,
+      `legacy_live.go:19`, `lifecycle.go:158`. One predicate
+      (`isPairSessionName`) shared by all four, not four edited literals — four
+      independent copies of one rule is the divergence shape that caused #127.
+      Test: the predicate over `pair-x`, `📁x`, `fabulous-aardvark`, `""`.
+- [ ] **Sweep the other `"pair-"` constructors.** `compaction.go:36,73`,
+      `decision.go:60`, `lifecycle.go:23`, `rename.go:142` each build
+      `"pair-"+tag` as a legacy/fallback shape. Decide per site whether it is a
+      *legacy reader* (leave, it is reading old names) or a *writer* (must move).
+      Getting this wrong is silent: a stale writer mints a `pair-` name that the
+      new scheme never expects.
+- [ ] **Verify the destructive path specifically.** `session_blocks_reuse` calls
+      `delete-session --force` on `EXITED` rows. Prove with a test that a foreign
+      session (no pair prefix of either form) is never a deletion candidate —
+      this is the one place where getting the predicate wrong destroys someone
+      else's state rather than just confusing pair.
+- [ ] `atlas/session-identity.md` — it documents the `pair-<repo>-<tag>` scheme
+      and the numeric-suffix rule verbatim; update to the new format, the 24-byte
+      budget, and the transition. `atlas/architecture.md` gets the cross-link.
+- [ ] Live check: create a session in this repo (expect `📁pair`), confirm
+      `pair list`, the picker, `pair resume`, and `Ctrl+Alt+n` rename all work
+      against it; confirm an existing `pair-*` session is still discovered and
+      attachable; confirm the cmux workspace title.
 
 ## Log
 
