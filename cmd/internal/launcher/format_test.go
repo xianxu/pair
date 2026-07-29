@@ -58,8 +58,13 @@ func TestTildeAbbrev(t *testing.T) {
 }
 
 func TestPaneTitle(t *testing.T) {
-	if got := PaneTitle("claude", "/home/x/repo", "/home/x"); got != "claude [~/repo]" {
+	// The STARTUP title must already carry the prefix the poller will use, or the
+	// tab title flashes the old shape until the poller's first tick (#129).
+	if got := PaneTitle("claude", "/home/x/repo", "/home/x", "work"); got != "~/repo [work] · claude" {
 		t.Errorf("PaneTitle = %q", got)
+	}
+	if got := PaneTitle("claude", "/home/x/repo", "/home/x", ""); got != "~/repo · claude" {
+		t.Errorf("PaneTitle without tag = %q", got)
 	}
 }
 

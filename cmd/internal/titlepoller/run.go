@@ -190,7 +190,7 @@ func updateFrameTitles(opts Options, rt Runtime, cache frameCache, session strin
 		if cwdDisp == "" {
 			cwdDisp = abbrevCwd(pane.Cwd, opts.Home)
 		}
-		title := frameTitle(pane.Agent, rt.ContextCount(opts.Tag, pane.Agent), cwdDisp)
+		title := frameTitle(pane.Agent, rt.ContextCount(opts.Tag, pane.Agent), cwdDisp, opts.Tag)
 		if !cache.changed(pane.PaneID, title) {
 			continue
 		}

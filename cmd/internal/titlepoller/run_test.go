@@ -97,7 +97,7 @@ func TestUpdateFrameTitlesWithCount(t *testing.T) {
 	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7", CwdDisplay: "~/repo"}}
 	rt.counts["claude"] = "970k"
 	updateFrameTitles(fixtureOpts(), rt, frameCache{}, "pair-T")
-	want := "pair-T|7|claude (970k) [~/repo]"
+	want := "pair-T|7|~/repo [T] · claude (970k)"
 	if len(rt.renamed) != 1 || rt.renamed[0] != want {
 		t.Fatalf("renamed = %v, want [%q]", rt.renamed, want)
 	}
@@ -108,7 +108,7 @@ func TestUpdateFrameTitlesNoCount(t *testing.T) {
 	rt := newFake()
 	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7", CwdDisplay: "~/repo"}}
 	updateFrameTitles(fixtureOpts(), rt, frameCache{}, "pair-T")
-	want := "pair-T|7|claude [~/repo]"
+	want := "pair-T|7|~/repo [T] · claude"
 	if len(rt.renamed) != 1 || rt.renamed[0] != want {
 		t.Fatalf("renamed = %v, want [%q]", rt.renamed, want)
 	}
@@ -120,7 +120,7 @@ func TestUpdateFrameTitlesCwdFallback(t *testing.T) {
 	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7", Cwd: "/Users/x/repo"}}
 	rt.counts["claude"] = "5k"
 	updateFrameTitles(fixtureOpts(), rt, frameCache{}, "pair-T")
-	want := "pair-T|7|claude (5k) [~/repo]"
+	want := "pair-T|7|~/repo [T] · claude (5k)"
 	if len(rt.renamed) != 1 || rt.renamed[0] != want {
 		t.Fatalf("renamed = %v, want [%q]", rt.renamed, want)
 	}
@@ -163,7 +163,7 @@ func TestUpdateFrameTitlesIgnoresStaleAgentTwin(t *testing.T) {
 	cache := frameCache{}
 	updateFrameTitles(fixtureOpts(), rt, cache, "pair-T")
 	updateFrameTitles(fixtureOpts(), rt, cache, "pair-T") // second tick: must not flip-flop
-	want := "pair-T|0|claude (970k) [~/repo]"
+	want := "pair-T|0|~/repo [T] · claude (970k)"
 	if len(rt.renamed) != 1 || rt.renamed[0] != want {
 		t.Fatalf("renamed = %v, want exactly [%q] (active agent, no stale-twin hijack)", rt.renamed, want)
 	}
@@ -229,7 +229,7 @@ func TestRunRendersFrameAndCmuxTitles(t *testing.T) {
 	if code := Run(opts, rt); code != 0 {
 		t.Fatalf("code = %d, want 0", code)
 	}
-	if want := "pair-T|7|claude (970k) [~/repo]"; len(rt.renamed) != 1 || rt.renamed[0] != want {
+	if want := "pair-T|7|~/repo [T] · claude (970k)"; len(rt.renamed) != 1 || rt.renamed[0] != want {
 		t.Fatalf("frame renamed = %v, want [%q]", rt.renamed, want)
 	}
 	if want := cmuxWorkspaceTitle(prefixHot+" ", "pair-T"); len(rt.cmuxRenamed) != 1 || rt.cmuxRenamed[0] != want {
@@ -255,7 +255,7 @@ func TestRunUsesScopedPublicSessionName(t *testing.T) {
 	if code := Run(opts, rt); code != 0 {
 		t.Fatalf("code = %d, want 0", code)
 	}
-	if want := "pair-work-T|7|claude (970k) [~/repo]"; len(rt.renamed) != 1 || rt.renamed[0] != want {
+	if want := "pair-work-T|7|~/repo [T] · claude (970k)"; len(rt.renamed) != 1 || rt.renamed[0] != want {
 		t.Fatalf("frame renamed = %v, want [%q]", rt.renamed, want)
 	}
 }

@@ -2,7 +2,6 @@ package launcher
 
 import (
 	"strconv"
-	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/titlefmt"
 )
@@ -47,21 +46,16 @@ func AgeColor(days int) string {
 // TildeAbbrev abbreviates $HOME to ~ only on a real path boundary — exactly $HOME
 // or $HOME/*, so a sibling like /Users/xianxu-other is never mangled to ~-other.
 func TildeAbbrev(cwd, home string) string {
-	if home == "" {
-		return cwd // defensive extension (the shell assumes $HOME is always set)
-	}
-	if cwd == home {
-		return "~"
-	}
-	if strings.HasPrefix(cwd, home+"/") {
-		return "~" + cwd[len(home):]
-	}
-	return cwd
+	return titlefmt.TildeAbbrev(cwd, home)
 }
 
-// PaneTitle is the "<agent> [<tilde-cwd>]" string exported as PAIR_PANE_TITLE.
-func PaneTitle(agent, cwd, home string) string {
-	return agent + " [" + TildeAbbrev(cwd, home) + "]"
+// PaneTitle is the STARTUP pane title exported as PAIR_PANE_TITLE — the agent
+// pane applies it from its layout command line before the title poller's first
+// tick. It carries the same "<cwd> [<tag>] · " prefix the poller uses (#129), so
+// the tab title never flashes an older shape on launch; the poller then adds the
+// context count once it can resolve one.
+func PaneTitle(agent, cwd, home, tag string) string {
+	return titlefmt.PaneTitlePrefix(TildeAbbrev(cwd, home), tag) + agent
 }
 
 // EmojiTitle applies the personal cmux display convention — 'brain' → 🧠,

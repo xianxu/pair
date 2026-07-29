@@ -57,25 +57,17 @@ func prefixForAge(age time.Duration) string {
 // abbrevCwd abbreviates a raw cwd to ~ on a path boundary (mirrors bin/pair's
 // abbrev_cwd): exactly $HOME → "~"; under $HOME/ → "~/rest"; else unchanged.
 func abbrevCwd(path, home string) string {
-	if home == "" {
-		return path
-	}
-	if path == home {
-		return "~"
-	}
-	if strings.HasPrefix(path, home+"/") {
-		return "~" + path[len(home):]
-	}
-	return path
+	return titlefmt.TildeAbbrev(path, home)
 }
 
 // frameTitle composes an agent pane's zellij frame title: "<agent> (<count>)
 // [<cwd>]", or "<agent> [<cwd>]" when no count resolved.
-func frameTitle(agent, count, cwdDisp string) string {
+func frameTitle(agent, count, cwdDisp, tag string) string {
+	prefix := titlefmt.PaneTitlePrefix(cwdDisp, tag)
 	if count != "" {
-		return fmt.Sprintf("%s (%s) [%s]", agent, count, cwdDisp)
+		return fmt.Sprintf("%s%s (%s)", prefix, agent, count)
 	}
-	return fmt.Sprintf("%s [%s]", agent, cwdDisp)
+	return prefix + agent
 }
 
 // cmuxWorkspaceTitle builds the cmux workspace title from a heat prefix and the

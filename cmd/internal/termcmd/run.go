@@ -19,6 +19,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/draftroute"
 	"github.com/xianxu/pair/cmd/internal/layoutcmd"
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/titlefmt"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 	"golang.org/x/term"
@@ -229,6 +230,10 @@ func runShell(stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
 	}
 
 	mux := newTerminalMux(name, args, stdout, stderr, rt)
+	// PAIR_PANE_CWD is ALREADY tilde-abbreviated by the launcher
+	// (createflow.go: TildeAbbrev on export) — do not abbreviate it again.
+	mux.tag = os.Getenv("PAIR_TAG")
+	mux.cwdDisplay = os.Getenv("PAIR_PANE_CWD")
 	if stdinFile != nil {
 		mux.captureSize(stdinFile)
 	}
@@ -655,6 +660,14 @@ type terminalMux struct {
 	rows      uint16
 	cols      uint16
 	rename    *activeRename
+
+	// Title prefix inputs (#129), read once at the boundary in runShell — NOT
+	// via os.Getenv inside the title path, which would make the composed title
+	// depend on ambient process env and force tests to mutate it (PAIR_TAG is
+	// already known to leak into `make test` when run inside a pair session).
+	// Empty is a valid state: titlefmt.PaneTitlePrefix then contributes nothing.
+	tag        string
+	cwdDisplay string
 }
 
 type activeRename struct {
@@ -1051,7 +1064,14 @@ func (m *terminalMux) paneTitleLocked() string {
 			parts = append(parts, tab.name)
 		}
 	}
-	return strings.Join(parts, " ")
+	return m.titlePrefixLocked() + strings.Join(parts, " ")
+}
+
+// titlePrefixLocked is the "<cwd> [<tag>] · " lead shared by both title paths
+// (#129). Applied only AFTER each caller's zero-tabs guard, so a tab-less mux
+// never emits a bare separator with nothing behind it.
+func (m *terminalMux) titlePrefixLocked() string {
+	return titlefmt.PaneTitlePrefix(m.cwdDisplay, m.tag)
 }
 
 func (m *terminalMux) renamePaneTitleLocked(tabID int, editor RenameEditor) string {
@@ -1080,7 +1100,7 @@ func (m *terminalMux) renamePaneTitleLocked(tabID int, editor RenameEditor) stri
 	if !found {
 		parts = append(parts, "[rename: "+field+"]")
 	}
-	return strings.Join(parts, " ")
+	return m.titlePrefixLocked() + strings.Join(parts, " ")
 }
 
 // redrawTab repaints from a SNAPSHOT taken by the caller under m.mu — it never
