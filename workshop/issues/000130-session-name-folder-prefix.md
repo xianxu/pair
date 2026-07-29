@@ -84,6 +84,26 @@ New format, no separator after the prefix:
    transition orphans every live session, ledger row, and cmux ownership file at
    once.
 
+### Interaction with the cmux workspace title
+
+The cmux workspace title mirrors the **session name** (`updateWorkspaceTitle`,
+`titlepoller/run.go:204`) with an activity-heat prefix, and passes it through
+`titlefmt.EmojiTitle` (`launcher/osruntime.go:419` — the only call site; pane
+renames never touch it). `EmojiTitle` returns a title with no `-` verbatim,
+otherwise splits on `-` and maps exact tokens (`brain`→🧠, `book`→📗,
+`pair`→♋).
+
+Today `pair-pair-pair` therefore renders in cmux as **`♋-♋-♋`**. Under this
+spec: `📁pair` has no `-` so it is returned verbatim; `📁pair-1` splits to
+`[📁pair, 1]` where `📁pair` no longer matches the `pair` key; `📁parley-nvim`
+matches nothing. All three read better.
+
+**Consequence to accept deliberately: this effectively retires `EmojiTitle`.**
+The glued-on `📁` means no token can ever match `emojiWords` again. That is
+probably right — one glyph convention instead of two competing ones — but decide
+it here rather than discovering it. If the word→emoji mapping is still wanted,
+it has to move ahead of the prefix (map the repo token, then prepend `📁`).
+
 ### Accepted trade-offs
 
 - **`📁pair-1` is ambiguous** between tag `pair-1` and collision suffix #1.
