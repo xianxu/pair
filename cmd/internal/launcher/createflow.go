@@ -151,6 +151,15 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 		fmt.Fprintf(stderr, "pair: failed to scan session history: %v\n", err)
 		return launchStep{code: 1}, nil
 	}
+	// A 📁 name typed at `pair resume` is still a NAME here; turn it into a tag
+	// before anything keys off it. Both assignLaunchSessionNames and DecideLaunch
+	// read ForcedTag, so the resolution has to land on opts.Args itself (#130).
+	if resolved, ok := resolveResumeTag(rt, opts.Args.ForcedTag); ok {
+		opts.Args.ForcedTag = resolved
+	} else if opts.Args.ForcedTag != "" && strings.HasPrefix(opts.Args.ForcedTag, sessionPrefix) {
+		fmt.Fprintf(stderr, "pair: '%s' is a session name with no ledger entry; resume by its tag instead.\n", opts.Args.ForcedTag)
+		return launchStep{code: 1}, nil
+	}
 	scopedSessions, sessionNames, sessionNameEntries, ok := assignLaunchSessionNames(rt, sessions, scopeRoot, opts.GlobalDataDir, opts.Args, base, stderr)
 	if !ok {
 		return launchStep{code: 1}, nil
@@ -312,7 +321,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 
 	chosenTag := decision.Tag
 	if decision.PromptName {
-		tag, code, ok := promptForTag(rt, decision.Tag, base, stderr)
+		tag, code, ok := promptForTag(rt, decision.Tag, sessionNameComposer(env), base, stderr)
 		if !ok {
 			return launchStep{code: code}, nil
 		}
@@ -397,6 +406,21 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		if err := rt.AppendSessionNameIndex(sessionEntry); err != nil {
 			fmt.Fprintf(stderr, "pair: failed to append session-name index for '%s': %v\n", sessionEntry.SessionName, err)
 			return launchStep{code: 1}, nil
+		}
+		// Reclaim the record this name migrated away from (#130). It sits HERE,
+		// at the commit point beside the ledger write, and not in
+		// assignLaunchSessionNames — that runs before DecideLaunch, the picker
+		// and the name prompt, so reclaiming there would force-delete a
+		// resurrectable session on a `pair` the user attaches with or abandons.
+		//
+		// Only an already-EXITED record is reclaimed. An attached session is
+		// someone's live terminal; a detached one is resumable work the user can
+		// still reach through the picker or `pair resume`. Migration must not be
+		// the thing that destroys either — see sessionReclaimable.
+		if old := sessionEntry.Superseded; old != "" && sessionReclaimable(live, old) {
+			if err := rt.DeleteSession(old); err != nil {
+				fmt.Fprintf(stderr, "pair: migrated to '%s'; could not remove the old session '%s': %v\n", sessionEntry.SessionName, old, err)
+			}
 		}
 	}
 	if err := rt.AppendLedger(chosenTag, LedgerEntry{
@@ -492,8 +516,8 @@ func assignSingleSessionName(rt Runtime, live []Session, cwd, tag string, stderr
 // promptForTag runs the editable name prompt, normalizing + collision-checking
 // the result. ok=false means the caller should exit with the returned code
 // (0 on user abort, 1 on invalid name / collision).
-func promptForTag(rt Runtime, prefill, base string, stderr io.Writer) (tag string, code int, ok bool) {
-	rt.ShowFamilyExisting("pair-" + base)
+func promptForTag(rt Runtime, prefill string, compose func(string) string, base string, stderr io.Writer) (tag string, code int, ok bool) {
+	rt.ShowFamilyExisting(compose(base))
 	value, entered := rt.PromptSessionName(prefill)
 	if !entered {
 		return "", 0, false // user aborted (ESC / EOF)
@@ -504,6 +528,18 @@ func promptForTag(rt Runtime, prefill, base string, stderr io.Writer) (tag strin
 	tag, err := NormalizeTag(value)
 	if err != nil {
 		fmt.Fprintf(stderr, "pair: invalid name '%s' (allowed: letters, digits, dash, underscore)\n", value)
+		return "", 1, false
+	}
+	// Refuse an overlong name here, with the real numbers, instead of letting the
+	// ladder silently shorten it downstream (#130). Silent truncation is what
+	// produced `pair-parley_nv-parley_nv` and a user who could not tell why.
+	//
+	// The probe is still the oracle: we reach for a NUMBER only once it has
+	// already said no, and only so the refusal can quote something concrete.
+	accepts := func(name string) bool { return rt.ProbeSessionName(name) == nil }
+	if candidate := compose(tag); !accepts(candidate) {
+		_, message := sessionNameFits(candidate, discoverSessionNameBudget(accepts))
+		fmt.Fprintf(stderr, "pair: %s\n      pick a shorter name.\n", message)
 		return "", 1, false
 	}
 	return tag, 0, true
@@ -627,3 +663,92 @@ func firstNonEmpty(vals ...string) string {
 	}
 	return ""
 }
+
+// resolveResumeTag maps a 📁 session name to its tag through the ledger. Bare
+// tags pass through untouched (ok=true); a 📁 name absent from the ledger yields
+// ok=false, because the scheme has no string inverse and guessing would resume
+// the wrong thing.
+func resolveResumeTag(rt Runtime, arg string) (string, bool) {
+	if arg == "" || !strings.HasPrefix(arg, sessionPrefix) {
+		return arg, true
+	}
+	index, err := rt.ReadSessionNameIndex()
+	if err != nil {
+		return "", false
+	}
+	return TagForSessionName(index, arg)
+}
+
+// sessionNameComposer resolves the repo scope once and returns tag → session
+// name for it.
+//
+// The prompt needs this for two things, and both have to be COMPOSED rather than
+// spelled (#130): the family stem it lists existing sessions under (the family
+// for base tag `pair` in repo `pair` is `📁pair`, and `pair-pair` would list a
+// family that no longer exists), and the candidate it length-checks the typed
+// name against. Falls back to the legacy stem when the scope will not resolve —
+// the same degraded path the rest of the create flow takes.
+func sessionNameComposer(env Env) func(string) string {
+	scope, err := ResolveRepoScope(envScopeRoot(env))
+	if err != nil {
+		return func(tag string) string { return legacySessionPrefix + tag }
+	}
+	return func(tag string) string { return ComposeSessionName(scope, tag) }
+}
+
+// --- Session-name budget (#130) ---------------------------------------------
+
+// defaultSessionNameBudget is what the macOS cache path leaves for a session
+// name on the machine this was measured on. It is a MESSAGE default only —
+// never an acceptance test. zellij's real allowance is its socket path's, which
+// varies with username and is a different path entirely on Linux, so the probe
+// stays the oracle and this number only makes the refusal quotable.
+const defaultSessionNameBudget = 24
+
+// sessionNameFits is the pure refusal decision: does `name` fit in `limit`
+// bytes, and if not, what does the user need to hear? Taking the limit as a
+// PARAMETER rather than reading a package constant is what keeps this testable
+// at a Linux-sized budget as well as a macOS one.
+func sessionNameFits(name string, limit int) (ok bool, message string) {
+	if len(name) <= limit {
+		return true, ""
+	}
+	return false, fmt.Sprintf("name '%s' needs %d bytes; zellij allows %d on this machine", name, len(name), limit)
+}
+
+// discoverSessionNameBudget finds how many bytes zellij will actually accept,
+// by binary search over synthetic names.
+//
+// Called LAZILY — only once a name has already been rejected — so the happy path
+// still costs the single probe it always did. A per-process cache would buy
+// nothing: `pair` create is a one-shot process, so "cached" would just mean
+// paying these execs before every prompt.
+//
+// The probes use a padding alphabet that cannot collide with a real session:
+// ProbeSessionName runs `zellij --session <name> action list-clients`, which
+// SUCCEEDS against a foreign live session and would then read as "fits" for
+// entirely the wrong reason, making the measured budget depend on whatever else
+// happens to be running.
+func discoverSessionNameBudget(accepts func(string) bool) int {
+	pad := func(n int) string {
+		return sessionNameProbeMarker + strings.Repeat("z", n-len(sessionNameProbeMarker))
+	}
+	lo, hi := len(sessionNameProbeMarker), 64
+	if !accepts(pad(lo)) {
+		return defaultSessionNameBudget
+	}
+	for lo < hi {
+		mid := (lo + hi + 1) / 2
+		if accepts(pad(mid)) {
+			lo = mid
+		} else {
+			hi = mid - 1
+		}
+	}
+	return lo
+}
+
+// sessionNameProbeMarker prefixes every calibration probe so the names cannot
+// belong to anyone — pair's own sessions start with 📁 or `pair-`, and a
+// stranger's session matching this is not a plausible accident.
+const sessionNameProbeMarker = "pair-probe-zz"

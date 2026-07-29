@@ -2,7 +2,6 @@ package launcher
 
 import (
 	"io"
-	"strings"
 )
 
 // runRestart is the in-process port of bin/pair-restart.sh (#94 M1): resolve the
@@ -17,9 +16,18 @@ func runRestart(rt Runtime, args LaunchArgs, session, pairTag string, stderr io.
 		_, _ = io.WriteString(stderr, "pair restart: ZELLIJ_SESSION_NAME unset; cannot restart cleanly.\n")
 		return 1
 	}
+	// PAIR_TAG first; otherwise recover the tag from the ledger (#130). The 📁
+	// scheme has no string inverse, so a bare TrimPrefix here would mint a
+	// plausible-looking wrong tag — which then drives InferAgent AND the
+	// RestartMarker below. Empty is safe: createflow's restart re-entry does
+	// `firstNonEmpty(m.Tag, step.tag)`.
 	tag := pairTag
 	if tag == "" {
-		tag = strings.TrimPrefix(session, "pair-")
+		index, err := rt.ReadSessionNameIndex()
+		if err != nil {
+			index = SessionNameIndex{}
+		}
+		tag, _ = TagForSessionName(index, session)
 	}
 	rt.WriteRestartMarker(session, RestartMarker{
 		Tag: tag,

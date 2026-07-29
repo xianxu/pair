@@ -11,15 +11,15 @@ import (
 func TestRunLaunchAttach(t *testing.T) {
 	rt := newFakeRuntime()
 	scope := mustScope(t, "/home/u/work")
-	rt.sessions = []Session{{Name: "pair-work-live", State: SessionDetached}}
+	rt.sessions = []Session{{Name: "📁work-live", State: SessionDetached}}
 	rt.sessionIndex = SessionNameIndex{Entries: []SessionNameEntry{{
-		SessionName: "pair-work-live",
+		SessionName: "📁work-live",
 		ScopeKey:    scope.Key,
 		RepoRoot:    scope.Root,
 		RepoName:    scope.DisplayName,
 		Tag:         "live",
 	}}}
-	rt.blocksReuse["pair-work-live"] = true // live → decision resolves to attach
+	rt.blocksReuse["📁work-live"] = true // live → decision resolves to attach
 	rt.inferAgent["live"] = "codex"         // title agent comes from the on-disk record
 	rt.attachCode = 7
 	code, err := run(t, baseOpts(LaunchArgs{ForcedTag: "live"}), rt)
@@ -29,7 +29,7 @@ func TestRunLaunchAttach(t *testing.T) {
 	if code != 7 {
 		t.Fatalf("attach code = %d, want the AttachSession code 7", code)
 	}
-	if !reflect.DeepEqual(rt.attached, []string{"pair-work-live"}) {
+	if !reflect.DeepEqual(rt.attached, []string{"📁work-live"}) {
 		t.Fatalf("attached = %v", rt.attached)
 	}
 	if rt.launched != "" || rt.launchCount != 0 {
@@ -59,7 +59,7 @@ func TestRunLaunchQuitCleanup(t *testing.T) {
 	rt.confirmPark = true
 	rt.parkOK = true
 	rt.cmuxOwned["bugfix"] = true
-	rt.quitMarkers["pair-work-bugfix"] = true
+	rt.quitMarkers["📁work-bugfix"] = true
 	// A non-empty raw scrollback gates the nudge; the create-flow mint writes the
 	// config-bugfix-claude.json (session_id SID) that drives the resume hint.
 	rt.files["/data/scrollback-bugfix-claude.raw"] = "some captured bytes"
@@ -69,7 +69,7 @@ func TestRunLaunchQuitCleanup(t *testing.T) {
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	if !reflect.DeepEqual(rt.deleted, []string{"pair-work-bugfix"}) {
+	if !reflect.DeepEqual(rt.deleted, []string{"📁work-bugfix"}) {
 		t.Fatalf("DeleteSession = %v", rt.deleted)
 	}
 	if !reflect.DeepEqual(rt.reaped, []string{"bugfix"}) {
@@ -79,7 +79,7 @@ func TestRunLaunchQuitCleanup(t *testing.T) {
 		t.Fatalf("KillTitlePoller = %v", rt.killedPollers)
 	}
 	// Park-nudge prompted + parked (move mode).
-	if !reflect.DeepEqual(rt.parkPrompts, []string{"pair-work-bugfix"}) {
+	if !reflect.DeepEqual(rt.parkPrompts, []string{"📁work-bugfix"}) {
 		t.Fatalf("park prompts = %v", rt.parkPrompts)
 	}
 	if !reflect.DeepEqual(rt.parked, []string{"bugfix|claude|true"}) {
@@ -137,10 +137,10 @@ func TestRunLaunchParkSkippedOnRestart(t *testing.T) {
 	rt.isTTY = true
 	rt.confirmPark = true
 	rt.parkOK = true
-	rt.quitMarkers["pair-work-work"] = true
+	rt.quitMarkers["📁work"] = true
 	rt.files["/data/scrollback-work-claude.raw"] = "bytes"
 	// Alt+n restart pending → park-nudge must be skipped in cleanup.
-	rt.restartMarkers["pair-work-work"] = RestartMarker{Tag: "work", Agent: "claude"}
+	rt.restartMarkers["📁work"] = RestartMarker{Tag: "work", Agent: "claude"}
 	if _, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "work"}), rt); err != nil {
 		t.Fatalf("err=%v", err)
 	}
@@ -154,8 +154,8 @@ func TestRunLaunchParkSkippedOnRestart(t *testing.T) {
 func TestRunLaunchRestartLoopAltN(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.uuids = []string{"MINT"} // iteration 1 mints; iteration 2 resumes (no mint)
-	rt.quitMarkers["pair-work-work"] = true
-	rt.restartMarkers["pair-work-work"] = RestartMarker{Tag: "work", Agent: "claude"}
+	rt.quitMarkers["📁work"] = true
+	rt.restartMarkers["📁work"] = RestartMarker{Tag: "work", Agent: "claude"}
 	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "work"}), rt)
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
@@ -177,8 +177,8 @@ func TestRunLaunchRestartLoopAltN(t *testing.T) {
 func TestRunLaunchRestartLoopNewSession(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.uuids = []string{"MINT1", "MINT2"}
-	rt.quitMarkers["pair-work-work"] = true
-	rt.restartMarkers["pair-work-work"] = RestartMarker{Tag: "work", Agent: "claude", NewSession: true}
+	rt.quitMarkers["📁work"] = true
+	rt.restartMarkers["📁work"] = RestartMarker{Tag: "work", Agent: "claude", NewSession: true}
 	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "work"}), rt)
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
@@ -203,8 +203,8 @@ func TestRunLaunchRestartLoopNewSession(t *testing.T) {
 func TestRunLaunchRenameReentry(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.uuids = []string{"MINT"}
-	rt.quitMarkers["pair-work-work"] = true
-	rt.restartMarkers["pair-work-work"] = RestartMarker{Tag: "work", Agent: "claude", RenameTo: "renamed"}
+	rt.quitMarkers["📁work"] = true
+	rt.restartMarkers["📁work"] = RestartMarker{Tag: "work", Agent: "claude", RenameTo: "renamed"}
 	rt.files["/data"] = ""                       // data dir exists (rename gate)
 	rt.files["/data/draft-work.md"] = "the work" // a sidecar to move
 
@@ -217,8 +217,8 @@ func TestRunLaunchRenameReentry(t *testing.T) {
 	if rt.launchCount != 2 {
 		t.Fatalf("expected two handoffs (work, then renamed), got %d", rt.launchCount)
 	}
-	if rt.launched != "pair-work-renamed" {
-		t.Fatalf("relaunch tag = %q, want pair-work-renamed", rt.launched)
+	if rt.launched != "📁work-renamed" {
+		t.Fatalf("relaunch tag = %q, want 📁work-renamed", rt.launched)
 	}
 	if _, ok := rt.files["/data/draft-renamed.md"]; !ok {
 		t.Fatalf("sidecar not renamed; files=%v", rt.files)
@@ -232,8 +232,8 @@ func TestRunLaunchRenameReentryIgnoresOtherScopeTargetTag(t *testing.T) {
 	rt.sessionIndex = SessionNameIndex{Entries: []SessionNameEntry{
 		{SessionName: "pair-other-renamed", ScopeKey: "scope2", Tag: "renamed"},
 	}}
-	rt.quitMarkers["pair-work-work"] = true
-	rt.restartMarkers["pair-work-work"] = RestartMarker{Tag: "work", Agent: "claude", RenameTo: "renamed"}
+	rt.quitMarkers["📁work"] = true
+	rt.restartMarkers["📁work"] = RestartMarker{Tag: "work", Agent: "claude", RenameTo: "renamed"}
 	rt.files["/global/repos/scope1"] = ""
 	rt.files["/global/repos/scope1/draft-work.md"] = "the work"
 
@@ -244,8 +244,8 @@ func TestRunLaunchRenameReentryIgnoresOtherScopeTargetTag(t *testing.T) {
 	if err != nil {
 		t.Fatalf("rename re-entry should be native, got %v", err)
 	}
-	if rt.launched != "pair-work-renamed" {
-		t.Fatalf("relaunch tag = %q, want pair-work-renamed", rt.launched)
+	if rt.launched != "📁work-renamed" {
+		t.Fatalf("relaunch tag = %q, want 📁work-renamed", rt.launched)
 	}
 	if _, ok := rt.files["/global/repos/scope1/draft-renamed.md"]; !ok {
 		t.Fatalf("sidecar not renamed; files=%v", rt.files)
@@ -257,8 +257,8 @@ func TestRunLaunchRenameReentryIgnoresOtherScopeTargetTag(t *testing.T) {
 func TestRunLaunchContinueReentry(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.uuids = []string{"MINT"}
-	rt.quitMarkers["pair-work-work"] = true
-	rt.restartMarkers["pair-work-work"] = RestartMarker{Tag: "work", Agent: "claude", NewSession: true, Continue: "demo"}
+	rt.quitMarkers["📁work"] = true
+	rt.restartMarkers["📁work"] = RestartMarker{Tag: "work", Agent: "claude", NewSession: true, Continue: "demo"}
 	rt.continuationDocs = map[string][2]string{"demo": {"/repo/workshop/continuation/20260101-demo.md", "claude"}}
 
 	opts := baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "work"})
@@ -267,8 +267,8 @@ func TestRunLaunchContinueReentry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("continue re-entry should be native, got %v", err)
 	}
-	if rt.launchCount != 2 || rt.launched != "pair-work-work" {
-		t.Fatalf("relaunch = %d handoffs, tag %q (want 2, pair-work-work)", rt.launchCount, rt.launched)
+	if rt.launchCount != 2 || rt.launched != "📁work" {
+		t.Fatalf("relaunch = %d handoffs, tag %q (want 2, 📁work)", rt.launchCount, rt.launched)
 	}
 	if draft := rt.files["/data/draft-work.md"]; !strings.Contains(draft, "20260101-demo.md") {
 		t.Fatalf("draft not re-seeded from the continuation: %q", draft)
@@ -281,13 +281,13 @@ func TestRunLaunchSweepsOnce(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.uuids = []string{"SID"}
 	rt.sessions = []Session{
-		{Name: "pair-work-a", State: SessionAttached},
-		{Name: "pair-work-b", State: SessionExited},
+		{Name: "📁work-a", State: SessionAttached},
+		{Name: "📁work-b", State: SessionExited},
 		{Name: "pair-other-a", State: SessionAttached},
 	}
 	rt.sessionIndex = SessionNameIndex{Entries: []SessionNameEntry{
-		{SessionName: "pair-work-a", ScopeKey: "scope1", Tag: "a"},
-		{SessionName: "pair-work-b", ScopeKey: "scope1", Tag: "b"},
+		{SessionName: "📁work-a", ScopeKey: "scope1", Tag: "a"},
+		{SessionName: "📁work-b", ScopeKey: "scope1", Tag: "b"},
 		{SessionName: "pair-other-a", ScopeKey: "scope2", Tag: "a"},
 	}}
 	opts := baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "fresh"})
@@ -306,10 +306,10 @@ func TestRunLaunchSweepsOnce(t *testing.T) {
 
 func TestLiveTagsForSweep(t *testing.T) {
 	index := SessionNameIndex{Entries: []SessionNameEntry{
-		{SessionName: "pair-work-x", ScopeKey: "scope1", Tag: "x"},
-		{SessionName: "pair-work-y", ScopeKey: "scope2", Tag: "y"},
+		{SessionName: "📁work-x", ScopeKey: "scope1", Tag: "x"},
+		{SessionName: "📁work-y", ScopeKey: "scope2", Tag: "y"},
 	}}
-	got := liveTagsForSweep([]Session{{Name: "pair-work-x"}, {Name: "pair-work-y"}, {Name: "pair-legacy"}, {Name: "other"}}, index, "scope1")
+	got := liveTagsForSweep([]Session{{Name: "📁work-x"}, {Name: "📁work-y"}, {Name: "pair-legacy"}, {Name: "other"}}, index, "scope1")
 	if !reflect.DeepEqual(got, []string{"x", "legacy"}) {
 		t.Fatalf("liveTagsForSweep = %v", got)
 	}

@@ -51,13 +51,14 @@ func sessionNameRejected(out string) bool {
 
 // pairSessionNames extracts the Pair session names from `zellij
 // list-sessions --short` output — sorted + deduped, matching the shell's
-// `awk '/^pair-/' | sort` (list flow, shell 1235/232).
+// `awk '/^pair-/' | sort` (list flow, shell 1235/232), widened to pair's
+// ownership predicate so both name schemes are listed (#130).
 func pairSessionNames(short string) []string {
 	seen := map[string]bool{}
 	var names []string
 	for _, line := range strings.Split(short, "\n") {
 		fields := strings.Fields(line)
-		if len(fields) == 0 || !strings.HasPrefix(fields[0], "pair-") || seen[fields[0]] {
+		if len(fields) == 0 || !isPairSessionName(fields[0]) || seen[fields[0]] {
 			continue
 		}
 		seen[fields[0]] = true

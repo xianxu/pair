@@ -57,24 +57,18 @@ func TestFrameTitle(t *testing.T) {
 }
 
 func TestCmuxWorkspaceTitle(t *testing.T) {
-	if got := cmuxWorkspaceTitle("🔴 ", "pair-brain"); got != "🔴 ♋-🧠" {
-		t.Errorf("substitutions: %q", got)
+	// #130 retired the word→emoji convention: a session name already carries its
+	// own 📁 glyph, so the title is the heat prefix plus the name, verbatim.
+	if got := cmuxWorkspaceTitle("🔴 ", "📁brain"); got != "🔴 📁brain" {
+		t.Errorf("prefix + name: %q", got)
 	}
-	if got := cmuxWorkspaceTitle("", "pair-21"); got != "♋-21" {
+	if got := cmuxWorkspaceTitle("", "📁pair-21"); got != "📁pair-21" {
 		t.Errorf("cold prefix: %q", got)
 	}
-	if got := cmuxWorkspaceTitle("", "brain"); got != "brain" {
-		t.Errorf("single brain should stay literal: %q", got)
-	}
-	if got := cmuxWorkspaceTitle("", "pair"); got != "pair" {
-		t.Errorf("single pair should stay literal: %q", got)
-	}
-	if got := cmuxWorkspaceTitle("", "book"); got != "book" {
-		t.Errorf("single book should stay literal: %q", got)
+	if got := cmuxWorkspaceTitle("", "pair-brain-book"); got != "pair-brain-book" {
+		t.Errorf("a legacy name must not be rewritten either: %q", got)
 	}
 }
-
-// Mirrors the shell harness Part A (poller_alive identity guard).
 func TestPollerArgvMatches(t *testing.T) {
 	const bin = "/Users/x/.local/share/pair/runtime/abc/pair-home/bin/pair"
 	cases := []struct {

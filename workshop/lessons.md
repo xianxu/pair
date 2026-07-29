@@ -1101,3 +1101,50 @@ whichever file happens to hold it today. Corollary: a test that would stay green
 if the behavior were *fixed* isn't a pin — #127 shipped a "pins the accepted
 residual" test that never built a second tab, making it a duplicate of the test
 above it.
+
+## A stateless plan judge converges by consequence — read each round, don't just count them
+
+`sdlc change-code`'s plan-quality judge starts fresh every round, so the standing
+worry is that plans converge by exhaustion (ariadne#187). #130 ran six rounds,
+and the useful distinction turned out not to be round *count* but round
+*provenance*: rounds 4 and 5 blocked on defects that were **consequences of
+rounds 3 and 4's own fixes** — the ledger short-circuit only became reachable
+once the sweep was correct, and the duplicate-row bug only existed because
+round 4 introduced the liveness gate. That is the fix surface moving, not the
+gate re-litigating settled ground.
+
+**Rule.** Classify each round's findings before deciding whether to loop. If they
+are consequences of your last round's change, the gate is still earning its cost
+— keep going. If they re-derive ground a previous round settled, stop and close
+with `--no-judge`, recording why in the issue. Round 6 of #130 dropped to one
+Important + two Minor with no new blocking design defect; that is the signal, not
+the round number. Never loop silently — the operator is cost-sensitive about
+gate ceremony and wants the trade-off surfaced.
+
+## Land the behavior-flip hunk first and watch which test goes red
+
+#130's plan was reviewed six times and named the unbounded-ledger-append defect
+precisely — in its *designed* form. It did not name the *intermediate-state*
+form: applying the short-circuit flip while the name generator still emitted the
+old scheme makes a legacy row fall through and re-mint **another legacy name**,
+appending a duplicate row per create. Landing the one-line hunk and running the
+package tests surfaced it in seconds, via
+`TestAssignSessionNameReusesSameScopeBinding`.
+
+**Rule.** In a multi-hunk change where one hunk flips a decision and another
+changes what that decision *produces*, land the flip on its own, deliberately, to
+see what breaks. The failing test names the ordering constraint better than
+review does — review reasons about the end state, tests reason about the state
+you are actually in. Then revert it, record the constraint at the call site, and
+ship the hunks together.
+
+## User-visible identity changes need README and pasted-name tests before close
+
+#130 changed the public zellij/cmux/list session name from `pair-...` to
+`📁repo[-tag]`. The atlas and issue were updated, but close review still caught
+two boundary gaps: README did not explain the new public name vs repo-local tag,
+and pasted `📁...` resume/rename paths were implemented without direct tests.
+
+**Rule.** When a change alters text a user sees or may paste back into a command,
+update README in the same window and add tests for the paste-back entry points.
+Atlas explains architecture; README explains what the operator types and sees.

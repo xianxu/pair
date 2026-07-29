@@ -56,11 +56,19 @@ func renamePathsFor(tag, dataDir string) []string {
 // renamePair is one src→dst move in the rename plan.
 type renamePair struct{ src, dst string }
 
-// validateRenameTags normalizes both tags and applies rename's own gates: charset
+// validateRenameTags normalizes both tags. The OLD one may arrive as a pasted
+// session name (the nvim rename prompt pre-fills from the tab title, which since
+// #130 reads `📁repo-tag`), so the caller resolves it through the ledger first
+// and passes the resulting bare tag here. The NEW one is always bare by
+// construction, and a 📁 value there gets a message saying so rather than the
+// raw charset error. After that, it applies rename's own gates: charset
 // (NormalizeTag), ≤256 length (shell 359-364), and old!=new (shell 365-368).
 func validateRenameTags(oldRaw, newRaw string) (old, new string, err error) {
 	if old, err = NormalizeTag(oldRaw); err != nil {
 		return "", "", fmt.Errorf("invalid tag: %w", err)
+	}
+	if strings.HasPrefix(newRaw, sessionPrefix) {
+		return "", "", fmt.Errorf("'%s' is a session name; give the new tag in bare form", newRaw)
 	}
 	if new, err = NormalizeTag(newRaw); err != nil {
 		return "", "", fmt.Errorf("invalid tag: %w", err)
@@ -139,7 +147,9 @@ func sessionTrackedForTag(sessions []Session, index SessionNameIndex, scopeKey, 
 			return true
 		}
 	}
-	return sessionTracked(sessions, "pair-"+tag)
+	// Legacy fallback for an unindexed session; the ledger loop above covers
+	// every scoped name in either scheme.
+	return sessionTracked(sessions, legacySessionPrefix+tag)
 }
 
 // runRename drives `pair rename [--restart-check] <old> <new>` (shell 307-546):
@@ -151,7 +161,17 @@ func runRename(rt Runtime, args LaunchArgs, dataDir string, stdout, stderr io.Wr
 }
 
 func runRenameScoped(rt Runtime, args LaunchArgs, dataDir, scopeKey string, stdout, stderr io.Writer) int {
-	old, newTag, err := validateRenameTags(args.RenameOld, args.RenameNew)
+	// Resolve a pasted 📁 session name to its tag before validation (#130). This
+	// is what lets the nvim rename prompt drop its own strip + charset twin and
+	// hand the whole question to the binary — see nvim/init.lua.
+	oldRaw := args.RenameOld
+	if resolved, ok := resolveResumeTag(rt, oldRaw); ok {
+		oldRaw = resolved
+	} else if strings.HasPrefix(oldRaw, sessionPrefix) {
+		fmt.Fprintf(stderr, "pair rename: '%s' is a session name with no ledger entry; rename by its tag instead.\n", oldRaw)
+		return 1
+	}
+	old, newTag, err := validateRenameTags(oldRaw, args.RenameNew)
 	if err != nil {
 		fmt.Fprintf(stderr, "pair rename: %v\n", err)
 		return 1
@@ -167,12 +187,12 @@ func runRenameScoped(rt Runtime, args LaunchArgs, dataDir, scopeKey string, stdo
 	sessions, _ := rt.Sessions()
 	index, _ := rt.ReadSessionNameIndex()
 	if !args.RenameCheckOnly && sessionTrackedForTag(sessions, index, scopeKey, old) {
-		fmt.Fprintf(stderr, "pair rename: session 'pair-%s' is still tracked by zellij.\n", old)
+		fmt.Fprintf(stderr, "pair rename: tag '%s' still has a session tracked by zellij.\n", old)
 		fmt.Fprintf(stderr, "             Quit it first (Alt+x), or use the in-session rename.\n")
 		return 1
 	}
 	if sessionTrackedForTag(sessions, index, scopeKey, newTag) {
-		fmt.Fprintf(stderr, "pair rename: session 'pair-%s' already exists in zellij.\n", newTag)
+		fmt.Fprintf(stderr, "pair rename: tag '%s' already has a session in zellij.\n", newTag)
 		return 1
 	}
 

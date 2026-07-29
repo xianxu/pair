@@ -57,7 +57,13 @@ func createDecision(tag, session string, prompt bool) LaunchDecision {
 }
 
 func sessionName(tag string) string {
-	return "pair-" + tag
+	// Legacy degraded fallback. sessionNameForTag prefers snap.SessionNames,
+	// which assignLaunchSessionNames fills with composed names; this path is
+	// reached for tags outside that set (nextFreeTag's base-2/base-3 probes) and
+	// when RepoScope resolution failed. SessionSnapshot carries no scope, so
+	// there is nothing to compose from — and the value is only ever COMPARED
+	// against the snapshot, never minted as a real session (#130).
+	return legacySessionPrefix + tag
 }
 
 func sessionNameForTag(snap SessionSnapshot, tag string) string {

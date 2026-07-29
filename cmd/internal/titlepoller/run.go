@@ -76,6 +76,9 @@ func Run(opts Options, rt Runtime) int {
 
 	session := opts.SessionName
 	if session == "" {
+		// Legacy degraded fallback (#130): the launcher passes the resolved name.
+		// The 📁 scheme is not derivable from a tag, so a pre-#130 session with
+		// no recorded name is all this can serve.
 		session = "pair-" + opts.Tag
 	}
 	pidfile := filepath.Join(opts.DataDir, "title-pid-"+opts.Tag)
@@ -213,6 +216,8 @@ func updateWorkspaceTitle(opts Options, rt Runtime, age time.Duration, session, 
 	}
 	if ownerTag != "" && ownerTag != opts.Tag {
 		if ownerSession == "" {
+			// Owner files written since #104 carry the session name; this covers
+			// an older one that recorded only the tag (#130).
 			ownerSession = "pair-" + ownerTag
 		}
 		if !shouldClaimWorkspace(ownerTag, opts.Tag, rt.SessionAlive(ownerSession)) {

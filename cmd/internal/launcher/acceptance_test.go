@@ -20,7 +20,7 @@ func TestAcceptanceSameTagIsolationAcrossRepos(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second AssignSessionName: %v", err)
 	}
-	if firstName != "pair-pair-work" || secondName != "pair-pair-work-2" {
+	if firstName != "📁pair-work" || secondName != "📁pair-work-2" {
 		t.Fatalf("session names = %q, %q; want readable disambiguated names", firstName, secondName)
 	}
 	if strings.Contains(firstName, first.Key) || strings.Contains(secondName, second.Key) {

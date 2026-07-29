@@ -105,5 +105,8 @@ func InCompactionContext(pairTag, zellijSession, pairSessionName string) bool {
 	if pairSessionName != "" {
 		return zellijSession == pairSessionName
 	}
+	// Legacy shape, reached only when PAIR_SESSION_NAME is unset. The 📁 scheme
+	// cannot be derived from a tag, so the pairSessionName branch above is the
+	// real answer (#130).
 	return zellijSession == "pair-"+pairTag
 }

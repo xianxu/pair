@@ -15,35 +15,36 @@ import (
 // fakeRuntime is the in-memory create-flow seam for the RunLaunch loop tests.
 // Canned inputs drive decisions; recorded outputs assert the effect sequence.
 type fakeRuntime struct {
-	inPane          bool
-	sessions        []Session
-	historical      []HistoricalTag
-	blocksReuse     map[string]bool // session -> live-blocks (default false)
-	commandMissing  map[string]bool // name -> absent (default: everything exists)
-	files           map[string]string
-	ledger          map[string][]LedgerEntry
-	sessionIndex    SessionNameIndex
-	agentSessions   map[string]bool // "agent|sid" -> native artifact exists
-	uuids           []string        // MintUUID pops these in order
-	promptValue     string
-	promptOK        bool
-	probeErr        error
-	appendLedgerErr error
-	appendIndexErr  error
-	writeFailAt     string
-	inferAgent      map[string]string // tag -> paired agent (for `resume <tag>`)
-	pickFunc        func(header string, options []string) string
-	listRows        []ListRow // ListSessions rows (for `pair list`)
-	listErr         error
-	sessionsErr     error // Sessions() error (defensive exit-1 path)
-	liveLayouts     map[string]LayoutMode
-	liveLayoutErr   error
-	confirmLayout   bool
-	layoutPrompts   []string
-	deleteErr       error
-	keepDeletedLive bool
-	renameFailAt    string      // Rename returns an error when src == this (rollback test)
-	renamed         [][2]string // {src,dst} per successful Rename
+	inPane              bool
+	sessions            []Session
+	historical          []HistoricalTag
+	blocksReuse         map[string]bool // session -> live-blocks (default false)
+	commandMissing      map[string]bool // name -> absent (default: everything exists)
+	files               map[string]string
+	ledger              map[string][]LedgerEntry
+	sessionIndex        SessionNameIndex
+	agentSessions       map[string]bool // "agent|sid" -> native artifact exists
+	uuids               []string        // MintUUID pops these in order
+	promptValue         string
+	promptOK            bool
+	maxSessionNameBytes int
+	probeErr            error
+	appendLedgerErr     error
+	appendIndexErr      error
+	writeFailAt         string
+	inferAgent          map[string]string // tag -> paired agent (for `resume <tag>`)
+	pickFunc            func(header string, options []string) string
+	listRows            []ListRow // ListSessions rows (for `pair list`)
+	listErr             error
+	sessionsErr         error // Sessions() error (defensive exit-1 path)
+	liveLayouts         map[string]LayoutMode
+	liveLayoutErr       error
+	confirmLayout       bool
+	layoutPrompts       []string
+	deleteErr           error
+	keepDeletedLive     bool
+	renameFailAt        string      // Rename returns an error when src == this (rollback test)
+	renamed             [][2]string // {src,dst} per successful Rename
 	// #99 M5b compaction/continue
 	writtenMarkers   map[string]RestartMarker // WriteRestartMarker by session
 	touchedQuit      []string                 // TouchQuitMarker sessions
@@ -106,7 +107,15 @@ func newFakeRuntime() *fakeRuntime {
 // ZellijOps
 func (f *fakeRuntime) Sessions() ([]Session, error)           { return f.sessions, f.sessionsErr }
 func (f *fakeRuntime) SessionBlocksReuse(session string) bool { return f.blocksReuse[session] }
-func (f *fakeRuntime) ProbeSessionName(session string) error  { return f.probeErr }
+func (f *fakeRuntime) ProbeSessionName(session string) error {
+	if f.probeErr != nil {
+		return f.probeErr
+	}
+	if f.maxSessionNameBytes > 0 && len(session) > f.maxSessionNameBytes {
+		return fmt.Errorf("session name too long")
+	}
+	return nil
+}
 func (f *fakeRuntime) LaunchSession(session, configDir, layout string) (int, error) {
 	f.launched = session
 	f.launchLayout = layout
@@ -394,7 +403,7 @@ func TestRunLaunchForcedCreateClaude(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d", code)
 	}
-	if rt.launched != "pair-work-bugfix" {
+	if rt.launched != "📁work-bugfix" {
 		t.Fatalf("launched = %q", rt.launched)
 	}
 	if len(rt.family) != 0 {
@@ -438,7 +447,7 @@ func TestRunLaunchForcedCreateUsesScopedSessionName(t *testing.T) {
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	if rt.launched != "pair-work-bugfix" {
+	if rt.launched != "📁work-bugfix" {
 		t.Fatalf("launched = %q", rt.launched)
 	}
 	if rt.env["PAIR_TAG"] != "bugfix" {
@@ -448,7 +457,7 @@ func TestRunLaunchForcedCreateUsesScopedSessionName(t *testing.T) {
 		t.Fatalf("session index = %#v, want one entry", rt.sessionIndex)
 	}
 	entry := rt.sessionIndex.Entries[0]
-	if entry.SessionName != "pair-work-bugfix" || entry.Tag != "bugfix" || entry.RepoName != "work" {
+	if entry.SessionName != "📁work-bugfix" || entry.Tag != "bugfix" || entry.RepoName != "work" {
 		t.Fatalf("session index entry = %#v", entry)
 	}
 }
@@ -466,14 +475,14 @@ func TestRunLaunchPromptCreate(t *testing.T) {
 	if len(rt.family) != 1 {
 		t.Fatalf("prompt path should show family: %v", rt.family)
 	}
-	if rt.launched != "pair-work-myproj" || rt.env["PAIR_TAG"] != "myproj" {
+	if rt.launched != "📁work-myproj" || rt.env["PAIR_TAG"] != "myproj" {
 		t.Fatalf("launched=%q tag=%q", rt.launched, rt.env["PAIR_TAG"])
 	}
 	if len(rt.sessionIndex.Entries) != 1 {
 		t.Fatalf("session index = %#v, want one entry", rt.sessionIndex)
 	}
 	entry := rt.sessionIndex.Entries[0]
-	if entry.SessionName != "pair-work-myproj" || entry.Tag != "myproj" || entry.RepoName != "work" {
+	if entry.SessionName != "📁work-myproj" || entry.Tag != "myproj" || entry.RepoName != "work" {
 		t.Fatalf("session index entry = %#v", entry)
 	}
 }
@@ -481,9 +490,9 @@ func TestRunLaunchPromptCreate(t *testing.T) {
 func TestRunLaunchBareIgnoresOtherRepoIndexedSessions(t *testing.T) {
 	rt := newFakeRuntime()
 	otherScope := mustScope(t, "/other/work")
-	rt.sessions = []Session{{Name: "pair-work-work", State: SessionDetached}}
+	rt.sessions = []Session{{Name: "📁work", State: SessionDetached}}
 	rt.sessionIndex = SessionNameIndex{Entries: []SessionNameEntry{{
-		SessionName: "pair-work-work",
+		SessionName: "📁work",
 		ScopeKey:    otherScope.Key,
 		RepoRoot:    otherScope.Root,
 		RepoName:    otherScope.DisplayName,
@@ -494,7 +503,7 @@ func TestRunLaunchBareIgnoresOtherRepoIndexedSessions(t *testing.T) {
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	if rt.launched != "pair-work-work-2" {
+	if rt.launched != "📁work-2" {
 		t.Fatalf("launched = %q, want current repo disambiguated from indexed other repo", rt.launched)
 	}
 }
@@ -514,7 +523,7 @@ func TestRunLaunchBareIgnoresUnindexedLiveSessions(t *testing.T) {
 	if len(rt.attached) != 0 {
 		t.Fatalf("attached = %v, want no unindexed attach", rt.attached)
 	}
-	if rt.launched != "pair-work-work" {
+	if rt.launched != "📁work" {
 		t.Fatalf("launched = %q, want current-scope create", rt.launched)
 	}
 }
@@ -549,6 +558,47 @@ func TestRunLaunchBareAttachesLegacyLiveSessionWithCurrentRepoPaneEvidence(t *te
 	}
 }
 
+func TestRunLaunchResumePublicSessionNameResolvesThroughIndex(t *testing.T) {
+	scope := mustScope(t, "/home/u/work")
+	rt := newFakeRuntime()
+	rt.sessionIndex = SessionNameIndex{Entries: []SessionNameEntry{{
+		SessionName: "📁work-demo",
+		ScopeKey:    scope.Key,
+		RepoRoot:    scope.Root,
+		RepoName:    scope.DisplayName,
+		Tag:         "demo",
+	}}}
+	rt.sessions = []Session{{Name: "📁work-demo", State: SessionDetached}}
+	rt.inferAgent["demo"] = "codex"
+	rt.attachCode = 0
+
+	code, err := run(t, baseOpts(LaunchArgs{ForcedTag: "📁work-demo"}), rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if !reflect.DeepEqual(rt.attached, []string{"📁work-demo"}) {
+		t.Fatalf("attached = %v, want indexed public session name", rt.attached)
+	}
+	if len(rt.pollers) != 1 || rt.pollers[0] != "demo|codex" {
+		t.Fatalf("pollers = %v, want tag/agent resolved through index", rt.pollers)
+	}
+}
+
+func TestRunLaunchResumeUnindexedPublicSessionNameRefuses(t *testing.T) {
+	rt := newFakeRuntime()
+	var stderr bytes.Buffer
+	code, err := RunLaunch(baseOpts(LaunchArgs{ForcedTag: "📁work-demo"}), rt, &stderr)
+	if err != nil || code != 1 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if !strings.Contains(stderr.String(), "session name with no ledger entry") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+	if rt.launched != "" || len(rt.attached) != 0 {
+		t.Fatalf("must not hand off an unindexed public session name: launched=%q attached=%v", rt.launched, rt.attached)
+	}
+}
+
 // Aborting the name prompt exits 0 (handled) without launching.
 func TestRunLaunchPromptAbort(t *testing.T) {
 	rt := newFakeRuntime()
@@ -569,13 +619,48 @@ func TestRunLaunchPromptAbort(t *testing.T) {
 func TestRunLaunchPromptCollision(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.promptValue = "taken"
-	rt.blocksReuse["pair-work-taken"] = true
+	rt.blocksReuse["📁work-taken"] = true
 	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude"}), rt)
 	if err != nil || code != 1 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
 	if rt.launched != "" {
 		t.Fatalf("must not launch on collision: %q", rt.launched)
+	}
+}
+
+func TestRunLaunchPromptRefusesNameOverDiscoveredBudget(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.promptValue = "feature-with-many-words"
+	rt.maxSessionNameBytes = 20
+
+	var stderr bytes.Buffer
+	code, err := RunLaunch(baseOpts(LaunchArgs{Agent: "claude"}), rt, &stderr)
+	if err != nil || code != 1 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.launched != "" || len(rt.sessionIndex.Entries) != 0 || len(rt.ledger[rt.promptValue]) != 0 {
+		t.Fatalf("over-budget prompt must not launch or persist: launched=%q index=%+v ledger=%+v", rt.launched, rt.sessionIndex, rt.ledger)
+	}
+	for _, want := range []string{"name '📁work-feature-with-many-words' needs", "zellij allows 20"} {
+		if !strings.Contains(stderr.String(), want) {
+			t.Fatalf("stderr missing %q: %s", want, stderr.String())
+		}
+	}
+}
+
+func TestRunLaunchPromptAcceptsNameUnderDiscoveredBudget(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.promptValue = "short"
+	rt.maxSessionNameBytes = 20
+
+	var stderr bytes.Buffer
+	code, err := RunLaunch(baseOpts(LaunchArgs{Agent: "claude"}), rt, &stderr)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v stderr=%s", code, err, stderr.String())
+	}
+	if rt.launched != "📁work-short" {
+		t.Fatalf("launched = %q, want composed prompt name under budget", rt.launched)
 	}
 }
 
@@ -660,7 +745,7 @@ func TestRunLaunchPromptedTagIgnoresUnrelatedLegacySessionName(t *testing.T) {
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	if rt.launched != "pair-work-bugfix" {
+	if rt.launched != "📁work-bugfix" {
 		t.Fatalf("launched = %q, want scoped session name despite unrelated legacy pair-bugfix", rt.launched)
 	}
 }
@@ -910,7 +995,7 @@ func TestRunLaunchProbeTooLong(t *testing.T) {
 func TestRunLaunchPreHandoffCollision(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.uuids = []string{"S"}
-	rt.blocksReuse["pair-work-bugfix"] = true // forced create → no prompt collision check
+	rt.blocksReuse["📁work-bugfix"] = true // forced create → no prompt collision check
 	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "bugfix"}), rt)
 	if err != nil || code != 1 {
 		t.Fatalf("code=%d err=%v", code, err)
@@ -959,7 +1044,7 @@ func TestRunLaunchPickInferredAgentMustNotInheritCliArgs(t *testing.T) {
 	if !strings.Contains(rt.env["PAIR_AGENT_ARGS"], "--sandbox") {
 		t.Fatalf("codex args were not preserved: PAIR_AGENT_ARGS=%q", rt.env["PAIR_AGENT_ARGS"])
 	}
-	if rt.launched != "pair-work-work-2" {
+	if rt.launched != "📁work-2" {
 		t.Fatalf("launched = %q, want scoped next-free public session name", rt.launched)
 	}
 }
@@ -968,13 +1053,13 @@ func TestRunLaunchPickNewDefaultUsesScopedNextFreeSessionName(t *testing.T) {
 	rt := newFakeRuntime()
 	scope := mustScope(t, "/home/u/work")
 	rt.sessionIndex.Entries = []SessionNameEntry{{
-		SessionName: "pair-work-work",
+		SessionName: "📁work",
 		ScopeKey:    scope.Key,
 		RepoRoot:    scope.Root,
 		RepoName:    scope.DisplayName,
 		Tag:         "work",
 	}}
-	rt.sessions = []Session{{Name: "pair-work-work", State: SessionDetached}}
+	rt.sessions = []Session{{Name: "📁work", State: SessionDetached}}
 	rt.uuids = []string{"SID"}
 	rt.pickFunc = func(header string, options []string) string {
 		return "+ new work session"
@@ -984,7 +1069,7 @@ func TestRunLaunchPickNewDefaultUsesScopedNextFreeSessionName(t *testing.T) {
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	if rt.launched != "pair-work-work-2" {
+	if rt.launched != "📁work-2" {
 		t.Fatalf("launched = %q, want scoped next-free public session name", rt.launched)
 	}
 }

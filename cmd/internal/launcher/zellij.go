@@ -24,7 +24,7 @@ func (s ZellijSource) Snapshot() ([]Session, error) {
 	exited := exitedSessions(string(raw))
 	var out []Session
 	for _, name := range lines(string(short)) {
-		if !strings.HasPrefix(name, "pair-") {
+		if !isPairSessionName(name) {
 			continue
 		}
 		state := SessionDetached

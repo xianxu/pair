@@ -249,13 +249,13 @@ func TestRunUsesScopedPublicSessionName(t *testing.T) {
 	rt.sessionAliveSeq = []bool{true, true}
 	rt.sessionAliveDflt = false
 	opts := fixtureOpts()
-	opts.SessionName = "pair-work-T"
+	opts.SessionName = "📁work-T"
 	opts.MissThreshold = 1
 
 	if code := Run(opts, rt); code != 0 {
 		t.Fatalf("code = %d, want 0", code)
 	}
-	if want := "pair-work-T|7|claude (970k) [~/repo]"; len(rt.renamed) != 1 || rt.renamed[0] != want {
+	if want := "📁work-T|7|claude (970k) [~/repo]"; len(rt.renamed) != 1 || rt.renamed[0] != want {
 		t.Fatalf("frame renamed = %v, want [%q]", rt.renamed, want)
 	}
 }

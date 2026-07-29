@@ -65,6 +65,13 @@ func TestValidateRenameTags(t *testing.T) {
 	}
 }
 
+func TestValidateRenameTagsRejectsPublicSessionNameAsNewTag(t *testing.T) {
+	_, _, err := validateRenameTags("old", "📁pair-new")
+	if err == nil || !strings.Contains(err.Error(), "give the new tag in bare form") {
+		t.Fatalf("validate new public session name err = %v", err)
+	}
+}
+
 func TestRenamePlan(t *testing.T) {
 	exists := map[string]bool{
 		"/d/draft-old.md":           true,
@@ -152,6 +159,45 @@ func TestRunRenameHappyPath(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "ok") {
 		t.Fatalf("stdout = %q", out.String())
+	}
+}
+
+func TestRunRenameOldPublicSessionNameResolvesThroughIndex(t *testing.T) {
+	scope := mustScope(t, "/work/pair")
+	rt := renameFake(t)
+	rt.sessionIndex = SessionNameIndex{Entries: []SessionNameEntry{{
+		SessionName: "📁pair-old",
+		ScopeKey:    scope.Key,
+		RepoRoot:    scope.Root,
+		RepoName:    scope.DisplayName,
+		Tag:         "old",
+	}}}
+
+	var out, errBuf bytes.Buffer
+	code := runRenameScoped(rt, LaunchArgs{RenameOld: "📁pair-old", RenameNew: "new"}, "/data", scope.Key, &out, &errBuf)
+	if code != 0 {
+		t.Fatalf("code=%d stdout=%s stderr=%s", code, out.String(), errBuf.String())
+	}
+	if _, ok := rt.files["/data/draft-new.md"]; !ok {
+		t.Fatalf("draft not moved from resolved old tag; files=%v", rt.files)
+	}
+	if _, ok := rt.files["/data/draft-old.md"]; ok {
+		t.Fatal("old draft should be gone after resolved rename")
+	}
+}
+
+func TestRunRenameUnindexedOldPublicSessionNameRefuses(t *testing.T) {
+	rt := renameFake(t)
+	var out, errBuf bytes.Buffer
+	code := runRename(rt, LaunchArgs{RenameOld: "📁pair-old", RenameNew: "new"}, "/data", &out, &errBuf)
+	if code != 1 {
+		t.Fatalf("code=%d stdout=%s stderr=%s", code, out.String(), errBuf.String())
+	}
+	if !strings.Contains(errBuf.String(), "session name with no ledger entry") {
+		t.Fatalf("stderr = %q", errBuf.String())
+	}
+	if len(rt.renamed) != 0 {
+		t.Fatalf("must not move unindexed public session name: %v", rt.renamed)
 	}
 }
 
