@@ -426,7 +426,7 @@ Single review boundary — no `Mx` tags.
       `DeleteSession` **not at all** — the regression the commit-point placement
       exists to prevent. Case (b) is what makes Done-when bullet 1 true; (e), (f)
       and (g) are what keep it from being a regression.
-- [ ] **Discover the budget; never hardcode it.** The Spec derives 20 bytes from
+- [x] **Discover the budget; never hardcode it.** The Spec derives 20 bytes from
       *this* machine — zellij's allowance is the socket-path budget minus
       `~/Library/Caches/org.Zellij-Contributors.Zellij/…`, which varies with
       username and is a different path entirely on Linux (`~/.cache/zellij`).
@@ -463,7 +463,7 @@ Single review boundary — no `Mx` tags.
       teach `fakeRuntime.ProbeSessionName` (`createflow_test.go:109`, currently
       `return f.probeErr` — a constant, blind to length) a length model, so
       refuse-vs-accept is exercisable end-to-end.
-- [ ] **Refuse early rather than truncate — and name the seam.** The refusal
+- [x] **Refuse early rather than truncate — and name the seam.** The refusal
       belongs at the create flow's name prompt, but `promptForTag`
       (`createflow.go:495`) takes `(rt, prefill, base, stderr)` — no `RepoScope`,
       no cwd — and the repo display name only enters at `assignSingleSessionName`
@@ -643,7 +643,7 @@ Single review boundary — no `Mx` tags.
       `nvim/init.lua:35` and `nvim/workbench_route.lua:61` read
       `ZELLIJ_SESSION_NAME` but only round-trip it for exact comparison — they
       are scheme-agnostic.
-- [ ] **Verify the destructive path specifically.** `OSRuntime.SessionBlocksReuse`
+- [x] **Verify the destructive path specifically.** `OSRuntime.SessionBlocksReuse`
       (`osruntime.go:63`) force-deletes the named session when zellij reports it
       `EXITED`, and it is called on a name `AssignSessionName` already chose. The
       chain that makes this dangerous: `AssignSessionName`'s collision check
@@ -668,7 +668,7 @@ Single review boundary — no `Mx` tags.
       end-to-end through `AssignSessionName` + the fake, an exited foreign
       session never reaches `DeleteSession`. This is the one place where a wrong
       predicate destroys someone else's state rather than just confusing pair.
-- [ ] **Pin the mixed snapshot in a test, not just in the live check.** Done-when's
+- [x] **Pin the mixed snapshot in a test, not just in the live check.** Done-when's
       highest-risk clause — existing `pair-*` sessions stay discovered, attachable
       and resumable — currently rests on a unit test of the predicate plus a
       manual PTY check that this plan itself flags as the unbounded-risk item.
@@ -709,7 +709,7 @@ Single review boundary — no `Mx` tags.
       `tests/pair-restart-quit-test.sh:15` (`ZELLIJ_SESSION_NAME="pair-smoke"`,
       whose marker assertions at `:23` derive from it) and
       `tests/workbench-route-nvim-test.sh:43,64,97`.
-- [ ] `atlas/session-identity.md` — it documents the `pair-<repo>-<tag>` scheme
+- [x] `atlas/session-identity.md` — it documents the `pair-<repo>-<tag>` scheme
       and the numeric-suffix rule verbatim; update to the new format, the 24-byte
       budget, and the transition. `atlas/architecture.md` gets the cross-link.
       Record one invariant that is new and easy to miss: a session name is also a
@@ -1180,3 +1180,35 @@ item now states it: land it with the ladder rewrite, never before.
 **Estimate unchanged at 4.31h.** The code gets simpler (no liveness clause, two
 fewer cases) while the operator runbook and the attached-guard add roughly the
 same back.
+
+### 2026-07-29 — implementation complete except the live check
+
+Everything in the plan is landed and green except the final item, which is the
+operator-driven migration itself. `make test` is clean apart from two
+**pre-existing sandbox PTY failures** — `termcmd.TestTerminalMuxNewTabClears…`
+(`pty.Start: operation not permitted`) and
+`wrapcmd.TestSIGUSR2ReExecsWrapper…` — both verified failing identically on a
+stashed, uncached clean tree. `tests/pair-rename.sh` passes 59/59 including T7's
+legacy-form coverage.
+
+Two design corrections found by tests rather than by review:
+
+- **The ladder was resolving collisions, not just length.** With residual tokens
+  droppable, a name already owned by another scope would walk *down* the ladder
+  and take a shorter one — `📁pair-work` colliding would silently yield `📁pair`,
+  which is tag `pair`'s natural name. Length and ownership are now separate
+  concerns: the ladder shortens only for the probe, and the moment a candidate
+  fits, ownership either accepts it or bumps the numeric suffix.
+- **The reclaim guard was too broad.** It started as "never reclaim an attached
+  session", which still let a **detached** legacy session be force-deleted the
+  first time its tag re-minted — destroying resumable work. `layoutflow_test`
+  caught it (`deleted=[pair-work-work]`). Now only an already-`EXITED` record is
+  reclaimed; detached sessions stay reachable through the picker and migrate when
+  the user quits them.
+
+Behavior change worth stating plainly: under full migration a live/detached
+legacy session no longer matches what bare `pair` composes, so `pair` creates the
+new `📁` session rather than attaching to the old one. The old session remains
+listed, attachable and resumable via the picker / `pair resume`. This is the
+intended consequence of the operator's full-migration decision, and it is why the
+migration runs from a quiesced state.
