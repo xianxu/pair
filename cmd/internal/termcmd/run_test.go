@@ -444,10 +444,14 @@ func TestPumpStdinRenameConsumesShortcutMouseAndPaste(t *testing.T) {
 }
 
 func TestTerminalMuxChildOutputDoesNotRestoreTitleDuringRename(t *testing.T) {
-	var stdout bytes.Buffer
+	// lockedWriter, not a bare bytes.Buffer: copyActiveOutput writes from its own
+	// goroutine while this test polls stdout, which -race (correctly) flags on the
+	// double. m.stdout is an *os.File in production, so this is a test-harness
+	// fix — do NOT add stdout locking to the mux to silence it.
+	stdout := &lockedWriter{}
 	rt := &fakeRuntime{}
 	mux := &terminalMux{
-		stdout: &stdout,
+		stdout: stdout,
 		rt:     rt,
 		output: make(chan ptyChunk, 1),
 		done:   make(chan struct{}),

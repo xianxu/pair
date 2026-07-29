@@ -373,3 +373,36 @@ Single review boundary — no `Mx` tags: one branch, one close.
 - Note `rename_input_test.go` already exercises both `M` and `m` forms, so the
   release terminator was known elsewhere in this file and simply missed in the
   mouse path.
+
+- Implemented. `stripTerminalQueries` + the deny-list live in a new
+  `cmd/internal/termcmd/queries.go`; `redrawTab` took the `(buf []byte)`
+  signature and all three callers snapshot under the lock they already held, so
+  no new lock-ordering invariant was created.
+- **Confirmed the judge's correction about replies reaching the buffer.** The
+  table is shaped so no reply form matches a row, and
+  `TestStripTerminalQueriesPreservesLegitimateSequences` pins DA1 replies,
+  DECRPM reports, the Kitty `\x1b[?0u` reply and the `\x1b[24;1R` DSR report as
+  survivors — the negative that corresponds to the actually-observed bytes.
+- Accepted residual is pinned by `TestReplyGoesToActiveTabNotTheQueryingTab`: a
+  query in flight when the user switches tabs still delivers its reply to the new
+  tab. Narrowed, not closed; closing it needs outstanding-query state.
+- Follow-up filed as **pair#128** for sharing the escape *framing* with
+  `wrapcmd`. The *policy* tables stay separate and in one case opposed
+  (`wrapcmd` strips `\x1b[>7u`; here `\x1b[>1u` must survive) — recorded in
+  `atlas/architecture.md` so it reads as intentional, not drift.
+- `side-quest:` two pre-existing test defects surfaced while verifying and were
+  fixed here rather than left red:
+  - `tests/scrollback-open-test.sh` asserted `'<M-x>'` appeared literally in
+    `nvim/scrollback.lua`, which #117 invalidated when it moved global chord
+    handling into the shared `workbench_route`/`workbench_actions` pair. `make
+    test` had been red on main. The assertion now checks the wiring
+    (`install_global_maps`) plus the generated action table, i.e. the behavior
+    rather than the old implementation.
+  - `TestTerminalMuxChildOutputDoesNotRestoreTitleDuringRename` raced under
+    `-race` on its own bare `*bytes.Buffer` double, which the test polls while
+    `copyActiveOutput` writes from another goroutine. Swapped to a mutex-wrapped
+    writer. Deliberately NOT fixed by locking `m.stdout` in production — there it
+    is an `*os.File`, so that is interleaving, not a data race.
+- Verified: `go test -race ./cmd/internal/termcmd/` green; full `make test`
+  exit 0 (the only `fail` strings in the log are test *names* about
+  failure-handling).

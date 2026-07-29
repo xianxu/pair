@@ -49,8 +49,16 @@ case "$(cat "$tmp/nvim-arg" 2>/dev/null)" in
     *scrollback-t-claude.ansi) ;;
     *) echo "FAIL: nvim not opened on the .ansi: $(cat "$tmp/nvim-arg" 2>/dev/null)"; fail=1 ;;
 esac
-grep -Fq "'<M-x>'" "$PAIR_HOME/nvim/scrollback.lua" \
-    || { echo "FAIL: scrollback viewer does not consume Alt+x"; fail=1; }
+# The viewer must consume the workbench globals (Alt+x et al) rather than let
+# them fall through to the pane. #117 moved that from a per-viewer <M-x> mapping
+# into the shared workbench_route/workbench_actions pair, so assert the wiring
+# is installed and that the generated action table still carries the chord —
+# grepping scrollback.lua for '<M-x>' pinned the old implementation, not the
+# behavior, and went stale the moment the route was shared.
+grep -Fq "install_global_maps" "$PAIR_HOME/nvim/scrollback.lua" \
+    || { echo "FAIL: scrollback viewer does not install workbench global maps"; fail=1; }
+grep -Fq '"<M-x>"' "$PAIR_HOME/nvim/workbench_actions.lua" \
+    || { echo "FAIL: workbench action table lost Alt+x"; fail=1; }
 # The re-entrancy openlock is cleared on a clean exit.
 [ -f "$PAIR_DATA_DIR/scrollback-t-claude.openlock" ] \
     && { echo "FAIL: openlock left behind"; fail=1; }

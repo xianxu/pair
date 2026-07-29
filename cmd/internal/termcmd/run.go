@@ -695,9 +695,10 @@ func (m *terminalMux) newTab() error {
 	m.mu.Lock()
 	m.tabs = append(m.tabs, tab)
 	m.active = len(m.tabs) - 1
+	snapshot := bufferSnapshotLocked(tab)
 	m.mu.Unlock()
 	m.renamePane()
-	m.redrawTab(tab)
+	m.redrawTab(snapshot)
 
 	go m.readPTY(tab)
 	return nil
@@ -875,10 +876,10 @@ func (m *terminalMux) switchRelative(delta int) {
 		return
 	}
 	m.active = (m.active + delta + len(m.tabs)) % len(m.tabs)
-	tab := m.activeTabLocked()
+	snapshot := bufferSnapshotLocked(m.activeTabLocked())
 	m.mu.Unlock()
 	m.renamePane()
-	m.redrawTab(tab)
+	m.redrawTab(snapshot)
 }
 
 func (m *terminalMux) appMouseMode() bool {
@@ -892,6 +893,7 @@ func (m *terminalMux) removeTab(id int) {
 	m.mu.Lock()
 	var removed *terminalTab
 	var active *terminalTab
+	var activeSnapshot []byte
 	empty := false
 	activeID := 0
 	title := ""
@@ -921,6 +923,7 @@ func (m *terminalMux) removeTab(id int) {
 			}
 		}
 		active = m.activeTabLocked()
+		activeSnapshot = bufferSnapshotLocked(active)
 		if m.rename != nil {
 			title = m.renamePaneTitleLocked(m.rename.tabID, m.rename.editor)
 			preserveRename = true
@@ -941,7 +944,7 @@ func (m *terminalMux) removeTab(id int) {
 	}
 	_ = m.setPaneTitle(title)
 	if !preserveRename {
-		m.redrawTab(active)
+		m.redrawTab(activeSnapshot)
 	}
 }
 
@@ -1080,12 +1083,25 @@ func (m *terminalMux) renamePaneTitleLocked(tabID int, editor RenameEditor) stri
 	return strings.Join(parts, " ")
 }
 
-func (m *terminalMux) redrawTab(tab *terminalTab) {
-	if tab == nil {
-		return
-	}
+// redrawTab repaints from a SNAPSHOT taken by the caller under m.mu — it never
+// touches the mutex itself. Callers already hold the lock immediately before
+// calling, so snapshotting there costs nothing and avoids inventing a "no caller
+// may hold m.mu" contract whose violation mode would be a deadlock.
+//
+// Capability queries are stripped so the replay cannot re-ask the host terminal
+// (#127); see queries.go.
+func (m *terminalMux) redrawTab(buf []byte) {
 	_, _ = io.WriteString(m.stdout, "\x1b[1;1H\x1b[J")
-	_, _ = m.stdout.Write(tab.buffer)
+	_, _ = m.stdout.Write(stripTerminalQueries(buf))
+}
+
+// bufferSnapshotLocked copies a tab's stored output. Caller must hold m.mu —
+// appendBuffer re-slices tab.buffer from the output goroutine.
+func bufferSnapshotLocked(tab *terminalTab) []byte {
+	if tab == nil {
+		return nil
+	}
+	return append([]byte(nil), tab.buffer...)
 }
 
 func (m *terminalMux) restoreTerminal() {
