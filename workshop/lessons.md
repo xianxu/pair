@@ -1137,3 +1137,14 @@ see what breaks. The failing test names the ordering constraint better than
 review does — review reasons about the end state, tests reason about the state
 you are actually in. Then revert it, record the constraint at the call site, and
 ship the hunks together.
+
+## User-visible identity changes need README and pasted-name tests before close
+
+#130 changed the public zellij/cmux/list session name from `pair-...` to
+`📁repo[-tag]`. The atlas and issue were updated, but close review still caught
+two boundary gaps: README did not explain the new public name vs repo-local tag,
+and pasted `📁...` resume/rename paths were implemented without direct tests.
+
+**Rule.** When a change alters text a user sees or may paste back into a command,
+update README in the same window and add tests for the paste-back entry points.
+Atlas explains architecture; README explains what the operator types and sees.

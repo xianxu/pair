@@ -279,6 +279,19 @@ Agent args (after `--`) are appended to the agent command line on **create**. Re
 Sessions are scoped **per repo**: the tag you type (`work`, `bugfix`) is
 repo-local, so the same name in two checkouts stays independent.
 
+Pair gives Zellij a separate public session name because Zellij's session
+namespace is global. Public names use `📁{repo}[-{residual tag tokens}]`: tag
+`pair` in the `pair` repo appears as `📁pair`, tag `pair-1` as `📁pair-1`, and
+tag `parley_nvim` in `parley.nvim` as `📁parley-nvim`. The folder glyph is
+Pair's ownership marker; the repo/tag ledger is the source of truth because the
+public name intentionally drops redundant tag tokens and is not always
+invertible.
+
+Most commands take the repo-local tag. When Pair itself pre-fills or shows a
+public `📁...` name, `pair resume <public-name>` and `pair rename <public-name>
+<new-tag>` resolve it through the ledger. The new rename target is always a bare
+tag, not a public session name.
+
 **Hacking on pair?** Use `pair-dev` instead of `pair` — same arguments, but it rebuilds the `pair` binary from source (`make build`) on launch and on every Alt+n whole-workbench reload, so the zellij-spawned `pair wrap` always matches your working tree. Shift+Alt+N restarts only the already-running wrapper's agent child. (Deployed installs run `pair`, which uses the prebuilt binary and needs no Go toolchain.)
 
 When `pair` runs and there's anything to pick — a detached Pair session owned by this repo **or** a tag from this repo used within the last 14 days — it shows an `fzf` picker. Detached rows come first, then historical rows annotated `(Nd ago, no live session)`, then a `+ new <agent> session` sentinel. A historical row whose session has prompts parked in its queue also carries an amber `[⏎ N queued]` badge, so you don't resume a session without remembering the work you queued up in it. Picking a historical row reuses the repo-local tag and any surviving draft / saved agent config (same path as `pair resume <tag>`). Override the 14-day window with `PAIR_HISTORY_DAYS`; `PAIR_DEBUG_HISTORY=1 pair` prints the scan and exits without launching.
@@ -319,7 +332,7 @@ The agent (claude / codex / agy) is inferred from the tag ledger, so `pair resum
 Saved configs and ledgers live under the repo-scoped data dir:
 `${XDG_DATA_HOME:-~/.local/share}/pair/repos/<scope-key>/`. The hidden
 `<scope-key>` keeps two repos with the same tag independent; picker labels and
-session names show the readable repo/tag instead.
+public session names show the readable repo/tag instead.
 
 ### `resume` vs `continue`
 

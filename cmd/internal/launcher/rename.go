@@ -56,15 +56,13 @@ func renamePathsFor(tag, dataDir string) []string {
 // renamePair is one src→dst move in the rename plan.
 type renamePair struct{ src, dst string }
 
-// validateRenameTags normalizes both tags and applies rename's own gates: charset
-// (NormalizeTag), ≤256 length (shell 359-364), and old!=new (shell 365-368).
 // validateRenameTags normalizes both tags. The OLD one may arrive as a pasted
 // session name (the nvim rename prompt pre-fills from the tab title, which since
 // #130 reads `📁repo-tag`), so the caller resolves it through the ledger first
 // and passes the resulting bare tag here. The NEW one is always bare by
-// construction — it names a session that does not exist yet, so there is nothing
-// to resolve — and a 📁 value there gets a message saying so rather than the raw
-// charset error.
+// construction, and a 📁 value there gets a message saying so rather than the
+// raw charset error. After that, it applies rename's own gates: charset
+// (NormalizeTag), ≤256 length (shell 359-364), and old!=new (shell 365-368).
 func validateRenameTags(oldRaw, newRaw string) (old, new string, err error) {
 	if old, err = NormalizeTag(oldRaw); err != nil {
 		return "", "", fmt.Errorf("invalid tag: %w", err)

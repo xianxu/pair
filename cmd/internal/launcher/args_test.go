@@ -129,6 +129,16 @@ func TestParseLaunchArgsResumeNormalizesForcedTag(t *testing.T) {
 	}
 }
 
+func TestParseLaunchArgsResumeKeepsPublicSessionNameForLedgerResolution(t *testing.T) {
+	args, err := ParseArgs([]string{"resume", "📁pair-demo"})
+	if err != nil {
+		t.Fatalf("ParseArgs returned error: %v", err)
+	}
+	if args.ForcedTag != "📁pair-demo" {
+		t.Fatalf("ForcedTag = %q, want public session name preserved", args.ForcedTag)
+	}
+}
+
 func TestParseLaunchArgsUnexpectedPositionalGuidesAgentArgs(t *testing.T) {
 	_, err := ParseArgs([]string{"codex", "extra"})
 	if err == nil {

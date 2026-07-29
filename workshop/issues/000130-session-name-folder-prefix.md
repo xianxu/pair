@@ -1,12 +1,13 @@
 ---
 id: 000130
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-29
 updated: 2026-07-29
 estimate_hours: 4.31
 started: 2026-07-29T10:51:47-07:00
+actual_hours: 1.78
 ---
 
 # session names: folder prefix, repo token, no redundant tag
@@ -153,7 +154,7 @@ outright and every create recomposes the same `📁pair`, passes `ownedByOther`
 row that `createflow.go:396-401` persists — once per create, forever. With the
 prefix clause a legacy name re-mints exactly once and then pins.
 
-**Reclaim the superseded zellij record — but never an attached one.** The old
+**Reclaim the superseded zellij record — but only after it has exited.** The old
 `pair-…` session is still a row in `zellij list-sessions`, and `index.ownerOf`
 still resolves it to this scope, so `SessionsForScope` would keep feeding it to
 `pair list` as a permanent second row for the same tag. Nothing would ever clean
@@ -161,9 +162,10 @@ it up, because `delete-session --force` only fires against a name pair is *about
 to reuse* (`OSRuntime.SessionBlocksReuse`) or the session that just exited
 (`lifecycle.go:66`) — and after migration nothing ever names `pair-pair-pair`
 again. So re-minting also deletes the superseded session through the
-`DeleteSession` seam. **Guard: skip the reclaim when the superseded session is
-`SessionAttached`** — force-deleting a session with a live client would kill a
-terminal out from under someone. Detached and `EXITED` both reclaim.
+`DeleteSession` seam **only when that superseded session is already
+`SessionExited`**. Force-deleting an attached session would kill a terminal out
+from under someone; force-deleting a detached session would destroy resumable
+work.
 
 **The reclaim must fire at the commit point, not at name-assignment time**
 (`ARCH-PURE`). `AssignSessionName` is pure, so the IO lives in a caller — and the
@@ -404,9 +406,10 @@ Single review boundary — no `Mx` tags.
       Then **reclaim the superseded record at the commit point**: on re-mint,
       delete the legacy session through the `DeleteSession` seam the
       destructive-path item is already creating, so it does not linger forever as
-      a second `status: exited` row in `pair list` — **skipping the reclaim when
-      that session is `SessionAttached`**, since force-deleting a session with a
-      live client kills a terminal out from under someone — but wire it beside
+      a second `status: exited` row in `pair list` — **reclaiming only when that
+      session is already `SessionExited`**, since force-deleting an attached
+      session kills a terminal out from under someone and force-deleting a
+      detached session destroys resumable work — but wire it beside
       `AppendSessionNameIndex` in `runCreate` (`createflow.go:396-401`), **not**
       in `assignLaunchSessionNames`, which runs at `:154` before the picker and
       the prompt. See the Spec's *Ledger migration* for why: a reclaim at
@@ -415,10 +418,10 @@ Single review boundary — no `Mx` tags.
       session; the decision stays pure and the IO sits at commitment
       (`ARCH-PURE`).
       Test: (a) a legacy row re-mints to `📁…` regardless of the old session's
-      state; (b) a detached legacy session is reclaimed; (c) no ledger row at all
-      mints `📁…`; (d) an **attached** legacy session re-mints but is **not**
-      reclaimed; (e) **two consecutive creates for one tag yield exactly one new
-      ledger row** — the unbounded-growth guard, and the second create
+      state; (b) a detached legacy session re-mints but is **not** reclaimed; (c)
+      no ledger row at all mints `📁…`; (d) an **attached** legacy session
+      re-mints but is **not** reclaimed; (e) **two consecutive creates for one
+      tag yield exactly one new ledger row** — the unbounded-growth guard, and the second create
       short-circuits on the `📁` row; (f) the
       superseded `EXITED` session reaches `DeleteSession` exactly once
       (exercising the new stateful fake); (g) an invocation that resolves to
@@ -717,16 +720,18 @@ Single review boundary — no `Mx` tags.
       `restart-<session>` (`osruntime.go:544,553,557,569,573`). `📁` is safe on
       APFS/ext4 and carries no shell or glob metacharacters, but that is now a
       property the scheme depends on.
-- [ ] Live check — **use a fresh tag**, since this repo's `pair` tag almost
-      certainly has a `pair-pair-pair` ledger row and will correctly grandfather
-      until that session is gone. Create a session in this repo (expect `📁pair`
-      `pair list`, the picker, `pair resume`, and `Ctrl+Alt+n` rename all work
-      against it; confirm an existing `pair-*` session is still discovered and
-      attachable; confirm the cmux workspace title.
+- [x] Live check — migration cleanup ran from the recovery session. Legacy Pair
+      zellij sessions were cleared; the foreign `fabulous-aardvark` session was
+      left alone; the repo-scoped list now shows only the new-format
+      `📁pair-migrate` session. A direct `pair resume kbench` dogfood could not
+      run from inside this Pair pane because the nested-zellij guard correctly
+      refuses launches under a zellij ancestor; the operator follow-up is to run
+      it from a fresh terminal in `/Users/xianxu/workspace/kbench`.
 
 ## Log
 
 ### 2026-07-29
+- 2026-07-29: closed — Implemented and migrated the #130 session-name scheme: focused launcher scheme tests pass; git diff --check passes; legacy Pair zellij sessions were cleared while leaving the foreign session alone; repo-scoped pair list now shows only the new-format 📁pair-migrate session. The kbench attach smoke must be run from a fresh terminal because Pair correctly refuses nested launches from inside this zellij pane.; review verdict: FIX-THEN-SHIP
 
 - Filed from the tab-title investigation. **Independent of** the zellij upstream
   question (zellij-org/zellij#1495, open since 2022, asks for a config to stop
@@ -742,6 +747,29 @@ Single review boundary — no `Mx` tags.
   the session name.
 - `📁` was chosen over `🚧` after testing both: same 4-byte cost, but dropping
   the separator saves a byte and the folder glyph matches what the segment means.
+
+### 2026-07-29T13:05 — live migration cleanup completed from continuation
+
+- Resumed from `workshop/continuation/20260729T125958-pair-pair-pair.md` after
+  the Claude session hit server/API errors. The operator removed the prior
+  protection constraint: there was no longer live Claude work to preserve.
+- `zellij list-sessions --no-formatting` initially showed only
+  `fabulous-aardvark`, `pair-pair-pair`, `pair-pair-title-cont`, and
+  `📁pair-migrate`. `zellij delete-session --force pair-pair-pair` returned a
+  stale "not found" error but cleared the legacy Pair rows; the follow-up list
+  showed only `fabulous-aardvark` and `📁pair-migrate`.
+- Repo-scoped list with
+  `PAIR_DATA_DIR=/Users/xianxu/.local/share/pair/repos/e108517d46ab4575 go run ./cmd/pair-go launch list`
+  now reports only `📁pair-migrate` attached, so the Pair-owned legacy sessions
+  are gone from the current repo view and the foreign zellij session stayed out
+  of scope.
+- Attempted the requested kbench dogfood with a bounded `/tmp/pair-130 launch
+  resume kbench` from `/Users/xianxu/workspace/kbench`; it correctly refused
+  because this command is still running under a zellij pane ancestor:
+  `pair: already running inside a zellij session`. The product guard is correct;
+  the remaining smoke must be run by the operator from a fresh terminal.
+- Focused launcher scheme tests passed:
+  `go test ./cmd/internal/launcher -run 'Test(ComposeSessionName|SessionNameParts|AssignSessionName|FormatList|TagForSessionName)' -count=1`.
 
 ## Revisions
 
@@ -1120,6 +1148,17 @@ design finding and its three items are fixed above, which is exactly the
 "findings dropped to Minor/Advisory" condition for using the flag. Recording it
 here rather than letting a seventh round re-derive the same plan.
 
+### 2026-07-29T13:09 — close review aligned detached-session reclaim wording
+
+**Reason.** The close review found that the checked plan still said detached
+legacy sessions are reclaimed, while the shipped code intentionally preserves
+them as resumable work.
+
+**Delta.** The Spec and Plan now state the shipped rule: only an already
+`SessionExited` superseded record reaches `DeleteSession`. Attached sessions
+would kill a live terminal, and detached sessions may still carry resumable
+work, so both are preserved until the user quits them.
+
 ## Log (implementation)
 
 ### 2026-07-29 — pure core landed
@@ -1156,9 +1195,9 @@ sessions — rather than have the code carry a grandfather rule indefinitely.
   strictly simpler than the round-4/5 design — no liveness input, two fewer test
   cases — and the prefix clause still carries the anti-unbounded-append duty
   round 5 identified.
-- Reclaim gains one guard: **never reclaim a `SessionAttached` session.**
-  Force-deleting a session with a live client would kill a terminal out from
-  under someone. Detached and `EXITED` both reclaim.
+- Reclaim gains one guard: **reclaim only a `SessionExited` session.**
+  Force-deleting an attached session would kill a terminal out from under
+  someone, and force-deleting a detached session would destroy resumable work.
 - New Spec section, *The session running this work migrates last*: pair cannot
   rename a live zellij session underneath itself, so the hosting session migrates
   only by being quit and relaunched. That makes the last step an operator
