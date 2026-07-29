@@ -51,6 +51,20 @@ detection.
 - `termcmd/queries.go` and `wrapcmd`'s stripper both call it.
 - The opposed-policy note in `atlas/architecture.md` still reads true.
 
+## Plan
+
+- [ ] Decide the helper's home (new `cmd/internal/ansi`, or host it in one of the
+      two packages if the dependency direction stays acyclic).
+- [ ] Extract the framing: "length of the CSI / OSC / escape at buf[i]".
+- [ ] Repoint `termcmd/queries.go` (`csiEnd`, `oscEnd`) at it.
+- [ ] Repoint `wrapcmd`, handling that `otherEscRe` is consumed three
+      structurally different ways — `ReplaceAll` at wrap.go:812 and wrap.go:1151,
+      and `FindIndex` **at an offset** in the colored-run walker at wrap.go:1018.
+- [ ] Keep `stdout_filter_test.go`, `extract_fg_test.go` and
+      `update_agent_output_test.go` green — they pin the three call sites.
+- [ ] Leave the policy tables where they are; re-check the opposed-policy note in
+      `atlas/architecture.md` still reads true.
+
 ## Log
 
 ### 2026-07-28
