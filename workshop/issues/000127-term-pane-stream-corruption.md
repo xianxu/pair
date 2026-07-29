@@ -190,13 +190,13 @@ Single review boundary — no `Mx` tags: one branch, one close.
       `sgrMouseTerminators` constant drives both sites so they cannot disagree
       with the protocol independently again (`ARCH-DRY` — the bug *was* that
       divergence).
-- [ ] Point `sgrMouseSize` (rename_input.go:174-183) at `sgrMouseTerminators`.
+- [x] Point `sgrMouseSize` (rename_input.go:174-183) at `sgrMouseTerminators`.
       It is the **fourth** consumer of that constant (run.go:581, 596, 622 are
       the others) and the one still hardcoding `'M' || 'm'`. Keep the `i >= 3`
       start offset: scan `input[3:]`, return `idx+3+1`, so the rename path's
       existing tests keep passing (`ARCH-DRY`).
 
-- [ ] **Reconcile with the escape-sequence machinery already in `wrapcmd`
+- [x] **Reconcile with the escape-sequence machinery already in `wrapcmd`
       (`ARCH-DRY`).** This binary already has terminal-capability tables and a
       stripper, and the plan must not silently become a second one:
       - `codexKKPMarkers` (wrap.go:738) — includes **`\x1b[?u`**, the exact
@@ -228,7 +228,7 @@ Single review boundary — no `Mx` tags: one branch, one close.
       issue requires `\x1b[>1u` to SURVIVE the replay filter. Two policy tables
       is intentional; two *framing* implementations is the debt being tracked.
 
-- [ ] **Strip queries where the buffer is replayed, not where it is appended.**
+- [x] **Strip queries where the buffer is replayed, not where it is appended.**
       `tab.buffer` has exactly two touch points — the append (run.go:747) and the
       replay in `redrawTab` (run.go:1088). Filter at the replay:
       - The buffer is contiguous there, so a query straddling two 4096-byte PTY
@@ -243,7 +243,7 @@ Single review boundary — no `Mx` tags: one branch, one close.
         still reaches the terminal and gets its answer — only the replay is
         silenced.
 
-- [ ] **Snapshot at the call sites, inside the lock they already hold.**
+- [x] **Snapshot at the call sites, inside the lock they already hold.**
       `appendBuffer` re-slices `tab.buffer` under `m.mu` from the
       `copyActiveOutput` goroutine while `redrawTab` reads it lock-free; today
       that is one `Write` over a racy slice, and an O(128 KiB) scan widens the
@@ -259,7 +259,7 @@ Single review boundary — no `Mx` tags: one branch, one close.
       invariant, and a `redrawTab` that knows nothing about the mutex — a
       genuinely thinner IO shell (`ARCH-PURE`).
 
-- [ ] **Query table = a literal set + three narrow parameterized rules.**
+- [x] **Query table = a literal set + three narrow parameterized rules.**
       `tab.buffer` is fed from `readPTY` → PTY master (run.go:706, 747), so it
       is dominated by the **child app's output** — where queries are
       overwhelmingly FIXED byte strings (it is the *replies* whose params vary
@@ -296,7 +296,7 @@ Single review boundary — no `Mx` tags: one branch, one close.
       `isTerminalFinalByte` (rename_input.go:220) for the CSI final rather than
       re-rolling it.
 
-- [ ] **Rule for unterminated and bisected sequences.** Contiguous is not the
+- [x] **Rule for unterminated and bisected sequences.** Contiguous is not the
       same as whole: `appendBuffer` re-slices to the last 128 KiB
       (run.go:748-749), which bisects whatever sequence spans that boundary, so
       the buffer can BEGIN mid-sequence; and the newest chunk can END
@@ -307,7 +307,7 @@ Single review boundary — no `Mx` tags: one branch, one close.
       and a buffer starting mid-sequence (`6;4;52c\x1b[?1006h…`), both asserting
       the surrounding bytes survive byte-for-byte.
 
-- [ ] **Negatives derived from the table, not hand-listed.** For every final byte
+- [x] **Negatives derived from the table, not hand-listed.** For every final byte
       the table matches, assert one legitimate non-query sequence with that final
       SURVIVES:
       - `h`/`l` → DECSET `\x1b[?1006h`, `\x1b[?1002h`, `\x1b[?2004h` (shares the
@@ -325,7 +325,7 @@ Single review boundary — no `Mx` tags: one branch, one close.
         corresponds to the actually-observed bytes, since shell echo puts them in
         the buffer.
 
-- [ ] **Pin the invariant that justifies dropping the absorb layer.** Done-when
+- [x] **Pin the invariant that justifies dropping the absorb layer.** Done-when
       #3 ("a live query still reaches the host, its reply still reaches the app")
       is currently only checked by a live session. Two cheap automated pins, both
       on the existing harness:
@@ -336,13 +336,13 @@ Single review boundary — no `Mx` tags: one branch, one close.
       Without these, a later refactor that moves the filter back to
       `appendBuffer` breaks capability negotiation with every test still green.
 
-- [ ] **Pin the accepted residual.** Done-when accepts that a query in flight
+- [x] **Pin the accepted residual.** Done-when accepts that a query in flight
       from tab A when the user switches to B still delivers its reply to B. Add a
       test asserting exactly that, so "narrowed, not closed" is pinned behavior
       rather than a latent bug the next reader re-discovers and re-files; note it
       in `## Log` at close.
 
-- [ ] Tests on the existing `fakeMux` / `splitReader` harness: the release cases
+- [x] Tests on the existing `fakeMux` / `splitReader` harness: the release cases
       (done); one strip case per table row; the derived negative suite; a
       `redrawTab` replay over a query-bearing buffer emitting no query bytes; and
       the two invariant pins above. The `-race` case wraps the test writer in a
@@ -353,7 +353,7 @@ Single review boundary — no `Mx` tags: one branch, one close.
       is an `*os.File` — that is interleaving, not a data race — so do NOT add
       stdout locking to production to silence it (different issue).
 
-- [ ] `atlas/architecture.md`: note that `pair term` owns stream hygiene in two
+- [x] `atlas/architecture.md`: note that `pair term` owns stream hygiene in two
       places — chord/mouse arbitration on input, query stripping on replay — that
       replies are deliberately left alone on the input path, and that the
       capability-sequence *policy* tables in `termcmd` and `wrapcmd` are
