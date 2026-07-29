@@ -169,6 +169,13 @@ func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 		{name: "payload then shortcut in one read", chunks: [][]byte{[]byte("ls\n\x1bt")}, wantMux: "write:ls\n,new-tab"},
 		{name: "mouse wheel then payload in one read", chunks: [][]byte{[]byte("\x1b[<64;8;5Mls\n")}, wantMux: "write:ls\n", wantRTOps: "scroll-up"},
 		{name: "payload then mouse wheel in one read", chunks: [][]byte{[]byte("ls\n\x1b[<64;8;5M")}, wantMux: "write:ls\n", wantRTOps: "scroll-up"},
+		// A RELEASE ("m" terminator) is a complete event. Holding it back as an
+		// unfinished press parks it — and everything typed after it — in `held`,
+		// which reads as a dead keyboard and leaves the child app stuck in a
+		// mouse drag (nvim: stuck in visual selection).
+		{name: "mouse release passes to child", chunks: [][]byte{[]byte("\x1b[<0;8;2m")}, wantMux: "write:\x1b[<0;8;2m"},
+		{name: "keystroke after mouse release is not swallowed", chunks: [][]byte{[]byte("\x1b[<0;8;2m"), []byte("a")}, wantMux: "write:\x1b[<0;8;2m,write:a"},
+		{name: "drag then release then payload in one read", chunks: [][]byte{[]byte("\x1b[<0;8;2M\x1b[<0;9;2mls\n")}, wantMux: "write:\x1b[<0;8;2M,write:\x1b[<0;9;2m,write:ls\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -437,10 +444,14 @@ func TestPumpStdinRenameConsumesShortcutMouseAndPaste(t *testing.T) {
 }
 
 func TestTerminalMuxChildOutputDoesNotRestoreTitleDuringRename(t *testing.T) {
-	var stdout bytes.Buffer
+	// lockedWriter, not a bare bytes.Buffer: copyActiveOutput writes from its own
+	// goroutine while this test polls stdout, which -race (correctly) flags on the
+	// double. m.stdout is an *os.File in production, so this is a test-harness
+	// fix — do NOT add stdout locking to the mux to silence it.
+	stdout := &lockedWriter{}
 	rt := &fakeRuntime{}
 	mux := &terminalMux{
-		stdout: &stdout,
+		stdout: stdout,
 		rt:     rt,
 		output: make(chan ptyChunk, 1),
 		done:   make(chan struct{}),
@@ -613,8 +624,13 @@ func TestParseSGRMousePress(t *testing.T) {
 	if !ok || event.button != 64 || event.x != 12 || event.y != 1 {
 		t.Fatalf("mouse = (%+v,%v), want ({button:64 x:12 y:1},true)", event, ok)
 	}
-	if _, ok := parseSGRMousePress([]byte("\x1b[<0;12;1m")); ok {
-		t.Fatal("release event should not parse as press")
+	if event.release {
+		t.Fatal("M terminator is a press, not a release")
+	}
+	// 'm' is the RELEASE terminator — a complete event, not a partial press.
+	release, ok := parseSGRMousePress([]byte("\x1b[<0;12;1m"))
+	if !ok || !release.release || release.button != 0 || release.x != 12 || release.y != 1 {
+		t.Fatalf("release = (%+v,%v), want ({button:0 x:12 y:1 release:true},true)", release, ok)
 	}
 }
 

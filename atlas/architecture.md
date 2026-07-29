@@ -394,6 +394,34 @@ Keybinds added on top of zellij defaults (`clear-defaults=false`):
 - `Shift+Alt+N` invokes `PairConfirmAgentRestart()` — Y/N modal then signal the stable `pair wrap` supervisor to replace only its coding-agent child with the same user args and no restoration token. See "Reload / restart in place" under the launcher section.
 - `Alt+h` — `Run "pair-help" { floating true; close_on_exit true; ... }` — pops a floating pane running `pair -h | less`.
 - `Alt+↑` / `Alt+↓` — route to nvim's `PairLayoutBigger` / `PairLayoutSmaller` — step the nvim pane along the swap-layout ladder (`minimized ↔ small (12 rows) ↔ third`).
+**`pair term` stream hygiene (#127).** The terminal wrapper owns two filters, on
+opposite directions, and the asymmetry is deliberate:
+
+- *Input.* `pumpStdin` arbitrates chords and SGR mouse events out of the byte
+  stream and forwards the rest to the child. Mouse events terminate with `M`
+  (press) or `m` (release); both are complete — a shared `sgrMouseTerminators`
+  constant drives every site that frames one (run.go, `sgrMouseSize`). Treating
+  the release as an unfinished press parked it, and then every following
+  keystroke, in the `held` buffer: a dead keyboard plus a child stuck in an
+  unmatched mouse drag (nvim: stuck in visual mode).
+- *Output, replay only.* `redrawTab` repaints a tab from its stored output. That
+  buffer still holds the app's **capability queries** (DA1, DECRQM, Kitty flags,
+  DSR, OSC colour), so replaying re-ASKED the host terminal and its answers were
+  typed into whichever tab was then active. `stripTerminalQueries`
+  (`queries.go`) removes them from the replay. The live path is untouched —
+  `copyActiveOutput` writes each chunk to stdout separately — so an app's first
+  real query still reaches the terminal and still gets its answer.
+
+Replies are deliberately **not** filtered on input: one arriving while its own
+tab is active is solicited, and dropping it would break capability negotiation.
+Residual, accepted: a query in flight when the user switches tabs still lands its
+reply on the new tab. The query table is a best-effort deny-list whose failure
+mode is benign (a missed query degrades to the old behavior). A separate
+capability-sequence policy table lives in `wrapcmd` (`codexKKPMarkers`,
+`codexSyncOutputMarkers`) and is intentionally distinct — in one case opposed,
+since wrapcmd strips `\x1b[>7u` for codex while termcmd must let `\x1b[>1u`
+survive; sharing the *framing* code is tracked as follow-up.
+
 - Pane-local shortcuts (#116/#123): `Alt+j` toggles vertically only in the left stack; `Alt+k` bridges left/right, returning from the terminal to the last focused left pane via `$PAIR_DATA_DIR/last-left-pane-<tag>`; `Alt+t`/`Alt+w` create and close tabs only in the right terminal; `Alt+r` enters the terminal wrapper's frame-title rename editor (#118), whose pure rune editor and streaming decoder consume all edit/control bytes before the child PTY and use `rename-pane` as the sole title IO boundary; `Alt+Shift+d` in the right terminal is a native tiled split — `new-pane --direction down` on the invoking (client-focused) terminal, running the layout-3 `pair term` shell (frames stay by zellij default; the frame is the visible divider between the halves and carries the #118 tab title); `Alt+/` and `Alt+Shift+C` / `Ctrl+Alt+c` work only in the left stack. Every left→right jump is id-based: draft nvim and `pair wrap` call `pair layout focus-terminal` (`layoutcmd.FocusRightTerminal`), which focuses the tiled right terminal via `focus-pane-id` — the recorded last-used half wins (`$PAIR_DATA_DIR/last-terminal-pane-<tag>`, written when `Alt+k` leaves the terminal side; zellij's `is_focused` on right-side panes is stale memory while focus sits in the left stack), else a zellij-focused half, else the first. Split halves are recognized via the `terminal-panes-<tag>` **TerminalPaneRegistry** (each `pair term` self-registers pane id + pid at startup; readers filter by pid liveness): zellij 0.44.3 omits `terminal_command` for `--direction`-created panes and the #118 tab-strip title is user-renamable, so neither is a usable signal. Never relative `move-focus right` — the id-based rule that fixed the #123 focus lockout survives the filler's deletion because it also targets a specific split half.
 
 The Alt+x/d/n confirms execute in draft Neovim rather than running directly so a single fat-finger doesn't tear the session down (Alt+x in particular is unrecoverable). The lua side also auto-grows out of `minimized` before showing the modal, since otherwise the prompt would land on a 1-row pane where nothing is visible.

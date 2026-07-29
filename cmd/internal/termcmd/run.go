@@ -429,14 +429,19 @@ func pumpStdinWithTimer(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Wr
 						if len(mouseBefore) > 0 {
 							mux.writeActive(mouseBefore)
 						}
-						switch event.button {
-						case 64:
+						switch {
+						// A release is never a wheel tick (the wheel reports
+						// press-only), so it always passes straight through —
+						// the child needs it to close its drag.
+						case event.release:
+							mux.writeActive(rawMouse)
+						case event.button == 64:
 							if mux.appMouseMode() {
 								mux.writeActive(rawMouse)
 							} else {
 								_ = rt.RunZellijAction("scroll-up")
 							}
-						case 65:
+						case event.button == 65:
 							if mux.appMouseMode() {
 								mux.writeActive(rawMouse)
 							} else {
@@ -552,21 +557,35 @@ func currentRightTerminalPane(rt Runtime) (zellijpane.Pane, bool, error) {
 	return zellijpane.Pane{}, false, nil
 }
 
+// An SGR (1006) mouse event is "\x1b[<button;col;rowT" where T is 'M' for a
+// press and 'm' for a RELEASE. Both terminators must be recognized: treating
+// 'm' as "sequence not finished yet" parks the release — and then every
+// keystroke behind it — in pumpStdin's `held` buffer, which reads as a dead
+// keyboard, and leaves the child app holding an unmatched button-press (nvim
+// stays in a mouse drag, i.e. stuck in visual selection).
+const sgrMouseTerminators = "Mm"
+
 type mousePressEvent struct {
-	button int
-	x      int
-	y      int
+	button  int
+	x       int
+	y       int
+	release bool
 }
 
 func parseSGRMousePress(data []byte) (mousePressEvent, bool) {
 	s := string(data)
-	if !strings.HasPrefix(s, "\x1b[<") || !strings.HasSuffix(s, "M") {
+	if !strings.HasPrefix(s, "\x1b[<") || s == "" {
+		return mousePressEvent{}, false
+	}
+	term := s[len(s)-1:]
+	if !strings.Contains(sgrMouseTerminators, term) {
 		return mousePressEvent{}, false
 	}
 	var event mousePressEvent
-	if _, err := fmt.Sscanf(s, "\x1b[<%d;%d;%dM", &event.button, &event.x, &event.y); err != nil {
+	if _, err := fmt.Sscanf(s, "\x1b[<%d;%d;%d"+term, &event.button, &event.x, &event.y); err != nil {
 		return mousePressEvent{}, false
 	}
+	event.release = term == "m"
 	return event, true
 }
 
@@ -574,7 +593,7 @@ func parseSGRMousePressPrefix(data []byte) (mousePressEvent, []byte, []byte, boo
 	if !bytes.HasPrefix(data, []byte("\x1b[<")) {
 		return mousePressEvent{}, nil, data, false
 	}
-	end := bytes.IndexByte(data, 'M')
+	end := bytes.IndexAny(data, sgrMouseTerminators)
 	if end < 0 {
 		return mousePressEvent{}, nil, data, false
 	}
@@ -600,7 +619,7 @@ func findSGRMousePress(data []byte) ([]byte, mousePressEvent, []byte, []byte, bo
 
 func isSGRMousePrefix(data []byte) bool {
 	return bytes.HasPrefix([]byte("\x1b[<"), data) ||
-		(bytes.HasPrefix(data, []byte("\x1b[<")) && bytes.IndexByte(data, 'M') < 0)
+		(bytes.HasPrefix(data, []byte("\x1b[<")) && bytes.IndexAny(data, sgrMouseTerminators) < 0)
 }
 
 type OSRuntime struct{}
@@ -676,9 +695,10 @@ func (m *terminalMux) newTab() error {
 	m.mu.Lock()
 	m.tabs = append(m.tabs, tab)
 	m.active = len(m.tabs) - 1
+	snapshot := bufferSnapshotLocked(tab)
 	m.mu.Unlock()
 	m.renamePane()
-	m.redrawTab(tab)
+	m.redrawTab(snapshot)
 
 	go m.readPTY(tab)
 	return nil
@@ -856,10 +876,10 @@ func (m *terminalMux) switchRelative(delta int) {
 		return
 	}
 	m.active = (m.active + delta + len(m.tabs)) % len(m.tabs)
-	tab := m.activeTabLocked()
+	snapshot := bufferSnapshotLocked(m.activeTabLocked())
 	m.mu.Unlock()
 	m.renamePane()
-	m.redrawTab(tab)
+	m.redrawTab(snapshot)
 }
 
 func (m *terminalMux) appMouseMode() bool {
@@ -873,6 +893,7 @@ func (m *terminalMux) removeTab(id int) {
 	m.mu.Lock()
 	var removed *terminalTab
 	var active *terminalTab
+	var activeSnapshot []byte
 	empty := false
 	activeID := 0
 	title := ""
@@ -902,6 +923,7 @@ func (m *terminalMux) removeTab(id int) {
 			}
 		}
 		active = m.activeTabLocked()
+		activeSnapshot = bufferSnapshotLocked(active)
 		if m.rename != nil {
 			title = m.renamePaneTitleLocked(m.rename.tabID, m.rename.editor)
 			preserveRename = true
@@ -922,7 +944,7 @@ func (m *terminalMux) removeTab(id int) {
 	}
 	_ = m.setPaneTitle(title)
 	if !preserveRename {
-		m.redrawTab(active)
+		m.redrawTab(activeSnapshot)
 	}
 }
 
@@ -1061,12 +1083,25 @@ func (m *terminalMux) renamePaneTitleLocked(tabID int, editor RenameEditor) stri
 	return strings.Join(parts, " ")
 }
 
-func (m *terminalMux) redrawTab(tab *terminalTab) {
-	if tab == nil {
-		return
-	}
+// redrawTab repaints from a SNAPSHOT taken by the caller under m.mu — it never
+// touches the mutex itself. Callers already hold the lock immediately before
+// calling, so snapshotting there costs nothing and avoids inventing a "no caller
+// may hold m.mu" contract whose violation mode would be a deadlock.
+//
+// Capability queries are stripped so the replay cannot re-ask the host terminal
+// (#127); see queries.go.
+func (m *terminalMux) redrawTab(buf []byte) {
 	_, _ = io.WriteString(m.stdout, "\x1b[1;1H\x1b[J")
-	_, _ = m.stdout.Write(tab.buffer)
+	_, _ = m.stdout.Write(stripTerminalQueries(buf))
+}
+
+// bufferSnapshotLocked copies a tab's stored output. Caller must hold m.mu —
+// appendBuffer re-slices tab.buffer from the output goroutine.
+func bufferSnapshotLocked(tab *terminalTab) []byte {
+	if tab == nil {
+		return nil
+	}
+	return append([]byte(nil), tab.buffer...)
 }
 
 func (m *terminalMux) restoreTerminal() {

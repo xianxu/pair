@@ -175,12 +175,13 @@ func sgrMouseSize(input []byte) (int, bool) {
 	if !bytes.HasPrefix(input, []byte("\x1b[<")) {
 		return 0, false
 	}
-	for i := 3; i < len(input); i++ {
-		if input[i] == 'M' || input[i] == 'm' {
-			return i + 1, true
-		}
+	// Same 'M' press / 'm' release terminator pair the pump uses — driven by the
+	// one constant so the sites can't drift apart (they did: #127).
+	idx := bytes.IndexAny(input[3:], sgrMouseTerminators)
+	if idx < 0 {
+		return 0, false
 	}
-	return 0, false
+	return idx + 3 + 1, true
 }
 
 func escapeSequenceIncomplete(input []byte) bool {
@@ -189,12 +190,7 @@ func escapeSequenceIncomplete(input []byte) bool {
 	}
 	switch input[1] {
 	case '[':
-		for i := 2; i < len(input); i++ {
-			if isTerminalFinalByte(input[i]) {
-				return false
-			}
-		}
-		return true
+		return csiEnd(input) < 0
 	case 'O':
 		return len(input) < 3
 	default:
@@ -209,10 +205,8 @@ func malformedEscapeSize(input []byte) int {
 	if input[1] != '[' && input[1] != 'O' {
 		return 2
 	}
-	for i := 2; i < len(input); i++ {
-		if isTerminalFinalByte(input[i]) {
-			return i + 1
-		}
+	if end := csiEnd(input); end >= 0 {
+		return end
 	}
 	return len(input)
 }
