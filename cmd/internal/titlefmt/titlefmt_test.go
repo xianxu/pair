@@ -25,23 +25,6 @@ func TestTildeAbbrev(t *testing.T) {
 	}
 }
 
-// The adversarial input for a prefix builder is degenerate, not long: the risk
-// is emitting a dangling " · " with nothing in front of it, or a stray bracket.
-func TestPaneTitlePrefix(t *testing.T) {
-	cases := []struct{ cwd, tag, want string }{
-		{"~/workspace/pair", "work", "~/workspace/pair [work] · "},
-		{"~/workspace/pair", "", "~/workspace/pair · "},
-		{"", "work", "[work] · "},
-		{"", "", ""}, // nothing to say ⇒ no bare separator
-		{"~", "a", "~ [a] · "},
-	}
-	for _, c := range cases {
-		if got := PaneTitlePrefix(c.cwd, c.tag); got != c.want {
-			t.Errorf("PaneTitlePrefix(%q,%q) = %q, want %q", c.cwd, c.tag, got, c.want)
-		}
-	}
-}
-
 // EmojiTitle had no test at all before #129 (the package reported "no test
 // files"), and #130 plans to change what feeds it — pin the current contract
 // first so that change is a visible diff rather than a silent one.

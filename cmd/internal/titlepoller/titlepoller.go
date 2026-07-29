@@ -62,12 +62,11 @@ func abbrevCwd(path, home string) string {
 
 // frameTitle composes an agent pane's zellij frame title: "<agent> (<count>)
 // [<cwd>]", or "<agent> [<cwd>]" when no count resolved.
-func frameTitle(agent, count, cwdDisp, tag string) string {
-	prefix := titlefmt.PaneTitlePrefix(cwdDisp, tag)
+func frameTitle(agent, count, cwdDisp string) string {
 	if count != "" {
-		return fmt.Sprintf("%s%s (%s)", prefix, agent, count)
+		return fmt.Sprintf("%s (%s) [%s]", agent, count, cwdDisp)
 	}
-	return prefix + agent
+	return fmt.Sprintf("%s [%s]", agent, cwdDisp)
 }
 
 // cmuxWorkspaceTitle builds the cmux workspace title from a heat prefix and the

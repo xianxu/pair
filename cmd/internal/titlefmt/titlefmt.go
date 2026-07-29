@@ -43,35 +43,3 @@ func TildeAbbrev(path, home string) string {
 	}
 	return path
 }
-
-// PaneTitlePrefix builds the leading "<cwd> [<tag>] · " that every Pair-owned
-// pane title carries, so the terminal tab title identifies the workbench rather
-// than just the pane's role (#129).
-//
-// zellij composes the tab title as "<session name> | <focused pane title>", and
-// the session-name half is a socket filename we cannot shape. This prefix owns
-// the half we can. If zellij ever gains an option to drop its prefix
-// (zellij-org/zellij#1495), this becomes the whole title unchanged — which is
-// why the tag is included even though it currently duplicates the session name.
-//
-// Returns "" when there is nothing to say, so a caller never emits a bare
-// separator with no content in front of it.
-func PaneTitlePrefix(cwdDisplay, tag string) string {
-	var b strings.Builder
-	if cwdDisplay != "" {
-		b.WriteString(cwdDisplay)
-	}
-	if tag != "" {
-		if b.Len() > 0 {
-			b.WriteString(" ")
-		}
-		b.WriteString("[")
-		b.WriteString(tag)
-		b.WriteString("]")
-	}
-	if b.Len() == 0 {
-		return ""
-	}
-	b.WriteString(" · ")
-	return b.String()
-}

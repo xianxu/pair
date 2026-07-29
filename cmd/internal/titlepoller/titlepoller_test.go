@@ -48,15 +48,11 @@ func TestAbbrevCwd(t *testing.T) {
 }
 
 func TestFrameTitle(t *testing.T) {
-	if got := frameTitle("claude", "970k", "~/repo", "work"); got != "~/repo [work] · claude (970k)" {
+	if got := frameTitle("claude", "970k", "~/repo"); got != "claude (970k) [~/repo]" {
 		t.Errorf("with count: %q", got)
 	}
-	if got := frameTitle("claude", "", "~/repo", "work"); got != "~/repo [work] · claude" {
+	if got := frameTitle("claude", "", "~/repo"); got != "claude [~/repo]" {
 		t.Errorf("no count: %q", got)
-	}
-	// Degenerate: no cwd and no tag ⇒ no prefix, and above all no dangling " · ".
-	if got := frameTitle("claude", "970k", "", ""); got != "claude (970k)" {
-		t.Errorf("no prefix: %q", got)
 	}
 }
 

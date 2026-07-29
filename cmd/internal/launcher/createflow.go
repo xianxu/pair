@@ -441,7 +441,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 
 	rt.SetEnv("PAIR_AGENT_ARGS", strings.Join(agentArgs, " "))
 	rt.SetEnv("PAIR_SESSION_ID", sessionID)
-	rt.SetEnv("PAIR_PANE_TITLE", PaneTitle(agent, env.Cwd, env.Home, chosenTag))
+	rt.SetEnv("PAIR_PANE_TITLE", PaneTitle(agent, env.Cwd, env.Home))
 	rt.SetEnv("PAIR_PANE_CWD", TildeAbbrev(env.Cwd, env.Home))
 
 	// Truncate the adaptation flight recorder once, before any appender starts.

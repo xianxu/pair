@@ -1107,36 +1107,3 @@ func (r *splitReader) Read(p []byte) (int, error) {
 	}
 	return n, nil
 }
-
-// The two title paths must BOTH carry the "<cwd> [<tag>] · " lead (#129) —
-// zellij shows whichever pane is focused, and the rename path owns the title for
-// the whole duration of an Alt+r, so omitting it there would drop the cwd
-// mid-rename.
-func TestPaneTitlesCarryCwdAndTagPrefix(t *testing.T) {
-	mux := &terminalMux{
-		tabs:       []*terminalTab{{id: 1, name: "terminal 1"}, {id: 3, name: "terminal 3"}},
-		active:     0,
-		tag:        "work",
-		cwdDisplay: "~/workspace/pair",
-	}
-	if got, want := mux.paneTitleLocked(), "~/workspace/pair [work] · [terminal 1] terminal 3"; got != want {
-		t.Errorf("paneTitleLocked = %q, want %q", got, want)
-	}
-	editor := NewRenameEditor("wor")
-	if got, want := mux.renamePaneTitleLocked(1, editor), "~/workspace/pair [work] · [rename: wor│] terminal 3"; got != want {
-		t.Errorf("renamePaneTitleLocked = %q, want %q", got, want)
-	}
-}
-
-// A tab-less mux returns "" from both paths and callers skip the rename on ""
-// (run.go: setPaneTitle guard). The prefix must not resurrect that into a bare
-// "~/workspace/pair [work] · " with nothing behind it.
-func TestPaneTitlePrefixNotEmittedWithoutTabs(t *testing.T) {
-	mux := &terminalMux{tag: "work", cwdDisplay: "~/workspace/pair", active: -1}
-	if got := mux.paneTitleLocked(); got != "" {
-		t.Errorf("paneTitleLocked with no tabs = %q, want empty", got)
-	}
-	if got := mux.renamePaneTitleLocked(1, NewRenameEditor("")); got != "" {
-		t.Errorf("renamePaneTitleLocked with no tabs = %q, want empty", got)
-	}
-}
