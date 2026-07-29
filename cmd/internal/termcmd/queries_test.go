@@ -62,6 +62,7 @@ func TestStripTerminalQueriesPreservesLegitimateSequences(t *testing.T) {
 		{"DECRPM report", "\x1b[?2026;2$y", "reply terminates $y, not $p"},
 		{"kitty flags reply", "\x1b[?0u", "reply, not the \\x1b[?u query literal"},
 		{"DSR cursor report", "\x1b[24;1R", "the reply to 6n"},
+		{"DSR status request", "\x1b[0n", "n final, but not the 6n cursor-position query"},
 		// Malformed OSC 4: the 4-byte prefix and 2-byte suffix checks OVERLAP
 		// here, which used to invert a slice bound and panic (found at close
 		// review). Not a query — must pass through.

@@ -116,3 +116,89 @@ Two `## Revisions` entries for `workshop/issues/000127-term-pane-stream-corrupti
    - Line 113 says "Design buffer is **+15%**, not +30%"; line 119 says "Design buffer is +30%." The ```estimate``` block uses `0.15`. Delete the stale line 119 sentence.
    - Line 134-138 ("Item mapping") describes **three** `smaller-go-module` rows including "the test suite priced on its own row"; the block at lines 121-131 contains **two**. Either add the third row (and re-total) or fix the prose.
    - The 2026-07-28 revision at line 165 states the estimate moved "1.05 → **1.47**," but the frontmatter and block both say **1.40** (which is arithmetically consistent with the block: design 0.43 × 1.15 + impl 0.91 = 1.40). Record 1.40 as the landed number, or restate why 1.47 was reduced.
+
+---
+
+## Re-review — 2026-07-28T17:29:33-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 127 — right terminal pane corrupts the input stream |
+| repo | pair |
+| issue file | workshop/issues/000127-term-pane-stream-corruption.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 70f6ac0651dccf0424527c13ce7730885eaabaec..HEAD |
+| command | sdlc close --issue 127 |
+| reviewer | claude |
+| timestamp | 2026-07-28T17:29:33-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: medium
+```
+
+The blocking defect from the prior pass is genuinely fixed, not papered over: `isParameterizedOSCQuery` now guards `len(body) < 6` (`queries.go:190`), and I hand-traced the three previously-panicking inputs (`\x1b]4;?\x07`, `\x1b]4;?\x1b\\`, `\x1b]4;;?\x07`) through `terminalSequenceAt` → `oscEnd` → the slice — all three now return `false` and pass through unchanged, matching the new keep-rows at `queries_test.go:68-70`. `FuzzStripTerminalQueries` (`queries_test.go:215`) closes the robustness gap that let the panic ship, the false residual-pin test is deleted with an honest `## Revisions` entry (issue:420), and `csiEnd` is now the single final-byte scan for all three in-package callers. I traced every strip/keep/truncation assertion by hand against the implementation and each one holds; I also confirmed `\x1b[?...$p` cannot overlap the way OSC 4 did (min matching length 5, `seq[3:3]` → empty → rejected), so its twin is not lurking. Nothing left is blocking correctness. What keeps this off SHIP is one traceability gap — a ~110-line user-facing README rewrite rides in this window with no record in the issue's `## Log`, while the two genuine side-quests *were* recorded — plus four cheap Minors that survived the last pass. **Confidence is medium, not high, for one reason I have to state plainly: `Bash` is unavailable in this environment (EPERM on the harness session-env), so I could not run `go test -race ./cmd/internal/termcmd/`, `make test`, `gofmt`, or any `git` command.** Every claim below is from reading the tree, not from executing it; the `## Log`'s "green / exit 0" claim is unverified by me.
+
+## 1. Strengths
+
+- **The C1 fix is minimal and correctly placed.** `queries.go:185-192` — the guard is on `len(body)`, before the slice, with a comment that explains *why* six (prefix and suffix overlap) rather than restating the code. `isParameterizedCSIQuery` was correctly left alone; I verified it is not vulnerable to the same overlap.
+- **The negative rows are the right three.** `queries_test.go:68-70` pins both terminator forms of the malformed OSC 4 *and* the empty-index form (`\x1b]4;;?`), which exercises the `len(digits) == 0` arm rather than the length guard — a different code path, not a third copy of the same case.
+- **`FuzzStripTerminalQueries` seeds are chosen from the failure class, not decoration.** `queries_test.go:216-220` includes `\x1b]4;?\x07`, `\x1b]4;\x07`, `\x1b[?$p`, and a bare `\x1bP+q\x1b\\` DCS — the exact shapes where framing and slicing interact. The `len(out) > len(in)` invariant is a real (if weak) property, not just `_ =`.
+- **`csiEnd` consolidation is complete and behavior-identical.** `rename_input.go:193` (`csiEnd(input) < 0`) and `rename_input.go:208` are line-for-line equivalent to the loops they replaced, including the `'O'` case falling through to the same scan. Three copies → one, inside the package, with the divergence lesson written on the function (`queries.go:131-135`). `ARCH-DRY`.
+- **The residual claim was corrected the honest way.** The duplicate test is gone, its reasoning moved onto `TestPumpStdinForwardsRepliesToChild` (`queries_test.go:145-151`), and issue:420 records that the item was ticked but not delivered. Taking option (b) and *saying so* is better than a two-PTY test written to satisfy a checkbox.
+- **`sgrMouseTerminators` remains a real single source.** Re-swept: `run.go:581`, `run.go:596`, `run.go:622`, `rename_input.go:180`. No residual hardcoded `'M'`/`'m'` framing anywhere under `cmd/`.
+- **The bulk-copy rewrite in `stripTerminalQueries` (`queries.go:69-78`) is correct at the loop-termination level** — `next` can never be 0 (guarded by `buf[i] != 0x1b`), and every `terminalSequenceAt` success returns `size >= 2`, so no input can spin.
+
+## 2. Critical findings
+
+None. C1 from the prior pass is fixed and covered.
+
+## 3. Important findings
+
+**I1 — Undeclared scope in the review window: `README.md` (~110 lines changed) has no record in the issue.**
+
+`workshop/issues/000127-term-pane-stream-corruption.md:393-405` records exactly two side-quests (`tests/scrollback-open-test.sh`, the `-race` test writer) with rationale. The README rewrite — which adds the `Alt+l` / `Alt+c` / `Alt+Shift+C` feature sections, the context-meter paragraph, the Required→Optional dependency split (`jq`, `par`), the per-repo session-scoping note, the Troubleshooting section, and deletes the `pair-shell`-retired / `PAIR_DATA_DIR` runtime-extraction paragraph — is not mentioned anywhere in Spec, Plan, or Log.
+
+I checked the content and it is *accurate*, so this is a bookkeeping finding, not a correctness one: `CHANGELOG.md`, `doctor/README.md` and the pensive link all exist; `:PairDoctor` exists (`nvim/doctor.lua`); and `jq` no longer appears in any Go code path (only in historical comments — `zellijpane` parses `list-panes --json` natively), so demoting it to Optional is right.
+
+The cost of leaving it: `sdlc close` measures and adopts actual hours across this window, so README time gets silently attributed to a two-defect stream bugfix and pollutes velocity calibration — the exact thing the actual-gate exists to prevent. It also means the doc rewrite has no `## Log` trace for whoever later asks "when did the dependency table change and why".
+
+Fix: add a `side-quest:` bullet under `## Log` in the same shape as the other two, naming what changed and why it rode along (the Log already notes this issue was filed "while doing v1.24 release prep" — that's the reason, it just isn't connected). Mention it in `--verified` too. If it actually belongs to a different issue, say which.
+
+## 4. Minor findings
+
+- `atlas/architecture.md:396-397` — **the prior pass flagged this and it was not fixed.** There is still no blank line between the `Alt+↑ / Alt+↓` bullet and `**\`pair term\` stream hygiene (#127).**`, so those two lines are a CommonMark lazy continuation of that list item: the section-header sentence renders *inside* the keybind bullet, and the `*Input.*` / `*Output, replay only.*` bullets then render as two more siblings of the keybind list. One blank line fixes it; moving the whole block below the keybind list (it is not a keybind) is better.
+- `run.go:577` — **also unfixed from the prior pass.** `if !strings.HasPrefix(s, "\x1b[<") || s == ""` — the `s == ""` arm is unreachable; `HasPrefix` short-circuits first and already guarantees `len(s) >= 3` for the `s[len(s)-1:]` on the next line. Drop it, or move it first if it was meant as that guard.
+- `queries_test.go:46-71` — still no `n`-final negative. Plan item at issue:321 explicitly lists "`n` → DSR *reports* other than 6n", and Done-when promises "a derived negative case per matched final byte". `\x1b[6n` is a literal so the risk is nil, but the promise is unmet by one row: add `\x1b[0n` or `\x1b[5n`.
+- `workshop/issues/000127-term-pane-stream-corruption.md:262` — the item header says "a literal set + **three** narrow parameterized rules", while its own body (issue:283) says "**Two** parameterized rules" and the code has two (`isParameterizedCSIQuery`, `isParameterizedOSCQuery`). Fix the header to two.
+- `workshop/issues/000127-term-pane-stream-corruption.md:339` — the "Pin the accepted residual" item is still `[x]` with text reading "Add a test asserting exactly that". The `## Revisions` entry at :420 correctly discloses it wasn't delivered, so this is compliant with the append-don't-overwrite rule, but a reader scanning `## Plan` sees a ticked claim the code doesn't back. Consider `[~]` or an inline "(revised — see Revisions)".
+- `queries.go:98-108` — an OSC literal match (`\x1b]10;?` / `\x1b]11;?`) calls `oscEnd` over the *whole* remaining buffer, so an unterminated OSC query would consume forward to the next BEL/ST anywhere and strip it. Real terminals behave the same way and the input is malformed by construction, so this is a note rather than a defect — but it is the one place strip can eat arbitrary visible bytes.
+- I could not run `gofmt`. For the record, the `terminalQueryLiterals` comment alignment the prior pass called non-gofmt (`queries.go:44-51`) is in fact correct — the six CSI rows and two OSC rows both land at the same column once `\x1b` is counted as four source characters. No change needed there.
+
+## 5. Test coverage notes
+
+- The shipped-bug class is now covered on both axes: the specific inputs (`queries_test.go:68-70`) and the structural guard (`FuzzStripTerminalQueries`). That is the right pairing — the explicit rows document the failure, the fuzz catches its siblings.
+- The fuzz property is weaker than the one the prior pass suggested. It asserts *no panic* and *no growth*; it does not assert the real invariant, "every non-escape byte survives in order." That stronger property would also cover the never-drop-to-end rule and would catch an over-strip regression that a hand-written keep-list misses. Worth adding when #128 touches this code; not worth blocking on now.
+- `TestRedrawTabEmitsNoQueries` (`queries_test.go:104`) is a genuine end-to-end pin of the fix — I confirmed by hand that `\x1b[c` and `\x1b[?2026$p` are removed while `\x1b[?1006h` and both visible-text fragments survive, and that the emitted `\x1b[1;1H\x1b[J` prefix does not accidentally satisfy the `strings.Contains("\x1b[c")` negative.
+- `TestLiveQueryPathIsUnfiltered` and `TestPumpStdinForwardsRepliesToChild` correctly pin the invariant that justifies having no input-side filter. I traced the latter through `pumpStdinWithTimer`: none of the three reply forms matches a chord, `findSGRMousePress`, or `isSGRMousePrefix`, so each falls to `mux.writeActive(data)` — the expectations hold.
+- The three new pump cases (`run_test.go:176-178`) are real regression tests. I re-derived the byte offsets for the combined `\x1b[<0;8;2M\x1b[<0;9;2mls\n` case: `IndexAny` lands on index 8 in each event, `raw` is 9 bytes, `rest` is exactly `ls\n` — the expected three-op sequence is what the code produces, and the pre-fix code would have coalesced them in `held`.
+- **Unverified by me:** `go test -race ./cmd/internal/termcmd/`, `make test`, and the live-session check. All three are claimed green at issue:406-408. Given the known env-leak failure mode in this checkout, re-running `make test` with a scrubbed env before recording the close verdict is worth the thirty seconds.
+
+## 6. Architectural notes
+
+- **ARCH-DRY — pass.** Both consolidations verified by sweep, not by claim: `sgrMouseTerminators` has four derived consumers and zero hand-maintained restatements; `csiEnd` has three. The duplicate residual test that was the last in-diff repetition is gone. The cross-package `wrapcmd` framing duplication is deferred with a well-argued rationale (issue:199-229) and a filed, non-scaffolded follow-up (`workshop/issues/000128-share-escape-framing.md`) — a separable extension, not a deferred purpose.
+- **ARCH-PURE — pass.** `stripTerminalQueries`, `terminalSequenceAt`, `csiEnd`, `oscEnd`, and both `isParameterized*` predicates are deterministic and side-effect-free; the whole `queries_test.go` suite runs with no exec, no net, no clock (the two `time` uses are polling deadlines in the two tests that intentionally drive the IO shell). `redrawTab` (`run.go:1093`) is down to two writes and knows nothing about `m.mu`; `bufferSnapshotLocked` is a nil-safe pure copy. I re-verified all three call sites snapshot inside the lock they already held (`run.go:698`, `:879`, `:926`) and that `removeTab`'s `empty` path returns before any redraw, so the nil snapshot is never written.
+- **ARCH-PURPOSE — pass.** Both Problem-section defects are fixed, and the fix pass addressed the substance of every prior finding rather than the cheapest one — including the one that required *deleting* a test and admitting a ticked item wasn't delivered. The accepted residual stays scoped out explicitly in Spec/Done-when and is now recorded in `## Log` and atlas rather than falsely claimed as pinned, which is the honest form of "narrowed, not closed."
+- **ARCH-MOCK — pass, with the asymmetry now carried forward.** No new external-binary seam; zellij calls stay behind `Runtime`/`fakeRuntime`. The deliberate absence of a host-terminal fake still holds: the design deletes the cross-call round trip instead of modeling it, so there is no persisted state to fake. The important addition since the last pass is that the deny-list's non-symmetric failure directions (missed query → benign; over-strip → silent loss of mouse mode / Kitty encoding / cursor shape) are now written into `workshop/issues/000128-share-escape-framing.md:61-66`, pointing at the shared framing helper as the natural attachment point for a conformance check. That is the right place for it.
+
+## 7. Plan revision recommendations
+
+Three `## Revisions` entries for `workshop/issues/000127-term-pane-stream-corruption.md` — all small, none blocking:
+
+1. **Record the README side-quest.** Add a `side-quest:` bullet under `## Log` alongside the existing two, naming the `README.md` rewrite in this window (feature sections for `Alt+l` / `Alt+c` / `Alt+Shift+C`, the Required→Optional dependency split, the Troubleshooting section, the removed `pair-shell`/`PAIR_DATA_DIR` paragraph) and why it rode along with a stream bugfix. Without it, `sdlc close`'s measured actuals attribute release-prep doc time to #127.
+2. **Fix the "three parameterized rules" header** at issue:262 to "two" — its own body at issue:283 and the code both say two.
+3. **Note the one unmet negative.** Done-when promises "a derived negative case per matched final byte"; the `n` final has no keep-row. Either add `\x1b[0n` to `TestStripTerminalQueriesPreservesLegitimateSequences` and leave Done-when alone, or narrow the Done-when line to the finals actually covered.

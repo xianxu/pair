@@ -1,12 +1,13 @@
 ---
 id: 000127
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-28
 updated: 2026-07-28
 estimate_hours: 1.40
 started: 2026-07-28T16:20:34-07:00
+actual_hours: 1.4
 ---
 
 # right terminal pane corrupts the input stream
@@ -259,7 +260,7 @@ Single review boundary — no `Mx` tags: one branch, one close.
       invariant, and a `redrawTab` that knows nothing about the mutex — a
       genuinely thinner IO shell (`ARCH-PURE`).
 
-- [x] **Query table = a literal set + three narrow parameterized rules.**
+- [x] **Query table = a literal set + two narrow parameterized rules.**
       `tab.buffer` is fed from `readPTY` → PTY master (run.go:706, 747), so it
       is dominated by the **child app's output** — where queries are
       overwhelmingly FIXED byte strings (it is the *replies* whose params vary
@@ -362,6 +363,7 @@ Single review boundary — no `Mx` tags: one branch, one close.
 ## Log
 
 ### 2026-07-28
+- 2026-07-28: closed — JUDGMENT ESTIMATE for actual (sdlc actual finds no measurable window — work is branch-side): 1.08h from claim 16:20 through the first close attempt, plus ~0.3h addressing close-review findings => 1.4h. Evidence: full make test exit 0; go test -race ./cmd/internal/termcmd/ green; FuzzStripTerminalQueries clean over 3.4M executions. Mouse release: 3 regression cases, the keystroke-after-release one provably failing pre-fix (release and next keystroke coalesced into one held-until-EOF write). Query strip: one case per deny-list row; a table-derived negative per matched final byte (DECSET 1006/1002/2004, Kitty flags push/pop, the \x1b[110;3u key chord, DECSCUSR, DA1 reply, DECRPM report, DSR report); truncated and bisected buffer cases; redraw-emits-no-queries; two pins that the live query path stays unfiltered. Close review found a real panic (OSC 4 prefix/suffix overlap inverting a slice bound, reachable from ordinary child output on the tab-switch path) — fixed, regression-tested, and the fuzz guard added so the malformed-input class is covered rather than the one instance. Residual (reply follows the active tab across a switch) recorded in Log + atlas, deliberately not claimed as test-pinned. Live in-session confirmation still pending with the user.; review verdict: FIX-THEN-SHIP
 
 - Filed from a live report while doing v1.24 release prep. Both defects found by
   reading `pumpStdin`; A was confirmed with a failing test before the fix
@@ -403,6 +405,17 @@ Single review boundary — no `Mx` tags: one branch, one close.
     `copyActiveOutput` writes from another goroutine. Swapped to a mutex-wrapped
     writer. Deliberately NOT fixed by locking `m.stdout` in production — there it
     is an `*os.File`, so that is interleaving, not a data race.
+- `side-quest:` **`README.md` rewrite rode along in this window** (commit
+  fcf8e49, swept in by a `git add -A`). It is v1.24 release-prep the user asked
+  for before the bug report, NOT part of this issue: prose sections for the
+  change log (`Alt+l`), the review pane (`Alt+c`) and `Alt+Shift+C` compaction
+  (which had no table row at all), a Required/Optional split of the dependency
+  table (`par` degrades gracefully; `jq` is doctor/telemetry only), a
+  Troubleshooting section pointing at `:PairDoctor`, and removal of the ~25-line
+  Go-migration internals paragraph. Named here so the close's actual-hours do not
+  silently absorb release-prep doc time. The stray one-line copyedit to
+  `workshop/issues/000121` (commit cd6608a) was likewise swept in and is not
+  mine — a null "lifecycle"→"life cycle" change.
 - Verified: `go test -race ./cmd/internal/termcmd/` green; full `make test`
   exit 0 (the only `fail` strings in the log are test *names* about
   failure-handling).
@@ -425,3 +438,8 @@ Single review boundary — no `Mx` tags: one branch, one close.
   reasoning moved onto the real test, and the residual is recorded in `## Log`
   and `atlas/architecture.md` rather than claimed as pinned. Honestly pinning it
   needs two PTY-backed tabs, which is more than a documented boundary is worth.
+- A sandboxed `go test ./cmd/internal/termcmd/` fails on
+  `TestTerminalMuxNewTabClearsPreviousTabViewport` with
+  `pty.Start: operation not permitted` — the agent sandbox denies PTY
+  allocation, not a code defect. Five uncached `-race -count=1` runs outside the
+  sandbox are clean.
