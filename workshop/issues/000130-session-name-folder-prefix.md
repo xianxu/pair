@@ -12,11 +12,107 @@ estimate_hours:
 
 ## Problem
 
+A zellij session name is a **socket filename**, and on macOS the budget is
+**24 bytes** — verified empirically: a 24-character name is accepted, 25 is
+rejected with `session name must be less than 0 characters` (zellij computes
+its allowance minus the long `~/Library/Caches/org.Zellij-Contributors.Zellij/…`
+path and goes negative).
+
+Pair's scheme is `pair-<repo>-<tag>` (`session_index.go:57`), which spends the
+budget badly:
+
+- **The prefix costs 5 bytes** (`pair-`) purely as an ownership marker.
+- **The repo segment is usually redundant** with the tag, because the create
+  flow's name prompt defaults the tag to the cwd basename. Accepting that default
+  — the common case — produces `pair-pair-pair`.
+- **Overflow is resolved by silent truncation.** `BuildSessionNameCandidates`
+  shortens repo and tag a rune at a time until zellij accepts one, so
+  `pair-parley_nvim-parley_nvim` (28) becomes **`pair-parley_nv-parley_nv`**
+  (exactly 24). The user's reaction on seeing it was "I don't even know why it's
+  `parley_nv`" — the truncation is invisible and unexplained.
+
+There is also a latent unit bug: `BuildSessionNameCandidates` truncates by
+`[]rune` while zellij's limit is **bytes**. `pair-` is 5 runes and 5 bytes so
+they agree today; any non-ASCII component breaks that agreement, and a
+multi-byte prefix would make it permanent.
+
+The name is user-visible in `zellij list-sessions`, `pair list`, the cmux
+workspace title, and — because zellij composes the terminal title as
+`<session> | <focused pane title>` — in the terminal tab title itself. So this
+is not an internal identifier the user can ignore.
+
 ## Spec
+
+New format, no separator after the prefix:
+
+```
+📁{repo}[-{residual tag tokens}]
+```
+
+1. **Prefix `📁`** — 4 bytes, no hyphen, replacing `pair-`'s 5. Saves a byte and
+   reads as "directory-scoped session", which is what the repo segment encodes.
+   Verified as a session name: `📁pair` and `📁pair-1` both create, list,
+   address by name, and delete cleanly, with the emoji directly against
+   alphanumerics.
+2. **Repo = the first alphanumeric token of the repo display name.** Split on
+   non-alphanumeric characters and take the first: `parley.nvim` → `parley`,
+   `pair` → `pair`.
+3. **Tag is used in full** — no truncation in the normal case.
+4. **Drop tag tokens already carried by the repo.** Split both into alphanumeric
+   tokens; drop the tag's leading tokens that match the repo's; join what is
+   left. Worked examples:
+
+   | repo | tag | tokens | result |
+   |---|---|---|---|
+   | `pair` | `pair` | `[pair]` vs `[pair]` → residual `[]` | `📁pair` |
+   | `pair` | `pair-1` | `[pair]` vs `[pair,1]` → residual `[1]` | `📁pair-1` |
+   | `parley` (from `parley.nvim`) | `parley_nvim` | `[parley]` vs `[parley,nvim]` → residual `[nvim]` | `📁parley-nvim` |
+   | `parley` | `work` | no overlap | `📁parley-work` |
+
+5. **Refuse early instead of truncating.** With `📁` the budget for
+   `{repo}[-{residual}]` is **20 bytes**. When a name would overflow, the create
+   flow's name prompt refuses and states the actual limit, rather than silently
+   shortening. Silent truncation is what produced `parley_nv`; a prompt can say
+   "tag too long — 20 bytes available, that needs N".
+6. **Truncation, where it still exists, is byte-based.** Fix
+   `BuildSessionNameCandidates` to measure bytes, not runes. This is a
+   prerequisite for a multi-byte prefix, not an optional cleanup.
+7. **Dual-prefix transition.** Discovery must accept **both** `pair-` and `📁`
+   while only ever emitting `📁` for new sessions. The prefix is pair's ownership
+   filter in zellij's *global* namespace — `zellij.go:27`, `zellijparse.go:60`,
+   `legacy_live.go:19`, `lifecycle.go:158` — and flipping the literal without a
+   transition orphans every live session, ledger row, and cmux ownership file at
+   once.
+
+### Accepted trade-offs
+
+- **`📁pair-1` is ambiguous** between tag `pair-1` and collision suffix #1.
+  Harmless functionally — `session-names.jsonl` maps name → scope authoritatively
+  — but a human reading `zellij list-sessions` cannot tell them apart.
+- **Rule 2 discards information.** `parley.nvim` → `parley` means a sibling repo
+  actually named `parley` now collides where it did not before, resolved by an
+  opaque numeric suffix. Accepted: few repos share a first token.
+
+### Why the ownership prefix cannot simply be dropped
+
+`session_blocks_reuse` calls `zellij delete-session --force` on `EXITED` rows.
+Without a prefix distinguishing pair's sessions from foreign ones, a stranger's
+abandoned session whose name matched a tag would become a deletion target. The
+global list already contains foreign names (`fabulous-aardvark` was present while
+scoping this). The prefix is load-bearing; only its cost is negotiable.
 
 ## Done when
 
--
+- `pair-pair-pair` → `📁pair`; `pair-parley_nvim-parley_nvim` → `📁parley-nvim`,
+  untruncated.
+- A tag that would overflow 20 bytes is refused at the name prompt with the real
+  limit quoted, not silently shortened.
+- Existing `pair-*` sessions — live, detached, and historical ledger rows — are
+  still discovered, attachable, and resumable after the change.
+- Truncation logic is byte-denominated; a test with a multi-byte component proves
+  it (this fails today).
+- `pair list`, the picker, `pair resume`, rename, and cmux ownership all work
+  against a `📁` session.
 
 ## Plan
 
@@ -25,3 +121,18 @@ estimate_hours:
 ## Log
 
 ### 2026-07-29
+
+- Filed from the tab-title investigation. **Independent of** the zellij upstream
+  question (zellij-org/zellij#1495, open since 2022, asks for a config to stop
+  zellij prefixing the title with the session name): this change improves
+  `pair list`, cmux and `zellij list-sessions` whether or not that ever lands.
+  Related but separate: **#129** (pane titles carry cwd + role), which owns the
+  half of the tab title pair already controls.
+- Empirical findings behind the spec: zellij's limit is **24 bytes, not
+  characters** (`🚧-` + 22 chars = 27 bytes rejected; 21 chars = 24 bytes
+  accepted). Pane titles, by contrast, are unconstrained — a 70-character title
+  with `/`, spaces, `[]`, `·` and an em-dash was accepted verbatim. That
+  asymmetry is why expressive text belongs in the pane title and identifiers in
+  the session name.
+- `📁` was chosen over `🚧` after testing both: same 4-byte cost, but dropping
+  the separator saves a byte and the folder glyph matches what the segment means.
