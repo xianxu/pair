@@ -88,39 +88,27 @@ func (f *fakeRuntime) ContextCount(_, agent string) string   { return f.counts[a
 func (f *fakeRuntime) TranscriptPath(_, agent string) string { return f.transcripts[agent] }
 
 func fixtureOpts() Options {
-	return Options{Tag: "T", Agent: "claude", DataDir: "/dd", Home: "/Users/x"}
+	return Options{Tag: "T", Agent: "claude", DataDir: "/dd"}
 }
 
-// Shell harness case 6: one tick with a count → "<agent> (<count>) [<cwd>]".
+// Shell harness case 6: one tick with a count → "<agent> (<count>)".
 func TestUpdateFrameTitlesWithCount(t *testing.T) {
 	rt := newFake()
-	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7", CwdDisplay: "~/repo"}}
+	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7"}}
 	rt.counts["claude"] = "970k"
 	updateFrameTitles(fixtureOpts(), rt, frameCache{}, "pair-T")
-	want := "pair-T|7|claude (970k) [~/repo]"
+	want := "pair-T|7|claude (970k)"
 	if len(rt.renamed) != 1 || rt.renamed[0] != want {
 		t.Fatalf("renamed = %v, want [%q]", rt.renamed, want)
 	}
 }
 
-// Shell harness case 7: no count → "<agent> [<cwd>]" (no parens).
+// Shell harness case 7: no count → bare "<agent>" (no parens).
 func TestUpdateFrameTitlesNoCount(t *testing.T) {
 	rt := newFake()
-	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7", CwdDisplay: "~/repo"}}
+	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7"}}
 	updateFrameTitles(fixtureOpts(), rt, frameCache{}, "pair-T")
-	want := "pair-T|7|claude [~/repo]"
-	if len(rt.renamed) != 1 || rt.renamed[0] != want {
-		t.Fatalf("renamed = %v, want [%q]", rt.renamed, want)
-	}
-}
-
-// cwd_display empty → falls back to abbrevCwd(cwd, home).
-func TestUpdateFrameTitlesCwdFallback(t *testing.T) {
-	rt := newFake()
-	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7", Cwd: "/Users/x/repo"}}
-	rt.counts["claude"] = "5k"
-	updateFrameTitles(fixtureOpts(), rt, frameCache{}, "pair-T")
-	want := "pair-T|7|claude (5k) [~/repo]"
+	want := "pair-T|7|claude"
 	if len(rt.renamed) != 1 || rt.renamed[0] != want {
 		t.Fatalf("renamed = %v, want [%q]", rt.renamed, want)
 	}
@@ -129,7 +117,7 @@ func TestUpdateFrameTitlesCwdFallback(t *testing.T) {
 // Shell harness case 8: two ticks, same state → exactly ONE rename (skip guard).
 func TestUpdateFrameTitlesUnchangedSkip(t *testing.T) {
 	rt := newFake()
-	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7", CwdDisplay: "~/repo"}}
+	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7"}}
 	rt.counts["claude"] = "970k"
 	cache := frameCache{}
 	updateFrameTitles(fixtureOpts(), rt, cache, "pair-T")
@@ -155,15 +143,15 @@ func TestUpdateFrameTitlesIgnoresStaleAgentTwin(t *testing.T) {
 	// Same pane_id "0" for both; alphabetical order would pick codex without the
 	// active-agent filter. claude is the active agent (fixtureOpts).
 	rt.panes = []PaneInfo{
-		{Agent: "claude", PaneID: "0", CwdDisplay: "~/repo"},
-		{Agent: "codex", PaneID: "0", CwdDisplay: "~/repo"},
+		{Agent: "claude", PaneID: "0"},
+		{Agent: "codex", PaneID: "0"},
 	}
 	rt.counts["claude"] = "970k"
 	rt.counts["codex"] = "512k"
 	cache := frameCache{}
 	updateFrameTitles(fixtureOpts(), rt, cache, "pair-T")
 	updateFrameTitles(fixtureOpts(), rt, cache, "pair-T") // second tick: must not flip-flop
-	want := "pair-T|0|claude (970k) [~/repo]"
+	want := "pair-T|0|claude (970k)"
 	if len(rt.renamed) != 1 || rt.renamed[0] != want {
 		t.Fatalf("renamed = %v, want exactly [%q] (active agent, no stale-twin hijack)", rt.renamed, want)
 	}
@@ -216,7 +204,7 @@ func TestRunReclaimsStalePidfileThenGraceTimeout(t *testing.T) {
 func TestRunRendersFrameAndCmuxTitles(t *testing.T) {
 	rt := newFake()
 	rt.pid = "9001"
-	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7", CwdDisplay: "~/repo"}}
+	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7"}}
 	rt.counts["claude"] = "970k"
 	rt.mtimes["/dd/draft-T.md"] = rt.now // fresh activity ⇒ age ≈ 0 < 2*poll
 	rt.cmuxAvail = true
@@ -229,7 +217,7 @@ func TestRunRendersFrameAndCmuxTitles(t *testing.T) {
 	if code := Run(opts, rt); code != 0 {
 		t.Fatalf("code = %d, want 0", code)
 	}
-	if want := "pair-T|7|claude (970k) [~/repo]"; len(rt.renamed) != 1 || rt.renamed[0] != want {
+	if want := "pair-T|7|claude (970k)"; len(rt.renamed) != 1 || rt.renamed[0] != want {
 		t.Fatalf("frame renamed = %v, want [%q]", rt.renamed, want)
 	}
 	if want := cmuxWorkspaceTitle(prefixHot+" ", "pair-T"); len(rt.cmuxRenamed) != 1 || rt.cmuxRenamed[0] != want {
@@ -243,7 +231,7 @@ func TestRunRendersFrameAndCmuxTitles(t *testing.T) {
 func TestRunUsesScopedPublicSessionName(t *testing.T) {
 	rt := newFake()
 	rt.pid = "9001"
-	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7", CwdDisplay: "~/repo"}}
+	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7"}}
 	rt.counts["claude"] = "970k"
 	rt.mtimes["/dd/draft-T.md"] = rt.now
 	rt.sessionAliveSeq = []bool{true, true}
@@ -255,7 +243,7 @@ func TestRunUsesScopedPublicSessionName(t *testing.T) {
 	if code := Run(opts, rt); code != 0 {
 		t.Fatalf("code = %d, want 0", code)
 	}
-	if want := "📁work-T|7|claude (970k) [~/repo]"; len(rt.renamed) != 1 || rt.renamed[0] != want {
+	if want := "📁work-T|7|claude (970k)"; len(rt.renamed) != 1 || rt.renamed[0] != want {
 		t.Fatalf("frame renamed = %v, want [%q]", rt.renamed, want)
 	}
 }
@@ -265,7 +253,7 @@ func TestRunUsesScopedPublicSessionName(t *testing.T) {
 func TestRunDefersCmuxToLiveForeignOwner(t *testing.T) {
 	rt := newFake()
 	rt.pid = "9001"
-	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7", CwdDisplay: "~/repo"}}
+	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7"}}
 	rt.counts["claude"] = "12k"
 	rt.mtimes["/dd/draft-T.md"] = rt.now
 	rt.cmuxAvail = true
@@ -293,7 +281,7 @@ func TestRunDefersCmuxToLiveForeignOwner(t *testing.T) {
 func TestRunDefersCmuxToLiveScopedForeignOwner(t *testing.T) {
 	rt := newFake()
 	rt.pid = "9001"
-	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7", CwdDisplay: "~/repo"}}
+	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7"}}
 	rt.counts["claude"] = "12k"
 	rt.mtimes["/dd/draft-T.md"] = rt.now
 	rt.cmuxAvail = true

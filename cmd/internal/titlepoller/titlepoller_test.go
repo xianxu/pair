@@ -28,30 +28,14 @@ func TestPrefixForAge(t *testing.T) {
 	}
 }
 
-func TestAbbrevCwd(t *testing.T) {
-	home := "/Users/x"
-	cases := []struct{ path, want string }{
-		{"/Users/x", "~"},
-		{"/Users/x/repo", "~/repo"},
-		{"/Users/x/a/b", "~/a/b"},
-		{"/Users/xyz", "/Users/xyz"}, // not under $HOME/ — no abbreviation
-		{"/etc", "/etc"},
-	}
-	for _, c := range cases {
-		if got := abbrevCwd(c.path, home); got != c.want {
-			t.Errorf("abbrevCwd(%q) = %q, want %q", c.path, got, c.want)
-		}
-	}
-	if got := abbrevCwd("/Users/x", ""); got != "/Users/x" {
-		t.Errorf("abbrevCwd with empty home should return path unchanged, got %q", got)
-	}
-}
-
+// The frame title carries the pane's identity only — no cwd (#133). zellij's tab
+// title is "<session name> | <focused pane title>" and the session half is
+// "📁{repo}[-{tag}]" since #130, so a cwd here would name the folder twice.
 func TestFrameTitle(t *testing.T) {
-	if got := frameTitle("claude", "970k", "~/repo"); got != "claude (970k) [~/repo]" {
+	if got := frameTitle("claude", "970k"); got != "claude (970k)" {
 		t.Errorf("with count: %q", got)
 	}
-	if got := frameTitle("claude", "", "~/repo"); got != "claude [~/repo]" {
+	if got := frameTitle("claude", ""); got != "claude" {
 		t.Errorf("no count: %q", got)
 	}
 }
@@ -111,16 +95,16 @@ func TestShouldClaimWorkspace(t *testing.T) {
 
 func TestFrameCacheUnchangedSkip(t *testing.T) {
 	c := frameCache{}
-	if !c.changed("7", "claude (970k) [~/repo]") {
+	if !c.changed("7", "claude (970k)") {
 		t.Fatal("first write must be a change")
 	}
-	if c.changed("7", "claude (970k) [~/repo]") {
+	if c.changed("7", "claude (970k)") {
 		t.Fatal("identical title must be skipped")
 	}
-	if !c.changed("7", "claude (980k) [~/repo]") {
+	if !c.changed("7", "claude (980k)") {
 		t.Fatal("new title must be a change")
 	}
-	if !c.changed("8", "claude (970k) [~/repo]") {
+	if !c.changed("8", "claude (970k)") {
 		t.Fatal("different pane must be a change")
 	}
 }

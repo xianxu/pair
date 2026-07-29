@@ -465,8 +465,11 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 
 	rt.SetEnv("PAIR_AGENT_ARGS", strings.Join(agentArgs, " "))
 	rt.SetEnv("PAIR_SESSION_ID", sessionID)
-	rt.SetEnv("PAIR_PANE_TITLE", PaneTitle(agent, env.Cwd, env.Home))
-	rt.SetEnv("PAIR_PANE_CWD", TildeAbbrev(env.Cwd, env.Home))
+	// The pane title is the agent name and nothing more (#133): zellij renders
+	// "<session name> | <focused pane title>", and the session half is already
+	// "📁{repo}[-{tag}]" since #130. No PAIR_PANE_CWD either — nothing consumes a
+	// pre-abbreviated cwd now that no title shows one.
+	rt.SetEnv("PAIR_PANE_TITLE", agent)
 
 	// Truncate the adaptation flight recorder once, before any appender starts.
 	_ = rt.WriteAtomic(filepath.Join(dataDir, "adapt-"+chosenTag+".jsonl"), "")

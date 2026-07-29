@@ -418,6 +418,18 @@ func TestRunLaunchForcedCreateClaude(t *testing.T) {
 	if !strings.Contains(rt.env["PAIR_AGENT_ARGS"], "--session-id MINTED-1") {
 		t.Fatalf("PAIR_AGENT_ARGS = %q", rt.env["PAIR_AGENT_ARGS"])
 	}
+	// The STARTUP pane title (#133): the agent name and nothing more. zellij shows
+	// "<session name> | <pane title>" and the session half is already 📁work-bugfix,
+	// so a cwd here would name the folder twice. This is the title the tab carries
+	// from launch until the poller's first pass, so it needs its own assertion —
+	// the poller's steady-state title is a different code path.
+	if got := rt.env["PAIR_PANE_TITLE"]; got != "claude" {
+		t.Fatalf("PAIR_PANE_TITLE = %q, want bare agent name", got)
+	}
+	// And the pre-abbreviated cwd export is gone with it — nothing consumes one.
+	if got, ok := rt.env["PAIR_PANE_CWD"]; ok {
+		t.Fatalf("PAIR_PANE_CWD should no longer be exported, got %q", got)
+	}
 	// Config written WITHOUT the resume binding (session_id is canonical storage).
 	cfg := rt.files["/data/config-bugfix-claude.json"]
 	if !strings.Contains(cfg, `"session_id":"MINTED-1"`) || strings.Contains(cfg, "--session-id") {

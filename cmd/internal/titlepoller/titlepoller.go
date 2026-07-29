@@ -52,28 +52,18 @@ func prefixForAge(age time.Duration) string {
 	}
 }
 
-// abbrevCwd abbreviates a raw cwd to ~ on a path boundary (mirrors bin/pair's
-// abbrev_cwd): exactly $HOME → "~"; under $HOME/ → "~/rest"; else unchanged.
-func abbrevCwd(path, home string) string {
-	if home == "" {
-		return path
-	}
-	if path == home {
-		return "~"
-	}
-	if strings.HasPrefix(path, home+"/") {
-		return "~" + path[len(home):]
-	}
-	return path
-}
-
-// frameTitle composes an agent pane's zellij frame title: "<agent> (<count>)
-// [<cwd>]", or "<agent> [<cwd>]" when no count resolved.
-func frameTitle(agent, count, cwdDisp string) string {
+// frameTitle composes an agent pane's zellij frame title: "<agent> (<count>)", or
+// just "<agent>" when no count resolved.
+//
+// It carries no cwd (#133). zellij renders the tab title as
+// "<session name> | <focused pane title>", and since #130 the session half is
+// "📁{repo}[-{tag}]" — so a cwd here would name the folder twice. The pane half
+// carries only the pane's own identity.
+func frameTitle(agent, count string) string {
 	if count != "" {
-		return fmt.Sprintf("%s (%s) [%s]", agent, count, cwdDisp)
+		return fmt.Sprintf("%s (%s)", agent, count)
 	}
-	return fmt.Sprintf("%s [%s]", agent, cwdDisp)
+	return agent
 }
 
 // cmuxWorkspaceTitle builds the cmux workspace title from a heat prefix and the

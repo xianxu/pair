@@ -76,7 +76,7 @@ test: test-run-headless test-lua test-queue test-autopair test-draft-complete te
 
 # pair-title poller (#93 M1, now Go): single-instance guard (identity-checked
 # liveness so a recycled PID can't suppress the respawn) + the #71 frame meter
-# (renames each agent pane to "<agent> (<count>) [<cwd>]", with unchanged-skip)
+# (renames each agent pane to "<agent> (<count>)", with unchanged-skip)
 # + the cmux heat-ramp. The old shell harness (PAIR_TITLE_TEST_CALL hook) retired
 # with the port; its coverage moved to Go unit tests over the Runtime seam.
 test-pair-title:

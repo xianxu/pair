@@ -37,28 +37,3 @@ func TestAgeColorBuckets(t *testing.T) {
 		}
 	}
 }
-
-// TildeAbbrev must only abbreviate on a real path boundary — a sibling like
-// /home-other must NOT become ~-other.
-func TestTildeAbbrev(t *testing.T) {
-	cases := []struct {
-		cwd, home, want string
-	}{
-		{"/home/x", "/home/x", "~"},
-		{"/home/x/repo", "/home/x", "~/repo"},
-		{"/home/x-other", "/home/x", "/home/x-other"}, // sibling not mangled
-		{"/tmp/z", "/home/x", "/tmp/z"},
-		{"/tmp/z", "", "/tmp/z"}, // no home → unchanged
-	}
-	for _, c := range cases {
-		if got := TildeAbbrev(c.cwd, c.home); got != c.want {
-			t.Errorf("TildeAbbrev(%q,%q) = %q, want %q", c.cwd, c.home, got, c.want)
-		}
-	}
-}
-
-func TestPaneTitle(t *testing.T) {
-	if got := PaneTitle("claude", "/home/x/repo", "/home/x"); got != "claude [~/repo]" {
-		t.Errorf("PaneTitle = %q", got)
-	}
-}
