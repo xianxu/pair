@@ -1,12 +1,11 @@
 package launcher
 
-import (
-	"strconv"
-	"strings"
-)
+import "strconv"
 
-// Display formatting for the launcher's history/picker rows + pane titles (#99
-// M1, ported from bin/pair-shell). Pure string derivations.
+// Display formatting for the launcher's history/picker rows (#99 M1, ported from
+// bin/pair-shell). Pure string derivations. Pane-title formatting used to live
+// here too; #133 removed it — the startup title is now just the agent name, set
+// inline at its one call site.
 
 const secondsPerDay = 86400
 
@@ -40,24 +39,4 @@ func AgeColor(days int) string {
 	default:
 		return "\033[38;5;238m"
 	}
-}
-
-// TildeAbbrev abbreviates $HOME to ~ only on a real path boundary — exactly $HOME
-// or $HOME/*, so a sibling like /Users/xianxu-other is never mangled to ~-other.
-func TildeAbbrev(cwd, home string) string {
-	if home == "" {
-		return cwd // defensive extension (the shell assumes $HOME is always set)
-	}
-	if cwd == home {
-		return "~"
-	}
-	if strings.HasPrefix(cwd, home+"/") {
-		return "~" + cwd[len(home):]
-	}
-	return cwd
-}
-
-// PaneTitle is the "<agent> [<tilde-cwd>]" string exported as PAIR_PANE_TITLE.
-func PaneTitle(agent, cwd, home string) string {
-	return agent + " [" + TildeAbbrev(cwd, home) + "]"
 }

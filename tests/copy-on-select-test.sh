@@ -55,8 +55,11 @@ chmod +x "$fakebin/pbcopy" "$fakebin/pbpaste" "$fakebin/zellij"
 export PATH="$fakebin:$PATH"
 export XDG_CACHE_HOME="$tmp/cache"
 
-# Agent pane: title carries the cwd (parley.nvim → contains "nvim"), but
-# terminal_command is the pair-wrap launch (no nvim/draft).
+# Agent pane: a deliberately HOSTILE title containing "nvim" (via a legacy
+# pre-#133 cwd suffix — production no longer emits one), while terminal_command is
+# the pair-wrap launch (no nvim/draft). Keep the misleading title: the point is
+# that detection keys on terminal_command, not the title. Do not "modernize" this
+# to a bare "claude" — that makes the case pass trivially and tests nothing.
 agent_pane='{"id":0,"is_plugin":false,"is_focused":FOCUS_AGENT,"is_floating":false,
   "title":"claude [~/workspace/parley.nvim]",
   "terminal_command":"sh -c zellij action rename-pane --pane-id \"$ZELLIJ_PANE_ID\" \"${PAIR_PANE_TITLE:-agent}\" 2>/dev/null; exec pair wrap --scrollback-log \"/data/scrollback-t-claude.raw\" claude"}'

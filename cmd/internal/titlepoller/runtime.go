@@ -58,7 +58,8 @@ func (OSRuntime) CmuxRenameWorkspace(title string) error {
 }
 
 // PaneFiles globs pane-<tag>-*.json and decodes each into a PaneInfo (agent from
-// the filename; pane_id/cwd/cwd_display from the JSON).
+// the filename; pane_id from the JSON). The file's "cwd" is intentionally not
+// decoded — no title carries a cwd since #133.
 func (OSRuntime) PaneFiles(dataDir, tag string) []PaneInfo {
 	matches, _ := filepath.Glob(filepath.Join(dataDir, "pane-"+tag+"-*.json"))
 	prefix := "pane-" + tag + "-"
@@ -69,9 +70,7 @@ func (OSRuntime) PaneFiles(dataDir, tag string) []PaneInfo {
 			continue
 		}
 		var p struct {
-			PaneID     string `json:"pane_id"`
-			Cwd        string `json:"cwd"`
-			CwdDisplay string `json:"cwd_display"`
+			PaneID string `json:"pane_id"`
 		}
 		if json.Unmarshal(b, &p) != nil {
 			continue
@@ -79,10 +78,8 @@ func (OSRuntime) PaneFiles(dataDir, tag string) []PaneInfo {
 		agent := strings.TrimSuffix(filepath.Base(m), ".json")
 		agent = strings.TrimPrefix(agent, prefix)
 		out = append(out, PaneInfo{
-			Agent:      agent,
-			PaneID:     p.PaneID,
-			Cwd:        p.Cwd,
-			CwdDisplay: p.CwdDisplay,
+			Agent:  agent,
+			PaneID: p.PaneID,
 		})
 	}
 	return out

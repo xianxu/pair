@@ -12,7 +12,6 @@ type Options struct {
 	Agent           string
 	SessionName     string
 	DataDir         string
-	Home            string
 	CmuxWorkspaceID string // CMUX_WORKSPACE_ID; empty ⇒ skip the cmux surface
 
 	// Tunables (defaults applied in Run). PollInterval is the loop cadence;
@@ -24,12 +23,13 @@ type Options struct {
 	MissThreshold int
 }
 
-// PaneInfo is one decoded pane-<tag>-<agent>.json (the fields the frame meter needs).
+// PaneInfo is one decoded pane-<tag>-<agent>.json (the fields the frame meter
+// needs). The file also carries a raw "cwd" that the poller deliberately does NOT
+// read: since #133 no title shows a cwd, and that field exists for
+// contextcmd.paneCwd and launcher's legacy scope matching.
 type PaneInfo struct {
-	Agent      string
-	PaneID     string
-	Cwd        string
-	CwdDisplay string
+	Agent  string
+	PaneID string
 }
 
 // Runtime is the IO/process boundary for the poller. The pure decisions live in
@@ -173,7 +173,7 @@ func activityMTime(opts Options, rt Runtime) time.Time {
 }
 
 // updateFrameTitles renames the active agent's zellij frame to
-// "<agent> (<count>) [<cwd>]", skipping panes whose title is unchanged.
+// "<agent> (<count>)", skipping panes whose title is unchanged.
 //
 // PaneFiles globs pane-<tag>-*.json, which can match a STALE twin left by a
 // prior session that paired this tag with a different agent (nothing cleaned it
@@ -189,11 +189,7 @@ func updateFrameTitles(opts Options, rt Runtime, cache frameCache, session strin
 		if pane.PaneID == "" || pane.Agent != opts.Agent {
 			continue
 		}
-		cwdDisp := pane.CwdDisplay
-		if cwdDisp == "" {
-			cwdDisp = abbrevCwd(pane.Cwd, opts.Home)
-		}
-		title := frameTitle(pane.Agent, rt.ContextCount(opts.Tag, pane.Agent), cwdDisp)
+		title := frameTitle(pane.Agent, rt.ContextCount(opts.Tag, pane.Agent))
 		if !cache.changed(pane.PaneID, title) {
 			continue
 		}
