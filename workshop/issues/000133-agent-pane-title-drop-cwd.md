@@ -280,9 +280,10 @@ Single review boundary — no `Mx` tags: one branch, one close.
       `cmd/internal/titlefmt` — pre-existing #130 drift pointing at a package it
       deleted. One line, in this branch, called out as a side quest rather than
       left for someone to trip over.
-- [ ] Live check in both layouts: focus each pane in turn, read the tab title;
-      confirm the agent frame reading `claude (629k)` is acceptable (the
-      documented fallback is keeping the frame long).
+- [x] Live check — done against the running session via
+      `zellij action list-panes --json` (a real read-back, not an eyeball claim).
+      Operator confirmed the shortened frame is acceptable, so the
+      keep-the-frame-long fallback is not needed.
 
 ## Log
 
@@ -344,6 +345,38 @@ Single review boundary — no `Mx` tags: one branch, one close.
   trivially. Comment updated to say so.
 - Pre-existing, not touched: `gofmt -l` flags `launcher/lifecycle_test.go` and
   `launcher/pick_test.go`; both are unmodified by this branch.
+
+- **Live check (layout 3, this session).** Killed the running poller and
+  respawned it from the new binary (`pair title <tag> <agent> <session>` — the
+  real spawn shape), then read titles back with
+  `zellij action list-panes --json`:
+
+  | pane | before | after | |
+  |---|---|---|---|
+  | agent | `claude (246k) [~/workspace/pair]` | `claude (255k)` | changed |
+  | terminal | `[terminal 1]` | `[terminal 1]` | unchanged |
+  | draft | `draft` | `draft` | unchanged |
+
+  Tab title now `📁pair | claude (255k)`. This exercised the real code path
+  (`updateFrameTitles` → `RenamePane` → zellij), not a simulation. Pidfile
+  correctly re-pointed to the new poller (49647), so `ensure_title_poller` keeps
+  working on the next entry.
+
+  **Scope of that check, stated precisely rather than over-claimed:** layout 3
+  only. Layout 2 is covered transitively — `tests/term-pane-shortcuts-test.sh`
+  pins that both layouts share the same agent+draft launch commands (re-verified
+  by hand here), and the new conformance test runs BOTH layouts' agent lines. The
+  *startup* title (`PAIR_PANE_TITLE`) was not observed in a fresh session, because
+  that needs launching a new one; it is covered instead by the mutation-tested
+  `TestRunLaunchForcedCreateClaude` assertion plus the conformance test executing
+  the KDL line that consumes `${PAIR_PANE_TITLE:-agent}`. The `Alt+r` rename path
+  is untouched code with existing table tests.
+- `zellij action …` needs the command sandbox disabled — inside it the socket
+  connect fails as "There is no active session!" while `zellij list-sessions`
+  (a directory read) still works, which is a misleading pair of symptoms worth
+  remembering.
+- Operator decisions this turn: `PAIR_PANE_CWD` removal **approved**; the
+  shortened agent frame **approved**.
 
 ## Revisions
 
