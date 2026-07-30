@@ -22,9 +22,11 @@ import (
 // fails json.Unmarshal, so paneCwd returns "" and the poller skips the pane. No
 // test goes red, because none of them run this line.
 //
-// ARCH-MOCK: `zellij` and `pair` are stubbed on PATH — the same seam the real
-// launch resolves them through — so the trailing `exec pair wrap` is a no-op and
-// the JSON-writing prefix runs for real.
+// ARCH-MOCK: `zellij` and `pair` are faked on PATH — the same seam the real launch
+// resolves them through — so `exec pair wrap` is a no-op while the JSON-writing
+// prefix runs for real. `zellij` is a RECORDING fake, not a no-op: it captures
+// argv so the `rename-pane` half of the line is asserted too, since that hop
+// carries the startup pane title and is never observed live.
 
 // agentPaneShellFromKDL extracts the agent pane's shell command from a layout.
 // The agent pane is identified by the pane_id JSON it writes, which distinguishes
@@ -65,12 +67,27 @@ func unescapeKDL(s string) string {
 	return b.String()
 }
 
-// stubBin writes a no-op executable so `zellij` and `exec pair wrap …` resolve
-// without launching anything real.
+// stubBin writes a no-op executable so `exec pair wrap …` resolves without
+// launching anything real.
 func stubBin(t *testing.T, dir, name string) {
 	t.Helper()
 	path := filepath.Join(dir, name)
 	if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// recordingStub writes a `zellij` that APPENDS its argv to $ZELLIJ_ARGV_LOG.
+//
+// A no-op stub would let the layout's `rename-pane --pane-id "$ZELLIJ_PANE_ID"
+// "${PAIR_PANE_TITLE:-agent}"` run with its arguments vanishing — so mangling that
+// expansion, or the --pane-id flag, would keep every test in the tree green. The
+// startup pane title is never observed live (that needs a fresh session), so this
+// is the only thing standing behind it. A stateful fake, not a stateless mock.
+func recordingStub(t *testing.T, dir, name, log string) {
+	t.Helper()
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" >> \"" + log + "\"\nexit 0\n"
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -85,7 +102,8 @@ func TestAgentPaneJSONRoundTripsThroughKDL(t *testing.T) {
 			dataDir := t.TempDir()
 			paneCwdDir := t.TempDir()
 			binDir := t.TempDir()
-			stubBin(t, binDir, "zellij")
+			argvLog := filepath.Join(dataDir, "zellij-argv")
+			recordingStub(t, binDir, "zellij", argvLog)
 			stubBin(t, binDir, "pair")
 
 			cmd := exec.Command("sh", "-c", shell)
@@ -96,6 +114,9 @@ func TestAgentPaneJSONRoundTripsThroughKDL(t *testing.T) {
 				"PAIR_TAG=t",
 				"PAIR_AGENT=claude",
 				"ZELLIJ_PANE_ID=7",
+				// The startup title createflow exports; the KDL reads it as
+				// ${PAIR_PANE_TITLE:-agent} and hands it to rename-pane.
+				"PAIR_PANE_TITLE=claude",
 				// PWD is what the printf records as "cwd"; a non-interactive sh
 				// inherits it rather than recomputing it, so set it explicitly.
 				"PWD=" + paneCwdDir,
@@ -128,9 +149,29 @@ func TestAgentPaneJSONRoundTripsThroughKDL(t *testing.T) {
 			if first.PaneID != "7" {
 				t.Errorf("pane_id = %q, want 7", first.PaneID)
 			}
+			if first.Cwd != paneCwdDir {
+				t.Errorf("cwd = %q, want %q", first.Cwd, paneCwdDir)
+			}
 			var extra json.RawMessage
 			if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
 				t.Fatalf("expected exactly one JSON object, got a second (%v): %s", err, raw)
+			}
+
+			// (c) The startup-title hop: createflow's PAIR_PANE_TITLE must reach
+			// rename-pane for THIS pane. Asserting argv, not just that it ran.
+			argv, err := os.ReadFile(argvLog)
+			if err != nil {
+				t.Fatalf("zellij was never invoked: %v", err)
+			}
+			got := strings.Split(strings.TrimSpace(string(argv)), "\n")
+			want := []string{"action", "rename-pane", "--pane-id", "7", "claude"}
+			if len(got) != len(want) {
+				t.Fatalf("zellij argv = %q, want %q", got, want)
+			}
+			for i := range want {
+				if got[i] != want[i] {
+					t.Fatalf("zellij argv = %q, want %q", got, want)
+				}
 			}
 		})
 	}

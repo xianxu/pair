@@ -1,8 +1,10 @@
 // Package titlepoller is the Go owner of the per-tag title poller (#93 M1,
 // ported from bin/pair-title.sh). It owns two surfaces:
 //
-//  1. The zellij FRAME title of each agent pane — "<agent> (<count>) [<cwd>]",
-//     where <count> is the agent's context-window size (#71). Always-on.
+//  1. The zellij FRAME title of each agent pane — "<agent> (<count>)", where
+//     <count> is the agent's context-window size (#71). No cwd: zellij composes
+//     the tab as "<session name> | <pane title>" and the session half already
+//     carries the folder (#133). Always-on.
 //  2. The cmux WORKSPACE title — an activity heat-ramp emoji prefix. cmux-only.
 //
 // Single-instance per tag via a pidfile whose liveness is identity-checked (not

@@ -87,6 +87,8 @@ func (f *fakeRuntime) Log(string)      {}
 func (f *fakeRuntime) LogFresh(string) {}
 
 const (
+	// Legacy pre-#133 agent title (frames no longer carry a cwd). Kept on purpose:
+	// role detection must not depend on the title's shape.
 	agentFocusedPanes = `[
 	  {"id":0,"is_plugin":false,"is_focused":true,"is_floating":false,
 	   "title":"claude [~/workspace/parley.nvim]",

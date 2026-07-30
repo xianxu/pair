@@ -88,9 +88,11 @@ doc you can resume from on another machine — or under another agent. See
 
 **Context meter in the pane frame**
 
-The agent pane's frame reads `<agent> (<count>) [<cwd>]` — `<count>` is the
-agent's live context-window occupancy (e.g. `970k`), read from its own
-transcript, so you can watch the window fill without asking.
+The agent pane's frame reads `<agent> (<count>)` — `<count>` is the agent's live
+context-window occupancy (e.g. `970k`), read from its own transcript, so you can
+watch the window fill without asking. The terminal tab shows it as
+`📁pair | claude (970k)`: zellij prepends the session name, so the pane half
+carries only the pane's own identity and never repeats the folder.
 
 ## Keybindings
 

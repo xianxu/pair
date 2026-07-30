@@ -1148,3 +1148,44 @@ and pasted `📁...` resume/rename paths were implemented without direct tests.
 **Rule.** When a change alters text a user sees or may paste back into a command,
 update README in the same window and add tests for the paste-back entry points.
 Atlas explains architecture; README explains what the operator types and sees.
+
+## Shell `printf` recycles its format — a dropped `%s` corrupts silently
+
+#133 removed a field from the `printf` in `zellij/layouts/main-{2,3}.kdl` that
+writes `pane-<tag>-<agent>.json`. Drop the `%s` but leave its argument and POSIX
+`printf` **reapplies the whole format** to the surplus argument: the file gets two
+concatenated JSON objects, `json.Unmarshal` fails, and every consumer degrades to
+its zero value — `paneCwd` returns `""`, the title poller skips the pane. Nothing
+goes red, because the producer was a shell line no test executed; all four
+fixtures in the tree hand-wrote that JSON.
+
+**Rule.** A shell line that emits structured data is a producer, and it needs a
+test that *executes* it: extract the command from its layout/script, run it under
+`sh` with the external binaries stubbed on `PATH`, and assert the real consumer
+decodes the result. Assert the payload is exactly **one** value — that single
+assertion is what distinguishes format-recycling from a merely-wrong field. Write
+it BEFORE the edit so it passes first, then mutation-test it: make the wrong edit
+on purpose and watch it fail. Verified both directions in #133.
+
+Corollary: a stub that discards argv only proves a command *ran*. Where the
+arguments are the thing you depend on (`rename-pane --pane-id N <title>` carries
+the startup pane title), make the stub record argv and assert it — otherwise
+mangling the expansion keeps the whole tree green. Close review caught exactly
+this gap in #133's first cut.
+
+## Grep the rendered SHAPE, not the symbol, when deleting a display format
+
+#130's lesson already said "update README in the same window". #133 missed README
+anyway — while correctly updating `atlas/architecture.md`, `Makefile.local`, both
+KDLs, the generated bundle, and the code. The reason the existing rule didn't
+fire: the sweep grepped for **symbols** being deleted (`TildeAbbrev`, `abbrevCwd`,
+`cwd_display`) and every one of those was clean. README never mentioned a symbol —
+it described the *output*, `<agent> (<count>) [<cwd>]`. Same class of miss hit the
+`titlepoller` package doc, which contradicted the function 58 lines below it.
+
+**Rule.** When changing what a format *renders*, grep for a distinctive fragment
+of the rendered shape (here `[<cwd>]`, or `) [`) across `README.md`, `atlas/`,
+`Makefile*`, and package doc comments — in addition to grepping the symbols. Prose
+restates output, not identifiers, so a symbol-only sweep reports all-clear on the
+surfaces humans actually read. Do this sweep before the close review, not in
+response to it.

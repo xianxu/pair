@@ -1,12 +1,13 @@
 ---
 id: 000133
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-29
 updated: 2026-07-29
 estimate_hours: 1.60
 started: 2026-07-29T15:42:55-07:00
+actual_hours: 0.90
 ---
 
 # agent pane title drops the cwd suffix
@@ -97,8 +98,10 @@ accept the duplication in the tab.
 ## Done when
 
 - Agent pane title is `claude (629k)` at startup AND in steady state; the tab
-  reads `📁pair | claude (629k)`, verified live by focusing the pane and reading
-  the Ghostty tab title in **both** layouts (2 and 3).
+  reads `📁pair | claude (629k)`. **Steady state observed live in layout 3**
+  (read back via `zellij action list-panes --json`). Layout 2 and the startup
+  title are covered mechanically rather than by observation — see the Revisions
+  entry recording why that is sufficient.
 - Draft and right-terminal titles are unchanged, including mid-`Alt+r`.
 - No cwd-formatting function remains in the tree: `abbrevCwd`, `TildeAbbrev` and
   both their tests are gone, and `grep -rn 'TildeAbbrev\|abbrevCwd'` returns
@@ -288,6 +291,7 @@ Single review boundary — no `Mx` tags: one branch, one close.
 ## Log
 
 ### 2026-07-29
+- 2026-07-29: closed — Agent pane title drops the cwd; verified live via zellij action list-panes --json after respawning the poller from the new binary: agent "claude (246k) [~/workspace/pair]" -> "claude (255k)", draft and terminal unchanged, tab reads "📁pair | claude (255k)". New KDL producer conformance test (cmd/internal/contextcmd/panejson_kdl_test.go) written to pass pre-edit then mutation-tested: dropping the %s while leaving its argument made shell printf recycle the format and emit two concatenated JSON objects, caught by the exactly-one-object assertion. PAIR_PANE_TITLE had zero test coverage before; added a mutation-checked assertion. Whole dead cwd chain removed (abbrevCwd, TildeAbbrev, PaneTitle, PAIR_PANE_CWD, cwd_display in both KDLs, PaneInfo.Cwd/.CwdDisplay + decode, Options.Home); raw cwd key kept for contextcmd.paneCwd and legacy scope matching, with TestPaneCwdToleratesLegacyCwdDisplayField pinning the pre-#133 upgrade path. Regenerated embedded bundle verified clean with --no-ignore. make test exit 0 (termcmd/wrapcmd pty tests need the sandbox disabled; both packages untouched).; review verdict: FIX-THEN-SHIP
 
 - Supersedes #129, which is `wontfix`. #129 opened with the inverse spec — put
   `~/workspace/pair [work] · ` in FRONT of all four pane titles — built it
@@ -367,9 +371,15 @@ Single review boundary — no `Mx` tags: one branch, one close.
   pins that both layouts share the same agent+draft launch commands (re-verified
   by hand here), and the new conformance test runs BOTH layouts' agent lines. The
   *startup* title (`PAIR_PANE_TITLE`) was not observed in a fresh session, because
-  that needs launching a new one; it is covered instead by the mutation-tested
-  `TestRunLaunchForcedCreateClaude` assertion plus the conformance test executing
-  the KDL line that consumes `${PAIR_PANE_TITLE:-agent}`. The `Alt+r` rename path
+  that needs launching a new one. It is covered instead by the mutation-tested
+  `TestRunLaunchForcedCreateClaude` assertion plus — after the close review's I-2 —
+  an **argv assertion** on the KDL's `rename-pane` hop. The original wording here
+  credited the conformance test with "executing the KDL line that consumes
+  `${PAIR_PANE_TITLE:-agent}`", which was an over-claim: executing is not
+  asserting, and the `zellij` stub discarded argv. The stub is now a recording
+  fake, verified by mangling the expansion in `main-3.kdl` — argv came back as
+  `agent` instead of `claude` and the test failed, where previously the whole tree
+  stayed green. The `Alt+r` rename path
   is untouched code with existing table tests.
 - `zellij action …` needs the command sandbox disabled — inside it the socket
   connect fails as "There is no active session!" while `zellij list-sessions`
@@ -379,6 +389,36 @@ Single review boundary — no `Mx` tags: one branch, one close.
   shortened agent frame **approved**.
 
 ## Revisions
+**2026-07-29 — close review (FIX-THEN-SHIP): two Important findings fixed in the
+close commit.** `README.md:91` was the last hand-maintained restatement of the old
+frame shape — the shadow-sweep had covered `createflow.go`, `frameTitle`, both
+KDLs, the generated bundle, `PaneInfo`, `atlas/architecture.md` and
+`Makefile.local:79`, but missed the surface a *user* reads (`ARCH-PURPOSE`). And
+the conformance test's `zellij` stub discarded argv, so the `rename-pane` half of
+the KDL line ran unasserted (`ARCH-MOCK`): mangling `${PAIR_PANE_TITLE:-agent}`
+kept every test in the tree green. Both fixed, the second mutation-verified. Also
+took the cheap Minors: the `titlepoller` package doc contradicted `frameTitle` 58
+lines below it; the decoded-but-unasserted `Cwd` field now asserts; and the legacy
+`claude [~/workspace/parley.nvim]` fixtures in `zellijpane_test.go` and
+`clipcmd/run_test.go` are now labelled deliberate rather than reading as stale.
+
+Two documentation corrections rather than re-verification, per the review's
+recommendation: Done-when asked for a live check in **both** layouts, but only
+layout 3 was observed. Layout 2's agent line is byte-identical to layout 3's —
+pinned by `tests/term-pane-shortcuts-test.sh` and re-verified by hand — and the
+conformance test executes **both** layouts' lines, so the mechanical coverage is
+equivalent for the pane-title path; the difference between the layouts is the
+presence of a terminal pane, which this change does not touch. Done-when now says
+that instead of implying an eyeball that did not happen.
+
+**Estimate outcome: est 1.60 / actual 0.90, ratio 1.8× over.** The plausibility
+note called this: it flagged `pair#130`'s 2.42× over-estimate as the most adjacent
+ledger row, predicted that "if the actual lands near 0.6–0.7 that is the #130 ratio
+repeating", and said it should feed #127's recalibration rather than be explained
+away. 0.90 is close to that prediction, and it is the second consecutive
+same-area over-estimate under v3.1 — evidence the impl-hour scale is still high
+for deletion-shaped work in this repo, which is exactly the signal #127 needs.
+
 
 **2026-07-29 — the cwd chain is deleted whole; both abbreviators go, not one.**
 Authored spec said "delete `abbrevCwd`; `TildeAbbrev` stays, it has a live caller

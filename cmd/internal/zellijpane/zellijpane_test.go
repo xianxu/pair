@@ -6,6 +6,11 @@ import "testing"
 // a tab-position-keyed map whose values are arrays of pane manifests. The pane
 // objects are what Parse must surface; the "0"/"1" tab keys and any wrapper are
 // not panes.
+//
+// The agent title carries a legacy pre-#133 cwd suffix; frames no longer emit one.
+// Kept deliberately: this package parses whatever zellij reports — including panes
+// named before a binary upgrade — and "nvim" inside that path is useful
+// adversarial content for role detection that must key on terminal_command.
 const realShape = `{
   "0": [
     {"id":0,"is_plugin":false,"is_focused":true,"is_floating":false,
