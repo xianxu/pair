@@ -3,6 +3,7 @@ package workbenchshortcut
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
@@ -424,5 +425,40 @@ func TestRoleForPaneWithRegisteredTerminals(t *testing.T) {
 		TerminalCommand: "nvim -u /pair/nvim/review.lua /tmp/review.md"}
 	if got := RoleForPaneWith(review, []string{"4"}); got != PaneRoleOther {
 		t.Fatalf("RoleForPaneWith(review) = %v, want Other", got)
+	}
+}
+
+// Every global chord must carry help text. This is the "cannot ship undocumented"
+// property for the 8 chords whose wording lives nowhere else — they reach nvim via
+// the GENERATED workbench_actions.lua, not literal keymap.set calls, so parsing
+// init.lua would silently miss them (#132).
+func TestEveryGlobalBindingHasHelp(t *testing.T) {
+	for _, b := range GlobalBindings() {
+		if strings.TrimSpace(b.Help) == "" {
+			t.Errorf("chord %v (%s) has no Help text", b.Chord, b.NvimKey)
+		}
+	}
+}
+
+// The role table must cover every chord Decide actually handles for the right
+// terminal, or the help silently omits a working key. Their nvim descs describe the
+// deliberate draft NO-OP ("right-terminal tab helper disabled in draft"), so there
+// is no honest alternative wording source (#132 PQ-2).
+func TestRoleBindingsCoverTerminalSwitch(t *testing.T) {
+	handled := []Chord{ChordAltT, ChordAltW, ChordAltR, ChordAltShiftD, ChordAltShiftEnter, ChordAltK}
+	for _, chord := range handled {
+		found := false
+		for _, rb := range RoleBindings() {
+			if rb.Chord != chord {
+				continue
+			}
+			found = true
+			if strings.TrimSpace(rb.Help) == "" {
+				t.Errorf("chord %v is handled for the right terminal but has no Help", chord)
+			}
+		}
+		if !found {
+			t.Errorf("chord %v is handled for the right terminal but is absent from roleBindings", chord)
+		}
 	}
 }

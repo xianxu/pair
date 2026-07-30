@@ -106,17 +106,63 @@ type GlobalBinding struct {
 	LuaFunction string
 	NvimKey     string
 	FocusDraft  bool
+	// Help is the user-facing description shown by `pair keys` / Alt+h (#132).
+	// It is authored HERE because these chords reach nvim through the generated
+	// workbench_actions.lua rather than literal vim.keymap.set calls, so no
+	// `desc = 'pair: …'` exists for them to derive from. Not rendered into Lua.
+	Help string
 }
 
+// Keyed literals (not positional): #132 added Help, and a positional list makes
+// every future field a silent shift of the one before it.
 var globalBindings = []GlobalBinding{
-	{ChordAltD, ActionConfirmDetach, "PairConfirmDetach", "<M-d>", true},
-	{ChordAltX, ActionConfirmQuit, "PairConfirmQuit", "<M-x>", true},
-	{ChordAltN, ActionRestartPair, "PairConfirmRestart", "<M-n>", true},
-	{ChordCtrlAltN, ActionRestartPair, "PairConfirmRestart", "<C-M-n>", true},
-	{ChordAltShiftN, ActionRestartAgent, "PairConfirmAgentRestart", "<M-N>", true},
-	{ChordAltUp, ActionGrowDraft, "PairLayoutBigger", "<M-Up>", false},
-	{ChordAltDown, ActionShrinkDraft, "PairLayoutSmaller", "<M-Down>", false},
-	{ChordAltC, ActionToggleReview, "PairReviewToggle", "<M-c>", false},
+	{Chord: ChordAltD, Action: ActionConfirmDetach, LuaFunction: "PairConfirmDetach", NvimKey: "<M-d>", FocusDraft: true,
+		Help: "detach from the session (re-attach with `pair`)"},
+	{Chord: ChordAltX, Action: ActionConfirmQuit, LuaFunction: "PairConfirmQuit", NvimKey: "<M-x>", FocusDraft: true,
+		Help: "full quit — kill the session and drop it from the resurrect list"},
+	{Chord: ChordAltN, Action: ActionRestartPair, LuaFunction: "PairConfirmRestart", NvimKey: "<M-n>", FocusDraft: true,
+		Help: "reload pair — kill and re-launch the workbench in place"},
+	{Chord: ChordCtrlAltN, Action: ActionRestartPair, LuaFunction: "PairConfirmRestart", NvimKey: "<C-M-n>", FocusDraft: true,
+		Help: "reload pair (same as Alt+n)"},
+	{Chord: ChordAltShiftN, Action: ActionRestartAgent, LuaFunction: "PairConfirmAgentRestart", NvimKey: "<M-N>", FocusDraft: true,
+		Help: "restart only the agent conversation, keeping the workbench"},
+	{Chord: ChordAltUp, Action: ActionGrowDraft, LuaFunction: "PairLayoutBigger", NvimKey: "<M-Up>", FocusDraft: false,
+		Help: "grow the draft pane along the height ladder"},
+	{Chord: ChordAltDown, Action: ActionShrinkDraft, LuaFunction: "PairLayoutSmaller", NvimKey: "<M-Down>", FocusDraft: false,
+		Help: "shrink the draft pane along the height ladder"},
+	{Chord: ChordAltC, Action: ActionToggleReview, LuaFunction: "PairReviewToggle", NvimKey: "<M-c>", FocusDraft: false,
+		Help: "open / show / hide the review pane"},
+}
+
+// RoleBinding describes a chord whose behaviour is PANE-LOCAL — it does something
+// different, or nothing, outside its role.
+//
+// These need their own wording home because neither existing source can supply it:
+// their behaviour lives in Decide's switch (not enumerable), and their nvim keymaps
+// describe the deliberate draft NO-OP ("right-terminal tab helper disabled in
+// draft", init.lua:3653-3658). Deriving from nvim would publish "disabled in draft"
+// as the description of a working feature (#132).
+//
+// The table describes the switch; it does not drive it. TestRoleBindingsCoverTerminalSwitch
+// keeps the two from diverging.
+type RoleBinding struct {
+	Chord Chord
+	Role  PaneRole
+	Help  string
+}
+
+var roleBindings = []RoleBinding{
+	{Chord: ChordAltT, Role: PaneRoleRightTerminal, Help: "new terminal tab"},
+	{Chord: ChordAltW, Role: PaneRoleRightTerminal, Help: "close the current terminal tab"},
+	{Chord: ChordAltR, Role: PaneRoleRightTerminal, Help: "rename the current terminal tab"},
+	{Chord: ChordAltShiftD, Role: PaneRoleRightTerminal, Help: "split a second terminal below"},
+	{Chord: ChordAltK, Role: PaneRoleRightTerminal, Help: "jump back to the left pane you came from"},
+	{Chord: ChordAltShiftEnter, Role: PaneRoleRightTerminal, Help: "toggle the focused side's width"},
+}
+
+// RoleBindings returns the pane-local chord descriptions.
+func RoleBindings() []RoleBinding {
+	return append([]RoleBinding(nil), roleBindings...)
 }
 
 func GlobalBindings() []GlobalBinding {
