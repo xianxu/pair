@@ -1,11 +1,12 @@
 ---
 id: 000128
-status: open
+status: working
 deps: [pair#127]
 github_issue:
 created: 2026-07-28
-updated: 2026-07-28
+updated: 2026-07-30
 estimate_hours:
+started: 2026-07-30T16:48:13-07:00
 ---
 
 # share escape-sequence framing between termcmd and wrapcmd
