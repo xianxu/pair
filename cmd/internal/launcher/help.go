@@ -18,6 +18,7 @@ USAGE
   pair [<agent>] -- <args>      forward args to the agent on create
   pair list | ls                list this repo's Pair sessions and attach state
   pair rename <old> <new>       rename every tag-scoped file from <old> to <new>
+  pair keys                     in-session keybindings (what Alt+h shows)
   pair -h | --help              this message
 
 Use ` + "`--`" + ` to separate pair's args from the agent's. When creating a
@@ -25,6 +26,7 @@ session you're prompted for a name; ` + "`resume <tag>`" + ` skips the prompt.
 Layout flags are Pair arguments before ` + "`--`" + ` and may appear before or
 after the agent. A new tag defaults to layout2; an omitted flag reuses the tag's
 recorded layout. Changing a live tag explicitly asks before recreating the whole
-workbench. In-session keybindings are on Alt+h.
+workbench. For in-session keybindings run ` + "`pair keys`" + ` (or press Alt+h
+inside a session).
 `
 }

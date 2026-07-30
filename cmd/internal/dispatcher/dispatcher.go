@@ -9,6 +9,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/agentcmd"
 	"github.com/xianxu/pair/cmd/internal/clipcmd"
 	"github.com/xianxu/pair/cmd/internal/contextcmd"
+	"github.com/xianxu/pair/cmd/internal/keyscmd"
 	"github.com/xianxu/pair/cmd/internal/layoutcmd"
 	"github.com/xianxu/pair/cmd/internal/opener"
 	"github.com/xianxu/pair/cmd/internal/reviewcmd"
@@ -49,6 +50,7 @@ func Families() []CommandFamily {
 		{Name: "launch", Summary: "session lifecycle and public pair launcher flow", Status: "handoff"},
 		// flat helpers
 		{Name: "context", Summary: "agent pane context meter", Status: "implemented"},
+		{Name: "keys", Summary: "in-session keybindings (what Alt+h shows)", Status: "implemented"},
 		{Name: "agent restart", Summary: "restart only the supervised agent conversation", Status: "implemented"},
 		{Name: "layout toggle-focused", Summary: "toggle focused workbench side width", Status: "implemented"},
 		{Name: "layout focus-terminal", Summary: "focus the floating right terminal pane by id", Status: "implemented"},
@@ -172,6 +174,8 @@ func Dispatch(args []string) Result {
 	switch family.Name {
 	case "context":
 		return dispatchContext(rest)
+	case "keys":
+		return dispatchKeys(rest)
 	case "agent restart":
 		return bufferedStderr(func(stderr *bytes.Buffer) int {
 			return agentcmd.RunRestart(rest, os.Getenv, agentcmd.OSRuntime{}, stderr)
@@ -216,6 +220,12 @@ func dispatchContext(args []string) Result {
 	var stdout bytes.Buffer
 	code := contextcmd.Run(args, contextcmd.EnvFromOS(), &stdout)
 	return Result{Stdout: stdout.String(), ExitCode: code}
+}
+
+func dispatchKeys(args []string) Result {
+	var stdout, stderr bytes.Buffer
+	code := keyscmd.Run(args, &stdout, &stderr)
+	return Result{Stdout: stdout.String(), Stderr: stderr.String(), ExitCode: code}
 }
 
 func dispatchScrollbackRender(args []string) Result {

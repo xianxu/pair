@@ -3686,7 +3686,7 @@ vim.keymap.set({ 'n', 'i' }, '<S-M-Right>', function() nav_boundary( 1) end,
   { silent = true, desc = 'pair: jump to next region boundary' })
 
 vim.keymap.set({ 'n', 'i' }, '<M-q>', queue_current,
-  { silent = true, desc = 'pair: queue current draft for later (back of queue)' })
+  { silent = true, desc = 'pair: park the draft on the queue (front, +1)' })
 
 -- Alt+BS deletes the current +N queue item whenever the cursor is parked on a
 -- queue slot — in BOTH normal and insert mode, so the gesture doesn't change

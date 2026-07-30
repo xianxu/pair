@@ -3,7 +3,8 @@ package launcher
 import (
 	"fmt"
 	"io"
-	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/textwidth"
 )
 
 // The `pair list` / `ls` subcommand (#99 M5a, ported from bin/pair-shell 228-306).
@@ -83,50 +84,9 @@ func buildListRowsForScope(names []string, raw string, index SessionNameIndex, s
 	return rows
 }
 
-// padDisplay left-aligns s in a field of w TERMINAL COLUMNS.
-//
-// Go's %-30s pads by rune count, which the 📁 prefix breaks (#130): it is one
-// rune but two columns wide, so every new-format row would sit a column left of
-// its header. Same unit confusion as the rune-vs-byte truncation bug this issue
-// fixes, one layer up — three units are in play (bytes for zellij's socket
-// budget, runes for Go's string ops, columns for the terminal) and each belongs
-// to a different question.
-func padDisplay(s string, w int) string {
-	if pad := w - displayWidth(s); pad > 0 {
-		return s + strings.Repeat(" ", pad)
-	}
-	return s
-}
+// padDisplay and displayWidth delegate to cmd/internal/textwidth, which owns the
+// column-measuring rule for every Pair surface that aligns output (#132 extracted
+// it so the keybind help could not grow a second copy — ARCH-DRY).
+func padDisplay(s string, w int) string { return textwidth.Pad(s, w) }
 
-// displayWidth counts terminal columns. Only the wide case that actually occurs
-// here is modeled: emoji and other East-Asian-Wide runes take two columns.
-func displayWidth(s string) int {
-	w := 0
-	for _, r := range s {
-		if isWideRune(r) {
-			w += 2
-			continue
-		}
-		w++
-	}
-	return w
-}
-
-// isWideRune covers the double-width ranges a session name can contain — the
-// emoji planes plus the CJK/symbol blocks that render wide in a terminal.
-func isWideRune(r rune) bool {
-	switch {
-	case r >= 0x1100 && r <= 0x115F, // Hangul Jamo
-		r >= 0x2E80 && r <= 0xA4CF, // CJK radicals .. Yi
-		r >= 0xAC00 && r <= 0xD7A3, // Hangul syllables
-		r >= 0xF900 && r <= 0xFAFF, // CJK compatibility ideographs
-		r >= 0xFE30 && r <= 0xFE6F, // CJK compatibility forms
-		r >= 0xFF00 && r <= 0xFF60, // fullwidth forms
-		r >= 0xFFE0 && r <= 0xFFE6,
-		r >= 0x1F300 && r <= 0x1F64F, // misc symbols + pictographs, emoticons
-		r >= 0x1F900 && r <= 0x1F9FF, // supplemental symbols + pictographs
-		r >= 0x20000 && r <= 0x3FFFD:
-		return true
-	}
-	return false
-}
+func displayWidth(s string) int { return textwidth.Width(s) }

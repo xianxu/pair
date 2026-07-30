@@ -111,9 +111,14 @@ accept the duplication in the tab.
   cmd/internal/runtimebundle/assets/` is empty — i.e. the **regenerated embedded
   bundle** is clean too, not just the source layouts. This is the one surface the
   live check structurally cannot cover (the dev session reads the repo KDL via
-  `defaultPairHome`), so it gets its own assertion. Use `grep -rn --no-ignore` or
-  `ls` the asset path: the assets dir is gitignored, and an ignore-respecting
-  grep silently reports zero hits for a file that still contains the string.
+  `defaultPairHome`), so it gets its own assertion. **Correction (found while
+  implementing #132): the flag is `--no-ignore-files`, not `--no-ignore`.** This
+  environment's `grep` is ugrep, where `--no-ignore` is not a valid option: it
+  exits 2 and prints nothing, which reads exactly like "clean". Use
+  `grep -rn --no-ignore-files`, or `/usr/bin/grep -rn` (BSD grep does not consult
+  .gitignore at all), or `ls` the asset path. The substance of this issue was
+  re-verified with both working tools afterwards and the bundle is genuinely clean
+  — but the instruction as written was a false-pass generator.
 - The raw `cwd` round-trip is proven by **executing the KDL producer**, not by
   hand-written JSON: the new conformance test (Plan item 1) runs the real
   `args "-c"` line from both layouts and asserts `contextcmd.paneCwd` returns the
@@ -291,7 +296,7 @@ Single review boundary — no `Mx` tags: one branch, one close.
 ## Log
 
 ### 2026-07-29
-- 2026-07-29: closed — Agent pane title drops the cwd; verified live via zellij action list-panes --json after respawning the poller from the new binary: agent "claude (246k) [~/workspace/pair]" -> "claude (255k)", draft and terminal unchanged, tab reads "📁pair | claude (255k)". New KDL producer conformance test (cmd/internal/contextcmd/panejson_kdl_test.go) written to pass pre-edit then mutation-tested: dropping the %s while leaving its argument made shell printf recycle the format and emit two concatenated JSON objects, caught by the exactly-one-object assertion. PAIR_PANE_TITLE had zero test coverage before; added a mutation-checked assertion. Whole dead cwd chain removed (abbrevCwd, TildeAbbrev, PaneTitle, PAIR_PANE_CWD, cwd_display in both KDLs, PaneInfo.Cwd/.CwdDisplay + decode, Options.Home); raw cwd key kept for contextcmd.paneCwd and legacy scope matching, with TestPaneCwdToleratesLegacyCwdDisplayField pinning the pre-#133 upgrade path. Regenerated embedded bundle verified clean with --no-ignore. make test exit 0 (termcmd/wrapcmd pty tests need the sandbox disabled; both packages untouched).; review verdict: FIX-THEN-SHIP
+- 2026-07-29: closed — Agent pane title drops the cwd; verified live via zellij action list-panes --json after respawning the poller from the new binary: agent "claude (246k) [~/workspace/pair]" -> "claude (255k)", draft and terminal unchanged, tab reads "📁pair | claude (255k)". New KDL producer conformance test (cmd/internal/contextcmd/panejson_kdl_test.go) written to pass pre-edit then mutation-tested: dropping the %s while leaving its argument made shell printf recycle the format and emit two concatenated JSON objects, caught by the exactly-one-object assertion. PAIR_PANE_TITLE had zero test coverage before; added a mutation-checked assertion. Whole dead cwd chain removed (abbrevCwd, TildeAbbrev, PaneTitle, PAIR_PANE_CWD, cwd_display in both KDLs, PaneInfo.Cwd/.CwdDisplay + decode, Options.Home); raw cwd key kept for contextcmd.paneCwd and legacy scope matching, with TestPaneCwdToleratesLegacyCwdDisplayField pinning the pre-#133 upgrade path. Regenerated embedded bundle verified clean (re-checked during #132 with --no-ignore-files AND /usr/bin/grep, because --no-ignore turned out to be an invalid ugrep flag that exits 2 silently; the bundle is clean under both). make test exit 0 (termcmd/wrapcmd pty tests need the sandbox disabled; both packages untouched).; review verdict: FIX-THEN-SHIP
 
 - Supersedes #129, which is `wontfix`. #129 opened with the inverse spec — put
   `~/workspace/pair [work] · ` in FRONT of all four pane titles — built it
@@ -333,7 +338,7 @@ Single review boundary — no `Mx` tags: one branch, one close.
     longer exists). `grep -rn 'TildeAbbrev|abbrevCwd'` is empty.
   - Embedded bundle verified regenerated and clean: the generated copies were
     stamped 14:44 carrying `cwd_display`, and after the build they are 16:14 with
-    `printf '{"pane_id":"%s","cwd":"%s"}'`. Checked with `--no-ignore`, since the
+    `printf '{"pane_id":"%s","cwd":"%s"}'`. Checked with `--no-ignore-files`, since the
     assets dir is gitignored and a plain grep reports zero hits misleadingly.
   - `make test` **exit 0**. Note two tests (`termcmd` pty, `wrapcmd` re-exec) fail
     under the agent's command sandbox with `pty.Start: operation not permitted` and

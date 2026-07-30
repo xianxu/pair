@@ -3,6 +3,7 @@ package workbenchshortcut
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
@@ -424,5 +425,55 @@ func TestRoleForPaneWithRegisteredTerminals(t *testing.T) {
 		TerminalCommand: "nvim -u /pair/nvim/review.lua /tmp/review.md"}
 	if got := RoleForPaneWith(review, []string{"4"}); got != PaneRoleOther {
 		t.Fatalf("RoleForPaneWith(review) = %v, want Other", got)
+	}
+}
+
+// Every global chord must carry help text. This is the "cannot ship undocumented"
+// property for the 8 chords whose wording lives nowhere else — they reach nvim via
+// the GENERATED workbench_actions.lua, not literal keymap.set calls, so parsing
+// init.lua would silently miss them (#132).
+func TestEveryGlobalBindingHasHelp(t *testing.T) {
+	for _, b := range GlobalBindings() {
+		if strings.TrimSpace(b.Help) == "" {
+			t.Errorf("chord %v (%s) has no Help text", b.Chord, b.NvimKey)
+		}
+	}
+}
+
+// The role table must cover every chord Decide handles for the right terminal —
+// DERIVED from Decide, not from a hand-written list.
+//
+// SCOPE: this covers Decide's seam only. The terminal chord surface is split, and
+// termcmd.handleTerminalChord handles chords Decide never sees (Alt+←/Alt+→). Proven
+// by mutation: deleting the Alt+← row leaves THIS test green and fails
+// termcmd's TestEveryHandledTerminalChordIsDocumented. The two together are the
+// guard; neither alone is.
+//
+// The first cut of #132 hardcoded `handled := []Chord{...}`, which only asserted
+// that one hand-maintained list matched another. That is exactly how Alt+←/Alt+→
+// (terminal tab switching) shipped undocumented: adding a chord to either seam
+// failed nothing. Iterating the chord space instead means a new terminal chord
+// cannot be added without either documenting it or consciously excluding it.
+func TestRoleBindingsCoverTerminalSwitch(t *testing.T) {
+	documented := map[Chord]string{}
+	for _, rb := range RoleBindings() {
+		documented[rb.Chord] = rb.Help
+	}
+	for chord := ChordUnknown + 1; chord <= ChordAltShiftEnter; chord++ {
+		if _, isGlobal := DecideGlobal(chord); isGlobal {
+			continue // global chords carry their own Help on GlobalBinding
+		}
+		d := Decide(ShortcutInput{Role: PaneRoleRightTerminal, Chord: chord})
+		if d.Disposition != DispositionHandle {
+			continue
+		}
+		help, ok := documented[chord]
+		if !ok {
+			t.Errorf("chord %v is handled for the right terminal but is absent from roleBindings", chord)
+			continue
+		}
+		if strings.TrimSpace(help) == "" {
+			t.Errorf("chord %v has an empty Help", chord)
+		}
 	}
 }
