@@ -142,7 +142,7 @@ So each catalog row **names its wording source explicitly** (`SourceNvim` / `Sou
 - Create: `cmd/internal/keyhelp/keyhelp.go`, `cmd/internal/keyhelp/render.go`
 - Test: `cmd/internal/keyhelp/render_test.go`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 package keyhelp
@@ -191,12 +191,12 @@ func TestRenderPadsByDisplayWidthNotBytes(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `go test ./cmd/internal/keyhelp/ -run TestRender -v`
 Expected: FAIL — `undefined: Render`, `undefined: Section`, `undefined: Binding`.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 `keyhelp.go`:
 
@@ -262,18 +262,18 @@ func Render(sections []Section) string {
 }
 ```
 
-- [ ] **Step 3a: Resolve the width dependency BEFORE writing `displayWidth`**
+- [x] **Step 3a: Resolve the width dependency BEFORE writing `displayWidth`**
 
 Run: `grep -n "runewidth\|go-runewidth" go.mod; grep -rn "func.*[Dd]isplayWidth\|runewidth\." --include='*.go' . | grep -v _test | head`
 
 `launcher/list.go:88` already solves exactly this for `pair list` ("pads by display width, not runes — 📁 is one rune and two columns", #130). **Reuse that helper** rather than adding a dependency or a second implementation (`ARCH-DRY`). If it is unexported, either export it or move it to a shared home and update `list.go` to call it — do not copy it. Only if no helper exists and `go-runewidth` is absent from `go.mod`, write a minimal local `displayWidth` counting East-Asian-wide runes as 2, and note the choice in the issue `## Log`.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `go test ./cmd/internal/keyhelp/ -run TestRender -v`
 Expected: PASS (3 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cmd/internal/keyhelp/
@@ -286,7 +286,7 @@ git commit -m "#132: keyhelp render — sections, per-section display-width alig
 - Create: `cmd/internal/keyhelp/parse.go`
 - Test: `cmd/internal/keyhelp/parse_test.go`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Cases are taken from real `init.lua` shapes — check each against the file before trusting this plan's rendition of it.
 
@@ -351,23 +351,23 @@ func TestParseNvimKeymapsHandlesSingleModeAndTrailingSpaceDesc(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `go test ./cmd/internal/keyhelp/ -run TestParseNvim -v`
 Expected: FAIL — `undefined: ParseNvimKeymaps`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Shape: scan for `vim.keymap.set(`, then from that index take the text up to the matching close of the call (or a bounded lookahead of ~6 lines — whichever the real file needs), extract the **second** quoted argument as the lhs and the `desc = '…'` payload. A `..` inside the lhs quotes means `Dynamic: true` and the literal text is kept for reporting. Return `[]NvimKeymap{Key, Desc, Dynamic}` with `pair: ` stripped and the remainder `strings.TrimSpace`d (several real descs have trailing spaces, e.g. `'pair: autopair '`).
 
 Keep it a pure string function — no `os`, no regexp compiled at call time (hoist any `regexp.MustCompile` to a package var).
 
-- [ ] **Step 4: Run test to verify it passes, then run it against the REAL file**
+- [x] **Step 4: Run test to verify it passes, then run it against the REAL file**
 
 Run: `go test ./cmd/internal/keyhelp/ -run TestParseNvim -v`
 Expected: PASS (4 tests).
 
-- [ ] **Step 4a: Reconcile against reality — a bare count is NOT sufficient**
+- [x] **Step 4a: Reconcile against reality — a bare count is NOT sufficient**
 
 Add a permanent test (not temporary — this is the parser's contract) reading the **tree** copy `../../../nvim/init.lua`:
 
@@ -401,7 +401,7 @@ func TestParseNvimKeymapsReconcilesAgainstRealFile(t *testing.T) {
 Run: `go test ./cmd/internal/keyhelp/ -run Reconciles -v`
 Expected: PASS. Re-derive `raw` and `wantUnresolved` from the file if they disagree — but investigate *why* before changing a number.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cmd/internal/keyhelp/parse.go cmd/internal/keyhelp/parse_test.go
@@ -414,7 +414,7 @@ git commit -m "#132: parse nvim keymap descs — the wording source, dynamic lhs
 - Modify: `cmd/internal/keyhelp/parse.go`
 - Test: `cmd/internal/keyhelp/parse_test.go`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 // Only `Run` binds are user-facing zellij-level actions. A WriteChars bind is
@@ -438,9 +438,9 @@ func TestParseZellijRunBindsIgnoresWriteChars(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2–4:** Run (expect FAIL: undefined), implement, re-run (expect PASS). Then verify against the real file: `ParseZellijRunBinds` over `zellij/config.kdl` must return exactly **2** binds (`Alt h`, `Alt l`) — cross-check with `grep -B1 -E "^\s+Run " zellij/config.kdl`.
+- [x] **Step 2–4:** Run (expect FAIL: undefined), implement, re-run (expect PASS). Then verify against the real file: `ParseZellijRunBinds` over `zellij/config.kdl` must return exactly **2** binds (`Alt h`, `Alt l`) — cross-check with `grep -B1 -E "^\s+Run " zellij/config.kdl`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -am "#132: parse zellij Run binds (zellij-level actions, not WriteChars plumbing)"
@@ -456,7 +456,7 @@ git commit -am "#132: parse zellij Run binds (zellij-level actions, not WriteCha
 - Modify: `cmd/internal/workbenchshortcut/shortcut.go:103-120`
 - Test: `cmd/internal/workbenchshortcut/shortcut_test.go`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 // Every global chord must carry help text. This is the "no second edit" property
@@ -472,12 +472,12 @@ func TestEveryGlobalBindingHasHelp(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `go test ./cmd/internal/workbenchshortcut/ -run TestEveryGlobalBindingHasHelp -v`
 Expected: FAIL — 8 errors (no `Help` field yet; this will be a compile error first, which counts as red).
 
-- [ ] **Step 3: Add the field and fill it**
+- [x] **Step 3: Add the field and fill it**
 
 Add `Help string` as the last field of `GlobalBinding`, then fill each row. Wording must match observed behaviour — read each `LuaFunction` in `nvim/init.lua` before writing its sentence rather than guessing from the chord name:
 
@@ -496,17 +496,17 @@ var globalBindings = []GlobalBinding{
 
 Note: adding a positional field breaks any other unkeyed composite literal of `GlobalBinding`. Run `go build ./...` and fix; consider converting these to keyed literals if the compiler complains anywhere else.
 
-- [ ] **Step 4: Run to verify it passes**
+- [x] **Step 4: Run to verify it passes**
 
 Run: `go test ./cmd/internal/workbenchshortcut/ -v`
 Expected: PASS, including the pre-existing generator tests (`RenderLuaGlobalMaps` must be unchanged — the new field is not rendered into Lua).
 
-- [ ] **Step 5: Verify the generated Lua did NOT change**
+- [x] **Step 5: Verify the generated Lua did NOT change**
 
 Run: `go run ./cmd/internal/workbenchshortcut/generatecmd 2>/dev/null || true; git diff --stat nvim/workbench_actions.lua`
 Expected: no diff. If there is one, `Help` leaked into the generator — revert that.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git commit -am "#132: GlobalBinding carries Help; test refuses an undocumented chord"
@@ -524,7 +524,7 @@ These chords have **no honest existing source**: their behaviour is in `Decide`'
 would ship "disabled in draft" as the description of a working feature — the exact
 class of wrong-but-plausible help this issue is fixing.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 // The table must cover every chord Decide actually handles for the right
@@ -551,10 +551,10 @@ func TestRoleBindingsCoverTerminalSwitch(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2:** Run → FAIL (`undefined: RoleBindings`).
-- [ ] **Step 3:** Add `type RoleBinding struct { Chord Chord; Role PaneRole; Help string }`, the `roleBindings` var, and `RoleBindings()`/`RoleBindingKeys()` accessors. Read `Decide`'s terminal branch (`shortcut.go:150-180`) for each chord's real behaviour before writing its sentence — `Alt+t` new tab, `Alt+w` close tab, `Alt+r` rename tab, `Alt+Shift+D` split terminal down, `Alt+Shift+⏎` toggle focused-side width, `Alt+k` jump back to the left pane.
-- [ ] **Step 4:** Run → PASS. Confirm `Decide`'s behaviour is untouched: `go test ./cmd/internal/workbenchshortcut/` fully green (the switch is the authority; this table only describes it).
-- [ ] **Step 5: Commit**
+- [x] **Step 2:** Run → FAIL (`undefined: RoleBindings`).
+- [x] **Step 3:** Add `type RoleBinding struct { Chord Chord; Role PaneRole; Help string }`, the `roleBindings` var, and `RoleBindings()`/`RoleBindingKeys()` accessors. Read `Decide`'s terminal branch (`shortcut.go:150-180`) for each chord's real behaviour before writing its sentence — `Alt+t` new tab, `Alt+w` close tab, `Alt+r` rename tab, `Alt+Shift+D` split terminal down, `Alt+Shift+⏎` toggle focused-side width, `Alt+k` jump back to the left pane.
+- [x] **Step 4:** Run → PASS. Confirm `Decide`'s behaviour is untouched: `go test ./cmd/internal/workbenchshortcut/` fully green (the switch is the authority; this table only describes it).
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -am "#132: roleBindings — wording for the pane-local chords, beside the behaviour"
@@ -568,7 +568,7 @@ git commit -am "#132: roleBindings — wording for the pane-local chords, beside
 
 This is the task that makes #132 unrepeatable. Write the drift tests FIRST.
 
-- [ ] **Step 1: Write the failing drift tests**
+- [x] **Step 1: Write the failing drift tests**
 
 ```go
 package keyhelp
@@ -638,12 +638,12 @@ func TestZellijRunBindsAreDocumented(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run to verify they fail**
+- [x] **Step 2: Run to verify they fail**
 
 Run: `go test ./cmd/internal/keyhelp/ -run Drift -v` (or `-run 'Classified|StillExists|Documented'`)
 Expected: FAIL — undefined `Catalog`, `mustReadSource`, `GlobalBindingKeys`.
 
-- [ ] **Step 3: Implement `sources.go`, then `catalog.go`**
+- [x] **Step 3: Implement `sources.go`, then `catalog.go`**
 
 `sources.go` — `SourceReader` interface with an `EmbeddedAsset`-backed default (used by `pair keys` at runtime and by the render test), plus **two distinct test helpers**, matching the CRITICAL split above:
 - `mustReadTreeSource(t, path)` — reads `../../../<path>` from the working tree. **All classification/drift tests use this**, because the embedded copy is gitignored and never regenerated by `go test`.
@@ -687,12 +687,12 @@ var Catalog = catalog{
 
 Zellij `Run` binds have no upstream prose, so those two rows carry `Help` here (the one exception, called out in the comment).
 
-- [ ] **Step 4: Run the drift tests until green — by CLASSIFYING, not by weakening**
+- [x] **Step 4: Run the drift tests until green — by CLASSIFYING, not by weakening**
 
 Run: `go test ./cmd/internal/keyhelp/ -v`
 Expected: every real keymap named in a failure gets a decision. If tempted to loosen an assertion to get green, stop: that is exactly the regression this task prevents.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cmd/internal/keyhelp/
@@ -705,7 +705,7 @@ git commit -m "#132: catalog + bidirectional drift tests — undocumented or sta
 - Modify: `cmd/internal/keyhelp/keyhelp.go`
 - Test: `cmd/internal/keyhelp/keyhelp_test.go`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 // The composed document: wording comes from the sources, grouping/order from the
@@ -754,7 +754,7 @@ func TestHelpNeverTellsYouToPressAltH(t *testing.T) {
 }
 ```
 
-- [ ] **Step 1a: Add the test that pins the join rule where it actually bites**
+- [x] **Step 1a: Add the test that pins the join rule where it actually bites**
 
 ```go
 // Alt+t/w/r have nvim keymaps describing the draft NO-OP ("right-terminal tab
@@ -794,11 +794,11 @@ func TestDualMeaningKeyRendersInBothContexts(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2–4:** Run (FAIL), implement `Sections(SourceReader) ([]Section, error)` — parse all sources, then join **each catalog row to the source it names** (`SourceNvim` / `SourceGlobal` / `SourceRole` / `SourceZellij`). There is **no** "whichever source has prose wins" fallback: a row whose named source lacks wording is an error, not an occasion to borrow the wrong sentence. Sort by Group order then `Order`; map source key spellings to display forms (`<M-CR>` → `Alt+⏎`, `Alt h` → `Alt+h`), reusing `PAIR_CHEATS`' spellings where it covers the key. Then run again (PASS).
+- [x] **Step 2–4:** Run (FAIL), implement `Sections(SourceReader) ([]Section, error)` — parse all sources, then join **each catalog row to the source it names** (`SourceNvim` / `SourceGlobal` / `SourceRole` / `SourceZellij`). There is **no** "whichever source has prose wins" fallback: a row whose named source lacks wording is an error, not an occasion to borrow the wrong sentence. Sort by Group order then `Order`; map source key spellings to display forms (`<M-CR>` → `Alt+⏎`, `Alt h` → `Alt+h`), reusing `PAIR_CHEATS`' spellings where it covers the key. Then run again (PASS).
 
   The key→display mapping is itself a small pure function; give it a test with the awkward cases (`<S-M-BS>` → `Shift+Alt+⌫`, `<C-M-c>` → `Ctrl+Alt+c`, `<M-Left>` → `Alt+←`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -am "#132: compose help sections — source wording, catalog grouping, Alt+h documents itself"
@@ -816,12 +816,12 @@ git commit -am "#132: compose help sections — source wording, catalog grouping
 - Modify: wherever subcommands are routed (`grep -rn '"context"' cmd/ | grep -v _test` finds the dispatch switch)
 - Test: `cmd/internal/keyscmd/keyscmd_test.go`, plus the dispatcher's existing table test
 
-- [ ] **Step 1: Write the failing test** — `Run(w io.Writer) int` writes non-empty output containing a known binding and returns 0.
-- [ ] **Step 2:** Run → FAIL.
-- [ ] **Step 3:** Implement as a thin wrapper: `Sections(DefaultSources())` → `Render` → `fmt.Fprint(w, …)`. Add `--center <cols>` (pads each line using the shared display-width helper). **Always exit 0**, even on a source error, printing `keybind help unavailable: <err>` as the body — `bin/pair-help` runs under `set -euo pipefail`, so a non-zero exit kills the pane before the pager opens. Test both: the happy path and a failing `SourceReader` returning exit 0 with the diagnostic line.
-- [ ] **Step 4:** Run → PASS. Then `go build ./... && ./bin/pair keys` — eyeball the real output.
-- [ ] **Step 5:** Check the dispatcher help/table test expectations updated (`go test ./cmd/internal/dispatcher/`).
-- [ ] **Step 6: Commit**
+- [x] **Step 1: Write the failing test** — `Run(w io.Writer) int` writes non-empty output containing a known binding and returns 0.
+- [x] **Step 2:** Run → FAIL.
+- [x] **Step 3:** Implement as a thin wrapper: `Sections(DefaultSources())` → `Render` → `fmt.Fprint(w, …)`. Add `--center <cols>` (pads each line using the shared display-width helper). **Always exit 0**, even on a source error, printing `keybind help unavailable: <err>` as the body — `bin/pair-help` runs under `set -euo pipefail`, so a non-zero exit kills the pane before the pager opens. Test both: the happy path and a failing `SourceReader` returning exit 0 with the diagnostic line.
+- [x] **Step 4:** Run → PASS. Then `go build ./... && ./bin/pair keys` — eyeball the real output.
+- [x] **Step 5:** Check the dispatcher help/table test expectations updated (`go test ./cmd/internal/dispatcher/`).
+- [x] **Step 6: Commit**
 
 ```bash
 git commit -am "#132: pair keys — print in-session keybindings"
@@ -834,7 +834,7 @@ git commit -am "#132: pair keys — print in-session keybindings"
 - Modify: `UsageText` (drop "In-session keybindings are on Alt+h.")
 - Test: `cmd/internal/launcher/format_test.go` (or wherever `UsageText` is tested)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 // The circular sentence is the bug. Usage may POINT at the keybind surface but
@@ -850,10 +850,10 @@ func TestUsageTextIsNotCircular(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2:** Run → FAIL.
-- [ ] **Step 3:** Replace the final sentence with: ``In-session keybindings: run `pair keys` (or Alt+h inside a session).`` Add `pair keys` to the USAGE list as `pair keys                     in-session keybindings`.
-- [ ] **Step 4:** Run → PASS.
-- [ ] **Step 5: `bin/pair-help` — two latent bugs the plan must not inherit**
+- [x] **Step 2:** Run → FAIL.
+- [x] **Step 3:** Replace the final sentence with: ``In-session keybindings: run `pair keys` (or Alt+h inside a session).`` Add `pair keys` to the USAGE list as `pair keys                     in-session keybindings`.
+- [x] **Step 4:** Run → PASS.
+- [x] **Step 5: `bin/pair-help` — two latent bugs the plan must not inherit**
 
 Replace `help="$(pair -h)"` with `help="$(pair keys --center "$(tput cols 2>/dev/null || echo 80)")"` and **delete** the awk/sed centering block (`bin/pair-help:30-33`).
 
@@ -871,7 +871,7 @@ Why, precisely — both verified:
      wording accordingly.
 
 Then: `grep -n "pair -h" bin/pair-help` must return nothing.
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git commit -am "#132: Alt+h pages pair keys; usage stops pointing at itself"
@@ -882,7 +882,7 @@ git commit -am "#132: Alt+h pages pair keys; usage stops pointing at itself"
 **Files:**
 - Modify: `README.md` (keybinding/help mentions), `atlas/architecture.md` (+ `atlas/index.md` if a new file is listed)
 
-- [ ] **Step 1: Sweep the rendered shape, not just symbols** (the #133 lesson)
+- [x] **Step 1: Sweep the rendered shape, not just symbols** (the #133 lesson)
 
 Run: `grep -rn --no-ignore-files "pair --help\|pair -h\|keybindings are on" README.md atlas/ zellij/ bin/ nvim/ Makefile* | grep -v workshop`
 
@@ -890,24 +890,24 @@ Run: `grep -rn --no-ignore-files "pair --help\|pair -h\|keybindings are on" READ
 
 Every hit claiming `--help` shows keybindings must be repointed at `pair keys`. Note the Homebrew formula caveat ("Run `pair --help` for keybindings") lives in the **separate `homebrew-pair` repo**, not here — it is #131's fix; record that split in the issue `## Log` rather than leaving Done-when's "no text anywhere" ambiguous.
 
-- [ ] **Step 2: Atlas** — record that `Alt+h` → `bin/pair-help` → `pair keys` → `keyhelp`, that wording derives from nvim `desc` + `GlobalBinding.Help`, and that the drift tests are what keep it honest.
+- [x] **Step 2: Atlas** — record that `Alt+h` → `bin/pair-help` → `pair keys` → `keyhelp`, that wording derives from nvim `desc` + `GlobalBinding.Help`, and that the drift tests are what keep it honest.
 
-- [ ] **Step 3: Regenerate + verify the embedded bundle**
+- [x] **Step 3: Regenerate + verify the embedded bundle**
 
 Run: `make build && grep -rn --no-ignore-files "keybindings are on Alt+h" cmd/internal/runtimebundle/assets/ ; echo "(empty = clean)"`
 
 The assets dir is gitignored; an ignore-respecting grep reports a false zero (#133).
 
-- [ ] **Step 4: Live check**
+- [x] **Step 4: Live check**
 
 `make build`, then in a live session press `Alt+h`: real bindings, `q`/`Esc` dismisses. Read the pane titles back mechanically rather than by eyeball where possible — `zellij action list-panes --json` needs the sandbox disabled (see the #133 log).
 
-- [ ] **Step 5: Full suite**
+- [x] **Step 5: Full suite**
 
 Run: `env -u PAIR_SESSION_ID -u PAIR_TAG -u PAIR_PANE_CWD make test`
 Expected: exit 0. `termcmd`/`wrapcmd` pty tests need the sandbox disabled.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git commit -am "#132: docs + atlas for the keyhelp surface"

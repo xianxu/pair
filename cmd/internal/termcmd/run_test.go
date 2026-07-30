@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
 func TestRunTestShortcutRightTerminalActions(t *testing.T) {
@@ -1106,4 +1108,30 @@ func (r *splitReader) Read(p []byte) (int, error) {
 		r.chunks[0] = chunk[n:]
 	}
 	return n, nil
+}
+
+// The terminal chord surface is split across TWO seams: workbenchshortcut.Decide's
+// terminal branch and handleTerminalChord here — and their sets differ (this one
+// has AltLeft/AltRight; AltR is special-cased at run.go:408). #132's help was built
+// from Decide alone, so Alt+←/Alt+→ shipped undocumented under a section titled
+// "Terminal tabs".
+//
+// This is the mirror of TestRoleBindingsCoverTerminalSwitch: every chord THIS seam
+// claims must also be described in RoleBindings, so neither seam can grow a chord
+// the help does not know about.
+func TestEveryHandledTerminalChordIsDocumented(t *testing.T) {
+	documented := map[workbenchshortcut.Chord]bool{}
+	for _, rb := range workbenchshortcut.RoleBindings() {
+		documented[rb.Chord] = true
+	}
+	for chord := workbenchshortcut.ChordUnknown + 1; chord <= workbenchshortcut.ChordAltShiftEnter; chord++ {
+		rt := &fakeRuntime{}
+		mux := &terminalMux{}
+		if !handleTerminalChord(chord, mux, rt) {
+			continue
+		}
+		if !documented[chord] {
+			t.Errorf("handleTerminalChord handles chord %v but workbenchshortcut.RoleBindings() does not describe it — `pair keys` would omit it", chord)
+		}
+	}
 }

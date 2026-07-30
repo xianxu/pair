@@ -13,7 +13,7 @@ func TestDispatchNamesDeriveFromImplementedStatus(t *testing.T) {
 	// keys off DispatchNames(), so if one of these were accidentally left
 	// `planned`, `pair changelog` would fall through to the launcher (start a
 	// session) with no other test catching it.
-	for _, want := range []string{"agent", "context", "layout", "scrollback", "wrap", "term", "slug", "changelog", "continuation", "session-watch", "scribe", "review", "clip", "title"} {
+	for _, want := range []string{"agent", "context", "layout", "scrollback", "wrap", "term", "slug", "changelog", "continuation", "session-watch", "scribe", "review", "clip", "title", "keys"} {
 		if !containsStr(names, want) {
 			t.Fatalf("DispatchNames() = %v, missing implemented %q", names, want)
 		}
@@ -287,5 +287,21 @@ func mustWrite(t *testing.T, p, s string) {
 	t.Helper()
 	if err := os.WriteFile(p, []byte(s), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Alt+h → bin/pair-help → `pair keys`. If "keys" ever fell out of DispatchNames(),
+// the peel-off would miss and `pair keys` would fall through to the launcher —
+// starting a whole session inside the floating help pane (#132).
+func TestDispatchKeysReturnsKeybindings(t *testing.T) {
+	res := Dispatch([]string{"keys"})
+	if res.ExitCode != 0 {
+		t.Fatalf("ExitCode = %d, want 0; stderr:\n%s", res.ExitCode, res.Stderr)
+	}
+	if !strings.Contains(res.Stdout, "send buffer + clear") {
+		t.Errorf("Stdout missing a real binding:\n%s", res.Stdout)
+	}
+	if strings.Contains(res.Stdout, "keybindings are on Alt+h") {
+		t.Error("routed to the CLI synopsis instead of the keybindings")
 	}
 }

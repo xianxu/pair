@@ -3,6 +3,7 @@ package keyhelp
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -149,6 +150,17 @@ func TestParseNvimKeymapsReconcilesAgainstRealFile(t *testing.T) {
 	src := mustReadTreeSource(t, "nvim/init.lua")
 	scan := ParseNvimKeymaps(src)
 	raw := strings.Count(src, "desc = 'pair: ")
+
+	// The parser keys off the exact literal `desc = 'pair: `. Counting with the SAME
+	// literal would make the reconciliation blind in the same way the parser is: a
+	// keymap written `desc = "pair: …"` or `desc='pair: …'` would be absent from both
+	// sides, so it would never appear in `scan` and TestEveryNvimKeymapIsClassified
+	// could not flag it. Counting with a tolerant regexp and requiring the two counts
+	// to AGREE turns a silent blind spot into a loud failure.
+	loose := len(regexp.MustCompile(`desc\s*=\s*["']pair: `).FindAllString(src, -1))
+	if loose != raw {
+		t.Errorf("found %d loosely-spelled `pair:` descs but %d matching the strict marker — a keymap uses a spelling the parser cannot see; widen descMarker or normalise init.lua", loose, raw)
+	}
 
 	if got := len(scan.Resolved) + len(scan.Dynamic) + len(scan.Unresolved); got != raw {
 		t.Fatalf("accounted for %d keymaps, file has %d — the parser is dropping rows", got, raw)

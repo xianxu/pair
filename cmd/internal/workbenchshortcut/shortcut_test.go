@@ -440,25 +440,40 @@ func TestEveryGlobalBindingHasHelp(t *testing.T) {
 	}
 }
 
-// The role table must cover every chord Decide actually handles for the right
-// terminal, or the help silently omits a working key. Their nvim descs describe the
-// deliberate draft NO-OP ("right-terminal tab helper disabled in draft"), so there
-// is no honest alternative wording source (#132 PQ-2).
+// The role table must cover every chord Decide handles for the right terminal —
+// DERIVED from Decide, not from a hand-written list.
+//
+// SCOPE: this covers Decide's seam only. The terminal chord surface is split, and
+// termcmd.handleTerminalChord handles chords Decide never sees (Alt+←/Alt+→). Proven
+// by mutation: deleting the Alt+← row leaves THIS test green and fails
+// termcmd's TestEveryHandledTerminalChordIsDocumented. The two together are the
+// guard; neither alone is.
+//
+// The first cut of #132 hardcoded `handled := []Chord{...}`, which only asserted
+// that one hand-maintained list matched another. That is exactly how Alt+←/Alt+→
+// (terminal tab switching) shipped undocumented: adding a chord to either seam
+// failed nothing. Iterating the chord space instead means a new terminal chord
+// cannot be added without either documenting it or consciously excluding it.
 func TestRoleBindingsCoverTerminalSwitch(t *testing.T) {
-	handled := []Chord{ChordAltT, ChordAltW, ChordAltR, ChordAltShiftD, ChordAltShiftEnter, ChordAltK}
-	for _, chord := range handled {
-		found := false
-		for _, rb := range RoleBindings() {
-			if rb.Chord != chord {
-				continue
-			}
-			found = true
-			if strings.TrimSpace(rb.Help) == "" {
-				t.Errorf("chord %v is handled for the right terminal but has no Help", chord)
-			}
+	documented := map[Chord]string{}
+	for _, rb := range RoleBindings() {
+		documented[rb.Chord] = rb.Help
+	}
+	for chord := ChordUnknown + 1; chord <= ChordAltShiftEnter; chord++ {
+		if _, isGlobal := DecideGlobal(chord); isGlobal {
+			continue // global chords carry their own Help on GlobalBinding
 		}
-		if !found {
+		d := Decide(ShortcutInput{Role: PaneRoleRightTerminal, Chord: chord})
+		if d.Disposition != DispositionHandle {
+			continue
+		}
+		help, ok := documented[chord]
+		if !ok {
 			t.Errorf("chord %v is handled for the right terminal but is absent from roleBindings", chord)
+			continue
+		}
+		if strings.TrimSpace(help) == "" {
+			t.Errorf("chord %v has an empty Help", chord)
 		}
 	}
 }

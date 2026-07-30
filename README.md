@@ -277,6 +277,7 @@ pair rename <old> <new>          # rename every tag-scoped file in
                                  # current-scope zellij session (use
                                  # Ctrl+Alt+n's (R) inside a session for
                                  # the live equivalent)
+pair keys                        # in-session keybindings (what Alt+h shows)
 pair -h, --help                  # show full help
 ```
 

@@ -77,6 +77,11 @@ var Catalog = catalog{
 		{Key: "Alt+Shift+d", Group: groupTerminal, Order: 40, Context: ContextTerminal, Source: SourceRole},
 		{Key: "Alt+k", Group: groupTerminal, Order: 50, Context: ContextTerminal, Source: SourceRole},
 		{Key: "Alt+Shift+⏎", Group: groupTerminal, Order: 60, Context: ContextTerminal, Source: SourceRole},
+		// Distinct catalog keys from the draft's <M-Left>/<M-Right> history rows: the
+		// (key, context) identity rule is what makes the same physical key safe to
+		// document twice with different meanings.
+		{Key: "Alt+← (terminal)", Display: "Alt+←", Group: groupTerminal, Order: 5, Context: ContextTerminal, Source: SourceRole},
+		{Key: "Alt+→ (terminal)", Display: "Alt+→", Group: groupTerminal, Order: 6, Context: ContextTerminal, Source: SourceRole},
 
 		// --- Session ------------------------------------------------------
 		{Key: "Alt h", Display: "Alt+h", Group: groupSession, Order: 10, Context: ContextGlobal, Source: SourceZellij,
@@ -135,6 +140,14 @@ func (c catalog) Keys() []string {
 	return out
 }
 
+// AllKeys returns include + internal. Reverse drift applies to BOTH lists: an
+// `internal` entry whose keymap has been deleted is just as stale as an `include`
+// one, and leaves a future reader thinking a decision was made about a key that no
+// longer exists.
+func (c catalog) AllKeys() []string {
+	return append(c.Keys(), c.internal...)
+}
+
 // roleChordKey maps a pane-local chord to the catalog spelling used for it.
 //
 // Deliberately NOT workbenchshortcut.ChordName: that is a routing name round-tripped
@@ -154,6 +167,10 @@ func roleChordKey(c workbenchshortcut.Chord) string {
 		return "Alt+k"
 	case workbenchshortcut.ChordAltShiftEnter:
 		return "Alt+Shift+⏎"
+	case workbenchshortcut.ChordAltLeft:
+		return "Alt+← (terminal)"
+	case workbenchshortcut.ChordAltRight:
+		return "Alt+→ (terminal)"
 	}
 	return ""
 }

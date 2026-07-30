@@ -74,9 +74,9 @@ func TestEveryCatalogEntryStillExists(t *testing.T) {
 	for _, z := range ParseZellijRunBinds(mustReadTreeSource(t, "zellij/config.kdl")) {
 		live[z.Key] = true
 	}
-	for _, key := range Catalog.Keys() {
+	for _, key := range Catalog.AllKeys() {
 		if !live[key] {
-			t.Errorf("catalog documents %q but no source defines it any more — remove or repoint it", key)
+			t.Errorf("catalog references %q (include or internal) but no source defines it any more — remove or repoint it", key)
 		}
 	}
 }

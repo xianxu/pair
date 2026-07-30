@@ -1,12 +1,13 @@
 ---
 id: 000132
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-29
 updated: 2026-07-29
 estimate_hours: 3.18
 started: 2026-07-29T22:16:55-07:00
+actual_hours: 0.37
 ---
 
 # Alt+h keybind help is a circular dead end
@@ -201,6 +202,7 @@ review boundary — no `Mx` tags, one branch, one close.
 ## Log
 
 ### 2026-07-29
+- 2026-07-29: closed — Alt+h now shows real keybindings. pair keys renders 34 bindings in 5 groups, wording DERIVED from four sources (nvim desc, GlobalBinding.Help, RoleBinding.Help, catalog for the 2 zellij Run binds); bin/pair-help pages it; UsageText points at pair keys instead of back at Alt+h. Ran the real chain: bin/pair-help end-to-end prints bindings, exit 0. Guards mutation-verified, not just passing: adding an undocumented keymap to nvim/init.lua fails TestEveryNvimKeymapIsClassified; the parser reconciles 30 resolved + 1 dynamic + 3 unresolved = 34 desc lines against the real file with an invariant that no Key begins "pair: " (the naive second-quoted-arg rule misassigns the desc as the key at init.lua:3872 while a count guard still passes); TestRoleLocalWordingComesFromRoleTableNotNvimNoOp pins that Alt+t reads "new terminal tab" and never "disabled in draft"; Alt+k renders twice with per-context wording; pair keys exits 0 on source failure via an injected failing reader (set -euo pipefail would otherwise kill the floating pane). Drift tests read the working tree because assets/ is gitignored and go test never regenerates it, with TestEmbeddedSourcesMatchTree tying the bundle to it. textwidth extracted from launcher/list.go rather than copied; launcher delegates, tests unchanged. make test exit 0 (termcmd/wrapcmd pty tests need the sandbox disabled; both untouched). Also corrected #133 shipped guidance: --no-ignore is not a valid ugrep flag (exits 2, prints nothing, reads as clean); re-verified #133 bundle clean with --no-ignore-files and /usr/bin/grep, fixed the archived issue, and added the lesson.; review verdict: FIX-THEN-SHIP
 
 - Confirmed the bug end to end before designing: `pair -h` is 21 lines, its last
   line is "In-session keybindings are on Alt+h.", and the only keybinding it
@@ -252,6 +254,62 @@ review boundary — no `Mx` tags, one branch, one close.
   silent scope expansion here.
 
 ## Revisions
+**2026-07-29 — close review (FIX-THEN-SHIP): six Important findings fixed in the
+close commit.** The two that mattered most were coupled, and the second explains the
+first:
+
+- **I1: `Alt+←`/`Alt+→` (terminal tab switching) were missing** from a section
+  titled "Terminal tabs". The design's "four sources, verified during design" was
+  itself an incomplete inventory: the terminal chord surface is split across **two**
+  seams — `workbenchshortcut.Decide`'s terminal branch and
+  `termcmd.handleTerminalChord` (`run.go:484-489`) — and their sets differ
+  (`handleTerminalChord` has AltLeft/AltRight; AltR is special-cased elsewhere). So
+  there are **five** sources, not four.
+- **I2: the test that should have caught I1 hardcoded what it claimed to derive.**
+  `TestRoleBindingsCoverTerminalSwitch` documented itself as covering "every chord
+  Decide actually handles" but iterated a hand-written slice — one hand-maintained
+  list checked against another. Now derived from `Decide` over the chord space, plus
+  a **mirror test in `termcmd`** for the other seam. Mutation-verified, and the
+  mutation taught something worth recording: deleting the `Alt+←` row leaves the
+  `workbenchshortcut` test **green** and fails only the `termcmd` mirror, because
+  `Decide` never sees that chord. Neither test is sufficient alone; the comment now
+  says so instead of overclaiming.
+- **I3: four stale `pair -h` claims survived my sweep** (`atlas/architecture.md:19`
+  and `:407`, `zellij/config.kdl:159`, `atlas/go-migration-inventory.md:138`) — one
+  of them directly contradicting the atlas paragraph this branch added. Cause: the
+  sweep used `grep --no-ignore`, the invalid ugrep flag described below. The lesson
+  this branch added about verification commands caught me in the same session that
+  wrote it.
+- **I4:** `"keys"` was missing from `dispatcher_test.go`'s implemented-set list (a
+  regression there would make `Alt+h` launch a session inside the floating pane), and
+  nothing checked that `bin/pair-help` invokes `pair keys` — PQ-6's second sub-point,
+  which I had marked "addressed" while delivering only the awk/pipefail half. Both
+  now covered, the shim by running the real script with `pair`/`less`/`tput` stubbed
+  on `PATH` (needs the sandbox disabled, like the pty tests).
+- **I5:** README's CLI synopsis had silently diverged from `pair -h` on the very
+  subcommand this issue adds.
+- **I6:** the anti-rot guard depended on the exact literal `desc = 'pair: `, and the
+  reconciliation counted with the *same* literal — so a keymap written
+  `desc = "pair: …"` would be invisible to both and could not be flagged. The
+  reconciliation now counts with a tolerant regexp and requires the two counts to
+  agree.
+
+**A content bug the review surfaced indirectly.** Chasing its note that README and
+the derived help disagreed about `Alt+q`, the code settles it: `queue_current()`
+calls `queue_push_front` (`init.lua:2593`), and the retired shell help said "push
+current buffer to queue front (+1)". So the **`desc` was wrong** — "back of queue" —
+and the derived help faithfully reproduced the error. Fixed at the source, which
+corrects `pair keys` and the editor's own `:map` output together. That is the
+derivation working as intended: one edit, both surfaces.
+
+**Also fixed here, in already-merged work:** #133's Done-when told readers to verify
+the gitignored bundle with `grep -rn --no-ignore`. That flag does not exist in this
+environment (ugrep 7.5.0 — it is `--no-ignore-files`); ugrep exits 2 and prints
+nothing, indistinguishable from "clean", and `2>/dev/null` hid the error. #133's
+substance re-verified with two working tools and it is genuinely clean, but the
+instruction was a false-pass generator. Corrected in the archived issue and written
+up in `workshop/lessons.md`.
+
 
 **2026-07-29 — the Spec's single-source premise was wrong; there are four sources.**
 The Spec said `cmd/internal/workbenchshortcut` "holds the chord registry" and could

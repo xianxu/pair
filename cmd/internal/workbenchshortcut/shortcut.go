@@ -158,6 +158,12 @@ var roleBindings = []RoleBinding{
 	{Chord: ChordAltShiftD, Role: PaneRoleRightTerminal, Help: "split a second terminal below"},
 	{Chord: ChordAltK, Role: PaneRoleRightTerminal, Help: "jump back to the left pane you came from"},
 	{Chord: ChordAltShiftEnter, Role: PaneRoleRightTerminal, Help: "toggle the focused side's width"},
+	// Handled by termcmd.handleTerminalChord (run.go:484-489), NOT by Decide — the
+	// terminal chord surface is split across two seams and their sets differ. #132's
+	// first cut documented only Decide's, so "Terminal tabs" rendered with no way to
+	// change tabs. TestRoleBindingsCoverTerminalSwitch now derives from both.
+	{Chord: ChordAltLeft, Role: PaneRoleRightTerminal, Help: "previous terminal tab"},
+	{Chord: ChordAltRight, Role: PaneRoleRightTerminal, Help: "next terminal tab"},
 }
 
 // RoleBindings returns the pane-local chord descriptions.

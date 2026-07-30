@@ -156,7 +156,7 @@ keybinds clear-defaults=false {
         bind "Alt Up" { WriteChars "\u{1b}[1;3A"; }
         bind "Alt Down" { WriteChars "\u{1b}[1;3B"; }
 
-        // Alt+h — pop up a large floating pane with `pair -h` in a pager.
+        // Alt+h — pop up a large floating pane with `pair keys` in a pager.
         // pair-help wraps `less` with a custom keymap so ESC (in addition to
         // the usual `q`) dismisses it; close_on_exit closes the pane when
         // the pager exits.

@@ -16,7 +16,7 @@ contract for the Go packaging migration lives in
 bin/pair                     # THE Go binary (cmd/pair-go): launcher + EVERY helper as `pair <sub>` (#104)
 bin/pair-slug -> pair        # busybox symlink: the external Claude Stop hook's bare name (#104 M3)
 bin/pair-dev                 # dev wrapper: rebuild-on-launch (make build), then exec pair
-bin/pair-help                # shell shim: `pair -h` in an ESC-to-quit pager
+bin/pair-help                # shell shim: `pair keys` in an ESC-to-quit pager
 bin/pair-notify              # hook-driven OSC notifier (e.g. claude Notification)
 #   former standalone helpers are now subcommands of the single binary:
 #     pair wrap · pair scribe · pair session-watch · pair title · pair context ·
@@ -404,7 +404,7 @@ Keybinds added on top of zellij defaults (`clear-defaults=false`):
 - `Alt+x` invokes `PairConfirmQuit()` — Y/N modal then `pair quit` (full quit).
 - `Alt+n` invokes `PairConfirmRestart()` — Y/N modal then `pair restart` (reload pair, keep agent session).
 - `Shift+Alt+N` invokes `PairConfirmAgentRestart()` — Y/N modal then signal the stable `pair wrap` supervisor to replace only its coding-agent child with the same user args and no restoration token. See "Reload / restart in place" under the launcher section.
-- `Alt+h` — `Run "pair-help" { floating true; close_on_exit true; ... }` — pops a floating pane running `pair -h | less`.
+- `Alt+h` — `Run "pair-help" { floating true; close_on_exit true; ... }` — pops a floating pane running `pair keys | less` (#132).
 - `Alt+↑` / `Alt+↓` — route to nvim's `PairLayoutBigger` / `PairLayoutSmaller` — step the nvim pane along the swap-layout ladder (`minimized ↔ small (12 rows) ↔ third`).
 **`pair term` stream hygiene (#127).** The terminal wrapper owns two filters, on
 opposite directions, and the asymmetry is deliberate:
