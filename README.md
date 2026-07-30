@@ -96,9 +96,15 @@ carries only the pane's own identity and never repeats the folder.
 
 ## Keybindings
 
+`Alt+h` in a session pops up the live list, and `pair keys` prints the same thing
+from a shell. That list is **derived** from the bindings themselves — each row's
+wording comes from the keymap or chord that implements it — so it cannot drift out
+of date. The table below is the narrative version, with the extra context a
+one-line description can't carry.
+
 | Key | Scope | Action |
 |---|---|---|
-| **Alt+h** | any pane | Pop up pair's help in a floating pane (`q` or `Esc` to dismiss). |
+| **Alt+h** | any pane | Pop up the keybinding list in a floating pane (`q` or `Esc` to dismiss). Same content as `pair keys`. |
 | **Alt+Return** | nvim (normal/insert) | Send buffer to agent. Note for consistency, claude's keybinding also changed to Alt+return as send, and return as newline |
 | **Alt+Shift+Return** | nvim (normal/insert) | Append buffer to the agent's composer followed by a newline, but do **not** submit — leaves the cursor on a fresh line in the agent input for more typing. Logs + clears the draft like Alt+Return. |
 | **Alt+Shift+Return** | layout 3 terminal | Re-tile the terminal column between 1/2 and 2/3 width (the left stack narrows and reflows while expanded) without recreating any processes. |

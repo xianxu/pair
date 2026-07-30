@@ -1189,3 +1189,28 @@ of the rendered shape (here `[<cwd>]`, or `) [`) across `README.md`, `atlas/`,
 restates output, not identifiers, so a symbol-only sweep reports all-clear on the
 surfaces humans actually read. Do this sweep before the close review, not in
 response to it.
+
+## A verification command must itself be verified — an invalid flag reads as "clean"
+
+#133's Done-when told the reader to confirm the gitignored runtime bundle with
+`grep -rn --no-ignore …`. While implementing #132 that command turned out to be
+**invalid**: this environment's `grep` is ugrep 7.5.0, where `--no-ignore` does not
+exist (the flag is `--no-ignore-files`). ugrep exits 2 and prints an error — but
+the error had been swallowed by `2>/dev/null`, so the output was zero lines, which
+is indistinguishable from "no matches found". I reported a clean bundle on the
+strength of a command that never ran a search. (Re-checked with
+`--no-ignore-files` and with `/usr/bin/grep`: the bundle really was clean, so the
+conclusion survived — but only by luck.)
+
+The trap generalizes past flags: `grep pattern file | head` reports `head`'s exit
+status, not grep's, so `echo "exit=$?"` after a pipe tells you nothing about
+whether the search matched or even ran.
+
+**Rule.** When a check's *passing* output is empty, prove the check can fail
+before believing it passed. Cheapest proofs, in order: (1) run it against a string
+you know is present and watch it print; (2) drop `2>/dev/null` so an invalid flag
+surfaces; (3) confirm with a second, independent tool (`/usr/bin/grep` alongside
+ugrep). Prefer `--no-ignore-files` in this repo, and never put the assertion
+behind a pipe whose exit code you then read. An "empty = clean" idiom is a
+false-pass generator unless you have seen it produce a non-empty result at least
+once in the same session.

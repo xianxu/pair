@@ -189,13 +189,13 @@ Durable design: **`workshop/plans/000132-alt-h-keybind-help-dead-end-plan.md`**
 (authored via `superpowers-writing-plans`). Nine tasks in three chunks; single
 review boundary — no `Mx` tags, one branch, one close.
 
-- [ ] Chunk 1 — pure core: `Binding`/`Section`/`Render` (per-section display-width
+- [x] Chunk 1 — pure core: `Binding`/`Section`/`Render` (per-section display-width
       alignment, reusing `launcher/list.go:88`'s width helper), `ParseNvimKeymaps`,
       `ParseZellijRunBinds`.
-- [ ] Chunk 2 — `GlobalBinding.Help` for the 8 chords that have no wording
+- [x] Chunk 2 — `GlobalBinding.Help` for the 8 chords that have no wording
       anywhere; `SourceReader` over `runtimebundle.EmbeddedAsset`; the `Catalog`;
       and the **bidirectional drift tests** that make #132 unrepeatable.
-- [ ] Chunk 3 — `pair keys`, `bin/pair-help` repointed, `UsageText`
+- [x] Chunk 3 — `pair keys`, `bin/pair-help` repointed, `UsageText`
       de-circularized, docs/atlas, bundle check, live check, full `make test`.
 
 ## Log
@@ -216,6 +216,40 @@ review boundary — no `Mx` tags, one branch, one close.
   not a KEYBINDINGS section in `pair -h`.** CLI usage is read from a shell,
   keybindings are in-session — different audiences — and `-h` would grow to ~70
   lines. It also gives #131's Homebrew caveat an accurate target to point at.
+
+- **Implemented.** All three chunks done. `pair keys` renders 34 bindings in five
+  groups; `Alt+h` pages it; `pair -h` points at it instead of at itself.
+  `make test` **exit 0**.
+- Evidence the guards actually bite, not just pass:
+  - **Parser (PQ-1).** Reconciles against the real `init.lua`: 30 resolved + 1
+    dynamic + 3 unresolved = 34 `desc = 'pair: '` lines, with invariants that no
+    resolved Key begins `pair: ` and the unresolved set stays exactly the three
+    known unquoted-lhs sites. A property test varies mode form, whitespace and
+    arg-2 form.
+  - **Drift (PQ-3).** Mutation-tested: adding an undocumented keymap to
+    `nvim/init.lua` fails `TestEveryNvimKeymapIsClassified`. Restored after.
+  - **Wording join (PQ-2).** `TestRoleLocalWordingComesFromRoleTableNotNvimNoOp`
+    asserts the rendered help contains "new terminal tab" and never "disabled in
+    draft"; `Alt+k` renders twice with different wording per context.
+  - **Exit contract (PQ-6).** `pair keys` exits 0 on a source failure with a
+    visible diagnostic body, tested through an injected failing reader — under
+    `set -euo pipefail` a non-zero exit would kill the floating pane.
+  - Ran the real chain: `bin/pair-help` end to end prints the bindings and exits 0.
+- `textwidth` extracted from `launcher/list.go` (Step 3a) rather than copied;
+  `launcher` delegates and its tests pass unchanged.
+- **A correction to #133's shipped guidance, found here.** #133's Done-when said to
+  verify the gitignored bundle with `grep -rn --no-ignore`. That flag **does not
+  exist** in this environment's grep (ugrep 7.5.0 — it is `--no-ignore-files`);
+  ugrep exits 2 and prints nothing, which is indistinguishable from "no matches".
+  With `2>/dev/null` in the pipeline it read as a clean pass. Re-verified #133's
+  actual claim with `--no-ignore-files` and with `/usr/bin/grep`: the bundle **is**
+  genuinely clean, so the conclusion held — but the instruction was a false-pass
+  generator. Fixed in the archived #133 issue and in this plan, and written up in
+  `workshop/lessons.md` as "a verification command must itself be verified".
+- README's keybinding table is still hand-maintained prose. Left as-is
+  deliberately: it carries context a one-line desc cannot, and it now says the
+  derived list is authoritative. Making it generated is a separate issue, not a
+  silent scope expansion here.
 
 ## Revisions
 

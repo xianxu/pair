@@ -2,8 +2,11 @@ package keyscmd
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/keyhelp"
 )
 
 func TestRunPrintsRealBindings(t *testing.T) {
@@ -46,5 +49,29 @@ func TestRunIgnoresGarbageCenterValue(t *testing.T) {
 	}
 	if stdout.Len() == 0 {
 		t.Error("a bad --center must not suppress the help")
+	}
+}
+
+type failingSources struct{}
+
+func (failingSources) Read(string) ([]byte, error) { return nil, errors.New("bundle unreadable") }
+
+// The pane must still open. bin/pair-help runs under `set -euo pipefail`: a non-zero
+// exit here kills the floating pane before less opens, turning #132's useless help
+// key into a dead one. So a source failure prints a diagnostic BODY and exits 0.
+func TestRunExitsZeroAndExplainsWhenSourcesFail(t *testing.T) {
+	orig := sources
+	sources = func() keyhelp.SourceReader { return failingSources{} }
+	defer func() { sources = orig }()
+
+	var stdout, stderr bytes.Buffer
+	if code := Run(nil, &stdout, &stderr); code != 0 {
+		t.Fatalf("exit = %d, want 0 so the pager still opens", code)
+	}
+	if !strings.Contains(stdout.String(), "keybind help unavailable") {
+		t.Errorf("stdout = %q, want a visible diagnostic as the body", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "bundle unreadable") {
+		t.Errorf("stderr should carry the cause, got %q", stderr.String())
 	}
 }

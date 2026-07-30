@@ -10,6 +10,11 @@ import (
 	"github.com/xianxu/pair/cmd/internal/keyhelp"
 )
 
+// sources is a seam so the always-exit-0 contract below is testable. That contract
+// is load-bearing, not cosmetic: bin/pair-help runs under `set -euo pipefail`, so a
+// non-zero exit kills the floating pane before less opens.
+var sources = func() keyhelp.SourceReader { return keyhelp.DefaultSources() }
+
 // Run renders the keybindings. `--center <cols>` centres the block in that many
 // terminal columns, which is what bin/pair-help asks for.
 //
@@ -36,7 +41,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	sections, err := keyhelp.Sections(keyhelp.DefaultSources())
+	sections, err := keyhelp.Sections(sources())
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "pair keys: %v\n", err)
 		_, _ = fmt.Fprintf(stdout, "keybind help unavailable: %v\n", err)

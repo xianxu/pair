@@ -884,7 +884,7 @@ git commit -am "#132: Alt+h pages pair keys; usage stops pointing at itself"
 
 - [ ] **Step 1: Sweep the rendered shape, not just symbols** (the #133 lesson)
 
-Run: `grep -rn --no-ignore "pair --help\|pair -h\|keybindings are on" README.md atlas/ zellij/ bin/ nvim/ Makefile* | grep -v workshop`
+Run: `grep -rn --no-ignore-files "pair --help\|pair -h\|keybindings are on" README.md atlas/ zellij/ bin/ nvim/ Makefile* | grep -v workshop`
 
 `nvim/` is in the list because `PAIR_CHEATS` and the statusline strings live there and reference the help path.
 
@@ -894,7 +894,7 @@ Every hit claiming `--help` shows keybindings must be repointed at `pair keys`. 
 
 - [ ] **Step 3: Regenerate + verify the embedded bundle**
 
-Run: `make build && grep -rn --no-ignore "keybindings are on Alt+h" cmd/internal/runtimebundle/assets/ ; echo "(empty = clean)"`
+Run: `make build && grep -rn --no-ignore-files "keybindings are on Alt+h" cmd/internal/runtimebundle/assets/ ; echo "(empty = clean)"`
 
 The assets dir is gitignored; an ignore-respecting grep reports a false zero (#133).
 
