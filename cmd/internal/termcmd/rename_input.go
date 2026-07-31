@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"unicode/utf8"
 
+	"github.com/xianxu/pair/cmd/internal/ansi"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
@@ -211,9 +212,7 @@ func malformedEscapeSize(input []byte) int {
 	return len(input)
 }
 
-func isTerminalFinalByte(c byte) bool {
-	return c >= 0x40 && c <= 0x7e
-}
+func isTerminalFinalByte(c byte) bool { return ansi.IsFinalByte(c) }
 
 func longestSuffixPrefix(input, prefix []byte) int {
 	max := len(input)
