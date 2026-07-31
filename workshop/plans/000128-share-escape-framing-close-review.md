@@ -274,3 +274,100 @@ Extend the existing `## Revisions` section (new dated entry, or amend Delta 1/3 
 1. **Delta 1 is incomplete.** Correct `plan.md:130` ("consumed by … `termcmd`'s two adapters (Lenient)" → `Frame` has no `termcmd` consumer), `:131` (drop "The `Mode` knob is the same principle one level down" from `Frame`'s bullet — `Mode` belongs to `OSCEnd`), and `:135` (`Frame(buf, Strict)` → `Frame(buf)`).
 2. **Delta 3 is not reflected in the entity table.** Change `plan.md:127`'s Status from "modified — one-line delegation" to "deleted (zero callers once `csiEnd` became a delegation)", and strike the false justification at `:286`.
 3. **Record `Strip`'s no-alias contract once C1 is fixed** — the plan's `Strip` bullet (`:138`) specifies only which bytes are removed, never that the result must not share storage with the input. That silence is what let the fast path in. State it: *`Strip` never returns a slice aliasing `buf`; callers compact the result in place.*
+
+---
+
+## Re-review — 2026-07-30T17:44:06-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 128 — share escape-sequence framing between termcmd and wrapcmd |
+| repo | pair |
+| issue file | workshop/issues/000128-share-escape-framing.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 6ef2c1fc234a4d932ccde58a45554002b7d8c6d6..HEAD |
+| command | sdlc close --issue 128 |
+| reviewer | claude |
+| timestamp | 2026-07-30T17:44:06-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The blocking defect from the prior round is genuinely fixed: `ansi.Strip` no longer has a no-ESC fast path — it allocates unconditionally (`ansi.go:193-204`), the no-alias contract is stated as a CONTRACT in the doc comment, and the test that previously *asserted* the aliasing is inverted into a mutate-the-result-check-the-input property (`ansi_test.go:98-109`). I re-verified the extraction independently rather than trusting the fix note: `Frame`'s alternation order reproduces the retired regex on ~15 hand-checked inputs including the adversarial ones (`\x1b\x1b[31m`, `\x1b[31\x1b[0m`, `\x1b[1 2m` backtracking, `\x1b^`, `\x1b+` truncated), the `termcmd` adapters are byte-faithful with `-1`/`(0,false)` sentinels intact (`queries.go:151`, `:160`), and `isTerminalFinalByte` is gone with zero references repo-wide. What's left is documentation drift and one cheap test-hardening gap: the plan's Done-when still describes a `Frame` Lenient CSI arm that no longer exists (in a bullet Revisions Delta 1 claims it corrected), and the fuzz oracles still compare only by value, so the generic "Strip must not mutate its input" property that would have caught this class in the first place is still absent.
+
+I could not run `make test` — the Bash tool fails to initialize in this environment (`EPERM` on `~/.claude/session-env`, with and without the sandbox). Every finding is from reading code and tracing call chains.
+
+## 1. Strengths
+
+- **C1 fixed at the source, not papered over.** `ansi.go:176-192` states the invariant *and* why (`bytesReplaceAll` compacts in place, `p.captureBuffer` is what nvim reads, ONLCR makes ESC-free `\r` chunks the common case), and `ansi_test.go:96-97` records that an earlier cut asserted the opposite. That's the shape that stops a regression rather than just fixing an instance.
+- **The oracle is the right proof and it's cheap to keep.** `oracle_test.go:17` preserves `otherEscRe` as the differential source of truth, and `TestOracleAgreesOnCorpus` (`:65`) re-runs the seed corpus on every plain `go test`, so the check doesn't depend on anyone starting a fuzz session.
+- **Framing parity verified, not asserted.** `Frame`'s OSC arm falling through to the two-byte class (`ansi.go:120-124`) matches Go regexp's leftmost-*first* alternation exactly, and refusing a two-byte fallback for `'['` (`:113-119`) preserves `frameCSI`'s verdict. Independently confirmed: `Incomplete` can only arise at true buffer end, so `Strip` can never diverge from `ReplaceAll` mid-buffer.
+- **`termcmd` genuinely unchanged.** `csiEnd`→`TerminatorScan` stays introducer-independent, so `malformedEscapeSize("\x1bOX") == 3` still holds (`rename_input.go:205-209`), and `TestMalformedEscapeSizeNeverReturnsZeroOnNonEmptyInput` pins the decoder-loop invariant as a property rather than a case table.
+- **Site 3 is strictly cheaper.** `wrap.go:1019` replaced an O(remaining-buffer) `FindIndex` (discarded unless `loc[0]==0`) with an anchored O(sequence) call — same answer, less work per ESC on the agent-output path.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**I1 — Done-when still specifies `Frame`'s Lenient CSI arm, which does not exist (`workshop/plans/000128-share-escape-framing-plan.md:372`).**
+
+```
+- `Frame`'s Lenient CSI arm has no production consumer today; it exists so `Frame` has
+  one code path per mode. If that reads as dead weight at review, collapsing `Frame` to
+  Strict-only is the acceptable simplification …
+```
+
+`Frame` takes no `Mode` (`ansi.go:104`); the collapse already shipped. Revisions **Delta 1** explicitly claims correction "in the Architecture line, the export table, the return-contract snippet, Core concepts, and the Done-when" — line 371 was corrected, 372 was not, so the acceptance criterion still offers a decision that was already made. Fix: rewrite the bullet as a record (`Frame` is Strict-only; `Mode` lives on `OSCEnd`), keeping the "restoring a `buf[1]` dispatch inside `csiEnd` is not acceptable" clause, which is still live guidance.
+
+**I2 — The fuzz oracles still can't see mutation; the property is three lines (`oracle_test.go:41-45`, `:54-60`).**
+
+Both fuzzers compare `Strip(buf)` to `ReplaceAll(buf, nil)` **by value**, which is exactly why a 20M-execution session was green while `Strip` was aliasing. `ansi_test.go:98-109` now pins the specific ESC-free case, but nothing guards the general property across fuzz-generated inputs:
+
+```go
+before := append([]byte(nil), buf...)
+got := Strip(buf)
+if !bytes.Equal(buf, before) { t.Fatalf("Strip mutated its input: %q -> %q", before, buf) }
+```
+
+Cheap, generic, and it converts the invariant from "one pinned example" into "checked on every input the fuzzer invents."
+
+## 4. Minor findings
+
+- `ansi.go:116-118` — the comment states the fall-through consequence backwards. `'['` (0x5B) is outside the two-byte class, so falling through would report a *truncated* CSI as `None`, not "a malformed CSI as merely incomplete." (The described failure belonged to the earlier catch-all design the `## Log` mentions.) The `return` is right; the reason is inverted.
+- `atlas/architecture.md:449-451` — "`Status` distinguishes not-a-sequence from truncated, so a caller cannot mistake a malformed sequence for one awaiting more bytes and pin it in a pending buffer." No caller sees `Status`: `SequenceLen` maps `None` and `Incomplete` both to 0, and `wrap.go:1035-1042` pins on *either* when under `pendingMax`. State it as an API property, not a caller guarantee.
+- **PQ-6 (carry-forward, Minor, still open).** The three verbatim enumerated case tables remain in the plan (Task 1 Steps 1/2a at `:155`, Task 4 Step 1 at `:291`). Literals are correct now; only the verbosity remains. Non-blocking, at its original severity.
+- Plan execution checkboxes are almost all `- [ ]` (only Step 2a is ticked) although every task shipped — `plan.md:153-365`. The issue's `## Plan` is fully ticked, so the durable plan is the one artifact that reads as unstarted.
+- Issue `## Log` records no boundary-review round (AGENTS.md §3). Two REWORK verdicts were produced and committed to `…-close-review.md`; the Log should carry the round and C1's disposition before the close commit.
+- `workshop/lessons.md` has no rule for this class (grepped alias/in-place/`ReplaceAll` — nothing relevant). AGENTS.md §4 wants it: *a helper that may return a slice aliasing its input imposes a mutation contract on every caller; when it replaces something that always allocated, callers that compact in place silently corrupt the source.*
+- `Strip` (`ansi.go:194-202`) walks byte-at-a-time, calling `SequenceLen` on every position. `termcmd.stripTerminalQueries` (`queries.go:71-83`) solves the same shape with `bytes.IndexByte` bulk-copy of ESC-free runs. `stripTerminalControls` runs per chunk at `wrap.go:675` and `:713`, so the same trick applies; not hot enough to block.
+
+## 5. Test coverage notes
+
+- The C1 class is now pinned where it belongs (`ansi_test.go:90-109`) — a source-level contract test beats a caller-level one. I2 above extends it to the fuzzers.
+- The `wrapcmd` side of the corruption path remains untested: grep over `cmd/internal/wrapcmd/*_test.go` finds zero references to `maybeFinalizeEarly`, `captureBuffer`, or `stripTerminalControls`. A ~10-line test (set `captureActive=true`, `captureBuffer=[]byte("hello\r\nworld")`, call `maybeFinalizeEarly`, assert the buffer is byte-identical) would give the image-capture early-finalize path its first test and lock the caller side too. Worth doing, not blocking now that the source contract is pinned.
+- `TestCsiEndLenientFramingIsPinned` and `TestMalformedEscapeSizeNeverReturnsZeroOnNonEmptyInput` (`queries_test.go:239`, `:264`) are the right shapes — written to pass against the *pre-change* code, so "this changes nothing" is measured. I traced all six `malformedEscapeSize` inputs by hand: 1, 4, 2, 1, 5, 3 — all positive, the loop always advances.
+- Unverifiable here: the Log's `make test` exit 0, ~20M fuzz executions, #127's 8M `FuzzStripTerminalQueries`. The only code delta since those runs is deleting `Strip`'s fast path, which cannot change any value the oracles compare. Re-run `env -u PAIR_SESSION_ID -u PAIR_TAG -u PAIR_PANE_CWD make test` before closing.
+
+## 6. Architectural notes
+
+- **ARCH-DRY — pass.** One implementation of sequence structure; `wrapcmd` derives via `Strip`/`SequenceLen`, `termcmd` via `TerminatorScan`/`OSCEnd`. Policy tables correctly not merged, with the opposed `\x1b[>7u`/`\x1b[>1u` case documented at both ends (`ansi.go:5-9`, `atlas/architecture.md:435`). Last round's residue (`isTerminalFinalByte`) is deleted with zero remaining references.
+- **ARCH-PURE — pass (was the prior round's flag).** `ansi.go` imports nothing; tests import only `testing`/`bytes`/`regexp`. The seam-level purity problem — returning a value that aliases the argument — is fixed by making the value independent rather than by documenting the hazard, which is the correct resolution.
+- **ARCH-PURPOSE — pass.** Shadow sweep run: every framing consumer derives from the source. `otherEscRe` survives only as the test oracle — the old implementation as *check*, not as parallel copy, which is derivation in its strongest form. The three parsers left behind (`oscRe`, `sgrRe`, `sgrMouseSize`) are capturing or policy-specific and are declared in "Out of scope" rather than left silent (`plan.md:105-112`).
+- **ARCH-MOCK — pass, vacuously.** No external binary or service; the plan says so at `:144` instead of leaving it implied.
+- Upcoming: `ansi` is the natural home for the conformance check against real emitters the issue's Log floats. Watch the `Mode` split there — `Strict`/`Lenient` currently encode *which caller asked*, not *which terminal behaves how*, and a conformance check wants the second meaning.
+
+## 7. Plan revision recommendations
+
+Extend the existing `## Revisions` (new dated entry, or a note appended to Delta 1 — don't overwrite):
+
+1. **Delta 1 is still one site short.** `plan.md:372`'s Done-when bullet describes `Frame`'s Lenient CSI arm as shipped and offers the Strict-only collapse as a review-time option. Rewrite it to record that the collapse happened, keeping the "restoring a `buf[1]` dispatch inside `csiEnd` is not acceptable" clause.
+2. **Tick the execution checkboxes.** Task 1–5 steps are `- [ ]` throughout (`:153-365`) although all shipped; the issue's `## Plan` is fully ticked, leaving the durable plan as the only artifact reading unstarted.
+3. **Optional, once fixed:** note in the Revisions that the no-alias contract is now also enforced generically in the fuzz oracles (I2), so the contract statement at `:139` and its guard stay adjacent for the next reader.

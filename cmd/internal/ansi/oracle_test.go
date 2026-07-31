@@ -52,10 +52,25 @@ func FuzzStripMatchesRegexReplaceAll(f *testing.F) {
 		f.Add([]byte(s))
 	}
 	f.Fuzz(func(t *testing.T, buf []byte) {
+		// Both halves matter, and only the first one existed when Strip shipped a
+		// fast path that ALIASED its input: comparing by value cannot see storage,
+		// so a 20M-execution session stayed green while callers were corrupting
+		// their own buffers. The mutation check is the generic form of that bug.
+		before := append([]byte(nil), buf...)
 		got := Strip(buf)
 		want := otherEscRe.ReplaceAll(buf, nil)
 		if !bytes.Equal(got, want) {
 			t.Errorf("Strip(%q) = %q, ReplaceAll says %q", buf, got, want)
+		}
+		if !bytes.Equal(buf, before) {
+			t.Fatalf("Strip mutated its input: %q -> %q", before, buf)
+		}
+		// Writing through the result must not reach the input either.
+		for i := range got {
+			got[i] = 0
+		}
+		if !bytes.Equal(buf, before) {
+			t.Fatalf("Strip returned storage aliasing its input: %q -> %q", before, buf)
 		}
 	})
 }

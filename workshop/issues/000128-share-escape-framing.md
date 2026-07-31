@@ -1,12 +1,13 @@
 ---
 id: 000128
-status: working
+status: codecomplete
 deps: [pair#127]
 github_issue:
 created: 2026-07-28
 updated: 2026-07-30
 estimate_hours: 2.26
 started: 2026-07-30T16:48:13-07:00
+actual_hours: 1.01
 ---
 
 # share escape-sequence framing between termcmd and wrapcmd
@@ -170,6 +171,7 @@ single review boundary — no `Mx` tags.
   *consumer-visible* equivalence, not that every internal distinction is right.
 
 ### 2026-07-30
+- 2026-07-30: closed — Framing shared into cmd/internal/ansi; otherEscRe deleted from production, csiEnd/oscEnd are one-line delegations, isTerminalFinalByte deleted (zero callers). Equivalence MEASURED: retired regex kept in ansi/oracle_test.go as a differential oracle, SequenceLen/Strip fuzzed against it ~20M execs zero disagreements, seed corpus also asserted on every plain go test. termcmd pins (csiEnd lenient + introducer-independent incl SS3; malformedEscapeSize never 0) written and PASSING against the old code first; #127 FuzzStripTerminalQueries 8M execs clean. Two plan-quality Criticals designed out (single-int return would have been a zero-advance infinite loop; buf[1] dispatch would have misframed SS3). First REWORK addressed: plan asserted a Frame(buf,mode) API in five places plus two wrong Strict-OSC pins, corrected via ## Revisions per AGENTS.md 1. Second REWORK addressed a CRITICAL I introduced: Strip fast path aliased its input, and since both wrapcmd callers pipe into the in-place bytesReplaceAll it rewrote p.captureBuffer outside its mutex, corrupting the Alt+i capture ("hello\r\nworld" -> "hello\nworldd"); reproduced against both versions, fixed by allocating unconditionally as the regex did, and the unit test that had ASSERTED the aliasing is inverted to mutate the result and check the input survives. Note a differential oracle proves output equivalence, not storage — that is why it stayed green. Verified the -race failure in TestMasterPumpFlushesStdoutOnTick is pre-existing on origin/main via a scratch worktree, not from this change. make test exit 0.; review verdict: FIX-THEN-SHIP
 
 - **Dep satisfied:** pair#127 is done and archived, so this is unblocked.
 - **Home decided: a new leaf `cmd/internal/ansi`.** Hosting in either existing

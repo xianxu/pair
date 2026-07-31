@@ -19,9 +19,14 @@
 //   - OSCEnd — the one place with a genuine strictness split between callers.
 package ansi
 
-// Status distinguishes the three outcomes callers branch on. They are NOT
-// interchangeable: collapsing them into a single int is what made an earlier
-// design return 0 into `input = input[size:]`, a zero-advance infinite loop.
+// Status distinguishes the three outcomes a caller could branch on.
+//
+// No current consumer branches on the full split — SequenceLen maps None and
+// Incomplete alike to 0, and termcmd reaches this package through TerminatorScan /
+// OSCEnd, which never see a Status. It is kept as the seam's contract because the
+// distinction is not recoverable once collapsed: a REJECTED design returned a single
+// int into `input = input[size:]`, where "not a sequence" and "truncated" both
+// becoming 0 is a zero-advance infinite loop.
 type Status int
 
 const (
