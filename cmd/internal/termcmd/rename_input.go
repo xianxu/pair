@@ -211,10 +211,6 @@ func malformedEscapeSize(input []byte) int {
 	return len(input)
 }
 
-func isTerminalFinalByte(c byte) bool {
-	return c >= 0x40 && c <= 0x7e
-}
-
 func longestSuffixPrefix(input, prefix []byte) int {
 	max := len(input)
 	if max >= len(prefix) {

@@ -1214,3 +1214,37 @@ ugrep). Prefer `--no-ignore-files` in this repo, and never put the assertion
 behind a pipe whose exit code you then read. An "empty = clean" idiom is a
 false-pass generator unless you have seen it produce a non-empty result at least
 once in the same session.
+
+## A differential oracle proves output equivalence, not storage — check aliasing separately
+
+#128 replaced a regex with a byte scanner and fuzzed the new `Strip` against the
+retired `otherEscRe.ReplaceAll` as an oracle: **20M executions, zero
+disagreements**. It still shipped a Critical. `Strip` had a "fast path" returning
+the *input slice* when it held no ESC, and both callers pipe the result into an
+in-place compactor — so on ordinary ESC-free output it rewrote the caller's own
+buffer, corrupting the image-capture file and racing the mutex that guarded it.
+
+The oracle compared `Strip(buf)` to `ReplaceAll(buf, nil)` **by value**. Two
+functions can agree on every byte of output forever and differ completely in whether
+the output shares storage with the input. The regex allocated unconditionally; the
+replacement did not, and nothing in the comparison could see that.
+
+Worse, the unit test *asserted the defect*: `&got[0] == &in[0]` with the comment
+"should not copy when there is nothing to strip". A plausible-sounding optimisation
+got locked in as intent.
+
+**Rule.** When replacing something that returns a slice, the contract includes
+**storage**, not just contents. Write it down in the API doc, and add the two-line
+property to the fuzzer alongside the value comparison:
+
+```go
+before := append([]byte(nil), buf...)
+got := f(buf)
+if !bytes.Equal(buf, before) { t.Fatal("mutated its input") }
+for i := range got { got[i] = 0 }
+if !bytes.Equal(buf, before) { t.Fatal("returned storage aliasing its input") }
+```
+
+Corollary for reviews: "the fuzzer is green" answers *which bytes*, never *whose
+memory*. Ask what the oracle is blind to before treating a large exec count as
+coverage.

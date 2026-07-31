@@ -56,6 +56,8 @@ import (
 
 	"github.com/creack/pty"
 	"golang.org/x/sys/unix"
+
+	"github.com/xianxu/pair/cmd/internal/ansi"
 	"golang.org/x/term"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
@@ -186,7 +188,6 @@ var overlayDetectorByAgent = map[string]overlayDetector{
 
 var (
 	sgrRe         = regexp.MustCompile(`\x1b\[([0-9;]*)m`)
-	otherEscRe    = regexp.MustCompile(`\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[()*+][@-~]|\x1b[@-Z\\-_]`)
 	imageMarkerRe = regexp.MustCompile(`\[Image[ #][^\]]+\]`)
 	oscRe         = regexp.MustCompile(`\x1b\](\d+);([^\x07\x1b]*)(?:\x07|\x1b\\)`)
 )
@@ -809,7 +810,7 @@ func (p *proxy) stripCodexOutputMarkers(data []byte, markers [][]byte) []byte {
 }
 
 func stripTerminalControls(raw []byte) string {
-	stripped := otherEscRe.ReplaceAll(raw, nil)
+	stripped := ansi.Strip(raw)
 	stripped = bytesReplaceAll(stripped, '\r')
 	return string(stripped)
 }
@@ -1015,7 +1016,7 @@ func (p *proxy) updateAgentOutput(data []byte) {
 				i += loc[1]
 				continue
 			}
-			if loc := otherEscRe.FindIndex(data[i:]); loc != nil && loc[0] == 0 {
+			if seqLen := ansi.SequenceLen(data[i:]); seqLen > 0 {
 				// Cursor-positioning escapes inside an active colored
 				// run mean the agent skipped one or more cells without
 				// repainting (typically blanks). Claude's TUI in
@@ -1028,7 +1029,7 @@ func (p *proxy) updateAgentOutput(data []byte) {
 				if len(p.agentSpanBuf) > 0 && p.agentSpanBuf[len(p.agentSpanBuf)-1] != ' ' {
 					p.agentSpanBuf = append(p.agentSpanBuf, ' ')
 				}
-				i += loc[1]
+				i += seqLen
 				continue
 			}
 			// Incomplete escape at chunk end — carry over if remaining
@@ -1148,7 +1149,7 @@ func (p *proxy) maybeFinalizeEarly() {
 	if !active {
 		return
 	}
-	stripped := otherEscRe.ReplaceAll(buf, nil)
+	stripped := ansi.Strip(buf)
 	stripped = bytesReplaceAll(stripped, '\r')
 	if imageMarkerRe.Match(stripped) {
 		p.debug("CAPTURE-early", fmt.Sprintf("marker visible after %d bytes", len(buf)))

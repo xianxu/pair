@@ -1,6 +1,10 @@
 package termcmd
 
-import "bytes"
+import (
+	"bytes"
+
+	"github.com/xianxu/pair/cmd/internal/ansi"
+)
 
 // Terminal capability queries, and why they must not be replayed (#127).
 //
@@ -128,33 +132,32 @@ func terminalSequenceAt(buf []byte) (size int, isQuery bool, ok bool) {
 	}
 }
 
-// csiEnd returns the length of the CSI sequence at the start of buf, or -1 when
-// it is not terminated within buf. The one final-byte scan in this package —
-// escapeSequenceIncomplete and malformedEscapeSize both derive from it, since
-// three independent copies of "where does this CSI end" is the divergence class
-// that caused this issue's first defect.
-func csiEnd(buf []byte) int {
-	for i := 2; i < len(buf); i++ {
-		if isTerminalFinalByte(buf[i]) {
-			return i + 1
-		}
-	}
-	return -1
-}
+// csiEnd returns the length of the parameterised sequence at the start of buf, or
+// -1 when it is not terminated within buf.
+//
+// The framing itself now lives in cmd/internal/ansi (#128), which is why this is a
+// one-liner. Two properties are deliberate and load-bearing, so this delegates to
+// TerminatorScan and NOT to ansi.Frame:
+//   - introducer-INDEPENDENT: malformedEscapeSize routes SS3 (`\x1bO…`) through
+//     here, and a dispatch on buf[1] would frame "\x1bOX" as a two-byte escape and
+//     leak the X into a tab name.
+//   - LENIENT: no param/intermediate range validation. rename_input.go feeds this
+//     result into `input = input[size:]`, so stricter framing would consume the
+//     whole buffer and swallow the user's next keystrokes mid-rename.
+//
+// The -1 sentinel is preserved because escapeSequenceIncomplete (rename_input.go)
+// reads `< 0` as "incomplete", and malformedEscapeSize's `>= 0` guard is what keeps
+// the decoder loop advancing.
+func csiEnd(buf []byte) int { return ansi.TerminatorScan(buf) }
 
-// oscEnd returns the length of the OSC sequence at the start of buf, terminated
-// by BEL or ST (ESC \).
-func oscEnd(buf []byte) (int, bool) {
-	for i := 2; i < len(buf); i++ {
-		if buf[i] == 0x07 {
-			return i + 1, true
-		}
-		if buf[i] == 0x1b && i+1 < len(buf) && buf[i+1] == '\\' {
-			return i + 2, true
-		}
-	}
-	return 0, false
-}
+// oscEnd returns the length of the OSC sequence at the start of buf, terminated by
+// BEL or ST (ESC \).
+//
+// Lenient mode (#128): it scans PAST a bare ESC looking for a terminator, where
+// wrapcmd's framing stops at one. That difference is real and deliberate — see
+// ansi.Mode — and tightening it here would change how malformed input is consumed
+// on the rename path.
+func oscEnd(buf []byte) (int, bool) { return ansi.OSCEnd(buf, ansi.Lenient) }
 
 // isParameterizedCSIQuery matches DECRQM — `\x1b[?<digits>$p`. Deliberately
 // narrow: DECSET/DECRST (`\x1b[?1006h`) share the `\x1b[?` prefix and must
