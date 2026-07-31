@@ -432,7 +432,25 @@ mode is benign (a missed query degrades to the old behavior). A separate
 capability-sequence policy table lives in `wrapcmd` (`codexKKPMarkers`,
 `codexSyncOutputMarkers`) and is intentionally distinct — in one case opposed,
 since wrapcmd strips `\x1b[>7u` for codex while termcmd must let `\x1b[>1u`
-survive; sharing the *framing* code is tracked as follow-up.
+survive.
+
+The **framing** — "where does this CSI/OSC end" — was shared into
+`cmd/internal/ansi` in #128; the policy tables above stay where they are, and
+merging them would be the bug rather than the cleanup. `ansi` exports what each
+caller actually needs rather than one call: `Frame` (the sequence at `buf[0]`,
+across the four classes `wrapcmd` recognises, feeding `SequenceLen`/`Strip`),
+`TerminatorScan` (**introducer-independent** — `termcmd.csiEnd` is this, and
+`rename_input.go` routes SS3 `\x1bO…` through it, so a dispatch on `buf[1]` would
+frame `\x1bOX` as a two-byte escape and leak the final byte into a tab name), and
+`OSCEnd`, which carries the one genuine strictness split: `wrapcmd` stops at a bare
+ESC, `termcmd` scans past it, because `termcmd`'s decoder consumes what it returns.
+Two ordering facts are load-bearing and non-obvious: `]` (0x5D) sits inside the
+two-byte escape class, so an unterminated OSC frames as a 2-byte escape rather than
+"incomplete"; and `Status` distinguishes not-a-sequence from truncated, because
+`malformedEscapeSize` feeds its result into `input = input[size:]` where a zero is
+an infinite loop. The retired `otherEscRe` regex lives on in
+`ansi/oracle_test.go` as a differential fuzz oracle, so "behaves identically" is
+checked against what the code used to run rather than argued.
 
 - Pane-local shortcuts (#116/#123): `Alt+j` toggles vertically only in the left stack; `Alt+k` bridges left/right, returning from the terminal to the last focused left pane via `$PAIR_DATA_DIR/last-left-pane-<tag>`; `Alt+t`/`Alt+w` create and close tabs only in the right terminal; `Alt+r` enters the terminal wrapper's frame-title rename editor (#118), whose pure rune editor and streaming decoder consume all edit/control bytes before the child PTY and use `rename-pane` as the sole title IO boundary; `Alt+Shift+d` in the right terminal is a native tiled split — `new-pane --direction down` on the invoking (client-focused) terminal, running the layout-3 `pair term` shell (frames stay by zellij default; the frame is the visible divider between the halves and carries the #118 tab title); `Alt+/` and `Alt+Shift+C` / `Ctrl+Alt+c` work only in the left stack. Every left→right jump is id-based: draft nvim and `pair wrap` call `pair layout focus-terminal` (`layoutcmd.FocusRightTerminal`), which focuses the tiled right terminal via `focus-pane-id` — the recorded last-used half wins (`$PAIR_DATA_DIR/last-terminal-pane-<tag>`, written when `Alt+k` leaves the terminal side; zellij's `is_focused` on right-side panes is stale memory while focus sits in the left stack), else a zellij-focused half, else the first. Split halves are recognized via the `terminal-panes-<tag>` **TerminalPaneRegistry** (each `pair term` self-registers pane id + pid at startup; readers filter by pid liveness): zellij 0.44.3 omits `terminal_command` for `--direction`-created panes and the #118 tab-strip title is user-renamable, so neither is a usable signal. Never relative `move-focus right` — the id-based rule that fixed the #123 focus lockout survives the filler's deletion because it also targets a specific split half.
 

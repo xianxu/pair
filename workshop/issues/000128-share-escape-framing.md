@@ -127,20 +127,47 @@ the next reader sees the hypothesis stated in advance of the data rather than af
 Durable design: **`workshop/plans/000128-share-escape-framing-plan.md`**. Five tasks,
 single review boundary — no `Mx` tags.
 
-- [ ] Decide the helper's home (new `cmd/internal/ansi`, or host it in one of the
+- [x] Decide the helper's home (new `cmd/internal/ansi`, or host it in one of the
       two packages if the dependency direction stays acyclic).
-- [ ] Extract the framing: "length of the CSI / OSC / escape at buf[i]".
-- [ ] Repoint `termcmd/queries.go` (`csiEnd`, `oscEnd`) at it.
-- [ ] Repoint `wrapcmd`, handling that `otherEscRe` is consumed three
+- [x] Extract the framing: "length of the CSI / OSC / escape at buf[i]".
+- [x] Repoint `termcmd/queries.go` (`csiEnd`, `oscEnd`) at it.
+- [x] Repoint `wrapcmd`, handling that `otherEscRe` is consumed three
       structurally different ways — `ReplaceAll` at wrap.go:812 and wrap.go:1151,
       and `FindIndex` **at an offset** in the colored-run walker at wrap.go:1018.
-- [ ] Keep `stdout_filter_test.go`, `extract_fg_test.go` and
+- [x] Keep `stdout_filter_test.go`, `extract_fg_test.go` and
       `update_agent_output_test.go` green — they pin the three call sites.
-- [ ] Leave the policy tables where they are; re-check the opposed-policy note in
+- [x] Leave the policy tables where they are; re-check the opposed-policy note in
       `atlas/architecture.md` still reads true.
 
 ## Log
 
+
+- **Implemented.** `cmd/internal/ansi` created; `otherEscRe` deleted from production;
+  `csiEnd`/`oscEnd`/`isTerminalFinalByte` are one-line delegations. `make test`
+  **exit 0**.
+- **Proof, not argument.** The retired regex lives in `ansi/oracle_test.go` as a
+  differential oracle. `SequenceLen` and `Strip` were fuzzed against it —
+  **~20M executions, zero disagreements** — and the seed corpus also runs as a plain
+  table on every `go test`, so the check does not depend on anyone starting a fuzz
+  session. `termcmd`'s pins were written and passing against the OLD code first, so
+  "this changes nothing" is measured. #127's `FuzzStripTerminalQueries`: 8M execs clean.
+- **The simplification the gate blessed, taken:** `Frame` has no `Mode`. Only
+  `OSCEnd` has two consumers wanting different strictness, so a Lenient CSI arm
+  would have been an unused code path. `Mode` lives on `OSCEnd` alone.
+- **Two non-obvious facts the implementation had to reproduce**, both found by the
+  oracle rather than by reading:
+  - `]` is 0x5D, **inside** the two-byte escape class `[0x5C-0x5F]`. So the regex
+    never treated an unterminated OSC as incomplete — it matched `\x1b]` as a
+    two-byte escape and left the payload as text. Alternative ORDER is therefore
+    load-bearing, and `Frame` tries them in the regex's order.
+  - A malformed CSI (`\x1b[\x00A`) is `None`, not `Incomplete`. My first cut fell
+    through to a catch-all that reported it as truncated, which would have pinned it
+    in a caller's pending buffer forever. `'['` has no two-byte fallback (0x5B is
+    outside the class), so `frameCSI`'s verdict now stands unmodified.
+- Both of my own unit expectations were wrong on first run (`OSCEnd` length 8 not 9;
+  the `None`/`Incomplete` case above). The fuzzers were green throughout, because
+  both map to 0 through `SequenceLen` — a reminder that a differential oracle proves
+  *consumer-visible* equivalence, not that every internal distinction is right.
 
 ### 2026-07-30
 
