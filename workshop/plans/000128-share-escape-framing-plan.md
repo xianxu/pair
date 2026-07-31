@@ -4,7 +4,7 @@
 
 **Goal:** One answer to "where does the escape sequence at `buf[0]` end", used by both `wrapcmd` and `termcmd`, with the policy tables left exactly where they are.
 
-**Architecture:** A new leaf package `cmd/internal/ansi` with ONE scanner of escape-sequence structure, `Frame(buf, mode) (size, status)`, exposing three outcomes (`Complete`/`Incomplete`/`None`) and a strictness `Mode`. `wrapcmd` consumes it through `SequenceLen`/`Strip` (Strict, regex-equivalent); `termcmd` keeps `csiEnd`/`oscEnd` as thin sentinel adapters over it (Lenient), so its interactive rename decoder is untouched. The load-bearing risk is behavioural drift at three `wrapcmd` call sites feeding scrollback capture and agent-output detection, so the change is anchored by **differential fuzz tests** against the retired regex, kept alive in test code purely as the oracle.
+**Architecture:** A new leaf package `cmd/internal/ansi` with ONE scanner of escape-sequence structure, `Frame(buf) (size, status)`, exposing three outcomes (`Complete`/`Incomplete`/`None`). `wrapcmd` consumes it through `SequenceLen`/`Strip` (Strict, regex-equivalent); `termcmd` keeps `csiEnd`/`oscEnd` as thin sentinel adapters over `TerminatorScan` / `OSCEnd(…, Lenient)` — never over `Frame` — so its interactive rename decoder is untouched. The load-bearing risk is behavioural drift at three `wrapcmd` call sites feeding scrollback capture and agent-output detection, so the change is anchored by **differential fuzz tests** against the retired regex, kept alive in test code purely as the oracle.
 
 **Tech Stack:** Go stdlib only. No new dependencies; `regexp` disappears from the production path for this concern.
 
@@ -75,7 +75,7 @@ So an adapter that dispatches on `buf[1]` would classify `'O'` (0x4F) as a two-b
 | `IsFinalByte(c) bool` | `0x40-0x7E` | everything below; replaces `termcmd.isTerminalFinalByte` |
 | `TerminatorScan(buf) int` | from index 2 to the first final byte, `-1` if none — **introducer-independent** | `termcmd.csiEnd` |
 | `OSCEnd(buf, mode) (int, bool)` | BEL or `ESC \`; `Strict` aborts on a bare ESC, `Lenient` scans past | `termcmd.oscEnd`, and `Frame`'s OSC arm |
-| `Frame(buf, mode) (int, Status)` | the sequence at `buf[0]` across `wrapcmd`'s four classes | `SequenceLen`, `Strip` |
+| `Frame(buf) (int, Status)` | the sequence at `buf[0]` across `wrapcmd`'s four classes | `SequenceLen`, `Strip` |
 
 `Frame` is built on the three primitives, so nothing is implemented twice. What the first two plans got wrong was assuming both consumers wanted the same *entry point*; they want the same *rules*.
 
@@ -90,7 +90,7 @@ const (
     Incomplete               // starts one, but it is truncated — caller must carry the tail
     Complete                 // fully framed; Size is its length
 )
-func Frame(buf []byte, mode Mode) (size int, status Status)
+func Frame(buf []byte) (size int, status Status)
 ```
 
 Consumer mapping, stated so each is checkable:
@@ -105,6 +105,11 @@ Consumer mapping, stated so each is checkable:
 ### Out of scope (declared, not silent)
 
 `wrapcmd.oscRe` (`wrap.go:191`) is a fifth OSC framing, but it **captures** (`\x1b\](\d+);([^\x07\x1b]*)…`) rather than only framing, and its consumers want the parameter and payload. Extracting a capturing variant is a different job; left alone deliberately so `ARCH-DRY` is answered rather than ignored.
+
+Two more hand-rolled framings stay put, named here so the sweep is complete rather than selective:
+
+- `wrapcmd.sgrRe` (`wrap.go:190`) — same class as `oscRe`: it **captures** the SGR parameter list for `extractFG`, so a framing-only helper does not serve it.
+- `termcmd.sgrMouseSize` (`rename_input.go:175`) — narrow *policy*, not framing: it recognises `\x1b[<` SGR mouse reports specifically, which is a decision about which sequences the rename decoder cares about. Merging it into `ansi` would move policy into the shared layer, the exact mistake this issue exists to avoid.
 
 ## Core concepts
 
@@ -121,7 +126,7 @@ Consumer mapping, stated so each is checkable:
 | `csiEnd` / `oscEnd` | `cmd/internal/termcmd/queries.go` | modified — bodies become one-line adapters over `TerminatorScan` / `OSCEnd`; names and sentinels stay |
 | `isTerminalFinalByte` | `cmd/internal/termcmd/rename_input.go:214` | modified — one-line delegation to `ansi.IsFinalByte` |
 
-- **Frame(buf []byte, mode Mode) (int, Status)** — the one place that knows what an escape sequence looks like.
+- **Frame(buf []byte) (int, Status)** — the one place that knows what an escape sequence looks like.
   - **Relationships:** consumed by `SequenceLen`/`Strip` (Strict) and by `termcmd`'s two adapters (Lenient). No state, no IO.
   - **DRY rationale:** collapses the regex and the two scanners into one description of sequence *structure*. The *policy* tables (`wrapcmd`'s codex marker list, `termcmd`'s `terminalQueryLiterals`) deliberately stay put — they are opposed in at least one case (`\x1b[>7u` stripped by one, `\x1b[>1u` required to survive by the other), and merging them would be the actual bug. The `Mode` knob is the same principle one level down: shared structure, per-consumer strictness.
   - **Why `Status` and not an int:** `csiEnd`'s `-1`, the regex's no-match and `queries.go:126`'s "consume 2" are three different answers consumers branch on. A single `0` conflates them, and in `malformedEscapeSize` → `input = input[size:]` that conflation is a **zero-advance infinite loop**.
@@ -163,8 +168,8 @@ func TestSequenceLen(t *testing.T) {
 		{"not an escape", "hello", 0},
 		{"bare ESC at EOF", "\x1b", 0},
 		{"incomplete CSI", "\x1b[31", 0},        // stream boundary: caller must carry
-		{"unterminated OSC", "\x1b]0;title", 0}, // ditto
-		{"OSC with bare ESC", "\x1b]0;a\x1bZ\x07", 0}, // regex semantics: stops at ESC
+		{"unterminated OSC falls back to two-byte", "\x1b]0;title", 2}, // `]` is 0x5D — see Revisions
+		{"OSC with bare ESC falls back too", "\x1b]0;a\x1bZ\x07", 2}, // OSC arm fails, two-byte matches
 		{"empty", "", 0},
 	}
 	for _, c := range cases {
@@ -188,33 +193,13 @@ func TestStripRemovesSequencesKeepsText(t *testing.T) {
 
 - [ ] **Step 2:** Run → FAIL (undefined). `go test ./cmd/internal/ansi/`
 
-- [ ] **Step 2a: Add the Lenient-mode cases too** — Strict and Lenient must differ exactly where documented and nowhere else:
+- [x] **Step 2a: Pin the ONE genuine mode split — on `OSCEnd`, not `Frame`**
 
-```go
-func TestFrameModesDifferOnlyOnValidation(t *testing.T) {
-	// Out-of-range param byte: Strict rejects, Lenient frames.
-	if _, st := Frame([]byte("\x1b[\x00A"), Strict); st != None {
-		t.Error("Strict must reject an out-of-range param byte")
-	}
-	if n, st := Frame([]byte("\x1b[\x00A"), Lenient); st != Complete || n != 4 {
-		t.Errorf("Lenient framed %d/%v, want 4/Complete", n, st)
-	}
-	// OSC containing a bare ESC: Strict stops, Lenient scans past.
-	if _, st := Frame([]byte("\x1b]0;a\x1bZ\x07"), Strict); st != None {
-		t.Error("Strict must not frame an OSC containing a bare ESC")
-	}
-	if _, st := Frame([]byte("\x1b]0;a\x1bZ\x07"), Lenient); st != Complete {
-		t.Error("Lenient must frame it")
-	}
-	// Truncation is Incomplete in BOTH modes — never None, or the caller's tail
-	// carry turns into a dropped byte.
-	for _, m := range []Mode{Strict, Lenient} {
-		if _, st := Frame([]byte("\x1b[31"), m); st != Incomplete {
-			t.Errorf("mode %v: truncated CSI must be Incomplete, got %v", m, st)
-		}
-	}
-}
-```
+`Frame` has no `Mode` (see Revisions). The only strictness split with two real
+consumers is OSC bare-ESC handling, so that is what gets the test: `OSCEnd(…, Strict)`
+must refuse to scan past a bare ESC and `OSCEnd(…, Lenient)` must scan past it, with
+both agreeing on well-formed input. Truncation must be `Incomplete` in `Frame`, never
+`None`, or a caller's tail carry turns into a dropped byte.
 
 - [ ] **Step 3: Implement.** A switch on `buf[1]`: `[` → CSI (params `0x30-0x3F`*, intermediates `0x20-0x2F`*, final `0x40-0x7E`), `]` → OSC (scan to BEL or `ESC \`, abort on a bare ESC), `(`/`)`/`*`/`+` → 3 bytes if the third is `0x40-0x7E`, else `0x40-0x5A` or `0x5C-0x5F` → 2. Anything else, or running out of input → `0`.
 
@@ -382,7 +367,7 @@ git commit -am "#128: termcmd frames via ansi.TerminatorScan/OSCEnd; sentinels p
 
 - One implementation of escape-sequence structure (`ansi.Frame`). `otherEscRe` is gone from production code; `csiEnd`/`oscEnd` survive **as one-line adapters** over it — deleting the names would have meant rewriting `rename_input.go`'s sentinel contract, which is out of scope for a refactor whose whole claim is zero behaviour change.
 - The three `otherEscRe` call sites behave identically, held by `stdout_filter_test.go`, `extract_fg_test.go`, `update_agent_output_test.go` **plus** the differential fuzzers against the retired regex.
-- Both packages get their byte-level rules from `ansi` and neither implements one twice: `wrapcmd` via `Frame(…, Strict)`, `termcmd` via `TerminatorScan` + `OSCEnd(…, Lenient)`. `csiEnd` must stay **introducer-independent** (SS3 goes through it) — pinned by `TestCsiEndLenientFramingIsPinned`'s `\x1bOX`/`\x1bO@` cases and by the existing `TestDecodeRenameInputConsumesUnknownEscapeTerminators`.
+- Both packages get their byte-level rules from `ansi` and neither implements one twice: `wrapcmd` via `Frame`, `termcmd` via `TerminatorScan` + `OSCEnd(…, Lenient)`. `csiEnd` must stay **introducer-independent** (SS3 goes through it) — pinned by `TestCsiEndLenientFramingIsPinned`'s `\x1bOX`/`\x1bO@` cases and by the existing `TestDecodeRenameInputConsumesUnknownEscapeTerminators`.
 - `Frame`'s Lenient CSI arm has no production consumer today; it exists so `Frame` has one code path per mode. If that reads as dead weight at review, collapsing `Frame` to Strict-only is the acceptable simplification — **restoring a `buf[1]` dispatch inside `csiEnd` is not**.
 - `malformedEscapeSize` never returns 0 on non-empty input (the decoder-loop guard).
 - The opposed-policy note in `atlas/architecture.md` still reads true.
@@ -393,3 +378,35 @@ git commit -am "#128: termcmd frames via ansi.TerminatorScan/OSCEnd; sentinels p
 - **Silent over-strip** is the asymmetric failure (issue Log): it removes mouse mode / Kitty encoding / cursor shape, where a missed query degrades benignly. Mitigated by choosing the stricter semantics and by the differential fuzzers.
 - **Stream-boundary regression.** `SequenceLen` returning 0 for an incomplete sequence is load-bearing for `p.stdoutPending`'s tail carry. Pinned by the `Strip` incomplete-tail test; a scanner that "helpfully" consumed a partial sequence would corrupt every chunk edge.
 - **A missed call site** would leave `otherEscRe` alive; Task 3 Step 2 deletes it outright so the compiler finds them.
+
+## Revisions
+
+**2026-07-30 — `Frame` shipped without a `Mode` parameter; two Strict-OSC pins in
+this plan were wrong.** Recorded per AGENTS.md §1 rather than silently overwriting,
+because the plan is the artifact the next reader trusts.
+
+**Delta 1 — `Frame(buf, mode)` → `Frame(buf)`.** The Lenient CSI arm had no
+production consumer: `wrapcmd` wants Strict, and `termcmd` reaches the shared code
+through `TerminatorScan`/`OSCEnd`, never through `Frame`. Keeping a mode parameter
+would have shipped a code path nothing exercised. The Done-when pre-approved exactly
+this collapse ("collapsing `Frame` to Strict-only is the acceptable simplification —
+restoring a `buf[1]` dispatch inside `csiEnd` is not"), and `Mode` now lives on
+`OSCEnd` alone, which is the one function with two consumers wanting different
+answers. Corrected in the Architecture line, the export table, the return-contract
+snippet, Core concepts, and the Done-when.
+
+**Delta 2 — the Strict-OSC pins said `0`; the answer is `2`.** `]` is 0x5D, which
+sits **inside** the two-byte escape class `[0x5C-0x5F]`. So when the OSC arm fails —
+unterminated, or containing a bare ESC — the regex did not report "no match": it fell
+through to its fourth alternative and matched `\x1b]` as a two-byte escape, leaving
+the payload as text. The shipped `Frame` reproduces that fall-through, and the
+differential oracle is what caught the plan's expectation being wrong. Task 1's table
+now pins `2`, and Step 2a was rewritten: its old body asserted `Frame(…, Strict)` is
+`None` for the bare-ESC OSC and called `Frame(…, Lenient)`, so it was both wrong and
+uncompilable against the shipped API.
+
+**Delta 3 — `isTerminalFinalByte` deleted, not delegated.** Task 4 justified keeping
+the name "to avoid touching its other callers". It had none: its only caller was the
+old `csiEnd` body, so once that became a one-line delegation the function was dead. A
+one-line alias nobody calls is `ARCH-DRY` residue, so it is gone and `rename_input.go`
+loses the `ansi` import it briefly gained.

@@ -446,9 +446,12 @@ frame `\x1bOX` as a two-byte escape and leak the final byte into a tab name), an
 ESC, `termcmd` scans past it, because `termcmd`'s decoder consumes what it returns.
 Two ordering facts are load-bearing and non-obvious: `]` (0x5D) sits inside the
 two-byte escape class, so an unterminated OSC frames as a 2-byte escape rather than
-"incomplete"; and `Status` distinguishes not-a-sequence from truncated, because
-`malformedEscapeSize` feeds its result into `input = input[size:]` where a zero is
-an infinite loop. The retired `otherEscRe` regex lives on in
+"incomplete"; and `Status` distinguishes not-a-sequence from truncated, so a
+caller cannot mistake a malformed sequence for one awaiting more bytes and pin it in
+a pending buffer. (The infinite-loop hazard that forced the distinction belonged to a
+*rejected* design in which `malformedEscapeSize` would have consumed a `Status`-derived
+size; today it goes through `TerminatorScan`, which returns `-1`/length and never sees
+a `Status`.) The retired `otherEscRe` regex lives on in
 `ansi/oracle_test.go` as a differential fuzz oracle, so "behaves identically" is
 checked against what the code used to run rather than argued.
 

@@ -60,6 +60,11 @@ func isIntermediateByte(c byte) bool { return c >= 0x20 && c <= 0x2f }
 // Introducer-independent BY DESIGN: it does not look at buf[1], so the same scan
 // serves CSI (`\x1b[`) and SS3 (`\x1bO`). termcmd.malformedEscapeSize depends on
 // that — it routes both through here, and its result feeds `input = input[size:]`.
+//
+// PRECONDITION: buf must start an escape sequence (buf[0] == 0x1b). It does not
+// check, matching the csiEnd it replaced — TerminatorScan([]byte("abc")) returns 3,
+// because 'c' is a final byte. Callers that have not already established the ESC
+// should use Frame instead.
 func TerminatorScan(buf []byte) int {
 	for i := 2; i < len(buf); i++ {
 		if IsFinalByte(buf[i]) {
