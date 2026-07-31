@@ -124,18 +124,19 @@ Two more hand-rolled framings stay put, named here so the sweep is complete rath
 | `Strip` | `cmd/internal/ansi/ansi.go` | new |
 | `otherEscRe` | `cmd/internal/wrapcmd/wrap.go` | deleted (survives in `ansi/oracle_test.go` as the differential oracle) |
 | `csiEnd` / `oscEnd` | `cmd/internal/termcmd/queries.go` | modified — bodies become one-line adapters over `TerminatorScan` / `OSCEnd`; names and sentinels stay |
-| `isTerminalFinalByte` | `cmd/internal/termcmd/rename_input.go:214` | modified — one-line delegation to `ansi.IsFinalByte` |
+| `isTerminalFinalByte` | `cmd/internal/termcmd/rename_input.go` | deleted — zero callers once `csiEnd` became a delegation |
 
 - **Frame(buf []byte) (int, Status)** — the one place that knows what an escape sequence looks like.
-  - **Relationships:** consumed by `SequenceLen`/`Strip` (Strict) and by `termcmd`'s two adapters (Lenient). No state, no IO.
-  - **DRY rationale:** collapses the regex and the two scanners into one description of sequence *structure*. The *policy* tables (`wrapcmd`'s codex marker list, `termcmd`'s `terminalQueryLiterals`) deliberately stay put — they are opposed in at least one case (`\x1b[>7u` stripped by one, `\x1b[>1u` required to survive by the other), and merging them would be the actual bug. The `Mode` knob is the same principle one level down: shared structure, per-consumer strictness.
+  - **Relationships:** consumed by `SequenceLen`/`Strip` only. `termcmd` does NOT consume `Frame` — its adapters go to `TerminatorScan`/`OSCEnd`. No state, no IO.
+  - **DRY rationale:** collapses the regex and the two scanners into one description of sequence *structure*. The *policy* tables (`wrapcmd`'s codex marker list, `termcmd`'s `terminalQueryLiterals`) deliberately stay put — they are opposed in at least one case (`\x1b[>7u` stripped by one, `\x1b[>1u` required to survive by the other), and merging them would be the actual bug. `OSCEnd`'s `Mode` knob is the same principle one level down: shared structure, per-consumer strictness. `Frame` itself has no mode.
   - **Why `Status` and not an int:** `csiEnd`'s `-1`, the regex's no-match and `queries.go:126`'s "consume 2" are three different answers consumers branch on. A single `0` conflates them, and in `malformedEscapeSize` → `input = input[size:]` that conflation is a **zero-advance infinite loop**.
   - **Future extensions:** a `Kind` (CSI/OSC/charset/two-byte) if a caller ever needs to branch on class; no caller does today (YAGNI).
 
-- **SequenceLen(buf []byte) int** — `Frame(buf, Strict)` reduced to the regex's answer: length when `Complete`, else `0`. The only form `wrapcmd` needs.
+- **SequenceLen(buf []byte) int** — `Frame(buf)` reduced to the regex's answer: length when `Complete`, else `0`. The only form `wrapcmd` needs.
   - **Incomplete input returns 0**, which is load-bearing for `p.stdoutPending`'s tail carry (`wrap.go:310`): a scanner that consumed a partial sequence would corrupt every chunk edge.
 
 - **Strip(buf []byte) []byte** — `buf` with every `Complete` Strict sequence removed; an incomplete trailing sequence is preserved for the caller's carry.
+  - **CONTRACT: the result never aliases `buf`**, including when nothing is stripped. Both `wrapcmd` callers pipe it into `bytesReplaceAll`, an in-place compactor, so an aliased return rewrites the caller's own buffer — corrupting `p.captureBuffer` outside its mutex. The retired regex allocated unconditionally; this silence in the first draft is exactly what let a "fast path" in.
   - **DRY rationale:** the two `ReplaceAll` sites (`wrap.go:812`, `:1151`) are the same operation.
 
 ### Integration points
@@ -283,7 +284,7 @@ The `loc[1]` that fed `i += loc[1]` becomes `n`. Keep the CUF/placeholder commen
 
 ## Task 4: `termcmd` adapters — Lenient mode, sentinels preserved
 
-**Files:** Modify `cmd/internal/termcmd/queries.go` (`csiEnd`, `oscEnd` become adapters) and **exactly one line** of `cmd/internal/termcmd/rename_input.go` — `isTerminalFinalByte` is defined there (`:214`, `queries.go:138` only calls it), so it becomes `return ansi.IsFinalByte(c)`. Keeping the name avoids touching its other callers; deleting it outright is not an option Go would flag, since an unused package-level func compiles clean. No other `rename_input.go` behaviour changes.
+**Files:** Modify `cmd/internal/termcmd/queries.go` (`csiEnd`, `oscEnd` become adapters) and **exactly one line** of `cmd/internal/termcmd/rename_input.go` — `isTerminalFinalByte` is defined there and `queries.go`'s old `csiEnd` body was its ONLY caller, so once `csiEnd` becomes a delegation the function is dead and is deleted. (An earlier draft kept it as an alias "to avoid touching its other callers" — there are none; Go does not flag an unused package-level func, which is why this needed checking rather than assuming.) No other `rename_input.go` behaviour changes.
 
 The first plan said "delete `csiEnd`/`oscEnd`, they're only reached after a query-literal match". Both halves were wrong: `csiEnd` at `queries.go:115` and `oscEnd` at `:121` are the **fallback** arm of `terminalSequenceAt` (arbitrary input), and `csiEnd` has two further callers in `rename_input.go` whose behaviour depends on its `-1` sentinel. Keeping the names as adapters is what makes this a zero-behaviour-change refactor.
 
@@ -410,3 +411,29 @@ the name "to avoid touching its other callers". It had none: its only caller was
 old `csiEnd` body, so once that became a one-line delegation the function was dead. A
 one-line alias nobody calls is `ARCH-DRY` residue, so it is gone and `rename_input.go`
 loses the `ansi` import it briefly gained.
+
+**2026-07-30 (second entry) — `Strip` must not alias; three plan sites still described
+the pre-collapse API.** Raised by the close review, which returned REWORK twice.
+
+**Delta 4 — the `Strip` no-alias contract, and the Critical it hid.** The first draft
+specified only *which bytes* `Strip` removes, never that the result must not share
+storage with the input. That silence let an "obvious" fast path in — return `buf`
+untouched when it holds no ESC. Both `wrapcmd` callers pipe `Strip`'s result straight
+into `bytesReplaceAll`, an **in-place** compactor, so on ESC-free input that wrote
+through to the caller's own buffer: `p.captureBuffer`'s backing array is rewritten
+while its length stays put, leaving stale duplicated bytes in the tail
+(`"hello\r\nworld"` → `"hello\nworldd"`), and the corrupted capture is what nvim reads
+for Alt+i image paste. It also wrote outside `p.captureMu`, racing the SIGUSR1
+handler. Under ONLCR, "plain chunk with `\r` and no ESC" is the ordinary case, not a
+contrived one. Reproduced against both versions before and after the fix. The contract
+is now stated in Core concepts and pinned by a test that mutates `Strip`'s result and
+asserts the input survives — replacing an earlier test that asserted the aliasing was
+*correct*.
+
+**Delta 5 — Delta 1 was itself incomplete.** Three further sites still described
+`Frame` as `termcmd`'s dependency or took a `Strict` argument; corrected.
+
+**Delta 6 — `isTerminalFinalByte` deleted, and the stated reason corrected.** Task 4's
+justification for keeping it ("avoids touching its other callers") was false: it had
+none.
+

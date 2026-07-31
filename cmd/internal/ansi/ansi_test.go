@@ -87,9 +87,24 @@ func TestStripRemovesSequencesKeepsText(t *testing.T) {
 	if got := string(Strip([]byte("ok\x1b[3"))); got != "ok\x1b[3" {
 		t.Errorf("Strip incomplete tail = %q, want it preserved", got)
 	}
-	// No ESC at all: returned unchanged, no allocation.
-	in := []byte("plain text")
-	if got := Strip(in); &got[0] != &in[0] {
-		t.Error("Strip should not copy when there is nothing to strip")
+	// The result must NEVER alias the input, including on the no-escape path.
+	// wrapcmd pipes Strip's result into an IN-PLACE compactor, so an aliased return
+	// rewrites the caller's own buffer — corrupting p.captureBuffer (what nvim reads
+	// for Alt+i) and racing the SIGUSR1 handler. The retired regex allocated
+	// unconditionally; this pins that invariant.
+	//
+	// An earlier cut of this package had a "fast path" returning buf when it held no
+	// ESC, and an earlier cut of THIS test asserted that aliasing was correct.
+	in := []byte("plain text, no escapes")
+	got := Strip(in)
+	if len(got) > 0 && &got[0] == &in[0] {
+		t.Fatal("Strip returned a slice aliasing its input")
+	}
+	// Prove it by mutating the result and checking the input survives.
+	for i := range got {
+		got[i] = 'X'
+	}
+	if string(in) != "plain text, no escapes" {
+		t.Errorf("mutating Strip's result changed the input: %q", in)
 	}
 }

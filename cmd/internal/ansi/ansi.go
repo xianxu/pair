@@ -175,11 +175,22 @@ func SequenceLen(buf []byte) int {
 
 // Strip removes every complete escape sequence from buf, preserving an incomplete
 // trailing one for the caller to carry.
+//
+// CONTRACT: the result NEVER aliases buf, even when nothing is stripped.
+//
+// Not a style preference — an "obvious" fast path returning buf on ESC-free input is
+// a silent corruption bug. Both wrapcmd callers pipe the result straight into
+// bytesReplaceAll, which compacts IN PLACE (`out := b[:0:len(b)]`). With an aliased
+// return that writes through to the caller's own buffer: at wrap.go:1152 it rewrites
+// p.captureBuffer's backing array while leaving its length unchanged, so the tail
+// keeps stale duplicated bytes ("hello\r\nworld" becomes "hello\nworldd") and the
+// corrupted capture is what nvim reads for Alt+i image paste — and it does so OUTSIDE
+// p.captureMu, racing the SIGUSR1 handler's appends. PTY output is \r\n-terminated
+// under ONLCR, so "plain chunk with \r and no ESC" is the common case.
+//
+// The regex this replaced allocated unconditionally (Go's replaceAll appends into a
+// nil buf even on the no-match path), which is why the invariant held before.
 func Strip(buf []byte) []byte {
-	// Fast path: nothing to do, no allocation.
-	if !hasESC(buf) {
-		return buf
-	}
 	out := make([]byte, 0, len(buf))
 	for i := 0; i < len(buf); {
 		if n := SequenceLen(buf[i:]); n > 0 {
@@ -190,13 +201,4 @@ func Strip(buf []byte) []byte {
 		i++
 	}
 	return out
-}
-
-func hasESC(buf []byte) bool {
-	for _, c := range buf {
-		if c == 0x1b {
-			return true
-		}
-	}
-	return false
 }
