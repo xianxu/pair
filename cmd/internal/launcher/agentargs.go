@@ -55,10 +55,18 @@ func stripFlagAllForms(args []string, flag string) []string {
 // stripCodexResumeSubcommand drops `resume <id>` from Codex argv. Codex accepts
 // global options before the command (`codex [OPTIONS] resume <id>`), so the
 // command is position-sensitive only after those options have been consumed.
+// Muse uses the same `resume <id>` subcommand shape (plus the same leading-
+// resume fallback in extractExplicitResume).
 func stripCodexResumeSubcommand(args []string) []string {
 	if i := codexResumeCommandIndex(args); i >= 0 {
 		out := append([]string(nil), args[:i]...)
 		return append(out, args[i+2:]...)
+	}
+	// Fallback for `muse resume <id>` when codex-style globals don't cover
+	// the prefix (muse has different globals like --provider/--model). The
+	// canonical `composeResumeArgs` placement is always leading, so handle it.
+	if len(args) >= 2 && args[0] == "resume" && args[1] != "" {
+		return append([]string(nil), args[2:]...)
 	}
 	return args
 }
@@ -133,7 +141,8 @@ func codexValueGlobalOption(arg string) bool {
 
 // resumeToken is the per-agent surface for resuming a session id: claude uses
 // `--resume <id>`, codex uses the `resume <id>` subcommand, agy uses
-// `--conversation <id>`. Empty sid (or an unknown agent) yields no token.
+// `--conversation <id>`, muse uses `resume <id>` (like codex). Empty sid (or an
+// unknown agent) yields no token.
 func resumeToken(agent, sid string) []string {
 	if sid == "" {
 		return nil
@@ -145,20 +154,23 @@ func resumeToken(agent, sid string) []string {
 		return []string{"resume", sid}
 	case "agy":
 		return []string{"--conversation", sid}
+	case "muse":
+		return []string{"resume", sid}
 	}
 	return nil
 }
 
 // composeResumeArgs appends the resume token to the saved args in the order each
-// agent needs. Codex's `resume` subcommand must sit at args[0] (inner pair +
-// pair-session-watch detection assume that position), so its token goes first;
-// claude's `--resume` flag works anywhere, so saved args keep their leading spot.
+// agent needs. Codex's and muse's `resume` subcommand must sit at args[0] (inner
+// pair + pair-session-watch detection assume that position), so its token goes
+// first; claude's `--resume` flag works anywhere, so saved args keep their leading
+// spot.
 func composeResumeArgs(agent string, savedArgs []string, sid string) []string {
 	token := resumeToken(agent, sid)
 	if len(token) == 0 {
 		return append([]string(nil), savedArgs...)
 	}
-	if agent == "codex" {
+	if agent == "codex" || agent == "muse" {
 		return append(append([]string(nil), token...), savedArgs...)
 	}
 	return append(append([]string(nil), savedArgs...), token...)

@@ -9,6 +9,13 @@ import (
 	"github.com/xianxu/pair/cmd/internal/adapt"
 )
 
+// isMuseSubagentPath reports whether p is inside a Muse subagent directory.
+// Muse nests subagent sessions as …/<root-uuid>/subagent/<sub-uuid>/session.jsonl;
+// only the root session is resumable via `muse resume <id>` (ARCH-DRY).
+func isMuseSubagentPath(p string) bool {
+	return strings.Contains(p, string(filepath.Separator)+"subagent"+string(filepath.Separator))
+}
+
 // Options are the watcher inputs after CLI/env resolution.
 type Options struct {
 	Agent    string
@@ -182,6 +189,9 @@ func discover(spec AgentSpec, rootPID string, agentStart time.Time, legacyExisti
 		for _, pid := range pids {
 			paths, _ := rt.LsofPaths(pid)
 			for _, path := range paths {
+				if spec.Agent == "muse" && isMuseSubagentPath(path) {
+					continue
+				}
 				result := spec.Match(path)
 				if result.ID != "" {
 					return result
@@ -206,6 +216,9 @@ func discover(spec AgentSpec, rootPID string, agentStart time.Time, legacyExisti
 		if legacyExisting[file] {
 			continue
 		}
+		if spec.Agent == "muse" && isMuseSubagentPath(file) {
+			continue
+		}
 		result := spec.Match(file)
 		if result.ID != "" {
 			return result
@@ -219,24 +232,51 @@ func discover(spec AgentSpec, rootPID string, agentStart time.Time, legacyExisti
 
 func discoverByBirth(spec AgentSpec, agentStart time.Time, rt Runtime) SessionID {
 	files, _ := rt.ListFiles(spec.WatchDir)
-	candidates := make([]SessionID, 0, 1)
+	type cand struct {
+		id    SessionID
+		birth time.Time
+	}
+	var matched []cand
+	var nearMiss *cand
 	for _, file := range files {
+		if spec.Agent == "muse" && isMuseSubagentPath(file) {
+			continue
+		}
 		birth, err := rt.BirthTime(file)
 		if err != nil || birth.Before(agentStart) {
 			continue
 		}
 		result := spec.Match(file)
-		if result.Matched {
-			candidates = append(candidates, result)
+		if !result.Matched {
+			continue
 		}
-	}
-	if len(candidates) == 1 {
-		return candidates[0]
-	}
-	for _, candidate := range candidates {
-		if candidate.NearMiss {
-			return candidate
+		c := cand{id: result, birth: birth}
+		if result.NearMiss {
+			if nearMiss == nil || birth.After(nearMiss.birth) {
+				// Keep newest near-miss for drift signal, but don't return it
+				// if a real ID exists — real IDs outrank near-misses.
+				cp := c
+				nearMiss = &cp
+			}
+			continue
 		}
+		matched = append(matched, c)
+	}
+	if len(matched) > 0 {
+		// Pick newest by birth time — with concurrent sessions the birth
+		// filter may yield >1 candidate; the freshest is the one we just
+		// launched. The old "exactly 1" gate dropped the capture for muse
+		// when multiple sessions shared the same birth second.
+		best := matched[0]
+		for _, c := range matched[1:] {
+			if c.birth.After(best.birth) {
+				best = c
+			}
+		}
+		return best.id
+	}
+	if nearMiss != nil {
+		return nearMiss.id
 	}
 	return SessionID{}
 }

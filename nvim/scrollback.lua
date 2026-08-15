@@ -367,6 +367,7 @@ local PROMPT_PATTERN_BY_AGENT = {
   claude = [[^❯]],
   codex  = [[^›]],
   agy    = [[\(──.*\n\)\zs>]],
+  muse   = [[^>]],
 }
 
 -- Adaptation flight recorder (atlas §3). Load the sibling emitter by this

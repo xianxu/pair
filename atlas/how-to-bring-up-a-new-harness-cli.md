@@ -2,7 +2,7 @@
 
 `pair` is an agent-agnostic, Neovim-backed launcher environment. While the horizontal two-pane design is generic, delivering a premium, seamless pair-programming experience requires integrating the agent across seven critical integration surfaces.
 
-This guide outlines how to bring up a new agent harness CLI (e.g., `agy`) and achieve parity with existing agents (`claude`, `codex`).
+This guide outlines how to bring up a new agent harness CLI (e.g., `muse`) and achieve parity with existing agents (`claude`, `codex`, `agy`, `muse`).
 
 ---
 
@@ -24,14 +24,14 @@ By default, the bottom Neovim draft pane maps **Enter** to insert a newline, and
       },
   }
   ```
-- **Note:** Claude uses `\<Enter>` (`[]byte{'\\', '\r'}`) as a newline, while Codex and Antigravity (`agy`) use LF (`\n`) for newline and CR (`\r`) for send.
+- **Note:** Claude uses `\<Enter>` (`[]byte{'\\', '\r'}`) as a newline, while Codex, Antigravity (`agy`), and Muse (`muse`) use LF (`\n`) for newline and CR (`\r`) for send.
 
 **Telemetry Signal** (aspect `1`, see §3): `return-remap` — `fired` each time a plain Enter is remapped to the agent's newline; `bypass` each time it passes through as a bare `\r` while an overlay is active. Emitted from `emitPlainCR`. The `fired:bypass` ratio is the health signal; an all-`bypass` or zero-`fired` session means the remap stopped engaging.
 
 ---
 
 ### Aspect 2: Overlay-Aware Return Suspension
-If the agent presents blocking overlays, pickers (like file autocompletes), or yes/no confirmation modals, text-area Enter remapping will break the interaction. Inside an overlay, a plain **Enter** must send a bare carriage return (`\r`) to select/confirm.
+If the agent presents blocking overlays, pickers (like file autocompletes), yes/no confirmation modals, **or user selection menus (AskUserQuestion / request_user_input pickers)** , text-area Enter remapping will break the interaction. Every option-selection UI needs the same bypass — plain Enter must confirm the highlighted option, not insert a newline (e.g. muse bug: selection menu required Alt+Enter to confirm because no marker matched). Inside an overlay, a plain **Enter** must send a bare carriage return (`\r`) to select/confirm.
 
 `pair-wrap` suspends remapping by registering an overlay detector function which arms a temporary `pickerActive` flag. The next plain Enter is bypass-translated to a bare `\r`, and the flag is immediately cleared.
 
@@ -47,8 +47,9 @@ If the agent presents blocking overlays, pickers (like file autocompletes), or y
   ```
 - Implement the detector. Detectors can scan the rolling output stream for custom OSC escape sequences (e.g. Claude's permission OSC `OSC 777;notify;...`, or Codex's `OSC 9;Plan mode prompt:...`) or fallback to visible text substring matches (e.g., watching for `"Press enter to confirm"`).
 - **For `agy`:** Antigravity *does* render its permission picker in the PTY ("Do you want to proceed?", "Yes, and always allow", …), so `detectAgyOverlayOpen` matches those visible-text markers (no OSC) to arm `pickerActive` — without it, the remapped Enter can't confirm the picker and a stray newline leaks into the prompt (#000042).
+- **For `muse`:** Muse renders both tool-permission pickers ("Permissions required", "Allow execution", …) **and** user selection menus (AskUserQuestion via `request_user_input` — "Select an option", "Use arrow keys", "Press Enter to select", …). Both families must be in `musePickerMarkers`; a missing selection marker reproduces as "Enter inserts newline, Alt+Enter required to select".
 
-**Telemetry Signal** (aspect `2`, see §3): `overlay-detect` — `fired` when a registered marker arms `pickerActive` (the detail carries the matched marker); **`near-miss`** when the output looks like a confirm/permission prompt (`promptShape` heuristic in `checkOverlayOpen`) but *no* registered marker matched. A `near-miss` is the drift fingerprint: the harness renamed its picker wording, the detector went silent, and the next plain Enter will leak a newline (#000042). The `detail` field carries the unrecognized line verbatim — that's the new string to add to `codexPickerMarkers`/`agyPickerMarkers` (or the OSC body for claude).
+**Telemetry Signal** (aspect `2`, see §3): `overlay-detect` — `fired` when a registered marker arms `pickerActive` (the detail carries the matched marker); **`near-miss`** when the output looks like a confirm/permission prompt (`promptShape` heuristic in `checkOverlayOpen`) but *no* registered marker matched. A `near-miss` is the drift fingerprint: the harness renamed its picker wording, the detector went silent, and the next plain Enter will leak a newline (#000042). The `detail` field carries the unrecognized line verbatim — that's the new string to add to `codexPickerMarkers`/`agyPickerMarkers`/`musePickerMarkers` (or the OSC body for claude).
 
 ---
 
@@ -59,7 +60,7 @@ If the agent presents blocking overlays, pickers (like file autocompletes), or y
 - **Files:** `cmd/pair-session-watch` and `cmd/internal/sessionwatch` (the launcher spawns the Go binary directly since #94 M2 — the `.sh` shim was retired).
 - Since TUI agents do not always expose session IDs on stdout, `pair-session-watch` runs in the background. It finds the agent process PID from `$PAIR_DATA_DIR/agent-pid-<tag>` (written by `pair-wrap`), walks its descendants, and inspects files held open by the processes via `lsof -p <pid>`.
 - Configure the agent's session file criteria in `cmd/internal/sessionwatch.SpecForAgent`, then teach `AgentSpec.Match` how to recognize that agent's file shape and return a `SessionID`.
-- For example, agy watches `~/.gemini/antigravity-cli/conversations` and extracts the UUID from `<uuid>.db`; codex watches `~/.codex/sessions` and extracts the trailing UUID from `rollout-*.jsonl`.
+- For example, agy watches `~/.gemini/antigravity-cli/conversations` and extracts the UUID from `<uuid>.db`; codex watches `~/.codex/sessions` and extracts the trailing UUID from `rollout-*.jsonl`; muse watches `~/.local/share/muse/sessions` and extracts the UUID from the parent dir of `session.jsonl` (`YYYY/MM/DD/<uuid>/session.jsonl`) — excluding `…/<uuid>/subagent/<sub-uuid>/session.jsonl` (only the root session is resumable via `muse resume <id>`).
 - When captured, the watcher writes `{ "agent": "<agent>", "args": [...], "session_id": "<uuid>" }` into `config-<tag>-<agent>.json`.
 
 **Recovery Flags:**
@@ -87,8 +88,8 @@ If the agent presents blocking overlays, pickers (like file autocompletes), or y
 The `pair-slug` script summarizes what the current agent session is about to display in the Zellij list.
 
 **Implementation:**
-- **Transcript Parsing:** Register a parser in [cmd/internal/slugcmd/slug.go](file:///Users/xianxu/workspace/pair/cmd/internal/slugcmd/slug.go) under `parseTranscript()`. For JSONL transcripts like `agy`, extract the `content` where `type: "USER_INPUT"`.
-- **Model Sandbox Execution:** Ensure that invoking the agent in summarize mode (`agy -p "<prompt>"`) runs inside a clean sandbox (e.g. setting `cmd.Dir = os.TempDir()` in [cmd/internal/model/model.go](file:///Users/xianxu/workspace/pair/cmd/internal/model/model.go), the shared model runner). This prevents the agent from triggering expensive workspace exploration tools, speeding up slug generation from 20s to 1s.
+- **Transcript Parsing:** Register a parser in [cmd/internal/slugcmd/slug.go](file:///Users/xianxu/workspace/pair/cmd/internal/slugcmd/slug.go) under `parseTranscript()`. For JSONL transcripts like `agy`, extract the `content` where `type: "USER_INPUT"`; for `muse`, extract `payload.event.prompt` where `payload_type=="runtime.session"` and `payload.kind=="run"` / `event.kind=="started"`.
+- **Model Sandbox Execution:** Ensure that invoking the agent in summarize mode (`agy -p "<prompt>"` / `muse exec "<prompt>"`) runs inside a clean sandbox (e.g. setting `cmd.Dir = os.TempDir()` in [cmd/internal/model/model.go](file:///Users/xianxu/workspace/pair/cmd/internal/model/model.go), the shared model runner). This prevents the agent from triggering expensive workspace exploration tools, speeding up slug generation from 20s to 1s.
 
 **Telemetry Signal** (aspect `4`, see §3): `slug-parse` from `pair-slug` — `fired` when the transcript parses into ≥1 turn, **`near-miss`** when a transcript is read but yields 0 turns (the transcript schema changed and the parser no longer extracts anything), `fail` when no transcript resolves at all. A run of `near-miss` lines points straight at a `parseTranscript` parser that needs updating.
 
@@ -122,6 +123,7 @@ The scrollback viewer (`Alt+/`) maps **Alt+b** (and **Alt+Shift+B**) to jump bet
     claude = [[^❯]],
     codex  = [[^›]],
     agy    = [[\(──.*\n\)\zs>]],
+    muse   = [[^>]],
   }
   ```
 
@@ -134,7 +136,7 @@ The scrollback viewer (`Alt+/`) maps **Alt+b** (and **Alt+Shift+B**) to jump bet
 When introducing a new agent `<name>`, ensure you complete each item:
 
 1. [ ] **Verify Return Key remapping** in `sendKeymapByAgent` (Enter = newline, Alt+Enter = send).
-2. [ ] **Check for blocking TUI overlays** and implement a PTY overlay detector in `overlayDetectorByAgent` if needed.
+2. [ ] **Check for blocking TUI overlays** (permission pickers **and** user selection / AskUserQuestion menus) and implement a PTY overlay detector in `overlayDetectorByAgent` if needed — verify plain Enter confirms the picker and Alt+Enter is not required.
 3. [ ] **Implement Session Watching** in `cmd/internal/sessionwatch` / `cmd/pair-session-watch` (using `lsof` and target file patterns).
 4. [ ] **Configure Launcher Recovery** in `bin/pair-shell` (mapping `--conversation` or `--resume` flags).
 5. [ ] **Add slug generation support** in `pair-slug` (transcript parsing + sandboxed print execution).
@@ -190,7 +192,7 @@ write the same line shape directly):
 | 6 Settings | — | — | — | static config; no signal |
 | 7 Prompt search | `prompt-search` | nvim/scrollback.lua | fired, near-miss | `near-miss` (0 matches in non-empty scrollback) |
 
-> Status: all six runtime aspects emit today (#000045 M1: aspects 1 & 2; M2: aspects 3, 4, 5, 7).
+> Status: all six runtime aspects emit today (#000045 M1: aspects 1 & 2; M2: aspects 3, 4, 5, 7) — verified for `claude`/`codex`/`agy`/`muse` via #000134.
 
 **Privacy:** `detail` can carry a snippet of agent output (e.g. an unrecognized
 prompt). It is capped at 200 bytes and the file stays local under `$PAIR_DATA_DIR`,

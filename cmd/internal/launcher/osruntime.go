@@ -532,6 +532,8 @@ func (OSRuntime) AgentSessionExists(agent, sid, cwd string) bool {
 		return fileExists(AgyConversationPath(home, sid))
 	case "codex":
 		return transcript.Resolve("codex", sid, cwd, home) != ""
+	case "muse":
+		return transcript.Resolve("muse", sid, cwd, home) != ""
 	}
 	return false
 }

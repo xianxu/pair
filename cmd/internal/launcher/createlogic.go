@@ -50,14 +50,22 @@ func buildConfigJSON(agent string, args []string, sid string) (string, error) {
 // extractExplicitResume returns the session id an explicit resume token on argv
 // pins, or "" if none. Per-agent surface (shell create branch 2053-2075): claude
 // `--resume <id>`, agy `--conversation <id>` / `--conversation=<id>`, codex the
-// leading `resume <id>` subcommand. Drives both the tag-restart picker gate
-// (a passed-in resume leaves the picker nothing to offer) and the pre-write of
-// config-<tag>-<agent>.json so the id is captured from the start.
+// leading `resume <id>` subcommand, muse the same `resume <id>` subcommand as
+// codex. Drives both the tag-restart picker gate (a passed-in resume leaves the
+// picker nothing to offer) and the pre-write of config-<tag>-<agent>.json so the
+// id is captured from the start.
 func extractExplicitResume(agent string, args []string) string {
 	switch agent {
-	case "codex":
+	case "codex", "muse":
 		if i := codexResumeCommandIndex(args); i >= 0 {
 			return args[i+1]
+		}
+		// Muse uses the same `resume <id>` shape but has different global
+		// options than codex; the codex index may miss a `muse --model x
+		// resume <id>` placement. Fall back to a simple leading check which
+		// also covers the canonical `composeResumeArgs` placement at args[0].
+		if len(args) >= 2 && args[0] == "resume" && args[1] != "" {
+			return args[1]
 		}
 	case "claude", "agy":
 		prev := ""

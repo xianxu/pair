@@ -69,6 +69,7 @@ func TestResumeTokenPerAgent(t *testing.T) {
 		{"claude", "s1", []string{"--resume", "s1"}},
 		{"codex", "s1", []string{"resume", "s1"}},
 		{"agy", "s1", []string{"--conversation", "s1"}},
+		{"muse", "s1", []string{"resume", "s1"}},
 		{"claude", "", nil},
 		{"unknown", "s1", nil},
 	}
@@ -94,11 +95,29 @@ func TestComposeResumeArgsOrdering(t *testing.T) {
 	if got := composeResumeArgs("codex", []string{"--no-alt-screen"}, "sid"); !reflect.DeepEqual(got, []string{"resume", "sid", "--no-alt-screen"}) {
 		t.Errorf("codex resume must lead: %v", got)
 	}
+	if got := composeResumeArgs("muse", []string{"--model", "x"}, "sid"); !reflect.DeepEqual(got, []string{"resume", "sid", "--model", "x"}) {
+		t.Errorf("muse resume must lead like codex: %v", got)
+	}
 	if got := composeResumeArgs("claude", []string{"--search"}, "sid"); !reflect.DeepEqual(got, []string{"--search", "--resume", "sid"}) {
 		t.Errorf("claude resume trails: %v", got)
 	}
 	if got := composeResumeArgs("claude", []string{"--search"}, ""); !reflect.DeepEqual(got, []string{"--search"}) {
 		t.Errorf("no sid → saved args unchanged: %v", got)
+	}
+}
+
+func TestMuseResumeArgs(t *testing.T) {
+	if got := stripCodexResumeSubcommand([]string{"resume", "sid1", "--model", "x"}); !reflect.DeepEqual(got, []string{"--model", "x"}) {
+		t.Errorf("muse leading resume: got %v", got)
+	}
+	if got := extractExplicitResume("muse", []string{"resume", "sid-1", "--model", "x"}); got != "sid-1" {
+		t.Fatalf("extractExplicitResume muse = %q, want sid-1", got)
+	}
+	if got := extractExplicitResume("muse", []string{"please", "resume", "sid-1"}); got != "" {
+		t.Fatalf("muse prompt must not be treated as resume, got %q", got)
+	}
+	if got := persistedConfigArgs([]string{"resume", "sid", "--model", "x"}); !reflect.DeepEqual(got, []string{"--model", "x"}) {
+		t.Errorf("persisted muse resume: got %v", got)
 	}
 }
 

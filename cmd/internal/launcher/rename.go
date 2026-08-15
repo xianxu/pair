@@ -16,7 +16,7 @@ import (
 // renameAgents is the hardcoded agent set whose per-(tag,agent) sidecars rename
 // carries (shell 408). A new agent must be added here (and nowhere else — the zip
 // design below needs it in one enumerator only).
-var renameAgents = []string{"claude", "codex", "agy"}
+var renameAgents = []string{"claude", "codex", "agy", "muse"}
 
 // renamePathsFor enumerates every candidate sidecar path for a tag, in a stable
 // order (shell rename_paths_for, 396-417). The order is identical for any tag, so

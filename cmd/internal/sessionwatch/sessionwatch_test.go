@@ -56,6 +56,55 @@ func TestAgentSpecRejectsUnsupportedAgent(t *testing.T) {
 	}
 }
 
+func TestMuseMatchExtractsRootSessionID(t *testing.T) {
+	home := "/tmp/home"
+	sid := "019eff64-6ceb-7e72-9d41-a735a97029ac"
+	path := home + "/.local/share/muse/sessions/2026/08/14/" + sid + "/session.jsonl"
+	spec, ok := SpecForAgent("muse", home)
+	if !ok {
+		t.Fatalf("muse spec not found")
+	}
+	got := spec.Match(path)
+	if !got.Matched || got.NearMiss || got.ID != sid || got.Path != path {
+		t.Fatalf("muse root match = %+v, want id %q", got, sid)
+	}
+}
+
+func TestMuseMatchIgnoresSubagentSession(t *testing.T) {
+	home := "/tmp/home"
+	sid := "019eff64-6ceb-7e72-9d41-a735a97029ac"
+	subSid := "123e4567-e89b-12d3-a456-426614174000"
+	spec, ok := SpecForAgent("muse", home)
+	if !ok {
+		t.Fatalf("muse spec not found")
+	}
+	// Root must match
+	rootPath := home + "/.local/share/muse/sessions/2026/08/14/" + sid + "/session.jsonl"
+	if got := spec.Match(rootPath); !got.Matched || got.ID != sid {
+		t.Fatalf("root muse match = %+v, want id %q", got, sid)
+	}
+	// Subagent session must NOT match
+	subPath := home + "/.local/share/muse/sessions/2026/08/14/" + sid + "/subagent/" + subSid + "/session.jsonl"
+	if got := spec.Match(subPath); got.Matched {
+		t.Fatalf("subagent path should not match, got %+v", got)
+	}
+	// Bad uuid under subagent also ignored
+	badSub := home + "/.local/share/muse/sessions/2026/08/14/" + sid + "/subagent/not-a-uuid/session.jsonl"
+	if got := spec.Match(badSub); got.Matched {
+		t.Fatalf("bad subagent path should not match, got %+v", got)
+	}
+}
+
+func TestMuseMatchReportsNearMissForBadID(t *testing.T) {
+	home := "/tmp/home"
+	spec, _ := SpecForAgent("muse", home)
+	path := home + "/.local/share/muse/sessions/2026/08/14/not-a-uuid/session.jsonl"
+	got := spec.Match(path)
+	if !got.Matched || !got.NearMiss || got.ID != "" {
+		t.Fatalf("muse near-miss = %+v", got)
+	}
+}
+
 func TestStripResumeArgsRemovesCanonicalResumeBindings(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -68,6 +117,12 @@ func TestStripResumeArgsRemovesCanonicalResumeBindings(t *testing.T) {
 			agent: "codex",
 			args:  []string{"resume", "abc", "--no-alt-screen"},
 			want:  []string{"--no-alt-screen"},
+		},
+		{
+			name:  "muse leading resume",
+			agent: "muse",
+			args:  []string{"resume", "abc", "--model", "x"},
+			want:  []string{"--model", "x"},
 		},
 		{
 			name:  "flag resume",

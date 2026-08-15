@@ -50,6 +50,12 @@ func SpecForAgent(agent, home string) (AgentSpec, bool) {
 			Home:     home,
 			WatchDir: filepath.Join(home, ".gemini", "antigravity-cli", "conversations"),
 		}, true
+	case "muse":
+		return AgentSpec{
+			Agent:    agent,
+			Home:     home,
+			WatchDir: filepath.Join(home, ".local", "share", "muse", "sessions"),
+		}, true
 	default:
 		return AgentSpec{}, false
 	}
@@ -89,6 +95,25 @@ func (s AgentSpec) Match(path string) SessionID {
 			return SessionID{Matched: true, ID: id, Path: path}
 		}
 		return SessionID{Matched: true, NearMiss: true, Path: path}
+	case "muse":
+		prefix := filepath.Clean(s.WatchDir) + string(filepath.Separator)
+		clean := filepath.Clean(path)
+		if !strings.HasPrefix(clean, prefix) {
+			return SessionID{}
+		}
+		// Muse subagent sessions live under …/<root-uuid>/subagent/<sub-uuid>/session.jsonl.
+		// Only the root session is resumable via `muse resume <id>`; ignore subagent interior (ARCH-PURE).
+		if strings.Contains(clean, string(filepath.Separator)+"subagent"+string(filepath.Separator)) {
+			return SessionID{}
+		}
+		if filepath.Base(clean) != "session.jsonl" {
+			return SessionID{}
+		}
+		id := filepath.Base(filepath.Dir(clean))
+		if uuidRE.MatchString(id) {
+			return SessionID{Matched: true, ID: id, Path: path}
+		}
+		return SessionID{Matched: true, NearMiss: true, Path: path}
 	default:
 		return SessionID{}
 	}
@@ -99,7 +124,7 @@ func (s AgentSpec) Match(path string) SessionID {
 func StripResumeArgs(agent string, args []string) []string {
 	stripped := make([]string, 0, len(args))
 	i := 0
-	if agent == "codex" && len(args) >= 2 && args[0] == "resume" {
+	if (agent == "codex" || agent == "muse") && len(args) >= 2 && args[0] == "resume" {
 		i = 2
 	}
 	for i < len(args) {

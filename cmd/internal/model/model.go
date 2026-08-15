@@ -65,6 +65,9 @@ func DefaultModel(agent string) string {
 	if agent == "codex" {
 		return DefaultOpenAIModel
 	}
+	if agent == "muse" {
+		return DefaultOpenAIModel
+	}
 	return DefaultClaudeModel
 }
 
@@ -87,6 +90,11 @@ func Run(r Request) (string, error) {
 		return runCodexCLI(r)
 	case "agy":
 		return runAgy(r)
+	case "muse":
+		if os.Getenv("OPENAI_API_KEY") != "" {
+			return runOpenAI(r)
+		}
+		return runMuse(r)
 	default:
 		return runClaude(r)
 	}
@@ -118,6 +126,20 @@ func runAgy(r Request) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), r.timeout())
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "agy", "-p", r.Prompt)
+	cmd.Dir = os.TempDir()
+	cmd.Env = append(os.Environ(), "PAIR_SLUG_NESTED=1")
+	out, err := cmd.Output()
+	return string(out), err
+}
+
+// runMuse invokes `muse exec` for headless summarization. Setting Dir to
+// os.TempDir() avoids loading the workspace's agent context. Falls back to the
+// OpenAI path when API key is present (handled in Run).
+func runMuse(r Request) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), r.timeout())
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "muse", "exec", r.Prompt)
+	cmd.Stdin = strings.NewReader(r.Input)
 	cmd.Dir = os.TempDir()
 	cmd.Env = append(os.Environ(), "PAIR_SLUG_NESTED=1")
 	out, err := cmd.Output()

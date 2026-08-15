@@ -174,6 +174,14 @@ var sendKeymapByAgent = map[string]sendKeymap{
 		altCR:   []byte{'\r'},
 		altBS:   []byte{0x15}, // Ctrl+U — kill to line start
 	},
+	"muse": {
+		// Muse (Meta) maps plain Enter to newline and Alt+Enter
+		// to CR submit — same as codex/agy; the TUI reads LF as
+		// newline and CR as submit.
+		plainCR: []byte{'\n'},
+		altCR:   []byte{'\r'},
+		altBS:   []byte{0x15}, // Ctrl+U — kill to line start
+	},
 }
 
 type overlayDetector func(*proxy, []byte, []byte) (bool, string)
@@ -182,6 +190,7 @@ var overlayDetectorByAgent = map[string]overlayDetector{
 	"claude": detectClaudeOverlayOpen,
 	"codex":  detectCodexOverlayOpen,
 	"agy":    detectAgyOverlayOpen,
+	"muse":   detectMuseOverlayOpen,
 }
 
 // ----- Compiled regexes (byte-mode) -------------------------------------------
@@ -723,6 +732,47 @@ func detectAgyOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
 func detectAgyOverlayText(visible string) (bool, string) {
 	for _, marker := range agyPickerMarkers {
 		if strings.Contains(visible, marker) {
+			return true, marker
+		}
+	}
+	return false, ""
+}
+
+var musePickerMarkers = []string{
+	"Do you want to proceed?",
+	"Allow execution",
+	"Permissions required",
+	"Proceed?",
+	"Approve",
+	"tool approval",
+	// User selection menu (AskUserQuestion / request_user_input) — plain Enter
+	// must confirm the highlighted option, not insert a newline. These strings
+	// cover the picker chrome; the generic prompt shapes ("select an option")
+	// remain the drift tripwire via near-miss.
+	"Select an option",
+	"Select:",
+	"Please select",
+	"Choose an option",
+	"Use arrow keys",
+	"Press Enter to select",
+	"Enter to select",
+}
+
+func detectMuseOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
+	visible := stripTerminalControls(data)
+	if p != nil {
+		p.overlayMu.Lock()
+		defer p.overlayMu.Unlock()
+		visible = p.overlayTextTail + visible
+		p.overlayTextTail = textSuffix(visible, rollingTailLen)
+	}
+	return detectMuseOverlayText(visible)
+}
+
+func detectMuseOverlayText(visible string) (bool, string) {
+	low := asciiFold(visible)
+	for _, marker := range musePickerMarkers {
+		if strings.Contains(low, asciiFold(marker)) {
 			return true, marker
 		}
 	}

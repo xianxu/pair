@@ -71,6 +71,9 @@ func parseTranscript(agent string, data []byte) []turn {
 
 	case "agy":
 		return parseAgy(data)
+
+	case "muse":
+		return parseMuse(data)
 	default:
 		return parseClaude(data)
 	}
@@ -363,6 +366,42 @@ func parseAgy(data []byte) []turn {
 			txt := strings.TrimSpace(e.Content)
 			if txt != "" {
 				out = append(out, turn{Role: "assistant", Text: txt})
+			}
+		}
+	}
+	return out
+}
+
+// ── muse: Meta's muse, jsonl with payload_type "runtime.session" and
+// kind "run" where event.kind=="started" carries the user prompt at
+// event.prompt, plus optional assistant turns elsewhere. Each durable
+// line is a session.jsonl envelope; we extract the durable prompts.
+type museEnvelope struct {
+	PayloadType string `json:"payload_type"`
+	Payload     struct {
+		Kind  string `json:"kind"`
+		Event struct {
+			Kind   string `json:"kind"`
+			Prompt string `json:"prompt"`
+		} `json:"event"`
+		RunID string `json:"run_id"`
+	} `json:"payload"`
+}
+
+func parseMuse(data []byte) []turn {
+	var out []turn
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var e museEnvelope
+		if json.Unmarshal([]byte(line), &e) != nil {
+			continue
+		}
+		if e.PayloadType == "runtime.session" && e.Payload.Kind == "run" && e.Payload.Event.Kind == "started" {
+			if txt := strings.TrimSpace(e.Payload.Event.Prompt); txt != "" {
+				out = append(out, turn{Role: "user", Text: txt})
 			}
 		}
 	}

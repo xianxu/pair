@@ -42,6 +42,19 @@ func Resolve(agent, sid, cwd, home string) string {
 		return ""
 	case "agy":
 		return filepath.Join(home, ".gemini", "antigravity-cli", "brain", sid, ".system_generated", "logs", "transcript.jsonl")
+	case "muse":
+		matches, _ := filepath.Glob(filepath.Join(home, ".local", "share", "muse", "sessions", "*", "*", "*", sid, "session.jsonl"))
+		for _, m := range matches {
+			if !strings.Contains(m, string(filepath.Separator)+"subagent"+string(filepath.Separator)) {
+				return m
+			}
+		}
+		// Flat fallback: direct parent dir without date hierarchy (tests / future layout)
+		candidate := filepath.Join(home, ".local", "share", "muse", "sessions", sid, "session.jsonl")
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+		return ""
 	default: // claude
 		return filepath.Join(home, ".claude", "projects", ClaudePathEncoder.Replace(cwd), sid+".jsonl")
 	}

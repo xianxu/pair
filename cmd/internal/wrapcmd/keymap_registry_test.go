@@ -25,6 +25,8 @@ func TestSendKeymapByAgent_RegistrationTable(t *testing.T) {
 		"codex": {[]byte{'\n'}, []byte{'\r'}, ctrlU},
 		// agy: plain Enter inserts newline; Alt+Enter emits CR submit.
 		"agy": {[]byte{'\n'}, []byte{'\r'}, ctrlU},
+		// muse: plain Enter inserts newline; Alt+Enter emits CR submit.
+		"muse": {[]byte{'\n'}, []byte{'\r'}, ctrlU},
 	}
 	if len(sendKeymapByAgent) != len(want) {
 		t.Fatalf("sendKeymapByAgent has %d agents, want %d (%v)",

@@ -58,3 +58,10 @@ func AgyConversationPath(home, sid string) string {
 func CodexSessionsDir(home string) string {
 	return filepath.Join(home, ".codex", "sessions")
 }
+
+// MuseSessionsDir is the directory the muse session probe walks for
+// `*/<sid>/session.jsonl` (the match itself is IO — a find over this dir on the
+// Runtime seam).
+func MuseSessionsDir(home string) string {
+	return filepath.Join(home, ".local", "share", "muse", "sessions")
+}
