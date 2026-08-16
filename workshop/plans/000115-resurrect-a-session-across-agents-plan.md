@@ -4,7 +4,7 @@
 
 **Goal:** Make `pair <agent>` remember and reuse the last explicit launch arguments for that agent in the current repo, without changing existing per-tag native resume behavior.
 
-**Architecture:** Add a small pure policy layer for launch-argument precedence and local repo-agent default codecs, then wire it into the existing launcher create path. This deliberately avoids the abandoned live handoff coordinator; `ARCH-PURPOSE` is served by landing the reusable substrate first, while `ARCH-DRY` keeps tag configs and repo-agent defaults in one precedence function and `ARCH-PURE` keeps policy IO-free.
+**Architecture:** Add a small pure policy layer for launch-argument precedence and local repo-agent default codecs, then wire it into the existing launcher create path behind a nonce-bound readiness record written by `pair wrap` after the agent PTY starts. This deliberately avoids the abandoned live handoff coordinator; `ARCH-PURPOSE` is served by landing the reusable substrate first, while `ARCH-DRY` keeps tag configs and repo-agent defaults in one precedence function and `ARCH-PURE` keeps policy IO-free.
 
 **Tech Stack:** Go launcher (`cmd/internal/launcher`), existing repo-scoped Pair data dir, zellij launch readiness/create flow, README and atlas docs.
 
@@ -23,6 +23,7 @@
 | `LaunchArgs` intent fields | `cmd/internal/launcher/args.go` | modified |
 | `AgentDefault` | `cmd/internal/launcher/agent_defaults.go` | new |
 | `LaunchArgDecision` | `cmd/internal/launcher/launch_args_policy.go` | new |
+| `ReadyRecord` | `cmd/internal/readiness/record.go` | new |
 | `ScopedPaths.AgentDefault` | `cmd/internal/launcher/scoped_paths.go` | modified |
 
 - **`LaunchArgs` intent fields** — records whether the user explicitly named an agent and whether `--` appeared, independently of the final defaulted `Agent` value.
@@ -37,6 +38,10 @@
   - **Relationships:** consumes at most one tag config and one repo default; produces final args, optional resume ID, warnings, and whether to persist a default after readiness.
   - **DRY rationale:** one function owns `explicit > tag config > repo default > empty`, so future picker/recovery flows reuse it.
   - **Future extensions:** agent-specific resume capability stays in existing `composeResumeArgs` helpers.
+- **`ReadyRecord`** — validated wire record proving the exact launched agent process for `(tag, agent, session, nonce)` reached PTY-start.
+  - **Relationships:** one create launch mints one nonce; one `pair wrap` child writes one matching readiness record.
+  - **DRY rationale:** readiness is a shared wire schema, not separate ad hoc JSON in launcher and wrapper.
+  - **Future extensions:** later work-selector recovery can reuse the same readiness commit point without importing handoff journals.
 - **`ScopedPaths.AgentDefault`** — repo-scoped path for `agent-default-<agent>.json`.
   - **Relationships:** sibling of existing scoped tag/config paths under the repo data dir.
   - **DRY rationale:** all repo-scoped launcher paths remain centralized.
@@ -47,11 +52,15 @@
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
 | `AgentDefaultOps` | `cmd/internal/launcher/runtime.go`, `cmd/internal/launcher/osruntime.go` | new | local filesystem default files |
+| `ReadinessOps` | `cmd/internal/launcher/runtime.go`, `cmd/internal/launcher/osruntime.go`, `cmd/internal/wrapcmd/wrap.go` | new | `agent-ready-<tag>-<agent>.json` sidecar |
 | Create-flow default persistence | `cmd/internal/launcher/createflow.go` | modified | launcher readiness / zellij handoff |
 
 - **`AgentDefaultOps`** — runtime methods for reading and atomically writing one repo-agent default through the pure codec/path.
   - **Injected into:** create flow after it has resolved the target agent and tag.
   - **Future extensions:** diagnostics can read through the same seam.
+- **`ReadinessOps`** — launcher removes stale ready records, mints/exports a launch nonce, waits briefly for the matching record, and checks the recorded PID is alive; `pair wrap` writes the record only after `pty.Start` succeeds.
+  - **Injected into:** create flow before default persistence. Tests use the existing launcher fake plus a wrapcmd unit test; no fake zellij writes readiness on behalf of Pair (`ARCH-MOCK`).
+  - **Future extensions:** if target startup needs richer health checks later, they extend this record after PTY-start rather than using blocking zellij exit.
 - **Create-flow default persistence** — applies `LaunchArgDecision`, launches with final args, and writes/clears the repo-agent default only after successful launch readiness.
   - **Injected into:** existing `runCreate`; no new process coordinator.
   - **Future extensions:** later work-selector recovery can call the same policy before launching the target driver.
@@ -64,14 +73,10 @@
 
 - [ ] **Step 1: Write failing parser tests**
 
-Add cases for:
-
-```go
-// argv nil: Agent="claude", AgentExplicit=false, AgentArgsExplicit=false
-// ["codex"]: Agent="codex", AgentExplicit=true, AgentArgsExplicit=false
-// ["codex", "--", "--sandbox", "danger-full-access"]: AgentExplicit=true, AgentArgsExplicit=true
-// ["codex", "--"]: AgentExplicit=true, AgentArgsExplicit=true, AgentArgs=[]
-```
+Function strategy: `ParseArgs` over positional/separator-shaped argv -> table
+test implicit agent, explicit agent, non-empty `--`, and empty `--`; the guard
+is separate booleans rather than inferring intent from `Agent` or
+`len(AgentArgs)`.
 
 - [ ] **Step 2: Run the focused tests and confirm RED**
 
@@ -101,7 +106,10 @@ Expected: PASS.
 
 - [ ] **Step 1: Write failing codec/path tests**
 
-Cover JSON round-trip, wrong embedded agent rejection, malformed JSON rejection, defensive slice copies, and `AgentDefaultPath("/data", "codex") == "/data/agent-default-codex.json"`.
+Function strategy: `ParseAgentDefault` / `BuildAgentDefault` over malformed or
+mismatched JSON -> reject wrong agent and preserve defensive copies;
+`ScopedPaths.AgentDefault` over repo scopes and agent names -> path stays under
+`ScopeDir`.
 
 - [ ] **Step 2: Implement the pure codec and path**
 
@@ -118,17 +126,9 @@ Add parse/build helpers that reject empty or mismatched agents and normalize nil
 
 - [ ] **Step 3: Write failing precedence tests**
 
-Cover:
-
-```text
-explicit args -> explicit args, persist default
-explicit empty -- -> empty args, persist default clear
-valid tag config + resumable id -> saved args + resume id, no default persist
-valid tag config + stale id -> saved args fresh, warning, no default persist
-no tag config + repo default -> default args, no default persist
-malformed tag config + repo default -> default args + warning
-no inputs -> empty args
-```
+Function strategy: `DecideLaunchArgs` over explicit args, tag config, repo
+default, and stale native-session evidence -> assert precedence order and that
+resume tokens are composed once via existing helpers.
 
 - [ ] **Step 4: Implement `DecideLaunchArgs`**
 
@@ -140,7 +140,63 @@ Run: `go test ./cmd/internal/launcher -run 'Test(AgentDefault|LaunchArg|ScopedPa
 
 Expected: PASS.
 
-### Task 3: Wire defaults into create flow
+### Task 3: Add nonce-bound launch readiness
+
+**Files:**
+- Create: `cmd/internal/readiness/record.go`
+- Create: `cmd/internal/readiness/record_test.go`
+- Create: `cmd/internal/launcher/readiness.go`
+- Create: `cmd/internal/launcher/readiness_os.go`
+- Test: `cmd/internal/launcher/readiness_test.go`
+- Modify: `cmd/internal/launcher/runtime.go`
+- Modify: `cmd/internal/launcher/osruntime.go`
+- Modify: `cmd/internal/wrapcmd/wrap.go`
+- Test: `cmd/internal/wrapcmd/readiness_test.go`
+
+- [ ] **Step 1: Write failing pure readiness tests**
+
+Function strategy: `readiness.Encode` / `readiness.Decode` over missing
+identity fields and malformed JSON -> reject incomplete or mismatched records
+before launcher IO trusts them.
+
+- [ ] **Step 2: Implement `ReadyRecord` codec**
+
+Create a tiny shared package with fields `tag`, `agent`, `session`, `nonce`,
+and `pid`. Validate non-empty identity and positive PID.
+
+- [ ] **Step 3: Write failing launcher readiness tests**
+
+Function strategy: launcher readiness matcher over stale nonce/session/PID
+records -> accept only exact identity and live PID; stale files are removed
+before launch.
+
+- [ ] **Step 4: Add `ReadinessOps` to the runtime seam**
+
+Add methods to remove stale records, mint/export nonce, wait for a matching
+ready record with a short timeout, and test PID liveness. OS implementation
+watches the local sidecar; fake runtime models only Pair-owned readiness
+writes, not zellij effects (`ARCH-MOCK`).
+
+- [ ] **Step 5: Write failing wrap readiness tests**
+
+Function strategy: `wrapcmd` startup over successful vs failed PTY start ->
+write readiness only after agent PTY start succeeds, using `PAIR_TAG`,
+`PAIR_AGENT`, `PAIR_SESSION_NAME`, and `PAIR_LAUNCH_NONCE`.
+
+- [ ] **Step 6: Implement wrap readiness publication**
+
+After `pty.Start` succeeds and the agent PID is known, write the shared
+`ReadyRecord` atomically beside the existing `agent-pid-<tag>` sidecar. If
+required env is missing, skip readiness publication without breaking non-Pair
+use.
+
+- [ ] **Step 7: Run readiness tests**
+
+Run: `go test ./cmd/internal/readiness ./cmd/internal/launcher ./cmd/internal/wrapcmd -run 'Test.*Ready|Test.*Readiness' -count=1`
+
+Expected: PASS.
+
+### Task 4: Wire defaults into create flow
 
 **Files:**
 - Modify: `cmd/internal/launcher/runtime.go`
@@ -151,16 +207,9 @@ Expected: PASS.
 
 - [ ] **Step 1: Write failing create-flow tests**
 
-Add fake-runtime tests for:
-
-```text
-pair codex -- --sandbox danger-full-access persists codex default after ready
-pair codex reuses codex default when no tag config exists
-pair codex -- clears codex default after ready
-tag config beats repo default
-aborted config/name/picker path does not persist a default
-failed launch/readiness does not persist a default
-```
+Function strategy: `runCreate` over explicit args, empty explicit separator,
+tag config, repo default, abort, and readiness timeout -> defaults persist only
+after a matching ready record and tag configs keep priority.
 
 - [ ] **Step 2: Add `AgentDefaultOps` to the runtime seam**
 
@@ -172,7 +221,12 @@ Read the tag config/ledger as today, read the repo-agent default, compute the fi
 
 - [ ] **Step 4: Persist explicit defaults only after launch readiness**
 
-Current create flow uses a blocking `LaunchSession`. If no readiness seam exists on current `main`, use the existing successful handoff return as the readiness point for M1 and document the limitation in the issue log. If the readiness seam can be ported cleanly without the handoff coordinator, add it as a small follow-up task before persistence.
+Before `LaunchSession`, remove stale readiness for `(tag, agent)`, mint a
+nonce, and export `PAIR_LAUNCH_NONCE`. Start the existing blocking zellij
+handoff in the same shape, but observe the matching readiness sidecar
+concurrently; write or clear the repo-agent default only after the exact record
+appears with a live PID. If readiness times out or the child exits before
+readiness, do not persist the default and return a launch failure.
 
 - [ ] **Step 5: Run focused launcher tests**
 
@@ -180,7 +234,7 @@ Run: `go test ./cmd/internal/launcher -run 'TestRunLaunch.*(Default|Config|Codex
 
 Expected: PASS.
 
-### Task 4: Document and verify
+### Task 5: Document and verify
 
 **Files:**
 - Modify: `README.md`
@@ -206,6 +260,7 @@ Run:
 
 ```sh
 go test ./cmd/internal/launcher -count=1
+go test ./cmd/internal/readiness ./cmd/internal/wrapcmd -count=1
 go test ./... -count=1
 git diff --check
 ```
@@ -219,3 +274,10 @@ git add cmd/internal/launcher README.md atlas workshop/issues/000115-resurrect-a
 git commit -m "#115 M1: remember repo agent launch defaults" \
   -m "Co-Authored-By: OpenAI Codex <noreply@openai.com>"
 ```
+
+## Revisions
+
+- 2026-08-16: plan-quality PQ-1/PQ-2 revision. Made nonce-bound launch
+  readiness a concrete M1 deliverable instead of treating blocking zellij exit
+  as readiness, and compressed test prose to named function strategies with
+  adversarial input classes.
