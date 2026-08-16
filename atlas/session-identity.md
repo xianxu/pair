@@ -28,6 +28,8 @@ log-<tag>.md
 queue-<tag>/
 agent-<tag>
 config-<tag>-<agent>.json
+agent-default-<agent>.json
+agent-ready-<tag>-<agent>.json
 ledger-<tag>.jsonl
 scrollback-<tag>-<agent>.raw
 scrollback-<tag>-<agent>.events.jsonl
@@ -136,6 +138,13 @@ came from a legacy import.
 The ledger is the source of truth for agent/config inference. The older
 `agent-<tag>` and `config-<tag>-<agent>.json` files remain as derived caches and
 compatibility surfaces for existing consumers.
+
+`agent-default-<agent>.json` is different from `config-<tag>-<agent>.json`: it
+has only `{agent,args}` and belongs to the repo/agent, not to a work tag or
+native conversation. Fresh `pair <agent>` creates use it as the lowest-priority
+argument source after explicit `-- <args>` and tag-specific config. It is written
+only after the launched `pair wrap` child publishes a matching
+`agent-ready-<tag>-<agent>.json` record for the launch nonce.
 
 ## Picker and list scope
 

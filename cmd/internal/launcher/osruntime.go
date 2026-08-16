@@ -15,6 +15,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/continuationcmd"
 	"github.com/xianxu/pair/cmd/internal/osfs"
+	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/transcript"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
@@ -437,6 +438,72 @@ func (OSRuntime) MintUUID() string {
 	b[6] = (b[6] & 0x0f) | 0x40 // version 4
 	b[8] = (b[8] & 0x3f) | 0x80 // variant 10
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
+// --- ReadinessOps ----------------------------------------------------------
+
+func (r OSRuntime) RemoveReadyRecord(tag, agent string) {
+	r.Remove(AgentReadyPath(r.DataDir, tag, agent))
+}
+
+func (OSRuntime) MintLaunchNonce() string {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return ""
+	}
+	return fmt.Sprintf("%x", b[:])
+}
+
+func (r OSRuntime) WaitReadyRecord(expect ReadyExpectation, timeout time.Duration) (readiness.ReadyRecord, error) {
+	deadline := time.Now().Add(timeout)
+	path := AgentReadyPath(r.DataDir, expect.Tag, expect.Agent)
+	for {
+		if raw, err := r.ReadFile(path); err == nil {
+			record, err := readiness.Decode(raw)
+			if err == nil {
+				if matchErr := MatchReadyRecord(expect, record, r.PIDAlive); matchErr == nil {
+					return record, nil
+				}
+			}
+		}
+		if !time.Now().Before(deadline) {
+			return readiness.ReadyRecord{}, fmt.Errorf("timed out waiting for %s readiness", expect.Agent)
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+}
+
+func (OSRuntime) PIDAlive(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+	return proc.Signal(syscall.Signal(0)) == nil
+}
+
+// --- AgentDefaultOps -------------------------------------------------------
+
+func (r OSRuntime) ReadAgentDefault(agent string) (AgentDefault, bool) {
+	raw, err := r.ReadFile(AgentDefaultPath(r.DataDir, agent))
+	if err != nil {
+		return AgentDefault{}, false
+	}
+	d, err := ParseAgentDefault(agent, raw)
+	if err != nil {
+		return AgentDefault{}, false
+	}
+	return d, true
+}
+
+func (r OSRuntime) WriteAgentDefault(agent string, args []string) error {
+	raw, err := BuildAgentDefault(agent, args)
+	if err != nil {
+		return err
+	}
+	return r.WriteAtomic(AgentDefaultPath(r.DataDir, agent), raw)
 }
 
 // InferAgent reads the agent-<tag> record (primary) or the agent encoded in a

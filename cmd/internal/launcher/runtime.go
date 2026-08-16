@@ -2,6 +2,8 @@ package launcher
 
 import (
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/readiness"
 )
 
 // The launcher.Runtime effect seam (#99 M2). Every IO the create-flow
@@ -133,6 +135,18 @@ type SessionNameStoreOps interface {
 	AppendSessionNameIndex(entry SessionNameEntry) error
 }
 
+type ReadinessOps interface {
+	RemoveReadyRecord(tag, agent string)
+	MintLaunchNonce() string
+	WaitReadyRecord(expect ReadyExpectation, timeout time.Duration) (readiness.ReadyRecord, error)
+	PIDAlive(pid int) bool
+}
+
+type AgentDefaultOps interface {
+	ReadAgentDefault(agent string) (AgentDefault, bool)
+	WriteAgentDefault(agent string, args []string) error
+}
+
 // FSOps is the filesystem subset the create path uses (satisfied by osfs.FS).
 type FSOps interface {
 	ReadFile(path string) (string, error)
@@ -220,6 +234,8 @@ type Runtime interface {
 	IDOps
 	LedgerOps
 	SessionNameStoreOps
+	ReadinessOps
+	AgentDefaultOps
 	FSOps
 	LifecycleOps
 }

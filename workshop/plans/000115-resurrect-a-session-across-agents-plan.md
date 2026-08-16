@@ -71,24 +71,24 @@
 - Modify: `cmd/internal/launcher/args.go`
 - Test: `cmd/internal/launcher/args_test.go`
 
-- [ ] **Step 1: Write failing parser tests**
+- [x] **Step 1: Write failing parser tests**
 
 Function strategy: `ParseArgs` over positional/separator-shaped argv -> table
 test implicit agent, explicit agent, non-empty `--`, and empty `--`; the guard
 is separate booleans rather than inferring intent from `Agent` or
 `len(AgentArgs)`.
 
-- [ ] **Step 2: Run the focused tests and confirm RED**
+- [x] **Step 2: Run the focused tests and confirm RED**
 
 Run: `go test ./cmd/internal/launcher -run TestParseArgs -count=1`
 
 Expected: FAIL because `LaunchArgs` has no explicit-intent fields.
 
-- [ ] **Step 3: Add `AgentExplicit` and `AgentArgsExplicit`**
+- [x] **Step 3: Add `AgentExplicit` and `AgentArgsExplicit`**
 
 Set `AgentExplicit` only when a positional agent was typed. Set `AgentArgsExplicit` when `--` appears, even if no args follow. Keep `resume`, `continue`, `rename`, `restart`, and default bare `pair` behavior unchanged.
 
-- [ ] **Step 4: Re-run parser tests and confirm GREEN**
+- [x] **Step 4: Re-run parser tests and confirm GREEN**
 
 Run: `go test ./cmd/internal/launcher -run TestParseArgs -count=1`
 
@@ -104,14 +104,14 @@ Expected: PASS.
 - Modify: `cmd/internal/launcher/scoped_paths.go`
 - Modify: `cmd/internal/launcher/scoped_paths_test.go`
 
-- [ ] **Step 1: Write failing codec/path tests**
+- [x] **Step 1: Write failing codec/path tests**
 
 Function strategy: `ParseAgentDefault` / `BuildAgentDefault` over malformed or
 mismatched JSON -> reject wrong agent and preserve defensive copies;
 `ScopedPaths.AgentDefault` over repo scopes and agent names -> path stays under
 `ScopeDir`.
 
-- [ ] **Step 2: Implement the pure codec and path**
+- [x] **Step 2: Implement the pure codec and path**
 
 Create:
 
@@ -124,17 +124,17 @@ type AgentDefault struct {
 
 Add parse/build helpers that reject empty or mismatched agents and normalize nil args to `[]`.
 
-- [ ] **Step 3: Write failing precedence tests**
+- [x] **Step 3: Write failing precedence tests**
 
 Function strategy: `DecideLaunchArgs` over explicit args, tag config, repo
 default, and stale native-session evidence -> assert precedence order and that
 resume tokens are composed once via existing helpers.
 
-- [ ] **Step 4: Implement `DecideLaunchArgs`**
+- [x] **Step 4: Implement `DecideLaunchArgs`**
 
 Keep this function pure. It should return final args, optional resume ID, warnings, and default persistence intent. Use existing `composeResumeArgs`, `extractExplicitResume`, and `persistedConfigArgs` helpers rather than duplicating agent-specific resume parsing (`ARCH-DRY`).
 
-- [ ] **Step 5: Run focused pure tests**
+- [x] **Step 5: Run focused pure tests**
 
 Run: `go test ./cmd/internal/launcher -run 'Test(AgentDefault|LaunchArg|ScopedPaths)' -count=1`
 
@@ -153,44 +153,44 @@ Expected: PASS.
 - Modify: `cmd/internal/wrapcmd/wrap.go`
 - Test: `cmd/internal/wrapcmd/readiness_test.go`
 
-- [ ] **Step 1: Write failing pure readiness tests**
+- [x] **Step 1: Write failing pure readiness tests**
 
 Function strategy: `readiness.Encode` / `readiness.Decode` over missing
 identity fields and malformed JSON -> reject incomplete or mismatched records
 before launcher IO trusts them.
 
-- [ ] **Step 2: Implement `ReadyRecord` codec**
+- [x] **Step 2: Implement `ReadyRecord` codec**
 
 Create a tiny shared package with fields `tag`, `agent`, `session`, `nonce`,
 and `pid`. Validate non-empty identity and positive PID.
 
-- [ ] **Step 3: Write failing launcher readiness tests**
+- [x] **Step 3: Write failing launcher readiness tests**
 
 Function strategy: launcher readiness matcher over stale nonce/session/PID
 records -> accept only exact identity and live PID; stale files are removed
 before launch.
 
-- [ ] **Step 4: Add `ReadinessOps` to the runtime seam**
+- [x] **Step 4: Add `ReadinessOps` to the runtime seam**
 
 Add methods to remove stale records, mint/export nonce, wait for a matching
 ready record with a short timeout, and test PID liveness. OS implementation
 watches the local sidecar; fake runtime models only Pair-owned readiness
 writes, not zellij effects (`ARCH-MOCK`).
 
-- [ ] **Step 5: Write failing wrap readiness tests**
+- [x] **Step 5: Write failing wrap readiness tests**
 
 Function strategy: `wrapcmd` startup over successful vs failed PTY start ->
 write readiness only after agent PTY start succeeds, using `PAIR_TAG`,
 `PAIR_AGENT`, `PAIR_SESSION_NAME`, and `PAIR_LAUNCH_NONCE`.
 
-- [ ] **Step 6: Implement wrap readiness publication**
+- [x] **Step 6: Implement wrap readiness publication**
 
 After `pty.Start` succeeds and the agent PID is known, write the shared
 `ReadyRecord` atomically beside the existing `agent-pid-<tag>` sidecar. If
 required env is missing, skip readiness publication without breaking non-Pair
 use.
 
-- [ ] **Step 7: Run readiness tests**
+- [x] **Step 7: Run readiness tests**
 
 Run: `go test ./cmd/internal/readiness ./cmd/internal/launcher ./cmd/internal/wrapcmd -run 'Test.*Ready|Test.*Readiness' -count=1`
 
@@ -205,21 +205,21 @@ Expected: PASS.
 - Modify: `cmd/internal/launcher/createflow_test.go`
 - Modify: `cmd/internal/launcher/osruntime_test.go`
 
-- [ ] **Step 1: Write failing create-flow tests**
+- [x] **Step 1: Write failing create-flow tests**
 
 Function strategy: `runCreate` over explicit args, empty explicit separator,
 tag config, repo default, abort, and readiness timeout -> defaults persist only
 after a matching ready record and tag configs keep priority.
 
-- [ ] **Step 2: Add `AgentDefaultOps` to the runtime seam**
+- [x] **Step 2: Add `AgentDefaultOps` to the runtime seam**
 
 Implement `ReadAgentDefault(agent string) AgentDefaultCandidate` and `WriteAgentDefault(agent string, args []string) error` in OS and fake runtimes. OS writes atomically under the repo-scoped data dir.
 
-- [ ] **Step 3: Replace the config-picker argument choice with `DecideLaunchArgs`**
+- [x] **Step 3: Replace the config-picker argument choice with `DecideLaunchArgs`**
 
 Read the tag config/ledger as today, read the repo-agent default, compute the final args, print warnings, then continue through the existing session-id minting and codex `--no-alt-screen` normalization. If a valid native session ID is selected, compose the canonical resume invocation once.
 
-- [ ] **Step 4: Persist explicit defaults only after launch readiness**
+- [x] **Step 4: Persist explicit defaults only after launch readiness**
 
 Before `LaunchSession`, remove stale readiness for `(tag, agent)`, mint a
 nonce, and export `PAIR_LAUNCH_NONCE`. Start the existing blocking zellij
@@ -228,7 +228,7 @@ concurrently; write or clear the repo-agent default only after the exact record
 appears with a live PID. If readiness times out or the child exits before
 readiness, do not persist the default and return a launch failure.
 
-- [ ] **Step 5: Run focused launcher tests**
+- [x] **Step 5: Run focused launcher tests**
 
 Run: `go test ./cmd/internal/launcher -run 'TestRunLaunch.*(Default|Config|Codex|Resume)' -count=1`
 
@@ -242,19 +242,19 @@ Expected: PASS.
 - Modify: `atlas/session-identity.md`
 - Modify: `workshop/issues/000115-resurrect-a-session-across-agents.md`
 
-- [ ] **Step 1: Update user docs**
+- [x] **Step 1: Update user docs**
 
 Document that `pair <agent> -- <args>` records local repo-scoped defaults after a successful launch, `pair <agent>` reuses them for new sessions, and `pair <agent> --` clears them.
 
-- [ ] **Step 2: Update atlas**
+- [x] **Step 2: Update atlas**
 
 Map the distinction between tag-specific configs and repo-agent defaults. Note that this is local machine state under Pair's repo-scoped data dir, not committed repo config.
 
-- [ ] **Step 3: Append issue log evidence**
+- [x] **Step 3: Append issue log evidence**
 
 Record tests, decisions, and the intentional exclusion of live handoff in `## Log` under `2026-08-16`.
 
-- [ ] **Step 4: Run verification**
+- [x] **Step 4: Run verification**
 
 Run:
 
@@ -267,7 +267,7 @@ git diff --check
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the milestone**
+- [x] **Step 5: Commit the milestone**
 
 ```sh
 git add cmd/internal/launcher README.md atlas workshop/issues/000115-resurrect-a-session-across-agents.md workshop/plans/000115-resurrect-a-session-across-agents-plan.md

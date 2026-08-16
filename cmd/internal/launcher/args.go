@@ -7,12 +7,14 @@ import (
 
 // LaunchArgs is the pure parse result for the guarded pair-go launch prototype.
 type LaunchArgs struct {
-	Command     string // "" = launch; "list" (#99 M5a); "rename"/"continue" (#99 M5b)
-	Agent       string
-	ForcedTag   string
-	SelectedTag string
-	AgentArgs   []string
-	Layout      LayoutRequest
+	Command           string // "" = launch; "list" (#99 M5a); "rename"/"continue" (#99 M5b)
+	Agent             string
+	AgentExplicit     bool
+	ForcedTag         string
+	SelectedTag       string
+	AgentArgs         []string
+	AgentArgsExplicit bool
+	Layout            LayoutRequest
 
 	// rename (#99 M5b): `pair rename [--restart-check] <old> <new>`. Raw tags —
 	// normalized + gated in runRename so it owns the operator-facing messages.
@@ -112,6 +114,7 @@ func parseArgs(argv []string) (LaunchArgs, error) {
 		}
 		if arg == "--" {
 			seenSeparator = true
+			out.AgentArgsExplicit = true
 			continue
 		}
 		if out.Agent == "" {
@@ -122,6 +125,7 @@ func parseArgs(argv []string) (LaunchArgs, error) {
 				return LaunchArgs{}, UsageError{Message: fmt.Sprintf("pair: %q is a flag, not an agent (use '--' to forward args, or -h for help)", arg)}
 			}
 			out.Agent = arg
+			out.AgentExplicit = true
 			continue
 		}
 		return LaunchArgs{}, UsageError{Message: fmt.Sprintf("pair-go launch: unexpected positional arg %q (use '--' to forward args to the agent)", arg)}

@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-07-16
 updated: 2026-08-16
-estimate_hours: 23.35
+estimate_hours: 4.41
 started: 2026-07-16T12:17:57-07:00
 ---
 
@@ -380,41 +380,33 @@ Historical full handoff criteria below are retained as deferred context:
 ```estimate
 model: estimate-logic-v3.1
 familiarity: 1.0
-item: issue-spec design=0.8 impl=0.08
-item: smaller-go-module design=0.06 impl=0.16
-item: smaller-go-module design=0.06 impl=0.16
+item: issue-spec design=0.5 impl=0.08
 item: smaller-go-module design=0.06 impl=0.16
 item: greenfield-go-module design=0.3 impl=0.28
-item: greenfield-go-module design=0.3 impl=0.28
-item: greenfield-go-module design=0.3 impl=0.28
-item: greenfield-go-module design=0.3 impl=0.28
-item: greenfield-service design=3.0 impl=3.2
-item: greenfield-service design=3.0 impl=3.2
-item: api-integration design=0.4 impl=0.4
-item: api-integration design=0.4 impl=0.4
-item: tui-screen design=0.4 impl=0.4
-item: tui-screen design=0.4 impl=0.4
-item: cross-cutting-refactor design=0.1 impl=0.2
-item: cross-cutting-refactor design=0.1 impl=0.2
-item: lua-neovim design=0.2 impl=0.4
+item: greenfield-go-module design=0.4 impl=0.32
+item: smaller-go-module design=0.06 impl=0.2
+item: api-integration design=0.5 impl=0.48
+item: cross-cutting-refactor design=0.15 impl=0.2
 item: atlas-docs design=0.05 impl=0.05
 item: milestone-review design=0.08 impl=0.12
-item: milestone-review design=0.08 impl=0.12
-item: milestone-review design=0.08 impl=0.12
-item: milestone-review design=0.08 impl=0.12
-item: milestone-review design=0.08 impl=0.12
+item: atlas-docs design=0.05 impl=0.05
 design-buffer: 0.15
-total: 23.35
+total: 4.41
 ```
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md`
 against `baseline-v3.1.md`. Method A only.*
 
-The two service-scale items are distinct: M3's durable lock/journal/input
-substrate and M4's live process coordinator/recovery/acceptance harness. Four
-Go-module items cover defaults, shared readiness, queue, and transcript; the
-remaining items map picker/confirmation UI, launcher refactors, Lua integration,
-two OS/provider integrations, docs, issue design, and all five review gates.
+This estimate covers the revived M1 scope only. The smaller-module items cover
+parser intent and wrap-side readiness publication; the greenfield-module items
+cover the repo-agent default codec/policy and the shared nonce-bound readiness
+record/matcher; the API-integration item covers create-flow wiring across saved
+tag config, repo defaults, launch, and readiness-gated persistence. The
+cross-cutting refactor item covers runtime-seam updates. The docs items cover
+README plus atlas updates, and the single review item covers the one issue close
+boundary for this revived milestone. Historical live handoff, lock/journal,
+picker takeover, queue mutation, and transcript parking are deliberately
+deferred and are not included here.
 
 ## Plan
 
@@ -435,6 +427,22 @@ two OS/provider integrations, docs, issue design, and all five review gates.
   work identity but avoids live takeover: `pair <agent>` should act as the
   selector over existing work, and a different-agent pick should recover through
   continuation/parked-transcript material after the source is quiescent.
+- M1 implementation — Re-derived the estimate for the revived repo-agent
+  defaults scope (4.41h) and preserved the abandoned branch by renaming it to
+  `abandoned/000115-resurrect-a-session-across-agents-20260728` before starting
+  the fresh implementation branch. Implemented parser intent bits, pure
+  repo-agent default codec/path, launch-argument precedence, nonce-bound
+  readiness records, wrap-side readiness publication, and readiness-gated
+  explicit default persistence. Focused checks so far:
+  `go test ./cmd/internal/launcher -run TestParseArgs -count=1`,
+  `go test ./cmd/internal/launcher -run 'Test(AgentDefault|LaunchArg|ScopedPaths)' -count=1`,
+  `go test ./cmd/internal/readiness ./cmd/internal/launcher ./cmd/internal/wrapcmd -run 'Test.*Ready|Test.*Readiness' -count=1`,
+  and
+  `go test ./cmd/internal/launcher -run 'TestRunLaunch.*(Default|Config|Codex|Resume)' -count=1`.
+  Final verification passed:
+  `go test ./cmd/internal/launcher -count=1`,
+  `go test ./cmd/internal/readiness ./cmd/internal/wrapcmd -count=1`,
+  `go test ./... -count=1`, and `git diff --check`.
 
 ### 2026-07-28
 - Merged current `main` into the branch after a 9-day gap (the branch predated

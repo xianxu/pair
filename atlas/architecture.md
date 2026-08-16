@@ -215,6 +215,15 @@ present. The `PAIR_TEST_CALL`/`PAIR_DEBUG_*`-driven shell contract tests
 function they pinned has a tested Go equivalent. So `pair` is now a single Go
 launcher end-to-end; #94 (stop extracting a shell tree) unblocks.
 
+**Repo-agent launch defaults (#115 M1).** The launcher distinguishes
+tag-specific native conversation config from repo-agent startup defaults.
+`config-<tag>-<agent>.json` remains the tag/native-session cache and keeps
+priority for resume flows. `agent-default-<agent>.json` is repo-scoped local
+machine state used for fresh creates when no tag config supplies args. Explicit
+`-- <args>` updates that default only after `pair wrap` publishes a matching
+`agent-ready-<tag>-<agent>.json` record with the launcher nonce and live child
+PID; an explicit empty `--` records an empty default.
+
 **Alt+Shift+C compaction is writer-owned + draft-preserving (#105, unblocked by
 #104's single binary).** Previously `COMPACT_PROMPT` asked the agent to write a
 continuation *and then* run `pair continue <slug>` — a two-step NL instruction

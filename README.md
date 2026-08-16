@@ -283,7 +283,13 @@ pair -h, --help                  # show full help
 
 Use `--` to separate pair's positional from agent flags. Without it, pair only takes `<agent>` as a positional and everything else is rejected.
 
-Agent args (after `--`) are appended to the agent command line on **create**. Reattaching to an existing session does not re-launch the agent, so the args don't apply on attach. (The picker connects you to whatever's already running.)
+Agent args (after `--`) are appended to the agent command line on **create**.
+After a successful launch, Pair remembers those args as the local repo-scoped
+default for that agent: `pair codex -- --sandbox workspace-write` makes the next
+fresh `pair codex` in this repo reuse `--sandbox workspace-write`. An explicit
+empty separator, such as `pair codex --`, clears the stored args after launch.
+Reattaching to an existing session does not re-launch the agent, so the args
+don't apply on attach. (The picker connects you to whatever's already running.)
 
 Sessions are scoped **per repo**: the tag you type (`work`, `bugfix`) is
 repo-local, so the same name in two checkouts stays independent.
@@ -338,10 +344,13 @@ Run that command and the picker + name prompt are skipped. Pair then offers up t
 
 The agent (claude / codex / agy) is inferred from the tag ledger, so `pair resume <tag>` is enough on its own — no need to repeat the agent positional. If the tag's public zellij session is still running (for example, after `Alt+d` detach), `pair resume <tag>` re-attaches without prompting.
 
-Saved configs and ledgers live under the repo-scoped data dir:
+Saved configs, ledgers, and per-agent launch defaults live under the
+repo-scoped data dir:
 `${XDG_DATA_HOME:-~/.local/share}/pair/repos/<scope-key>/`. The hidden
 `<scope-key>` keeps two repos with the same tag independent; picker labels and
-public session names show the readable repo/tag instead.
+public session names show the readable repo/tag instead. Tag-specific
+`config-<tag>-<agent>.json` files keep priority over repo-agent defaults, so
+returning to an existing tag preserves its native resume behavior.
 
 ### `resume` vs `continue`
 

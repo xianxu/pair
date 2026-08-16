@@ -359,7 +359,14 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	configPath := resolveConfigPath(rt, dataDir, chosenTag, agent)
 	savedForPicker := readSavedConfigForTag(rt, configPath, chosenTag, agent)
 
-	agentArgs := append([]string(nil), opts.Args.AgentArgs...)
+	agentDefault, defaultFound := rt.ReadAgentDefault(agent)
+	argDecision := DecideLaunchArgs(LaunchArgInputs{
+		Agent:        agent,
+		Args:         opts.Args,
+		Default:      agentDefault,
+		DefaultFound: defaultFound,
+	})
+	agentArgs := append([]string(nil), argDecision.Args...)
 
 	// Tag-restart config picker (#000016): a saved config for this (tag, agent)
 	// offers to reuse its args / resume its session, unless an explicit resume
@@ -396,6 +403,13 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// scrollback (idempotent; opt-out via PAIR_CODEX_ALT_SCREEN=1).
 	if agent == "codex" {
 		agentArgs = codexAltScreenArgs(agentArgs, opts.CodexAltScreenOptOut)
+	}
+
+	var defaultReady <-chan error
+	if opts.Args.AgentArgsExplicit {
+		defaultReady = startAgentDefaultPersistence(rt, chosenTag, agent, session, opts.Args.AgentArgs, 5*time.Second)
+	} else {
+		rt.SetEnv("PAIR_LAUNCH_NONCE", "")
 	}
 
 	sessionID := firstNonEmpty(explicitResume, newSid)
@@ -491,7 +505,35 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		fmt.Fprintf(stderr, "pair: failed to launch zellij session '%s': %v\n", session, err)
 		return launchStep{code: 1}, nil
 	}
+	if defaultReady != nil {
+		if err := <-defaultReady; err != nil {
+			restoreLayoutRecord(rt, dataDir, chosenTag, priorLayout)
+			fmt.Fprintf(stderr, "pair: failed to confirm agent launch readiness for '%s': %v\n", chosenTag, err)
+			return launchStep{code: 1}, nil
+		}
+	}
 	return launchStep{code: code, session: session, tag: chosenTag, agent: agent, handedOff: true}, nil
+}
+
+func startAgentDefaultPersistence(rt Runtime, tag, agent, session string, args []string, timeout time.Duration) <-chan error {
+	rt.RemoveReadyRecord(tag, agent)
+	nonce := rt.MintLaunchNonce()
+	rt.SetEnv("PAIR_LAUNCH_NONCE", nonce)
+	ch := make(chan error, 1)
+	if nonce == "" {
+		ch <- fmt.Errorf("could not mint launch nonce")
+		return ch
+	}
+	persistArgs := append([]string(nil), args...)
+	go func() {
+		_, err := rt.WaitReadyRecord(ReadyExpectation{Tag: tag, Agent: agent, Session: session, Nonce: nonce}, timeout)
+		if err != nil {
+			ch <- err
+			return
+		}
+		ch <- rt.WriteAgentDefault(agent, persistArgs)
+	}()
+	return ch
 }
 
 func assignSingleSessionName(rt Runtime, live []Session, cwd, tag string, stderr io.Writer) (string, SessionNameEntry, bool) {
