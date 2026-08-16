@@ -1,10 +1,10 @@
 ---
 id: 000115
-status: punt
+status: working
 deps: []
 github_issue:
 created: 2026-07-16
-updated: 2026-07-28
+updated: 2026-08-16
 estimate_hours: 23.35
 started: 2026-07-16T12:17:57-07:00
 ---
@@ -384,6 +384,14 @@ two OS/provider integrations, docs, issue design, and all five review gates.
       DEFERRED 2026-07-28 — see the abandonment note in ## Log.
 
 ## Log
+
+### 2026-08-16
+- revived — The original same-tag live handoff branch was abandoned unmerged
+  because its source-quiescence proof depended on a fake zellij effect and
+  still had Critical recovery failures. The renewed direction keeps the tag as
+  work identity but avoids live takeover: `pair <agent>` should act as the
+  selector over existing work, and a different-agent pick should recover through
+  continuation/parked-transcript material after the source is quiescent.
 
 ### 2026-07-28
 - Merged current `main` into the branch after a 9-day gap (the branch predated
