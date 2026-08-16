@@ -28,6 +28,29 @@ human-meaningful context distilled through a continuation.
 
 ## Spec
 
+### Current revived scope (2026-08-16)
+
+This revival keeps the original tag-as-work goal but deliberately does not
+restart from the abandoned live handoff coordinator. The first deliverable is
+the low-risk substrate that `pair <agent>` needs before any cross-agent recovery:
+repository-scoped per-agent launch defaults.
+
+- `pair <agent> -- <args...>` records `<args...>` as the local default for that
+  `(repo, agent)` only after a successful launch readiness point.
+- `pair <agent>` uses that agent's repo-scoped default when creating a new
+  session and no tag-specific saved config is available.
+- `pair <agent> --` with no following args intentionally clears the repo-scoped
+  default after launch readiness.
+- Tag-specific saved configs (`config-<tag>-<agent>.json`) keep priority over
+  repo-agent defaults when resuming an existing tag; native session IDs remain
+  tag-specific.
+- The storage is local machine state under Pair's repo-scoped data directory,
+  not version-controlled project configuration.
+- The old live takeover flow remains historical design context until a later
+  milestone replaces it with a safer source-quiescent recovery flow.
+
+### Historical full handoff design (deferred)
+
 ### Work identity and exclusivity
 
 - A Pair tag is the durable identity of one body of work. The selected agent is
@@ -264,6 +287,19 @@ agent.
 
 ## Done when
 
+- Revived M1: repository-scoped per-agent defaults are reused by `pair <agent>`
+  on new-session creation, replaced by successful explicit `-- <args>`, and
+  cleared by successful explicit empty `--`.
+- Revived M1: tag-specific saved configs still win over repo-agent defaults, so
+  `pair resume <tag>` and historical tag picks preserve their existing native
+  resume behavior.
+- Revived M1: tests cover parser intent, default file codec/path, precedence,
+  readiness-gated persistence, and no persistence after abort or failed launch.
+- Revived M1: README and atlas explain local repo-scoped agent defaults and the
+  relationship to tag-specific configs.
+
+Historical full handoff criteria below are retained as deferred context:
+
 - `pair <agent>` lists attached work within the normal repo/history scope and
   distinguishes same-agent attach from different-agent handoff.
 - A confirmed different-agent selection parks the source transcript, enforces
@@ -289,6 +325,13 @@ agent.
   handoff state ownership, and repository-scoped agent defaults.
 
 ## Revisions
+
+- 2026-08-16 (revival): replaced the immediate implementation target with a
+  safer first milestone. The original live handoff coordinator remains
+  historical context because its production quiescence proof and acceptance fake
+  were unsound. The revived M1 implements repository-scoped per-agent defaults
+  first; later milestones may redesign `pair <agent>` as a work selector and
+  source-quiescent recovery flow without importing the abandoned coordinator.
 
 - 2026-07-28 (close-review REWORK): the issue-close boundary review
   (`workshop/plans/000115-...-close-review.md`) found the headline flow does
