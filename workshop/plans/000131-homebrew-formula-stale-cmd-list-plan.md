@@ -45,7 +45,7 @@
 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
-| `PairReleaseTag` | git/GitHub `v1.25` | new | GitHub-generated source tarball |
+| `PairReleaseTag` | git/GitHub `v1.26` | new | GitHub-generated source tarball |
 | `HomebrewPublish` | `../homebrew-pair` remote | modified | `brew` and tap git remote |
 
 - **`PairReleaseTag`** - annotated or lightweight release tag pushed to GitHub so Homebrew can fetch the current source tree.
@@ -71,12 +71,12 @@
 ## Tasks
 
 - [x] Confirm no post-Go-migration release exists by checking local tags and GitHub releases; record the answer in #131.
-- [x] Add `v1.24`/`v1.25` sections to `CHANGELOG.md` covering the major user-facing changes since `v1.23` and the clean-source bootstrap fix.
+- [x] Add `v1.24`/`v1.25`/`v1.26` sections to `CHANGELOG.md` covering the major user-facing changes since `v1.23`, the clean-source bootstrap fix, and the public `--version` smoke fix.
 - [ ] Commit and push the Pair repo release commit containing the `CHANGELOG.md`, issue, and plan updates.
 - [ ] Verify Pair source builds and tests from the release commit.
-- [ ] Tag and push `v1.25` at that exact release commit, then verify `git rev-parse v1.25^{commit}` equals the intended commit.
-- [ ] Compute the sha256 from GitHub's generated `v1.25.tar.gz`.
-- [ ] Update `../homebrew-pair/Formula/pair.rb` to point at `v1.25`, use the new checksum, build only `./cmd/pair-go` as `bin/pair`, and fix stale description/caveats/comments.
+- [ ] Tag and push `v1.26` at that exact release commit, then verify `git rev-parse v1.26^{commit}` equals the intended commit.
+- [ ] Compute the sha256 from GitHub's generated `v1.26.tar.gz`.
+- [ ] Update `../homebrew-pair/Formula/pair.rb` to point at `v1.26`, use the new checksum, build only `./cmd/pair-go` as `bin/pair`, and fix stale description/caveats/comments.
 - [ ] Verify the tap with `ruby -c`, `brew style`, and a source-build install/test from a clean prefix; if Homebrew cannot create a clean prefix on this machine, stop and report the blocker rather than substituting weaker evidence silently.
 - [ ] Commit and push the tap update.
 - [ ] Close #131 with release, tap, and Homebrew verification evidence.
@@ -93,3 +93,6 @@
 - 2026-08-16: Homebrew live-smoke revision. `v1.24` was published but the clean
   Homebrew install exposed a source bootstrap bug in runtime-bundle generation;
   the tap publication now targets superseding release `v1.25`.
+- 2026-08-16: Homebrew test revision. `v1.25` source-build installed, but
+  `brew test` exposed the issue's required `pair --version` smoke path was still
+  a usage error; the tap publication now targets superseding release `v1.26`.

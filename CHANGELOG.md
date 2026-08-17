@@ -4,6 +4,13 @@ All notable user-facing changes to `pair` land here. Each release is also
 tagged in git (`vN.M`) and tracked in the homebrew formula at
 [xianxu/homebrew-pair](https://github.com/xianxu/homebrew-pair).
 
+## v1.26 — 2026-08-16
+
+### Homebrew smoke fix
+- **`pair --version` is now a native public launcher command.** The installed
+  Homebrew binary can satisfy the release smoke check without treating
+  `--version` as an agent name or launching a session.
+
 ## v1.25 — 2026-08-16
 
 ### Homebrew source-build fix
@@ -12,6 +19,8 @@ tagged in git (`vN.M`) and tracked in the homebrew formula at
   needs generated assets to compile, so Homebrew can generate
   `cmd/internal/runtimebundle/assets/runtime` before building the single `pair`
   binary from a GitHub tarball.
+  Superseded by `v1.26` for Homebrew because the release smoke requires native
+  `pair --version` support.
 
 ## v1.24 — 2026-08-16
 

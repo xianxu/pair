@@ -19,6 +19,7 @@ USAGE
   pair list | ls                list this repo's Pair sessions and attach state
   pair rename <old> <new>       rename every tag-scoped file from <old> to <new>
   pair keys                     in-session keybindings (what Alt+h shows)
+  pair version | --version      print launcher version metadata
   pair -h | --help              this message
 
 Use ` + "`--`" + ` to separate pair's args from the agent's. When creating a
@@ -29,4 +30,8 @@ recorded layout. Changing a live tag explicitly asks before recreating the whole
 workbench. For in-session keybindings run ` + "`pair keys`" + ` (or press Alt+h
 inside a session).
 `
+}
+
+func VersionText() string {
+	return "pair single-binary launcher\n"
 }
