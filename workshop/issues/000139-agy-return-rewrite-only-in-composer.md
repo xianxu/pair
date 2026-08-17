@@ -22,35 +22,67 @@ accidental newline.
 
 ## Spec
 
-- For agy, plain Return should rewrite to LF only when Pair positively
-  identifies agy's live composer/input box.
-- Known agy permission/overlay markers still take precedence and force the next
-  plain Return to pass through as bare CR.
-- If agy composer state is unknown, hidden, or not active, plain Return should
-  pass through as bare CR.
-- Composer detection should use stable terminal or agent-native signals, not
-  absence of an overlay marker.
-- Update `atlas/how-to-bring-up-a-new-harness-cli.md` or `atlas/architecture.md`
-  if agy needs agent-specific detection notes.
+### Goal & Problem
+Antigravity (`agy`) previously participated in un-gated Return remapping (mapping plain Enter to `\n` without checking composer presence), relying solely on `agyPickerMarkers` to catch overlay dialogs. Codex (#137) and Muse (#140) established that plain Return must rewrite to newline (`\n`) **only** when Pair positively identifies that the agent is in an active input composer with a visible cursor. If the composer state is inactive, unknown, or if an overlay is active, plain Return must pass through as bare `\r` (CR) so confirmation pickers, shortcut dialogs, and external tools receive normal confirmation instead of an unintended newline.
+
+To implement this robustly across agents while maintaining `ARCH-DRY` and `ARCH-PURE`, we extract a **Unified Terminal State Tracker** (`terminalTracker`) that consolidates ANSI/VT parsing, cursor geometry, and screen attribute tracking across all positive-gated agents (`codex`, `muse`, `agy`).
+
+### Architecture & Components
+
+1. **Pure Terminal State Machine (`cmd/internal/wrapcmd/terminal_tracker.go`)**:
+   - `terminalTracker` maintains screen dimensions (`rows`, `cols`), cursor coordinates (`cursorRow`, `cursorCol`), cursor visibility (`cursorVisible`), and per-row painted features.
+   - ANSI escape parsing handles:
+     - Absolute cursor positioning: `CUP` (`\x1b[<r>;<c>H`, `\x1b[<r>;<c>f`), `CHA` (`\x1b[<c>G`), `VPA` (`\x1b[<r>d`).
+     - Relative cursor positioning: `CUU` (`\x1b[<n>A`), `CUD` (`\x1b[<n>B`), `CUF` (`\x1b[<n>C`), `CUB` (`\x1b[<n>D`), `RI` (`\x1bM`), `\r`, `\n`.
+     - Cursor visibility: `DECTCEM` (`\x1b[?25h` -> visible, `\x1b[?25l` -> hidden).
+     - Display and line erases: `ED` (`\x1b[<n>J`), `EL` (`\x1b[<n>K`), `ECH` (`\x1b[<n>X`).
+     - SGR styling: RGB background (`48;2;r;g;bm`), 256-color background (`48;5;nm`), default background (`49m`, `0m`).
+   - Tracks agent-specific chrome attributes per row:
+     - `codexBGRows[row]`: set when Codex's background `48;2;57;57;57` is painted at `cursorRow`.
+     - `musePromptRows[row]`: set when Muse's prompt glyph `›` (`\xe2\x9f\xa9`) is painted at `cursorRow`.
+     - `agyBorderRows[row]`: set when Agy's horizontal border rule `─` (`\xe2\x94\x80`) is painted at `cursorRow`.
+     - `agyPromptRows[row]`: set when Agy's prompt glyph `>` (`0x3e` / `\x1b[94m>`) is painted at `cursorRow`.
+
+2. **Agent Composer Predicates**:
+   - **Codex Predicate**: `cursorVisible && cursorRow > 0 && count(codexBGRows in [cursorRow-1, cursorRow+1]) >= 2`.
+   - **Muse Predicate**: `cursorVisible && cursorRow > 0 && count(musePromptRows in [cursorRow-1, cursorRow+1]) >= 1`.
+   - **Agy Predicate**: `cursorVisible && cursorRow > 0 && (agyPromptRows[cursorRow] || agyPromptRows[cursorRow-1] || agyBorderRows[cursorRow-1] || agyBorderRows[cursorRow+1])`.
+
+3. **Proxy Integration (`cmd/internal/wrapcmd/wrap.go`)**:
+   - `proxy` holds a unified `composerTracker *terminalTracker`.
+   - `winsize` updates call `p.composerTracker.resize(ws.Rows, ws.Cols)`.
+   - `handleChunk` feeds raw PTY stream chunk into `p.composerTracker.feed(data)`.
+   - `emitPlainCR`:
+     - If `pickerActive` is set $\rightarrow$ clear flag, log `adapt.Bypass` (overlay active), return bare `\r`.
+     - If `agentBasename == "codex"` and `!p.codexComposerActive()` $\rightarrow$ log `adapt.Bypass` (codex composer inactive), return bare `\r`.
+     - If `agentBasename == "muse"` and `!p.museComposerActive()` $\rightarrow$ log `adapt.Bypass` (muse composer inactive), return bare `\r`.
+     - If `agentBasename == "agy"` and `!p.agyComposerActive()` $\rightarrow$ log `adapt.Bypass` (agy composer inactive), return bare `\r`.
+     - If composer is active $\rightarrow$ log `adapt.Fired` (newline remap), return `p.sendKM.plainCR` (`\n`).
+
+### Invariants & Non-Goals
+- **Precedence**: `pickerActive` from `detectAgyOverlayOpen` still takes absolute precedence over composer detection.
+- **Alt+Enter**: Alt+Enter always submits bare `\r` (CR) across all agents regardless of composer state.
+- **Non-blocking / Pure**: Telemetry and tracker failures are non-fatal and isolated.
+- **Claude untouched**: Claude continues using portable `\<Enter>` keymap.
 
 ## Done when
 
-- Agy plain Return rewrites only inside a positively detected composer.
-- Agy permission prompts/pickers still accept plain Return.
-- Unknown/non-composer agy UI state receives bare CR.
-- Tests cover active composer, inactive composer, and overlay precedence.
-- Any agy-specific harness guidance is documented.
+- Unified `terminalTracker` encapsulates VT escape sequences and cursor geometry cleanly (ARCH-DRY, ARCH-PURE).
+- Agy plain Return rewrites to LF (`\n`) only inside a positively detected composer with visible cursor.
+- Agy permission prompts/pickers still receive bare CR (`\r`).
+- Inactive, hidden-cursor, or unknown Agy UI state receives bare CR (`\r`).
+- Existing Codex and Muse return remapping tests pass unchanged against the unified tracker.
+- Comprehensive unit tests in `cmd/internal/wrapcmd/agy_return_test.go` and `cmd/internal/wrapcmd/terminal_tracker_test.go`.
+- `atlas/architecture.md` and `atlas/how-to-bring-up-a-new-harness-cli.md` updated with Agy positive composer gating details.
 
 ## Plan
 
-- [ ] Identify a stable agy composer/input-box signal from raw Pair logs or
-      agent output.
-- [ ] Add an agy composer tracker/gate or shared composer-gating abstraction
-      based on agy's own native composer-availability signal, not Codex's
-      cursor/paint heuristic unless agy logs prove the same signal is stable.
-- [ ] Add focused Return-routing tests for active composer, inactive composer,
-      and overlay precedence.
-- [ ] Update atlas/docs if the agy signal is agent-specific.
+- [ ] Implement `terminalTracker` in `cmd/internal/wrapcmd/terminal_tracker.go` supporting full relative/absolute cursor movements and per-agent chrome predicates.
+- [ ] Migrate `codex` and `muse` trackers to derive from `terminalTracker` (or consolidate `codex_composer.go` and `muse_composer.go`).
+- [ ] Wire `agy` composer tracking into `proxy` in `cmd/internal/wrapcmd/wrap.go` and gate `emitPlainCR`.
+- [ ] Add unit tests in `cmd/internal/wrapcmd/terminal_tracker_test.go` and `cmd/internal/wrapcmd/agy_return_test.go`.
+- [ ] Run full test suite (`go test ./...`) to ensure zero regressions across Codex, Muse, and Claude.
+- [ ] Update `atlas/architecture.md` and `atlas/how-to-bring-up-a-new-harness-cli.md`.
 
 ## Log
 
@@ -61,3 +93,9 @@ accidental newline.
 - Updated after pair#142 design review: Codex's cursor/paint detector is
   Codex-specific; agy should reuse the positive-detection contract, not the
   exact terminal heuristic.
+
+### 2026-08-17
+
+- Brainstormed positive composer detection for Agy. Captured raw terminal output from live `agy` CLI session.
+- Identified that `agy` uses relative cursor movements (`CUU` `\x1b[2A`, `CHA` `\x1b[6G`, `RI` `\x1bM`) to position the cursor at the prompt row between horizontal rules `───` (`\xe2\x94\x80`).
+- Agreed on Approach 2: Unified Terminal State Tracker (`terminalTracker`) consolidating VT escape parsing, cursor geometry, and agent predicates across Codex, Muse, and Agy (ARCH-DRY, ARCH-PURE).
