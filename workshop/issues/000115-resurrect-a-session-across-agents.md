@@ -65,10 +65,12 @@ M2 defines the launcher entry points around that substrate:
   `pair <agent>`: it keeps the current create/new-or-resume behavior with the
   supplied launch parameters, and records those parameters as the repo-agent
   default only after launch readiness.
-- A different-agent switch from an exited/recent row requires an existing
-  continuation document for that tag. If none exists, Pair refuses with a direct
-  message instead of pretending it can recover source-agent context it does not
-  have.
+- A different-agent switch from an exited/recent row uses an existing
+  continuation document for that tag when one exists. If none exists, Pair still
+  starts the requested agent under the same tag and seeds an auto-continuation
+  draft that points the agent at the tag's persisted draft, log, queue, and any
+  parked scrollback. Pair must not allocate a sibling tag just because the
+  source agent did not prewrite a continuation.
 
 ### Historical full handoff design (deferred)
 
@@ -467,9 +469,12 @@ deferred and are not included here.
 - M2 implementation — Updated the launcher entry-point split around the
   corrected design. `pair <agent>` without `--` now uses explicit-agent picker
   policy: same-agent live rows attach, different-agent live rows are visible but
-  unavailable, and different-agent historical rows require a matching
-  continuation doc before the requested agent is launched under the selected
-  tag. `pair <agent> -- <args...>` now keys off separator intent rather than
+  unavailable, and different-agent historical rows use a matching continuation
+  doc when present or generate an auto-continuation draft when no doc exists.
+  This fixes the Alt+x smoke-test case (`pair codex` in parley.nvim selecting
+  the exited Claude `parley_nvim` tag) and satisfies ARCH-PURPOSE by preserving
+  the same tag rather than refusing or allocating a sibling. `pair <agent> --
+  <args...>` now keys off separator intent rather than
   non-empty args, so repo-agent defaults do not accidentally bypass the picker.
   Focused checks passed:
   `go test ./cmd/internal/launcher -run 'TestDecideLaunchExplicit|TestBuildPickRows|TestRunLaunchExplicitAgentDifferentHistorical' -count=1`

@@ -293,9 +293,10 @@ func TestRunLaunchExplicitAgentDifferentHistoricalUsesContinuation(t *testing.T)
 	}
 }
 
-func TestRunLaunchExplicitAgentDifferentHistoricalRequiresContinuation(t *testing.T) {
+func TestRunLaunchExplicitAgentDifferentHistoricalSynthesizesContinuationWhenDocMissing(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.historical = []HistoricalTag{{Tag: "old", MTime: time.Unix(1_700_000_000, 0), RepoName: "work", Agent: "claude"}}
+	rt.files["/data/draft-old.md"] = "existing WIP"
 	rt.pickFunc = func(header string, options []string) string {
 		return "work/old  claude  (today, no live session)"
 	}
@@ -303,14 +304,25 @@ func TestRunLaunchExplicitAgentDifferentHistoricalRequiresContinuation(t *testin
 	var stderr bytes.Buffer
 
 	code, err := RunLaunch(opts, rt, &stderr)
-	if err != nil || code != 1 {
-		t.Fatalf("code=%d err=%v stderr=%q, want refusal", code, err, stderr.String())
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v stderr=%q", code, err, stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "no continuation matching 'old'") {
-		t.Fatalf("stderr = %q, want missing-continuation message", stderr.String())
+	if rt.launched != "📁work-old" {
+		t.Fatalf("launched = %q, want 📁work-old", rt.launched)
 	}
-	if rt.launched != "" || len(rt.attached) != 0 {
-		t.Fatalf("handoff should not run: launched=%q attached=%v", rt.launched, rt.attached)
+	if len(rt.pollers) != 1 || rt.pollers[0] != "old|codex" {
+		t.Fatalf("pollers = %v, want [old|codex]", rt.pollers)
+	}
+	draft := rt.files["/data/draft-old.md"]
+	for _, want := range []string{
+		"Continue Pair tag old with codex.",
+		"The previous driver was claude.",
+		"No continuation doc was found.",
+		"existing WIP",
+	} {
+		if !strings.Contains(draft, want) {
+			t.Fatalf("draft-old = %q, want %q", draft, want)
+		}
 	}
 }
 

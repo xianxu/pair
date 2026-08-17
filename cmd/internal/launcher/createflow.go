@@ -188,7 +188,10 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 		if d.ContinueDoc != "" {
 			opts.ContinueDoc = d.ContinueDoc
 		}
-		if d.ContinueDoc == "" && (d.Action == ActionAttach || !d.PromptName) {
+		if d.ContinueText != "" {
+			opts.ContinueText = d.ContinueText
+		}
+		if d.ContinueDoc == "" && d.ContinueText == "" && (d.Action == ActionAttach || !d.PromptName) {
 			agent = "" // existing-tag pick → infer the paired agent below
 		}
 	}
@@ -476,6 +479,13 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	_ = rt.Touch(draft)
 	if opts.ContinueDoc != "" {
 		_ = rt.WriteAtomic(draft, fmt.Sprintf("Read workshop/continuation/%s and continue from its NEXT ACTION.\n", filepath.Base(opts.ContinueDoc)))
+	} else if opts.ContinueText != "" {
+		existing, _ := rt.ReadFile(draft)
+		text := opts.ContinueText
+		if strings.TrimSpace(existing) != "" {
+			text += "\nExisting draft content follows:\n\n" + existing
+		}
+		_ = rt.WriteAtomic(draft, text)
 	}
 
 	// Record the agent for `pair list` / the title poller (survives detach).

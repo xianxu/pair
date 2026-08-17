@@ -314,9 +314,11 @@ When `pair` runs and there's anything to pick — a detached Pair session owned 
 When an agent is explicit and no `--` separator was typed, for example
 `pair codex`, the picker treats that agent as the intended driver. Live rows for
 the same agent are attachable, live rows for a different agent are shown as
-unavailable, and different-agent historical rows require a matching
-`workshop/continuation/*-<tag>.md` before Pair starts the requested agent under
-that tag. Typing `pair codex -- <args...>` instead is the parameter-changing
+unavailable, and different-agent historical rows start the requested agent under
+the same tag. If `workshop/continuation/*-<tag>.md` exists, Pair seeds the draft
+from it; otherwise Pair generates an auto-continuation draft that tells the new
+agent to reconstruct context from the tag's draft, log, queue, and any parked
+scrollback. Typing `pair codex -- <args...>` instead is the parameter-changing
 create/resume path and skips the picker.
 
 When the create flow runs, it prompts for the session name with the auto-suggested name as the default:

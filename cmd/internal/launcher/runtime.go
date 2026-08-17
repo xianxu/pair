@@ -249,6 +249,7 @@ type LaunchOptions struct {
 	PairHome             string
 	GlobalDataDir        string
 	ContinueDoc          string // seed the draft to read this continuation (create-only)
+	ContinueText         string // seed the draft with generated continuation instructions
 	CodexAltScreenOptOut bool   // PAIR_CODEX_ALT_SCREEN=1: leave codex in alt-screen
 	ParkPromptTimeout    int    // PAIR_PARK_PROMPT_TIMEOUT (default 5): the quit park-nudge [y/N] bound
 

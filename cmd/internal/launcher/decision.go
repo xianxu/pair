@@ -20,6 +20,7 @@ type LaunchDecision struct {
 	PromptName   bool
 	LegacyImport bool
 	ContinueDoc  string
+	ContinueText string
 }
 
 // DecideLaunch decides the launch action without touching zellij, fzf, or disk.

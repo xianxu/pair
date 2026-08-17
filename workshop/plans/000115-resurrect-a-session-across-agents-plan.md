@@ -298,11 +298,12 @@ reviving the abandoned live takeover coordinator.
 policy. Bare `pair` keeps the existing picker semantics. `pair <agent>` widens
 the picker rows just enough to show same-agent live work plus all historical
 work, marks different-agent live rows unavailable, and routes different-agent
-historical selections through the existing continuation create path. `pair
-<agent> -- <args...>` bypasses this picker path as the explicit-parameters
-create/resume mode. This keeps `ARCH-PURE` decision tests around row
-classification and avoids guessing source context (`Root Cause`) when no
-continuation document exists.
+historical selections through the existing continuation create path when a doc
+exists or an auto-continuation draft when it does not. `pair <agent> --
+<args...>` bypasses this picker path as the explicit-parameters create/resume
+mode. This keeps `ARCH-PURE` decision tests around row classification and
+satisfies `ARCH-PURPOSE` for Alt+x-exited work that has tag-local recovery state
+but no prewritten continuation document.
 
 ### Core concepts
 
@@ -321,7 +322,7 @@ continuation document exists.
   explicitly requested and which agent it is.
 - **`pickSelection` switch metadata** — row resolution can distinguish
   selectable same-agent attach/resume rows, unavailable different-agent live
-  rows, and different-agent historical rows that need a continuation document.
+  rows, and different-agent historical rows that need continuation seeding.
 
 #### Integration points
 
@@ -332,8 +333,9 @@ continuation document exists.
 
 - **Explicit picker resolution** — receives `PickPolicy`, resolves same-agent
   rows as today, refuses unavailable live rows if selected by an unmapped/typed
-  line, and converts different-agent historical rows to a create decision only
-  when `ResolveContinuationDoc(tag)` succeeds.
+  line, and converts different-agent historical rows to a create decision seeded
+  by either `ResolveContinuationDoc(tag)` or a generated auto-continuation
+  prompt.
 - **Create loop routing** — preserves the requested agent for a
   different-agent continuation selection so the new driver starts under the
   original work tag instead of re-inferring the old agent from disk.
@@ -388,14 +390,15 @@ them from selectable attach mapping.
 Function strategy: `RunLaunch` with explicit target agent selecting a
 different-agent historical row. Assert a matching continuation doc seeds the
 draft and launches the requested agent under the selected tag; assert a missing
-doc exits with a direct error and performs no handoff.
+doc synthesizes an auto-continuation draft, preserves existing draft text, and
+still launches the requested agent under the selected tag.
 
 - [x] **Step 2: Implement continuation routing**
 
 When a different-agent historical row is selected, call
 `ResolveContinuationDoc(tag)`. If it exists, set `ContinueDoc` for the create
-path and keep the requested agent. If it does not, print the refusal and abort
-before mutation.
+path and keep the requested agent. If it does not, generate `ContinueText` for
+the create path and preserve any existing draft beneath it.
 
 ### Task 4: Verify and document smoke coverage
 
