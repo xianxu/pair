@@ -32,21 +32,25 @@ To implement this robustly across agents while maintaining `ARCH-DRY` and `ARCH-
 1. **Pure Terminal State Machine (`cmd/internal/wrapcmd/terminal_tracker.go`)**:
    - `terminalTracker` maintains screen dimensions (`rows`, `cols`), cursor coordinates (`cursorRow`, `cursorCol`), cursor visibility (`cursorVisible`), and per-row painted features.
    - ANSI escape parsing handles:
-     - Absolute cursor positioning: `CUP` (`\x1b[<r>;<c>H`, `\x1b[<r>;<c>f`), `CHA` (`\x1b[<c>G`), `VPA` (`\x1b[<r>d`).
-     - Relative cursor positioning: `CUU` (`\x1b[<n>A`), `CUD` (`\x1b[<n>B`), `CUF` (`\x1b[<n>C`), `CUB` (`\x1b[<n>D`), `RI` (`\x1bM`), `\r`, `\n`.
+     - Absolute cursor positioning: `CUP` (`\x1b[<r>;<c>H`, `\x1b[<r>;<c>f`), `CHA` (`\x1b[<c>G`), `VPA` (`\x1b[<r>d`) — parameter defaults to 1.
+     - Relative cursor positioning: `CUU` (`\x1b[<n>A`), `CUD` (`\x1b[<n>B`), `CUF` (`\x1b[<n>C`), `CUB` (`\x1b[<n>D`) — parameter `<n>` defaults to 1.
+     - 2-byte escapes: `RI` (`\x1bM` -> move cursor up 1 line).
+     - Carriage control: `\r` (col 1), `\n` (row+1, col 1).
      - Cursor visibility: `DECTCEM` (`\x1b[?25h` -> visible, `\x1b[?25l` -> hidden).
      - Display and line erases: `ED` (`\x1b[<n>J`), `EL` (`\x1b[<n>K`), `ECH` (`\x1b[<n>X`).
      - SGR styling: RGB background (`48;2;r;g;bm`), 256-color background (`48;5;nm`), default background (`49m`, `0m`).
    - Tracks agent-specific chrome attributes per row:
      - `codexBGRows[row]`: set when Codex's background `48;2;57;57;57` is painted at `cursorRow`.
      - `musePromptRows[row]`: set when Muse's prompt glyph `›` (`\xe2\x9f\xa9`) is painted at `cursorRow`.
-     - `agyBorderRows[row]`: set when Agy's horizontal border rule `─` (`\xe2\x94\x80`) is painted at `cursorRow`.
-     - `agyPromptRows[row]`: set when Agy's prompt glyph `>` (`0x3e` / `\x1b[94m>`) is painted at `cursorRow`.
+     - `agyBorderRows[row]`: set when Agy's horizontal border rule `─` (`\xe2\x94\x80`) is painted at `cursorRow` (requires $\ge 5$ consecutive `─` or full-line rule).
+     - `agyPromptRows[row]`: set when Agy's prompt glyph `>` (`0x3e` / `\x1b[94m>`) is painted at `cursorRow` anchored at prompt column (`col <= 6`).
 
 2. **Agent Composer Predicates**:
    - **Codex Predicate**: `cursorVisible && cursorRow > 0 && count(codexBGRows in [cursorRow-1, cursorRow+1]) >= 2`.
    - **Muse Predicate**: `cursorVisible && cursorRow > 0 && count(musePromptRows in [cursorRow-1, cursorRow+1]) >= 1`.
-   - **Agy Predicate**: `cursorVisible && cursorRow > 0 && (agyPromptRows[cursorRow] || agyPromptRows[cursorRow-1] || agyBorderRows[cursorRow-1] || agyBorderRows[cursorRow+1])`.
+   - **Agy Predicate**: `cursorVisible && cursorRow > 0 && (isAgyPromptOrBorderNearby(cursorRow) || isEnclosedInAgyBox(cursorRow))`, where:
+     - `isAgyPromptOrBorderNearby(r)`: checks if `agyPromptRows` or `agyBorderRows` is active on `r` or `r±1`.
+     - `isEnclosedInAgyBox(r)`: checks if `r` is enclosed between an active top border / prompt row and bottom border row (`top <= r <= bottom` with `bottom - top <= 25`).
 
 3. **Proxy Integration (`cmd/internal/wrapcmd/wrap.go`)**:
    - `proxy` holds a unified `composerTracker *terminalTracker`.
