@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-08-16
 updated: 2026-08-16
-estimate_hours:
+estimate_hours: 1.66
 started: 2026-08-16T21:35:17-07:00
 ---
 
@@ -44,6 +44,18 @@ will keep drifting.
 - Tests cover composer detection from raw ANSI, non-bottom/hidden negatives,
   and Return translation.
 - The harness bring-up guide describes the positive-composer model.
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 0.9
+item: smaller-go-module design=0.20 impl=0.60
+item: cross-cutting-refactor design=0.15 impl=0.35
+item: atlas-docs design=0.08 impl=0.12
+item: milestone-review design=0.08 impl=0.12
+total: 1.66
+```
 
 ## Plan
 
