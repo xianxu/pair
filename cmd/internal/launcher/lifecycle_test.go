@@ -20,7 +20,7 @@ func TestRunLaunchAttach(t *testing.T) {
 		Tag:         "live",
 	}}}
 	rt.blocksReuse["📁work-live"] = true // live → decision resolves to attach
-	rt.inferAgent["live"] = "codex"         // title agent comes from the on-disk record
+	rt.inferAgent["live"] = "codex"     // title agent comes from the on-disk record
 	rt.attachCode = 7
 	code, err := run(t, baseOpts(LaunchArgs{ForcedTag: "live"}), rt)
 	if err != nil {
@@ -169,6 +169,26 @@ func TestRunLaunchRestartLoopAltN(t *testing.T) {
 	}
 	if !strings.Contains(rt.env["PAIR_AGENT_ARGS"], "--resume MINT") {
 		t.Fatalf("PAIR_AGENT_ARGS = %q (want the resume token)", rt.env["PAIR_AGENT_ARGS"])
+	}
+}
+
+func TestRunLaunchRestartLoopAltNCodexUsesMarkerSessionID(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.uuids = []string{"MINT"} // iteration 1 mints; iteration 2 resumes from marker
+	rt.quitMarkers["📁work"] = true
+	rt.restartMarkers["📁work"] = RestartMarker{Tag: "work", Agent: "codex", SessionID: "SID-LIVE"}
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "work"}), rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.launchCount != 2 {
+		t.Fatalf("restart loop should hand off twice, got %d", rt.launchCount)
+	}
+	if rt.env["PAIR_SESSION_ID"] != "SID-LIVE" {
+		t.Fatalf("resumed session id = %q, want SID-LIVE", rt.env["PAIR_SESSION_ID"])
+	}
+	if rt.env["PAIR_AGENT_ARGS"] != "resume SID-LIVE --no-alt-screen" {
+		t.Fatalf("PAIR_AGENT_ARGS = %q, want codex resume marker id", rt.env["PAIR_AGENT_ARGS"])
 	}
 }
 

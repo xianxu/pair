@@ -8,9 +8,8 @@ import (
 )
 
 const (
-	codexComposerBG       = "2;57;57;57"
-	codexComposerBandRows = 4
-	codexComposerMinRows  = 2
+	codexComposerBG      = "2;57;57;57"
+	codexComposerMinRows = 2
 )
 
 type codexComposerTracker struct {
@@ -64,7 +63,7 @@ func (t *codexComposerTracker) resize(rows, cols int) {
 		t.cursorCol = clampInt(t.cursorCol, 1, cols)
 	}
 	for row := range t.paintedRows {
-		if row < 1 || row > rows || !t.rowInComposerBand(row) {
+		if row < 1 || row > rows {
 			delete(t.paintedRows, row)
 		}
 	}
@@ -105,6 +104,7 @@ func (t *codexComposerTracker) feed(data []byte) {
 			t.cursorCol = 1
 		default:
 			if b >= 0x20 && b != 0x7f {
+				t.notePaintedRow()
 				t.cursorCol++
 			}
 		}
@@ -132,15 +132,12 @@ func (t *codexComposerTracker) state() codexComposerState {
 }
 
 func (s codexComposerState) active() bool {
-	if s.rows <= 0 || s.cols <= 0 || !s.cursorVisible {
-		return false
-	}
-	if !codexRowInComposerBand(s.cursorRow, s.rows) {
+	if s.rows <= 0 || s.cols <= 0 || !s.cursorVisible || s.cursorRow <= 0 {
 		return false
 	}
 	count := 0
 	for row := range s.paintedRows {
-		if codexRowInComposerBand(row, s.rows) {
+		if row >= s.cursorRow-1 && row <= s.cursorRow+1 {
 			count++
 		}
 	}
@@ -165,14 +162,19 @@ func (t *codexComposerTracker) applyEscape(seq []byte) {
 	case 'J':
 		t.applyEraseDisplay(params)
 	case 'K':
-		if t.rowInComposerBand(t.cursorRow) {
-			if t.bg == codexComposerBG {
-				t.paintedRows[t.cursorRow] = true
-			} else {
-				delete(t.paintedRows, t.cursorRow)
-			}
-		}
+		t.notePaintedRow()
 	}
+}
+
+func (t *codexComposerTracker) notePaintedRow() {
+	if t.cursorRow <= 0 {
+		return
+	}
+	if t.bg == codexComposerBG {
+		t.paintedRows[t.cursorRow] = true
+		return
+	}
+	delete(t.paintedRows, t.cursorRow)
 }
 
 func (t *codexComposerTracker) applyEraseDisplay(params string) {
@@ -235,21 +237,6 @@ func (t *codexComposerTracker) applySGR(params string) {
 			}
 		}
 	}
-}
-
-func (t *codexComposerTracker) rowInComposerBand(row int) bool {
-	return codexRowInComposerBand(row, t.rows)
-}
-
-func codexRowInComposerBand(row, rows int) bool {
-	if rows <= 0 || row <= 0 {
-		return false
-	}
-	top := rows - codexComposerBandRows + 1
-	if top < 1 {
-		top = 1
-	}
-	return row >= top && row < rows
 }
 
 func (t *codexComposerTracker) clampCursor() {

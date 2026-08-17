@@ -170,6 +170,39 @@ func TestOSRuntimeRestartMarker(t *testing.T) {
 	}
 }
 
+func TestOSRuntimeLiveCodexSessionIDUsesAgentPIDDescendantLsof(t *testing.T) {
+	dataDir := t.TempDir()
+	home := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dataDir, "agent-pid-work"), []byte("10\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sid := "019e8178-79c2-7862-91db-e8fa1be3b162"
+	path := filepath.Join(home, ".codex", "sessions", "2026", "05", "31",
+		"rollout-2026-05-31T21-36-56-"+sid+".jsonl")
+
+	binDir := t.TempDir()
+	ps := "#!/bin/sh\nprintf ' 10 1\\n 11 10\\n'\n"
+	if err := os.WriteFile(filepath.Join(binDir, "ps"), []byte(ps), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	lsof := "#!/bin/sh\nif [ \"$2\" = \"11\" ]; then printf 'p11\\nn" + path + "\\n'; else printf 'p%s\\n' \"$2\"; fi\n"
+	if err := os.WriteFile(filepath.Join(binDir, "lsof"), []byte(lsof), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("HOME", home)
+	oldPath := os.Getenv("PATH")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+oldPath)
+
+	rt := NewOSRuntime(dataDir, "/pair")
+	if got := rt.LiveAgentSessionID("codex", "work"); got != sid {
+		t.Fatalf("LiveAgentSessionID = %q, want %q", got, sid)
+	}
+	if got := rt.LiveAgentSessionID("claude", "work"); got != "" {
+		t.Fatalf("non-codex LiveAgentSessionID = %q, want empty", got)
+	}
+}
+
 func TestOSRuntimeParkScrollbackMove(t *testing.T) {
 	dataDir := t.TempDir()
 	rt := NewOSRuntime(dataDir, "/pair")

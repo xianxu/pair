@@ -12,6 +12,7 @@ import "strings"
 type RestartMarker struct {
 	Tag        string
 	Agent      string
+	SessionID  string // plain restart: live native session id captured before kill
 	NewSession bool   // Shift+Alt+N / compaction: fresh agent conversation
 	RenameTo   string // #22 inside-flow tag rename (native re-entry as of M5b)
 	Continue   string // #55 compaction slug (native continue re-entry as of M5b)
@@ -33,6 +34,8 @@ func parseRestartMarker(content string) RestartMarker {
 			m.Tag = val
 		case "agent":
 			m.Agent = val
+		case "session_id":
+			m.SessionID = val
 		case "new_session":
 			m.NewSession = val == "1"
 		case "rename_to":
@@ -70,7 +73,8 @@ func planRestart(m RestartMarker, tag, agent string, saved savedConfig) restartP
 		base.AgentArgs = append([]string(nil), saved.Args...)
 		return restartPlan{Args: base, DropConfig: true, ContinueSlug: m.Continue}
 	}
-	// Default Alt+n: resume the prior conversation via the saved id.
-	base.AgentArgs = composeResumeArgs(agent, saved.Args, saved.SessionID)
+	// Default Alt+n: resume the prior conversation. A marker session id was read
+	// from the live agent immediately before kill, so it is fresher than config.
+	base.AgentArgs = composeResumeArgs(agent, saved.Args, firstNonEmpty(m.SessionID, saved.SessionID))
 	return restartPlan{Args: base}
 }

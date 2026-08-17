@@ -26,7 +26,8 @@ type fakeRuntime struct {
 	ledger              map[string][]LedgerEntry
 	sessionIndex        SessionNameIndex
 	agentSessions       map[string]bool // "agent|sid" -> native artifact exists
-	uuids               []string        // MintUUID pops these in order
+	liveAgentSessions   map[string]string
+	uuids               []string // MintUUID pops these in order
 	promptValue         string
 	promptOK            bool
 	maxSessionNameBytes int
@@ -94,20 +95,21 @@ type fakeRuntime struct {
 
 func newFakeRuntime() *fakeRuntime {
 	return &fakeRuntime{
-		blocksReuse:    map[string]bool{},
-		commandMissing: map[string]bool{},
-		files:          map[string]string{},
-		ledger:         map[string][]LedgerEntry{},
-		agentSessions:  map[string]bool{},
-		inferAgent:     map[string]string{},
-		promptOK:       true,
-		env:            map[string]string{},
-		quitMarkers:    map[string]bool{},
-		restartMarkers: map[string]RestartMarker{},
-		cmuxOwned:      map[string]bool{},
-		liveLayouts:    map[string]LayoutMode{},
-		readyRecords:   map[string]bool{},
-		readyPIDs:      map[int]bool{},
+		blocksReuse:       map[string]bool{},
+		commandMissing:    map[string]bool{},
+		files:             map[string]string{},
+		ledger:            map[string][]LedgerEntry{},
+		agentSessions:     map[string]bool{},
+		liveAgentSessions: map[string]string{},
+		inferAgent:        map[string]string{},
+		promptOK:          true,
+		env:               map[string]string{},
+		quitMarkers:       map[string]bool{},
+		restartMarkers:    map[string]RestartMarker{},
+		cmuxOwned:         map[string]bool{},
+		liveLayouts:       map[string]LayoutMode{},
+		readyRecords:      map[string]bool{},
+		readyPIDs:         map[int]bool{},
 	}
 }
 
@@ -208,6 +210,9 @@ func (f *fakeRuntime) MintUUID() string {
 }
 func (f *fakeRuntime) AgentSessionExists(agent, sid, cwd string) bool {
 	return f.agentSessions[agent+"|"+sid]
+}
+func (f *fakeRuntime) LiveAgentSessionID(agent, tag string) string {
+	return f.liveAgentSessions[agent+"|"+tag]
 }
 func (f *fakeRuntime) InferAgent(tag string) string {
 	if latest, ok := LatestLedgerEntry(f.ledger[tag]); ok && latest.Agent != "" {

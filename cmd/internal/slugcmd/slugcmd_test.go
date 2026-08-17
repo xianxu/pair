@@ -3,27 +3,15 @@ package slugcmd
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
-)
 
-func TestDescendantPIDsIncludesNestedChildren(t *testing.T) {
-	children := map[string][]string{
-		"10": {"11", "12"},
-		"11": {"13"},
-		"13": {"14"},
-	}
-	got := descendantPIDs("10", children)
-	want := []string{"10", "11", "12", "13", "14"}
-	if strings.Join(got, ",") != strings.Join(want, ",") {
-		t.Fatalf("descendantPIDs = %v, want %v", got, want)
-	}
-}
+	"github.com/xianxu/pair/cmd/internal/transcript"
+)
 
 func TestCodexRolloutPattern(t *testing.T) {
 	path := "/Users/x/.codex/sessions/2026/05/31/rollout-2026-05-31T21-36-56-019e8178-79c2-7862-91db-e8fa1be3b162.jsonl"
-	if !codexRolloutRE.MatchString(path) {
-		t.Fatalf("codexRolloutRE did not match %q", path)
+	if got := transcript.CodexSessionIDFromPath(path); got == "" {
+		t.Fatalf("CodexSessionIDFromPath did not match %q", path)
 	}
 }
 

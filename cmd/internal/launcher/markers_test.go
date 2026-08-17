@@ -6,8 +6,8 @@ import (
 )
 
 func TestParseRestartMarker(t *testing.T) {
-	got := parseRestartMarker("tag=work\nagent=codex\nnew_session=1\n")
-	want := RestartMarker{Tag: "work", Agent: "codex", NewSession: true}
+	got := parseRestartMarker("tag=work\nagent=codex\nnew_session=1\nsession_id=SID-LIVE\n")
+	want := RestartMarker{Tag: "work", Agent: "codex", NewSession: true, SessionID: "SID-LIVE"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("parseRestartMarker = %+v, want %+v", got, want)
 	}
@@ -15,6 +15,14 @@ func TestParseRestartMarker(t *testing.T) {
 	m := parseRestartMarker("tag=t\nnew_session=0\nrename_to=newt\ncontinue=slug-1\n")
 	if m.NewSession || m.RenameTo != "newt" || m.Continue != "slug-1" {
 		t.Fatalf("parseRestartMarker mixed = %+v", m)
+	}
+}
+
+func TestSerializeRestartMarkerCarriesSessionID(t *testing.T) {
+	m := RestartMarker{Tag: "demo", Agent: "codex", SessionID: "SID-LIVE"}
+	got := parseRestartMarker(serializeRestartMarker(m))
+	if got != m {
+		t.Fatalf("round-trip = %+v, want %+v", got, m)
 	}
 }
 
@@ -31,6 +39,13 @@ func TestPlanRestart(t *testing.T) {
 	if p.Args.ForcedTag != "work" || p.Args.Agent != "claude" ||
 		!reflect.DeepEqual(p.Args.AgentArgs, []string{"--flag", "--resume", "SID-1"}) {
 		t.Fatalf("alt+n args = %+v", p.Args)
+	}
+
+	// A session id captured in the marker is newer than saved config because it
+	// was read from the live agent immediately before killing the pane.
+	pm := planRestart(RestartMarker{SessionID: "SID-LIVE"}, "work", "codex", savedConfig{Agent: "codex", Args: []string{"--flag"}})
+	if !reflect.DeepEqual(pm.Args.AgentArgs, []string{"resume", "SID-LIVE", "--flag"}) {
+		t.Fatalf("marker session args = %v", pm.Args.AgentArgs)
 	}
 
 	// Shift+Alt+N: fresh conversation → drop config, no resume token, no slug.

@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -39,6 +40,19 @@ func TestCommand(t *testing.T) {
 	// No trailing newline (ps -o command= is trimmed).
 	if len(got) > 0 && got[len(got)-1] == '\n' {
 		t.Errorf("command line should be newline-trimmed, got %q", got)
+	}
+}
+
+func TestDescendantPIDsIncludesNestedChildren(t *testing.T) {
+	children := map[string][]string{
+		"10": {"11", "12"},
+		"11": {"13"},
+		"13": {"14"},
+	}
+	got := DescendantPIDs("10", children)
+	want := []string{"10", "11", "12", "13", "14"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("DescendantPIDs = %v, want %v", got, want)
 	}
 }
 

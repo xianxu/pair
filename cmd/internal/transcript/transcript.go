@@ -7,12 +7,25 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
 // ClaudePathEncoder mirrors nvim's `cwd:gsub('[./]', '-')` for the
 // ~/.claude/projects/<encoded-cwd>/ directory name.
 var ClaudePathEncoder = strings.NewReplacer(".", "-", "/", "-")
+
+var codexRolloutRE = regexp.MustCompile(`^(.*/\.codex/sessions/.*/rollout-.*([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\.jsonl)$`)
+
+// CodexSessionIDFromPath extracts the native session id from a Codex rollout
+// transcript path. It returns "" for non-Codex or malformed paths.
+func CodexSessionIDFromPath(path string) string {
+	m := codexRolloutRE.FindStringSubmatch(path)
+	if len(m) < 3 {
+		return ""
+	}
+	return m[2]
+}
 
 // SessionID reads the session id pair recorded for (tag, agent) in
 // config-<tag>-<agent>.json (written by bin/pair / pair-session-watch).

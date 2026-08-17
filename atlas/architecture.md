@@ -865,7 +865,7 @@ Four ways to end (or refresh) a session, with different aftermath:
 
 - **Alt+d** — detach. The session keeps running (claude/nvim processes alive); `pair` surfaces it in the picker for re-attach.
 - **Alt+x** — full quit. Kills the session AND removes the resurrect entry. After Alt+x, the session is fully gone (but the `config-<tag>-<agent>.json` survives, so `pair resume <tag>` later replays the saved launch args + agent session id).
-- **Alt+n** — reload pair. Kills the session AND keeps the saved `config-<tag>-<agent>.json` AND re-launches pair on the same tag with the same agent + args + agent session: the conversation resumes via `--resume <id>` (claude) or `resume <id>` (codex) or `--conversation <id>` (agy). Pair itself is the only thing that restarts — useful after a binary or config rebuild.
+- **Alt+n** — reload pair. Kills the session AND keeps the saved `config-<tag>-<agent>.json` AND re-launches pair on the same tag with the same agent + args + agent session: the conversation resumes via `--resume <id>` (claude) or `resume <id>` (codex) or `--conversation <id>` (agy). Pair itself is the only thing that restarts — useful after a binary or config rebuild. For Codex, `pair restart` also makes one pre-kill live recovery pass through `agent-pid-<tag>` + descendant `lsof` and carries the recovered session id in the restart marker, so a missed watcher/config write does not force a fresh conversation.
 - **Shift+Alt+N** — restart only the supervised coding agent with the same user arguments and a new conversation. Zellij, draft state, and right-terminal tabs survive.
 
 Mechanically, only Alt+n uses the `quit-` + `restart-` marker pair and
@@ -970,7 +970,7 @@ Per-tag files mean `pair claude`, `pair codex`, and a custom-named `pair-bugfix`
 
 Internal: `~/.cache/pair/quit-<session>` — marker file used to communicate "user asked for full quit" between `pair quit` (or `pair restart`) and the launcher. Touched on Alt+x and Alt+n; removed by the launcher after delete-session.
 
-Internal: `~/.cache/pair/restart-<session>` — marker written alongside `quit-` by `pair restart` (Alt+n, plus the independent compaction flow). Holds `tag`, `agent`, and restart metadata as `key=value` lines so the launcher can reconstruct the relaunch params after cleanup has wiped `agent-<tag>`. Removed when the in-process restart loop consumes it.
+Internal: `~/.cache/pair/restart-<session>` — marker written alongside `quit-` by `pair restart` (Alt+n, plus the independent compaction flow). Holds `tag`, `agent`, optional `session_id`, and restart metadata as `key=value` lines so the launcher can reconstruct the relaunch params after cleanup has wiped `agent-<tag>`. Plain Codex restarts can fill `session_id` from the live rollout transcript before the pane is killed; the restart planner prefers that marker id over saved config because it is the freshest source. Removed when the in-process restart loop consumes it.
 
 Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/outer-tty-<tag>` — single-line file containing the path to pair's controlling TTY at attach time. Read by `pair-notify` to emit OSC escapes that reach the outer terminal/wrapper. Rewritten on every attach (create or reattach); removed on full quit.
 

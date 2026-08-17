@@ -29,11 +29,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
 	"github.com/xianxu/pair/cmd/internal/model"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	transcriptpkg "github.com/xianxu/pair/cmd/internal/transcript"
 )
 
@@ -79,61 +79,6 @@ func repoBase(dir string) string {
 	return filepath.Base(dir)
 }
 
-var codexRolloutRE = regexp.MustCompile(`^(.*/\.codex/sessions/.*/rollout-.*([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\.jsonl)$`)
-
-func processChildren() map[string][]string {
-	out, err := exec.Command("ps", "-axo", "pid=,ppid=").Output()
-	if err != nil {
-		return nil
-	}
-	children := make(map[string][]string)
-	for _, line := range strings.Split(string(out), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-		pid, ppid := fields[0], fields[1]
-		children[ppid] = append(children[ppid], pid)
-	}
-	return children
-}
-
-func descendantPIDs(root string, children map[string][]string) []string {
-	if root == "" {
-		return nil
-	}
-	var out []string
-	seen := map[string]bool{root: true}
-	queue := []string{root}
-	for len(queue) > 0 {
-		pid := queue[0]
-		queue = queue[1:]
-		out = append(out, pid)
-		for _, child := range children[pid] {
-			if seen[child] {
-				continue
-			}
-			seen[child] = true
-			queue = append(queue, child)
-		}
-	}
-	return out
-}
-
-func lsofNames(pid string) []string {
-	out, err := exec.Command("lsof", "-p", pid, "-Fn").Output()
-	if err != nil {
-		return nil
-	}
-	var names []string
-	for _, line := range strings.Split(string(out), "\n") {
-		if strings.HasPrefix(line, "n") {
-			names = append(names, line[1:])
-		}
-	}
-	return names
-}
-
 func resolveLiveCodexTranscript(dataDir, tag, home string) string {
 	b, err := os.ReadFile(filepath.Join(dataDir, "agent-pid-"+tag))
 	if err != nil {
@@ -144,9 +89,9 @@ func resolveLiveCodexTranscript(dataDir, tag, home string) string {
 		return ""
 	}
 	prefix := filepath.Join(home, ".codex", "sessions") + string(os.PathSeparator)
-	for _, pid := range descendantPIDs(root, processChildren()) {
-		for _, name := range lsofNames(pid) {
-			if strings.HasPrefix(name, prefix) && codexRolloutRE.MatchString(name) {
+	for _, pid := range procutil.DescendantPIDs(root, procutil.ProcessChildren()) {
+		for _, name := range procutil.LsofNames(pid) {
+			if strings.HasPrefix(name, prefix) && transcriptpkg.CodexSessionIDFromPath(name) != "" {
 				return name
 			}
 		}

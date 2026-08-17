@@ -118,6 +118,9 @@ type IDOps interface {
 	// AgentSessionExists reports whether the agent's native session artifact for
 	// sid is on disk (claude jsonl / codex sessions glob / agy conversation db).
 	AgentSessionExists(agent, sid, cwd string) bool
+	// LiveAgentSessionID resolves a session id from the currently running agent
+	// process when the watcher/config missed it.
+	LiveAgentSessionID(agent, tag string) string
 	// InferAgent resolves the agent a tag was last paired with — the agent-<tag>
 	// record (live/detached) or, once that's cleared on Alt+x, the agent encoded
 	// in a config-<tag>-<agent>.json filename. "" when neither is on disk (a
