@@ -1,11 +1,12 @@
 ---
 id: 000131
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-07-29
-updated: 2026-07-29
+updated: 2026-08-16
 estimate_hours:
+started: 2026-08-16T20:13:46-07:00
 ---
 
 # homebrew formula cannot build: stale cmd list
