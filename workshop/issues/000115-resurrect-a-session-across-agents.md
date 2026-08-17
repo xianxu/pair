@@ -69,8 +69,9 @@ M2 defines the launcher entry points around that substrate:
   continuation document for that tag when one exists. If none exists, Pair still
   starts the requested agent under the same tag and seeds an auto-continuation
   draft that points the agent at the tag's persisted draft, log, queue, and any
-  parked scrollback. Pair must not allocate a sibling tag just because the
-  source agent did not prewrite a continuation.
+  parked scrollback, plus the source agent's native transcript path when a
+  saved config identifies it. Pair must not allocate a sibling tag just because
+  the source agent did not prewrite a continuation.
 
 ### Historical full handoff design (deferred)
 
@@ -476,6 +477,11 @@ deferred and are not included here.
   the same tag rather than refusing or allocating a sibling. `pair <agent> --
   <args...>` now keys off separator intent rather than
   non-empty args, so repo-agent defaults do not accidentally bypass the picker.
+  Smoke follow-up added the missing native transcript reference: when
+  `config-<tag>-<source-agent>.json` contains a session id, the generated draft
+  resolves it through the shared `cmd/internal/transcript` package (ARCH-DRY)
+  and includes the path, e.g. Claude's
+  `~/.claude/projects/<encoded-cwd>/<session-id>.jsonl`.
   Focused checks passed:
   `go test ./cmd/internal/launcher -run 'TestDecideLaunchExplicit|TestBuildPickRows|TestRunLaunchExplicitAgentDifferentHistorical' -count=1`
   and `go test ./cmd/internal/launcher -count=1`. Final M2 verification passed:

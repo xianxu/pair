@@ -21,6 +21,7 @@ type LaunchDecision struct {
 	LegacyImport bool
 	ContinueDoc  string
 	ContinueText string
+	SourceAgent  string
 }
 
 // DecideLaunch decides the launch action without touching zellij, fzf, or disk.

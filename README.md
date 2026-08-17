@@ -318,8 +318,9 @@ unavailable, and different-agent historical rows start the requested agent under
 the same tag. If `workshop/continuation/*-<tag>.md` exists, Pair seeds the draft
 from it; otherwise Pair generates an auto-continuation draft that tells the new
 agent to reconstruct context from the tag's draft, log, queue, and any parked
-scrollback. Typing `pair codex -- <args...>` instead is the parameter-changing
-create/resume path and skips the picker.
+scrollback, plus the previous agent's native transcript path when Pair can
+resolve it from saved config. Typing `pair codex -- <args...>` instead is the
+parameter-changing create/resume path and skips the picker.
 
 When the create flow runs, it prompts for the session name with the auto-suggested name as the default:
 

@@ -204,13 +204,13 @@ func resolvePickWithPolicy(rt Runtime, snap SessionSnapshot, base string, nowEpo
 		return LaunchDecision{Action: ActionAttach, Tag: sel.tag, SessionName: sel.sessionName}, false, 0
 	}
 	continueDoc := ""
-	continueText := ""
+	sourceAgent := ""
 	if sel.needsContinuation {
 		path, _, ok := rt.ResolveContinuationDoc(sel.tag)
 		if ok {
 			continueDoc = path
 		} else {
-			continueText = generatedContinuationPrompt(sel.tag, sel.sourceAgent, policy.RequestedAgent)
+			sourceAgent = sel.sourceAgent
 		}
 	}
 	d, _ := DecideLaunch(LaunchArgs{ForcedTag: sel.tag}, snap) // never errors (no pick recursion)
@@ -219,27 +219,6 @@ func resolvePickWithPolicy(rt Runtime, snap SessionSnapshot, base string, nowEpo
 	}
 	d.LegacyImport = sel.legacy
 	d.ContinueDoc = continueDoc
-	d.ContinueText = continueText
+	d.SourceAgent = sourceAgent
 	return d, false, 0
-}
-
-func generatedContinuationPrompt(tag, sourceAgent, targetAgent string) string {
-	if sourceAgent == "" {
-		sourceAgent = "the previous agent"
-	}
-	if targetAgent == "" {
-		targetAgent = "the requested agent"
-	}
-	return fmt.Sprintf(`Continue Pair tag %s with %s.
-
-The previous driver was %s. No continuation doc was found.
-
-First reconstruct the current work state from this tag's persisted Pair files:
-- draft-%s.md
-- log-%s.md
-- queue-%s/
-- parked-%s and parked-scrollback-%s-*.raw/events.jsonl if present
-
-Create a continuation-quality summary from the available local state before making code changes. Preserve the tag identity; do not create a sibling tag.
-`, tag, targetAgent, sourceAgent, tag, tag, tag, tag, tag)
 }
