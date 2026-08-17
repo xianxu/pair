@@ -46,6 +46,7 @@ If the agent presents blocking overlays, pickers (like file autocompletes), yes/
   }
   ```
 - Implement the detector. Detectors can scan the rolling output stream for custom OSC escape sequences (e.g. Claude's permission OSC `OSC 777;notify;...`, or Codex's `OSC 9;Plan mode prompt:...`) or fallback to visible text substring matches (e.g., watching for `"Press enter to confirm"`).
+- **For `codex`:** Codex uses both OSC 9 plan/question bodies and visible-text picker footers. Keep `codexPickerMarkers` current for every visible confirmation footer observed in Pair's adapt log, including variants like `"Press enter to confirm or esc to go back"` and `"Press enter to confirm or esc to cancel"`; otherwise plain Enter inserts a textarea newline and Alt+Enter becomes required to select.
 - **For `agy`:** Antigravity *does* render its permission picker in the PTY ("Do you want to proceed?", "Yes, and always allow", …), so `detectAgyOverlayOpen` matches those visible-text markers (no OSC) to arm `pickerActive` — without it, the remapped Enter can't confirm the picker and a stray newline leaks into the prompt (#000042).
 - **For `muse`:** Muse renders both tool-permission pickers ("Permissions required", "Allow execution", …) **and** user selection menus (AskUserQuestion via `request_user_input` — "Select an option", "Use arrow keys", "Press Enter to select", …). Both families must be in `musePickerMarkers`; a missing selection marker reproduces as "Enter inserts newline, Alt+Enter required to select".
 

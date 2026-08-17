@@ -692,6 +692,11 @@ var codexPickerMarkers = []string{
 	// Quota/model-fallback picker footer observed when Codex suggests
 	// switching to a smaller model near rate limits.
 	"Press enter to confirm or esc to go back",
+
+	// Permission picker footer observed in Codex 0.147.0. Without this
+	// exact marker, plain Enter leaks as a textarea newline and Alt+Enter
+	// is required to confirm the highlighted choice.
+	"Press enter to confirm or esc to cancel",
 }
 
 func detectClaudeOverlayOpen(_ *proxy, _ []byte, rolling []byte) (bool, string) {
