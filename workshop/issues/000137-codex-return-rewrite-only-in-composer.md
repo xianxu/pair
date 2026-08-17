@@ -59,9 +59,9 @@ total: 1.66
 
 ## Plan
 
-- [ ] Write the durable implementation plan in `workshop/plans/000137-codex-return-rewrite-only-in-composer-plan.md`.
-- [ ] Implement the plan with TDD.
-- [ ] Verify focused wrapcmd tests, full Go tests, issue validation, and diff whitespace.
+- [x] Write the durable implementation plan in `workshop/plans/000137-codex-return-rewrite-only-in-composer-plan.md`.
+- [x] Implement the plan with TDD.
+- [x] Verify focused wrapcmd tests, full Go tests, issue validation, and diff whitespace.
 
 ## Log
 
@@ -73,3 +73,13 @@ total: 1.66
 - Plan-quality round 1 asked for named unit-tested functions and adversarial
   input strategies; updated the durable plan to name tracker and Return routing
   surfaces explicitly.
+- TDD red: `go test ./cmd/internal/wrapcmd -run TestCodexComposerTracker -count=1`
+  failed because `newCodexComposerTracker` did not exist; Codex Return tests
+  then failed because `proxy` had no `codexComposer` field. Added a second red
+  stale-clear regression proving normal-background bottom-row clears must remove
+  prior composer evidence.
+- Green so far: focused composer/Return tests and full `wrapcmd` package pass
+  after adding the raw composer tracker and Codex Return gate.
+- Verification: focused composer/Return tests,
+  `go test ./cmd/internal/wrapcmd -count=1`, `go test ./...`,
+  `sdlc issue validate --issue 137`, and `git diff --check` all pass.

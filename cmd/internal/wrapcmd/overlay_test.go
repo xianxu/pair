@@ -86,7 +86,7 @@ func TestOverlayDetectorByAgent(t *testing.T) {
 }
 
 func TestTranslateChunk_CodexPickerPlainEnterSelectsOnce(t *testing.T) {
-	p := &proxy{agentBasename: "codex", sendKM: sendKeymapByAgent["codex"]}
+	p := codexProxyWithComposer(true)
 	p.pickerActive.Store(true)
 
 	got, leftover, inPaste := p.translateChunk([]byte("\r\r"), false)

@@ -54,18 +54,18 @@
 
 **Unit-tested functions and strategy:**
 - `(*codexComposerTracker).resize(rows, cols int)` — adversarial pane geometry: zero sizes, shrink after active state, and normal 38-row pane; guard that impossible geometry clears active state.
-- `(*codexComposerTracker).feed(data []byte)` — adversarial raw PTY chunks: split CSI/SGR sequences, unrelated cursor moves, hidden cursor, and bottom-band composer paints; guard that only the Codex composer background plus visible bottom-band cursor activates.
+- `(*codexComposerTracker).feed(data []byte)` — adversarial raw PTY chunks: split CSI/SGR sequences, unrelated cursor moves, hidden cursor, stale bottom-row clears, and bottom-band composer paints; guard that only the Codex composer background plus visible bottom-band cursor activates.
 - `(*codexComposerTracker).state() codexComposerState` / `codexComposerState.active()` — adversarial stale/incomplete snapshots; guard that active requires visible cursor plus enough bottom-band painted rows.
 
-- [ ] **Step 1: Write failing composer-positive test**
+- [x] **Step 1: Write failing composer-positive test**
 
 Test raw bytes shaped like observed Codex output: a 38-row pane, `CSI 35;1H`, `CSI 48;2;57;57;57m`, `CSI K` on rows 35-37, `CSI ?25h`, and `CSI 36;3H`. Expected: composer active.
 
-- [ ] **Step 2: Write failing negative tests**
+- [x] **Step 2: Write failing negative tests**
 
 Cover hidden cursor (`CSI ?25l`), composer background away from the bottom band, and missing composer background. Expected: inactive.
 
-- [ ] **Step 3: Implement minimal parser**
+- [x] **Step 3: Implement minimal parser**
 
 Parse only:
 - `CSI <row>;<col> H` / `f` cursor position,
@@ -75,7 +75,7 @@ Parse only:
 
 Ignore other CSI/OSC/text except advancing cursor columns for printable bytes. Clamp rows/cols to current pane size.
 
-- [ ] **Step 4: Define active predicate**
+- [x] **Step 4: Define active predicate**
 
 Active iff:
 - pane has non-zero rows/cols,
@@ -94,7 +94,7 @@ Active iff:
 - `(*proxy).emitPlainCR(out []byte)` — adversarial state combinations: Codex composer active/inactive, `pickerActive` set, and non-Codex agents; guard that overlay bypass wins, Codex rewrites only with active composer, and other agents keep existing remaps.
 - `(*proxy).handleChunk(data []byte, rolling *[]byte)` — raw-output integration seam using a controlled proxy and byte fixture; guard that Codex chunks feed the tracker before Return translation without requiring a live Codex process.
 
-- [ ] **Step 1: Write failing Return tests**
+- [x] **Step 1: Write failing Return tests**
 
 Add tests proving:
 - Codex plain Return with composer active emits LF.
@@ -102,11 +102,11 @@ Add tests proving:
 - `pickerActive` still emits bare CR and clears even when composer is active.
 - Claude/agy/muse keep existing behavior.
 
-- [ ] **Step 2: Wire tracker into proxy**
+- [x] **Step 2: Wire tracker into proxy**
 
 Add a Codex-only tracker field to `proxy`. Initialize lazily when `agentBasename == "codex"` and Return remap is enabled. Feed `resize(rows, cols)` from `setWinsize` and raw chunks from `handleChunk` before `checkOverlayOpen`.
 
-- [ ] **Step 3: Change `emitPlainCR` routing**
+- [x] **Step 3: Change `emitPlainCR` routing**
 
 Order:
 1. If `pickerActive`, send bare CR and clear existing overlay state.
@@ -121,11 +121,11 @@ Do not change Alt+Return.
 - Modify: `atlas/how-to-bring-up-a-new-harness-cli.md`
 - Modify: `atlas/architecture.md`
 
-- [ ] **Step 1: Update the guide**
+- [x] **Step 1: Update the guide**
 
 Aspect 1/2 should say agent-pane Return rewriting is a composer-only behavior. New integrations should positively detect their composer/input box; overlay/menu marker lists are fallback/override signals, not the primary strategy.
 
-- [ ] **Step 2: Update architecture**
+- [x] **Step 2: Update architecture**
 
 Document Codex's bottom-anchored composer signal: visible cursor near bottom plus `48;2;57;57;57` composer background on bottom-band rows.
 
@@ -134,15 +134,15 @@ Document Codex's bottom-anchored composer signal: visible cursor near bottom plu
 **Files:**
 - Modify: `workshop/issues/000137-codex-return-rewrite-only-in-composer.md`
 
-- [ ] **Step 1: Run focused tests**
+- [x] **Step 1: Run focused tests**
 
-Run: `go test ./cmd/internal/wrapcmd -run 'TestCodexComposer|Test.*PlainEnter|TestTranslateChunk_Codex' -count=1`
+Run: `go test ./cmd/internal/wrapcmd -run 'TestCodexComposer|Test.*PlainEnter|TestTranslateChunk_Codex|TestEmitPlainCR|TestHandleChunk_CodexFeedsComposerTracker' -count=1`
 
-- [ ] **Step 2: Run package and repo tests**
+- [x] **Step 2: Run package and repo tests**
 
 Run: `go test ./cmd/internal/wrapcmd -count=1` and `go test ./...`
 
-- [ ] **Step 3: Validate issue and whitespace**
+- [x] **Step 3: Validate issue and whitespace**
 
 Run: `sdlc issue validate --issue 137` and `git diff --check`.
 

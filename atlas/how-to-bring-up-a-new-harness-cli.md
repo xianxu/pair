@@ -10,7 +10,7 @@ This guide outlines how to bring up a new agent harness CLI (e.g., `muse`) and a
 
 ### Aspect 1: Return Key Remapping
 By default, the bottom Neovim draft pane maps **Enter** to insert a newline, and **Alt+Enter** to send the buffer. To provide visual and interactive consistency, the top agent pane (which runs inside the transparent PTY proxy `pair-wrap`) should map keys similarly:
-- **Plain Enter** inside textareas/prompts should insert a newline (preventing accidental premature sends).
+- **Plain Enter** inside a positively detected composer/input box should insert a newline (preventing accidental premature sends).
 - **Alt+Enter** should submit the input.
 
 **Implementation:**
@@ -25,15 +25,16 @@ By default, the bottom Neovim draft pane maps **Enter** to insert a newline, and
   }
   ```
 - **Note:** Claude uses `\<Enter>` (`[]byte{'\\', '\r'}`) as a newline, while Codex, Antigravity (`agy`), and Muse (`muse`) use LF (`\n`) for newline and CR (`\r`) for send.
+- **Composer detection:** Do not rewrite plain Enter merely because no menu was detected. New integrations should positively detect the agent's composer/input box from stable raw terminal signals (cursor position/visibility, prompt/composer chrome, or agent OSC). If the composer is unknown or inactive, plain Enter should pass through as the agent's normal Enter key.
 
-**Telemetry Signal** (aspect `1`, see §3): `return-remap` — `fired` each time a plain Enter is remapped to the agent's newline; `bypass` each time it passes through as a bare `\r` while an overlay is active. Emitted from `emitPlainCR`. The `fired:bypass` ratio is the health signal; an all-`bypass` or zero-`fired` session means the remap stopped engaging.
+**Telemetry Signal** (aspect `1`, see §3): `return-remap` — `fired` each time a plain Enter is remapped to the agent's newline; `bypass` each time it passes through as a bare `\r` while an overlay is active or the composer is not positively detected. Emitted from `emitPlainCR`. The `fired:bypass` ratio is the health signal; an all-`bypass` or zero-`fired` session means the remap stopped engaging or composer detection drifted.
 
 ---
 
 ### Aspect 2: Overlay-Aware Return Suspension
 If the agent presents blocking overlays, pickers (like file autocompletes), yes/no confirmation modals, **or user selection menus (AskUserQuestion / request_user_input pickers)** , text-area Enter remapping will break the interaction. Every option-selection UI needs the same bypass — plain Enter must confirm the highlighted option, not insert a newline (e.g. muse bug: selection menu required Alt+Enter to confirm because no marker matched). Inside an overlay, a plain **Enter** must send a bare carriage return (`\r`) to select/confirm.
 
-`pair-wrap` suspends remapping by registering an overlay detector function which arms a temporary `pickerActive` flag. The next plain Enter is bypass-translated to a bare `\r`, and the flag is immediately cleared.
+`pair-wrap` should treat overlay detection as an override on top of positive composer detection. The normal rewrite path is "composer active → newline"; overlay detectors arm a temporary `pickerActive` flag so the next plain Enter is bypass-translated to a bare `\r`, and the flag is immediately cleared.
 
 **Implementation:**
 - **File:** [cmd/internal/wrapcmd/wrap.go](file:///Users/xianxu/workspace/pair/cmd/internal/wrapcmd/wrap.go)
@@ -46,7 +47,7 @@ If the agent presents blocking overlays, pickers (like file autocompletes), yes/
   }
   ```
 - Implement the detector. Detectors can scan the rolling output stream for custom OSC escape sequences (e.g. Claude's permission OSC `OSC 777;notify;...`, or Codex's `OSC 9;Plan mode prompt:...`) or fallback to visible text substring matches (e.g., watching for `"Press enter to confirm"`).
-- **For `codex`:** Codex uses both OSC 9 plan/question bodies and visible-text picker footers. Keep `codexPickerMarkers` current for every visible confirmation footer observed in Pair's adapt log, including variants like `"Press enter to confirm or esc to go back"` and `"Press enter to confirm or esc to cancel"`; otherwise plain Enter inserts a textarea newline and Alt+Enter becomes required to select.
+- **For `codex`:** Codex plain Enter rewrites only when `codexComposerTracker` positively detects the bottom-anchored composer: visible cursor in the bottom composer band plus rows painted with the `48;2;57;57;57` background. Codex also uses OSC 9 plan/question bodies and visible-text picker footers; keep `codexPickerMarkers` current as override/fallback signals for menus, including variants like `"Press enter to confirm or esc to go back"` and `"Press enter to confirm or esc to cancel"`.
 - **For `agy`:** Antigravity *does* render its permission picker in the PTY ("Do you want to proceed?", "Yes, and always allow", …), so `detectAgyOverlayOpen` matches those visible-text markers (no OSC) to arm `pickerActive` — without it, the remapped Enter can't confirm the picker and a stray newline leaks into the prompt (#000042).
 - **For `muse`:** Muse renders both tool-permission pickers ("Permissions required", "Allow execution", …) **and** user selection menus (AskUserQuestion via `request_user_input` — "Select an option", "Use arrow keys", "Press Enter to select", …). Both families must be in `musePickerMarkers`; a missing selection marker reproduces as "Enter inserts newline, Alt+Enter required to select".
 
