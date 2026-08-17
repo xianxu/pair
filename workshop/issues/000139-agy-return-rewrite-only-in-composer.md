@@ -197,9 +197,11 @@ not broaden into a general TTY customization framework.
 
 - The terminal wrapper starts a goroutine that drains emulator-generated
   replies (DSR, device attributes, and similar queries), because an undrained
-  `x/vt` input pipe can block `Write`. `Close` closes the emulator and joins the
-  drainer, and proxy teardown always calls it. Tests must prove that query
-  sequences and shutdown both complete without blocking.
+  `x/vt` input pipe can block `Write`. `Close` first closes the retained input
+  pipe writer, joins the reply drainer, and only then closes the emulator so it
+  cannot race `Emulator.Read`'s unsynchronized closed-state access. Proxy
+  teardown always calls it. Tests must prove that query sequences and shutdown
+  both complete without blocking.
 - Feed, resize, reset, snapshot, and close share one wrapper lock. Recognizers
   receive one immutable `terminalSnapshot` containing dimensions, cursor,
   visibility, active-screen identity, and copied cells from one screen
@@ -272,3 +274,14 @@ re-derived only after the revised durable plan passes plan-quality review.
       executable live conformance test, and run race/full verification.
 - [ ] Update atlas documentation for the profile, terminal, routing, fixture,
       and release-conformance flows.
+
+#### Plan clarification — behavior preservation
+
+For Codex and Muse, "behaviorally identical" means the explicit active-
+composer, hidden-cursor, overlay, and unknown-state decision matrix remains
+unchanged. Current-screen emulation may intentionally turn a previously stale
+`true` into fail-safe `false` after overwrite, erase, scroll, resize/reflow,
+alternate-screen replacement, or reset. Every such transition must be
+allowlisted by a differential test and documented; no `false` to `true`
+transition is permitted. This clarification serves the positive-evidence
+purpose rather than preserving known stale state (ARCH-PURPOSE).
