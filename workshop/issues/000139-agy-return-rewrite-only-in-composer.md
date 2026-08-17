@@ -5,7 +5,7 @@ deps: ["#140"]
 github_issue:
 created: 2026-08-16
 updated: 2026-08-17
-estimate_hours: 0.57
+estimate_hours:
 started: 2026-08-17T10:59:29-07:00
 ---
 
@@ -83,19 +83,20 @@ To preserve strict workstream isolation with open issue #140 (which tracks Muse)
 
 ## Plan
 
-- [ ] Implement `agyComposerTracker` in `cmd/internal/wrapcmd/agy_composer.go` with relative/absolute cursor movements and mutation invalidation rules.
-- [ ] Add unit tests in `cmd/internal/wrapcmd/agy_composer_test.go`.
-- [ ] Wire `agy` composer tracking into `proxy` in `cmd/internal/wrapcmd/wrap.go` (in `setWinsize`, `handleChunk`, and `emitPlainCR`).
-- [ ] Add return routing and stateful fake replay tests in `cmd/internal/wrapcmd/agy_return_test.go`.
-- [ ] Run full test suite (`go test ./...`) to ensure zero regressions across all agents.
-- [ ] Update `atlas/architecture.md` and `atlas/how-to-bring-up-a-new-harness-cli.md`.
+- Historical: implement `agyComposerTracker` in `cmd/internal/wrapcmd/agy_composer.go` with relative/absolute cursor movements and mutation invalidation rules.
+- Historical: add unit tests in `cmd/internal/wrapcmd/agy_composer_test.go`.
+- Historical: wire `agy` composer tracking into `proxy` in `cmd/internal/wrapcmd/wrap.go` (in `setWinsize`, `handleChunk`, and `emitPlainCR`).
+- Historical: add return routing and stateful fake replay tests in `cmd/internal/wrapcmd/agy_return_test.go`.
+- Historical: run full test suite (`go test ./...`) to ensure zero regressions across all agents.
+- Historical: update `atlas/architecture.md` and `atlas/how-to-bring-up-a-new-harness-cli.md`.
+- [ ] Complete the authoritative revised plan in `## Revisions`.
 
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
 `baseline-v3.1.md`. Method A only.
 
-```estimate
+```estimate-superseded
 model: estimate-logic-v3.1
 
 item: issue-spec design=0.08 impl=0.02
