@@ -1,7 +1,7 @@
 ---
 id: 000139
 status: working
-deps: []
+deps: ["#140"]
 github_issue:
 created: 2026-08-16
 updated: 2026-08-17
@@ -191,3 +191,83 @@ not broaden into a general TTY customization framework.
   stale, or unknown evidence sends bare CR.
 - Claude behavior remains unchanged and #138 can opt it into the same contract
   without changing the router.
+
+#### Review corrections
+
+- The terminal wrapper starts a goroutine that drains emulator-generated
+  replies (DSR, device attributes, and similar queries), because an undrained
+  `x/vt` input pipe can block `Write`. `Close` closes the emulator and joins the
+  drainer, and proxy teardown always calls it. Tests must prove that query
+  sequences and shutdown both complete without blocking.
+- Feed, resize, reset, snapshot, and close share one wrapper lock. Recognizers
+  receive one immutable `terminalSnapshot` containing dimensions, cursor,
+  visibility, active-screen identity, and copied cells from one screen
+  generation; they never make a series of independently locked emulator calls.
+  Cursor visibility starts false and resets false on terminal reset or screen
+  replacement until a show-cursor sequence is observed. Race verification runs
+  `go test -race ./cmd/internal/wrapcmd` (ARCH-PURE).
+- Agy recognition requires two distinct contiguous border runs of at least five
+  `─` cells with overlapping horizontal spans, an anchored `>` at column 1-6
+  on a row strictly between the borders, and a visible cursor strictly between
+  the same borders and within their overlapping span. Border height is at most
+  25 rows. Every cell and coordinate comes from the same snapshot. Negative
+  tests cover a lone prompt, one border, borders without a prompt,
+  non-overlapping borders, prompt/cursor outside the box, and locally weak
+  evidence beside a complete but distant box (ARCH-PURPOSE).
+- `harnessTTYProfile` owns the complete existing Return-related customization:
+  `plainCR`, `altCR`, `altBS`, overlay detector, positive-gating policy and
+  recognizer factory, plus the capability that makes Codex image capture set
+  overlay state. A shadow-sweep test covers Claude, Codex, Agy, Muse, unknown
+  harnesses, and `PAIR_WRAP_REMAP_RETURN=0`, and proves the old parallel
+  registries and composer agent-name branches are gone (ARCH-DRY,
+  ARCH-PURPOSE).
+- #140 remains the owner of Muse's recognition semantics; #139 only migrates
+  the already-landed Muse behavior without semantic change. #139 now records
+  #140 as a blocking dependency and implementation waits until #140's artifact
+  is reconciled and closed. Differential fixture tests compare Codex and Muse
+  decisions before and after the shared-substrate migration.
+- Checked-in conformance data lives under
+  `cmd/internal/wrapcmd/testdata/tty/<agent>/<version>/` with `composer.raw`,
+  `overlay.raw` when capturable, and `metadata.json` recording agent version,
+  capture time, command, and SHA-256. `go test ./cmd/internal/wrapcmd -run
+  TestHarnessTTYFixtureConformance -count=1` deterministically replays every
+  fixture. `PAIR_LIVE_HARNESS=<agent> go test ./cmd/internal/wrapcmd -run
+  TestHarnessTTYLiveConformance -count=1` checks the installed harness's initial
+  composer through a real PTY; a version mismatch or recognition difference
+  fails with the required recapture path. Release validation runs the live test
+  for each installed supported harness (ARCH-MOCK).
+
+#### Authoritative revised Done when
+
+The earlier Agy-only `Done when` and `Plan` are superseded records; the rows
+below are authoritative for the revised scope and the expanded estimate is
+re-derived only after the revised durable plan passes plan-quality review.
+
+- One profile registration completely describes each harness's Return-related
+  keymap, overlay detection, gating policy, recognizer, and capture capability.
+- One `x/vt`-backed wrapper owns terminal interpretation, atomic snapshots,
+  reply draining, and shutdown; no agent-specific tracker parses ANSI/VT bytes.
+- The shared pure router preserves overlay precedence, fail-safe unknown-state
+  behavior, legacy Claude behavior, and unconditional Alt+Return submission.
+- Codex and Muse decisions are behaviorally identical before and after
+  migration; Agy requires the coherent current-screen geometry above.
+- Stateful fixture replay, live initial-composer conformance, race tests, the
+  full test suite, and updated atlas guidance pass.
+
+#### Authoritative revised Plan
+
+- [ ] Reconcile and close blocking issue #140 without changing Muse's landed
+      recognition contract.
+- [ ] Write the revised durable implementation plan, pass plan-quality review,
+      and reconcile the expanded estimate through `sdlc change-code`.
+- [ ] Build the tested `x/vt` terminal wrapper with atomic snapshots, reply
+      draining, reset/resize handling, and deterministic close.
+- [ ] Consolidate Return customization into `harnessTTYProfile` and a pure
+      fail-safe Return decision, with registry shadow-sweep tests.
+- [ ] Migrate Codex and Muse recognizers with differential fixture coverage and
+      no semantic change.
+- [ ] Add Agy coherent-box recognition via failing geometry and lifecycle tests.
+- [ ] Replay stateful real-harness fixtures through `proxy.handleChunk`, add the
+      executable live conformance test, and run race/full verification.
+- [ ] Update atlas documentation for the profile, terminal, routing, fixture,
+      and release-conformance flows.
