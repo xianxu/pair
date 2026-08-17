@@ -109,9 +109,9 @@ Homebrew source-build/install verification.
 
 - [x] Confirm no post-Go-migration release exists and record the answer.
 - [x] Add `v1.24` release notes.
-- [ ] Tag and publish `v1.26` from the exact release commit.
-- [ ] Update and verify `../homebrew-pair/Formula/pair.rb`.
-- [ ] Close with Homebrew source-build/install evidence.
+- [x] Tag and publish `v1.26` from the exact release commit.
+- [x] Update and verify `../homebrew-pair/Formula/pair.rb`.
+- [x] Close with Homebrew source-build/install evidence.
 
 ## Log
 
@@ -132,3 +132,22 @@ Homebrew source-build/install verification.
 - Published `v1.25` at `1185d252ddbc204c1dac800e2b5ca02e8d6fa01a`; the real
   Homebrew install succeeded, but `brew test` exposed that public
   `pair --version` still exited as a usage error. Superseding with `v1.26`.
+- Published `v1.26` at `d7ca5e22fdf46d8a70c2d1d5f24ecc1af61ff21b`;
+  GitHub tarball sha256:
+  `383d5709f8bb12dba4c99e92677dc1039bb5a6bd75f206ff38299a906454bdfd`.
+- Updated and pushed the Homebrew tap through `xianxu/homebrew-pair@29fe915`.
+  Verification passed:
+  `ruby -c Formula/pair.rb`;
+  `brew style Formula/pair.rb`;
+  `brew reinstall --build-from-source xianxu/pair/pair`;
+  `brew test xianxu/pair/pair`;
+  `/opt/homebrew/opt/pair/bin/pair --version`;
+  `/opt/homebrew/opt/pair/bin/pair --help`;
+  `brew info xianxu/pair/pair`.
+  The installed formula is stable `1.26`, linked, and contains 70 files under
+  `/opt/homebrew/Cellar/pair/1.26`.
+- A non-invasive real-session handoff smoke with a stubbed `zellij` was blocked
+  because this agent is itself running under zellij/Pair; the launcher correctly
+  refused nested startup before reaching the stub. Installed `libexec` assets
+  were checked directly, and Homebrew's source build/test exercised the installed
+  public binary.

@@ -72,14 +72,14 @@
 
 - [x] Confirm no post-Go-migration release exists by checking local tags and GitHub releases; record the answer in #131.
 - [x] Add `v1.24`/`v1.25`/`v1.26` sections to `CHANGELOG.md` covering the major user-facing changes since `v1.23`, the clean-source bootstrap fix, and the public `--version` smoke fix.
-- [ ] Commit and push the Pair repo release commit containing the `CHANGELOG.md`, issue, and plan updates.
-- [ ] Verify Pair source builds and tests from the release commit.
-- [ ] Tag and push `v1.26` at that exact release commit, then verify `git rev-parse v1.26^{commit}` equals the intended commit.
-- [ ] Compute the sha256 from GitHub's generated `v1.26.tar.gz`.
-- [ ] Update `../homebrew-pair/Formula/pair.rb` to point at `v1.26`, use the new checksum, build only `./cmd/pair-go` as `bin/pair`, and fix stale description/caveats/comments.
-- [ ] Verify the tap with `ruby -c`, `brew style`, and a source-build install/test from a clean prefix; if Homebrew cannot create a clean prefix on this machine, stop and report the blocker rather than substituting weaker evidence silently.
-- [ ] Commit and push the tap update.
-- [ ] Close #131 with release, tap, and Homebrew verification evidence.
+- [x] Commit and push the Pair repo release commit containing the `CHANGELOG.md`, issue, and plan updates.
+- [x] Verify Pair source builds and tests from the release commit.
+- [x] Tag and push `v1.26` at that exact release commit, then verify `git rev-parse v1.26^{commit}` equals the intended commit.
+- [x] Compute the sha256 from GitHub's generated `v1.26.tar.gz`.
+- [x] Update `../homebrew-pair/Formula/pair.rb` to point at `v1.26`, use the new checksum, build only `./cmd/pair-go` as `bin/pair`, and fix stale description/caveats/comments.
+- [x] Verify the tap with `ruby -c`, `brew style`, and a source-build install/test from a clean prefix; if Homebrew cannot create a clean prefix on this machine, stop and report the blocker rather than substituting weaker evidence silently.
+- [x] Commit and push the tap update.
+- [x] Close #131 with release, tap, and Homebrew verification evidence.
 
 ## Revisions
 

@@ -175,7 +175,9 @@ Build/install callers:
 
 - `make runtimebundle-generate` refreshes the gitignored embedded runtime asset
   tree and manifest; `make runtimebundle-drift-check` verifies the generated
-  bundle is reproducible.
+  bundle is reproducible. The generator imports the manifest model without
+  importing the embedding package, so it works from a clean source archive before
+  `cmd/internal/runtimebundle/assets/` exists.
 - `make build` builds `GO_BINS` into `bin/`; `pair` and `pair-go` are both built
   from `cmd/pair-go` with `defaultPairHome=$(CURDIR)`, while copied builds with
   no adjacent/default root use the embedded fallback.
@@ -183,9 +185,10 @@ Build/install callers:
   shell wrappers such as `pair-dev`. Installed `pair` is a regular Go binary;
   if it has no sibling assets, it falls back to the build-time source root when
   that exists and otherwise extracts the embedded runtime.
-- Homebrew installs `bin/`, `nvim/`, and `zellij/` under `libexec`, then builds
-  Go `pair`, `pair-go`, and required runtime helpers into `libexec/bin` with
-  `defaultPairHome=#{libexec}`.
+- Homebrew first generates the embedded runtime bundle while `bin/`, `nvim/`,
+  and `zellij/` are still in the build directory, installs those trees under
+  `libexec`, then builds the single Go `pair` binary from `cmd/pair-go` into
+  `libexec/bin` with `defaultPairHome=#{libexec}`.
 - `make test-runtimebundle` runs bundle-generation-aware Go tests, and
   `make test-pair-embedded-runtime` exercises copied-binary launch plus stale
   runtime cleanup with fake external dependencies.
