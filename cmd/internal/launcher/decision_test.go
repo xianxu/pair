@@ -54,7 +54,7 @@ func TestDecideLaunchShowsPickerWhenDetachedOrHistoricalExist(t *testing.T) {
 }
 
 func TestDecideLaunchExplicitAgentArgsCreateWithoutPicker(t *testing.T) {
-	decision, err := DecideLaunch(LaunchArgs{Agent: "codex", AgentArgs: []string{"--sandbox", "workspace-write"}}, SessionSnapshot{
+	decision, err := DecideLaunch(LaunchArgs{Agent: "codex", AgentExplicit: true, AgentArgsExplicit: true, AgentArgs: []string{"--sandbox", "workspace-write"}}, SessionSnapshot{
 		BaseTag:    "pair",
 		Sessions:   []Session{{Name: "pair-pair-old", Tag: "old", State: SessionDetached}},
 		Historical: []HistoricalTag{{Tag: "pair"}},
@@ -64,6 +64,34 @@ func TestDecideLaunchExplicitAgentArgsCreateWithoutPicker(t *testing.T) {
 	}
 	if decision.Action != ActionCreate || decision.Tag != "pair-2" || !decision.PromptName {
 		t.Fatalf("decision = %#v, want prompted create for next free explicit-agent tag", decision)
+	}
+}
+
+func TestDecideLaunchExplicitAgentWithoutSeparatorUsesPickerEvenWithDefaultArgs(t *testing.T) {
+	decision, err := DecideLaunch(LaunchArgs{Agent: "codex", AgentExplicit: true, AgentArgs: []string{"--sandbox", "workspace-write"}}, SessionSnapshot{
+		BaseTag:    "pair",
+		Sessions:   []Session{{Name: "pair-old", Tag: "old", State: SessionDetached}},
+		Historical: []HistoricalTag{{Tag: "pair"}},
+	})
+	if err != nil {
+		t.Fatalf("DecideLaunch returned error: %v", err)
+	}
+	if decision.Action != ActionPick {
+		t.Fatalf("decision = %#v, want picker when args came from repo-agent defaults", decision)
+	}
+}
+
+func TestDecideLaunchExplicitEmptySeparatorCreatesWithoutPicker(t *testing.T) {
+	decision, err := DecideLaunch(LaunchArgs{Agent: "codex", AgentExplicit: true, AgentArgsExplicit: true}, SessionSnapshot{
+		BaseTag:    "pair",
+		Sessions:   []Session{{Name: "pair-old", Tag: "old", State: SessionDetached}},
+		Historical: []HistoricalTag{{Tag: "pair"}},
+	})
+	if err != nil {
+		t.Fatalf("DecideLaunch returned error: %v", err)
+	}
+	if decision.Action != ActionCreate || decision.Tag != "pair-2" || !decision.PromptName {
+		t.Fatalf("decision = %#v, want prompted create for explicit empty --", decision)
 	}
 }
 

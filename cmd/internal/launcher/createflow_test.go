@@ -1191,7 +1191,7 @@ func TestRunLaunchPickInferredAgentMustNotInheritCliArgs(t *testing.T) {
 		t.Fatalf("explicit agent+args should not show picker: %q", options)
 		return ""
 	}
-	opts := baseOpts(LaunchArgs{Agent: "codex", AgentArgs: []string{"--sandbox", "danger-full-access"}})
+	opts := baseOpts(LaunchArgs{Agent: "codex", AgentExplicit: true, AgentArgsExplicit: true, AgentArgs: []string{"--sandbox", "danger-full-access"}})
 	code, err := run(t, opts, rt)
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)

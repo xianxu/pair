@@ -289,7 +289,7 @@ default for that agent: `pair codex -- --sandbox workspace-write` makes the next
 fresh `pair codex` in this repo reuse `--sandbox workspace-write`. An explicit
 empty separator, such as `pair codex --`, clears the stored args after launch.
 Reattaching to an existing session does not re-launch the agent, so the args
-don't apply on attach. (The picker connects you to whatever's already running.)
+don't apply on attach.
 
 Sessions are scoped **per repo**: the tag you type (`work`, `bugfix`) is
 repo-local, so the same name in two checkouts stays independent.
@@ -310,6 +310,14 @@ tag, not a public session name.
 **Hacking on pair?** Use `pair-dev` instead of `pair` — same arguments, but it rebuilds the `pair` binary from source (`make build`) on launch and on every Alt+n whole-workbench reload, so the zellij-spawned `pair wrap` always matches your working tree. Shift+Alt+N restarts only the already-running wrapper's agent child. (Deployed installs run `pair`, which uses the prebuilt binary and needs no Go toolchain.)
 
 When `pair` runs and there's anything to pick — a detached Pair session owned by this repo **or** a tag from this repo used within the last 14 days — it shows an `fzf` picker. Detached rows come first, then historical rows annotated `(Nd ago, no live session)`, then a `+ new <agent> session` sentinel. A historical row whose session has prompts parked in its queue also carries an amber `[⏎ N queued]` badge, so you don't resume a session without remembering the work you queued up in it. Picking a historical row reuses the repo-local tag and any surviving draft / saved agent config (same path as `pair resume <tag>`). Override the 14-day window with `PAIR_HISTORY_DAYS`; `PAIR_DEBUG_HISTORY=1 pair` prints the scan and exits without launching.
+
+When an agent is explicit and no `--` separator was typed, for example
+`pair codex`, the picker treats that agent as the intended driver. Live rows for
+the same agent are attachable, live rows for a different agent are shown as
+unavailable, and different-agent historical rows require a matching
+`workshop/continuation/*-<tag>.md` before Pair starts the requested agent under
+that tag. Typing `pair codex -- <args...>` instead is the parameter-changing
+create/resume path and skips the picker.
 
 When the create flow runs, it prompts for the session name with the auto-suggested name as the default:
 

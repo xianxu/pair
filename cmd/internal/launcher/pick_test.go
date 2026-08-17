@@ -1,6 +1,8 @@
 package launcher
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 	"time"
 )
@@ -37,7 +39,7 @@ func TestBuildPickRows(t *testing.T) {
 	wantPlain := map[string]pickSelection{
 		"pair-a": {tag: "a", sessionName: "pair-a"},
 		"old  (today, no live session)   [⏎ 2 queued]": {tag: "old"},
-		"+ new work session": {isNew: true},
+		"+ new work session":                           {isNew: true},
 	}
 	if len(byPlain) != len(wantPlain) {
 		t.Fatalf("byPlain = %#v, want %#v", byPlain, wantPlain)
@@ -87,6 +89,46 @@ func TestBuildPickRowsAnnotatesRepoAndAgent(t *testing.T) {
 	}
 	if _, ok := byPlain["pair/old  claude  (today, no live session)   [⏎ 1 queued]"]; !ok {
 		t.Fatalf("byPlain = %#v, want annotated historical row", byPlain)
+	}
+}
+
+func TestBuildPickRowsExplicitAgentClassifiesLiveRows(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	snap := SessionSnapshot{
+		Sessions: []Session{
+			{Name: "📁pair-cx", Tag: "cx", RepoName: "pair", Agent: "codex", State: SessionAttached},
+			{Name: "📁pair-cl", Tag: "cl", RepoName: "pair", Agent: "claude", State: SessionDetached},
+		},
+		Historical: []HistoricalTag{
+			{Tag: "old-cx", MTime: now, RepoName: "pair", Agent: "codex"},
+			{Tag: "old-cl", MTime: now, RepoName: "pair", Agent: "claude"},
+		},
+	}
+	display, byPlain := buildPickRowsWithPolicy(snap, "pair", now.Unix(), PickPolicy{RequestedAgent: "codex"})
+
+	var plains []string
+	for _, row := range display {
+		plains = append(plains, stripANSI(row))
+	}
+	for _, want := range []string{
+		"pair/cx  codex  (attached)",
+		"pair/cl  claude  (detached, unavailable for codex)",
+		"pair/old-cx  codex  (today, no live session)",
+		"pair/old-cl  claude  (today, no live session)",
+		"+ new pair session",
+	} {
+		if !containsString(plains, want) {
+			t.Fatalf("display rows = %q, want %q", plains, want)
+		}
+	}
+	if sel, ok := byPlain["pair/cx  codex  (attached)"]; !ok || sel.tag != "cx" || sel.sessionName != "📁pair-cx" {
+		t.Fatalf("same-agent live selection = %#v ok=%v, want attachable cx", sel, ok)
+	}
+	if sel, ok := byPlain["pair/cl  claude  (detached, unavailable for codex)"]; !ok || !sel.disabled {
+		t.Fatalf("different-agent live selection = %#v ok=%v, want disabled row", sel, ok)
+	}
+	if sel, ok := byPlain["pair/old-cl  claude  (today, no live session)"]; !ok || !sel.needsContinuation || sel.tag != "old-cl" {
+		t.Fatalf("different-agent historical selection = %#v ok=%v, want continuation selection", sel, ok)
 	}
 }
 
@@ -227,6 +269,51 @@ func TestRunLaunchPickHistoricalCreatesByName(t *testing.T) {
 	}
 }
 
+func TestRunLaunchExplicitAgentDifferentHistoricalUsesContinuation(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.historical = []HistoricalTag{{Tag: "old", MTime: time.Unix(1_700_000_000, 0), RepoName: "work", Agent: "claude"}}
+	rt.inferAgent = map[string]string{"old": "claude"}
+	rt.continuationDocs = map[string][2]string{"old": {"/continuations/20260816-old.md", "claude"}}
+	rt.pickFunc = func(header string, options []string) string {
+		return "work/old  claude  (today, no live session)"
+	}
+
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "codex", AgentExplicit: true}), rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.launched != "📁work-old" {
+		t.Fatalf("launched = %q, want 📁work-old", rt.launched)
+	}
+	if len(rt.pollers) != 1 || rt.pollers[0] != "old|codex" {
+		t.Fatalf("pollers = %v, want [old|codex]", rt.pollers)
+	}
+	if got := rt.files["/data/draft-old.md"]; !strings.Contains(got, "Read workshop/continuation/20260816-old.md") {
+		t.Fatalf("draft-old = %q, want continuation seed", got)
+	}
+}
+
+func TestRunLaunchExplicitAgentDifferentHistoricalRequiresContinuation(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.historical = []HistoricalTag{{Tag: "old", MTime: time.Unix(1_700_000_000, 0), RepoName: "work", Agent: "claude"}}
+	rt.pickFunc = func(header string, options []string) string {
+		return "work/old  claude  (today, no live session)"
+	}
+	opts := baseOpts(LaunchArgs{Agent: "codex", AgentExplicit: true})
+	var stderr bytes.Buffer
+
+	code, err := RunLaunch(opts, rt, &stderr)
+	if err != nil || code != 1 {
+		t.Fatalf("code=%d err=%v stderr=%q, want refusal", code, err, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "no continuation matching 'old'") {
+		t.Fatalf("stderr = %q, want missing-continuation message", stderr.String())
+	}
+	if rt.launched != "" || len(rt.attached) != 0 {
+		t.Fatalf("handoff should not run: launched=%q attached=%v", rt.launched, rt.attached)
+	}
+}
+
 // Dismissing the picker (fzf ESC → empty) exits 0 without any handoff.
 func TestRunLaunchPickAbort(t *testing.T) {
 	rt := newFakeRuntime()
@@ -248,4 +335,13 @@ func TestRunLaunchPickAbort(t *testing.T) {
 	if rt.launched != "" || len(rt.attached) != 0 {
 		t.Fatalf("pick abort should not hand off: launched=%q attached=%v", rt.launched, rt.attached)
 	}
+}
+
+func containsString(items []string, want string) bool {
+	for _, item := range items {
+		if item == want {
+			return true
+		}
+	}
+	return false
 }

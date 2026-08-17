@@ -176,12 +176,19 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 	// its agent must be inferred from disk (below), not the bare-`pair` claude
 	// default — only the "+ new" pick (PromptName) keeps the default agent.
 	if decision.Action == ActionPick {
-		d, aborted := resolvePick(rt, snap, base, env.Now.Unix())
+		policy := PickPolicy{}
+		if opts.Args.AgentExplicit && !opts.Args.AgentArgsExplicit {
+			policy.RequestedAgent = requestedAgent
+		}
+		d, aborted, code := resolvePickWithPolicy(rt, snap, base, env.Now.Unix(), policy, stderr)
 		if aborted {
-			return launchStep{code: 0}, nil // fzf ESC / empty pick → exit 0 (shell 1478/1489)
+			return launchStep{code: code}, nil // fzf ESC / empty pick → exit 0 (shell 1478/1489)
 		}
 		decision = d
-		if d.Action == ActionAttach || !d.PromptName {
+		if d.ContinueDoc != "" {
+			opts.ContinueDoc = d.ContinueDoc
+		}
+		if d.ContinueDoc == "" && (d.Action == ActionAttach || !d.PromptName) {
 			agent = "" // existing-tag pick → infer the paired agent below
 		}
 	}

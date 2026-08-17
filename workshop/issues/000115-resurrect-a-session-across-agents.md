@@ -31,9 +31,11 @@ human-meaningful context distilled through a continuation.
 ### Current revived scope (2026-08-16)
 
 This revival keeps the original tag-as-work goal but deliberately does not
-restart from the abandoned live handoff coordinator. The first deliverable is
+restart from the abandoned live handoff coordinator. The first deliverables are
 the low-risk substrate that `pair <agent>` needs before any cross-agent recovery:
-repository-scoped per-agent launch defaults.
+repository-scoped per-agent launch defaults, followed by explicit-agent picker
+routing that makes the user's switch intent visible without taking over a live
+foreign-agent session.
 
 - `pair <agent> -- <args...>` records `<args...>` as the local default for that
   `(repo, agent)` only after a successful launch readiness point.
@@ -48,6 +50,25 @@ repository-scoped per-agent launch defaults.
   not version-controlled project configuration.
 - The old live takeover flow remains historical design context until a later
   milestone replaces it with a safer source-quiescent recovery flow.
+
+M2 defines the launcher entry points around that substrate:
+
+- Bare `pair` means choose work in the current repo: attach/resume an available
+  row, or create a new Pair session when a new name is used. It does not imply a
+  cross-agent continuation.
+- `pair <agent>` means choose work for the requested driver. Same-agent live
+  rows are attachable, same-agent exited rows resume normally, and different-
+  agent exited/recent rows enter the continuation-backed switch path. Different-
+  agent live rows are displayed as unavailable so the picker explains why they
+  cannot be attached by the requested agent.
+- `pair <agent> -- <args...>` is the explicit-parameter extension of
+  `pair <agent>`: it keeps the current create/new-or-resume behavior with the
+  supplied launch parameters, and records those parameters as the repo-agent
+  default only after launch readiness.
+- A different-agent switch from an exited/recent row requires an existing
+  continuation document for that tag. If none exists, Pair refuses with a direct
+  message instead of pretending it can recover source-agent context it does not
+  have.
 
 ### Historical full handoff design (deferred)
 
@@ -442,6 +463,18 @@ deferred and are not included here.
   Final verification passed:
   `go test ./cmd/internal/launcher -count=1`,
   `go test ./cmd/internal/readiness ./cmd/internal/wrapcmd -count=1`,
+  `go test ./... -count=1`, and `git diff --check`.
+- M2 implementation — Updated the launcher entry-point split around the
+  corrected design. `pair <agent>` without `--` now uses explicit-agent picker
+  policy: same-agent live rows attach, different-agent live rows are visible but
+  unavailable, and different-agent historical rows require a matching
+  continuation doc before the requested agent is launched under the selected
+  tag. `pair <agent> -- <args...>` now keys off separator intent rather than
+  non-empty args, so repo-agent defaults do not accidentally bypass the picker.
+  Focused checks passed:
+  `go test ./cmd/internal/launcher -run 'TestDecideLaunchExplicit|TestBuildPickRows|TestRunLaunchExplicitAgentDifferentHistorical' -count=1`
+  and `go test ./cmd/internal/launcher -count=1`. Final M2 verification passed:
+  `go test ./cmd/internal/launcher -count=1`,
   `go test ./... -count=1`, and `git diff --check`.
 
 ### 2026-07-28

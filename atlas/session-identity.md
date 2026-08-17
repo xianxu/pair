@@ -153,6 +153,9 @@ Default picker/list views are current-repo scoped:
 - live sessions are included only when `session-names.jsonl` maps their public
   name to the current scope key;
 - picker rows show readable `repo/tag  agent` annotations;
+- `pair <agent>` marks different-agent live rows unavailable and requires a
+  matching continuation doc before switching a different-agent historical tag to
+  the requested driver;
 - unindexed live `pair-*` sessions are treated as legacy candidates, not proof
   that they belong to the current repo;
 - a legacy `pair-*` session and a new `📁` one coexist in one snapshot, both

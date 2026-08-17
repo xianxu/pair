@@ -281,3 +281,141 @@ git commit -m "#115 M1: remember repo agent launch defaults" \
   readiness a concrete M1 deliverable instead of treating blocking zellij exit
   as readiness, and compressed test prose to named function strategies with
   adversarial input classes.
+- 2026-08-16: M2 scope correction. User clarified the three entry-point
+  meanings: bare `pair` resumes/attaches or creates new work only; `pair
+  <agent>` uses the picker to attach/resume matching-agent work or continue
+  different-agent non-live work; and `pair <agent> -- <args...>` remains the
+  explicit launch-parameter path.
+
+---
+
+## Chunk 2: Explicit-Agent Work Picker
+
+**Goal:** Make the picker honor the user's explicit driver intent without
+reviving the abandoned live takeover coordinator.
+
+**Architecture:** Extend the pure launch/picker decisions with an explicit-agent
+policy. Bare `pair` keeps the existing picker semantics. `pair <agent>` widens
+the picker rows just enough to show same-agent live work plus all historical
+work, marks different-agent live rows unavailable, and routes different-agent
+historical selections through the existing continuation create path. `pair
+<agent> -- <args...>` bypasses this picker path as the explicit-parameters
+create/resume mode. This keeps `ARCH-PURE` decision tests around row
+classification and avoids guessing source context (`Root Cause`) when no
+continuation document exists.
+
+### Core concepts
+
+#### Pure entities
+
+| Name | Lives in | Status |
+|------|----------|--------|
+| `AgentArgsExplicit` launch policy | `cmd/internal/launcher/decision.go` | modified |
+| `PickPolicy` | `cmd/internal/launcher/pick.go` | new |
+| `pickSelection` switch metadata | `cmd/internal/launcher/pick.go` | modified |
+
+- **`AgentArgsExplicit` launch policy** — `pair <agent> -- <args...>` creates
+  the next free work slot without the picker; `pair <agent>` does not bypass
+  the picker merely because M1 loaded repo-agent default args.
+- **`PickPolicy`** — pure row-build policy that records whether an agent was
+  explicitly requested and which agent it is.
+- **`pickSelection` switch metadata** — row resolution can distinguish
+  selectable same-agent attach/resume rows, unavailable different-agent live
+  rows, and different-agent historical rows that need a continuation document.
+
+#### Integration points
+
+| Name | Lives in | Status | Wraps |
+|------|----------|--------|-------|
+| Explicit picker resolution | `cmd/internal/launcher/pick.go` | modified | fzf row choice + continuation lookup |
+| Create loop routing | `cmd/internal/launcher/createflow.go` | modified | existing create path seeded by `ContinueDoc` |
+
+- **Explicit picker resolution** — receives `PickPolicy`, resolves same-agent
+  rows as today, refuses unavailable live rows if selected by an unmapped/typed
+  line, and converts different-agent historical rows to a create decision only
+  when `ResolveContinuationDoc(tag)` succeeds.
+- **Create loop routing** — preserves the requested agent for a
+  different-agent continuation selection so the new driver starts under the
+  original work tag instead of re-inferring the old agent from disk.
+
+### Task 1: Fix explicit-parameter launch decision
+
+**Files:**
+- Modify: `cmd/internal/launcher/decision.go`
+- Test: `cmd/internal/launcher/decision_test.go`
+
+- [x] **Step 1: Write failing decision tests**
+
+Function strategy: `DecideLaunch` over `AgentExplicit` and
+`AgentArgsExplicit` combinations with existing sessions/history. Assert that
+`pair <agent>` still chooses the picker, while `pair <agent> -- <args...>` and
+`pair <agent> --` choose prompted create without the picker.
+
+- [x] **Step 2: Implement the decision guard**
+
+Use `AgentArgsExplicit`, not `len(AgentArgs)`, for the explicit-parameter
+create path. Keep bare `pair`, forced resume, and selected-tag behavior
+unchanged.
+
+### Task 2: Classify picker rows for explicit-agent intent
+
+**Files:**
+- Modify: `cmd/internal/launcher/pick.go`
+- Test: `cmd/internal/launcher/pick_test.go`
+
+- [x] **Step 1: Write failing picker row tests**
+
+Function strategy: `buildPickRows` with `PickPolicy{RequestedAgent:"codex"}` over
+same-agent live, different-agent live, and historical rows. Assert same-agent
+live rows are selectable, different-agent live rows are visible but unavailable,
+and all historical rows remain selectable.
+
+- [x] **Step 2: Implement `PickPolicy` row classification**
+
+Keep the existing no-policy behavior for bare `pair`. In explicit-agent mode,
+display different-agent live rows with a grey unavailable annotation and omit
+them from selectable attach mapping.
+
+### Task 3: Route different-agent historical rows through continuation
+
+**Files:**
+- Modify: `cmd/internal/launcher/pick.go`
+- Modify: `cmd/internal/launcher/createflow.go`
+- Test: `cmd/internal/launcher/pick_test.go`
+
+- [x] **Step 1: Write failing continuation routing tests**
+
+Function strategy: `RunLaunch` with explicit target agent selecting a
+different-agent historical row. Assert a matching continuation doc seeds the
+draft and launches the requested agent under the selected tag; assert a missing
+doc exits with a direct error and performs no handoff.
+
+- [x] **Step 2: Implement continuation routing**
+
+When a different-agent historical row is selected, call
+`ResolveContinuationDoc(tag)`. If it exists, set `ContinueDoc` for the create
+path and keep the requested agent. If it does not, print the refusal and abort
+before mutation.
+
+### Task 4: Verify and document smoke coverage
+
+**Files:**
+- Modify: `workshop/issues/000115-resurrect-a-session-across-agents.md`
+- Modify as needed: `README.md`, `atlas/session-identity.md`
+
+- [x] **Step 1: Run automated verification**
+
+Run:
+
+```sh
+go test ./cmd/internal/launcher -count=1
+go test ./... -count=1
+git diff --check
+```
+
+Expected: PASS.
+
+- [x] **Step 2: Record smoke-test instructions**
+
+Append issue log evidence and tell the user exactly when M2 is ready for manual
+smoke testing.
