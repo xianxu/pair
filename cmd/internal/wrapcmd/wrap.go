@@ -274,7 +274,7 @@ type proxy struct {
 
 	// Codex Return remapping is positive-gated on the live composer box:
 	// plain Enter becomes LF only when raw output has recently painted the
-	// bottom-anchored Codex composer and left the cursor visible inside it.
+	// Codex composer surface and left the cursor visible inside or near it.
 	codexComposer *codexComposerTracker
 
 	// Adaptation flight recorder: always-on, appends one JSON line per

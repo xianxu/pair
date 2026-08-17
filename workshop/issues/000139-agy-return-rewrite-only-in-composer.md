@@ -45,7 +45,8 @@ accidental newline.
 - [ ] Identify a stable agy composer/input-box signal from raw Pair logs or
       agent output.
 - [ ] Add an agy composer tracker/gate or shared composer-gating abstraction
-      following the Codex model.
+      based on agy's own native composer-availability signal, not Codex's
+      cursor/paint heuristic unless agy logs prove the same signal is stable.
 - [ ] Add focused Return-routing tests for active composer, inactive composer,
       and overlay precedence.
 - [ ] Update atlas/docs if the agy signal is agent-specific.
@@ -56,3 +57,6 @@ accidental newline.
 
 - Follow-up from pair#137: Codex now rewrites Return only under positive live
   composer detection; agy should adopt the same safety model.
+- Updated after pair#142 design review: Codex's cursor/paint detector is
+  Codex-specific; agy should reuse the positive-detection contract, not the
+  exact terminal heuristic.

@@ -28,10 +28,10 @@ When Codex is showing its active composer, `pair-wrap` must rewrite plain Return
 
 ## Plan
 
-- [ ] Add a failing Codex composer test for the observed mismatch: outer winsize rows=38, Codex-painted composer at rows 19-21, visible cursor at row 20.
-- [ ] Extend Codex composer detection to use visible cursor plus nearby composer-background evidence independent of bottom-row geometry.
-- [ ] Add/extend a Return rewrite test so the cursor-anchored active composer produces LF instead of bare CR.
-- [ ] Run targeted and package tests.
+- [x] Add a failing Codex composer test for the observed mismatch: outer winsize rows=38, Codex-painted composer at rows 19-21, visible cursor at row 20.
+- [x] Extend Codex composer detection to use visible cursor plus nearby composer-background evidence independent of bottom-row geometry.
+- [x] Add/extend a Return rewrite test so the cursor-anchored active composer produces LF instead of bare CR.
+- [x] Run targeted and package tests.
 
 ## Estimate
 
@@ -61,3 +61,8 @@ total: 0.57
 - Estimate derived via `estimate-logic-v3.1` against the stale repo-local calibration source.
 - Root-cause evidence: `adapt-pair.jsonl` recorded `plain Enter -> bare CR (codex composer inactive)` at 2026-08-16T22:35:06-07:00.
 - Scrollback at the same offset showed Codex painting an active composer on rows 19-21 with a default status row at 22 and visible cursor at 20;3, while `wrap-events-pair.jsonl` only had an outer winsize of 38 rows until 22:54:41. The strict outer-bottom-band detector therefore missed Codex's logical-screen composer.
+- `sdlc change-code --issue 142` passed plan-quality and estimate-quality, then created branch `000142-codex-agent-pane-return-should-use-submit-rewrite`.
+- Added failing tests for the observed rows 19-21 cursor-anchored Codex composer and the Return rewrite path; confirmed they failed before production changes.
+- Implemented cursor-plus-composer-surface detection: composer rows are tracked independent of bottom geometry, cursor-only states remain inactive, and paint away from the cursor remains inactive.
+- Updated Claude/Agy follow-up issues and the harness bring-up atlas page to require each agent's native composer-availability signal instead of copying Codex's cursor/paint heuristic.
+- Verified with `go test ./cmd/internal/wrapcmd -run 'TestCodexComposerTracker|TestEmitPlainCR' -count=1`, `go test ./cmd/internal/wrapcmd -count=1`, `go test ./... -count=1`, and `git diff --check`.

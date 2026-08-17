@@ -45,7 +45,8 @@ enumerating every non-composer menu.
 - [ ] Identify a stable Claude composer/input-box signal from raw Pair logs or
       agent output.
 - [ ] Add a Claude composer tracker/gate or shared composer-gating abstraction
-      following the Codex model.
+      based on Claude's own native composer-availability signal, not Codex's
+      cursor/paint heuristic unless Claude logs prove the same signal is stable.
 - [ ] Add focused Return-routing tests for active composer, inactive composer,
       and overlay precedence.
 - [ ] Update atlas/docs if the Claude signal is agent-specific.
@@ -56,3 +57,6 @@ enumerating every non-composer menu.
 
 - Follow-up from pair#137: Codex now rewrites Return only under positive live
   composer detection; Claude should adopt the same safety model.
+- Updated after pair#142 design review: Codex's cursor/paint detector is
+  Codex-specific; Claude should reuse the positive-detection contract, not the
+  exact terminal heuristic.

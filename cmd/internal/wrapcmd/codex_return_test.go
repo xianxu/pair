@@ -14,6 +14,28 @@ func TestEmitPlainCR_CodexComposerActiveRewritesToNewline(t *testing.T) {
 	}
 }
 
+func TestEmitPlainCR_CodexCursorAnchoredComposerRewritesToNewline(t *testing.T) {
+	tr := newCodexComposerTracker()
+	tr.resize(38, 120)
+	tr.feed([]byte(
+		"\x1b[19;1H\x1b[48;2;57;57;57m\x1b[K" +
+			"\x1b[20;1H\x1b[48;2;57;57;57m\x1b[K" +
+			"\x1b[21;1H\x1b[48;2;57;57;57m\x1b[K" +
+			"\x1b[22;1H\x1b[49m\x1b[K" +
+			"\x1b[?25h\x1b[20;3H",
+	))
+	p := &proxy{
+		agentBasename: "codex",
+		sendKM:        sendKeymapByAgent["codex"],
+		codexComposer: tr,
+	}
+
+	got := p.emitPlainCR(nil)
+	if want := []byte{'\n'}; !bytes.Equal(got, want) {
+		t.Fatalf("got %q, want LF while cursor-anchored Codex composer is active", got)
+	}
+}
+
 func TestEmitPlainCR_CodexComposerInactiveSendsBareCR(t *testing.T) {
 	p := codexProxyWithComposer(false)
 
