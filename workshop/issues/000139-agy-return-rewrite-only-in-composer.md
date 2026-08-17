@@ -118,3 +118,76 @@ total: 0.57
 - Brainstormed positive composer detection for Agy. Captured raw terminal output from live `agy` CLI session.
 - Identified that `agy` uses relative cursor movements (`CUU` `\x1b[2A`, `CHA` `\x1b[6G`, `RI` `\x1bM`) to position the cursor at the prompt row between horizontal rules `───` (`\xe2\x94\x80`).
 - Sourced plan-quality gate findings: isolated Agy tracker ownership to `agy_composer.go` (avoiding entanglement with open issue #140), specified screen invalidation rules, named `proxy.setWinsize`, and defined stateful fake replay (ARCH-MOCK).
+
+## Revisions
+
+### 2026-08-17T13:03:00-07:00 — Unify harness TTY Return handling
+
+**Reason.** The first Agy-only implementation exposed a third copy of terminal
+cursor, erase, resize, and chunk-framing behavior. Its weak prompt/border
+signals could also survive stale repaints and incorrectly authorize the LF
+rewrite. The operator approved a shared Return-specific design rather than
+adding another independent tracker.
+
+**Delta.** This revision supersedes the Agy-only tracker ownership and
+workstream-isolation decisions above. Issue #139 now owns the shared
+Return-routing substrate and its behavior-preserving adoption by the existing
+Codex and Muse gates, plus the new Agy recognizer. It does not implement
+Claude composer recognition; #138 remains the future opt-in consumer. It does
+not broaden into a general TTY customization framework.
+
+#### Revised architecture
+
+1. **One harness TTY profile registry.** A `harnessTTYProfile` is the single
+   source for one harness's Return keymap, overlay detector, and optional
+   positive composer-recognizer factory. This replaces the parallel keymap and
+   overlay registries plus agent-name branches in `emitPlainCR` (ARCH-DRY).
+   Harnesses without a composer recognizer retain their current legacy Return
+   behavior until their own issue opts them into positive gating.
+2. **One shared terminal model.** Composer recognizers read a concurrency-safe
+   current-screen view backed by the existing `github.com/charmbracelet/x/vt`
+   emulator already used by `scrollbackcmd`; Pair does not grow another partial
+   VT parser. A thin wrapper owns feed, resize, cursor-visibility tracking, and
+   lifecycle. Terminal emulation stays deterministic and IO-free
+   (ARCH-PURE).
+3. **Harness-specific recognition only.** Codex recognizes its painted
+   composer surface, Muse its prompt signature, and Agy one coherent current
+   screen box: top border, anchored prompt row, bottom border, bounded height,
+   and visible cursor inside. A lone `>`, a lone divider, distant chrome, or
+   stale erased/reflowed content is never positive evidence
+   (ARCH-PURPOSE).
+4. **One pure Return decision.** The shared router resolves an input surface
+   with strict precedence: active confirmation overlay -> bare CR; positively
+   recognized composer -> the profile's `plainCR` multiline bytes; unknown,
+   busy, hidden-cursor, or inactive surface -> bare CR for profiles requiring
+   positive gating. Alt+Return continues to emit the profile's `altCR` submit
+   bytes regardless of surface.
+5. **Narrow integration shell.** `proxy.handleChunk` feeds the selected
+   profile's tracker, `proxy.setWinsize` resizes it, and `emitPlainCR` asks the
+   shared decision function. No other proxy behavior learns harness-specific
+   composer rules.
+
+#### Verification and conformance
+
+- Unit-test the shared terminal wrapper against erase, scrolling, wrapping,
+  resize/reflow, malformed/incomplete sequences, arbitrary chunk splits, and
+  concurrent feed/state reads.
+- Table-test the pure Return decision across overlay, composer, unknown, and
+  legacy-profile states; preserve each harness's exact key bytes.
+- Test each recognizer with literal PTY fixtures captured from that real
+  harness, including negative local-evidence cases. Replay fixtures through
+  the production `proxy.handleChunk` seam with a stateful session fake
+  (ARCH-MOCK).
+- Re-capture and compare fixtures whenever a supported harness version changes,
+  and run the live conformance smoke during release validation.
+
+#### Revised acceptance
+
+- Adding a Return-customized harness requires one profile registration and one
+  recognizer, not edits to the shared routing flow.
+- Codex and Muse preserve their current Return behavior while deriving from the
+  shared profile/router/terminal substrate.
+- Agy rewrites plain Return only for its coherent live composer box; all weak,
+  stale, or unknown evidence sends bare CR.
+- Claude behavior remains unchanged and #138 can opt it into the same contract
+  without changing the router.
