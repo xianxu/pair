@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-08-16
 updated: 2026-08-17
-estimate_hours:
+estimate_hours: 5.83
 started: 2026-08-17T10:59:29-07:00
 ---
 
@@ -96,13 +96,44 @@ To preserve strict workstream isolation with open issue #140 (which tracks Muse)
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
 `baseline-v3.1.md`. Method A only.
 
-```estimate-superseded
-model: estimate-logic-v3.1
-
+```text
+superseded-model: estimate-logic-v3.1
 item: issue-spec design=0.08 impl=0.02
 item: smaller-go-module design=0.15 impl=0.25
 total: 0.57
 ```
+
+Re-derived after the unified plan cleared plan-quality. Produced via
+`brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. `sdlc estimate-source` reports the
+calibration source as stale, so the number is provisional but uses the required
+method. The `x/vt` and `creack/pty` libraries halve design for the terminal and
+PTY integration primitives; implementation remains at v3.1's 40% scale.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.30 impl=0.12
+item: greenfield-go-module design=0.20 impl=0.32
+item: smaller-go-module design=0.06 impl=0.20
+item: api-integration design=0.30 impl=0.60
+item: tui-screen design=0.40 impl=0.40
+item: cross-cutting-refactor design=0.20 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: api-integration design=0.30 impl=0.60
+item: real-api-discovery design=0.00 impl=0.24
+item: real-api-discovery design=0.00 impl=0.24
+item: real-api-discovery design=0.00 impl=0.24
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.20
+design-buffer: 0.15
+total: 5.83
+```
+
+The two integrations are distinct: bounded PTY capture/lifecycle and fixture
+replay/live conformance through the production proxy seam. The three real-API
+discovery rows cover Agy, Codex, and Muse. The two smaller modules cover the
+harness profile/router and the stateful fixture/fake support.
 
 ## Log
 
@@ -119,6 +150,15 @@ total: 0.57
 - Brainstormed positive composer detection for Agy. Captured raw terminal output from live `agy` CLI session.
 - Identified that `agy` uses relative cursor movements (`CUU` `\x1b[2A`, `CHA` `\x1b[6G`, `RI` `\x1bM`) to position the cursor at the prompt row between horizontal rules `───` (`\xe2\x94\x80`).
 - Sourced plan-quality gate findings: isolated Agy tracker ownership to `agy_composer.go` (avoiding entanglement with open issue #140), specified screen invalidation rules, named `proxy.setWinsize`, and defined stateful fake replay (ARCH-MOCK).
+- Exact-window review `ab736d1^..ab736d1` returned `REWORK`; #140 was recorded
+  as superseded (`d230fd8`) rather than falsely closed codecomplete, and #139
+  absorbed its product findings.
+- Revised plan-quality round 6 returned `CLEAN`, disposing PQ-3 and PQ-6. The
+  clean pre-change baseline was `go test ./... -count=1`.
+- Re-derived `estimate_hours: 5.83` with estimate-logic-v3.1 after the plan
+  gate. `sdlc estimate-source` reports stale calibration; estimate-quality
+  returned `INFO`, chiefly that terminal concurrency and three live harness
+  captures may make the calibrated total optimistic.
 
 ## Revisions
 
@@ -308,3 +348,16 @@ Codex remains preservation-only apart from named stale-state corrections.
 README coverage is added to Task 7 alongside atlas coverage. Implementation may
 enter `sdlc change-code --issue 139` after this revision passes fresh plan
 review (ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-17T15:58:00-07:00 — Plan-quality execution corrections
+
+The next `change-code` round disposed of the stale-screen and external-protocol
+findings but retained PQ-3 and raised PQ-6. The durable plan now names one
+adversarial strategy and mechanical guard per risky function instead of
+enumerating terminal cases. For reply shutdown, construction checks that the
+`io.Writer` returned by pinned `x/vt.Emulator.InputPipe()` also implements
+`io.Closer`; construction fails before starting the drainer if that capability
+is absent. The model retains that checked closer, closes it before joining the
+drainer, then closes the emulator. This makes the pinned-library assumption
+explicit and testable rather than calling `Close` through an interface that does
+not declare it (ARCH-PURE).

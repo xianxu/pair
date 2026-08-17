@@ -182,10 +182,12 @@ library synchronization/IO, and existing `adapt` telemetry.
 - **`terminalModel`** owns one mutex, the emulator, a chunk-safe explicit
   control observer, a reply-drainer goroutine, and idempotent shutdown. `Feed`,
   `Resize`, `Snapshot`, and `Close` serialize on the same lock. Creation starts
-  `io.Copy(io.Discard, emulator)`; shutdown closes the retained input-pipe
-  writer, joins the drainer, then closes the emulator. Visibility starts false
-  and only an explicit chunk-framed `?25h` authorizes it; hide, reset, and
-  alt-screen transitions clear it.
+  `io.Copy(io.Discard, emulator)` only after checking that the `io.Writer`
+  returned by `Emulator.InputPipe()` also implements `io.Closer`; construction
+  fails if the pinned dependency loses that capability. Shutdown closes the
+  retained checked closer, joins the drainer, then closes the emulator.
+  Visibility starts false and only an explicit chunk-framed `?25h` authorizes
+  it; hide, reset, and alt-screen transitions clear it.
 - **`proxy` integration** resolves a profile once when remapping is enabled,
   creates a terminal only for positive-gated profiles, feeds raw output, resizes
   with `(cols, rows)`, and closes it in the existing teardown defer.
@@ -238,53 +240,58 @@ superseded 0.57h estimate.
 Define the desired API:
 
 ```go
-model := newTerminalModel(80, 24)
+model, err := newTerminalModel(80, 24)
+if err != nil { t.Fatal(err) }
 t.Cleanup(func() { _ = model.Close() })
 _ = model.Feed(raw)
 snapshot := model.Snapshot()
 ```
 
-Run the focused test and observe the undefined constructor failure. Implement
-only construction, a 80x24 empty snapshot, and snapshot bounds checks; rerun to
-GREEN.
+`newTerminalModel`: vary dimensions and the injected input-pipe capability; the
+guard is either one immutable in-bounds empty snapshot or a constructor error
+before any drainer starts. Observe RED, then implement only that contract.
 
 - [ ] **Step 2: RED/GREEN feed and immutable cell copying**
 
-Add tests for printable cells, SGR styles, CUP/relative moves, ECH/EL/ED,
-scrolling, wrapping, and every split point of a representative stream. Observe
-the expected assertion failures, then minimally wire `Emulator.Write` and deep
-cell clones to GREEN.
+`terminalModel.Feed` / `Snapshot`: fuzz arbitrary terminal byte streams and
+chunk partitions seeded from supported harness captures; the guard is
+chunking-equivalent x/vt state plus deep-cloned cells that cannot mutate a later
+snapshot. Observe RED, then minimally wire `Emulator.Write` and cell cloning.
 
 - [ ] **Step 3: RED/GREEN explicit control observation**
 
-Add a chunk-safe `terminalControlObserver` using `cmd/internal/ansi.Frame` with
-bounded pending bytes. It alone owns observed cursor visibility: explicit
-`?25h` sets true, `?25l`, RIS (`ESC c`), and alt-screen enter/leave
-(`?1047`/`?1049`) set false. Emulator callbacks never authorize visibility.
-Test every split point, malformed/incomplete recovery, repeated `?25h`, RIS,
-and both alt-screen directions; each reset/switch stays false until a later
-explicit `?25h`. Observe RED before implementing each transition.
+`terminalControlObserver.Feed`: fuzz arbitrary malformed/split escape streams
+seeded with explicit show/hide, reset, and alternate-screen controls; the guard
+is bounded carryover, chunking equivalence, and fail-closed visibility until a
+complete explicit show sequence. Use `cmd/internal/ansi.Frame`; emulator
+callbacks never authorize visibility. Observe RED, then implement the minimal
+observer.
 
 - [ ] **Step 4: RED/GREEN resize and active-screen snapshot**
 
-Add resize and alt-screen cell replacement tests, observe RED, then implement
-`Resize(cols, rows)` and snapshot `AltScreen` tracking without weakening the
-explicit-visibility observer.
+`terminalModel.Resize` / `Snapshot`: generate dimensions and screen-identity
+transitions; the guard is one atomic bounds-safe snapshot whose visibility
+remains fail-closed across replacement. Observe RED, then implement resize and
+`AltScreen` tracking.
 
 - [ ] **Step 5: RED/GREEN reply draining and deterministic close**
 
-Add DSR/device-attribute tests that prove `Feed` cannot block. Retain the
-closable writer from `Emulator.InputPipe()`. `Close` marks the wrapper closed,
-closes that writer, joins the drainer, and only then calls `Emulator.Close`, so
-the drainer never races the emulator's unsynchronized `closed` field. Repeated
-Close is a no-op; after close, Feed/Resize return `io.ErrClosedPipe` and Snapshot
-returns the final immutable state. Observe each failure before implementing.
+`newTerminalModel` / `Close`: generate emulator reply-producing streams and
+repeated shutdown schedules under a timeout; the guard is nonblocking Feed,
+idempotent close, and deterministic post-close errors/final snapshot. Check
+`replyWriter := Emulator.InputPipe()` with `replyCloser, ok :=
+replyWriter.(io.Closer)` before starting the drainer; on `!ok`, close the unused
+emulator and return a constructor error. `Close` marks the wrapper closed,
+closes `replyCloser`, joins the drainer, and only then calls `Emulator.Close`, so
+the drainer never races the emulator's unsynchronized `closed` field. Observe
+RED, then implement.
 
 - [ ] **Step 6: RED/GREEN concurrent shutdown and race verification**
 
-Race Close against Feed, Resize, and Snapshot. Ensure teardown cannot race the
-SIGWINCH goroutine: proxy shutdown must stop signal delivery before closing its
-terminal, while wrapper post-close behavior remains safe as a backstop.
+`terminalModel` concurrent API: generate interleavings of Feed, Resize,
+Snapshot, and Close under deadlines and the race detector; the guard is no race,
+leak, panic, or blocked goroutine. Proxy teardown stops and joins signal
+delivery before terminal close.
 
 Run after every slice:
 
@@ -302,6 +309,7 @@ type terminalModel struct {
     emulator *vt.Emulator
     observer terminalControlObserver
     altScreen bool
+    replyCloser io.Closer
     drainDone chan struct{}
     closed bool
 }
@@ -435,29 +443,22 @@ git commit -m "wrapcmd: #139: capture Muse composer evidence" -m "Co-Authored-By
 - Modify: `cmd/internal/wrapcmd/codex_composer_test.go`
 - Modify: `cmd/internal/wrapcmd/muse_composer_test.go`
 
-- [ ] **Step 1: Add characterization tests**
+- [ ] **Step 1: Freeze the differential oracle**
 
-Drive current trackers with every existing tracker test plus overwrite, EL,
-scroll, resize/reflow, alt-screen, and RIS transitions. Run this
-characterization suite GREEN before introducing the new API. Record a decision
-matrix: active composer, hidden cursor, overlay, and unknown states must remain
-identical except for individually named safety corrections. The mandatory Muse
-rows are (1) stale evidence after screen mutation and (2) a visible cursor near
-an unrelated `›` lacking the capture-proven composer position/style/shape. Each
-exception must be old `true` / new `false`; no old `false` / new `true` is
-permitted. Include one local weak signal plus far-away evidence from
-`lessons.md`.
+`codexComposerActive` / `museComposerActive`: generate current-screen snapshots
+around literal captured signatures and arbitrary mutation/locality transforms;
+the guard is equality with frozen old-tracker decisions except the named Muse
+stale-mutation and unqualified-glyph old-`true` / new-`false` safety corrections,
+with every old-`false` / new-`true` rejected. Seed the local-weak-plus-distant
+evidence rule from `lessons.md`. Run the old-tracker oracle GREEN before adding
+the new API.
 
 - [ ] **Step 2: Write failing snapshot recognizer tests**
 
-Feed identical streams through `terminalModel`; assert
-`codexComposerActive(snapshot)` and `museComposerActive(snapshot)` match the
-characterized decision table except for the individually named safety-correction
-allowlist rows. Freeze the old tracker results as table data before rewriting
-tests: every allowlisted exception must be old `true` / new `false`, and the
-oracle must reject every old `false` / new `true` transition. Derive Muse's
-qualified prompt signature from the literal capture used by Task 6; do not
-invent styling or geometry absent from observed bytes.
+Drive the frozen oracle through `terminalModel` and the absent snapshot
+recognizers, preserving the strategy and guard above. Derive Muse's qualified
+prompt signature only from Task 2A's literal capture; do not invent styling or
+geometry absent from observed bytes.
 
 - [ ] **Step 3: Verify RED**
 
@@ -824,17 +825,17 @@ immediately delete one copy (ARCH-DRY, ARCH-PURPOSE).
 
 This revision supersedes only Chunk 1 Task 0 above:
 
-- [ ] Record the `REWORK` verdict and `ab736d1^..ab736d1` window in #140,
+- [x] Record the `REWORK` verdict and `ab736d1^..ab736d1` window in #140,
       mark #140 `wontfix` as superseded by #139 through its own clean worktree,
       and commit that tracker-only transaction. Do not claim or close the
       known-broken implementation as codecomplete.
-- [ ] Remove #139's dependency on #140 and preserve all #140 acceptance
+- [x] Remove #139's dependency on #140 and preserve all #140 acceptance
       criteria in #139. Treat the old Muse tracker as characterization data;
       the new snapshot recognizer must correct the two reviewed false positives
       and all named stale-state cases without introducing any `false -> true`.
-- [ ] Add `README.md` to Task 7 and document the user-facing Return behavior for
+- [x] Add `README.md` to Task 7 and document the user-facing Return behavior for
       Claude, Codex, Muse, and Agy alongside the atlas updates.
-- [ ] After this revision's fresh review passes, run
+- [x] After this revision's fresh review passes, run
       `sdlc change-code --issue 139`; let the gate derive the expanded estimate.
 
 All remaining tasks and their TDD order are unchanged.
@@ -846,3 +847,15 @@ through the same bounded PTY seam Task 6 later extends. Task 3 may define the
 qualified Muse signature only from that checked-in evidence. Task 6 retains the
 Muse fixture, adds Codex/Agy inventory, and performs live drift validation; it
 no longer retroactively supplies evidence for an already-committed predicate.
+
+#### Plan-quality round 5 corrections
+
+PQ-3 is addressed by replacing the terminal and recognizer case inventories
+with one adversarial-input strategy plus mechanical guard for each named risky
+function. The RED/GREEN checkpoints remain only as execution gates, not prose
+copies of test tables. PQ-6 is addressed by changing `newTerminalModel` to
+return an error and checking the dynamic `io.Closer` capability of the
+`io.Writer` returned by pinned `x/vt.Emulator.InputPipe()` before starting the
+reply drainer. The retained `io.Closer` is now an explicit model field and the
+shutdown/property tests exercise capability failure, reply production, and
+concurrent close (ARCH-PURE).
