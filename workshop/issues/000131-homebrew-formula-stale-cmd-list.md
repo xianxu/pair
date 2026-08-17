@@ -58,14 +58,14 @@ Three further staleness bugs in the same file:
 
 ## Spec
 
-- Cut **v1.24** from current main; the formula's `url`/`sha256` move to it.
+- Cut **v1.25** from the release commit; the formula's `url`/`sha256` move to it.
 - Rewrite the install block for the single binary: build `./cmd/pair-go` only,
   install as `bin/pair`. Drop the whole `%w[...]`-style loop — every former
   helper is a `pair <sub>` since #104.
 - Fix `desc`, the `bin/pair-shell` comment, and the caveats line.
-- CHANGELOG entry for v1.24 covering the ~54 issues since v1.23 (layout 3,
+- CHANGELOG entries covering the ~54 issues since v1.23 (layout 3,
   single-binary port, repo-scoped tags, review pane, global hotkey routing, the
-  #127 terminal-stream fixes).
+  #127 terminal-stream fixes) plus the v1.25 clean-source bootstrap fix.
 
 Release procedure is in the operator's notes: tag `pair`, compute the sha256
 from the **GitHub-generated** tarball, bump the separate `homebrew-pair` repo.
@@ -108,7 +108,7 @@ Homebrew source-build/install verification.
 
 - [x] Confirm no post-Go-migration release exists and record the answer.
 - [x] Add `v1.24` release notes.
-- [ ] Tag and publish `v1.24` from the exact release commit.
+- [ ] Tag and publish `v1.25` from the exact release commit.
 - [ ] Update and verify `../homebrew-pair/Formula/pair.rb`.
 - [ ] Close with Homebrew source-build/install evidence.
 
@@ -123,3 +123,8 @@ Homebrew source-build/install verification.
 - Added the `v1.24` changelog draft and revised the durable plan so the release
   tag points at the exact SDLC branch release commit, then that commit merges
   through the normal issue flow.
+- Published `v1.24` at `5ea2e869709def54558c5950024a8776b5b4c5b7`; the real
+  Homebrew source install exposed that the GitHub tarball lacks ignored
+  runtime-bundle assets and `go run ./cmd/internal/runtimebundle/generatecmd`
+  could not bootstrap because it imported `runtimebundle`'s embed package.
+  Superseding with `v1.25` rather than retagging.
