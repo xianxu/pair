@@ -272,6 +272,11 @@ type proxy struct {
 	overlayMu       sync.Mutex
 	overlayTextTail string
 
+	// Codex Return remapping is positive-gated on the live composer box:
+	// plain Enter becomes LF only when raw output has recently painted the
+	// bottom-anchored Codex composer and left the cursor visible inside it.
+	codexComposer *codexComposerTracker
+
 	// Adaptation flight recorder: always-on, appends one JSON line per
 	// adaptation trigger to adapt-<tag>.jsonl so pair-doctor can spot drift.
 	// nil is a safe no-op (telemetry never blocks the proxy). lastNearMiss
@@ -1721,8 +1726,23 @@ func (p *proxy) emitPlainCR(out []byte) []byte {
 		p.adapt.Log(1, "return-remap", adapt.Bypass, "plain Enter → bare CR (overlay active)")
 		return append(out, '\r')
 	}
+	if p.agentBasename == "codex" && !p.codexComposerActive() {
+		p.adapt.Log(1, "return-remap", adapt.Bypass, "plain Enter → bare CR (codex composer inactive)")
+		return append(out, '\r')
+	}
 	p.adapt.Log(1, "return-remap", adapt.Fired, "plain Enter → newline remap")
 	return append(out, p.sendKM.plainCR...)
+}
+
+func (p *proxy) codexComposerActive() bool {
+	return p.codexComposer != nil && p.codexComposer.state().active()
+}
+
+func (p *proxy) ensureCodexComposer() *codexComposerTracker {
+	if p.codexComposer == nil {
+		p.codexComposer = newCodexComposerTracker()
+	}
+	return p.codexComposer
 }
 
 // translateChunk walks `data` and returns (rewritten bytes, leftover to
@@ -1971,6 +1991,9 @@ func (p *proxy) setWinsize() {
 		"cols": int(ws.Cols),
 		"rows": int(ws.Rows),
 	})
+	if p.agentBasename == "codex" {
+		p.ensureCodexComposer().resize(int(ws.Rows), int(ws.Cols))
+	}
 	p.logScrollbackEvent("resize", map[string]any{
 		"cols": int(ws.Cols),
 		"rows": int(ws.Rows),
@@ -2625,6 +2648,9 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 				p.debug("DETECT-fail", fmt.Sprintf("%v", r))
 			}
 		}()
+		if p.agentBasename == "codex" {
+			p.ensureCodexComposer().feed(data)
+		}
 		*rolling = append(*rolling, data...)
 		if len(*rolling) > rollingTailLen {
 			*rolling = (*rolling)[len(*rolling)-rollingTailLen:]
