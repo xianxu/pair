@@ -1,5 +1,18 @@
 # Lessons
 
+## Local predicates must count local evidence
+
+The #142 close review caught a composer detector that required one painted row
+near the cursor but counted the second required row anywhere on screen. That
+kept the reported Codex composer bug fixed, but it weakened the positive
+detection contract with a sparse-row false positive.
+
+**Rule.** When a predicate is anchored to proximity, selection, cursor position,
+or any other local evidence, count only evidence inside that same local window.
+Add a negative regression with one local match plus one far-away match so global
+aggregation cannot accidentally satisfy a local threshold. Caught in #000142
+close review.
+
 ## OS command helpers need one reusable seam
 
 The #141 close review caught duplicated `ps` process-tree and `lsof` parsing in

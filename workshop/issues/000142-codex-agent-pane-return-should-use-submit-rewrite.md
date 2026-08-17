@@ -1,12 +1,13 @@
 ---
 id: 000142
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-08-16
 updated: 2026-08-16
 estimate_hours: 0.57
 started: 2026-08-16T23:04:16-07:00
+actual_hours: 0.42
 ---
 
 # Codex agent-pane Return should use submit rewrite
@@ -55,6 +56,7 @@ total: 0.57
 ## Log
 
 ### 2026-08-16
+- 2026-08-16: closed — Implemented cursor-plus-composer-surface Codex Return gating and resolved REWORK sparse-paint review finding; verified red/green targeted regression, sparse-paint and unterminated-CSI regressions, go test ./cmd/internal/wrapcmd -run 'TestCodexComposerTracker|TestEmitPlainCR' -count=1, go test ./cmd/internal/wrapcmd -count=1, go test ./... -count=1, and git diff --check.; review verdict: SHIP
 
 - Claimed issue and entered planning with `sdlc start-plan`.
 - Plan-quality gate passed on round 2 after adding non-goals and function-level test strategy.

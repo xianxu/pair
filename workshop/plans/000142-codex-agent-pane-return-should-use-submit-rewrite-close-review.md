@@ -9,10 +9,11 @@
 | window | `f4d7ab68296c6e8f1fa6d22a223c0322f69100fb..HEAD` |
 | command | `sdlc close --issue 142` |
 | reviewer | codex |
-| timestamp | 2026-08-16T23:25:49-07:00 |
-| verdict | REWORK |
+| verdict | SHIP after one REWORK pass |
 
-## Findings
+## Initial Review — 2026-08-16T23:25:49-07:00
+
+Verdict: REWORK
 
 ### Critical
 
@@ -37,9 +38,29 @@
 - Changed `codexComposerState.active` to count only composer-painted rows in
   `cursorRow-1..cursorRow+1`.
 
-## Review Notes
+## Re-review — 2026-08-16T23:29:32-07:00
 
-- Strengths called out: observed rows 19-21 regression coverage, Return-path LF
-  coverage, overlay precedence coverage, and atlas guidance that other agents
-  should not copy Codex's heuristic without evidence.
-- No minor findings.
+Verdict: SHIP
+
+### Findings
+
+- Critical: none.
+- Important: none.
+- Minor: none.
+
+### Confirmed Strengths
+
+- `cmd/internal/wrapcmd/codex_composer.go` counts only composer-painted rows
+  adjacent to the visible cursor.
+- `cmd/internal/wrapcmd/codex_composer_test.go` pins the observed rows 19-21
+  regression.
+- `cmd/internal/wrapcmd/codex_return_test.go` keeps overlay precedence covered.
+- `atlas/how-to-bring-up-a-new-harness-cli.md` documents the positive
+  composer-detection contract and warns against copying Codex's heuristic
+  blindly.
+
+### Review Verification
+
+- `go test ./cmd/internal/wrapcmd -run 'TestCodexComposerTracker|TestEmitPlainCR' -count=1`
+- `go test ./cmd/internal/wrapcmd -count=1`
+- `git diff --check f4d7ab68296c6e8f1fa6d22a223c0322f69100fb..HEAD`
