@@ -1,12 +1,13 @@
 ---
 id: 000136
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-08-16
 updated: 2026-08-16
 estimate_hours: 0.4
 started: 2026-08-16T21:01:01-07:00
+actual_hours: 0.11
 ---
 
 # Codex menu selection should accept Return
@@ -63,6 +64,7 @@ total: 0.40
 ## Log
 
 ### 2026-08-16
+- 2026-08-16: closed — TDD red: go test ./cmd/internal/wrapcmd -run TestOverlayDetectorByAgent/codex_permission_picker_cancel_footer_opens_overlay -count=1 failed with open=false before the marker. Green: go test ./cmd/internal/wrapcmd -run "TestOverlayDetectorByAgent|TestTranslateChunk_CodexPickerPlainEnterSelectsOnce" -count=1, go test ./cmd/internal/wrapcmd -count=1, go test ./..., sdlc issue validate --issue 136, and git diff --check all pass. Atlas updated in how-to-bring-up-a-new-harness-cli.md.; review verdict: SHIP
 
 - Adapt evidence: `adapt-pair.jsonl` recorded Codex near-misses with
   `Press enter to confirm or esc to cancel`, confirming the detector drifted
