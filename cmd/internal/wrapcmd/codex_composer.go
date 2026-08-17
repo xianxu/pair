@@ -136,14 +136,12 @@ func (s codexComposerState) active() bool {
 		return false
 	}
 	count := 0
-	nearCursor := false
 	for row := range s.paintedRows {
-		count++
 		if row >= s.cursorRow-1 && row <= s.cursorRow+1 {
-			nearCursor = true
+			count++
 		}
 	}
-	return count >= codexComposerMinRows && nearCursor
+	return count >= codexComposerMinRows
 }
 
 func (t *codexComposerTracker) applyEscape(seq []byte) {

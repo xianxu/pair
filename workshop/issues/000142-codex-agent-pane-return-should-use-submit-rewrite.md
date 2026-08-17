@@ -66,3 +66,4 @@ total: 0.57
 - Implemented cursor-plus-composer-surface detection: composer rows are tracked independent of bottom geometry, cursor-only states remain inactive, and paint away from the cursor remains inactive.
 - Updated Claude/Agy follow-up issues and the harness bring-up atlas page to require each agent's native composer-availability signal instead of copying Codex's cursor/paint heuristic.
 - Verified with `go test ./cmd/internal/wrapcmd -run 'TestCodexComposerTracker|TestEmitPlainCR' -count=1`, `go test ./cmd/internal/wrapcmd -count=1`, `go test ./... -count=1`, and `git diff --check`.
+- Close review returned REWORK for a sparse false positive: one nearby composer-painted row plus a far painted row counted active. Fixed by counting only rows in the cursor neighborhood and added sparse-paint plus unterminated-CSI regressions.

@@ -78,6 +78,31 @@ func TestCodexComposerTrackerRejectsComposerPaintAwayFromCursor(t *testing.T) {
 	}
 }
 
+func TestCodexComposerTrackerRejectsSparsePaintNearCursor(t *testing.T) {
+	tr := newCodexComposerTracker()
+	tr.resize(38, 120)
+	tr.feed([]byte(
+		"\x1b[10;1H\x1b[48;2;57;57;57m\x1b[K" +
+			"\x1b[20;1H\x1b[48;2;57;57;57m\x1b[K" +
+			"\x1b[?25h\x1b[20;3H",
+	))
+
+	if st := tr.state(); st.active() {
+		t.Fatalf("composer active = true for one nearby row plus far paint (state: %+v)", st)
+	}
+}
+
+func TestCodexComposerTrackerRejectsUnterminatedCSIComposerPaint(t *testing.T) {
+	tr := newCodexComposerTracker()
+	tr.resize(38, 120)
+	tr.feed([]byte("\x1b[20;1H\x1b[48;2;57;57;"))
+	tr.feed([]byte("\x1b[?25h\x1b[20;3H"))
+
+	if st := tr.state(); st.active() {
+		t.Fatalf("composer active = true after unterminated composer paint (state: %+v)", st)
+	}
+}
+
 func TestCodexComposerTrackerHandlesSplitCSI(t *testing.T) {
 	tr := newCodexComposerTracker()
 	tr.resize(38, 120)
