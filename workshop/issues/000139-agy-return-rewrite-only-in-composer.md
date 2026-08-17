@@ -1,7 +1,7 @@
 ---
 id: 000139
 status: working
-deps: ["#140"]
+deps: []
 github_issue:
 created: 2026-08-16
 updated: 2026-08-17
@@ -285,3 +285,26 @@ alternate-screen replacement, or reset. Every such transition must be
 allowlisted by a differential test and documented; no `false` to `true`
 transition is permitted. This clarification serves the positive-evidence
 purpose rather than preserving known stale state (ARCH-PURPOSE).
+
+### 2026-08-17T14:17:00-07:00 — Absorb #140 after boundary rework
+
+The exact lost-window review of Muse commit `ab736d1^..ab736d1` returned
+`REWORK`. It confirmed two purpose-breaking false positives (stale evidence
+after screen mutation and an unqualified prompt glyph) plus the same shared
+terminal, stateful-fixture, and documentation gaps this unified issue exists to
+solve. Repairing all findings inside #140 and then replacing that implementation
+here would duplicate the terminal migration and its conformance work
+(ARCH-DRY).
+
+**Delta.** #139 now absorbs #140's remaining acceptance criteria and removes
+the blocking dependency. #140 is recorded separately as superseded by this
+issue; its landed behavior remains characterization input, not an independently
+closable contract. The revised Codex/Muse differential rule already permits
+two named old-`true` to new-`false` Muse safety corrections: stale evidence
+after screen mutation and an unrelated `›` lacking the capture-proven composer
+signature. It forbids every `false` to `true` change. This explicitly supersedes
+the earlier "behaviorally identical" / "no semantic change" wording for Muse;
+Codex remains preservation-only apart from named stale-state corrections.
+README coverage is added to Task 7 alongside atlas coverage. Implementation may
+enter `sdlc change-code --issue 139` after this revision passes fresh plan
+review (ARCH-PURPOSE, ARCH-MOCK).

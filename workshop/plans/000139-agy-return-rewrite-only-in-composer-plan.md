@@ -164,10 +164,11 @@ library synchronization/IO, and existing `adapt` telemetry.
   positive gate sends bare CR; a legacy profile retains `plainCR`. Alt+Return
   remains `altCR`.
 - **Recognizers** — pure predicates over one snapshot. Codex preserves its
-  painted-background locality rule; Muse preserves its `›` locality rule; Agy
-  requires two overlapping contiguous `─` runs (minimum five), an anchored
-  prompt in columns 0-5 between them, maximum height 25, and a visible cursor
-  inside the same box.
+  painted-background locality rule. Muse requires a qualified current-screen
+  composer signature derived from checked-in literal capture evidence; an
+  unrelated nearby `›` is never sufficient. Agy requires two overlapping
+  contiguous `─` runs (minimum five), an anchored prompt in columns 0-5 between
+  them, maximum height 25, and a visible cursor inside the same box.
 
 ### Integration points
 
@@ -380,6 +381,50 @@ git add cmd/internal/wrapcmd/harness_tty.go cmd/internal/wrapcmd/harness_tty_tes
 git commit -m "wrapcmd: #139: centralize harness Return profiles" -m "Co-Authored-By: OpenAI Codex <noreply@openai.com>"
 ```
 
+### Task 2A: Capture Muse evidence before defining its recognizer
+
+**Files:**
+- Create: `cmd/internal/wrapcmd/harness_tty_live_test.go`
+- Create: `cmd/internal/wrapcmd/testdata/tty/muse/<captured-version>/metadata.json`
+- Create: `cmd/internal/wrapcmd/testdata/tty/muse/<captured-version>/composer.raw`
+
+- [ ] **Step 1: RED/GREEN the bounded PTY capture seam**
+
+Implement the test-only `creack/pty` capture helper before any Muse snapshot
+predicate exists. Use `pty.StartWithSize(..., &pty.Winsize{Rows: 38, Cols:
+120})`; one read goroutine owns the PTY, retains at most 1 MiB, and reports
+bounded output. Use a named 15-second startup timeout. On every exit path close
+the PTY, interrupt the child, allow two seconds, kill if necessary, and bound
+`cmd.Wait`. First write controlled-child tests for normal capture, missing
+executable, timeout, and child cleanup; observe RED before implementing each
+lifecycle behavior.
+
+- [ ] **Step 2: Capture literal Muse startup bytes**
+
+Run the installed `muse` executable in the helper. Obtain exact trimmed
+`muse --version` output, retain the smallest literal startup prefix that paints
+the composer, and write metadata using the Task 6 schema (`agent`, `version`,
+RFC3339 `captured_at`, `command`, and filename-to-SHA-256 `files`). Never
+synthesize bytes from a fake or from the old tracker. If Muse is unavailable,
+unauthenticated, or blocked by workspace trust, stop and report the blocker.
+
+- [ ] **Step 3: Pin the qualified signature as evidence, not an assumption**
+
+Inspect the captured raw SGR, prompt coordinates/shape, and final x/vt snapshot.
+Add a fixture sanity test proving the prefix contains the observed qualified
+composer signature and that the same nearby `›` with the observed qualifying
+attributes removed is distinguishable. Task 3 must consume exactly this
+evidence; if the capture does not expose a stable qualifier beyond the glyph,
+stop and re-plan rather than inventing one.
+
+- [ ] **Step 4: Verify and commit**
+
+```bash
+go test -v ./cmd/internal/wrapcmd -run 'TestHarnessTTYCapture|TestMuseFixtureEvidence' -count=1
+git add cmd/internal/wrapcmd/harness_tty_live_test.go cmd/internal/wrapcmd/testdata/tty/muse
+git commit -m "wrapcmd: #139: capture Muse composer evidence" -m "Co-Authored-By: OpenAI Codex <noreply@openai.com>"
+```
+
 ## Chunk 2: Recognizers and proxy migration
 
 ### Task 3: Preserve Codex and Muse recognition on snapshots
@@ -396,18 +441,23 @@ Drive current trackers with every existing tracker test plus overwrite, EL,
 scroll, resize/reflow, alt-screen, and RIS transitions. Run this
 characterization suite GREEN before introducing the new API. Record a decision
 matrix: active composer, hidden cursor, overlay, and unknown states must remain
-identical; stale evidence may only change `true -> false`, must be individually
-allowlisted, and may never change `false -> true`. Include one local weak signal
-plus far-away evidence from `lessons.md`.
+identical except for individually named safety corrections. The mandatory Muse
+rows are (1) stale evidence after screen mutation and (2) a visible cursor near
+an unrelated `›` lacking the capture-proven composer position/style/shape. Each
+exception must be old `true` / new `false`; no old `false` / new `true` is
+permitted. Include one local weak signal plus far-away evidence from
+`lessons.md`.
 
 - [ ] **Step 2: Write failing snapshot recognizer tests**
 
 Feed identical streams through `terminalModel`; assert
 `codexComposerActive(snapshot)` and `museComposerActive(snapshot)` match the
-characterized decision table except for individually named stale-evidence
+characterized decision table except for the individually named safety-correction
 allowlist rows. Freeze the old tracker results as table data before rewriting
 tests: every allowlisted exception must be old `true` / new `false`, and the
-oracle must reject every `false` / new `true` transition.
+oracle must reject every old `false` / new `true` transition. Derive Muse's
+qualified prompt signature from the literal capture used by Task 6; do not
+invent styling or geometry absent from observed bytes.
 
 - [ ] **Step 3: Verify RED**
 
@@ -430,10 +480,11 @@ git add cmd/internal/wrapcmd/composer_recognizers.go cmd/internal/wrapcmd/compos
 git commit -m "wrapcmd: #139: derive Codex and Muse gates from terminal snapshots" -m "Co-Authored-By: OpenAI Codex <noreply@openai.com>"
 ```
 
-Expected: tests PASS with equality except for the named stale-evidence rows;
-each exception is old `true` / new `false`, and there are no `false` / new
-`true` changes. The frozen table remains the differential oracle after the live
-tracker implementations are deleted in Task 5; Task 5 updates
+Expected: tests PASS with equality except for the named safety-correction rows,
+including stale mutation evidence and the unqualified Muse glyph; each exception
+is old `true` / new `false`, and there are no old `false` / new `true` changes.
+The frozen table remains the differential oracle after the live tracker
+implementations are deleted in Task 5; Task 5 updates
 `composer_recognizers_test.go` only to remove live-tracker plumbing, not the
 recorded expectations.
 
@@ -577,28 +628,27 @@ Run: `go test -v ./cmd/internal/wrapcmd -run '^TestHarnessTTYFixtureConformance'
 
 Expected: FAIL because fixtures do not exist.
 
-- [ ] **Step 3: RED/GREEN a capture-capable live PTY helper**
+- [ ] **Step 3: Extend the capture helper into live conformance**
 
-Before capturing fixtures, implement a test-only helper using
-`pty.StartWithSize(..., &pty.Winsize{Rows: 38, Cols: 120})`. A single read
-goroutine owns the PTY and appends at most 1 MiB while feeding the profile after
-each chunk. Use a named 15-second startup timeout. On every exit path: close the
-PTY, send interrupt, allow a two-second grace period, kill if necessary, and
-bound `cmd.Wait` so the child is always reaped. Unit-test normal recognition,
-missing executable, timeout, unauthenticated/login UI, workspace-trust UI, and
-recognizer drift using controlled child commands. Failure output is stripped,
-bounded, and never dumps environment or input bytes.
+Extend Task 2A's bounded test-only PTY helper so each chunk feeds the production
+profile and supports conformance classification. Add controlled-child tests for
+normal recognition, unauthenticated/login UI, workspace-trust UI, and recognizer
+drift. Preserve its 120x38 size, 1 MiB cap, 15-second timeout, deterministic
+interrupt/kill/reap lifecycle, and stripped bounded failure output that never
+dumps environment or input bytes.
 
 - [ ] **Step 4: Capture literal real-harness bytes**
 
 Use the live capture path, never fake-generated bytes. Keep the smallest raw
-prefix painting the composer; record version/command/digest. If unavailable or
-unauthenticated, stop and report the blocker rather than inventing a fixture.
-Use argv `agy --dangerously-skip-permissions`, `codex --no-alt-screen`, and
-`muse` unless the installed CLI requires a documented correction; obtain each
-version with the same executable's `--version` and preserve the actual argv in
-metadata. `PAIR_LIVE_CAPTURE_OUT=<destination>` makes the live test write the
-captured prefix atomically.
+prefix painting the composer; record version/command/digest. Retain and
+revalidate Task 2A's Muse fixture, and capture the missing Codex and Agy
+fixtures. If any harness is unavailable or unauthenticated, stop and report the
+blocker rather than inventing a fixture. Use argv `agy
+--dangerously-skip-permissions`, `codex --no-alt-screen`, and `muse` unless the
+installed CLI requires a documented correction; obtain each version with the
+same executable's `--version` and preserve the actual argv in metadata.
+`PAIR_LIVE_CAPTURE_OUT=<destination>` makes the live test write the captured
+prefix atomically.
 
 - [ ] **Step 5: Replay through the production seam**
 
@@ -634,12 +684,15 @@ git commit -m "wrapcmd: #139: pin harness TTY conformance fixtures" -m "Co-Autho
 **Files:**
 - Modify: `atlas/architecture.md`
 - Modify: `atlas/how-to-bring-up-a-new-harness-cli.md`
+- Modify: `README.md`
 - Modify: `workshop/issues/000139-agy-return-rewrite-only-in-composer.md`
 
-- [ ] **Step 1: Update atlas**
+- [ ] **Step 1: Update atlas and user-facing guidance**
 
 Map profile ownership, terminal lifecycle, Return precedence, recognizer
-boundary, fixture layout, live cadence, and new-harness opt-in.
+boundary, fixture layout, live cadence, and new-harness opt-in. Update the
+README keybinding guidance with Claude, Codex, Muse, and Agy plain/Alt+Return
+behavior and the positive-gate fail-safe.
 
 - [ ] **Step 2: Run focused, race, and repository verification**
 
@@ -662,7 +715,7 @@ calling `sdlc close`. Confirm with `rg -n '^- \[ \]'` over the authoritative
 issue and plan sections.
 
 ```bash
-git add atlas/architecture.md atlas/how-to-bring-up-a-new-harness-cli.md workshop/issues/000139-agy-return-rewrite-only-in-composer.md workshop/plans/000139-agy-return-rewrite-only-in-composer-plan.md
+git add atlas/architecture.md atlas/how-to-bring-up-a-new-harness-cli.md README.md workshop/issues/000139-agy-return-rewrite-only-in-composer.md workshop/plans/000139-agy-return-rewrite-only-in-composer-plan.md
 git commit -m "atlas: #139: map unified harness Return routing" -m "Co-Authored-By: OpenAI Codex <noreply@openai.com>"
 ```
 
@@ -756,3 +809,40 @@ git commit -m "atlas: #139: document positive composer detection for agy
 
 Co-Authored-By: Antigravity <antigravity@google.com>"
 ```
+
+## Revisions
+
+### 2026-08-17T14:17:00-07:00 — Replace Task 0 after #140 boundary REWORK
+
+The exact review of `ab736d1^..ab736d1` found that #140 cannot cross its
+boundary as landed: its Muse tracker retains stale screen evidence, accepts an
+unqualified `›`, duplicates terminal tracking, lacks stateful/live protocol
+evidence, and omits README coverage. Those are not separable dependency fixes;
+they are the unified substrate and conformance work in Tasks 1, 3, 5, 6, and 7.
+Implementing them first under #140 would create the same architecture twice and
+immediately delete one copy (ARCH-DRY, ARCH-PURPOSE).
+
+This revision supersedes only Chunk 1 Task 0 above:
+
+- [ ] Record the `REWORK` verdict and `ab736d1^..ab736d1` window in #140,
+      mark #140 `wontfix` as superseded by #139 through its own clean worktree,
+      and commit that tracker-only transaction. Do not claim or close the
+      known-broken implementation as codecomplete.
+- [ ] Remove #139's dependency on #140 and preserve all #140 acceptance
+      criteria in #139. Treat the old Muse tracker as characterization data;
+      the new snapshot recognizer must correct the two reviewed false positives
+      and all named stale-state cases without introducing any `false -> true`.
+- [ ] Add `README.md` to Task 7 and document the user-facing Return behavior for
+      Claude, Codex, Muse, and Agy alongside the atlas updates.
+- [ ] After this revision's fresh review passes, run
+      `sdlc change-code --issue 139`; let the gate derive the expanded estimate.
+
+All remaining tasks and their TDD order are unchanged.
+
+#### Evidence-order correction
+
+Task 2A now precedes Task 3 and captures the literal Muse bytes and metadata
+through the same bounded PTY seam Task 6 later extends. Task 3 may define the
+qualified Muse signature only from that checked-in evidence. Task 6 retains the
+Muse fixture, adds Codex/Agy inventory, and performs live drift validation; it
+no longer retroactively supplies evidence for an already-committed predicate.
