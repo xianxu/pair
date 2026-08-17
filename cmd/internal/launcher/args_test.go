@@ -47,6 +47,62 @@ func TestParseLaunchArgsDefaultAgentWithForwardedArgs(t *testing.T) {
 	}
 }
 
+func TestParseLaunchArgsPreservesExplicitIntent(t *testing.T) {
+	for _, tc := range []struct {
+		name              string
+		argv              []string
+		wantAgent         string
+		wantAgentExplicit bool
+		wantArgsExplicit  bool
+		wantAgentArgs     []string
+	}{
+		{
+			name:      "bare defaults agent implicitly",
+			argv:      nil,
+			wantAgent: "claude",
+		},
+		{
+			name:              "positional agent marks agent explicit",
+			argv:              []string{"codex"},
+			wantAgent:         "codex",
+			wantAgentExplicit: true,
+		},
+		{
+			name:             "separator without agent keeps default agent but marks args explicit",
+			argv:             []string{"--", "--dangerously-skip-permissions"},
+			wantAgent:        "claude",
+			wantArgsExplicit: true,
+			wantAgentArgs:    []string{"--dangerously-skip-permissions"},
+		},
+		{
+			name:              "empty separator deliberately clears agent args",
+			argv:              []string{"codex", "--"},
+			wantAgent:         "codex",
+			wantAgentExplicit: true,
+			wantArgsExplicit:  true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := ParseArgs(tc.argv)
+			if err != nil {
+				t.Fatalf("ParseArgs(%q): %v", tc.argv, err)
+			}
+			if got.Agent != tc.wantAgent {
+				t.Fatalf("Agent = %q, want %q", got.Agent, tc.wantAgent)
+			}
+			if got.AgentExplicit != tc.wantAgentExplicit {
+				t.Fatalf("AgentExplicit = %v, want %v", got.AgentExplicit, tc.wantAgentExplicit)
+			}
+			if got.AgentArgsExplicit != tc.wantArgsExplicit {
+				t.Fatalf("AgentArgsExplicit = %v, want %v", got.AgentArgsExplicit, tc.wantArgsExplicit)
+			}
+			if strings.Join(got.AgentArgs, "\x00") != strings.Join(tc.wantAgentArgs, "\x00") {
+				t.Fatalf("AgentArgs = %#v, want %#v", got.AgentArgs, tc.wantAgentArgs)
+			}
+		})
+	}
+}
+
 func TestParseArgsLayoutFlags(t *testing.T) {
 	for _, tc := range []struct {
 		name      string

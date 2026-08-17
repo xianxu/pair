@@ -19,6 +19,9 @@ type LaunchDecision struct {
 	SessionName  string
 	PromptName   bool
 	LegacyImport bool
+	ContinueDoc  string
+	ContinueText string
+	SourceAgent  string
 }
 
 // DecideLaunch decides the launch action without touching zellij, fzf, or disk.
@@ -33,7 +36,7 @@ func DecideLaunch(args LaunchArgs, snap SessionSnapshot) (LaunchDecision, error)
 		}
 		return createDecision(args.ForcedTag, name, false), nil
 	}
-	if args.Agent != "" && len(args.AgentArgs) > 0 {
+	if args.Agent != "" && args.AgentArgsExplicit {
 		tag := snap.BaseTag
 		if tag == "" {
 			tag = "pair"

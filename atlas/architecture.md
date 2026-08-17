@@ -215,6 +215,15 @@ present. The `PAIR_TEST_CALL`/`PAIR_DEBUG_*`-driven shell contract tests
 function they pinned has a tested Go equivalent. So `pair` is now a single Go
 launcher end-to-end; #94 (stop extracting a shell tree) unblocks.
 
+**Repo-agent launch defaults (#115 M1).** The launcher distinguishes
+tag-specific native conversation config from repo-agent startup defaults.
+`config-<tag>-<agent>.json` remains the tag/native-session cache and keeps
+priority for resume flows. `agent-default-<agent>.json` is repo-scoped local
+machine state used for fresh creates when no tag config supplies args. Explicit
+`-- <args>` updates that default only after `pair wrap` publishes a matching
+`agent-ready-<tag>-<agent>.json` record with the launcher nonce and live child
+PID; an explicit empty `--` records an empty default.
+
 **Alt+Shift+C compaction is writer-owned + draft-preserving (#105, unblocked by
 #104's single binary).** Previously `COMPACT_PROMPT` asked the agent to write a
 continuation *and then* run `pair continue <slug>` — a two-step NL instruction
@@ -261,9 +270,9 @@ A leading `pair resume <tag>` is recognized as a subcommand verb (alongside `lis
 **Decision tree.** Finds live/detached Pair sessions owned by the current repo scope through `session-names.jsonl`; unindexed `pair-*` rows are legacy candidates, not automatically current-scope sessions. It also surfaces **historical tags from this repo scope** (#000024) by scanning scoped tag sidecars and ledgers touched within the last `$PAIR_HISTORY_DAYS` (default 14) but no longer having a live current-scope session. Then:
 
 - 0 detached + 0 historical → run create flow directly (validate agent, prompt for name, create).
-- ≥1 detached or ≥1 historical → fzf picker over current-scope detached sessions, then historical rows annotated `(Nd ago, no live session)`, then a `+ new <agent> session` sentinel. Pick a detached row → attach its public session name. Pick a historical row → create by repo-local tag (same path as `pair resume <tag>`, which re-uses scoped `draft-<tag>.md`, `ledger-<tag>.jsonl`, and saved config cache). Pick the sentinel → fall through to create with `free_slot_tag`. `PAIR_DEBUG_HISTORY=1 pair` exits early printing the scan results. A historical row also gets an amber `[⏎ N queued]` badge when `queue_count_for` finds N `<digits>.md` items under `$PAIR_DATA_DIR/queue-<tag>/`, so a forgotten queue is visible before resume.
-
-The agent argument doesn't filter the picker — reattach is agent-agnostic (the existing session already runs whatever it runs). The agent argument only matters for the create path: it labels the sentinel, drives the auto-suggested default name, and is the binary that gets exec'd in the new session.
+- Bare `pair` with ≥1 detached or ≥1 historical → fzf picker over current-scope detached sessions, then historical rows annotated `(Nd ago, no live session)`, then a `+ new <agent> session` sentinel. Pick a detached row → attach its public session name. Pick a historical row → create by repo-local tag (same path as `pair resume <tag>`, which re-uses scoped `draft-<tag>.md`, `ledger-<tag>.jsonl`, and saved config cache). Pick the sentinel → fall through to create with `free_slot_tag`. `PAIR_DEBUG_HISTORY=1 pair` exits early printing the scan results. A historical row also gets an amber `[⏎ N queued]` badge when `queue_count_for` finds N `<digits>.md` items under `$PAIR_DATA_DIR/queue-<tag>/`, so a forgotten queue is visible before resume.
+- `pair <agent>` without `--` uses the same work picker with explicit driver intent. Same-agent live rows are attachable. Different-agent live rows are displayed but unavailable because Pair will not attach the requested agent to another live driver. Different-agent historical rows launch the requested agent under the same repo-local tag. When `ResolveContinuationDoc(tag)` finds a matching doc, the draft is seeded from that doc; when it does not, the launcher generates an auto-continuation draft pointing the new agent at the tag's persisted `draft-<tag>.md`, `log-<tag>.md`, `queue-<tag>/`, and any `parked-scrollback-<tag>-*` files. It deliberately stays on Pair's TTY/Pair-state continuation substrate instead of the source agent's native transcript. This gives the user a visible cross-agent switch affordance without reviving the abandoned live takeover coordinator and satisfies ARCH-PURPOSE for Alt+x-exited work that has no prewritten continuation.
+- `pair <agent> -- <args...>` is the parameter-changing path: it bypasses the picker and creates the next free tag with those launch args, persisting them as repo-agent defaults only after readiness.
 
 There is **no silent auto-attach**. Every reattach goes through the picker so the user explicitly sees what they're connecting to.
 

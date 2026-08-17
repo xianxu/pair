@@ -64,6 +64,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/draftroute"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/layoutcmd"
+	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
@@ -235,6 +236,7 @@ type proxy struct {
 	captureDonePath string
 	capturePIDPath  string
 	agentPIDPath    string
+	agentReadyPath  string
 
 	// PTY
 	ptmx *os.File
@@ -488,7 +490,32 @@ func (p *proxy) resolvePaths() {
 	p.captureDonePath = p.captureOutPath + ".done"
 	p.capturePIDPath = filepath.Join(dir, "pair-wrap-pid-"+tag)
 	p.agentPIDPath = filepath.Join(dir, "agent-pid-"+tag)
+	p.agentReadyPath = launcher.AgentReadyPath(dir, tag, p.agentBasename)
 	p.wrapEventsPath = filepath.Join(dir, "wrap-events-"+tag+".jsonl")
+}
+
+func (p *proxy) publishAgentReady(pid int) error {
+	tag := os.Getenv("PAIR_TAG")
+	session := os.Getenv("PAIR_SESSION_NAME")
+	nonce := os.Getenv("PAIR_LAUNCH_NONCE")
+	if p.agentReadyPath == "" || tag == "" || p.agentBasename == "" || session == "" || nonce == "" {
+		return nil
+	}
+	raw, err := readiness.Encode(readiness.ReadyRecord{
+		Tag:     tag,
+		Agent:   p.agentBasename,
+		Session: session,
+		Nonce:   nonce,
+		PID:     pid,
+	})
+	if err != nil {
+		return err
+	}
+	tmp := p.agentReadyPath + ".tmp"
+	if err := os.WriteFile(tmp, []byte(raw), 0644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, p.agentReadyPath)
 }
 
 func dataDirFlag(name string) bool {
@@ -2257,6 +2284,9 @@ argsDone:
 		"child_pid": cmd.Process.Pid,
 	})
 	defer ptmx.Close()
+	if err := p.publishAgentReady(cmd.Process.Pid); err != nil {
+		p.debug("AGENT-READY-write-fail", err.Error())
+	}
 
 	// Drop the agent's PID so pair-session-watch can bind discovery to
 	// this specific child (lsof -p <pid>) instead of racing peers in the

@@ -176,12 +176,22 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 	// its agent must be inferred from disk (below), not the bare-`pair` claude
 	// default — only the "+ new" pick (PromptName) keeps the default agent.
 	if decision.Action == ActionPick {
-		d, aborted := resolvePick(rt, snap, base, env.Now.Unix())
+		policy := PickPolicy{}
+		if opts.Args.AgentExplicit && !opts.Args.AgentArgsExplicit {
+			policy.RequestedAgent = requestedAgent
+		}
+		d, aborted, code := resolvePickWithPolicy(rt, snap, base, env.Now.Unix(), policy, stderr)
 		if aborted {
-			return launchStep{code: 0}, nil // fzf ESC / empty pick → exit 0 (shell 1478/1489)
+			return launchStep{code: code}, nil // fzf ESC / empty pick → exit 0 (shell 1478/1489)
 		}
 		decision = d
-		if d.Action == ActionAttach || !d.PromptName {
+		if d.ContinueDoc != "" {
+			opts.ContinueDoc = d.ContinueDoc
+		}
+		if d.SourceAgent != "" {
+			opts.ContinueText = generatedContinuationPrompt(env, rt, d.Tag, d.SourceAgent, requestedAgent)
+		}
+		if opts.ContinueDoc == "" && opts.ContinueText == "" && (d.Action == ActionAttach || !d.PromptName) {
 			agent = "" // existing-tag pick → infer the paired agent below
 		}
 	}
@@ -357,9 +367,19 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		legacyImported = importLegacyFlatTag(rt, chosenTag, opts.GlobalDataDir, dataDir)
 	}
 	configPath := resolveConfigPath(rt, dataDir, chosenTag, agent)
-	savedForPicker := readSavedConfigForTag(rt, configPath, chosenTag, agent)
+	savedForPicker, savedWarnings := readSavedConfigForTag(rt, configPath, chosenTag, agent)
+	for _, warning := range savedWarnings {
+		fmt.Fprintln(stderr, warning)
+	}
 
-	agentArgs := append([]string(nil), opts.Args.AgentArgs...)
+	agentDefault, defaultFound := rt.ReadAgentDefault(agent)
+	argDecision := DecideLaunchArgs(LaunchArgInputs{
+		Agent:        agent,
+		Args:         opts.Args,
+		Default:      agentDefault,
+		DefaultFound: defaultFound,
+	})
+	agentArgs := append([]string(nil), argDecision.Args...)
 
 	// Tag-restart config picker (#000016): a saved config for this (tag, agent)
 	// offers to reuse its args / resume its session, unless an explicit resume
@@ -396,6 +416,13 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// scrollback (idempotent; opt-out via PAIR_CODEX_ALT_SCREEN=1).
 	if agent == "codex" {
 		agentArgs = codexAltScreenArgs(agentArgs, opts.CodexAltScreenOptOut)
+	}
+
+	var defaultReady <-chan error
+	if opts.Args.AgentArgsExplicit {
+		defaultReady = startAgentDefaultPersistence(rt, chosenTag, agent, session, opts.Args.AgentArgs, 5*time.Second)
+	} else {
+		rt.SetEnv("PAIR_LAUNCH_NONCE", "")
 	}
 
 	sessionID := firstNonEmpty(explicitResume, newSid)
@@ -455,6 +482,13 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	_ = rt.Touch(draft)
 	if opts.ContinueDoc != "" {
 		_ = rt.WriteAtomic(draft, fmt.Sprintf("Read workshop/continuation/%s and continue from its NEXT ACTION.\n", filepath.Base(opts.ContinueDoc)))
+	} else if opts.ContinueText != "" {
+		existing, _ := rt.ReadFile(draft)
+		text := opts.ContinueText
+		if strings.TrimSpace(existing) != "" {
+			text += "\nExisting draft content follows:\n\n" + existing
+		}
+		_ = rt.WriteAtomic(draft, text)
 	}
 
 	// Record the agent for `pair list` / the title poller (survives detach).
@@ -491,7 +525,56 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		fmt.Fprintf(stderr, "pair: failed to launch zellij session '%s': %v\n", session, err)
 		return launchStep{code: 1}, nil
 	}
+	if defaultReady != nil {
+		if err := <-defaultReady; err != nil {
+			restoreLayoutRecord(rt, dataDir, chosenTag, priorLayout)
+			fmt.Fprintf(stderr, "pair: failed to confirm agent launch readiness for '%s': %v\n", chosenTag, err)
+			return launchStep{code: 1}, nil
+		}
+	}
 	return launchStep{code: code, session: session, tag: chosenTag, agent: agent, handedOff: true}, nil
+}
+
+func startAgentDefaultPersistence(rt Runtime, tag, agent, session string, args []string, timeout time.Duration) <-chan error {
+	rt.RemoveReadyRecord(tag, agent)
+	nonce := rt.MintLaunchNonce()
+	rt.SetEnv("PAIR_LAUNCH_NONCE", nonce)
+	ch := make(chan error, 1)
+	if nonce == "" {
+		ch <- fmt.Errorf("could not mint launch nonce")
+		return ch
+	}
+	persistArgs := append([]string(nil), args...)
+	go func() {
+		_, err := rt.WaitReadyRecord(ReadyExpectation{Tag: tag, Agent: agent, Session: session, Nonce: nonce}, timeout)
+		if err != nil {
+			ch <- err
+			return
+		}
+		ch <- rt.WriteAgentDefault(agent, persistArgs)
+	}()
+	return ch
+}
+
+func generatedContinuationPrompt(env Env, rt Runtime, tag, sourceAgent, targetAgent string) string {
+	if sourceAgent == "" {
+		sourceAgent = "the previous agent"
+	}
+	if targetAgent == "" {
+		targetAgent = "the requested agent"
+	}
+	return fmt.Sprintf(`Continue Pair tag %s with %s.
+
+The previous driver was %s. No continuation doc was found.
+
+First reconstruct the current work state from this tag's persisted Pair files:
+- draft-%s.md
+- log-%s.md
+- queue-%s/
+- parked-%s and parked-scrollback-%s-*.raw/events.jsonl if present
+
+Create a continuation-quality summary from the available local state before making code changes. Preserve the tag identity; do not create a sibling tag.
+`, tag, targetAgent, sourceAgent, tag, tag, tag, tag, tag)
 }
 
 func assignSingleSessionName(rt Runtime, live []Session, cwd, tag string, stderr io.Writer) (string, SessionNameEntry, bool) {
@@ -562,6 +645,9 @@ func runConfigPicker(rt Runtime, configPath string, saved savedConfig, agent, ch
 
 	savedArgsClean := persistedConfigArgs(saved.Args)
 	hasResumable := rt.AgentSessionExists(agent, saved.SessionID, cwd)
+	if saved.SessionID != "" && !hasResumable {
+		fmt.Fprintf(stderr, "pair: saved session %q for %s is not available; starting fresh\n", saved.SessionID, agent)
+	}
 	choices := buildConfigChoices(hasResumable, savedArgsClean, *agentArgs, saved.SessionID)
 
 	labels := make([]string, len(choices))
@@ -582,20 +668,25 @@ func runConfigPicker(rt Runtime, configPath string, saved savedConfig, agent, ch
 	return 0, true
 }
 
-func readSavedConfigForTag(rt Runtime, configPath, tag, agent string) savedConfig {
+func readSavedConfigForTag(rt Runtime, configPath, tag, agent string) (savedConfig, []string) {
+	var warnings []string
 	if raw, err := rt.ReadFile(configPath); err == nil {
-		if cfg, err := parseConfig(raw); err == nil {
-			return cfg
+		if cfg, err := parseConfig(raw); err != nil {
+			warnings = append(warnings, fmt.Sprintf("pair: saved config for tag %q (%s) is malformed; ignoring it", tag, agent))
+		} else if cfg.Agent != agent {
+			warnings = append(warnings, fmt.Sprintf("pair: saved config agent %q does not match requested agent %q; ignoring it", cfg.Agent, agent))
+		} else {
+			return cfg, warnings
 		}
 	}
 	entries, err := rt.ReadLedger(tag)
 	if err != nil {
-		return savedConfig{}
+		return savedConfig{}, warnings
 	}
 	if latest, ok := LatestLedgerEntryForAgent(entries, agent); ok {
-		return savedConfig{Agent: latest.Agent, Args: latest.Args, SessionID: latest.SessionID}
+		return savedConfig{Agent: latest.Agent, Args: latest.Args, SessionID: latest.SessionID}, warnings
 	}
-	return savedConfig{}
+	return savedConfig{}, warnings
 }
 
 // resolveConfigPath returns config-<tag>-<agent>.json, migrating a legacy

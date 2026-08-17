@@ -64,6 +64,14 @@ func (p ScopedPaths) LegacyCodexConfig() string {
 	return filepath.Join(p.ScopeDir(), "config-"+p.Tag+"-codex-codex.json")
 }
 
+func (p ScopedPaths) AgentDefault(agent string) string {
+	return AgentDefaultPath(p.ScopeDir(), agent)
+}
+
+func (p ScopedPaths) AgentReady(agent string) string {
+	return AgentReadyPath(p.ScopeDir(), p.Tag, agent)
+}
+
 func (p ScopedPaths) Pane(agent string) string {
 	return filepath.Join(p.ScopeDir(), "pane-"+p.Tag+"-"+agent+".json")
 }

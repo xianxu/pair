@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/readiness"
 )
 
 // fakeRuntime is the in-memory create-flow seam for the RunLaunch loop tests.
@@ -62,6 +64,9 @@ type fakeRuntime struct {
 	quitMarkers    map[string]bool          // session -> Alt+x quit marker (read-cleared)
 	restartMarkers map[string]RestartMarker // session -> restart marker (peek + take-once)
 	cmuxOwned      map[string]bool          // tag -> PairOwnsCmuxWorkspace
+	readyRecords   map[string]bool          // "tag|agent|session|nonce" -> ready
+	readyPIDs      map[int]bool
+	readyErr       error
 
 	// recorded
 	env           map[string]string
@@ -101,6 +106,8 @@ func newFakeRuntime() *fakeRuntime {
 		restartMarkers: map[string]RestartMarker{},
 		cmuxOwned:      map[string]bool{},
 		liveLayouts:    map[string]LayoutMode{},
+		readyRecords:   map[string]bool{},
+		readyPIDs:      map[int]bool{},
 	}
 }
 
@@ -227,6 +234,39 @@ func (f *fakeRuntime) AppendSessionNameIndex(entry SessionNameEntry) error {
 	}
 	f.sessionIndex.Entries = append(f.sessionIndex.Entries, entry)
 	return nil
+}
+
+func (f *fakeRuntime) RemoveReadyRecord(tag, agent string) {
+	f.Remove(AgentReadyPath("/data", tag, agent))
+}
+func (f *fakeRuntime) MintLaunchNonce() string { return "fake-launch-nonce" }
+func (f *fakeRuntime) WaitReadyRecord(expect ReadyExpectation, timeout time.Duration) (readiness.ReadyRecord, error) {
+	if f.readyErr != nil {
+		return readiness.ReadyRecord{}, f.readyErr
+	}
+	return readiness.ReadyRecord{
+		Tag:     expect.Tag,
+		Agent:   expect.Agent,
+		Session: expect.Session,
+		Nonce:   expect.Nonce,
+		PID:     123,
+	}, nil
+}
+func (f *fakeRuntime) PIDAlive(pid int) bool { return f.readyPIDs[pid] }
+func (f *fakeRuntime) ReadAgentDefault(agent string) (AgentDefault, bool) {
+	raw, ok := f.files[AgentDefaultPath("/data", agent)]
+	if !ok {
+		return AgentDefault{}, false
+	}
+	d, err := ParseAgentDefault(agent, raw)
+	return d, err == nil
+}
+func (f *fakeRuntime) WriteAgentDefault(agent string, args []string) error {
+	raw, err := BuildAgentDefault(agent, args)
+	if err != nil {
+		return err
+	}
+	return f.WriteAtomic(AgentDefaultPath("/data", agent), raw)
 }
 
 // FSOps
@@ -781,6 +821,171 @@ func TestRunLaunchCodexAltScreen(t *testing.T) {
 	}
 }
 
+func TestRunLaunchUsesRepoAgentDefaultWhenNoTagConfig(t *testing.T) {
+	rt := newFakeRuntime()
+	raw, err := BuildAgentDefault("codex", []string{"--model", "gpt-5"})
+	if err != nil {
+		t.Fatalf("BuildAgentDefault: %v", err)
+	}
+	rt.files["/data/agent-default-codex.json"] = raw
+
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "cx"}), rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.env["PAIR_AGENT_ARGS"] != "--model gpt-5 --no-alt-screen" {
+		t.Fatalf("PAIR_AGENT_ARGS = %q", rt.env["PAIR_AGENT_ARGS"])
+	}
+}
+
+func TestRunLaunchIgnoresMismatchedTagConfigWithWarning(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.files["/data/config-cx-codex.json"] = `{"agent":"claude","args":["--old"],"session_id":"OLD"}`
+	raw, err := BuildAgentDefault("codex", []string{"--model", "gpt-5"})
+	if err != nil {
+		t.Fatalf("BuildAgentDefault: %v", err)
+	}
+	rt.files["/data/agent-default-codex.json"] = raw
+	pickerCalled := false
+	rt.pickFunc = func(header string, options []string) string {
+		pickerCalled = true
+		return options[0]
+	}
+
+	var stderr bytes.Buffer
+	code, err := RunLaunch(baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "cx"}), rt, &stderr)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v stderr=%s", code, err, stderr.String())
+	}
+	if pickerCalled {
+		t.Fatalf("mismatched config must not be offered in the restart picker")
+	}
+	if rt.env["PAIR_AGENT_ARGS"] != "--model gpt-5 --no-alt-screen" {
+		t.Fatalf("PAIR_AGENT_ARGS = %q", rt.env["PAIR_AGENT_ARGS"])
+	}
+	if !strings.Contains(stderr.String(), `saved config agent "claude" does not match requested agent "codex"; ignoring it`) {
+		t.Fatalf("stderr missing mismatch warning: %s", stderr.String())
+	}
+}
+
+func TestRunLaunchLayoutOnlyNewPickUsesRepoAgentDefault(t *testing.T) {
+	rt := newFakeRuntime()
+	raw, err := BuildAgentDefault("claude", []string{"--model", "opus"})
+	if err != nil {
+		t.Fatalf("BuildAgentDefault: %v", err)
+	}
+	rt.files["/data/agent-default-claude.json"] = raw
+	rt.historical = []HistoricalTag{{Tag: "old", MTime: time.Unix(1_700_000_000, 0), Agent: "claude"}}
+	rt.pickFunc = func(header string, options []string) string {
+		return "+ new work session"
+	}
+
+	opts := baseOpts(LaunchArgs{
+		Agent:         "claude",
+		AgentExplicit: true,
+		Layout:        LayoutRequest{Mode: Layout2, Explicit: true},
+	})
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.env["PAIR_AGENT_ARGS"] != "--model opus" {
+		t.Fatalf("PAIR_AGENT_ARGS = %q, want repo default", rt.env["PAIR_AGENT_ARGS"])
+	}
+	if got := rt.files["/data/workbench-layout-work"]; got != "layout2\n" {
+		t.Fatalf("layout record = %q, want layout2", got)
+	}
+}
+
+func TestRunLaunchExplicitArgsPersistRepoAgentDefaultAfterReadiness(t *testing.T) {
+	rt := newFakeRuntime()
+	opts := baseOpts(LaunchArgs{
+		Agent:             "codex",
+		ForcedTag:         "cx",
+		AgentArgs:         []string{"--model", "gpt-5"},
+		AgentArgsExplicit: true,
+	})
+
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.env["PAIR_LAUNCH_NONCE"] == "" {
+		t.Fatal("PAIR_LAUNCH_NONCE was not exported")
+	}
+	got, err := ParseAgentDefault("codex", rt.files["/data/agent-default-codex.json"])
+	if err != nil {
+		t.Fatalf("ParseAgentDefault: %v", err)
+	}
+	if !reflect.DeepEqual(got.Args, []string{"--model", "gpt-5"}) {
+		t.Fatalf("persisted default args = %#v", got.Args)
+	}
+}
+
+func TestRunLaunchEmptyExplicitArgsPersistEmptyRepoAgentDefaultAfterReadiness(t *testing.T) {
+	rt := newFakeRuntime()
+	raw, err := BuildAgentDefault("codex", []string{"--old"})
+	if err != nil {
+		t.Fatalf("BuildAgentDefault: %v", err)
+	}
+	rt.files["/data/agent-default-codex.json"] = raw
+	opts := baseOpts(LaunchArgs{
+		Agent:             "codex",
+		ForcedTag:         "cx",
+		AgentArgsExplicit: true,
+	})
+
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	got, err := ParseAgentDefault("codex", rt.files["/data/agent-default-codex.json"])
+	if err != nil {
+		t.Fatalf("ParseAgentDefault: %v", err)
+	}
+	if len(got.Args) != 0 {
+		t.Fatalf("persisted default args = %#v, want empty", got.Args)
+	}
+}
+
+func TestRunLaunchExplicitArgsDoNotPersistRepoDefaultOnReadinessTimeout(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.readyErr = errors.New("ready timeout")
+	opts := baseOpts(LaunchArgs{
+		Agent:             "codex",
+		ForcedTag:         "cx",
+		AgentArgs:         []string{"--model", "gpt-5"},
+		AgentArgsExplicit: true,
+	})
+
+	code, err := run(t, opts, rt)
+	if err != nil || code != 1 {
+		t.Fatalf("code=%d err=%v, want launch failure", code, err)
+	}
+	if _, ok := rt.files["/data/agent-default-codex.json"]; ok {
+		t.Fatalf("default persisted despite readiness failure: %q", rt.files["/data/agent-default-codex.json"])
+	}
+}
+
+func TestRunLaunchExplicitArgsDoNotPersistRepoDefaultOnPreLaunchAbort(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.commandMissing["codex"] = true
+	opts := baseOpts(LaunchArgs{
+		Agent:             "codex",
+		ForcedTag:         "cx",
+		AgentArgs:         []string{"--model", "gpt-5"},
+		AgentArgsExplicit: true,
+	})
+
+	code, err := run(t, opts, rt)
+	if err != nil || code != 1 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if _, ok := rt.files["/data/agent-default-codex.json"]; ok {
+		t.Fatalf("default persisted despite abort: %q", rt.files["/data/agent-default-codex.json"])
+	}
+}
+
 // The tag-restart config picker: a saved config offers reuse; picking "saved
 // params + session" composes the resume binding.
 func TestRunLaunchTagRestartPickerResume(t *testing.T) {
@@ -817,6 +1022,31 @@ func TestRunLaunchTagRestartPickerResumeStripsCodexResumeAfterGlobals(t *testing
 	}
 }
 
+func TestRunLaunchTagRestartPickerWarnsWhenSavedSessionIsStale(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.files["/data/config-cx-codex.json"] = `{"agent":"codex","args":["--search"],"session_id":"CX-9"}`
+	rt.pickFunc = func(header string, options []string) string {
+		for _, o := range options {
+			if strings.Contains(o, "use saved params") {
+				return o
+			}
+		}
+		return ""
+	}
+
+	var stderr bytes.Buffer
+	code, err := RunLaunch(baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "cx"}), rt, &stderr)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v stderr=%s", code, err, stderr.String())
+	}
+	if rt.env["PAIR_AGENT_ARGS"] != "--search --no-alt-screen" {
+		t.Fatalf("PAIR_AGENT_ARGS = %q", rt.env["PAIR_AGENT_ARGS"])
+	}
+	if !strings.Contains(stderr.String(), `saved session "CX-9" for codex is not available; starting fresh`) {
+		t.Fatalf("stderr missing stale-session warning: %s", stderr.String())
+	}
+}
+
 // Picking "new" drops the stale config.
 func TestRunLaunchTagRestartPickerNew(t *testing.T) {
 	rt := newFakeRuntime()
@@ -830,7 +1060,7 @@ func TestRunLaunchTagRestartPickerNew(t *testing.T) {
 		}
 		return ""
 	}
-	opts := baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "work", AgentArgs: []string{"--fresh"}})
+	opts := baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "work", AgentArgs: []string{"--fresh"}, AgentArgsExplicit: true})
 	code, err := run(t, opts, rt)
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
@@ -864,7 +1094,7 @@ func TestRunLaunchExplicitResumeSkipsPicker(t *testing.T) {
 	rt.files["/data/config-work-claude.json"] = `{"agent":"claude","args":["--saved"],"session_id":"SAVED"}`
 	pickerCalled := false
 	rt.pickFunc = func(header string, options []string) string { pickerCalled = true; return options[0] }
-	opts := baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "work", AgentArgs: []string{"--resume", "EXPLICIT"}})
+	opts := baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "work", AgentArgs: []string{"--resume", "EXPLICIT"}, AgentArgsExplicit: true})
 	code, err := run(t, opts, rt)
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
@@ -1045,7 +1275,7 @@ func TestRunLaunchPickInferredAgentMustNotInheritCliArgs(t *testing.T) {
 		t.Fatalf("explicit agent+args should not show picker: %q", options)
 		return ""
 	}
-	opts := baseOpts(LaunchArgs{Agent: "codex", AgentArgs: []string{"--sandbox", "danger-full-access"}})
+	opts := baseOpts(LaunchArgs{Agent: "codex", AgentExplicit: true, AgentArgsExplicit: true, AgentArgs: []string{"--sandbox", "danger-full-access"}})
 	code, err := run(t, opts, rt)
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)

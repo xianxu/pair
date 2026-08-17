@@ -1,5 +1,19 @@
 # Lessons
 
+## Sidecar filenames do not validate sidecar identity
+
+`config-<tag>-<agent>.json` names the intended lookup axis, but the JSON still
+has its own `agent` field. Treating the filename as sufficient let a mismatched
+config reach the tag-restart picker, and stale saved session IDs were silently
+downgraded to fresh sessions despite the spec requiring a warning.
+
+**Rule.** When consuming persisted sidecars that duplicate identity in their
+filename and body, validate the body identity before offering UI/actions. On
+malformed or mismatched persisted state, warn and fall through to the next
+source of truth; on stale resumable IDs, warn before using saved args for a fresh
+launch. Add integration-level regressions at the consuming flow, not only pure
+policy tests. Caught in #000115 close review.
+
 ## Zellij's pane report cannot identify action-created panes
 
 The tiled split (`action new-pane --direction down`) creates panes for which

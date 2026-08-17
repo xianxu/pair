@@ -1,12 +1,13 @@
 ---
 id: 000115
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-16
 updated: 2026-08-16
-estimate_hours: 23.35
+estimate_hours: 4.41
 started: 2026-07-16T12:17:57-07:00
+actual_hours: N/A
 ---
 
 # Switch the agent driving existing work
@@ -27,6 +28,54 @@ sent-prompt history, future queue, native per-agent conversations, and the
 human-meaningful context distilled through a continuation.
 
 ## Spec
+
+### Current revived scope (2026-08-16)
+
+This revival keeps the original tag-as-work goal but deliberately does not
+restart from the abandoned live handoff coordinator. The first deliverables are
+the low-risk substrate that `pair <agent>` needs before any cross-agent recovery:
+repository-scoped per-agent launch defaults, followed by explicit-agent picker
+routing that makes the user's switch intent visible without taking over a live
+foreign-agent session.
+
+- `pair <agent> -- <args...>` records `<args...>` as the local default for that
+  `(repo, agent)` only after a successful launch readiness point.
+- `pair <agent>` uses that agent's repo-scoped default when creating a new
+  session and no tag-specific saved config is available.
+- `pair <agent> --` with no following args intentionally clears the repo-scoped
+  default after launch readiness.
+- Tag-specific saved configs (`config-<tag>-<agent>.json`) keep priority over
+  repo-agent defaults when resuming an existing tag; native session IDs remain
+  tag-specific.
+- The storage is local machine state under Pair's repo-scoped data directory,
+  not version-controlled project configuration.
+- The old live takeover flow remains historical design context. The deferred
+  source-quiescent live handoff is tracked separately in #135.
+
+M2 defines the launcher entry points around that substrate:
+
+- Bare `pair` means choose work in the current repo: attach/resume an available
+  row, or create a new Pair session when a new name is used. It does not imply a
+  cross-agent continuation.
+- `pair <agent>` means choose work for the requested driver. Same-agent live
+  rows are attachable, same-agent exited rows resume normally, and different-
+  agent exited/recent rows enter the continuation-backed switch path. Different-
+  agent live rows are displayed as unavailable so the picker explains why they
+  cannot be attached by the requested agent.
+- `pair <agent> -- <args...>` is the explicit-parameter extension of
+  `pair <agent>`: it keeps the current create/new-or-resume behavior with the
+  supplied launch parameters, and records those parameters as the repo-agent
+  default only after launch readiness.
+- A different-agent switch from an exited/recent row uses an existing
+  continuation document for that tag when one exists. If none exists, Pair still
+  starts the requested agent under the same tag and seeds an auto-continuation
+  draft that points the agent at the tag's persisted draft, log, queue, and any
+  parked scrollback. Pair must not allocate a sibling tag just because the
+  source agent did not prewrite a continuation, and the generated prompt should
+  stay on Pair's TTY/Pair-state continuation substrate rather than agent-native
+  transcript files.
+
+### Historical full handoff design (deferred)
 
 ### Work identity and exclusivity
 
@@ -264,6 +313,20 @@ agent.
 
 ## Done when
 
+- Revived M1: repository-scoped per-agent defaults are reused by `pair <agent>`
+  on new-session creation, replaced by successful explicit `-- <args>`, and
+  cleared by successful explicit empty `--`.
+- Revived M1: tag-specific saved configs still win over repo-agent defaults, so
+  `pair resume <tag>` and historical tag picks preserve their existing native
+  resume behavior.
+- Revived M1: tests cover parser intent, default file codec/path, precedence,
+  readiness-gated persistence, and no persistence after abort or failed launch.
+- Revived M1: README and atlas explain local repo-scoped agent defaults and the
+  relationship to tag-specific configs.
+
+Historical full handoff criteria below are retained as deferred context for
+#135, not as acceptance criteria for this revived #115 close:
+
 - `pair <agent>` lists attached work within the normal repo/history scope and
   distinguishes same-agent attach from different-agent handoff.
 - A confirmed different-agent selection parks the source transcript, enforces
@@ -289,6 +352,19 @@ agent.
   handoff state ownership, and repository-scoped agent defaults.
 
 ## Revisions
+
+- 2026-08-16 (close scope): revised the issue-close boundary to the revived
+  M1/M2 behavior implemented on this branch: repo-agent defaults plus
+  explicit-agent picker routing for exited/recent different-agent work. The
+  abandoned live handoff coordinator's M5 work is moved to #135 instead of
+  remaining as an unchecked #115 plan item.
+
+- 2026-08-16 (revival): replaced the immediate implementation target with a
+  safer first milestone. The original live handoff coordinator remains
+  historical context because its production quiescence proof and acceptance fake
+  were unsound. The revived M1 implements repository-scoped per-agent defaults
+  first; later milestones may redesign `pair <agent>` as a work selector and
+  source-quiescent recovery flow without importing the abandoned coordinator.
 
 - 2026-07-28 (close-review REWORK): the issue-close boundary review
   (`workshop/plans/000115-...-close-review.md`) found the headline flow does
@@ -337,61 +413,87 @@ agent.
 ```estimate
 model: estimate-logic-v3.1
 familiarity: 1.0
-item: issue-spec design=0.8 impl=0.08
-item: smaller-go-module design=0.06 impl=0.16
-item: smaller-go-module design=0.06 impl=0.16
+item: issue-spec design=0.5 impl=0.08
 item: smaller-go-module design=0.06 impl=0.16
 item: greenfield-go-module design=0.3 impl=0.28
-item: greenfield-go-module design=0.3 impl=0.28
-item: greenfield-go-module design=0.3 impl=0.28
-item: greenfield-go-module design=0.3 impl=0.28
-item: greenfield-service design=3.0 impl=3.2
-item: greenfield-service design=3.0 impl=3.2
-item: api-integration design=0.4 impl=0.4
-item: api-integration design=0.4 impl=0.4
-item: tui-screen design=0.4 impl=0.4
-item: tui-screen design=0.4 impl=0.4
-item: cross-cutting-refactor design=0.1 impl=0.2
-item: cross-cutting-refactor design=0.1 impl=0.2
-item: lua-neovim design=0.2 impl=0.4
+item: greenfield-go-module design=0.4 impl=0.32
+item: smaller-go-module design=0.06 impl=0.2
+item: api-integration design=0.5 impl=0.48
+item: cross-cutting-refactor design=0.15 impl=0.2
 item: atlas-docs design=0.05 impl=0.05
 item: milestone-review design=0.08 impl=0.12
-item: milestone-review design=0.08 impl=0.12
-item: milestone-review design=0.08 impl=0.12
-item: milestone-review design=0.08 impl=0.12
-item: milestone-review design=0.08 impl=0.12
+item: atlas-docs design=0.05 impl=0.05
 design-buffer: 0.15
-total: 23.35
+total: 4.41
 ```
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md`
 against `baseline-v3.1.md`. Method A only.*
 
-The two service-scale items are distinct: M3's durable lock/journal/input
-substrate and M4's live process coordinator/recovery/acceptance harness. Four
-Go-module items cover defaults, shared readiness, queue, and transcript; the
-remaining items map picker/confirmation UI, launcher refactors, Lua integration,
-two OS/provider integrations, docs, issue design, and all five review gates.
+This estimate covers the revived M1 scope only. The smaller-module items cover
+parser intent and wrap-side readiness publication; the greenfield-module items
+cover the repo-agent default codec/policy and the shared nonce-bound readiness
+record/matcher; the API-integration item covers create-flow wiring across saved
+tag config, repo defaults, launch, and readiness-gated persistence. The
+cross-cutting refactor item covers runtime-seam updates. The docs items cover
+README plus atlas updates, and the single review item covers the one issue close
+boundary for this revived milestone. Historical live handoff, lock/journal,
+picker takeover, queue mutation, and transcript parking are deliberately
+deferred and are not included here.
 
 ## Plan
 
 - [x] Write the durable implementation plan after the approved spec passes review.
-- [x] M1 — Define explicit launch intent, repo-agent default precedence, driver classification, and picker policy.
-- [x] M2 — Add nonce-bound readiness and wire automatic repo-agent defaults.
-- [x] M3 — Add the crash-safe lock/journal, shared queue push-front, and immutable transcript bundle.
-- [x] M4 — Wire exclusive handoff into the normal picker and prove end-to-end recovery.
-- [ ] M5 — Make the switch work outside the acceptance harness (close-review REWORK).
-      DEFERRED 2026-07-28 — see the abandonment note in ## Log.
+- [x] Implement repository-scoped per-agent launch defaults with readiness-gated persistence.
+- [x] Implement explicit-agent picker routing for same-agent attach/resume and different-agent exited/recent continuation.
+- [x] Generate Pair-state auto-continuation drafts when a different-agent historical selection has no continuation document.
+- [x] Document repo-agent defaults, tag-specific config precedence, and explicit-agent picker semantics in README and atlas.
+- [x] Verify with focused launcher tests, full Go tests, whitespace checks, and manual parley.nvim smoke.
 
 ## Log
 
 ### 2026-08-16
+- 2026-08-16: closed — Fresh verification passed after review fixes: go test ./cmd/internal/launcher -run TestRunLaunchIgnoresMismatchedTagConfigWithWarning -count=1; go test ./cmd/internal/launcher -count=1; go test ./... -count=1; git diff --check. Manual smoke in parley.nvim confirmed pair-dev codex can switch an Alt+x-exited Claude tag via generated Pair-state continuation. --no-actual avoids polluted abandoned-branch active-time attribution.; review verdict: FIX-THEN-SHIP
 - revived — The original same-tag live handoff branch was abandoned unmerged
   because its source-quiescence proof depended on a fake zellij effect and
   still had Critical recovery failures. The renewed direction keeps the tag as
   work identity but avoids live takeover: `pair <agent>` should act as the
   selector over existing work, and a different-agent pick should recover through
   continuation/parked-transcript material after the source is quiescent.
+- M1 implementation — Re-derived the estimate for the revived repo-agent
+  defaults scope (4.41h) and preserved the abandoned branch by renaming it to
+  `abandoned/000115-resurrect-a-session-across-agents-20260728` before starting
+  the fresh implementation branch. Implemented parser intent bits, pure
+  repo-agent default codec/path, launch-argument precedence, nonce-bound
+  readiness records, wrap-side readiness publication, and readiness-gated
+  explicit default persistence. Focused checks so far:
+  `go test ./cmd/internal/launcher -run TestParseArgs -count=1`,
+  `go test ./cmd/internal/launcher -run 'Test(AgentDefault|LaunchArg|ScopedPaths)' -count=1`,
+  `go test ./cmd/internal/readiness ./cmd/internal/launcher ./cmd/internal/wrapcmd -run 'Test.*Ready|Test.*Readiness' -count=1`,
+  and
+  `go test ./cmd/internal/launcher -run 'TestRunLaunch.*(Default|Config|Codex|Resume)' -count=1`.
+  Final verification passed:
+  `go test ./cmd/internal/launcher -count=1`,
+  `go test ./cmd/internal/readiness ./cmd/internal/wrapcmd -count=1`,
+  `go test ./... -count=1`, and `git diff --check`.
+- M2 implementation — Updated the launcher entry-point split around the
+  corrected design. `pair <agent>` without `--` now uses explicit-agent picker
+  policy: same-agent live rows attach, different-agent live rows are visible but
+  unavailable, and different-agent historical rows use a matching continuation
+  doc when present or generate an auto-continuation draft when no doc exists.
+  This fixes the Alt+x smoke-test case (`pair codex` in parley.nvim selecting
+  the exited Claude `parley_nvim` tag) and satisfies ARCH-PURPOSE by preserving
+  the same tag rather than refusing or allocating a sibling. `pair <agent> --
+  <args...>` now keys off separator intent rather than
+  non-empty args, so repo-agent defaults do not accidentally bypass the picker.
+  Smoke follow-up removed the agent-native transcript reference again after
+  confirming continuation distillation uses Pair's TTY scrollback / Pair-state
+  substrate, not Claude/Codex native transcript files.
+  Focused checks passed:
+  `go test ./cmd/internal/launcher -run 'TestDecideLaunchExplicit|TestBuildPickRows|TestRunLaunchExplicitAgentDifferentHistorical' -count=1`
+  and `go test ./cmd/internal/launcher -count=1`. Final M2 verification passed:
+  `go test ./cmd/internal/launcher -count=1`,
+  `go test ./... -count=1`, and `git diff --check`.
 
 ### 2026-07-28
 - Merged current `main` into the branch after a 9-day gap (the branch predated
