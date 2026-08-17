@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 )
 
@@ -27,6 +28,41 @@ func TestRunRestartWritesMarkersAndKills(t *testing.T) {
 	}
 	if len(rt.killed) != 1 || rt.killed[0] != "pair-demo" {
 		t.Fatalf("killed = %v", rt.killed)
+	}
+}
+
+func TestRunRestartCapturesLiveCodexSessionID(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.inferAgent["work"] = "codex"
+	rt.liveAgentSessions["codex|work"] = "SID-LIVE"
+
+	var stderr strings.Builder
+	code := runRestart(rt, LaunchArgs{}, "📁work", "work", &stderr)
+	if code != 0 {
+		t.Fatalf("runRestart code = %d stderr=%q", code, stderr.String())
+	}
+	m, ok := rt.writtenMarkers["📁work"]
+	if !ok {
+		t.Fatalf("restart marker not written: %#v", rt.writtenMarkers)
+	}
+	if m.SessionID != "SID-LIVE" {
+		t.Fatalf("marker session id = %q, want SID-LIVE; marker=%+v", m.SessionID, m)
+	}
+}
+
+func TestRunRestartDoesNotCaptureLiveIDForNewSession(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.inferAgent["work"] = "codex"
+	rt.liveAgentSessions["codex|work"] = "SID-LIVE"
+
+	var stderr strings.Builder
+	code := runRestart(rt, LaunchArgs{NewSession: true}, "📁work", "work", &stderr)
+	if code != 0 {
+		t.Fatalf("runRestart code = %d stderr=%q", code, stderr.String())
+	}
+	m := rt.writtenMarkers["📁work"]
+	if m.SessionID != "" {
+		t.Fatalf("fresh restart must not capture a resume id: %+v", m)
 	}
 }
 

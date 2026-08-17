@@ -6,11 +6,10 @@ import (
 
 // runRestart is the in-process port of bin/pair-restart.sh (#94 M1): resolve the
 // live session/tag/agent, write the restart marker (carrying new_session +
-// optional rename_to), touch the quit marker, then exec kill-session. It reuses
-// the exact Runtime seam runCompaction drives (compaction.go:54-68) — the effects
-// already live on OSRuntime, so nothing new is added to the seam. ExecKillSession
-// is terminal on the real runtime (syscall.Exec replaces the process), so the
-// return is reached only when the kill binary is missing or under the fake.
+// optional rename_to/session_id), touch the quit marker, then exec kill-session.
+// ExecKillSession is terminal on the real runtime (syscall.Exec replaces the
+// process), so the return is reached only when the kill binary is missing or
+// under the fake.
 func runRestart(rt Runtime, args LaunchArgs, session, pairTag string, stderr io.Writer) int {
 	if session == "" {
 		_, _ = io.WriteString(stderr, "pair restart: ZELLIJ_SESSION_NAME unset; cannot restart cleanly.\n")
@@ -29,6 +28,11 @@ func runRestart(rt Runtime, args LaunchArgs, session, pairTag string, stderr io.
 		}
 		tag, _ = TagForSessionName(index, session)
 	}
+	agent := rt.InferAgent(tag)
+	sessionID := ""
+	if agent == "codex" && !args.NewSession {
+		sessionID = rt.LiveAgentSessionID(agent, tag)
+	}
 	rt.WriteRestartMarker(session, RestartMarker{
 		Tag: tag,
 		// InferAgent reads agent-<tag> (always present when the keybind fires —
@@ -36,7 +40,8 @@ func runRestart(rt Runtime, args LaunchArgs, session, pairTag string, stderr io.
 		// fallback is broader than the shell's plain `cat agent-<tag>`, but it
 		// only ever fills an otherwise-empty agent=, never contradicts it —
 		// a deliberate, safe divergence from the byte-faithful shell.
-		Agent:      rt.InferAgent(tag),
+		Agent:      agent,
+		SessionID:  sessionID,
 		NewSession: args.NewSession,
 		RenameTo:   args.RenameTo,
 	})

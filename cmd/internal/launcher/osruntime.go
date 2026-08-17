@@ -15,6 +15,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/continuationcmd"
 	"github.com/xianxu/pair/cmd/internal/osfs"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/transcript"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
@@ -603,6 +604,32 @@ func (OSRuntime) AgentSessionExists(agent, sid, cwd string) bool {
 		return transcript.Resolve("muse", sid, cwd, home) != ""
 	}
 	return false
+}
+
+func (r OSRuntime) LiveAgentSessionID(agent, tag string) string {
+	if agent != "codex" || tag == "" {
+		return ""
+	}
+	raw, err := r.ReadFile(filepath.Join(r.DataDir, "agent-pid-"+tag))
+	if err != nil {
+		return ""
+	}
+	root := strings.TrimSpace(raw)
+	if root == "" {
+		return ""
+	}
+	prefix := filepath.Join(os.Getenv("HOME"), ".codex", "sessions") + string(os.PathSeparator)
+	for _, pid := range procutil.DescendantPIDs(root, procutil.ProcessChildren()) {
+		for _, name := range procutil.LsofNames(pid) {
+			if !strings.HasPrefix(name, prefix) {
+				continue
+			}
+			if sid := transcript.CodexSessionIDFromPath(name); sid != "" {
+				return sid
+			}
+		}
+	}
+	return ""
 }
 
 // --- LifecycleOps ----------------------------------------------------------

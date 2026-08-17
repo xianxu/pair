@@ -50,6 +50,9 @@ func serializeRestartMarker(m RestartMarker) string {
 	if m.NewSession {
 		b.WriteString("new_session=1\n")
 	}
+	if m.SessionID != "" {
+		fmt.Fprintf(&b, "session_id=%s\n", m.SessionID)
+	}
 	if m.RenameTo != "" {
 		fmt.Fprintf(&b, "rename_to=%s\n", m.RenameTo)
 	}

@@ -22,6 +22,17 @@ func TestResolveAgy(t *testing.T) {
 	}
 }
 
+func TestCodexSessionIDFromPath(t *testing.T) {
+	sid := "01a00e37-16c4-7100-89fc-42ce26158f71"
+	path := filepath.Join("/home/u", ".codex", "sessions", "2026", "08", "16", "rollout-2026-08-16T22-34-46-"+sid+".jsonl")
+	if got := CodexSessionIDFromPath(path); got != sid {
+		t.Fatalf("CodexSessionIDFromPath = %q, want %q", got, sid)
+	}
+	if got := CodexSessionIDFromPath("/tmp/not-codex.jsonl"); got != "" {
+		t.Fatalf("non-codex path = %q, want empty", got)
+	}
+}
+
 func TestResolveMuseIgnoresSubagent(t *testing.T) {
 	home := t.TempDir()
 	sid := "019eff64-6ceb-7e72-9d41-a735a97029ac"

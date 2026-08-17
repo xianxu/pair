@@ -1,5 +1,18 @@
 # Lessons
 
+## OS command helpers need one reusable seam
+
+The #141 close review caught duplicated `ps` process-tree and `lsof` parsing in
+two command paths (`pair slug` and launcher restart recovery). Both paths were
+correct locally, but parallel shell-output parsers drift easily and tests tend to
+cover only one consumer.
+
+**Rule.** When two features consume the same external command shape (`ps`,
+`lsof`, `git`, `zellij`, etc.), extract the command parser/traversal into a
+shared internal package before adding the second consumer. Keep one fake-command
+test at the real OS seam for each production consumer that depends on environment
+or filesystem inputs.
+
 ## Release smokes must use clean archive inputs
 
 The Homebrew v1.24/v1.25 publish path first looked fine from the working tree:
