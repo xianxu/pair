@@ -1,5 +1,20 @@
 # Lessons
 
+## Release smokes must use clean archive inputs
+
+The Homebrew v1.24/v1.25 publish path first looked fine from the working tree:
+ignored generated runtime-bundle assets were present locally, and formula syntax
+and style passed. The real Homebrew source build failed only when it built from
+GitHub's clean tarball, where ignored assets were absent and the generator's
+import cycle/order assumptions became visible.
+
+**Rule.** For release/package work, run the same clean source path the package
+manager uses before treating the release as published: generated ignored assets
+must be regenerated from tracked inputs, and install recipes must run generators
+before moving source trees into their install location. Add a clean-source
+regression for any generator that package builds depend on. Caught in #000131
+Homebrew publish.
+
 ## Sidecar filenames do not validate sidecar identity
 
 `config-<tag>-<agent>.json` names the intended lookup axis, but the JSON still

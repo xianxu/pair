@@ -1,12 +1,13 @@
 ---
 id: 000131
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-29
 updated: 2026-08-16
 estimate_hours: 2.65
 started: 2026-08-16T20:13:46-07:00
+actual_hours: 0.79
 ---
 
 # homebrew formula cannot build: stale cmd list
@@ -118,6 +119,7 @@ Homebrew source-build/install verification.
 ### 2026-07-29
 
 ### 2026-08-16
+- 2026-08-16: closed — Published Pair v1.26 at d7ca5e22fdf46d8a70c2d1d5f24ecc1af61ff21b and pushed homebrew-pair tap through 29fe915. Verified go test ./..., go test ./cmd/internal/runtimebundlegen ./cmd/internal/runtimebundle -count=1, git diff --check, ruby -c Formula/pair.rb, brew style Formula/pair.rb, brew reinstall --build-from-source xianxu/pair/pair, brew test xianxu/pair/pair, /opt/homebrew/opt/pair/bin/pair --version, /opt/homebrew/opt/pair/bin/pair --help, and brew info xianxu/pair/pair showing stable 1.26 installed and linked. A nested real-session launch smoke was blocked by the active Pair/zellij ancestor guard, so installed libexec assets were checked directly instead.; review verdict: FIX-THEN-SHIP
 - Claimed for release publication. Local tags still stop at `v1.23`, and
   `gh release list --limit 20` returned no releases, so no post-Go-migration
   release has been published from this repo yet.
