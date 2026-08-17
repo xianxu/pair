@@ -838,6 +838,35 @@ func TestRunLaunchUsesRepoAgentDefaultWhenNoTagConfig(t *testing.T) {
 	}
 }
 
+func TestRunLaunchLayoutOnlyNewPickUsesRepoAgentDefault(t *testing.T) {
+	rt := newFakeRuntime()
+	raw, err := BuildAgentDefault("claude", []string{"--model", "opus"})
+	if err != nil {
+		t.Fatalf("BuildAgentDefault: %v", err)
+	}
+	rt.files["/data/agent-default-claude.json"] = raw
+	rt.historical = []HistoricalTag{{Tag: "old", MTime: time.Unix(1_700_000_000, 0), Agent: "claude"}}
+	rt.pickFunc = func(header string, options []string) string {
+		return "+ new work session"
+	}
+
+	opts := baseOpts(LaunchArgs{
+		Agent:         "claude",
+		AgentExplicit: true,
+		Layout:        LayoutRequest{Mode: Layout2, Explicit: true},
+	})
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.env["PAIR_AGENT_ARGS"] != "--model opus" {
+		t.Fatalf("PAIR_AGENT_ARGS = %q, want repo default", rt.env["PAIR_AGENT_ARGS"])
+	}
+	if got := rt.files["/data/workbench-layout-work"]; got != "layout2\n" {
+		t.Fatalf("layout record = %q, want layout2", got)
+	}
+}
+
 func TestRunLaunchExplicitArgsPersistRepoAgentDefaultAfterReadiness(t *testing.T) {
 	rt := newFakeRuntime()
 	opts := baseOpts(LaunchArgs{
