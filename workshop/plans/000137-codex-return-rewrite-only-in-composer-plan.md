@@ -52,6 +52,11 @@
 - Create: `cmd/internal/wrapcmd/codex_composer.go`
 - Create: `cmd/internal/wrapcmd/codex_composer_test.go`
 
+**Unit-tested functions and strategy:**
+- `(*codexComposerTracker).resize(rows, cols int)` — adversarial pane geometry: zero sizes, shrink after active state, and normal 38-row pane; guard that impossible geometry clears active state.
+- `(*codexComposerTracker).feed(data []byte)` — adversarial raw PTY chunks: split CSI/SGR sequences, unrelated cursor moves, hidden cursor, and bottom-band composer paints; guard that only the Codex composer background plus visible bottom-band cursor activates.
+- `(*codexComposerTracker).state() codexComposerState` / `codexComposerState.active()` — adversarial stale/incomplete snapshots; guard that active requires visible cursor plus enough bottom-band painted rows.
+
 - [ ] **Step 1: Write failing composer-positive test**
 
 Test raw bytes shaped like observed Codex output: a 38-row pane, `CSI 35;1H`, `CSI 48;2;57;57;57m`, `CSI K` on rows 35-37, `CSI ?25h`, and `CSI 36;3H`. Expected: composer active.
@@ -84,6 +89,10 @@ Active iff:
 **Files:**
 - Modify: `cmd/internal/wrapcmd/wrap.go`
 - Modify: `cmd/internal/wrapcmd/overlay_test.go` or new focused Return test file
+
+**Unit-tested functions and strategy:**
+- `(*proxy).emitPlainCR(out []byte)` — adversarial state combinations: Codex composer active/inactive, `pickerActive` set, and non-Codex agents; guard that overlay bypass wins, Codex rewrites only with active composer, and other agents keep existing remaps.
+- `(*proxy).handleChunk(data []byte, rolling *[]byte)` — raw-output integration seam using a controlled proxy and byte fixture; guard that Codex chunks feed the tracker before Return translation without requiring a live Codex process.
 
 - [ ] **Step 1: Write failing Return tests**
 

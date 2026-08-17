@@ -58,3 +58,6 @@ will keep drifting.
 - Raw Codex scrollback confirms the composer signal: rows near the bottom are
   painted with `48;2;57;57;57`, and Codex leaves the cursor visible at row 36
   col 3 in a 38-row pane while the composer is visible.
+- Plan-quality round 1 asked for named unit-tested functions and adversarial
+  input strategies; updated the durable plan to name tracker and Return routing
+  surfaces explicitly.
