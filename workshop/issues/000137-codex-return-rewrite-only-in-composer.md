@@ -1,12 +1,13 @@
 ---
 id: 000137
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-08-16
 updated: 2026-08-16
 estimate_hours: 1.66
 started: 2026-08-16T21:35:17-07:00
+actual_hours: 0.41
 ---
 
 # Codex Return rewrite only in composer
@@ -66,6 +67,7 @@ total: 1.66
 ## Log
 
 ### 2026-08-16
+- 2026-08-16: closed — Focused Codex composer/Return tests passed: go test ./cmd/internal/wrapcmd -run 'TestCodexComposer|Test.*PlainEnter|TestTranslateChunk_Codex|TestEmitPlainCR|TestHandleChunk_CodexFeedsComposerTracker' -count=1. Race regression passed: go test -race ./cmd/internal/wrapcmd -run TestCodexComposerTrackerConcurrentFeedAndState -count=1. Package/repo tests passed: go test ./cmd/internal/wrapcmd -count=1 and go test ./.... Issue validation and whitespace passed: sdlc issue validate --issue 137 and git diff --check HEAD.; review verdict: FIX-THEN-SHIP
 
 - Raw Codex scrollback confirms the composer signal: rows near the bottom are
   painted with `48;2;57;57;57`, and Codex leaves the cursor visible at row 36
@@ -83,3 +85,6 @@ total: 1.66
 - Verification: focused composer/Return tests,
   `go test ./cmd/internal/wrapcmd -count=1`, `go test ./...`,
   `sdlc issue validate --issue 137`, and `git diff --check` all pass.
+- Close review returned REWORK for an unsynchronized tracker and stale evidence
+  after erase-display clears. Added mutex coverage around `resize`/`feed`/`state`,
+  `CSI J` clear handling, and regressions including a race-detector test.

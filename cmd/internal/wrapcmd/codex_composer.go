@@ -2,6 +2,7 @@ package wrapcmd
 
 import (
 	"strconv"
+	"sync"
 
 	"github.com/xianxu/pair/cmd/internal/ansi"
 )
@@ -13,6 +14,8 @@ const (
 )
 
 type codexComposerTracker struct {
+	mu sync.Mutex
+
 	rows int
 	cols int
 
@@ -43,6 +46,9 @@ func newCodexComposerTracker() *codexComposerTracker {
 }
 
 func (t *codexComposerTracker) resize(rows, cols int) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	t.rows = rows
 	t.cols = cols
 	if rows <= 0 || cols <= 0 {
@@ -65,6 +71,9 @@ func (t *codexComposerTracker) resize(rows, cols int) {
 }
 
 func (t *codexComposerTracker) feed(data []byte) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	if len(t.pending) > 0 {
 		combined := make([]byte, 0, len(t.pending)+len(data))
 		combined = append(combined, t.pending...)
@@ -105,6 +114,9 @@ func (t *codexComposerTracker) feed(data []byte) {
 }
 
 func (t *codexComposerTracker) state() codexComposerState {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	rows := make(map[int]bool, len(t.paintedRows))
 	for row, ok := range t.paintedRows {
 		rows[row] = ok
@@ -150,6 +162,8 @@ func (t *codexComposerTracker) applyEscape(seq []byte) {
 		}
 	case 'm':
 		t.applySGR(params)
+	case 'J':
+		t.applyEraseDisplay(params)
 	case 'K':
 		if t.rowInComposerBand(t.cursorRow) {
 			if t.bg == codexComposerBG {
@@ -157,6 +171,25 @@ func (t *codexComposerTracker) applyEscape(seq []byte) {
 			} else {
 				delete(t.paintedRows, t.cursorRow)
 			}
+		}
+	}
+}
+
+func (t *codexComposerTracker) applyEraseDisplay(params string) {
+	parts := splitParams(params)
+	mode := intParam(parts[0], 0)
+	for row := range t.paintedRows {
+		switch mode {
+		case 0:
+			if row >= t.cursorRow {
+				delete(t.paintedRows, row)
+			}
+		case 1:
+			if row <= t.cursorRow {
+				delete(t.paintedRows, row)
+			}
+		case 2, 3:
+			delete(t.paintedRows, row)
 		}
 	}
 }
