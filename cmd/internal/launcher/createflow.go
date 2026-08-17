@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/xianxu/pair/cmd/internal/transcript"
 )
 
 // RunLaunch is the native launcher's in-process driver (#99 M2 create + M3
@@ -562,15 +560,6 @@ func generatedContinuationPrompt(env Env, rt Runtime, tag, sourceAgent, targetAg
 	if targetAgent == "" {
 		targetAgent = "the requested agent"
 	}
-	var transcriptLine string
-	if sid := sourceSessionID(env.DataDir, rt, tag, sourceAgent); sid != "" {
-		if path := transcript.Resolve(sourceAgent, sid, env.Cwd, env.Home); path != "" {
-			transcriptLine = fmt.Sprintf("- native %s transcript: %s\n", sourceAgent, path)
-		}
-	}
-	if transcriptLine == "" {
-		transcriptLine = fmt.Sprintf("- native %s transcript: unavailable from saved Pair config\n", sourceAgent)
-	}
 	return fmt.Sprintf(`Continue Pair tag %s with %s.
 
 The previous driver was %s. No continuation doc was found.
@@ -580,21 +569,9 @@ First reconstruct the current work state from this tag's persisted Pair files:
 - log-%s.md
 - queue-%s/
 - parked-%s and parked-scrollback-%s-*.raw/events.jsonl if present
-%s
-Create a continuation-quality summary from the available local state before making code changes. Preserve the tag identity; do not create a sibling tag.
-`, tag, targetAgent, sourceAgent, tag, tag, tag, tag, tag, transcriptLine)
-}
 
-func sourceSessionID(dataDir string, rt Runtime, tag, agent string) string {
-	raw, err := rt.ReadFile(resolveConfigPath(rt, dataDir, tag, agent))
-	if err != nil {
-		return ""
-	}
-	cfg, err := parseConfig(raw)
-	if err != nil || cfg.Agent != agent {
-		return ""
-	}
-	return cfg.SessionID
+Create a continuation-quality summary from the available local state before making code changes. Preserve the tag identity; do not create a sibling tag.
+`, tag, targetAgent, sourceAgent, tag, tag, tag, tag, tag)
 }
 
 func assignSingleSessionName(rt Runtime, live []Session, cwd, tag string, stderr io.Writer) (string, SessionNameEntry, bool) {

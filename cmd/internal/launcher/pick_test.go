@@ -296,7 +296,6 @@ func TestRunLaunchExplicitAgentDifferentHistoricalUsesContinuation(t *testing.T)
 func TestRunLaunchExplicitAgentDifferentHistoricalSynthesizesContinuationWhenDocMissing(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.historical = []HistoricalTag{{Tag: "old", MTime: time.Unix(1_700_000_000, 0), RepoName: "work", Agent: "claude"}}
-	rt.files["/data/config-old-claude.json"] = `{"agent":"claude","args":[],"session_id":"CLAUDE-SID"}`
 	rt.files["/data/draft-old.md"] = "existing WIP"
 	rt.pickFunc = func(header string, options []string) string {
 		return "work/old  claude  (today, no live session)"
@@ -319,12 +318,15 @@ func TestRunLaunchExplicitAgentDifferentHistoricalSynthesizesContinuationWhenDoc
 		"Continue Pair tag old with codex.",
 		"The previous driver was claude.",
 		"No continuation doc was found.",
-		"/home/u/.claude/projects/-home-u-work/CLAUDE-SID.jsonl",
+		"parked-old and parked-scrollback-old-*.raw/events.jsonl if present",
 		"existing WIP",
 	} {
 		if !strings.Contains(draft, want) {
 			t.Fatalf("draft-old = %q, want %q", draft, want)
 		}
+	}
+	if strings.Contains(draft, ".claude/projects") || strings.Contains(draft, "native claude transcript") {
+		t.Fatalf("draft-old = %q, should not reference agent-native transcript", draft)
 	}
 }
 

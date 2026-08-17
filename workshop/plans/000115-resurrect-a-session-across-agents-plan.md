@@ -300,8 +300,8 @@ the picker rows just enough to show same-agent live work plus all historical
 work, marks different-agent live rows unavailable, and routes different-agent
 historical selections through the existing continuation create path when a doc
 exists or an auto-continuation draft when it does not. The generated draft
-includes Pair tag state plus the source agent's native transcript path when
-resolvable from saved config. `pair <agent> --
+includes Pair tag state and parked scrollback hints, deliberately staying on
+Pair's continuation substrate rather than agent-native transcript files. `pair <agent> --
 <args...>` bypasses this picker path as the explicit-parameters create/resume
 mode. This keeps `ARCH-PURE` decision tests around row classification and
 satisfies `ARCH-PURPOSE` for Alt+x-exited work that has tag-local recovery state
@@ -392,9 +392,9 @@ them from selectable attach mapping.
 Function strategy: `RunLaunch` with explicit target agent selecting a
 different-agent historical row. Assert a matching continuation doc seeds the
 draft and launches the requested agent under the selected tag; assert a missing
-doc synthesizes an auto-continuation draft, includes the source agent's native
-transcript path when resolvable, preserves existing draft text, and still
-launches the requested agent under the selected tag.
+doc synthesizes an auto-continuation draft, includes Pair-state references,
+preserves existing draft text, avoids agent-native transcript references, and
+still launches the requested agent under the selected tag.
 
 - [x] **Step 2: Implement continuation routing**
 
