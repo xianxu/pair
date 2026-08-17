@@ -48,6 +48,13 @@ func TestOverlayDetectorByAgent(t *testing.T) {
 			wantMatch: "Press enter to confirm or esc to go back",
 		},
 		{
+			name:      "codex permission picker cancel footer opens overlay",
+			agent:     "codex",
+			raw:       []byte("\x1b[38;2;137;180;250m1. Yes, proceed (y)  2. No, and tell Codex what to do differently (esc)\r\n\x1b[2mPress enter to confirm or esc to cancel\x1b[0m"),
+			wantOpen:  true,
+			wantMatch: "Press enter to confirm or esc to cancel",
+		},
+		{
 			name:      "codex request user input OSC opens overlay",
 			agent:     "codex",
 			raw:       []byte("\x1b]9;Plan mode prompt: Probe\x07"),
