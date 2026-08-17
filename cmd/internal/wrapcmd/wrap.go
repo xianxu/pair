@@ -277,6 +277,14 @@ type proxy struct {
 	// Codex composer surface and left the cursor visible inside or near it.
 	codexComposer *codexComposerTracker
 
+	// Muse Return remapping is positive-gated on the live composer box:
+	// plain Enter becomes LF only when raw output has recently painted the
+	// prompt glyph "›" (e2 9f a9, FG 38;2;90;160;255) at the cursor row and
+	// left the cursor visible inside or near it. Same positive-gate contract
+	// as Codex, but prompt-anchored — observed in scrollback-fix-tty-muse.raw
+	// at 30;1H empty and 9;1H filled, not BG 38;56;84.
+	museComposer *museComposerTracker
+
 	// Adaptation flight recorder: always-on, appends one JSON line per
 	// adaptation trigger to adapt-<tag>.jsonl so pair-doctor can spot drift.
 	// nil is a safe no-op (telemetry never blocks the proxy). lastNearMiss
@@ -1730,6 +1738,10 @@ func (p *proxy) emitPlainCR(out []byte) []byte {
 		p.adapt.Log(1, "return-remap", adapt.Bypass, "plain Enter → bare CR (codex composer inactive)")
 		return append(out, '\r')
 	}
+	if p.agentBasename == "muse" && !p.museComposerActive() {
+		p.adapt.Log(1, "return-remap", adapt.Bypass, "plain Enter → bare CR (muse composer inactive)")
+		return append(out, '\r')
+	}
 	p.adapt.Log(1, "return-remap", adapt.Fired, "plain Enter → newline remap")
 	return append(out, p.sendKM.plainCR...)
 }
@@ -1743,6 +1755,17 @@ func (p *proxy) ensureCodexComposer() *codexComposerTracker {
 		p.codexComposer = newCodexComposerTracker()
 	}
 	return p.codexComposer
+}
+
+func (p *proxy) museComposerActive() bool {
+	return p.museComposer != nil && p.museComposer.state().active()
+}
+
+func (p *proxy) ensureMuseComposer() *museComposerTracker {
+	if p.museComposer == nil {
+		p.museComposer = newMuseComposerTracker()
+	}
+	return p.museComposer
 }
 
 // translateChunk walks `data` and returns (rewritten bytes, leftover to
@@ -1993,6 +2016,9 @@ func (p *proxy) setWinsize() {
 	})
 	if p.agentBasename == "codex" {
 		p.ensureCodexComposer().resize(int(ws.Rows), int(ws.Cols))
+	}
+	if p.agentBasename == "muse" {
+		p.ensureMuseComposer().resize(int(ws.Rows), int(ws.Cols))
 	}
 	p.logScrollbackEvent("resize", map[string]any{
 		"cols": int(ws.Cols),
@@ -2650,6 +2676,9 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 		}()
 		if p.agentBasename == "codex" {
 			p.ensureCodexComposer().feed(data)
+		}
+		if p.agentBasename == "muse" {
+			p.ensureMuseComposer().feed(data)
 		}
 		*rolling = append(*rolling, data...)
 		if len(*rolling) > rollingTailLen {
