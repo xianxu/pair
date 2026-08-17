@@ -361,3 +361,22 @@ is absent. The model retains that checked closer, closes it before joining the
 drainer, then closes the emulator. This makes the pinned-library assumption
 explicit and testable rather than calling `Close` through an interface that does
 not declare it (ARCH-PURE).
+
+### 2026-08-17T17:02:00-07:00 — Match the pinned parser boundary
+
+Task 1 quality review proved that a byte scanner built only on ESC framing
+cannot match x/vt: the pinned x/ansi parser recognizes ground-state C1 CSI while
+treating the same byte as data inside UTF-8 and OSC/DCS states. The visibility
+observer therefore uses its own bounded x/ansi parser with CSI/ESC handlers,
+sharing x/vt's state semantics rather than maintaining another partial DFA
+(ARCH-DRY, ARCH-PURPOSE).
+
+Fuzzing and a deterministic `👩‍💻` split exposed a pinned x/vt behavior:
+graphemes can render differently across separate `Emulator.Write` calls because
+x/vt flushes at write boundaries, even when the combined stream is valid UTF-8.
+Pair will not wrap the emulator in a second grapheme/UTF-8 representation layer.
+All byte streams must remain bounded, nonblocking, panic-free, bounds-safe, and
+fail-closed for visibility; the observer remains chunk-equivalent. Production
+fixture tests, rather than whole-grid equality, require each harness's
+recognizer and Return decision to be invariant at every raw-stream split. x/vt
+remains the single screen-semantics owner (ARCH-PURE, ARCH-PURPOSE).

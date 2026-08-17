@@ -253,19 +253,28 @@ before any drainer starts. Observe RED, then implement only that contract.
 
 - [ ] **Step 2: RED/GREEN feed and immutable cell copying**
 
-`terminalModel.Feed` / `Snapshot`: fuzz arbitrary terminal byte streams and
-chunk partitions seeded from supported harness captures; the guard is
-chunking-equivalent x/vt state plus deep-cloned cells that cannot mutate a later
-snapshot. Observe RED, then minimally wire `Emulator.Write` and cell cloning.
+`terminalModel.Feed` / `Snapshot`: fuzz arbitrary byte streams and chunk
+partitions seeded from supported harness captures; the guard is bounded,
+nonblocking, panic-free, bounds-safe snapshots plus deep-cloned cells that
+cannot mutate a later snapshot. Do not require whole-grid chunk equivalence:
+x/vt flushes extended graphemes at each `Write`, so even valid ZWJ sequences can
+render differently across caller chunks. Remove the fuzz oracle that compares
+whole snapshots whenever `utf8.Valid(raw)`, retain its safety/coherence/deep-copy
+checks for every partition, and add a deterministic `👩‍💻` regression proving
+the permitted grid divergence while both snapshots remain coherent and
+in-bounds. Task 6 instead requires recognizer and Return-decision equivalence at
+every split of literal harness streams. Observe RED, then minimally wire
+`Emulator.Write` and cell cloning.
 
 - [ ] **Step 3: RED/GREEN explicit control observation**
 
 `terminalControlObserver.Feed`: fuzz arbitrary malformed/split escape streams
-seeded with explicit show/hide, reset, and alternate-screen controls; the guard
-is bounded carryover, chunking equivalence, and fail-closed visibility until a
-complete explicit show sequence. Use `cmd/internal/ansi.Frame`; emulator
-callbacks never authorize visibility. Observe RED, then implement the minimal
-observer.
+seeded with explicit show/hide, reset, alternate-screen, UTF-8, C1 CSI, and
+OSC/DCS controls; the guard is bounded parser storage, chunking equivalence, and
+fail-closed visibility until a complete top-level explicit show sequence. Use a
+bounded `github.com/charmbracelet/x/ansi.Parser`, matching x/vt state semantics;
+emulator callbacks never authorize production visibility. Observe RED, then
+implement the minimal observer.
 
 - [ ] **Step 4: RED/GREEN resize and active-screen snapshot**
 
@@ -654,11 +663,14 @@ prefix atomically.
 - [ ] **Step 5: Replay through the production seam**
 
 Make `TestHarnessTTYFixtureConformance` instantiate the production
-proxy/profile, feed each fixture through `proxy.handleChunk` at every split
-point, and assert final Return bytes plus overlay clearing. With no
-`PAIR_LIVE_HARNESS`, the live test skips; otherwise it uses the helper, compares
-installed version to metadata, and prints the exact recapture destination on
-version or recognition drift.
+proxy/profile and establish an unsplit baseline for each fixture. For every
+split from zero through `len(raw)`, feed the fixture through `proxy.handleChunk`
+and assert equality with that baseline for (a) the recognizer result and (b) the
+complete `returnDecision`/observable decision result, including the expected
+positive composer classification, final Return bytes, and overlay clearing.
+With no `PAIR_LIVE_HARNESS`, the live test skips; otherwise it uses the helper,
+compares installed version to metadata, and prints the exact recapture
+destination on version or recognition drift.
 
 - [ ] **Step 6: Verify every supported harness exactly**
 
@@ -859,3 +871,21 @@ return an error and checking the dynamic `io.Closer` capability of the
 reply drainer. The retained `io.Closer` is now an explicit model field and the
 shutdown/property tests exercise capability failure, reply production, and
 concurrent close (ARCH-PURE).
+
+#### Task 1 parser and malformed-stream correction
+
+Quality review replaced the Frame-only observer with a bounded stateful x/ansi
+parser because C1 CSI is a control only in ground state, not inside UTF-8 or
+control-string payloads. This removes a parallel partial DFA. Fuzzing plus the
+valid `👩‍💻` split then proved that pinned x/vt flushes extended graphemes at
+`Write` boundaries. Task 1 therefore carries safety/bounds/fail-closed observer
+invariants for arbitrary streams, not whole-grid chunk equality. Task 6 owns the
+purpose-level invariant: recognizer and Return decisions must match at every
+split of each literal harness fixture. Pair does not add a second grapheme
+renderer around x/vt (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
+Fresh review made both consequences executable: Task 1 removes the disproved
+valid-UTF-8 snapshot-equality fuzz oracle and adds a deterministic ZWJ safety
+regression; Task 6 compares every split with an unsplit baseline for both the
+recognizer and the complete Return decision, rather than allowing final bytes
+alone to mask classification drift.
