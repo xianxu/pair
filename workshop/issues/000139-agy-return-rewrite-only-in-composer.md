@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-08-16
 updated: 2026-08-17
-estimate_hours: 0.50
+estimate_hours: 0.57
 started: 2026-08-17T10:59:29-07:00
 ---
 
@@ -100,7 +100,7 @@ model: estimate-logic-v3.1
 
 item: issue-spec design=0.08 impl=0.02
 item: smaller-go-module design=0.15 impl=0.25
-total: 0.50
+total: 0.57
 ```
 
 ## Log
