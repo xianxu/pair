@@ -2,9 +2,9 @@
 
 > **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to determine the appropriate execution approach: use superpowers-subagent-driven-development (if subagents are suitable per AGENTS.md) or superpowers-executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Gate Antigravity (`agy`) plain Return rewriting behind positive composer detection with visible cursor, falling back to bare CR on inactive states and overlays, backed by a unified terminal state tracker across Codex, Muse, and Agy.
+**Goal:** Gate Antigravity (`agy`) plain Return rewriting behind positive composer detection with visible cursor, falling back to bare CR on inactive states and overlays, backed by a dedicated pure tracker and stateful protocol fake.
 
-**Architecture:** A pure VT100/ANSI screen state machine (`terminalTracker`) in `cmd/internal/wrapcmd/terminal_tracker.go` parses terminal escape sequences, tracks cursor coordinates (including relative moves like `CUU`, `CHA`, `RI`), visibility (`DECTCEM`), and per-row painted chrome attributes. Agent-specific predicates (`codex`, `muse`, `agy`) query this unified model, and `wrap.go` gates plain Return newline remap accordingly (ARCH-DRY, ARCH-PURE).
+**Architecture:** A pure VT100/ANSI screen state machine (`agyComposerTracker`) in `cmd/internal/wrapcmd/agy_composer.go` parses terminal escape sequences, tracks cursor coordinates (including relative moves like `CUU`, `CHA`, `RI`), visibility (`DECTCEM`), and per-row painted chrome attributes with explicit screen-mutation invalidation rules (`ED`, `EL`, non-border text overwrite, `setWinsize` row pruning). `wrap.go` gates plain Return newline remap accordingly (ARCH-DRY, ARCH-PURE, ARCH-MOCK).
 
 **Tech Stack:** Go, standard library (`sync`, `strconv`, `bytes`, `strings`), `cmd/internal/ansi`, `cmd/internal/adapt`.
 
@@ -16,17 +16,25 @@
 
 | Name | Lives in | Status |
 |------|----------|--------|
-| `terminalTracker` | `cmd/internal/wrapcmd/terminal_tracker.go` | new |
-| `terminalState` | `cmd/internal/wrapcmd/terminal_tracker.go` | new |
+| `agyComposerTracker` | `cmd/internal/wrapcmd/agy_composer.go` | new |
+| `agyComposerState` | `cmd/internal/wrapcmd/agy_composer.go` | new |
+| `agySessionFake` | `cmd/internal/wrapcmd/agy_return_test.go` | new |
 
-- **`terminalTracker`** — Concurrency-safe terminal grid model tracking dimensions, cursor coordinates (row, col), visibility, SGR styles, line/display erases, and agent chrome markers across chunks.
-  - **Relationships:** Owned by `proxy` (1:1 per wrapped agent session).
-  - **DRY rationale (ARCH-DRY):** Replaces duplicated VT escape parsing in `codexComposerTracker` and `museComposerTracker` with one shared parser handling absolute and relative cursor positioning (`CUP`, `CHA`, `VPA`, `CUU`, `CUD`, `CUF`, `CUB`, `RI`), visibility, and erases.
+- **`agyComposerTracker`** — Concurrency-safe terminal grid model tracking dimensions, cursor coordinates (row, col), visibility, line/display erases, and Agy chrome markers across chunks.
+  - **Relationships:** Owned by `proxy` (1:1 per wrapped Agy agent session).
+  - **DRY rationale (ARCH-DRY):** Mirrors the proven structure of `codexComposerTracker` and `museComposerTracker` while providing full relative cursor movement (`CUU`, `CHA`, `RI`) and screen mutation invalidation rules required by React-Ink / Agy.
   - **Purity (ARCH-PURE):** Pure deterministic state machine tested via byte feeds without OS or PTY mocks.
-  - **Future extensions:** Support for additional harnesses (e.g. Claude positive composer detection or new terminal agents).
+  - **Invalidation rules:** `ED` (`J`) deletes prompt/border rows in erased ranges; `EL` (`K`) clears prompt/border marks for `cursorRow`; non-border text printing at `cursorRow` clears `agyBorderRows[cursorRow]`; `setWinsize` prunes row keys $> rows$.
+  - **Locality & Height Bounds:** `active()` checks `cursorVisible && cursorRow > 0 && (isNearby(cursorRow) || isEnclosed(cursorRow))` with strict vertical height limit $\le 25$ rows.
 
-- **`terminalState`** — Immutable snapshot of terminal dimensions, cursor position, visibility, and row-level chrome flags.
-  - **Predicates:** `CodexActive() bool`, `MuseActive() bool`, `AgyActive() bool`.
+- **`agyComposerState`** — Immutable snapshot of terminal dimensions, cursor position, visibility, and row-level chrome flags.
+  - **Predicates:** `active() bool`.
+
+- **`agySessionFake`** — Stateful external terminal-protocol double modeling Agy's 4 UI lifecycle phases (ARCH-MOCK):
+  1. Startup banner and initial composer box (`───\n>\n───\n? for shortcuts\x1b[2A\x1b[2C\x1b[?25h`).
+  2. Multi-line input editing with cursor repositioning.
+  3. Output streaming / thinking state with hidden cursor (`\x1b[?25l`).
+  4. Permission / picker overlay prompts ("Do you want to proceed?").
 
 ### Integration points (where pure meets the world)
 
@@ -34,124 +42,80 @@
 |------|----------|--------|-------|
 | `proxy.emitPlainCR` | `cmd/internal/wrapcmd/wrap.go` | modified | Stdin translation pump |
 | `proxy.handleChunk` | `cmd/internal/wrapcmd/wrap.go` | modified | Master PTY output stream |
-| `proxy.resizeWinsize` | `cmd/internal/wrapcmd/wrap.go` | modified | Terminal resize signals |
+| `proxy.setWinsize` | `cmd/internal/wrapcmd/wrap.go` | modified | Terminal resize signals |
 
 - **`proxy.emitPlainCR`** — Stdin translation function for Enter keystrokes.
   - **Injected into:** `proxy.translateChunk`.
-  - **Behavior:** Checks `pickerActive` first (bare `\r`), then `agentBasename` composer active status (`codex`, `muse`, `agy`). Returns bare `\r` if inactive, or `p.sendKM.plainCR` (`\n`) if active.
+  - **Behavior:** Checks `pickerActive` first (bare `\r`), then `p.agyComposerActive()`. Returns bare `\r` if inactive, or `p.sendKM.plainCR` (`\n`) if active.
+
+- **`proxy.setWinsize`** — Real resize handler at `wrap.go:2000`.
+  - **Behavior:** Calls `p.ensureAgyComposer().resize(int(ws.Rows), int(ws.Cols))` when `agentBasename == "agy"`.
 
 ---
 
 ## Tasks
 
-### Task 1: Pure Terminal State Tracker (`terminalTracker`)
+### Task 1: Pure Agy Composer Tracker (`agyComposerTracker`)
 
 **Files:**
-- Create: `cmd/internal/wrapcmd/terminal_tracker.go`
-- Test: `cmd/internal/wrapcmd/terminal_tracker_test.go`
+- Create: `cmd/internal/wrapcmd/agy_composer.go`
+- Test: `cmd/internal/wrapcmd/agy_composer_test.go`
 
-- [ ] **Step 1: Write unit tests for `terminalTracker`**
+- [ ] **Step 1: Write unit tests for `agyComposerTracker` using risky-function strategies**
 
-Create `cmd/internal/wrapcmd/terminal_tracker_test.go` with tests covering:
-1. `TestTerminalTracker_CursorPositioning`: Absolute (`H`, `f`, `G`, `d`) and relative (`A`, `B`, `C`, `D`, `\x1bM`, `\r`, `\n`) cursor movements with default parameter `= 1`.
-2. `TestTerminalTracker_CursorVisibility`: `\x1b[?25h` (visible) and `\x1b[?25l` (hidden).
-3. `TestTerminalTracker_Erases`: `ED` (`J`), `EL` (`K`), `ECH` (`X`).
-4. `TestTerminalTracker_CodexPredicate`: BG `48;2;57;57;57` detection with $\ge 2$ rows in `[cursorRow-1, cursorRow+1]`.
-5. `TestTerminalTracker_MusePredicate`: Prompt glyph `›` (`\xe2\x9f\xa9`) detection in `[cursorRow-1, cursorRow+1]`.
-6. `TestTerminalTracker_AgyPredicate_SingleLine`: Border `───` (`\xe2\x94\x80`) and prompt `>` (`\x1b[94m>`) on prompt row with visible cursor.
-7. `TestTerminalTracker_AgyPredicate_MultiLine`: Multi-line composer where cursor is enclosed between top border/prompt and bottom border.
-8. `TestTerminalTracker_AgyPredicate_RejectsHiddenCursor`: Returns false when `\x1b[?25l` is active.
-9. `TestTerminalTracker_AgyPredicate_RejectsUnrelatedOutput`: Returns false for body text containing `>` away from prompt column or without visible cursor.
-10. `TestTerminalTracker_SplitChunks`: Carryover of split ANSI escapes and multi-byte UTF-8 sequences (`\xe2\x94\x80`, `\xe2\x9f\xa9`).
+Create `cmd/internal/wrapcmd/agy_composer_test.go` testing three named risky functions:
+1. `agyComposerTracker.feed`: Test parser resilience over arbitrary malformed, split UTF-8 (`\xe2\x94\x80`), and unterminated ANSI sequences (`\x1b[...`) with bounded carryover.
+2. `agyComposerTracker.applyEscape`: Test cursor movement (`CUP`, `CHA`, `VPA`, `CUU`, `CUD`, `CUF`, `CUB`, `RI`), visibility toggles (`?25h`/`?25l`), and screen/line erase invalidations (`ED`, `EL`).
+3. `agyComposerState.active`: Test positive and negative boundary conditions across single-line prompt, multi-line enclosed composer box, hidden cursor, stale distant chrome, and erased display.
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `go test -v ./cmd/internal/wrapcmd -run TestTerminalTracker`
-Expected: FAIL (compilation error: `terminalTracker` undefined).
+Run: `go test -v ./cmd/internal/wrapcmd -run TestAgyComposer`
+Expected: FAIL (compilation error: `agyComposerTracker` undefined).
 
-- [ ] **Step 3: Implement `terminalTracker`**
+- [ ] **Step 3: Implement `agyComposerTracker`**
 
-Create `cmd/internal/wrapcmd/terminal_tracker.go`:
-- Implement `terminalTracker` with `sync.Mutex`, `rows`, `cols`, `cursorRow`, `cursorCol`, `cursorVisible`, `bg`, `pending`, and maps:
-  - `codexBGRows map[int]bool`
-  - `musePromptRows map[int]bool`
-  - `agyBorderRows map[int]bool`
-  - `agyPromptRows map[int]bool`
-- Implement `resize(rows, cols int)` with row/column clamping.
+Create `cmd/internal/wrapcmd/agy_composer.go`:
+- Implement `agyComposerTracker` with `sync.Mutex`, `rows`, `cols`, `cursorRow`, `cursorCol`, `cursorVisible`, `pending`, and row maps:
+  - `promptRows map[int]bool`
+  - `borderRows map[int]bool`
+- Implement `resize(rows, cols int)` with row/column clamping and row pruning.
 - Implement `feed(data []byte)` parsing ANSI escapes:
   - 2-byte escape: `\x1bM` (`RI` -> `t.cursorRow--`, clamped).
-  - CSI sequences: `CUP` (`H`, `f`), `CHA` (`G`), `VPA` (`d`), `CUU` (`A`), `CUD` (`B`), `CUF` (`C`), `CUB` (`D`), `DECTCEM` (`?25h`/`?25l`), `SGR` (`m`), `ED` (`J`), `EL` (`K`), `ECH` (`X`).
-  - Text bytes: Carriage return `\r` (`cursorCol = 1`), Newline `\n` (`cursorRow++`, `cursorCol = 1`), printable characters (`cursorCol++`).
-  - Detect Chrome:
-    - Codex: `bg == "2;57;57;57"` on print or `EL`.
-    - Muse: `\xe2\x9f\xa9` prompt glyph.
-    - Agy: `\xe2\x94\x80` horizontal border (track count per row $\ge 5$), `>` at `col <= 6` (prompt glyph).
-- Implement `state() terminalState` returning snapshot.
-- Implement predicates on `terminalState`:
-  - `CodexActive() bool`: `cursorVisible && cursorRow > 0 && count(codexBGRows in [cursorRow-1, cursorRow+1]) >= 2`.
-  - `MuseActive() bool`: `cursorVisible && cursorRow > 0 && count(musePromptRows in [cursorRow-1, cursorRow+1]) >= 1`.
-  - `AgyActive() bool`: `cursorVisible && cursorRow > 0 && (isAgyPromptOrBorderNearby(cursorRow) || isEnclosedInAgyBox(cursorRow))`.
+  - CSI sequences: `CUP` (`H`, `f`), `CHA` (`G`), `VPA` (`d`), `CUU` (`A`), `CUD` (`B`), `CUF` (`C`), `CUB` (`D`) — all defaulting omitted parameter to 1.
+  - Cursor visibility: `DECTCEM` (`?25h` -> true, `?25l` -> false).
+  - Erase invalidations: `ED` (`J` mode 0/1/2/3 deletes prompt/border rows in range), `EL` (`K` deletes prompt/border marks on cursorRow).
+  - Chrome detection: `\xe2\x94\x80` horizontal border rule ($\ge 5$ count per row), `>` anchored at `col <= 6`.
+- Implement `state() agyComposerState` returning snapshot.
+- Implement `agyComposerState.active() bool`: `cursorVisible && cursorRow > 0 && (isNearby(cursorRow) || isEnclosed(cursorRow))`.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `go test -v ./cmd/internal/wrapcmd -run TestTerminalTracker`
+Run: `go test -v ./cmd/internal/wrapcmd -run TestAgyComposer`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add cmd/internal/wrapcmd/terminal_tracker.go cmd/internal/wrapcmd/terminal_tracker_test.go
-git commit -m "wrap: #139: implement unified terminal state tracker and agent predicates
+git add cmd/internal/wrapcmd/agy_composer.go cmd/internal/wrapcmd/agy_composer_test.go
+git commit -m "wrap: #139: implement agy composer tracker and mutation invalidation rules
 
 Co-Authored-By: Antigravity <antigravity@google.com>"
 ```
 
 ---
 
-### Task 2: Refactor Codex & Muse Trackers to derive from `terminalTracker`
-
-**Files:**
-- Modify: `cmd/internal/wrapcmd/codex_composer.go`
-- Modify: `cmd/internal/wrapcmd/muse_composer.go`
-- Test: `cmd/internal/wrapcmd/codex_composer_test.go`
-- Test: `cmd/internal/wrapcmd/muse_composer_test.go`
-
-- [ ] **Step 1: Adapt `codexComposerTracker` and `museComposerTracker` to use `terminalTracker`**
-
-Refactor `codexComposerTracker` and `museComposerTracker` to wrap or alias `terminalTracker`, preserving public methods (`resize`, `feed`, `state`, `active`) so existing callers and unit tests continue to compile and pass.
-
-- [ ] **Step 2: Run Codex & Muse composer unit tests**
-
-Run: `go test -v ./cmd/internal/wrapcmd -run "TestCodexComposer|TestMuseComposer"`
-Expected: PASS.
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add cmd/internal/wrapcmd/codex_composer.go cmd/internal/wrapcmd/muse_composer.go
-git commit -m "wrap: #139: derive codex and muse composer trackers from terminalTracker
-
-Co-Authored-By: Antigravity <antigravity@google.com>"
-```
-
----
-
-### Task 3: Wire Agy Positive Composer Gate into `wrap.go` & Add Return Tests
+### Task 2: Wire Agy Positive Composer Gate into `wrap.go` & Add Stateful Protocol Replay Tests
 
 **Files:**
 - Modify: `cmd/internal/wrapcmd/wrap.go`
 - Create: `cmd/internal/wrapcmd/agy_return_test.go`
 
-- [ ] **Step 1: Write failing Return routing tests for Agy**
+- [ ] **Step 1: Write Return routing & protocol replay tests using risky-function strategies**
 
-Create `cmd/internal/wrapcmd/agy_return_test.go` with tests:
-1. `TestEmitPlainCR_AgyComposerActiveRewritesToNewline`: Feed agy startup prompt with visible cursor $\rightarrow$ `emitPlainCR` returns `[]byte{'\n'}`.
-2. `TestEmitPlainCR_AgyMultiLineComposerRewritesToNewline`: Multi-line prompt with cursor on line 3 $\rightarrow$ returns `[]byte{'\n'}`.
-3. `TestEmitPlainCR_AgyComposerInactiveSendsBareCR`: Inactive composer (no prompt/border) $\rightarrow$ returns `[]byte{'\r'}`.
-4. `TestEmitPlainCR_AgyHiddenCursorSendsBareCR`: Composer painted but cursor hidden (`\x1b[?25l`) $\rightarrow$ returns `[]byte{'\r'}`.
-5. `TestEmitPlainCR_AgyOverlayBeatsComposer`: `pickerActive` is true $\rightarrow$ returns `[]byte{'\r'}` and clears `pickerActive`.
-6. `TestEmitPlainCR_AgyUnknownComposerSendsBareCR`: Zero-state proxy $\rightarrow$ returns `[]byte{'\r'}`.
-7. `TestHandleChunk_AgyFeedsComposerTracker`: `handleChunk` with agy prompt activates composer.
+Create `cmd/internal/wrapcmd/agy_return_test.go`:
+1. `proxy.emitPlainCR`: Matrix testing across active composer (`\n`), inactive composer (`\r`), unknown state (`\r`), and overlay precedence (`pickerActive` returns `\r` and clears flag).
+2. `proxy.handleChunk`: Stateful lifecycle replay using `agySessionFake` through startup, multi-line typing, thinking/generation (`\x1b[?25l`), and permission picker overlay.
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -161,11 +125,11 @@ Expected: FAIL (agy currently rewrites unconditionally).
 - [ ] **Step 3: Wire Agy composer gating in `wrap.go`**
 
 In `cmd/internal/wrapcmd/wrap.go`:
-- Add `agyComposer *terminalTracker` field to `proxy` (or unify `codexComposer`, `museComposer`, `agyComposer`).
-- Add helper `p.agyComposerActive() bool` and `p.ensureAgyComposer() *terminalTracker`.
-- In `resizeWinsize`: Call `p.ensureAgyComposer().resize(int(ws.Rows), int(ws.Cols))` when `agentBasename == "agy"`.
-- In `handleChunk`: Call `p.ensureAgyComposer().feed(data)` when `agentBasename == "agy"`.
-- In `emitPlainCR`:
+- Add `agyComposer *agyComposerTracker` field to `proxy`.
+- Add helper `p.agyComposerActive() bool` and `p.ensureAgyComposer() *agyComposerTracker`.
+- In `setWinsize` (`wrap.go:2000`): Call `p.ensureAgyComposer().resize(int(ws.Rows), int(ws.Cols))` when `agentBasename == "agy"`.
+- In `handleChunk` (`wrap.go:2677`): Call `p.ensureAgyComposer().feed(data)` when `agentBasename == "agy"`.
+- In `emitPlainCR` (`wrap.go:1737`):
   ```go
   if p.agentBasename == "agy" && !p.agyComposerActive() {
       p.adapt.Log(1, "return-remap", adapt.Bypass, "plain Enter → bare CR (agy composer inactive)")
@@ -189,7 +153,7 @@ Co-Authored-By: Antigravity <antigravity@google.com>"
 
 ---
 
-### Task 4: Documentation, Atlas Update & Full Test Suite Verification
+### Task 3: Documentation, Atlas Update & Full Test Suite Verification
 
 **Files:**
 - Modify: `atlas/architecture.md`
@@ -197,7 +161,7 @@ Co-Authored-By: Antigravity <antigravity@google.com>"
 
 - [ ] **Step 1: Update documentation**
 
-Update `atlas/architecture.md` and `atlas/how-to-bring-up-a-new-harness-cli.md` to document that `agy` uses positive composer detection via `terminalTracker` (matching Codex and Muse), where plain Return rewrites to LF only when the composer box is positively detected with a visible cursor.
+Update `atlas/architecture.md` and `atlas/how-to-bring-up-a-new-harness-cli.md` to document that `agy` uses positive composer detection via `agyComposerTracker` (matching Codex and Muse), where plain Return rewrites to LF only when the composer box is positively detected with a visible cursor.
 
 - [ ] **Step 2: Run full unit and integration test suite**
 
