@@ -33,6 +33,10 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 		_, _ = io.WriteString(stdout, UsageText())
 		return 0, nil
 	}
+	if args.Command == "version" {
+		_, _ = io.WriteString(stdout, VersionText())
+		return 0, nil
+	}
 
 	home := os.Getenv("HOME")
 	xdg := os.Getenv("XDG_DATA_HOME")

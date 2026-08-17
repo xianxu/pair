@@ -27,6 +27,21 @@ func TestLaunchNativeHelp(t *testing.T) {
 	}
 }
 
+func TestLaunchNativeVersion(t *testing.T) {
+	for _, arg := range []string{"--version", "version"} {
+		t.Run(arg, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code, err := LaunchNative([]string{arg}, "/pair", &stdout, &stderr)
+			if err != nil || code != 0 {
+				t.Fatalf("%s: code=%d err=%v", arg, code, err)
+			}
+			if !strings.Contains(stdout.String(), "pair") || stderr.Len() != 0 {
+				t.Fatalf("%s: stdout=%q stderr=%q", arg, stdout.String(), stderr.String())
+			}
+		})
+	}
+}
+
 // A leading flag that isn't help is a usage error → stderr + exit 2 (no shell to
 // defer to).
 func TestLaunchNativeBadFlag(t *testing.T) {

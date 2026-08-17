@@ -74,6 +74,8 @@ func parseArgs(argv []string) (LaunchArgs, error) {
 	case "-h", "--help", "help":
 		// Native help (#99 M5c — the shell owned this before retirement).
 		return LaunchArgs{Command: "help"}, nil
+	case "--version", "version":
+		return LaunchArgs{Command: "version"}, nil
 	case "list", "ls":
 		// The read-only session listing (#99 M5a). No further args (shell
 		// `list|ls)` ignores extras); a bare command marker is enough.

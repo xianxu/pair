@@ -76,7 +76,10 @@ external tools + system platform tools — not literally zero bytes on disk.
 `ARCH-PURPOSE` permits documenting this final gap.
 
 The embedded runtime is generated from a deterministic manifest before builds
-and tests. Since #104 M3 that manifest carries **config + shell shims only** —
+and tests. Since #131 the generator's manifest model lives outside the package
+that embeds generated assets, so it can bootstrap from a clean GitHub/Homebrew
+source archive before `cmd/internal/runtimebundle/assets/` exists. Since #104 M3
+that manifest carries **config + shell shims only** —
 the two shell shims (`bin/pair-help`, `bin/pair-notify`), `bin/lib/`, `nvim/`,
 `zellij/`, and doctor assets — and **no helper binaries** (every former helper is
 a `pair <sub>`, reached via the single `pair` the launcher fronts on the session

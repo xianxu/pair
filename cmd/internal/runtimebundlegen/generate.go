@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/xianxu/pair/cmd/internal/runtimebundle"
+	"github.com/xianxu/pair/cmd/internal/runtimebundle/manifestmodel"
 )
 
 // explicitAssetPaths lists the individual files bundled into the extracted
@@ -42,29 +42,29 @@ type GenerateOptions struct {
 	OutRoot  string
 }
 
-func Generate(opts GenerateOptions) (runtimebundle.RuntimeManifest, error) {
+func Generate(opts GenerateOptions) (manifestmodel.RuntimeManifest, error) {
 	if opts.RepoRoot == "" {
 		opts.RepoRoot = "."
 	}
 	if opts.OutRoot == "" {
-		return runtimebundle.RuntimeManifest{}, fmt.Errorf("output root is required")
+		return manifestmodel.RuntimeManifest{}, fmt.Errorf("output root is required")
 	}
 	repoRoot, err := filepath.Abs(opts.RepoRoot)
 	if err != nil {
-		return runtimebundle.RuntimeManifest{}, err
+		return manifestmodel.RuntimeManifest{}, err
 	}
 	outRoot, err := filepath.Abs(opts.OutRoot)
 	if err != nil {
-		return runtimebundle.RuntimeManifest{}, err
+		return manifestmodel.RuntimeManifest{}, err
 	}
 	outParent := filepath.Dir(outRoot)
 	outBase := filepath.Base(outRoot)
 	if err := os.MkdirAll(outParent, 0o755); err != nil {
-		return runtimebundle.RuntimeManifest{}, err
+		return manifestmodel.RuntimeManifest{}, err
 	}
 	stageRoot, err := os.MkdirTemp(outParent, "."+outBase+"-tmp-")
 	if err != nil {
-		return runtimebundle.RuntimeManifest{}, err
+		return manifestmodel.RuntimeManifest{}, err
 	}
 	committed := false
 	defer func() {
@@ -98,7 +98,7 @@ func Generate(opts GenerateOptions) (runtimebundle.RuntimeManifest, error) {
 			paths[logical] = true
 			return nil
 		}); err != nil {
-			return runtimebundle.RuntimeManifest{}, err
+			return manifestmodel.RuntimeManifest{}, err
 		}
 	}
 
@@ -111,21 +111,21 @@ func Generate(opts GenerateOptions) (runtimebundle.RuntimeManifest, error) {
 	}
 	sort.Strings(ordered)
 
-	manifest := runtimebundle.RuntimeManifest{Assets: make([]runtimebundle.RuntimeAsset, 0, len(ordered))}
+	manifest := manifestmodel.RuntimeManifest{Assets: make([]manifestmodel.RuntimeAsset, 0, len(ordered))}
 	for _, logical := range ordered {
 		src := filepath.Join(repoRoot, filepath.FromSlash(logical))
 		info, err := os.Stat(src)
 		if err != nil {
-			return runtimebundle.RuntimeManifest{}, fmt.Errorf("asset %s: %w", logical, err)
+			return manifestmodel.RuntimeManifest{}, fmt.Errorf("asset %s: %w", logical, err)
 		}
 		if info.IsDir() {
 			continue
 		}
 		digest, err := copyAsset(src, filepath.Join(filesRoot, filepath.FromSlash(logical)), info.Mode().Perm())
 		if err != nil {
-			return runtimebundle.RuntimeManifest{}, err
+			return manifestmodel.RuntimeManifest{}, err
 		}
-		manifest.Assets = append(manifest.Assets, runtimebundle.RuntimeAsset{
+		manifest.Assets = append(manifest.Assets, manifestmodel.RuntimeAsset{
 			Path:   logical,
 			Mode:   uint32(info.Mode().Perm()),
 			Size:   info.Size(),
@@ -134,22 +134,22 @@ func Generate(opts GenerateOptions) (runtimebundle.RuntimeManifest, error) {
 	}
 	encoded, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
-		return runtimebundle.RuntimeManifest{}, err
+		return manifestmodel.RuntimeManifest{}, err
 	}
 	encoded = append(encoded, '\n')
 	if err := os.WriteFile(filepath.Join(stageRoot, "manifest.json"), encoded, 0o644); err != nil {
-		return runtimebundle.RuntimeManifest{}, err
+		return manifestmodel.RuntimeManifest{}, err
 	}
 	unlock, err := acquirePublishLock(outRoot + ".lock")
 	if err != nil {
-		return runtimebundle.RuntimeManifest{}, err
+		return manifestmodel.RuntimeManifest{}, err
 	}
 	defer unlock()
 	if err := os.RemoveAll(outRoot); err != nil {
-		return runtimebundle.RuntimeManifest{}, err
+		return manifestmodel.RuntimeManifest{}, err
 	}
 	if err := os.Rename(stageRoot, outRoot); err != nil {
-		return runtimebundle.RuntimeManifest{}, err
+		return manifestmodel.RuntimeManifest{}, err
 	}
 	committed = true
 	return manifest, nil

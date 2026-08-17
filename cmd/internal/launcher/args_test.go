@@ -218,7 +218,11 @@ func TestParseLaunchArgsLeadingFlagIsNotAnAgent(t *testing.T) {
 		}
 	}
 	// Any OTHER leading flag is still a usage error (not an agent name).
-	for _, flag := range []string{"--version", "-x"} {
+	if got, err := ParseArgs([]string{"--version"}); err != nil || got.Command != "version" {
+		t.Fatalf("ParseArgs(%q) = (%+v, %v), want the version command", "--version", got, err)
+	}
+
+	for _, flag := range []string{"-x"} {
 		t.Run(flag, func(t *testing.T) {
 			_, err := ParseArgs([]string{flag})
 			if err == nil {
