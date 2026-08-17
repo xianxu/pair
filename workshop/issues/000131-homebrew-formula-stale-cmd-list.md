@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-07-29
 updated: 2026-08-16
-estimate_hours:
+estimate_hours: 2.65
 started: 2026-08-16T20:13:46-07:00
 ---
 
@@ -80,10 +80,46 @@ layout changed.
 - `pair --version`/`pair --help` runs from the brew-installed binary, and a
   session launches (the runtime assets resolve from `libexec`).
 
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.10 impl=0.04
+item: atlas-docs design=0.20 impl=0.08
+item: cross-cutting-refactor design=0.20 impl=0.12
+item: api-integration design=0.50 impl=0.48
+item: real-api-discovery design=0.00 impl=0.24
+item: real-api-discovery design=0.00 impl=0.24
+item: milestone-review design=0.08 impl=0.12
+design-buffer: 0.15
+total: 2.65
+```
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md`
+against `baseline-v3.1.md`. Method A only.*
+
+This estimates the release transaction, not the already-completed Go migration.
+The API-integration item covers the irreversible tag/checksum/tap transaction;
+the two real-API discovery items cover GitHub tarball/checksum behavior and
+Homebrew source-build/install verification.
+
 ## Plan
 
-- [ ]
+- [x] Confirm no post-Go-migration release exists and record the answer.
+- [x] Add `v1.24` release notes.
+- [ ] Tag and publish `v1.24` from the exact release commit.
+- [ ] Update and verify `../homebrew-pair/Formula/pair.rb`.
+- [ ] Close with Homebrew source-build/install evidence.
 
 ## Log
 
 ### 2026-07-29
+
+### 2026-08-16
+- Claimed for release publication. Local tags still stop at `v1.23`, and
+  `gh release list --limit 20` returned no releases, so no post-Go-migration
+  release has been published from this repo yet.
+- Added the `v1.24` changelog draft and revised the durable plan so the release
+  tag points at the exact SDLC branch release commit, then that commit merges
+  through the normal issue flow.

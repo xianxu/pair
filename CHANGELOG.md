@@ -4,6 +4,58 @@ All notable user-facing changes to `pair` land here. Each release is also
 tagged in git (`vN.M`) and tracked in the homebrew formula at
 [xianxu/homebrew-pair](https://github.com/xianxu/homebrew-pair).
 
+## v1.24 — 2026-08-16
+
+### Homebrew & single-binary packaging
+- **Post-Go-migration Homebrew release.** The formula now tracks source that
+  actually contains the Go public entrypoint and the single-binary runtime shape:
+  `cmd/pair-go` builds one installed `pair` binary, and former helper entrypoints
+  are reached as `pair <subcommand>` instead of separate Homebrew-built binaries.
+- **Embedded runtime assets stay under Homebrew `libexec`.** The release keeps
+  the repo's `bin/`, `nvim/`, and `zellij/` trees available to the installed
+  binary while baking the default Pair home into the Go entrypoint.
+
+### Startup, tags, and cross-agent continuity
+- **Repo-scoped session identity.** Tags and session ledgers are now scoped by
+  repository, with migration/import paths for older flat sidecars. Historical
+  picker rows, lifecycle updates, watcher writes, and resume paths use the scoped
+  identity instead of colliding across repos.
+- **Cross-agent session switch flow revived.** `pair <agent>` can select exited
+  sessions from another agent, synthesize a continuation prompt from Pair's
+  persisted draft/log/TTY state when no continuation file exists, and preserve
+  the original tag instead of creating a sibling tag.
+- **Repo-level agent launch defaults.** Pair remembers per-repo default launch
+  arguments for each agent, so `pair codex`/`pair claude` can continue with the
+  last intended parameters while `pair <agent> -- <args...>` intentionally
+  changes them.
+
+### Workbench layouts and terminal pane
+- **Selectable two- and three-pane layouts.** Pair gained the layout-2/layout-3
+  workbench path with a right terminal pane, width toggles, terminal tab
+  switching, and pane-local shortcut routing.
+- **Tiled right terminal pivot.** The right terminal moved from a floated layer
+  into zellij's tiled tree so splits, focus, frames, mouse routing, and resize
+  behavior are more predictable.
+- **Global shortcut routing hardened.** Global chords now route deterministically
+  through the focused pane/draft overlay without the old discovery latency or
+  asymmetric hover-focus behavior.
+
+### Review and help surfaces
+- **Review pane matured.** The review workbench gained mode selection, inline
+  diagnostic rendering, accept/reject marker navigation, definition lookup
+  footnotes, smart-case search, and more durable resume/reconstruction behavior.
+- **`pair keys`.** A generated keyhelp surface now catalogs the active nvim and
+  zellij bindings; `Alt+h` opens it in-session, replacing the stale guidance that
+  `pair --help` lists keybindings.
+
+### Terminal stream correctness
+- **ANSI framing is shared and fuzzed.** Pair now uses a common
+  escape-sequence framing package for terminal and wrap command streams, avoiding
+  ad hoc ESC scanners.
+- **Right-pane terminal input no longer corrupts the draft stream.** Fixes cover
+  SGR mouse release forwarding, OSC capability-query redraw loops, SS3 handling,
+  and terminal selection auto-paste gating.
+
 ## v1.23 — 2026-06-17
 
 ### Change log (`Alt+l`) — new
