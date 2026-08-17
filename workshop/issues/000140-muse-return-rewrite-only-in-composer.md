@@ -47,7 +47,8 @@ menu footer.
 - [ ] Identify a stable Muse composer/input-box signal from raw Pair logs or
       agent output.
 - [ ] Add a Muse composer tracker/gate or shared composer-gating abstraction
-      following the Codex model.
+      based on Muse's own native composer-availability signal, not Codex's
+      cursor/paint heuristic unless Muse logs prove the same signal is stable.
 - [ ] Add focused Return-routing tests for active composer, inactive composer,
       and overlay precedence.
 - [ ] Update atlas/docs if the Muse signal is agent-specific.
@@ -58,3 +59,6 @@ menu footer.
 
 - Follow-up from pair#137: Codex now rewrites Return only under positive live
   composer detection; Muse should adopt the same safety model.
+- Updated after pair#142 design review: Codex's cursor/paint detector is
+  Codex-specific; Muse should reuse the positive-detection contract, not the
+  exact terminal heuristic.
