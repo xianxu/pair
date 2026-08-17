@@ -838,6 +838,36 @@ func TestRunLaunchUsesRepoAgentDefaultWhenNoTagConfig(t *testing.T) {
 	}
 }
 
+func TestRunLaunchIgnoresMismatchedTagConfigWithWarning(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.files["/data/config-cx-codex.json"] = `{"agent":"claude","args":["--old"],"session_id":"OLD"}`
+	raw, err := BuildAgentDefault("codex", []string{"--model", "gpt-5"})
+	if err != nil {
+		t.Fatalf("BuildAgentDefault: %v", err)
+	}
+	rt.files["/data/agent-default-codex.json"] = raw
+	pickerCalled := false
+	rt.pickFunc = func(header string, options []string) string {
+		pickerCalled = true
+		return options[0]
+	}
+
+	var stderr bytes.Buffer
+	code, err := RunLaunch(baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "cx"}), rt, &stderr)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v stderr=%s", code, err, stderr.String())
+	}
+	if pickerCalled {
+		t.Fatalf("mismatched config must not be offered in the restart picker")
+	}
+	if rt.env["PAIR_AGENT_ARGS"] != "--model gpt-5 --no-alt-screen" {
+		t.Fatalf("PAIR_AGENT_ARGS = %q", rt.env["PAIR_AGENT_ARGS"])
+	}
+	if !strings.Contains(stderr.String(), `saved config agent "claude" does not match requested agent "codex"; ignoring it`) {
+		t.Fatalf("stderr missing mismatch warning: %s", stderr.String())
+	}
+}
+
 func TestRunLaunchLayoutOnlyNewPickUsesRepoAgentDefault(t *testing.T) {
 	rt := newFakeRuntime()
 	raw, err := BuildAgentDefault("claude", []string{"--model", "opus"})
@@ -989,6 +1019,31 @@ func TestRunLaunchTagRestartPickerResumeStripsCodexResumeAfterGlobals(t *testing
 	}
 	if rt.env["PAIR_AGENT_ARGS"] != "resume CX-9 --sandbox danger-full-access --no-alt-screen" {
 		t.Fatalf("PAIR_AGENT_ARGS = %q", rt.env["PAIR_AGENT_ARGS"])
+	}
+}
+
+func TestRunLaunchTagRestartPickerWarnsWhenSavedSessionIsStale(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.files["/data/config-cx-codex.json"] = `{"agent":"codex","args":["--search"],"session_id":"CX-9"}`
+	rt.pickFunc = func(header string, options []string) string {
+		for _, o := range options {
+			if strings.Contains(o, "use saved params") {
+				return o
+			}
+		}
+		return ""
+	}
+
+	var stderr bytes.Buffer
+	code, err := RunLaunch(baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "cx"}), rt, &stderr)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v stderr=%s", code, err, stderr.String())
+	}
+	if rt.env["PAIR_AGENT_ARGS"] != "--search --no-alt-screen" {
+		t.Fatalf("PAIR_AGENT_ARGS = %q", rt.env["PAIR_AGENT_ARGS"])
+	}
+	if !strings.Contains(stderr.String(), `saved session "CX-9" for codex is not available; starting fresh`) {
+		t.Fatalf("stderr missing stale-session warning: %s", stderr.String())
 	}
 }
 

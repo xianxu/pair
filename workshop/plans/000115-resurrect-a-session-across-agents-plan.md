@@ -146,7 +146,6 @@ Expected: PASS.
 - Create: `cmd/internal/readiness/record.go`
 - Create: `cmd/internal/readiness/record_test.go`
 - Create: `cmd/internal/launcher/readiness.go`
-- Create: `cmd/internal/launcher/readiness_os.go`
 - Test: `cmd/internal/launcher/readiness_test.go`
 - Modify: `cmd/internal/launcher/runtime.go`
 - Modify: `cmd/internal/launcher/osruntime.go`
@@ -181,7 +180,7 @@ writes, not zellij effects (`ARCH-MOCK`).
 
 Function strategy: `wrapcmd` startup over successful vs failed PTY start ->
 write readiness only after agent PTY start succeeds, using `PAIR_TAG`,
-`PAIR_AGENT`, `PAIR_SESSION_NAME`, and `PAIR_LAUNCH_NONCE`.
+the launched argv basename, `PAIR_SESSION_NAME`, and `PAIR_LAUNCH_NONCE`.
 
 - [x] **Step 6: Implement wrap readiness publication**
 
@@ -277,6 +276,10 @@ git commit -m "#115 M1: remember repo agent launch defaults" \
 
 ## Revisions
 
+- 2026-08-16: close-review plan drift correction. The launcher OS readiness
+  implementation landed in `cmd/internal/launcher/osruntime.go`, not a separate
+  `readiness_os.go`; wrap readiness intentionally records the launched argv
+  basename as the agent identity rather than trusting `PAIR_AGENT`.
 - 2026-08-16: plan-quality PQ-1/PQ-2 revision. Made nonce-bound launch
   readiness a concrete M1 deliverable instead of treating blocking zellij exit
   as readiness, and compressed test prose to named function strategies with

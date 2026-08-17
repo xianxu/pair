@@ -1,12 +1,13 @@
 ---
 id: 000115
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-07-16
 updated: 2026-08-16
 estimate_hours: 4.41
 started: 2026-07-16T12:17:57-07:00
+actual_hours: N/A
 ---
 
 # Switch the agent driving existing work
@@ -48,8 +49,8 @@ foreign-agent session.
   tag-specific.
 - The storage is local machine state under Pair's repo-scoped data directory,
   not version-controlled project configuration.
-- The old live takeover flow remains historical design context until a later
-  milestone replaces it with a safer source-quiescent recovery flow.
+- The old live takeover flow remains historical design context. The deferred
+  source-quiescent live handoff is tracked separately in #135.
 
 M2 defines the launcher entry points around that substrate:
 
@@ -323,7 +324,8 @@ agent.
 - Revived M1: README and atlas explain local repo-scoped agent defaults and the
   relationship to tag-specific configs.
 
-Historical full handoff criteria below are retained as deferred context:
+Historical full handoff criteria below are retained as deferred context for
+#135, not as acceptance criteria for this revived #115 close:
 
 - `pair <agent>` lists attached work within the normal repo/history scope and
   distinguishes same-agent attach from different-agent handoff.
@@ -350,6 +352,12 @@ Historical full handoff criteria below are retained as deferred context:
   handoff state ownership, and repository-scoped agent defaults.
 
 ## Revisions
+
+- 2026-08-16 (close scope): revised the issue-close boundary to the revived
+  M1/M2 behavior implemented on this branch: repo-agent defaults plus
+  explicit-agent picker routing for exited/recent different-agent work. The
+  abandoned live handoff coordinator's M5 work is moved to #135 instead of
+  remaining as an unchecked #115 plan item.
 
 - 2026-08-16 (revival): replaced the immediate implementation target with a
   safer first milestone. The original live handoff coordinator remains
@@ -436,16 +444,16 @@ deferred and are not included here.
 ## Plan
 
 - [x] Write the durable implementation plan after the approved spec passes review.
-- [x] M1 — Define explicit launch intent, repo-agent default precedence, driver classification, and picker policy.
-- [x] M2 — Add nonce-bound readiness and wire automatic repo-agent defaults.
-- [x] M3 — Add the crash-safe lock/journal, shared queue push-front, and immutable transcript bundle.
-- [x] M4 — Wire exclusive handoff into the normal picker and prove end-to-end recovery.
-- [ ] M5 — Make the switch work outside the acceptance harness (close-review REWORK).
-      DEFERRED 2026-07-28 — see the abandonment note in ## Log.
+- [x] Implement repository-scoped per-agent launch defaults with readiness-gated persistence.
+- [x] Implement explicit-agent picker routing for same-agent attach/resume and different-agent exited/recent continuation.
+- [x] Generate Pair-state auto-continuation drafts when a different-agent historical selection has no continuation document.
+- [x] Document repo-agent defaults, tag-specific config precedence, and explicit-agent picker semantics in README and atlas.
+- [x] Verify with focused launcher tests, full Go tests, whitespace checks, and manual parley.nvim smoke.
 
 ## Log
 
 ### 2026-08-16
+- 2026-08-16: closed — Fresh verification passed after review fixes: go test ./cmd/internal/launcher -run TestRunLaunchIgnoresMismatchedTagConfigWithWarning -count=1; go test ./cmd/internal/launcher -count=1; go test ./... -count=1; git diff --check. Manual smoke in parley.nvim confirmed pair-dev codex can switch an Alt+x-exited Claude tag via generated Pair-state continuation. --no-actual avoids polluted abandoned-branch active-time attribution.; review verdict: FIX-THEN-SHIP
 - revived — The original same-tag live handoff branch was abandoned unmerged
   because its source-quiescence proof depended on a fake zellij effect and
   still had Critical recovery failures. The renewed direction keeps the tag as

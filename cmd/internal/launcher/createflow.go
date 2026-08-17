@@ -367,7 +367,10 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		legacyImported = importLegacyFlatTag(rt, chosenTag, opts.GlobalDataDir, dataDir)
 	}
 	configPath := resolveConfigPath(rt, dataDir, chosenTag, agent)
-	savedForPicker := readSavedConfigForTag(rt, configPath, chosenTag, agent)
+	savedForPicker, savedWarnings := readSavedConfigForTag(rt, configPath, chosenTag, agent)
+	for _, warning := range savedWarnings {
+		fmt.Fprintln(stderr, warning)
+	}
 
 	agentDefault, defaultFound := rt.ReadAgentDefault(agent)
 	argDecision := DecideLaunchArgs(LaunchArgInputs{
@@ -642,6 +645,9 @@ func runConfigPicker(rt Runtime, configPath string, saved savedConfig, agent, ch
 
 	savedArgsClean := persistedConfigArgs(saved.Args)
 	hasResumable := rt.AgentSessionExists(agent, saved.SessionID, cwd)
+	if saved.SessionID != "" && !hasResumable {
+		fmt.Fprintf(stderr, "pair: saved session %q for %s is not available; starting fresh\n", saved.SessionID, agent)
+	}
 	choices := buildConfigChoices(hasResumable, savedArgsClean, *agentArgs, saved.SessionID)
 
 	labels := make([]string, len(choices))
@@ -662,20 +668,25 @@ func runConfigPicker(rt Runtime, configPath string, saved savedConfig, agent, ch
 	return 0, true
 }
 
-func readSavedConfigForTag(rt Runtime, configPath, tag, agent string) savedConfig {
+func readSavedConfigForTag(rt Runtime, configPath, tag, agent string) (savedConfig, []string) {
+	var warnings []string
 	if raw, err := rt.ReadFile(configPath); err == nil {
-		if cfg, err := parseConfig(raw); err == nil {
-			return cfg
+		if cfg, err := parseConfig(raw); err != nil {
+			warnings = append(warnings, fmt.Sprintf("pair: saved config for tag %q (%s) is malformed; ignoring it", tag, agent))
+		} else if cfg.Agent != agent {
+			warnings = append(warnings, fmt.Sprintf("pair: saved config agent %q does not match requested agent %q; ignoring it", cfg.Agent, agent))
+		} else {
+			return cfg, warnings
 		}
 	}
 	entries, err := rt.ReadLedger(tag)
 	if err != nil {
-		return savedConfig{}
+		return savedConfig{}, warnings
 	}
 	if latest, ok := LatestLedgerEntryForAgent(entries, agent); ok {
-		return savedConfig{Agent: latest.Agent, Args: latest.Args, SessionID: latest.SessionID}
+		return savedConfig{Agent: latest.Agent, Args: latest.Args, SessionID: latest.SessionID}, warnings
 	}
-	return savedConfig{}
+	return savedConfig{}, warnings
 }
 
 // resolveConfigPath returns config-<tag>-<agent>.json, migrating a legacy
