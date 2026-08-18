@@ -12,7 +12,7 @@ import (
 // overlays trips pickerActive. This is the open half of the
 // suspend-Enter-remap-during-overlay contract.
 func TestCheckOverlayOpen_PickerVariantFlipsFlag(t *testing.T) {
-	p := &proxy{agentBasename: "claude"}
+	p := proxyForHarness("claude")
 	checkOverlayBytes(p, []byte("\x1b]777;"+pickerOpenOSCBody+"\x07"))
 	if !p.pickerActive.Load() {
 		t.Fatalf("pickerActive should be true after picker-open OSC")
@@ -24,7 +24,7 @@ func TestCheckOverlayOpen_PickerVariantFlipsFlag(t *testing.T) {
 // your input") fires while the textarea has focus. The remap MUST
 // stay engaged or the user's next Enter loses its newline.
 func TestCheckOverlayOpen_WaitingForInputDoesNotFlip(t *testing.T) {
-	p := &proxy{agentBasename: "claude"}
+	p := proxyForHarness("claude")
 	checkOverlayBytes(p, []byte("\x1b]777;notify;Claude Code;Claude is waiting for your input\x07"))
 	if p.pickerActive.Load() {
 		t.Fatalf("pickerActive should stay false for end-of-turn OSC")
@@ -46,7 +46,7 @@ func TestCheckOverlayOpen_AgentsWithoutDetectorSkipped(t *testing.T) {
 // TestCheckOverlayOpen_AgyPickerMarkers confirms that when a visible chunk
 // contains any agy picker markers, pickerActive is set to true.
 func TestCheckOverlayOpen_AgyPickerMarkers(t *testing.T) {
-	p := &proxy{agentBasename: "agy"}
+	p := proxyForHarness("agy")
 	checkOverlayBytes(p, []byte("Do you want to proceed?\r\n> 1. Yes\r\n2. No"))
 	if !p.pickerActive.Load() {
 		t.Fatalf("pickerActive should be true after seeing agy picker marker")
@@ -67,7 +67,7 @@ func TestCheckOverlayOpen_UnrelatedOSCSkipped(t *testing.T) {
 		{"1337", "anything"},
 	}
 	for _, c := range cases {
-		p := &proxy{agentBasename: "claude"}
+		p := proxyForHarness("claude")
 		checkOverlayBytes(p, []byte("\x1b]"+c.ps+";"+c.body+"\x07"))
 		if p.pickerActive.Load() {
 			t.Fatalf("ps=%q body=%q: should not flip pickerActive", c.ps, c.body)

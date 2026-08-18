@@ -70,11 +70,11 @@ func TestOverlayDetectorByAgent(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			detect, ok := overlayDetectorByAgent[c.agent]
+			profile, ok := profileForHarness(c.agent, true)
 			if !ok {
 				t.Fatalf("missing detector for %s", c.agent)
 			}
-			open, match := detect(&proxy{}, c.raw, c.raw)
+			open, match := profile.overlay(&proxy{}, c.raw, c.raw)
 			if open != c.wantOpen {
 				t.Fatalf("open = %v, want %v (match %q)", open, c.wantOpen, match)
 			}
@@ -86,7 +86,13 @@ func TestOverlayDetectorByAgent(t *testing.T) {
 }
 
 func TestTranslateChunk_CodexPickerPlainEnterSelectsOnce(t *testing.T) {
-	p := codexProxyWithComposer(true)
+	f := newHarnessSessionFake(t, "codex", true)
+	t.Cleanup(f.close)
+	f.output("\x1b[19;1H\x1b[48;2;57;57;57m\x1b[K" +
+		"\x1b[20;1H\x1b[48;2;57;57;57m\x1b[K" +
+		"\x1b[21;1H\x1b[48;2;57;57;57m\x1b[K" +
+		"\x1b[?25h\x1b[20;3H")
+	p := f.proxy
 	p.pickerActive.Store(true)
 
 	got, leftover, inPaste := p.translateChunk([]byte("\r\r"), false)
@@ -105,11 +111,8 @@ func TestTranslateChunk_CodexPickerPlainEnterSelectsOnce(t *testing.T) {
 }
 
 func TestArmCapture_CodexArmsImagePickerEnter(t *testing.T) {
-	p := &proxy{
-		agentBasename:  "codex",
-		sendKM:         sendKeymapByAgent["codex"],
-		captureOutPath: "capture",
-	}
+	p := proxyForHarness("codex")
+	p.captureOutPath = "capture"
 
 	p.armCapture()
 	if !p.pickerActive.Load() {
@@ -125,7 +128,7 @@ func TestArmCapture_CodexArmsImagePickerEnter(t *testing.T) {
 }
 
 func TestCheckOverlayOpen_CodexDoesNotRedetectStalePickerText(t *testing.T) {
-	p := &proxy{agentBasename: "codex"}
+	p := proxyForHarness("codex")
 	rolling := []byte("Use session directory (/tmp/old)")
 
 	p.checkOverlayOpen(rolling, rolling)

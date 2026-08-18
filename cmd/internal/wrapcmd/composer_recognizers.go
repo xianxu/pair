@@ -6,6 +6,8 @@ import (
 	uv "github.com/charmbracelet/ultraviolet"
 )
 
+const codexComposerMinRows = 2
+
 func codexComposerActive(snapshot terminalSnapshot) bool {
 	if !snapshot.CursorVisible || !snapshotCoordinatesValid(snapshot) {
 		return false

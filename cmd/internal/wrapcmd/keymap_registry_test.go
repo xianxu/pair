@@ -10,11 +10,9 @@ import (
 // pass the registry test (e.g. swapped fields) also gets caught at
 // the translation layer.
 func TestTranslateChunk_AgyKeymap(t *testing.T) {
-	profile, ok := profileForHarness("agy", true)
-	if !ok {
-		t.Fatal("agy harness profile is not registered")
-	}
-	p := &proxy{sendKM: profile.keymap}
+	f := newHarnessSessionFake(t, "agy", true)
+	t.Cleanup(f.close)
+	f.output("\x1b[10;1H──────────\x1b[11;1H> work\x1b[13;1H──────────\x1b[?25h\x1b[12;3H")
 	cases := []struct{ in, want []byte }{
 		{[]byte("hi\r"), []byte("hi\n")},                                                 // Enter → newline
 		{[]byte("hi\x1b\r"), []byte("hi\r")},                                             // Alt+Enter → send
@@ -23,7 +21,7 @@ func TestTranslateChunk_AgyKeymap(t *testing.T) {
 		{[]byte("\x1b[200~text\rmore\x1b[201~"), []byte("\x1b[200~text\rmore\x1b[201~")}, // paste untouched
 	}
 	for _, c := range cases {
-		got, _, _ := p.translateChunk(c.in, false)
+		got, _, _ := f.proxy.translateChunk(c.in, false)
 		if !bytes.Equal(got, c.want) {
 			t.Errorf("in=%q: got %q, want %q", c.in, got, c.want)
 		}

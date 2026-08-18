@@ -33,7 +33,7 @@ func decodeAdapt(t *testing.T, buf *bytes.Buffer) []map[string]any {
 // That near-miss is what lets pair-doctor point at the drifted aspect.
 func TestOverlayDrift_EmitsNearMiss(t *testing.T) {
 	var buf bytes.Buffer
-	p := &proxy{agentBasename: "codex"}
+	p := proxyForHarness("codex")
 	p.adapt = adapt.New(&buf, "pair-wrap", "codex")
 
 	// A plausible future codex picker that matches none of codexPickerMarkers.
@@ -65,7 +65,7 @@ func TestOverlayDrift_EmitsNearMiss(t *testing.T) {
 // (repainted every rerender) produces one line, not a flood.
 func TestOverlayDrift_NearMissDeduped(t *testing.T) {
 	var buf bytes.Buffer
-	p := &proxy{agentBasename: "codex"}
+	p := proxyForHarness("codex")
 	p.adapt = adapt.New(&buf, "pair-wrap", "codex")
 
 	drifted := []byte("Do you want to apply this patch? (y/n)")
@@ -82,7 +82,7 @@ func TestOverlayDrift_NearMissDeduped(t *testing.T) {
 // near-miss.
 func TestOverlayKnownMarker_EmitsFiredNotNearMiss(t *testing.T) {
 	var buf bytes.Buffer
-	p := &proxy{agentBasename: "codex"}
+	p := proxyForHarness("codex")
 	p.adapt = adapt.New(&buf, "pair-wrap", "codex")
 
 	p.checkOverlayOpen([]byte("Press enter to continue"), []byte("Press enter to continue"))

@@ -12,11 +12,7 @@ import (
 )
 
 func TestTranslateChunk(t *testing.T) {
-	p := &proxy{sendKM: sendKeymap{
-		plainCR: []byte{'\\', '\r'},
-		altCR:   []byte{'\r'},
-		altBS:   []byte{0x15},
-	}}
+	p := claudeProxy()
 
 	tests := []struct {
 		name      string
@@ -162,7 +158,12 @@ func TestTranslateChunk(t *testing.T) {
 	}
 
 	t.Run("codex keymap", func(t *testing.T) {
-		px := &proxy{sendKM: sendKeymapByAgent["codex"]}
+		f := newHarnessSessionFake(t, "codex", true)
+		t.Cleanup(f.close)
+		f.output("\x1b[19;1H\x1b[48;2;57;57;57m\x1b[K" +
+			"\x1b[20;1H\x1b[48;2;57;57;57m\x1b[K" +
+			"\x1b[21;1H\x1b[48;2;57;57;57m\x1b[K" +
+			"\x1b[?25h\x1b[20;3H")
 		cases := []struct{ in, want []byte }{
 			{[]byte("hi\r"), []byte("hi\n")},         // Enter → newline
 			{[]byte("hi\x1b\r"), []byte("hi\r")},     // legacy Alt+Enter → CR submit
@@ -171,7 +172,7 @@ func TestTranslateChunk(t *testing.T) {
 			{[]byte("\x1b[200~text\rmore\x1b[201~"), []byte("\x1b[200~text\rmore\x1b[201~")}, // paste untouched
 		}
 		for _, c := range cases {
-			got, _, _ := px.translateChunk(c.in, false)
+			got, _, _ := f.proxy.translateChunk(c.in, false)
 			if !bytes.Equal(got, c.want) {
 				t.Errorf("in=%q: got %q, want %q", c.in, got, c.want)
 			}
