@@ -249,7 +249,10 @@ snapshot := model.Snapshot()
 
 `newTerminalModel`: vary dimensions and the injected input-pipe capability; the
 guard is either one immutable in-bounds empty snapshot or a constructor error
-before any drainer starts. Observe RED, then implement only that contract.
+before any drainer starts. Validate dimensions with one pure overflow-safe
+helper before calling x/vt: both axes must be positive and no greater than 4096,
+and area must be no greater than 262,144 cells (`width > maxCells/height`, never
+unchecked multiplication). Observe RED, then implement only that contract.
 
 - [ ] **Step 2: RED/GREEN feed and immutable cell copying**
 
@@ -280,7 +283,9 @@ implement the minimal observer.
 
 `terminalModel.Resize` / `Snapshot`: generate dimensions and screen-identity
 transitions; the guard is one atomic bounds-safe snapshot whose visibility
-remains fail-closed across replacement. Observe RED, then implement resize and
+remains fail-closed across replacement. Reuse the constructor's dimension
+validator before x/vt; rejected resizes preserve dimensions, cells, cursor,
+visibility, and active-screen identity. Observe RED, then implement resize and
 `AltScreen` tracking.
 
 - [ ] **Step 5: RED/GREEN reply draining and deterministic close**
@@ -889,3 +894,13 @@ valid-UTF-8 snapshot-equality fuzz oracle and adds a deterministic ZWJ safety
 regression; Task 6 compares every split with an unsplit baseline for both the
 recognizer and the complete Return decision, rather than allowing final bytes
 alone to mask classification drift.
+
+#### Task 1 allocation-bound correction
+
+Quality review found that the positive-dimension check still permitted
+unbounded allocations in x/vt and `Snapshot`. Task 1 now defines one pure,
+overflow-safe validator shared by construction and resize: each axis is at most
+4096 and total area at most 262,144 cells. RED tests cover oversized axes,
+oversized area, and integer-overflow-shaped inputs; rejected resize must leave
+the full prior snapshot unchanged. No allocation or x/vt mutation may occur
+before validation (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).

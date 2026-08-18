@@ -380,3 +380,13 @@ fail-closed for visibility; the observer remains chunk-equivalent. Production
 fixture tests, rather than whole-grid equality, require each harness's
 recognizer and Return decision to be invariant at every raw-stream split. x/vt
 remains the single screen-semantics owner (ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-17T17:38:00-07:00 — Bound terminal allocations
+
+Task 1 quality review found that rejecting only non-positive dimensions leaves
+positive sizes free to drive unbounded x/vt screen and snapshot allocations.
+Construction and resize must pass one overflow-safe pure validator before x/vt
+sees the dimensions: each axis is at most 4096 cells and total screen area is at
+most 262,144 cells. This is comfortably above real PTY sizes while placing a
+deterministic ceiling on both emulator buffers and copied snapshots. Rejection
+leaves the existing model unchanged (ARCH-PURE, ARCH-PURPOSE).
