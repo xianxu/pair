@@ -179,6 +179,8 @@ func TestMuseComposerTrackerSnapshotDifferentialOracle(t *testing.T) {
 		t.Fatalf("read literal Muse fixture: %v", err)
 	}
 	qualified := "\x1b[7;1H\x1b[2m────\x1b[8;1H\x1b[22m⟩ \x1b[9;1H\x1b[2m────\x1b[?25h\x1b[8;3H"
+	qualifiedNonEmpty := "\x1b[7;1H\x1b[2m────\x1b[8;1H\x1b[22m⟩ work on #140" +
+		"\x1b[9;1H\x1b[2m────\x1b[?25h\x1b[8;15H"
 	tests := []struct {
 		name   string
 		stream []byte
@@ -186,6 +188,7 @@ func TestMuseComposerTrackerSnapshotDifferentialOracle(t *testing.T) {
 	}{
 		{"literal captured composer", literal, true},
 		{"generated captured signature", []byte(qualified), true},
+		{"qualified non-empty prompt", []byte(qualifiedNonEmpty), true},
 		{"hidden cursor", []byte(qualified + "\x1b[?25l"), false},
 		{"bare old U+203A glyph", []byte("\x1b[8;1H› \x1b[?25h\x1b[8;3H"), false},
 		{"unqualified U+27E9 glyph", []byte("\x1b[8;1H⟩ \x1b[?25h\x1b[8;3H"), true},

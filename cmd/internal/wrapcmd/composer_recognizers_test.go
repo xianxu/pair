@@ -45,9 +45,12 @@ func TestMuseComposerActiveSnapshotDifferential(t *testing.T) {
 		t.Fatalf("read literal Muse fixture: %v", err)
 	}
 	qualified := "\x1b[7;1H\x1b[2m────\x1b[8;1H\x1b[22m⟩ \x1b[9;1H\x1b[2m────\x1b[?25h\x1b[8;3H"
+	qualifiedNonEmpty := "\x1b[7;1H\x1b[2m────\x1b[8;1H\x1b[22m⟩ work on #140" +
+		"\x1b[9;1H\x1b[2m────\x1b[?25h\x1b[8;15H"
 	cases := []composerDifferentialCase{
 		{name: "literal captured composer", stream: literal, want: true},
 		{name: "generated captured signature", stream: []byte(qualified), want: true},
+		{name: "qualified non-empty prompt", stream: []byte(qualifiedNonEmpty), want: true},
 		{name: "hidden cursor", stream: []byte(qualified + "\x1b[?25l")},
 		{name: "bare old U+203A glyph", stream: []byte("\x1b[8;1H› \x1b[?25h\x1b[8;3H")},
 		{

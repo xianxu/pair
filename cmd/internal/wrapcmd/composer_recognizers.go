@@ -21,7 +21,7 @@ func codexComposerActive(snapshot terminalSnapshot) bool {
 }
 
 func museComposerActive(snapshot terminalSnapshot) bool {
-	if !snapshot.CursorVisible || !snapshotCoordinatesValid(snapshot) || snapshot.Cursor.X != 2 {
+	if !snapshot.CursorVisible || !snapshotCoordinatesValid(snapshot) || snapshot.Cursor.X < 2 {
 		return false
 	}
 	promptY := snapshot.Cursor.Y
