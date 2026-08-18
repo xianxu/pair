@@ -24,22 +24,23 @@ func museComposerActive(snapshot terminalSnapshot) bool {
 	if !snapshot.CursorVisible || !snapshotCoordinatesValid(snapshot) || snapshot.Cursor.X < 2 {
 		return false
 	}
-	promptY := snapshot.Cursor.Y
-	if promptY <= 0 || promptY >= snapshot.Height-1 {
-		return false
-	}
 
-	prompt := snapshot.CellAt(0, promptY)
-	if prompt == nil || prompt.Content != "⟩" || prompt.Style.Attrs&uv.AttrFaint != 0 {
-		return false
+	for promptY := max(1, snapshot.Cursor.Y-1); promptY <= min(snapshot.Height-2, snapshot.Cursor.Y+1); promptY++ {
+		prompt := snapshot.CellAt(0, promptY)
+		if prompt != nil && prompt.Content == "⟩" && prompt.Style.Attrs&uv.AttrFaint == 0 &&
+			faintRuleAt(snapshot, 0, promptY-1) && faintRuleAt(snapshot, 0, promptY+1) {
+			return true
+		}
 	}
-	return faintRuleAt(snapshot, 0, promptY-1) && faintRuleAt(snapshot, 0, promptY+1)
+	return false
 }
 
 func snapshotCoordinatesValid(snapshot terminalSnapshot) bool {
-	return snapshot.Width > 0 && snapshot.Height > 0 &&
-		len(snapshot.Cells) >= snapshot.Width*snapshot.Height &&
-		snapshot.Cursor.X >= 0 && snapshot.Cursor.X < snapshot.Width &&
+	if validateTerminalDimensions(snapshot.Width, snapshot.Height) != nil ||
+		snapshot.Height > len(snapshot.Cells)/snapshot.Width {
+		return false
+	}
+	return snapshot.Cursor.X >= 0 && snapshot.Cursor.X < snapshot.Width &&
 		snapshot.Cursor.Y >= 0 && snapshot.Cursor.Y < snapshot.Height
 }
 

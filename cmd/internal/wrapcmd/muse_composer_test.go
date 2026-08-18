@@ -181,6 +181,10 @@ func TestMuseComposerTrackerSnapshotDifferentialOracle(t *testing.T) {
 	qualified := "\x1b[7;1H\x1b[2m────\x1b[8;1H\x1b[22m⟩ \x1b[9;1H\x1b[2m────\x1b[?25h\x1b[8;3H"
 	qualifiedNonEmpty := "\x1b[7;1H\x1b[2m────\x1b[8;1H\x1b[22m⟩ work on #140" +
 		"\x1b[9;1H\x1b[2m────\x1b[?25h\x1b[8;15H"
+	qualifiedCursorAbove := "\x1b[7;1H\x1b[2m────\x1b[8;1H\x1b[22m⟩ work on #140" +
+		"\x1b[9;1H\x1b[2m────\x1b[?25h\x1b[7;15H"
+	qualifiedCursorBelow := "\x1b[7;1H\x1b[2m────\x1b[8;1H\x1b[22m⟩ work on #140" +
+		"\x1b[9;1H\x1b[2m────\x1b[?25h\x1b[9;15H"
 	tests := []struct {
 		name   string
 		stream []byte
@@ -189,6 +193,8 @@ func TestMuseComposerTrackerSnapshotDifferentialOracle(t *testing.T) {
 		{"literal captured composer", literal, true},
 		{"generated captured signature", []byte(qualified), true},
 		{"qualified non-empty prompt", []byte(qualifiedNonEmpty), true},
+		{"qualified prompt one row above cursor", []byte(qualifiedCursorBelow), true},
+		{"qualified prompt one row below cursor", []byte(qualifiedCursorAbove), true},
 		{"hidden cursor", []byte(qualified + "\x1b[?25l"), false},
 		{"bare old U+203A glyph", []byte("\x1b[8;1H› \x1b[?25h\x1b[8;3H"), false},
 		{"unqualified U+27E9 glyph", []byte("\x1b[8;1H⟩ \x1b[?25h\x1b[8;3H"), true},

@@ -3,6 +3,9 @@ package wrapcmd
 import (
 	"os"
 	"testing"
+	"time"
+
+	uv "github.com/charmbracelet/ultraviolet"
 )
 
 type composerDifferentialCase struct {
@@ -47,10 +50,16 @@ func TestMuseComposerActiveSnapshotDifferential(t *testing.T) {
 	qualified := "\x1b[7;1H\x1b[2m────\x1b[8;1H\x1b[22m⟩ \x1b[9;1H\x1b[2m────\x1b[?25h\x1b[8;3H"
 	qualifiedNonEmpty := "\x1b[7;1H\x1b[2m────\x1b[8;1H\x1b[22m⟩ work on #140" +
 		"\x1b[9;1H\x1b[2m────\x1b[?25h\x1b[8;15H"
+	qualifiedCursorAbove := "\x1b[7;1H\x1b[2m────\x1b[8;1H\x1b[22m⟩ work on #140" +
+		"\x1b[9;1H\x1b[2m────\x1b[?25h\x1b[7;15H"
+	qualifiedCursorBelow := "\x1b[7;1H\x1b[2m────\x1b[8;1H\x1b[22m⟩ work on #140" +
+		"\x1b[9;1H\x1b[2m────\x1b[?25h\x1b[9;15H"
 	cases := []composerDifferentialCase{
 		{name: "literal captured composer", stream: literal, want: true},
 		{name: "generated captured signature", stream: []byte(qualified), want: true},
 		{name: "qualified non-empty prompt", stream: []byte(qualifiedNonEmpty), want: true},
+		{name: "qualified prompt one row above cursor", stream: []byte(qualifiedCursorBelow), want: true},
+		{name: "qualified prompt one row below cursor", stream: []byte(qualifiedCursorAbove), want: true},
 		{name: "hidden cursor", stream: []byte(qualified + "\x1b[?25l")},
 		{name: "bare old U+203A glyph", stream: []byte("\x1b[8;1H› \x1b[?25h\x1b[8;3H")},
 		{
@@ -77,6 +86,46 @@ func TestMuseComposerActiveSnapshotDifferential(t *testing.T) {
 		tracker.feed(stream)
 		return tracker.state().active()
 	}, museComposerActive)
+}
+
+func TestComposerRecognizersRejectAdversarialSnapshotsWithoutBlocking(t *testing.T) {
+	maxInt := int(^uint(0) >> 1)
+	snapshots := []struct {
+		name     string
+		snapshot terminalSnapshot
+	}{
+		{"max width", terminalSnapshot{Width: maxInt, Height: 2, CursorVisible: true}},
+		{"max height", terminalSnapshot{Width: 2, Height: maxInt, CursorVisible: true}},
+		{"max area", terminalSnapshot{Width: 4096, Height: 4096, CursorVisible: true}},
+		{"tiny cell slice", terminalSnapshot{Width: 120, Height: 38, CursorVisible: true, Cells: make([]uv.Cell, 1)}},
+	}
+	recognizers := []struct {
+		name      string
+		recognize composerRecognizer
+	}{
+		{"codex", codexComposerActive},
+		{"muse", museComposerActive},
+	}
+
+	for _, snapshot := range snapshots {
+		t.Run(snapshot.name, func(t *testing.T) {
+			if snapshotCoordinatesValid(snapshot.snapshot) {
+				t.Error("adversarial snapshot coordinates unexpectedly valid")
+			}
+			for _, recognizer := range recognizers {
+				done := make(chan bool, 1)
+				go func() { done <- recognizer.recognize(snapshot.snapshot) }()
+				select {
+				case got := <-done:
+					if got {
+						t.Errorf("%s recognizer accepted adversarial snapshot", recognizer.name)
+					}
+				case <-time.After(100 * time.Millisecond):
+					t.Errorf("%s recognizer blocked on adversarial snapshot", recognizer.name)
+				}
+			}
+		})
+	}
 }
 
 func runComposerSnapshotDifferential(
