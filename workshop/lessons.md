@@ -1,5 +1,18 @@
 # Lessons
 
+## Differential migrations must transform every state axis
+
+The first Muse snapshot oracle covered an empty composer at the captured cursor
+column but omitted typed text and the legacy tracker's cursor-row ±1 behavior.
+Both omissions produced unallowlisted old-true/new-false transitions even
+though the literal startup fixture stayed positive.
+
+**Rule.** A differential migration must enumerate transformations of every
+state axis the old predicate consumes: content, style, locality, cursor row,
+cursor column, visibility, and lifecycle mutation. Include representative
+positive transforms—not only the captured empty state—and reject any behavior
+change not named by the contract. Caught in #000139 Task 3 review.
+
 ## Process cleanup is one observable transaction
 
 The first live-harness capture helper hid cleanup errors behind a primary

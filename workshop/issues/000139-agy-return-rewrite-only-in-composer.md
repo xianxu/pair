@@ -189,6 +189,15 @@ harness profile/router and the stateful fixture/fake support.
   passed 100 repetitions under concurrent load, focused race passed, and full
   wrapcmd passed. A later live rerun was blocked in approval orchestration, not
   a test process; the earlier live recapture was byte-identical to the fixture.
+- Task 3 landed as `9038158` with preservation fixes `174b2cd` and `44ac8c0`.
+  Codex and Muse profiles now point at pure bounded snapshot predicates while
+  old trackers remain as the differential oracle. Fifteen rows finish as 12
+  unchanged, three named Muse `true→false` safety corrections, and zero
+  `false→true` expansions.
+- Task 3 fresh spec and quality reviews returned `APPROVED` after restoring
+  non-empty and cursor-adjacent Muse composers and making arbitrary snapshot
+  validation overflow-safe. Focused/race/full wrapcmd tests pass; the known
+  unrelated stdout batching test race remains outside this task.
 
 ## Revisions
 

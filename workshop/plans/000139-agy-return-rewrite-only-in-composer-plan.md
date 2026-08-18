@@ -467,7 +467,7 @@ git commit -m "wrapcmd: #139: capture Muse composer evidence" -m "Co-Authored-By
 - Modify: `cmd/internal/wrapcmd/codex_composer_test.go`
 - Modify: `cmd/internal/wrapcmd/muse_composer_test.go`
 
-- [ ] **Step 1: Freeze the differential oracle**
+- [x] **Step 1: Freeze the differential oracle**
 
 `codexComposerActive` / `museComposerActive`: generate current-screen snapshots
 around literal captured signatures and arbitrary mutation/locality transforms;
@@ -477,27 +477,27 @@ with every old-`false` / new-`true` rejected. Seed the local-weak-plus-distant
 evidence rule from `lessons.md`. Run the old-tracker oracle GREEN before adding
 the new API.
 
-- [ ] **Step 2: Write failing snapshot recognizer tests**
+- [x] **Step 2: Write failing snapshot recognizer tests**
 
 Drive the frozen oracle through `terminalModel` and the absent snapshot
 recognizers, preserving the strategy and guard above. Derive Muse's qualified
 prompt signature only from Task 2A's literal capture; do not invent styling or
 geometry absent from observed bytes.
 
-- [ ] **Step 3: Verify RED**
+- [x] **Step 3: Verify RED**
 
 Run: `go test -v ./cmd/internal/wrapcmd -run 'Test(Codex|Muse)Composer.*Snapshot' -count=1`
 
 Expected: FAIL because snapshot recognizers do not exist.
 
-- [ ] **Step 4: Implement snapshot recognizers alongside existing parsers**
+- [x] **Step 4: Implement snapshot recognizers alongside existing parsers**
 
 Implement and register pure grid predicates alongside the old tracker
 implementations. Retain the trackers and their parsing helpers through Task 4;
 Task 5 removes them only after the inherited Agy prototype and proxy no longer
 depend on them.
 
-- [ ] **Step 5: Verify preservation and commit**
+- [x] **Step 5: Verify preservation and commit**
 
 ```bash
 go test -v ./cmd/internal/wrapcmd -run 'Test(Codex|Muse)Composer|TestEmitPlainCR_(Codex|Muse)' -count=1
