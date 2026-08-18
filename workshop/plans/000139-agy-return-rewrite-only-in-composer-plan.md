@@ -565,6 +565,8 @@ git commit -m "wrapcmd: #139: recognize the coherent Agy composer box" -m "Co-Au
 
 **Files:**
 - Modify: `cmd/internal/wrapcmd/wrap.go`
+- Modify: `cmd/internal/wrapcmd/composer_recognizers.go`
+- Modify: `cmd/internal/wrapcmd/composer_recognizers_test.go`
 - Modify: `cmd/internal/wrapcmd/codex_return_test.go`
 - Modify: `cmd/internal/wrapcmd/muse_return_test.go`
 - Create: `cmd/internal/wrapcmd/agy_return_test.go`
@@ -573,9 +575,12 @@ git commit -m "wrapcmd: #139: recognize the coherent Agy composer box" -m "Co-Au
 - Modify: `cmd/internal/wrapcmd/picker_overlay_test.go`
 - Modify: `cmd/internal/wrapcmd/adapt_drift_test.go`
 - Modify: `cmd/internal/wrapcmd/translate_test.go`
+- Modify: `cmd/internal/wrapcmd/translate_stdin_test.go`
 - Modify: `cmd/internal/wrapcmd/keymap_registry_test.go`
 - Delete: `cmd/internal/wrapcmd/codex_composer.go`
+- Delete: `cmd/internal/wrapcmd/codex_composer_test.go`
 - Delete: `cmd/internal/wrapcmd/muse_composer.go`
+- Delete: `cmd/internal/wrapcmd/muse_composer_test.go`
 
 - [ ] **Step 1: Write failing integration tests**
 
@@ -614,7 +619,7 @@ a second profile.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add cmd/internal/wrapcmd/wrap.go cmd/internal/wrapcmd/codex_return_test.go cmd/internal/wrapcmd/muse_return_test.go cmd/internal/wrapcmd/agy_return_test.go cmd/internal/wrapcmd/harness_tty_integration_test.go cmd/internal/wrapcmd/overlay_test.go cmd/internal/wrapcmd/picker_overlay_test.go cmd/internal/wrapcmd/adapt_drift_test.go cmd/internal/wrapcmd/translate_test.go cmd/internal/wrapcmd/keymap_registry_test.go cmd/internal/wrapcmd/codex_composer.go cmd/internal/wrapcmd/muse_composer.go
+git add cmd/internal/wrapcmd/wrap.go cmd/internal/wrapcmd/composer_recognizers.go cmd/internal/wrapcmd/composer_recognizers_test.go cmd/internal/wrapcmd/codex_return_test.go cmd/internal/wrapcmd/muse_return_test.go cmd/internal/wrapcmd/agy_return_test.go cmd/internal/wrapcmd/harness_tty_integration_test.go cmd/internal/wrapcmd/overlay_test.go cmd/internal/wrapcmd/picker_overlay_test.go cmd/internal/wrapcmd/adapt_drift_test.go cmd/internal/wrapcmd/translate_test.go cmd/internal/wrapcmd/translate_stdin_test.go cmd/internal/wrapcmd/keymap_registry_test.go cmd/internal/wrapcmd/codex_composer.go cmd/internal/wrapcmd/codex_composer_test.go cmd/internal/wrapcmd/muse_composer.go cmd/internal/wrapcmd/muse_composer_test.go
 git commit -m "wrapcmd: #139: route Return through harness TTY profiles" -m "Co-Authored-By: OpenAI Codex <noreply@openai.com>"
 ```
 
@@ -955,3 +960,17 @@ Like Task 3, Task 4 must register and characterize the Agy predicate in the
 profile source of truth. Add `harness_tty.go` and `harness_tty_test.go` to its
 file/commit set so Task 5 consumes a complete positive-gated profile rather
 than performing an implicit late registration (ARCH-DRY, ARCH-PURPOSE).
+
+#### Task 5 tracker-retirement file correction
+
+Deleting `codex_composer.go` also removes `codexComposerMinRows`, still consumed
+by the snapshot predicate, and deleting both tracker implementations leaves
+their implementation-specific test files uncompilable. Add
+`composer_recognizers.go`/`composer_recognizers_test.go` to Task 5: move the
+constant into the pure recognizer, remove only old-tracker plumbing while
+retaining the frozen 15-row expectations, and delete both old tracker test
+files with their implementations. This makes tracker retirement executable
+without losing the durable differential oracle (ARCH-DRY, ARCH-PURPOSE).
+The shadow sweep also includes `translate_stdin_test.go`, whose shared Claude
+proxy helper hand-built the retired keymap field; migrate it to profile lookup
+so test construction does not preserve a second profile source.
