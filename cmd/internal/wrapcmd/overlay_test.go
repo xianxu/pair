@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestEmitPlainCR_ConcurrentOverlayRearmRetainsNewStateAndTail(t *testing.T) {
@@ -45,6 +46,31 @@ func TestEmitPlainCR_ConcurrentOverlayRearmRetainsNewStateAndTail(t *testing.T) 
 	p.overlayMu.Unlock()
 	if !strings.Contains(tail, "Press enter to continue") {
 		t.Fatalf("new overlay tail = %q, want new marker retained", tail)
+	}
+}
+
+func TestHandleChunk_PanickingOverlayDetectorDoesNotStrandReturn(t *testing.T) {
+	profile := harnessTTYProfile{
+		keymap:       sendKeymap{plainCR: []byte{'\\', '\r'}},
+		composerGate: composerGateLegacy,
+		overlay: func(*proxy, []byte, []byte) (bool, string) {
+			panic("injected detector panic")
+		},
+	}
+	p := &proxy{ttyProfile: &profile}
+	rolling := []byte{}
+
+	p.handleChunk([]byte("detector input"), &rolling)
+
+	done := make(chan []byte, 1)
+	go func() { done <- p.emitPlainCR(nil) }()
+	select {
+	case got := <-done:
+		if !bytes.Equal(got, []byte{'\\', '\r'}) {
+			t.Fatalf("Return after recovered detector panic = %q, want remap", got)
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("Return blocked after recovered detector panic stranded overlay lock")
 	}
 }
 

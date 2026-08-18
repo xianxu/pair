@@ -1597,6 +1597,13 @@ func (osDraftRouteRuntime) RunZellijAction(args ...string) error {
 	return runZellijAction(args...)
 }
 
+type overlayDetection struct {
+	open        bool
+	newlyOpened bool
+	reason      string
+	nearMiss    string
+}
+
 // checkOverlayOpen flips pickerActive when the current agent's output
 // indicates that a blocking overlay opened. Idempotent — repeated
 // rerenders within one overlay don't re-debug-log.
@@ -1604,16 +1611,31 @@ func (p *proxy) checkOverlayOpen(data, rolling []byte) {
 	if p.ttyProfile == nil || p.ttyProfile.overlay == nil {
 		return
 	}
+	detection := p.detectOverlayOpen(data, rolling)
+	if detection.open {
+		if detection.newlyOpened {
+			p.debug("PICKER-open", p.agentBasename+": "+detection.reason)
+			p.adapt.Log(2, "overlay-detect", adapt.Fired, p.agentBasename+": "+detection.reason)
+		}
+		return
+	}
+	if detection.nearMiss != "" {
+		p.adapt.Log(2, "overlay-detect", adapt.NearMiss, p.agentBasename+": unmatched prompt-shaped output: "+detection.nearMiss)
+	}
+}
+
+func (p *proxy) detectOverlayOpen(data, rolling []byte) overlayDetection {
 	p.overlayMu.Lock()
+	defer p.overlayMu.Unlock()
+
 	open, reason := p.ttyProfile.overlay(p, data, rolling)
 	if open {
 		wasActive := p.pickerActive.Swap(true)
-		p.overlayMu.Unlock()
-		if !wasActive {
-			p.debug("PICKER-open", p.agentBasename+": "+reason)
-			p.adapt.Log(2, "overlay-detect", adapt.Fired, p.agentBasename+": "+reason)
+		return overlayDetection{
+			open:        true,
+			newlyOpened: !wasActive,
+			reason:      reason,
 		}
-		return
 	}
 	// The detector said no. If the output nonetheless looks like an interactive
 	// confirm/permission prompt, that's the fingerprint of harness drift: the
@@ -1623,17 +1645,14 @@ func (p *proxy) checkOverlayOpen(data, rolling []byte) {
 	// pair-doctor can surface the new string. Diagnostic only; we never act on
 	// it. Only meaningful when no overlay is already known-open. Gated on a
 	// live recorder so the extra strip+scan isn't paid when telemetry is off.
-	var nearMiss string
+	var detection overlayDetection
 	if p.adapt != nil && !p.pickerActive.Load() {
 		if snippet, ok := promptShape(stripTerminalControls(data)); ok && snippet != p.lastNearMiss {
 			p.lastNearMiss = snippet
-			nearMiss = snippet
+			detection.nearMiss = snippet
 		}
 	}
-	p.overlayMu.Unlock()
-	if nearMiss != "" {
-		p.adapt.Log(2, "overlay-detect", adapt.NearMiss, p.agentBasename+": unmatched prompt-shaped output: "+nearMiss)
-	}
+	return detection
 }
 
 // genericPromptShapes are phrasings common to interactive confirm/permission
@@ -1977,20 +1996,21 @@ func (p *proxy) setWinsize() {
 		p.traceWrap("winsize-read-fail", map[string]any{"error": err.Error()})
 		return
 	}
-	prepared := false
+	var resize *terminalResize
 	if p.terminal != nil {
-		if err := p.terminal.PrepareResize(int(ws.Cols), int(ws.Rows)); err != nil {
+		resize, err = p.terminal.PrepareResize(int(ws.Cols), int(ws.Rows))
+		if err != nil {
 			p.debug("TERMINAL-resize-fail", err.Error())
 			return
 		}
-		prepared = true
+		defer resize.Abort()
 	}
 	if err := setPTYWinsize(p.ptmx, ws); err != nil {
 		p.traceWrap("winsize-set-fail", map[string]any{"error": err.Error()})
 		return
 	}
-	if prepared {
-		if err := p.terminal.CommitResize(); err != nil {
+	if resize != nil {
+		if err := resize.Commit(); err != nil {
 			p.debug("TERMINAL-resize-fail", err.Error())
 			return
 		}

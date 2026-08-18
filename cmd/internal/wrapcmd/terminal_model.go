@@ -19,7 +19,8 @@ const (
 )
 
 type terminalModel struct {
-	mu sync.Mutex
+	mu       sync.Mutex
+	resizeMu sync.Mutex
 
 	emulator     *vt.Emulator
 	observer     terminalControlObserver
@@ -31,6 +32,12 @@ type terminalModel struct {
 	closed       bool
 	closeErr     error
 	final        terminalSnapshot
+}
+
+type terminalResize struct {
+	model    *terminalModel
+	mu       sync.Mutex
+	resolved bool
 }
 
 type terminalControlObserver struct {
@@ -107,36 +114,64 @@ func (m *terminalModel) Feed(data []byte) error {
 }
 
 func (m *terminalModel) Resize(cols, rows int) error {
-	if err := m.PrepareResize(cols, rows); err != nil {
+	resize, err := m.PrepareResize(cols, rows)
+	if err != nil {
 		return err
 	}
-	return m.CommitResize()
+	return resize.Commit()
 }
 
-func (m *terminalModel) PrepareResize(cols, rows int) error {
+func (m *terminalModel) PrepareResize(cols, rows int) (*terminalResize, error) {
+	m.resizeMu.Lock()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.closed {
-		return io.ErrClosedPipe
+		m.resizeMu.Unlock()
+		return nil, io.ErrClosedPipe
 	}
 	if err := validateTerminalDimensions(cols, rows); err != nil {
-		return err
+		m.resizeMu.Unlock()
+		return nil, err
 	}
 	m.synchronized = false
 	m.emulator.Resize(cols, rows)
 	m.altScreen = m.emulator.IsAltScreen()
-	return nil
+	return &terminalResize{model: m}, nil
 }
 
-func (m *terminalModel) CommitResize() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.closed {
-		return io.ErrClosedPipe
+func (r *terminalResize) Commit() error {
+	return r.resolve(true)
+}
+
+func (r *terminalResize) Abort() {
+	_ = r.resolve(false)
+}
+
+func (r *terminalResize) resolve(commit bool) error {
+	if r == nil || r.model == nil {
+		return nil
 	}
-	m.observer.visible = false
-	m.synchronized = true
-	return nil
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.resolved {
+		return nil
+	}
+	r.resolved = true
+
+	m := r.model
+	m.mu.Lock()
+	var err error
+	if commit {
+		if m.closed {
+			err = io.ErrClosedPipe
+		} else {
+			m.observer.visible = false
+			m.synchronized = true
+		}
+	}
+	m.mu.Unlock()
+	m.resizeMu.Unlock()
+	return err
 }
 
 func validateTerminalDimensions(width, height int) error {

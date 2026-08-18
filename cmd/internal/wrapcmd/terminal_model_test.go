@@ -336,13 +336,14 @@ func TestTerminalModelPreparedResizeMasksConcurrentSnapshotsUntilFreshShow(t *te
 	commit := make(chan struct{})
 	done := make(chan error, 1)
 	go func() {
-		if err := model.PrepareResize(60, 30); err != nil {
+		resize, err := model.PrepareResize(60, 30)
+		if err != nil {
 			done <- err
 			return
 		}
 		close(prepared)
 		<-commit
-		done <- model.CommitResize()
+		done <- resize.Commit()
 	}()
 	<-prepared
 
@@ -367,6 +368,61 @@ func TestTerminalModelPreparedResizeMasksConcurrentSnapshotsUntilFreshShow(t *te
 	}
 	if snapshot := model.Snapshot(); !snapshot.CursorVisible {
 		t.Fatal("fresh show after committed resize did not restore visibility")
+	}
+}
+
+func TestTerminalModelResizeTransactionsAreExclusiveUntilResolved(t *testing.T) {
+	for _, resolution := range []struct {
+		name    string
+		resolve func(*terminalResize) error
+	}{
+		{name: "commit", resolve: func(resize *terminalResize) error { return resize.Commit() }},
+		{name: "abort", resolve: func(resize *terminalResize) error {
+			resize.Abort()
+			return nil
+		}},
+	} {
+		t.Run(resolution.name, func(t *testing.T) {
+			model := newTerminalModelForTest(t, 80, 38)
+			first, err := model.PrepareResize(70, 35)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			started := make(chan struct{})
+			secondDone := make(chan *terminalResize, 1)
+			secondErr := make(chan error, 1)
+			go func() {
+				close(started)
+				second, err := model.PrepareResize(60, 30)
+				if err != nil {
+					secondErr <- err
+					return
+				}
+				secondDone <- second
+			}()
+			<-started
+			select {
+			case second := <-secondDone:
+				second.Abort()
+				t.Fatal("second resize prepared before first transaction resolved")
+			case err := <-secondErr:
+				t.Fatalf("second resize returned early with error: %v", err)
+			case <-time.After(25 * time.Millisecond):
+			}
+
+			if err := resolution.resolve(first); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case second := <-secondDone:
+				second.Abort()
+			case err := <-secondErr:
+				t.Fatal(err)
+			case <-time.After(time.Second):
+				t.Fatal("second resize remained blocked after first transaction resolved")
+			}
+		})
 	}
 }
 
