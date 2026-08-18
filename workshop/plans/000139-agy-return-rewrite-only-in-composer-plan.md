@@ -423,7 +423,11 @@ bounded output. Use a named 15-second startup timeout. On every exit path close
 the PTY, interrupt the child, allow two seconds, kill if necessary, and bound
 `cmd.Wait`. First write controlled-child tests for normal capture, missing
 executable, timeout, and child cleanup; observe RED before implementing each
-lifecycle behavior.
+lifecycle behavior. Teardown must close/cancel before signaling, always attempt
+the bounded wait/kill/reap sequence even after signal or kill errors, and join
+the one reader goroutine. Combine cleanup failure with any primary capture
+failure using `errors.Join`; injected failure-path tests must prove later
+cleanup operations still execute.
 
 - [ ] **Step 2: Capture literal Muse startup bytes**
 
@@ -918,3 +922,15 @@ profile and an out-of-range policy; both must return bare CR, `adapt.Bypass`,
 composer-unknown telemetry, and no overlay clear. This prevents a missed
 profile initialization from swallowing or rewriting Return when Task 5 moves
 the profile onto `proxy` (ARCH-PURE, ARCH-PURPOSE).
+
+#### Task 2A coordinated-teardown correction
+
+Quality review found that the first capture helper suppressed cleanup errors
+behind primary errors, returned early on unexpected kill failure, and never
+joined its PTY reader. Task 2A now treats teardown as one bounded coordinated
+operation: cancel and close the PTY, interrupt, wait, kill if needed, always
+attempt the final reap wait, and join the reader. It returns `errors.Join` of
+the capture and teardown failures. A narrow injected process/PTY operation seam
+tests signal and kill failures while asserting later wait/reap/join steps still
+occur; controlled-child tests continue to exercise the real seam
+(ARCH-PURE, ARCH-MOCK, ARCH-PURPOSE).

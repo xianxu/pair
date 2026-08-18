@@ -417,3 +417,15 @@ explicit unknown policy. The decision switches exhaustively: only named legacy
 or positive policies may reach their remap behavior; zero and every invalid
 value emit bare CR with `adapt.Bypass` and composer-unknown telemetry
 (ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-17T21:42:00-07:00 — Coordinate capture teardown
+
+Task 2A quality review found three ways its reusable PTY helper could return
+before proving cleanup: a primary capture error masked teardown errors, an
+unexpected kill error skipped the final reap wait, and cancellation did not
+join the reader goroutine. Capture teardown is one coordinated operation: close
+the cancellation channel and PTY, signal, always continue through a bounded
+wait/kill/reap sequence even when an operation fails, join the sole reader, and
+combine primary plus cleanup failures with `errors.Join`. Injected operation
+failures must prove every later cleanup step is still attempted
+(ARCH-PURE, ARCH-MOCK, ARCH-PURPOSE).
