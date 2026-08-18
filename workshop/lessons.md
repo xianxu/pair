@@ -1,5 +1,42 @@
 # Lessons
 
+## Terminal observers must share the parser's state model
+
+A raw C1 CSI byte can be a control in terminal ground state and ordinary data
+inside UTF-8, OSC, or DCS. A side observer that scans framed escapes without
+the terminal parser's state therefore authorizes controls the screen owner did
+not parse, especially across caller chunk boundaries.
+
+**Rule.** When security- or routing-relevant evidence shadows a terminal
+parser, use the same bounded parser state semantics as the screen owner. Test
+the same control byte in ground, UTF-8, OSC, and DCS contexts at every split;
+do not infer controls from raw byte values alone. Caught in #000139 Task 1
+review.
+
+## Dependency boundaries define the property-test oracle
+
+x/vt flushes extended graphemes at each `Write`, so one-shot and chunked writes
+of the same valid ZWJ stream can produce different cell grids. Requiring grid
+equality would force Pair to become a second grapheme renderer without proving
+the Return-routing behavior the issue exists to protect.
+
+**Rule.** Before asserting chunk-equivalent representations, prove the owning
+dependency promises that representation invariant. If it does not, keep
+boundary tests to safety, bounds, and coherent state, then assert equivalence at
+the product decision seam using literal production streams. Seed fuzzers with a
+deterministic multi-codepoint grapheme such as `👩‍💻`. Caught in #000139 Task 1
+review.
+
+## Validate dimensions before allocation boundaries
+
+Rejecting only zero and negative dimensions still allowed huge positive PTY
+sizes to panic inside x/vt allocation and made snapshot multiplication unsafe.
+
+**Rule.** Any externally influenced width/height pair must pass one shared,
+overflow-safe per-axis and total-area validator before construction, resize, or
+`width*height` allocation. Rejected mutations must preserve the prior complete
+state. Include max-int-shaped rejection tests. Caught in #000139 Task 1 review.
+
 ## Local predicates must count local evidence
 
 The #142 close review caught a composer detector that required one painted row

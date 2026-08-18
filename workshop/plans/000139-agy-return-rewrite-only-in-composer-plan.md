@@ -203,7 +203,7 @@ library synchronization/IO, and existing `adapt` telemetry.
 **Files:**
 - Existing issue: `workshop/issues/000140-muse-return-rewrite-only-in-composer.md`
 
-- [ ] **Step 1: Resolve #140 through its own SDLC run**
+- [x] **Step 1: Resolve #140 through its own SDLC run**
 
 Do not edit #140 inside the #139 transaction. Its implementation landed before
 claim as `ab736d1`, so first run the binary-owned fresh review over the exact
@@ -221,7 +221,7 @@ worktree, follow `sdlc claim --issue 140`, reconcile its checklist to
 precise actual-hours waiver named by `sdlc` if the pre-claim implementation
 cannot be measured. Resume #139 only after #140 is `codecomplete` or `done`.
 
-- [ ] **Step 2: Re-enter #139 implementation through the gate**
+- [x] **Step 2: Re-enter #139 implementation through the gate**
 
 Run: `sdlc change-code --issue 139`
 
@@ -235,7 +235,7 @@ superseded 0.57h estimate.
 - Create: `cmd/internal/wrapcmd/terminal_model.go`
 - Create: `cmd/internal/wrapcmd/terminal_model_test.go`
 
-- [ ] **Step 1: RED/GREEN constructor and empty snapshot**
+- [x] **Step 1: RED/GREEN constructor and empty snapshot**
 
 Define the desired API:
 
@@ -254,7 +254,7 @@ helper before calling x/vt: both axes must be positive and no greater than 4096,
 and area must be no greater than 262,144 cells (`width > maxCells/height`, never
 unchecked multiplication). Observe RED, then implement only that contract.
 
-- [ ] **Step 2: RED/GREEN feed and immutable cell copying**
+- [x] **Step 2: RED/GREEN feed and immutable cell copying**
 
 `terminalModel.Feed` / `Snapshot`: fuzz arbitrary byte streams and chunk
 partitions seeded from supported harness captures; the guard is bounded,
@@ -269,7 +269,7 @@ in-bounds. Task 6 instead requires recognizer and Return-decision equivalence at
 every split of literal harness streams. Observe RED, then minimally wire
 `Emulator.Write` and cell cloning.
 
-- [ ] **Step 3: RED/GREEN explicit control observation**
+- [x] **Step 3: RED/GREEN explicit control observation**
 
 `terminalControlObserver.Feed`: fuzz arbitrary malformed/split escape streams
 seeded with explicit show/hide, reset, alternate-screen, UTF-8, C1 CSI, and
@@ -279,7 +279,7 @@ bounded `github.com/charmbracelet/x/ansi.Parser`, matching x/vt state semantics;
 emulator callbacks never authorize production visibility. Observe RED, then
 implement the minimal observer.
 
-- [ ] **Step 4: RED/GREEN resize and active-screen snapshot**
+- [x] **Step 4: RED/GREEN resize and active-screen snapshot**
 
 `terminalModel.Resize` / `Snapshot`: generate dimensions and screen-identity
 transitions; the guard is one atomic bounds-safe snapshot whose visibility
@@ -288,7 +288,7 @@ validator before x/vt; rejected resizes preserve dimensions, cells, cursor,
 visibility, and active-screen identity. Observe RED, then implement resize and
 `AltScreen` tracking.
 
-- [ ] **Step 5: RED/GREEN reply draining and deterministic close**
+- [x] **Step 5: RED/GREEN reply draining and deterministic close**
 
 `newTerminalModel` / `Close`: generate emulator reply-producing streams and
 repeated shutdown schedules under a timeout; the guard is nonblocking Feed,
@@ -300,7 +300,7 @@ closes `replyCloser`, joins the drainer, and only then calls `Emulator.Close`, s
 the drainer never races the emulator's unsynchronized `closed` field. Observe
 RED, then implement.
 
-- [ ] **Step 6: RED/GREEN concurrent shutdown and race verification**
+- [x] **Step 6: RED/GREEN concurrent shutdown and race verification**
 
 `terminalModel` concurrent API: generate interleavings of Feed, Resize,
 Snapshot, and Close under deadlines and the race detector; the guard is no race,
@@ -315,7 +315,7 @@ Then run: `go test -race ./cmd/internal/wrapcmd -run '^TestTerminalModel' -count
 
 Expected: PASS without races, leaks, or blocked goroutines.
 
-- [ ] **Step 7: Keep the implementation within this shape**
+- [x] **Step 7: Keep the implementation within this shape**
 
 ```go
 type terminalModel struct {
@@ -341,7 +341,7 @@ Copy cells via `Clone` under the model lock and expose a bounds-safe snapshot
 `CellAt`. `x/vt` owns screen semantics; the observer owns only explicit control
 evidence that the emulator API cannot distinguish safely.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add cmd/internal/wrapcmd/terminal_model.go cmd/internal/wrapcmd/terminal_model_test.go

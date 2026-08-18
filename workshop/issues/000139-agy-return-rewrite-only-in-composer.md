@@ -89,7 +89,7 @@ To preserve strict workstream isolation with open issue #140 (which tracks Muse)
 - Historical: add return routing and stateful fake replay tests in `cmd/internal/wrapcmd/agy_return_test.go`.
 - Historical: run full test suite (`go test ./...`) to ensure zero regressions across all agents.
 - Historical: update `atlas/architecture.md` and `atlas/how-to-bring-up-a-new-harness-cli.md`.
-- [ ] Complete the authoritative revised plan in `## Revisions`.
+- [x] Complete the authoritative revised plan in `## Revisions`.
 
 ## Estimate
 
@@ -159,6 +159,14 @@ harness profile/router and the stateful fixture/fake support.
   gate. `sdlc estimate-source` reports stale calibration; estimate-quality
   returned `INFO`, chiefly that terminal concurrency and three live harness
   captures may make the calibrated total optimistic.
+- Task 1 landed as `9d3e27e`: a mutex-owned x/vt model with immutable
+  snapshots, bounded stateful control observation, reply draining,
+  deterministic concurrent close, and overflow-safe 4096-axis/262,144-cell
+  allocation limits. Focused, race, full-package, and both fuzz targets passed.
+- Task 1 fresh reviews both returned `APPROVED`. Review-driven corrections
+  covered parser-state-aware C1 handling, coordinated concurrent close,
+  purpose-level rather than x/vt-grid chunk equivalence, and pre-allocation
+  dimension validation (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
 
 ## Revisions
 
@@ -299,11 +307,11 @@ re-derived only after the revised durable plan passes plan-quality review.
 
 #### Authoritative revised Plan
 
-- [ ] Reconcile and close blocking issue #140 without changing Muse's landed
+- [x] Reconcile and close blocking issue #140 without changing Muse's landed
       recognition contract.
-- [ ] Write the revised durable implementation plan, pass plan-quality review,
+- [x] Write the revised durable implementation plan, pass plan-quality review,
       and reconcile the expanded estimate through `sdlc change-code`.
-- [ ] Build the tested `x/vt` terminal wrapper with atomic snapshots, reply
+- [x] Build the tested `x/vt` terminal wrapper with atomic snapshots, reply
       draining, reset/resize handling, and deterministic close.
 - [ ] Consolidate Return customization into `harnessTTYProfile` and a pure
       fail-safe Return decision, with registry shadow-sweep tests.
