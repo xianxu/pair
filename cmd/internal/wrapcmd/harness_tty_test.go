@@ -45,9 +45,12 @@ func TestHarnessTTYProfileRegistry(t *testing.T) {
 			if got.composerGate != want.gate {
 				t.Errorf("composerGate = %v, want %v", got.composerGate, want.gate)
 			}
-			wantRecognizer := harness == "codex" || harness == "muse"
+			wantRecognizer := harness == "codex" || harness == "agy" || harness == "muse"
 			if (got.recognize != nil) != wantRecognizer {
 				t.Errorf("recognize registered = %t, want %t", got.recognize != nil, wantRecognizer)
+			}
+			if harness == "agy" && reflect.ValueOf(got.recognize).Pointer() != reflect.ValueOf(agyComposerActive).Pointer() {
+				t.Error("Agy recognizer does not match agyComposerActive registration")
 			}
 			if got.captureSetsOverlay != want.captureSetsOverlay {
 				t.Errorf("captureSetsOverlay = %t, want %t", got.captureSetsOverlay, want.captureSetsOverlay)

@@ -49,6 +49,7 @@ var harnessTTYProfiles = map[string]harnessTTYProfile{
 		},
 		overlay:      detectAgyOverlayOpen,
 		composerGate: composerGatePositive,
+		recognize:    agyComposerActive,
 	},
 	"muse": {
 		keymap: sendKeymap{

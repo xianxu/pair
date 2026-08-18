@@ -8,6 +8,121 @@ import (
 	uv "github.com/charmbracelet/ultraviolet"
 )
 
+type agyCell struct {
+	x, y int
+	text string
+}
+
+func TestAgyComposerActive(t *testing.T) {
+	border := func(y, start, length int) []agyCell {
+		cells := make([]agyCell, length)
+		for offset := range length {
+			cells[offset] = agyCell{x: start + offset, y: y, text: "─"}
+		}
+		return cells
+	}
+	box := func(top, bottom, start, length, promptX int) []agyCell {
+		cells := append(border(top, start, length), border(bottom, start, length)...)
+		return append(cells, agyCell{x: promptX, y: top + 1, text: ">"})
+	}
+	join := func(groups ...[]agyCell) []agyCell {
+		var cells []agyCell
+		for _, group := range groups {
+			cells = append(cells, group...)
+		}
+		return cells
+	}
+
+	tests := []struct {
+		name    string
+		width   int
+		height  int
+		cursor  uv.Position
+		visible bool
+		cells   []agyCell
+		want    bool
+	}{
+		{name: "observed startup geometry", width: 80, height: 38, cursor: uv.Position{X: 2, Y: 30}, visible: true, cells: box(29, 31, 0, 60, 0), want: true},
+		{name: "multiline composer", width: 80, height: 38, cursor: uv.Position{X: 8, Y: 12}, visible: true, cells: box(9, 13, 0, 40, 0), want: true},
+		{name: "minimum border length", width: 20, height: 10, cursor: uv.Position{X: 2, Y: 3}, visible: true, cells: box(2, 4, 0, 5, 0), want: true},
+		{name: "overlapping offset spans", width: 20, height: 10, cursor: uv.Position{X: 5, Y: 3}, visible: true, cells: join(border(2, 0, 8), border(4, 4, 8), []agyCell{{x: 4, y: 3, text: ">"}}), want: true},
+		{name: "maximum box height", width: 40, height: 32, cursor: uv.Position{X: 3, Y: 20}, visible: true, cells: box(2, 27, 0, 20, 0), want: true},
+		{name: "last anchored prompt column", width: 20, height: 10, cursor: uv.Position{X: 5, Y: 3}, visible: true, cells: box(2, 4, 0, 10, 5), want: true},
+		{name: "intervening border glyphs do not hide coherent pair", width: 30, height: 12, cursor: uv.Position{X: 3, Y: 6}, visible: true, cells: join(box(2, 8, 0, 10, 0), border(5, 15, 5)), want: true},
+		{name: "hidden cursor", width: 20, height: 10, cursor: uv.Position{X: 2, Y: 3}, cells: box(2, 4, 0, 10, 0)},
+		{name: "lone prompt", width: 20, height: 10, cursor: uv.Position{X: 2, Y: 3}, visible: true, cells: []agyCell{{x: 0, y: 3, text: ">"}}},
+		{name: "lone divider", width: 20, height: 10, cursor: uv.Position{X: 2, Y: 3}, visible: true, cells: border(2, 0, 10)},
+		{name: "borders without prompt", width: 20, height: 10, cursor: uv.Position{X: 2, Y: 3}, visible: true, cells: join(border(2, 0, 10), border(4, 0, 10))},
+		{name: "prompt and bottom without top", width: 20, height: 10, cursor: uv.Position{X: 2, Y: 3}, visible: true, cells: join(border(4, 0, 10), []agyCell{{x: 0, y: 3, text: ">"}})},
+		{name: "short borders", width: 20, height: 10, cursor: uv.Position{X: 2, Y: 3}, visible: true, cells: box(2, 4, 0, 4, 0)},
+		{name: "separated glyphs are not cumulative", width: 20, height: 10, cursor: uv.Position{X: 2, Y: 3}, visible: true, cells: join(border(2, 0, 3), border(2, 4, 3), border(4, 0, 3), border(4, 4, 3), []agyCell{{x: 0, y: 3, text: ">"}})},
+		{name: "non-overlapping borders", width: 30, height: 10, cursor: uv.Position{X: 2, Y: 3}, visible: true, cells: join(border(2, 0, 8), border(4, 12, 8), []agyCell{{x: 0, y: 3, text: ">"}})},
+		{name: "prompt beyond anchor", width: 20, height: 10, cursor: uv.Position{X: 7, Y: 3}, visible: true, cells: box(2, 4, 0, 10, 6)},
+		{name: "prompt outside overlap", width: 30, height: 10, cursor: uv.Position{X: 6, Y: 3}, visible: true, cells: join(border(2, 0, 10), border(4, 5, 10), []agyCell{{x: 0, y: 3, text: ">"}})},
+		{name: "prompt outside vertical box", width: 20, height: 10, cursor: uv.Position{X: 2, Y: 3}, visible: true, cells: join(border(2, 0, 10), border(4, 0, 10), []agyCell{{x: 0, y: 5, text: ">"}})},
+		{name: "cursor on border", width: 20, height: 10, cursor: uv.Position{X: 2, Y: 2}, visible: true, cells: box(2, 4, 0, 10, 0)},
+		{name: "cursor outside overlap", width: 30, height: 10, cursor: uv.Position{X: 2, Y: 3}, visible: true, cells: join(border(2, 0, 10), border(4, 5, 10), []agyCell{{x: 5, y: 3, text: ">"}})},
+		{name: "box too tall", width: 40, height: 34, cursor: uv.Position{X: 3, Y: 20}, visible: true, cells: box(2, 28, 0, 20, 0)},
+		{name: "distant box cannot qualify local cursor", width: 40, height: 30, cursor: uv.Position{X: 2, Y: 20}, visible: true, cells: join(box(2, 4, 0, 10, 0), border(19, 0, 4), []agyCell{{x: 0, y: 20, text: ">"}})},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			snapshot := terminalSnapshot{
+				Width:         test.width,
+				Height:        test.height,
+				Cursor:        test.cursor,
+				CursorVisible: test.visible,
+				Cells:         make([]uv.Cell, test.width*test.height),
+			}
+			for _, cell := range test.cells {
+				snapshot.Cells[cell.y*test.width+cell.x].Content = cell.text
+			}
+			if got := agyComposerActive(snapshot); got != test.want {
+				t.Fatalf("active = %t, want %t", got, test.want)
+			}
+		})
+	}
+
+	t.Run("current snapshot rejects stale lifecycle evidence", func(t *testing.T) {
+		composer := "\x1b[10;1H──────────\x1b[11;1H> work\x1b[13;1H──────────\x1b[?25h\x1b[12;3H"
+		mutations := []struct {
+			name   string
+			feed   string
+			resize [2]int
+		}{
+			{name: "overwrite", feed: "\x1b[11;1Hnot a prompt"},
+			{name: "erase", feed: "\x1b[2J\x1b[?25h\x1b[12;3H"},
+			{name: "ECH", feed: "\x1b[10;1H\x1b[10X\x1b[?25h\x1b[12;3H"},
+			{name: "scroll", feed: "\x1b[20S\x1b[?25h\x1b[12;3H"},
+			{name: "resize", resize: [2]int{30, 8}},
+			{name: "reset", feed: "\x1bc\x1b[?25h\x1b[3;3H"},
+			{name: "alternate screen", feed: "\x1b[?1049h\x1b[?25h\x1b[3;3H"},
+		}
+		for _, mutation := range mutations {
+			t.Run(mutation.name, func(t *testing.T) {
+				model := newTerminalModelForTest(t, 30, 30)
+				if err := model.Feed([]byte(composer)); err != nil {
+					t.Fatal(err)
+				}
+				if !agyComposerActive(model.Snapshot()) {
+					t.Fatal("generated composer was not active before mutation")
+				}
+				if mutation.resize != [2]int{} {
+					if err := model.Resize(mutation.resize[0], mutation.resize[1]); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := model.Feed([]byte(mutation.feed)); err != nil {
+					t.Fatal(err)
+				}
+				if agyComposerActive(model.Snapshot()) {
+					t.Fatal("stale composer evidence survived current-screen mutation")
+				}
+			})
+		}
+	})
+}
+
 type composerDifferentialCase struct {
 	name              string
 	stream            []byte
@@ -104,6 +219,7 @@ func TestComposerRecognizersRejectAdversarialSnapshotsWithoutBlocking(t *testing
 		recognize composerRecognizer
 	}{
 		{"codex", codexComposerActive},
+		{"agy", agyComposerActive},
 		{"muse", museComposerActive},
 	}
 
