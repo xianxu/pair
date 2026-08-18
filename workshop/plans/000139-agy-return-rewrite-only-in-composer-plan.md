@@ -523,6 +523,8 @@ gone.
 **Files:**
 - Modify: `cmd/internal/wrapcmd/composer_recognizers.go`
 - Modify: `cmd/internal/wrapcmd/composer_recognizers_test.go`
+- Modify: `cmd/internal/wrapcmd/harness_tty.go`
+- Modify: `cmd/internal/wrapcmd/harness_tty_test.go`
 - Remove inherited untracked prototype after porting unique cases:
   `cmd/internal/wrapcmd/agy_composer.go`,
   `cmd/internal/wrapcmd/agy_composer_test.go`
@@ -555,7 +557,7 @@ partial-parser files so they cannot be staged.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add cmd/internal/wrapcmd/composer_recognizers.go cmd/internal/wrapcmd/composer_recognizers_test.go
+git add cmd/internal/wrapcmd/composer_recognizers.go cmd/internal/wrapcmd/composer_recognizers_test.go cmd/internal/wrapcmd/harness_tty.go cmd/internal/wrapcmd/harness_tty_test.go
 git commit -m "wrapcmd: #139: recognize the coherent Agy composer box" -m "Co-Authored-By: OpenAI Codex <noreply@openai.com>"
 ```
 
@@ -946,3 +948,10 @@ characterization intentionally pinned nil recognizers. Add both files to the
 task so the new pure predicates are actual tested profile consumers rather than
 unused parallel APIs
 (ARCH-DRY, ARCH-PURPOSE).
+
+#### Task 4 Agy registry-file correction
+
+Like Task 3, Task 4 must register and characterize the Agy predicate in the
+profile source of truth. Add `harness_tty.go` and `harness_tty_test.go` to its
+file/commit set so Task 5 consumes a complete positive-gated profile rather
+than performing an implicit late registration (ARCH-DRY, ARCH-PURPOSE).
