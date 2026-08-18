@@ -167,6 +167,15 @@ harness profile/router and the stateful fixture/fake support.
   covered parser-state-aware C1 handling, coordinated concurrent close,
   purpose-level rather than x/vt-grid chunk equivalence, and pre-allocation
   dimension validation (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+- Task 2 landed as `9504da3`: one immutable-copying harness TTY profile lookup
+  plus a pure Return decision. Exact profile/keymap/overlay contracts, overlay
+  precedence, legacy behavior, and positive-gate fail-safe paths pass focused
+  and full wrapcmd tests.
+- Task 2 fresh spec and quality reviews returned `APPROVED` after reserving the
+  gate-policy zero value for unknown and adding zero/out-of-range regressions.
+  A full-package race probe also exposed an unrelated pre-existing
+  `TestMasterPumpFlushesStdoutOnTick` bytes.Buffer race; Task 2 focused race
+  tests pass and no Task 2 file appears in that trace.
 
 ## Revisions
 

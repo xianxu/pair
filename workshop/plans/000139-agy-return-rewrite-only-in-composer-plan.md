@@ -355,7 +355,7 @@ git commit -m "wrapcmd: #139: add shared terminal snapshot model" -m "Co-Authore
 - Create: `cmd/internal/wrapcmd/harness_tty_test.go`
 - Modify: `cmd/internal/wrapcmd/keymap_registry_test.go`
 
-- [ ] **Step 1: Write failing registry and routing tests**
+- [x] **Step 1: Write failing registry and routing tests**
 
 Table-test exact Claude/Codex/Agy/Muse key bytes, overlay detector identity,
 gate policy, Codex capture capability, unknown lookup, and remap-disabled
@@ -363,13 +363,13 @@ selection. Recognizer registration is deliberately deferred until Tasks 3/4,
 so Chunk 1 commits compile without stubs. Test `decidePlainReturn` across overlay, active,
 inactive/unknown, and legacy profiles, including telemetry and overlay clear.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `go test -v ./cmd/internal/wrapcmd -run 'TestHarnessTTYProfile|TestDecidePlainReturn' -count=1`
 
 Expected: FAIL because the unified registry and decision do not exist.
 
-- [ ] **Step 3: Implement the profile registry**
+- [x] **Step 3: Implement the profile registry**
 
 ```go
 type composerGatePolicy uint8
@@ -394,13 +394,13 @@ the gate policy: zero/unknown and out-of-range values fail closed to bare CR,
 `adapt.Bypass`, and composer-unknown telemetry. Only explicit legacy and
 positive policies may authorize profile key bytes.
 
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
 
 Run: `go test -v ./cmd/internal/wrapcmd -run 'TestHarnessTTYProfile|TestDecidePlainReturn|TestSendKeymap' -count=1`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cmd/internal/wrapcmd/harness_tty.go cmd/internal/wrapcmd/harness_tty_test.go cmd/internal/wrapcmd/keymap_registry_test.go

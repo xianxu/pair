@@ -1,5 +1,17 @@
 # Lessons
 
+## Authorization enums need a fail-safe zero value
+
+The first Return gate enum assigned its legacy remap policy to zero. An absent
+or corrupt profile therefore fell through as authorized; an all-zero keymap
+could report `Fired` while emitting no bytes and swallow Enter.
+
+**Rule.** For any enum controlling a rewrite, permission, route, or destructive
+action, reserve zero for unknown/disabled and switch exhaustively. Only named
+authorizing values may reach configured behavior; zero and invalid values must
+take the safe observable fallback. Test both an all-zero owner struct and an
+out-of-range enum. Caught in #000139 Task 2 review.
+
 ## Terminal observers must share the parser's state model
 
 A raw C1 CSI byte can be a control in terminal ground state and ordinary data
