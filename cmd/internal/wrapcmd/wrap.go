@@ -195,8 +195,10 @@ type proxy struct {
 	agentReadyPath  string
 
 	// PTY
-	ptmx *os.File
-	cmd  *exec.Cmd
+	ptmx          *os.File
+	cmd           *exec.Cmd
+	getWinsize    func(*os.File) (*pty.Winsize, error)
+	setPTYWinsize func(*os.File, *pty.Winsize) error
 
 	restartFresh atomic.Bool
 
@@ -214,19 +216,20 @@ type proxy struct {
 	// that a blocking overlay / picker opened. While set,
 	// translateChunk emits a bare \r for the user's plain Enter
 	// instead of the textarea-aware remap, so the overlay confirms.
-	// The flag clears after the first plain Enter is consumed —
-	// restoring normal remap for the next Enter, which is back in the
-	// textarea. Set from masterPump (handleChunk), read+cleared from
-	// translateChunk → atomic.
+	// The flag clears after the first plain Enter is consumed, restoring
+	// normal remap for the next Enter. Detection, capture arming, and Return
+	// consumption serialize with overlayMu; the atomic value permits
+	// diagnostic reads without weakening that ownership.
 	pickerActive atomic.Bool
 
-	// Codex does not expose a dedicated overlay OSC today, so its
-	// detector watches newly arrived visible text plus this carryover for
-	// split picker labels. Keeping it separate from the OSC rolling tail
-	// avoids re-detecting stale picker text after Enter clears
-	// pickerActive.
+	// Text detectors watch newly arrived visible text plus this carryover for
+	// split picker labels. Keeping it separate from the OSC rolling tail avoids
+	// re-detecting stale picker text after Enter clears pickerActive.
 	overlayMu       sync.Mutex
 	overlayTextTail string
+	// overlayConsumeHook is a deterministic test seam invoked while an older
+	// Return owns overlayMu after consuming its overlay state.
+	overlayConsumeHook func()
 
 	// Adaptation flight recorder: always-on, appends one JSON line per
 	// adaptation trigger to adapt-<tag>.jsonl so pair-doctor can spot drift.
@@ -671,8 +674,6 @@ func detectCodexOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
 	}
 	visible := stripTerminalControls(data)
 	if p != nil {
-		p.overlayMu.Lock()
-		defer p.overlayMu.Unlock()
 		visible = p.overlayTextTail + visible
 		p.overlayTextTail = textSuffix(visible, rollingTailLen)
 	}
@@ -709,8 +710,6 @@ var agyPickerMarkers = []string{
 func detectAgyOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
 	visible := stripTerminalControls(data)
 	if p != nil {
-		p.overlayMu.Lock()
-		defer p.overlayMu.Unlock()
 		visible = p.overlayTextTail + visible
 		p.overlayTextTail = textSuffix(visible, rollingTailLen)
 	}
@@ -749,8 +748,6 @@ var musePickerMarkers = []string{
 func detectMuseOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
 	visible := stripTerminalControls(data)
 	if p != nil {
-		p.overlayMu.Lock()
-		defer p.overlayMu.Unlock()
 		visible = p.overlayTextTail + visible
 		p.overlayTextTail = textSuffix(visible, rollingTailLen)
 	}
@@ -1128,8 +1125,12 @@ func (p *proxy) armCapture() {
 		return
 	}
 	if p.ttyProfile != nil && p.ttyProfile.captureSetsOverlay {
-		p.pickerActive.Store(true)
-		p.debug("PICKER-open", "codex: image capture")
+		p.overlayMu.Lock()
+		wasActive := p.pickerActive.Swap(true)
+		p.overlayMu.Unlock()
+		if !wasActive {
+			p.debug("PICKER-open", "codex: image capture")
+		}
 	}
 	p.captureMu.Lock()
 	defer p.captureMu.Unlock()
@@ -1603,10 +1604,12 @@ func (p *proxy) checkOverlayOpen(data, rolling []byte) {
 	if p.ttyProfile == nil || p.ttyProfile.overlay == nil {
 		return
 	}
+	p.overlayMu.Lock()
 	open, reason := p.ttyProfile.overlay(p, data, rolling)
 	if open {
-		if !p.pickerActive.Load() {
-			p.pickerActive.Store(true)
+		wasActive := p.pickerActive.Swap(true)
+		p.overlayMu.Unlock()
+		if !wasActive {
 			p.debug("PICKER-open", p.agentBasename+": "+reason)
 			p.adapt.Log(2, "overlay-detect", adapt.Fired, p.agentBasename+": "+reason)
 		}
@@ -1620,11 +1623,16 @@ func (p *proxy) checkOverlayOpen(data, rolling []byte) {
 	// pair-doctor can surface the new string. Diagnostic only; we never act on
 	// it. Only meaningful when no overlay is already known-open. Gated on a
 	// live recorder so the extra strip+scan isn't paid when telemetry is off.
+	var nearMiss string
 	if p.adapt != nil && !p.pickerActive.Load() {
 		if snippet, ok := promptShape(stripTerminalControls(data)); ok && snippet != p.lastNearMiss {
 			p.lastNearMiss = snippet
-			p.adapt.Log(2, "overlay-detect", adapt.NearMiss, p.agentBasename+": unmatched prompt-shaped output: "+snippet)
+			nearMiss = snippet
 		}
+	}
+	p.overlayMu.Unlock()
+	if nearMiss != "" {
+		p.adapt.Log(2, "overlay-detect", adapt.NearMiss, p.agentBasename+": unmatched prompt-shaped output: "+nearMiss)
 	}
 }
 
@@ -1704,18 +1712,21 @@ func (p *proxy) emitPlainCR(out []byte) []byte {
 	if p.ttyProfile == nil {
 		return append(out, '\r')
 	}
+	p.overlayMu.Lock()
+	overlayActive := p.pickerActive.Swap(false)
+	if overlayActive {
+		p.overlayTextTail = ""
+	}
+	if p.overlayConsumeHook != nil {
+		p.overlayConsumeHook()
+	}
+	p.overlayMu.Unlock()
 	var snapshot *terminalSnapshot
 	if p.terminal != nil {
 		current := p.terminal.Snapshot()
 		snapshot = &current
 	}
-	decision := decidePlainReturn(*p.ttyProfile, p.pickerActive.Load(), snapshot)
-	if decision.clearOverlay {
-		p.pickerActive.Store(false)
-		p.overlayMu.Lock()
-		p.overlayTextTail = ""
-		p.overlayMu.Unlock()
-	}
+	decision := decidePlainReturn(*p.ttyProfile, overlayActive, snapshot)
 	p.adapt.Log(1, "return-remap", decision.outcome, decision.reason)
 	return append(out, decision.bytes...)
 }
@@ -1953,22 +1964,41 @@ func (p *proxy) setWinsize() {
 	if p.stdinFile == nil {
 		return
 	}
-	ws, err := pty.GetsizeFull(p.stdinFile)
+	getWinsize := p.getWinsize
+	if getWinsize == nil {
+		getWinsize = pty.GetsizeFull
+	}
+	setPTYWinsize := p.setPTYWinsize
+	if setPTYWinsize == nil {
+		setPTYWinsize = pty.Setsize
+	}
+	ws, err := getWinsize(p.stdinFile)
 	if err != nil {
 		p.traceWrap("winsize-read-fail", map[string]any{"error": err.Error()})
 		return
 	}
-	if err := pty.Setsize(p.ptmx, ws); err != nil {
+	prepared := false
+	if p.terminal != nil {
+		if err := p.terminal.PrepareResize(int(ws.Cols), int(ws.Rows)); err != nil {
+			p.debug("TERMINAL-resize-fail", err.Error())
+			return
+		}
+		prepared = true
+	}
+	if err := setPTYWinsize(p.ptmx, ws); err != nil {
 		p.traceWrap("winsize-set-fail", map[string]any{"error": err.Error()})
 		return
+	}
+	if prepared {
+		if err := p.terminal.CommitResize(); err != nil {
+			p.debug("TERMINAL-resize-fail", err.Error())
+			return
+		}
 	}
 	p.traceWrap("winsize", map[string]any{
 		"cols": int(ws.Cols),
 		"rows": int(ws.Rows),
 	})
-	if err := p.resizeTerminal(int(ws.Cols), int(ws.Rows)); err != nil {
-		p.debug("TERMINAL-resize-fail", err.Error())
-	}
 	p.logScrollbackEvent("resize", map[string]any{
 		"cols": int(ws.Cols),
 		"rows": int(ws.Rows),

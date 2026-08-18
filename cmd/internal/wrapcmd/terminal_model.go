@@ -21,15 +21,16 @@ const (
 type terminalModel struct {
 	mu sync.Mutex
 
-	emulator    *vt.Emulator
-	observer    terminalControlObserver
-	altScreen   bool
-	replyCloser io.Closer
-	drainDone   chan struct{}
-	closeDone   chan struct{}
-	closed      bool
-	closeErr    error
-	final       terminalSnapshot
+	emulator     *vt.Emulator
+	observer     terminalControlObserver
+	altScreen    bool
+	synchronized bool
+	replyCloser  io.Closer
+	drainDone    chan struct{}
+	closeDone    chan struct{}
+	closed       bool
+	closeErr     error
+	final        terminalSnapshot
 }
 
 type terminalControlObserver struct {
@@ -77,10 +78,11 @@ func newTerminalModelWithReplyCloserAssertion(width, height int, assertCloser fu
 	}
 
 	model := &terminalModel{
-		emulator:    emulator,
-		replyCloser: replyCloser,
-		drainDone:   make(chan struct{}),
-		closeDone:   make(chan struct{}),
+		emulator:     emulator,
+		synchronized: true,
+		replyCloser:  replyCloser,
+		drainDone:    make(chan struct{}),
+		closeDone:    make(chan struct{}),
 	}
 	go func() {
 		defer close(model.drainDone)
@@ -105,6 +107,13 @@ func (m *terminalModel) Feed(data []byte) error {
 }
 
 func (m *terminalModel) Resize(cols, rows int) error {
+	if err := m.PrepareResize(cols, rows); err != nil {
+		return err
+	}
+	return m.CommitResize()
+}
+
+func (m *terminalModel) PrepareResize(cols, rows int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.closed {
@@ -113,8 +122,20 @@ func (m *terminalModel) Resize(cols, rows int) error {
 	if err := validateTerminalDimensions(cols, rows); err != nil {
 		return err
 	}
+	m.synchronized = false
 	m.emulator.Resize(cols, rows)
 	m.altScreen = m.emulator.IsAltScreen()
+	return nil
+}
+
+func (m *terminalModel) CommitResize() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closed {
+		return io.ErrClosedPipe
+	}
+	m.observer.visible = false
+	m.synchronized = true
 	return nil
 }
 
@@ -210,7 +231,7 @@ func (m *terminalModel) snapshotLocked() terminalSnapshot {
 		Width:         width,
 		Height:        height,
 		Cursor:        m.emulator.CursorPosition(),
-		CursorVisible: m.observer.visible,
+		CursorVisible: m.synchronized && m.observer.visible,
 		AltScreen:     m.altScreen,
 		Cells:         make([]uv.Cell, width*height),
 	}

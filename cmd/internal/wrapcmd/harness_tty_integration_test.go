@@ -2,9 +2,14 @@ package wrapcmd
 
 import (
 	"bytes"
+	"errors"
 	"io"
+	"os"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/creack/pty"
 )
 
 type harnessSessionFake struct {
@@ -139,5 +144,64 @@ func TestHarnessTTYIntegration_CodexCaptureOverlayPrecedence(t *testing.T) {
 	}
 	if got := f.enter(); !bytes.Equal(got, []byte{'\r'}) || f.proxy.pickerActive.Load() {
 		t.Fatalf("capture overlay Enter = %q active=%t, want bare CR and clear", got, f.proxy.pickerActive.Load())
+	}
+}
+
+func TestHarnessTTYIntegration_SetWinsizeRejectsInvalidBeforeSideEffects(t *testing.T) {
+	f := newHarnessSessionFake(t, "agy", true)
+	t.Cleanup(f.close)
+	f.output("\x1b[10;1H──────────\x1b[11;1H> work\x1b[13;1H──────────\x1b[?25h\x1b[12;3H")
+	before := f.proxy.terminal.Snapshot()
+	f.proxy.stdinFile = new(os.File)
+	f.proxy.ptmx = new(os.File)
+	f.proxy.getWinsize = func(*os.File) (*pty.Winsize, error) {
+		return &pty.Winsize{Cols: 0, Rows: 30}, nil
+	}
+	setCalls := 0
+	f.proxy.setPTYWinsize = func(*os.File, *pty.Winsize) error {
+		setCalls++
+		return nil
+	}
+
+	f.proxy.setWinsize()
+
+	if setCalls != 0 {
+		t.Fatalf("PTY resize calls = %d, want zero for invalid dimensions", setCalls)
+	}
+	if after := f.proxy.terminal.Snapshot(); !reflect.DeepEqual(after, before) {
+		t.Fatal("invalid production resize mutated terminal model")
+	}
+}
+
+func TestHarnessTTYIntegration_SetWinsizeFailureLatchesAuthorization(t *testing.T) {
+	f := newHarnessSessionFake(t, "agy", true)
+	t.Cleanup(f.close)
+	f.output("\x1b[10;1H──────────\x1b[11;1H> work\x1b[13;1H──────────\x1b[?25h\x1b[12;3H")
+	if got := f.enter(); !bytes.Equal(got, []byte{'\n'}) {
+		t.Fatalf("precondition Enter = %q, want active composer LF", got)
+	}
+
+	f.proxy.stdinFile = new(os.File)
+	f.proxy.ptmx = new(os.File)
+	f.proxy.getWinsize = func(*os.File) (*pty.Winsize, error) {
+		return &pty.Winsize{Cols: 60, Rows: 30}, nil
+	}
+	setErr := errors.New("injected PTY resize failure")
+	f.proxy.setPTYWinsize = func(*os.File, *pty.Winsize) error { return setErr }
+	f.proxy.setWinsize()
+
+	f.output("\x1b[10;1H──────────\x1b[11;1H> work\x1b[13;1H──────────\x1b[?25h\x1b[12;3H")
+	if got := f.enter(); !bytes.Equal(got, []byte{'\r'}) {
+		t.Fatalf("Enter after failed PTY resize = %q, want latched bare CR", got)
+	}
+
+	f.proxy.setPTYWinsize = func(*os.File, *pty.Winsize) error { return nil }
+	f.proxy.setWinsize()
+	if got := f.enter(); !bytes.Equal(got, []byte{'\r'}) {
+		t.Fatalf("Enter after resize commit without fresh show = %q, want bare CR", got)
+	}
+	f.output("\x1b[?25h")
+	if got := f.enter(); !bytes.Equal(got, []byte{'\n'}) {
+		t.Fatalf("Enter after fresh post-commit show = %q, want LF", got)
 	}
 }

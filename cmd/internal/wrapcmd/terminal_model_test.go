@@ -323,6 +323,53 @@ func TestTerminalModelControlObserverVisibilityTransitions(t *testing.T) {
 	}
 }
 
+func TestTerminalModelPreparedResizeMasksConcurrentSnapshotsUntilFreshShow(t *testing.T) {
+	model := newTerminalModelForTest(t, 80, 38)
+	if err := model.Feed([]byte("\x1b[?25h")); err != nil {
+		t.Fatal(err)
+	}
+	if !model.Snapshot().CursorVisible {
+		t.Fatal("precondition: cursor should be visible before resize")
+	}
+
+	prepared := make(chan struct{})
+	commit := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		if err := model.PrepareResize(60, 30); err != nil {
+			done <- err
+			return
+		}
+		close(prepared)
+		<-commit
+		done <- model.CommitResize()
+	}()
+	<-prepared
+
+	if snapshot := model.Snapshot(); snapshot.CursorVisible {
+		t.Fatal("snapshot authorized cursor visibility during prepared resize")
+	}
+	if err := model.Feed([]byte("\x1b[?25h")); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot := model.Snapshot(); snapshot.CursorVisible {
+		t.Fatal("show-cursor traffic bypassed prepared resize latch")
+	}
+	close(commit)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if snapshot := model.Snapshot(); snapshot.CursorVisible {
+		t.Fatal("commit restored stale visibility without fresh evidence")
+	}
+	if err := model.Feed([]byte("\x1b[?25h")); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot := model.Snapshot(); !snapshot.CursorVisible {
+		t.Fatal("fresh show after committed resize did not restore visibility")
+	}
+}
+
 func TestTerminalModelControlObserverC1CSITransitions(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -556,8 +603,14 @@ func TestTerminalModelResizePublishesBoundedXVTState(t *testing.T) {
 	if len(snapshot.Cells) != 12 || snapshot.CellAt(2, 3) == nil || snapshot.CellAt(3, 3) != nil {
 		t.Fatalf("resized cell grid is not 3x4: len=%d", len(snapshot.Cells))
 	}
-	if !snapshot.CursorVisible {
-		t.Fatal("resize discarded explicit cursor visibility without replacing the active screen")
+	if snapshot.CursorVisible {
+		t.Fatal("resize preserved stale cursor visibility")
+	}
+	if err := model.Feed([]byte("\x1b[?25h")); err != nil {
+		t.Fatal(err)
+	}
+	if !model.Snapshot().CursorVisible {
+		t.Fatal("fresh show after resize did not restore cursor visibility")
 	}
 }
 

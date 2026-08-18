@@ -2,8 +2,51 @@ package wrapcmd
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 )
+
+func TestEmitPlainCR_ConcurrentOverlayRearmRetainsNewStateAndTail(t *testing.T) {
+	p := proxyForHarness("codex")
+	p.pickerActive.Store(true)
+	p.overlayTextTail = "old overlay"
+
+	consumeLocked := make(chan struct{})
+	releaseConsume := make(chan struct{})
+	p.overlayConsumeHook = func() {
+		close(consumeLocked)
+		<-releaseConsume
+	}
+
+	enterDone := make(chan []byte, 1)
+	go func() { enterDone <- p.emitPlainCR(nil) }()
+	<-consumeLocked
+
+	detectStarted := make(chan struct{})
+	detectDone := make(chan struct{})
+	go func() {
+		close(detectStarted)
+		raw := []byte("Press enter to continue")
+		p.checkOverlayOpen(raw, raw)
+		close(detectDone)
+	}()
+	<-detectStarted
+	close(releaseConsume)
+
+	if got := <-enterDone; !bytes.Equal(got, []byte{'\r'}) {
+		t.Fatalf("older overlay Enter = %q, want bare CR", got)
+	}
+	<-detectDone
+	if !p.pickerActive.Load() {
+		t.Fatal("new overlay was erased by older Enter")
+	}
+	p.overlayMu.Lock()
+	tail := p.overlayTextTail
+	p.overlayMu.Unlock()
+	if !strings.Contains(tail, "Press enter to continue") {
+		t.Fatalf("new overlay tail = %q, want new marker retained", tail)
+	}
+}
 
 func TestOverlayDetectorByAgent(t *testing.T) {
 	cases := []struct {
