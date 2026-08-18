@@ -529,32 +529,32 @@ gone.
   `cmd/internal/wrapcmd/agy_composer.go`,
   `cmd/internal/wrapcmd/agy_composer_test.go`
 
-- [ ] **Step 1: Write failing geometry tests**
+- [x] **Step 1: Write failing geometry tests**
 
 Generate snapshots varying border span/length, prompt column, cursor
 position/visibility, height, and local-vs-distant evidence. Include every
 weak/stale negative from the issue revision.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `go test -v ./cmd/internal/wrapcmd -run '^TestAgyComposerActive' -count=1`
 
 Expected: FAIL because `agyComposerActive` is absent.
 
-- [ ] **Step 3: Implement the minimal predicate**
+- [x] **Step 3: Implement the minimal predicate**
 
 Pair only overlapping contiguous `─` runs of length >=5 and height <=25; require
 the anchored prompt and visible cursor inside the same pair. Retain no evidence
 across snapshots.
 
-- [ ] **Step 4: Verify GREEN and retire prototype**
+- [x] **Step 4: Verify GREEN and retire prototype**
 
 Run: `go test -v ./cmd/internal/wrapcmd -run '^TestAgyComposerActive' -count=1`
 
 Expected: PASS. Port unique inherited cases, then remove the untracked
 partial-parser files so they cannot be staged.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cmd/internal/wrapcmd/composer_recognizers.go cmd/internal/wrapcmd/composer_recognizers_test.go cmd/internal/wrapcmd/harness_tty.go cmd/internal/wrapcmd/harness_tty_test.go

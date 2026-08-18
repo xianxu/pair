@@ -198,6 +198,13 @@ harness profile/router and the stateful fixture/fake support.
   non-empty and cursor-adjacent Muse composers and making arbitrary snapshot
   validation overflow-safe. Focused/race/full wrapcmd tests pass; the known
   unrelated stdout batching test race remains outside this task.
+- Task 4 landed as `09817d1`: Agy now has a pure coherent-box snapshot
+  recognizer with 30 geometry/lifecycle cases, direct profile registration,
+  and no retained evidence. The inherited untracked partial-parser prototype
+  and its tests were removed after unique cases were ported.
+- Task 4 fresh spec and quality reviews returned `APPROVED` with no findings;
+  focused/race/full wrapcmd checks pass and the commit touches exactly the four
+  planned tracked files.
 
 ## Revisions
 
@@ -348,7 +355,7 @@ re-derived only after the revised durable plan passes plan-quality review.
       fail-safe Return decision, with registry shadow-sweep tests.
 - [ ] Migrate Codex and Muse recognizers with differential fixture coverage and
       no semantic change.
-- [ ] Add Agy coherent-box recognition via failing geometry and lifecycle tests.
+- [x] Add Agy coherent-box recognition via failing geometry and lifecycle tests.
 - [ ] Replay stateful real-harness fixtures through `proxy.handleChunk`, add the
       executable live conformance test, and run race/full verification.
 - [ ] Update atlas documentation for the profile, terminal, routing, fixture,
