@@ -565,6 +565,8 @@ git commit -m "wrapcmd: #139: recognize the coherent Agy composer box" -m "Co-Au
 
 **Files:**
 - Modify: `cmd/internal/wrapcmd/wrap.go`
+- Modify: `cmd/internal/wrapcmd/terminal_model.go`
+- Modify: `cmd/internal/wrapcmd/terminal_model_test.go`
 - Modify: `cmd/internal/wrapcmd/composer_recognizers.go`
 - Modify: `cmd/internal/wrapcmd/composer_recognizers_test.go`
 - Modify: `cmd/internal/wrapcmd/codex_return_test.go`
@@ -588,6 +590,12 @@ A stateful `harnessSessionFake` sends lifecycle chunks through `handleChunk`.
 Assert selection, feed/resize, overlay precedence/clear, composer multiline,
 hidden/busy/unknown bare CR, Alt+Return, remap disabled, unknown pass-through,
 Codex capture overlay, and terminal close.
+Add deterministic production-path regressions proving overlay re-arm cannot be
+consumed by an older Enter and `setWinsize` (not only `resizeTerminal`) provides
+a latched resize transaction: invalid sizes mutate neither side; PTY set
+failure stays inactive after later `?25h` plus positive composer bytes; no
+concurrent snapshot authorizes the prepared intermediate state; and a later
+successful resize re-enables only after fresh explicit visibility evidence.
 
 - [ ] **Step 2: Verify RED**
 
@@ -600,8 +608,15 @@ Expected: FAIL because proxy still has per-agent branches.
 Resolve the profile beside remap setup; create/feed/resize/close one terminal for
 positive-gated profiles; use `decidePlainReturn`; make `armCapture` consult the
 profile; stop/join signal handling before terminal close; remove parallel
-registries and composer fields. Only now delete Codex/Muse trackers and their
-orphaned helpers, after the Agy prototype has been retired.
+registries and composer fields. Overlay detection, text-tail update, arming,
+and Return consumption share `overlayMu`; Return uses `Swap(false)` while
+holding it so a concurrent new overlay cannot be lost. Resize is a latched
+transaction owned by `terminalModel`: prepare validates then masks authorization
+before changing model geometry; after PTY resize succeeds, commit clears old
+visibility and restores synchronization. Failure leaves synchronization false
+across all later Feed/show-cursor traffic until a later successful transaction.
+Only now delete Codex/Muse trackers and their orphaned helpers, after the Agy
+prototype has been retired.
 
 - [ ] **Step 4: Verify GREEN and shadow sweep**
 
@@ -619,7 +634,7 @@ a second profile.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add cmd/internal/wrapcmd/wrap.go cmd/internal/wrapcmd/composer_recognizers.go cmd/internal/wrapcmd/composer_recognizers_test.go cmd/internal/wrapcmd/codex_return_test.go cmd/internal/wrapcmd/muse_return_test.go cmd/internal/wrapcmd/agy_return_test.go cmd/internal/wrapcmd/harness_tty_integration_test.go cmd/internal/wrapcmd/overlay_test.go cmd/internal/wrapcmd/picker_overlay_test.go cmd/internal/wrapcmd/adapt_drift_test.go cmd/internal/wrapcmd/translate_test.go cmd/internal/wrapcmd/translate_stdin_test.go cmd/internal/wrapcmd/keymap_registry_test.go cmd/internal/wrapcmd/codex_composer.go cmd/internal/wrapcmd/codex_composer_test.go cmd/internal/wrapcmd/muse_composer.go cmd/internal/wrapcmd/muse_composer_test.go
+git add cmd/internal/wrapcmd/wrap.go cmd/internal/wrapcmd/terminal_model.go cmd/internal/wrapcmd/terminal_model_test.go cmd/internal/wrapcmd/composer_recognizers.go cmd/internal/wrapcmd/composer_recognizers_test.go cmd/internal/wrapcmd/codex_return_test.go cmd/internal/wrapcmd/muse_return_test.go cmd/internal/wrapcmd/agy_return_test.go cmd/internal/wrapcmd/harness_tty_integration_test.go cmd/internal/wrapcmd/overlay_test.go cmd/internal/wrapcmd/picker_overlay_test.go cmd/internal/wrapcmd/adapt_drift_test.go cmd/internal/wrapcmd/translate_test.go cmd/internal/wrapcmd/translate_stdin_test.go cmd/internal/wrapcmd/keymap_registry_test.go cmd/internal/wrapcmd/codex_composer.go cmd/internal/wrapcmd/codex_composer_test.go cmd/internal/wrapcmd/muse_composer.go cmd/internal/wrapcmd/muse_composer_test.go
 git commit -m "wrapcmd: #139: route Return through harness TTY profiles" -m "Co-Authored-By: OpenAI Codex <noreply@openai.com>"
 ```
 
@@ -720,6 +735,7 @@ git commit -m "wrapcmd: #139: pin harness TTY conformance fixtures" -m "Co-Autho
 - Modify: `atlas/architecture.md`
 - Modify: `atlas/how-to-bring-up-a-new-harness-cli.md`
 - Modify: `README.md`
+- Modify: `doctor/README.md`
 - Modify: `workshop/issues/000139-agy-return-rewrite-only-in-composer.md`
 
 - [ ] **Step 1: Update atlas and user-facing guidance**
@@ -727,7 +743,9 @@ git commit -m "wrapcmd: #139: pin harness TTY conformance fixtures" -m "Co-Autho
 Map profile ownership, terminal lifecycle, Return precedence, recognizer
 boundary, fixture layout, live cadence, and new-harness opt-in. Update the
 README keybinding guidance with Claude, Codex, Muse, and Agy plain/Alt+Return
-behavior and the positive-gate fail-safe.
+behavior and the positive-gate fail-safe. Replace doctor guidance for the
+deleted keymap/overlay registries with `harnessTTYProfiles` and
+`profileForHarness`.
 
 - [ ] **Step 2: Run focused, race, and repository verification**
 
@@ -750,7 +768,7 @@ calling `sdlc close`. Confirm with `rg -n '^- \[ \]'` over the authoritative
 issue and plan sections.
 
 ```bash
-git add atlas/architecture.md atlas/how-to-bring-up-a-new-harness-cli.md README.md workshop/issues/000139-agy-return-rewrite-only-in-composer.md workshop/plans/000139-agy-return-rewrite-only-in-composer-plan.md
+git add atlas/architecture.md atlas/how-to-bring-up-a-new-harness-cli.md README.md doctor/README.md workshop/issues/000139-agy-return-rewrite-only-in-composer.md workshop/plans/000139-agy-return-rewrite-only-in-composer-plan.md
 git commit -m "atlas: #139: map unified harness Return routing" -m "Co-Authored-By: OpenAI Codex <noreply@openai.com>"
 ```
 

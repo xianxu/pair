@@ -458,3 +458,19 @@ wait/kill/reap sequence even when an operation fails, join the sole reader, and
 combine primary plus cleanup failures with `errors.Join`. Injected operation
 failures must prove every later cleanup step is still attempted
 (ARCH-PURE, ARCH-MOCK, ARCH-PURPOSE).
+
+### 2026-08-18T06:15:00-07:00 — Make overlay consume and resize fail safe
+
+Task 5 quality review found two logical authorization races. Overlay detection
+and consumption must share `overlayMu`: the production detector updates its
+text carryover and arms the overlay inside the same critical section, while
+Return atomically swaps the active flag and clears only the consumed tail under
+that lock. A newly detected overlay can therefore never be erased by an older
+Enter. Resize uses a latched synchronization transaction: validate before
+mutation; prepare the model while atomically masking snapshot visibility;
+resize the PTY; then commit synchronization while clearing prior visibility so
+only later explicit cursor evidence can authorize Return. PTY failure leaves
+the latch closed across all later output until a complete successful resize
+transaction. Tests exercise deterministic overlay re-arm and the real
+`setWinsize` path. Task 7 also updates the stale `doctor/README.md` registry
+instructions (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
