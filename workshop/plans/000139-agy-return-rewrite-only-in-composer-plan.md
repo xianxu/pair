@@ -462,6 +462,8 @@ git commit -m "wrapcmd: #139: capture Muse composer evidence" -m "Co-Authored-By
 **Files:**
 - Create: `cmd/internal/wrapcmd/composer_recognizers.go`
 - Create: `cmd/internal/wrapcmd/composer_recognizers_test.go`
+- Modify: `cmd/internal/wrapcmd/harness_tty.go`
+- Modify: `cmd/internal/wrapcmd/harness_tty_test.go`
 - Modify: `cmd/internal/wrapcmd/codex_composer_test.go`
 - Modify: `cmd/internal/wrapcmd/muse_composer_test.go`
 
@@ -499,7 +501,7 @@ depend on them.
 
 ```bash
 go test -v ./cmd/internal/wrapcmd -run 'Test(Codex|Muse)Composer|TestEmitPlainCR_(Codex|Muse)' -count=1
-git add cmd/internal/wrapcmd/composer_recognizers.go cmd/internal/wrapcmd/composer_recognizers_test.go cmd/internal/wrapcmd/codex_composer_test.go cmd/internal/wrapcmd/muse_composer_test.go
+git add cmd/internal/wrapcmd/composer_recognizers.go cmd/internal/wrapcmd/composer_recognizers_test.go cmd/internal/wrapcmd/harness_tty.go cmd/internal/wrapcmd/harness_tty_test.go cmd/internal/wrapcmd/codex_composer_test.go cmd/internal/wrapcmd/muse_composer_test.go
 git commit -m "wrapcmd: #139: derive Codex and Muse gates from terminal snapshots" -m "Co-Authored-By: OpenAI Codex <noreply@openai.com>"
 ```
 
@@ -934,3 +936,13 @@ the capture and teardown failures. A narrow injected process/PTY operation seam
 tests signal and kill failures while asserting later wait/reap/join steps still
 occur; controlled-child tests continue to exercise the real seam
 (ARCH-PURE, ARCH-MOCK, ARCH-PURPOSE).
+
+#### Task 3 registry-file correction
+
+Task 3 already requires registering the Codex and Muse snapshot recognizers,
+but its original file and commit lists omitted `harness_tty.go`, the profile
+registry's source of truth, and `harness_tty_test.go`, whose Task 2
+characterization intentionally pinned nil recognizers. Add both files to the
+task so the new pure predicates are actual tested profile consumers rather than
+unused parallel APIs
+(ARCH-DRY, ARCH-PURPOSE).
