@@ -474,3 +474,9 @@ the latch closed across all later output until a complete successful resize
 transaction. Tests exercise deterministic overlay re-arm and the real
 `setWinsize` path. Task 7 also updates the stale `doctor/README.md` registry
 instructions (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
+Overlapping resizes are serialized by an exclusive prepare token; every path
+must commit or abort it, and abort leaves authorization latched closed. Overlay
+detection runs inside a defer-unlocked helper so the existing `handleChunk`
+panic recovery cannot strand `overlayMu`. Tests overlap two transactions and
+inject a panicking detector before a subsequent usable Return.

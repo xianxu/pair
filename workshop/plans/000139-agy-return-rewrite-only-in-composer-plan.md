@@ -596,6 +596,9 @@ a latched resize transaction: invalid sizes mutate neither side; PTY set
 failure stays inactive after later `?25h` plus positive composer bytes; no
 concurrent snapshot authorizes the prepared intermediate state; and a later
 successful resize re-enables only after fresh explicit visibility evidence.
+Also overlap two resize transactions deterministically to prove the second
+cannot prepare before the first commits or aborts, and inject a panicking
+overlay detector through `handleChunk` before proving the next Return completes.
 
 - [ ] **Step 2: Verify RED**
 
@@ -612,9 +615,12 @@ registries and composer fields. Overlay detection, text-tail update, arming,
 and Return consumption share `overlayMu`; Return uses `Swap(false)` while
 holding it so a concurrent new overlay cannot be lost. Resize is a latched
 transaction owned by `terminalModel`: prepare validates then masks authorization
-before changing model geometry; after PTY resize succeeds, commit clears old
-visibility and restores synchronization. Failure leaves synchronization false
-across all later Feed/show-cursor traffic until a later successful transaction.
+before changing model geometry and returns an exclusive token; after PTY resize
+succeeds, token commit clears old visibility and restores synchronization.
+Every failure aborts the token, releasing transaction ownership while leaving
+synchronization false across all later Feed/show-cursor traffic until a later
+successful transaction. Overlay detection uses a defer-unlocked helper so a
+recovered detector panic cannot strand `overlayMu`.
 Only now delete Codex/Muse trackers and their orphaned helpers, after the Agy
 prototype has been retired.
 
