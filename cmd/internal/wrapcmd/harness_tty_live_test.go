@@ -400,12 +400,12 @@ func TestHarnessTTYCaptureBoundsRetainedOutput(t *testing.T) {
 		Executable:     os.Args[0],
 		Args:           []string{"-test.run=^TestHarnessTTYControlledChild$", "--", "flood"},
 		Env:            append(os.Environ(), "PAIR_HARNESS_TTY_CHILD=1"),
-		Startup:        func([]byte) bool { return false },
-		StartupTimeout: 100 * time.Millisecond,
+		Startup:        func(out []byte) bool { return len(out) == harnessTTYRetentionLimit },
+		StartupTimeout: 2 * time.Second,
 		ShutdownGrace:  50 * time.Millisecond,
 	})
-	if err == nil {
-		t.Fatal("captureHarnessTTY unexpectedly succeeded")
+	if err != nil {
+		t.Fatalf("captureHarnessTTY: %v", err)
 	}
 	if len(out) != harnessTTYRetentionLimit {
 		t.Fatalf("retained %d bytes, want %d", len(out), harnessTTYRetentionLimit)
