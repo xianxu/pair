@@ -414,7 +414,7 @@ git commit -m "wrapcmd: #139: centralize harness Return profiles" -m "Co-Authore
 - Create: `cmd/internal/wrapcmd/testdata/tty/muse/<captured-version>/metadata.json`
 - Create: `cmd/internal/wrapcmd/testdata/tty/muse/<captured-version>/composer.raw`
 
-- [ ] **Step 1: RED/GREEN the bounded PTY capture seam**
+- [x] **Step 1: RED/GREEN the bounded PTY capture seam**
 
 Implement the test-only `creack/pty` capture helper before any Muse snapshot
 predicate exists. Use `pty.StartWithSize(..., &pty.Winsize{Rows: 38, Cols:
@@ -429,7 +429,7 @@ the one reader goroutine. Combine cleanup failure with any primary capture
 failure using `errors.Join`; injected failure-path tests must prove later
 cleanup operations still execute.
 
-- [ ] **Step 2: Capture literal Muse startup bytes**
+- [x] **Step 2: Capture literal Muse startup bytes**
 
 Run the installed `muse` executable in the helper. Obtain exact trimmed
 `muse --version` output, retain the smallest literal startup prefix that paints
@@ -438,7 +438,7 @@ RFC3339 `captured_at`, `command`, and filename-to-SHA-256 `files`). Never
 synthesize bytes from a fake or from the old tracker. If Muse is unavailable,
 unauthenticated, or blocked by workspace trust, stop and report the blocker.
 
-- [ ] **Step 3: Pin the qualified signature as evidence, not an assumption**
+- [x] **Step 3: Pin the qualified signature as evidence, not an assumption**
 
 Inspect the captured raw SGR, prompt coordinates/shape, and final x/vt snapshot.
 Add a fixture sanity test proving the prefix contains the observed qualified
@@ -447,7 +447,7 @@ attributes removed is distinguishable. Task 3 must consume exactly this
 evidence; if the capture does not expose a stable qualifier beyond the glyph,
 stop and re-plan rather than inventing one.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 ```bash
 go test -v ./cmd/internal/wrapcmd -run 'TestHarnessTTYCapture|TestMuseFixtureEvidence' -count=1

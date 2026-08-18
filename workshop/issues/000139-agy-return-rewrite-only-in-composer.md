@@ -176,6 +176,19 @@ harness profile/router and the stateful fixture/fake support.
   A full-package race probe also exposed an unrelated pre-existing
   `TestMasterPumpFlushesStdoutOnTick` bytes.Buffer race; Task 2 focused race
   tests pass and no Task 2 file appears in that trace.
+- Task 2A landed as `20490b3` plus cap-test correction `197f816`. The bounded
+  120x38 PTY seam owns one reader and one child wait, caps retained bytes at 1
+  MiB, joins process/reader cleanup with primary errors, and passes injected
+  operation failures plus real controlled-child lifecycle tests.
+- Captured literal Muse `0.1.0-R708.1` startup bytes (2,198 bytes, SHA-256
+  `01b4fe61b95e8e2b8563f8ae35d380e4eec09eb199e45e237fa4273d274bfa82`).
+  The stable qualified evidence is a normal-intensity `⟩` at row 8 between
+  faint rule cells, with a visible cursor at column 3; an old bare `›` and the
+  same geometry without faint rules are both negative.
+- Task 2A fresh spec and quality reviews returned `APPROVED`; the cap test
+  passed 100 repetitions under concurrent load, focused race passed, and full
+  wrapcmd passed. A later live rerun was blocked in approval orchestration, not
+  a test process; the earlier live recapture was byte-identical to the fixture.
 
 ## Revisions
 

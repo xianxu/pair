@@ -1,5 +1,30 @@
 # Lessons
 
+## Process cleanup is one observable transaction
+
+The first live-harness capture helper hid cleanup errors behind a primary
+timeout, could skip its final reap after a kill error, and requested reader
+cancellation without joining the goroutine. Happy-path child tests still
+passed, but callers could not know whether capture had actually finished.
+
+**Rule.** A subprocess/PTY helper must have one teardown owner: cancel and
+close IO, signal, reuse one wait-result channel, continue through bounded
+kill/reap even after operation failures, and boundedly join every reader.
+Return `errors.Join(primary, cleanup)` so the original failure and cleanup
+failure are both observable. Pair injected operation-failure tests with a real
+controlled child on the same seam. Caught in #000139 Task 2A review.
+
+## Capacity tests must finish on capacity, not elapsed throughput
+
+A 1 MiB retention test waited 100 ms and then required all 1 MiB to have
+arrived. Under concurrent load it retained only 377,856 bytes, even though the
+cap implementation was correct.
+
+**Rule.** Test a byte/item cap by completing when the observed retained count
+reaches the cap, with time only as a generous safety bound. Keep timeout
+behavior in a separate test. Never make scheduler throughput the oracle for a
+capacity invariant. Caught in #000139 Task 2A review.
+
 ## Authorization enums need a fail-safe zero value
 
 The first Return gate enum assigned its legacy remap policy to zero. An absent
