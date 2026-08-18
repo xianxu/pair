@@ -205,6 +205,15 @@ harness profile/router and the stateful fixture/fake support.
 - Task 4 fresh spec and quality reviews returned `APPROVED` with no findings;
   focused/race/full wrapcmd checks pass and the commit touches exactly the four
   planned tracked files.
+- Task 5 landed as `86bf52e` with concurrency corrections `3306d73` and
+  `7bedff2`. Proxy startup resolves one profile, positive gates own one terminal,
+  output/resize feed that model, and plain Return delegates to the pure decision.
+  The old keymap/overlay registries and Codex/Muse tracker implementations and
+  tests are deleted; the frozen 15-row oracle remains.
+- Task 5 fresh spec and quality reviews returned `APPROVED` after atomic overlay
+  consume/re-arm, exclusive prepare/commit/abort PTY resize synchronization,
+  and defer-safe detector panic recovery. Focused/scoped race/full wrapcmd and
+  shadow sweeps pass; the unrelated stdout batching test race remains recorded.
 
 ## Revisions
 
@@ -351,9 +360,9 @@ re-derived only after the revised durable plan passes plan-quality review.
       and reconcile the expanded estimate through `sdlc change-code`.
 - [x] Build the tested `x/vt` terminal wrapper with atomic snapshots, reply
       draining, reset/resize handling, and deterministic close.
-- [ ] Consolidate Return customization into `harnessTTYProfile` and a pure
+- [x] Consolidate Return customization into `harnessTTYProfile` and a pure
       fail-safe Return decision, with registry shadow-sweep tests.
-- [ ] Migrate Codex and Muse recognizers with differential fixture coverage and
+- [x] Migrate Codex and Muse recognizers with differential fixture coverage and
       no semantic change.
 - [x] Add Agy coherent-box recognition via failing geometry and lifecycle tests.
 - [ ] Replay stateful real-harness fixtures through `proxy.handleChunk`, add the

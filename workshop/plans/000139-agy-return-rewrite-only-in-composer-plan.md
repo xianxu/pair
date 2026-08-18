@@ -584,7 +584,7 @@ git commit -m "wrapcmd: #139: recognize the coherent Agy composer box" -m "Co-Au
 - Delete: `cmd/internal/wrapcmd/muse_composer.go`
 - Delete: `cmd/internal/wrapcmd/muse_composer_test.go`
 
-- [ ] **Step 1: Write failing integration tests**
+- [x] **Step 1: Write failing integration tests**
 
 A stateful `harnessSessionFake` sends lifecycle chunks through `handleChunk`.
 Assert selection, feed/resize, overlay precedence/clear, composer multiline,
@@ -600,13 +600,13 @@ Also overlap two resize transactions deterministically to prove the second
 cannot prepare before the first commits or aborts, and inject a panicking
 overlay detector through `handleChunk` before proving the next Return completes.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `go test -v ./cmd/internal/wrapcmd -run 'TestHarnessTTYIntegration|TestEmitPlainCR_Agy' -count=1`
 
 Expected: FAIL because proxy still has per-agent branches.
 
-- [ ] **Step 3: Replace proxy branches**
+- [x] **Step 3: Replace proxy branches**
 
 Resolve the profile beside remap setup; create/feed/resize/close one terminal for
 positive-gated profiles; use `decidePlainReturn`; make `armCapture` consult the
@@ -624,7 +624,7 @@ recovered detector panic cannot strand `overlayMu`.
 Only now delete Codex/Muse trackers and their orphaned helpers, after the Agy
 prototype has been retired.
 
-- [ ] **Step 4: Verify GREEN and shadow sweep**
+- [x] **Step 4: Verify GREEN and shadow sweep**
 
 ```bash
 go test -v ./cmd/internal/wrapcmd -run 'TestHarnessTTYIntegration|TestEmitPlainCR_(Codex|Muse|Agy)|TestHarnessTTYProfile' -count=1
@@ -637,7 +637,7 @@ search constructors and consumers of `checkOverlayOpen`, `armCapture`,
 `hasReturnRemap`, and translation setup so no test or partial proxy reconstructs
 a second profile.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cmd/internal/wrapcmd/wrap.go cmd/internal/wrapcmd/terminal_model.go cmd/internal/wrapcmd/terminal_model_test.go cmd/internal/wrapcmd/composer_recognizers.go cmd/internal/wrapcmd/composer_recognizers_test.go cmd/internal/wrapcmd/codex_return_test.go cmd/internal/wrapcmd/muse_return_test.go cmd/internal/wrapcmd/agy_return_test.go cmd/internal/wrapcmd/harness_tty_integration_test.go cmd/internal/wrapcmd/overlay_test.go cmd/internal/wrapcmd/picker_overlay_test.go cmd/internal/wrapcmd/adapt_drift_test.go cmd/internal/wrapcmd/translate_test.go cmd/internal/wrapcmd/translate_stdin_test.go cmd/internal/wrapcmd/keymap_registry_test.go cmd/internal/wrapcmd/codex_composer.go cmd/internal/wrapcmd/codex_composer_test.go cmd/internal/wrapcmd/muse_composer.go cmd/internal/wrapcmd/muse_composer_test.go

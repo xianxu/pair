@@ -1,5 +1,42 @@
 # Lessons
 
+## Compound event state needs one synchronization owner
+
+An overlay used an atomic boolean plus a separately locked text tail. Enter
+loaded the boolean, a new overlay re-armed it, and Enter then stored false and
+cleared carryover—losing the newer event without any data race.
+
+**Rule.** When one logical event spans a flag, carryover, generation, or other
+fields, mutate and consume the whole state under one owner. Atomic primitives
+do not make a multi-step protocol atomic. Add a deterministic re-arm-during-
+consume interleaving that proves both the new flag and its associated data
+survive. Caught in #000139 Task 5 review.
+
+## Cross-system resize needs an exclusive transaction token
+
+The terminal model and child PTY could temporarily or permanently disagree on
+geometry. A simple validity boolean fixed one resize but failed when two
+prepare/commit sequences overlapped; an earlier commit could reopen
+authorization while the later resize remained incomplete.
+
+**Rule.** For a state transition spanning two systems, validate first and hold
+exclusive transaction ownership across prepare, external mutation, and exactly
+one commit or abort. Prepared and aborted states must stay fail-closed; commit
+must discard pre-transaction authorization and require fresh evidence. Test
+overlapping transactions through both commit and abort, external failure, and
+recovery. Caught in #000139 Task 5 review.
+
+## Panic recovery must not strand a critical section
+
+`handleChunk` intentionally recovered detector panics, but the detector wrapper
+manually unlocked its mutex after the call. A panic skipped the unlock, so the
+process survived while the next Return deadlocked.
+
+**Rule.** Any callback invoked inside a critical section must be wrapped by a
+helper that defers unlock before calling it. If an outer boundary recovers
+panics, add a regression that injects a panic and then proves the next operation
+using the same lock completes. Caught in #000139 Task 5 review.
+
 ## Differential migrations must transform every state axis
 
 The first Muse snapshot oracle covered an empty composer at the captured cursor
