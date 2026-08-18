@@ -1,6 +1,7 @@
 package wrapcmd
 
 import (
+	"os"
 	"sync"
 	"testing"
 )
@@ -169,5 +170,42 @@ func TestMuseComposerTrackerIgnoresDiffBG(t *testing.T) {
 	))
 	if st := tr.state(); st.active() {
 		t.Fatalf("composer active = true for diff BG without prompt (state: %+v)", st)
+	}
+}
+
+func TestMuseComposerTrackerSnapshotDifferentialOracle(t *testing.T) {
+	literal, err := os.ReadFile("testdata/tty/muse/0.1.0-R708.1/composer.raw")
+	if err != nil {
+		t.Fatalf("read literal Muse fixture: %v", err)
+	}
+	qualified := "\x1b[7;1H\x1b[2m────\x1b[8;1H\x1b[22m⟩ \x1b[9;1H\x1b[2m────\x1b[?25h\x1b[8;3H"
+	tests := []struct {
+		name   string
+		stream []byte
+		want   bool
+	}{
+		{"literal captured composer", literal, true},
+		{"generated captured signature", []byte(qualified), true},
+		{"hidden cursor", []byte(qualified + "\x1b[?25l"), false},
+		{"bare old U+203A glyph", []byte("\x1b[8;1H› \x1b[?25h\x1b[8;3H"), false},
+		{"unqualified U+27E9 glyph", []byte("\x1b[8;1H⟩ \x1b[?25h\x1b[8;3H"), true},
+		{"stale prompt mutation", []byte(qualified + "\x1b[8;1H\x1b[22mnot a prompt\x1b[?25h\x1b[8;3H"), true},
+		{
+			"one local weak glyph plus distant complete evidence",
+			[]byte("\x1b[2;1H\x1b[2m────\x1b[3;1H\x1b[22m⟩ \x1b[4;1H\x1b[2m────" +
+				"\x1b[20;1H\x1b[22m⟩ \x1b[?25h\x1b[20;3H"),
+			true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			tracker := newMuseComposerTracker()
+			tracker.resize(38, 120)
+			tracker.feed(test.stream)
+			if got := tracker.state().active(); got != test.want {
+				t.Fatalf("legacy active = %t, want frozen %t", got, test.want)
+			}
+		})
 	}
 }

@@ -202,3 +202,39 @@ func TestCodexComposerTrackerResizeClearsImpossibleState(t *testing.T) {
 		t.Fatalf("composer active = true after zero resize (state: %+v)", st)
 	}
 }
+
+func TestCodexComposerTrackerSnapshotDifferentialOracle(t *testing.T) {
+	composer := "\x1b[19;1H\x1b[48;2;57;57;57m\x1b[K" +
+		"\x1b[20;1H\x1b[48;2;57;57;57m\x1b[K" +
+		"\x1b[21;1H\x1b[48;2;57;57;57m\x1b[K" +
+		"\x1b[?25h\x1b[20;3H"
+	tests := []struct {
+		name   string
+		stream string
+		want   bool
+	}{
+		{"generated composer", composer, true},
+		{"hidden cursor", composer + "\x1b[?25l", false},
+		{"erased composer", composer + "\x1b[2J\x1b[?25h\x1b[20;3H", false},
+		{"composer away from cursor", composer + "\x1b[?25h\x1b[30;3H", false},
+		{
+			"one local painted row plus distant complete evidence",
+			"\x1b[9;1H\x1b[48;2;57;57;57m\x1b[K" +
+				"\x1b[10;1H\x1b[48;2;57;57;57m\x1b[K" +
+				"\x1b[20;1H\x1b[48;2;57;57;57m\x1b[K" +
+				"\x1b[?25h\x1b[20;3H",
+			false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			tracker := newCodexComposerTracker()
+			tracker.resize(38, 120)
+			tracker.feed([]byte(test.stream))
+			if got := tracker.state().active(); got != test.want {
+				t.Fatalf("legacy active = %t, want frozen %t", got, test.want)
+			}
+		})
+	}
+}

@@ -45,8 +45,9 @@ func TestHarnessTTYProfileRegistry(t *testing.T) {
 			if got.composerGate != want.gate {
 				t.Errorf("composerGate = %v, want %v", got.composerGate, want.gate)
 			}
-			if got.recognize != nil {
-				t.Error("recognize must remain nil until the harness recognizer tasks")
+			wantRecognizer := harness == "codex" || harness == "muse"
+			if (got.recognize != nil) != wantRecognizer {
+				t.Errorf("recognize registered = %t, want %t", got.recognize != nil, wantRecognizer)
 			}
 			if got.captureSetsOverlay != want.captureSetsOverlay {
 				t.Errorf("captureSetsOverlay = %t, want %t", got.captureSetsOverlay, want.captureSetsOverlay)

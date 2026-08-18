@@ -38,6 +38,7 @@ var harnessTTYProfiles = map[string]harnessTTYProfile{
 		},
 		overlay:            detectCodexOverlayOpen,
 		composerGate:       composerGatePositive,
+		recognize:          codexComposerActive,
 		captureSetsOverlay: true,
 	},
 	"agy": {
@@ -57,6 +58,7 @@ var harnessTTYProfiles = map[string]harnessTTYProfile{
 		},
 		overlay:      detectMuseOverlayOpen,
 		composerGate: composerGatePositive,
+		recognize:    museComposerActive,
 	},
 }
 
