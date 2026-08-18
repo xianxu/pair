@@ -374,7 +374,8 @@ Expected: FAIL because the unified registry and decision do not exist.
 ```go
 type composerGatePolicy uint8
 const (
-    composerGateLegacy composerGatePolicy = iota
+    composerGateUnknown composerGatePolicy = iota
+    composerGateLegacy
     composerGatePositive
 )
 type composerRecognizer func(terminalSnapshot) bool
@@ -388,7 +389,10 @@ type harnessTTYProfile struct {
 ```
 
 Add `profileForHarness`; preserve Claude legacy behavior, exact byte mappings,
-and unknown harness pass-through.
+and unknown harness pass-through. `decidePlainReturn` switches exhaustively on
+the gate policy: zero/unknown and out-of-range values fail closed to bare CR,
+`adapt.Bypass`, and composer-unknown telemetry. Only explicit legacy and
+positive policies may authorize profile key bytes.
 
 - [ ] **Step 4: Verify GREEN**
 
@@ -904,3 +908,13 @@ overflow-safe validator shared by construction and resize: each axis is at most
 oversized area, and integer-overflow-shaped inputs; rejected resize must leave
 the full prior snapshot unchanged. No allocation or x/vt mutation may occur
 before validation (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
+#### Task 2 fail-safe enum correction
+
+Quality review found that the planned `composerGateLegacy = iota` made the zero
+value fail open. Task 2 reserves zero for `composerGateUnknown` and implements
+the pure decision as an exhaustive policy switch. RED tests cover an all-zero
+profile and an out-of-range policy; both must return bare CR, `adapt.Bypass`,
+composer-unknown telemetry, and no overlay clear. This prevents a missed
+profile initialization from swallowing or rewriting Return when Task 5 moves
+the profile onto `proxy` (ARCH-PURE, ARCH-PURPOSE).

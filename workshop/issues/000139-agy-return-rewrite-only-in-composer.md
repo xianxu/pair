@@ -398,3 +398,13 @@ sees the dimensions: each axis is at most 4096 cells and total screen area is at
 most 262,144 cells. This is comfortably above real PTY sizes while placing a
 deterministic ceiling on both emulator buffers and copied snapshots. Rejection
 leaves the existing model unchanged (ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-17T21:04:00-07:00 — Make the gate-policy zero value fail safe
+
+Task 2 quality review found that assigning `composerGateLegacy` to enum zero
+made an absent or corrupt profile an authorization path: the pure decision
+could report `Fired` and emit an empty keymap, swallowing Return. Zero is now an
+explicit unknown policy. The decision switches exhaustively: only named legacy
+or positive policies may reach their remap behavior; zero and every invalid
+value emit bare CR with `adapt.Bypass` and composer-unknown telemetry
+(ARCH-PURE, ARCH-PURPOSE).
