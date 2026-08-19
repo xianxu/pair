@@ -149,10 +149,11 @@ vim.env.PAIR_AGENT = 'codex'
 os.remove(vim.env.PAIR_DATA_DIR .. '/config-' .. vim.env.PAIR_TAG .. '-codex.json')
 vim.fn.writefile({ '111' }, vim.env.PAIR_DATA_DIR .. '/agent-pid-' .. vim.env.PAIR_TAG)
 vim.fn.writefile({ '{"file":"' .. draft .. '","status":"ready","session":"12345678-1234-1234-1234-123456789abc"}' }, target)
-OUT:write((R.read_target() ~= nil) and 'live-codex-session-read ok\n' or 'live-codex-session-read FAIL\n')
+OUT:write((R.current_session_id() == nil) and 'no-live-codex-fallback ok\n' or 'no-live-codex-fallback FAIL\n')
+OUT:write((R.read_target() == nil) and 'unverified-live-target-stale ok\n' or 'unverified-live-target-stale FAIL\n')
 R.write_target(draft, 'ready')
 written = vim.json.decode(table.concat(vim.fn.readfile(target), '\n'))
-OUT:write((written.session == '12345678-1234-1234-1234-123456789abc') and 'live-codex-session-write ok\n' or 'live-codex-session-write FAIL\n')
+OUT:write((written.session == '') and 'unverified-live-target-unstamped ok\n' or 'unverified-live-target-unstamped FAIL\n')
 vim.env.PAIR_AGENT = 'claude'
 vim.env.PAIR_SESSION_ID = 'testsid'
 vim.fn.writefile({ '{"file":"/stale/prev.md","status":"ready","session":"oldsid"}' }, target)
@@ -214,8 +215,9 @@ grep -q 'old-unscoped-target-stale ok' "$RESULT" && pass "old unscoped target re
 grep -q 'fresh-unscoped-target-read ok' "$RESULT" && pass "same-nvim unscoped target remains readable" || fail "same-nvim unscoped target ignored"
 grep -q 'config-session-read ok' "$RESULT" && pass "read_target falls back to config session_id" || fail "read_target config fallback"
 grep -q 'config-session-write ok' "$RESULT" && pass "write_target stamps config session_id" || fail "write_target config fallback"
-grep -q 'live-codex-session-read ok' "$RESULT" && pass "read_target resolves live codex session_id" || fail "read_target live codex fallback"
-grep -q 'live-codex-session-write ok' "$RESULT" && pass "write_target stamps live codex session_id" || fail "write_target live codex fallback"
+grep -q 'no-live-codex-fallback ok' "$RESULT" && pass "current session does not guess from live Codex files" || fail "live Codex fallback remains"
+grep -q 'unverified-live-target-stale ok' "$RESULT" && pass "unverified live target is stale" || fail "unverified live target accepted"
+grep -q 'unverified-live-target-unstamped ok' "$RESULT" && pass "unverified live target remains unstamped" || fail "unverified live target stamped"
 grep -q 'pure-prompt ok'  "$RESULT" && pass "pure: no target → prompt"        || fail "pure prompt"
 grep -q 'pure-open ok'    "$RESULT" && pass "pure: target ready → open"       || fail "pure open"
 grep -q 'pure-wait ok'    "$RESULT" && pass "pure: target proposed → wait"    || fail "pure wait"
