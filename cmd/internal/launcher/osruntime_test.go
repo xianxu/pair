@@ -437,8 +437,9 @@ func TestSidecarSpawnArgvSelfExecsPair(t *testing.T) {
 		t.Fatalf("title poller argv = %v, want %v", tp, wantTP)
 	}
 
-	sw := sessionWatcherArgv(exe, "codex", "work", "/cwd/sub", "/cwd", "pair", []string{"--no-alt-screen"})
-	want := []string{exe, "session-watch", "codex", "work", "/cwd/sub", "--repo-root", "/cwd", "--repo-name", "pair", "--", "--no-alt-screen"}
+	bound := time.Date(2026, 8, 19, 9, 30, 0, 123, time.UTC)
+	sw := sessionWatcherSpawnArgv(exe, "codex", "work", "/cwd/sub", "/cwd", "pair", bound, []string{"--no-alt-screen"})
+	want := []string{exe, "session-watch", "codex", "work", "/cwd/sub", "--pid-not-before", bound.Format(time.RFC3339Nano), "--repo-root", "/cwd", "--repo-name", "pair", "--", "--no-alt-screen"}
 	if !reflect.DeepEqual(sw, want) {
 		t.Fatalf("session watcher argv = %v, want %v", sw, want)
 	}

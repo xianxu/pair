@@ -20,6 +20,7 @@ func TestFreshAgentInvocationDropsRestoreAndPreservesWrapperAndUserArgs(t *testi
 		"/data/scroll.raw",
 		[]string{"codex", "--sandbox", "danger-full-access", "resume", "old-session", "--no-alt-screen"},
 		[]string{"PAIR_DATA_DIR=" + data, "PAIR_TAG=work", "PAIR_SESSION_ID=old-session"},
+		time.Date(2026, 8, 19, 9, 30, 0, 123, time.UTC),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -97,6 +98,7 @@ func TestFreshClaudeInvocationMintsNewBindingButPersistsCleanArgs(t *testing.T) 
 		"/pair/bin/pair", "",
 		[]string{"claude", "--model", "opus", "--resume", "old-session"},
 		[]string{"PAIR_DATA_DIR=" + data, "PAIR_TAG=work"},
+		time.Date(2026, 8, 19, 9, 30, 0, 123, time.UTC),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -109,4 +111,41 @@ func TestFreshClaudeInvocationMintsNewBindingButPersistsCleanArgs(t *testing.T) 
 	} else if !regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`).MatchString(got) {
 		t.Fatalf("PAIR_SESSION_ID = %q, want UUID", got)
 	}
+}
+
+func TestFreshAgentInvocationWatcherMatchesAsyncAgentRegistry(t *testing.T) {
+	bound := time.Date(2026, 8, 19, 9, 31, 0, 456, time.UTC)
+	for _, tc := range []struct {
+		agent string
+		watch bool
+	}{
+		{agent: "codex", watch: true},
+		{agent: "agy", watch: true},
+		{agent: "muse", watch: true},
+		{agent: "claude", watch: false},
+	} {
+		t.Run(tc.agent, func(t *testing.T) {
+			request, err := freshAgentInvocation("/pair", "", []string{tc.agent, "--flag"}, []string{
+				"PAIR_DATA_DIR=" + t.TempDir(), "PAIR_TAG=work", "HOME=/home/me",
+			}, bound)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := len(request.watcherArgv) > 0; got != tc.watch {
+				t.Fatalf("watcher present = %v, want %v: %v", got, tc.watch, request.watcherArgv)
+			}
+			if tc.watch && !containsArgPair(request.watcherArgv, "--pid-not-before", bound.Format(time.RFC3339Nano)) {
+				t.Fatalf("watcher argv = %v, want generation bound", request.watcherArgv)
+			}
+		})
+	}
+}
+
+func containsArgPair(args []string, key, value string) bool {
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] == key && args[i+1] == value {
+			return true
+		}
+	}
+	return false
 }

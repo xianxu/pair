@@ -51,6 +51,33 @@ func TestBuildOptionsParsesRepoIdentityBeforeAgentArgs(t *testing.T) {
 	}
 }
 
+func TestCommandArgsRoundTripsWatcherMetadataWithoutConsumingAgentArgs(t *testing.T) {
+	bound := time.Date(2026, 8, 19, 9, 23, 45, 123456789, time.UTC)
+	args := CommandArgs("/pair", "codex", "tag", "/repo/sub", "/repo", "pair", bound,
+		[]string{"--pid-not-before", "agent-value", "--repo-root", "agent-root"})
+	wantPrefix := []string{"/pair", "session-watch"}
+	if !reflect.DeepEqual(args[:2], wantPrefix) {
+		t.Fatalf("command prefix = %v, want %v", args[:2], wantPrefix)
+	}
+	opts, ok := buildOptions(args[2:], func(k string) string { return "" })
+	if !ok {
+		t.Fatal("buildOptions returned !ok")
+	}
+	if !opts.PIDNotBefore.Equal(bound) || opts.RepoRoot != "/repo" || opts.RepoName != "pair" {
+		t.Fatalf("watcher metadata = %+v", opts)
+	}
+	wantAgentArgs := []string{"--pid-not-before", "agent-value", "--repo-root", "agent-root"}
+	if !reflect.DeepEqual(opts.Args, wantAgentArgs) {
+		t.Fatalf("agent args = %v, want %v", opts.Args, wantAgentArgs)
+	}
+}
+
+func TestBuildOptionsRejectsMalformedPIDGenerationBound(t *testing.T) {
+	if _, ok := buildOptions([]string{"codex", "tag", "/repo", "--pid-not-before", "not-a-time", "--"}, func(string) string { return "" }); ok {
+		t.Fatal("buildOptions should reject malformed --pid-not-before")
+	}
+}
+
 func TestBuildOptionsRejectsMissingRequiredArgs(t *testing.T) {
 	if _, ok := buildOptions([]string{"codex", "tag"}, func(string) string { return "" }); ok {
 		t.Fatalf("buildOptions should reject missing cwd")

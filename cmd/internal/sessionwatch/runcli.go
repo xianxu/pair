@@ -9,10 +9,9 @@ import (
 	"github.com/xianxu/pair/cmd/internal/adapt"
 )
 
-// RunCLI is the pair-session-watch command body, shared by the
-// bin/pair-session-watch shim and the `pair session-watch` dispatcher route. It
-// parses argv into Options and drives the watcher; getenv/stderr are injected so
-// it is testable, and it no-ops (exit 0) when required args are missing.
+// RunCLI is the `pair session-watch` command body. It parses argv into Options
+// and drives the watcher; getenv/stderr are injected so it is testable, and it
+// no-ops (exit 0) when required args are missing.
 func RunCLI(args []string, getenv func(string) string, stderr io.Writer) int {
 	opts, ok := buildOptions(args, getenv)
 	if !ok {
@@ -37,6 +36,24 @@ func ensurePairTag(tag string) func() {
 	return func() { _ = os.Unsetenv("PAIR_TAG") }
 }
 
+// CommandArgs serializes the internal session-watch process contract. Watcher
+// metadata precedes -- so agent arguments that resemble watcher flags remain
+// untouched.
+func CommandArgs(exe, agent, tag, cwd, repoRoot, repoName string, pidNotBefore time.Time, agentArgs []string) []string {
+	args := []string{exe, "session-watch", agent, tag, cwd}
+	if !pidNotBefore.IsZero() {
+		args = append(args, "--pid-not-before", pidNotBefore.Format(time.RFC3339Nano))
+	}
+	if repoRoot != "" {
+		args = append(args, "--repo-root", repoRoot)
+	}
+	if repoName != "" {
+		args = append(args, "--repo-name", repoName)
+	}
+	args = append(args, "--")
+	return append(args, agentArgs...)
+}
+
 func buildOptions(args []string, getenv func(string) string) (Options, bool) {
 	if len(args) < 3 {
 		return Options{}, false
@@ -48,6 +65,7 @@ func buildOptions(args []string, getenv func(string) string) (Options, bool) {
 	}
 	repoRoot := ""
 	repoName := ""
+	pidNotBefore := time.Time{}
 	agentArgs := append([]string(nil), args[3:]...)
 	for len(agentArgs) > 0 {
 		if agentArgs[0] == "--" {
@@ -64,19 +82,32 @@ func buildOptions(args []string, getenv func(string) string) (Options, bool) {
 			agentArgs = agentArgs[2:]
 			continue
 		}
+		if agentArgs[0] == "--pid-not-before" {
+			if len(agentArgs) < 2 {
+				return Options{}, false
+			}
+			parsed, err := time.Parse(time.RFC3339Nano, agentArgs[1])
+			if err != nil {
+				return Options{}, false
+			}
+			pidNotBefore = parsed
+			agentArgs = agentArgs[2:]
+			continue
+		}
 		break
 	}
 	return Options{
-		Agent:    args[0],
-		Tag:      args[1],
-		Cwd:      args[2],
-		RepoRoot: repoRoot,
-		RepoName: repoName,
-		Args:     agentArgs,
-		Home:     home,
-		DataDir:  dataDir,
-		PIDWait:  ParseDurationSeconds(getenv("PAIR_SESSION_WATCH_PID_WAIT_SECONDS"), 2*time.Second),
-		Timeout:  60 * time.Second,
-		Poll:     100 * time.Millisecond,
+		Agent:        args[0],
+		Tag:          args[1],
+		Cwd:          args[2],
+		RepoRoot:     repoRoot,
+		RepoName:     repoName,
+		PIDNotBefore: pidNotBefore,
+		Args:         agentArgs,
+		Home:         home,
+		DataDir:      dataDir,
+		PIDWait:      ParseDurationSeconds(getenv("PAIR_SESSION_WATCH_PID_WAIT_SECONDS"), 2*time.Second),
+		Timeout:      60 * time.Second,
+		Poll:         100 * time.Millisecond,
 	}, true
 }

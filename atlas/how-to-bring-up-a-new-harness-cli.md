@@ -60,30 +60,22 @@ If the agent presents blocking overlays, pickers (like file autocompletes), yes/
 `pair` features a robust restart-in-place (`Alt+n`) and session reattach (`pair resume <tag>`) mechanism. To make this work, the launcher needs to discover the agent's unique conversation/session ID as soon as it is spawned.
 
 **Discovery & Watcher:**
-- **Files:** `cmd/pair-session-watch` and `cmd/internal/sessionwatch` (the launcher spawns the Go binary directly since #94 M2 — the `.sh` shim was retired).
-- Since TUI agents do not always expose session IDs on stdout, `pair-session-watch` runs in the background. It finds the agent process PID from `$PAIR_DATA_DIR/agent-pid-<tag>` (written by `pair-wrap`), walks its descendants, and inspects files held open by the processes via `lsof -p <pid>`.
+- **Files:** the `pair session-watch` dispatcher route and `cmd/internal/sessionwatch` (the standalone helper and `.sh` shim are retired).
+- Since TUI agents do not always expose session IDs on stdout, `pair session-watch` runs in the background. Both whole-workbench launch/restart and agent-only Shift+Alt+N serialize the command through `sessionwatch.CommandArgs` with a generation lower bound captured before spawn. The watcher accepts the new `$PAIR_DATA_DIR/agent-pid-<tag>` even if the detached process starts later, captures that process incarnation's kernel start token, walks its descendants, and inspects files held open via `lsof -p <pid>`. Slow polls revalidate the token so PID reuse cannot transfer watcher ownership.
 - Configure the agent's session file criteria in `cmd/internal/sessionwatch.SpecForAgent`, then teach `AgentSpec.Match` how to recognize that agent's file shape and return a `SessionID`.
 - For example, agy watches `~/.gemini/antigravity-cli/conversations` and extracts the UUID from `<uuid>.db`; codex watches `~/.codex/sessions`, extracts a candidate UUID from `rollout-*.jsonl`, then authorizes it only when the first event is matching root `session_meta`; muse watches `~/.local/share/muse/sessions` and extracts the UUID from the parent dir of `session.jsonl` (`YYYY/MM/DD/<uuid>/session.jsonl`) — excluding `…/<uuid>/subagent/<sub-uuid>/session.jsonl` (only the root session is resumable via `muse resume <id>`).
 - When captured, the watcher writes `{ "agent": "<agent>", "args": [...], "session_id": "<uuid>" }` into `config-<tag>-<agent>.json`.
 
 **Recovery Flags:**
-- **File:** [bin/pair-shell](../bin/pair-shell)
-- Integrate the agent-specific resume argument in `bin/pair-shell`:
-  ```bash
-  case "$r_agent" in
-      claude)        resume_extra="--resume $r_sid" ;;
-      codex)         resume_extra="resume $r_sid" ;;
-      agy)           resume_extra="--conversation $r_sid" ;;
-  esac
-  ```
-- Support checking for active/resumable native session files in `agent_session_exists()`:
-  ```bash
-      agy)
-          [ -f "$HOME/.gemini/antigravity-cli/conversations/$sid.db" ]
-          ;;
-  ```
+- **File:** `cmd/internal/launcher/agentargs.go`
+- Add the agent-specific binding to `resumeToken`, place it through
+  `composeResumeArgs`, and extend the table tests. Codex and Muse use a leading
+  `resume <id>` subcommand; Claude uses `--resume <id>`, and Agy uses
+  `--conversation <id>`.
+- Extend `OSRuntime.AgentSessionExists` with the agent's native artifact and add
+  a focused launcher test for both present and absent sessions.
 
-**Telemetry Signal** (aspect `3`, see §3): `session-id` from `pair-session-watch` — `fired` when `AgentSpec.Match` resolves an id and the config is written, **`near-miss`** when a file matching the watch pattern is found but no id can be extracted (filename/format drift), `fail` when the 60s watch window elapses with no id at all (the session file never appeared where expected). The resume mapping in `bin/pair-shell` is the *consumer* of this id; it's static config with no separate signal.
+**Telemetry Signal** (aspect `3`, see §3): `session-id` from `pair session-watch` — `fired` when `AgentSpec.Match` resolves an id and the config is written, **`near-miss`** when a file matching the watch pattern is found but no id can be extracted (filename/format drift), `fail` when the 60-second fast-discovery window elapses without a fresh PID or an id. With a fresh PID, the watcher instead continues discovery every 60 seconds for the agent process lifetime, accommodating agents that create their transcript only after the first interaction. The native launcher's `resumeToken`/`composeResumeArgs` mapping consumes this id; it is static config with no separate signal.
 
 ---
 
@@ -140,8 +132,8 @@ When introducing a new agent `<name>`, ensure you complete each item:
 
 1. [ ] **Verify Return Key remapping** in `sendKeymapByAgent` (Enter = newline, Alt+Enter = send).
 2. [ ] **Check for blocking TUI overlays** (permission pickers **and** user selection / AskUserQuestion menus) and implement a PTY overlay detector in `overlayDetectorByAgent` if needed — verify plain Enter confirms the picker and Alt+Enter is not required.
-3. [ ] **Implement Session Watching** in `cmd/internal/sessionwatch` / `cmd/pair-session-watch` (using `lsof` and target file patterns).
-4. [ ] **Configure Launcher Recovery** in `bin/pair-shell` (mapping `--conversation` or `--resume` flags).
+3. [ ] **Implement Session Watching** in `cmd/internal/sessionwatch` behind the `pair session-watch` route (using `lsof` and target file patterns).
+4. [ ] **Configure Launcher Recovery** in `cmd/internal/launcher`: extend `resumeToken`, `composeResumeArgs`, and `OSRuntime.AgentSessionExists` with table/fixture coverage.
 5. [ ] **Add slug generation support** in `pair-slug` (transcript parsing + sandboxed print execution).
 6. [ ] **Confirm mouse scroll and scrollback render** work smoothly without drawing glitch issues.
 7. [ ] **White-list permissions** in the agent's global or workspace settings directory.
@@ -158,7 +150,7 @@ strings we froze, so they pass forever even after the live harness moves.
 
 The **adaptation flight recorder** makes drift observable. Every adaptation appends
 one JSON line per trigger to `$PAIR_DATA_DIR/adapt-<tag>.jsonl` during normal use.
-`bin/pair-shell` truncates the file once at session launch; all components then append
+the native launcher's create flow truncates the file once at session launch; all components then append
 (`O_APPEND`, atomic per-line across processes). A user runs `pair` normally; when
 something feels off they run **`doctor/doctor.sh`** (see [`doctor/README.md`](file:///Users/xianxu/workspace/pair/doctor/README.md)),
 which reads the trace and points at the broken aspect — no need to describe the
@@ -189,7 +181,7 @@ write the same line shape directly):
 |---|---|---|---|---|
 | 1 Return remap | `return-remap` | pair-wrap | fired, bypass | zero `fired` / all `bypass` |
 | 2 Overlay suspend | `overlay-detect` | pair-wrap | fired, near-miss | any `near-miss` |
-| 3 Session watch | `session-id` | pair-session-watch | fired, near-miss, fail | `fail` (timeout) / `near-miss` (file found, id unparsed) |
+| 3 Session watch | `session-id` | pair session-watch | fired, near-miss, fail | `fail` (timeout) / `near-miss` (file found, id unparsed) |
 | 4 Slug gen | `slug-parse` | pair-slug | fired, near-miss, fail | `near-miss` (transcript parsed, 0 turns) / `fail` (resolved a transcript but couldn't read/parse it) |
 | 5 PTY filter | `output-filter` | pair-wrap | fired | a `fired` line that *stops* appearing (its absence is the signal — the sequence was renamed) |
 | 6 Settings | — | — | — | static config; no signal |
@@ -199,4 +191,4 @@ write the same line shape directly):
 
 **Privacy:** `detail` can carry a snippet of agent output (e.g. an unrecognized
 prompt). It is capped at 200 bytes and the file stays local under `$PAIR_DATA_DIR`,
-the same trust level as the existing scrollback logs. `bin/pair-shell` removes it on quit.
+the same trust level as the existing scrollback logs. Native launcher lifecycle cleanup removes it on quit.

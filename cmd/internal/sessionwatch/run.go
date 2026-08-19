@@ -19,17 +19,19 @@ func isMuseSubagentPath(p string) bool {
 
 // Options are the watcher inputs after CLI/env resolution.
 type Options struct {
-	Agent    string
-	Tag      string
-	Cwd      string
-	RepoRoot string
-	RepoName string
-	Args     []string
-	Home     string
-	DataDir  string
-	PIDWait  time.Duration
-	Timeout  time.Duration
-	Poll     time.Duration
+	Agent        string
+	Tag          string
+	Cwd          string
+	RepoRoot     string
+	RepoName     string
+	Args         []string
+	Home         string
+	DataDir      string
+	PIDWait      time.Duration
+	Timeout      time.Duration
+	Poll         time.Duration
+	SlowPoll     time.Duration
+	PIDNotBefore time.Time
 }
 
 // Runtime is the IO boundary for the session watcher.
@@ -43,7 +45,7 @@ type Runtime interface {
 	ListFiles(root string) ([]string, error)
 	Descendants(root string) ([]string, error)
 	LsofPaths(pid string) ([]string, error)
-	ProcessAlive(pid string) bool
+	ProcessIdentity(pid string) string
 	AtomicWrite(path string, data []byte) error
 	Log(outcome adapt.Outcome, detail string)
 }
@@ -73,6 +75,9 @@ func Run(opts Options, rt Runtime) error {
 	if opts.Poll <= 0 {
 		opts.Poll = 100 * time.Millisecond
 	}
+	if opts.SlowPoll <= 0 {
+		opts.SlowPoll = 60 * time.Second
+	}
 	repoRoot := opts.RepoRoot
 	if repoRoot == "" {
 		repoRoot = opts.Cwd
@@ -88,7 +93,7 @@ func Run(opts Options, rt Runtime) error {
 
 	pidDeadline := watchStart.Add(opts.PIDWait)
 	for {
-		if fresh, _ := freshPID(pidFile, watchStart, rt); fresh {
+		if fresh, _ := pidFileCurrent(pidFile, opts.PIDNotBefore, watchStart, rt); fresh {
 			break
 		}
 		if !rt.Now().Before(pidDeadline) {
@@ -98,11 +103,16 @@ func Run(opts Options, rt Runtime) error {
 	}
 
 	rootPID := ""
+	rootIdentity := ""
 	agentStart := time.Time{}
-	if fresh, mod := freshPID(pidFile, watchStart, rt); fresh {
+	if fresh, mod := pidFileCurrent(pidFile, opts.PIDNotBefore, watchStart, rt); fresh {
 		if data, err := rt.ReadFile(pidFile); err == nil {
 			rootPID = strings.TrimSpace(string(data))
 			agentStart = mod
+			rootIdentity = rt.ProcessIdentity(rootPID)
+			if rootIdentity == "" {
+				return nil
+			}
 		}
 	}
 
@@ -116,13 +126,23 @@ func Run(opts Options, rt Runtime) error {
 
 	nmLogged := false
 	deadline := watchStart.Add(opts.Timeout)
-	for rt.Now().Before(deadline) {
-		if rootPID != "" && !rt.ProcessAlive(rootPID) {
+	for {
+		if rootPID != "" && rt.ProcessIdentity(rootPID) != rootIdentity {
+			return nil
+		}
+		if rootPID == "" && !rt.Now().Before(deadline) {
+			rt.Log(adapt.Fail, "no session id within startup deadline (agent="+opts.Agent+")")
 			return nil
 		}
 
 		result := discover(spec, rootPID, agentStart, legacyExisting, rt)
 		if result.ID != "" {
+			// Discovery crosses process/filesystem IO. Reauthorize immediately
+			// before persistence so PID reuse during that work cannot transfer
+			// the original watcher's authority to a different process.
+			if rootPID != "" && rt.ProcessIdentity(rootPID) != rootIdentity {
+				return nil
+			}
 			payload, err := ConfigJSON(ConfigPayload{
 				Agent:     opts.Agent,
 				Args:      StripResumeArgs(opts.Agent, opts.Args),
@@ -153,11 +173,12 @@ func Run(opts Options, rt Runtime) error {
 			nmLogged = true
 		}
 
-		rt.Sleep(opts.Poll)
+		poll := opts.Poll
+		if !rt.Now().Before(deadline) {
+			poll = opts.SlowPoll
+		}
+		rt.Sleep(poll)
 	}
-
-	rt.Log(adapt.Fail, "no session id within 60s deadline (agent="+opts.Agent+")")
-	return nil
 }
 
 func appendSessionLedger(rt Runtime, path string, entry sessionLedgerEntry) error {
@@ -176,12 +197,19 @@ func appendSessionLedger(rt Runtime, path string, entry sessionLedgerEntry) erro
 	return rt.AtomicWrite(path, []byte(raw))
 }
 
-func freshPID(pidFile string, since time.Time, rt Runtime) (bool, time.Time) {
+func pidFileCurrent(pidFile string, pidNotBefore, watchStart time.Time, rt Runtime) (bool, time.Time) {
 	mod, err := rt.ModTime(pidFile)
 	if err != nil {
 		return false, time.Time{}
 	}
-	return mod.Unix() >= since.Unix(), mod
+	return pidFileFresh(mod, pidNotBefore, watchStart), mod
+}
+
+func pidFileFresh(mod, pidNotBefore, watchStart time.Time) bool {
+	if !pidNotBefore.IsZero() {
+		return !mod.Before(pidNotBefore)
+	}
+	return mod.Unix() >= watchStart.Unix()
 }
 
 func discover(spec AgentSpec, rootPID string, agentStart time.Time, legacyExisting map[string]bool, rt Runtime) SessionID {
