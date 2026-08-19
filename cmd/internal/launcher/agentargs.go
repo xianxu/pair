@@ -192,7 +192,7 @@ func codexAltScreenArgs(args []string, optOut bool) []string {
 // deterministic claude session id (via --session-id) instead of leaving it to
 // the async watcher. Skip when a resume already pinned one, when the user passed
 // their own --session-id, or when --fork-session lets claude allocate internally.
-// Only claude supports the flag; codex/agy always fall back to the watcher.
+// Only Claude supports the flag; Codex/Agy/Muse use the watcher.
 func shouldMintClaudeSessionID(agent, explicitResume string, agentExtra []string) bool {
 	return agent == "claude" && explicitResume == "" &&
 		!hasFlag(agentExtra, "--session-id") && !hasFlag(agentExtra, "--fork-session")

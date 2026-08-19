@@ -6,10 +6,10 @@ Pair separates four identities that used to be partly conflated:
   owns the scoped data directory and is not shown in user-facing labels.
 - **Display tag** — the repo-local work item name the user types, such as
   `work` or `bugfix`. Two repos can both have `work`.
-- **Agent** — the resource running under a tag, such as `claude`, `codex`, or
-  `agy`. A tag can have sessions from more than one agent over time.
+- **Agent** — the resource running under a tag, such as `claude`, `codex`,
+  `agy`, or `muse`. A tag can have sessions from more than one agent over time.
 - **Native session id** — the agent's own resumable conversation id, captured by
-  the launcher or `pair-session-watch`.
+  the launcher or `pair session-watch`.
 
 ## Data layout
 

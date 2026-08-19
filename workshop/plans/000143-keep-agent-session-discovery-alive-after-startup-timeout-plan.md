@@ -75,26 +75,26 @@
 
 **Files:** `cmd/internal/sessionwatch/runcli.go`, `cmd/internal/sessionwatch/runcli_test.go`, `cmd/internal/launcher/osruntime.go`, `cmd/internal/launcher/osruntime_test.go`, `cmd/internal/wrapcmd/wrap.go`, `cmd/internal/wrapcmd/agent_restart_test.go`
 
-- [ ] Add failing tests for the `CommandArgs`/`buildOptions` round trip and `freshAgentInvocation` registry strategy; run the focused packages and confirm failure for the absent contract.
-- [ ] Implement the shared RFC3339Nano command serializer, typed parser, producer clock capture, and `SpecForAgent`-derived Shift+Alt+N decision.
-- [ ] Run `go test ./cmd/internal/launcher ./cmd/internal/sessionwatch ./cmd/internal/wrapcmd -count=1 -timeout=30s`; expect PASS.
+- [x] Add failing tests for the `CommandArgs`/`buildOptions` round trip and `freshAgentInvocation` registry strategy; run the focused packages and confirm failure for the absent contract.
+- [x] Implement the shared RFC3339Nano command serializer, typed parser, producer clock capture, and `SpecForAgent`-derived Shift+Alt+N decision.
+- [x] Run `go test ./cmd/internal/launcher ./cmd/internal/sessionwatch ./cmd/internal/wrapcmd -count=1 -timeout=30s`; expect PASS.
 
 ### Task 2: Make PID freshness generation-aware (TDD)
 
 **Files:** `cmd/internal/sessionwatch/run.go`, `cmd/internal/sessionwatch/run_test.go`
 
-- [ ] Add failing property/table coverage for `pidFileCurrent` and stateful timing coverage for `Run`; confirm the current watcher-start comparison fails the native-generation strategy.
-- [ ] Implement one freshness policy used by both PID reads: exact comparison for nonzero launcher bounds and historical whole-second comparison for zero-bound legacy calls.
-- [ ] Run `go test ./cmd/internal/sessionwatch -count=1 -timeout=15s`; expect PASS across #143 lifecycle and #144 root-identity coverage.
+- [x] Add failing property/table coverage for `pidFileCurrent` and stateful timing coverage for `Run`; confirm the current watcher-start comparison fails the native-generation strategy.
+- [x] Implement one freshness policy used by both PID reads: exact comparison for nonzero launcher bounds and historical whole-second comparison for zero-bound legacy calls.
+- [x] Run `go test ./cmd/internal/sessionwatch -count=1 -timeout=15s`; expect PASS across #143 lifecycle and #144 root-identity coverage.
 
 ### Task 3: Verify the real boundary and reconcile artifacts
 
 **Files:** `tests/pair-session-watch-test.sh`, `atlas/architecture.md` (if stale), `atlas/how-to-bring-up-a-new-harness-cli.md` (if stale), `workshop/issues/000143-keep-agent-session-discovery-alive-after-startup-timeout.md`
 
-- [ ] Extend the stateful shell fixture for the real-process timing strategy; run `env -u PAIR_TAG -u PAIR_AGENT -u PAIR_SESSION_ID -u PAIR_DATA_DIR bash tests/pair-session-watch-test.sh`; expect PASS.
-- [ ] Shadow-search with `rg -n 'fresh PID|watchStart|watcher start|PID file|session-watch' atlas cmd/internal/sessionwatch cmd/internal/launcher cmd/internal/wrapcmd` and update only descriptions that contradict launcher-generation freshness (ARCH-PURPOSE).
-- [ ] Run `env -u PAIR_TAG -u PAIR_AGENT -u PAIR_SESSION_ID -u PAIR_DATA_DIR go test ./... -count=1`, `env -u PAIR_TAG -u PAIR_AGENT -u PAIR_SESSION_ID -u PAIR_DATA_DIR make test`, and `git diff --check`; all must exit 0.
-- [ ] Tick the reopened issue rows and record RED/GREEN, integration, and shadow-sweep evidence in `## Log` before the boundary close.
+- [x] Extend the stateful shell fixture for the real-process timing strategy; run `env -u PAIR_TAG -u PAIR_AGENT -u PAIR_SESSION_ID -u PAIR_DATA_DIR bash tests/pair-session-watch-test.sh`; expect PASS.
+- [x] Shadow-search with `rg -n 'fresh PID|watchStart|watcher start|PID file|session-watch' atlas cmd/internal/sessionwatch cmd/internal/launcher cmd/internal/wrapcmd` and update only descriptions that contradict launcher-generation freshness (ARCH-PURPOSE).
+- [x] Run `env -u PAIR_TAG -u PAIR_AGENT -u PAIR_SESSION_ID -u PAIR_DATA_DIR go test ./... -count=1`, `env -u PAIR_TAG -u PAIR_AGENT -u PAIR_SESSION_ID -u PAIR_DATA_DIR make test`, and `git diff --check`; all must exit 0.
+- [x] Tick the reopened issue rows and record RED/GREEN, integration, and shadow-sweep evidence in `## Log` before the boundary close.
 
 ## Revisions
 

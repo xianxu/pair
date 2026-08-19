@@ -2341,10 +2341,10 @@ argsDone:
 		p.debug("AGENT-READY-write-fail", err.Error())
 	}
 
-	// Drop the agent's PID so pair-session-watch can bind discovery to
+	// Drop the agent's PID so pair session-watch can bind discovery to
 	// this specific child (lsof -p <pid>) instead of racing peers in the
 	// shared session dir. Best-effort: a failed write only degrades the
-	// session-id capture for codex/agy; claude doesn't need it.
+	// session-id capture for Codex/Agy/Muse; Claude doesn't need it.
 	if p.agentPIDPath != "" {
 		if err := os.WriteFile(p.agentPIDPath, []byte(strconv.Itoa(cmd.Process.Pid)), 0644); err != nil {
 			p.debug("AGENT-PID-write-fail", err.Error())

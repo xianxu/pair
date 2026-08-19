@@ -70,9 +70,9 @@ rule and same-second compatibility tolerance.
   ARCH-MOCK).
 - [x] Run focused and repository-wide verification; confirm the synchronous
   Claude launch path is unchanged (ARCH-PURPOSE, ARCH-DRY).
-- [ ] Pass one launcher-generation lower bound through the existing watcher
+- [x] Pass one launcher-generation lower bound through the existing watcher
   spawn argv and parse it into watcher options (ARCH-DRY, ARCH-PURE).
-- [ ] Reproduce the delayed-sidecar race with the stateful launcher/watcher
+- [x] Reproduce the delayed-sidecar race with the stateful launcher/watcher
   fakes, then verify focused, integration, and repository-wide suites
   (ARCH-MOCK, ARCH-PURPOSE).
 
@@ -132,6 +132,26 @@ total: 1.00
   existing internal sidecar argv. Keep timestamp capture inside the OS spawn
   seam and the comparison in the injected watcher core (ARCH-PURE); do not add
   a parallel nonce/readiness protocol or an unsafe grace window (ARCH-DRY).
+- TDD RED: focused packages failed on absent `CommandArgs`,
+  `Options.PIDNotBefore`, `pidFileCurrent`, and fixed-time restart construction.
+  GREEN: launcher/sessionwatch/wrapcmd packages pass with inherited Pair launch
+  variables cleared.
+- Both whole-workbench launch/restart and Shift+Alt+N now serialize the watcher
+  through `sessionwatch.CommandArgs`. Native freshness uses the producer's
+  RFC3339Nano generation bound; legacy direct calls preserve same-second
+  watcher-start tolerance. Shift+Alt+N derives watchability from
+  `SpecForAgent`, covering Codex, Agy, and Muse while excluding Claude.
+- Real-process regression writes the new PID after the bound but before watcher
+  execution, and separately holds an old live PID stale until replacement; both
+  pass through the production CLI/filesystem seam.
+- Verification: focused packages, `tests/pair-session-watch-test.sh`,
+  `go test ./... -count=1`, full `make test`, and `git diff --check` pass. The
+  first full-suite attempt exposed only the temporary worktree's broken
+  `../ariadne` Makefile link; after providing that external fixture path, the
+  suite passed unchanged.
+- Shadow sweep updated the watcher lifecycle, generation contract, single-binary
+  route, and Codex/Agy/Muse coverage across the current atlas and code comments
+  (ARCH-PURPOSE, ARCH-DRY).
 
 ## Revisions
 

@@ -9,10 +9,9 @@ import (
 	"github.com/xianxu/pair/cmd/internal/adapt"
 )
 
-// RunCLI is the pair-session-watch command body, shared by the
-// bin/pair-session-watch shim and the `pair session-watch` dispatcher route. It
-// parses argv into Options and drives the watcher; getenv/stderr are injected so
-// it is testable, and it no-ops (exit 0) when required args are missing.
+// RunCLI is the `pair session-watch` command body. It parses argv into Options
+// and drives the watcher; getenv/stderr are injected so it is testable, and it
+// no-ops (exit 0) when required args are missing.
 func RunCLI(args []string, getenv func(string) string, stderr io.Writer) int {
 	opts, ok := buildOptions(args, getenv)
 	if !ok {
