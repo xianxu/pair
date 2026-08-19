@@ -170,6 +170,11 @@ total: 1.00
 - Fourth boundary review accepted runtime behavior and found only plan status
   drift plus two shell-era recovery instructions. Corrected the entity statuses
   and pointed the guide at the native launcher seams.
+- Fifth boundary review found that Linux's `/proc/self` alias let a malformed
+  nonnumeric pidfile bind the watcher to itself indefinitely. Centralized
+  positive-decimal PID validation across native identity implementations and
+  added adversarial cases for aliases, zero, negatives, and nonnumeric input
+  (ARCH-PURPOSE, ARCH-DRY).
 
 ## Revisions
 

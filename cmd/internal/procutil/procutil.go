@@ -6,8 +6,14 @@ package procutil
 
 import (
 	"os/exec"
+	"strconv"
 	"strings"
 )
+
+func positivePID(pid string) (int, bool) {
+	n, err := strconv.Atoi(pid)
+	return n, err == nil && n > 0
+}
 
 // Alive reports whether pid names a live process (kill -0). An empty pid is
 // never alive.

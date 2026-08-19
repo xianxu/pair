@@ -62,6 +62,31 @@ func TestIdentity(t *testing.T) {
 	if Identity("2147483646") != "" {
 		t.Error("bogus high pid must yield empty identity")
 	}
+	for _, pid := range []string{"self", "thread-self", "-1", "0", "not-a-pid"} {
+		if got := Identity(pid); got != "" {
+			t.Errorf("Identity(%q) = %q, want empty identity for invalid pid", pid, got)
+		}
+	}
+}
+
+func TestPositivePID(t *testing.T) {
+	for _, tc := range []struct {
+		pid  string
+		want bool
+	}{
+		{pid: "1", want: true},
+		{pid: strconv.Itoa(os.Getpid()), want: true},
+		{pid: "self"},
+		{pid: "thread-self"},
+		{pid: "-1"},
+		{pid: "0"},
+		{pid: "not-a-pid"},
+	} {
+		_, got := positivePID(tc.pid)
+		if got != tc.want {
+			t.Errorf("positivePID(%q) valid = %v, want %v", tc.pid, got, tc.want)
+		}
+	}
 }
 
 func TestDescendantPIDsIncludesNestedChildren(t *testing.T) {

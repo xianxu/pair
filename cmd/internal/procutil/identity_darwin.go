@@ -11,8 +11,8 @@ import (
 // Identity returns the kernel-recorded start timestamp for this incarnation of
 // pid. It changes even when the OS recycles the same numeric PID quickly.
 func Identity(pid string) string {
-	n, err := strconv.Atoi(pid)
-	if err != nil || n <= 0 {
+	n, ok := positivePID(pid)
+	if !ok {
 		return ""
 	}
 	info, err := unix.SysctlKinfoProc("kern.proc.pid", n)

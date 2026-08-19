@@ -4,15 +4,17 @@ package procutil
 
 import (
 	"os"
+	"strconv"
 	"strings"
 )
 
 // Identity returns Linux's kernel start-time tick for this PID incarnation.
 func Identity(pid string) string {
-	if pid == "" || strings.ContainsAny(pid, "/\\") {
+	n, ok := positivePID(pid)
+	if !ok {
 		return ""
 	}
-	raw, err := os.ReadFile("/proc/" + pid + "/stat")
+	raw, err := os.ReadFile("/proc/" + strconv.Itoa(n) + "/stat")
 	if err != nil {
 		return ""
 	}
