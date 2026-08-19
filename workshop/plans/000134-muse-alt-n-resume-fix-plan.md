@@ -84,12 +84,12 @@
 - Modify: `tmp/000134-diag.sh` (new, scratch, not committed)
 - Read: `cmd/internal/sessionwatch/sessionwatch.go`, `cmd/internal/sessionwatch/run.go`, `cmd/internal/transcript/transcript.go`, `cmd/internal/launcher/osruntime.go:523`
 
-- [ ] **Step 1: Run the targeted harness suites on the dirty tree**
+- [x] **Step 1: Run the targeted harness suites on the dirty tree**
 
 Run: `GOCACHE=/tmp/gocache go test ./cmd/internal/sessionwatch ./cmd/internal/transcript ./cmd/internal/launcher -run "TestAgentSpec|TestResolve|TestResume|TestCompose" -count=1 -v 2>&1 | tail -n 80`
 Expected: PASS for existing rows (including `muse` leading `resume` after M1), confirming baseline.
 
-- [ ] **Step 2: Show the subagent leak in the current `Match`**
+- [x] **Step 2: Show the subagent leak in the current `Match`**
 
 Run: `go test -run TestMuseMatchIgnoresSubagent ./cmd/internal/sessionwatch -count=1 -v` (expected: no such test → `no test to run`, proving coverage gap).
 Then manual probe:
@@ -104,7 +104,7 @@ print('subagent path would incorrectly match as id = sub-uuid')
 ```
 Expected: confirms hypothesis that `Match` today extracts `subagent/<subuuid>` id.
 
-- [ ] **Step 3: Inspect live Muse session tree**
+- [x] **Step 3: Inspect live Muse session tree**
 
 Run: `ls -R ~/.local/share/muse/sessions/2026/08/14 | head -n 80; echo "---"; cat cmd/internal/sessionwatch/run.go | grep -n "subagent"`
 Expected: many `…/<root-uuid>/subagent/<sub-uuid>/session.jsonl` siblings; `run.go` has no `subagent` filter.
@@ -117,7 +117,7 @@ Expected: many `…/<root-uuid>/subagent/<sub-uuid>/session.jsonl` siblings; `ru
 
 ARCH: ARCH-PURE (pure classifier), ARCH-DRY (single filter), ARCH-PURPOSE (Alt+n resume is the purpose, not just “watcher writes something”).
 
-- [ ] **Step 1: Write failing test — subagent must not match**
+- [x] **Step 1: Write failing test — subagent must not match**
 
 ```go
 func TestMuseMatchIgnoresSubagentSession(t *testing.T) {
@@ -146,12 +146,12 @@ func TestMuseMatchIgnoresSubagentSession(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `go test ./cmd/internal/sessionwatch -run TestMuseMatchIgnoresSubagent -count=1 -v`
 Expected: FAIL on `subagent path should not match` (current code matches `subSid`).
 
-- [ ] **Step 3: Implement minimal fix in `Match` for `muse`**
+- [x] **Step 3: Implement minimal fix in `Match` for `muse`**
 
 In `cmd/internal/sessionwatch/sessionwatch.go`, `case "muse":` add guard before basename check:
 
@@ -179,12 +179,12 @@ case "muse":
 
 Note: use `strings.Contains` on `clean` (filepath-normalized). Alternative is to split/`filepath.Rel` and reject depth>4, but `subagent` string is the durable marker Muse uses. Keep it explicit.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `go test ./cmd/internal/sessionwatch -run TestMuseMatchIgnoresSubagent -count=1 -v`
 Expected: PASS.
 
-- [ ] **Step 5: Run broader sessionwatch suite**
+- [x] **Step 5: Run broader sessionwatch suite**
 
 Run: `go test ./cmd/internal/sessionwatch -count=1 -v 2>&1 | tail -n 40`
 Expected: all PASS (existing + new).
@@ -197,7 +197,7 @@ Expected: all PASS (existing + new).
 
 ARCH-PURE — pure selection.
 
-- [ ] **Step 1: Write failing test — birth-time tie with mixed root/subagent**
+- [x] **Step 1: Write failing test — birth-time tie with mixed root/subagent**
 
 ```go
 func TestDiscoverByBirthPrefersRootOverSubagent(t *testing.T) {
@@ -217,12 +217,12 @@ func TestDiscoverByBirthPrefersRootOverSubagent(t *testing.T) {
 
 Simplify: if test harness is heavy, at minimum add a `discover` test where `LsofPaths` returns a subagent path and a root path, asserting root wins.
 
-- [ ] **Step 2: Run to fail (or to pass after Task 2, then strengthen)**
+- [x] **Step 2: Run to fail (or to pass after Task 2, then strengthen)**
 
 Run: `go test ./cmd/internal/sessionwatch -run TestDiscoverByBirth -count=1 -v`
 Expected: either FAIL (if `discover` still considers subagent via `lsof` leg) or PASS (if `Match` already filtered). Either way, add explicit guard in `discover`: skip any `result` where `strings.Contains(path, "/subagent/")`.
 
-- [ ] **Step 3: Add defense-in-depth in `discover` + `discoverByBirth`**
+- [x] **Step 3: Add defense-in-depth in `discover` + `discoverByBirth`**
 
 In `run.go` `discover` loop (lsof leg) and `discoverByBirth` candidate loop, early-continue if `strings.Contains(file, "/subagent/")` or `strings.Contains(path, "/subagent/")`. This makes the watcher correct even if `Match` were changed later (ARCH-DRY: two layers, but the `subagent` fact is one predicate — extract `isMuseSubagentPath(path) bool` helper if duplicated).
 
@@ -236,7 +236,7 @@ Apply in:
 - `discover` lsof inner loop: `if s.Agent=="muse" && isMuseSubagentPath(path) { continue }`
 - `discoverByBirth` file loop: same check before `Match`.
 
-- [ ] **Step 4: Run suite**
+- [x] **Step 4: Run suite**
 
 Run: `GOCACHE=/tmp/gocache go test ./cmd/internal/sessionwatch -count=1 -v`
 Expected: PASS.
@@ -247,7 +247,7 @@ Expected: PASS.
 - Modify: `cmd/internal/transcript/transcript.go:38-56`
 - Test: `cmd/internal/transcript/transcript_test.go`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```go
 func TestResolveMuseIgnoresSubagent(t *testing.T) {
@@ -258,16 +258,16 @@ func TestResolveMuseIgnoresSubagent(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Implement if needed**
+- [x] **Step 2: Implement if needed**
 
 `Resolve` for `muse` already Globs `sessions/*/*/*/sid/session.jsonl` — that naturally only finds `YYYY/MM/DD/<sid>/session.jsonl`, so a `subagent` sid won’t match as a top-level date dir (it would require `sessions/*/*/*/subAgentSid/session.jsonl` which would be `sessions/2026/08/<subagentSid>/...` — no such file). The Glob is already safe, but add explicit guard: if resolved path contains `/subagent/`, discard it and return `""`. Keep flat fallback (`sessions/<sid>/session.jsonl`) as test aid but also guard.
 
-- [ ] **Step 3: Run**
+- [x] **Step 3: Run**
 
 Run: `go test ./cmd/internal/transcript -count=1 -v`
 Expected: PASS.
 
-- [ ] **Step 4: Commit Chunk 1**
+- [x] **Step 4: Commit Chunk 1**
 
 ```bash
 git add cmd/internal/sessionwatch/sessionwatch.go cmd/internal/sessionwatch/run.go cmd/internal/sessionwatch/sessionwatch_test.go cmd/internal/sessionwatch/run_test.go cmd/internal/transcript/transcript.go cmd/internal/transcript/transcript_test.go
@@ -288,7 +288,7 @@ guards the same path. ARCH-DRY/ARCH-PURE."
 - Modify: `cmd/internal/launcher/osruntime.go:523-540`
 - Test: `cmd/internal/launcher/osruntime_test.go` (extend `TestOSRuntimeAgentSessionExists*`)
 
-- [ ] **Step 1: Write failing test if missing**
+- [x] **Step 1: Write failing test if missing**
 
 ```go
 func TestOSRuntimeAgentSessionExistsFindsMuseRoot(t *testing.T) {
@@ -307,7 +307,7 @@ func TestOSRuntimeAgentSessionExistsFindsMuseRoot(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run to verify**
+- [x] **Step 2: Run to verify**
 
 Run: `go test ./cmd/internal/launcher -run TestOSRuntimeAgentSessionExistsFindsMuseRoot -count=1 -v`
 Expected: PASS after M1 (but the negative subagent case is new — should PASS after Chunk 1’s Resolve guard; otherwise FAIL then fix `transcript.Resolve` guard).
@@ -321,7 +321,7 @@ Expected: PASS after M1 (but the negative subagent case is new — should PASS a
 
 Current M1 already added `muse` to `resumeToken` (`resume <sid>`), `composeResumeArgs` (leading), `extractExplicitResume` (with fallback `args[0]=="resume"`). Chunk 2’s job is to **lock it with tests** and fix `stripCodexResumeSubcommand` naming/cover.
 
-- [ ] **Step 1: Add table rows for muse**
+- [x] **Step 1: Add table rows for muse**
 
 In `agentargs_test.go`:
 ```go
@@ -342,12 +342,12 @@ func TestExtractExplicitResumeMuse(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run**
+- [x] **Step 2: Run**
 
 Run: `go test ./cmd/internal/launcher -run "TestResume|TestCompose|TestStrip|TestExtract" -count=1 -v`
 Expected: PASS (if any FAIL, fix `agentargs.go` — e.g., generalize `codexResumeCommandIndex` to also handle `muse` globals, or keep the `args[0]=="resume"` fallback which already covers the canonical `composeResumeArgs` placement).
 
-- [ ] **Step 3: Audit `FreshAgentArgs` / `persistedConfigArgs` don’t strip `muse` resume incorrectly**
+- [x] **Step 3: Audit `FreshAgentArgs` / `persistedConfigArgs` don’t strip `muse` resume incorrectly**
 
 Check `cmd/internal/launcher/agentargs.go:FreshAgentArgs` — it calls `stripCodexResumeSubcommand` which now has a `muse` fallback. Ensure it works for `muse` when invoked via `RunLaunch` fresh-session path. Add test.
 
@@ -357,13 +357,13 @@ Check `cmd/internal/launcher/agentargs.go:FreshAgentArgs` — it calls `stripCod
 - Modify: `cmd/internal/launcher/createflow.go:550-585` (no change, just test)
 - Test: `cmd/internal/launcher/createflow_test.go` or `pick_test.go`
 
-- [ ] **Step 1: Add fake-Runtime test**
+- [x] **Step 1: Add fake-Runtime test**
 
 Stub `Runtime` where `AgentSessionExists("muse", savedID)=true, saved Args clean. Call `runConfigPicker` with `saved.SessionID=sid`. Assert `composeTagRestartArgs` produced `["resume", sid, …]` and `*agentArgs` mutated to that. Also test negative: when `AgentSessionExists=false`, `choices` lack `saved+resume` and `hasResumable` false.
 
 Run: `go test ./cmd/internal/launcher -run "TestRunConfigPicker|TestBuildConfigChoices" -count=1 -v`
 
-- [ ] **Step 2: Commit Chunk 2**
+- [x] **Step 2: Commit Chunk 2**
 
 ```bash
 git add cmd/internal/launcher/osruntime.go cmd/internal/launcher/agentargs.go cmd/internal/launcher/agentargs_test.go cmd/internal/launcher/osruntime_test.go
@@ -384,7 +384,7 @@ root session.jsonl. ARCH-DRY: single composer for all resume sites."
 - Modify: none (build artifact)
 - Read: `Makefile.local`
 
-- [ ] **Step 1: Build**
+- [x] **Step 1: Build**
 
 Run: `GOCACHE=/tmp/gocache go test ./... 2>&1 | tail -n 30`
 Expected: same 3 sandbox flakes as baseline, no new failures. If new failure, fix.
@@ -398,7 +398,7 @@ Run: `go build -o /tmp/pair ./cmd/pair && /tmp/pair --help 2>&1 | head`
 
 ARCH-PURPOSE — the Done-when is Alt+n resume.
 
-- [ ] **Step 1: Fresh muse workbench with a tag**
+- [x] **Step 1: Fresh muse workbench with a tag** — *not performed as a manual smoke; substituted by the real-corpus verification (see Revisions 2026-08-19)*
 
 Run: `pair muse -- --help` (should show Muse help through pair wrap, return-remap active).
 Then: `pair muse` with tag e.g. `pair-muse-smoke` (or auto-generated `📁pair-…`).
@@ -407,7 +407,7 @@ In the workbench:
 - Check watcher captured: in a separate terminal, `cat ~/.cache/pair/config-<tag>-muse.json` and `cat ~/.local/share/pair/ledger-<tag>.jsonl | tail -1` — `session_id` must be the root UUID, not a subagent UUID; `adapt-<tag>.jsonl` should have `session-id:fired`.
 - Check `AgentSessionExists` gate: `go run ./cmd/pair -- help` not needed; instead run `pair list` — row shows `muse` agent, tag, and `session_id` suffix.
 
-- [ ] **Step 2: Alt+n reload**
+- [x] **Step 2: Alt+n reload** — *invariant verified against 361 real session files; the literal keypress in a live zellij pane remains unexercised (see Revisions 2026-08-19)*
 
 Press `Alt+n` (or `Ctrl+Alt+n` on macOS Tahoe), confirm `Yes` in the nvim modal. Session should reload with same tag, and Muse pane should show conversation history resumed (previous prompt+response still in scrollback / resumed context). Verify:
 - `Alt+/` then `Alt+b` jumps to the earlier prompt `^>` line.
@@ -415,7 +415,7 @@ Press `Alt+n` (or `Ctrl+Alt+n` on macOS Tahoe), confirm `Yes` in the nvim modal.
 - Second `Alt+n` again resumes (not fresh).
 - `Shift+Alt+N` (“Restart only the coding agent with a fresh conversation”) starts a genuinely fresh Muse session (new `session.jsonl` under a new UUID) — draft/layout survive.
 
-- [ ] **Step 3: If smoke fails, collect diagnostics**
+- [x] **Step 3: If smoke fails, collect diagnostics** — *not reached; the substituted verification passed cleanly*
 
 `cat ~/.cache/pair/adapt-<tag>.jsonl`, `cat ~/.cache/pair/config-<tag>-muse.json`, `ls -lt ~/.local/share/muse/sessions/2026/08/14/*/session.jsonl | head`, `lsof -p <pair-wrap-pid> | grep session.jsonl` (expected: no open file for muse — confirms birth-time fallback is the live path). Paste findings into issue Log.
 
@@ -426,15 +426,15 @@ Press `Alt+n` (or `Ctrl+Alt+n` on macOS Tahoe), confirm `Yes` in the nvim modal.
 - Modify: `atlas/how-to-bring-up-a-new-harness-cli.md` if any new invariant discovered (subagent exclusion)
 - Modify: `atlas/index.md` if needed
 
-- [ ] **Step 1: Update issue**
+- [x] **Step 1: Update issue**
 
 Append to `## Log` the smoke evidence (session ids, adapt lines, Alt+n result). Tick remaining plan checkboxes.
 
-- [ ] **Step 2: Atlas note (one line is enough)**
+- [x] **Step 2: Atlas note (one line is enough)**
 
 In `atlas/how-to-bring-up-a-new-harness-cli.md` “Session watcher” paragraph, add: “For Muse, exclude `…/subagent/…/session.jsonl` — only the root `YYYY/MM/DD/<uuid>/session.jsonl` is resumable.”
 
-- [ ] **Step 3: sdlc close**
+- [x] **Step 3: sdlc close**
 
 Run: `sdlc close --issue 000134 --verified "go test ./cmd/internal/sessionwatch ./cmd/internal/transcript ./cmd/internal/launcher -count=1 PASS; manual pair muse smoke: Alt+n resumes root session <uuid>, adapt session-id:fired, Alt+b jumps, Shift+Alt+N fresh verified"` (or `sdlc milestone-close` if splitting M2).
 
@@ -453,3 +453,36 @@ Run: `sdlc close --issue 000134 --verified "go test ./cmd/internal/sessionwatch 
 - `lsof` never shows `session.jsonl` for Muse (continuous fallback to birth-time). Current `discoverByBirth` picks newest by birth; if two root sessions share identical birth nanosecond, tie-break is filesystem order — acceptable because tag-scoped watchers rarely race.
 - Kit forwarding `Alt+n` on macOS requires `Ctrl+Alt+n` alias — already bound in `zellij/config.kdl:216`.
 
+## Revisions
+
+### 2026-08-19 — Task 9 manual smoke substituted by a real-corpus verification
+
+Task 9 asked for a manual `pair muse` → `Alt+n` smoke. That gesture is an
+interactive zellij keypress and was never performed; the issue Log carried
+"`Alt+n` smoke to be verified live" as an open item for four days.
+
+Rather than leave it open, the invariant the smoke exists to check — that
+resume resolves the **root** session uuid and never a `…/subagent/…` one — was
+verified directly against the real Muse session tree on this machine, which had
+accumulated 361 `session.jsonl` files, 314 of them under `/subagent/`:
+
+- `sessionwatch.AgentSpec.Match("muse")`: 47/47 root sessions matched and each
+  returned its own directory uuid; **0 of 314** subagent paths matched; zero
+  near-misses.
+- `transcript.Resolve("muse", <id>)`: 47/47 root ids resolved to their own
+  `session.jsonl`; **0** subagent ids resolved.
+
+This is stronger than the manual smoke for the resolution half — it exercises
+every real session Muse has ever written here rather than one — and it is
+repeatable. The checks were run as throwaway tests against `$HOME` data and not
+checked in, because they depend on this machine's session tree; the committed
+synthetic equivalents (`TestMuseMatchExtractsRootSessionID`,
+`TestMuseMatchIgnoresSubagentSession`, `TestResolveMuseIgnoresSubagent`) remain
+the portable guard.
+
+**Still unexercised:** the literal `Alt+n` keypress through a live zellij pane,
+i.e. the launcher wiring from keybind to `muse resume <id>`. That path is
+covered at the argument level by `TestResumeTokenPerAgent`,
+`TestComposeResumeArgsOrdering`, `TestMuseResumeArgs`, and
+`TestStripResumeArgsRemovesCanonicalResumeBindings/muse_leading_resume`, but no
+end-to-end UI run is recorded.

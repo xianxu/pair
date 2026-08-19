@@ -1550,3 +1550,24 @@ so are a mid-frame composer row and the settled status row. No predicate can
 separate them. The fix is not a cleverer heuristic but an explicit decision,
 recorded as a test row with a comment saying which way it resolves and why, so a
 later edit flips a policy visibly instead of silently changing behavior.
+
+## Tag implementation commits with the issue number or the close loses its measurement window (#134)
+
+pair#134's implementation landed in `e4d1557` with a descriptive subject and no
+`#134` reference. Four days later the close could not measure actual hours at
+all — `sdlc actual` derives active time from the commit range that references
+the issue, and there was none — so it closed `actual_hours: N/A` and skipped
+calibration permanently. The estimate stands unreconciled and that data point is
+gone. The commit convention (`<area>: #N: <subject>`) is not cosmetic; it is the
+input to velocity measurement. Guessing a number afterwards is worse than N/A,
+because a fabricated actual pollutes the calibration the gate exists to protect.
+
+## An issue left at `working` with every box ticked is not done (#134)
+
+pair#134 had 7/7 plan rows ticked, all code merged to main, and passing tests —
+and still sat at `status: working` for five days with no boundary review, no
+measured hours, and no archive. Ticked boxes track implementation; the status
+field tracks the gate. Worse, the durable plan showed 0/30 rows ticked while the
+work it described had shipped, so the record read as unstarted. When work lands,
+close it or say why it is blocked; a stale `working` hides both the completed
+work and the open verification it still carries.
