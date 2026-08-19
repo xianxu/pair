@@ -4,12 +4,16 @@
 package transcript
 
 import (
+	"bufio"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 )
+
+const codexSessionMetaLineLimit = 1 << 20
 
 // ClaudePathEncoder mirrors nvim's `cwd:gsub('[./]', '-')` for the
 // ~/.claude/projects/<encoded-cwd>/ directory name.
@@ -25,6 +29,48 @@ func CodexSessionIDFromPath(path string) string {
 		return ""
 	}
 	return m[2]
+}
+
+// CodexRootSessionID authorizes a root Codex rollout from its path and first
+// JSONL event. Filename UUIDs identify candidates; session_meta establishes
+// whether the candidate is the operator's resumable root session.
+func CodexRootSessionID(path string, firstEvent []byte) string {
+	sid := CodexSessionIDFromPath(path)
+	if sid == "" {
+		return ""
+	}
+	var event struct {
+		Type    string `json:"type"`
+		Payload struct {
+			ID             string          `json:"id"`
+			ParentThreadID *string         `json:"parent_thread_id"`
+			Source         json.RawMessage `json:"source"`
+		} `json:"payload"`
+	}
+	if err := json.Unmarshal(firstEvent, &event); err != nil || event.Type != "session_meta" || event.Payload.ID != sid || event.Payload.ParentThreadID != nil {
+		return ""
+	}
+	var source string
+	if err := json.Unmarshal(event.Payload.Source, &source); err != nil || (source != "cli" && source != "exec") {
+		return ""
+	}
+	return sid
+}
+
+// ReadCodexRootSessionID reads one bounded, newline-terminated JSONL event and
+// delegates the semantic decision to CodexRootSessionID. It fails closed when
+// the rollout is incomplete, oversized, unreadable, or not a root session.
+func ReadCodexRootSessionID(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	line, err := bufio.NewReader(io.LimitReader(f, codexSessionMetaLineLimit+1)).ReadBytes('\n')
+	if err != nil || len(line) > codexSessionMetaLineLimit {
+		return ""
+	}
+	return CodexRootSessionID(path, line)
 }
 
 // SessionID reads the session id pair recorded for (tag, agent) in

@@ -3,8 +3,11 @@ package transcript
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+const testCodexSessionMetaLineLimit = 1 << 20
 
 func TestResolveClaudeEncodesCwd(t *testing.T) {
 	got := Resolve("claude", "abc", "/Users/x/work.dir", "/home")
@@ -30,6 +33,97 @@ func TestCodexSessionIDFromPath(t *testing.T) {
 	}
 	if got := CodexSessionIDFromPath("/tmp/not-codex.jsonl"); got != "" {
 		t.Fatalf("non-codex path = %q, want empty", got)
+	}
+}
+
+func TestCodexRootSessionID(t *testing.T) {
+	sid := "01a00e37-16c4-7100-89fc-42ce26158f71"
+	path := filepath.Join("/home/u", ".codex", "sessions", "2026", "08", "16", "rollout-2026-08-16T22-34-46-"+sid+".jsonl")
+	tests := []struct {
+		name  string
+		path  string
+		event string
+		want  string
+	}{
+		{name: "cli root", path: path, event: `{"type":"session_meta","payload":{"id":"` + sid + `","parent_thread_id":null,"source":"cli"}}`, want: sid},
+		{name: "exec root with absent parent", path: path, event: `{"type":"session_meta","payload":{"id":"` + sid + `","source":"exec"}}`, want: sid},
+		{name: "subagent", path: path, event: `{"type":"session_meta","payload":{"id":"` + sid + `","parent_thread_id":"parent","source":{"subagent":{"thread_spawn":{"depth":1}}}}}`},
+		{name: "non-null parent", path: path, event: `{"type":"session_meta","payload":{"id":"` + sid + `","parent_thread_id":"parent","source":"cli"}}`},
+		{name: "unknown string source", path: path, event: `{"type":"session_meta","payload":{"id":"` + sid + `","parent_thread_id":null,"source":"future"}}`},
+		{name: "unknown object source", path: path, event: `{"type":"session_meta","payload":{"id":"` + sid + `","parent_thread_id":null,"source":{"other":{}}}}`},
+		{name: "mismatched id", path: path, event: `{"type":"session_meta","payload":{"id":"11a00e37-16c4-7100-89fc-42ce26158f71","parent_thread_id":null,"source":"cli"}}`},
+		{name: "wrong event type", path: path, event: `{"type":"event_msg","payload":{"id":"` + sid + `","source":"cli"}}`},
+		{name: "missing id", path: path, event: `{"type":"session_meta","payload":{"parent_thread_id":null,"source":"cli"}}`},
+		{name: "malformed json", path: path, event: `{"type":`},
+		{name: "malformed filename", path: "/tmp/not-codex.jsonl", event: `{"type":"session_meta","payload":{"id":"` + sid + `","source":"cli"}}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := CodexRootSessionID(tt.path, []byte(tt.event)); got != tt.want {
+				t.Fatalf("CodexRootSessionID = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestReadCodexRootSessionIDBoundaries(t *testing.T) {
+	home := t.TempDir()
+	sid := "01a00e37-16c4-7100-89fc-42ce26158f71"
+	path := filepath.Join(home, ".codex", "sessions", "2026", "08", "16", "rollout-2026-08-16T22-34-46-"+sid+".jsonl")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	root := `{"type":"session_meta","payload":{"id":"` + sid + `","parent_thread_id":null,"source":"cli"}}`
+	subagent := `{"type":"session_meta","payload":{"id":"` + sid + `","parent_thread_id":"parent","source":{"subagent":{}}}}`
+
+	write := func(body string) {
+		t.Helper()
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	write(root + "\n")
+	if got := ReadCodexRootSessionID(path); got != sid {
+		t.Fatalf("valid root = %q, want %q", got, sid)
+	}
+	write(subagent + "\n")
+	if got := ReadCodexRootSessionID(path); got != "" {
+		t.Fatalf("subagent = %q, want empty", got)
+	}
+	write("{}\n" + root + "\n")
+	if got := ReadCodexRootSessionID(path); got != "" {
+		t.Fatalf("later metadata = %q, want empty", got)
+	}
+	write(root)
+	if got := ReadCodexRootSessionID(path); got != "" {
+		t.Fatalf("unterminated first line = %q, want empty", got)
+	}
+
+	prefix := `{"type":"session_meta","payload":{"id":"` + sid + `","parent_thread_id":null,"source":"cli","padding":"`
+	suffix := `"}}` + "\n"
+	lineOfLength := func(n int) string {
+		t.Helper()
+		padding := n - len(prefix) - len(suffix)
+		if padding < 0 {
+			t.Fatalf("test line length %d too small", n)
+		}
+		return prefix + strings.Repeat("x", padding) + suffix
+	}
+	write(lineOfLength(testCodexSessionMetaLineLimit))
+	if got := ReadCodexRootSessionID(path); got != sid {
+		t.Fatalf("exact-limit root = %q, want %q", got, sid)
+	}
+	write(lineOfLength(testCodexSessionMetaLineLimit + 1))
+	if got := ReadCodexRootSessionID(path); got != "" {
+		t.Fatalf("over-limit root = %q, want empty", got)
+	}
+
+	if got := ReadCodexRootSessionID(filepath.Join(home, "missing.jsonl")); got != "" {
+		t.Fatalf("missing file = %q, want empty", got)
+	}
+	if got := ReadCodexRootSessionID(home); got != "" {
+		t.Fatalf("directory read = %q, want empty", got)
 	}
 }
 
