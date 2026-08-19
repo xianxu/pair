@@ -624,7 +624,7 @@ func (r OSRuntime) LiveAgentSessionID(agent, tag string) string {
 			if !strings.HasPrefix(name, prefix) {
 				continue
 			}
-			if sid := transcript.CodexSessionIDFromPath(name); sid != "" {
+			if sid := transcript.ReadCodexRootSessionID(name); sid != "" {
 				return sid
 			}
 		}

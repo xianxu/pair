@@ -75,7 +75,7 @@ func ReadCodexRootSessionID(path string) string {
 
 // SessionID reads the session id pair recorded for (tag, agent) in
 // config-<tag>-<agent>.json (written by bin/pair / pair-session-watch).
-func SessionID(dataDir, tag, agent string) string {
+func SessionID(dataDir, tag, agent, home string) string {
 	b, err := os.ReadFile(filepath.Join(dataDir, "config-"+tag+"-"+agent+".json"))
 	if err != nil {
 		return ""
@@ -85,6 +85,12 @@ func SessionID(dataDir, tag, agent string) string {
 	}
 	if json.Unmarshal(b, &c) != nil {
 		return ""
+	}
+	if agent == "codex" {
+		path := Resolve(agent, c.SessionID, "", home)
+		if path == "" || ReadCodexRootSessionID(path) != c.SessionID {
+			return ""
+		}
 	}
 	return c.SessionID
 }

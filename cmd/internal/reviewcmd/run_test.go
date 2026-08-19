@@ -11,19 +11,20 @@ import (
 type spawnCall struct{ cwd, lua, absFile, nvimPid string }
 
 type fakeRuntime struct {
-	files    map[string]string
-	wrote    map[string]string
-	removed  []string
-	sizes    map[string]int64
-	alive    map[string]bool
-	killed   []string
-	gitFn    func(dir string, args []string) (string, error)
-	gitCalls [][]string
-	classify string
-	classErr error
-	spawn    *spawnCall
-	codexSID string
-	writeErr error
+	files     map[string]string
+	wrote     map[string]string
+	removed   []string
+	sizes     map[string]int64
+	alive     map[string]bool
+	killed    []string
+	gitFn     func(dir string, args []string) (string, error)
+	gitCalls  [][]string
+	classify  string
+	classErr  error
+	spawn     *spawnCall
+	configSID string
+	codexSID  string
+	writeErr  error
 }
 
 func newFake() *fakeRuntime {
@@ -80,6 +81,9 @@ func (f *fakeRuntime) SpawnReviewPane(cwd, lua, absFile, nvimPid string) error {
 	return nil
 }
 func (f *fakeRuntime) ResolveCodexSessionID(dataDir, tag string) string { return f.codexSID }
+func (f *fakeRuntime) ConfiguredSessionID(dataDir, tag, agent string) string {
+	return f.configSID
+}
 
 func targetOf(t *testing.T, rt *fakeRuntime, tag string) targetDoc {
 	t.Helper()
@@ -99,7 +103,7 @@ func TestRunTargetSessionPriority(t *testing.T) {
 	}
 	// config fallback
 	rt = newFake()
-	rt.files["/dd/config-t-codex.json"] = `{"session_id":"cfgsid"}`
+	rt.configSID = "cfgsid"
 	RunTarget(TargetOptions{File: "/r/doc.md", Status: "proposed", Tag: "t", Agent: "codex", DataDir: "/dd"}, rt, &bytes.Buffer{}, &bytes.Buffer{})
 	if d := targetOf(t, rt, "t"); d.Session != "cfgsid" {
 		t.Fatalf("config: %+v", d)
@@ -110,6 +114,14 @@ func TestRunTargetSessionPriority(t *testing.T) {
 	RunTarget(TargetOptions{File: "/r/doc.md", Status: "ready", Tag: "t", Agent: "codex", DataDir: "/dd"}, rt, &bytes.Buffer{}, &bytes.Buffer{})
 	if d := targetOf(t, rt, "t"); d.Session != "walksid" {
 		t.Fatalf("codex: %+v", d)
+	}
+	// A rejected configured id falls through to the validated live root.
+	rt = newFake()
+	rt.configSID = ""
+	rt.codexSID = "rootsid"
+	RunTarget(TargetOptions{File: "/r/doc.md", Status: "ready", Tag: "t", Agent: "codex", DataDir: "/dd"}, rt, &bytes.Buffer{}, &bytes.Buffer{})
+	if d := targetOf(t, rt, "t"); d.Session != "rootsid" {
+		t.Fatalf("polluted config fallback: %+v", d)
 	}
 }
 

@@ -127,6 +127,48 @@ func TestReadCodexRootSessionIDBoundaries(t *testing.T) {
 	}
 }
 
+func TestSessionIDValidatesCodexRootMetadata(t *testing.T) {
+	home := t.TempDir()
+	data := filepath.Join(home, "data")
+	if err := os.MkdirAll(data, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	rootSID := "019e8178-79c2-7862-91db-e8fa1be3b162"
+	subSID := "01a017b6-af00-7c91-a656-0611a3750669"
+	dir := filepath.Join(home, ".codex", "sessions", "2026", "05", "31")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	rootPath := filepath.Join(dir, "rollout-root-"+rootSID+".jsonl")
+	subPath := filepath.Join(dir, "rollout-sub-"+subSID+".jsonl")
+	if err := os.WriteFile(rootPath, []byte(`{"type":"session_meta","payload":{"id":"`+rootSID+`","parent_thread_id":null,"source":"cli"}}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(subPath, []byte(`{"type":"session_meta","payload":{"id":"`+subSID+`","parent_thread_id":"`+rootSID+`","source":{"subagent":{}}}}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	config := filepath.Join(data, "config-work-codex.json")
+	if err := os.WriteFile(config, []byte(`{"session_id":"`+rootSID+`"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := SessionID(data, "work", "codex", home); got != rootSID {
+		t.Fatalf("root config = %q, want %q", got, rootSID)
+	}
+	if err := os.WriteFile(config, []byte(`{"session_id":"`+subSID+`"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := SessionID(data, "work", "codex", home); got != "" {
+		t.Fatalf("subagent config = %q, want empty", got)
+	}
+
+	if err := os.WriteFile(filepath.Join(data, "config-work-claude.json"), []byte(`{"session_id":"claude-id"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := SessionID(data, "work", "claude", home); got != "claude-id" {
+		t.Fatalf("claude config = %q, want claude-id", got)
+	}
+}
+
 func TestResolveMuseIgnoresSubagent(t *testing.T) {
 	home := t.TempDir()
 	sid := "019eff64-6ceb-7e72-9d41-a735a97029ac"
