@@ -160,10 +160,7 @@ func TestTranslateChunk(t *testing.T) {
 	t.Run("codex keymap", func(t *testing.T) {
 		f := newHarnessSessionFake(t, "codex", true)
 		t.Cleanup(f.close)
-		f.output("\x1b[19;1H\x1b[48;2;57;57;57m\x1b[K" +
-			"\x1b[20;1H\x1b[48;2;57;57;57m\x1b[K" +
-			"\x1b[21;1H\x1b[48;2;57;57;57m\x1b[K" +
-			"\x1b[?25h\x1b[20;3H")
+		f.output(codexLiveComposerPaint())
 		cases := []struct{ in, want []byte }{
 			{[]byte("hi\r"), []byte("hi\n")},         // Enter → newline
 			{[]byte("hi\x1b\r"), []byte("hi\r")},     // legacy Alt+Enter → CR submit

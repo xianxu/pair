@@ -130,21 +130,55 @@ type composerDifferentialCase struct {
 }
 
 func TestCodexComposerActiveSnapshotDifferential(t *testing.T) {
-	composer := "\x1b[19;1H\x1b[48;2;57;57;57m\x1b[K" +
-		"\x1b[20;1H\x1b[48;2;57;57;57m\x1b[K" +
-		"\x1b[21;1H\x1b[48;2;57;57;57m\x1b[K" +
-		"\x1b[?25h\x1b[20;3H"
+	literalComposer, err := os.ReadFile("testdata/tty/codex/0.147.0/composer.raw")
+	if err != nil {
+		t.Fatalf("read literal Codex composer fixture: %v", err)
+	}
+	literalOverlay, err := os.ReadFile("testdata/tty/codex/0.147.0/overlay.raw")
+	if err != nil {
+		t.Fatalf("read literal Codex overlay fixture: %v", err)
+	}
+	// Codex 0.147.0 paints a bold U+203A at column 0 of the composer's first
+	// row and indents continuation rows to column 2. It reuses the same glyph
+	// unemphasized as a menu selection marker.
+	prompt := "\x1b[12;1H\x1b[1m›\x1b[22m alpha"
+	composer := prompt + "\x1b[?25h\x1b[12;9H"
+	multiline := prompt + "\x1b[13;3Hbeta\x1b[14;3Hgamma\x1b[?25h\x1b[14;8H"
 	cases := []composerDifferentialCase{
-		{name: "generated composer", stream: []byte(composer), want: true},
-		{name: "hidden cursor", stream: []byte(composer + "\x1b[?25l")},
-		{name: "erased composer", stream: []byte(composer + "\x1b[2J\x1b[?25h\x1b[20;3H")},
-		{name: "composer away from cursor", stream: []byte(composer + "\x1b[?25h\x1b[30;3H")},
+		{name: "literal captured composer", stream: literalComposer, want: true},
+		{name: "generated captured signature", stream: []byte(composer), want: true},
+		{name: "cursor on painted continuation row", stream: []byte(multiline), want: true},
 		{
-			name: "one local painted row plus distant complete evidence",
-			stream: []byte("\x1b[9;1H\x1b[48;2;57;57;57m\x1b[K" +
-				"\x1b[10;1H\x1b[48;2;57;57;57m\x1b[K" +
-				"\x1b[20;1H\x1b[48;2;57;57;57m\x1b[K" +
-				"\x1b[?25h\x1b[20;3H"),
+			// Pressing Enter once leaves the cursor on an empty second line;
+			// the next Enter must still remap or multi-line entry stops after
+			// one newline.
+			name:   "cursor on empty continuation row",
+			stream: []byte(prompt + "\x1b[?25h\x1b[13;3H"),
+			want:   true,
+		},
+		{name: "literal captured overlay", stream: literalOverlay},
+		{
+			// The update interstitial marks its selected row with the same
+			// glyph unemphasized. Enter there must confirm, not insert.
+			name:   "unemphasized menu marker with visible cursor",
+			stream: []byte("\x1b[12;1H\x1b[22m› 1. Update now\x1b[?25h\x1b[12;9H"),
+		},
+		{
+			// Codex parks the cursor on its status line mid-paint. A blank row
+			// separates it from the composer, so distant evidence must not
+			// qualify a local cursor.
+			name:   "cursor below composer past a blank row",
+			stream: []byte(prompt + "\x1b[14;3Hgpt-5.6-sol · ~/workspace/pair\x1b[?25h\x1b[14;20H"),
+		},
+		{name: "hidden cursor", stream: []byte(composer + "\x1b[?25l")},
+		{name: "erased composer", stream: []byte(composer + "\x1b[2J\x1b[?25h\x1b[12;9H")},
+		{
+			name:   "cursor before the composer text column",
+			stream: []byte(prompt + "\x1b[?25h\x1b[12;2H"),
+		},
+		{
+			name:   "prompt beyond the composer height bound",
+			stream: []byte(prompt + "\x1b[33;3Htail\x1b[?25h\x1b[33;7H"),
 		},
 	}
 

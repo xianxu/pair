@@ -489,3 +489,61 @@ must commit or abort it, and abort leaves authorization latched closed. Overlay
 detection runs inside a defer-unlocked helper so the existing `handleChunk`
 panic recovery cannot strand `overlayMu`. Tests overlap two transactions and
 inject a panicking detector before a subsequent usable Return.
+
+### 2026-08-19 — Tasks 6 and 6A: conformance fixtures and Codex recognizer restoration
+
+- Task 6 Step 4 against the three installed harnesses produced two findings that
+  changed the task; both are recorded in the plan's `## Revisions`.
+- **Codex recognition was dead on the installed CLI.** `codexComposerActive`
+  required a `57,57,57` background band inherited from #137's retired
+  `codexComposerBG`. Codex `0.147.0` paints no background at all, so the
+  positive gate never fired and plain Enter could never insert a newline in the
+  Codex composer. Pre-existing #137 surface; Task 6 was the first check able to
+  observe it. Task 6A restores recognition from literal evidence.
+- Codex `0.147.0` also blocks startup on an update interstitial. Its capture
+  argv gained the documented `-c check_for_update_on_startup=false`, the
+  counterpart of Muse's `MUSE_NO_AUTO_UPDATE=1`.
+- **Live conformance no longer asserts byte identity.** Captures embed
+  per-account and per-moment content (Agy paints the signed-in address, Codex a
+  rate-limit banner and rotating tip, Muse the model name) and Agy self-updated
+  `1.1.13 -> 1.1.15` between two runs minutes apart. Muse is deterministic run
+  to run — three consecutive captures shared one digest — yet no longer matched
+  its two-day-old fixture. The live path now asserts recognition plus the
+  production `emitPlainCR` result; byte exactness moved to the frozen-fixture
+  replay, which is the stronger check.
+- Task 6A evidence, all captured live through the bounded PTY seam: settled
+  composer, slash-command menu, composer after one LF, three-line composer, and
+  the update interstitial. Sending LF into the slash menu inserted a newline and
+  dismissed the popup rather than firing `/model`, so Codex distinguishes LF
+  from CR itself; the remaining risk is confirm dialogs, which the picker-marker
+  overlay layer already arms on.
+- The recognizer keys on Codex's actual structure: a **bold** U+203A at column 0
+  with the cursor reaching it through painted continuation rows only. Codex
+  reuses the same glyph unemphasized as a menu marker, and parks the cursor on
+  the status line mid-paint — both rejected. The bold rule alone rejects the
+  update interstitial even with the cursor forced visible on a menu row.
+- **Frozen Codex rows removed**, all premised on the `57,57,57` band that no
+  installed Codex paints: `generated composer`, `hidden cursor`,
+  `erased composer`, `composer away from cursor`, and
+  `one local painted row plus distant complete evidence`. Their intent is
+  preserved by `generated captured signature`, `hidden cursor`,
+  `erased composer`, `cursor below composer past a blank row`, and
+  `prompt beyond the composer height bound`, plus new literal-fixture,
+  multi-line, empty-continuation-row, and unemphasized-marker cases.
+- Retired `museComposerPrefixEnd`, the per-harness truncation scan; every
+  fixture is now trimmed by the shared recognizing-prefix helper, and
+  `TestMuseFixtureEvidence` asserts that shared rule and reuses
+  `readHarnessTTYFixture` instead of decoding metadata a second time
+  (ARCH-DRY). The Codex composer paint was duplicated across four test files
+  and is now one `codexLiveComposerPaint` helper.
+- Fixtures checked in with digests: `agy/1.1.15`, `codex/0.147.0`
+  (composer + overlay), `muse/0.1.0-R708.1`. The fixture test replays each
+  through `proxy.handleChunk` at every split from 0 to len and requires the
+  recognizer, overlay arming, and `emitPlainCR` bytes to match the unsplit
+  baseline.
+- Verification: full `wrapcmd` package, `go test ./...`, and `make test` all
+  pass. `go test -race ./cmd/internal/wrapcmd` reports exactly one failure, the
+  known unrelated `TestMasterPumpFlushesStdoutOnTick` `bytes.Buffer` race; no
+  file from this work appears in its trace. All three live harness checks pass:
+  Agy, Codex, and Muse composers remap to `\n`, and the Codex overlay passes
+  bare `\r` with the picker layer armed.

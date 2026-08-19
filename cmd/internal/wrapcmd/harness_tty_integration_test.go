@@ -205,3 +205,11 @@ func TestHarnessTTYIntegration_SetWinsizeFailureLatchesAuthorization(t *testing.
 		t.Fatalf("Enter after fresh post-commit show = %q, want LF", got)
 	}
 }
+
+// codexLiveComposerPaint is the byte sequence that paints a live Codex
+// composer: a bold U+203A prompt at column 0 with the cursor resting in the
+// text that follows. Tests share one definition so a Codex repaint is updated
+// in a single place.
+func codexLiveComposerPaint() string {
+	return "\x1b[20;1H\x1b[1m\u203a\x1b[22m alpha\x1b[?25h\x1b[20;9H"
+}

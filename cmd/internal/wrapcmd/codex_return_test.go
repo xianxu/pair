@@ -8,10 +8,7 @@ import (
 func TestEmitPlainCR_CodexComposerActiveRewritesToNewline(t *testing.T) {
 	f := newHarnessSessionFake(t, "codex", true)
 	t.Cleanup(f.close)
-	f.output("\x1b[19;1H\x1b[48;2;57;57;57m\x1b[K" +
-		"\x1b[20;1H\x1b[48;2;57;57;57m\x1b[K" +
-		"\x1b[21;1H\x1b[48;2;57;57;57m\x1b[K" +
-		"\x1b[?25h\x1b[20;3H")
+	f.output(codexLiveComposerPaint())
 	if got := f.proxy.emitPlainCR(nil); !bytes.Equal(got, []byte{'\n'}) {
 		t.Fatalf("got %q, want LF while Codex composer is active", got)
 	}
@@ -28,10 +25,7 @@ func TestEmitPlainCR_CodexComposerInactiveSendsBareCR(t *testing.T) {
 func TestEmitPlainCR_CodexOverlayBeatsComposer(t *testing.T) {
 	f := newHarnessSessionFake(t, "codex", true)
 	t.Cleanup(f.close)
-	f.output("\x1b[19;1H\x1b[48;2;57;57;57m\x1b[K" +
-		"\x1b[20;1H\x1b[48;2;57;57;57m\x1b[K" +
-		"\x1b[21;1H\x1b[48;2;57;57;57m\x1b[K" +
-		"\x1b[?25h\x1b[20;3H")
+	f.output(codexLiveComposerPaint())
 	f.proxy.pickerActive.Store(true)
 	if got := f.proxy.emitPlainCR(nil); !bytes.Equal(got, []byte{'\r'}) {
 		t.Fatalf("got %q, want bare CR while overlay active", got)

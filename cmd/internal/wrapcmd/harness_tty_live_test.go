@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -12,7 +11,9 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"reflect"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -37,9 +38,21 @@ type harnessTTYCaptureRequest struct {
 	StartupTimeout time.Duration
 	ShutdownGrace  time.Duration
 	OnStart        func(*exec.Cmd)
+	Classify       func(chunk, retained []byte) harnessTTYConformanceState
+	Input          func(retained []byte) []byte
 }
 
 func captureHarnessTTY(req harnessTTYCaptureRequest) (out []byte, err error) {
+	out, _, err = captureHarnessTTYClassified(req)
+	return out, err
+}
+
+func captureHarnessTTYConformance(req harnessTTYCaptureRequest, classify func(chunk, retained []byte) harnessTTYConformanceState) ([]byte, harnessTTYConformanceState, error) {
+	req.Classify = classify
+	return captureHarnessTTYClassified(req)
+}
+
+func captureHarnessTTYClassified(req harnessTTYCaptureRequest) (out []byte, state harnessTTYConformanceState, err error) {
 	timeout := req.StartupTimeout
 	if timeout == 0 {
 		timeout = harnessTTYStartupTimeout
@@ -56,10 +69,17 @@ func captureHarnessTTY(req harnessTTYCaptureRequest) (out []byte, err error) {
 	}
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: 38, Cols: 120})
 	if err != nil {
-		return nil, fmt.Errorf("start %q: %w", req.Executable, err)
+		return nil, state, fmt.Errorf("start %q: %w", req.Executable, err)
 	}
 	if req.OnStart != nil {
 		req.OnStart(cmd)
+	}
+
+	var writeMu sync.Mutex
+	writePTY := func(data []byte) {
+		writeMu.Lock()
+		defer writeMu.Unlock()
+		_, _ = ptmx.Write(data)
 	}
 
 	chunks := make(chan []byte)
@@ -76,7 +96,7 @@ func captureHarnessTTY(req harnessTTYCaptureRequest) (out []byte, err error) {
 			if n > 0 {
 				queryWindow := append(queryTail, buf[:n]...)
 				for range bytes.Count(queryWindow, cursorQuery) {
-					_, _ = ptmx.Write([]byte("\x1b[1;1R"))
+					writePTY([]byte("\x1b[1;1R"))
 				}
 				keep := len(cursorQuery) - 1
 				if keep > len(queryWindow) {
@@ -126,7 +146,7 @@ func captureHarnessTTY(req harnessTTYCaptureRequest) (out []byte, err error) {
 			select {
 			case chunk, ok := <-chunks:
 				if !ok {
-					return fmt.Errorf("%q exited before startup; output %q", req.Executable, out)
+					return fmt.Errorf("%q exited before startup (%d output bytes)", req.Executable, len(out))
 				}
 				remaining := harnessTTYRetentionLimit - len(out)
 				if remaining > len(chunk) {
@@ -135,11 +155,28 @@ func captureHarnessTTY(req harnessTTYCaptureRequest) (out []byte, err error) {
 				if remaining > 0 {
 					out = append(out, chunk[:remaining]...)
 				}
+				if req.Classify != nil {
+					state = req.Classify(chunk, out)
+					switch state {
+					case harnessTTYRecognized:
+						return nil
+					case harnessTTYUnauthenticated, harnessTTYWorkspaceTrust, harnessTTYRecognizerDrift:
+						return fmt.Errorf("%q live conformance classified %s (%d output bytes)", req.Executable, state, len(out))
+					}
+				}
 				if req.Startup != nil && req.Startup(out) {
 					return nil
 				}
+				if req.Input != nil {
+					if input := req.Input(out); len(input) > 0 {
+						writePTY(input)
+					}
+				}
 			case <-timer.C:
-				return fmt.Errorf("%q startup timed out after %s; output %q", req.Executable, timeout, out)
+				if req.Classify != nil {
+					state = harnessTTYRecognizerDrift
+				}
+				return fmt.Errorf("%q startup timed out after %s (%d output bytes)", req.Executable, timeout, len(out))
 			}
 		}
 	}()
@@ -152,7 +189,61 @@ func captureHarnessTTY(req harnessTTYCaptureRequest) (out []byte, err error) {
 		joinReader:  joinReader,
 		grace:       grace,
 	})
-	return out, joinHarnessTTYErrors(primaryErr, cleanupErr)
+	return out, state, joinHarnessTTYErrors(primaryErr, cleanupErr)
+}
+
+type harnessTTYConformanceState string
+
+const (
+	harnessTTYWaiting         harnessTTYConformanceState = "waiting"
+	harnessTTYRecognized      harnessTTYConformanceState = "recognized"
+	harnessTTYUnauthenticated harnessTTYConformanceState = "unauthenticated"
+	harnessTTYWorkspaceTrust  harnessTTYConformanceState = "workspace-trust"
+	harnessTTYRecognizerDrift harnessTTYConformanceState = "recognizer-drift"
+)
+
+type harnessTTYLiveClassifier struct {
+	proxy   *proxy
+	rolling []byte
+}
+
+func newHarnessTTYLiveClassifier(t *testing.T, harness string) *harnessTTYLiveClassifier {
+	t.Helper()
+	p := &proxy{agentBasename: harness}
+	if err := p.configureHarnessTTY(true, 120, 38); err != nil {
+		t.Fatalf("configure %s live classifier: %v", harness, err)
+	}
+	if p.ttyProfile == nil || p.terminal == nil || p.ttyProfile.recognize == nil {
+		t.Fatalf("%s has no positive-gated live profile", harness)
+	}
+	return &harnessTTYLiveClassifier{proxy: p}
+}
+
+func (c *harnessTTYLiveClassifier) Observe(chunk, retained []byte) harnessTTYConformanceState {
+	c.proxy.handleChunk(chunk, &c.rolling)
+	visible := strings.ToLower(string(retained))
+	for _, marker := range []string{"log in", "login required", "sign in", "authentication required"} {
+		if strings.Contains(visible, marker) {
+			return harnessTTYUnauthenticated
+		}
+	}
+	for _, marker := range []string{"trust this folder", "trust this workspace", "do you trust"} {
+		if strings.Contains(visible, marker) {
+			return harnessTTYWorkspaceTrust
+		}
+	}
+	if strings.Contains(visible, "harness-recognizer-drift") {
+		return harnessTTYRecognizerDrift
+	}
+	snapshot := c.proxy.terminal.Snapshot()
+	if c.proxy.ttyProfile.recognize(snapshot) {
+		return harnessTTYRecognized
+	}
+	return harnessTTYWaiting
+}
+
+func (c *harnessTTYLiveClassifier) Close() error {
+	return c.proxy.closeTerminal()
 }
 
 type harnessTTYTeardownOps struct {
@@ -412,52 +503,240 @@ func TestHarnessTTYCaptureBoundsRetainedOutput(t *testing.T) {
 	}
 }
 
-func TestHarnessTTYLiveMuseCapture(t *testing.T) {
-	if os.Getenv("PAIR_LIVE_HARNESS") != "muse" {
-		t.Skip("set PAIR_LIVE_HARNESS=muse to capture installed Muse")
+func TestHarnessTTYCaptureClassifiesControlledChildStates(t *testing.T) {
+	tests := []struct {
+		name      string
+		mode      string
+		wantState harnessTTYConformanceState
+		wantErr   bool
+	}{
+		{name: "recognized composer", mode: "agy-composer", wantState: harnessTTYRecognized},
+		{name: "unauthenticated login", mode: "unauthenticated", wantState: harnessTTYUnauthenticated, wantErr: true},
+		{name: "workspace trust", mode: "workspace-trust", wantState: harnessTTYWorkspaceTrust, wantErr: true},
+		{name: "recognizer drift", mode: "recognizer-drift", wantState: harnessTTYRecognizerDrift, wantErr: true},
 	}
-	executable, err := exec.LookPath("muse")
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			classifier := newHarnessTTYLiveClassifier(t, "agy")
+			defer classifier.Close()
+			out, state, err := captureHarnessTTYConformance(harnessTTYCaptureRequest{
+				Executable:     os.Args[0],
+				Args:           []string{"-test.run=^TestHarnessTTYControlledChild$", "--", tc.mode},
+				Env:            append(os.Environ(), "PAIR_HARNESS_TTY_CHILD=1"),
+				StartupTimeout: 500 * time.Millisecond,
+				ShutdownGrace:  100 * time.Millisecond,
+			}, classifier.Observe)
+			if state != tc.wantState {
+				t.Fatalf("state = %q, want %q (output bytes=%d, error=%v)", state, tc.wantState, len(out), err)
+			}
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("error = %v, want error=%t", err, tc.wantErr)
+			}
+			if err != nil && (strings.Contains(err.Error(), "SECRET-CONTROLLED-CHILD") || strings.Contains(err.Error(), "\\x1b")) {
+				t.Fatalf("classification error leaked captured bytes: %v", err)
+			}
+		})
+	}
+}
+
+func TestHarnessTTYLiveConformance(t *testing.T) {
+	harness := os.Getenv("PAIR_LIVE_HARNESS")
+	if harness == "" {
+		t.Skip("set PAIR_LIVE_HARNESS=agy, codex, or muse to check an installed harness")
+	}
+	commands := map[string][]string{
+		"agy":   {"agy", "--dangerously-skip-permissions"},
+		"codex": {"codex", "--no-alt-screen", "-c", "check_for_update_on_startup=false"},
+		"muse":  {"muse"},
+	}
+	command, ok := commands[harness]
+	if !ok {
+		t.Fatalf("PAIR_LIVE_HARNESS=%q, want agy, codex, or muse", harness)
+	}
+	executable, err := exec.LookPath(command[0])
 	if err != nil {
-		t.Fatalf("find installed Muse: %v", err)
+		t.Fatalf("find installed %s: %v", harness, err)
 	}
-	env := append(os.Environ(), "MUSE_NO_AUTO_UPDATE=1")
+	env := os.Environ()
+	if harness == "muse" {
+		env = append(env, "MUSE_NO_AUTO_UPDATE=1")
+	}
 	versionCmd := exec.Command(executable, "--version")
 	versionCmd.Env = env
-	versionOut, err := versionCmd.CombinedOutput()
+	versionOut, err := versionCmd.Output()
 	if err != nil {
-		t.Fatalf("%s --version: %v: %s", executable, err, strings.TrimSpace(string(versionOut)))
+		t.Fatalf("%s --version: %v", executable, err)
 	}
 	version := strings.TrimSpace(string(versionOut))
 	if version == "" {
-		t.Fatal("Muse --version returned empty output")
+		t.Fatalf("%s --version returned empty output", harness)
 	}
 
 	repoRoot, err := filepath.Abs("../../..")
 	if err != nil {
 		t.Fatalf("resolve repository root: %v", err)
 	}
-	out, err := captureHarnessTTY(harnessTTYCaptureRequest{
+	classifier := newHarnessTTYLiveClassifier(t, harness)
+	t.Cleanup(func() {
+		if err := classifier.Close(); err != nil {
+			t.Errorf("close %s live classifier: %v", harness, err)
+		}
+	})
+	out, state, err := captureHarnessTTYConformance(harnessTTYCaptureRequest{
 		Executable: executable,
+		Args:       command[1:],
 		Env:        env,
 		Dir:        repoRoot,
-		Startup: func(out []byte) bool {
-			return museComposerPrefixEnd(out) > 0
-		},
-	})
+	}, classifier.Observe)
 	if err != nil {
-		t.Fatalf("capture Muse startup: %v", err)
+		t.Fatalf("capture %s startup: state=%s: %v", harness, state, err)
 	}
-	out = out[:museComposerPrefixEnd(out)]
-	t.Logf("muse executable=%s version=%q bytes=%d", executable, version, len(out))
+	prefixEnd := firstRecognizedHarnessTTYPrefix(t, harness, out)
+	if prefixEnd == 0 {
+		t.Fatalf("%s reported recognition but no recognized prefix; recapture destination: %s", harness, harnessTTYRecaptureDestination(harness, version))
+	}
+	out = out[:prefixEnd]
+	digest := sha256.Sum256(out)
+	recaptureDestination := harnessTTYRecaptureDestination(harness, version)
+	t.Logf("%s executable=%s version=%q argv=%q bytes=%d sha256=%s", harness, executable, version, command, len(out), hex.EncodeToString(digest[:]))
 	if destination := os.Getenv("PAIR_LIVE_CAPTURE_OUT"); destination != "" {
 		if !filepath.IsAbs(destination) {
 			destination = filepath.Join(repoRoot, destination)
 		}
 		if err := writeLiteralCapture(destination, out); err != nil {
-			t.Fatalf("write literal Muse capture %s: %v", destination, err)
+			t.Fatalf("write literal %s capture %s: %v", harness, destination, err)
 		}
-		t.Logf("wrote literal Muse capture to %s", destination)
+		t.Logf("wrote literal %s capture to %s", harness, destination)
 	}
+
+	// The live check defends behavior, not bytes. Real harness output embeds
+	// per-account, per-machine, per-moment content (signed-in address, model
+	// name, rate-limit banners, rotating tips) and harnesses self-update, so
+	// byte identity against a checked-in fixture is unachievable and its
+	// failures say nothing about Return correctness. Byte-level exactness is
+	// the fixture replay's job, over frozen bytes.
+	assertHarnessTTYLiveDecision(t, harness, out, true)
+
+	metadataPath := filepath.Join("testdata", "tty", harness, ttyFixtureVersionDir(version), "metadata.json")
+	if _, err := os.Stat(metadataPath); err != nil {
+		t.Fatalf("%s has no fixture for installed version %q; capture one to %s", harness, version, recaptureDestination)
+	}
+	metadata, _ := readHarnessTTYFixture(t, metadataPath)
+	if metadata.Version != version || !reflect.DeepEqual(metadata.Command, command) {
+		t.Logf("%s fixture identity drift (not a failure): live version=%q argv=%q, fixture version=%q argv=%q; recapture destination: %s",
+			harness, version, command, metadata.Version, metadata.Command, recaptureDestination)
+	}
+}
+
+// assertHarnessTTYLiveDecision replays a live capture through the production
+// profile and asserts the Return decision the captured state must produce.
+func assertHarnessTTYLiveDecision(t *testing.T, harness string, raw []byte, wantComposer bool) {
+	t.Helper()
+	p := &proxy{agentBasename: harness}
+	if err := p.configureHarnessTTY(true, 120, 38); err != nil {
+		t.Fatalf("configure %s decision proxy: %v", harness, err)
+	}
+	defer func() {
+		if err := p.closeTerminal(); err != nil {
+			t.Errorf("close %s decision proxy: %v", harness, err)
+		}
+	}()
+	var rolling []byte
+	p.handleChunk(raw, &rolling)
+	snapshot := p.terminal.Snapshot()
+	if got := p.ttyProfile.recognize(snapshot); got != wantComposer {
+		t.Fatalf("%s composer recognized = %t, want %t (cursor=(%d,%d) visible=%t)",
+			harness, got, wantComposer, snapshot.Cursor.X, snapshot.Cursor.Y, snapshot.CursorVisible)
+	}
+	// emitPlainCR is the production Return path: it consumes overlay state
+	// under the detector's own lock and then decides, so asserting on it
+	// covers both layers rather than the recognizer alone.
+	overlayArmed := p.pickerActive.Load()
+	got := p.emitPlainCR(nil)
+	want := []byte{'\r'}
+	if wantComposer {
+		want = p.ttyProfile.keymap.plainCR
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("%s plain Return = %q, want %q (overlay armed=%t, composer=%t)",
+			harness, got, want, overlayArmed, wantComposer)
+	}
+	t.Logf("%s plain Return = %q (composer=%t, overlay armed=%t)", harness, got, wantComposer, overlayArmed)
+}
+
+// TestHarnessTTYLiveOverlayConformance proves the positive gate stays closed on
+// a real blocking overlay, where plain Return must confirm rather than insert a
+// newline. It drives the installed harness into the overlay through the same
+// bounded capture seam instead of hand-authoring bytes.
+func TestHarnessTTYLiveOverlayConformance(t *testing.T) {
+	harness := os.Getenv("PAIR_LIVE_HARNESS")
+	if harness == "" {
+		t.Skip("set PAIR_LIVE_HARNESS to drive an installed harness into an overlay")
+	}
+	scenarios := map[string]struct {
+		args  []string
+		until string
+	}{
+		// Codex paints its update interstitial whenever a newer release
+		// exists and the startup check is left enabled. Its footer is already
+		// a registered picker marker, so this doubles as overlay-layer
+		// evidence.
+		"codex": {args: []string{"--no-alt-screen"}, until: "Press enter to continue"},
+	}
+	scenario, ok := scenarios[harness]
+	if !ok {
+		t.Skipf("no overlay scenario recorded for %s", harness)
+	}
+	executable, err := exec.LookPath(harness)
+	if err != nil {
+		t.Fatalf("find installed %s: %v", harness, err)
+	}
+	repoRoot, err := filepath.Abs("../../..")
+	if err != nil {
+		t.Fatalf("resolve repository root: %v", err)
+	}
+	out, err := captureHarnessTTY(harnessTTYCaptureRequest{
+		Executable: executable,
+		Args:       scenario.args,
+		Env:        os.Environ(),
+		Dir:        repoRoot,
+		Startup: func(retained []byte) bool {
+			return strings.Contains(string(stripTerminalControls(retained)), scenario.until)
+		},
+	})
+	if err != nil {
+		t.Skipf("%s did not reach its overlay (%q); it may not be reproducible right now: %v", harness, scenario.until, err)
+	}
+	assertHarnessTTYLiveDecision(t, harness, out, false)
+	if destination := os.Getenv("PAIR_LIVE_CAPTURE_OUT"); destination != "" {
+		if !filepath.IsAbs(destination) {
+			destination = filepath.Join(repoRoot, destination)
+		}
+		if err := writeLiteralCapture(destination, out); err != nil {
+			t.Fatalf("write literal %s overlay capture %s: %v", harness, destination, err)
+		}
+		t.Logf("wrote literal %s overlay capture to %s", harness, destination)
+	}
+}
+
+func firstRecognizedHarnessTTYPrefix(t *testing.T, harness string, raw []byte) int {
+	t.Helper()
+	classifier := newHarnessTTYLiveClassifier(t, harness)
+	defer func() {
+		if err := classifier.Close(); err != nil {
+			t.Errorf("close %s prefix classifier: %v", harness, err)
+		}
+	}()
+	for i := range raw {
+		if classifier.Observe(raw[i:i+1], raw[:i+1]) == harnessTTYRecognized {
+			return i + 1
+		}
+	}
+	return 0
+}
+
+func harnessTTYRecaptureDestination(harness, version string) string {
+	return filepath.Join("cmd", "internal", "wrapcmd", "testdata", "tty", harness, ttyFixtureVersionDir(version), "composer.raw")
 }
 
 func TestMuseFixtureEvidence(t *testing.T) {
@@ -466,7 +745,10 @@ func TestMuseFixtureEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read literal Muse fixture: %v", err)
 	}
-	if end := museComposerPrefixEnd(raw); end != len(raw) {
+	// The fixture must be exactly the shortest prefix the production
+	// recognizer accepts, under the same shared rule every harness capture
+	// uses — not a per-harness marker scan.
+	if end := firstRecognizedHarnessTTYPrefix(t, "muse", raw); end != len(raw) {
 		t.Fatalf("literal fixture prefix end = %d, want exact length %d", end, len(raw))
 	}
 
@@ -507,28 +789,15 @@ func TestMuseFixtureEvidence(t *testing.T) {
 		t.Fatal("captured Muse glyph and geometry without faint rules unexpectedly qualify")
 	}
 
-	metadataBytes, err := os.ReadFile(filepath.Join(fixtureDir, "metadata.json"))
-	if err != nil {
-		t.Fatalf("read Muse fixture metadata: %v", err)
-	}
-	var metadata struct {
-		Agent      string            `json:"agent"`
-		Version    string            `json:"version"`
-		CapturedAt string            `json:"captured_at"`
-		Command    []string          `json:"command"`
-		Files      map[string]string `json:"files"`
-	}
-	if err := json.Unmarshal(metadataBytes, &metadata); err != nil {
-		t.Fatalf("decode Muse fixture metadata: %v", err)
-	}
+	metadata, rawFiles := readHarnessTTYFixture(t, filepath.Join(fixtureDir, "metadata.json"))
 	if metadata.Agent != "muse" || metadata.Version != "Muse Code 0.1.0 (0.1.0-R708.1)" {
 		t.Fatalf("fixture identity = %q %q, want captured Muse version", metadata.Agent, metadata.Version)
 	}
-	if _, err := time.Parse(time.RFC3339, metadata.CapturedAt); err != nil {
-		t.Fatalf("captured_at %q is not RFC3339: %v", metadata.CapturedAt, err)
-	}
 	if len(metadata.Command) != 1 || metadata.Command[0] != "muse" {
 		t.Fatalf("capture command = %q, want [muse]", metadata.Command)
+	}
+	if !bytes.Equal(rawFiles["composer.raw"], raw) {
+		t.Fatal("shared fixture reader returned different composer bytes")
 	}
 	digest := sha256.Sum256(raw)
 	if got, want := metadata.Files["composer.raw"], hex.EncodeToString(digest[:]); got != want {
@@ -581,19 +850,6 @@ func writeLiteralCapture(destination string, data []byte) error {
 	return os.Rename(tmpName, destination)
 }
 
-func museComposerPrefixEnd(out []byte) int {
-	if !bytes.Contains(out, []byte("\x1b[7;1H\x1b[2m── ")) ||
-		!bytes.Contains(out, []byte("\x1b[8;1H\x1b[22m⟩")) ||
-		!bytes.Contains(out, []byte("\x1b[9;1H\x1b[2m────")) {
-		return 0
-	}
-	marker := []byte("\x1b[?25h\x1b[8;3H")
-	if index := bytes.Index(out, marker); index >= 0 {
-		return index + len(marker)
-	}
-	return 0
-}
-
 func processExists(pid int) bool {
 	return pid > 0 && syscall.Kill(pid, 0) == nil
 }
@@ -644,6 +900,26 @@ func TestHarnessTTYControlledChild(t *testing.T) {
 				for j := 0; j < 64; j++ {
 					_, _ = os.Stdout.Write(block)
 				}
+				for {
+					time.Sleep(time.Hour)
+				}
+			case "agy-composer":
+				_, _ = os.Stdout.Write([]byte("\x1b[10;1H──────────\x1b[11;1H> work\x1b[13;1H──────────\x1b[?25h\x1b[12;3H"))
+				for {
+					time.Sleep(time.Hour)
+				}
+			case "unauthenticated":
+				_, _ = os.Stdout.Write([]byte("\x1b[31mLogin required: SECRET-CONTROLLED-CHILD\x1b[0m"))
+				for {
+					time.Sleep(time.Hour)
+				}
+			case "workspace-trust":
+				_, _ = os.Stdout.Write([]byte("\x1b[33mDo you trust this workspace? SECRET-CONTROLLED-CHILD\x1b[0m"))
+				for {
+					time.Sleep(time.Hour)
+				}
+			case "recognizer-drift":
+				_, _ = os.Stdout.Write([]byte("\x1b[2JHARNESS-RECOGNIZER-DRIFT SECRET-CONTROLLED-CHILD"))
 				for {
 					time.Sleep(time.Hour)
 				}

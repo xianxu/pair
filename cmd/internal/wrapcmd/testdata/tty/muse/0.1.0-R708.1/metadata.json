@@ -1,9 +1,9 @@
 {
   "agent": "muse",
   "version": "Muse Code 0.1.0 (0.1.0-R708.1)",
-  "captured_at": "2026-08-18T03:53:00Z",
+  "captured_at": "2026-08-19T19:05:04Z",
   "command": ["muse"],
   "files": {
-    "composer.raw": "01b4fe61b95e8e2b8563f8ae35d380e4eec09eb199e45e237fa4273d274bfa82"
+    "composer.raw": "796f20e19c1a5434ab3b9b9f814bdaaf95540609da0c2a1b28199e5731820858"
   }
 }

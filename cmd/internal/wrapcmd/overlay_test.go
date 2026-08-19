@@ -157,10 +157,7 @@ func TestOverlayDetectorByAgent(t *testing.T) {
 func TestTranslateChunk_CodexPickerPlainEnterSelectsOnce(t *testing.T) {
 	f := newHarnessSessionFake(t, "codex", true)
 	t.Cleanup(f.close)
-	f.output("\x1b[19;1H\x1b[48;2;57;57;57m\x1b[K" +
-		"\x1b[20;1H\x1b[48;2;57;57;57m\x1b[K" +
-		"\x1b[21;1H\x1b[48;2;57;57;57m\x1b[K" +
-		"\x1b[?25h\x1b[20;3H")
+	f.output(codexLiveComposerPaint())
 	p := f.proxy
 	p.pickerActive.Store(true)
 
