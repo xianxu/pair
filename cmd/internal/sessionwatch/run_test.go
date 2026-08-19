@@ -155,6 +155,55 @@ func TestRunTreatsSameSecondPidfileAsFresh(t *testing.T) {
 	}
 }
 
+func TestPIDFileCurrentUsesExactNativeBoundAndLegacySecondTolerance(t *testing.T) {
+	pidFile := "/tmp/data/agent-pid-test"
+	bound := time.Unix(100, 500)
+	for _, tc := range []struct {
+		name   string
+		mod    time.Time
+		bound  time.Time
+		legacy time.Time
+		want   bool
+	}{
+		{name: "native newer", mod: time.Unix(100, 501), bound: bound, want: true},
+		{name: "native exact", mod: bound, bound: bound, want: true},
+		{name: "native older same second", mod: time.Unix(100, 499), bound: bound, want: false},
+		{name: "legacy older same second", mod: time.Unix(100, 0), legacy: time.Unix(100, 900), want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rt := newFakeRuntime(time.Unix(200, 0))
+			rt.files[pidFile] = fakeFile{mod: tc.mod}
+			got, _ := pidFileCurrent(pidFile, tc.bound, tc.legacy, rt)
+			if got != tc.want {
+				t.Fatalf("pidFileCurrent = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRunAcceptsPIDWrittenAfterGenerationBoundBeforeWatcherStart(t *testing.T) {
+	home := "/tmp/home"
+	data := "/tmp/data"
+	sid := "019eff64-6ceb-7e72-9d41-a735a97029ac"
+	sessionFile := home + "/.codex/sessions/2026/06/25/rollout-2026-06-25T08-27-12-" + sid + ".jsonl"
+	bound := time.Unix(100, 100)
+	rt := newFakeRuntime(time.Unix(100, 900))
+	rt.files[filepath.Join(data, "agent-pid-test")] = fakeFile{content: []byte("1234\n"), mod: time.Unix(100, 200)}
+	rt.alive["1234"] = true
+	rt.descendants["1234"] = []string{"1234"}
+	rt.lsof["1234"] = []string{sessionFile}
+	rt.files[sessionFile] = fakeFile{content: rootSessionMeta(sid), birth: time.Unix(100, 300)}
+
+	err := Run(Options{Agent: "codex", Tag: "test", Cwd: "/repo", Home: home, DataDir: data,
+		PIDNotBefore: bound, PIDWait: time.Second, Timeout: time.Second, Poll: 100 * time.Millisecond}, rt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(rt.writes[filepath.Join(data, "config-test-codex.json")]); !strings.Contains(got, sid) {
+		t.Fatalf("config write = %s, want generation-bound pid accepted", got)
+	}
+}
+
 func TestRunDiscoversAgySessionFromLsof(t *testing.T) {
 	home := "/tmp/home"
 	data := "/tmp/data"

@@ -2065,7 +2065,7 @@ func (e *freshExecRequest) Error() string { return "restart fresh agent" }
 
 var execProcess = syscall.Exec
 
-func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv []string, env []string) (*freshExecRequest, error) {
+func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv []string, env []string, pidNotBefore time.Time) (*freshExecRequest, error) {
 	if len(currentArgv) == 0 {
 		return nil, errors.New("missing agent command")
 	}
@@ -2112,17 +2112,16 @@ func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv [
 	nextArgv = append(nextArgv, currentArgv[0])
 	nextArgv = append(nextArgv, freshArgs...)
 	var watcherArgv []string
-	if agent == "codex" || agent == "agy" {
+	if _, watchable := sessionwatch.SpecForAgent(agent, envValue(nextEnv, "HOME")); watchable {
 		tag := envValue(nextEnv, "PAIR_TAG")
 		cwd, _ := os.Getwd()
-		watcherArgv = []string{wrapperExecutable, "session-watch", agent, tag, cwd, "--"}
-		watcherArgv = append(watcherArgv, freshArgs...)
+		watcherArgv = sessionwatch.CommandArgs(wrapperExecutable, agent, tag, cwd, "", "", pidNotBefore, freshArgs)
 	}
 	return &freshExecRequest{argv: nextArgv, env: nextEnv, watcherArgv: watcherArgv}, nil
 }
 
 func mustFreshExecRequest(wrapperExecutable, scrollbackLog string, currentArgv []string, env []string) error {
-	request, err := freshAgentInvocation(wrapperExecutable, scrollbackLog, currentArgv, env)
+	request, err := freshAgentInvocation(wrapperExecutable, scrollbackLog, currentArgv, env, time.Now())
 	if err != nil {
 		return err
 	}

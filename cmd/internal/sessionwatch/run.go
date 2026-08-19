@@ -19,18 +19,19 @@ func isMuseSubagentPath(p string) bool {
 
 // Options are the watcher inputs after CLI/env resolution.
 type Options struct {
-	Agent    string
-	Tag      string
-	Cwd      string
-	RepoRoot string
-	RepoName string
-	Args     []string
-	Home     string
-	DataDir  string
-	PIDWait  time.Duration
-	Timeout  time.Duration
-	Poll     time.Duration
-	SlowPoll time.Duration
+	Agent        string
+	Tag          string
+	Cwd          string
+	RepoRoot     string
+	RepoName     string
+	Args         []string
+	Home         string
+	DataDir      string
+	PIDWait      time.Duration
+	Timeout      time.Duration
+	Poll         time.Duration
+	SlowPoll     time.Duration
+	PIDNotBefore time.Time
 }
 
 // Runtime is the IO boundary for the session watcher.
@@ -92,7 +93,7 @@ func Run(opts Options, rt Runtime) error {
 
 	pidDeadline := watchStart.Add(opts.PIDWait)
 	for {
-		if fresh, _ := freshPID(pidFile, watchStart, rt); fresh {
+		if fresh, _ := pidFileCurrent(pidFile, opts.PIDNotBefore, watchStart, rt); fresh {
 			break
 		}
 		if !rt.Now().Before(pidDeadline) {
@@ -103,7 +104,7 @@ func Run(opts Options, rt Runtime) error {
 
 	rootPID := ""
 	agentStart := time.Time{}
-	if fresh, mod := freshPID(pidFile, watchStart, rt); fresh {
+	if fresh, mod := pidFileCurrent(pidFile, opts.PIDNotBefore, watchStart, rt); fresh {
 		if data, err := rt.ReadFile(pidFile); err == nil {
 			rootPID = strings.TrimSpace(string(data))
 			agentStart = mod
@@ -185,12 +186,15 @@ func appendSessionLedger(rt Runtime, path string, entry sessionLedgerEntry) erro
 	return rt.AtomicWrite(path, []byte(raw))
 }
 
-func freshPID(pidFile string, since time.Time, rt Runtime) (bool, time.Time) {
+func pidFileCurrent(pidFile string, pidNotBefore, watchStart time.Time, rt Runtime) (bool, time.Time) {
 	mod, err := rt.ModTime(pidFile)
 	if err != nil {
 		return false, time.Time{}
 	}
-	return mod.Unix() >= since.Unix(), mod
+	if !pidNotBefore.IsZero() {
+		return !mod.Before(pidNotBefore), mod
+	}
+	return mod.Unix() >= watchStart.Unix(), mod
 }
 
 func discover(spec AgentSpec, rootPID string, agentStart time.Time, legacyExisting map[string]bool, rt Runtime) SessionID {
