@@ -1,9 +1,10 @@
 {
   "agent": "agy",
   "version": "1.1.15",
-  "captured_at": "2026-08-19T19:04:55Z",
+  "captured_at": "2026-08-19T19:41:07Z",
   "command": ["agy", "--dangerously-skip-permissions"],
   "files": {
-    "composer.raw": "a5162b6281d8d23caca2a6fc95390cd9c2332f071698d89d49a753dfc853fb1b"
+    "composer.raw": "a5162b6281d8d23caca2a6fc95390cd9c2332f071698d89d49a753dfc853fb1b",
+    "overlay.raw": "9dd7e3a3714dbea59caeca18249741804f3dbab19e7d8ec9742df0f3187da848"
   }
 }

@@ -4,6 +4,8 @@ import (
 	"image/color"
 	"strings"
 
+	xansi "github.com/charmbracelet/x/ansi"
+
 	uv "github.com/charmbracelet/ultraviolet"
 )
 
@@ -22,16 +24,21 @@ const (
 )
 
 // codexComposerActive reports whether the cursor rests inside Codex's live
-// composer. The composer is one block whose left edge is a bold prompt glyph at
-// column 0; rows below it keep columns 0 and 1 blank and align text at
-// codexComposerTextColumn. Codex paints the same glyph unemphasized as a menu
-// selection marker and parks the cursor on unrelated rows mid-paint, so a
-// qualifying cursor must reach its prompt through painted continuation rows
-// only. Its own row may be an empty composer line; a gap anywhere above it
-// proves the cursor sits below the composer rather than inside it.
+// composer. The composer's left edge is a bold prompt glyph at column 0; rows
+// below it keep columns 0 and 1 blank, carry text at codexComposerTextColumn,
+// and may be entirely blank when the user has opened an empty line. Codex
+// paints the same glyph unemphasized as a menu selection marker, so only a bold
+// prompt qualifies.
+//
+// Codex also paints a status line below the composer, separated from it by one
+// blank row, and parks the cursor there while repainting. That row is
+// cell-identical to a composer continuation row, so it is excluded by position
+// rather than by style: the status line is the last painted row on the screen
+// and has a blank row above it, which no composer row inside a block can be.
 func codexComposerActive(snapshot terminalSnapshot) bool {
 	if !snapshot.CursorVisible || !snapshotCoordinatesValid(snapshot) ||
-		snapshot.Cursor.X < codexComposerTextColumn {
+		snapshot.Cursor.X < codexComposerTextColumn ||
+		codexCursorOnTrailingStatusRow(snapshot) {
 		return false
 	}
 
@@ -41,11 +48,25 @@ func codexComposerActive(snapshot terminalSnapshot) bool {
 			return prompt != nil && prompt.Content == codexComposerPrompt &&
 				prompt.Style.Attrs&uv.AttrBold != 0
 		}
-		if promptY != snapshot.Cursor.Y && !codexComposerContinuationRow(snapshot, promptY) {
+	}
+	return false
+}
+
+// codexCursorOnTrailingStatusRow reports whether the cursor sits on Codex's
+// status line: a painted row with a blank row directly above it and nothing
+// painted below it anywhere on screen.
+func codexCursorOnTrailingStatusRow(snapshot terminalSnapshot) bool {
+	y := snapshot.Cursor.Y
+	if y == 0 || codexComposerRowPaintsLeftEdge(snapshot, y) ||
+		!snapshotRowPainted(snapshot, y) || snapshotRowPainted(snapshot, y-1) {
+		return false
+	}
+	for below := y + 1; below < snapshot.Height; below++ {
+		if snapshotRowPainted(snapshot, below) {
 			return false
 		}
 	}
-	return false
+	return true
 }
 
 // codexComposerRowPaintsLeftEdge reports whether row y paints anything in the
@@ -60,13 +81,9 @@ func codexComposerRowPaintsLeftEdge(snapshot terminalSnapshot, y int) bool {
 	return false
 }
 
-// codexComposerContinuationRow reports whether row y carries composer text: it
-// paints nothing before codexComposerTextColumn and something at or after it.
-func codexComposerContinuationRow(snapshot terminalSnapshot, y int) bool {
-	if codexComposerRowPaintsLeftEdge(snapshot, y) {
-		return false
-	}
-	for x := codexComposerTextColumn; x < snapshot.Width; x++ {
+// snapshotRowPainted reports whether row y paints any non-blank cell.
+func snapshotRowPainted(snapshot terminalSnapshot, y int) bool {
+	for x := 0; x < snapshot.Width; x++ {
 		if cell := snapshot.CellAt(x, y); cell != nil && strings.TrimSpace(cell.Content) != "" {
 			return true
 		}
@@ -74,19 +91,50 @@ func codexComposerContinuationRow(snapshot terminalSnapshot, y int) bool {
 	return false
 }
 
+// museComposerMaxRows bounds how tall a Muse composer box may be.
+const museComposerMaxRows = 20
+
+// museComposerActive reports whether the cursor rests inside Muse's live
+// composer: a non-faint prompt glyph at column 0 on the first row inside a pair
+// of faint rule rows, with the cursor within that box. Anchoring on the
+// enclosing rules rather than on rules directly above and below the prompt is
+// what lets the composer grow past one line.
 func museComposerActive(snapshot terminalSnapshot) bool {
 	if !snapshot.CursorVisible || !snapshotCoordinatesValid(snapshot) || snapshot.Cursor.X < 2 {
 		return false
 	}
 
-	for promptY := max(1, snapshot.Cursor.Y-1); promptY <= min(snapshot.Height-2, snapshot.Cursor.Y+1); promptY++ {
+	// The prompt sits at or above the cursor, except when the cursor rests on
+	// the box's own top rule.
+	for promptY := snapshot.Cursor.Y + 1; promptY >= 0 && snapshot.Cursor.Y-promptY < museComposerMaxRows; promptY-- {
+		if promptY >= snapshot.Height {
+			continue
+		}
 		prompt := snapshot.CellAt(0, promptY)
-		if prompt != nil && prompt.Content == "⟩" && prompt.Style.Attrs&uv.AttrFaint == 0 &&
-			faintRuleAt(snapshot, 0, promptY-1) && faintRuleAt(snapshot, 0, promptY+1) {
+		if prompt == nil || prompt.Content != "⟩" || prompt.Style.Attrs&uv.AttrFaint != 0 {
+			continue
+		}
+		if !faintRuleAt(snapshot, 0, promptY-1) {
+			continue
+		}
+		if bottom, ok := museComposerBottomRule(snapshot, promptY); ok && bottom >= snapshot.Cursor.Y {
 			return true
 		}
 	}
 	return false
+}
+
+// museComposerBottomRule finds the first row below the prompt that paints
+// column 0 and reports whether it is the box's closing faint rule.
+func museComposerBottomRule(snapshot terminalSnapshot, promptY int) (int, bool) {
+	for y := promptY + 1; y < snapshot.Height && y-promptY <= museComposerMaxRows; y++ {
+		cell := snapshot.CellAt(0, y)
+		if cell == nil || strings.TrimSpace(cell.Content) == "" {
+			continue
+		}
+		return y, faintRuleAt(snapshot, 0, y)
+	}
+	return 0, false
 }
 
 func agyComposerActive(snapshot terminalSnapshot) bool {
@@ -95,6 +143,10 @@ func agyComposerActive(snapshot terminalSnapshot) bool {
 	}
 
 	const (
+		// agyPromptColor is the bright blue Agy paints its composer prompt
+		// with. Its permission picker marks the selected row with an unstyled
+		// ">" in the same column, so content alone never qualifies a composer.
+		agyPromptColor  = xansi.BrightBlue
 		minBorderLength = 5
 		maxBoxHeight    = 25
 		promptColumns   = 6
@@ -127,7 +179,8 @@ func agyComposerActive(snapshot terminalSnapshot) bool {
 		promptPrefix := make([]int, snapshot.Height+1)
 		for y := 0; y < snapshot.Height; y++ {
 			promptPrefix[y+1] = promptPrefix[y]
-			if cell := snapshot.CellAt(promptX, y); cell != nil && cell.Content == ">" {
+			if cell := snapshot.CellAt(promptX, y); cell != nil && cell.Content == ">" &&
+				colorIsANSI(cell.Style.Fg, agyPromptColor) {
 				promptPrefix[y+1]++
 			}
 		}
@@ -154,25 +207,13 @@ func snapshotCoordinatesValid(snapshot terminalSnapshot) bool {
 		snapshot.Cursor.Y >= 0 && snapshot.Cursor.Y < snapshot.Height
 }
 
-func rowHasBackground(snapshot terminalSnapshot, y int, r, g, b uint8) bool {
-	for x := 0; x < snapshot.Width; x++ {
-		cell := snapshot.CellAt(x, y)
-		if cell != nil && colorMatches(cell.Style.Bg, r, g, b) {
-			return true
-		}
-	}
-	return false
-}
-
-func colorMatches(value color.Color, wantR, wantG, wantB uint8) bool {
-	if value == nil {
-		return false
-	}
-	r, g, b, _ := value.RGBA()
-	return uint8(r>>8) == wantR && uint8(g>>8) == wantG && uint8(b>>8) == wantB
-}
-
 func faintRuleAt(snapshot terminalSnapshot, x, y int) bool {
 	cell := snapshot.CellAt(x, y)
 	return cell != nil && cell.Content == "─" && cell.Style.Attrs&uv.AttrFaint != 0
+}
+
+// colorIsANSI reports whether value is the given basic ANSI palette index.
+func colorIsANSI(value color.Color, index xansi.BasicColor) bool {
+	basic, ok := value.(xansi.BasicColor)
+	return ok && basic == index
 }

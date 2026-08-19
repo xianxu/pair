@@ -571,3 +571,45 @@ inject a panicking detector before a subsequent usable Return.
   exact drift this issue hit on Codex.
 - Verification: `git diff --check` clean, focused `wrapcmd`, `go test ./...`,
   and `make test` all pass.
+
+### 2026-08-19 — Boundary review REWORK addressed
+
+The whole-issue boundary review returned `REWORK`, and it was right: all three
+recognizers had been derived from startup captures and rejected ordinary
+composing states.
+
+- **C1 (Codex).** A blank line between the prompt and the cursor ended the block,
+  so `› a` / blank / `b` submitted instead of inserting a newline. Emptiness
+  above the cursor cannot be the boundary — the composer's blank line and the
+  gap above the status line are cell-identical (verified at cell level: both all
+  spaces, `attr0`, no background). The status line is excluded by position
+  instead: last painted row on screen with a blank row above it.
+- **C2 (Muse).** Requiring a faint rule *immediately* below the prompt matched
+  only a one-line composer, so the second Enter submitted. This was an unnamed
+  `true→false` regression against the tracker this branch deleted; the plan's
+  differential-contract claim is corrected in `## Revisions`. The predicate now
+  anchors on the enclosing rules.
+- **I1 (Agy).** The recognizer accepted any `>` by content, so a permission
+  picker (`> 1. Yes` between rules) satisfied the gate — leaving Agy's defense
+  entirely dependent on `agyPickerMarkers`, the opposite of this issue's purpose.
+  The captured fixture shows the prompt is bright blue (`fg 12`) and rules dim
+  (`fg 8`); the recognizer now requires that prompt color.
+- **I2/I3.** Captured `agy/1.1.15/overlay.raw` (shortcut sheet — the gate
+  declines it with the overlay layer *not* armed, so it exercises the positive
+  gate alone). Muse has no non-composer screen reachable without a live tool
+  approval, so the fixture test now logs a named EVIDENCE GAP for it rather than
+  passing silently. A real Agy/Muse permission-picker capture remains
+  outstanding and needs a live tool call.
+- **I4 + minors.** README now separates claude (legacy gate) from the
+  positively gated harnesses; dead `rowHasBackground`/`colorMatches` removed;
+  dead production `resizeTerminal` removed; unread `returnDecision.clearOverlay`
+  removed; `translateChunk` given the same nil guard as `emitPlainCR`; the
+  terminal observer is now fed even when the emulator write fails, so the two
+  cannot diverge on cursor visibility; `doctor/README.md` no longer points at
+  the deleted `cmd/pair-wrap/main.go`.
+- Agy composer paint was duplicated across five test files; now one
+  `agyLiveComposerPaint` helper, and its styling is load-bearing.
+- Verification: `git diff --check` clean; focused `wrapcmd`, `go test ./...`,
+  and `make test` all pass; race still shows only the known unrelated
+  `TestMasterPumpFlushesStdoutOnTick`; all three live harness checks pass; five
+  fixtures now replay at every split.

@@ -56,9 +56,14 @@ func TestHarnessTTYFixtureVersionDir(t *testing.T) {
 func TestHarnessTTYFixtureConformance(t *testing.T) {
 	root := filepath.Join("testdata", "tty")
 	required := map[string]bool{}
+	// negatives tracks which positively gated harnesses have a captured state
+	// where the gate must decline. A harness without one ships a positive gate
+	// backed by no evidence that it refuses anything.
+	negatives := map[string]bool{}
 	for harness, profile := range harnessTTYProfiles {
 		if profile.composerGate == composerGatePositive {
 			required[harness] = false
+			negatives[harness] = false
 		}
 	}
 	if len(required) == 0 {
@@ -85,6 +90,9 @@ func TestHarnessTTYFixtureConformance(t *testing.T) {
 		if _, ok := rawFiles["composer.raw"]; !ok {
 			t.Errorf("%s: missing composer.raw", metadataPath)
 		}
+		if _, ok := rawFiles["overlay.raw"]; ok {
+			negatives[metadata.Agent] = true
+		}
 		for _, name := range sortedKeys(rawFiles) {
 			wantComposer, ok := ttyFixtureExpectation[name]
 			if !ok {
@@ -106,6 +114,20 @@ func TestHarnessTTYFixtureConformance(t *testing.T) {
 	sort.Strings(missing)
 	if len(missing) != 0 {
 		t.Fatalf("required positive-gated fixtures missing: %s", strings.Join(missing, ", "))
+	}
+
+	// Capturing a real declining state needs a live harness in that state, so
+	// this reports the gap loudly rather than failing the suite — a silent
+	// pass would read as "the gate is proven to refuse", which it would not be.
+	var withoutNegative []string
+	for harness, found := range negatives {
+		if !found {
+			withoutNegative = append(withoutNegative, harness)
+		}
+	}
+	sort.Strings(withoutNegative)
+	if len(withoutNegative) != 0 {
+		t.Logf("EVIDENCE GAP: positive-gated harnesses with no captured overlay.raw negative: %s — the gate has no fixture proving it declines anything for them", strings.Join(withoutNegative, ", "))
 	}
 }
 

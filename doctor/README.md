@@ -42,7 +42,7 @@ The output maps to the signal registry in
 | `return-remap` reason `composer inactive` on a real composer (aspect 1) | the harness repainted its composer and the recognizer no longer matches | recapture evidence with `PAIR_LIVE_HARNESS=<agent> go test ./cmd/internal/wrapcmd -run TestHarnessTTYLive -count=1 -v`, then fix the recognizer in `composer_recognizers.go` against the new fixture |
 | `session-id/fail` or `near-miss` (aspect 3) | session file moved or id format changed | update the watch-dir / find / id-extract logic in `cmd/internal/sessionwatch` |
 | `slug-parse/near-miss` (aspect 4) | transcript schema changed | update the parser in `cmd/pair-slug/slug.go` |
-| `output-filter` *absent* for codex (aspect 5) | a sync-output sequence was renamed (no `fired` line where you'd expect one) | update `codexSyncOutputMarkers` in `cmd/pair-wrap/main.go` |
+| `output-filter` *absent* for codex (aspect 5) | a sync-output sequence was renamed (no `fired` line where you'd expect one) | update `codexSyncOutputMarkers` in `cmd/internal/wrapcmd/wrap.go` |
 | `prompt-search/near-miss` (aspect 7) | prompt glyph changed | update `PROMPT_PATTERN_BY_AGENT` in `nvim/scrollback.lua` |
 
 A `detail` string is the literal text the live harness emitted — usually exactly

@@ -78,19 +78,19 @@ func profileForHarness(harness string, remapEnabled bool) (harnessTTYProfile, bo
 }
 
 type returnDecision struct {
-	bytes        []byte
-	outcome      adapt.Outcome
-	reason       string
-	clearOverlay bool
+	bytes   []byte
+	outcome adapt.Outcome
+	reason  string
 }
 
 func decidePlainReturn(profile harnessTTYProfile, overlayActive bool, snapshot *terminalSnapshot) returnDecision {
 	if overlayActive {
+		// The caller clears the overlay under overlayMu before deciding, so
+		// the decision reports only what to emit.
 		return returnDecision{
-			bytes:        []byte{'\r'},
-			outcome:      adapt.Bypass,
-			reason:       "plain Enter → bare CR (overlay active)",
-			clearOverlay: true,
+			bytes:   []byte{'\r'},
+			outcome: adapt.Bypass,
+			reason:  "plain Enter → bare CR (overlay active)",
 		}
 	}
 	switch profile.composerGate {

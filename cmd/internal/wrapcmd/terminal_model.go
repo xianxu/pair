@@ -105,10 +105,14 @@ func (m *terminalModel) Feed(data []byte) error {
 	if m.closed {
 		return io.ErrClosedPipe
 	}
-	if _, err := m.emulator.Write(data); err != nil {
-		return err
-	}
+	// Feed the observer whatever the emulator saw, even on error: the two must
+	// not diverge on cursor visibility, or a failed write could strand a stale
+	// visible = true and authorize a Return the screen no longer justifies.
+	writeErr := writeToEmulator(m.emulator, data)
 	m.observer.Feed(data)
+	if writeErr != nil {
+		return writeErr
+	}
 	m.altScreen = m.emulator.IsAltScreen()
 	return nil
 }
@@ -320,4 +324,10 @@ func (m *terminalModel) Close() error {
 	close(m.closeDone)
 	m.mu.Unlock()
 	return result
+}
+
+// writeToEmulator writes data to the emulator and reports its error.
+func writeToEmulator(emulator interface{ Write([]byte) (int, error) }, data []byte) error {
+	_, err := emulator.Write(data)
+	return err
 }

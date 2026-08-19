@@ -675,6 +675,7 @@ func TestHarnessTTYLiveOverlayConformance(t *testing.T) {
 	}
 	scenarios := map[string]struct {
 		args  []string
+		send  string
 		until string
 	}{
 		// Codex paints its update interstitial whenever a newer release
@@ -682,6 +683,10 @@ func TestHarnessTTYLiveOverlayConformance(t *testing.T) {
 		// a registered picker marker, so this doubles as overlay-layer
 		// evidence.
 		"codex": {args: []string{"--no-alt-screen"}, until: "Press enter to continue"},
+		// Agy's shortcut sheet is the one non-composer screen reachable
+		// without a live tool call. Plain Return must not insert a newline
+		// there.
+		"agy": {args: []string{"--dangerously-skip-permissions"}, send: "?", until: "shortcuts"},
 	}
 	scenario, ok := scenarios[harness]
 	if !ok {
@@ -695,13 +700,38 @@ func TestHarnessTTYLiveOverlayConformance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve repository root: %v", err)
 	}
+	// Reaching some overlays needs a keystroke. Drive it only once the
+	// composer is up, so the harness is in a known state first.
+	composer := newHarnessTTYLiveClassifier(t, harness)
+	t.Cleanup(func() {
+		if err := composer.Close(); err != nil {
+			t.Errorf("close %s overlay classifier: %v", harness, err)
+		}
+	})
+	ready, sent := false, false
 	out, err := captureHarnessTTY(harnessTTYCaptureRequest{
 		Executable: executable,
 		Args:       scenario.args,
 		Env:        os.Environ(),
 		Dir:        repoRoot,
+		Classify: func(chunk, retained []byte) harnessTTYConformanceState {
+			if composer.Observe(chunk, retained) == harnessTTYRecognized {
+				ready = true
+			}
+			return harnessTTYWaiting
+		},
+		Input: func([]byte) []byte {
+			if sent || !ready || scenario.send == "" {
+				return nil
+			}
+			sent = true
+			return []byte(scenario.send)
+		},
 		Startup: func(retained []byte) bool {
-			return strings.Contains(string(stripTerminalControls(retained)), scenario.until)
+			if scenario.send != "" && !sent {
+				return false
+			}
+			return strings.Contains(strings.ToLower(string(stripTerminalControls(retained))), strings.ToLower(scenario.until))
 		},
 	})
 	if err != nil {
@@ -904,7 +934,7 @@ func TestHarnessTTYControlledChild(t *testing.T) {
 					time.Sleep(time.Hour)
 				}
 			case "agy-composer":
-				_, _ = os.Stdout.Write([]byte("\x1b[10;1H──────────\x1b[11;1H> work\x1b[13;1H──────────\x1b[?25h\x1b[12;3H"))
+				_, _ = os.Stdout.Write([]byte(agyLiveComposerPaint()))
 				for {
 					time.Sleep(time.Hour)
 				}

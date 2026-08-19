@@ -8,7 +8,7 @@ import (
 func TestEmitPlainCR_AgyComposerActiveRewritesToNewline(t *testing.T) {
 	f := newHarnessSessionFake(t, "agy", true)
 	t.Cleanup(f.close)
-	f.output("\x1b[10;1H──────────\x1b[11;1H> work\x1b[13;1H──────────\x1b[?25h\x1b[12;3H")
+	f.output(agyLiveComposerPaint())
 	if got := f.proxy.emitPlainCR(nil); !bytes.Equal(got, []byte{'\n'}) {
 		t.Fatalf("got %q, want LF while Agy composer is active", got)
 	}

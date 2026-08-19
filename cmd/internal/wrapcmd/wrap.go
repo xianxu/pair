@@ -1480,13 +1480,6 @@ func (p *proxy) configureHarnessTTY(remapEnabled bool, cols, rows int) error {
 	return nil
 }
 
-func (p *proxy) resizeTerminal(cols, rows int) error {
-	if p.terminal == nil {
-		return nil
-	}
-	return p.terminal.Resize(cols, rows)
-}
-
 func (p *proxy) closeTerminal() error {
 	if p.terminal == nil {
 		return nil
@@ -1755,6 +1748,11 @@ func (p *proxy) emitPlainCR(out []byte) []byte {
 // when the chunk ends mid-escape that could still resolve into bpStart,
 // bpEnd, or an Alt+Enter — the caller prepends it to the next read.
 func (p *proxy) translateChunk(data []byte, inPaste bool) ([]byte, []byte, bool) {
+	if p.ttyProfile == nil {
+		// hasReturnRemap() gates every production call site, but keep the same
+		// fail-closed guard emitPlainCR has so a future caller cannot panic.
+		return append([]byte(nil), data...), nil, inPaste
+	}
 	out := make([]byte, 0, len(data))
 	i := 0
 	for i < len(data) {

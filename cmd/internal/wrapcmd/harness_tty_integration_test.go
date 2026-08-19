@@ -34,7 +34,10 @@ func (f *harnessSessionFake) output(raw string) {
 
 func (f *harnessSessionFake) resize(cols, rows int) {
 	f.t.Helper()
-	if err := f.proxy.resizeTerminal(cols, rows); err != nil {
+	if f.proxy.terminal == nil {
+		return
+	}
+	if err := f.proxy.terminal.Resize(cols, rows); err != nil {
 		f.t.Fatalf("resize terminal: %v", err)
 	}
 }
@@ -69,7 +72,7 @@ func TestHarnessTTYIntegration_ProfileSelectionAndTerminalLifecycle(t *testing.T
 	if f.proxy.ttyProfile == nil || f.proxy.terminal == nil {
 		t.Fatal("positive-gated Agy profile must own a terminal")
 	}
-	f.output("\x1b[10;1H──────────\x1b[11;1H> work\x1b[13;1H──────────\x1b[?25h\x1b[12;3H")
+	f.output(agyLiveComposerPaint())
 	if got := f.proxy.terminal.Snapshot(); got.Width != 80 || got.Height != 38 || !agyComposerActive(got) {
 		t.Fatalf("startup snapshot = %dx%d active=%t, want 80x38 active", got.Width, got.Height, agyComposerActive(got))
 	}
@@ -90,7 +93,7 @@ func TestHarnessTTYIntegration_StatefulReturnRouting(t *testing.T) {
 	if got := f.enter(); !bytes.Equal(got, []byte{'\r'}) {
 		t.Fatalf("unknown startup Enter = %q, want bare CR", got)
 	}
-	f.output("\x1b[10;1H──────────\x1b[11;1H> work\x1b[13;1H──────────\x1b[?25h\x1b[12;3H")
+	f.output(agyLiveComposerPaint())
 	if got := f.enter(); !bytes.Equal(got, []byte{'\n'}) {
 		t.Fatalf("composer Enter = %q, want multiline LF", got)
 	}
@@ -150,7 +153,7 @@ func TestHarnessTTYIntegration_CodexCaptureOverlayPrecedence(t *testing.T) {
 func TestHarnessTTYIntegration_SetWinsizeRejectsInvalidBeforeSideEffects(t *testing.T) {
 	f := newHarnessSessionFake(t, "agy", true)
 	t.Cleanup(f.close)
-	f.output("\x1b[10;1H──────────\x1b[11;1H> work\x1b[13;1H──────────\x1b[?25h\x1b[12;3H")
+	f.output(agyLiveComposerPaint())
 	before := f.proxy.terminal.Snapshot()
 	f.proxy.stdinFile = new(os.File)
 	f.proxy.ptmx = new(os.File)
@@ -176,7 +179,7 @@ func TestHarnessTTYIntegration_SetWinsizeRejectsInvalidBeforeSideEffects(t *test
 func TestHarnessTTYIntegration_SetWinsizeFailureLatchesAuthorization(t *testing.T) {
 	f := newHarnessSessionFake(t, "agy", true)
 	t.Cleanup(f.close)
-	f.output("\x1b[10;1H──────────\x1b[11;1H> work\x1b[13;1H──────────\x1b[?25h\x1b[12;3H")
+	f.output(agyLiveComposerPaint())
 	if got := f.enter(); !bytes.Equal(got, []byte{'\n'}) {
 		t.Fatalf("precondition Enter = %q, want active composer LF", got)
 	}
@@ -190,7 +193,7 @@ func TestHarnessTTYIntegration_SetWinsizeFailureLatchesAuthorization(t *testing.
 	f.proxy.setPTYWinsize = func(*os.File, *pty.Winsize) error { return setErr }
 	f.proxy.setWinsize()
 
-	f.output("\x1b[10;1H──────────\x1b[11;1H> work\x1b[13;1H──────────\x1b[?25h\x1b[12;3H")
+	f.output(agyLiveComposerPaint())
 	if got := f.enter(); !bytes.Equal(got, []byte{'\r'}) {
 		t.Fatalf("Enter after failed PTY resize = %q, want latched bare CR", got)
 	}
@@ -212,4 +215,13 @@ func TestHarnessTTYIntegration_SetWinsizeFailureLatchesAuthorization(t *testing.
 // in a single place.
 func codexLiveComposerPaint() string {
 	return "\x1b[20;1H\x1b[1m\u203a\x1b[22m alpha\x1b[?25h\x1b[20;9H"
+}
+
+// agyLiveComposerPaint is the byte sequence that paints a live Agy composer:
+// dim rules (SGR 90) enclosing a bright-blue prompt (SGR 94) with the cursor
+// inside the box. Agy's permission picker paints an unstyled ">" in the same
+// place, so the styling is load-bearing, not decoration.
+func agyLiveComposerPaint() string {
+	return "\x1b[10;1H\x1b[90m──────────\x1b[11;1H\x1b[94m>\x1b[39m work" +
+		"\x1b[13;1H\x1b[90m──────────\x1b[39m\x1b[?25h\x1b[12;3H"
 }

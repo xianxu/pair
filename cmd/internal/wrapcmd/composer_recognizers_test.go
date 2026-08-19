@@ -5,12 +5,15 @@ import (
 	"testing"
 	"time"
 
+	xansi "github.com/charmbracelet/x/ansi"
+
 	uv "github.com/charmbracelet/ultraviolet"
 )
 
 type agyCell struct {
-	x, y int
-	text string
+	x, y  int
+	text  string
+	plain bool // paint without Agy's captured styling
 }
 
 func TestAgyComposerActive(t *testing.T) {
@@ -24,6 +27,12 @@ func TestAgyComposerActive(t *testing.T) {
 	box := func(top, bottom, start, length, promptX int) []agyCell {
 		cells := append(border(top, start, length), border(bottom, start, length)...)
 		return append(cells, agyCell{x: promptX, y: top + 1, text: ">"})
+	}
+	// Agy's permission picker paints an unstyled ">" selection marker in the
+	// same column, between the same rules, as its composer prompt.
+	pickerBox := func(top, bottom, start, length, promptX int) []agyCell {
+		cells := append(border(top, start, length), border(bottom, start, length)...)
+		return append(cells, agyCell{x: promptX, y: top + 1, text: ">", plain: true})
 	}
 	join := func(groups ...[]agyCell) []agyCell {
 		var cells []agyCell
@@ -50,6 +59,7 @@ func TestAgyComposerActive(t *testing.T) {
 		{name: "last anchored prompt column", width: 20, height: 10, cursor: uv.Position{X: 5, Y: 3}, visible: true, cells: box(2, 4, 0, 10, 5), want: true},
 		{name: "intervening border glyphs do not hide coherent pair", width: 30, height: 12, cursor: uv.Position{X: 3, Y: 6}, visible: true, cells: join(box(2, 8, 0, 10, 0), border(5, 15, 5)), want: true},
 		{name: "hidden cursor", width: 20, height: 10, cursor: uv.Position{X: 2, Y: 3}, cells: box(2, 4, 0, 10, 0)},
+		{name: "unstyled picker marker between rules", width: 40, height: 20, cursor: uv.Position{X: 3, Y: 3}, visible: true, cells: pickerBox(2, 5, 0, 30, 0)},
 		{name: "lone prompt", width: 20, height: 10, cursor: uv.Position{X: 2, Y: 3}, visible: true, cells: []agyCell{{x: 0, y: 3, text: ">"}}},
 		{name: "lone divider", width: 20, height: 10, cursor: uv.Position{X: 2, Y: 3}, visible: true, cells: border(2, 0, 10)},
 		{name: "borders without prompt", width: 20, height: 10, cursor: uv.Position{X: 2, Y: 3}, visible: true, cells: join(border(2, 0, 10), border(4, 0, 10))},
@@ -76,7 +86,17 @@ func TestAgyComposerActive(t *testing.T) {
 				Cells:         make([]uv.Cell, test.width*test.height),
 			}
 			for _, cell := range test.cells {
-				snapshot.Cells[cell.y*test.width+cell.x].Content = cell.text
+				target := &snapshot.Cells[cell.y*test.width+cell.x]
+				target.Content = cell.text
+				if cell.plain {
+					continue
+				}
+				// Match the captured Agy palette: bright-blue prompt, dim rules.
+				if cell.text == ">" {
+					target.Style.Fg = xansi.BrightBlue
+				} else {
+					target.Style.Fg = xansi.BrightBlack
+				}
 			}
 			if got := agyComposerActive(snapshot); got != test.want {
 				t.Fatalf("active = %t, want %t", got, test.want)
@@ -85,7 +105,9 @@ func TestAgyComposerActive(t *testing.T) {
 	}
 
 	t.Run("current snapshot rejects stale lifecycle evidence", func(t *testing.T) {
-		composer := "\x1b[10;1H──────────\x1b[11;1H> work\x1b[13;1H──────────\x1b[?25h\x1b[12;3H"
+		// Agy paints dim rules (SGR 90) and a bright-blue prompt (SGR 94).
+		composer := "\x1b[10;1H\x1b[90m──────────\x1b[11;1H\x1b[94m>\x1b[39m work" +
+			"\x1b[13;1H\x1b[90m──────────\x1b[39m\x1b[?25h\x1b[12;3H"
 		mutations := []struct {
 			name   string
 			feed   string
@@ -156,6 +178,18 @@ func TestCodexComposerActiveSnapshotDifferential(t *testing.T) {
 			stream: []byte(prompt + "\x1b[?25h\x1b[13;3H"),
 			want:   true,
 		},
+		{
+			// C1: a blank line inside the composer must not end the block, or
+			// Return submits a half-written message instead of adding a line.
+			name:   "blank line between prompt and cursor",
+			stream: []byte(prompt + "\x1b[14;3Hworld\x1b[15;3Htail\x1b[?25h\x1b[14;8H"),
+			want:   true,
+		},
+		{
+			name:   "two consecutive newlines leave the cursor two rows down",
+			stream: []byte(prompt + "\x1b[15;3Htail\x1b[?25h\x1b[14;3H"),
+			want:   true,
+		},
 		{name: "literal captured overlay", stream: literalOverlay},
 		{
 			// The update interstitial marks its selected row with the same
@@ -203,6 +237,20 @@ func TestMuseComposerActiveSnapshotDifferential(t *testing.T) {
 		{name: "qualified non-empty prompt", stream: []byte(qualifiedNonEmpty), want: true},
 		{name: "qualified prompt one row above cursor", stream: []byte(qualifiedCursorBelow), want: true},
 		{name: "qualified prompt one row below cursor", stream: []byte(qualifiedCursorAbove), want: true},
+		{
+			// C2: the box grows as the message does; anchoring on rules
+			// directly above and below the prompt only ever matched one line.
+			name: "two-line composer with cursor on the second line",
+			stream: []byte("\x1b[7;1H\x1b[2m────\x1b[8;1H\x1b[22m⟩ hello" +
+				"\x1b[9;3Hworld\x1b[10;1H\x1b[2m────\x1b[?25h\x1b[9;8H"),
+			want: true,
+		},
+		{
+			name: "three-line composer with cursor on the third line",
+			stream: []byte("\x1b[7;1H\x1b[2m────\x1b[8;1H\x1b[22m⟩ one" +
+				"\x1b[9;3Htwo\x1b[10;3Hthree\x1b[11;1H\x1b[2m────\x1b[?25h\x1b[10;8H"),
+			want: true,
+		},
 		{name: "hidden cursor", stream: []byte(qualified + "\x1b[?25l")},
 		{name: "bare old U+203A glyph", stream: []byte("\x1b[8;1H› \x1b[?25h\x1b[8;3H")},
 		{

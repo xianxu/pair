@@ -1098,3 +1098,56 @@ snapshots.
 
 Focused recognizer tests, full `wrapcmd`, race, and the Codex live check must
 pass before Task 6 Step 6 is attempted.
+
+### 2026-08-19T12:50:00-07:00 — Boundary-review REWORK: recognizers modelled only the captured startup screen
+
+The whole-issue boundary review (`6130ca0..HEAD`) returned `REWORK`. Its core
+finding is that all three recognizers were derived from a *startup* capture and
+reject ordinary composing states — the very states "Enter inserts a newline"
+exists to produce. Two were reproduced through the production path.
+
+#### Task 3 differential contract breach (corrects the record)
+
+The plan and issue Log both claim the Muse migration produced "three named
+`true→false` safety corrections, and zero `false→true` expansions". A Muse
+composer taller than one line is a **fourth, unnamed `true→false`** — a real
+regression, not a safety correction. `museComposerActive` required a faint rule
+*immediately* below the prompt row, which can only hold while the box is exactly
+one line tall; the deleted `museComposerState.active()` returned true here. The
+differential contract is corrected: the Muse migration produced three named
+safety corrections plus one unnamed regression, now fixed rather than named.
+
+#### Recognizer scope statement
+
+Every recognizer must be validated against **derived** states, not only the
+captured startup screen: composer after one newline, after several, with a blank
+line inside it, and grown past one row. Those rows are now required in each
+`*SnapshotDifferential` table. Codex additionally cannot use emptiness above the
+cursor as a block boundary — the composer's own blank line and the gap above the
+status line are cell-identical (verified: both all-space, `attr0`, no
+background), so the status line is excluded by position instead: it is the last
+painted row on screen and has a blank row above it.
+
+#### Agy evidence gap
+
+`agyComposerActive` keyed on `cell.Content == ">"` with no style, so an Agy
+permission picker — documented in the bring-up guide as `> 1. Yes` between
+rules — satisfied the positive gate, leaving Agy's gate wholly dependent on
+`agyPickerMarkers` and delivering none of the issue's stated purpose. The
+captured fixture shows Agy paints its prompt `\x1b[94m>` (bright blue) and its
+rules `\x1b[90m─` (dim); the recognizer now requires that prompt color, the same
+class of discriminator Codex uses via `uv.AttrBold`.
+
+#### Live-conformance cadence
+
+Nothing schedules the `PAIR_LIVE_HARNESS` checks. Rather than invent a cadence,
+the atlas is amended to describe them as manual/opt-in, which is what they are.
+
+- [x] Fix C1 (Codex blank line), C2 (Muse multi-line), I1 (Agy unstyled marker),
+      each with the reproduction as a regression row.
+- [x] I2/I3: capture what is reachable without a live tool call and report the
+      rest loudly. Agy's shortcut sheet is now `agy/1.1.15/overlay.raw`; Codex
+      keeps its update interstitial. Muse has no reachable non-composer screen
+      without a real tool approval, so `TestHarnessTTYFixtureConformance` logs a
+      named EVIDENCE GAP for it instead of passing silently.
+- [x] I4 plus all seven minor findings.
