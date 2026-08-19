@@ -192,16 +192,22 @@ func TestRunLogsNearMissOnce(t *testing.T) {
 	rt.alive["3000"] = true
 	rt.descendants["3000"] = []string{"3000"}
 	rt.lsof["3000"] = []string{bad}
+	rt.onSleep = func(d time.Duration) {
+		if d == time.Second {
+			rt.alive["3000"] = false
+		}
+	}
 
 	err := Run(Options{
-		Agent:   "codex",
-		Tag:     "tag",
-		Cwd:     "/repo",
-		Home:    home,
-		DataDir: data,
-		PIDWait: time.Second,
-		Timeout: 350 * time.Millisecond,
-		Poll:    100 * time.Millisecond,
+		Agent:    "codex",
+		Tag:      "tag",
+		Cwd:      "/repo",
+		Home:     home,
+		DataDir:  data,
+		PIDWait:  time.Second,
+		Timeout:  350 * time.Millisecond,
+		Poll:     100 * time.Millisecond,
+		SlowPoll: time.Second,
 	}, rt)
 	if err != nil {
 		t.Fatalf("Run error: %v", err)
@@ -210,8 +216,8 @@ func TestRunLogsNearMissOnce(t *testing.T) {
 	if got := rt.countLogs(adapt.NearMiss); got != 1 {
 		t.Fatalf("near-miss logs = %d, want 1; logs=%+v", got, rt.logs)
 	}
-	if !rt.hasLog(adapt.Fail, "no session id") {
-		t.Fatalf("logs = %+v, want fail after timeout", rt.logs)
+	if rt.hasLog(adapt.Fail, "no session id") {
+		t.Fatalf("logs = %+v, process-bound watch should exit without timeout failure", rt.logs)
 	}
 }
 
@@ -285,6 +291,106 @@ func TestRunContinuesPastLegacyNearMissToValidCandidate(t *testing.T) {
 	}
 }
 
+func TestRunDiscoversSessionAfterStartupTimeoutForEveryAsyncAgent(t *testing.T) {
+	tests := []struct {
+		agent string
+		sid   string
+		path  func(home, sid string) string
+	}{
+		{
+			agent: "codex",
+			sid:   "019eff64-6ceb-7e72-9d41-a735a97029ac",
+			path: func(home, sid string) string {
+				return home + "/.codex/sessions/2026/08/18/rollout-2026-08-18T14-47-32-" + sid + ".jsonl"
+			},
+		},
+		{
+			agent: "agy",
+			sid:   "123e4567-e89b-12d3-a456-426614174000",
+			path: func(home, sid string) string {
+				return home + "/.gemini/antigravity-cli/conversations/" + sid + ".db"
+			},
+		},
+		{
+			agent: "muse",
+			sid:   "223e4567-e89b-12d3-a456-426614174000",
+			path: func(home, sid string) string {
+				return home + "/.local/share/muse/sessions/" + sid + "/session.jsonl"
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.agent, func(t *testing.T) {
+			home := "/tmp/home"
+			data := "/tmp/data"
+			rt := newFakeRuntime(time.Unix(500, 0))
+			rt.files[filepath.Join(data, "agent-pid-tag")] = fakeFile{content: []byte("5000\n"), mod: rt.now}
+			rt.alive["5000"] = true
+			rt.descendants["5000"] = []string{"5000"}
+			rt.onSleep = func(d time.Duration) {
+				if d == time.Minute {
+					rt.lsof["5000"] = []string{tt.path(home, tt.sid)}
+				}
+			}
+
+			err := Run(Options{
+				Agent:   tt.agent,
+				Tag:     "tag",
+				Cwd:     "/repo",
+				Home:    home,
+				DataDir: data,
+				PIDWait: 100 * time.Millisecond,
+				Timeout: 300 * time.Millisecond,
+				Poll:    100 * time.Millisecond,
+			}, rt)
+			if err != nil {
+				t.Fatalf("Run error: %v", err)
+			}
+
+			got := string(rt.writes[filepath.Join(data, "config-tag-"+tt.agent+".json")])
+			if !strings.Contains(got, `"session_id":"`+tt.sid+`"`) {
+				t.Fatalf("config write = %s, want delayed session %s", got, tt.sid)
+			}
+			if got := countDuration(rt.sleeps, time.Minute); got != 1 {
+				t.Fatalf("slow sleeps = %d, want 1; all sleeps=%v", got, rt.sleeps)
+			}
+		})
+	}
+}
+
+func TestRunStopsAtSlowPollWhenBoundProcessExits(t *testing.T) {
+	data := "/tmp/data"
+	rt := newFakeRuntime(time.Unix(600, 0))
+	rt.files[filepath.Join(data, "agent-pid-tag")] = fakeFile{content: []byte("6000\n"), mod: rt.now}
+	rt.alive["6000"] = true
+	rt.onSleep = func(d time.Duration) {
+		if d == time.Minute {
+			rt.alive["6000"] = false
+		}
+	}
+
+	err := Run(Options{
+		Agent:   "codex",
+		Tag:     "tag",
+		Cwd:     "/repo",
+		Home:    "/tmp/home",
+		DataDir: data,
+		PIDWait: 100 * time.Millisecond,
+		Timeout: 300 * time.Millisecond,
+		Poll:    100 * time.Millisecond,
+	}, rt)
+	if err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	if got := countDuration(rt.sleeps, time.Minute); got != 1 {
+		t.Fatalf("slow sleeps = %d, want 1; all sleeps=%v", got, rt.sleeps)
+	}
+	if _, ok := rt.writes[filepath.Join(data, "config-tag-codex.json")]; ok {
+		t.Fatal("config should not be written after the bound process exits")
+	}
+}
+
 func TestRunLogsFailOnTimeout(t *testing.T) {
 	rt := newFakeRuntime(time.Unix(400, 0))
 	err := Run(Options{
@@ -303,6 +409,16 @@ func TestRunLogsFailOnTimeout(t *testing.T) {
 	if !rt.hasLog(adapt.Fail, "no session id") {
 		t.Fatalf("logs = %+v, want fail", rt.logs)
 	}
+}
+
+func countDuration(ds []time.Duration, want time.Duration) int {
+	var n int
+	for _, d := range ds {
+		if d == want {
+			n++
+		}
+	}
+	return n
 }
 
 type fakeFile struct {
@@ -325,6 +441,7 @@ type fakeRuntime struct {
 	writes      map[string][]byte
 	writeErr    map[string]error
 	logs        []fakeLog
+	sleeps      []time.Duration
 	onSleep     func(time.Duration)
 }
 
@@ -343,6 +460,7 @@ func newFakeRuntime(now time.Time) *fakeRuntime {
 func (f *fakeRuntime) Now() time.Time { return f.now }
 
 func (f *fakeRuntime) Sleep(d time.Duration) {
+	f.sleeps = append(f.sleeps, d)
 	if f.onSleep != nil {
 		f.onSleep(d)
 	}

@@ -44,13 +44,13 @@ synchronously and must remain unaffected.
 
 ## Plan
 
-- [ ] Test `Run` with the existing fake-clock/stateful-runtime seam, scheduling
+- [x] Test `Run` with the existing fake-clock/stateful-runtime seam, scheduling
   transcript and process-state transitions to guard the fast-to-slow cadence,
   every `AgentSpec`, PID-bound exit, and PID-less timeout.
-- [ ] Change the watcher loop to transition from fast polling to lifecycle-bound
+- [x] Change the watcher loop to transition from fast polling to lifecycle-bound
   slow polling, using the existing injected runtime seam (ARCH-PURE,
   ARCH-MOCK).
-- [ ] Run focused and repository-wide verification; confirm the synchronous
+- [x] Run focused and repository-wide verification; confirm the synchronous
   Claude launch path is unchanged (ARCH-PURPOSE, ARCH-DRY).
 
 ## Log
@@ -63,6 +63,15 @@ synchronously and must remain unaffected.
 - Design approved by the operator: retain fast startup polling, then poll every
   60 seconds for the lifetime of the bound agent process. Apply this to all
   asynchronous agent specs rather than special-casing Codex.
+- Implemented one shared `Run` schedule for Codex, Agy, and Muse: 100 ms during
+  the startup deadline, then 60 seconds while the fresh bound PID remains alive.
+  PID-less legacy discovery retains its bounded timeout; Claude remains on its
+  existing synchronous session-ID path.
+- TDD evidence: the delayed-discovery tests first failed because `SlowPoll` did
+  not exist, then passed after the lifecycle loop was implemented. Focused
+  package tests, all Go packages (with generated runtime assets and Pair session
+  variables cleared), the shell session-watch integration test, and
+  `git diff --check` pass.
 
 ## Revisions
 

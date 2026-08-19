@@ -29,6 +29,7 @@ type Options struct {
 	PIDWait  time.Duration
 	Timeout  time.Duration
 	Poll     time.Duration
+	SlowPoll time.Duration
 }
 
 // Runtime is the IO boundary for the session watcher.
@@ -70,6 +71,9 @@ func Run(opts Options, rt Runtime) error {
 	}
 	if opts.Poll <= 0 {
 		opts.Poll = 100 * time.Millisecond
+	}
+	if opts.SlowPoll <= 0 {
+		opts.SlowPoll = 60 * time.Second
 	}
 	repoRoot := opts.RepoRoot
 	if repoRoot == "" {
@@ -114,8 +118,12 @@ func Run(opts Options, rt Runtime) error {
 
 	nmLogged := false
 	deadline := watchStart.Add(opts.Timeout)
-	for rt.Now().Before(deadline) {
+	for {
 		if rootPID != "" && !rt.ProcessAlive(rootPID) {
+			return nil
+		}
+		if rootPID == "" && !rt.Now().Before(deadline) {
+			rt.Log(adapt.Fail, "no session id within startup deadline (agent="+opts.Agent+")")
 			return nil
 		}
 
@@ -151,11 +159,12 @@ func Run(opts Options, rt Runtime) error {
 			nmLogged = true
 		}
 
-		rt.Sleep(opts.Poll)
+		poll := opts.Poll
+		if !rt.Now().Before(deadline) {
+			poll = opts.SlowPoll
+		}
+		rt.Sleep(poll)
 	}
-
-	rt.Log(adapt.Fail, "no session id within 60s deadline (agent="+opts.Agent+")")
-	return nil
 }
 
 func appendSessionLedger(rt Runtime, path string, entry sessionLedgerEntry) error {
