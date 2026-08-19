@@ -56,6 +56,14 @@ the saved non-resume args for a fresh launch. Ledger fallback remains subject
 to the same validation. An explicitly typed Codex `resume <id>` remains user
 authority and is outside automatic discovery.
 
+Configuration readers that derive transcript or review identity must validate
+Codex IDs through the same transcript contract before returning them. This
+includes context usage, slug generation, and review-target scoping; a polluted
+config behaves as missing identity and may fall through only to a validated
+live root. Neovim is the deliberate thin consumer exception: it does not parse
+transcripts, and reads only the environment/config state whose Pair launch
+boundary has already quarantined invalid automatic identity.
+
 Keep filesystem and process discovery at the existing integration seams. The
 metadata decision is a pure function over a path and first JSONL event; a thin
 transcript adapter reads only the first JSONL event, and candidate scanners
@@ -78,7 +86,8 @@ Alternatives rejected:
 - Session watcher `lsof` and birth-time discovery ignore Codex subagent
   rollouts and persist the root ID when it becomes available.
 - Review-target and slug live-session resolution use the same root-only
-  classifier; Neovim no longer parses live rollout filenames independently.
+  classifier; context usage rejects a polluted config; Neovim no longer parses
+  live rollout filenames independently.
 - A saved config containing a subagent ID is quarantined before config-picker
   or `Alt+n` automatic resume. If no valid live root is available, Pair starts a
   fresh session with the saved non-resume args instead of resuming the
@@ -123,3 +132,10 @@ Alternatives rejected:
 - Defined accepted root metadata (`cli`/`exec`, null parent, matching ID),
   fail-closed unknown shapes, scan continuation, and the pure classifier/thin
   first-event IO seam.
+
+### 2026-08-19 07:29 PDT — Fresh-context plan review
+
+- Expanded persisted-ID validation to context, slug, and review-target config
+  readers; polluted configuration is missing identity, never authority.
+- Required all Go process discovery implementations to reuse `procutil` for
+  `ps`/`lsof` parsing while preserving their injected/stateful test seams.

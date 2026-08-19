@@ -17,13 +17,13 @@
 | Name | Lives in | Status |
 |------|----------|--------|
 | `CodexRootSessionID` | `cmd/internal/transcript/transcript.go` | new |
-| `AutomaticResumeConfig` | `cmd/internal/launcher/createflow.go` | new |
+| `DecideAutomaticResumeConfig` | `cmd/internal/launcher/createflow.go` | new |
 
 - **`CodexRootSessionID`** — authorizes a session UUID from a rollout path plus its first JSONL event.
   - **Relationships:** N:1 with a Codex process tree: many rollout candidates may be visible, exactly one accepted root ID is selected by each consumer.
   - **DRY rationale:** replaces filename-only authorization duplicated by sessionwatch, launcher, codexsid, slug, and Neovim (ARCH-DRY).
   - **Future extensions:** widen the accepted root source enum only when a captured upstream `session_meta` fixture proves a new root shape.
-- **`AutomaticResumeConfig`** — projects a saved config into safe automatic-resume state: preserve args, retain a validated ID, or clear an invalid ID and request quarantine.
+- **`DecideAutomaticResumeConfig`** — projects a saved config plus already-observed validation facts into safe automatic-resume intent: preserve args, retain a validated ID, or clear an invalid ID and request quarantine/warning.
   - **Relationships:** 1:1 with a loaded saved config; consumed by both config-picker and restart-marker flows.
   - **DRY rationale:** prevents two automatic-resume boundaries from independently deciding whether persisted Codex identity is trustworthy.
   - **Future extensions:** agent-specific persisted-identity validators can join without weakening explicit user-supplied resume authority.
@@ -34,7 +34,7 @@
 |------|----------|--------|-------|
 | `ReadCodexRootSessionID` | `cmd/internal/transcript/transcript.go` | new | bounded first-line filesystem read |
 | `sessionwatch.Runtime.ReadFirstLine` | `cmd/internal/sessionwatch/run.go`, `runtime.go` | new | watcher filesystem seam |
-| Existing process candidate seams | `cmd/internal/launcher/osruntime.go`, `cmd/internal/codexsid/codexsid.go`, `cmd/internal/slugcmd/slugcmd.go` | modified | `ps`/`lsof` candidate discovery |
+| Shared process candidate seam | `cmd/internal/procutil/procutil.go` | modified | `ps`/`lsof` parsing and traversal |
 | Validated Pair config | `nvim/init.lua` | modified | asynchronous Go-authored session identity |
 
 - **`ReadCodexRootSessionID`** — reads only the first JSONL event, then calls the pure classifier; unreadable, oversized, or unterminated/incomplete metadata fails closed.
@@ -43,9 +43,9 @@
 - **`sessionwatch.Runtime.ReadFirstLine`** — keeps watcher scheduling and candidate ordering deterministic under its stateful fake without reading whole, potentially large transcripts.
   - **Injected into:** `discover` and `discoverByBirth` candidate authorization.
   - **Future extensions:** none planned; deliberately narrower than general transcript reads.
-- **Existing process candidate seams** — continue to own external `ps`/`lsof`; tests provide temp rollout trees plus the existing fake command/state model (ARCH-MOCK).
-  - **Injected into:** launcher `LiveAgentSessionID`, `codexsid.ResolveSessionID`, and slug transcript resolution.
-  - **Future extensions:** consolidate process traversal separately only if an active issue owns that refactor.
+- **Shared process candidate seam** — one implementation owns external `ps`/`lsof` parsing and traversal; tests provide temp rollout trees plus the existing fake command/state model (ARCH-MOCK).
+  - **Injected into:** launcher `LiveAgentSessionID`, `codexsid.ResolveSessionID`, slug transcript resolution, and sessionwatch's OS runtime while sessionwatch retains its injected runtime interface.
+  - **Future extensions:** command execution injection can widen here without duplicating parsers in consumers.
 - **Validated Pair config** — Neovim reads `PAIR_SESSION_ID` or `config-<tag>-<agent>.json`; it no longer shells out or parses rollout filenames.
   - **Injected into:** review-target scoping.
   - **Future extensions:** a typed Pair identity sidecar could replace config reads if more UI consumers emerge.
@@ -70,7 +70,7 @@ func TestCodexRootSessionIDFromEvent(t *testing.T) {
 }
 ```
 
-Add a file-adapter test with a temp rollout tree proving `ReadCodexRootSessionID` reads a valid first event, rejects a subagent first event, and does not authorize a later `session_meta` when the first event is invalid.
+Add file-adapter tests with a temp rollout tree proving `ReadCodexRootSessionID` reads a valid first event, rejects a subagent first event, and does not authorize a later `session_meta` when the first event is invalid. Define the bound as 1 MiB including the terminating newline, then cover nonexistent/unreadable input, exactly-at-limit acceptance, over-limit rejection, an unterminated first line, and a read-error path (directory or closed/erroring fixture) before implementation.
 
 - [ ] **Step 2: Run the focused tests and verify RED**
 
@@ -99,7 +99,7 @@ Expected: PASS.
 
 ```bash
 git add cmd/internal/transcript/transcript.go cmd/internal/transcript/transcript_test.go
-git commit -m "transcript: #144: classify root Codex sessions"
+git commit -m "transcript: #144: classify root Codex sessions" -m "Co-Authored-By: OpenAI Codex <codex@openai.com>"
 ```
 
 ### Task 2: Route process-based identity consumers through the classifier
@@ -107,36 +107,42 @@ git commit -m "transcript: #144: classify root Codex sessions"
 **Files:**
 - Modify: `cmd/internal/launcher/osruntime.go`
 - Modify: `cmd/internal/launcher/osruntime_test.go`
+- Modify: `cmd/internal/procutil/procutil.go`
+- Modify: `cmd/internal/procutil/procutil_test.go`
 - Modify: `cmd/internal/codexsid/codexsid.go`
 - Modify: `cmd/internal/codexsid/codexsid_test.go`
 - Modify: `cmd/internal/slugcmd/slugcmd.go`
 - Modify: `cmd/internal/slugcmd/slugcmd_test.go`
+- Modify: `cmd/internal/contextcmd/contextcmd_test.go`
+- Modify: `cmd/internal/reviewcmd/run.go`
+- Modify: `cmd/internal/reviewcmd/reviewcmd_test.go`
+- Modify: `cmd/internal/reviewcmd/runtime.go`
 
 - [ ] **Step 1: Write failing ambiguous-candidate regressions**
 
-For launcher, codexsid, and slug, create root and subagent rollout files in a temp Codex session tree. Have the existing process seam report the subagent first and root second. Assert each consumer skips the subagent and returns the root ID/path. Add a subagent-only case returning empty.
+For launcher, codexsid, and slug, create root and subagent rollout files in a temp Codex session tree. Have the shared process seam report the subagent first and root second. Assert each consumer skips the subagent and returns the root ID/path. Add a subagent-only case returning empty. Add config-backed regressions proving `transcript.SessionID` makes context and slug reject a polluted subagent config, and review targeting rejects polluted config before falling through to a valid live root.
 
 - [ ] **Step 2: Run the consumer tests and verify RED**
 
-Run: `go test ./cmd/internal/launcher ./cmd/internal/codexsid ./cmd/internal/slugcmd -run 'Codex.*(Root|Subagent)|LiveCodex' -count=1 -v`
+Run: `go test ./cmd/internal/transcript ./cmd/internal/launcher ./cmd/internal/procutil ./cmd/internal/codexsid ./cmd/internal/slugcmd ./cmd/internal/contextcmd ./cmd/internal/reviewcmd -run 'Codex.*(Root|Subagent)|LiveCodex|PollutedCodex' -count=1 -v`
 
 Expected: FAIL because filename-only scans return the first subagent candidate.
 
 - [ ] **Step 3: Replace filename authorization with the shared adapter**
 
-Keep existing `ps`/`lsof` candidate collection. Replace direct regex or `CodexSessionIDFromPath` success checks with `transcript.ReadCodexRootSessionID(path)`, continuing the scan when it returns empty. Delete `codexsid.rolloutRE`; retain `CodexSessionIDFromPath` only as the classifier's low-level path parser.
+Make `procutil` the only Go owner of `ps`/`lsof` parsing/traversal and route launcher, codexsid, slug, and sessionwatch's OS runtime through it. Replace direct regex or `CodexSessionIDFromPath` success checks with `transcript.ReadCodexRootSessionID(path)`, continuing the scan when it returns empty. Delete `codexsid.rolloutRE`; retain `CodexSessionIDFromPath` only as the classifier's low-level path parser. Make `transcript.SessionID` validate Codex config IDs through the same file adapter, and expose that validated config resolution through reviewcmd's injected runtime rather than parsing JSON locally.
 
 - [ ] **Step 4: Run the three consumer packages and verify GREEN**
 
-Run: `go test ./cmd/internal/launcher ./cmd/internal/codexsid ./cmd/internal/slugcmd -count=1`
+Run: `go test ./cmd/internal/transcript ./cmd/internal/launcher ./cmd/internal/procutil ./cmd/internal/codexsid ./cmd/internal/slugcmd ./cmd/internal/contextcmd ./cmd/internal/reviewcmd -count=1`
 
 Expected: PASS.
 
 - [ ] **Step 5: Commit the consumer sweep**
 
 ```bash
-git add cmd/internal/launcher/osruntime.go cmd/internal/launcher/osruntime_test.go cmd/internal/codexsid cmd/internal/slugcmd
-git commit -m "session: #144: reject live Codex subagents"
+git add cmd/internal/transcript cmd/internal/launcher/osruntime.go cmd/internal/launcher/osruntime_test.go cmd/internal/procutil cmd/internal/codexsid cmd/internal/slugcmd cmd/internal/contextcmd cmd/internal/reviewcmd
+git commit -m "session: #144: reject live Codex subagents" -m "Co-Authored-By: OpenAI Codex <codex@openai.com>"
 ```
 
 ### Task 3: Make sessionwatch authorize Codex metadata
@@ -165,7 +171,7 @@ Expected: FAIL because `AgentSpec.Match` authorizes filename UUIDs without metad
 
 - [ ] **Step 3: Add the thin injected first-event seam and shared authorization**
 
-Add `ReadFirstLine(path string) ([]byte, error)` to `Runtime` and implement a bounded OS reader. Keep `AgentSpec.Match` as shape extraction, but before any Codex result becomes returnable, call `transcript.CodexRootSessionID(result.Path, firstEvent)`. Convert explicit subagents/invalid metadata to rejected candidates, not terminal near-misses, and continue scanning.
+Add `ReadFirstLine(path string) ([]byte, error)` to `Runtime` and implement it with the same 1 MiB contract as the transcript adapter. Route OS process traversal/path listing through `procutil`. Keep `AgentSpec.Match` as shape extraction, but before any Codex result becomes returnable, call `transcript.CodexRootSessionID(result.Path, firstEvent)`. Convert explicit subagents/invalid metadata to rejected candidates, not terminal near-misses, and continue scanning.
 
 - [ ] **Step 4: Run watcher tests and verify GREEN**
 
@@ -177,7 +183,7 @@ Expected: PASS on both main and, after integration, the #143 lifecycle branch be
 
 ```bash
 git add cmd/internal/sessionwatch
-git commit -m "sessionwatch: #144: persist only root Codex sessions"
+git commit -m "sessionwatch: #144: persist only root Codex sessions" -m "Co-Authored-By: OpenAI Codex <codex@openai.com>"
 ```
 
 ## Chunk 2: Persisted-state safety and UI derivation
@@ -194,7 +200,7 @@ git commit -m "sessionwatch: #144: persist only root Codex sessions"
 
 - [ ] **Step 1: Write failing config-picker and Alt+n regressions**
 
-Add tests where saved config/ledger contains a real on-disk subagent rollout ID:
+First add pure table tests for `DecideAutomaticResumeConfig(agent, saved, sessionValid)` returning sanitized config plus `quarantine` and `warn` intent without IO. Then add integration tests where saved config/ledger contains a real on-disk subagent rollout ID:
 
 - config picker warns, removes the polluted config, preserves saved args, and offers no resume action;
 - `Alt+n` has no valid live ID, rejects the saved subagent, removes the config, and relaunches fresh with saved non-resume args;
@@ -209,7 +215,7 @@ Expected: FAIL because restart fallback currently prefers `saved.SessionID` with
 
 - [ ] **Step 3: Implement one automatic-resume validation policy**
 
-Update `AgentSessionExists("codex", ...)` to resolve the rollout and require `ReadCodexRootSessionID`. Add one launcher helper that validates saved automatic Codex IDs through `Runtime.AgentSessionExists`, clears invalid IDs while preserving args, removes the polluted config, and emits the warning. Use it in both config-picker and restart-marker re-entry before `planRestart`; do not apply it to explicit argv resume IDs.
+Update `AgentSessionExists("codex", ...)` to resolve the rollout and require `ReadCodexRootSessionID`. Implement the pure decision over saved state plus `sessionValid`; thin config-picker and restart callers gather validity through `Runtime.AgentSessionExists`, apply returned quarantine/warning intent with `Remove`/stderr, and pass only sanitized state onward. Exercise both config-origin and ledger-fallback saved state. Do not apply this policy to explicit argv resume IDs.
 
 - [ ] **Step 4: Run launcher tests and verify GREEN**
 
@@ -221,7 +227,7 @@ Expected: PASS.
 
 ```bash
 git add cmd/internal/launcher
-git commit -m "launcher: #144: quarantine subagent resume state"
+git commit -m "launcher: #144: quarantine subagent resume state" -m "Co-Authored-By: OpenAI Codex <codex@openai.com>"
 ```
 
 ### Task 5: Remove Neovim's duplicate live rollout scanner
@@ -259,7 +265,7 @@ Expected: PASS.
 
 ```bash
 git add nvim/init.lua tests/review-toggle-test.sh
-git commit -m "nvim: #144: consume validated session identity"
+git commit -m "nvim: #144: consume validated session identity" -m "Co-Authored-By: OpenAI Codex <codex@openai.com>"
 ```
 
 ### Task 6: Update maps and verify the complete change
@@ -277,7 +283,7 @@ Document that Codex automatic identity requires matching root `session_meta`, pe
 Run:
 
 ```bash
-go test ./cmd/internal/transcript ./cmd/internal/sessionwatch ./cmd/internal/launcher ./cmd/internal/codexsid ./cmd/internal/slugcmd -count=1
+go test ./cmd/internal/transcript ./cmd/internal/sessionwatch ./cmd/internal/launcher ./cmd/internal/procutil ./cmd/internal/codexsid ./cmd/internal/slugcmd ./cmd/internal/contextcmd ./cmd/internal/reviewcmd -count=1
 bash tests/review-toggle-test.sh
 ```
 
@@ -289,18 +295,18 @@ Run the repository's available full suite from the checkout, including generated
 
 ```bash
 go test ./... -count=1
-make test
+make -f /Users/xianxu/workspace/ariadne/Makefile test
 git diff --check
 ```
 
-Expected: PASS with no warnings attributable to the change. If `make test` owns additional generated steps, follow its next-action output rather than bypassing it.
+Expected: PASS with no warnings attributable to the change. The absolute canonical Makefile path is required because Pair's relative `../ariadne/Makefile` symlink is broken in temporary/isolated worktrees. If the canonical Makefile is unavailable, stop and repair/materialize the dependency before claiming full verification.
 
 - [ ] **Step 4: Perform a shadow-sweep**
 
 Run:
 
 ```bash
-rg -n 'CodexSessionIDFromPath|rolloutRE|endUUIDRE|live_codex_session_id|\.codex/sessions' cmd nvim --glob '*.go' --glob '*.lua'
+rg -n 'CodexSessionIDFromPath|rolloutRE|endUUIDRE|live_codex_session_id|\.codex/sessions|transcript(pkg)?\.SessionID|transcript(pkg)?\.Resolve|sessionFromConfig|session_id' cmd nvim --glob '*.go' --glob '*.lua'
 ```
 
 Expected: every path that authorizes automatic identity reaches the shared root classifier; no Neovim or package-local filename-only authorizer remains. Low-level path-shape tests may remain only in `transcript`.
@@ -313,7 +319,7 @@ Append TDD red/green commands, focused/full verification, shadow-sweep result, a
 
 ```bash
 git add atlas/session-identity.md workshop/issues/000144-reject-codex-subagent-sessions-during-pair-identity-discovery.md workshop/plans/000144-reject-codex-subagent-sessions-during-pair-identity-discovery-plan.md
-git commit -m "workshop: #144: record root session verification"
+git commit -m "workshop: #144: record root session verification" -m "Co-Authored-By: OpenAI Codex <codex@openai.com>"
 ```
 
 - [ ] **Step 7: Close through the SDLC boundary**
@@ -325,3 +331,17 @@ sdlc close --issue 144 --verified '<focused tests, full suite, headless Neovim r
 ```
 
 Expected: mandatory fresh-context review passes after any Critical/Important findings are fixed; close records measured actual time and moves the issue to `codecomplete`.
+
+## Revisions
+
+### 2026-08-19 07:29 PDT — Fresh-context plan review
+
+- Expanded the consumer sweep to config-backed context, slug, and review-target
+  identity, including validated `transcript.SessionID` and a broader shadow
+  sweep.
+- Consolidated `ps`/`lsof` parsing and traversal in `procutil` instead of
+  deferring known duplication.
+- Added exact 1 MiB reader-boundary/error tests and separated pure automatic
+  resume decisions from caller-owned validation/removal/warning IO.
+- Replaced the broken worktree-relative `make test` path with the canonical
+  Makefile invocation and added required co-author trailers to every commit.
