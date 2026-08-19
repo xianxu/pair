@@ -20,17 +20,17 @@
 |------|----------|--------|
 | `Options.PIDNotBefore` | `cmd/internal/sessionwatch/run.go` | modified |
 | `sessionwatch.CommandArgs` | `cmd/internal/sessionwatch/runcli.go` | new |
-| `pidFileCurrent` | `cmd/internal/sessionwatch/run.go` | new |
+| `pidFileFresh` | `cmd/internal/sessionwatch/run.go` | new |
 
 - **`Options.PIDNotBefore`** — lower bound authorizing the PID-file generation for this watcher.
   - **Relationships:** One bound belongs to one watcher launch; `Run` compares every observed PID-file mtime against it.
-  - **DRY rationale:** Reuses `freshPID` as the single freshness predicate instead of adding a second PID-selection path (ARCH-DRY).
+  - **DRY rationale:** Supplies one bound to both PID reads instead of adding a second PID-selection path (ARCH-DRY).
   - **Future extensions:** Other sidecars can carry generation bounds through their own argv without widening this session identity contract.
 - **`sessionwatch.CommandArgs`** — pure serializer for the internal watcher process contract.
   - **Relationships:** One launcher spawn produces one argv; `buildOptions` is its inverse consumer.
   - **DRY rationale:** Whole-workbench and agent-only restart reuse one command shape rather than maintaining parallel argv literals (ARCH-DRY, ARCH-PURPOSE).
   - **Future extensions:** New watcher-only metadata belongs before the `--` agent-argument delimiter.
-- **`pidFileCurrent`** — pure timestamp policy selecting precise native-generation comparison or legacy same-second comparison.
+- **`pidFileFresh`** — pure timestamp policy selecting precise native-generation comparison or legacy same-second comparison.
   - **Relationships:** `Run` calls it for both PID wait-loop and final bind; one policy owns all freshness decisions.
   - **DRY rationale:** Prevents separate native/legacy scan loops while making their intentional precision difference explicit (ARCH-PURE).
   - **Future extensions:** Remove legacy tolerance when old direct invocations are retired.
@@ -42,6 +42,7 @@
 | `OSRuntime.SpawnSessionWatcher` | `cmd/internal/launcher/osruntime.go` | modified | wall clock and detached process spawn |
 | `freshAgentInvocation` | `cmd/internal/wrapcmd/wrap.go` | modified | Shift+Alt+N replacement process spawn |
 | `buildOptions` | `cmd/internal/sessionwatch/runcli.go` | modified | internal process argv/environment |
+| `pidFileCurrent` | `cmd/internal/sessionwatch/run.go` | new | PID-file mtime lookup through `Runtime` |
 | `sessionwatch.Runtime` fake | `cmd/internal/sessionwatch/run_test.go` | reused | PID file/process lifecycle/filesystem state |
 | Session-watch shell fixture | `tests/pair-session-watch-test.sh` | modified | real CLI parsing and filesystem mtimes |
 
@@ -54,6 +55,9 @@
 - **`buildOptions`** — parses the internal `--pid-not-before` timestamp before the `--` delimiter and fails closed on malformed values.
   - **Injected into:** `RunCLI`, which already owns watcher CLI normalization.
   - **Future extensions:** Keep internal watcher flags typed here rather than leaking parsing into `Run`.
+- **`pidFileCurrent`** — reads the PID-file mtime through the injected runtime and delegates the timestamp decision to pure `pidFileFresh`.
+  - **Injected into:** `Run` through `sessionwatch.Runtime`.
+  - **Future extensions:** None; all freshness policy belongs in `pidFileFresh`.
 - **`sessionwatch.Runtime` fake** — models watcher start time, PID-file mtime, process liveness, and discovered rollout state across polls (ARCH-MOCK).
   - **Injected into:** `Run` tests.
   - **Future extensions:** None for this fix; the existing state model already covers the race.
@@ -67,7 +71,7 @@
 |---|---|
 | `sessionwatch.CommandArgs` + `buildOptions` | Round-trip arbitrary agent argv containing internal-flag-looking tokens; the first `--` mechanically separates watcher metadata from untouched agent args. |
 | `freshAgentInvocation` | Drive every `SpecForAgent` member plus synchronous Claude through one table; watcher presence must equal registry membership, preventing a second agent list. |
-| `pidFileCurrent` | Generate subsecond mtime relations around the bound; native mode uses exact ordering, while a separate zero-bound legacy assertion pins whole-second tolerance. |
+| `pidFileFresh` | Generate subsecond mtime relations around the bound without filesystem IO; native mode uses exact ordering, while a separate zero-bound legacy assertion pins whole-second tolerance. |
 | `Run` | Use the stateful clock/filesystem/process fake to permute PID write, watcher start, rollout appearance, and process death; config writes require an authorized PID generation and session. |
 | Real `pair session-watch` process | Persist PID files on the temporary filesystem before process start on both sides of a fixed bound; the stateful `lsof` fake proves serializer/parser/mtime behavior through the production CLI seam (ARCH-MOCK). |
 
@@ -116,3 +120,14 @@
 ### 2026-08-19 09:15 PDT — Plan-quality gate PQ-1
 
 - Compressed enumerated cases and procedural diff instructions into named-function adversarial strategies while retaining explicit TDD and verification commands.
+
+### 2026-08-19 09:32 PDT — Boundary review corrections
+
+- Extracted pure `pidFileFresh(mod, bound, watchStart)` and reclassified
+  `pidFileCurrent` as the injected filesystem integration that delegates to it
+  (ARCH-PURE). Removed the obsolete `freshPID` reuse claim.
+- Made the incomplete-readiness test clear `PAIR_SESSION_NAME` and
+  `PAIR_LAUNCH_NONCE` itself, so the exact focused command is hermetic inside a
+  live Pair session.
+- Replaced the dispatcher's Codex/Agy help restatement with registry-independent
+  “async agent” wording (ARCH-PURPOSE).

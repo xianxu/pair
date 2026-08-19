@@ -155,8 +155,7 @@ func TestRunTreatsSameSecondPidfileAsFresh(t *testing.T) {
 	}
 }
 
-func TestPIDFileCurrentUsesExactNativeBoundAndLegacySecondTolerance(t *testing.T) {
-	pidFile := "/tmp/data/agent-pid-test"
+func TestPIDFileFreshUsesExactNativeBoundAndLegacySecondTolerance(t *testing.T) {
 	bound := time.Unix(100, 500)
 	for _, tc := range []struct {
 		name   string
@@ -171,11 +170,9 @@ func TestPIDFileCurrentUsesExactNativeBoundAndLegacySecondTolerance(t *testing.T
 		{name: "legacy older same second", mod: time.Unix(100, 0), legacy: time.Unix(100, 900), want: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			rt := newFakeRuntime(time.Unix(200, 0))
-			rt.files[pidFile] = fakeFile{mod: tc.mod}
-			got, _ := pidFileCurrent(pidFile, tc.bound, tc.legacy, rt)
+			got := pidFileFresh(tc.mod, tc.bound, tc.legacy)
 			if got != tc.want {
-				t.Fatalf("pidFileCurrent = %v, want %v", got, tc.want)
+				t.Fatalf("pidFileFresh = %v, want %v", got, tc.want)
 			}
 		})
 	}

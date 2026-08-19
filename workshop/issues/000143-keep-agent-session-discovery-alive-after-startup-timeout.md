@@ -152,6 +152,11 @@ total: 1.00
 - Shadow sweep updated the watcher lifecycle, generation contract, single-binary
   route, and Codex/Agy/Muse coverage across the current atlas and code comments
   (ARCH-PURPOSE, ARCH-DRY).
+- First boundary review returned REWORK on artifact/test rigor, not watcher
+  behavior: it found `pidFileCurrent` mislabeled PURE, an inherited-environment
+  readiness test, and stale Codex/Agy dispatcher help. Extracted pure
+  `pidFileFresh`, made the test hermetic, generalized the help text, and revised
+  the plan's entity table before re-review (ARCH-PURE, ARCH-PURPOSE).
 
 ## Revisions
 

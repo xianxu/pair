@@ -1346,3 +1346,14 @@ the generated transcript.
 normalizes embedded patches and `git diff --check <base>..HEAD` passes with the
 artifact included. Prefer the gate ledger, verdict trailers, and concise issue
 log as durable evidence; generated diagnostic capture is disposable.
+
+## Negative environment tests must clear every required variable
+
+#143's focused wrapper command failed only inside a live Pair session because a
+test for an incomplete readiness environment set two variables but silently
+inherited the other two required variables from the harness.
+
+**Rule.** A test asserting behavior when environment input is absent must call
+`t.Setenv(key, "")` for every absent key in that contract. Unsetting variables
+only in the outer test command hides the isolation defect and makes the checked
+command non-reproducible for the exact environment where Pair is developed.

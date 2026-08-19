@@ -191,10 +191,14 @@ func pidFileCurrent(pidFile string, pidNotBefore, watchStart time.Time, rt Runti
 	if err != nil {
 		return false, time.Time{}
 	}
+	return pidFileFresh(mod, pidNotBefore, watchStart), mod
+}
+
+func pidFileFresh(mod, pidNotBefore, watchStart time.Time) bool {
 	if !pidNotBefore.IsZero() {
-		return !mod.Before(pidNotBefore), mod
+		return !mod.Before(pidNotBefore)
 	}
-	return mod.Unix() >= watchStart.Unix(), mod
+	return mod.Unix() >= watchStart.Unix()
 }
 
 func discover(spec AgentSpec, rootPID string, agentStart time.Time, legacyExisting map[string]bool, rt Runtime) SessionID {
