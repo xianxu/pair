@@ -23,7 +23,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 . "$ROOT/tests/lib/run-headless.sh"
 RT="$(mktemp -d "${TMPDIR:-/tmp}/pair-toggle-test.XXXXXX")"
 trap 'rm -rf "$RT"' EXIT
-RESULT="$RT/result.txt"; ZLOG="$RT/zlog.txt"; FLOATVIS="$RT/floatvis"; : > "$ZLOG"
+RESULT="$RT/result.txt"; ZLOG="$RT/zlog.txt"; SYSTEM_CALLS="$RT/session-system-calls"; FLOATVIS="$RT/floatvis"; : > "$ZLOG"
 fails=0
 pass() { printf '  ok   %s\n' "$1"; }
 fail() { printf '  FAIL %s\n' "$1"; fails=$((fails + 1)); }
@@ -40,6 +40,7 @@ exit 0
 EOF
 cat > "$RT/bin/ps" <<'EOF'
 #!/usr/bin/env bash
+touch "$SYSTEM_CALLS"
 if [ "$1" = "-axo" ]; then
   printf '111 1\n222 111\n'
   exit 0
@@ -48,6 +49,7 @@ exec /bin/ps "$@"
 EOF
 cat > "$RT/bin/lsof" <<'EOF'
 #!/usr/bin/env bash
+touch "$SYSTEM_CALLS"
 if [ "$1" = "-p" ] && [ "$2" = "222" ]; then
   printf 'p222\nn%s/.codex/sessions/2026/06/21/rollout-2026-06-21T00-00-00-12345678-1234-1234-1234-123456789abc.jsonl\n' "$HOME"
   exit 0
@@ -154,6 +156,7 @@ OUT:write((R.read_target() == nil) and 'unverified-live-target-stale ok\n' or 'u
 R.write_target(draft, 'ready')
 written = vim.json.decode(table.concat(vim.fn.readfile(target), '\n'))
 OUT:write((written.session == '') and 'unverified-live-target-unstamped ok\n' or 'unverified-live-target-unstamped FAIL\n')
+OUT:write((vim.fn.filereadable(vim.env.SYSTEM_CALLS) == 0) and 'no-session-subprocess ok\n' or 'no-session-subprocess FAIL\n')
 vim.env.PAIR_AGENT = 'claude'
 vim.env.PAIR_SESSION_ID = 'testsid'
 vim.fn.writefile({ '{"file":"/stale/prev.md","status":"ready","session":"oldsid"}' }, target)
@@ -202,7 +205,7 @@ LUA
 printf '{"file":"/stale/prev.md","status":"ready","session":"oldsid"}\n' > "$RT/review-target-test.json"
 ( cd "$RT" && PATH="$RT/bin:$PATH" \
     PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=claude PAIR_HOME="$ROOT" PAIR_SESSION_ID=testsid \
-    RESULT="$RESULT" ZLOG="$ZLOG" FLOATVIS="$FLOATVIS" \
+    RESULT="$RESULT" ZLOG="$ZLOG" SYSTEM_CALLS="$SYSTEM_CALLS" FLOATVIS="$FLOATVIS" \
     run_headless --timeout 30 -- nvim --headless -u "$ROOT/nvim/init.lua" "$RT/draft.md" \
       -c "luafile $RT/driver.lua" )
 
@@ -218,6 +221,7 @@ grep -q 'config-session-write ok' "$RESULT" && pass "write_target stamps config 
 grep -q 'no-live-codex-fallback ok' "$RESULT" && pass "current session does not guess from live Codex files" || fail "live Codex fallback remains"
 grep -q 'unverified-live-target-stale ok' "$RESULT" && pass "unverified live target is stale" || fail "unverified live target accepted"
 grep -q 'unverified-live-target-unstamped ok' "$RESULT" && pass "unverified live target remains unstamped" || fail "unverified live target stamped"
+grep -q 'no-session-subprocess ok' "$RESULT" && pass "session lookup launches no ps/lsof subprocess" || fail "session lookup launched ps/lsof"
 grep -q 'pure-prompt ok'  "$RESULT" && pass "pure: no target → prompt"        || fail "pure prompt"
 grep -q 'pure-open ok'    "$RESULT" && pass "pure: target ready → open"       || fail "pure open"
 grep -q 'pure-wait ok'    "$RESULT" && pass "pure: target proposed → wait"    || fail "pure wait"

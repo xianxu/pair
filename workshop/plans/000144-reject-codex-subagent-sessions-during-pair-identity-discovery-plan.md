@@ -17,13 +17,13 @@
 | Name | Lives in | Status |
 |------|----------|--------|
 | `CodexRootSessionID` | `cmd/internal/transcript/transcript.go` | new |
-| `DecideAutomaticResumeConfig` | `cmd/internal/launcher/createflow.go` | new |
+| `decideAutomaticResumeConfig` | `cmd/internal/launcher/markers.go` | new |
 
 - **`CodexRootSessionID`** — authorizes a session UUID from a rollout path plus its first JSONL event.
   - **Relationships:** N:1 with a Codex process tree: many rollout candidates may be visible, exactly one accepted root ID is selected by each consumer.
   - **DRY rationale:** replaces filename-only authorization duplicated by sessionwatch, launcher, codexsid, slug, and Neovim (ARCH-DRY).
   - **Future extensions:** widen the accepted root source enum only when a captured upstream `session_meta` fixture proves a new root shape.
-- **`DecideAutomaticResumeConfig`** — projects a saved config plus already-observed validation facts into safe automatic-resume intent: preserve args, retain a validated ID, or clear an invalid ID and request quarantine/warning.
+- **`decideAutomaticResumeConfig`** — projects a saved config plus already-observed validation facts into safe automatic-resume intent: preserve args, retain a validated ID, or clear an invalid ID and request quarantine; thin callers own warning/removal IO.
   - **Relationships:** 1:1 with a loaded saved config; consumed by both config-picker and restart-marker flows.
   - **DRY rationale:** prevents two automatic-resume boundaries from independently deciding whether persisted Codex identity is trustworthy.
   - **Future extensions:** agent-specific persisted-identity validators can join without weakening explicit user-supplied resume authority.
@@ -34,7 +34,7 @@
 |------|----------|--------|-------|
 | `ReadCodexRootSessionID` | `cmd/internal/transcript/transcript.go` | new | bounded first-line filesystem read |
 | `sessionwatch.Runtime.ReadFirstLine` | `cmd/internal/sessionwatch/run.go`, `runtime.go` | new | watcher filesystem seam |
-| Shared process candidate seam | `cmd/internal/procutil/procutil.go` | modified | `ps`/`lsof` parsing and traversal |
+| Shared process candidate seam | `cmd/internal/procutil/procutil.go` | existing/reused | `ps`/`lsof` parsing and traversal |
 | Validated Pair config | `nvim/init.lua` | modified | asynchronous Go-authored session identity |
 
 - **`ReadCodexRootSessionID`** — reads only the first JSONL event, then calls the pure classifier; unreadable, oversized, or unterminated/incomplete metadata fails closed.
@@ -200,7 +200,7 @@ git commit -m "sessionwatch: #144: persist only root Codex sessions" -m "Co-Auth
 
 - [x] **Step 1: Write failing config-picker and Alt+n regressions**
 
-First add pure table tests for `DecideAutomaticResumeConfig(agent, saved, sessionValid)` returning sanitized config plus `quarantine` and `warn` intent without IO. Then add integration tests where saved config/ledger contains a real on-disk subagent rollout ID:
+First add pure table tests for `decideAutomaticResumeConfig(agent, saved, sessionValid)` returning sanitized config plus quarantine intent without IO. Pin the OS validator against a real on-disk subagent rollout, then drive the config/ledger policy through the launcher's stateful runtime fake:
 
 - config picker warns, removes the polluted config, preserves saved args, and offers no resume action;
 - `Alt+n` has no valid live ID, rejects the saved subagent, removes the config, and relaunches fresh with saved non-resume args;
@@ -353,3 +353,14 @@ Expected: mandatory fresh-context review passes after any Critical/Important fin
 - Replaced the still-insufficient absolute `make -f` invocation with a guarded
   sibling-repo symlink setup. Verified `make -n test` resolves the full suite,
   including nested plain `make` calls, from the temporary Pair checkout.
+
+### 2026-08-19 08:32 PDT — Boundary review alignment
+
+- Corrected the Core concepts table to the implemented unexported
+  `decideAutomaticResumeConfig` in `markers.go`; warning/removal remain thin
+  caller IO.
+- Recorded `procutil` as an existing reused process seam rather than a modified
+  entity.
+- Added the requested real-rollout rejection, subagent-only consumer,
+  malformed-before-root watcher, and no-Neovim-subprocess regressions; no
+  planned coverage is intentionally dropped.

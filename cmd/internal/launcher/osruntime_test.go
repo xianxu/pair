@@ -214,6 +214,12 @@ func TestOSRuntimeLiveCodexSessionIDUsesAgentPIDDescendantLsof(t *testing.T) {
 	if got := rt.LiveAgentSessionID("claude", "work"); got != "" {
 		t.Fatalf("non-codex LiveAgentSessionID = %q, want empty", got)
 	}
+	if err := os.Remove(rootPath); err != nil {
+		t.Fatal(err)
+	}
+	if got := rt.LiveAgentSessionID("codex", "work"); got != "" {
+		t.Fatalf("subagent-only LiveAgentSessionID = %q, want empty", got)
+	}
 }
 
 func TestOSRuntimeParkScrollbackMove(t *testing.T) {
@@ -344,6 +350,14 @@ func TestOSRuntimeAgentSessionExistsFindsNestedCodexRollout(t *testing.T) {
 
 	if !(OSRuntime{}).AgentSessionExists("codex", sid, "/repo") {
 		t.Fatal("AgentSessionExists(codex) did not find nested rollout file")
+	}
+	parent := "019e8178-79c2-7862-91db-e8fa1be3b162"
+	subagent := fmt.Sprintf(`{"type":"session_meta","payload":{"id":%q,"parent_thread_id":%q,"source":{"subagent":{}}}}`+"\n", sid, parent)
+	if err := os.WriteFile(path, []byte(subagent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if (OSRuntime{}).AgentSessionExists("codex", sid, "/repo") {
+		t.Fatal("AgentSessionExists(codex) accepted a real subagent rollout")
 	}
 }
 

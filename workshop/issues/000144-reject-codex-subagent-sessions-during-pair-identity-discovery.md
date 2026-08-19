@@ -161,6 +161,13 @@ against `baseline-v3.1.md`. Method A only.*
   age hint for a separately established ID, not identity discovery.
 - Updated `atlas/session-identity.md` with root metadata, quarantine, and thin
   Neovim consumer semantics (ARCH-DRY, ARCH-PURPOSE).
+- Boundary review returned REWORK: the durable plan misstated the resume
+  decision's name/location and called the reused `procutil` seam modified;
+  older atlas sections still described filename authority; and requested
+  integration assertions were missing. Corrected the plan and all stale maps,
+  then added real on-disk subagent rejection, subagent-only launcher/codexsid/
+  slug cases, malformed-before-root watcher continuation, and an explicit
+  Neovim no-`ps`/`lsof` assertion.
 
 ## Revisions
 

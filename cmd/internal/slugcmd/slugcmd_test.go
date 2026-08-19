@@ -53,4 +53,10 @@ func TestResolveLiveCodexTranscriptUsesDescendantLsof(t *testing.T) {
 	if got != rootPath {
 		t.Fatalf("resolveLiveCodexTranscript = %q, want root %q", got, rootPath)
 	}
+	if err := os.Remove(rootPath); err != nil {
+		t.Fatal(err)
+	}
+	if got := resolveLiveCodexTranscript(dataDir, "testtag", home); got != "" {
+		t.Fatalf("subagent-only resolveLiveCodexTranscript = %q, want empty", got)
+	}
 }

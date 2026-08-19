@@ -54,4 +54,10 @@ func TestResolveSessionIDSkipsSubagentRollout(t *testing.T) {
 	if got := ResolveSessionID(dataDir, "tag"); got != rootSID {
 		t.Fatalf("ResolveSessionID = %q, want root %q", got, rootSID)
 	}
+	if err := os.Remove(rootPath); err != nil {
+		t.Fatal(err)
+	}
+	if got := ResolveSessionID(dataDir, "tag"); got != "" {
+		t.Fatalf("subagent-only ResolveSessionID = %q, want empty", got)
+	}
 }

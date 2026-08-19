@@ -314,6 +314,30 @@ func TestRunCodexLsofSkipsSubagentForRoot(t *testing.T) {
 	}
 }
 
+func TestRunCodexLsofContinuesPastMalformedMetadata(t *testing.T) {
+	home := "/tmp/home"
+	data := "/tmp/data"
+	rootSID := "019e8178-79c2-7862-91db-e8fa1be3b162"
+	badSID := "01a017b6-af00-7c91-a656-0611a3750669"
+	rootPath := home + "/.codex/sessions/2026/08/18/rollout-root-" + rootSID + ".jsonl"
+	badPath := home + "/.codex/sessions/2026/08/18/rollout-bad-" + badSID + ".jsonl"
+	rt := newFakeRuntime(time.Unix(375, 0))
+	rt.files[filepath.Join(data, "agent-pid-tag")] = fakeFile{content: []byte("3750\n"), mod: rt.now}
+	rt.files[badPath] = fakeFile{content: []byte("{not-json}\n"), birth: rt.now}
+	rt.files[rootPath] = fakeFile{content: []byte(`{"type":"session_meta","payload":{"id":"` + rootSID + `","parent_thread_id":null,"source":"cli"}}` + "\n"), birth: rt.now}
+	rt.alive["3750"] = true
+	rt.descendants["3750"] = []string{"3750"}
+	rt.lsof["3750"] = []string{badPath, rootPath}
+
+	if err := Run(Options{Agent: "codex", Tag: "tag", Cwd: "/repo", Home: home, DataDir: data, PIDWait: time.Second, Timeout: time.Second, Poll: 100 * time.Millisecond}, rt); err != nil {
+		t.Fatal(err)
+	}
+	got := string(rt.writes[filepath.Join(data, "config-tag-codex.json")])
+	if !strings.Contains(got, rootSID) || strings.Contains(got, badSID) {
+		t.Fatalf("config = %s, want root after malformed candidate", got)
+	}
+}
+
 func TestRunCodexBirthFallbackSkipsNewerSubagent(t *testing.T) {
 	home := "/tmp/home"
 	data := "/tmp/data"
