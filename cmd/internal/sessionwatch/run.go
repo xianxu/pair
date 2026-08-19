@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
+	"github.com/xianxu/pair/cmd/internal/transcript"
 )
 
 // isMuseSubagentPath reports whether p is inside a Muse subagent directory.
@@ -37,6 +38,7 @@ type Runtime interface {
 	Now() time.Time
 	Sleep(time.Duration)
 	ReadFile(path string) ([]byte, error)
+	ReadFirstLine(path string) ([]byte, error)
 	ModTime(path string) (time.Time, error)
 	BirthTime(path string) (time.Time, error)
 	ListFiles(root string) ([]string, error)
@@ -201,7 +203,7 @@ func discover(spec AgentSpec, rootPID string, agentStart time.Time, legacyExisti
 				if spec.Agent == "muse" && isMuseSubagentPath(path) {
 					continue
 				}
-				result := spec.Match(path)
+				result := authorizeCandidate(spec, spec.Match(path), rt)
 				if result.ID != "" {
 					return result
 				}
@@ -228,7 +230,7 @@ func discover(spec AgentSpec, rootPID string, agentStart time.Time, legacyExisti
 		if spec.Agent == "muse" && isMuseSubagentPath(file) {
 			continue
 		}
-		result := spec.Match(file)
+		result := authorizeCandidate(spec, spec.Match(file), rt)
 		if result.ID != "" {
 			return result
 		}
@@ -255,7 +257,7 @@ func discoverByBirth(spec AgentSpec, agentStart time.Time, rt Runtime) SessionID
 		if err != nil || birth.Before(agentStart) {
 			continue
 		}
-		result := spec.Match(file)
+		result := authorizeCandidate(spec, spec.Match(file), rt)
 		if !result.Matched {
 			continue
 		}
@@ -288,4 +290,15 @@ func discoverByBirth(spec AgentSpec, agentStart time.Time, rt Runtime) SessionID
 		return nearMiss.id
 	}
 	return SessionID{}
+}
+
+func authorizeCandidate(spec AgentSpec, result SessionID, rt Runtime) SessionID {
+	if spec.Agent != "codex" || result.ID == "" {
+		return result
+	}
+	firstEvent, err := rt.ReadFirstLine(result.Path)
+	if err != nil || transcript.CodexRootSessionID(result.Path, firstEvent) != result.ID {
+		return SessionID{}
+	}
+	return result
 }

@@ -1317,3 +1317,32 @@ the duration, "timeout", "deadline", "window", and the component name. Update
 each description to name both the bounded phase and the lifecycle exit
 condition; otherwise operational docs will mistake a scheduling phase for the
 component's lifetime.
+
+## Reconcile the plan's entity table and promised cases before boundary review
+
+#144's implementation centralized Codex root identity correctly, but its first
+close review still returned REWORK. The durable plan named an exported function
+in the wrong file, called an existing reused process seam "modified", and listed
+integration cases that the implementation's broader tests did not assert
+literally. The functional suite was green; the review contract was not.
+
+**Rule.** Before a boundary close, mechanically reconcile every Core concepts
+row against `rg` and `git diff <base> -- <path>`: exact symbol spelling,
+visibility, location, and new/modified/reused status. Then turn each promised
+test bullet into a named-test checklist and verify it directly; adjacent coverage
+is not fulfillment. Finally, when centralizing a behavior, grep both code symbols
+and the old prose description across every atlas file so older maps do not keep
+teaching the retired rule.
+
+## Raw review transcripts are not safe source artifacts
+
+#144's first close-review transcript was committed as workflow evidence. It
+embedded thousands of lines of raw prompts and diffs, including upstream
+trailing whitespace and space-before-tab sequences. The implementation files
+were clean, but branch-wide `git diff --check` then failed on 897 lines inside
+the generated transcript.
+
+**Rule.** Do not commit raw boundary-review transcripts unless their generator
+normalizes embedded patches and `git diff --check <base>..HEAD` passes with the
+artifact included. Prefer the gate ledger, verdict trailers, and concise issue
+log as durable evidence; generated diagnostic capture is disposable.

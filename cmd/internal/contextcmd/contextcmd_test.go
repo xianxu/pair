@@ -44,6 +44,27 @@ func TestRunMissingConfigPrintsNothing(t *testing.T) {
 	}
 }
 
+func TestRunCodexPollutedSubagentConfigPrintsNothing(t *testing.T) {
+	home := t.TempDir()
+	data := filepath.Join(home, "data")
+	sid := "01a017b6-af00-7c91-a656-0611a3750669"
+	parent := "019e8178-79c2-7862-91db-e8fa1be3b162"
+	rollout := filepath.Join(home, ".codex", "sessions", "2026", "08", "18", "rollout-sub-"+sid+".jsonl")
+	mustMkdir(t, data)
+	mustMkdir(t, filepath.Dir(rollout))
+	mustWrite(t, filepath.Join(data, "config-T-codex.json"), `{"session_id":"`+sid+`"}`)
+	mustWrite(t, rollout, `{"type":"session_meta","payload":{"id":"`+sid+`","parent_thread_id":"`+parent+`","source":{"subagent":{}}}}`+"\n"+
+		`{"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":398000}}}}`+"\n")
+
+	var stdout bytes.Buffer
+	if code := Run([]string{"T", "codex"}, Env{Home: home, PairDataDir: data}, &stdout); code != 0 {
+		t.Fatalf("code = %d, want 0", code)
+	}
+	if stdout.String() != "" {
+		t.Fatalf("stdout = %q, want empty for subagent config", stdout.String())
+	}
+}
+
 func mustMkdir(t *testing.T, d string) {
 	t.Helper()
 	if err := os.MkdirAll(d, 0o755); err != nil {

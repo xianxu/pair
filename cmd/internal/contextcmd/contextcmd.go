@@ -52,7 +52,7 @@ func Run(args []string, env Env, stdout io.Writer) int {
 // isn't resolvable yet.
 func TranscriptPath(env Env, tag, agent string) string {
 	dataDir := resolveDataDir(env)
-	sid := transcript.SessionID(dataDir, tag, agent)
+	sid := transcript.SessionID(dataDir, tag, agent, env.Home)
 	if sid == "" {
 		return ""
 	}

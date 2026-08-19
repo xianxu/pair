@@ -23,6 +23,7 @@ func TestRunUsesFreshPidfileAndWritesConfig(t *testing.T) {
 	rt.alive["1234"] = true
 	rt.descendants["1234"] = []string{"1234", "5678"}
 	rt.lsof["5678"] = []string{sessionFile}
+	rt.files[sessionFile] = fakeFile{content: rootSessionMeta(sid), birth: rt.now}
 
 	err := Run(Options{
 		Agent:   "codex",
@@ -66,6 +67,7 @@ func TestRunUsesRepoIdentityForLedgerWhenCwdIsSubdir(t *testing.T) {
 	rt.alive["1234"] = true
 	rt.descendants["1234"] = []string{"1234"}
 	rt.lsof["1234"] = []string{sessionFile}
+	rt.files[sessionFile] = fakeFile{content: rootSessionMeta(sid), birth: rt.now}
 
 	err := Run(Options{
 		Agent:    "codex",
@@ -102,6 +104,7 @@ func TestRunDoesNotWriteConfigWhenLedgerAppendFails(t *testing.T) {
 	rt.alive["1234"] = true
 	rt.descendants["1234"] = []string{"1234"}
 	rt.lsof["1234"] = []string{sessionFile}
+	rt.files[sessionFile] = fakeFile{content: rootSessionMeta(sid), birth: rt.now}
 	rt.writeErr[filepath.Join(data, "ledger-test.jsonl")] = errors.New("ledger write failed")
 
 	err := Run(Options{
@@ -132,6 +135,7 @@ func TestRunTreatsSameSecondPidfileAsFresh(t *testing.T) {
 	rt.alive["1234"] = true
 	rt.descendants["1234"] = []string{"1234"}
 	rt.lsof["1234"] = []string{sessionFile}
+	rt.files[sessionFile] = fakeFile{content: rootSessionMeta(sid), birth: rt.now}
 
 	err := Run(Options{
 		Agent:   "codex",
@@ -233,6 +237,7 @@ func TestRunContinuesPastLsofNearMissToValidCandidate(t *testing.T) {
 	rt.descendants["3500"] = []string{"3500", "3501"}
 	rt.lsof["3500"] = []string{bad}
 	rt.lsof["3501"] = []string{good}
+	rt.files[good] = fakeFile{content: rootSessionMeta(sid), birth: rt.now}
 
 	err := Run(Options{
 		Agent:   "codex",
@@ -268,7 +273,7 @@ func TestRunContinuesPastLegacyNearMissToValidCandidate(t *testing.T) {
 		sleeps++
 		if sleeps == 2 {
 			rt.files[bad] = fakeFile{mod: time.Unix(360, 0)}
-			rt.files[good] = fakeFile{mod: time.Unix(360, 0)}
+			rt.files[good] = fakeFile{content: rootSessionMeta(sid), mod: time.Unix(360, 0)}
 		}
 	}
 
@@ -330,7 +335,11 @@ func TestRunDiscoversSessionAfterStartupTimeoutForEveryAsyncAgent(t *testing.T) 
 			rt.descendants["5000"] = []string{"5000"}
 			rt.onSleep = func(d time.Duration) {
 				if d == time.Minute {
-					rt.lsof["5000"] = []string{tt.path(home, tt.sid)}
+					path := tt.path(home, tt.sid)
+					rt.lsof["5000"] = []string{path}
+					if tt.agent == "codex" {
+						rt.files[path] = fakeFile{content: rootSessionMeta(tt.sid), birth: rt.now}
+					}
 				}
 			}
 
@@ -391,6 +400,97 @@ func TestRunStopsAtSlowPollWhenBoundProcessExits(t *testing.T) {
 	}
 }
 
+func TestRunCodexLsofSkipsSubagentForRoot(t *testing.T) {
+	home := "/tmp/home"
+	data := "/tmp/data"
+	rootSID := "019e8178-79c2-7862-91db-e8fa1be3b162"
+	subSID := "01a017b6-af00-7c91-a656-0611a3750669"
+	rootPath := home + "/.codex/sessions/2026/08/18/rollout-root-" + rootSID + ".jsonl"
+	subPath := home + "/.codex/sessions/2026/08/18/rollout-sub-" + subSID + ".jsonl"
+	rt := newFakeRuntime(time.Unix(370, 0))
+	rt.files[filepath.Join(data, "agent-pid-tag")] = fakeFile{content: []byte("3700\n"), mod: rt.now}
+	rt.files[rootPath] = fakeFile{content: []byte(`{"type":"session_meta","payload":{"id":"` + rootSID + `","parent_thread_id":null,"source":"cli"}}` + "\n"), birth: rt.now}
+	rt.files[subPath] = fakeFile{content: []byte(`{"type":"session_meta","payload":{"id":"` + subSID + `","parent_thread_id":"` + rootSID + `","source":{"subagent":{}}}}` + "\n"), birth: rt.now}
+	rt.alive["3700"] = true
+	rt.descendants["3700"] = []string{"3700"}
+	rt.lsof["3700"] = []string{subPath, rootPath}
+
+	if err := Run(Options{Agent: "codex", Tag: "tag", Cwd: "/repo", Home: home, DataDir: data, PIDWait: time.Second, Timeout: time.Second, Poll: 100 * time.Millisecond}, rt); err != nil {
+		t.Fatal(err)
+	}
+	got := string(rt.writes[filepath.Join(data, "config-tag-codex.json")])
+	if !strings.Contains(got, rootSID) || strings.Contains(got, subSID) {
+		t.Fatalf("config = %s, want root %s", got, rootSID)
+	}
+}
+
+func TestRunCodexLsofContinuesPastMalformedMetadata(t *testing.T) {
+	home := "/tmp/home"
+	data := "/tmp/data"
+	rootSID := "019e8178-79c2-7862-91db-e8fa1be3b162"
+	badSID := "01a017b6-af00-7c91-a656-0611a3750669"
+	rootPath := home + "/.codex/sessions/2026/08/18/rollout-root-" + rootSID + ".jsonl"
+	badPath := home + "/.codex/sessions/2026/08/18/rollout-bad-" + badSID + ".jsonl"
+	rt := newFakeRuntime(time.Unix(375, 0))
+	rt.files[filepath.Join(data, "agent-pid-tag")] = fakeFile{content: []byte("3750\n"), mod: rt.now}
+	rt.files[badPath] = fakeFile{content: []byte("{not-json}\n"), birth: rt.now}
+	rt.files[rootPath] = fakeFile{content: []byte(`{"type":"session_meta","payload":{"id":"` + rootSID + `","parent_thread_id":null,"source":"cli"}}` + "\n"), birth: rt.now}
+	rt.alive["3750"] = true
+	rt.descendants["3750"] = []string{"3750"}
+	rt.lsof["3750"] = []string{badPath, rootPath}
+
+	if err := Run(Options{Agent: "codex", Tag: "tag", Cwd: "/repo", Home: home, DataDir: data, PIDWait: time.Second, Timeout: time.Second, Poll: 100 * time.Millisecond}, rt); err != nil {
+		t.Fatal(err)
+	}
+	got := string(rt.writes[filepath.Join(data, "config-tag-codex.json")])
+	if !strings.Contains(got, rootSID) || strings.Contains(got, badSID) {
+		t.Fatalf("config = %s, want root after malformed candidate", got)
+	}
+}
+
+func TestRunCodexBirthFallbackSkipsNewerSubagent(t *testing.T) {
+	home := "/tmp/home"
+	data := "/tmp/data"
+	rootSID := "019e8178-79c2-7862-91db-e8fa1be3b162"
+	subSID := "01a017b6-af00-7c91-a656-0611a3750669"
+	rootPath := home + "/.codex/sessions/2026/08/18/rollout-root-" + rootSID + ".jsonl"
+	subPath := home + "/.codex/sessions/2026/08/18/rollout-sub-" + subSID + ".jsonl"
+	rt := newFakeRuntime(time.Unix(380, 0))
+	rt.files[filepath.Join(data, "agent-pid-tag")] = fakeFile{content: []byte("3800\n"), mod: rt.now}
+	rt.files[rootPath] = fakeFile{content: []byte(`{"type":"session_meta","payload":{"id":"` + rootSID + `","parent_thread_id":null,"source":"exec"}}` + "\n"), birth: rt.now.Add(time.Second)}
+	rt.files[subPath] = fakeFile{content: []byte(`{"type":"session_meta","payload":{"id":"` + subSID + `","parent_thread_id":"` + rootSID + `","source":{"subagent":{}}}}` + "\n"), birth: rt.now.Add(2 * time.Second)}
+	rt.alive["3800"] = true
+
+	if err := Run(Options{Agent: "codex", Tag: "tag", Cwd: "/repo", Home: home, DataDir: data, PIDWait: time.Second, Timeout: time.Second, Poll: 100 * time.Millisecond}, rt); err != nil {
+		t.Fatal(err)
+	}
+	got := string(rt.writes[filepath.Join(data, "config-tag-codex.json")])
+	if !strings.Contains(got, rootSID) || strings.Contains(got, subSID) {
+		t.Fatalf("config = %s, want root %s", got, rootSID)
+	}
+}
+
+func TestRunCodexSubagentOnlyWritesNoConfig(t *testing.T) {
+	home := "/tmp/home"
+	data := "/tmp/data"
+	subSID := "01a017b6-af00-7c91-a656-0611a3750669"
+	parent := "019e8178-79c2-7862-91db-e8fa1be3b162"
+	subPath := home + "/.codex/sessions/2026/08/18/rollout-sub-" + subSID + ".jsonl"
+	rt := newFakeRuntime(time.Unix(390, 0))
+	rt.files[filepath.Join(data, "agent-pid-tag")] = fakeFile{content: []byte("3900\n"), mod: rt.now}
+	rt.files[subPath] = fakeFile{content: []byte(`{"type":"session_meta","payload":{"id":"` + subSID + `","parent_thread_id":"` + parent + `","source":{"subagent":{}}}}` + "\n"), birth: rt.now}
+	rt.alive["3900"] = true
+	rt.lsof["3900"] = []string{subPath}
+	rt.onSleep = func(time.Duration) { rt.alive["3900"] = false }
+
+	if err := Run(Options{Agent: "codex", Tag: "tag", Cwd: "/repo", Home: home, DataDir: data, PIDWait: time.Second, Timeout: time.Second, Poll: 100 * time.Millisecond}, rt); err != nil {
+		t.Fatal(err)
+	}
+	if got := rt.writes[filepath.Join(data, "config-tag-codex.json")]; got != nil {
+		t.Fatalf("subagent-only config = %s, want none", got)
+	}
+}
+
 func TestRunLogsFailOnTimeout(t *testing.T) {
 	rt := newFakeRuntime(time.Unix(400, 0))
 	err := Run(Options{
@@ -425,6 +525,10 @@ type fakeFile struct {
 	content []byte
 	mod     time.Time
 	birth   time.Time
+}
+
+func rootSessionMeta(sid string) []byte {
+	return []byte(`{"type":"session_meta","payload":{"id":"` + sid + `","parent_thread_id":null,"source":"cli"}}` + "\n")
 }
 
 type fakeLog struct {
@@ -473,6 +577,17 @@ func (f *fakeRuntime) ReadFile(path string) ([]byte, error) {
 		return nil, errors.New("missing")
 	}
 	return file.content, nil
+}
+
+func (f *fakeRuntime) ReadFirstLine(path string) ([]byte, error) {
+	data, err := f.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	if i := strings.IndexByte(string(data), '\n'); i >= 0 {
+		return data[:i+1], nil
+	}
+	return nil, errors.New("unterminated first line")
 }
 
 func (f *fakeRuntime) ModTime(path string) (time.Time, error) {

@@ -10,6 +10,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/codexsid"
 	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/transcript"
 )
 
 // OSRuntime implements Runtime with real git/nvim/zellij/fs calls; the fs
@@ -98,4 +99,9 @@ func (OSRuntime) SpawnReviewPane(cwd, lua, absFile, nvimPidFile string) error {
 
 func (OSRuntime) ResolveCodexSessionID(dataDir, tag string) string {
 	return codexsid.ResolveSessionID(dataDir, tag)
+}
+
+func (OSRuntime) ConfiguredSessionID(dataDir, tag, agent string) string {
+	home, _ := os.UserHomeDir()
+	return transcript.SessionID(dataDir, tag, agent, home)
 }
