@@ -28,23 +28,41 @@ already been captured.
 
 Define Codex root-session identity once in `cmd/internal/transcript`: a rollout
 is eligible only when its filename contains a valid session UUID and its first
-JSONL event is a coherent `session_meta` record for that same UUID. Reject
-records whose metadata identifies a parent thread or subagent source, and fail
-closed on unreadable, malformed, incomplete, or mismatched metadata. Root
-records from the CLI remain eligible.
+JSONL event is a coherent `session_meta` record for that same UUID. An accepted
+record has `type: "session_meta"`, `payload.id` equal to the filename UUID,
+`payload.parent_thread_id` absent or null, and the currently observed root
+`payload.source` string `"cli"` or `"exec"`. Reject the observed subagent shape
+(a non-null parent plus an object-valued source containing `subagent`) and fail
+closed on unreadable, malformed, incomplete, mismatched, or unknown-source
+metadata. A rejected candidate does not end a scan; later candidates remain
+eligible.
 
 Apply the classifier anywhere Pair turns an open or newly-created Codex rollout
 into the active conversation identity: launcher `Alt+n` capture, asynchronous
 session watching (both `lsof` and birth-time discovery), the shared
 `codexsid` resolver used by review targeting, and live slug transcript
-resolution. Path-shape extraction remains a lower-level helper only; it must
-not by itself authorize a resumable session ID. This is the shadow-sweep for
-ARCH-PURPOSE and keeps one classification contract under ARCH-DRY.
+resolution. Remove Neovim's independent `ps`/`lsof` filename parser for review
+target scoping; it must derive from `PAIR_SESSION_ID` or the Go-authored saved
+config rather than restating Codex identity rules in Lua. Path-shape extraction
+remains a lower-level helper only; it must not by itself authorize a resumable
+session ID. This is the shadow-sweep for ARCH-PURPOSE and keeps one
+classification contract under ARCH-DRY.
+
+Treat persisted Codex IDs as untrusted at automatic resume boundaries. Before
+the config picker or `Alt+n` fallback composes a saved ID, resolve its rollout
+and apply the same root classifier. Warn, clear the invalid ID from automatic
+selection, and remove the polluted config so Neovim cannot consume it; preserve
+the saved non-resume args for a fresh launch. Ledger fallback remains subject
+to the same validation. An explicitly typed Codex `resume <id>` remains user
+authority and is outside automatic discovery.
 
 Keep filesystem and process discovery at the existing integration seams. The
-metadata decision is a pure function over a path and first JSONL event
-(ARCH-PURE); tests use temporary rollout files or the existing stateful runtime
-fakes rather than adding command mocks (ARCH-MOCK).
+metadata decision is a pure function over a path and first JSONL event; a thin
+transcript adapter reads only the first JSONL event, and candidate scanners
+continue until that classifier accepts a root (ARCH-PURE). Tests pass root and
+subagent files through the shared selector using temporary rollout trees, then
+exercise each consumer with its existing stateful runtime/process seam
+(ARCH-MOCK).
 
 Alternatives rejected:
 
@@ -60,9 +78,14 @@ Alternatives rejected:
 - Session watcher `lsof` and birth-time discovery ignore Codex subagent
   rollouts and persist the root ID when it becomes available.
 - Review-target and slug live-session resolution use the same root-only
-  classifier.
+  classifier; Neovim no longer parses live rollout filenames independently.
+- A saved config containing a subagent ID is quarantined before config-picker
+  or `Alt+n` automatic resume. If no valid live root is available, Pair starts a
+  fresh session with the saved non-resume args instead of resuming the
+  subagent.
 - Malformed, incomplete, mismatched, or explicitly nested `session_meta`
-  records do not authorize a session ID.
+  records, plus unknown source shapes, do not authorize a session ID; scanners
+  still find a later valid root candidate.
 - Focused and repository-wide automated tests pass.
 
 ## Plan
@@ -71,6 +94,8 @@ Alternatives rejected:
   tests for root, subagent, malformed, incomplete, and mismatched events.
 - [ ] Route every live Codex identity consumer through the shared classifier,
   with regressions for ambiguous root/subagent candidates.
+- [ ] Validate and quarantine persisted Codex IDs at automatic resume
+  boundaries, and remove Neovim's independent live filename parser.
 - [ ] Verify focused packages and the full repository; update the session
   identity atlas if its current map omits root-vs-subagent semantics.
 
@@ -86,3 +111,15 @@ Alternatives rejected:
   sessionwatch, and codexsid, while launcher and slug consume the filename-only
   result. The fix must centralize semantic authorization and cover every live
   identity consumer rather than patching only `Alt+n`.
+
+## Revisions
+
+### 2026-08-19 07:18 PDT — Fresh-context spec review
+
+- Added Neovim's review-target `ps`/`lsof` scanner to the consumer sweep and
+  specified removing that duplicate in favor of validated Go-authored state.
+- Added quarantine semantics for already-polluted config/ledger IDs so a failed
+  live lookup cannot fall back to the same subagent.
+- Defined accepted root metadata (`cli`/`exec`, null parent, matching ID),
+  fail-closed unknown shapes, scan continuation, and the pure classifier/thin
+  first-event IO seam.
