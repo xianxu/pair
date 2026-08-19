@@ -94,7 +94,7 @@ func TestHarnessTTYFixtureConformance(t *testing.T) {
 			negatives[metadata.Agent] = true
 		}
 		for _, name := range sortedKeys(rawFiles) {
-			wantComposer, ok := ttyFixtureExpectation[name]
+			wantComposer, ok := ttyFixtureReturnExpectation(metadata.Agent, name)
 			if !ok {
 				t.Errorf("%s: raw file %q has no recorded Return expectation", metadataPath, name)
 				continue
@@ -125,9 +125,16 @@ func TestHarnessTTYFixtureConformance(t *testing.T) {
 		reason, acknowledged := ttyFixtureNegativeGaps[harness]
 		switch {
 		case found && acknowledged:
-			t.Errorf("%s now has a captured overlay.raw; drop its ttyFixtureNegativeGaps entry (%q)", harness, reason)
+			t.Errorf("%s now has a captured declining state; drop its ttyFixtureNegativeGaps entry (%q)", harness, reason)
 		case !found && !acknowledged:
-			t.Errorf("%s is positively gated with no captured overlay.raw and no recorded reason: capture one, or record why it cannot be captured in ttyFixtureNegativeGaps", harness)
+			t.Errorf("%s is positively gated with no captured declining state and no recorded reason: capture one, or record why it cannot be captured in ttyFixtureNegativeGaps", harness)
+		}
+		// Having *a* declining state is not the same as proving the gate
+		// separates a live composer from a picker painted in the same shape.
+		// A harness that declines only on cursor state has not shown that, so
+		// it must say so rather than reading as covered.
+		if _, listed := ttyFixtureDiscriminationGaps[harness]; !listed && !found {
+			t.Errorf("%s has neither a discriminating negative nor a ttyFixtureDiscriminationGaps entry", harness)
 		}
 	}
 }
@@ -138,6 +145,16 @@ func TestHarnessTTYFixtureConformance(t *testing.T) {
 // the gap is reviewable, and it must be removed once the capture exists.
 var ttyFixtureNegativeGaps = map[string]string{
 	"muse": "Muse's declining states are tool-approval and selection menus, none reachable without a live tool call; capture one when a real approval is available",
+}
+
+// ttyFixtureDiscriminationGaps records positively gated harnesses whose
+// captured declining states do NOT prove the gate separates a live composer
+// from a picker or menu painted in the same shape. Codex is absent because its
+// overlay.raw is exactly that proof: the update interstitial paints the same
+// U+203A at column 0 and is rejected on emphasis alone.
+var ttyFixtureDiscriminationGaps = map[string]string{
+	"agy":  "agy/1.1.15/overlay.raw declines on hidden cursor and cursor position, not on any composer-vs-picker rule, and menu.raw shows Agy painting a menu marker in the SAME bright blue as the composer prompt. The permission-picker capture is reachable by dropping --dangerously-skip-permissions from the agy driven scenario and driving one tool call; attempted 2026-08-19 and blocked, the account was in \"Verifying your account...\" and would not execute tool calls.",
+	"muse": "no captured declining state at all; see ttyFixtureNegativeGaps",
 }
 
 func readHarnessTTYFixture(t *testing.T, metadataPath string) (ttyFixtureMetadata, map[string][]byte) {
@@ -221,13 +238,27 @@ func fixtureLabel(metadata ttyFixtureMetadata) string {
 // ttyFixtureExpectation records what each captured state must decide for a
 // plain Return. A composer capture must remap to a newline; an overlay capture
 // must pass a bare CR through so the overlay confirms.
-var ttyFixtureExpectation = map[string]bool{
-	"composer.raw": true,
-	// A menu that keeps the composer live below it. The gate stays open, which
-	// is safe only because these harnesses insert a newline on LF rather than
-	// selecting; pinned so that stays a checked property, not an assumption.
-	"menu.raw":    true,
-	"overlay.raw": false,
+var ttyFixtureExpectation = map[string]map[string]bool{
+	// Defaults every harness inherits.
+	"": {
+		"composer.raw": true,
+		"overlay.raw":  false,
+	},
+	// Agy's slash menu keeps the composer live below its own box. The gate
+	// stays open, which is safe only because Agy inserts a newline on LF there
+	// rather than selecting; pinned so that stays a checked property. Keyed per
+	// harness because another harness's menu may have to decline.
+	"agy": {"menu.raw": true},
+}
+
+// ttyFixtureReturnExpectation reports whether a fixture file must remap Return,
+// preferring a harness-specific entry over the shared default.
+func ttyFixtureReturnExpectation(harness, file string) (bool, bool) {
+	if want, ok := ttyFixtureExpectation[harness][file]; ok {
+		return want, true
+	}
+	want, ok := ttyFixtureExpectation[""][file]
+	return want, ok
 }
 
 // harnessTTYReplayResult is the observable result of replaying a fixture

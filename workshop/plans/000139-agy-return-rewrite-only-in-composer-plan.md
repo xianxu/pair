@@ -1209,3 +1209,49 @@ superlinearly with fixture bytes, which the bring-up guide now asks every new
 harness to add. Splits are exhaustive through the first 1024 bytes — where the
 establishing paint lives — then strided, with the sampled-out count logged per
 the plan's own no-silent-caps rule. Package time is now ~6.5s.
+
+### 2026-08-19T14:30:00-07:00 — Third close (post-merge): evidence ledger and height ceilings
+
+Merging `origin/main` in to resolve a non-mergeable PR moved the review window
+to `596b1b3..HEAD`, so the close re-ran and returned `FIX-THEN-SHIP` again. Its
+findings were about evidence and boundaries, not shipped defects.
+
+#### The negative-evidence ledger over-reported Agy
+
+The previous revision retracted the claim that `agy/1.1.15/overlay.raw`
+"exercises the positive gate alone", but `ttyFixtureNegativeGaps` was not
+updated to match, so Agy still read as covered. Presence of *a* declining state
+and proof that the gate *discriminates* are two different obligations and are
+now tracked separately: `ttyFixtureNegativeGaps` (no declining state at all —
+Muse) and `ttyFixtureDiscriminationGaps` (declining state exists but does not
+separate a composer from a same-shaped picker — Agy and Muse). Codex is in
+neither: its `overlay.raw` paints the same U+203A at column 0 and is rejected on
+emphasis alone, which is exactly the proof.
+
+The Agy permission-picker capture is reachable — drop
+`--dangerously-skip-permissions` from the Agy driven scenario and drive one tool
+call. Attempted 2026-08-19 and **blocked**: the account was in "Verifying your
+account eligibility" and would not execute tool calls. The reproduction command
+is recorded in the ledger entry so the capture can be taken when the account
+clears.
+
+#### Composer height ceilings are inherited, not measured
+
+All three recognizers flip to "not a composer" past a fixed prompt-to-cursor
+distance — Codex 20 rows, Muse 20, Agy 25 — and the next Return then submits the
+draft. Only Codex pinned its boundary. Muse and Agy now have boundary rows too.
+
+The ceilings are **inherited from the box-structure derivation, not measured
+against the harnesses**. For Muse and Agy the enclosing-rule structure already
+prevents pairing distant chrome, so the extra cap buys little and costs a
+premature submit on a long draft; raising them is a live follow-up, deliberately
+not taken inside this close. The rows exist so any change to a bound is a
+decision rather than a silent behavior shift.
+
+#### `PAIR_WRAP_REMAP_RETURN=0` also disables overlay detection
+
+`checkOverlayOpen` returns early when the profile is nil, which is the case
+under the opt-out, so overlay detection and its `overlay-detect` telemetry now
+stop with the remap. Previously they ran regardless, keyed on agent name.
+Declared intended — `pickerActive` has no consumer when the remap is off — and
+documented in `doctor/README.md`, which is where the drift fingerprint is read.

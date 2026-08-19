@@ -1,7 +1,9 @@
 package wrapcmd
 
 import (
+	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -60,6 +62,14 @@ func TestAgyComposerActive(t *testing.T) {
 		{name: "intervening border glyphs do not hide coherent pair", width: 30, height: 12, cursor: uv.Position{X: 3, Y: 6}, visible: true, cells: join(box(2, 8, 0, 10, 0), border(5, 15, 5)), want: true},
 		{name: "hidden cursor", width: 20, height: 10, cursor: uv.Position{X: 2, Y: 3}, cells: box(2, 4, 0, 10, 0)},
 		{name: "unstyled picker marker between rules", width: 40, height: 20, cursor: uv.Position{X: 3, Y: 3}, visible: true, cells: pickerBox(2, 5, 0, 30, 0)},
+		// HEIGHT CEILING. maxBoxHeight caps the box, so a draft taller than it
+		// stops being recognized and the next Return submits it. The ceiling is
+		// inherited from the box-structure design rather than measured against
+		// Agy; the enclosing rules already prevent pairing distant chrome, so
+		// this row exists to make any change to the bound deliberate. Its
+		// neighbours "maximum box height" and "box too tall" pin the Codex-side
+		// equivalent for the box itself.
+		{name: "draft taller than the height ceiling", width: 40, height: 36, cursor: uv.Position{X: 3, Y: 20}, visible: true, cells: box(2, 30, 0, 20, 0)},
 		{name: "lone prompt", width: 20, height: 10, cursor: uv.Position{X: 2, Y: 3}, visible: true, cells: []agyCell{{x: 0, y: 3, text: ">"}}},
 		{name: "lone divider", width: 20, height: 10, cursor: uv.Position{X: 2, Y: 3}, visible: true, cells: border(2, 0, 10)},
 		{name: "borders without prompt", width: 20, height: 10, cursor: uv.Position{X: 2, Y: 3}, visible: true, cells: join(border(2, 0, 10), border(4, 0, 10))},
@@ -273,6 +283,18 @@ func TestMuseComposerActiveSnapshotDifferential(t *testing.T) {
 				"\x1b[9;3Htwo\x1b[10;3Hthree\x1b[11;1H\x1b[2m────\x1b[?25h\x1b[10;8H"),
 			want: true,
 		},
+		{
+			// HEIGHT CEILING. museComposerMaxRows caps prompt-to-cursor
+			// distance, so a draft taller than it stops being recognized and
+			// the next Return submits it. The ceiling is inherited from the
+			// box-structure design rather than measured against Muse; the
+			// enclosing rules already prevent pairing distant chrome, so this
+			// row exists to make any change to the bound deliberate.
+			name: "draft taller than the height ceiling",
+			stream: []byte("\x1b[1;1H\x1b[2m────\x1b[2;1H\x1b[22m⟩ one" +
+				museTallComposerRows() + "\x1b[?25h\x1b[24;8H"),
+			want: false,
+		},
 		{name: "hidden cursor", stream: []byte(qualified + "\x1b[?25l")},
 		{name: "bare old U+203A glyph", stream: []byte("\x1b[8;1H› \x1b[?25h\x1b[8;3H")},
 		{
@@ -346,10 +368,21 @@ func runComposerSnapshotDifferential(
 			if err := model.Feed(test.stream); err != nil {
 				t.Fatalf("feed terminal model: %v", err)
 			}
-			new := recognize(model.Snapshot())
-			if new != test.want {
-				t.Fatalf("snapshot active = %t, want %t", new, test.want)
+			got := recognize(model.Snapshot())
+			if got != test.want {
+				t.Fatalf("snapshot active = %t, want %t", got, test.want)
 			}
 		})
 	}
+}
+
+// museTallComposerRows paints continuation rows 3..23 so the cursor sits more
+// than museComposerMaxRows below the prompt.
+func museTallComposerRows() string {
+	var b strings.Builder
+	for row := 3; row <= 23; row++ {
+		fmt.Fprintf(&b, "\x1b[%d;3Hline", row)
+	}
+	b.WriteString("\x1b[25;1H\x1b[2m────")
+	return b.String()
 }

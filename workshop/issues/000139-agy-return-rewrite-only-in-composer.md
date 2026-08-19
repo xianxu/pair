@@ -7,7 +7,7 @@ created: 2026-08-16
 updated: 2026-08-19
 estimate_hours: 5.83
 started: 2026-08-17T10:59:29-07:00
-actual_hours: 22.37
+actual_hours: 23.40
 ---
 
 # Agy Return rewrite only in composer
@@ -492,6 +492,7 @@ panic recovery cannot strand `overlayMu`. Tests overlap two transactions and
 inject a panicking detector before a subsequent usable Return.
 
 ### 2026-08-19 — Tasks 6 and 6A: conformance fixtures and Codex recognizer restoration
+- 2026-08-19: closed — Re-close after merging origin/main into the branch to resolve a non-mergeable PR. The delta since the previous close anchor (4180ecc) is: 38 commits from main, one workshop-only bookkeeping commit ticking the plan close row, and the merge commit itself. Merge conflicts were in atlas/how-to-bring-up-a-new-harness-cli.md (both sides edited the new-harness checklist; kept this branch rows 1-2 for the profile registry and fixtures, and main rows 3-4 for the session-watch route and launcher resume plumbing) and workshop/lessons.md (append-vs-append; both sides kept, main first). cmd/internal/wrapcmd/wrap.go auto-merged. make build regenerated the embedded nvim runtime bundle that main had changed. Verification on the merged tree: go build ./... clean, go test ./... clean, make test clean, no unresolved conflicts.; review verdict: FIX-THEN-SHIP
 - 2026-08-19: closed — Boundary review REWORK addressed. C1 (Codex rejected composers containing a blank line), C2 (Muse accepted only a one-line composer, an unnamed true->false regression), and I1 (Agy accepted any ">" by content, so its permission picker satisfied the positive gate) are each fixed with the reviewers reproduction added as a regression row. I2/I3: captured agy/1.1.15/overlay.raw; muse has no non-composer screen reachable without a live tool approval, so the fixture test now logs a named EVIDENCE GAP rather than passing silently. I4 plus all seven minor findings applied. Verification: git diff --check clean; focused wrapcmd, go test ./..., and make test all pass; go test -race ./cmd/internal/wrapcmd shows only the known unrelated TestMasterPumpFlushesStdoutOnTick bytes.Buffer race; five literal fixtures replay through the production proxy at every split from 0 to len; all three live harness checks pass.; review verdict: FIX-THEN-SHIP
 
 - Task 6 Step 4 against the three installed harnesses produced two findings that
@@ -655,3 +656,31 @@ The re-close returned `FIX-THEN-SHIP` and corrected two claims I had made.
   and `make test` pass; race shows only the known unrelated
   `TestMasterPumpFlushesStdoutOnTick`; all three live harness checks pass; six
   literal fixtures replay through the production proxy.
+
+### 2026-08-19 — Third close after merging main; FIX-THEN-SHIP findings addressed
+
+Merging `origin/main` to resolve a non-mergeable PR moved the review window, so
+the close re-ran. Findings were about evidence, not shipped defects.
+
+- **The ledger over-reported Agy.** I had retracted the claim about
+  `agy/1.1.15/overlay.raw` in prose but left `ttyFixtureNegativeGaps` saying Agy
+  was covered. Presence of a declining state and proof of *discrimination* are
+  now separate ledgers; Agy and Muse are both listed as undischarged, Codex is
+  in neither because its overlay genuinely proves the emphasis rule.
+- **Tried and failed to capture a real Agy permission picker.** The route is
+  right — drop `--dangerously-skip-permissions` and drive one tool call — but the
+  agy account was in "Verifying your account eligibility" and refused to execute
+  tools. The reproduction command is recorded in the ledger entry rather than
+  the gap being left implicit.
+- **Height ceilings pinned.** All three recognizers stop recognizing past a
+  fixed prompt-to-cursor distance (Codex 20, Muse 20, Agy 25) and Return then
+  submits the draft. Only Codex pinned that boundary; Muse and Agy now do too.
+  The ceilings are inherited from the box-structure derivation, not measured —
+  raising them for Muse/Agy is a named follow-up.
+- **Minors:** per-harness fixture expectations so a future harness's menu may
+  decline; `configureHarnessTTY` closes the replacement terminal if releasing
+  the old one fails; deduped the two `decidePlainReturn` success branches and
+  the two `PAIR_LIVE_CAPTURE_OUT` write blocks; corrected the atlas pointer to
+  `TestHarnessTTYLiveDrivenConformance`; corrected `doctor/README.md`'s
+  `composer unknown` mapping and declared that `PAIR_WRAP_REMAP_RETURN=0` also
+  disables overlay detection and its telemetry; renamed a local shadowing `new`.

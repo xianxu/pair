@@ -1479,7 +1479,9 @@ func (p *proxy) configureHarnessTTY(remapEnabled bool, cols, rows int) error {
 		return errors.Join(err, p.releaseTerminal())
 	}
 	if releaseErr := p.releaseTerminal(); releaseErr != nil {
-		return releaseErr
+		// The replacement is already running; close it rather than strand its
+		// goroutine and leave a positive gate with no terminal.
+		return errors.Join(releaseErr, terminal.Close())
 	}
 	p.terminal = terminal
 	return nil

@@ -215,3 +215,108 @@ Add a `## Revisions` entry to `workshop/plans/000139-agy-return-rewrite-only-in-
 2. **EVIDENCE GAP visibility (I2).** Task 6's design says the gap is "named in a loud line rather than passing silently"; as implemented it is a `t.Logf` invisible without `-v`. State the reporting channel explicitly (stderr, or a visible subtest) so the claim and the mechanism agree.
 3. **Codex status-row ambiguity (I3).** Record that the status-row exclusion resolves "painted row, blank above, nothing below" as *not a composer*, that Codex's full-screen-erase repaint makes that state reachable mid-frame, and that the chosen resolution is deliberate — with a pinning test row so a future edit cannot flip it silently.
 4. **Fixture replay cost (I4).** Task 6 Step 5 mandates every split from 0 to `len(raw)` for every fixture. Note the measured cost (12.7 KB → 10.9s, ~80% of the package) and decide the policy for the next harness before #138 adds one.
+
+---
+
+## Re-review — 2026-08-19T14:11:42-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 139 — Agy Return rewrite only in composer |
+| repo | pair |
+| issue file | workshop/issues/000139-agy-return-rewrite-only-in-composer.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 596b1b31dadac65fc24aede0f20435d900125510..HEAD |
+| command | sdlc close --issue 139 |
+| reviewer | claude |
+| timestamp | 2026-08-19T14:11:42-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The three findings that blocked the previous two rounds are genuinely fixed, and I reproduced each through the production path rather than taking the Log's word: a Codex composer with a blank line inside it recognizes, a two- and three-line Muse composer recognizes, and an unstyled `>` between rules no longer qualifies for Agy. The shadow sweep is completely clean — no `sendKeymapByAgent`, `overlayDetectorByAgent`, `sendKM`, per-agent tracker, `resizeTerminal`, `clearOverlay`, `rowHasBackground`/`colorMatches`, or `agentBasename == "<harness>"` composer branch survives anywhere outside `workshop/` history. `go test ./...`, `make test`, and the focused package all pass; `-race` on `wrapcmd` reports exactly one failure, the pre-existing `TestMasterPumpFlushesStdoutOnTick` `bytes.Buffer` race in a file this window does not touch. What I'd fix before crossing is evidence, not shipped defects: `ttyFixtureNegativeGaps` reports Agy as covered by a fixture the team's own Log already says declines on cursor state rather than on any composer-vs-picker discriminator, so the one harness this issue is named after still has no captured state where its gate refuses — and I confirmed all three recognizers silently flip to "submit" once a draft exceeds ~20 rows, with only Codex pinning that boundary.
+
+## 1. Strengths
+
+- **The every-split fixture replay runs the real seam and is the strongest test here.** `harness_tty_fixture_test.go:247` establishes an unsplit baseline per fixture, then requires the recognizer result, overlay arming, emitted Return bytes, *and* the decision reason to be identical at every split — so PTY chunk boundaries provably cannot change what Return does. The 1024-byte exhaustive prefix + strided tail with a logged skip count is a good answer to the cost problem, and it honors the plan's own no-silent-caps rule.
+- **`ttyFixtureNegativeGaps` is the right shape for the "loud warning" problem.** Moving from a `t.Logf` (invisible in a passing package) to a check that *fails* for any positively gated harness neither covered nor acknowledged — and fails again when an acknowledgment outlives its gap (`harness_tty_fixture_test.go:127-135`) — converts a silent pass into a real gate. My only complaint is what it currently counts as coverage (I1).
+- **Fail-closed defaults are consistent and pinned end to end.** `composerGateUnknown = iota` plus the exhaustive switch in `decidePlainReturn`, the empty-`plainCR` guard, and the `csiBytes == 5` canonical-spelling pin all fail toward bare CR; `TestDecidePlainReturn` covers the all-zero profile and an out-of-range policy explicitly.
+- **The Agy documentation correction is exactly the right instinct.** `composer_recognizers.go:149-155` states in code that the bright-blue rule is a *necessary* condition and **not** a picker discriminator, naming `menu.raw` as the counter-evidence. Pinning `menu.raw` with expectation `true` records the accepted risk as a checked property instead of an assumption — that is better engineering than a comment claiming a defense that isn't there.
+- **`terminalModel` lifecycle holds up under adversarial reading.** Reply-pipe `io.Closer` capability asserted at construction, idempotent `Close` with a shared `closeDone` result, post-close `io.ErrClosedPipe`, deep-cloned final snapshot, and the exclusive prepare/commit/abort resize token. Teardown ordering in `run()` is correct: the signal defer is registered last, so signal delivery is stopped and joined before `closeTerminal()`.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**I1 — Agy's positive gate has no captured state where it declines *as a gate*, and `ttyFixtureNegativeGaps` reports it as covered.**
+`cmd/internal/wrapcmd/harness_tty_fixture_test.go:139` (and the `negatives[metadata.Agent] = true` bookkeeping at line 96)
+
+The guard counts any `overlay.raw` as a captured declining state. I replayed `testdata/tty/agy/1.1.15/overlay.raw` through `terminalModel`: it lands on the **alternate screen with the cursor hidden at (15,5)**, below the bottom rule of a box whose column 0 still holds `─` (fg 8) / `>` (fg 12) / `─` (fg 8). It declines on cursor visibility and position — never on the prompt-color rule, and never on anything distinguishing a picker from a composer. The issue Log already says this in the FIX-THEN-SHIP entry, but the guard does not, so `ttyFixtureNegativeGaps` names only `muse` while Agy's equally real hole reads as closed. Meanwhile the one captured Agy screen that *is* a menu (`menu.raw`) is pinned `true` — no marker matches it and the gate accepts it.
+
+*Failure scenario.* Agy renames its permission-picker wording — the exact #000042 drift the `overlay-detect/near-miss` signal exists to fingerprint. `agyPickerMarkers` stops matching, the positive gate accepts the screen (as it demonstrably does for the slash menu, whose selection marker is painted in the same `fg 12` bright blue at column 0), and plain Return leaks a newline into a permission dialog instead of confirming. Nothing in the suite fails, and the negative-gap ledger says Agy is covered. For the harness this issue is named after, "permission pickers keep plain Return as confirm" is still delivered entirely by `agyPickerMarkers` — the marker layer the positive gate was written to backstop (ARCH-PURPOSE, ARCH-MOCK).
+
+*Fix sketch.* Two parts, both cheap. (a) Add `agy` to `ttyFixtureNegativeGaps` with the honest reason ("the captured `overlay.raw` declines on hidden cursor and cursor position, not on any composer-vs-picker rule; a permission-picker capture is outstanding") so the ledger stops over-reporting. (b) The capture is reachable: `harnessTTYDrivenScenarios["agy"]` passes `--dangerously-skip-permissions`, which is precisely what suppresses the picker — add a scenario without that flag that drives one tool call, capture it as `picker.raw` with expectation `false`, and let the fixture test prove the rejection. The same applies to Muse, which is at least correctly acknowledged today.
+
+**I2 — All three recognizers flip to "not a composer" past a fixed height, and Return then submits the partly-written draft; only Codex pins its boundary.**
+`composer_recognizers.go:23` (`codexComposerMaxRows = 20`), `:98` (`museComposerMaxRows = 20`), `:157` (`maxBoxHeight = 25`)
+
+Reproduced by feeding synthetic-but-structurally-faithful composers through `terminalModel` and calling the production recognizers on a 120×38 screen:
+
+| harness | lines in draft | `recognize` |
+|---|---|---|
+| codex | 19, 20 | `true` |
+| codex | 21, 22, 25, 30 | **`false`** |
+| muse | 19, 20 | `true` |
+| muse | 21, 22, 25 | **`false`** |
+| agy | 23, 24 | `true` |
+| agy | 25, 26, 30 | **`false`** |
+
+*Failure scenario.* A user writing a long prompt in a ~38-row agent pane reaches line 21 (Muse/Codex) or line 25 (Agy); the composer is fully visible and unambiguous, but the gate declines and the next Enter emits bare CR, submitting the half-written message. This is the same failure class as C1 and C2 from the previous two rounds — the expensive direction, not the fail-closed one — at a different threshold. Codex pins its boundary (`"prompt beyond the composer height bound"` in `TestCodexComposerActiveSnapshotDifferential`); **Muse and Agy have no boundary row at all**, so a future edit could move either bound with nothing failing.
+
+I verified the recognizer behavior, not the harnesses' willingness to grow a composer that tall, so reachability depends on whether each CLI expands past ~20 rows before scrolling the prompt off — I could not capture that here.
+
+*Fix sketch.* Add a boundary row to `TestMuseComposerActiveSnapshotDifferential` and `TestAgyComposerActive` recording the intended answer and its consequence, the way Codex's row does. Then consider raising the bounds: for Muse and Agy the *enclosing-rule* structure already prevents pairing unrelated distant chrome, so the extra height cap buys little and costs a premature submit.
+
+## 4. Minor findings
+
+- `wrap.go:1619` — `checkOverlayOpen` now returns early when `p.ttyProfile == nil`, which is the case under `PAIR_WRAP_REMAP_RETURN=0`. Overlay detection (and its `overlay-detect` `fired`/`near-miss` telemetry) previously ran regardless, keyed only on agent name. Functionally harmless — `pickerActive` has no consumer when the remap is off — but it silences the drift fingerprint `doctor/README.md` leans on, and the scope change is undeclared in the plan, issue, README, or atlas.
+- `atlas/how-to-bring-up-a-new-harness-cli.md:66` names `TestHarnessTTYLiveOverlayConformance`; no such test exists — it is `TestHarnessTTYLiveDrivenConformance`, and the command block above it names `TestHarnessTTYLiveConformance`, which does not capture overlays.
+- `doctor/README.md:41` says a `composer unknown` reason "means no profile matched". When no profile matches, `emitPlainCR` returns bare CR at `wrap.go:1739` and logs *nothing*. `composer unknown` actually means a positive-gated profile with no snapshot or no registered recognizer.
+- `wrap.go:1481` — if `releaseTerminal()` errors, the freshly constructed `terminalModel` (goroutine + emulator) is neither assigned nor closed, and the proxy is left with a positive-gated profile and a nil terminal. Unreachable from the single startup call site, where `p.terminal` is always nil.
+- `harness_tty_fixture_test.go:229` — `ttyFixtureExpectation` is keyed by filename globally rather than per harness, so a future harness whose `menu.raw` must *decline* would be forced to `true`.
+- `harness_tty_live_test.go` — the `PAIR_LIVE_CAPTURE_OUT` write block is duplicated verbatim between `TestHarnessTTYLiveConformance` and `TestHarnessTTYLiveDrivenConformance` (ARCH-DRY nit).
+- `harness_tty.go` — `decidePlainReturn`'s `composerGateLegacy` branch and its positive-success branch construct identical `returnDecision` values.
+- `composer_recognizers_test.go:349` — local variable named `new`, shadowing the builtin.
+- `wrap.go` — three test-only seams now live on the production `proxy` struct (`getWinsize`, `setPTYWinsize`, `overlayConsumeHook`). Each is documented; worth watching that the list stops growing.
+
+## 5. Test coverage notes
+
+- Derived-state coverage — the gap that produced C1/C2 — is now real for Codex (blank line inside, two consecutive newlines, empty continuation row, mid-frame vs. completed frame) and Muse (two- and three-line composers). Agy's growth case is covered only by hand-built snapshots; I confirmed independently that a realistic full-width multi-line Agy box is accepted.
+- The tall-draft boundary (I2) is the one derived-state axis still unpinned for Muse and Agy.
+- No fixture captures a *composing* state for any harness — all six are startup, menu, or overlay screens. The Log says multi-line Codex states were driven live during Task 6A but only the startup screen was checked in, so the every-split replay protects the startup path only. One captured multi-line composer per harness would make the derived-state coverage evidence-backed rather than hand-authored.
+- Codex is still the only harness with a negative fixture that exercises its discriminator (the update interstitial paints `›` unemphasized while the composer paints it bold — genuinely load-bearing evidence). Agy's is I1; Muse has none.
+- The `TestHarnessTTYCapture*` family needs PTY allocation and fails wholesale under a sandbox with `operation not permitted` on `pty.StartWithSize`. Not a defect, but relevant if this package ever runs where `/dev/ptmx` is unavailable.
+
+## 6. Architectural notes
+
+- **ARCH-DRY — pass.** Three hand-rolled VT parsers collapse into one `x/vt`-backed model; two parallel registries collapse into `harnessTTYProfiles`; `rowPaintedBetween`, `firstRecognizedHarnessTTYPrefix`, `codexLiveComposerPaint`, and `agyLiveComposerPaint` each replace a duplicated block flagged in earlier rounds; `validateTerminalDimensions` is shared by the model and `snapshotCoordinatesValid`. Only the two test-side nits above remain.
+- **ARCH-PURE — pass.** Recognizers are pure `terminalSnapshot → bool` and `TestAgyComposerActive` runs them on hand-built snapshots with no IO at all; `decidePlainReturn` is pure; the proxy is a thin feed/resize/decide shell. The differential tables read `testdata` fixtures as input data, not as mocks standing in for behavior. Cursor-visibility evidence correctly comes from a bounded `x/ansi` parser sharing x/vt's state semantics rather than a second partial DFA.
+- **ARCH-PURPOSE — flag (I1).** The single-source migration is complete and verified: the shadow sweep is clean and Claude's legacy behavior routes through the same profile registry. But the issue's stated point — "permission pickers and future UI variants keep plain Return as confirm" — is delivered with proof only for Codex. For Agy the discriminator is documented as insufficient with no captured picker, and for Muse there is none; on both, the positive gate contributes no verified defense beyond the marker layer it was meant to backstop.
+- **ARCH-MOCK — partial (I1).** Production and test flow share `proxy.handleChunk`; fixtures are literal bytes captured through a bounded PTY seam with per-file SHA-256 and metadata; live checks correctly assert behavior over byte identity, and `c872b91`'s correction to describe them as manual/opt-in rather than scheduled is the honest call. Incomplete on the negative-state axis, and nothing schedules the live conformance — so harness drift is caught when someone remembers to run it.
+
+## 7. Plan revision recommendations
+
+Add a `## Revisions` entry to `workshop/plans/000139-agy-return-rewrite-only-in-composer-plan.md` covering:
+
+1. **Negative-evidence ledger accuracy (I1).** The 2026-08-19 FIX-THEN-SHIP entry correctly retracts the claim that `agy/1.1.15/overlay.raw` "exercises the positive gate alone", but `ttyFixtureNegativeGaps` was not updated to match — it still reports Agy as covered. Record that `agy` belongs in the ledger until a real permission-picker capture exists, and that the capture is reachable by dropping `--dangerously-skip-permissions` from the Agy driven-scenario argv.
+2. **Composer height bounds (I2).** Record the measured thresholds (Codex 20 rows prompt-to-cursor, Muse 20, Agy 25), that exceeding them emits bare CR and submits the draft, and that only Codex pins its boundary today. Require a boundary row for Muse and Agy, and state whether the bounds are intentional ceilings or an artifact carried from the startup-screen derivation.
+3. **`PAIR_WRAP_REMAP_RETURN=0` scope change.** Overlay detection and its `overlay-detect` telemetry now stop entirely when the remap is opted out; previously they ran regardless of the opt-out. Declare it as intended (and update README/`doctor/README.md`) or restore the prior behavior.
+4. **Doc pointer corrections.** `atlas/how-to-bring-up-a-new-harness-cli.md` names a nonexistent `TestHarnessTTYLiveOverlayConformance`, and `doctor/README.md`'s `composer unknown` mapping is wrong (no-profile logs nothing at all).

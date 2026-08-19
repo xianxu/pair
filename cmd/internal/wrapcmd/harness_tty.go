@@ -102,13 +102,16 @@ func decidePlainReturn(profile harnessTTYProfile, overlayActive bool, snapshot *
 	if len(profile.keymap.plainCR) == 0 {
 		return unknownComposerDecision()
 	}
-	switch profile.composerGate {
-	case composerGateLegacy:
+	remap := func() returnDecision {
 		return returnDecision{
 			bytes:   append([]byte(nil), profile.keymap.plainCR...),
 			outcome: adapt.Fired,
 			reason:  "plain Enter → newline remap",
 		}
+	}
+	switch profile.composerGate {
+	case composerGateLegacy:
+		return remap()
 	case composerGatePositive:
 		if snapshot == nil || profile.recognize == nil {
 			return unknownComposerDecision()
@@ -120,11 +123,7 @@ func decidePlainReturn(profile harnessTTYProfile, overlayActive bool, snapshot *
 				reason:  "plain Enter → bare CR (composer inactive)",
 			}
 		}
-		return returnDecision{
-			bytes:   append([]byte(nil), profile.keymap.plainCR...),
-			outcome: adapt.Fired,
-			reason:  "plain Enter → newline remap",
-		}
+		return remap()
 	case composerGateUnknown:
 		return unknownComposerDecision()
 	default:

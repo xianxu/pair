@@ -599,15 +599,7 @@ func TestHarnessTTYLiveConformance(t *testing.T) {
 	digest := sha256.Sum256(out)
 	recaptureDestination := harnessTTYRecaptureDestination(harness, version, "composer.raw")
 	t.Logf("%s executable=%s version=%q argv=%q bytes=%d sha256=%s", harness, executable, version, command, len(out), hex.EncodeToString(digest[:]))
-	if destination := os.Getenv("PAIR_LIVE_CAPTURE_OUT"); destination != "" {
-		if !filepath.IsAbs(destination) {
-			destination = filepath.Join(repoRoot, destination)
-		}
-		if err := writeLiteralCapture(destination, out); err != nil {
-			t.Fatalf("write literal %s capture %s: %v", harness, destination, err)
-		}
-		t.Logf("wrote literal %s capture to %s", harness, destination)
-	}
+	writeHarnessTTYCaptureIfRequested(t, harness, harness, repoRoot, out)
 
 	// The live check defends behavior, not bytes. Real harness output embeds
 	// per-account, per-machine, per-moment content (signed-in address, model
@@ -728,15 +720,7 @@ func TestHarnessTTYLiveDrivenConformance(t *testing.T) {
 				t.Skipf("%s did not reach %q; it may not be reproducible right now: %v", harness, scenario.until, err)
 			}
 			assertHarnessTTYLiveDecision(t, harness, out, scenario.wantComposer)
-			if destination := os.Getenv("PAIR_LIVE_CAPTURE_OUT"); destination != "" {
-				if !filepath.IsAbs(destination) {
-					destination = filepath.Join(repoRoot, destination)
-				}
-				if err := writeLiteralCapture(destination, out); err != nil {
-					t.Fatalf("write literal %s %s capture %s: %v", harness, scenario.name, destination, err)
-				}
-				t.Logf("wrote literal %s %s capture to %s", harness, scenario.name, destination)
-			}
+			writeHarnessTTYCaptureIfRequested(t, harness, harness+" "+scenario.name, repoRoot, out)
 		})
 	}
 }
@@ -987,4 +971,21 @@ func TestHarnessTTYControlledChild(t *testing.T) {
 		}
 	}
 	os.Exit(2)
+}
+
+// writeHarnessTTYCaptureIfRequested writes a live capture to the path named by
+// PAIR_LIVE_CAPTURE_OUT, if set. Relative paths resolve against the repo root.
+func writeHarnessTTYCaptureIfRequested(t *testing.T, harness, label, repoRoot string, out []byte) {
+	t.Helper()
+	destination := os.Getenv("PAIR_LIVE_CAPTURE_OUT")
+	if destination == "" {
+		return
+	}
+	if !filepath.IsAbs(destination) {
+		destination = filepath.Join(repoRoot, destination)
+	}
+	if err := writeLiteralCapture(destination, out); err != nil {
+		t.Fatalf("write literal %s capture %s: %v", label, destination, err)
+	}
+	t.Logf("wrote literal %s capture to %s", label, destination)
 }
