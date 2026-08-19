@@ -8,8 +8,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/xianxu/pair/cmd/internal/sessionwatch"
 )
 
 // ResolveContinuationDoc / ScanContinuations do real glob+read IO the fake can't
@@ -440,7 +438,7 @@ func TestSidecarSpawnArgvSelfExecsPair(t *testing.T) {
 	}
 
 	bound := time.Date(2026, 8, 19, 9, 30, 0, 123, time.UTC)
-	sw := sessionwatch.CommandArgs(exe, "codex", "work", "/cwd/sub", "/cwd", "pair", bound, []string{"--no-alt-screen"})
+	sw := sessionWatcherSpawnArgv(exe, "codex", "work", "/cwd/sub", "/cwd", "pair", bound, []string{"--no-alt-screen"})
 	want := []string{exe, "session-watch", "codex", "work", "/cwd/sub", "--pid-not-before", bound.Format(time.RFC3339Nano), "--repo-root", "/cwd", "--repo-name", "pair", "--", "--no-alt-screen"}
 	if !reflect.DeepEqual(sw, want) {
 		t.Fatalf("session watcher argv = %v, want %v", sw, want)

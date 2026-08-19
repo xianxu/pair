@@ -557,6 +557,32 @@ func TestRunLogsFailOnTimeout(t *testing.T) {
 	}
 }
 
+func TestRunStopsWhenPIDIsReusedByAnotherProcess(t *testing.T) {
+	home := "/tmp/home"
+	data := "/tmp/data"
+	pidFile := filepath.Join(data, "agent-pid-tag")
+	sid := "019eff64-6ceb-7e72-9d41-a735a97029ac"
+	sessionFile := home + "/.codex/sessions/2026/06/25/rollout-2026-06-25T08-27-12-" + sid + ".jsonl"
+	rt := newFakeRuntime(time.Unix(500, 0))
+	rt.files[pidFile] = fakeFile{content: []byte("1234\n"), mod: rt.now}
+	rt.alive["1234"] = true
+	rt.identities["1234"] = "incarnation-a"
+	rt.descendants["1234"] = []string{"1234"}
+	rt.onSleep = func(time.Duration) {
+		rt.identities["1234"] = "incarnation-b"
+		rt.lsof["1234"] = []string{sessionFile}
+		rt.files[sessionFile] = fakeFile{content: rootSessionMeta(sid), birth: rt.now}
+	}
+
+	if err := Run(Options{Agent: "codex", Tag: "tag", Cwd: "/repo", Home: home, DataDir: data,
+		PIDWait: time.Second, Timeout: 100 * time.Millisecond, Poll: 100 * time.Millisecond, SlowPoll: time.Second}, rt); err != nil {
+		t.Fatal(err)
+	}
+	if got := rt.writes[filepath.Join(data, "config-tag-codex.json")]; got != nil {
+		t.Fatalf("reused-pid config = %s, want none", got)
+	}
+}
+
 func countDuration(ds []time.Duration, want time.Duration) int {
 	var n int
 	for _, d := range ds {
@@ -586,6 +612,7 @@ type fakeRuntime struct {
 	now         time.Time
 	files       map[string]fakeFile
 	alive       map[string]bool
+	identities  map[string]string
 	descendants map[string][]string
 	lsof        map[string][]string
 	writes      map[string][]byte
@@ -600,6 +627,7 @@ func newFakeRuntime(now time.Time) *fakeRuntime {
 		now:         now,
 		files:       map[string]fakeFile{},
 		alive:       map[string]bool{},
+		identities:  map[string]string{},
 		descendants: map[string][]string{},
 		lsof:        map[string][]string{},
 		writes:      map[string][]byte{},
@@ -673,7 +701,15 @@ func (f *fakeRuntime) Descendants(root string) ([]string, error) {
 }
 
 func (f *fakeRuntime) LsofPaths(pid string) ([]string, error) { return f.lsof[pid], nil }
-func (f *fakeRuntime) ProcessAlive(pid string) bool           { return f.alive[pid] }
+func (f *fakeRuntime) ProcessIdentity(pid string) string {
+	if !f.alive[pid] {
+		return ""
+	}
+	if identity := f.identities[pid]; identity != "" {
+		return identity
+	}
+	return "process:" + pid
+}
 func (f *fakeRuntime) AtomicWrite(path string, data []byte) error {
 	if err := f.writeErr[path]; err != nil {
 		return err

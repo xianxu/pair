@@ -43,6 +43,27 @@ func TestCommand(t *testing.T) {
 	}
 }
 
+func TestIdentity(t *testing.T) {
+	if Identity("") != "" {
+		t.Error("empty pid must yield empty identity")
+	}
+	self := strconv.Itoa(os.Getpid())
+	first := Identity(self)
+	second := Identity(self)
+	if first == "" {
+		if !psAvailable() {
+			t.Skip("ps unavailable in this environment; skipping identity probe")
+		}
+		t.Fatalf("own pid %s should have a process identity", self)
+	}
+	if second != first {
+		t.Fatalf("identity changed for same process: %q != %q", first, second)
+	}
+	if Identity("2147483646") != "" {
+		t.Error("bogus high pid must yield empty identity")
+	}
+}
+
 func TestDescendantPIDsIncludesNestedChildren(t *testing.T) {
 	children := map[string][]string{
 		"10": {"11", "12"},

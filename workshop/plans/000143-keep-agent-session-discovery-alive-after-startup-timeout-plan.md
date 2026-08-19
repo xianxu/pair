@@ -21,6 +21,7 @@
 | `Options.PIDNotBefore` | `cmd/internal/sessionwatch/run.go` | modified |
 | `sessionwatch.CommandArgs` | `cmd/internal/sessionwatch/runcli.go` | new |
 | `pidFileFresh` | `cmd/internal/sessionwatch/run.go` | new |
+| `sessionWatcherSpawnArgv` | `cmd/internal/launcher/osruntime.go` | new |
 
 - **`Options.PIDNotBefore`** — lower bound authorizing the PID-file generation for this watcher.
   - **Relationships:** One bound belongs to one watcher launch; `Run` compares every observed PID-file mtime against it.
@@ -34,6 +35,14 @@
   - **Relationships:** `Run` calls it for both PID wait-loop and final bind; one policy owns all freshness decisions.
   - **DRY rationale:** Prevents separate native/legacy scan loops while making their intentional precision difference explicit (ARCH-PURE).
   - **Future extensions:** Remove legacy tolerance when old direct invocations are retired.
+- **`sessionWatcherSpawnArgv`** — pure whole-workbench producer helper carrying
+  the captured generation bound into the shared serializer.
+  - **Relationships:** `OSRuntime.SpawnSessionWatcher` captures the clock and
+    delegates its complete argv to this helper.
+  - **DRY rationale:** The helper itself delegates command shape to
+    `sessionwatch.CommandArgs`; it exists only to make producer wiring testable.
+  - **Future extensions:** Additional launcher metadata stays in the shared
+    serializer contract.
 
 ### Integration points
 
@@ -43,6 +52,7 @@
 | `freshAgentInvocation` | `cmd/internal/wrapcmd/wrap.go` | modified | Shift+Alt+N replacement process spawn |
 | `buildOptions` | `cmd/internal/sessionwatch/runcli.go` | modified | internal process argv/environment |
 | `pidFileCurrent` | `cmd/internal/sessionwatch/run.go` | new | PID-file mtime lookup through `Runtime` |
+| `Runtime.ProcessIdentity` | `cmd/internal/sessionwatch/run.go` | new | stable OS process-incarnation lookup |
 | `sessionwatch.Runtime` fake | `cmd/internal/sessionwatch/run_test.go` | reused | PID file/process lifecycle/filesystem state |
 | Session-watch shell fixture | `tests/pair-session-watch-test.sh` | modified | real CLI parsing and filesystem mtimes |
 
@@ -58,6 +68,12 @@
 - **`pidFileCurrent`** — reads the PID-file mtime through the injected runtime and delegates the timestamp decision to pure `pidFileFresh`.
   - **Injected into:** `Run` through `sessionwatch.Runtime`.
   - **Future extensions:** None; all freshness policy belongs in `pidFileFresh`.
+- **`Runtime.ProcessIdentity`** — captures and revalidates the bound process's
+  kernel start token so a recycled numeric PID cannot extend watcher lifetime.
+  - **Injected into:** `Run`; production uses `procutil.Identity`, while the
+    stateful fake can replace one incarnation with another under the same PID.
+  - **Future extensions:** Reuse this token wherever a long-lived sidecar owns
+    process identity rather than mere liveness.
 - **`sessionwatch.Runtime` fake** — models watcher start time, PID-file mtime, process liveness, and discovered rollout state across polls (ARCH-MOCK).
   - **Injected into:** `Run` tests.
   - **Future extensions:** None for this fix; the existing state model already covers the race.
@@ -72,6 +88,7 @@
 | `sessionwatch.CommandArgs` + `buildOptions` | Round-trip arbitrary agent argv containing internal-flag-looking tokens; the first `--` mechanically separates watcher metadata from untouched agent args. |
 | `freshAgentInvocation` | Drive every `SpecForAgent` member plus synchronous Claude through one table; watcher presence must equal registry membership, preventing a second agent list. |
 | `pidFileFresh` | Generate subsecond mtime relations around the bound without filesystem IO; native mode uses exact ordering, while a separate zero-bound legacy assertion pins whole-second tolerance. |
+| `sessionWatcherSpawnArgv` | Assert the helper used by `OSRuntime.SpawnSessionWatcher` carries the fixed generation bound into the shared serializer. |
 | `Run` | Use the stateful clock/filesystem/process fake to permute PID write, watcher start, rollout appearance, and process death; config writes require an authorized PID generation and session. |
 | Real `pair session-watch` process | Persist PID files on the temporary filesystem before process start on both sides of a fixed bound; the stateful `lsof` fake proves serializer/parser/mtime behavior through the production CLI seam (ARCH-MOCK). |
 
@@ -131,3 +148,14 @@
   live Pair session.
 - Replaced the dispatcher's Codex/Agy help restatement with registry-independent
   “async agent” wording (ARCH-PURPOSE).
+
+### 2026-08-19 09:40 PDT — Process-incarnation binding
+
+- Extended lifecycle binding from numeric PID liveness to a stable kernel
+  process-start token, revalidated on every poll. The stateful fake now models
+  PID reuse and proves an unrelated replacement process cannot authorize a
+  session (ARCH-MOCK, ARCH-PURPOSE).
+- Routed whole-workbench argv construction through tested
+  `sessionWatcherSpawnArgv`, which is the helper called by
+  `OSRuntime.SpawnSessionWatcher`; this pins the producer wiring, not only the
+  downstream serializer.

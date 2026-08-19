@@ -45,7 +45,7 @@ type Runtime interface {
 	ListFiles(root string) ([]string, error)
 	Descendants(root string) ([]string, error)
 	LsofPaths(pid string) ([]string, error)
-	ProcessAlive(pid string) bool
+	ProcessIdentity(pid string) string
 	AtomicWrite(path string, data []byte) error
 	Log(outcome adapt.Outcome, detail string)
 }
@@ -103,11 +103,16 @@ func Run(opts Options, rt Runtime) error {
 	}
 
 	rootPID := ""
+	rootIdentity := ""
 	agentStart := time.Time{}
 	if fresh, mod := pidFileCurrent(pidFile, opts.PIDNotBefore, watchStart, rt); fresh {
 		if data, err := rt.ReadFile(pidFile); err == nil {
 			rootPID = strings.TrimSpace(string(data))
 			agentStart = mod
+			rootIdentity = rt.ProcessIdentity(rootPID)
+			if rootIdentity == "" {
+				return nil
+			}
 		}
 	}
 
@@ -122,7 +127,7 @@ func Run(opts Options, rt Runtime) error {
 	nmLogged := false
 	deadline := watchStart.Add(opts.Timeout)
 	for {
-		if rootPID != "" && !rt.ProcessAlive(rootPID) {
+		if rootPID != "" && rt.ProcessIdentity(rootPID) != rootIdentity {
 			return nil
 		}
 		if rootPID == "" && !rt.Now().Before(deadline) {

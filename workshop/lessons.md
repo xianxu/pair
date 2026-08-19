@@ -1357,3 +1357,15 @@ inherited the other two required variables from the harness.
 `t.Setenv(key, "")` for every absent key in that contract. Unsetting variables
 only in the outer test command hides the isolation defect and makes the checked
 command non-reproducible for the exact environment where Pair is developed.
+
+## Long-lived process ownership needs an incarnation, not a PID
+
+#143 extended a watcher from a bounded startup window to the lifetime of an
+agent, but initially polled only `kill -0 <pid>`. A numeric PID can be recycled
+between slow polls, letting an unrelated process inherit the old watcher's
+authority.
+
+**Rule.** Any sidecar that owns a process across polling intervals must capture
+an OS process-start token and compare `(pid, start-token)` on every poll. Its
+stateful fake must support “old process dies; same PID, new token” as a distinct
+transition; a `map[pid]bool` liveness fake cannot test ownership.

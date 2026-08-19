@@ -157,6 +157,11 @@ total: 1.00
   readiness test, and stale Codex/Agy dispatcher help. Extracted pure
   `pidFileFresh`, made the test hermetic, generalized the help text, and revised
   the plan's entity table before re-review (ARCH-PURE, ARCH-PURPOSE).
+- Second boundary review found that indefinite polling revalidated only numeric
+  PID liveness, allowing a recycled PID to impersonate the bound agent. Added a
+  stable kernel process-start identity to the runtime seam, a stateful PID-reuse
+  regression, and direct coverage of the launcher producer helper
+  (ARCH-MOCK, ARCH-PURPOSE).
 
 ## Revisions
 
@@ -191,3 +196,10 @@ total: 1.00
   `sessionwatch.SpecForAgent` as the existing source of asynchronous-agent
   support. Required Codex/Agy/Muse positive tests and a Claude negative test so
   Muse cannot fall out of the restart path again (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-19 09:40 PDT — Process incarnation
+
+- Clarified “while that process is alive” as the same process incarnation, not
+  any future process assigned the same numeric PID. The watcher must stop when
+  the kernel start token changes, including PID reuse within one slow-poll
+  interval.

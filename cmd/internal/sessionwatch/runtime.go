@@ -75,8 +75,8 @@ func (OSRuntime) LsofPaths(pid string) ([]string, error) {
 	return procutil.LsofNames(pid), nil
 }
 
-func (OSRuntime) ProcessAlive(pid string) bool {
-	return procutil.Alive(pid)
+func (OSRuntime) ProcessIdentity(pid string) string {
+	return procutil.Identity(pid)
 }
 
 func (OSRuntime) AtomicWrite(path string, data []byte) error {
