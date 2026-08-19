@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -336,7 +337,8 @@ func TestOSRuntimeAgentSessionExistsFindsNestedCodexRollout(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, []byte("{}\n"), 0o644); err != nil {
+	first := fmt.Sprintf(`{"type":"session_meta","payload":{"id":%q,"parent_thread_id":null,"source":"cli"}}`+"\n", sid)
+	if err := os.WriteFile(path, []byte(first), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

@@ -64,3 +64,27 @@ func TestPlanRestart(t *testing.T) {
 		t.Fatalf("continue re-entry = %+v", pc)
 	}
 }
+
+func TestDecideAutomaticResumeConfig(t *testing.T) {
+	tests := []struct {
+		name         string
+		agent        string
+		saved        savedConfig
+		sessionValid bool
+		want         savedConfig
+		quarantine   bool
+	}{
+		{"valid codex root", "codex", savedConfig{Agent: "codex", Args: []string{"--search"}, SessionID: "ROOT"}, true, savedConfig{Agent: "codex", Args: []string{"--search"}, SessionID: "ROOT"}, false},
+		{"invalid codex candidate", "codex", savedConfig{Agent: "codex", Args: []string{"--search"}, SessionID: "SUB"}, false, savedConfig{Agent: "codex", Args: []string{"--search"}}, true},
+		{"empty codex session", "codex", savedConfig{Agent: "codex", Args: []string{"--search"}}, false, savedConfig{Agent: "codex", Args: []string{"--search"}}, false},
+		{"non-codex unchanged", "claude", savedConfig{Agent: "claude", Args: []string{"--flag"}, SessionID: "STALE"}, false, savedConfig{Agent: "claude", Args: []string{"--flag"}, SessionID: "STALE"}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, quarantine := decideAutomaticResumeConfig(tt.agent, tt.saved, tt.sessionValid)
+			if !reflect.DeepEqual(got, tt.want) || quarantine != tt.quarantine {
+				t.Fatalf("got (%+v, %t), want (%+v, %t)", got, quarantine, tt.want, tt.quarantine)
+			}
+		})
+	}
+}
