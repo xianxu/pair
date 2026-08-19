@@ -24,8 +24,8 @@ context-window usage for the rest of the session.
 Treat the existing timeout as the end of fast startup discovery, not the end of
 the watcher. When a fresh agent PID is available, continue discovery at a
 low-frequency 60-second interval while that process is alive. Stop immediately
-when the process exits, and preserve the existing bounded timeout when no fresh
-PID can be established.
+when a poll observes that the process has exited (within one slow-poll interval),
+and preserve the existing bounded timeout when no fresh PID can be established.
 
 Apply the lifecycle behavior uniformly to every asynchronous agent supported by
 `sessionwatch` (Codex, Agy, and Muse). Claude supplies its session ID
@@ -37,15 +37,16 @@ synchronously and must remain unaffected.
   discovery timeout.
 - Post-timeout discovery polls no more often than once every 60 seconds by
   default.
-- The watcher exits when the bound agent process exits, and still times out when
-  no fresh PID exists.
+- The watcher exits within one slow-poll interval after the bound agent process
+  exits, and still times out when no fresh PID exists.
 - Automated tests cover delayed discovery for Codex, Agy, and Muse plus both
   exit paths.
 
 ## Plan
 
-- [ ] Add table-driven failing tests for delayed discovery across all async
-  agent specs, the 60-second slow interval, process exit, and PID-less timeout.
+- [ ] Test `Run` with the existing fake-clock/stateful-runtime seam, scheduling
+  transcript and process-state transitions to guard the fast-to-slow cadence,
+  every `AgentSpec`, PID-bound exit, and PID-less timeout.
 - [ ] Change the watcher loop to transition from fast polling to lifecycle-bound
   slow polling, using the existing injected runtime seam (ARCH-PURE,
   ARCH-MOCK).
@@ -62,3 +63,11 @@ synchronously and must remain unaffected.
 - Design approved by the operator: retain fast startup polling, then poll every
   60 seconds for the lifetime of the bound agent process. Apply this to all
   asynchronous agent specs rather than special-casing Codex.
+
+## Revisions
+
+### 2026-08-18 — Plan-quality review
+
+- Clarified that process death is observed at the next 60-second slow poll,
+  rather than promising impossible immediate detection during a blocking sleep.
+- Recast the test plan as a function-level fake-clock strategy for `Run`.
