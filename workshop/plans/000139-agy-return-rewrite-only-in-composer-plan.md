@@ -728,7 +728,7 @@ Expected: fixture replay and all three installed live harness checks PASS.
 Authentication/trust failures are legitimate blockers to close, not silent
 passes.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add cmd/internal/wrapcmd/testdata/tty cmd/internal/wrapcmd/harness_tty_fixture_test.go cmd/internal/wrapcmd/harness_tty_live_test.go
@@ -744,7 +744,7 @@ git commit -m "wrapcmd: #139: pin harness TTY conformance fixtures" -m "Co-Autho
 - Modify: `doctor/README.md`
 - Modify: `workshop/issues/000139-agy-return-rewrite-only-in-composer.md`
 
-- [ ] **Step 1: Update atlas and user-facing guidance**
+- [x] **Step 1: Update atlas and user-facing guidance**
 
 Map profile ownership, terminal lifecycle, Return precedence, recognizer
 boundary, fixture layout, live cadence, and new-harness opt-in. Update the
@@ -753,7 +753,7 @@ behavior and the positive-gate fail-safe. Replace doctor guidance for the
 deleted keymap/overlay registries with `harnessTTYProfiles` and
 `profileForHarness`.
 
-- [ ] **Step 2: Run focused, race, and repository verification**
+- [x] **Step 2: Run focused, race, and repository verification**
 
 ```bash
 go test ./cmd/internal/wrapcmd -count=1
@@ -765,7 +765,7 @@ git diff --check
 
 Expected: every command PASS.
 
-- [ ] **Step 3: Update durable state and commit**
+- [x] **Step 3: Update durable state and commit**
 
 Tick rows only after evidence exists. Log the shadow sweep, fixture/live results,
 and all four ARCH decisions. Leave the canonical issue Plan pointer unchecked

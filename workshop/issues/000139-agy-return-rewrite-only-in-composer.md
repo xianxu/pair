@@ -365,9 +365,9 @@ re-derived only after the revised durable plan passes plan-quality review.
 - [x] Migrate Codex and Muse recognizers with differential fixture coverage and
       no semantic change.
 - [x] Add Agy coherent-box recognition via failing geometry and lifecycle tests.
-- [ ] Replay stateful real-harness fixtures through `proxy.handleChunk`, add the
+- [x] Replay stateful real-harness fixtures through `proxy.handleChunk`, add the
       executable live conformance test, and run race/full verification.
-- [ ] Update atlas documentation for the profile, terminal, routing, fixture,
+- [x] Update atlas documentation for the profile, terminal, routing, fixture,
       and release-conformance flows.
 
 #### Plan clarification — behavior preservation
@@ -547,3 +547,27 @@ inject a panicking detector before a subsequent usable Return.
   file from this work appears in its trace. All three live harness checks pass:
   Agy, Codex, and Muse composers remap to `\n`, and the Codex overlay passes
   bare `\r` with the picker layer armed.
+
+### 2026-08-19 — Task 7: atlas, README, and doctor guidance
+
+- `atlas/architecture.md` now describes the single `harnessTTYProfiles` registry
+  and `profileForHarness` instead of `sendKeymapByAgent` /
+  `overlayDetectorByAgent`, the two independent defense layers (overlay negative
+  override and positive composer gate), the snapshot recognizers that replaced
+  the per-agent byte trackers, the fail-closed gate zero value, the latched
+  resize transaction, and the fixture/live conformance contract.
+- `atlas/how-to-bring-up-a-new-harness-cli.md` now registers a new harness on
+  one profile, states that an unset `composerGate` fails closed (the correct
+  starting point), documents each recognizer's actual signal, and adds a
+  capture-evidence-first section with the exact `PAIR_LIVE_CAPTURE_OUT` command.
+  It carries the Codex lesson explicitly: do not copy another harness's signal
+  without bytes that prove it.
+- `README.md` gains user-facing Return rows — plain Return inserts a newline
+  only where Pair positively sees a composer, Alt+Return always submits, and
+  `PAIR_WRAP_REMAP_RETURN=0` opts out.
+- `doctor/README.md` maps `return-remap` findings onto `harnessTTYProfiles` and
+  distinguishes `composer unknown` (no profile matched) from `composer inactive`
+  (recognizer declined), with the live recapture command for the latter — the
+  exact drift this issue hit on Codex.
+- Verification: `git diff --check` clean, focused `wrapcmd`, `go test ./...`,
+  and `make test` all pass.

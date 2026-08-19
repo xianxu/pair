@@ -14,15 +14,17 @@ By default, the bottom Neovim draft pane maps **Enter** to insert a newline, and
 - **Alt+Enter** should submit the input.
 
 **Implementation:**
-- **File:** [cmd/internal/wrapcmd/wrap.go](file:///Users/xianxu/workspace/pair/cmd/internal/wrapcmd/wrap.go)
-- Add the agent to `sendKeymapByAgent` defining `plainCR` and `altCR`:
+- **File:** [cmd/internal/wrapcmd/harness_tty.go](file:///Users/xianxu/workspace/pair/cmd/internal/wrapcmd/harness_tty.go)
+- Add the agent's `keymap` to its `harnessTTYProfiles` entry, defining `plainCR` and `altCR`:
   ```go
-  var sendKeymapByAgent = map[string]sendKeymap{
-      "agy": {
+  "agy": {
+      keymap: sendKeymap{
           plainCR: []byte{'\n'}, // plain Enter inserts newline
           altCR:   []byte{'\r'}, // Alt+Enter sends query
+          altBS:   []byte{0x15},  // Alt+Backspace kills to line start
       },
-  }
+      // ... overlay, composerGate, recognize
+  },
   ```
 - **Note:** Claude uses `\<Enter>` (`[]byte{'\\', '\r'}`) as a newline, while Codex, Antigravity (`agy`), and Muse (`muse`) use LF (`\n`) for newline and CR (`\r`) for send.
 - **Composer detection:** Do not rewrite plain Enter merely because no menu was detected. New integrations should positively detect the agent's composer/input box from stable raw terminal signals (cursor position/visibility, prompt/composer chrome, or agent OSC). Prefer the agent's native composer-availability signal; do not copy another agent's terminal heuristic unless captured logs prove the same signal is stable. If the composer is unknown or inactive, plain Enter should pass through as the agent's normal Enter key.
@@ -38,19 +40,30 @@ If the agent presents blocking overlays, pickers (like file autocompletes), yes/
 
 **Implementation:**
 - **File:** [cmd/internal/wrapcmd/wrap.go](file:///Users/xianxu/workspace/pair/cmd/internal/wrapcmd/wrap.go)
-- Register the detector in `overlayDetectorByAgent`:
+- Register the harness in `harnessTTYProfiles` ([cmd/internal/wrapcmd/harness_tty.go](file:///Users/xianxu/workspace/pair/cmd/internal/wrapcmd/harness_tty.go)) — one registry owns the keymap, the overlay detector, the gate policy, and the composer recognizer:
   ```go
-  var overlayDetectorByAgent = map[string]overlayDetector{
-      "claude": detectClaudeOverlayOpen,
-      "codex":  detectCodexOverlayOpen,
-      "agy":    detectAgyOverlayOpen,
-  }
+  "muse": {
+      keymap:       sendKeymap{plainCR: []byte{'\n'}, altCR: []byte{'\r'}, altBS: []byte{0x15}},
+      overlay:      detectMuseOverlayOpen,
+      composerGate: composerGatePositive,
+      recognize:    museComposerActive,
+  },
   ```
+  Leave `composerGate` unset and the harness fails closed: every plain Return passes through as bare CR. That is the correct starting point for a new harness — opt into `composerGatePositive` only once you have a recognizer backed by captured bytes.
 - Implement the detector. Detectors can scan the rolling output stream for custom OSC escape sequences (e.g. Claude's permission OSC `OSC 777;notify;...`, or Codex's `OSC 9;Plan mode prompt:...`) or fallback to visible text substring matches (e.g., watching for `"Press enter to confirm"`).
-- **For `codex`:** Codex plain Enter rewrites only when `codexComposerTracker` positively detects the active composer: visible cursor on or next to rows painted with the `48;2;57;57;57` background. The detector deliberately avoids Pair outer-screen bottom geometry because Codex can paint an editable composer on a smaller logical screen. Codex also uses OSC 9 plan/question bodies and visible-text picker footers; keep `codexPickerMarkers` current as override/fallback signals for menus, including variants like `"Press enter to confirm or esc to go back"` and `"Press enter to confirm or esc to cancel"`.
-- **For `muse`:** Muse plain Enter rewrites only when `museComposerTracker` positively detects the active composer: visible cursor on or next to a row where the prompt glyph `›` (`e2 9f a9`, FG `38;2;90;160;255`) was painted (captured from `scrollback-fix-tty-muse.raw` at `30;1H` empty and `9;1H` filled). The logic is prompt-anchored (≥1 prompt row within `cursor±1` + visible cursor), not BG — do not reuse Codex's `48;2;57;57;57` background unless logs prove stability. Like Codex, the tracker falls back to bare CR when composer is hidden/unknown, so future Muse menus that lack a `musePickerMarkers` entry still select on plain Enter.
+- **Composer recognition is a pure function over a screen snapshot.** A shared x/vt terminal model publishes immutable `terminalSnapshot` values; recognizers live in `composer_recognizers.go` and never retain their own screen state. **For `codex`:** a **bold** U+203A at column 0, reachable from the cursor through painted continuation rows — Codex reuses the same glyph unemphasized as a menu selection marker and parks the cursor on its status line mid-paint, so neither qualifies. **For `muse`:** a non-faint `⟩` at column 0 within one row of the cursor, between faint `─` rule rows. **For `agy`:** the cursor inside a coherent box — a `>` prompt column enclosed by two `─` border rows that both span the cursor column. Do not copy another harness's signal without capturing bytes that prove it: Codex's old `48;2;57;57;57` background gate silently stopped matching when Codex dropped that paint, and plain Enter could no longer insert a newline until live conformance caught it.
 - **For `agy`:** Antigravity *does* render its permission picker in the PTY ("Do you want to proceed?", "Yes, and always allow", …), so `detectAgyOverlayOpen` matches those visible-text markers (no OSC) to arm `pickerActive` — without it, the remapped Enter can't confirm the picker and a stray newline leaks into the prompt (#000042).
 - **For `muse`:** Muse renders both tool-permission pickers ("Permissions required", "Allow execution", …) **and** user selection menus (AskUserQuestion via `request_user_input` — "Select an option", "Use arrow keys", "Press Enter to select", …). Both families must be in `musePickerMarkers`; a missing selection marker reproduces as "Enter inserts newline, Alt+Enter required to select".
+
+**Capture evidence before you define a recognizer.** Record literal bytes from the real CLI through the bounded PTY seam — never hand-author them — into `cmd/internal/wrapcmd/testdata/tty/<agent>/<version>/`, alongside a `metadata.json` carrying the exact `--version` string, argv, RFC3339 capture time, and a SHA-256 per raw file:
+
+```bash
+PAIR_LIVE_HARNESS=<agent> \
+PAIR_LIVE_CAPTURE_OUT=cmd/internal/wrapcmd/testdata/tty/<agent>/<version>/composer.raw \
+  go test ./cmd/internal/wrapcmd -run TestHarnessTTYLiveConformance -count=1 -v
+```
+
+`composer.raw` is required and must remap to LF; add an `overlay.raw` (captured by `TestHarnessTTYLiveOverlayConformance`) for any blocking dialog that must stay bare CR. `TestHarnessTTYFixtureConformance` then replays every fixture through the production proxy at *every* split point and requires the Return decision to be identical at all of them, so PTY chunk boundaries can never change behavior. The live tests are opt-in and assert behavior rather than byte identity: real output embeds per-account and per-moment content, and harnesses self-update. When one drifts it prints the exact recapture destination.
 
 **Telemetry Signal** (aspect `2`, see §3): `overlay-detect` — `fired` when a registered marker arms `pickerActive` (the detail carries the matched marker); **`near-miss`** when the output looks like a confirm/permission prompt (`promptShape` heuristic in `checkOverlayOpen`) but *no* registered marker matched. A `near-miss` is the drift fingerprint: the harness renamed its picker wording, the detector went silent, and the next plain Enter will leak a newline (#000042). The `detail` field carries the unrecognized line verbatim — that's the new string to add to `codexPickerMarkers`/`agyPickerMarkers`/`musePickerMarkers` (or the OSC body for claude).
 
@@ -138,8 +151,8 @@ The scrollback viewer (`Alt+/`) maps **Alt+b** (and **Alt+Shift+B**) to jump bet
 
 When introducing a new agent `<name>`, ensure you complete each item:
 
-1. [ ] **Verify Return Key remapping** in `sendKeymapByAgent` (Enter = newline, Alt+Enter = send).
-2. [ ] **Check for blocking TUI overlays** (permission pickers **and** user selection / AskUserQuestion menus) and implement a PTY overlay detector in `overlayDetectorByAgent` if needed — verify plain Enter confirms the picker and Alt+Enter is not required.
+1. [ ] **Verify Return Key remapping** on the harness profile in `harnessTTYProfiles` (Enter = newline, Alt+Enter = send), and pin it with a captured fixture under `cmd/internal/wrapcmd/testdata/tty/`.
+2. [ ] **Check for blocking TUI overlays** (permission pickers **and** user selection / AskUserQuestion menus) and implement a PTY overlay detector and register it on the harness profile in `harnessTTYProfiles` if needed — verify plain Enter confirms the picker and Alt+Enter is not required.
 3. [ ] **Implement Session Watching** in `cmd/internal/sessionwatch` / `cmd/pair-session-watch` (using `lsof` and target file patterns).
 4. [ ] **Configure Launcher Recovery** in `bin/pair-shell` (mapping `--conversation` or `--resume` flags).
 5. [ ] **Add slug generation support** in `pair-slug` (transcript parsing + sandboxed print execution).

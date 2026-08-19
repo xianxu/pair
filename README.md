@@ -106,6 +106,8 @@ one-line description can't carry.
 |---|---|---|
 | **Alt+h** | any pane | Pop up the keybinding list in a floating pane (`q` or `Esc` to dismiss). Same content as `pair keys`. |
 | **Alt+Return** | nvim (normal/insert) | Send buffer to agent. Note for consistency, claude's keybinding also changed to Alt+return as send, and return as newline |
+| **Return** | agent pane | Insert a newline in the agent's composer, matching the draft pane. Pair only rewrites Return while it can positively see a live composer on screen — in a permission picker, a selection menu, or any state it doesn't recognize, Return stays a plain Enter so the dialog confirms. Applies to `claude`, `codex`, `muse`, and `agy`; set `PAIR_WRAP_REMAP_RETURN=0` to turn the rewrite off entirely. |
+| **Alt+Return** | agent pane | Always submits, in every state. |
 | **Alt+Shift+Return** | nvim (normal/insert) | Append buffer to the agent's composer followed by a newline, but do **not** submit — leaves the cursor on a fresh line in the agent input for more typing. Logs + clears the draft like Alt+Return. |
 | **Alt+Shift+Return** | layout 3 terminal | Re-tile the terminal column between 1/2 and 2/3 width (the left stack narrows and reflows while expanded) without recreating any processes. |
 | **Alt+j** | left Pair stack | Move vertically between the agent and draft panes. No-op in the user terminal. |
