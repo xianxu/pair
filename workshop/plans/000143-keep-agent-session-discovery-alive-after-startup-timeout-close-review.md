@@ -15,6 +15,37 @@
 
 ## Review
 
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The implementation matches the expanded Spec and Plan. Both watcher producers
+share the generation-bound command contract, PID freshness preserves legacy
+behavior while fixing delayed startup, and lifecycle discovery is bound to a
+process incarnation with pre-persistence reauthorization. Tests and
+documentation cover the new behavior; no blocking findings remain.
+
+### Findings
+
+- Critical: none.
+- Important: none.
+- Minor: one retired `pair-session-watch` name remains in a historical code
+  comment, and the documented Claude `/clear` limitation describes its old
+  watcher window rather than the current immediate unsupported-route exit. The
+  limitation itself remains correct.
+
+### Verification and architecture
+
+- Focused `procutil`, `sessionwatch`, `launcher`, and `wrapcmd` suites passed.
+- Repository-wide `go test ./... -count=1 -timeout=60s` passed.
+- `tests/pair-session-watch-test.sh` passed through the real CLI/filesystem seam.
+- Linux and FreeBSD cross-compilation of the affected packages succeeded.
+- ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, and ARCH-MOCK passed. The stateful fake
+  covers delayed discovery, process exit, PID reuse between polls, and reuse
+  during discovery.
+- The plan-gate ledger has no open findings; no plan revision is required.
+
 Reading additional input from stdin...
 OpenAI Codex v0.147.0
 --------
@@ -3791,3 +3822,22 @@ No plan-gate carry-forward file exists, and the plan has no Core concepts table 
 ## 7. Plan revision recommendations
 
 None. The Plan and Revisions match the delivered code; the required change is to the atlas documentation rather than the issue plan.
+
+---
+
+## Re-review — 2026-08-19T10:01:53-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 143 — Keep agent session discovery alive after startup timeout |
+| repo | 000143-keep-agent-session-discovery-alive-after-startup-timeout |
+| issue file | workshop/issues/000143-keep-agent-session-discovery-alive-after-startup-timeout.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 706938ef125a3ea01db51cdab2b32fe46223a245..HEAD |
+| command | sdlc close --issue 143 |
+| reviewer | codex |
+| timestamp | 2026-08-19T10:01:53-07:00 |
+| verdict | SHIP |
+
+## Review

@@ -1370,6 +1370,16 @@ an OS process-start token and compare `(pid, start-token)` on every poll. Its
 stateful fake must support “old process dies; same PID, new token” as a distinct
 transition; a `map[pid]bool` liveness fake cannot test ownership.
 
+## Validate a PID before using OS pseudo-filesystem paths
+
+#143's Linux process-identity boundary accepted the `/proc/self` alias from a
+malformed pidfile, which could bind a long-lived watcher to its own process.
+
+**Rule.** Before interpolating external PID text into `/proc`, `ps`, `kill`, or
+similar process APIs, parse it once as a positive decimal integer and pass only
+the normalized integer onward. Tests must include OS aliases, zero, negatives,
+and nonnumeric input—not only empty and nonexistent numeric PIDs.
+
 ## Revalidate authority after slow IO, not only before it
 
 #143 captured a stable process incarnation before each discovery pass, but the

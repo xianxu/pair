@@ -1,13 +1,13 @@
 ---
 id: 000143
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-08-18
 updated: 2026-08-19
 estimate_hours: 1.00
 started: 2026-08-18T22:02:47-07:00
-actual_hours: 0.10
+actual_hours: 0.31
 ---
 
 # Keep agent session discovery alive after startup timeout
@@ -121,6 +121,7 @@ total: 1.00
   production-code findings remained.
 
 ### 2026-08-19
+- 2026-08-19: closed — Fixed launch-generation freshness, root-vs-subagent authorization, process-incarnation checks before discovery and persistence, and positive-decimal PID validation preventing Linux proc aliases from binding the watcher to itself. Verified adversarial procutil tests, Linux amd64 cross-compile, focused sessionwatch/launcher packages, real shell watcher race regression, complete make test, and branch-wide git diff --check.
 
 - Reopened after live Alt+N diagnosis: the launcher spawned the watcher before
   Zellij, but OS scheduling did not run the detached watcher until 08:47:32.
