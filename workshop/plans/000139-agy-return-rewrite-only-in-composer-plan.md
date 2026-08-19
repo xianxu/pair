@@ -778,7 +778,7 @@ git add atlas/architecture.md atlas/how-to-bring-up-a-new-harness-cli.md README.
 git commit -m "atlas: #139: map unified harness Return routing" -m "Co-Authored-By: OpenAI Codex <noreply@openai.com>"
 ```
 
-- [ ] **Step 4: Close through SDLC and persist its anchor**
+- [x] **Step 4: Close through SDLC and persist its anchor**
 
 Run `sdlc close --issue 139 --verified '<focused, race, full-suite, fixture,
 and live evidence>'`. Follow its next-action output; it measures actual time,
