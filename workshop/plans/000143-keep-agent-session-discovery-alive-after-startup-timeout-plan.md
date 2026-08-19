@@ -61,110 +61,40 @@
   - **Injected into:** Repository integration tests; the fake persists process/path behavior across real CLI calls.
   - **Future extensions:** Add real-agent conformance only if platform mtime behavior diverges from the temporary filesystem.
 
-### Task 1: Pin the launcher-to-watcher process contract
+### Test strategy
 
-**Files:**
-- Modify: `cmd/internal/launcher/osruntime.go`
-- Modify: `cmd/internal/launcher/osruntime_test.go`
-- Modify: `cmd/internal/sessionwatch/runcli.go`
-- Modify: `cmd/internal/wrapcmd/wrap.go`
-- Modify: `cmd/internal/wrapcmd/agent_restart_test.go`
+| Function / boundary | Adversarial strategy and mechanical guard |
+|---|---|
+| `sessionwatch.CommandArgs` + `buildOptions` | Round-trip arbitrary agent argv containing internal-flag-looking tokens; the first `--` mechanically separates watcher metadata from untouched agent args. |
+| `freshAgentInvocation` | Drive every `SpecForAgent` member plus synchronous Claude through one table; watcher presence must equal registry membership, preventing a second agent list. |
+| `pidFileCurrent` | Generate subsecond mtime relations around the bound; native mode uses exact ordering, while a separate zero-bound legacy assertion pins whole-second tolerance. |
+| `Run` | Use the stateful clock/filesystem/process fake to permute PID write, watcher start, rollout appearance, and process death; config writes require an authorized PID generation and session. |
+| Real `pair session-watch` process | Persist PID files on the temporary filesystem before process start on both sides of a fixed bound; the stateful `lsof` fake proves serializer/parser/mtime behavior through the production CLI seam (ARCH-MOCK). |
 
-- [ ] **Step 1: Write the failing argv test**
+### Task 1: Establish the shared process contract (TDD)
 
-Add failing producer tests with a fixed `time.Date(...)`: pin the launcher shape below, and table-test Shift+Alt+N so Codex, Agy, and Muse produce the same generation-bound shape while Claude produces no watcher. Watchability must come from `sessionwatch.SpecForAgent`, not a second agent list.
+**Files:** `cmd/internal/sessionwatch/runcli.go`, `cmd/internal/sessionwatch/runcli_test.go`, `cmd/internal/launcher/osruntime.go`, `cmd/internal/launcher/osruntime_test.go`, `cmd/internal/wrapcmd/wrap.go`, `cmd/internal/wrapcmd/agent_restart_test.go`
 
-```go
-[]string{exe, "session-watch", "codex", "work", "/cwd/sub",
-    "--pid-not-before", "2026-08-19T08:47:30.123456789-07:00",
-    "--repo-root", "/cwd", "--repo-name", "pair", "--", "--no-alt-screen"}
-```
+- [ ] Add failing tests for the `CommandArgs`/`buildOptions` round trip and `freshAgentInvocation` registry strategy; run the focused packages and confirm failure for the absent contract.
+- [ ] Implement the shared RFC3339Nano command serializer, typed parser, producer clock capture, and `SpecForAgent`-derived Shift+Alt+N decision.
+- [ ] Run `go test ./cmd/internal/launcher ./cmd/internal/sessionwatch ./cmd/internal/wrapcmd -count=1 -timeout=30s`; expect PASS.
 
-- [ ] **Step 2: Run the launcher test and verify RED**
+### Task 2: Make PID freshness generation-aware (TDD)
 
-Run: `go test ./cmd/internal/launcher -run TestSidecarSpawnArgvSelfExecsPair -count=1`
+**Files:** `cmd/internal/sessionwatch/run.go`, `cmd/internal/sessionwatch/run_test.go`
 
-Expected: compile failure because `sessionwatch.CommandArgs` does not exist and `freshAgentInvocation` has no generation input.
+- [ ] Add failing property/table coverage for `pidFileCurrent` and stateful timing coverage for `Run`; confirm the current watcher-start comparison fails the native-generation strategy.
+- [ ] Implement one freshness policy used by both PID reads: exact comparison for nonzero launcher bounds and historical whole-second comparison for zero-bound legacy calls.
+- [ ] Run `go test ./cmd/internal/sessionwatch -count=1 -timeout=15s`; expect PASS across #143 lifecycle and #144 root-identity coverage.
 
-- [ ] **Step 3: Implement the minimal serializer and OS capture**
+### Task 3: Verify the real boundary and reconcile artifacts
 
-Export `sessionwatch.CommandArgs`, format its `time.Time` with `time.RFC3339Nano`, and replace both the launcher helper and wrapcmd's literal argv. Have `OSRuntime.SpawnSessionWatcher` pass `time.Now()` immediately before `spawnDetached`; pass a fixed generation into `freshAgentInvocation` tests and `time.Now()` from `mustFreshExecRequest`. Replace wrapcmd's Codex/Agy condition with `sessionwatch.SpecForAgent(agent, home)`. Keep `ProcOps` unchanged: clock capture belongs inside each process integration seam.
+**Files:** `tests/pair-session-watch-test.sh`, `atlas/architecture.md` (if stale), `atlas/how-to-bring-up-a-new-harness-cli.md` (if stale), `workshop/issues/000143-keep-agent-session-discovery-alive-after-startup-timeout.md`
 
-- [ ] **Step 4: Run the launcher test and verify GREEN**
-
-Run: `go test ./cmd/internal/launcher ./cmd/internal/wrapcmd -run 'TestSidecarSpawnArgvSelfExecsPair|TestFreshAgentInvocation.*Watcher|TestRunLaunchCodexAltScreen' -count=1`
-
-Expected: PASS; agent arguments remain after the `--` delimiter.
-
-### Task 2: Reproduce and fix delayed watcher startup
-
-**Files:**
-- Modify: `cmd/internal/sessionwatch/run.go`
-- Modify: `cmd/internal/sessionwatch/run_test.go`
-- Modify: `cmd/internal/sessionwatch/runcli.go`
-- Modify: `cmd/internal/sessionwatch/runcli_test.go`
-
-- [ ] **Step 1: Write failing CLI and lifecycle tests**
-
-Add a CLI test proving `--pid-not-before <RFC3339Nano>` parses before repo flags without consuming agent args. Add a `Run` regression where the launcher bound is `08:47:30`, the PID file is written at `08:47:31`, and watcher `Now()` begins at `08:47:32`; the live PID exposes a valid root rollout and must produce the new config. Add the negative twin with a PID mtime one nanosecond before the bound in the same second; it must remain rejected even while live. Retain `TestRunTreatsSameSecondPidfileAsFresh` for the zero-bound legacy path.
-
-- [ ] **Step 2: Run both regressions and verify RED**
-
-Run: `go test ./cmd/internal/sessionwatch -run 'TestBuildOptions.*PIDNotBefore|TestRun.*LauncherGeneration' -count=1`
-
-Expected: compile/assertion failure because `PIDNotBefore` and the internal flag do not exist.
-
-- [ ] **Step 3: Implement typed parsing and one freshness threshold**
-
-Add `PIDNotBefore time.Time` to `Options`. Parse the internal flag with `time.Parse(time.RFC3339Nano, value)`; malformed/missing values after the flag return `ok=false`. Replace `freshPID` with one policy helper used by both call sites: nonzero `PIDNotBefore` requires `!mod.Before(bound)` at full precision, while a zero bound falls back to `mod.Unix() >= watchStart.Unix()` for legacy compatibility.
-
-- [ ] **Step 4: Run sessionwatch tests and verify GREEN**
-
-Run: `go test ./cmd/internal/sessionwatch -count=1 -timeout=15s`
-
-Expected: PASS, including #143 delayed lifecycle cases and #144 root/subagent classification cases.
-
-### Task 3: Verify the process boundary and document the corrected clock
-
-**Files:**
-- Modify if stale: `atlas/architecture.md`
-- Modify if stale: `atlas/how-to-bring-up-a-new-harness-cli.md`
-- Modify: `tests/pair-session-watch-test.sh`
-- Modify: `workshop/issues/000143-keep-agent-session-discovery-alive-after-startup-timeout.md`
-
-- [ ] **Step 1: Run shadow searches and update only stale descriptions**
-
-Run: `rg -n 'fresh PID|watchStart|watcher start|PID file|session-watch' atlas cmd/internal/sessionwatch cmd/internal/launcher`
-
-Expected: operational prose describes PID freshness relative to launcher generation for native launches and watcher start only for legacy/direct invocation (ARCH-PURPOSE).
-
-- [ ] **Step 2: Add and run the real CLI/filesystem regression**
-
-Extend `tests/pair-session-watch-test.sh` with a generation-bound case that writes a live PID file after a fixed RFC3339Nano bound but starts `pair session-watch` only afterward; assert the config is written. Add a stale case whose PID mtime is before the bound and assert no config is written. This covers serializer/parser/filesystem semantics through the production process boundary (ARCH-MOCK).
-
-Run: `env -u PAIR_TAG -u PAIR_AGENT -u PAIR_SESSION_ID -u PAIR_DATA_DIR bash tests/pair-session-watch-test.sh`
-
-Expected: PASS for legacy stale-replacement, delayed-start acceptance, and stale-generation rejection.
-
-- [ ] **Step 3: Run focused verification**
-
-Run: `go test ./cmd/internal/launcher ./cmd/internal/sessionwatch -count=1 -timeout=30s`
-
-Expected: PASS.
-
-- [ ] **Step 4: Run repository verification**
-
-Run: `env -u PAIR_TAG -u PAIR_AGENT -u PAIR_SESSION_ID -u PAIR_DATA_DIR go test ./... -count=1`
-
-Run: `env -u PAIR_TAG -u PAIR_AGENT -u PAIR_SESSION_ID -u PAIR_DATA_DIR make test`
-
-Run: `git diff --check`
-
-Expected: all commands exit 0 with no failures or whitespace errors.
-
-- [ ] **Step 5: Record implementation evidence**
-
-Tick the two reopened issue-plan rows, append RED/GREEN and live-race evidence to `## Log`, and commit with the repository convention and `Co-Authored-By` trailer.
+- [ ] Extend the stateful shell fixture for the real-process timing strategy; run `env -u PAIR_TAG -u PAIR_AGENT -u PAIR_SESSION_ID -u PAIR_DATA_DIR bash tests/pair-session-watch-test.sh`; expect PASS.
+- [ ] Shadow-search with `rg -n 'fresh PID|watchStart|watcher start|PID file|session-watch' atlas cmd/internal/sessionwatch cmd/internal/launcher cmd/internal/wrapcmd` and update only descriptions that contradict launcher-generation freshness (ARCH-PURPOSE).
+- [ ] Run `env -u PAIR_TAG -u PAIR_AGENT -u PAIR_SESSION_ID -u PAIR_DATA_DIR go test ./... -count=1`, `env -u PAIR_TAG -u PAIR_AGENT -u PAIR_SESSION_ID -u PAIR_DATA_DIR make test`, and `git diff --check`; all must exit 0.
+- [ ] Tick the reopened issue rows and record RED/GREEN, integration, and shadow-sweep evidence in `## Log` before the boundary close.
 
 ## Revisions
 
@@ -182,3 +112,7 @@ Tick the two reopened issue-plan rows, append RED/GREEN and live-race evidence t
 ### 2026-08-19 09:10 PDT — Async-agent shadow sweep
 
 - Added Muse to Shift+Alt+N by deriving watchability from `sessionwatch.SpecForAgent`; table coverage pins Codex/Agy/Muse and excludes Claude.
+
+### 2026-08-19 09:15 PDT — Plan-quality gate PQ-1
+
+- Compressed enumerated cases and procedural diff instructions into named-function adversarial strategies while retaining explicit TDD and verification commands.

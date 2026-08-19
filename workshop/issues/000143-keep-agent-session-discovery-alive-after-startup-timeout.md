@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-08-18
 updated: 2026-08-19
-estimate_hours:
+estimate_hours: 1.00
 started: 2026-08-18T22:02:47-07:00
 actual_hours: 0.10
 ---
@@ -75,6 +75,26 @@ rule and same-second compatibility tolerance.
 - [ ] Reproduce the delayed-sidecar race with the stateful launcher/watcher
   fakes, then verify focused, integration, and repository-wide suites
   (ARCH-MOCK, ARCH-PURPOSE).
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. `sdlc estimate-source` reports the calibration
+source as stale, so the number is provisional but uses the required method. The
+work extends established Go, CLI, and shell-test seams, so no library-availability
+adjustment applies.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.10 impl=0.04
+item: smaller-go-module design=0.06 impl=0.20
+item: cross-cutting-refactor design=0.10 impl=0.20
+item: atlas-docs design=0.05 impl=0.04
+item: milestone-review design=0.04 impl=0.12
+design-buffer: 0.15
+total: 1.00
+```
 
 ## Log
 
