@@ -1,12 +1,13 @@
 ---
 id: 000143
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-08-18
 updated: 2026-08-18
 estimate_hours:
 started: 2026-08-18T22:02:47-07:00
+actual_hours: 0.10
 ---
 
 # Keep agent session discovery alive after startup timeout
@@ -56,6 +57,7 @@ synchronously and must remain unaffected.
 ## Log
 
 ### 2026-08-18
+- 2026-08-18: closed — Judgment actual: 0.10h from the 22:02 claim through the 22:08 verified commit because transcript telemetry is unavailable. Focused sessionwatch tests pass; all Go packages pass with runtime assets generated and inherited Pair session variables cleared; tests/pair-session-watch-test.sh passes; git diff --check clean. No atlas update: watcher scheduling only, with no new user-facing or architectural surface.; review verdict: FIX-THEN-SHIP
 
 - Root cause: the live Codex transcript appeared after the watcher's fixed
   60-second deadline, leaving `config-<tag>-codex.json` absent even though the
@@ -72,6 +74,9 @@ synchronously and must remain unaffected.
   package tests, all Go packages (with generated runtime assets and Pair session
   variables cleared), the shell session-watch integration test, and
   `git diff --check` pass.
+- Boundary review verdict: FIX-THEN-SHIP. Updated both atlas descriptions that
+  still treated the startup deadline as the watcher's terminal lifetime; no
+  production-code findings remained.
 
 ## Revisions
 

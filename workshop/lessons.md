@@ -1303,3 +1303,17 @@ if !bytes.Equal(buf, before) { t.Fatal("returned storage aliasing its input") }
 Corollary for reviews: "the fuzzer is green" answers *which bytes*, never *whose
 memory*. Ask what the oracle is blind to before treating a large exec count as
 coverage.
+
+## A timeout can describe a phase without describing a process lifetime
+
+#143 changed session discovery from a terminal 60-second deadline into two
+phases: fast startup discovery, then low-frequency polling while the bound agent
+process lives. The implementation and tests captured the distinction, but two
+atlas entries still called the component a "60s watcher" or promised a failure
+when that window elapsed.
+
+**Rule.** When a timeout changes from terminal to transitional, grep prose for
+the duration, "timeout", "deadline", "window", and the component name. Update
+each description to name both the bounded phase and the lifecycle exit
+condition; otherwise operational docs will mistake a scheduling phase for the
+component's lifetime.

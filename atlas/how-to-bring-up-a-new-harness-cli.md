@@ -83,7 +83,7 @@ If the agent presents blocking overlays, pickers (like file autocompletes), yes/
           ;;
   ```
 
-**Telemetry Signal** (aspect `3`, see §3): `session-id` from `pair-session-watch` — `fired` when `AgentSpec.Match` resolves an id and the config is written, **`near-miss`** when a file matching the watch pattern is found but no id can be extracted (filename/format drift), `fail` when the 60s watch window elapses with no id at all (the session file never appeared where expected). The resume mapping in `bin/pair-shell` is the *consumer* of this id; it's static config with no separate signal.
+**Telemetry Signal** (aspect `3`, see §3): `session-id` from `pair-session-watch` — `fired` when `AgentSpec.Match` resolves an id and the config is written, **`near-miss`** when a file matching the watch pattern is found but no id can be extracted (filename/format drift), `fail` when the 60-second fast-discovery window elapses without a fresh PID or an id. With a fresh PID, the watcher instead continues discovery every 60 seconds for the agent process lifetime, accommodating agents that create their transcript only after the first interaction. The resume mapping in `bin/pair-shell` is the *consumer* of this id; it's static config with no separate signal.
 
 ---
 
