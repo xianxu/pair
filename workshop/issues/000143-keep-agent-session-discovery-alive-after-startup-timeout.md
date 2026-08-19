@@ -167,6 +167,9 @@ total: 1.00
   with a stateful `LsofPaths` hook proving a mid-discovery incarnation change
   discards the candidate. The remaining retired watcher/recovery names were
   reconciled across atlas and transcript comments.
+- Fourth boundary review accepted runtime behavior and found only plan status
+  drift plus two shell-era recovery instructions. Corrected the entity statuses
+  and pointed the guide at the native launcher seams.
 
 ## Revisions
 

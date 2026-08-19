@@ -18,7 +18,7 @@
 
 | Name | Lives in | Status |
 |------|----------|--------|
-| `Options.PIDNotBefore` | `cmd/internal/sessionwatch/run.go` | modified |
+| `Options.PIDNotBefore` | `cmd/internal/sessionwatch/run.go` | new |
 | `sessionwatch.CommandArgs` | `cmd/internal/sessionwatch/runcli.go` | new |
 | `pidFileFresh` | `cmd/internal/sessionwatch/run.go` | new |
 | `sessionWatcherSpawnArgv` | `cmd/internal/launcher/osruntime.go` | new |
@@ -53,7 +53,7 @@
 | `buildOptions` | `cmd/internal/sessionwatch/runcli.go` | modified | internal process argv/environment |
 | `pidFileCurrent` | `cmd/internal/sessionwatch/run.go` | new | PID-file mtime lookup through `Runtime` |
 | `Runtime.ProcessIdentity` | `cmd/internal/sessionwatch/run.go` | new | stable OS process-incarnation lookup |
-| `sessionwatch.Runtime` fake | `cmd/internal/sessionwatch/run_test.go` | reused | PID file/process lifecycle/filesystem state |
+| `sessionwatch.Runtime` fake | `cmd/internal/sessionwatch/run_test.go` | modified | PID file/process lifecycle/filesystem state |
 | Session-watch shell fixture | `tests/pair-session-watch-test.sh` | modified | real CLI parsing and filesystem mtimes |
 
 - **`OSRuntime.SpawnSessionWatcher`** — captures `time.Now()` at the IO boundary and passes it to the pure argv serializer.
@@ -168,3 +168,12 @@
   candidate is discarded (ARCH-MOCK, ARCH-PURPOSE).
 - Completed the current-surface shadow sweep for the dispatcher route, recovery
   flag owner, signal registry, transcript comment, and migration inventory.
+
+### 2026-08-19 10:00 PDT — Entity-status reconciliation
+
+- Corrected `Options.PIDNotBefore` from modified to new and the sessionwatch
+  runtime fake from reused to modified, matching the base-to-HEAD diff and its
+  added incarnation/on-call transition state.
+- Removed the last shell-era recovery instructions from the new-agent guide in
+  favor of `OSRuntime.AgentSessionExists`, `resumeToken`/`composeResumeArgs`, and
+  the native Go launcher.
