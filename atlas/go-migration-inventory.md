@@ -208,9 +208,10 @@ Build/install callers:
 - #77 made `pair-go launch ...` a meaningful Go-owned compatibility handoff to
   the then-shell `bin/pair`, with argv/env preserved and missing-launcher
   diagnostics.
-- #78 ported the session-id watcher to `cmd/pair-session-watch` with
-  `bin/pair-session-watch.sh` retained as a shim (since retired in #94 M2 — the
-  launcher spawns the Go `bin/pair-session-watch` directly).
+- #78 ported the session-id watcher to the then-standalone
+  `cmd/pair-session-watch`, with `bin/pair-session-watch.sh` retained as a shim.
+  #94 M2 retired that shell shim; #104 later folded the standalone binary into
+  today's `pair session-watch` route.
 - #93 M1 ported the title poller to `cmd/pair-title` + `cmd/internal/titlepoller`
   on that same template — pure decisions (heat buckets, cwd abbrev, frame title,
   argv identity guard, unchanged-skip cache) unit-tested directly; zellij/cmux/ps/fs
@@ -289,7 +290,8 @@ Build/install callers:
   `copy-on-select` execs `$PAIR_HOME/bin/flash-pane` / `bin/clipboard-to-pane`
   directly (`cmd/internal/clipcmd/run.go`); the launcher's `SpawnTitlePoller` /
   `SpawnSessionWatcher` (`cmd/internal/launcher/osruntime.go`) spawn
-  `bin/pair-title` / `bin/pair-session-watch` directly. All five were dropped from
+  `bin/pair-title` / `bin/pair-session-watch` directly. #104 later folded both
+  sidecars into `pair title` / `pair session-watch`. All five were dropped from
   the tree and from `explicitAssetPaths` (`embed_test.go` asserts them excluded;
   the copied-binary smoke `tests/pair-embedded-runtime-test.sh` asserts they're
   absent). Net: all **seven** orchestrator shims are gone (2 in M1, 5 in M2). The
@@ -427,7 +429,7 @@ rule:
 - `bin/pair-restart.sh` (removed #94 M1 — ported to in-process `pair restart`, `cmd/internal/launcher/restart.go`)
 - `bin/pair-scribe`
 - `bin/pair-scrollback-render`
-- `bin/pair-session-watch.sh` (removed #94 M2 — `.sh` passthrough retired; `cmd/pair-session-watch` / `bin/pair-session-watch` is the owner, still bundled)
+- `bin/pair-session-watch.sh` (removed #94 M2; current owner is `pair session-watch` / `cmd/internal/sessionwatch`)
 - `bin/pair-slug`
 - `bin/pair-title.sh` (removed #94 M2 — `.sh` passthrough retired; `cmd/pair-title` / `bin/pair-title` is the owner, still bundled)
 - `bin/pair-wrap`
@@ -543,7 +545,7 @@ rule:
 - `cmd/pair-review-readiness/main.go`
 - `cmd/pair-review-target/main.go`
 - `cmd/pair-scrollback-open/main.go`
-- `cmd/pair-session-watch/main.go`
+- `cmd/pair-session-watch/main.go` (removed #104; folded into `cmd/pair-go`)
 - `cmd/pair-title/main.go`
 - `cmd/pair-scribe/main.go` (thin shim over `cmd/internal/scribecmd`)
 - `cmd/pair-scrollback-render/main.go`

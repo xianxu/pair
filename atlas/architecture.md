@@ -840,7 +840,7 @@ one-liner.
   (the opener `bin/pair-changelog-open` and the draft-nvim `.ready` watcher):
   the exported `PAIR_SESSION_ID` (set by the launcher at launch for claude-fresh /
   any resume) → the per-tag `config-<tag>-<agent>.json` `session_id` (the
-  `pair-session-watch` codex/agy async path) → the **legacy unsuffixed base**
+  `pair session-watch` Codex/Agy/Muse async path) → the **legacy unsuffixed base**
   when no id is known (backward compat). Files off `<base>`: `.md` (the log,
   plain markdown; `## YYYY-MM-DD` day headers from real change-time when the
   session has `time` events, header-free bullets otherwise — #59), `.anchor` (`turns:<N>` header + content
@@ -987,7 +987,7 @@ Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/image-capture-<tag>` + `image-c
 
 Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/slug-proposed-<tag>` and `slug-<tag>` — the orientation-slug channel (issue #000027). `pair-slug` (spawned by pair-wrap at turn-end) writes the proposed `=== <branch> | <focus> ===` to `slug-proposed-<tag>` (atomic temp+rename); nvim applies it to draft line 1 and writes the effective line back to `slug-<tag>`, which is the `prev` the proposer reads next turn. For Codex, if `config-<tag>-codex.json` is missing, `pair-slug` can recover the live rollout by reading `agent-pid-<tag>`, walking descendants via `ps`, and checking their `lsof` paths; every rollout candidate must pass the shared root-`session_meta` classifier before use. Agy has two artifacts: restart/session discovery uses `~/.gemini/antigravity-cli/conversations/<session_id>.db`, while transcript summarization still reads `~/.gemini/antigravity-cli/brain/<session_id>/.system_generated/logs/transcript.jsonl`. Codex model auth is API-key first, then Codex CLI subscription auth via `codex exec`. Single writer each, so the channel is race-free.
 
-Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/adapt-<tag>.jsonl` — the adaptation flight recorder (issue #000045). One JSON line per harness-adaptation trigger (`{ts, comp, agent, aspect, signal, outcome, detail}`), appended concurrently by `cmd/pair-wrap`, `cmd/pair-slug`, `cmd/pair-session-watch`, and `nvim/adapt.lua` — all writing one shared schema. Truncated once at session launch by the launcher (so multi-process `O_APPEND` never races) and removed on full quit. Read by `doctor/doctor.sh` to surface integration drift (near-miss/fail signals). See `atlas/how-to-bring-up-a-new-harness-cli.md` §3 for the signal registry.
+Internal: `${XDG_DATA_HOME:-~/.local/share}/pair/adapt-<tag>.jsonl` — the adaptation flight recorder (issue #000045). One JSON line per harness-adaptation trigger (`{ts, comp, agent, aspect, signal, outcome, detail}`), appended concurrently by `pair wrap`, `pair slug`, `pair session-watch`, and `nvim/adapt.lua` — all writing one shared schema. Truncated once at session launch by the launcher (so multi-process `O_APPEND` never races) and removed on full quit. Read by `doctor/doctor.sh` to surface integration drift (near-miss/fail signals). See `atlas/how-to-bring-up-a-new-harness-cli.md` §3 for the signal registry.
 
 **Migration from v1:** the launcher detects old `~/scratch/pair-{draft,log}-*.md` files on startup and moves them to the new XDG location, stripping the redundant `pair-` prefix from filenames.
 

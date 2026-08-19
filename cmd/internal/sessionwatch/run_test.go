@@ -583,6 +583,29 @@ func TestRunStopsWhenPIDIsReusedByAnotherProcess(t *testing.T) {
 	}
 }
 
+func TestRunRevalidatesProcessIdentityAfterDiscovery(t *testing.T) {
+	home := "/tmp/home"
+	data := "/tmp/data"
+	sid := "019eff64-6ceb-7e72-9d41-a735a97029ac"
+	sessionFile := home + "/.codex/sessions/2026/06/25/rollout-2026-06-25T08-27-12-" + sid + ".jsonl"
+	rt := newFakeRuntime(time.Unix(600, 0))
+	rt.files[filepath.Join(data, "agent-pid-tag")] = fakeFile{content: []byte("1234\n"), mod: rt.now}
+	rt.files[sessionFile] = fakeFile{content: rootSessionMeta(sid), birth: rt.now}
+	rt.alive["1234"] = true
+	rt.identities["1234"] = "incarnation-a"
+	rt.descendants["1234"] = []string{"1234"}
+	rt.lsof["1234"] = []string{sessionFile}
+	rt.onLsof = func(string) { rt.identities["1234"] = "incarnation-b" }
+
+	if err := Run(Options{Agent: "codex", Tag: "tag", Cwd: "/repo", Home: home, DataDir: data,
+		PIDWait: time.Second, Timeout: time.Second, Poll: 100 * time.Millisecond}, rt); err != nil {
+		t.Fatal(err)
+	}
+	if got := rt.writes[filepath.Join(data, "config-tag-codex.json")]; got != nil {
+		t.Fatalf("mid-discovery reused-pid config = %s, want none", got)
+	}
+}
+
 func countDuration(ds []time.Duration, want time.Duration) int {
 	var n int
 	for _, d := range ds {
@@ -620,6 +643,7 @@ type fakeRuntime struct {
 	logs        []fakeLog
 	sleeps      []time.Duration
 	onSleep     func(time.Duration)
+	onLsof      func(string)
 }
 
 func newFakeRuntime(now time.Time) *fakeRuntime {
@@ -700,7 +724,12 @@ func (f *fakeRuntime) Descendants(root string) ([]string, error) {
 	return []string{root}, nil
 }
 
-func (f *fakeRuntime) LsofPaths(pid string) ([]string, error) { return f.lsof[pid], nil }
+func (f *fakeRuntime) LsofPaths(pid string) ([]string, error) {
+	if f.onLsof != nil {
+		f.onLsof(pid)
+	}
+	return f.lsof[pid], nil
+}
 func (f *fakeRuntime) ProcessIdentity(pid string) string {
 	if !f.alive[pid] {
 		return ""

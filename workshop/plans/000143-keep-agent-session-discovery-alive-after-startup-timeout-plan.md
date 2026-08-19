@@ -89,7 +89,7 @@
 | `freshAgentInvocation` | Drive every `SpecForAgent` member plus synchronous Claude through one table; watcher presence must equal registry membership, preventing a second agent list. |
 | `pidFileFresh` | Generate subsecond mtime relations around the bound without filesystem IO; native mode uses exact ordering, while a separate zero-bound legacy assertion pins whole-second tolerance. |
 | `sessionWatcherSpawnArgv` | Assert the helper used by `OSRuntime.SpawnSessionWatcher` carries the fixed generation bound into the shared serializer. |
-| `Run` | Use the stateful clock/filesystem/process fake to permute PID write, watcher start, rollout appearance, and process death; config writes require an authorized PID generation and session. |
+| `Run` | Use the stateful clock/filesystem/process fake to permute PID write, watcher start, rollout appearance, process death, and PID reuse during discovery; config writes require incarnation authorization both before discovery and immediately before persistence. |
 | Real `pair session-watch` process | Persist PID files on the temporary filesystem before process start on both sides of a fixed bound; the stateful `lsof` fake proves serializer/parser/mtime behavior through the production CLI seam (ARCH-MOCK). |
 
 ### Task 1: Establish the shared process contract (TDD)
@@ -159,3 +159,12 @@
   `sessionWatcherSpawnArgv`, which is the helper called by
   `OSRuntime.SpawnSessionWatcher`; this pins the producer wiring, not only the
   downstream serializer.
+
+### 2026-08-19 09:50 PDT — Persistence reauthorization
+
+- Closed the mid-discovery TOCTOU window by revalidating process incarnation
+  after `discover` returns a candidate and before ledger/config persistence. A
+  stateful `LsofPaths` hook now recycles the PID during discovery and proves the
+  candidate is discarded (ARCH-MOCK, ARCH-PURPOSE).
+- Completed the current-surface shadow sweep for the dispatcher route, recovery
+  flag owner, signal registry, transcript comment, and migration inventory.

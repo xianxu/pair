@@ -162,6 +162,11 @@ total: 1.00
   stable kernel process-start identity to the runtime seam, a stateful PID-reuse
   regression, and direct coverage of the launcher producer helper
   (ARCH-MOCK, ARCH-PURPOSE).
+- Third boundary review found a narrower PID-reuse window during the IO-heavy
+  discovery call. Reauthorization now occurs immediately before persistence,
+  with a stateful `LsofPaths` hook proving a mid-discovery incarnation change
+  discards the candidate. The remaining retired watcher/recovery names were
+  reconciled across atlas and transcript comments.
 
 ## Revisions
 
@@ -203,3 +208,9 @@ total: 1.00
   any future process assigned the same numeric PID. The watcher must stop when
   the kernel start token changes, including PID reuse within one slow-poll
   interval.
+
+### 2026-08-19 09:50 PDT — Authorization point
+
+- Required incarnation validation both before discovery and immediately before
+  session persistence, so PID reuse during descendant/lsof/filesystem IO cannot
+  transfer the original watcher's authority.

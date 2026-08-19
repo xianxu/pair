@@ -137,6 +137,12 @@ func Run(opts Options, rt Runtime) error {
 
 		result := discover(spec, rootPID, agentStart, legacyExisting, rt)
 		if result.ID != "" {
+			// Discovery crosses process/filesystem IO. Reauthorize immediately
+			// before persistence so PID reuse during that work cannot transfer
+			// the original watcher's authority to a different process.
+			if rootPID != "" && rt.ProcessIdentity(rootPID) != rootIdentity {
+				return nil
+			}
 			payload, err := ConfigJSON(ConfigPayload{
 				Agent:     opts.Agent,
 				Args:      StripResumeArgs(opts.Agent, opts.Args),

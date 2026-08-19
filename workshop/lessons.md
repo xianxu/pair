@@ -1369,3 +1369,15 @@ authority.
 an OS process-start token and compare `(pid, start-token)` on every poll. Its
 stateful fake must support “old process dies; same PID, new token” as a distinct
 transition; a `map[pid]bool` liveness fake cannot test ownership.
+
+## Revalidate authority after slow IO, not only before it
+
+#143 captured a stable process incarnation before each discovery pass, but the
+pass itself crossed `ps`, `lsof`, and filesystem IO before writing the session
+binding. PID ownership could change inside that interval.
+
+**Rule.** When external identity authorizes a persistent write, validate it at
+both ends of any IO-heavy discovery: before scanning, and again after selecting
+the candidate immediately before persistence. Give the fake an in-call hook so
+tests can change identity during the external operation; between-poll state
+changes do not cover TOCTOU races.

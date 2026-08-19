@@ -67,15 +67,11 @@ If the agent presents blocking overlays, pickers (like file autocompletes), yes/
 - When captured, the watcher writes `{ "agent": "<agent>", "args": [...], "session_id": "<uuid>" }` into `config-<tag>-<agent>.json`.
 
 **Recovery Flags:**
-- **File:** [bin/pair-shell](../bin/pair-shell)
-- Integrate the agent-specific resume argument in `bin/pair-shell`:
-  ```bash
-  case "$r_agent" in
-      claude)        resume_extra="--resume $r_sid" ;;
-      codex)         resume_extra="resume $r_sid" ;;
-      agy)           resume_extra="--conversation $r_sid" ;;
-  esac
-  ```
+- **File:** `cmd/internal/launcher/agentargs.go`
+- Add the agent-specific binding to `resumeToken`, place it through
+  `composeResumeArgs`, and extend the table tests. Codex and Muse use a leading
+  `resume <id>` subcommand; Claude uses `--resume <id>`, and Agy uses
+  `--conversation <id>`.
 - Support checking for active/resumable native session files in `agent_session_exists()`:
   ```bash
       agy)
@@ -189,7 +185,7 @@ write the same line shape directly):
 |---|---|---|---|---|
 | 1 Return remap | `return-remap` | pair-wrap | fired, bypass | zero `fired` / all `bypass` |
 | 2 Overlay suspend | `overlay-detect` | pair-wrap | fired, near-miss | any `near-miss` |
-| 3 Session watch | `session-id` | pair-session-watch | fired, near-miss, fail | `fail` (timeout) / `near-miss` (file found, id unparsed) |
+| 3 Session watch | `session-id` | pair session-watch | fired, near-miss, fail | `fail` (timeout) / `near-miss` (file found, id unparsed) |
 | 4 Slug gen | `slug-parse` | pair-slug | fired, near-miss, fail | `near-miss` (transcript parsed, 0 turns) / `fail` (resolved a transcript but couldn't read/parse it) |
 | 5 PTY filter | `output-filter` | pair-wrap | fired | a `fired` line that *stops* appearing (its absence is the signal — the sequence was renamed) |
 | 6 Settings | — | — | — | static config; no signal |
