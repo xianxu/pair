@@ -2,8 +2,77 @@ package wrapcmd
 
 import (
 	"bytes"
+	"strings"
 	"testing"
+	"time"
 )
+
+func TestEmitPlainCR_ConcurrentOverlayRearmRetainsNewStateAndTail(t *testing.T) {
+	p := proxyForHarness("codex")
+	p.pickerActive.Store(true)
+	p.overlayTextTail = "old overlay"
+
+	consumeLocked := make(chan struct{})
+	releaseConsume := make(chan struct{})
+	p.overlayConsumeHook = func() {
+		close(consumeLocked)
+		<-releaseConsume
+	}
+
+	enterDone := make(chan []byte, 1)
+	go func() { enterDone <- p.emitPlainCR(nil) }()
+	<-consumeLocked
+
+	detectStarted := make(chan struct{})
+	detectDone := make(chan struct{})
+	go func() {
+		close(detectStarted)
+		raw := []byte("Press enter to continue")
+		p.checkOverlayOpen(raw, raw)
+		close(detectDone)
+	}()
+	<-detectStarted
+	close(releaseConsume)
+
+	if got := <-enterDone; !bytes.Equal(got, []byte{'\r'}) {
+		t.Fatalf("older overlay Enter = %q, want bare CR", got)
+	}
+	<-detectDone
+	if !p.pickerActive.Load() {
+		t.Fatal("new overlay was erased by older Enter")
+	}
+	p.overlayMu.Lock()
+	tail := p.overlayTextTail
+	p.overlayMu.Unlock()
+	if !strings.Contains(tail, "Press enter to continue") {
+		t.Fatalf("new overlay tail = %q, want new marker retained", tail)
+	}
+}
+
+func TestHandleChunk_PanickingOverlayDetectorDoesNotStrandReturn(t *testing.T) {
+	profile := harnessTTYProfile{
+		keymap:       sendKeymap{plainCR: []byte{'\\', '\r'}},
+		composerGate: composerGateLegacy,
+		overlay: func(*proxy, []byte, []byte) (bool, string) {
+			panic("injected detector panic")
+		},
+	}
+	p := &proxy{ttyProfile: &profile}
+	rolling := []byte{}
+
+	p.handleChunk([]byte("detector input"), &rolling)
+
+	done := make(chan []byte, 1)
+	go func() { done <- p.emitPlainCR(nil) }()
+	select {
+	case got := <-done:
+		if !bytes.Equal(got, []byte{'\\', '\r'}) {
+			t.Fatalf("Return after recovered detector panic = %q, want remap", got)
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("Return blocked after recovered detector panic stranded overlay lock")
+	}
+}
 
 func TestOverlayDetectorByAgent(t *testing.T) {
 	cases := []struct {
@@ -70,11 +139,11 @@ func TestOverlayDetectorByAgent(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			detect, ok := overlayDetectorByAgent[c.agent]
+			profile, ok := profileForHarness(c.agent, true)
 			if !ok {
 				t.Fatalf("missing detector for %s", c.agent)
 			}
-			open, match := detect(&proxy{}, c.raw, c.raw)
+			open, match := profile.overlay(&proxy{}, c.raw, c.raw)
 			if open != c.wantOpen {
 				t.Fatalf("open = %v, want %v (match %q)", open, c.wantOpen, match)
 			}
@@ -86,7 +155,10 @@ func TestOverlayDetectorByAgent(t *testing.T) {
 }
 
 func TestTranslateChunk_CodexPickerPlainEnterSelectsOnce(t *testing.T) {
-	p := codexProxyWithComposer(true)
+	f := newHarnessSessionFake(t, "codex", true)
+	t.Cleanup(f.close)
+	f.output(codexLiveComposerPaint())
+	p := f.proxy
 	p.pickerActive.Store(true)
 
 	got, leftover, inPaste := p.translateChunk([]byte("\r\r"), false)
@@ -105,11 +177,8 @@ func TestTranslateChunk_CodexPickerPlainEnterSelectsOnce(t *testing.T) {
 }
 
 func TestArmCapture_CodexArmsImagePickerEnter(t *testing.T) {
-	p := &proxy{
-		agentBasename:  "codex",
-		sendKM:         sendKeymapByAgent["codex"],
-		captureOutPath: "capture",
-	}
+	p := proxyForHarness("codex")
+	p.captureOutPath = "capture"
 
 	p.armCapture()
 	if !p.pickerActive.Load() {
@@ -125,7 +194,7 @@ func TestArmCapture_CodexArmsImagePickerEnter(t *testing.T) {
 }
 
 func TestCheckOverlayOpen_CodexDoesNotRedetectStalePickerText(t *testing.T) {
-	p := &proxy{agentBasename: "codex"}
+	p := proxyForHarness("codex")
 	rolling := []byte("Use session directory (/tmp/old)")
 
 	p.checkOverlayOpen(rolling, rolling)

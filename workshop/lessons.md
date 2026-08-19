@@ -1,5 +1,129 @@
 # Lessons
 
+## Compound event state needs one synchronization owner
+
+An overlay used an atomic boolean plus a separately locked text tail. Enter
+loaded the boolean, a new overlay re-armed it, and Enter then stored false and
+cleared carryover—losing the newer event without any data race.
+
+**Rule.** When one logical event spans a flag, carryover, generation, or other
+fields, mutate and consume the whole state under one owner. Atomic primitives
+do not make a multi-step protocol atomic. Add a deterministic re-arm-during-
+consume interleaving that proves both the new flag and its associated data
+survive. Caught in #000139 Task 5 review.
+
+## Cross-system resize needs an exclusive transaction token
+
+The terminal model and child PTY could temporarily or permanently disagree on
+geometry. A simple validity boolean fixed one resize but failed when two
+prepare/commit sequences overlapped; an earlier commit could reopen
+authorization while the later resize remained incomplete.
+
+**Rule.** For a state transition spanning two systems, validate first and hold
+exclusive transaction ownership across prepare, external mutation, and exactly
+one commit or abort. Prepared and aborted states must stay fail-closed; commit
+must discard pre-transaction authorization and require fresh evidence. Test
+overlapping transactions through both commit and abort, external failure, and
+recovery. Caught in #000139 Task 5 review.
+
+## Panic recovery must not strand a critical section
+
+`handleChunk` intentionally recovered detector panics, but the detector wrapper
+manually unlocked its mutex after the call. A panic skipped the unlock, so the
+process survived while the next Return deadlocked.
+
+**Rule.** Any callback invoked inside a critical section must be wrapped by a
+helper that defers unlock before calling it. If an outer boundary recovers
+panics, add a regression that injects a panic and then proves the next operation
+using the same lock completes. Caught in #000139 Task 5 review.
+
+## Differential migrations must transform every state axis
+
+The first Muse snapshot oracle covered an empty composer at the captured cursor
+column but omitted typed text and the legacy tracker's cursor-row ±1 behavior.
+Both omissions produced unallowlisted old-true/new-false transitions even
+though the literal startup fixture stayed positive.
+
+**Rule.** A differential migration must enumerate transformations of every
+state axis the old predicate consumes: content, style, locality, cursor row,
+cursor column, visibility, and lifecycle mutation. Include representative
+positive transforms—not only the captured empty state—and reject any behavior
+change not named by the contract. Caught in #000139 Task 3 review.
+
+## Process cleanup is one observable transaction
+
+The first live-harness capture helper hid cleanup errors behind a primary
+timeout, could skip its final reap after a kill error, and requested reader
+cancellation without joining the goroutine. Happy-path child tests still
+passed, but callers could not know whether capture had actually finished.
+
+**Rule.** A subprocess/PTY helper must have one teardown owner: cancel and
+close IO, signal, reuse one wait-result channel, continue through bounded
+kill/reap even after operation failures, and boundedly join every reader.
+Return `errors.Join(primary, cleanup)` so the original failure and cleanup
+failure are both observable. Pair injected operation-failure tests with a real
+controlled child on the same seam. Caught in #000139 Task 2A review.
+
+## Capacity tests must finish on capacity, not elapsed throughput
+
+A 1 MiB retention test waited 100 ms and then required all 1 MiB to have
+arrived. Under concurrent load it retained only 377,856 bytes, even though the
+cap implementation was correct.
+
+**Rule.** Test a byte/item cap by completing when the observed retained count
+reaches the cap, with time only as a generous safety bound. Keep timeout
+behavior in a separate test. Never make scheduler throughput the oracle for a
+capacity invariant. Caught in #000139 Task 2A review.
+
+## Authorization enums need a fail-safe zero value
+
+The first Return gate enum assigned its legacy remap policy to zero. An absent
+or corrupt profile therefore fell through as authorized; an all-zero keymap
+could report `Fired` while emitting no bytes and swallow Enter.
+
+**Rule.** For any enum controlling a rewrite, permission, route, or destructive
+action, reserve zero for unknown/disabled and switch exhaustively. Only named
+authorizing values may reach configured behavior; zero and invalid values must
+take the safe observable fallback. Test both an all-zero owner struct and an
+out-of-range enum. Caught in #000139 Task 2 review.
+
+## Terminal observers must share the parser's state model
+
+A raw C1 CSI byte can be a control in terminal ground state and ordinary data
+inside UTF-8, OSC, or DCS. A side observer that scans framed escapes without
+the terminal parser's state therefore authorizes controls the screen owner did
+not parse, especially across caller chunk boundaries.
+
+**Rule.** When security- or routing-relevant evidence shadows a terminal
+parser, use the same bounded parser state semantics as the screen owner. Test
+the same control byte in ground, UTF-8, OSC, and DCS contexts at every split;
+do not infer controls from raw byte values alone. Caught in #000139 Task 1
+review.
+
+## Dependency boundaries define the property-test oracle
+
+x/vt flushes extended graphemes at each `Write`, so one-shot and chunked writes
+of the same valid ZWJ stream can produce different cell grids. Requiring grid
+equality would force Pair to become a second grapheme renderer without proving
+the Return-routing behavior the issue exists to protect.
+
+**Rule.** Before asserting chunk-equivalent representations, prove the owning
+dependency promises that representation invariant. If it does not, keep
+boundary tests to safety, bounds, and coherent state, then assert equivalence at
+the product decision seam using literal production streams. Seed fuzzers with a
+deterministic multi-codepoint grapheme such as `👩‍💻`. Caught in #000139 Task 1
+review.
+
+## Validate dimensions before allocation boundaries
+
+Rejecting only zero and negative dimensions still allowed huge positive PTY
+sizes to panic inside x/vt allocation and made snapshot multiplication unsafe.
+
+**Rule.** Any externally influenced width/height pair must pass one shared,
+overflow-safe per-axis and total-area validator before construction, resize, or
+`width*height` allocation. Rejected mutations must preserve the prior complete
+state. Include max-int-shaped rejection tests. Caught in #000139 Task 1 review.
+
 ## Local predicates must count local evidence
 
 The #142 close review caught a composer detector that required one painted row
@@ -1391,3 +1515,38 @@ both ends of any IO-heavy discovery: before scanning, and again after selecting
 the candidate immediately before persistence. Give the fake an in-call hook so
 tests can change identity during the external operation; between-poll state
 changes do not cover TOCTOU races.
+
+## A screen-scraping recognizer must be validated against derived states, not just the captured screen (#139)
+
+Three composer recognizers were each derived from a *startup* capture and each
+rejected ordinary composing states — a blank line inside the message, a composer
+grown past one line. The startup screen is the one state a capture makes easy
+and the one state users spend the least time in. When a predicate keys on screen
+structure, enumerate the states the feature is meant to *produce* (after one
+newline, after several, with an empty line, grown) and pin each one; a fixture
+of the initial paint proves almost nothing about them.
+
+## Do not infer a discriminator's power without capturing the state it must reject (#139)
+
+Agy's recognizer was tightened to require the composer prompt's bright blue,
+on the assumption that its pickers paint markers unstyled. Driving the real CLI
+showed Agy paints slash-menu selection markers in exactly the same bright blue.
+The rule was a necessary condition sold as a sufficient one. If a rule exists to
+reject state X, capture X and assert the rejection; otherwise record explicitly
+that the rule is unproven rather than describing it as a defense.
+
+## `go test` hides passing-package output, so a "loud" warning must be a failure (#139)
+
+An evidence gap was reported with `t.Logf`, then `fmt.Fprintf(os.Stderr, ...)`.
+Neither appears in `make test` — non-verbose `go test` suppresses output for
+packages that pass. A warning that only shows under `-v` is a silent pass. Make
+the condition fail, with an in-code acknowledgment list that must name each known
+gap and that itself fails when an entry outlives the gap.
+
+## When two states are provably indistinguishable, pin the resolution as policy (#139)
+
+Codex's composer blank line and the gap above its status line are cell-identical;
+so are a mid-frame composer row and the settled status row. No predicate can
+separate them. The fix is not a cleverer heuristic but an explicit decision,
+recorded as a test row with a comment saying which way it resolves and why, so a
+later edit flips a policy visibly instead of silently changing behavior.

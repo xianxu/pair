@@ -55,14 +55,17 @@ func waitFor(timeout time.Duration, cond func() bool) bool {
 	return cond()
 }
 
-// claudeProxy yields a *proxy wired with the claude keymap (plain
-// Enter → backslash-Enter, Alt+Enter → plain Enter), matching what
-// pair-wrap's sendKeymapByAgent[claude] resolves to in production.
+func proxyForHarness(harness string) *proxy {
+	profile, ok := profileForHarness(harness, true)
+	if !ok {
+		return &proxy{agentBasename: harness}
+	}
+	return &proxy{agentBasename: harness, ttyProfile: &profile}
+}
+
+// claudeProxy yields a proxy wired through the production Claude profile.
 func claudeProxy() *proxy {
-	return &proxy{sendKM: sendKeymap{
-		plainCR: []byte{'\\', '\r'},
-		altCR:   []byte{'\r'},
-	}}
+	return proxyForHarness("claude")
 }
 
 // TestTranslateStdin_PassthroughPlainBytes exercises the happy path:

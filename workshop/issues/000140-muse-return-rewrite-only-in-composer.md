@@ -1,10 +1,10 @@
 ---
 id: 000140
-status: open
+status: wontfix
 deps: []
 github_issue:
 created: 2026-08-16
-updated: 2026-08-16
+updated: 2026-08-17
 estimate_hours:
 ---
 
@@ -62,3 +62,22 @@ menu footer.
 - Updated after pair#142 design review: Codex's cursor/paint detector is
   Codex-specific; Muse should reuse the positive-detection contract, not the
   exact terminal heuristic.
+
+### 2026-08-17
+
+- `sdlc judge milestone-review --issue 140 --base ab736d1^ --head ab736d1
+  --agent codex` reviewed the exact `ab736d1^..ab736d1` window and returned
+  `REWORK`. Critical findings were that stale Muse composer evidence survives
+  EL/screen mutation and that an unrelated nearby unqualified `›` activates the
+  composer. Important findings were duplicated Codex/Muse terminal trackers
+  (`ARCH-DRY`), missing stateful literal replay/live conformance (`ARCH-MOCK`),
+  a missing README update, and mislabeled repository metadata in the SDLC
+  review even though it inspected Pair.
+- The mislabeled repository metadata was a review-launch/tooling metadata issue;
+  the reviewer still inspected Pair at the exact commit window. It is not part
+  of #139's product scope, and this supersession does not claim it is fixed.
+- Superseded by #139, whose revision commit `309bad4` absorbs all #140
+  product/implementation acceptance criteria and findings into one unified
+  x/vt terminal, profile, and recognizer implementation. The known-broken
+  `ab736d1` must not be claimed or closed as codecomplete; #139 owns the
+  correction.

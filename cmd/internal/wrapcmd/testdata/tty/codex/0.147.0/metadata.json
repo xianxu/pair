@@ -1,0 +1,10 @@
+{
+  "agent": "codex",
+  "version": "codex-cli 0.147.0",
+  "captured_at": "2026-08-19T19:04:35Z",
+  "command": ["codex", "--no-alt-screen", "-c", "check_for_update_on_startup=false"],
+  "files": {
+    "composer.raw": "9c6889d4ea0c3726df092e8bb5ec8090c569b467588bcea1fac212979873ff63",
+    "overlay.raw": "35de592e3b97187a094f2df098fd56526059c47137f4e4239253b012192c2765"
+  }
+}

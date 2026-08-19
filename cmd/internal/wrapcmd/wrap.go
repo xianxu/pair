@@ -148,51 +148,7 @@ type sendKeymap struct {
 	altBS          []byte
 }
 
-var sendKeymapByAgent = map[string]sendKeymap{
-	"claude": {
-		// Claude reads `\<Enter>` as newline regardless of terminal
-		// keyboard-protocol level — the documented portable path.
-		plainCR: []byte{'\\', '\r'},
-		altCR:   []byte{'\r'},
-		altBS:   []byte{0x15}, // Ctrl+U — kill to line start
-	},
-	"codex": {
-		// Codex maps plain Enter to a newline (LF) and Alt+Enter to a
-		// bare CR submit — the same convention as agy. Codex's input
-		// parser reads a lone \r as the Enter key (submit / picker
-		// confirm, see #31/#34); a modified ESC+CR chord parses as
-		// Alt+Enter, which Codex does NOT bind to submit. So Alt+Enter
-		// must collapse to \r. (#87 forwarded ESC+CR and broke submit
-		// entirely; #88 reverted it.)
-		plainCR: []byte{'\n'},
-		altCR:   []byte{'\r'},
-		altBS:   []byte{0x15}, // Ctrl+U — kill to line start
-	},
-	"agy": {
-		// Antigravity (agy) maps plain Enter to newline and Alt+Enter
-		// to CR submit.
-		plainCR: []byte{'\n'},
-		altCR:   []byte{'\r'},
-		altBS:   []byte{0x15}, // Ctrl+U — kill to line start
-	},
-	"muse": {
-		// Muse (Meta) maps plain Enter to newline and Alt+Enter
-		// to CR submit — same as codex/agy; the TUI reads LF as
-		// newline and CR as submit.
-		plainCR: []byte{'\n'},
-		altCR:   []byte{'\r'},
-		altBS:   []byte{0x15}, // Ctrl+U — kill to line start
-	},
-}
-
 type overlayDetector func(*proxy, []byte, []byte) (bool, string)
-
-var overlayDetectorByAgent = map[string]overlayDetector{
-	"claude": detectClaudeOverlayOpen,
-	"codex":  detectCodexOverlayOpen,
-	"agy":    detectAgyOverlayOpen,
-	"muse":   detectMuseOverlayOpen,
-}
 
 // ----- Compiled regexes (byte-mode) -------------------------------------------
 
@@ -239,8 +195,10 @@ type proxy struct {
 	agentReadyPath  string
 
 	// PTY
-	ptmx *os.File
-	cmd  *exec.Cmd
+	ptmx          *os.File
+	cmd           *exec.Cmd
+	getWinsize    func(*os.File) (*pty.Winsize, error)
+	setPTYWinsize func(*os.File, *pty.Winsize) error
 
 	restartFresh atomic.Bool
 
@@ -249,41 +207,29 @@ type proxy struct {
 	endOfTurnRe      *regexp.Regexp
 	idleS            time.Duration
 
-	// Stdin Return-key remap. Zero-value (empty plainCR + altCR) means
-	// pass-through. Populated from sendKeymapByAgent unless the user
-	// opts out via PAIR_WRAP_REMAP_RETURN=0.
-	sendKM sendKeymap
+	// ttyProfile is resolved once at startup. Positive-gated profiles own a
+	// terminal model fed by the raw PTY stream; nil means pass-through.
+	ttyProfile *harnessTTYProfile
+	terminal   *terminalModel
 
 	// pickerActive is set when the active agent's output stream signals
 	// that a blocking overlay / picker opened. While set,
 	// translateChunk emits a bare \r for the user's plain Enter
 	// instead of the textarea-aware remap, so the overlay confirms.
-	// The flag clears after the first plain Enter is consumed —
-	// restoring normal remap for the next Enter, which is back in the
-	// textarea. Set from masterPump (handleChunk), read+cleared from
-	// translateChunk → atomic.
+	// The flag clears after the first plain Enter is consumed, restoring
+	// normal remap for the next Enter. Detection, capture arming, and Return
+	// consumption serialize with overlayMu; the atomic value permits
+	// diagnostic reads without weakening that ownership.
 	pickerActive atomic.Bool
 
-	// Codex does not expose a dedicated overlay OSC today, so its
-	// detector watches newly arrived visible text plus this carryover for
-	// split picker labels. Keeping it separate from the OSC rolling tail
-	// avoids re-detecting stale picker text after Enter clears
-	// pickerActive.
+	// Text detectors watch newly arrived visible text plus this carryover for
+	// split picker labels. Keeping it separate from the OSC rolling tail avoids
+	// re-detecting stale picker text after Enter clears pickerActive.
 	overlayMu       sync.Mutex
 	overlayTextTail string
-
-	// Codex Return remapping is positive-gated on the live composer box:
-	// plain Enter becomes LF only when raw output has recently painted the
-	// Codex composer surface and left the cursor visible inside or near it.
-	codexComposer *codexComposerTracker
-
-	// Muse Return remapping is positive-gated on the live composer box:
-	// plain Enter becomes LF only when raw output has recently painted the
-	// prompt glyph "›" (e2 9f a9, FG 38;2;90;160;255) at the cursor row and
-	// left the cursor visible inside or near it. Same positive-gate contract
-	// as Codex, but prompt-anchored — observed in scrollback-fix-tty-muse.raw
-	// at 30;1H empty and 9;1H filled, not BG 38;56;84.
-	museComposer *museComposerTracker
+	// overlayConsumeHook is a deterministic test seam invoked while an older
+	// Return owns overlayMu after consuming its overlay state.
+	overlayConsumeHook func()
 
 	// Adaptation flight recorder: always-on, appends one JSON line per
 	// adaptation trigger to adapt-<tag>.jsonl so pair-doctor can spot drift.
@@ -728,8 +674,6 @@ func detectCodexOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
 	}
 	visible := stripTerminalControls(data)
 	if p != nil {
-		p.overlayMu.Lock()
-		defer p.overlayMu.Unlock()
 		visible = p.overlayTextTail + visible
 		p.overlayTextTail = textSuffix(visible, rollingTailLen)
 	}
@@ -766,8 +710,6 @@ var agyPickerMarkers = []string{
 func detectAgyOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
 	visible := stripTerminalControls(data)
 	if p != nil {
-		p.overlayMu.Lock()
-		defer p.overlayMu.Unlock()
 		visible = p.overlayTextTail + visible
 		p.overlayTextTail = textSuffix(visible, rollingTailLen)
 	}
@@ -806,8 +748,6 @@ var musePickerMarkers = []string{
 func detectMuseOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
 	visible := stripTerminalControls(data)
 	if p != nil {
-		p.overlayMu.Lock()
-		defer p.overlayMu.Unlock()
 		visible = p.overlayTextTail + visible
 		p.overlayTextTail = textSuffix(visible, rollingTailLen)
 	}
@@ -1184,9 +1124,13 @@ func (p *proxy) armCapture() {
 	if p.captureOutPath == "" {
 		return
 	}
-	if p.agentBasename == "codex" && p.sendKM.plainCR != nil {
-		p.pickerActive.Store(true)
-		p.debug("PICKER-open", "codex: image capture")
+	if p.ttyProfile != nil && p.ttyProfile.captureSetsOverlay {
+		p.overlayMu.Lock()
+		wasActive := p.pickerActive.Swap(true)
+		p.overlayMu.Unlock()
+		if !wasActive {
+			p.debug("PICKER-open", "codex: image capture")
+		}
 	}
 	p.captureMu.Lock()
 	defer p.captureMu.Unlock()
@@ -1333,7 +1277,7 @@ const pendingFlushAfter = 30 * time.Millisecond
 
 // translateStdin replaces the io.Copy(ptmx, os.Stdin) pass-through with
 // a byte-stream translator that rewrites Return / Alt+Return per the
-// resolved per-agent sendKM, while honoring bracketed-paste mode so
+// resolved harness TTY profile, while honoring bracketed-paste mode so
 // pasted multi-line text passes through unchanged.
 //
 // Pipeline:
@@ -1514,7 +1458,50 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 }
 
 func (p *proxy) hasReturnRemap() bool {
-	return p.sendKM.plainCR != nil || p.sendKM.altCR != nil || p.sendKM.altBS != nil
+	return p.ttyProfile != nil
+}
+
+func (p *proxy) configureHarnessTTY(remapEnabled bool, cols, rows int) error {
+	// Every early return clears the terminal too: a live terminal paired with a
+	// nil profile would keep consuming output nothing consults.
+	profile, ok := profileForHarness(p.agentBasename, remapEnabled)
+	if !ok {
+		p.ttyProfile = nil
+		return p.releaseTerminal()
+	}
+	p.ttyProfile = &profile
+	if profile.composerGate != composerGatePositive {
+		return p.releaseTerminal()
+	}
+	terminal, err := newTerminalModel(cols, rows)
+	if err != nil {
+		p.ttyProfile = nil
+		return errors.Join(err, p.releaseTerminal())
+	}
+	if releaseErr := p.releaseTerminal(); releaseErr != nil {
+		// The replacement is already running; close it rather than strand its
+		// goroutine and leave a positive gate with no terminal.
+		return errors.Join(releaseErr, terminal.Close())
+	}
+	p.terminal = terminal
+	return nil
+}
+
+// releaseTerminal closes and drops any terminal model this proxy still owns.
+func (p *proxy) releaseTerminal() error {
+	if p.terminal == nil {
+		return nil
+	}
+	terminal := p.terminal
+	p.terminal = nil
+	return terminal.Close()
+}
+
+func (p *proxy) closeTerminal() error {
+	if p.terminal == nil {
+		return nil
+	}
+	return p.terminal.Close()
 }
 
 func (p *proxy) passThroughChunk(data []byte) ([]byte, []byte) {
@@ -1620,22 +1607,45 @@ func (osDraftRouteRuntime) RunZellijAction(args ...string) error {
 	return runZellijAction(args...)
 }
 
+type overlayDetection struct {
+	open        bool
+	newlyOpened bool
+	reason      string
+	nearMiss    string
+}
+
 // checkOverlayOpen flips pickerActive when the current agent's output
 // indicates that a blocking overlay opened. Idempotent — repeated
 // rerenders within one overlay don't re-debug-log.
 func (p *proxy) checkOverlayOpen(data, rolling []byte) {
-	detect, ok := overlayDetectorByAgent[p.agentBasename]
-	if !ok {
+	if p.ttyProfile == nil || p.ttyProfile.overlay == nil {
 		return
 	}
-	open, reason := detect(p, data, rolling)
-	if open {
-		if !p.pickerActive.Load() {
-			p.pickerActive.Store(true)
-			p.debug("PICKER-open", p.agentBasename+": "+reason)
-			p.adapt.Log(2, "overlay-detect", adapt.Fired, p.agentBasename+": "+reason)
+	detection := p.detectOverlayOpen(data, rolling)
+	if detection.open {
+		if detection.newlyOpened {
+			p.debug("PICKER-open", p.agentBasename+": "+detection.reason)
+			p.adapt.Log(2, "overlay-detect", adapt.Fired, p.agentBasename+": "+detection.reason)
 		}
 		return
+	}
+	if detection.nearMiss != "" {
+		p.adapt.Log(2, "overlay-detect", adapt.NearMiss, p.agentBasename+": unmatched prompt-shaped output: "+detection.nearMiss)
+	}
+}
+
+func (p *proxy) detectOverlayOpen(data, rolling []byte) overlayDetection {
+	p.overlayMu.Lock()
+	defer p.overlayMu.Unlock()
+
+	open, reason := p.ttyProfile.overlay(p, data, rolling)
+	if open {
+		wasActive := p.pickerActive.Swap(true)
+		return overlayDetection{
+			open:        true,
+			newlyOpened: !wasActive,
+			reason:      reason,
+		}
 	}
 	// The detector said no. If the output nonetheless looks like an interactive
 	// confirm/permission prompt, that's the fingerprint of harness drift: the
@@ -1645,12 +1655,14 @@ func (p *proxy) checkOverlayOpen(data, rolling []byte) {
 	// pair-doctor can surface the new string. Diagnostic only; we never act on
 	// it. Only meaningful when no overlay is already known-open. Gated on a
 	// live recorder so the extra strip+scan isn't paid when telemetry is off.
+	var detection overlayDetection
 	if p.adapt != nil && !p.pickerActive.Load() {
 		if snippet, ok := promptShape(stripTerminalControls(data)); ok && snippet != p.lastNearMiss {
 			p.lastNearMiss = snippet
-			p.adapt.Log(2, "overlay-detect", adapt.NearMiss, p.agentBasename+": unmatched prompt-shaped output: "+snippet)
+			detection.nearMiss = snippet
 		}
 	}
+	return detection
 }
 
 // genericPromptShapes are phrasings common to interactive confirm/permission
@@ -1726,46 +1738,26 @@ func snippetLine(s string, idx int) string {
 // restoring the textarea-aware plainCR remap for the next Enter.
 // See the pickerActive field doc for the open/close protocol.
 func (p *proxy) emitPlainCR(out []byte) []byte {
-	if p.pickerActive.Load() {
-		p.pickerActive.Store(false)
-		p.overlayMu.Lock()
+	if p.ttyProfile == nil {
+		return append(out, '\r')
+	}
+	p.overlayMu.Lock()
+	overlayActive := p.pickerActive.Swap(false)
+	if overlayActive {
 		p.overlayTextTail = ""
-		p.overlayMu.Unlock()
-		p.adapt.Log(1, "return-remap", adapt.Bypass, "plain Enter → bare CR (overlay active)")
-		return append(out, '\r')
 	}
-	if p.agentBasename == "codex" && !p.codexComposerActive() {
-		p.adapt.Log(1, "return-remap", adapt.Bypass, "plain Enter → bare CR (codex composer inactive)")
-		return append(out, '\r')
+	if p.overlayConsumeHook != nil {
+		p.overlayConsumeHook()
 	}
-	if p.agentBasename == "muse" && !p.museComposerActive() {
-		p.adapt.Log(1, "return-remap", adapt.Bypass, "plain Enter → bare CR (muse composer inactive)")
-		return append(out, '\r')
+	p.overlayMu.Unlock()
+	var snapshot *terminalSnapshot
+	if p.terminal != nil {
+		current := p.terminal.Snapshot()
+		snapshot = &current
 	}
-	p.adapt.Log(1, "return-remap", adapt.Fired, "plain Enter → newline remap")
-	return append(out, p.sendKM.plainCR...)
-}
-
-func (p *proxy) codexComposerActive() bool {
-	return p.codexComposer != nil && p.codexComposer.state().active()
-}
-
-func (p *proxy) ensureCodexComposer() *codexComposerTracker {
-	if p.codexComposer == nil {
-		p.codexComposer = newCodexComposerTracker()
-	}
-	return p.codexComposer
-}
-
-func (p *proxy) museComposerActive() bool {
-	return p.museComposer != nil && p.museComposer.state().active()
-}
-
-func (p *proxy) ensureMuseComposer() *museComposerTracker {
-	if p.museComposer == nil {
-		p.museComposer = newMuseComposerTracker()
-	}
-	return p.museComposer
+	decision := decidePlainReturn(*p.ttyProfile, overlayActive, snapshot)
+	p.adapt.Log(1, "return-remap", decision.outcome, decision.reason)
+	return append(out, decision.bytes...)
 }
 
 // translateChunk walks `data` and returns (rewritten bytes, leftover to
@@ -1773,6 +1765,11 @@ func (p *proxy) ensureMuseComposer() *museComposerTracker {
 // when the chunk ends mid-escape that could still resolve into bpStart,
 // bpEnd, or an Alt+Enter — the caller prepends it to the next read.
 func (p *proxy) translateChunk(data []byte, inPaste bool) ([]byte, []byte, bool) {
+	if p.ttyProfile == nil {
+		// hasReturnRemap() gates every production call site, but keep the same
+		// fail-closed guard emitPlainCR has so a future caller cannot panic.
+		return append([]byte(nil), data...), nil, inPaste
+	}
 	out := make([]byte, 0, len(data))
 	i := 0
 	for i < len(data) {
@@ -1807,7 +1804,7 @@ func (p *proxy) translateChunk(data []byte, inPaste bool) ([]byte, []byte, bool)
 			}
 			// KKP Alt+Enter: \x1b[13;3u → send.
 			if startsWith(data[i:], enterKKPAlt) {
-				out = append(out, p.sendKM.altCR...)
+				out = append(out, p.ttyProfile.keymap.altCR...)
 				i += len(enterKKPAlt)
 				continue
 			}
@@ -1825,19 +1822,19 @@ func (p *proxy) translateChunk(data []byte, inPaste bool) ([]byte, []byte, bool)
 			}
 			// Legacy Alt+Enter: \x1b\r.
 			if startsWith(data[i:], enterLegacyAlt) {
-				out = append(out, p.sendKM.altCR...)
+				out = append(out, p.ttyProfile.keymap.altCR...)
 				i += len(enterLegacyAlt)
 				continue
 			}
 			// KKP Alt+Backspace: \x1b[127;3u → kill to line start (Ctrl+U).
 			if startsWith(data[i:], altBSKKP) {
-				out = append(out, p.sendKM.altBS...)
+				out = append(out, p.ttyProfile.keymap.altBS...)
 				i += len(altBSKKP)
 				continue
 			}
 			// Legacy Alt+Backspace: \x1b\x7f (ESC + DEL) → kill to line start.
 			if startsWith(data[i:], altBSLegacy) {
-				out = append(out, p.sendKM.altBS...)
+				out = append(out, p.ttyProfile.keymap.altBS...)
 				i += len(altBSLegacy)
 				continue
 			}
@@ -2001,25 +1998,42 @@ func (p *proxy) setWinsize() {
 	if p.stdinFile == nil {
 		return
 	}
-	ws, err := pty.GetsizeFull(p.stdinFile)
+	getWinsize := p.getWinsize
+	if getWinsize == nil {
+		getWinsize = pty.GetsizeFull
+	}
+	setPTYWinsize := p.setPTYWinsize
+	if setPTYWinsize == nil {
+		setPTYWinsize = pty.Setsize
+	}
+	ws, err := getWinsize(p.stdinFile)
 	if err != nil {
 		p.traceWrap("winsize-read-fail", map[string]any{"error": err.Error()})
 		return
 	}
-	if err := pty.Setsize(p.ptmx, ws); err != nil {
+	var resize *terminalResize
+	if p.terminal != nil {
+		resize, err = p.terminal.PrepareResize(int(ws.Cols), int(ws.Rows))
+		if err != nil {
+			p.debug("TERMINAL-resize-fail", err.Error())
+			return
+		}
+		defer resize.Abort()
+	}
+	if err := setPTYWinsize(p.ptmx, ws); err != nil {
 		p.traceWrap("winsize-set-fail", map[string]any{"error": err.Error()})
 		return
+	}
+	if resize != nil {
+		if err := resize.Commit(); err != nil {
+			p.debug("TERMINAL-resize-fail", err.Error())
+			return
+		}
 	}
 	p.traceWrap("winsize", map[string]any{
 		"cols": int(ws.Cols),
 		"rows": int(ws.Rows),
 	})
-	if p.agentBasename == "codex" {
-		p.ensureCodexComposer().resize(int(ws.Rows), int(ws.Cols))
-	}
-	if p.agentBasename == "muse" {
-		p.ensureMuseComposer().resize(int(ws.Rows), int(ws.Cols))
-	}
 	p.logScrollbackEvent("resize", map[string]any{
 		"cols": int(ws.Cols),
 		"rows": int(ws.Rows),
@@ -2310,18 +2324,6 @@ argsDone:
 		p.idleS = 0
 	}
 
-	// Resolve the per-agent stdin Return-key keymap unless the user has
-	// disabled the rewrite via PAIR_WRAP_REMAP_RETURN=0. Empty struct
-	// means pass-through.
-	if os.Getenv("PAIR_WRAP_REMAP_RETURN") != "0" {
-		if km, ok := sendKeymapByAgent[p.agentBasename]; ok {
-			p.sendKM = km
-			p.debug("REMAP-return", fmt.Sprintf(
-				"%s: Enter→%q  Alt+Enter→%q",
-				p.agentBasename, string(km.plainCR), string(km.altCR)))
-		}
-	}
-
 	p.writeStartupBanner()
 
 	// Spawn child in a fresh PTY.
@@ -2333,6 +2335,18 @@ argsDone:
 	}
 	p.cmd = cmd
 	p.ptmx = ptmx
+	if err := p.configureHarnessTTY(os.Getenv("PAIR_WRAP_REMAP_RETURN") != "0", 80, 24); err != nil {
+		_ = ptmx.Close()
+		_ = cmd.Process.Kill()
+		_, _ = cmd.Process.Wait()
+		return 0, fmt.Errorf("initialize harness terminal: %w", err)
+	}
+	defer p.closeTerminal()
+	if p.ttyProfile != nil {
+		p.debug("REMAP-return", fmt.Sprintf(
+			"%s: Enter→%q  Alt+Enter→%q",
+			p.agentBasename, string(p.ttyProfile.keymap.plainCR), string(p.ttyProfile.keymap.altCR)))
+	}
 	p.traceWrap("child-start", map[string]any{
 		"child_pid": cmd.Process.Pid,
 	})
@@ -2410,8 +2424,9 @@ argsDone:
 	// Signal handling.
 	sigCh := make(chan os.Signal, 4)
 	signal.Notify(sigCh, syscall.SIGWINCH, syscall.SIGUSR1, syscall.SIGUSR2)
-	defer signal.Stop(sigCh)
+	signalDone := make(chan struct{})
 	go func() {
+		defer close(signalDone)
 		for s := range sigCh {
 			switch s {
 			case syscall.SIGWINCH:
@@ -2434,6 +2449,11 @@ argsDone:
 				}
 			}
 		}
+	}()
+	defer func() {
+		signal.Stop(sigCh)
+		close(sigCh)
+		<-signalDone
 	}()
 
 	// Main loop. One goroutine per direction; everything else is in
@@ -2673,11 +2693,10 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 				p.debug("DETECT-fail", fmt.Sprintf("%v", r))
 			}
 		}()
-		if p.agentBasename == "codex" {
-			p.ensureCodexComposer().feed(data)
-		}
-		if p.agentBasename == "muse" {
-			p.ensureMuseComposer().feed(data)
+		if p.terminal != nil {
+			if err := p.terminal.Feed(data); err != nil {
+				p.debug("TERMINAL-feed-fail", err.Error())
+			}
 		}
 		*rolling = append(*rolling, data...)
 		if len(*rolling) > rollingTailLen {
