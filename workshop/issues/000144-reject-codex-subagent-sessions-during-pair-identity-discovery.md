@@ -1,11 +1,12 @@
 ---
 id: 000144
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-08-19
 updated: 2026-08-19
 estimate_hours:
+started: 2026-08-19T07:09:43-07:00
 ---
 
 # Reject Codex subagent sessions during Pair identity discovery
