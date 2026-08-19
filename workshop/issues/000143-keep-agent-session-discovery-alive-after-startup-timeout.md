@@ -1,10 +1,10 @@
 ---
 id: 000143
-status: codecomplete
+status: working
 deps: []
 github_issue:
 created: 2026-08-18
-updated: 2026-08-18
+updated: 2026-08-19
 estimate_hours:
 started: 2026-08-18T22:02:47-07:00
 actual_hours: 0.10
@@ -32,6 +32,17 @@ Apply the lifecycle behavior uniformly to every asynchronous agent supported by
 `sessionwatch` (Codex, Agy, and Muse). Claude supplies its session ID
 synchronously and must remain unaffected.
 
+For native launches, define PID freshness against a generation lower bound
+captured immediately before either producer spawns the watcher, not against the
+later time at which the detached watcher process happens to run. Both whole-
+workbench launch/restart and Shift+Alt+N agent-only restart must build the
+internal `pair session-watch` command through one shared serializer. The watcher
+must compare generation-bound mtimes at full filesystem precision: accept a PID
+file written after the launcher bound even when it predates watcher startup,
+while rejecting an older PID even within the same wall-clock second. Direct or
+legacy watcher invocations without the bound retain the existing watcher-start
+rule and same-second compatibility tolerance.
+
 ## Done when
 
 - A live supported agent can acquire and persist a session ID after the initial
@@ -42,6 +53,12 @@ synchronously and must remain unaffected.
   exits, and still times out when no fresh PID exists.
 - Automated tests cover delayed discovery for Codex, Agy, and Muse plus both
   exit paths.
+- A detached watcher that starts after the new agent PID file was written still
+  binds that PID and persists the new session; an older live PID remains stale.
+- Whole-workbench Alt+N and agent-only Shift+Alt+N use the same generation-bound
+  watcher command contract.
+- Shift+Alt+N derives asynchronous-agent support from `SpecForAgent`: Codex,
+  Agy, and Muse spawn the watcher; synchronous Claude does not.
 
 ## Plan
 
@@ -53,6 +70,11 @@ synchronously and must remain unaffected.
   ARCH-MOCK).
 - [x] Run focused and repository-wide verification; confirm the synchronous
   Claude launch path is unchanged (ARCH-PURPOSE, ARCH-DRY).
+- [ ] Pass one launcher-generation lower bound through the existing watcher
+  spawn argv and parse it into watcher options (ARCH-DRY, ARCH-PURE).
+- [ ] Reproduce the delayed-sidecar race with the stateful launcher/watcher
+  fakes, then verify focused, integration, and repository-wide suites
+  (ARCH-MOCK, ARCH-PURPOSE).
 
 ## Log
 
@@ -78,6 +100,19 @@ synchronously and must remain unaffected.
   still treated the startup deadline as the watcher's terminal lifetime; no
   production-code findings remained.
 
+### 2026-08-19
+
+- Reopened after live Alt+N diagnosis: the launcher spawned the watcher before
+  Zellij, but OS scheduling did not run the detached watcher until 08:47:32.
+  The new wrapper had already written `agent-pid-parley_nvim` at 08:47:31, so
+  `freshPID(..., watchStart)` rejected the correct live PID, legacy discovery
+  snapshotted the already-created rollout, and the watcher logged its startup
+  timeout while the previous config ID survived.
+- Approved design: carry the launcher generation lower bound through the
+  existing internal sidecar argv. Keep timestamp capture inside the OS spawn
+  seam and the comparison in the injected watcher core (ARCH-PURE); do not add
+  a parallel nonce/readiness protocol or an unsafe grace window (ARCH-DRY).
+
 ## Revisions
 
 ### 2026-08-18 — Plan-quality review
@@ -85,3 +120,29 @@ synchronously and must remain unaffected.
 - Clarified that process death is observed at the next 60-second slow poll,
   rather than promising impossible immediate detection during a blocking sleep.
 - Recast the test plan as a function-level fake-clock strategy for `Run`.
+
+### 2026-08-19 09:00 PDT — Delayed watcher-start race
+
+- Extended PID freshness from “newer than watcher process startup” to “newer
+  than the native launch generation.” This preserves stale-PID rejection while
+  covering scheduler delay between sidecar spawn and sidecar execution.
+- Added launcher argv/CLI parsing and cross-boundary stateful-fake coverage to
+  the implementation scope; root/subagent authorization remains owned by #144.
+
+### 2026-08-19 09:05 PDT — Fresh-context plan review
+
+- Added the Shift+Alt+N watcher producer to the shadow sweep and moved command
+  serialization to `sessionwatch` so launcher and wrapper cannot drift
+  (ARCH-DRY, ARCH-PURPOSE).
+- Required nanosecond comparison for native generation bounds while preserving
+  the legacy same-second rule, plus a same-second stale negative regression.
+- Added an OS-backed CLI/filesystem regression where the PID is written after
+  the bound but before watcher execution, matching the observed scheduler race
+  rather than testing only isolated seams (ARCH-MOCK).
+
+### 2026-08-19 09:10 PDT — Async-agent shadow sweep
+
+- Replaced Shift+Alt+N's hardcoded Codex/Agy watcher condition with
+  `sessionwatch.SpecForAgent` as the existing source of asynchronous-agent
+  support. Required Codex/Agy/Muse positive tests and a Claude negative test so
+  Muse cannot fall out of the restart path again (ARCH-DRY, ARCH-PURPOSE).
