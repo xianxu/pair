@@ -1,12 +1,13 @@
 ---
 id: 000139
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-08-16
-updated: 2026-08-17
+updated: 2026-08-19
 estimate_hours: 5.83
 started: 2026-08-17T10:59:29-07:00
+actual_hours: 22.37
 ---
 
 # Agy Return rewrite only in composer
@@ -491,6 +492,7 @@ panic recovery cannot strand `overlayMu`. Tests overlap two transactions and
 inject a panicking detector before a subsequent usable Return.
 
 ### 2026-08-19 — Tasks 6 and 6A: conformance fixtures and Codex recognizer restoration
+- 2026-08-19: closed — Boundary review REWORK addressed. C1 (Codex rejected composers containing a blank line), C2 (Muse accepted only a one-line composer, an unnamed true->false regression), and I1 (Agy accepted any ">" by content, so its permission picker satisfied the positive gate) are each fixed with the reviewers reproduction added as a regression row. I2/I3: captured agy/1.1.15/overlay.raw; muse has no non-composer screen reachable without a live tool approval, so the fixture test now logs a named EVIDENCE GAP rather than passing silently. I4 plus all seven minor findings applied. Verification: git diff --check clean; focused wrapcmd, go test ./..., and make test all pass; go test -race ./cmd/internal/wrapcmd shows only the known unrelated TestMasterPumpFlushesStdoutOnTick bytes.Buffer race; five literal fixtures replay through the production proxy at every split from 0 to len; all three live harness checks pass.; review verdict: FIX-THEN-SHIP
 
 - Task 6 Step 4 against the three installed harnesses produced two findings that
   changed the task; both are recorded in the plan's `## Revisions`.
@@ -613,3 +615,43 @@ composing states.
   and `make test` all pass; race still shows only the known unrelated
   `TestMasterPumpFlushesStdoutOnTick`; all three live harness checks pass; five
   fixtures now replay at every split.
+
+### 2026-08-19 — FIX-THEN-SHIP findings addressed
+
+The re-close returned `FIX-THEN-SHIP` and corrected two claims I had made.
+
+- **The Agy negative fixture did not test what I said it did.** I wrote that
+  `overlay.raw` "exercises the positive gate alone"; it is actually the real
+  composer box with the cursor hidden and parked below the bottom rule, so the
+  gate declines on cursor state, never on the prompt-color rule.
+- **The Agy prompt-color rule does not discriminate pickers.** Driving the
+  installed CLI shows Agy paints its slash-menu selection marker in the *same*
+  bright blue as the composer prompt, with no `agyPickerMarkers` match on that
+  screen — captured as `agy/1.1.15/menu.raw`. The rule is kept as a necessary
+  condition (an unstyled `>` is rejected) but is documented as insufficient. It
+  is tolerable only because LF inserts a newline there rather than selecting,
+  verified live. A real permission-picker capture is still outstanding for both
+  Agy and Muse.
+- **The EVIDENCE GAP line was not loud.** `go test` suppresses passing-package
+  output, so neither `t.Logf` nor stderr showed in `make test`. Replaced with
+  `ttyFixtureNegativeGaps`: an in-code acknowledgment naming each uncovered
+  harness and why, where the test *fails* for any harness neither covered nor
+  acknowledged, and also fails when an entry outlives its gap. Proven by
+  removing the Muse entry and observing the failure.
+- **Codex mid-frame ambiguity pinned.** Codex erases and repaints each frame
+  with the status line last, so a split frame makes a composer row and the
+  status row cell-identical. Both streams are now pinned rows recording that
+  "not a composer" is a deliberate fail-closed resolution.
+- **Replay cost bounded.** All splits through the first 1024 bytes, then
+  strided, with the sampled-out count logged; package time 13.4s → ~6.5s.
+- Minors: shared `rowPaintedBetween` helper; `altScreen` no longer goes stale on
+  the emulator write-error path; `configureHarnessTTY` releases any terminal it
+  replaces; an empty `plainCR` now fails closed like the gate enum;
+  `csiBytes == 5` documented as the fail-closed canonical-spelling pin;
+  recapture paths and temp-file names follow the file actually being written;
+  `musePickerMarkers` added to the doctor table; `profileForHarness`'s copy
+  semantics described accurately in code and atlas.
+- Verification: `git diff --check` clean; focused `wrapcmd`, `go test ./...`,
+  and `make test` pass; race shows only the known unrelated
+  `TestMasterPumpFlushesStdoutOnTick`; all three live harness checks pass; six
+  literal fixtures replay through the production proxy.

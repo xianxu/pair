@@ -116,19 +116,28 @@ func TestHarnessTTYFixtureConformance(t *testing.T) {
 		t.Fatalf("required positive-gated fixtures missing: %s", strings.Join(missing, ", "))
 	}
 
-	// Capturing a real declining state needs a live harness in that state, so
-	// this reports the gap loudly rather than failing the suite — a silent
-	// pass would read as "the gate is proven to refuse", which it would not be.
-	var withoutNegative []string
+	// A positive gate with no captured declining state has no evidence it
+	// refuses anything. `go test` suppresses passing-package output entirely,
+	// so a log line here would be invisible in `make test` — the gap is
+	// therefore acknowledged in code, where review can see it, and any harness
+	// that is neither covered nor acknowledged fails.
 	for harness, found := range negatives {
-		if !found {
-			withoutNegative = append(withoutNegative, harness)
+		reason, acknowledged := ttyFixtureNegativeGaps[harness]
+		switch {
+		case found && acknowledged:
+			t.Errorf("%s now has a captured overlay.raw; drop its ttyFixtureNegativeGaps entry (%q)", harness, reason)
+		case !found && !acknowledged:
+			t.Errorf("%s is positively gated with no captured overlay.raw and no recorded reason: capture one, or record why it cannot be captured in ttyFixtureNegativeGaps", harness)
 		}
 	}
-	sort.Strings(withoutNegative)
-	if len(withoutNegative) != 0 {
-		t.Logf("EVIDENCE GAP: positive-gated harnesses with no captured overlay.raw negative: %s — the gate has no fixture proving it declines anything for them", strings.Join(withoutNegative, ", "))
-	}
+}
+
+// ttyFixtureNegativeGaps records positively gated harnesses with no captured
+// state where the gate declines, and why. An entry is a known hole in the
+// evidence, not a waiver of the requirement: it must name what is missing so
+// the gap is reviewable, and it must be removed once the capture exists.
+var ttyFixtureNegativeGaps = map[string]string{
+	"muse": "Muse's declining states are tool-approval and selection menus, none reachable without a live tool call; capture one when a real approval is available",
 }
 
 func readHarnessTTYFixture(t *testing.T, metadataPath string) (ttyFixtureMetadata, map[string][]byte) {
@@ -214,7 +223,11 @@ func fixtureLabel(metadata ttyFixtureMetadata) string {
 // must pass a bare CR through so the overlay confirms.
 var ttyFixtureExpectation = map[string]bool{
 	"composer.raw": true,
-	"overlay.raw":  false,
+	// A menu that keeps the composer live below it. The gate stays open, which
+	// is safe only because these harnesses insert a newline on LF rather than
+	// selecting; pinned so that stays a checked property, not an assumption.
+	"menu.raw":    true,
+	"overlay.raw": false,
 }
 
 // harnessTTYReplayResult is the observable result of replaying a fixture
@@ -244,12 +257,34 @@ func replayHarnessTTYFixture(t *testing.T, harness string, raw []byte, wantCompo
 	if baseline.returnBytes != wantReturn {
 		t.Fatalf("unsplit plain Return = %q, want %q (%s)", baseline.returnBytes, wantReturn, baseline.reason)
 	}
+	// Every split is O(n) feeds of an O(n) stream plus two full-grid snapshot
+	// clones, so exhaustive coverage grows superlinearly with fixture size.
+	// Cover the prefix exhaustively — that is where escape sequences that
+	// establish the composer live — then stride the tail, and say what was
+	// skipped rather than capping silently.
+	skipped := 0
 	for split := 0; split <= len(raw); split++ {
+		if split > harnessTTYExhaustiveSplitBytes && split%harnessTTYSplitStride != 0 && split != len(raw) {
+			skipped++
+			continue
+		}
 		if got := replayHarnessTTYSplit(t, harness, raw, split); got != baseline {
 			t.Fatalf("split at %d/%d changed the Return decision: %+v, want %+v", split, len(raw), got, baseline)
 		}
 	}
+	if skipped != 0 {
+		t.Logf("replayed all splits through %d bytes, then every %dth of %d; %d splits sampled out",
+			harnessTTYExhaustiveSplitBytes, harnessTTYSplitStride, len(raw), skipped)
+	}
 }
+
+const (
+	// harnessTTYExhaustiveSplitBytes is the prefix length covered at every
+	// split; it comfortably spans each captured composer's establishing paint.
+	harnessTTYExhaustiveSplitBytes = 1024
+	// harnessTTYSplitStride samples the remainder.
+	harnessTTYSplitStride = 7
+)
 
 // replayHarnessTTYSplit feeds raw as two chunks divided at split and reports
 // what a plain Return would emit afterwards.

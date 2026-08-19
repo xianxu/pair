@@ -73,17 +73,20 @@ func codexCursorOnTrailingStatusRow(snapshot terminalSnapshot) bool {
 // columns Codex reserves for the composer prompt. Such a row is the block's
 // left edge: either the composer's own prompt row or unrelated surface.
 func codexComposerRowPaintsLeftEdge(snapshot terminalSnapshot, y int) bool {
-	for x := 0; x < codexComposerTextColumn && x < snapshot.Width; x++ {
-		if cell := snapshot.CellAt(x, y); cell != nil && strings.TrimSpace(cell.Content) != "" {
-			return true
-		}
-	}
-	return false
+	return rowPaintedBetween(snapshot, y, 0, codexComposerTextColumn)
 }
 
 // snapshotRowPainted reports whether row y paints any non-blank cell.
 func snapshotRowPainted(snapshot terminalSnapshot, y int) bool {
-	for x := 0; x < snapshot.Width; x++ {
+	return rowPaintedBetween(snapshot, y, 0, snapshot.Width)
+}
+
+// rowPaintedBetween reports whether row y paints a non-blank cell in [x0, x1).
+func rowPaintedBetween(snapshot terminalSnapshot, y, x0, x1 int) bool {
+	if x1 > snapshot.Width {
+		x1 = snapshot.Width
+	}
+	for x := x0; x < x1; x++ {
 		if cell := snapshot.CellAt(x, y); cell != nil && strings.TrimSpace(cell.Content) != "" {
 			return true
 		}
@@ -144,8 +147,11 @@ func agyComposerActive(snapshot terminalSnapshot) bool {
 
 	const (
 		// agyPromptColor is the bright blue Agy paints its composer prompt
-		// with. Its permission picker marks the selected row with an unstyled
-		// ">" in the same column, so content alone never qualifies a composer.
+		// with, so an unstyled ">" never qualifies. This is a necessary
+		// condition, NOT a picker discriminator: agy/1.1.15/menu.raw captures
+		// Agy painting a slash-menu selection marker in this same bright blue.
+		// Tolerable because Agy inserts a newline on LF there rather than
+		// selecting; a real permission-picker capture is still outstanding.
 		agyPromptColor  = xansi.BrightBlue
 		minBorderLength = 5
 		maxBoxHeight    = 25

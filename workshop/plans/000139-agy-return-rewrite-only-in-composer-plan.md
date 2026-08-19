@@ -1151,3 +1151,61 @@ the atlas is amended to describe them as manual/opt-in, which is what they are.
       without a real tool approval, so `TestHarnessTTYFixtureConformance` logs a
       named EVIDENCE GAP for it instead of passing silently.
 - [x] I4 plus all seven minor findings.
+
+### 2026-08-19T13:20:00-07:00 — FIX-THEN-SHIP: corrections to the previous revision's claims
+
+The re-close returned `FIX-THEN-SHIP`. Two claims in the revision above were
+wrong and are corrected here rather than edited away.
+
+#### Correction 1: the Agy negative fixture did not test what was claimed
+
+The previous entry claimed `agy/1.1.15/overlay.raw` "exercises the positive gate
+alone". It does not. That capture is the genuine composer box — column 0 carries
+`─` fg 8, `>` **fg 12**, `─` fg 8 — with the cursor hidden and parked below the
+bottom rule. The gate declines it on cursor visibility and position, never on
+the prompt-color rule that fixes I1.
+
+#### Correction 2: the Agy prompt-color rule is not a picker discriminator
+
+I1's fix required the prompt cell to carry Agy's bright blue, on the assumption
+that Agy paints picker markers unstyled. Driving the installed CLI disproves it:
+`agy/1.1.15/menu.raw` captures Agy's slash menu painting its selection marker
+`>` at column 0 in **the same bright blue (fg 12)** as the composer prompt, with
+the composer still live below its own box and `agyPickerMarkers` matching
+nothing on that screen. The gate returns true there.
+
+The prompt-color rule is kept because it is a *necessary* condition backed by
+the real capture — an unstyled `>` is now rejected — but it is **not sufficient**
+to separate a picker from a composer, and the code comment now says so. What
+makes the open gate tolerable is empirical: sending LF into Agy's slash menu
+inserts a newline and does not select, exactly as Codex behaves. A real Agy
+permission-picker capture is still required before the Agy positive gate can be
+claimed as a defense independent of `agyPickerMarkers`; the same is true of Muse.
+
+#### EVIDENCE GAP reporting
+
+`go test` suppresses passing-package output, so neither `t.Logf` nor a write to
+stderr is visible in `make test`; the "loud line" claim was false in practice.
+The gap is now acknowledged in code: `ttyFixtureNegativeGaps` records each
+positively gated harness with no captured declining state and why, and
+`TestHarnessTTYFixtureConformance` **fails** for any harness that is neither
+covered nor acknowledged — and also fails when an entry outlives its gap.
+Verified by temporarily removing the Muse entry and observing the failure.
+
+#### Codex status-row ambiguity is a resolved policy, not an accident
+
+Codex opens each frame with `\x1b[1;1H\x1b[J` and paints its status line after
+the composer, so a PTY read can split a frame between them. At that instant a
+real composer continuation row and the status row are cell-identical: painted,
+blank row above, nothing below. They cannot be distinguished from the snapshot.
+The resolution is "not a composer", matching #139's fail-closed contract, and
+both the mid-frame and completed-frame streams are now pinned rows so a future
+edit flips a decision rather than a detail.
+
+#### Fixture replay cost
+
+Every split of every fixture cost 10.9s of a 13.4s package and grows
+superlinearly with fixture bytes, which the bring-up guide now asks every new
+harness to add. Splits are exhaustive through the first 1024 bytes — where the
+establishing paint lives — then strided, with the sampled-out count logged per
+the plan's own no-silent-caps rule. Package time is now ~6.5s.

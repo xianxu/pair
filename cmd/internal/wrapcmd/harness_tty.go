@@ -63,6 +63,9 @@ var harnessTTYProfiles = map[string]harnessTTYProfile{
 	},
 }
 
+// profileForHarness returns a copy whose mutable keymap slices are the
+// caller's own. The func and enum fields are values shared by copy, so callers
+// must not treat the result as deeply isolated.
 func profileForHarness(harness string, remapEnabled bool) (harnessTTYProfile, bool) {
 	if !remapEnabled {
 		return harnessTTYProfile{}, false
@@ -92,6 +95,12 @@ func decidePlainReturn(profile harnessTTYProfile, overlayActive bool, snapshot *
 			outcome: adapt.Bypass,
 			reason:  "plain Enter → bare CR (overlay active)",
 		}
+	}
+	// An empty plainCR would report Fired while emitting nothing, swallowing
+	// the user's Enter. The gate enum fails closed on its zero value; so does
+	// the keymap.
+	if len(profile.keymap.plainCR) == 0 {
+		return unknownComposerDecision()
 	}
 	switch profile.composerGate {
 	case composerGateLegacy:

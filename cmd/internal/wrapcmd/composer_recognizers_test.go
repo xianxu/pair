@@ -190,6 +190,28 @@ func TestCodexComposerActiveSnapshotDifferential(t *testing.T) {
 			stream: []byte(prompt + "\x1b[15;3Htail\x1b[?25h\x1b[14;3H"),
 			want:   true,
 		},
+		{
+			// DELIBERATE AMBIGUITY RESOLUTION. Codex begins each frame with
+			// \x1b[1;1H\x1b[J and paints the status line after the composer,
+			// so a PTY read can split a frame between them. At that instant a
+			// real composer continuation row is cell-identical to the status
+			// row: painted, blank row above, nothing below. The two cannot be
+			// told apart from the snapshot, and this resolves to "not a
+			// composer" because #139's contract is that an unrecognized state
+			// emits bare CR. Changing this answer is a policy change, not a
+			// bug fix.
+			name: "mid-frame composer indistinguishable from status row",
+			stream: []byte("\x1b[?25h\x1b[1;1H\x1b[J\x1b[12;1H\x1b[1m›\x1b[22m alpha" +
+				"\x1b[14;3Hbeta\x1b[14;7H"),
+			want: false,
+		},
+		{
+			// The same frame completed: the status line below settles it.
+			name: "completed frame paints the status row below the composer",
+			stream: []byte("\x1b[?25h\x1b[1;1H\x1b[J\x1b[12;1H\x1b[1m›\x1b[22m alpha" +
+				"\x1b[14;3Hbeta\x1b[16;3Hgpt-5.6-sol · ~/workspace/pair\x1b[14;7H"),
+			want: true,
+		},
 		{name: "literal captured overlay", stream: literalOverlay},
 		{
 			// The update interstitial marks its selected row with the same

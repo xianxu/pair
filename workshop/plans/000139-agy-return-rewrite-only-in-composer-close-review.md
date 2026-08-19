@@ -111,3 +111,107 @@ Add a `## Revisions` entry to `workshop/plans/000139-agy-return-rewrite-only-in-
 2. **Recognizer scope statement.** Task 6A defined the Codex recognizer from a single startup capture. State the derived-state obligation explicitly: every recognizer must be validated against composer-after-newline and composer-with-blank-line states, not only the captured startup screen, and add those rows to each `*SnapshotDifferential` table.
 3. **Task 4 Agy evidence gap.** The Agy recognizer keys on unstyled `>` while the fixture shows `\x1b[94m>`; record that the style evidence exists and that an `agy/<version>/overlay.raw` is required before the Agy positive gate can be claimed as a marker-independent defense (Task 6 currently treats `overlay.raw` as optional).
 4. **Live-conformance cadence.** Either name the schedule that runs `PAIR_LIVE_HARNESS` (ARCH-MOCK's "live conformance checks so drift is detected") or amend `atlas/architecture.md` to describe it as manual/opt-in.
+
+---
+
+## Re-review — 2026-08-19T13:05:28-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 139 — Agy Return rewrite only in composer |
+| repo | pair |
+| issue file | workshop/issues/000139-agy-return-rewrite-only-in-composer.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 6130ca0f9d14cf74e6e652aa7d248f363eb8c966..HEAD |
+| command | sdlc close --issue 139 |
+| reviewer | claude |
+| timestamp | 2026-08-19T13:05:28-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The consolidation is genuinely good and the three findings that blocked the previous boundary review are fixed — I reproduced each fix through the production `emitPlainCR` path: a Codex composer with a blank line inside now remaps (`"\n"`), a two- and three-line Muse composer now remaps, and an unstyled `>` between rules no longer qualifies for Agy. The shadow sweep is clean (no `sendKeymapByAgent` / `overlayDetectorByAgent` / per-agent tracker / `agentBasename == "codex"` branch survives anywhere in the tree), and `go test ./...`, `make test`, and the package suite all pass outside the sandbox (in-sandbox PTY failures are `operation not permitted` on `pty.StartWithSize`, not code). What I'd fix before crossing: the Agy negative fixture doesn't actually exercise the discriminator the Agy fix introduced — it declines on hidden cursor and cursor position — so the issue's central claim (a marker-independent picker defense) still rests on one hand-authored snapshot whose premise is untested against the real CLI; the `EVIDENCE GAP` line that is supposed to make that loud is invisible in a default `go test` run; and `codexCursorOnTrailingStatusRow` still declines a real composer whenever nothing is painted below the cursor, which Codex's full-screen-erase repaint makes momentarily reachable.
+
+## 1. Strengths
+
+- **The every-split fixture replay is the right test, and it runs the production seam.** `harness_tty_fixture_test.go:247` establishes an unsplit baseline and requires the recognizer, overlay arming, `emitPlainCR` bytes, *and* the decision reason to be identical at all `len(raw)+1` split points. That is a stronger guarantee than the whole-grid chunk equality the plan correctly abandoned.
+- **Fail-closed defaults are consistent and pinned.** `composerGateUnknown = iota` plus the exhaustive switch in `decidePlainReturn` means an absent or corrupt profile emits bare CR; `TestDecidePlainReturn` covers both the all-zero profile and an out-of-range policy.
+- **`terminalModel` lifecycle is careful.** The `io.Closer` capability assertion at construction (`terminal_model.go:80`), idempotent `Close` with a shared `closeDone` result, post-close `io.ErrClosedPipe` on `Feed`/`Resize`, deep-cloned final snapshot, and the exclusive prepare/commit/abort resize token all hold up. The only race in `go test -race ./cmd/internal/wrapcmd` is the pre-existing `TestMasterPumpFlushesStdoutOnTick` `bytes.Buffer` race in `stdout_batch_test.go`, which this window does not touch.
+- **Overlay consume/re-arm is one owner, and the panic path is defused.** `detectOverlayOpen` (`wrap.go:1618`) holds `overlayMu` across the detector under `defer`, and `armCapture` releases `overlayMu` before taking `captureMu`, so there is no lock-order inversion with `handleChunk`.
+- **The Codex recognizer's discriminator is backed by real bytes.** The captured update interstitial paints the same `›` unemphasized (`\x1b[22m`) while the composer paints it bold — so `uv.AttrBold` is load-bearing evidence, not a guess. That is the standard the Agy rule doesn't yet meet.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**I1 — The Agy `overlay.raw` fixture does not exercise the prompt-color rule, so the Agy positive gate has no captured evidence that it rejects a picker.**
+`cmd/internal/wrapcmd/testdata/tty/agy/1.1.15/overlay.raw`, rule at `composer_recognizers.go:182`
+
+I fed that fixture through `terminalModel` and dumped column 0: row 2 `─` fg 8, row 3 `>` **fg 12 (bright blue)**, row 4 `─` fg 8. It is the genuine composer box, not a picker. The gate declines it because the cursor is hidden (`\x1b[?1049h` then `\x1b[?25l`); forcing `CursorVisible = true` it still declines, because the cursor sits at `(15,5)`, below the bottom rule. Neither reason is the prompt-color discriminator.
+
+*Failure scenario (reproduced through `emitPlainCR`).* A full-width dim-ruled box containing `\x1b[94m>` `1. Continue` / `2. Cancel`, cursor visible at the prompt row, no registered marker text in the chunk → `pickerActive=false` and plain Return emits `"\n"`. So if Agy paints its permission-picker selection marker in the same bright blue as its composer prompt, the gate accepts it and Agy's defense collapses back to `agyPickerMarkers` — the state the issue exists to fix. The only proof otherwise is the hand-authored `"unstyled picker marker between rules"` row at `composer_recognizers_test.go:62`, whose premise (Agy's picker `>` is unstyled) is untested against the real CLI.
+
+*Fix sketch.* Capture a real Agy permission picker through the existing bounded seam as `agy/<version>/picker.raw` with expectation `false` (needs a live tool call, which the issue Log already flags as outstanding). If the marker turns out to be colored too, add a second discriminator. At minimum, correct the issue Log / `atlas/architecture.md` wording — the fixture exercises cursor position, not the marker rule, so "exercises the positive gate alone" overstates it. The same applies to Muse, which has no negative fixture at all: I verified that `faint ─` / non-faint `⟩ Select an option` / `faint ─` with a visible cursor is recognized as an active composer, so Muse's selection menus are defended only by `musePickerMarkers`.
+
+**I2 — The `EVIDENCE GAP` line is silent in a default test run, so the gap it names cannot be noticed.**
+`cmd/internal/wrapcmd/harness_tty_fixture_test.go:130`
+
+It is a `t.Logf` on a passing test. `go test` suppresses those without `-v`. I confirmed: `go test ./cmd/internal/wrapcmd -run TestHarnessTTYFixtureConformance` prints zero occurrences of `EVIDENCE GAP`; only `-v` shows it. `atlas/architecture.md` claims the harness "is named in a loud `EVIDENCE GAP` line rather than passing silently", and the code comment says "this reports the gap loudly" — but in `make test` and `go test ./...` it is exactly a silent pass.
+
+*Fix sketch.* Write it to `os.Stderr` (which `go test` does surface), or express it as a real subtest that fails/skips visibly, or gate the whole thing behind a `required`-style assertion once a negative exists per harness. Note that `harness_tty_fixture_test.go:65-66` builds `required` and `negatives` symmetrically but only `required` (i.e. `composer.raw`) is ever enforced — nothing demands an `overlay.raw`.
+
+**I3 — `codexCursorOnTrailingStatusRow` declines a real composer whenever nothing is painted below the cursor, and Codex's full-screen-erase repaint makes that momentarily reachable.**
+`cmd/internal/wrapcmd/composer_recognizers.go:58`
+
+The status row is excluded by "painted row, blank row above, nothing painted below anywhere". A composer continuation row with a blank line above it satisfies the same three conditions whenever the composer is the last painted block.
+
+*Failure scenario (reproduced through `emitPlainCR`).* Codex begins each frame with `\x1b[1;1H\x1b[J` (visible in `testdata/tty/codex/0.147.0/composer.raw`), erasing the whole screen before repainting top-down, and the status row is painted *after* the composer. Feeding `\x1b[?25h\x1b[1;1H\x1b[J\x1b[12;1H\x1b[1m›\x1b[22m alpha\x1b[14;3Hbeta\x1b[14;7H` — a frame split by a PTY read between the composer and the status line — gives `emitPlainCR` → `"\r"`, i.e. Codex submits the half-written message. Completing the frame with the status row flips it back to `"\n"`. `emitPlainCR` snapshots from the stdin goroutine while `handleChunk` feeds from the master pump, so a mid-frame snapshot is a real interleaving, and x/vt does not make `\x1b[?2026h` frames atomic.
+
+*Fix sketch.* This is arguably the declared fail-closed direction, but the failure mode here is the expensive one (send, not miss-a-newline). At minimum pin it: add the mid-frame stream above to `TestCodexComposerActiveSnapshotDifferential` with the intended answer and a comment saying it is a deliberate ambiguity resolution, so it is a decision rather than an accident. A stronger rule would key the status row on something positive (e.g. it is separated from the *bottom* of a bold-`›`-anchored block) rather than on "nothing painted below".
+
+**I4 — `TestHarnessTTYFixtureConformance` is 10.9s of a 13.4s package and grows superlinearly with fixture bytes.**
+`cmd/internal/wrapcmd/harness_tty_fixture_test.go:230-249`
+
+12.7 KB of fixtures costs 10.9s, because each of the `len(raw)+1` splits builds a fresh proxy, re-feeds the entire stream, and takes two full-grid snapshots (120×38 = 4560 cell clones each). `atlas/how-to-bring-up-a-new-harness-cli.md` now instructs every new harness to add fixtures, and #138 will add Claude — so the next bring-up multiplies this. Consider reusing one terminal across splits, or bounding the split set (all splits for the first ~1 KB plus a strided sample beyond) and `t.Logf`-ing what was skipped per the plan's own "no silent caps" rule.
+
+## 4. Minor findings
+
+- `composer_recognizers.go:75` and `:85` — `codexComposerRowPaintsLeftEdge` and `snapshotRowPainted` are the same loop with different `x` bounds; one `rowPainted(snapshot, y, x0, x1)` helper (ARCH-DRY).
+- `terminal_model.go:226` — `o.csiBytes == 5` is redundant with the `len(params)==1 && param==25 && !hasMore` checks except that it rejects zero-padded canonical forms (`\x1b[?025h`), which would then fail closed permanently. Drop it or document the intent.
+- `terminal_model.go:110-118` — on `emulator.Write` error the observer is fed (good) but `m.altScreen` is skipped, so `AltScreen` can go stale on exactly the path the comment says must not diverge.
+- `wrap.go:1466-1469` — `configureHarnessTTY` clears `p.ttyProfile` on the not-ok path but never `p.terminal`; a second call after a successful one leaves a live terminal paired with a nil profile.
+- `harness_tty_live_test.go` — `harnessTTYRecaptureDestination` and `writeLiteralCapture`'s temp prefix always name `composer.raw`, even when `TestHarnessTTYLiveOverlayConformance` is writing an overlay capture.
+- `doctor/README.md:40` — the `overlay-detect/near-miss` row lists `codexPickerMarkers` / `agyPickerMarkers` but not `musePickerMarkers`, which exists.
+- `harness_tty.go:95` — a `composerGateLegacy` profile with an empty `plainCR` would report `adapt.Fired` while emitting zero bytes (swallowing Enter). Unreachable with the current registry, but the enum got zero-value hardening and the keymap didn't.
+- `wrap.go` — three test-only seams now live on the production `proxy` struct (`getWinsize`, `setPTYWinsize`, `overlayConsumeHook`). Each is documented; worth watching that the list stops growing.
+
+## 5. Test coverage notes
+
+- Derived-state coverage is the thing that was missing last round and is now present for Codex (blank line inside, two consecutive newlines, empty continuation row) and Muse (two- and three-line composers). I independently confirmed a realistic full-width two-line Agy composer is accepted, so Agy's growth case works even though its table row uses a hand-built snapshot.
+- No fixture captures a *composing* state for any harness — all five are startup/overlay screens. The issue Log says multi-line Codex states were observed live during Task 6A but only the startup screen was checked in, so the every-split replay protects the startup path only. One captured multi-line composer per harness would make the derived-state coverage evidence-backed rather than hand-authored.
+- Muse has no negative fixture (I1) and Agy's negative doesn't reach the discriminator (I1). Codex is the only harness with a genuine, discriminator-exercising negative.
+- The `TestHarnessTTYCapture*` family requires PTY allocation; it fails wholesale under a sandbox with `operation not permitted`. Not a defect, but worth knowing if this package ever runs somewhere without `/dev/ptmx`.
+
+## 6. Architectural notes
+
+- **ARCH-DRY — pass.** Three hand-rolled VT parsers collapse into one `x/vt`-backed model; two parallel registries collapse into `harnessTTYProfiles`; duplicated Codex/Agy paint literals collapse into `codexLiveComposerPaint` / `agyLiveComposerPaint`; the per-harness prefix scan collapses into `firstRecognizedHarnessTTYPrefix`. The only residue is the two near-identical row-paint loops noted in Minor.
+- **ARCH-PURE — pass.** Recognizers are pure `terminalSnapshot → bool` and are tested with hand-built snapshots that touch no IO; `decidePlainReturn` is pure; the proxy is a thin feed/resize/decide shell. `snapshotCoordinatesValid` reusing `validateTerminalDimensions` keeps the recognizer and model bounds in one place.
+- **ARCH-PURPOSE — flag (I1).** The single-source migration is complete: I ran the shadow sweep and no consumer of the retired registries or trackers survives anywhere in the repo, and Claude's legacy behavior is preserved through the same router. But the issue's stated purpose — "permission pickers and future UI variants keep plain Return as confirm" — is delivered with proof only for Codex. For Agy the discriminating rule has no captured negative, and for Muse there is no negative at all, so on those two harnesses the positive gate contributes no verified defense beyond the marker layer it was meant to backstop.
+- **ARCH-MOCK — partial (I1, I2).** The shape is right: production and test flow share `proxy.handleChunk`, fixtures are literal bytes captured through a bounded PTY seam with per-file SHA-256, and live conformance correctly asserts behavior rather than byte identity. Incomplete on the negative-state axis, and the mechanism meant to keep that gap visible is silent by default. The `c872b91` correction — describing the live checks as manual/opt-in rather than scheduled — is honest and the right call; `sdlc`-side or release-runbook scheduling remains the open half.
+
+## 7. Plan revision recommendations
+
+Add a `## Revisions` entry to `workshop/plans/000139-agy-return-rewrite-only-in-composer-plan.md` covering:
+
+1. **Agy negative-fixture characterization (I1).** The 2026-08-19 revision records `agy/1.1.15/overlay.raw` as closing I2/I3 and states the gate "declines it with the overlay layer *not* armed, so it exercises the positive gate alone". Correct this: the capture is the composer box with the cursor hidden and parked below the bottom rule, so it exercises cursor visibility and position, not the bright-blue prompt rule that fixes I1. Record that a real Agy permission-picker capture is required before the Agy positive gate can be claimed as a marker-independent defense, and that the same is true for Muse.
+2. **EVIDENCE GAP visibility (I2).** Task 6's design says the gap is "named in a loud line rather than passing silently"; as implemented it is a `t.Logf` invisible without `-v`. State the reporting channel explicitly (stderr, or a visible subtest) so the claim and the mechanism agree.
+3. **Codex status-row ambiguity (I3).** Record that the status-row exclusion resolves "painted row, blank above, nothing below" as *not a composer*, that Codex's full-screen-erase repaint makes that state reachable mid-frame, and that the chosen resolution is deliberate — with a pinning test row so a future edit cannot flip it silently.
+4. **Fixture replay cost (I4).** Task 6 Step 5 mandates every split from 0 to `len(raw)` for every fixture. Note the measured cost (12.7 KB → 10.9s, ~80% of the package) and decide the policy for the next harness before #138 adds one.

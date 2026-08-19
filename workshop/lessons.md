@@ -1427,3 +1427,38 @@ if !bytes.Equal(buf, before) { t.Fatal("returned storage aliasing its input") }
 Corollary for reviews: "the fuzzer is green" answers *which bytes*, never *whose
 memory*. Ask what the oracle is blind to before treating a large exec count as
 coverage.
+
+## A screen-scraping recognizer must be validated against derived states, not just the captured screen (#139)
+
+Three composer recognizers were each derived from a *startup* capture and each
+rejected ordinary composing states — a blank line inside the message, a composer
+grown past one line. The startup screen is the one state a capture makes easy
+and the one state users spend the least time in. When a predicate keys on screen
+structure, enumerate the states the feature is meant to *produce* (after one
+newline, after several, with an empty line, grown) and pin each one; a fixture
+of the initial paint proves almost nothing about them.
+
+## Do not infer a discriminator's power without capturing the state it must reject (#139)
+
+Agy's recognizer was tightened to require the composer prompt's bright blue,
+on the assumption that its pickers paint markers unstyled. Driving the real CLI
+showed Agy paints slash-menu selection markers in exactly the same bright blue.
+The rule was a necessary condition sold as a sufficient one. If a rule exists to
+reject state X, capture X and assert the rejection; otherwise record explicitly
+that the rule is unproven rather than describing it as a defense.
+
+## `go test` hides passing-package output, so a "loud" warning must be a failure (#139)
+
+An evidence gap was reported with `t.Logf`, then `fmt.Fprintf(os.Stderr, ...)`.
+Neither appears in `make test` — non-verbose `go test` suppresses output for
+packages that pass. A warning that only shows under `-v` is a silent pass. Make
+the condition fail, with an in-code acknowledgment list that must name each known
+gap and that itself fails when an entry outlives the gap.
+
+## When two states are provably indistinguishable, pin the resolution as policy (#139)
+
+Codex's composer blank line and the gap above its status line are cell-identical;
+so are a mid-frame composer row and the settled status row. No predicate can
+separate them. The fix is not a cleverer heuristic but an explicit decision,
+recorded as a test row with a comment saying which way it resolves and why, so a
+later edit flips a policy visibly instead of silently changing behavior.

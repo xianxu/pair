@@ -593,11 +593,11 @@ func TestHarnessTTYLiveConformance(t *testing.T) {
 	}
 	prefixEnd := firstRecognizedHarnessTTYPrefix(t, harness, out)
 	if prefixEnd == 0 {
-		t.Fatalf("%s reported recognition but no recognized prefix; recapture destination: %s", harness, harnessTTYRecaptureDestination(harness, version))
+		t.Fatalf("%s reported recognition but no recognized prefix; recapture destination: %s", harness, harnessTTYRecaptureDestination(harness, version, "composer.raw"))
 	}
 	out = out[:prefixEnd]
 	digest := sha256.Sum256(out)
-	recaptureDestination := harnessTTYRecaptureDestination(harness, version)
+	recaptureDestination := harnessTTYRecaptureDestination(harness, version, "composer.raw")
 	t.Logf("%s executable=%s version=%q argv=%q bytes=%d sha256=%s", harness, executable, version, command, len(out), hex.EncodeToString(digest[:]))
 	if destination := os.Getenv("PAIR_LIVE_CAPTURE_OUT"); destination != "" {
 		if !filepath.IsAbs(destination) {
@@ -664,33 +664,50 @@ func assertHarnessTTYLiveDecision(t *testing.T, harness string, raw []byte, want
 	t.Logf("%s plain Return = %q (composer=%t, overlay armed=%t)", harness, got, wantComposer, overlayArmed)
 }
 
-// TestHarnessTTYLiveOverlayConformance proves the positive gate stays closed on
-// a real blocking overlay, where plain Return must confirm rather than insert a
-// newline. It drives the installed harness into the overlay through the same
-// bounded capture seam instead of hand-authoring bytes.
-func TestHarnessTTYLiveOverlayConformance(t *testing.T) {
+// harnessTTYDrivenScenario is a non-startup screen reachable from the composer
+// with one keystroke, plus the gate result that screen must produce.
+type harnessTTYDrivenScenario struct {
+	name         string
+	args         []string
+	send         string
+	until        string
+	wantComposer bool
+	file         string
+}
+
+var harnessTTYDrivenScenarios = map[string][]harnessTTYDrivenScenario{
+	// Codex paints its update interstitial whenever a newer release exists and
+	// the startup check is left enabled. Its footer is a registered picker
+	// marker, so this is overlay-layer evidence as well as gate evidence.
+	"codex": {{
+		name: "update interstitial", args: []string{"--no-alt-screen"},
+		until: "Press enter to continue", wantComposer: false, file: "overlay.raw",
+	}},
+	"agy": {
+		// The shortcut sheet replaces the composer entirely.
+		{name: "shortcut sheet", args: []string{"--dangerously-skip-permissions"},
+			send: "?", until: "shortcuts", wantComposer: false, file: "overlay.raw"},
+		// The slash menu keeps the composer live below its own box, and Agy
+		// paints the menu's selection marker in the SAME bright blue as the
+		// composer prompt — so prompt color cannot separate the two. Pinned
+		// because that is the assumption an Agy recognizer is most likely to
+		// make wrongly. Sending LF here inserts a newline rather than
+		// selecting, which is why the gate staying open is tolerable.
+		{name: "slash menu", args: []string{"--dangerously-skip-permissions"},
+			send: "/", until: "Navigate", wantComposer: true, file: "menu.raw"},
+	},
+}
+
+// TestHarnessTTYLiveDrivenConformance drives the installed harness one
+// keystroke past startup and checks the gate's answer on the resulting screen.
+func TestHarnessTTYLiveDrivenConformance(t *testing.T) {
 	harness := os.Getenv("PAIR_LIVE_HARNESS")
 	if harness == "" {
-		t.Skip("set PAIR_LIVE_HARNESS to drive an installed harness into an overlay")
+		t.Skip("set PAIR_LIVE_HARNESS to drive an installed harness past startup")
 	}
-	scenarios := map[string]struct {
-		args  []string
-		send  string
-		until string
-	}{
-		// Codex paints its update interstitial whenever a newer release
-		// exists and the startup check is left enabled. Its footer is already
-		// a registered picker marker, so this doubles as overlay-layer
-		// evidence.
-		"codex": {args: []string{"--no-alt-screen"}, until: "Press enter to continue"},
-		// Agy's shortcut sheet is the one non-composer screen reachable
-		// without a live tool call. Plain Return must not insert a newline
-		// there.
-		"agy": {args: []string{"--dangerously-skip-permissions"}, send: "?", until: "shortcuts"},
-	}
-	scenario, ok := scenarios[harness]
+	scenarios, ok := harnessTTYDrivenScenarios[harness]
 	if !ok {
-		t.Skipf("no overlay scenario recorded for %s", harness)
+		t.Skipf("no driven scenario recorded for %s", harness)
 	}
 	executable, err := exec.LookPath(harness)
 	if err != nil {
@@ -700,16 +717,42 @@ func TestHarnessTTYLiveOverlayConformance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve repository root: %v", err)
 	}
-	// Reaching some overlays needs a keystroke. Drive it only once the
-	// composer is up, so the harness is in a known state first.
+	only := os.Getenv("PAIR_LIVE_SCENARIO")
+	for _, scenario := range scenarios {
+		if only != "" && scenario.name != only {
+			continue
+		}
+		t.Run(scenario.name, func(t *testing.T) {
+			out, err := driveHarnessTTYScenario(t, harness, executable, repoRoot, scenario)
+			if err != nil {
+				t.Skipf("%s did not reach %q; it may not be reproducible right now: %v", harness, scenario.until, err)
+			}
+			assertHarnessTTYLiveDecision(t, harness, out, scenario.wantComposer)
+			if destination := os.Getenv("PAIR_LIVE_CAPTURE_OUT"); destination != "" {
+				if !filepath.IsAbs(destination) {
+					destination = filepath.Join(repoRoot, destination)
+				}
+				if err := writeLiteralCapture(destination, out); err != nil {
+					t.Fatalf("write literal %s %s capture %s: %v", harness, scenario.name, destination, err)
+				}
+				t.Logf("wrote literal %s %s capture to %s", harness, scenario.name, destination)
+			}
+		})
+	}
+}
+
+// driveHarnessTTYScenario waits for the composer, sends the scenario keystroke,
+// and captures until the scenario's screen text appears.
+func driveHarnessTTYScenario(t *testing.T, harness, executable, repoRoot string, scenario harnessTTYDrivenScenario) ([]byte, error) {
+	t.Helper()
 	composer := newHarnessTTYLiveClassifier(t, harness)
 	t.Cleanup(func() {
 		if err := composer.Close(); err != nil {
-			t.Errorf("close %s overlay classifier: %v", harness, err)
+			t.Errorf("close %s scenario classifier: %v", harness, err)
 		}
 	})
 	ready, sent := false, false
-	out, err := captureHarnessTTY(harnessTTYCaptureRequest{
+	return captureHarnessTTY(harnessTTYCaptureRequest{
 		Executable: executable,
 		Args:       scenario.args,
 		Env:        os.Environ(),
@@ -734,19 +777,6 @@ func TestHarnessTTYLiveOverlayConformance(t *testing.T) {
 			return strings.Contains(strings.ToLower(string(stripTerminalControls(retained))), strings.ToLower(scenario.until))
 		},
 	})
-	if err != nil {
-		t.Skipf("%s did not reach its overlay (%q); it may not be reproducible right now: %v", harness, scenario.until, err)
-	}
-	assertHarnessTTYLiveDecision(t, harness, out, false)
-	if destination := os.Getenv("PAIR_LIVE_CAPTURE_OUT"); destination != "" {
-		if !filepath.IsAbs(destination) {
-			destination = filepath.Join(repoRoot, destination)
-		}
-		if err := writeLiteralCapture(destination, out); err != nil {
-			t.Fatalf("write literal %s overlay capture %s: %v", harness, destination, err)
-		}
-		t.Logf("wrote literal %s overlay capture to %s", harness, destination)
-	}
 }
 
 func firstRecognizedHarnessTTYPrefix(t *testing.T, harness string, raw []byte) int {
@@ -765,8 +795,8 @@ func firstRecognizedHarnessTTYPrefix(t *testing.T, harness string, raw []byte) i
 	return 0
 }
 
-func harnessTTYRecaptureDestination(harness, version string) string {
-	return filepath.Join("cmd", "internal", "wrapcmd", "testdata", "tty", harness, ttyFixtureVersionDir(version), "composer.raw")
+func harnessTTYRecaptureDestination(harness, version, file string) string {
+	return filepath.Join("cmd", "internal", "wrapcmd", "testdata", "tty", harness, ttyFixtureVersionDir(version), file)
 }
 
 func TestMuseFixtureEvidence(t *testing.T) {
@@ -860,7 +890,7 @@ func writeLiteralCapture(destination string, data []byte) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(dir, ".composer.raw.*")
+	tmp, err := os.CreateTemp(dir, "."+filepath.Base(destination)+".*")
 	if err != nil {
 		return err
 	}

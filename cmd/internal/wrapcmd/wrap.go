@@ -1462,22 +1462,37 @@ func (p *proxy) hasReturnRemap() bool {
 }
 
 func (p *proxy) configureHarnessTTY(remapEnabled bool, cols, rows int) error {
+	// Every early return clears the terminal too: a live terminal paired with a
+	// nil profile would keep consuming output nothing consults.
 	profile, ok := profileForHarness(p.agentBasename, remapEnabled)
 	if !ok {
 		p.ttyProfile = nil
-		return nil
+		return p.releaseTerminal()
 	}
 	p.ttyProfile = &profile
 	if profile.composerGate != composerGatePositive {
-		return nil
+		return p.releaseTerminal()
 	}
 	terminal, err := newTerminalModel(cols, rows)
 	if err != nil {
 		p.ttyProfile = nil
-		return err
+		return errors.Join(err, p.releaseTerminal())
+	}
+	if releaseErr := p.releaseTerminal(); releaseErr != nil {
+		return releaseErr
 	}
 	p.terminal = terminal
 	return nil
+}
+
+// releaseTerminal closes and drops any terminal model this proxy still owns.
+func (p *proxy) releaseTerminal() error {
+	if p.terminal == nil {
+		return nil
+	}
+	terminal := p.terminal
+	p.terminal = nil
+	return terminal.Close()
 }
 
 func (p *proxy) closeTerminal() error {

@@ -110,11 +110,8 @@ func (m *terminalModel) Feed(data []byte) error {
 	// visible = true and authorize a Return the screen no longer justifies.
 	writeErr := writeToEmulator(m.emulator, data)
 	m.observer.Feed(data)
-	if writeErr != nil {
-		return writeErr
-	}
 	m.altScreen = m.emulator.IsAltScreen()
-	return nil
+	return writeErr
 }
 
 func (m *terminalModel) Resize(cols, rows int) error {
@@ -223,6 +220,10 @@ func (o *terminalControlObserver) handleCSI(command xansi.Cmd, params xansi.Para
 	}
 
 	touchesVisibility := false
+	// csiBytes == 5 pins the canonical "\x1b[?25h" spelling. A zero-padded
+	// variant ("\x1b[?025h") therefore does not count as a standalone show and
+	// leaves visibility unauthorized — the fail-closed direction, and the
+	// reason this length check is kept alongside the parameter checks.
 	standaloneShow := command.Final() == 'h' && len(params) == 1 && o.csiBytes == 5
 	for i := range params {
 		param, hasMore, ok := params.Param(i, 0)
