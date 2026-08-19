@@ -839,48 +839,6 @@ do
     return nil
   end
 
-  local function descendant_pids(root)
-    local out = vim.fn.systemlist({ 'ps', '-axo', 'pid=,ppid=' })
-    local children = {}
-    for _, line in ipairs(out) do
-      local pid, ppid = line:match('^%s*(%d+)%s+(%d+)%s*$')
-      if pid and ppid then
-        children[ppid] = children[ppid] or {}
-        table.insert(children[ppid], pid)
-      end
-    end
-    local pids, queue, seen = {}, { root }, { [root] = true }
-    local i = 1
-    while i <= #queue do
-      local pid = queue[i]; i = i + 1
-      table.insert(pids, pid)
-      for _, child in ipairs(children[pid] or {}) do
-        if not seen[child] then
-          seen[child] = true
-          table.insert(queue, child)
-        end
-      end
-    end
-    return pids
-  end
-
-  local function live_codex_session_id(data_dir, tag)
-    local pf = io.open(data_dir .. '/agent-pid-' .. tag, 'r')
-    if not pf then return nil end
-    local root = vim.trim(pf:read('*a') or ''); pf:close()
-    if root == '' then return nil end
-    for _, pid in ipairs(descendant_pids(root)) do
-      for _, line in ipairs(vim.fn.systemlist({ 'lsof', '-p', pid, '-Fn' })) do
-        local path = line:match('^n(.*/%.codex/sessions/.*/rollout%-.*%.jsonl)$')
-        if path then
-          local sid = path:match('([0-9a-fA-F]+%-[0-9a-fA-F]+%-[0-9a-fA-F]+%-[0-9a-fA-F]+%-[0-9a-fA-F]+)%.jsonl$')
-          if sid then return sid end
-        end
-      end
-    end
-    return nil
-  end
-
   local function current_session_id()
     local sid = vim.env.PAIR_SESSION_ID
     if sid and sid ~= '' then return sid end
@@ -890,7 +848,6 @@ do
     local agent = (vim.env.PAIR_AGENT and vim.env.PAIR_AGENT ~= '') and vim.env.PAIR_AGENT or 'claude'
     sid = config_session_id(data_dir, tag, agent)
     if sid then return sid end
-    if agent == 'codex' then return live_codex_session_id(data_dir, tag) end
     return nil
   end
 

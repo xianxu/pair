@@ -22,14 +22,27 @@ func TestResolveLiveCodexTranscriptUsesDescendantLsof(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	path := filepath.Join(home, ".codex", "sessions", "2026", "05", "31",
-		"rollout-2026-05-31T21-36-56-019e8178-79c2-7862-91db-e8fa1be3b162.jsonl")
+	rootSID := "019e8178-79c2-7862-91db-e8fa1be3b162"
+	subSID := "01a017b6-af00-7c91-a656-0611a3750669"
+	rootPath := filepath.Join(home, ".codex", "sessions", "2026", "05", "31",
+		"rollout-2026-05-31T21-36-56-"+rootSID+".jsonl")
+	subPath := filepath.Join(home, ".codex", "sessions", "2026", "05", "31",
+		"rollout-2026-05-31T22-00-00-"+subSID+".jsonl")
+	if err := os.MkdirAll(filepath.Dir(rootPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(rootPath, []byte(`{"type":"session_meta","payload":{"id":"`+rootSID+`","parent_thread_id":null,"source":"cli"}}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(subPath, []byte(`{"type":"session_meta","payload":{"id":"`+subSID+`","parent_thread_id":"`+rootSID+`","source":{"subagent":{}}}}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	binDir := t.TempDir()
 	ps := "#!/bin/sh\nprintf ' 10 1\\n 11 10\\n'\n"
 	if err := os.WriteFile(filepath.Join(binDir, "ps"), []byte(ps), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	lsof := "#!/bin/sh\nif [ \"$2\" = \"11\" ]; then printf 'p11\\nn" + path + "\\n'; else printf 'p%s\\n' \"$2\"; fi\n"
+	lsof := "#!/bin/sh\nif [ \"$2\" = \"11\" ]; then printf 'p11\\nn" + subPath + "\\nn" + rootPath + "\\n'; else printf 'p%s\\n' \"$2\"; fi\n"
 	if err := os.WriteFile(filepath.Join(binDir, "lsof"), []byte(lsof), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +50,13 @@ func TestResolveLiveCodexTranscriptUsesDescendantLsof(t *testing.T) {
 	oldPath := os.Getenv("PATH")
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+oldPath)
 	got := resolveLiveCodexTranscript(dataDir, "testtag", home)
-	if got != path {
-		t.Fatalf("resolveLiveCodexTranscript = %q, want %q", got, path)
+	if got != rootPath {
+		t.Fatalf("resolveLiveCodexTranscript = %q, want root %q", got, rootPath)
+	}
+	if err := os.Remove(rootPath); err != nil {
+		t.Fatal(err)
+	}
+	if got := resolveLiveCodexTranscript(dataDir, "testtag", home); got != "" {
+		t.Fatalf("subagent-only resolveLiveCodexTranscript = %q, want empty", got)
 	}
 }

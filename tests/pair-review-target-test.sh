@@ -16,11 +16,15 @@ PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=codex \
 got="$(jq -r '.session' "$RT/review-target-test.json")"
 [ "$got" = envsid ] && pass "uses PAIR_SESSION_ID when set" || fail "env session stamp ($got)"
 
-printf '{"agent":"codex","args":[],"session_id":"cfgsid"}\n' > "$RT/config-test-codex.json"
-PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=codex PAIR_SESSION_ID="" \
+cfgsid="12345678-1234-1234-1234-123456789abc"
+rollout="$RT/home/.codex/sessions/2026/08/19/rollout-2026-08-19T00-00-00-$cfgsid.jsonl"
+mkdir -p "$(dirname "$rollout")"
+printf '{"type":"session_meta","payload":{"id":"%s","parent_thread_id":null,"source":"cli"}}\n' "$cfgsid" > "$rollout"
+printf '{"agent":"codex","args":[],"session_id":"%s"}\n' "$cfgsid" > "$RT/config-test-codex.json"
+HOME="$RT/home" PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=codex PAIR_SESSION_ID="" \
   "$ROOT/bin/pair" review target "$doc" ready >/dev/null
 got="$(jq -r '.session' "$RT/review-target-test.json")"
-[ "$got" = cfgsid ] && pass "falls back to config session_id" || fail "config session stamp ($got)"
+[ "$got" = "$cfgsid" ] && pass "falls back to config session_id" || fail "config session stamp ($got)"
 
 [ "$fails" -eq 0 ] || { printf 'pair-review-target-test FAILED (%d)\n' "$fails"; exit 1; }
 printf 'pair-review-target-test ok\n'

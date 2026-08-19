@@ -7,6 +7,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -1050,6 +1051,9 @@ func TestRunLaunchTagRestartPickerWarnsWhenSavedSessionIsStale(t *testing.T) {
 	if !strings.Contains(stderr.String(), `saved session "CX-9" for codex is not available; starting fresh`) {
 		t.Fatalf("stderr missing stale-session warning: %s", stderr.String())
 	}
+	if !slices.Contains(rt.removed, "/data/config-cx-codex.json") {
+		t.Fatalf("removed = %v, want stale Codex config quarantined", rt.removed)
+	}
 }
 
 // Picking "new" drops the stale config.
@@ -1207,6 +1211,68 @@ func TestRunLaunchResumeUsesLedgerAgentAndArgsWhenConfigMissing(t *testing.T) {
 	}
 	if rt.env["PAIR_AGENT_ARGS"] != "resume CX-9 --search --no-alt-screen" {
 		t.Fatalf("PAIR_AGENT_ARGS = %q", rt.env["PAIR_AGENT_ARGS"])
+	}
+}
+
+func TestRunLaunchRejectsInvalidLedgerCodexSession(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.ledger["work"] = []LedgerEntry{{
+		Agent:      "codex",
+		Args:       []string{"--search"},
+		SessionID:  "SUBAGENT",
+		LastActive: time.Unix(1_700_000_010, 0),
+	}}
+	rt.pickFunc = func(header string, options []string) string {
+		for _, o := range options {
+			if strings.Contains(o, "use saved params") {
+				return o
+			}
+		}
+		return ""
+	}
+
+	var stderr bytes.Buffer
+	code, err := RunLaunch(baseOpts(LaunchArgs{ForcedTag: "work"}), rt, &stderr)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v stderr=%s", code, err, stderr.String())
+	}
+	if strings.Contains(rt.env["PAIR_AGENT_ARGS"], "SUBAGENT") {
+		t.Fatalf("PAIR_AGENT_ARGS = %q, must not resume rejected session", rt.env["PAIR_AGENT_ARGS"])
+	}
+	if rt.env["PAIR_AGENT_ARGS"] != "--search --no-alt-screen" {
+		t.Fatalf("PAIR_AGENT_ARGS = %q", rt.env["PAIR_AGENT_ARGS"])
+	}
+	if !slices.Contains(rt.removed, "/data/config-work-codex.json") {
+		t.Fatalf("removed = %v, want canonical config quarantine", rt.removed)
+	}
+	if !strings.Contains(stderr.String(), `saved session "SUBAGENT" for codex is not available; starting fresh`) {
+		t.Fatalf("stderr missing stale-session warning: %s", stderr.String())
+	}
+}
+
+func TestRunLaunchAltNRestartRejectsInvalidSavedCodexSession(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.files["/data/config-cx-codex.json"] = `{"agent":"codex","args":["--search"],"session_id":"SUBAGENT"}`
+	rt.restartMarkers["📁work-cx"] = RestartMarker{Tag: "cx", Agent: "codex"}
+
+	opts := baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "cx"})
+	opts.SkipConfigPicker = true
+	var stderr bytes.Buffer
+	code, err := RunLaunch(opts, rt, &stderr)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v stderr=%s", code, err, stderr.String())
+	}
+	if rt.launchCount != 2 {
+		t.Fatalf("launchCount = %d, want initial launch plus Alt+n relaunch", rt.launchCount)
+	}
+	if strings.Contains(rt.env["PAIR_AGENT_ARGS"], "SUBAGENT") {
+		t.Fatalf("PAIR_AGENT_ARGS = %q, must not resume rejected session", rt.env["PAIR_AGENT_ARGS"])
+	}
+	if !slices.Contains(rt.removed, "/data/config-cx-codex.json") {
+		t.Fatalf("removed = %v, want stale Codex config quarantined", rt.removed)
+	}
+	if !strings.Contains(stderr.String(), `saved session "SUBAGENT" for codex is not available; starting fresh`) {
+		t.Fatalf("stderr missing stale-session warning: %s", stderr.String())
 	}
 }
 

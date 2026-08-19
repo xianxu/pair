@@ -161,10 +161,10 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   proposed target → "prep in progress"; no target → drop into `:PairReview `
   (file-select). Pure decision `_pair_review_toggle_action(alive, visible, status)`.
   Review-targets are scoped to the current conversation id so fresh sessions ignore
-  stale targets while resumed sessions keep their in-progress target. Resolution is
-  `PAIR_SESSION_ID` → `config-<tag>-<agent>.json` → live Codex rollout via
-  `agent-pid-<tag>`; Codex/agy learn ids asynchronously, so review target handling must
-  not rely on the launch-time env alone. `Alt+r` is deliberately free inside the review
+  stale targets while resumed sessions keep their in-progress target. Neovim resolves
+  only `PAIR_SESSION_ID` → `config-<tag>-<agent>.json`; it does not inspect processes or
+  parse rollout filenames. Codex/agy learn ids asynchronously through Pair's watcher,
+  which publishes the validated config consumed here. `Alt+r` is deliberately free inside the review
   pane for reject.
 - `nvim/pair_poke.lua` — id-based agent poke: relative `move-focus` does NOT escape a
   floating pane, so it resolves the agent pane from `list-panes --json` and writes

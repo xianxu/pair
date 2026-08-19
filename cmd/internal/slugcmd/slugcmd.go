@@ -91,7 +91,7 @@ func resolveLiveCodexTranscript(dataDir, tag, home string) string {
 	prefix := filepath.Join(home, ".codex", "sessions") + string(os.PathSeparator)
 	for _, pid := range procutil.DescendantPIDs(root, procutil.ProcessChildren()) {
 		for _, name := range procutil.LsofNames(pid) {
-			if strings.HasPrefix(name, prefix) && transcriptpkg.CodexSessionIDFromPath(name) != "" {
+			if strings.HasPrefix(name, prefix) && transcriptpkg.ReadCodexRootSessionID(name) != "" {
 				return name
 			}
 		}
@@ -128,7 +128,7 @@ func Run() int {
 
 	transcript := os.Getenv("PAIR_SLUG_TRANSCRIPT")
 	if transcript == "" {
-		sid := transcriptpkg.SessionID(dataDir, tag, agent)
+		sid := transcriptpkg.SessionID(dataDir, tag, agent, home)
 		if sid != "" {
 			transcript = transcriptpkg.Resolve(agent, sid, cwd, home)
 		}

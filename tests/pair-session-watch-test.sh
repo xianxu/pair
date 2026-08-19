@@ -9,7 +9,7 @@ mkdir -p "$RT/bin" "$RT/data" "$RT/home/.codex/sessions/2026/06/25"
 
 sid="019eff64-6ceb-7e72-9d41-a735a97029ac"
 session_file="$RT/home/.codex/sessions/2026/06/25/rollout-2026-06-25T08-27-12-$sid.jsonl"
-: > "$session_file"
+printf '{"type":"session_meta","payload":{"id":"%s","parent_thread_id":null,"source":"cli"}}\n' "$sid" > "$session_file"
 
 cat > "$RT/bin/lsof" <<SH
 #!/usr/bin/env bash
