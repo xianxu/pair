@@ -61,16 +61,28 @@ func CodexRootSessionID(path string, firstEvent []byte) string {
 // delegates the semantic decision to CodexRootSessionID. It fails closed when
 // the rollout is incomplete, oversized, unreadable, or not a root session.
 func ReadCodexRootSessionID(path string) string {
-	f, err := os.Open(path)
+	line, err := ReadFirstEvent(path)
 	if err != nil {
 		return ""
+	}
+	return CodexRootSessionID(path, line)
+}
+
+// ReadFirstEvent returns one bounded, newline-terminated JSONL event.
+func ReadFirstEvent(path string) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
 	}
 	defer f.Close()
 	line, err := bufio.NewReader(io.LimitReader(f, codexSessionMetaLineLimit+1)).ReadBytes('\n')
 	if err != nil || len(line) > codexSessionMetaLineLimit {
-		return ""
+		if err == nil {
+			err = io.ErrShortBuffer
+		}
+		return nil, err
 	}
-	return CodexRootSessionID(path, line)
+	return line, nil
 }
 
 // SessionID reads the session id pair recorded for (tag, agent) in

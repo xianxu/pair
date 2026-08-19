@@ -10,6 +10,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/transcript"
 )
 
 // OSRuntime implements Runtime with real process and filesystem calls.
@@ -27,6 +28,10 @@ func (OSRuntime) Sleep(d time.Duration) {
 }
 
 func (OSRuntime) ReadFile(path string) ([]byte, error) { return os.ReadFile(path) }
+
+func (OSRuntime) ReadFirstLine(path string) ([]byte, error) {
+	return transcript.ReadFirstEvent(path)
+}
 
 func (OSRuntime) ModTime(path string) (time.Time, error) {
 	info, err := os.Stat(path)
@@ -63,44 +68,11 @@ func (OSRuntime) ListFiles(root string) ([]string, error) {
 }
 
 func (OSRuntime) Descendants(root string) ([]string, error) {
-	out, err := exec.Command("ps", "-axo", "pid=,ppid=").Output()
-	if err != nil {
-		return []string{root}, nil
-	}
-	children := map[string][]string{}
-	for _, line := range strings.Split(string(out), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) != 2 {
-			continue
-		}
-		children[fields[1]] = append(children[fields[1]], fields[0])
-	}
-	queue := []string{root}
-	seen := map[string]bool{root: true}
-	for i := 0; i < len(queue); i++ {
-		for _, child := range children[queue[i]] {
-			if child == "" || seen[child] {
-				continue
-			}
-			seen[child] = true
-			queue = append(queue, child)
-		}
-	}
-	return queue, nil
+	return procutil.DescendantPIDs(root, procutil.ProcessChildren()), nil
 }
 
 func (OSRuntime) LsofPaths(pid string) ([]string, error) {
-	out, err := exec.Command("lsof", "-p", pid, "-Fn").Output()
-	if err != nil {
-		return nil, nil
-	}
-	var paths []string
-	for _, line := range strings.Split(string(out), "\n") {
-		if strings.HasPrefix(line, "n") {
-			paths = append(paths, strings.TrimPrefix(line, "n"))
-		}
-	}
-	return paths, nil
+	return procutil.LsofNames(pid), nil
 }
 
 func (OSRuntime) ProcessAlive(pid string) bool {
