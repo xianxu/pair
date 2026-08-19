@@ -295,11 +295,13 @@ Run the repository's available full suite from the checkout, including generated
 
 ```bash
 go test ./... -count=1
-make -f /Users/xianxu/workspace/ariadne/Makefile test
+if test ! -e ../ariadne && test ! -L ../ariadne; then ln -s /Users/xianxu/workspace/ariadne ../ariadne; fi
+test "$(cd ../ariadne && pwd -P)" = /Users/xianxu/workspace/ariadne
+make test
 git diff --check
 ```
 
-Expected: PASS with no warnings attributable to the change. The absolute canonical Makefile path is required because Pair's relative `../ariadne/Makefile` symlink is broken in temporary/isolated worktrees. If the canonical Makefile is unavailable, stop and repair/materialize the dependency before claiming full verification.
+Expected: PASS with no warnings attributable to the change. The guarded setup materializes the canonical sibling only when no path exists; it refuses an existing wrong/broken link instead of replacing it. This makes Pair's `Makefile -> ../ariadne/Makefile` and nested plain `make -C "$repo_root"` calls resolve normally. `make -n test` was verified after this setup in the planning checkout. If the canonical repo is unavailable, stop before testing.
 
 - [ ] **Step 4: Perform a shadow-sweep**
 
@@ -345,3 +347,9 @@ Expected: mandatory fresh-context review passes after any Critical/Important fin
   resume decisions from caller-owned validation/removal/warning IO.
 - Replaced the broken worktree-relative `make test` path with the canonical
   Makefile invocation and added required co-author trailers to every commit.
+
+### 2026-08-19 07:34 PDT — Worktree Makefile validation
+
+- Replaced the still-insufficient absolute `make -f` invocation with a guarded
+  sibling-repo symlink setup. Verified `make -n test` resolves the full suite,
+  including nested plain `make` calls, from the temporary Pair checkout.
