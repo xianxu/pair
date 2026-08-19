@@ -58,7 +58,7 @@
 - Modify: `cmd/internal/transcript/transcript.go`
 - Modify: `cmd/internal/transcript/transcript_test.go`
 
-- [ ] **Step 1: Write failing pure-classifier tests**
+- [x] **Step 1: Write failing pure-classifier tests**
 
 Add table tests for:
 
@@ -72,13 +72,13 @@ func TestCodexRootSessionIDFromEvent(t *testing.T) {
 
 Add file-adapter tests with a temp rollout tree proving `ReadCodexRootSessionID` reads a valid first event, rejects a subagent first event, and does not authorize a later `session_meta` when the first event is invalid. Define the bound as 1 MiB including the terminating newline, then cover nonexistent/unreadable input, exactly-at-limit acceptance, over-limit rejection, an unterminated first line, and a read-error path (directory or closed/erroring fixture) before implementation.
 
-- [ ] **Step 2: Run the focused tests and verify RED**
+- [x] **Step 2: Run the focused tests and verify RED**
 
 Run: `go test ./cmd/internal/transcript -run 'TestCodexRootSessionID|TestReadCodexRoot' -count=1 -v`
 
 Expected: FAIL because the root classifier/file adapter does not exist.
 
-- [ ] **Step 3: Implement the minimal classifier and bounded reader**
+- [x] **Step 3: Implement the minimal classifier and bounded reader**
 
 Add:
 
@@ -89,13 +89,13 @@ func ReadCodexRootSessionID(path string) string
 
 `CodexRootSessionID` must first extract the filename UUID, decode exactly one `session_meta`, require matching `payload.id`, nil/absent parent, and source `cli` or `exec`. `ReadCodexRootSessionID` reads one bounded line and delegates; it returns `""` for every IO/size/parse failure.
 
-- [ ] **Step 4: Run the focused tests and verify GREEN**
+- [x] **Step 4: Run the focused tests and verify GREEN**
 
 Run: `go test ./cmd/internal/transcript -count=1`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the classifier**
+- [x] **Step 5: Commit the classifier**
 
 ```bash
 git add cmd/internal/transcript/transcript.go cmd/internal/transcript/transcript_test.go
@@ -118,27 +118,27 @@ git commit -m "transcript: #144: classify root Codex sessions" -m "Co-Authored-B
 - Modify: `cmd/internal/reviewcmd/reviewcmd_test.go`
 - Modify: `cmd/internal/reviewcmd/runtime.go`
 
-- [ ] **Step 1: Write failing ambiguous-candidate regressions**
+- [x] **Step 1: Write failing ambiguous-candidate regressions**
 
 For launcher, codexsid, and slug, create root and subagent rollout files in a temp Codex session tree. Have the shared process seam report the subagent first and root second. Assert each consumer skips the subagent and returns the root ID/path. Add a subagent-only case returning empty. Add config-backed regressions proving `transcript.SessionID` makes context and slug reject a polluted subagent config, and review targeting rejects polluted config before falling through to a valid live root.
 
-- [ ] **Step 2: Run the consumer tests and verify RED**
+- [x] **Step 2: Run the consumer tests and verify RED**
 
 Run: `go test ./cmd/internal/transcript ./cmd/internal/launcher ./cmd/internal/procutil ./cmd/internal/codexsid ./cmd/internal/slugcmd ./cmd/internal/contextcmd ./cmd/internal/reviewcmd -run 'Codex.*(Root|Subagent)|LiveCodex|PollutedCodex' -count=1 -v`
 
 Expected: FAIL because filename-only scans return the first subagent candidate.
 
-- [ ] **Step 3: Replace filename authorization with the shared adapter**
+- [x] **Step 3: Replace filename authorization with the shared adapter**
 
 Make `procutil` the only Go owner of `ps`/`lsof` parsing/traversal and route launcher, codexsid, slug, and sessionwatch's OS runtime through it. Replace direct regex or `CodexSessionIDFromPath` success checks with `transcript.ReadCodexRootSessionID(path)`, continuing the scan when it returns empty. Delete `codexsid.rolloutRE`; retain `CodexSessionIDFromPath` only as the classifier's low-level path parser. Make `transcript.SessionID` validate Codex config IDs through the same file adapter, and expose that validated config resolution through reviewcmd's injected runtime rather than parsing JSON locally.
 
-- [ ] **Step 4: Run the three consumer packages and verify GREEN**
+- [x] **Step 4: Run the three consumer packages and verify GREEN**
 
 Run: `go test ./cmd/internal/transcript ./cmd/internal/launcher ./cmd/internal/procutil ./cmd/internal/codexsid ./cmd/internal/slugcmd ./cmd/internal/contextcmd ./cmd/internal/reviewcmd -count=1`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the consumer sweep**
+- [x] **Step 5: Commit the consumer sweep**
 
 ```bash
 git add cmd/internal/transcript cmd/internal/launcher/osruntime.go cmd/internal/launcher/osruntime_test.go cmd/internal/procutil cmd/internal/codexsid cmd/internal/slugcmd cmd/internal/contextcmd cmd/internal/reviewcmd
@@ -154,7 +154,7 @@ git commit -m "session: #144: reject live Codex subagents" -m "Co-Authored-By: O
 - Modify: `cmd/internal/sessionwatch/sessionwatch.go`
 - Modify: `cmd/internal/sessionwatch/sessionwatch_test.go`
 
-- [ ] **Step 1: Write failing watcher regressions**
+- [x] **Step 1: Write failing watcher regressions**
 
 Extend the fake runtime with first-event data. Add separate tests proving:
 
@@ -163,23 +163,23 @@ Extend the fake runtime with first-event data. Add separate tests proving:
 - subagent-only discovery writes no config and continues until process exit/timeout;
 - a rejected malformed candidate does not hide a later root.
 
-- [ ] **Step 2: Run watcher tests and verify RED**
+- [x] **Step 2: Run watcher tests and verify RED**
 
 Run: `go test ./cmd/internal/sessionwatch -run 'Codex.*(Root|Subagent)|ContinuesPastRejected' -count=1 -v`
 
 Expected: FAIL because `AgentSpec.Match` authorizes filename UUIDs without metadata.
 
-- [ ] **Step 3: Add the thin injected first-event seam and shared authorization**
+- [x] **Step 3: Add the thin injected first-event seam and shared authorization**
 
 Add `ReadFirstLine(path string) ([]byte, error)` to `Runtime` and implement it with the same 1 MiB contract as the transcript adapter. Route OS process traversal/path listing through `procutil`. Keep `AgentSpec.Match` as shape extraction, but before any Codex result becomes returnable, call `transcript.CodexRootSessionID(result.Path, firstEvent)`. Convert explicit subagents/invalid metadata to rejected candidates, not terminal near-misses, and continue scanning.
 
-- [ ] **Step 4: Run watcher tests and verify GREEN**
+- [x] **Step 4: Run watcher tests and verify GREEN**
 
 Run: `go test ./cmd/internal/sessionwatch -count=1`
 
 Expected: PASS on both main and, after integration, the #143 lifecycle branch behavior.
 
-- [ ] **Step 5: Commit watcher authorization**
+- [x] **Step 5: Commit watcher authorization**
 
 ```bash
 git add cmd/internal/sessionwatch
@@ -198,7 +198,7 @@ git commit -m "sessionwatch: #144: persist only root Codex sessions" -m "Co-Auth
 - Modify: `cmd/internal/launcher/osruntime.go`
 - Modify: `cmd/internal/launcher/osruntime_test.go`
 
-- [ ] **Step 1: Write failing config-picker and Alt+n regressions**
+- [x] **Step 1: Write failing config-picker and Alt+n regressions**
 
 First add pure table tests for `DecideAutomaticResumeConfig(agent, saved, sessionValid)` returning sanitized config plus `quarantine` and `warn` intent without IO. Then add integration tests where saved config/ledger contains a real on-disk subagent rollout ID:
 
@@ -207,23 +207,23 @@ First add pure table tests for `DecideAutomaticResumeConfig(agent, saved, sessio
 - a valid root saved ID remains resumable;
 - an explicit user `codex resume <id>` still bypasses automatic saved-state selection.
 
-- [ ] **Step 2: Run launcher tests and verify RED**
+- [x] **Step 2: Run launcher tests and verify RED**
 
 Run: `go test ./cmd/internal/launcher -run 'PollutedCodex|SavedCodexRoot|ExplicitCodexResume' -count=1 -v`
 
 Expected: FAIL because restart fallback currently prefers `saved.SessionID` without root validation and config-picker leaves invalid config on disk.
 
-- [ ] **Step 3: Implement one automatic-resume validation policy**
+- [x] **Step 3: Implement one automatic-resume validation policy**
 
 Update `AgentSessionExists("codex", ...)` to resolve the rollout and require `ReadCodexRootSessionID`. Implement the pure decision over saved state plus `sessionValid`; thin config-picker and restart callers gather validity through `Runtime.AgentSessionExists`, apply returned quarantine/warning intent with `Remove`/stderr, and pass only sanitized state onward. Exercise both config-origin and ledger-fallback saved state. Do not apply this policy to explicit argv resume IDs.
 
-- [ ] **Step 4: Run launcher tests and verify GREEN**
+- [x] **Step 4: Run launcher tests and verify GREEN**
 
 Run: `go test ./cmd/internal/launcher -count=1`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit persisted-state quarantine**
+- [x] **Step 5: Commit persisted-state quarantine**
 
 ```bash
 git add cmd/internal/launcher
@@ -236,7 +236,7 @@ git commit -m "launcher: #144: quarantine subagent resume state" -m "Co-Authored
 - Modify: `nvim/init.lua`
 - Modify: `tests/review-toggle-test.sh`
 
-- [ ] **Step 1: Add a failing headless derivation regression**
+- [x] **Step 1: Add a failing headless derivation regression**
 
 Extend `tests/review-toggle-test.sh` so `current_session_id`:
 
@@ -245,23 +245,23 @@ Extend `tests/review-toggle-test.sh` so `current_session_id`:
 - returns nil when neither exists;
 - never invokes fake `ps` or `lsof` binaries when config is absent.
 
-- [ ] **Step 2: Run the headless test and verify RED**
+- [x] **Step 2: Run the headless test and verify RED**
 
 Run: `bash tests/review-toggle-test.sh`
 
 Expected: FAIL because the current nil-config Codex path calls `live_codex_session_id`.
 
-- [ ] **Step 3: Delete Lua process/rollout discovery**
+- [x] **Step 3: Delete Lua process/rollout discovery**
 
 Remove `descendant_pids` and `live_codex_session_id`; keep `current_session_id` as `PAIR_SESSION_ID` then config only. Update comments to state that Go authorizes and quarantines automatic Codex identity.
 
-- [ ] **Step 4: Run the headless test and verify GREEN**
+- [x] **Step 4: Run the headless test and verify GREEN**
 
 Run: `bash tests/review-toggle-test.sh`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit UI derivation**
+- [x] **Step 5: Commit UI derivation**
 
 ```bash
 git add nvim/init.lua tests/review-toggle-test.sh
@@ -274,11 +274,11 @@ git commit -m "nvim: #144: consume validated session identity" -m "Co-Authored-B
 - Modify if needed: `atlas/session-identity.md`
 - Modify: `workshop/issues/000144-reject-codex-subagent-sessions-during-pair-identity-discovery.md`
 
-- [ ] **Step 1: Update the atlas at the implemented boundary**
+- [x] **Step 1: Update the atlas at the implemented boundary**
 
 Document that Codex automatic identity requires matching root `session_meta`, persisted IDs are revalidated/quarantined, and Neovim derives from validated Pair state. Confirm `atlas/index.md` already links `session-identity.md`.
 
-- [ ] **Step 2: Run focused verification**
+- [x] **Step 2: Run focused verification**
 
 Run:
 
@@ -289,7 +289,7 @@ bash tests/review-toggle-test.sh
 
 Expected: PASS.
 
-- [ ] **Step 3: Run repository-wide verification**
+- [x] **Step 3: Run repository-wide verification**
 
 Run the repository's available full suite from the checkout, including generated runtime assets if required by the current Make targets:
 
@@ -303,7 +303,7 @@ git diff --check
 
 Expected: PASS with no warnings attributable to the change. The guarded setup materializes the canonical sibling only when no path exists; it refuses an existing wrong/broken link instead of replacing it. This makes Pair's `Makefile -> ../ariadne/Makefile` and nested plain `make -C "$repo_root"` calls resolve normally. `make -n test` was verified after this setup in the planning checkout. If the canonical repo is unavailable, stop before testing.
 
-- [ ] **Step 4: Perform a shadow-sweep**
+- [x] **Step 4: Perform a shadow-sweep**
 
 Run:
 
@@ -313,11 +313,11 @@ rg -n 'CodexSessionIDFromPath|rolloutRE|endUUIDRE|live_codex_session_id|\.codex/
 
 Expected: every path that authorizes automatic identity reaches the shared root classifier; no Neovim or package-local filename-only authorizer remains. Low-level path-shape tests may remain only in `transcript`.
 
-- [ ] **Step 5: Record evidence and check every issue-plan box**
+- [x] **Step 5: Record evidence and check every issue-plan box**
 
 Append TDD red/green commands, focused/full verification, shadow-sweep result, and atlas disposition to `## Log`; tick all issue and durable-plan checkboxes. Do not hand-edit issue status.
 
-- [ ] **Step 6: Commit documentation and verification record**
+- [x] **Step 6: Commit documentation and verification record**
 
 ```bash
 git add atlas/session-identity.md workshop/issues/000144-reject-codex-subagent-sessions-during-pair-identity-discovery.md workshop/plans/000144-reject-codex-subagent-sessions-during-pair-identity-discovery-plan.md

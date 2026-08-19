@@ -119,13 +119,13 @@ against `baseline-v3.1.md`. Method A only.*
 
 ## Plan
 
-- [ ] Add the pure Codex root-session metadata classifier and exhaustive unit
+- [x] Add the pure Codex root-session metadata classifier and exhaustive unit
   tests for root, subagent, malformed, incomplete, and mismatched events.
-- [ ] Route every live Codex identity consumer through the shared classifier,
+- [x] Route every live Codex identity consumer through the shared classifier,
   with regressions for ambiguous root/subagent candidates.
-- [ ] Validate and quarantine persisted Codex IDs at automatic resume
+- [x] Validate and quarantine persisted Codex IDs at automatic resume
   boundaries, and remove Neovim's independent live filename parser.
-- [ ] Verify focused packages and the full repository; update the session
+- [x] Verify focused packages and the full repository; update the session
   identity atlas if its current map omits root-vs-subagent semantics.
 
 ## Log
@@ -140,6 +140,27 @@ against `baseline-v3.1.md`. Method A only.*
   sessionwatch, and codexsid, while launcher and slug consume the filename-only
   result. The fix must centralize semantic authorization and cover every live
   identity consumer rather than patching only `Alt+n`.
+- TDD implementation: added a bounded first-event root classifier; routed
+  launcher, watcher, context, slug, and review consumers through it; added
+  ambiguous subagent/root ordering regressions for process and birth scans.
+- Automatic resume now revalidates saved Codex identity in both the config
+  picker and the in-process `Alt+n` loop. Invalid IDs quarantine the canonical
+  config while saved non-resume flags survive the fresh launch; ledger fallback
+  is covered by the same decision.
+- Removed Neovim's duplicate process/rollout parser. The review-target headless
+  test proves an available live rollout cannot authorize or stamp identity
+  without environment/config state.
+- Verification: the eight focused identity packages passed; the headless
+  review-toggle regression passed; environment-cleared `go test ./... -count=1`
+  passed; and the full environment-cleared `make test` passed after updating
+  two shell integration fixtures to provide the now-required root metadata.
+- Shadow sweep found no package-local or Neovim filename-only authorizer. The
+  remaining `CodexSessionIDFromPath` is the transcript classifier's low-level
+  path parser; sessionwatch's UUID regex is candidate-shape extraction followed
+  by metadata authorization; Neovim's remaining Codex filesystem lookup is an
+  age hint for a separately established ID, not identity discovery.
+- Updated `atlas/session-identity.md` with root metadata, quarantine, and thin
+  Neovim consumer semantics (ARCH-DRY, ARCH-PURPOSE).
 
 ## Revisions
 

@@ -139,6 +139,29 @@ The ledger is the source of truth for agent/config inference. The older
 `agent-<tag>` and `config-<tag>-<agent>.json` files remain as derived caches and
 compatibility surfaces for existing consumers.
 
+### Codex root identity
+
+A Codex rollout filename supplies only a candidate UUID; it does not prove
+which conversation owns the rollout. Pair authorizes an automatic Codex
+identity only when the rollout's first JSONL event is a matching
+`session_meta`, its `parent_thread_id` is absent or null, and its source is the
+observed root source `cli` or `exec`. Subagent, malformed, mismatched, unknown,
+oversized, and incomplete first events fail closed. Candidate scans continue
+past rejected rollouts so an open subagent cannot hide a later root candidate.
+
+The rule lives in `cmd/internal/transcript` and is shared by launcher live
+capture, session watching, context usage, slugging, and review targeting.
+Process-tree and birth-time discovery locate candidates only; neither grants
+identity by itself. Persisted Codex IDs are revalidated at automatic config
+picker and `Alt+n` restart boundaries. An invalid binding is removed from the
+config, its non-resume args are preserved for a fresh launch, and the operator
+is warned. Explicitly typed `codex resume <id>` remains user authority.
+
+Neovim deliberately does not inspect Codex processes or rollouts. Review
+target scoping uses the inherited `PAIR_SESSION_ID`, then Pair's config cache;
+when neither exists it remains unscoped until the Go watcher publishes a
+validated root identity.
+
 `agent-default-<agent>.json` is different from `config-<tag>-<agent>.json`: it
 has only `{agent,args}` and belongs to the repo/agent, not to a work tag or
 native conversation. Fresh `pair <agent>` creates use it as the lowest-priority

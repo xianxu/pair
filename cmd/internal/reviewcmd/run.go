@@ -107,7 +107,8 @@ func RunDefinition(opts DefinitionOptions, rt Runtime, stdout, stderr io.Writer)
 }
 
 // resolveTargetSession implements the target seam's session priority:
-// PAIR_SESSION_ID → config session_id → (codex only) the live-rollout lsof walk.
+// PAIR_SESSION_ID → validated config session_id → (codex only) validated live
+// root-rollout discovery.
 func resolveTargetSession(rt Runtime, dataDir, tag, agent, envSID string) string {
 	if envSID != "" {
 		return envSID
