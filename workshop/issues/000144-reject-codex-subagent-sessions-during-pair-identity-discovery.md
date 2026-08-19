@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-08-19
 updated: 2026-08-19
-estimate_hours:
+estimate_hours: 2.22
 started: 2026-08-19T07:09:43-07:00
 ---
 
@@ -97,6 +97,26 @@ Alternatives rejected:
   still find a later valid root candidate.
 - Focused and repository-wide automated tests pass.
 
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec                design=0.25 impl=0.10
+item: smaller-go-module        design=0.05 impl=0.18
+item: cross-cutting-refactor   design=0.15 impl=0.20
+item: smaller-go-module        design=0.05 impl=0.18
+item: smaller-go-module        design=0.05 impl=0.18
+item: lua-neovim               design=0.25 impl=0.24
+item: atlas-docs               design=0.02 impl=0.04
+item: milestone-review         design=0.00 impl=0.16
+design-buffer: 0.15
+total: 2.22
+```
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md`
+against `baseline-v3.1.md`. Method A only.*
+
 ## Plan
 
 - [ ] Add the pure Codex root-session metadata classifier and exhaustive unit
@@ -139,3 +159,9 @@ Alternatives rejected:
   readers; polluted configuration is missing identity, never authority.
 - Required all Go process discovery implementations to reuse `procutil` for
   `ps`/`lsof` parsing while preserving their injected/stateful test seams.
+
+### 2026-08-19 07:38 PDT — Post-plan estimate
+
+- After the plan cleared fresh-context review, derived 2.22 ship-wall-clock
+  hours from eight v3.1 Method A primitives with the thorough-plan 15% design
+  buffer and already-scaled implementation values.
