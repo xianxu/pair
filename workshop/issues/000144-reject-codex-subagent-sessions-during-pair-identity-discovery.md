@@ -1,12 +1,13 @@
 ---
 id: 000144
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-08-19
 updated: 2026-08-19
 estimate_hours: 2.22
 started: 2026-08-19T07:09:43-07:00
+actual_hours: 0.05
 ---
 
 # Reject Codex subagent sessions during Pair identity discovery
@@ -131,6 +132,7 @@ against `baseline-v3.1.md`. Method A only.*
 ## Log
 
 ### 2026-08-19
+- 2026-08-19: closed — After REWORK fixes: full environment-cleared make test passed, including go test ./... and review integration suite; focused launcher/codexsid/slug/sessionwatch tests passed; review-toggle proves no ps/lsof; git diff --check clean; all stale atlas identity descriptions corrected; plan Core concepts reconciled.; review verdict: FIX-THEN-SHIP
 
 - Root cause evidence: the saved config contained session
   `01a017b6-af00-7c91-a656-0611a3750669`; that rollout's first event declares
@@ -168,6 +170,9 @@ against `baseline-v3.1.md`. Method A only.*
   then added real on-disk subagent rejection, subagent-only launcher/codexsid/
   slug cases, malformed-before-root watcher continuation, and an explicit
   Neovim no-`ps`/`lsof` assertion.
+- Re-review returned FIX-THEN-SHIP with behavior, architecture, coverage, and
+  atlas all accepted. Removed the generated raw review transcript whose embedded
+  patch whitespace alone violated branch-wide `git diff --check`.
 
 ## Revisions
 

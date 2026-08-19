@@ -1319,3 +1319,16 @@ test bullet into a named-test checklist and verify it directly; adjacent coverag
 is not fulfillment. Finally, when centralizing a behavior, grep both code symbols
 and the old prose description across every atlas file so older maps do not keep
 teaching the retired rule.
+
+## Raw review transcripts are not safe source artifacts
+
+#144's first close-review transcript was committed as workflow evidence. It
+embedded thousands of lines of raw prompts and diffs, including upstream
+trailing whitespace and space-before-tab sequences. The implementation files
+were clean, but branch-wide `git diff --check` then failed on 897 lines inside
+the generated transcript.
+
+**Rule.** Do not commit raw boundary-review transcripts unless their generator
+normalizes embedded patches and `git diff --check <base>..HEAD` passes with the
+artifact included. Prefer the gate ledger, verdict trailers, and concise issue
+log as durable evidence; generated diagnostic capture is disposable.

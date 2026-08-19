@@ -324,7 +324,7 @@ git add atlas/session-identity.md workshop/issues/000144-reject-codex-subagent-s
 git commit -m "workshop: #144: record root session verification" -m "Co-Authored-By: OpenAI Codex <codex@openai.com>"
 ```
 
-- [ ] **Step 7: Close through the SDLC boundary**
+- [x] **Step 7: Close through the SDLC boundary**
 
 Run:
 
@@ -354,7 +354,7 @@ Expected: mandatory fresh-context review passes after any Critical/Important fin
   sibling-repo symlink setup. Verified `make -n test` resolves the full suite,
   including nested plain `make` calls, from the temporary Pair checkout.
 
-### 2026-08-19 08:32 PDT — Boundary review alignment
+### 2026-08-19 07:55 PDT — Boundary review alignment
 
 - Corrected the Core concepts table to the implemented unexported
   `decideAutomaticResumeConfig` in `markers.go`; warning/removal remain thin
@@ -364,3 +364,10 @@ Expected: mandatory fresh-context review passes after any Critical/Important fin
 - Added the requested real-rollout rejection, subagent-only consumer,
   malformed-before-root watcher, and no-Neovim-subprocess regressions; no
   planned coverage is intentionally dropped.
+
+### 2026-08-19 08:01 PDT — FIX-THEN-SHIP artifact correction
+
+- Removed the generated raw close-review transcript from the shipping change;
+  its embedded diff carried upstream whitespace and made the branch-wide
+  `git diff --check` fail despite clean source files.
+- Re-ran branch-wide `git diff --check` after removal.
