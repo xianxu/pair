@@ -1428,6 +1428,94 @@ Corollary for reviews: "the fuzzer is green" answers *which bytes*, never *whose
 memory*. Ask what the oracle is blind to before treating a large exec count as
 coverage.
 
+## A timeout can describe a phase without describing a process lifetime
+
+#143 changed session discovery from a terminal 60-second deadline into two
+phases: fast startup discovery, then low-frequency polling while the bound agent
+process lives. The implementation and tests captured the distinction, but two
+atlas entries still called the component a "60s watcher" or promised a failure
+when that window elapsed.
+
+**Rule.** When a timeout changes from terminal to transitional, grep prose for
+the duration, "timeout", "deadline", "window", and the component name. Update
+each description to name both the bounded phase and the lifecycle exit
+condition; otherwise operational docs will mistake a scheduling phase for the
+component's lifetime.
+
+## Reconcile the plan's entity table and promised cases before boundary review
+
+#144's implementation centralized Codex root identity correctly, but its first
+close review still returned REWORK. The durable plan named an exported function
+in the wrong file, called an existing reused process seam "modified", and listed
+integration cases that the implementation's broader tests did not assert
+literally. The functional suite was green; the review contract was not.
+
+**Rule.** Before a boundary close, mechanically reconcile every Core concepts
+row against `rg` and `git diff <base> -- <path>`: exact symbol spelling,
+visibility, location, and new/modified/reused status. Then turn each promised
+test bullet into a named-test checklist and verify it directly; adjacent coverage
+is not fulfillment. Finally, when centralizing a behavior, grep both code symbols
+and the old prose description across every atlas file so older maps do not keep
+teaching the retired rule.
+
+## Raw review transcripts are not safe source artifacts
+
+#144's first close-review transcript was committed as workflow evidence. It
+embedded thousands of lines of raw prompts and diffs, including upstream
+trailing whitespace and space-before-tab sequences. The implementation files
+were clean, but branch-wide `git diff --check` then failed on 897 lines inside
+the generated transcript.
+
+**Rule.** Do not commit raw boundary-review transcripts unless their generator
+normalizes embedded patches and `git diff --check <base>..HEAD` passes with the
+artifact included. Prefer the gate ledger, verdict trailers, and concise issue
+log as durable evidence; generated diagnostic capture is disposable.
+
+## Negative environment tests must clear every required variable
+
+#143's focused wrapper command failed only inside a live Pair session because a
+test for an incomplete readiness environment set two variables but silently
+inherited the other two required variables from the harness.
+
+**Rule.** A test asserting behavior when environment input is absent must call
+`t.Setenv(key, "")` for every absent key in that contract. Unsetting variables
+only in the outer test command hides the isolation defect and makes the checked
+command non-reproducible for the exact environment where Pair is developed.
+
+## Long-lived process ownership needs an incarnation, not a PID
+
+#143 extended a watcher from a bounded startup window to the lifetime of an
+agent, but initially polled only `kill -0 <pid>`. A numeric PID can be recycled
+between slow polls, letting an unrelated process inherit the old watcher's
+authority.
+
+**Rule.** Any sidecar that owns a process across polling intervals must capture
+an OS process-start token and compare `(pid, start-token)` on every poll. Its
+stateful fake must support “old process dies; same PID, new token” as a distinct
+transition; a `map[pid]bool` liveness fake cannot test ownership.
+
+## Validate a PID before using OS pseudo-filesystem paths
+
+#143's Linux process-identity boundary accepted the `/proc/self` alias from a
+malformed pidfile, which could bind a long-lived watcher to its own process.
+
+**Rule.** Before interpolating external PID text into `/proc`, `ps`, `kill`, or
+similar process APIs, parse it once as a positive decimal integer and pass only
+the normalized integer onward. Tests must include OS aliases, zero, negatives,
+and nonnumeric input—not only empty and nonexistent numeric PIDs.
+
+## Revalidate authority after slow IO, not only before it
+
+#143 captured a stable process incarnation before each discovery pass, but the
+pass itself crossed `ps`, `lsof`, and filesystem IO before writing the session
+binding. PID ownership could change inside that interval.
+
+**Rule.** When external identity authorizes a persistent write, validate it at
+both ends of any IO-heavy discovery: before scanning, and again after selecting
+the candidate immediately before persistence. Give the fake an in-call hook so
+tests can change identity during the external operation; between-poll state
+changes do not cover TOCTOU races.
+
 ## A screen-scraping recognizer must be validated against derived states, not just the captured screen (#139)
 
 Three composer recognizers were each derived from a *startup* capture and each

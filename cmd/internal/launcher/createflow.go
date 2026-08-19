@@ -96,7 +96,15 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 		}
 
 		configPath := resolveConfigPath(rt, env.DataDir, rTag, rAgent)
-		plan := planRestart(m, rTag, rAgent, readSavedConfig(rt, configPath))
+		saved := readSavedConfig(rt, configPath)
+		savedSessionID := saved.SessionID
+		var quarantine bool
+		saved, quarantine = decideAutomaticResumeConfig(rAgent, saved, rt.AgentSessionExists(rAgent, savedSessionID, env.Cwd))
+		if quarantine {
+			fmt.Fprintf(stderr, "pair: saved session %q for %s is not available; starting fresh\n", savedSessionID, rAgent)
+			rt.Remove(configPath)
+		}
+		plan := planRestart(m, rTag, rAgent, saved)
 		if plan.DropConfig {
 			rt.Remove(configPath) // Shift+Alt+N / compaction: drop the config so create mints fresh.
 		}
@@ -643,11 +651,17 @@ func runConfigPicker(rt Runtime, configPath string, saved savedConfig, agent, ch
 		return 0, true // unusable config — proceed as if none.
 	}
 
-	savedArgsClean := persistedConfigArgs(saved.Args)
-	hasResumable := rt.AgentSessionExists(agent, saved.SessionID, cwd)
-	if saved.SessionID != "" && !hasResumable {
-		fmt.Fprintf(stderr, "pair: saved session %q for %s is not available; starting fresh\n", saved.SessionID, agent)
+	savedSessionID := saved.SessionID
+	hasResumable := rt.AgentSessionExists(agent, savedSessionID, cwd)
+	var quarantine bool
+	saved, quarantine = decideAutomaticResumeConfig(agent, saved, hasResumable)
+	if savedSessionID != "" && !hasResumable {
+		fmt.Fprintf(stderr, "pair: saved session %q for %s is not available; starting fresh\n", savedSessionID, agent)
 	}
+	if quarantine {
+		rt.Remove(configPath)
+	}
+	savedArgsClean := persistedConfigArgs(saved.Args)
 	choices := buildConfigChoices(hasResumable, savedArgsClean, *agentArgs, saved.SessionID)
 
 	labels := make([]string, len(choices))

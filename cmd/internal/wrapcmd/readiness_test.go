@@ -40,6 +40,8 @@ func TestPublishAgentReadySkipsWhenPairEnvIncomplete(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PAIR_DATA_DIR", dir)
 	t.Setenv("PAIR_TAG", "work")
+	t.Setenv("PAIR_SESSION_NAME", "")
+	t.Setenv("PAIR_LAUNCH_NONCE", "")
 
 	p := &proxy{agentBasename: "codex"}
 	p.resolvePaths()

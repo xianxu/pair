@@ -127,7 +127,7 @@ Priority is packaging impact first, then reliability/testability:
 | `cmd/pair-changelog-open` / `cmd/internal/opener` | Go binary plus shared runner | zellij Alt+l Run | Opens changelog viewer and starts detached render/distill singleton. | Requires Pair env; launches a `setsid`-detached `pair scrollback-render` / `pair changelog` build (#92), nvim watcher; reads/writes `changelog-*` sidecars. | ported to Go (#93 M2) — shared `opener` package (session keying + detached distiller), IO behind the seam; **replaces** the shell script at the same PATH name (no shim); Go `SysProcAttr.Setsid` replaces setsid/perl | P1 |
 | `nvim/changelog.lua` | Neovim native asset | `cmd/pair-changelog-open` | Loaded by `nvim -u ... <log>`; read-only watcher/spinner. | Reads `PAIR_CHANGELOG_*` and Pair env. | native-asset, adjacent/embedded | P1 |
 | `bin/pair-title` / `cmd/pair-title` / `cmd/internal/titlepoller` | Go binary plus shared runner | launcher `SpawnTitlePoller` | `pair-title <tag> <agent>`; long-running 60s poller (frame meter + cmux heat-ramp). | Reads/writes title pid, pane json, cmux owner files; calls zellij/cmux/ps + in-process `contextcmd` for the count. | ported to Go (#93 M1) on the #78 sessionwatch template — pure decisions in `titlepoller`, IO behind the `Runtime` seam; the `.sh` re-exec shim was retired in #94 M2 (the launcher spawns `bin/pair-title` directly) | P1 |
-| `bin/pair-session-watch` / `cmd/pair-session-watch` / `cmd/internal/sessionwatch` | Go stateful watcher | launcher `SpawnSessionWatcher` (create path) | `pair-session-watch <agent> <tag> <cwd> [agent-args...]`; background 60s watcher; no-op for claude. | Reads agent pidfile, lsof/ps, native session dirs; writes config JSON atomically; logs adapt events through `cmd/internal/adapt`. | Go-owned watcher with implemented `pair session-watch` route (#92, via `sessionwatch.RunCLI`); the `.sh` passthrough shim was retired in #94 M2 (the launcher spawns `bin/pair-session-watch` directly) | P1 |
+| `pair session-watch` / `cmd/internal/sessionwatch` | Go stateful watcher | launcher `SpawnSessionWatcher` (create path) and agent-only restart | `pair session-watch <agent> <tag> <cwd> [watcher metadata] -- [agent-args...]`; fast discovery for 60s, then 60s lifecycle polling while a generation-bound PID lives; no-op for Claude. | Reads agent pidfile, lsof/ps, native session dirs; writes config JSON atomically; logs adapt events through `cmd/internal/adapt`. | Go-owned dispatcher route (#92, via `sessionwatch.RunCLI`); both watcher producers share `sessionwatch.CommandArgs`, and the old helper binaries/shim are retired | P1 |
 | `bin/lib/adapt-log.sh` | sourced shell helper | remaining shell emitters | `adapt_log comp agent aspect signal outcome [detail]`; no-op if no `PAIR_TAG` or jq. | Appends JSONL to `$PAIR_DATA_DIR/adapt-<tag>.jsonl`. | keep until remaining shell emitters move; schema stays DRY with Go/Lua emitters | P1 |
 | `nvim/adapt.lua` | Lua helper | nvim doctor/adaptation surfaces, tests | Lua adaptation flight recorder emitter. | Writes same JSONL schema as Go/shell. | native-asset; keep schema aligned | P2 |
 | `doctor/README.md` / `doctor/SKILL.md` | docs/skill | operator/agent diagnostics | Documents Pair doctor flow. | Refers to `nvim/doctor.lua` and adaptation logs. | adjacent docs/skill; not Go migration target | P3 |
@@ -208,9 +208,10 @@ Build/install callers:
 - #77 made `pair-go launch ...` a meaningful Go-owned compatibility handoff to
   the then-shell `bin/pair`, with argv/env preserved and missing-launcher
   diagnostics.
-- #78 ported the session-id watcher to `cmd/pair-session-watch` with
-  `bin/pair-session-watch.sh` retained as a shim (since retired in #94 M2 — the
-  launcher spawns the Go `bin/pair-session-watch` directly).
+- #78 ported the session-id watcher to the then-standalone
+  `cmd/pair-session-watch`, with `bin/pair-session-watch.sh` retained as a shim.
+  #94 M2 retired that shell shim; #104 later folded the standalone binary into
+  today's `pair session-watch` route.
 - #93 M1 ported the title poller to `cmd/pair-title` + `cmd/internal/titlepoller`
   on that same template — pure decisions (heat buckets, cwd abbrev, frame title,
   argv identity guard, unchanged-skip cache) unit-tested directly; zellij/cmux/ps/fs
@@ -289,7 +290,8 @@ Build/install callers:
   `copy-on-select` execs `$PAIR_HOME/bin/flash-pane` / `bin/clipboard-to-pane`
   directly (`cmd/internal/clipcmd/run.go`); the launcher's `SpawnTitlePoller` /
   `SpawnSessionWatcher` (`cmd/internal/launcher/osruntime.go`) spawn
-  `bin/pair-title` / `bin/pair-session-watch` directly. All five were dropped from
+  `bin/pair-title` / `bin/pair-session-watch` directly. #104 later folded both
+  sidecars into `pair title` / `pair session-watch`. All five were dropped from
   the tree and from `explicitAssetPaths` (`embed_test.go` asserts them excluded;
   the copied-binary smoke `tests/pair-embedded-runtime-test.sh` asserts they're
   absent). Net: all **seven** orchestrator shims are gone (2 in M1, 5 in M2). The
@@ -427,7 +429,7 @@ rule:
 - `bin/pair-restart.sh` (removed #94 M1 — ported to in-process `pair restart`, `cmd/internal/launcher/restart.go`)
 - `bin/pair-scribe`
 - `bin/pair-scrollback-render`
-- `bin/pair-session-watch.sh` (removed #94 M2 — `.sh` passthrough retired; `cmd/pair-session-watch` / `bin/pair-session-watch` is the owner, still bundled)
+- `bin/pair-session-watch.sh` (removed #94 M2; current owner is `pair session-watch` / `cmd/internal/sessionwatch`)
 - `bin/pair-slug`
 - `bin/pair-title.sh` (removed #94 M2 — `.sh` passthrough retired; `cmd/pair-title` / `bin/pair-title` is the owner, still bundled)
 - `bin/pair-wrap`
@@ -543,7 +545,7 @@ rule:
 - `cmd/pair-review-readiness/main.go`
 - `cmd/pair-review-target/main.go`
 - `cmd/pair-scrollback-open/main.go`
-- `cmd/pair-session-watch/main.go`
+- `cmd/pair-session-watch/main.go` (removed #104; folded into `cmd/pair-go`)
 - `cmd/pair-title/main.go`
 - `cmd/pair-scribe/main.go` (thin shim over `cmd/internal/scribecmd`)
 - `cmd/pair-scrollback-render/main.go`

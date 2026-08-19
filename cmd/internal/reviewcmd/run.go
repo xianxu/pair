@@ -40,6 +40,8 @@ type Runtime interface {
 	SpawnReviewPane(cwd, lua, absFile, nvimPidFile string) error
 	// ResolveCodexSessionID walks the codex agent's process tree (codexsid).
 	ResolveCodexSessionID(dataDir, tag string) string
+	// ConfiguredSessionID returns a semantically validated persisted identity.
+	ConfiguredSessionID(dataDir, tag, agent string) string
 }
 
 // ── target ────────────────────────────────────────────────────────────────
@@ -105,15 +107,14 @@ func RunDefinition(opts DefinitionOptions, rt Runtime, stdout, stderr io.Writer)
 }
 
 // resolveTargetSession implements the target seam's session priority:
-// PAIR_SESSION_ID → config session_id → (codex only) the live-rollout lsof walk.
+// PAIR_SESSION_ID → validated config session_id → (codex only) validated live
+// root-rollout discovery.
 func resolveTargetSession(rt Runtime, dataDir, tag, agent, envSID string) string {
 	if envSID != "" {
 		return envSID
 	}
-	if cfg, err := rt.ReadFile(filepath.Join(dataDir, "config-"+tag+"-"+agent+".json")); err == nil {
-		if sid := sessionFromConfig(cfg); sid != "" {
-			return sid
-		}
+	if sid := rt.ConfiguredSessionID(dataDir, tag, agent); sid != "" {
+		return sid
 	}
 	if agent == "codex" {
 		return rt.ResolveCodexSessionID(dataDir, tag)
@@ -328,14 +329,4 @@ func firstLine(s string) string {
 		return strings.TrimSpace(s[:i])
 	}
 	return strings.TrimSpace(s)
-}
-
-func sessionFromConfig(cfg string) string {
-	var c struct {
-		SessionID string `json:"session_id"`
-	}
-	if json.Unmarshal([]byte(cfg), &c) != nil {
-		return ""
-	}
-	return c.SessionID
 }

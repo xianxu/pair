@@ -1,14 +1,19 @@
 // Package procutil holds the tiny cross-runtime process primitives that every
-// pair OSRuntime needs: liveness (kill -0) and the process command line
-// (ps -p <pid> -o command=). Extracting them here keeps one source of truth as
-// the Go-migration ports (#93) each grow an OSRuntime — sessionwatch and
-// titlepoller today, the leaf orchestrators next.
+// pair OSRuntime needs: liveness, incarnation identity, and command-line
+// inspection. Extracting them here keeps one source of truth as the Go-migration
+// ports (#93) each grow an OSRuntime.
 package procutil
 
 import (
 	"os/exec"
+	"strconv"
 	"strings"
 )
+
+func positivePID(pid string) (int, bool) {
+	n, err := strconv.Atoi(pid)
+	return n, err == nil && n > 0
+}
 
 // Alive reports whether pid names a live process (kill -0). An empty pid is
 // never alive.

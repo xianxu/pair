@@ -17,6 +17,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/readiness"
+	"github.com/xianxu/pair/cmd/internal/sessionwatch"
 	"github.com/xianxu/pair/cmd/internal/transcript"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
@@ -308,7 +309,11 @@ func (OSRuntime) SetTerminalTitle(session string) {
 // --- ProcOps ---------------------------------------------------------------
 
 func (r OSRuntime) SpawnSessionWatcher(agent, tag, cwd, repoRoot, repoName string, agentArgs []string) {
-	spawnDetached(sessionWatcherArgv(runningPairExe(r.PairHome), agent, tag, cwd, repoRoot, repoName, agentArgs), nil)
+	spawnDetached(sessionWatcherSpawnArgv(runningPairExe(r.PairHome), agent, tag, cwd, repoRoot, repoName, time.Now(), agentArgs), nil)
+}
+
+func sessionWatcherSpawnArgv(exe, agent, tag, cwd, repoRoot, repoName string, bound time.Time, agentArgs []string) []string {
+	return sessionwatch.CommandArgs(exe, agent, tag, cwd, repoRoot, repoName, bound, agentArgs)
 }
 
 func (r OSRuntime) SpawnTitlePoller(tag, agent, session string) {
@@ -330,17 +335,13 @@ func runningPairExe(pairHome string) string {
 	return filepath.Join(pairHome, "bin", "pair")
 }
 
-// sessionWatcherArgv / titlePollerArgv build the detached-spawn argv for the two
-// sidecar routes, now self-execing `pair` (#104 M2). Pure (exe injected) so a
+// titlePollerArgv builds the detached-spawn argv for the title sidecar, now
+// self-execing `pair` (#104 M2). Pure (exe injected) so a
 // test can pin the shape: spawnDetached swallows a start error, so a silent
 // regression in the argv would otherwise go uncaught until the poller/watcher
 // simply never started. The title poller's process must start with
 // "<…>/pair title <tag> <agent>", the exact shape titlepoller's single-instance
 // argv guard matches.
-func sessionWatcherArgv(exe, agent, tag, cwd, repoRoot, repoName string, agentArgs []string) []string {
-	return append([]string{exe, "session-watch", agent, tag, cwd, "--repo-root", repoRoot, "--repo-name", repoName, "--"}, agentArgs...)
-}
-
 func titlePollerArgv(exe, tag, agent, session string) []string {
 	return []string{exe, "title", tag, agent, session}
 }
@@ -599,7 +600,8 @@ func (OSRuntime) AgentSessionExists(agent, sid, cwd string) bool {
 	case "agy":
 		return fileExists(AgyConversationPath(home, sid))
 	case "codex":
-		return transcript.Resolve("codex", sid, cwd, home) != ""
+		path := transcript.Resolve("codex", sid, cwd, home)
+		return path != "" && transcript.ReadCodexRootSessionID(path) == sid
 	case "muse":
 		return transcript.Resolve("muse", sid, cwd, home) != ""
 	}
@@ -624,7 +626,7 @@ func (r OSRuntime) LiveAgentSessionID(agent, tag string) string {
 			if !strings.HasPrefix(name, prefix) {
 				continue
 			}
-			if sid := transcript.CodexSessionIDFromPath(name); sid != "" {
+			if sid := transcript.ReadCodexRootSessionID(name); sid != "" {
 				return sid
 			}
 		}

@@ -2,6 +2,8 @@ package reviewcmd
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -33,14 +35,26 @@ func TestTargetJSON(t *testing.T) {
 	}
 }
 
-func TestSessionFromConfig(t *testing.T) {
-	if got := sessionFromConfig(`{"agent":"codex","session_id":"cfgsid"}`); got != "cfgsid" {
-		t.Fatalf("got %q", got)
+func TestOSRuntimeConfiguredSessionIDRejectsCodexSubagent(t *testing.T) {
+	home := t.TempDir()
+	data := filepath.Join(home, "data")
+	if err := os.MkdirAll(data, 0o755); err != nil {
+		t.Fatal(err)
 	}
-	if got := sessionFromConfig(`{"agent":"codex"}`); got != "" {
-		t.Fatalf("no session_id → empty, got %q", got)
+	sid := "01a017b6-af00-7c91-a656-0611a3750669"
+	parent := "019e8178-79c2-7862-91db-e8fa1be3b162"
+	rollout := filepath.Join(home, ".codex", "sessions", "2026", "08", "18", "rollout-sub-"+sid+".jsonl")
+	if err := os.MkdirAll(filepath.Dir(rollout), 0o755); err != nil {
+		t.Fatal(err)
 	}
-	if got := sessionFromConfig(`not json`); got != "" {
-		t.Fatalf("bad json → empty, got %q", got)
+	if err := os.WriteFile(rollout, []byte(`{"type":"session_meta","payload":{"id":"`+sid+`","parent_thread_id":"`+parent+`","source":{"subagent":{}}}}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(data, "config-t-codex.json"), []byte(`{"session_id":"`+sid+`"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	if got := NewOSRuntime().ConfiguredSessionID(data, "t", "codex"); got != "" {
+		t.Fatalf("ConfiguredSessionID = %q, want empty", got)
 	}
 }

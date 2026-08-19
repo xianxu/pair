@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -176,16 +177,28 @@ func TestOSRuntimeLiveCodexSessionIDUsesAgentPIDDescendantLsof(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dataDir, "agent-pid-work"), []byte("10\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	sid := "019e8178-79c2-7862-91db-e8fa1be3b162"
-	path := filepath.Join(home, ".codex", "sessions", "2026", "05", "31",
-		"rollout-2026-05-31T21-36-56-"+sid+".jsonl")
+	rootSID := "019e8178-79c2-7862-91db-e8fa1be3b162"
+	subSID := "01a017b6-af00-7c91-a656-0611a3750669"
+	rootPath := filepath.Join(home, ".codex", "sessions", "2026", "05", "31",
+		"rollout-2026-05-31T21-36-56-"+rootSID+".jsonl")
+	subPath := filepath.Join(home, ".codex", "sessions", "2026", "05", "31",
+		"rollout-2026-05-31T22-00-00-"+subSID+".jsonl")
+	if err := os.MkdirAll(filepath.Dir(rootPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(rootPath, []byte(`{"type":"session_meta","payload":{"id":"`+rootSID+`","parent_thread_id":null,"source":"cli"}}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(subPath, []byte(`{"type":"session_meta","payload":{"id":"`+subSID+`","parent_thread_id":"`+rootSID+`","source":{"subagent":{}}}}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	binDir := t.TempDir()
 	ps := "#!/bin/sh\nprintf ' 10 1\\n 11 10\\n'\n"
 	if err := os.WriteFile(filepath.Join(binDir, "ps"), []byte(ps), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	lsof := "#!/bin/sh\nif [ \"$2\" = \"11\" ]; then printf 'p11\\nn" + path + "\\n'; else printf 'p%s\\n' \"$2\"; fi\n"
+	lsof := "#!/bin/sh\nif [ \"$2\" = \"11\" ]; then printf 'p11\\nn" + subPath + "\\nn" + rootPath + "\\n'; else printf 'p%s\\n' \"$2\"; fi\n"
 	if err := os.WriteFile(filepath.Join(binDir, "lsof"), []byte(lsof), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -195,11 +208,17 @@ func TestOSRuntimeLiveCodexSessionIDUsesAgentPIDDescendantLsof(t *testing.T) {
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+oldPath)
 
 	rt := NewOSRuntime(dataDir, "/pair")
-	if got := rt.LiveAgentSessionID("codex", "work"); got != sid {
-		t.Fatalf("LiveAgentSessionID = %q, want %q", got, sid)
+	if got := rt.LiveAgentSessionID("codex", "work"); got != rootSID {
+		t.Fatalf("LiveAgentSessionID = %q, want root %q", got, rootSID)
 	}
 	if got := rt.LiveAgentSessionID("claude", "work"); got != "" {
 		t.Fatalf("non-codex LiveAgentSessionID = %q, want empty", got)
+	}
+	if err := os.Remove(rootPath); err != nil {
+		t.Fatal(err)
+	}
+	if got := rt.LiveAgentSessionID("codex", "work"); got != "" {
+		t.Fatalf("subagent-only LiveAgentSessionID = %q, want empty", got)
 	}
 }
 
@@ -324,12 +343,21 @@ func TestOSRuntimeAgentSessionExistsFindsNestedCodexRollout(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, []byte("{}\n"), 0o644); err != nil {
+	first := fmt.Sprintf(`{"type":"session_meta","payload":{"id":%q,"parent_thread_id":null,"source":"cli"}}`+"\n", sid)
+	if err := os.WriteFile(path, []byte(first), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
 	if !(OSRuntime{}).AgentSessionExists("codex", sid, "/repo") {
 		t.Fatal("AgentSessionExists(codex) did not find nested rollout file")
+	}
+	parent := "019e8178-79c2-7862-91db-e8fa1be3b162"
+	subagent := fmt.Sprintf(`{"type":"session_meta","payload":{"id":%q,"parent_thread_id":%q,"source":{"subagent":{}}}}`+"\n", sid, parent)
+	if err := os.WriteFile(path, []byte(subagent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if (OSRuntime{}).AgentSessionExists("codex", sid, "/repo") {
+		t.Fatal("AgentSessionExists(codex) accepted a real subagent rollout")
 	}
 }
 
@@ -409,8 +437,9 @@ func TestSidecarSpawnArgvSelfExecsPair(t *testing.T) {
 		t.Fatalf("title poller argv = %v, want %v", tp, wantTP)
 	}
 
-	sw := sessionWatcherArgv(exe, "codex", "work", "/cwd/sub", "/cwd", "pair", []string{"--no-alt-screen"})
-	want := []string{exe, "session-watch", "codex", "work", "/cwd/sub", "--repo-root", "/cwd", "--repo-name", "pair", "--", "--no-alt-screen"}
+	bound := time.Date(2026, 8, 19, 9, 30, 0, 123, time.UTC)
+	sw := sessionWatcherSpawnArgv(exe, "codex", "work", "/cwd/sub", "/cwd", "pair", bound, []string{"--no-alt-screen"})
+	want := []string{exe, "session-watch", "codex", "work", "/cwd/sub", "--pid-not-before", bound.Format(time.RFC3339Nano), "--repo-root", "/cwd", "--repo-name", "pair", "--", "--no-alt-screen"}
 	if !reflect.DeepEqual(sw, want) {
 		t.Fatalf("session watcher argv = %v, want %v", sw, want)
 	}
