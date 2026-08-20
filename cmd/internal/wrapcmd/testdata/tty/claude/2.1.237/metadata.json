@@ -1,0 +1,10 @@
+{
+  "agent": "claude",
+  "version": "2.1.237 (Claude Code)",
+  "captured_at": "2026-08-20T15:41:49Z",
+  "command": ["claude"],
+  "files": {
+    "bash-mode.raw": "f9aad50ac28a73336e9560910dedd053657497b84fcb7a5e1704c8ac27ff7210",
+    "composer.raw": "a0c73050e9f1398c4c5d00e88005db6157ecf2aeb49ce7f3cf55373088a24d96"
+  }
+}

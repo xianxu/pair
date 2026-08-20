@@ -28,7 +28,8 @@ var harnessTTYProfiles = map[string]harnessTTYProfile{
 			altBS:   []byte{0x15},
 		},
 		overlay:      detectClaudeOverlayOpen,
-		composerGate: composerGateLegacy,
+		composerGate: composerGatePositive,
+		recognize:    claudeComposerActive,
 	},
 	"codex": {
 		keymap: sendKeymap{

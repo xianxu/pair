@@ -225,3 +225,16 @@ func agyLiveComposerPaint() string {
 	return "\x1b[10;1H\x1b[90m──────────\x1b[11;1H\x1b[94m>\x1b[39m work" +
 		"\x1b[13;1H\x1b[90m──────────\x1b[39m\x1b[?25h\x1b[12;3H"
 }
+
+// claudeLiveComposerPaint is the byte sequence that paints a live Claude
+// composer: a prompt glyph at column 0 between two rules sharing one
+// foreground, with the cursor in the text that follows. Claude repaints both
+// glyph and rule colour per input mode, so the recognizer keys on the shape
+// rather than on these particular values.
+func claudeLiveComposerPaint() string {
+	rule := "\x1b[38;2;136;136;136m" + strings.Repeat("─", 40) + "\x1b[39m"
+	return "\x1b[20;1H" + rule +
+		"\x1b[21;1H❯ alpha" +
+		"\x1b[22;1H" + rule +
+		"\x1b[?25h\x1b[21;9H"
+}
