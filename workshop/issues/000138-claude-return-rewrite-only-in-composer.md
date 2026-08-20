@@ -1,11 +1,12 @@
 ---
 id: 000138
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-08-16
-updated: 2026-08-16
+updated: 2026-08-19
 estimate_hours:
+started: 2026-08-19T19:25:36-07:00
 ---
 
 # Claude Return rewrite only in composer
