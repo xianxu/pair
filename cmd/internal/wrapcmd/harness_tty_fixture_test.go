@@ -261,6 +261,16 @@ func ttyFixtureReturnExpectation(harness, file string) (bool, bool) {
 	return want, ok
 }
 
+// composerReturnBytes reports what a harness emits for a plain Return inside a
+// recognized composer, read from the profile registry rather than restated.
+func composerReturnBytes(harness string) (string, bool) {
+	profile, ok := profileForHarness(harness, true)
+	if !ok {
+		return "", false
+	}
+	return string(profile.keymap.plainCR), true
+}
+
 // harnessTTYReplayResult is the observable result of replaying a fixture
 // through the production seam: what the recognizer saw and what a plain Return
 // would actually emit.
@@ -283,7 +293,11 @@ func replayHarnessTTYFixture(t *testing.T, harness string, raw []byte, wantCompo
 	}
 	wantReturn := "\r"
 	if wantComposer {
-		wantReturn = "\n"
+		remap, ok := composerReturnBytes(harness)
+		if !ok {
+			t.Fatalf("no profile for %s", harness)
+		}
+		wantReturn = remap
 	}
 	if baseline.returnBytes != wantReturn {
 		t.Fatalf("unsplit plain Return = %q, want %q (%s)", baseline.returnBytes, wantReturn, baseline.reason)
@@ -353,4 +367,27 @@ func sortedKeys(files map[string][]byte) []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// TestComposerReturnExpectationMatchesProfile pins that a recognized composer's
+// expected Return bytes come from the harness's own keymap. Codex, Muse and Agy
+// all remap to LF, which made a hardcoded "\n" look correct until Claude — whose
+// plainCR is backslash-CR — joined the positively gated set.
+func TestComposerReturnExpectationMatchesProfile(t *testing.T) {
+	want := map[string]string{
+		"claude": "\\\r",
+		"codex":  "\n",
+		"muse":   "\n",
+		"agy":    "\n",
+	}
+	for harness, wantBytes := range want {
+		got, ok := composerReturnBytes(harness)
+		if !ok {
+			t.Errorf("%s: no profile", harness)
+			continue
+		}
+		if got != wantBytes {
+			t.Errorf("%s composer Return = %q, want %q", harness, got, wantBytes)
+		}
+	}
 }
