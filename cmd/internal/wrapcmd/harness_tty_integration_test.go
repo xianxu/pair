@@ -86,6 +86,31 @@ func TestHarnessTTYIntegration_ProfileSelectionAndTerminalLifecycle(t *testing.T
 	}
 }
 
+// TestHarnessTTYIntegration_ClaudeOverlayBeatsComposer pins the safety property
+// that matters most for Pair's default agent: when Claude's permission OSC has
+// fired, plain Return must confirm the dialog even though the composer is still
+// painted on screen and the recognizer would otherwise qualify it. The overlay
+// layer has absolute precedence over the composer gate.
+func TestHarnessTTYIntegration_ClaudeOverlayBeatsComposer(t *testing.T) {
+	f := newHarnessSessionFake(t, "claude", true)
+	t.Cleanup(f.close)
+
+	f.output(claudeLiveComposerPaint())
+	if got := f.enter(); !bytes.Equal(got, []byte{'\\', '\r'}) {
+		t.Fatalf("composer Enter = %q, want Claude's backslash-CR remap", got)
+	}
+
+	// The permission dialog opens while the composer stays painted.
+	f.output("\x1b]777;" + pickerOpenOSCBody + "\a")
+	if got := f.enter(); !bytes.Equal(got, []byte{'\r'}) {
+		t.Fatalf("overlay Enter = %q, want bare CR so the dialog confirms", got)
+	}
+	// The flag is one-shot: the next Enter returns to the composer remap.
+	if got := f.enter(); !bytes.Equal(got, []byte{'\\', '\r'}) {
+		t.Fatalf("post-overlay Enter = %q, want the remap restored", got)
+	}
+}
+
 func TestHarnessTTYIntegration_StatefulReturnRouting(t *testing.T) {
 	f := newHarnessSessionFake(t, "agy", true)
 	t.Cleanup(f.close)
@@ -224,4 +249,17 @@ func codexLiveComposerPaint() string {
 func agyLiveComposerPaint() string {
 	return "\x1b[10;1H\x1b[90m──────────\x1b[11;1H\x1b[94m>\x1b[39m work" +
 		"\x1b[13;1H\x1b[90m──────────\x1b[39m\x1b[?25h\x1b[12;3H"
+}
+
+// claudeLiveComposerPaint is the byte sequence that paints a live Claude
+// composer: a prompt glyph at column 0 between two rules sharing one
+// foreground, with the cursor in the text that follows. Claude repaints both
+// glyph and rule colour per input mode, so the recognizer keys on the shape
+// rather than on these particular values.
+func claudeLiveComposerPaint() string {
+	rule := "\x1b[38;2;136;136;136m" + strings.Repeat("─", 40) + "\x1b[39m"
+	return "\x1b[20;1H" + rule +
+		"\x1b[21;1H❯ alpha" +
+		"\x1b[22;1H" + rule +
+		"\x1b[?25h\x1b[21;9H"
 }

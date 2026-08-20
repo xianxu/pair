@@ -1571,3 +1571,30 @@ field tracks the gate. Worse, the durable plan showed 0/30 rows ticked while the
 work it described had shipped, so the record read as unstarted. When work lands,
 close it or say why it is blocked; a stale `working` hides both the completed
 work and the open verification it still carries.
+
+## A height bound on a composer recognizer is a lost-draft bug, not a safety measure (#138)
+
+Claude's recognizer inherited a 20-row ceiling from a sibling harness. Past it
+the gate declined and plain Return submitted the draft — on the default agent,
+where the same keystroke had inserted a newline the day before. The bound bought
+nothing: the box was already pinned by an immediate top rule and by taking the
+first painted column-0 row below as the closing rule, so nothing distant could
+pair into it at any height. Before copying a bound, ask what it excludes that the
+structure does not already exclude; if the answer is "nothing", it is pure
+false-negative surface.
+
+## Capture stop-conditions must require a settled screen, not the first matching text (#138)
+
+Two harnesses in a row produced fixtures caught mid-repaint — Codex with the
+cursor parked on the status line, Claude with the cursor hidden — because the
+capture stopped the instant the marker text appeared. A TUI paints in several
+writes and a PTY read can land between them. Stop on the condition under test
+actually holding (recognizer fires *and* marker present), not on the first byte
+that mentions it.
+
+## Mark byte-exact fixtures binary in .gitattributes (#138)
+
+`git diff --check` flagged trailing whitespace inside a literal PTY capture. Any
+tooling that acted on that — an editor, a pre-commit hook, EOL normalisation —
+would corrupt a fixture whose SHA-256 is pinned in metadata. Captured evidence is
+not text and should be declared as such the moment the first one lands.

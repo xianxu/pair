@@ -545,9 +545,10 @@ func TestHarnessTTYLiveConformance(t *testing.T) {
 		t.Skip("set PAIR_LIVE_HARNESS=agy, codex, or muse to check an installed harness")
 	}
 	commands := map[string][]string{
-		"agy":   {"agy", "--dangerously-skip-permissions"},
-		"codex": {"codex", "--no-alt-screen", "-c", "check_for_update_on_startup=false"},
-		"muse":  {"muse"},
+		"claude": {"claude"},
+		"agy":    {"agy", "--dangerously-skip-permissions"},
+		"codex":  {"codex", "--no-alt-screen", "-c", "check_for_update_on_startup=false"},
+		"muse":   {"muse"},
 	}
 	command, ok := commands[harness]
 	if !ok {
@@ -665,6 +666,9 @@ type harnessTTYDrivenScenario struct {
 	until        string
 	wantComposer bool
 	file         string
+	// timeout overrides the default startup budget. A scenario that needs the
+	// agent to think and call a tool cannot fit in the startup window.
+	timeout time.Duration
 }
 
 var harnessTTYDrivenScenarios = map[string][]harnessTTYDrivenScenario{
@@ -675,6 +679,25 @@ var harnessTTYDrivenScenarios = map[string][]harnessTTYDrivenScenario{
 		name: "update interstitial", args: []string{"--no-alt-screen"},
 		until: "Press enter to continue", wantComposer: false, file: "overlay.raw",
 	}},
+	"claude": {
+		// Bash mode repaints both the prompt glyph and the rule colour, so it
+		// is the fixture that would catch a future colour- or glyph-pinned
+		// regression. The gate must stay OPEN here — it is still a composer.
+		{name: "bash mode", send: "!", until: "for shell mode",
+			wantComposer: true, file: "bash-mode.raw"},
+		// The slash menu renders below the composer box and leaves column 0
+		// blank, so Claude does not reuse its prompt glyph as a selection
+		// marker the way Agy does. Pinned as a fixture rather than left as an
+		// observation, since the discrimination ledger leans on it.
+		{name: "slash menu", send: "/", until: "superpowers",
+			wantComposer: true, file: "menu.raw"},
+		// The permission prompt is the state this issue exists to protect:
+		// plain Return must confirm it, not insert. Reaching it needs a real
+		// tool call, so this scenario asks for one.
+		{name: "permission prompt", send: "run the shell command: ls -la\r",
+			until: "do you want to proceed", wantComposer: false, file: "overlay.raw",
+			timeout: 120 * time.Second},
+	},
 	"agy": {
 		// The shortcut sheet replaces the composer entirely.
 		{name: "shortcut sheet", args: []string{"--dangerously-skip-permissions"},
@@ -735,15 +758,25 @@ func driveHarnessTTYScenario(t *testing.T, harness, executable, repoRoot string,
 			t.Errorf("close %s scenario classifier: %v", harness, err)
 		}
 	})
-	ready, sent := false, false
+	ready, sent, settled := false, false, false
 	return captureHarnessTTY(harnessTTYCaptureRequest{
-		Executable: executable,
-		Args:       scenario.args,
-		Env:        os.Environ(),
-		Dir:        repoRoot,
+		Executable:     executable,
+		Args:           scenario.args,
+		Env:            os.Environ(),
+		Dir:            repoRoot,
+		StartupTimeout: scenario.timeout,
 		Classify: func(chunk, retained []byte) harnessTTYConformanceState {
-			if composer.Observe(chunk, retained) == harnessTTYRecognized {
+			recognized := composer.Observe(chunk, retained) == harnessTTYRecognized
+			if recognized {
 				ready = true
+			}
+			// A scenario that expects the gate to stay open must also stop on
+			// a settled screen. Stopping the instant the marker text appears
+			// can catch the harness mid-repaint with the cursor hidden, which
+			// is a transient rather than the state under test.
+			if sent && scenario.wantComposer && recognized &&
+				strings.Contains(strings.ToLower(string(stripTerminalControls(retained))), strings.ToLower(scenario.until)) {
+				settled = true
 			}
 			return harnessTTYWaiting
 		},
@@ -757,6 +790,9 @@ func driveHarnessTTYScenario(t *testing.T, harness, executable, repoRoot string,
 		Startup: func(retained []byte) bool {
 			if scenario.send != "" && !sent {
 				return false
+			}
+			if scenario.wantComposer {
+				return settled
 			}
 			return strings.Contains(strings.ToLower(string(stripTerminalControls(retained))), strings.ToLower(scenario.until))
 		},

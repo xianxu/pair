@@ -63,9 +63,21 @@ func proxyForHarness(harness string) *proxy {
 	return &proxy{agentBasename: harness, ttyProfile: &profile}
 }
 
-// claudeProxy yields a proxy wired through the production Claude profile.
+// claudeProxy yields a proxy wired through the production Claude profile with a
+// live composer painted. Claude is positively gated (pair#138), so a proxy with
+// no terminal state would fail closed and every Return-remap expectation below
+// would read as a bare CR.
 func claudeProxy() *proxy {
-	return proxyForHarness("claude")
+	p := proxyForHarness("claude")
+	if p.ttyProfile == nil {
+		return p
+	}
+	if err := p.configureHarnessTTY(true, 120, 38); err != nil {
+		panic("configure claude test proxy: " + err.Error())
+	}
+	var rolling []byte
+	p.handleChunk([]byte(claudeLiveComposerPaint()), &rolling)
+	return p
 }
 
 // TestTranslateStdin_PassthroughPlainBytes exercises the happy path:

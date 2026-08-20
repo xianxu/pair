@@ -144,7 +144,8 @@ func TestHarnessTTYFixtureConformance(t *testing.T) {
 // evidence, not a waiver of the requirement: it must name what is missing so
 // the gap is reviewable, and it must be removed once the capture exists.
 var ttyFixtureNegativeGaps = map[string]string{
-	"muse": "Muse's declining states are tool-approval and selection menus, none reachable without a live tool call; capture one when a real approval is available",
+	"claude": "Claude's declining state is its permission prompt. A child spawned from an agent session inherits auto-approve mode — verified 2026-08-20: the child ran Bash(uptime) and returned output with no prompt, despite `uptime` not being allowlisted — so the prompt is unreachable from here. The route is registered as the `permission prompt` scenario in harnessTTYDrivenScenarios; run it from a plain terminal with default (ask) permissions to capture overlay.raw.",
+	"muse":   "Muse's declining states are tool-approval and selection menus, none reachable without a live tool call; capture one when a real approval is available",
 }
 
 // ttyFixtureDiscriminationGaps records positively gated harnesses whose
@@ -153,8 +154,9 @@ var ttyFixtureNegativeGaps = map[string]string{
 // overlay.raw is exactly that proof: the update interstitial paints the same
 // U+203A at column 0 and is rejected on emphasis alone.
 var ttyFixtureDiscriminationGaps = map[string]string{
-	"agy":  "agy/1.1.15/overlay.raw declines on hidden cursor and cursor position, not on any composer-vs-picker rule, and menu.raw shows Agy painting a menu marker in the SAME bright blue as the composer prompt. The permission-picker capture is reachable by dropping --dangerously-skip-permissions from the agy driven scenario and driving one tool call; attempted 2026-08-19 and blocked, the account was in \"Verifying your account...\" and would not execute tool calls.",
-	"muse": "no captured declining state at all; see ttyFixtureNegativeGaps",
+	"claude": "no captured declining state at all; see ttyFixtureNegativeGaps. Claude does not reuse its prompt glyph as a menu marker — menu.raw pins its slash menu rendering below the box with column 0 blank — so the Agy failure mode does not apply; what is still unproven is a blocking dialog the gate must refuse.",
+	"agy":    "agy/1.1.15/overlay.raw declines on hidden cursor and cursor position, not on any composer-vs-picker rule, and menu.raw shows Agy painting a menu marker in the SAME bright blue as the composer prompt. The permission-picker capture is reachable by dropping --dangerously-skip-permissions from the agy driven scenario and driving one tool call; attempted 2026-08-19 and blocked, the account was in \"Verifying your account...\" and would not execute tool calls.",
+	"muse":   "no captured declining state at all; see ttyFixtureNegativeGaps",
 }
 
 func readHarnessTTYFixture(t *testing.T, metadataPath string) (ttyFixtureMetadata, map[string][]byte) {
@@ -249,6 +251,9 @@ var ttyFixtureExpectation = map[string]map[string]bool{
 	// rather than selecting; pinned so that stays a checked property. Keyed per
 	// harness because another harness's menu may have to decline.
 	"agy": {"menu.raw": true},
+	// Claude's bash mode is still a composer — it repaints the glyph and rule
+	// colour, not the shape — so the gate must stay open.
+	"claude": {"bash-mode.raw": true, "menu.raw": true},
 }
 
 // ttyFixtureReturnExpectation reports whether a fixture file must remap Return,
@@ -259,6 +264,16 @@ func ttyFixtureReturnExpectation(harness, file string) (bool, bool) {
 	}
 	want, ok := ttyFixtureExpectation[""][file]
 	return want, ok
+}
+
+// composerReturnBytes reports what a harness emits for a plain Return inside a
+// recognized composer, read from the profile registry rather than restated.
+func composerReturnBytes(harness string) (string, bool) {
+	profile, ok := profileForHarness(harness, true)
+	if !ok {
+		return "", false
+	}
+	return string(profile.keymap.plainCR), true
 }
 
 // harnessTTYReplayResult is the observable result of replaying a fixture
@@ -283,7 +298,11 @@ func replayHarnessTTYFixture(t *testing.T, harness string, raw []byte, wantCompo
 	}
 	wantReturn := "\r"
 	if wantComposer {
-		wantReturn = "\n"
+		remap, ok := composerReturnBytes(harness)
+		if !ok {
+			t.Fatalf("no profile for %s", harness)
+		}
+		wantReturn = remap
 	}
 	if baseline.returnBytes != wantReturn {
 		t.Fatalf("unsplit plain Return = %q, want %q (%s)", baseline.returnBytes, wantReturn, baseline.reason)
@@ -353,4 +372,27 @@ func sortedKeys(files map[string][]byte) []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// TestComposerReturnExpectationMatchesProfile pins that a recognized composer's
+// expected Return bytes come from the harness's own keymap. Codex, Muse and Agy
+// all remap to LF, which made a hardcoded "\n" look correct until Claude — whose
+// plainCR is backslash-CR — joined the positively gated set.
+func TestComposerReturnExpectationMatchesProfile(t *testing.T) {
+	want := map[string]string{
+		"claude": "\\\r",
+		"codex":  "\n",
+		"muse":   "\n",
+		"agy":    "\n",
+	}
+	for harness, wantBytes := range want {
+		got, ok := composerReturnBytes(harness)
+		if !ok {
+			t.Errorf("%s: no profile", harness)
+			continue
+		}
+		if got != wantBytes {
+			t.Errorf("%s composer Return = %q, want %q", harness, got, wantBytes)
+		}
+	}
 }

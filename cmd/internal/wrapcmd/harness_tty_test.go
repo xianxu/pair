@@ -17,8 +17,14 @@ func TestHarnessTTYProfileRegistry(t *testing.T) {
 	}
 
 	ctrlU := []byte{0x15}
+	wantRecognizers := map[string]composerRecognizer{
+		"claude": claudeComposerActive,
+		"codex":  codexComposerActive,
+		"agy":    agyComposerActive,
+		"muse":   museComposerActive,
+	}
 	tests := map[string]wantProfile{
-		"claude": {[]byte{'\\', '\r'}, []byte{'\r'}, ctrlU, detectClaudeOverlayOpen, composerGateLegacy, false},
+		"claude": {[]byte{'\\', '\r'}, []byte{'\r'}, ctrlU, detectClaudeOverlayOpen, composerGatePositive, false},
 		"codex":  {[]byte{'\n'}, []byte{'\r'}, ctrlU, detectCodexOverlayOpen, composerGatePositive, true},
 		"agy":    {[]byte{'\n'}, []byte{'\r'}, ctrlU, detectAgyOverlayOpen, composerGatePositive, false},
 		"muse":   {[]byte{'\n'}, []byte{'\r'}, ctrlU, detectMuseOverlayOpen, composerGatePositive, false},
@@ -45,12 +51,16 @@ func TestHarnessTTYProfileRegistry(t *testing.T) {
 			if got.composerGate != want.gate {
 				t.Errorf("composerGate = %v, want %v", got.composerGate, want.gate)
 			}
-			wantRecognizer := harness == "codex" || harness == "agy" || harness == "muse"
+			// A positively gated profile without a recognizer would fail
+			// closed on every Return, so derive the expectation from the gate
+			// rather than restating the harness list.
+			wantRecognizer := want.gate == composerGatePositive
 			if (got.recognize != nil) != wantRecognizer {
 				t.Errorf("recognize registered = %t, want %t", got.recognize != nil, wantRecognizer)
 			}
-			if harness == "agy" && reflect.ValueOf(got.recognize).Pointer() != reflect.ValueOf(agyComposerActive).Pointer() {
-				t.Error("Agy recognizer does not match agyComposerActive registration")
+			if want, ok := wantRecognizers[harness]; ok &&
+				reflect.ValueOf(got.recognize).Pointer() != reflect.ValueOf(want).Pointer() {
+				t.Errorf("%s recognizer does not match its registration", harness)
 			}
 			if got.captureSetsOverlay != want.captureSetsOverlay {
 				t.Errorf("captureSetsOverlay = %t, want %t", got.captureSetsOverlay, want.captureSetsOverlay)

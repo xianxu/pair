@@ -1,0 +1,4 @@
+# Literal PTY captures: byte-exact evidence, not text. Marking them binary stops
+# whitespace/EOL normalisation from silently corrupting a fixture whose SHA-256
+# is pinned in metadata.json.
+cmd/internal/wrapcmd/testdata/tty/**/*.raw binary
