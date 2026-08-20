@@ -97,47 +97,82 @@ func rowPaintedBetween(snapshot terminalSnapshot, y, x0, x1 int) bool {
 // museComposerMaxRows bounds how tall a Muse composer box may be.
 const museComposerMaxRows = 20
 
-// museComposerActive reports whether the cursor rests inside Muse's live
-// composer: a non-faint prompt glyph at column 0 on the first row inside a pair
-// of faint rule rows, with the cursor within that box. Anchoring on the
-// enclosing rules rather than on rules directly above and below the prompt is
-// what lets the composer grow past one line.
-func museComposerActive(snapshot terminalSnapshot) bool {
-	if !snapshot.CursorVisible || !snapshotCoordinatesValid(snapshot) || snapshot.Cursor.X < 2 {
+// ruledBoxComposerSpec parameterises the composer shape Claude and Muse share:
+// a prompt glyph at column 0 forming the first row inside a pair of rule rows.
+// Anchoring on the *enclosing* rules rather than on rules directly above and
+// below the prompt is what lets the composer grow past one line.
+type ruledBoxComposerSpec struct {
+	// promptOK qualifies the column-0 cell of a candidate prompt row.
+	promptOK func(uv.Cell) bool
+	// ruleAt reports whether row y is one of the box's rule rows.
+	ruleAt func(terminalSnapshot, int) bool
+	// rulesMatch, when set, additionally requires the box's two rules to agree
+	// with each other, so unrelated chrome cannot pair up into a box.
+	rulesMatch func(top, bottom uv.Cell) bool
+	// maxRows bounds the box height.
+	maxRows int
+	// minCursorX is the first column the harness leaves for composer text.
+	minCursorX int
+}
+
+// ruledBoxComposerActive reports whether the cursor rests inside a ruled box.
+// The prompt sits at or above the cursor — except when the cursor rests on the
+// box's own top rule — and the closing rule must sit at or below the cursor.
+func ruledBoxComposerActive(snapshot terminalSnapshot, spec ruledBoxComposerSpec) bool {
+	if !snapshot.CursorVisible || !snapshotCoordinatesValid(snapshot) ||
+		snapshot.Cursor.X < spec.minCursorX {
 		return false
 	}
 
-	// The prompt sits at or above the cursor, except when the cursor rests on
-	// the box's own top rule.
-	for promptY := snapshot.Cursor.Y + 1; promptY >= 0 && snapshot.Cursor.Y-promptY < museComposerMaxRows; promptY-- {
-		if promptY >= snapshot.Height {
+	for promptY := snapshot.Cursor.Y + 1; promptY >= 0 && snapshot.Cursor.Y-promptY < spec.maxRows; promptY-- {
+		if promptY >= snapshot.Height || promptY-1 < 0 {
 			continue
 		}
 		prompt := snapshot.CellAt(0, promptY)
-		if prompt == nil || prompt.Content != "⟩" || prompt.Style.Attrs&uv.AttrFaint != 0 {
+		if prompt == nil || !spec.promptOK(*prompt) || !spec.ruleAt(snapshot, promptY-1) {
 			continue
 		}
-		if !faintRuleAt(snapshot, 0, promptY-1) {
+		bottom, ok := ruledBoxBottomRule(snapshot, spec, promptY)
+		if !ok || bottom < snapshot.Cursor.Y {
 			continue
 		}
-		if bottom, ok := museComposerBottomRule(snapshot, promptY); ok && bottom >= snapshot.Cursor.Y {
-			return true
+		if spec.rulesMatch != nil {
+			top, closing := snapshot.CellAt(0, promptY-1), snapshot.CellAt(0, bottom)
+			if top == nil || closing == nil || !spec.rulesMatch(*top, *closing) {
+				continue
+			}
 		}
+		return true
 	}
 	return false
 }
 
-// museComposerBottomRule finds the first row below the prompt that paints
-// column 0 and reports whether it is the box's closing faint rule.
-func museComposerBottomRule(snapshot terminalSnapshot, promptY int) (int, bool) {
-	for y := promptY + 1; y < snapshot.Height && y-promptY <= museComposerMaxRows; y++ {
+// ruledBoxBottomRule finds the first row below the prompt that paints column 0
+// and reports whether it is the box's closing rule.
+func ruledBoxBottomRule(snapshot terminalSnapshot, spec ruledBoxComposerSpec, promptY int) (int, bool) {
+	for y := promptY + 1; y < snapshot.Height && y-promptY <= spec.maxRows; y++ {
 		cell := snapshot.CellAt(0, y)
 		if cell == nil || strings.TrimSpace(cell.Content) == "" {
 			continue
 		}
-		return y, faintRuleAt(snapshot, 0, y)
+		return y, spec.ruleAt(snapshot, y)
 	}
 	return 0, false
+}
+
+// museComposerActive reports whether the cursor rests inside Muse's live
+// composer: a non-faint prompt glyph at column 0 on the first row inside a pair
+// of faint rule rows, with the cursor within that box.
+func museComposerActive(snapshot terminalSnapshot) bool {
+	return ruledBoxComposerActive(snapshot, ruledBoxComposerSpec{
+		promptOK: func(c uv.Cell) bool {
+			return c.Content == "⟩" && c.Style.Attrs&uv.AttrFaint == 0
+		},
+		ruleAt:  func(s terminalSnapshot, y int) bool { return faintRuleAt(s, 0, y) },
+		maxRows: museComposerMaxRows,
+		// Column 0 is the prompt and column 1 its trailing space.
+		minCursorX: 2,
+	})
 }
 
 func agyComposerActive(snapshot terminalSnapshot) bool {
