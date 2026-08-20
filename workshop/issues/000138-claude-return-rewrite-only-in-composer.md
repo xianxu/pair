@@ -129,3 +129,48 @@ another one-off correction.
 - Updated after pair#142 design review: Codex's cursor/paint detector is
   Codex-specific; Claude should reuse the positive-detection contract, not the
   exact terminal heuristic.
+
+### 2026-08-20 — Implementation
+
+- **Shared shape, not a third copy.** Claude paints Muse's composer structure, so
+  Tasks 1–2 extracted `ruledBoxComposerActive` and added Claude as its second
+  consumer. Muse migrated with no behavior change; its thirteen frozen
+  differential rows and its fixture were the oracle. This keeps pair#139's two
+  hard-won Muse fixes — rejecting an unqualified prompt glyph, and anchoring on
+  the *enclosing* rules so the box can grow — in one place instead of copied.
+- **The recognizer is structural, not glyph- or colour-pinned.** Live capture
+  showed Claude's bash mode repaints both: `!` with `rgb(253,93,177)` rules where
+  the default is `❯` with `rgb(136,136,136)`. Memory and plan modes stay on the
+  default. A pinned recognizer would decline in bash mode, and since the flip
+  makes a decline *submit*, false negatives are the expensive direction here. The
+  spec requires only a non-rule glyph at column 0 between two rules sharing a
+  foreground; the shared-foreground rule is what replaces the fixed colour.
+- **The fixture replay had a latent bug.** It hardcoded LF as a recognized
+  composer's Return — true for Codex/Muse/Agy, false for Claude's backslash-CR.
+  Task 3 derives it from `profileForHarness(...).keymap.plainCR`, so Claude's
+  fixture could fail on recognition rather than on an unrelated assumption.
+- **Dogfood through the real binary.** Frozen fixtures at 120x38 cannot observe
+  the stdin path, so Task 5 drove `pair wrap claude` in a PTY with a fresh build
+  and sent real keypresses. Typing `alpha` then a real `\r` grew the box (rules
+  7→10, cursor to (2,9) on a new empty line) and logged
+  `return-remap fired "plain Enter → newline remap"` in `adapt-dogfood138.jsonl`.
+  Bash mode (`!alpha` + `\r`) behaved identically — the case a pinned recognizer
+  would have broken. `Alt+Return` submitted and Claude took the turn. The build
+  went to a scratchpad path deliberately: `bin/pair` is running this session.
+- **Permission prompt not captured — recorded, not papered over.** A Claude child
+  spawned from an agent session inherits auto-approve mode: it ran `Bash(uptime)`
+  and returned output with no prompt, though `uptime` is not allowlisted. The
+  scenario stays registered in `harnessTTYDrivenScenarios` so the capture can be
+  taken from a plain terminal, and both `ttyFixtureNegativeGaps` and
+  `ttyFixtureDiscriminationGaps` name Claude with that reason. Claude's picker
+  defense therefore still rests on the OSC 777 signal, unproven by fixture.
+- **Unchanged by design:** `keymap.plainCR` is still `{'\\', '\r'}` and
+  `detectClaudeOverlayOpen` is untouched. This issue narrows *when* the remap
+  fires, not what it emits or what suspends it. Broadening Claude's overlay
+  markers — it has a single exact OSC body match where Codex and Agy have text
+  fallbacks — is separate work.
+- **Observation for follow-up:** with Claude flipped, `composerGateLegacy` has no
+  registered consumer; only the enum constant and its switch case remain.
+  Deleting it would renumber the enum whose zero value is the fail-closed
+  `composerGateUnknown`, so it is deliberately left in place rather than removed
+  at close time.

@@ -171,7 +171,7 @@ fixtures, and only then do literal-fixture rows get added.
 - Modify: `cmd/internal/wrapcmd/composer_recognizers.go`
 - Test: `cmd/internal/wrapcmd/composer_recognizers_test.go`
 
-- [ ] **Step 1: Freeze the Muse oracle**
+- [x] **Step 1: Freeze the Muse oracle**
 
 Run: `go test ./cmd/internal/wrapcmd -run 'MuseComposerActiveSnapshotDifferential' -count=1 -v`
 
@@ -179,7 +179,7 @@ Record every row's result. These rows — including the two-line, three-line, an
 height-ceiling rows added by pair#139 — are the contract the refactor must
 preserve exactly. No row may be edited in this task.
 
-- [ ] **Step 2: Add the spec type and shared predicate**
+- [x] **Step 2: Add the spec type and shared predicate**
 
 ```go
 // ruledBoxComposerSpec parameterises the composer shape Claude and Muse share:
@@ -238,7 +238,7 @@ func ruledBoxBottomRule(snapshot terminalSnapshot, spec ruledBoxComposerSpec, pr
 }
 ```
 
-- [ ] **Step 3: Reimplement Muse on the shared predicate**
+- [x] **Step 3: Reimplement Muse on the shared predicate**
 
 ```go
 func museComposerActive(snapshot terminalSnapshot) bool {
@@ -256,7 +256,7 @@ func museComposerActive(snapshot terminalSnapshot) bool {
 
 Delete `museComposerBottomRule`, superseded by `ruledBoxBottomRule`.
 
-- [ ] **Step 4: Verify no Muse behavior changed**
+- [x] **Step 4: Verify no Muse behavior changed**
 
 ```bash
 go test ./cmd/internal/wrapcmd -run 'MuseComposerActiveSnapshotDifferential' -count=1 -v
@@ -267,7 +267,7 @@ Expected: every row from Step 1 has the same result and the Muse fixture replays
 identically at every split. A single changed row means the abstraction is wrong —
 fix the predicate, never the row.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cmd/internal/wrapcmd/composer_recognizers.go cmd/internal/wrapcmd/composer_recognizers_test.go
@@ -283,7 +283,7 @@ git commit -m "wrapcmd: #138: share the ruled-box composer predicate" -m "Co-Aut
 Literal-fixture rows are deliberately **not** added here — the fixtures do not
 exist until Task 4, per the ordering constraint above.
 
-- [ ] **Step 1: Write failing differential rows**
+- [x] **Step 1: Write failing differential rows**
 
 Add `TestClaudeComposerActiveSnapshotDifferential` in the Codex/Muse shape.
 Strategy rather than an enumeration: for each risky behavior of
@@ -306,12 +306,12 @@ Also add `claude` to the recognizer list in
 `TestComposerRecognizersRejectAdversarialSnapshotsWithoutBlocking` — that
 mechanical guard covers the malformed-snapshot space that prose rows cannot.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `go test ./cmd/internal/wrapcmd -run 'ClaudeComposerActive' -count=1`
 Expected: FAIL — `claudeComposerActive` undefined.
 
-- [ ] **Step 3: Implement the spec**
+- [x] **Step 3: Implement the spec**
 
 ```go
 // claudeComposerMaxRows bounds the box height. Inherited from the box-structure
@@ -349,12 +349,12 @@ func claudeComposerActive(snapshot terminalSnapshot) bool {
 `claudeComposerRule` is `"─"`; `sameForeground` is a small pure helper comparing
 two `color.Color` values (both nil counts as equal).
 
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
 
 Run: `go test ./cmd/internal/wrapcmd -run 'ComposerActive|Adversarial' -count=1 -v`
 Expected: all Claude rows PASS; every Codex/Muse/Agy row unchanged.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cmd/internal/wrapcmd/composer_recognizers.go cmd/internal/wrapcmd/composer_recognizers_test.go
@@ -373,13 +373,13 @@ otherwise. That holds for Codex, Muse, and Agy but is **wrong for Claude**,
 whose `plainCR` is `{'\\', '\r'}`. Left alone, Claude's fixture would fail for a
 reason that has nothing to do with recognition.
 
-- [ ] **Step 1: Write the failing assertion**
+- [x] **Step 1: Write the failing assertion**
 
 Add a table test asserting the expected composer Return bytes per harness, read
 from `profileForHarness(harness, true).keymap.plainCR`: `"\n"` for codex/muse/agy
 and `"\\\r"` for claude.
 
-- [ ] **Step 2: Verify RED, then derive instead of hardcode**
+- [x] **Step 2: Verify RED, then derive instead of hardcode**
 
 Replace the literal with the profile lookup, so the expectation is one
 source-of-truth derivation rather than a restatement (ARCH-DRY):
@@ -395,7 +395,7 @@ if wantComposer {
 }
 ```
 
-- [ ] **Step 3: Verify GREEN and commit**
+- [x] **Step 3: Verify GREEN and commit**
 
 ```bash
 go test ./cmd/internal/wrapcmd -run 'TestHarnessTTYFixtureConformance' -count=1
@@ -414,7 +414,7 @@ git commit -m "test: #138: derive fixture Return expectation from the profile ke
 - Create: `cmd/internal/wrapcmd/testdata/tty/claude/<version>/composer.raw` + `metadata.json`
 - Create when captured: `bash-mode.raw`, `overlay.raw`
 
-- [ ] **Step 1: Flip the profile and verify RED**
+- [x] **Step 1: Flip the profile and verify RED**
 
 Set `composerGate: composerGatePositive` and `recognize: claudeComposerActive`,
 and update the `harness_tty_test.go` characterization pinning Claude as legacy.
@@ -422,7 +422,7 @@ and update the `harness_tty_test.go` characterization pinning Claude as legacy.
 Run: `go test ./cmd/internal/wrapcmd -run 'TestHarnessTTYFixtureConformance' -count=1`
 Expected: FAIL — `required positive-gated fixtures missing: claude`.
 
-- [ ] **Step 2: Capture the composer fixture**
+- [x] **Step 2: Capture the composer fixture**
 
 Add `claude` to the live test's `commands` map with the argv Pair launches, then:
 
@@ -435,7 +435,7 @@ PAIR_LIVE_CAPTURE_OUT=cmd/internal/wrapcmd/testdata/tty/claude/<version>/compose
 Write `metadata.json` with the exact `claude --version`, that argv, an RFC3339
 capture time, and a SHA-256 per raw file. Never hand-author bytes.
 
-- [ ] **Step 3: Capture the bash-mode composer as a second positive**
+- [x] **Step 3: Capture the bash-mode composer as a second positive**
 
 Add a `harnessTTYDrivenScenarios["claude"]` entry sending `!`, expectation
 `wantComposer: true`, captured as `bash-mode.raw`. Register that filename in
@@ -443,7 +443,7 @@ Add a `harnessTTYDrivenScenarios["claude"]` entry sending `!`, expectation
 rule colour differ, so it is the fixture that would catch a future
 colour-pinned regression.
 
-- [ ] **Step 4: Attempt a declining state — and distinguish the two outcomes**
+- [x] **Step 4: Attempt a declining state — and distinguish the two outcomes** — *outcome 3: unreachable, the child inherits auto-approve mode; recorded in both ledgers*
 
 Add a scenario driving Claude to its permission prompt (ask it to run a shell
 command in a checkout where permissions are not pre-approved). There are three
@@ -464,7 +464,7 @@ distinct outcomes and they are **not** interchangeable:
    missing and the command that would capture it, as `agy` and `muse` already
    are. Do not invent a fixture.
 
-- [ ] **Step 5: Verify GREEN across the whole conformance surface**
+- [x] **Step 5: Verify GREEN across the whole conformance surface**
 
 ```bash
 go test ./cmd/internal/wrapcmd -count=1
@@ -478,7 +478,7 @@ PAIR_LIVE_HARNESS=claude go test ./cmd/internal/wrapcmd -run '^TestHarnessTTYLiv
 `TestMasterPumpFlushesStdoutOnTick` `bytes.Buffer` race; confirm no file from
 this issue appears in its trace.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add cmd/internal/wrapcmd/harness_tty.go cmd/internal/wrapcmd/harness_tty_test.go cmd/internal/wrapcmd/harness_tty_live_test.go cmd/internal/wrapcmd/harness_tty_fixture_test.go cmd/internal/wrapcmd/composer_recognizers_test.go cmd/internal/wrapcmd/testdata/tty/claude
@@ -493,7 +493,7 @@ The fixture replay runs at a fixed 120x38 over frozen bytes and cannot observe a
 false negative caused by a real terminal size, a user theme, or a mode this plan
 did not capture. Claude is the default agent, so this step is not optional.
 
-- [ ] **Step 1: Run a real session and exercise each composer state**
+- [x] **Step 1: Run a real session and exercise each composer state**
 
 Launch `pair` on Claude and confirm, in the agent pane:
 
@@ -505,7 +505,7 @@ Launch `pair` on Claude and confirm, in the agent pane:
 4. plain Return **confirms** a real permission prompt rather than inserting;
 5. the draft pane's Alt+Return path is unchanged.
 
-- [ ] **Step 2: Read the telemetry rather than trusting the eye**
+- [x] **Step 2: Read the telemetry rather than trusting the eye**
 
 `$PAIR_DATA_DIR/adapt-<tag>.jsonl` records one `return-remap` line per Enter.
 Confirm `fired` in composer states and `bypass` with reason
@@ -513,7 +513,7 @@ Confirm `fired` in composer states and `bypass` with reason
 composer is the regression this whole step exists to catch — record the
 snapshot and fix before closing.
 
-- [ ] **Step 3: Record the result in the issue Log**
+- [x] **Step 3: Record the result in the issue Log**
 
 Name the terminal size, theme, and Claude version, since the recognizer's
 colour-matching invariant is theme-sensitive.
@@ -527,7 +527,7 @@ colour-matching invariant is theme-sensitive.
 - Modify: `doctor/README.md`
 - Modify: `workshop/issues/000138-claude-return-rewrite-only-in-composer.md`
 
-- [ ] **Step 1: Update the docs that currently single Claude out**
+- [x] **Step 1: Update the docs that currently single Claude out**
 
 - `atlas/architecture.md` calls Claude the legacy-gated harness and names the
   other three recognizers — update both, and while in that paragraph fix the
@@ -546,14 +546,14 @@ colour-matching invariant is theme-sensitive.
 - Add Claude's signal — structural, glyph- and colour-agnostic, and *why* — to
   the bring-up guide's per-harness list.
 
-- [ ] **Step 2: Record what deliberately did not change**
+- [x] **Step 2: Record what deliberately did not change**
 
 In the issue Log: `keymap.plainCR` remains `{'\\', '\r'}` and
 `detectClaudeOverlayOpen` is unchanged. This issue narrows *when* the remap
 fires; the OSC 777 signal remains Claude's picker defense, and broadening
 Claude's overlay markers is separate work.
 
-- [ ] **Step 3: Full verification and close**
+- [x] **Step 3: Full verification and close**
 
 ```bash
 git diff --check
