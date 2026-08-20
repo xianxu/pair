@@ -251,6 +251,104 @@ func TestCodexComposerActiveSnapshotDifferential(t *testing.T) {
 	runComposerSnapshotDifferential(t, cases, codexComposerActive)
 }
 
+// claudeBox builds a Claude composer box: a rule row, the prompt row, then a
+// closing rule, all painted in one truecolor foreground. Claude repaints both
+// the glyph and the rule colour per input mode, so both are parameters.
+func claudeBox(top int, glyph, rgb string, body ...string) string {
+	rule := "\x1b[38;2;" + rgb + "m" + strings.Repeat("─", 40) + "\x1b[39m"
+	out := fmt.Sprintf("\x1b[%d;1H%s", top+1, rule)
+	promptFG := ""
+	if glyph != "❯" {
+		promptFG = "\x1b[38;2;" + rgb + "m"
+	}
+	out += fmt.Sprintf("\x1b[%d;1H%s%s\x1b[39m %s", top+2, promptFG, glyph, body[0])
+	for i, line := range body[1:] {
+		out += fmt.Sprintf("\x1b[%d;3H%s", top+3+i, line)
+	}
+	return out + fmt.Sprintf("\x1b[%d;1H%s", top+2+len(body), rule)
+}
+
+func TestClaudeComposerActiveSnapshotDifferential(t *testing.T) {
+	const (
+		grey = "136;136;136"
+		pink = "253;93;177"
+	)
+	// Default mode: chevron prompt, grey rules, cursor just past the prompt.
+	dflt := claudeBox(5, "❯", grey, "alpha") + "\x1b[?25h\x1b[7;9H"
+	cases := []composerDifferentialCase{
+		{name: "default mode composer", stream: []byte(dflt), want: true},
+		{
+			// Claude's bash mode repaints BOTH the glyph and the rule colour.
+			// A recognizer pinned to the chevron or to grey declines here, and
+			// for Claude a decline means the next Return submits the draft.
+			name:   "bash mode composer repaints glyph and rule colour",
+			stream: []byte(claudeBox(5, "!", pink, "ls -la") + "\x1b[?25h\x1b[7;10H"),
+			want:   true,
+		},
+		{
+			name:   "cursor on a painted continuation row",
+			stream: []byte(claudeBox(5, "❯", grey, "alpha", "beta") + "\x1b[?25h\x1b[8;7H"),
+			want:   true,
+		},
+		{
+			// One Return pressed: the cursor sits on a new, still-empty line.
+			name:   "cursor on an empty continuation row",
+			stream: []byte(claudeBox(5, "❯", grey, "alpha", "") + "\x1b[?25h\x1b[8;3H"),
+			want:   true,
+		},
+		{
+			name:   "blank line inside the draft",
+			stream: []byte(claudeBox(5, "❯", grey, "alpha", "", "gamma") + "\x1b[?25h\x1b[9;8H"),
+			want:   true,
+		},
+		{
+			name:   "cursor resting on the closing rule",
+			stream: []byte(dflt + "\x1b[?25h\x1b[8;3H"),
+			want:   true,
+		},
+		{
+			// The rules must agree with each other, or unrelated chrome pairs
+			// up into a box that was never a composer.
+			name: "rules whose colours disagree",
+			stream: []byte("\x1b[6;1H\x1b[38;2;136;136;136m" + strings.Repeat("─", 40) +
+				"\x1b[7;1H\x1b[39m❯ alpha\x1b[8;1H\x1b[38;2;253;93;177m" + strings.Repeat("─", 40) +
+				"\x1b[39m\x1b[?25h\x1b[7;9H"),
+		},
+		{
+			name:   "prompt with no rule above",
+			stream: []byte("\x1b[7;1H❯ alpha\x1b[8;1H\x1b[38;2;136;136;136m" + strings.Repeat("─", 40) + "\x1b[39m\x1b[?25h\x1b[7;9H"),
+		},
+		{
+			name:   "prompt with no rule below",
+			stream: []byte("\x1b[6;1H\x1b[38;2;136;136;136m" + strings.Repeat("─", 40) + "\x1b[39m\x1b[7;1H❯ alpha\x1b[10;1Hstatus\x1b[?25h\x1b[7;9H"),
+		},
+		{name: "hidden cursor", stream: []byte(dflt + "\x1b[?25l")},
+		{name: "erased composer", stream: []byte(dflt + "\x1b[2J\x1b[?25h\x1b[7;9H")},
+		{name: "cursor before the composer text column", stream: []byte(claudeBox(5, "❯", grey, "alpha") + "\x1b[?25h\x1b[7;2H")},
+		{
+			// HEIGHT CEILING. claudeComposerMaxRows caps prompt-to-cursor
+			// distance; past it the gate declines and Return submits. The
+			// ceiling is inherited from the box-structure derivation rather
+			// than measured against Claude, so this row makes any change to
+			// the bound deliberate.
+			name:   "draft taller than the height ceiling",
+			stream: []byte(claudeBox(1, "❯", grey, append([]string{"one"}, tallClaudeBody()...)...) + "\x1b[?25h\x1b[25;8H"),
+		},
+	}
+
+	runComposerSnapshotDifferential(t, cases, claudeComposerActive)
+}
+
+// tallClaudeBody returns continuation lines pushing the cursor past
+// claudeComposerMaxRows below the prompt.
+func tallClaudeBody() []string {
+	body := make([]string, 22)
+	for i := range body {
+		body[i] = "line"
+	}
+	return body
+}
+
 func TestMuseComposerActiveSnapshotDifferential(t *testing.T) {
 	literal, err := os.ReadFile("testdata/tty/muse/0.1.0-R708.1/composer.raw")
 	if err != nil {
@@ -330,6 +428,7 @@ func TestComposerRecognizersRejectAdversarialSnapshotsWithoutBlocking(t *testing
 		name      string
 		recognize composerRecognizer
 	}{
+		{"claude", claudeComposerActive},
 		{"codex", codexComposerActive},
 		{"agy", agyComposerActive},
 		{"muse", museComposerActive},

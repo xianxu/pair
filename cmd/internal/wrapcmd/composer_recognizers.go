@@ -175,6 +175,53 @@ func museComposerActive(snapshot terminalSnapshot) bool {
 	})
 }
 
+// claudeComposerRule is the glyph Claude draws its composer rules with.
+const claudeComposerRule = "─"
+
+// claudeComposerMaxRows bounds the box height. Inherited from the box-structure
+// derivation rather than measured against Claude; the enclosing rules already
+// prevent pairing distant chrome.
+const claudeComposerMaxRows = 20
+
+// claudeComposerActive reports whether the cursor rests inside Claude's live
+// composer: a single glyph at column 0 between two matching rule rows.
+//
+// Deliberately glyph- and colour-agnostic. Claude repaints both the prompt
+// glyph and the rule colour per input mode — bash mode is "!" with pink rules
+// where the default is "❯" with grey — so an allowlist would decline in any
+// mode it had not enumerated. Claude is Pair's default agent and a decline
+// makes the next Return submit a half-written draft, so false negatives are the
+// expensive direction here. Requiring the box's two rules to share a foreground
+// is what keeps unrelated chrome from pairing into a composer.
+func claudeComposerActive(snapshot terminalSnapshot) bool {
+	return ruledBoxComposerActive(snapshot, ruledBoxComposerSpec{
+		promptOK: func(c uv.Cell) bool {
+			return strings.TrimSpace(c.Content) != "" && c.Content != claudeComposerRule
+		},
+		ruleAt: func(s terminalSnapshot, y int) bool {
+			cell := s.CellAt(0, y)
+			return cell != nil && cell.Content == claudeComposerRule
+		},
+		rulesMatch: func(top, bottom uv.Cell) bool {
+			return sameForeground(top.Style.Fg, bottom.Style.Fg)
+		},
+		maxRows: claudeComposerMaxRows,
+		// Column 0 is the prompt and column 1 its trailing space.
+		minCursorX: 2,
+	})
+}
+
+// sameForeground reports whether two cells carry the same foreground, treating
+// two unset foregrounds as equal.
+func sameForeground(a, b color.Color) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	ar, ag, ab, aa := a.RGBA()
+	br, bg, bb, ba := b.RGBA()
+	return ar == br && ag == bg && ab == bb && aa == ba
+}
+
 func agyComposerActive(snapshot terminalSnapshot) bool {
 	if !snapshot.CursorVisible || !snapshotCoordinatesValid(snapshot) {
 		return false
