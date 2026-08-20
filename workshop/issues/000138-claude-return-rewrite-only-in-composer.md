@@ -1,12 +1,13 @@
 ---
 id: 000138
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-08-16
-updated: 2026-08-19
+updated: 2026-08-20
 estimate_hours: 3.32
 started: 2026-08-19T19:25:36-07:00
+actual_hours: 3.13
 ---
 
 # Claude Return rewrite only in composer
@@ -43,14 +44,14 @@ enumerating every non-composer menu.
 
 ## Plan
 
-- [ ] Identify a stable Claude composer/input-box signal from raw Pair logs or
+- [x] Identify a stable Claude composer/input-box signal from raw Pair logs or
       agent output.
-- [ ] Add a Claude composer tracker/gate or shared composer-gating abstraction
+- [x] Add a Claude composer tracker/gate or shared composer-gating abstraction
       based on Claude's own native composer-availability signal, not Codex's
       cursor/paint heuristic unless Claude logs prove the same signal is stable.
-- [ ] Add focused Return-routing tests for active composer, inactive composer,
+- [x] Add focused Return-routing tests for active composer, inactive composer,
       and overlay precedence.
-- [ ] Update atlas/docs if the Claude signal is agent-specific.
+- [x] Update atlas/docs if the Claude signal is agent-specific.
 
 ## Estimate
 
@@ -131,6 +132,7 @@ another one-off correction.
   exact terminal heuristic.
 
 ### 2026-08-20 — Implementation
+- 2026-08-20: closed — Claude moved off composerGateLegacy onto the positive composer gate. Verified end-to-end through the real binary, not only fixtures: driving `pair wrap claude` in a PTY and sending a real Enter keypress grew the composer box and logged return-remap fired "plain Enter -> newline remap"; bash mode (! prompt, pink rules) behaved identically, which is the case a glyph- or colour-pinned recognizer would have broken; Alt+Return submitted and Claude took the turn. Overlay precedence is pinned by TestHarnessTTYIntegration_ClaudeOverlayBeatsComposer: with the permission OSC fired and the composer still painted, Return is bare CR, and the one-shot flag restores the remap next Enter. Eight fixtures across four harnesses replay through the production proxy at every split, including claude/2.1.237 composer.raw and bash-mode.raw. Muse migrated onto the shared ruledBoxComposerActive predicate with all thirteen frozen differential rows unchanged. go test ./... and make test pass; go test -race reports only the pre-existing unrelated TestMasterPumpFlushesStdoutOnTick with no file from this issue in its trace; all four live harness checks pass. Claude permission prompt not captured: a child spawned from an agent session inherits auto-approve mode (it ran Bash(uptime) with no prompt though uptime is not allowlisted), recorded in both gap ledgers with the reproduction rather than papered over.; review verdict: FIX-THEN-SHIP
 
 - **Shared shape, not a third copy.** Claude paints Muse's composer structure, so
   Tasks 1–2 extracted `ruledBoxComposerActive` and added Claude as its second
@@ -174,3 +176,41 @@ another one-off correction.
   Deleting it would renumber the enum whose zero value is the fail-closed
   `composerGateUnknown`, so it is deliberately left in place rather than removed
   at close time.
+
+### 2026-08-20 — Boundary review FIX-THEN-SHIP addressed
+
+Verdict FIX-THEN-SHIP, no Critical findings, five Important. All five were real.
+
+- **I1 — I had introduced a lost-draft regression.** `claudeComposerMaxRows = 20`
+  meant a draft past 20 lines found no box, declined, and Return *submitted* it —
+  on the default agent, where before this issue that same keystroke inserted a
+  newline. The reviewer's argument for removing the bound rather than raising it
+  is correct and I verified it: the top rule must sit immediately above the
+  prompt and the closing rule is the first painted column-0 row below, so no
+  distant chrome can pair into a box however tall the draft grows. `maxRows` is
+  now zero-means-unbounded for Claude; Muse keeps its bound, since changing it
+  is a behavior change outside this issue's no-change contract for Muse.
+- **I2/I3 — two stale doc lines in paragraphs this diff already touched.**
+  `atlas/architecture.md` still said all four harnesses "rewrite to LF", which
+  Claude's backslash-CR contradicts two sentences earlier — the same
+  restatement-instead-of-derivation error the plan gate raised as PQ-1. The
+  bring-up guide still carried the pre-#139 Muse description ("within one row of
+  the cursor"). Both now match the code.
+- **I4 — the newly reachable branch had no test.** Before the flip Claude always
+  remapped, so "composer inactive" and "composer unknown" were unreachable; after
+  it they are the interesting paths and nothing covered them. Added
+  `claude_return_test.go` with all three routing cases, and moved the stale
+  `TestEmitPlainCR_NonCodexKeepsExistingRemap` out of the Codex file under a name
+  that says what it now checks.
+- **I5 — the discrimination ledger rested on an unpinned observation.** It
+  asserted Claude's slash menu leaves column 0 blank, then conceded that was an
+  observation. Now captured as `menu.raw`. Capturing it exposed a second bug: the
+  driven-scenario stop condition fired the instant the marker text appeared,
+  which caught Claude mid-repaint with the cursor hidden. Scenarios expecting an
+  open gate now stop only on a settled, recognized screen — the same mid-paint
+  transient class that bit Codex in pair#139.
+- **Fixtures are now marked binary** in `.gitattributes`. `git diff --check`
+  flagged trailing whitespace inside a capture; any tool that "fixed" it would
+  corrupt bytes whose SHA-256 is pinned in `metadata.json`.
+- Still outstanding and unchanged: the Claude permission-prompt fixture, blocked
+  by inherited auto-approve mode and recorded in both ledgers.

@@ -109,7 +109,10 @@ type ruledBoxComposerSpec struct {
 	// rulesMatch, when set, additionally requires the box's two rules to agree
 	// with each other, so unrelated chrome cannot pair up into a box.
 	rulesMatch func(top, bottom uv.Cell) bool
-	// maxRows bounds the box height.
+	// maxRows bounds how far the prompt may sit above the cursor. Zero means
+	// unbounded, which is safe for a spec that anchors on an immediate top rule
+	// and takes the first painted column-0 row below as the closing rule: the
+	// box cannot absorb distant chrome regardless of height.
 	maxRows int
 	// minCursorX is the first column the harness leaves for composer text.
 	minCursorX int
@@ -124,7 +127,10 @@ func ruledBoxComposerActive(snapshot terminalSnapshot, spec ruledBoxComposerSpec
 		return false
 	}
 
-	for promptY := snapshot.Cursor.Y + 1; promptY >= 0 && snapshot.Cursor.Y-promptY < spec.maxRows; promptY-- {
+	for promptY := snapshot.Cursor.Y + 1; promptY >= 0; promptY-- {
+		if spec.maxRows > 0 && snapshot.Cursor.Y-promptY >= spec.maxRows {
+			break
+		}
 		if promptY >= snapshot.Height || promptY-1 < 0 {
 			continue
 		}
@@ -150,7 +156,10 @@ func ruledBoxComposerActive(snapshot terminalSnapshot, spec ruledBoxComposerSpec
 // ruledBoxBottomRule finds the first row below the prompt that paints column 0
 // and reports whether it is the box's closing rule.
 func ruledBoxBottomRule(snapshot terminalSnapshot, spec ruledBoxComposerSpec, promptY int) (int, bool) {
-	for y := promptY + 1; y < snapshot.Height && y-promptY <= spec.maxRows; y++ {
+	for y := promptY + 1; y < snapshot.Height; y++ {
+		if spec.maxRows > 0 && y-promptY > spec.maxRows {
+			break
+		}
 		cell := snapshot.CellAt(0, y)
 		if cell == nil || strings.TrimSpace(cell.Content) == "" {
 			continue
@@ -178,10 +187,13 @@ func museComposerActive(snapshot terminalSnapshot) bool {
 // claudeComposerRule is the glyph Claude draws its composer rules with.
 const claudeComposerRule = "─"
 
-// claudeComposerMaxRows bounds the box height. Inherited from the box-structure
-// derivation rather than measured against Claude; the enclosing rules already
-// prevent pairing distant chrome.
-const claudeComposerMaxRows = 20
+// claudeComposerMaxRows is deliberately unbounded. A height ceiling here would
+// make plain Return submit any draft taller than it — the lost-draft failure
+// this issue's blast radius names as the expensive direction, on Pair's default
+// agent. The bound also buys nothing: the top rule must sit immediately above
+// the prompt and the closing rule is the first painted column-0 row below it,
+// so no distant chrome can pair into a box however tall the draft grows.
+const claudeComposerMaxRows = 0
 
 // claudeComposerActive reports whether the cursor rests inside Claude's live
 // composer: a single glyph at column 0 between two matching rule rows.

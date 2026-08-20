@@ -685,6 +685,12 @@ var harnessTTYDrivenScenarios = map[string][]harnessTTYDrivenScenario{
 		// regression. The gate must stay OPEN here — it is still a composer.
 		{name: "bash mode", send: "!", until: "for shell mode",
 			wantComposer: true, file: "bash-mode.raw"},
+		// The slash menu renders below the composer box and leaves column 0
+		// blank, so Claude does not reuse its prompt glyph as a selection
+		// marker the way Agy does. Pinned as a fixture rather than left as an
+		// observation, since the discrimination ledger leans on it.
+		{name: "slash menu", send: "/", until: "superpowers",
+			wantComposer: true, file: "menu.raw"},
 		// The permission prompt is the state this issue exists to protect:
 		// plain Return must confirm it, not insert. Reaching it needs a real
 		// tool call, so this scenario asks for one.
@@ -752,7 +758,7 @@ func driveHarnessTTYScenario(t *testing.T, harness, executable, repoRoot string,
 			t.Errorf("close %s scenario classifier: %v", harness, err)
 		}
 	})
-	ready, sent := false, false
+	ready, sent, settled := false, false, false
 	return captureHarnessTTY(harnessTTYCaptureRequest{
 		Executable:     executable,
 		Args:           scenario.args,
@@ -760,8 +766,17 @@ func driveHarnessTTYScenario(t *testing.T, harness, executable, repoRoot string,
 		Dir:            repoRoot,
 		StartupTimeout: scenario.timeout,
 		Classify: func(chunk, retained []byte) harnessTTYConformanceState {
-			if composer.Observe(chunk, retained) == harnessTTYRecognized {
+			recognized := composer.Observe(chunk, retained) == harnessTTYRecognized
+			if recognized {
 				ready = true
+			}
+			// A scenario that expects the gate to stay open must also stop on
+			// a settled screen. Stopping the instant the marker text appears
+			// can catch the harness mid-repaint with the cursor hidden, which
+			// is a transient rather than the state under test.
+			if sent && scenario.wantComposer && recognized &&
+				strings.Contains(strings.ToLower(string(stripTerminalControls(retained))), strings.ToLower(scenario.until)) {
+				settled = true
 			}
 			return harnessTTYWaiting
 		},
@@ -775,6 +790,9 @@ func driveHarnessTTYScenario(t *testing.T, harness, executable, repoRoot string,
 		Startup: func(retained []byte) bool {
 			if scenario.send != "" && !sent {
 				return false
+			}
+			if scenario.wantComposer {
+				return settled
 			}
 			return strings.Contains(strings.ToLower(string(stripTerminalControls(retained))), strings.ToLower(scenario.until))
 		},

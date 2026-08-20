@@ -154,7 +154,7 @@ var ttyFixtureNegativeGaps = map[string]string{
 // overlay.raw is exactly that proof: the update interstitial paints the same
 // U+203A at column 0 and is rejected on emphasis alone.
 var ttyFixtureDiscriminationGaps = map[string]string{
-	"claude": "no captured declining state at all; see ttyFixtureNegativeGaps. Claude does not reuse its prompt glyph as a menu marker (its slash menu renders below the box and leaves column 0 blank), so the Agy failure mode does not directly apply — but that is an observation, not a proof.",
+	"claude": "no captured declining state at all; see ttyFixtureNegativeGaps. Claude does not reuse its prompt glyph as a menu marker — menu.raw pins its slash menu rendering below the box with column 0 blank — so the Agy failure mode does not apply; what is still unproven is a blocking dialog the gate must refuse.",
 	"agy":    "agy/1.1.15/overlay.raw declines on hidden cursor and cursor position, not on any composer-vs-picker rule, and menu.raw shows Agy painting a menu marker in the SAME bright blue as the composer prompt. The permission-picker capture is reachable by dropping --dangerously-skip-permissions from the agy driven scenario and driving one tool call; attempted 2026-08-19 and blocked, the account was in \"Verifying your account...\" and would not execute tool calls.",
 	"muse":   "no captured declining state at all; see ttyFixtureNegativeGaps",
 }
@@ -253,7 +253,7 @@ var ttyFixtureExpectation = map[string]map[string]bool{
 	"agy": {"menu.raw": true},
 	// Claude's bash mode is still a composer — it repaints the glyph and rule
 	// colour, not the shape — so the gate must stay open.
-	"claude": {"bash-mode.raw": true},
+	"claude": {"bash-mode.raw": true, "menu.raw": true},
 }
 
 // ttyFixtureReturnExpectation reports whether a fixture file must remap Return,

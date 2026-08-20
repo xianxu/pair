@@ -86,6 +86,31 @@ func TestHarnessTTYIntegration_ProfileSelectionAndTerminalLifecycle(t *testing.T
 	}
 }
 
+// TestHarnessTTYIntegration_ClaudeOverlayBeatsComposer pins the safety property
+// that matters most for Pair's default agent: when Claude's permission OSC has
+// fired, plain Return must confirm the dialog even though the composer is still
+// painted on screen and the recognizer would otherwise qualify it. The overlay
+// layer has absolute precedence over the composer gate.
+func TestHarnessTTYIntegration_ClaudeOverlayBeatsComposer(t *testing.T) {
+	f := newHarnessSessionFake(t, "claude", true)
+	t.Cleanup(f.close)
+
+	f.output(claudeLiveComposerPaint())
+	if got := f.enter(); !bytes.Equal(got, []byte{'\\', '\r'}) {
+		t.Fatalf("composer Enter = %q, want Claude's backslash-CR remap", got)
+	}
+
+	// The permission dialog opens while the composer stays painted.
+	f.output("\x1b]777;" + pickerOpenOSCBody + "\a")
+	if got := f.enter(); !bytes.Equal(got, []byte{'\r'}) {
+		t.Fatalf("overlay Enter = %q, want bare CR so the dialog confirms", got)
+	}
+	// The flag is one-shot: the next Enter returns to the composer remap.
+	if got := f.enter(); !bytes.Equal(got, []byte{'\\', '\r'}) {
+		t.Fatalf("post-overlay Enter = %q, want the remap restored", got)
+	}
+}
+
 func TestHarnessTTYIntegration_StatefulReturnRouting(t *testing.T) {
 	f := newHarnessSessionFake(t, "agy", true)
 	t.Cleanup(f.close)

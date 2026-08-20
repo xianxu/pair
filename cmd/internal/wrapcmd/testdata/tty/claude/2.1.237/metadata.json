@@ -1,10 +1,11 @@
 {
   "agent": "claude",
   "version": "2.1.237 (Claude Code)",
-  "captured_at": "2026-08-20T15:41:49Z",
+  "captured_at": "2026-08-20T16:58:53Z",
   "command": ["claude"],
   "files": {
-    "bash-mode.raw": "f9aad50ac28a73336e9560910dedd053657497b84fcb7a5e1704c8ac27ff7210",
-    "composer.raw": "a0c73050e9f1398c4c5d00e88005db6157ecf2aeb49ce7f3cf55373088a24d96"
+    "bash-mode.raw": "47b3a0d479118f882e1c88705b0f04b0c51d13643d2f88a537d8bd5af43b4f64",
+    "composer.raw": "a0c73050e9f1398c4c5d00e88005db6157ecf2aeb49ce7f3cf55373088a24d96",
+    "menu.raw": "56e80cca22c451bc3e3a3299c000b09b13907afb6e21e2b4cc2e2b139726f748"
   }
 }

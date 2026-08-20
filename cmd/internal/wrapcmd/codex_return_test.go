@@ -34,10 +34,3 @@ func TestEmitPlainCR_CodexOverlayBeatsComposer(t *testing.T) {
 		t.Fatal("pickerActive should clear after confirming overlay")
 	}
 }
-
-func TestEmitPlainCR_NonCodexKeepsExistingRemap(t *testing.T) {
-	p := claudeProxy()
-	if got := p.emitPlainCR(nil); !bytes.Equal(got, []byte{'\\', '\r'}) {
-		t.Fatalf("got %q, want existing Claude newline remap", got)
-	}
-}

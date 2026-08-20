@@ -326,13 +326,15 @@ func TestClaudeComposerActiveSnapshotDifferential(t *testing.T) {
 		{name: "erased composer", stream: []byte(dflt + "\x1b[2J\x1b[?25h\x1b[7;9H")},
 		{name: "cursor before the composer text column", stream: []byte(claudeBox(5, "❯", grey, "alpha") + "\x1b[?25h\x1b[7;2H")},
 		{
-			// HEIGHT CEILING. claudeComposerMaxRows caps prompt-to-cursor
-			// distance; past it the gate declines and Return submits. The
-			// ceiling is inherited from the box-structure derivation rather
-			// than measured against Claude, so this row makes any change to
-			// the bound deliberate.
-			name:   "draft taller than the height ceiling",
+			// NO HEIGHT CEILING. A ceiling would make Return submit any draft
+			// taller than it, which is the lost-draft failure this issue
+			// exists to avoid, on Pair's default agent. Nothing distant can
+			// pair into a box: the top rule must be immediately above the
+			// prompt and the closing rule is the first painted column-0 row
+			// below it.
+			name:   "draft far taller than any height ceiling",
 			stream: []byte(claudeBox(1, "❯", grey, append([]string{"one"}, tallClaudeBody()...)...) + "\x1b[?25h\x1b[25;8H"),
+			want:   true,
 		},
 	}
 
