@@ -111,7 +111,8 @@ way they do today.
 
 - [x] Registry keyed on the working tree; structured start-args; durable across
       couch runs.
-- [ ] Actor goroutine: bounded mailbox, control/normal channels, priority select.
+- [x] Actor goroutine: bounded mailbox, priority drain (mutex-guarded queue,
+      not two channels -- deviation recorded below).
 - [x] Spawn: bring up a claude-stack child from start-args in the right tree.
 - [x] Name registration on (repo, tree) as the collision guard; worktree-or-switch
       on refusal.
@@ -201,3 +202,38 @@ is proven is that the whole stack comes up under a couch-spawned process. It
 says nothing about attach/detach or multi-child routing, which need the pty
 `#146` builds. Not yet exercised by the operator: the second-shell `couch list`
 read path, the refusal offer, and the kbench-subdirectory case.
+
+### 2026-08-21 — actor loop landed
+
+`Message`/`Enqueue` (pure) and `Actor` (the goroutine). All 8 plan items ticked.
+
+**Deviation from the Spec, with the reason.** The Spec suggested two channels
+with a priority select; this is a mutex-guarded queue instead. The bounded and
+collapse-by-kind policy has to be applied AT INSERTION, and a buffered channel
+cannot collapse a duplicate already sitting in it. Putting `Enqueue` behind the
+mutex keeps the whole decision pure and unit-testable without goroutines; the
+channel version would have pushed that logic into the receive loop, where it is
+much harder to test. Priority survives as a control-first drain.
+
+Control messages are never dropped, even over capacity. Control carries stop and
+deadline, and trading a real obligation for a bookkeeping number is the wrong way
+round -- so an all-control overflow keeps everything and reports the violation
+instead. `Send` returns false and `OnDropped` names what was lost, because the
+Spec asks for a full mailbox to be a loud bug signal rather than flow control,
+and a signature that cannot fail makes that impossible to honour.
+
+`QueueLen` is a direct call behind the same mutex, not a message: Go shares
+memory, so message passing here buys ordering and decoupling, not fidelity to
+Erlang. Depth is also one of the advisor's two staleness signals -- it says
+somebody is waiting on this agent, where git staleness says the thread has gone
+cold.
+
+Deletion checks: swapping `Enqueue` for a plain `append` turns the collapse and
+drop tests red (so the pure policy is genuinely wired in, not orphaned beside
+the loop), and taking the oldest instead of control-first turns the priority
+test red.
+
+One fixture note worth keeping: the priority test uses three *distinct* normal
+kinds. Identical ones would collapse to one and the expected count would never
+arrive -- a fixture that fights the policy it sits on deadlocks rather than
+fails, which is exactly how an earlier draft of this test hung.
