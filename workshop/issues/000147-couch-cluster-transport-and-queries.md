@@ -61,6 +61,17 @@ The `deadline` kind is separate because it is the one class an agent can identif
 with total reliability, and it is the one that would have caught a real
 2026-08-05 miss.
 
+**This issue delivers notifications to the root actor; rendering them is
+`#146`'s reserved status row.** They are deliberately *not* injected into the
+transcript as system messages — that would put every notification into the LLM's
+context window and distract the model on every turn. The row signals that
+something happened; detail comes from a tool call when the operator asks.
+
+**Liveness is a notification source too.** The root actor's shell monitors peer
+actors and emits on transitions it observes — an actor exiting, or going
+unreachable — so a child dying is visible without the operator being attached to
+it.
+
 **Check daemon count against `#121`** — two long-lived processes inside the pair
 trust boundary both claiming authority over session lifecycle would be a smell,
 even with disjoint command surfaces. #121 solves a different problem (reaching a

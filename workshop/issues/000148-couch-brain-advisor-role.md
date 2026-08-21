@@ -56,6 +56,12 @@ ticket claimed. Duplicate or stale labels are expected; resolution asks which. T
 hitting the wrong session is the failure that would make the whole thing
 untrusted.
 
+**"What was that notification about?" is answered by a tool call**, not by
+reading system messages out of the transcript. The status row (`#146`) carries
+the signal; the advisor queries the same operation surface everything else uses
+to explain it. This keeps notification volume off the LLM's context budget while
+leaving the detail one question away.
+
 **Silence detection** narrows to actors that are not running at all — a running
 actor's shell reports its own mailbox depth and fires its own timers, so most of
 what an external observer used to be needed for is now intrinsic.

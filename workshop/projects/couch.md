@@ -62,9 +62,26 @@ An issue becomes **metadata on a tree** ("this tree is working `pair#10`") —
 useful for the advisor's synthesis and for `sdlc` integration, never required at
 spawn, never load-bearing for identity.
 
-**brain is the home actor** — the only actor with no issue address, reachable by
-one keystroke from every child, always. If that is ever flaky the operator
-reverts to tabs and the project fails.
+**The root actor is home** — the session couch launched in, reachable by one
+keystroke from every child, always. That is usually brain, by convention rather
+than mechanism: couch can be started anywhere, and nothing in the design knows
+about brain specifically. If home is ever flaky the operator reverts to tabs and
+the project fails.
+
+**Navigation is one key.** `ctrl-space` moves *up one level* — from a child to the
+root actor, from the root actor to couch's control panel. No prefix keymap and no
+timing window: one key to memorize, then read a screen. All richer navigation
+lives inside couch's TUI where there is typeahead and the operator can see what
+they are picking. That also suits notifications, where knowing *what* happened
+should precede landing in it.
+
+**couch does not composite.** A child gets the terminal one row shorter and couch
+owns the last row — the child never knows, so this is a resize, not compositing.
+That row carries rolling notifications, identically in the root actor and while
+attached to any child, so there is one place to look. Notification detail is not
+injected into the transcript as system messages: that would burn the LLM's
+context on every turn. The operator asks the advisor "what was that?" and it
+answers via a tool call against the same query surface.
 
 **A switcher, not a multiplexer.** One tty attached to one child at a time, a key
 interceptor, a per-child buffer replayed on attach. No splits, layouts, floating
@@ -202,3 +219,33 @@ like rogii-v2 (11 days, 301 commits, no issue file, missed deadline) becomes
 addressable on day one. `ariadne#200` gets simpler, enumerating working trees
 rather than issue records. The new headline omission is the honest remaining one:
 single host, single operator, read-only star.
+
+### 2026-08-21 — UI model settled
+
+Operator-facing shape, folded into `#145`/`#146`:
+
+- Root session loads like `pair --layout2` — two panes, chat straight away.
+  Session selection simplifies away from pair's tag: load the last active
+  non-subagent thread in this tree, else start fresh; clearing context is
+  `alt+shift+n`.
+- `ctrl-space` = up one level (child → root actor → couch panel). Rejected
+  double-ESC: ESC is already interrupt/cancel in Claude Code and mode-switch in
+  nvim, and a double-tap needs a timing window that either delays every
+  legitimate ESC or cannot be retracted.
+- Actor ids are generated and opaque (`couch-ah8d`). Operator-assigned names and
+  agent-supplied descriptions **attach to the tree, not the id**, so naming
+  survives revival — otherwise every restart re-imposes the memory load the
+  naming layer exists to remove.
+- Notifications render on a reserved status row (child pty shrunk by one), not
+  as transcript system messages and not as a composited overlay. Out-of-terminal
+  paging can use OSC 777/9, with the known Ghostty caveat that it deletes its own
+  notification when the posting window regains focus.
+- Everything in couch's TUI is the same operation surface the advisor's tools
+  call. `/start ../pair` and the LLM's `start` are two clients, never two
+  implementations.
+
+**Open fork for `#146`, to answer empirically first:** does couch host `pair` as
+it exists (couch → pair → zellij → claude+nvim, three layers of terminal
+management) or host what pair spawns, taking over zellij's role? Step 1 of the
+smoke sequence answers it — if hosting pair directly is too complex, couch
+absorbs the zellij layer.

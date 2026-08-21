@@ -41,11 +41,23 @@ that record.
 survives restarts, exists whether or not there is an issue, and is what two
 agents actually collide over. The system-level id need not be legible.
 
-**Human addressing is a mutable mapping above the id** — short names the operator
+**Actor ids are generated and opaque** — `couch-ah8d`. They identify an actor
+*instance* and are not meant to be legible or typed.
+
+**Human addressing is a mutable mapping above them** — short names the operator
 assigns at runtime, plus a one-line description of what the agent is doing,
 supplied by the agent and free to change mid-session. Nothing structural depends
 on either: a label may be wrong, duplicated or stale without corrupting anything.
 Resolution stays fuzzy-in/exact-out, so a duplicate label asks which.
+
+**Names and descriptions attach to the tree, not to the actor id.** The id is
+per-instance and dies with it; the tree is the durable key. If naming hung off
+the id, every revival would re-impose exactly the memory load the naming layer
+exists to remove.
+
+**Session selection in the root actor** simplifies away from pair's tag: load the
+last active non-subagent thread in this tree, else start fresh. Clearing context
+is `alt+shift+n`.
 
 **Name registration IS the collision guard.** Refusing a second agent on a
 working tree is `register(repo, tree)` failing because the tree is taken — not a
@@ -87,6 +99,8 @@ way they do today.
   registration, with worktree-or-switch offered.
 - An operator-assigned short name and an agent-supplied description both resolve
   to the right actor, and both can change mid-session without breaking anything.
+- A name assigned before an actor dies still resolves after it is revived, since
+  naming hangs off the tree rather than the instance id.
 - Per-repo concurrency policy is read from a recorded source, not inferred.
 - Every operation is invocable with structured args and every state is
   queryable — audited over the operation set, not spot-checked.
