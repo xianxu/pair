@@ -266,3 +266,28 @@ Conformance also required teaching the fake a signal *disposition*
 (`SetDiesOn`), because the fake cannot know whether a child catches a signal.
 The default remains "nothing kills", and the two dispositions are now each
 checked against a real process rather than assumed.
+
+### 2026-08-21 — close notes on estimate and actuals
+
+**`estimate_hours` is empty, and deliberately stays empty.** `sdlc change-code`
+was never run: this went start-plan → implement, skipping the gate that owns the
+plan-quality check and the estimate. Deriving an estimate now would be hindsight
+with the answer already known, and a guessed value pollutes velocity calibration
+far worse than a missing one -- which is the exact hazard the gate exists to
+prevent. So this issue contributes an actual with no estimate to compare it
+against, and the calibration ledger should treat it as unpaired rather than as a
+1.0x hit. The plan itself did get two rounds of fresh-eyes review, which is
+stronger than the plan-quality judge, but it is not the same gate and does not
+substitute for the estimate.
+
+**What the 3.96h covers.** The window is the claim commit to HEAD, i.e. today's
+implementation, two plan-review rounds, and the four side-quest race fixes. It
+does **not** cover the design: the pensive, the project file, the identity
+rekey and the UI model were all worked out on 2026-08-20 and 2026-08-21 *before*
+the claim at 12:40, so roughly two sessions of design sit outside the measured
+window. Claiming early is supposed to prevent exactly that and I claimed late.
+
+Attribution warnings on the measurement: ~44m attributed to #145 and ~15m to
+#146 by mention-fallback, plus ~58m unattributed, all in the 15:35→16:34 band.
+The number is measured rather than typed, so it is adopted as-is, but it is
+softer than a clean commit-boundary attribution would be.
