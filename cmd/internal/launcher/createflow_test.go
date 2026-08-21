@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,7 +18,13 @@ import (
 
 // fakeRuntime is the in-memory create-flow seam for the RunLaunch loop tests.
 // Canned inputs drive decisions; recorded outputs assert the effect sequence.
+//
+// mu guards the recorded-output maps and slices. It is needed because
+// startAgentDefaultPersistence (createflow.go:562) writes through the seam
+// from its own goroutine while the main flow is still writing config, so the
+// fake is genuinely concurrent even though production hits real files.
 type fakeRuntime struct {
+	mu                  sync.Mutex
 	inPane              bool
 	sessions            []Session
 	historical          []HistoricalTag
@@ -283,6 +290,8 @@ func (f *fakeRuntime) ReadFile(path string) (string, error) {
 	return "", errors.New("not found")
 }
 func (f *fakeRuntime) WriteAtomic(path, data string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if path == f.writeFailAt {
 		return errors.New("write failed (fake)")
 	}
@@ -290,6 +299,8 @@ func (f *fakeRuntime) WriteAtomic(path, data string) error {
 	return nil
 }
 func (f *fakeRuntime) Remove(path string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.removed = append(f.removed, path)
 	delete(f.files, path)
 }

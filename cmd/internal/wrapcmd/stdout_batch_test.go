@@ -70,11 +70,15 @@ func TestMasterPumpFlushesStdoutOnTick(t *testing.T) {
 	}
 	defer reader.Close()
 
-	var out bytes.Buffer
+	// drainBuffer, not bytes.Buffer: this test polls the output while
+	// masterPump is still writing to it, so an unsynchronised buffer is a data
+	// race. (The EOF test below reads only after <-done, which is a
+	// happens-before edge, so it can stay a plain buffer.)
+	out := newDrainBuffer()
 	p := &proxy{
 		ptmx:             reader,
 		agentBasename:    "claude",
-		stdoutPump:       newStdoutPump(&out),
+		stdoutPump:       newStdoutPump(out),
 		stdoutFlushEvery: 5 * time.Millisecond,
 		captureWindow:    defaultCaptureWindow,
 		notifyModeActive: notifyModeDefault,
@@ -90,7 +94,7 @@ func TestMasterPumpFlushesStdoutOnTick(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitForStdoutBatch(t, 250*time.Millisecond, func() bool {
-		return out.String() == "tick"
+		return string(out.Bytes()) == "tick"
 	})
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)

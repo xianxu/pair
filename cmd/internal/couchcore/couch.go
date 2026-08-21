@@ -178,3 +178,62 @@ func (c *Couch) treeFor(ref string) (Worktree, error) {
 	}
 	return c.ResolveTree(ref)
 }
+
+// TreeSummary is a worktree and whatever couch knows about it. A tree with no
+// live actor is still a row: a named tree nobody is running is exactly the
+// parked thread this project exists to stop losing.
+type TreeSummary struct {
+	Tree   Worktree    `json:"tree"`
+	Name   string      `json:"name,omitempty"`
+	Desc   string      `json:"description,omitempty"`
+	Mode   Mode        `json:"mode"`
+	Actors []ActorView `json:"actors,omitempty"`
+}
+
+// Live reports whether any actor on this tree is running.
+func (s TreeSummary) Live() bool {
+	for _, a := range s.Actors {
+		if a.Live {
+			return true
+		}
+	}
+	return false
+}
+
+// Summarize groups actors by tree and folds in every tree that has a name or
+// description but no actor, so parked threads stay visible.
+func (c *Couch) Summarize(trees []Worktree) []TreeSummary {
+	seen := map[string]*TreeSummary{}
+	order := []string{}
+
+	add := func(w Worktree) *TreeSummary {
+		if s, ok := seen[w.Key()]; ok {
+			return s
+		}
+		e := c.names.Entry(w)
+		s := &TreeSummary{Tree: w, Name: e.Name, Desc: c.Describe(w), Mode: c.policy.Mode(w.Repo())}
+		seen[w.Key()] = s
+		order = append(order, w.Key())
+		return s
+	}
+
+	for _, w := range trees {
+		add(w)
+	}
+	for _, r := range c.reg.Records() {
+		s := add(r.Args.Worktree)
+		s.Actors = append(s.Actors, c.Views([]ActorRecord{r})...)
+	}
+	if len(trees) == 0 {
+		for _, e := range c.names.All() {
+			add(e.Tree)
+		}
+	}
+
+	out := make([]TreeSummary, 0, len(order))
+	for _, k := range order {
+		out = append(out, *seen[k])
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Tree < out[j].Tree })
+	return out
+}

@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strings"
 
+	"golang.org/x/term"
+
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
@@ -138,8 +140,8 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 			return v.Handle.Wait()
 		}
 		return 0
-	case []couchcore.ActorView:
-		renderViews(w, v)
+	case []couchcore.TreeSummary:
+		renderTrees(w, v)
 	case couchcore.Worktree:
 		fmt.Fprintf(w, "%s\n", v)
 	case couchcore.ActorRecord:
@@ -156,25 +158,49 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 	return 0
 }
 
-func renderViews(w io.Writer, views []couchcore.ActorView) {
-	if len(views) == 0 {
-		fmt.Fprintln(w, "no actors")
+// renderTrees prints one block per worktree. A tree with no live actor is
+// dimmed rather than omitted: a named tree nobody is running is exactly the
+// parked thread this project exists to stop losing, so it must stay visible.
+func renderTrees(w io.Writer, trees []couchcore.TreeSummary) {
+	if len(trees) == 0 {
+		fmt.Fprintln(w, "no trees")
 		return
 	}
-	for _, v := range views {
-		state := "dead"
-		if v.Live {
-			state = "live"
-		}
-		label := v.Name
+	dim, reset := dimCodes(w)
+	for _, t := range trees {
+		label := t.Name
 		if label == "" {
-			label = v.Record.Args.Worktree.Repo()
+			label = t.Tree.Repo()
 		}
-		fmt.Fprintf(w, "%-14s %-5s %-22s %s\n", v.Record.ID, state, label, v.Record.Args.Worktree)
-		if v.Desc != "" {
-			fmt.Fprintf(w, "%-14s       %s\n", "", v.Desc)
+		open, close := dim, reset
+		if t.Live() {
+			open, close = "", ""
+		}
+		fmt.Fprintf(w, "%s%-22s %s%s\n", open, label, t.Tree, close)
+		if t.Desc != "" {
+			fmt.Fprintf(w, "%s  %s%s\n", open, t.Desc, close)
+		}
+		for _, a := range t.Actors {
+			state := "dead"
+			if a.Live {
+				state = "live"
+			}
+			fmt.Fprintf(w, "%s  %-14s %s  pid %d%s\n", open, a.Record.ID, state, a.Record.PID, close)
+		}
+		if len(t.Actors) == 0 {
+			fmt.Fprintf(w, "%s  (no agent running)%s\n", open, close)
 		}
 	}
+}
+
+// dimCodes returns ANSI dim/reset only when the destination is a real
+// terminal, so piped or captured output stays plain text.
+func dimCodes(w io.Writer) (string, string) {
+	f, ok := w.(*os.File)
+	if !ok || !term.IsTerminal(int(f.Fd())) {
+		return "", ""
+	}
+	return "\x1b[2m", "\x1b[0m"
 }
 
 // renderError gives the tree-occupied refusal the shape the project asks for:

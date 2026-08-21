@@ -71,7 +71,7 @@ func TestListOnEmptyRegistry(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d, stderr %q", code, errw)
 	}
-	if !strings.Contains(out, "no actors") {
+	if !strings.Contains(out, "no trees") {
 		t.Fatalf("out = %q", out)
 	}
 }
@@ -122,5 +122,50 @@ func TestBindArgsAcceptsFlagsAndPositionals(t *testing.T) {
 	}
 	if got["path"] != "../pair" || got["same-tree"] != "true" {
 		t.Fatalf("bound = %v", got)
+	}
+}
+
+func TestListShowsANamedTreeWithNoAgent(t *testing.T) {
+	// The forgetting case: a tree that was named and then parked has no actor,
+	// but it is exactly the thread the operator loses track of. It must be a
+	// visible row, not filtered out.
+	dir := t.TempDir()
+	if _, errw, code := run(t, dir, "name", "../..", "the pair tree"); code != 0 {
+		t.Fatalf("name failed: %s", errw)
+	}
+	out, _, code := run(t, dir, "list")
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	if !strings.Contains(out, "the pair tree") {
+		t.Fatalf("out = %q; a named tree must appear even with no agent", out)
+	}
+	if !strings.Contains(out, "(no agent running)") {
+		t.Fatalf("out = %q; the absence of an agent must be stated", out)
+	}
+}
+
+func TestShowResolvesANameToItsTreePath(t *testing.T) {
+	dir := t.TempDir()
+	if _, errw, code := run(t, dir, "name", "../..", "pairtree"); code != 0 {
+		t.Fatalf("name failed: %s", errw)
+	}
+	out, errw, code := run(t, dir, "show", "pairtree")
+	if code != 0 {
+		t.Fatalf("exit %d, stderr %q", code, errw)
+	}
+	if !strings.Contains(out, "/pair") {
+		t.Fatalf("out = %q; show must print the tree path", out)
+	}
+}
+
+func TestRenderedOutputHasNoANSIWhenNotATerminal(t *testing.T) {
+	// A bytes.Buffer is not a terminal, so dimming must be suppressed --
+	// otherwise piped or captured output carries escape codes.
+	dir := t.TempDir()
+	_, _, _ = run(t, dir, "name", "../..", "plain")
+	out, _, _ := run(t, dir, "list")
+	if strings.Contains(out, "\x1b[") {
+		t.Fatalf("ANSI leaked into non-terminal output: %q", out)
 	}
 }

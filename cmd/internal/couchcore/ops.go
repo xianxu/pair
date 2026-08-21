@@ -64,7 +64,7 @@ func Operations() []Operation {
 			Name:    "list",
 			Summary: "List every registered actor across all worktrees",
 			Invoke: func(c *Couch, _ map[string]string) (any, error) {
-				return c.Views(c.List()), nil
+				return c.Summarize(nil), nil
 			},
 		},
 		{
@@ -72,11 +72,11 @@ func Operations() []Operation {
 			Summary: "Show the actors on one tree, by path or by name",
 			Args:    []ArgSpec{{Name: "ref", Summary: "path or operator-assigned name", Required: true}},
 			Invoke: func(c *Couch, a map[string]string) (any, error) {
-				recs, _, err := c.ResolveRef(a["ref"])
+				_, trees, err := c.ResolveRef(a["ref"])
 				if err != nil {
 					return nil, err
 				}
-				return c.Views(recs), nil
+				return c.Summarize(trees), nil
 			},
 		},
 		{
