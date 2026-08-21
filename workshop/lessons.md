@@ -1598,3 +1598,75 @@ that mentions it.
 tooling that acted on that — an editor, a pre-commit hook, EOL normalisation —
 would corrupt a fixture whose SHA-256 is pinned in metadata. Captured evidence is
 not text and should be declared as such the moment the first one lands.
+
+## A test that survives deleting the seam it names tests nothing
+
+A plan's test asserted that path resolution went through the `PathOps` seam.
+Removing both `Physical` calls from the function left the test green, because
+the fake's canned reply already equalled the expected answer. Separately, the
+first function written in the same milestone kept an explicit `filepath.Clean`
+that no test could miss: `filepath.Abs` already cleans its result, so the line
+was dead on the success path.
+
+**Rule.** For every test that asserts a *seam is used* or a *step happens*,
+delete that call and confirm the test goes red before trusting it. Do the same
+for any line you believe is load-bearing. Verify the deletion actually applied —
+a `cp && python` chain that short-circuits on a blocked write leaves the file
+untouched and reports a meaningless pass. Caught throughout #000145.
+
+## `kill -0` succeeds for a zombie, so it is not a liveness check
+
+`ExecRunner.Alive()` used `procutil.Alive`, which is `kill -0 <pid>`. That
+succeeds for a child that has exited but not been reaped, so a finished process
+reported as running until something called `Wait`. The stateful fake reported it
+dead — correctly — and only a live real-vs-fake comparison exposed the
+divergence. The first hypothesis was that the test scenario was wrong (that
+signalling `sh` was not reaching `sleep`); adding `exec` changed nothing, which
+is what redirected attention to `Alive`.
+
+**Rule.** For your own children, reap in a background goroutine and make
+liveness a closed channel, not a syscall. Reserve `kill -0` plus a kernel start
+token for processes you did not spawn, and write down the window where a zombie
+could still read as live. Caught in #000145 Task 16.
+
+## Conformance means comparing two implementations, not running each
+
+A live check that starts a real process, then separately drives the fake by hand
+to the value it is about to assert, tests only the harness. Both halves pass and
+no drift is detectable. The version that found a real bug encoded one scenario —
+exit code, signal-ignored, signal-fatal — and asserted the two implementations
+*agreed*.
+
+**Rule.** Write the scenario once and assert real and fake produce the same
+observation. Where the fake cannot know something a real process decides (a
+child's signal disposition), make it scriptable and check both settings against
+reality rather than assuming one. Gate with an env var and `t.Skip`, never a
+build tag — a tagged file stops compiling under `go test ./...` and rots
+invisibly. Caught in #000145 Task 16.
+
+## Run the whole tree under -race, not just the package you touched
+
+`go test ./cmd/... -race` had not been part of the loop. One run surfaced three
+races: two in test doubles (a buffer polled across goroutines; a fake's map
+written from two goroutines) and one **production** bug — `scribecmd` deferred
+`ptmx.Close()` without stopping its SIGWINCH goroutine, which could `ioctl` a
+recycled descriptor and resize an unrelated file.
+
+**Rule.** Run the full tree under `-race` before claiming a suite is green, and
+read the whole output rather than a `tail` — a truncated pipe reported one
+failing package when there were four. When a signal-handling or drain goroutine
+shares a resource with a deferred `Close`, stop and drain it first; register
+that cleanup *after* the close defer so it runs *before* it, since defers are
+LIFO. Caught while building #000145.
+
+## A fixture that fights the policy it sits on deadlocks rather than fails
+
+An actor test sent three identical messages and waited for four callbacks. The
+mailbox collapses by kind, so three became one, the count never arrived, and the
+test hung until the timeout instead of failing with a diff.
+
+**Rule.** When a test drives a component through a policy layer, check the
+fixture against that policy first — collapse, dedup, rate limits and batching
+all silently change how many events arrive. Prefer distinct inputs over repeated
+ones, and give any test that can block an explicit timeout so a fixture bug
+reports as a failure rather than a hang. Caught in #000145 Task 9.
