@@ -45,8 +45,20 @@ func NewRegistry() Registry { return Registry{byTree: map[string][]ActorRecord{}
 
 func (r Registry) Get(w Worktree) []ActorRecord { return r.byTree[w.Key()] }
 
-// Trees returns every registered worktree key's records, for enumeration.
-func (r Registry) All() map[string][]ActorRecord { return r.copyMap() }
+// Records returns every registered actor, flattened.
+//
+// It deliberately does not expose the folded map keys: a caller tempted to
+// rebuild a Worktree from a key would get the lowercased path and lose the
+// original case, which matters because that string is fed to
+// launcher.ResolveRepoScope and is what gets displayed. Every record already
+// carries its unfolded Args.Worktree.
+func (r Registry) Records() []ActorRecord {
+	var out []ActorRecord
+	for _, recs := range r.byTree {
+		out = append(out, recs...)
+	}
+	return out
+}
 
 func (r Registry) Register(a ActorRecord) (Registry, error) {
 	return r.RegisterWithPolicy(a, PolicyTable{})

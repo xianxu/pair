@@ -127,3 +127,12 @@ func TestTreeOccupiedErrorCarriesPolicyMode(t *testing.T) {
 		t.Fatalf("Mode = %q, want the policy for this repo", occ.Mode)
 	}
 }
+
+func TestRecordsCarryOriginalCaseWorktree(t *testing.T) {
+	w := Worktree("/Users/x/KBench")
+	reg, _ := NewRegistry().Register(rec("couch-a", w, false))
+	got := reg.Records()
+	if len(got) != 1 || got[0].Args.Worktree != w {
+		t.Fatalf("Records = %+v, want the unfolded path %q", got, w)
+	}
+}
