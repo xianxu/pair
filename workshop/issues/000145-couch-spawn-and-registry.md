@@ -119,7 +119,7 @@ way they do today.
       cached; neither load-bearing.
 - [x] Per-repo concurrency policy source (recorded file, not a constant).
 - [x] Queryable-state + callable-operation surface, with the operation-set audit.
-- [ ] Operator smoke: host one real `pair` child (settles the layering fork).
+- [x] Operator smoke: host one real `pair` child (settles the layering fork).
 
 ## Log
 
@@ -186,3 +186,18 @@ which was not previously part of the loop. Full tree is now green under `-race`
 - scrollbackcmd: emulator left unclosed so its drainer parks, since
   `vt.Emulator.closed` is an unsynchronised bool and the reverse order
   deadlocks (verified), ~0.5h, pending commit
+
+### 2026-08-21 — layering fork settled
+
+Operator ran `./bin/couch start ../pair`: **pair starts up correctly as a couch
+child.** So couch hosts `pair` whole -- couch -> pair -> zellij -> claude+nvim,
+three layers of terminal management -- and does **not** need to absorb zellij's
+role. That was the open fork recorded against `#146`, and it is the cheap
+answer: a zellij inside a couch-owned pty is just a child that redraws on
+SIGWINCH.
+
+Scope of the result: this milestone hands the child couch's own stdio, so what
+is proven is that the whole stack comes up under a couch-spawned process. It
+says nothing about attach/detach or multi-child routing, which need the pty
+`#146` builds. Not yet exercised by the operator: the second-shell `couch list`
+read path, the refusal offer, and the kbench-subdirectory case.

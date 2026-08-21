@@ -249,3 +249,16 @@ it exists (couch → pair → zellij → claude+nvim, three layers of terminal
 management) or host what pair spawns, taking over zellij's role? Step 1 of the
 smoke sequence answers it — if hosting pair directly is too complex, couch
 absorbs the zellij layer.
+
+### 2026-08-21 — layering fork settled: host `pair` whole
+
+`./bin/couch start ../pair` brings pair up correctly as a couch child, so the
+fork opened when the UI model was settled is closed in favour of hosting `pair`
+as it exists. couch never needs to reimplement zellij's role, which keeps
+`pair#146` to its narrow shape -- one tty, one child at a time -- and unblocks
+estimating it.
+
+The wider point for the project: couch supervises *sessions*, not terminals.
+Whatever a session runs inside itself (zellij, nvim, an agent) stays that
+session's business, which is the encapsulation the actor model asked for,
+arriving here as a practical result rather than a design assertion.

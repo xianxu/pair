@@ -111,9 +111,12 @@ simply not rendered when none is.
 
 Split out of the former root ticket on promotion to a project.
 
-**Layering fork, answered by smoke step 1:** does couch host `pair` as it exists
-— giving couch → pair → zellij → claude+nvim, three layers of terminal
-management — or host what pair spawns, absorbing zellij's role? Test hosting pair
-directly first; if that is too complex, couch takes the zellij layer. This
-materially changes the scope of this issue, so it is settled empirically before
-the rest of the plan is estimated.
+**Layering fork — SETTLED 2026-08-21, host `pair` whole.** The operator ran
+`./bin/couch start ../pair` against `#145`'s spawn path and pair came up
+correctly, so couch does **not** absorb zellij's role: the stack stays
+couch → pair → zellij → claude+nvim, and a zellij inside a couch-owned pty is
+just a child that redraws on SIGWINCH.
+
+This issue's scope is therefore the narrow one: route one tty to one child at a
+time, with no responsibility for what the child runs internally. Estimation is
+unblocked.
