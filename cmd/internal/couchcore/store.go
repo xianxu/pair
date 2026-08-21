@@ -87,3 +87,20 @@ func (s Store) Load() (Registry, NamingTable, PolicyTable, error) {
 	}
 	return reg, names, pol, nil
 }
+
+// ReadDescription reads the one-line description an agent wrote for its tree.
+func (s Store) ReadDescription(w Worktree) (string, error) {
+	raw, err := s.fs.ReadFile(filepath.Join(s.DescDir(), sanitizeKey(w.Key())))
+	if err != nil {
+		return "", err
+	}
+	return trimTrailingNewline(raw), nil
+}
+
+// WriteDescription is what an agent calls to publish its own one-liner.
+func (s Store) WriteDescription(w Worktree, desc string) error {
+	if err := os.MkdirAll(s.DescDir(), 0o755); err != nil {
+		return err
+	}
+	return s.fs.WriteAtomic(filepath.Join(s.DescDir(), sanitizeKey(w.Key())), desc+"\n")
+}

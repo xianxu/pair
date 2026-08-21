@@ -138,3 +138,43 @@ func (c *Couch) ResolveRef(ref string) ([]ActorRecord, []Worktree, error) {
 	}
 	return out, trees, nil
 }
+
+// Views decorates records with the state that is computed rather than stored.
+func (c *Couch) Views(recs []ActorRecord) []ActorView {
+	out := make([]ActorView, 0, len(recs))
+	for _, r := range recs {
+		e := c.names.Entry(r.Args.Worktree)
+		out = append(out, ActorView{
+			Record: r,
+			Live:   c.IsLive(r),
+			Name:   e.Name,
+			Desc:   c.Describe(r.Args.Worktree),
+			Mode:   c.policy.Mode(r.Args.Worktree.Repo()),
+		})
+	}
+	return out
+}
+
+// Describe returns the agent-supplied one-liner, preferring the sidecar the
+// live agent writes and falling back to the last value couch stored.
+//
+// This is not the published-status artifact returning: it is a one-line LABEL,
+// and a stale label still finds the right tree. Labels tolerate staleness;
+// state does not.
+func (c *Couch) Describe(w Worktree) string {
+	if s, err := c.Store.ReadDescription(w); err == nil && s != "" {
+		return s
+	}
+	return c.names.Entry(w).Description
+}
+
+// treeFor resolves a ref to exactly one tree, erroring on ambiguity rather
+// than guessing -- fuzzy in, exact out.
+func (c *Couch) treeFor(ref string) (Worktree, error) {
+	if trees := c.names.Lookup(ref); len(trees) == 1 {
+		return trees[0], nil
+	} else if len(trees) > 1 {
+		return "", fmt.Errorf("%q matches %d trees; be specific", ref, len(trees))
+	}
+	return c.ResolveTree(ref)
+}
