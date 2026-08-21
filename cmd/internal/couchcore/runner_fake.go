@@ -31,6 +31,7 @@ type FakeRunner struct {
 	mu       sync.Mutex
 	children map[string]*FakeChild
 	order    []string
+	failNext error
 	Ops      []string
 }
 
@@ -40,9 +41,22 @@ func NewFakeRunner() *FakeRunner {
 	return &FakeRunner{children: map[string]*FakeChild{}}
 }
 
+// FailNextStart makes the next Start return err, so a caller's cleanup path
+// can be exercised without a real process failure.
+func (f *FakeRunner) FailNextStart(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.failNext = err
+}
+
 func (f *FakeRunner) Start(dir string, argv, env []string) (Handle, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.failNext != nil {
+		err := f.failNext
+		f.failNext = nil
+		return nil, err
+	}
 	id := fmt.Sprintf("couch-fake-%d", len(f.order)+1)
 	f.children[id] = &FakeChild{
 		Dir: dir, Argv: argv, Env: env,

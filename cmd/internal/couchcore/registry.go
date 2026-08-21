@@ -64,6 +64,21 @@ func (r Registry) Register(a ActorRecord) (Registry, error) {
 	return r.RegisterWithPolicy(a, PolicyTable{})
 }
 
+// CheckAvailable reports whether a tree will accept a registration, without
+// performing one. Spawn needs this so the guard is evaluated BEFORE a child
+// process is started -- otherwise a refused spawn has already forked.
+func (r Registry) CheckAvailable(tree Worktree, sameTree bool, p PolicyTable) error {
+	existing := r.byTree[tree.Key()]
+	if len(existing) > 0 && !sameTree {
+		return &TreeOccupiedError{
+			Tree:       tree,
+			Incumbents: append([]ActorRecord(nil), existing...),
+			Mode:       p.Mode(tree.Repo()),
+		}
+	}
+	return nil
+}
+
 // RegisterWithPolicy copies before mutating. Registry wraps a map, which is a
 // reference type, so a value-semantics signature over a shared map would be a
 // lie: a failed Register would mutate the caller's state anyway.
