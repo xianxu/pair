@@ -13,10 +13,12 @@
 // after to resume. Terminal output is never paused — only the on-disk log.
 //
 // Usage:
-//     scribe -log PATH -- CMD [ARGS...]
+//
+//	scribe -log PATH -- CMD [ARGS...]
 //
 // Drop-in replacement at zshrc's `exec script -q -F $LOG /bin/zsh` line:
-//     exec pair scribe -log "$LOG" -- /bin/zsh   (or the bin/pair-scribe shim)
+//
+//	exec pair scribe -log "$LOG" -- /bin/zsh   (or the bin/pair-scribe shim)
 //
 // Packaging: the logic lives here behind Run(); it is reached two ways with
 // identical behavior — the standalone bin/pair-scribe shim (cmd/pair-scribe,
@@ -88,12 +90,24 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	// Propagate SIGWINCH so the child sees terminal resizes.
 	winch := make(chan os.Signal, 1)
 	signal.Notify(winch, syscall.SIGWINCH)
+	winchDone := make(chan struct{})
 	go func() {
+		defer close(winchDone)
 		for range winch {
 			if stdinFile != nil {
 				_ = pty.InheritSize(stdinFile, ptmx)
 			}
 		}
+	}()
+	// Registered AFTER the ptmx.Close defer above, so it runs BEFORE it
+	// (defers are LIFO). Without this the resize goroutine outlives Run and
+	// can call pty.InheritSize on a closed ptmx -- and since the kernel
+	// recycles descriptors, that ioctl could resize an unrelated open file.
+	// The race detector catches it through the existing tests.
+	defer func() {
+		signal.Stop(winch)
+		close(winch)
+		<-winchDone
 	}()
 	winch <- syscall.SIGWINCH // initial size
 
@@ -103,7 +117,9 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	var paused atomic.Bool
 	pauseCh := make(chan os.Signal, 4)
 	signal.Notify(pauseCh, syscall.SIGUSR1, syscall.SIGUSR2)
+	pauseDone := make(chan struct{})
 	go func() {
+		defer close(pauseDone)
 		for s := range pauseCh {
 			switch s {
 			case syscall.SIGUSR1:
@@ -112,6 +128,12 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 				paused.Store(false)
 			}
 		}
+	}()
+	// Same shape as the winch goroutine: unstopped, it leaks per Run call.
+	defer func() {
+		signal.Stop(pauseCh)
+		close(pauseCh)
+		<-pauseDone
 	}()
 
 	// Stdin must be raw so keystrokes flow through to the child instead of
