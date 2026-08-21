@@ -1,11 +1,12 @@
 ---
 id: 000145
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-08-20
 updated: 2026-08-21
 estimate_hours:
+started: 2026-08-21T12:40:25-07:00
 ---
 
 # couch: spawn and registry
