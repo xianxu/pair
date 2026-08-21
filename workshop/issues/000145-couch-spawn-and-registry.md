@@ -109,16 +109,17 @@ way they do today.
 
 ## Plan
 
-- [ ] Registry keyed on the working tree; structured start-args; durable across
+- [x] Registry keyed on the working tree; structured start-args; durable across
       couch runs.
 - [ ] Actor goroutine: bounded mailbox, control/normal channels, priority select.
-- [ ] Spawn: bring up a claude-stack child from start-args in the right tree.
-- [ ] Name registration on (repo, tree) as the collision guard; worktree-or-switch
+- [x] Spawn: bring up a claude-stack child from start-args in the right tree.
+- [x] Name registration on (repo, tree) as the collision guard; worktree-or-switch
       on refusal.
-- [ ] Runtime naming layer: operator short names + agent-supplied description,
+- [x] Runtime naming layer: operator short names + agent-supplied description,
       cached; neither load-bearing.
-- [ ] Per-repo concurrency policy source (stub until `ariadne#200`).
-- [ ] Queryable-state + callable-operation surface, with the operation-set audit.
+- [x] Per-repo concurrency policy source (recorded file, not a constant).
+- [x] Queryable-state + callable-operation surface, with the operation-set audit.
+- [ ] Operator smoke: host one real `pair` child (settles the layering fork).
 
 ## Log
 
@@ -130,3 +131,58 @@ architecture narrative, v1 non-goals and cross-repo enablers moved to
 
 Rekeyed from issue-as-identity to tree-as-identity the same day (see the project
 Log scope event). Spawn now takes a repo; the issue is metadata, not the key.
+
+### 2026-08-21 — session summary
+
+Design settled through two rounds of fresh-eyes plan review, then implemented.
+The plan (`workshop/plans/000145-couch-spawn-and-registry-plan.md`) was
+respecified after the second review built a scratch module from its own specs
+and ran them: it found a test that deadlocked and a test that passed with the
+seam it named deleted, neither visible on inspection. Hand-written Go in a
+markdown document cannot be trusted without executing it, and executing it is
+implementing it -- so the plan now carries contracts, per-test "what bug does
+this catch", and a **deletion check** per task.
+
+Landed: `cmd/internal/couchcore` (path canonicalisation, worktree resolution,
+registry, naming, policy, store, runner seam + stateful fake, proc seam,
+composition root, spawn, operation surface) and `cmd/internal/couchcmd` +
+`cmd/couch`. `couch` is in `GO_BINS` with its own recipe; `make build` produces
+both binaries and `./bin/pair --help` still works.
+
+Deletion checks paid immediately. On the very first function, removing
+`filepath.Clean` left the suite green -- `filepath.Abs` already cleans, so the
+line was dead on the success path. Every seam call since has its own failing
+test: both `PathOps.Physical` calls in `Resolve`, `FakeGit`'s `dir` key, the
+registry map copy, `SameTree`, the pre-fork guard, and the CLI dispatch audit.
+
+Two bugs found by writing rather than by review. `NamingTable.Lookup` returned
+`Worktree(key)` -- the folded key -- so on a case-insensitive volume it handed
+back a lowercased path, losing the case that `ResolveRepoScope` hashes.
+`Registry.All()` exposed folded map keys and invited the identical mistake; it
+is now `Records()`.
+
+Deviations from the Spec, recorded rather than silent: the mailbox is a
+mutex-guarded queue rather than two channels with a priority select, because
+the bounded/collapse policy must be applied at insertion and a bare buffered
+channel cannot do that. `list`/`show` return per-tree summaries and keep a
+named tree with no running agent visible (dimmed) -- a parked thread is exactly
+what this project exists to stop losing.
+
+Still open: the actor loop and mailbox (the last domain pieces, and what
+`#147`'s transport sits on), live real-vs-fake conformance, and the operator
+smoke that settles whether couch hosts `pair` whole or absorbs zellij's role.
+
+## Side quests
+
+Unbudgeted but shipped -- all surfaced by running `go test ./cmd/... -race`,
+which was not previously part of the loop. Full tree is now green under `-race`
+(38 packages).
+
+- wrapcmd test race: buffer polled across goroutines, ~0.3h, `10e136a`
+- launcher test race: fake's map written from two goroutines, ~0.3h, `10e136a`
+- **scribecmd production bug**: pty use-after-close -- the SIGWINCH goroutine
+  outlived `Run` and could `ioctl` a recycled descriptor -- plus two leaked
+  goroutines per call, ~0.7h, `e528671`
+- scrollbackcmd: emulator left unclosed so its drainer parks, since
+  `vt.Emulator.closed` is an unsynchronised bool and the reverse order
+  deadlocks (verified), ~0.5h, pending commit

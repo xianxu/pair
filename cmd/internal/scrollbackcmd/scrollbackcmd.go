@@ -301,19 +301,20 @@ func render(rawPath, eventsPath, outPath string, plain bool, maxLines int, withT
 	// forever and deadlocks the Write goroutine. Discarding the bytes
 	// preserves emulation correctness; we never act on the replies.
 	//
-	// Wait for the drainer to actually exit before letting em.Close()
-	// run, otherwise Close races with the drainer's still-pending
-	// Read() (race detector catches it; in production the window is
-	// usually harmless but it's a real ordering bug).
-	drainDone := make(chan struct{})
-	go func() {
-		defer close(drainDone)
-		_, _ = io.Copy(io.Discard, em)
-	}()
-	defer func() {
-		em.Close()
-		<-drainDone
-	}()
+	// The emulator is deliberately never closed, and this goroutine is
+	// deliberately allowed to park. vt.Emulator.closed is a plain bool
+	// written by Close() and read by Read() with no synchronisation, so
+	// closing while the drainer is blocked in Read is a data race inside the
+	// dependency. The obvious inversion -- wait for the drainer, then close
+	// -- deadlocks, because Close() is the only thing that can unblock that
+	// Read; an earlier attempt here hit exactly that (its comment survived
+	// after the ordering was flipped back).
+	//
+	// So the drainer stays parked on the pipe for the life of the process.
+	// `pair scrollback` renders once and exits, so the leak is bounded by
+	// process lifetime, and a parked goroutine is cheaper than either a real
+	// race or a fork of the dependency. Revisit if vt makes closed atomic.
+	go func() { _, _ = io.Copy(io.Discard, em) }()
 
 	raw, err := os.ReadFile(rawPath)
 	if err != nil {

@@ -220,7 +220,7 @@ The cached half of Done-when 3's description. Child writes `<store>/desc/<key>`;
 Manual; record in the issue `## Log`.
 **What it settles:** does `pair` start correctly as a couch child, with zellij and nvim underneath, when couch hands it the real terminal. **What it does not:** attach/detach or multi-child routing — those need `#146`'s pty. Record which question the result answers so a negative is not over-read.
 
-- [ ] `go build ./cmd/couch && ./couch start ../pair`
+- [ ] `go build ./cmd/couch && ./couch start ../pair`   <- operator, unrun
 - [ ] second shell: `./couch list`, `./couch show ../pair` — proves the out-of-process read path
 - [ ] `./couch start ../pair` again → refused, incumbent named, offer shaped by policy mode
 - [ ] `./couch start ../kbench/competition/arc-agi-3` → registers under `.../kbench`
