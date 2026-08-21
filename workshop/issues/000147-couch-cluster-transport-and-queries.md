@@ -30,8 +30,8 @@ status query was held for human approval on both ends.
 Claude-specific. A codex-backed actor participates over the same channel as a
 Claude-backed one — no agent-specific path.
 
-**Mail, not chat.** Messages are addressed to the **thread** (durable), not the
-session (ephemeral). v1 semantics, decided deliberately: mailboxes are ephemeral,
+**Mail, not chat.** Messages are addressed to the **working tree** (durable), not
+the session (ephemeral) and not an issue ref. v1 semantics, decided deliberately: mailboxes are ephemeral,
 and **eager spawn** is the only mode — no actor for a message means start one.
 Accepted cost: a low-value FYI can trigger a cold boot. If couch restarts,
 in-flight messages are lost.

@@ -14,16 +14,12 @@ sources: [brain/workshop/pensive/2026-08-20-01-pensive-couch-agent-switcher.md]
 
 A prototype tty switcher that turns pair sessions into an Erlang-style actor
 cluster on a single host, with brain as the always-home advisor. **The headline
-omission: work that has no issue.** Identity is the issue name, so a thread
-running off-spine — no issue file, commits straight to main — is unaddressable
-by this MVP. That is not incidental: the concrete failure that motivated the
-project (a Kaggle deadline of 2026-08-05 that passed unnoticed and cost a
-submission) happened on exactly such a thread. So the MVP proves *no tracked
-thread gets lost*, not *no thread gets lost*, and how untracked work gets named
-is deferred rather than solved.
+omission: one host, one operator, a read-only star.** Agents answer the advisor
+and never write to each other; there is no mesh and nothing clusters across
+machines. If a second person or a second machine needs in, the model does not
+stretch — it gets redesigned.
 
-Also out: multi-host clustering, mesh topology (star only, read-only), LLM
-suspension and budgets, durable mailboxes, and agent→agent write channels.
+Also out: LLM suspension and budgets, and durable mailboxes.
 
 ## PRD
 
@@ -47,11 +43,24 @@ with a **warm** child (context loaded, resume instant, costs RAM) · running wit
 the child gone (**cold**, context rebuilt from durable artifacts). Warm-vs-cold
 decides what waking an actor costs, and is the scheduler's whole job.
 
-**Identity is the issue name** (`pair#10`, `ariadne#111`). Today's pair
-identifier is a *tag*, which forces the operator to hold a tag→issue mapping in
-their head — that indirection is itself part of the memory load being attacked.
-Ad-hoc sessions with no issue behind them are expected to stay transient and
-unregistered, the way brain is unaddressed; whether that holds is open.
+**Identity is the working tree; naming is a runtime mapping.** An agent is
+spawned against a *peer repo* — what it works on is decided inside the session,
+which is how the SDLC already works: an issue crystallizes mid-thread, it is not
+a precondition. So the durable key is the **working tree** (repo plus checkout or
+worktree path). It survives restarts, exists whether or not there is an issue,
+and is precisely what two agents collide over.
+
+The system-level id does not need to be legible. Human addressing is a mutable
+layer above it: short names the operator assigns at runtime, plus a one-line
+description of what the agent is doing, sourced from the agent itself and free to
+evolve during a session. Nothing structural depends on either, so a label may be
+wrong, duplicated or stale without corrupting anything. Today's pair *tag*
+collapses into this — it was a name the operator had to hold in their head *and*
+map to work; the mapping becomes the system's job.
+
+An issue becomes **metadata on a tree** ("this tree is working `pair#10`") —
+useful for the advisor's synthesis and for `sdlc` integration, never required at
+spawn, never load-bearing for identity.
 
 **brain is the home actor** — the only actor with no issue address, reachable by
 one keystroke from every child, always. If that is ever flaky the operator
@@ -81,8 +90,9 @@ the CLI, filtered.
 **Anything with a real-time obligation lives in the deterministic layer.** The
 LLM is suspendable by construction, so it never owns a deadline. Timers belong
 to the shell; switching is LLM-free; name registration is exact — and **name
-registration IS the collision guard**, since refusing a second in-place spawn is
-just `register(pair#10)` failing.
+registration IS the collision guard**, since refusing a second agent on a
+working tree is just `register(repo, tree)` failing. The real invariant was never
+one issue per repo; it is one agent per tree, which is what actually collides.
 
 **Two staleness signals, both needed:** mailbox depth says someone is waiting on
 this agent; git staleness says the thread has gone cold. The thread nobody has
@@ -168,3 +178,27 @@ and whether revival quality is contingent on ledger discipline. The 2026-08-20
 experiment revived an unusually well-kept thread; a messy one is untested, and
 the productive form of the worry is whether the observer can cheaply *measure*
 revivability and warn while a thread is still fixable.
+
+### 2026-08-21 — scope event: identity rekeyed from issue to working tree
+
+Walked back the issue-as-identity decision. Original framing required an issue
+ref at spawn, which made *how untracked work gets named* the project's headline
+omission.
+
+Why it was wrong: requiring an issue at spawn contradicts the SDLC's own flow —
+claim happens after an idea crystallizes, and pre-issue exploration is explicitly
+normal. The spawn parameter is the **peer repo**; what to work on is decided
+inside the session.
+
+What changes: the durable key becomes the working tree (repo + checkout/worktree
+path). System ids need not be legible; human addressing is a runtime mapping of
+operator-assigned short names plus a live one-line description supplied by the
+agent, both mutable mid-session and neither load-bearing. Name registration
+rekeys from `register(pair#10)` to `register(repo, tree)`, which is a more
+accurate statement of the invariant. An issue becomes metadata on a tree.
+
+Net effect on scope: the headline omission is *closed*, not deferred — a thread
+like rogii-v2 (11 days, 301 commits, no issue file, missed deadline) becomes
+addressable on day one. `ariadne#200` gets simpler, enumerating working trees
+rather than issue records. The new headline omission is the honest remaining one:
+single host, single operator, read-only star.

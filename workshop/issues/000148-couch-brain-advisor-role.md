@@ -49,7 +49,10 @@ structured and lossless.
 
 **Fuzzy in, exact out.** "Switch to the one where we're refactoring pair"
 resolves to a canonical id, and resolution **returns what it resolved to**, shown
-before anything fires. This matters most for destructive operations: "stop it"
+before anything fires. What it matches against is the runtime naming layer —
+operator-assigned short names plus the agent's own one-line description — not an
+issue title, so it reflects what the agent is actually doing rather than what a
+ticket claimed. Duplicate or stale labels are expected; resolution asks which. This matters most for destructive operations: "stop it"
 hitting the wrong session is the failure that would make the whole thing
 untrusted.
 
