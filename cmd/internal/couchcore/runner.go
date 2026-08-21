@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
-	"sync"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
 )
@@ -64,11 +63,40 @@ func (ExecRunner) Start(dir string, argv, env []string) (Handle, error) {
 		return nil, fmt.Errorf("start %s in %s: %w", argv[0], dir, err)
 	}
 	pid := cmd.Process.Pid
-	return &execHandle{
+	h := &execHandle{
 		cmd:      cmd,
 		pid:      pid,
 		identity: procutil.Identity(strconv.Itoa(pid)),
-	}, nil
+		done:     make(chan struct{}),
+	}
+	// Reap in the background rather than only on Wait().
+	//
+	// Without this, Alive() is wrong for an exited-but-unreaped child:
+	// procutil.Alive is `kill -0`, which SUCCEEDS for a zombie, so a finished
+	// child reads as running until somebody calls Wait. The live conformance
+	// check caught exactly that -- a real child killed by SIGINT stayed
+	// "alive" while the fake correctly reported it dead.
+	//
+	// Reaping here also makes liveness a closed channel rather than a syscall,
+	// which is the same shape FakeRunner models.
+	go func() {
+		h.code = waitCode(cmd)
+		close(h.done)
+	}()
+	return h, nil
+}
+
+// waitCode waits for cmd and maps the result to an exit code.
+func waitCode(cmd *exec.Cmd) int {
+	err := cmd.Wait()
+	if err == nil {
+		return 0
+	}
+	var ee *exec.ExitError
+	if asExitError(err, &ee) {
+		return ee.ExitCode()
+	}
+	return -1
 }
 
 type execHandle struct {
@@ -76,44 +104,31 @@ type execHandle struct {
 	pid      int
 	identity string
 
-	mu     sync.Mutex
-	waited bool
-	code   int
+	// done closes once the child has been reaped; code is written before the
+	// close, so reading it after <-done needs no further synchronisation.
+	done chan struct{}
+	code int
 }
 
 func (h *execHandle) ID() string       { return strconv.Itoa(h.pid) }
 func (h *execHandle) PID() int         { return h.pid }
 func (h *execHandle) Identity() string { return h.identity }
 
+// Alive reports whether the child has been reaped. It deliberately does NOT
+// consult procutil.Alive: `kill -0` succeeds for a zombie, so a child that has
+// exited but not been waited on would read as running.
 func (h *execHandle) Alive() bool {
-	h.mu.Lock()
-	waited := h.waited
-	h.mu.Unlock()
-	if waited {
+	select {
+	case <-h.done:
 		return false
+	default:
+		return true
 	}
-	return procutil.Alive(strconv.Itoa(h.pid))
 }
 
 func (h *execHandle) Signal(sig os.Signal) error { return h.cmd.Process.Signal(sig) }
 
 func (h *execHandle) Wait() int {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.waited {
-		return h.code
-	}
-	err := h.cmd.Wait()
-	h.waited = true
-	if err != nil {
-		var ee *exec.ExitError
-		if ok := asExitError(err, &ee); ok {
-			h.code = ee.ExitCode()
-			return h.code
-		}
-		h.code = -1
-		return h.code
-	}
-	h.code = 0
+	<-h.done
 	return h.code
 }

@@ -12,6 +12,7 @@ type FakeChild struct {
 	Argv    []string
 	Env     []string
 	Signals []os.Signal
+	diesOn  map[os.Signal]int
 	alive   bool
 	code    int
 	done    chan struct{}
@@ -60,11 +61,28 @@ func (f *FakeRunner) Start(dir string, argv, env []string) (Handle, error) {
 	id := fmt.Sprintf("couch-fake-%d", len(f.order)+1)
 	f.children[id] = &FakeChild{
 		Dir: dir, Argv: argv, Env: env,
-		alive: true, done: make(chan struct{}),
+		diesOn: map[os.Signal]int{},
+		alive:  true, done: make(chan struct{}),
 	}
 	f.order = append(f.order, id)
 	f.Ops = append(f.Ops, "start "+dir+": "+joinArgs(argv))
 	return &fakeHandle{runner: f, id: id}, nil
+}
+
+// SetDiesOn scripts a child's disposition for one signal: receiving it exits
+// the child with code.
+//
+// The default is that NO signal kills, which is the conservative model -- a
+// real process may catch, ignore or delay one, and pair's own restart loop
+// depends on catching SIGUSR2. Scripting the other disposition explicitly is
+// what lets the live conformance check compare both against real processes
+// rather than assuming one.
+func (f *FakeRunner) SetDiesOn(id string, sig os.Signal, code int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if c, ok := f.children[id]; ok {
+		c.diesOn[sig] = code
+	}
 }
 
 // SetExited ends a child and unblocks any Wait on it.
@@ -133,6 +151,10 @@ func (h *fakeHandle) Signal(sig os.Signal) error {
 	}
 	c.Signals = append(c.Signals, sig)
 	h.runner.Ops = append(h.runner.Ops, "signal "+h.id+": "+sig.String())
+	if code, fatal := c.diesOn[sig]; fatal && c.alive {
+		c.alive, c.code = false, code
+		close(c.done)
+	}
 	return nil
 }
 

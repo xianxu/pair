@@ -83,6 +83,14 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 // IsLive recomputes liveness for a persisted record. A PID that has been
 // recycled by an unrelated process reports NOT live, because the kernel start
 // token differs.
+//
+// Known narrow window: procutil.Alive is `kill -0`, which succeeds for a
+// zombie, so a child that exited but has not yet been reaped by ITS OWN parent
+// reads as live here. ExecRunner reaps in the background precisely so its own
+// children are never zombies, and an orphan is reparented to init and reaped
+// immediately -- so the window needs a couch that spawned a child, is not
+// waiting on it, and is still running. `couch start` blocks on Wait, so that
+// does not arise today; revisit if a non-blocking spawn ever lands.
 func (c *Couch) IsLive(a ActorRecord) bool {
 	if a.PID == 0 || !c.Proc.Alive(a.PID) {
 		return false

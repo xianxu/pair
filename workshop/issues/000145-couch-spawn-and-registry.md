@@ -237,3 +237,32 @@ One fixture note worth keeping: the priority test uses three *distinct* normal
 kinds. Identical ones would collapse to one and the expected count would never
 arrive -- a fixture that fights the policy it sits on deadlocks rather than
 fails, which is exactly how an earlier draft of this test hung.
+
+### 2026-08-21 — live conformance found a real bug in ExecRunner
+
+Task 16 landed (`conformance_live_test.go`, gated on `PAIR_LIVE_COUCH=1`, no
+build tag per the house pattern), and it earned its keep on the first run.
+
+`ExecRunner.Alive()` was wrong for an exited-but-unreaped child. It called
+`procutil.Alive`, which is `kill -0` -- and **`kill -0` succeeds for a zombie**.
+So a child that had already died reported as running until somebody called
+`Wait`. The fake reported it dead, correctly; the real implementation did not,
+and the two diverged. That is exactly the drift a live check exists to detect,
+and no unit test against the fake could have found it.
+
+Fixed by reaping in a background goroutine at `Start`: liveness is now a closed
+channel rather than a syscall, which is also the shape `FakeRunner` already
+models. The fatal-signal scenario went from a 5s timeout to 0.01s.
+
+Two things worth keeping from the diagnosis. First, my initial reading was that
+the *scenario* was wrong -- that signalling `sh` was not reaching `sleep` -- and
+adding `exec` changed nothing, which is what pointed at `Alive` rather than at
+the shell. Second, `Couch.IsLive` shares the same `kill -0` hazard for
+out-of-process reads; the window is now documented in place, and it needs a
+couch that spawned a child, is not waiting on it, and is still running, which
+`couch start`'s blocking Wait rules out today.
+
+Conformance also required teaching the fake a signal *disposition*
+(`SetDiesOn`), because the fake cannot know whether a child catches a signal.
+The default remains "nothing kills", and the two dispositions are now each
+checked against a real process rather than assumed.
