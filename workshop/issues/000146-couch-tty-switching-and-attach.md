@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-08-21
 updated: 2026-08-22
-estimate_hours: 9.33
+estimate_hours: 10.32
 started: 2026-08-22T12:14:19-07:00
 ---
 
@@ -128,33 +128,36 @@ model: estimate-logic-v3.1
 familiarity: 1.0
 design-buffer: 0.15
 item: pensive                 design=0.8  impl=0.08
-item: greenfield-go-module    design=0.2  impl=0.24
+item: greenfield-go-module    design=0.2  impl=0.32
 item: greenfield-go-module    design=0.2  impl=0.2
 item: cross-cutting-refactor  design=0.3  impl=0.2
-item: milestone-review        design=0.0  impl=0.15
+item: real-api-discovery      design=0.0  impl=0.2
+item: milestone-review        design=0.0  impl=0.2
 item: greenfield-go-module    design=0.5  impl=0.32
 item: smaller-go-module       design=0.1  impl=0.16
 item: smaller-go-module       design=0.1  impl=0.16
+item: greenfield-go-module    design=0.1  impl=0.2
 item: smaller-go-module       design=0.1  impl=0.08
 item: smaller-go-module       design=0.1  impl=0.16
 item: real-api-discovery      design=0.0  impl=0.24
 item: real-api-discovery      design=0.0  impl=0.24
-item: milestone-review        design=0.0  impl=0.15
+item: milestone-review        design=0.0  impl=0.2
 item: tui-screen              design=0.3  impl=0.28
 item: smaller-go-module       design=0.1  impl=0.08
 item: smaller-go-module       design=0.1  impl=0.2
 item: smaller-go-module       design=0.0  impl=0.08
 item: real-api-discovery      design=0.0  impl=0.24
-item: milestone-review        design=0.0  impl=0.15
+item: milestone-review        design=0.0  impl=0.2
 item: smaller-go-module       design=0.1  impl=0.12
 item: smaller-go-module       design=0.1  impl=0.16
 item: atlas-docs              design=0.1  impl=0.06
 item: real-api-discovery      design=0.0  impl=0.16
-item: milestone-review        design=0.0  impl=0.15
+item: milestone-review        design=0.0  impl=0.2
+item: cross-cutting-refactor  design=0.0  impl=0.2
 item: ux-rename-iteration     design=0.4  impl=0.1
 item: ux-rename-iteration     design=0.4  impl=0.1
 item: scope-pivot             design=0.3  impl=0.12
-total: 9.33
+total: 10.32
 ```
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
@@ -170,19 +173,20 @@ written down rather than left implied:
 | `greenfield-go-module` ×1 | M1 `hostty` — `Host`, `OSHost`, `FakeHost`, control constants | same shape, one concern (the operator's terminal), same discount. |
 | `cross-cutting-refactor` | M1 migration of `pair term` onto **both** packages | multi-file, behaviour-preserving, with an existing suite as the net. Design 0.3 is not discounted to zero: where the seam falls in `runShell` is a live decision. |
 | `greenfield-go-module` ×1 | M2 `couchtty` — `Console` + `Interceptor` | design 0.5 rather than the ×0.2 floor: DECSTBM's behaviour under real children is the one thing the plan cannot pre-resolve, and Decision 4 carries a named fallback that would cost redesign. |
-| `smaller-go-module` ×2 | M2 `Reserve`/`RenderStatusRow`; `PtyRunner`/`TerminalHandle`/fake | both well-specced extensions of shapes that exist (the `Runner` seam, `termcmd`'s escapes). |
+| `smaller-go-module` ×2 | M2 `Reserve`/`RenderStatusRow` (Task 2.4); `PtyRunner`/`TerminalHandle` (Task 2.1) | well-specced extensions of shapes that exist — the `Runner` seam, `termcmd`'s escapes. |
+| `greenfield-go-module` ×1 | M2 Task 2.2 — `FakeRunner`'s scripted in-memory terminal **plus** the live conformance pin against a real pty | split out of Task 2.1 on the second pass: a stateful behavioural fake with a real-vs-fake conformance check is not a mirror of an existing shape, it is the ARCH-MOCK work, across three files. |
 | `smaller-go-module` ×1 | M2 Task 2.6a — `Spawn` forced onto `pair resume <tag>` | argv plus a derivation that reuses `launcher.DefaultTag`; small because the lever already exists. |
-| `real-api-discovery` | M2 the terminal-behaviour smoke budget | the closest primitive to what this actually is: a budget for discovering how an external system really behaves. Here the external systems are Ghostty, zellij and nvim rather than an HTTP API, and the discovery is DECSTBM survival across alt-screen transitions. |
 | `tui-screen` | M3 the panel — rows, typeahead, numbered pick | literally the primitive's description: a screen plus a state machine plus tests. |
 | `smaller-go-module` ×2 | M3 `Focus`; N-children routing + replay in `Console` | pure model, then wiring onto seams M2 built. |
 | `smaller-go-module` ×2 | M4 `Notice`/`Feed` + row content; exits + restore-on-signal | `Feed` delegates to `couchcore.Enqueue`, so it is an extension rather than new logic. |
 | `atlas-docs` | M4 `atlas/couch.md` reconciliation | the atlas's "there is no pty yet" paragraphs are falsified by this issue. |
 | `smaller-go-module` ×1 | M2 Task 2.6 — `NewCouchWith`, the `no-console` `FlagOnly` arg, `path` defaulting to `.`, displacing `couchcmd/run.go:169-178` | two files nothing else in this table claims. |
 | `smaller-go-module` ×1 | M3 Task 3.4 — the panel-actions-are-a-subset-of-`Operations()` audit | design 0.0: the rule is already decided, this is the assertion. |
-| `real-api-discovery` ×4 | one per operator smoke, plus the reattach/park experiments | Task 2.7's rendering smoke; Task 2.7's **`kill -9` reattach + park-vs-kill determination** (a separate discovery — zellij's session lifecycle, not terminal rendering, and it ends in a correction to `workshop/projects/couch.md`); Task 3.5's real-configuration smoke, where Decision 5's replay-vs-nudge fallback is decided; Task 4.6's full-session smoke. |
+| `real-api-discovery` ×5 | one per operator smoke, plus the reattach/park experiments | **the closest primitive to what a smoke actually is** — a budget for discovering how an external system really behaves, the external systems here being Ghostty, zellij and nvim rather than an HTTP API. Task 1.5's `pair term` smoke (M1 migrates the daily driver; a repaint regression surfaces nowhere else); Task 2.7's rendering smoke incl. DECSTBM survival across alt-screen transitions; Task 2.7's **`kill -9` reattach + park-vs-kill determination** (a separate discovery — zellij's session lifecycle, not terminal rendering, and it ends in a correction to `workshop/projects/couch.md`); Task 3.5's real-configuration smoke, where Decision 5's replay-vs-nudge fallback is decided; Task 4.6's full-session smoke. |
 | `ux-rename-iteration` ×2 | two iteration rounds on the status row, the panel and the navigation feel | v2.1's known-limitations section says TUI features take 3–5 rounds, not 1. Two is budgeted rather than five because the Spec pre-settled the navigation rule (one key, up one level) — the rounds left are how the row and panel *read*. |
 | `scope-pivot` ×1 | Decision 4's disclosed DECSTBM fallback | expected-value budget for a **named, already-disclosed** risk, not a generic contingency: if the reserved row does not survive real children, the plan's own instruction is to take the fallback, which is a scope event. |
-| `milestone-review` ×4 | the M1/M2/M3 boundaries plus the issue close | one per `sdlc milestone-close` / `sdlc close`, which is exactly the four boundaries the Plan commits to. |
+| `milestone-review` ×4 | the M1/M2/M3 boundaries plus the issue close | one per `sdlc milestone-close` / `sdlc close` — exactly the four boundaries the Plan commits to. At the band ceiling (0.2), because each one runs more than a review: whole-tree `go test`, `-race`, and at M2/M4 `make test-live` and the shell suites. |
+| `cross-cutting-refactor` ×1 | fixing what the four boundary reviews hand back | a review gate returns findings — this issue's own plan-quality round 1 returned four Important ones — and ARCH-PURPOSE requires fixing the *class*, which is by definition a sweep across files. Budgeting the review while budgeting no rework is the gap the second estimate pass closed. |
 
 **Read this as ship wall-clock, not calendar.** v3.1 writes `impl=` at 40% of the
 v2 table because post-#118 actuals came in near half of v2's implementation
@@ -206,6 +210,15 @@ is barely above it, and if this repo's terminal work keeps landing near #139's
 ratio the honest expectation is a miss on the high side. That is a v3.1
 calibration input, not a reason to inflate the block — the ledger learns from
 the gap, and hand-tuning the estimate to be right destroys exactly that signal.
+
+**Step 2.5 (library availability) answered, for the one item where it bites.**
+v2.1 requires the check on every `greenfield-go-module`. Three of the four have
+design already ×0.2-discounted, so it is near-moot there. `couchtty`'s 0.5 is
+deliberately undiscounted, and the check's answer is the plan's Tech Stack line:
+**no TUI framework** — bubbletea/lipgloss would not short-circuit this, because
+the console's job is to *pass bytes through* and reserve one row, not to render
+a frame tree. pair writes raw escapes directly and couch must too. Design stands
+undiscounted.
 
 **`familiarity: 1.0` is kept, with the caveat named.** `termcmd` already does
 pty, raw mode, `SIGWINCH` and replay, so the tree is familiar for M1 and most of
