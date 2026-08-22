@@ -120,9 +120,10 @@ way they do today.
       cached; neither load-bearing.
 - [x] Per-repo concurrency policy source (recorded file, not a constant).
 - [x] Queryable-state + callable-operation surface, with the operation-set audit.
-- [ ] Operator smoke: only step 1 of 5 was run (hosting a real `pair` child,
-      which settled the layering fork). The second-shell read path, the refusal
-      offer and the kbench-subdirectory case remain unexercised by the operator.
+- [x] Operator smoke: hosting a real `pair` child (settled the layering fork),
+      the second-shell read path, `show` filtering to one tree, and the refusal
+      against a live incumbent. The kbench-subdirectory case remains unrun by
+      the operator, though it is covered by unit and live tests.
 
 ## Log
 
@@ -377,3 +378,17 @@ The lesson is not "the fix was wrong" so much as **a repair aimed at a stale
 record introduced a way to delete a live one**, and only running the operator
 steps found it. This is the second time in this issue that BR-12's shape has
 bitten: the value was in the steps I had ticked without running.
+
+### 2026-08-22 — refusal confirmed against a live child
+
+Operator re-ran the refusal after the fail-closed fix: a second `couch start`
+on a tree with a live incumbent is refused. That was the step that failed
+before and surfaced the fail-open pruning bug, so it is the one that needed
+re-running rather than assuming.
+
+Smoke coverage now: hosting a real pair child, the second-shell read path
+(`couch list` showing the live actor with its pid), `couch show <ref>` returning
+one tree rather than everything, and the refusal. The kbench-subdirectory case
+is still unrun by hand; it is covered by a unit test and by live git
+conformance against a real linked worktree, and is recorded as such rather than
+ticked as operator-verified.
