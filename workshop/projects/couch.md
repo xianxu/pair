@@ -262,3 +262,50 @@ The wider point for the project: couch supervises *sessions*, not terminals.
 Whatever a session runs inside itself (zellij, nvim, an agent) stays that
 session's business, which is the encapsulation the actor model asked for,
 arriving here as a practical result rather than a design assertion.
+
+### 2026-08-21 — durability decided: the repo is the agent state, no checkpoint clock
+
+couch will **not** run a periodic checkpoint. A timer-driven "externalise now"
+control message was proposed and dropped, for three reasons: it is a mechanism
+for a problem nothing has measured (the cold-revival experiment says repo-only
+recovery works); it creates a second cadence alongside the SDLC's existing
+externalisation points (claim, commits, milestone-close, close), which is
+mechanism proliferation; and a timer fires mid-thought, while the agent knows
+where its boundaries are.
+
+The bet instead: **an ariadne-style repo already is the agent's state.** Two
+substrates back it — the repo (commits, issue Log, plan ticks) and pair's
+continuously tee'd `scrollback-<tag>-<agent>.raw`, so a crashed agent's whole
+transcript is on disk. What the repo does not carry -- the reasoning that never
+landed -- is reconstructed by spending tokens against that transcript, which is
+the cheap currency.
+
+Two things this makes explicit rather than assumed:
+
+- **`couch stop` is a kill, not a park.** It sends SIGTERM; nothing instructs
+  the agent to write out first, and no harness produces a continuation from a
+  signal. Parking before shutdown is an operator step today. Having `stop`
+  invoke pair's existing park/continue flow is a later issue, not v1 -- it needs
+  the agent responsive and it takes time.
+- **Silence detection stays in `pair#148`**, as a signal rather than a forcing
+  function: a space dirty and uncommitted for hours is one whose reconstruction
+  will be expensive, and knowing that while it is still live beats discovering
+  it cold.
+
+Net effect on v1: spawn, registry, tty switching, transport. No cadence policy.
+
+### 2026-08-21 — tag and space collapse; naming becomes an attribute layer
+
+Opened `pair#149`. pair's tag does two jobs -- durable storage key and human
+handle -- which is why naming is demanded upfront, renaming is not offered, and
+tags accumulate uncleaned. The fix is the split couch already made for its own
+identity, applied one layer down: the generated id becomes the durable **tag**
+(reversing `#145`'s per-incarnation framing), and human names become a mutable
+attribute layer over it.
+
+Consequences recorded there: `Spawn` resolves the id rather than minting one;
+no separate incarnation id is needed since `{PID, Identity}` already names a
+run; names live in pair's session index because pair must resolve them with
+couch not running; opaque tags and the picker ship together or not at all; an
+unnamed space shows its hex string; `pair claude` standalone is unchanged; and
+naming doubles as the retention signal that makes cleanup decidable.
