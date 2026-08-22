@@ -93,18 +93,28 @@ simply not rendered when none is.
 
 ## Plan
 
-- [ ] **Smoke step 1: host one real `pair` + claude child.** No switching. This
-      proves the hard part — pair-in-a-pty-under-couch, resize included — and
-      answers the layering fork below. Trivial shells would prove only the easy
-      half.
-- [ ] **Smoke step 2: two real children, switching between them.** tty routing
-      and repaint are then the only new variables, so a break localises.
-- [ ] tty passthrough to one child; `ctrl-space` interceptor.
-- [ ] Reserved status row via a one-row-shorter child pty.
-- [ ] Per-child ring buffer + repaint on attach.
-- [ ] Up-one-level navigation, verified from a mid-output child.
-- [ ] Detach/reattach without killing children; child-exit lands in the TUI.
-- [ ] Direct switch by name/number, LLM-free.
+Design of record: `workshop/plans/000146-couch-tty-switching-and-attach-plan.md`.
+Four review boundaries; the smoke steps stay where they were sequenced (risk
+first) but are folded into the milestone whose risk they answer.
+
+- [ ] **M1 — shared pty-child core.** Extract `ptychild` (ring, replay
+      query-strip, output scanner, pty child) out of `termcmd`'s multiplexer and
+      migrate `pair term` onto it. Ships no couch behaviour; the migration is
+      what validates the extraction (ARCH-DRY).
+- [ ] **M2 — console over one child, with the reserved row.** `PtyRunner` behind
+      the existing `Runner` seam (+ fake + live conformance), `couch start`
+      becomes the console, `ctrl-space` interceptor, one-row-shorter child pty
+      with a pinned scrolling region. **Smoke step 1** (one real `pair` + claude
+      child, resize, nvim in and out) lands here.
+- [ ] **M3 — many children and the panel.** Up-one-level focus, per-child ring
+      replay (or a resize nudge for alt-screen children), typeahead + numbered
+      direct switch, panel actions dispatching through `couchcore.Operations()`.
+      **Smoke step 2** (two real children, switching, `ctrl-space` from a
+      mid-output child) lands here.
+- [ ] **M4 — exits, detach, and what the row says.** Child exit lands in the
+      panel with actor + code, detach/reattach stays warm, notices over
+      `couchcore.Enqueue`, terminal restored on every exit path including
+      signals, atlas reconciled.
 
 ## Log
 
@@ -121,3 +131,28 @@ just a child that redraws on SIGWINCH.
 This issue's scope is therefore the narrow one: route one tty to one child at a
 time, with no responsibility for what the child runs internally. Estimation is
 unblocked.
+
+### 2026-08-22
+
+Claimed and planned. Design of record:
+`workshop/plans/000146-couch-tty-switching-and-attach-plan.md`; the eight loose
+steps above are regrouped into four review boundaries there, unchanged in
+content.
+
+Three decisions the plan makes that this Spec did not settle, recorded here
+because they narrow scope:
+
+- **`couch start` becomes the console; no new verb.** The CLI's dispatch table
+  is asserted identical to `couchcore.Operations()`, so a console-only verb
+  would need an exception to the invariant that keeps the operator's surface and
+  the advisor's from drifting. `--no-console` is the loud escape hatch back to
+  #145's inherit-stdio behaviour.
+- **The pty-child mechanics are extracted from `termcmd`, not written twice.**
+  `pair term` already is a switcher (pty tabs, a 128KB replay ring,
+  redraw-from-snapshot, resize propagation). `pair term` migrates onto the
+  shared package in M1 -- its existing suite is the only regression net that can
+  prove the extraction faithful.
+- **Detach is console-scoped.** A child stays running and warm while the
+  operator is elsewhere in the same console; children do NOT outlive the console
+  process. Making a fleet survive its console needs a daemon plus pty handoff
+  over a socket, which is `#147`'s transport.
