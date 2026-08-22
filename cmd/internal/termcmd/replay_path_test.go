@@ -75,35 +75,10 @@ func TestPumpStdinForwardsRepliesToChild(t *testing.T) {
 	}
 }
 
-// The scan reads a snapshot taken under m.mu, so a redraw concurrent with
-// appends is race-free. The test writer needs its own mutex: m.stdout is a bare
-// *bytes.Buffer here and is written from both goroutines — in production it is
-// an *os.File, where that is interleaving, not a data race. Do NOT "fix" this by
-// locking stdout in production.
-func TestRedrawSnapshotIsRaceFree(t *testing.T) {
-	m := &terminalMux{stdout: &lockedWriter{}}
-	tab := &terminalTab{id: 1}
-	m.tabs = append(m.tabs, tab)
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 200; i++ {
-			m.appendBuffer(1, []byte("output\x1b[c"))
-		}
-	}()
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 200; i++ {
-			m.mu.Lock()
-			snapshot := bufferSnapshotLocked(tab)
-			m.mu.Unlock()
-			m.redrawTab(snapshot)
-		}
-	}()
-	wg.Wait()
-}
+// The snapshot/append race MOVED with the ring: ptychild.Child guards both
+// under its own mutex, and ptychild's TestChildSnapshotDuringPumpIsRaceFree
+// drives it against a real child under -race. Asserting it here would now be
+// testing termcmd's call into a lock it does not own.
 
 type lockedWriter struct {
 	mu  sync.Mutex

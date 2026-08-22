@@ -9,20 +9,17 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"os/signal"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
-	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/draftroute"
+	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/layoutcmd"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
-	"golang.org/x/term"
 	"strconv"
 )
 
@@ -218,20 +215,24 @@ func runShell(stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
 		fmt.Fprintf(stderr, "term: register terminal pane: %v\n", err)
 	}
 	stdinFile, _ := stdin.(*os.File)
-	var oldState *term.State
+	stdoutFile, _ := stdout.(*os.File)
+	host := hostty.NewOSHost(stdinFile, stdoutFile)
+	defer func() { _ = host.Close() }()
+
+	var restore func() error
 	if stdinFile != nil {
-		s, err := term.MakeRaw(int(stdinFile.Fd()))
+		r, err := host.MakeRaw()
 		if err != nil {
-			fmt.Fprintf(stderr, "term: MakeRaw: %v\n", err)
+			fmt.Fprintf(stderr, "term: %v\n", err)
 			return 1
 		}
-		oldState = s
-		defer func() { _ = term.Restore(int(stdinFile.Fd()), oldState) }()
+		restore = r
+		defer func() { _ = restore() }()
 	}
 
 	mux := newTerminalMux(name, args, stdout, stderr, rt)
 	if stdinFile != nil {
-		mux.captureSize(stdinFile)
+		mux.captureSize(host)
 	}
 	if err := mux.newTab(); err != nil {
 		fmt.Fprintf(stderr, "term: %v\n", err)
@@ -241,22 +242,19 @@ func runShell(stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
 	defer mux.restoreTerminal()
 
 	if stdinFile != nil {
-		winch := make(chan os.Signal, 1)
-		signal.Notify(winch, syscall.SIGWINCH)
-		defer signal.Stop(winch)
 		go func() {
-			for range winch {
-				mux.inheritSize(stdinFile)
+			for range host.Resized() {
+				mux.inheritSize(host)
 			}
 		}()
-		winch <- syscall.SIGWINCH
+		mux.inheritSize(host)
 	}
 
 	go pumpStdin(stdin, mux, rt, stdout)
 	mux.copyActiveOutput()
 
-	if stdinFile != nil && oldState != nil {
-		_ = term.Restore(int(stdinFile.Fd()), oldState)
+	if restore != nil {
+		_ = restore()
 	}
 	return 0
 }
@@ -626,12 +624,14 @@ func isSGRMousePrefix(data []byte) bool {
 type OSRuntime struct{}
 
 type terminalTab struct {
-	id     int
-	name   string
-	cmd    *exec.Cmd
-	pty    *os.File
-	buffer []byte
-	mouse  bool
+	id   int
+	name string
+
+	// child is nil in tests that exercise only naming and tab bookkeeping.
+	// The pty, the replay ring and the mouse/alt-screen state all live in it
+	// now (#146): `pair term` and `couch` are the same switcher one layer
+	// apart, so the child half is shared and only the POLICY differs.
+	child *ptychild.Child
 }
 
 type ptyChunk struct {
@@ -684,14 +684,22 @@ func (m *terminalMux) newTab() error {
 	name := fmt.Sprintf("terminal %d", id)
 	m.mu.Unlock()
 
-	cmd := exec.Command(m.shellName, m.shellArgs...)
-	cmd.Env = os.Environ()
-	ptmx, err := pty.Start(cmd)
+	m.mu.Lock()
+	size := m.childSizeLocked()
+	m.mu.Unlock()
+
+	child, err := ptychild.Start(ptychild.Options{
+		Argv: append([]string{m.shellName}, m.shellArgs...),
+		Size: size,
+		// The sink hands each chunk to the existing pump. Routing it to the
+		// screen stays this mux's decision -- ptychild never learns which tab
+		// is active.
+		Sink: func(chunk []byte) { m.output <- ptyChunk{id: id, data: chunk} },
+	})
 	if err != nil {
-		return fmt.Errorf("pty.Start: %w", err)
+		return err
 	}
-	m.applyPTYSize(ptmx)
-	tab := &terminalTab{id: id, name: name, cmd: cmd, pty: ptmx}
+	tab := &terminalTab{id: id, name: name, child: child}
 
 	m.mu.Lock()
 	m.tabs = append(m.tabs, tab)
@@ -701,24 +709,12 @@ func (m *terminalMux) newTab() error {
 	m.renamePane()
 	m.redrawTab(snapshot)
 
-	go m.readPTY(tab)
+	// The child's own pump feeds Sink; when it ends, the tab is gone.
+	go func() {
+		child.Wait()
+		m.output <- ptyChunk{id: id, err: io.EOF}
+	}()
 	return nil
-}
-
-func (m *terminalMux) readPTY(tab *terminalTab) {
-	buf := make([]byte, 4096)
-	for {
-		n, err := tab.pty.Read(buf)
-		if n > 0 {
-			chunk := make([]byte, n)
-			copy(chunk, buf[:n])
-			m.output <- ptyChunk{id: tab.id, data: chunk}
-		}
-		if err != nil {
-			m.output <- ptyChunk{id: tab.id, err: err}
-			return
-		}
-	}
 }
 
 func (m *terminalMux) copyActiveOutput() {
@@ -729,53 +725,15 @@ func (m *terminalMux) copyActiveOutput() {
 				m.removeTab(chunk.id)
 				continue
 			}
-			m.appendBuffer(chunk.id, chunk.data)
+			// No buffering here any more: ptychild.Child appends to its own
+			// ring BEFORE the sink runs, so a switch racing a chunk still
+			// repaints a current screen.
 			if m.isActive(chunk.id) {
 				_, _ = m.stdout.Write(chunk.data)
 			}
 		case <-m.done:
 			return
 		}
-	}
-}
-
-func (m *terminalMux) appendBuffer(id int, data []byte) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	for _, tab := range m.tabs {
-		if tab.id != id {
-			continue
-		}
-		tab.buffer = append(tab.buffer, data...)
-		if len(tab.buffer) > 128*1024 {
-			tab.buffer = tab.buffer[len(tab.buffer)-128*1024:]
-		}
-		tab.mouse = updateMouseMode(tab.mouse, data)
-		return
-	}
-}
-
-func updateMouseMode(current bool, data []byte) bool {
-	s := string(data)
-	for {
-		idx := strings.Index(s, "\x1b[?")
-		if idx < 0 {
-			return current
-		}
-		s = s[idx+3:]
-		end := strings.IndexAny(s, "hl")
-		if end < 0 {
-			return current
-		}
-		mode := s[end]
-		params := s[:end]
-		for _, param := range strings.FieldsFunc(params, func(r rune) bool { return r == ';' || r == ':' }) {
-			switch param {
-			case "1000", "1002", "1003", "1006":
-				current = mode == 'h'
-			}
-		}
-		s = s[end+1:]
 	}
 }
 
@@ -792,8 +750,8 @@ func (m *terminalMux) writeActive(data []byte) {
 	m.mu.Lock()
 	tab := m.activeTabLocked()
 	m.mu.Unlock()
-	if tab != nil {
-		_, _ = tab.pty.Write(data)
+	if tab != nil && tab.child != nil {
+		_, _ = tab.child.Write(data)
 	}
 }
 
@@ -805,11 +763,12 @@ func (m *terminalMux) closeActive() {
 	}
 	tab := m.activeTabLocked()
 	m.mu.Unlock()
-	if tab == nil {
+	if tab == nil || tab.child == nil {
 		return
 	}
-	_ = tab.pty.Close()
-	_ = tab.cmd.Process.Kill()
+	// Close kills and lets the child's own pump reap; calling Wait here too
+	// would be a second Wait on the same process.
+	_ = tab.child.Close()
 }
 
 func (m *terminalMux) beginRename() (int, RenameEditor, error) {
@@ -885,9 +844,9 @@ func (m *terminalMux) switchRelative(delta int) {
 
 func (m *terminalMux) appMouseMode() bool {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	tab := m.activeTabLocked()
-	return tab != nil && tab.mouse
+	m.mu.Unlock()
+	return tab != nil && tab.child != nil && tab.child.Mouse()
 }
 
 func (m *terminalMux) removeTab(id int) {
@@ -937,8 +896,9 @@ func (m *terminalMux) removeTab(id int) {
 	if removed == nil {
 		return
 	}
-	_ = removed.pty.Close()
-	_ = removed.cmd.Wait()
+	if removed.child != nil {
+		_ = removed.child.Close()
+	}
 	if empty {
 		close(m.done)
 		return
@@ -965,17 +925,17 @@ func (m *terminalMux) tabByIDLocked(id int) *terminalTab {
 	return nil
 }
 
-func (m *terminalMux) inheritSize(stdinFile *os.File) {
-	m.captureSize(stdinFile)
+func (m *terminalMux) inheritSize(host hostty.Host) {
+	m.captureSize(host)
 	m.mu.Lock()
 	childSize := m.childSizeLocked()
 	m.mu.Unlock()
 	m.resizeAll(childSize)
 }
 
-func (m *terminalMux) captureSize(stdinFile *os.File) {
-	size, err := pty.GetsizeFull(stdinFile)
-	if err != nil || size == nil {
+func (m *terminalMux) captureSize(host hostty.Host) {
+	size, err := host.Size()
+	if err != nil {
 		return
 	}
 	m.mu.Lock()
@@ -984,29 +944,23 @@ func (m *terminalMux) captureSize(stdinFile *os.File) {
 	m.mu.Unlock()
 }
 
-func (m *terminalMux) childSizeLocked() *pty.Winsize {
-	if m.rows == 0 || m.cols == 0 {
-		return nil
-	}
-	return &pty.Winsize{Rows: m.rows, Cols: m.cols}
+// childSizeLocked is the size a tab gets. `pair term` gives its children the
+// whole terminal; couch subtracts a row here. That difference is the policy
+// each caller keeps.
+func (m *terminalMux) childSizeLocked() ptychild.Size {
+	return ptychild.Size{Rows: m.rows, Cols: m.cols}
 }
 
-func (m *terminalMux) applyPTYSize(f *os.File) {
-	m.mu.Lock()
-	size := m.childSizeLocked()
-	m.mu.Unlock()
-	if size != nil {
-		_ = pty.Setsize(f, size)
+func (m *terminalMux) resizeAll(size ptychild.Size) {
+	if size.Rows == 0 || size.Cols == 0 {
+		return
 	}
-}
-
-func (m *terminalMux) resizeAll(size *pty.Winsize) {
 	m.mu.Lock()
 	tabs := append([]*terminalTab(nil), m.tabs...)
 	m.mu.Unlock()
 	for _, tab := range tabs {
-		if size != nil {
-			_ = pty.Setsize(tab.pty, size)
+		if tab.child != nil {
+			_ = tab.child.Resize(size)
 		}
 	}
 }
@@ -1016,9 +970,8 @@ func (m *terminalMux) closeAll() {
 	tabs := append([]*terminalTab(nil), m.tabs...)
 	m.mu.Unlock()
 	for _, tab := range tabs {
-		_ = tab.pty.Close()
-		if tab.cmd.Process != nil {
-			_ = tab.cmd.Process.Kill()
+		if tab.child != nil {
+			_ = tab.child.Close()
 		}
 	}
 }
@@ -1092,21 +1045,21 @@ func (m *terminalMux) renamePaneTitleLocked(tabID int, editor RenameEditor) stri
 // Capability queries are stripped so the replay cannot re-ask the host terminal
 // (#127); see queries.go.
 func (m *terminalMux) redrawTab(buf []byte) {
-	_, _ = io.WriteString(m.stdout, "\x1b[1;1H\x1b[J")
+	_, _ = io.WriteString(m.stdout, hostty.HomeAndClear)
 	_, _ = m.stdout.Write(ptychild.StripQueries(buf))
 }
 
 // bufferSnapshotLocked copies a tab's stored output. Caller must hold m.mu —
 // appendBuffer re-slices tab.buffer from the output goroutine.
 func bufferSnapshotLocked(tab *terminalTab) []byte {
-	if tab == nil {
+	if tab == nil || tab.child == nil {
 		return nil
 	}
-	return append([]byte(nil), tab.buffer...)
+	return tab.child.Snapshot()
 }
 
 func (m *terminalMux) restoreTerminal() {
-	_, _ = io.WriteString(m.stdout, "\x1b[r")
+	_, _ = io.WriteString(m.stdout, hostty.ResetRegion)
 }
 
 func (OSRuntime) ListPanesJSON() ([]byte, error) {

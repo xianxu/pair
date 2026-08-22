@@ -57,6 +57,11 @@ type Child struct {
 	code int
 
 	closeOnce sync.Once
+
+	// fake is non-nil only for NewFakeChild. Every method that would touch a
+	// pty branches on it, so one type serves both paths and a test cannot be
+	// exercising a different shape from production.
+	fake *fakeState
 }
 
 // Start launches argv on a fresh pty sized to opts.Size.
@@ -135,10 +140,24 @@ func waitCode(cmd *exec.Cmd) int {
 }
 
 // Write sends bytes to the child's terminal.
-func (c *Child) Write(p []byte) (int, error) { return c.ptmx.Write(p) }
+func (c *Child) Write(p []byte) (int, error) {
+	if c.fake != nil {
+		c.fake.mu.Lock()
+		c.fake.writes = append(c.fake.writes, append([]byte(nil), p...))
+		c.fake.mu.Unlock()
+		return len(p), nil
+	}
+	return c.ptmx.Write(p)
+}
 
 // Resize changes the child's terminal dimensions. The child gets SIGWINCH.
 func (c *Child) Resize(s Size) error {
+	if c.fake != nil {
+		c.fake.mu.Lock()
+		c.fake.resizes = append(c.fake.resizes, s)
+		c.fake.mu.Unlock()
+		return nil
+	}
 	return pty.Setsize(c.ptmx, &pty.Winsize{Rows: s.Rows, Cols: s.Cols})
 }
 
@@ -202,7 +221,7 @@ func (c *Child) Wait() int {
 }
 
 func (c *Child) PID() int {
-	if c.cmd.Process == nil {
+	if c.cmd == nil || c.cmd.Process == nil {
 		return 0
 	}
 	return c.cmd.Process.Pid
@@ -210,7 +229,10 @@ func (c *Child) PID() int {
 
 // Signal sends sig to the child.
 func (c *Child) Signal(sig os.Signal) error {
-	if c.cmd.Process == nil {
+	if c.fake != nil {
+		return c.fakeSignal(sig)
+	}
+	if c.cmd == nil || c.cmd.Process == nil {
 		return fmt.Errorf("ptychild: no process")
 	}
 	return c.cmd.Process.Signal(sig)
@@ -220,6 +242,10 @@ func (c *Child) Signal(sig os.Signal) error {
 func (c *Child) Close() error {
 	var err error
 	c.closeOnce.Do(func() {
+		if c.fake != nil {
+			c.Exit(0)
+			return
+		}
 		err = c.ptmx.Close()
 		if c.cmd.Process != nil {
 			_ = c.cmd.Process.Kill()

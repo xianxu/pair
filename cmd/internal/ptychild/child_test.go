@@ -157,3 +157,25 @@ func TestChildReplayStripsQueries(t *testing.T) {
 		t.Fatalf("Replay() contains a capability query: %q", got)
 	}
 }
+
+// The snapshot/append race, moved here with the ring it belongs to. termcmd
+// used to pin this at the mux level (TestRedrawSnapshotIsRaceFree); the lock is
+// the Child's now, so the assertion follows the code rather than testing a call
+// into a lock the caller does not own.
+func TestChildSnapshotDuringPumpIsRaceFree(t *testing.T) {
+	c := startSh(t, "i=0; while [ $i -lt 400 ]; do printf 'output\033[c'; i=$((i+1)); done; sleep 5")
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	for i := 0; i < 2; i++ {
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 300; j++ {
+				_ = c.Replay()
+				_ = c.AltScreen()
+				_ = c.TakeBell()
+			}
+		}()
+	}
+	wg.Wait()
+}
