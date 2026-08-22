@@ -10,12 +10,13 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
 
-// testRT builds the domain over fakes, so the CLI's start, stop and refusal
-// paths are reachable from a test. With production seams hard-wired inside
-// RunWithRuntime they were not, which is how three Critical findings shipped.
+// testRT builds the domain over fakes. There is deliberately NO production
+// branch: a test that can reach ExecGit resolves paths against whatever
+// checkout it happens to run in, so it asserts on the developer's directory
+// layout rather than on couch. One such test passed here and failed in a
+// pristine worktree of the same commit.
 type testRT struct {
 	dir    string
-	fakes  bool
 	runner *couchcore.FakeRunner
 	proc   *couchcore.FakeProcOps
 	git    *couchcore.FakeGit
@@ -25,37 +26,42 @@ func (t testRT) Getenv(string) string { return "" }
 func (t testRT) StoreDir() string     { return t.dir }
 
 func (t testRT) NewCouch() (*couchcore.Couch, error) {
-	if !t.fakes {
-		return couchcore.New(
-			couchcore.ExecRunner{}, couchcore.OSPathOps{}, couchcore.ExecGit{},
-			couchcore.OSProcOps{}, couchcore.NewStore(t.dir),
-			couchcore.SystemClock{}, couchcore.NewRandomIDGen(),
-		)
-	}
 	return couchcore.New(
 		t.runner, couchcore.NewFakePathOps(nil), t.git, t.proc,
 		couchcore.NewStore(t.dir), couchcore.FixedClock{}, couchcore.NewFixedIDGen("ah8d", "b2c1"),
 	)
 }
 
-// fakeRT wires a Runtime whose git answers for one tree, so start and its
-// refusal can be driven without touching a real repo.
-func fakeRT(t *testing.T, tree string) testRT {
+// newRT wires a Runtime whose git answers for the given trees.
+func newRT(t *testing.T, trees ...string) testRT {
 	t.Helper()
 	runner := couchcore.NewFakeRunner()
 	// couch start blocks on Handle.Wait for the child's lifetime -- right in
 	// production, and a hang rather than a failure against a fake child that
-	// never finishes. Modelling "the child ran and exited" is what makes the
-	// start path drivable from a test at all.
+	// never finishes.
 	runner.AutoExit(0)
+	replies := map[couchcore.GitCall]string{}
+	for _, tr := range trees {
+		replies[couchcore.GitCall{Dir: tr, Args: "rev-parse --show-toplevel"}] = tr
+	}
 	return testRT{
 		dir:    t.TempDir(),
-		fakes:  true,
 		runner: runner,
 		proc:   couchcore.NewFakeProcOps(),
-		git: couchcore.NewFakeGit(map[couchcore.GitCall]string{
-			{Dir: tree, Args: "rev-parse --show-toplevel"}: tree,
-		}),
+		git:    couchcore.NewFakeGit(replies),
+	}
+}
+
+// markLive marks every registered actor's pid as running, which is what a real
+// spawned child would be.
+func (rt testRT) markLive(t *testing.T) {
+	t.Helper()
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatalf("NewCouch: %v", err)
+	}
+	for _, r := range c.List() {
+		rt.proc.Set(r.PID, r.Identity)
 	}
 }
 
@@ -65,19 +71,6 @@ func runRT(rt testRT, args ...string) (string, string, int) {
 	return out.String(), errw.String(), code
 }
 
-func run(t *testing.T, dir string, args ...string) (string, string, int) {
-	t.Helper()
-	var out, errw bytes.Buffer
-	code := RunWithRuntime(args, strings.NewReader(""), &out, &errw, testRT{dir: dir})
-	return out.String(), errw.String(), code
-}
-
-// TestDispatchTableIsIdenticalToTheDeclaredOperationSet is the audit.
-//
-// It asserts IDENTITY, not overlap with a hand-written list: an operation
-// reachable from the CLI but never declared would be invisible to the
-// advisor, and a hand-written expected list would not catch it because the
-// list is written by the same person who forgot to declare it.
 func TestDispatchTableIsIdenticalToTheDeclaredOperationSet(t *testing.T) {
 	var reachable []string
 	for name := range Dispatch() {
@@ -117,7 +110,7 @@ func TestOperationArityMatchesExpectation(t *testing.T) {
 }
 
 func TestListOnEmptyRegistry(t *testing.T) {
-	out, errw, code := run(t, t.TempDir(), "list")
+	out, errw, code := runRT(newRT(t), "list")
 	if code != 0 {
 		t.Fatalf("exit %d, stderr %q", code, errw)
 	}
@@ -127,7 +120,7 @@ func TestListOnEmptyRegistry(t *testing.T) {
 }
 
 func TestUnknownOperationIsNonZeroAndListsWhatExists(t *testing.T) {
-	out, errw, code := run(t, t.TempDir(), "frobnicate")
+	out, errw, code := runRT(newRT(t), "frobnicate")
 	if code == 0 {
 		t.Fatal("unknown operation must be non-zero")
 	}
@@ -138,7 +131,7 @@ func TestUnknownOperationIsNonZeroAndListsWhatExists(t *testing.T) {
 }
 
 func TestMissingRequiredArgumentIsRejectedBeforeAnyWork(t *testing.T) {
-	_, errw, code := run(t, t.TempDir(), "show")
+	_, errw, code := runRT(newRT(t), "show")
 	if code == 0 {
 		t.Fatal("a missing required argument must be non-zero")
 	}
@@ -148,7 +141,7 @@ func TestMissingRequiredArgumentIsRejectedBeforeAnyWork(t *testing.T) {
 }
 
 func TestHelpListsEveryDeclaredOperation(t *testing.T) {
-	out, _, code := run(t, t.TempDir(), "--help")
+	out, _, code := runRT(newRT(t), "--help")
 	if code != 0 {
 		t.Fatalf("exit %d", code)
 	}
@@ -179,11 +172,11 @@ func TestListShowsANamedTreeWithNoAgent(t *testing.T) {
 	// The forgetting case: a tree that was named and then parked has no actor,
 	// but it is exactly the thread the operator loses track of. It must be a
 	// visible row, not filtered out.
-	dir := t.TempDir()
-	if _, errw, code := run(t, dir, "name", "../..", "the pair tree"); code != 0 {
+	rt := newRT(t, "/repo")
+	if _, errw, code := runRT(rt, "name", "/repo", "the pair tree"); code != 0 {
 		t.Fatalf("name failed: %s", errw)
 	}
-	out, _, code := run(t, dir, "list")
+	out, _, code := runRT(rt, "list")
 	if code != 0 {
 		t.Fatalf("exit %d", code)
 	}
@@ -196,15 +189,15 @@ func TestListShowsANamedTreeWithNoAgent(t *testing.T) {
 }
 
 func TestShowResolvesANameToItsTreePath(t *testing.T) {
-	dir := t.TempDir()
-	if _, errw, code := run(t, dir, "name", "../..", "pairtree"); code != 0 {
+	rt := newRT(t, "/repo")
+	if _, errw, code := runRT(rt, "name", "/repo", "pairtree"); code != 0 {
 		t.Fatalf("name failed: %s", errw)
 	}
-	out, errw, code := run(t, dir, "show", "pairtree")
+	out, errw, code := runRT(rt, "show", "pairtree")
 	if code != 0 {
 		t.Fatalf("exit %d, stderr %q", code, errw)
 	}
-	if !strings.Contains(out, "/pair") {
+	if !strings.Contains(out, "/repo") {
 		t.Fatalf("out = %q; show must print the tree path", out)
 	}
 }
@@ -212,9 +205,9 @@ func TestShowResolvesANameToItsTreePath(t *testing.T) {
 func TestRenderedOutputHasNoANSIWhenNotATerminal(t *testing.T) {
 	// A bytes.Buffer is not a terminal, so dimming must be suppressed --
 	// otherwise piped or captured output carries escape codes.
-	dir := t.TempDir()
-	_, _, _ = run(t, dir, "name", "../..", "plain")
-	out, _, _ := run(t, dir, "list")
+	rt := newRT(t, "/repo")
+	_, _, _ = runRT(rt, "name", "/repo", "plain")
+	out, _, _ := runRT(rt, "list")
 	if strings.Contains(out, "\x1b[") {
 		t.Fatalf("ANSI leaked into non-terminal output: %q", out)
 	}
@@ -244,7 +237,7 @@ func TestCLIAcceptsExactlyTheDeclaredOperations(t *testing.T) {
 		if _, ok := Resolve(name); ok {
 			t.Errorf("CLI resolves %q, which is not a declared operation", name)
 		}
-		if _, errw, code := runRT(testRT{dir: t.TempDir()}, name); code == 0 {
+		if _, errw, code := runRT(newRT(t), name); code == 0 {
 			t.Errorf("CLI accepted undeclared operation %q (stderr %q)", name, errw)
 		}
 	}
@@ -252,15 +245,12 @@ func TestCLIAcceptsExactlyTheDeclaredOperations(t *testing.T) {
 
 func TestStartRendersTheRefusalWithThePolicyShapedOffer(t *testing.T) {
 	// Done-when 2's rendering had no reachable test before the Runtime seam.
-	rt := fakeRT(t, "/repo")
+	rt := newRT(t, "/repo")
 	if out, errw, code := runRT(rt, "start", "/repo"); code != 0 {
 		t.Fatalf("first start: code=%d out=%q err=%q", code, out, errw)
 	}
 	// Mark the child live so the guard has something real to refuse for.
-	c, _ := rt.NewCouch()
-	for _, r := range c.List() {
-		rt.proc.Set(r.PID, r.Identity)
-	}
+	rt.markLive(t)
 	_, errw, code := runRT(rt, "start", "/repo")
 	if code == 0 {
 		t.Fatal("a second start on an occupied tree must fail")
@@ -273,14 +263,11 @@ func TestStartRendersTheRefusalWithThePolicyShapedOffer(t *testing.T) {
 }
 
 func TestStopReportsWhetherItActuallySignalled(t *testing.T) {
-	rt := fakeRT(t, "/repo")
+	rt := newRT(t, "/repo")
 	if _, errw, code := runRT(rt, "start", "/repo"); code != 0 {
 		t.Fatalf("start: %s", errw)
 	}
-	c, _ := rt.NewCouch()
-	for _, r := range c.List() {
-		rt.proc.Set(r.PID, r.Identity)
-	}
+	rt.markLive(t)
 	out, errw, code := runRT(rt, "stop", "/repo")
 	if code != 0 {
 		t.Fatalf("stop: code=%d err=%q", code, errw)

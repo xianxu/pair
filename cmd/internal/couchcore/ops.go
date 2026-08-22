@@ -3,6 +3,7 @@ package couchcore
 import (
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // ArgSpec describes one argument of an operation, so a caller that is not a
@@ -97,8 +98,22 @@ func Operations() []Operation {
 				if err != nil {
 					return nil, err
 				}
-				if len(recs) != 1 {
-					return nil, fmt.Errorf("%q matches %d actors; be specific", a["ref"], len(recs))
+				switch {
+				case len(recs) == 0:
+					// Absence is not ambiguity. A parked tree used to produce
+					// "matches 0 actors; be specific", which reads as a
+					// disambiguation problem it is not.
+					return nil, fmt.Errorf("%q has no running actor to stop", a["ref"])
+				case len(recs) > 1:
+					// --same-tree co-tenants share a path and a label, so the
+					// ActorID is the only handle that separates them. Name it,
+					// or the escape hatch creates a state couch cannot exit.
+					ids := make([]string, 0, len(recs))
+					for _, r := range recs {
+						ids = append(ids, string(r.ID))
+					}
+					return nil, fmt.Errorf("%q matches %d actors; stop one by id: %s",
+						a["ref"], len(recs), strings.Join(ids, " "))
 				}
 				signalled, err := c.Stop(recs[0])
 				if err != nil {

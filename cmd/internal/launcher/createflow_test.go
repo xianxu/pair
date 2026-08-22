@@ -19,7 +19,10 @@ import (
 // fakeRuntime is the in-memory create-flow seam for the RunLaunch loop tests.
 // Canned inputs drive decisions; recorded outputs assert the effect sequence.
 //
-// mu guards the recorded-output maps and slices. It is needed because
+// mu guards the recorded-output maps and slices. EVERY accessor of f.files
+// takes it, not only the one a race detector happened to flag: a concurrent
+// map write is an unrecoverable Go fatal error rather than a test failure, so
+// partial locking buys nothing. It is needed because
 // startAgentDefaultPersistence (createflow.go:562) writes through the seam
 // from its own goroutine while the main flow is still writing config, so the
 // fake is genuinely concurrent even though production hits real files.
@@ -267,6 +270,8 @@ func (f *fakeRuntime) WaitReadyRecord(expect ReadyExpectation, timeout time.Dura
 }
 func (f *fakeRuntime) PIDAlive(pid int) bool { return f.readyPIDs[pid] }
 func (f *fakeRuntime) ReadAgentDefault(agent string) (AgentDefault, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	raw, ok := f.files[AgentDefaultPath("/data", agent)]
 	if !ok {
 		return AgentDefault{}, false
@@ -284,6 +289,8 @@ func (f *fakeRuntime) WriteAgentDefault(agent string, args []string) error {
 
 // FSOps
 func (f *fakeRuntime) ReadFile(path string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if v, ok := f.files[path]; ok {
 		return v, nil
 	}
@@ -305,16 +312,22 @@ func (f *fakeRuntime) Remove(path string) {
 	delete(f.files, path)
 }
 func (f *fakeRuntime) FileSize(path string) (int64, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	v, ok := f.files[path]
 	return int64(len(v)), ok
 }
 func (f *fakeRuntime) Touch(path string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if _, ok := f.files[path]; !ok {
 		f.files[path] = ""
 	}
 	return nil
 }
 func (f *fakeRuntime) Rename(src, dst string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.renameFailAt != "" && src == f.renameFailAt {
 		return errors.New("mv failed (fake)")
 	}
@@ -326,6 +339,8 @@ func (f *fakeRuntime) Rename(src, dst string) error {
 	return nil
 }
 func (f *fakeRuntime) ReadDir(path string) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	prefix := strings.TrimSuffix(path, "/") + "/"
 	var out []string
 	for p := range f.files {

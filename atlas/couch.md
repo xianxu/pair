@@ -10,8 +10,14 @@ Project: `workshop/projects/couch.md`. Built in `pair#145`.
 
 ## What exists today
 
-`couch start|list|show|stop|name|describe`, over a registry persisted to
-`~/.local/share/pair/couch/registry.json`.
+A registry persisted to `~/.local/share/pair/couch/registry.json`, and a set of
+operations over it.
+
+**The operation set is deliberately not listed here.** `couchcore.Operations()`
+is the single source, the CLI dispatches through it, and a test asserts the two
+are identical -- so any list in prose is a second copy that drifts. It already
+did: this file named six operations while seven shipped. Run `couch --help`,
+which renders the declared set.
 
 **couch hosts `pair` whole.** The stack is couch → pair → zellij → claude+nvim.
 couch spawns `pair --layout2` and hands it couch's own stdio, so `couch start`
@@ -44,10 +50,16 @@ hazards (one index lock, one branch, one `git status`) are tree-scoped.
 ## Seams
 
 Everything touching the world is injected, so the domain tests without
-processes, disk, wall-clock or randomness: `Runner`/`Handle` (spawn), `PathOps`
-(symlinks), `GitRunner`, `ProcOps` (out-of-process liveness), `Store`, `Clock`,
-`IDGen`. Each has a fake; `FakeRunner` is stateful and is compared against real
-processes by `conformance_live_test.go` (gated on `PAIR_LIVE_COUCH=1`).
+processes, disk, wall-clock or randomness. The seam set itself lives in
+`Couch`'s struct fields in `cmd/internal/couchcore/couch.go` -- read it there
+rather than from a list here, for the same reason the operations are not
+enumerated.
+
+The property that matters: each seam has a fake, and the fakes that model
+*behaviour* rather than data are compared against the real thing by
+`conformance_live_test.go` (gated on `PAIR_LIVE_COUCH=1`). That check found a
+real bug -- `Alive()` reporting a zombie as running -- which no test against the
+fake could have.
 
 `Runner` was genuinely new — pair has no async process-exec seam.
 `launcher.ProcOps` is named for pair's own sidecars, and `wrapcmd` spawns its

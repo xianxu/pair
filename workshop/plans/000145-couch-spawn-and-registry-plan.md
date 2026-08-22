@@ -249,3 +249,51 @@ Walked against the issue's `## Done when`, in order. This mapping is a claim to 
 - `make build` produces both `pair` and `couch`; `./bin/pair --help` still works.
 - Every deletion check in Tasks 1–9 confirmed red when the seam is removed.
 - The case-spelling collision test passes on darwin and its complement passes on linux.
+
+---
+
+## Revisions
+
+AGENTS.md §1 requires revisions to a plan artifact to be **appended** with
+timestamp, reason and delta, not overwritten. This plan was rewritten wholesale
+twice before that was honoured; recording it here rather than quietly leaving
+the history unrecoverable.
+
+### 2026-08-21 — rewrite 1 (contracts replaced complete code)
+
+**Reason.** A fresh-eyes reviewer built a scratch module from this plan's own
+specs and ran them, finding a test that deadlocked (Task 9 mandated the actor
+use `Enqueue`, which collapses by kind, while the test sent three same-kind
+messages and waited for four callbacks) and a test that passed with the seam it
+named deleted. Neither was visible on inspection.
+
+**Delta.** Per-task Go listings became contracts plus "what bug must this test
+catch" plus a deletion check. Hand-written Go in markdown cannot be validated
+without executing it, and executing it is implementing it.
+
+### 2026-08-21 — rewrite 2 (design fixes from review round 1)
+
+**Delta.** `ConcurrencyPolicy` made pure with the Store loading it;
+`TreeOccupiedError` carries `Mode` so the refusal offer is policy-shaped;
+out-of-process liveness via `procutil.Identity` because `start` blocks; `Enqueue`
+able to report a drop; `GO_BINS` gains couch; `PhysicalDir`'s behaviour and
+citation corrected.
+
+### 2026-08-22 — statements superseded by the code
+
+Recorded rather than edited in place, since the tasks below are what was
+*planned*:
+
+- **`NormalizePath` is Abs-with-Clean-fallback, not "Abs + Clean".** A deletion
+  check showed `filepath.Abs` already cleans, so the explicit `Clean` was dead
+  on the success path; it now sits only on the `Getwd`-failure branch. Task 1's
+  prescribed deletion check therefore targets a line the code deliberately omits.
+- **`ProcOps` and `Liveness` are missing from the seam tables.** Both arrived
+  during review rework: liveness is three-valued (Live/Dead/Unknown) and pruning
+  fails closed, after smoke testing found a failed probe deleting a live record.
+- **`Couch` has a `Proc` field** not shown in the Integration Points table.
+- **Task 15 lists six operations; seven ship.** `publish-description` was added
+  so the description cache has a source. The operation set is single-sourced in
+  `couchcore.Operations()`; this list is the drifted copy, not the authority.
+- **Task 17's checkboxes are unticked here while the issue records steps 1-4 as
+  run.** The issue `## Log` is the authority on what the operator actually did.

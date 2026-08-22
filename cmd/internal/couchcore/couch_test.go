@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -476,5 +477,61 @@ func TestKnownDeadIsStillPruned(t *testing.T) {
 	}
 	if _, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"}); err != nil {
 		t.Fatalf("a known-dead actor still refused its tree: %v", err)
+	}
+}
+
+func TestAgentPublishedDescriptionResolvesNotJustDisplays(t *testing.T) {
+	// BR-23. Display derived from the agent's published line while resolution
+	// still only searched the operator's -- half of Done-when 3.
+	env := newTestEnv(t, "/repo")
+	rec, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
+	if err := env.Couch.PublishDescription("/repo", "reworking the composer gate"); err != nil {
+		t.Fatalf("PublishDescription: %v", err)
+	}
+	got, _, err := env.Couch.ResolveRef("composer")
+	if err != nil {
+		t.Fatalf("ResolveRef: %v -- the agent's own line must resolve, not only render", err)
+	}
+	if len(got) != 1 || got[0].ID != rec.ID {
+		t.Fatalf("ResolveRef = %+v", got)
+	}
+}
+
+func TestCoTenantsAreAddressableByActorID(t *testing.T) {
+	// BR-24. --same-tree co-tenants share a path and a label, so without an
+	// ActorID branch the escape hatch creates a state couch cannot exit.
+	env := newTestEnv(t, "/repo")
+	first, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
+	second, _ := env.spawn(t, StartArgs{Worktree: "/repo", SameTree: true})
+	if first.ID == second.ID {
+		t.Fatal("expected two distinct actors")
+	}
+
+	if got, _, err := env.Couch.ResolveRef("/repo"); err != nil || len(got) != 2 {
+		t.Fatalf("path ref resolved to %+v (%v), want both co-tenants", got, err)
+	}
+	got, _, err := env.Couch.ResolveRef(string(second.ID))
+	if err != nil {
+		t.Fatalf("ResolveRef by id: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != second.ID {
+		t.Fatalf("ResolveRef(%q) = %+v, want exactly that actor", second.ID, got)
+	}
+	if _, err := env.Couch.Stop(got[0]); err != nil {
+		t.Fatalf("Stop by id: %v", err)
+	}
+	if len(env.Couch.Get("/repo")) != 1 {
+		t.Fatal("stopping one co-tenant must leave the other")
+	}
+}
+
+func TestUnknownRefSaysMissingNotAmbiguous(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	_, _, err := env.Couch.ResolveRef("nothing-like-this")
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	if !strings.Contains(err.Error(), "no actor or tree matches") {
+		t.Fatalf("err = %v; absence must not read as ambiguity", err)
 	}
 }

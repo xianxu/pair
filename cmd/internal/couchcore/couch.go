@@ -3,6 +3,7 @@ package couchcore
 import (
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // Couch is the composition root: every seam in one place, every operation a
@@ -157,18 +158,82 @@ func (c *Couch) Forget(w Worktree, id ActorID) error {
 	return c.Store.Save(c.reg, c.names)
 }
 
-// ResolveRef composes the naming layer with the registry: a fuzzy human
-// reference yields the actors it names. Fuzzy in, exact out -- an ambiguous
-// reference returns every candidate rather than guessing.
+// knownTrees is every tree couch knows about: those with actors and those with
+// only a label. Both are addressable -- a parked tree is exactly the thread an
+// operator loses track of.
+func (c *Couch) knownTrees() []Worktree {
+	seen := map[string]bool{}
+	var out []Worktree
+	add := func(w Worktree) {
+		if w != "" && !seen[w.Key()] {
+			seen[w.Key()] = true
+			out = append(out, w)
+		}
+	}
+	for _, r := range c.reg.Records() {
+		add(r.Args.Worktree)
+	}
+	for _, e := range c.names.All() {
+		add(e.Tree)
+	}
+	return out
+}
+
+// LookupTrees resolves a fuzzy human reference to every tree it could mean.
+//
+// It matches the operator's name, the operator's typed description, AND the
+// agent's own published line. All three answer "what is this thread called",
+// so all three derive from one lookup -- displaying the agent's description
+// while resolving only the operator's delivers half the behaviour.
+func (c *Couch) LookupTrees(ref string) []Worktree {
+	needle := strings.ToLower(strings.TrimSpace(ref))
+	if needle == "" {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []Worktree
+	for _, w := range c.names.Lookup(ref) {
+		if !seen[w.Key()] {
+			seen[w.Key()] = true
+			out = append(out, w)
+		}
+	}
+	for _, w := range c.knownTrees() {
+		if seen[w.Key()] {
+			continue
+		}
+		if strings.Contains(strings.ToLower(c.Describe(w)), needle) {
+			seen[w.Key()] = true
+			out = append(out, w)
+		}
+	}
+	return out
+}
+
+// ResolveRef turns a human reference into the actors it names.
+//
+// A reference may be an ActorID, a label (operator name, operator description,
+// or the agent's published line), or a path. The ActorID branch exists because
+// --same-tree puts two actors on one tree sharing a path AND a label; without
+// it that state cannot be exited, since stop refuses on ambiguity and the
+// remedy it suggested did not exist.
 func (c *Couch) ResolveRef(ref string) ([]ActorRecord, []Worktree, error) {
-	trees := c.names.Lookup(ref)
+	trimmed := strings.TrimSpace(ref)
+
+	for _, r := range c.reg.Records() {
+		if string(r.ID) == trimmed {
+			return []ActorRecord{r}, []Worktree{r.Args.Worktree}, nil
+		}
+	}
+
+	trees := c.LookupTrees(trimmed)
 	if len(trees) == 0 {
-		if w, err := c.ResolveTree(ref); err == nil {
+		if w, err := c.ResolveTree(trimmed); err == nil {
 			trees = []Worktree{w}
 		}
 	}
 	if len(trees) == 0 {
-		return nil, nil, fmt.Errorf("no actor matches %q", ref)
+		return nil, nil, fmt.Errorf("no actor or tree matches %q", ref)
 	}
 	var out []ActorRecord
 	for _, t := range trees {
@@ -210,7 +275,7 @@ func (c *Couch) Describe(w Worktree) string {
 // treeFor resolves a ref to exactly one tree, erroring on ambiguity rather
 // than guessing -- fuzzy in, exact out.
 func (c *Couch) treeFor(ref string) (Worktree, error) {
-	if trees := c.names.Lookup(ref); len(trees) == 1 {
+	if trees := c.LookupTrees(ref); len(trees) == 1 {
 		return trees[0], nil
 	} else if len(trees) > 1 {
 		return "", fmt.Errorf("%q matches %d trees; be specific", ref, len(trees))
