@@ -1670,3 +1670,71 @@ fixture against that policy first — collapse, dedup, rate limits and batching
 all silently change how many events arrive. Prefer distinct inputs over repeated
 ones, and give any test that can block an explicit timeout so a fixture bug
 reports as a failure rather than a hang. Caught in #000145 Task 9.
+
+## A guard bypass must never bind positionally
+
+`couch start <path> [same-tree]` bound argv positionally against the declared
+argument list, so `couch start /repo true` set the escape-hatch flag and
+silently disabled the one-agent-per-tree refusal. The first fix — "optional
+arguments never bind positionally" — was a broader rule than the problem, and
+it broke `couch describe <ref> <text>`, a command smoke-tested earlier in the
+same session.
+
+**Rule.** Mark arguments that bypass a guard as flag-only and bind them by name
+alone; leave ordinary optional arguments positional. When a fix generalises past
+the finding, exercise the neighbours it now governs before believing it. Caught
+in #000145 close review round 3.
+
+## A gated-only pin is not a pin
+
+A regression test for a real bug was written into an opt-in suite behind
+`PAIR_LIVE_COUCH`, which no target set. Restoring the bug left the default suite
+green in 0.35s; only the gate caught it, and nothing ran the gate. The same
+issue had already been raised one round earlier for a different fix, and the
+second instance was introduced *while addressing the first*.
+
+**Rule.** A fix is pinned by a test the default suite runs. If a check genuinely
+needs an env gate, make the gate runnable from a target and add a hermetic
+default-suite test for the same property — building a temp fixture rather than
+resolving against the ambient checkout, so it can run anywhere. Caught in
+#000145 close review rounds 2 and 3.
+
+## A test that passes with the fix reverted is measuring something adjacent
+
+Three times in one issue, a deletion check came back green: a symlink-seam
+assertion whose fake ignored the argument that made it load-bearing; an
+operation audit comparing two views of one source; a canonicalisation test fed
+an already-canonical path. Each read as confirmation and confirmed nothing.
+
+**Rule.** Revert the fix and require red before believing a regression test, and
+check that the revert actually applied — a shell chain that short-circuits on a
+blocked write leaves the file untouched and reports a meaningless pass. When the
+check is green, the test is wrong, not the fix; fix the fixture so it can fail.
+Caught throughout #000145.
+
+## A repeating finding family means the enumeration was never written
+
+The close gate reported "not converging: fix rules, not instances" for two
+rounds while repeat families grew from four to six. Each finding carried a
+`family:` slug naming the underlying rule and a measured prevalence — *2 of 9
+accessors locked*, *7 of 9 tests on the non-fake path*. Fixing the flagged
+instance each time left the class intact, and two of the round-3 findings were
+families introduced *by* the round-2 fixes.
+
+**Rule.** When a review names a family, the deliverable is the class: enumerate
+every instance and state the rule, then grep for the shape rather than trusting
+the fix. Prevalence in a finding is a worklist, not a label. Caught in #000145
+close review rounds 2 and 3.
+
+## A partly-run checklist ticked as done hides what its unrun steps would find
+
+An operator smoke had five steps; step 1 ran and the box was ticked, with the
+issue Log simultaneously recording that four steps had not run. Two of those
+four were exactly where the two Critical findings lived — a second-shell read
+and a repeat start would have surfaced both in under a minute. Later, the repair
+for one of those Criticals shipped a fail-open path that only the same unrun
+step caught.
+
+**Rule.** Tick a checklist item only for steps actually performed; record the
+rest as unrun in the same breath. When a Log says "steps 2-5 not exercised" and
+a checkbox says done, believe the Log. Caught in #000145 close review round 1.

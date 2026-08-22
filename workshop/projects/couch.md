@@ -157,7 +157,7 @@ the cross-stack work in `#147` are where risk concentrates.
 the runtime (bringing actors up, tty routing, transport, live registry). They
 gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 
-- [ ] spawn + registry [pair#145]
+- [x] spawn + registry [pair#145]
 - [ ] tty switching and attach [pair#146]
 - [ ] expose query API to peer actors [ariadne#199]
 - [ ] fleet thread inventory [ariadne#200]

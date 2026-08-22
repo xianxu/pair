@@ -1,12 +1,13 @@
 ---
 id: 000145
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-08-20
-updated: 2026-08-21
+updated: 2026-08-22
 estimate_hours:
 started: 2026-08-21T12:40:25-07:00
+actual_hours: 8.51
 ---
 
 # couch: spawn and registry
@@ -380,6 +381,7 @@ steps found it. This is the second time in this issue that BR-12's shape has
 bitten: the value was in the steps I had ticked without running.
 
 ### 2026-08-22 — refusal confirmed against a live child
+- 2026-08-22: closed — go test ./cmd/... -race green across 38 packages, green in a pristine worktree of the same commit (couchcmd tests are hermetic; no test can reach a production seam), and `make test-live` runs the opt-in conformance suites. All blocking findings from three review rounds fixed, each with a regression test verified RED against the reverted fix. Round 3 addressed by rule and swept for the shape: a guard bypass is FlagOnly so `couch start /repo true` can no longer disable the refusal (the first, broader rule broke `couch describe <ref> <text>` and the sweep caught it); persisted cwd is canonical since StartArgs exists for replay; the real-probe guard pin is hermetic and ungated because a gated-only pin is not a pin; one seam instance per Runtime so CLI tests can hold two distinguishable actors. Operator smoke confirmed: pair+zellij+nvim hosts as a couch child, second-shell couch list shows the live actor with pid, couch show returns one tree not everything, and a second start against a live incumbent is refused.; review verdict: FIX-THEN-SHIP
 
 Operator re-ran the refusal after the fail-closed fix: a second `couch start`
 on a tree with a live incumbent is refused. That was the step that failed

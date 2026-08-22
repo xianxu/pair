@@ -914,3 +914,230 @@ findings:
       the same seen-by-Key fold with a near-identical add closure, and Summarize's len(trees)==0
       branch re-iterates c.names.All() where knownTrees() already returns exactly that union.
 ```
+
+---
+
+## Re-review — 2026-08-22T10:28:42-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 145 — couch: spawn and registry |
+| repo | pair |
+| issue file | workshop/issues/000145-couch-spawn-and-registry.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 78a3a4b72dc1a8f7f6f308d4f8fe4591d63dd3bc^..e950b4a6b892ca67d22356da0816ad5b7655b79f |
+| command | sdlc close --issue 145 |
+| reviewer | claude |
+| timestamp | 2026-08-22T10:28:42-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+Round 4. All three round-3 Important findings that claimed a fix are genuinely fixed and I verified each by reverting it in place: deleting the `FlagOnly` skip in `bindArgs` reddens `TestGuardBypassCannotBindPositionally`; deleting the `Physical(NormalizePath(...))` block in `Spawn` reddens `TestPersistedCwdIsCanonicalNotAsTyped`; corrupting the real identity token reddens `TestGuardRefusesAgainstARealLiveProcess`, which now runs hermetically in the *default* suite rather than behind `PAIR_LIVE_COUCH`. I also ran the gated conformance suite (`PAIR_LIVE_COUCH=1`, 4/4 pass) and drove the built binary end-to-end against a temp store: an agent-published description both displays and resolves, co-tenants are addressable by `ActorID`, `stop` on a parked tree says absence rather than ambiguity, `make build` produces both binaries and `./bin/pair --help` still works. One round-3 Important does **not** survive its own check — reverting the shared id generator leaves the entire `couchcmd` suite green, and mutating `ops.go`'s zero-actor and many-actor `stop` messages to `MUTANT` also leaves everything green, so the CLI-facing remedy BR-24 shipped still has no CLI-facing test. Alongside it, one new Important: `policy.json` has a reader and tests but **no writer and no documentation anywhere a reader looks**, so both non-default arms of the policy-shaped refusal are dead in practice — mutating them to `MUTANT` is invisible to the suite. Neither blocks; both are cheap, and the Minor tail has been stable for three rounds.
+
+## 1. Strengths
+
+- **The round-3 fixes are pinned, and the commit message says so honestly.** `e950b4a`'s body records that the BR-32 test *initially passed with the fix reverted* because it fed an already-canonical path, and was rewritten to feed `"/w/kbench/competition/other/../arc-agi-3/"`. I confirmed the rewritten version goes red. A commit that reports its own green deletion check as a defect is the behaviour this gate has been asking for.
+- **The broader-rule-first, then swept-for-the-shape move on BR-31.** The first attempt used "optional args never bind positionally", which broke `couch describe <ref> <text>`; both directions now have a test (`TestGuardBypassCannotBindPositionally` and `TestOptionalPositionalArgsStillBind`). `ArgSpec.FlagOnly` carries `json:"flag_only"`, so pair#148's advisor gets the constraint rather than having to know it.
+- **`guard_live_test.go` is the right answer to "a gate with no invocation site".** It is hermetic (`tempRepo`, its own temp git repo — never the ambient checkout), ungated, and load-bearing: prefixing `procutil.Identity`'s result with `"MUTANT"` fails it at `guard_live_test.go:90`. That closes the round-2 residual on BR-8 *and* the portability half of BR-35 in one move.
+- **`couchcmd` can no longer reach a production seam at all** — the `fakes bool` fork is gone from `testRT`, and the only mention of `ExecGit` left in `run_test.go` is a comment explaining why. `cmd/internal/launcher/createflow_test.go` now locks all 8 `f.files` accessors, not 2; I enumerated them mechanically rather than trusting the claim.
+- 102 test functions across the two packages; `couchcore`, `couchcmd`, `launcher`, `scribecmd`, `scrollbackcmd` all green under `-race`, `go vet ./cmd/...` clean.
+
+## 2. Critical findings
+
+None. Every Critical from round 1 remains fixed and defended.
+
+## 3. Important findings
+
+**I1 — the shared id generator is unreachable as a fix: no test distinguishes two CLI-started actors, and `stop`'s two disambiguation branches have no coverage anywhere.** `run_test.go:31` moving `NewFixedIDGen` onto `testRT` is correct in principle, but I reverted it to a per-invocation generator and `go test ./cmd/internal/couchcmd/` stayed green — no assertion observes the ids at all. Worse, I mutated `ops.go:107` (`"%q has no running actor to stop"`) and `ops.go:117` (`"%q matches %d actors; stop one by id: %s"`) to `MUTANT-ZERO`/`MUTANT-MANY` and *both* packages stayed green. The domain half is pinned (`TestCoTenantsAreAddressableByActorID`), but the operator-facing remedy BR-24 produced — the message that names the ids — is untested. I confirmed by hand against the built binary that it does work (`couch stop alpha2` → `matches 2 actors; stop one by id: couch-aaaa couch-bbbb`, then `couch stop couch-bbbb` removes exactly one), so this is a coverage gap, not a defect. Fix: one `couchcmd` test that starts a co-tenant with `--same-tree`, asserts the ambiguity error names both ids, stops one by id, and asserts the other survives — the fixture that the shared generator was added to make possible.
+
+> **This is the 2nd finding in family `fake-diverges-from-production`.** Do NOT just add the one test. The rule: **a fixture change made to enable a scenario is not done until a test enters that scenario** — the same standard the issue's own lesson applies to seams ("a test that survives deleting the seam it names tests nothing") applied to *fixtures*. Measured prevalence: 1 of 1 fixture-enabling change this round has no test entering the enabled state; 3 of `ops.go`'s stop branches, 0 covered.
+
+**I2 — `policy.json` has a reader, tests and a refusal that renders from it, but no writer and no documentation, so both non-default offers are dead code in practice.** `Store.Load` reads `<store>/policy.json` and `TestLoadReadsRecordedPolicy` pins the decoding; `TreeOccupiedError` carries the `Mode`; `renderError` (`run.go:194-199`) branches three ways on it. But there is no `couch policy` operation, and `grep` over `atlas/`, `README.md` and `docs/` for `policy.json`, `in-place-serial`, `worktree-parallel`, `heavy-local-state` returns **nothing** — the file's path, filename, schema and key (the repo *basename*, unfolded) exist only in Go source and the plan. An operator cannot author it, so `PolicyTable` is empty for every install and `p.Mode(repo)` always returns `InPlaceSerial`. I mutated both non-default arms of `renderError` to `"MUTANT\n"` and the whole suite stayed green, confirming neither is exercised. Done-when 2 is specifically "with worktree-or-switch offered", and the *worktree* offer is the arm that never renders.
+
+> **This is the 3rd finding in family `deferred-purpose`.** Do NOT just document `policy.json`. Earlier rounds fixed instances one at a time: BR-9 was the description sidecar shipping as a read path with no writer, BR-23 was the same sidecar shipping with display but not resolution. The rule: **for every recorded or cached source couch reads, the producer ships in the same window — either a couch operation that writes it or a documented location-plus-schema its intended author can follow — and at least one non-default value is exercised end-to-end.** Measured prevalence: 3 read-sources — the agent description sidecar (writer `publish-description`, shipped round 2 ✓), the naming table (writers `name`/`describe` ✓), `policy.json` (no writer, no docs, no non-default coverage ✗). 1 of 3 unproduced, and it is the one whose absence silently collapses a three-way branch to one.
+
+## 4. Minor findings
+
+- **`make test-race` is not merely stale, it fails.** I ran it: `stat .../cmd/pair-wrap: directory not found` → `FAIL [setup failed]` → `make: *** [test-race] Error 1`. BR-33's stated rule-level fix was "one `make test-live` target **plus** repointing test-race at `./cmd/...`"; the first half landed, the second did not — while this window's own `lessons.md` entry is titled "Run the whole tree under -race, not just the package you touched". (BR-19.)
+- `bindArgs` still accepts any `--flag`; confirmed at the CLI — `couch name <tree> alpha2 --bogus-flag=1` exits 0 silently. This is the unfixed half of the rule BR-31 named ("rejecting unknown `--flags` **AND** never binding a flag-shaped spec positionally"); measured prevalence is unchanged at 7 of 7 operations. (BR-18.)
+- `guard_live_test.go:83` passes the real `ExecRunner{}` into the `Couch` under test, so a guard regression would fork `pair --layout2` with the test binary's stdio — into a temp repo now rather than the operator's checkout, which is the improvement, but only `OSProcOps` and the real child need to be real here. (BR-35.)
+- A `couch` Mach-O executable is still untracked at the repo root and still not ignored (`git check-ignore couch` exits 1). (BR-28.)
+- The plan's Core-concepts table still declares `ArgSpec{Name, Summary string, Required bool}`; `FlagOnly` was added this round with no matching `## Revisions` entry — a *new* drift in the same commit family that a `## Revisions` section was added to answer. **This is the 3rd finding in family `docs-claim-unbuilt-behavior`** — the rule is that the plan's Core-concepts tables are a hand-maintained restatement of code types, so either stop restating them (as `atlas/couch.md` now correctly does for the operation set) or append the Revisions entry in the same commit that changes the type. Measured prevalence: 6 recorded drifts, 1 new and unrecorded.
+- `usage()` renders `publish-description` past its `%-10s` column, so that one row's summary is misaligned in `couch --help` — the only place the operation set is documented.
+- Unchanged and confirmed still reproducing: BR-13 (Enqueue collapses on `Kind` alone, so a non-control message replaces a queued Control one), BR-14/BR-38 (the occupancy block duplicated at `registry.go:70-80` and `:85-94`; three near-identical tree-dedup folds at `couch.go:172`, `:196`, `:317`), BR-15, BR-16, BR-17 (`Couch.Policy`, `Registry.Unregister`, `FakeRunner.Signals`, `StartArgs.AgentStack` still zero non-test callers), BR-20, BR-21, BR-22, BR-29, BR-30, BR-36, BR-37.
+
+## 5. Test coverage notes
+
+- `go test ./cmd/internal/couchcore/ ./cmd/internal/couchcmd/` green; both green under `-race`; `go vet ./cmd/...` clean; `PAIR_LIVE_COUCH=1 go test ./cmd/internal/couchcore/ -run Conformance` → 4/4 pass in 5.3s.
+- Full-tree `-race` is **not** verifiable in my shell: `keyscmd`, `termcmd` and `wrapcmd` fail with `mktemp: mkstemp failed … Operation not permitted` and `pty.Start: operation not permitted`. Those are agent-shell restrictions, not code defects — reporting them as unverified rather than assumed green.
+- Verified by revert or mutation this round: `FlagOnly` (red), canonical `Cwd` (red), real-identity probe (red), shared id generator (**green — not pinned**), `stop`'s zero/many messages (**green — not covered**), `renderError`'s two non-default policy arms (**green — not covered**).
+- Remaining gaps, priority order: I1's co-tenant CLI test; I2's non-default policy offer; `publish-description` through `RunWithRuntime` including the `$COUCH_TREE` fallback (`testRT.Getenv` returns `""`, so `run.go:106` is never entered — I exercised it only against the built binary).
+
+## 6. Architectural notes for upcoming work
+
+- **ARCH-DRY — flag, no new instance.** `CheckAvailable`/`RegisterWithPolicy` (BR-14), the three tree-dedup folds and `Summarize`'s re-walk of what `knownTrees()` already unions (BR-38), two one-line `errors.As` wrappers (BR-16), `GitRunner` duplicating `reviewcmd.Runtime.Git`. All open, none regressed.
+- **ARCH-PURE — pass.** `couchcore` is a genuine pure core; `Runtime.NewCouch` is now the only construction point and the test fork above it is deleted, so no `couchcmd` test can reach IO. Nothing new to flag.
+- **ARCH-PURPOSE — flag (I2).** Shadow-sweep across the three single-source claims: the *operation set* is enforced (table-only `Resolve`, an audit that drives the CLI and catches an injected `couch nuke`, and an atlas that stopped enumerating and points at `couch --help`) — genuinely delivered. The *description* now derives in all three consumers (write, display, resolve), verified end-to-end. The *policy* source has a reader and no producer.
+- **ARCH-MOCK — pass on the fakes, partial on cadence and reach.** `FakeRunner` is stateful with a scriptable disposition, `FakeProcOps` models `Unknown`, `Store` boots from any directory, and the live check now has an invocation site (`make test-live`) that I confirmed passes. Two residuals: nothing *schedules* it, and `make test-race` — the other half of the same rule — is broken. For pair#146, `Handle`'s contract changes when a pty arrives; extend `FakeRunner`'s state model in the same commit, not after.
+- **Note for the next issue:** `c4bf4a5` (landed during this review, outside the window) records that pair#149 supersedes this issue's tree-as-key model with a recorded per-repo *concurrency limit*, retiring `--same-tree`. Several open Minors here — BR-14/BR-38's duplicated guard folds, BR-17's `Policy()`/`Unregister` — sit exactly on the surface #149 will rewrite, so consolidating them there is likely cheaper than fixing them twice. I2's missing policy *writer*, by contrast, gets more load-bearing under #149, not less.
+
+## 7. Plan revision recommendations
+
+The plan's `## Revisions` section exists and covers round 2's list. Append one entry:
+
+1. **`ArgSpec` gained `FlagOnly`** (`couchcore/ops.go`), so the Core-concepts declaration `ArgSpec{Name, Summary string, Required bool}` is superseded. Record why: an optional spec bound positionally let `couch start /repo true` disable the one-agent-per-tree guard, and the broader rule "optional args never bind positionally" broke `couch describe <ref> <text>` — so the constraint is per-spec, not per-arity, and it is part of pair#148's machine contract via `json:"flag_only"`.
+
+```findings
+dispose:
+  - id: BR-13
+    disposition: not-addressed
+    note: |
+      mailbox.go unchanged - collapse still matches on Kind alone, so a non-control message replaces a queued Control one.
+  - id: BR-14
+    disposition: not-addressed
+    note: |
+      registry.go:70-80 and :85-94 still hold the identical occupancy block.
+  - id: BR-15
+    disposition: not-addressed
+    note: |
+      Makefile.local:6-8 still states the pair- prefix rule; GO_BINS still installs a bare `couch` to ~/.local/bin.
+  - id: BR-16
+    disposition: not-addressed
+    note: |
+      couchcmd/errors.go and couchcore/errors.go both still wrap errors.As at one call site each.
+  - id: BR-17
+    disposition: not-addressed
+    note: |
+      Verified by grep - Couch.Policy, Registry.Unregister (test-only), FakeRunner.Signals, StartArgs.AgentStack still have zero non-test callers; Stack/Issue/ExtraArgs still never populated.
+  - id: BR-18
+    disposition: not-addressed
+    note: |
+      Confirmed at the CLI - `couch name <tree> alpha2 --bogus-flag=1` exits 0 silently. This is the unfixed half of the rule BR-31 named.
+  - id: BR-19
+    disposition: not-addressed
+    note: |
+      Ran it - `make test-race` fails outright (directory not found, setup failed, Error 1). Named explicitly as half of BR-33's rule-level fix and skipped.
+  - id: BR-20
+    disposition: not-addressed
+    note: |
+      strings.go unchanged.
+  - id: BR-21
+    disposition: not-addressed
+    note: |
+      store.go Save still marshals reg.Records() in Go map order.
+  - id: BR-22
+    disposition: not-addressed
+    note: |
+      No locking on registry.json across couch processes.
+  - id: BR-28
+    disposition: not-addressed
+    note: |
+      `git check-ignore couch` still exits 1 and a Mach-O executable is still untracked at the repo root.
+  - id: BR-29
+    disposition: not-addressed
+    note: |
+      couch.go:260-261 still calls c.Liveness(r) twice per record.
+  - id: BR-30
+    disposition: not-addressed
+    note: |
+      run.go:104-112 still reads and writes parsed before the `if err != nil` check.
+  - id: BR-31
+    disposition: addressed
+    note: |
+      Verified - deleting the FlagOnly skip in bindArgs reddens TestGuardBypassCannotBindPositionally; the describe regression is pinned separately. The unknown-flag half of its stated rule remains open as BR-18.
+  - id: BR-32
+    disposition: addressed
+    note: |
+      Verified - deleting Spawn's Physical(NormalizePath(...)) block reddens TestPersistedCwdIsCanonicalNotAsTyped, which now feeds an uncanonical as-typed path.
+  - id: BR-33
+    disposition: addressed
+    note: |
+      Verified - the guard pin moved to hermetic ungated guard_live_test.go, runs in the default suite, and reddens when the real identity token is corrupted. make test-live exists and the gated conformance suite passes 4/4. Residual is BR-19, the test-race half of the same rule.
+  - id: BR-34
+    disposition: not-addressed
+    note: |
+      The shared generator is not pinned - reverting it to a per-invocation NewFixedIDGen leaves the whole couchcmd suite green, and mutating ops.go's zero-actor and many-actor stop messages also leaves both packages green. No fixture enters the co-tenant state.
+  - id: BR-35
+    disposition: not-addressed
+    note: |
+      tempRepo fixed the non-portability half, but guard_live_test.go:83 still passes the real ExecRunner into the Couch under test, so a guard regression forks pair --layout2 with the test binary's stdio.
+  - id: BR-36
+    disposition: not-addressed
+    note: |
+      A grep over md/lua/kdl/sh outside workshop/plans still hits only the issue Log; nothing tells a session inside a couch-spawned tree that it should publish.
+  - id: BR-37
+    disposition: not-addressed
+    note: |
+      d96bfd0's body still splices the whole rendered operation table mid-sentence; the branch is still ahead of origin/main.
+  - id: BR-38
+    disposition: not-addressed
+    note: |
+      couch.go:172 (knownTrees), :196 (LookupTrees) and :317 (Summarize) still hold three near-identical folds, and Summarize still re-walks c.names.All().
+findings:
+  - id: new
+    severity: Important
+    family: fake-diverges-from-production
+    title: |
+      the shared id generator is unreachable as a fix, and stop's two disambiguation branches have no test anywhere
+    detail: |
+      Reverting run_test.go's shared NewFixedIDGen to a per-invocation one leaves the entire
+      couchcmd suite green - no assertion observes actor ids, so no fixture enters the
+      co-tenant state the change was made to enable. Mutating ops.go's zero-actor message to
+      MUTANT-ZERO and its many-actor message to MUTANT-MANY also leaves both packages green,
+      so BR-24's operator-facing remedy shipped with zero coverage; only the domain half
+      (TestCoTenantsAreAddressableByActorID) is pinned. Confirmed by hand against the built
+      binary that the behaviour is correct. 2nd in this family - the rule is that a fixture
+      change made to enable a scenario is not done until a test enters that scenario, the
+      same standard the issue's own lesson applies to seams. Measured prevalence: 1 of 1
+      fixture-enabling change with no test entering the enabled state; 3 of ops.go's stop
+      branches, 0 covered.
+  - id: new
+    severity: Important
+    family: deferred-purpose
+    title: |
+      policy.json has a reader and tests but no writer and no documentation, so both non-default refusal offers are dead in practice
+    detail: |
+      Store.Load reads <store>/policy.json and TreeOccupiedError carries the Mode, but there
+      is no couch operation that writes it and a grep over atlas/, README.md and docs/ for
+      policy.json, in-place-serial, worktree-parallel and heavy-local-state returns nothing -
+      the path, filename, schema and key (unfolded repo basename) exist only in Go source and
+      the plan. So PolicyTable is empty on every install and Mode() always returns
+      InPlaceSerial. Mutating renderError's WorktreeParallel and HeavyLocalState arms to
+      "MUTANT" leaves the whole suite green, confirming neither is exercised; Done-when 2 is
+      specifically "with worktree-or-switch offered" and the worktree arm never renders.
+      3rd in this family - the rule is that for every recorded or cached source couch reads,
+      the producer ships in the same window (a couch operation that writes it, or a documented
+      location plus schema its intended author can follow) and at least one non-default value
+      is exercised end-to-end. Measured prevalence: 3 read-sources - description sidecar
+      (writer shipped round 2), naming table (writers name/describe), policy.json (none).
+  - id: new
+    severity: Minor
+    family: docs-claim-unbuilt-behavior
+    title: |
+      the plan's Core-concepts table drifted again this round - ArgSpec gained FlagOnly with no Revisions entry
+    detail: |
+      The plan declares ArgSpec{Name, Summary string, Required bool}; couchcore/ops.go now has
+      FlagOnly, added in the same commit family that a "## Revisions" section was created to
+      answer, and no entry records it. 3rd in this family - the rule is that the plan's
+      Core-concepts tables are a hand-maintained restatement of code types, so either stop
+      restating them (as atlas/couch.md now correctly does for the operation set) or append
+      the Revisions entry in the commit that changes the type. Measured prevalence: 6 recorded
+      drifts, 1 new and unrecorded.
+  - id: new
+    severity: Minor
+    family: misleading-helper-names
+    title: |
+      usage() renders publish-description past its %-10s column, misaligning the only place the operation set is documented
+    detail: |
+      run.go's usage loop uses a fixed 10-column name field; "publish-description" is 19
+      characters, so its summary runs into the name in couch --help. Since atlas/couch.md
+      deliberately stopped enumerating operations and points readers at --help, that output
+      is now the operation set's only human-facing rendering.
+```
