@@ -39,6 +39,13 @@ SHELL_BINS  := pair-dev
 PAIR_HOME_LDFLAGS := -X main.defaultPairHome=$(CURDIR)
 RUNTIMEBUNDLE_ASSETS := cmd/internal/runtimebundle/assets/runtime/manifest.json
 
+# test-live — the opt-in conformance suites. A gated test nothing runs is not a
+# pin, so the gate needs a target; PAIR_LIVE_COUCH compares couch's stateful
+# fakes against real processes and real git.
+.PHONY: test-live
+test-live:
+	PAIR_LIVE_COUCH=1 PAIR_LIVE_HARNESS=1 go test ./cmd/... -count=1
+
 build: $(addprefix $(BIN_DIR)/,$(GO_BINS)) $(addprefix $(BIN_DIR)/,$(BUSYBOX_LINKS))
 
 install: build

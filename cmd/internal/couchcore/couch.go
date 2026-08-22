@@ -49,6 +49,14 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 		return ActorRecord{}, nil, err
 	}
 	args.Worktree = tree
+	// Canonicalise the recorded cwd. StartArgs is persisted so a revival can
+	// reproduce the launch; storing the operator's relative path ("../pair")
+	// makes that record meaningless from any other directory.
+	if physical, err := c.Path.Physical(NormalizePath(args.WorkingDir())); err == nil {
+		args.Cwd = physical
+	} else {
+		args.Cwd = NormalizePath(args.WorkingDir())
+	}
 
 	// Drop records whose process is gone BEFORE consulting the guard.
 	//

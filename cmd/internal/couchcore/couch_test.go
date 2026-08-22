@@ -535,3 +535,35 @@ func TestUnknownRefSaysMissingNotAmbiguous(t *testing.T) {
 		t.Fatalf("err = %v; absence must not read as ambiguity", err)
 	}
 }
+
+func TestPersistedCwdIsCanonicalNotAsTyped(t *testing.T) {
+	// BR-32. StartArgs is persisted so a revival can reproduce the launch;
+	// recording the operator's relative path makes that record meaningless
+	// from any other directory.
+	env := newTestEnv(t)
+	env.cannedTree("/w/kbench", "/w/kbench/competition/arc-agi-3")
+
+	// A path as an operator would plausibly type it: uncanonical, with dot
+	// segments and a trailing slash. Passing an already-canonical path here
+	// would make this test unable to fail -- which it was, until a deletion
+	// check said so.
+	typed := "/w/kbench/competition/other/../arc-agi-3/"
+	rec, _ := env.spawn(t, StartArgs{Cwd: typed})
+
+	if rec.Args.Cwd == typed {
+		t.Fatalf("persisted cwd is the as-typed path %q; replay needs the canonical one", typed)
+	}
+	if want := NormalizePath(typed); rec.Args.Cwd != want {
+		t.Fatalf("persisted cwd = %q, want %q", rec.Args.Cwd, want)
+	}
+
+	// And it survives a round trip, which is the point of persisting it.
+	reg, _, _, err := env.Couch.Store.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	got := reg.Get("/w/kbench")
+	if len(got) != 1 || got[0].Args.Cwd != rec.Args.Cwd {
+		t.Fatalf("round-tripped cwd = %+v", got)
+	}
+}

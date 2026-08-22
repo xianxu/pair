@@ -146,6 +146,11 @@ func bindArgs(op couchcore.Operation, argv []string) (map[string]string, error) 
 		if _, already := out[spec.Name]; already {
 			continue
 		}
+		// FlagOnly arguments never bind positionally -- they gate something, so
+		// a stray positional word must not be able to set them.
+		if spec.FlagOnly {
+			continue
+		}
 		if i < len(positional) {
 			out[spec.Name] = positional[i]
 			i++
@@ -154,6 +159,9 @@ func bindArgs(op couchcore.Operation, argv []string) (map[string]string, error) 
 		if spec.Required {
 			return nil, fmt.Errorf("missing required argument %q", spec.Name)
 		}
+	}
+	if i < len(positional) {
+		return nil, fmt.Errorf("unexpected argument %q", positional[i])
 	}
 	return out, nil
 }

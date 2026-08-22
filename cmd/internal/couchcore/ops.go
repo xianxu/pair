@@ -13,6 +13,11 @@ type ArgSpec struct {
 	Name     string `json:"name"`
 	Summary  string `json:"summary"`
 	Required bool   `json:"required"`
+	// FlagOnly arguments never bind positionally; they must be named with
+	// --name. Set it on anything that bypasses a guard, so a stray positional
+	// word cannot disable a refusal -- `couch start /repo true` silently
+	// turned off the one-agent-per-tree guard before this existed.
+	FlagOnly bool `json:"flag_only,omitempty"`
 }
 
 // Operation is one thing couch can do. The terminal UI and the advisor are
@@ -57,7 +62,7 @@ func Operations() []Operation {
 			Summary: "Start an agent on a peer repo (or a subdirectory of one)",
 			Args: []ArgSpec{
 				{Name: "path", Summary: "repo or subdirectory to start in", Required: true},
-				{Name: "same-tree", Summary: "override the one-agent-per-tree guard", Required: false},
+				{Name: "same-tree", Summary: "override the one-agent-per-tree guard (--same-tree)", Required: false, FlagOnly: true},
 			},
 			Invoke: func(c *Couch, a map[string]string) (any, error) {
 				rec, h, err := c.Spawn(StartArgs{

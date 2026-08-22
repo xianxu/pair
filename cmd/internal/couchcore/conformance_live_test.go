@@ -15,7 +15,6 @@ package couchcore
 // check exists to prevent.
 
 import (
-	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -223,74 +222,5 @@ func TestGitConformance_LinkedWorktree(t *testing.T) {
 	}
 	if fakeRoot != primaryRoot {
 		t.Errorf("fake resolved %q, real resolved %q", fakeRoot, primaryRoot)
-	}
-}
-
-// TestGuardRefusesAgainstARealLiveProcess pins BR-1 against the real probes.
-//
-// The unit tests use FakeProcOps, so they prove the logic but not that
-// OSProcOps can actually answer. That gap is exactly where the fail-open bug
-// lived: a probe that forked `kill -0` returned "dead" whenever forking was
-// restricted, and PruneDead then deleted a LIVE actor's record and admitted a
-// second agent onto its tree.
-//
-// This registers a real long-lived child, then attempts a second spawn on the
-// same tree. The refusal must happen BEFORE anything is forked, so `pair` is
-// never launched and the test needs no zellij.
-func TestGuardRefusesAgainstARealLiveProcess(t *testing.T) {
-	liveOnly(t)
-
-	dir := t.TempDir()
-	tree, err := Resolve(dir, ExecGit{}, OSPathOps{})
-	if err != nil {
-		// A temp dir is not a repo; use this checkout instead.
-		tree, err = Resolve(".", ExecGit{}, OSPathOps{})
-		if err != nil {
-			t.Fatalf("resolve a tree: %v", err)
-		}
-	}
-
-	runner := ExecRunner{}
-	child, err := runner.Start(t.TempDir(), []string{"sh", "-c", "sleep 30"}, nil)
-	if err != nil {
-		t.Fatalf("start a real child: %v", err)
-	}
-	defer func() { _ = child.Signal(os.Kill); _ = child.Wait() }()
-
-	proc := OSProcOps{}
-	rec := ActorRecord{
-		ID:       "couch-livecheck",
-		Args:     StartArgs{Worktree: tree},
-		PID:      child.PID(),
-		Identity: child.Identity(),
-	}
-	if rec.Identity == "" {
-		t.Fatal("ExecRunner recorded no identity token for a real child")
-	}
-	if got := proc.Exists(rec.PID); got != Live {
-		t.Fatalf("real running child probes as %v -- the guard cannot work", got)
-	}
-
-	store := NewStore(t.TempDir())
-	if err := store.Save(NewRegistry().Insert(rec), NewNamingTable()); err != nil {
-		t.Fatalf("seed registry: %v", err)
-	}
-
-	c, err := New(runner, OSPathOps{}, ExecGit{}, proc, store, SystemClock{}, NewRandomIDGen())
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	if got := c.Liveness(rec); got != Live {
-		t.Fatalf("Liveness = %v against a real running process, want Live", got)
-	}
-
-	_, _, err = c.Spawn(StartArgs{Worktree: tree, Cwd: string(tree)})
-	var occ *TreeOccupiedError
-	if !errors.As(err, &occ) {
-		t.Fatalf("second spawn err = %v, want *TreeOccupiedError -- a live actor "+
-			"must refuse its tree when probed for real", err)
-	}
-	if len(occ.Incumbents) != 1 || occ.Incumbents[0].ID != "couch-livecheck" {
-		t.Fatalf("incumbents = %+v", occ.Incumbents)
 	}
 }

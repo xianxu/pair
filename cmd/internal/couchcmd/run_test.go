@@ -20,6 +20,10 @@ type testRT struct {
 	runner *couchcore.FakeRunner
 	proc   *couchcore.FakeProcOps
 	git    *couchcore.FakeGit
+	// ids is shared across invocations. Minting a fresh generator per
+	// NewCouch restarts the sequence, so two starts both produce couch-ah8d
+	// and no CLI test can hold two distinguishable actors.
+	ids couchcore.IDGen
 }
 
 func (t testRT) Getenv(string) string { return "" }
@@ -28,7 +32,7 @@ func (t testRT) StoreDir() string     { return t.dir }
 func (t testRT) NewCouch() (*couchcore.Couch, error) {
 	return couchcore.New(
 		t.runner, couchcore.NewFakePathOps(nil), t.git, t.proc,
-		couchcore.NewStore(t.dir), couchcore.FixedClock{}, couchcore.NewFixedIDGen("ah8d", "b2c1"),
+		couchcore.NewStore(t.dir), couchcore.FixedClock{}, t.ids,
 	)
 }
 
@@ -49,6 +53,7 @@ func newRT(t *testing.T, trees ...string) testRT {
 		runner: runner,
 		proc:   couchcore.NewFakeProcOps(),
 		git:    couchcore.NewFakeGit(replies),
+		ids:    couchcore.NewFixedIDGen("ah8d", "b2c1", "c3d2", "e4f5"),
 	}
 }
 
@@ -274,5 +279,44 @@ func TestStopReportsWhetherItActuallySignalled(t *testing.T) {
 	}
 	if !strings.Contains(out, "signalled") {
 		t.Fatalf("out = %q; stop must say it signalled a live child", out)
+	}
+}
+
+func TestGuardBypassCannotBindPositionally(t *testing.T) {
+	// BR-31. `couch start /repo true` bound "true" to same-tree and silently
+	// disabled the one-agent-per-tree refusal.
+	rt := newRT(t, "/repo")
+	if _, errw, code := runRT(rt, "start", "/repo"); code != 0 {
+		t.Fatalf("first start: %s", errw)
+	}
+	rt.markLive(t)
+
+	_, errw, code := runRT(rt, "start", "/repo", "true")
+	if code == 0 {
+		t.Fatal("a positional word must not enable --same-tree and bypass the guard")
+	}
+	if !strings.Contains(errw, "unexpected argument") && !strings.Contains(errw, "already has an agent") {
+		t.Fatalf("stderr = %q", errw)
+	}
+
+	// The explicit flag still works.
+	if _, errw, code := runRT(rt, "start", "/repo", "--same-tree"); code != 0 {
+		t.Fatalf("--same-tree refused: %s", errw)
+	}
+}
+
+func TestOptionalPositionalArgsStillBind(t *testing.T) {
+	// The rule is "guard bypasses are flag-only", NOT "optional args never
+	// bind" -- the broader version broke `couch describe <ref> <text>`.
+	rt := newRT(t, "/repo")
+	if _, errw, code := runRT(rt, "name", "/repo", "thing"); code != 0 {
+		t.Fatalf("name: %s", errw)
+	}
+	if _, errw, code := runRT(rt, "describe", "thing", "what it is doing"); code != 0 {
+		t.Fatalf("describe with a positional description: %s", errw)
+	}
+	out, _, _ := runRT(rt, "describe", "thing")
+	if !strings.Contains(out, "what it is doing") {
+		t.Fatalf("out = %q", out)
 	}
 }
