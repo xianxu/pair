@@ -299,3 +299,59 @@ Also queued for the M2 smoke: `workshop/projects/couch.md` asserts "`couch stop`
 is a kill, not a park." If `Stop` signals the zellij *client*, the session
 detaches and the work survives -- a park. Whichever it is, the project record
 gets corrected from an observation rather than left as an unverified invariant.
+
+### 2026-08-22 -- M1 built: ptychild + hostty, with pair term migrated onto both
+
+Two packages, extracted from `termcmd`'s multiplexer rather than written a
+second time for couch:
+
+- **`cmd/internal/ptychild`** -- the child half. `Ring` (bounded replay window),
+  `StripQueries` (#127's deny-list, moved not copied), `Screen` (one scanner
+  over child output), `Child` (pty + read pump), `NewFakeChild` (the stateful
+  double).
+- **`cmd/internal/hostty`** -- the host half. `Host` seam over the operator's
+  terminal, `OSHost`, `FakeHost`, and the terminal-control constants. `\x1b[r`
+  was about to exist in two packages; it exists in one.
+
+**Three things the extraction fixed rather than merely moved:**
+
+- `Ring`'s trim now COPIES instead of re-slicing. termcmd's version left the
+  slice pointing into the middle of its backing array, so bounded memory
+  depended on `append` happening to reallocate. `Snapshot` reports the window,
+  so the unbounded version was invisible from outside -- the test pins `cap()`.
+- `Screen` sees sequences SPLIT ACROSS READS. `updateMouseMode` scanned each
+  chunk independently, so a mouse-mode sequence bisected by a pty read boundary
+  was missed. Every one of its cases ported, plus the split-read case it could
+  not pass.
+- BEL is framed, not grepped. Every title change ends in BEL, so the status
+  row's one activity signal would have fired on every nvim buffer switch.
+
+**Tests edited, and why none is a behaviour change** (the plan's rule is that an
+edited test IS one until justified):
+
+- `TestUpdateMouseMode` -> ported to `ptychild.TestScreenMouseMode`, all cases.
+- `TestRedrawSnapshotIsRaceFree` -> moved to `ptychild`, where the mutex now is.
+  Asserting it in termcmd would test a call into a lock it does not own.
+- Five `terminalTab` literals built `os.Pipe` scaffolding purely to populate a
+  `pty` field that no longer exists; two that needed ring content now use
+  `ptychild.NewFakeChild`.
+
+**Verified:** whole tree `go test ./cmd/...` and `-race` green; `make build`;
+`make test-term-pane-shortcuts` green; fuzz 595k execs on `FuzzScreenFeed` and
+3.5M on `FuzzStripQueries`, no panics.
+
+**Deletion checks run** (each mutation confirmed the named test goes red): ring
+trim, ring snapshot aliasing, `StripQueries` neutered (termcmd's
+`TestRedrawTabEmitsNoQueries` goes red -- so termcmd still pins the behaviour
+through the new call), the `?1049` alt-screen case, the private-introducer
+discrimination on `r`, BEL counted inside OSC, `pty.Setsize` removed, and
+ring-updated-after-sink.
+
+**Environment note:** the command sandbox blocks `pty.Start`, so every
+pty-backed test in `ptychild`, `termcmd` and (from M2) `couchtty` must run
+unsandboxed. A sandboxed green on those packages is not evidence.
+
+**M1 is not closable yet:** Task 1.5's operator smoke of `pair term` -- two
+tabs, switch, resize the window, `nvim` in one and switch away and back -- is
+the daily-driver regression net that unit tests do not cover. It needs the
+operator.
