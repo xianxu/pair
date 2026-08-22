@@ -97,6 +97,17 @@ func (r Registry) RegisterWithPolicy(a ActorRecord, p PolicyTable) (Registry, er
 	return next, nil
 }
 
+// Insert adds a record without consulting the guard. It exists for replay:
+// Store.Load must reproduce what was persisted, including a co-tenant pair,
+// without either tripping the refusal or fabricating SameTree on records that
+// never used the escape hatch.
+func (r Registry) Insert(a ActorRecord) Registry {
+	next := Registry{byTree: r.copyMap()}
+	key := a.Args.Worktree.Key()
+	next.byTree[key] = append(next.byTree[key], a)
+	return next
+}
+
 func (r Registry) Unregister(w Worktree) Registry {
 	next := Registry{byTree: r.copyMap()}
 	delete(next.byTree, w.Key())

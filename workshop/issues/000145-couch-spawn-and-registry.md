@@ -120,7 +120,9 @@ way they do today.
       cached; neither load-bearing.
 - [x] Per-repo concurrency policy source (recorded file, not a constant).
 - [x] Queryable-state + callable-operation surface, with the operation-set audit.
-- [x] Operator smoke: host one real `pair` child (settles the layering fork).
+- [ ] Operator smoke: only step 1 of 5 was run (hosting a real `pair` child,
+      which settled the layering fork). The second-shell read path, the refusal
+      offer and the kbench-subdirectory case remain unexercised by the operator.
 
 ## Log
 
@@ -291,3 +293,55 @@ Attribution warnings on the measurement: ~44m attributed to #145 and ~15m to
 #146 by mention-fallback, plus ~58m unattributed, all in the 15:35→16:34 band.
 The number is measured rather than typed, so it is adopted as-is, but it is
 softer than a clean commit-boundary attribution would be.
+
+### 2026-08-21 — close review REWORK, addressed
+
+Boundary review returned REWORK with 12 blocking findings. It reproduced them
+against the built binary, injected an undeclared `couch nuke` branch to prove
+the operation audit vacuous, and restored the pre-fix `ExecRunner` to prove the
+liveness fix undefended. All 12 are addressed, each with a regression test whose
+failure was verified by reverting the fix.
+
+The three Criticals were real and related. **The guard never consulted
+liveness**, so since `couch start` blocks and nothing unregisters on exit, the
+ordinary end of a session left a dead record refusing its own tree forever;
+`Spawn` now prunes records whose identity no longer matches before the guard
+runs. **`couch stop` never signalled anything** -- it called `Forget`, which
+freed the tree while the agent kept running, opening the exact hazard the
+registry closes; `Stop` now signals SIGTERM through a new `ProcOps.Signal`,
+re-checking the identity token first because SIGTERM to a recycled PID is not
+recoverable, and only then forgets. **`show <ref>` ignored its argument** --
+`Summarize` took a filter and then folded in every record, so it printed what
+`list` printed; the old test passed only because its fixture had one tree.
+
+The finding that matters most for how the rest shipped is BR-7: `couchcmd`
+constructed production seams inline, so no test could reach start, stop or the
+refusal rendering. That is why three Criticals got through. `Runtime` now
+supplies the domain, and driving the CLI over fakes immediately surfaced a
+second design fact -- `couch start` blocks on `Handle.Wait`, so a fake child
+that never exits hangs a test rather than failing it. `FakeRunner.AutoExit`
+models completion.
+
+BR-6 deserves naming. The audit compared `Dispatch()` against `OperationNames()`,
+both derived from `Operations()` -- two views of one source, structurally unable
+to fail. I had run a deletion check on it and got red, but only by hand-injecting
+an entry that real code cannot produce. Having written a lesson this session
+titled "a test that survives deleting the seam it names tests nothing", I then
+shipped exactly that and called it structural. It now drives the CLI itself and
+catches the reviewer's `couch nuke` attack; its comment states plainly what it
+does and does not guarantee.
+
+Also fixed: `Store.Load` fabricated `same_tree=true` on replay and the next Save
+persisted it, so no reader could tell who used the escape hatch (`Registry.Insert`
+now replays without the guard); an unreadable registry read as a first run and
+was then destroyed (`fs.ErrNotExist` is now distinguished from real IO errors);
+the zombie fix was pinned only by an opt-in gate (a default-suite test now polls
+`Alive()` after `sh -c 'exit 0'` without calling `Wait`); the description cache
+had no source (`publish-description` plus `COUCH_TREE`/`COUCH_STORE_DIR` on the
+child give the agent a way to write its own line); the atlas described an actor
+loop nothing instantiates; the README still claimed a single binary.
+
+And BR-12, which is the one to remember: the operator smoke was ticked after
+step 1 of 5. **Two of the four unrun steps are exactly where BR-1 and BR-3
+live** -- a second-shell `couch list` and a repeat `couch start` would have
+surfaced both. The checkbox is now unticked and says which steps ran.

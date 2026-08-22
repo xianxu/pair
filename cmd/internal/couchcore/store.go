@@ -2,7 +2,9 @@ package couchcore
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -27,6 +29,10 @@ type Store struct {
 }
 
 func NewStore(dir string) Store { return Store{dir: dir} }
+
+// Dir is where couch keeps its state. Exported so a spawned child can be told
+// where to publish its description.
+func (s Store) Dir() string { return s.dir }
 
 func (s Store) registryPath() string { return filepath.Join(s.dir, "registry.json") }
 func (s Store) policyPath() string   { return filepath.Join(s.dir, "policy.json") }
@@ -58,16 +64,18 @@ func (s Store) Save(reg Registry, names NamingTable) error {
 func (s Store) Load() (Registry, NamingTable, PolicyTable, error) {
 	reg, names := NewRegistry(), NewNamingTable()
 
-	if raw, err := s.fs.ReadFile(s.registryPath()); err == nil {
+	raw, err := s.fs.ReadFile(s.registryPath())
+	switch {
+	case err == nil:
 		var snap snapshot
 		if err := json.Unmarshal([]byte(raw), &snap); err != nil {
 			return reg, names, PolicyTable{}, fmt.Errorf("decode snapshot: %w", err)
 		}
 		for _, a := range snap.Actors {
-			// SameTree is honoured on replay so a co-tenant pair recorded
-			// under the escape hatch survives a restart.
-			a.Args.SameTree = true
-			reg, _ = reg.Register(a)
+			// Insert, not Register: replay must reproduce what was persisted
+			// without tripping the guard AND without rewriting SameTree, which
+			// is the only record of who actually used the escape hatch.
+			reg = reg.Insert(a)
 		}
 		for _, e := range snap.Names {
 			if e.Name != "" {
@@ -77,13 +85,25 @@ func (s Store) Load() (Registry, NamingTable, PolicyTable, error) {
 				names = names.SetDescription(e.Tree, e.Description)
 			}
 		}
+	case errors.Is(err, fs.ErrNotExist):
+		// A first run is not a failure.
+	default:
+		// Anything else -- permissions, IO -- must NOT read as an empty
+		// registry, or the next Save silently overwrites a snapshot we simply
+		// failed to read.
+		return reg, names, PolicyTable{}, fmt.Errorf("read snapshot: %w", err)
 	}
 
 	pol := PolicyTable{}
-	if raw, err := s.fs.ReadFile(s.policyPath()); err == nil {
-		if err := json.Unmarshal([]byte(raw), &pol); err != nil {
+	switch praw, perr := s.fs.ReadFile(s.policyPath()); {
+	case perr == nil:
+		if err := json.Unmarshal([]byte(praw), &pol); err != nil {
 			return reg, names, PolicyTable{}, fmt.Errorf("decode policy: %w", err)
 		}
+	case errors.Is(perr, fs.ErrNotExist):
+		// No recorded policy: every repo defaults to in-place-serial.
+	default:
+		return reg, names, PolicyTable{}, fmt.Errorf("read policy: %w", perr)
 	}
 	return reg, names, pol, nil
 }

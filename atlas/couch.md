@@ -64,9 +64,14 @@ Within one process, `ExecRunner` reaps its children in a background goroutine
 and liveness is a closed channel — **not** `kill -0`, which succeeds for a
 zombie and would report an exited-but-unreaped child as running.
 
-## Actor loop
+## Actor loop — built, unit-tested, not yet instantiated
 
-One goroutine per actor, holding a bounded mailbox. `Enqueue` is a pure function
+`Actor` exists and is tested, but **no command starts one**: `Couch.Spawn`
+launches a child and returns. It is groundwork for `pair#147`, where messages
+between actors begin to exist. Described here because the design constraints are
+the interesting part, not because a running couch has one.
+
+The intended shape is one goroutine per actor, holding a bounded mailbox. `Enqueue` is a pure function
 (collapse by kind, drop the oldest non-control entry over capacity, never drop
 control) so the policy is testable without goroutines. The loop drains
 control-first.

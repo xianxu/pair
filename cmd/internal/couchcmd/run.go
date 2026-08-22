@@ -26,6 +26,14 @@ import (
 type Runtime interface {
 	Getenv(string) string
 	StoreDir() string
+	// NewCouch builds the domain with its seams.
+	//
+	// It is on the Runtime rather than inline in RunWithRuntime because
+	// otherwise production and test flow do not share this boundary: with
+	// ExecRunner and friends hard-wired here, no test could reach start, stop
+	// or the refusal rendering. Three Critical findings shipped through that
+	// gap at close review (ARCH-MOCK).
+	NewCouch() (*couchcore.Couch, error)
 }
 
 type OSRuntime struct{}
@@ -44,6 +52,14 @@ func (r OSRuntime) StoreDir() string {
 	return filepath.Join(launcher.ResolveDataDir(r.Getenv("HOME"), r.Getenv("XDG_DATA_HOME")), "couch")
 }
 
+func (r OSRuntime) NewCouch() (*couchcore.Couch, error) {
+	return couchcore.New(
+		couchcore.ExecRunner{}, couchcore.OSPathOps{}, couchcore.ExecGit{},
+		couchcore.OSProcOps{}, couchcore.NewStore(r.StoreDir()),
+		couchcore.SystemClock{}, couchcore.NewRandomIDGen(),
+	)
+}
+
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return RunWithRuntime(args, stdin, stdout, stderr, OSRuntime{})
 }
@@ -52,6 +68,13 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 // deliberately no argv switch: the audit asserts this table's key set is
 // identical to the declared operation set, so an operation reachable here but
 // never declared cannot exist.
+// Resolve is the single lookup the CLI performs. Exported so a test can assert
+// that the set of names it accepts is exactly the declared set.
+func Resolve(name string) (couchcore.Operation, bool) {
+	op, ok := Dispatch()[name]
+	return op, ok
+}
+
 func Dispatch() map[string]couchcore.Operation {
 	out := map[string]couchcore.Operation{}
 	for _, op := range couchcore.Operations() {
@@ -66,7 +89,11 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		usage(stdout, table)
 		return 0
 	}
-	op, ok := table[args[0]]
+	// Resolution is table-only. There is deliberately no switch here: an
+	// operation reachable from the CLI but absent from couchcore.Operations()
+	// would be invisible to the advisor in pair#148, and a reviewer proved a
+	// hand-added branch ahead of this lookup went undetected.
+	op, ok := Resolve(args[0])
 	if !ok {
 		fmt.Fprintf(stderr, "couch: unknown operation %q\n\n", args[0])
 		usage(stderr, table)
@@ -74,16 +101,17 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 	}
 
 	parsed, err := bindArgs(op, args[1:])
+	// $COUCH_TREE is how a spawned child knows which tree it is, so an agent
+	// can publish a description without being told twice.
+	if op.Name == "publish-description" && parsed != nil && parsed["tree"] == "" {
+		parsed["tree"] = rt.Getenv("COUCH_TREE")
+	}
 	if err != nil {
 		fmt.Fprintf(stderr, "couch %s: %v\n", op.Name, err)
 		return 2
 	}
 
-	c, err := couchcore.New(
-		couchcore.ExecRunner{}, couchcore.OSPathOps{}, couchcore.ExecGit{},
-		couchcore.OSProcOps{}, couchcore.NewStore(rt.StoreDir()),
-		couchcore.SystemClock{}, couchcore.NewRandomIDGen(),
-	)
+	c, err := rt.NewCouch()
 	if err != nil {
 		fmt.Fprintf(stderr, "couch: %v\n", err)
 		return 1
@@ -144,8 +172,12 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 		renderTrees(w, v)
 	case couchcore.Worktree:
 		fmt.Fprintf(w, "%s\n", v)
-	case couchcore.ActorRecord:
-		fmt.Fprintf(w, "stopped %s on %s\n", v.ID, v.Args.Worktree)
+	case couchcore.StopResult:
+		if v.Signalled {
+			fmt.Fprintf(w, "signalled %s on %s (pid %d)\n", v.Record.ID, v.Record.Args.Worktree, v.Record.PID)
+		} else {
+			fmt.Fprintf(w, "forgot %s on %s -- it was not running\n", v.Record.ID, v.Record.Args.Worktree)
+		}
 	case string:
 		if v == "" {
 			fmt.Fprintln(w, "(no description)")

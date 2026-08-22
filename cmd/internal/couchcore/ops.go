@@ -30,6 +30,14 @@ type StartResult struct {
 	Handle Handle
 }
 
+// StopResult reports what stopping actually did: a record for an already-dead
+// actor is forgotten without a signal, and saying so avoids implying a running
+// agent was terminated.
+type StopResult struct {
+	Record    ActorRecord
+	Signalled bool
+}
+
 // ActorView is a record plus the state that must be computed rather than
 // stored -- liveness, and whatever the operator or the agent has called it.
 type ActorView struct {
@@ -91,7 +99,11 @@ func Operations() []Operation {
 				if len(recs) != 1 {
 					return nil, fmt.Errorf("%q matches %d actors; be specific", a["ref"], len(recs))
 				}
-				return recs[0], c.Forget(recs[0].Args.Worktree, recs[0].ID)
+				signalled, err := c.Stop(recs[0])
+				if err != nil {
+					return nil, err
+				}
+				return StopResult{Record: recs[0], Signalled: signalled}, nil
 			},
 		},
 		{
@@ -125,6 +137,25 @@ func Operations() []Operation {
 					return w, c.SetDescription(w, d)
 				}
 				return c.Describe(w), nil
+			},
+		},
+		{
+			Name:    "publish-description",
+			Summary: "Publish this session's own one-line description (run by the agent, inside its tree)",
+			Args: []ArgSpec{
+				{Name: "description", Summary: "what this session is working on", Required: true},
+				{Name: "tree", Summary: "tree to publish for; defaults to $COUCH_TREE", Required: false},
+			},
+			Invoke: func(c *Couch, a map[string]string) (any, error) {
+				ref := a["tree"]
+				if ref == "" {
+					return nil, fmt.Errorf("no tree given and $COUCH_TREE is unset -- run this inside a couch-spawned session")
+				}
+				w, err := c.treeFor(ref)
+				if err != nil {
+					return nil, err
+				}
+				return w, c.PublishDescription(w, a["description"])
 			},
 		},
 	}

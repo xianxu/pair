@@ -49,6 +49,17 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	}
 	args.Worktree = tree
 
+	// Drop records whose process is gone BEFORE consulting the guard.
+	//
+	// Without this the guard refuses on registry membership alone, and since
+	// `couch start` blocks until the child exits and nothing unregisters on
+	// exit, the ordinary end of a session leaves a dead record that refuses
+	// its tree forever. The registry is a cache of what is running, so a
+	// record whose identity no longer matches is not evidence of anything.
+	if err := c.PruneDead(); err != nil {
+		return ActorRecord{}, nil, err
+	}
+
 	// The guard is evaluated before anything is forked: a refused spawn must
 	// not leave a stray child behind.
 	if err := c.reg.CheckAvailable(tree, args.SameTree, c.policy); err != nil {
@@ -56,7 +67,15 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	}
 
 	argv := append([]string{"pair", "--layout2"}, args.ExtraArgs...)
-	h, err := c.Runner.Start(args.WorkingDir(), argv, nil)
+	// The child is told which tree it is and where couch keeps state, so the
+	// agent inside it can publish its own one-line description. Without this
+	// the description cache has no source: an operator typing `couch describe`
+	// is not "agent-supplied".
+	env := []string{
+		"COUCH_TREE=" + string(tree),
+		"COUCH_STORE_DIR=" + c.Store.Dir(),
+	}
+	h, err := c.Runner.Start(args.WorkingDir(), argv, env)
 	if err != nil {
 		return ActorRecord{}, nil, fmt.Errorf("spawn %s: %w", tree, err)
 	}
@@ -225,12 +244,20 @@ func (c *Couch) Summarize(trees []Worktree) []TreeSummary {
 		return s
 	}
 
+	// A non-empty filter RESTRICTS the result. Folding in every registry
+	// record regardless would make the argument additive only, so `show <ref>`
+	// would print exactly what `list` prints.
+	want := map[string]bool{}
 	for _, w := range trees {
+		want[w.Key()] = true
 		add(w)
 	}
 	for _, r := range c.reg.Records() {
-		s := add(r.Args.Worktree)
-		s.Actors = append(s.Actors, c.Views([]ActorRecord{r})...)
+		if len(want) > 0 && !want[r.Args.Worktree.Key()] {
+			continue
+		}
+		sum := add(r.Args.Worktree)
+		sum.Actors = append(sum.Actors, c.Views([]ActorRecord{r})...)
 	}
 	if len(trees) == 0 {
 		for _, e := range c.names.All() {
@@ -244,4 +271,53 @@ func (c *Couch) Summarize(trees []Worktree) []TreeSummary {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Tree < out[j].Tree })
 	return out
+}
+
+// PruneDead removes records whose process is gone and persists the result.
+//
+// Liveness is recomputed rather than stored, so the registry accumulates
+// records for children that have exited. Pruning is what keeps the
+// one-agent-per-tree guard meaningful: without it the guard protects a tree
+// against a process that no longer exists.
+func (c *Couch) PruneDead() error {
+	var dead []ActorRecord
+	for _, r := range c.reg.Records() {
+		if !c.IsLive(r) {
+			dead = append(dead, r)
+		}
+	}
+	if len(dead) == 0 {
+		return nil
+	}
+	for _, r := range dead {
+		c.reg = c.reg.RemoveActor(r.Args.Worktree, r.ID)
+	}
+	return c.Store.Save(c.reg, c.names)
+}
+
+// Stop signals an actor's child and then forgets it.
+//
+// Order matters and is the opposite of what it was: forgetting first would
+// free the tree while the agent kept running, so the next `couch start` would
+// be allowed and two agents would share one index lock and one branch --
+// opening the exact hazard the registry exists to close.
+//
+// The identity token is re-checked immediately before signalling, because a
+// stale record's PID may have been recycled by an unrelated process and
+// SIGTERM to the wrong pid is not recoverable.
+func (c *Couch) Stop(a ActorRecord) (signalled bool, err error) {
+	if c.IsLive(a) {
+		if err := c.Proc.Signal(a.PID, TermSignal); err != nil {
+			return false, fmt.Errorf("stop %s: %w", a.ID, err)
+		}
+		signalled = true
+	}
+	return signalled, c.Forget(a.Args.Worktree, a.ID)
+}
+
+// PublishDescription is the agent-facing half of the description: a session
+// running inside a tree writes its own one-liner, which Describe then prefers
+// over anything the operator typed.
+func (c *Couch) PublishDescription(w Worktree, text string) error {
+	return c.Store.WriteDescription(w, text)
 }

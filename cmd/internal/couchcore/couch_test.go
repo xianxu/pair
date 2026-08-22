@@ -38,6 +38,19 @@ func newTestEnv(t *testing.T, trees ...string) *testEnv {
 	return &testEnv{Couch: c, Runner: r, Git: g, Proc: proc, Dir: dir, Now: now}
 }
 
+// spawn spawns and then marks the child live in FakeProcOps, which is what a
+// real process would be. Tests that skip this are modelling a DEAD actor --
+// which is a legitimate scenario, just not the default one.
+func (e *testEnv) spawn(t *testing.T, args StartArgs) (ActorRecord, Handle) {
+	t.Helper()
+	rec, h, err := e.Couch.Spawn(args)
+	if err != nil {
+		t.Fatalf("Spawn: %v", err)
+	}
+	e.Proc.Set(rec.PID, rec.Identity)
+	return rec, h
+}
+
 func (e *testEnv) cannedTree(tree, cwd string) {
 	e.Git.replies[GitCall{Dir: cwd, Args: "rev-parse --show-toplevel"}] = tree
 }
@@ -83,9 +96,7 @@ func TestSpawnStartsInASubdirectoryButRegistersTheTree(t *testing.T) {
 
 func TestRefusedSpawnStartsNoProcess(t *testing.T) {
 	env := newTestEnv(t, "/repo")
-	if _, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"}); err != nil {
-		t.Fatalf("first: %v", err)
-	}
+	env.spawn(t, StartArgs{Worktree: "/repo"})
 	before := len(env.Runner.Ops)
 	_, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
 	var occ *TreeOccupiedError
@@ -102,10 +113,7 @@ func TestSnapshotIsOnDiskWhileTheChildIsStillAlive(t *testing.T) {
 	// Wait a second shell running `couch list` would see nothing for the whole
 	// session -- which is most of the time.
 	env := newTestEnv(t, "/repo")
-	_, h, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
-	if err != nil {
-		t.Fatalf("Spawn: %v", err)
-	}
+	_, h := env.spawn(t, StartArgs{Worktree: "/repo"})
 	if !h.Alive() {
 		t.Fatal("child should still be running")
 	}
@@ -137,11 +145,7 @@ func TestSpawnFailureLeavesTheTreeFree(t *testing.T) {
 
 func TestIsLiveRejectsARecycledPID(t *testing.T) {
 	env := newTestEnv(t, "/repo")
-	rec, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
-	if err != nil {
-		t.Fatalf("Spawn: %v", err)
-	}
-	env.Proc.Set(rec.PID, rec.Identity)
+	rec, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
 	if !env.Couch.IsLive(rec) {
 		t.Fatal("a running actor must read as live")
 	}
@@ -158,7 +162,7 @@ func TestIsLiveRejectsARecycledPID(t *testing.T) {
 
 func TestResolveRefFindsActorsByOperatorName(t *testing.T) {
 	env := newTestEnv(t, "/repo")
-	rec, _, _ := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
+	rec, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
 	if err := env.Couch.SetName("/repo", "refactor thing"); err != nil {
 		t.Fatalf("SetName: %v", err)
 	}
@@ -173,7 +177,7 @@ func TestResolveRefFindsActorsByOperatorName(t *testing.T) {
 
 func TestNameAndDescriptionChangeMidSession(t *testing.T) {
 	env := newTestEnv(t, "/repo")
-	_, _, _ = env.Couch.Spawn(StartArgs{Worktree: "/repo"})
+	env.spawn(t, StartArgs{Worktree: "/repo"})
 	_ = env.Couch.SetName("/repo", "first")
 	_ = env.Couch.SetName("/repo", "second")
 	if got, _, err := env.Couch.ResolveRef("second"); err != nil || len(got) != 1 {
@@ -193,26 +197,218 @@ func TestNameSurvivesActorReplacement(t *testing.T) {
 	// a new one is spawned. The name must still resolve, because it hangs off
 	// the tree rather than the incarnation.
 	env := newTestEnv(t, "/repo")
-	first, h, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
-	if err != nil {
-		t.Fatalf("Spawn: %v", err)
-	}
+	first, h := env.spawn(t, StartArgs{Worktree: "/repo"})
 	_ = env.Couch.SetName("/repo", "long lived")
 
 	env.Runner.SetExited(h.ID(), 0)
+	env.Proc.Kill(first.PID)
 	if err := env.Couch.Forget("/repo", first.ID); err != nil {
 		t.Fatalf("Forget: %v", err)
 	}
 
-	second, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
-	if err != nil {
-		t.Fatalf("respawn: %v", err)
-	}
+	second, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
 	if second.ID == first.ID {
 		t.Fatal("the revival must be a new incarnation")
 	}
 	got, _, err := env.Couch.ResolveRef("long lived")
 	if err != nil || len(got) != 1 || got[0].ID != second.ID {
 		t.Fatalf("name lost across revival: %+v %v", got, err)
+	}
+}
+
+// --- close-review regressions: each of these fails against the shipped code ---
+
+func TestDeadActorDoesNotBlockItsTreeForever(t *testing.T) {
+	// BR-1. `couch start` blocks until the child exits and nothing unregisters
+	// on exit, so the ORDINARY end of a session used to leave a record that
+	// refused its own tree permanently.
+	env := newTestEnv(t, "/repo")
+	first, h := env.spawn(t, StartArgs{Worktree: "/repo"})
+
+	env.Runner.SetExited(h.ID(), 0)
+	env.Proc.Kill(first.PID) // the process is gone; the record is not
+
+	second, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
+	if err != nil {
+		t.Fatalf("a dead actor still refused its tree: %v", err)
+	}
+	if second.ID == first.ID {
+		t.Fatal("expected a fresh incarnation")
+	}
+	if got := env.Couch.Get("/repo"); len(got) != 1 {
+		t.Fatalf("tree holds %d actors; the dead one should have been pruned", len(got))
+	}
+}
+
+func TestLiveActorStillBlocksItsTree(t *testing.T) {
+	// The complement of BR-1: pruning must not weaken the guard.
+	env := newTestEnv(t, "/repo")
+	env.spawn(t, StartArgs{Worktree: "/repo"})
+	if _, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"}); err == nil {
+		t.Fatal("a live actor must still refuse its tree")
+	}
+}
+
+func TestStopSignalsTheChildBeforeForgettingIt(t *testing.T) {
+	// BR-2. Forgetting first frees the tree while the agent keeps running, so
+	// the next start is allowed and two agents share one index lock.
+	env := newTestEnv(t, "/repo")
+	rec, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
+
+	signalled, err := env.Couch.Stop(rec)
+	if err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	if !signalled {
+		t.Fatal("Stop must signal a live child, not merely forget it")
+	}
+	got := env.Proc.Signals[rec.PID]
+	if len(got) != 1 || got[0] != TermSignal {
+		t.Fatalf("signals = %v, want one SIGTERM", got)
+	}
+	if len(env.Couch.Get("/repo")) != 0 {
+		t.Fatal("the record should be gone after Stop")
+	}
+}
+
+func TestStopOnADeadActorForgetsWithoutSignalling(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	rec, h := env.spawn(t, StartArgs{Worktree: "/repo"})
+	env.Runner.SetExited(h.ID(), 0)
+	env.Proc.Kill(rec.PID)
+
+	signalled, err := env.Couch.Stop(rec)
+	if err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	if signalled {
+		t.Fatal("a dead actor must not be reported as signalled -- that implies a running agent was terminated")
+	}
+}
+
+func TestShowFilterRestrictsRatherThanAdds(t *testing.T) {
+	// BR-3. Summarize took a filter and then folded in every registry record,
+	// so `show <ref>` printed exactly what `list` printed. The old test passed
+	// only because its fixture had a single tree.
+	env := newTestEnv(t, "/repo", "/other")
+	env.spawn(t, StartArgs{Worktree: "/repo"})
+	env.spawn(t, StartArgs{Worktree: "/other"})
+
+	got := env.Couch.Summarize([]Worktree{"/repo"})
+	if len(got) != 1 {
+		var trees []Worktree
+		for _, s := range got {
+			trees = append(trees, s.Tree)
+		}
+		t.Fatalf("Summarize([/repo]) returned %v; a filter must restrict, not add", trees)
+	}
+	if got[0].Tree != "/repo" {
+		t.Fatalf("returned %q", got[0].Tree)
+	}
+	if len(env.Couch.Summarize(nil)) != 2 {
+		t.Fatal("an empty filter must still list everything")
+	}
+}
+
+func TestReplayPreservesSameTreeExactly(t *testing.T) {
+	// BR-4. Load used to set SameTree=true on every record to dodge its own
+	// re-register refusal, and the next Save persisted the lie -- after which
+	// no reader could tell which actors really used the escape hatch.
+	dir := t.TempDir()
+	s := NewStore(dir)
+	reg := NewRegistry().Insert(ActorRecord{ID: "plain", Args: StartArgs{Worktree: "/repo"}})
+	reg = reg.Insert(ActorRecord{ID: "hatch", Args: StartArgs{Worktree: "/repo", SameTree: true}})
+	if err := s.Save(reg, NewNamingTable()); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	loaded, names, _, err := s.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if err := s.Save(loaded, names); err != nil { // round two is where the lie used to stick
+		t.Fatalf("re-Save: %v", err)
+	}
+	again, _, _, _ := s.Load()
+
+	byID := map[ActorID]bool{}
+	for _, r := range again.Records() {
+		byID[r.ID] = r.Args.SameTree
+	}
+	if byID["plain"] {
+		t.Error("SameTree fabricated on a record that never used the escape hatch")
+	}
+	if !byID["hatch"] {
+		t.Error("SameTree lost on a record that did use it")
+	}
+}
+
+func TestUnreadableRegistryErrorsRatherThanReadingAsFirstRun(t *testing.T) {
+	// BR-5. Load discarded every ReadFile error, so an unreadable snapshot
+	// looked like a fresh install and the next Save destroyed it.
+	dir := t.TempDir()
+	s := NewStore(dir)
+	if err := s.Save(NewRegistry().Insert(ActorRecord{ID: "a", Args: StartArgs{Worktree: "/repo"}}), NewNamingTable()); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if err := os.Chmod(filepath.Join(dir, "registry.json"), 0o000); err != nil {
+		t.Skipf("cannot chmod in this environment: %v", err)
+	}
+	defer func() { _ = os.Chmod(filepath.Join(dir, "registry.json"), 0o644) }()
+
+	if _, _, _, err := s.Load(); err == nil {
+		t.Fatal("an unreadable registry must error, not read as an empty one")
+	}
+}
+
+func TestAliveIsFalseForAnExitedChildWithoutCallingWait(t *testing.T) {
+	// BR-8. This pins the reaper in the DEFAULT suite. procutil.Alive is
+	// `kill -0`, which succeeds for a zombie, so the pre-fix implementation
+	// reported an exited-but-unreaped child as running.
+	h, err := ExecRunner{}.Start(t.TempDir(), []string{"sh", "-c", "exit 0"}, nil)
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if !h.Alive() {
+			return // reaped without anyone calling Wait
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	t.Fatal("Alive() stayed true for an exited child -- a zombie is being reported as running")
+}
+
+func TestSpawnTellsTheChildWhichTreeItIs(t *testing.T) {
+	// BR-9. Without COUCH_TREE and COUCH_STORE_DIR the agent cannot publish a
+	// description, and Describe's cache has nothing to cache from.
+	env := newTestEnv(t, "/repo")
+	env.spawn(t, StartArgs{Worktree: "/repo"})
+	got := env.Runner.Child(env.Runner.order[0]).Env
+	var tree, store bool
+	for _, kv := range got {
+		if kv == "COUCH_TREE=/repo" {
+			tree = true
+		}
+		if len(kv) > len("COUCH_STORE_DIR=") && kv[:len("COUCH_STORE_DIR=")] == "COUCH_STORE_DIR=" {
+			store = true
+		}
+	}
+	if !tree || !store {
+		t.Fatalf("child env = %v; needs COUCH_TREE and COUCH_STORE_DIR", got)
+	}
+}
+
+func TestDescribePrefersTheAgentsPublishedLineOverTheOperators(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	env.spawn(t, StartArgs{Worktree: "/repo"})
+	if err := env.Couch.SetDescription("/repo", "what the operator typed"); err != nil {
+		t.Fatalf("SetDescription: %v", err)
+	}
+	if err := env.Couch.PublishDescription("/repo", "what the agent is doing"); err != nil {
+		t.Fatalf("PublishDescription: %v", err)
+	}
+	if got := env.Couch.Describe("/repo"); got != "what the agent is doing" {
+		t.Fatalf("Describe = %q; the agent's own line must win", got)
 	}
 }

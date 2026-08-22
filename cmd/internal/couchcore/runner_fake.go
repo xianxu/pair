@@ -33,6 +33,7 @@ type FakeRunner struct {
 	children map[string]*FakeChild
 	order    []string
 	failNext error
+	autoExit *int
 	Ops      []string
 }
 
@@ -66,7 +67,24 @@ func (f *FakeRunner) Start(dir string, argv, env []string) (Handle, error) {
 	}
 	f.order = append(f.order, id)
 	f.Ops = append(f.Ops, "start "+dir+": "+joinArgs(argv))
+	if f.autoExit != nil {
+		c := f.children[id]
+		c.alive, c.code = false, *f.autoExit
+		close(c.done)
+	}
 	return &fakeHandle{runner: f, id: id}, nil
+}
+
+// AutoExit makes every subsequent Start return an already-exited child.
+//
+// It exists because `couch start` blocks on Handle.Wait for the child's
+// lifetime, which is right in production and makes a CLI test hang forever
+// against a fake that never finishes. Modelling "the child ran and exited" is
+// the honest way to drive that path.
+func (f *FakeRunner) AutoExit(code int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.autoExit = &code
 }
 
 // SetDiesOn scripts a child's disposition for one signal: receiving it exits
