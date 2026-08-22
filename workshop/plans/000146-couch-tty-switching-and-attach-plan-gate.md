@@ -101,7 +101,11 @@ rounds:
           note: Addressed by removal - Decision 5 drops the alt-screen branch entirely, keeps replay as the one mechanism, and records the nudge as a costed fallback.
           round: 2
       blocked: false
-content_hash: 453abe138ad06545e5e997fdb6f5f05d78f7f9c7dffe5aed0330cae6fbe7bd8f
+    - "n": 3
+      timestamp: "2026-08-22T12:55:21-07:00"
+      agent: claude
+      blocked: false
+content_hash: 78a38e32bd4655a0f60c40a301ea05bbd4b350e18d89bc96be522f0224355c4a
 ---
 
 # Gate ledger — pair#146 (plan-quality)
@@ -166,6 +170,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-3 — addressed — Decision 12 corrects the field list and injects the resolver rather than restating it; Task 3.2's deletion check fails on a re-implemented strings.Contains.
 - PQ-4 — addressed — Decision 1 states root actor = first child, path defaults to ".", the ordering that makes brain home, and the launching shell's fate; Task 3.5's smoke moves to that real configuration.
 - PQ-5 — addressed — Addressed by removal - Decision 5 drops the alt-screen branch entirely, keeps replay as the one mechanism, and records the nudge as a costed fallback.
+
+## Round 3 — 2026-08-22T12:55:21-07:00 (claude) — passed
 
 ## Open findings
 

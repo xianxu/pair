@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-08-21
 updated: 2026-08-22
-estimate_hours: 6.75
+estimate_hours: 9.33
 started: 2026-08-22T12:14:19-07:00
 ---
 
@@ -136,17 +136,25 @@ item: greenfield-go-module    design=0.5  impl=0.32
 item: smaller-go-module       design=0.1  impl=0.16
 item: smaller-go-module       design=0.1  impl=0.16
 item: smaller-go-module       design=0.1  impl=0.08
+item: smaller-go-module       design=0.1  impl=0.16
+item: real-api-discovery      design=0.0  impl=0.24
 item: real-api-discovery      design=0.0  impl=0.24
 item: milestone-review        design=0.0  impl=0.15
 item: tui-screen              design=0.3  impl=0.28
 item: smaller-go-module       design=0.1  impl=0.08
 item: smaller-go-module       design=0.1  impl=0.2
+item: smaller-go-module       design=0.0  impl=0.08
+item: real-api-discovery      design=0.0  impl=0.24
 item: milestone-review        design=0.0  impl=0.15
 item: smaller-go-module       design=0.1  impl=0.12
 item: smaller-go-module       design=0.1  impl=0.16
 item: atlas-docs              design=0.1  impl=0.06
+item: real-api-discovery      design=0.0  impl=0.16
 item: milestone-review        design=0.0  impl=0.15
-total: 6.75
+item: ux-rename-iteration     design=0.4  impl=0.1
+item: ux-rename-iteration     design=0.4  impl=0.1
+item: scope-pivot             design=0.3  impl=0.12
+total: 9.33
 ```
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
@@ -169,15 +177,43 @@ written down rather than left implied:
 | `smaller-go-module` ×2 | M3 `Focus`; N-children routing + replay in `Console` | pure model, then wiring onto seams M2 built. |
 | `smaller-go-module` ×2 | M4 `Notice`/`Feed` + row content; exits + restore-on-signal | `Feed` delegates to `couchcore.Enqueue`, so it is an extension rather than new logic. |
 | `atlas-docs` | M4 `atlas/couch.md` reconciliation | the atlas's "there is no pty yet" paragraphs are falsified by this issue. |
+| `smaller-go-module` ×1 | M2 Task 2.6 — `NewCouchWith`, the `no-console` `FlagOnly` arg, `path` defaulting to `.`, displacing `couchcmd/run.go:169-178` | two files nothing else in this table claims. |
+| `smaller-go-module` ×1 | M3 Task 3.4 — the panel-actions-are-a-subset-of-`Operations()` audit | design 0.0: the rule is already decided, this is the assertion. |
+| `real-api-discovery` ×4 | one per operator smoke, plus the reattach/park experiments | Task 2.7's rendering smoke; Task 2.7's **`kill -9` reattach + park-vs-kill determination** (a separate discovery — zellij's session lifecycle, not terminal rendering, and it ends in a correction to `workshop/projects/couch.md`); Task 3.5's real-configuration smoke, where Decision 5's replay-vs-nudge fallback is decided; Task 4.6's full-session smoke. |
+| `ux-rename-iteration` ×2 | two iteration rounds on the status row, the panel and the navigation feel | v2.1's known-limitations section says TUI features take 3–5 rounds, not 1. Two is budgeted rather than five because the Spec pre-settled the navigation rule (one key, up one level) — the rounds left are how the row and panel *read*. |
+| `scope-pivot` ×1 | Decision 4's disclosed DECSTBM fallback | expected-value budget for a **named, already-disclosed** risk, not a generic contingency: if the reserved row does not survive real children, the plan's own instruction is to take the fallback, which is a scope event. |
 | `milestone-review` ×4 | the M1/M2/M3 boundaries plus the issue close | one per `sdlc milestone-close` / `sdlc close`, which is exactly the four boundaries the Plan commits to. |
 
 **Read this as ship wall-clock, not calendar.** v3.1 writes `impl=` at 40% of the
 v2 table because post-#118 actuals came in near half of v2's implementation
-hours; the design column is unscaled. The number is deliberately *not* inflated
-to match intuition about a four-milestone terminal feature — that would be the
-back-fitting the estimate-quality gate exists to catch. The three operator
-smokes are the largest risk to it: if M2's smoke falsifies DECSTBM, Decision 4's
-fallback is a scope event, not a rounding error.
+hours; the design column is unscaled.
+
+**The number moved by decomposition, not by picking one.** Round 1 of this block
+totalled 6.75 and the estimate-quality gate was right that it was thin: two of
+three operator smokes were budgeted at zero, Task 2.6 had no item, and a TUI
+issue carried no iteration rounds. Adding the items the work actually contains
+took it to 9.33. The total was never the input — had the missing items summed to
+less, the number would have gone down.
+
+**Calibration signal, recorded now rather than argued at close.**
+`calibration-ledger.tsv:376` has `pair#145` — the immediate predecessor, same
+project, same operator, closed the same day — at **8.51h actual** with no
+estimate recorded. `:357` has `pair#139` at **5.83 estimated → 22.37 actual
+(ratio 0.26)** under this same v3.1 model, and `baseline-v3.1.md`'s open
+question 3 already flags the under-estimation direction. #146 is materially
+larger than #145 along every axis, so a total below 8.51 was not credible; 9.33
+is barely above it, and if this repo's terminal work keeps landing near #139's
+ratio the honest expectation is a miss on the high side. That is a v3.1
+calibration input, not a reason to inflate the block — the ledger learns from
+the gap, and hand-tuning the estimate to be right destroys exactly that signal.
+
+**`familiarity: 1.0` is kept, with the caveat named.** `termcmd` already does
+pty, raw mode, `SIGWINCH` and replay, so the tree is familiar for M1 and most of
+M3/M4. The scrolling-region reservation and the paste-aware interceptor are not,
+and v3.1 applies familiarity to *impl* — which is where a DECSTBM surprise would
+land. The block compensates on the design side (`couchtty design=0.5`,
+undiscounted) plus the `scope-pivot` item, rather than bending a global
+multiplier that would also lift the parts that genuinely are familiar.
 
 ## Log
 
