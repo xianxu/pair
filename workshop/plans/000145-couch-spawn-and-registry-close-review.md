@@ -629,3 +629,288 @@ findings:
       before the `if err != nil` check below it. Safe today only because of the
       `parsed != nil` guard; check err first.
 ```
+
+---
+
+## Re-review — 2026-08-22T10:10:37-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 145 — couch: spawn and registry |
+| repo | pair |
+| issue file | workshop/issues/000145-couch-spawn-and-registry.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 78a3a4b72dc1a8f7f6f308d4f8fe4591d63dd3bc^..d96bfd0743855447d8d22fabee0374e7770e4663 |
+| command | sdlc close --issue 145 |
+| reviewer | claude |
+| timestamp | 2026-08-22T10:10:37-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+I have everything I need. Writing the review.
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+All five round-2 Important findings are genuinely disposed, and the two with testable claims are pinned by tests I confirmed go red on revert rather than taken on the commit message: deleting `LookupTrees`' published-line branch reddens `TestAgentPublishedDescriptionResolvesNotJustDisplays`, and deleting `ResolveRef`'s `ActorID` branch reddens `TestCoTenantsAreAddressableByActorID`. The two structural fixes hold under measurement — `couchcmd` is green under `-race` in a pristine tree named `couchrev4` (BR-25's exact reproduction), and all 8 `fakeRuntime` methods that touch `f.files` now lock, enumerated rather than detector-driven (BR-26). The docs fix is the strongest available form: the atlas deletes the restatement rather than trying to keep a copy in sync. Nothing new is Critical and nothing on the shipped happy path is wrong. What I would fix before crossing: `couch start /repo true` **silently disables the one-agent-per-tree guard** — `same-tree` is declared as an optional `ArgSpec` and `bindArgs` binds every optional spec positionally (reproduced at the CLI: second start accepted, two records on one tree); the persisted `cwd` is the operator's relative path (`"cwd": "../pair"` in the live `registry.json`) in a record whose stated purpose is replay; the real-probe guard pin added by `c094baf` runs only under `PAIR_LIVE_COUCH=1`, which no target sets; and `testRT` mints a fresh `FixedIDGen` per CLI invocation, so every CLI-started actor is `couch-ah8d` and the BR-24 remedy cannot be tested where it lives. Eighteen prior Minors remain open and unaddressed.
+
+## 1. Strengths
+
+- **The two testable round-2 fixes are load-bearing, verified by revert.** I rebuilt HEAD in a scratch tree twice. Removing the `knownTrees()`/`Describe` loop from `LookupTrees` (`couch.go:186-194`) → `couch_test.go:493: ResolveRef: no actor or tree matches "composer"`. Removing the `ActorID` loop from `ResolveRef` (`couch.go:222-226`) → `couch_test.go:515: ResolveRef by id: no actor or tree matches "couch-b2c1"`. Neither is a test written to agree with its fix.
+- **BR-25 is fixed at the rule, not the instance.** `testRT` has no `fakes bool` fork left, and `grep` confirms no `couchcmd` test can name `ExecGit`/`OSPathOps`/`OSProcOps`/`ExecRunner` at all. I ran the suite from `/tmp/claude-501/couchrev4` — a checkout whose basename is not `pair` — under `-race`: green. That is the precise reproduction that failed last round.
+- **BR-26 was audited by enumeration.** `grep -n 'f\.files'` finds 10 sites across 8 methods; all 8 lock (`WriteAgentDefault` delegates through `WriteAtomic`). I traced the actual concurrent producer — `startAgentDefaultPersistence` (`createflow.go:556-563`) calls only `WaitReadyRecord` (reads immutable `readyErr`) and `WriteAgentDefault` — so the guarded set is complete, not merely larger. `launcher` green under `-race -count=2`.
+- **The atlas fix removes the consumer instead of syncing it** (`atlas/couch.md:16-20`): "The operation set is deliberately not listed here… Run `couch --help`." A restatement that no longer exists cannot drift, which is a stronger answer than a drift test. Same treatment for the seam list (`:56-60`).
+- **The co-tenant remedy works end-to-end when ids differ.** Driving `RunWithRuntime` with a shared id generator: `stop /repo` → `"/repo" matches 2 actors; stop one by id: couch-ah8d couch-b2c1`; `stop couch-b2c1` → `signalled couch-b2c1 on /repo (pid 1001)`, leaving the other. The error now names a remedy that exists.
+- Done-when 7 still holds: `go build ./cmd/pair-go` + `./cmd/couch` both succeed; `pair --version` and `couch --help` both answer.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**I1 — `couch start <path> true` silently disables the one-agent-per-tree guard.** `ops.go:60-67` declares `same-tree` as an `ArgSpec{Required: false}`, and `bindArgs` (`run.go:144-157`) assigns positionals to *every* declared spec in order, requiredness only affecting whether a missing one errors. So the second positional binds to `same-tree`. Reproduced through `RunWithRuntime` against a tree with a live incumbent:
+
+```
+start "/repo" "true"  -> code=0  out="started couch-ah8d on /repo (pid 1001)"
+list                  -> repo  /repo
+                           couch-ah8d  live  pid 1000
+                           couch-ah8d  dead  pid 1001
+```
+
+No `--same-tree`, no diagnostic, guard bypassed — the one invariant the issue exists to defend. It matters more than the typo case because `ArgSpec` is the machine-facing contract `pair#148`'s advisor constructs calls from: a caller reading the descriptor sees two args and can legitimately emit `["<path>", "true"]`.
+
+> **This is the 2nd finding in family `silent-flag-acceptance`.** Do NOT patch the `start` operation. The rule: **`bindArgs` must validate argv against the declared `ArgSpecs` — reject an unknown `--name`, and never bind a flag-shaped spec positionally.** BR-18 is the "accepts any `--flag`" half; this is the "binds a flag as a positional" half, and both are the same missing validation. The structural fix is a kind on `ArgSpec` (`Flag` vs `Positional`) so the descriptor states which is which and `bindArgs` enforces it — which also makes the advisor's contract unambiguous. Measured prevalence: of the 7 declared operations, 1 (`start`) has a boolean flag among its specs and is bypassable this way; 7 of 7 accept arbitrary unknown `--flags`.
+
+**I2 — the persisted `cwd` is the operator's relative path, in a record whose documented purpose is replay.** `StartArgs`' doc (`startargs.go:3-5`) says "It is persisted, so a revival reproduces the launch without the operator restating it", and `WorkingDir()` (`:24-29`) is what `Runner.Start` receives (`couch.go:79`). `Spawn` canonicalises `Worktree` but never `Cwd` — `ops.go:64` sets `Cwd: a["path"]` verbatim. Confirmed against the operator's live snapshot, not a fixture:
+
+```json
+{"id":"couch-7f9860cc","args":{"worktree":"/Users/xianxu/workspace/pair","cwd":"../pair"}, ...}
+```
+
+`../pair` reproduces nothing from any other directory, and the `kbench/competition/arc-agi-3` case — the one the identity model is built around — persists a relative subdirectory that cannot be re-derived. Latent today (nothing replays a record; `grep` shows `Cwd`/`WorkingDir` have no reader outside `Spawn`), which is exactly why it should be fixed before `#146`/`#147` read the format. Fix: in `Spawn`, before building the record, `if args.Cwd != "" { if p, err := c.Path.Physical(NormalizePath(args.Cwd)); err == nil { args.Cwd = p } }`. Note `TestSpawnStartsInASubdirectoryButRegistersTheTree` uses absolute fixture paths, so no existing test distinguishes the two — a case with a relative `Cwd` is the missing one.
+
+**I3 — the real-probe pin for the guard runs only behind a gate nothing sets.** `c094baf` added `TestGuardRefusesAgainstARealLiveProcess` (`conformance_live_test.go:240`) precisely because "the unit tests use FakeProcOps, so they prove the logic but not that OSProcOps can actually answer" — the gap the fail-open pruning bug lived in. It opens with `liveOnly(t)`, i.e. `PAIR_LIVE_COUCH=1`. No Makefile target, no CI job and no script sets that variable anywhere in the tree; `make test-race` (`Makefile.local:131-132`) still targets `./cmd/pair-wrap/`, which does not exist, so it fails outright. I ran the gated suite by hand and it passes — but "passes when a reviewer remembers" is the state BR-8 was raised about.
+
+> **This is the 2nd finding in family `fix-pinned-only-by-opt-in-test`.** Do NOT just move this one test. The rule: **a fix is pinned by a test in the suite that actually runs; a gated conformance check is a supplement to that pin, never the pin itself — and a gate with no invocation site is not a check.** BR-8 was disposed by adding a default-suite pin for the zombie fix while its own note recorded the residual ("no target or CI sets PAIR_LIVE_COUCH"); the next fix went straight back behind the same gate. The rule-level fix is one target — `make test-live: PAIR_LIVE_COUCH=1 go test ./cmd/...` — plus repointing `test-race` at `./cmd/...`, which retires BR-19 in the same edit and encodes this window's own lesson ("Run the whole tree under -race"). Measured prevalence: 5 of 5 live-gated tests in `couchcore` have no invocation site.
+
+**I4 — `testRT` mints a fresh id generator per CLI invocation, so no `couchcmd` test can hold two distinguishable actors.** `run_test.go:31` builds `couchcore.NewFixedIDGen("ah8d", "b2c1")` inside `NewCouch()`, which the harness calls once per `RunWithRuntime`. Production also gets a fresh generator per process — but a *random* one, so ids differ; the fake's restarts, so they don't. `"b2c1"` is dead in every `couchcmd` test. Consequence, reproduced:
+
+```
+start /repo; start /repo --same-tree   -> two records, both id couch-ah8d
+stop /repo    -> `"/repo" matches 2 actors; stop one by id: couch-ah8d couch-ah8d`
+stop couch-ah8d -> "signalled couch-ah8d (pid 1000)"; list -> "no trees"
+```
+
+One child signalled, **both** records forgotten — `Registry.RemoveActor` matches by id across the tree — which is BR-2's hazard reopened. That specific outcome needs colliding ids, so it is not a production bug (crypto/rand on Go 1.26 does not fail; the `couch-00000000` fallback in `actorid.go:23` is dead code). The finding is that the harness makes the state BR-24 is *about* unrepresentable, so the CLI-facing remedy shipped with no CLI-facing test, and `ops.go`'s three new `stop` branches (`:102-117`) have none either — I had to write throwaway tests to exercise them. Fix: hoist the generator onto `testRT` so one instance spans invocations, then add the co-tenant stop-by-id and parked-tree-absence cases.
+
+## 4. Minor findings
+
+- `conformance_live_test.go:244-251` — the same test reaches two production seams it is not measuring. Its "not a repo" fallback is `Resolve(".")`, i.e. the ambient checkout: it fails outside a git tree (`resolve worktree for …/cmd/internal/couchcore: exit status 128` in my extracted copy, passes in the checkout), where `TestGitConformance_LinkedWorktree` two functions up does the right thing and `git init`s a temp repo. It also uses the real `ExecRunner` for the spawn under test, so on the regression it exists to detect it would fork `pair --layout2` into the operator's checkout with the test binary's stdio. Only `OSProcOps` needs to be real here. **3rd in family `cli-shell-not-injectable`** — the rule is *a test uses the production seam only for the thing it measures; every other seam is a fake*; rounds 1 and 2 applied it to `couchcmd`, and `couchcore`'s live tests were never swept. Measured prevalence: 1 of 5 live tests, and the only non-portable one.
+- `COUCH_TREE`, `COUCH_STORE_DIR` and the agent-side publish contract appear in no document a reader or an agent would find — `grep` over `*.md`/`*.lua`/`*.kdl`/`*.sh` outside `workshop/plans` hits only the issue Log. The operation itself is discoverable via `couch --help`, but nothing tells a session inside a couch-spawned tree that it should publish, or what the env contract is. **2nd in family `readme-gate`**; the rule is *new operator- or agent-facing surface is documented where its reader looks*.
+- `d96bfd0`'s commit body has a full `couch --help` dump spliced mid-sentence ("prose points at couch - supervise agent actors, one per working tree / describe … stop …"), mangling the paragraph. The branch is 4 commits ahead of `origin/main`, so it is still rewordable.
+- `couch.go:159-176` / `:186-194` / `:317-331` each build the same "dedup trees by `Key()`" fold with a near-identical `add` closure; `Summarize`'s `len(trees)==0` branch re-walks `c.names.All()` where `knownTrees()` already returns the union.
+- `couch.go:186-193` — `LookupTrees` substring-matches the needle against every tree's `Describe(w)`, including when the needle is a path. An agent whose published line happens to contain another tree's path makes that path ambiguous, and `treeFor` (`:277-284`) has no path-exact escape the way `ResolveRef` now has an id-exact one.
+
+## 5. Test coverage notes
+
+- `couchcore` and `couchcmd` green, and green under `-race`, both in this checkout and in a pristine differently-named extraction. `go vet ./cmd/...` clean. `launcher`, `scribecmd`, `scrollbackcmd` green under `-race -count=2`.
+- Full-tree green remains unverified from my shell: `keyscmd`, `termcmd` and `wrapcmd` fail on `mktemp`/`pty.Start`/test-binary re-exec with `operation not permitted`. Sandbox restrictions, not code — same as prior rounds, reported rather than assumed.
+- The gated live suite passes by hand (`PAIR_LIVE_COUCH=1`), except `TestGuardRefusesAgainstARealLiveProcess` outside a git checkout (Minor above).
+- Gaps that could still ship a bug: `bindArgs` positional binding of a flag (I1); a relative `Cwd` through `Spawn` (I2); all three `stop` disambiguation branches — `ops.go:102-117` has no test at any layer; `publish-description`'s `$COUCH_TREE` fallback (`run.go:105-108`) — `testRT.Getenv` returns `""`, so the branch is never entered; `renderError`'s `WorktreeParallel`/`HeavyLocalState` arms (`run.go:194-199`) — the refusal test runs with an empty `PolicyTable`, so only `default:` is exercised, and Done-when 2 is specifically about the *policy-shaped* offer.
+
+## 6. Architectural notes for upcoming work
+
+- **ARCH-DRY — pass with a note.** No new duplicated logic of substance; the three tree-dedup folds in `couch.go` are the only repeat and are small. BR-14 (`CheckAvailable`/`RegisterWithPolicy`) and the `GitRunner`/`reviewcmd.Runtime.Git` overlap remain open from earlier rounds, not re-raised.
+- **ARCH-PURE — pass with a note.** The core stays pure and the shell stays thin. One drift worth watching: `LookupTrees` is resolution *policy* that now performs a per-tree disk read through `Describe`, so the union rule cannot be tested without a `Store`. Tests use `t.TempDir()` so it is portable, but extracting a pure `labels(entry NameEntry, published string) []string` and letting the caller supply the published line would put the policy back in the core before `#147` grows more label sources.
+- **ARCH-PURPOSE — pass on the shadow-sweep.** Descriptions: three consumers — display (`renderTrees` via `TreeSummary.Desc`), resolution (`LookupTrees`), and read-back (`describe <ref>`) — all now derive from `Couch.Describe`, so the round-2 half-delivery is closed. Operation set: consumers are CLI dispatch, `usage`, atlas and README; the first two derive, the last two now point rather than restate, and the plan's restatement is recorded as drifted in `## Revisions`. The residual is on the producer side (nothing instructs an agent to publish), noted Minor.
+- **ARCH-MOCK — flag (I3, I4, Minor 1).** The fakes themselves are good: stateful, scriptable disposition, portable non-production storage. Three gaps at the boundary rather than in the doubles. (a) The conformance check that justifies the whole seam design has no invocation site, so drift is detected only by hand. (b) `testRT`'s per-invocation id generator makes the fake *diverge from the behaviour it stands in for* — production yields distinct ids across processes, the fake does not. (c) One live test spawns the real thing under test rather than the seam. For `#146`, `Handle`'s contract changes when a pty arrives; extend `FakeRunner`'s state model in the same commit, and give `PAIR_LIVE_COUCH` a target first so the conformance pair is actually compared.
+- For `#148`: `ArgSpec` is the advisor's contract and it currently cannot express "this is a boolean flag, not a positional" (I1). Fix that before anything constructs calls from it.
+
+## 7. Plan revision recommendations
+
+The `## Revisions` section landed and correctly records rewrites 1–2 plus the five superseded statements — that closes round 1's outstanding recommendations. Two entries to append:
+
+1. **`StartArgs.Cwd` is not canonicalised on the way into the record.** Task 11's contract says `Spawn` resolves then records; state that only `Worktree` is canonical today and that `Cwd` persists the operator's raw argument, so the "persisted, so a revival reproduces the launch" claim in `startargs.go` is not yet true (I2).
+2. **Task 17's inline `<- operator, unrun` on step 1 is now contradicted by the Revisions note itself.** The note defers to the issue `## Log` as authority, which is right, but the annotation still reads as fact to anyone scanning the task list. Either tick steps 1–4 in place or drop the annotation and let the Revisions entry carry it.
+
+```findings
+dispose:
+  - id: BR-13
+    disposition: not-addressed
+    note: |
+      mailbox.go:35 unchanged; collapse still matches on Kind alone.
+  - id: BR-14
+    disposition: not-addressed
+    note: |
+      registry.go:70-80 and :85-94 still hold the identical occupancy block.
+  - id: BR-15
+    disposition: not-addressed
+    note: |
+      Makefile.local:6-8 comment unamended; the binary is still bare-named couch.
+  - id: BR-16
+    disposition: not-addressed
+    note: |
+      Both couchcmd/errors.go and couchcore/errors.go still wrap errors.As at one call site each.
+  - id: BR-17
+    disposition: not-addressed
+    note: |
+      Verified by grep: c.List(), Registry.Unregister, StartArgs.AgentStack and Couch.Policy still have zero non-test callers.
+  - id: BR-18
+    disposition: not-addressed
+    note: |
+      run.go:130-159 unchanged; see the new positional-binding finding, which is the same missing validation.
+  - id: BR-19
+    disposition: not-addressed
+    note: |
+      Makefile.local:131-132 still targets ./cmd/pair-wrap/; folded into the new gated-pin finding's rule fix.
+  - id: BR-20
+    disposition: not-addressed
+    note: |
+      strings.go unchanged - trimTrailingNewline is still TrimSpace and sanitizeKey still collides /a/b with /a_b.
+  - id: BR-21
+    disposition: not-addressed
+    note: |
+      store.go:52 still marshals reg.Records() in Go map order.
+  - id: BR-22
+    disposition: not-addressed
+    note: |
+      No locking on registry.json, and the stated narrowness has widened - Spawn now saves twice per start (PruneDead, then register).
+  - id: BR-23
+    disposition: addressed
+    note: |
+      Verified by revert - deleting LookupTrees' published-line loop reddens TestAgentPublishedDescriptionResolvesNotJustDisplays.
+  - id: BR-24
+    disposition: addressed
+    note: |
+      Verified by revert - deleting ResolveRef's ActorID loop reddens TestCoTenantsAreAddressableByActorID; CLI path confirmed working end-to-end with distinct ids.
+  - id: BR-25
+    disposition: addressed
+    note: |
+      The fakes bool fork is gone and no couchcmd test names a production seam; suite green under -race from a checkout named couchrev4.
+  - id: BR-26
+    disposition: addressed
+    note: |
+      All 8 fakeRuntime methods touching f.files lock; the only concurrent producer (startAgentDefaultPersistence) reaches the map solely via WriteAtomic.
+  - id: BR-27
+    disposition: addressed
+    note: |
+      atlas deletes the operation and seam restatements rather than syncing them; the plan gains the ## Revisions section. Residual - Task 17's inline "operator, unrun" annotation still reads as fact.
+  - id: BR-28
+    disposition: not-addressed
+    note: |
+      git check-ignore couch still reports it unignored and the Mach-O is still untracked at the repo root.
+  - id: BR-29
+    disposition: not-addressed
+    note: |
+      couch.go:252-253 still calls c.Liveness(r) twice per record.
+  - id: BR-30
+    disposition: not-addressed
+    note: |
+      run.go:103-110 still reads and writes parsed before the err check below it.
+findings:
+  - id: new
+    severity: Important
+    family: silent-flag-acceptance
+    title: |
+      couch start <path> true silently disables the one-agent-per-tree guard via positional binding
+    detail: |
+      ops.go:60-67 declares same-tree as an optional ArgSpec and bindArgs (run.go:144-157)
+      binds every declared spec positionally, so the second positional lands on same-tree.
+      Reproduced through RunWithRuntime against a live incumbent - `start /repo true` exits 0
+      and list shows two records on one tree, with no --same-tree and no diagnostic. ArgSpec is
+      also pair#148's machine contract, so an advisor emitting ["<path>","true"] disables the
+      guard legitimately. 2nd in this family - the rule is that bindArgs must validate argv
+      against the declared ArgSpecs, rejecting unknown --flags AND never binding a flag-shaped
+      spec positionally; the structural fix is a kind field on ArgSpec. Measured prevalence:
+      1 of 7 operations bypassable positionally, 7 of 7 accepting arbitrary unknown --flags.
+  - id: new
+    severity: Important
+    family: persisted-record-not-canonical
+    title: |
+      the persisted cwd is the operator's relative path, in a record whose stated purpose is replay
+    detail: |
+      StartArgs' doc (startargs.go:3-5) says the record is persisted so a revival reproduces the
+      launch, and WorkingDir() feeds Runner.Start directly. Spawn canonicalises Worktree but
+      leaves Cwd verbatim from ops.go:64. Confirmed in the operator's live registry.json, not a
+      fixture - {"worktree":"/Users/xianxu/workspace/pair","cwd":"../pair"}. Latent today (no
+      reader outside Spawn) which is why it should be fixed before pair#146 reads the format.
+      Fix - Physical(NormalizePath(args.Cwd)) before building the record. No existing test
+      distinguishes the two because every fixture uses absolute paths.
+  - id: new
+    severity: Important
+    family: fix-pinned-only-by-opt-in-test
+    title: |
+      the real-probe guard pin added by c094baf runs only under PAIR_LIVE_COUCH, which nothing sets
+    detail: |
+      conformance_live_test.go:240 opens with liveOnly(t). No Makefile target, CI job or script
+      sets PAIR_LIVE_COUCH anywhere in the tree, and make test-race still points at the
+      nonexistent ./cmd/pair-wrap/. 2nd in this family - the rule is that a fix is pinned by a
+      test in the suite that actually runs, and a gate with no invocation site is not a check.
+      BR-8's own dispose note recorded this residual and the next fix went straight back behind
+      the same gate. Rule-level fix - one `make test-live` target plus repointing test-race at
+      ./cmd/..., which also retires BR-19. Measured prevalence: 5 of 5 live-gated tests have no
+      invocation site.
+  - id: new
+    severity: Important
+    family: fake-diverges-from-production
+    title: |
+      testRT mints a fresh id generator per CLI invocation, so no couchcmd test can hold two distinguishable actors
+    detail: |
+      run_test.go:31 constructs NewFixedIDGen("ah8d","b2c1") inside NewCouch(), which the harness
+      calls once per RunWithRuntime, so every CLI-started actor is couch-ah8d and "b2c1" is dead.
+      Production also gets a fresh generator per process but a random one, so ids differ. Effect:
+      with the fixture as-is, `stop couch-ah8d` on two co-tenants signals pid 1000 and forgets
+      BOTH records (RemoveActor matches by id across the tree), leaving a running agent with no
+      registration - BR-2's hazard. Not reachable in production (crypto/rand does not fail on Go
+      1.26), but it makes the state BR-24 is about unrepresentable, so the CLI-facing remedy
+      shipped with no CLI-facing test and ops.go:102-117's three stop branches have none either.
+  - id: new
+    severity: Minor
+    family: cli-shell-not-injectable
+    title: |
+      the live guard test resolves the ambient checkout and forks the real pair on the regression it detects
+    detail: |
+      conformance_live_test.go:244-251 falls back to Resolve(".") when a temp dir is not a repo,
+      so it fails outside a git tree (exit status 128 in an extracted copy, passes in the
+      checkout) where TestGitConformance_LinkedWorktree two functions up git-inits a temp repo
+      instead. It also uses the real ExecRunner for the spawn under test, so if the guard
+      regressed it would fork `pair --layout2` into the operator's checkout with the test
+      binary's stdio; only OSProcOps needs to be real here. 3rd in this family - the rule is that
+      a test uses the production seam only for the thing it measures. Measured prevalence: 1 of
+      5 live tests, the only non-portable one; rounds 1 and 2 swept couchcmd, couchcore never.
+  - id: new
+    severity: Minor
+    family: readme-gate
+    title: |
+      COUCH_TREE, COUCH_STORE_DIR and the agent-side publish contract are documented nowhere a reader looks
+    detail: |
+      A grep over md/lua/kdl/sh outside workshop/plans hits only the issue Log. couch --help
+      makes publish-description discoverable to a human at a shell, but nothing tells a session
+      inside a couch-spawned tree that it should publish, or what the env contract is. 2nd in
+      this family - the rule is that new operator- or agent-facing surface is documented where
+      its reader looks, which for an agent-facing contract is not the same place as for an
+      operator-facing one.
+  - id: new
+    severity: Minor
+    family: docs-claim-unbuilt-behavior
+    title: |
+      d96bfd0's commit body has a couch --help dump spliced mid-sentence
+    detail: |
+      The paragraph reads "prose points at couch - supervise agent actors, one per working tree"
+      followed by the whole rendered operation table, then resumes with "Same for the seam list."
+      The branch is 4 commits ahead of origin/main, so it is still rewordable.
+  - id: new
+    severity: Minor
+    family: duplicated-guard-block
+    title: |
+      three near-identical tree-dedup folds in couch.go, and Summarize re-walks what knownTrees already unions
+    detail: |
+      couch.go:159-176 (knownTrees), :186-194 (LookupTrees) and :317-331 (Summarize) each build
+      the same seen-by-Key fold with a near-identical add closure, and Summarize's len(trees)==0
+      branch re-iterates c.names.All() where knownTrees() already returns exactly that union.
+```

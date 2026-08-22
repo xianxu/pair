@@ -38,6 +38,44 @@ applies it one layer down, to pair.
 tag stays with the space for its whole life. `couch-ab50125e` is therefore
 **durable**, not per-incarnation — which reverses `#145`'s framing of ActorID.
 
+**The path is an attribute of the space, not its identity.** This supersedes
+`#145`'s tree-as-key model rather than extending it. `#145` keyed the registry
+on the worktree and enforced one agent per tree; here the key is the tag and
+the absolute starting path is one of its attributes.
+
+The inversion matters because a path is *where work happens and where artifacts
+are stored*, which is what comes to mind first — "I want to work in pair", "I
+want to work on arc-agi-3". `couch start <file-path>` says *start me somewhere*.
+The repo portion of that path is merely a container that supplies git as a
+facility: history tracking and work isolation. It is not identity.
+
+**Concurrency becomes a configurable per-repo limit**, replacing "one agent per
+tree" plus an escape hatch. The real question is whether work at a path
+typically conflicts:
+
+- `pair`, `ariadne`, `parley` — the checkout is the installation, one branch and
+  one index, so a limit of 1.
+- `brain` — a capture repo where threads append to different files, much like
+  separate chat threads; a limit of N, and no override involved on the normal
+  path. Under `#145`'s model this case needed `--same-tree` every time, which is
+  a smell: an escape hatch on the ordinary path.
+- `kbench` — several competition subdirectories sharing one branch. Genuinely a
+  judgement call, which is why it is configuration rather than a rule.
+
+`--same-tree` therefore stops being a special flag and becomes "exceed the
+configured limit", which is a cleaner thing to announce loudly.
+
+**`couch start <path>` always creates a new space.** With the path an attribute
+rather than a key, `start` cannot mean "resume whatever is there" — there may be
+zero or several. Resumption is explicit: by tag, or by a name once one is
+attached. This is a real UX change from what `#145` shipped and is easier to
+decide now than to discover later.
+
+**Different surfaces lead with different attributes.** One record, several
+views: the picker leads with the path or the name, `couch list` with the name,
+a log line with the hex tag. That is the point of attributes rather than a
+single canonical display string.
+
 **`Spawn` looks the id up; it does not mint one per run.** Minting per spawn
 fragments the draft, ledger and scrollback across revivals, which is exactly
 the continuity the tag exists to hold.
@@ -88,6 +126,17 @@ and tree; keep the id for `show` and diagnostics.
 - **`--same-tree`** yields two spaces in one tree — two drafts, two ledgers,
   two ids. That falls out rather than needing a special case.
 
+### Open questions to settle before implementation
+
+- **What does the limit count?** Configuring per repo and counting sessions
+  whose path falls inside it is simplest, but it means `kbench`'s competition
+  subdirectories share one budget. Per-path would let them run independently
+  while still sharing git. Leaning per-repo, because the conflict being limited
+  is git-level and git is repo-scoped.
+- **Live sessions or all spaces?** Live, presumably — a parked space should not
+  consume budget. The difference is between "one agent at a time" and "one
+  thread ever".
+
 ## Done when
 
 - A couch-launched session gets a generated durable tag, and a revival of the
@@ -98,7 +147,11 @@ and tree; keep the id for `show` and diagnostics.
   none does, and resolves a name to its space with couch not running.
 - `pair claude` standalone still asks for a tag exactly as it does today.
 - `couch list` no longer leads with the system id.
-- Two spaces in one tree (via `--same-tree`) keep separate drafts and ledgers.
+- Two spaces in one tree keep separate drafts and ledgers.
+- A repo configured with a limit above 1 accepts concurrent spaces with no
+  escape-hatch flag on the normal path.
+- `couch start <path>` twice creates two spaces where the limit allows it, and
+  resuming a specific one is an explicit act.
 
 ## Plan
 
@@ -118,3 +171,20 @@ Split out of a design conversation during `pair#145`'s close. The trigger was
 noticing that `couch-ab50125e` and pair's tag are two names for something that
 felt like one thing — and the resolution is that they *are* one thing, once the
 generated id stops being per-incarnation.
+
+### 2026-08-22 — path demoted from identity to attribute
+
+Folded in the model that supersedes `#145`'s tree-as-key design. Identity is the
+durable hex tag; the absolute starting path is an attribute of it; the repo is a
+container that supplies git as a facility rather than an identity.
+
+The trigger was noticing that `#145`'s one-agent-per-tree guard forces brain-like
+repos onto `--same-tree` for ordinary use, which is an escape hatch on the normal
+path. Making the concurrency limit a recorded per-repo number turns that from a
+bypass into configuration, and it generalises the three worktree-strategy modes
+`#145` stubbed into one question: does work at this path typically conflict.
+
+Two consequences recorded above rather than discovered later: `couch start
+<path>` always creates rather than resuming, since a path may name zero or
+several spaces; and the limit's granularity and whether it counts live sessions
+or all spaces both need settling before implementation.
