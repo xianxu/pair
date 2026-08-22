@@ -19,6 +19,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/draftroute"
 	"github.com/xianxu/pair/cmd/internal/layoutcmd"
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 	"golang.org/x/term"
@@ -1092,7 +1093,7 @@ func (m *terminalMux) renamePaneTitleLocked(tabID int, editor RenameEditor) stri
 // (#127); see queries.go.
 func (m *terminalMux) redrawTab(buf []byte) {
 	_, _ = io.WriteString(m.stdout, "\x1b[1;1H\x1b[J")
-	_, _ = m.stdout.Write(stripTerminalQueries(buf))
+	_, _ = m.stdout.Write(ptychild.StripQueries(buf))
 }
 
 // bufferSnapshotLocked copies a tab's stored output. Caller must hold m.mu —

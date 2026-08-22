@@ -2,6 +2,7 @@ package termcmd
 
 import (
 	"bytes"
+	"github.com/xianxu/pair/cmd/internal/ansi"
 	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
@@ -223,3 +224,21 @@ func longestSuffixPrefix(input, prefix []byte) int {
 	}
 	return 0
 }
+
+// csiEnd returns the length of the parameterised sequence at the start of buf, or
+// -1 when it is not terminated within buf.
+//
+// The framing itself now lives in cmd/internal/ansi (#128), which is why this is a
+// one-liner. Two properties are deliberate and load-bearing, so this delegates to
+// TerminatorScan and NOT to ansi.Frame:
+//   - introducer-INDEPENDENT: malformedEscapeSize routes SS3 (`\x1bO…`) through
+//     here, and a dispatch on buf[1] would frame "\x1bOX" as a two-byte escape and
+//     leak the X into a tab name.
+//   - LENIENT: no param/intermediate range validation. rename_input.go feeds this
+//     result into `input = input[size:]`, so stricter framing would consume the
+//     whole buffer and swallow the user's next keystrokes mid-rename.
+//
+// The -1 sentinel is preserved because escapeSequenceIncomplete (rename_input.go)
+// reads `< 0` as "incomplete", and malformedEscapeSize's `>= 0` guard is what keeps
+// the decoder loop advancing.
+func csiEnd(buf []byte) int { return ansi.TerminatorScan(buf) }
