@@ -25,7 +25,9 @@ Terminal code has its own standing moves, all of them lessons already paid for i
 
 ## Decisions
 
-1. **`couch start` becomes the console. No new verb.** `couchcmd`'s dispatch table is asserted *identical* to `couchcore.Operations()` (`run_test.go`), so a console-only verb would need an exception to the invariant that keeps the operator's surface and the advisor's from drifting. `start` already blocks for the child's lifetime and already returns a `Handle` the CLI drives — "blocks and owns the tty" narrows that contract rather than inventing one. **The root actor is the child of the first `couch start`**, which is exactly "whatever session couch launched in".
+1. **`couch start` becomes the console. No new verb.** `couchcmd`'s dispatch table is asserted *identical* to `couchcore.Operations()` (`run_test.go`), so a console-only verb would need an exception to the invariant that keeps the operator's surface and the advisor's from drifting. `start` already blocks for the child's lifetime and already returns a `Handle` the CLI drives — "blocks and owns the tty" narrows that contract rather than inventing one. **The root actor is the first child couch starts**, and `start`'s path argument **defaults to `.`** — so `cd brain && couch start` makes brain home, which is the Spec's "whatever session couch launched in" delivered by convention, with nothing in couch knowing about brain (PQ-4).
+   - **Home is chosen by which tree you start first, not by couch's cwd**, and the two coincide only because the default does. `couch start ../pair` from brain deliberately makes *pair* home; that is a legitimate invocation and it is what the M2 single-child smoke uses, but M3's smoke must run the real configuration — couch from brain with no path, pair added as a second child — or the project's headline property is verified against a stand-in.
+   - **The launching shell does not come back until couch exits.** couch owns that tty for its lifetime and no key leaves couch — by design, since a switcher that can be escaped into an unmanaged shell is a fourth place to lose track of work. Stated because it is operator-visible: the terminal you type `couch` in is spent.
 
 2. **`--no-console` is the escape hatch, and it announces itself.** It keeps today's `ExecRunner` path (inherit stdio, block, no pty). If the tty layer misbehaves the operator is never stranded — and per the escape-hatch rule the fallback prints a loud line saying the console is off, rather than silently degrading. This also keeps `ExecRunner` a live production path, so its live conformance check stays honest rather than pinning dead code.
 
@@ -34,9 +36,13 @@ Terminal code has its own standing moves, all of them lessons already paid for i
 4. **The reserved row is a scrolling-region reservation, not compositing.** The child pty is `rows-1` tall; the host's scrolling region is pinned to `1..rows-1` (DECSTBM) so a child scrolling at *its* bottom line scrolls inside the region and cannot walk onto the reserved row. The row is painted with save-cursor / absolute-move / paint / restore-cursor so the child's cursor is never disturbed. **This is the design the Spec chose** ("couch does not composite — it reserves a row"); compositing every frame through a `vt.Emulator` is explicitly the rejected alternative.
    - **Known risk, and why it is scheduled early:** apps that set or reset margins themselves (`nvim` emits `\x1b[r` on exit) can drop the reservation. Mitigation is to re-assert the region whenever the row is painted, and to re-assert immediately when the stream scanner sees a margin reset or an alt-screen transition. If real children defeat this, the fallback is to drop the row to an on-demand overlay rather than to start compositing — recorded here so the fallback is a decision, not an improvisation.
 
-5. **Landing repaints from a ring; alt-screen children get a resize nudge instead.** Replaying a raw buffer is right for line-mode children and is what `pair term` already does. For a child in the alt screen (zellij, nvim) the buffer is a stream of partial redraws, so replay is the wrong tool: those children redraw natively on `SIGWINCH`, which the Spec already anticipates. The console therefore *knows* whether a child is on the alt screen — from the same scanner that tracks margins and mouse mode — and picks: replay, or nudge.
+5. **Landing repaints from the ring. One mechanism, for every child.** `pair term` already replays a raw buffer to land on a tab running `nvim`, daily, and it works — so the plan's first answer (branch on alt-screen, replay line-mode children and *nudge* alt-screen ones with a resize) invented a second mechanism to solve a problem the existing one has not shown.
+   - **The nudge is a documented fallback, not the default.** If the M3 smoke lands garbled on zellij, add it — and accept its real cost, which the plan-quality gate named: `TIOCSWINSZ` raises `SIGWINCH` only when the winsize actually *differs*, so a nudge is a `rows-1 → rows-2 → rows-1` round trip and a visible double reflow of the whole workbench. That is a price worth paying to fix a broken landing and not worth paying speculatively.
+   - `Screen.AltScreen` is still tracked — Decision 4 needs it to re-assert margins across an alt-screen transition. It simply stops being an attach-path branch.
 
-6. **`ptychild` is extracted from `termcmd` and `pair term` migrates onto it in M1 (ARCH-DRY).** `termcmd.terminalMux` already is a switcher: pty-backed tabs, a 128KB replay ring, redraw-from-snapshot on switch, resize propagation, EOF-driven removal. Building couch's a second time is the duplication ARCH-DRY exists to stop.
+6. **Both halves of the terminal plumbing are extracted from `termcmd`, and `pair term` migrates onto both in M1 (ARCH-DRY).** The first draft extracted only the *child* half and left `couchtty.Console` to re-implement the *host* half — `term.MakeRaw` (`termcmd/run.go:222`), `signal.Notify(SIGWINCH)` → `pty.GetsizeFull` (`:244`, `:975-983`), `term.Restore`, and the `\x1b[r` region reset `termcmd.restoreTerminal` already writes (`:1107-1109`). That last one would have put one escape sequence in two packages, against this plan's own one-constant rule, and it is why the first draft's "test the console with fakes, no real tty" and "test the signal path" tasks were unbuildable: there was no injectable host in the type inventory (PQ-2, ARCH-PURE/ARCH-MOCK).
+   - **Two packages, one responsibility each.** `ptychild` owns a child on a pty (ring, replay strip, output scanner). `hostty` owns the operator's terminal (size, raw mode, resize notifications, and the terminal-control constants — DECSTBM, save/restore cursor, region reset). `couchtty` and `termcmd` are both clients of both.
+   - Original rationale, unchanged: `termcmd.terminalMux` already is a switcher: pty-backed tabs, a 128KB replay ring, redraw-from-snapshot on switch, resize propagation, EOF-driven removal. Building couch's a second time is the duplication ARCH-DRY exists to stop.
    - **What is shared is structure; what stays is policy.** `cmd/internal/ansi`'s doc makes exactly this split, and it applies again: `pair term` cycles numbered tabs and exits when empty; couch switches named actors and falls back to a panel. Those policies stay with their callers.
    - **`stripTerminalQueries` moves and is shared** — both callers replay a raw buffer *to a real terminal*, so the deny-list is one policy with two sites, not two opposed policies (contrast `wrapcmd`, which strips `\x1b[>7u` while `termcmd` requires `\x1b[>1u` to survive; those stay apart).
    - **The migration is the test.** Extracted code with no second consumer is unvalidated new code; `termcmd`'s 1137 lines of existing tests are the regression net that proves the extraction is faithful. That is why M1 migrates rather than deferring it — and why M1 comes first even though it ships no couch behaviour.
@@ -50,12 +56,17 @@ Terminal code has its own standing moves, all of them lessons already paid for i
 
 9. **Notices reuse `couchcore.Enqueue`, they do not re-implement it.** The row's rolling feed wants exactly Enqueue's policy: collapse by kind (a second bell from the same actor replaces the first), bounded, never drop control (an exit is control). Keyed as `bell:<ActorID>` / `exit:<ActorID>` so collapse is per-actor rather than global (ARCH-DRY).
 
-10. **`ctrl-space` (`0x00`) is intercepted before the child sees it.** The Spec settled the key; what this plan owes is the audit the repo's own lesson demands ("Never disable an input layer without auditing the escape hatches it provides"). `zellij/config.kdl` binds no Space chord, so nothing in the workbench loses a path. The audit for `claude` and `nvim` is a step in M2, and its result is recorded in the issue `## Log` — including, if something does ride on it, how a literal `ctrl-space` reaches a child.
+10. **`ctrl-space` (`0x00`) is intercepted before the child sees it, and the interceptor returns a SPLIT, not a filtered buffer.** The first draft's `(in []byte) (forward []byte, hits int)` concatenated the bytes either side of the hotkey — but in `x<ctrl-space>y`, `x` belongs to the child the operator is leaving and `y` to the one they land on, and one buffer cannot say that (PQ-1). The repo already has the right shape: `workbenchshortcut.FindChord` returns `(before, chord, raw, rest, ok)` (`shortcut.go:342-352`). couch reuses that **shape**, not that table — the chord set is workbench policy, and merging opposed tables is the bug rather than the cleanup (`cmd/internal/ansi`'s doc makes the same split).
+    - **Bracketed paste is the one place this needs state.** A keyboard cannot put `0x00` inside an escape sequence, but a paste can carry arbitrary bytes — and a pasted NUL that silently switches actors *and eats a byte* is a data-loss bug the operator would never diagnose. So the interceptor suspends between `\x1b[200~` and `\x1b[201~`. That is real framing state, and it inherits the repo's rule: buffer only a genuine prefix, consume a complete-but-unsupported control, and test the boundary where the marker splits across two reads. `ansi.Frame`'s `Incomplete` status is what distinguishes the two; the two markers are one constant pair, not one per site. The Spec settled the key; what this plan owes is the audit the repo's own lesson demands ("Never disable an input layer without auditing the escape hatches it provides"). `zellij/config.kdl` binds no Space chord, so nothing in the workbench loses a path. The audit for `claude` and `nvim` is a step in M2, and its result is recorded in the issue `## Log` — including, if something does ride on it, how a literal `ctrl-space` reaches a child.
 
 11. **`Spawn` forces a tag: `pair resume <tag>`, with `tag = launcher.DefaultTag(<worktree root>)`.** `resume` takes `DecideLaunch`'s `ForcedTag` branch — attach when the session is live or detached, create otherwise — and skips the name prompt (`launcher/decision.go:33-37`, `help.go:15`). Today `Spawn` runs `pair --layout2` with **no** tag, and `DecideLaunch` with no tag and a detached session present returns `ActionPick`: an fzf picker inside couch's pty, waiting on the operator. That is what the first minute after a console restart looks like right now.
     - **`--layout2` is dropped, and that is required rather than incidental.** `resume` refuses any third argv element (`launcher/args.go:104`), so `pair resume <tag> --layout2` is a usage error. It is also the right default: an omitted layout flag reuses the tag's recorded layout, a new tag already defaults to layout2, and forcing a layout on a *live* tag makes pair ask before recreating the whole workbench — a prompt the operator would meet inside couch's pty.
     - **The derivation is reused, not re-invented.** `launcher.DefaultTag(path)` is exported and already computes pair's create-flow default from a path (ARCH-DRY).
     - **This is a deliberate slice of `#149`, not a collision with it.** `#149` decides that the tag *is* the space — durable, opaque, several per tree, names as a mutable attribute layer — and supersedes this derivation. What `#146` needs is only that going back in is deterministic; recorded here so the overlap is chosen rather than discovered at `#149`'s plan.
+
+12. **Resolution has one implementation, and the panel injects it.** The first draft had `PanelModel.Filter` match "name, description and repo — the same three fields `couchcore.LookupTrees` matches". That was wrong on the facts and wrong on the principle: `NamingTable.Lookup` matches **Name and Description** only (`naming.go:44-57`), `LookupTrees` adds the agent-published description via `Describe` (`couch.go:196-220`), and **repo is matched nowhere** — path resolution lives a layer up in `ResolveRef`, behind an `ActorID` exact-match branch (`couch.go:317-340`). A restated filter would either grow a match the CLI does not have or duplicate two-thirds of a rule that exists, and it would falsify the claim that `#148`'s advisor calls the same resolution (PQ-3).
+    - **Shape:** `PanelModel.Filter(query string, resolve func(string) []Worktree)`. The model stays pure and unit-testable with a stub resolver; production passes `couch.LookupTrees`. One rule, three callers (CLI, panel, advisor), no restatement.
+    - This is the same guard Task 3.4 applies to *actions*, applied to *resolution*. The panel is not allowed a private verb; it is not allowed a private match rule either.
 
 ---
 
@@ -72,8 +83,10 @@ Terminal code has its own standing moves, all of them lessons already paid for i
 | `Focus` / `Up` / `Home` | `cmd/internal/couchtty/focus.go` | new |
 | `PanelModel` / `Filter` / `Pick` | `cmd/internal/couchtty/panel.go` | new |
 | `StatusModel` / `RenderStatusRow` | `cmd/internal/couchtty/statusrow.go` | new |
-| `Intercept` | `cmd/internal/couchtty/keys.go` | new |
+| `Interceptor` | `cmd/internal/couchtty/keys.go` | new |
 | `Reserve` / `Release` / `PaintRow` | `cmd/internal/couchtty/reserve.go` | new |
+| terminal-control constants (DECSTBM, cursor save/restore, region reset) | `cmd/internal/hostty/control.go` | new (`\x1b[r` moved from `termcmd/run.go`) |
+| `termcmd.restoreTerminal` | `cmd/internal/termcmd/run.go` | deleted (folded into `hostty`) |
 | `Notice` / `Feed` | `cmd/internal/couchtty/notice.go` | new |
 
 - **Ring** — a bounded byte buffer with a snapshot. `Append([]byte)`, `Snapshot() []byte` (an independent copy). Cap 128KB, lifted from `termcmd.appendBuffer`.
@@ -94,11 +107,13 @@ Terminal code has its own standing moves, all of them lessons already paid for i
   - **DRY rationale:** first occurrence, but the rule is stated in three places (project, issue, atlas) and must have exactly one implementation.
   - **Future extensions:** direct jumps ("to actor N", "to the latest notifier") are deliberately deferred by the Spec; they widen `Up` into a `Move(cur, intent)` without touching the console.
 
-- **PanelModel / Filter / Pick** — the panel as data: rows built from `couchcore.TreeSummary`, a typeahead filter over name + description + repo, and `Pick(query, digit)` resolving a keystroke to a row. Pure — the panel renders from this, and `#148`'s advisor can call the same resolution.
+- **PanelModel / Filter / Pick** — the panel as data: rows built from `couchcore.TreeSummary`, and `Pick(digit)` resolving a keystroke to a displayed row. `Filter(query, resolve func(string) []Worktree)` **injects** the match rule rather than restating it; production passes `couch.LookupTrees` (Decision 12). Pure, so a stub resolver tests it and `#148`'s advisor genuinely shares the resolution rather than being claimed to.
 
 - **StatusModel / RenderStatusRow** — `(width int, m StatusModel) string`: the actor chips, the active marker, activity markers, and the newest notice, truncated to width. Pure, so the row is unit-testable without a terminal.
 
-- **Intercept** — `(in []byte) (forward []byte, hits int)`: splits `0x00` out of a stdin chunk and returns what the child should still receive. Pure. `ctrl-space` is a single byte, so there is no framing state — and that is *why* the Spec chose a bare key over a chord.
+- **Interceptor** — `Feed(in []byte) (before []byte, hit bool, rest []byte)`: the bytes for the *current* focus, whether the hotkey fired, and the bytes for the focus landed on. Holds one piece of state — whether a bracketed paste is open — and a partial-marker buffer for the split-read case (Decision 10).
+  - **DRY rationale:** the return shape is `workbenchshortcut.FindChord`'s, deliberately. If a third site ever needs "find a key in a stream and split around it", that is the moment to extract one scanner rather than write a third.
+  - **Future extensions:** a second hotkey (the Spec defers direct jumps) widens `hit bool` to a small enum without changing any caller's shape.
 
 - **Reserve / Release / PaintRow** — the escape sequences as pure string builders: `Reserve(rows)` → region + parking, `PaintRow(rows, text)` → save / move / clear / paint / restore, `Release()` → region reset. One constant per sequence, per the paired-terminator lesson.
 
@@ -112,7 +127,10 @@ Terminal code has its own standing moves, all of them lessons already paid for i
 | `couchcore.TerminalHandle` | `cmd/internal/couchcore/runner.go` | modified | pty capability on a `Handle` |
 | `couchcore.PtyRunner` | `cmd/internal/couchcore/ptyrunner.go` | new | `ptychild.Child` behind `Runner` |
 | `FakeRunner` terminal double | `cmd/internal/couchcore/runner_fake.go` | modified | in-memory stand-in for a pty |
-| `couchtty.Console` | `cmd/internal/couchtty/console.go` | new | raw mode, `SIGWINCH`, real stdio |
+| `hostty.Host` | `cmd/internal/hostty/host.go` | new | the operator's terminal: size, raw mode, resize signal |
+| `hostty.OSHost` / `hostty.FakeHost` | `cmd/internal/hostty/os.go`, `fake.go` | new | `x/term`, `creack/pty` sizing, `SIGWINCH` |
+| `couchtty.Console` | `cmd/internal/couchtty/console.go` | new | drives `hostty.Host` + N `ptychild.Child` |
+| `termcmd` host half | `cmd/internal/termcmd/run.go` | modified | `runShell`'s raw/`SIGWINCH`/restore move behind `hostty.Host` |
 | `termcmd.terminalTab` | `cmd/internal/termcmd/run.go` | modified | now holds a `ptychild.Child` |
 | `couchcmd` wiring | `cmd/internal/couchcmd/run.go` | modified | picks `PtyRunner` vs `ExecRunner` |
 | live conformance | `cmd/internal/couchcore/conformance_live_test.go` | modified | `PtyRunner` vs `FakeRunner` |
@@ -126,7 +144,11 @@ Terminal code has its own standing moves, all of them lessons already paid for i
 
 - **FakeRunner terminal double** — the fake's children gain an in-memory terminal: writes are recorded and echoed per a scripted behaviour, resizes are recorded, and exit closes the read side (EOF). ARCH-MOCK: the fake models behaviour across calls, and the live check compares it against a real pty rather than asserting whatever each produces separately.
 
-- **couchtty.Console** — the thin IO shell: `term.MakeRaw`, `SIGWINCH`, the stdin pump, the per-child output pumps, and terminal restoration. It holds no policy — every decision it makes is a call into a pure function above.
+- **hostty.Host** — the seam over the operator's own terminal: `Size() (rows, cols)`, `MakeRaw() (restore, error)`, `Resized() <-chan struct{}`, and `io.Writer` to the screen. `OSHost` wraps `x/term` + `pty.GetsizeFull` + `signal.Notify(SIGWINCH)`; `FakeHost` is scriptable — a settable size, a resize channel a test can fire, and a captured output buffer.
+  - **Injected into:** `couchtty.Console` and `termcmd.runShell`. This is what makes "test the console with no real tty" and "test the signal path" writable at all (PQ-2).
+  - **Future extensions:** a remote host (`#120`'s terminal stream) is the same interface over a socket rather than a tty — worth noting, not worth building.
+
+- **couchtty.Console** — the thin IO shell: it drives `hostty.Host` and the per-child pumps and holds **no policy**. Every decision it makes is a call into a pure function above.
 
 ---
 
@@ -180,6 +202,17 @@ Ships no couch behaviour. It exists so that couch's console and `pair term` are 
 - [ ] **Deletion check:** drop the `pty.Setsize` call → (b) red.
 - [ ] Commit.
 
+### Task 1.4a — `hostty`, the host half
+
+**Files:** Create `cmd/internal/hostty/host.go`, `os.go`, `fake.go`, `control.go` (+ tests). Modify `cmd/internal/termcmd/run.go` (`runShell`'s raw-mode block, the `SIGWINCH` goroutine, `captureSize`, `restoreTerminal`).
+
+**Contract:** `Host` is `Size()`, `MakeRaw() (restore, error)`, `Resized() <-chan struct{}`, `io.Writer`. `control.go` holds the terminal-control constants — DECSTBM set/reset, cursor save/restore — **one constant per sequence**, which is the whole reason `\x1b[r` may not stay in `termcmd`.
+
+- [ ] **Tests must catch:** (a) `FakeHost` can report a size, fire a resize, and capture writes — if it cannot, no console test in M2/M4 can be written, which is the finding this task answers; (b) `restore` is idempotent — a console that restores on both the child-exit path and a deferred teardown must not double-restore into a broken state; (c) `Resized()` delivers a *coalesced* signal, not one per syscall — a burst during a window drag must not queue N resizes.
+- [ ] **Deletion check:** make `FakeHost.Resized()` a nil channel → (a) red in M2's console test, which is where it matters.
+- [ ] Migrate `termcmd`: `runShell` takes a `Host`; `restoreTerminal` is deleted and its `\x1b[r` becomes `hostty`'s constant. `pair term`'s existing suite is the net, same rule as Task 1.5 — a test that needed editing is a behaviour change, not a fix.
+- [ ] Commit.
+
 ### Task 1.5 — migrate `pair term`
 
 **Files:** Modify `cmd/internal/termcmd/run.go` (`terminalTab`, `newTab`, `readPTY`, `appendBuffer`, `resizeAll`, `redrawTab`, `closeAll`, `removeTab`, `appMouseMode`).
@@ -221,11 +254,15 @@ The milestone that answers both terminal risks: does `pair` run correctly in a c
 - [ ] Gated on `PAIR_LIVE_COUCH=1`, no build tag (so it still compiles under `go test ./cmd/...`), reachable via `make test-live` — a gated-only pin nothing runs is not a pin.
 - [ ] Commit.
 
-### Task 2.3 — `Intercept`, and the ctrl-space audit
+### Task 2.3 — `Interceptor`, and the ctrl-space audit
 
 **Files:** Create `cmd/internal/couchtty/keys.go` (+ test).
 
-- [ ] **Tests must catch:** (a) `0x00` is removed from the forwarded bytes and counted; (b) a chunk of several keystrokes containing one `0x00` forwards the rest **in order**; (c) `0x00` inside an escape sequence's payload is *not* treated as a hotkey — seed the case even if today's terminals do not produce it, because the failure mode is a swallowed keystroke.
+**Contract:** `Feed(in []byte) (before []byte, hit bool, rest []byte)` — bytes for the current focus, whether `0x00` fired, bytes for the focus landed on. Suspended inside a bracketed paste (Decision 10).
+
+- [ ] **Tests must catch:** (a) `x\x00y` returns `before="x"`, `hit`, `rest="y"` — the split point is the contract, and a concatenated buffer would send `y` to the child being left; (b) two hotkeys in one chunk fire twice with the middle segment routed to the intermediate focus; (c) a `0x00` **inside a bracketed paste** is forwarded, not intercepted — the silent data-loss case; (d) a paste marker split across two `Feed` calls is still recognised, and a **complete-but-unsupported** control is consumed rather than held (the repo's prefix-vs-complete rule); (e) no hotkey → `before` is the whole input and `rest` is empty, so the caller has exactly one place to look.
+- [ ] **Add `FuzzInterceptorFeed`** — no panic; `len(before)+len(rest) <= len(in)`; and feeding a stream one byte at a time reaches the same state as feeding it whole.
+- [ ] **Deletion check:** drop the paste suspension → (c) red. Return `append(before, rest...)` as one buffer → (a) red.
 - [ ] **Audit step (lesson: never disable an input layer without auditing what rides on it):** check `claude` and `nvim` for a `ctrl-space` binding (`zellij/config.kdl` already confirmed clear). Record the result in the issue `## Log`. If something does ride on it, say in the Log how a literal `ctrl-space` reaches a child — do not silently shadow it.
 - [ ] Commit.
 
@@ -233,7 +270,7 @@ The milestone that answers both terminal risks: does `pair` run correctly in a c
 
 **Files:** Create `cmd/internal/couchtty/reserve.go`, `statusrow.go` (+ tests).
 
-**Contract:** pure string builders. `Reserve(rows)` sets the region to `1..rows-1`; `PaintRow(rows, text)` is save / absolute-move / clear-line / text / restore; `Release()` resets the region. Each sequence is one named constant.
+**Contract:** pure string builders **over `hostty/control.go`'s constants** — this file composes sequences, it does not spell them. `Reserve(rows)` sets the region to `1..rows-1`; `PaintRow(rows, text)` is save / absolute-move / clear-line / text / restore; `Release()` resets the region.
 
 - [ ] **Tests must catch:** (a) the region is `rows-1`, not `rows` — an off-by-one here is the whole bug; (b) `PaintRow` restores the cursor (assert the save/restore pair brackets the paint — without it the child's cursor lands on the status row); (c) `RenderStatusRow` truncates to width without splitting an escape sequence; (d) the active actor is marked distinctly from an actor with pending activity.
 - [ ] **Deletion check:** drop the restore from `PaintRow` → (b) red.
@@ -243,10 +280,10 @@ The milestone that answers both terminal risks: does `pair` run correctly in a c
 
 **Files:** Create `cmd/internal/couchtty/console.go` (+ test).
 
-**Contract:** the thin IO shell. `MakeRaw` on the real tty, `SIGWINCH` → measure the host and `Resize` the child to `rows-1`, stdin pump through `Intercept`, child output written to stdout only when that child is active, `Release` + `term.Restore` on every exit path.
+**Contract:** the thin IO shell, driving `hostty.Host` (never `x/term` or `signal` directly). `MakeRaw`, `Resized()` → measure and `Resize` the child to `rows-1`, stdin pump through `Interceptor`, child output written to the host only when that child is active, `Release` + `restore` on every exit path.
 
 - [ ] Re-assert `Reserve` whenever the row is painted, and immediately when `Screen` reports `MarginsDirty` or an alt-screen transition (Decision 4).
-- [ ] **Tests must catch (fakes, no real tty):** (a) a child resized to `rows-1`, never `rows`; (b) an intercepted `ctrl-space` is **not** forwarded to the child; (c) restoration runs when the child exits *and* when the console is torn down mid-stream — a restore that only happens on the happy path leaves the operator's terminal with a broken scroll region.
+- [ ] **Tests must catch (driven by `hostty.FakeHost` + `FakeRunner`, no real tty):** (a) a child resized to `rows-1`, never `rows`; (b) an intercepted `ctrl-space` is **not** forwarded to the child; (c) restoration runs when the child exits *and* when the console is torn down mid-stream — a restore that only happens on the happy path leaves the operator's terminal with a broken scroll region; (d) firing `FakeHost`'s resize channel propagates to the child, so the `SIGWINCH` path is covered by a test rather than by the smoke alone.
 - [ ] **Deletion check:** remove the `-1` → (a) red. Remove the deferred `Release` → (c) red.
 - [ ] Commit.
 
@@ -254,7 +291,9 @@ The milestone that answers both terminal risks: does `pair` run correctly in a c
 
 **Files:** Modify `cmd/internal/couchcmd/run.go`, `cmd/internal/couchcore/ops.go`.
 
-**Contract:** `Runtime` gains `NewCouchWith(Runner)`; `NewCouch()` stays `ExecRunner` for `--no-console` and foreign-shell use. `start` declares a `no-console` arg — `FlagOnly`, because it bypasses the console the same way `same-tree` bypasses the guard, and a stray positional word must not be able to set it.
+**Contract:** `Runtime` gains `NewCouchWith(Runner)`; `NewCouch()` stays `ExecRunner` for `--no-console` and foreign-shell use. `start` declares a `no-console` arg — `FlagOnly`, because it bypasses the console the same way `same-tree` bypasses the guard, and a stray positional word must not be able to set it. `start`'s `path` arg becomes optional, defaulting to `.` (Decision 1).
+
+**What the console displaces, named precisely:** `render`'s `StartResult` branch (`couchcmd/run.go:171-178`) today prints `started <id> on <tree> (pid N)` and then blocks on `Handle.Wait()`. That branch becomes: if the handle is a `TerminalHandle`, construct a `couchtty.Console` over `hostty.OSHost{}` and run it (the console owns the exit code); otherwise keep today's print-and-wait. **`couchcmd` constructs and drives the `Console`** — `couchcore` never learns that a terminal exists.
 
 - [ ] **Tests must catch:** (a) the declared-operations audit still passes (the arg is declared, not smuggled); (b) `couch start x --no-console` takes the `ExecRunner` path and prints the loud fallback line; (c) `couch start x no-console` does **not** — the guard-bypass-never-binds-positionally rule has a test in this repo already; mirror it.
 - [ ] Commit.
@@ -296,20 +335,21 @@ The milestone that answers both terminal risks: does `pair` run correctly in a c
 
 **Files:** Create `cmd/internal/couchtty/panel.go` (+ test).
 
-**Contract:** rows from `couchcore.TreeSummary` — so parked trees stay listed, dimmed, exactly as `couch list` already renders them. `Filter(query)` matches name, description and repo (the same three fields `couchcore.LookupTrees` matches; the panel must not resolve on fewer). `Pick(digit)` selects the Nth **displayed** row.
+**Contract:** rows from `couchcore.TreeSummary` — so parked trees stay listed, dimmed, exactly as `couch list` already renders them. `Filter(query, resolve func(string) []Worktree)` **injects** the match rule and keeps the rows it returns (Decision 12); production passes `couch.LookupTrees`. `Pick(digit)` selects the Nth **displayed** row.
 
-- [ ] **Tests must catch:** (a) filtering matches the agent-published description, not just the operator's name; (b) `Pick(2)` after filtering picks the second *filtered* row, not the second underlying one; (c) a parked tree (no live actor) is listed; (d) ordering is stable across refreshes — a list that reorders under the operator's fingers makes numbered selection a hazard.
-- [ ] **Deletion check:** drop description matching → (a) red.
+- [ ] **Tests must catch:** (a) `Filter` returns exactly the rows the injected resolver named — with a stub resolver, so the test pins *delegation* rather than re-testing `LookupTrees`; (b) `Pick(2)` after filtering picks the second *filtered* row, not the second underlying one; (c) a parked tree (no live actor) is listed; (d) ordering is stable across refreshes — a list that reorders under the operator's fingers makes numbered selection a hazard.
+- [ ] **Deletion check:** have `Filter` do its own `strings.Contains` on `Name` and ignore the resolver → (a) red. That is the exact regression Decision 12 exists to prevent, so the test must fail on it.
+- [ ] **Wiring check (one line, in the console):** production passes `couch.LookupTrees` — assert it, or the injection is a seam nothing uses.
 - [ ] Commit.
 
 ### Task 3.3 — N children in the console
 
 **Files:** Modify `cmd/internal/couchtty/console.go`.
 
-**Contract:** the console holds a map of `ActorID` → child. Only the active child's chunks reach stdout; every child's chunks reach its own `Ring` and `Screen`. Attach = `Reserve`, then **replay** (`StripQueries(Snapshot())` after a clear) for a line-mode child, or a **resize nudge** for an alt-screen child (Decision 5), then repaint the row.
+**Contract:** the console holds a map of `ActorID` → child. Only the active child's chunks reach the host; every child's chunks reach its own `Ring` and `Screen`. Attach = `Reserve`, then **replay** — `StripQueries(Snapshot())` after a clear, for every child alike (Decision 5) — then repaint the row.
 
-- [ ] **Tests must catch:** (a) an inactive child's output does not reach stdout but does reach its ring — the bug this prevents is a switcher that loses everything said while you were away; (b) an alt-screen child gets the nudge and **not** the replay, and a line-mode child the reverse; (c) attach repaints the status row *after* the child's repaint, so the row is not overwritten by the landing.
-- [ ] **Deletion check:** always replay → (b) red.
+- [ ] **Tests must catch:** (a) an inactive child's output does not reach the host but does reach its ring — the bug this prevents is a switcher that loses everything said while you were away; (b) the replayed bytes are `StripQueries`'d — a raw replay re-asks the host terminal and the answer lands in the *newly active* child's stdin, which is #127's bug arriving at a new site; (c) attach repaints the status row *after* the child's repaint, so the row is not overwritten by the landing.
+- [ ] **Deletion check:** replay `Snapshot()` unstripped → (b) red.
 - [ ] Commit.
 
 ### Task 3.4 — the panel dispatches through `Operations()`
@@ -322,7 +362,9 @@ The milestone that answers both terminal risks: does `pair` run correctly in a c
 - [ ] **Deletion check:** add a panel-only action → the audit goes red.
 - [ ] Commit.
 
-### Task 3.5 — operator smoke: two real children
+### Task 3.5 — operator smoke: two real children, in the real configuration
+
+**Run couch from `brain` with no path** (`cd ~/workspace/brain && couch start`), so the root actor is genuinely brain and "home" is the session `#148` will make the advisor — not the pair-as-root stand-in M2 used (Decision 1, PQ-4).
 
 - [ ] From the root actor, start a second child on another peer repo via the panel.
 - [ ] Confirm and log: switching between them is instant with no model turn; `ctrl-space` from the *second* child lands on the root actor; `ctrl-space` again reaches the panel; typeahead finds a child by its agent-published description; a digit jumps to it; **`ctrl-space` works while a child is mid-output** (start a long stream first — this is the Done-when clause most likely to fail, because a blocked stdout pump would stall the interceptor).
@@ -361,7 +403,7 @@ The milestone that answers both terminal risks: does `pair` run correctly in a c
 **Files:** Modify `cmd/internal/couchtty/console.go`.
 
 - [ ] Region reset, cursor restored, raw mode restored, alt screen left — on normal quit, on last-child exit, and on `SIGTERM`/`SIGHUP` to couch itself.
-- [ ] **Tests must catch:** the signal path specifically. A `defer` covers the happy path and does not run on a signal; a console that leaves the operator's terminal with a pinned scroll region after a `kill` is the worst failure this milestone can ship.
+- [ ] **Tests must catch:** the signal path specifically, driven through `hostty.FakeHost` (which is why Task 1.4a exists). A `defer` covers the happy path and does not run on a signal; a console that leaves the operator's terminal with a pinned scroll region after a `kill` is the worst failure this milestone can ship.
 - [ ] Commit.
 
 ### Task 4.5 — docs and the map
@@ -369,7 +411,7 @@ The milestone that answers both terminal risks: does `pair` run correctly in a c
 **Files:** Modify `atlas/couch.md`; verify `couch --help` renders the new arg.
 
 - [ ] Rewrite the atlas's **"There is no pty yet"** and **"Planned, not built"** paragraphs — they are current-state claims that this issue falsifies, and the atlas holds only current state.
-- [ ] Add the console and the reserved row to `atlas/couch.md`, and describe `ptychild` as shared with `pair term` (name the second consumer, or the next reader re-derives it).
+- [ ] Add the console and the reserved row to `atlas/couch.md`, and describe `ptychild` **and `hostty`** as shared with `pair term` — name the second consumer in both cases, or the next reader re-derives it. `pair term` is now a client of two extracted packages; `atlas/` must say so, since a reader of `termcmd` alone would not guess it.
 - [ ] Do **not** enumerate the operation set in prose — the atlas already records why that drifts.
 - [ ] Commit.
 
@@ -397,7 +439,7 @@ The milestone that answers both terminal risks: does `pair` run correctly in a c
 
 - `go build ./...`; `go test ./cmd/... -count=1`; `go test ./cmd/... -race -count=1` (whole tree — a race in the pumps will not show in one package).
 - `make test-live` (`PAIR_LIVE_COUCH=1`) — the fake-vs-real pty conformance.
-- `make test-term-pane-shortcuts` and the `pair term` smoke from 1.5 — the migration's regression net.
+- `make test-term-pane-shortcuts` and the `pair term` smoke from 1.5 — the regression net for **both** migrations (child half in 1.5, host half in 1.4a).
 - The operator smokes from 2.7, 3.5 and 4.6, each logged with what was observed rather than "verified".
 - `atlas/couch.md` reconciled to what exists (4.5).
 
@@ -416,3 +458,13 @@ _(Append here: timestamp + reason + delta. Do not overwrite.)_
 **Reason:** the operator pointed out that couch hosts `pair`, which runs zellij — so a session is already reattachable beyond a console's lifespan, and the plan's Decision 7 was reasoning about the wrong durability boundary.
 
 **Delta:** Decision 7 rewritten (durability is the zellij server's, not couch's; a daemon is not on the path). New Decision 11 and Task 2.6a: `Spawn` forces `pair resume <tag>` and drops `--layout2`, so a console restart reattaches instead of landing on an fzf picker. Task 2.7 grows two smoke items — reattach across a `kill -9`, and settling whether `couch stop` parks or kills (the project file currently asserts "kill"). Task 4.3 and the acceptance mapping updated to match. Open questions replaced by the operator's answers.
+
+### 2026-08-22 — plan-quality round 1: four blocking findings, fixed at the class
+
+**Reason:** `sdlc change-code`'s plan-quality gate raised PQ-1..PQ-4 (Important) and PQ-5 (Minor). Every factual correction it made was checked against the source and was right. Dispositions, each aimed at the class rather than the named site:
+
+- **PQ-1 `stream-split-contract` — addressed.** `Intercept` becomes `Interceptor.Feed(in) (before, hit, rest)`, adopting `workbenchshortcut.FindChord`'s return shape so the split point is expressible. The class the finding pointed at is bigger than the signature: a *stateless* interceptor could not honour the plan's own split-boundary rule either, so Decision 10 now names bracketed paste as the one place state is real, and Task 2.3 tests the split-read marker and the pasted-NUL data-loss case.
+- **PQ-2 `io-seam-unnamed` — addressed.** The class is "one half of the terminal plumbing was extracted and the other left duplicated". Decision 6 now extracts **both**: new `hostty` package (Host seam + `OSHost`/`FakeHost` + the terminal-control constants, `\x1b[r` among them) with `pair term`'s host half migrated onto it in new Task 1.4a. That is what makes Task 2.5's fake-driven tests and Task 4.4's signal-path test writable. Task 2.6 now names `couchcmd/run.go:171-178` as what the console displaces, and says `couchcmd` constructs and drives the `Console`.
+- **PQ-3 `resolution-single-source` — addressed.** The stated field list was wrong (`LookupTrees` matches name + operator description + agent description; repo is matched nowhere). New Decision 12: `Filter` **injects** the resolver rather than restating the rule, production passes `couch.LookupTrees`, and Task 3.2's deletion check now fails on a re-implemented `strings.Contains`. Generalised beyond the panel: the guard Task 3.4 applies to actions now applies to resolution too.
+- **PQ-4 `home-actor-contract` — addressed.** Decision 1 now states the definition (root actor = first child; `start`'s path defaults to `.`), the ordering it implies (`cd brain && couch start` is what makes brain home), and the launching shell's fate (spent for couch's lifetime; no key leaves couch). Task 3.5's smoke moves to that real configuration instead of verifying the project's headline property against pair-as-root.
+- **PQ-5 `resize-nudge-mechanism` — addressed by removal.** `TIOCSWINSZ` only raises `SIGWINCH` on an actual size change, so the nudge cost a `rows-1 → rows-2 → rows-1` double reflow. Rather than accept that, Decision 5 drops the branch: `pair term` already replays a raw buffer to land on an `nvim` tab daily, so replay is the one mechanism for every child and the nudge is a documented fallback if M3's smoke lands garbled. Task 3.3's alt-screen test is replaced by one pinning that the replay is `StripQueries`'d — #127's bug arriving at a new site is the real hazard on that path.
