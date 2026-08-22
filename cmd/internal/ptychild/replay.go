@@ -100,9 +100,12 @@ func StripQueries(buf []byte) []byte {
 	return out
 }
 
-// sequenceAt frames the escape sequence at the start of buf and reports
-// whether it is a capability query. ok is false when the sequence is not
-// terminated within buf (a truncated tail), which the caller emits verbatim.
+// sequenceAt frames the escape sequence at the start of buf and reports whether
+// it is a capability query. ok is false when the sequence is not terminated
+// within buf (a truncated tail), which the caller emits verbatim.
+//
+// Framing itself is `frame` (screen.go) -- one site per package decides where a
+// sequence ends. This function is only the query POLICY over that framing.
 func sequenceAt(buf []byte) (size int, isQuery bool, ok bool) {
 	for _, lit := range terminalQueryLiterals {
 		if bytes.HasPrefix(buf, lit) {
@@ -116,24 +119,17 @@ func sequenceAt(buf []byte) (size int, isQuery bool, ok bool) {
 			return len(lit), true, true
 		}
 	}
-	if len(buf) < 2 {
+	size, ok = frame(buf)
+	if !ok {
 		return 0, false, false
 	}
 	switch buf[1] {
 	case '[':
-		end := ansi.TerminatorScan(buf)
-		if end < 0 {
-			return 0, false, false
-		}
-		return end, isParameterizedCSIQuery(buf[:end]), true
+		return size, isParameterizedCSIQuery(buf[:size]), true
 	case ']':
-		end, found := ansi.OSCEnd(buf, ansi.Lenient)
-		if !found {
-			return 0, false, false
-		}
-		return end, isParameterizedOSCQuery(buf[:end]), true
+		return size, isParameterizedOSCQuery(buf[:size]), true
 	default:
-		return 2, false, true
+		return size, false, true
 	}
 }
 
