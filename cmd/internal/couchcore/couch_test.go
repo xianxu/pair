@@ -412,3 +412,69 @@ func TestDescribePrefersTheAgentsPublishedLineOverTheOperators(t *testing.T) {
 		t.Fatalf("Describe = %q; the agent's own line must win", got)
 	}
 }
+
+func TestPruneKeepsRecordsWhoseLivenessIsUnknown(t *testing.T) {
+	// The smoke-test bug: a probe that could not answer read as "dead", the
+	// record was pruned, and a second agent was let onto a tree that already
+	// had a running one. Unknown must fail CLOSED.
+	env := newTestEnv(t, "/repo")
+	rec, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
+	env.Proc.SetUnknown(rec.PID)
+
+	if got := env.Couch.Liveness(rec); got != Unknown {
+		t.Fatalf("Liveness = %v, want Unknown", got)
+	}
+	if err := env.Couch.PruneDead(); err != nil {
+		t.Fatalf("PruneDead: %v", err)
+	}
+	if len(env.Couch.Get("/repo")) != 1 {
+		t.Fatal("an unknown-liveness record was pruned; the guard now protects nothing")
+	}
+	if _, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"}); err == nil {
+		t.Fatal("a second agent was admitted while the incumbent's state was unknown")
+	}
+}
+
+func TestUnreadableIdentityIsUnknownNotDead(t *testing.T) {
+	// A process that exists but whose token cannot be read is not evidence of
+	// anything, so it must not be treated as gone.
+	env := newTestEnv(t, "/repo")
+	rec, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
+	env.Proc.IdentityErr[rec.PID] = true
+
+	if got := env.Couch.Liveness(rec); got != Unknown {
+		t.Fatalf("Liveness = %v, want Unknown", got)
+	}
+}
+
+func TestStopSignalsEvenWhenLivenessIsUnknown(t *testing.T) {
+	// Refusing to signal because we could not confirm liveness would free the
+	// tree while leaving a running agent behind -- the hazard Stop closes.
+	env := newTestEnv(t, "/repo")
+	rec, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
+	env.Proc.SetUnknown(rec.PID)
+
+	signalled, err := env.Couch.Stop(rec)
+	if err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	if !signalled {
+		t.Fatal("Stop must attempt a signal when liveness is unknown")
+	}
+}
+
+func TestKnownDeadIsStillPruned(t *testing.T) {
+	// The complement: failing closed must not disable pruning entirely, or
+	// BR-1 comes back.
+	env := newTestEnv(t, "/repo")
+	rec, h := env.spawn(t, StartArgs{Worktree: "/repo"})
+	env.Runner.SetExited(h.ID(), 0)
+	env.Proc.Kill(rec.PID)
+
+	if got := env.Couch.Liveness(rec); got != Dead {
+		t.Fatalf("Liveness = %v, want Dead", got)
+	}
+	if _, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"}); err != nil {
+		t.Fatalf("a known-dead actor still refused its tree: %v", err)
+	}
+}

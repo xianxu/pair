@@ -345,3 +345,35 @@ And BR-12, which is the one to remember: the operator smoke was ticked after
 step 1 of 5. **Two of the four unrun steps are exactly where BR-1 and BR-3
 live** -- a second-shell `couch list` and a repeat `couch start` would have
 surfaced both. The checkbox is now unticked and says which steps ran.
+
+### 2026-08-21 — smoke testing caught a fail-open bug in the BR-1 fix
+
+The operator ran the smoke steps and the second-shell read path worked: `couch
+list` showed the live actor with its pid, and `couch show ../pair` returned one
+tree rather than everything (BR-3 confirmed against the real binary).
+
+Then the refusal step **did not refuse**. It admitted a second agent onto a tree
+that already had a live one, and in doing so destroyed the running session's
+registration.
+
+Root cause is in the BR-1 fix itself. `PruneDead` dropped every record where
+`IsLive` was false -- but `IsLive` was two-valued, and both probes underneath it
+collapse "the process is gone" with "I could not check": `procutil.Alive` forks
+`kill -0`, so a restricted fork reads as dead, and `procutil.Identity` returns
+`""` on any error. So a probe that merely failed pruned a live actor and then
+let a second agent in. Pruning failed **open**, which is worse than not pruning
+at all -- it deletes exactly the evidence the guard depends on.
+
+Fixed by making liveness three-valued. `Liveness` returns Live, Dead or Unknown;
+`PruneDead` prunes only on **Dead**; `Stop` signals on Live *or* Unknown, since
+declining to signal because we could not confirm would free the tree while
+leaving a running agent behind. `OSProcOps.Exists` now uses `syscall.Kill(pid, 0)`
+directly instead of forking -- ESRCH is dead, EPERM is alive-but-not-ours,
+anything else is Unknown -- which also fixed the probe outright in restricted
+environments, since nothing forks any more. Rendering shows `unknown` distinctly
+from `dead`.
+
+The lesson is not "the fix was wrong" so much as **a repair aimed at a stale
+record introduced a way to delete a live one**, and only running the operator
+steps found it. This is the second time in this issue that BR-12's shape has
+bitten: the value was in the steps I had ticked without running.

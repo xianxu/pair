@@ -213,10 +213,9 @@ func renderTrees(w io.Writer, trees []couchcore.TreeSummary) {
 			fmt.Fprintf(w, "%s  %s%s\n", open, t.Desc, close)
 		}
 		for _, a := range t.Actors {
-			state := "dead"
-			if a.Live {
-				state = "live"
-			}
+			// "unknown" is rendered distinctly: it means the probe could not
+			// answer, not that the agent is gone.
+			state := a.State.String()
 			fmt.Fprintf(w, "%s  %-14s %s  pid %d%s\n", open, a.Record.ID, state, a.Record.PID, close)
 		}
 		if len(t.Actors) == 0 {

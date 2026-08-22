@@ -99,26 +99,37 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	return record, h, nil
 }
 
-// IsLive recomputes liveness for a persisted record. A PID that has been
-// recycled by an unrelated process reports NOT live, because the kernel start
-// token differs.
+// Liveness recomputes an actor's state from the persisted {PID, Identity}.
 //
-// Known narrow window: procutil.Alive is `kill -0`, which succeeds for a
-// zombie, so a child that exited but has not yet been reaped by ITS OWN parent
-// reads as live here. ExecRunner reaps in the background precisely so its own
-// children are never zombies, and an orphan is reparented to init and reaped
-// immediately -- so the window needs a couch that spawned a child, is not
-// waiting on it, and is still running. `couch start` blocks on Wait, so that
-// does not arise today; revisit if a non-blocking spawn ever lands.
-func (c *Couch) IsLive(a ActorRecord) bool {
-	if a.PID == 0 || !c.Proc.Alive(a.PID) {
-		return false
+// Three-valued on purpose. A PID recycled by an unrelated process reports Dead
+// because the kernel start token differs; a probe that cannot answer reports
+// Unknown, and callers that act destructively must treat Unknown as "leave it
+// alone".
+func (c *Couch) Liveness(a ActorRecord) Liveness {
+	if a.PID == 0 || a.Identity == "" {
+		return Dead // nothing was ever recorded to check against
 	}
-	if a.Identity == "" {
-		return false
+	switch c.Proc.Exists(a.PID) {
+	case Dead:
+		return Dead
+	case Unknown:
+		return Unknown
 	}
-	return c.Proc.Identity(a.PID) == a.Identity
+	id, err := c.Proc.Identity(a.PID)
+	if err != nil {
+		// The process exists but we could not read its token. That is not
+		// evidence of anything; refusing to guess is the safe answer.
+		return Unknown
+	}
+	if id != a.Identity {
+		return Dead // same PID, different process
+	}
+	return Live
 }
+
+// IsLive is the display-side convenience. Do not branch on it for anything
+// destructive -- it folds Unknown into false.
+func (c *Couch) IsLive(a ActorRecord) bool { return c.Liveness(a) == Live }
 
 func (c *Couch) List() []ActorRecord {
 	out := c.reg.Records()
@@ -173,7 +184,8 @@ func (c *Couch) Views(recs []ActorRecord) []ActorView {
 		e := c.names.Entry(r.Args.Worktree)
 		out = append(out, ActorView{
 			Record: r,
-			Live:   c.IsLive(r),
+			Live:   c.Liveness(r) == Live,
+			State:  c.Liveness(r),
 			Name:   e.Name,
 			Desc:   c.Describe(r.Args.Worktree),
 			Mode:   c.policy.Mode(r.Args.Worktree.Repo()),
@@ -282,7 +294,11 @@ func (c *Couch) Summarize(trees []Worktree) []TreeSummary {
 func (c *Couch) PruneDead() error {
 	var dead []ActorRecord
 	for _, r := range c.reg.Records() {
-		if !c.IsLive(r) {
+		// Only a KNOWN-dead record is pruned. Pruning on Unknown deletes a
+		// live actor's registration whenever the probe fails, and then lets a
+		// second agent onto its tree -- observed in smoke testing, where a
+		// sandboxed probe destroyed a running session's record.
+		if c.Liveness(r) == Dead {
 			dead = append(dead, r)
 		}
 	}
@@ -306,7 +322,10 @@ func (c *Couch) PruneDead() error {
 // stale record's PID may have been recycled by an unrelated process and
 // SIGTERM to the wrong pid is not recoverable.
 func (c *Couch) Stop(a ActorRecord) (signalled bool, err error) {
-	if c.IsLive(a) {
+	// Signal on Live or Unknown: refusing to signal because we could not
+	// confirm liveness would leave a running agent behind while freeing its
+	// tree, which is the hazard Stop exists to close.
+	if c.Liveness(a) != Dead {
 		if err := c.Proc.Signal(a.PID, TermSignal); err != nil {
 			return false, fmt.Errorf("stop %s: %w", a.ID, err)
 		}

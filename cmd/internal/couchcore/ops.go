@@ -43,6 +43,7 @@ type StopResult struct {
 type ActorView struct {
 	Record ActorRecord `json:"record"`
 	Live   bool        `json:"live"`
+	State  Liveness    `json:"state"`
 	Name   string      `json:"name,omitempty"`
 	Desc   string      `json:"description,omitempty"`
 	Mode   Mode        `json:"mode"`
