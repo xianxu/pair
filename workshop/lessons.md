@@ -1738,3 +1738,22 @@ step caught.
 **Rule.** Tick a checklist item only for steps actually performed; record the
 rest as unrun in the same breath. When a Log says "steps 2-5 not exercised" and
 a checkbox says done, believe the Log. Caught in #000145 close review round 1.
+
+## An aliasing test must force an in-place OVERWRITE, not just a later write
+
+#146 Task 1.1's first `Snapshot` aliasing test appended to a ring with spare
+capacity, then asserted the snapshot was unchanged. It passed against
+`return r.data` — the aliasing bug it existed to catch — because `append` wrote
+*past* the snapshot's bytes rather than over them. The deletion check caught it;
+inspection would not have.
+
+**Rule.** To pin "this returns a copy", construct the case where the next
+mutation writes **into the same indices** the returned value occupies — for a
+bounded buffer that means filling to capacity so the trim's `copy()` shifts, not
+leaving headroom so `append` extends. Same shape for any snapshot/defensive-copy
+assertion: if the mutation you perform cannot reach the bytes you assert on, the
+test passes with the copy removed.
+
+Corollary for bounded buffers: `Snapshot` reports the *window*, so a buffer that
+grows its backing array without bound looks identical from outside. Pin the
+allocation separately (`cap()`), or "bounded" is untested.
