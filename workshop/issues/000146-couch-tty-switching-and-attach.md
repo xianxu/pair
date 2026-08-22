@@ -1,11 +1,12 @@
 ---
 id: 000146
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-08-21
-updated: 2026-08-21
+updated: 2026-08-22
 estimate_hours:
+started: 2026-08-22T12:14:19-07:00
 ---
 
 # couch: tty switching and attach
