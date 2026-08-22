@@ -76,6 +76,32 @@ rounds:
           family: resize-nudge-mechanism
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-08-22T12:51:51-07:00"
+      agent: claude
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Interceptor.Feed(in) (before, hit, rest) adopts FindChord's shape; Decision 10 names bracketed paste as the one place framing state is real and Task 2.3 tests the split marker and the pasted-NUL loss.
+          round: 2
+        - id: PQ-2
+          disposition: addressed
+          note: New hostty package (Host seam, OSHost/FakeHost, control constants incl. the moved \x1b[r) with termcmd's host half migrated in Task 1.4a; Task 2.6 names couchcmd/run.go:170-178 as what the console displaces and who drives it.
+          round: 2
+        - id: PQ-3
+          disposition: addressed
+          note: Decision 12 corrects the field list and injects the resolver rather than restating it; Task 3.2's deletion check fails on a re-implemented strings.Contains.
+          round: 2
+        - id: PQ-4
+          disposition: addressed
+          note: Decision 1 states root actor = first child, path defaults to ".", the ordering that makes brain home, and the launching shell's fate; Task 3.5's smoke moves to that real configuration.
+          round: 2
+        - id: PQ-5
+          disposition: addressed
+          note: Addressed by removal - Decision 5 drops the alt-screen branch entirely, keeps replay as the one mechanism, and records the nudge as a costed fallback.
+          round: 2
+      blocked: false
+content_hash: 453abe138ad06545e5e997fdb6f5f05d78f7f9c7dffe5aed0330cae6fbe7bd8f
 ---
 
 # Gate ledger — pair#146 (plan-quality)
@@ -131,10 +157,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   rows-1 round trip and a visible double reflow of the whole zellij workbench.
   Say that is accepted, or choose a different redraw trigger.
 
+## Round 2 — 2026-08-22T12:51:51-07:00 (claude) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Interceptor.Feed(in) (before, hit, rest) adopts FindChord's shape; Decision 10 names bracketed paste as the one place framing state is real and Task 2.3 tests the split marker and the pasted-NUL loss.
+- PQ-2 — addressed — New hostty package (Host seam, OSHost/FakeHost, control constants incl. the moved \x1b[r) with termcmd's host half migrated in Task 1.4a; Task 2.6 names couchcmd/run.go:170-178 as what the console displaces and who drives it.
+- PQ-3 — addressed — Decision 12 corrects the field list and injects the resolver rather than restating it; Task 3.2's deletion check fails on a re-implemented strings.Contains.
+- PQ-4 — addressed — Decision 1 states root actor = first child, path defaults to ".", the ordering that makes brain home, and the launching shell's fate; Task 3.5's smoke moves to that real configuration.
+- PQ-5 — addressed — Addressed by removal - Decision 5 drops the alt-screen branch entirely, keeps replay as the one mechanism, and records the nudge as a costed fallback.
+
 ## Open findings
 
-- **PQ-1** [Important] `stream-split-contract` Intercept's signature can neither express the split point nor satisfy its own split-boundary test
-- **PQ-2** [Important] `io-seam-unnamed` Console's host-tty and signal boundary is neither named as a seam nor deduplicated from termcmd
-- **PQ-3** [Important] `resolution-single-source` PanelModel.Filter restates LookupTrees' match rule, and the stated field list is wrong
-- **PQ-4** [Important] `home-actor-contract` Root actor is defined two ways, and the smokes verify the weaker one
-- **PQ-5** [Minor] `resize-nudge-mechanism` The alt-screen resize nudge only fires if the size actually changes
+(none — every finding has been disposed)

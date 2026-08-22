@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-08-21
 updated: 2026-08-22
-estimate_hours:
+estimate_hours: 6.75
 started: 2026-08-22T12:14:19-07:00
 ---
 
@@ -117,6 +117,67 @@ first) but are folded into the milestone whose risk they answer.
       panel with actor + code, detach/reattach stays warm, notices over
       `couchcore.Enqueue`, terminal restored on every exit path including
       signals, atlas reconciled.
+
+## Estimate
+
+Derived after the plan cleared plan-quality (round 2, CLEAN), against the four
+milestones in `workshop/plans/000146-couch-tty-switching-and-attach-plan.md`.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+design-buffer: 0.15
+item: pensive                 design=0.8  impl=0.08
+item: greenfield-go-module    design=0.2  impl=0.24
+item: greenfield-go-module    design=0.2  impl=0.2
+item: cross-cutting-refactor  design=0.3  impl=0.2
+item: milestone-review        design=0.0  impl=0.15
+item: greenfield-go-module    design=0.5  impl=0.32
+item: smaller-go-module       design=0.1  impl=0.16
+item: smaller-go-module       design=0.1  impl=0.16
+item: smaller-go-module       design=0.1  impl=0.08
+item: real-api-discovery      design=0.0  impl=0.24
+item: milestone-review        design=0.0  impl=0.15
+item: tui-screen              design=0.3  impl=0.28
+item: smaller-go-module       design=0.1  impl=0.08
+item: smaller-go-module       design=0.1  impl=0.2
+item: milestone-review        design=0.0  impl=0.15
+item: smaller-go-module       design=0.1  impl=0.12
+item: smaller-go-module       design=0.1  impl=0.16
+item: atlas-docs              design=0.1  impl=0.06
+item: milestone-review        design=0.0  impl=0.15
+total: 6.75
+```
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only.*
+
+**What each item is**, in plan order — the mapping is the derivation, so it is
+written down rather than left implied:
+
+| Item | Covers | Why that primitive |
+|---|---|---|
+| `pensive` | this planning session: code survey, plan doc, two plan-gate rounds | design 0.8 takes the upper half of the 0.3–1 band — the survey spanned `couchcore`, `termcmd`, `wrapcmd` and `launcher`, and round 1 returned four Important findings. **Not** spec-discounted: no plan pre-resolved this work, it *is* the plan. |
+| `greenfield-go-module` ×1 | M1 `ptychild` — `Ring`, `StripQueries`, `Screen`, `Child` | new package, single concern (a child on a pty). Design ×0.2-discounted: the plan fixes the contract and the test surface. |
+| `greenfield-go-module` ×1 | M1 `hostty` — `Host`, `OSHost`, `FakeHost`, control constants | same shape, one concern (the operator's terminal), same discount. |
+| `cross-cutting-refactor` | M1 migration of `pair term` onto **both** packages | multi-file, behaviour-preserving, with an existing suite as the net. Design 0.3 is not discounted to zero: where the seam falls in `runShell` is a live decision. |
+| `greenfield-go-module` ×1 | M2 `couchtty` — `Console` + `Interceptor` | design 0.5 rather than the ×0.2 floor: DECSTBM's behaviour under real children is the one thing the plan cannot pre-resolve, and Decision 4 carries a named fallback that would cost redesign. |
+| `smaller-go-module` ×2 | M2 `Reserve`/`RenderStatusRow`; `PtyRunner`/`TerminalHandle`/fake | both well-specced extensions of shapes that exist (the `Runner` seam, `termcmd`'s escapes). |
+| `smaller-go-module` ×1 | M2 Task 2.6a — `Spawn` forced onto `pair resume <tag>` | argv plus a derivation that reuses `launcher.DefaultTag`; small because the lever already exists. |
+| `real-api-discovery` | M2 the terminal-behaviour smoke budget | the closest primitive to what this actually is: a budget for discovering how an external system really behaves. Here the external systems are Ghostty, zellij and nvim rather than an HTTP API, and the discovery is DECSTBM survival across alt-screen transitions. |
+| `tui-screen` | M3 the panel — rows, typeahead, numbered pick | literally the primitive's description: a screen plus a state machine plus tests. |
+| `smaller-go-module` ×2 | M3 `Focus`; N-children routing + replay in `Console` | pure model, then wiring onto seams M2 built. |
+| `smaller-go-module` ×2 | M4 `Notice`/`Feed` + row content; exits + restore-on-signal | `Feed` delegates to `couchcore.Enqueue`, so it is an extension rather than new logic. |
+| `atlas-docs` | M4 `atlas/couch.md` reconciliation | the atlas's "there is no pty yet" paragraphs are falsified by this issue. |
+| `milestone-review` ×4 | the M1/M2/M3 boundaries plus the issue close | one per `sdlc milestone-close` / `sdlc close`, which is exactly the four boundaries the Plan commits to. |
+
+**Read this as ship wall-clock, not calendar.** v3.1 writes `impl=` at 40% of the
+v2 table because post-#118 actuals came in near half of v2's implementation
+hours; the design column is unscaled. The number is deliberately *not* inflated
+to match intuition about a four-milestone terminal feature — that would be the
+back-fitting the estimate-quality gate exists to catch. The three operator
+smokes are the largest risk to it: if M2's smoke falsifies DECSTBM, Decision 4's
+fallback is a scope event, not a rounding error.
 
 ## Log
 
