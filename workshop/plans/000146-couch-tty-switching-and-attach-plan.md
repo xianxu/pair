@@ -41,13 +41,21 @@ Terminal code has its own standing moves, all of them lessons already paid for i
    - **`stripTerminalQueries` moves and is shared** — both callers replay a raw buffer *to a real terminal*, so the deny-list is one policy with two sites, not two opposed policies (contrast `wrapcmd`, which strips `\x1b[>7u` while `termcmd` requires `\x1b[>1u` to survive; those stay apart).
    - **The migration is the test.** Extracted code with no second consumer is unvalidated new code; `termcmd`'s 1137 lines of existing tests are the regression net that proves the extraction is faithful. That is why M1 migrates rather than deferring it — and why M1 comes first even though it ships no couch behaviour.
 
-7. **Detach is console-scoped. A daemon is `#147`.** Within a console, detaching from a child (switching away, or going to the panel) leaves it running and warm: its pty stays open, its ring keeps filling, reattach replays. Children do **not** survive the console process — they are its children, and closing the terminal takes them down. Making a fleet outlive its console needs a daemon plus pty handoff over a socket, which is the transport `#147` builds; doing it here would drag `#147` into `#146` and delay the switcher the operator would actually use daily. **Flagged for operator confirmation** — see Open questions.
+7. **Detach is console-scoped, because durability is zellij's, not couch's.** couch's child is `pair` → a zellij **client**; the work (claude, nvim) lives in the zellij **server** session. Killing the console kills the client, and the session survives *detached* — so a fleet already outlives any terminal window one layer below couch, with no daemon involved. Within a console, switching away from a child leaves it running and warm: pty open, ring filling, replay on return.
+   - **What `#146` owes is determinism on the way back in**, not durability. See Decision 11 — today a console restart lands on an fzf picker rather than on the session.
+   - A daemon (couch's own supervisor plus pty handoff over a socket) is `#147`'s transport and is **not** required by the Done-when's "running and warm". Confirmed by the operator, 2026-08-22.
+   - **A claim in the project file this milestone should settle:** `workshop/projects/couch.md` records "`couch stop` is a kill, not a park." If `Stop` SIGTERMs the pair/zellij *client*, the session detaches and the work survives — which is a park. Verified in the M2 smoke (Task 2.7) and the project record corrected either way.
 
 8. **The status row carries the one real activity signal available today: `BEL`.** With no transport (`#147`) the row could only report attach/exit, which makes it decorative — and a row that never says anything useful is dead weight that still costs a terminal row. A child's `\x07` is a genuine "the agent wants you" signal, it is already in the byte stream the scanner reads, and it costs one field. Anything richer (per-actor mailbox depth, git staleness) is `#147`/`#148` and is deliberately absent.
 
 9. **Notices reuse `couchcore.Enqueue`, they do not re-implement it.** The row's rolling feed wants exactly Enqueue's policy: collapse by kind (a second bell from the same actor replaces the first), bounded, never drop control (an exit is control). Keyed as `bell:<ActorID>` / `exit:<ActorID>` so collapse is per-actor rather than global (ARCH-DRY).
 
 10. **`ctrl-space` (`0x00`) is intercepted before the child sees it.** The Spec settled the key; what this plan owes is the audit the repo's own lesson demands ("Never disable an input layer without auditing the escape hatches it provides"). `zellij/config.kdl` binds no Space chord, so nothing in the workbench loses a path. The audit for `claude` and `nvim` is a step in M2, and its result is recorded in the issue `## Log` — including, if something does ride on it, how a literal `ctrl-space` reaches a child.
+
+11. **`Spawn` forces a tag: `pair resume <tag>`, with `tag = launcher.DefaultTag(<worktree root>)`.** `resume` takes `DecideLaunch`'s `ForcedTag` branch — attach when the session is live or detached, create otherwise — and skips the name prompt (`launcher/decision.go:33-37`, `help.go:15`). Today `Spawn` runs `pair --layout2` with **no** tag, and `DecideLaunch` with no tag and a detached session present returns `ActionPick`: an fzf picker inside couch's pty, waiting on the operator. That is what the first minute after a console restart looks like right now.
+    - **`--layout2` is dropped, and that is required rather than incidental.** `resume` refuses any third argv element (`launcher/args.go:104`), so `pair resume <tag> --layout2` is a usage error. It is also the right default: an omitted layout flag reuses the tag's recorded layout, a new tag already defaults to layout2, and forcing a layout on a *live* tag makes pair ask before recreating the whole workbench — a prompt the operator would meet inside couch's pty.
+    - **The derivation is reused, not re-invented.** `launcher.DefaultTag(path)` is exported and already computes pair's create-flow default from a path (ARCH-DRY).
+    - **This is a deliberate slice of `#149`, not a collision with it.** `#149` decides that the tag *is* the space — durable, opaque, several per tree, names as a mutable attribute layer — and supersedes this derivation. What `#146` needs is only that going back in is deterministic; recorded here so the overlap is chosen rather than discovered at `#149`'s plan.
 
 ---
 
@@ -251,10 +259,22 @@ The milestone that answers both terminal risks: does `pair` run correctly in a c
 - [ ] **Tests must catch:** (a) the declared-operations audit still passes (the arg is declared, not smuggled); (b) `couch start x --no-console` takes the `ExecRunner` path and prints the loud fallback line; (c) `couch start x no-console` does **not** — the guard-bypass-never-binds-positionally rule has a test in this repo already; mirror it.
 - [ ] Commit.
 
+### Task 2.6a — `Spawn` forces a tag, so going back in is deterministic
+
+**Files:** Modify `cmd/internal/couchcore/couch.go` (the `argv` construction in `Spawn`); test in `couch_test.go`.
+
+**Contract:** `argv = ["pair", "resume", launcher.DefaultTag(<worktree root>)]` plus `args.ExtraArgs`. `--layout2` is **removed** (Decision 11).
+
+- [ ] **Tests must catch:** (a) the argv is `resume <tag>` and the tag derives from the **worktree root**, not from `args.Cwd` — a spawn from `kbench/competition/arc-agi-3/` must resume `kbench`'s tag, since that is the tree couch keyed on; (b) `--layout2` is gone — assert its absence, because leaving it in is a *usage error at runtime* that no unit test would otherwise see; (c) the same tree spawned twice produces the same tag (determinism is the whole point).
+- [ ] **Deletion check:** derive the tag from `args.Cwd` instead of the tree → (a) red.
+- [ ] Commit.
+
 ### Task 2.7 — operator smoke (the milestone's real verification)
 
 - [ ] `make build` then `./bin/couch start ../pair` from `brain`.
 - [ ] Confirm, and record each in the issue `## Log` with what was observed: pair + zellij + claude come up inside the pty; the layout is correct at `rows-1`; resizing the terminal reflows the child; the reserved row stays visible while claude streams output; `nvim` opens **and exits** without eating the row (the margin-reset case from Decision 4); `ctrl-space` is intercepted and does not reach the child; quitting restores the terminal (`echo $LINES`, scroll region reset, no raw-mode residue).
+- [ ] **Reattach across a console death (Decision 7/11).** `kill -9` the couch process, then re-run `couch start` on the same tree. Confirm and log: the same zellij session comes back with claude still mid-thread — **not** an fzf picker, and **not** a second session. This is the property that makes a daemon unnecessary; if it does not hold, Decision 7 is wrong and the daemon question reopens before M3.
+- [ ] **Settle park-vs-kill.** From a second shell, `couch stop <ref>` while the console runs. Record what actually happens to the zellij session: gone (kill) or detached-and-resumable (park). Correct `workshop/projects/couch.md`'s "`couch stop` is a kill, not a park" line to match, in the same commit.
 - [ ] If the row does not survive, take the Decision 4 fallback and record it as a Revision — do not start compositing.
 
 ### Task 2.8 — close M2
@@ -333,7 +353,7 @@ The milestone that answers both terminal risks: does `pair` run correctly in a c
 **Files:** Modify `cmd/internal/couchtty/console.go` (+ test).
 
 - [ ] **Tests must catch:** (a) after switching away, the child's process is still alive and its ring is still growing; (b) reattaching replays what accumulated; (c) going to the panel and back is the same path as switching between children — one mechanism, not two.
-- [ ] Record in the issue `## Log`: children do **not** survive the console (Decision 7), and `#147` owns the daemon that would change that.
+- [ ] Record in the issue `## Log` what the layering actually delivers: couch's child is a zellij *client*, so the console's death costs the view and not the work; warmth beyond the console belongs to zellij's server session plus the forced tag from Task 2.6a, and `#147`'s daemon is not on the path to it.
 - [ ] Commit.
 
 ### Task 4.4 — restore the terminal on every exit path
@@ -370,7 +390,7 @@ The milestone that answers both terminal risks: does `pair` run correctly in a c
 | reserved row visible in root and attached child; child renders at reduced height | 2.4, 2.5 | unit (off-by-one, restore) + 2.7 smoke |
 | an exited child lands the operator in the TUI with which actor and why | 4.1 | unit (active/inactive, code) |
 | landing shows recent context, not a blank screen | 3.3 | unit (replay vs nudge) + 3.5 smoke |
-| detach/reattach leave children running and warm | 4.3 | unit + logged scope note (Decision 7) |
+| detach/reattach leave children running and warm | 4.3, 2.6a | unit (warm across a switch) + 2.7 smoke (warm across a console death) |
 | a numbered/direct switch path with no natural-language resolution | 3.2 | unit (`Pick` after filter) + 3.5 smoke |
 
 ## Verification before close
@@ -381,12 +401,18 @@ The milestone that answers both terminal risks: does `pair` run correctly in a c
 - The operator smokes from 2.7, 3.5 and 4.6, each logged with what was observed rather than "verified".
 - `atlas/couch.md` reconciled to what exists (4.5).
 
-## Open questions for the operator
+## Settled by the operator — 2026-08-22
 
-1. **Detach scope (Decision 7).** Console-scoped detach — children die with the console; surviving it needs `#147`'s daemon. Confirm that reads the Done-when correctly, or `#146` grows a daemon.
-2. **Migrating `pair term` in M1 (Decision 6).** It is the daily driver and the extraction's only regression net. Confirm the appetite, or `ptychild` ships unshared and the migration becomes its own issue — which is the duplication ARCH-DRY would flag.
-3. **The status row's content (Decision 8).** `BEL` is the only real activity signal before `#147`. Confirm that is worth a permanent terminal row now, or the row ships showing only actors and attach/exit.
+1. **Detach scope:** console-scoped (Decision 7), with the observation that made it cheap — zellij's server session already outlives the console, so couch needed determinism on re-entry rather than a daemon. Folded in as Decision 11 + Task 2.6a.
+2. **`pair term` migration:** extract and migrate in M1 (Decision 6). Its suite is the regression net.
+3. **Status row content:** include the BEL activity signal (Decision 8).
 
 ## Revisions
 
 _(Append here: timestamp + reason + delta. Do not overwrite.)_
+
+### 2026-08-22 — reattach reframed; three scope calls settled
+
+**Reason:** the operator pointed out that couch hosts `pair`, which runs zellij — so a session is already reattachable beyond a console's lifespan, and the plan's Decision 7 was reasoning about the wrong durability boundary.
+
+**Delta:** Decision 7 rewritten (durability is the zellij server's, not couch's; a daemon is not on the path). New Decision 11 and Task 2.6a: `Spawn` forces `pair resume <tag>` and drops `--layout2`, so a console restart reattaches instead of landing on an fzf picker. Task 2.7 grows two smoke items — reattach across a `kill -9`, and settling whether `couch stop` parks or kills (the project file currently asserts "kill"). Task 4.3 and the acceptance mapping updated to match. Open questions replaced by the operator's answers.

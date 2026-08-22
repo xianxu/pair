@@ -104,8 +104,10 @@ first) but are folded into the milestone whose risk they answer.
 - [ ] **M2 — console over one child, with the reserved row.** `PtyRunner` behind
       the existing `Runner` seam (+ fake + live conformance), `couch start`
       becomes the console, `ctrl-space` interceptor, one-row-shorter child pty
-      with a pinned scrolling region. **Smoke step 1** (one real `pair` + claude
-      child, resize, nvim in and out) lands here.
+      with a pinned scrolling region, and `Spawn` forced onto `pair resume
+      <tag>` so a console restart reattaches instead of landing on a picker.
+      **Smoke step 1** (one real `pair` + claude child, resize, nvim in and out,
+      reattach across a `kill -9`) lands here.
 - [ ] **M3 — many children and the panel.** Up-one-level focus, per-child ring
       replay (or a resize nudge for alt-screen children), typeahead + numbered
       direct switch, panel actions dispatching through `couchcore.Operations()`.
@@ -152,7 +154,38 @@ because they narrow scope:
   redraw-from-snapshot, resize propagation). `pair term` migrates onto the
   shared package in M1 -- its existing suite is the only regression net that can
   prove the extraction faithful.
-- **Detach is console-scoped.** A child stays running and warm while the
-  operator is elsewhere in the same console; children do NOT outlive the console
-  process. Making a fleet survive its console needs a daemon plus pty handoff
-  over a socket, which is `#147`'s transport.
+- **Detach is console-scoped, because durability is zellij's.** couch's child
+  is `pair` -> a zellij *client*; the work lives in the zellij *server* session,
+  which survives detached when the client dies. So the fleet already outlives a
+  terminal window one layer below couch and no daemon is on the path -- `#147`'s
+  transport is not a prerequisite for the Done-when's "running and warm".
+
+### 2026-08-22 -- reattach is zellij's, and Spawn must stop hitting the picker
+
+The operator's read of the layering corrected the plan's first answer on detach:
+couch hosts `pair`, which runs zellij, so a session is *already* reattachable
+beyond a console's lifespan. The durability boundary is the zellij server, not
+couch's process tree, and reasoning about a couch daemon was reasoning about the
+wrong layer.
+
+What that leaves `#146` owing is determinism on the way back IN, and there is a
+real gap there today: `Spawn` runs `pair --layout2` with no tag, and
+`launcher.DecideLaunch` with no tag and a detached session present returns
+`ActionPick` -- an fzf picker inside couch's pty. A console restart currently
+lands the operator on a picker rather than on their session.
+
+Fix folded into M2: spawn `pair resume <tag>` with `tag =
+launcher.DefaultTag(<worktree root>)`, which takes the `ForcedTag` branch
+(attach if live or detached, create otherwise) and skips the name prompt.
+`--layout2` is dropped -- `resume` refuses a third argv element outright, and an
+omitted layout flag reuses the tag's recorded layout while forcing one on a live
+tag makes pair ask before recreating the workbench.
+
+This is a deliberate slice of `#149`, not a collision: `#149` decides the tag IS
+the space (durable, opaque, several per tree, names as an attribute layer) and
+supersedes this derivation. `#146` needs only that re-entry is deterministic.
+
+Also queued for the M2 smoke: `workshop/projects/couch.md` asserts "`couch stop`
+is a kill, not a park." If `Stop` signals the zellij *client*, the session
+detaches and the work survives -- a park. Whichever it is, the project record
+gets corrected from an observation rather than left as an unverified invariant.
