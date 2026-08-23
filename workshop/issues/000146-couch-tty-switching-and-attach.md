@@ -703,3 +703,32 @@ merely tolerable. Determinism there needs the agent session id, which is
 `#149`'s to provide -- noted on that issue so it is not carried only here.
 `#146` closes Decision 11 at what it actually delivers: no name prompt, no
 session picker, and an attach with no prompt at all once a session is live.
+
+### 2026-08-22 -- park-vs-kill settled by measurement, and Decision 7 confirmed
+
+`probes/zellijpark` (committed) creates a throwaway zellij session, kills its
+client, and looks:
+
+```
+== killing the CLIENT with SIGTERM (what `couch stop` sends)
+   session present=true  => PARK: the session outlived the client
+== killing the CLIENT with SIGKILL (what a crashed console leaves behind)
+   session present=true  => PARK: the session outlived the client
+```
+
+**`workshop/projects/couch.md` was wrong** and is corrected there: `couch stop`
+is a park. pair installs no SIGTERM handler and reaches `DeleteSession` only
+from explicit quit/restart/layout paths, so signalling pair does not take its
+session with it.
+
+**Decision 7 is confirmed at its foundation.** The work outlives the console
+under both a clean stop and a crash, so couch needs no daemon -- only
+deterministic re-entry, which Decision 11 provides. That was the load-bearing
+assumption behind not pulling `#147`'s transport into `#146`, and it is now
+measured rather than reasoned.
+
+**Scope of the measurement, stated honestly:** this exercises the zellij layer
+-- a client killed directly. `couch stop` signals `pair`, whose zellij client is
+its child; pair dying orphans that client, and closing couch's pty then hangs it
+up. Both routes end at a client death, which is what was measured, but the full
+path through pair is still an operator-smoke item rather than a measured one.

@@ -322,11 +322,23 @@ the cheap currency.
 
 Two things this makes explicit rather than assumed:
 
-- **`couch stop` is a kill, not a park.** It sends SIGTERM; nothing instructs
-  the agent to write out first, and no harness produces a continuation from a
-  signal. Parking before shutdown is an operator step today. Having `stop`
-  invoke pair's existing park/continue flow is a later issue, not v1 -- it needs
-  the agent responsive and it takes time.
+- **`couch stop` is a PARK, not a kill -- corrected 2026-08-22 from a
+  measurement.** This entry originally asserted the opposite and was never
+  tested. `probes/zellijpark` creates a throwaway zellij session, kills its
+  CLIENT, and looks: the session survives **both SIGTERM and SIGKILL**. pair
+  installs no SIGTERM handler, and `DeleteSession` is reached only from explicit
+  quit/restart/layout paths -- so signalling pair does not take its session with
+  it. Measured at the zellij layer; the full `couch stop` path is confirmed by
+  operator smoke in `pair#146` M2.
+
+  What that changes: `stop` frees the tree and ends the *view*, while the work
+  keeps running detached and is resumable. What it does NOT change is the
+  original entry's real point -- **nothing tells the agent to write out first**.
+  A parked session still holds un-externalised reasoning, so "the repo is the
+  agent's state" is unaffected: the bet is that a revival reconstructs from
+  commits, issue Logs and the tee'd scrollback, not that a park is a graceful
+  shutdown. Having `stop` invoke pair's park/continue flow remains a later
+  issue.
 - **Silence detection stays in `pair#148`**, as a signal rather than a forcing
   function: a space dirty and uncommitted for hours is one whose reconstruction
   will be expensive, and knowing that while it is still live beats discovering
