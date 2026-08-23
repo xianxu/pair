@@ -259,12 +259,35 @@ programs.
 
 `make install` also installs a second binary, **`couch`** — a supervisor that
 registers agent sessions one-per-worktree, spawns them, and hosts one in your
-terminal: `couch start <repo>` allocates a pty for the session and reserves the
-bottom row of your screen for a status line. `--no-console` keeps the old
-stdio-inheriting behaviour. It is separate from `pair` on purpose: pair is what
-you sit inside, so a supervisor bug must not break your ability to fix it, and
-launching pair directly always still works. See
-[atlas/couch.md](atlas/couch.md).
+terminal. It is separate from `pair` on purpose: pair is what you sit inside, so
+a supervisor bug must not break your ability to fix it, and launching pair
+directly always still works. See [atlas/couch.md](atlas/couch.md).
+
+```
+couch start [<repo>]     host a session in this terminal (default: .)
+couch start . --no-console   spawn without taking the terminal (no pty, no row)
+couch list               every registered actor across all worktrees
+couch show <ref>         the actors on one tree, by path or name
+couch stop <ref>         signal an actor's child and forget it
+couch name <ref> <name>  give a tree a short human name
+couch describe <ref> [<text>]  read or set a tree's one-line description
+```
+
+`couch start` refuses a second agent on a tree that already has one — two agents
+sharing one branch and index is what the registry exists to prevent. `--same-tree`
+overrides it, and the override is recorded.
+
+`couch start` allocates a pty for the session and **reserves the bottom row of
+your screen** for a status line. The path argument is optional and defaults to
+`.`, so `cd <repo> && couch start` is the usual form — the first session you
+start is "home".
+
+**`ctrl-space` belongs to couch while a session is hosted.** It is intercepted
+before the child sees it, in both encodings a terminal may send it (the legacy
+NUL and the Kitty protocol's `CSI 32;5u`), so it will not reach your editor or
+agent inside a couch-hosted session. Every other chord — `Alt+j`, `Alt+k`,
+`Alt+t` and the rest — passes through untouched. Use `--no-console` if you want
+the old spawn-and-inherit-stdio behaviour with no interception at all.
 
 ## Command Usage
 

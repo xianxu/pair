@@ -46,6 +46,17 @@ func (c *Couch) ResolveTree(path string) (Worktree, error) { return Resolve(path
 // after Wait a second shell running `couch list` would see an empty registry
 // for the entire session -- which is most of the time.
 func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
+	// An empty path is refused rather than quietly meaning "wherever this
+	// process happens to be".
+	//
+	// `filepath.Abs("")` returns the cwd, so an unset path used to spawn
+	// somewhere plausible by accident -- which made the CLI's explicit `.`
+	// default dead weight that could be deleted with every test still green
+	// (found while deletion-checking M2 BR-24). Two mechanisms producing one
+	// result means neither is pinned; this leaves the explicit one.
+	if args.WorkingDir() == "" {
+		return ActorRecord{}, nil, fmt.Errorf("spawn: no path given")
+	}
 	tree, err := c.ResolveTree(args.WorkingDir())
 	if err != nil {
 		return ActorRecord{}, nil, err

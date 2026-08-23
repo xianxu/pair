@@ -187,7 +187,16 @@ func consoleRunner(name string, args map[string]string, stdin io.Reader, stdout 
 	// spawned the child anyway, sized it to a ZERO-ROW pty, then exited 1 with
 	// nothing printed (M2 BR-23). Falling back means the operator gets a working
 	// session and a reason, instead of a registered actor they cannot see.
-	hasTerminal := isTerminal(inFile) && isTerminal(outFile)
+	return consoleRunnerFor(name, args, stdin, isTerminal(inFile) && isTerminal(outFile), inFile, outFile)
+}
+
+// consoleRunnerFor is consoleRunner with the terminal question already answered,
+// so the WIRING can be pinned without a pty.
+//
+// Splitting it is not decoration: pinning only WantsConsole left "does
+// consoleRunner actually use it" uncovered, and forcing consoleRunner to return
+// (nil, ExecRunner) kept the whole suite green (M2 BR-24, twice).
+func consoleRunnerFor(name string, args map[string]string, stdin io.Reader, hasTerminal bool, inFile, outFile *os.File) (*couchtty.Console, couchcore.Runner) {
 	if !WantsConsole(name, args, hasTerminal) {
 		return nil, couchcore.ExecRunner{}
 	}

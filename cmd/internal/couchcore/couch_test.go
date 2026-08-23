@@ -622,3 +622,14 @@ func TestSpawnProducesTheSameTagForTheSameTree(t *testing.T) {
 		t.Fatalf("the same tree produced different argv:\n  %q\n  %q", a, b)
 	}
 }
+
+// An empty path must be refused, not resolved to wherever the process happens
+// to be. `filepath.Abs("")` returns the cwd, so without this the CLI's explicit
+// "." default was dead weight -- deletable with every test still green, which is
+// two mechanisms for one result and therefore neither pinned.
+func TestSpawnRefusesAnEmptyPath(t *testing.T) {
+	env := newTestEnv(t)
+	if _, _, err := env.Couch.Spawn(StartArgs{}); err == nil {
+		t.Fatal("Spawn with no path returned nil error")
+	}
+}

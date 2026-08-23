@@ -2,6 +2,7 @@ package couchcmd
 
 import (
 	"bytes"
+	"os"
 	"reflect"
 	"sort"
 	"strings"
@@ -417,18 +418,50 @@ func TestConsoleRunnerDeclinesWithoutATerminal(t *testing.T) {
 }
 
 // `start` with no path defaults to "." -- which is what makes `cd brain && couch
-// start` the way home is chosen (Decision 1), and was unpinned.
+// start` the way home is chosen (Decision 1).
+//
+// It asserts the SPAWN, not the ArgSpec: the first version checked that `path`
+// was not Required, which stayed green with the default deleted (BR-24).
 func TestStartDefaultsItsPathToCwd(t *testing.T) {
-	for _, op := range couchcore.Operations() {
-		if op.Name != "start" {
-			continue
-		}
-		for _, a := range op.Args {
-			if a.Name == "path" && a.Required {
-				t.Fatal("start's path is Required; `couch start` with no argument would error")
-			}
-		}
-		return
+	// "." resolves to an absolute path before git sees it, so the fake is
+	// seeded with the process's own cwd rather than a hardcoded one -- this
+	// asserts couch's behaviour, not the developer's directory layout.
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
 	}
-	t.Fatal("no start operation is declared")
+	rt := newRT(t, wd)
+	out, errw, code := runRT(rt, "start")
+	if code != 0 {
+		t.Fatalf("`couch start` with no path: exit %d, stderr %q", code, errw)
+	}
+	if !strings.Contains(out, "started ") {
+		t.Fatalf("no actor was started: %q", out)
+	}
+	if len(rt.runner.Ops) == 0 || !strings.HasPrefix(rt.runner.Ops[0], "start "+wd+":") {
+		t.Fatalf("runner ops = %v, want a spawn in the cwd %q", rt.runner.Ops, wd)
+	}
+}
+
+// The wiring itself, pinned without a pty: with a terminal, `start` must get a
+// console AND a PtyRunner. Forcing consoleRunner to decline left the whole suite
+// green twice over (BR-24).
+func TestConsoleRunnerWiresThePtyRunnerWhenATerminalExists(t *testing.T) {
+	console, runner := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
+	if console == nil {
+		t.Fatal("no console was built for `start` with a terminal")
+	}
+	if _, ok := runner.(*couchcore.PtyRunner); !ok {
+		t.Fatalf("runner = %T, want *couchcore.PtyRunner — children would get no pty", runner)
+	}
+}
+
+func TestConsoleRunnerDeclinesWithoutATerminalWiring(t *testing.T) {
+	console, runner := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), false, nil, nil)
+	if console != nil {
+		t.Fatal("a console was built with no terminal")
+	}
+	if _, ok := runner.(couchcore.ExecRunner); !ok {
+		t.Fatalf("runner = %T, want couchcore.ExecRunner", runner)
+	}
 }

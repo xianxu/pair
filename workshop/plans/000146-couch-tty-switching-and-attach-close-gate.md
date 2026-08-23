@@ -703,6 +703,91 @@ rounds:
           round: 6
       boundary: M2
       blocked: true
+    - "n": 7
+      timestamp: "2026-08-23T09:22:30-07:00"
+      agent: claude
+      dispose:
+        - id: BR-21
+          disposition: addressed
+          note: Run is the sole host writer and hostScan is fed child bytes only; re-adding applyLayout's write reddens TestConsoleNeverSplicesFromAnyPath 3/3, and removing the writeOwn gate reddens 3 tests.
+          round: 7
+        - id: BR-22
+          disposition: addressed
+          note: discriminator keys on partial length; measured "abc\x1b"+"i" -> "abc\x1b" then "i", "\x1b\x1b" both forwarded, split CSI-u still fires; removal reddens 4 tests.
+          round: 7
+        - id: BR-23
+          disposition: addressed
+          note: both fds gated, WantsConsole pure and pinned unconditionally, MakeRaw error reported and pinned; the both-fds composition itself is unpinned and folds into BR-24's seam.
+          round: 7
+        - id: BR-24
+          disposition: not-addressed
+          note: 'measured at HEAD: forcing consoleRunner to (nil, ExecRunner) leaves couchcmd and couchtty ok, and deleting the path default leaves the tree green -- TestStartDefaultsItsPathToCwd asserts on ArgSpec.Required, not on the default.'
+          round: 7
+        - id: BR-25
+          disposition: addressed
+          note: make test-smoke enumerates probes/*/ and atlas/index.md states the convention; termsmoke defaults bin to ./bin/pair so dropping the argv is safe.
+          round: 7
+        - id: BR-26
+          disposition: not-addressed
+          note: 0 of the 5 named sites changed; only the prose bullets moved, while the round-2 Revisions entry asserts the table rows did -- the second consecutive entry claiming a sweep it did not perform.
+          round: 7
+        - id: BR-32
+          disposition: not-addressed
+          note: reserve.go:21-26 and reserve_test.go:28 unchanged; ChildRows(0) is still 0 under a doc saying it never returns zero.
+          round: 7
+        - id: BR-33
+          disposition: not-addressed
+          note: Run still defers only restore and release; with Deliver now blocking, returning via the exited case leaves the child's pump permanently blocked because stop is never closed.
+          round: 7
+        - id: BR-34
+          disposition: not-addressed
+          note: screen.go:277 "ED, every form", ops.go:64 "at the CLI" and atlas/couch.md:32 "stdio and block" unchanged; run_test.go:40 still claims the console branch is observable in the rendered output, measured false again; new -- consoleRunner's doc comment now runs into WantsConsole's.
+          round: 7
+        - id: BR-35
+          disposition: not-addressed
+          note: doneBeforeExit is still read after the write that ends the child, Run's exit select is unchanged, and waitUntilTrue still duplicates waitFor -- four pollers across three packages now.
+          round: 7
+        - id: BR-36
+          disposition: not-addressed
+          note: the plan Revisions entry and the Log carry landed, but the issue Plan M2 line still says the kill -9 reattach lands at M2, and resize reflow / row-while-claude-streams / nvim in-and-out are still unrecorded by name.
+          round: 7
+        - id: BR-37
+          disposition: addressed
+          note: atlas/couch.md no longer names Child.MidSequence; I ran the class check -- every backticked identifier in atlas/couch.md resolves in cmd/.
+          round: 7
+      findings:
+        - id: BR-38
+          severity: Important
+          title: README documents the pty and --no-console but not ctrl-space or the path default, and the atlas-identifier check has no README counterpart
+          detail: |-
+            3rd in this family. Do NOT just add two README lines. BR-37's class fix landed for atlas/ --
+            I ran the grep and every identifier in atlas/couch.md resolves in cmd/ -- but it has no
+            counterpart for README's TYPED surface, so the same class recurred at the site the
+            enumeration does not cover. Measured: couch start now claims ctrl-space globally from every
+            child in both encodings (legacy NUL and CSI-u), and its <repo> argument is now optional
+            defaulting to "." -- Decision 1's entire mechanism. README.md:261-267 documents the pty, the
+            reserved row and --no-console and neither of those; it still shows `couch start <repo>` as
+            though the argument were required. An operator whose ctrl-space stops reaching their editor
+            has no documented explanation. Rule to enforce at the boundary: enumerate the flags,
+            keybindings and argument defaults the window added and confirm each appears in README, the
+            same way atlas identifiers are now grepped.
+          family: docs-lag-the-surface
+          round: 7
+        - id: BR-39
+          severity: Minor
+          title: onChunk consumes TakeRowDirty for every pane but acts on it only for the active one, so an inactive pane's dirty-row latch is thrown away
+          detail: |-
+            console.go:320 reads rowDirty for every chunk of every pane; console.go:333 acts only
+            `if rowDirty && isActive`. TakeRowDirty is a latch that clears on read, so for an inactive
+            pane the event is consumed and discarded -- by the time the operator switches to it, the
+            console has no record that its row needs re-asserting. The bell path immediately above gets
+            this right (it stores into p.bell). Unreachable in M2 production, which attaches exactly one
+            pane; reachable the moment M3 attaches a second. Fix: store into a per-pane dirty flag and
+            consume it at switch time, mirroring how p.bell is handled.
+          family: latch-consumed-by-wrong-consumer
+          round: 7
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — pair#146 (boundary-review)
@@ -1098,6 +1183,46 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   the child -- which is worse than being merely stale. atlas/architecture.md:461 has the same
   surface described correctly, so the two atlas files now disagree.
 
+## Round 7 — 2026-08-23T09:22:30-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-21 — addressed — Run is the sole host writer and hostScan is fed child bytes only; re-adding applyLayout's write reddens TestConsoleNeverSplicesFromAnyPath 3/3, and removing the writeOwn gate reddens 3 tests.
+- BR-22 — addressed — discriminator keys on partial length; measured "abc\x1b"+"i" -> "abc\x1b" then "i", "\x1b\x1b" both forwarded, split CSI-u still fires; removal reddens 4 tests.
+- BR-23 — addressed — both fds gated, WantsConsole pure and pinned unconditionally, MakeRaw error reported and pinned; the both-fds composition itself is unpinned and folds into BR-24's seam.
+- BR-24 — not-addressed — measured at HEAD: forcing consoleRunner to (nil, ExecRunner) leaves couchcmd and couchtty ok, and deleting the path default leaves the tree green -- TestStartDefaultsItsPathToCwd asserts on ArgSpec.Required, not on the default.
+- BR-25 — addressed — make test-smoke enumerates probes/*/ and atlas/index.md states the convention; termsmoke defaults bin to ./bin/pair so dropping the argv is safe.
+- BR-26 — not-addressed — 0 of the 5 named sites changed; only the prose bullets moved, while the round-2 Revisions entry asserts the table rows did -- the second consecutive entry claiming a sweep it did not perform.
+- BR-32 — not-addressed — reserve.go:21-26 and reserve_test.go:28 unchanged; ChildRows(0) is still 0 under a doc saying it never returns zero.
+- BR-33 — not-addressed — Run still defers only restore and release; with Deliver now blocking, returning via the exited case leaves the child's pump permanently blocked because stop is never closed.
+- BR-34 — not-addressed — screen.go:277 "ED, every form", ops.go:64 "at the CLI" and atlas/couch.md:32 "stdio and block" unchanged; run_test.go:40 still claims the console branch is observable in the rendered output, measured false again; new -- consoleRunner's doc comment now runs into WantsConsole's.
+- BR-35 — not-addressed — doneBeforeExit is still read after the write that ends the child, Run's exit select is unchanged, and waitUntilTrue still duplicates waitFor -- four pollers across three packages now.
+- BR-36 — not-addressed — the plan Revisions entry and the Log carry landed, but the issue Plan M2 line still says the kill -9 reattach lands at M2, and resize reflow / row-while-claude-streams / nvim in-and-out are still unrecorded by name.
+- BR-37 — addressed — atlas/couch.md no longer names Child.MidSequence; I ran the class check -- every backticked identifier in atlas/couch.md resolves in cmd/.
+
+### Raised
+
+- **BR-38** [Important] `docs-lag-the-surface` README documents the pty and --no-console but not ctrl-space or the path default, and the atlas-identifier check has no README counterpart
+  3rd in this family. Do NOT just add two README lines. BR-37's class fix landed for atlas/ --
+  I ran the grep and every identifier in atlas/couch.md resolves in cmd/ -- but it has no
+  counterpart for README's TYPED surface, so the same class recurred at the site the
+  enumeration does not cover. Measured: couch start now claims ctrl-space globally from every
+  child in both encodings (legacy NUL and CSI-u), and its <repo> argument is now optional
+  defaulting to "." -- Decision 1's entire mechanism. README.md:261-267 documents the pty, the
+  reserved row and --no-console and neither of those; it still shows `couch start <repo>` as
+  though the argument were required. An operator whose ctrl-space stops reaching their editor
+  has no documented explanation. Rule to enforce at the boundary: enumerate the flags,
+  keybindings and argument defaults the window added and confirm each appears in README, the
+  same way atlas identifiers are now grepped.
+- **BR-39** [Minor] `latch-consumed-by-wrong-consumer` onChunk consumes TakeRowDirty for every pane but acts on it only for the active one, so an inactive pane's dirty-row latch is thrown away
+  console.go:320 reads rowDirty for every chunk of every pane; console.go:333 acts only
+  `if rowDirty && isActive`. TakeRowDirty is a latch that clears on read, so for an inactive
+  pane the event is consumed and discarded -- by the time the operator switches to it, the
+  console has no record that its row needs re-asserting. The bell path immediately above gets
+  this right (it stores into p.bell). Unreachable in M2 production, which attaches exactly one
+  pane; reachable the moment M3 attaches a second. Fix: store into a per-pane dirty flag and
+  consume it at switch time, mirroring how p.bell is handled.
+
 ## Open findings
 
 - **BR-1** [Important] `chunking-invariance` Screen raises a false bell for any sequence longer than maxPending split across two reads
@@ -1106,15 +1231,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-9** [Minor] `replay-duplicates-live-output` newTab widens the window where a chunk is both replayed and written live
 - **BR-19** [Minor] `framing-omits-sequence-class` frame treats DCS/APC/PM/SOS as two-byte escapes, so their payloads are scanned as plain text and a BEL inside one falsely rings
 - **BR-20** [Minor] `needless-indirection` Child.Replay has zero production callers while the one repaint site reimplements it
-- **BR-21** [Critical] `guard-reads-wrong-stream-position` MidSequence() describes the newest chunk READ, not the chunk WRITTEN, so the row paint still splices into the child's escape sequences
-- **BR-22** [Critical] `prefix-parks-a-complete-key` a lone ESC keystroke is held indefinitely by the Interceptor and then delivered glued to the next key as a meta prefix
-- **BR-23** [Critical] `swallowed-seam-error` couch start off a tty spawns and registers the child, gives it a 0-row pty, then exits 1 with no output
 - **BR-24** [Important] `fix-not-pinned-by-failing-test` the milestone's central wiring is unpinned -- disabling the console entirely leaves the whole suite green
-- **BR-25** [Important] `probe-hygiene` probes/zellijpark ships with no make target and no atlas entry, one round after that rule was written
 - **BR-26** [Important] `plan-table-drift` the plan's Decision 11 and three Core-concepts rows now contradict the code, with no Revisions entry
 - **BR-32** [Minor] `uncovered-negative-assertion` ChildRows(0) returns 0 while its doc says "It never returns zero", and no test covers the boundary case
 - **BR-33** [Minor] `signal-goroutine-outlives-close` Console.Run never calls Stop() or host.Close(), so the resize watcher and the SIGWINCH registration outlive the console
 - **BR-34** [Minor] `stale-comment-reference` several comments overstate or misplace what the code does
 - **BR-35** [Minor] `test-harness-races` the live conformance scenario and Run's exit select are both racy by construction
 - **BR-36** [Important] `undelivered-plan-step` Task 2.7's operator smoke is partly unrecorded and two of its items are carried to M3 with no Revisions entry
-- **BR-37** [Important] `docs-lag-the-surface` atlas/couch.md still tells the reader the console asks Child.MidSequence(), a method this round deleted, on the stream BR-21 proved wrong
+- **BR-38** [Important] `docs-lag-the-surface` README documents the pty and --no-console but not ctrl-space or the path default, and the atlas-identifier check has no README counterpart
+- **BR-39** [Minor] `latch-consumed-by-wrong-consumer` onChunk consumes TakeRowDirty for every pane but acts on it only for the active one, so an inactive pane's dirty-row latch is thrown away

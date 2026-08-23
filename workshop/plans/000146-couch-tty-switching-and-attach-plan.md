@@ -60,7 +60,7 @@ Terminal code has its own standing moves, all of them lessons already paid for i
     - **Bracketed paste is the one place this needs state.** A keyboard cannot put `0x00` inside an escape sequence, but a paste can carry arbitrary bytes — and a pasted NUL that silently switches actors *and eats a byte* is a data-loss bug the operator would never diagnose. So the interceptor suspends between `\x1b[200~` and `\x1b[201~`. That is real framing state, and it inherits the repo's rule: buffer only a genuine prefix, consume a complete-but-unsupported control, and test the boundary where the marker splits across two reads. `ansi.Frame`'s `Incomplete` status is what distinguishes the two; the two markers are one constant pair, not one per site. The Spec settled the key; what this plan owes is the audit the repo's own lesson demands ("Never disable an input layer without auditing the escape hatches it provides"). `zellij/config.kdl` binds no Space chord, so nothing in the workbench loses a path. The audit for `claude` and `nvim` is a step in M2, and its result is recorded in the issue `## Log` — including, if something does ride on it, how a literal `ctrl-space` reaches a child.
 
 11. **`Spawn` forces a tag: `pair resume <tag>`, with `tag = launcher.DefaultTag(<worktree root>)`.** `resume` takes `DecideLaunch`'s `ForcedTag` branch — attach when the session is live or detached, create otherwise — and skips the name prompt (`launcher/decision.go:33-37`, `help.go:15`). Today `Spawn` runs `pair --layout2` with **no** tag, and `DecideLaunch` with no tag and a detached session present returns `ActionPick`: an fzf picker inside couch's pty, waiting on the operator. That is what the first minute after a console restart looks like right now.
-    - **`--layout2` is dropped, and that is required rather than incidental.** `resume` refuses any third argv element (`launcher/args.go:104`), so `pair resume <tag> --layout2` is a usage error. It is also the right default: an omitted layout flag reuses the tag's recorded layout, a new tag already defaults to layout2, and forcing a layout on a *live* tag makes pair ask before recreating the whole workbench — a prompt the operator would meet inside couch's pty.
+    - **`--layout2` is PINNED** (operator decision 2026-08-22): couch owns terminal switching, so layout3's third pane is the layer couch replaces. An earlier version of this decision said the flag was *impossible* because "`resume` refuses any third argv element" — **that was false and was never measured before being written**. `resume` refuses stray POSITIONALS only; `ParseArgs` runs `extractLayoutRequest` first, so a layout flag never reaches the guard. Both properties are pinned in `launcher/args_test.go`.
     - **The derivation is reused, not re-invented.** `launcher.DefaultTag(path)` is exported and already computes pair's create-flow default from a path (ARCH-DRY).
     - **This is a deliberate slice of `#149`, not a collision with it.** `#149` decides that the tag *is* the space — durable, opaque, several per tree, names as a mutable attribute layer — and supersedes this derivation. What `#146` needs is only that going back in is deterministic; recorded here so the overlap is chosen rather than discovered at `#149`'s plan.
 
@@ -82,7 +82,7 @@ Terminal code has its own standing moves, all of them lessons already paid for i
 | `updateMouseMode` | `cmd/internal/termcmd/run.go` | deleted (folded into `Screen`) |
 | `Focus` / `Up` / `Home` | `cmd/internal/couchtty/focus.go` | new |
 | `PanelModel` / `Filter` / `Pick` | `cmd/internal/couchtty/panel.go` | new |
-| `StatusModel` / `RenderStatusRow` | `cmd/internal/couchtty/statusrow.go` | new |
+| `StatusModel` / `RenderStatusRow` | `cmd/internal/couchtty/reserve.go` | new |
 | `Interceptor` | `cmd/internal/couchtty/keys.go` | new |
 | `Console` | `cmd/internal/couchtty/console.go` | new (thin IO shell; see the source for its shape) |
 | `Reserve` / `Release` / `PaintRow` | `cmd/internal/couchtty/reserve.go` | new |
@@ -136,7 +136,7 @@ Terminal code has its own standing moves, all of them lessons already paid for i
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
 | `ptychild.Child` | `cmd/internal/ptychild/child.go` | new | `creack/pty` + `os/exec` |
-| `couchcore.TerminalHandle` | `cmd/internal/couchcore/runner.go` | modified | pty capability on a `Handle` |
+| `couchcore.TerminalHandle` | `cmd/internal/couchcore/ptyrunner.go` | new | pty capability on a `Handle` |
 | `couchcore.PtyRunner` | `cmd/internal/couchcore/ptyrunner.go` | new | `ptychild.Child` behind `Runner` |
 | `FakeRunner` terminal double | `cmd/internal/couchcore/runner_fake.go` | modified | in-memory stand-in for a pty |
 | `hostty.Host` | `cmd/internal/hostty/host.go` | new | the operator's terminal: size, raw mode, resize signal |
@@ -197,7 +197,7 @@ Ships no couch behaviour. It exists so that couch's console and `pair term` are 
 
 **Files:** Create `cmd/internal/ptychild/screen.go`, `screen_test.go`. Delete `updateMouseMode` from `cmd/internal/termcmd/run.go`.
 
-**Contract:** `Feed([]byte)` maintains `AltScreen`, `Mouse`, `MarginsDirty`, `Bell`. Framing uses `ansi.TerminatorScan` — no new CSI scanner.
+**Contract:** `Feed([]byte)` maintains `AltScreen`, `Mouse`, `TakeRowDirty`, `Bell`. Framing uses `ansi.TerminatorScan` — no new CSI scanner.
 
 - [ ] **Tests must catch:** (a) mouse-mode set/reset across `1000/1002/1003/1006` — port `termcmd`'s existing cases so the migration cannot silently lose them; (b) alt-screen enter/leave via `?1049`, `?1047`, `?47`; (c) `\x1b[r` and `\x1b[1;24r` both marking margins dirty, and `\x1b[3;4H` *not* doing so (a final byte is not enough — the introducer discriminates); (d) **split boundaries**: the same sequence delivered one byte per `Feed` reaches the same state; (e) a malformed complete control (`\x1b[@z`) is consumed, not held, and the following `z` is not swallowed.
 - [ ] **Add `FuzzScreenFeed`** — no panic, and feeding a byte stream in one chunk equals feeding it split at every boundary.
@@ -249,7 +249,7 @@ The milestone that answers both terminal risks: does `pair` run correctly in a c
 
 **Files:** Modify `cmd/internal/couchcore/runner.go`; create `cmd/internal/couchcore/ptyrunner.go` (+ test).
 
-**Contract:** `Runner.Start` is unchanged. `TerminalHandle` adds `Terminal() Terminal`, where `Terminal` is `io.Writer` + `Resize(rows, cols uint16) error` + `Snapshot() []byte` + `AltScreen() bool` + `Close() error`. `PtyRunner` wraps `ptychild.Child` and satisfies both.
+**Contract:** `Runner.Start` is unchanged. `TerminalHandle` adds the pty capability; `PtyRunner` wraps `ptychild.Child` and satisfies both. **The capability returns the CONCRETE `*ptychild.Child`, not an interface** — `FakeRunner`'s double is one, so production flow and test flow share the boundary exactly, which an interface would let drift (ARCH-MOCK).
 
 - [ ] **Tests must catch:** (a) `ExecRunner`'s handle does **not** satisfy `TerminalHandle` — the capability check is meaningful only if one runner fails it; (b) `PtyRunner`'s does; (c) `PtyRunner` honours its initial size supplier at spawn (assert via the child, as in 1.4b).
 - [ ] **Deletion check:** make `execHandle` satisfy the interface with stubs → (a) red.
@@ -280,7 +280,7 @@ The milestone that answers both terminal risks: does `pair` run correctly in a c
 
 ### Task 2.4 — `Reserve` and `RenderStatusRow`
 
-**Files:** Create `cmd/internal/couchtty/reserve.go`, `statusrow.go` (+ tests).
+**Files:** Create `cmd/internal/couchtty/reserve.go` (+ tests) — the row builders and the row model ship together, since the model exists to be rendered by them.
 
 **Contract:** pure string builders **over `hostty/control.go`'s constants** — this file composes sequences, it does not spell them. `Reserve(rows)` sets the region to `1..rows-1`; `PaintRow(rows, text)` is save / absolute-move / clear-line / text / restore; `Release()` resets the region.
 
@@ -294,7 +294,7 @@ The milestone that answers both terminal risks: does `pair` run correctly in a c
 
 **Contract:** the thin IO shell, driving `hostty.Host` (never `x/term` or `signal` directly). `MakeRaw`, `Resized()` → measure and `Resize` the child to `rows-1`, stdin pump through `Interceptor`, child output written to the host only when that child is active, `Release` + `restore` on every exit path.
 
-- [ ] Re-assert `Reserve` whenever the row is painted, and immediately when `Screen` reports `MarginsDirty` or an alt-screen transition (Decision 4).
+- [ ] Re-assert `Reserve` whenever the row is painted, and immediately when `Screen` reports `TakeRowDirty` or an alt-screen transition (Decision 4).
 - [ ] **Tests must catch (driven by `hostty.FakeHost` + `FakeRunner`, no real tty):** (a) a child resized to `rows-1`, never `rows`; (b) an intercepted `ctrl-space` is **not** forwarded to the child; (c) restoration runs when the child exits *and* when the console is torn down mid-stream — a restore that only happens on the happy path leaves the operator's terminal with a broken scroll region; (d) firing `FakeHost`'s resize channel propagates to the child, so the `SIGWINCH` path is covered by a test rather than by the smoke alone.
 - [ ] **Deletion check:** remove the `-1` → (a) red. Remove the deferred `Release` → (c) red.
 - [ ] Commit.
@@ -314,9 +314,9 @@ The milestone that answers both terminal risks: does `pair` run correctly in a c
 
 **Files:** Modify `cmd/internal/couchcore/couch.go` (the `argv` construction in `Spawn`); test in `couch_test.go`.
 
-**Contract:** `argv = ["pair", "resume", launcher.DefaultTag(<worktree root>)]` plus `args.ExtraArgs`. `--layout2` is **removed** (Decision 11).
+**Contract:** `argv = ["pair", "resume", launcher.DefaultTag(<worktree root>), "--layout2"]` plus `args.ExtraArgs`.
 
-- [ ] **Tests must catch:** (a) the argv is `resume <tag>` and the tag derives from the **worktree root**, not from `args.Cwd` — a spawn from `kbench/competition/arc-agi-3/` must resume `kbench`'s tag, since that is the tree couch keyed on; (b) `--layout2` is gone — assert its absence, because leaving it in is a *usage error at runtime* that no unit test would otherwise see; (c) the same tree spawned twice produces the same tag (determinism is the whole point).
+- [ ] **Tests must catch:** (a) the argv is `resume <tag>` and the tag derives from the **worktree root**, not from `args.Cwd` — a spawn from `kbench/competition/arc-agi-3/` must resume `kbench`'s tag, since that is the tree couch keyed on; (b) the layout is pinned to layout2; (c) the same tree spawned twice produces the same tag (determinism is the whole point).
 - [ ] **Deletion check:** derive the tag from `args.Cwd` instead of the tree → (a) red.
 - [ ] Commit.
 
@@ -396,7 +396,7 @@ The milestone that answers both terminal risks: does `pair` run correctly in a c
 
 ### Task 4.2 — `Feed` over `couchcore.Enqueue`, and the row says something
 
-**Files:** Modify `cmd/internal/couchtty/notice.go`, `statusrow.go`, `console.go`.
+**Files:** Modify `cmd/internal/couchtty/notice.go`, `reserve.go`, `console.go`.
 
 - [ ] **Tests must catch:** (a) two bells from the *same* actor collapse to one entry; (b) bells from *different* actors do **not** collapse (the key is per-actor — a global `bell` kind would merge the fleet into one notice); (c) an exit notice is never dropped under capacity pressure; (d) the row marks an actor with a pending bell distinctly from the active one.
 - [ ] **Deletion check:** key notices as bare `bell` → (b) red.
@@ -509,7 +509,7 @@ Important findings. Two of them are about this document rather than the code.
 
 **Reason:** `plan-table-drift` came back a second time on this issue (third
 counting `pair#145`'s BR-41) — the Core-concepts entry for `Screen` declared
-`MarginsDirty` and `Bell`, while the code has `regionLost` and `bell` behind
+`TakeRowDirty` and `Bell`, while the code has `regionLost` and `bell` behind
 `Take*` readers.
 
 **Delta:** renaming two words would have been the instance fix and the family
@@ -567,3 +567,30 @@ session surviving client death, and the tag determinism — but not composed) an
 the clean-terminal-after-quit check (unit-covered on both the child-exit and
 teardown paths plus a vt check that the bottom row is usable after release).
 Recorded here so the carry is a decision with a reason rather than an omission.
+
+### 2026-08-23 — M2 boundary review round 3: the five sites, actually changed
+
+**Reason:** the round-2 entry claimed a sweep that touched only prose bullets;
+**0 of the 5 sites the review named had changed**. Two consecutive entries
+asserting a sweep they did not perform is worse than the drift itself, because
+each one tells the next reader the problem is handled.
+
+**Delta — each site, individually:**
+
+1. Decision 11 and Task 2.6a said `--layout2` was *removed* and that `resume`
+   refuses any third argv element. Both corrected; Task 2.6a's test (b), which
+   asserted the flag's absence, now asserts its presence.
+2. `StatusModel`/`RenderStatusRow` were declared at `couchtty/statusrow.go`,
+   which does not exist — they are in `reserve.go`.
+3. `couchcore.TerminalHandle` was declared at `runner.go`; it is in
+   `ptyrunner.go`, and Task 2.1's contract specified `Terminal()` returning an
+   interface where the code deliberately returns the concrete
+   `*ptychild.Child`.
+4. `MarginsDirty` → `TakeRowDirty` at both sites, with the signal now including
+   ED.
+
+**The rule this repeats under, stated so it stops recurring:** a plan statement
+that asserts EXTERNAL behaviour must be measured before it is written — Decision
+11's false claim about `resume` cost a wrong design and then misdirected the
+implementer — and a boundary that reverses a Decision writes its `## Revisions`
+entry in the SAME window, not the next one.

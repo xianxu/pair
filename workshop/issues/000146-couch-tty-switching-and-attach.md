@@ -105,9 +105,10 @@ first) but are folded into the milestone whose risk they answer.
       the existing `Runner` seam (+ fake + live conformance), `couch start`
       becomes the console, `ctrl-space` interceptor, one-row-shorter child pty
       with a pinned scrolling region, and `Spawn` forced onto `pair resume
-      <tag>` so a console restart reattaches instead of landing on a picker.
-      **Smoke step 1** (one real `pair` + claude child, resize, nvim in and out,
-      reattach across a `kill -9`) lands here.
+      <tag> --layout2` so a console restart reattaches instead of landing on a
+      picker. **Smoke step 1** (one real `pair` + claude child, resize, nvim in
+      and out) lands here; the `kill -9` reattach moved to M3 — see the
+      2026-08-23 carry note.
 - [ ] M3 — **many children and the panel.** Up-one-level focus, per-child ring
       replay (or a resize nudge for alt-screen children), typeahead + numbered
       direct switch, panel actions dispatching through `couchcore.Operations()`.
@@ -984,3 +985,88 @@ Lesson recorded in `workshop/lessons.md` covering the whole three-attempt arc:
 one writer, frame at the point of writing, feed the scanner only the other
 party's bytes -- and a test that synchronises producer and consumer cannot see a
 skew bug.
+
+### 2026-08-23 -- Task 2.7's smoke, item by item
+
+Recorded by name, because "the smoke passed" is not a record of what was
+exercised (BR-36).
+
+**Confirmed by the operator on the real stack** (Ghostty -> couch -> pair ->
+zellij -> claude+nvim), 2026-08-22/23:
+
+- pair + zellij + claude come up inside couch's pty, and everything
+  pair-related works normally there.
+- The reserved row stays through pair coming up. This is the item that FAILED in
+  smoke round 1 and drove the ED fix.
+- `ctrl-space` is intercepted by couch and renders its line after `[pair]`,
+  rather than reaching draft nvim. This item also failed in round 1 and drove
+  the Kitty-encoding fix.
+- `--layout2` is what the children come up with.
+
+**Covered by automated verification rather than by the operator**, and named so
+the difference is visible:
+
+- The child renders at `rows-1` and reflows on resize -- unit-pinned
+  (`TestConsoleSizesTheChildOneRowShort`,
+  `TestConsolePropagatesAHostResizeToTheChild`) and exercised against a real pty
+  child.
+- The row survives a scrolling child, a margin reset, and every ED form --
+  verified against a real terminal emulator reading the SCREEN, plus a real pty
+  child for the scrolling case.
+- Quitting restores the terminal -- unit-pinned on the child-exit AND teardown
+  paths, plus a vt check that the bottom row is usable again after release.
+
+**Carried to M3, deliberately, with the reason:**
+
+- **The `kill -9` reattach.** Both halves are measured separately -- the zellij
+  session surviving SIGTERM and SIGKILL to its client (`probes/zellijpark`), and
+  the tag determinism (`TestSpawnProducesTheSameTagForTheSameTree`) -- but their
+  COMPOSITION is untested. It needs a second couch process, which is M3's shape
+  anyway.
+- **`nvim` in-and-out under the real stack.** The margin-reset case is
+  emulator-verified and the row survived the operator's session, but nvim
+  specifically was not driven in-and-out by hand. M3's smoke has the operator in
+  a full session again.
+
+**Not observed and not claimed:** the row while claude STREAMS a long response.
+The operator confirmed the row stays through startup and normal use; a long
+streaming response was not called out, and the automated scrolling coverage is
+the nearest evidence rather than the same thing.
+
+### 2026-08-23 -- M2 boundary review round 3: FIX-THEN-SHIP, and the doc findings turn into enumerations
+
+Verdict moved to FIX-THEN-SHIP; all three Criticals disposed. Four Importants
+remained, and the two that had already come back twice are the interesting ones.
+
+- **BR-24, third time.** I had pinned `WantsConsole` but not that
+  `consoleRunner` USES it -- forcing it to decline still left the suite green.
+  Split into `consoleRunnerFor(..., hasTerminal bool, ...)` so the WIRING is
+  pinned without a pty. And `TestStartDefaultsItsPathToCwd` asserted on
+  `ArgSpec.Required` rather than on the default's effect, so deleting the default
+  changed nothing.
+  Fixing that properly surfaced something real: **the explicit `.` default was
+  dead weight**, because `filepath.Abs("")` already returns the cwd. Two
+  mechanisms producing one result means neither is pinned, so `Spawn` now refuses
+  an empty path outright and the default is load-bearing.
+- **BR-26, third time.** The round-2 entry claimed a table sweep that touched
+  only prose bullets; **0 of the 5 named sites had changed**. All five fixed
+  individually this time -- Decision 11's false `resume` claim, Task 2.6a's test
+  that asserted `--layout2`'s ABSENCE, `statusrow.go` (a file that does not
+  exist), `TerminalHandle`'s declared location and interface-vs-concrete
+  contract, and `MarginsDirty` at two sites. The rule the review extracted is
+  worth keeping: **a plan statement asserting external behaviour must be measured
+  before it is written**, and a boundary that reverses a Decision writes the
+  Revisions entry in the SAME window.
+- **BR-36.** Task 2.7's smoke is now recorded item by item, separating what the
+  OPERATOR confirmed from what automated verification covers, plus what is
+  carried to M3 with the reason -- and one item explicitly NOT claimed (the row
+  while claude streams a long response was never called out as observed).
+- **BR-38.** The atlas identifier sweep had no counterpart for README's typed
+  surface, so the class recurred at the one documented site the sweep did not
+  cover. `couch start` now claims ctrl-space from every child and its argument
+  is optional, and the README said neither -- an operator whose ctrl-space stops
+  reaching their editor had no documented explanation.
+  Fixed as an ENUMERATION rather than two lines: `readme_test.go` derives from
+  `couchcore.Operations()` and from every `FlagOnly` argument, so a new operation
+  or a new bypass is documented by existing. It immediately caught two gaps I had
+  not thought to write -- `couch describe` and the `--same-tree` bypass.
