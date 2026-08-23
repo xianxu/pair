@@ -462,3 +462,47 @@ compile, traverse -- and only the first is usually performed.
 (whole tree, newly runnable) green; `make build`; `make test-term-pane-shortcuts`
 green; `probes/termsmoke` 8/8 against the rebuilt binary; `FuzzScreenFeed` 3.7M
 execs with latch invariance asserted.
+
+### 2026-08-22 -- M1 boundary review round 2: 14 disposed, 3 open, rules fixed
+
+The gate's own summary was the useful part: *"3 repeat families. Not converging:
+fix rules, not instances."* All three are now rule fixes.
+
+- **BR-1 `chunking-invariance` -- correctly NOT accepted as addressed.** Raising
+  the bound cured the everyday OSC 52 case but left chunk-invariance broken
+  ABOVE the bound: whole input discarded the entire run, split input discarded
+  the first `maxPending` bytes and then rescanned the remainder as text, where a
+  BEL still counted. The bound was never the rule. The rule is **resync to the
+  next ESC** after abandoning a sequence, which whole and split follow
+  identically. Pinned by a 4096-byte-chunked test at `maxPending+5000`; reverting
+  the resync turns it red.
+- **BR-15 `pin-that-skips-itself`.** Three of the previous round's fixes were
+  defended by tests that `t.Skipf` when `pty.Open` fails -- in the sandboxed
+  shell this issue's own Log documents as its environment. `go test
+  ./cmd/internal/hostty/` reported **ok with 3 of 9 silently skipped**. Two
+  needed no pty at all and are now driven against a temp file (zero skips in the
+  package). The one that genuinely needs a terminal FAILS loudly instead,
+  matching how `ptychild` already handles the identical condition -- one
+  milestone should not ship two handlings of one constraint.
+  **And BR-2 had no test anywhere**, because defer ordering inside a
+  tty-requiring function cannot be asserted. Fixed structurally: the ordering is
+  now an explicit `teardown(host, closeChildren)` rather than emergent from LIFO
+  registration, so it is both harder to invert and *testable* --
+  `TestTeardownStopsTheWatcherBeforeClosingChildren` goes red on a swap.
+- **BR-16 `probe-hygiene`.** `probes/` was new top-level surface with no make
+  target and no atlas entry, while its 8/8 output was quoted as M1 evidence. Now
+  `make test-smoke`, plus an `atlas/index.md` entry stating what earns a place
+  there -- the plan schedules three more smokes (Tasks 2.7, 3.5, 4.6), so the
+  convention wants to exist before the second one.
+- **`plan-table-drift`, 2nd on this issue (3rd counting `pair#145` BR-41).** The
+  plan's `Screen` row restated field names that had since changed. Renaming two
+  words would have been the instance fix and the family would return. The row now
+  describes what `Screen` ANSWERS and points at the source -- the rule
+  `atlas/couch.md` already applies to couch's operation set.
+
+**Deletion checks this round each confirmed mutate + compile + traverse**, per
+the lesson the previous round earned: resync removal turns the new invariance
+test red; swapping `teardown`'s two statements turns the ordering test red.
+
+**Verified:** `go test ./cmd/...` green with zero skips in `hostty`; `make
+test-race` (whole tree) green; `make test-smoke` 8/8.

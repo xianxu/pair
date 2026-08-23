@@ -41,6 +41,16 @@ type Screen struct {
 	// once per event, not once per poll.
 	regionLost bool
 	bell       bool
+
+	// resync is set after abandoning an over-long unterminated sequence. While
+	// set, bytes are DISCARDED until the next ESC.
+	//
+	// This is what makes Feed chunk-invariant above maxPending, and the first
+	// fix for BR-1 missed it: whole input discarded the whole run, while split
+	// input discarded the first maxPending bytes and then rescanned the
+	// remainder as text -- where a BEL still counted. Resyncing to the next ESC
+	// is a rule both paths follow identically.
+	resync bool
 }
 
 // AltScreen reports whether the child is currently on the alternate screen.
@@ -85,6 +95,18 @@ func (s *Screen) Feed(p []byte) {
 	}
 
 	for len(buf) > 0 {
+		if s.resync {
+			// Discard to the next sequence start. No plain-run scan here, so a
+			// BEL inside an abandoned sequence is never counted as the child
+			// ringing -- it is that sequence's terminator.
+			next := bytes.IndexByte(buf, 0x1b)
+			if next < 0 {
+				return
+			}
+			s.resync = false
+			buf = buf[next:]
+			continue
+		}
 		if buf[0] != 0x1b {
 			// Bulk-scan the plain run. BEL only counts here: inside an OSC it
 			// is the terminator, not a bell.
@@ -108,14 +130,16 @@ func (s *Screen) Feed(p []byte) {
 			// A real prefix -- hold it for the next read, unless it has grown
 			// past the memory guard.
 			if len(buf) > maxPending {
-				// DISCARD the run rather than rescanning it as text. Rescanning
-				// is what produced the false bell: the abandoned bytes are an
-				// unterminated sequence, and any BEL inside them is that
-				// sequence's terminator, not the child ringing. Discarding also
-				// keeps Feed chunk-invariant -- whole and split input abandon
-				// the same bytes and derive the same state. Only Screen's
-				// derived state is lost; Ring still holds the raw bytes.
-				return
+				// Abandon and RESYNC rather than rescanning as text. The
+				// abandoned bytes are an unterminated sequence, and any BEL
+				// inside them is its terminator, not the child ringing.
+				// Resyncing (rather than returning) is what keeps whole and
+				// split input equivalent above the bound: both discard to the
+				// next ESC. Only Screen's derived state is lost; Ring still
+				// holds the raw bytes for the repaint.
+				s.resync = true
+				buf = buf[1:]
+				continue
 			}
 			s.pending = append([]byte(nil), buf...)
 			return

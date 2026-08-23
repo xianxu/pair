@@ -254,3 +254,37 @@ func FuzzScreenFeed(f *testing.F) {
 		}
 	})
 }
+
+// BR-1 round 2: raising the bound cured the everyday OSC 52 case but left
+// chunk-invariance broken ABOVE the bound -- whole input discarded the whole
+// run, split input discarded the first maxPending bytes and then rescanned the
+// remainder as text, where a BEL still counted. The rule that fixes it is
+// resync-to-next-ESC, which both paths follow identically.
+func TestScreenChunkInvariantAboveThePendingBound(t *testing.T) {
+	// An unterminated sequence longer than the guard, then a BEL that belongs
+	// to it, then a real sequence the scanner must still pick up afterwards.
+	data := "\x1b]52;c;" + strings.Repeat("A", maxPending+5000) + "\x07" + "\x1b[?1049h"
+
+	whole := &Screen{}
+	whole.Feed([]byte(data))
+
+	split := &Screen{}
+	for i := 0; i < len(data); i += 4096 {
+		end := i + 4096
+		if end > len(data) {
+			end = len(data)
+		}
+		split.Feed([]byte(data[i:end]))
+	}
+
+	if whole.TakeBell() != split.TakeBell() {
+		t.Fatal("bell latch differs between whole and 4096-byte-chunked input above the bound")
+	}
+	if whole.AltScreen() != split.AltScreen() {
+		t.Fatal("alt-screen state differs between whole and chunked input above the bound")
+	}
+	// And the trailing real sequence must survive the resync.
+	if !whole.AltScreen() {
+		t.Fatal("resync swallowed the sequence that followed the abandoned run")
+	}
+}

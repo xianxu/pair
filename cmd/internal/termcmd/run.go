@@ -205,6 +205,23 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 	}
 }
 
+// teardown stops the host's resize watcher BEFORE any child pty is closed.
+//
+// A function rather than two defers, because as two defers the ordering was
+// EMERGENT -- it depended on LIFO registration order, and the #146 migration
+// silently inverted it by registering host.Close() up next to NewOSHost (BR-2).
+// The hazard is concrete: a SIGWINCH arriving during teardown runs resizeAll ->
+// Child.Resize -> ptmx.Fd() concurrently with ptmx.Close(), the use-after-close
+// workshop/lessons.md records from the scribecmd bug.
+//
+// Making it explicit is also what makes it TESTABLE: defer ordering inside a
+// function that needs a real tty cannot be asserted, and BR-15 is that a fix
+// defended only by a comment is not defended.
+func teardown(host hostty.Host, closeChildren func()) {
+	_ = host.Close()
+	closeChildren()
+}
+
 func runShell(stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
 	name, args := rt.ShellCommand()
 	// Self-register this pane as a live right terminal: zellij's pane report
@@ -237,14 +254,7 @@ func runShell(stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
 		fmt.Fprintf(stderr, "term: %v\n", err)
 		return 1
 	}
-	defer mux.closeAll()
-	// Registered AFTER closeAll so LIFO runs it FIRST: the resize watcher must
-	// stop before any child pty is closed. Otherwise a SIGWINCH during teardown
-	// runs resizeAll -> Child.Resize -> ptmx.Fd() concurrently with ptmx.Close()
-	// -- the use-after-close workshop/lessons.md records from the scribecmd bug,
-	// and which the first cut of this migration silently re-opened by putting
-	// this defer up next to NewOSHost (BR-2).
-	defer func() { _ = host.Close() }()
+	defer teardown(host, mux.closeAll)
 	defer mux.restoreTerminal()
 
 	if stdinFile != nil {

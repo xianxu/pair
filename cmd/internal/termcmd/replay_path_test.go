@@ -7,6 +7,8 @@ package termcmd
 
 import (
 	"bytes"
+
+	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"io"
 	"strings"
 	"sync"
@@ -130,5 +132,40 @@ func TestMalformedEscapeSizeNeverReturnsZeroOnNonEmptyInput(t *testing.T) {
 		if got := malformedEscapeSize([]byte(in)); got <= 0 {
 			t.Errorf("malformedEscapeSize(%q) = %d — the decoder loop would not advance", in, got)
 		}
+	}
+}
+
+// recordingHost notes when it is closed, so teardown's ordering is assertable
+// without a terminal.
+type recordingHost struct {
+	record  func(string)
+	resized chan struct{}
+}
+
+func (h *recordingHost) Write(p []byte) (int, error) { return len(p), nil }
+func (h *recordingHost) Size() (ptychild.Size, error) {
+	return ptychild.Size{Rows: 24, Cols: 80}, nil
+}
+func (h *recordingHost) MakeRaw() (func() error, error) {
+	return func() error { return nil }, nil
+}
+func (h *recordingHost) Resized() <-chan struct{} { return h.resized }
+func (h *recordingHost) Close() error             { h.record("host.Close"); return nil }
+
+// The resize watcher must stop BEFORE any child pty closes, or a SIGWINCH
+// during teardown resizes a pty that is being closed (BR-2). This pins the
+// ordering; as two defers it depended on LIFO registration and reverting it was
+// invisible to every test in the tree.
+func TestTeardownStopsTheWatcherBeforeClosingChildren(t *testing.T) {
+	var order []string
+	host := &recordingHost{
+		record:  func(s string) { order = append(order, s) },
+		resized: make(chan struct{}),
+	}
+
+	teardown(host, func() { order = append(order, "closeChildren") })
+
+	if len(order) != 2 || order[0] != "host.Close" || order[1] != "closeChildren" {
+		t.Fatalf("teardown order = %v, want [host.Close closeChildren]", order)
 	}
 }

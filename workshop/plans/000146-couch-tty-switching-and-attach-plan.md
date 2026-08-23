@@ -98,10 +98,21 @@ Terminal code has its own standing moves, all of them lessons already paid for i
   - **DRY rationale:** couch's repaint-on-attach is the same operation `redrawTab` performs. Without the move, couch either re-earns #127's bug or copies its table.
   - **Future extensions:** stays a best-effort deny-list; a missed query degrades to the old behaviour, exactly as documented today.
 
-- **Screen** — the single scanner over a child's output stream. Consumes bytes, maintains `AltScreen bool`, `Mouse bool`, `MarginsDirty bool`, `Bell bool` (latched, cleared by the reader). Framing goes through `ansi.TerminatorScan`; it does **not** frame CSIs itself.
-  - **Relationships:** 1:1 with `Child`.
-  - **DRY rationale:** `termcmd.updateMouseMode` is today's half of this and gets folded in — one scanner per package, per the paired-terminator lesson.
-  - **Future extensions:** title (OSC 0/2) and OSC 777 notifications are the natural next fields; the console's status row is already the place they would surface.
+- **Screen** — the single scanner over a child's output stream. It answers the
+  questions the console asks of a child: is it on the alternate screen, does it
+  want mouse reporting, has it done something that can drop the reserved row,
+  has it rung the bell. Framing goes through `ansi.TerminatorScan`; it does
+  **not** frame CSIs itself.
+  - **The field list deliberately lives in the code, not here.** Two rounds of
+    review caught this table drifting from the shapes it restated
+    (`restoreTerminal`, then these accessors), which is the same failure mode
+    `atlas/couch.md` records for enumerating couch's operation set in prose: a
+    hand-maintained restatement is a second source that drifts. Read
+    `ptychild/screen.go`.
+  - **DRY rationale:** `termcmd.updateMouseMode` is today's half of this and gets
+    folded in — one scanner per package, per the paired-terminator lesson.
+  - **Future extensions:** title (OSC 0/2) and OSC 777 notifications are the
+    natural next answers; the console's status row is already where they surface.
 
 - **Focus** — `FocusPanel` or `FocusActor(ActorID)`, plus `Up(cur, root) Focus`: a non-root child goes home to the root actor; the root actor goes to the panel; the panel stays. Pure; the whole navigation rule is one function.
   - **DRY rationale:** first occurrence, but the rule is stated in three places (project, issue, atlas) and must have exactly one implementation.
@@ -492,3 +503,17 @@ Important findings. Two of them are about this document rather than the code.
   The deletion check I actually ran removed the trim entirely — a different
   mutation, proving a different thing. The code comment and the issue Log are
   corrected; the copy stays as a clarity choice, stated as one.
+
+### 2026-08-22 — M1 boundary review round 2: the Screen row stops restating shapes
+
+**Reason:** `plan-table-drift` came back a second time on this issue (third
+counting `pair#145`'s BR-41) — the Core-concepts entry for `Screen` declared
+`MarginsDirty` and `Bell`, while the code has `regionLost` and `bell` behind
+`Take*` readers.
+
+**Delta:** renaming two words would have been the instance fix and the family
+would have returned a third time. The row now describes what `Screen` *answers*
+and points at the source for the shapes, which is the rule `atlas/couch.md`
+already applies to couch's operation set: stop maintaining a second copy of a
+code shape in prose. The same treatment stands ready for any other row that
+starts enumerating identifiers.

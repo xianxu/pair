@@ -108,10 +108,14 @@ func TestFakeHostResizesCoalesce(t *testing.T) {
 // Conformance: OSHost against a REAL pty. The fake models size reporting and
 // raw-mode restore; this pins that the real thing agrees, rather than asserting
 // whatever each happens to do separately.
+// This one genuinely needs a pty -- Size and MakeRaw are terminal operations.
+// It FAILS rather than skips when one is unavailable, matching how ptychild
+// handles the identical constraint: a suite that reports ok while silently
+// skipping its conformance check is telling you the wrong thing (BR-15).
 func TestOSHostConformsToTheFakeOnSizeAndRawMode(t *testing.T) {
 	ptmx, tty, err := pty.Open()
 	if err != nil {
-		t.Skipf("pty.Open: %v (sandboxed?)", err)
+		t.Fatalf("pty.Open: %v -- this check needs a real terminal; run it unsandboxed", err)
 	}
 	defer func() { _ = ptmx.Close(); _ = tty.Close() }()
 
@@ -158,14 +162,17 @@ func TestOSHostSizeErrorsOnANonTerminal(t *testing.T) {
 // found (BR-2); asserting it on the fake alone would not have caught it, since
 // the fake is not what production ranges over.
 func TestCloseReleasesResizedConsumers(t *testing.T) {
-	ptmx, tty, err := pty.Open()
+	// Deliberately NOT a pty: OSHost's watcher and Close path touch neither the
+	// terminal nor its size, so gating this on pty.Open would make the pin skip
+	// itself in the sandboxed shell this issue documents as its own (BR-15).
+	f, err := os.CreateTemp(t.TempDir(), "hostty")
 	if err != nil {
-		t.Skipf("pty.Open: %v (sandboxed?)", err)
+		t.Fatalf("CreateTemp: %v", err)
 	}
-	defer func() { _ = ptmx.Close(); _ = tty.Close() }()
+	defer func() { _ = f.Close() }()
 
 	hosts := map[string]Host{
-		"OSHost":   NewOSHost(tty, tty),
+		"OSHost":   NewOSHost(f, f),
 		"FakeHost": NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}),
 	}
 	for name, h := range hosts {
@@ -193,13 +200,15 @@ func TestCloseReleasesResizedConsumers(t *testing.T) {
 // whose stated purpose is making the SIGWINCH path testable should test it
 // where it actually runs (BR-7).
 func TestOSHostCoalescesRealSIGWINCH(t *testing.T) {
-	ptmx, tty, err := pty.Open()
+	// Real signals, no pty: the coalescing is in watch()'s non-blocking send,
+	// which does not care what kind of file the host wraps (BR-15).
+	f, err := os.CreateTemp(t.TempDir(), "hostty")
 	if err != nil {
-		t.Skipf("pty.Open: %v (sandboxed?)", err)
+		t.Fatalf("CreateTemp: %v", err)
 	}
-	defer func() { _ = ptmx.Close(); _ = tty.Close() }()
+	defer func() { _ = f.Close() }()
 
-	h := NewOSHost(tty, tty)
+	h := NewOSHost(f, f)
 	defer func() { _ = h.Close() }()
 
 	for i := 0; i < 50; i++ {
