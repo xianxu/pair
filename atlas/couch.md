@@ -27,7 +27,14 @@ the agent child is never spawned by Go — zellij spawns it from a KDL layout, a
 `entrypoint.ValidRootMarkers` *defines* a valid pair install as having those
 layouts.
 
-**There is no pty yet.** Attaching, switching and detaching are `pair#146`.
+**There is no pty yet in `couch` itself.** Attaching, switching and detaching are
+`pair#146`, in progress. Its first milestone landed the mechanism `couch` will
+drive, extracted from `pair term` rather than written twice:
+`cmd/internal/ptychild` (child on a pty + replay ring + output scanner) and
+`cmd/internal/hostty` (the operator's terminal: size, raw mode, resize, control
+constants). `pair term` runs on both today — see `atlas/architecture.md`, "The
+terminal plumbing is shared with couch". `couch start` still hands the child its
+own stdio and blocks.
 
 ## Identity: the working tree
 
