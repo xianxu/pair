@@ -835,3 +835,27 @@ Also fixed: the first version of the unit test could not reproduce the bug at
 all, because both `Feed` calls completed before the console processed either --
 the same async-ordering flaw as the round-1 tests, caught this time by the
 deletion check rather than shipped.
+
+### 2026-08-23 -- M2 smoke PASSED against the real stack
+
+Operator, on Ghostty -> couch -> pair -> zellij -> claude+nvim:
+
+- **The reserved row stays.** `[pair]` remains on the bottom row through pair
+  coming up, and everything pair-related works normally inside couch's pty.
+  This is the milestone's headline property and the thing that broke in smoke
+  round 1; it is now confirmed where the emulator could not speak.
+- **`ctrl-space` is intercepted by couch** and renders its line after `[pair]`,
+  rather than reaching draft nvim.
+- **`--layout2`** confirmed earlier the same session.
+
+**Decision 4 is settled: no fallback needed.** The reserved row survives a real
+full-screen stack, so couch does not composite and does not need the on-demand
+overlay the plan held in reserve.
+
+What the smoke did NOT separately exercise, and is therefore carried to M3
+rather than claimed here: the `kill -9` reattach (both halves are covered --
+`probes/zellijpark` measured the zellij session surviving SIGTERM and SIGKILL to
+its client, and `TestSpawnProducesTheSameTagForTheSameTree` pins the tag
+determinism -- but their composition is untested); and quitting couch leaving a
+clean terminal, which has unit coverage on both the child-exit and teardown
+paths plus a vt check that the bottom row is usable after release.
