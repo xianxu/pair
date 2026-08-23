@@ -17,6 +17,8 @@ import (
 	"golang.org/x/term"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchtty"
+	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
@@ -26,6 +28,10 @@ import (
 type Runtime interface {
 	Getenv(string) string
 	StoreDir() string
+	// NewCouchWith builds the domain against a caller-supplied Runner. The
+	// console needs a PtyRunner it has already wired its own sink and size
+	// supplier into, which cannot be constructed inside NewCouch.
+	NewCouchWith(couchcore.Runner) (*couchcore.Couch, error)
 	// NewCouch builds the domain with its seams.
 	//
 	// It is on the Runtime rather than inline in RunWithRuntime because
@@ -53,8 +59,12 @@ func (r OSRuntime) StoreDir() string {
 }
 
 func (r OSRuntime) NewCouch() (*couchcore.Couch, error) {
+	return r.NewCouchWith(couchcore.ExecRunner{})
+}
+
+func (r OSRuntime) NewCouchWith(runner couchcore.Runner) (*couchcore.Couch, error) {
 	return couchcore.New(
-		couchcore.ExecRunner{}, couchcore.OSPathOps{}, couchcore.ExecGit{},
+		runner, couchcore.OSPathOps{}, couchcore.ExecGit{},
 		couchcore.OSProcOps{}, couchcore.NewStore(r.StoreDir()),
 		couchcore.SystemClock{}, couchcore.NewRandomIDGen(),
 	)
@@ -111,7 +121,15 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		return 2
 	}
 
-	c, err := rt.NewCouch()
+	// `start` without --no-console becomes THE CONSOLE: it allocates a pty per
+	// child and owns the operator's terminal for its lifetime. Everything else
+	// -- and --no-console -- keeps the stdio-inheriting runner.
+	//
+	// couchcmd constructs and drives the Console; couchcore never learns that a
+	// terminal exists.
+	console, runner := consoleRunner(op.Name, parsed, stdin, stdout)
+
+	c, err := rt.NewCouchWith(runner)
 	if err != nil {
 		fmt.Fprintf(stderr, "couch: %v\n", err)
 		return 1
@@ -122,7 +140,51 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		renderError(stderr, err)
 		return 1
 	}
+	if console != nil {
+		if start, ok := result.(couchcore.StartResult); ok {
+			return runConsole(console, start, stdout)
+		}
+	}
 	return render(stdout, op, result)
+}
+
+// consoleRunner decides which Runner this invocation gets, and builds the
+// Console when it is the pty one.
+//
+// Returning (nil, ExecRunner{}) is the fallback path: `--no-console` and every
+// non-start operation. The escape hatch announces itself at render time rather
+// than degrading silently.
+func consoleRunner(name string, args map[string]string, stdin io.Reader, stdout io.Writer) (*couchtty.Console, couchcore.Runner) {
+	if name != "start" || args["no-console"] == "true" {
+		return nil, couchcore.ExecRunner{}
+	}
+	inFile, _ := stdin.(*os.File)
+	outFile, _ := stdout.(*os.File)
+	host := hostty.NewOSHost(inFile, outFile)
+
+	console := couchtty.New(host, stdin)
+	return console, &couchcore.PtyRunner{
+		Size: console.ChildSize,
+		Sink: console.Deliver,
+	}
+}
+
+// runConsole attaches the spawned child and hands the terminal over. This
+// displaces render's StartResult branch, which printed a line and then blocked
+// on Handle.Wait for the child's lifetime.
+func runConsole(console *couchtty.Console, start couchcore.StartResult, stdout io.Writer) int {
+	th, ok := start.Handle.(couchcore.TerminalHandle)
+	if !ok {
+		// A runner that cannot offer a terminal: fall back rather than crash.
+		fmt.Fprintf(stdout, "couch: no terminal available; running without a console\n")
+		if start.Handle != nil {
+			return start.Handle.Wait()
+		}
+		return 1
+	}
+	label := start.Record.Args.Worktree.Repo()
+	console.Attach(start.Handle.ID(), label, th.Terminal())
+	return console.Run()
 }
 
 // bindArgs maps positional argv onto the operation's declared ArgSpecs, plus
@@ -169,6 +231,10 @@ func bindArgs(op couchcore.Operation, argv []string) (map[string]string, error) 
 func render(w io.Writer, op couchcore.Operation, result any) int {
 	switch v := result.(type) {
 	case couchcore.StartResult:
+		// Reached only on the --no-console path now. Loud, because a silent
+		// degradation is how an escape hatch becomes the default nobody
+		// noticed (Decision 2).
+		fmt.Fprintf(w, "couch: --no-console — inheriting stdio, no pty, no reserved row\n")
 		fmt.Fprintf(w, "started %s on %s (pid %d)\n", v.Record.ID, v.Record.Args.Worktree, v.Record.PID)
 		if v.Handle != nil {
 			// couch start blocks for the child's lifetime: this milestone has

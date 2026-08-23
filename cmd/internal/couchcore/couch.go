@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
 // Couch is the composition root: every seam in one place, every operation a
@@ -75,7 +77,27 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 		return ActorRecord{}, nil, err
 	}
 
-	argv := append([]string{"pair", "--layout2"}, args.ExtraArgs...)
+	// `pair resume <tag>` rather than a bare `pair`: with no tag,
+	// launcher.DecideLaunch returns ActionPick as soon as a detached session
+	// exists (decision.go:47), which inside couch's own pty is an fzf picker
+	// waiting on an operator who only asked to start. `resume` takes the
+	// ForcedTag branch -- attach if live or detached, create otherwise -- and
+	// skips the name prompt (help.go:15).
+	//
+	// The tag derives from the TREE, so going back in is deterministic: the
+	// same tree always resumes the same session. `launcher.DefaultTag` is
+	// pair's own create-flow derivation, reused rather than re-implemented.
+	//
+	// --layout2 is deliberately absent, and its absence is load-bearing twice
+	// over: `resume` REFUSES a third argv element (args.go:104), and forcing a
+	// layout on a live tag makes pair ask before recreating the workbench --
+	// a prompt the operator would meet inside couch's pty. An omitted flag
+	// reuses the tag's recorded layout, and a new tag already defaults to
+	// layout2.
+	//
+	// This is a deliberate slice of #149, which makes the tag the space's
+	// durable identity; #146 needs only that re-entry is deterministic.
+	argv := append([]string{"pair", "resume", launcher.DefaultTag(string(tree))}, args.ExtraArgs...)
 	// The child is told which tree it is and where couch keeps state, so the
 	// agent inside it can publish its own one-line description. Without this
 	// the description cache has no source: an operator typing `couch describe`

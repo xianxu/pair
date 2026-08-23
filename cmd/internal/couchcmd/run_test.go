@@ -30,6 +30,16 @@ func (t testRT) Getenv(string) string { return "" }
 func (t testRT) StoreDir() string     { return t.dir }
 
 func (t testRT) NewCouch() (*couchcore.Couch, error) {
+	return t.NewCouchWith(t.runner)
+}
+
+// NewCouchWith IGNORES the caller's runner and keeps the fake.
+//
+// That is the point: production picks a PtyRunner for `start`, and a CLI test
+// must still drive the whole dispatch against fakes. What the test asserts is
+// which BRANCH was taken (console vs --no-console), which is observable in the
+// rendered output, not which concrete runner object was constructed.
+func (t testRT) NewCouchWith(couchcore.Runner) (*couchcore.Couch, error) {
 	return couchcore.New(
 		t.runner, couchcore.NewFakePathOps(nil), t.git, t.proc,
 		couchcore.NewStore(t.dir), couchcore.FixedClock{}, t.ids,
@@ -106,7 +116,7 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 func TestOperationArityMatchesExpectation(t *testing.T) {
 	// Declared in the test rather than read from the operation itself, so
 	// this cannot degrade into asserting X == X.
-	want := map[string]int{"start": 2, "list": 0, "show": 1, "stop": 1, "name": 2, "describe": 2, "publish-description": 2}
+	want := map[string]int{"start": 3, "list": 0, "show": 1, "stop": 1, "name": 2, "describe": 2, "publish-description": 2}
 	for _, op := range couchcore.Operations() {
 		if got := len(op.Args); got != want[op.Name] {
 			t.Errorf("%s has %d args, want %d", op.Name, got, want[op.Name])
@@ -318,5 +328,29 @@ func TestOptionalPositionalArgsStillBind(t *testing.T) {
 	out, _, _ := runRT(rt, "describe", "thing")
 	if !strings.Contains(out, "what it is doing") {
 		t.Fatalf("out = %q", out)
+	}
+}
+
+// The escape hatch announces itself. A silent degradation is how a fallback
+// becomes the default nobody noticed (Decision 2).
+func TestStartWithNoConsoleAnnouncesTheFallback(t *testing.T) {
+	out, errw, code := runRT(newRT(t, "/repo"), "start", "/repo", "--no-console")
+	if code != 0 {
+		t.Fatalf("exit %d, stderr %q", code, errw)
+	}
+	if !strings.Contains(out, "--no-console") {
+		t.Fatalf("the fallback did not announce itself: %q", out)
+	}
+	if !strings.Contains(out, "started ") {
+		t.Fatalf("the no-console path did not report the actor: %q", out)
+	}
+}
+
+// A guard bypass must never bind positionally: a stray word must not be able to
+// turn off the console. Mirrors the same rule's test for --same-tree.
+func TestNoConsoleNeverBindsPositionally(t *testing.T) {
+	_, errw, code := runRT(newRT(t, "/repo"), "start", "/repo", "no-console")
+	if code == 0 {
+		t.Fatalf("a positional `no-console` was accepted; it must not bind (stderr %q)", errw)
 	}
 }

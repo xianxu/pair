@@ -88,6 +88,11 @@ func (f *FakeRunner) Start(dir string, argv, env []string) (Handle, error) {
 		c := f.children[id]
 		c.alive, c.code = false, *f.autoExit
 		close(c.done)
+		// The TERMINAL double ends with the child. A fake with two notions of
+		// "exited" -- one for the handle, one for its pty -- lets a console
+		// test hang forever waiting on the half that never ends, which is
+		// exactly how this was found.
+		c.terminal.Exit(*f.autoExit)
 	}
 	return &fakeHandle{runner: f, id: id}, nil
 }
@@ -130,6 +135,10 @@ func (f *FakeRunner) SetExited(id string, code int) {
 	}
 	c.alive, c.code = false, code
 	close(c.done)
+	// End the terminal double with it. One child, one notion of "exited": a
+	// fake whose handle has exited while its pty is still running lets a
+	// console test hang forever on the half that never ends.
+	c.terminal.Exit(code)
 }
 
 func (f *FakeRunner) Child(id string) FakeChild {

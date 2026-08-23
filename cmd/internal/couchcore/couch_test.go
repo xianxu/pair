@@ -67,7 +67,7 @@ func TestSpawnStartsPairAndRecordsTheActor(t *testing.T) {
 	}
 	// couch spawns pair, not claude: pair owns zellij, the layout, and the
 	// agent's resume/session-id knowledge.
-	if got := env.Runner.Ops[0]; got != "start /repo: pair --layout2" {
+	if got := env.Runner.Ops[0]; got != "start /repo: pair resume repo" {
 		t.Fatalf("Ops[0] = %q", got)
 	}
 	if !rec.StartedAt.Equal(env.Now) {
@@ -565,5 +565,59 @@ func TestPersistedCwdIsCanonicalNotAsTyped(t *testing.T) {
 	got := reg.Get("/w/kbench")
 	if len(got) != 1 || got[0].Args.Cwd != rec.Args.Cwd {
 		t.Fatalf("round-tripped cwd = %+v", got)
+	}
+}
+
+// Spawn resumes a tag rather than creating an unnamed session, so a console
+// restart lands back on the SAME zellij session instead of pair's fzf picker
+// (Decision 11). DecideLaunch with no tag and a detached session present
+// returns ActionPick, which inside couch's own pty is an interactive prompt the
+// operator never asked for.
+func TestSpawnResumesATagDerivedFromTheTree(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	if _, _, err := env.Couch.Spawn(StartArgs{Cwd: "/repo"}); err != nil {
+		t.Fatalf("Spawn: %v", err)
+	}
+
+	got := env.Runner.Ops[0]
+	if !strings.Contains(got, "pair resume ") {
+		t.Fatalf("argv = %q, want `pair resume <tag>`", got)
+	}
+	// `resume` refuses any third argv element (launcher/args.go:104), so
+	// leaving --layout2 in is a usage error at RUNTIME that no other test here
+	// would ever see.
+	if strings.Contains(got, "--layout2") {
+		t.Fatalf("argv still carries --layout2, which `resume` rejects: %q", got)
+	}
+}
+
+// The tag comes from the WORKTREE ROOT, not the cwd. A spawn inside
+// kbench/competition/arc-agi-3/ must resume kbench's tag, because kbench is the
+// tree couch keyed the actor on.
+func TestSpawnDerivesTheTagFromTheTreeNotTheCwd(t *testing.T) {
+	env := newTestEnv(t)
+	env.Git.replies[GitCall{Dir: "/repo/sub/dir", Args: "rev-parse --show-toplevel"}] = "/repo"
+
+	if _, _, err := env.Couch.Spawn(StartArgs{Cwd: "/repo/sub/dir"}); err != nil {
+		t.Fatalf("Spawn: %v", err)
+	}
+	got := env.Runner.Ops[0]
+	if !strings.Contains(got, "pair resume repo") {
+		t.Fatalf("argv = %q, want the tree's tag (repo), not the cwd's (dir)", got)
+	}
+}
+
+// Determinism is the whole point: the same tree must produce the same tag, or
+// every restart creates a new session and the fleet accumulates.
+func TestSpawnProducesTheSameTagForTheSameTree(t *testing.T) {
+	run := func() string {
+		env := newTestEnv(t, "/repo")
+		if _, _, err := env.Couch.Spawn(StartArgs{Cwd: "/repo"}); err != nil {
+			t.Fatalf("Spawn: %v", err)
+		}
+		return env.Runner.Ops[0]
+	}
+	if a, b := run(), run(); a != b {
+		t.Fatalf("the same tree produced different argv:\n  %q\n  %q", a, b)
 	}
 }

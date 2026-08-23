@@ -61,12 +61,24 @@ func Operations() []Operation {
 			Name:    "start",
 			Summary: "Start an agent on a peer repo (or a subdirectory of one)",
 			Args: []ArgSpec{
-				{Name: "path", Summary: "repo or subdirectory to start in", Required: true},
+				// Optional, defaulting to "." at the CLI: `cd brain && couch
+				// start` is what makes brain home, which is the Spec's
+				// "whatever session couch launched in" delivered by convention
+				// rather than by couch knowing about brain (Decision 1).
+				{Name: "path", Summary: "repo or subdirectory to start in (default: .)", Required: false},
 				{Name: "same-tree", Summary: "override the one-agent-per-tree guard (--same-tree)", Required: false, FlagOnly: true},
+				// FlagOnly for the same reason same-tree is: it bypasses the
+				// console, and a stray positional word must not be able to
+				// turn off a whole layer.
+				{Name: "no-console", Summary: "inherit couch's stdio instead of allocating a pty (--no-console)", Required: false, FlagOnly: true},
 			},
 			Invoke: func(c *Couch, a map[string]string) (any, error) {
+				path := a["path"]
+				if path == "" {
+					path = "."
+				}
 				rec, h, err := c.Spawn(StartArgs{
-					Cwd:      a["path"],
+					Cwd:      path,
 					SameTree: a["same-tree"] == "true",
 				})
 				if err != nil {
