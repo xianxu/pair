@@ -842,3 +842,55 @@ func TestPanelActionWithoutOpsSaysSo(t *testing.T) {
 		return strings.Contains(f.host.Written(), "no action dispatcher")
 	})
 }
+
+// The operator's report: Escape in the panel did nothing. Under the Kitty
+// keyboard protocol -- which zellij enables, so it is what a real session
+// leaves the terminal in -- Escape arrives as `\x1b[27u`.
+func TestPanelEscapeWorksInBothEncodings(t *testing.T) {
+	for _, esc := range []string{"\x1b", "\x1b[27u", "\x1b[27;1u"} {
+		t.Run(fmt.Sprintf("%q", esc), func(t *testing.T) {
+			f := newFixture(t, 24, 80)
+			waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+			_, _ = f.stdin.Write([]byte("\x00"))
+			waitFor(t, "the panel", func() bool {
+				return strings.Contains(f.host.Written(), "couch — actors")
+			})
+			f.host.Reset()
+
+			_, _ = f.stdin.Write([]byte(esc))
+			waitFor(t, "to return to the actor", func() bool {
+				return strings.Contains(f.host.Written(), "[brain]") &&
+					!strings.Contains(f.host.Written(), "couch — actors")
+			})
+		})
+	}
+}
+
+// Same for the keys that move and commit.
+func TestPanelNavigationWorksInBothEncodings(t *testing.T) {
+	for _, keys := range []struct{ down, enter string }{
+		{"\x1b[B", "\r"},
+		{"\x1b[1;1B", "\x1b[13u"},
+	} {
+		t.Run(fmt.Sprintf("%q", keys.down), func(t *testing.T) {
+			f := newFixture(t, 24, 80)
+			other := ptychild.NewFakeChild([]byte("ariadne screen"))
+			other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+			f.con.Attach("c2", "ariadne", other)
+			waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+
+			_, _ = f.stdin.Write([]byte("\x00"))
+			waitFor(t, "the panel", func() bool {
+				return strings.Contains(f.host.Written(), "▸ 1")
+			})
+			_, _ = f.stdin.Write([]byte(keys.down))
+			waitFor(t, "the highlight to move", func() bool {
+				return strings.Contains(f.host.Written(), "▸ 2")
+			})
+			_, _ = f.stdin.Write([]byte(keys.enter))
+			waitFor(t, "Enter to switch", func() bool {
+				return strings.Contains(f.host.Written(), "[ariadne]")
+			})
+		})
+	}
+}

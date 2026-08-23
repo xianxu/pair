@@ -1915,3 +1915,25 @@ them decay into text. Route it through the repo's existing scanner
 (`cmd/internal/ansi`) — a second framing decision is the bug this repo has paid
 for repeatedly. And decide explicitly what the ESCAPE key does: a picker with no
 way out is a trap, and "nothing happens" is what the operator sees.
+
+## A key encoding fix must cover EVERY key, not the one that was reported
+
+`#146` M2: ctrl-space never reached couch, because zellij enables the Kitty
+keyboard protocol and the terminal sends `\x1b[32;5u` rather than NUL. Fixed —
+for ctrl-space. M3 then shipped a panel whose Escape, Enter and arrows were all
+dead for the identical reason, and the operator reported the same class of bug a
+second time.
+
+The evidence was in the tree both times: pair's own chord table carries BOTH
+encodings for every chord (`workbenchshortcut/shortcut.go`), which is what a
+keyboard surface in this repo is supposed to look like.
+
+**Rule.** Terminal key encoding is a property of the MODE the terminal is in,
+not of a particular key. When one key turns out to arrive in an unexpected
+encoding, enumerate every key the surface consumes and handle both forms for all
+of them in the same change — a per-key fix guarantees the next key reports the
+same bug. Decode the codepoint (`CSI <n> ; <mods> u`) rather than listing byte
+strings, so a key nobody thought about still decodes.
+
+Corollary: a surface that takes over the screen inherits whatever keyboard mode
+the previous occupant set. It does not get to assume the default.

@@ -82,3 +82,62 @@ func FuzzDecodePanelKeys(f *testing.F) {
 		}
 	})
 }
+
+// Under the Kitty keyboard protocol -- which zellij enables, so it is what a
+// real session leaves the terminal in -- keys arrive as CSI-u rather than as
+// their legacy bytes. Escape is `\x1b[27u`, not `\x1b`.
+//
+// This is the SECOND time this class has bitten #146: ctrl-space had the same
+// problem in M2 and the fix was applied only to that one key. The operator
+// reported Escape doing nothing in the panel.
+func TestDecodeKittyProtocolKeys(t *testing.T) {
+	cases := []struct {
+		name string
+		seq  string
+		want PanelKeyKind
+	}{
+		{"escape", "\x1b[27u", KeyEscape},
+		{"escape with modifier", "\x1b[27;1u", KeyEscape},
+		{"enter", "\x1b[13u", KeyEnter},
+		{"enter with modifier", "\x1b[13;1u", KeyEnter},
+		{"backspace", "\x1b[127u", KeyBackspace},
+		{"up with modifier", "\x1b[1;1A", KeyUp},
+		{"down with modifier", "\x1b[1;1B", KeyDown},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			keys, held := DecodePanelKeys([]byte(c.seq))
+			if len(held) != 0 {
+				t.Fatalf("held %q", held)
+			}
+			if len(keys) != 1 || keys[0].Kind != c.want {
+				t.Fatalf("%q decoded to %+v, want one %v", c.seq, keys, c.want)
+			}
+		})
+	}
+}
+
+// A printable key reported as CSI-u must still type. With the "report all keys"
+// flag set, `a` arrives as `\x1b[97u`.
+func TestDecodeKittyPrintableKeys(t *testing.T) {
+	keys, _ := DecodePanelKeys([]byte("\x1b[97u\x1b[98;1u"))
+	if len(keys) != 2 {
+		t.Fatalf("decoded %+v", keys)
+	}
+	for i, want := range []byte{'a', 'b'} {
+		if keys[i].Kind != KeyRune || keys[i].Rune != want {
+			t.Fatalf("key %d = %+v, want the rune %q", i, keys[i], want)
+		}
+	}
+}
+
+// ctrl-space is couch's, and it is intercepted BEFORE the panel -- but if one
+// ever reaches the decoder it must not be typed in as a rune.
+func TestDecodeDoesNotTypeControlCodepoints(t *testing.T) {
+	keys, _ := DecodePanelKeys([]byte("\x1b[32;5u"))
+	for _, k := range keys {
+		if k.Kind == KeyRune {
+			t.Fatalf("a modified key was typed as the rune %q", k.Rune)
+		}
+	}
+}

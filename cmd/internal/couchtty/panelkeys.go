@@ -98,19 +98,98 @@ func DecodePanelKeys(in []byte) (keys []PanelKey, held []byte) {
 	return keys, nil
 }
 
-// decodeSequence maps the escape sequences the panel acts on. Both the legacy
-// and application-cursor forms of the arrows, because which one arrives depends
-// on the mode the previous child left the terminal in -- and couch does not get
-// to assume.
+// decodeSequence maps the escape sequences the panel acts on.
+//
+// EVERY key has two encodings and both are handled, because which one arrives
+// depends on the keyboard mode the previous child left the terminal in -- and
+// couch does not get to assume. zellij enables the Kitty keyboard protocol, so
+// a real session's Escape is `\x1b[27u`, not `\x1b`.
+//
+// This generalises a fix that was applied to ONE key in M2: ctrl-space had the
+// same problem, and handling only that one left Escape, Enter and the arrows
+// dead in the panel. pair's own chord table carries both encodings for every
+// chord for exactly this reason.
 func decodeSequence(seq []byte) (PanelKey, bool) {
 	switch {
-	case bytes.Equal(seq, []byte("\x1b[A")), bytes.Equal(seq, []byte("\x1bOA")):
-		return PanelKey{Kind: KeyUp}, true
-	case bytes.Equal(seq, []byte("\x1b[B")), bytes.Equal(seq, []byte("\x1bOB")):
-		return PanelKey{Kind: KeyDown}, true
-	// Some terminals send ESC ESC for a pressed Escape while an app-mode is on.
 	case bytes.Equal(seq, []byte("\x1b\x1b")):
+		// ESC ESC: a pressed Escape while an app mode is on.
 		return PanelKey{Kind: KeyEscape}, true
+	case bytes.HasSuffix(seq, []byte("A")):
+		if isCSI(seq) {
+			return PanelKey{Kind: KeyUp}, true
+		}
+	case bytes.HasSuffix(seq, []byte("B")):
+		if isCSI(seq) {
+			return PanelKey{Kind: KeyDown}, true
+		}
+	case bytes.HasSuffix(seq, []byte("u")):
+		return decodeCSIu(seq)
+	}
+	if bytes.Equal(seq, []byte("\x1bOA")) {
+		return PanelKey{Kind: KeyUp}, true
+	}
+	if bytes.Equal(seq, []byte("\x1bOB")) {
+		return PanelKey{Kind: KeyDown}, true
 	}
 	return PanelKey{}, false
+}
+
+// isCSI reports whether seq is `ESC [ <params> <final>`. Params are ignored:
+// an arrow with a modifier is still an arrow, and the panel has no use for the
+// modifier.
+func isCSI(seq []byte) bool {
+	return len(seq) >= 3 && seq[0] == 0x1b && seq[1] == '['
+}
+
+// decodeCSIu reads the Kitty protocol's `CSI <codepoint> [;<modifiers>] u`.
+//
+// The codepoint is the key; the modifiers are deliberately dropped except to
+// refuse a MODIFIED printable, which is a chord rather than a character --
+// typing `a` and pressing ctrl+a must not both insert an `a`.
+func decodeCSIu(seq []byte) (PanelKey, bool) {
+	if !isCSI(seq) {
+		return PanelKey{}, false
+	}
+	body := seq[2 : len(seq)-1]
+	code, mods := body, []byte(nil)
+	if i := bytes.IndexByte(body, ';'); i >= 0 {
+		code, mods = body[:i], body[i+1:]
+	}
+	n, ok := atoiBytes(code)
+	if !ok {
+		return PanelKey{}, false
+	}
+	// Modifier bitmask 1 means "none" in this protocol; anything else is a
+	// chord.
+	modified := len(mods) > 0 && !bytes.Equal(mods, []byte("1"))
+
+	switch n {
+	case 27:
+		return PanelKey{Kind: KeyEscape}, true
+	case 13:
+		return PanelKey{Kind: KeyEnter}, true
+	case 127, 8:
+		return PanelKey{Kind: KeyBackspace}, true
+	}
+	if !modified && n >= 0x20 && n < 0x7f {
+		return PanelKey{Kind: KeyRune, Rune: byte(n)}, true
+	}
+	return PanelKey{}, false
+}
+
+func atoiBytes(b []byte) (int, bool) {
+	if len(b) == 0 {
+		return 0, false
+	}
+	n := 0
+	for _, c := range b {
+		if c < '0' || c > '9' {
+			return 0, false
+		}
+		n = n*10 + int(c-'0')
+		if n > 0x10FFFF {
+			return 0, false
+		}
+	}
+	return n, true
 }

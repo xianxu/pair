@@ -1189,3 +1189,22 @@ through, type-ahead to filter, jump into by number, and that shows which actor
 wants you. What is deliberately still absent: mouse selection (couch drops
 mouse reports rather than acting on them) -- worth revisiting only if the
 operator wants it.
+
+### 2026-08-23 -- M3 smoke round 2: Escape was dead, for the reason ctrl-space was
+
+Operator: "after ctrl-space, esc doesn't get back to previous screen".
+
+Same root cause as M2's ctrl-space bug, which I fixed for ONE key. zellij
+enables the Kitty keyboard protocol, so a real session's Escape arrives as
+`\x1b[27u` -- and the panel's Escape, Enter and arrows were all decoded only in
+their legacy forms. My tests fed the legacy bytes, so they passed.
+
+Fixed generally rather than per-key: `decodeCSIu` reads the protocol's
+`CSI <codepoint> [;<mods>] u` and maps by CODEPOINT, so a key nobody enumerated
+still decodes. Modified printables are refused -- ctrl+a must not insert an `a`.
+Arrows accept parameters, since a modifier does not stop an arrow being an
+arrow. Both encodings are pinned end to end through the console, and dropping
+CSI-u decoding turns 12 assertions red.
+
+Lesson recorded: a key-encoding fix must cover every key the surface consumes,
+because a per-key fix guarantees the next key reports the same bug.
