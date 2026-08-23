@@ -939,3 +939,48 @@ distinct roots ending in `pair`: `ComposeSessionName` does collide, but the
 collision ladder separates them -- `📁pair` and `📁pair-2`, keyed on the
 distinct scope keys. couch passes each child its own tree as cwd, so the scopes
 differ. If there is a hole it is in an EMPTY session index, not in the derivation.
+
+### 2026-08-23 -- M2 boundary review round 2: REWORK again, and the pattern in it
+
+Six findings came back `not-addressed`. Every one was a genuine partial fix, and
+the shape they share is worth more than the individual repairs: **I fixed the
+instance the finding named and stopped at the edge of the class.**
+
+- **BR-21.** I moved the tracking to the stream the console WRITES -- correct --
+  and left two of three writers unguarded. `applyLayout` (on SIGWINCH) and the
+  hotkey path still wrote from their own goroutines. Now `Run` is the ONLY
+  goroutine that touches the host; everything else sends it events. That is the
+  class: not "guard this write" but "there is one writer".
+  A second shape surfaced while fixing it, and it is the subtler one: feeding
+  the console's OWN escapes into the framing scanner let it frame our
+  `\x1b[1;23r` together with the child's pending `\x1b[38;2;76` as a single
+  complete sequence -- so it reported "safe" exactly when it was not. The
+  scanner is fed child bytes only. Consulting a state your own writes mutate is
+  not consulting anything.
+- **BR-22.** My discriminator keyed on the CHUNK length, so a sole `\x1b` read
+  was exempt but `abc\x1b` then `i` still glued into Alt+i, and `\x1b\x1b`
+  held one. It keys on the PARTIAL length now; four cases pinned.
+- **BR-23.** The fallback was in and pinned, but `Console.Run` still returned a
+  bare 1 on a MakeRaw failure. It says why now.
+- **BR-24, and this one is the worst.** My new pins needed a real pty and so
+  `t.Skipf` in the sandbox this issue's own Log documents as its environment --
+  meaning the disable-the-console mutation stayed green and the pin proved
+  nothing. **That is the third time a gated-only pin has been written on this
+  issue**, after M1's BR-15 and the lesson already in `workshop/lessons.md`
+  titled "A gated-only pin is not a pin". The decision is a pure function
+  (`WantsConsole`) now and is pinned unconditionally.
+- **BR-25.** I added a second hardcoded `go run` line where the class fix asked
+  for an enumeration. `make test-smoke` now iterates `probes/*/`, so a new probe
+  is covered by existing.
+- **BR-26.** The Revisions entry asserted a table sweep that had not happened.
+  Claiming a sweep is worse than skipping one -- it tells the next reader the
+  drift is dealt with. Actually swept.
+- **BR-37** deserves naming separately: `atlas/couch.md` still told the reader
+  the console asks `Child.MidSequence()`, a method that round had DELETED, on
+  the stream the review had just proved wrong. Stale docs are ordinary; a doc
+  that teaches the exact mistake a review caught is worse than none.
+
+Lesson recorded in `workshop/lessons.md` covering the whole three-attempt arc:
+one writer, frame at the point of writing, feed the scanner only the other
+party's bytes -- and a test that synchronises producer and consumer cannot see a
+skew bug.
