@@ -203,7 +203,7 @@ func (c *Console) onChunk(ch chunk) {
 	}
 	// Derived state is consumed whether or not the child is on screen: an
 	// inactive child that rings still has something to say.
-	regionLost := p.child.TakeRegionLost()
+	rowDirty := p.child.TakeRowDirty()
 	if p.child.TakeBell() {
 		c.mu.Lock()
 		c.notice = p.label + " wants you"
@@ -211,7 +211,7 @@ func (c *Console) onChunk(ch chunk) {
 		c.repaint()
 		return
 	}
-	if regionLost && isActive {
+	if rowDirty && isActive {
 		c.repaint()
 	}
 }

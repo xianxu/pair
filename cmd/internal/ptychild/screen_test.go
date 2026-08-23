@@ -68,7 +68,7 @@ func TestScreenAltScreen(t *testing.T) {
 // The console pins the host's scrolling region above its reserved row. Anything
 // a child does that can drop that region has to be observable, or the row is
 // silently overwritten and never comes back.
-func TestScreenRegionLost(t *testing.T) {
+func TestScreenRowDirty(t *testing.T) {
 	tests := []struct {
 		name string
 		data string
@@ -92,8 +92,8 @@ func TestScreenRegionLost(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := feedWhole(tt.data).TakeRegionLost(); got != tt.want {
-				t.Fatalf("TakeRegionLost() = %v, want %v", got, tt.want)
+			if got := feedWhole(tt.data).TakeRowDirty(); got != tt.want {
+				t.Fatalf("TakeRowDirty() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -101,13 +101,13 @@ func TestScreenRegionLost(t *testing.T) {
 
 // Latched, and cleared by the reader: the console re-asserts once per event,
 // not once per poll.
-func TestScreenRegionLostIsClearedOnRead(t *testing.T) {
+func TestScreenRowDirtyIsClearedOnRead(t *testing.T) {
 	s := feedWhole("\x1b[r")
-	if !s.TakeRegionLost() {
-		t.Fatal("first TakeRegionLost() = false")
+	if !s.TakeRowDirty() {
+		t.Fatal("first TakeRowDirty() = false")
 	}
-	if s.TakeRegionLost() {
-		t.Fatal("second TakeRegionLost() = true — the event was not consumed")
+	if s.TakeRowDirty() {
+		t.Fatal("second TakeRowDirty() = true — the event was not consumed")
 	}
 }
 
@@ -165,7 +165,7 @@ func TestScreenSplitReadsReachTheSameState(t *testing.T) {
 			t.Fatalf("%q: split state {alt:%v mouse:%v} != whole {alt:%v mouse:%v}",
 				data, split.AltScreen(), split.Mouse(), whole.AltScreen(), whole.Mouse())
 		}
-		if whole.TakeRegionLost() != split.TakeRegionLost() || whole.TakeBell() != split.TakeBell() {
+		if whole.TakeRowDirty() != split.TakeRowDirty() || whole.TakeBell() != split.TakeBell() {
 			t.Fatalf("%q: split latches differ from whole", data)
 		}
 	}
@@ -286,8 +286,8 @@ func FuzzScreenFeed(f *testing.F) {
 		if whole.TakeBell() != split.TakeBell() {
 			t.Fatalf("chunking changed the bell latch for %q", in)
 		}
-		if whole.TakeRegionLost() != split.TakeRegionLost() {
-			t.Fatalf("chunking changed the region-lost latch for %q", in)
+		if whole.TakeRowDirty() != split.TakeRowDirty() {
+			t.Fatalf("chunking changed the row-dirty latch for %q", in)
 		}
 		if whole.Pending() > maxPending || split.Pending() > maxPending {
 			t.Fatalf("pending exceeded the bound for %q", in)
@@ -379,5 +379,32 @@ func TestScreenFramesAllStringTerminatedClasses(t *testing.T) {
 	s := feedWhole("\x1bPtmux;\x1b[?1049h\x1b\\")
 	if s.AltScreen() {
 		t.Fatal("a DCS payload set alt-screen from inside a sequence")
+	}
+}
+
+// Erasing the display takes a reserved row with it even though the scrolling
+// region survives -- DECSTBM restricts SCROLLING, not erasing. Missing this
+// cost an M2 operator smoke: the row appeared and then vanished a second later
+// as pair drew its first full screen.
+func TestScreenTreatsAnEraseAsRowDirty(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		data string
+	}{
+		{"ED 2", "\x1b[2J"},
+		{"ED default", "\x1b[J"},
+		{"ED 1", "\x1b[1J"},
+		{"ED 3", "\x1b[3J"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if !feedWhole(tt.data).TakeRowDirty() {
+				t.Fatalf("%s did not mark the row dirty; a full-screen child's startup clear would silently eat the row", tt.name)
+			}
+		})
+	}
+	// Erase in LINE is not erase in display: it cannot reach a row the child
+	// cannot address.
+	if feedWhole("\x1b[2K").TakeRowDirty() {
+		t.Fatal("erase-in-line marked the row dirty; it repaints on every line a child clears")
 	}
 }

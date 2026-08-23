@@ -166,3 +166,68 @@ func TestReleaseLeavesAUsableScreen(t *testing.T) {
 	}
 	_ = child
 }
+
+// Reported from the M2 operator smoke: the row appeared, then vanished about a
+// second later as pair drew its first full screen.
+//
+// DECSTBM restricts SCROLLING, not ADDRESSING or ERASING. A child that clears
+// the display -- which every full-screen app does on startup -- wipes the whole
+// screen including the reserved row, and the reservation does nothing to stop
+// it. The emulator tests missed this because a scrolling child never clears.
+func TestReservedRowComesBackAfterAChildClearsTheScreen(t *testing.T) {
+	for _, clear := range []struct {
+		name string
+		seq  string
+	}{
+		{"ED 2 (whole display)", "\x1b[2J"},
+		{"ED default (cursor to end)", "\x1b[1;1H\x1b[J"},
+		{"ED 1 (start to cursor)", "\x1b[8;40H\x1b[1J"},
+		{"ED 3 (display + scrollback)", "\x1b[3J"},
+		{"RIS", "\x1bc"},
+	} {
+		t.Run(clear.name, func(t *testing.T) {
+			host, child, _ := newVTFixture(t, 8, 40)
+			waitFor(t, "the status row", func() bool {
+				return strings.Contains(host.row(8), "brain")
+			})
+
+			// Prove the clear was PROCESSED before asserting the row, using
+			// a marker written after it. Chunks keep their order, so seeing
+			// the marker means the clear has already been applied.
+			//
+			// Two earlier shapes of this were wrong. Asserting the row
+			// directly passed on every case, because the poll ran before the
+			// async chunk reached the screen and saw the row still standing
+			// from BEFORE -- an assertion satisfied by the pre-state proves
+			// nothing. Waiting to OBSERVE the row vanish is flaky the other
+			// way: when the repaint is fast (RIS), the damaged state may never
+			// be visible at all.
+			child.Feed([]byte(clear.seq))
+			child.Feed([]byte("\x1b[1;1HMARKER"))
+			waitFor(t, "the clear and the marker to reach the screen", func() bool {
+				return strings.Contains(host.childArea(), "MARKER")
+			})
+			waitFor(t, "the row to be repainted", func() bool {
+				return strings.Contains(host.row(8), "brain")
+			})
+		})
+	}
+}
+
+// The whole startup shape of a full-screen child: clear, then draw. The row has
+// to survive the pair.
+func TestReservedRowSurvivesAFullScreenChildStartingUp(t *testing.T) {
+	host, child, _ := newVTFixture(t, 8, 40)
+	waitFor(t, "the status row", func() bool { return strings.Contains(host.row(8), "brain") })
+
+	child.Feed([]byte("\x1b[2J\x1b[1;1H"))
+	for i := 1; i <= 7; i++ {
+		child.Feed([]byte("pane content\r\n"))
+	}
+	waitFor(t, "the child's screen", func() bool {
+		return strings.Contains(host.childArea(), "pane content")
+	})
+	waitFor(t, "the row to be repainted", func() bool {
+		return strings.Contains(host.row(8), "brain")
+	})
+}

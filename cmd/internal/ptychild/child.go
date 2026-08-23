@@ -184,12 +184,13 @@ func (c *Child) Mouse() bool {
 	return c.screen.Mouse()
 }
 
-// TakeRegionLost reports and clears whether this child did something that can
-// drop the host's scrolling region.
-func (c *Child) TakeRegionLost() bool {
+// TakeRowDirty reports and clears whether this child did something that may
+// have destroyed a reserved row -- dropping the scrolling region, or erasing
+// the display.
+func (c *Child) TakeRowDirty() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.screen.TakeRegionLost()
+	return c.screen.TakeRowDirty()
 }
 
 // TakeBell reports and clears whether this child rang the bell.

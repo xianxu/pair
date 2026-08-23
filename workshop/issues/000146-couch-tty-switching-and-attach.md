@@ -652,3 +652,47 @@ pump.
 
 Worth noting how it surfaced: it was already committed and every non-race run
 was green. `make test-race` earning a runnable target in M1 is what caught it.
+
+### 2026-08-22 -- M2 smoke round 1: the row vanished, and the emulator tests had missed why
+
+Operator ran `couch start ../pair` and reported `[pair]` appearing on the bottom
+row and disappearing about a second later, with pair's saved-config picker
+drawing over it. Two separate defects, both real.
+
+**1. The reserved row is erased by any full-screen child's startup clear.**
+DECSTBM restricts **scrolling**, not **erasing**. Every full-screen app clears
+the display when it starts, and that takes the reserved row with it while the
+region stays perfectly intact. The vt tests missed it because a scrolling child
+never clears -- which is exactly the gap between "verified against an emulator"
+and "verified against the real stack", and worth remembering as the LIMIT of
+what M2's emulator suite proved.
+
+Fixed by treating an erase as row-dirty. The concept was renamed with it:
+`TakeRegionLost` -> `TakeRowDirty`, because "region lost" was the mistake that
+hid this -- the console does not care WHY the row is gone, only that it is.
+Erase-in-line is deliberately excluded (a child cannot address a row it does not
+have, and repainting on every cleared line would be constant churn). Deletion
+check: removing `J` from the dirty set turns four subtests red.
+
+**The tests written to reproduce it passed first, on all five cases, in
+0.01s** -- they polled "is the row there?" immediately after feeding the clear,
+and saw the row still standing from before the async chunk landed. A green suite
+reporting a live bug as fixed. The second shape (wait to observe the row vanish)
+was flaky the other way, since a fast repair may never expose the damaged state
+-- RIS, already handled, started failing for the wrong reason. The tests now
+establish ordering with a marker behind the stimulus. Lesson recorded.
+
+**2. `pair resume <tag>` still prompts -- but at a DIFFERENT picker than the one
+Decision 11 closed.** Not `DecideLaunch`'s fzf session list; this is
+`runConfigPicker` (`launcher/createflow.go:646`), the saved-config restore
+prompt: "use saved params + session / use saved params / use new params".
+
+Decision 11 was therefore incomplete, though narrower than it looks. `resume`
+does avoid the name prompt and the session picker, and once a session is live
+every later `couch start` ATTACHES and prompts nothing. This fires only on a
+COLD start of a tag that has a saved config. It is skipped only when argv
+already pins an explicit resume (`extractExplicitResume`), which needs the agent
+session id -- something couch does not have and `#149` is the issue that would
+give it one. No non-interactive override exists in pair today.
+
+**Not fixed pending an operator call** -- see the open question below.

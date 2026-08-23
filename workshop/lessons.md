@@ -1814,3 +1814,27 @@ And name the mutation precisely in any log entry. "Ring trim" covered *removing
 the trim entirely* and was true; it was written up as covering *copy vs
 re-slice*, which it never touched. The gap between the mutation you ran and the
 claim you make from it is where this class of lie lives.
+
+## An async assertion must prove the change LANDED, not just poll for a state
+
+#146 M2's operator smoke reported the reserved row appearing and then vanishing.
+The emulator tests written to reproduce it **passed** — in 0.01s, on all five
+cases. They fed the child a clear and immediately polled "is the row there?",
+which was true from *before* the clear: the chunk had not reached the screen
+yet. A green suite reported the bug as fixed while it was still live.
+
+The second shape was wrong the other way. Waiting to OBSERVE the damage ("poll
+until the row is gone, then poll until it returns") is flaky by construction:
+when the repair is fast the damaged state may never be visible at all, and the
+case that was already handled (RIS) started failing for the wrong reason.
+
+**Rule.** For a poll-based assertion over an async pipeline, establish ordering
+with a MARKER rather than with timing. Send the stimulus, then send something
+whose arrival is observable and ordered behind it; wait for the marker, then
+assert. Ordering through a channel or a stream is a guarantee — "it has probably
+happened by now" is not, in either direction.
+
+Corollary, and the reason this class keeps recurring: ask what the assertion
+reports **before** the action runs. If it is already the value you want, the
+test cannot fail for the reason you think it can. Same defect as an aliasing
+test whose mutation cannot reach the bytes it asserts on.

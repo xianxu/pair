@@ -39,8 +39,8 @@ type Screen struct {
 
 	// Latched edge events, cleared by their Take* reader. The console acts
 	// once per event, not once per poll.
-	regionLost bool
-	bell       bool
+	rowDirty bool
+	bell     bool
 
 	// skipping says we are inside a sequence too long to buffer, and what
 	// terminator ends it. Bytes are consumed and discarded until then.
@@ -74,13 +74,20 @@ func (s *Screen) AltScreen() bool { return s.altScreen }
 // Mouse reports whether the child has asked for mouse reporting.
 func (s *Screen) Mouse() bool { return s.mouse }
 
-// TakeRegionLost reports and clears whether the child did something that can
-// drop the host's scrolling region -- DECSTBM, a full reset, or an alt-screen
-// transition. The console re-asserts its reserved row on each.
-func (s *Screen) TakeRegionLost() bool {
-	lost := s.regionLost
-	s.regionLost = false
-	return lost
+// TakeRowDirty reports and clears whether the child did something that may have
+// destroyed a reserved row: dropped the scrolling region (DECSTBM, RIS, an
+// alt-screen transition) or ERASED the display.
+//
+// The erase half is the one that cost an operator smoke. DECSTBM restricts
+// SCROLLING, not erasing -- so a full-screen child clearing the display on
+// startup, which every one of them does, wipes the reserved row while the
+// region is still perfectly intact. Naming this "region lost" was the mistake
+// behind missing it: the console does not care WHY the row is gone, only that
+// it is, and one signal for "the row may be gone" is the honest concept.
+func (s *Screen) TakeRowDirty() bool {
+	dirty := s.rowDirty
+	s.rowDirty = false
+	return dirty
 }
 
 // TakeBell reports and clears whether the child rang the terminal bell. This is
@@ -220,7 +227,7 @@ func (s *Screen) classify(seq []byte) {
 	}
 	// RIS resets everything the console set, margins included.
 	if seq[1] == 'c' {
-		s.regionLost = true
+		s.rowDirty = true
 		return
 	}
 	if seq[1] != '[' || len(seq) < 3 {
@@ -240,16 +247,21 @@ func (s *Screen) classify(seq []byte) {
 				s.altScreen = on
 				// An alt-screen transition is exactly when a child redraws
 				// from scratch and the region can go with it.
-				s.regionLost = true
+				s.rowDirty = true
 			case "1000", "1002", "1003", "1006":
 				s.mouse = on
 			}
 		}
 		return
 	}
-	// DECSTBM: `\x1b[r` or `\x1b[<top>;<bottom>r`, no private introducer.
-	if final == 'r' {
-		s.regionLost = true
+	switch final {
+	case 'r':
+		// DECSTBM: `\x1b[r` or `\x1b[<top>;<bottom>r`, no private introducer.
+		s.rowDirty = true
+	case 'J':
+		// ED, every form. Erasing the display takes the reserved row with it
+		// even though the region survives.
+		s.rowDirty = true
 	}
 }
 
