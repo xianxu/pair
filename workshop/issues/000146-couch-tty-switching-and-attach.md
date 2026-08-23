@@ -785,3 +785,53 @@ from the above: whether the reserved row survives pair coming up, claude
 streaming, and nvim in-and-out (the ED fix, which is what broke in round 1);
 whether the workbench's own chords still reach the child; whether quitting
 leaves a clean terminal; and the `kill -9` reattach.
+
+### 2026-08-23 -- a real child under the console found a corruption bug
+
+Rather than wait on the remaining smoke items, I put a REAL pty child under the
+real `Console` with a real terminal emulator reading the screen
+(`console_live_test.go`, gated on `PAIR_LIVE_COUCH=1`). Every fake-child test
+was green; a fake only emits what the test hands it whole, which is precisely
+the gap.
+
+**The bug: the console spliced its status row into the middle of the child's
+escape sequence.** Observed emission with nvim as the child:
+
+```
+\x1b7\x1b[12;1H\x1b[2K[brain]\x1b8;82;88m
+```
+
+That is a row paint written into the middle of nvim's
+`\x1b[38;2;76;82;88m`. A pty read boundary falls wherever the kernel puts it,
+and the console wrote its own bytes into the gap -- corrupting the child's
+colours and losing the row. This is very likely part of what the operator saw in
+round 1, alongside the ED fix.
+
+**Fixed by asking the child whether it is safe to write.** `Screen` already
+frames sequences to track alt-screen and erase state, so it knows when the
+stream ends mid-sequence; that is now `Child.MidSequence()` and the console
+defers its paint, paying the debt on the next chunk that lands on a boundary
+(ARCH-DRY -- no second parser). Deletion check: removing the deferral turns
+`TestConsoleNeverInjectsInsideAChildEscapeSequence` red.
+
+**Which test does what, stated because it matters:** the LIVE test found the
+class but does not pin it -- reverting the fix leaves it green, since whether a
+read boundary lands inside a sequence is kernel timing. The deterministic guard
+is the unit test, which CONSTRUCTS the boundary. A live test treated as a
+regression guard would be a pin that cannot fail.
+
+**Two harness bugs of my own, worth recording as limits on what these prove:**
+
+- The vt harness deadlocked the moment a real child appeared: nobody drained the
+  emulator's reply pipe, so it wedged on nvim's capability queries. `wrapcmd`
+  already does that drain (`terminal_model.go:91-94`) -- the harness learned it
+  by hanging.
+- The harness does not faithfully render an ALT-SCREEN app; nvim's own content
+  comes back truncated. So the nvim test asserts on the byte STREAM, and
+  "does the rendered screen look right with a real full-screen app" remains an
+  operator smoke item rather than something I claim.
+
+Also fixed: the first version of the unit test could not reproduce the bug at
+all, because both `Feed` calls completed before the console processed either --
+the same async-ordering flaw as the round-1 tests, caught this time by the
+deletion check rather than shipped.

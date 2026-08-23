@@ -174,3 +174,61 @@ func TestConsoleRestoresTheTerminalOnTeardownMidStream(t *testing.T) {
 		t.Fatalf("raw mode left on after teardown: RawDepth = %d", f.host.RawDepth())
 	}
 }
+
+// A pty read boundary falls wherever the kernel puts it -- including inside one
+// of the child's escape sequences. The console must never write its own bytes
+// into that gap.
+//
+// Found by running a REAL nvim under the console: the emitted stream contained
+//
+//	\x1b7\x1b[12;1H\x1b[2K[brain]\x1b8;82;88m
+//
+// -- a status-row paint spliced into the middle of nvim's `\x1b[38;2;76;82;88m`,
+// which corrupts the child's colours AND loses the row. No fake-child test
+// could produce it, because a fake only emits what the test hands it whole.
+func TestConsoleNeverInjectsInsideAChildEscapeSequence(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	f.host.Reset()
+
+	// Chunk 1 ends MID-SEQUENCE and also marks the row dirty, so the console
+	// wants to repaint at exactly the wrong moment.
+	//
+	// Wait for the console to have PROCESSED it before completing the
+	// sequence. Feeding both back to back does not reproduce the bug: Feed is
+	// synchronous, so the screen would already have consumed chunk 2 -- and be
+	// out of the sequence -- by the time the console looked at chunk 1. That is
+	// the same "prove it landed, do not assume it did" discipline the reserved
+	// row tests needed.
+	f.child.Feed([]byte("\x1b[2J\x1b[38;2;76"))
+	waitFor(t, "the console to process the partial sequence", func() bool {
+		return strings.Contains(f.host.Written(), "\x1b[38;2;76")
+	})
+	f.child.Feed([]byte(";82;88mCOLOURED"))
+
+	waitFor(t, "the child's output to reach the host", func() bool {
+		return strings.Contains(f.host.Written(), "COLOURED")
+	})
+	if got := f.host.Written(); !strings.Contains(got, "\x1b[38;2;76;82;88m") {
+		t.Fatalf("the child's escape sequence was split by an injected paint: %q", got)
+	}
+}
+
+// The deferred paint must still HAPPEN once the stream is safe again -- a
+// console that avoids corrupting the child by never painting has traded one bug
+// for another.
+func TestConsoleRepaintsOnceTheChildStreamIsSafeAgain(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	f.host.Reset()
+
+	f.child.Feed([]byte("\x1b[2J\x1b[38;2;76"))
+	waitFor(t, "the console to process the partial sequence", func() bool {
+		return strings.Contains(f.host.Written(), "\x1b[38;2;76")
+	})
+	f.child.Feed([]byte(";82;88mdone"))
+
+	waitFor(t, "the row to be repainted after the sequence completed", func() bool {
+		return strings.Contains(f.host.Written(), "\x1b[24;1H")
+	})
+}

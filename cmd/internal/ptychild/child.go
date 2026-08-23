@@ -178,6 +178,21 @@ func (c *Child) AltScreen() bool {
 	return c.screen.AltScreen()
 }
 
+// MidSequence reports whether the child's output stream currently ends inside
+// an unfinished escape sequence.
+//
+// This is what makes it safe for a console to write its OWN bytes to the
+// screen: a pty read boundary falls wherever the kernel puts it, so anything
+// injected between two chunks can land in the middle of the child's sequence
+// and corrupt it. The Screen scanner already frames sequences to track
+// alt-screen and erase state, so it knows this for free -- the console does not
+// need a second parser (ARCH-DRY).
+func (c *Child) MidSequence() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.screen.Pending() > 0
+}
+
 func (c *Child) Mouse() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()

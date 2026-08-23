@@ -30,9 +30,20 @@ type vtHost struct {
 }
 
 func newVTHost(rows, cols uint16) *vtHost {
+	em := vt.NewEmulator(int(cols), int(rows))
+	// DRAIN the emulator's reply pipe, or it blocks.
+	//
+	// A real app sends capability queries (DA1, DECRQM, the Kitty flags probe)
+	// and the emulator answers them into its own output. With nobody reading
+	// that, the emulator wedges mid-write and every reader of the screen
+	// deadlocks behind it. wrapcmd's terminal model already does exactly this
+	// (terminal_model.go:91-94); this harness had to learn it the same way --
+	// by hanging the first time a REAL child was put in front of it, since a
+	// fake child never queries anything.
+	go func() { _, _ = io.Copy(io.Discard, em) }()
 	return &vtHost{
 		FakeHost: hostty.NewFakeHost(ptychild.Size{Rows: rows, Cols: cols}),
-		em:       vt.NewEmulator(int(cols), int(rows)),
+		em:       em,
 	}
 }
 

@@ -36,6 +36,10 @@ type Console struct {
 	notice string
 	size   ptychild.Size
 
+	// paintPending means a repaint was wanted while the active child's stream
+	// was mid-sequence, and is owed as soon as it is safe.
+	paintPending bool
+
 	chunks chan chunk
 	stop   chan struct{}
 	once   sync.Once
@@ -164,13 +168,34 @@ func (c *Console) applyLayout() {
 	}
 }
 
-// repaint draws the status row, re-asserting the region first.
+// repaint draws the status row when it is SAFE to do so, and defers when it is
+// not.
+//
+// Safety here is about the child's stream, not about locking: a pty read
+// boundary falls wherever the kernel puts it, so a paint written between two
+// chunks can land inside one of the child's escape sequences. A real nvim under
+// the console produced exactly that -- `\x1b7\x1b[12;1H\x1b[2K[brain]\x1b8`
+// spliced into the middle of `\x1b[38;2;76;82;88m`, corrupting the child's
+// colours and losing the row. The debt is remembered and paid by the next chunk
+// that leaves the stream at a sequence boundary.
+func (c *Console) repaint() {
+	if child := c.activeChild(); child != nil && child.MidSequence() {
+		c.mu.Lock()
+		c.paintPending = true
+		c.mu.Unlock()
+		return
+	}
+	c.paintNow()
+}
+
+// paintNow draws the row unconditionally, re-asserting the region first.
 //
 // The re-assertion is not belt-and-braces: a child that reset margins may have
 // dropped it a moment ago, and painting into an unreserved screen is what puts
 // the row where the child's content should be.
-func (c *Console) repaint() {
+func (c *Console) paintNow() {
 	c.mu.Lock()
+	c.paintPending = false
 	rows := c.size.Rows
 	cols := int(c.size.Cols)
 	model := StatusModel{Notice: c.notice}
@@ -200,6 +225,14 @@ func (c *Console) onChunk(ch chunk) {
 
 	if isActive {
 		_, _ = c.host.Write(ch.data)
+	}
+	// A paint deferred while the stream was mid-sequence is owed as soon as
+	// the stream is whole again.
+	c.mu.Lock()
+	owed := c.paintPending
+	c.mu.Unlock()
+	if owed && isActive && !p.child.MidSequence() {
+		c.paintNow()
 	}
 	// Derived state is consumed whether or not the child is on screen: an
 	// inactive child that rings still has something to say.
