@@ -501,3 +501,41 @@ func TestConsoleGetsCouchsOwnResolver(t *testing.T) {
 		t.Fatalf("resolver returned %v for an empty registry", got)
 	}
 }
+
+// The panel's action dispatcher must be wired on the run path, not left nil --
+// the first cut declared four panel actions with nothing behind them, so the
+// operator could not start a second child at all.
+func TestConsoleGetsAnActionDispatcher(t *testing.T) {
+	rt := newRT(t, "/repo")
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatalf("NewCouch: %v", err)
+	}
+	console, _ := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
+	if console == nil {
+		t.Fatal("no console to wire")
+	}
+	if console.Ops() != nil {
+		t.Fatal("a dispatcher was set before the run path; this test would prove nothing")
+	}
+
+	rec, h, err := c.Spawn(couchcore.StartArgs{Cwd: "/repo"})
+	if err != nil {
+		t.Fatalf("Spawn: %v", err)
+	}
+	runConsole(console, c, couchcore.StartResult{Record: rec, Handle: h}, &bytes.Buffer{})
+
+	ops := console.Ops()
+	if ops == nil {
+		t.Fatal("the run path left the panel's dispatcher nil — its actions would refuse")
+	}
+	// It must reach couch's own table: an unknown name is refused rather than
+	// silently succeeding.
+	if err := ops("no-such-operation", nil); err == nil {
+		t.Fatal("the dispatcher accepted an operation couch does not declare")
+	}
+	// And a real one is accepted.
+	if err := ops("list", nil); err != nil {
+		t.Fatalf("list through the panel dispatcher: %v", err)
+	}
+}

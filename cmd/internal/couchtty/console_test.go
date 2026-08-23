@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -650,7 +651,7 @@ func TestPanelTypeaheadUsesTheInjectedResolver(t *testing.T) {
 
 	_, _ = f.stdin.Write([]byte("ari"))
 	waitFor(t, "the filter to narrow", func() bool {
-		return strings.Contains(f.host.Written(), "/ari")
+		return strings.Contains(f.host.Written(), "filter: ari")
 	})
 	if asked != "ari" {
 		t.Fatalf("the resolver was asked %q, want the typed query", asked)
@@ -675,9 +676,169 @@ func TestPanelKeysDoNotReachTheChild(t *testing.T) {
 
 	_, _ = f.stdin.Write([]byte("typing at the panel"))
 	waitFor(t, "the query to render", func() bool {
-		return strings.Contains(f.host.Written(), "/typing")
+		return strings.Contains(f.host.Written(), "filter: typing")
 	})
 	if len(f.child.Writes()) != before {
 		t.Fatalf("keys aimed at the panel reached the child: %q", f.child.Writes()[before:])
 	}
+}
+
+// The bug the operator hit: a mouse move over the panel typed `[<;0;M[<;;M...`
+// into the filter, which matched nothing, showed "(no match)", and left no way
+// back because Escape did nothing either.
+func TestPanelIgnoresMouseReports(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	_, _ = f.stdin.Write([]byte("\x00"))
+	waitFor(t, "the panel", func() bool {
+		return strings.Contains(f.host.Written(), "couch — actors")
+	})
+	f.host.Reset()
+
+	// A burst of SGR mouse reports, as a mouse move produces.
+	_, _ = f.stdin.Write([]byte("\x1b[<0;12;4M\x1b[<0;13;4M\x1b[<0;14;5m"))
+	// Order behind a real keystroke: FIFO on the same path.
+	_, _ = f.stdin.Write([]byte("z"))
+	waitFor(t, "the real keystroke to land", func() bool {
+		return strings.Contains(f.host.Written(), "filter: z")
+	})
+
+	if strings.Contains(f.host.Written(), "filter: [<") {
+		t.Fatalf("mouse bytes were typed into the filter: %q", f.host.Written())
+	}
+}
+
+// Escape must back out: clear the filter if there is one, otherwise return to
+// the actor. A panel with no way back is a trap.
+func TestPanelEscapeClearsThenReturns(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	_, _ = f.stdin.Write([]byte("\x00"))
+	waitFor(t, "the panel", func() bool {
+		return strings.Contains(f.host.Written(), "couch — actors")
+	})
+
+	_, _ = f.stdin.Write([]byte("zz"))
+	waitFor(t, "the filter", func() bool {
+		return strings.Contains(f.host.Written(), "filter: zz")
+	})
+	f.host.Reset()
+
+	_, _ = f.stdin.Write([]byte("\x1b")) // first Escape clears the filter
+	waitFor(t, "the filter to clear", func() bool {
+		return strings.Contains(f.host.Written(), "couch — actors") &&
+			!strings.Contains(f.host.Written(), "filter:")
+	})
+	f.host.Reset()
+
+	_, _ = f.stdin.Write([]byte("\x1b")) // second Escape leaves the panel
+	waitFor(t, "to return to the actor", func() bool {
+		return strings.Contains(f.host.Written(), "[brain]") &&
+			!strings.Contains(f.host.Written(), "couch — actors")
+	})
+}
+
+// Arrows move the highlight, and Enter takes the highlighted row -- the panel
+// has to be navigable, not just filterable.
+func TestPanelArrowsMoveTheSelection(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	other := ptychild.NewFakeChild([]byte("ariadne screen"))
+	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+	f.con.Attach("c2", "ariadne", other)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+
+	_, _ = f.stdin.Write([]byte("\x00"))
+	waitFor(t, "the panel", func() bool {
+		return strings.Contains(f.host.Written(), "▸ 1")
+	})
+	f.host.Reset()
+
+	_, _ = f.stdin.Write([]byte("\x1b[B")) // down
+	waitFor(t, "the highlight to move", func() bool {
+		return strings.Contains(f.host.Written(), "▸ 2")
+	})
+	f.host.Reset()
+
+	_, _ = f.stdin.Write([]byte("\r"))
+	waitFor(t, "Enter to switch to the highlighted actor", func() bool {
+		return strings.Contains(f.host.Written(), "[ariadne]")
+	})
+}
+
+// The panel shows WHICH actor wants attention -- the reason it is a place to
+// look rather than a list.
+func TestPanelShowsTheBellMarker(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	other := ptychild.NewFakeChild(nil)
+	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+	f.con.Attach("c2", "ariadne", other)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+
+	other.Feed([]byte("\x07"))
+	waitFor(t, "the bell to register", func() bool {
+		return strings.Contains(f.host.Written(), "ariadne*")
+	})
+
+	_, _ = f.stdin.Write([]byte("\x00"))
+	waitFor(t, "the panel to mark it", func() bool {
+		return strings.Contains(f.host.Written(), "* ariadne")
+	})
+}
+
+// `s` opens a prompt and dispatches `start` through the INJECTED table. The
+// first cut declared the action and wired nothing, so the operator had no way
+// to start a second child at all.
+func TestPanelStartDispatchesThroughOps(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	// The dispatcher runs on the Run goroutine; the assertions run here.
+	var mu sync.Mutex
+	var gotName string
+	var gotArgs map[string]string
+	f.con.SetOps(func(name string, args map[string]string) error {
+		mu.Lock()
+		defer mu.Unlock()
+		gotName, gotArgs = name, args
+		return nil
+	})
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+
+	_, _ = f.stdin.Write([]byte("\x00"))
+	waitFor(t, "the panel", func() bool {
+		return strings.Contains(f.host.Written(), "couch — actors")
+	})
+
+	_, _ = f.stdin.Write([]byte("s"))
+	waitFor(t, "the prompt", func() bool {
+		return strings.Contains(f.host.Written(), "start in path:")
+	})
+	_, _ = f.stdin.Write([]byte("../ariadne\r"))
+	waitFor(t, "the dispatch", func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return gotName != ""
+	})
+
+	mu.Lock()
+	defer mu.Unlock()
+	if gotName != "start" {
+		t.Fatalf("dispatched %q, want start", gotName)
+	}
+	if gotArgs["path"] != "../ariadne" {
+		t.Fatalf("path = %q, want ../ariadne", gotArgs["path"])
+	}
+}
+
+// With no dispatcher wired, an action must SAY so rather than doing nothing.
+func TestPanelActionWithoutOpsSaysSo(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+
+	_, _ = f.stdin.Write([]byte("\x00"))
+	waitFor(t, "the panel", func() bool {
+		return strings.Contains(f.host.Written(), "couch — actors")
+	})
+	_, _ = f.stdin.Write([]byte("x")) // stop the selected row
+	waitFor(t, "the refusal", func() bool {
+		return strings.Contains(f.host.Written(), "no action dispatcher")
+	})
 }

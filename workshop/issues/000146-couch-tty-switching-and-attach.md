@@ -1149,3 +1149,43 @@ consumer has run. `lessons.md` now leads with the question that catches it --
 was not enough to stop me repeating it.
 
 Still owed for M3: Task 3.5's operator smoke.
+
+### 2026-08-23 -- M3 smoke round 1: the panel was not usable, and one gap was a claim I never built
+
+Operator opened the panel and found it inert: arrows and Escape did nothing,
+a mouse move filled the filter with `[<;0;M[<;;M...` until the list read
+"(nothing running)" with no way back, and there was no way to start a second
+child at all. Four bugs and a scope gap, all mine.
+
+- **Mouse reports were typed into the filter.** `panelKey` took any printable
+  byte as typeahead -- and every byte of `\x1b[<0;12;4M` after the ESC is
+  printable. New `DecodePanelKeys` frames sequences through
+  `cmd/internal/ansi` and DROPS the ones the panel does not use, rather than
+  letting them decay into text. Two framing details it had to learn: `ansi.Frame`
+  puts `O` in the two-byte class, so `\x1bOA` leaked its `A` as a rune until
+  SS3 was handled first; and a bare ESC reports Incomplete, so the Escape KEY
+  needed the same "a keystroke arrives as its own read" discriminator the
+  Interceptor uses.
+- **Escape did nothing.** It now backs out: clears the filter if there is one,
+  otherwise returns to the actor. A picker with no way out is a trap.
+- **Arrows did nothing.** The panel had no cursor at all -- so no highlight,
+  and no way to tell what Enter would do. `PanelModel` carries one, clamped
+  rather than wrapped, and preserved across filtering.
+- **No notification in the panel.** The bell showed only on the status row,
+  competing for one line. The panel is the place to LOOK, so it marks the actor.
+- **`start` was declared and never wired -- and my audit passed anyway.**
+  `PanelActions()` returned four names; the audit asserted each is a declared
+  `couchcore` operation, which a list that does nothing satisfies. All four are
+  now reachable (`s`/`x`/`n`/`d`, with a prompt for the ones needing an
+  argument) and dispatch through the injected `Operations()` table, and the
+  audit checks REACHABILITY as well as declaration.
+
+Two lessons recorded: a capability audit that checks declaration passes on a
+list that does nothing; and framing input is not optional once you accept
+keystrokes.
+
+**What the operator asked for that is now built:** a panel you can arrow
+through, type-ahead to filter, jump into by number, and that shows which actor
+wants you. What is deliberately still absent: mouse selection (couch drops
+mouse reports rather than acting on them) -- worth revisiting only if the
+operator wants it.

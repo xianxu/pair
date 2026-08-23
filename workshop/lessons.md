@@ -1878,3 +1878,40 @@ Corollary for tests: the bug lives in the SKEW between producer and consumer, so
 a test that synchronises them cannot see it. A reviewer's phrase for the version
 that waited for the console to catch up before continuing: "avoids the window
 rather than covering it."
+
+## A capability audit that checks DECLARATION passes on a list that does nothing
+
+`#146` M3 shipped a panel whose `PanelActions()` returned `start, stop, name,
+describe`, with an audit asserting every name is a declared `couchcore`
+operation. It passed. Nothing was wired: no keystroke reached any of them, so
+the operator opened the panel and had no way to start a second child. The audit
+was satisfied by a string slice.
+
+Same shape as a gated-only pin, one level up: the check tested that the CLAIM was
+well-formed, never that the claim was true.
+
+**Rule.** When a component declares what it can do, the audit must check the
+declaration is REACHABLE, not merely consistent. For a keyboard surface that
+means every declared action maps to a key and no two share one; for an API it
+means every declared operation has a call path a test exercises. Pair the
+subset check ("nothing undeclared") with a coverage check ("nothing declared
+that cannot be invoked") — the first alone is passed by an empty implementation.
+
+Corollary, and it is the cheaper detector: if a feature is declared and the
+operator asks *"how do I actually do this?"*, the audit that should have caught
+it was checking the wrong direction.
+
+## Framing input is not optional once you accept keystrokes
+
+The same `#146` panel took any printable byte as typeahead. An SGR mouse report
+is `\x1b[<0;12;4M` — every byte after the ESC is printable — so moving the
+mouse over the panel typed `[<;0;M[<;;M…` into the filter, which then matched
+nothing, rendered "(nothing running)", and left no way back because Escape was
+not handled either.
+
+**Rule.** Any surface that consumes terminal input must FRAME escape sequences
+before interpreting bytes, and drop the ones it does not use rather than letting
+them decay into text. Route it through the repo's existing scanner
+(`cmd/internal/ansi`) — a second framing decision is the bug this repo has paid
+for repeatedly. And decide explicitly what the ESCAPE key does: a picker with no
+way out is a trap, and "nothing happens" is what the operator sees.

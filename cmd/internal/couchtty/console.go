@@ -66,8 +66,28 @@ type Console struct {
 	// everything rather than to a private match rule.
 	query   string
 	resolve func(string) []couchcore.Worktree
-	notice  string
-	size    ptychild.Size
+
+	// panel is live state, not rebuilt per keystroke: the highlight has to
+	// survive typing, or the cursor resets under the operator's fingers.
+	panel *PanelModel
+
+	// prompt is non-empty while the panel is collecting an argument for an
+	// action -- a path for `start`, say. Actions that need input cannot be a
+	// single keystroke.
+	prompt      string
+	promptLabel string
+	promptArg   string
+	promptFn    func(string)
+
+	// panelHeld carries a partial escape sequence across reads.
+	panelHeld []byte
+
+	// Ops dispatches an operator action. Injected so the console never learns
+	// what an operation IS -- it names one and couchcore runs it, which is
+	// what keeps the panel from growing a private verb (#148's design test).
+	ops    func(name string, args map[string]string) error
+	notice string
+	size   ptychild.Size
 
 	// paintPending means a repaint was wanted while the host stream was
 	// mid-sequence, and is owed as soon as it is safe.
@@ -96,7 +116,7 @@ type Console struct {
 	resized   chan struct{}
 	hotkeys   chan struct{}
 	switching chan string
-	panelKeys chan byte
+	panelKeys chan []byte
 	stop      chan struct{}
 	once      sync.Once
 }
@@ -118,7 +138,7 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		chunks:    make(chan chunk, 256),
 		resized:   make(chan struct{}, 1),
 		switching: make(chan string, 8),
-		panelKeys: make(chan byte, 64),
+		panelKeys: make(chan []byte, 64),
 		hotkeys:   make(chan struct{}, 8),
 		stop:      make(chan struct{}),
 	}
@@ -126,6 +146,23 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		c.size = s
 	}
 	return c
+}
+
+// SetOps injects the action dispatcher: `couchcmd` passes one that runs
+// couchcore.Operations(). Without it the panel can still switch -- which is
+// read-only -- but its actions refuse loudly rather than doing nothing.
+func (c *Console) SetOps(f func(string, map[string]string) error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.ops = f
+}
+
+// Ops returns the injected dispatcher, so a wiring test can assert one was
+// passed -- the panel renders identically without it.
+func (c *Console) Ops() func(string, map[string]string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.ops
 }
 
 // SetResolver injects the panel's match rule. Production passes
@@ -221,10 +258,17 @@ func (c *Console) Switch(id string) {
 //
 // Order is the whole contract: clear, replay the child's own screen, THEN the
 // status row. Painting the row first means the landing paints over it.
-func (c *Console) onSwitch(id string) {
+func (c *Console) onSwitch(id string) { c.switchTo(id, false) }
+
+// forceSwitch repaints even when the actor is already active -- which is the
+// case when returning from the panel, where the SCREEN changed but the active
+// actor did not.
+func (c *Console) forceSwitch(id string) { c.switchTo(id, true) }
+
+func (c *Console) switchTo(id string, force bool) {
 	c.mu.Lock()
 	p, known := c.panes[id]
-	already := c.active == id
+	already := c.active == id && !force
 	if known {
 		c.active = id
 		c.focus = FocusActor(id)
@@ -287,8 +331,8 @@ func (c *Console) Run() int {
 			c.onHotkey()
 		case id := <-c.switching:
 			c.onSwitch(id)
-		case b := <-c.panelKeys:
-			c.panelKey(b)
+		case raw := <-c.panelKeys:
+			c.onPanelInput(raw)
 		case code := <-exited:
 			return code
 		case <-c.stop:
@@ -525,13 +569,13 @@ func (c *Console) pumpStdin() {
 					c.mu.Unlock()
 					if toPanel {
 						// The panel owns the keyboard while it is up, or a
-						// child would act on keys aimed at couch.
-						for _, b := range before {
-							select {
-							case c.panelKeys <- b:
-							case <-c.stop:
-								return
-							}
+						// child would act on keys aimed at couch. Raw bytes:
+						// DECODING happens on the Run goroutine, which is
+						// where the carried partial sequence lives.
+						select {
+						case c.panelKeys <- append([]byte(nil), before...):
+						case <-c.stop:
+							return
 						}
 					} else if child := c.activeChild(); child != nil {
 						_, _ = child.Write(before)
@@ -593,10 +637,12 @@ func (c *Console) actorAlive(id string) bool {
 	return ok && !p.child.Done()
 }
 
-// panelModel builds the panel's data from what the console is hosting.
-func (c *Console) panelModel() (*PanelModel, string, func(string) []couchcore.Worktree) {
+// rebuildPanel refreshes the panel's ROWS from what the console is hosting,
+// preserving the cursor. Called when the panel opens and when the fleet
+// changes -- not on every keystroke, or the highlight would reset as the
+// operator types.
+func (c *Console) rebuildPanel() {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	trees := make([]couchcore.TreeSummary, 0, len(c.order))
 	for _, id := range c.order {
 		p := c.panes[id]
@@ -608,53 +654,254 @@ func (c *Console) panelModel() (*PanelModel, string, func(string) []couchcore.Wo
 			Tree: couchcore.Worktree(id), Name: p.label, Desc: p.desc, Actors: actors,
 		})
 	}
-	return NewPanelModel(trees), c.query, c.resolve
+	bells := map[string]bool{}
+	for id, p := range c.panes {
+		bells[id] = p.bell
+	}
+	cursor := 0
+	if c.panel != nil {
+		cursor = c.panel.Cursor()
+	}
+	m := NewPanelModel(trees)
+	for i := range m.all {
+		m.all[i].Bell = bells[string(m.all[i].Tree)]
+	}
+	m.shown = m.all
+	m.cursor = cursor
+	m.clampCursor()
+	c.panel = m
+	c.mu.Unlock()
 }
 
-// showPanel draws couch's own screen, filtered by whatever has been typed.
+// showPanel draws couch's own screen.
 func (c *Console) showPanel() {
-	m, query, resolve := c.panelModel()
+	c.mu.Lock()
+	if c.panel == nil {
+		c.mu.Unlock()
+		c.rebuildPanel()
+		c.mu.Lock()
+	}
+	m, query, resolve, prompt := c.panel, c.query, c.resolve, c.prompt
+	c.mu.Unlock()
+
 	rows := m.Filter(query, resolve)
-	c.takeOverScreen([]byte(RenderPanelWithQuery(query, rows)))
+	body := RenderPanelWithQuery(query, rows, m.Cursor())
+	if prompt != "" {
+		body += "\r\n  " + prompt + "\r\n"
+	}
+	c.takeOverScreen([]byte(body))
 	c.paintNow()
 }
 
-// panelKey handles one keystroke while the panel is up.
+// onPanelInput decodes a chunk of operator input into keystrokes.
 //
-// A digit is a DIRECT switch with no resolution in the path -- the Spec
-// requires a route that never waits on a model turn, and this is it.
-func (c *Console) panelKey(b byte) {
-	switch {
-	case b >= '1' && b <= '9':
-		m, query, resolve := c.panelModel()
-		m.Filter(query, resolve)
-		if row, ok := m.Pick(int(b - '0')); ok {
+// The carried partial lives here, on the Run goroutine, so a sequence split
+// across reads is framed rather than decaying into typed runes -- which is how
+// a mouse move filled the filter with `[<;0;M`.
+func (c *Console) onPanelInput(raw []byte) {
+	buf := raw
+	if len(c.panelHeld) > 0 {
+		buf = append(c.panelHeld, raw...)
+		c.panelHeld = nil
+	}
+	keys, held := DecodePanelKeys(buf)
+	c.panelHeld = held
+	for _, k := range keys {
+		c.onPanelKey(k)
+	}
+	if len(keys) == 0 {
+		// Nothing actionable arrived (a mouse report, say). Redraw anyway so a
+		// notice set elsewhere still lands.
+		c.showPanel()
+	}
+}
+
+// onPanelKey handles one decoded keystroke while the panel is up.
+func (c *Console) onPanelKey(k PanelKey) {
+	c.mu.Lock()
+	prompting := c.promptFn != nil
+	c.mu.Unlock()
+	if prompting {
+		c.onPromptKey(k)
+		return
+	}
+
+	switch k.Kind {
+	case KeyUp, KeyDown:
+		delta := -1
+		if k.Kind == KeyDown {
+			delta = 1
+		}
+		c.mu.Lock()
+		if c.panel != nil {
+			c.panel.Move(delta)
+		}
+		c.mu.Unlock()
+	case KeyEscape:
+		// Escape backs OUT: it clears a filter if there is one, otherwise it
+		// returns to the actor. A panel with no way back is a trap, which is
+		// what the first cut shipped.
+		c.mu.Lock()
+		hadQuery := c.query != ""
+		c.query = ""
+		c.mu.Unlock()
+		if !hadQuery {
+			c.returnToActor()
+			return
+		}
+	case KeyEnter:
+		if row, ok := c.selectedRow(); ok {
 			c.clearQuery()
 			c.onSwitch(string(row.Tree))
 			return
 		}
-	case b == 0x7f || b == 0x08: // backspace
+	case KeyRune:
+		switch {
+		case k.Rune >= '1' && k.Rune <= '9':
+			// A DIRECT jump: no resolution, no model turn. Only when nothing
+			// is typed -- otherwise a digit is part of the filter.
+			c.mu.Lock()
+			typing := c.query != ""
+			m := c.panel
+			c.mu.Unlock()
+			if !typing && m != nil {
+				if row, ok := m.Pick(int(k.Rune - '0')); ok {
+					c.onSwitch(string(row.Tree))
+					return
+				}
+			}
+			c.appendQuery(k.Rune)
+		case k.Rune == 's' && c.queryEmpty():
+			c.startPrompt("start in path: ", func(path string) {
+				c.runOp("start", map[string]string{"path": path})
+			})
+		case k.Rune == 'x' && c.queryEmpty():
+			if row, ok := c.selectedRow(); ok {
+				c.runOp("stop", map[string]string{"ref": string(row.Tree)})
+			}
+		case k.Rune == 'n' && c.queryEmpty():
+			if row, ok := c.selectedRow(); ok {
+				ref := string(row.Tree)
+				c.startPrompt("name: ", func(name string) {
+					c.runOp("name", map[string]string{"ref": ref, "name": name})
+				})
+			}
+		case k.Rune == 'd' && c.queryEmpty():
+			if row, ok := c.selectedRow(); ok {
+				ref := string(row.Tree)
+				c.startPrompt("describe: ", func(desc string) {
+					c.runOp("describe", map[string]string{"ref": ref, "description": desc})
+				})
+			}
+		default:
+			c.appendQuery(k.Rune)
+		}
+	case KeyBackspace:
 		c.mu.Lock()
 		if n := len(c.query); n > 0 {
 			c.query = c.query[:n-1]
 		}
 		c.mu.Unlock()
-	case b == '\r' || b == '\n':
-		m, query, resolve := c.panelModel()
-		m.Filter(query, resolve)
-		if row, ok := m.Pick(1); ok {
-			c.clearQuery()
-			c.onSwitch(string(row.Tree))
-			return
-		}
-	case b >= 0x20 && b < 0x7f:
-		c.mu.Lock()
-		c.query += string(b)
-		c.mu.Unlock()
-	default:
-		return // ignore control bytes rather than filtering on them
 	}
 	c.showPanel()
+}
+
+// onPromptKey collects an action's argument.
+func (c *Console) onPromptKey(k PanelKey) {
+	switch k.Kind {
+	case KeyEscape:
+		c.mu.Lock()
+		c.prompt, c.promptFn = "", nil
+		c.mu.Unlock()
+	case KeyEnter:
+		c.mu.Lock()
+		fn, text := c.promptFn, c.promptArg
+		c.prompt, c.promptFn, c.promptArg = "", nil, ""
+		c.mu.Unlock()
+		if fn != nil {
+			fn(text)
+		}
+	case KeyBackspace:
+		c.mu.Lock()
+		if n := len(c.promptArg); n > 0 {
+			c.promptArg = c.promptArg[:n-1]
+		}
+		c.prompt = c.promptLabel + c.promptArg
+		c.mu.Unlock()
+	case KeyRune:
+		c.mu.Lock()
+		c.promptArg += string(k.Rune)
+		c.prompt = c.promptLabel + c.promptArg
+		c.mu.Unlock()
+	}
+	c.showPanel()
+}
+
+func (c *Console) startPrompt(label string, fn func(string)) {
+	c.mu.Lock()
+	c.promptLabel, c.promptArg, c.prompt, c.promptFn = label, "", label, fn
+	c.mu.Unlock()
+}
+
+// runOp dispatches an operator action through the INJECTED table -- the same
+// one the CLI and the advisor use. The console never implements an operation.
+func (c *Console) runOp(name string, args map[string]string) {
+	c.mu.Lock()
+	fn := c.ops
+	c.mu.Unlock()
+	if fn == nil {
+		c.setNotice("no action dispatcher wired")
+		return
+	}
+	if err := fn(name, args); err != nil {
+		c.setNotice(name + ": " + err.Error())
+		return
+	}
+	c.setNotice(name + ": done")
+	c.rebuildPanel()
+}
+
+func (c *Console) setNotice(text string) {
+	c.mu.Lock()
+	c.notice = text
+	c.mu.Unlock()
+}
+
+func (c *Console) selectedRow() (PanelRow, bool) {
+	c.mu.Lock()
+	m := c.panel
+	c.mu.Unlock()
+	if m == nil {
+		return PanelRow{}, false
+	}
+	return m.Selected()
+}
+
+func (c *Console) queryEmpty() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.query == ""
+}
+
+func (c *Console) appendQuery(b byte) {
+	c.mu.Lock()
+	c.query += string(b)
+	c.mu.Unlock()
+}
+
+// returnToActor leaves the panel for whatever the operator was last looking at.
+func (c *Console) returnToActor() {
+	c.mu.Lock()
+	id := c.active
+	c.mu.Unlock()
+	if id == "" {
+		c.showPanel()
+		return
+	}
+	c.mu.Lock()
+	c.focus = FocusActor(id)
+	c.mu.Unlock()
+	c.forceSwitch(id)
 }
 
 func (c *Console) clearQuery() {

@@ -240,6 +240,19 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 // back to "show everything" and typeahead would do nothing.
 func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
 	console.SetResolver(c.LookupTrees)
+
+	// The panel's actions run through the SAME declared table the CLI
+	// dispatches: the console names an operation and couchcore performs it, so
+	// there is no operator action the advisor cannot also perform (#148's
+	// design test) and no way for the panel to grow a private verb.
+	console.SetOps(func(name string, args map[string]string) error {
+		op, ok := Resolve(name)
+		if !ok {
+			return fmt.Errorf("unknown operation %q", name)
+		}
+		_, err := op.Invoke(c, args)
+		return err
+	})
 }
 
 // bindArgs maps positional argv onto the operation's declared ArgSpecs, plus

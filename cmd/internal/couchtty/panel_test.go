@@ -177,3 +177,37 @@ func TestPanelOffersTheOperatorActions(t *testing.T) {
 		}
 	}
 }
+
+// Every declared action must be REACHABLE from a keystroke.
+//
+// A subset check is satisfied by a list that does nothing -- which is exactly
+// what shipped: four action names with no dispatch behind them, so the operator
+// had no way to start a second child and the audit passed anyway.
+func TestEveryPanelActionHasAKey(t *testing.T) {
+	keys := PanelActionKeys()
+	for _, a := range PanelActions() {
+		k, ok := keys[a]
+		if !ok {
+			t.Errorf("action %q has no key; it is declared but unreachable", a)
+			continue
+		}
+		if k < 0x20 || k >= 0x7f {
+			t.Errorf("action %q is bound to a non-printable key %#x", a, k)
+		}
+	}
+	// And no key may be claimed by two actions.
+	seen := map[byte]string{}
+	for a, k := range keys {
+		if prev, dup := seen[k]; dup {
+			t.Errorf("key %q is claimed by both %q and %q", k, prev, a)
+		}
+		seen[k] = a
+	}
+	// A key that also means "type this into the filter" would be ambiguous
+	// with a digit jump.
+	for a, k := range keys {
+		if k >= '1' && k <= '9' {
+			t.Errorf("action %q uses a digit (%q), which collides with the direct jump", a, k)
+		}
+	}
+}
