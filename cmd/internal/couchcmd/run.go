@@ -162,6 +162,17 @@ func consoleRunner(name string, args map[string]string, stdin io.Reader, stdout 
 	outFile, _ := stdout.(*os.File)
 	host := hostty.NewOSHost(inFile, outFile)
 
+	// No terminal, no console. Piped, redirected, or run from a script, the
+	// console cannot measure a size or go raw -- and the first cut of this
+	// spawned the child anyway, sized it to a ZERO-ROW pty, then exited 1 with
+	// nothing printed (M2 BR-23). Falling back here means the operator gets a
+	// working session and a reason, instead of a registered actor they cannot
+	// see and a bare exit code.
+	if _, err := host.Size(); err != nil {
+		_ = host.Close()
+		return nil, couchcore.ExecRunner{}
+	}
+
 	console := couchtty.New(host, stdin)
 	return console, &couchcore.PtyRunner{
 		Size: console.ChildSize,
@@ -231,10 +242,10 @@ func bindArgs(op couchcore.Operation, argv []string) (map[string]string, error) 
 func render(w io.Writer, op couchcore.Operation, result any) int {
 	switch v := result.(type) {
 	case couchcore.StartResult:
-		// Reached only on the --no-console path now. Loud, because a silent
-		// degradation is how an escape hatch becomes the default nobody
-		// noticed (Decision 2).
-		fmt.Fprintf(w, "couch: --no-console — inheriting stdio, no pty, no reserved row\n")
+		// Reached on --no-console, and when there is no terminal to drive.
+		// Loud either way: a silent degradation is how an escape hatch becomes
+		// the default nobody noticed (Decision 2).
+		fmt.Fprintf(w, "couch: no console — inheriting stdio, no pty, no reserved row\n")
 		fmt.Fprintf(w, "started %s on %s (pid %d)\n", v.Record.ID, v.Record.Args.Worktree, v.Record.PID)
 		if v.Handle != nil {
 			// couch start blocks for the child's lifetime: this milestone has

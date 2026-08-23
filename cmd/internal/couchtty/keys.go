@@ -88,8 +88,32 @@ func (i *Interceptor) Feed(in []byte) (before []byte, hit bool, rest []byte) {
 			n, kind := sequenceAt(buf[idx:])
 			switch kind {
 			case seqPartial:
-				// A REAL prefix -- hold it. Anything already scanned still
-				// goes to the current focus.
+				// A real prefix -- hold it for the next read, UNLESS it is a
+				// lone ESC that arrived as its own read.
+				//
+				// ESC prefixes both paste markers and the CSI-u hotkey, so
+				// holding every prefix buffers a pressed ESC until the
+				// operator's next keystroke and then delivers the two glued
+				// together -- which a terminal reads as Alt+<key>. ESC would
+				// appear to do nothing in nvim or claude, and then do the wrong
+				// thing (M2 BR-22).
+				//
+				// The discriminator is that a keystroke arrives as its own
+				// read: a split sequence has bytes BEFORE its ESC in the same
+				// chunk, or has already got past the ESC. A bare one-byte chunk
+				// is a keypress.
+				//
+				// Residual, accepted and stated: a real sequence whose read
+				// boundary falls IMMEDIATELY after its ESC is forwarded rather
+				// than held. That costs one unrecognised paste marker in a case
+				// the kernel makes vanishingly rare, and the alternative costs
+				// the ESC key -- which is interrupt in claude and mode-switch in
+				// nvim, pressed constantly.
+				if len(buf) == 1 && len(out) == 0 {
+					out = append(out, buf[idx])
+					idx++
+					continue
+				}
 				i.held = append([]byte(nil), buf[idx:]...)
 				return out, false, nil
 			case seqPasteStart, seqPasteEnd:

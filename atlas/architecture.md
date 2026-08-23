@@ -455,8 +455,12 @@ makes for escape sequences, and for the same reason — `wrapcmd`'s capability
 table is *opposed* to the replay deny-list, so merging those would be the bug.
 
 `Screen` is one scanner, not several: it reports alt-screen state, mouse mode,
-region-lost edges (DECSTBM, RIS, or an alt-screen transition — anything that can
-drop a reserved row), and BEL. It frames sequences via `ansi` rather than
+whether a reserved row may have been destroyed (`TakeRowDirty` — a margin reset,
+RIS, an alt-screen transition, or an ERASE; DECSTBM restricts scrolling, not
+erasing, so a full-screen app's startup clear takes the row while the region
+survives), whether the stream currently ends mid-sequence (`MidSequence`, which
+is what lets a console interleave its own output without corrupting the child's),
+and BEL. It frames sequences via `ansi` rather than
 scanning for them, which is what lets it see a sequence **split across two pty
 reads** — its predecessor, `updateMouseMode`, scanned each read independently
 and could not. BEL is likewise counted only outside a sequence: every title

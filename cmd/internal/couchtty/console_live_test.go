@@ -142,18 +142,11 @@ func splicedPaint(stream string) (string, bool) {
 			if lo < 0 {
 				lo = 0
 			}
-			return stream[lo:min(at+24, len(stream))], true
+			return stream[lo:minInt(at+24, len(stream))], true
 		}
 		i = at + 2
 	}
 	return "", false
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // A child that scrolls hard, for real, through a real pty.
@@ -171,17 +164,9 @@ func TestLiveReservedRowSurvivesRealScrolling(t *testing.T) {
 	}
 }
 
-// waitLong is waitFor with a deadline sized for a real application starting
-// up. nvim takes over a second to draw its first screen; the fake-child tests
-// never needed more than milliseconds.
-func waitLong(t *testing.T, what string, cond func() bool) {
-	t.Helper()
-	deadline := time.Now().Add(15 * time.Second)
-	for time.Now().Before(deadline) {
-		if cond() {
-			return
-		}
-		time.Sleep(20 * time.Millisecond)
+func minInt(a, b int) int {
+	if a < b {
+		return a
 	}
-	t.Fatalf("timed out waiting for %s", what)
+	return b
 }

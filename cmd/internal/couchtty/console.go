@@ -17,6 +17,11 @@ type chunk struct {
 type pane struct {
 	label string
 	child *ptychild.Child
+
+	// bell is sticky until the operator looks at this actor. The row's job is
+	// to say who wants attention, so a signal that cleared itself on the next
+	// repaint would be invisible in practice.
+	bell bool
 }
 
 // Console routes the operator's terminal to one child at a time.
@@ -36,9 +41,19 @@ type Console struct {
 	notice string
 	size   ptychild.Size
 
-	// paintPending means a repaint was wanted while the active child's stream
-	// was mid-sequence, and is owed as soon as it is safe.
+	// paintPending means a repaint was wanted while the host stream was
+	// mid-sequence, and is owed as soon as it is safe.
 	paintPending bool
+
+	// hostScan frames the bytes the console has WRITTEN to the host.
+	//
+	// It has to be this stream, not the child's. Asking the child was the first
+	// shape of this fix and it was unsound (M2 BR-21): ptychild's pump feeds its
+	// Screen before calling the sink, and the console drains a buffered channel
+	// later, so by the time it asked about the chunk it had just written, the
+	// answer described a LATER chunk the child had since read. Framing what we
+	// write is race-free by construction -- there is exactly one writer.
+	hostScan ptychild.Screen
 
 	chunks chan chunk
 	stop   chan struct{}
@@ -69,15 +84,22 @@ func (c *Console) ChildSize() ptychild.Size {
 	return ptychild.Size{Rows: ChildRows(c.size.Rows), Cols: c.size.Cols}
 }
 
-// Deliver is the sink handed to the runner. It never blocks the child's pump on
-// a slow screen for long: the buffer absorbs bursts, and a full buffer drops
-// the chunk from the LIVE path only -- the ring still has it, so the next
-// repaint is correct.
+// Deliver is the sink handed to the runner: it hands a child's output to the
+// console loop.
+//
+// It BLOCKS when the buffer is full rather than dropping, and that reversal is
+// deliberate. The first version dropped, justified by "the ring still has it,
+// so the next repaint is correct" -- but nothing repaints from the ring at this
+// milestone (that arrives with M3's attach path), so a drop was silent, permanent
+// output loss on a slow screen (M2 BR-29). Blocking applies back-pressure to the
+// pty instead, which is what a terminal does anyway.
+//
+// It still yields to stop, so teardown cannot deadlock behind a child that is
+// mid-write.
 func (c *Console) Deliver(id string, data []byte) {
 	select {
 	case c.chunks <- chunk{id: id, data: data}:
 	case <-c.stop:
-	default:
 	}
 }
 
@@ -179,13 +201,25 @@ func (c *Console) applyLayout() {
 // colours and losing the row. The debt is remembered and paid by the next chunk
 // that leaves the stream at a sequence boundary.
 func (c *Console) repaint() {
-	if child := c.activeChild(); child != nil && child.MidSequence() {
-		c.mu.Lock()
+	c.mu.Lock()
+	mid := c.hostScan.MidSequence()
+	if mid {
 		c.paintPending = true
-		c.mu.Unlock()
+	}
+	c.mu.Unlock()
+	if mid {
 		return
 	}
 	c.paintNow()
+}
+
+// writeHost is the ONE path to the operator's screen for child output, so the
+// framing state cannot miss a byte.
+func (c *Console) writeHost(p []byte) {
+	c.mu.Lock()
+	c.hostScan.Feed(p)
+	c.mu.Unlock()
+	_, _ = c.host.Write(p)
 }
 
 // paintNow draws the row unconditionally, re-asserting the region first.
@@ -204,7 +238,7 @@ func (c *Console) paintNow() {
 		model.Actors = append(model.Actors, StatusActor{
 			Label:  p.label,
 			Active: id == c.active,
-			Bell:   false,
+			Bell:   p.bell,
 		})
 	}
 	c.mu.Unlock()
@@ -224,14 +258,14 @@ func (c *Console) onChunk(ch chunk) {
 	}
 
 	if isActive {
-		_, _ = c.host.Write(ch.data)
+		c.writeHost(ch.data)
 	}
 	// A paint deferred while the stream was mid-sequence is owed as soon as
 	// the stream is whole again.
 	c.mu.Lock()
-	owed := c.paintPending
+	owed := c.paintPending && !c.hostScan.MidSequence()
 	c.mu.Unlock()
-	if owed && isActive && !p.child.MidSequence() {
+	if owed {
 		c.paintNow()
 	}
 	// Derived state is consumed whether or not the child is on screen: an
@@ -239,7 +273,11 @@ func (c *Console) onChunk(ch chunk) {
 	rowDirty := p.child.TakeRowDirty()
 	if p.child.TakeBell() {
 		c.mu.Lock()
-		c.notice = p.label + " wants you"
+		// An actor the operator is already looking at is not "wanting" them.
+		if !isActive {
+			p.bell = true
+			c.notice = p.label + " wants you"
+		}
 		c.mu.Unlock()
 		c.repaint()
 		return

@@ -42,10 +42,6 @@ type FakeRunner struct {
 	failNext error
 	autoExit *int
 	Ops      []string
-
-	// Sink mirrors PtyRunner's: installed on each child at Start, tagged with
-	// the handle id.
-	Sink func(id string, chunk []byte)
 }
 
 var _ Runner = (*FakeRunner)(nil)
@@ -71,11 +67,10 @@ func (f *FakeRunner) Start(dir string, argv, env []string) (Handle, error) {
 		return nil, err
 	}
 	id := fmt.Sprintf("couch-fake-%d", len(f.order)+1)
+	// The terminal double is a real *ptychild.Child in fake mode, so a test
+	// that needs this child to produce output calls Feed on it directly --
+	// there is no second emit path to keep in step.
 	child := ptychild.NewFakeChild(nil)
-	if f.Sink != nil {
-		sink := f.Sink
-		child.SetSink(func(chunk []byte) { sink(id, chunk) })
-	}
 	f.children[id] = &FakeChild{
 		Dir: dir, Argv: argv, Env: env,
 		diesOn: map[os.Signal]int{},
@@ -220,18 +215,6 @@ func (h *fakeHandle) Wait() int {
 	h.runner.mu.Lock()
 	defer h.runner.mu.Unlock()
 	return c.code
-}
-
-// Emit pushes output from a fake child, the stand-in for its pty producing
-// bytes. It runs the same path a real child's pump does -- ring, screen, sink --
-// because they are the same type.
-func (f *FakeRunner) Emit(id string, chunk []byte) {
-	f.mu.Lock()
-	c, ok := f.children[id]
-	f.mu.Unlock()
-	if ok && c.terminal != nil {
-		c.terminal.Feed(chunk)
-	}
 }
 
 // Terminal exposes the pty double, so a fakeHandle can satisfy TerminalHandle.

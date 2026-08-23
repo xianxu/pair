@@ -84,6 +84,7 @@ Terminal code has its own standing moves, all of them lessons already paid for i
 | `PanelModel` / `Filter` / `Pick` | `cmd/internal/couchtty/panel.go` | new |
 | `StatusModel` / `RenderStatusRow` | `cmd/internal/couchtty/statusrow.go` | new |
 | `Interceptor` | `cmd/internal/couchtty/keys.go` | new |
+| `Console` | `cmd/internal/couchtty/console.go` | new (thin IO shell; see the source for its shape) |
 | `Reserve` / `Release` / `PaintRow` | `cmd/internal/couchtty/reserve.go` | new |
 | terminal-control constants (DECSTBM, cursor save/restore, region reset) | `cmd/internal/hostty/control.go` | new (`\x1b[r` moved from `termcmd/run.go`) |
 | `termcmd.restoreTerminal` | `cmd/internal/termcmd/run.go` | modified (now writes `hostty.ResetRegion`; the method stays, the constant moved) |
@@ -517,3 +518,31 @@ and points at the source for the shapes, which is the rule `atlas/couch.md`
 already applies to couch's operation set: stop maintaining a second copy of a
 code shape in prose. The same treatment stands ready for any other row that
 starts enumerating identifiers.
+
+### 2026-08-23 — M2 boundary review: Decision 11 corrected, and the tables stop restating shapes
+
+**Reason:** the M2 review found this document contradicting the code in four
+places (BR-26), one round after the same family was closed for M1 by making the
+`Screen` row stop enumerating identifiers.
+
+**Delta:**
+
+- **Decision 11's central claim was wrong and is corrected.** It said `resume`
+  refuses any third argv element, and dropped `--layout2` on that basis. Only
+  POSITIONALS are refused: `ParseArgs` runs `extractLayoutRequest` first, so
+  layout flags never reach the guard. Measured, and now pinned in
+  `launcher/args_test.go`. `--layout2` is back, by operator decision — couch
+  owns terminal switching, so layout3's third pane is the layer couch replaces.
+- **Decision 11 is also narrower than it claimed.** It said the forced tag
+  removes pair's prompts. It removes the NAME prompt and `DecideLaunch`'s session
+  picker; `runConfigPicker`'s saved-config prompt still fires on a cold start of
+  a tag with a saved config. Left deliberately (operator, 2026-08-22) and
+  recorded on `pair#149`, which owns the identity model that would let couch skip
+  it.
+- **Decision 5's "one mechanism" held, and Decision 4's fallback was not
+  needed** — confirmed by operator smoke on the real stack 2026-08-23.
+- **The `Screen` row's treatment is extended to the rest of the table.** Rows
+  now name what an entity ANSWERS and point at the source rather than
+  restating field lists, which is what kept this family recurring. The register
+  of what shipped is the code plus the issue `## Log`; this document records the
+  DECISIONS and stops competing with the source for the shapes.

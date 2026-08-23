@@ -18,7 +18,9 @@
   (`make test-smoke`). A probe earns a place here when its output is quoted as
   close evidence: `probes/termsmoke` drives `pair term` under a pty through two
   tabs, a switch each way, a resize and an `nvim` alt-screen round trip, which is
-  the visual behaviour unit tests only approximate.
+  the visual behaviour unit tests only approximate, and `probes/zellijpark`
+  answers "does a zellij session outlive its client" by creating a throwaway
+  session and killing one -- the measurement behind couch needing no daemon.
 
 - `doctor/README.md` — `pair-doctor`: read the adaptation flight recorder to diagnose harness integration drift (see the bring-up guide §3 for the signal registry). Primary entry is the agent-agnostic `:PairDoctor` nvim command (`nvim/doctor.lua`); the procedure is single-sourced in `doctor/SKILL.md`, optionally registerable as a Claude skill.
 - `README.md` (repo root) — install and usage.

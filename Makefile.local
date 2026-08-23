@@ -49,6 +49,7 @@ RUNTIMEBUNDLE_ASSETS := cmd/internal/runtimebundle/assets/runtime/manifest.json
 .PHONY: test-smoke
 test-smoke: $(BIN_DIR)/pair
 	go run ./probes/termsmoke ./bin/pair
+	go run ./probes/zellijpark
 
 .PHONY: test-live
 test-live:

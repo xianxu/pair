@@ -859,3 +859,83 @@ its client, and `TestSpawnProducesTheSameTagForTheSameTree` pins the tag
 determinism -- but their composition is untested); and quitting couch leaving a
 clean terminal, which has unit coverage on both the child-exit and teardown
 paths plus a vt check that the bottom row is usable after release.
+
+### 2026-08-23 -- ctrl-space audit, recorded properly (Task 2.3)
+
+The plan required this in the `## Log` and it went into a commit message
+instead, which is not where anyone looks (M2 BR-28). Recording it, and what it
+missed.
+
+**What binds ctrl-space, checked 2026-08-22:** nothing.
+`zellij/config.kdl` binds no Space chord; `nvim/*.lua` has no `<C-Space>`,
+`<C-@>` or `<Nul>` mapping; `keyhelp/catalog.go` lists no Space entry;
+`wrapcmd`'s input handling has no `0x00` case. So no escape hatch rides on it
+and couch may claim it.
+
+**What the audit did NOT ask, and should have:** what ENCODES the key. zellij
+enables the Kitty keyboard protocol, so a real session sends
+`\x1b[32;5u` rather than `0x00` -- and couch's interceptor knew only the legacy
+byte, so ctrl-space reached draft nvim. The operator caught it in smoke.
+"Nothing binds it" and "we will receive it" are different questions, and the
+audit answered only the first. Both encodings are handled now, with the negative
+case pinned: couch must not swallow the workbench's own chords, which arrive in
+the same CSI-u shape.
+
+### 2026-08-23 -- M2 boundary review round 1: REWORK, 3 Critical
+
+The verdict was right and the Criticals were real. **BR-21 falsified the fix
+this milestone's headline commit claimed to make**, which is the one worth
+reading twice.
+
+- **BR-21 `MidSequence` asked the wrong stream.** The console asked the CHILD
+  whether it was mid-sequence -- but ptychild's pump feeds its `Screen` before
+  calling the sink, and the console drains a 256-deep channel later, so the
+  answer described a chunk the child had since read, not the chunk being
+  written. The reviewer reproduced the original nvim corruption byte-for-byte.
+  A second mode too: `Pending()` reads 0 while an over-long sequence is being
+  SKIPPED rather than held, so the check reported "safe" mid-sequence.
+  Fixed by framing the stream the console WRITES (`Console.hostScan`), which is
+  race-free by construction -- one writer. `Child.MidSequence` is deleted rather
+  than left to invite the same mistake, and `Screen.MidSequence` now covers the
+  skip case with `Pending`'s doc saying it answers a different question.
+  **And the test was worse than the bug.** My version fed chunk 1, waited for
+  the console to process it, then fed chunk 2 -- the reviewer's phrase was
+  "avoids the window rather than covering it", and that is exactly right: it
+  synchronised away the very skew production has. Both modes now have tests that
+  reproduce the production ordering, each verified red on revert.
+- **BR-22 a lone ESC was held indefinitely.** ESC prefixes both paste markers
+  and the CSI-u hotkey, so "hold every real prefix" buffered a pressed ESC until
+  the next keystroke and then delivered them glued -- which a terminal reads as
+  Alt+<key>. ESC is interrupt in claude and mode-switch in nvim; it would have
+  appeared dead and then done the wrong thing. The discriminator is that a
+  keystroke arrives as its own read. Residual stated in the code: a sequence
+  split immediately after its ESC is forwarded rather than held.
+- **BR-23 `couch start` off a tty was silently broken.** It spawned and
+  registered the child, gave it a ZERO-ROW pty, then exited 1 with no output --
+  so a scripted or piped invocation left a registered actor nobody could use.
+  Now a missing terminal falls back to the stdio path, loudly.
+- **BR-24 the milestone's central wiring was unpinned:** disabling the console
+  entirely left the whole suite green, because every CLI test drives a non-tty
+  stdout and none took the console branch. `consoleRunner` is now driven
+  directly against a REAL pty, and the disable-it mutation turns it red.
+- **BR-27 `StatusActor.Bell` had no writer** -- the row could never say WHICH
+  actor wanted attention, which is Decision 8's entire justification for
+  spending a permanent terminal row. Wired, with an inactive-vs-active
+  distinction. `FakeRunner.Sink`/`Emit` were genuinely dead and are deleted; the
+  fake's child is a real `*ptychild.Child`, so `Feed` already did what `Emit`
+  did.
+- **BR-29 `Deliver` dropped output on a full buffer**, justified by a
+  repaint-from-ring that does not exist until M3 -- so a drop was silent,
+  permanent loss. It blocks now, yielding to stop so teardown cannot deadlock.
+- **BR-25/26/28/31** documentation and hygiene: `probes/zellijpark` gets the
+  make target and atlas entry the rule written one round earlier demanded; the
+  plan's Decision 11 is corrected and the tables stop restating code shapes; the
+  ctrl-space audit is in the Log where it belongs; README and
+  `atlas/architecture.md` reconciled.
+
+**BR-30 is disputed, with a measurement.** The claim was that two trees sharing
+a basename resume one zellij session. `AssignSessionName` was driven with two
+distinct roots ending in `pair`: `ComposeSessionName` does collide, but the
+collision ladder separates them -- `📁pair` and `📁pair-2`, keyed on the
+distinct scope keys. couch passes each child its own tree as cwd, so the scopes
+differ. If there is a hole it is in an EMPTY session index, not in the derivation.

@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -10,9 +11,24 @@ import (
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
 
+// waitFor polls until cond holds. ONE helper for the package, with the
+// deadline as a parameter -- three near-identical pollers is how they drift
+// apart on the thing that matters (how long is long enough).
 func waitFor(t *testing.T, what string, cond func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
+	waitUpTo(t, 3*time.Second, what, cond)
+}
+
+// waitLong is for REAL applications: nvim takes over a second to draw its first
+// screen, where a fake child answers in microseconds.
+func waitLong(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+	waitUpTo(t, 15*time.Second, what, cond)
+}
+
+func waitUpTo(t *testing.T, d time.Duration, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(d)
 	for time.Now().Before(deadline) {
 		if cond() {
 			return
@@ -184,26 +200,26 @@ func TestConsoleRestoresTheTerminalOnTeardownMidStream(t *testing.T) {
 //	\x1b7\x1b[12;1H\x1b[2K[brain]\x1b8;82;88m
 //
 // -- a status-row paint spliced into the middle of nvim's `\x1b[38;2;76;82;88m`,
-// which corrupts the child's colours AND loses the row. No fake-child test
-// could produce it, because a fake only emits what the test hands it whole.
+// which corrupts the child's colours AND loses the row.
+//
+// THE ORDERING IS THE TEST. An earlier version fed chunk 1, waited for the
+// console to process it, then fed chunk 2 -- which made the bug unreproducible,
+// because the console's view was momentarily in step with the child's. The M2
+// boundary review called that "avoiding the window rather than covering it",
+// and it was right: production's window is exactly the case where the child has
+// ALREADY read more while the console is still writing an earlier chunk. This
+// version reproduces that by completing the sequence at the child before the
+// console has drained the first chunk.
 func TestConsoleNeverInjectsInsideAChildEscapeSequence(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
 	f.host.Reset()
 
-	// Chunk 1 ends MID-SEQUENCE and also marks the row dirty, so the console
-	// wants to repaint at exactly the wrong moment.
-	//
-	// Wait for the console to have PROCESSED it before completing the
-	// sequence. Feeding both back to back does not reproduce the bug: Feed is
-	// synchronous, so the screen would already have consumed chunk 2 -- and be
-	// out of the sequence -- by the time the console looked at chunk 1. That is
-	// the same "prove it landed, do not assume it did" discipline the reserved
-	// row tests needed.
+	// Both chunks reach the child (and its Screen) back to back. The console
+	// drains them afterwards, so when it writes chunk 1 the child's own state
+	// already reflects chunk 2 -- the exact skew that made asking the child
+	// unsound.
 	f.child.Feed([]byte("\x1b[2J\x1b[38;2;76"))
-	waitFor(t, "the console to process the partial sequence", func() bool {
-		return strings.Contains(f.host.Written(), "\x1b[38;2;76")
-	})
 	f.child.Feed([]byte(";82;88mCOLOURED"))
 
 	waitFor(t, "the child's output to reach the host", func() bool {
@@ -212,6 +228,39 @@ func TestConsoleNeverInjectsInsideAChildEscapeSequence(t *testing.T) {
 	if got := f.host.Written(); !strings.Contains(got, "\x1b[38;2;76;82;88m") {
 		t.Fatalf("the child's escape sequence was split by an injected paint: %q", got)
 	}
+}
+
+// The same hazard during an OVER-LONG sequence, which the first fix missed for
+// a second reason: Pending() reads 0 while such a sequence is being skipped
+// rather than held, so a check built on it reported "safe" mid-sequence.
+func TestConsoleNeverInjectsInsideAnOverLongSequence(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	f.host.Reset()
+
+	huge := strings.Repeat("A", 70*1024)
+	f.child.Feed([]byte("\x1b[2J\x1b]52;c;" + huge))
+	f.child.Feed([]byte("\x07DONE"))
+
+	waitFor(t, "the child's output to reach the host", func() bool {
+		return strings.Contains(f.host.Written(), "DONE")
+	})
+	got := f.host.Written()
+	body := strings.Index(got, "\x1b]52;c;")
+	term := strings.Index(got, "\x07")
+	if body < 0 || term < 0 {
+		t.Fatalf("the OSC did not reach the host intact: %q", trimForLog(got))
+	}
+	if paint := strings.Index(got[body:term], "\x1b7"); paint >= 0 {
+		t.Fatalf("a paint was injected inside an over-long sequence at +%d", paint)
+	}
+}
+
+func trimForLog(s string) string {
+	if len(s) > 300 {
+		return s[:150] + "…" + s[len(s)-150:]
+	}
+	return s
 }
 
 // The deferred paint must still HAPPEN once the stream is safe again -- a
@@ -223,12 +272,70 @@ func TestConsoleRepaintsOnceTheChildStreamIsSafeAgain(t *testing.T) {
 	f.host.Reset()
 
 	f.child.Feed([]byte("\x1b[2J\x1b[38;2;76"))
-	waitFor(t, "the console to process the partial sequence", func() bool {
-		return strings.Contains(f.host.Written(), "\x1b[38;2;76")
-	})
 	f.child.Feed([]byte(";82;88mdone"))
 
 	waitFor(t, "the row to be repainted after the sequence completed", func() bool {
 		return strings.Contains(f.host.Written(), "\x1b[24;1H")
 	})
+}
+
+// The row must say WHICH actor wants attention -- that is Decision 8's whole
+// justification for spending a permanent terminal row before #147's transport
+// exists. StatusActor.Bell shipped with no writer at M2's boundary (BR-27), so
+// the row could never have said it.
+func TestConsoleMarksAnInactiveActorThatRangTheBell(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	other := ptychild.NewFakeChild(nil)
+	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+	f.con.Attach("c2", "ariadne", other)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	f.host.Reset()
+
+	other.Feed([]byte("\x07"))
+
+	waitFor(t, "the row to mark the actor", func() bool {
+		return strings.Contains(f.host.Written(), "ariadne*")
+	})
+	if strings.Contains(f.host.Written(), "[ariadne]") {
+		t.Fatal("the inactive actor was marked active")
+	}
+}
+
+// A bell from the actor the operator is already looking at is not a page.
+func TestConsoleDoesNotMarkTheActiveActorOnItsOwnBell(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	f.host.Reset()
+
+	f.child.Feed([]byte("\x07done"))
+	waitFor(t, "the output to reach the host", func() bool {
+		return strings.Contains(f.host.Written(), "done")
+	})
+	if strings.Contains(f.host.Written(), "brain*") {
+		t.Fatalf("the active actor was flagged as wanting attention: %q", f.host.Written())
+	}
+}
+
+// Child output must not be silently dropped when the console is slow. Nothing
+// repaints from the ring at this milestone, so a dropped chunk is output the
+// operator never sees (BR-29).
+func TestConsoleDoesNotDropChildOutputUnderBurst(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	f.host.Reset()
+
+	const n = 2000 // well past the channel's buffer
+	for i := 0; i < n; i++ {
+		f.child.Feed([]byte(fmt.Sprintf("line-%04d\r\n", i)))
+	}
+	waitFor(t, "the last line to reach the host", func() bool {
+		return strings.Contains(f.host.Written(), fmt.Sprintf("line-%04d", n-1))
+	})
+
+	got := f.host.Written()
+	for _, i := range []int{0, 1, n / 2, n - 2, n - 1} {
+		if !strings.Contains(got, fmt.Sprintf("line-%04d", i)) {
+			t.Fatalf("line-%04d was dropped from the live path", i)
+		}
+	}
 }

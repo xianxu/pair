@@ -103,7 +103,22 @@ func (s *Screen) TakeBell() bool {
 // Pending reports how many bytes are held waiting for a terminator. Exported
 // for the tests that pin the bound -- an unbounded scanner is invisible from
 // the state accessors alone.
+//
+// It is NOT the "is it safe to interleave" question: it reads 0 while an
+// over-long sequence is being skipped, because those bytes are consumed rather
+// than held. Use MidSequence for that.
 func (s *Screen) Pending() int { return len(s.pending) }
+
+// MidSequence reports whether the stream fed so far ends INSIDE an escape
+// sequence -- either holding a partial, or consuming an over-long one.
+//
+// This is what a caller needs before writing its own bytes into the same
+// stream: anything injected here lands in the middle of a sequence and
+// corrupts it. Pending() alone answers the wrong question, which is how the
+// first version of couch's fix shipped a hole (M2 BR-21).
+func (s *Screen) MidSequence() bool {
+	return len(s.pending) > 0 || s.skipping != skipNone
+}
 
 // Feed consumes a chunk of the child's output.
 func (s *Screen) Feed(p []byte) {

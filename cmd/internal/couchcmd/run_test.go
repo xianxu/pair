@@ -2,11 +2,13 @@ package couchcmd
 
 import (
 	"bytes"
+	"io"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
 
+	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
 
@@ -338,7 +340,7 @@ func TestStartWithNoConsoleAnnouncesTheFallback(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d, stderr %q", code, errw)
 	}
-	if !strings.Contains(out, "--no-console") {
+	if !strings.Contains(out, "no console") {
 		t.Fatalf("the fallback did not announce itself: %q", out)
 	}
 	if !strings.Contains(out, "started ") {
@@ -352,5 +354,78 @@ func TestNoConsoleNeverBindsPositionally(t *testing.T) {
 	_, errw, code := runRT(newRT(t, "/repo"), "start", "/repo", "no-console")
 	if code == 0 {
 		t.Fatalf("a positional `no-console` was accepted; it must not bind (stderr %q)", errw)
+	}
+}
+
+// `couch start` with no terminal must fall back, loudly, to the stdio path.
+//
+// The first cut spawned the child, sized it to a ZERO-ROW pty, then exited 1
+// with nothing printed -- so a scripted or piped invocation left a registered
+// actor the operator could neither see nor use (M2 BR-23). runRT drives exactly
+// this shape: its stdout is a buffer, not a tty.
+func TestStartWithoutATerminalFallsBackLoudly(t *testing.T) {
+	out, errw, code := runRT(newRT(t, "/repo"), "start", "/repo")
+	if code != 0 {
+		t.Fatalf("exit %d, stderr %q", code, errw)
+	}
+	if !strings.Contains(out, "no console") {
+		t.Fatalf("the fallback did not announce itself: %q", out)
+	}
+	if !strings.Contains(out, "started ") {
+		t.Fatalf("no actor was reported: %q", out)
+	}
+}
+
+// The milestone's central wiring, pinned.
+//
+// At M2's boundary, disabling the console entirely left the whole suite green
+// (BR-24): every CLI test drives a non-tty stdout, so none of them ever took the
+// console branch. These drive `consoleRunner` directly, with a REAL pty, so the
+// decision that makes `couch start` a console is covered rather than assumed.
+func TestConsoleRunnerChoosesThePtyPathOnATerminal(t *testing.T) {
+	ptmx, tty, err := pty.Open()
+	if err != nil {
+		t.Skipf("pty.Open: %v (sandboxed?)", err)
+	}
+	defer func() { _ = ptmx.Close(); _ = tty.Close() }()
+
+	console, runner := consoleRunner("start", map[string]string{}, tty, tty)
+	if console == nil {
+		t.Fatal("no console was built for `start` on a real terminal")
+	}
+	if _, ok := runner.(*couchcore.PtyRunner); !ok {
+		t.Fatalf("runner = %T, want *couchcore.PtyRunner — children would get no pty", runner)
+	}
+}
+
+// Every path that must NOT take over the terminal.
+func TestConsoleRunnerDeclinesWhenItShould(t *testing.T) {
+	ptmx, tty, err := pty.Open()
+	if err != nil {
+		t.Skipf("pty.Open: %v (sandboxed?)", err)
+	}
+	defer func() { _ = ptmx.Close(); _ = tty.Close() }()
+
+	cases := []struct {
+		name string
+		op   string
+		args map[string]string
+		in   io.Reader
+		out  io.Writer
+	}{
+		{"--no-console", "start", map[string]string{"no-console": "true"}, tty, tty},
+		{"a read-only operation", "list", map[string]string{}, tty, tty},
+		{"no terminal at all", "start", map[string]string{}, strings.NewReader(""), &bytes.Buffer{}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			console, runner := consoleRunner(c.op, c.args, c.in, c.out)
+			if console != nil {
+				t.Fatal("a console was built when it should not have been")
+			}
+			if _, ok := runner.(couchcore.ExecRunner); !ok {
+				t.Fatalf("runner = %T, want couchcore.ExecRunner", runner)
+			}
+		})
 	}
 }

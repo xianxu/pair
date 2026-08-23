@@ -258,10 +258,13 @@ shell runtime; `zellij`, `nvim`, `fzf`, and the agent CLIs are the only external
 programs.
 
 `make install` also installs a second binary, **`couch`** — a supervisor that
-registers agent sessions one-per-worktree and can spawn them. It is separate
-from `pair` on purpose: pair is what you sit inside, so a supervisor bug must
-not break your ability to fix it, and launching pair directly always still
-works. See [atlas/couch.md](atlas/couch.md).
+registers agent sessions one-per-worktree, spawns them, and hosts one in your
+terminal: `couch start <repo>` allocates a pty for the session and reserves the
+bottom row of your screen for a status line. `--no-console` keeps the old
+stdio-inheriting behaviour. It is separate from `pair` on purpose: pair is what
+you sit inside, so a supervisor bug must not break your ability to fix it, and
+launching pair directly always still works. See
+[atlas/couch.md](atlas/couch.md).
 
 ## Command Usage
 

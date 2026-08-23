@@ -384,6 +384,223 @@ rounds:
           round: 4
       boundary: M1
       blocked: false
+    - "n": 5
+      timestamp: "2026-08-23T08:39:37-07:00"
+      agent: claude
+      findings:
+        - id: BR-21
+          severity: Critical
+          title: MidSequence() describes the newest chunk READ, not the chunk WRITTEN, so the row paint still splices into the child's escape sequences
+          detail: |-
+            ptychild's pump feeds Screen before calling the sink (child.go:113-120) and the console
+            drains a 256-deep channel later, so when console.go:182 asks MidSequence() about the chunk
+            it just wrote, the answer describes a later chunk. Reproduced in a scratch copy by holding
+            the console inside host.Write while the child completes the sequence -- emitted stream was
+            "\x1b[2J\x1b[38;2;76" + "\x1b[1;23r\x1b7\x1b[24;1H\x1b[2K[brain]\x1b8" + ";82;88mCOLOURED",
+            byte-for-byte the nvim corruption this commit claims to fix. console_test.go:191-196
+            describes this exact ordering and concludes the bug "does not reproduce"; the shipped test
+            avoids the window rather than covering it. Second mode, measured: Screen.Pending() is
+            len(pending), which is 0 while skipping != skipNone, so MidSequence() returns false in the
+            middle of an over-64KiB OSC 52 -- the everyday clipboard case this repo already documents.
+            Fix: compute pending-ness over the bytes the console has EMITTED (a per-pane ptychild.Screen
+            fed as chunks are written, which is what console_live_test.go's splicedPaint already does),
+            fold in the skipping state, and serialise host writes -- onChunk, watchResize and onHotkey
+            all write to c.host today with no ordering between them.
+          family: guard-reads-wrong-stream-position
+          round: 5
+        - id: BR-22
+          severity: Critical
+          title: a lone ESC keystroke is held indefinitely by the Interceptor and then delivered glued to the next key as a meta prefix
+          detail: |-
+            sequenceAt (keys.go:127-141) classifies a bare 0x1b as seqPartial because it is a real prefix
+            of "\x1b[200~", so Feed holds it (keys.go:93) and returns nothing. Measured: Feed("\x1b") ->
+            before=""; the following Feed("i") -> before="\x1bi", which a child reads as Alt+i. Driven
+            end to end through the console, an ESC keystroke never reaches the child at all, and held
+            bytes are never flushed at teardown. ESC is interrupt in Claude Code and mode-switch in nvim
+            -- the Spec cites both. Caveat stated honestly: once zellij's Kitty protocol is up the
+            terminal likely sends "\x1b[27u", which falls through as seqNone and is forwarded, which is
+            plausibly why the smoke did not see it; the legacy encoding still governs before the child
+            enables KKP (pair's config picker), after it disables it, and for M3's panel. Fix: hold only
+            from two bytes on, or flush a held run when a read ends without extending the match, and add
+            the negative test -- FuzzInterceptorFeed bounds output length only, so it cannot find this.
+            workbenchshortcut.FindChord, the shape this copies, holds nothing.
+          family: prefix-parks-a-complete-key
+          round: 5
+        - id: BR-23
+          severity: Critical
+          title: couch start off a tty spawns and registers the child, gives it a 0-row pty, then exits 1 with no output
+          detail: |-
+            consoleRunner (run.go:157-170) type-asserts stdin/stdout to *os.File and never asks whether
+            they are terminals, while dimCodes at run.go:305 in the same file already uses
+            term.IsTerminal. With stdin a pipe -- any script, cron, or agent shell, including #148's
+            advisor -- host.Size() fails so Console keeps size{0,0}, ChildSize() returns 0x0 and the
+            child is started on a zero-row pty; then MakeRaw() fails and console.go:103-106 discards the
+            wrapped error and returns 1. Measured through RunWithRuntime: exit code 1, stderr "". The
+            actor record persists, the child is hung up at process exit, and nothing mentions
+            --no-console. Fix: gate the console on term.IsTerminal for both fds and fall back to the
+            announced ExecRunner path; report the MakeRaw/Size errors instead of collapsing them to 1.
+          family: swallowed-seam-error
+          round: 5
+        - id: BR-24
+          severity: Important
+          title: the milestone's central wiring is unpinned -- disabling the console entirely leaves the whole suite green
+          detail: |-
+            3rd in this family on this issue. Do NOT fix these two instances -- the rule, extending round
+            2's, is that the mutation you must run is removal of the WIRING, not of a helper: every
+            behaviour a boundary claims, including its central one, needs a default-suite test that goes
+            red when that behaviour is deleted. Measured, both green under mutation: (a) forcing
+            consoleRunner to always return (nil, ExecRunner) -- couch start is no longer the console --
+            leaves ./cmd/internal/couchcmd and ./cmd/internal/couchtty ok, though run_test.go:34-40
+            claims the branch "is observable in the rendered output"; only the --no-console side asserts
+            anything. (b) deleting the path == "" -> "." default in ops.go:78-81, which is Decision 1's
+            "cd brain and couch start is what makes brain home", leaves the tree green.
+          family: fix-not-pinned-by-failing-test
+          round: 5
+        - id: BR-25
+          severity: Important
+          title: probes/zellijpark ships with no make target and no atlas entry, one round after that rule was written
+          detail: |-
+            3rd in this family. Do NOT just add a target for zellijpark. The rule was already stated in
+            round 2 -- a committed probe is a first-class artifact: a make target, an atlas/ entry, and
+            self-cleanup -- and the very next probe skipped two of three. make test-smoke
+            (Makefile.local:50-51) runs only termsmoke; atlas/index.md:17-21 names only termsmoke; and
+            zellijpark's output is quoted as the evidence that corrected workshop/projects/couch.md's
+            park-vs-kill claim. Class fix: make the target enumerate probes/ so a new probe cannot skip
+            it, and state the convention in the atlas entry rather than listing members.
+          family: probe-hygiene
+          round: 5
+        - id: BR-26
+          severity: Important
+          title: the plan's Decision 11 and three Core-concepts rows now contradict the code, with no Revisions entry
+          detail: |-
+            3rd in this family on this issue (4th counting pair#145 BR-41). Do NOT correct the rows. The
+            round-2 rule was "stop maintaining a second copy of a code shape in prose"; this round shows
+            it is owed by DECISIONS and TASK CONTRACTS too -- a plan statement asserting external
+            behaviour must be measured before it is written, and a boundary that reverses a Decision
+            writes the Revisions entry in the same window. Measured drift, none of it recorded: Decision
+            11 and Task 2.6a still say --layout2 is removed and that resume "refuses any third argv
+            element (launcher/args.go:104)", which is false and which the code plus couch_test.go:588
+            now pin the opposite of; StatusModel/RenderStatusRow are declared at couchtty/statusrow.go,
+            a file that does not exist (they are in reserve.go); couchcore.TerminalHandle is declared at
+            couchcore/runner.go but lives in ptyrunner.go, and Task 2.1 still specifies Terminal() as an
+            interface where the code deliberately returns *ptychild.Child. Task 1.3:199 and Task 2.5:296
+            still say MarginsDirty, flagged as a residual at M1 round 4 and since consumed.
+          family: plan-table-drift
+          round: 5
+        - id: BR-27
+          severity: Important
+          title: three members added this window have zero writers -- FakeRunner.Sink, FakeRunner.Emit, and StatusActor.Bell
+          detail: |-
+            2nd in this family. Do NOT delete just one. The rule: a fake's surface, and a model field,
+            must be exercised by the flow it exists for; a member added for symmetry with production and
+            set at zero call sites is decoration that reads as coverage. Measured: FakeRunner.Sink
+            (runner_fake.go:48) is never assigned anywhere in the tree -- production uses PtyRunner and
+            testRT.NewCouchWith discards the runner; FakeRunner.Emit (runner_fake.go:228) has no callers,
+            left over from the snapshot-content conformance design the file's own comment says was
+            abandoned; StatusActor.Bell is hardcoded false at console.go:207, so the "*" marker
+            reserve_test.go:58 pins can never appear in production.
+          family: dead-field-and-leaked-consumer
+          round: 5
+        - id: BR-28
+          severity: Important
+          title: Task 2.3's ctrl-space audit of claude and nvim was never recorded in the issue Log
+          detail: |-
+            The plan makes it a deliverable with an explicit clause -- check claude and nvim for a
+            ctrl-space binding, record the result in the issue Log, and if something rides on it say how
+            a literal ctrl-space reaches a child. The Log mentions "the ctrl-space audit" only
+            retrospectively at :750; its result appears nowhere. Not ceremony: in Vim, <C-Space> maps to
+            <C-@>, which in insert mode is i_CTRL-@, and couch now shadows the key in both encodings
+            with no documented escape hatch. An unrecorded audit is an unperformed audit.
+          family: undelivered-plan-step
+          round: 5
+        - id: BR-29
+          severity: Important
+          title: Deliver drops child output on a full buffer, justified by a repaint-from-ring that does not exist at this boundary
+          detail: |-
+            console.go:76-83's default case drops the chunk and the comment says "the ring still has it,
+            so the next repaint is correct". grep for Replay/Snapshot over couchtty's non-test files is
+            empty: M2 has no repaint-from-ring, so a dropped chunk is gone from the screen permanently,
+            and a chunk dropped mid-sequence leaves the host terminal corrupted with nothing to resync
+            it. Either block with a bounded wait, or latch a "this pane lost bytes" flag that forces a
+            full repaint once M3 lands the replay -- and correct the comment now, since it is a forward
+            reference presented as a present-tense guarantee.
+          family: unrecoverable-silent-drop
+          round: 5
+        - id: BR-30
+          severity: Important
+          title: the forced resume tag is the tree's basename, so two different trees resume one zellij session
+          detail: |-
+            couch.go:107 uses launcher.DefaultTag, which is NormalizeDisplayComponent(filepath.Base(path))
+            (tag.go:25-31). Any two trees sharing a basename -- a git worktree, a clone under a different
+            parent, foo.bar vs foo_bar which both normalise to foo_bar -- derive the same tag, so couch
+            start on the second attaches to the first's session while the registry records an actor
+            against the second tree. That breaks the correspondence between couch's one-agent-per-TREE
+            key and the session the operator lands in. TestSpawnDerivesTheTagFromTheTreeNotTheCwd pins
+            derivation; nothing pins uniqueness. Cheap mitigation until #149: suffix a short hash of the
+            full tree path.
+          family: derived-id-not-unique
+          round: 5
+        - id: BR-31
+          severity: Important
+          title: README still describes couch as a spawner, and atlas/architecture.md still describes Screen as reporting region-lost
+          detail: |-
+            README.md:260-265 says couch "registers agent sessions one-per-worktree and can spawn them";
+            couch start now owns the operator's terminal for its lifetime, intercepts ctrl-space,
+            reserves a row, and has a new --no-console flag -- user-facing surface a reader types.
+            atlas/architecture.md:458-460 still describes Screen as reporting "region-lost edges
+            (DECSTBM, RIS, or an alt-screen transition)", omitting the ERASE case that is the entire
+            discovery of this milestone, and does not mention MidSequence, new public surface on
+            ptychild.Child that the console's correctness depends on. atlas/couch.md itself is updated
+            well; these two are the same window's other doc sites.
+          family: docs-lag-the-surface
+          round: 5
+        - id: BR-32
+          severity: Minor
+          title: ChildRows(0) returns 0 while its doc says "It never returns zero", and no test covers the boundary case
+          detail: |-
+            2nd in this family. reserve.go:21-26 returns hostRows for hostRows <= 1, so ChildRows(0) is
+            0; reserve_test.go:31 tests only ChildRows(1). The rule: an invariant asserted in a doc
+            comment needs a test at its boundary case, or the comment is the lie. Reachable in
+            production via the non-tty path (see the swallowed-seam-error finding), where it produces a
+            zero-row pty.
+          family: uncovered-negative-assertion
+          round: 5
+        - id: BR-33
+          severity: Minor
+          title: Console.Run never calls Stop() or host.Close(), so the resize watcher and the SIGWINCH registration outlive the console
+          detail: |-
+            2nd in this family. console.go:102-130 defers restore() and release() but nothing stops the
+            console's own goroutines or closes the host. The rule from M1's BR-2 applies unchanged:
+            teardown is explicit and ordered, not emergent -- here from process exit rather than from
+            defer LIFO. Latent while there is one console per process; ptyrunner.go:88's own comment
+            anticipates #147 putting more than one in.
+          family: signal-goroutine-outlives-close
+          round: 5
+        - id: BR-34
+          severity: Minor
+          title: several comments overstate or misplace what the code does
+          detail: |-
+            2nd in this family; low value individually, listed together. screen.go's case 'J' says "ED,
+            every form" but \x1b[?2J (DECSED) returns early at the private-introducer branch;
+            Screen.Pending's doc says "Exported for the tests that pin the bound" and now has a
+            production consumer; ops.go:65 says the path default is applied "at the CLI" when it is
+            applied in couchcore's Invoke; atlas/couch.md:32 reads "hands the child its own stdio and
+            block".
+          family: stale-comment-reference
+          round: 5
+        - id: BR-35
+          severity: Minor
+          title: the live conformance scenario and Run's exit select are both racy by construction
+          detail: |-
+            conformance_live_test.go:245-249 reads doneBeforeExit AFTER the write that makes the child
+            exit and then Fatalfs if it is true. console.go's select between c.chunks and exited is a
+            coin flip on exit, so the child's final output is likely dropped before release() clears the
+            row. Also test-side: vtscreen_test.go redefines min, shadowing the builtin, and
+            waitFor/waitLong/waitUntilTrue are three near-identical polling helpers across two packages.
+          family: test-harness-races
+          round: 5
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — pair#146 (boundary-review)
@@ -590,6 +807,147 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   3.3's contract spells the same expression out again for couch's attach path, which would
   make it two divergent repaint policies rather than one.
 
+## Round 5 — 2026-08-23T08:39:37-07:00 (claude) — BLOCKED
+
+### Raised
+
+- **BR-21** [Critical] `guard-reads-wrong-stream-position` MidSequence() describes the newest chunk READ, not the chunk WRITTEN, so the row paint still splices into the child's escape sequences
+  ptychild's pump feeds Screen before calling the sink (child.go:113-120) and the console
+  drains a 256-deep channel later, so when console.go:182 asks MidSequence() about the chunk
+  it just wrote, the answer describes a later chunk. Reproduced in a scratch copy by holding
+  the console inside host.Write while the child completes the sequence -- emitted stream was
+  "\x1b[2J\x1b[38;2;76" + "\x1b[1;23r\x1b7\x1b[24;1H\x1b[2K[brain]\x1b8" + ";82;88mCOLOURED",
+  byte-for-byte the nvim corruption this commit claims to fix. console_test.go:191-196
+  describes this exact ordering and concludes the bug "does not reproduce"; the shipped test
+  avoids the window rather than covering it. Second mode, measured: Screen.Pending() is
+  len(pending), which is 0 while skipping != skipNone, so MidSequence() returns false in the
+  middle of an over-64KiB OSC 52 -- the everyday clipboard case this repo already documents.
+  Fix: compute pending-ness over the bytes the console has EMITTED (a per-pane ptychild.Screen
+  fed as chunks are written, which is what console_live_test.go's splicedPaint already does),
+  fold in the skipping state, and serialise host writes -- onChunk, watchResize and onHotkey
+  all write to c.host today with no ordering between them.
+- **BR-22** [Critical] `prefix-parks-a-complete-key` a lone ESC keystroke is held indefinitely by the Interceptor and then delivered glued to the next key as a meta prefix
+  sequenceAt (keys.go:127-141) classifies a bare 0x1b as seqPartial because it is a real prefix
+  of "\x1b[200~", so Feed holds it (keys.go:93) and returns nothing. Measured: Feed("\x1b") ->
+  before=""; the following Feed("i") -> before="\x1bi", which a child reads as Alt+i. Driven
+  end to end through the console, an ESC keystroke never reaches the child at all, and held
+  bytes are never flushed at teardown. ESC is interrupt in Claude Code and mode-switch in nvim
+  -- the Spec cites both. Caveat stated honestly: once zellij's Kitty protocol is up the
+  terminal likely sends "\x1b[27u", which falls through as seqNone and is forwarded, which is
+  plausibly why the smoke did not see it; the legacy encoding still governs before the child
+  enables KKP (pair's config picker), after it disables it, and for M3's panel. Fix: hold only
+  from two bytes on, or flush a held run when a read ends without extending the match, and add
+  the negative test -- FuzzInterceptorFeed bounds output length only, so it cannot find this.
+  workbenchshortcut.FindChord, the shape this copies, holds nothing.
+- **BR-23** [Critical] `swallowed-seam-error` couch start off a tty spawns and registers the child, gives it a 0-row pty, then exits 1 with no output
+  consoleRunner (run.go:157-170) type-asserts stdin/stdout to *os.File and never asks whether
+  they are terminals, while dimCodes at run.go:305 in the same file already uses
+  term.IsTerminal. With stdin a pipe -- any script, cron, or agent shell, including #148's
+  advisor -- host.Size() fails so Console keeps size{0,0}, ChildSize() returns 0x0 and the
+  child is started on a zero-row pty; then MakeRaw() fails and console.go:103-106 discards the
+  wrapped error and returns 1. Measured through RunWithRuntime: exit code 1, stderr "". The
+  actor record persists, the child is hung up at process exit, and nothing mentions
+  --no-console. Fix: gate the console on term.IsTerminal for both fds and fall back to the
+  announced ExecRunner path; report the MakeRaw/Size errors instead of collapsing them to 1.
+- **BR-24** [Important] `fix-not-pinned-by-failing-test` the milestone's central wiring is unpinned -- disabling the console entirely leaves the whole suite green
+  3rd in this family on this issue. Do NOT fix these two instances -- the rule, extending round
+  2's, is that the mutation you must run is removal of the WIRING, not of a helper: every
+  behaviour a boundary claims, including its central one, needs a default-suite test that goes
+  red when that behaviour is deleted. Measured, both green under mutation: (a) forcing
+  consoleRunner to always return (nil, ExecRunner) -- couch start is no longer the console --
+  leaves ./cmd/internal/couchcmd and ./cmd/internal/couchtty ok, though run_test.go:34-40
+  claims the branch "is observable in the rendered output"; only the --no-console side asserts
+  anything. (b) deleting the path == "" -> "." default in ops.go:78-81, which is Decision 1's
+  "cd brain and couch start is what makes brain home", leaves the tree green.
+- **BR-25** [Important] `probe-hygiene` probes/zellijpark ships with no make target and no atlas entry, one round after that rule was written
+  3rd in this family. Do NOT just add a target for zellijpark. The rule was already stated in
+  round 2 -- a committed probe is a first-class artifact: a make target, an atlas/ entry, and
+  self-cleanup -- and the very next probe skipped two of three. make test-smoke
+  (Makefile.local:50-51) runs only termsmoke; atlas/index.md:17-21 names only termsmoke; and
+  zellijpark's output is quoted as the evidence that corrected workshop/projects/couch.md's
+  park-vs-kill claim. Class fix: make the target enumerate probes/ so a new probe cannot skip
+  it, and state the convention in the atlas entry rather than listing members.
+- **BR-26** [Important] `plan-table-drift` the plan's Decision 11 and three Core-concepts rows now contradict the code, with no Revisions entry
+  3rd in this family on this issue (4th counting pair#145 BR-41). Do NOT correct the rows. The
+  round-2 rule was "stop maintaining a second copy of a code shape in prose"; this round shows
+  it is owed by DECISIONS and TASK CONTRACTS too -- a plan statement asserting external
+  behaviour must be measured before it is written, and a boundary that reverses a Decision
+  writes the Revisions entry in the same window. Measured drift, none of it recorded: Decision
+  11 and Task 2.6a still say --layout2 is removed and that resume "refuses any third argv
+  element (launcher/args.go:104)", which is false and which the code plus couch_test.go:588
+  now pin the opposite of; StatusModel/RenderStatusRow are declared at couchtty/statusrow.go,
+  a file that does not exist (they are in reserve.go); couchcore.TerminalHandle is declared at
+  couchcore/runner.go but lives in ptyrunner.go, and Task 2.1 still specifies Terminal() as an
+  interface where the code deliberately returns *ptychild.Child. Task 1.3:199 and Task 2.5:296
+  still say MarginsDirty, flagged as a residual at M1 round 4 and since consumed.
+- **BR-27** [Important] `dead-field-and-leaked-consumer` three members added this window have zero writers -- FakeRunner.Sink, FakeRunner.Emit, and StatusActor.Bell
+  2nd in this family. Do NOT delete just one. The rule: a fake's surface, and a model field,
+  must be exercised by the flow it exists for; a member added for symmetry with production and
+  set at zero call sites is decoration that reads as coverage. Measured: FakeRunner.Sink
+  (runner_fake.go:48) is never assigned anywhere in the tree -- production uses PtyRunner and
+  testRT.NewCouchWith discards the runner; FakeRunner.Emit (runner_fake.go:228) has no callers,
+  left over from the snapshot-content conformance design the file's own comment says was
+  abandoned; StatusActor.Bell is hardcoded false at console.go:207, so the "*" marker
+  reserve_test.go:58 pins can never appear in production.
+- **BR-28** [Important] `undelivered-plan-step` Task 2.3's ctrl-space audit of claude and nvim was never recorded in the issue Log
+  The plan makes it a deliverable with an explicit clause -- check claude and nvim for a
+  ctrl-space binding, record the result in the issue Log, and if something rides on it say how
+  a literal ctrl-space reaches a child. The Log mentions "the ctrl-space audit" only
+  retrospectively at :750; its result appears nowhere. Not ceremony: in Vim, <C-Space> maps to
+  <C-@>, which in insert mode is i_CTRL-@, and couch now shadows the key in both encodings
+  with no documented escape hatch. An unrecorded audit is an unperformed audit.
+- **BR-29** [Important] `unrecoverable-silent-drop` Deliver drops child output on a full buffer, justified by a repaint-from-ring that does not exist at this boundary
+  console.go:76-83's default case drops the chunk and the comment says "the ring still has it,
+  so the next repaint is correct". grep for Replay/Snapshot over couchtty's non-test files is
+  empty: M2 has no repaint-from-ring, so a dropped chunk is gone from the screen permanently,
+  and a chunk dropped mid-sequence leaves the host terminal corrupted with nothing to resync
+  it. Either block with a bounded wait, or latch a "this pane lost bytes" flag that forces a
+  full repaint once M3 lands the replay -- and correct the comment now, since it is a forward
+  reference presented as a present-tense guarantee.
+- **BR-30** [Important] `derived-id-not-unique` the forced resume tag is the tree's basename, so two different trees resume one zellij session
+  couch.go:107 uses launcher.DefaultTag, which is NormalizeDisplayComponent(filepath.Base(path))
+  (tag.go:25-31). Any two trees sharing a basename -- a git worktree, a clone under a different
+  parent, foo.bar vs foo_bar which both normalise to foo_bar -- derive the same tag, so couch
+  start on the second attaches to the first's session while the registry records an actor
+  against the second tree. That breaks the correspondence between couch's one-agent-per-TREE
+  key and the session the operator lands in. TestSpawnDerivesTheTagFromTheTreeNotTheCwd pins
+  derivation; nothing pins uniqueness. Cheap mitigation until #149: suffix a short hash of the
+  full tree path.
+- **BR-31** [Important] `docs-lag-the-surface` README still describes couch as a spawner, and atlas/architecture.md still describes Screen as reporting region-lost
+  README.md:260-265 says couch "registers agent sessions one-per-worktree and can spawn them";
+  couch start now owns the operator's terminal for its lifetime, intercepts ctrl-space,
+  reserves a row, and has a new --no-console flag -- user-facing surface a reader types.
+  atlas/architecture.md:458-460 still describes Screen as reporting "region-lost edges
+  (DECSTBM, RIS, or an alt-screen transition)", omitting the ERASE case that is the entire
+  discovery of this milestone, and does not mention MidSequence, new public surface on
+  ptychild.Child that the console's correctness depends on. atlas/couch.md itself is updated
+  well; these two are the same window's other doc sites.
+- **BR-32** [Minor] `uncovered-negative-assertion` ChildRows(0) returns 0 while its doc says "It never returns zero", and no test covers the boundary case
+  2nd in this family. reserve.go:21-26 returns hostRows for hostRows <= 1, so ChildRows(0) is
+  0; reserve_test.go:31 tests only ChildRows(1). The rule: an invariant asserted in a doc
+  comment needs a test at its boundary case, or the comment is the lie. Reachable in
+  production via the non-tty path (see the swallowed-seam-error finding), where it produces a
+  zero-row pty.
+- **BR-33** [Minor] `signal-goroutine-outlives-close` Console.Run never calls Stop() or host.Close(), so the resize watcher and the SIGWINCH registration outlive the console
+  2nd in this family. console.go:102-130 defers restore() and release() but nothing stops the
+  console's own goroutines or closes the host. The rule from M1's BR-2 applies unchanged:
+  teardown is explicit and ordered, not emergent -- here from process exit rather than from
+  defer LIFO. Latent while there is one console per process; ptyrunner.go:88's own comment
+  anticipates #147 putting more than one in.
+- **BR-34** [Minor] `stale-comment-reference` several comments overstate or misplace what the code does
+  2nd in this family; low value individually, listed together. screen.go's case 'J' says "ED,
+  every form" but \x1b[?2J (DECSED) returns early at the private-introducer branch;
+  Screen.Pending's doc says "Exported for the tests that pin the bound" and now has a
+  production consumer; ops.go:65 says the path default is applied "at the CLI" when it is
+  applied in couchcore's Invoke; atlas/couch.md:32 reads "hands the child its own stdio and
+  block".
+- **BR-35** [Minor] `test-harness-races` the live conformance scenario and Run's exit select are both racy by construction
+  conformance_live_test.go:245-249 reads doneBeforeExit AFTER the write that makes the child
+  exit and then Fatalfs if it is true. console.go's select between c.chunks and exited is a
+  coin flip on exit, so the child's final output is likely dropped before release() clears the
+  row. Also test-side: vtscreen_test.go redefines min, shadowing the builtin, and
+  waitFor/waitLong/waitUntilTrue are three near-identical polling helpers across two packages.
+
 ## Open findings
 
 - **BR-1** [Important] `chunking-invariance` Screen raises a false bell for any sequence longer than maxPending split across two reads
@@ -598,3 +956,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-9** [Minor] `replay-duplicates-live-output` newTab widens the window where a chunk is both replayed and written live
 - **BR-19** [Minor] `framing-omits-sequence-class` frame treats DCS/APC/PM/SOS as two-byte escapes, so their payloads are scanned as plain text and a BEL inside one falsely rings
 - **BR-20** [Minor] `needless-indirection` Child.Replay has zero production callers while the one repaint site reimplements it
+- **BR-21** [Critical] `guard-reads-wrong-stream-position` MidSequence() describes the newest chunk READ, not the chunk WRITTEN, so the row paint still splices into the child's escape sequences
+- **BR-22** [Critical] `prefix-parks-a-complete-key` a lone ESC keystroke is held indefinitely by the Interceptor and then delivered glued to the next key as a meta prefix
+- **BR-23** [Critical] `swallowed-seam-error` couch start off a tty spawns and registers the child, gives it a 0-row pty, then exits 1 with no output
+- **BR-24** [Important] `fix-not-pinned-by-failing-test` the milestone's central wiring is unpinned -- disabling the console entirely leaves the whole suite green
+- **BR-25** [Important] `probe-hygiene` probes/zellijpark ships with no make target and no atlas entry, one round after that rule was written
+- **BR-26** [Important] `plan-table-drift` the plan's Decision 11 and three Core-concepts rows now contradict the code, with no Revisions entry
+- **BR-27** [Important] `dead-field-and-leaked-consumer` three members added this window have zero writers -- FakeRunner.Sink, FakeRunner.Emit, and StatusActor.Bell
+- **BR-28** [Important] `undelivered-plan-step` Task 2.3's ctrl-space audit of claude and nvim was never recorded in the issue Log
+- **BR-29** [Important] `unrecoverable-silent-drop` Deliver drops child output on a full buffer, justified by a repaint-from-ring that does not exist at this boundary
+- **BR-30** [Important] `derived-id-not-unique` the forced resume tag is the tree's basename, so two different trees resume one zellij session
+- **BR-31** [Important] `docs-lag-the-surface` README still describes couch as a spawner, and atlas/architecture.md still describes Screen as reporting region-lost
+- **BR-32** [Minor] `uncovered-negative-assertion` ChildRows(0) returns 0 while its doc says "It never returns zero", and no test covers the boundary case
+- **BR-33** [Minor] `signal-goroutine-outlives-close` Console.Run never calls Stop() or host.Close(), so the resize watcher and the SIGWINCH registration outlive the console
+- **BR-34** [Minor] `stale-comment-reference` several comments overstate or misplace what the code does
+- **BR-35** [Minor] `test-harness-races` the live conformance scenario and Run's exit select are both racy by construction

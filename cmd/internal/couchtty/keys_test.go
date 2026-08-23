@@ -220,3 +220,58 @@ func TestInterceptorIgnoresTheKittyHotkeyInsideAPaste(t *testing.T) {
 		t.Fatalf("the pasted sequence did not reach the child: %q", before)
 	}
 }
+
+// A lone ESC keystroke must reach the child IMMEDIATELY.
+//
+// ESC is a prefix of both paste markers and of the CSI-u hotkey, so a naive
+// "hold every real prefix" rule buffers it until the operator's NEXT keystroke
+// -- and then delivers the two glued together, which a terminal reads as
+// Alt+<key>. In practice that means ESC does nothing in nvim or claude until
+// you press something else, and then does the wrong thing (M2 BR-22).
+//
+// The discriminator is that a keystroke arrives as its own read. A split escape
+// sequence has bytes BEFORE the ESC in the same chunk; a pressed ESC does not.
+func TestInterceptorDoesNotHoldALoneEscKeystroke(t *testing.T) {
+	var it Interceptor
+	before, hit, _ := it.Feed([]byte("\x1b"))
+	if hit {
+		t.Fatal("a lone ESC fired the hotkey")
+	}
+	if string(before) != "\x1b" {
+		t.Fatalf("a lone ESC was held instead of forwarded: before=%q", before)
+	}
+
+	// And the following keystroke must arrive on its own, not glued to the ESC.
+	before, _, _ = it.Feed([]byte("i"))
+	if string(before) != "i" {
+		t.Fatalf("the next keystroke was glued to the held ESC: %q", before)
+	}
+}
+
+// ESC pressed twice in a row -- interrupt in claude, and a normal-mode escape
+// hatch in nvim -- must deliver two ESCs.
+func TestInterceptorForwardsRepeatedEscKeystrokes(t *testing.T) {
+	var it Interceptor
+	for i := 0; i < 3; i++ {
+		before, _, _ := it.Feed([]byte("\x1b"))
+		if string(before) != "\x1b" {
+			t.Fatalf("ESC %d was not forwarded: %q", i+1, before)
+		}
+	}
+}
+
+// The other half: a genuine sequence split across reads is still recognised,
+// because its ESC arrives with earlier bytes in the same chunk.
+func TestInterceptorStillHoldsASplitSequenceAfterOtherBytes(t *testing.T) {
+	var it Interceptor
+	before, hit, _ := it.Feed([]byte("abc\x1b[32;"))
+	if hit {
+		t.Fatal("a partial hotkey fired early")
+	}
+	if string(before) != "abc" {
+		t.Fatalf("before = %q, want the bytes ahead of the partial", before)
+	}
+	if _, hit, _ := it.Feed([]byte("5u")); !hit {
+		t.Fatal("the split hotkey was not recognised once completed")
+	}
+}
