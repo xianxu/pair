@@ -3,6 +3,7 @@ package couchcore
 import (
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -74,10 +75,16 @@ func TestPtyRunnerHonoursItsSizeSupplierAtSpawn(t *testing.T) {
 // writes before the console attaches would otherwise lose those chunks from the
 // live path.
 func TestPtyRunnerInstallsTheSinkBeforeTheChildCanWrite(t *testing.T) {
+	var mu sync.Mutex
 	var got []string
 	r := &PtyRunner{
 		Size: func() ptychild.Size { return ptychild.Size{Rows: 24, Cols: 80} },
-		Sink: func(id string, chunk []byte) { got = append(got, id) },
+		Sink: func(id string, chunk []byte) {
+			// The sink runs on the child's pump goroutine.
+			mu.Lock()
+			defer mu.Unlock()
+			got = append(got, id)
+		},
 	}
 	h, err := r.Start(t.TempDir(), []string{"sh", "-c", "printf hello; sleep 5"}, nil)
 	if err != nil {
@@ -85,9 +92,16 @@ func TestPtyRunnerInstallsTheSinkBeforeTheChildCanWrite(t *testing.T) {
 	}
 	defer func() { _ = h.Signal(os.Kill) }()
 
-	waitUntilTrue(t, "the sink to see a chunk", func() bool { return len(got) > 0 })
-	if got[0] != h.ID() {
-		t.Fatalf("sink received id %q, want the handle's id %q", got[0], h.ID())
+	waitUntilTrue(t, "the sink to see a chunk", func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(got) > 0
+	})
+	mu.Lock()
+	first := got[0]
+	mu.Unlock()
+	if first != h.ID() {
+		t.Fatalf("sink received id %q, want the handle's id %q", first, h.ID())
 	}
 }
 

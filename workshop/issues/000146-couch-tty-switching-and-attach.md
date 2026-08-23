@@ -639,3 +639,16 @@ child, one notion of exited, now pinned by two tests.
 `Spawn` forces `pair resume <tag>` (Decision 11), with the tag from the tree so
 re-entry is deterministic. The pre-existing argv assertion was updated: that is
 a deliberate behaviour change, not a test bending to code.
+
+**A production data race, found by the whole-tree `-race` run** (the target that
+had no runnable directory until M1's boundary review): `ptyHandle.ID()` returned
+`strconv.Itoa(h.pid)`, and the pump can call the sink -- which tags each chunk
+with `ID()` -- before `ptychild.Start` has even returned and `h.pid` is
+assigned. Not merely a detector complaint: in production the first chunks of
+every session would have been tagged with a zero id. The id is now minted before
+the child exists and never derived from the pid. `ExecRunner` can use the pid
+because nothing reads ITS id from another goroutine; this one is read from the
+pump.
+
+Worth noting how it surfaced: it was already committed and every non-race run
+was green. `make test-race` earning a runnable target in M1 is what caught it.

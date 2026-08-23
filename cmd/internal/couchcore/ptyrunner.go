@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"sync/atomic"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
@@ -52,9 +53,16 @@ func (r *PtyRunner) Start(dir string, argv, env []string) (Handle, error) {
 		size = r.Size()
 	}
 
-	// The id has to exist before the child does, because the sink is tagged
-	// with it and the child can write before Start returns.
-	h := &ptyHandle{}
+	// The id is minted BEFORE the child exists and is never derived from the
+	// pid.
+	//
+	// The pump can call the sink before ptychild.Start has even returned, so a
+	// handle whose ID() reads a field Start assigns afterwards is a genuine
+	// data race -- caught by -race, and in production it would have tagged the
+	// first chunks of every session with a zero id. ExecRunner can use the pid
+	// because nothing reads ITS id from another goroutine; this one is read
+	// from the pump.
+	h := &ptyHandle{id: fmt.Sprintf("couch-pty-%d", ptySeq.Add(1))}
 	child, err := ptychild.Start(ptychild.Options{
 		Dir:  dir,
 		Argv: argv,
@@ -75,7 +83,12 @@ func (r *PtyRunner) Start(dir string, argv, env []string) (Handle, error) {
 	return h, nil
 }
 
+// ptySeq numbers pty handles. Package-level so ids stay unique across runners,
+// which matters once #147 puts more than one console in a process.
+var ptySeq atomic.Uint64
+
 type ptyHandle struct {
+	id       string
 	child    *ptychild.Child
 	pid      int
 	identity string
@@ -83,7 +96,7 @@ type ptyHandle struct {
 
 var _ TerminalHandle = (*ptyHandle)(nil)
 
-func (h *ptyHandle) ID() string                 { return strconv.Itoa(h.pid) }
+func (h *ptyHandle) ID() string                 { return h.id }
 func (h *ptyHandle) PID() int                   { return h.pid }
 func (h *ptyHandle) Identity() string           { return h.identity }
 func (h *ptyHandle) Terminal() *ptychild.Child  { return h.child }
