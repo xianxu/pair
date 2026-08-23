@@ -262,6 +262,65 @@ rounds:
           round: 2
       boundary: M1
       blocked: true
+    - "n": 3
+      timestamp: "2026-08-22T19:08:56-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: Resync is genuinely pinned but insufficient - 3 of 10 measured shapes still diverge, and the 4096-byte production path now DROPS a real BEL where whole-feed rings it.
+          round: 3
+        - id: BR-6
+          disposition: not-addressed
+          note: waitCode still byte-identical at couchcore/runner.go:90 and ptychild/child.go:130; asExitError still a one-line wrapper in both packages.
+          round: 3
+        - id: BR-7
+          disposition: not-addressed
+          note: All four remain (run.go:1062, run.go:1069, replay.go:37, Makefile.local:73-77); bufferSnapshotLocked's stated m.mu contract is now false as well as stale.
+          round: 3
+        - id: BR-8
+          disposition: not-addressed
+          note: fake.go:65 still writes c.sink unlocked with no `if c.fake == nil` guard.
+          round: 3
+        - id: BR-9
+          disposition: not-addressed
+          note: newTab still snapshots at run.go:723 after ptychild.Start has launched the pump.
+          round: 3
+        - id: BR-15
+          disposition: addressed
+          note: Verified - hostty runs 8 of 9 tests in this sandboxed shell with zero skips (the 9th fails loudly), and swapping teardown's two statements reddens TestTeardownStopsTheWatcherBeforeClosingChildren from the default suite.
+          round: 3
+        - id: BR-16
+          disposition: addressed
+          note: make test-smoke exists, atlas/index.md carries an entry stating what earns a place in probes/, and cleanup runs before os.Exit(1).
+          round: 3
+        - id: BR-17
+          disposition: addressed
+          note: The Core-concepts row now describes what Screen answers and points at screen.go instead of restating field names; residual copies in Task 1.3 and the Child bullet noted as a plan recommendation, not re-raised.
+          round: 3
+      findings:
+        - id: BR-18
+          severity: Important
+          title: FakeHost panics on a post-Close SetSize where OSHost is inert, and both conformance tests stop at the terminal transition
+          detail: |-
+            2nd in this family. Do NOT just guard SetSize -- the rule is that every lifecycle
+            transition a fake exposes must match the real implementation's, and the conformance
+            test must drive BOTH past the terminal state rather than up to it. BR-3's class fix
+            (TestFakeChildConformsToRealChildLifecycle) had the right shape and stopped one step
+            short; TestCloseReleasesResizedConsumers stops at Close too. Measured at HEAD:
+            FakeHost.Close closes h.resized under h.mu while SetSize sends outside the lock and
+            never consults h.closed, so a post-Close SetSize panics with "send on closed channel"
+            while OSHost absorbs a 20-signal SIGWINCH burst inertly. Enumeration this implies -
+            Host post-Close is {resize, Write, Size, MakeRaw}, 1 of 4 diverges fatally; Child
+            post-Close is {Write, Resize, Signal}, 3 of 3 diverge (fake returns n=1/nil, nil, nil;
+            a real child returns "file already closed", an ioctl error, "process already
+            finished"). 4 of 7 post-terminal-state stimuli diverge, 1 fatally. FakeHost is the
+            double M2's console tests are built on, so a panic there crashes a run instead of
+            failing it.
+          family: fake-diverges-from-production
+          round: 3
+      boundary: M1
+      blocked: true
 ---
 
 # Gate ledger — pair#146 (boundary-review)
@@ -401,6 +460,37 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   correctly does for the operation set) or append the ## Revisions entry in the same
   commit that changes the shape. Plan line 99 vs screen.go:39-42, 52-68.
 
+## Round 3 — 2026-08-22T19:08:56-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — Resync is genuinely pinned but insufficient - 3 of 10 measured shapes still diverge, and the 4096-byte production path now DROPS a real BEL where whole-feed rings it.
+- BR-6 — not-addressed — waitCode still byte-identical at couchcore/runner.go:90 and ptychild/child.go:130; asExitError still a one-line wrapper in both packages.
+- BR-7 — not-addressed — All four remain (run.go:1062, run.go:1069, replay.go:37, Makefile.local:73-77); bufferSnapshotLocked's stated m.mu contract is now false as well as stale.
+- BR-8 — not-addressed — fake.go:65 still writes c.sink unlocked with no `if c.fake == nil` guard.
+- BR-9 — not-addressed — newTab still snapshots at run.go:723 after ptychild.Start has launched the pump.
+- BR-15 — addressed — Verified - hostty runs 8 of 9 tests in this sandboxed shell with zero skips (the 9th fails loudly), and swapping teardown's two statements reddens TestTeardownStopsTheWatcherBeforeClosingChildren from the default suite.
+- BR-16 — addressed — make test-smoke exists, atlas/index.md carries an entry stating what earns a place in probes/, and cleanup runs before os.Exit(1).
+- BR-17 — addressed — The Core-concepts row now describes what Screen answers and points at screen.go instead of restating field names; residual copies in Task 1.3 and the Child bullet noted as a plan recommendation, not re-raised.
+
+### Raised
+
+- **BR-18** [Important] `fake-diverges-from-production` FakeHost panics on a post-Close SetSize where OSHost is inert, and both conformance tests stop at the terminal transition
+  2nd in this family. Do NOT just guard SetSize -- the rule is that every lifecycle
+  transition a fake exposes must match the real implementation's, and the conformance
+  test must drive BOTH past the terminal state rather than up to it. BR-3's class fix
+  (TestFakeChildConformsToRealChildLifecycle) had the right shape and stopped one step
+  short; TestCloseReleasesResizedConsumers stops at Close too. Measured at HEAD:
+  FakeHost.Close closes h.resized under h.mu while SetSize sends outside the lock and
+  never consults h.closed, so a post-Close SetSize panics with "send on closed channel"
+  while OSHost absorbs a 20-signal SIGWINCH burst inertly. Enumeration this implies -
+  Host post-Close is {resize, Write, Size, MakeRaw}, 1 of 4 diverges fatally; Child
+  post-Close is {Write, Resize, Signal}, 3 of 3 diverge (fake returns n=1/nil, nil, nil;
+  a real child returns "file already closed", an ioctl error, "process already
+  finished"). 4 of 7 post-terminal-state stimuli diverge, 1 fatally. FakeHost is the
+  double M2's console tests are built on, so a panic there crashes a run instead of
+  failing it.
+
 ## Open findings
 
 - **BR-1** [Important] `chunking-invariance` Screen raises a false bell for any sequence longer than maxPending split across two reads
@@ -408,6 +498,4 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-7** [Minor] `stale-comment-reference` comments still cite queries.go, appendBuffer, tab.buffer and readPTY, all deleted by this diff
 - **BR-8** [Minor] `unsynchronised-shared-state` Child.SetSink writes c.sink unlocked with no fake-only guard while the pump reads it
 - **BR-9** [Minor] `replay-duplicates-live-output` newTab widens the window where a chunk is both replayed and written live
-- **BR-15** [Important] `fix-not-pinned-by-failing-test` the pins for three of this round's fixes skip themselves in the environment the issue documents as its agent shell
-- **BR-16** [Important] `probe-hygiene` probes/ is new top-level surface with no make target and no atlas entry
-- **BR-17** [Minor] `plan-table-drift` the plan's Screen description declares MarginsDirty and Bell; the code has regionLost and bell behind Take* readers
+- **BR-18** [Important] `fake-diverges-from-production` FakeHost panics on a post-Close SetSize where OSHost is inert, and both conformance tests stop at the terminal transition

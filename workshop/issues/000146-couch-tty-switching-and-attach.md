@@ -506,3 +506,46 @@ test red; swapping `teardown`'s two statements turns the ordering test red.
 
 **Verified:** `go test ./cmd/...` green with zero skips in `hostty`; `make
 test-race` (whole tree) green; `make test-smoke` 8/8.
+
+### 2026-08-22 -- M1 boundary review round 3: BR-1's third shape, and a bug the round-2 fix introduced
+
+- **BR-1, third attempt, and the previous two are worth keeping on the record
+  because each was a smaller instance of the same mistake.** Raising the bound
+  (round 1) fixed the everyday case. Discarding to the next ESC (round 2)
+  restored invariance for UNTERMINATED runs -- and broke it for terminated ones:
+  a 70 KiB OSC fed whole frames fine because its terminator is in the buffer,
+  while the same bytes in 4096-byte chunks blew the bound, were abandoned, and
+  **dropped a real BEL that followed**. The reviewer measured it as "the
+  4096-byte production path now DROPS a real bell where whole-feed rings it",
+  which is a *worse* failure than the one being fixed -- a missed page rather
+  than a false one.
+  The bound was never the rule. The rule is **stop BUFFERING, keep FRAMING**:
+  past `maxPending` the scanner switches to a streaming skip that consumes to the
+  sequence's real terminator without holding it. Memory stays O(1) and the stream
+  stays in sync at every length. Deletion check reproduces the reviewer's exact
+  measurement (`whole=true split=false`).
+  One expectation was corrected rather than satisfied: the old bounded-pending
+  test demanded that a sequence AFTER an unterminated CSI still be recognised.
+  Whole-feed does not do that either -- `\x1b[` is a final byte to `ansi`'s
+  introducer-independent scan -- so the test now asserts **equivalence**, which
+  is the invariant, instead of a recovery the framing never promised.
+- **BR-18 `fake-diverges-from-production`, and I introduced it in round 2.**
+  `FakeHost.Close` closed `resized` under the lock while `SetSize` sent outside
+  it and never consulted `closed`, so a post-Close `SetSize` **panicked** --
+  in the double M2's console tests are built on, which crashes a run instead of
+  failing it. The enumeration the finding demanded: post-terminal-state, `Host`
+  is {resize, Write, Size, MakeRaw} and `Child` is {Write, Resize, Signal}; 4 of
+  those 7 diverged, 1 fatally. All now agree, and the class fix is that BOTH
+  conformance tests drive past the terminal transition rather than stopping at
+  it -- which is exactly where a fake diverges most easily and where round 2's
+  otherwise well-shaped conformance test stopped.
+- **BR-6 `needless-indirection`, carried two rounds, now consolidated.**
+  `waitCode` was byte-identical in `couchcore` and `ptychild`, plus a one-line
+  `errors.As` wrapper in each: three packages holding one decision about what a
+  child's exit code means. Now `procutil.WaitCode`, with both copies and both
+  wrappers deleted.
+
+**Verified:** `go test ./cmd/...` green; `make test-race` (whole tree) green;
+`make test-smoke` 8/8. Every deletion check this round confirmed mutate +
+compile + traverse, and two reproduced the reviewer's own measurements before
+being fixed.

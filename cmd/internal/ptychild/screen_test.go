@@ -186,28 +186,68 @@ func TestScreenConsumesMalformedCompleteControls(t *testing.T) {
 
 // A stream of param bytes with no final byte is not a "prefix" worth holding
 // forever -- that is an unbounded buffer fed by arbitrary child output. Past
-// the guard the run is DISCARDED rather than rescanned as text, which is what
-// keeps the bell latch chunk-invariant (BR-1).
-func TestScreenPendingIsBounded(t *testing.T) {
-	s := &Screen{}
+// the guard the scanner stops BUFFERING but keeps FRAMING, so memory is bounded
+// and the stream stays in sync.
+//
+// The assertion is EQUIVALENCE, not recovery. An unterminated CSI swallows what
+// follows in whole-feed too -- `\x1b[` is a final byte to `ansi`'s
+// introducer-independent scan -- so demanding recovery here would demand
+// behaviour the framing does not have. What must hold is that chunking cannot
+// change the answer.
+func TestScreenPendingIsBoundedAndChunkingCannotChangeTheAnswer(t *testing.T) {
 	junk := make([]byte, 0, maxPending+4096)
 	junk = append(junk, 0x1b, '[')
 	for i := 0; i < maxPending+2000; i++ {
 		junk = append(junk, ';')
 	}
-	s.Feed(junk)
-	if n := s.Pending(); n > maxPending {
-		t.Fatalf("Pending() = %d, want <= %d", n, maxPending)
+	data := string(junk) + "\x1b[?1049h"
+
+	whole := &Screen{}
+	whole.Feed([]byte(data))
+
+	split := &Screen{}
+	for i := 0; i < len(data); i += 4096 {
+		end := i + 4096
+		if end > len(data) {
+			end = len(data)
+		}
+		split.Feed([]byte(data[i:end]))
 	}
-	// A BEL inside an abandoned run is that sequence's terminator, not the
-	// child ringing, so discarding must not latch one.
-	if s.TakeBell() {
-		t.Fatal("discarding an over-long run raised a bell")
+
+	if whole.Pending() > maxPending || split.Pending() > maxPending {
+		t.Fatalf("pending exceeded the bound: whole=%d split=%d", whole.Pending(), split.Pending())
 	}
-	// And it must still recognise a real sequence afterwards.
-	s.Feed([]byte("\x1b[?1049h"))
-	if !s.AltScreen() {
-		t.Fatal("scanner did not recover after dropping an over-long pending run")
+	if whole.AltScreen() != split.AltScreen() {
+		t.Fatalf("chunking changed AltScreen: whole=%v split=%v", whole.AltScreen(), split.AltScreen())
+	}
+	if whole.TakeBell() != split.TakeBell() {
+		t.Fatal("chunking changed the bell latch on an over-long unterminated run")
+	}
+}
+
+// The other half of BR-1's final shape: a TERMINATED sequence longer than the
+// bound must still be framed to its real terminator, so a bell AFTER it is
+// still counted. Discarding to the next ESC (the round-2 fix) dropped it.
+func TestScreenLongTerminatedSequenceStillFramesAndKeepsALaterBell(t *testing.T) {
+	data := "\x1b]52;c;" + strings.Repeat("A", maxPending+5000) + "\x07" + "ready\x07"
+
+	whole := &Screen{}
+	whole.Feed([]byte(data))
+	split := &Screen{}
+	for i := 0; i < len(data); i += 4096 {
+		end := i + 4096
+		if end > len(data) {
+			end = len(data)
+		}
+		split.Feed([]byte(data[i:end]))
+	}
+
+	wb, sb := whole.TakeBell(), split.TakeBell()
+	if wb != sb {
+		t.Fatalf("chunking changed the bell: whole=%v split=%v", wb, sb)
+	}
+	if !wb {
+		t.Fatal("the real bell AFTER an over-long terminated sequence was dropped")
 	}
 }
 

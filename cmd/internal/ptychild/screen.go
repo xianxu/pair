@@ -42,16 +42,31 @@ type Screen struct {
 	regionLost bool
 	bell       bool
 
-	// resync is set after abandoning an over-long unterminated sequence. While
-	// set, bytes are DISCARDED until the next ESC.
+	// skipping says we are inside a sequence too long to buffer, and what
+	// terminator ends it. Bytes are consumed and discarded until then.
 	//
-	// This is what makes Feed chunk-invariant above maxPending, and the first
-	// fix for BR-1 missed it: whole input discarded the whole run, while split
-	// input discarded the first maxPending bytes and then rescanned the
-	// remainder as text -- where a BEL still counted. Resyncing to the next ESC
-	// is a rule both paths follow identically.
-	resync bool
+	// This is the third shape of the BR-1 fix, and the first two are why it is
+	// worth spelling out. Raising maxPending was an instance fix. Discarding to
+	// the next ESC restored invariance for UNTERMINATED runs but broke it for
+	// terminated ones: a 70 KiB OSC fed whole frames fine (its terminator is in
+	// the buffer) while the same bytes fed in 4096-byte chunks blew the bound,
+	// got abandoned, and DROPPED a real BEL that followed. The bound was the
+	// asymmetry.
+	//
+	// So the rule is not "give up", it is "stop BUFFERING, keep FRAMING":
+	// memory stays O(1) while the sequence is still consumed to its real
+	// terminator. Whole and split then agree at every length -- neither counts
+	// the sequence's own terminator, both count a bell after it.
+	skipping skipKind
 }
+
+type skipKind uint8
+
+const (
+	skipNone skipKind = iota
+	skipCSI           // ends at a final byte, 0x40-0x7e
+	skipOSC           // ends at BEL or ST
+)
 
 // AltScreen reports whether the child is currently on the alternate screen.
 func (s *Screen) AltScreen() bool { return s.altScreen }
@@ -95,16 +110,13 @@ func (s *Screen) Feed(p []byte) {
 	}
 
 	for len(buf) > 0 {
-		if s.resync {
-			// Discard to the next sequence start. No plain-run scan here, so a
-			// BEL inside an abandoned sequence is never counted as the child
-			// ringing -- it is that sequence's terminator.
-			next := bytes.IndexByte(buf, 0x1b)
-			if next < 0 {
-				return
+		if s.skipping != skipNone {
+			n, done := s.skipTerminator(buf)
+			buf = buf[n:]
+			if !done {
+				return // whole chunk was sequence body; nothing derivable
 			}
-			s.resync = false
-			buf = buf[next:]
+			s.skipping = skipNone
 			continue
 		}
 		if buf[0] != 0x1b {
@@ -130,15 +142,16 @@ func (s *Screen) Feed(p []byte) {
 			// A real prefix -- hold it for the next read, unless it has grown
 			// past the memory guard.
 			if len(buf) > maxPending {
-				// Abandon and RESYNC rather than rescanning as text. The
-				// abandoned bytes are an unterminated sequence, and any BEL
-				// inside them is its terminator, not the child ringing.
-				// Resyncing (rather than returning) is what keeps whole and
-				// split input equivalent above the bound: both discard to the
-				// next ESC. Only Screen's derived state is lost; Ring still
-				// holds the raw bytes for the repaint.
-				s.resync = true
-				buf = buf[1:]
+				// Too long to hold -- stop buffering, keep framing. The state
+				// this sequence would have set is lost (it is a control we
+				// could not read), but the STREAM stays in sync, so what
+				// follows is still interpreted correctly. Ring still holds the
+				// raw bytes for the repaint.
+				s.skipping = skipCSI
+				if len(buf) > 1 && buf[1] == ']' {
+					s.skipping = skipOSC
+				}
+				buf = buf[2:]
 				continue
 			}
 			s.pending = append([]byte(nil), buf...)
@@ -146,6 +159,41 @@ func (s *Screen) Feed(p []byte) {
 		}
 		s.classify(buf[:size])
 		buf = buf[size:]
+	}
+}
+
+// skipTerminator consumes buf while inside an over-long sequence, returning how
+// many bytes it took and whether the terminator was found.
+//
+// It uses the SAME terminator predicates as the framing in ansi -- a second
+// opinion about where a sequence ends is the bug this repo has already paid for
+// twice (#127's dead keyboard, and the paired-terminator lesson).
+func (s *Screen) skipTerminator(buf []byte) (n int, done bool) {
+	switch s.skipping {
+	case skipOSC:
+		for i := 0; i < len(buf); i++ {
+			if buf[i] == 0x07 {
+				return i + 1, true
+			}
+			if buf[i] == 0x1b {
+				if i+1 < len(buf) {
+					if buf[i+1] == '\\' {
+						return i + 2, true
+					}
+					continue
+				}
+				// ESC at the boundary: hold it so ST is not split in half.
+				return i, false
+			}
+		}
+		return len(buf), false
+	default: // skipCSI
+		for i := 0; i < len(buf); i++ {
+			if ansi.IsFinalByte(buf[i]) {
+				return i + 1, true
+			}
+		}
+		return len(buf), false
 	}
 }
 

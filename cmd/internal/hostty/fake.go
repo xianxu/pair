@@ -58,10 +58,19 @@ func (h *FakeHost) Size() (ptychild.Size, error) {
 }
 
 // SetSize resizes the fake terminal and delivers a coalesced wake.
+//
+// After Close it is INERT, matching OSHost: a real host absorbs a SIGWINCH
+// burst after teardown without complaint. The first version sent outside the
+// lock and never consulted closed, so a post-Close SetSize panicked with "send
+// on closed channel" -- in the double M2's console tests are built on, which
+// would crash a run rather than fail it (BR-18).
 func (h *FakeHost) SetSize(s ptychild.Size) {
 	h.mu.Lock()
+	defer h.mu.Unlock()
 	h.size = s
-	h.mu.Unlock()
+	if h.closed {
+		return
+	}
 	select {
 	case h.resized <- struct{}{}:
 	default:

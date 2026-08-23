@@ -2,6 +2,7 @@ package ptychild
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -229,5 +230,52 @@ func TestFakeChildExitReportsItsCode(t *testing.T) {
 	}
 	if !c.Done() {
 		t.Fatal("Done() == false after Exit")
+	}
+}
+
+// BR-18's class: a conformance test that stops AT the terminal transition
+// proves nothing about what happens past it, and past it is where a fake most
+// easily diverges. This drives the WHOLE post-terminal stimulus set through
+// both implementations and requires them to agree on error-vs-success.
+func TestFakeAndRealChildAgreeAfterTheChildHasEnded(t *testing.T) {
+	real := startSh(t, "sleep 5")
+	fake := NewFakeChild(nil)
+
+	if err := real.Close(); err != nil {
+		t.Fatalf("real Close: %v", err)
+	}
+	real.Wait()
+	if err := fake.Close(); err != nil {
+		t.Fatalf("fake Close: %v", err)
+	}
+	fake.Wait()
+
+	stimuli := []struct {
+		name string
+		call func(*Child) error
+	}{
+		{"Write", func(c *Child) error { _, err := c.Write([]byte("x")); return err }},
+		{"Resize", func(c *Child) error { return c.Resize(Size{Rows: 10, Cols: 10}) }},
+		{"Signal", func(c *Child) error { return c.Signal(os.Interrupt) }},
+	}
+	for _, st := range stimuli {
+		t.Run(st.name, func(t *testing.T) {
+			realErr := st.call(real) != nil
+			fakeErr := st.call(fake) != nil
+			if realErr != fakeErr {
+				t.Fatalf("post-exit %s: real errors=%v, fake errors=%v — the fake lets through a call production rejects",
+					st.name, realErr, fakeErr)
+			}
+			if !realErr {
+				t.Fatalf("post-exit %s succeeded on a real child; the expectation itself is wrong", st.name)
+			}
+		})
+	}
+
+	// Idempotence, on both.
+	for name, c := range map[string]*Child{"real": real, "fake": fake} {
+		if err := c.Close(); err != nil {
+			t.Fatalf("%s: second Close returned %v", name, err)
+		}
 	}
 }

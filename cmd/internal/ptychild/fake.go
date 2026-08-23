@@ -1,6 +1,7 @@
 package ptychild
 
 import (
+	"fmt"
 	"os"
 	"sync"
 )
@@ -27,6 +28,11 @@ import (
 //     It unblocks Wait, which then returns code, and flips Done to true.
 //   - Close() ends it too, as Exit(0), mirroring the real Close that shuts the
 //     pty and lets the pump reap.
+//   - AFTER it has ended, Write / Resize / Signal all return an error, because
+//     that is what the real Child does once its pty is closed and its process
+//     reaped ("file already closed", an ioctl error, "process already
+//     finished"). A fake that cheerfully accepts writes to a dead child lets a
+//     test pass against a sequence production would have rejected (BR-18).
 func NewFakeChild(output []byte) *Child {
 	c := &Child{
 		ring:   NewRing(DefaultRingBytes),
@@ -100,6 +106,13 @@ func (c *Child) Exit(code int) {
 	close(c.done)
 }
 
-// Signal on a fake records nothing and succeeds: a test that cares about
-// signalling asserts on Writes or on Exit, not on a syscall that never happened.
-func (c *Child) fakeSignal(os.Signal) error { return nil }
+// fakeSignal succeeds while the child is running and fails once it has ended --
+// the real Child returns "process already finished" from os.Process.Signal, and
+// a fake that returns nil there would let a test pass against a call production
+// rejects (BR-18).
+func (c *Child) fakeSignal(os.Signal) error {
+	if c.Done() {
+		return fmt.Errorf("ptychild: signal a child that has exited")
+	}
+	return nil
+}

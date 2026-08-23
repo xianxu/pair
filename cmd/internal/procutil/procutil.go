@@ -5,6 +5,7 @@
 package procutil
 
 import (
+	"errors"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -88,4 +89,25 @@ func LsofNames(pid string) []string {
 		}
 	}
 	return names
+}
+
+// WaitCode waits for cmd and maps the result to an exit code: 0 on success, the
+// process's code on a normal non-zero exit, -1 when the failure was not an exit
+// at all (a start error, a signal the runtime could not classify).
+//
+// One source, because it was two. couchcore.ExecRunner and ptychild.Child had
+// byte-identical copies plus a one-line errors.As wrapper each -- three packages
+// carrying one decision about what "the child's exit code" means. #146 M1's
+// boundary review raised it twice before it was consolidated here, which is the
+// signal a repeat family is meant to send.
+func WaitCode(cmd *exec.Cmd) int {
+	err := cmd.Wait()
+	if err == nil {
+		return 0
+	}
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
+		return ee.ExitCode()
+	}
+	return -1
 }

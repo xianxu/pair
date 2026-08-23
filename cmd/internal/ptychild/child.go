@@ -7,6 +7,8 @@ import (
 	"sync"
 
 	"github.com/creack/pty"
+
+	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
 // Size is a terminal's dimensions. It exists so callers do not have to import
@@ -124,24 +126,15 @@ func (c *Child) pump() {
 			break
 		}
 	}
-	c.code = waitCode(c.cmd)
-}
-
-func waitCode(cmd *exec.Cmd) int {
-	err := cmd.Wait()
-	if err == nil {
-		return 0
-	}
-	var ee *exec.ExitError
-	if ok := asExitError(err, &ee); ok {
-		return ee.ExitCode()
-	}
-	return -1
+	c.code = procutil.WaitCode(c.cmd)
 }
 
 // Write sends bytes to the child's terminal.
 func (c *Child) Write(p []byte) (int, error) {
 	if c.fake != nil {
+		if c.Done() {
+			return 0, fmt.Errorf("ptychild: write to a child that has exited")
+		}
 		c.fake.mu.Lock()
 		c.fake.writes = append(c.fake.writes, append([]byte(nil), p...))
 		c.fake.mu.Unlock()
@@ -153,6 +146,9 @@ func (c *Child) Write(p []byte) (int, error) {
 // Resize changes the child's terminal dimensions. The child gets SIGWINCH.
 func (c *Child) Resize(s Size) error {
 	if c.fake != nil {
+		if c.Done() {
+			return fmt.Errorf("ptychild: resize a child that has exited")
+		}
 		c.fake.mu.Lock()
 		c.fake.resizes = append(c.fake.resizes, s)
 		c.fake.mu.Unlock()

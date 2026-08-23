@@ -464,3 +464,160 @@ findings:
       correctly does for the operation set) or append the ## Revisions entry in the same
       commit that changes the shape. Plan line 99 vs screen.go:39-42, 52-68.
 ```
+
+---
+
+## Re-review — 2026-08-22T19:08:56-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 146 — couch: tty switching and attach |
+| repo | pair |
+| issue file | workshop/issues/000146-couch-tty-switching-and-attach.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 3cdeb3f0a889ed610608784939e5c04f7f6e08c4^..b4d976420792c487c51ffe9db2a2cea975be0568 |
+| command | sdlc milestone-close --issue 146 --milestone M1 |
+| reviewer | claude |
+| timestamp | 2026-08-22T19:08:56-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+Scratch worktree cleaned up; the main tree was never modified. Writing the review.
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+M1's purpose — extract both halves of the terminal plumbing and migrate `pair term` onto them so the extraction is validated by an existing suite — is delivered, and I re-verified the load-bearing claims rather than reading them: `\x1b[r` and `\x1b[1;1H\x1b[J` each exist exactly once as a production value (`hostty/control.go:23,34`; every other hit is a test asserting the constant), `hostty` now reports **zero skips** (8 of 9 tests execute in this sandboxed shell, the 9th fails loudly), and swapping `teardown`'s two statements reddens `TestTeardownStopsTheWatcherBeforeClosingChildren` in 0.3s from the default suite — so BR-2, which had no test anywhere last round, is now structurally pinned. `probes/` has a target, an atlas entry stating what earns a place there, and self-cleanup. What holds this back from SHIP is that **BR-1 is still not fixed** — I ran a ten-shape differential and three shapes still diverge between whole and chunked input, with the direction now *flipped*: the production path (4096-byte `pump` reads) **drops a real BEL** and stays stuck in resync until the next ESC arrives, where whole-feed rings it. That is the third consecutive round on `chunking-invariance`, and the fix each round has been to patch the abandon path rather than to make the abandon rule a function of the stream. Alongside it, one new Important: `FakeHost` **panics** on a post-`Close` `SetSize` where `OSHost` is inert — a hard divergence in the very double M2's console tests are built on. Neither is Critical: `TakeBell`/`TakeRegionLost` have zero production callers until M4's status row, and the panic is test-fixture-only.
+
+## 1. Strengths
+
+- **`teardown` is the right shape of fix, and I proved it.** Round 2 could have re-ordered the two defers and moved on; instead the ordering became an explicit `teardown(host, closeChildren)` (`termcmd/run.go:208-223`) whose comment names the scribecmd lesson. Swapping the two statements → `replay_path_test.go:169: teardown order = [closeChildren host.Close], want [host.Close closeChildren]`. Defer ordering inside a tty-requiring function was untestable; this is testable *and* harder to invert.
+- **BR-15's rule was applied by enumeration, not by patching the three named tests.** `go test ./cmd/internal/hostty/ -v` now runs `TestCloseReleasesResizedConsumers` and `TestOSHostCoalescesRealSIGWINCH` against a plain temp file (they never needed a pty), and the one that genuinely does — `TestOSHostConformsToTheFakeOnSizeAndRawMode` — **fails** rather than skips, matching how `ptychild` already handles the identical constraint. One milestone, one handling.
+- **`OSHost.Close` gets the hard part right.** `signal.Stop(h.sigs)` before `close(h.sigs)` is the only ordering Go guarantees is safe, and `resized` is closed by `watch()`'s `defer` — its sole sender — so there is exactly one writer and no send-on-closed race. I fired 20 real SIGWINCHs at a closed `OSHost`: inert.
+- **The resync fix, though insufficient, is genuinely pinned.** Deleting `s.resync = true` reddens `TestScreenChunkInvariantAboveThePendingBound`. The problem is scope, not a phantom pin.
+- **`Ring`'s retraction stands and is stated three times over** — code comment, `Allocated()`'s doc, and the issue Log all now say the copy is a clarity choice and that `Allocated()` does *not* discriminate copy from re-slice (`ring.go:44-56`, `:67-74`). A comment that says "claiming otherwise is what BR-4 corrected" is the artifact behaving correctly.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**I1 (carried, BR-1 → `not-addressed`) — chunk-invariance is still broken above the bound; the direction flipped, and production is now the losing side.** I built a ten-shape differential over `Screen.Feed`, comparing whole-feed against 1024/4096/8192/65536-byte chunkings. Three shapes diverge:
+
+```
+A  "\x1b["      + 69536×';' + "\x07" + "\x1b[?1049h"
+     whole  {alt:false region:false}    chunk4096 {alt:true region:true}
+D  "\x1b]52;c;" + 69536×'A' + "\x07" + "the agent is done\x07"
+     whole  {bell:true}                 chunk4096 {bell:FALSE}
+H  "\x1b["      + 69536×';' + "plain\x07"
+     whole  {bell:true}                 chunk4096 {bell:FALSE}
+```
+
+`Child.pump` reads in 4096-byte chunks (`child.go:107`), so **the chunked column is production**. Case D is the operational one: an OSC 52 payload over ~48 KiB raw (>64 KiB base64 — the exact case round 1's bound raise was about) is abandoned, `resync` discards everything until the next ESC, and a genuine BEL in the plain text that follows is swallowed. Measured: a later plain `"second bell\x07"` is also lost, and the latch only recovers once *any* escape arrives.
+
+> **This is the 3rd finding in family `chunking-invariance`.** Do NOT patch the abandon path again. The rule that covers all three rounds: **`Screen`'s derived state must be a function of the concatenated byte stream, and an "abandon after N accumulated bytes" rule cannot be, because `len(pending+chunk)` depends on where the chunks fall.** Round 1 raised the bound (256→64 KiB); round 2 added resync-to-next-ESC; both are still chunk-dependent decisions. The rule fix is to keep *framing* state when the memory guard fires and stop only the *buffering* — i.e. once a sequence exceeds `maxPending`, keep scanning for that sequence's own terminator class (BEL/ST for OSC, a final byte for CSI) rather than discarding to the next ESC. Then the bound really is "a memory guard, not a plausibility judgement", which is what `screen.go:19-21` already claims. Two collateral points belong to the same class: (a) `frame`'s `default: return 2, true` (`screen.go:225`) means DCS/APC/PM payloads are scanned as *plain text*, so `atlas/architecture.md:462` — "BEL is likewise counted only outside a sequence" — is narrower than stated; (b) **`FuzzScreenFeed` structurally cannot find this** — `maxPending` is 64 KiB and Go's fuzzer will not synthesise inputs that large, so adding the two latch comparisons in round 1 was correct but bought nothing here. The invariance property above the bound needs a *table* test at realistic sizes across several sequence shapes and several chunkings; the shipped `TestScreenChunkInvariantAboveThePendingBound` uses one shape (my case B), which happens to be one that agrees. Severity stays Important, not Critical: `TakeBell`/`TakeRegionLost` have **zero production callers** today (grep: only `Mouse()` is consumed, at `run.go:865`). It must close before M4 wires the status row, and before M2/M3 console fixtures — which drive the *whole*-feed path via `Child.Feed` — start disagreeing with the 4096-byte production path.
+
+**I2 (new) — `FakeHost` panics on a post-`Close` `SetSize`; `OSHost` is inert.** `FakeHost.Close` (`hostty/fake.go:97-105`) closes `h.resized` under `h.mu`, but `SetSize` (`:60-69`) sends on `h.resized` *outside* the lock and never consults `h.closed`. Measured:
+
+```
+OSHost   post-Close SIGWINCH ×20  -> inert
+FakeHost post-Close SetSize       -> panic: send on closed channel
+```
+
+A console teardown test that fires a resize after `Close` crashes the run rather than failing it — and `Closed()` exists, so the fake already knows the state it fails to check.
+
+> **This is the 2nd finding in family `fake-diverges-from-production`.** Do NOT just add a `closed` guard to `SetSize`. BR-3 was the same rule at a different site (`NewFakeChild`'s documented `Wait`/`Done` was the opposite of the code), and its class fix — `TestFakeChildConformsToRealChildLifecycle` — was right in shape and stopped one step short. The rule: **every lifecycle transition a fake exposes must match the real implementation's, and the conformance test must drive both past the terminal state, not up to it.** Both existing conformance tests (`TestCloseReleasesResizedConsumers`, `TestFakeChildConformsToRealChildLifecycle`) stop at `Close`. The enumeration that implies, measured at HEAD: `Host` post-`Close` = {resize, Write, Size, MakeRaw} → 1 of 4 diverges, fatally; `Child` post-`Close` = {Write, Resize, Signal} → 3 of 3 diverge (fake returns `n=1, err=nil` / `err=nil` / `err=nil`; a real child returns "file already closed" / an ioctl error / "process already finished"). **4 of 7 post-terminal-state stimuli diverge, 1 fatally.** Sweep both fakes and extend both conformance tests past the transition.
+
+## 4. Minor findings
+
+- `waitCode` is byte-identical at `couchcore/runner.go:90` and `ptychild/child.go:130`; `asExitError` is a one-line `errors.As` wrapper in both packages (BR-6, open — `couchcmd/errors.go` wraps a different type, so the count is two, not three).
+- Four stale references, all confirmed: `run.go:1062` "see queries.go", `run.go:1069` "appendBuffer re-slices tab.buffer", `replay.go:37` "returns through readPTY", and `Makefile.local:73-77`, which still explains `test-race` as "scoped to packages where the suite has actual concurrent code… pair-wrap has translateStdin's goroutine" after the target was repointed at `./cmd/...`. `bufferSnapshotLocked`'s comment is worse than stale — its *contract* is now false: `Child.Snapshot()` takes the child's own mutex, so `m.mu` is not required, and holding it across that call creates exactly the `m.mu → c.mu` ordering `appMouseMode` was changed to avoid two hundred lines up (no cycle exists today, since the sink runs after `c.mu` is released — so this is an inconsistency, not a deadlock). (BR-7, open.)
+- `Child.SetSink` (`fake.go:65`) still writes `c.sink` unlocked with no `if c.fake == nil` guard while the pump reads it. No caller today. (BR-8, open.)
+- `newTab` still calls `bufferSnapshotLocked(tab)` after `ptychild.Start` has launched the pump (`run.go:707,723`), so a chunk landing in that window is replayed *and* written live. A brand-new tab has nothing to replay; passing `nil` is the honest fix. The same shape recurs in M2. (BR-9, open.)
+
+## 5. Test coverage notes
+
+- **Ran:** `go build ./...` (clean), `go vet` over `ptychild`/`hostty`/`termcmd`/`probes` (clean), and `go test -count=1` over `ptychild`, `hostty`, `termcmd`, `couchcore`, `couchcmd`. `couchcore` and `couchcmd` green. Every other failure is this shell's process restriction — `ptychild: start sh: operation not permitted`, `pty.Open: operation not permitted` — the condition the issue Log documents. Nothing failed for a code reason.
+- **Cannot verify, not assuming:** the Log's whole-tree green, `make test-race`, `make test-smoke` 8/8, `make test-term-pane-shortcuts`, and the 3.7M-exec fuzz run. All need process spawning.
+- **Verified red on revert:** `teardown`'s ordering; `Screen`'s `resync`. **Verified green despite HEAD's fix:** nothing this round — both round-2 fixes are genuinely pinned. **Verified insufficient:** the resync pin covers one shape of a property that has ten (I1).
+- Gaps that could ship the class of bug in this diff: chunk-invariance above `maxPending` for shapes other than the one tested (I1); post-terminal-state behaviour of both fakes (I2); `Child`'s fake branch (`Write`/`Resize`/`Signal`/`Close`/`Exit`) is exercised only through `termcmd`'s two `NewFakeChild` literals and two fake-only tests.
+- Scope note: the review window (`3cdeb3f^..b4d9764`) spans the tail of pair#145 as well as all of M1, so the diff includes `couchcore`/`couchcmd`/`store`/`procops`/`actor`/`mailbox` and #145's plan artifacts. Those went through four rounds at #145's own close gate and shipped; I scoped this review to the M1 surface and did not re-litigate them.
+
+## 6. Architectural notes for upcoming work
+
+- **ARCH-DRY — pass, one flag.** I checked the single-source claim rather than reading it: `\x1b[r` and `\x1b[1;1H\x1b[J` each exist once as a production value, in `hostty/control.go`; `updateMouseMode`, `appendBuffer`, `readPTY` and `termcmd/queries.go` are deleted at their old sites, not left behind. The flag is BR-6 — `waitCode` verbatim in two packages plus two `asExitError` wrappers — which is the second copy this milestone's own thesis is about, and it will become a third when M2's `PtyRunner` wraps `ptychild.Child` behind `couchcore.Handle`. That is the moment to extract "reap in the background, expose liveness as a closed channel, map to an exit code" once.
+- **ARCH-PURE — pass.** `Ring`, `Screen`, `StripQueries` and the `hostty` control constants are deterministic, and the proof is empirical: they are precisely the code that stayed green in a shell that cannot fork a process. `Child` and `OSHost` are the thin injected shell; `termcmd` keeps every policy it had, and `childSizeLocked`'s comment names where couch's one-row subtraction will diverge.
+- **ARCH-PURPOSE — pass on the milestone, flag on the finding axis.** Shadow-sweep: M1 named one consumer (`termcmd`) and migrated it on *both* halves, with the extraction validated through the pre-existing suite — neutering `StripQueries` still reddens termcmd's own `TestRedrawTabEmitsNoQueries`, so the caller-side pin survived the move. No hand-maintained copy of the extracted mechanism remains. The flag is the other axis the principle governs: a family entering its third round is the ledger reporting that the enumeration was never written (I1). Out of scope but worth naming for M2: `scribecmd.go:92,143` and `wrapcmd/wrap.go:2392,2426` still hand-roll `MakeRaw` / `signal.Notify(SIGWINCH)` / `GetsizeFull`. `scribecmd` is the obvious third `hostty` consumer, and adopting it would retire the lesson BR-2 re-earned rather than leaving it as prose.
+- **ARCH-MOCK — flag (I2).** The shape is right: both doubles live in non-test files so production and test flow share the boundary, and both packages ship a real-vs-fake conformance check driven through one scenario — `TestOSHostConformsToTheFakeOnSizeAndRawMode` and `TestFakeChildConformsToRealChildLifecycle`. The gap is coverage of the *lifecycle*, not of the seam: both stop at the terminal transition, which is exactly where 4 of 7 stimuli diverge and one panics. Fix that before M2 builds console fixtures on `FakeHost`; `Handle`'s contract changes when a pty arrives, so extend `FakeRunner`'s state model in the same commit rather than after.
+- **For M2 specifically:** `host.Close()` returns as soon as it stops the signal source; it does not join the consumer goroutine, so a SIGWINCH already in flight can still be running `inheritSize → resizeAll → Child.Resize` while `closeAll()` closes the ptys. That window is unchanged from pre-migration (`signal.Stop` had the same property), so it is not a regression and I am not raising it — but `couchtty.Console` will own the same shape with a reserved row on top of it, and a real join (a `WaitGroup` the watcher and the consumer both hold) is the cheap fix to make once, there.
+
+## 7. Plan revision recommendations
+
+The `## Revisions` section landed and correctly records BR-5, BR-4's retraction, and BR-17's row rewrite. Two entries still owed, both carried unactioned from rounds 1 and 2:
+
+1. **Tasks 1.1–1.6 are all still `- [ ]` while M1 closes** *(3rd time recommended)*. Tick what ran and mark what did not — specifically that the pty-backed tests cannot run under the command sandbox, which the issue `## Log` records and the plan does not. Same reconciliation `#145` needed for its Task 17.
+2. **`ptychild` shipped surface the tables do not list** *(2nd time recommended)*: `Size`, `Options`, `DefaultRingBytes`, `NewFakeChild`, and `Child.Feed`/`SetSink`/`Writes`/`Resizes`/`Exit`. `NewFakeChild` in particular is the stateful double every M2/M3 switcher fixture will be built on and belongs in the Integration-points table next to `FakeHost` — which is also where I2's post-`Close` contract should be written down.
+
+Residual worth a line, *not* a re-raise of `plan-table-drift` (the rule was correctly applied to the Core-concepts row): Task 1.3's contract at `:199` still restates `MarginsDirty` and `Bell`, and the `ptychild.Child` bullet at `:149` still lists `Bell`. Those are task *specs* rather than a Core-concepts restatement, so they read as "what was to be built" — but the same one-line pointer the `Screen` row now uses would retire the last two copies.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      Resync is genuinely pinned but insufficient - 3 of 10 measured shapes still diverge, and the 4096-byte production path now DROPS a real BEL where whole-feed rings it.
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      waitCode still byte-identical at couchcore/runner.go:90 and ptychild/child.go:130; asExitError still a one-line wrapper in both packages.
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      All four remain (run.go:1062, run.go:1069, replay.go:37, Makefile.local:73-77); bufferSnapshotLocked's stated m.mu contract is now false as well as stale.
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      fake.go:65 still writes c.sink unlocked with no `if c.fake == nil` guard.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      newTab still snapshots at run.go:723 after ptychild.Start has launched the pump.
+  - id: BR-15
+    disposition: addressed
+    note: |
+      Verified - hostty runs 8 of 9 tests in this sandboxed shell with zero skips (the 9th fails loudly), and swapping teardown's two statements reddens TestTeardownStopsTheWatcherBeforeClosingChildren from the default suite.
+  - id: BR-16
+    disposition: addressed
+    note: |
+      make test-smoke exists, atlas/index.md carries an entry stating what earns a place in probes/, and cleanup runs before os.Exit(1).
+  - id: BR-17
+    disposition: addressed
+    note: |
+      The Core-concepts row now describes what Screen answers and points at screen.go instead of restating field names; residual copies in Task 1.3 and the Child bullet noted as a plan recommendation, not re-raised.
+findings:
+  - id: new
+    severity: Important
+    family: fake-diverges-from-production
+    title: |
+      FakeHost panics on a post-Close SetSize where OSHost is inert, and both conformance tests stop at the terminal transition
+    detail: |
+      2nd in this family. Do NOT just guard SetSize -- the rule is that every lifecycle
+      transition a fake exposes must match the real implementation's, and the conformance
+      test must drive BOTH past the terminal state rather than up to it. BR-3's class fix
+      (TestFakeChildConformsToRealChildLifecycle) had the right shape and stopped one step
+      short; TestCloseReleasesResizedConsumers stops at Close too. Measured at HEAD:
+      FakeHost.Close closes h.resized under h.mu while SetSize sends outside the lock and
+      never consults h.closed, so a post-Close SetSize panics with "send on closed channel"
+      while OSHost absorbs a 20-signal SIGWINCH burst inertly. Enumeration this implies -
+      Host post-Close is {resize, Write, Size, MakeRaw}, 1 of 4 diverges fatally; Child
+      post-Close is {Write, Resize, Signal}, 3 of 3 diverge (fake returns n=1/nil, nil, nil;
+      a real child returns "file already closed", an ioctl error, "process already
+      finished"). 4 of 7 post-terminal-state stimuli diverge, 1 fatally. FakeHost is the
+      double M2's console tests are built on, so a panic there crashes a run instead of
+      failing it.
+```

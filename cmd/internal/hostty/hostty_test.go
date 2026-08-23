@@ -236,3 +236,41 @@ func TestOSHostCoalescesRealSIGWINCH(t *testing.T) {
 		t.Fatal("50 real SIGWINCHs delivered no wake at all")
 	}
 }
+
+// BR-18: a post-Close SetSize used to PANIC on the fake ("send on closed
+// channel") while OSHost absorbed a SIGWINCH burst inertly -- in the double
+// M2's console tests are built on, so it would crash a run rather than fail it.
+// Driving both past Close is the class fix; stopping at Close is what missed it.
+func TestHostsAgreeAfterClose(t *testing.T) {
+	f, err := os.CreateTemp(t.TempDir(), "hostty")
+	if err != nil {
+		t.Fatalf("CreateTemp: %v", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	real := NewOSHost(f, f)
+	fake := NewFakeHost(ptychild.Size{Rows: 24, Cols: 80})
+	for _, h := range []Host{real, fake} {
+		if err := h.Close(); err != nil {
+			t.Fatalf("%T Close: %v", h, err)
+		}
+	}
+
+	// The real host's post-Close resize stimulus is a signal it no longer
+	// watches; the fake's is SetSize. Neither may panic, and both must stay
+	// inert. A burst, because one is not a burst.
+	for i := 0; i < 20; i++ {
+		_ = syscall.Kill(os.Getpid(), syscall.SIGWINCH)
+		fake.SetSize(ptychild.Size{Rows: uint16(25 + i), Cols: 80})
+	}
+	time.Sleep(100 * time.Millisecond)
+
+	for _, h := range []Host{real, fake} {
+		if _, err := h.Write([]byte("post-close")); err != nil {
+			t.Fatalf("%T: Write after Close returned %v; the other host does not", h, err)
+		}
+		if err := h.Close(); err != nil {
+			t.Fatalf("%T: second Close returned %v", h, err)
+		}
+	}
+}
