@@ -217,7 +217,6 @@ func runShell(stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
 	stdinFile, _ := stdin.(*os.File)
 	stdoutFile, _ := stdout.(*os.File)
 	host := hostty.NewOSHost(stdinFile, stdoutFile)
-	defer func() { _ = host.Close() }()
 
 	var restore func() error
 	if stdinFile != nil {
@@ -239,6 +238,13 @@ func runShell(stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
 		return 1
 	}
 	defer mux.closeAll()
+	// Registered AFTER closeAll so LIFO runs it FIRST: the resize watcher must
+	// stop before any child pty is closed. Otherwise a SIGWINCH during teardown
+	// runs resizeAll -> Child.Resize -> ptmx.Fd() concurrently with ptmx.Close()
+	// -- the use-after-close workshop/lessons.md records from the scribecmd bug,
+	// and which the first cut of this migration silently re-opened by putting
+	// this defer up next to NewOSHost (BR-2).
+	defer func() { _ = host.Close() }()
 	defer mux.restoreTerminal()
 
 	if stdinFile != nil {

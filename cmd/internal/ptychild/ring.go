@@ -45,10 +45,15 @@ func (r *Ring) Append(p []byte) {
 	}
 	r.data = append(r.data, p...)
 	if len(r.data) > r.capacity {
-		// copy() rather than re-slicing: `r.data = r.data[n:]` keeps the slice
-		// pointing into the middle of the backing array, so the array only
-		// shrinks when append happens to reallocate. That is unbounded growth
-		// hiding behind a bounded Snapshot.
+		// copy() rather than re-slicing, and this is a CLARITY choice, not a
+		// bug fix -- a distinction the M1 boundary review had to correct (BR-4).
+		// An earlier comment here claimed `r.data = r.data[n:]` grew without
+		// bound; measured over 2000 appends into a 32-byte ring, re-slicing
+		// peaks at cap=48 and copying sits at cap=64, because re-slicing
+		// monotonically shrinks the remaining capacity and so guarantees the
+		// next append reallocates. Both are bounded. What copying buys is that
+		// the window always starts at the head of the backing array, so the
+		// allocation is flat and predictable instead of sawtoothing.
 		r.data = r.data[:copy(r.data, r.data[len(r.data)-r.capacity:])]
 	}
 }
@@ -61,7 +66,10 @@ func (r *Ring) Snapshot() []byte {
 
 func (r *Ring) Len() int { return len(r.data) }
 
-// Allocated reports the backing array's size. It exists for the test that
-// pins bounded memory -- Snapshot reports the window, so an unbounded ring
-// looks identical from outside without it.
+// Allocated reports the backing array's size.
+//
+// It pins that memory stays bounded, which Snapshot cannot show -- Snapshot
+// reports the window, so a genuinely unbounded ring looks identical from
+// outside. It does NOT discriminate copy from re-slice; both pass, and claiming
+// otherwise is what BR-4 corrected.
 func (r *Ring) Allocated() int { return cap(r.data) }

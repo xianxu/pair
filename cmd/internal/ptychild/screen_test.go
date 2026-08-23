@@ -1,6 +1,9 @@
 package ptychild
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func feedWhole(data string) *Screen {
 	s := &Screen{}
@@ -79,6 +82,11 @@ func TestScreenRegionLost(t *testing.T) {
 		// An 'r' final behind the private introducer is DECRSTR, not DECSTBM.
 		// Treating every 'r' as a margin change would fire on ordinary output.
 		{"cursor position", "\x1b[3;4H", false},
+		// DECRSTR: an 'r' final BEHIND the private introducer is a mode
+		// restore, not a margin change. The rule was stated in two comments
+		// and covered by no case -- removing the introducer branch left the
+		// suite green (BR-6).
+		{"DECRSTR private r", "\x1b[?1049r", false},
 		{"SGR", "\x1b[31m", false},
 		{"plain text", "hello\r\nworld", false},
 	}
@@ -126,6 +134,22 @@ func TestScreenBellIgnoresOSCTerminators(t *testing.T) {
 	}
 }
 
+// The regression the M1 boundary review found (BR-1). An OSC 52 clipboard write
+// is kilobytes and ALWAYS crosses a 4096-byte pty read boundary; with a tight
+// pending bound it was abandoned mid-sequence and its terminating BEL was then
+// counted as the child ringing -- a false page on every copy.
+func TestScreenLongSequenceSplitAcrossReadsRaisesNoBell(t *testing.T) {
+	for _, n := range []int{300, 4096, 9000} {
+		data := "\x1b]52;c;" + strings.Repeat("A", n) + "\x07"
+		if feedWhole(data).TakeBell() {
+			t.Fatalf("%d-byte OSC fed whole raised a bell", n)
+		}
+		if feedByteAtATime(data).TakeBell() {
+			t.Fatalf("%d-byte OSC fed one byte at a time raised a bell", n)
+		}
+	}
+}
+
 // A pty read boundary falls wherever the kernel puts it. termcmd's
 // updateMouseMode scanned each chunk independently and could not see a sequence
 // split across two reads; this must.
@@ -161,17 +185,24 @@ func TestScreenConsumesMalformedCompleteControls(t *testing.T) {
 }
 
 // A stream of param bytes with no final byte is not a "prefix" worth holding
-// forever — that is an unbounded buffer fed by arbitrary child output.
+// forever -- that is an unbounded buffer fed by arbitrary child output. Past
+// the guard the run is DISCARDED rather than rescanned as text, which is what
+// keeps the bell latch chunk-invariant (BR-1).
 func TestScreenPendingIsBounded(t *testing.T) {
 	s := &Screen{}
-	junk := make([]byte, 0, 8192)
+	junk := make([]byte, 0, maxPending+4096)
 	junk = append(junk, 0x1b, '[')
-	for i := 0; i < 8000; i++ {
+	for i := 0; i < maxPending+2000; i++ {
 		junk = append(junk, ';')
 	}
 	s.Feed(junk)
 	if n := s.Pending(); n > maxPending {
 		t.Fatalf("Pending() = %d, want <= %d", n, maxPending)
+	}
+	// A BEL inside an abandoned run is that sequence's terminator, not the
+	// child ringing, so discarding must not latch one.
+	if s.TakeBell() {
+		t.Fatal("discarding an over-long run raised a bell")
 	}
 	// And it must still recognise a real sequence afterwards.
 	s.Feed([]byte("\x1b[?1049h"))
@@ -180,10 +211,20 @@ func TestScreenPendingIsBounded(t *testing.T) {
 	}
 }
 
+// The bound has to be generous enough for the protocol: OSC 52 carries a whole
+// clipboard. A tight bound is not a safety measure, it is a false-positive
+// generator (BR-1).
+func TestScreenPendingBoundFitsARealisticOSC(t *testing.T) {
+	if maxPending < 32*1024 {
+		t.Fatalf("maxPending = %d is too small for an OSC 52 clipboard payload", maxPending)
+	}
+}
+
 func FuzzScreenFeed(f *testing.F) {
 	for _, s := range []string{
 		"", "\x1b", "\x1b[", "\x1b[?1049h", "\x1b]0;t\x07", "\x1b[@z",
 		"\x1b[?1000;1006h\x1b[r", "\x1bc", "\x07", "\x1b]4;?\x1b\\",
+		"\x1b]52;c;" + strings.Repeat("A", 300) + "\x07",
 	} {
 		f.Add([]byte(s))
 	}
@@ -197,6 +238,16 @@ func FuzzScreenFeed(f *testing.F) {
 		}
 		if whole.AltScreen() != split.AltScreen() || whole.Mouse() != split.Mouse() {
 			t.Fatalf("chunking changed the state for %q", in)
+		}
+		// The LATCHES are covered too. Asserting invariance for AltScreen and
+		// Mouse but not for these is precisely why this fuzzer ran 595k execs
+		// without finding the false bell (BR-1): the bug lived in the two
+		// fields it did not compare.
+		if whole.TakeBell() != split.TakeBell() {
+			t.Fatalf("chunking changed the bell latch for %q", in)
+		}
+		if whole.TakeRegionLost() != split.TakeRegionLost() {
+			t.Fatalf("chunking changed the region-lost latch for %q", in)
 		}
 		if whole.Pending() > maxPending || split.Pending() > maxPending {
 			t.Fatalf("pending exceeded the bound for %q", in)

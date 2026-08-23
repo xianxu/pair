@@ -86,7 +86,7 @@ Terminal code has its own standing moves, all of them lessons already paid for i
 | `Interceptor` | `cmd/internal/couchtty/keys.go` | new |
 | `Reserve` / `Release` / `PaintRow` | `cmd/internal/couchtty/reserve.go` | new |
 | terminal-control constants (DECSTBM, cursor save/restore, region reset) | `cmd/internal/hostty/control.go` | new (`\x1b[r` moved from `termcmd/run.go`) |
-| `termcmd.restoreTerminal` | `cmd/internal/termcmd/run.go` | deleted (folded into `hostty`) |
+| `termcmd.restoreTerminal` | `cmd/internal/termcmd/run.go` | modified (now writes `hostty.ResetRegion`; the method stays, the constant moved) |
 | `Notice` / `Feed` | `cmd/internal/couchtty/notice.go` | new |
 
 - **Ring** — a bounded byte buffer with a snapshot. `Append([]byte)`, `Snapshot() []byte` (an independent copy). Cap 128KB, lifted from `termcmd.appendBuffer`.
@@ -210,7 +210,7 @@ Ships no couch behaviour. It exists so that couch's console and `pair term` are 
 
 - [ ] **Tests must catch:** (a) `FakeHost` can report a size, fire a resize, and capture writes — if it cannot, no console test in M2/M4 can be written, which is the finding this task answers; (b) `restore` is idempotent — a console that restores on both the child-exit path and a deferred teardown must not double-restore into a broken state; (c) `Resized()` delivers a *coalesced* signal, not one per syscall — a burst during a window drag must not queue N resizes.
 - [ ] **Deletion check:** make `FakeHost.Resized()` a nil channel → (a) red in M2's console test, which is where it matters.
-- [ ] Migrate `termcmd`: `runShell` takes a `Host`; `restoreTerminal` is deleted and its `\x1b[r` becomes `hostty`'s constant. `pair term`'s existing suite is the net, same rule as Task 1.5 — a test that needed editing is a behaviour change, not a fix.
+- [ ] Migrate `termcmd`: `runShell` takes a `Host`; `restoreTerminal` keeps its place in the mux and writes `hostty.ResetRegion` instead of a literal. `pair term`'s existing suite is the net, same rule as Task 1.5 — a test that needed editing is a behaviour change, not a fix.
 - [ ] Commit.
 
 ### Task 1.5 — migrate `pair term`
@@ -468,3 +468,27 @@ _(Append here: timestamp + reason + delta. Do not overwrite.)_
 - **PQ-3 `resolution-single-source` — addressed.** The stated field list was wrong (`LookupTrees` matches name + operator description + agent description; repo is matched nowhere). New Decision 12: `Filter` **injects** the resolver rather than restating the rule, production passes `couch.LookupTrees`, and Task 3.2's deletion check now fails on a re-implemented `strings.Contains`. Generalised beyond the panel: the guard Task 3.4 applies to actions now applies to resolution too.
 - **PQ-4 `home-actor-contract` — addressed.** Decision 1 now states the definition (root actor = first child; `start`'s path defaults to `.`), the ordering it implies (`cd brain && couch start` is what makes brain home), and the launching shell's fate (spent for couch's lifetime; no key leaves couch). Task 3.5's smoke moves to that real configuration instead of verifying the project's headline property against pair-as-root.
 - **PQ-5 `resize-nudge-mechanism` — addressed by removal.** `TIOCSWINSZ` only raises `SIGWINCH` on an actual size change, so the nudge cost a `rows-1 → rows-2 → rows-1` double reflow. Rather than accept that, Decision 5 drops the branch: `pair term` already replays a raw buffer to land on an `nvim` tab daily, so replay is the one mechanism for every child and the nudge is a documented fallback if M3's smoke lands garbled. Task 3.3's alt-screen test is replaced by one pinning that the replay is `StripQueries`'d — #127's bug arriving at a new site is the real hazard on that path.
+
+### 2026-08-22 — M1 boundary review: table corrected, one claim retracted
+
+**Reason:** `sdlc milestone-close --milestone M1` returned FIX-THEN-SHIP with five
+Important findings. Two of them are about this document rather than the code.
+
+**Delta:**
+
+- **BR-5 `plan-table-drift`.** The Core-concepts table and Task 1.4a both said
+  `termcmd.restoreTerminal` is *deleted*. It is not — the method survives at
+  `termcmd/run.go` and writes `hostty.ResetRegion`. The behaviour the row was
+  about (one escape constant, one site) *is* delivered, so this was a
+  table-accuracy defect rather than missing work. Both rows now say `modified`
+  and describe what actually happened. Recorded here rather than silently
+  edited, per the artifact rule: a table that quietly rewrites itself to match
+  the code teaches the next reader nothing.
+- **BR-4 `fix-not-pinned-by-failing-test`** is the one worth remembering. M1's
+  Log claimed the `Ring` copy-vs-re-slice change fixed unbounded growth and that
+  a deletion check pinned it. Neither holds: reverting to the re-slice leaves
+  `TestRingDoesNotGrowWithoutBound` green, and measured, re-slicing peaks *lower*
+  than copying (cap 48 vs 64) because it forces the next append to reallocate.
+  The deletion check I actually ran removed the trim entirely — a different
+  mutation, proving a different thing. The code comment and the issue Log are
+  corrected; the copy stays as a clarity choice, stated as one.

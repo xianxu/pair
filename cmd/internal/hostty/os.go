@@ -18,8 +18,6 @@ type OSHost struct {
 	in  *os.File
 	out *os.File
 
-	mu      sync.Mutex
-	state   *term.State
 	resized chan struct{}
 	sigs    chan os.Signal
 	once    sync.Once
@@ -43,6 +41,9 @@ func NewOSHost(in, out *os.File) *OSHost {
 // signals when its buffer is full, and the non-blocking send below does the
 // same for the wake channel -- so a drag delivers one pending wake, not N.
 func (h *OSHost) watch() {
+	// The watcher owns resized's lifetime: it is the only sender, so closing it
+	// here (after the signal source is closed) cannot race a send.
+	defer close(h.resized)
 	for range h.sigs {
 		select {
 		case h.resized <- struct{}{}:
@@ -78,9 +79,6 @@ func (h *OSHost) MakeRaw() (func() error, error) {
 	if err != nil {
 		return nil, fmt.Errorf("hostty: raw mode: %w", err)
 	}
-	h.mu.Lock()
-	h.state = state
-	h.mu.Unlock()
 
 	var once sync.Once
 	return func() error {
@@ -92,12 +90,20 @@ func (h *OSHost) MakeRaw() (func() error, error) {
 
 func (h *OSHost) Resized() <-chan struct{} { return h.resized }
 
+// Close stops watching for resizes and releases anyone ranging over Resized().
+//
+// Closing `resized` is load-bearing, not tidiness: a consumer written as
+// `for range host.Resized()` would otherwise block forever and leak (BR-2). The
+// watcher goroutine closes it, after its own source is closed, so there is
+// exactly one writer and no send-on-closed race.
 func (h *OSHost) Close() error {
 	h.once.Do(func() {
 		if h.sigs != nil {
 			signal.Stop(h.sigs)
 			close(h.sigs)
+			return
 		}
+		close(h.resized)
 	})
 	return nil
 }

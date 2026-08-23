@@ -94,10 +94,14 @@ func (h *FakeHost) RawDepth() int {
 
 func (h *FakeHost) Resized() <-chan struct{} { return h.resized }
 
+// Close matches OSHost: it releases anyone ranging over Resized().
 func (h *FakeHost) Close() error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	h.closed = true
+	if !h.closed {
+		h.closed = true
+		close(h.resized)
+	}
 	return nil
 }
 

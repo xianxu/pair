@@ -315,10 +315,14 @@ second time for couch:
 
 **Three things the extraction fixed rather than merely moved:**
 
-- `Ring`'s trim now COPIES instead of re-slicing. termcmd's version left the
-  slice pointing into the middle of its backing array, so bounded memory
-  depended on `append` happening to reallocate. `Snapshot` reports the window,
-  so the unbounded version was invisible from outside -- the test pins `cap()`.
+- ~~`Ring`'s trim now COPIES instead of re-slicing, fixing unbounded growth.~~
+  **RETRACTED at the M1 boundary review (BR-4).** Re-slicing is also bounded --
+  measured, it peaks *lower* than copying (cap 48 vs 64 over 2000 appends into a
+  32-byte ring), because shrinking the remaining capacity forces the next append
+  to reallocate. The copy is a clarity choice, not a bug fix. The deletion check
+  I ran removed the trim ENTIRELY, which proves boundedness is pinned, not that
+  copy-vs-re-slice is. Two of the three "bugs found" below survive; this one did
+  not, and claiming it is exactly the aspiration-shaped artifact lie.
 - `Screen` sees sequences SPLIT ACROSS READS. `updateMouseMode` scanned each
   chunk independently, so a mouse-mode sequence bisected by a pty read boundary
   was missed. Every one of its cases ported, plus the split-read case it could
@@ -341,7 +345,8 @@ edited test IS one until justified):
 3.5M on `FuzzStripQueries`, no panics.
 
 **Deletion checks run** (each mutation confirmed the named test goes red): ring
-trim, ring snapshot aliasing, `StripQueries` neutered (termcmd's
+trim *(removal of the whole trim -- NOT copy-vs-re-slice, see BR-4)*, ring
+snapshot aliasing, `StripQueries` neutered (termcmd's
 `TestRedrawTabEmitsNoQueries` goes red -- so termcmd still pins the behaviour
 through the new call), the `?1049` alt-screen case, the private-introducer
 discrimination on `r`, BEL counted inside OSC, `pty.Setsize` removed, and
@@ -397,3 +402,63 @@ where the affordance being tested is invisible. Lesson recorded in
 What the operator did confirm, which is the part M1 needed: two tabs exist, the
 switch works, and each tab's visual state comes back on landing -- i.e. the
 extracted ring and the replay path behave.
+
+### 2026-08-22 -- M1 boundary review round 1: FIX-THEN-SHIP, 5 Important
+
+Every finding reproduced before being fixed; all five held. Fixed at the class,
+not the site:
+
+- **BR-1 `chunking-invariance` -- a real bug, and the everyday trigger is OSC 52.**
+  `maxPending` was 256, so a clipboard write (kilobytes, always crossing a
+  4096-byte pty read) was abandoned mid-sequence and its terminating BEL was then
+  counted by the plain-run scan: a false page on every copy. Reproduced at 300 /
+  4096 / 9000 bytes -- whole `bell=false`, split `bell=true`. Two fixes, because
+  the bound and the abandon-path were both wrong: the guard is now 64 KiB (a real
+  prefix must be able to be as long as the protocol allows -- the bound is a
+  memory guard, not a plausibility judgement), and an abandoned run is now
+  DISCARDED rather than rescanned as text. **The class fix is the fuzzer:** it
+  asserted chunk-invariance for `AltScreen` and `Mouse` but not for the two
+  latches, which is exactly why 595k execs missed this. It now covers both;
+  3.7M execs green.
+- **BR-2 `signal-goroutine-outlives-close` -- I re-opened a bug this repo already
+  recorded.** `defer host.Close()` sat next to `NewOSHost`, so LIFO ran it AFTER
+  `mux.closeAll()`, leaving the resize watcher live while child ptys closed:
+  `Setsize -> ptmx.Fd()` racing `ptmx.Close()`, the scribecmd use-after-close in
+  `lessons.md`. Pre-migration ordering was correct; the migration lost it.
+  Re-registered after `closeAll`, with the reason in a comment. Related leak
+  fixed with it: `Resized()` was never closed, so `for range host.Resized()`
+  never returned -- now closed by the watcher (its only sender), pinned for BOTH
+  hosts by `TestCloseReleasesResizedConsumers`.
+- **BR-3 `fake-diverges-from-production`.** `NewFakeChild`'s doc claimed
+  `Wait` returns immediately and `Done` starts true; measured, `Wait` blocks and
+  `Done` is false -- the opposite. A test written from the doc would HANG in
+  M2/M3 rather than fail. The doc was wrong, not the code: a fresh fake is
+  *running*, like a real child. Class fix is the missing ARCH-MOCK piece --
+  `TestFakeChildConformsToRealChildLifecycle` drives fake and real through one
+  shared scenario.
+- **BR-4 `fix-not-pinned-by-failing-test` -- a claim of mine that was false.**
+  See the retraction above. Re-slicing is also bounded (peaks *lower* than
+  copying: cap 48 vs 64), so the "unbounded growth" the comment asserted does not
+  exist. Comment corrected, Log retracted, copy kept as a stated clarity choice.
+- **BR-5 `plan-table-drift`.** The plan said `termcmd.restoreTerminal` is
+  deleted; it exists and writes `hostty.ResetRegion`. Corrected via a plan
+  `## Revisions` entry rather than a silent edit.
+
+Minors also fixed: `make test-race` targeted `./cmd/pair-wrap/`, a directory
+deleted at the Go entrypoint switch -- so the `-race` half of Task 1.6 had no
+runnable target at all (now `./cmd/...`); `OSHost`'s SIGWINCH coalescing is
+tested against real signals rather than only the fake's; the DECRSTR negative
+(`\x1b[?1049r` is not a margin change) has a case, and its deletion check now
+fires; `probes/termsmoke` cleans up its child on the `os.Exit` path; `splitAny`
+stopped allocating per scanned byte; `OSHost.state` (write-only) deleted.
+
+**Deletion-check discipline failed twice while fixing BR-4**, both recorded in
+`lessons.md`: a mutation whose `\x1b` became a real ESC byte matched nothing and
+"passed" without running, and a mutation that applied removed a `return` the
+test input never reached. A deletion check owes three things -- mutate,
+compile, traverse -- and only the first is usually performed.
+
+**Verified after the fix round:** `go test ./cmd/...` green; `make test-race`
+(whole tree, newly runnable) green; `make build`; `make test-term-pane-shortcuts`
+green; `probes/termsmoke` 8/8 against the rebuilt binary; `FuzzScreenFeed` 3.7M
+execs with latch invariance asserted.

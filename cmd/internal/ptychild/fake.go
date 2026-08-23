@@ -13,12 +13,20 @@ import (
 // tests need a child whose output they control, and production and test flow
 // must share the same type or the tests prove nothing about the real path.
 //
-// Contract:
+// Contract -- deliberately the SAME SHAPE as a real Child, because a fake whose
+// lifecycle differs from production makes tests written against it lie. The M1
+// boundary review caught this doc claiming the opposite of the code (BR-3), so
+// TestFakeChildConformsToRealChildLifecycle now pins the pairing:
+//
 //   - Feed(p) appends to the ring and the screen, exactly as the real pump does.
 //   - Write records into Writes() instead of reaching a pty.
 //   - Resize records into Resizes().
-//   - Wait returns ExitCode (default 0) immediately; Done is true once Exit is
-//     called, or immediately if the child was never "running".
+//   - A fresh fake is RUNNING: Done() is false and Wait() BLOCKS, exactly as a
+//     real child does before it exits.
+//   - Exit(code) is what ends it -- the fake's stand-in for the process exiting.
+//     It unblocks Wait, which then returns code, and flips Done to true.
+//   - Close() ends it too, as Exit(0), mirroring the real Close that shuts the
+//     pty and lets the pump reap.
 func NewFakeChild(output []byte) *Child {
 	c := &Child{
 		ring:   NewRing(DefaultRingBytes),

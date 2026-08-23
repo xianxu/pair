@@ -60,6 +60,10 @@ func TestRingUnderCapacityKeepsEverything(t *testing.T) {
 
 // A ring that grew its backing array without bound would still pass every
 // assertion above, because Snapshot only reports the window.
+//
+// Scope note (BR-4): this pins BOUNDEDNESS, which both the copy and the
+// re-slice satisfy. It is not a discriminator between them, and the code
+// comment no longer claims it is.
 func TestRingDoesNotGrowWithoutBound(t *testing.T) {
 	r := NewRing(32)
 	for i := 0; i < 2000; i++ {

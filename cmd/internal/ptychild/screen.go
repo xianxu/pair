@@ -10,10 +10,16 @@ import (
 //
 // Holding a prefix is correct; holding an unbounded one is not. Child output is
 // arbitrary bytes, so `\x1b[` followed by a megabyte of parameter bytes is a
-// reachable input, and "wait for a final byte" would buffer all of it. Past this
-// many bytes the run is not a real prefix any more and is consumed as text --
-// the same prefix-vs-complete rule the rename decoder learned in #118.
-const maxPending = 256
+// reachable input, and "wait for a final byte" would buffer all of it.
+//
+// 64 KiB, not something tight. The first version used 256 and was WRONG in an
+// everyday case: an OSC 52 clipboard write is kilobytes and always crosses a
+// 4096-byte pty read boundary, so it blew the bound, got abandoned mid-sequence,
+// and its terminating BEL was then counted by the plain-run scan -- a false
+// "the agent wants you" on every clipboard copy. A real prefix has to be able to
+// be as long as the protocol allows; the bound is a memory guard, not a
+// plausibility judgement.
+const maxPending = 64 * 1024
 
 // Screen is what a child's own output says about the screen it thinks it is
 // drawing on. One scanner, four answers.
@@ -100,11 +106,16 @@ func (s *Screen) Feed(p []byte) {
 		size, ok := frame(buf)
 		if !ok {
 			// A real prefix -- hold it for the next read, unless it has grown
-			// past the point where "prefix" is a plausible reading.
+			// past the memory guard.
 			if len(buf) > maxPending {
-				// Consume the ESC and rescan; the run behind it is text.
-				buf = buf[1:]
-				continue
+				// DISCARD the run rather than rescanning it as text. Rescanning
+				// is what produced the false bell: the abandoned bytes are an
+				// unterminated sequence, and any BEL inside them is that
+				// sequence's terminator, not the child ringing. Discarding also
+				// keeps Feed chunk-invariant -- whole and split input abandon
+				// the same bytes and derive the same state. Only Screen's
+				// derived state is lost; Ring still holds the raw bytes.
+				return
 			}
 			s.pending = append([]byte(nil), buf...)
 			return
@@ -159,20 +170,17 @@ func (s *Screen) classify(seq []byte) {
 	}
 }
 
+// splitParams splits a CSI parameter run on both separators the protocol allows.
 func splitParams(p []byte) []string {
-	return splitAny(string(p), ";:")
-}
-
-func splitAny(s, seps string) []string {
 	out := []string{}
 	start := 0
-	for i := 0; i < len(s); i++ {
-		if bytes.IndexByte([]byte(seps), s[i]) >= 0 {
-			out = append(out, s[start:i])
+	for i := 0; i < len(p); i++ {
+		if p[i] == ';' || p[i] == ':' {
+			out = append(out, string(p[start:i]))
 			start = i + 1
 		}
 	}
-	return append(out, s[start:])
+	return append(out, string(p[start:]))
 }
 
 // frame returns the length of the escape sequence at buf[0] and whether it is

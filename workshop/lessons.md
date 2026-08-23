@@ -1778,3 +1778,32 @@ repro that removes the observable is not simpler, it is unfalsifiable.
 
 Corollary: when the operator reports "X seems broken", check whether X is
 *observable* in the setup you sent them to before investigating X.
+
+## A deletion check proves nothing until you confirm the mutation APPLIED and traversed
+
+#146 M1's boundary review found a "verified" claim that was false (BR-4: the
+`Ring` copy-vs-re-slice change was logged as a bug fix pinned by a deletion
+check; reverting it left the named test green). Fixing that round produced the
+same failure twice more:
+
+- A mutation written as a Python string containing `\x1b` silently became a real
+  ESC byte, so `str.replace` matched nothing. The file was unchanged, the suite
+  stayed green, and "the check passed" would have meant *the check never ran*.
+- A mutation that did apply removed a `return` the test's input never reached —
+  `\x1b[?1049r` exits at an earlier `final != 'h' && final != 'l'` guard, so
+  deleting the later one changed nothing for that case.
+
+**Rule.** A deletion check has three obligations, and only the first is usually
+performed:
+1. **Mutate.** Confirm the file actually changed (`git diff --stat`, or assert
+   the replacement matched) — a no-op edit is indistinguishable from a passing
+   check.
+2. **Compile.** A build failure is not a red test; it proves nothing about the
+   assertion.
+3. **Traverse.** Confirm the mutated line is on the path the test's input takes.
+   Removing a guard the input never reaches is a green check with no meaning.
+
+And name the mutation precisely in any log entry. "Ring trim" covered *removing
+the trim entirely* and was true; it was written up as covering *copy vs
+re-slice*, which it never touched. The gap between the mutation you ran and the
+claim you make from it is where this class of lie lives.

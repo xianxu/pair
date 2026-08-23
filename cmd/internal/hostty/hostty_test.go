@@ -1,7 +1,9 @@
 package hostty
 
 import (
+	"os"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -148,5 +150,80 @@ func TestOSHostSizeErrorsOnANonTerminal(t *testing.T) {
 	h := NewOSHost(nil, nil)
 	if _, err := h.Size(); err == nil {
 		t.Fatal("Size() on a nil terminal returned nil error")
+	}
+}
+
+// Close must release a `for range host.Resized()` consumer, for BOTH hosts.
+// A watcher goroutine that never returns is the leak the M1 boundary review
+// found (BR-2); asserting it on the fake alone would not have caught it, since
+// the fake is not what production ranges over.
+func TestCloseReleasesResizedConsumers(t *testing.T) {
+	ptmx, tty, err := pty.Open()
+	if err != nil {
+		t.Skipf("pty.Open: %v (sandboxed?)", err)
+	}
+	defer func() { _ = ptmx.Close(); _ = tty.Close() }()
+
+	hosts := map[string]Host{
+		"OSHost":   NewOSHost(tty, tty),
+		"FakeHost": NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}),
+	}
+	for name, h := range hosts {
+		t.Run(name, func(t *testing.T) {
+			returned := make(chan struct{})
+			go func() {
+				for range h.Resized() {
+				}
+				close(returned)
+			}()
+			if err := h.Close(); err != nil {
+				t.Fatalf("Close: %v", err)
+			}
+			select {
+			case <-returned:
+			case <-time.After(2 * time.Second):
+				t.Fatal("the resize consumer never returned after Close")
+			}
+		})
+	}
+}
+
+// Coalescing on the REAL side. TestFakeHostResizesCoalesce drives the fake, but
+// production depends on OSHost.watch()'s non-blocking send -- and a package
+// whose stated purpose is making the SIGWINCH path testable should test it
+// where it actually runs (BR-7).
+func TestOSHostCoalescesRealSIGWINCH(t *testing.T) {
+	ptmx, tty, err := pty.Open()
+	if err != nil {
+		t.Skipf("pty.Open: %v (sandboxed?)", err)
+	}
+	defer func() { _ = ptmx.Close(); _ = tty.Close() }()
+
+	h := NewOSHost(tty, tty)
+	defer func() { _ = h.Close() }()
+
+	for i := 0; i < 50; i++ {
+		_ = syscall.Kill(os.Getpid(), syscall.SIGWINCH)
+	}
+	time.Sleep(200 * time.Millisecond)
+
+	n := 0
+	for {
+		select {
+		case _, ok := <-h.Resized():
+			if !ok {
+				t.Fatal("Resized() closed early")
+			}
+			n++
+			continue
+		default:
+		}
+		break
+	}
+	if n > 1 {
+		t.Fatalf("50 real SIGWINCHs delivered %d wakes; they must coalesce", n)
+	}
+	if n == 0 {
+		t.Fatal("50 real SIGWINCHs delivered no wake at all")
 	}
 }

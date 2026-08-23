@@ -179,3 +179,55 @@ func TestChildSnapshotDuringPumpIsRaceFree(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// ARCH-MOCK conformance: the fake and a real Child must agree on the lifecycle,
+// driven through ONE shared scenario rather than asserted separately.
+//
+// The M1 boundary review found the fake's documented Wait/Done semantics were
+// the opposite of the real thing's (BR-3), which no test could catch because no
+// test compared them. A test written from that doc would have HUNG in M2/M3
+// rather than failed. hostty_test.go's OSHost-vs-FakeHost check is the template.
+func TestFakeChildConformsToRealChildLifecycle(t *testing.T) {
+	// `sleep 5` stands in for "running"; Exit(0)/Close ends each the same way.
+	real := startSh(t, "sleep 5")
+	fake := NewFakeChild(nil)
+	t.Cleanup(func() { _ = fake.Close() })
+
+	for name, c := range map[string]*Child{"real": real, "fake": fake} {
+		if c.Done() {
+			t.Fatalf("%s: Done() == true while still running", name)
+		}
+		waited := make(chan int, 1)
+		go func(c *Child) { waited <- c.Wait() }(c)
+		select {
+		case <-waited:
+			t.Fatalf("%s: Wait() returned while still running", name)
+		case <-time.After(150 * time.Millisecond):
+		}
+
+		if err := c.Close(); err != nil && name == "fake" {
+			t.Fatalf("%s: Close: %v", name, err)
+		}
+		select {
+		case <-waited:
+		case <-time.After(3 * time.Second):
+			t.Fatalf("%s: Wait() did not return after Close", name)
+		}
+		if !c.Done() {
+			t.Fatalf("%s: Done() == false after the child ended", name)
+		}
+	}
+}
+
+// Exit is the fake's stand-in for the process exiting, so it must carry a code
+// the way a real child's exit does.
+func TestFakeChildExitReportsItsCode(t *testing.T) {
+	c := NewFakeChild(nil)
+	c.Exit(7)
+	if got := c.Wait(); got != 7 {
+		t.Fatalf("Wait() = %d, want 7", got)
+	}
+	if !c.Done() {
+		t.Fatal("Done() == false after Exit")
+	}
+}

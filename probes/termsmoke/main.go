@@ -41,7 +41,10 @@ func main() {
 		fmt.Fprintf(os.Stderr, "pty.StartWithSize: %v\n", err)
 		os.Exit(1)
 	}
-	defer func() { _ = ptmx.Close(); _ = cmd.Process.Kill() }()
+	// Not a defer: the failure path below calls os.Exit, which skips defers and
+	// would leave the spawned pair process alive.
+	cleanup := func() { _ = ptmx.Close(); _ = cmd.Process.Kill() }
+	defer cleanup()
 
 	var mu sync.Mutex
 	var seen strings.Builder
@@ -113,6 +116,7 @@ func main() {
 	fmt.Println()
 	if failures > 0 {
 		fmt.Printf("%d step(s) failed\n", failures)
+		cleanup()
 		os.Exit(1)
 	}
 	fmt.Println("all steps passed")
