@@ -595,3 +595,47 @@ checked, not because you wrote it.
 tree) green; `make build`; `make test-term-pane-shortcuts` green; `make
 test-smoke` 8/8 incl. the nvim alt-screen round trip. All four deletion checks
 this round confirmed mutate + compile + traverse.
+
+### 2026-08-22 -- M2 built: the console, and the reserved row VERIFIED not asserted
+
+`couch start` is the console now. `PtyRunner` sits behind the existing `Runner`
+seam as a CAPABILITY on the handle (`TerminalHandle`), so `--no-console` keeps
+`ExecRunner` a live production path rather than dead code the conformance check
+pins for nothing. `Terminal()` returns the concrete `*ptychild.Child` rather
+than an interface, because `FakeRunner`'s double IS a `ptychild.NewFakeChild` --
+the same type, so a console test takes the branch production takes.
+
+**The reserved row is verified against a real terminal emulator.** This was the
+milestone's headline risk and the one thing a pty cannot answer: a pty passes
+escapes through uninterpreted, so no amount of byte-level assertion says whether
+DECSTBM actually holds. `charmbracelet/x/vt` interprets them and pair already
+depends on it for `wrapcmd`'s terminal model, so `vtscreen_test.go` drives the
+real `Console` against a real emulator and reads the resulting SCREEN:
+
+- 40 lines of scrolling child output leave the reserved row intact.
+- A child that resets margins (`\x1b[r`, which nvim emits on exit) drops the
+  reservation and the console puts it back -- verified by scrolling 40 more
+  lines afterwards and finding the row still there.
+- After release the bottom row is usable again, so the operator's shell does not
+  inherit a fenced-off screen.
+
+Deleting the `Reserve` call turns the first of those red with the exact symptom
+("40 lines of child output overwrote the reserved row"). **Decision 4's fallback
+is not needed at the design level** -- what remains for the operator smoke is
+whether a real terminal (Ghostty) and a real `pair`/zellij/claude stack agree
+with the emulator.
+
+Two expectations were corrected rather than satisfied while writing those: a
+trailing newline leaves the cursor on a fresh blank line, so "the last line of
+output" is on `rows-2`, not `rows-1`. Asserting the exact row would have been
+asserting the test's arithmetic; the assertions read the whole child area
+instead.
+
+**Found while wiring the CLI:** `FakeRunner` ended its handle while its terminal
+double kept running, so the first console CLI test HUNG rather than failed --
+the same fake-diverges-from-production class as BR-18, at a different seam. One
+child, one notion of exited, now pinned by two tests.
+
+`Spawn` forces `pair resume <tag>` (Decision 11), with the tag from the tree so
+re-entry is deterministic. The pre-existing argv assertion was updated: that is
+a deliberate behaviour change, not a test bending to code.
