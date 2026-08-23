@@ -159,7 +159,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 
 - [x] spawn + registry [pair#145]
 - [x] shared pty-child core [pair#146 M1]
-- [ ] console over one child, with the reserved row [pair#146 M2]
+- [x] console over one child, with the reserved row [pair#146 M2]
 - [ ] many children and the panel [pair#146 M3]
 - [ ] exits, detach, and what the row says [pair#146 M4]
 - [ ] expose query API to peer actors [ariadne#199]
@@ -171,7 +171,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 ### pair#146 M2 — console over one child, with the reserved row
 
 **est:** 10.32 (whole issue)
-**actual:** 9.35h (increment; see the caveat below)
+**actual:** 9.35h
 **closed:** 2026-08-23
 
 `couch start` became the console: a pty per child, the operator's terminal in

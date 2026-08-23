@@ -24,6 +24,13 @@ type pane struct {
 	// to say who wants attention, so a signal that cleared itself on the next
 	// repaint would be invisible in practice.
 	bell bool
+
+	// rowDirty is the same shape for the reserved row: an INACTIVE pane's
+	// erase or margin reset is real, it just cannot be acted on yet. The first
+	// version consumed the child's latch for every pane and acted on it only
+	// for the active one, so a background child's damage was thrown away and
+	// attaching to it would land on a screen with no status row.
+	rowDirty bool
 }
 
 // Console routes the operator's terminal to one child at a time.
@@ -142,6 +149,18 @@ func (c *Console) Attach(id, label string, child *ptychild.Child) {
 	if c.active == "" {
 		c.active = id
 	}
+}
+
+// PaneRowDirty reports whether a pane still owes a row repaint. Exported for
+// the test that pins an inactive pane's damage surviving -- a latch thrown away
+// is invisible from every other accessor.
+func (c *Console) PaneRowDirty(id string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if p, ok := c.panes[id]; ok {
+		return p.rowDirty
+	}
+	return false
 }
 
 // Stop tears the console down. Safe to call more than once, and from any
@@ -318,7 +337,14 @@ func (c *Console) onChunk(ch chunk) {
 	}
 	// Derived state is consumed whether or not the child is on screen: an
 	// inactive child that rings still has something to say.
-	rowDirty := p.child.TakeRowDirty()
+	// The child's latch is per-chunk, so it is consumed for every pane -- but
+	// KEPT on the pane, so an inactive child's damage survives until the
+	// operator lands on it.
+	if p.child.TakeRowDirty() {
+		c.mu.Lock()
+		p.rowDirty = true
+		c.mu.Unlock()
+	}
 	if p.child.TakeBell() {
 		c.mu.Lock()
 		// An actor the operator is already looking at is not "wanting" them.
@@ -330,7 +356,13 @@ func (c *Console) onChunk(ch chunk) {
 		c.repaint()
 		return
 	}
-	if rowDirty && isActive {
+	c.mu.Lock()
+	dirty := p.rowDirty && isActive
+	if dirty {
+		p.rowDirty = false
+	}
+	c.mu.Unlock()
+	if dirty {
 		c.repaint()
 	}
 }

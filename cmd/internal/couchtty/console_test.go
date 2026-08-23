@@ -391,3 +391,28 @@ type refusingHost struct{ *hostty.FakeHost }
 func (h *refusingHost) MakeRaw() (func() error, error) {
 	return nil, errors.New("inappropriate ioctl for device")
 }
+
+// An INACTIVE pane's row damage is real; it just cannot be acted on yet. The
+// first version consumed the child's latch for every pane and acted on it only
+// for the active one, so a background child's erase was thrown away and
+// attaching to it would land on a screen with no status row.
+func TestConsoleKeepsAnInactivePanesRowDamage(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	other := ptychild.NewFakeChild(nil)
+	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+	f.con.Attach("c2", "ariadne", other)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+
+	// The inactive child clears its screen, then goes quiet.
+	other.Feed([]byte("\x1b[2Jbackground work"))
+
+	// Poll: Feed is synchronous but the CONSOLE processes asynchronously, so a
+	// one-shot check here races the loop -- and would have read the latch
+	// before it was ever set.
+	waitFor(t, "the inactive pane to record its row damage", func() bool {
+		return f.con.PaneRowDirty("c2")
+	})
+	if f.con.PaneRowDirty("c1") {
+		t.Fatal("the active pane kept damage it had already repaired")
+	}
+}

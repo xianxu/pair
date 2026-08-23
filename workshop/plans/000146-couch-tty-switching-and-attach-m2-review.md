@@ -685,3 +685,166 @@ findings:
       pane; reachable the moment M3 attaches a second. Fix: store into a per-pane dirty flag and
       consume it at switch time, mirroring how p.bell is handled.
 ```
+
+---
+
+## Re-review — 2026-08-23T09:42:21-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 146 — couch: tty switching and attach |
+| repo | pair |
+| issue file | workshop/issues/000146-couch-tty-switching-and-attach.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 42b268852aea0407204cff2472821961aea388fa..b60536f4daebae17116de81d2c01e73e821c55f2 |
+| command | sdlc milestone-close --issue 146 --milestone M2 |
+| reviewer | claude |
+| timestamp | 2026-08-23T09:42:21-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+All three Criticals from this milestone's review history are genuinely fixed, and I verified each by reverting it in the working tree rather than by reading the commit message: removing the `writeOwn` mid-sequence gate reddens 3 tests, re-adding a second host writer inside `applyLayout` reddens `TestConsoleNeverSplicesFromAnyPath` 3/3, and deleting the ESC partial-length discriminator reddens 4 tests. The two doc findings got real enumerations this round — `make test-smoke` iterates `probes/*/`, and `readme_test.go` derives from `couchcore.Operations()`; I mutated the README three ways and it bit on all three axes (operations, operator-facing surface, bypass flags). BR-26's five plan sites are all actually changed this time, and the round-3 Revisions entry enumerates them individually rather than asserting a sweep. What keeps this off SHIP is two cheap Importants. **BR-24 is fixed one function short of the production entry**: `consoleRunnerFor` is now pinned (forcing it to decline reddens `TestConsoleRunnerWiresThePtyRunnerWhenATerminalExists`) and the `path` default is pinned (deleting it reddens `TestStartDefaultsItsPathToCwd`), but gutting `consoleRunner` itself — the function `RunWithRuntime` calls — to `return nil, ExecRunner{}` still leaves `couchcmd` and `couchtty` green, and so does dropping `&& isTerminal(outFile)`, which is BR-23's other half. And **the sweep that closed `plan-table-drift` introduced a new instance of it**: the `Console` row it added sits under "### Pure entities" while the row's own text calls it "thin IO shell". Neither blocks the gate.
+
+## 1. Strengths
+
+- **The single-writer class fix is real and pinned as a class.** `console.go:151-190` — `applyLayout` no longer writes, resize and hotkey are events, `writeChild`/`writeOwn` are the only two paths to the screen. `TestConsoleNeverSplicesFromAnyPath` is the guard that class needed, and it goes red deterministically (3/3 with `-count=3`) when a second writer is reintroduced.
+- **`readme_test.go` is an enumeration, not two lines.** Measured: removing `couch describe` from the README reddens `TestREADMEDocumentsEveryOperation`; removing `--same-tree` reddens `TestREADMEDocumentsEveryBypassFlag`; removing `ctrl-space` and `default: .` reddens `TestREADMEDocumentsTheOperatorFacingSurface`. A new operation or bypass is now documented by existing.
+- **BR-24's fix surfaced a genuine design defect rather than just adding a test.** `filepath.Abs("")` returning the cwd made the CLI's `.` default deletable-with-green — two mechanisms for one result. `Spawn` now refuses an empty path (`couch.go:49-58`), so the default is load-bearing and both are pinned separately.
+- **`TestStartDefaultsItsPathToCwd` was rewritten to assert the effect, not the declaration.** The old version checked `ArgSpec.Required`; the new one asserts the spawn reached the process's own cwd, seeded from `os.Getwd()` so it pins couch's behaviour rather than the developer's layout.
+- **The Task 2.7 smoke record (issue `## Log`, "item by item")** separates what the operator confirmed from what automated verification covers, states the two M3 carries with reasons, and explicitly declines to claim one item ("the row while claude STREAMS a long response"). That last line is the part most reports would have quietly rounded up.
+
+## 2. Critical findings
+
+None. All three prior Criticals dispose `addressed`, each verified by revert.
+
+## 3. Important findings
+
+**I1 — BR-24, `fix-not-pinned-by-failing-test`, 5th on this issue.** Do NOT fix by adding another test beside the existing ones. The rule from round 5 is unchanged and was answered one layer too high: *the mutation you must run is removal of the wiring at the point production enters it.* Measured at HEAD:
+
+| mutation | result |
+|---|---|
+| `consoleRunnerFor` → always `(nil, ExecRunner{})` | **RED** (`TestConsoleRunnerWiresThePtyRunnerWhenATerminalExists`) — fixed |
+| delete `path == "" → "."` in `ops.go:78-81` | **RED** (`TestStartDefaultsItsPathToCwd`) — fixed |
+| `consoleRunner` → always `(nil, ExecRunner{})` | **green** — still open |
+| `isTerminal(inFile) && isTerminal(outFile)` → `isTerminal(inFile)` | **green** — BR-23's other half |
+
+The residual is three lines, and it is closeable without a pty: make the predicate injectable (`var isTerminal = func(f *os.File) bool {…}`, or pass it in from `RunWithRuntime`). `os.Pipe()` yields real `*os.File`s, so with the predicate swapped a test can drive `consoleRunner` — and the both-fds composition — end to end with no terminal. That closes I1 and BR-23's unpinned half in one move, and it is the same seam ARCH-MOCK wants before M3.
+
+**I2 — new, `plan-table-drift`, 6th on this issue.** Do NOT just move the row. The five named sites are genuinely fixed, so the rule this instance adds is about the *sweep itself*: **a row added to a classified table asserts that section's classification, so a fix for table drift must classify what it files, or it ships a new instance of the family it closed.** Measured: `Console` was added under `### Pure entities` (plan:86) by round 2's fix, while its own row text reads "thin IO shell", `console.go` holds a mutex, spawns two goroutines, drives `hostty.Host` and `ptychild.Child`, and `console_test.go` cannot run without `hostty.FakeHost` + `ptychild.NewFakeChild`. It belongs in `### Integration points` beside `hostty.Host`. Evidence the section has stopped classifying rather than slipped once: `termcmd.restoreTerminal` — a method that writes escapes to a terminal — is in the same Pure table. The enumeration the rule implies is one pass over both tables checking each row's section against the code's actual IO surface. Also in scope: Task 2.1's `**Files:** Modify cmd/internal/couchcore/runner.go` (plan:250) — `runner.go` is untouched in this window; `TerminalHandle` landed in `ptyrunner.go`.
+
+**I3 — new, `docs-lag-the-surface`, 4th on this issue.** Do NOT just add a line to `atlas/couch.md`. BR-38's enumeration landed and works, so the rule this instance adds is: **an exemption from a derived-documentation check must itself be derived — an exemption may redirect to another enforced document, never to a sentence.** Measured: `readme_test.go:33-37` skips `publish-description` on the stated grounds that "it belongs in atlas/couch.md rather than in the operator's README", and `grep -rn publish atlas/ docs/ README.md` returns zero hits for it. The one hand-written hole in the enumeration points at a document that does not cover the operation, so couch's only agent-facing verb is undocumented everywhere while a test comment asserts otherwise. The fix is five lines: assert the exempted operation appears in `atlas/couch.md`, so the exemption becomes a redirection and every declared operation is documented *somewhere enforced*. Adjacent weakness worth folding in: `strings.Contains(doc, "couch "+op.Name)` is a prefix-ambiguous match — a future `couch stop-all` line would satisfy the check for `couch stop`.
+
+## 4. Minor findings
+
+- BR-32 unchanged, and the doc's *other* clause is false too: `ChildRows`'s comment says a too-short terminal means "the row is simply not drawn", but `PaintRow` only guards `hostRows == 0`, so on a 1-row host `paintNow` draws the row over the child's only line. Both clauses wrong, neither tested.
+- BR-33 unchanged, with a new site: `consoleRunnerFor` builds `hostty.NewOSHost` (which calls `signal.Notify` and starts `watch()`) **before** `op.Invoke` runs, so a `couch start` refused by the one-agent-per-tree guard leaks the registration and goroutine without `Run` ever being called. Nothing calls `host.Close()` on any path.
+- BR-34: three of four sites unchanged (`screen.go:277` "ED, every form" vs the DECSED early return; `ops.go:64` "at the CLI"; `atlas/couch.md:32` "stdio and block"). `run_test.go:41`'s "observable in the rendered output" measured false again this round. `go doc ./cmd/internal/couchcmd WantsConsole` confirmed to open with "consoleRunner decides which Runner this invocation gets" — the two doc blocks are contiguous. New: `render`'s StartResult branch still says "this milestone has no pty" (`run.go:287`), which is true of the branch and false of the milestone.
+- BR-35 unchanged: `doneBeforeExit` still read after the write that ends `sh -c "read line; exit 3"`; `Run`'s exit `select` unchanged; four pollers across three packages.
+- BR-39 unchanged: `console.go:321` takes `TakeRowDirty()` for every pane, `:333` acts only `if rowDirty && isActive`.
+- `atlas/couch.md:85-88`'s "confirmed by operator smoke on the full Ghostty → couch → pair → zellij → claude stack" still sits at the end of the three-bullet list whose third bullet is "Not corrupting the child" — the splice fix was found and verified by the live test, not by the operator. Round 3's plan-revision recommendation #3 asked for this to be narrowed; the item-by-item Log entry landed but this sentence did not move.
+
+## 5. Test coverage notes
+
+- Verified red on revert this round: the `writeOwn` mid-sequence gate (3 tests), the single-writer class (`TestConsoleNeverSplicesFromAnyPath`, 3/3 at `-count=3`), the ESC partial-length discriminator (4 tests), the `path` default, `consoleRunnerFor`'s wiring, and all three README enumeration axes.
+- Verified **green under mutation** (unpinned): `consoleRunner` honouring `consoleRunnerFor`; `isTerminal(outFile)`.
+- `go vet ./cmd/...` clean. `-race -count=2` on `couchtty` and `couchcmd` clean.
+- Environment unchanged and matching the issue's own Log: `ptychild`, `hostty`, `keyscmd` and `couchcore`'s three pty tests fail with `operation not permitted`; every other package passes. No new failures introduced by this window.
+- Still outstanding from the plan's own Task 2.3: `FuzzInterceptorFeed` bounds output length only; the specified chunk-invariance property ("one byte at a time reaches the same state as whole") is not implemented. Fourth round noted — it is the property that would have found BR-22 without an operator.
+
+## 6. Architectural notes
+
+- **ARCH-DRY — pass.** The README check derives from `couchcore.Operations()`; `make test-smoke` enumerates `probes/*/`; `hostScan` reuses `ptychild.Screen`; `reserve.go` composes `hostty` constants; `Spawn` reuses `launcher.DefaultTag`. Residual flag: four near-identical polling helpers across three packages (BR-35), and `TestConsoleRunnerDeclinesWithoutATerminal`/`...WithoutATerminalWiring` are near-copies (defensibly, since one drives the real entry).
+- **ARCH-PURE — pass, one flag.** `WantsConsole`, `keys.go` and `reserve.go` are pure and test with no IO; `Spawn`'s empty-path refusal is domain logic in the domain. The flag is documentary, not structural: the plan files `Console` — the milestone's entire IO shell — under "Pure entities" (I2), and the notice strings (`console.go:279,351`) plus the active-vs-inactive bell rule (`:322-330`) are still policy living in the shell rather than in `StatusModel`.
+- **ARCH-PURPOSE — flag, improving.** BR-25, BR-38 and BR-36 were answered at the class this round (an enumerating make target, an enumerating test, an item-by-item record plus an amended Plan line). Two fixes stopped one step short of the enumeration they implied: BR-24 pinned every link from `WantsConsole` down but not the one link production enters through, and BR-38's enumeration shipped with a single hand-written exemption that is itself undocumented. Both are the same shape — the class fix with one unenforced hole — and both are five lines from complete.
+- **ARCH-MOCK — flag, same concrete next step as the last two rounds.** The fake terminal being the same concrete `*ptychild.Child` as production, plus the lifecycle-predicate conformance test, remains the strongest ARCH-MOCK work in this project. Unchanged: `testRT.NewCouchWith` discards the injected runner, and `consoleRunner` hardcodes `term.IsTerminal` and `hostty.NewOSHost`, so there is still no fake-driven path from `RunWithRuntime` through the console. That is not a stylistic complaint — it is precisely why I1's mutation survives, and M3 (many children, a panel) needs the seam regardless.
+
+## 7. Plan revision recommendations
+
+1. **Move the `Console` row to `### Integration points`** and, in the same pass, audit both tables' membership — `termcmd.restoreTerminal` is IO sitting in the Pure table. Record it as a Revisions entry that says what was re-classified, written from the diff.
+2. **Task 2.1's `**Files:**` line** — `cmd/internal/couchcore/runner.go` was not modified; `TerminalHandle` and `PtyRunner` both landed in `ptyrunner.go`.
+3. **Narrow `atlas/couch.md`'s "confirmed by operator smoke"** so it does not cover the "Not corrupting the child" bullet, which was found and verified by `console_live_test.go` rather than by the operator. The issue Log already draws this line correctly; the atlas should match it.
+4. **Task 2.3** — implement `FuzzInterceptorFeed`'s specified chunk-invariance property, or record why the length bound replaced it. Fourth round unaddressed.
+
+```findings
+dispose:
+  - id: BR-24
+    disposition: not-addressed
+    note: |
+      consoleRunnerFor and the path default are both pinned now (both mutations red), but gutting consoleRunner itself is still green, as is dropping the outFile half of the tty gate.
+  - id: BR-26
+    disposition: addressed
+    note: |
+      all five named sites measured changed and the Revisions entry enumerates them individually; the sweep introduced one new instance, raised separately.
+  - id: BR-32
+    disposition: not-addressed
+    note: |
+      unchanged, and the doc's second clause is false too -- on a 1-row host PaintRow still draws the row, so "simply not drawn" is wrong at hostRows==1 as well as ChildRows(0)==0.
+  - id: BR-33
+    disposition: not-addressed
+    note: |
+      unchanged, plus a new site -- NewOSHost registers SIGWINCH and starts watch() inside consoleRunnerFor, before Invoke, so a refused couch start leaks both without Run ever being called.
+  - id: BR-34
+    disposition: not-addressed
+    note: |
+      three of four sites unchanged; run_test.go:41's claim measured false again; go doc WantsConsole confirmed to print consoleRunner's comment; new -- render's StartResult branch still says "this milestone has no pty".
+  - id: BR-35
+    disposition: not-addressed
+    note: |
+      unchanged -- doneBeforeExit still read after the write that ends the child, Run's exit select unchanged, four pollers across three packages.
+  - id: BR-36
+    disposition: addressed
+    note: |
+      item-by-item smoke record, issue Plan M2 line amended, plan Revisions entry, carries stated with reasons and one item explicitly not claimed; only atlas/couch.md's smoke sentence still over-reaches.
+  - id: BR-38
+    disposition: addressed
+    note: |
+      readme_test derives from Operations() and every FlagOnly arg; I mutated the README three ways and all three axes went red.
+  - id: BR-39
+    disposition: not-addressed
+    note: |
+      console.go:321 still takes TakeRowDirty for every pane while :333 acts only when active.
+findings:
+  - id: new
+    severity: Important
+    family: plan-table-drift
+    title: |
+      the sweep that closed this family filed Console under "Pure entities" while the row itself calls it a thin IO shell
+    detail: |
+      6th in this family on this issue. Do NOT just move the row. The five named sites ARE fixed, so
+      the rule this instance adds is about the sweep: a row added to a CLASSIFIED table asserts that
+      section's classification, so a fix for table drift must classify what it files or it ships a new
+      instance of the family it closed. Measured: plan:86 puts `Console` under `### Pure entities`,
+      while the row's own text reads "thin IO shell", console.go holds a mutex, starts two goroutines,
+      drives hostty.Host and ptychild.Child, and console_test.go cannot run without hostty.FakeHost
+      plus ptychild.NewFakeChild -- it belongs in `### Integration points` beside hostty.Host. Evidence
+      the section has stopped classifying rather than slipped once: termcmd.restoreTerminal, a method
+      that writes escapes to a terminal, is in the same Pure table. The enumeration the rule implies is
+      one pass over BOTH tables checking each row's section against the code's actual IO surface. Also
+      in scope: Task 2.1's "Files: Modify cmd/internal/couchcore/runner.go" (plan:250) -- runner.go is
+      untouched in this window; TerminalHandle landed in ptyrunner.go.
+  - id: new
+    severity: Important
+    family: docs-lag-the-surface
+    title: |
+      the README enumeration's one hand-written exemption points at atlas/couch.md, which does not document publish-description either
+    detail: |
+      4th in this family. Do NOT just add a line to atlas/couch.md. BR-38's enumeration landed and
+      works -- I mutated the README three ways and all three axes went red -- so the rule this instance
+      adds is: an exemption from a derived-documentation check must itself be derived; an exemption may
+      redirect to another ENFORCED document, never to a sentence. Measured: readme_test.go:33-37 skips
+      publish-description on the stated grounds that "it belongs in atlas/couch.md rather than in the
+      operator's README", and `grep -rn publish atlas/ docs/ README.md` returns zero hits for it. So
+      couch's only agent-facing verb is documented nowhere while a test comment asserts it is, and the
+      enumeration reads as complete coverage. Five-line fix: assert the exempted operation appears in
+      atlas/couch.md, making the exemption a redirection so every declared operation is documented
+      somewhere enforced. Fold in an adjacent weakness while there: `strings.Contains(doc, "couch "+
+      op.Name)` is prefix-ambiguous -- a future `couch stop-all` line would satisfy the check for
+      `couch stop`.
+```

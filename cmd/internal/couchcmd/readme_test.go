@@ -27,14 +27,19 @@ func readme(t *testing.T) string {
 // one documented surface the sweep did not cover. Enumerating from
 // couchcore.Operations() means a NEW operation is documented by existing, not by
 // somebody remembering.
+// agentFacing names the operations an operator never types, so the README is
+// not the place for them. Each must still be documented SOMEWHERE, which the
+// test below enforces -- the first version of this exemption was a bare
+// `continue` with a comment pointing at atlas/couch.md, which did not document
+// it either (M2 BR-39). An exemption that names another home has to check that
+// home.
+var agentFacing = map[string]bool{"publish-description": true}
+
 func TestREADMEDocumentsEveryOperation(t *testing.T) {
 	doc := readme(t)
 	for _, op := range couchcore.Operations() {
-		// publish-description is agent-facing, not operator-facing: it is run
-		// by a session inside its own tree, so it belongs in atlas/couch.md
-		// rather than in the operator's README.
-		if op.Name == "publish-description" {
-			continue
+		if agentFacing[op.Name] {
+			continue // checked against the atlas instead, below
 		}
 		if !strings.Contains(doc, "couch "+op.Name) {
 			t.Errorf("README does not document `couch %s`", op.Name)
@@ -72,6 +77,31 @@ func TestREADMEDocumentsEveryBypassFlag(t *testing.T) {
 			if !strings.Contains(doc, "--"+a.Name) {
 				t.Errorf("README does not document the `--%s` bypass on `couch %s`", a.Name, op.Name)
 			}
+		}
+	}
+}
+
+// The other half of the exemption: every agent-facing operation must be
+// documented in the atlas, since the README deliberately skips it.
+func TestAtlasDocumentsEveryAgentFacingOperation(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "atlas", "couch.md"))
+	if err != nil {
+		t.Fatalf("read atlas/couch.md: %v", err)
+	}
+	doc := string(raw)
+	for name := range agentFacing {
+		if !strings.Contains(doc, name) {
+			t.Errorf("atlas/couch.md does not document the agent-facing `%s`", name)
+		}
+	}
+	// And the exemption list may not name an operation that no longer exists.
+	declared := map[string]bool{}
+	for _, op := range couchcore.Operations() {
+		declared[op.Name] = true
+	}
+	for name := range agentFacing {
+		if !declared[name] {
+			t.Errorf("agentFacing exempts %q, which couch no longer declares", name)
 		}
 	}
 }

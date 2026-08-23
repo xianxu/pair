@@ -106,6 +106,16 @@ One prompt still reaches the operator on a COLD start of a tag with a saved
 config -- pair's `runConfigPicker`. Left deliberately (operator, 2026-08-22);
 skipping it needs the agent session id, which is `pair#149`'s to provide.
 
+## The agent-facing operation
+
+`couch publish-description` is run BY a session, inside its own tree, not by the
+operator -- which is why it is the one operation the README does not carry. A
+spawned child is told `$COUCH_TREE`, so the agent can name what it is working on
+in one line, and `Describe` prefers that sidecar over anything the operator
+typed. It is a LABEL, not state: a stale one still finds the right tree, which
+is why it is allowed to go stale where a published status document would not be
+(see the cold-revival experiment in the project file).
+
 ## Identity: the working tree
 
 An actor is keyed on the **canonical absolute path of a worktree root** — not on

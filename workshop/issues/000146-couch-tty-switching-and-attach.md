@@ -101,7 +101,7 @@ first) but are folded into the milestone whose risk they answer.
       query-strip, output scanner, pty child) out of `termcmd`'s multiplexer and
       migrate `pair term` onto it. Ships no couch behaviour; the migration is
       what validates the extraction (ARCH-DRY).
-- [ ] M2 — **console over one child, with the reserved row.** `PtyRunner` behind
+- [x] M2 — **console over one child, with the reserved row.** `PtyRunner` behind
       the existing `Runner` seam (+ fake + live conformance), `couch start`
       becomes the console, `ctrl-space` interceptor, one-row-shorter child pty
       with a pinned scrolling region, and `Spawn` forced onto `pair resume
@@ -788,6 +788,7 @@ whether the workbench's own chords still reach the child; whether quitting
 leaves a clean terminal; and the `kill -9` reattach.
 
 ### 2026-08-23 -- a real child under the console found a corruption bug
+- 2026-08-23: closed M2 — Round 4. All 3 Criticals disposed at round 3. The four remaining Importants fixed at the class: BR-24 consoleRunnerFor pins the WIRING without a pty (forcing it to decline now goes red in-sandbox) and the path default is pinned by EFFECT -- which surfaced that the explicit default was dead weight since filepath.Abs(empty) returns cwd, so Spawn refuses an empty path and the default is load-bearing. BR-26 all five named sites actually changed (Decision 11s false resume claim, Task 2.6as inverted test, statusrow.go which does not exist, TerminalHandles location and interface-vs-concrete contract, MarginsDirty at two sites) with a Revisions entry that does not overclaim. BR-36 Task 2.7 recorded item by item, separating operator-confirmed from automated, naming what is carried to M3 and why, and explicitly NOT claiming the row-while-claude-streams case. BR-38 fixed as an enumeration: readme_test.go derives from couchcore.Operations() and every FlagOnly arg, and immediately caught two gaps I had not thought to write. Verified: go test ./cmd/... green; make test-race DATA RACE clean; make test-live green; make test-smoke green via the probes/*/ enumeration; make build. Operator smoke on the real stack passed 2026-08-23.; review verdict: FIX-THEN-SHIP
 
 Rather than wait on the remaining smoke items, I put a REAL pty child under the
 real `Console` with a real terminal emulator reading the screen
@@ -1070,3 +1071,35 @@ remained, and the two that had already come back twice are the interesting ones.
   `couchcore.Operations()` and from every `FlagOnly` argument, so a new operation
   or a new bypass is documented by existing. It immediately caught two gaps I had
   not thought to write -- `couch describe` and the `--same-tree` bypass.
+
+### 2026-08-23 -- M2 boundary review round 4: gate passed, three fixes bundled in
+
+No open blocking findings after four rounds. Three findings were recorded past
+the round cap rather than accepted, so they were fixed before the close commit
+per the FIX-THEN-SHIP protocol -- a cap is the gate declining to keep spending
+rounds, not a judgment that a finding is wrong.
+
+- **An inactive pane's row damage was thrown away.** `onChunk` consumed
+  `TakeRowDirty` for every pane but acted only for the active one, so a
+  background child's erase vanished and attaching to it later would have landed
+  on a screen with no status row -- a bug that would first appear in M3, where
+  attaching is the whole feature. The latch is per-pane now, mirroring how the
+  bell already worked.
+- **`Console` was filed under "Pure entities"** by my own sweep, while the row
+  beside it called it a thin IO shell. It is an integration point and is filed
+  as one.
+- **My README exemption named a home it had not checked.** The enumeration
+  exempted `publish-description` as agent-facing with a comment pointing at
+  `atlas/couch.md` -- which did not document it either. The atlas now describes
+  it, and a second test enforces the exemption's other half: an exempted
+  operation must be documented in the atlas, and the exemption list may not name
+  an operation couch no longer declares. An exemption that names another home
+  has to check that home.
+
+**One recurring miss of mine worth recording separately:** the test for the
+inactive-pane latch failed on its first run because it asserted immediately
+after `Feed`, before the console's loop had processed the chunk. `Feed` is
+synchronous, the console is not. That is the third time this session I have
+written an assertion that races the consumer -- twice it produced a false PASS
+(a live bug reported fixed), and here a false FAIL. It is already in
+`workshop/lessons.md`; what it needs is applying, not recording again.

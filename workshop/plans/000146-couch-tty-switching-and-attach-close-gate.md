@@ -788,6 +788,85 @@ rounds:
           round: 7
       boundary: M2
       blocked: true
+    - "n": 8
+      timestamp: "2026-08-23T09:42:21-07:00"
+      agent: claude
+      dispose:
+        - id: BR-24
+          disposition: not-addressed
+          note: consoleRunnerFor and the path default are both pinned now (both mutations red), but gutting consoleRunner itself is still green, as is dropping the outFile half of the tty gate.
+          round: 8
+        - id: BR-26
+          disposition: addressed
+          note: all five named sites measured changed and the Revisions entry enumerates them individually; the sweep introduced one new instance, raised separately.
+          round: 8
+        - id: BR-32
+          disposition: not-addressed
+          note: unchanged, and the doc's second clause is false too -- on a 1-row host PaintRow still draws the row, so "simply not drawn" is wrong at hostRows==1 as well as ChildRows(0)==0.
+          round: 8
+        - id: BR-33
+          disposition: not-addressed
+          note: unchanged, plus a new site -- NewOSHost registers SIGWINCH and starts watch() inside consoleRunnerFor, before Invoke, so a refused couch start leaks both without Run ever being called.
+          round: 8
+        - id: BR-34
+          disposition: not-addressed
+          note: three of four sites unchanged; run_test.go:41's claim measured false again; go doc WantsConsole confirmed to print consoleRunner's comment; new -- render's StartResult branch still says "this milestone has no pty".
+          round: 8
+        - id: BR-35
+          disposition: not-addressed
+          note: unchanged -- doneBeforeExit still read after the write that ends the child, Run's exit select unchanged, four pollers across three packages.
+          round: 8
+        - id: BR-36
+          disposition: addressed
+          note: item-by-item smoke record, issue Plan M2 line amended, plan Revisions entry, carries stated with reasons and one item explicitly not claimed; only atlas/couch.md's smoke sentence still over-reaches.
+          round: 8
+        - id: BR-38
+          disposition: addressed
+          note: readme_test derives from Operations() and every FlagOnly arg; I mutated the README three ways and all three axes went red.
+          round: 8
+        - id: BR-39
+          disposition: not-addressed
+          note: console.go:321 still takes TakeRowDirty for every pane while :333 acts only when active.
+          round: 8
+      findings:
+        - id: BR-40
+          severity: Important
+          title: the sweep that closed this family filed Console under "Pure entities" while the row itself calls it a thin IO shell
+          detail: |-
+            6th in this family on this issue. Do NOT just move the row. The five named sites ARE fixed, so
+            the rule this instance adds is about the sweep: a row added to a CLASSIFIED table asserts that
+            section's classification, so a fix for table drift must classify what it files or it ships a new
+            instance of the family it closed. Measured: plan:86 puts `Console` under `### Pure entities`,
+            while the row's own text reads "thin IO shell", console.go holds a mutex, starts two goroutines,
+            drives hostty.Host and ptychild.Child, and console_test.go cannot run without hostty.FakeHost
+            plus ptychild.NewFakeChild -- it belongs in `### Integration points` beside hostty.Host. Evidence
+            the section has stopped classifying rather than slipped once: termcmd.restoreTerminal, a method
+            that writes escapes to a terminal, is in the same Pure table. The enumeration the rule implies is
+            one pass over BOTH tables checking each row's section against the code's actual IO surface. Also
+            in scope: Task 2.1's "Files: Modify cmd/internal/couchcore/runner.go" (plan:250) -- runner.go is
+            untouched in this window; TerminalHandle landed in ptyrunner.go.
+          family: plan-table-drift
+          round: 8
+        - id: BR-41
+          severity: Important
+          title: the README enumeration's one hand-written exemption points at atlas/couch.md, which does not document publish-description either
+          detail: |-
+            4th in this family. Do NOT just add a line to atlas/couch.md. BR-38's enumeration landed and
+            works -- I mutated the README three ways and all three axes went red -- so the rule this instance
+            adds is: an exemption from a derived-documentation check must itself be derived; an exemption may
+            redirect to another ENFORCED document, never to a sentence. Measured: readme_test.go:33-37 skips
+            publish-description on the stated grounds that "it belongs in atlas/couch.md rather than in the
+            operator's README", and `grep -rn publish atlas/ docs/ README.md` returns zero hits for it. So
+            couch's only agent-facing verb is documented nowhere while a test comment asserts it is, and the
+            enumeration reads as complete coverage. Five-line fix: assert the exempted operation appears in
+            atlas/couch.md, making the exemption a redirection so every declared operation is documented
+            somewhere enforced. Fold in an adjacent weakness while there: `strings.Contains(doc, "couch "+
+            op.Name)` is prefix-ambiguous -- a future `couch stop-all` line would satisfy the check for
+            `couch stop`.
+          family: docs-lag-the-surface
+          round: 8
+      boundary: M2
+      blocked: false
 ---
 
 # Gate ledger — pair#146 (boundary-review)
@@ -1223,6 +1302,49 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   pane; reachable the moment M3 attaches a second. Fix: store into a per-pane dirty flag and
   consume it at switch time, mirroring how p.bell is handled.
 
+## Round 8 — 2026-08-23T09:42:21-07:00 (claude) — passed
+
+### Disposed
+
+- BR-24 — not-addressed — consoleRunnerFor and the path default are both pinned now (both mutations red), but gutting consoleRunner itself is still green, as is dropping the outFile half of the tty gate.
+- BR-26 — addressed — all five named sites measured changed and the Revisions entry enumerates them individually; the sweep introduced one new instance, raised separately.
+- BR-32 — not-addressed — unchanged, and the doc's second clause is false too -- on a 1-row host PaintRow still draws the row, so "simply not drawn" is wrong at hostRows==1 as well as ChildRows(0)==0.
+- BR-33 — not-addressed — unchanged, plus a new site -- NewOSHost registers SIGWINCH and starts watch() inside consoleRunnerFor, before Invoke, so a refused couch start leaks both without Run ever being called.
+- BR-34 — not-addressed — three of four sites unchanged; run_test.go:41's claim measured false again; go doc WantsConsole confirmed to print consoleRunner's comment; new -- render's StartResult branch still says "this milestone has no pty".
+- BR-35 — not-addressed — unchanged -- doneBeforeExit still read after the write that ends the child, Run's exit select unchanged, four pollers across three packages.
+- BR-36 — addressed — item-by-item smoke record, issue Plan M2 line amended, plan Revisions entry, carries stated with reasons and one item explicitly not claimed; only atlas/couch.md's smoke sentence still over-reaches.
+- BR-38 — addressed — readme_test derives from Operations() and every FlagOnly arg; I mutated the README three ways and all three axes went red.
+- BR-39 — not-addressed — console.go:321 still takes TakeRowDirty for every pane while :333 acts only when active.
+
+### Raised
+
+- **BR-40** [Important] `plan-table-drift` the sweep that closed this family filed Console under "Pure entities" while the row itself calls it a thin IO shell
+  6th in this family on this issue. Do NOT just move the row. The five named sites ARE fixed, so
+  the rule this instance adds is about the sweep: a row added to a CLASSIFIED table asserts that
+  section's classification, so a fix for table drift must classify what it files or it ships a new
+  instance of the family it closed. Measured: plan:86 puts `Console` under `### Pure entities`,
+  while the row's own text reads "thin IO shell", console.go holds a mutex, starts two goroutines,
+  drives hostty.Host and ptychild.Child, and console_test.go cannot run without hostty.FakeHost
+  plus ptychild.NewFakeChild -- it belongs in `### Integration points` beside hostty.Host. Evidence
+  the section has stopped classifying rather than slipped once: termcmd.restoreTerminal, a method
+  that writes escapes to a terminal, is in the same Pure table. The enumeration the rule implies is
+  one pass over BOTH tables checking each row's section against the code's actual IO surface. Also
+  in scope: Task 2.1's "Files: Modify cmd/internal/couchcore/runner.go" (plan:250) -- runner.go is
+  untouched in this window; TerminalHandle landed in ptyrunner.go.
+- **BR-41** [Important] `docs-lag-the-surface` the README enumeration's one hand-written exemption points at atlas/couch.md, which does not document publish-description either
+  4th in this family. Do NOT just add a line to atlas/couch.md. BR-38's enumeration landed and
+  works -- I mutated the README three ways and all three axes went red -- so the rule this instance
+  adds is: an exemption from a derived-documentation check must itself be derived; an exemption may
+  redirect to another ENFORCED document, never to a sentence. Measured: readme_test.go:33-37 skips
+  publish-description on the stated grounds that "it belongs in atlas/couch.md rather than in the
+  operator's README", and `grep -rn publish atlas/ docs/ README.md` returns zero hits for it. So
+  couch's only agent-facing verb is documented nowhere while a test comment asserts it is, and the
+  enumeration reads as complete coverage. Five-line fix: assert the exempted operation appears in
+  atlas/couch.md, making the exemption a redirection so every declared operation is documented
+  somewhere enforced. Fold in an adjacent weakness while there: `strings.Contains(doc, "couch "+
+  op.Name)` is prefix-ambiguous -- a future `couch stop-all` line would satisfy the check for
+  `couch stop`.
+
 ## Open findings
 
 - **BR-1** [Important] `chunking-invariance` Screen raises a false bell for any sequence longer than maxPending split across two reads
@@ -1232,11 +1354,10 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-19** [Minor] `framing-omits-sequence-class` frame treats DCS/APC/PM/SOS as two-byte escapes, so their payloads are scanned as plain text and a BEL inside one falsely rings
 - **BR-20** [Minor] `needless-indirection` Child.Replay has zero production callers while the one repaint site reimplements it
 - **BR-24** [Important] `fix-not-pinned-by-failing-test` the milestone's central wiring is unpinned -- disabling the console entirely leaves the whole suite green
-- **BR-26** [Important] `plan-table-drift` the plan's Decision 11 and three Core-concepts rows now contradict the code, with no Revisions entry
 - **BR-32** [Minor] `uncovered-negative-assertion` ChildRows(0) returns 0 while its doc says "It never returns zero", and no test covers the boundary case
 - **BR-33** [Minor] `signal-goroutine-outlives-close` Console.Run never calls Stop() or host.Close(), so the resize watcher and the SIGWINCH registration outlive the console
 - **BR-34** [Minor] `stale-comment-reference` several comments overstate or misplace what the code does
 - **BR-35** [Minor] `test-harness-races` the live conformance scenario and Run's exit select are both racy by construction
-- **BR-36** [Important] `undelivered-plan-step` Task 2.7's operator smoke is partly unrecorded and two of its items are carried to M3 with no Revisions entry
-- **BR-38** [Important] `docs-lag-the-surface` README documents the pty and --no-console but not ctrl-space or the path default, and the atlas-identifier check has no README counterpart
 - **BR-39** [Minor] `latch-consumed-by-wrong-consumer` onChunk consumes TakeRowDirty for every pane but acts on it only for the active one, so an inactive pane's dirty-row latch is thrown away
+- **BR-40** [Important] `plan-table-drift` the sweep that closed this family filed Console under "Pure entities" while the row itself calls it a thin IO shell
+- **BR-41** [Important] `docs-lag-the-surface` the README enumeration's one hand-written exemption points at atlas/couch.md, which does not document publish-description either
