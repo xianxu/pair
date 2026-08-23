@@ -188,3 +188,24 @@ Two consequences recorded above rather than discovered later: `couch start
 <path>` always creates rather than resuming, since a path may name zero or
 several spaces; and the limit's granularity and whether it counts live sessions
 or all spaces both need settling before implementation.
+
+### 2026-08-22 -- inherited from `#146` M2's smoke: the config picker
+
+`#146` made `couch start` spawn `pair resume <tag>`, which removes the name
+prompt and `DecideLaunch`'s session picker. One prompt survives and lands inside
+couch's own pty: `runConfigPicker` (`launcher/createflow.go:646`), the
+saved-config restore choice -- "use saved params + session / use saved params /
+use new params".
+
+It fires only on a COLD start of a tag that has a saved config; once a session
+is live, `couch start` attaches and prompts nothing. The operator's call on
+2026-08-22 was to leave it, because choosing fresh-vs-resume at a cold start is
+a reasonable thing to be asked.
+
+Why it belongs here rather than there: the picker is skipped only when argv
+already pins an explicit resume (`extractExplicitResume`, `createlogic.go:57`),
+which needs the **agent session id**. couch has no way to know one today. This
+issue's model -- the tag as the space's durable identity, with its draft, ledger
+and session surviving revival -- is what would let a couch-launched session
+resume without asking. Whoever implements that should decide whether a
+non-interactive restore is part of it.

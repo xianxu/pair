@@ -696,3 +696,10 @@ session id -- something couch does not have and `#149` is the issue that would
 give it one. No non-interactive override exists in pair today.
 
 **Not fixed pending an operator call** -- see the open question below.
+
+**Operator call 2026-08-22: leave the config picker.** It fires once per cold
+start, and choosing fresh-vs-resume at that moment is defensible rather than
+merely tolerable. Determinism there needs the agent session id, which is
+`#149`'s to provide -- noted on that issue so it is not carried only here.
+`#146` closes Decision 11 at what it actually delivers: no name prompt, no
+session picker, and an attach with no prompt at all once a session is live.
