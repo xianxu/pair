@@ -9,18 +9,42 @@ package couchtty
 
 import "bytes"
 
-// The bracketed-paste markers, defined ONCE. A protocol with paired delimiters
-// gets one constant pair and every site derives from it; two sites framing the
-// same delimiter independently is the bug this repo paid for in #127.
-var (
-	pasteStart = []byte("\x1b[200~")
-	pasteEnd   = []byte("\x1b[201~")
+// hotkeyByte is ctrl-space in the LEGACY encoding: ctrl-@ is NUL.
+const hotkeyByte = 0x00
+
+type seqKind uint8
+
+const (
+	seqNone seqKind = iota
+	seqPartial
+	seqPasteStart
+	seqPasteEnd
+	seqHotkey
 )
 
-// hotkey is ctrl-space. A bare key, not a chord, so there is no timing window
-// and no prefix table -- which is precisely why the Spec chose it over
-// double-ESC.
-const hotkey = 0x00
+// knownSequences is every multi-byte sequence the console must recognise in the
+// operator's input. Everything else is forwarded untouched -- couch does not
+// frame the child's keyboard.
+//
+// The Kitty row is the one an M2 operator smoke had to teach us. zellij enables
+// the Kitty keyboard protocol, so the terminal stops sending NUL for ctrl-space
+// and sends CSI-u instead: space is codepoint 32, ctrl is modifier bitmask 4
+// encoded as 4+1. Knowing only the legacy byte meant ctrl-space sailed through
+// to the child and landed in draft nvim. pair's own chord table carries both
+// encodings for every chord (workbenchshortcut/shortcut.go:294-312); this is the
+// same lesson arriving one layer up.
+//
+// Exact strings, matching how workbenchshortcut does it. A tolerant parser for
+// CSI-u variants would also have to decide what `\x1b[32;5:3u` (key RELEASE)
+// means, and guessing there is how a switcher fires twice per keypress.
+var knownSequences = []struct {
+	bytes []byte
+	kind  seqKind
+}{
+	{[]byte("\x1b[200~"), seqPasteStart},
+	{[]byte("\x1b[201~"), seqPasteEnd},
+	{[]byte("\x1b[32;5u"), seqHotkey},
+}
 
 // Interceptor splits the operator's keystrokes around the hotkey.
 //
@@ -57,26 +81,35 @@ func (i *Interceptor) Feed(in []byte) (before []byte, hit bool, rest []byte) {
 
 	out := make([]byte, 0, len(buf))
 	for idx := 0; idx < len(buf); {
-		if !i.inPaste && buf[idx] == hotkey {
+		if !i.inPaste && buf[idx] == hotkeyByte {
 			return out, true, buf[idx+1:]
 		}
 		if buf[idx] == 0x1b {
-			n, kind := markerAt(buf[idx:])
+			n, kind := sequenceAt(buf[idx:])
 			switch kind {
-			case markerPartial:
+			case seqPartial:
 				// A REAL prefix -- hold it. Anything already scanned still
 				// goes to the current focus.
 				i.held = append([]byte(nil), buf[idx:]...)
 				return out, false, nil
-			case markerStart, markerEnd:
-				i.inPaste = kind == markerStart
+			case seqPasteStart, seqPasteEnd:
+				i.inPaste = kind == seqPasteStart
+				out = append(out, buf[idx:idx+n]...)
+				idx += n
+				continue
+			case seqHotkey:
+				if !i.inPaste {
+					return out, true, buf[idx+n:]
+				}
+				// Inside a paste it is content, like any other byte.
 				out = append(out, buf[idx:idx+n]...)
 				idx += n
 				continue
 			}
-			// markerNone: an ordinary escape sequence. Fall through and copy
-			// its bytes one at a time -- couch does not frame the operator's
-			// input beyond the two markers it must know about.
+			// seqNone: an ordinary escape sequence -- one of the workbench's
+			// own chords, an arrow key, anything. Fall through and copy its
+			// bytes; couch does not frame the child's keyboard beyond the
+			// sequences it must recognise.
 		}
 		out = append(out, buf[idx])
 		idx++
@@ -84,34 +117,24 @@ func (i *Interceptor) Feed(in []byte) (before []byte, hit bool, rest []byte) {
 	return out, false, nil
 }
 
-type markerKind uint8
-
-const (
-	markerNone markerKind = iota
-	markerPartial
-	markerStart
-	markerEnd
-)
-
-// markerAt classifies the bytes at buf[0] against the two paste markers.
+// sequenceAt classifies the bytes at buf[0] against knownSequences.
 //
 // The distinction that matters is PARTIAL versus NONE. `\x1b[2~` is the Insert
 // key and shares three bytes with `\x1b[200~`; treating it as an unfinished
-// marker would park it, and every keystroke behind it, exactly as #127's dead
-// keyboard did. Once a byte diverges from BOTH markers the run is not a marker
-// and is emitted as ordinary input.
-func markerAt(buf []byte) (int, markerKind) {
-	switch {
-	case bytes.HasPrefix(buf, pasteStart):
-		return len(pasteStart), markerStart
-	case bytes.HasPrefix(buf, pasteEnd):
-		return len(pasteEnd), markerEnd
+// sequence would park it, and every keystroke behind it, exactly as #127's dead
+// keyboard did. A run is partial only while it is a genuine PREFIX of something
+// known; once it diverges from all of them it is ordinary input.
+func sequenceAt(buf []byte) (int, seqKind) {
+	for _, s := range knownSequences {
+		if bytes.HasPrefix(buf, s.bytes) {
+			return len(s.bytes), s.kind
+		}
 	}
-	if len(buf) >= len(pasteStart) {
-		return 0, markerNone // long enough to have matched, and did not
+	for _, s := range knownSequences {
+		// buf shorter than s and matching so far: still a real prefix.
+		if len(buf) < len(s.bytes) && bytes.HasPrefix(s.bytes, buf) {
+			return 0, seqPartial
+		}
 	}
-	if bytes.HasPrefix(pasteStart, buf) || bytes.HasPrefix(pasteEnd, buf) {
-		return 0, markerPartial
-	}
-	return 0, markerNone
+	return 0, seqNone
 }

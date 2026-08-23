@@ -77,27 +77,34 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 		return ActorRecord{}, nil, err
 	}
 
-	// `pair resume <tag>` rather than a bare `pair`: with no tag,
-	// launcher.DecideLaunch returns ActionPick as soon as a detached session
-	// exists (decision.go:47), which inside couch's own pty is an fzf picker
-	// waiting on an operator who only asked to start. `resume` takes the
-	// ForcedTag branch -- attach if live or detached, create otherwise -- and
-	// skips the name prompt (help.go:15).
+	// `pair resume <tag> --layout2` rather than a bare `pair`.
 	//
-	// The tag derives from the TREE, so going back in is deterministic: the
-	// same tree always resumes the same session. `launcher.DefaultTag` is
-	// pair's own create-flow derivation, reused rather than re-implemented.
+	// The tag: with none, launcher.DecideLaunch returns ActionPick as soon as a
+	// detached session exists (decision.go:47), which inside couch's own pty is
+	// an fzf picker waiting on an operator who only asked to start. `resume`
+	// takes the ForcedTag branch -- attach if live or detached, create
+	// otherwise -- and skips the name prompt (help.go:15). It derives from the
+	// TREE, so going back in is deterministic: the same tree always resumes the
+	// same session. `launcher.DefaultTag` is pair's own create-flow derivation,
+	// reused rather than re-implemented.
 	//
-	// --layout2 is deliberately absent, and its absence is load-bearing twice
-	// over: `resume` REFUSES a third argv element (args.go:104), and forcing a
-	// layout on a live tag makes pair ask before recreating the workbench --
-	// a prompt the operator would meet inside couch's pty. An omitted flag
-	// reuses the tag's recorded layout, and a new tag already defaults to
-	// layout2.
+	// The layout: pinned to layout2 by operator decision 2026-08-22. couch owns
+	// terminal switching now, so layout3's third pane -- pair's own user
+	// terminal -- is the layer couch replaces. Provisional ("for now"), which is
+	// why it is a literal here rather than a knob nobody has asked for.
+	//
+	// A correction worth keeping: an earlier version of this comment claimed
+	// `resume` REFUSES a third argv element and that --layout2 was therefore
+	// impossible. Only POSITIONALS are refused -- `ParseArgs` runs
+	// `extractLayoutRequest` first (args.go:51), which strips layout flags
+	// before the guard ever sees them, and `launchArgsAcceptLayout` admits them
+	// for resume because its Command is "". Measured, not reasoned:
+	// `resume mytag --layout2` parses to {tag, layout2}; `resume mytag stray`
+	// is the thing that errors.
 	//
 	// This is a deliberate slice of #149, which makes the tag the space's
 	// durable identity; #146 needs only that re-entry is deterministic.
-	argv := append([]string{"pair", "resume", launcher.DefaultTag(string(tree))}, args.ExtraArgs...)
+	argv := append([]string{"pair", "resume", launcher.DefaultTag(string(tree)), "--layout2"}, args.ExtraArgs...)
 	// The child is told which tree it is and where couch keeps state, so the
 	// agent inside it can publish its own one-line description. Without this
 	// the description cache has no source: an operator typing `couch describe`

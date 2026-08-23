@@ -732,3 +732,41 @@ measured rather than reasoned.
 its child; pair dying orphans that client, and closing couch's pty then hangs it
 up. Both routes end at a client death, which is what was measured, but the full
 path through pair is still an operator-smoke item rather than a measured one.
+
+### 2026-08-22 -- M2 smoke round 2: ctrl-space reached nvim, and a claim of mine was wrong
+
+**1. ctrl-space was not intercepted -- the terminal does not send NUL.**
+Operator reported it landing in draft nvim. zellij explicitly enables the Kitty
+keyboard protocol, so the terminal stops sending the legacy NUL for ctrl-space
+and sends CSI-u: `\x1b[32;5u` (space is codepoint 32; ctrl is modifier bitmask
+4, encoded as 4+1). An interceptor that knew only `0x00` forwarded it straight
+to the child.
+
+The evidence was already in the tree: pair's own chord table carries BOTH
+encodings for every chord (`workbenchshortcut/shortcut.go:294-312`,
+`{"\x1bj", ChordAltJ}, {"\x1b[106;3u", ChordAltJ}`). Decision 10 leaned on
+ctrl-space being "a bare key, not a chord, so there is no framing state" -- true
+of the legacy encoding and false of the one actually in use. The ctrl-space
+audit checked what BINDS the key and never asked what ENCODES it.
+
+Fixed with a sequence table carrying both forms. Exact strings, matching how
+`workbenchshortcut` does it: a tolerant CSI-u parser would also have to decide
+what `\x1b[32;5:3u` (key RELEASE) means, and guessing there is how a switcher
+fires twice per keypress. The test that matters most is the negative one --
+couch must NOT eat the workbench's own chords, which arrive in the same shape.
+Deletion check: matching any CSI-u turns it red on `\x1b[106;3u` (Alt+j).
+
+**2. `--layout2` is back, and my reason for dropping it was wrong.**
+Operator decision: pin layout2 for now, since couch owns terminal switching and
+layout3's third pane is the layer couch replaces.
+
+Decision 11 had claimed `resume` refuses any third argv element, making the flag
+impossible. Only POSITIONALS are refused. `ParseArgs` runs
+`extractLayoutRequest` FIRST (`args.go:51`), which strips layout flags before
+the guard sees them, and `launchArgsAcceptLayout` admits them for resume because
+its `Command` is `""`. Measured: `resume mytag --layout2` parses to
+`{tag, layout2}`; `resume mytag stray` is the thing that errors.
+
+I read the positional guard and stopped there. Both properties are now pinned in
+`launcher/args_test.go`, where a change to either would otherwise break couch
+silently.

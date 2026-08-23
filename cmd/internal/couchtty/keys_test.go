@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 )
 
@@ -139,4 +140,83 @@ func FuzzInterceptorFeed(f *testing.F) {
 			t.Fatalf("Feed grew the input: %d + %d from %d", len(before), len(rest), len(in))
 		}
 	})
+}
+
+// Reported from the M2 smoke: ctrl-space reached draft nvim instead of couch.
+//
+// zellij explicitly enables the Kitty keyboard protocol, so the terminal stops
+// sending the legacy NUL for ctrl-space and sends CSI-u instead: `\x1b[32;5u`
+// (space is 32, ctrl is modifier bitmask 4, encoded as 4+1). An interceptor
+// that knows only 0x00 forwards it to the child, which is exactly what the
+// operator saw. pair's own chord table carries both encodings for every chord
+// (workbenchshortcut/shortcut.go:294-312) -- couch has to as well.
+func TestInterceptorFiresOnTheKittyProtocolEncoding(t *testing.T) {
+	var it Interceptor
+	before, hit, rest := it.Feed([]byte("x\x1b[32;5uy"))
+
+	if !hit {
+		t.Fatal("the Kitty-protocol ctrl-space did not fire the hotkey")
+	}
+	if string(before) != "x" || string(rest) != "y" {
+		t.Fatalf("split = (%q, %q), want (x, y)", before, rest)
+	}
+}
+
+// Both encodings, since which one arrives depends on whether the child has
+// enabled the protocol -- and that can change mid-session.
+func TestInterceptorFiresOnBothEncodings(t *testing.T) {
+	for _, seq := range []string{"\x00", "\x1b[32;5u"} {
+		var it Interceptor
+		if _, hit, _ := it.Feed([]byte(seq)); !hit {
+			t.Fatalf("%q did not fire the hotkey", seq)
+		}
+	}
+}
+
+// couch must not eat the WORKBENCH's chords. Alt+j and friends are pair's, and
+// they arrive in the same CSI-u shape.
+func TestInterceptorForwardsOtherKittyChordsUntouched(t *testing.T) {
+	for _, seq := range []string{
+		"\x1b[106;3u", // Alt+j
+		"\x1b[119;3u", // Alt+w
+		"\x1b[32;3u",  // Alt+space, not ctrl
+		"\x1b[32;2u",  // Shift+space
+		"\x1b[33;5u",  // ctrl+!, adjacent codepoint
+	} {
+		var it Interceptor
+		before, hit, _ := it.Feed([]byte(seq))
+		if hit {
+			t.Fatalf("%q fired couch's hotkey; it belongs to the child", seq)
+		}
+		if string(before) != seq {
+			t.Fatalf("%q was mangled to %q", seq, before)
+		}
+	}
+}
+
+func TestInterceptorHandlesTheKittyHotkeySplitAcrossReads(t *testing.T) {
+	var it Interceptor
+	if _, hit, _ := it.Feed([]byte("\x1b[32;")); hit {
+		t.Fatal("a partial CSI-u fired the hotkey")
+	}
+	before, hit, rest := it.Feed([]byte("5utail"))
+	if !hit {
+		t.Fatal("the hotkey did not fire once the sequence completed")
+	}
+	if len(before) != 0 || string(rest) != "tail" {
+		t.Fatalf("split = (%q, %q), want ('', tail)", before, rest)
+	}
+}
+
+// The paste suspension covers both encodings: a CSI-u ctrl-space inside pasted
+// content is content.
+func TestInterceptorIgnoresTheKittyHotkeyInsideAPaste(t *testing.T) {
+	var it Interceptor
+	before, hit, _ := it.Feed([]byte("\x1b[200~a\x1b[32;5ub\x1b[201~"))
+	if hit {
+		t.Fatal("a Kitty-protocol ctrl-space inside a paste fired the hotkey")
+	}
+	if !strings.Contains(string(before), "\x1b[32;5u") {
+		t.Fatalf("the pasted sequence did not reach the child: %q", before)
+	}
 }

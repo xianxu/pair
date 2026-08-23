@@ -67,7 +67,7 @@ func TestSpawnStartsPairAndRecordsTheActor(t *testing.T) {
 	}
 	// couch spawns pair, not claude: pair owns zellij, the layout, and the
 	// agent's resume/session-id knowledge.
-	if got := env.Runner.Ops[0]; got != "start /repo: pair resume repo" {
+	if got := env.Runner.Ops[0]; got != "start /repo: pair resume repo --layout2" {
 		t.Fatalf("Ops[0] = %q", got)
 	}
 	if !rec.StartedAt.Equal(env.Now) {
@@ -583,11 +583,12 @@ func TestSpawnResumesATagDerivedFromTheTree(t *testing.T) {
 	if !strings.Contains(got, "pair resume ") {
 		t.Fatalf("argv = %q, want `pair resume <tag>`", got)
 	}
-	// `resume` refuses any third argv element (launcher/args.go:104), so
-	// leaving --layout2 in is a usage error at RUNTIME that no other test here
-	// would ever see.
-	if strings.Contains(got, "--layout2") {
-		t.Fatalf("argv still carries --layout2, which `resume` rejects: %q", got)
+	// Layout pinned to layout2 (operator decision 2026-08-22): couch owns
+	// terminal switching, so layout3's third pane is the layer couch replaces.
+	// This is accepted BECAUSE ParseArgs strips layout flags before the
+	// positional guard -- only a stray positional errors.
+	if !strings.Contains(got, "--layout2") {
+		t.Fatalf("argv does not pin layout2: %q", got)
 	}
 }
 

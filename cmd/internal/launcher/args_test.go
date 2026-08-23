@@ -318,3 +318,28 @@ func TestParseQuit(t *testing.T) {
 		t.Fatalf("Agent = %q, want empty (quit is not an agent)", got.Agent)
 	}
 }
+
+// couch spawns `pair resume <tag> --layout2` (pair#146). Two properties it
+// depends on, pinned here because a change to either breaks couch silently:
+// layout flags survive the `resume` positional guard, and a stray positional
+// still does not.
+//
+// #146 initially recorded the opposite -- that `resume` refuses any third argv
+// element -- and dropped the layout flag on that basis. ParseArgs runs
+// extractLayoutRequest BEFORE parseArgs, so the guard never sees a layout flag.
+func TestResumeAcceptsLayoutFlagsButNotStrayPositionals(t *testing.T) {
+	got, err := ParseArgs([]string{"resume", "mytag", "--layout2"})
+	if err != nil {
+		t.Fatalf("resume with --layout2: %v", err)
+	}
+	if got.ForcedTag != "mytag" {
+		t.Fatalf("ForcedTag = %q, want mytag", got.ForcedTag)
+	}
+	if !got.Layout.Explicit || string(got.Layout.Mode) != "layout2" {
+		t.Fatalf("Layout = %+v, want an explicit layout2", got.Layout)
+	}
+
+	if _, err := ParseArgs([]string{"resume", "mytag", "stray"}); err == nil {
+		t.Fatal("a stray positional after the tag was accepted; the guard must still hold")
+	}
+}
