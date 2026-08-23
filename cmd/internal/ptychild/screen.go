@@ -112,10 +112,18 @@ func (s *Screen) Feed(p []byte) {
 	for len(buf) > 0 {
 		if s.skipping != skipNone {
 			n, done := s.skipTerminator(buf)
-			buf = buf[n:]
 			if !done {
-				return // whole chunk was sequence body; nothing derivable
+				// HOLD the unconsumed remainder. The OSC scan stops before a
+				// trailing ESC so a two-byte ST is not split in half -- but the
+				// first cut of this dropped those bytes instead of keeping
+				// them, so a chunk boundary falling inside an ST swallowed the
+				// next real bell. Measured at 1 of 70,550 cut positions, which
+				// is exactly the kind of residual a fuzzer finds and a reader
+				// does not.
+				s.pending = append([]byte(nil), buf[n:]...)
+				return
 			}
+			buf = buf[n:]
 			s.skipping = skipNone
 			continue
 		}
@@ -148,8 +156,11 @@ func (s *Screen) Feed(p []byte) {
 				// follows is still interpreted correctly. Ring still holds the
 				// raw bytes for the repaint.
 				s.skipping = skipCSI
-				if len(buf) > 1 && buf[1] == ']' {
-					s.skipping = skipOSC
+				if len(buf) > 1 {
+					switch buf[1] {
+					case ']', 'P', '_', '^', 'X':
+						s.skipping = skipOSC // string-terminated
+					}
 				}
 				buf = buf[2:]
 				continue
@@ -270,7 +281,18 @@ func frame(buf []byte) (int, bool) {
 			return 0, false
 		}
 		return end, true
-	case ']':
+	case ']', 'P', '_', '^', 'X':
+		// The STRING-terminated classes: OSC, DCS, APC, PM, SOS. All end at ST
+		// (or BEL, which xterm accepts), so one scan serves them.
+		//
+		// Only ']' was covered at first, so a DCS/APC/PM/SOS payload fell
+		// through to the two-byte case below and was scanned as plain text --
+		// `\x1bP+q616263\x07\x1b\\` rang a false bell, and a tmux passthrough
+		// `\x1bPtmux;\x1b[?1049h\x1b\\` set alt-screen from INSIDE a sequence.
+		// Reachability is low today (kitty-graphics APC and XTGETTCAP DCS carry
+		// base64/hex), but TakeBell's doc and atlas/architecture.md both state
+		// "outside a sequence" as a property, and an invariant has to hold over
+		// every class it is claimed over.
 		return ansi.OSCEnd(buf, ansi.Lenient)
 	default:
 		// A two-byte escape (ESC c, ESC M, a charset designation). Complete by

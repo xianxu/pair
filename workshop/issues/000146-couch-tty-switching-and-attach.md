@@ -97,7 +97,7 @@ Design of record: `workshop/plans/000146-couch-tty-switching-and-attach-plan.md`
 Four review boundaries; the smoke steps stay where they were sequenced (risk
 first) but are folded into the milestone whose risk they answer.
 
-- [ ] M1 — **shared pty-child core.** Extract `ptychild` (ring, replay
+- [x] M1 — **shared pty-child core.** Extract `ptychild` (ring, replay
       query-strip, output scanner, pty child) out of `termcmd`'s multiplexer and
       migrate `pair term` onto it. Ships no couch behaviour; the migration is
       what validates the extraction (ARCH-DRY).
@@ -245,6 +245,7 @@ time, with no responsibility for what the child runs internally. Estimation is
 unblocked.
 
 ### 2026-08-22
+- 2026-08-22: closed M1 — Round 4. BR-1 fixed at its third and correct shape: the bound was never the rule -- past maxPending the scanner now stops BUFFERING but keeps FRAMING (streaming skip to the real terminator), so whole and chunked input agree at every length; deletion check reproduces the reviewers own whole=true/split=false measurement. BR-18 (which round 2 introduced) fixed with the enumeration it demanded: 4 of 7 post-terminal-state stimuli diverged across Host and Child, 1 fatally (FakeHost SetSize panicked on send-to-closed-channel); all now agree and BOTH conformance tests drive past the terminal transition rather than stopping at it. BR-6 consolidated into procutil.WaitCode after two rounds. Verified: go test ./cmd/... green; make test-race whole-tree green; make test-smoke 8/8 incl. nvim alt-screen round trip; make build; make test-term-pane-shortcuts green. All deletion checks confirmed mutate+compile+traverse.; review verdict: FIX-THEN-SHIP
 
 Claimed and planned. Design of record:
 `workshop/plans/000146-couch-tty-switching-and-attach-plan.md`; the eight loose
@@ -549,3 +550,48 @@ test-race` (whole tree) green; `make test-smoke` 8/8.
 `make test-smoke` 8/8. Every deletion check this round confirmed mutate +
 compile + traverse, and two reproduced the reviewer's own measurements before
 being fixed.
+
+### 2026-08-22 -- M1 boundary review round 4: SHIP, with three fixes bundled in
+
+The gate passed the boundary (round cap 3 reached, 6 disposed) and the
+mechanical close ran. Per the FIX-THEN-SHIP protocol these three landed BEFORE
+the close commit rather than after, so the reviewed anchor is HEAD.
+
+- **BR-1's last residual, and it was in my own comment.** `skipTerminator` says
+  it holds a trailing ESC "so ST is not split in half" -- and then dropped it,
+  because the caller took `buf[n:]` and returned without saving. A chunk
+  boundary falling inside a two-byte ST therefore swallowed the NEXT real bell.
+  The reviewer measured it at **1 of 70,550 cut positions**: precisely the
+  residual a fuzzer finds and a reader does not, in code whose comment claimed
+  the opposite. Now the unconsumed remainder is held in `pending`; the deletion
+  check reproduces `whole=true split=false`.
+- **`framing-omits-sequence-class`.** `frame`'s `default: return 2, true` covered
+  only ESC-c style two-byte escapes, so DCS / APC / PM / SOS payloads were
+  scanned as plain text -- `\x1bP+q616263\x07\x1b\\` rang a false bell, and a
+  tmux passthrough `\x1bPtmux;\x1b[?1049h\x1b\\` set alt-screen from INSIDE a
+  sequence. 4 of the 5 string-terminated classes leaked; OSC was the one covered.
+  Reachability is low today, but `TakeBell`'s doc and `atlas/architecture.md`
+  both state "BEL is only counted outside a sequence" as a property, and **an
+  invariant has to hold over every class it is claimed over** -- otherwise the
+  doc is the lie, not the code.
+- **`needless-indirection`, 2nd in family.** `Child.Replay` documented itself as
+  what a repaint should write and had **zero production callers**, while
+  `redrawTab` hand-composed the same expression. Two places holding one decision
+  about what a repaint may contain -- and M3 Task 3.3 spells it out a third time
+  for couch's attach path. `redrawTab` now takes an already-stripped replay;
+  `replaySnapshotLocked` (renamed from `bufferSnapshotLocked`) is the one site
+  that calls `Replay`. The redraw test moved onto the production path, since
+  hand-feeding raw bytes would assert a composition production no longer does.
+
+**A process failure worth recording over the fix itself:** three scripted edits
+in this round silently did not apply -- one pattern did not match, one script
+raised before its `write()` so nothing in it landed -- and each time the suite
+stayed green and I reported the edit as done. The deletion check for the third
+is what exposed it, by *not* failing. `lessons.md` now extends the
+mutate/compile/traverse rule to ordinary edits: an edit is applied because you
+checked, not because you wrote it.
+
+**Verified at this commit:** `go test ./cmd/...` green; `make test-race` (whole
+tree) green; `make build`; `make test-term-pane-shortcuts` green; `make
+test-smoke` 8/8 incl. the nvim alt-screen round trip. All four deletion checks
+this round confirmed mutate + compile + traverse.

@@ -321,6 +321,69 @@ rounds:
           round: 3
       boundary: M1
       blocked: true
+    - "n": 4
+      timestamp: "2026-08-22T19:28:37-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: 'Round 3 genuinely closed the systematic break (measured: 10 shapes x 4 chunkings, 400 randomized iterations, zero divergences). One boundary residual remains -- skipTerminator drops the ESC it is commented to hold, so an ST split across a read swallows the next real bell. 1 of 70,550 cut positions.'
+          round: 4
+        - id: BR-6
+          disposition: addressed
+          note: Verified - procutil.WaitCode is the single source, both byte-identical copies and both errors.As wrappers deleted; couchcore/errors.go and ptychild/errors.go no longer exist.
+          round: 4
+        - id: BR-7
+          disposition: not-addressed
+          note: Makefile.local fixed; run.go:1062, run.go:1069 and replay.go:37 remain, and bufferSnapshotLocked's stated m.mu contract is now false as well as stale.
+          round: 4
+        - id: BR-8
+          disposition: not-addressed
+          note: fake.go:70 still writes c.sink unlocked with no `if c.fake == nil` guard while the pump reads it.
+          round: 4
+        - id: BR-9
+          disposition: not-addressed
+          note: newTab still snapshots at run.go:723 after ptychild.Start launched the pump at :707; both interleavings traced, the duplicate-write one is real.
+          round: 4
+        - id: BR-18
+          disposition: addressed
+          note: Verified by revert with mutate+compile+traverse confirmed - deleting FakeHost.SetSize's `if h.closed` guard panics TestHostsAgreeAfterClose at fake.go:72. Both conformance tests now drive past the terminal transition.
+          round: 4
+      findings:
+        - id: BR-19
+          severity: Minor
+          title: frame treats DCS/APC/PM/SOS as two-byte escapes, so their payloads are scanned as plain text and a BEL inside one falsely rings
+          detail: |-
+            screen.go:275-278's `default: return 2, true` covers ESC-c style two-byte escapes only;
+            the string-terminated classes fall through it. Measured: "\x1bP+q616263\x07\x1b\\" ->
+            bell=true; "\x1b_Ga=T,f=100;PAYLOAD\x07\x1b\\" -> bell=true; PM and SOS likewise; and
+            "\x1bPtmux;\x1b[?1049h\x1b\\" -> alt=true, region=true. 4 of the 5 string-terminated
+            classes leak, OSC being the one covered. Contradicts TakeBell's own doc ("BEL is only
+            counted outside a sequence") and atlas/architecture.md:462, which states it as a design
+            property. Chunk-invariant, so not the chunking family -- the rule is that the framing
+            must cover every sequence class the invariant is claimed over. Reachability today is low
+            (kitty-graphics APC and XTGETTCAP DCS carry base64/hex; sixel's alphabet excludes BEL),
+            so this is a stated invariant narrower than claimed rather than a live false positive.
+            Fix is one `case 'P', '_', '^', 'X':` routing to the same ansi.OSCEnd scan.
+          family: framing-omits-sequence-class
+          round: 4
+        - id: BR-20
+          severity: Minor
+          title: Child.Replay has zero production callers while the one repaint site reimplements it
+          detail: |-
+            child.go:170-173 documents itself as "what a repaint should write... Prefer Replay for
+            repainting a screen"; redrawTab (termcmd/run.go:1062-1065) hand-composes HomeAndClear +
+            StripQueries(Snapshot()), which is Replay() plus the clear. grep confirms Replay() is
+            called only from child_test.go. 2nd in this family - the rule is that a helper naming a
+            decision must be the only place that decision is made; if the sole production caller
+            reimplements it, either the caller adopts it or the helper is deleted. Prevalence: 1
+            helper, 0 production callers, 1 site reimplementing. Worth closing now because M3 Task
+            3.3's contract spells the same expression out again for couch's attach path, which would
+            make it two divergent repaint policies rather than one.
+          family: needless-indirection
+          round: 4
+      boundary: M1
+      blocked: false
 ---
 
 # Gate ledger — pair#146 (boundary-review)
@@ -491,11 +554,47 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   double M2's console tests are built on, so a panic there crashes a run instead of
   failing it.
 
+## Round 4 — 2026-08-22T19:28:37-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — not-addressed — Round 3 genuinely closed the systematic break (measured: 10 shapes x 4 chunkings, 400 randomized iterations, zero divergences). One boundary residual remains -- skipTerminator drops the ESC it is commented to hold, so an ST split across a read swallows the next real bell. 1 of 70,550 cut positions.
+- BR-6 — addressed — Verified - procutil.WaitCode is the single source, both byte-identical copies and both errors.As wrappers deleted; couchcore/errors.go and ptychild/errors.go no longer exist.
+- BR-7 — not-addressed — Makefile.local fixed; run.go:1062, run.go:1069 and replay.go:37 remain, and bufferSnapshotLocked's stated m.mu contract is now false as well as stale.
+- BR-8 — not-addressed — fake.go:70 still writes c.sink unlocked with no `if c.fake == nil` guard while the pump reads it.
+- BR-9 — not-addressed — newTab still snapshots at run.go:723 after ptychild.Start launched the pump at :707; both interleavings traced, the duplicate-write one is real.
+- BR-18 — addressed — Verified by revert with mutate+compile+traverse confirmed - deleting FakeHost.SetSize's `if h.closed` guard panics TestHostsAgreeAfterClose at fake.go:72. Both conformance tests now drive past the terminal transition.
+
+### Raised
+
+- **BR-19** [Minor] `framing-omits-sequence-class` frame treats DCS/APC/PM/SOS as two-byte escapes, so their payloads are scanned as plain text and a BEL inside one falsely rings
+  screen.go:275-278's `default: return 2, true` covers ESC-c style two-byte escapes only;
+  the string-terminated classes fall through it. Measured: "\x1bP+q616263\x07\x1b\\" ->
+  bell=true; "\x1b_Ga=T,f=100;PAYLOAD\x07\x1b\\" -> bell=true; PM and SOS likewise; and
+  "\x1bPtmux;\x1b[?1049h\x1b\\" -> alt=true, region=true. 4 of the 5 string-terminated
+  classes leak, OSC being the one covered. Contradicts TakeBell's own doc ("BEL is only
+  counted outside a sequence") and atlas/architecture.md:462, which states it as a design
+  property. Chunk-invariant, so not the chunking family -- the rule is that the framing
+  must cover every sequence class the invariant is claimed over. Reachability today is low
+  (kitty-graphics APC and XTGETTCAP DCS carry base64/hex; sixel's alphabet excludes BEL),
+  so this is a stated invariant narrower than claimed rather than a live false positive.
+  Fix is one `case 'P', '_', '^', 'X':` routing to the same ansi.OSCEnd scan.
+- **BR-20** [Minor] `needless-indirection` Child.Replay has zero production callers while the one repaint site reimplements it
+  child.go:170-173 documents itself as "what a repaint should write... Prefer Replay for
+  repainting a screen"; redrawTab (termcmd/run.go:1062-1065) hand-composes HomeAndClear +
+  StripQueries(Snapshot()), which is Replay() plus the clear. grep confirms Replay() is
+  called only from child_test.go. 2nd in this family - the rule is that a helper naming a
+  decision must be the only place that decision is made; if the sole production caller
+  reimplements it, either the caller adopts it or the helper is deleted. Prevalence: 1
+  helper, 0 production callers, 1 site reimplementing. Worth closing now because M3 Task
+  3.3's contract spells the same expression out again for couch's attach path, which would
+  make it two divergent repaint policies rather than one.
+
 ## Open findings
 
 - **BR-1** [Important] `chunking-invariance` Screen raises a false bell for any sequence longer than maxPending split across two reads
-- **BR-6** [Minor] `needless-indirection` waitCode is duplicated verbatim across couchcore and ptychild, and asExitError now exists in three packages
 - **BR-7** [Minor] `stale-comment-reference` comments still cite queries.go, appendBuffer, tab.buffer and readPTY, all deleted by this diff
 - **BR-8** [Minor] `unsynchronised-shared-state` Child.SetSink writes c.sink unlocked with no fake-only guard while the pump reads it
 - **BR-9** [Minor] `replay-duplicates-live-output` newTab widens the window where a chunk is both replayed and written live
-- **BR-18** [Important] `fake-diverges-from-production` FakeHost panics on a post-Close SetSize where OSHost is inert, and both conformance tests stop at the terminal transition
+- **BR-19** [Minor] `framing-omits-sequence-class` frame treats DCS/APC/PM/SOS as two-byte escapes, so their payloads are scanned as plain text and a BEL inside one falsely rings
+- **BR-20** [Minor] `needless-indirection` Child.Replay has zero production callers while the one repaint site reimplements it

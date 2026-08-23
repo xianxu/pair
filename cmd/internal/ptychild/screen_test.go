@@ -328,3 +328,56 @@ func TestScreenChunkInvariantAboveThePendingBound(t *testing.T) {
 		t.Fatal("resync swallowed the sequence that followed the abandoned run")
 	}
 }
+
+// BR-1's last residual: the OSC scan stops before a trailing ESC so a two-byte
+// ST is not split in half -- but the bytes it declined to consume have to be
+// HELD, not dropped. Measured by the reviewer at 1 of 70,550 cut positions.
+func TestScreenHoldsAnSTSplitAcrossReads(t *testing.T) {
+	body := strings.Repeat("A", maxPending+2000)
+	// ... long OSC ... ESC | \ ... then a REAL bell that must survive.
+	first := "\x1b]52;c;" + body + "\x1b"
+	second := "\\" + "ready\x07"
+
+	split := &Screen{}
+	split.Feed([]byte(first))
+	split.Feed([]byte(second))
+
+	whole := &Screen{}
+	whole.Feed([]byte(first + second))
+
+	wb, sb := whole.TakeBell(), split.TakeBell()
+	if wb != sb {
+		t.Fatalf("a chunk boundary inside the ST changed the bell latch: whole=%v split=%v", wb, sb)
+	}
+	if !wb {
+		t.Fatal("the real bell after the sequence was swallowed by both paths")
+	}
+}
+
+// The framing must cover every sequence class the "BEL only outside a sequence"
+// invariant is claimed over. DCS/APC/PM/SOS fell through to the two-byte case
+// and had their payloads scanned as text.
+func TestScreenFramesAllStringTerminatedClasses(t *testing.T) {
+	cases := []struct {
+		name string
+		data string
+	}{
+		{"DCS XTGETTCAP", "\x1bP+q616263\x07\x1b\\"},
+		{"APC kitty graphics", "\x1b_Ga=T,f=100;PAYLOAD\x07\x1b\\"},
+		{"PM", "\x1b^private\x07\x1b\\"},
+		{"SOS", "\x1bXstring\x07\x1b\\"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if feedWhole(c.data).TakeBell() {
+				t.Fatalf("a BEL inside %s rang the bell; it is a terminator, not the child", c.name)
+			}
+		})
+	}
+	// A tmux passthrough carries a whole sequence as DCS payload; it must not
+	// take effect from inside the wrapper.
+	s := feedWhole("\x1bPtmux;\x1b[?1049h\x1b\\")
+	if s.AltScreen() {
+		t.Fatal("a DCS payload set alt-screen from inside a sequence")
+	}
+}

@@ -1803,6 +1803,13 @@ performed:
 3. **Traverse.** Confirm the mutated line is on the path the test's input takes.
    Removing a guard the input never reaches is a green check with no meaning.
 
+**The same three obligations apply to ORDINARY edits, not just mutations.** Three
+times in #146 M1 a scripted edit silently failed — a `str.replace` whose pattern
+did not match, a script that raised before its `write()`, so *nothing* in it
+landed — and each time the suite stayed green and the edit was reported as done.
+An edit is not applied because you wrote it; it is applied because you checked.
+Assert the match inside the script, or grep the result afterwards.
+
 And name the mutation precisely in any log entry. "Ring trim" covered *removing
 the trim entirely* and was true; it was written up as covering *copy vs
 re-slice*, which it never touched. The gap between the mutation you ran and the

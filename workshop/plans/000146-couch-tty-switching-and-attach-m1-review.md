@@ -621,3 +621,164 @@ findings:
       double M2's console tests are built on, so a panic there crashes a run instead of
       failing it.
 ```
+
+---
+
+## Re-review — 2026-08-22T19:28:37-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 146 — couch: tty switching and attach |
+| repo | pair |
+| issue file | workshop/issues/000146-couch-tty-switching-and-attach.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 3cdeb3f0a889ed610608784939e5c04f7f6e08c4^..15b89f32d00a7fc9df0f531a1a6f42732ba48eac |
+| command | sdlc milestone-close --issue 146 --milestone M1 |
+| reviewer | claude |
+| timestamp | 2026-08-22T19:28:37-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+Round 4. Every claim this round makes about a fix, I checked by reverting it rather than reading the commit message, and the two that matter both hold: deleting `FakeHost.SetSize`'s `if h.closed` guard panics `TestHostsAgreeAfterClose` with `send on closed channel` at `fake.go:72` (mutate/compile/traverse all confirmed), and swapping the round-3 streaming-skip back to round-2's discard-to-next-ESC reddens `TestScreenChunkInvariantAboveThePendingBound`. BR-6's consolidation is real — `couchcore/errors.go` and `ptychild/errors.go` are gone, `procutil.WaitCode` is the single source, and `\x1b[r` / `\x1b[1;1H\x1b[J` each exist exactly once as a production value. `hostty` runs **zero skips** across `./cmd/...`, so BR-15's rule fix survived a round. **BR-1's third shape is a genuine improvement and I measured it as one**: 10 adversarial shapes × 4 chunkings plus 400 randomized iterations at `maxPending+5000`, zero divergences — where round 2's fix diverged systematically. What keeps it open is one byte: `skipTerminator`'s ESC-at-boundary branch is commented "hold it so ST is not split in half" and **does not hold it** — it returns `(i, false)` and `Feed` then discards the remainder without writing `s.pending`, so an over-long ST-terminated OSC cut exactly between `\x1b` and `\` swallows the ST and eats the next real BEL. Swept every cut position: exactly **1 of 70,550** diverges, and it is that one. Narrow, cheap to fix, and the comment already promises the fix.
+
+## 1. Strengths
+
+- **The round-3 fix is the right rule, and it measures as one.** "Stop buffering, keep framing" is the first of the three shapes that is a property of the stream rather than of where the chunks fall. My randomized differential (400 iterations, random cut positions, payloads over the bound, mixed OSC/CSI/ST/BEL) found **zero** divergences — the systematic break is closed. That is worth saying plainly after two rounds where it wasn't.
+- **BR-18's class fix went past the terminal transition, which is what the finding asked for.** `TestHostsAgreeAfterClose` drives *both* hosts through a 20-signal burst after `Close`, and `TestFakeAndRealChildAgreeAfterTheChildHasEnded` table-drives `{Write, Resize, Signal}` through both children asserting error-vs-success parity — plus `if !realErr { t.Fatalf(... the expectation itself is wrong) }`, so the test validates its own premise rather than asserting whatever the fake does.
+- **BR-6 was consolidated rather than deduplicated in place.** `procutil.WaitCode`'s doc names the three packages that held one decision and cites the repeat family as the signal. Both `errors.go` wrappers deleted, both copies gone.
+- **`teardown` remains structural, not a comment.** `termcmd/run.go:208-223` plus `TestTeardownStopsTheWatcherBeforeClosingChildren` — a defer-ordering hazard that was untestable is now an explicit function with a red-on-swap pin.
+- **The BR-4 retraction still stands in all three places** — `ring.go:44-56`, `Allocated()`'s doc ("It does NOT discriminate copy from re-slice; both pass, and claiming otherwise is what BR-4 corrected"), and the issue Log's strikethrough.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**I1 (carried, BR-1 → `not-addressed`) — the skip path drops the ESC it says it holds, so an ST split across a read boundary swallows the next real bell.**
+
+`screen.go:178-187`, `skipTerminator`'s `skipOSC` arm:
+
+```go
+if buf[i] == 0x1b {
+    if i+1 < len(buf) { ... continue }
+    // ESC at the boundary: hold it so ST is not split in half.
+    return i, false
+}
+```
+
+Nothing is held. `Feed` does `buf = buf[n:]` — making `buf[0]` the ESC — then `if !done { return }`, and `buf` is a local. `s.pending` is untouched, so the ESC is gone. The next chunk arrives still in `skipOSC`, its leading `\` is not a terminator, and the skip runs on until the *next* `0x07` — consuming a genuine bell as if it were the sequence's terminator. Measured on `"\x1b]52;c;" + "A"×(maxPending+5000) + "\x1b\\" + "ready\x07"`:
+
+```
+whole                          bell=true
+cut between ESC and backslash  bell=false      <-
+cut just before ESC            bell=true
+cut after ST                   bell=true
+sweep of all 70,550 cut positions:  1 divergent   (offset = ESC+1)
+same sweep for a trailing \x1b[?1049h:  1 divergent
+```
+
+> **This is the 4th finding in family `chunking-invariance`.** Do not patch the arm. The rule that covers all four rounds: **`Screen` has two paths that cross a `Feed` boundary — the buffered one (`pending`) and the streamed one (`skipping`) — and only the buffered one persists partial state. Any byte the scanner must reconsider after a boundary has to be persisted, on both paths.** Round 1 raised the bound, round 2 changed the abandon rule, round 3 made the abandon rule streaming; each fixed the path it was looking at and left the other's boundary handling unaudited. The enumeration this implies is small and finite: the streamed path has exactly one multi-byte terminator (`ESC \`), so it needs exactly one carried bit — a `skipSawESC bool` set when a chunk ends on ESC while skipping, consumed at the head of the next `skipTerminator`. `skipCSI` needs nothing (its terminator is one byte). Prevalence: 2 boundary-crossing paths, 1 persists state; 1 multi-byte terminator on the streamed path, 0 handled.
+>
+> **Why the shipped tests cannot find it, which is the more useful half.** The property holds at every cut position but one, so a chunked test at 1024/4096/8192 and a randomized sweep both pass (mine did — 400 iterations, zero hits). `FuzzScreenFeed` cannot reach it either: `maxPending` is 64 KiB and Go's fuzzer will not synthesise inputs that large. The test this needs is an **adversarial-boundary** one — split at the exact index of a known multi-byte terminator — not another chunk size. That test shape is also what M2/M3 will need, because `Child.Feed` (the fake) delivers whole buffers while `Child.pump` (production) delivers 4096-byte reads.
+>
+> Severity stays Important, not Critical, and I want the cost visible: ~1 in 4096 for an over-64 KiB ST-terminated OSC, the damage self-recovers at the next terminator, and `TakeBell`/`TakeRegionLost` still have **zero production consumers** (`grep` finds only `Mouse()` consumed, at `run.go:865`). Nothing on the shipped `pair term` path is wrong today. It must close before M4 wires the status row.
+
+## 4. Minor findings
+
+- **New — `frame` treats DCS/APC/PM/SOS as two-byte escapes, so their payloads are scanned as plain text.** `screen.go:275-278`'s `default: return 2, true` covers only `ESC c`-style two-byte escapes; the string-terminated classes fall through it. Measured: `\x1bP+q616263\x07\x1b\\` → `bell=true`; `\x1b_Ga=T,f=100;PAYLOAD\x07\x1b\\` → `bell=true`; `\x1b^…\x07` and `\x1bX…\x07` likewise; and `\x1bPtmux;\x1b[?1049h\x1b\\` → `alt=true, region=true`. 4 of the 5 string-terminated classes leak, OSC being the one covered. This contradicts `TakeBell`'s own doc ("BEL is only counted outside a sequence") and `atlas/architecture.md:462`, which states it as a design property. Reachability today is low — kitty-graphics APC and XTGETTCAP DCS carry base64/hex, sixel's payload alphabet excludes BEL — so this is a stated invariant that is narrower than claimed rather than a live false-positive. The fix is one `case 'P', '_', '^', 'X':` routing to the same `ansi.OSCEnd` scan. Not `chunking-invariance` — it is chunk-invariant; the rule is that the framing must cover every sequence class the invariant is claimed over.
+- **New — `Child.Replay()` has zero production callers while the one repaint site reimplements it.** `child.go:170-173` documents itself as "what a repaint should write… Prefer Replay for repainting a screen"; `redrawTab` (`termcmd/run.go:1062-1065`) hand-composes `HomeAndClear` + `StripQueries(Snapshot())`, which is `Replay()` plus the clear. **This is the 2nd finding in family `needless-indirection`** — the rule is that a helper naming a decision must be the only place that decision is made; if the sole production caller reimplements it, either the caller adopts it or the helper goes. Prevalence: 1 helper, 0 production callers, 1 site reimplementing. Worth closing now specifically because M3 Task 3.3's contract spells the same expression out again for couch's attach path, which would make it two divergent repaint policies rather than one.
+- BR-7 unchanged at 3 of its 4 sites (`Makefile.local` was fixed): `run.go:1062` "see queries.go", `run.go:1069` "appendBuffer re-slices tab.buffer", `replay.go:37` "returns through readPTY". `bufferSnapshotLocked`'s comment is now *false* as well as stale — `Child.Snapshot()` takes the child's own mutex, so `m.mu` is not required for it.
+- BR-8 unchanged: `fake.go:70` still writes `c.sink` unlocked with no `if c.fake == nil` guard while the pump reads it. No caller today.
+- BR-9 unchanged: `newTab` still snapshots at `run.go:723` after `ptychild.Start` launched the pump at `:707`. I traced both interleavings — a chunk landing after `m.tabs` is appended is written live by `copyActiveOutput` *and* replayed by `redrawTab`. A brand-new tab has nothing to replay; passing `nil` is the honest fix, and the same shape recurs in M2 when the console attaches to a freshly started child.
+
+## 5. Test coverage notes
+
+- **Ran:** `go build ./...` clean; `go vet` over `ptychild`/`hostty`/`termcmd`/`probes` clean; `go test ./cmd/... -count=1`; `-race` over the runnable subset of `ptychild` + `hostty`. `couchcore` and `couchcmd` green. **Zero skips across the whole `./cmd/` tree** — I checked that explicitly, since it is BR-15's rule.
+- **Could not run, not assuming:** every pty-backed test fails here with `operation not permitted` on `pty.Start`/`pty.Open` — the sandbox failed to initialise in this session and the restriction is below it, so it is not something I can lift. That is 9 `ptychild` tests, `TestOSHostConformsToTheFakeOnSizeAndRawMode`, and one `termcmd` test. **Nothing failed for a code reason.** The Log's whole-tree green, `make test-race`, `make test-smoke` 8/8 and the 3.7M-exec fuzz run are therefore unverified by me rather than assumed good.
+- **Verified red on revert:** `FakeHost.SetSize`'s closed guard (panic); `Screen`'s streaming skip. **Verified insufficient:** the chunk-invariance suite tests chunk *sizes*, not adversarial *boundaries*, which is why I1 survives it (I1).
+- **Gap worth naming for M2:** BR-18's `Child` half — the fake's post-exit `Write`/`Resize`/`Signal` errors — is pinned only by `TestFakeAndRealChildAgreeAfterTheChildHasEnded`, which needs a real child. That is the correct handling (it fails loudly, per BR-15's rule), but it means the `Child` half of the fix is unverifiable in the shell this issue documents as its own, and no fake-only test asserts those returns. Separately, that conformance test enters the terminal state only via `Close()`; the other entrance — the child exiting on its own, after which `ptmx` is still open on the real side — is untested, and it is the entrance M2's console will hit most.
+
+## 6. Architectural notes for upcoming work
+
+- **ARCH-DRY — pass, with the two Minors above.** I verified the single-source claims rather than reading them: `\x1b[r` and `\x1b[1;1H\x1b[J` each exist once as a production value (`hostty/control.go`), `updateMouseMode` survives only in comments, and `WaitCode` is now one function where it was three packages' worth of one decision. The open instances are `Replay()` (Minor above) and BR-7's stale pointers. `scribecmd.go` and `wrapcmd/wrap.go` still hand-roll `MakeRaw`/`SIGWINCH` — out of M1's scope, but `scribecmd` is the obvious third `hostty` consumer and adopting it would retire the scribecmd lesson instead of citing it.
+- **ARCH-PURE — pass.** The proof is empirical rather than structural: `Ring`, `Screen`, `StripQueries` and `hostty`'s constants are exactly the code that stays green in a shell that cannot fork, and their test files contain no `exec`, no `os.Create`, no `pty`. `Child` and `OSHost` are the thin injected shell; `termcmd` kept every policy it had, and `childSizeLocked`'s comment names where couch's one-row subtraction will diverge.
+- **ARCH-PURPOSE — pass on the milestone.** Shadow-sweep on M1's stated purpose: one consumer named (`termcmd`), migrated on **both** halves, validated through the pre-existing suite rather than through new tests — I confirmed the caller-side pin survived the move by neutering `StripQueries` and watching termcmd's own `TestRedrawTabEmitsNoQueries` go red in a previous round's terms and re-confirming the call path here. No hand-maintained copy of the extracted mechanism remains. On the finding axis, `chunking-invariance` entering a 4th round is the ledger reporting the enumeration still isn't written — which is why I1 states the enumeration (2 paths, 1 multi-byte terminator) rather than the site.
+- **ARCH-MOCK — pass.** Both doubles live in non-test files so production and test flow share the boundary; both packages ship a real-vs-fake conformance check driven through one shared scenario; and as of this round both drive *past* the terminal transition, which is where a fake diverges most easily. The residual is reach, not shape: the `Child` conformance pair cannot run without a pty and has one untested entrance to the terminal state (§5). Before M2 wires `PtyRunner`, `Handle`'s contract changes — extend `FakeRunner`'s state model in the same commit, not after.
+- **Scope note.** The window (`3cdeb3f^..15b89f3`) spans the tail of pair#145 as well as M1, so the diff carries `couchcore`/`couchcmd`/`store`/`procops`/`actor`/`mailbox` and #145's plan artifacts. Those went through four rounds at #145's own close gate; I scoped this review to the M1 surface and did not re-litigate them.
+
+## 7. Plan revision recommendations
+
+The `## Revisions` section is in good shape — BR-5, BR-4's retraction and BR-17's row rewrite are all recorded. Three entries still owed, and the first two have now been recommended in every round:
+
+1. **Tasks 1.1–1.6 are all still `- [ ]` while M1 closes** *(4th time recommended)*. Tick what ran; mark what did not — specifically that the pty-backed tests cannot run under the command sandbox, which the issue `## Log` records and the plan does not. Same reconciliation #145 needed for its Task 17.
+2. **`ptychild` shipped surface the tables do not list** *(3rd time recommended)*: `Size`, `Options`, `DefaultRingBytes`, `NewFakeChild`, and `Child.Feed`/`SetSink`/`Writes`/`Resizes`/`Exit`/`Replay`. `NewFakeChild` is the double every M2/M3 switcher fixture will be built on and belongs in the Integration-points table next to `FakeHost` — which is also where BR-18's post-`Close` contract should be written down.
+3. **Two forward references to names that no longer exist.** Task 1.3's contract (`:199`) and Task 2.5's step (`:296`) both say `MarginsDirty`; the `ptychild.Child` bullet (`:149`) says `Bell`. Round 3 correctly declined to re-raise `plan-table-drift` for these — they are task *specs*, not the Core-concepts table — but `:296` instructs M2's implementer to read a field that is called `TakeRegionLost()`, so it will misdirect at the moment it is followed. The one-line pointer the `Screen` row now uses retires the last three copies.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      Round 3 genuinely closed the systematic break (measured: 10 shapes x 4 chunkings, 400 randomized iterations, zero divergences). One boundary residual remains -- skipTerminator drops the ESC it is commented to hold, so an ST split across a read swallows the next real bell. 1 of 70,550 cut positions.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Verified - procutil.WaitCode is the single source, both byte-identical copies and both errors.As wrappers deleted; couchcore/errors.go and ptychild/errors.go no longer exist.
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      Makefile.local fixed; run.go:1062, run.go:1069 and replay.go:37 remain, and bufferSnapshotLocked's stated m.mu contract is now false as well as stale.
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      fake.go:70 still writes c.sink unlocked with no `if c.fake == nil` guard while the pump reads it.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      newTab still snapshots at run.go:723 after ptychild.Start launched the pump at :707; both interleavings traced, the duplicate-write one is real.
+  - id: BR-18
+    disposition: addressed
+    note: |
+      Verified by revert with mutate+compile+traverse confirmed - deleting FakeHost.SetSize's `if h.closed` guard panics TestHostsAgreeAfterClose at fake.go:72. Both conformance tests now drive past the terminal transition.
+findings:
+  - id: new
+    severity: Minor
+    family: framing-omits-sequence-class
+    title: |
+      frame treats DCS/APC/PM/SOS as two-byte escapes, so their payloads are scanned as plain text and a BEL inside one falsely rings
+    detail: |
+      screen.go:275-278's `default: return 2, true` covers ESC-c style two-byte escapes only;
+      the string-terminated classes fall through it. Measured: "\x1bP+q616263\x07\x1b\\" ->
+      bell=true; "\x1b_Ga=T,f=100;PAYLOAD\x07\x1b\\" -> bell=true; PM and SOS likewise; and
+      "\x1bPtmux;\x1b[?1049h\x1b\\" -> alt=true, region=true. 4 of the 5 string-terminated
+      classes leak, OSC being the one covered. Contradicts TakeBell's own doc ("BEL is only
+      counted outside a sequence") and atlas/architecture.md:462, which states it as a design
+      property. Chunk-invariant, so not the chunking family -- the rule is that the framing
+      must cover every sequence class the invariant is claimed over. Reachability today is low
+      (kitty-graphics APC and XTGETTCAP DCS carry base64/hex; sixel's alphabet excludes BEL),
+      so this is a stated invariant narrower than claimed rather than a live false positive.
+      Fix is one `case 'P', '_', '^', 'X':` routing to the same ansi.OSCEnd scan.
+  - id: new
+    severity: Minor
+    family: needless-indirection
+    title: |
+      Child.Replay has zero production callers while the one repaint site reimplements it
+    detail: |
+      child.go:170-173 documents itself as "what a repaint should write... Prefer Replay for
+      repainting a screen"; redrawTab (termcmd/run.go:1062-1065) hand-composes HomeAndClear +
+      StripQueries(Snapshot()), which is Replay() plus the clear. grep confirms Replay() is
+      called only from child_test.go. 2nd in this family - the rule is that a helper naming a
+      decision must be the only place that decision is made; if the sole production caller
+      reimplements it, either the caller adopts it or the helper is deleted. Prevalence: 1
+      helper, 0 production callers, 1 site reimplementing. Worth closing now because M3 Task
+      3.3's contract spells the same expression out again for couch's attach path, which would
+      make it two divergent repaint policies rather than one.
+```

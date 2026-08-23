@@ -158,7 +158,7 @@ the runtime (bringing actors up, tty routing, transport, live registry). They
 gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 
 - [x] spawn + registry [pair#145]
-- [ ] shared pty-child core [pair#146 M1]
+- [x] shared pty-child core [pair#146 M1]
 - [ ] console over one child, with the reserved row [pair#146 M2]
 - [ ] many children and the panel [pair#146 M3]
 - [ ] exits, detach, and what the row says [pair#146 M4]

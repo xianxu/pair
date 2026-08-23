@@ -16,11 +16,23 @@ import (
 	"time"
 )
 
-// A redraw over a query-bearing buffer emits no query bytes — the whole point.
+// A redraw over a query-bearing buffer emits no query bytes -- the whole point.
+//
+// Driven through the PRODUCTION path (child output -> replaySnapshotLocked ->
+// redrawTab) rather than by handing raw bytes to redrawTab, because the
+// stripping now lives in ptychild.Child.Replay. Feeding redrawTab directly
+// would assert a composition production no longer performs.
 func TestRedrawTabEmitsNoQueries(t *testing.T) {
 	var out bytes.Buffer
 	m := &terminalMux{stdout: &out}
-	m.redrawTab([]byte("prompt $ \x1b[c\x1b[?2026$p\x1b[?1006h done"))
+	tab := &terminalTab{
+		id:    1,
+		child: ptychild.NewFakeChild([]byte("prompt $ \x1b[c\x1b[?2026$p\x1b[?1006h done")),
+	}
+	m.tabs = append(m.tabs, tab)
+
+	m.redrawTab(replaySnapshotLocked(tab))
+
 	got := out.String()
 	for _, q := range []string{"\x1b[c", "\x1b[?2026$p"} {
 		if strings.Contains(got, q) {

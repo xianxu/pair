@@ -720,7 +720,7 @@ func (m *terminalMux) newTab() error {
 	m.mu.Lock()
 	m.tabs = append(m.tabs, tab)
 	m.active = len(m.tabs) - 1
-	snapshot := bufferSnapshotLocked(tab)
+	snapshot := replaySnapshotLocked(tab)
 	m.mu.Unlock()
 	m.renamePane()
 	m.redrawTab(snapshot)
@@ -852,7 +852,7 @@ func (m *terminalMux) switchRelative(delta int) {
 		return
 	}
 	m.active = (m.active + delta + len(m.tabs)) % len(m.tabs)
-	snapshot := bufferSnapshotLocked(m.activeTabLocked())
+	snapshot := replaySnapshotLocked(m.activeTabLocked())
 	m.mu.Unlock()
 	m.renamePane()
 	m.redrawTab(snapshot)
@@ -899,7 +899,7 @@ func (m *terminalMux) removeTab(id int) {
 			}
 		}
 		active = m.activeTabLocked()
-		activeSnapshot = bufferSnapshotLocked(active)
+		activeSnapshot = replaySnapshotLocked(active)
 		if m.rename != nil {
 			title = m.renamePaneTitleLocked(m.rename.tabID, m.rename.editor)
 			preserveRename = true
@@ -1060,18 +1060,24 @@ func (m *terminalMux) renamePaneTitleLocked(tabID int, editor RenameEditor) stri
 //
 // Capability queries are stripped so the replay cannot re-ask the host terminal
 // (#127); see queries.go.
-func (m *terminalMux) redrawTab(buf []byte) {
+// redrawTab repaints from a REPLAY taken by the caller under m.mu.
+//
+// The query stripping lives in ptychild.Child.Replay, NOT here. It used to be
+// composed at this site while Replay went uncalled -- two places holding one
+// decision about what a repaint may contain, and couch's attach path in M3
+// would have made it three (BR-20).
+func (m *terminalMux) redrawTab(replay []byte) {
 	_, _ = io.WriteString(m.stdout, hostty.HomeAndClear)
-	_, _ = m.stdout.Write(ptychild.StripQueries(buf))
+	_, _ = m.stdout.Write(replay)
 }
 
-// bufferSnapshotLocked copies a tab's stored output. Caller must hold m.mu —
-// appendBuffer re-slices tab.buffer from the output goroutine.
-func bufferSnapshotLocked(tab *terminalTab) []byte {
+// replaySnapshotLocked is what a repaint of this tab should write. Caller must
+// hold m.mu — the child's pump appends concurrently.
+func replaySnapshotLocked(tab *terminalTab) []byte {
 	if tab == nil || tab.child == nil {
 		return nil
 	}
-	return tab.child.Snapshot()
+	return tab.child.Replay()
 }
 
 func (m *terminalMux) restoreTerminal() {
