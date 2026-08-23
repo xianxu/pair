@@ -48,8 +48,10 @@ RUNTIMEBUNDLE_ASSETS := cmd/internal/runtimebundle/assets/runtime/manifest.json
 # terminal child and takes ~20s.
 .PHONY: test-smoke
 test-smoke: $(BIN_DIR)/pair
-	go run ./probes/termsmoke ./bin/pair
-	go run ./probes/zellijpark
+	@for p in probes/*/; do \
+	    echo "==> $$p"; \
+	    go run ./$$p || exit 1; \
+	done
 
 .PHONY: test-live
 test-live:

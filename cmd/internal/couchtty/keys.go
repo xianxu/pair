@@ -98,18 +98,22 @@ func (i *Interceptor) Feed(in []byte) (before []byte, hit bool, rest []byte) {
 				// appear to do nothing in nvim or claude, and then do the wrong
 				// thing (M2 BR-22).
 				//
-				// The discriminator is that a keystroke arrives as its own
-				// read: a split sequence has bytes BEFORE its ESC in the same
-				// chunk, or has already got past the ESC. A bare one-byte chunk
-				// is a keypress.
+				// A BARE trailing ESC is never held, whatever preceded it.
+				//
+				// The first attempt only exempted a sole-byte read, which the
+				// review took apart with two cases that still glued: an ESC at
+				// the end of a longer chunk (`abc\x1b` then `i` -> `\x1bi`,
+				// read as Alt+i), and `\x1b\x1b` where the second was held.
+				// The length of the chunk is not the discriminator; the length
+				// of the PARTIAL is.
 				//
 				// Residual, accepted and stated: a real sequence whose read
 				// boundary falls IMMEDIATELY after its ESC is forwarded rather
-				// than held. That costs one unrecognised paste marker in a case
-				// the kernel makes vanishingly rare, and the alternative costs
-				// the ESC key -- which is interrupt in claude and mode-switch in
-				// nvim, pressed constantly.
-				if len(buf) == 1 && len(out) == 0 {
+				// than held, costing one unrecognised paste marker. The
+				// alternative costs the ESC key itself -- interrupt in claude,
+				// mode-switch in nvim, pressed constantly -- and a wrong ESC is
+				// both more likely and more damaging than a missed marker.
+				if len(buf)-idx == 1 {
 					out = append(out, buf[idx])
 					idx++
 					continue

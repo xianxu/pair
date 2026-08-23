@@ -1838,3 +1838,30 @@ Corollary, and the reason this class keeps recurring: ask what the assertion
 reports **before** the action runs. If it is already the value you want, the
 test cannot fail for the reason you think it can. Same defect as an aliasing
 test whose mutation cannot reach the bytes it asserts on.
+
+## Injecting into a stream you don't own needs a single writer AND a scanner fed only by that stream
+
+#146 M2 shipped a status row painted into the same terminal a child is writing
+to. Getting that right took three attempts, and each wrong one looked correct:
+
+1. **Ask the child whether it is mid-sequence.** Wrong stream: the child's
+   scanner had already consumed chunks the console had not yet written, so the
+   answer described a different point in time.
+2. **Track the stream the console writes — but only guard one writer.**
+   `applyLayout` (on SIGWINCH) and the hotkey path still wrote from their own
+   goroutines, so two of three writers bypassed the check.
+3. **Feed the console's own escapes into that scanner.** Appending `\x1b[1;23r`
+   to a pending `\x1b[38;2;76` let the scanner frame them together as one
+   complete sequence, so it reported "safe" exactly when it was not.
+
+**Rule.** To interleave your own output into a stream produced by something
+else: (a) make ONE goroutine the only writer, so everything else sends events
+rather than bytes; (b) frame the stream at the point of writing, not at the
+point of reading; (c) feed the framing scanner ONLY the other party's bytes —
+your own are known-complete and including them corrupts the very state you are
+consulting.
+
+Corollary for tests: the bug lives in the SKEW between producer and consumer, so
+a test that synchronises them cannot see it. A reviewer's phrase for the version
+that waited for the console to catch up before continuing: "avoids the window
+rather than covering it."

@@ -2,13 +2,11 @@ package couchcmd
 
 import (
 	"bytes"
-	"io"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
 
-	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
 
@@ -376,56 +374,61 @@ func TestStartWithoutATerminalFallsBackLoudly(t *testing.T) {
 	}
 }
 
-// The milestone's central wiring, pinned.
+// The milestone's central wiring, pinned WITHOUT a terminal.
 //
-// At M2's boundary, disabling the console entirely left the whole suite green
-// (BR-24): every CLI test drives a non-tty stdout, so none of them ever took the
-// console branch. These drive `consoleRunner` directly, with a REAL pty, so the
-// decision that makes `couch start` a console is covered rather than assumed.
-func TestConsoleRunnerChoosesThePtyPathOnATerminal(t *testing.T) {
-	ptmx, tty, err := pty.Open()
-	if err != nil {
-		t.Skipf("pty.Open: %v (sandboxed?)", err)
-	}
-	defer func() { _ = ptmx.Close(); _ = tty.Close() }()
-
-	console, runner := consoleRunner("start", map[string]string{}, tty, tty)
-	if console == nil {
-		t.Fatal("no console was built for `start` on a real terminal")
-	}
-	if _, ok := runner.(*couchcore.PtyRunner); !ok {
-		t.Fatalf("runner = %T, want *couchcore.PtyRunner — children would get no pty", runner)
-	}
-}
-
-// Every path that must NOT take over the terminal.
-func TestConsoleRunnerDeclinesWhenItShould(t *testing.T) {
-	ptmx, tty, err := pty.Open()
-	if err != nil {
-		t.Skipf("pty.Open: %v (sandboxed?)", err)
-	}
-	defer func() { _ = ptmx.Close(); _ = tty.Close() }()
-
+// At M2's boundary, disabling the console left the whole suite green (BR-24),
+// and the first attempt to fix that used a real pty -- which skips in the
+// sandbox this issue documents as its own environment, so the mutation stayed
+// green anyway. That is the third time a gated-only pin has been written on this
+// issue. The decision is pure now, so it is pinned unconditionally.
+func TestWantsConsole(t *testing.T) {
 	cases := []struct {
-		name string
-		op   string
-		args map[string]string
-		in   io.Reader
-		out  io.Writer
+		name        string
+		op          string
+		args        map[string]string
+		hasTerminal bool
+		want        bool
 	}{
-		{"--no-console", "start", map[string]string{"no-console": "true"}, tty, tty},
-		{"a read-only operation", "list", map[string]string{}, tty, tty},
-		{"no terminal at all", "start", map[string]string{}, strings.NewReader(""), &bytes.Buffer{}},
+		{"start on a terminal", "start", nil, true, true},
+		{"start with --no-console", "start", map[string]string{"no-console": "true"}, true, false},
+		{"start with no terminal", "start", nil, false, false},
+		{"a read-only operation", "list", nil, true, false},
+		{"stop never takes the terminal", "stop", nil, true, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			console, runner := consoleRunner(c.op, c.args, c.in, c.out)
-			if console != nil {
-				t.Fatal("a console was built when it should not have been")
-			}
-			if _, ok := runner.(couchcore.ExecRunner); !ok {
-				t.Fatalf("runner = %T, want couchcore.ExecRunner", runner)
+			if got := WantsConsole(c.op, c.args, c.hasTerminal); got != c.want {
+				t.Fatalf("WantsConsole(%q, %v, %v) = %v, want %v", c.op, c.args, c.hasTerminal, got, c.want)
 			}
 		})
 	}
+}
+
+// The plumbing half, still unconditional: with no terminal there must be no
+// console and the stdio runner.
+func TestConsoleRunnerDeclinesWithoutATerminal(t *testing.T) {
+	console, runner := consoleRunner("start", map[string]string{}, strings.NewReader(""), &bytes.Buffer{})
+	if console != nil {
+		t.Fatal("a console was built with no terminal")
+	}
+	if _, ok := runner.(couchcore.ExecRunner); !ok {
+		t.Fatalf("runner = %T, want couchcore.ExecRunner", runner)
+	}
+}
+
+// `start` with no path defaults to "." -- which is what makes `cd brain && couch
+// start` the way home is chosen (Decision 1), and was unpinned.
+func TestStartDefaultsItsPathToCwd(t *testing.T) {
+	for _, op := range couchcore.Operations() {
+		if op.Name != "start" {
+			continue
+		}
+		for _, a := range op.Args {
+			if a.Name == "path" && a.Required {
+				t.Fatal("start's path is Required; `couch start` with no argument would error")
+			}
+		}
+		return
+	}
+	t.Fatal("no start operation is declared")
 }

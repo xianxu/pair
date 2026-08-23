@@ -121,13 +121,13 @@ Terminal code has its own standing moves, all of them lessons already paid for i
 
 - **PanelModel / Filter / Pick** — the panel as data: rows built from `couchcore.TreeSummary`, and `Pick(digit)` resolving a keystroke to a displayed row. `Filter(query, resolve func(string) []Worktree)` **injects** the match rule rather than restating it; production passes `couch.LookupTrees` (Decision 12). Pure, so a stub resolver tests it and `#148`'s advisor genuinely shares the resolution rather than being claimed to.
 
-- **StatusModel / RenderStatusRow** — `(width int, m StatusModel) string`: the actor chips, the active marker, activity markers, and the newest notice, truncated to width. Pure, so the row is unit-testable without a terminal.
+- **StatusModel / RenderStatusRow** — the row as data plus a pure renderer: actor chips, which one is active, which have asked for attention, and the newest notice, fitted to the width in terminal columns. Untrusted text (an agent publishes its own description) is stripped before it can reach the screen.
 
-- **Interceptor** — `Feed(in []byte) (before []byte, hit bool, rest []byte)`: the bytes for the *current* focus, whether the hotkey fired, and the bytes for the focus landed on. Holds one piece of state — whether a bracketed paste is open — and a partial-marker buffer for the split-read case (Decision 10).
+- **Interceptor** — splits the operator's keystrokes around the hotkey, returning the bytes for the current focus and the bytes for the one landed on. Recognises BOTH encodings of ctrl-space and suspends inside a bracketed paste; the signature and the state it holds live in `couchtty/keys.go`, which is the only place they cannot drift from.
   - **DRY rationale:** the return shape is `workbenchshortcut.FindChord`'s, deliberately. If a third site ever needs "find a key in a stream and split around it", that is the moment to extract one scanner rather than write a third.
   - **Future extensions:** a second hotkey (the Spec defers direct jumps) widens `hit bool` to a small enum without changing any caller's shape.
 
-- **Reserve / Release / PaintRow** — the escape sequences as pure string builders: `Reserve(rows)` → region + parking, `PaintRow(rows, text)` → save / move / clear / paint / restore, `Release()` → region reset. One constant per sequence, per the paired-terminator lesson.
+- **Reserve / Release / PaintRow** — the reserved row's escape sequences, composed from `hostty`'s constants rather than spelled here. One constant per sequence, per the paired-terminator lesson; the compositions are in `couchtty/reserve.go`.
 
 - **Notice / Feed** — `Notice{Kind, Body, Control}` and a feed that delegates to `couchcore.Enqueue`. `Feed` holds the capacity and the key convention (`bell:<id>`, `exit:<id>`); the policy stays in Enqueue.
 
@@ -546,3 +546,24 @@ places (BR-26), one round after the same family was closed for M1 by making the
   restating field lists, which is what kept this family recurring. The register
   of what shipped is the code plus the issue `## Log`; this document records the
   DECISIONS and stops competing with the source for the shapes.
+
+### 2026-08-23 — M2 boundary review round 2: the sweep the previous entry claimed
+
+**Reason:** the previous Revisions entry asserted that the Core-concepts rows
+had stopped restating code shapes. They had not — the review found five sites
+still doing it (BR-26 round 2). Claiming a sweep is worse than not doing one,
+because it tells the next reader the drift has been dealt with.
+
+**Delta:** the `Interceptor`, `Reserve`/`Release`/`PaintRow` and
+`StatusModel`/`RenderStatusRow` rows now describe what each entity ANSWERS and
+name the file that owns the shape. A `Console` row was added rather than left
+absent, on the same terms.
+
+**Task 2.7's disposition, which was also unrecorded (BR-36):** the operator
+smoke passed on the real stack 2026-08-23 for the row, `ctrl-space` and
+`--layout2`. Two of its items are deliberately carried to M3 rather than
+dropped: the `kill -9` reattach (both halves measured separately — the zellij
+session surviving client death, and the tag determinism — but not composed) and
+the clean-terminal-after-quit check (unit-covered on both the child-exit and
+teardown paths plus a vt check that the bottom row is usable after release).
+Recorded here so the carry is a decision with a reason rather than an omission.

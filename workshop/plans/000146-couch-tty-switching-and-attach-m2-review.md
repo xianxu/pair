@@ -333,3 +333,187 @@ findings:
       row. Also test-side: vtscreen_test.go redefines min, shadowing the builtin, and
       waitFor/waitLong/waitUntilTrue are three near-identical polling helpers across two packages.
 ```
+
+---
+
+## Re-review — 2026-08-23T09:05:24-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 146 — couch: tty switching and attach |
+| repo | pair |
+| issue file | workshop/issues/000146-couch-tty-switching-and-attach.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 42b268852aea0407204cff2472821961aea388fa..5975f10b05ba6227c4e9fd34eba3b6e0bcb2c61e |
+| command | sdlc milestone-close --issue 146 --milestone M2 |
+| reviewer | claude |
+| timestamp | 2026-08-23T09:05:24-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The fix round is substantial and several of its fixes are genuinely pinned — I re-ran the deletion checks for the mid-sequence deferral, the no-terminal fallback, the blocking `Deliver` and the bell writer, and all four go red on revert. What blocks SHIP is that two of the three Criticals were fixed at the instance the finding's first paragraph named and not at the class its last sentence named, and I reproduced both at HEAD with running code. **BR-21 still corrupts the child's stream**: the console now frames what it *writes* (correct, and pinned), but the finding's second half — "serialise host writes; onChunk, watchResize and onHotkey all write to `c.host` with no ordering between them" — was not done. `applyLayout` writes `Reserve()` with no mid-sequence guard at all, so a SIGWINCH during a child's sequence splices deterministically, no race required: emitted `"\x1b[38;2;76" + "\x1b[1;39r" + ";82;88mX"`. The ctrl-space path reproduces it too, with no injected delay, caught by the package's own `splicedPaint`. **BR-22 still glues ESC to the next key**: the discriminator is `len(buf)==1 && len(out)==0`, so it only covers an ESC that is the sole byte of a read — `Feed("abc\x1b")` then `Feed("i")` still yields `"\x1bi"` (Alt+i), and `Feed("\x1b\x1b")` forwards one ESC and holds the other. And **BR-24 is unfixed in the environment this issue's own Log documents**: the two new pins `t.Skipf` when `pty.Open` fails, so forcing `consoleRunner` to always return `(nil, ExecRunner{})` still leaves `./cmd/internal/couchcmd` and `./cmd/internal/couchtty` green — the same `pin-that-skips-itself` shape this milestone already ruled on at M1 round 2.
+
+## 1. Strengths
+
+- **BR-21's diagnosis was accepted rather than argued.** Framing the stream the console *writes* (`console.go:48-56`) is the right answer — one writer, race-free by construction — and `Screen.MidSequence` correctly folds in the `skipping` state that `Pending()` misses. Both new tests reproduce the production ordering; I confirmed both go red when the deferral is removed.
+- **The test that was worse than the bug was fixed as such.** `console_test.go:203-214` removes the `waitFor` that synchronised away the skew, and says so in the comment. That is the harder half of the fix.
+- **`FakeRunner.Sink`/`Emit` were deleted, not defended.** The fake's child *is* a real `*ptychild.Child`, so `Feed` already did what `Emit` did — the right resolution of a dead-surface finding.
+- **BR-30 was disputed with a measurement, and the dispute is correct.** I verified independently: `AssignSessionName` keys on `scope.Key`, and `liveOwnedByOther` (`session_index.go:351-364`) treats a live session with no index entry as owned-by-other, so the ladder bumps to `📁pair-2`. The empty-index hole the Log concedes is the only residual.
+- **The ctrl-space audit entry (issue `## Log`, 2026-08-23) records what the audit *missed*** — "nothing binds it" vs "we will receive it" — which is more useful than the audit result.
+
+## 2. Critical findings
+
+All three are dispositions of prior findings, not new ids — see the `dispose:` block. Restated here with the measurements:
+
+**BR-21 (not-addressed) — the row paint still splices, on two paths.** `console.go:187` (`applyLayout`) writes `Reserve(rows)` unconditionally, from `watchResize`'s goroutine. Deterministic repro, no race, no injected delay: feed `\x1b[38;2;76`, wait for it on the host, `SetSize` → emitted `"\x1b[38;2;76\x1b[1;39r;82;88mX"`. Second path, also no injected delay: a 3-second loop pressing ctrl-space while the child streams sequences that end on a boundary — `splicedPaint` (the package's own detector) returns `"…\x1b[38;2;76\x1b7\x1b[24;1H\x1b[2K[brain]  ·"`. Cause: `repaint()` reads `MidSequence` under `mu`, releases it, and `paintNow` re-acquires and writes — check-then-act across three writer goroutines. Fix: one serialised write path (a single goroutine owning `c.host`, or the mutex held across check-and-write), and route `applyLayout`'s and `release`'s writes through it.
+
+**BR-22 (not-addressed) — ESC is still parked whenever it is not alone in the read.** `keys.go:112`. Measured: `Feed("abc\x1b")` → `before="abc"`, `held="\x1b"`; then `Feed("i")` → `before="\x1bi"`. `Feed("\x1b\x1b")` → `before="\x1b"`, `held="\x1b"`. `pumpStdin` blocks in `child.Write`, so keystrokes coalesce into one read exactly when the child is slow — the case that matters. `held` is still never flushed at teardown. The residual the comment states also understates itself: a read boundary immediately after ESC forwards the **hotkey** to the child, not just an unrecognised paste marker.
+
+**BR-23 (not-addressed) — half fixed.** The no-terminal fallback is in and pinned (removing it reddens `TestStartWithoutATerminalFallsBackLoudly`). Not done: (a) `Console.Run` still `return 1` on a `MakeRaw` error with nothing printed (`console.go:125-128`) — the "report the errors instead of collapsing them to 1" half; (b) the gate reads only the input fd (`OSHost.Size` measures `h.in`), so `couch start > log` from a real terminal still goes raw and paints escapes into the file.
+
+## 3. Important findings
+
+**BR-24 (not-addressed) — the pin skips itself.** `run_test.go:388,405` `t.Skipf` on `pty.Open` failure; `go test ./cmd/internal/couchcmd/ -run ConsoleRunner -v` reports two SKIPs and the package **ok**. With `consoleRunner` forced to `(nil, ExecRunner{})`, both packages stay green. Separately, BR-24(b) is untouched: deleting the `path == "" → "."` default (`ops.go:78-81`) leaves `go test ./cmd/...` green apart from the pre-existing pty failures. This is the 4th in `fix-not-pinned-by-failing-test` and a repeat of M1 round 2's BR-15, whose rule was already written: *ptychild fails loudly on the identical constraint; one milestone should not ship two handlings of one condition.* The structural fix is to make the console testable without a pty — inject the `Host` (the `hostty.FakeHost` seam exists; `consoleRunner` hardcodes `NewOSHost`) rather than to demote the skip to a fail.
+
+**BR-25 (not-addressed)** — `Makefile.local:52` adds a hand-written second `go run` line and `atlas/index.md:21-23` adds a second named member. Both are the instance fix the finding said not to apply; the target still does not enumerate `probes/`.
+
+**BR-26 (not-addressed)** — the `## Revisions` entry for Decision 11 is right and welcome, but its third bullet asserts a sweep that did not happen: "*Rows now name what an entity ANSWERS and point at the source rather than restating field lists.*" Measured unchanged: plan line 85 (`statusrow.go`, no such file), line 139 (`couchcore/runner.go`; it is `ptyrunner.go`), lines 200 and 297 (`MarginsDirty`), line 252 (`Terminal() Terminal` as an interface). The plan now documents a fix it did not perform — a sharper instance of the same family.
+
+**BR-32 / BR-33 / BR-34 / BR-35 (not-addressed)** — see dispositions; each is unchanged or only partly swept.
+
+**New — Task 2.7's smoke is partly unrecorded and two items are deferred with no Revision.** (`undelivered-plan-step`, 2nd in family.) **New — `atlas/couch.md:69` names `Child.MidSequence()`, deleted this round.** (`docs-lag-the-surface`, 2nd in family.) Both carry the repeat framing in the findings block.
+
+## 4. Minor findings
+
+- `Console`'s doc claims it "holds no policy: every decision it makes is a call into a pure function in this package"; the notice strings (`console.go:279,351`) and the active-vs-inactive bell rule (`:276-280`) are policy in the shell.
+- `run_test.go:38-42`'s comment still claims the console branch "is observable in the rendered output" — measured false by BR-24 and still false.
+- `StatusActor.Bell`'s writer is guarded by `!isActive`, and M2 attaches exactly one pane, so the `*` marker still cannot appear in M2 production. The semantics are right and M3 makes it reachable — flagging only because the pin (`console_test.go:283`) constructs a two-pane configuration production cannot reach yet.
+- A repaint deferred while mid-sequence is paid only by the *next* chunk, so a ctrl-space pressed while the child's last chunk ended mid-sequence produces no visible feedback at all.
+
+## 5. Test coverage notes
+
+- Verified red on revert: the mid-sequence deferral (2 tests), the lone-ESC discriminator (2 tests), the no-terminal fallback (1), blocking `Deliver` (1), the bell writer (1). Good discipline where it was applied.
+- Not covered: the resize and hotkey write paths (BR-21's live half), ESC anywhere but as a sole-byte read, `MakeRaw` failure reporting, the `path` default, `runConsole`'s non-`TerminalHandle` branch, and — in the documented environment — the console wiring itself.
+- `FuzzInterceptorFeed` still bounds output length only. The plan's Task 2.3 specified chunk-invariance ("feeding a stream one byte at a time reaches the same state as feeding it whole"); that property is exactly what would have found BR-22's residual, and it is still not implemented.
+- Environment, unchanged: `ptychild`, `hostty`, and `couchcore`'s pty tests fail loudly here (`operation not permitted`); `couchtty` and `couchcmd` pass, `-race -count=2` clean, `go vet ./cmd/...` clean.
+
+## 6. Architectural notes
+
+- **ARCH-DRY — pass, one flag.** `hostScan` reusing `ptychild.Screen`, `reserve.go` composing `hostty` constants, and `Spawn` reusing `launcher.DefaultTag` are all correct. Flag: `Makefile.local` is now a second source of truth for "what probes exist" (BR-25), and four near-identical pollers now span three packages (BR-35).
+- **ARCH-PURE — flag.** `keys.go` and `reserve.go` are pure and test without IO. The `Console` doc's "no policy" claim is not true of the shipped code; `StatusModel` is the pure entity those decisions belong in.
+- **ARCH-PURPOSE — flag, and it is the round's theme.** BR-21, BR-25 and BR-26 were each answered at the site the finding named and not at the enumeration it implied — and for BR-21 that left the milestone's headline bug reproducible on two paths. The gate ledger's `family:` slugs named the class each time.
+- **ARCH-MOCK — flag, with the concrete next step.** The fake terminal being the *same type* as production, plus the lifecycle-predicate conformance test, is the strongest ARCH-MOCK work in this project. But `testRT.NewCouchWith` still discards the injected runner and `consoleRunner` hardcodes `hostty.NewOSHost`, so there is still no fake-driven path from `RunWithRuntime` through the console — which is *why* BR-24's pin needs a real pty and therefore skips. Making the `Host` injectable at `consoleRunner` fixes the pin and the seam in one move, and M3 (many children, panel) needs it anyway.
+
+## 7. Plan revision recommendations
+
+1. **Correct the round-1 `## Revisions` entry's third bullet.** It claims the Core-concepts table was swept; it was not. Either perform the sweep (drop `statusrow.go`, `couchcore/runner.go`, `MarginsDirty` ×2, and Task 2.1's `Terminal() Terminal` contract in favour of "see the source") or amend the entry to say only the `Console` row was added.
+2. **Record the M2→M3 scope move.** Task 2.7's `kill -9` reattach and the park-vs-kill determination *through the full `couch stop` path* are carried to M3 (issue `## Log`, 2026-08-23), while the issue's `## Plan` M2 line still says they "land here" and Task 2.7 still lists them. A deferral of a named milestone deliverable is a scope event and belongs in `## Revisions`.
+3. **Record what Task 2.7's operator smoke did and did not cover.** The Log confirms the row surviving pair's startup, ctrl-space interception, and layout2. It does not record resize reflow, the row while claude streams, `nvim` in-and-out (the margin-reset case Decision 4 rests on), or `quitting restores the terminal`. `atlas/couch.md:70-72` reads as if the whole section was operator-confirmed.
+4. **Task 2.3** — either implement `FuzzInterceptorFeed`'s specified chunk-invariance property or record why the length bound replaced it.
+
+```findings
+dispose:
+  - id: BR-21
+    disposition: not-addressed
+    note: |
+      hostScan is right and pinned, but "serialise host writes" was skipped; applyLayout's Reserve write splices deterministically on SIGWINCH, and the hotkey path reproduces with no injected delay.
+  - id: BR-22
+    disposition: not-addressed
+    note: |
+      the discriminator covers only a sole-byte read; Feed("abc\x1b")+Feed("i") still yields "\x1bi", Feed("\x1b\x1b") holds one ESC, and held is still never flushed.
+  - id: BR-23
+    disposition: not-addressed
+    note: |
+      the no-terminal fallback is in and pinned; Console.Run still returns 1 silently on MakeRaw error, and the gate reads only the input fd.
+  - id: BR-24
+    disposition: not-addressed
+    note: |
+      both new pins t.Skipf on pty.Open in the documented environment, so the disable-the-console mutation is still green; the path default is still unpinned.
+  - id: BR-25
+    disposition: not-addressed
+    note: |
+      Makefile.local hardcodes a second go run line and atlas/index.md lists the new member; neither is the enumeration the class fix asked for.
+  - id: BR-26
+    disposition: not-addressed
+    note: |
+      the Revisions entry landed for Decision 11 but asserts a table sweep that did not happen; five stale sites remain unchanged.
+  - id: BR-27
+    disposition: addressed
+    note: |
+      Sink/Emit deleted, Bell wired and pinned (deletion check red); noting only that the !isActive guard is unreachable until M3 attaches a second pane.
+  - id: BR-28
+    disposition: addressed
+    note: |
+      the audit and what it missed are both in the issue Log now.
+  - id: BR-29
+    disposition: addressed
+    note: |
+      Deliver blocks and yields to stop; reverting to drop reddens TestConsoleDoesNotDropChildOutputUnderBurst.
+  - id: BR-30
+    disposition: withdrawn
+    note: |
+      verified independently: scope.Key plus liveOwnedByOther means a live collision bumps the suffix; the mechanism I claimed does not hold.
+  - id: BR-31
+    disposition: addressed
+    note: |
+      README and atlas/architecture.md both reconciled, MidSequence and the erase case included.
+  - id: BR-32
+    disposition: not-addressed
+    note: |
+      reserve.go:21-26 and reserve_test.go:31 unchanged; ChildRows(0) is still 0 under a doc saying it never returns zero.
+  - id: BR-33
+    disposition: not-addressed
+    note: |
+      Console.Run still defers only restore and release; no Stop(), no host.Close().
+  - id: BR-34
+    disposition: not-addressed
+    note: |
+      Pending's doc updated; the "ED, every form" comment, ops.go:65's "at the CLI", and atlas/couch.md's "stdio and block" are unchanged, and run_test.go:38-42 still claims the console branch is observable in the rendered output.
+  - id: BR-35
+    disposition: not-addressed
+    note: |
+      min renamed to minInt; doneBeforeExit is still read after the write that ends the child, Run's exit select is unchanged, and waitUntilTrue still duplicates waitFor across packages.
+findings:
+  - id: new
+    severity: Important
+    family: undelivered-plan-step
+    title: |
+      Task 2.7's operator smoke is partly unrecorded and two of its items are carried to M3 with no Revisions entry
+    detail: |
+      2nd in this family. Do NOT just record the missing observations. The rule, which BR-28's
+      instance fix did not reach: a milestone's Plan line enumerates that milestone's deliverables,
+      so moving one to a later milestone is a scope event and is written as a plan `## Revisions`
+      entry plus an amended issue `## Plan` line in the same window -- a Log paragraph is where a
+      deferral goes to be forgotten. Measured: the issue `## Plan` M2 line still reads "Smoke step 1
+      (one real pair + claude child, resize, nvim in and out, reattach across a kill -9) lands here",
+      and plan Task 2.7 still lists the kill -9 reattach and the park-vs-kill determination through
+      the full couch stop path, while the Log (2026-08-23) carries both to M3. Of Task 2.7's seven
+      recorded-observation items the Log records three (row survives pair startup, ctrl-space
+      intercepted, layout2); resize reflow, the row while claude streams, nvim in-and-out (the
+      margin-reset case Decision 4 rests on) and "quitting restores the terminal" appear nowhere.
+      atlas/couch.md:70-72 nonetheless claims the section is "confirmed by operator smoke on the
+      full Ghostty -> couch -> pair -> zellij -> claude stack".
+  - id: new
+    severity: Important
+    family: docs-lag-the-surface
+    title: |
+      atlas/couch.md still tells the reader the console asks Child.MidSequence(), a method this round deleted, on the stream BR-21 proved wrong
+    detail: |
+      2nd in this family, and a regression introduced by the fix commit rather than a leftover. Do
+      NOT just edit the line. The rule BR-31's instance fix did not reach: the commit that changes a
+      public surface updates every doc that names it, and the cheap enforcement is that an
+      identifier named in atlas/ must be greppable in the tree -- run that grep at the boundary
+      instead of re-reading the prose. Measured: `grep -rn MidSequence atlas/ cmd/internal/ptychild/`
+      returns atlas/couch.md:69 "the console therefore asks `Child.MidSequence()` and defers", while
+      `Child.MidSequence` was removed in 5975f10 and the console now frames its own written stream
+      via `Console.hostScan`. The doc therefore teaches the exact mistake the review caught -- ask
+      the child -- which is worse than being merely stale. atlas/architecture.md:461 has the same
+      surface described correctly, so the two atlas files now disagree.
+```

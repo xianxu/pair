@@ -601,6 +601,108 @@ rounds:
           round: 5
       boundary: M2
       blocked: true
+    - "n": 6
+      timestamp: "2026-08-23T09:05:24-07:00"
+      agent: claude
+      dispose:
+        - id: BR-21
+          disposition: not-addressed
+          note: hostScan is right and pinned, but "serialise host writes" was skipped; applyLayout's Reserve write splices deterministically on SIGWINCH, and the hotkey path reproduces with no injected delay.
+          round: 6
+        - id: BR-22
+          disposition: not-addressed
+          note: the discriminator covers only a sole-byte read; Feed("abc\x1b")+Feed("i") still yields "\x1bi", Feed("\x1b\x1b") holds one ESC, and held is still never flushed.
+          round: 6
+        - id: BR-23
+          disposition: not-addressed
+          note: the no-terminal fallback is in and pinned; Console.Run still returns 1 silently on MakeRaw error, and the gate reads only the input fd.
+          round: 6
+        - id: BR-24
+          disposition: not-addressed
+          note: both new pins t.Skipf on pty.Open in the documented environment, so the disable-the-console mutation is still green; the path default is still unpinned.
+          round: 6
+        - id: BR-25
+          disposition: not-addressed
+          note: Makefile.local hardcodes a second go run line and atlas/index.md lists the new member; neither is the enumeration the class fix asked for.
+          round: 6
+        - id: BR-26
+          disposition: not-addressed
+          note: the Revisions entry landed for Decision 11 but asserts a table sweep that did not happen; five stale sites remain unchanged.
+          round: 6
+        - id: BR-27
+          disposition: addressed
+          note: Sink/Emit deleted, Bell wired and pinned (deletion check red); noting only that the !isActive guard is unreachable until M3 attaches a second pane.
+          round: 6
+        - id: BR-28
+          disposition: addressed
+          note: the audit and what it missed are both in the issue Log now.
+          round: 6
+        - id: BR-29
+          disposition: addressed
+          note: Deliver blocks and yields to stop; reverting to drop reddens TestConsoleDoesNotDropChildOutputUnderBurst.
+          round: 6
+        - id: BR-30
+          disposition: withdrawn
+          note: 'verified independently: scope.Key plus liveOwnedByOther means a live collision bumps the suffix; the mechanism I claimed does not hold.'
+          round: 6
+        - id: BR-31
+          disposition: addressed
+          note: README and atlas/architecture.md both reconciled, MidSequence and the erase case included.
+          round: 6
+        - id: BR-32
+          disposition: not-addressed
+          note: reserve.go:21-26 and reserve_test.go:31 unchanged; ChildRows(0) is still 0 under a doc saying it never returns zero.
+          round: 6
+        - id: BR-33
+          disposition: not-addressed
+          note: Console.Run still defers only restore and release; no Stop(), no host.Close().
+          round: 6
+        - id: BR-34
+          disposition: not-addressed
+          note: Pending's doc updated; the "ED, every form" comment, ops.go:65's "at the CLI", and atlas/couch.md's "stdio and block" are unchanged, and run_test.go:38-42 still claims the console branch is observable in the rendered output.
+          round: 6
+        - id: BR-35
+          disposition: not-addressed
+          note: min renamed to minInt; doneBeforeExit is still read after the write that ends the child, Run's exit select is unchanged, and waitUntilTrue still duplicates waitFor across packages.
+          round: 6
+      findings:
+        - id: BR-36
+          severity: Important
+          title: Task 2.7's operator smoke is partly unrecorded and two of its items are carried to M3 with no Revisions entry
+          detail: |-
+            2nd in this family. Do NOT just record the missing observations. The rule, which BR-28's
+            instance fix did not reach: a milestone's Plan line enumerates that milestone's deliverables,
+            so moving one to a later milestone is a scope event and is written as a plan `## Revisions`
+            entry plus an amended issue `## Plan` line in the same window -- a Log paragraph is where a
+            deferral goes to be forgotten. Measured: the issue `## Plan` M2 line still reads "Smoke step 1
+            (one real pair + claude child, resize, nvim in and out, reattach across a kill -9) lands here",
+            and plan Task 2.7 still lists the kill -9 reattach and the park-vs-kill determination through
+            the full couch stop path, while the Log (2026-08-23) carries both to M3. Of Task 2.7's seven
+            recorded-observation items the Log records three (row survives pair startup, ctrl-space
+            intercepted, layout2); resize reflow, the row while claude streams, nvim in-and-out (the
+            margin-reset case Decision 4 rests on) and "quitting restores the terminal" appear nowhere.
+            atlas/couch.md:70-72 nonetheless claims the section is "confirmed by operator smoke on the
+            full Ghostty -> couch -> pair -> zellij -> claude stack".
+          family: undelivered-plan-step
+          round: 6
+        - id: BR-37
+          severity: Important
+          title: atlas/couch.md still tells the reader the console asks Child.MidSequence(), a method this round deleted, on the stream BR-21 proved wrong
+          detail: |-
+            2nd in this family, and a regression introduced by the fix commit rather than a leftover. Do
+            NOT just edit the line. The rule BR-31's instance fix did not reach: the commit that changes a
+            public surface updates every doc that names it, and the cheap enforcement is that an
+            identifier named in atlas/ must be greppable in the tree -- run that grep at the boundary
+            instead of re-reading the prose. Measured: `grep -rn MidSequence atlas/ cmd/internal/ptychild/`
+            returns atlas/couch.md:69 "the console therefore asks `Child.MidSequence()` and defers", while
+            `Child.MidSequence` was removed in 5975f10 and the console now frames its own written stream
+            via `Console.hostScan`. The doc therefore teaches the exact mistake the review caught -- ask
+            the child -- which is worse than being merely stale. atlas/architecture.md:461 has the same
+            surface described correctly, so the two atlas files now disagree.
+          family: docs-lag-the-surface
+          round: 6
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — pair#146 (boundary-review)
@@ -948,6 +1050,54 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   row. Also test-side: vtscreen_test.go redefines min, shadowing the builtin, and
   waitFor/waitLong/waitUntilTrue are three near-identical polling helpers across two packages.
 
+## Round 6 — 2026-08-23T09:05:24-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-21 — not-addressed — hostScan is right and pinned, but "serialise host writes" was skipped; applyLayout's Reserve write splices deterministically on SIGWINCH, and the hotkey path reproduces with no injected delay.
+- BR-22 — not-addressed — the discriminator covers only a sole-byte read; Feed("abc\x1b")+Feed("i") still yields "\x1bi", Feed("\x1b\x1b") holds one ESC, and held is still never flushed.
+- BR-23 — not-addressed — the no-terminal fallback is in and pinned; Console.Run still returns 1 silently on MakeRaw error, and the gate reads only the input fd.
+- BR-24 — not-addressed — both new pins t.Skipf on pty.Open in the documented environment, so the disable-the-console mutation is still green; the path default is still unpinned.
+- BR-25 — not-addressed — Makefile.local hardcodes a second go run line and atlas/index.md lists the new member; neither is the enumeration the class fix asked for.
+- BR-26 — not-addressed — the Revisions entry landed for Decision 11 but asserts a table sweep that did not happen; five stale sites remain unchanged.
+- BR-27 — addressed — Sink/Emit deleted, Bell wired and pinned (deletion check red); noting only that the !isActive guard is unreachable until M3 attaches a second pane.
+- BR-28 — addressed — the audit and what it missed are both in the issue Log now.
+- BR-29 — addressed — Deliver blocks and yields to stop; reverting to drop reddens TestConsoleDoesNotDropChildOutputUnderBurst.
+- BR-30 — withdrawn — verified independently: scope.Key plus liveOwnedByOther means a live collision bumps the suffix; the mechanism I claimed does not hold.
+- BR-31 — addressed — README and atlas/architecture.md both reconciled, MidSequence and the erase case included.
+- BR-32 — not-addressed — reserve.go:21-26 and reserve_test.go:31 unchanged; ChildRows(0) is still 0 under a doc saying it never returns zero.
+- BR-33 — not-addressed — Console.Run still defers only restore and release; no Stop(), no host.Close().
+- BR-34 — not-addressed — Pending's doc updated; the "ED, every form" comment, ops.go:65's "at the CLI", and atlas/couch.md's "stdio and block" are unchanged, and run_test.go:38-42 still claims the console branch is observable in the rendered output.
+- BR-35 — not-addressed — min renamed to minInt; doneBeforeExit is still read after the write that ends the child, Run's exit select is unchanged, and waitUntilTrue still duplicates waitFor across packages.
+
+### Raised
+
+- **BR-36** [Important] `undelivered-plan-step` Task 2.7's operator smoke is partly unrecorded and two of its items are carried to M3 with no Revisions entry
+  2nd in this family. Do NOT just record the missing observations. The rule, which BR-28's
+  instance fix did not reach: a milestone's Plan line enumerates that milestone's deliverables,
+  so moving one to a later milestone is a scope event and is written as a plan `## Revisions`
+  entry plus an amended issue `## Plan` line in the same window -- a Log paragraph is where a
+  deferral goes to be forgotten. Measured: the issue `## Plan` M2 line still reads "Smoke step 1
+  (one real pair + claude child, resize, nvim in and out, reattach across a kill -9) lands here",
+  and plan Task 2.7 still lists the kill -9 reattach and the park-vs-kill determination through
+  the full couch stop path, while the Log (2026-08-23) carries both to M3. Of Task 2.7's seven
+  recorded-observation items the Log records three (row survives pair startup, ctrl-space
+  intercepted, layout2); resize reflow, the row while claude streams, nvim in-and-out (the
+  margin-reset case Decision 4 rests on) and "quitting restores the terminal" appear nowhere.
+  atlas/couch.md:70-72 nonetheless claims the section is "confirmed by operator smoke on the
+  full Ghostty -> couch -> pair -> zellij -> claude stack".
+- **BR-37** [Important] `docs-lag-the-surface` atlas/couch.md still tells the reader the console asks Child.MidSequence(), a method this round deleted, on the stream BR-21 proved wrong
+  2nd in this family, and a regression introduced by the fix commit rather than a leftover. Do
+  NOT just edit the line. The rule BR-31's instance fix did not reach: the commit that changes a
+  public surface updates every doc that names it, and the cheap enforcement is that an
+  identifier named in atlas/ must be greppable in the tree -- run that grep at the boundary
+  instead of re-reading the prose. Measured: `grep -rn MidSequence atlas/ cmd/internal/ptychild/`
+  returns atlas/couch.md:69 "the console therefore asks `Child.MidSequence()` and defers", while
+  `Child.MidSequence` was removed in 5975f10 and the console now frames its own written stream
+  via `Console.hostScan`. The doc therefore teaches the exact mistake the review caught -- ask
+  the child -- which is worse than being merely stale. atlas/architecture.md:461 has the same
+  surface described correctly, so the two atlas files now disagree.
+
 ## Open findings
 
 - **BR-1** [Important] `chunking-invariance` Screen raises a false bell for any sequence longer than maxPending split across two reads
@@ -962,12 +1112,9 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-24** [Important] `fix-not-pinned-by-failing-test` the milestone's central wiring is unpinned -- disabling the console entirely leaves the whole suite green
 - **BR-25** [Important] `probe-hygiene` probes/zellijpark ships with no make target and no atlas entry, one round after that rule was written
 - **BR-26** [Important] `plan-table-drift` the plan's Decision 11 and three Core-concepts rows now contradict the code, with no Revisions entry
-- **BR-27** [Important] `dead-field-and-leaked-consumer` three members added this window have zero writers -- FakeRunner.Sink, FakeRunner.Emit, and StatusActor.Bell
-- **BR-28** [Important] `undelivered-plan-step` Task 2.3's ctrl-space audit of claude and nvim was never recorded in the issue Log
-- **BR-29** [Important] `unrecoverable-silent-drop` Deliver drops child output on a full buffer, justified by a repaint-from-ring that does not exist at this boundary
-- **BR-30** [Important] `derived-id-not-unique` the forced resume tag is the tree's basename, so two different trees resume one zellij session
-- **BR-31** [Important] `docs-lag-the-surface` README still describes couch as a spawner, and atlas/architecture.md still describes Screen as reporting region-lost
 - **BR-32** [Minor] `uncovered-negative-assertion` ChildRows(0) returns 0 while its doc says "It never returns zero", and no test covers the boundary case
 - **BR-33** [Minor] `signal-goroutine-outlives-close` Console.Run never calls Stop() or host.Close(), so the resize watcher and the SIGWINCH registration outlive the console
 - **BR-34** [Minor] `stale-comment-reference` several comments overstate or misplace what the code does
 - **BR-35** [Minor] `test-harness-races` the live conformance scenario and Run's exit select are both racy by construction
+- **BR-36** [Important] `undelivered-plan-step` Task 2.7's operator smoke is partly unrecorded and two of its items are carried to M3 with no Revisions entry
+- **BR-37** [Important] `docs-lag-the-surface` atlas/couch.md still tells the reader the console asks Child.MidSequence(), a method this round deleted, on the stream BR-21 proved wrong

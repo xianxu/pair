@@ -65,9 +65,19 @@ Three things that design has to survive, each learned the expensive way:
   The console repaints on it.
 - **Not corrupting the child.** A pty read boundary falls wherever the kernel
   puts it, so a paint written between two chunks can land inside one of the
-  child's escape sequences. The console therefore asks
-  `Child.MidSequence()` and defers, paying the debt on the next chunk that ends
-  on a boundary.
+  child's escape sequences. Two rules keep that impossible rather than unlikely:
+  **`Console.Run` is the only goroutine that writes to the host** (resizes and
+  hotkeys are events it drains, not writers), and every console-originated write
+  goes through a gate that defers while the CHILD's stream is mid-sequence,
+  paying the debt on the next chunk that ends on a boundary.
+
+  Both halves were learned by getting them wrong. Asking the *child* whether it
+  was mid-sequence answered about a later chunk, because ptychild's pump feeds
+  its scanner before the console has drained the earlier one -- so the tracking
+  belongs to the stream the console WRITES. And feeding the console's own
+  escapes into that scanner let it frame our bytes together with the child's
+  partial and report "safe" precisely when it was not, so the scanner is fed
+  child bytes only.
 
 Verified against a real terminal emulator (`vtscreen_test.go`) and against a
 real pty child (`console_live_test.go`, `PAIR_LIVE_COUCH=1`), and confirmed by

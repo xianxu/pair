@@ -1,7 +1,9 @@
 package couchtty
 
 import (
+	"fmt"
 	"io"
+	"os"
 	"sync"
 
 	"github.com/xianxu/pair/cmd/internal/hostty"
@@ -31,8 +33,9 @@ type pane struct {
 // x/term and os/signal directly, which is what makes the resize path and the
 // restore-on-teardown path testable without a terminal.
 type Console struct {
-	host  hostty.Host
-	stdin io.Reader
+	host   hostty.Host
+	stdin  io.Reader
+	stderr io.Writer
 
 	mu     sync.Mutex
 	panes  map[string]*pane
@@ -55,24 +58,50 @@ type Console struct {
 	// write is race-free by construction -- there is exactly one writer.
 	hostScan ptychild.Screen
 
-	chunks chan chunk
-	stop   chan struct{}
-	once   sync.Once
+	// Run is the ONLY goroutine that writes to the host. Everything that wants
+	// the screen sends here instead of writing.
+	//
+	// The first fix for BR-21 framed the console's own output but left
+	// applyLayout and the hotkey path writing from other goroutines, so a
+	// SIGWINCH or a keypress could still splice into the child's stream. Making
+	// the writer singular removes the class rather than the two instances:
+	// there is no longer a way to reach the screen except through the loop that
+	// tracks where the stream is.
+	chunks  chan chunk
+	resized chan struct{}
+	hotkeys chan struct{}
+	stop    chan struct{}
+	once    sync.Once
+}
+
+// errw is where the console reports its own failures. Separate from the host
+// because a host that cannot go raw may equally be unable to render.
+func (c *Console) errw() io.Writer {
+	if c.stderr != nil {
+		return c.stderr
+	}
+	return os.Stderr
 }
 
 func New(host hostty.Host, stdin io.Reader) *Console {
 	c := &Console{
-		host:   host,
-		stdin:  stdin,
-		panes:  map[string]*pane{},
-		chunks: make(chan chunk, 256),
-		stop:   make(chan struct{}),
+		host:    host,
+		stdin:   stdin,
+		panes:   map[string]*pane{},
+		chunks:  make(chan chunk, 256),
+		resized: make(chan struct{}, 1),
+		hotkeys: make(chan struct{}, 8),
+		stop:    make(chan struct{}),
 	}
 	if s, err := host.Size(); err == nil {
 		c.size = s
 	}
 	return c
 }
+
+// SetErrorWriter redirects the console's own diagnostics, so a test can read
+// them instead of the process's stderr.
+func (c *Console) SetErrorWriter(w io.Writer) { c.stderr = w }
 
 // ChildSize is what a new child should be sized to: the host, minus the
 // reserved row. Handed to PtyRunner so the FIRST frame is already right --
@@ -124,6 +153,9 @@ func (c *Console) Stop() { c.once.Do(func() { close(c.stop) }) }
 func (c *Console) Run() int {
 	restore, err := c.host.MakeRaw()
 	if err != nil {
+		// Say why. Returning a bare 1 was the other half of BR-23: the
+		// operator saw an exit code and nothing else.
+		fmt.Fprintf(c.errw(), "couch: cannot take the terminal: %v\n", err)
 		return 1
 	}
 	// Restoration is deferred FIRST so it runs LAST, after the region reset
@@ -132,7 +164,7 @@ func (c *Console) Run() int {
 	defer c.release()
 
 	c.applyLayout()
-	c.repaint()
+	c.paintNow()
 
 	go c.pumpStdin()
 	go c.watchResize()
@@ -146,6 +178,10 @@ func (c *Console) Run() int {
 		select {
 		case ch := <-c.chunks:
 			c.onChunk(ch)
+		case <-c.resized:
+			c.onResize()
+		case <-c.hotkeys:
+			c.onHotkey()
 		case code := <-exited:
 			return code
 		case <-c.stop:
@@ -160,8 +196,9 @@ func (c *Console) release() {
 	c.mu.Lock()
 	rows := c.size.Rows
 	c.mu.Unlock()
-	_, _ = io.WriteString(c.host, Release())
-	_, _ = io.WriteString(c.host, PaintRow(rows, ""))
+	// Teardown writes UNCONDITIONALLY: a half-restored terminal is worse than a
+	// spliced sequence, and the child is finished with the screen by now.
+	_, _ = io.WriteString(c.host, Release()+PaintRow(rows, ""))
 }
 
 func (c *Console) activeChild() *ptychild.Child {
@@ -173,10 +210,11 @@ func (c *Console) activeChild() *ptychild.Child {
 	return nil
 }
 
-// applyLayout reserves the row and sizes every child to fit above it.
+// applyLayout sizes every child to fit above the reserved row. The row itself
+// is drawn by the paint, so there is one gated path to the screen rather than
+// two.
 func (c *Console) applyLayout() {
 	c.mu.Lock()
-	rows := c.size.Rows
 	size := ptychild.Size{Rows: ChildRows(c.size.Rows), Cols: c.size.Cols}
 	children := make([]*ptychild.Child, 0, len(c.panes))
 	for _, p := range c.panes {
@@ -184,7 +222,8 @@ func (c *Console) applyLayout() {
 	}
 	c.mu.Unlock()
 
-	_, _ = io.WriteString(c.host, Reserve(rows))
+	// The resize always happens; only the SCREEN write is gated, and it goes
+	// through the paint below so there is one gated path rather than two.
 	for _, child := range children {
 		_ = child.Resize(size)
 	}
@@ -200,26 +239,36 @@ func (c *Console) applyLayout() {
 // spliced into the middle of `\x1b[38;2;76;82;88m`, corrupting the child's
 // colours and losing the row. The debt is remembered and paid by the next chunk
 // that leaves the stream at a sequence boundary.
-func (c *Console) repaint() {
-	c.mu.Lock()
-	mid := c.hostScan.MidSequence()
-	if mid {
-		c.paintPending = true
-	}
-	c.mu.Unlock()
-	if mid {
-		return
-	}
-	c.paintNow()
-}
+func (c *Console) repaint() { c.paintNow() }
 
-// writeHost is the ONE path to the operator's screen for child output, so the
-// framing state cannot miss a byte.
-func (c *Console) writeHost(p []byte) {
+// writeChild passes the active child's output through, tracking where the
+// CHILD's stream sits. Called only from the Run goroutine.
+//
+// Only child bytes are fed to the scanner. Feeding our own escapes into it was
+// the second shape of this bug: appending `\x1b[1;23r` to a pending
+// `\x1b[38;2;76` let the scanner frame the two together as one complete
+// sequence, so it reported "safe" precisely when it was not. The question the
+// scanner answers is "where is the child's stream", and our writes are not part
+// of it.
+func (c *Console) writeChild(p []byte) {
 	c.mu.Lock()
 	c.hostScan.Feed(p)
 	c.mu.Unlock()
 	_, _ = c.host.Write(p)
+}
+
+// writeOwn emits the console's OWN bytes, and is the only way they reach the
+// screen. It refuses while the child's stream is mid-sequence and records the
+// debt; the next chunk that lands on a boundary pays it.
+func (c *Console) writeOwn(p string) {
+	c.mu.Lock()
+	if c.hostScan.MidSequence() {
+		c.paintPending = true
+		c.mu.Unlock()
+		return
+	}
+	c.mu.Unlock()
+	_, _ = io.WriteString(c.host, p)
 }
 
 // paintNow draws the row unconditionally, re-asserting the region first.
@@ -243,8 +292,7 @@ func (c *Console) paintNow() {
 	}
 	c.mu.Unlock()
 
-	_, _ = io.WriteString(c.host, Reserve(rows))
-	_, _ = io.WriteString(c.host, PaintRow(rows, RenderStatusRow(cols, model)))
+	c.writeOwn(Reserve(rows) + PaintRow(rows, RenderStatusRow(cols, model)))
 }
 
 // onChunk routes one child write.
@@ -258,7 +306,7 @@ func (c *Console) onChunk(ch chunk) {
 	}
 
 	if isActive {
-		c.writeHost(ch.data)
+		c.writeChild(ch.data)
 	}
 	// A paint deferred while the stream was mid-sequence is owed as soon as
 	// the stream is whole again.
@@ -287,6 +335,8 @@ func (c *Console) onChunk(ch chunk) {
 	}
 }
 
+// watchResize turns host resizes into events for the Run loop. It deliberately
+// does NOT touch the screen: see the note on the channel fields.
 func (c *Console) watchResize() {
 	for {
 		select {
@@ -294,17 +344,25 @@ func (c *Console) watchResize() {
 			if !ok {
 				return
 			}
-			if s, err := c.host.Size(); err == nil {
-				c.mu.Lock()
-				c.size = s
-				c.mu.Unlock()
+			select {
+			case c.resized <- struct{}{}: // coalesced; one pending is enough
+			default:
 			}
-			c.applyLayout()
-			c.repaint()
 		case <-c.stop:
 			return
 		}
 	}
+}
+
+// onResize runs on the Run goroutine.
+func (c *Console) onResize() {
+	if s, err := c.host.Size(); err == nil {
+		c.mu.Lock()
+		c.size = s
+		c.mu.Unlock()
+	}
+	c.applyLayout()
+	c.repaint()
 }
 
 // pumpStdin routes the operator's keystrokes, splitting around the hotkey.
@@ -325,7 +383,11 @@ func (c *Console) pumpStdin() {
 				if !hit {
 					break
 				}
-				c.onHotkey()
+				select {
+				case c.hotkeys <- struct{}{}:
+				case <-c.stop:
+					return
+				}
 				in = rest
 			}
 		}

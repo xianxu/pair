@@ -70,6 +70,15 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner) (*couchcore.Couch, erro
 	)
 }
 
+// isTerminal reports whether f is a real terminal. Nil-safe: a non-*os.File
+// stdio (a pipe, a test buffer) arrives here as nil.
+func isTerminal(f *os.File) bool {
+	if f == nil {
+		return false
+	}
+	return term.IsTerminal(int(f.Fd()))
+}
+
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return RunWithRuntime(args, stdin, stdout, stderr, OSRuntime{})
 }
@@ -154,25 +163,36 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 // Returning (nil, ExecRunner{}) is the fallback path: `--no-console` and every
 // non-start operation. The escape hatch announces itself at render time rather
 // than degrading silently.
+// WantsConsole is the console DECISION, separated from building one.
+//
+// Pure, and that is the point: the previous pins for this needed a real pty and
+// so skipped in the sandbox this issue documents as its environment -- meaning
+// the mutation "disable the console entirely" stayed green, which is the
+// gated-only-pin lesson for the third time. The decision is the thing worth
+// pinning; constructing a Console is plumbing.
+//
+// hasTerminal must be true for BOTH directions. couch measures the input fd and
+// draws on the output fd, so a redirected stdout with a tty stdin would
+// otherwise build a console that paints into a file.
+func WantsConsole(name string, args map[string]string, hasTerminal bool) bool {
+	return name == "start" && args["no-console"] != "true" && hasTerminal
+}
+
 func consoleRunner(name string, args map[string]string, stdin io.Reader, stdout io.Writer) (*couchtty.Console, couchcore.Runner) {
-	if name != "start" || args["no-console"] == "true" {
-		return nil, couchcore.ExecRunner{}
-	}
 	inFile, _ := stdin.(*os.File)
 	outFile, _ := stdout.(*os.File)
-	host := hostty.NewOSHost(inFile, outFile)
 
 	// No terminal, no console. Piped, redirected, or run from a script, the
 	// console cannot measure a size or go raw -- and the first cut of this
 	// spawned the child anyway, sized it to a ZERO-ROW pty, then exited 1 with
-	// nothing printed (M2 BR-23). Falling back here means the operator gets a
-	// working session and a reason, instead of a registered actor they cannot
-	// see and a bare exit code.
-	if _, err := host.Size(); err != nil {
-		_ = host.Close()
+	// nothing printed (M2 BR-23). Falling back means the operator gets a working
+	// session and a reason, instead of a registered actor they cannot see.
+	hasTerminal := isTerminal(inFile) && isTerminal(outFile)
+	if !WantsConsole(name, args, hasTerminal) {
 		return nil, couchcore.ExecRunner{}
 	}
 
+	host := hostty.NewOSHost(inFile, outFile)
 	console := couchtty.New(host, stdin)
 	return console, &couchcore.PtyRunner{
 		Size: console.ChildSize,

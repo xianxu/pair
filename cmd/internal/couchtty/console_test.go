@@ -1,6 +1,8 @@
 package couchtty
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -338,4 +340,54 @@ func TestConsoleDoesNotDropChildOutputUnderBurst(t *testing.T) {
 			t.Fatalf("line-%04d was dropped from the live path", i)
 		}
 	}
+}
+
+// The CLASS behind BR-21: exactly one goroutine may write to the host, so there
+// is no path to the screen that bypasses the mid-sequence check.
+//
+// The first fix framed the console's own output but left applyLayout (SIGWINCH)
+// and the hotkey path writing from other goroutines, so both could still splice
+// into the child's stream. This drives all three concurrently against a child
+// that is parked mid-sequence.
+func TestConsoleNeverSplicesFromAnyPath(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	f.host.Reset()
+
+	// Park the stream mid-sequence, then hammer every other writer.
+	f.child.Feed([]byte("\x1b[2J\x1b[38;2;76"))
+	for i := 0; i < 20; i++ {
+		f.host.SetSize(ptychild.Size{Rows: uint16(24 + i%3), Cols: 80})
+		_, _ = f.stdin.Write([]byte("\x00"))
+	}
+	f.child.Feed([]byte(";82;88mCOLOURED"))
+
+	waitFor(t, "the child's output to reach the host", func() bool {
+		return strings.Contains(f.host.Written(), "COLOURED")
+	})
+	if got := f.host.Written(); !strings.Contains(got, "\x1b[38;2;76;82;88m") {
+		t.Fatalf("a writer other than the child's chunk path spliced the sequence: %q", got)
+	}
+}
+
+// A console that cannot take the terminal must SAY so. Returning a bare 1 was
+// the other half of BR-23 -- the operator saw an exit code and nothing else.
+func TestConsoleReportsWhyItCannotTakeTheTerminal(t *testing.T) {
+	host := &refusingHost{FakeHost: hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80})}
+	var errw bytes.Buffer
+	con := New(host, strings.NewReader(""))
+	con.SetErrorWriter(&errw)
+
+	if code := con.Run(); code != 1 {
+		t.Fatalf("Run() = %d, want 1", code)
+	}
+	if !strings.Contains(errw.String(), "cannot take the terminal") {
+		t.Fatalf("nothing explained the failure: %q", errw.String())
+	}
+}
+
+type refusingHost struct{ *hostty.FakeHost }
+
+func (h *refusingHost) MakeRaw() (func() error, error) {
+	return nil, errors.New("inappropriate ioctl for device")
 }

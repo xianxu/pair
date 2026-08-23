@@ -275,3 +275,45 @@ func TestInterceptorStillHoldsASplitSequenceAfterOtherBytes(t *testing.T) {
 		t.Fatal("the split hotkey was not recognised once completed")
 	}
 }
+
+// The cases the first ESC fix still glued (M2 BR-22 round 2). The length of the
+// CHUNK is not the discriminator; the length of the PARTIAL is.
+func TestInterceptorNeverHoldsABareTrailingEsc(t *testing.T) {
+	cases := []struct {
+		name  string
+		first string
+		then  string
+		want  string // what the child must receive across both feeds
+	}{
+		{"ESC after other bytes", "abc\x1b", "i", "abc\x1bi"},
+		{"two ESCs in one read", "\x1b\x1b", "", "\x1b\x1b"},
+		{"ESC ending a long chunk", "hello world\x1b", "x", "hello world\x1bx"},
+		{"lone ESC", "\x1b", "", "\x1b"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var it Interceptor
+			var got []byte
+			before, _, _ := it.Feed([]byte(c.first))
+			got = append(got, before...)
+			if c.then != "" {
+				before, _, _ = it.Feed([]byte(c.then))
+				got = append(got, before...)
+			}
+			if string(got) != c.want {
+				t.Fatalf("child received %q, want %q — an ESC was held and glued", got, c.want)
+			}
+		})
+	}
+}
+
+// Nothing may be left stranded in the hold buffer for a completed input.
+func TestInterceptorHoldsNothingAfterACompleteChunk(t *testing.T) {
+	var it Interceptor
+	for _, in := range []string{"abc\x1b", "\x1b\x1b", "plain", "\x1b[32;5u"} {
+		it.Feed([]byte(in))
+		if len(it.held) != 0 {
+			t.Fatalf("after %q the interceptor still holds %q", in, it.held)
+		}
+	}
+}
