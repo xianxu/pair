@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"sync"
+
+	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
 
 // FakeChild is the fake's per-child state, modelled across calls.
@@ -16,6 +18,11 @@ type FakeChild struct {
 	alive   bool
 	code    int
 	done    chan struct{}
+
+	// terminal is the pty double. It is a real *ptychild.Child in its fake
+	// mode -- the SAME type PtyRunner hands out -- so the console cannot be
+	// exercising a different shape in tests than in production (ARCH-MOCK).
+	terminal *ptychild.Child
 }
 
 // FakeRunner is the stateful double ARCH-MOCK requires.
@@ -35,6 +42,10 @@ type FakeRunner struct {
 	failNext error
 	autoExit *int
 	Ops      []string
+
+	// Sink mirrors PtyRunner's: installed on each child at Start, tagged with
+	// the handle id.
+	Sink func(id string, chunk []byte)
 }
 
 var _ Runner = (*FakeRunner)(nil)
@@ -60,10 +71,16 @@ func (f *FakeRunner) Start(dir string, argv, env []string) (Handle, error) {
 		return nil, err
 	}
 	id := fmt.Sprintf("couch-fake-%d", len(f.order)+1)
+	child := ptychild.NewFakeChild(nil)
+	if f.Sink != nil {
+		sink := f.Sink
+		child.SetSink(func(chunk []byte) { sink(id, chunk) })
+	}
 	f.children[id] = &FakeChild{
 		Dir: dir, Argv: argv, Env: env,
 		diesOn: map[os.Signal]int{},
 		alive:  true, done: make(chan struct{}),
+		terminal: child,
 	}
 	f.order = append(f.order, id)
 	f.Ops = append(f.Ops, "start "+dir+": "+joinArgs(argv))
@@ -140,6 +157,13 @@ type fakeHandle struct {
 
 func (h *fakeHandle) ID() string { return h.id }
 
+// Terminal makes the fake handle a TerminalHandle, exactly as PtyRunner's is.
+// A console test that type-asserts the capability therefore takes the same
+// branch production takes.
+func (h *fakeHandle) Terminal() *ptychild.Child { return h.runner.Terminal(h.id) }
+
+var _ TerminalHandle = (*fakeHandle)(nil)
+
 func (h *fakeHandle) PID() int {
 	h.runner.mu.Lock()
 	defer h.runner.mu.Unlock()
@@ -187,4 +211,26 @@ func (h *fakeHandle) Wait() int {
 	h.runner.mu.Lock()
 	defer h.runner.mu.Unlock()
 	return c.code
+}
+
+// Emit pushes output from a fake child, the stand-in for its pty producing
+// bytes. It runs the same path a real child's pump does -- ring, screen, sink --
+// because they are the same type.
+func (f *FakeRunner) Emit(id string, chunk []byte) {
+	f.mu.Lock()
+	c, ok := f.children[id]
+	f.mu.Unlock()
+	if ok && c.terminal != nil {
+		c.terminal.Feed(chunk)
+	}
+}
+
+// Terminal exposes the pty double, so a fakeHandle can satisfy TerminalHandle.
+func (f *FakeRunner) Terminal(id string) *ptychild.Child {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if c, ok := f.children[id]; ok {
+		return c.terminal
+	}
+	return nil
 }
