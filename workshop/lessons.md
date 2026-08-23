@@ -1757,3 +1757,24 @@ test passes with the copy removed.
 Corollary for bounded buffers: `Snapshot` reports the *window*, so a buffer that
 grows its backing array without bound looks identical from outside. Pin the
 allocation separately (`cap()`), or "bounded" is untested.
+
+## A smoke instruction must put the affordance in the operator's view
+
+#146 M1 migrated `pair term`'s multiplexer onto extracted packages, and the
+smoke instruction sent the operator to standalone `pair term` — the one mode
+where `pair term` has **no tab indicator at all**. Its tab strip is rendered as
+the *zellij pane title* (`renamePane` → `zellij action rename-pane "[terminal 1]
+work"`), so outside zellij the call fails and is swallowed. The operator
+reasonably read "I press Alt+t and nothing visibly happens" as a crash, and only
+found the tabs by noticing that changing one tab's contents changed what came
+back on switch.
+
+**Rule.** Before writing smoke steps, ask *where does the thing I want observed
+actually render?* If the affordance lives in a host the reduced-scope harness
+does not have (a zellij pane title, a status bar, a notification centre), the
+reduced harness cannot smoke it — either give steps in the real environment, or
+say up front which signal is missing and what to substitute. A "simpler"
+repro that removes the observable is not simpler, it is unfalsifiable.
+
+Corollary: when the operator reports "X seems broken", check whether X is
+*observable* in the setup you sent them to before investigating X.

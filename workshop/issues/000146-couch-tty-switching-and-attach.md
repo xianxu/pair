@@ -370,3 +370,30 @@ asserts that the right BYTES are replayed. It cannot judge whether the screen
 LOOKS right -- a repaint that leaves a stale row, doubles a prompt, or puts the
 cursor in the wrong cell passes every one of those assertions. That is the
 visual regression the daily driver would show and unit tests cannot.
+
+### 2026-08-22 -- M1 differential: migration is behaviour-preserving
+
+Operator smoke found no crash but no visible tabs either, which prompted a
+differential rather than an argument. Built `pair` at `7187b22` (the last commit
+before any M1 code) into a temp worktree and ran `probes/termsmoke` against both
+binaries.
+
+**Byte-identical results, startup output included** -- all 8 steps pass on each,
+and both emit `"\x1b[1;1H\x1b[J\x1b[?1034hsh-3.2$ "` on startup. The migration
+does not change what `pair term` does on this path.
+
+**The missing tab bar is not a regression and not a bug.** `pair term` renders
+its tab strip as the *zellij pane title* (`renamePane` -> `setPaneTitle` ->
+`zellij action rename-pane "[terminal 1] work"`). Run standalone there is no
+pane to rename, the action fails, and the error is deliberately swallowed. The
+older in-terminal inverse-video strip was removed on purpose and
+`run_test.go:690` pins that it stays gone. So standalone `pair term` has never
+had a tab indicator, before or after this change.
+
+The fault was in the smoke INSTRUCTION, which sent the operator to the one mode
+where the affordance being tested is invisible. Lesson recorded in
+`workshop/lessons.md`.
+
+What the operator did confirm, which is the part M1 needed: two tabs exist, the
+switch works, and each tab's visual state comes back on landing -- i.e. the
+extracted ring and the replay path behave.
