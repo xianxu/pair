@@ -1937,3 +1937,17 @@ strings, so a key nobody thought about still decodes.
 
 Corollary: a surface that takes over the screen inherits whatever keyboard mode
 the previous occupant set. It does not get to assume the default.
+
+## A refusal that names an action you cannot perform pushes the operator to the bypass
+
+`#146`'s one-agent-per-tree guard refused correctly and then advised "switch to
+it, or --same-tree". couch has no switch verb -- attaching to a session another
+process hosts is a different issue's work. So the only followable half of the
+advice was the flag that turns the guard OFF.
+
+**Rule.** Every remedy a refusal offers must be a command that exists today. If
+the natural remedy is not built yet, say so explicitly ("attaching needs X")
+rather than naming it as an option -- an operator who cannot follow the safe
+advice will follow the unsafe one. Where the surface has a declared verb set,
+assert in a test that each suggested command is in it, so the advice cannot
+drift from the implementation.

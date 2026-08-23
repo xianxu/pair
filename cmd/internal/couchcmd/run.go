@@ -390,14 +390,21 @@ func renderError(w io.Writer, err error) {
 		fmt.Fprintf(w, "  %s (pid %d)\n", a.ID, a.PID)
 	}
 	fmt.Fprintf(w, "They would share a branch and index.\n")
-	switch occ.Mode {
-	case couchcore.WorktreeParallel:
-		fmt.Fprintf(w, "  -> new worktree (cheap here), or switch to it, or --same-tree\n")
-	case couchcore.HeavyLocalState:
-		fmt.Fprintf(w, "  -> switch to it, or --same-tree (worktrees are expensive in this repo)\n")
-	default:
-		fmt.Fprintf(w, "  -> switch to it, or --same-tree (this repo runs one agent at a time)\n")
+
+	// Offer COMMANDS, not intentions.
+	//
+	// This used to say "switch to it", which names a remedy couch has no verb
+	// for: attaching to a session hosted by another couch process needs the
+	// transport in pair#147. An operator who follows unactionable advice ends up
+	// reaching for --same-tree, which is the one option that bypasses the guard.
+	// A refusal is a next-action spec.
+	ref := occ.Tree.Repo()
+	fmt.Fprintf(w, "  -> couch stop %s        end it, then start again\n", ref)
+	fmt.Fprintf(w, "  -> couch start %s --same-tree   run a second agent anyway (recorded)\n", ref)
+	if occ.Mode == couchcore.WorktreeParallel {
+		fmt.Fprintf(w, "  -> or start in a new worktree, which is cheap in this repo\n")
 	}
+	fmt.Fprintf(w, "  (attaching to a session another couch is hosting needs pair#147)\n")
 }
 
 func usage(w io.Writer, table map[string]couchcore.Operation) {

@@ -539,3 +539,51 @@ func TestConsoleGetsAnActionDispatcher(t *testing.T) {
 		t.Fatalf("list through the panel dispatcher: %v", err)
 	}
 }
+
+// A refusal is a next-action spec: every remedy it names must be a command the
+// operator can run.
+//
+// It used to say "switch to it", which couch has no verb for -- attaching to a
+// session another couch process hosts needs pair#147's transport. Advice that
+// cannot be followed pushes the operator to --same-tree, the one option that
+// bypasses the guard.
+func TestTreeOccupiedRefusalNamesRunnableCommands(t *testing.T) {
+	rt := newRT(t, "/repo")
+	if _, errw, code := runRT(rt, "start", "/repo"); code != 0 {
+		t.Fatalf("first start failed: %d %q", code, errw)
+	}
+	rt.markLive(t) // the guard needs a live incumbent to refuse for
+	_, errw, code := runRT(rt, "start", "/repo")
+	if code == 0 {
+		t.Fatal("a second start on an occupied tree was allowed")
+	}
+
+	if strings.Contains(errw, "switch to it") {
+		t.Errorf("the refusal still offers an action couch cannot perform: %q", errw)
+	}
+	// Every `couch <verb>` it suggests must be a declared operation.
+	declared := map[string]bool{}
+	for _, n := range couchcore.OperationNames() {
+		declared[n] = true
+	}
+	// Only the SUGGESTION lines (`  -> couch <verb> ...`) are commands; the
+	// rest is prose and may legitimately mention couch.
+	found := 0
+	for _, line := range strings.Split(errw, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "-> couch ") {
+			continue
+		}
+		fields := strings.Fields(strings.TrimPrefix(line, "-> couch "))
+		if len(fields) == 0 {
+			continue
+		}
+		found++
+		if !declared[fields[0]] {
+			t.Errorf("the refusal suggests `couch %s`, which is not a declared operation", fields[0])
+		}
+	}
+	if found == 0 {
+		t.Errorf("the refusal names no runnable command at all: %q", errw)
+	}
+}

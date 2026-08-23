@@ -1208,3 +1208,24 @@ CSI-u decoding turns 12 assertions red.
 
 Lesson recorded: a key-encoding fix must cover every key the surface consumes,
 because a per-key fix guarantees the next key reports the same bug.
+
+### 2026-08-23 -- the tree-occupied refusal named an action couch cannot perform
+
+Operator hit `couch start` in brain and got the one-agent-per-tree refusal. The
+GUARD was correct -- a couch from the earlier smoke was still alive, and a
+pruning test confirms a dead incumbent does not refuse. The ADVICE was not:
+
+```
+  -> switch to it, or --same-tree (this repo runs one agent at a time)
+```
+
+"switch to it" names a remedy couch has no verb for: attaching to a session
+another couch process hosts needs `pair#147`'s transport. An operator who tries
+to follow it finds nothing, and reaches for `--same-tree` -- the one option that
+BYPASSES the guard. A refusal that pushes the operator toward the escape hatch is
+worse than no advice.
+
+It now offers commands that exist (`couch stop <ref>`, `couch start <ref>
+--same-tree`), says plainly that attaching needs `#147`, and a test asserts every
+`-> couch <verb>` it prints is a DECLARED operation -- so the advice cannot drift
+from the verb set the way it just did.
