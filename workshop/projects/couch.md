@@ -158,11 +158,51 @@ the runtime (bringing actors up, tty routing, transport, live registry). They
 gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 
 - [x] spawn + registry [pair#145]
-- [ ] tty switching and attach [pair#146]
+- [ ] shared pty-child core [pair#146 M1]
+- [ ] console over one child, with the reserved row [pair#146 M2]
+- [ ] many children and the panel [pair#146 M3]
+- [ ] exits, detach, and what the row says [pair#146 M4]
 - [ ] expose query API to peer actors [ariadne#199]
 - [ ] fleet thread inventory [ariadne#200]
 - [ ] cluster transport and queries [pair#147]
 - [ ] brain advisor role [pair#148]
+
+<a id="pair-146-m1"></a>
+### pair#146 M1 — shared pty-child core
+
+**est:** 10.32 (whole issue; M1 is roughly its first quarter)
+**actual:** 3.56h
+**closed:** 2026-08-22
+
+Extracted the terminal plumbing out of `pair term` into two packages both it and
+`couch` drive -- `cmd/internal/ptychild` (a child on a pty, its bounded replay
+ring, the #127 query deny-list, and one scanner over its output) and
+`cmd/internal/hostty` (the operator's terminal: size, raw mode, coalesced
+resizes, and the control constants). `pair term` migrated onto both in the same
+milestone, deliberately: extracted code with no second consumer is unvalidated
+new code, and termcmd's existing suite is the only net that could prove the
+extraction faithful.
+
+**The surprise was that extracting found bugs rather than just moving code.**
+The ring's trim re-sliced instead of copying, so its bound depended on `append`
+happening to reallocate -- invisible from outside, because `Snapshot` reports
+the window not the allocation. `updateMouseMode` scanned each pty read
+independently and could not see a sequence split across a read boundary. And BEL
+was about to be grepped rather than framed, which would have fired the status
+row's one activity signal on every title change.
+
+**Worth preserving for the rest of the project:** the structure/policy split is
+what makes one mechanism serve two switchers -- `termcmd` keeps numbered tabs,
+rename and the zellij pane title; `couch` will keep named actors and a panel.
+The same split `cmd/internal/ansi` already documents, and the reason
+`wrapcmd`'s opposed capability table correctly stayed where it was.
+
+**Measurement caveat for calibration.** The 3.56h is engine-measured
+(active-time-v3, 15-min idle threshold) over `d0a3b251 → fedf3853`, but that
+window spans 12:53–18:05 wall clock and contains a **3h48m gap** where the
+session was waiting on an operator smoke test, plus roughly 0.65h of pre-window
+planning after the claim. Read the number as "measured, window not clean"
+rather than as a tight figure.
 
 ## Log
 
@@ -309,3 +349,5 @@ run; names live in pair's session index because pair must resolve them with
 couch not running; opaque tags and the picker ship together or not at all; an
 unnamed space shows its hex string; `pair claude` standalone is unchanged; and
 naming doubles as the retention signal that makes cleanup decidable.
+
+[pair#146 M1]: #pair-146-m1

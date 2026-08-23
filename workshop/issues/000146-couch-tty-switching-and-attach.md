@@ -97,23 +97,23 @@ Design of record: `workshop/plans/000146-couch-tty-switching-and-attach-plan.md`
 Four review boundaries; the smoke steps stay where they were sequenced (risk
 first) but are folded into the milestone whose risk they answer.
 
-- [ ] **M1 — shared pty-child core.** Extract `ptychild` (ring, replay
+- [ ] M1 — **shared pty-child core.** Extract `ptychild` (ring, replay
       query-strip, output scanner, pty child) out of `termcmd`'s multiplexer and
       migrate `pair term` onto it. Ships no couch behaviour; the migration is
       what validates the extraction (ARCH-DRY).
-- [ ] **M2 — console over one child, with the reserved row.** `PtyRunner` behind
+- [ ] M2 — **console over one child, with the reserved row.** `PtyRunner` behind
       the existing `Runner` seam (+ fake + live conformance), `couch start`
       becomes the console, `ctrl-space` interceptor, one-row-shorter child pty
       with a pinned scrolling region, and `Spawn` forced onto `pair resume
       <tag>` so a console restart reattaches instead of landing on a picker.
       **Smoke step 1** (one real `pair` + claude child, resize, nvim in and out,
       reattach across a `kill -9`) lands here.
-- [ ] **M3 — many children and the panel.** Up-one-level focus, per-child ring
+- [ ] M3 — **many children and the panel.** Up-one-level focus, per-child ring
       replay (or a resize nudge for alt-screen children), typeahead + numbered
       direct switch, panel actions dispatching through `couchcore.Operations()`.
       **Smoke step 2** (two real children, switching, `ctrl-space` from a
       mid-output child) lands here.
-- [ ] **M4 — exits, detach, and what the row says.** Child exit lands in the
+- [ ] M4 — **exits, detach, and what the row says.** Child exit lands in the
       panel with actor + code, detach/reattach stays warm, notices over
       `couchcore.Enqueue`, terminal restored on every exit path including
       signals, atlas reconciled.
