@@ -770,3 +770,18 @@ its `Command` is `""`. Measured: `resume mytag --layout2` parses to
 I read the positional guard and stopped there. Both properties are now pinned in
 `launcher/args_test.go`, where a change to either would otherwise break couch
 silently.
+
+### 2026-08-22 -- M2 smoke round 3: layout2 and ctrl-space confirmed by the operator
+
+Operator confirms against the real stack (Ghostty -> couch -> pair -> zellij ->
+claude+nvim):
+
+- **`--layout2` works.** couch's children come up two-pane, as pinned.
+- **`ctrl-space` works.** The Kitty CSI-u encoding is intercepted; it no longer
+  reaches draft nvim.
+
+Recorded as exactly what was said. Still owed for M2's close, and NOT inferred
+from the above: whether the reserved row survives pair coming up, claude
+streaming, and nvim in-and-out (the ED fix, which is what broke in round 1);
+whether the workbench's own chords still reach the child; whether quitting
+leaves a clean terminal; and the `kill -9` reattach.
