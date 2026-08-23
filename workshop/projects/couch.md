@@ -167,6 +167,46 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [ ] cluster transport and queries [pair#147]
 - [ ] brain advisor role [pair#148]
 
+<a id="pair-146-m2"></a>
+### pair#146 M2 — console over one child, with the reserved row
+
+**est:** 10.32 (whole issue)
+**actual:** 9.35h (increment; see the caveat below)
+**closed:** 2026-08-23
+
+`couch start` became the console: a pty per child, the operator's terminal in
+raw mode, and a status row reserved by pinning the scrolling region. `PtyRunner`
+sits behind the existing `Runner` seam as a capability on the handle, so
+`--no-console` keeps the stdio path alive rather than leaving it as dead code.
+
+**The milestone's value was in what the verification found, not in the code
+being hard.** Four real bugs, each invisible to the layer above it:
+
+- The reserved row is destroyed by an ERASE, not just by scrolling. DECSTBM
+  covers scrolling only, and every full-screen app clears on startup. Found by
+  operator smoke; the emulator tests were green because a scrolling child never
+  clears.
+- The console spliced its row paint into the middle of the child's escape
+  sequences, corrupting output. Found by putting a REAL pty child under the
+  console; no fake-child test could produce it, because a fake emits only what
+  the test hands it whole.
+- `ctrl-space` was never intercepted: zellij enables the Kitty keyboard
+  protocol, so the terminal sends CSI-u rather than NUL. The evidence was
+  already in the tree — pair's own chord table carries both encodings.
+- A production data race in the pty handle id, caught by the whole-tree `-race`
+  target that had no runnable directory until M1's boundary review fixed it.
+
+**The transferable lesson is about test ladders.** Fake child → emulator →
+real pty child → real stack: each rung caught something the rung below reported
+as green. Two of the four came from the operator's keyboard. Worth carrying into
+M3, where the panel and multi-child switching have the same shape of risk.
+
+**Measurement caveat.** The 9.35h increment is `sdlc actual`'s cumulative 12.91h
+minus M1's 3.56h, over a window spanning 2026-08-22 19:34 to 2026-08-23 08:01 —
+which contains an ~8h overnight gap and several operator-wait gaps. Idle removal
+is the engine's, not mine; read it as "measured, window not clean" rather than
+as focused hours.
+
 <a id="pair-146-m1"></a>
 ### pair#146 M1 — shared pty-child core
 
@@ -363,3 +403,4 @@ unnamed space shows its hex string; `pair claude` standalone is unchanged; and
 naming doubles as the retention signal that makes cleanup decidable.
 
 [pair#146 M1]: #pair-146-m1
+[pair#146 M2]: #pair-146-m2

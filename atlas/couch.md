@@ -27,14 +27,74 @@ the agent child is never spawned by Go — zellij spawns it from a KDL layout, a
 `entrypoint.ValidRootMarkers` *defines* a valid pair install as having those
 layouts.
 
-**There is no pty yet in `couch` itself.** Attaching, switching and detaching are
-`pair#146`, in progress. Its first milestone landed the mechanism `couch` will
-drive, extracted from `pair term` rather than written twice:
-`cmd/internal/ptychild` (child on a pty + replay ring + output scanner) and
-`cmd/internal/hostty` (the operator's terminal: size, raw mode, resize, control
-constants). `pair term` runs on both today — see `atlas/architecture.md`, "The
-terminal plumbing is shared with couch". `couch start` still hands the child its
-own stdio and blocks.
+**`couch start` IS the console (`pair#146` M2).** It allocates a pty per child,
+puts the operator's terminal in raw mode, and routes bytes -- so it no longer
+hands the child its own stdio and block. The mechanism is shared with `pair term`
+rather than written twice: `cmd/internal/ptychild` (a child on a pty, its
+bounded replay ring, the #127 query deny-list, one scanner over its output) and
+`cmd/internal/hostty` (the operator's terminal: size, raw mode, coalesced
+resizes, the control constants). See `atlas/architecture.md`, "The terminal
+plumbing is shared with couch".
+
+`--no-console` keeps the stdio-inheriting path, and announces itself loudly. It
+is not dead code kept for symmetry: it is the fallback if the tty layer
+misbehaves, which is why `ExecRunner` stays a live production path with a live
+conformance check behind it.
+
+**The pty is a CAPABILITY on a handle, not a second Runner signature.**
+`Runner.Start` is unchanged; a handle from `PtyRunner` additionally satisfies
+`TerminalHandle`. `ExecRunner`'s does not, and a test asserts that -- a
+capability check no runner can fail is vacuous. `Terminal()` returns the
+concrete `*ptychild.Child` rather than an interface, because `FakeRunner`'s
+double IS one, so a test takes the branch production takes.
+
+## The reserved row: a reservation, not compositing
+
+The child is given a terminal one row shorter and the host's scrolling region is
+pinned above the last row (DECSTBM). The child is never told, so this is a
+resize rather than compositing.
+
+Three things that design has to survive, each learned the expensive way:
+
+- **Scrolling.** What DECSTBM is for. A child scrolling at the bottom of its own
+  screen scrolls inside the region.
+- **Erasing.** DECSTBM does *not* cover it. Every full-screen app clears the
+  display on startup and that takes the row with it while the region stays
+  intact -- which is why the signal is `Screen.TakeRowDirty` (erase, margin
+  reset, RIS, alt-screen transition) rather than anything named for the region.
+  The console repaints on it.
+- **Not corrupting the child.** A pty read boundary falls wherever the kernel
+  puts it, so a paint written between two chunks can land inside one of the
+  child's escape sequences. The console therefore asks
+  `Child.MidSequence()` and defers, paying the debt on the next chunk that ends
+  on a boundary.
+
+Verified against a real terminal emulator (`vtscreen_test.go`) and against a
+real pty child (`console_live_test.go`, `PAIR_LIVE_COUCH=1`), and confirmed by
+operator smoke on the full Ghostty -> couch -> pair -> zellij -> claude stack
+2026-08-23.
+
+## Navigation
+
+`ctrl-space` is intercepted before the child sees it. It arrives in TWO
+encodings and both are recognised: the legacy `0x00`, and CSI-u
+`\x1b[32;5u` under the Kitty keyboard protocol, which zellij enables -- so the
+legacy byte is the one a real session almost never sends. The interceptor
+returns a SPLIT (bytes for the focus being left, bytes for the focus landed on),
+because a concatenated buffer cannot say which child the tail belongs to. It
+suspends inside a bracketed paste: a pasted NUL that switched actors and ate a
+byte would be untraceable data loss.
+
+## Spawning: `pair resume <tag> --layout2`
+
+The tag derives from the worktree root, so re-entry is deterministic and a
+console restart reattaches the same session rather than landing on pair's
+session picker. Layout is pinned to layout2 for now: couch owns terminal
+switching, so layout3's third pane is the layer couch replaces.
+
+One prompt still reaches the operator on a COLD start of a tag with a saved
+config -- pair's `runConfigPicker`. Left deliberately (operator, 2026-08-22);
+skipping it needs the agent session id, which is `pair#149`'s to provide.
 
 ## Identity: the working tree
 
