@@ -6,6 +6,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
@@ -18,6 +19,7 @@ type chunk struct {
 
 type pane struct {
 	label string
+	desc  string
 	child *ptychild.Child
 
 	// bell is sticky until the operator looks at this actor. The row's job is
@@ -48,8 +50,24 @@ type Console struct {
 	panes  map[string]*pane
 	order  []string
 	active string
-	notice string
-	size   ptychild.Size
+
+	// root is the actor `ctrl-space` goes home to: the FIRST child attached,
+	// which is "whatever session couch launched in" delivered by convention
+	// (Decision 1). Nothing here knows what brain is.
+	root string
+
+	// focus is what the terminal is pointed at. It is not the same as `active`:
+	// the panel is a focus with no actor behind it.
+	focus Focus
+
+	// query is the panel's typeahead buffer, and resolve is the match rule --
+	// INJECTED rather than implemented, so the panel resolves exactly what the
+	// CLI and #148's advisor resolve (Decision 12). Nil degrades to showing
+	// everything rather than to a private match rule.
+	query   string
+	resolve func(string) []couchcore.Worktree
+	notice  string
+	size    ptychild.Size
 
 	// paintPending means a repaint was wanted while the host stream was
 	// mid-sequence, and is owed as soon as it is safe.
@@ -74,11 +92,13 @@ type Console struct {
 	// the writer singular removes the class rather than the two instances:
 	// there is no longer a way to reach the screen except through the loop that
 	// tracks where the stream is.
-	chunks  chan chunk
-	resized chan struct{}
-	hotkeys chan struct{}
-	stop    chan struct{}
-	once    sync.Once
+	chunks    chan chunk
+	resized   chan struct{}
+	hotkeys   chan struct{}
+	switching chan string
+	panelKeys chan byte
+	stop      chan struct{}
+	once      sync.Once
 }
 
 // errw is where the console reports its own failures. Separate from the host
@@ -92,18 +112,37 @@ func (c *Console) errw() io.Writer {
 
 func New(host hostty.Host, stdin io.Reader) *Console {
 	c := &Console{
-		host:    host,
-		stdin:   stdin,
-		panes:   map[string]*pane{},
-		chunks:  make(chan chunk, 256),
-		resized: make(chan struct{}, 1),
-		hotkeys: make(chan struct{}, 8),
-		stop:    make(chan struct{}),
+		host:      host,
+		stdin:     stdin,
+		panes:     map[string]*pane{},
+		chunks:    make(chan chunk, 256),
+		resized:   make(chan struct{}, 1),
+		switching: make(chan string, 8),
+		panelKeys: make(chan byte, 64),
+		hotkeys:   make(chan struct{}, 8),
+		stop:      make(chan struct{}),
 	}
 	if s, err := host.Size(); err == nil {
 		c.size = s
 	}
 	return c
+}
+
+// SetResolver injects the panel's match rule. Production passes
+// `couch.LookupTrees`; without it the seam is one nothing uses.
+func (c *Console) SetResolver(f func(string) []couchcore.Worktree) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.resolve = f
+}
+
+// Resolver returns the injected match rule, so a wiring test can assert one was
+// actually passed -- a nil resolver still renders a panel, so nothing else
+// would notice.
+func (c *Console) Resolver() func(string) []couchcore.Worktree {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.resolve
 }
 
 // SetErrorWriter redirects the console's own diagnostics, so a test can read
@@ -148,6 +187,8 @@ func (c *Console) Attach(id, label string, child *ptychild.Child) {
 	c.order = append(c.order, id)
 	if c.active == "" {
 		c.active = id
+		c.root = id
+		c.focus = FocusActor(id)
 	}
 }
 
@@ -161,6 +202,49 @@ func (c *Console) PaneRowDirty(id string) bool {
 		return p.rowDirty
 	}
 	return false
+}
+
+// Switch points the operator's terminal at another hosted actor.
+//
+// A request, not an action: it lands on the Run goroutine, which is the only
+// one allowed to write to the host. Callers may be the panel, the hotkey path,
+// or (in #148) the advisor's tool layer -- none of them get to touch the screen
+// directly.
+func (c *Console) Switch(id string) {
+	select {
+	case c.switching <- id:
+	case <-c.stop:
+	}
+}
+
+// onSwitch lands the operator on another child, running on the Run goroutine.
+//
+// Order is the whole contract: clear, replay the child's own screen, THEN the
+// status row. Painting the row first means the landing paints over it.
+func (c *Console) onSwitch(id string) {
+	c.mu.Lock()
+	p, known := c.panes[id]
+	already := c.active == id
+	if known {
+		c.active = id
+		c.focus = FocusActor(id)
+		// Landing on an actor is looking at it: whatever it wanted is now the
+		// operator's problem rather than a pending flag.
+		p.bell = false
+		p.rowDirty = false
+	}
+	c.mu.Unlock()
+	if !known || already {
+		// An unknown actor is not a reason to blank the operator's screen.
+		return
+	}
+
+	// The replay is Replay(), not Snapshot(): a raw one still carries whatever
+	// capability queries the child emitted at startup, and re-asking the host
+	// terminal lands the ANSWER in the newly active child's stdin -- #127's bug
+	// arriving at a new site.
+	c.takeOverScreen(p.child.Replay())
+	c.paintNow()
 }
 
 // Stop tears the console down. Safe to call more than once, and from any
@@ -201,6 +285,10 @@ func (c *Console) Run() int {
 			c.onResize()
 		case <-c.hotkeys:
 			c.onHotkey()
+		case id := <-c.switching:
+			c.onSwitch(id)
+		case b := <-c.panelKeys:
+			c.panelKey(b)
 		case code := <-exited:
 			return code
 		case <-c.stop:
@@ -276,6 +364,27 @@ func (c *Console) writeChild(p []byte) {
 	_, _ = c.host.Write(p)
 }
 
+// takeOverScreen replaces what is on the screen wholesale -- a switch landing,
+// or the panel opening.
+//
+// Distinct from writeOwn on purpose. An interleaved paint must WAIT for a
+// sequence boundary because it is inserted into a stream that continues; a
+// takeover ENDS that stream's relevance, so waiting would strand the operator
+// on the previous child's screen. It resets the framing state for the same
+// reason: whatever partial sequence the old child left is no longer on screen
+// to be corrupted.
+//
+// It is still Run-goroutine-only, like every other writer.
+func (c *Console) takeOverScreen(body []byte) {
+	c.mu.Lock()
+	c.hostScan = ptychild.Screen{}
+	c.paintPending = false
+	c.mu.Unlock()
+
+	_, _ = io.WriteString(c.host, hostty.HomeAndClear)
+	_, _ = c.host.Write(body)
+}
+
 // writeOwn emits the console's OWN bytes, and is the only way they reach the
 // screen. It refuses while the child's stream is mid-sequence and records the
 // debt; the next chunk that lands on a boundary pays it.
@@ -318,7 +427,10 @@ func (c *Console) paintNow() {
 func (c *Console) onChunk(ch chunk) {
 	c.mu.Lock()
 	p, known := c.panes[ch.id]
-	isActive := ch.id == c.active
+	// "Active" means the operator is looking at this child. With the panel up
+	// nobody is, so a child that keeps streaming must not paint over couch's
+	// own screen.
+	isActive := ch.id == c.active && !c.focus.IsPanel()
 	c.mu.Unlock()
 	if !known {
 		return
@@ -408,7 +520,20 @@ func (c *Console) pumpStdin() {
 			for {
 				before, hit, rest := it.Feed(in)
 				if len(before) > 0 {
-					if child := c.activeChild(); child != nil {
+					c.mu.Lock()
+					toPanel := c.focus.IsPanel()
+					c.mu.Unlock()
+					if toPanel {
+						// The panel owns the keyboard while it is up, or a
+						// child would act on keys aimed at couch.
+						for _, b := range before {
+							select {
+							case c.panelKeys <- b:
+							case <-c.stop:
+								return
+							}
+						}
+					} else if child := c.activeChild(); child != nil {
 						_, _ = child.Write(before)
 					}
 				}
@@ -434,15 +559,106 @@ func (c *Console) pumpStdin() {
 	}
 }
 
-// onHotkey handles ctrl-space.
+// onHotkey handles ctrl-space: up one level.
 //
-// M2 has one child and no panel, so "up one level" has nowhere to go and the
-// row says so. M3 replaces this with the focus model -- the point of doing it
-// here is that the INTERCEPTION is proven end to end before there is anywhere
-// to land.
+// Runs on the Run goroutine. Liveness is passed to Up rather than assumed --
+// landing on a dead root actor gives the operator a frozen screen with no way
+// to tell it is frozen.
 func (c *Console) onHotkey() {
 	c.mu.Lock()
-	c.notice = "ctrl-space: no other actors yet"
+	cur, root := c.focus, c.root
 	c.mu.Unlock()
-	c.repaint()
+
+	next := Up(cur, root, c.actorAlive)
+	if next == cur {
+		return // already at the top
+	}
+
+	c.mu.Lock()
+	c.focus = next
+	c.mu.Unlock()
+
+	if next.IsPanel() {
+		c.showPanel()
+		return
+	}
+	c.onSwitch(next.Actor())
+}
+
+// actorAlive is the liveness predicate Up consults.
+func (c *Console) actorAlive(id string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	p, ok := c.panes[id]
+	return ok && !p.child.Done()
+}
+
+// panelModel builds the panel's data from what the console is hosting.
+func (c *Console) panelModel() (*PanelModel, string, func(string) []couchcore.Worktree) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	trees := make([]couchcore.TreeSummary, 0, len(c.order))
+	for _, id := range c.order {
+		p := c.panes[id]
+		var actors []couchcore.ActorView
+		if !p.child.Done() {
+			actors = []couchcore.ActorView{{Live: true}}
+		}
+		trees = append(trees, couchcore.TreeSummary{
+			Tree: couchcore.Worktree(id), Name: p.label, Desc: p.desc, Actors: actors,
+		})
+	}
+	return NewPanelModel(trees), c.query, c.resolve
+}
+
+// showPanel draws couch's own screen, filtered by whatever has been typed.
+func (c *Console) showPanel() {
+	m, query, resolve := c.panelModel()
+	rows := m.Filter(query, resolve)
+	c.takeOverScreen([]byte(RenderPanelWithQuery(query, rows)))
+	c.paintNow()
+}
+
+// panelKey handles one keystroke while the panel is up.
+//
+// A digit is a DIRECT switch with no resolution in the path -- the Spec
+// requires a route that never waits on a model turn, and this is it.
+func (c *Console) panelKey(b byte) {
+	switch {
+	case b >= '1' && b <= '9':
+		m, query, resolve := c.panelModel()
+		m.Filter(query, resolve)
+		if row, ok := m.Pick(int(b - '0')); ok {
+			c.clearQuery()
+			c.onSwitch(string(row.Tree))
+			return
+		}
+	case b == 0x7f || b == 0x08: // backspace
+		c.mu.Lock()
+		if n := len(c.query); n > 0 {
+			c.query = c.query[:n-1]
+		}
+		c.mu.Unlock()
+	case b == '\r' || b == '\n':
+		m, query, resolve := c.panelModel()
+		m.Filter(query, resolve)
+		if row, ok := m.Pick(1); ok {
+			c.clearQuery()
+			c.onSwitch(string(row.Tree))
+			return
+		}
+	case b >= 0x20 && b < 0x7f:
+		c.mu.Lock()
+		c.query += string(b)
+		c.mu.Unlock()
+	default:
+		return // ignore control bytes rather than filtering on them
+	}
+	c.showPanel()
+}
+
+func (c *Console) clearQuery() {
+	c.mu.Lock()
+	c.query = ""
+	c.mu.Unlock()
 }

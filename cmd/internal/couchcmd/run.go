@@ -151,7 +151,7 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 	}
 	if console != nil {
 		if start, ok := result.(couchcore.StartResult); ok {
-			return runConsole(console, start, stdout)
+			return runConsole(console, c, start, stdout)
 		}
 	}
 	return render(stdout, op, result)
@@ -212,7 +212,13 @@ func consoleRunnerFor(name string, args map[string]string, stdin io.Reader, hasT
 // runConsole attaches the spawned child and hands the terminal over. This
 // displaces render's StartResult branch, which printed a line and then blocked
 // on Handle.Wait for the child's lifetime.
-func runConsole(console *couchtty.Console, start couchcore.StartResult, stdout io.Writer) int {
+func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, stdout io.Writer) int {
+	// Wire the panel's match rule HERE, on the path that actually runs a
+	// console -- not at a call site a test can bypass. An injection seam
+	// nothing passes is a seam that does nothing (Decision 12's wiring check),
+	// and the panel would silently degrade to "show everything".
+	wireResolver(console, c)
+
 	th, ok := start.Handle.(couchcore.TerminalHandle)
 	if !ok {
 		// A runner that cannot offer a terminal: fall back rather than crash.
@@ -225,6 +231,15 @@ func runConsole(console *couchtty.Console, start couchcore.StartResult, stdout i
 	label := start.Record.Args.Worktree.Repo()
 	console.Attach(start.Handle.ID(), label, th.Terminal())
 	return console.Run()
+}
+
+// wireResolver gives the panel couch's OWN match rule.
+//
+// Without this the injection seam exists and nothing uses it, which is the
+// failure mode Decision 12's wiring check names: the panel would silently fall
+// back to "show everything" and typeahead would do nothing.
+func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
+	console.SetResolver(c.LookupTrees)
 }
 
 // bindArgs maps positional argv onto the operation's declared ArgSpecs, plus

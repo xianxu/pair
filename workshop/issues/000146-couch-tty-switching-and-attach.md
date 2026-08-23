@@ -1103,3 +1103,49 @@ synchronous, the console is not. That is the third time this session I have
 written an assertion that races the consumer -- twice it produced a false PASS
 (a live bug reported fixed), and here a false FAIL. It is already in
 `workshop/lessons.md`; what it needs is applying, not recording again.
+
+### 2026-08-23 -- M3 built: couch is a switcher
+
+`Focus` + `PanelModel` + N children in the console + the panel dispatching
+through `Operations()`. `ctrl-space` now goes somewhere: child -> root actor ->
+panel, with liveness consulted so it never lands on a dead actor.
+
+**Design points worth keeping:**
+
+- **`Focus` carries an explicit kind.** Without it `FocusActor("")` compares
+  EQUAL to `FocusPanel()`, so a bug producing an empty id would silently render
+  the wrong screen and look deliberate. The zero value is still the panel, which
+  is the right default for a console with nothing attached.
+- **A screen TAKEOVER is a different write from an interleaved paint.** M2's
+  mid-sequence gate is correct for a paint inserted into a continuing stream;
+  a switch landing or the panel opening REPLACES that stream's screen, so
+  deferring would strand the operator on the previous child. `takeOverScreen`
+  resets the framing state for the same reason. The M2 splice test caught this
+  distinction by failing on my first cut -- the guard I built then is what
+  flagged the new code.
+- **The panel owns the keyboard while it is up**, and a background child's
+  output stops painting -- otherwise a streaming child paints over couch's own
+  screen and keys aimed at the panel reach a child.
+- **A digit is a direct switch**: no typeahead, no resolution, no model turn.
+  The Spec requires a route that always exists, and this is it.
+- **`Filter` keeps the MODEL's order, not the resolver's.** A lookup may return
+  any order; numbered selection is only safe if rows do not move under the
+  operator's fingers.
+
+**Two tests were fixed after deletion checks failed to FIRE**, which is the
+useful half of running them:
+
+- `Filter` in the resolver's order left every ordering test green, because the
+  fixtures happened to agree. The test that catches it reverses the resolver.
+- The resolver wiring test called `wireResolver` directly, so it pinned the
+  FUNCTION and not that anything calls it -- the same shape as M2's BR-24. The
+  wiring moved onto the path that actually runs a console, and is now driven
+  through it.
+
+**The async-marker trap hit twice more** (five times across M2/M3): a wait
+condition polling something the PRODUCER sets synchronously is true before the
+consumer has run. `lessons.md` now leads with the question that catches it --
+*could this be true before the code under test ran?* -- because the rule alone
+was not enough to stop me repeating it.
+
+Still owed for M3: Task 3.5's operator smoke.

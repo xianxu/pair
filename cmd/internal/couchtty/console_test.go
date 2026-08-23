@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
@@ -354,11 +355,16 @@ func TestConsoleNeverSplicesFromAnyPath(t *testing.T) {
 	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
 	f.host.Reset()
 
-	// Park the stream mid-sequence, then hammer every other writer.
+	// Park the stream mid-sequence, then hammer the INTERLEAVING writers.
+	//
+	// Resizes are the case: they paint the row into a stream that continues.
+	// The hotkey is deliberately not hammered here -- since M3 it opens the
+	// panel, which is a screen TAKEOVER rather than an interleaved paint, and a
+	// takeover legitimately ends the child's stream's claim on the screen.
+	// TestPanelIsNotPaintedOverByABackgroundChild covers that path instead.
 	f.child.Feed([]byte("\x1b[2J\x1b[38;2;76"))
 	for i := 0; i < 20; i++ {
 		f.host.SetSize(ptychild.Size{Rows: uint16(24 + i%3), Cols: 80})
-		_, _ = f.stdin.Write([]byte("\x00"))
 	}
 	f.child.Feed([]byte(";82;88mCOLOURED"))
 
@@ -414,5 +420,264 @@ func TestConsoleKeepsAnInactivePanesRowDamage(t *testing.T) {
 	})
 	if f.con.PaneRowDirty("c1") {
 		t.Fatal("the active pane kept damage it had already repaired")
+	}
+}
+
+// A switcher that loses what was said while you were away is not a switcher.
+// An inactive child's output must reach its ring even though it does not reach
+// the screen.
+func TestConsoleKeepsInactiveChildOutputOffScreenButInItsRing(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	other := ptychild.NewFakeChild(nil)
+	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+	f.con.Attach("c2", "ariadne", other)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	f.host.Reset()
+
+	other.Feed([]byte("background progress"))
+	// Order behind a marker from the ACTIVE child. The chunk channel is FIFO,
+	// so seeing this on the host proves the console has already drained past
+	// the inactive child's chunk.
+	//
+	// Polling the inactive child's own Snapshot does not work: Feed is
+	// synchronous, so it is true before the console has looked at anything, and
+	// the assertion below then runs too early. That produced a test which
+	// passed with the isActive guard DELETED -- caught by the deletion check
+	// not firing, which is the fourth time this shape has appeared here.
+	f.child.Feed([]byte("MARKER-FROM-ACTIVE"))
+	waitFor(t, "the console to drain past both chunks", func() bool {
+		return strings.Contains(f.host.Written(), "MARKER-FROM-ACTIVE")
+	})
+
+	if strings.Contains(f.host.Written(), "background progress") {
+		t.Fatal("an inactive child's output reached the screen")
+	}
+	if !strings.Contains(string(other.Snapshot()), "background progress") {
+		t.Fatal("an inactive child's output was lost instead of buffered")
+	}
+}
+
+// Landing on a child must repaint it from its ring -- otherwise switching lands
+// on a blank screen and the operator has to press a key to see where they are.
+func TestConsoleReplaysOnAttach(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	other := ptychild.NewFakeChild([]byte("earlier output from ariadne"))
+	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+	f.con.Attach("c2", "ariadne", other)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	f.host.Reset()
+
+	f.con.Switch("c2")
+	waitFor(t, "the replay to reach the host", func() bool {
+		return strings.Contains(f.host.Written(), "earlier output from ariadne")
+	})
+	if !strings.Contains(f.host.Written(), hostty.HomeAndClear) {
+		t.Fatal("the replay did not clear first; it would land on top of the previous child's screen")
+	}
+}
+
+// #127 arriving at a new site: a raw replay re-ASKS the host terminal for its
+// capabilities, and the answer arrives as the newly active child's input.
+func TestConsoleStripsQueriesFromTheReplay(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	other := ptychild.NewFakeChild([]byte("prompt \x1b[c\x1b[?1006h done"))
+	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+	f.con.Attach("c2", "ariadne", other)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	f.host.Reset()
+
+	f.con.Switch("c2")
+	waitFor(t, "the replay", func() bool {
+		return strings.Contains(f.host.Written(), "done")
+	})
+	got := f.host.Written()
+	if strings.Contains(got, "\x1b[c") {
+		t.Fatalf("the replay re-asked the host terminal: %q", got)
+	}
+	if !strings.Contains(got, "\x1b[?1006h") {
+		t.Fatal("the replay dropped a legitimate DECSET — mouse mode would be lost on every switch")
+	}
+}
+
+// The status row must be repainted AFTER the child's screen, or the landing
+// paints over it.
+func TestConsoleRepaintsTheRowAfterTheReplay(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	other := ptychild.NewFakeChild([]byte("ariadne screen"))
+	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+	f.con.Attach("c2", "ariadne", other)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	f.host.Reset()
+
+	f.con.Switch("c2")
+	waitFor(t, "the row", func() bool { return strings.Contains(f.host.Written(), "[ariadne]") })
+
+	got := f.host.Written()
+	if strings.LastIndex(got, "ariadne screen") > strings.LastIndex(got, "[ariadne]") {
+		t.Fatal("the child's replay landed after the row and painted over it")
+	}
+}
+
+// Switching to an actor the console does not host must not blank the screen.
+func TestConsoleIgnoresASwitchToAnUnknownActor(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	f.host.Reset()
+
+	f.con.Switch("nope")
+	f.child.Feed([]byte("still here"))
+	waitFor(t, "the active child to keep the screen", func() bool {
+		return strings.Contains(f.host.Written(), "still here")
+	})
+}
+
+// With the panel up, nobody is looking at the child -- so a child that keeps
+// streaming must not paint over couch's own screen.
+func TestPanelIsNotPaintedOverByABackgroundChild(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+
+	// ctrl-space from the root actor opens the panel.
+	_, _ = f.stdin.Write([]byte("\x00"))
+	waitFor(t, "the panel to open", func() bool {
+		return strings.Contains(f.host.Written(), "couch — actors")
+	})
+	f.host.Reset()
+
+	f.child.Feed([]byte("still streaming in the background"))
+	// Order behind a marker the CONSOLE sets, not one the child sets.
+	//
+	// With the panel up nothing reaches the host, so a host marker is
+	// unavailable -- and polling the child's own Snapshot is satisfied
+	// synchronously by Feed, before the console has looked at anything. An
+	// erase sets the pane's row-dirty latch when the console drains it, and the
+	// chunk channel is FIFO, so seeing it proves both chunks were processed.
+	f.child.Feed([]byte("\x1b[2J"))
+	waitFor(t, "the console to drain both chunks", func() bool {
+		return f.con.PaneRowDirty("c1")
+	})
+
+	if strings.Contains(f.host.Written(), "still streaming") {
+		t.Fatal("a background child painted over the panel")
+	}
+}
+
+// ctrl-space from the root actor reaches the panel, and the panel lists the
+// actors -- including a parked one.
+func TestHotkeyFromTheRootActorOpensThePanel(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	other := ptychild.NewFakeChild(nil)
+	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+	f.con.Attach("c2", "ariadne", other)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	f.host.Reset()
+
+	_, _ = f.stdin.Write([]byte("\x00"))
+	waitFor(t, "the panel", func() bool {
+		return strings.Contains(f.host.Written(), "couch — actors")
+	})
+	got := f.host.Written()
+	for _, want := range []string{"1", "brain", "2", "ariadne"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("the panel does not list %q: %q", want, got)
+		}
+	}
+}
+
+// The property the whole project rests on: from a NON-root child, one key goes
+// home to the root actor -- not to the panel.
+func TestHotkeyFromANonRootChildGoesHome(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	other := ptychild.NewFakeChild([]byte("ariadne screen"))
+	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+	f.con.Attach("c2", "ariadne", other)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+
+	f.con.Switch("c2")
+	waitFor(t, "the switch", func() bool { return strings.Contains(f.host.Written(), "[ariadne]") })
+	f.host.Reset()
+
+	_, _ = f.stdin.Write([]byte("\x00"))
+	waitFor(t, "to land back on the root actor", func() bool {
+		return strings.Contains(f.host.Written(), "[brain]")
+	})
+	if strings.Contains(f.host.Written(), "couch — actors") {
+		t.Fatal("ctrl-space from a non-root child opened the panel instead of going home")
+	}
+}
+
+// A digit is a DIRECT switch: no typeahead, no resolution, no model turn. The
+// Spec requires a route that always exists and never waits on anything.
+func TestPanelDigitSwitchesDirectly(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	other := ptychild.NewFakeChild([]byte("ariadne screen"))
+	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+	f.con.Attach("c2", "ariadne", other)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+
+	_, _ = f.stdin.Write([]byte("\x00")) // panel
+	waitFor(t, "the panel", func() bool {
+		return strings.Contains(f.host.Written(), "couch — actors")
+	})
+	f.host.Reset()
+
+	_, _ = f.stdin.Write([]byte("2"))
+	waitFor(t, "the digit to switch", func() bool {
+		return strings.Contains(f.host.Written(), "[ariadne]")
+	})
+}
+
+// Typeahead filters through the INJECTED resolver, so the panel finds a child
+// by whatever couchcore matches on -- including an agent-published description.
+func TestPanelTypeaheadUsesTheInjectedResolver(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	other := ptychild.NewFakeChild(nil)
+	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+	f.con.Attach("c2", "ariadne", other)
+
+	asked := ""
+	f.con.SetResolver(func(q string) []couchcore.Worktree {
+		asked = q
+		return []couchcore.Worktree{"c2"}
+	})
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+
+	_, _ = f.stdin.Write([]byte("\x00"))
+	waitFor(t, "the panel", func() bool {
+		return strings.Contains(f.host.Written(), "couch — actors")
+	})
+	f.host.Reset()
+
+	_, _ = f.stdin.Write([]byte("ari"))
+	waitFor(t, "the filter to narrow", func() bool {
+		return strings.Contains(f.host.Written(), "/ari")
+	})
+	if asked != "ari" {
+		t.Fatalf("the resolver was asked %q, want the typed query", asked)
+	}
+	// And Enter takes the single filtered row.
+	_, _ = f.stdin.Write([]byte("\r"))
+	waitFor(t, "Enter to switch", func() bool {
+		return strings.Contains(f.host.Written(), "[ariadne]")
+	})
+}
+
+// Keys typed at the panel must not reach the child behind it.
+func TestPanelKeysDoNotReachTheChild(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+
+	_, _ = f.stdin.Write([]byte("\x00"))
+	waitFor(t, "the panel", func() bool {
+		return strings.Contains(f.host.Written(), "couch — actors")
+	})
+	before := len(f.child.Writes())
+
+	_, _ = f.stdin.Write([]byte("typing at the panel"))
+	waitFor(t, "the query to render", func() bool {
+		return strings.Contains(f.host.Written(), "/typing")
+	})
+	if len(f.child.Writes()) != before {
+		t.Fatalf("keys aimed at the panel reached the child: %q", f.child.Writes()[before:])
 	}
 }

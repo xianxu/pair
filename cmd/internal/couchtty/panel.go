@@ -1,6 +1,9 @@
 package couchtty
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
 
@@ -94,4 +97,53 @@ func (m *PanelModel) Pick(n int) (PanelRow, bool) {
 		return PanelRow{}, false
 	}
 	return m.shown[n-1], true
+}
+
+// RenderPanel draws the panel's rows for the operator.
+//
+// Pure, and deliberately plain: this is a list to read, not a UI. The Spec's
+// "richer navigation lives inside couch's TUI with typeahead" is about having a
+// screen to look at, not about chrome.
+func RenderPanel(rows []PanelRow) string {
+	var b strings.Builder
+	b.WriteString("couch — actors\r\n\r\n")
+	if len(rows) == 0 {
+		b.WriteString("  (nothing running)\r\n")
+		return b.String()
+	}
+	for i, r := range rows {
+		state := " "
+		if !r.Live {
+			// A parked thread stays listed: it is exactly the one an operator
+			// loses track of.
+			state = "·"
+		}
+		fmt.Fprintf(&b, "  %d%s %s", i+1, state, r.Label)
+		if r.Desc != "" {
+			fmt.Fprintf(&b, "  — %s", sanitize(r.Desc))
+		}
+		b.WriteString("\r\n")
+	}
+	return b.String()
+}
+
+// PanelActions is what the operator can do from the panel.
+//
+// Names only, and every one must be a name in couchcore.Operations(): the panel
+// dispatches through that table rather than implementing anything, so there is
+// no operator action the advisor cannot also perform (#148's design test). A
+// private verb here would be exactly the drift the ops table exists to stop,
+// which is why an audit asserts this set is a subset of the declared one.
+func PanelActions() []string {
+	return []string{"start", "stop", "name", "describe"}
+}
+
+// RenderPanelWithQuery draws the panel with the typeahead buffer visible, so
+// the operator can see why the list narrowed.
+func RenderPanelWithQuery(query string, rows []PanelRow) string {
+	body := RenderPanel(rows)
+	if query == "" {
+		return body
+	}
+	return body + "\r\n  /" + sanitize(query) + "\r\n"
 }

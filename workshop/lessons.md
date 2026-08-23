@@ -1828,6 +1828,19 @@ until the row is gone, then poll until it returns") is flaky by construction:
 when the repair is fast the damaged state may never be visible at all, and the
 case that was already handled (RIS) started failing for the wrong reason.
 
+**The marker must be set by the CONSUMER, not the producer.** This recurred five
+times across #146 M2/M3 despite the rule below, and every recurrence had the
+same shape: the wait condition polled something the PRODUCER sets synchronously
+(`child.Feed` updates the ring immediately), so it was already true before the
+consumer had looked at anything. Twice that produced a false PASS on a live bug;
+twice a deletion check failed to fire and the test was proving nothing; once a
+false FAIL.
+
+Ask of every wait condition: **could this be true before the code under test
+ran?** If yes, it is not a marker. Reach for something only the consumer can
+set — output it emits, or state it records — and remember the queue is FIFO, so
+a later marker proves the earlier item was drained.
+
 **Rule.** For a poll-based assertion over an async pipeline, establish ordering
 with a MARKER rather than with timing. Send the stimulus, then send something
 whose arrival is observable and ordered behind it; wait for the marker, then

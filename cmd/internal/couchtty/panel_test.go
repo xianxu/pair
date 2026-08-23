@@ -148,3 +148,32 @@ func TestPanelFilterKeepsTheModelsOrderNotTheResolvers(t *testing.T) {
 		t.Fatalf("Pick(1) = %q, want the first DISPLAYED row", got.Tree)
 	}
 }
+
+// The panel may not grow a private verb. Every action it offers must be one
+// couch already declares, so the operator's surface and the advisor's cannot
+// drift -- the same audit the CLI has.
+func TestPanelActionsAreDeclaredOperations(t *testing.T) {
+	declared := map[string]bool{}
+	for _, n := range couchcore.OperationNames() {
+		declared[n] = true
+	}
+	for _, a := range PanelActions() {
+		if !declared[a] {
+			t.Errorf("the panel offers %q, which couch does not declare as an operation", a)
+		}
+	}
+}
+
+// And the panel must actually offer the actions the operator needs from it --
+// an empty set would pass the audit above vacuously.
+func TestPanelOffersTheOperatorActions(t *testing.T) {
+	got := map[string]bool{}
+	for _, a := range PanelActions() {
+		got[a] = true
+	}
+	for _, want := range []string{"start", "stop", "name", "describe"} {
+		if !got[want] {
+			t.Errorf("the panel does not offer %q", want)
+		}
+	}
+}

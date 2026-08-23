@@ -465,3 +465,39 @@ func TestConsoleRunnerDeclinesWithoutATerminalWiring(t *testing.T) {
 		t.Fatalf("runner = %T, want couchcore.ExecRunner", runner)
 	}
 }
+
+// The panel's resolver must be couch's own rule, not left nil.
+//
+// Decision 12's wiring check: an injection seam nothing passes is a seam that
+// does nothing, and the panel would silently degrade to "show everything" with
+// typeahead inert. Asserting the FUNCTION IDENTITY is the only way to catch
+// that, since a nil resolver still renders a panel.
+func TestConsoleGetsCouchsOwnResolver(t *testing.T) {
+	rt := newRT(t, "/repo")
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatalf("NewCouch: %v", err)
+	}
+	console, _ := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
+	if console == nil {
+		t.Fatal("no console to wire")
+	}
+	if console.Resolver() != nil {
+		t.Fatal("a resolver was set before the run path; this test would prove nothing")
+	}
+
+	// Drive the REAL path. The child has already exited, so Run returns at once
+	// instead of blocking -- which is what AutoExit models.
+	rec, h, err := c.Spawn(couchcore.StartArgs{Cwd: "/repo"})
+	if err != nil {
+		t.Fatalf("Spawn: %v", err)
+	}
+	runConsole(console, c, couchcore.StartResult{Record: rec, Handle: h}, &bytes.Buffer{})
+
+	if console.Resolver() == nil {
+		t.Fatal("the run path left the panel's resolver nil — typeahead would be inert")
+	}
+	if got := console.Resolver()("anything"); len(got) != 0 {
+		t.Fatalf("resolver returned %v for an empty registry", got)
+	}
+}
