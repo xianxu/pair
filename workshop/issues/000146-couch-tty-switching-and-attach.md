@@ -351,7 +351,22 @@ ring-updated-after-sink.
 pty-backed test in `ptychild`, `termcmd` and (from M2) `couchtty` must run
 unsandboxed. A sandboxed green on those packages is not evidence.
 
-**M1 is not closable yet:** Task 1.5's operator smoke of `pair term` -- two
-tabs, switch, resize the window, `nvim` in one and switch away and back -- is
-the daily-driver regression net that unit tests do not cover. It needs the
-operator.
+**Automated half of Task 1.5's smoke: `probes/termsmoke`** drives the real
+`./bin/pair` under a pty. All 8 steps pass against `22d0226`:
+
+```
+PASS  tab 1 runs a command                         (found "MARKER-ONE")
+PASS  Alt+t opens a second tab                     (found "MARKER-TWO")
+PASS  Alt+Left repaints tab 1 from its ring        (found "MARKER-ONE")
+PASS  Alt+Right repaints tab 2 from its ring       (found "MARKER-TWO")
+PASS  resize reaches the child                     (found "40 100")
+PASS  still usable afterwards                      (found "STILL-ALIVE")
+PASS  nvim enters the alt screen                   (found "\x1b[?1049h")
+PASS  switching away and back repaints nvim        (found "ALT-SCREEN-MARKER")
+```
+
+**What that does NOT cover, and why M1 still needs the operator:** the probe
+asserts that the right BYTES are replayed. It cannot judge whether the screen
+LOOKS right -- a repaint that leaves a stale row, doubles a prompt, or puts the
+cursor in the wrong cell passes every one of those assertions. That is the
+visual regression the daily driver would show and unit tests cannot.
