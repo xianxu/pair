@@ -124,6 +124,27 @@ This revision explicitly supersedes the 2026-08-23 plan statement that the
 saved-config picker remains deliberate. The durable plan receives its matching
 implementation/test revision after this spec clears review.
 
+### 2026-08-24 — M3 verifies the shipped layout2, not a layout3 shell
+
+**Reason:** the first M3 boundary review carried forward “run `nvim -u NONE`
+from a shell inside Pair” as missing operator evidence. That instruction assumes
+layout3's user-terminal pane, while couch deliberately and test-lockedly starts
+every child with `--layout2`. Layout2 already launches the real draft nvim as
+one of its two zellij panes; adding a second nvim from a pane couch intentionally
+does not provide would test a different configuration.
+
+**Delta:** M3 does not require a second/nested nvim launch or an exit from a
+layout3 shell. This explicitly supersedes Task 2.7's literal operator checkbox
+that says “`nvim` opens and exits.” The shipped layout2 session starts the real
+draft nvim beside the agent, and the real-stack panel smoke exercised that
+layout, but the operator did not separately record editing in or exiting the
+draft across a panel switch. Margin-reset/alt-screen mechanics are instead
+required from the existing emulator, real-pty, and `make test-smoke` nvim
+round-trip tests. The composed `kill -9` couch-console reattach remains required
+separately and was confirmed by the operator on 2026-08-24. This corrects an
+inapplicable evidence request; it does not relabel an unrun layout3 test—or an
+unrecorded draft interaction—as passed.
+
 ## Done when
 
 - couch supervises N sessions and switches the operator tty between them.
@@ -1368,3 +1389,17 @@ the repo default, no default yields no user args, fresh Claude persistence still
 replaces canonical config normally, direct Pair still offers the picker, and a
 live attach neither launches nor mutates create inputs (ARCH-PURPOSE,
 ARCH-MOCK). Focused, race, and full Go suites pass.
+
+### 2026-08-24 -- BR-46 disposition follows the configuration M3 ships
+
+The operator-confirmed `kill -9` couch-console reattach now supplies that
+carried half of BR-46. The other half is resolved by the matching Spec/Plan
+revision rather than by inventing evidence: couch pins layout2, whose second
+pane launches the real draft nvim, so Task 2.7's instruction to launch and exit
+another nvim from a user shell assumes layout3 and is superseded for M3. The
+operator smoke proves the panel in the real layout2 session; it does not claim
+a separately recorded draft interaction. The nvim enter/switch/exit and margin
+reset remain executable evidence in the emulator, real-pty, and enumerated
+`make test-smoke` probe suites. This supersedes the earlier “BR-46 remains
+deliberately unclaimed” state while preserving exactly which observations were
+and were not made (ARCH-PURPOSE).

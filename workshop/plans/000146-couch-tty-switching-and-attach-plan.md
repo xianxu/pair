@@ -766,3 +766,21 @@ create persistence, and live attach through the production flow (ARCH-MOCK).
   `go test ./... -count=1`, and `git diff --check`.
 - [x] Commit the implementation and record the operator's successful `kill -9`
   → `couch start` same-session reattach evidence in the issue Log.
+
+### 2026-08-24 — M3 smoke follows the pinned layout2 configuration
+
+**Reason:** the M3 boundary-review revision asked for a real `nvim -u NONE`
+launch/exit from a shell inside Pair. That shell exists only in layout3, while
+Task 2.6a pins couch children to layout2 and tests that exact argv. Layout2's
+second pane is already the real draft nvim, so the requested command would
+switch configurations rather than verify the one M3 ships.
+
+**Delta:** explicitly supersede Task 2.7's literal “`nvim` opens and exits”
+operator checkbox for M3; there is no user shell in the pinned layout2 from
+which to perform that command. The real layout2 smoke proves the panel in the
+configuration whose second pane launches the actual draft nvim, but does not
+claim an unrecorded draft interaction. Existing emulator, real-pty, and
+`make test-smoke` coverage supplies the nvim enter/switch/exit and
+alt-screen/margin-reset evidence. Keep the separately composed couch `kill -9`
+→ same-session reattach evidence, which the operator confirmed. No production
+or test code changes for this evidence correction.
