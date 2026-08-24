@@ -610,3 +610,16 @@ for `LookupTrees` filtering and the console-local child id for direct switching.
 Bell state follows the child id as well. This is the minimal boundary fix for
 the whole failure class (ARCH-PURPOSE), while keeping matching in
 `couch.LookupTrees` rather than copying it into the panel (ARCH-DRY).
+
+### 2026-08-23 — M3 smoke round 4: the rendered repo fallback joins the shared match rule
+
+**Reason:** after the identity repair, typing the visible `pair` label still
+returned no match. The plan-quality gate accurately recorded that
+`LookupTrees` did not match repo basenames, but the later panel design chose
+`Worktree.Repo()` as the fallback label without revising the resolver contract.
+
+**Delta:** `LookupTrees` now includes the repo basename alongside operator name,
+operator description, and agent-published description. The panel continues to
+inject that one resolver (ARCH-DRY); no UI-local matcher was added. A focused
+domain test pins the user-visible invariant: an unnamed `/w/pair` row rendered
+as `pair` must resolve from `pair` (ARCH-PURPOSE).

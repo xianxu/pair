@@ -229,10 +229,11 @@ func (c *Couch) knownTrees() []Worktree {
 
 // LookupTrees resolves a fuzzy human reference to every tree it could mean.
 //
-// It matches the operator's name, the operator's typed description, AND the
-// agent's own published line. All three answer "what is this thread called",
-// so all three derive from one lookup -- displaying the agent's description
-// while resolving only the operator's delivers half the behaviour.
+// It matches the repo basename rendered as an unnamed tree's fallback label,
+// the operator's name and typed description, AND the agent's own published
+// line. All four answer "what is this thread called", so all four derive from
+// one lookup -- displaying a label while making it unsearchable delivers half
+// the behaviour.
 func (c *Couch) LookupTrees(ref string) []Worktree {
 	needle := strings.ToLower(strings.TrimSpace(ref))
 	if needle == "" {
@@ -250,7 +251,8 @@ func (c *Couch) LookupTrees(ref string) []Worktree {
 		if seen[w.Key()] {
 			continue
 		}
-		if strings.Contains(strings.ToLower(c.Describe(w)), needle) {
+		if strings.Contains(strings.ToLower(w.Repo()), needle) ||
+			strings.Contains(strings.ToLower(c.Describe(w)), needle) {
 			seen[w.Key()] = true
 			out = append(out, w)
 		}

@@ -176,6 +176,19 @@ func TestResolveRefFindsActorsByOperatorName(t *testing.T) {
 	}
 }
 
+// The panel renders Worktree.Repo() when a tree has no explicit name. A label
+// that is visible but cannot be typed back into the shared resolver makes
+// typeahead lie: it shows "pair" and returns no match for "pair".
+func TestLookupTreesMatchesTheDisplayedRepoFallback(t *testing.T) {
+	env := newTestEnv(t, "/w/pair")
+	env.spawn(t, StartArgs{Worktree: "/w/pair"})
+
+	got := env.Couch.LookupTrees("pair")
+	if len(got) != 1 || got[0] != "/w/pair" {
+		t.Fatalf("LookupTrees(pair) = %v, want [/w/pair]", got)
+	}
+}
+
 func TestNameAndDescriptionChangeMidSession(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	env.spawn(t, StartArgs{Worktree: "/repo"})

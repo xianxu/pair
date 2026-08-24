@@ -1251,3 +1251,20 @@ real-worktree resolver, the panel-start regression was proven RED at the
 operation-result boundary, and the bell join was found by the same identity
 shadow-sweep. Targeted `couchtty` + `couchcmd` suites are green. Task 3.5 remains
 open pending the repeated real two-actor smoke.
+
+### 2026-08-23 -- M3 smoke round 4: the panel displayed a label its resolver did not know
+
+Operator typed `pair`, exactly the fallback label on screen, and still got
+`(no match)`. The prior fix made the row carry the real worktree, but the shared
+`LookupTrees` rule searched only operator names/descriptions and the
+agent-published description. `PanelModel` independently displayed
+`Worktree.Repo()` when no operator name existed. The plan-quality gate had even
+documented "Repo is not matched"; the later fallback-label decision failed to
+revise that contract.
+
+Fixed at the shared source (ARCH-DRY): `LookupTrees` now matches repo basename
+as well. The regression test models `/w/pair` with no explicit name and was
+observed RED (`LookupTrees(pair) = []`) before the change, then GREEN. This is
+the user-visible class (ARCH-PURPOSE): text rendered as the panel's identifying
+label must be typeable back into its typeahead. Task 3.5 remains open for the
+real rerun.
