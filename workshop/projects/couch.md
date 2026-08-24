@@ -187,6 +187,16 @@ started actor never joined the live console, and the panel displayed repo-name
 fallbacks its resolver could not search. The fixes addressed those classes at
 their shared boundaries; the operator confirmed the final two-actor smoke.
 
+**Scope event — 2026-08-24:** the first M3 boundary review returned REWORK, so
+the provisional `actual`/`closed` metadata above is not the final milestone
+record and the portfolio row remains open. Follow-up operator evidence confirmed
+that killing the couch console and starting it again reattaches the same zellij
+session. The same cold-start pass removed Pair's saved-config picker from the
+couch path: couch now requests the repo default through a consumed one-shot
+entry policy, while direct Pair retains its picker and manual default override.
+Final measured time and close date will replace the provisional record only
+when `sdlc milestone-close` accepts the boundary.
+
 <a id="pair-146-m2"></a>
 ### pair#146 M2 — console over one child, with the reserved row
 

@@ -698,14 +698,14 @@ create persistence, and live attach through the production flow (ARCH-MOCK).
 `cmd/internal/launcher/createflow_test.go`,
 `cmd/internal/launcher/lifecycle_test.go`, `atlas/couch.md`, and `README.md`.
 
-- [ ] **RED — couch ownership:** extend the Spawn test to require exactly
+- [x] **RED — couch ownership:** extend the Spawn test to require exactly
   `PAIR_USE_REPO_DEFAULT=1` in the Runner environment while retaining
   `COUCH_TREE` and `COUCH_STORE_DIR`. Run
   `go test ./cmd/internal/couchcore -run TestSpawnStartsPairAndRecordsTheActor -count=1`;
   expect failure because the variable is absent.
-- [ ] **GREEN — couch ownership:** add the environment entry in `Couch.Spawn`;
+- [x] **GREEN — couch ownership:** add the environment entry in `Couch.Spawn`;
   rerun the focused test and expect PASS.
-- [ ] **Characterization — cold create policy (expected pre-change PASS):** add
+- [x] **Characterization — cold create policy (expected pre-change PASS):** add
   `TestRunLaunchSkipConfigPickerUsesRepoDefaultOverSavedConfig` through the
   stateful `fakeRuntime`: seed a resumable Claude saved config, a different
   Claude repo default, and a fresh minted session; assert no picker call, saved
@@ -717,7 +717,7 @@ create persistence, and live attach through the production flow (ARCH-MOCK).
   `go test ./cmd/internal/launcher -run '^TestRunLaunchSkipConfigPicker(UsesRepoDefaultOverSavedConfig|WithoutRepoDefaultUsesNoUserArgs)$' -count=1`;
   expect PASS before production wiring. Leave `createflow.go` unchanged unless
   an actual failing assertion proves its shared policy is wrong.
-- [ ] **Regression enumeration:** retain
+- [x] **Regression enumeration:** retain
   `TestRunLaunchTagRestartPickerResume` as proof a cold direct
   `pair resume <tag>` still invokes the saved-config picker; extend
   `TestRunLaunchAttach` with `SkipConfigPicker`, poisonous saved/default file
@@ -728,13 +728,13 @@ create persistence, and live attach through the production flow (ARCH-MOCK).
   direct `pair -- <args>`. Run
   `go test ./cmd/internal/launcher -run '^(TestRunLaunchTagRestartPickerResume|TestRunLaunchAttach|TestRunLaunchExplicitArgsPersistRepoAgentDefaultAfterReadiness)$' -count=1`;
   expect PASS before the production change (ARCH-PURPOSE, ARCH-MOCK).
-- [ ] **RED 1 — real entry consumption:** add
+- [x] **RED 1 — real entry consumption:** add
   `TestLaunchNativeConsumesRepoDefaultPolicyBeforeEarlyReturn`, which sets the
   real variable, invokes `LaunchNative([]string{"help"}, ...)`, and asserts the
   key is absent afterward. Run
   `go test ./cmd/internal/launcher -run '^TestLaunchNativeConsumesRepoDefaultPolicyBeforeEarlyReturn$' -count=1`;
   expect an assertion failure because current `LaunchNative` leaves the key set.
-- [ ] **RED/GREEN 2 — exact consume policy:** add table-driven
+- [x] **RED/GREEN 2 — exact consume policy:** add table-driven
   `TestConsumeRepoDefaultPolicy` with injected get/unset functions, asserting
   exact value `1` returns true, empty/other values return false, and every case
   unsets exactly once. Run
@@ -743,7 +743,7 @@ create persistence, and live attach through the production flow (ARCH-MOCK).
   that thin entry-boundary helper without wiring it into `LaunchNative` yet;
   rerun only the helper test and expect PASS while RED 1 deliberately remains
   red.
-- [ ] **RED/GREEN 3 — options mapping:** add
+- [x] **RED/GREEN 3 — options mapping:** add
   `TestNewLaunchOptionsAppliesRepoDefaultPolicy`, asserting true/false policy
   maps to `SkipConfigPicker`. Run
   `go test ./cmd/internal/launcher -run '^TestNewLaunchOptionsAppliesRepoDefaultPolicy$' -count=1`;
@@ -756,13 +756,13 @@ create persistence, and live attach through the production flow (ARCH-MOCK).
   documents both restart-loop and couch entry policy. Rerun all three focused
   tests together and expect PASS; deleting consumption, entry wiring, or the
   constructor mapping must fail at least one named test.
-- [ ] **Post-change regression:** rerun both exact cold-create and regression
+- [x] **Post-change regression:** rerun both exact cold-create and regression
   commands above and expect PASS without changing `createflow.go`.
-- [ ] **Docs:** update README's couch section and `atlas/couch.md` to state that
+- [x] **Docs:** update README's couch section and `atlas/couch.md` to state that
   cold couch launches use repo-default user args non-interactively, the env seam
   is temporary/one-shot, and direct Pair is the manual override path.
-- [ ] **Verification:** `go test ./cmd/internal/couchcore ./cmd/internal/launcher -count=1`,
+- [x] **Verification:** `go test ./cmd/internal/couchcore ./cmd/internal/launcher -count=1`,
   `go test -race ./cmd/internal/couchcore ./cmd/internal/launcher -count=1`,
   `go test ./... -count=1`, and `git diff --check`.
-- [ ] Commit the implementation and record the operator's successful `kill -9`
+- [x] Commit the implementation and record the operator's successful `kill -9`
   → `couch start` same-session reattach evidence in the issue Log.

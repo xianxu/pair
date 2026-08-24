@@ -123,6 +123,7 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	env := []string{
 		"COUCH_TREE=" + string(tree),
 		"COUCH_STORE_DIR=" + c.Store.Dir(),
+		"PAIR_USE_REPO_DEFAULT=1",
 	}
 	h, err := c.Runner.Start(args.WorkingDir(), argv, env)
 	if err != nil {

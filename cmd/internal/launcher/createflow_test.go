@@ -1037,6 +1037,70 @@ func TestRunLaunchTagRestartPickerResume(t *testing.T) {
 	}
 }
 
+func TestRunLaunchSkipConfigPickerUsesRepoDefaultOverSavedConfig(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.files["/data/config-cx-claude.json"] = `{"agent":"claude","args":["--saved"],"session_id":"OLD"}`
+	rt.agentSessions["claude|OLD"] = true
+	defaultRaw, err := BuildAgentDefault("claude", []string{"--model", "sonnet"})
+	if err != nil {
+		t.Fatalf("BuildAgentDefault: %v", err)
+	}
+	rt.files["/data/agent-default-claude.json"] = defaultRaw
+	rt.uuids = []string{"NEW"}
+	pickerCalled := false
+	rt.pickFunc = func(header string, options []string) string {
+		pickerCalled = true
+		return options[0]
+	}
+
+	opts := baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "cx"})
+	opts.SkipConfigPicker = true
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if pickerCalled {
+		t.Fatal("saved-config picker opened despite SkipConfigPicker")
+	}
+	if got := rt.env["PAIR_AGENT_ARGS"]; got != "--model sonnet --session-id NEW" {
+		t.Fatalf("PAIR_AGENT_ARGS = %q", got)
+	}
+	if contains(rt.removed, "/data/config-cx-claude.json") {
+		t.Fatalf("bypass proactively removed canonical config: %v", rt.removed)
+	}
+	saved, err := parseConfig(rt.files["/data/config-cx-claude.json"])
+	if err != nil {
+		t.Fatalf("parseConfig: %v", err)
+	}
+	if saved.SessionID != "NEW" || !slices.Equal(saved.Args, []string{"--model", "sonnet"}) {
+		t.Fatalf("fresh config = %+v", saved)
+	}
+}
+
+func TestRunLaunchSkipConfigPickerWithoutRepoDefaultUsesNoUserArgs(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.files["/data/config-cx-codex.json"] = `{"agent":"codex","args":["--saved"],"session_id":"OLD"}`
+	rt.agentSessions["codex|OLD"] = true
+	pickerCalled := false
+	rt.pickFunc = func(header string, options []string) string {
+		pickerCalled = true
+		return options[0]
+	}
+
+	opts := baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "cx"})
+	opts.SkipConfigPicker = true
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if pickerCalled {
+		t.Fatal("saved-config picker opened despite SkipConfigPicker")
+	}
+	if got := rt.env["PAIR_AGENT_ARGS"]; got != "--no-alt-screen" {
+		t.Fatalf("PAIR_AGENT_ARGS = %q", got)
+	}
+}
+
 func TestRunLaunchTagRestartPickerResumeStripsCodexResumeAfterGlobals(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.files["/data/config-cx-codex.json"] = `{"agent":"codex","args":["--sandbox","danger-full-access","resume","CX-9","--no-alt-screen"],"session_id":"CX-9"}`

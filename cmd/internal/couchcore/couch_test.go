@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -69,6 +70,15 @@ func TestSpawnStartsPairAndRecordsTheActor(t *testing.T) {
 	// agent's resume/session-id knowledge.
 	if got := env.Runner.Ops[0]; got != "start /repo: pair resume repo --layout2" {
 		t.Fatalf("Ops[0] = %q", got)
+	}
+	child := env.Runner.Child(env.Runner.order[0])
+	wantEnv := []string{
+		"COUCH_TREE=/repo",
+		"COUCH_STORE_DIR=" + env.Dir,
+		"PAIR_USE_REPO_DEFAULT=1",
+	}
+	if !slices.Equal(child.Env, wantEnv) {
+		t.Fatalf("child env = %q, want %q", child.Env, wantEnv)
 	}
 	if !rec.StartedAt.Equal(env.Now) {
 		t.Fatalf("StartedAt = %v, want the injected clock", rec.StartedAt)

@@ -27,6 +27,66 @@ func TestLaunchNativeHelp(t *testing.T) {
 	}
 }
 
+func TestLaunchNativeConsumesRepoDefaultPolicyBeforeEarlyReturn(t *testing.T) {
+	t.Setenv("PAIR_USE_REPO_DEFAULT", "1")
+	var stdout, stderr bytes.Buffer
+	code, err := LaunchNative([]string{"help"}, "/pair", &stdout, &stderr)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if _, ok := os.LookupEnv("PAIR_USE_REPO_DEFAULT"); ok {
+		t.Fatal("PAIR_USE_REPO_DEFAULT remains set after LaunchNative entry")
+	}
+}
+
+func TestConsumeRepoDefaultPolicy(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		value string
+		want  bool
+	}{
+		{name: "exact one", value: "1", want: true},
+		{name: "absent or empty", value: "", want: false},
+		{name: "word true", value: "true", want: false},
+		{name: "numeric lookalike", value: "01", want: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			unsetCalls := 0
+			got := consumeRepoDefaultPolicy(
+				func(key string) string {
+					if key != "PAIR_USE_REPO_DEFAULT" {
+						t.Fatalf("get key = %q", key)
+					}
+					return tc.value
+				},
+				func(key string) error {
+					if key != "PAIR_USE_REPO_DEFAULT" {
+						t.Fatalf("unset key = %q", key)
+					}
+					unsetCalls++
+					return nil
+				},
+			)
+			if got != tc.want {
+				t.Fatalf("consumeRepoDefaultPolicy(%q) = %v, want %v", tc.value, got, tc.want)
+			}
+			if unsetCalls != 1 {
+				t.Fatalf("unset calls = %d, want 1", unsetCalls)
+			}
+		})
+	}
+}
+
+func TestNewLaunchOptionsAppliesRepoDefaultPolicy(t *testing.T) {
+	getenv := func(string) string { return "" }
+	for _, want := range []bool{false, true} {
+		opts := newLaunchOptions(LaunchArgs{}, Env{}, "/pair", "/data", want, getenv, 5)
+		if opts.SkipConfigPicker != want {
+			t.Fatalf("SkipConfigPicker = %v, want %v", opts.SkipConfigPicker, want)
+		}
+	}
+}
+
 func TestLaunchNativeVersion(t *testing.T) {
 	for _, arg := range []string{"--version", "version"} {
 		t.Run(arg, func(t *testing.T) {

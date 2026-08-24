@@ -11,6 +11,11 @@ import (
 func TestRunLaunchAttach(t *testing.T) {
 	rt := newFakeRuntime()
 	scope := mustScope(t, "/home/u/work")
+	savedPath := "/data/config-live-codex.json"
+	defaultPath := "/data/agent-default-codex.json"
+	rt.files[savedPath] = `{"agent":"codex","args":["--poison-saved"],"session_id":"POISON"}`
+	rt.files[defaultPath] = `{"agent":"codex","args":["--poison-default"]}`
+	savedBefore, defaultBefore := rt.files[savedPath], rt.files[defaultPath]
 	rt.sessions = []Session{{Name: "📁work-live", State: SessionDetached}}
 	rt.sessionIndex = SessionNameIndex{Entries: []SessionNameEntry{{
 		SessionName: "📁work-live",
@@ -22,7 +27,9 @@ func TestRunLaunchAttach(t *testing.T) {
 	rt.blocksReuse["📁work-live"] = true // live → decision resolves to attach
 	rt.inferAgent["live"] = "codex"     // title agent comes from the on-disk record
 	rt.attachCode = 7
-	code, err := run(t, baseOpts(LaunchArgs{ForcedTag: "live"}), rt)
+	opts := baseOpts(LaunchArgs{ForcedTag: "live"})
+	opts.SkipConfigPicker = true
+	code, err := run(t, opts, rt)
 	if err != nil {
 		t.Fatalf("attach unexpected err: %v", err)
 	}
@@ -37,6 +44,12 @@ func TestRunLaunchAttach(t *testing.T) {
 	}
 	if len(rt.watchers) != 0 {
 		t.Fatalf("attach must not spawn a session watcher: %v", rt.watchers)
+	}
+	if _, ok := rt.env["PAIR_AGENT_ARGS"]; ok {
+		t.Fatalf("attach exported create args: %q", rt.env["PAIR_AGENT_ARGS"])
+	}
+	if rt.files[savedPath] != savedBefore || rt.files[defaultPath] != defaultBefore {
+		t.Fatalf("attach mutated create inputs: saved=%q default=%q", rt.files[savedPath], rt.files[defaultPath])
 	}
 	if rt.env["PAIR_TAG"] != "live" {
 		t.Fatalf("PAIR_TAG = %q", rt.env["PAIR_TAG"])

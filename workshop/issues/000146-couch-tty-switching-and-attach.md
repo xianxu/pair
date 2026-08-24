@@ -1350,3 +1350,21 @@ confirmed the panel rerun discussed in that exchange, but did not itemize the
 carried composed `kill -9` reattach or real nvim in/out checks. Those need named
 evidence before the next milestone-close attempt; the earlier separately tested
 halves are not being relabeled as composition evidence.
+
+### 2026-08-24 -- couch cold creates now use repo defaults without a picker
+
+Operator supplied the missing composed reattach evidence: after killing the
+actual couch console process with `kill -9` (without deleting the zellij
+session), a subsequent `couch start` returned to the same running Pair session.
+
+The remaining cold-start picker was then removed from couch's path. Couch owns
+the temporary `PAIR_USE_REPO_DEFAULT=1` child environment, and Pair consumes it
+at process entry into the existing `SkipConfigPicker` policy before unsetting
+it. `runCreate` needed no change: its existing repo-default decision already
+precedes the saved-config picker (ARCH-DRY, ARCH-PURE). Tests observed the couch
+environment and both entry seams RED before implementation. Stateful launcher
+characterization stayed green before and after: saved config cannot override
+the repo default, no default yields no user args, fresh Claude persistence still
+replaces canonical config normally, direct Pair still offers the picker, and a
+live attach neither launches nor mutates create inputs (ARCH-PURPOSE,
+ARCH-MOCK). Focused, race, and full Go suites pass.

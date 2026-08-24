@@ -136,9 +136,13 @@ console restart reattaches the same session rather than landing on pair's
 session picker. Layout is pinned to layout2 for now: couch owns terminal
 switching, so layout3's third pane is the layer couch replaces.
 
-One prompt still reaches the operator on a COLD start of a tag with a saved
-config -- pair's `runConfigPicker`. Left deliberately (operator, 2026-08-22);
-skipping it needs the agent session id, which is `pair#149`'s to provide.
+On a COLD create, couch asks Pair to use the repo's saved agent-argument default
+without opening `runConfigPicker`; no default means no user-configured args.
+Pair consumes the temporary `PAIR_USE_REPO_DEFAULT=1` handoff at process entry
+and carries only typed launch policy downstream, so sidecars, zellij, and panes
+cannot inherit it. Existing live sessions still take the attach path unchanged.
+Direct `pair resume <tag>` still owns the saved-config choice, and direct
+`pair -- <agent-arguments>` is the current way to replace the repo default.
 
 ## The agent-facing operation
 

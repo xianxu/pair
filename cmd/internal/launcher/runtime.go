@@ -266,7 +266,8 @@ type LaunchOptions struct {
 	ForceInSession bool   // PAIR_FORCE_IN_SESSION: force compaction (bypasses both halves)
 	FakeInZellij   bool   // PAIR_FAKE_IN_ZELLIJ: fake the ancestry half (real tag-match runs)
 
-	// Internal restart-loop state: a restart marker already selected the args
-	// for the next create, so the normal saved-config picker must not re-open.
+	// Typed create policy: a restart marker already selected the next args, or
+	// couch requested the repo default at process entry. In either case the
+	// normal saved-config picker must not re-open.
 	SkipConfigPicker bool
 }

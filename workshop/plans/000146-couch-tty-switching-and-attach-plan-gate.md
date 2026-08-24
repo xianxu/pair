@@ -105,6 +105,21 @@ rounds:
       timestamp: "2026-08-22T12:55:21-07:00"
       agent: claude
       blocked: false
+    - "n": 4
+      timestamp: "2026-08-24T09:21:41-07:00"
+      agent: codex
+      blocked: false
+      protocol_error: no valid findings block
+    - "n": 5
+      timestamp: "2026-08-24T09:23:31-07:00"
+      agent: codex
+      blocked: false
+      protocol_error: no valid findings block
+    - "n": 6
+      timestamp: "2026-08-24T11:13:21-07:00"
+      agent: codex
+      blocked: false
+      protocol_error: no valid findings block
 content_hash: 78a38e32bd4655a0f60c40a301ea05bbd4b350e18d89bc96be522f0224355c4a
 ---
 
@@ -172,6 +187,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-5 — addressed — Addressed by removal - Decision 5 drops the alt-screen branch entirely, keeps replay as the one mechanism, and records the nudge as a costed fallback.
 
 ## Round 3 — 2026-08-22T12:55:21-07:00 (claude) — passed
+
+## Round 4 — 2026-08-24T09:21:41-07:00 (codex) — passed
+
+**Protocol error:** no valid findings block — this round contributed no findings.
+
+## Round 5 — 2026-08-24T09:23:31-07:00 (codex) — passed
+
+**Protocol error:** no valid findings block — this round contributed no findings.
+
+## Round 6 — 2026-08-24T11:13:21-07:00 (codex) — passed
+
+**Protocol error:** no valid findings block — this round contributed no findings.
 
 ## Open findings
 

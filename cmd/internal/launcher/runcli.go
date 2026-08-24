@@ -10,6 +10,34 @@ import (
 	"time"
 )
 
+const useRepoDefaultEnv = "PAIR_USE_REPO_DEFAULT"
+
+func consumeRepoDefaultPolicy(getenv func(string) string, unsetenv func(string) error) bool {
+	useRepoDefault := getenv(useRepoDefaultEnv) == "1"
+	_ = unsetenv(useRepoDefaultEnv)
+	return useRepoDefault
+}
+
+func newLaunchOptions(args LaunchArgs, env Env, pairHome, dataDir string, useRepoDefault bool, getenv func(string) string, parkTimeout int) LaunchOptions {
+	return LaunchOptions{
+		Args:                 args,
+		Env:                  env,
+		PairHome:             pairHome,
+		GlobalDataDir:        dataDir,
+		CodexAltScreenOptOut: getenv("PAIR_CODEX_ALT_SCREEN") == "1",
+		ParkPromptTimeout:    parkTimeout,
+		// #55 compaction env, read from the pane (only consulted when a `continue`
+		// launch sets ContinueSlug below).
+		PairTag:          getenv("PAIR_TAG"),
+		PairAgent:        getenv("PAIR_AGENT"),
+		ZellijSession:    getenv("ZELLIJ_SESSION_NAME"),
+		PairSession:      getenv("PAIR_SESSION_NAME"),
+		ForceInSession:   getenv("PAIR_FORCE_IN_SESSION") == "1",
+		FakeInZellij:     getenv("PAIR_FAKE_IN_ZELLIJ") == "1",
+		SkipConfigPicker: useRepoDefault,
+	}
+}
+
 // LaunchNative is the process-level entry the cmd/pair-go launch gate calls (#99
 // M2; the sole launcher as of M5c — bin/pair-shell is retired). It parses
 // launchArgs and dispatches: `--help`/`help` → native usage; `list`/`ls`,
@@ -19,6 +47,7 @@ import (
 // are already on stdout/stderr, and the error is always nil (no shell to fall back
 // to).
 func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer) (int, error) {
+	useRepoDefault := consumeRepoDefaultPolicy(os.Getenv, os.Unsetenv)
 	args, err := ParseArgs(launchArgs)
 	if err != nil {
 		// A genuine usage error (a leading flag that isn't -h/--help, a bad verb
@@ -87,22 +116,7 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 	if args.Command == "quit" {
 		return runQuit(rt, os.Getenv("ZELLIJ_SESSION_NAME"), stderr), nil
 	}
-	opts := LaunchOptions{
-		Args:                 args,
-		Env:                  env,
-		PairHome:             pairHome,
-		GlobalDataDir:        dataDir,
-		CodexAltScreenOptOut: os.Getenv("PAIR_CODEX_ALT_SCREEN") == "1",
-		ParkPromptTimeout:    parkPromptTimeout(),
-		// #55 compaction env, read from the pane (only consulted when a `continue`
-		// launch sets ContinueSlug below).
-		PairTag:        os.Getenv("PAIR_TAG"),
-		PairAgent:      os.Getenv("PAIR_AGENT"),
-		ZellijSession:  os.Getenv("ZELLIJ_SESSION_NAME"),
-		PairSession:    os.Getenv("PAIR_SESSION_NAME"),
-		ForceInSession: os.Getenv("PAIR_FORCE_IN_SESSION") == "1",
-		FakeInZellij:   os.Getenv("PAIR_FAKE_IN_ZELLIJ") == "1",
-	}
+	opts := newLaunchOptions(args, env, pairHome, dataDir, useRepoDefault, os.Getenv, parkPromptTimeout())
 
 	// `continue <slug>`: resolve the doc (seeds the draft on create + drives the
 	// compaction marker), pick the agent (explicit port → doc frontmatter → claude).

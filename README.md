@@ -282,6 +282,16 @@ your screen** for a status line. The path argument is optional and defaults to
 `.`, so `cd <repo> && couch start` is the usual form — the first session you
 start is "home".
 
+On a cold start, couch uses that repository's saved agent-argument default
+without reopening Pair's tag-specific saved-config picker. If no repo default
+exists, it starts with no user-configured agent arguments (Pair may still add
+its normal runtime flags). For now, change the default by launching Pair
+directly in that repo with `pair -- <agent-arguments>` before returning to
+couch. Couch requests this behavior through a temporary one-shot
+`PAIR_USE_REPO_DEFAULT=1` handoff; Pair consumes the value at entry so it is not
+inherited by sidecars, zellij, or panes. Direct Pair launches keep their normal
+saved-config picker behavior.
+
 **`ctrl-space` belongs to couch while a session is hosted.** It is intercepted
 before the child sees it, in both encodings a terminal may send it (the legacy
 NUL and the Kitty protocol's `CSI 32;5u`), so it will not reach your editor or
