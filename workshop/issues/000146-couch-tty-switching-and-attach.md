@@ -1403,3 +1403,21 @@ reset remain executable evidence in the emulator, real-pty, and enumerated
 `make test-smoke` probe suites. This supersedes the earlier “BR-46 remains
 deliberately unclaimed” state while preserving exactly which observations were
 and were not made (ARCH-PURPOSE).
+
+### 2026-08-24 -- M3 verification exposed a broken live-test target
+
+The first verification attempt ran real-terminal suites concurrently and was
+invalid: isolated `make test-smoke` immediately passed all eight terminal
+steps, while the concurrent whole-tree runs collided on zellij/PTY resources.
+That investigation also reproduced a deterministic defect in `make test-live`:
+the target set `PAIR_LIVE_HARNESS=1`, but the pre-existing harness conformance
+test accepts only a named installed harness (`agy`, `codex`, or `muse`). The
+target is for couch's `PAIR_LIVE_COUCH=1` conformance and must not opt into that
+separate suite. Running the intended live command concurrently across Go
+packages also made an unrelated signal-driven wrapper test fail consistently;
+the focused test passed, identifying cross-package OS-global interference.
+
+The target now sets only `PAIR_LIVE_COUCH=1` and serializes packages with
+`go test -p 1`. This is verification infrastructure, not a product behavior
+change. The broken target itself was the RED test; the repaired target must be
+GREEN before M3 closes (ARCH-PURPOSE).

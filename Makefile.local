@@ -55,7 +55,9 @@ test-smoke: $(BIN_DIR)/pair
 
 .PHONY: test-live
 test-live:
-	PAIR_LIVE_COUCH=1 PAIR_LIVE_HARNESS=1 go test ./cmd/... -count=1
+	# Real-process suites share OS-global signal/session resources; package-level
+	# parallelism makes them interfere rather than exercise independent systems.
+	PAIR_LIVE_COUCH=1 go test -p 1 ./cmd/... -count=1
 
 build: $(addprefix $(BIN_DIR)/,$(GO_BINS)) $(addprefix $(BIN_DIR)/,$(BUSYBOX_LINKS))
 
