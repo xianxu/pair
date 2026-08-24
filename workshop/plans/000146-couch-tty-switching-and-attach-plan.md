@@ -80,11 +80,11 @@ Terminal code has its own standing moves, all of them lessons already paid for i
 | `StripQueries` + query deny-list | `cmd/internal/ptychild/replay.go` | new (moved from `termcmd/queries.go`) |
 | `Screen` | `cmd/internal/ptychild/screen.go` | new |
 | `updateMouseMode` | `cmd/internal/termcmd/run.go` | deleted (folded into `Screen`) |
-| `Focus` / `Up` / `Home` | `cmd/internal/couchtty/focus.go` | new |
-| `PanelModel` / `Filter` / `Pick` | `cmd/internal/couchtty/panel.go` | new |
+| `Focus` / `Up` | `cmd/internal/couchtty/focus.go` | new |
+| `PanelModel` / `Filter` / `Pick` / target join | `cmd/internal/couchtty/panel.go` | new |
+| `PanelKey` / `DecodePanelKeys` | `cmd/internal/couchtty/panelkeys.go` | new |
 | `StatusModel` / `RenderStatusRow` | `cmd/internal/couchtty/reserve.go` | new |
 | `Interceptor` | `cmd/internal/couchtty/keys.go` | new |
-| `Console` | `cmd/internal/couchtty/console.go` | new (thin IO shell; see the source for its shape) |
 | `Reserve` / `Release` / `PaintRow` | `cmd/internal/couchtty/reserve.go` | new |
 | terminal-control constants (DECSTBM, cursor save/restore, region reset) | `cmd/internal/hostty/control.go` | new (`\x1b[r` moved from `termcmd/run.go`) |
 | `termcmd.restoreTerminal` | `cmd/internal/termcmd/run.go` | modified (now writes `hostty.ResetRegion`; the method stays, the constant moved) |
@@ -623,3 +623,41 @@ operator description, and agent-published description. The panel continues to
 inject that one resolver (ARCH-DRY); no UI-local matcher was added. A focused
 domain test pins the user-visible invariant: an unnamed `/w/pair` row rendered
 as `pair` must resolve from `pair` (ARCH-PURPOSE).
+
+### 2026-08-23 — M3 boundary review round 1: input serialization and one panel source
+
+**Reason:** the M3 boundary review found that the operator smoke covered normal
+keypress reads but not every legal stream split, and that production rebuilt a
+second, hosted-child-only panel model instead of consuming the planned Couch
+summaries. It also found that printable action/jump keys made some valid filter
+prefixes impossible, and that the Core-concepts table still described the IO
+shell as pure. These are class failures (`chunking-invariance`,
+`dead-field-and-leaked-consumer`, `input-namespace-collision`, and
+`plan-table-drift`), not isolated branches.
+
+**Delta:**
+
+1. All stdin segments and focus transitions are serialized by acknowledgment:
+   bytes after a couch hotkey are not routed until the Run goroutine has applied
+   that hotkey. Tests enumerate both hotkey encodings, multiple hotkeys, and
+   every split point. `DecodePanelKeys` likewise holds a bare ESC as a possible
+   prefix; the Console's IO loop supplies the short ambiguity timeout that turns
+   it into an Escape key, while a following CSI/SS3 byte completes the sequence.
+2. Production receives one injected `Summaries` provider from Couch.
+   `rebuildPanel` always starts with `NewPanelModel(Summaries())`, then a pure
+   target join adds console-local child IDs and bell state. Parked trees and
+   name/description changes therefore use the same source as `couch list`; the
+   hosted pane map supplies routing only (ARCH-DRY, ARCH-PURPOSE).
+3. Printable text is always filter text. Panel commands use a `:` namespace:
+   `:1`–`:9` jump and `:s`/`:x`/`:n`/`:d` dispatch actions. This preserves
+   direct typeahead for every ordinary leading letter and digit without an
+   input-dependent collision. The renderer and README derive their documented
+   key inventory from this contract.
+4. The Core-concepts classification is corrected: `Console` is an INTEGRATION
+   point; `PanelKey`/`DecodePanelKeys` and the pure summary/target join are PURE;
+   nonexistent `Home` is removed. A table audit checks every row resolves to a
+   real declaration and that PURE rows have IO-free tests.
+5. Before re-closing M3, record every carried smoke item individually: composed
+   `kill -9` reattach and real nvim in/out need operator evidence, not an
+   inference from their separately automated halves. README documents the full
+   focus ladder and namespaced panel controls in the same boundary window.

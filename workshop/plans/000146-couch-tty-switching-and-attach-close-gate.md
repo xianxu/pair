@@ -867,6 +867,48 @@ rounds:
           round: 8
       boundary: M2
       blocked: false
+    - "n": 9
+      timestamp: "2026-08-23T22:32:43-07:00"
+      agent: codex
+      findings:
+        - id: BR-42
+          severity: Critical
+          title: Input after a hotkey can be routed to the focus being left
+          detail: console.go:573-600 queues the hotkey but processes rest before the Run goroutine acknowledges the focus change. This is the 2nd finding in family chunking-invariance; enumerate both input framers and test every legal read split rather than fixing one byte grouping.
+          family: chunking-invariance
+          round: 9
+        - id: BR-43
+          severity: Critical
+          title: Production bypasses NewPanelModel and loses parked or updated tree metadata
+          detail: panel.go:75-97 implements the planned TreeSummary model, but console.go:652-676 rebuilds rows only from hosted panes and pane.desc is never populated. This is the 3rd finding in family dead-field-and-leaked-consumer; make all production refreshes consume the shared summary source and join routing IDs afterward.
+          family: dead-field-and-leaked-consumer
+          round: 9
+        - id: BR-44
+          severity: Critical
+          title: Panel action keys make valid typeahead prefixes unreachable
+          detail: console.go:765-807 consumes s, x, n, d and digits as commands when the query is empty, so names and descriptions beginning with those characters cannot be searched. Separate command input from filter text and test every reserved prefix.
+          family: input-namespace-collision
+          round: 9
+        - id: BR-45
+          severity: Critical
+          title: The Core concepts table misclassifies and misstates M3 entities
+          detail: The plan's Pure entities table classifies Console as PURE despite its IO dependencies, lists nonexistent Home, and omits DecodePanelKeys. This is the 5th finding in family plan-table-drift; enforce entity existence and kind classification across the complete table, then append a Revisions entry.
+          family: plan-table-drift
+          round: 9
+        - id: BR-46
+          severity: Important
+          title: M3 completion evidence omits the smoke work explicitly carried into this milestone
+          detail: issue lines 1020-1030 carry the composed kill -9 reattach and real nvim in-and-out checks to M3, while lines 1272-1279 record only the two-actor panel smoke. This is the 3rd finding in family undelivered-plan-step; enumerate every M3 and carried checkbox and supply evidence for each.
+          family: undelivered-plan-step
+          round: 9
+        - id: BR-47
+          severity: Important
+          title: README does not document the M3 focus ladder or panel controls
+          detail: README.md:280-290 documents only ctrl-space interception, not child-to-root-to-panel navigation or the keys a user types in the panel. This is the 5th finding in family docs-lag-the-surface; establish an enforced documentation home for every user-entered key surface.
+          family: docs-lag-the-surface
+          round: 9
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — pair#146 (boundary-review)
@@ -1345,6 +1387,23 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   op.Name)` is prefix-ambiguous -- a future `couch stop-all` line would satisfy the check for
   `couch stop`.
 
+## Round 9 — 2026-08-23T22:32:43-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-42** [Critical] `chunking-invariance` Input after a hotkey can be routed to the focus being left
+  console.go:573-600 queues the hotkey but processes rest before the Run goroutine acknowledges the focus change. This is the 2nd finding in family chunking-invariance; enumerate both input framers and test every legal read split rather than fixing one byte grouping.
+- **BR-43** [Critical] `dead-field-and-leaked-consumer` Production bypasses NewPanelModel and loses parked or updated tree metadata
+  panel.go:75-97 implements the planned TreeSummary model, but console.go:652-676 rebuilds rows only from hosted panes and pane.desc is never populated. This is the 3rd finding in family dead-field-and-leaked-consumer; make all production refreshes consume the shared summary source and join routing IDs afterward.
+- **BR-44** [Critical] `input-namespace-collision` Panel action keys make valid typeahead prefixes unreachable
+  console.go:765-807 consumes s, x, n, d and digits as commands when the query is empty, so names and descriptions beginning with those characters cannot be searched. Separate command input from filter text and test every reserved prefix.
+- **BR-45** [Critical] `plan-table-drift` The Core concepts table misclassifies and misstates M3 entities
+  The plan's Pure entities table classifies Console as PURE despite its IO dependencies, lists nonexistent Home, and omits DecodePanelKeys. This is the 5th finding in family plan-table-drift; enforce entity existence and kind classification across the complete table, then append a Revisions entry.
+- **BR-46** [Important] `undelivered-plan-step` M3 completion evidence omits the smoke work explicitly carried into this milestone
+  issue lines 1020-1030 carry the composed kill -9 reattach and real nvim in-and-out checks to M3, while lines 1272-1279 record only the two-actor panel smoke. This is the 3rd finding in family undelivered-plan-step; enumerate every M3 and carried checkbox and supply evidence for each.
+- **BR-47** [Important] `docs-lag-the-surface` README does not document the M3 focus ladder or panel controls
+  README.md:280-290 documents only ctrl-space interception, not child-to-root-to-panel navigation or the keys a user types in the panel. This is the 5th finding in family docs-lag-the-surface; establish an enforced documentation home for every user-entered key surface.
+
 ## Open findings
 
 - **BR-1** [Important] `chunking-invariance` Screen raises a false bell for any sequence longer than maxPending split across two reads
@@ -1361,3 +1420,9 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-39** [Minor] `latch-consumed-by-wrong-consumer` onChunk consumes TakeRowDirty for every pane but acts on it only for the active one, so an inactive pane's dirty-row latch is thrown away
 - **BR-40** [Important] `plan-table-drift` the sweep that closed this family filed Console under "Pure entities" while the row itself calls it a thin IO shell
 - **BR-41** [Important] `docs-lag-the-surface` the README enumeration's one hand-written exemption points at atlas/couch.md, which does not document publish-description either
+- **BR-42** [Critical] `chunking-invariance` Input after a hotkey can be routed to the focus being left
+- **BR-43** [Critical] `dead-field-and-leaked-consumer` Production bypasses NewPanelModel and loses parked or updated tree metadata
+- **BR-44** [Critical] `input-namespace-collision` Panel action keys make valid typeahead prefixes unreachable
+- **BR-45** [Critical] `plan-table-drift` The Core concepts table misclassifies and misstates M3 entities
+- **BR-46** [Important] `undelivered-plan-step` M3 completion evidence omits the smoke work explicitly carried into this milestone
+- **BR-47** [Important] `docs-lag-the-surface` README does not document the M3 focus ladder or panel controls

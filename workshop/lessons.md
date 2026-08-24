@@ -1951,3 +1951,44 @@ rather than naming it as an option -- an operator who cannot follow the safe
 advice will follow the unsafe one. Where the surface has a declared verb set,
 assert in a test that each suggested command is in it, so the advice cannot
 drift from the implementation.
+
+## A stream split is not an event boundary
+
+`#146` M3's interceptor correctly returned `before / hotkey / rest`, but the
+stdin goroutine queued the hotkey and immediately routed `rest`. The Run
+goroutine had not necessarily changed focus yet, so bytes logically after the
+hotkey could still reach the actor being left. The unit test proved the parser's
+split and missed the consumer's scheduling race.
+
+**Rule.** If bytes after an input control depend on that control taking effect,
+the control needs an acknowledgment (or all routing belongs on one event loop)
+before the suffix is consumed. Enumerate every legal read split in a composed
+test; parser tests alone cannot prove routing order. The same rule applies to a
+bare ESC that might be the prefix of a following CSI: read boundaries carry no
+semantic meaning, so resolve the ambiguity explicitly.
+
+## A displayed model must have one production constructor
+
+`#146` M3 built and thoroughly tested `NewPanelModel(TreeSummary)`, including
+parked trees, then production constructed a second `PanelModel` directly from
+hosted panes. Both versions rendered, so ordinary live-actor smoke passed while
+parked rows and refreshed metadata disappeared.
+
+**Rule.** When a pure model constructor is the declared source of UI state,
+production must call it. Runtime-only data may be joined afterward through a
+named pure transform; it must not become a parallel constructor. Pin the real
+wiring with one fixture containing state that exists only in the domain source
+(here: a parked tree), because the intersection of two sources cannot reveal
+which one production consumed.
+
+## Printable command keys and direct typeahead cannot share a mode
+
+`#146` M3 treated `s`, `x`, `n`, `d`, and digits as commands only while the
+query was empty. That made a query's interpretation depend on its first byte:
+some visible names could never be typed even though typeahead appeared to accept
+ordinary text.
+
+**Rule.** A typeahead surface that promises direct printable input reserves no
+printable prefix for commands in the same mode. Put commands behind an explicit
+namespace or modifier and test every command rune as the first query byte. A
+help line is part of this contract and must be updated from the same inventory.
