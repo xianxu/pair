@@ -19,6 +19,37 @@ type conceptContractRow struct {
 
 var backtickField = regexp.MustCompile("`([^`]+)`")
 
+// conceptInventory is the typed boundary for what the plan's Core concepts
+// table must enumerate. The table supplies paths and lifecycle status; this
+// inventory makes omission and addition visible instead of trusting whatever
+// rows happen to remain in the prose.
+var conceptInventory = []struct{ kind, name string }{
+	{"PURE", "`Ring`"},
+	{"PURE", "`StripQueries` + query deny-list"},
+	{"PURE", "`Screen`"},
+	{"PURE", "`updateMouseMode`"},
+	{"PURE", "`Focus` / `Up`"},
+	{"PURE", "`PanelModel` / `Filter` / `Pick` / target join"},
+	{"PURE", "`PanelKey` / `DecodePanelKeys`"},
+	{"PURE", "`StatusModel` / `RenderStatusRow`"},
+	{"PURE", "`Interceptor`"},
+	{"PURE", "`Reserve` / `Release` / `PaintRow`"},
+	{"PURE", "`ResetRegion` / `SaveCursor` / `RestoreCursor` / `ClearLine` / `HomeAndClear` / `SetRegion` / `MoveTo`"},
+	{"PURE", "`Notice` / `Feed`"},
+	{"INTEGRATION", "`ptychild.Child`"},
+	{"INTEGRATION", "`couchcore.TerminalHandle`"},
+	{"INTEGRATION", "`couchcore.PtyRunner`"},
+	{"INTEGRATION", "`FakeRunner` terminal double"},
+	{"INTEGRATION", "`hostty.Host`"},
+	{"INTEGRATION", "`hostty.OSHost` / `hostty.FakeHost`"},
+	{"INTEGRATION", "`couchtty.Console`"},
+	{"INTEGRATION", "`runShell` host half"},
+	{"INTEGRATION", "`termcmd.terminalTab`"},
+	{"INTEGRATION", "`termcmd.restoreTerminal`"},
+	{"INTEGRATION", "`consoleRunner` / `consoleRunnerFor`"},
+	{"INTEGRATION", "`TestTerminalConformance_LifecyclePredicates`"},
+}
+
 // TestCoreConceptsContract turns pair#146's repeatedly drifting architecture
 // table into an executable contract. Rows due through M3 must name real symbols
 // at real paths; deleted symbols must be absent; PURE sources may not import IO
@@ -30,6 +61,7 @@ func TestCoreConceptsContract(t *testing.T) {
 	if len(rows) == 0 {
 		t.Fatal("Core concepts contract has no rows")
 	}
+	assertConceptInventory(t, rows)
 	for _, row := range rows {
 		row := row
 		t.Run(row.kind+"/"+row.name, func(t *testing.T) {
@@ -67,6 +99,50 @@ func TestCoreConceptsContract(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConceptInventoryRejectsWholeRowDeletion(t *testing.T) {
+	rows := make([]conceptContractRow, 0, len(conceptInventory)-1)
+	for _, item := range conceptInventory {
+		if item.name != "`PanelKey` / `DecodePanelKeys`" {
+			rows = append(rows, conceptContractRow{kind: item.kind, name: item.name})
+		}
+	}
+	if problems := conceptInventoryProblems(rows); !strings.Contains(strings.Join(problems, "\n"), "missing PURE row `PanelKey` / `DecodePanelKeys`") {
+		t.Fatalf("whole-row deletion was not rejected: %v", problems)
+	}
+}
+
+func assertConceptInventory(t *testing.T, rows []conceptContractRow) {
+	t.Helper()
+	for _, problem := range conceptInventoryProblems(rows) {
+		t.Error(problem)
+	}
+}
+
+func conceptInventoryProblems(rows []conceptContractRow) []string {
+	expected := make(map[string]bool, len(conceptInventory))
+	for _, item := range conceptInventory {
+		expected[item.kind+"\x00"+item.name] = true
+	}
+	seen := make(map[string]bool, len(rows))
+	var problems []string
+	for _, row := range rows {
+		key := row.kind + "\x00" + row.name
+		if seen[key] {
+			problems = append(problems, "duplicate "+row.kind+" row "+row.name)
+		}
+		seen[key] = true
+		if !expected[key] {
+			problems = append(problems, "unexpected "+row.kind+" row "+row.name)
+		}
+	}
+	for _, item := range conceptInventory {
+		if !seen[item.kind+"\x00"+item.name] {
+			problems = append(problems, "missing "+item.kind+" row "+item.name)
+		}
+	}
+	return problems
 }
 
 func findConceptPlan(t *testing.T, root string) string {

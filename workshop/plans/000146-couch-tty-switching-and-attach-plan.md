@@ -828,3 +828,17 @@ move onto Run's existing event loop; `pumpStdin` is again the single blocking
 reader, so the fix adds no new unjoinable worker. Full console lifecycle
 ownership remains Task 4.4's explicit M4 work (ARCH-DRY, ARCH-PURE,
 ARCH-PURPOSE).
+
+### 2026-08-24 — M3 boundary review round 4: bidirectional concept inventory
+
+**Reason:** round 4 found that validating only parsed rows still allowed a whole
+concept row to disappear. Removing `PanelKey` / `DecodePanelKeys` deleted the
+test's input as well, so the original omission class remained possible.
+
+**Delta:** the contract now has a typed inventory of the complete Pure and
+Integration row-name set. It rejects missing, extra, and duplicate rows before
+validating each remaining row's path, declaration, lifecycle status, purity,
+and direct test coverage. Deleting the complete `PanelKey` /
+`DecodePanelKeys` row was observed RED with a precise missing-row error, then
+restored GREEN. This makes the audit bidirectional rather than trusting the
+prose to enumerate its own required inputs (ARCH-PURPOSE).

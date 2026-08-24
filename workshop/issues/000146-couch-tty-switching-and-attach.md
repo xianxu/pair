@@ -1475,3 +1475,14 @@ ambiguity timers, focus transitions, suffix routing, and panel decoding in the
 existing event loop. This removes the newly introduced extra worker while
 preserving M4 Task 4.4 as the owner of full console/host teardown (ARCH-DRY,
 ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-24 -- M3 boundary review round 4: whole-row deletion enforcement
+
+The gate withdrew BR-49 after confirming the input event-loop refactor, but
+kept BR-45 open because the first executable contract trusted the set of rows
+it parsed. A typed inventory now defines the complete Pure and Integration
+row-name set and rejects omissions, additions, and duplicates before checking
+row contents. Deleting the entire `PanelKey` / `DecodePanelKeys` row was
+observed RED (`missing PURE row ...`) and restoration returned the contract to
+GREEN. The plan's Core concepts table can no longer silently omit the class of
+entity that originally triggered BR-45 (ARCH-PURPOSE).

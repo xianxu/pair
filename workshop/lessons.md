@@ -308,6 +308,10 @@ After repeated drift, the audit must be executable: parse the table and make a
 wrong symbol, path, deletion status, or PURE classification fail. A manual grep
 record can correct today’s rows but cannot prevent the next edit from restoring
 the same family. Caught in #000146 M3 review round 3.
+An executable prose-table audit must also pin the expected row set. Validating
+only rows that remain is one-way: deleting a whole row deletes the test input
+and passes. Reject missing, extra, and duplicate rows before checking their
+contents. Caught in #000146 M3 review round 4.
 
 ## Cross-language cache tests must use the producer's exact JSON types
 

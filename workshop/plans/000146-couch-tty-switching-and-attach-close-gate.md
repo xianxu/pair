@@ -987,6 +987,20 @@ rounds:
           round: 11
       boundary: M3
       blocked: true
+    - "n": 12
+      timestamp: "2026-08-24T16:38:07-07:00"
+      agent: codex
+      dispose:
+        - id: BR-45
+          disposition: not-addressed
+          note: The contract validates present rows but cannot detect an omitted row; deleting the complete PanelKey and DecodePanelKeys row still passes, so the recurring plan-table-drift class is not pinned.
+          round: 12
+        - id: BR-49
+          disposition: withdrawn
+          note: The revised event-loop design removes the additional nested stdin worker this finding identified; full ownership and joining of the remaining lifecycle workers stays explicitly scheduled for M4.
+          round: 12
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — pair#146 (boundary-review)
@@ -1515,6 +1529,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-49** [Minor] `signal-goroutine-outlives-close` The timed stdin framer adds another background worker that Console cannot cancel or join
   This is the 3rd finding in family signal-goroutine-outlives-close. console.go:613-631 starts a reader blocked on an arbitrary io.Reader, while Run does not own an ordered stop, host close, and worker join. State the class rule: a console lifecycle has one teardown owner that cancels or closes every input/signal seam and joins every worker before returning.
 
+## Round 12 — 2026-08-24T16:38:07-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-45 — not-addressed — The contract validates present rows but cannot detect an omitted row; deleting the complete PanelKey and DecodePanelKeys row still passes, so the recurring plan-table-drift class is not pinned.
+- BR-49 — withdrawn — The revised event-loop design removes the additional nested stdin worker this finding identified; full ownership and joining of the remaining lifecycle workers stays explicitly scheduled for M4.
+
 ## Open findings
 
 - **BR-1** [Important] `chunking-invariance` Screen raises a false bell for any sequence longer than maxPending split across two reads
@@ -1532,4 +1553,3 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-40** [Important] `plan-table-drift` the sweep that closed this family filed Console under "Pure entities" while the row itself calls it a thin IO shell
 - **BR-41** [Important] `docs-lag-the-surface` the README enumeration's one hand-written exemption points at atlas/couch.md, which does not document publish-description either
 - **BR-45** [Critical] `plan-table-drift` The Core concepts table misclassifies and misstates M3 entities
-- **BR-49** [Minor] `signal-goroutine-outlives-close` The timed stdin framer adds another background worker that Console cannot cancel or join
