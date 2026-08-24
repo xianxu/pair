@@ -4,7 +4,7 @@ status: working
 deps: []
 github_issue:
 created: 2026-08-21
-updated: 2026-08-22
+updated: 2026-08-24
 estimate_hours: 10.32
 started: 2026-08-22T12:14:19-07:00
 ---
@@ -89,10 +89,17 @@ operator smoke reversed it after proving the reattach path itself works.
 **Delta:** couch adds the temporary environment handoff
 `PAIR_USE_REPO_DEFAULT=1` to every Pair child. On a cold create, Pair interprets
 that handoff as: skip the tag-specific saved-config picker, ignore saved args
-and saved agent-session ID, and launch fresh with the repo's configured default
-arguments (or no arguments when no default exists). It does not delete or
-rewrite the saved tag config. Attaching an already-live zellij session is
-unchanged and never reaches cold-create argument selection.
+and saved agent-session ID as launch inputs, and launch fresh with the repo's
+configured default user arguments (or no user-configured arguments when no
+default exists). Pair may still add its normal runtime/session-management
+arguments, such as a Claude session ID or Codex's no-alt-screen flag.
+
+Ignoring the saved config is an input-selection rule, not a preservation
+promise. The bypass does not proactively delete the file as the picker's
+“use new params” action does; after the fresh session starts, Pair's normal
+session watcher may replace that tag config with the new session's metadata.
+Attaching an already-live zellij session is unchanged and never reaches
+cold-create argument selection.
 
 Direct Pair launches remain unchanged. For now, an operator changes the repo
 default by running `pair -- <agent-arguments>` directly in that repository
@@ -100,12 +107,20 @@ before using couch. The environment handoff is intentionally temporary; if the
 behavior becomes a permanent public choice, it graduates to a Pair CLI flag
 rather than growing more environment protocol.
 
-The handoff is set by couch, read once at Pair's entry boundary, and maps onto
-the existing create-flow skip-picker seam. Tests must prove all four edges: the
-couch child receives the environment value; a saved tag config cannot reopen
-the picker or override the repo default; direct `pair resume` still offers the
-picker; and a live-session attach does not change behavior (ARCH-DRY,
-ARCH-PURPOSE).
+The handoff is set by couch and is one-shot. Pair's entry boundary snapshots
+exactly `PAIR_USE_REPO_DEFAULT=1` into typed launch policy, then unsets the
+variable before spawning sidecars, zellij, or panes; downstream code reads only
+the typed policy. Tests must prove the complete boundary: the couch child
+receives the environment value; entry mapping consumes rather than propagates
+it; a saved tag config cannot reopen the picker or override the repo default;
+no repo default means no user-configured arguments; a cold direct
+`pair resume <tag>` still offers the picker; and a live-session attach calls the
+existing attach path without create-time config/default mutation (ARCH-DRY,
+ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
+This revision explicitly supersedes the 2026-08-23 plan statement that the
+saved-config picker remains deliberate. The durable plan receives its matching
+implementation/test revision after this spec clears review.
 
 ## Done when
 
