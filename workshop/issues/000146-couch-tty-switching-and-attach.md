@@ -77,6 +77,36 @@ Attachment is an **output routing decision**, not the actor's identity — messa
 addressed to the operator route to the console when one is attached, and are
 simply not rendered when none is.
 
+## Revisions
+
+### 2026-08-24 — couch cold starts use the repo default without prompting
+
+**Reason:** the saved-config picker interrupts `couch start` with a choice that
+belongs to direct Pair session management, not to the supervisor's fast attach
+path. The earlier 2026-08-22 decision deliberately left that picker in place;
+operator smoke reversed it after proving the reattach path itself works.
+
+**Delta:** couch adds the temporary environment handoff
+`PAIR_USE_REPO_DEFAULT=1` to every Pair child. On a cold create, Pair interprets
+that handoff as: skip the tag-specific saved-config picker, ignore saved args
+and saved agent-session ID, and launch fresh with the repo's configured default
+arguments (or no arguments when no default exists). It does not delete or
+rewrite the saved tag config. Attaching an already-live zellij session is
+unchanged and never reaches cold-create argument selection.
+
+Direct Pair launches remain unchanged. For now, an operator changes the repo
+default by running `pair -- <agent-arguments>` directly in that repository
+before using couch. The environment handoff is intentionally temporary; if the
+behavior becomes a permanent public choice, it graduates to a Pair CLI flag
+rather than growing more environment protocol.
+
+The handoff is set by couch, read once at Pair's entry boundary, and maps onto
+the existing create-flow skip-picker seam. Tests must prove all four edges: the
+couch child receives the environment value; a saved tag config cannot reopen
+the picker or override the repo default; direct `pair resume` still offers the
+picker; and a live-session attach does not change behavior (ARCH-DRY,
+ARCH-PURPOSE).
+
 ## Done when
 
 - couch supervises N sessions and switches the operator tty between them.
