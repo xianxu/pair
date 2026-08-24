@@ -661,3 +661,108 @@ shell as pure. These are class failures (`chunking-invariance`,
    `kill -9` reattach and real nvim in/out need operator evidence, not an
    inference from their separately automated halves. README documents the full
    focus ladder and namespaced panel controls in the same boundary window.
+
+### 2026-08-24 — couch cold creates consume the repo default without a picker
+
+**Reason:** operator smoke confirmed deterministic zellij reattach, then exposed
+the remaining cold-create interruption: `pair resume <tag>` still opens Pair's
+tag-specific saved-config picker. This supersedes the 2026-08-23 revision that
+called the picker deliberate. The approved issue-spec revision at d83621e owns
+the behavior.
+
+**Architecture:** couch sets one temporary process-environment signal,
+`PAIR_USE_REPO_DEFAULT=1`, alongside its existing `COUCH_*` child environment.
+Pair's process entry snapshots exactly value `1` into the existing typed
+`LaunchOptions.SkipConfigPicker` seam and unsets the variable before parsing,
+early returns, or any sidecar, zellij server, or pane spawn. The typed bool is
+carried into launch-option construction only when the command reaches the
+launch path. `runCreate` already resolves repo
+defaults before the picker and already accepts `SkipConfigPicker`; this change
+reuses both rather than adding a second argument-selection path (ARCH-DRY,
+ARCH-PURE). The stateful launcher fake proves saved config, repo defaults,
+create persistence, and live attach through the production flow (ARCH-MOCK).
+
+**Core concepts delta:** no new domain entity and no new external dependency.
+
+| Integration point | Lives in | Status | Wraps |
+|---|---|---|---|
+| couch Pair-child environment | `cmd/internal/couchcore/couch.go` | modified | `Runner.Start` environment |
+| one-shot repo-default handoff | `cmd/internal/launcher/runcli.go` | modified | process environment → `LaunchOptions` |
+| existing cold-create policy | `cmd/internal/launcher/createflow.go` | unchanged, newly exercised | repo default + saved config through stateful `Runtime` fake |
+
+#### Task 3.6 — temporary repo-default handoff
+
+**Files:** modify `cmd/internal/couchcore/couch.go`,
+`cmd/internal/couchcore/couch_test.go`, `cmd/internal/launcher/runcli.go`,
+`cmd/internal/launcher/runcli_test.go`, `cmd/internal/launcher/runtime.go`,
+`cmd/internal/launcher/createflow_test.go`,
+`cmd/internal/launcher/lifecycle_test.go`, `atlas/couch.md`, and `README.md`.
+
+- [ ] **RED — couch ownership:** extend the Spawn test to require exactly
+  `PAIR_USE_REPO_DEFAULT=1` in the Runner environment while retaining
+  `COUCH_TREE` and `COUCH_STORE_DIR`. Run
+  `go test ./cmd/internal/couchcore -run TestSpawnStartsPairAndRecordsTheActor -count=1`;
+  expect failure because the variable is absent.
+- [ ] **GREEN — couch ownership:** add the environment entry in `Couch.Spawn`;
+  rerun the focused test and expect PASS.
+- [ ] **Characterization — cold create policy (expected pre-change PASS):** add
+  `TestRunLaunchSkipConfigPickerUsesRepoDefaultOverSavedConfig` through the
+  stateful `fakeRuntime`: seed a resumable Claude saved config, a different
+  Claude repo default, and a fresh minted session; assert no picker call, saved
+  args/session absent from `PAIR_AGENT_ARGS`, repo-default args present, and the
+  normal fresh-session write replaces canonical config with the minted session
+  without a proactive remove. Add
+  `TestRunLaunchSkipConfigPickerWithoutRepoDefaultUsesNoUserArgs` and assert
+  only normal runtime-added args remain. Run
+  `go test ./cmd/internal/launcher -run '^TestRunLaunchSkipConfigPicker(UsesRepoDefaultOverSavedConfig|WithoutRepoDefaultUsesNoUserArgs)$' -count=1`;
+  expect PASS before production wiring. Leave `createflow.go` unchanged unless
+  an actual failing assertion proves its shared policy is wrong.
+- [ ] **Regression enumeration:** retain
+  `TestRunLaunchTagRestartPickerResume` as proof a cold direct
+  `pair resume <tag>` still invokes the saved-config picker; extend
+  `TestRunLaunchAttach` with `SkipConfigPicker`, poisonous saved/default file
+  bytes, and assertions that `AttachSession` occurs, `LaunchSession` and
+  watchers do not, `PAIR_AGENT_ARGS` is not exported, and both files remain
+  byte-identical. Keep
+  `TestRunLaunchExplicitArgsPersistRepoAgentDefaultAfterReadiness` green for
+  direct `pair -- <args>`. Run
+  `go test ./cmd/internal/launcher -run '^(TestRunLaunchTagRestartPickerResume|TestRunLaunchAttach|TestRunLaunchExplicitArgsPersistRepoAgentDefaultAfterReadiness)$' -count=1`;
+  expect PASS before the production change (ARCH-PURPOSE, ARCH-MOCK).
+- [ ] **RED 1 — real entry consumption:** add
+  `TestLaunchNativeConsumesRepoDefaultPolicyBeforeEarlyReturn`, which sets the
+  real variable, invokes `LaunchNative([]string{"help"}, ...)`, and asserts the
+  key is absent afterward. Run
+  `go test ./cmd/internal/launcher -run '^TestLaunchNativeConsumesRepoDefaultPolicyBeforeEarlyReturn$' -count=1`;
+  expect an assertion failure because current `LaunchNative` leaves the key set.
+- [ ] **RED/GREEN 2 — exact consume policy:** add table-driven
+  `TestConsumeRepoDefaultPolicy` with injected get/unset functions, asserting
+  exact value `1` returns true, empty/other values return false, and every case
+  unsets exactly once. Run
+  `go test ./cmd/internal/launcher -run '^TestConsumeRepoDefaultPolicy$' -count=1`;
+  expect a compile failure naming missing `consumeRepoDefaultPolicy`. Implement
+  that thin entry-boundary helper without wiring it into `LaunchNative` yet;
+  rerun only the helper test and expect PASS while RED 1 deliberately remains
+  red.
+- [ ] **RED/GREEN 3 — options mapping:** add
+  `TestNewLaunchOptionsAppliesRepoDefaultPolicy`, asserting true/false policy
+  maps to `SkipConfigPicker`. Run
+  `go test ./cmd/internal/launcher -run '^TestNewLaunchOptionsAppliesRepoDefaultPolicy$' -count=1`;
+  expect a compile failure naming missing `newLaunchOptions`. Move the current
+  `LaunchOptions` literal into that constructor; in the same GREEN, invoke
+  `consumeRepoDefaultPolicy` at the first line of `LaunchNative` before
+  `ParseArgs` and every early return, then pass its typed bool to the constructor
+  on launch paths and use the result before continuation resolution and
+  `RunLaunch`. Update `runtime.go` so `SkipConfigPicker`
+  documents both restart-loop and couch entry policy. Rerun all three focused
+  tests together and expect PASS; deleting consumption, entry wiring, or the
+  constructor mapping must fail at least one named test.
+- [ ] **Post-change regression:** rerun both exact cold-create and regression
+  commands above and expect PASS without changing `createflow.go`.
+- [ ] **Docs:** update README's couch section and `atlas/couch.md` to state that
+  cold couch launches use repo-default user args non-interactively, the env seam
+  is temporary/one-shot, and direct Pair is the manual override path.
+- [ ] **Verification:** `go test ./cmd/internal/couchcore ./cmd/internal/launcher -count=1`,
+  `go test -race ./cmd/internal/couchcore ./cmd/internal/launcher -count=1`,
+  `go test ./... -count=1`, and `git diff --check`.
+- [ ] Commit the implementation and record the operator's successful `kill -9`
+  → `couch start` same-session reattach evidence in the issue Log.
