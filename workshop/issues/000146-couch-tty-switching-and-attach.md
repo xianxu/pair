@@ -1268,3 +1268,12 @@ observed RED (`LookupTrees(pair) = []`) before the change, then GREEN. This is
 the user-visible class (ARCH-PURPOSE): text rendered as the panel's identifying
 label must be typeable back into its typeahead. Task 3.5 remains open for the
 real rerun.
+
+### 2026-08-23 -- M3 operator smoke passed
+
+Operator confirmed the repeated real-stack smoke after `4e0a1ad`: the second
+actor appears in the panel, repo-label typeahead resolves it, and the complete
+M3 smoke now passes. Earlier rounds separately confirmed `ctrl-space` and
+Escape, deterministic switching during child output, and the panel's keyboard
+navigation. This supplies Task 3.5's missing external behavior evidence; M3 is
+ready for its SDLC-owned boundary review.
