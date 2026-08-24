@@ -6,7 +6,8 @@ is **not** an extension of `pair`. pair is what the operator sits inside, so a
 supervisor bug must not break the ability to fix it; the fallback is always to
 launch pair the old way.
 
-Project: `workshop/projects/couch.md`. Built in `pair#145`.
+Project: `workshop/projects/couch.md`. Registry/spawn shipped in `pair#145`;
+the console and switcher through the actor panel shipped in `pair#146` M1-M3.
 
 ## What exists today
 
@@ -19,9 +20,9 @@ are identical -- so any list in prose is a second copy that drifts. It already
 did: this file named six operations while seven shipped. Run `couch --help`,
 which renders the declared set.
 
-**couch hosts `pair` whole.** The stack is couch → pair → zellij → claude+nvim.
-couch spawns `pair --layout2` and hands it couch's own stdio, so `couch start`
-blocks for the child's lifetime. Verified by operator smoke on 2026-08-21; the
+**couch hosts `pair` whole.** The stack is couch → pair → zellij → agent+nvim.
+couch starts `pair resume <tag> --layout2` inside a child pty and owns the
+operator tty until the console exits. Verified by operator smoke; the
 alternative (couch absorbing zellij's role) was considered and rejected because
 the agent child is never spawned by Go — zellij spawns it from a KDL layout, and
 `entrypoint.ValidRootMarkers` *defines* a valid pair install as having those
@@ -94,6 +95,23 @@ returns a SPLIT (bytes for the focus being left, bytes for the focus landed on),
 because a concatenated buffer cannot say which child the tail belongs to. It
 suspends inside a bracketed paste: a pasted NUL that switched actors and ate a
 byte would be untraceable data loss.
+
+The focus ladder is deliberately small: a non-root child goes to the root
+actor, the root actor goes to couch's panel, and the panel stays put. Liveness
+is consulted before going home so a dead root cannot become a frozen landing.
+
+The panel is couch's own screen. It owns input while visible, suppresses
+background-child painting, and supports arrows + Enter, digits 1-9, Escape,
+typeahead, and the declared start/stop/name/describe operations. Every action
+dispatches through `couchcore.Operations()`; `start`'s returned `StartResult` is
+load-bearing because the console consumes it to attach the new terminal child.
+
+A panel row carries two identities that must not be conflated: the canonical
+worktree feeds the shared human resolver, while the console-local child id is
+the deterministic switch and bell target. `Couch.LookupTrees` is the one match
+rule for the panel, CLI and future advisor; it searches the displayed repo-name
+fallback, operator name/description, and agent-published description. This is
+why a row displayed as `pair` is findable by typing `pair`.
 
 ## Spawning: `pair resume <tag> --layout2`
 
@@ -191,6 +209,6 @@ not fidelity to Erlang.
 
 ## Planned, not built
 
-`pair#146` tty switching · `pair#147` cluster transport and queries ·
+`pair#146` M4 exits/detach/notices · `pair#147` cluster transport and queries ·
 `pair#148` brain as advisor. Cross-repo enablers: `ariadne#199` (exposed query
 API), `ariadne#200` (fleet inventory).
