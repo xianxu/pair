@@ -52,14 +52,11 @@ func DecodePanelKeys(in []byte) (keys []PanelKey, held []byte) {
 				i += 3
 				continue
 			}
-			// A BARE ESC that is the whole remainder is the Escape KEY, not a
-			// truncated sequence. Same discriminator the Interceptor uses: a
-			// keystroke arrives as its own read, and holding it would make
-			// Escape do nothing until the operator pressed something else.
+			// A bare ESC is ambiguous: it may be the key or the first byte of a
+			// sequence split by Read. Hold it; the Console's IO loop resolves
+			// the ambiguity with a short timeout.
 			if len(in)-i == 1 {
-				keys = append(keys, PanelKey{Kind: KeyEscape})
-				i++
-				continue
+				return keys, append([]byte(nil), in[i:]...)
 			}
 			size, status := ansi.Frame(in[i:])
 			switch status {

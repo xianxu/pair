@@ -31,10 +31,15 @@ func TestDecodeArrowsInBothModes(t *testing.T) {
 	}
 }
 
-func TestDecodeBareEscape(t *testing.T) {
-	keys, _ := DecodePanelKeys([]byte("\x1b"))
-	if len(keys) != 1 || keys[0].Kind != KeyEscape {
-		t.Fatalf("a bare ESC decoded to %+v", keys)
+func TestDecodeHoldsBareEscapeAsAPossibleSequencePrefix(t *testing.T) {
+	keys, held := DecodePanelKeys([]byte("\x1b"))
+	if len(keys) != 0 || string(held) != "\x1b" {
+		t.Fatalf("a bare ESC decoded to keys=%+v held=%q, want a held prefix", keys, held)
+	}
+
+	keys, held = DecodePanelKeys(append(held, []byte("[B")...))
+	if len(keys) != 1 || keys[0].Kind != KeyDown || len(held) != 0 {
+		t.Fatalf("split down arrow decoded to keys=%+v held=%q", keys, held)
 	}
 }
 

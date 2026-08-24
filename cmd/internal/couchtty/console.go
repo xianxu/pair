@@ -1,10 +1,12 @@
 package couchtty
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
@@ -65,8 +67,10 @@ type Console struct {
 	// INJECTED rather than implemented, so the panel resolves exactly what the
 	// CLI and #148's advisor resolve (Decision 12). Nil degrades to showing
 	// everything rather than to a private match rule.
-	query   string
-	resolve func(string) []couchcore.Worktree
+	query     string
+	resolve   func(string) []couchcore.Worktree
+	command   bool
+	summaries func() []couchcore.TreeSummary
 
 	// panel is live state, not rebuilt per keystroke: the highlight has to
 	// survive typing, or the cursor resets under the operator's fingers.
@@ -115,7 +119,7 @@ type Console struct {
 	// tracks where the stream is.
 	chunks    chan chunk
 	resized   chan struct{}
-	hotkeys   chan struct{}
+	hotkeys   chan chan struct{}
 	switching chan string
 	panelKeys chan []byte
 	stop      chan struct{}
@@ -140,7 +144,7 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		resized:   make(chan struct{}, 1),
 		switching: make(chan string, 8),
 		panelKeys: make(chan []byte, 64),
-		hotkeys:   make(chan struct{}, 8),
+		hotkeys:   make(chan chan struct{}, 8),
 		stop:      make(chan struct{}),
 	}
 	if s, err := host.Size(); err == nil {
@@ -181,6 +185,21 @@ func (c *Console) Resolver() func(string) []couchcore.Worktree {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.resolve
+}
+
+// SetSummaries injects Couch's authoritative panel source. Production passes
+// Couch.Summarize(nil); the console contributes only ephemeral routing data.
+func (c *Console) SetSummaries(f func() []couchcore.TreeSummary) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.summaries = f
+}
+
+// Summaries returns the injected provider for production wiring tests.
+func (c *Console) Summaries() func() []couchcore.TreeSummary {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.summaries
 }
 
 // SetErrorWriter redirects the console's own diagnostics, so a test can read
@@ -329,18 +348,41 @@ func (c *Console) Run() int {
 		go func() { exited <- child.Wait() }()
 	}
 
+	var escapeTimer *time.Timer
+	var escapeC <-chan time.Time
 	for {
 		select {
 		case ch := <-c.chunks:
 			c.onChunk(ch)
 		case <-c.resized:
 			c.onResize()
-		case <-c.hotkeys:
+		case ack := <-c.hotkeys:
 			c.onHotkey()
+			close(ack)
 		case id := <-c.switching:
 			c.onSwitch(id)
 		case raw := <-c.panelKeys:
+			if escapeTimer != nil && !escapeTimer.Stop() {
+				select {
+				case <-escapeTimer.C:
+				default:
+				}
+			}
 			c.onPanelInput(raw)
+			if bytes.Equal(c.panelHeld, []byte{0x1b}) {
+				if escapeTimer == nil {
+					escapeTimer = time.NewTimer(35 * time.Millisecond)
+				} else {
+					escapeTimer.Reset(35 * time.Millisecond)
+				}
+				escapeC = escapeTimer.C
+			} else {
+				escapeC = nil
+			}
+		case <-escapeC:
+			escapeC = nil
+			c.panelHeld = nil
+			c.onPanelKey(PanelKey{Kind: KeyEscape})
 		case code := <-exited:
 			return code
 		case <-c.stop:
@@ -592,8 +634,14 @@ func (c *Console) pumpStdin() {
 				if !hit {
 					break
 				}
+				ack := make(chan struct{})
 				select {
-				case c.hotkeys <- struct{}{}:
+				case c.hotkeys <- ack:
+				case <-c.stop:
+					return
+				}
+				select {
+				case <-ack:
 				case <-c.stop:
 					return
 				}
@@ -645,34 +693,40 @@ func (c *Console) actorAlive(id string) bool {
 	return ok && !p.child.Done()
 }
 
-// rebuildPanel refreshes the panel's ROWS from what the console is hosting,
-// preserving the cursor. Called when the panel opens and when the fleet
-// changes -- not on every keystroke, or the highlight would reset as the
-// operator types.
+// rebuildPanel refreshes rows from Couch summaries, then joins the console's
+// ephemeral routing ids and bells. Called when the panel opens and when the
+// fleet changes -- not on every keystroke, or the highlight would reset.
 func (c *Console) rebuildPanel() {
 	c.mu.Lock()
-	rows := make([]PanelRow, 0, len(c.order))
+	provider := c.summaries
+	var fallback []couchcore.TreeSummary
+	targets := make([]PanelTarget, 0, len(c.order))
 	for _, id := range c.order {
 		p := c.panes[id]
-		rows = append(rows, PanelRow{
-			Target: id, Tree: p.tree, Label: p.label, Desc: p.desc, Live: !p.child.Done(),
-		})
-	}
-	bells := map[string]bool{}
-	for id, p := range c.panes {
-		bells[id] = p.bell
+		targets = append(targets, PanelTarget{Tree: p.tree, Target: id, Bell: p.bell})
+		if provider == nil {
+			fallback = append(fallback, couchcore.TreeSummary{
+				Tree: p.tree, Name: p.label, Desc: p.desc,
+				Actors: []couchcore.ActorView{{Live: !p.child.Done()}},
+			})
+		}
 	}
 	cursor := 0
 	if c.panel != nil {
 		cursor = c.panel.Cursor()
 	}
-	m := &PanelModel{all: rows, shown: rows}
-	for i := range m.all {
-		m.all[i].Bell = bells[m.all[i].Target]
+	c.mu.Unlock()
+
+	summaries := fallback
+	if provider != nil {
+		summaries = provider()
 	}
-	m.shown = m.all
+	m := NewPanelModel(summaries)
+	m.BindTargets(targets)
 	m.cursor = cursor
 	m.clampCursor()
+
+	c.mu.Lock()
 	c.panel = m
 	c.mu.Unlock()
 }
@@ -685,13 +739,15 @@ func (c *Console) showPanel() {
 		c.rebuildPanel()
 		c.mu.Lock()
 	}
-	m, query, resolve, prompt := c.panel, c.query, c.resolve, c.prompt
+	m, query, resolve, prompt, command := c.panel, c.query, c.resolve, c.prompt, c.command
 	c.mu.Unlock()
 
 	rows := m.Filter(query, resolve)
 	body := RenderPanelWithQuery(query, rows, m.Cursor())
 	if prompt != "" {
 		body += "\r\n  " + prompt + "\r\n"
+	} else if command {
+		body += "\r\n  command: :\r\n"
 	}
 	c.takeOverScreen([]byte(body))
 	c.paintNow()
@@ -746,8 +802,9 @@ func (c *Console) onPanelKey(k PanelKey) {
 		// returns to the actor. A panel with no way back is a trap, which is
 		// what the first cut shipped.
 		c.mu.Lock()
-		hadQuery := c.query != ""
+		hadQuery := c.query != "" || c.command
 		c.query = ""
+		c.command = false
 		c.mu.Unlock()
 		if !hadQuery {
 			c.returnToActor()
@@ -760,6 +817,22 @@ func (c *Console) onPanelKey(k PanelKey) {
 			return
 		}
 	case KeyRune:
+		c.mu.Lock()
+		command := c.command
+		if command {
+			c.command = false
+		}
+		c.mu.Unlock()
+		if !command {
+			if k.Rune == ':' && c.queryEmpty() {
+				c.mu.Lock()
+				c.command = true
+				c.mu.Unlock()
+			} else {
+				c.appendQuery(k.Rune)
+			}
+			break
+		}
 		switch {
 		case k.Rune >= '1' && k.Rune <= '9':
 			// A DIRECT jump: no resolution, no model turn. Only when nothing
@@ -774,23 +847,22 @@ func (c *Console) onPanelKey(k PanelKey) {
 					return
 				}
 			}
-			c.appendQuery(k.Rune)
-		case k.Rune == 's' && c.queryEmpty():
+		case k.Rune == 's':
 			c.startPrompt("start in path: ", func(path string) {
 				c.runOp("start", map[string]string{"path": path})
 			})
-		case k.Rune == 'x' && c.queryEmpty():
+		case k.Rune == 'x':
 			if row, ok := c.selectedRow(); ok {
 				c.runOp("stop", map[string]string{"ref": string(row.Tree)})
 			}
-		case k.Rune == 'n' && c.queryEmpty():
+		case k.Rune == 'n':
 			if row, ok := c.selectedRow(); ok {
 				ref := string(row.Tree)
 				c.startPrompt("name: ", func(name string) {
 					c.runOp("name", map[string]string{"ref": ref, "name": name})
 				})
 			}
-		case k.Rune == 'd' && c.queryEmpty():
+		case k.Rune == 'd':
 			if row, ok := c.selectedRow(); ok {
 				ref := string(row.Tree)
 				c.startPrompt("describe: ", func(desc string) {
@@ -798,11 +870,13 @@ func (c *Console) onPanelKey(k PanelKey) {
 				})
 			}
 		default:
-			c.appendQuery(k.Rune)
+			c.setNotice("unknown panel command")
 		}
 	case KeyBackspace:
 		c.mu.Lock()
-		if n := len(c.query); n > 0 {
+		if c.command {
+			c.command = false
+		} else if n := len(c.query); n > 0 {
 			c.query = c.query[:n-1]
 		}
 		c.mu.Unlock()

@@ -25,6 +25,39 @@ type PanelRow struct {
 	Bell bool
 }
 
+// PanelTarget is console-local routing state joined onto Couch's durable tree
+// summaries. Keeping it separate prevents a hosted-child inventory from
+// becoming a second source for labels, descriptions, or parked rows.
+type PanelTarget struct {
+	Tree   couchcore.Worktree
+	Target string
+	Bell   bool
+}
+
+// PanelControl is one operator-entered panel surface. The renderer and README
+// checks consume this inventory so a new key cannot ship undocumented.
+type PanelControl struct {
+	Keys   string
+	Action string
+}
+
+var panelControls = []PanelControl{
+	{Keys: "typeahead", Action: "filter"},
+	{Keys: "↑↓", Action: "select"},
+	{Keys: ":1–:9", Action: "jump"},
+	{Keys: "Enter", Action: "switch"},
+	{Keys: ":s", Action: "start"},
+	{Keys: ":x", Action: "stop"},
+	{Keys: ":n", Action: "name"},
+	{Keys: ":d", Action: "describe"},
+	{Keys: "Escape", Action: "back"},
+}
+
+// PanelControls returns the shared, immutable-by-copy key inventory.
+func PanelControls() []PanelControl {
+	return append([]PanelControl(nil), panelControls...)
+}
+
 // PanelModel is the panel as DATA: what to show, filtered, in a stable order.
 //
 // Pure. The console renders it and #148's advisor can read the same rows, which
@@ -98,6 +131,31 @@ func NewPanelModel(trees []couchcore.TreeSummary) *PanelModel {
 
 // Rows is everything the panel knows about, unfiltered.
 func (m *PanelModel) Rows() []PanelRow { return m.all }
+
+// BindTargets joins ephemeral console routing onto summary-derived rows.
+// Multiple hosted children on one tree choose the first target deterministically
+// and OR their bell state; the panel remains one row per worktree.
+func (m *PanelModel) BindTargets(targets []PanelTarget) {
+	byTree := map[string]PanelTarget{}
+	for _, target := range targets {
+		key := target.Tree.Key()
+		joined := byTree[key]
+		if joined.Target == "" {
+			joined.Tree = target.Tree
+			joined.Target = target.Target
+		}
+		joined.Bell = joined.Bell || target.Bell
+		byTree[key] = joined
+	}
+	for i := range m.all {
+		if target, ok := byTree[m.all[i].Tree.Key()]; ok {
+			m.all[i].Target = target.Target
+			m.all[i].Bell = target.Bell
+		}
+	}
+	m.shown = m.all
+	m.clampCursor()
+}
 
 // Shown is the current filtered view -- what the operator is looking at.
 func (m *PanelModel) Shown() []PanelRow { return m.shown }
@@ -200,7 +258,11 @@ func RenderPanelWithQuery(query string, rows []PanelRow, cursor int) string {
 	if query != "" {
 		fmt.Fprintf(&b, "  filter: %s\r\n", sanitize(query))
 	}
-	b.WriteString("  ↑↓ select · 1-9 jump · enter switch · s start · x stop · esc back\r\n")
+	controls := make([]string, 0, len(panelControls))
+	for _, control := range panelControls {
+		controls = append(controls, control.Keys+" "+control.Action)
+	}
+	b.WriteString("  " + strings.Join(controls, " · ") + "\r\n")
 	return b.String()
 }
 
@@ -220,11 +282,11 @@ func PanelActions() []string {
 
 // PanelActionKeys maps each action to the key that invokes it, so the audit can
 // check the action is reachable rather than merely declared.
-func PanelActionKeys() map[string]byte {
-	return map[string]byte{
-		"start":    's',
-		"stop":     'x',
-		"name":     'n',
-		"describe": 'd',
+func PanelActionKeys() map[string]string {
+	return map[string]string{
+		"start":    ":s",
+		"stop":     ":x",
+		"name":     ":n",
+		"describe": ":d",
 	}
 }

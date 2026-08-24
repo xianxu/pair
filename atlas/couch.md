@@ -99,12 +99,22 @@ byte would be untraceable data loss.
 The focus ladder is deliberately small: a non-root child goes to the root
 actor, the root actor goes to couch's panel, and the panel stays put. Liveness
 is consulted before going home so a dead root cannot become a frozen landing.
+The stdin pump does not treat a `Read` boundary as an event boundary: after it
+finds a hotkey, it waits for the Run loop to acknowledge the focus transition
+before routing the suffix. The same stream rule holds for legacy Escape in the
+panel — a bare ESC is held briefly because it may be the first byte of a split
+arrow sequence; the Run loop's ambiguity timer turns it into an Escape key only
+when no continuation arrives.
 
 The panel is couch's own screen. It owns input while visible, suppresses
-background-child painting, and supports arrows + Enter, digits 1-9, Escape,
-typeahead, and the declared start/stop/name/describe operations. Every action
+background-child painting, and supports arrows + Enter, Escape, direct
+typeahead, and a `:` command namespace (`:1`–`:9`, `:s`, `:x`, `:n`, `:d`).
+Every action
 dispatches through `couchcore.Operations()`; `start`'s returned `StartResult` is
 load-bearing because the console consumes it to attach the new terminal child.
+The printable namespace is intentionally collision-free: ordinary letters and
+digits always begin a filter, rather than sometimes becoming a command because
+the query happened to be empty.
 
 A panel row carries two identities that must not be conflated: the canonical
 worktree feeds the shared human resolver, while the console-local child id is
@@ -112,6 +122,12 @@ the deterministic switch and bell target. `Couch.LookupTrees` is the one match
 rule for the panel, CLI and future advisor; it searches the displayed repo-name
 fallback, operator name/description, and agent-published description. This is
 why a row displayed as `pair` is findable by typing `pair`.
+
+Rows themselves always start at `Couch.Summarize(nil)`, the same durable source
+as `couch list`; a pure join adds only hosted-child routing IDs and bell state.
+That direction matters: building rows from hosted panes would silently omit a
+parked tree and leave successful name/description changes stale in the running
+panel.
 
 ## Spawning: `pair resume <tag> --layout2`
 

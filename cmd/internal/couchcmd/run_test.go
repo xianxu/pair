@@ -485,6 +485,9 @@ func TestConsoleGetsCouchsOwnResolver(t *testing.T) {
 	if console.Resolver() != nil {
 		t.Fatal("a resolver was set before the run path; this test would prove nothing")
 	}
+	if console.Summaries() != nil {
+		t.Fatal("a summary provider was set before the run path; this test would prove nothing")
+	}
 
 	// Drive the REAL path. The child has already exited, so Run returns at once
 	// instead of blocking -- which is what AutoExit models.
@@ -496,6 +499,9 @@ func TestConsoleGetsCouchsOwnResolver(t *testing.T) {
 
 	if console.Resolver() == nil {
 		t.Fatal("the run path left the panel's resolver nil — typeahead would be inert")
+	}
+	if console.Summaries() == nil {
+		t.Fatal("the run path left the panel's summary provider nil — parked trees would disappear")
 	}
 	if got := console.Resolver()("anything"); len(got) != 0 {
 		t.Fatalf("resolver returned %v for an empty registry", got)

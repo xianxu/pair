@@ -113,17 +113,42 @@ func TestConsoleDoesNotForwardTheHotkeyToTheChild(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	_, _ = f.stdin.Write([]byte("a\x00b"))
 
-	waitFor(t, "both segments to arrive", func() bool {
+	waitFor(t, "the prefix to reach the child and suffix to reach the panel", func() bool {
 		var all string
 		for _, w := range f.child.Writes() {
 			all += string(w)
 		}
-		return strings.Contains(all, "a") && strings.Contains(all, "b")
+		return strings.Contains(all, "a") && strings.Contains(f.host.Written(), "filter: b")
 	})
 	for _, w := range f.child.Writes() {
 		if strings.ContainsRune(string(w), 0x00) {
 			t.Fatalf("the hotkey reached the child: %q", w)
 		}
+		if strings.Contains(string(w), "b") {
+			t.Fatalf("the post-hotkey suffix reached the old child: %q", w)
+		}
+	}
+}
+
+// A read boundary is not an event boundary. The suffix after a hotkey belongs
+// to the focus reached by that hotkey even when stdin returns both in one read.
+func TestConsoleAppliesHotkeyBeforeRoutingSameReadSuffix(t *testing.T) {
+	for _, hotkey := range []string{"\x00", "\x1b[32;5u"} {
+		t.Run(fmt.Sprintf("%q", hotkey), func(t *testing.T) {
+			f := newFixture(t, 24, 80)
+			waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+			before := len(f.child.Writes())
+
+			_, _ = f.stdin.Write([]byte(hotkey + "pair"))
+			waitFor(t, "the suffix to reach the panel", func() bool {
+				return strings.Contains(f.host.Written(), "filter: pair")
+			})
+			for _, w := range f.child.Writes()[before:] {
+				if strings.Contains(string(w), "pair") {
+					t.Fatalf("post-hotkey suffix reached the old child: %q", w)
+				}
+			}
+		})
 	}
 }
 
@@ -585,6 +610,33 @@ func TestHotkeyFromTheRootActorOpensThePanel(t *testing.T) {
 	}
 }
 
+func TestConsolePanelRefreshUsesInjectedSummaries(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	name := "parked"
+	f.con.SetSummaries(func() []couchcore.TreeSummary {
+		return []couchcore.TreeSummary{
+			{Tree: "c1", Name: "brain", Actors: []couchcore.ActorView{{Live: true}}},
+			{Tree: "/w/pair", Name: name, Desc: "waiting for review"},
+		}
+	})
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+
+	_, _ = f.stdin.Write([]byte("\x00"))
+	waitFor(t, "the parked summary", func() bool {
+		return strings.Contains(f.host.Written(), "parked") &&
+			strings.Contains(f.host.Written(), "waiting for review")
+	})
+
+	name = "renamed"
+	f.con.rebuildPanel()
+	f.con.mu.Lock()
+	rows := append([]PanelRow(nil), f.con.panel.Rows()...)
+	f.con.mu.Unlock()
+	if len(rows) != 2 || rows[1].Label != "renamed" {
+		t.Fatalf("refreshed rows = %+v, want renamed summary", rows)
+	}
+}
+
 // The property the whole project rests on: from a NON-root child, one key goes
 // home to the root actor -- not to the panel.
 func TestHotkeyFromANonRootChildGoesHome(t *testing.T) {
@@ -609,7 +661,7 @@ func TestHotkeyFromANonRootChildGoesHome(t *testing.T) {
 
 // A digit is a DIRECT switch: no typeahead, no resolution, no model turn. The
 // Spec requires a route that always exists and never waits on anything.
-func TestPanelDigitSwitchesDirectly(t *testing.T) {
+func TestPanelNamespacedDigitSwitchesDirectly(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	other := ptychild.NewFakeChild([]byte("ariadne screen"))
 	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
@@ -622,10 +674,26 @@ func TestPanelDigitSwitchesDirectly(t *testing.T) {
 	})
 	f.host.Reset()
 
-	_, _ = f.stdin.Write([]byte("2"))
+	_, _ = f.stdin.Write([]byte(":2"))
 	waitFor(t, "the digit to switch", func() bool {
 		return strings.Contains(f.host.Written(), "[ariadne]")
 	})
+}
+
+func TestPanelPrintableCommandRunesAreTypeahead(t *testing.T) {
+	for _, query := range []string{"start", "xray", "name", "describe", "2fa"} {
+		t.Run(query, func(t *testing.T) {
+			f := newFixture(t, 24, 80)
+			f.con.SetResolver(func(string) []couchcore.Worktree { return nil })
+			waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+			_, _ = f.stdin.Write([]byte("\x00"))
+			waitFor(t, "the panel", func() bool { return strings.Contains(f.host.Written(), "couch — actors") })
+			_, _ = f.stdin.Write([]byte(query))
+			waitFor(t, "the complete query", func() bool {
+				return strings.Contains(f.host.Written(), "filter: "+query)
+			})
+		})
+	}
 }
 
 // Typeahead filters through the INJECTED resolver, so the panel finds a child
@@ -694,7 +762,7 @@ func TestPanelStartAttachesTheReturnedTerminalChild(t *testing.T) {
 	waitFor(t, "the panel", func() bool {
 		return strings.Contains(f.host.Written(), "couch — actors")
 	})
-	_, _ = f.stdin.Write([]byte("s"))
+	_, _ = f.stdin.Write([]byte(":s"))
 	waitFor(t, "the start prompt", func() bool {
 		return strings.Contains(f.host.Written(), "start in path:")
 	})
@@ -769,15 +837,17 @@ func TestPanelEscapeClearsThenReturns(t *testing.T) {
 
 	_, _ = f.stdin.Write([]byte("\x1b")) // first Escape clears the filter
 	waitFor(t, "the filter to clear", func() bool {
-		return strings.Contains(f.host.Written(), "couch — actors") &&
-			!strings.Contains(f.host.Written(), "filter:")
+		f.con.mu.Lock()
+		defer f.con.mu.Unlock()
+		return f.con.query == ""
 	})
 	f.host.Reset()
 
 	_, _ = f.stdin.Write([]byte("\x1b")) // second Escape leaves the panel
 	waitFor(t, "to return to the actor", func() bool {
-		return strings.Contains(f.host.Written(), "[brain]") &&
-			!strings.Contains(f.host.Written(), "couch — actors")
+		f.con.mu.Lock()
+		defer f.con.mu.Unlock()
+		return !f.con.focus.IsPanel()
 	})
 }
 
@@ -828,7 +898,7 @@ func TestPanelShowsTheBellMarker(t *testing.T) {
 	})
 }
 
-// `s` opens a prompt and dispatches `start` through the INJECTED table. The
+// `:s` opens a prompt and dispatches `start` through the INJECTED table. The
 // first cut declared the action and wired nothing, so the operator had no way
 // to start a second child at all.
 func TestPanelStartDispatchesThroughOps(t *testing.T) {
@@ -850,7 +920,7 @@ func TestPanelStartDispatchesThroughOps(t *testing.T) {
 		return strings.Contains(f.host.Written(), "couch — actors")
 	})
 
-	_, _ = f.stdin.Write([]byte("s"))
+	_, _ = f.stdin.Write([]byte(":s"))
 	waitFor(t, "the prompt", func() bool {
 		return strings.Contains(f.host.Written(), "start in path:")
 	})
@@ -880,7 +950,7 @@ func TestPanelActionWithoutOpsSaysSo(t *testing.T) {
 	waitFor(t, "the panel", func() bool {
 		return strings.Contains(f.host.Written(), "couch — actors")
 	})
-	_, _ = f.stdin.Write([]byte("x")) // stop the selected row
+	_, _ = f.stdin.Write([]byte(":x")) // stop the selected row
 	waitFor(t, "the refusal", func() bool {
 		return strings.Contains(f.host.Written(), "no action dispatcher")
 	})
@@ -901,9 +971,15 @@ func TestPanelEscapeWorksInBothEncodings(t *testing.T) {
 			f.host.Reset()
 
 			_, _ = f.stdin.Write([]byte(esc))
-			waitFor(t, "to return to the actor", func() bool {
-				return strings.Contains(f.host.Written(), "[brain]") &&
-					!strings.Contains(f.host.Written(), "couch — actors")
+			waitFor(t, "focus to return to the actor", func() bool {
+				f.con.mu.Lock()
+				defer f.con.mu.Unlock()
+				return !f.con.focus.IsPanel()
+			})
+			waitFor(t, "the actor repaint", func() bool {
+				got := f.host.Written()
+				return strings.Contains(got, "[brain]") &&
+					strings.LastIndex(got, "[brain]") > strings.LastIndex(got, "couch — actors")
 			})
 		})
 	}

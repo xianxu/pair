@@ -289,6 +289,14 @@ agent inside a couch-hosted session. Every other chord — `Alt+j`, `Alt+k`,
 `Alt+t` and the rest — passes through untouched. Use `--no-console` if you want
 the old spawn-and-inherit-stdio behaviour with no interception at all.
 
+Focus has three levels. From a non-home actor, `ctrl-space` returns to the first
+actor couch hosted (home); from home it opens the actors panel. In the panel,
+ordinary printable input is direct typeahead. Use `↑↓` and `Enter` to select and
+switch, `Escape` to clear the filter or return, and the `:` command namespace:
+`:1–:9` jumps to a numbered row, `:s` starts, `:x` stops, `:n` names, and `:d`
+describes a tree. Keeping commands behind `:` means names beginning with `s`,
+`x`, `n`, `d`, or a digit remain searchable.
+
 ## Command Usage
 
 ```sh

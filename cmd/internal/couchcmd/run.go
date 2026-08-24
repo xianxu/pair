@@ -240,6 +240,7 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 // back to "show everything" and typeahead would do nothing.
 func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
 	console.SetResolver(c.LookupTrees)
+	console.SetSummaries(func() []couchcore.TreeSummary { return c.Summarize(nil) })
 
 	// The panel's actions run through the SAME declared table the CLI
 	// dispatches: the console names an operation and couchcore performs it, so

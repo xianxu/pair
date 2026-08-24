@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchtty"
 )
 
 // readme returns the repo's README, located relative to this package rather
@@ -18,6 +19,18 @@ func readme(t *testing.T) string {
 		t.Fatalf("read README: %v", err)
 	}
 	return string(raw)
+}
+
+// The panel renderer and README consume the same key inventory. Adding a key
+// to the UI therefore makes this test fail until its operator documentation
+// has a home in README, instead of relying on a boundary reviewer to remember.
+func TestREADMEDocumentsEveryPanelControl(t *testing.T) {
+	doc := readme(t)
+	for _, control := range couchtty.PanelControls() {
+		if !strings.Contains(doc, control.Keys) {
+			t.Errorf("README does not document panel key %q (%s)", control.Keys, control.Action)
+		}
+	}
 }
 
 // Every operation couch declares must appear in the README.

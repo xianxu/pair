@@ -149,6 +149,31 @@ func TestPanelFilterKeepsTheModelsOrderNotTheResolvers(t *testing.T) {
 	}
 }
 
+func TestPanelTargetJoinKeepsParkedRowsAndAddsRoutingSeparately(t *testing.T) {
+	m := NewPanelModel(summaries())
+	m.BindTargets([]PanelTarget{
+		{Tree: "/w/brain", Target: "child-brain"},
+		{Tree: "/w/pair", Target: "child-pair", Bell: true},
+	})
+
+	rows := m.Rows()
+	if len(rows) != 3 {
+		t.Fatalf("rows = %d, want all three summaries", len(rows))
+	}
+	for _, row := range rows {
+		switch row.Tree {
+		case "/w/ariadne":
+			if row.Target != "" || row.Live {
+				t.Fatalf("parked row gained a live target: %+v", row)
+			}
+		case "/w/pair":
+			if row.Target != "child-pair" || !row.Bell {
+				t.Fatalf("live target join = %+v", row)
+			}
+		}
+	}
+}
+
 // The panel may not grow a private verb. Every action it offers must be one
 // couch already declares, so the operator's surface and the advisor's cannot
 // drift -- the same audit the CLI has.
@@ -191,23 +216,16 @@ func TestEveryPanelActionHasAKey(t *testing.T) {
 			t.Errorf("action %q has no key; it is declared but unreachable", a)
 			continue
 		}
-		if k < 0x20 || k >= 0x7f {
-			t.Errorf("action %q is bound to a non-printable key %#x", a, k)
+		if len(k) != 2 || k[0] != ':' || k[1] < 0x20 || k[1] >= 0x7f {
+			t.Errorf("action %q is not in the ':' command namespace: %q", a, k)
 		}
 	}
 	// And no key may be claimed by two actions.
-	seen := map[byte]string{}
+	seen := map[string]string{}
 	for a, k := range keys {
 		if prev, dup := seen[k]; dup {
 			t.Errorf("key %q is claimed by both %q and %q", k, prev, a)
 		}
 		seen[k] = a
-	}
-	// A key that also means "type this into the filter" would be ambiguous
-	// with a digit jump.
-	for a, k := range keys {
-		if k >= '1' && k <= '9' {
-			t.Errorf("action %q uses a digit (%q), which collides with the direct jump", a, k)
-		}
 	}
 }

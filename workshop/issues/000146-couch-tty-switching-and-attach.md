@@ -1277,3 +1277,29 @@ M3 smoke now passes. Earlier rounds separately confirmed `ctrl-space` and
 Escape, deterministic switching during child output, and the panel's keyboard
 navigation. This supplies Task 3.5's missing external behavior evidence; M3 is
 ready for its SDLC-owned boundary review.
+
+### 2026-08-23 -- M3 boundary review round 1: REWORK
+
+The gate raised BR-42–47. Four implementation classes were reproduced before
+fixing: a same-read hotkey suffix reached the old focus; a split legacy arrow
+decoded as Escape plus text; production bypassed the summary-derived panel
+model; and `s`/`x`/`n`/`d`/digits shadowed valid query prefixes. The fixes are
+class-wide (ARCH-PURPOSE): hotkey delivery is acknowledged before suffix
+routing for both encodings, bare ESC uses an explicit ambiguity timeout,
+production always builds from `Couch.Summarize(nil)` then purely joins routing,
+and printable input is exclusively typeahead while `:` namespaces commands.
+
+Each implementation test was observed RED before its production change. The
+composed Console tests cover both hotkey encodings, parked and renamed summary
+rows, every formerly reserved query prefix, namespaced jump/start/stop, and
+legacy/Kitty Escape. The README now documents the focus ladder and consumes the
+same exported panel-control inventory in its coverage test (BR-47). The plan's
+Core-concepts table now classifies `Console` as INTEGRATION, removes nonexistent
+`Home`, and lists `PanelKey`/`DecodePanelKeys` plus the pure target join (BR-45).
+`go test ./... -count=1` and the focused race suites are green.
+
+BR-46 remains deliberately unclaimed: the operator's final “smoke test passed”
+confirmed the panel rerun discussed in that exchange, but did not itemize the
+carried composed `kill -9` reattach or real nvim in/out checks. Those need named
+evidence before the next milestone-close attempt; the earlier separately tested
+halves are not being relabeled as composition evidence.
