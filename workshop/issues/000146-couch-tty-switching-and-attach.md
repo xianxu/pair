@@ -95,11 +95,13 @@ default exists). Pair may still add its normal runtime/session-management
 arguments, such as a Claude session ID or Codex's no-alt-screen flag.
 
 Ignoring the saved config is an input-selection rule, not a preservation
-promise. The bypass does not proactively delete the file as the picker's
-“use new params” action does; after the fresh session starts, Pair's normal
-session watcher may replace that tag config with the new session's metadata.
-Attaching an already-live zellij session is unchanged and never reaches
-cold-create argument selection.
+promise. The bypass itself does not proactively delete the selected canonical
+config as the picker's “use new params” action does; ordinary legacy-to-
+canonical migration still applies. Pair's normal fresh-launch persistence may
+replace the config with new session metadata — synchronously for agents whose
+session ID Pair mints, or later through session discovery. Attaching an
+already-live zellij session is unchanged and never reaches cold-create argument
+selection.
 
 Direct Pair launches remain unchanged. For now, an operator changes the repo
 default by running `pair -- <agent-arguments>` directly in that repository
