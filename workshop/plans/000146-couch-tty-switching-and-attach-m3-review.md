@@ -69975,3 +69975,4315 @@ dispose:
     note: |
       The revised event-loop design removes the additional nested stdin worker this finding identified; full ownership and joining of the remaining lifecycle workers stays explicitly scheduled for M4.
 ```
+
+---
+
+## Re-review — 2026-08-24T16:46:21-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 146 — couch: tty switching and attach |
+| repo | pair |
+| issue file | workshop/issues/000146-couch-tty-switching-and-attach.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | ca480ceaf156c573c30704737b98665e3a53f054..ca480ceaf156c573c30704737b98665e3a53f054 |
+| command | sdlc milestone-close --issue 146 --milestone M3 |
+| reviewer | codex |
+| timestamp | 2026-08-24T16:46:21-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Reading additional input from stdin...
+OpenAI Codex v0.149.1
+--------
+workdir: /Users/xianxu/workspace/pair
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR, /tmp] (network access enabled)
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a03628-1d64-7a72-81e5-1ddea9c60d32
+--------
+user
+# Code review — the one SDLC boundary review
+
+You are conducting a fresh-context code review at a development boundary —
+milestone M3 close — in the **pair** repository.
+
+- repository: pair   (root: /Users/xianxu/workspace/pair)
+- issue:      pair#146 M3   (file: workshop/issues/000146-couch-tty-switching-and-attach.md)
+- window:     Base: ca480ceaf156c573c30704737b98665e3a53f054   Head: ca480ceaf156c573c30704737b98665e3a53f054
+
+Review the **pair** repo and its tracker — the ariadne base-layer repo itself (changes here propagate to dependent repos). Do not assume any
+other repository or apply another repo's conventions.
+
+You have no prior session context — that is the anti-collusion property. Verify
+behavior against the issue's documented Spec/Plan and the code itself; do NOT
+take the implementor's word in commit messages or docs at face value. Tools are
+read-only: report findings precisely; the main agent (which has session context)
+applies the fixes, commits, and re-runs.
+
+Read the diff against the issue's Spec + Plan, then work the checklist below.
+Categorize every finding by severity — not everything is Critical; a nitpick
+marked Critical is noise.
+
+  Critical (must fix before crossing the boundary)
+    - correctness bugs; crashes / panics on unexpected input
+    - behavior drift from stated contracts (for ports of existing code where
+      byte-faithfulness was promised, diff against the source)
+    - silent error swallowing where the source raised
+  Important (fix before the boundary if cheap)
+    - API design of newly-introduced internal packages (downstream work will
+      consume them; is the surface stable?)
+    - missing test coverage that would catch the kind of bug shipped
+    - inconsistent error handling across the diff
+  Minor (note for future)
+    - style nits, naming, comment density; performance only if hot-path
+
+## Review checklist
+
+Code quality
+  - Clean separation of concerns; edge cases handled (empty / nil / unexpected).
+  - Proper error handling — no silent swallowing where the source raised.
+  - No duplicated logic / copy-paste that should be a shared helper.
+
+Testing
+  - Tests pin real logic, not mocks reasserting the implementation.
+  - The kind of bug this diff could ship is covered.
+  - PURE entities tested without IO; INTEGRATION via injected fakes (see below).
+
+Requirements traceability
+  - Every Plan checklist item this boundary claims is actually delivered.
+  - Implementation matches the Spec; no undeclared scope creep.
+  - Breaking changes documented.
+
+Production readiness
+  - Migration / backward-compatibility considered where state or formats change.
+  - Docs / atlas updated for new surface (see the Docs update gate).
+
+## Claimed fixes (ariadne#194)
+
+For each prior finding this round disposes `addressed`, check the claim rather than the
+commit message. A fix is complete only when a test FAILS WITHOUT IT.
+
+  - Locate the test the fix is supposed to be pinned by. If there is none, the
+    disposition is `not-addressed`, however plausible the diff looks.
+  - Check the fix is reachable — a field set at zero call sites, an assertion nested in a
+    runtime guard that never fires, a branch no fixture enters. These pass every test
+    suite while doing nothing, and read as protection.
+  - Where cheap, verify by reverting: undo the fix in a scratch copy and confirm the test
+    goes red. A test written from the same mental model as the fix will happily assert
+    whatever the fix happens to do, including nothing.
+
+This check exists because the rule was written down and then violated by the very commit
+that closed the findings which produced it. A reviewer that takes "fixed in <sha>" at face
+value cannot catch that; one that looks for the failing test can.
+
+## Core concepts cross-check (if the plan has a Core concepts table)
+
+The plan should list entities in a greppable table — name, kind
+(PURE/INTEGRATION), file location, status (new/modified/deleted). For each row:
+  - Verify the entity exists at the stated path (grep the diff or filesystem).
+  - PURE: tests run without IO (no exec, net, mutable fs). If tests need mocks
+    to run, it isn't really PURE — flag Critical and recommend promoting it to
+    INTEGRATION.
+  - INTEGRATION: injected into pure callers, not invoked directly from business
+    logic.
+  - "modified" / "deleted": the diff shows the expected change/removal at the
+    stated location.
+Any contradiction between table and code = Critical finding, plus a plan-revision
+recommendation (a "## Revisions" entry so the plan stops claiming what the code
+doesn't deliver).
+
+## Docs update gate (atlas + README, per AGENTS.md §8)
+
+The boundary should update user-facing docs for any new surface introduced:
+
+  - **atlas/** — new architectural surface, flow, or terminology. Scan the diff
+    for new entity types, subcommands, conventions, file-tree locations. Any
+    present without corresponding atlas/ changes in the same range = Important
+    finding ("atlas update appears missing for <surface>").
+  - **README.md** — new user-facing surface a reader runs or types: subcommands,
+    flags, keybindings, config keys, install/usage steps. If the diff adds or
+    changes such surface and README.md is not updated in the same range =
+    Important finding ("README update appears missing for <surface>"). This is the
+    class of gap that used to surface only at the merge-time `specs` judge (#142);
+    catch it here, at the earliest gate, before the close verdict is recorded.
+
+## Architecture (the at-review backstop — these matter most long-term)
+
+Work through each of ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK explicitly, applying its at-review lens. The
+full principle definitions are delivered in the ARCHITECTURE PRINCIPLES block
+right after this prompt — for EACH marker, state pass or flag, and cite the
+marker (e.g. ARCH-DRY) in any finding. Architecture is where review has the
+least training signal and the longest-delayed payoff, so be deliberate here, not
+holistic.
+
+## Verdict + output
+
+Begin your response with this fenced verdict block — the machine-read handoff:
+
+```verdict
+verdict: <SHIP | FIX-THEN-SHIP | REWORK>
+confidence: <high | medium | low>
+```
+
+  SHIP           ready; ship it
+  FIX-THEN-SHIP  ship after addressing the findings (non-blocking at the gate)
+  REWORK         blocking; needs rework before shipping — fix + re-run
+
+The fenced ```` ```verdict ```` block above is the **authoritative machine-read
+handoff** — emit it as the first thing in your response. (A prose
+`VERDICT: <TOKEN>` first line still satisfies the legacy contract as a fallback,
+but the block is what the binary trusts.)
+
+After the verdict block: a 1-paragraph summary — what worked, what blocks SHIP if
+it isn't — followed by:
+  1. Strengths: 2-5 specific things done well (file:line where useful). Affirm
+     validated approaches so the operator knows what's confirmed-good ground.
+     Empty acceptable for trivial boundaries.
+  2. Critical findings (file:line + fix sketch); empty if none.
+  3. Important findings (same format).
+  4. Minor findings (terse one-liners).
+  5. Test coverage notes.
+  6. Architectural notes for upcoming work.
+  7. Plan revision recommendations: specific "## Revisions" entries the plan
+     needs (empty if the plan still matches the code).
+
+
+ARCHITECTURE PRINCIPLES — work through each of the 4 entries below explicitly, applying its `at-review` lens; cite the marker (e.g. ARCH-DRY) in any finding.
+
+# Architecture principles (ARCH-*)
+
+Injected architectural taste — the structural decisions whose payoff (or cost)
+shows up many turns, often months, down the road. Agents are strong at local
+tactics and weak here, so these are checked **at-plan** (when the design is being
+made — highest leverage) and **at-review** (backstop, on the diff). Cite the
+marker (e.g. `ARCH-DRY`) in plans, `## Log` entries, and review findings.
+
+This file is the single source; it is embedded into the planning, plan-quality,
+and code-review prompts. The human narrative lives in AGENTS.md "Core Design
+Principles"; this is its machine-delivered companion.
+
+## ARCH-DRY — Don't Repeat Yourself
+
+- **principle:** Reuse before adding. One source of truth per fact/behavior; no
+  duplicated logic, copy-pasted blocks, or parallel functions that should be one
+  shared helper.
+- **at-plan:** Flag a plan that re-implements something the codebase already has,
+  or that will obviously duplicate logic across the new files instead of
+  extracting a shared helper. Name the existing thing it should reuse.
+- **at-review:** Flag duplicated logic / copy-pasted blocks / near-identical
+  functions in the diff; point at the consolidation (file:line + the shared
+  helper they should become).
+
+## ARCH-PURE — Pure core, thin IO shell
+
+- **principle:** The majority of code is pure functions (deterministic, no side
+  effects); a thin "glue" layer at the boundary touches IO/UI/network/clock. Pure
+  functions are unit-tested directly; the glue is kept small and injected.
+- **at-plan:** Flag a design that buries business logic inside IO/handlers, or
+  that will only be testable with heavy mocks (a sign logic isn't separated from
+  IO). The plan should name what's pure vs the thin IO seam.
+- **at-review:** Flag business logic mixed with IO in the diff; logic that should
+  be a pure function injected into a thin caller. If a test needs mocks to run a
+  "pure" entity, it isn't pure — recommend extracting the IO to the boundary.
+
+## ARCH-PURPOSE — Serve the issue's actual purpose
+
+- **principle:** Deliver the issue's stated purpose, not the easy subset of it. A
+  single-source / "compiled to consumers" change is not done until **every
+  consumer derives** from the source — the source is *enforced*, not just
+  documentation a surface happens to restate; a hand-maintained restatement of the
+  model is a deferred consumer, not a finished one. "Follow-up" is for separable
+  extensions, never for the thing that is the point. This is the *opposite axis*
+  from Simplicity-First/YAGNI: not "build for an imagined future," but "don't
+  **under**-deliver the purpose you already committed to."
+  The same axis governs how a *finding* is answered: a finding names one
+  instance; the deliverable is the CLASS it belongs to. Name the class, write
+  the enumeration it implies, and sweep that enumeration in the SAME round —
+  fixing only the site the finding named is the easy subset again. A gate
+  ledger's `family:` slug names the class for you, and a family that repeats
+  across rounds is the ledger reporting that the enumeration was never written.
+- **at-plan:** Flag a plan whose scope is a strict subset of the issue's stated
+  goal / Done-when where the part deferred as "follow-up" *is* the purpose (e.g.
+  wires one consumer + enforcement but leaves the consumers that motivated the
+  issue as documentation that doesn't derive). Ask: does the plan fulfill the
+  purpose, or just the cheap win? Name the deferred purpose.
+  Also flag a plan that answers a prior finding by fixing the instance it named
+  when the class is enumerable — ask for the enumeration in the plan, and for the
+  sweep in the same round rather than the round after.
+- **at-review:** Does the diff *fulfill* the purpose or settle for the easy win?
+  For a single-source change, run the **shadow-sweep** — enumerate the consumers,
+  confirm each derives from the source, flag any remaining hand-maintained
+  restatement of the model. A "follow-up" that is actually the deferred point of
+  the issue is a finding, not a deferral. Likewise a fix that resolves the site a
+  prior finding named while enumerable siblings of the same class remain in the
+  tree: that is the instance, not the class, and it is a finding.
+
+## ARCH-MOCK — Stateful external doubles
+
+- **principle:** Every external binary or service dependency the system relies on
+  has a stateful fake behind the same seam, modeling our current understanding of
+  the dependency's behavior across calls. For libraries, services, and binaries we
+  own, the storage/backend layer is backed by a portable folder of files and/or
+  database configuration, so the component can be spun up without depending on
+  production configuration or production databases. Integration and end-to-end
+  tests run against the fake; scheduled/live conformance checks compare the
+  fake's modeled behavior with the real binary or service so drift is detected
+  and corrected.
+- **at-plan:** Flag a design that shells out to, or calls, an external binary or
+  service without naming the seam and stateful fake. For owned libraries, services,
+  and binaries, also flag any design whose storage/backend depends on production
+  configuration or databases instead of a portable file folder and/or database
+  configuration. The plan should identify the dependency surface consumed, the
+  fake's persisted state model, the owned component's portable backend shape,
+  the integration or end-to-end tests that run against it, and the live
+  conformance check cadence.
+  Examples include `git`, GitHub/`gh`, and Google OAuth.
+- **at-review:** Flag direct external calls outside the seam, stateless mocks for
+  stateful interactions, tests that cannot run the stack against the fake, owned
+  components that cannot boot from portable non-production storage/backend
+  configuration, or a missing live conformance check for behavior we depend on. A
+  fake satisfies this only when production flow and test flow share the same
+  boundary.
+
+
+## Prior rounds — dispose of these BEFORE raising anything new
+
+4 prior round(s) of this gate have already run. Their findings follow.
+
+OPEN FINDINGS — you MUST dispose of every one of these before raising anything new:
+
+  - id: BR-45  [Critical] The Core concepts table misclassifies and misstates M3 entities
+      The plan's Pure entities table classifies Console as PURE despite its IO dependencies, lists nonexistent Home, and omits DecodePanelKeys. This is the 5th finding in family plan-table-drift; enforce entity existence and kind classification across the complete table, then append a Revisions entry.
+
+ALREADY DISPOSED — do NOT re-raise these, at any severity:
+
+  - id: BR-42  (addressed) Input after a hotkey can be routed to the focus being left
+  - id: BR-43  (addressed) Production bypasses NewPanelModel and loses parked or updated tree metadata
+  - id: BR-44  (addressed) Panel action keys make valid typeahead prefixes unreachable
+  - id: BR-46  (addressed) M3 completion evidence omits the smoke work explicitly carried into this milestone
+  - id: BR-47  (addressed) README does not document the M3 focus ladder or panel controls
+  - id: BR-48  (addressed) The captured M3 review transcript fails git diff --check
+  - id: BR-49  (withdrawn) The timed stdin framer adds another background worker that Console cannot cancel or join
+
+If a disposed finding is genuinely still wrong, dispose it `not-addressed`
+by its id — do not raise it again as new.
+
+Families already in play on this issue — REUSE one of these slugs when a
+finding belongs to it, and coin a new slug only when it genuinely does not:
+
+  docs-lag-the-surface                 5 new findings
+  plan-table-drift                     5 new findings
+  dead-field-and-leaked-consumer       3 new findings
+  fix-not-pinned-by-failing-test       3 new findings
+  probe-hygiene                        3 new findings
+  signal-goroutine-outlives-close      3 new findings
+  undelivered-plan-step                3 new findings
+  chunking-invariance                  2 new findings
+  fake-diverges-from-production        2 new findings
+  needless-indirection                 2 new findings
+  stale-comment-reference              2 new findings
+  uncovered-negative-assertion         2 new findings
+  derived-id-not-unique                1 new finding
+  framing-omits-sequence-class         1 new finding
+  generated-artifact-hygiene           1 new finding
+  guard-reads-wrong-stream-position    1 new finding
+  input-namespace-collision            1 new finding
+  latch-consumed-by-wrong-consumer     1 new finding
+  prefix-parks-a-complete-key          1 new finding
+  replay-duplicates-live-output        1 new finding
+  seam-untested-on-the-real-side       1 new finding
+  stale-build-target                   1 new finding
+  swallowed-seam-error                 1 new finding
+  test-harness-races                   1 new finding
+  unrecoverable-silent-drop            1 new finding
+  unsynchronised-shared-state          1 new finding
+
+Each of these already has at least one finding, so a further one is a REPEAT.
+If a finding you are about to raise belongs to one, say so explicitly and
+change your recommendation:
+
+  > **This is the 6th finding in family `docs-lag-the-surface`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+  > **This is the 6th finding in family `plan-table-drift`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+  > **This is the 4th finding in family `dead-field-and-leaked-consumer`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+  > **This is the 4th finding in family `fix-not-pinned-by-failing-test`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+  > **This is the 4th finding in family `probe-hygiene`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+  > **This is the 4th finding in family `signal-goroutine-outlives-close`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+  > **This is the 4th finding in family `undelivered-plan-step`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+  > **This is the 3rd finding in family `chunking-invariance`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+  > **This is the 3rd finding in family `fake-diverges-from-production`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+  > **This is the 3rd finding in family `needless-indirection`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+  > **This is the 3rd finding in family `stale-comment-reference`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+  > **This is the 3rd finding in family `uncovered-negative-assertion`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+  > **This is the 2nd finding in family `derived-id-not-unique`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+  > **This is the 2nd finding in family `framing-omits-sequence-class`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+  > **This is the 2nd finding in family `generated-artifact-hygiene`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+  > **This is the 2nd finding in family `guard-reads-wrong-stream-position`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+  > **This is the 2nd finding in family `input-namespace-collision`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+  > **This is the 2nd finding in family `latch-consumed-by-wrong-consumer`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+  > **This is the 2nd finding in family `prefix-parks-a-complete-key`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+  > **This is the 2nd finding in family `replay-duplicates-live-output`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+  > **This is the 2nd finding in family `seam-untested-on-the-real-side`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+  > **This is the 2nd finding in family `stale-build-target`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+  > **This is the 2nd finding in family `swallowed-seam-error`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+  > **This is the 2nd finding in family `test-harness-races`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+  > **This is the 2nd finding in family `unrecoverable-silent-drop`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+  > **This is the 2nd finding in family `unsynchronised-shared-state`.** Earlier rounds fixed
+  > instances. Do NOT fix this instance — state the rule that covers all of
+  > them, and fix that. If the rule cannot be stated, say why and record the
+  > family, with its measured prevalence, in the finding's own detail.
+
+Do NOT re-raise a finding listed as already disposed — not at the same severity,
+and not at a lower one. If a disposed finding is genuinely still wrong, dispose it
+`not-addressed` and say what remains, rather than raising it again under a new id.
+
+Emit your findings as this fenced block — the machine-read handoff the
+binary parses. `dispose:` first (every prior finding), then `findings:`
+(anything newly raised). Use `id: new` for a new finding — the binary
+assigns the stable id. Omit a key entirely when it has no entries.
+
+```findings
+dispose:
+  - id: <a prior finding's id>
+    disposition: <addressed | withdrawn | not-addressed>
+    note: |
+      <optional, one line>
+findings:
+  - id: new
+    severity: <Critical | Important | Minor>
+    family: <slug>
+    title: |
+      <one line>
+    detail: |
+      <a sentence or two, optional>
+```
+
+`family` is a short slug naming the underlying RULE a finding is an instance of,
+not its symptom — `block-opener-rule`, not `bracket-depth-bug`. If the prior-round
+block above lists families already in play, REUSE the matching slug verbatim;
+coin a new one only when the finding genuinely belongs to no existing family.
+
+Slug the RULE, because a symptom-slug will not match the next instance and the
+escalation will silently fail to fire. Ask: "if this recurs in a different file
+with different symptoms, would I still reach for this slug?" If not, it names the
+symptom. `boundary-scope-strands-reads` survives that test; `family-counts-filtered`
+does not — it describes one site, and the same rule broke a second read elsewhere.
+
+Use the `|` block form for title, detail and note exactly as shown, and indent
+their text by six spaces. In plain YAML a ` #` starts a comment, so an
+unquoted `## Estimate` or `issue #187` would silently truncate your finding.
+
+  Critical       must fix before the gate is crossed
+  Important      fix before the gate if cheap; blocks until disposed
+  Minor          note for the close review; never blocks a gate
+
+  addressed      the plan changed to satisfy this finding
+  withdrawn      the judge retracts it (mistaken, or overtaken by a design change)
+  not-addressed  still open — the judge re-raises it this round
+
+OUTPUT CONTRACT (machine-read — do not deviate). LEAD your response with the
+fenced ```verdict block shown above — that is the authoritative handoff the binary
+reads (its `verdict:` value is one of the listed tokens). Everything after the block
+is advisory: a non-blocking verdict WITH findings still PASSES the gate. A bare
+`VERDICT: <TOKEN>` line is accepted only as a FALLBACK when the block is absent.
+
+Diff:
+
+
+exec
+/bin/zsh -lc "sed -n '1,240p' .agents/skills/superpowers-using-superpowers/SKILL.md && sed -n '1,280p' .agents/skills/xx-sdlc/SKILL.md && sdlc --help && sed -n '1,240p' workshop/lessons.md" in /Users/xianxu/workspace/pair
+ succeeded in 0ms:
+---
+name: superpowers-using-superpowers
+description: Use when starting any conversation - establishes how to find and use skills, requiring Skill tool invocation before ANY response including clarifying questions
+---
+
+<SUBAGENT-STOP>
+If you were dispatched as a subagent to execute a specific task, skip this skill.
+</SUBAGENT-STOP>
+
+<EXTREMELY-IMPORTANT>
+If you think there is even a 1% chance a skill might apply to what you are doing, you ABSOLUTELY MUST invoke the skill.
+
+IF A SKILL APPLIES TO YOUR TASK, YOU DO NOT HAVE A CHOICE. YOU MUST USE IT.
+
+This is not negotiable. This is not optional. You cannot rationalize your way out of this.
+</EXTREMELY-IMPORTANT>
+
+## Instruction Priority
+
+> **Ariadne note:** AGENTS.md Section 3 governs subagent strategy and overrides skills that mandate subagent-driven-development as the default execution path.
+
+Superpowers skills override default system prompt behavior, but **user instructions always take precedence**:
+
+1. **User's explicit instructions** (CLAUDE.md, GEMINI.md, AGENTS.md, direct requests) — highest priority
+2. **Superpowers skills** — override default system behavior where they conflict
+3. **Default system prompt** — lowest priority
+
+If CLAUDE.md, GEMINI.md, or AGENTS.md says "don't use TDD" and a skill says "always use TDD," follow the user's instructions. The user is in control.
+
+## How to Access Skills
+
+**In Claude Code:** Use the `Skill` tool. When you invoke a skill, its content is loaded and presented to you—follow it directly. Never use the Read tool on skill files.
+
+**In Gemini CLI:** Skills activate via the `activate_skill` tool. Gemini loads skill metadata at session start and activates the full content on demand.
+
+**In other environments:** Check your platform's documentation for how skills are loaded.
+
+## Platform Adaptation
+
+Skills use Claude Code tool names. Non-CC platforms: see `references/codex-tools.md` (Codex) for tool equivalents. Gemini CLI users get the tool mapping loaded automatically via GEMINI.md.
+
+# Using Skills
+
+## The Rule
+
+**Invoke relevant or requested skills BEFORE any response or action.** Even a 1% chance a skill might apply means that you should invoke the skill to check. If an invoked skill turns out to be wrong for the situation, you don't need to use it.
+
+```dot
+digraph skill_flow {
+    "User message received" [shape=doublecircle];
+    "About to EnterPlanMode?" [shape=doublecircle];
+    "Already brainstormed?" [shape=diamond];
+    "Invoke brainstorming skill" [shape=box];
+    "Might any skill apply?" [shape=diamond];
+    "Invoke Skill tool" [shape=box];
+    "Announce: 'Using [skill] to [purpose]'" [shape=box];
+    "Has checklist?" [shape=diamond];
+    "Create TodoWrite todo per item" [shape=box];
+    "Follow skill exactly" [shape=box];
+    "Respond (including clarifications)" [shape=doublecircle];
+
+    "About to EnterPlanMode?" -> "Already brainstormed?";
+    "Already brainstormed?" -> "Invoke brainstorming skill" [label="no"];
+    "Already brainstormed?" -> "Might any skill apply?" [label="yes"];
+    "Invoke brainstorming skill" -> "Might any skill apply?";
+
+    "User message received" -> "Might any skill apply?";
+    "Might any skill apply?" -> "Invoke Skill tool" [label="yes, even 1%"];
+    "Might any skill apply?" -> "Respond (including clarifications)" [label="definitely not"];
+    "Invoke Skill tool" -> "Announce: 'Using [skill] to [purpose]'";
+    "Announce: 'Using [skill] to [purpose]'" -> "Has checklist?";
+    "Has checklist?" -> "Create TodoWrite todo per item" [label="yes"];
+    "Has checklist?" -> "Follow skill exactly" [label="no"];
+    "Create TodoWrite todo per item" -> "Follow skill exactly";
+}
+```
+
+## Red Flags
+
+These thoughts mean STOP—you're rationalizing:
+
+| Thought | Reality |
+|---------|---------|
+| "This is just a simple question" | Questions are tasks. Check for skills. |
+| "I need more context first" | Skill check comes BEFORE clarifying questions. |
+| "Let me explore the codebase first" | Skills tell you HOW to explore. Check first. |
+| "I can check git/files quickly" | Files lack conversation context. Check for skills. |
+| "Let me gather information first" | Skills tell you HOW to gather information. |
+| "This doesn't need a formal skill" | If a skill exists, use it. |
+| "I remember this skill" | Skills evolve. Read current version. |
+| "This doesn't count as a task" | Action = task. Check for skills. |
+| "The skill is overkill" | Simple things become complex. Use it. |
+| "I'll just do this one thing first" | Check BEFORE doing anything. |
+| "This feels productive" | Undisciplined action wastes time. Skills prevent this. |
+| "I know what that means" | Knowing the concept ≠ using the skill. Invoke it. |
+
+## Skill Priority
+
+When multiple skills could apply, use this order:
+
+1. **Process skills first** (brainstorming, debugging) - these determine HOW to approach the task
+2. **Implementation skills second** (frontend-design, mcp-builder) - these guide execution
+
+"Let's build X" → brainstorming first, then implementation skills.
+"Fix this bug" → debugging first, then domain-specific skills.
+
+## Skill Types
+
+**Rigid** (TDD, debugging): Follow exactly. Don't adapt away discipline.
+
+**Flexible** (patterns): Adapt principles to context.
+
+The skill itself tells you which.
+
+## User Instructions
+
+Instructions say WHAT, not HOW. "Add X" or "Fix Y" doesn't mean skip workflows.
+---
+name: sdlc
+description: Use when at an SDLC checkpoint — starting work, closing an issue or milestone, opening/merging a PR, or recovering workflow state after compaction. The `sdlc` binary owns the gates between workflow stages and refuses transitions that lack required evidence.
+---
+
+# sdlc — SDLC checkpoint binary
+
+`sdlc` owns the gates between SDLC workflow stages (claim → change-code → pr →
+merge, plus close, milestone-close, judge). It requires evidence at each gate,
+mutates state, logs the transition, and refuses transitions that lack the
+evidence — that is the shape of a "checkpoint guard."
+
+The binary is the single source of truth. This skill is a static pointer and
+intentionally carries no copy of the contract, so it can never drift:
+
+- **`sdlc --help`** — the workflow contract: the start-of-work runbook,
+  conventions, and the verb list.
+- **`sdlc <verb> --help`** — one checkpoint's full contract, flags, and examples.
+
+Read those instead of relying on memory; the binary's help is always current.
+sdlc collects ariadne's SDLC checkpoint guards into one binary. Each subcommand
+owns one checkpoint: it requires evidence at the gate, mutates state, logs the
+transition, and refuses transitions that lack it. We don't model the SDLC as a
+state machine — stages stay prose; we codify the gates between them where drift
+recurs. `sdlc` manages the development life cycle; prefer it over `git`/`gh`.
+
+BEFORE WORK
+  - `sdlc claim --issue N` — the single start-of-work gesture, a CHEAP LOCK.
+    Flips an *open* issue to `working` and publishes the claim to origin/main so
+    peer agents see it. No estimate demanded (#113) — claim early, the moment an
+    idea crystallizes. `--no-start` suppresses the flip.
+  - Do NOT hand-edit an issue's `status:` — let `sdlc claim` or `sdlc issue
+    set-status` own that transition (it carries the reopen/`→ done` guards).
+
+ENTER IMPLEMENTATION
+  - After plan approval, before editing code, run `sdlc change-code`. It owns the
+    branching decision (in-place branch by default; `--worktree=yes` for an
+    isolated worktree), the plan-quality check, and the `estimate_hours` gate
+    (relocated here from claim, #113). Don't start coding without it.
+
+PUBLISH
+  - Publishing goes through a PR: `sdlc pr` → `sdlc merge`. Direct `sdlc push`
+    if working directly on main.
+  - Publish ONCE at issue close, not per milestone — and do NOT reuse a branch
+    name that already has a merged PR. `sdlc merge` refuses (#148) when a branch
+    has commits not in main despite a merged PR (a reused name would otherwise
+    silently strand the new commits); rename to a fresh branch, `sdlc pr`, retry.
+
+RECOVER
+  - After a compaction or session resume, run `sdlc state` to recover where you
+    are instead of re-inferring from issue files.
+
+LOCAL REPO TRANSACTION LOCK
+  - Mutating verbs take an SDLC-owned repo transaction lock at
+    `.git/sdlc.lock` before reading/writing issue state, committing, changing
+    branches, or pushing. The lock is local to the Git common dir, so linked
+    worktrees of the same repo serialize with each other.
+  - Wait messages identify the holder pid and command when metadata is
+    available. `close` and `milestone-close` release the lock while the external
+    boundary-review subprocess runs, then reacquire before finalization; if HEAD
+    or the issue/project file state they prepared changed meanwhile, they refuse
+    to finalize and tell you to rerun. `change-code`, `merge`, and `push` can still hold the lock during
+    long-running review/ship transactions; wait or retry rather than removing
+    the lock while that process is alive.
+  - A dead same-host holder is reclaimed automatically; initializing metadata
+    is waited through. Other stale/timeout errors tell you how to inspect
+    `.git/sdlc.lock`. Remote push/ref races are separate: the local lock
+    serializes this checkout, not another machine or clone.
+
+WHEN A VERB ERRORS
+  Do NOT route around it with hand-rolled `git`/`gh`. Its errors are next-action
+  specs. The fix is one of two things:
+    (a) satisfy the precondition it names and re-run the same verb (e.g. `sdlc
+        merge` saying "no upstream" → run `sdlc pr` first, then `sdlc merge`); or
+    (b) if the error is a genuine gap in `sdlc` itself, fix that edge case in the
+        source and re-run. We're still ironing out edge cases.
+  Only drop to manual when a verb genuinely cannot express the need — say so.
+
+These gates sit inside a wider prose arc the binary does NOT own: ideation
+(parley/pensive) → brainstorm → plan → build → milestone review (`sdlc judge`,
+auto-dispatched) → close/ship → postmortem.
+
+CONVENTIONS
+
+  --issue vs --github-issue — `--issue N` always means workshop/issues
+  (6-digit ID). `--github-issue N` means a GitHub issue number. Bare `--issue`
+  never means a GitHub issue.
+
+  Form vs essence — checkpoint guards (close, milestone-close, push, merge)
+  defend against *omission* via required-evidence flags; `sdlc judge` defends
+  against *theater* via fresh-context review. Form runs first; judge second.
+
+The verb list + per-verb help (`sdlc <verb> --help`) follow below.
+
+Usage:
+  sdlc [flags]
+  sdlc [command]
+
+Available Commands:
+  claim           Start work: flip an open issue to working + broadcast the claim
+  start-plan      Enter planning: deliver the architecture principles to design against (#75)
+  change-code     Enter implementation after the structural + plan-quality gates
+  issue           Create + manage issues (new / set-status / list / show)
+  project         Create + manage projects (new / list / show / set-status / validate)
+  actual          Compute an issue's focused dev-hours via active-time-v3 (#68)
+  active-time     Per-issue active-time attribution table (the v3 engine, standalone)
+  close           Close an issue or milestone (ACTUAL + VERIFIED + atlas/project sweep)
+  milestone-close Close one milestone + auto-dispatch its review
+  pr              Open a pull request from a feature branch
+  merge           Merge the PR, archive done issues, clean up
+  push            Ship from main (clean tree + pre-merge judges + archive)
+  state           Inspect workflow state (branch, working issues, drift)
+  resolve         Resolve a symbolic artifact ref (ariadne#11, #15 M4) to its current path(s) — read-only
+  open            Resolve a ref and open the primary artifact in $EDITOR
+  migrate         Move a markdown artifact to a peer repo, rewriting refs (#179)
+  judge           Run an LLM-judge check against the diff (fresh-context)
+  arch-principles Print the ARCH-* architecture principles (single source; pull for non-gate work)
+  estimate-source Name the shared estimate method + the repo-local calibration source (pull)
+  process-manual  Unroll every injection source into a linked process manual (#153)
+  propagate-base  Re-weave every recursive dependent of this repo (foundation-first)
+  help            Help about any command
+
+Flags:
+  -h, --help   help for sdlc
+
+Use "sdlc [command] --help" for more information about a command.
+# Lessons
+
+## Compound event state needs one synchronization owner
+
+An overlay used an atomic boolean plus a separately locked text tail. Enter
+loaded the boolean, a new overlay re-armed it, and Enter then stored false and
+cleared carryover—losing the newer event without any data race.
+
+**Rule.** When one logical event spans a flag, carryover, generation, or other
+fields, mutate and consume the whole state under one owner. Atomic primitives
+do not make a multi-step protocol atomic. Add a deterministic re-arm-during-
+consume interleaving that proves both the new flag and its associated data
+survive. Caught in #000139 Task 5 review.
+
+## Cross-system resize needs an exclusive transaction token
+
+The terminal model and child PTY could temporarily or permanently disagree on
+geometry. A simple validity boolean fixed one resize but failed when two
+prepare/commit sequences overlapped; an earlier commit could reopen
+authorization while the later resize remained incomplete.
+
+**Rule.** For a state transition spanning two systems, validate first and hold
+exclusive transaction ownership across prepare, external mutation, and exactly
+one commit or abort. Prepared and aborted states must stay fail-closed; commit
+must discard pre-transaction authorization and require fresh evidence. Test
+overlapping transactions through both commit and abort, external failure, and
+recovery. Caught in #000139 Task 5 review.
+
+## Panic recovery must not strand a critical section
+
+`handleChunk` intentionally recovered detector panics, but the detector wrapper
+manually unlocked its mutex after the call. A panic skipped the unlock, so the
+process survived while the next Return deadlocked.
+
+**Rule.** Any callback invoked inside a critical section must be wrapped by a
+helper that defers unlock before calling it. If an outer boundary recovers
+panics, add a regression that injects a panic and then proves the next operation
+using the same lock completes. Caught in #000139 Task 5 review.
+
+## Differential migrations must transform every state axis
+
+The first Muse snapshot oracle covered an empty composer at the captured cursor
+column but omitted typed text and the legacy tracker's cursor-row ±1 behavior.
+Both omissions produced unallowlisted old-true/new-false transitions even
+though the literal startup fixture stayed positive.
+
+**Rule.** A differential migration must enumerate transformations of every
+state axis the old predicate consumes: content, style, locality, cursor row,
+cursor column, visibility, and lifecycle mutation. Include representative
+positive transforms—not only the captured empty state—and reject any behavior
+change not named by the contract. Caught in #000139 Task 3 review.
+
+## Process cleanup is one observable transaction
+
+The first live-harness capture helper hid cleanup errors behind a primary
+timeout, could skip its final reap after a kill error, and requested reader
+cancellation without joining the goroutine. Happy-path child tests still
+passed, but callers could not know whether capture had actually finished.
+
+**Rule.** A subprocess/PTY helper must have one teardown owner: cancel and
+close IO, signal, reuse one wait-result channel, continue through bounded
+kill/reap even after operation failures, and boundedly join every reader.
+Return `errors.Join(primary, cleanup)` so the original failure and cleanup
+failure are both observable. Pair injected operation-failure tests with a real
+controlled child on the same seam. Caught in #000139 Task 2A review.
+
+## Capacity tests must finish on capacity, not elapsed throughput
+
+A 1 MiB retention test waited 100 ms and then required all 1 MiB to have
+arrived. Under concurrent load it retained only 377,856 bytes, even though the
+cap implementation was correct.
+
+**Rule.** Test a byte/item cap by completing when the observed retained count
+reaches the cap, with time only as a generous safety bound. Keep timeout
+behavior in a separate test. Never make scheduler throughput the oracle for a
+capacity invariant. Caught in #000139 Task 2A review.
+
+## Authorization enums need a fail-safe zero value
+
+The first Return gate enum assigned its legacy remap policy to zero. An absent
+or corrupt profile therefore fell through as authorized; an all-zero keymap
+could report `Fired` while emitting no bytes and swallow Enter.
+
+**Rule.** For any enum controlling a rewrite, permission, route, or destructive
+action, reserve zero for unknown/disabled and switch exhaustively. Only named
+authorizing values may reach configured behavior; zero and invalid values must
+take the safe observable fallback. Test both an all-zero owner struct and an
+out-of-range enum. Caught in #000139 Task 2 review.
+
+## Terminal observers must share the parser's state model
+
+A raw C1 CSI byte can be a control in terminal ground state and ordinary data
+inside UTF-8, OSC, or DCS. A side observer that scans framed escapes without
+the terminal parser's state therefore authorizes controls the screen owner did
+not parse, especially across caller chunk boundaries.
+
+**Rule.** When security- or routing-relevant evidence shadows a terminal
+parser, use the same bounded parser state semantics as the screen owner. Test
+the same control byte in ground, UTF-8, OSC, and DCS contexts at every split;
+do not infer controls from raw byte values alone. Caught in #000139 Task 1
+review.
+
+## Dependency boundaries define the property-test oracle
+
+x/vt flushes extended graphemes at each `Write`, so one-shot and chunked writes
+of the same valid ZWJ stream can produce different cell grids. Requiring grid
+equality would force Pair to become a second grapheme renderer without proving
+the Return-routing behavior the issue exists to protect.
+
+**Rule.** Before asserting chunk-equivalent representations, prove the owning
+dependency promises that representation invariant. If it does not, keep
+boundary tests to safety, bounds, and coherent state, then assert equivalence at
+the product decision seam using literal production streams. Seed fuzzers with a
+deterministic multi-codepoint grapheme such as `👩‍💻`. Caught in #000139 Task 1
+review.
+
+## Validate dimensions before allocation boundaries
+
+Rejecting only zero and negative dimensions still allowed huge positive PTY
+sizes to panic inside x/vt allocation and made snapshot multiplication unsafe.
+
+**Rule.** Any externally influenced width/height pair must pass one shared,
+overflow-safe per-axis and total-area validator before construction, resize, or
+`width*height` allocation. Rejected mutations must preserve the prior complete
+state. Include max-int-shaped rejection tests. Caught in #000139 Task 1 review.
+
+## Local predicates must count local evidence
+
+The #142 close review caught a composer detector that required one painted row
+near the cursor but counted the second required row anywhere on screen. That
+kept the reported Codex composer bug fixed, but it weakened the positive
+detection contract with a sparse-row false positive.
+
+**Rule.** When a predicate is anchored to proximity, selection, cursor position,
+or any other local evidence, count only evidence inside that same local window.
+Add a negative regression with one local match plus one far-away match so global
+aggregation cannot accidentally satisfy a local threshold. Caught in #000142
+close review.
+
+## OS command helpers need one reusable seam
+
+The #141 close review caught duplicated `ps` process-tree and `lsof` parsing in
+two command paths (`pair slug` and launcher restart recovery). Both paths were
+correct locally, but parallel shell-output parsers drift easily and tests tend to
+cover only one consumer.
+
+**Rule.** When two features consume the same external command shape (`ps`,
+`lsof`, `git`, `zellij`, etc.), extract the command parser/traversal into a
+shared internal package before adding the second consumer. Keep one fake-command
+test at the real OS seam for each production consumer that depends on environment
+or filesystem inputs.
+
+## Release smokes must use clean archive inputs
+
+The Homebrew v1.24/v1.25 publish path first looked fine from the working tree:
+ignored generated runtime-bundle assets were present locally, and formula syntax
+and style passed. The real Homebrew source build failed only when it built from
+GitHub's clean tarball, where ignored assets were absent and the generator's
+import cycle/order assumptions became visible.
+
+**Rule.** For release/package work, run the same clean source path the package
+manager uses before treating the release as published: generated ignored assets
+must be regenerated from tracked inputs, and install recipes must run generators
+before moving source trees into their install location. Add a clean-source
+regression for any generator that package builds depend on. Caught in #000131
+Homebrew publish.
+
+## Sidecar filenames do not validate sidecar identity
+
+`config-<tag>-<agent>.json` names the intended lookup axis, but the JSON still
+has its own `agent` field. Treating the filename as sufficient let a mismatched
+config reach the tag-restart picker, and stale saved session IDs were silently
+downgraded to fresh sessions despite the spec requiring a warning.
+
+**Rule.** When consuming persisted sidecars that duplicate identity in their
+filename and body, validate the body identity before offering UI/actions. On
+malformed or mismatched persisted state, warn and fall through to the next
+source of truth; on stale resumable IDs, warn before using saved args for a fresh
+launch. Add integration-level regressions at the consuming flow, not only pure
+policy tests. Caught in #000115 close review.
+
+## Zellij's pane report cannot identify action-created panes
+
+The tiled split (`action new-pane --direction down`) creates panes for which
+zellij 0.44.3 reports `terminal_command: null`, and pane titles are pair-owned
+mutable UI (#118 tab strips, user-renamable). Classifying workbench panes from
+the zellij report alone therefore silently fails for exactly the panes pair
+creates at runtime — live smoke showed split halves invisible to chord routing
+and to the focus picker.
+
+**Rule.** Pair-owned pane identity comes from self-registration (the process
+writes its own `$ZELLIJ_PANE_ID` + pid to a sidecar; readers filter by pid
+liveness), never from report heuristics. When adding a new pair-owned pane
+kind, register it and overlay the registry onto `RoleForPane`
+(`RoleForPaneWith`). Zellij `is_focused` is per-client and stale for
+unfocused-side panes — a pair-authored record outranks it. Caught in #123
+tiled-pivot smoke.
+
+## Drive zellij live smokes through a real attached client
+
+CLI actions (`zellij --session X action write|focus-pane-id|new-pane`) run as
+ephemeral clients: their focus state diverges from the attached client, writes
+land on stale focus, splits target the wrong pane, and `--near-current-pane`
+creates invisible orphan panes. Results look like product bugs but are harness
+artifacts.
+
+**Rule.** Smoke zellij interactively via a PTY-attached client (expect spawn +
+fifo-fed keystrokes) sending the real byte encodings (`\x1bk`, `\x1bD`, SGR
+mouse). Use CLI `list-panes` only for observation. Restart the session after
+every rebuild — resident pair processes do not pick up new binaries. Caught in
+#123 tiled-pivot smoke.
+
+## Zellij forwarded bytes must preserve every focused surface using the chord
+
+`Alt+Shift+d` was added as a right-terminal split shortcut by rebinding Zellij
+to forward the KKP sequence `ESC[68;4u`. The terminal wrapper understood that
+sequence, but the review pane already used the same physical chord as `<M-D>` for
+visual definitions, and Neovim did not treat the forwarded KKP bytes as `<M-D>`.
+
+**Rule.** When changing a Zellij binding for a physical chord, inventory every
+focused surface that already uses that chord and test the exact forwarded bytes
+against each consumer. For Neovim surfaces, add a map for the raw forwarded byte
+sequence when KKP does not resolve to the existing `<M-...>` mapping. Caught in
+#000123 close review.
+
+## Activating an empty terminal tab must still redraw
+
+`Alt+t` created a new terminal tab and made it active, but `newTab` only updated
+the pane title and waited for async child PTY output. The old tab's viewport
+stayed visible until the new shell wrote over part of it, leaving confusing
+residue in the newly selected tab.
+
+**Rule.** Any terminal-tab activation path must redraw the selected tab
+immediately, even when its buffer is empty. The clear-screen prefix is the
+observable behavior; child output arriving later is not a substitute for the
+activation redraw. Add a regression that creates a fresh tab and asserts stdout
+starts with the redraw clear sequence. Caught after #000118 close.
+
+## Async terminal modes must keep target identity
+
+
+codex
+I’m using the SDLC checkpoint guidance to audit this boundary as a read-only, fresh-context review. The supplied Base and Head are identical, so I’ll first establish whether the review window is truly empty or whether the milestone changes are present only in the worktree/tracker, then verify every prior disposition—especially BR-45—against tests and code.
+exec
+/bin/zsh -lc "git status --short && git branch --show-current && git log --oneline --decorate -12 && git diff --stat ca480ceaf156c573c30704737b98665e3a53f054..ca480ceaf156c573c30704737b98665e3a53f054 && git diff --stat && sdlc arch-principles && sed -n '1,320p' workshop/issues/000146-couch-tty-switching-and-attach.md" in /Users/xianxu/workspace/pair
+ succeeded in 0ms:
+000146-couch-tty-switching-and-attach
+ca480ce (HEAD -> 000146-couch-tty-switching-and-attach) couch: pin #146 core concept inventory
+6a873ef couch: enforce #146 M3 architecture contract
+d18bce3 couch: fix #146 M3 review round 2
+fd363ff test: serialize #146 live conformance
+2a3d362 couch: reconcile #146 M3 layout2 evidence
+d37cba2 couch: use repo defaults for #146 cold starts
+ca53998 couch: plan #146 repo-default cold starts
+d83621e couch: specify #146 fresh-config persistence timing
+0bdb8d7 couch: clarify #146 repo-default handoff
+c751f61 couch: revise #146 cold-start config contract
+d1215fd couch: fix #146 M3 boundary findings
+2b79243 couch: revise #146 M3 after boundary review
+ARCHITECTURE PRINCIPLES — work through each of the 4 entries below explicitly, applying its `at-plan` lens; cite the marker (e.g. ARCH-DRY) in any finding.
+
+# Architecture principles (ARCH-*)
+
+Injected architectural taste — the structural decisions whose payoff (or cost)
+shows up many turns, often months, down the road. Agents are strong at local
+tactics and weak here, so these are checked **at-plan** (when the design is being
+made — highest leverage) and **at-review** (backstop, on the diff). Cite the
+marker (e.g. `ARCH-DRY`) in plans, `## Log` entries, and review findings.
+
+This file is the single source; it is embedded into the planning, plan-quality,
+and code-review prompts. The human narrative lives in AGENTS.md "Core Design
+Principles"; this is its machine-delivered companion.
+
+## ARCH-DRY — Don't Repeat Yourself
+
+- **principle:** Reuse before adding. One source of truth per fact/behavior; no
+  duplicated logic, copy-pasted blocks, or parallel functions that should be one
+  shared helper.
+- **at-plan:** Flag a plan that re-implements something the codebase already has,
+  or that will obviously duplicate logic across the new files instead of
+  extracting a shared helper. Name the existing thing it should reuse.
+- **at-review:** Flag duplicated logic / copy-pasted blocks / near-identical
+  functions in the diff; point at the consolidation (file:line + the shared
+  helper they should become).
+
+## ARCH-PURE — Pure core, thin IO shell
+
+- **principle:** The majority of code is pure functions (deterministic, no side
+  effects); a thin "glue" layer at the boundary touches IO/UI/network/clock. Pure
+  functions are unit-tested directly; the glue is kept small and injected.
+- **at-plan:** Flag a design that buries business logic inside IO/handlers, or
+  that will only be testable with heavy mocks (a sign logic isn't separated from
+  IO). The plan should name what's pure vs the thin IO seam.
+- **at-review:** Flag business logic mixed with IO in the diff; logic that should
+  be a pure function injected into a thin caller. If a test needs mocks to run a
+  "pure" entity, it isn't pure — recommend extracting the IO to the boundary.
+
+## ARCH-PURPOSE — Serve the issue's actual purpose
+
+- **principle:** Deliver the issue's stated purpose, not the easy subset of it. A
+  single-source / "compiled to consumers" change is not done until **every
+  consumer derives** from the source — the source is *enforced*, not just
+  documentation a surface happens to restate; a hand-maintained restatement of the
+  model is a deferred consumer, not a finished one. "Follow-up" is for separable
+  extensions, never for the thing that is the point. This is the *opposite axis*
+  from Simplicity-First/YAGNI: not "build for an imagined future," but "don't
+  **under**-deliver the purpose you already committed to."
+  The same axis governs how a *finding* is answered: a finding names one
+  instance; the deliverable is the CLASS it belongs to. Name the class, write
+  the enumeration it implies, and sweep that enumeration in the SAME round —
+  fixing only the site the finding named is the easy subset again. A gate
+  ledger's `family:` slug names the class for you, and a family that repeats
+  across rounds is the ledger reporting that the enumeration was never written.
+- **at-plan:** Flag a plan whose scope is a strict subset of the issue's stated
+  goal / Done-when where the part deferred as "follow-up" *is* the purpose (e.g.
+  wires one consumer + enforcement but leaves the consumers that motivated the
+  issue as documentation that doesn't derive). Ask: does the plan fulfill the
+  purpose, or just the cheap win? Name the deferred purpose.
+  Also flag a plan that answers a prior finding by fixing the instance it named
+  when the class is enumerable — ask for the enumeration in the plan, and for the
+  sweep in the same round rather than the round after.
+- **at-review:** Does the diff *fulfill* the purpose or settle for the easy win?
+  For a single-source change, run the **shadow-sweep** — enumerate the consumers,
+  confirm each derives from the source, flag any remaining hand-maintained
+  restatement of the model. A "follow-up" that is actually the deferred point of
+  the issue is a finding, not a deferral. Likewise a fix that resolves the site a
+  prior finding named while enumerable siblings of the same class remain in the
+  tree: that is the instance, not the class, and it is a finding.
+
+## ARCH-MOCK — Stateful external doubles
+
+- **principle:** Every external binary or service dependency the system relies on
+  has a stateful fake behind the same seam, modeling our current understanding of
+  the dependency's behavior across calls. For libraries, services, and binaries we
+  own, the storage/backend layer is backed by a portable folder of files and/or
+  database configuration, so the component can be spun up without depending on
+  production configuration or production databases. Integration and end-to-end
+  tests run against the fake; scheduled/live conformance checks compare the
+  fake's modeled behavior with the real binary or service so drift is detected
+  and corrected.
+- **at-plan:** Flag a design that shells out to, or calls, an external binary or
+  service without naming the seam and stateful fake. For owned libraries, services,
+  and binaries, also flag any design whose storage/backend depends on production
+  configuration or databases instead of a portable file folder and/or database
+  configuration. The plan should identify the dependency surface consumed, the
+  fake's persisted state model, the owned component's portable backend shape,
+  the integration or end-to-end tests that run against it, and the live
+  conformance check cadence.
+  Examples include `git`, GitHub/`gh`, and Google OAuth.
+- **at-review:** Flag direct external calls outside the seam, stateless mocks for
+  stateful interactions, tests that cannot run the stack against the fake, owned
+  components that cannot boot from portable non-production storage/backend
+  configuration, or a missing live conformance check for behavior we depend on. A
+  fake satisfies this only when production flow and test flow share the same
+  boundary.
+
+---
+id: 000146
+status: working
+deps: []
+github_issue:
+created: 2026-08-21
+updated: 2026-08-24
+estimate_hours: 10.32
+started: 2026-08-22T12:14:19-07:00
+---
+
+# couch: tty switching and attach
+
+Project: `workshop/projects/couch.md` — architecture and non-goals live there;
+this issue is task 2.
+
+## Problem
+
+With a registry of named actors (`#145`), the operator still has no way to move
+between them except terminal tabs, which know nothing about what a session is.
+The switching experience is what determines whether couch gets used at all: if
+getting back to a known place is ever slow or flaky, the operator reverts to tabs
+and everything above it is dead weight.
+
+## Spec
+
+**A switcher, not a multiplexer.** One operator tty attached to one child at a
+time, a key-sequence interceptor, and a per-child buffer replayed on attach so
+the screen is not blank on landing. Explicitly NOT built: splits, layouts,
+floating panes, simultaneous rendering, a plugin system. The failure mode to
+avoid is reimplementing tmux badly — the complexity there lives in compositing
+panes nobody is looking at.
+
+**One keystroke home to the root actor, from anywhere, always.** The root actor
+is whatever session couch launched in — usually brain, by convention rather than
+mechanism; couch can start anywhere and nothing here knows about brain
+specifically. This is the single most important property in the whole project:
+if it is reliable the operator roams freely because getting back is free.
+
+**`ctrl-space` moves up one level** — child → root actor, root actor → couch's
+control panel. Bare key, acts immediately, no prefix keymap and no timing
+window. Double-ESC was considered and rejected: ESC is already interrupt/cancel
+in Claude Code and mode-switch in nvim, and a double-tap must either delay every
+legitimate ESC or forward one it cannot retract. Richer navigation lives inside
+couch's TUI with typeahead rather than in a chord table — one key to memorize,
+then read a screen. Direct jumps (to actor N, to the latest notifier) are
+deliberately deferred until the operator catches themselves wanting one.
+
+**Switching is deterministic and LLM-free in the critical path.** Resolution of a
+fuzzy reference sits *above* the switch (`#148`); the switch itself is a direct
+call. A model turn inside this path reintroduces exactly the latency that sends
+the operator back to tabs, so a direct route that skips resolution entirely —
+hotkey home, a numbered list — must always exist.
+
+**Detach and reattach without killing children.** A detached actor keeps running;
+its child harness stays warm. Reuse what already exists rather than writing
+terminal handling from scratch: `wrapcmd`'s terminal model over
+`charmbracelet/x/vt` + `creack/pty`, and `scrollbackcmd`.
+
+**couch does not composite — it reserves a row.** The child is given a terminal
+one row shorter and couch owns the last row. The child never knows, so this is a
+resize rather than compositing, and it works identically in the root actor and
+while attached to any child. That row carries rolling notifications, so there is
+exactly one place to look. Children that redraw on resize (nvim, zellij) handle
+it natively.
+
+Notification *detail* is not drawn there and not injected into the transcript as
+system messages — transcript injection would burn the LLM's context every turn.
+The row says something happened; `ctrl-space` and the advisor supply the rest.
+
+**Agent children only.** couch does not host plain shells, log tails or test
+runs; the operator leaves the window for those. The project's "single terminal
+window" criterion means one window for *agent* work, and this is what keeps the
+switcher from drifting into general child hosting.
+
+Attachment is an **output routing decision**, not the actor's identity — messages
+addressed to the operator route to the console when one is attached, and are
+simply not rendered when none is.
+
+## Revisions
+
+### 2026-08-24 — couch cold starts use the repo default without prompting
+
+**Reason:** the saved-config picker interrupts `couch start` with a choice that
+belongs to direct Pair session management, not to the supervisor's fast attach
+path. The earlier 2026-08-22 decision deliberately left that picker in place;
+operator smoke reversed it after proving the reattach path itself works.
+
+**Delta:** couch adds the temporary environment handoff
+`PAIR_USE_REPO_DEFAULT=1` to every Pair child. On a cold create, Pair interprets
+that handoff as: skip the tag-specific saved-config picker, ignore saved args
+and saved agent-session ID as launch inputs, and launch fresh with the repo's
+configured default user arguments (or no user-configured arguments when no
+default exists). Pair may still add its normal runtime/session-management
+arguments, such as a Claude session ID or Codex's no-alt-screen flag.
+
+Ignoring the saved config is an input-selection rule, not a preservation
+promise. The bypass itself does not proactively delete the selected canonical
+config as the picker's “use new params” action does; ordinary legacy-to-
+canonical migration still applies. Pair's normal fresh-launch persistence may
+replace the config with new session metadata — synchronously for agents whose
+session ID Pair mints, or later through session discovery. Attaching an
+already-live zellij session is unchanged and never reaches cold-create argument
+selection.
+
+Direct Pair launches remain unchanged. For now, an operator changes the repo
+default by running `pair -- <agent-arguments>` directly in that repository
+before using couch. The environment handoff is intentionally temporary; if the
+behavior becomes a permanent public choice, it graduates to a Pair CLI flag
+rather than growing more environment protocol.
+
+The handoff is set by couch and is one-shot. Pair's entry boundary snapshots
+exactly `PAIR_USE_REPO_DEFAULT=1` into typed launch policy, then unsets the
+variable before spawning sidecars, zellij, or panes; downstream code reads only
+the typed policy. Tests must prove the complete boundary: the couch child
+receives the environment value; entry mapping consumes rather than propagates
+it; a saved tag config cannot reopen the picker or override the repo default;
+no repo default means no user-configured arguments; a cold direct
+`pair resume <tag>` still offers the picker; and a live-session attach calls the
+existing attach path without create-time config/default mutation (ARCH-DRY,
+ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
+This revision explicitly supersedes the 2026-08-23 plan statement that the
+saved-config picker remains deliberate. The durable plan receives its matching
+implementation/test revision after this spec clears review.
+
+### 2026-08-24 — M3 verifies the shipped layout2, not a layout3 shell
+
+**Reason:** the first M3 boundary review carried forward “run `nvim -u NONE`
+from a shell inside Pair” as missing operator evidence. That instruction assumes
+layout3's user-terminal pane, while couch deliberately and test-lockedly starts
+every child with `--layout2`. Layout2 already launches the real draft nvim as
+one of its two zellij panes; adding a second nvim from a pane couch intentionally
+does not provide would test a different configuration.
+
+**Delta:** M3 does not require a second/nested nvim launch or an exit from a
+layout3 shell. This explicitly supersedes Task 2.7's literal operator checkbox
+that says “`nvim` opens and exits.” The shipped layout2 session starts the real
+draft nvim beside the agent, and the real-stack panel smoke exercised that
+layout, but the operator did not separately record editing in or exiting the
+draft across a panel switch. Margin-reset/alt-screen mechanics are instead
+required from the existing emulator, real-pty, and `make test-smoke` nvim
+round-trip tests. The composed `kill -9` couch-console reattach remains required
+separately and was confirmed by the operator on 2026-08-24. This corrects an
+inapplicable evidence request; it does not relabel an unrun layout3 test—or an
+unrecorded draft interaction—as passed.
+
+## Done when
+
+- couch supervises N sessions and switches the operator tty between them.
+- `ctrl-space` reaches the root actor from inside every child, including one that
+  is mid-output, and is measurably instant (no model turn, no network).
+- A reserved status row is visible in the root actor and in every attached child,
+  and the child renders correctly at the reduced height.
+- An attached child that exits lands the operator in couch's TUI with which actor
+  exited and why — never on a dead pane.
+- Landing on a session shows recent context rather than a blank screen.
+- Detach and reattach leave children running and warm.
+- A numbered/direct switch path exists that requires no natural-language
+  resolution.
+
+## Plan
+
+Design of record: `workshop/plans/000146-couch-tty-switching-and-attach-plan.md`.
+Four review boundaries; the smoke steps stay where they were sequenced (risk
+first) but are folded into the milestone whose risk they answer.
+
+- [x] M1 — **shared pty-child core.** Extract `ptychild` (ring, replay
+      query-strip, output scanner, pty child) out of `termcmd`'s multiplexer and
+      migrate `pair term` onto it. Ships no couch behaviour; the migration is
+      what validates the extraction (ARCH-DRY).
+- [x] M2 — **console over one child, with the reserved row.** `PtyRunner` behind
+      the existing `Runner` seam (+ fake + live conformance), `couch start`
+      becomes the console, `ctrl-space` interceptor, one-row-shorter child pty
+      with a pinned scrolling region, and `Spawn` forced onto `pair resume
+      <tag> --layout2` so a console restart reattaches instead of landing on a
+      picker. **Smoke step 1** (one real `pair` + claude child, resize, nvim in
+      and out) lands here; the `kill -9` reattach moved to M3 — see the
+      2026-08-23 carry note.
+- [ ] M3 — **many children and the panel.** Up-one-level focus, per-child ring
+      replay (or a resize nudge for alt-screen children), typeahead + numbered
+      direct switch, panel actions dispatching through `couchcore.Operations()`.
+      **Smoke step 2** (two real children, switching, `ctrl-space` from a
+      mid-output child) lands here.
+- [ ] M4 — **exits, detach, and what the row says.** Child exit lands in the
+      panel with actor + code, detach/reattach stays warm, notices over
+      `couchcore.Enqueue`, terminal restored on every exit path including
+      signals, atlas reconciled.
+
+## Estimate
+
+Derived after the plan cleared plan-quality (round 2, CLEAN), against the four
+milestones in `workshop/plans/000146-couch-tty-switching-and-attach-plan.md`.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+design-buffer: 0.15
+item: pensive                 design=0.8  impl=0.08
+item: greenfield-go-module    design=0.2  impl=0.32
+item: greenfield-go-module    design=0.2  impl=0.2
+item: cross-cutting-refactor  design=0.3  impl=0.2
+item: real-api-discovery      design=0.0  impl=0.2
+item: milestone-review        design=0.0  impl=0.2
+item: greenfield-go-module    design=0.5  impl=0.32
+item: smaller-go-module       design=0.1  impl=0.16
+item: smaller-go-module       design=0.1  impl=0.16
+item: greenfield-go-module    design=0.1  impl=0.2
+item: smaller-go-module       design=0.1  impl=0.08
+item: smaller-go-module       design=0.1  impl=0.16
+item: real-api-discovery      design=0.0  impl=0.24
+item: real-api-discovery      design=0.0  impl=0.24
+item: milestone-review        design=0.0  impl=0.2
+item: tui-screen              design=0.3  impl=0.28
+item: smaller-go-module       design=0.1  impl=0.08
+item: smaller-go-module       design=0.1  impl=0.2
+item: smaller-go-module       design=0.0  impl=0.08
+item: real-api-discovery      design=0.0  impl=0.24
+item: milestone-review        design=0.0  impl=0.2
+item: smaller-go-module       design=0.1  impl=0.12
+item: smaller-go-module       design=0.1  impl=0.16
+item: atlas-docs              design=0.1  impl=0.06
+item: real-api-discovery      design=0.0  impl=0.16
+item: milestone-review        design=0.0  impl=0.2
+item: cross-cutting-refactor  design=0.0  impl=0.2
+item: ux-rename-iteration     design=0.4  impl=0.1
+item: ux-rename-iteration     design=0.4  impl=0.1
+item: scope-pivot             design=0.3  impl=0.12
+total: 10.32
+```
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only.*
+
+**What each item is**, in plan order — the mapping is the derivation, so it is
+written down rather than left implied:
+
+| Item | Covers | Why that primitive |
+|---|---|---|
+| `pensive` | this planning session: code survey, plan doc, two plan-gate rounds | design 0.8 takes the upper half of the 0.3–1 band — the survey spanned `couchcore`, `termcmd`, `wrapcmd` and `launcher`, and round 1 returned four Important findings. **Not** spec-discounted: no plan pre-resolved this work, it *is* the plan. |
+| `greenfield-go-module` ×1 | M1 `ptychild` — `Ring`, `StripQueries`, `Screen`, `Child` | new package, single concern (a child on a pty). Design ×0.2-discounted: the plan fixes the contract and the test surface. |
+| `greenfield-go-module` ×1 | M1 `hostty` — `Host`, `OSHost`, `FakeHost`, control constants | same shape, one concern (the operator's terminal), same discount. |
+| `cross-cutting-refactor` | M1 migration of `pair term` onto **both** packages | multi-file, behaviour-preserving, with an existing suite as the net. Design 0.3 is not discounted to zero: where the seam falls in `runShell` is a live decision. |
+| `greenfield-go-module` ×1 | M2 `couchtty` — `Console` + `Interceptor` | design 0.5 rather than the ×0.2 floor: DECSTBM's behaviour under real children is the one thing the plan cannot pre-resolve, and Decision 4 carries a named fallback that would cost redesign. |
+| `smaller-go-module` ×2 | M2 `Reserve`/`RenderStatusRow` (Task 2.4); `PtyRunner`/`TerminalHandle` (Task 2.1) | well-specced extensions of shapes that exist — the `Runner` seam, `termcmd`'s escapes. |
+| `greenfield-go-module` ×1 | M2 Task 2.2 — `FakeRunner`'s scripted in-memory terminal **plus** the live conformance pin against a real pty | split out of Task 2.1 on the second pass: a stateful behavioural fake with a real-vs-fake conformance check is not a mirror of an existing shape, it is the ARCH-MOCK work, across three files. |
+| `smaller-go-module` ×1 | M2 Task 2.6a — `Spawn` forced onto `pair resume <tag>` | argv plus a derivation that reuses `launcher.DefaultTag`; small because the lever already exists. |
+| `tui-screen` | M3 the panel — rows, typeahead, numbered pick | literally the primitive's description: a screen plus a state machine plus tests. |
+| `smaller-go-module` ×2 | M3 `Focus`; N-children routing + replay in `Console` | pure model, then wiring onto seams M2 built. |
+| `smaller-go-module` ×2 | M4 `Notice`/`Feed` + row content; exits + restore-on-signal | `Feed` delegates to `couchcore.Enqueue`, so it is an extension rather than new logic. |
+| `atlas-docs` | M4 `atlas/couch.md` reconciliation | the atlas's "there is no pty yet" paragraphs are falsified by this issue. |
+| `smaller-go-module` ×1 | M2 Task 2.6 — `NewCouchWith`, the `no-console` `FlagOnly` arg, `path` defaulting to `.`, displacing `couchcmd/run.go:169-178` | two files nothing else in this table claims. |
+| `smaller-go-module` ×1 | M3 Task 3.4 — the panel-actions-are-a-subset-of-`Operations()` audit | design 0.0: the rule is already decided, this is the assertion. |
+| `real-api-discovery` ×5 | one per operator smoke, plus the reattach/park experiments | **the closest primitive to what a smoke actually is** — a budget for discovering how an external system really behaves, the external systems here being Ghostty, zellij and nvim rather than an HTTP API. Task 1.5's `pair term` smoke (M1 migrates the daily driver; a repaint regression surfaces nowhere else); Task 2.7's rendering smoke incl. DECSTBM survival across alt-screen transitions; Task 2.7's **`kill -9` reattach + park-vs-kill determination** (a separate discovery — zellij's session lifecycle, not terminal rendering, and it ends in a correction to `workshop/projects/couch.md`); Task 3.5's real-configuration smoke, where Decision 5's replay-vs-nudge fallback is decided; Task 4.6's full-session smoke. |
+| `ux-rename-iteration` ×2 | two iteration rounds on the status row, the panel and the navigation feel | v2.1's known-limitations section says TUI features take 3–5 rounds, not 1. Two is budgeted rather than five because the Spec pre-settled the navigation rule (one key, up one level) — the rounds left are how the row and panel *read*. |
+| `scope-pivot` ×1 | Decision 4's disclosed DECSTBM fallback | expected-value budget for a **named, already-disclosed** risk, not a generic contingency: if the reserved row does not survive real children, the plan's own instruction is to take the fallback, which is a scope event. |
+| `milestone-review` ×4 | the M1/M2/M3 boundaries plus the issue close | one per `sdlc milestone-close` / `sdlc close` — exactly the four boundaries the Plan commits to. At the band ceiling (0.2), because each one runs more than a review: whole-tree `go test`, `-race`, and at M2/M4 `make test-live` and the shell suites. |
+| `cross-cutting-refactor` ×1 | fixing what the four boundary reviews hand back | a review gate returns findings — this issue's own plan-quality round 1 returned four Important ones — and ARCH-PURPOSE requires fixing the *class*, which is by definition a sweep across files. Budgeting the review while budgeting no rework is the gap the second estimate pass closed. |
+
+**Read this as ship wall-clock, not calendar.** v3.1 writes `impl=` at 40% of the
+v2 table because post-#118 actuals came in near half of v2's implementation
+hours; the design column is unscaled.
+
+**The number moved by decomposition, not by picking one.** Round 1 of this block
+totalled 6.75 and the estimate-quality gate was right that it was thin: two of
+three operator smokes were budgeted at zero, Task 2.6 had no item, and a TUI
+issue carried no iteration rounds. Adding the items the work actually contains
+took it to 9.33. The total was never the input — had the missing items summed to
+less, the number would have gone down.
+
+**Calibration signal, recorded now rather than argued at close.**
+`calibration-ledger.tsv:376` has `pair#145` — the immediate predecessor, same
+project, same operator, closed the same day — at **8.51h actual** with no
+estimate recorded. `:357` has `pair#139` at **5.83 estimated → 22.37 actual
+(ratio 0.26)** under this same v3.1 model, and `baseline-v3.1.md`'s open
+question 3 already flags the under-estimation direction. #146 is materially
+larger than #145 along every axis, so a total below 8.51 was not credible; 9.33
+is barely above it, and if this repo's terminal work keeps landing near #139's
+ratio the honest expectation is a miss on the high side. That is a v3.1
+calibration input, not a reason to inflate the block — the ledger learns from
+the gap, and hand-tuning the estimate to be right destroys exactly that signal.
+
+**Step 2.5 (library availability) answered, for the one item where it bites.**
+v2.1 requires the check on every `greenfield-go-module`. Three of the four have
+design already ×0.2-discounted, so it is near-moot there. `couchtty`'s 0.5 is
+deliberately undiscounted, and the check's answer is the plan's Tech Stack line:
+**no TUI framework** — bubbletea/lipgloss would not short-circuit this, because
+the console's job is to *pass bytes through* and reserve one row, not to render
+a frame tree. pair writes raw escapes directly and couch must too. Design stands
+undiscounted.
+
+**`familiarity: 1.0` is kept, with the caveat named.** `termcmd` already does
+pty, raw mode, `SIGWINCH` and replay, so the tree is familiar for M1 and most of
+M3/M4. The scrolling-region reservation and the paste-aware interceptor are not,
+and v3.1 applies familiarity to *impl* — which is where a DECSTBM surprise would
+land. The block compensates on the design side (`couchtty design=0.5`,
+undiscounted) plus the `scope-pivot` item, rather than bending a global
+multiplier that would also lift the parts that genuinely are familiar.
+
+## Log
+
+### 2026-08-21
+
+Split out of the former root ticket on promotion to a project.
+
+**Layering fork — SETTLED 2026-08-21, host `pair` whole.** The operator ran
+`./bin/couch start ../pair` against `#145`'s spawn path and pair came up
+correctly, so couch does **not** absorb zellij's role: the stack stays
+couch → pair → zellij → claude+nvim, and a zellij inside a couch-owned pty is
+just a child that redraws on SIGWINCH.
+
+This issue's scope is therefore the narrow one: route one tty to one child at a
+time, with no responsibility for what the child runs internally. Estimation is
+unblocked.
+
+### 2026-08-22
+- 2026-08-22: closed M1 — Round 4. BR-1 fixed at its third and correct shape: the bound was never the rule -- past maxPending the scanner now stops BUFFERING but keeps FRAMING (streaming skip to the real terminator), so whole and chunked input agree at every length; deletion check reproduces the reviewers own whole=true/split=false measurement. BR-18 (which round 2 introduced) fixed with the enumeration it demanded: 4 of 7 post-terminal-state stimuli diverged across Host and Child, 1 fatally (FakeHost SetSize panicked on send-to-closed-channel); all now agree and BOTH conformance tests drive past the terminal transition rather than stopping at it. BR-6 consolidated into procutil.WaitCode after two rounds. Verified: go test ./cmd/... green; make test-race whole-tree green; make test-smoke 8/8 incl. nvim alt-screen round trip; make build; make test-term-pane-shortcuts green. All deletion checks confirmed mutate+compile+traverse.; review verdict: FIX-THEN-SHIP
+
+Claimed and planned. Design of record:
+`workshop/plans/000146-couch-tty-switching-and-attach-plan.md`; the eight loose
+
+exec
+/bin/zsh -lc 'rg -n "Core concepts|M3|BR-4[2-9]|Revisions|Pure entities|DecodePanelKeys|Console|Home" workshop/plans/000146-couch-tty-switching-and-attach-plan.md workshop/issues/000146-couch-tty-switching-and-attach.md && git show --stat --oneline ca480ce && git show --format=fuller --find-renames ca480ce -- workshop/plans/000146-couch-tty-switching-and-attach-plan.md workshop/issues/000146-couch-tty-switching-and-attach.md && git diff ca480ce''^..ca480ce --check' in /Users/xianxu/workspace/pair
+ succeeded in 0ms:
+workshop/issues/000146-couch-tty-switching-and-attach.md:80:## Revisions
+workshop/issues/000146-couch-tty-switching-and-attach.md:127:### 2026-08-24 — M3 verifies the shipped layout2, not a layout3 shell
+workshop/issues/000146-couch-tty-switching-and-attach.md:129:**Reason:** the first M3 boundary review carried forward “run `nvim -u NONE`
+workshop/issues/000146-couch-tty-switching-and-attach.md:136:**Delta:** M3 does not require a second/nested nvim launch or an exit from a
+workshop/issues/000146-couch-tty-switching-and-attach.md:178:      and out) lands here; the `kill -9` reattach moved to M3 — see the
+workshop/issues/000146-couch-tty-switching-and-attach.md:180:- [ ] M3 — **many children and the panel.** Up-one-level focus, per-child ring
+workshop/issues/000146-couch-tty-switching-and-attach.md:244:| `greenfield-go-module` ×1 | M2 `couchtty` — `Console` + `Interceptor` | design 0.5 rather than the ×0.2 floor: DECSTBM's behaviour under real children is the one thing the plan cannot pre-resolve, and Decision 4 carries a named fallback that would cost redesign. |
+workshop/issues/000146-couch-tty-switching-and-attach.md:248:| `tui-screen` | M3 the panel — rows, typeahead, numbered pick | literally the primitive's description: a screen plus a state machine plus tests. |
+workshop/issues/000146-couch-tty-switching-and-attach.md:249:| `smaller-go-module` ×2 | M3 `Focus`; N-children routing + replay in `Console` | pure model, then wiring onto seams M2 built. |
+workshop/issues/000146-couch-tty-switching-and-attach.md:253:| `smaller-go-module` ×1 | M3 Task 3.4 — the panel-actions-are-a-subset-of-`Operations()` audit | design 0.0: the rule is already decided, this is the assertion. |
+workshop/issues/000146-couch-tty-switching-and-attach.md:257:| `milestone-review` ×4 | the M1/M2/M3 boundaries plus the issue close | one per `sdlc milestone-close` / `sdlc close` — exactly the four boundaries the Plan commits to. At the band ceiling (0.2), because each one runs more than a review: whole-tree `go test`, `-race`, and at M2/M4 `make test-live` and the shell suites. |
+workshop/issues/000146-couch-tty-switching-and-attach.md:294:M3/M4. The scrolling-region reservation and the paste-aware interceptor are not,
+workshop/issues/000146-couch-tty-switching-and-attach.md:505:  M2/M3 rather than fail. The doc was wrong, not the code: a fresh fake is
+workshop/issues/000146-couch-tty-switching-and-attach.md:515:  `## Revisions` entry rather than a silent edit.
+workshop/issues/000146-couch-tty-switching-and-attach.md:649:  about what a repaint may contain -- and M3 Task 3.3 spells it out a third time
+workshop/issues/000146-couch-tty-switching-and-attach.md:682:real `Console` against a real emulator and reads the resulting SCREEN:
+workshop/issues/000146-couch-tty-switching-and-attach.md:859:- 2026-08-23: closed M2 — Round 4. All 3 Criticals disposed at round 3. The four remaining Importants fixed at the class: BR-24 consoleRunnerFor pins the WIRING without a pty (forcing it to decline now goes red in-sandbox) and the path default is pinned by EFFECT -- which surfaced that the explicit default was dead weight since filepath.Abs(empty) returns cwd, so Spawn refuses an empty path and the default is load-bearing. BR-26 all five named sites actually changed (Decision 11s false resume claim, Task 2.6as inverted test, statusrow.go which does not exist, TerminalHandles location and interface-vs-concrete contract, MarginsDirty at two sites) with a Revisions entry that does not overclaim. BR-36 Task 2.7 recorded item by item, separating operator-confirmed from automated, naming what is carried to M3 and why, and explicitly NOT claiming the row-while-claude-streams case. BR-38 fixed as an enumeration: readme_test.go derives from couchcore.Operations() and every FlagOnly arg, and immediately caught two gaps I had not thought to write. Verified: go test ./cmd/... green; make test-race DATA RACE clean; make test-live green; make test-smoke green via the probes/*/ enumeration; make build. Operator smoke on the real stack passed 2026-08-23.; review verdict: FIX-THEN-SHIP
+workshop/issues/000146-couch-tty-switching-and-attach.md:862:real `Console` with a real terminal emulator reading the screen
+workshop/issues/000146-couch-tty-switching-and-attach.md:885:`TestConsoleNeverInjectsInsideAChildEscapeSequence` red.
+workshop/issues/000146-couch-tty-switching-and-attach.md:925:What the smoke did NOT separately exercise, and is therefore carried to M3
+workshop/issues/000146-couch-tty-switching-and-attach.md:967:  Fixed by framing the stream the console WRITES (`Console.hostScan`), which is
+workshop/issues/000146-couch-tty-switching-and-attach.md:998:  repaint-from-ring that does not exist until M3 -- so a drop was silent,
+workshop/issues/000146-couch-tty-switching-and-attach.md:1033:- **BR-23.** The fallback was in and pinned, but `Console.Run` still returned a
+workshop/issues/000146-couch-tty-switching-and-attach.md:1041:  (`WantsConsole`) now and is pinned unconditionally.
+workshop/issues/000146-couch-tty-switching-and-attach.md:1045:- **BR-26.** The Revisions entry asserted a table sweep that had not happened.
+workshop/issues/000146-couch-tty-switching-and-attach.md:1079:  (`TestConsoleSizesTheChildOneRowShort`,
+workshop/issues/000146-couch-tty-switching-and-attach.md:1080:  `TestConsolePropagatesAHostResizeToTheChild`) and exercised against a real pty
+workshop/issues/000146-couch-tty-switching-and-attach.md:1088:**Carried to M3, deliberately, with the reason:**
+workshop/issues/000146-couch-tty-switching-and-attach.md:1093:  COMPOSITION is untested. It needs a second couch process, which is M3's shape
+workshop/issues/000146-couch-tty-switching-and-attach.md:1097:  specifically was not driven in-and-out by hand. M3's smoke has the operator in
+workshop/issues/000146-couch-tty-switching-and-attach.md:1110:- **BR-24, third time.** I had pinned `WantsConsole` but not that
+workshop/issues/000146-couch-tty-switching-and-attach.md:1128:  Revisions entry in the SAME window.
+workshop/issues/000146-couch-tty-switching-and-attach.md:1131:  carried to M3 with the reason -- and one item explicitly NOT claimed (the row
+workshop/issues/000146-couch-tty-switching-and-attach.md:1153:  on a screen with no status row -- a bug that would first appear in M3, where
+workshop/issues/000146-couch-tty-switching-and-attach.md:1156:- **`Console` was filed under "Pure entities"** by my own sweep, while the row
+workshop/issues/000146-couch-tty-switching-and-attach.md:1175:### 2026-08-23 -- M3 built: couch is a switcher
+workshop/issues/000146-couch-tty-switching-and-attach.md:1213:**The async-marker trap hit twice more** (five times across M2/M3): a wait
+workshop/issues/000146-couch-tty-switching-and-attach.md:1219:Still owed for M3: Task 3.5's operator smoke.
+workshop/issues/000146-couch-tty-switching-and-attach.md:1221:### 2026-08-23 -- M3 smoke round 1: the panel was not usable, and one gap was a claim I never built
+workshop/issues/000146-couch-tty-switching-and-attach.md:1230:  printable. New `DecodePanelKeys` frames sequences through
+workshop/issues/000146-couch-tty-switching-and-attach.md:1261:### 2026-08-23 -- M3 smoke round 2: Escape was dead, for the reason ctrl-space was
+workshop/issues/000146-couch-tty-switching-and-attach.md:1301:### 2026-08-23 -- M3 smoke round 3: starting worked below the panel but never joined it
+workshop/issues/000146-couch-tty-switching-and-attach.md:1309:but its `StartResult` never reached `Console.Attach`. At the same time,
+workshop/issues/000146-couch-tty-switching-and-attach.md:1323:### 2026-08-23 -- M3 smoke round 4: the panel displayed a label its resolver did not know
+workshop/issues/000146-couch-tty-switching-and-attach.md:1340:### 2026-08-23 -- M3 operator smoke passed
+workshop/issues/000146-couch-tty-switching-and-attach.md:1344:M3 smoke now passes. Earlier rounds separately confirmed `ctrl-space` and
+workshop/issues/000146-couch-tty-switching-and-attach.md:1346:navigation. This supplies Task 3.5's missing external behavior evidence; M3 is
+workshop/issues/000146-couch-tty-switching-and-attach.md:1349:### 2026-08-23 -- M3 boundary review round 1: REWORK
+workshop/issues/000146-couch-tty-switching-and-attach.md:1351:The gate raised BR-42–47. Four implementation classes were reproduced before
+workshop/issues/000146-couch-tty-switching-and-attach.md:1361:composed Console tests cover both hotkey encodings, parked and renamed summary
+workshop/issues/000146-couch-tty-switching-and-attach.md:1364:same exported panel-control inventory in its coverage test (BR-47). The plan's
+workshop/issues/000146-couch-tty-switching-and-attach.md:1365:Core-concepts table now classifies `Console` as INTEGRATION, removes nonexistent
+workshop/issues/000146-couch-tty-switching-and-attach.md:1366:`Home`, and lists `PanelKey`/`DecodePanelKeys` plus the pure target join (BR-45).
+workshop/issues/000146-couch-tty-switching-and-attach.md:1369:BR-46 remains deliberately unclaimed: the operator's final “smoke test passed”
+workshop/issues/000146-couch-tty-switching-and-attach.md:1393:### 2026-08-24 -- BR-46 disposition follows the configuration M3 ships
+workshop/issues/000146-couch-tty-switching-and-attach.md:1396:carried half of BR-46. The other half is resolved by the matching Spec/Plan
+workshop/issues/000146-couch-tty-switching-and-attach.md:1399:another nvim from a user shell assumes layout3 and is superseded for M3. The
+workshop/issues/000146-couch-tty-switching-and-attach.md:1403:`make test-smoke` probe suites. This supersedes the earlier “BR-46 remains
+workshop/issues/000146-couch-tty-switching-and-attach.md:1407:### 2026-08-24 -- M3 verification exposed a broken live-test target
+workshop/issues/000146-couch-tty-switching-and-attach.md:1423:GREEN before M3 closes (ARCH-PURPOSE).
+workshop/issues/000146-couch-tty-switching-and-attach.md:1425:### 2026-08-24 -- M3 boundary review round 2: REWORK on BR-42 and BR-45
+workshop/issues/000146-couch-tty-switching-and-attach.md:1427:The gate disposed BR-43, BR-44, BR-46, and BR-47. It kept two Criticals open.
+workshop/issues/000146-couch-tty-switching-and-attach.md:1428:BR-42 reproduced a Kitty ctrl-space split immediately after ESC: the old
+workshop/issues/000146-couch-tty-switching-and-attach.md:1430:recognize. BR-45 found that the corrected Core-concepts rows still lacked the
+workshop/issues/000146-couch-tty-switching-and-attach.md:1431:recorded audit the plan claimed, and that “Console holds no policy” contradicted
+workshop/issues/000146-couch-tty-switching-and-attach.md:1434:The BR-42 class fix enumerates every byte split of every sequence in
+workshop/issues/000146-couch-tty-switching-and-attach.md:1443:The BR-45 audit checked every Core-concepts row due through M3 against the
+workshop/issues/000146-couch-tty-switching-and-attach.md:1448:All other M1–M3 paths/symbols exist; `updateMouseMode` is absent as declared;
+workshop/issues/000146-couch-tty-switching-and-attach.md:1451:compositions have direct tests. Console is now described as an integration
+workshop/issues/000146-couch-tty-switching-and-attach.md:1455:### 2026-08-24 -- M3 boundary review round 3: executable enforcement
+workshop/issues/000146-couch-tty-switching-and-attach.md:1457:The gate accepted BR-42 and BR-48 and left BR-45 as the only blocker. The
+workshop/issues/000146-couch-tty-switching-and-attach.md:1466:checks were observed RED: adding Console under Pure reports its `io`/`os`
+workshop/issues/000146-couch-tty-switching-and-attach.md:1467:imports; restoring nonexistent `Home` reports the absent declaration and test;
+workshop/issues/000146-couch-tty-switching-and-attach.md:1469:GREEN. Conceptual rows now name exact declarations, and Console's source comment
+workshop/issues/000146-couch-tty-switching-and-attach.md:1479:### 2026-08-24 -- M3 boundary review round 4: whole-row deletion enforcement
+workshop/issues/000146-couch-tty-switching-and-attach.md:1481:The gate withdrew BR-49 after confirming the input event-loop refactor, but
+workshop/issues/000146-couch-tty-switching-and-attach.md:1482:kept BR-45 open because the first executable contract trusted the set of rows
+workshop/issues/000146-couch-tty-switching-and-attach.md:1485:row contents. Deleting the entire `PanelKey` / `DecodePanelKeys` row was
+workshop/issues/000146-couch-tty-switching-and-attach.md:1487:GREEN. The plan's Core concepts table can no longer silently omit the class of
+workshop/issues/000146-couch-tty-switching-and-attach.md:1488:entity that originally triggered BR-45 (ARCH-PURPOSE).
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:29:   - **Home is chosen by which tree you start first, not by couch's cwd**, and the two coincide only because the default does. `couch start ../pair` from brain deliberately makes *pair* home; that is a legitimate invocation and it is what the M2 single-child smoke uses, but M3's smoke must run the real configuration — couch from brain with no path, pair added as a second child — or the project's headline property is verified against a stand-in.
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:40:   - **The nudge is a documented fallback, not the default.** If the M3 smoke lands garbled on zellij, add it — and accept its real cost, which the plan-quality gate named: `TIOCSWINSZ` raises `SIGWINCH` only when the winsize actually *differs*, so a nudge is a `rows-1 → rows-2 → rows-1` round trip and a visible double reflow of the whole workbench. That is a price worth paying to fix a broken landing and not worth paying speculatively.
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:43:6. **Both halves of the terminal plumbing are extracted from `termcmd`, and `pair term` migrates onto both in M1 (ARCH-DRY).** The first draft extracted only the *child* half and left `couchtty.Console` to re-implement the *host* half — `term.MakeRaw` (`termcmd/run.go:222`), `signal.Notify(SIGWINCH)` → `pty.GetsizeFull` (`:244`, `:975-983`), `term.Restore`, and the `\x1b[r` region reset `termcmd.restoreTerminal` already writes (`:1107-1109`). That last one would have put one escape sequence in two packages, against this plan's own one-constant rule, and it is why the first draft's "test the console with fakes, no real tty" and "test the signal path" tasks were unbuildable: there was no injectable host in the type inventory (PQ-2, ARCH-PURE/ARCH-MOCK).
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:73:## Core concepts
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:75:### Pure entities
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:85:| `PanelKey` / `DecodePanelKeys` | `cmd/internal/couchtty/panelkeys.go` | new |
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:89:| `ResetRegion` / `SaveCursor` / `RestoreCursor` / `ClearLine` / `HomeAndClear` / `SetRegion` / `MoveTo` | `cmd/internal/hostty/control.go` | new (`\x1b[r` moved from `termcmd/run.go`) |
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:90:| `Notice` / `Feed` | `cmd/internal/couchtty/notice.go` | planned for M4 (not delivered at M3) |
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:143:| `couchtty.Console` | `cmd/internal/couchtty/console.go` | new | drives `hostty.Host` + N `ptychild.Child` |
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:151:  - **Injected into:** `termcmd.terminalMux` and `couchtty.Console`, both of which keep their own switching policy.
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:160:  - **Injected into:** `couchtty.Console` and `termcmd.runShell`. This is what makes "test the console with no real tty" and "test the signal path" writable at all (PQ-2).
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:163:- **couchtty.Console** — the integration controller: it drives `hostty.Host`
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:166:  Console necessarily applies UI transition policy while coordinating IO; it
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:239:- [ ] **Tests must catch:** the existing `run_test.go` suite is the net. Run `go test ./cmd/internal/termcmd/ -count=1` and `make test-term-pane-shortcuts`. Any test that needed editing to pass is a **behaviour change** — stop and justify it in the plan's Revisions rather than editing the test.
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:295:### Task 2.5 — `Console`
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:312:**What the console displaces, named precisely:** `render`'s `StartResult` branch (`couchcmd/run.go:171-178`) today prints `started <id> on <tree> (pid N)` and then blocks on `Handle.Wait()`. That branch becomes: if the handle is a `TerminalHandle`, construct a `couchtty.Console` over `hostty.OSHost{}` and run it (the console owns the exit code); otherwise keep today's print-and-wait. **`couchcmd` constructs and drives the `Console`** — `couchcore` never learns that a terminal exists.
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:331:- [ ] **Reattach across a console death (Decision 7/11).** `kill -9` the couch process, then re-run `couch start` on the same tree. Confirm and log: the same zellij session comes back with claude still mid-thread — **not** an fzf picker, and **not** a second session. This is the property that makes a daemon unnecessary; if it does not hold, Decision 7 is wrong and the daemon question reopens before M3.
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:340:## Chunk 3: M3 — many children, and the panel
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:387:- [ ] Commit + `sdlc milestone-close --issue 146 --milestone M3`.
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:468:## Revisions
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:483:- **PQ-2 `io-seam-unnamed` — addressed.** The class is "one half of the terminal plumbing was extracted and the other left duplicated". Decision 6 now extracts **both**: new `hostty` package (Host seam + `OSHost`/`FakeHost` + the terminal-control constants, `\x1b[r` among them) with `pair term`'s host half migrated onto it in new Task 1.4a. That is what makes Task 2.5's fake-driven tests and Task 4.4's signal-path test writable. Task 2.6 now names `couchcmd/run.go:171-178` as what the console displaces, and says `couchcmd` constructs and drives the `Console`.
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:486:- **PQ-5 `resize-nudge-mechanism` — addressed by removal.** `TIOCSWINSZ` only raises `SIGWINCH` on an actual size change, so the nudge cost a `rows-1 → rows-2 → rows-1` double reflow. Rather than accept that, Decision 5 drops the branch: `pair term` already replays a raw buffer to land on an `nvim` tab daily, so replay is the one mechanism for every child and the nudge is a documented fallback if M3's smoke lands garbled. Task 3.3's alt-screen test is replaced by one pinning that the replay is `StripQueries`'d — #127's bug arriving at a new site is the real hazard on that path.
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:556:**Reason:** the previous Revisions entry asserted that the Core-concepts rows
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:563:name the file that owns the shape. A `Console` row was added rather than left
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:568:`--layout2`. Two of its items are deliberately carried to M3 rather than
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:599:implementer — and a boundary that reverses a Decision writes its `## Revisions`
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:602:### 2026-08-23 — M3 smoke round 3: operation results and panel identities are load-bearing
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:618:### 2026-08-23 — M3 smoke round 4: the rendered repo fallback joins the shared match rule
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:631:### 2026-08-23 — M3 boundary review round 1: input serialization and one panel source
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:633:**Reason:** the M3 boundary review found that the operator smoke covered normal
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:647:   every split point. `DecodePanelKeys` likewise holds a bare ESC as a possible
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:648:   prefix; the Console's IO loop supplies the short ambiguity timeout that turns
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:660:4. The Core-concepts classification is corrected: `Console` is an INTEGRATION
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:661:   point; `PanelKey`/`DecodePanelKeys` and the pure summary/target join are PURE;
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:662:   nonexistent `Home` is removed. Before re-close, a recorded table audit checks
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:663:   every row delivered through M3 against its declaration, location,
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:666:5. Before re-closing M3, record every carried smoke item individually: composed
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:691:**Core concepts delta:** no new domain entity and no new external dependency.
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:776:### 2026-08-24 — M3 smoke follows the pinned layout2 configuration
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:778:**Reason:** the M3 boundary-review revision asked for a real `nvim -u NONE`
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:782:switch configurations rather than verify the one M3 ships.
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:785:operator checkbox for M3; there is no user shell in the pinned layout2 from
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:794:### 2026-08-24 — M3 boundary review round 2: read splits and table claims
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:796:**Reason:** round 2 kept BR-42 and BR-45 open. The interceptor deliberately
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:801:called Console policy-free despite its event/UI transition coordination.
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:806:The delivered-through-M3 table audit is recorded in the issue Log. It moves
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:808:and describes Console honestly as the integration controller that owns event
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:812:### 2026-08-24 — M3 boundary review round 3: executable table contract
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:814:**Reason:** round 3 accepted BR-42 and the generated-artifact cleanup but kept
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:815:BR-45 open: a manual audit cannot stop the sixth recurrence of table drift, and
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:816:the source comment still contradicted the corrected Console classification. It
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:824:name exact declarations. Mutations moving Console under Pure, restoring `Home`,
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:832:### 2026-08-24 — M3 boundary review round 4: bidirectional concept inventory
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:835:concept row to disappear. Removing `PanelKey` / `DecodePanelKeys` deleted the
+workshop/plans/000146-couch-tty-switching-and-attach-plan.md:842:`DecodePanelKeys` row was observed RED with a precise missing-row error, then
+ca480ce couch: pin #146 core concept inventory
+ .../couchtty/core_concepts_contract_test.go        |   76 +
+ .../000146-couch-tty-switching-and-attach.md       |   11 +
+ workshop/lessons.md                                |    4 +
+ ...46-couch-tty-switching-and-attach-close-gate.md |   22 +-
+ ...146-couch-tty-switching-and-attach-m3-review.md | 9554 ++++++++++++++++++++
+ .../000146-couch-tty-switching-and-attach-plan.md  |   14 +
+ 6 files changed, 9680 insertions(+), 1 deletion(-)
+commit ca480ceaf156c573c30704737b98665e3a53f054
+Author:     T <t@e.com>
+AuthorDate: Mon Aug 24 16:43:06 2026 -0700
+Commit:     T <t@e.com>
+CommitDate: Mon Aug 24 16:43:06 2026 -0700
+
+    couch: pin #146 core concept inventory
+
+    Make the architecture contract bidirectional so deleting an entire concept row fails instead of deleting the test input with it.
+
+    Review-Verdict: REWORK
+
+    Review-Window: 6a873efb..6a873efb
+
+    Co-Authored-By: Codex <noreply@openai.com>
+
+diff --git a/workshop/issues/000146-couch-tty-switching-and-attach.md b/workshop/issues/000146-couch-tty-switching-and-attach.md
+index e8bc72d..a50f9cb 100644
+--- a/workshop/issues/000146-couch-tty-switching-and-attach.md
++++ b/workshop/issues/000146-couch-tty-switching-and-attach.md
+@@ -1475,3 +1475,14 @@ ambiguity timers, focus transitions, suffix routing, and panel decoding in the
+ existing event loop. This removes the newly introduced extra worker while
+ preserving M4 Task 4.4 as the owner of full console/host teardown (ARCH-DRY,
+ ARCH-PURE, ARCH-PURPOSE).
++
++### 2026-08-24 -- M3 boundary review round 4: whole-row deletion enforcement
++
++The gate withdrew BR-49 after confirming the input event-loop refactor, but
++kept BR-45 open because the first executable contract trusted the set of rows
++it parsed. A typed inventory now defines the complete Pure and Integration
++row-name set and rejects omissions, additions, and duplicates before checking
++row contents. Deleting the entire `PanelKey` / `DecodePanelKeys` row was
++observed RED (`missing PURE row ...`) and restoration returned the contract to
++GREEN. The plan's Core concepts table can no longer silently omit the class of
++entity that originally triggered BR-45 (ARCH-PURPOSE).
+diff --git a/workshop/plans/000146-couch-tty-switching-and-attach-plan.md b/workshop/plans/000146-couch-tty-switching-and-attach-plan.md
+index ab15631..8c25468 100644
+--- a/workshop/plans/000146-couch-tty-switching-and-attach-plan.md
++++ b/workshop/plans/000146-couch-tty-switching-and-attach-plan.md
+@@ -828,3 +828,17 @@ move onto Run's existing event loop; `pumpStdin` is again the single blocking
+ reader, so the fix adds no new unjoinable worker. Full console lifecycle
+ ownership remains Task 4.4's explicit M4 work (ARCH-DRY, ARCH-PURE,
+ ARCH-PURPOSE).
++
++### 2026-08-24 — M3 boundary review round 4: bidirectional concept inventory
++
++**Reason:** round 4 found that validating only parsed rows still allowed a whole
++concept row to disappear. Removing `PanelKey` / `DecodePanelKeys` deleted the
++test's input as well, so the original omission class remained possible.
++
++**Delta:** the contract now has a typed inventory of the complete Pure and
++Integration row-name set. It rejects missing, extra, and duplicate rows before
++validating each remaining row's path, declaration, lifecycle status, purity,
++and direct test coverage. Deleting the complete `PanelKey` /
++`DecodePanelKeys` row was observed RED with a precise missing-row error, then
++restored GREEN. This makes the audit bidirectional rather than trusting the
++prose to enumerate its own required inputs (ARCH-PURPOSE).
+
+codex
+The worktree is clean, and the literal `Base..Head` window is empty. The only new boundary artifact is the Head commit itself, which claims to close BR-45 by making the Core concepts contract bidirectional. I’m therefore treating BR-45 as the review’s required substantive check: verify the table against current declarations/tests, run the contract, and mutation-test whole-row deletion in an isolated copy.
+exec
+/bin/zsh -lc "sed -n '65,180p' workshop/plans/000146-couch-tty-switching-and-attach-plan.md && sed -n '1,260p' cmd/internal/couchtty/core_concepts_contract_test.go && sed -n '340,405p' workshop/plans/000146-couch-tty-switching-and-attach-plan.md && sed -n '1340,1505p' workshop/issues/000146-couch-tty-switching-and-attach.md" in /Users/xianxu/workspace/pair
+ succeeded in 0ms:
+    - **This is a deliberate slice of `#149`, not a collision with it.** `#149` decides that the tag *is* the space — durable, opaque, several per tree, names as a mutable attribute layer — and supersedes this derivation. What `#146` needs is only that going back in is deterministic; recorded here so the overlap is chosen rather than discovered at `#149`'s plan.
+
+12. **Resolution has one implementation, and the panel injects it.** The first draft had `PanelModel.Filter` match "name, description and repo — the same three fields `couchcore.LookupTrees` matches". That was wrong on the facts and wrong on the principle: `NamingTable.Lookup` matches **Name and Description** only (`naming.go:44-57`), `LookupTrees` adds the agent-published description via `Describe` (`couch.go:196-220`), and **repo is matched nowhere** — path resolution lives a layer up in `ResolveRef`, behind an `ActorID` exact-match branch (`couch.go:228-250`; the exact branch at `:231-235`, the path fallback at `:237-241`). A restated filter would either grow a match the CLI does not have or duplicate two-thirds of a rule that exists, and it would falsify the claim that `#148`'s advisor calls the same resolution (PQ-3).
+    - **Shape:** `PanelModel.Filter(query string, resolve func(string) []Worktree)`. The model stays pure and unit-testable with a stub resolver; production passes `couch.LookupTrees`. One rule, three callers (CLI, panel, advisor), no restatement.
+    - This is the same guard Task 3.4 applies to *actions*, applied to *resolution*. The panel is not allowed a private verb; it is not allowed a private match rule either.
+
+---
+
+## Core concepts
+
+### Pure entities
+
+| Name | Lives in | Status |
+|------|----------|--------|
+| `Ring` | `cmd/internal/ptychild/ring.go` | new |
+| `StripQueries` + query deny-list | `cmd/internal/ptychild/replay.go` | new (moved from `termcmd/queries.go`) |
+| `Screen` | `cmd/internal/ptychild/screen.go` | new |
+| `updateMouseMode` | `cmd/internal/termcmd/run.go` | deleted (folded into `Screen`) |
+| `Focus` / `Up` | `cmd/internal/couchtty/focus.go` | new |
+| `PanelModel` / `Filter` / `Pick` / target join | `cmd/internal/couchtty/panel.go` | new |
+| `PanelKey` / `DecodePanelKeys` | `cmd/internal/couchtty/panelkeys.go` | new |
+| `StatusModel` / `RenderStatusRow` | `cmd/internal/couchtty/reserve.go` | new |
+| `Interceptor` | `cmd/internal/couchtty/keys.go` | new |
+| `Reserve` / `Release` / `PaintRow` | `cmd/internal/couchtty/reserve.go` | new |
+| `ResetRegion` / `SaveCursor` / `RestoreCursor` / `ClearLine` / `HomeAndClear` / `SetRegion` / `MoveTo` | `cmd/internal/hostty/control.go` | new (`\x1b[r` moved from `termcmd/run.go`) |
+| `Notice` / `Feed` | `cmd/internal/couchtty/notice.go` | planned for M4 (not delivered at M3) |
+
+- **Ring** — a bounded byte buffer with a snapshot. `Append([]byte)`, `Snapshot() []byte` (an independent copy). Cap 128KB, lifted from `termcmd.appendBuffer`.
+  - **Relationships:** 1:1 with `ptychild.Child`.
+  - **DRY rationale:** removes the buffer-trim policy from `termcmd` so one place owns "how much scrollback a detached child keeps".
+  - **Future extensions:** a byte cap is a proxy for "enough to land on". If landing proves thin, this widens to a line- or screen-aware cap without any caller changing.
+
+- **StripQueries** — the replay deny-list from `termcmd/queries.go` (#127), moved verbatim with its tests. Removes capability queries from a *replayed* buffer so the repaint cannot re-ask the host terminal and have the answer land in another child's stdin.
+  - **DRY rationale:** couch's repaint-on-attach is the same operation `redrawTab` performs. Without the move, couch either re-earns #127's bug or copies its table.
+  - **Future extensions:** stays a best-effort deny-list; a missed query degrades to the old behaviour, exactly as documented today.
+
+- **Screen** — the single scanner over a child's output stream. It answers the
+  questions the console asks of a child: is it on the alternate screen, does it
+  want mouse reporting, has it done something that can drop the reserved row,
+  has it rung the bell. Framing goes through `ansi.TerminatorScan`; it does
+  **not** frame CSIs itself.
+  - **The field list deliberately lives in the code, not here.** Two rounds of
+    review caught this table drifting from the shapes it restated
+    (`restoreTerminal`, then these accessors), which is the same failure mode
+    `atlas/couch.md` records for enumerating couch's operation set in prose: a
+    hand-maintained restatement is a second source that drifts. Read
+    `ptychild/screen.go`.
+  - **DRY rationale:** `termcmd.updateMouseMode` is today's half of this and gets
+    folded in — one scanner per package, per the paired-terminator lesson.
+  - **Future extensions:** title (OSC 0/2) and OSC 777 notifications are the
+    natural next answers; the console's status row is already where they surface.
+
+- **Focus** — `FocusPanel` or `FocusActor(ActorID)`, plus `Up(cur, root) Focus`: a non-root child goes home to the root actor; the root actor goes to the panel; the panel stays. Pure; the whole navigation rule is one function.
+  - **DRY rationale:** first occurrence, but the rule is stated in three places (project, issue, atlas) and must have exactly one implementation.
+  - **Future extensions:** direct jumps ("to actor N", "to the latest notifier") are deliberately deferred by the Spec; they widen `Up` into a `Move(cur, intent)` without touching the console.
+
+- **PanelModel / Filter / Pick** — the panel as data: rows built from `couchcore.TreeSummary`, and `Pick(digit)` resolving a keystroke to a displayed row. `Filter(query, resolve func(string) []Worktree)` **injects** the match rule rather than restating it; production passes `couch.LookupTrees` (Decision 12). Pure, so a stub resolver tests it and `#148`'s advisor genuinely shares the resolution rather than being claimed to.
+
+- **StatusModel / RenderStatusRow** — the row as data plus a pure renderer: actor chips, which one is active, which have asked for attention, and the newest notice, fitted to the width in terminal columns. Untrusted text (an agent publishes its own description) is stripped before it can reach the screen.
+
+- **Interceptor** — splits the operator's keystrokes around the hotkey, returning the bytes for the current focus and the bytes for the one landed on. Recognises BOTH encodings of ctrl-space and suspends inside a bracketed paste; the signature and the state it holds live in `couchtty/keys.go`, which is the only place they cannot drift from.
+  - **DRY rationale:** the return shape is `workbenchshortcut.FindChord`'s, deliberately. If a third site ever needs "find a key in a stream and split around it", that is the moment to extract one scanner rather than write a third.
+  - **Future extensions:** a second hotkey (the Spec defers direct jumps) widens `hit bool` to a small enum without changing any caller's shape.
+
+- **Reserve / Release / PaintRow** — the reserved row's escape sequences, composed from `hostty`'s constants rather than spelled here. One constant per sequence, per the paired-terminator lesson; the compositions are in `couchtty/reserve.go`.
+
+- **Notice / Feed** — `Notice{Kind, Body, Control}` and a feed that delegates to `couchcore.Enqueue`. `Feed` holds the capacity and the key convention (`bell:<id>`, `exit:<id>`); the policy stays in Enqueue.
+
+### Integration points
+
+| Name | Lives in | Status | Wraps |
+|------|----------|--------|-------|
+| `ptychild.Child` | `cmd/internal/ptychild/child.go` | new | `creack/pty` + `os/exec` |
+| `couchcore.TerminalHandle` | `cmd/internal/couchcore/ptyrunner.go` | new | pty capability on a `Handle` |
+| `couchcore.PtyRunner` | `cmd/internal/couchcore/ptyrunner.go` | new | `ptychild.Child` behind `Runner` |
+| `FakeRunner` terminal double | `cmd/internal/couchcore/runner_fake.go` | modified | in-memory stand-in for a pty |
+| `hostty.Host` | `cmd/internal/hostty/host.go` | new | the operator's terminal: size, raw mode, resize signal |
+| `hostty.OSHost` / `hostty.FakeHost` | `cmd/internal/hostty/os.go`, `fake.go` | new | `x/term`, `creack/pty` sizing, `SIGWINCH` |
+| `couchtty.Console` | `cmd/internal/couchtty/console.go` | new | drives `hostty.Host` + N `ptychild.Child` |
+| `runShell` host half | `cmd/internal/termcmd/run.go` | modified | raw/`SIGWINCH`/restore move behind `hostty.Host` |
+| `termcmd.terminalTab` | `cmd/internal/termcmd/run.go` | modified | now holds a `ptychild.Child` |
+| `termcmd.restoreTerminal` | `cmd/internal/termcmd/run.go` | modified | writes `hostty.ResetRegion`; the method stays, the constant moved |
+| `consoleRunner` / `consoleRunnerFor` | `cmd/internal/couchcmd/run.go` | modified | picks `PtyRunner` vs `ExecRunner` |
+| `TestTerminalConformance_LifecyclePredicates` | `cmd/internal/couchcore/conformance_live_test.go` | modified | `PtyRunner` vs `FakeRunner` |
+
+- **ptychild.Child** — one process on a pty: `Start`, `Write`, `Resize(rows, cols)`, `Snapshot`, `AltScreen`, `Bell`, `Wait`, `Close`. Owns the read pump that feeds `Ring` and `Screen`.
+  - **Injected into:** `termcmd.terminalMux` and `couchtty.Console`, both of which keep their own switching policy.
+  - **Future extensions:** a `Tee(io.Writer)` for on-disk scrollback (pair already tees `scrollback-<tag>-<agent>.raw`; couch would reuse that file rather than invent a second).
+
+- **couchcore.PtyRunner** — `Runner` whose handles are pty-backed. Constructed with an initial winsize supplier so the first frame is already the right size rather than 80x24-then-resize.
+  - **Injected into:** `couchcore.Couch` through the existing seam. Nothing in the domain learns about ptys.
+
+- **FakeRunner terminal double** — the fake's children gain an in-memory terminal: writes are recorded and echoed per a scripted behaviour, resizes are recorded, and exit closes the read side (EOF). ARCH-MOCK: the fake models behaviour across calls, and the live check compares it against a real pty rather than asserting whatever each produces separately.
+
+- **hostty.Host** — the seam over the operator's own terminal: `Size() (rows, cols)`, `MakeRaw() (restore, error)`, `Resized() <-chan struct{}`, and `io.Writer` to the screen. `OSHost` wraps `x/term` + `pty.GetsizeFull` + `signal.Notify(SIGWINCH)`; `FakeHost` is scriptable — a settable size, a resize channel a test can fire, and a captured output buffer.
+  - **Injected into:** `couchtty.Console` and `termcmd.runShell`. This is what makes "test the console with no real tty" and "test the signal path" writable at all (PQ-2).
+  - **Future extensions:** a remote host (`#120`'s terminal stream) is the same interface over a socket rather than a tty — worth noting, not worth building.
+
+- **couchtty.Console** — the integration controller: it drives `hostty.Host`
+  and the per-child pumps, serializes event ordering, and owns transient panel
+  interaction state. Reusable decisions live in the pure entities above, but
+  Console necessarily applies UI transition policy while coordinating IO; it
+  is not claimed to be policy-free.
+
+---
+
+## Milestones
+
+Four review boundaries, each a real stopping point. Value is front-loaded after M2; risk is answered in M1–M2.
+
+## Chunk 1: M1 — the shared pty-child core
+
+Ships no couch behaviour. It exists so that couch's console and `pair term` are one mechanism, and so `ptychild` arrives already validated by an existing suite.
+
+### Task 1.1 — `Ring`
+
+package couchtty
+
+import (
+	"bufio"
+	"go/parser"
+	"go/token"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"testing"
+)
+
+type conceptContractRow struct {
+	kind, name, status string
+	paths              []string
+	symbols            []string
+}
+
+var backtickField = regexp.MustCompile("`([^`]+)`")
+
+// conceptInventory is the typed boundary for what the plan's Core concepts
+// table must enumerate. The table supplies paths and lifecycle status; this
+// inventory makes omission and addition visible instead of trusting whatever
+// rows happen to remain in the prose.
+var conceptInventory = []struct{ kind, name string }{
+	{"PURE", "`Ring`"},
+	{"PURE", "`StripQueries` + query deny-list"},
+	{"PURE", "`Screen`"},
+	{"PURE", "`updateMouseMode`"},
+	{"PURE", "`Focus` / `Up`"},
+	{"PURE", "`PanelModel` / `Filter` / `Pick` / target join"},
+	{"PURE", "`PanelKey` / `DecodePanelKeys`"},
+	{"PURE", "`StatusModel` / `RenderStatusRow`"},
+	{"PURE", "`Interceptor`"},
+	{"PURE", "`Reserve` / `Release` / `PaintRow`"},
+	{"PURE", "`ResetRegion` / `SaveCursor` / `RestoreCursor` / `ClearLine` / `HomeAndClear` / `SetRegion` / `MoveTo`"},
+	{"PURE", "`Notice` / `Feed`"},
+	{"INTEGRATION", "`ptychild.Child`"},
+	{"INTEGRATION", "`couchcore.TerminalHandle`"},
+	{"INTEGRATION", "`couchcore.PtyRunner`"},
+	{"INTEGRATION", "`FakeRunner` terminal double"},
+	{"INTEGRATION", "`hostty.Host`"},
+	{"INTEGRATION", "`hostty.OSHost` / `hostty.FakeHost`"},
+	{"INTEGRATION", "`couchtty.Console`"},
+	{"INTEGRATION", "`runShell` host half"},
+	{"INTEGRATION", "`termcmd.terminalTab`"},
+	{"INTEGRATION", "`termcmd.restoreTerminal`"},
+	{"INTEGRATION", "`consoleRunner` / `consoleRunnerFor`"},
+	{"INTEGRATION", "`TestTerminalConformance_LifecyclePredicates`"},
+}
+
+// TestCoreConceptsContract turns pair#146's repeatedly drifting architecture
+// table into an executable contract. Rows due through M3 must name real symbols
+// at real paths; deleted symbols must be absent; PURE sources may not import IO
+// seams and must have direct unit coverage. Future rows are explicit and skipped.
+func TestCoreConceptsContract(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	plan := findConceptPlan(t, root)
+	rows := parseConceptRows(t, plan)
+	if len(rows) == 0 {
+		t.Fatal("Core concepts contract has no rows")
+	}
+	assertConceptInventory(t, rows)
+	for _, row := range rows {
+		row := row
+		t.Run(row.kind+"/"+row.name, func(t *testing.T) {
+			if strings.Contains(strings.ToLower(row.status), "planned") {
+				return
+			}
+			deleted := strings.Contains(strings.ToLower(row.status), "deleted")
+			if len(row.symbols) == 0 {
+				t.Fatal("row has no backticked Go symbol")
+			}
+			paths := resolveConceptPaths(root, row.paths)
+			var source strings.Builder
+			for _, path := range paths {
+				raw, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatalf("read declared path %s: %v", path, err)
+				}
+				source.Write(raw)
+				if row.kind == "PURE" && !deleted {
+					assertPureSource(t, path)
+				}
+			}
+			for _, qualified := range row.symbols {
+				symbol := qualified[strings.LastIndex(qualified, ".")+1:]
+				present := regexp.MustCompile(`\b` + regexp.QuoteMeta(symbol) + `\b`).MatchString(source.String())
+				if deleted && present {
+					t.Errorf("deleted symbol %s still exists at %v", qualified, row.paths)
+				}
+				if !deleted && !present {
+					t.Errorf("symbol %s is absent from declared path(s) %v", qualified, row.paths)
+				}
+			}
+			if row.kind == "PURE" && !deleted {
+				assertDirectTest(t, paths, row.symbols)
+			}
+		})
+	}
+}
+
+func TestConceptInventoryRejectsWholeRowDeletion(t *testing.T) {
+	rows := make([]conceptContractRow, 0, len(conceptInventory)-1)
+	for _, item := range conceptInventory {
+		if item.name != "`PanelKey` / `DecodePanelKeys`" {
+			rows = append(rows, conceptContractRow{kind: item.kind, name: item.name})
+		}
+	}
+	if problems := conceptInventoryProblems(rows); !strings.Contains(strings.Join(problems, "\n"), "missing PURE row `PanelKey` / `DecodePanelKeys`") {
+		t.Fatalf("whole-row deletion was not rejected: %v", problems)
+	}
+}
+
+func assertConceptInventory(t *testing.T, rows []conceptContractRow) {
+	t.Helper()
+	for _, problem := range conceptInventoryProblems(rows) {
+		t.Error(problem)
+	}
+}
+
+func conceptInventoryProblems(rows []conceptContractRow) []string {
+	expected := make(map[string]bool, len(conceptInventory))
+	for _, item := range conceptInventory {
+		expected[item.kind+"\x00"+item.name] = true
+	}
+	seen := make(map[string]bool, len(rows))
+	var problems []string
+	for _, row := range rows {
+		key := row.kind + "\x00" + row.name
+		if seen[key] {
+			problems = append(problems, "duplicate "+row.kind+" row "+row.name)
+		}
+		seen[key] = true
+		if !expected[key] {
+			problems = append(problems, "unexpected "+row.kind+" row "+row.name)
+		}
+	}
+	for _, item := range conceptInventory {
+		if !seen[item.kind+"\x00"+item.name] {
+			problems = append(problems, "missing "+item.kind+" row "+item.name)
+		}
+	}
+	return problems
+}
+
+func findConceptPlan(t *testing.T, root string) string {
+	t.Helper()
+	name := "000146-couch-tty-switching-and-attach-plan.md"
+	active := filepath.Join(root, "workshop", "plans", name)
+	if _, err := os.Stat(active); err == nil {
+		return active
+	}
+	var found string
+	_ = filepath.WalkDir(filepath.Join(root, "workshop", "history"), func(path string, d os.DirEntry, err error) error {
+		if err == nil && !d.IsDir() && d.Name() == name {
+			found = path
+		}
+		return nil
+	})
+	if found == "" {
+		t.Fatalf("find %s in active or archived plans", name)
+	}
+	return found
+}
+
+func parseConceptRows(t *testing.T, path string) []conceptContractRow {
+	t.Helper()
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("open plan: %v", err)
+	}
+	defer f.Close()
+	var kind string
+	var rows []conceptContractRow
+	s := bufio.NewScanner(f)
+	for s.Scan() {
+		line := s.Text()
+		switch line {
+		case "### Pure entities":
+			kind = "PURE"
+			continue
+		case "### Integration points":
+			kind = "INTEGRATION"
+			continue
+		case "## Milestones":
+			kind = ""
+		}
+		if kind == "" || !strings.HasPrefix(line, "|") || strings.Contains(line, "|---") || strings.HasPrefix(line, "| Name |") {
+			continue
+		}
+		fields := strings.Split(line, "|")
+		if len(fields) < 4 {
+			t.Fatalf("malformed Core concepts row: %s", line)
+		}
+		name, lives, status := strings.TrimSpace(fields[1]), strings.TrimSpace(fields[2]), strings.TrimSpace(fields[3])
+		rows = append(rows, conceptContractRow{
+			kind: kind, name: name, status: status,
+			symbols: captures(name), paths: captures(lives),
+		})
+	}
+	if err := s.Err(); err != nil {
+		t.Fatalf("scan plan: %v", err)
+	}
+	return rows
+}
+
+func captures(s string) []string {
+	var out []string
+	for _, match := range backtickField.FindAllStringSubmatch(s, -1) {
+		out = append(out, match[1])
+	}
+	return out
+}
+
+func resolveConceptPaths(root string, declared []string) []string {
+	paths := make([]string, 0, len(declared))
+	for _, path := range declared {
+		if !strings.Contains(path, "/") && len(paths) > 0 {
+			path = filepath.Join(filepath.Dir(paths[0]), path)
+		} else {
+			path = filepath.Join(root, path)
+		}
+		paths = append(paths, path)
+	}
+	return paths
+}
+
+func assertPureSource(t *testing.T, path string) {
+	t.Helper()
+	f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	banned := map[string]bool{
+		"io": true, "os": true, "os/exec": true, "net": true, "syscall": true,
+		"github.com/creack/pty": true, "golang.org/x/term": true,
+	}
+	for _, imp := range f.Imports {
+		name := strings.Trim(imp.Path.Value, `"`)
+		if banned[name] || strings.HasPrefix(name, "net/") {
+			t.Errorf("PURE row source %s imports IO seam %s", path, name)
+		}
+	}
+}
+
+func assertDirectTest(t *testing.T, paths []string, symbols []string) {
+	t.Helper()
+	for _, source := range paths {
+		matches, _ := filepath.Glob(filepath.Join(filepath.Dir(source), "*_test.go"))
+		for _, testPath := range matches {
+			raw, err := os.ReadFile(testPath)
+			if err != nil {
+				continue
+			}
+			for _, qualified := range symbols {
+				symbol := qualified[strings.LastIndex(qualified, ".")+1:]
+				if regexp.MustCompile(`\b` + regexp.QuoteMeta(symbol) + `\b`).Match(raw) {
+					return
+## Chunk 3: M3 — many children, and the panel
+
+### Task 3.1 — `Focus`
+
+**Files:** Create `cmd/internal/couchtty/focus.go` (+ test).
+
+- [ ] **Tests must catch:** (a) a non-root child goes to the **root actor**, not the panel — the single most important property in the project, and the easy wrong implementation is "up = panel"; (b) the root actor goes to the panel; (c) the panel stays on the panel; (d) `Up` from a child whose root actor has **died** does not land on a dead actor — it goes to the panel.
+- [ ] **Deletion check:** collapse (a) into (b) → (a) red.
+- [ ] Commit.
+
+### Task 3.2 — `PanelModel`
+
+**Files:** Create `cmd/internal/couchtty/panel.go` (+ test).
+
+**Contract:** rows from `couchcore.TreeSummary` — so parked trees stay listed, dimmed, exactly as `couch list` already renders them. `Filter(query, resolve func(string) []Worktree)` **injects** the match rule and keeps the rows it returns (Decision 12); production passes `couch.LookupTrees`. `Pick(digit)` selects the Nth **displayed** row.
+
+- [ ] **Tests must catch:** (a) `Filter` returns exactly the rows the injected resolver named — with a stub resolver, so the test pins *delegation* rather than re-testing `LookupTrees`; (b) `Pick(2)` after filtering picks the second *filtered* row, not the second underlying one; (c) a parked tree (no live actor) is listed; (d) ordering is stable across refreshes — a list that reorders under the operator's fingers makes numbered selection a hazard.
+- [ ] **Deletion check:** have `Filter` do its own `strings.Contains` on `Name` and ignore the resolver → (a) red. That is the exact regression Decision 12 exists to prevent, so the test must fail on it.
+- [ ] **Wiring check (one line, in the console):** production passes `couch.LookupTrees` — assert it, or the injection is a seam nothing uses.
+- [ ] Commit.
+
+### Task 3.3 — N children in the console
+
+**Files:** Modify `cmd/internal/couchtty/console.go`.
+
+**Contract:** the console holds a map of `ActorID` → child. Only the active child's chunks reach the host; every child's chunks reach its own `Ring` and `Screen`. Attach = `Reserve`, then **replay** — `StripQueries(Snapshot())` after a clear, for every child alike (Decision 5) — then repaint the row.
+
+- [ ] **Tests must catch:** (a) an inactive child's output does not reach the host but does reach its ring — the bug this prevents is a switcher that loses everything said while you were away; (b) the replayed bytes are `StripQueries`'d — a raw replay re-asks the host terminal and the answer lands in the *newly active* child's stdin, which is #127's bug arriving at a new site; (c) attach repaints the status row *after* the child's repaint, so the row is not overwritten by the landing.
+- [ ] **Deletion check:** replay `Snapshot()` unstripped → (b) red.
+- [ ] Commit.
+
+### Task 3.4 — the panel dispatches through `Operations()`
+
+**Files:** Modify `cmd/internal/couchtty/panel.go`, `console.go`.
+
+**Contract:** `start`, `stop`, `name`, `describe` from the panel call `couchcore.Operations()` — the same table the CLI and (in `#148`) the advisor use. **No second implementation of an operator action.**
+
+- [ ] **Tests must catch:** the panel's action set is a **subset of** `couchcore.OperationNames()`, asserted by name. The existing CLI audit proves the same thing for the CLI; without this one the panel is free to grow a private verb, which is precisely the drift the ops table exists to stop.
+- [ ] **Deletion check:** add a panel-only action → the audit goes red.
+- [ ] Commit.
+
+### Task 3.5 — operator smoke: two real children, in the real configuration
+
+**Run couch from `brain` with no path** (`cd ~/workspace/brain && couch start`), so the root actor is genuinely brain and "home" is the session `#148` will make the advisor — not the pair-as-root stand-in M2 used (Decision 1, PQ-4).
+
+- [ ] From the root actor, start a second child on another peer repo via the panel.
+- [ ] Confirm and log: switching between them is instant with no model turn; `ctrl-space` from the *second* child lands on the root actor; `ctrl-space` again reaches the panel; typeahead finds a child by its agent-published description; a digit jumps to it; **`ctrl-space` works while a child is mid-output** (start a long stream first — this is the Done-when clause most likely to fail, because a blocked stdout pump would stall the interceptor).
+- [ ] Commit + `sdlc milestone-close --issue 146 --milestone M3`.
+
+## Chunk 4: M4 — exits, detach, and what the row says
+
+### Task 4.1 — a child that exits never leaves a dead pane
+
+**Files:** Modify `cmd/internal/couchtty/console.go`; create `cmd/internal/couchtty/notice.go` (+ test).
+
+**Contract:** on child exit — focus the panel, emit `exit:<id>` as a **control** notice carrying the actor and the exit code, and unregister through `couchcore` so the tree is freed (`Couch.Forget`, the path `PruneDead` already models).
+
+- [ ] **Tests must catch:** (a) exit while that child is **active** focuses the panel; (b) exit while it is **inactive** does not steal focus but does record the notice — a switcher that yanks the operator out of the child they are typing in is worse than the dead pane; (c) the notice names the actor and the code; (d) the registry entry is gone afterwards.
+- [ ] **Deletion check:** drop the Forget call → (d) red.
+- [ ] Commit.
+
+### Task 4.2 — `Feed` over `couchcore.Enqueue`, and the row says something
+
+**Files:** Modify `cmd/internal/couchtty/notice.go`, `reserve.go`, `console.go`.
+
+- [ ] **Tests must catch:** (a) two bells from the *same* actor collapse to one entry; (b) bells from *different* actors do **not** collapse (the key is per-actor — a global `bell` kind would merge the fleet into one notice); (c) an exit notice is never dropped under capacity pressure; (d) the row marks an actor with a pending bell distinctly from the active one.
+### 2026-08-23 -- M3 operator smoke passed
+
+Operator confirmed the repeated real-stack smoke after `4e0a1ad`: the second
+actor appears in the panel, repo-label typeahead resolves it, and the complete
+M3 smoke now passes. Earlier rounds separately confirmed `ctrl-space` and
+Escape, deterministic switching during child output, and the panel's keyboard
+navigation. This supplies Task 3.5's missing external behavior evidence; M3 is
+ready for its SDLC-owned boundary review.
+
+### 2026-08-23 -- M3 boundary review round 1: REWORK
+
+The gate raised BR-42–47. Four implementation classes were reproduced before
+fixing: a same-read hotkey suffix reached the old focus; a split legacy arrow
+decoded as Escape plus text; production bypassed the summary-derived panel
+model; and `s`/`x`/`n`/`d`/digits shadowed valid query prefixes. The fixes are
+class-wide (ARCH-PURPOSE): hotkey delivery is acknowledged before suffix
+routing for both encodings, bare ESC uses an explicit ambiguity timeout,
+production always builds from `Couch.Summarize(nil)` then purely joins routing,
+and printable input is exclusively typeahead while `:` namespaces commands.
+
+Each implementation test was observed RED before its production change. The
+composed Console tests cover both hotkey encodings, parked and renamed summary
+rows, every formerly reserved query prefix, namespaced jump/start/stop, and
+legacy/Kitty Escape. The README now documents the focus ladder and consumes the
+same exported panel-control inventory in its coverage test (BR-47). The plan's
+Core-concepts table now classifies `Console` as INTEGRATION, removes nonexistent
+`Home`, and lists `PanelKey`/`DecodePanelKeys` plus the pure target join (BR-45).
+`go test ./... -count=1` and the focused race suites are green.
+
+BR-46 remains deliberately unclaimed: the operator's final “smoke test passed”
+confirmed the panel rerun discussed in that exchange, but did not itemize the
+carried composed `kill -9` reattach or real nvim in/out checks. Those need named
+evidence before the next milestone-close attempt; the earlier separately tested
+halves are not being relabeled as composition evidence.
+
+### 2026-08-24 -- couch cold creates now use repo defaults without a picker
+
+Operator supplied the missing composed reattach evidence: after killing the
+actual couch console process with `kill -9` (without deleting the zellij
+session), a subsequent `couch start` returned to the same running Pair session.
+
+The remaining cold-start picker was then removed from couch's path. Couch owns
+the temporary `PAIR_USE_REPO_DEFAULT=1` child environment, and Pair consumes it
+at process entry into the existing `SkipConfigPicker` policy before unsetting
+it. `runCreate` needed no change: its existing repo-default decision already
+precedes the saved-config picker (ARCH-DRY, ARCH-PURE). Tests observed the couch
+environment and both entry seams RED before implementation. Stateful launcher
+characterization stayed green before and after: saved config cannot override
+the repo default, no default yields no user args, fresh Claude persistence still
+replaces canonical config normally, direct Pair still offers the picker, and a
+live attach neither launches nor mutates create inputs (ARCH-PURPOSE,
+ARCH-MOCK). Focused, race, and full Go suites pass.
+
+### 2026-08-24 -- BR-46 disposition follows the configuration M3 ships
+
+The operator-confirmed `kill -9` couch-console reattach now supplies that
+carried half of BR-46. The other half is resolved by the matching Spec/Plan
+revision rather than by inventing evidence: couch pins layout2, whose second
+pane launches the real draft nvim, so Task 2.7's instruction to launch and exit
+another nvim from a user shell assumes layout3 and is superseded for M3. The
+operator smoke proves the panel in the real layout2 session; it does not claim
+a separately recorded draft interaction. The nvim enter/switch/exit and margin
+reset remain executable evidence in the emulator, real-pty, and enumerated
+`make test-smoke` probe suites. This supersedes the earlier “BR-46 remains
+deliberately unclaimed” state while preserving exactly which observations were
+and were not made (ARCH-PURPOSE).
+
+### 2026-08-24 -- M3 verification exposed a broken live-test target
+
+The first verification attempt ran real-terminal suites concurrently and was
+invalid: isolated `make test-smoke` immediately passed all eight terminal
+steps, while the concurrent whole-tree runs collided on zellij/PTY resources.
+That investigation also reproduced a deterministic defect in `make test-live`:
+the target set `PAIR_LIVE_HARNESS=1`, but the pre-existing harness conformance
+test accepts only a named installed harness (`agy`, `codex`, or `muse`). The
+target is for couch's `PAIR_LIVE_COUCH=1` conformance and must not opt into that
+separate suite. Running the intended live command concurrently across Go
+packages also made an unrelated signal-driven wrapper test fail consistently;
+the focused test passed, identifying cross-package OS-global interference.
+
+The target now sets only `PAIR_LIVE_COUCH=1` and serializes packages with
+`go test -p 1`. This is verification infrastructure, not a product behavior
+change. The broken target itself was the RED test; the repaired target must be
+GREEN before M3 closes (ARCH-PURPOSE).
+
+### 2026-08-24 -- M3 boundary review round 2: REWORK on BR-42 and BR-45
+
+The gate disposed BR-43, BR-44, BR-46, and BR-47. It kept two Criticals open.
+BR-42 reproduced a Kitty ctrl-space split immediately after ESC: the old
+“forward bare ESC immediately” compromise made the sequence impossible to
+recognize. BR-45 found that the corrected Core-concepts rows still lacked the
+recorded audit the plan claimed, and that “Console holds no policy” contradicted
+the UI transitions in the integration controller.
+
+The BR-42 class fix enumerates every byte split of every sequence in
+`knownSequences`, plus every byte split of every panel key encoding. The RED
+cases were all three Interceptor sequences at split 1 and SS3 arrows at split 2.
+`Interceptor` now holds every genuine prefix and exposes `Flush`; the stdin IO
+owner applies the same explicit 35ms ambiguity rule already used for the panel.
+Existing composed console Escape tests went RED until that timeout was wired,
+and the exact split-after-ESC console regression timed out RED when the reviewed
+forward-bare-ESC branch was restored; then the complete `couchtty` suite passed.
+
+The BR-45 audit checked every Core-concepts row due through M3 against the
+declared path and actual symbol, then checked direct unit coverage for each Pure
+entity. It found one additional classification error and one future-state
+overclaim: `termcmd.restoreTerminal` writes to the host and belongs under
+Integration, while absent `Notice`/`Feed` is M4 work and must say “planned M4.”
+All other M1–M3 paths/symbols exist; `updateMouseMode` is absent as declared;
+the pure `Ring`, `StripQueries`, `Screen`, `Focus`/`Up`, panel model/target join,
+panel decoder, status rendering/reservation, Interceptor, and host-control
+compositions have direct tests. Console is now described as an integration
+controller with event/UI transition policy rather than as policy-free
+(ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-24 -- M3 boundary review round 3: executable enforcement
+
+The gate accepted BR-42 and BR-48 and left BR-45 as the only blocker. The
+manual table audit corrected facts but did not make drift fail a test; the
+source comment also retained the policy-free claim. The review additionally
+noticed that the timer implementation nested a second stdin reader goroutine.
+
+`TestCoreConceptsContract` now parses the active-or-archived plan table and
+enforces the due rows: paths exist, exact backticked declarations live at those
+paths, deleted declarations are absent, PURE sources import no IO seams, and
+each PURE row has direct adjacent test coverage. Three requested deletion
+checks were observed RED: adding Console under Pure reports its `io`/`os`
+imports; restoring nonexistent `Home` reports the absent declaration and test;
+pointing `Focus`/`Up` at `panel.go` reports both absent. The unmodified table is
+GREEN. Conceptual rows now name exact declarations, and Console's source comment
+matches its Integration role.
+
+The input design was also simplified: `pumpStdin` is once again the sole
+blocking reader and sends raw chunks to Run; Run owns Interceptor state, both
+ambiguity timers, focus transitions, suffix routing, and panel decoding in the
+existing event loop. This removes the newly introduced extra worker while
+preserving M4 Task 4.4 as the owner of full console/host teardown (ARCH-DRY,
+ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-24 -- M3 boundary review round 4: whole-row deletion enforcement
+
+The gate withdrew BR-49 after confirming the input event-loop refactor, but
+kept BR-45 open because the first executable contract trusted the set of rows
+it parsed. A typed inventory now defines the complete Pure and Integration
+row-name set and rejects omissions, additions, and duplicates before checking
+row contents. Deleting the entire `PanelKey` / `DecodePanelKeys` row was
+observed RED (`missing PURE row ...`) and restoration returned the contract to
+GREEN. The plan's Core concepts table can no longer silently omit the class of
+entity that originally triggered BR-45 (ARCH-PURPOSE).
+
+exec
+/bin/zsh -lc "sed -n '240,420p' cmd/internal/couchtty/core_concepts_contract_test.go && go test ./cmd/internal/couchtty -run 'TestCoreConceptsContract|TestConceptInventoryRejectsWholeRowDeletion' -count=1 && rg -n \"func (Test.*(Ring|StripQueries|Screen|Focus|Up|Panel|DecodePanelKeys|Status|RenderStatusRow|Interceptor|Reserve|Release|PaintRow|ResetRegion|SaveCursor|RestoreCursor|ClearLine|HomeAndClear|SetRegion|MoveTo)|func (Ring|StripQueries|NewScreen|Up|DecodePanelKeys|RenderStatusRow|Reserve|Release|PaintRow)|type (Ring|Screen|Focus|PanelModel|PanelKey|StatusModel|Interceptor))\" cmd/internal/{ptychild,couchtty,hostty} --glob '*.go'" in /Users/xianxu/workspace/pair
+ succeeded in 477ms:
+ok  	github.com/xianxu/pair/cmd/internal/couchtty	0.345s
+cmd/internal/hostty/hostty_test.go:164:func TestCloseReleasesResizedConsumers(t *testing.T) {
+cmd/internal/ptychild/ring_test.go:8:func TestRingKeepsOnlyTheTail(t *testing.T) {
+cmd/internal/ptychild/ring_test.go:20:func TestRingAppendLargerThanCapacityKeepsTail(t *testing.T) {
+cmd/internal/ptychild/ring_test.go:39:func TestRingSnapshotDoesNotAliasTheRing(t *testing.T) {
+cmd/internal/ptychild/ring_test.go:51:func TestRingUnderCapacityKeepsEverything(t *testing.T) {
+cmd/internal/ptychild/ring_test.go:67:func TestRingDoesNotGrowWithoutBound(t *testing.T) {
+cmd/internal/couchtty/panel_test.go:22:func TestPanelFilterUsesTheInjectedResolver(t *testing.T) {
+cmd/internal/couchtty/panel_test.go:41:func TestPanelFilterWithAnEmptyQueryShowsEverything(t *testing.T) {
+cmd/internal/couchtty/panel_test.go:55:func TestPanelListsParkedTrees(t *testing.T) {
+cmd/internal/couchtty/panel_test.go:71:func TestPanelOrderingIsStable(t *testing.T) {
+cmd/internal/couchtty/panel_test.go:117:func TestPanelRowLabelFallsBackToTheRepo(t *testing.T) {
+cmd/internal/couchtty/panel_test.go:133:func TestPanelFilterKeepsTheModelsOrderNotTheResolvers(t *testing.T) {
+cmd/internal/couchtty/panel_test.go:152:func TestPanelTargetJoinKeepsParkedRowsAndAddsRoutingSeparately(t *testing.T) {
+cmd/internal/couchtty/panel_test.go:180:func TestPanelActionsAreDeclaredOperations(t *testing.T) {
+cmd/internal/couchtty/panel_test.go:194:func TestPanelOffersTheOperatorActions(t *testing.T) {
+cmd/internal/couchtty/panel_test.go:211:func TestEveryPanelActionHasAKey(t *testing.T) {
+cmd/internal/ptychild/screen_test.go:24:func TestScreenMouseMode(t *testing.T) {
+cmd/internal/ptychild/screen_test.go:46:func TestScreenAltScreen(t *testing.T) {
+cmd/internal/ptychild/screen_test.go:71:func TestScreenRowDirty(t *testing.T) {
+cmd/internal/ptychild/screen_test.go:104:func TestScreenRowDirtyIsClearedOnRead(t *testing.T) {
+cmd/internal/ptychild/screen_test.go:116:func TestScreenBellIgnoresOSCTerminators(t *testing.T) {
+cmd/internal/ptychild/screen_test.go:141:func TestScreenLongSequenceSplitAcrossReadsRaisesNoBell(t *testing.T) {
+cmd/internal/ptychild/screen_test.go:156:func TestScreenSplitReadsReachTheSameState(t *testing.T) {
+cmd/internal/ptychild/screen_test.go:176:func TestScreenConsumesMalformedCompleteControls(t *testing.T) {
+cmd/internal/ptychild/screen_test.go:197:func TestScreenPendingIsBoundedAndChunkingCannotChangeTheAnswer(t *testing.T) {
+cmd/internal/ptychild/screen_test.go:231:func TestScreenLongTerminatedSequenceStillFramesAndKeepsALaterBell(t *testing.T) {
+cmd/internal/ptychild/screen_test.go:257:func TestScreenPendingBoundFitsARealisticOSC(t *testing.T) {
+cmd/internal/ptychild/screen_test.go:303:func TestScreenChunkInvariantAboveThePendingBound(t *testing.T) {
+cmd/internal/ptychild/screen_test.go:335:func TestScreenHoldsAnSTSplitAcrossReads(t *testing.T) {
+cmd/internal/ptychild/screen_test.go:360:func TestScreenFramesAllStringTerminatedClasses(t *testing.T) {
+cmd/internal/ptychild/screen_test.go:389:func TestScreenTreatsAnEraseAsRowDirty(t *testing.T) {
+cmd/internal/couchtty/reserve_test.go:13:func TestReserveStopsOneRowShortOfTheScreen(t *testing.T) {
+cmd/internal/couchtty/reserve_test.go:35:func TestPaintRowBracketsThePaintWithSaveAndRestore(t *testing.T) {
+cmd/internal/couchtty/reserve_test.go:52:func TestReleaseResetsTheRegion(t *testing.T) {
+cmd/internal/couchtty/reserve_test.go:58:func TestRenderStatusRowMarksActiveAndPendingDistinctly(t *testing.T) {
+cmd/internal/couchtty/reserve_test.go:76:func TestRenderStatusRowFitsTheWidth(t *testing.T) {
+cmd/internal/couchtty/reserve_test.go:92:func TestRenderStatusRowStripsControlBytesFromUntrustedText(t *testing.T) {
+cmd/internal/couchtty/reserve_test.go:107:func TestRenderStatusRowWithNoActors(t *testing.T) {
+cmd/internal/couchtty/console_test.go:488:func TestConsoleKeepsInactiveChildOutputOffScreenButInItsRing(t *testing.T) {
+cmd/internal/couchtty/console_test.go:595:func TestPanelIsNotPaintedOverByABackgroundChild(t *testing.T) {
+cmd/internal/couchtty/console_test.go:626:func TestHotkeyFromTheRootActorOpensThePanel(t *testing.T) {
+cmd/internal/couchtty/console_test.go:646:func TestConsolePanelRefreshUsesInjectedSummaries(t *testing.T) {
+cmd/internal/couchtty/console_test.go:697:func TestPanelNamespacedDigitSwitchesDirectly(t *testing.T) {
+cmd/internal/couchtty/console_test.go:716:func TestPanelPrintableCommandRunesAreTypeahead(t *testing.T) {
+cmd/internal/couchtty/console_test.go:734:func TestPanelTypeaheadUsesTheInjectedResolver(t *testing.T) {
+cmd/internal/couchtty/console_test.go:773:func TestPanelStartAttachesTheReturnedTerminalChild(t *testing.T) {
+cmd/internal/couchtty/console_test.go:811:func TestPanelKeysDoNotReachTheChild(t *testing.T) {
+cmd/internal/couchtty/console_test.go:833:func TestPanelIgnoresMouseReports(t *testing.T) {
+cmd/internal/couchtty/console_test.go:857:func TestPanelEscapeClearsThenReturns(t *testing.T) {
+cmd/internal/couchtty/console_test.go:889:func TestPanelArrowsMoveTheSelection(t *testing.T) {
+cmd/internal/couchtty/console_test.go:916:func TestPanelShowsTheBellMarker(t *testing.T) {
+cmd/internal/couchtty/console_test.go:937:func TestPanelStartDispatchesThroughOps(t *testing.T) {
+cmd/internal/couchtty/console_test.go:978:func TestPanelActionWithoutOpsSaysSo(t *testing.T) {
+cmd/internal/couchtty/console_test.go:995:func TestPanelEscapeWorksInBothEncodings(t *testing.T) {
+cmd/internal/couchtty/console_test.go:1022:func TestPanelNavigationWorksInBothEncodings(t *testing.T) {
+cmd/internal/ptychild/child_test.go:103:func TestChildSinkSeesEveryChunkAndTheRingIsCurrentFirst(t *testing.T) {
+cmd/internal/ptychild/child_test.go:139:func TestChildScreenTracksAltScreen(t *testing.T) {
+cmd/internal/couchtty/keys_test.go:13:func TestInterceptorSplitsAroundTheHotkey(t *testing.T) {
+cmd/internal/couchtty/keys_test.go:30:func TestInterceptorFiresTwiceInOneChunk(t *testing.T) {
+cmd/internal/couchtty/keys_test.go:59:func TestInterceptorIgnoresNULInsideABracketedPaste(t *testing.T) {
+cmd/internal/couchtty/keys_test.go:76:func TestInterceptorResumesAfterAPaste(t *testing.T) {
+cmd/internal/couchtty/keys_test.go:88:func TestInterceptorHandlesAPasteMarkerSplitAcrossReads(t *testing.T) {
+cmd/internal/couchtty/keys_test.go:100:func TestInterceptorDoesNotSwallowASequenceThatMerelyLooksLikeAMarker(t *testing.T) {
+cmd/internal/couchtty/keys_test.go:116:func TestInterceptorWithNoHotkeyReturnsEverythingInBefore(t *testing.T) {
+cmd/internal/couchtty/keys_test.go:154:func TestInterceptorFiresOnTheKittyProtocolEncoding(t *testing.T) {
+cmd/internal/couchtty/keys_test.go:168:func TestInterceptorFiresOnBothEncodings(t *testing.T) {
+cmd/internal/couchtty/keys_test.go:179:func TestInterceptorForwardsOtherKittyChordsUntouched(t *testing.T) {
+cmd/internal/couchtty/keys_test.go:198:func TestInterceptorHandlesTheKittyHotkeySplitAcrossReads(t *testing.T) {
+cmd/internal/couchtty/keys_test.go:215:func TestInterceptorRecognisesEverySequenceAtEverySplit(t *testing.T) {
+cmd/internal/couchtty/keys_test.go:241:func TestInterceptorIgnoresTheKittyHotkeyInsideAPaste(t *testing.T) {
+cmd/internal/couchtty/keys_test.go:264:func TestInterceptorFlushesALoneEscKeystroke(t *testing.T) {
+cmd/internal/couchtty/keys_test.go:283:func TestInterceptorForwardsRepeatedEscKeystrokes(t *testing.T) {
+cmd/internal/couchtty/keys_test.go:296:func TestInterceptorStillHoldsASplitSequenceAfterOtherBytes(t *testing.T) {
+cmd/internal/couchtty/keys_test.go:312:func TestInterceptorFlushesABareTrailingEscWithoutGluingTheNextKey(t *testing.T) {
+cmd/internal/couchtty/keys_test.go:343:func TestInterceptorHoldsNothingAfterACompleteChunk(t *testing.T) {
+cmd/internal/couchtty/vtscreen_test.go:116:func TestReservedRowSurvivesAScrollingChild(t *testing.T) {
+cmd/internal/couchtty/vtscreen_test.go:136:func TestReservedRowComesBackAfterAChildResetsMargins(t *testing.T) {
+cmd/internal/couchtty/vtscreen_test.go:158:func TestReleaseLeavesAUsableScreen(t *testing.T) {
+cmd/internal/couchtty/vtscreen_test.go:188:func TestReservedRowComesBackAfterAChildClearsTheScreen(t *testing.T) {
+cmd/internal/couchtty/vtscreen_test.go:230:func TestReservedRowSurvivesAFullScreenChildStartingUp(t *testing.T) {
+cmd/internal/couchtty/focus_test.go:9:func TestUpFromANonRootChildGoesToTheRootActor(t *testing.T) {
+cmd/internal/couchtty/focus_test.go:16:func TestUpFromTheRootActorGoesToThePanel(t *testing.T) {
+cmd/internal/couchtty/focus_test.go:24:func TestUpFromThePanelStays(t *testing.T) {
+cmd/internal/couchtty/focus_test.go:32:func TestUpSkipsADeadRootActor(t *testing.T) {
+cmd/internal/couchtty/focus_test.go:40:func TestUpWithNoRootActorGoesToThePanel(t *testing.T) {
+cmd/internal/couchtty/focus_test.go:48:func TestUpFromTheOnlyChildReachesThePanel(t *testing.T) {
+cmd/internal/couchtty/focus_test.go:54:func TestFocusEquality(t *testing.T) {
+cmd/internal/couchtty/console_live_test.go:153:func TestLiveReservedRowSurvivesRealScrolling(t *testing.T) {
+
+exec
+/bin/zsh -lc "sed -n '1,240p' cmd/internal/couchtty/panelkeys_test.go; sed -n '1,180p' cmd/internal/hostty/control_test.go; sed -n '1,230p' cmd/internal/couchtty/panel_test.go; sed -n '1,130p' cmd/internal/couchtty/focus.go; sed -n '1,240p' cmd/internal/couchtty/panelkeys.go; sed -n '1,220p' cmd/internal/couchtty/panel.go" in /Users/xianxu/workspace/pair
+ succeeded in 0ms:
+package couchtty
+
+import (
+	"strconv"
+	"testing"
+)
+
+// The bug this decoder exists for: an SGR mouse report's bytes after the ESC
+// are ALL printable, so a panel that took printable bytes as typeahead had
+// `[<;0;M[<;;M...` typed into its filter by a mouse move -- which then matched
+// nothing and showed "(nothing running)" with no way back.
+func TestDecodeDropsMouseReports(t *testing.T) {
+	keys, held := DecodePanelKeys([]byte("\x1b[<0;12;4M\x1b[<0;12;4m"))
+	if len(keys) != 0 {
+		t.Fatalf("mouse reports produced %d keystrokes: %+v", len(keys), keys)
+	}
+	if len(held) != 0 {
+		t.Fatalf("held = %q, want nothing", held)
+	}
+}
+
+func TestDecodeArrowsInBothModes(t *testing.T) {
+	for _, seq := range []string{"\x1b[A", "\x1bOA"} {
+		keys, _ := DecodePanelKeys([]byte(seq))
+		if len(keys) != 1 || keys[0].Kind != KeyUp {
+			t.Fatalf("%q decoded to %+v, want one KeyUp", seq, keys)
+		}
+	}
+	for _, seq := range []string{"\x1b[B", "\x1bOB"} {
+		keys, _ := DecodePanelKeys([]byte(seq))
+		if len(keys) != 1 || keys[0].Kind != KeyDown {
+			t.Fatalf("%q decoded to %+v, want one KeyDown", seq, keys)
+		}
+	}
+}
+
+func TestDecodeRecognisedKeysAtEverySplit(t *testing.T) {
+	cases := []struct {
+		seq  string
+		want PanelKeyKind
+	}{
+		{"\x1b[A", KeyUp},
+		{"\x1b[B", KeyDown},
+		{"\x1bOA", KeyUp},
+		{"\x1bOB", KeyDown},
+		{"\x1b[27u", KeyEscape},
+		{"\x1b[13u", KeyEnter},
+		{"\x1b[127u", KeyBackspace},
+	}
+	for _, c := range cases {
+		for split := 1; split < len(c.seq); split++ {
+			t.Run(strconv.Quote(c.seq)+"/split-"+strconv.Itoa(split), func(t *testing.T) {
+				keys, held := DecodePanelKeys([]byte(c.seq[:split]))
+				if len(keys) != 0 || string(held) != c.seq[:split] {
+					t.Fatalf("first decode = keys=%+v held=%q, want held prefix %q", keys, held, c.seq[:split])
+				}
+				keys, held = DecodePanelKeys(append(held, c.seq[split:]...))
+				if len(held) != 0 || len(keys) != 1 || keys[0].Kind != c.want {
+					t.Fatalf("completed decode = keys=%+v held=%q, want one %v", keys, held, c.want)
+				}
+			})
+		}
+	}
+}
+
+func TestDecodeHoldsBareEscapeAsAPossibleSequencePrefix(t *testing.T) {
+	keys, held := DecodePanelKeys([]byte("\x1b"))
+	if len(keys) != 0 || string(held) != "\x1b" {
+		t.Fatalf("a bare ESC decoded to keys=%+v held=%q, want a held prefix", keys, held)
+	}
+
+	keys, held = DecodePanelKeys(append(held, []byte("[B")...))
+	if len(keys) != 1 || keys[0].Kind != KeyDown || len(held) != 0 {
+		t.Fatalf("split down arrow decoded to keys=%+v held=%q", keys, held)
+	}
+}
+
+func TestDecodeTypingAndEditing(t *testing.T) {
+	keys, _ := DecodePanelKeys([]byte("ab\x7f\r"))
+	want := []PanelKeyKind{KeyRune, KeyRune, KeyBackspace, KeyEnter}
+	if len(keys) != len(want) {
+		t.Fatalf("decoded %+v", keys)
+	}
+	for i := range want {
+		if keys[i].Kind != want[i] {
+			t.Fatalf("key %d = %v, want %v", i, keys[i].Kind, want[i])
+		}
+	}
+}
+
+// A sequence split across reads must be carried, not decayed into runes --
+// otherwise half a mouse report is typed in.
+func TestDecodeCarriesAPartialSequence(t *testing.T) {
+	keys, held := DecodePanelKeys([]byte("x\x1b[<0;12"))
+	if len(keys) != 1 || keys[0].Kind != KeyRune || keys[0].Rune != 'x' {
+		t.Fatalf("keys = %+v, want just the x", keys)
+	}
+	if string(held) != "\x1b[<0;12" {
+		t.Fatalf("held = %q, want the partial sequence", held)
+	}
+
+	keys2, held2 := DecodePanelKeys(append(held, []byte(";4My")...))
+	if len(held2) != 0 {
+		t.Fatalf("held2 = %q", held2)
+	}
+	if len(keys2) != 1 || keys2[0].Rune != 'y' {
+		t.Fatalf("keys2 = %+v, want just the y — the mouse report should be dropped", keys2)
+	}
+}
+
+func FuzzDecodePanelKeys(f *testing.F) {
+	for _, s := range []string{"", "\x1b", "\x1b[A", "\x1b[<0;1;1M", "abc", "\x1b[", "\x7f\r\n"} {
+		f.Add([]byte(s))
+	}
+	f.Fuzz(func(t *testing.T, in []byte) {
+		keys, held := DecodePanelKeys(in) // must not panic
+		if len(keys)+len(held) > len(in)+8 {
+			t.Fatalf("decode grew the input: %d keys + %d held from %d", len(keys), len(held), len(in))
+		}
+	})
+}
+
+// Under the Kitty keyboard protocol -- which zellij enables, so it is what a
+// real session leaves the terminal in -- keys arrive as CSI-u rather than as
+// their legacy bytes. Escape is `\x1b[27u`, not `\x1b`.
+//
+// This is the SECOND time this class has bitten #146: ctrl-space had the same
+// problem in M2 and the fix was applied only to that one key. The operator
+// reported Escape doing nothing in the panel.
+func TestDecodeKittyProtocolKeys(t *testing.T) {
+	cases := []struct {
+		name string
+		seq  string
+		want PanelKeyKind
+	}{
+		{"escape", "\x1b[27u", KeyEscape},
+		{"escape with modifier", "\x1b[27;1u", KeyEscape},
+		{"enter", "\x1b[13u", KeyEnter},
+		{"enter with modifier", "\x1b[13;1u", KeyEnter},
+		{"backspace", "\x1b[127u", KeyBackspace},
+		{"up with modifier", "\x1b[1;1A", KeyUp},
+		{"down with modifier", "\x1b[1;1B", KeyDown},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			keys, held := DecodePanelKeys([]byte(c.seq))
+			if len(held) != 0 {
+				t.Fatalf("held %q", held)
+			}
+			if len(keys) != 1 || keys[0].Kind != c.want {
+				t.Fatalf("%q decoded to %+v, want one %v", c.seq, keys, c.want)
+			}
+		})
+	}
+}
+
+// A printable key reported as CSI-u must still type. With the "report all keys"
+// flag set, `a` arrives as `\x1b[97u`.
+func TestDecodeKittyPrintableKeys(t *testing.T) {
+	keys, _ := DecodePanelKeys([]byte("\x1b[97u\x1b[98;1u"))
+	if len(keys) != 2 {
+		t.Fatalf("decoded %+v", keys)
+	}
+	for i, want := range []byte{'a', 'b'} {
+		if keys[i].Kind != KeyRune || keys[i].Rune != want {
+			t.Fatalf("key %d = %+v, want the rune %q", i, keys[i], want)
+		}
+	}
+}
+
+// ctrl-space is couch's, and it is intercepted BEFORE the panel -- but if one
+// ever reaches the decoder it must not be typed in as a rune.
+func TestDecodeDoesNotTypeControlCodepoints(t *testing.T) {
+	keys, _ := DecodePanelKeys([]byte("\x1b[32;5u"))
+	for _, k := range keys {
+		if k.Kind == KeyRune {
+			t.Fatalf("a modified key was typed as the rune %q", k.Rune)
+		}
+	}
+}
+sed: cmd/internal/hostty/control_test.go: No such file or directory
+package couchtty
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/couchcore"
+)
+
+func summaries() []couchcore.TreeSummary {
+	return []couchcore.TreeSummary{
+		{Tree: "/w/brain", Name: "brain", Desc: "the advisor"},
+		{Tree: "/w/pair", Name: "pair", Desc: "couch tty switching",
+			Actors: []couchcore.ActorView{{Live: true}}},
+		{Tree: "/w/ariadne", Desc: "sdlc gates"},
+	}
+}
+
+// Filter DELEGATES the match rule; it does not restate it. Decision 12: the
+// same resolution serves the CLI, the panel and (in #148) the advisor, so a
+// second copy here would drift from the one couchcore owns.
+func TestPanelFilterUsesTheInjectedResolver(t *testing.T) {
+	m := NewPanelModel(summaries())
+	called := ""
+	resolve := func(q string) []couchcore.Worktree {
+		called = q
+		return []couchcore.Worktree{"/w/ariadne"}
+	}
+
+	rows := m.Filter("anything", resolve)
+	if called != "anything" {
+		t.Fatalf("the resolver was not consulted (got %q)", called)
+	}
+	if len(rows) != 1 || rows[0].Tree != "/w/ariadne" {
+		t.Fatalf("rows = %+v, want exactly what the resolver named", rows)
+	}
+}
+
+// An empty query is not a resolution -- it is "show everything", and asking the
+// resolver would make the panel's default view depend on a match rule.
+func TestPanelFilterWithAnEmptyQueryShowsEverything(t *testing.T) {
+	m := NewPanelModel(summaries())
+	asked := false
+	rows := m.Filter("", func(string) []couchcore.Worktree { asked = true; return nil })
+	if asked {
+		t.Fatal("an empty query consulted the resolver")
+	}
+	if len(rows) != 3 {
+		t.Fatalf("rows = %d, want all 3", len(rows))
+	}
+}
+
+// A parked tree -- named, no live actor -- is exactly the thread this project
+// exists to stop losing, so it must be listed.
+func TestPanelListsParkedTrees(t *testing.T) {
+	m := NewPanelModel(summaries())
+	rows := m.Filter("", nil)
+	for _, r := range rows {
+		if r.Tree == "/w/ariadne" {
+			if r.Live {
+				t.Fatal("a tree with no actors is marked live")
+			}
+			return
+		}
+	}
+	t.Fatal("the parked tree was omitted")
+}
+
+// Numbered selection is only safe if the list does not reorder under the
+// operator's fingers.
+func TestPanelOrderingIsStable(t *testing.T) {
+	m := NewPanelModel(summaries())
+	first := m.Filter("", nil)
+	for i := 0; i < 5; i++ {
+		again := m.Filter("", nil)
+		for j := range first {
+			if first[j].Tree != again[j].Tree {
+				t.Fatalf("row %d moved between refreshes: %q then %q", j, first[j].Tree, again[j].Tree)
+			}
+		}
+	}
+}
+
+// Pick indexes the DISPLAYED rows. Picking from the underlying set after a
+// filter is the classic off-by-list bug: the operator types 2 and lands on
+// something that is not the second thing they can see.
+func TestPickIndexesTheFilteredRows(t *testing.T) {
+	m := NewPanelModel(summaries())
+	rows := m.Filter("x", func(string) []couchcore.Worktree {
+		return []couchcore.Worktree{"/w/pair", "/w/ariadne"}
+	})
+	if len(rows) != 2 {
+		t.Fatalf("setup: rows = %d", len(rows))
+	}
+
+	got, ok := m.Pick(2)
+	if !ok {
+		t.Fatal("Pick(2) found nothing among 2 filtered rows")
+	}
+	if got.Tree != "/w/ariadne" {
+		t.Fatalf("Pick(2) = %q, want the second FILTERED row", got.Tree)
+	}
+}
+
+func TestPickRejectsOutOfRange(t *testing.T) {
+	m := NewPanelModel(summaries())
+	m.Filter("", nil)
+	for _, n := range []int{0, -1, 4, 99} {
+		if _, ok := m.Pick(n); ok {
+			t.Fatalf("Pick(%d) succeeded against 3 rows", n)
+		}
+	}
+}
+
+// The label is what the operator reads; an unnamed tree must still be
+// identifiable rather than showing an empty chip.
+func TestPanelRowLabelFallsBackToTheRepo(t *testing.T) {
+	m := NewPanelModel(summaries())
+	rows := m.Filter("", nil)
+	for _, r := range rows {
+		if r.Tree == "/w/ariadne" && !strings.Contains(r.Label, "ariadne") {
+			t.Fatalf("an unnamed tree rendered as %q", r.Label)
+		}
+	}
+}
+
+// The resolver is free to return matches in any order it likes -- it is a
+// lookup, not a view. The panel must impose ITS order, or the numbers under the
+// operator's fingers depend on a map iteration somewhere in couchcore.
+//
+// Found by a deletion check that failed to fire: filtering in the resolver's
+// order left every ordering test green, because the fixtures happened to agree.
+func TestPanelFilterKeepsTheModelsOrderNotTheResolvers(t *testing.T) {
+	m := NewPanelModel(summaries())
+	rows := m.Filter("x", func(string) []couchcore.Worktree {
+		// Deliberately reversed relative to the model.
+		return []couchcore.Worktree{"/w/ariadne", "/w/pair", "/w/brain"}
+	})
+	want := []couchcore.Worktree{"/w/brain", "/w/pair", "/w/ariadne"}
+	for i := range want {
+		if rows[i].Tree != want[i] {
+			t.Fatalf("row %d = %q, want %q — the panel took the resolver's order",
+				i, rows[i].Tree, want[i])
+		}
+	}
+	// And the numbers follow the displayed order.
+	if got, _ := m.Pick(1); got.Tree != "/w/brain" {
+		t.Fatalf("Pick(1) = %q, want the first DISPLAYED row", got.Tree)
+	}
+}
+
+func TestPanelTargetJoinKeepsParkedRowsAndAddsRoutingSeparately(t *testing.T) {
+	m := NewPanelModel(summaries())
+	m.BindTargets([]PanelTarget{
+		{Tree: "/w/brain", Target: "child-brain"},
+		{Tree: "/w/pair", Target: "child-pair", Bell: true},
+	})
+
+	rows := m.Rows()
+	if len(rows) != 3 {
+		t.Fatalf("rows = %d, want all three summaries", len(rows))
+	}
+	for _, row := range rows {
+		switch row.Tree {
+		case "/w/ariadne":
+			if row.Target != "" || row.Live {
+				t.Fatalf("parked row gained a live target: %+v", row)
+			}
+		case "/w/pair":
+			if row.Target != "child-pair" || !row.Bell {
+				t.Fatalf("live target join = %+v", row)
+			}
+		}
+	}
+}
+
+// The panel may not grow a private verb. Every action it offers must be one
+// couch already declares, so the operator's surface and the advisor's cannot
+// drift -- the same audit the CLI has.
+func TestPanelActionsAreDeclaredOperations(t *testing.T) {
+	declared := map[string]bool{}
+	for _, n := range couchcore.OperationNames() {
+		declared[n] = true
+	}
+	for _, a := range PanelActions() {
+		if !declared[a] {
+			t.Errorf("the panel offers %q, which couch does not declare as an operation", a)
+		}
+	}
+}
+
+// And the panel must actually offer the actions the operator needs from it --
+// an empty set would pass the audit above vacuously.
+func TestPanelOffersTheOperatorActions(t *testing.T) {
+	got := map[string]bool{}
+	for _, a := range PanelActions() {
+		got[a] = true
+	}
+	for _, want := range []string{"start", "stop", "name", "describe"} {
+		if !got[want] {
+			t.Errorf("the panel does not offer %q", want)
+		}
+	}
+}
+
+// Every declared action must be REACHABLE from a keystroke.
+//
+// A subset check is satisfied by a list that does nothing -- which is exactly
+// what shipped: four action names with no dispatch behind them, so the operator
+// had no way to start a second child and the audit passed anyway.
+func TestEveryPanelActionHasAKey(t *testing.T) {
+	keys := PanelActionKeys()
+	for _, a := range PanelActions() {
+		k, ok := keys[a]
+		if !ok {
+			t.Errorf("action %q has no key; it is declared but unreachable", a)
+			continue
+		}
+		if len(k) != 2 || k[0] != ':' || k[1] < 0x20 || k[1] >= 0x7f {
+			t.Errorf("action %q is not in the ':' command namespace: %q", a, k)
+		}
+	}
+	// And no key may be claimed by two actions.
+	seen := map[string]string{}
+	for a, k := range keys {
+		if prev, dup := seen[k]; dup {
+			t.Errorf("key %q is claimed by both %q and %q", k, prev, a)
+		}
+		seen[k] = a
+	}
+package couchtty
+
+// Focus is where the operator's terminal is pointed: at one actor, or at
+// couch's panel.
+//
+// A comparable value type, not an interface, so a caller can `==` two focuses
+// and switch on one. The zero value is the panel, which is the safe default:
+// couch with nothing attached shows the operator a list rather than a blank
+// screen.
+type Focus struct {
+	// kind is what makes FocusActor("") distinguishable from FocusPanel().
+	//
+	// Without it the two compare EQUAL, so a bug that produced an empty actor
+	// id would silently become "show the panel" -- a wrong screen that looks
+	// deliberate. With it, the zero value is still the panel (the safe default
+	// for a console with nothing attached) while an empty-id actor stays a
+	// detectable state.
+	kind  focusKind
+	actor string
+}
+
+type focusKind uint8
+
+const (
+	focusPanel focusKind = iota
+	focusActor
+)
+
+// FocusPanel is couch's own screen.
+func FocusPanel() Focus { return Focus{kind: focusPanel} }
+
+// FocusActor is one hosted session.
+func FocusActor(id string) Focus { return Focus{kind: focusActor, actor: id} }
+
+// IsPanel reports whether the focus is couch's panel.
+func (f Focus) IsPanel() bool { return f.kind == focusPanel }
+
+// Actor returns the focused actor's id, empty for the panel.
+func (f Focus) Actor() string { return f.actor }
+
+func (f Focus) String() string {
+	if f.IsPanel() {
+		return "panel"
+	}
+	return "actor:" + f.actor
+}
+
+// Up moves the focus one level toward couch: a child goes HOME to the root
+// actor, the root actor goes to the panel, the panel stays.
+//
+// The child -> root-actor step is the property the whole project rests on. The
+// obvious wrong version is "up = panel", which costs the operator a second
+// keystroke every time they come home -- and they come home constantly, so a
+// switcher that charges two keys for it is one they stop using. Richer
+// navigation lives in the panel, where there is typeahead and a screen to read.
+//
+// alive is consulted rather than assumed: landing on a dead actor gives the
+// operator a frozen screen with no way to tell it is frozen, which is worse
+// than landing on the panel. Passed in rather than looked up so this stays pure
+// -- liveness is the console's to know.
+func Up(cur Focus, rootActor string, alive func(string) bool) Focus {
+	if cur.IsPanel() {
+		return FocusPanel()
+	}
+	// The root actor's own step is UP to the panel, including when it is the
+	// only child -- otherwise couch's first session could never reach the
+	// panel and the operator would have no way to start a second one.
+	if cur.Actor() == rootActor {
+		return FocusPanel()
+	}
+	if rootActor == "" || alive == nil || !alive(rootActor) {
+		return FocusPanel()
+	}
+	return FocusActor(rootActor)
+}
+package couchtty
+
+import (
+	"bytes"
+
+	"github.com/xianxu/pair/cmd/internal/ansi"
+)
+
+// PanelKeyKind is what a keystroke MEANS to the panel.
+type PanelKeyKind uint8
+
+const (
+	KeyRune PanelKeyKind = iota
+	KeyUp
+	KeyDown
+	KeyEnter
+	KeyEscape
+	KeyBackspace
+)
+
+// PanelKey is one decoded keystroke.
+type PanelKey struct {
+	Kind PanelKeyKind
+	Rune byte // set when Kind == KeyRune
+}
+
+// DecodePanelKeys turns raw terminal input into keystrokes the panel
+// understands, returning any trailing PARTIAL sequence for the next read.
+//
+// Framing is the whole point. The first version of the panel took any printable
+// byte as typeahead -- and an SGR mouse report is `\x1b[<0;12;4M`, whose bytes
+// after the ESC are all printable. Moving the mouse over the panel typed
+// `[<;0;M[<;;M...` into the filter, which then matched nothing and showed
+// "(nothing running)" with no way back. Sequences are consumed WHOLE and the
+// ones the panel does not use are DROPPED, rather than decaying into text.
+//
+// Framing goes through cmd/internal/ansi -- one scanner per package, and this
+// is that package's second caller after Screen.
+func DecodePanelKeys(in []byte) (keys []PanelKey, held []byte) {
+	for i := 0; i < len(in); {
+		b := in[i]
+		if b == 0x1b {
+			// SS3 first: ansi.Frame follows the regex order it replaced, where
+			// `O` (0x4f) falls in the two-byte class -- so `\x1bOA` frames as
+			// `\x1bO` and leaks the `A` as a typed rune. Application-cursor
+			// mode is not exotic: it is whatever mode the previous child left
+			// the terminal in, and couch does not get to assume.
+			if len(in)-i >= 2 && in[i+1] == 'O' {
+				if len(in)-i == 2 {
+					return keys, append([]byte(nil), in[i:]...)
+				}
+				if k, ok := decodeSequence(in[i : i+3]); ok {
+					keys = append(keys, k)
+				}
+				i += 3
+				continue
+			}
+			// A bare ESC is ambiguous: it may be the key or the first byte of a
+			// sequence split by Read. Hold it; the Console's IO loop resolves
+			// the ambiguity with a short timeout.
+			if len(in)-i == 1 {
+				return keys, append([]byte(nil), in[i:]...)
+			}
+			size, status := ansi.Frame(in[i:])
+			switch status {
+			case ansi.Incomplete:
+				// A real prefix: carry it. Bounded by construction -- an
+				// escape sequence is short, and a stream of them is consumed
+				// as it completes.
+				return keys, append([]byte(nil), in[i:]...)
+			case ansi.Complete:
+				if k, ok := decodeSequence(in[i : i+size]); ok {
+					keys = append(keys, k)
+				}
+				// An unrecognised sequence (mouse, focus event, a chord the
+				// workbench owns) is DROPPED. The panel is not a child; input
+				// it has no meaning for is noise, not text.
+				i += size
+				continue
+			}
+			// ansi.None on an ESC: not a sequence this package frames. Drop
+			// the ESC and carry on rather than typing it in.
+			i++
+			continue
+		}
+		switch {
+		case b == '\r' || b == '\n':
+			keys = append(keys, PanelKey{Kind: KeyEnter})
+		case b == 0x7f || b == 0x08:
+			keys = append(keys, PanelKey{Kind: KeyBackspace})
+		case b >= 0x20 && b < 0x7f:
+			keys = append(keys, PanelKey{Kind: KeyRune, Rune: b})
+		default:
+			// Other control bytes are ignored rather than filtered on.
+		}
+		i++
+	}
+	return keys, nil
+}
+
+// decodeSequence maps the escape sequences the panel acts on.
+//
+// EVERY key has two encodings and both are handled, because which one arrives
+// depends on the keyboard mode the previous child left the terminal in -- and
+// couch does not get to assume. zellij enables the Kitty keyboard protocol, so
+// a real session's Escape is `\x1b[27u`, not `\x1b`.
+//
+// This generalises a fix that was applied to ONE key in M2: ctrl-space had the
+// same problem, and handling only that one left Escape, Enter and the arrows
+// dead in the panel. pair's own chord table carries both encodings for every
+// chord for exactly this reason.
+func decodeSequence(seq []byte) (PanelKey, bool) {
+	switch {
+	case bytes.Equal(seq, []byte("\x1b\x1b")):
+		// ESC ESC: a pressed Escape while an app mode is on.
+		return PanelKey{Kind: KeyEscape}, true
+	case bytes.HasSuffix(seq, []byte("A")):
+		if isCSI(seq) {
+			return PanelKey{Kind: KeyUp}, true
+		}
+	case bytes.HasSuffix(seq, []byte("B")):
+		if isCSI(seq) {
+			return PanelKey{Kind: KeyDown}, true
+		}
+	case bytes.HasSuffix(seq, []byte("u")):
+		return decodeCSIu(seq)
+	}
+	if bytes.Equal(seq, []byte("\x1bOA")) {
+		return PanelKey{Kind: KeyUp}, true
+	}
+	if bytes.Equal(seq, []byte("\x1bOB")) {
+		return PanelKey{Kind: KeyDown}, true
+	}
+	return PanelKey{}, false
+}
+
+// isCSI reports whether seq is `ESC [ <params> <final>`. Params are ignored:
+// an arrow with a modifier is still an arrow, and the panel has no use for the
+// modifier.
+func isCSI(seq []byte) bool {
+	return len(seq) >= 3 && seq[0] == 0x1b && seq[1] == '['
+}
+
+// decodeCSIu reads the Kitty protocol's `CSI <codepoint> [;<modifiers>] u`.
+//
+// The codepoint is the key; the modifiers are deliberately dropped except to
+// refuse a MODIFIED printable, which is a chord rather than a character --
+// typing `a` and pressing ctrl+a must not both insert an `a`.
+func decodeCSIu(seq []byte) (PanelKey, bool) {
+	if !isCSI(seq) {
+		return PanelKey{}, false
+	}
+	body := seq[2 : len(seq)-1]
+	code, mods := body, []byte(nil)
+	if i := bytes.IndexByte(body, ';'); i >= 0 {
+		code, mods = body[:i], body[i+1:]
+	}
+	n, ok := atoiBytes(code)
+	if !ok {
+		return PanelKey{}, false
+	}
+	// Modifier bitmask 1 means "none" in this protocol; anything else is a
+	// chord.
+	modified := len(mods) > 0 && !bytes.Equal(mods, []byte("1"))
+
+	switch n {
+	case 27:
+		return PanelKey{Kind: KeyEscape}, true
+	case 13:
+		return PanelKey{Kind: KeyEnter}, true
+	case 127, 8:
+		return PanelKey{Kind: KeyBackspace}, true
+	}
+	if !modified && n >= 0x20 && n < 0x7f {
+		return PanelKey{Kind: KeyRune, Rune: byte(n)}, true
+	}
+	return PanelKey{}, false
+}
+
+func atoiBytes(b []byte) (int, bool) {
+	if len(b) == 0 {
+		return 0, false
+	}
+	n := 0
+	for _, c := range b {
+		if c < '0' || c > '9' {
+			return 0, false
+		}
+		n = n*10 + int(c-'0')
+		if n > 0x10FFFF {
+			return 0, false
+		}
+	}
+	return n, true
+}
+package couchtty
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/couchcore"
+)
+
+// PanelRow is one line of couch's own screen.
+type PanelRow struct {
+	// Target is the console-local child id to switch to. It is deliberately
+	// separate from Tree: a worktree is human-resolvable, while terminal
+	// routing addresses one hosted child.
+	Target string
+	// Tree is the stable human-resolution identity. It must not be replaced
+	// with Actor: couch.LookupTrees returns worktrees, not actor ids.
+	Tree  couchcore.Worktree
+	Label string
+	Desc  string
+	Live  bool
+	// Bell is the point of the panel being a place to LOOK: an actor that
+	// wants attention says so here, not only on the status row where it
+	// competes for one line.
+	Bell bool
+}
+
+// PanelTarget is console-local routing state joined onto Couch's durable tree
+// summaries. Keeping it separate prevents a hosted-child inventory from
+// becoming a second source for labels, descriptions, or parked rows.
+type PanelTarget struct {
+	Tree   couchcore.Worktree
+	Target string
+	Bell   bool
+}
+
+// PanelControl is one operator-entered panel surface. The renderer and README
+// checks consume this inventory so a new key cannot ship undocumented.
+type PanelControl struct {
+	Keys   string
+	Action string
+}
+
+var panelControls = []PanelControl{
+	{Keys: "typeahead", Action: "filter"},
+	{Keys: "↑↓", Action: "select"},
+	{Keys: ":1–:9", Action: "jump"},
+	{Keys: "Enter", Action: "switch"},
+	{Keys: ":s", Action: "start"},
+	{Keys: ":x", Action: "stop"},
+	{Keys: ":n", Action: "name"},
+	{Keys: ":d", Action: "describe"},
+	{Keys: "Escape", Action: "back"},
+}
+
+// PanelControls returns the shared, immutable-by-copy key inventory.
+func PanelControls() []PanelControl {
+	return append([]PanelControl(nil), panelControls...)
+}
+
+// PanelModel is the panel as DATA: what to show, filtered, in a stable order.
+//
+// Pure. The console renders it and #148's advisor can read the same rows, which
+// is the "no state the operator can see that an LLM cannot" property stated in
+// the project.
+type PanelModel struct {
+	all []PanelRow
+
+	// shown is the last filtered result, and it is what Pick indexes.
+	// Numbered selection has to mean "the Nth thing on screen"; indexing the
+	// underlying set instead is how an operator types 2 and lands somewhere
+	// else.
+	shown []PanelRow
+
+	// cursor is the highlighted row, 0-based into shown. A list with no
+	// highlight is a list you cannot navigate -- the operator has no way to
+	// tell what Enter will do.
+	cursor int
+}
+
+// Cursor is the highlighted row index.
+func (m *PanelModel) Cursor() int { return m.cursor }
+
+// Move steps the highlight, clamping rather than wrapping. Wrapping in a short
+// list makes "press down twice" unpredictable.
+func (m *PanelModel) Move(delta int) {
+	if len(m.shown) == 0 {
+		m.cursor = 0
+		return
+	}
+	m.cursor += delta
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+	if m.cursor >= len(m.shown) {
+		m.cursor = len(m.shown) - 1
+	}
+}
+
+// Selected is the highlighted row.
+func (m *PanelModel) Selected() (PanelRow, bool) {
+	if m.cursor < 0 || m.cursor >= len(m.shown) {
+		return PanelRow{}, false
+	}
+	return m.shown[m.cursor], true
+}
+
+// NewPanelModel builds the rows from couch's own summaries, so a tree that is
+// PARKED -- named, no live actor -- is listed exactly as `couch list` lists it.
+// That thread is the one this project exists to stop losing, so it is not
+// filtered out for being idle.
+func NewPanelModel(trees []couchcore.TreeSummary) *PanelModel {
+	m := &PanelModel{all: make([]PanelRow, 0, len(trees))}
+	for _, t := range trees {
+		label := t.Name
+		if label == "" {
+			// An unnamed tree still has to be identifiable; an empty chip is
+			// unusable. Same fallback `couch list` renders.
+			label = t.Tree.Repo()
+		}
+		m.all = append(m.all, PanelRow{
+			Tree:  t.Tree,
+			Label: label,
+			Desc:  t.Desc,
+			Live:  t.Live(),
+		})
+	}
+	m.shown = m.all
+	return m
+}
+
+// Rows is everything the panel knows about, unfiltered.
+func (m *PanelModel) Rows() []PanelRow { return m.all }
+
+// BindTargets joins ephemeral console routing onto summary-derived rows.
+// Multiple hosted children on one tree choose the first target deterministically
+// and OR their bell state; the panel remains one row per worktree.
+func (m *PanelModel) BindTargets(targets []PanelTarget) {
+	byTree := map[string]PanelTarget{}
+	for _, target := range targets {
+		key := target.Tree.Key()
+		joined := byTree[key]
+		if joined.Target == "" {
+			joined.Tree = target.Tree
+			joined.Target = target.Target
+		}
+		joined.Bell = joined.Bell || target.Bell
+		byTree[key] = joined
+	}
+	for i := range m.all {
+		if target, ok := byTree[m.all[i].Tree.Key()]; ok {
+			m.all[i].Target = target.Target
+			m.all[i].Bell = target.Bell
+		}
+	}
+	m.shown = m.all
+	m.clampCursor()
+}
+
+// Shown is the current filtered view -- what the operator is looking at.
+func (m *PanelModel) Shown() []PanelRow { return m.shown }
+
+// Filter narrows the rows by INJECTING the match rule rather than restating it.
+//
+// resolve is `couch.LookupTrees` in production: one rule serving the CLI, the
+// panel, and #148's advisor. Restating it here is the drift Decision 12 exists
+// to prevent -- and the earlier plan text got the rule's own field list wrong,
+// which is what a second copy does.
+//
+// An empty query is not a resolution: it means "show everything", and asking
+// the resolver would make the panel's DEFAULT view depend on a match rule.
+func (m *PanelModel) Filter(query string, resolve func(string) []couchcore.Worktree) []PanelRow {
+	if query == "" || resolve == nil {
+		m.shown = m.all
+		m.clampCursor()
+		return m.shown
+	}
+	want := map[string]bool{}
+	for _, w := range resolve(query) {
+		want[w.Key()] = true
+	}
+	// Filtered in the ORIGINAL order rather than the resolver's: numbered
+	// selection is only safe if rows do not move under the operator's fingers,
+	// and a resolver is free to return whatever order it likes.
+	out := make([]PanelRow, 0, len(want))
+	for _, r := range m.all {
+		if want[r.Tree.Key()] {
+			out = append(out, r)
+		}
+	}
+	m.shown = out
+	m.clampCursor()
+	return out
+}
+
+// clampCursor keeps the highlight on a row that exists: filtering can shrink
+// the list under it, and a cursor past the end selects nothing.
+func (m *PanelModel) clampCursor() {
+	if m.cursor >= len(m.shown) {
+		m.cursor = len(m.shown) - 1
+	}
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+}
+
+// Pick resolves a 1-based keystroke to a row the operator can currently SEE.
+func (m *PanelModel) Pick(n int) (PanelRow, bool) {
+	if n < 1 || n > len(m.shown) {
+		return PanelRow{}, false
+	}
+	return m.shown[n-1], true
+}
+
+// RenderPanel draws the panel for the operator.
+//
+// Deliberately plain -- a list to read, not chrome. But it MUST show three
+// things or it is not usable: which row is selected, which actors want
+// attention, and what the keys are. The first cut showed a bare list and the
+// operator had no way to tell that arrows, Enter or Escape did anything.
+
+exec
+/bin/zsh -lc "rg -n \"type Home\\b|func Home\\b|\\bHome\\b\" cmd/internal/couchtty cmd/internal/ptychild cmd/internal/hostty --glob '*.go'; rg --files cmd/internal/hostty cmd/internal/couchtty cmd/internal/ptychild | sort; rg -n \"ResetRegion|SaveCursor|RestoreCursor|ClearLine|HomeAndClear|SetRegion|MoveTo\" cmd/internal/hostty --glob '*_test.go'; rg -n \"type Console|func \\(.*Console|func DecodePanelKeys|type PanelKey\" cmd/internal/couchtty/{console.go,panelkeys.go}; git diff ca480ce"'^..ca480ce -- cmd/internal/couchtty/core_concepts_contract_test.go workshop/plans/000146-couch-tty-switching-and-attach-plan.md' in /Users/xianxu/workspace/pair
+ succeeded in 0ms:
+cmd/internal/couchtty/console.go
+cmd/internal/couchtty/console_live_test.go
+cmd/internal/couchtty/console_test.go
+cmd/internal/couchtty/core_concepts_contract_test.go
+cmd/internal/couchtty/focus.go
+cmd/internal/couchtty/focus_test.go
+cmd/internal/couchtty/keys.go
+cmd/internal/couchtty/keys_test.go
+cmd/internal/couchtty/panel.go
+cmd/internal/couchtty/panel_test.go
+cmd/internal/couchtty/panelkeys.go
+cmd/internal/couchtty/panelkeys_test.go
+cmd/internal/couchtty/reserve.go
+cmd/internal/couchtty/reserve_test.go
+cmd/internal/couchtty/vtscreen_test.go
+cmd/internal/hostty/control.go
+cmd/internal/hostty/fake.go
+cmd/internal/hostty/host.go
+cmd/internal/hostty/hostty_test.go
+cmd/internal/hostty/os.go
+cmd/internal/ptychild/child.go
+cmd/internal/ptychild/child_test.go
+cmd/internal/ptychild/fake.go
+cmd/internal/ptychild/replay.go
+cmd/internal/ptychild/replay_test.go
+cmd/internal/ptychild/ring.go
+cmd/internal/ptychild/ring_test.go
+cmd/internal/ptychild/screen.go
+cmd/internal/ptychild/screen_test.go
+cmd/internal/hostty/hostty_test.go:20:		{"set region", SetRegion(1, 23), "\x1b[1;23r"},
+cmd/internal/hostty/hostty_test.go:21:		{"reset region", ResetRegion, "\x1b[r"},
+cmd/internal/hostty/hostty_test.go:22:		{"move to", MoveTo(24, 1), "\x1b[24;1H"},
+cmd/internal/hostty/hostty_test.go:23:		{"home and clear", HomeAndClear, "\x1b[1;1H\x1b[J"},
+cmd/internal/couchtty/panelkeys.go:10:type PanelKeyKind uint8
+cmd/internal/couchtty/panelkeys.go:22:type PanelKey struct {
+cmd/internal/couchtty/panelkeys.go:39:func DecodePanelKeys(in []byte) (keys []PanelKey, held []byte) {
+cmd/internal/couchtty/console.go:47:type Console struct {
+cmd/internal/couchtty/console.go:130:func (c *Console) errw() io.Writer {
+cmd/internal/couchtty/console.go:157:func (c *Console) SetOps(f func(string, map[string]string) (any, error)) {
+cmd/internal/couchtty/console.go:165:func (c *Console) Ops() func(string, map[string]string) (any, error) {
+cmd/internal/couchtty/console.go:173:func (c *Console) SetResolver(f func(string) []couchcore.Worktree) {
+cmd/internal/couchtty/console.go:182:func (c *Console) Resolver() func(string) []couchcore.Worktree {
+cmd/internal/couchtty/console.go:190:func (c *Console) SetSummaries(f func() []couchcore.TreeSummary) {
+cmd/internal/couchtty/console.go:197:func (c *Console) Summaries() func() []couchcore.TreeSummary {
+cmd/internal/couchtty/console.go:205:func (c *Console) SetErrorWriter(w io.Writer) { c.stderr = w }
+cmd/internal/couchtty/console.go:211:func (c *Console) ChildSize() ptychild.Size {
+cmd/internal/couchtty/console.go:229:func (c *Console) Deliver(id string, data []byte) {
+cmd/internal/couchtty/console.go:239:func (c *Console) Attach(id, label string, child *ptychild.Child) {
+cmd/internal/couchtty/console.go:245:func (c *Console) AttachTree(id string, tree couchcore.Worktree, label string, child *ptychild.Child) {
+cmd/internal/couchtty/console.go:260:func (c *Console) PaneRowDirty(id string) bool {
+cmd/internal/couchtty/console.go:275:func (c *Console) Switch(id string) {
+cmd/internal/couchtty/console.go:286:func (c *Console) onSwitch(id string) { c.switchTo(id, false) }
+cmd/internal/couchtty/console.go:291:func (c *Console) forceSwitch(id string) { c.switchTo(id, true) }
+cmd/internal/couchtty/console.go:293:func (c *Console) switchTo(id string, force bool) {
+cmd/internal/couchtty/console.go:321:func (c *Console) Stop() { c.once.Do(func() { close(c.stop) }) }
+cmd/internal/couchtty/console.go:325:func (c *Console) Run() int {
+cmd/internal/couchtty/console.go:452:func (c *Console) release() {
+cmd/internal/couchtty/console.go:461:func (c *Console) activeChild() *ptychild.Child {
+cmd/internal/couchtty/console.go:473:func (c *Console) applyLayout() {
+cmd/internal/couchtty/console.go:499:func (c *Console) repaint() { c.paintNow() }
+cmd/internal/couchtty/console.go:510:func (c *Console) writeChild(p []byte) {
+cmd/internal/couchtty/console.go:528:func (c *Console) takeOverScreen(body []byte) {
+cmd/internal/couchtty/console.go:541:func (c *Console) writeOwn(p string) {
+cmd/internal/couchtty/console.go:557:func (c *Console) paintNow() {
+cmd/internal/couchtty/console.go:577:func (c *Console) onChunk(ch chunk) {
+cmd/internal/couchtty/console.go:634:func (c *Console) watchResize() {
+cmd/internal/couchtty/console.go:652:func (c *Console) onResize() {
+cmd/internal/couchtty/console.go:664:func (c *Console) pumpStdin() {
+cmd/internal/couchtty/console.go:687:func (c *Console) onHotkey() {
+cmd/internal/couchtty/console.go:709:func (c *Console) actorAlive(id string) bool {
+cmd/internal/couchtty/console.go:719:func (c *Console) rebuildPanel() {
+cmd/internal/couchtty/console.go:755:func (c *Console) showPanel() {
+cmd/internal/couchtty/console.go:781:func (c *Console) onPanelInput(raw []byte) {
+cmd/internal/couchtty/console.go:800:func (c *Console) onPanelKey(k PanelKey) {
+cmd/internal/couchtty/console.go:908:func (c *Console) onPromptKey(k PanelKey) {
+cmd/internal/couchtty/console.go:938:func (c *Console) startPrompt(label string, fn func(string)) {
+cmd/internal/couchtty/console.go:946:func (c *Console) runOp(name string, args map[string]string) {
+cmd/internal/couchtty/console.go:972:func (c *Console) setNotice(text string) {
+cmd/internal/couchtty/console.go:978:func (c *Console) selectedRow() (PanelRow, bool) {
+cmd/internal/couchtty/console.go:988:func (c *Console) queryEmpty() bool {
+cmd/internal/couchtty/console.go:994:func (c *Console) appendQuery(b byte) {
+cmd/internal/couchtty/console.go:1001:func (c *Console) returnToActor() {
+cmd/internal/couchtty/console.go:1015:func (c *Console) clearQuery() {
+diff --git a/cmd/internal/couchtty/core_concepts_contract_test.go b/cmd/internal/couchtty/core_concepts_contract_test.go
+index 9a3e0f2..19d1a6d 100644
+--- a/cmd/internal/couchtty/core_concepts_contract_test.go
++++ b/cmd/internal/couchtty/core_concepts_contract_test.go
+@@ -19,6 +19,37 @@ type conceptContractRow struct {
+
+ var backtickField = regexp.MustCompile("`([^`]+)`")
+
++// conceptInventory is the typed boundary for what the plan's Core concepts
++// table must enumerate. The table supplies paths and lifecycle status; this
++// inventory makes omission and addition visible instead of trusting whatever
++// rows happen to remain in the prose.
++var conceptInventory = []struct{ kind, name string }{
++	{"PURE", "`Ring`"},
++	{"PURE", "`StripQueries` + query deny-list"},
++	{"PURE", "`Screen`"},
++	{"PURE", "`updateMouseMode`"},
++	{"PURE", "`Focus` / `Up`"},
++	{"PURE", "`PanelModel` / `Filter` / `Pick` / target join"},
++	{"PURE", "`PanelKey` / `DecodePanelKeys`"},
++	{"PURE", "`StatusModel` / `RenderStatusRow`"},
++	{"PURE", "`Interceptor`"},
++	{"PURE", "`Reserve` / `Release` / `PaintRow`"},
++	{"PURE", "`ResetRegion` / `SaveCursor` / `RestoreCursor` / `ClearLine` / `HomeAndClear` / `SetRegion` / `MoveTo`"},
++	{"PURE", "`Notice` / `Feed`"},
++	{"INTEGRATION", "`ptychild.Child`"},
++	{"INTEGRATION", "`couchcore.TerminalHandle`"},
++	{"INTEGRATION", "`couchcore.PtyRunner`"},
++	{"INTEGRATION", "`FakeRunner` terminal double"},
++	{"INTEGRATION", "`hostty.Host`"},
++	{"INTEGRATION", "`hostty.OSHost` / `hostty.FakeHost`"},
++	{"INTEGRATION", "`couchtty.Console`"},
++	{"INTEGRATION", "`runShell` host half"},
++	{"INTEGRATION", "`termcmd.terminalTab`"},
++	{"INTEGRATION", "`termcmd.restoreTerminal`"},
++	{"INTEGRATION", "`consoleRunner` / `consoleRunnerFor`"},
++	{"INTEGRATION", "`TestTerminalConformance_LifecyclePredicates`"},
++}
++
+ // TestCoreConceptsContract turns pair#146's repeatedly drifting architecture
+ // table into an executable contract. Rows due through M3 must name real symbols
+ // at real paths; deleted symbols must be absent; PURE sources may not import IO
+@@ -30,6 +61,7 @@ func TestCoreConceptsContract(t *testing.T) {
+	if len(rows) == 0 {
+		t.Fatal("Core concepts contract has no rows")
+	}
++	assertConceptInventory(t, rows)
+	for _, row := range rows {
+		row := row
+		t.Run(row.kind+"/"+row.name, func(t *testing.T) {
+@@ -69,6 +101,50 @@ func TestCoreConceptsContract(t *testing.T) {
+	}
+ }
+
++func TestConceptInventoryRejectsWholeRowDeletion(t *testing.T) {
++	rows := make([]conceptContractRow, 0, len(conceptInventory)-1)
++	for _, item := range conceptInventory {
++		if item.name != "`PanelKey` / `DecodePanelKeys`" {
++			rows = append(rows, conceptContractRow{kind: item.kind, name: item.name})
++		}
++	}
++	if problems := conceptInventoryProblems(rows); !strings.Contains(strings.Join(problems, "\n"), "missing PURE row `PanelKey` / `DecodePanelKeys`") {
++		t.Fatalf("whole-row deletion was not rejected: %v", problems)
++	}
++}
++
++func assertConceptInventory(t *testing.T, rows []conceptContractRow) {
++	t.Helper()
++	for _, problem := range conceptInventoryProblems(rows) {
++		t.Error(problem)
++	}
++}
++
++func conceptInventoryProblems(rows []conceptContractRow) []string {
++	expected := make(map[string]bool, len(conceptInventory))
++	for _, item := range conceptInventory {
++		expected[item.kind+"\x00"+item.name] = true
++	}
++	seen := make(map[string]bool, len(rows))
++	var problems []string
++	for _, row := range rows {
++		key := row.kind + "\x00" + row.name
++		if seen[key] {
++			problems = append(problems, "duplicate "+row.kind+" row "+row.name)
++		}
++		seen[key] = true
++		if !expected[key] {
++			problems = append(problems, "unexpected "+row.kind+" row "+row.name)
++		}
++	}
++	for _, item := range conceptInventory {
++		if !seen[item.kind+"\x00"+item.name] {
++			problems = append(problems, "missing "+item.kind+" row "+item.name)
++		}
++	}
++	return problems
++}
++
+ func findConceptPlan(t *testing.T, root string) string {
+	t.Helper()
+	name := "000146-couch-tty-switching-and-attach-plan.md"
+diff --git a/workshop/plans/000146-couch-tty-switching-and-attach-plan.md b/workshop/plans/000146-couch-tty-switching-and-attach-plan.md
+index ab15631..8c25468 100644
+--- a/workshop/plans/000146-couch-tty-switching-and-attach-plan.md
++++ b/workshop/plans/000146-couch-tty-switching-and-attach-plan.md
+@@ -828,3 +828,17 @@ move onto Run's existing event loop; `pumpStdin` is again the single blocking
+ reader, so the fix adds no new unjoinable worker. Full console lifecycle
+ ownership remains Task 4.4's explicit M4 work (ARCH-DRY, ARCH-PURE,
+ ARCH-PURPOSE).
++
++### 2026-08-24 — M3 boundary review round 4: bidirectional concept inventory
++
++**Reason:** round 4 found that validating only parsed rows still allowed a whole
++concept row to disappear. Removing `PanelKey` / `DecodePanelKeys` deleted the
++test's input as well, so the original omission class remained possible.
++
++**Delta:** the contract now has a typed inventory of the complete Pure and
++Integration row-name set. It rejects missing, extra, and duplicate rows before
++validating each remaining row's path, declaration, lifecycle status, purity,
++and direct test coverage. Deleting the complete `PanelKey` /
++`DecodePanelKeys` row was observed RED with a precise missing-row error, then
++restored GREEN. This makes the audit bidirectional rather than trusting the
++prose to enumerate its own required inputs (ARCH-PURPOSE).
+
+exec
+/bin/zsh -lc "sed -n '1,80p' cmd/internal/hostty/hostty_test.go; sed -n '1,120p' cmd/internal/hostty/control.go; sed -n '1,120p' cmd/internal/ptychild/replay_test.go; sed -n '1,120p' cmd/internal/couchtty/reserve_test.go" in /Users/xianxu/workspace/pair
+ succeeded in 0ms:
+package hostty
+
+import (
+	"os"
+	"strings"
+	"syscall"
+	"testing"
+	"time"
+
+	"github.com/creack/pty"
+	"github.com/xianxu/pair/cmd/internal/ptychild"
+)
+
+func TestControlSequences(t *testing.T) {
+	cases := []struct {
+		name string
+		got  string
+		want string
+	}{
+		{"set region", SetRegion(1, 23), "\x1b[1;23r"},
+		{"reset region", ResetRegion, "\x1b[r"},
+		{"move to", MoveTo(24, 1), "\x1b[24;1H"},
+		{"home and clear", HomeAndClear, "\x1b[1;1H\x1b[J"},
+	}
+	for _, c := range cases {
+		if c.got != c.want {
+			t.Errorf("%s = %q, want %q", c.name, c.got, c.want)
+		}
+	}
+}
+
+func TestFakeHostReportsSizeAndCapturesWrites(t *testing.T) {
+	h := NewFakeHost(ptychild.Size{Rows: 40, Cols: 120})
+	got, err := h.Size()
+	if err != nil {
+		t.Fatalf("Size: %v", err)
+	}
+	if got.Rows != 40 || got.Cols != 120 {
+		t.Fatalf("Size() = %+v, want 40x120", got)
+	}
+	if _, err := h.Write([]byte("painted")); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	if !strings.Contains(h.Written(), "painted") {
+		t.Fatalf("Written() = %q", h.Written())
+	}
+}
+
+// Without a fireable resize channel, no console test can cover the SIGWINCH
+// path -- which is the gap that made the first draft of #146's console tasks
+// unbuildable.
+func TestFakeHostResizeIsObservable(t *testing.T) {
+	h := NewFakeHost(ptychild.Size{Rows: 24, Cols: 80})
+	h.SetSize(ptychild.Size{Rows: 30, Cols: 100})
+
+	select {
+	case <-h.Resized():
+	case <-time.After(time.Second):
+		t.Fatal("SetSize did not deliver a resize")
+	}
+	got, _ := h.Size()
+	if got.Rows != 30 {
+		t.Fatalf("Size() = %+v after SetSize", got)
+	}
+}
+
+// A console restores on the child-exit path AND from a deferred teardown. A
+// restore that is not idempotent turns the second call into a broken terminal.
+func TestFakeHostRestoreIsIdempotent(t *testing.T) {
+	h := NewFakeHost(ptychild.Size{Rows: 24, Cols: 80})
+	restore, err := h.MakeRaw()
+	if err != nil {
+		t.Fatalf("MakeRaw: %v", err)
+	}
+	if err := restore(); err != nil {
+		t.Fatalf("first restore: %v", err)
+	}
+	if err := restore(); err != nil {
+		t.Fatalf("second restore: %v", err)
+	}
+// Package hostty owns the OPERATOR's terminal: how big it is, when it changes
+// size, putting it in raw mode and reliably putting it back, and the escape
+// sequences that address it as a whole.
+//
+// It is the host half of the terminal plumbing `pair term` and `couch` share;
+// cmd/internal/ptychild is the child half. Splitting them this way is what makes
+// a console testable without a real tty -- FakeHost is scriptable, so the
+// SIGWINCH path and the restore-on-signal path are covered by tests rather than
+// only by an operator smoke.
+//
+// The control sequences live here, one constant per sequence, because two sites
+// framing the same sequence independently is a bug this repo has already paid
+// for (#127's dead keyboard). `\x1b[r` in particular was about to exist in both
+// termcmd and couch.
+package hostty
+
+import "fmt"
+
+const (
+	// ResetRegion clears DECSTBM, restoring the full-screen scrolling region.
+	// Written on teardown: a child that set margins and died would otherwise
+	// leave the operator's shell scrolling inside a box.
+	ResetRegion = "\x1b[r"
+
+	// SaveCursor / RestoreCursor bracket anything drawn outside the child's
+	// area, so the child's cursor is where it left it.
+	SaveCursor    = "\x1b7"
+	RestoreCursor = "\x1b8"
+
+	// ClearLine erases the row the cursor is on.
+	ClearLine = "\x1b[2K"
+
+	// HomeAndClear is the prelude to a repaint.
+	HomeAndClear = "\x1b[1;1H\x1b[J"
+)
+
+// SetRegion pins the scrolling region to rows top..bottom (1-based, inclusive).
+// This is how a row is RESERVED without compositing: a child scrolling at the
+// bottom of its own screen scrolls inside the region and cannot reach the row
+// below it.
+func SetRegion(top, bottom int) string { return fmt.Sprintf("\x1b[%d;%dr", top, bottom) }
+
+// MoveTo positions the cursor (1-based).
+func MoveTo(row, col int) string { return fmt.Sprintf("\x1b[%d;%dH", row, col) }
+package ptychild
+
+import "testing"
+
+// Every row of the deny-list is stripped out of a replay.
+func TestStripTerminalQueriesRemovesEachRow(t *testing.T) {
+	rows := []struct {
+		name  string
+		query string
+	}{
+		{"DA1", "\x1b[c"},
+		{"DA1 explicit zero", "\x1b[0c"},
+		{"DA2", "\x1b[>c"},
+		{"XTVERSION", "\x1b[>q"},
+		{"kitty flags query", "\x1b[?u"},
+		{"DSR cursor position", "\x1b[6n"},
+		{"OSC 10 foreground", "\x1b]10;?\x07"},
+		{"OSC 11 background", "\x1b]11;?\x07"},
+		{"OSC 11 ST terminated", "\x1b]11;?\x1b\\"},
+		{"DECRQM 2026", "\x1b[?2026$p"},
+		{"DECRQM 2031", "\x1b[?2031$p"},
+		{"OSC 4 colour", "\x1b]4;12;?\x07"},
+	}
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			in := "before" + row.query + "after"
+			if got := string(StripQueries([]byte(in))); got != "beforeafter" {
+				t.Fatalf("strip(%q) = %q, want %q", in, got, "beforeafter")
+			}
+		})
+	}
+}
+
+// The backstop for the deny-list: for every final byte the table matches, a
+// legitimate sequence sharing that final must SURVIVE. A greedy rule here is
+// silent — it breaks mouse mode, key encoding, or the cursor shape with nothing
+// failing.
+func TestStripTerminalQueriesPreservesLegitimateSequences(t *testing.T) {
+	keep := []struct {
+		name string
+		seq  string
+		why  string
+	}{
+		{"DECSET SGR mouse", "\x1b[?1006h", "shares \\x1b[? with DECRQM; updateMouseMode parses it"},
+		{"DECSET button mouse", "\x1b[?1002h", "same"},
+		{"DECSET bracketed paste", "\x1b[?2004h", "same"},
+		{"DECRST mouse off", "\x1b[?1006l", "same, reset form"},
+		{"kitty flags push", "\x1b[>1u", "shares the u final with the \\x1b[?u query"},
+		{"kitty flags pop", "\x1b[<u", "same; stripping it drops the app to legacy keys"},
+		{"kitty key chord", "\x1b[110;3u", "Alt+n as a live chord, u final"},
+		{"DECSCUSR cursor shape", "\x1b[5 q", "nvim emits per mode change; q final like XTVERSION"},
+		{"SGR reset", "\x1b[0m", "ordinary styling"},
+		{"OSC 0 title", "\x1b]0;title\x07", "non-query OSC"},
+		{"DA1 reply", "\x1b[?62;4;52c", "shell echo puts replies in the buffer; c final"},
+		{"DECRPM report", "\x1b[?2026;2$y", "reply terminates $y, not $p"},
+		{"kitty flags reply", "\x1b[?0u", "reply, not the \\x1b[?u query literal"},
+		{"DSR cursor report", "\x1b[24;1R", "the reply to 6n"},
+		{"DSR status request", "\x1b[0n", "n final, but not the 6n cursor-position query"},
+		// Malformed OSC 4: the 4-byte prefix and 2-byte suffix checks OVERLAP
+		// here, which used to invert a slice bound and panic (found at close
+		// review). Not a query — must pass through.
+		{"malformed OSC 4 BEL", "\x1b]4;?\x07", "prefix/suffix overlap; must not panic or match"},
+		{"malformed OSC 4 ST", "\x1b]4;?\x1b\\", "same, ST terminated"},
+		{"malformed OSC 4 no index", "\x1b]4;;?\x07", "empty index is not a colour query"},
+	}
+	for _, k := range keep {
+		t.Run(k.name, func(t *testing.T) {
+			in := "before" + k.seq + "after"
+			if got := string(StripQueries([]byte(in))); got != in {
+				t.Fatalf("strip(%q) = %q, want unchanged (%s)", in, got, k.why)
+			}
+		})
+	}
+}
+
+// The Ring keeps only the last DefaultRingBytes, so it can begin or end
+// mid-sequence. Never drop-to-end: that would swallow the visible screen.
+func TestStripTerminalQueriesHandlesTruncatedSequences(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+	}{
+		{"unterminated tail", "visible text\x1b[?100"},
+		{"bare escape at end", "visible text\x1b"},
+		{"unterminated OSC tail", "visible text\x1b]11;?"},
+		{"buffer starts mid-sequence", "6;4;52c\x1b[?1006hvisible"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := string(StripQueries([]byte(tt.in))); got != tt.in {
+				t.Fatalf("strip(%q) = %q, want unchanged", tt.in, got)
+			}
+		})
+	}
+}
+
+// The structural guard C1 was missing: strip must never panic and never grow
+// the buffer, for ANY input. Child output is arbitrary bytes (`cat` a binary and
+// a malformed OSC 4 arrives), and every other strip test feeds a syntactically
+// valid sequence — which is exactly how the \x1b]4;? slice-bound panic shipped.
+func FuzzStripQueries(f *testing.F) {
+	seeds := []string{
+		"", "\x1b", "\x1b[", "\x1b]", "\x1b]4;?\x07", "\x1b]4;\x07",
+		"\x1b[?$p", "\x1b[?u", "\x1b]11;?", "\x1b[c\x1b]4;12;?\x07plain",
+		"\x1b]4;?\x1b\\", "\x1bP+q\x1b\\", "\x1b[?1006h\x1b[?2026$p",
+	}
+	for _, s := range seeds {
+		f.Add([]byte(s))
+	}
+	f.Fuzz(func(t *testing.T, in []byte) {
+		out := StripQueries(in) // must not panic
+		if len(out) > len(in) {
+			t.Fatalf("strip grew the buffer: %d > %d", len(out), len(in))
+		}
+	})
+}
+package couchtty
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/textwidth"
+)
+
+// The whole reserved-row design is this off-by-one: the child gets rows-1 and
+// the region stops at rows-1, so a child scrolling at ITS bottom line scrolls
+// inside the region and cannot reach the row below.
+func TestReserveStopsOneRowShortOfTheScreen(t *testing.T) {
+	got := Reserve(24)
+	if !strings.Contains(got, "\x1b[1;23r") {
+		t.Fatalf("Reserve(24) = %q, want a region ending at row 23", got)
+	}
+	if strings.Contains(got, "\x1b[1;24r") {
+		t.Fatalf("Reserve(24) claimed the whole screen: %q", got)
+	}
+}
+
+func TestChildRowsIsOneLessThanTheHost(t *testing.T) {
+	if got := ChildRows(24); got != 23 {
+		t.Fatalf("ChildRows(24) = %d, want 23", got)
+	}
+	// A terminal too short to reserve from must not produce a zero-row child.
+	if got := ChildRows(1); got != 1 {
+		t.Fatalf("ChildRows(1) = %d, want 1 — a zero-row pty is not a thing", got)
+	}
+}
+
+// Without save/restore the child's cursor lands wherever the row was painted,
+// which shows up as the caret jumping to the bottom line on every notification.
+func TestPaintRowBracketsThePaintWithSaveAndRestore(t *testing.T) {
+	got := PaintRow(24, "hello")
+
+	save := strings.Index(got, "\x1b7")
+	restore := strings.Index(got, "\x1b8")
+	text := strings.Index(got, "hello")
+	if save < 0 || restore < 0 {
+		t.Fatalf("PaintRow lacks save/restore: %q", got)
+	}
+	if !(save < text && text < restore) {
+		t.Fatalf("the paint is not bracketed by save/restore: %q", got)
+	}
+	if !strings.Contains(got, "\x1b[24;1H") {
+		t.Fatalf("PaintRow did not move to the reserved row: %q", got)
+	}
+}
+
+func TestReleaseResetsTheRegion(t *testing.T) {
+	if !strings.Contains(Release(), "\x1b[r") {
+		t.Fatalf("Release() = %q, want a region reset", Release())
+	}
+}
+
+func TestRenderStatusRowMarksActiveAndPendingDistinctly(t *testing.T) {
+	got := RenderStatusRow(80, StatusModel{Actors: []StatusActor{
+		{Label: "brain", Active: true},
+		{Label: "pair", Bell: true},
+		{Label: "ariadne"},
+	}})
+
+	if !strings.Contains(got, "[brain]") {
+		t.Fatalf("the active actor is not marked: %q", got)
+	}
+	if !strings.Contains(got, "pair*") {
+		t.Fatalf("the actor with pending activity is not marked: %q", got)
+	}
+	if strings.Contains(got, "[pair]") || strings.Contains(got, "brain*") {
+		t.Fatalf("active and pending are not distinct: %q", got)
+	}
+}
+
+func TestRenderStatusRowFitsTheWidth(t *testing.T) {
+	m := StatusModel{
+		Actors: []StatusActor{{Label: "one", Active: true}, {Label: "two"}, {Label: "three"}},
+		Notice: "a notice long enough to need cutting off somewhere sensible",
+	}
+	for _, w := range []int{10, 20, 40, 80} {
+		got := RenderStatusRow(w, m)
+		if textwidth.Width(got) > w {
+			t.Fatalf("width %d: rendered %d columns: %q", w, textwidth.Width(got), got)
+		}
+	}
+}
+
+// Labels and notices carry AGENT-PUBLISHED text (couchcore.Describe reads a
+// sidecar the session writes). A description containing \x1b[2J would clear the
+// operator's screen from the status row.
+func TestRenderStatusRowStripsControlBytesFromUntrustedText(t *testing.T) {
+	got := RenderStatusRow(80, StatusModel{
+		Actors: []StatusActor{{Label: "ev\x1b[2Jil", Active: true}},
+		Notice: "also \x07 bad \x1b[31m",
+	})
+	for _, bad := range []string{"\x1b", "\x07"} {
+		if strings.Contains(got, bad) {
+			t.Fatalf("control byte %q survived into the status row: %q", bad, got)
+		}
+	}
+	if !strings.Contains(got, "evil") {
+		t.Fatalf("stripping mangled the visible text: %q", got)
+	}
+}
+
+func TestRenderStatusRowWithNoActors(t *testing.T) {
+	got := RenderStatusRow(40, StatusModel{Notice: "nothing running"})
+	if !strings.Contains(got, "nothing running") {
+		t.Fatalf("the notice was dropped: %q", got)
+	}
+}
+
+codex
+The current contract passes, and the audited table now has the three facts BR-45 required: no `Home` declaration, `DecodePanelKeys` is enumerated and directly unit-tested, and `Console` is an IO-owning integration controller. I’m now mutation-checking the contract against the original three drift modes rather than accepting the recorded “RED” claim.
+2026-08-24T23:44:55.544378Z ERROR codex_core::tools::router: error=exec_command failed for `/bin/zsh -lc 'set -e
+review_tmp=$(mktemp -d /tmp/pair-146-review.XXXXXX)
+git archive HEAD | tar -x -C "$review_tmp"
+plan="$review_tmp/workshop/plans/000146-couch-tty-switching-and-attach-plan.md"
+plan_orig="$review_tmp/workshop/plans/000146-couch-tty-switching-and-attach-plan.orig.md"
+cp "$plan" "$plan_orig"
+perl -0pi -e '"'s/"'^'"\\| "'`PanelKey` '"\\/ "'`DecodePanelKeys` .*'"\\n//m' \""'$plan"
+if (cd "$review_tmp" && go test ./cmd/internal/couchtty -run '"'"'^TestCoreConceptsContract$'"' -count=1 > /tmp/pair-146-delete-row.out 2>&1); then
+  echo 'DELETE_ROW_UNEXPECTEDLY_GREEN'
+else
+  echo 'DELETE_ROW_RED'
+  rg -n 'missing PURE row|FAIL' /tmp/pair-146-delete-row.out
+fi
+cp \""'$plan_orig" "$plan"
+perl -0pi -e '"'s/(\\| "'`Notice` '"\\/ "'`Feed` .*'"\\n)/| "'`Home` | `cmd'"\\/internal\\/couchtty\\/focus.go"'` | new |'"\\n"'$1/'"' \""'$plan"
+if (cd "$review_tmp" && go test ./cmd/internal/couchtty -run '"'"'^TestCoreConceptsContract$'"' -count=1 > /tmp/pair-146-home-row.out 2>&1); then
+  echo 'HOME_ROW_UNEXPECTEDLY_GREEN'
+else
+  echo 'HOME_ROW_RED'
+  rg -n 'unexpected PURE row|symbol Home|FAIL' /tmp/pair-146-home-row.out
+fi
+cp \""'$plan_orig" "$plan"
+perl -0pi -e '"'s/"'^'"\\| "'`couchtty'"\\.Console"'` .*'"\\n//m; s/(\\| "'`Notice` '"\\/ "'`Feed` .*'"\\n)/| "'`couchtty.Console` | `cmd'"\\/internal\\/couchtty\\/console.go"'` | new |'"\\n"'$1/'"' \""'$plan"
+if (cd "$review_tmp" && go test ./cmd/internal/couchtty -run '"'"'^TestCoreConceptsContract$'"' -count=1 > /tmp/pair-146-console-kind.out 2>&1); then
+  echo 'CONSOLE_KIND_UNEXPECTEDLY_GREEN'
+else
+  echo 'CONSOLE_KIND_RED'
+  rg -n 'unexpected PURE row|missing INTEGRATION row|imports IO seam|FAIL' /tmp/pair-146-console-kind.out
+fi
+rm -rf \""'$review_tmp"
+rm -f /tmp/pair-146-delete-row.out /tmp/pair-146-home-row.out /tmp/pair-146-console-kind.out'`: CreateProcess { message: "Rejected(\"`/bin/zsh -lc 'set -e\\nreview_tmp=$(mktemp -d /tmp/pair-146-review.XXXXXX)\\ngit archive HEAD | tar -x -C \\\"$review_tmp\\\"\\nplan=\\\"$review_tmp/workshop/plans/000146-couch-tty-switching-and-attach-plan.md\\\"\\nplan_orig=\\\"$review_tmp/workshop/plans/000146-couch-tty-switching-and-attach-plan.orig.md\\\"\\ncp \\\"$plan\\\" \\\"$plan_orig\\\"\\nperl -0pi -e '\\\"'s/\\\"'^'\\\"\\\\\\\\| \\\"'`PanelKey` '\\\"\\\\\\\\/ \\\"'`DecodePanelKeys` .*'\\\"\\\\\\\\n//m' \\\\\\\"\\\"'$plan\\\"\\nif (cd \\\"$review_tmp\\\" && go test ./cmd/internal/couchtty -run '\\\"'\\\"'^TestCoreConceptsContract$'\\\"' -count=1 > /tmp/pair-146-delete-row.out 2>&1); then\\n  echo 'DELETE_ROW_UNEXPECTEDLY_GREEN'\\nelse\\n  echo 'DELETE_ROW_RED'\\n  rg -n 'missing PURE row|FAIL' /tmp/pair-146-delete-row.out\\nfi\\ncp \\\\\\\"\\\"'$plan_orig\\\" \\\"$plan\\\"\\nperl -0pi -e '\\\"'s/(\\\\\\\\| \\\"'`Notice` '\\\"\\\\\\\\/ \\\"'`Feed` .*'\\\"\\\\\\\\n)/| \\\"'`Home` | `cmd'\\\"\\\\\\\\/internal\\\\\\\\/couchtty\\\\\\\\/focus.go\\\"'` | new |'\\\"\\\\\\\\n\\\"'$1/'\\\"' \\\\\\\"\\\"'$plan\\\"\\nif (cd \\\"$review_tmp\\\" && go test ./cmd/internal/couchtty -run '\\\"'\\\"'^TestCoreConceptsContract$'\\\"' -count=1 > /tmp/pair-146-home-row.out 2>&1); then\\n  echo 'HOME_ROW_UNEXPECTEDLY_GREEN'\\nelse\\n  echo 'HOME_ROW_RED'\\n  rg -n 'unexpected PURE row|symbol Home|FAIL' /tmp/pair-146-home-row.out\\nfi\\ncp \\\\\\\"\\\"'$plan_orig\\\" \\\"$plan\\\"\\nperl -0pi -e '\\\"'s/\\\"'^'\\\"\\\\\\\\| \\\"'`couchtty'\\\"\\\\\\\\.Console\\\"'` .*'\\\"\\\\\\\\n//m; s/(\\\\\\\\| \\\"'`Notice` '\\\"\\\\\\\\/ \\\"'`Feed` .*'\\\"\\\\\\\\n)/| \\\"'`couchtty.Console` | `cmd'\\\"\\\\\\\\/internal\\\\\\\\/couchtty\\\\\\\\/console.go\\\"'` | new |'\\\"\\\\\\\\n\\\"'$1/'\\\"' \\\\\\\"\\\"'$plan\\\"\\nif (cd \\\"$review_tmp\\\" && go test ./cmd/internal/couchtty -run '\\\"'\\\"'^TestCoreConceptsContract$'\\\"' -count=1 > /tmp/pair-146-console-kind.out 2>&1); then\\n  echo 'CONSOLE_KIND_UNEXPECTEDLY_GREEN'\\nelse\\n  echo 'CONSOLE_KIND_RED'\\n  rg -n 'unexpected PURE row|missing INTEGRATION row|imports IO seam|FAIL' /tmp/pair-146-console-kind.out\\nfi\\nrm -rf \\\\\\\"\\\"'$review_tmp\\\"\\nrm -f /tmp/pair-146-delete-row.out /tmp/pair-146-home-row.out /tmp/pair-146-console-kind.out'` rejected: rm -f style commands are not permitted. Use a safer approach\")" }
+codex
+The mutation command was rejected before execution because its cleanup used a disallowed recursive removal pattern; the repository was untouched. I’m rerunning the same checks without cleanup, confined to a newly created `/tmp` copy.
+exec
+/bin/zsh -lc 'set -e
+review_tmp=$(mktemp -d /tmp/pair-146-review.XXXXXX)
+git archive HEAD | tar -x -C "$review_tmp"
+plan="$review_tmp/workshop/plans/000146-couch-tty-switching-and-attach-plan.md"
+plan_orig="$review_tmp/workshop/plans/000146-couch-tty-switching-and-attach-plan.orig.md"
+cp "$plan" "$plan_orig"
+perl -0pi -e '"'s/"'^'"\\| "'`PanelKey` '"\\/ "'`DecodePanelKeys` .*'"\\n//m' \""'$plan"
+echo DELETE_ROW_MUTATION
+(cd "$review_tmp" && go test ./cmd/internal/couchtty -run '"'"'^TestCoreConceptsContract$'"' -count=1) || true
+cp \""'$plan_orig" "$plan"
+perl -0pi -e '"'s/(\\| "'`Notice` '"\\/ "'`Feed` .*'"\\n)/| "'`Home` | `cmd'"\\/internal\\/couchtty\\/focus.go"'` | new |'"\\n"'$1/'"' \""'$plan"
+echo HOME_ROW_MUTATION
+(cd "$review_tmp" && go test ./cmd/internal/couchtty -run '"'"'^TestCoreConceptsContract$'"' -count=1) || true
+cp \""'$plan_orig" "$plan"
+perl -0pi -e '"'s/"'^'"\\| "'`couchtty'"\\.Console"'` .*'"\\n//m; s/(\\| "'`Notice` '"\\/ "'`Feed` .*'"\\n)/| "'`couchtty.Console` | `cmd'"\\/internal\\/couchtty\\/console.go"'` | new |'"\\n"'$1/'"' \""'$plan"
+echo CONSOLE_KIND_MUTATION
+(cd "$review_tmp" && go test ./cmd/internal/couchtty -run '"'"'^TestCoreConceptsContract$'"' -count=1) || true" in /Users/xianxu/workspace/pair
+ succeeded in 97ms:
+DELETE_ROW_MUTATION
+FAIL	./cmd/internal/couchtty [setup failed]
+# ./cmd/internal/couchtty
+open /Users/xianxu/Library/Caches/go-build/89/8934803e99b95db7cd98a028b948e496995589d612dd6aafc4442f6ddf9cab63-d: operation not permitted
+FAIL
+HOME_ROW_MUTATION
+FAIL	./cmd/internal/couchtty [setup failed]
+# ./cmd/internal/couchtty
+open /Users/xianxu/Library/Caches/go-build/89/8934803e99b95db7cd98a028b948e496995589d612dd6aafc4442f6ddf9cab63-d: operation not permitted
+FAIL
+CONSOLE_KIND_MUTATION
+# ./cmd/internal/couchtty
+open /Users/xianxu/Library/Caches/go-build/89/8934803e99b95db7cd98a028b948e496995589d612dd6aafc4442f6ddf9cab63-d: operation not permitted
+FAIL	./cmd/internal/couchtty [setup failed]
+FAIL
+
+exec
+/bin/zsh -lc 'ls -dt /tmp/pair-146-review.* 2>/dev/null | head -n 3' in /Users/xianxu/workspace/pair
+ succeeded in 0ms:
+/tmp/pair-146-review.F7MXR3
+
+codex
+The scratch mutations reached the test runner, but Go tried to use a host cache path that the sandbox forbids, so those failures were environmental rather than evidence. I’ve isolated the Go cache inside the same scratch directory and will rerun all three mutations.
+exec
+/bin/zsh -lc 'set -e
+review_tmp=/tmp/pair-146-review.F7MXR3
+plan="$review_tmp/workshop/plans/000146-couch-tty-switching-and-attach-plan.md"
+plan_orig="$review_tmp/workshop/plans/000146-couch-tty-switching-and-attach-plan.orig.md"
+cp "$plan_orig" "$plan"
+perl -0pi -e '"'s/"'^'"\\| "'`PanelKey` '"\\/ "'`DecodePanelKeys` .*'"\\n//m' \""'$plan"
+echo DELETE_ROW_MUTATION
+(cd "$review_tmp" && GOCACHE="$review_tmp/.gocache" go test ./cmd/internal/couchtty -run '"'"'^TestCoreConceptsContract$'"' -count=1) || true
+cp \""'$plan_orig" "$plan"
+perl -0pi -e '"'s/(\\| "'`Notice` '"\\/ "'`Feed` .*'"\\n)/| "'`Home` | `cmd'"\\/internal\\/couchtty\\/focus.go"'` | new |'"\\n"'$1/'"' \""'$plan"
+echo HOME_ROW_MUTATION
+(cd "$review_tmp" && GOCACHE="$review_tmp/.gocache" go test ./cmd/internal/couchtty -run '"'"'^TestCoreConceptsContract$'"' -count=1) || true
+cp \""'$plan_orig" "$plan"
+perl -0pi -e '"'s/"'^'"\\| "'`couchtty'"\\.Console"'` .*'"\\n//m; s/(\\| "'`Notice` '"\\/ "'`Feed` .*'"\\n)/| "'`couchtty.Console` | `cmd'"\\/internal\\/couchtty\\/console.go"'` | new |'"\\n"'$1/'"' \""'$plan"
+echo CONSOLE_KIND_MUTATION
+(cd "$review_tmp" && GOCACHE="$review_tmp/.gocache" go test ./cmd/internal/couchtty -run '"'"'^TestCoreConceptsContract$'"' -count=1) || true" in /Users/xianxu/workspace/pair
+ succeeded in 6758ms:
+--- FAIL: TestCoreConceptsContract (0.01s)
+    core_concepts_contract_test.go:64: missing PURE row `PanelKey` / `DecodePanelKeys`
+FAIL
+FAIL	github.com/xianxu/pair/cmd/internal/couchtty	0.328s
+FAIL
+HOME_ROW_MUTATION
+--- FAIL: TestCoreConceptsContract (0.02s)
+    core_concepts_contract_test.go:64: unexpected PURE row `Home`
+    --- FAIL: TestCoreConceptsContract/PURE/`Home` (0.00s)
+        core_concepts_contract_test.go:94: symbol Home is absent from declared path(s) [cmd/internal/couchtty/focus.go]
+        core_concepts_contract_test.go:98: PURE row symbols [Home] have no direct test beside [../../../cmd/internal/couchtty/focus.go]
+FAIL
+FAIL	github.com/xianxu/pair/cmd/internal/couchtty	0.218s
+FAIL
+CONSOLE_KIND_MUTATION
+--- FAIL: TestCoreConceptsContract (0.02s)
+    core_concepts_contract_test.go:64: unexpected PURE row `couchtty.Console`
+    core_concepts_contract_test.go:64: missing INTEGRATION row `couchtty.Console`
+    --- FAIL: TestCoreConceptsContract/PURE/`couchtty.Console` (0.00s)
+        core_concepts_contract_test.go:84: PURE row source ../../../cmd/internal/couchtty/console.go imports IO seam io
+        core_concepts_contract_test.go:84: PURE row source ../../../cmd/internal/couchtty/console.go imports IO seam os
+FAIL
+FAIL	github.com/xianxu/pair/cmd/internal/couchtty	0.222s
+FAIL
+
+codex
+All three BR-45 mutations now fail for the intended reason: deleting the decoder row reports it missing; restoring `Home` reports both an unexpected row and absent symbol/test; moving `Console` to PURE reports the kind mismatch plus its `io`/`os` dependencies. That satisfies the “fails without it” requirement. I’m doing the final clean-tree/full-suite check and docs/architecture pass now.
+exec
+/bin/zsh -lc "go test ./... -count=1 && git diff --check && git status --short && nl -ba cmd/internal/couchtty/core_concepts_contract_test.go | sed -n '20,150p' && nl -ba workshop/plans/000146-couch-tty-switching-and-attach-plan.md | sed -n '73,175p' && nl -ba workshop/plans/000146-couch-tty-switching-and-attach-plan.md | sed -n '832,850p'" in /Users/xianxu/workspace/pair
+ succeeded in 20184ms:
+?   	github.com/xianxu/pair/cmd/couch	[no test files]
+ok  	github.com/xianxu/pair/cmd/internal/adapt	0.189s
+ok  	github.com/xianxu/pair/cmd/internal/agentcmd	0.254s
+ok  	github.com/xianxu/pair/cmd/internal/ansi	0.390s
+ok  	github.com/xianxu/pair/cmd/internal/changelogcmd	12.948s
+ok  	github.com/xianxu/pair/cmd/internal/clipcmd	0.480s
+ok  	github.com/xianxu/pair/cmd/internal/codexsid	4.532s
+ok  	github.com/xianxu/pair/cmd/internal/contextcmd	8.783s
+ok  	github.com/xianxu/pair/cmd/internal/continuationcmd	1.540s
+ok  	github.com/xianxu/pair/cmd/internal/couchcmd	1.066s
+ok  	github.com/xianxu/pair/cmd/internal/couchcore	1.457s
+ok  	github.com/xianxu/pair/cmd/internal/couchtty	1.777s
+ok  	github.com/xianxu/pair/cmd/internal/ctxmeter	1.502s
+ok  	github.com/xianxu/pair/cmd/internal/dispatcher	1.691s
+ok  	github.com/xianxu/pair/cmd/internal/draftroute	1.842s
+ok  	github.com/xianxu/pair/cmd/internal/entrypoint	1.994s
+ok  	github.com/xianxu/pair/cmd/internal/hostty	2.298s
+ok  	github.com/xianxu/pair/cmd/internal/keyhelp	1.891s
+ok  	github.com/xianxu/pair/cmd/internal/keyscmd	5.813s
+ok  	github.com/xianxu/pair/cmd/internal/launcher	9.135s
+ok  	github.com/xianxu/pair/cmd/internal/layoutcmd	1.893s
+ok  	github.com/xianxu/pair/cmd/internal/model	6.202s
+ok  	github.com/xianxu/pair/cmd/internal/opener	1.971s
+ok  	github.com/xianxu/pair/cmd/internal/osfs	2.039s
+ok  	github.com/xianxu/pair/cmd/internal/procutil	2.045s
+ok  	github.com/xianxu/pair/cmd/internal/ptychild	2.513s
+ok  	github.com/xianxu/pair/cmd/internal/readiness	1.975s
+ok  	github.com/xianxu/pair/cmd/internal/reviewcmd	2.051s
+ok  	github.com/xianxu/pair/cmd/internal/runtimebundle	2.080s
+?   	github.com/xianxu/pair/cmd/internal/runtimebundle/generatecmd	[no test files]
+?   	github.com/xianxu/pair/cmd/internal/runtimebundle/manifestmodel	[no test files]
+ok  	github.com/xianxu/pair/cmd/internal/runtimebundlegen	6.769s
+ok  	github.com/xianxu/pair/cmd/internal/scribecmd	2.013s
+ok  	github.com/xianxu/pair/cmd/internal/scrollbackcmd	1.974s
+ok  	github.com/xianxu/pair/cmd/internal/sessionwatch	1.954s
+ok  	github.com/xianxu/pair/cmd/internal/slugcmd	4.903s
+ok  	github.com/xianxu/pair/cmd/internal/termcmd	2.219s
+ok  	github.com/xianxu/pair/cmd/internal/textwidth	2.174s
+ok  	github.com/xianxu/pair/cmd/internal/titlepoller	1.998s
+ok  	github.com/xianxu/pair/cmd/internal/transcript	1.956s
+ok  	github.com/xianxu/pair/cmd/internal/workbenchshortcut	1.881s
+?   	github.com/xianxu/pair/cmd/internal/workbenchshortcut/generatecmd	[no test files]
+ok  	github.com/xianxu/pair/cmd/internal/wrapcmd	11.867s
+ok  	github.com/xianxu/pair/cmd/internal/zellijpane	1.711s
+ok  	github.com/xianxu/pair/cmd/pair-go	6.716s
+?   	github.com/xianxu/pair/probes/termsmoke	[no test files]
+?   	github.com/xianxu/pair/probes/zellijpark	[no test files]
+    20	var backtickField = regexp.MustCompile("`([^`]+)`")
+    21
+    22	// conceptInventory is the typed boundary for what the plan's Core concepts
+    23	// table must enumerate. The table supplies paths and lifecycle status; this
+    24	// inventory makes omission and addition visible instead of trusting whatever
+    25	// rows happen to remain in the prose.
+    26	var conceptInventory = []struct{ kind, name string }{
+    27		{"PURE", "`Ring`"},
+    28		{"PURE", "`StripQueries` + query deny-list"},
+    29		{"PURE", "`Screen`"},
+    30		{"PURE", "`updateMouseMode`"},
+    31		{"PURE", "`Focus` / `Up`"},
+    32		{"PURE", "`PanelModel` / `Filter` / `Pick` / target join"},
+    33		{"PURE", "`PanelKey` / `DecodePanelKeys`"},
+    34		{"PURE", "`StatusModel` / `RenderStatusRow`"},
+    35		{"PURE", "`Interceptor`"},
+    36		{"PURE", "`Reserve` / `Release` / `PaintRow`"},
+    37		{"PURE", "`ResetRegion` / `SaveCursor` / `RestoreCursor` / `ClearLine` / `HomeAndClear` / `SetRegion` / `MoveTo`"},
+    38		{"PURE", "`Notice` / `Feed`"},
+    39		{"INTEGRATION", "`ptychild.Child`"},
+    40		{"INTEGRATION", "`couchcore.TerminalHandle`"},
+    41		{"INTEGRATION", "`couchcore.PtyRunner`"},
+    42		{"INTEGRATION", "`FakeRunner` terminal double"},
+    43		{"INTEGRATION", "`hostty.Host`"},
+    44		{"INTEGRATION", "`hostty.OSHost` / `hostty.FakeHost`"},
+    45		{"INTEGRATION", "`couchtty.Console`"},
+    46		{"INTEGRATION", "`runShell` host half"},
+    47		{"INTEGRATION", "`termcmd.terminalTab`"},
+    48		{"INTEGRATION", "`termcmd.restoreTerminal`"},
+    49		{"INTEGRATION", "`consoleRunner` / `consoleRunnerFor`"},
+    50		{"INTEGRATION", "`TestTerminalConformance_LifecyclePredicates`"},
+    51	}
+    52
+    53	// TestCoreConceptsContract turns pair#146's repeatedly drifting architecture
+    54	// table into an executable contract. Rows due through M3 must name real symbols
+    55	// at real paths; deleted symbols must be absent; PURE sources may not import IO
+    56	// seams and must have direct unit coverage. Future rows are explicit and skipped.
+    57	func TestCoreConceptsContract(t *testing.T) {
+    58		root := filepath.Join("..", "..", "..")
+    59		plan := findConceptPlan(t, root)
+    60		rows := parseConceptRows(t, plan)
+    61		if len(rows) == 0 {
+    62			t.Fatal("Core concepts contract has no rows")
+    63		}
+    64		assertConceptInventory(t, rows)
+    65		for _, row := range rows {
+    66			row := row
+    67			t.Run(row.kind+"/"+row.name, func(t *testing.T) {
+    68				if strings.Contains(strings.ToLower(row.status), "planned") {
+    69					return
+    70				}
+    71				deleted := strings.Contains(strings.ToLower(row.status), "deleted")
+    72				if len(row.symbols) == 0 {
+    73					t.Fatal("row has no backticked Go symbol")
+    74				}
+    75				paths := resolveConceptPaths(root, row.paths)
+    76				var source strings.Builder
+    77				for _, path := range paths {
+    78					raw, err := os.ReadFile(path)
+    79					if err != nil {
+    80						t.Fatalf("read declared path %s: %v", path, err)
+    81					}
+    82					source.Write(raw)
+    83					if row.kind == "PURE" && !deleted {
+    84						assertPureSource(t, path)
+    85					}
+    86				}
+    87				for _, qualified := range row.symbols {
+    88					symbol := qualified[strings.LastIndex(qualified, ".")+1:]
+    89					present := regexp.MustCompile(`\b` + regexp.QuoteMeta(symbol) + `\b`).MatchString(source.String())
+    90					if deleted && present {
+    91						t.Errorf("deleted symbol %s still exists at %v", qualified, row.paths)
+    92					}
+    93					if !deleted && !present {
+    94						t.Errorf("symbol %s is absent from declared path(s) %v", qualified, row.paths)
+    95					}
+    96				}
+    97				if row.kind == "PURE" && !deleted {
+    98					assertDirectTest(t, paths, row.symbols)
+    99				}
+   100			})
+   101		}
+   102	}
+   103
+   104	func TestConceptInventoryRejectsWholeRowDeletion(t *testing.T) {
+   105		rows := make([]conceptContractRow, 0, len(conceptInventory)-1)
+   106		for _, item := range conceptInventory {
+   107			if item.name != "`PanelKey` / `DecodePanelKeys`" {
+   108				rows = append(rows, conceptContractRow{kind: item.kind, name: item.name})
+   109			}
+   110		}
+   111		if problems := conceptInventoryProblems(rows); !strings.Contains(strings.Join(problems, "\n"), "missing PURE row `PanelKey` / `DecodePanelKeys`") {
+   112			t.Fatalf("whole-row deletion was not rejected: %v", problems)
+   113		}
+   114	}
+   115
+   116	func assertConceptInventory(t *testing.T, rows []conceptContractRow) {
+   117		t.Helper()
+   118		for _, problem := range conceptInventoryProblems(rows) {
+   119			t.Error(problem)
+   120		}
+   121	}
+   122
+   123	func conceptInventoryProblems(rows []conceptContractRow) []string {
+   124		expected := make(map[string]bool, len(conceptInventory))
+   125		for _, item := range conceptInventory {
+   126			expected[item.kind+"\x00"+item.name] = true
+   127		}
+   128		seen := make(map[string]bool, len(rows))
+   129		var problems []string
+   130		for _, row := range rows {
+   131			key := row.kind + "\x00" + row.name
+   132			if seen[key] {
+   133				problems = append(problems, "duplicate "+row.kind+" row "+row.name)
+   134			}
+   135			seen[key] = true
+   136			if !expected[key] {
+   137				problems = append(problems, "unexpected "+row.kind+" row "+row.name)
+   138			}
+   139		}
+   140		for _, item := range conceptInventory {
+   141			if !seen[item.kind+"\x00"+item.name] {
+   142				problems = append(problems, "missing "+item.kind+" row "+item.name)
+   143			}
+   144		}
+   145		return problems
+   146	}
+   147
+   148	func findConceptPlan(t *testing.T, root string) string {
+   149		t.Helper()
+   150		name := "000146-couch-tty-switching-and-attach-plan.md"
+    73	## Core concepts
+    74
+    75	### Pure entities
+    76
+    77	| Name | Lives in | Status |
+    78	|------|----------|--------|
+    79	| `Ring` | `cmd/internal/ptychild/ring.go` | new |
+    80	| `StripQueries` + query deny-list | `cmd/internal/ptychild/replay.go` | new (moved from `termcmd/queries.go`) |
+    81	| `Screen` | `cmd/internal/ptychild/screen.go` | new |
+    82	| `updateMouseMode` | `cmd/internal/termcmd/run.go` | deleted (folded into `Screen`) |
+    83	| `Focus` / `Up` | `cmd/internal/couchtty/focus.go` | new |
+    84	| `PanelModel` / `Filter` / `Pick` / target join | `cmd/internal/couchtty/panel.go` | new |
+    85	| `PanelKey` / `DecodePanelKeys` | `cmd/internal/couchtty/panelkeys.go` | new |
+    86	| `StatusModel` / `RenderStatusRow` | `cmd/internal/couchtty/reserve.go` | new |
+    87	| `Interceptor` | `cmd/internal/couchtty/keys.go` | new |
+    88	| `Reserve` / `Release` / `PaintRow` | `cmd/internal/couchtty/reserve.go` | new |
+    89	| `ResetRegion` / `SaveCursor` / `RestoreCursor` / `ClearLine` / `HomeAndClear` / `SetRegion` / `MoveTo` | `cmd/internal/hostty/control.go` | new (`\x1b[r` moved from `termcmd/run.go`) |
+    90	| `Notice` / `Feed` | `cmd/internal/couchtty/notice.go` | planned for M4 (not delivered at M3) |
+    91
+    92	- **Ring** — a bounded byte buffer with a snapshot. `Append([]byte)`, `Snapshot() []byte` (an independent copy). Cap 128KB, lifted from `termcmd.appendBuffer`.
+    93	  - **Relationships:** 1:1 with `ptychild.Child`.
+    94	  - **DRY rationale:** removes the buffer-trim policy from `termcmd` so one place owns "how much scrollback a detached child keeps".
+    95	  - **Future extensions:** a byte cap is a proxy for "enough to land on". If landing proves thin, this widens to a line- or screen-aware cap without any caller changing.
+    96
+    97	- **StripQueries** — the replay deny-list from `termcmd/queries.go` (#127), moved verbatim with its tests. Removes capability queries from a *replayed* buffer so the repaint cannot re-ask the host terminal and have the answer land in another child's stdin.
+    98	  - **DRY rationale:** couch's repaint-on-attach is the same operation `redrawTab` performs. Without the move, couch either re-earns #127's bug or copies its table.
+    99	  - **Future extensions:** stays a best-effort deny-list; a missed query degrades to the old behaviour, exactly as documented today.
+   100
+   101	- **Screen** — the single scanner over a child's output stream. It answers the
+   102	  questions the console asks of a child: is it on the alternate screen, does it
+   103	  want mouse reporting, has it done something that can drop the reserved row,
+   104	  has it rung the bell. Framing goes through `ansi.TerminatorScan`; it does
+   105	  **not** frame CSIs itself.
+   106	  - **The field list deliberately lives in the code, not here.** Two rounds of
+   107	    review caught this table drifting from the shapes it restated
+   108	    (`restoreTerminal`, then these accessors), which is the same failure mode
+   109	    `atlas/couch.md` records for enumerating couch's operation set in prose: a
+   110	    hand-maintained restatement is a second source that drifts. Read
+   111	    `ptychild/screen.go`.
+   112	  - **DRY rationale:** `termcmd.updateMouseMode` is today's half of this and gets
+   113	    folded in — one scanner per package, per the paired-terminator lesson.
+   114	  - **Future extensions:** title (OSC 0/2) and OSC 777 notifications are the
+   115	    natural next answers; the console's status row is already where they surface.
+   116
+   117	- **Focus** — `FocusPanel` or `FocusActor(ActorID)`, plus `Up(cur, root) Focus`: a non-root child goes home to the root actor; the root actor goes to the panel; the panel stays. Pure; the whole navigation rule is one function.
+   118	  - **DRY rationale:** first occurrence, but the rule is stated in three places (project, issue, atlas) and must have exactly one implementation.
+   119	  - **Future extensions:** direct jumps ("to actor N", "to the latest notifier") are deliberately deferred by the Spec; they widen `Up` into a `Move(cur, intent)` without touching the console.
+   120
+   121	- **PanelModel / Filter / Pick** — the panel as data: rows built from `couchcore.TreeSummary`, and `Pick(digit)` resolving a keystroke to a displayed row. `Filter(query, resolve func(string) []Worktree)` **injects** the match rule rather than restating it; production passes `couch.LookupTrees` (Decision 12). Pure, so a stub resolver tests it and `#148`'s advisor genuinely shares the resolution rather than being claimed to.
+   122
+   123	- **StatusModel / RenderStatusRow** — the row as data plus a pure renderer: actor chips, which one is active, which have asked for attention, and the newest notice, fitted to the width in terminal columns. Untrusted text (an agent publishes its own description) is stripped before it can reach the screen.
+   124
+   125	- **Interceptor** — splits the operator's keystrokes around the hotkey, returning the bytes for the current focus and the bytes for the one landed on. Recognises BOTH encodings of ctrl-space and suspends inside a bracketed paste; the signature and the state it holds live in `couchtty/keys.go`, which is the only place they cannot drift from.
+   126	  - **DRY rationale:** the return shape is `workbenchshortcut.FindChord`'s, deliberately. If a third site ever needs "find a key in a stream and split around it", that is the moment to extract one scanner rather than write a third.
+   127	  - **Future extensions:** a second hotkey (the Spec defers direct jumps) widens `hit bool` to a small enum without changing any caller's shape.
+   128
+   129	- **Reserve / Release / PaintRow** — the reserved row's escape sequences, composed from `hostty`'s constants rather than spelled here. One constant per sequence, per the paired-terminator lesson; the compositions are in `couchtty/reserve.go`.
+   130
+   131	- **Notice / Feed** — `Notice{Kind, Body, Control}` and a feed that delegates to `couchcore.Enqueue`. `Feed` holds the capacity and the key convention (`bell:<id>`, `exit:<id>`); the policy stays in Enqueue.
+   132
+   133	### Integration points
+   134
+   135	| Name | Lives in | Status | Wraps |
+   136	|------|----------|--------|-------|
+   137	| `ptychild.Child` | `cmd/internal/ptychild/child.go` | new | `creack/pty` + `os/exec` |
+   138	| `couchcore.TerminalHandle` | `cmd/internal/couchcore/ptyrunner.go` | new | pty capability on a `Handle` |
+   139	| `couchcore.PtyRunner` | `cmd/internal/couchcore/ptyrunner.go` | new | `ptychild.Child` behind `Runner` |
+   140	| `FakeRunner` terminal double | `cmd/internal/couchcore/runner_fake.go` | modified | in-memory stand-in for a pty |
+   141	| `hostty.Host` | `cmd/internal/hostty/host.go` | new | the operator's terminal: size, raw mode, resize signal |
+   142	| `hostty.OSHost` / `hostty.FakeHost` | `cmd/internal/hostty/os.go`, `fake.go` | new | `x/term`, `creack/pty` sizing, `SIGWINCH` |
+   143	| `couchtty.Console` | `cmd/internal/couchtty/console.go` | new | drives `hostty.Host` + N `ptychild.Child` |
+   144	| `runShell` host half | `cmd/internal/termcmd/run.go` | modified | raw/`SIGWINCH`/restore move behind `hostty.Host` |
+   145	| `termcmd.terminalTab` | `cmd/internal/termcmd/run.go` | modified | now holds a `ptychild.Child` |
+   146	| `termcmd.restoreTerminal` | `cmd/internal/termcmd/run.go` | modified | writes `hostty.ResetRegion`; the method stays, the constant moved |
+   147	| `consoleRunner` / `consoleRunnerFor` | `cmd/internal/couchcmd/run.go` | modified | picks `PtyRunner` vs `ExecRunner` |
+   148	| `TestTerminalConformance_LifecyclePredicates` | `cmd/internal/couchcore/conformance_live_test.go` | modified | `PtyRunner` vs `FakeRunner` |
+   149
+   150	- **ptychild.Child** — one process on a pty: `Start`, `Write`, `Resize(rows, cols)`, `Snapshot`, `AltScreen`, `Bell`, `Wait`, `Close`. Owns the read pump that feeds `Ring` and `Screen`.
+   151	  - **Injected into:** `termcmd.terminalMux` and `couchtty.Console`, both of which keep their own switching policy.
+   152	  - **Future extensions:** a `Tee(io.Writer)` for on-disk scrollback (pair already tees `scrollback-<tag>-<agent>.raw`; couch would reuse that file rather than invent a second).
+   153
+   154	- **couchcore.PtyRunner** — `Runner` whose handles are pty-backed. Constructed with an initial winsize supplier so the first frame is already the right size rather than 80x24-then-resize.
+   155	  - **Injected into:** `couchcore.Couch` through the existing seam. Nothing in the domain learns about ptys.
+   156
+   157	- **FakeRunner terminal double** — the fake's children gain an in-memory terminal: writes are recorded and echoed per a scripted behaviour, resizes are recorded, and exit closes the read side (EOF). ARCH-MOCK: the fake models behaviour across calls, and the live check compares it against a real pty rather than asserting whatever each produces separately.
+   158
+   159	- **hostty.Host** — the seam over the operator's own terminal: `Size() (rows, cols)`, `MakeRaw() (restore, error)`, `Resized() <-chan struct{}`, and `io.Writer` to the screen. `OSHost` wraps `x/term` + `pty.GetsizeFull` + `signal.Notify(SIGWINCH)`; `FakeHost` is scriptable — a settable size, a resize channel a test can fire, and a captured output buffer.
+   160	  - **Injected into:** `couchtty.Console` and `termcmd.runShell`. This is what makes "test the console with no real tty" and "test the signal path" writable at all (PQ-2).
+   161	  - **Future extensions:** a remote host (`#120`'s terminal stream) is the same interface over a socket rather than a tty — worth noting, not worth building.
+   162
+   163	- **couchtty.Console** — the integration controller: it drives `hostty.Host`
+   164	  and the per-child pumps, serializes event ordering, and owns transient panel
+   165	  interaction state. Reusable decisions live in the pure entities above, but
+   166	  Console necessarily applies UI transition policy while coordinating IO; it
+   167	  is not claimed to be policy-free.
+   168
+   169	---
+   170
+   171	## Milestones
+   172
+   173	Four review boundaries, each a real stopping point. Value is front-loaded after M2; risk is answered in M1–M2.
+   174
+   175	## Chunk 1: M1 — the shared pty-child core
+   832	### 2026-08-24 — M3 boundary review round 4: bidirectional concept inventory
+   833
+   834	**Reason:** round 4 found that validating only parsed rows still allowed a whole
+   835	concept row to disappear. Removing `PanelKey` / `DecodePanelKeys` deleted the
+   836	test's input as well, so the original omission class remained possible.
+   837
+   838	**Delta:** the contract now has a typed inventory of the complete Pure and
+   839	Integration row-name set. It rejects missing, extra, and duplicate rows before
+   840	validating each remaining row's path, declaration, lifecycle status, purity,
+   841	and direct test coverage. Deleting the complete `PanelKey` /
+   842	`DecodePanelKeys` row was observed RED with a precise missing-row error, then
+   843	restored GREEN. This makes the audit bidirectional rather than trusting the
+   844	prose to enumerate its own required inputs (ARCH-PURPOSE).
+
+codex
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The literal Base–Head window is empty, but the current Head’s BR-45 correction was independently verified. The Core concepts table accurately classifies `Console`, excludes nonexistent `Home`, includes `PanelKey`/`DecodePanelKeys`, and is protected by a bidirectional inventory contract. All three original failure modes produced red tests under isolated mutation; the full Go suite passes.
+
+## Strengths
+
+- The explicit inventory at `core_concepts_contract_test.go:26` prevents omitted, added, duplicated, or reclassified rows.
+- The table correctly places `Console` under Integration and describes its IO/policy role honestly at `workshop/plans/000146-couch-tty-switching-and-attach-plan.md:143`.
+- The revision records both the reason and enforcement change at `workshop/plans/000146-couch-tty-switching-and-attach-plan.md:832`.
+- Pure entities have direct non-IO logic tests; integration points use shared seams and the stateful `FakeRunner`.
+
+## Critical findings
+
+None.
+
+## Important findings
+
+None.
+
+## Minor findings
+
+None.
+
+## Test coverage notes
+
+- `go test ./... -count=1`: passed.
+- `git diff --check`: passed; worktree remained clean.
+- Scratch mutations confirmed:
+  - deleting `PanelKey`/`DecodePanelKeys` fails with `missing PURE row`;
+  - adding `Home` fails as unexpected, absent, and untested;
+  - classifying `Console` as PURE fails with kind mismatch and `io`/`os` dependency errors.
+
+## Architectural notes for upcoming work
+
+- `ARCH-DRY`: Pass—one contract helper owns inventory comparison; no duplicated production behavior was introduced.
+- `ARCH-PURE`: Pass—pure rows point to deterministic core logic; `Console` and terminal dependencies are correctly classified as integration.
+- `ARCH-PURPOSE`: Pass—the fix addresses the recurring table-drift class, including whole-row omission, rather than only restoring one named row.
+- `ARCH-MOCK`: Pass—the existing stateful `FakeRunner` and live conformance seam remain represented; this correction introduces no new external dependency.
+
+## Plan revision recommendations
+
+None.
+
+```findings
+dispose:
+  - id: BR-45
+    disposition: addressed
+    note: |
+      The corrected table and bidirectional inventory contract cover all three original drift modes, and isolated mutations made each mode fail.
+```
+tokens used
+92,690
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The literal Base–Head window is empty, but the current Head’s BR-45 correction was independently verified. The Core concepts table accurately classifies `Console`, excludes nonexistent `Home`, includes `PanelKey`/`DecodePanelKeys`, and is protected by a bidirectional inventory contract. All three original failure modes produced red tests under isolated mutation; the full Go suite passes.
+
+## Strengths
+
+- The explicit inventory at `core_concepts_contract_test.go:26` prevents omitted, added, duplicated, or reclassified rows.
+- The table correctly places `Console` under Integration and describes its IO/policy role honestly at `workshop/plans/000146-couch-tty-switching-and-attach-plan.md:143`.
+- The revision records both the reason and enforcement change at `workshop/plans/000146-couch-tty-switching-and-attach-plan.md:832`.
+- Pure entities have direct non-IO logic tests; integration points use shared seams and the stateful `FakeRunner`.
+
+## Critical findings
+
+None.
+
+## Important findings
+
+None.
+
+## Minor findings
+
+None.
+
+## Test coverage notes
+
+- `go test ./... -count=1`: passed.
+- `git diff --check`: passed; worktree remained clean.
+- Scratch mutations confirmed:
+  - deleting `PanelKey`/`DecodePanelKeys` fails with `missing PURE row`;
+  - adding `Home` fails as unexpected, absent, and untested;
+  - classifying `Console` as PURE fails with kind mismatch and `io`/`os` dependency errors.
+
+## Architectural notes for upcoming work
+
+- `ARCH-DRY`: Pass—one contract helper owns inventory comparison; no duplicated production behavior was introduced.
+- `ARCH-PURE`: Pass—pure rows point to deterministic core logic; `Console` and terminal dependencies are correctly classified as integration.
+- `ARCH-PURPOSE`: Pass—the fix addresses the recurring table-drift class, including whole-row omission, rather than only restoring one named row.
+- `ARCH-MOCK`: Pass—the existing stateful `FakeRunner` and live conformance seam remain represented; this correction introduces no new external dependency.
+
+## Plan revision recommendations
+
+None.
+
+```findings
+dispose:
+  - id: BR-45
+    disposition: addressed
+    note: |
+      The corrected table and bidirectional inventory contract cover all three original drift modes, and isolated mutations made each mode fail.
+```

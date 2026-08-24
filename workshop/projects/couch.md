@@ -160,7 +160,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] spawn + registry [pair#145]
 - [x] shared pty-child core [pair#146 M1]
 - [x] console over one child, with the reserved row [pair#146 M2]
-- [ ] many children and the panel [pair#146 M3]
+- [x] many children and the panel [pair#146 M3]
 - [ ] exits, detach, and what the row says [pair#146 M4]
 - [ ] expose query API to peer actors [ariadne#199]
 - [ ] fleet thread inventory [ariadne#200]
@@ -171,8 +171,8 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 ### pair#146 M3 — many children and the panel
 
 **est:** 10.32 (whole issue)
-**actual:** 9.17h
-**closed:** 2026-08-23
+**actual:** 9.20h
+**closed:** 2026-08-24
 
 Couch now hosts multiple warm Pair children and switches the operator among
 them through a deterministic panel: `ctrl-space` climbs child → root → panel;

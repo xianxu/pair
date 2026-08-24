@@ -177,7 +177,7 @@ first) but are folded into the milestone whose risk they answer.
       picker. **Smoke step 1** (one real `pair` + claude child, resize, nvim in
       and out) lands here; the `kill -9` reattach moved to M3 — see the
       2026-08-23 carry note.
-- [ ] M3 — **many children and the panel.** Up-one-level focus, per-child ring
+- [x] M3 — **many children and the panel.** Up-one-level focus, per-child ring
       replay (or a resize nudge for alt-screen children), typeahead + numbered
       direct switch, panel actions dispatching through `couchcore.Operations()`.
       **Smoke step 2** (two real children, switching, `ctrl-space` from a
@@ -1373,6 +1373,7 @@ evidence before the next milestone-close attempt; the earlier separately tested
 halves are not being relabeled as composition evidence.
 
 ### 2026-08-24 -- couch cold creates now use repo defaults without a picker
+- 2026-08-24: closed M3 — Operator layout2 panel/typeahead/mid-output-switch and kill-9 reattach smoke passed; standalone layout3 nvim probe superseded because couch pins layout2 and its draft pane is real nvim. Automated verification: make build; go test ./... -count=1; make test-race; make test-live; make test-smoke (8/8, including nvim alternate-screen entry and switch-away/back repaint); sdlc issue validate --issue 146; go vet ./cmd/internal/couchtty; git diff --check. Bidirectional Core concepts contract passed; deleting the complete PanelKey/DecodePanelKeys row was observed RED, and the restored table passed.; review verdict: SHIP
 
 Operator supplied the missing composed reattach evidence: after killing the
 actual couch console process with `kill -9` (without deleting the zellij

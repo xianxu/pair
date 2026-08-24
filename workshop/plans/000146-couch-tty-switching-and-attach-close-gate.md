@@ -1001,6 +1001,16 @@ rounds:
           round: 12
       boundary: M3
       blocked: true
+    - "n": 13
+      timestamp: "2026-08-24T16:46:21-07:00"
+      agent: codex
+      dispose:
+        - id: BR-45
+          disposition: addressed
+          note: The corrected table and bidirectional inventory contract cover all three original drift modes, and isolated mutations made each mode fail.
+          round: 13
+      boundary: M3
+      blocked: false
 ---
 
 # Gate ledger — pair#146 (boundary-review)
@@ -1536,6 +1546,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-45 — not-addressed — The contract validates present rows but cannot detect an omitted row; deleting the complete PanelKey and DecodePanelKeys row still passes, so the recurring plan-table-drift class is not pinned.
 - BR-49 — withdrawn — The revised event-loop design removes the additional nested stdin worker this finding identified; full ownership and joining of the remaining lifecycle workers stays explicitly scheduled for M4.
 
+## Round 13 — 2026-08-24T16:46:21-07:00 (codex) — passed
+
+### Disposed
+
+- BR-45 — addressed — The corrected table and bidirectional inventory contract cover all three original drift modes, and isolated mutations made each mode fail.
+
 ## Open findings
 
 - **BR-1** [Important] `chunking-invariance` Screen raises a false bell for any sequence longer than maxPending split across two reads
@@ -1552,4 +1568,3 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-39** [Minor] `latch-consumed-by-wrong-consumer` onChunk consumes TakeRowDirty for every pane but acts on it only for the active one, so an inactive pane's dirty-row latch is thrown away
 - **BR-40** [Important] `plan-table-drift` the sweep that closed this family filed Console under "Pure entities" while the row itself calls it a thin IO shell
 - **BR-41** [Important] `docs-lag-the-surface` the README enumeration's one hand-written exemption points at atlas/couch.md, which does not document publish-description either
-- **BR-45** [Critical] `plan-table-drift` The Core concepts table misclassifies and misstates M3 entities
