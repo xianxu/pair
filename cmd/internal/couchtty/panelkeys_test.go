@@ -1,6 +1,9 @@
 package couchtty
 
-import "testing"
+import (
+	"strconv"
+	"testing"
+)
 
 // The bug this decoder exists for: an SGR mouse report's bytes after the ESC
 // are ALL printable, so a panel that took printable bytes as typeahead had
@@ -27,6 +30,35 @@ func TestDecodeArrowsInBothModes(t *testing.T) {
 		keys, _ := DecodePanelKeys([]byte(seq))
 		if len(keys) != 1 || keys[0].Kind != KeyDown {
 			t.Fatalf("%q decoded to %+v, want one KeyDown", seq, keys)
+		}
+	}
+}
+
+func TestDecodeRecognisedKeysAtEverySplit(t *testing.T) {
+	cases := []struct {
+		seq  string
+		want PanelKeyKind
+	}{
+		{"\x1b[A", KeyUp},
+		{"\x1b[B", KeyDown},
+		{"\x1bOA", KeyUp},
+		{"\x1bOB", KeyDown},
+		{"\x1b[27u", KeyEscape},
+		{"\x1b[13u", KeyEnter},
+		{"\x1b[127u", KeyBackspace},
+	}
+	for _, c := range cases {
+		for split := 1; split < len(c.seq); split++ {
+			t.Run(strconv.Quote(c.seq)+"/split-"+strconv.Itoa(split), func(t *testing.T) {
+				keys, held := DecodePanelKeys([]byte(c.seq[:split]))
+				if len(keys) != 0 || string(held) != c.seq[:split] {
+					t.Fatalf("first decode = keys=%+v held=%q, want held prefix %q", keys, held, c.seq[:split])
+				}
+				keys, held = DecodePanelKeys(append(held, c.seq[split:]...))
+				if len(held) != 0 || len(keys) != 1 || keys[0].Kind != c.want {
+					t.Fatalf("completed decode = keys=%+v held=%q, want one %v", keys, held, c.want)
+				}
+			})
 		}
 	}
 }

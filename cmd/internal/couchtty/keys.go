@@ -7,10 +7,17 @@
 // learns that a terminal exists.
 package couchtty
 
-import "bytes"
+import (
+	"bytes"
+	"time"
+)
 
 // hotkeyByte is ctrl-space in the LEGACY encoding: ctrl-@ is NUL.
 const hotkeyByte = 0x00
+
+// escapeAmbiguity is the one deadline used by both terminal-input framers to
+// distinguish an ESC key from the first byte of a split escape sequence.
+const escapeAmbiguity = 35 * time.Millisecond
 
 type seqKind uint8
 
@@ -67,6 +74,14 @@ type Interceptor struct {
 	held []byte
 }
 
+// Flush resolves an ambiguous partial as literal child input. The IO owner
+// calls it only after its short escape-key timeout expires.
+func (i *Interceptor) Flush() []byte {
+	out := append([]byte(nil), i.held...)
+	i.held = nil
+	return out
+}
+
 // Feed consumes a chunk of operator input.
 //
 // before is for the current focus; hit says the hotkey fired; rest is for the
@@ -88,36 +103,11 @@ func (i *Interceptor) Feed(in []byte) (before []byte, hit bool, rest []byte) {
 			n, kind := sequenceAt(buf[idx:])
 			switch kind {
 			case seqPartial:
-				// A real prefix -- hold it for the next read, UNLESS it is a
-				// lone ESC that arrived as its own read.
-				//
-				// ESC prefixes both paste markers and the CSI-u hotkey, so
-				// holding every prefix buffers a pressed ESC until the
-				// operator's next keystroke and then delivers the two glued
-				// together -- which a terminal reads as Alt+<key>. ESC would
-				// appear to do nothing in nvim or claude, and then do the wrong
-				// thing (M2 BR-22).
-				//
-				// A BARE trailing ESC is never held, whatever preceded it.
-				//
-				// The first attempt only exempted a sole-byte read, which the
-				// review took apart with two cases that still glued: an ESC at
-				// the end of a longer chunk (`abc\x1b` then `i` -> `\x1bi`,
-				// read as Alt+i), and `\x1b\x1b` where the second was held.
-				// The length of the chunk is not the discriminator; the length
-				// of the PARTIAL is.
-				//
-				// Residual, accepted and stated: a real sequence whose read
-				// boundary falls IMMEDIATELY after its ESC is forwarded rather
-				// than held, costing one unrecognised paste marker. The
-				// alternative costs the ESC key itself -- interrupt in claude,
-				// mode-switch in nvim, pressed constantly -- and a wrong ESC is
-				// both more likely and more damaging than a missed marker.
-				if len(buf)-idx == 1 {
-					out = append(out, buf[idx])
-					idx++
-					continue
-				}
+				// Every genuine prefix is held, including a bare ESC. A read
+				// boundary is not a keystroke boundary: forwarding that first
+				// byte loses every Kitty key and paste marker split there. The
+				// IO owner resolves an actual ESC key through Flush after a
+				// short ambiguity timeout, matching the panel decoder's rule.
 				i.held = append([]byte(nil), buf[idx:]...)
 				return out, false, nil
 			case seqPasteStart, seqPasteEnd:

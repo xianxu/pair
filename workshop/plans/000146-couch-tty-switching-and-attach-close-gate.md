@@ -909,6 +909,43 @@ rounds:
           round: 9
       boundary: M3
       blocked: true
+    - "n": 10
+      timestamp: "2026-08-24T16:02:55-07:00"
+      agent: codex
+      dispose:
+        - id: BR-42
+          disposition: not-addressed
+          note: Same-read suffix ordering is pinned, but keys.go:110-119 still forwards a Kitty hotkey split immediately after ESC; the required every-split enumeration is absent.
+          round: 10
+        - id: BR-43
+          disposition: addressed
+          note: Production injects Couch.Summarize(nil), rebuildPanel starts from NewPanelModel, and wiring, parked-row, refresh, and pure target-join tests pin the path.
+          round: 10
+        - id: BR-44
+          disposition: addressed
+          note: Commands now require the colon namespace, and tests pin typeahead beginning with s, x, n, d, and digits plus namespaced direct jumps.
+          round: 10
+        - id: BR-45
+          disposition: not-addressed
+          note: The named table cells changed, but no claimed entity/kind audit exists and the plan still says Console holds no policy despite console.go:779-945.
+          round: 10
+        - id: BR-46
+          disposition: addressed
+          note: The tracker records the composed kill -9 reattach evidence and a Spec/Plan revision explains why the literal layout3-only nvim step does not apply to the shipped layout2 configuration.
+          round: 10
+        - id: BR-47
+          disposition: addressed
+          note: README documents the full focus ladder and namespaced controls, with coverage derived from couchtty.PanelControls.
+          round: 10
+      findings:
+        - id: BR-48
+          severity: Minor
+          title: The captured M3 review transcript fails git diff --check
+          detail: workshop/plans/000146-couch-tty-switching-and-attach-m3-review.md contains extensive added trailing whitespace and space-before-tab lines; clean the generated artifact or its writer.
+          family: generated-artifact-hygiene
+          round: 10
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — pair#146 (boundary-review)
@@ -1404,6 +1441,22 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-47** [Important] `docs-lag-the-surface` README does not document the M3 focus ladder or panel controls
   README.md:280-290 documents only ctrl-space interception, not child-to-root-to-panel navigation or the keys a user types in the panel. This is the 5th finding in family docs-lag-the-surface; establish an enforced documentation home for every user-entered key surface.
 
+## Round 10 — 2026-08-24T16:02:55-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-42 — not-addressed — Same-read suffix ordering is pinned, but keys.go:110-119 still forwards a Kitty hotkey split immediately after ESC; the required every-split enumeration is absent.
+- BR-43 — addressed — Production injects Couch.Summarize(nil), rebuildPanel starts from NewPanelModel, and wiring, parked-row, refresh, and pure target-join tests pin the path.
+- BR-44 — addressed — Commands now require the colon namespace, and tests pin typeahead beginning with s, x, n, d, and digits plus namespaced direct jumps.
+- BR-45 — not-addressed — The named table cells changed, but no claimed entity/kind audit exists and the plan still says Console holds no policy despite console.go:779-945.
+- BR-46 — addressed — The tracker records the composed kill -9 reattach evidence and a Spec/Plan revision explains why the literal layout3-only nvim step does not apply to the shipped layout2 configuration.
+- BR-47 — addressed — README documents the full focus ladder and namespaced controls, with coverage derived from couchtty.PanelControls.
+
+### Raised
+
+- **BR-48** [Minor] `generated-artifact-hygiene` The captured M3 review transcript fails git diff --check
+  workshop/plans/000146-couch-tty-switching-and-attach-m3-review.md contains extensive added trailing whitespace and space-before-tab lines; clean the generated artifact or its writer.
+
 ## Open findings
 
 - **BR-1** [Important] `chunking-invariance` Screen raises a false bell for any sequence longer than maxPending split across two reads
@@ -1421,8 +1474,5 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-40** [Important] `plan-table-drift` the sweep that closed this family filed Console under "Pure entities" while the row itself calls it a thin IO shell
 - **BR-41** [Important] `docs-lag-the-surface` the README enumeration's one hand-written exemption points at atlas/couch.md, which does not document publish-description either
 - **BR-42** [Critical] `chunking-invariance` Input after a hotkey can be routed to the focus being left
-- **BR-43** [Critical] `dead-field-and-leaked-consumer` Production bypasses NewPanelModel and loses parked or updated tree metadata
-- **BR-44** [Critical] `input-namespace-collision` Panel action keys make valid typeahead prefixes unreachable
 - **BR-45** [Critical] `plan-table-drift` The Core concepts table misclassifies and misstates M3 entities
-- **BR-46** [Important] `undelivered-plan-step` M3 completion evidence omits the smoke work explicitly carried into this milestone
-- **BR-47** [Important] `docs-lag-the-surface` README does not document the M3 focus ladder or panel controls
+- **BR-48** [Minor] `generated-artifact-hygiene` The captured M3 review transcript fails git diff --check

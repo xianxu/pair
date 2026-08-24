@@ -300,7 +300,10 @@ real symbol or revise the row to the implemented function/type. Conceptual
 groupings must be explicitly labeled as such, not formatted like nonexistent
 APIs. Also search completed task prose and unchecked rows—the revisions section
 does not cancel stale contradictory instructions elsewhere in the same plan.
-Caught in #000117 close review.
+Categorization is part of the audit: a row under Pure must be free of IO and
+have a direct unit test; a future-milestone entity must say “planned,” not “new.”
+Caught in #000117 close review; the classification extension was caught again
+in #000146 M3 review.
 
 ## Cross-language cache tests must use the producer's exact JSON types
 
@@ -1966,6 +1969,8 @@ before the suffix is consumed. Enumerate every legal read split in a composed
 test; parser tests alone cannot prove routing order. The same rule applies to a
 bare ESC that might be the prefix of a following CSI: read boundaries carry no
 semantic meaning, so resolve the ambiguity explicitly.
+Generate the split cases from the production recognition table; a handwritten
+representative split is how the first-byte boundary escaped #000146 M3 twice.
 
 ## A displayed model must have one production constructor
 

@@ -45,7 +45,10 @@ func DecodePanelKeys(in []byte) (keys []PanelKey, held []byte) {
 			// `\x1bO` and leaks the `A` as a typed rune. Application-cursor
 			// mode is not exotic: it is whatever mode the previous child left
 			// the terminal in, and couch does not get to assume.
-			if len(in)-i >= 3 && in[i+1] == 'O' {
+			if len(in)-i >= 2 && in[i+1] == 'O' {
+				if len(in)-i == 2 {
+					return keys, append([]byte(nil), in[i:]...)
+				}
 				if k, ok := decodeSequence(in[i : i+3]); ok {
 					keys = append(keys, k)
 				}

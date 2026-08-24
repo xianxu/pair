@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"bytes"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -208,6 +209,33 @@ func TestInterceptorHandlesTheKittyHotkeySplitAcrossReads(t *testing.T) {
 	}
 }
 
+// A pty read boundary is not a key boundary. Every legal split of every
+// sequence the interceptor recognises must make the same decision as a
+// one-shot read; the split immediately after ESC is the one BR-42 exposed.
+func TestInterceptorRecognisesEverySequenceAtEverySplit(t *testing.T) {
+	for _, seq := range knownSequences {
+		for split := 1; split < len(seq.bytes); split++ {
+			t.Run(string(seq.bytes)+"/split-"+strconv.Itoa(split), func(t *testing.T) {
+				var it Interceptor
+				before, hit, rest := it.Feed(seq.bytes[:split])
+				if len(before) != 0 || hit || len(rest) != 0 {
+					t.Fatalf("first feed = (%q, %v, %q), want held", before, hit, rest)
+				}
+				before, hit, rest = it.Feed(seq.bytes[split:])
+				if seq.kind == seqHotkey {
+					if len(before) != 0 || !hit || len(rest) != 0 {
+						t.Fatalf("completed hotkey = (%q, %v, %q)", before, hit, rest)
+					}
+					return
+				}
+				if hit || string(before) != string(seq.bytes) || len(rest) != 0 {
+					t.Fatalf("completed marker = (%q, %v, %q), want %q", before, hit, rest, seq.bytes)
+				}
+			})
+		}
+	}
+}
+
 // The paste suspension covers both encodings: a CSI-u ctrl-space inside pasted
 // content is content.
 func TestInterceptorIgnoresTheKittyHotkeyInsideAPaste(t *testing.T) {
@@ -221,7 +249,9 @@ func TestInterceptorIgnoresTheKittyHotkeyInsideAPaste(t *testing.T) {
 	}
 }
 
-// A lone ESC keystroke must reach the child IMMEDIATELY.
+// A lone ESC keystroke must reach the child when the short sequence-ambiguity
+// window expires. It cannot be forwarded immediately: that is also the first
+// byte of every Kitty key and bracketed-paste marker.
 //
 // ESC is a prefix of both paste markers and of the CSI-u hotkey, so a naive
 // "hold every real prefix" rule buffers it until the operator's NEXT keystroke
@@ -231,20 +261,20 @@ func TestInterceptorIgnoresTheKittyHotkeyInsideAPaste(t *testing.T) {
 //
 // The discriminator is that a keystroke arrives as its own read. A split escape
 // sequence has bytes BEFORE the ESC in the same chunk; a pressed ESC does not.
-func TestInterceptorDoesNotHoldALoneEscKeystroke(t *testing.T) {
+func TestInterceptorFlushesALoneEscKeystroke(t *testing.T) {
 	var it Interceptor
 	before, hit, _ := it.Feed([]byte("\x1b"))
 	if hit {
 		t.Fatal("a lone ESC fired the hotkey")
 	}
-	if string(before) != "\x1b" {
-		t.Fatalf("a lone ESC was held instead of forwarded: before=%q", before)
+	if len(before) != 0 {
+		t.Fatalf("a lone ESC was forwarded before ambiguity resolution: before=%q", before)
 	}
-
-	// And the following keystroke must arrive on its own, not glued to the ESC.
-	before, _, _ = it.Feed([]byte("i"))
-	if string(before) != "i" {
-		t.Fatalf("the next keystroke was glued to the held ESC: %q", before)
+	if got := it.Flush(); string(got) != "\x1b" {
+		t.Fatalf("Flush = %q, want ESC", got)
+	}
+	if got := it.Flush(); len(got) != 0 {
+		t.Fatalf("second Flush = %q, want empty", got)
 	}
 }
 
@@ -254,8 +284,9 @@ func TestInterceptorForwardsRepeatedEscKeystrokes(t *testing.T) {
 	var it Interceptor
 	for i := 0; i < 3; i++ {
 		before, _, _ := it.Feed([]byte("\x1b"))
+		before = append(before, it.Flush()...)
 		if string(before) != "\x1b" {
-			t.Fatalf("ESC %d was not forwarded: %q", i+1, before)
+			t.Fatalf("ESC %d was not flushed: %q", i+1, before)
 		}
 	}
 }
@@ -278,7 +309,7 @@ func TestInterceptorStillHoldsASplitSequenceAfterOtherBytes(t *testing.T) {
 
 // The cases the first ESC fix still glued (M2 BR-22 round 2). The length of the
 // CHUNK is not the discriminator; the length of the PARTIAL is.
-func TestInterceptorNeverHoldsABareTrailingEsc(t *testing.T) {
+func TestInterceptorFlushesABareTrailingEscWithoutGluingTheNextKey(t *testing.T) {
 	cases := []struct {
 		name  string
 		first string
@@ -296,6 +327,7 @@ func TestInterceptorNeverHoldsABareTrailingEsc(t *testing.T) {
 			var got []byte
 			before, _, _ := it.Feed([]byte(c.first))
 			got = append(got, before...)
+			got = append(got, it.Flush()...)
 			if c.then != "" {
 				before, _, _ = it.Feed([]byte(c.then))
 				got = append(got, before...)
@@ -310,7 +342,7 @@ func TestInterceptorNeverHoldsABareTrailingEsc(t *testing.T) {
 // Nothing may be left stranded in the hold buffer for a completed input.
 func TestInterceptorHoldsNothingAfterACompleteChunk(t *testing.T) {
 	var it Interceptor
-	for _, in := range []string{"abc\x1b", "\x1b\x1b", "plain", "\x1b[32;5u"} {
+	for _, in := range []string{"plain", "\x1b[32;5u"} {
 		it.Feed([]byte(in))
 		if len(it.held) != 0 {
 			t.Fatalf("after %q the interceptor still holds %q", in, it.held)

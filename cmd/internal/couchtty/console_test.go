@@ -152,6 +152,39 @@ func TestConsoleAppliesHotkeyBeforeRoutingSameReadSuffix(t *testing.T) {
 	}
 }
 
+func TestConsoleRecognisesKittyHotkeySplitImmediatelyAfterEscape(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	before := len(f.child.Writes())
+
+	_, _ = f.stdin.Write([]byte("\x1b"))
+	_, _ = f.stdin.Write([]byte("[32;5upair"))
+	waitFor(t, "the split hotkey to open the panel and route its suffix", func() bool {
+		return strings.Contains(f.host.Written(), "filter: pair")
+	})
+	for _, w := range f.child.Writes()[before:] {
+		if strings.Contains(string(w), "\x1b") || strings.Contains(string(w), "pair") {
+			t.Fatalf("split hotkey or suffix reached the old child: %q", w)
+		}
+	}
+}
+
+func TestConsoleFlushesALoneEscapeToTheActiveChild(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	before := len(f.child.Writes())
+
+	_, _ = f.stdin.Write([]byte("\x1b"))
+	waitFor(t, "the ambiguity window to flush Escape", func() bool {
+		for _, w := range f.child.Writes()[before:] {
+			if strings.Contains(string(w), "\x1b") {
+				return true
+			}
+		}
+		return false
+	})
+}
+
 // Child output reaches the host only through the console, so the operator sees
 // what the active child writes.
 func TestConsoleWritesActiveChildOutputToTheHost(t *testing.T) {

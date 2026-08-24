@@ -1421,3 +1421,33 @@ The target now sets only `PAIR_LIVE_COUCH=1` and serializes packages with
 `go test -p 1`. This is verification infrastructure, not a product behavior
 change. The broken target itself was the RED test; the repaired target must be
 GREEN before M3 closes (ARCH-PURPOSE).
+
+### 2026-08-24 -- M3 boundary review round 2: REWORK on BR-42 and BR-45
+
+The gate disposed BR-43, BR-44, BR-46, and BR-47. It kept two Criticals open.
+BR-42 reproduced a Kitty ctrl-space split immediately after ESC: the old
+“forward bare ESC immediately” compromise made the sequence impossible to
+recognize. BR-45 found that the corrected Core-concepts rows still lacked the
+recorded audit the plan claimed, and that “Console holds no policy” contradicted
+the UI transitions in the integration controller.
+
+The BR-42 class fix enumerates every byte split of every sequence in
+`knownSequences`, plus every byte split of every panel key encoding. The RED
+cases were all three Interceptor sequences at split 1 and SS3 arrows at split 2.
+`Interceptor` now holds every genuine prefix and exposes `Flush`; the stdin IO
+owner applies the same explicit 35ms ambiguity rule already used for the panel.
+Existing composed console Escape tests went RED until that timeout was wired,
+and the exact split-after-ESC console regression timed out RED when the reviewed
+forward-bare-ESC branch was restored; then the complete `couchtty` suite passed.
+
+The BR-45 audit checked every Core-concepts row due through M3 against the
+declared path and actual symbol, then checked direct unit coverage for each Pure
+entity. It found one additional classification error and one future-state
+overclaim: `termcmd.restoreTerminal` writes to the host and belongs under
+Integration, while absent `Notice`/`Feed` is M4 work and must say “planned M4.”
+All other M1–M3 paths/symbols exist; `updateMouseMode` is absent as declared;
+the pure `Ring`, `StripQueries`, `Screen`, `Focus`/`Up`, panel model/target join,
+panel decoder, status rendering/reservation, Interceptor, and host-control
+compositions have direct tests. Console is now described as an integration
+controller with event/UI transition policy rather than as policy-free
+(ARCH-PURE, ARCH-PURPOSE).

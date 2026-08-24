@@ -122,6 +122,7 @@ type Console struct {
 	hotkeys   chan chan struct{}
 	switching chan string
 	panelKeys chan []byte
+	panelEsc  chan struct{}
 	stop      chan struct{}
 	once      sync.Once
 }
@@ -144,6 +145,7 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		resized:   make(chan struct{}, 1),
 		switching: make(chan string, 8),
 		panelKeys: make(chan []byte, 64),
+		panelEsc:  make(chan struct{}, 1),
 		hotkeys:   make(chan chan struct{}, 8),
 		stop:      make(chan struct{}),
 	}
@@ -371,14 +373,16 @@ func (c *Console) Run() int {
 			c.onPanelInput(raw)
 			if bytes.Equal(c.panelHeld, []byte{0x1b}) {
 				if escapeTimer == nil {
-					escapeTimer = time.NewTimer(35 * time.Millisecond)
+					escapeTimer = time.NewTimer(escapeAmbiguity)
 				} else {
-					escapeTimer.Reset(35 * time.Millisecond)
+					escapeTimer.Reset(escapeAmbiguity)
 				}
 				escapeC = escapeTimer.C
 			} else {
 				escapeC = nil
 			}
+		case <-c.panelEsc:
+			c.onPanelKey(PanelKey{Kind: KeyEscape})
 		case <-escapeC:
 			escapeC = nil
 			c.panelHeld = nil
@@ -606,55 +610,122 @@ func (c *Console) onResize() {
 // pumpStdin routes the operator's keystrokes, splitting around the hotkey.
 func (c *Console) pumpStdin() {
 	var it Interceptor
-	buf := make([]byte, 4096)
-	for {
-		n, err := c.stdin.Read(buf)
-		if n > 0 {
-			in := append([]byte(nil), buf[:n]...)
-			for {
-				before, hit, rest := it.Feed(in)
-				if len(before) > 0 {
-					c.mu.Lock()
-					toPanel := c.focus.IsPanel()
-					c.mu.Unlock()
-					if toPanel {
-						// The panel owns the keyboard while it is up, or a
-						// child would act on keys aimed at couch. Raw bytes:
-						// DECODING happens on the Run goroutine, which is
-						// where the carried partial sequence lives.
-						select {
-						case c.panelKeys <- append([]byte(nil), before...):
-						case <-c.stop:
-							return
-						}
-					} else if child := c.activeChild(); child != nil {
-						_, _ = child.Write(before)
-					}
-				}
-				if !hit {
-					break
-				}
-				ack := make(chan struct{})
+	reads := make(chan []byte)
+	go func() {
+		defer close(reads)
+		buf := make([]byte, 4096)
+		for {
+			n, err := c.stdin.Read(buf)
+			if n > 0 {
+				chunk := append([]byte(nil), buf[:n]...)
 				select {
-				case c.hotkeys <- ack:
+				case reads <- chunk:
 				case <-c.stop:
 					return
 				}
-				select {
-				case <-ack:
-				case <-c.stop:
-					return
-				}
-				in = rest
+			}
+			if err != nil {
+				return
 			}
 		}
-		if err != nil {
+	}()
+
+	forward := func(before []byte) bool {
+		if len(before) == 0 {
+			return true
+		}
+		c.mu.Lock()
+		toPanel := c.focus.IsPanel()
+		c.mu.Unlock()
+		if toPanel {
+			select {
+			case c.panelKeys <- append([]byte(nil), before...):
+				return true
+			case <-c.stop:
+				return false
+			}
+		}
+		if child := c.activeChild(); child != nil {
+			_, _ = child.Write(before)
+		}
+		return true
+	}
+	process := func(in []byte) bool {
+		for {
+			before, hit, rest := it.Feed(in)
+			if !forward(before) {
+				return false
+			}
+			if !hit {
+				return true
+			}
+			ack := make(chan struct{})
+			select {
+			case c.hotkeys <- ack:
+			case <-c.stop:
+				return false
+			}
+			select {
+			case <-ack:
+			case <-c.stop:
+				return false
+			}
+			in = rest
+		}
+	}
+
+	var escapeTimer *time.Timer
+	var escapeC <-chan time.Time
+	stopEscapeTimer := func() {
+		if escapeTimer != nil && !escapeTimer.Stop() {
+			select {
+			case <-escapeTimer.C:
+			default:
+			}
+		}
+		escapeC = nil
+	}
+	armEscapeTimer := func() {
+		if !bytes.Equal(it.held, []byte{0x1b}) {
+			escapeC = nil
 			return
 		}
+		if escapeTimer == nil {
+			escapeTimer = time.NewTimer(escapeAmbiguity)
+		} else {
+			escapeTimer.Reset(escapeAmbiguity)
+		}
+		escapeC = escapeTimer.C
+	}
+
+	for {
 		select {
+		case in, ok := <-reads:
+			if !ok {
+				return
+			}
+			stopEscapeTimer()
+			if !process(in) {
+				return
+			}
+			armEscapeTimer()
+		case <-escapeC:
+			escapeC = nil
+			literal := it.Flush()
+			c.mu.Lock()
+			toPanel := c.focus.IsPanel()
+			c.mu.Unlock()
+			if toPanel && bytes.Equal(literal, []byte{0x1b}) {
+				select {
+				case c.panelEsc <- struct{}{}:
+				case <-c.stop:
+					return
+				}
+			} else if !forward(literal) {
+				return
+			}
 		case <-c.stop:
 			return
-		default:
 		}
 	}
 }

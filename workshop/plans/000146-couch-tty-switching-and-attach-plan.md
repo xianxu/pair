@@ -87,8 +87,7 @@ Terminal code has its own standing moves, all of them lessons already paid for i
 | `Interceptor` | `cmd/internal/couchtty/keys.go` | new |
 | `Reserve` / `Release` / `PaintRow` | `cmd/internal/couchtty/reserve.go` | new |
 | terminal-control constants (DECSTBM, cursor save/restore, region reset) | `cmd/internal/hostty/control.go` | new (`\x1b[r` moved from `termcmd/run.go`) |
-| `termcmd.restoreTerminal` | `cmd/internal/termcmd/run.go` | modified (now writes `hostty.ResetRegion`; the method stays, the constant moved) |
-| `Notice` / `Feed` | `cmd/internal/couchtty/notice.go` | new |
+| `Notice` / `Feed` | `cmd/internal/couchtty/notice.go` | planned for M4 (not delivered at M3) |
 
 - **Ring** — a bounded byte buffer with a snapshot. `Append([]byte)`, `Snapshot() []byte` (an independent copy). Cap 128KB, lifted from `termcmd.appendBuffer`.
   - **Relationships:** 1:1 with `ptychild.Child`.
@@ -144,6 +143,7 @@ Terminal code has its own standing moves, all of them lessons already paid for i
 | `couchtty.Console` | `cmd/internal/couchtty/console.go` | new | drives `hostty.Host` + N `ptychild.Child` |
 | `termcmd` host half | `cmd/internal/termcmd/run.go` | modified | `runShell`'s raw/`SIGWINCH`/restore move behind `hostty.Host` |
 | `termcmd.terminalTab` | `cmd/internal/termcmd/run.go` | modified | now holds a `ptychild.Child` |
+| `termcmd.restoreTerminal` | `cmd/internal/termcmd/run.go` | modified | writes `hostty.ResetRegion`; the method stays, the constant moved |
 | `couchcmd` wiring | `cmd/internal/couchcmd/run.go` | modified | picks `PtyRunner` vs `ExecRunner` |
 | live conformance | `cmd/internal/couchcore/conformance_live_test.go` | modified | `PtyRunner` vs `FakeRunner` |
 
@@ -160,7 +160,11 @@ Terminal code has its own standing moves, all of them lessons already paid for i
   - **Injected into:** `couchtty.Console` and `termcmd.runShell`. This is what makes "test the console with no real tty" and "test the signal path" writable at all (PQ-2).
   - **Future extensions:** a remote host (`#120`'s terminal stream) is the same interface over a socket rather than a tty — worth noting, not worth building.
 
-- **couchtty.Console** — the thin IO shell: it drives `hostty.Host` and the per-child pumps and holds **no policy**. Every decision it makes is a call into a pure function above.
+- **couchtty.Console** — the integration controller: it drives `hostty.Host`
+  and the per-child pumps, serializes event ordering, and owns transient panel
+  interaction state. Reusable decisions live in the pure entities above, but
+  Console necessarily applies UI transition policy while coordinating IO; it
+  is not claimed to be policy-free.
 
 ---
 
@@ -655,8 +659,10 @@ shell as pure. These are class failures (`chunking-invariance`,
    key inventory from this contract.
 4. The Core-concepts classification is corrected: `Console` is an INTEGRATION
    point; `PanelKey`/`DecodePanelKeys` and the pure summary/target join are PURE;
-   nonexistent `Home` is removed. A table audit checks every row resolves to a
-   real declaration and that PURE rows have IO-free tests.
+   nonexistent `Home` is removed. Before re-close, a recorded table audit checks
+   every row delivered through M3 against its declaration, location,
+   classification, and direct test; future-M4 rows are labeled planned rather
+   than misrepresented as already delivered.
 5. Before re-closing M3, record every carried smoke item individually: composed
    `kill -9` reattach and real nvim in/out need operator evidence, not an
    inference from their separately automated halves. README documents the full
@@ -784,3 +790,21 @@ claim an unrecorded draft interaction. Existing emulator, real-pty, and
 alt-screen/margin-reset evidence. Keep the separately composed couch `kill -9`
 → same-session reattach evidence, which the operator confirmed. No production
 or test code changes for this evidence correction.
+
+### 2026-08-24 — M3 boundary review round 2: read splits and table claims
+
+**Reason:** round 2 kept BR-42 and BR-45 open. The interceptor deliberately
+forwarded a bare ESC immediately, so a Kitty hotkey split after byte one was
+unrecognizable; the tests enumerated one later split rather than all legal
+splits. The Core-concepts revision claimed a complete audit that had not been
+recorded, still placed the IO-writing `termcmd.restoreTerminal` under Pure, and
+called Console policy-free despite its event/UI transition coordination.
+
+**Delta:** every recognized Interceptor and panel-key sequence is enumerated at
+every byte split. A bare ESC uses one explicit 35ms ambiguity window and then
+flushes as a literal key; it is no longer guessed from the kernel read boundary.
+The delivered-through-M3 table audit is recorded in the issue Log. It moves
+`termcmd.restoreTerminal` to Integration, labels `Notice`/`Feed` as planned M4,
+and describes Console honestly as the integration controller that owns event
+ordering and transient UI transitions while delegating reusable decisions to
+pure entities (ARCH-PURE, ARCH-PURPOSE).
