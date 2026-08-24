@@ -6,7 +6,7 @@ done_when: The operator works inside a single terminal window, managing a fleet 
 status: defined
 mvp_scope: [pair#145, pair#146, pair#147, pair#148, ariadne#199, ariadne#200]
 created: 2026-08-21
-updated: 2026-08-21
+updated: 2026-08-23
 sources: [brain/workshop/pensive/2026-08-20-01-pensive-couch-agent-switcher.md]
 ---
 
@@ -166,6 +166,26 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [ ] fleet thread inventory [ariadne#200]
 - [ ] cluster transport and queries [pair#147]
 - [ ] brain advisor role [pair#148]
+
+<a id="pair-146-m3"></a>
+### pair#146 M3 — many children and the panel
+
+**est:** 10.32 (whole issue)
+**actual:** 9.17h
+**closed:** 2026-08-23
+
+Couch now hosts multiple warm Pair children and switches the operator among
+them through a deterministic panel: `ctrl-space` climbs child → root → panel;
+arrows/Enter, digits and typeahead select a destination; panel actions reuse the
+same operation table the CLI and future advisor consume. Panel rows keep
+worktree identity for human resolution separate from console-local child
+identity for routing.
+
+The real smoke was the milestone's design review. It found that key decoding
+worked only in legacy encoding, actions were declared but initially inert, a
+started actor never joined the live console, and the panel displayed repo-name
+fallbacks its resolver could not search. The fixes addressed those classes at
+their shared boundaries; the operator confirmed the final two-actor smoke.
 
 <a id="pair-146-m2"></a>
 ### pair#146 M2 — console over one child, with the reserved row
@@ -404,3 +424,4 @@ naming doubles as the retention signal that makes cleanup decidable.
 
 [pair#146 M1]: #pair-146-m1
 [pair#146 M2]: #pair-146-m2
+[pair#146 M3]: #pair-146-m3
