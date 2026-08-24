@@ -291,7 +291,7 @@ func TestConsoleMarksAnInactiveActorThatRangTheBell(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	other := ptychild.NewFakeChild(nil)
 	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
-	f.con.Attach("c2", "ariadne", other)
+	f.con.AttachTree("c2", "/w/ariadne", "ariadne", other)
 	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
 	f.host.Reset()
 
@@ -634,12 +634,15 @@ func TestPanelTypeaheadUsesTheInjectedResolver(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	other := ptychild.NewFakeChild(nil)
 	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
-	f.con.Attach("c2", "ariadne", other)
+	f.con.AttachTree("c2", "/w/ariadne", "ariadne", other)
 
 	asked := ""
 	f.con.SetResolver(func(q string) []couchcore.Worktree {
 		asked = q
-		return []couchcore.Worktree{"c2"}
+		// Production resolves human text to the child's WORKTREE, not to its
+		// per-incarnation actor id. The panel must retain both identities:
+		// worktree for matching, actor id for switching.
+		return []couchcore.Worktree{"/w/ariadne"}
 	})
 	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
 
@@ -660,6 +663,46 @@ func TestPanelTypeaheadUsesTheInjectedResolver(t *testing.T) {
 	_, _ = f.stdin.Write([]byte("\r"))
 	waitFor(t, "Enter to switch", func() bool {
 		return strings.Contains(f.host.Written(), "[ariadne]")
+	})
+}
+
+// A successful panel `start` is not complete when the process merely exists in
+// couchcore's registry: its terminal must join THIS running console, or the
+// actors menu still contains one row and there is nothing to switch to.
+func TestPanelStartAttachesTheReturnedTerminalChild(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	runner := couchcore.NewFakeRunner()
+	h, err := runner.Start("/w/pair", []string{"pair"}, nil)
+	if err != nil {
+		t.Fatalf("start fake child: %v", err)
+	}
+	terminal := h.(couchcore.TerminalHandle).Terminal()
+	terminal.SetSink(func(chunk []byte) { f.con.Deliver(h.ID(), chunk) })
+
+	f.con.SetOps(func(name string, args map[string]string) (any, error) {
+		if name != "start" || args["path"] != "/w/pair" {
+			t.Fatalf("operation = %q %+v, want start /w/pair", name, args)
+		}
+		return couchcore.StartResult{
+			Record: couchcore.ActorRecord{Args: couchcore.StartArgs{Worktree: "/w/pair"}},
+			Handle: h,
+		}, nil
+	})
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+
+	_, _ = f.stdin.Write([]byte("\x00"))
+	waitFor(t, "the panel", func() bool {
+		return strings.Contains(f.host.Written(), "couch — actors")
+	})
+	_, _ = f.stdin.Write([]byte("s"))
+	waitFor(t, "the start prompt", func() bool {
+		return strings.Contains(f.host.Written(), "start in path:")
+	})
+	_, _ = f.stdin.Write([]byte("/w/pair\r"))
+	waitFor(t, "the started child to join the panel", func() bool {
+		f.con.mu.Lock()
+		defer f.con.mu.Unlock()
+		return len(f.con.panes) == 2 && f.con.panes[h.ID()] != nil
 	})
 }
 
@@ -771,7 +814,7 @@ func TestPanelShowsTheBellMarker(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	other := ptychild.NewFakeChild(nil)
 	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
-	f.con.Attach("c2", "ariadne", other)
+	f.con.AttachTree("c2", "/w/ariadne", "ariadne", other)
 	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
 
 	other.Feed([]byte("\x07"))
@@ -794,11 +837,11 @@ func TestPanelStartDispatchesThroughOps(t *testing.T) {
 	var mu sync.Mutex
 	var gotName string
 	var gotArgs map[string]string
-	f.con.SetOps(func(name string, args map[string]string) error {
+	f.con.SetOps(func(name string, args map[string]string) (any, error) {
 		mu.Lock()
 		defer mu.Unlock()
 		gotName, gotArgs = name, args
-		return nil
+		return nil, nil
 	})
 	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
 

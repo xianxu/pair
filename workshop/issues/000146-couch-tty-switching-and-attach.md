@@ -1229,3 +1229,25 @@ It now offers commands that exist (`couch stop <ref>`, `couch start <ref>
 --same-tree`), says plainly that attaching needs `#147`, and a test asserts every
 `-> couch <verb>` it prints is a DECLARED operation -- so the advice cannot drift
 from the verb set the way it just did.
+
+### 2026-08-23 -- M3 smoke round 3: starting worked below the panel but never joined it
+
+Operator confirmation: `ctrl-space`, Escape, and switching during child output
+work. The panel still showed only one actor after `s` started another, and
+typeahead returned no match for both `brain` and `pair`.
+
+The two symptoms were one boundary failure. Panel actions erased the value
+returned by `couchcore.Operations()`, so `start` registered and spawned a child
+but its `StartResult` never reached `Console.Attach`. At the same time,
+`rebuildPanel` put the console-local child id in `PanelRow.Tree`; production
+typeahead delegates to `Couch.LookupTrees`, which correctly returns real
+worktrees, so the keys could never match.
+
+Fixed the class (ARCH-PURPOSE): operation results now cross the injected
+dispatcher and a returned terminal child joins the live console; panel rows
+carry worktree identity for matching separately from child identity for
+switching and bell state. The typeahead regression was proven RED against a
+real-worktree resolver, the panel-start regression was proven RED at the
+operation-result boundary, and the bell join was found by the same identity
+shadow-sweep. Targeted `couchtty` + `couchcmd` suites are green. Task 3.5 remains
+open pending the repeated real two-actor smoke.

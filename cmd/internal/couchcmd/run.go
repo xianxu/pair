@@ -229,7 +229,7 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 		return 1
 	}
 	label := start.Record.Args.Worktree.Repo()
-	console.Attach(start.Handle.ID(), label, th.Terminal())
+	console.AttachTree(start.Handle.ID(), start.Record.Args.Worktree, label, th.Terminal())
 	return console.Run()
 }
 
@@ -245,13 +245,12 @@ func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
 	// dispatches: the console names an operation and couchcore performs it, so
 	// there is no operator action the advisor cannot also perform (#148's
 	// design test) and no way for the panel to grow a private verb.
-	console.SetOps(func(name string, args map[string]string) error {
+	console.SetOps(func(name string, args map[string]string) (any, error) {
 		op, ok := Resolve(name)
 		if !ok {
-			return fmt.Errorf("unknown operation %q", name)
+			return nil, fmt.Errorf("unknown operation %q", name)
 		}
-		_, err := op.Invoke(c, args)
-		return err
+		return op.Invoke(c, args)
 	})
 }
 

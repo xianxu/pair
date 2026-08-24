@@ -531,11 +531,11 @@ func TestConsoleGetsAnActionDispatcher(t *testing.T) {
 	}
 	// It must reach couch's own table: an unknown name is refused rather than
 	// silently succeeding.
-	if err := ops("no-such-operation", nil); err == nil {
+	if _, err := ops("no-such-operation", nil); err == nil {
 		t.Fatal("the dispatcher accepted an operation couch does not declare")
 	}
 	// And a real one is accepted.
-	if err := ops("list", nil); err != nil {
+	if _, err := ops("list", nil); err != nil {
 		t.Fatalf("list through the panel dispatcher: %v", err)
 	}
 }

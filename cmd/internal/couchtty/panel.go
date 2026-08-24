@@ -9,6 +9,12 @@ import (
 
 // PanelRow is one line of couch's own screen.
 type PanelRow struct {
+	// Target is the console-local child id to switch to. It is deliberately
+	// separate from Tree: a worktree is human-resolvable, while terminal
+	// routing addresses one hosted child.
+	Target string
+	// Tree is the stable human-resolution identity. It must not be replaced
+	// with Actor: couch.LookupTrees returns worktrees, not actor ids.
 	Tree  couchcore.Worktree
 	Label string
 	Desc  string

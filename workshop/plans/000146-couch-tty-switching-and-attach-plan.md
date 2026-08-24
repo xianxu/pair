@@ -594,3 +594,19 @@ that asserts EXTERNAL behaviour must be measured before it is written — Decisi
 11's false claim about `resume` cost a wrong design and then misdirected the
 implementer — and a boundary that reverses a Decision writes its `## Revisions`
 entry in the SAME window, not the next one.
+
+### 2026-08-23 — M3 smoke round 3: operation results and panel identities are load-bearing
+
+**Reason:** the operator started a second actor from the panel, but it did not
+appear; filtering for either `brain` or `pair` returned no match. Task 3.4 said
+panel actions dispatch through `Operations()`, but did not say that the caller
+must consume `start`'s `StartResult`. Task 3.2 said rows carry worktrees, while
+the console implementation substituted child ids so switching happened to work.
+
+**Delta:** the operation dispatcher now returns the declared result to the
+console; a `StartResult` attaches its terminal child to the live console. A
+console panel row carries two non-interchangeable identities: the real worktree
+for `LookupTrees` filtering and the console-local child id for direct switching.
+Bell state follows the child id as well. This is the minimal boundary fix for
+the whole failure class (ARCH-PURPOSE), while keeping matching in
+`couch.LookupTrees` rather than copying it into the panel (ARCH-DRY).

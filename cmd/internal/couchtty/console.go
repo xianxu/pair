@@ -18,6 +18,7 @@ type chunk struct {
 }
 
 type pane struct {
+	tree  couchcore.Worktree
 	label string
 	desc  string
 	child *ptychild.Child
@@ -85,7 +86,7 @@ type Console struct {
 	// Ops dispatches an operator action. Injected so the console never learns
 	// what an operation IS -- it names one and couchcore runs it, which is
 	// what keeps the panel from growing a private verb (#148's design test).
-	ops    func(name string, args map[string]string) error
+	ops    func(name string, args map[string]string) (any, error)
 	notice string
 	size   ptychild.Size
 
@@ -151,7 +152,7 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 // SetOps injects the action dispatcher: `couchcmd` passes one that runs
 // couchcore.Operations(). Without it the panel can still switch -- which is
 // read-only -- but its actions refuse loudly rather than doing nothing.
-func (c *Console) SetOps(f func(string, map[string]string) error) {
+func (c *Console) SetOps(f func(string, map[string]string) (any, error)) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.ops = f
@@ -159,7 +160,7 @@ func (c *Console) SetOps(f func(string, map[string]string) error) {
 
 // Ops returns the injected dispatcher, so a wiring test can assert one was
 // passed -- the panel renders identically without it.
-func (c *Console) Ops() func(string, map[string]string) error {
+func (c *Console) Ops() func(string, map[string]string) (any, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.ops
@@ -215,12 +216,19 @@ func (c *Console) Deliver(id string, data []byte) {
 	}
 }
 
-// Attach registers a child. The first one attached is the active one -- and in
-// M2 the only one.
+// Attach registers a child using its actor id as a synthetic tree. It remains
+// as a test/helper convenience; production must call AttachTree so typeahead
+// resolves against the real worktree identity.
 func (c *Console) Attach(id, label string, child *ptychild.Child) {
+	c.AttachTree(id, couchcore.Worktree(id), label, child)
+}
+
+// AttachTree registers a child with both identities the panel needs: worktree
+// for human resolution, actor id for deterministic switching.
+func (c *Console) AttachTree(id string, tree couchcore.Worktree, label string, child *ptychild.Child) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.panes[id] = &pane{label: label, child: child}
+	c.panes[id] = &pane{tree: tree, label: label, child: child}
 	c.order = append(c.order, id)
 	if c.active == "" {
 		c.active = id
@@ -643,15 +651,11 @@ func (c *Console) actorAlive(id string) bool {
 // operator types.
 func (c *Console) rebuildPanel() {
 	c.mu.Lock()
-	trees := make([]couchcore.TreeSummary, 0, len(c.order))
+	rows := make([]PanelRow, 0, len(c.order))
 	for _, id := range c.order {
 		p := c.panes[id]
-		var actors []couchcore.ActorView
-		if !p.child.Done() {
-			actors = []couchcore.ActorView{{Live: true}}
-		}
-		trees = append(trees, couchcore.TreeSummary{
-			Tree: couchcore.Worktree(id), Name: p.label, Desc: p.desc, Actors: actors,
+		rows = append(rows, PanelRow{
+			Target: id, Tree: p.tree, Label: p.label, Desc: p.desc, Live: !p.child.Done(),
 		})
 	}
 	bells := map[string]bool{}
@@ -662,9 +666,9 @@ func (c *Console) rebuildPanel() {
 	if c.panel != nil {
 		cursor = c.panel.Cursor()
 	}
-	m := NewPanelModel(trees)
+	m := &PanelModel{all: rows, shown: rows}
 	for i := range m.all {
-		m.all[i].Bell = bells[string(m.all[i].Tree)]
+		m.all[i].Bell = bells[m.all[i].Target]
 	}
 	m.shown = m.all
 	m.cursor = cursor
@@ -752,7 +756,7 @@ func (c *Console) onPanelKey(k PanelKey) {
 	case KeyEnter:
 		if row, ok := c.selectedRow(); ok {
 			c.clearQuery()
-			c.onSwitch(string(row.Tree))
+			c.onSwitch(row.Target)
 			return
 		}
 	case KeyRune:
@@ -766,7 +770,7 @@ func (c *Console) onPanelKey(k PanelKey) {
 			c.mu.Unlock()
 			if !typing && m != nil {
 				if row, ok := m.Pick(int(k.Rune - '0')); ok {
-					c.onSwitch(string(row.Tree))
+					c.onSwitch(row.Target)
 					return
 				}
 			}
@@ -853,9 +857,19 @@ func (c *Console) runOp(name string, args map[string]string) {
 		c.setNotice("no action dispatcher wired")
 		return
 	}
-	if err := fn(name, args); err != nil {
+	result, err := fn(name, args)
+	if err != nil {
 		c.setNotice(name + ": " + err.Error())
 		return
+	}
+	if start, ok := result.(couchcore.StartResult); ok {
+		th, terminal := start.Handle.(couchcore.TerminalHandle)
+		if !terminal {
+			c.setNotice("start: child has no terminal to attach")
+			return
+		}
+		c.AttachTree(start.Handle.ID(), start.Record.Args.Worktree,
+			start.Record.Args.Worktree.Repo(), th.Terminal())
 	}
 	c.setNotice(name + ": done")
 	c.rebuildPanel()
