@@ -40,10 +40,10 @@ type pane struct {
 
 // Console routes the operator's terminal to one child at a time.
 //
-// It is the THIN IO SHELL and holds no policy: every decision it makes is a
-// call into a pure function in this package. It drives hostty.Host rather than
-// x/term and os/signal directly, which is what makes the resize path and the
-// restore-on-teardown path testable without a terminal.
+// It is the integration controller: reusable decisions live in pure functions
+// in this package, while Console owns event ordering and transient UI
+// transitions as it drives hostty.Host. It never calls x/term or os/signal
+// directly, which keeps resize and teardown testable without a terminal.
 type Console struct {
 	host   hostty.Host
 	stdin  io.Reader
@@ -119,10 +119,8 @@ type Console struct {
 	// tracks where the stream is.
 	chunks    chan chunk
 	resized   chan struct{}
-	hotkeys   chan chan struct{}
 	switching chan string
-	panelKeys chan []byte
-	panelEsc  chan struct{}
+	input     chan []byte
 	stop      chan struct{}
 	once      sync.Once
 }
@@ -144,9 +142,7 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		chunks:    make(chan chunk, 256),
 		resized:   make(chan struct{}, 1),
 		switching: make(chan string, 8),
-		panelKeys: make(chan []byte, 64),
-		panelEsc:  make(chan struct{}, 1),
-		hotkeys:   make(chan chan struct{}, 8),
+		input:     make(chan []byte, 64),
 		stop:      make(chan struct{}),
 	}
 	if s, err := host.Size(); err == nil {
@@ -350,41 +346,97 @@ func (c *Console) Run() int {
 		go func() { exited <- child.Wait() }()
 	}
 
-	var escapeTimer *time.Timer
-	var escapeC <-chan time.Time
+	var it Interceptor
+	var inputEscapeTimer, panelEscapeTimer *time.Timer
+	var inputEscapeC, panelEscapeC <-chan time.Time
+	stopTimer := func(timer *time.Timer) {
+		if timer != nil && !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+	}
+	armInputEscape := func() {
+		if !bytes.Equal(it.held, []byte{0x1b}) {
+			inputEscapeC = nil
+			return
+		}
+		if inputEscapeTimer == nil {
+			inputEscapeTimer = time.NewTimer(escapeAmbiguity)
+		} else {
+			inputEscapeTimer.Reset(escapeAmbiguity)
+		}
+		inputEscapeC = inputEscapeTimer.C
+	}
+	armPanelEscape := func() {
+		if !bytes.Equal(c.panelHeld, []byte{0x1b}) {
+			panelEscapeC = nil
+			return
+		}
+		if panelEscapeTimer == nil {
+			panelEscapeTimer = time.NewTimer(escapeAmbiguity)
+		} else {
+			panelEscapeTimer.Reset(escapeAmbiguity)
+		}
+		panelEscapeC = panelEscapeTimer.C
+	}
+	route := func(raw []byte) {
+		if len(raw) == 0 {
+			return
+		}
+		c.mu.Lock()
+		toPanel := c.focus.IsPanel()
+		c.mu.Unlock()
+		if toPanel {
+			stopTimer(panelEscapeTimer)
+			panelEscapeC = nil
+			c.onPanelInput(raw)
+			armPanelEscape()
+			return
+		}
+		if child := c.activeChild(); child != nil {
+			_, _ = child.Write(raw)
+		}
+	}
+	processInput := func(raw []byte) {
+		for {
+			before, hit, rest := it.Feed(raw)
+			route(before)
+			if !hit {
+				return
+			}
+			c.onHotkey()
+			raw = rest
+		}
+	}
+
 	for {
 		select {
 		case ch := <-c.chunks:
 			c.onChunk(ch)
 		case <-c.resized:
 			c.onResize()
-		case ack := <-c.hotkeys:
-			c.onHotkey()
-			close(ack)
 		case id := <-c.switching:
 			c.onSwitch(id)
-		case raw := <-c.panelKeys:
-			if escapeTimer != nil && !escapeTimer.Stop() {
-				select {
-				case <-escapeTimer.C:
-				default:
-				}
-			}
-			c.onPanelInput(raw)
-			if bytes.Equal(c.panelHeld, []byte{0x1b}) {
-				if escapeTimer == nil {
-					escapeTimer = time.NewTimer(escapeAmbiguity)
-				} else {
-					escapeTimer.Reset(escapeAmbiguity)
-				}
-				escapeC = escapeTimer.C
+		case raw := <-c.input:
+			stopTimer(inputEscapeTimer)
+			inputEscapeC = nil
+			processInput(raw)
+			armInputEscape()
+		case <-inputEscapeC:
+			inputEscapeC = nil
+			literal := it.Flush()
+			c.mu.Lock()
+			toPanel := c.focus.IsPanel()
+			c.mu.Unlock()
+			if toPanel && bytes.Equal(literal, []byte{0x1b}) {
+				c.onPanelKey(PanelKey{Kind: KeyEscape})
 			} else {
-				escapeC = nil
+				route(literal)
 			}
-		case <-c.panelEsc:
-			c.onPanelKey(PanelKey{Kind: KeyEscape})
-		case <-escapeC:
-			escapeC = nil
+		case <-panelEscapeC:
+			panelEscapeC = nil
 			c.panelHeld = nil
 			c.onPanelKey(PanelKey{Kind: KeyEscape})
 		case code := <-exited:
@@ -607,124 +659,21 @@ func (c *Console) onResize() {
 	c.repaint()
 }
 
-// pumpStdin routes the operator's keystrokes, splitting around the hotkey.
+// pumpStdin is the one blocking reader. It hands raw chunks to Run, which owns
+// framing, ambiguity timers, focus transitions, and routing in one event loop.
 func (c *Console) pumpStdin() {
-	var it Interceptor
-	reads := make(chan []byte)
-	go func() {
-		defer close(reads)
-		buf := make([]byte, 4096)
-		for {
-			n, err := c.stdin.Read(buf)
-			if n > 0 {
-				chunk := append([]byte(nil), buf[:n]...)
-				select {
-				case reads <- chunk:
-				case <-c.stop:
-					return
-				}
-			}
-			if err != nil {
-				return
-			}
-		}
-	}()
-
-	forward := func(before []byte) bool {
-		if len(before) == 0 {
-			return true
-		}
-		c.mu.Lock()
-		toPanel := c.focus.IsPanel()
-		c.mu.Unlock()
-		if toPanel {
-			select {
-			case c.panelKeys <- append([]byte(nil), before...):
-				return true
-			case <-c.stop:
-				return false
-			}
-		}
-		if child := c.activeChild(); child != nil {
-			_, _ = child.Write(before)
-		}
-		return true
-	}
-	process := func(in []byte) bool {
-		for {
-			before, hit, rest := it.Feed(in)
-			if !forward(before) {
-				return false
-			}
-			if !hit {
-				return true
-			}
-			ack := make(chan struct{})
-			select {
-			case c.hotkeys <- ack:
-			case <-c.stop:
-				return false
-			}
-			select {
-			case <-ack:
-			case <-c.stop:
-				return false
-			}
-			in = rest
-		}
-	}
-
-	var escapeTimer *time.Timer
-	var escapeC <-chan time.Time
-	stopEscapeTimer := func() {
-		if escapeTimer != nil && !escapeTimer.Stop() {
-			select {
-			case <-escapeTimer.C:
-			default:
-			}
-		}
-		escapeC = nil
-	}
-	armEscapeTimer := func() {
-		if !bytes.Equal(it.held, []byte{0x1b}) {
-			escapeC = nil
-			return
-		}
-		if escapeTimer == nil {
-			escapeTimer = time.NewTimer(escapeAmbiguity)
-		} else {
-			escapeTimer.Reset(escapeAmbiguity)
-		}
-		escapeC = escapeTimer.C
-	}
-
+	buf := make([]byte, 4096)
 	for {
-		select {
-		case in, ok := <-reads:
-			if !ok {
+		n, err := c.stdin.Read(buf)
+		if n > 0 {
+			chunk := append([]byte(nil), buf[:n]...)
+			select {
+			case c.input <- chunk:
+			case <-c.stop:
 				return
 			}
-			stopEscapeTimer()
-			if !process(in) {
-				return
-			}
-			armEscapeTimer()
-		case <-escapeC:
-			escapeC = nil
-			literal := it.Flush()
-			c.mu.Lock()
-			toPanel := c.focus.IsPanel()
-			c.mu.Unlock()
-			if toPanel && bytes.Equal(literal, []byte{0x1b}) {
-				select {
-				case c.panelEsc <- struct{}{}:
-				case <-c.stop:
-					return
-				}
-			} else if !forward(literal) {
-				return
-			}
-		case <-c.stop:
+		}
+		if err != nil {
 			return
 		}
 	}

@@ -1451,3 +1451,27 @@ panel decoder, status rendering/reservation, Interceptor, and host-control
 compositions have direct tests. Console is now described as an integration
 controller with event/UI transition policy rather than as policy-free
 (ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-24 -- M3 boundary review round 3: executable enforcement
+
+The gate accepted BR-42 and BR-48 and left BR-45 as the only blocker. The
+manual table audit corrected facts but did not make drift fail a test; the
+source comment also retained the policy-free claim. The review additionally
+noticed that the timer implementation nested a second stdin reader goroutine.
+
+`TestCoreConceptsContract` now parses the active-or-archived plan table and
+enforces the due rows: paths exist, exact backticked declarations live at those
+paths, deleted declarations are absent, PURE sources import no IO seams, and
+each PURE row has direct adjacent test coverage. Three requested deletion
+checks were observed RED: adding Console under Pure reports its `io`/`os`
+imports; restoring nonexistent `Home` reports the absent declaration and test;
+pointing `Focus`/`Up` at `panel.go` reports both absent. The unmodified table is
+GREEN. Conceptual rows now name exact declarations, and Console's source comment
+matches its Integration role.
+
+The input design was also simplified: `pumpStdin` is once again the sole
+blocking reader and sends raw chunks to Run; Run owns Interceptor state, both
+ambiguity timers, focus transitions, suffix routing, and panel decoding in the
+existing event loop. This removes the newly introduced extra worker while
+preserving M4 Task 4.4 as the owner of full console/host teardown (ARCH-DRY,
+ARCH-PURE, ARCH-PURPOSE).

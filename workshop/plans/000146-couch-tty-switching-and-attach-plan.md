@@ -86,7 +86,7 @@ Terminal code has its own standing moves, all of them lessons already paid for i
 | `StatusModel` / `RenderStatusRow` | `cmd/internal/couchtty/reserve.go` | new |
 | `Interceptor` | `cmd/internal/couchtty/keys.go` | new |
 | `Reserve` / `Release` / `PaintRow` | `cmd/internal/couchtty/reserve.go` | new |
-| terminal-control constants (DECSTBM, cursor save/restore, region reset) | `cmd/internal/hostty/control.go` | new (`\x1b[r` moved from `termcmd/run.go`) |
+| `ResetRegion` / `SaveCursor` / `RestoreCursor` / `ClearLine` / `HomeAndClear` / `SetRegion` / `MoveTo` | `cmd/internal/hostty/control.go` | new (`\x1b[r` moved from `termcmd/run.go`) |
 | `Notice` / `Feed` | `cmd/internal/couchtty/notice.go` | planned for M4 (not delivered at M3) |
 
 - **Ring** — a bounded byte buffer with a snapshot. `Append([]byte)`, `Snapshot() []byte` (an independent copy). Cap 128KB, lifted from `termcmd.appendBuffer`.
@@ -141,11 +141,11 @@ Terminal code has its own standing moves, all of them lessons already paid for i
 | `hostty.Host` | `cmd/internal/hostty/host.go` | new | the operator's terminal: size, raw mode, resize signal |
 | `hostty.OSHost` / `hostty.FakeHost` | `cmd/internal/hostty/os.go`, `fake.go` | new | `x/term`, `creack/pty` sizing, `SIGWINCH` |
 | `couchtty.Console` | `cmd/internal/couchtty/console.go` | new | drives `hostty.Host` + N `ptychild.Child` |
-| `termcmd` host half | `cmd/internal/termcmd/run.go` | modified | `runShell`'s raw/`SIGWINCH`/restore move behind `hostty.Host` |
+| `runShell` host half | `cmd/internal/termcmd/run.go` | modified | raw/`SIGWINCH`/restore move behind `hostty.Host` |
 | `termcmd.terminalTab` | `cmd/internal/termcmd/run.go` | modified | now holds a `ptychild.Child` |
 | `termcmd.restoreTerminal` | `cmd/internal/termcmd/run.go` | modified | writes `hostty.ResetRegion`; the method stays, the constant moved |
-| `couchcmd` wiring | `cmd/internal/couchcmd/run.go` | modified | picks `PtyRunner` vs `ExecRunner` |
-| live conformance | `cmd/internal/couchcore/conformance_live_test.go` | modified | `PtyRunner` vs `FakeRunner` |
+| `consoleRunner` / `consoleRunnerFor` | `cmd/internal/couchcmd/run.go` | modified | picks `PtyRunner` vs `ExecRunner` |
+| `TestTerminalConformance_LifecyclePredicates` | `cmd/internal/couchcore/conformance_live_test.go` | modified | `PtyRunner` vs `FakeRunner` |
 
 - **ptychild.Child** — one process on a pty: `Start`, `Write`, `Resize(rows, cols)`, `Snapshot`, `AltScreen`, `Bell`, `Wait`, `Close`. Owns the read pump that feeds `Ring` and `Screen`.
   - **Injected into:** `termcmd.terminalMux` and `couchtty.Console`, both of which keep their own switching policy.
@@ -808,3 +808,23 @@ The delivered-through-M3 table audit is recorded in the issue Log. It moves
 and describes Console honestly as the integration controller that owns event
 ordering and transient UI transitions while delegating reusable decisions to
 pure entities (ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-24 — M3 boundary review round 3: executable table contract
+
+**Reason:** round 3 accepted BR-42 and the generated-artifact cleanup but kept
+BR-45 open: a manual audit cannot stop the sixth recurrence of table drift, and
+the source comment still contradicted the corrected Console classification. It
+also found that the ambiguity timer added a second stdin worker on top of the
+existing blocking reader.
+
+**Delta:** `TestCoreConceptsContract` parses this table from its active or
+archived location. For every non-future row it verifies declared paths and
+symbols; deleted symbols must be absent; PURE source files reject IO imports and
+must have direct adjacent tests. Table names that were conceptual prose now
+name exact declarations. Mutations moving Console under Pure, restoring `Home`,
+or changing `Focus`/`Up`'s path each fail the contract. The source comment now
+matches the Integration classification. Input framing and both ambiguity timers
+move onto Run's existing event loop; `pumpStdin` is again the single blocking
+reader, so the fix adds no new unjoinable worker. Full console lifecycle
+ownership remains Task 4.4's explicit M4 work (ARCH-DRY, ARCH-PURE,
+ARCH-PURPOSE).

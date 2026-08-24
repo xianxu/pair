@@ -946,6 +946,47 @@ rounds:
           round: 10
       boundary: M3
       blocked: true
+    - "n": 11
+      timestamp: "2026-08-24T16:21:31-07:00"
+      agent: codex
+      dispose:
+        - id: BR-42
+          disposition: addressed
+          note: The exact ESC-split Kitty hotkey is exercised through Console, while interceptor and panel-key tests enumerate the recognized sequences at every listed byte split.
+          round: 11
+        - id: BR-43
+          disposition: addressed
+          note: Prior disposition remains valid; production consumes the summary-derived panel and the wiring is exercised.
+          round: 11
+        - id: BR-44
+          disposition: addressed
+          note: Prior disposition remains valid; printable prefixes remain typeahead and panel commands use the colon namespace.
+          round: 11
+        - id: BR-45
+          disposition: not-addressed
+          note: The rows were manually corrected, but no executable table-contract audit exists, so reverting a path, symbol, deletion, or classification cannot fail a test; Console's source comment also still claims it holds no policy.
+          round: 11
+        - id: BR-46
+          disposition: addressed
+          note: Prior disposition remains valid under the recorded layout2 Spec and Plan revision.
+          round: 11
+        - id: BR-47
+          disposition: addressed
+          note: Prior disposition remains valid; README coverage derives from the shared panel-control inventory.
+          round: 11
+        - id: BR-48
+          disposition: addressed
+          note: git diff --check passes for both the complete M3 range and the supplied review window.
+          round: 11
+      findings:
+        - id: BR-49
+          severity: Minor
+          title: The timed stdin framer adds another background worker that Console cannot cancel or join
+          detail: 'This is the 3rd finding in family signal-goroutine-outlives-close. console.go:613-631 starts a reader blocked on an arbitrary io.Reader, while Run does not own an ordered stop, host close, and worker join. State the class rule: a console lifecycle has one teardown owner that cancels or closes every input/signal seam and joins every worker before returning.'
+          family: signal-goroutine-outlives-close
+          round: 11
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — pair#146 (boundary-review)
@@ -1457,6 +1498,23 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-48** [Minor] `generated-artifact-hygiene` The captured M3 review transcript fails git diff --check
   workshop/plans/000146-couch-tty-switching-and-attach-m3-review.md contains extensive added trailing whitespace and space-before-tab lines; clean the generated artifact or its writer.
 
+## Round 11 — 2026-08-24T16:21:31-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-42 — addressed — The exact ESC-split Kitty hotkey is exercised through Console, while interceptor and panel-key tests enumerate the recognized sequences at every listed byte split.
+- BR-43 — addressed — Prior disposition remains valid; production consumes the summary-derived panel and the wiring is exercised.
+- BR-44 — addressed — Prior disposition remains valid; printable prefixes remain typeahead and panel commands use the colon namespace.
+- BR-45 — not-addressed — The rows were manually corrected, but no executable table-contract audit exists, so reverting a path, symbol, deletion, or classification cannot fail a test; Console's source comment also still claims it holds no policy.
+- BR-46 — addressed — Prior disposition remains valid under the recorded layout2 Spec and Plan revision.
+- BR-47 — addressed — Prior disposition remains valid; README coverage derives from the shared panel-control inventory.
+- BR-48 — addressed — git diff --check passes for both the complete M3 range and the supplied review window.
+
+### Raised
+
+- **BR-49** [Minor] `signal-goroutine-outlives-close` The timed stdin framer adds another background worker that Console cannot cancel or join
+  This is the 3rd finding in family signal-goroutine-outlives-close. console.go:613-631 starts a reader blocked on an arbitrary io.Reader, while Run does not own an ordered stop, host close, and worker join. State the class rule: a console lifecycle has one teardown owner that cancels or closes every input/signal seam and joins every worker before returning.
+
 ## Open findings
 
 - **BR-1** [Important] `chunking-invariance` Screen raises a false bell for any sequence longer than maxPending split across two reads
@@ -1473,6 +1531,5 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-39** [Minor] `latch-consumed-by-wrong-consumer` onChunk consumes TakeRowDirty for every pane but acts on it only for the active one, so an inactive pane's dirty-row latch is thrown away
 - **BR-40** [Important] `plan-table-drift` the sweep that closed this family filed Console under "Pure entities" while the row itself calls it a thin IO shell
 - **BR-41** [Important] `docs-lag-the-surface` the README enumeration's one hand-written exemption points at atlas/couch.md, which does not document publish-description either
-- **BR-42** [Critical] `chunking-invariance` Input after a hotkey can be routed to the focus being left
 - **BR-45** [Critical] `plan-table-drift` The Core concepts table misclassifies and misstates M3 entities
-- **BR-48** [Minor] `generated-artifact-hygiene` The captured M3 review transcript fails git diff --check
+- **BR-49** [Minor] `signal-goroutine-outlives-close` The timed stdin framer adds another background worker that Console cannot cancel or join

@@ -304,6 +304,10 @@ Categorization is part of the audit: a row under Pure must be free of IO and
 have a direct unit test; a future-milestone entity must say “planned,” not “new.”
 Caught in #000117 close review; the classification extension was caught again
 in #000146 M3 review.
+After repeated drift, the audit must be executable: parse the table and make a
+wrong symbol, path, deletion status, or PURE classification fail. A manual grep
+record can correct today’s rows but cannot prevent the next edit from restoring
+the same family. Caught in #000146 M3 review round 3.
 
 ## Cross-language cache tests must use the producer's exact JSON types
 
