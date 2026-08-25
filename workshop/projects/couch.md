@@ -161,7 +161,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] shared pty-child core [pair#146 M1]
 - [x] console over one child, with the reserved row [pair#146 M2]
 - [x] many children and the panel [pair#146 M3]
-- [ ] exits, detach, and what the row says [pair#146 M4]
+- [x] exits, detach, and what the row says [pair#146 M4]
 - [ ] expose query API to peer actors [ariadne#199]
 - [ ] fleet thread inventory [ariadne#200]
 - [ ] cluster transport and queries [pair#147]

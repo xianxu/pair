@@ -156,3 +156,125 @@ findings:
     detail: |
       Couch.Summarize(nil) includes globally registered live actors, but BindTargets adds a Target only for children hosted by this Console. console.go:968 checks Target alone, so a Live row with no local Target takes the parked-start branch and reaches the occupied-tree refusal. Model local-live, remote-live, and parked as distinct states; only parked should start, while remote-live should explain that attachment requires pair#147. Add a composed test because existing fixtures cover only local-live and parked rows (ARCH-PURPOSE).
 ```
+
+---
+
+## Re-review — 2026-08-25T13:43:46-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 146 — couch: tty switching and attach |
+| repo | pair |
+| issue file | workshop/issues/000146-couch-tty-switching-and-attach.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | cf735f921fbd57bdd75b6fb082a7fcba22f9647f..da9e17e6ace47e5837b05096fa8bed2d1363e01e |
+| command | sdlc close --issue 146 |
+| reviewer | codex |
+| timestamp | 2026-08-25T13:43:46-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The issue’s core behavior is ready to ship. Both Important findings are addressed with reachable default-suite regressions: real-terminal console wiring is exercised through `consoleRunner`, and remote-live actors are distinguished from parked work. Full, race, vet, and live-conformance suites pass. Six prior Minor findings remain partially open because their fixes are unpinned or incomplete; none blocks the boundary.
+
+## 1. Strengths
+
+- Remote-live, local-live, and parked states are modeled independently, with a composed test proving remote actors never dispatch `start` ([console.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/console.go:978), [console_panel_regression_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/console_panel_regression_test.go:138)).
+- The production terminal-detection link is exercised using a real PTY, closing BR-24’s recurring central-wiring gap ([run_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcmd/run_test.go:460)).
+- Final child output is drained before pane removal, with a composed exit regression ([console.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/console.go:478), [console_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/console_test.go:107)).
+- Startup output for a new `pair term` tab is rendered exactly once ([run.go](/Users/xianxu/workspace/pair/cmd/internal/termcmd/run.go:707), [run_test.go](/Users/xianxu/workspace/pair/cmd/internal/termcmd/run_test.go:707)).
+- README and atlas coverage now derives operation/control inventories and enforces the agent-facing documentation redirection.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+None.
+
+## 4. Minor findings
+
+- BR-7: the stale references are gone, but no static regression prevents deleted identifiers returning in comments.
+- BR-8: `SetSink` and the pump now synchronize through `Child.mu`, but no concurrent `SetSink`/pump test would fail if the lock were removed.
+- BR-20: both production repaint paths now use `Child.Replay`, but the helper-adoption rule remains structurally unpinned.
+- BR-33: normal, signal, and mid-stream teardown are fixed; a `MakeRaw` failure or spawn refusal still bypasses `host.Close` ([run.go](/Users/xianxu/workspace/pair/cmd/internal/couchcmd/run.go:139), [console.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/console.go:364)).
+- BR-34: most comments were corrected, but atlas still says “hands the child its own stdio and block” ([couch.md](/Users/xianxu/workspace/pair/atlas/couch.md:32)).
+- BR-35: the two races are fixed, but the separate `couchcore.waitUntilTrue` poller remains ([ptyrunner_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/ptyrunner_test.go:13)).
+
+## 5. Test coverage notes
+
+Passed:
+
+- `go test ./... -count=1`
+- `make test-race`
+- Focused `go vet` for all changed terminal/couch packages
+- `make test-live`
+- `git diff --check`
+
+Live operator smoke was not repeated during this read-only review.
+
+## 6. Architectural notes for upcoming work
+
+- **ARCH-DRY — pass.** Replay policy, operations, panel controls, and terminal constants have shared owners.
+- **ARCH-PURE — pass.** Panel/focus/framing decisions are directly unit-tested; `Console` is honestly classified as the integration controller.
+- **ARCH-PURPOSE — pass.** The switcher delivers the complete local/remote/parked state distinction and production console path.
+- **ARCH-MOCK — pass.** Production and tests share the concrete child/runner/host boundaries, backed by stateful fakes and live conformance.
+
+## 7. Plan revision recommendations
+
+None. The Core concepts table and implementation agree, and its bidirectional contract passed.
+
+```findings
+dispose:
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      The four stale references are gone, but no test or static contract fails if a deleted identifier is reintroduced into these comments.
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      SetSink and both sink reads now use Child.mu, but no concurrent regression exercises SetSink against the real pump; reverting the synchronization is not test-pinned.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      newTab clears with a nil replay before releasing startup output, and TestTerminalMuxNewTabPrintsStartupOutputOnce pins the duplicate-output behavior.
+  - id: BR-20
+    disposition: not-addressed
+    note: |
+      Both production repaint paths now call Child.Replay, but existing tests only pin equivalent query-stripping behavior and remain green if the decision is hand-composed again.
+  - id: BR-24
+    disposition: addressed
+    note: |
+      TestConsoleRunnerDetectsARealPTY drives the actual consoleRunner terminal-detection link, while TestStartDefaultsItsPathToCwd pins the operation-level dot default through a spawn.
+  - id: BR-32
+    disposition: addressed
+    note: |
+      ChildRows(0) now returns 1 and reserve_test.go covers the exact zero-row boundary.
+  - id: BR-33
+    disposition: not-addressed
+    note: |
+      Run now owns ordered normal/signal teardown with regressions, but MakeRaw failure and pre-Run spawn refusal still return after OSHost construction without calling host.Close.
+  - id: BR-34
+    disposition: not-addressed
+    note: |
+      Most named comments were corrected, but atlas/couch.md still says the console no longer “hands the child its own stdio and block”; the comment sweep is also unpinned.
+  - id: BR-35
+    disposition: not-addressed
+    note: |
+      Exit ordering and doneBeforeExit are fixed and tested, but the separate couchcore waitUntilTrue polling implementation remains alongside couchtty's shared waitUpTo helper.
+  - id: BR-41
+    disposition: addressed
+    note: |
+      The agent-facing exemption is enforced against atlas/couch.md, and token-aware README matching has a negative longer-operation-prefix regression.
+  - id: BR-50
+    disposition: addressed
+    note: |
+      Panel rows retain global Live independently of local Target, and the composed Console regression proves Enter on a remote-live row reports deferred attachment without dispatching start.
+```

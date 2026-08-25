@@ -1,12 +1,13 @@
 ---
 id: 000146
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-08-21
-updated: 2026-08-24
+updated: 2026-08-25
 estimate_hours: 10.32
 started: 2026-08-22T12:14:19-07:00
+actual_hours: 37.03
 ---
 
 # couch: tty switching and attach
@@ -1729,6 +1730,7 @@ and `git diff --check` pass. Real layout2 operator smoke remains deliberately
 open before issue close (ARCH-PURE, ARCH-PURPOSE).
 
 ### 2026-08-25 -- final layout2 operator smoke passed
+- 2026-08-25: closed — go test ./... -count=1; make test-race; focused new-tab startup regression repeated 10x and raced 3x; sdlc issue validate --issue 146; git diff --check; operator layout2 smoke passed for Ctrl-Space filtering/start prompt, prompt retention/cancel, same-active clean return, parked start, inactive exit refresh, Escape, and mid-output switching; review verdict: SHIP
 
 After rebuilding the workspace `bin/couch`, the operator confirmed the complete
 enumerated regression smoke: root Ctrl-Space opened the panel; `:2` remained

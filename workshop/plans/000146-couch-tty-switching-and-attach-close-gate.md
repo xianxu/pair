@@ -1085,6 +1085,55 @@ rounds:
           family: routing-capability-conflated-with-liveness
           round: 15
       blocked: true
+    - "n": 16
+      timestamp: "2026-08-25T13:43:46-07:00"
+      agent: codex
+      dispose:
+        - id: BR-7
+          disposition: not-addressed
+          note: The four stale references are gone, but no test or static contract fails if a deleted identifier is reintroduced into these comments.
+          round: 16
+        - id: BR-8
+          disposition: not-addressed
+          note: SetSink and both sink reads now use Child.mu, but no concurrent regression exercises SetSink against the real pump; reverting the synchronization is not test-pinned.
+          round: 16
+        - id: BR-9
+          disposition: addressed
+          note: newTab clears with a nil replay before releasing startup output, and TestTerminalMuxNewTabPrintsStartupOutputOnce pins the duplicate-output behavior.
+          round: 16
+        - id: BR-20
+          disposition: not-addressed
+          note: Both production repaint paths now call Child.Replay, but existing tests only pin equivalent query-stripping behavior and remain green if the decision is hand-composed again.
+          round: 16
+        - id: BR-24
+          disposition: addressed
+          note: TestConsoleRunnerDetectsARealPTY drives the actual consoleRunner terminal-detection link, while TestStartDefaultsItsPathToCwd pins the operation-level dot default through a spawn.
+          round: 16
+        - id: BR-32
+          disposition: addressed
+          note: ChildRows(0) now returns 1 and reserve_test.go covers the exact zero-row boundary.
+          round: 16
+        - id: BR-33
+          disposition: not-addressed
+          note: Run now owns ordered normal/signal teardown with regressions, but MakeRaw failure and pre-Run spawn refusal still return after OSHost construction without calling host.Close.
+          round: 16
+        - id: BR-34
+          disposition: not-addressed
+          note: Most named comments were corrected, but atlas/couch.md still says the console no longer “hands the child its own stdio and block”; the comment sweep is also unpinned.
+          round: 16
+        - id: BR-35
+          disposition: not-addressed
+          note: Exit ordering and doneBeforeExit are fixed and tested, but the separate couchcore waitUntilTrue polling implementation remains alongside couchtty's shared waitUpTo helper.
+          round: 16
+        - id: BR-41
+          disposition: addressed
+          note: The agent-facing exemption is enforced against atlas/couch.md, and token-aware README matching has a negative longer-operation-prefix regression.
+          round: 16
+        - id: BR-50
+          disposition: addressed
+          note: Panel rows retain global Live independently of local Target, and the composed Console regression proves Enter on a remote-live row reports deferred attachment without dispatching start.
+          round: 16
+      blocked: false
 ---
 
 # Gate ledger — pair#146 (boundary-review)
@@ -1654,16 +1703,27 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-50** [Important] `routing-capability-conflated-with-liveness` Enter treats a live actor hosted elsewhere as a parked worktree and dispatches start
   Couch.Summarize(nil) includes globally registered live actors, but BindTargets adds a Target only for children hosted by this Console. console.go:968 checks Target alone, so a Live row with no local Target takes the parked-start branch and reaches the occupied-tree refusal. Model local-live, remote-live, and parked as distinct states; only parked should start, while remote-live should explain that attachment requires pair#147. Add a composed test because existing fixtures cover only local-live and parked rows (ARCH-PURPOSE).
 
+## Round 16 — 2026-08-25T13:43:46-07:00 (codex) — passed
+
+### Disposed
+
+- BR-7 — not-addressed — The four stale references are gone, but no test or static contract fails if a deleted identifier is reintroduced into these comments.
+- BR-8 — not-addressed — SetSink and both sink reads now use Child.mu, but no concurrent regression exercises SetSink against the real pump; reverting the synchronization is not test-pinned.
+- BR-9 — addressed — newTab clears with a nil replay before releasing startup output, and TestTerminalMuxNewTabPrintsStartupOutputOnce pins the duplicate-output behavior.
+- BR-20 — not-addressed — Both production repaint paths now call Child.Replay, but existing tests only pin equivalent query-stripping behavior and remain green if the decision is hand-composed again.
+- BR-24 — addressed — TestConsoleRunnerDetectsARealPTY drives the actual consoleRunner terminal-detection link, while TestStartDefaultsItsPathToCwd pins the operation-level dot default through a spawn.
+- BR-32 — addressed — ChildRows(0) now returns 1 and reserve_test.go covers the exact zero-row boundary.
+- BR-33 — not-addressed — Run now owns ordered normal/signal teardown with regressions, but MakeRaw failure and pre-Run spawn refusal still return after OSHost construction without calling host.Close.
+- BR-34 — not-addressed — Most named comments were corrected, but atlas/couch.md still says the console no longer “hands the child its own stdio and block”; the comment sweep is also unpinned.
+- BR-35 — not-addressed — Exit ordering and doneBeforeExit are fixed and tested, but the separate couchcore waitUntilTrue polling implementation remains alongside couchtty's shared waitUpTo helper.
+- BR-41 — addressed — The agent-facing exemption is enforced against atlas/couch.md, and token-aware README matching has a negative longer-operation-prefix regression.
+- BR-50 — addressed — Panel rows retain global Live independently of local Target, and the composed Console regression proves Enter on a remote-live row reports deferred attachment without dispatching start.
+
 ## Open findings
 
 - **BR-7** [Minor] `stale-comment-reference` comments still cite queries.go, appendBuffer, tab.buffer and readPTY, all deleted by this diff
 - **BR-8** [Minor] `unsynchronised-shared-state` Child.SetSink writes c.sink unlocked with no fake-only guard while the pump reads it
-- **BR-9** [Minor] `replay-duplicates-live-output` newTab widens the window where a chunk is both replayed and written live
 - **BR-20** [Minor] `needless-indirection` Child.Replay has zero production callers while the one repaint site reimplements it
-- **BR-24** [Important] `fix-not-pinned-by-failing-test` the milestone's central wiring is unpinned -- disabling the console entirely leaves the whole suite green
-- **BR-32** [Minor] `uncovered-negative-assertion` ChildRows(0) returns 0 while its doc says "It never returns zero", and no test covers the boundary case
 - **BR-33** [Minor] `signal-goroutine-outlives-close` Console.Run never calls Stop() or host.Close(), so the resize watcher and the SIGWINCH registration outlive the console
 - **BR-34** [Minor] `stale-comment-reference` several comments overstate or misplace what the code does
 - **BR-35** [Minor] `test-harness-races` the live conformance scenario and Run's exit select are both racy by construction
-- **BR-41** [Important] `docs-lag-the-surface` the README enumeration's one hand-written exemption points at atlas/couch.md, which does not document publish-description either
-- **BR-50** [Important] `routing-capability-conflated-with-liveness` Enter treats a live actor hosted elsewhere as a parked worktree and dispatches start

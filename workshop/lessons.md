@@ -2005,3 +2005,16 @@ ordinary text.
 printable prefix for commands in the same mode. Put commands behind an explicit
 namespace or modifier and test every command rune as the first query byte. A
 help line is part of this contract and must be updated from the same inventory.
+
+## Liveness is not local routability
+
+`#146`'s panel joined a global live-actor summary with console-local child
+targets, then treated a missing target as proof that the worktree was parked.
+A live actor hosted by another couch process has exactly that shape, so Enter
+attempted to start a duplicate instead of explaining that attachment transport
+was unavailable.
+
+**Rule.** When global state is joined with process-local capabilities, model
+the facts independently. Test all resulting states—in this case local-live,
+remote-live, and parked—and authorize an action from the capability it needs,
+not from the absence of a different capability (ARCH-PURPOSE).

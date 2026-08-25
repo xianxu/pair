@@ -31,7 +31,7 @@ layouts.
 
 **`couch start` IS the console (`pair#146` M2).** It allocates a pty per child,
 puts the operator's terminal in raw mode, and routes bytes -- so it no longer
-hands the child its own stdio and block. The mechanism is shared with `pair term`
+hands the child its own stdio and blocks. The mechanism is shared with `pair term`
 rather than written twice: `cmd/internal/ptychild` (a child on a pty, its
 bounded replay ring, the #127 query deny-list, one scanner over its output) and
 `cmd/internal/hostty` (the operator's terminal: size, raw mode, coalesced
