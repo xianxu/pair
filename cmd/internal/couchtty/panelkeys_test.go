@@ -161,9 +161,29 @@ func TestDecodeKittyPrintableKeys(t *testing.T) {
 	if len(keys) != 2 {
 		t.Fatalf("decoded %+v", keys)
 	}
-	for i, want := range []byte{'a', 'b'} {
+	for i, want := range []rune{'a', 'b'} {
 		if keys[i].Kind != KeyRune || keys[i].Rune != want {
 			t.Fatalf("key %d = %+v, want the rune %q", i, keys[i], want)
+		}
+	}
+}
+
+func TestRemoveLastRune(t *testing.T) {
+	if got := removeLastRune("路径"); got != "路" {
+		t.Fatalf("removeLastRune(路径) = %q, want 路", got)
+	}
+}
+
+func TestDecodePanelKeysHoldsSplitUTF8Rune(t *testing.T) {
+	encoded := []byte("路")
+	for split := 1; split < len(encoded); split++ {
+		keys, held := DecodePanelKeys(encoded[:split])
+		if len(keys) != 0 || string(held) != string(encoded[:split]) {
+			t.Fatalf("split %d first decode = keys=%+v held=%q, want held prefix", split, keys, held)
+		}
+		keys, held = DecodePanelKeys(append(held, encoded[split:]...))
+		if len(held) != 0 || len(keys) != 1 || keys[0].Kind != KeyRune || keys[0].Rune != '路' {
+			t.Fatalf("split %d completed decode = keys=%+v held=%q, want rune 路", split, keys, held)
 		}
 	}
 }

@@ -1106,7 +1106,7 @@ func (c *Console) queryEmpty() bool {
 	return c.query == ""
 }
 
-func (c *Console) appendQuery(b byte) {
+func (c *Console) appendQuery(b rune) {
 	c.mu.Lock()
 	c.query += string(b)
 	c.mu.Unlock()

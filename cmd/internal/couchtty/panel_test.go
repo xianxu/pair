@@ -66,8 +66,8 @@ func TestPanelListsParkedTrees(t *testing.T) {
 	t.Fatal("the parked tree was omitted")
 }
 
-// Numbered selection is only safe if the list does not reorder under the
-// operator's fingers.
+// Stable selection is only safe if the list does not reorder under the
+// operator's cursor.
 func TestPanelOrderingIsStable(t *testing.T) {
 	m := NewPanelModel(summaries())
 	first := m.Filter("", nil)
@@ -81,34 +81,48 @@ func TestPanelOrderingIsStable(t *testing.T) {
 	}
 }
 
-// Pick indexes the DISPLAYED rows. Picking from the underlying set after a
-// filter is the classic off-by-list bug: the operator types 2 and lands on
-// something that is not the second thing they can see.
-func TestPickIndexesTheFilteredRows(t *testing.T) {
+func TestPanelFilterPreservesSelectedTree(t *testing.T) {
 	m := NewPanelModel(summaries())
-	rows := m.Filter("x", func(string) []couchcore.Worktree {
-		return []couchcore.Worktree{"/w/pair", "/w/ariadne"}
+	m.Filter("", nil)
+	m.Move(2) // ariadne
+	m.Filter("x", func(string) []couchcore.Worktree {
+		return []couchcore.Worktree{"/w/brain", "/w/ariadne"}
 	})
-	if len(rows) != 2 {
-		t.Fatalf("setup: rows = %d", len(rows))
-	}
-
-	got, ok := m.Pick(2)
-	if !ok {
-		t.Fatal("Pick(2) found nothing among 2 filtered rows")
-	}
-	if got.Tree != "/w/ariadne" {
-		t.Fatalf("Pick(2) = %q, want the second FILTERED row", got.Tree)
+	got, ok := m.Selected()
+	if !ok || got.Tree != "/w/ariadne" {
+		t.Fatalf("selected = %+v, %v; want /w/ariadne retained", got, ok)
 	}
 }
 
-func TestPickRejectsOutOfRange(t *testing.T) {
+func TestPanelFilterFallsBackToFirstMatch(t *testing.T) {
 	m := NewPanelModel(summaries())
 	m.Filter("", nil)
-	for _, n := range []int{0, -1, 4, 99} {
-		if _, ok := m.Pick(n); ok {
-			t.Fatalf("Pick(%d) succeeded against 3 rows", n)
-		}
+	m.Move(1) // pair
+	m.Filter("x", func(string) []couchcore.Worktree {
+		return []couchcore.Worktree{"/w/ariadne"}
+	})
+	got, ok := m.Selected()
+	if !ok || got.Tree != "/w/ariadne" {
+		t.Fatalf("selected = %+v, %v; want first visible /w/ariadne", got, ok)
+	}
+}
+
+func TestPanelZeroMatchesHaveNoSelection(t *testing.T) {
+	m := NewPanelModel(summaries())
+	m.Filter("x", func(string) []couchcore.Worktree { return nil })
+	if got, ok := m.Selected(); ok {
+		t.Fatalf("selected = %+v, want no selection", got)
+	}
+}
+
+func TestPanelSelectTreeAfterRefresh(t *testing.T) {
+	m := NewPanelModel(summaries())
+	if !m.SelectTree("/w/ariadne") {
+		t.Fatal("SelectTree(/w/ariadne) = false")
+	}
+	got, ok := m.Selected()
+	if !ok || got.Tree != "/w/ariadne" {
+		t.Fatalf("selected = %+v, %v; want /w/ariadne", got, ok)
 	}
 }
 
@@ -143,9 +157,8 @@ func TestPanelFilterKeepsTheModelsOrderNotTheResolvers(t *testing.T) {
 				i, rows[i].Tree, want[i])
 		}
 	}
-	// And the numbers follow the displayed order.
-	if got, _ := m.Pick(1); got.Tree != "/w/brain" {
-		t.Fatalf("Pick(1) = %q, want the first DISPLAYED row", got.Tree)
+	if got, ok := m.Selected(); !ok || got.Tree != "/w/brain" {
+		t.Fatalf("selected = %+v, %v; want first displayed /w/brain", got, ok)
 	}
 }
 
@@ -191,15 +204,13 @@ func TestPanelActionsAreDeclaredOperations(t *testing.T) {
 
 // And the panel must actually offer the actions the operator needs from it --
 // an empty set would pass the audit above vacuously.
-func TestPanelOffersTheOperatorActions(t *testing.T) {
+func TestPanelOffersOnlyTheFlatOperatorAction(t *testing.T) {
 	got := map[string]bool{}
 	for _, a := range PanelActions() {
 		got[a] = true
 	}
-	for _, want := range []string{"start", "stop", "name", "describe"} {
-		if !got[want] {
-			t.Errorf("the panel does not offer %q", want)
-		}
+	if len(got) != 1 || !got["start"] {
+		t.Fatalf("panel actions = %v, want only start", got)
 	}
 }
 
@@ -211,21 +222,49 @@ func TestPanelOffersTheOperatorActions(t *testing.T) {
 func TestEveryPanelActionHasAKey(t *testing.T) {
 	keys := PanelActionKeys()
 	for _, a := range PanelActions() {
-		k, ok := keys[a]
+		ks, ok := keys[a]
 		if !ok {
 			t.Errorf("action %q has no key; it is declared but unreachable", a)
 			continue
 		}
-		if len(k) != 2 || k[0] != ':' || k[1] < 0x20 || k[1] >= 0x7f {
-			t.Errorf("action %q is not in the ':' command namespace: %q", a, k)
+		if strings.Join(ks, ",") != "Ctrl-Space,Enter parked" {
+			t.Errorf("action %q keys = %q, want both flat start routes", a, ks)
 		}
 	}
 	// And no key may be claimed by two actions.
 	seen := map[string]string{}
-	for a, k := range keys {
-		if prev, dup := seen[k]; dup {
-			t.Errorf("key %q is claimed by both %q and %q", k, prev, a)
+	for a, ks := range keys {
+		for _, k := range ks {
+			if prev, dup := seen[k]; dup {
+				t.Errorf("key %q is claimed by both %q and %q", k, prev, a)
+			}
+			seen[k] = a
 		}
-		seen[k] = a
+	}
+}
+
+func TestPanelControlsMatchFlatContract(t *testing.T) {
+	want := []PanelControl{
+		{Keys: "typeahead", Action: "filter"},
+		{Keys: "↑↓", Action: "select"},
+		{Keys: "Enter", Action: "switch/start"},
+		{Keys: "Ctrl-Space", Action: "start"},
+		{Keys: "Escape", Action: "clear/back"},
+	}
+	got := PanelControls()
+	if len(got) != len(want) {
+		t.Fatalf("controls = %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("control %d = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
+func TestPanelRendersWithoutNumberedJumpHints(t *testing.T) {
+	got := RenderPanelWithQuery("", NewPanelModel(summaries()).Shown(), 0)
+	if strings.Contains(got, "▸ 1") || strings.Contains(got, ":1") || strings.Contains(got, ":s") {
+		t.Fatalf("panel still advertises numbered/command jumps: %q", got)
 	}
 }

@@ -1024,13 +1024,13 @@ func TestPanelArrowsMoveTheSelection(t *testing.T) {
 
 	_, _ = f.stdin.Write([]byte("\x00"))
 	waitFor(t, "the panel", func() bool {
-		return strings.Contains(f.host.Written(), "▸ 1")
+		return strings.Contains(f.host.Written(), "▸    brain")
 	})
 	f.host.Reset()
 
 	_, _ = f.stdin.Write([]byte("\x1b[B")) // down
 	waitFor(t, "the highlight to move", func() bool {
-		return strings.Contains(f.host.Written(), "▸ 2")
+		return strings.Contains(f.host.Written(), "▸    ariadne")
 	})
 	f.host.Reset()
 
@@ -1162,11 +1162,11 @@ func TestPanelNavigationWorksInBothEncodings(t *testing.T) {
 
 			_, _ = f.stdin.Write([]byte("\x00"))
 			waitFor(t, "the panel", func() bool {
-				return strings.Contains(f.host.Written(), "▸ 1")
+				return strings.Contains(f.host.Written(), "▸    brain")
 			})
 			_, _ = f.stdin.Write([]byte(keys.down))
 			waitFor(t, "the highlight to move", func() bool {
-				return strings.Contains(f.host.Written(), "▸ 2")
+				return strings.Contains(f.host.Written(), "▸    ariadne")
 			})
 			_, _ = f.stdin.Write([]byte(keys.enter))
 			waitFor(t, "Enter to switch", func() bool {

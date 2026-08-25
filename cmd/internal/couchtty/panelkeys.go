@@ -2,6 +2,8 @@ package couchtty
 
 import (
 	"bytes"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/ansi"
 )
@@ -21,7 +23,7 @@ const (
 // PanelKey is one decoded keystroke.
 type PanelKey struct {
 	Kind PanelKeyKind
-	Rune byte // set when Kind == KeyRune
+	Rune rune // set when Kind == KeyRune
 }
 
 // DecodePanelKeys turns raw terminal input into keystrokes the panel
@@ -89,8 +91,24 @@ func DecodePanelKeys(in []byte) (keys []PanelKey, held []byte) {
 		case b == 0x7f || b == 0x08:
 			keys = append(keys, PanelKey{Kind: KeyBackspace})
 		case b >= 0x20 && b < 0x7f:
-			keys = append(keys, PanelKey{Kind: KeyRune, Rune: b})
+			keys = append(keys, PanelKey{Kind: KeyRune, Rune: rune(b)})
 		default:
+			if b >= utf8.RuneSelf {
+				r, size := utf8.DecodeRune(in[i:])
+				if r == utf8.RuneError && size == 1 {
+					if !utf8.FullRune(in[i:]) {
+						return keys, append([]byte(nil), in[i:]...)
+					}
+					// Invalid complete UTF-8 is input the panel cannot use.
+					i++
+					continue
+				}
+				if unicode.IsPrint(r) {
+					keys = append(keys, PanelKey{Kind: KeyRune, Rune: r})
+				}
+				i += size
+				continue
+			}
 			// Other control bytes are ignored rather than filtered on.
 		}
 		i++
@@ -171,10 +189,21 @@ func decodeCSIu(seq []byte) (PanelKey, bool) {
 	case 127, 8:
 		return PanelKey{Kind: KeyBackspace}, true
 	}
-	if !modified && n >= 0x20 && n < 0x7f {
-		return PanelKey{Kind: KeyRune, Rune: byte(n)}, true
+	if r := rune(n); !modified && utf8.ValidRune(r) && unicode.IsPrint(r) {
+		return PanelKey{Kind: KeyRune, Rune: r}, true
 	}
 	return PanelKey{}, false
+}
+
+func removeLastRune(s string) string {
+	if s == "" {
+		return ""
+	}
+	_, size := utf8.DecodeLastRuneInString(s)
+	if size == 0 {
+		return ""
+	}
+	return s[:len(s)-size]
 }
 
 func atoiBytes(b []byte) (int, bool) {

@@ -1120,3 +1120,18 @@ this plan, and `cmd/internal/couchtty/core_concepts_contract_test.go`.
   home must still work. Record each observation, not a blanket “passed.”
 - [ ] Only after operator confirmation, complete original Task 4.6 and run
   `sdlc close --issue 146 --verified '<evidence>'` without hand-typing actual.
+
+### 2026-08-24 — delete `Pick` with its final Console caller
+
+**Reason:** Task 4.5a's pure model changes revealed a compile-order dependency:
+the still-shipping M3 command branch calls `PanelModel.Pick`. Deleting `Pick`
+before deleting command mode would make the repository uncompilable between
+the two intended commits.
+
+**Delta:** Task 4.5a temporarily retains `Pick` as an explicitly documented M3
+adapter and may include the mechanical `Console.appendQuery(rune)` plus updated
+non-numeric visual assertions needed to keep the package green. Task 4.5b
+deletes command mode and `Pick` atomically, then updates the original Core
+concept row, its adjacent prose, and `conceptInventory` from `Pick` to
+`SelectTree`. The final architecture contract and shipped behavior are
+unchanged; only the compilable commit boundary moves.

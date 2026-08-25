@@ -44,13 +44,9 @@ type PanelControl struct {
 var panelControls = []PanelControl{
 	{Keys: "typeahead", Action: "filter"},
 	{Keys: "↑↓", Action: "select"},
-	{Keys: ":1–:9", Action: "jump"},
-	{Keys: "Enter", Action: "switch"},
-	{Keys: ":s", Action: "start"},
-	{Keys: ":x", Action: "stop"},
-	{Keys: ":n", Action: "name"},
-	{Keys: ":d", Action: "describe"},
-	{Keys: "Escape", Action: "back"},
+	{Keys: "Enter", Action: "switch/start"},
+	{Keys: "Ctrl-Space", Action: "start"},
+	{Keys: "Escape", Action: "clear/back"},
 }
 
 // PanelControls returns the shared, immutable-by-copy key inventory.
@@ -85,7 +81,7 @@ func (m *PanelModel) Cursor() int { return m.cursor }
 // list makes "press down twice" unpredictable.
 func (m *PanelModel) Move(delta int) {
 	if len(m.shown) == 0 {
-		m.cursor = 0
+		m.cursor = -1
 		return
 	}
 	m.cursor += delta
@@ -126,6 +122,9 @@ func NewPanelModel(trees []couchcore.TreeSummary) *PanelModel {
 		})
 	}
 	m.shown = m.all
+	if len(m.shown) == 0 {
+		m.cursor = -1
+	}
 	return m
 }
 
@@ -136,6 +135,7 @@ func (m *PanelModel) Rows() []PanelRow { return m.all }
 // Multiple hosted children on one tree choose the first target deterministically
 // and OR their bell state; the panel remains one row per worktree.
 func (m *PanelModel) BindTargets(targets []PanelTarget) {
+	selected := m.selectedTree()
 	byTree := map[string]PanelTarget{}
 	for _, target := range targets {
 		key := target.Tree.Key()
@@ -153,8 +153,7 @@ func (m *PanelModel) BindTargets(targets []PanelTarget) {
 			m.all[i].Bell = target.Bell
 		}
 	}
-	m.shown = m.all
-	m.clampCursor()
+	m.setShown(m.all, selected)
 }
 
 // Shown is the current filtered view -- what the operator is looking at.
@@ -170,9 +169,9 @@ func (m *PanelModel) Shown() []PanelRow { return m.shown }
 // An empty query is not a resolution: it means "show everything", and asking
 // the resolver would make the panel's DEFAULT view depend on a match rule.
 func (m *PanelModel) Filter(query string, resolve func(string) []couchcore.Worktree) []PanelRow {
+	selected := m.selectedTree()
 	if query == "" || resolve == nil {
-		m.shown = m.all
-		m.clampCursor()
+		m.setShown(m.all, selected)
 		return m.shown
 	}
 	want := map[string]bool{}
@@ -188,14 +187,46 @@ func (m *PanelModel) Filter(query string, resolve func(string) []couchcore.Workt
 			out = append(out, r)
 		}
 	}
-	m.shown = out
-	m.clampCursor()
+	m.setShown(out, selected)
 	return out
+}
+
+func (m *PanelModel) selectedTree() couchcore.Worktree {
+	if row, ok := m.Selected(); ok {
+		return row.Tree
+	}
+	return ""
+}
+
+// SelectTree selects a visible row by stable worktree identity.
+func (m *PanelModel) SelectTree(tree couchcore.Worktree) bool {
+	for i, row := range m.shown {
+		if row.Tree.Key() == tree.Key() {
+			m.cursor = i
+			return true
+		}
+	}
+	return false
+}
+
+func (m *PanelModel) setShown(rows []PanelRow, selected couchcore.Worktree) {
+	m.shown = rows
+	m.cursor = -1
+	if selected != "" && m.SelectTree(selected) {
+		return
+	}
+	if len(rows) > 0 {
+		m.cursor = 0
+	}
 }
 
 // clampCursor keeps the highlight on a row that exists: filtering can shrink
 // the list under it, and a cursor past the end selects nothing.
 func (m *PanelModel) clampCursor() {
+	if len(m.shown) == 0 {
+		m.cursor = -1
+		return
+	}
 	if m.cursor >= len(m.shown) {
 		m.cursor = len(m.shown) - 1
 	}
@@ -204,7 +235,9 @@ func (m *PanelModel) clampCursor() {
 	}
 }
 
-// Pick resolves a 1-based keystroke to a row the operator can currently SEE.
+// Pick is the M3 numbered-command adapter. Chunk 5 deletes it atomically with
+// Console's command mode; keeping it until then preserves a compilable TDD
+// boundary while the replacement selection contract lands first.
 func (m *PanelModel) Pick(n int) (PanelRow, bool) {
 	if n < 1 || n > len(m.shown) {
 		return PanelRow{}, false
@@ -240,7 +273,7 @@ func RenderPanel(rows []PanelRow, cursor int) string {
 		if r.Bell {
 			bell = "*"
 		}
-		fmt.Fprintf(&b, "%s%d%s%s %s", marker, i+1, state, bell, sanitize(r.Label))
+		fmt.Fprintf(&b, "%s%s%s %s", marker, state, bell, sanitize(r.Label))
 		if r.Desc != "" {
 			fmt.Fprintf(&b, "  — %s", sanitize(r.Desc))
 		}
@@ -277,16 +310,13 @@ func RenderPanelWithQuery(query string, rows []PanelRow, cursor int) string {
 // is satisfied by a list that does nothing, which is why the audit now also
 // requires each name to be reachable from a keystroke.
 func PanelActions() []string {
-	return []string{"start", "stop", "name", "describe"}
+	return []string{"start"}
 }
 
 // PanelActionKeys maps each action to the key that invokes it, so the audit can
 // check the action is reachable rather than merely declared.
-func PanelActionKeys() map[string]string {
-	return map[string]string{
-		"start":    ":s",
-		"stop":     ":x",
-		"name":     ":n",
-		"describe": ":d",
+func PanelActionKeys() map[string][]string {
+	return map[string][]string{
+		"start": {"Ctrl-Space", "Enter parked"},
 	}
 }
