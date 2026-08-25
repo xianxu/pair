@@ -62,10 +62,7 @@ func PanelControls() []PanelControl {
 type PanelModel struct {
 	all []PanelRow
 
-	// shown is the last filtered result, and it is what Pick indexes.
-	// Numbered selection has to mean "the Nth thing on screen"; indexing the
-	// underlying set instead is how an operator types 2 and lands somewhere
-	// else.
+	// shown is the last filtered result, and selection always indexes it.
 	shown []PanelRow
 
 	// cursor is the highlighted row, 0-based into shown. A list with no
@@ -233,16 +230,6 @@ func (m *PanelModel) clampCursor() {
 	if m.cursor < 0 {
 		m.cursor = 0
 	}
-}
-
-// Pick is the M3 numbered-command adapter. Chunk 5 deletes it atomically with
-// Console's command mode; keeping it until then preserves a compilable TDD
-// boundary while the replacement selection contract lands first.
-func (m *PanelModel) Pick(n int) (PanelRow, bool) {
-	if n < 1 || n > len(m.shown) {
-		return PanelRow{}, false
-	}
-	return m.shown[n-1], true
 }
 
 // RenderPanel draws the panel for the operator.

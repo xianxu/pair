@@ -75,7 +75,6 @@ type Console struct {
 	// everything rather than to a private match rule.
 	query     string
 	resolve   func(string) []couchcore.Worktree
-	command   bool
 	summaries func() []couchcore.TreeSummary
 
 	// panel is live state, not rebuilt per keystroke: the highlight has to
@@ -521,6 +520,8 @@ func (c *Console) onExit(event childExit) bool {
 		return last
 	}
 	wasFocused := c.focus == FocusActor(event.id)
+	panelFocused := c.focus.IsPanel()
+	wasActive := c.active == event.id
 	delete(c.panes, event.id)
 	for i, id := range c.order {
 		if id == event.id {
@@ -534,8 +535,10 @@ func (c *Console) onExit(event childExit) bool {
 			c.root = c.order[0]
 		}
 	}
-	if wasFocused {
+	if wasActive {
 		c.active = ""
+	}
+	if wasFocused {
 		c.focus = FocusPanel()
 	}
 	exitNotice := ExitNotice(p.actorID, p.label, event.code)
@@ -552,7 +555,7 @@ func (c *Console) onExit(event childExit) bool {
 	if last {
 		return true
 	}
-	if wasFocused {
+	if wasFocused || panelFocused {
 		c.rebuildPanel()
 		c.showPanel()
 	} else {
@@ -802,7 +805,17 @@ func (c *Console) pumpStdin() {
 func (c *Console) onHotkey() {
 	c.mu.Lock()
 	cur, root := c.focus, c.root
+	prompting := c.promptFn != nil
 	c.mu.Unlock()
+	if cur.IsPanel() {
+		if !prompting {
+			c.startPrompt("start in path: ", func(path string) {
+				c.runOp("start", map[string]string{"path": path})
+			})
+		}
+		c.showPanel()
+		return
+	}
 
 	next := Up(cur, root, c.actorAlive)
 	if next == cur {
@@ -846,9 +859,12 @@ func (c *Console) rebuildPanel() {
 			})
 		}
 	}
-	cursor := 0
+	var selected couchcore.Worktree
+	query, resolve := c.query, c.resolve
 	if c.panel != nil {
-		cursor = c.panel.Cursor()
+		if row, ok := c.panel.Selected(); ok {
+			selected = row.Tree
+		}
 	}
 	c.mu.Unlock()
 
@@ -858,8 +874,10 @@ func (c *Console) rebuildPanel() {
 	}
 	m := NewPanelModel(summaries)
 	m.BindTargets(targets)
-	m.cursor = cursor
-	m.clampCursor()
+	m.Filter(query, resolve)
+	if selected != "" {
+		m.SelectTree(selected)
+	}
 
 	c.mu.Lock()
 	c.panel = m
@@ -874,15 +892,13 @@ func (c *Console) showPanel() {
 		c.rebuildPanel()
 		c.mu.Lock()
 	}
-	m, query, resolve, prompt, command := c.panel, c.query, c.resolve, c.prompt, c.command
+	m, query, resolve, prompt := c.panel, c.query, c.resolve, c.prompt
 	c.mu.Unlock()
 
 	rows := m.Filter(query, resolve)
 	body := RenderPanelWithQuery(query, rows, m.Cursor())
 	if prompt != "" {
 		body += "\r\n  " + prompt + "\r\n"
-	} else if command {
-		body += "\r\n  command: :\r\n"
 	}
 	c.takeOverScreen([]byte(body))
 	c.paintNow()
@@ -937,83 +953,31 @@ func (c *Console) onPanelKey(k PanelKey) {
 		// returns to the actor. A panel with no way back is a trap, which is
 		// what the first cut shipped.
 		c.mu.Lock()
-		hadQuery := c.query != "" || c.command
+		hadQuery := c.query != ""
 		c.query = ""
-		c.command = false
 		c.mu.Unlock()
 		if !hadQuery {
 			c.returnToActor()
 			return
 		}
 	case KeyEnter:
-		if row, ok := c.selectedRow(); ok {
-			c.clearQuery()
-			c.onSwitch(row.Target)
-			return
-		}
-	case KeyRune:
-		c.mu.Lock()
-		command := c.command
-		if command {
-			c.command = false
-		}
-		c.mu.Unlock()
-		if !command {
-			if k.Rune == ':' && c.queryEmpty() {
-				c.mu.Lock()
-				c.command = true
-				c.mu.Unlock()
-			} else {
-				c.appendQuery(k.Rune)
-			}
+		row, ok := c.selectedRow()
+		if !ok {
+			c.setNotice("no selection")
 			break
 		}
-		switch {
-		case k.Rune >= '1' && k.Rune <= '9':
-			// A DIRECT jump: no resolution, no model turn. Only when nothing
-			// is typed -- otherwise a digit is part of the filter.
-			c.mu.Lock()
-			typing := c.query != ""
-			m := c.panel
-			c.mu.Unlock()
-			if !typing && m != nil {
-				if row, ok := m.Pick(int(k.Rune - '0')); ok {
-					c.onSwitch(row.Target)
-					return
-				}
-			}
-		case k.Rune == 's':
-			c.startPrompt("start in path: ", func(path string) {
-				c.runOp("start", map[string]string{"path": path})
-			})
-		case k.Rune == 'x':
-			if row, ok := c.selectedRow(); ok {
-				c.runOp("stop", map[string]string{"ref": string(row.Tree)})
-			}
-		case k.Rune == 'n':
-			if row, ok := c.selectedRow(); ok {
-				ref := string(row.Tree)
-				c.startPrompt("name: ", func(name string) {
-					c.runOp("name", map[string]string{"ref": ref, "name": name})
-				})
-			}
-		case k.Rune == 'd':
-			if row, ok := c.selectedRow(); ok {
-				ref := string(row.Tree)
-				c.startPrompt("describe: ", func(desc string) {
-					c.runOp("describe", map[string]string{"ref": ref, "description": desc})
-				})
-			}
-		default:
-			c.setNotice("unknown panel command")
+		if row.Target == "" {
+			c.runOp("start", map[string]string{"path": string(row.Tree)})
+			break
 		}
+		c.clearQuery()
+		c.forceSwitch(row.Target)
+		return
+	case KeyRune:
+		c.appendQuery(k.Rune)
 	case KeyBackspace:
 		c.mu.Lock()
-		if c.command {
-			c.command = false
-		} else if n := len(c.query); n > 0 {
-			c.query = c.query[:n-1]
-		}
+		c.query = removeLastRune(c.query)
 		c.mu.Unlock()
 	}
 	c.showPanel()
@@ -1036,9 +1000,7 @@ func (c *Console) onPromptKey(k PanelKey) {
 		}
 	case KeyBackspace:
 		c.mu.Lock()
-		if n := len(c.promptArg); n > 0 {
-			c.promptArg = c.promptArg[:n-1]
-		}
+		c.promptArg = removeLastRune(c.promptArg)
 		c.prompt = c.promptLabel + c.promptArg
 		c.mu.Unlock()
 	case KeyRune:
@@ -1079,6 +1041,15 @@ func (c *Console) runOp(name string, args map[string]string) {
 		}
 		c.AttachActor(start.Handle.ID(), start.Record.ID, start.Record.Args.Worktree,
 			start.Record.Args.Worktree.Repo(), th.Terminal())
+		c.clearQuery()
+		c.rebuildPanel()
+		c.mu.Lock()
+		if c.panel != nil {
+			c.panel.SelectTree(start.Record.Args.Worktree)
+		}
+		c.mu.Unlock()
+		c.setNotice(name + ": done")
+		return
 	}
 	c.setNotice(name + ": done")
 	c.rebuildPanel()
@@ -1098,12 +1069,6 @@ func (c *Console) selectedRow() (PanelRow, bool) {
 		return PanelRow{}, false
 	}
 	return m.Selected()
-}
-
-func (c *Console) queryEmpty() bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.query == ""
 }
 
 func (c *Console) appendQuery(b rune) {

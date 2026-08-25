@@ -81,7 +81,7 @@ Terminal code has its own standing moves, all of them lessons already paid for i
 | `Screen` | `cmd/internal/ptychild/screen.go` | new |
 | `updateMouseMode` | `cmd/internal/termcmd/run.go` | deleted (folded into `Screen`) |
 | `Focus` / `Up` | `cmd/internal/couchtty/focus.go` | new |
-| `PanelModel` / `Filter` / `Pick` / target join | `cmd/internal/couchtty/panel.go` | new |
+| `PanelModel` / `Filter` / `SelectTree` / target join | `cmd/internal/couchtty/panel.go` | new |
 | `PanelKey` / `DecodePanelKeys` | `cmd/internal/couchtty/panelkeys.go` | new |
 | `StatusModel` / `RenderStatusRow` | `cmd/internal/couchtty/reserve.go` | new |
 | `Interceptor` | `cmd/internal/couchtty/keys.go` | new |
@@ -118,7 +118,13 @@ Terminal code has its own standing moves, all of them lessons already paid for i
   - **DRY rationale:** first occurrence, but the rule is stated in three places (project, issue, atlas) and must have exactly one implementation.
   - **Future extensions:** direct jumps ("to actor N", "to the latest notifier") are deliberately deferred by the Spec; they widen `Up` into a `Move(cur, intent)` without touching the console.
 
-- **PanelModel / Filter / Pick** — the panel as data: rows built from `couchcore.TreeSummary`, and `Pick(digit)` resolving a keystroke to a displayed row. `Filter(query, resolve func(string) []Worktree)` **injects** the match rule rather than restating it; production passes `couch.LookupTrees` (Decision 12). Pure, so a stub resolver tests it and `#148`'s advisor genuinely shares the resolution rather than being claimed to.
+- **PanelModel / Filter / SelectTree** — the panel as data: rows built from
+  `couchcore.TreeSummary`, with selection restored by stable worktree identity
+  as filtering or fleet refresh changes the displayed rows.
+  `Filter(query, resolve func(string) []Worktree)` **injects** the match rule
+  rather than restating it; production passes `couch.LookupTrees` (Decision
+  12). Pure, so a stub resolver tests it and `#148`'s advisor genuinely shares
+  the resolution rather than being claimed to.
 
 - **StatusModel / RenderStatusRow** — the row as data plus a pure renderer: actor chips, which one is active, which have asked for attention, and the newest notice, fitted to the width in terminal columns. Untrusted text (an agent publishes its own description) is stripped before it can reach the screen.
 

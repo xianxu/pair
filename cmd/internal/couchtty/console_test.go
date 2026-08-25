@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -796,29 +795,8 @@ func TestHotkeyFromANonRootChildGoesHome(t *testing.T) {
 	}
 }
 
-// A digit is a DIRECT switch: no typeahead, no resolution, no model turn. The
-// Spec requires a route that always exists and never waits on anything.
-func TestPanelNamespacedDigitSwitchesDirectly(t *testing.T) {
-	f := newFixture(t, 24, 80)
-	other := ptychild.NewFakeChild([]byte("ariadne screen"))
-	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
-	f.con.Attach("c2", "ariadne", other)
-	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
-
-	_, _ = f.stdin.Write([]byte("\x00")) // panel
-	waitFor(t, "the panel", func() bool {
-		return strings.Contains(f.host.Written(), "couch — actors")
-	})
-	f.host.Reset()
-
-	_, _ = f.stdin.Write([]byte(":2"))
-	waitFor(t, "the digit to switch", func() bool {
-		return strings.Contains(f.host.Written(), "[ariadne]")
-	})
-}
-
 func TestPanelPrintableCommandRunesAreTypeahead(t *testing.T) {
-	for _, query := range []string{"start", "xray", "name", "describe", "2fa"} {
+	for _, query := range []string{"start", "xray", "name", "describe", "2fa", ":", "1", "9"} {
 		t.Run(query, func(t *testing.T) {
 			f := newFixture(t, 24, 80)
 			f.con.SetResolver(func(string) []couchcore.Worktree { return nil })
@@ -868,46 +846,6 @@ func TestPanelTypeaheadUsesTheInjectedResolver(t *testing.T) {
 	_, _ = f.stdin.Write([]byte("\r"))
 	waitFor(t, "Enter to switch", func() bool {
 		return strings.Contains(f.host.Written(), "[ariadne]")
-	})
-}
-
-// A successful panel `start` is not complete when the process merely exists in
-// couchcore's registry: its terminal must join THIS running console, or the
-// actors menu still contains one row and there is nothing to switch to.
-func TestPanelStartAttachesTheReturnedTerminalChild(t *testing.T) {
-	f := newFixture(t, 24, 80)
-	runner := couchcore.NewFakeRunner()
-	h, err := runner.Start("/w/pair", []string{"pair"}, nil)
-	if err != nil {
-		t.Fatalf("start fake child: %v", err)
-	}
-	terminal := h.(couchcore.TerminalHandle).Terminal()
-	terminal.SetSink(func(chunk []byte) { f.con.Deliver(h.ID(), chunk) })
-
-	f.con.SetOps(func(name string, args map[string]string) (any, error) {
-		if name != "start" || args["path"] != "/w/pair" {
-			t.Fatalf("operation = %q %+v, want start /w/pair", name, args)
-		}
-		return couchcore.StartResult{
-			Record: couchcore.ActorRecord{Args: couchcore.StartArgs{Worktree: "/w/pair"}},
-			Handle: h,
-		}, nil
-	})
-	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
-
-	_, _ = f.stdin.Write([]byte("\x00"))
-	waitFor(t, "the panel", func() bool {
-		return strings.Contains(f.host.Written(), "couch — actors")
-	})
-	_, _ = f.stdin.Write([]byte(":s"))
-	waitFor(t, "the start prompt", func() bool {
-		return strings.Contains(f.host.Written(), "start in path:")
-	})
-	_, _ = f.stdin.Write([]byte("/w/pair\r"))
-	waitFor(t, "the started child to join the panel", func() bool {
-		f.con.mu.Lock()
-		defer f.con.mu.Unlock()
-		return len(f.con.panes) == 2 && f.con.panes[h.ID()] != nil
 	})
 }
 
@@ -1057,64 +995,6 @@ func TestPanelShowsTheBellMarker(t *testing.T) {
 	_, _ = f.stdin.Write([]byte("\x00"))
 	waitFor(t, "the panel to mark it", func() bool {
 		return strings.Contains(f.host.Written(), "* ariadne")
-	})
-}
-
-// `:s` opens a prompt and dispatches `start` through the INJECTED table. The
-// first cut declared the action and wired nothing, so the operator had no way
-// to start a second child at all.
-func TestPanelStartDispatchesThroughOps(t *testing.T) {
-	f := newFixture(t, 24, 80)
-	// The dispatcher runs on the Run goroutine; the assertions run here.
-	var mu sync.Mutex
-	var gotName string
-	var gotArgs map[string]string
-	f.con.SetOps(func(name string, args map[string]string) (any, error) {
-		mu.Lock()
-		defer mu.Unlock()
-		gotName, gotArgs = name, args
-		return nil, nil
-	})
-	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
-
-	_, _ = f.stdin.Write([]byte("\x00"))
-	waitFor(t, "the panel", func() bool {
-		return strings.Contains(f.host.Written(), "couch — actors")
-	})
-
-	_, _ = f.stdin.Write([]byte(":s"))
-	waitFor(t, "the prompt", func() bool {
-		return strings.Contains(f.host.Written(), "start in path:")
-	})
-	_, _ = f.stdin.Write([]byte("../ariadne\r"))
-	waitFor(t, "the dispatch", func() bool {
-		mu.Lock()
-		defer mu.Unlock()
-		return gotName != ""
-	})
-
-	mu.Lock()
-	defer mu.Unlock()
-	if gotName != "start" {
-		t.Fatalf("dispatched %q, want start", gotName)
-	}
-	if gotArgs["path"] != "../ariadne" {
-		t.Fatalf("path = %q, want ../ariadne", gotArgs["path"])
-	}
-}
-
-// With no dispatcher wired, an action must SAY so rather than doing nothing.
-func TestPanelActionWithoutOpsSaysSo(t *testing.T) {
-	f := newFixture(t, 24, 80)
-	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
-
-	_, _ = f.stdin.Write([]byte("\x00"))
-	waitFor(t, "the panel", func() bool {
-		return strings.Contains(f.host.Written(), "couch — actors")
-	})
-	_, _ = f.stdin.Write([]byte(":x")) // stop the selected row
-	waitFor(t, "the refusal", func() bool {
-		return strings.Contains(f.host.Written(), "no action dispatcher")
 	})
 }
 
