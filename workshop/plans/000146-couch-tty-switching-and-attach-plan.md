@@ -410,9 +410,9 @@ The milestone that answers both terminal risks: does `pair` run correctly in a c
 
 **Files:** Modify `cmd/internal/couchtty/console.go` (+ test).
 
-- [ ] **Tests must catch:** (a) after switching away, the child's process is still alive and its ring is still growing; (b) reattaching replays what accumulated; (c) going to the panel and back is the same path as switching between children — one mechanism, not two.
-- [ ] Record in the issue `## Log` what the layering actually delivers: couch's child is a zellij *client*, so the console's death costs the view and not the work; warmth beyond the console belongs to zellij's server session plus the forced tag from Task 2.6a, and `#147`'s daemon is not on the path to it.
-- [ ] Commit.
+- [x] **Tests must catch:** (a) after switching away, the child's process is still alive and its ring is still growing; (b) reattaching replays what accumulated; (c) going to the panel and back is the same path as switching between children — one mechanism, not two.
+- [x] Record in the issue `## Log` what the layering actually delivers: couch's child is a zellij *client*, so the console's death costs the view and not the work; warmth beyond the console belongs to zellij's server session plus the forced tag from Task 2.6a, and `#147`'s daemon is not on the path to it.
+- [x] Commit.
 
 ### Task 4.4 — restore the terminal on every exit path
 

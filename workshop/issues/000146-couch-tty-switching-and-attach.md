@@ -1509,3 +1509,17 @@ while reporting the capacity violation. The console's bell, exit, and operation
 messages now render from the feed's latest retained entry. Mutating bell keys
 to bare `bell` made the two-actor test RED. Existing renderer and console tests
 pin `[active]` versus `pending*` (ARCH-DRY, ARCH-PURE).
+
+### 2026-08-24 -- M4 Task 4.3: detach warmth and its actual owner
+
+Within a live console, switching away leaves the child alive and its replay
+ring growing; switching back clears and replays that ring. Returning from the
+panel now has its own regression proving it calls the same forced attach path:
+replacing `forceSwitch` with the ordinary no-op-on-current `onSwitch` timed out
+RED because the operator remained on the panel screen.
+
+Across console death, couch's hosted child is a zellij *client*: losing the
+console costs the view, not the work. Longer-lived warmth belongs to zellij's
+server session plus the forced Pair tag from Task 2.6a; restarting couch creates
+a new client that deterministically reattaches. The pair#147 daemon/transport
+is not on this durability path (ARCH-DRY, ARCH-PURPOSE).

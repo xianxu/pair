@@ -580,6 +580,9 @@ func TestConsoleKeepsInactiveChildOutputOffScreenButInItsRing(t *testing.T) {
 	if !strings.Contains(string(other.Snapshot()), "background progress") {
 		t.Fatal("an inactive child's output was lost instead of buffered")
 	}
+	if other.Done() {
+		t.Fatal("switching away stopped the inactive child instead of leaving it warm")
+	}
 }
 
 // Landing on a child must repaint it from its ring -- otherwise switching lands
@@ -948,6 +951,31 @@ func TestPanelEscapeClearsThenReturns(t *testing.T) {
 		defer f.con.mu.Unlock()
 		return !f.con.focus.IsPanel()
 	})
+}
+
+// Panel detach uses the same forced replay path as a child-to-child attach.
+// If returning merely calls onSwitch, the active id is unchanged and the
+// replay is skipped, stranding the operator on couch's panel screen.
+func TestReturningFromPanelReplaysWhatTheWarmChildAccumulated(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	_, _ = f.stdin.Write([]byte("\x00"))
+	waitFor(t, "the panel", func() bool {
+		return strings.Contains(f.host.Written(), "couch — actors")
+	})
+	f.host.Reset()
+
+	f.child.Feed([]byte("progress while detached at the panel"))
+	if f.child.Done() {
+		t.Fatal("opening the panel stopped the hosted child")
+	}
+	_, _ = f.stdin.Write([]byte("\x1b"))
+	waitFor(t, "the warm child's accumulated output to replay", func() bool {
+		return strings.Contains(f.host.Written(), "progress while detached at the panel")
+	})
+	if !strings.Contains(f.host.Written(), hostty.HomeAndClear) {
+		t.Fatal("panel return bypassed the shared clear-and-replay attach path")
+	}
 }
 
 // Arrows move the highlight, and Enter takes the highlighted row -- the panel
