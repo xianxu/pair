@@ -432,6 +432,40 @@ couch not running; opaque tags and the picker ship together or not at all; an
 unnamed space shows its hex string; `pair claude` standalone is unchanged; and
 naming doubles as the retention signal that makes cleanup decidable.
 
+### 2026-08-25 — work-thread identity, park, and worktree lifecycle split
+
+Fresh review of `pair#149` showed that three lifecycles had been folded into one
+issue. The durable Pair tag and its human metadata are a storage/launcher
+identity; proving a zellij-hosted session fully quiescent is a process protocol;
+creating and garbage-collecting linked worktrees is repository lifecycle. They
+now sequence independently:
+
+- `ariadne#200` supplies the normalized prospective-path policy query;
+- `pair#149` owns the durable work-thread record, start/resume, human metadata,
+  migration, and policy consumption;
+- `pair#152` owns verified park, flush/quiescence evidence, and observed
+  `last_active_at`, sharing its proof boundary with `pair#135`;
+- `pair#153` owns generated-worktree provisioning and conservative garbage
+  collection; and
+- `pair#151` renders the hierarchical thread menu only after both identity and
+  verified park exist.
+
+This also corrects two earlier project claims. Human names do not overload the
+zellij `SessionName` binding in Pair's existing index; they live on Pair's own
+durable thread record. And killing couch's zellij client is a detach, not a
+verified park: it must never free an admission slot while the server-side
+session can still write to the workspace (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-25 — actor launch remembers the path's LLM profile
+
+Starting a thread is path-oriented, so couch remembers the last successfully
+used agent for each canonical path and the last arguments for each agent at that
+path. Ctrl-Space defaults to that agent; a path with no history inherits the
+root actor's agent. Parameters never cross agents and fall back to Pair's
+repository default when that path has no history for the selected agent. The
+durable thread separately records its latest incarnation profile, and neither a
+cancelled selection nor a failed start changes the remembered preference.
+
 [pair#146 M1]: #pair-146-m1
 [pair#146 M2]: #pair-146-m2
 [pair#146 M3]: #pair-146-m3

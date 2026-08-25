@@ -1,7 +1,7 @@
 ---
 id: 000151
 status: open
-deps: [149]
+deps: [149, 152]
 github_issue:
 created: 2026-08-24
 updated: 2026-08-24
@@ -70,12 +70,32 @@ frame. No terminal UI action gets a private dispatch path unavailable to the
 advisor (ARCH-DRY, ARCH-PURE).
 
 Ctrl-Space is the global start action while any menu-list frame is visible: it
-opens a start-path input without discarding the menu stack. Escape restores that
-stack; Enter starts with `.` for empty input or the exact entered path, then
-returns to the refreshed root list with the new thread selected. Ctrl-Space is a
-no-op while any text input is already active. A failed start keeps the input,
-typed path, originating menu stack, filters, and selections intact and reports
-through the notice feed.
+opens a two-field start form without discarding the menu stack. The path field
+accepts `.` when empty. The agent field is a selector populated from Pair's
+shared agent inventory. Tab moves between form fields; Left/Right changes the
+agent while that selector is active; Enter submits the form. The initial agent
+is the path's last successfully used agent, or the root actor's agent when the
+path has no history. Its parameters are that agent's last successful exact
+arguments at the path, falling back to Pair's repository default. The form
+shows the resolved agent and whether arguments came from path history or the
+repository default.
+
+Editing the path marks its preference preview stale. Leaving the path field or
+submitting canonicalizes it and re-resolves the preview. Until the operator
+changes the agent selector, the agent follows the newly resolved path default;
+once Left/Right explicitly changes it, that agent choice remains sticky across
+later path edits. Either an agent change or a path re-resolution recomputes the
+arguments for the final `{canonical path, selected agent}` pair and immediately
+updates the displayed source. Submission performs the same resolution once
+more and refuses if the preview no longer matches, so stale asynchronous input
+cannot launch with another path's arguments.
+
+Escape restores the prior stack without updating preferences; Enter returns to
+the refreshed root list with the new thread selected only after start succeeds.
+Ctrl-Space is a no-op while any text input is already active. A failed start
+keeps the path, selected agent, originating menu stack, filters, and selections
+intact and reports through the notice feed. Only successful incarnation
+registration updates #149's path preference.
 
 The current selection uses reverse video plus `▸`, so it remains visible without
 color. A child menu renders to the right of its parent row when space permits
@@ -104,6 +124,16 @@ originating stack. Only parked rows show historical age/grayscale; live rows say
 `live`. These rules make every reported edge deterministic without adding a
 second operation or state source (ARCH-DRY, ARCH-PURPOSE).
 
+### 2026-08-25 — start form selects and remembers the agent
+
+**Reason:** the operator wants Ctrl-Space start to choose among available LLM
+harnesses while making the common case require no repeated choice.
+
+**Delta:** start is a path-plus-agent form. It defaults from #149's successful
+path history, then the root actor, and reuses parameters only for the same agent
+at that path. The form exposes the argument source and preserves all state on
+failure or Escape; preference changes occur only after successful registration.
+
 ## Done when
 
 - Enter attaches/resumes the selected work thread; Tab enters its action menu;
@@ -114,6 +144,9 @@ second operation or state source (ARCH-DRY, ARCH-PURPOSE).
 - Multiple threads at one path are distinct rows; parked threads remain listed
   with textual state/age and progressively dimmer age bands.
 - Ctrl-Space opens start from every list level without destroying the menu stack.
+- The start form selects any declared Pair agent, defaults to the path's last
+  successful agent or the root actor, and uses that agent's path arguments or
+  repository default without crossing arguments between agents.
 - Stale targets and zero-match lists never dispatch against a different row.
 - Wide and narrow terminal layouts are readable, with selection visible without
   relying on color.

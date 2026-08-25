@@ -211,10 +211,212 @@ unchanged for failures or unknown liveness. Done-when now enumerates every
 repository-policy case rather than accepting one generic limit test
 (ARCH-PURPOSE, ARCH-MOCK).
 
+### 2026-08-25 — split durable thread identity from process quiescence
+
+**Reason:** fresh spec review found that verified parking is not a storage
+detail. Proving that a Pair-owned zellij session, agent harness, editor, and
+every recorded workspace-writing process have stopped—and that durable output
+has flushed—needs a coordinator, observable acknowledgements, timeout and
+recovery behavior. That is an independent subsystem shared with `#135`'s live
+handoff problem. Worktree provisioning and garbage collection are likewise a
+separate lifecycle from consuming a resolved admission policy.
+
+**Delta — current #149 boundary:** this issue delivers the durable work-thread
+record, opaque tag allocation, mutable human metadata, legacy migration,
+explicit create/resume semantics, picker integration, and the `ariadne#200`
+policy consumer. Verified park plus authoritative `last_active_at` move to
+`#152`; generated-worktree provisioning and garbage collection move to `#153`.
+`#151` depends on both this issue and `#152`, so its menu never presents a park
+action whose lifecycle contract does not exist.
+
+**Authoritative record:** Pair owns one portable record per work thread under
+the global Pair data directory. The record is keyed by the opaque Pair tag and
+contains a schema version, tag, immutable canonical physical working path,
+repo-scope identity, optional human name, optional description, and creation
+time. It is the source for thread inventory and human resolution whether couch
+is running or not. Couch's registry contains only optional live incarnations,
+each referencing a thread tag plus `{PID, process identity}` and the normalized
+policy result used for its admission. The existing session-name index remains
+the zellij socket-name binding; a mutable human name is not overloaded onto its
+`SessionName` field (ARCH-DRY, ARCH-PURE).
+
+One atomic file per thread avoids a read-modify-rewrite race between standalone
+Pair and couch. Rename/describe replace only that thread's file atomically.
+Names need not be unique: an exact tag wins; an exact or fuzzy name/path that
+matches several threads returns all candidates and refuses to guess. Empty name
+clears it. An unnamed row leads with the opaque tag, then its path; “do not lead
+with system id” applies to named rows, whose common rendering leads with name.
+
+**Path and allocation:** creation resolves symlinks and persists the exact
+canonical physical requested path, including a nested kbench competition path;
+it is not silently replaced by the repository root and does not drift with the
+caller cwd. The path is immutable in this issue. A missing/moved path leaves the
+thread enumerable but resume refuses with an exact recovery diagnostic; an
+explicit relocate operation is future scope. IDs come from cryptographic
+randomness and are accepted only after collision checks against both thread
+records and tag-scoped artifacts; bounded retry exhaustion or entropy failure
+is an error and never reuses a tag.
+
+**Commands and transitions:** `couch start [path]` always reserves a new thread
+record before forking and rolls back that exact still-pristine reservation if
+the fork fails. `couch resume <ref>` resolves one existing parked thread and
+spawns `pair resume <tag> --layout2` in its recorded path. The existing
+one-shot repo-default handoff remains authoritative for agent arguments and
+native-session restoration; #149 adds no second picker. Resume refuses an
+ambiguous ref, missing path, known-live incarnation, or unknown liveness. A
+live child already hosted by the current console attaches through the existing
+console-local target rather than resume; cross-process attachment remains
+`#147`.
+
+**Provider boundary:** couch calls `sdlc fleet policy --path <path> --json`
+through an injected `PolicyResolver` before forking. It persists the returned
+repo identity, admission key, tagged bounded/unbounded capacity, and optional
+bounded `on_capacity` action on the incarnation. Occupancy counts known-live
+and unknown incarnations conservatively by normalized key; dead records are
+pruned first. Missing, invalid, or outside-scope diagnostics fail closed. A
+bounded `reject` refuses; `provision-worktree` reports that `#153` is required
+without fabricating a path. Pair does not parse declarations or retain its
+temporary repo-name `PolicyTable`; a stateful fake and live provider conformance
+exercise the same seam (ARCH-DRY, ARCH-MOCK, ARCH-PURPOSE).
+
+This is a coordinated cross-repo boundary rather than a circular whole-issue
+dependency. `#149 M1` lands and boundary-reviews the normalized policy consumer
+against ariadne#200's locally built provider; ariadne#200 then closes and merges;
+later #149 milestones finish durable identity and naming against the merged
+provider before #149 closes.
+
+**Legacy migration:** existing path-derived Pair tags remain the durable tag,
+so draft, ledger, log, scrollback, saved native-session identity, and detached
+zellij session are not renamed. A legacy tree-keyed name/description migrates
+onto that tree's single path-derived thread. Legacy `--same-tree` co-tenants
+already share one Pair tag and therefore cannot be truthfully split; they are
+retained as multiple incarnations of one migrated thread and fail closed for
+new admission/resume until reconciliation leaves at most one. Registry schema
+migration is versioned and atomic; an unreadable or ambiguous legacy record is
+reported and preserved, never dropped.
+
+### 2026-08-25 — make the thread store transactional and remember launch profiles
+
+**Reason:** a second fresh review found that atomic replacement of one record
+does not serialize concurrent start/name/migration operations, that a global tag
+alone cannot address legacy tags repeated in different repositories, and that
+start spans several failure-prone effects. The operator also specified that a
+new actor should default to the LLM and parameters last used at that path.
+
+**Delta — address and authority:** the durable address is the composite
+`{repo_scope, tag}`. Newly generated tags remain globally improbable, but
+legacy repeated tags resolve within their repository scope and never overwrite
+one another. A Pair-owned `ThreadStore` is the sole authority for work-thread
+records, migration-era incarnations, admission evidence, lifecycle
+transactions, and launch preferences. All cross-record mutations take one
+cross-process store lock; every record also carries a monotonic revision so a
+stale writer fails compare-and-swap rather than losing another process's edit.
+
+Tag allocation uses `couch-` plus 16 lowercase hexadecimal digits from
+`crypto/rand`. Creation is an atomic no-replace claim checked against both the
+composite record and tag-scoped artifacts. Eight collisions are retried;
+entropy failure and exhausted retries are distinct errors and neither reuses an
+existing tag.
+
+**Start transaction:** one durable nonce makes start recoverable and idempotent:
+
+1. canonicalize the requested path and resolve its current provider policy;
+2. under the store lock, reconcile stale policy evidence, prune only proven-dead
+   incarnations, count live/unknown/creating occupants, and atomically claim the
+   thread plus a `creating` reservation;
+3. release the lock and fork Pair with the resolved launch profile;
+4. reacquire the lock and register `{PID, process identity}`, the normalized
+   admission result, transaction nonce, and launch profile.
+
+A pre-fork failure removes only its matching pristine reservation. If the child
+forks but registration fails, couch stops and verifies that child before
+rollback; when verification is unavailable it leaves an occupied recovery
+record, never a free slot beside an untracked writer. Startup reconciliation
+uses the nonce, owner PID/identity, and child identity to finish or report the
+same transaction without duplicating it (ARCH-PURE, ARCH-PURPOSE).
+
+Persisted admission evidence includes the provider schema version and canonical
+declaration digest. A digest change re-resolves every live, unknown, or
+`creating` incumbent before a new admission decision; unresolved or invalid
+incumbents conservatively occupy capacity. A creating transaction whose target
+no longer resolves to the same policy remains occupied and enters recovery
+rather than being rekeyed beneath its blocked helper. Pair never treats cached
+policy as authority.
+
+**Launch profiles:** each thread records the agent and exact argument vector of
+its latest successfully registered incarnation. Separately, the store keeps a
+path preference keyed by normalized repository identity plus canonical physical
+path: `last_agent` and the last exact argument vector used by each agent at that
+path. A successful incarnation registration updates both facts atomically;
+selection, cancellation, failed fork, or failed registration updates neither.
+
+For a new thread the agent resolves in this order: explicit selection, the
+path's `last_agent`, then the root actor's agent. Its arguments resolve from the
+path's last arguments for that selected agent, falling back to Pair's declared
+repository default for the agent. Agent choices come from Pair's shared agent
+inventory, not a couch-specific enum. Thus changing from Claude to Codex does
+not apply Claude arguments to Codex, and returning to Claude restores Claude's
+last path-specific arguments. `#151` owns the Ctrl-Space selector and visibly
+reports both resolved agent and argument source (ARCH-DRY).
+
+**Command and migration corrections:** #149 does not expose couch resume until
+`#152` can prove a thread parked. `couch name` and `couch describe` mutate the
+selected composite thread record. The advisor's publish operation receives
+`COUCH_THREAD_SCOPE` and `COUCH_THREAD_TAG` and stores its published summary in
+a distinct field. Standalone Pair launches upsert the same store; its picker
+resolves names only within repository scope and refuses ambiguity.
+
+Legacy migration runs under the store lock with a schema version and durable
+nonce journal. Each step is idempotent after interruption and preserves all
+legacy files. Repeated tags in different repositories become distinct composite
+records; same-tree co-tenants that cannot be separated remain multiple
+incarnations of one thread and block admission until reconciled. `#152` writes
+verified park, `last_active_at`, and incarnation removal through the same store
+transaction. `#153` may explicitly rebind mutable `working_path` after
+deterministic reprovisioning; `created_at` and `starting_path` remain immutable.
+
+### 2026-08-25 — close composite-artifact and pre-exec recovery boundaries
+
+**Reason:** review of the transactional revision found two remaining holes: a
+composite metadata key did not yet guarantee composite artifact access, and a
+parent could crash after fork before learning enough about the child to recover
+it. It also found that dependent resume/worktree outcomes remained in #149's
+acceptance boundary.
+
+**Delta — composite means every durable lookup:** `repo_scope` selects Pair's
+existing repository-scoped data namespace; `tag` selects the thread within it.
+Every draft, ledger, log, scrollback, saved config, native-session identity,
+picker, and resume API accepts or derives this same composite address and
+validates that the artifact lives below the selected scope. `pair resume <tag>`
+derives `repo_scope` from its canonical working repository; couch passes both
+`COUCH_THREAD_SCOPE` and `COUCH_THREAD_TAG`. Cross-scope lookup is never a
+tag-only fallback. Two legacy repositories may therefore retain the same tag
+and original filenames without sharing a namespace or opening one another's
+artifacts (ARCH-DRY, ARCH-PURPOSE).
+
+**Delta — no untracked post-fork child:** start uses a close-on-exec handshake.
+The child is forked into a tiny Pair launch helper with the durable transaction
+nonce and blocks before it can start zellij, the agent, an editor, or any other
+workspace writer. The parent durably records the child's PID and process
+identity under that nonce, then acknowledges the pipe/socket and permits exec.
+If the parent dies first, the helper observes EOF or a bounded timeout and exits
+without exec. Reconciliation can therefore identify every surviving child from
+the journal; an occupied `creating` record with no matching live helper is
+recoverable as a failed pre-exec transaction, never an unknowable writer.
+
+**Delta — acceptance boundary:** #149 ends with durable identity, transactional
+start, metadata, inventory/picker, launch-profile storage, legacy migration,
+and normalized policy consumption. It may report a typed
+`provision-worktree` action but does not create that tree. Couch resume and
+verified parked state are #152 outcomes; managed missing-path reprovision and
+working-path rebind are #153 outcomes. Older start/resume and generated-tree
+acceptance text is superseded by this boundary.
+
 ## Done when
 
-- A couch-launched work thread gets a generated durable tag, and a revival of
-  that thread reuses it — verified by the draft and ledger surviving a restart.
+- A couch-launched work thread gets a generated composite durable address;
+  restarting couch reloads the same record, draft, ledger, and other scoped
+  artifacts without reminting or crossing repositories.
 - An operator can name a work thread after the fact and rename it, with no file
   moved and no state lost.
 - pair's picker shows the human name where one exists and the hex string where
@@ -225,29 +427,53 @@ repository-policy case rather than accepting one generic limit test
 - Local-tool policy rejects a second live work thread under the same repository
   root; brain policy admits multiple live in-place threads without an override;
   kbench admits distinct competition directories but rejects two live threads
-  in one competition; and worktree policy gives each generated worktree a
-  singleton live slot.
-- `couch start <path>` twice creates two work threads where the limit allows it,
-  and resuming a specific one is an explicit act.
-- Each durable work thread can be parked and resumed under the same opaque tag;
-  parking frees the live concurrency slot without deleting its history.
-- Thread inventory distinguishes multiple threads at one path and exposes
-  live/parked state plus persisted observed last-active time for terminal
-  presentation.
+  in one competition; and full worktree capacity returns the provider's typed
+  `provision-worktree` action without allocating a path in #149.
+- `couch start <path>` twice creates two distinct work threads where the limit
+  allows it, and a rejected or interrupted start cannot leave an untracked
+  workspace writer or falsely free reservation.
+- A thread records the exact agent/arguments of its latest successful
+  incarnation, while new-thread defaults remember the last successful agent and
+  per-agent arguments at that canonical path and fall back to the root agent and
+  Pair repository defaults as specified.
+- Thread inventory distinguishes multiple threads at one path and exposes exact
+  live versus non-live/unknown state; verified parked state, resume, and
+  historical-age presentation follow `#152`.
 
 ## Plan
 
-- [ ] Make the tag opaque and durable; `Spawn` resolves rather than mints.
-- [ ] Promote the name↔work-thread mapping in `launcher/session_index.go` to a rename
-      layer; pair resolves standalone.
-- [ ] Picker shows names, falling back to the hex string.
-- [ ] couch reads pair's index instead of keeping its own naming table.
-- [ ] Drop the system id from `couch list`'s common output.
-- [ ] Reconcile `#135`'s tag-as-work-identity with work thread.
-- [ ] Implement repository-policy conflict keys and live-slot accounting.
-- [ ] Make park/resume and persisted last-active explicit lifecycle transitions.
+- [ ] M1 — consume ariadne#200's versioned/digested normalized policy through an
+      injected resolver; reconcile stale evidence, account for live/unknown/
+      creating occupants, remove the shadow policy table, and close this exact
+      milestone before ariadne#200 closes.
+- [ ] M2 — build the locked/revisioned `ThreadStore`, composite address, atomic
+      opaque-tag claim, blocked pre-exec handshake, journaled start transaction,
+      and restart reconciliation.
+- [ ] M3 — add mutable name/description/published-summary operations, scoped
+      standalone Pair resolution, shared inventory, and common rendering without
+      a leading system id.
+- [ ] M4 — persist per-thread and per-path/per-agent launch profiles; resolve
+      explicit/path/root agent defaults and path/repository argument defaults,
+      updating preferences only after successful registration.
+- [ ] M5 — migrate legacy tags, artifacts, sessions, registry state, and
+      same-tree co-tenants idempotently under the store lock, proving every
+      artifact lookup is scoped by the composite address.
+- [ ] Reconcile `#135` with composite work-thread identity; leave verified park,
+      couch resume, and `last_active_at` to `#152`, and managed path rebinding to
+      `#153`.
 
 ## Log
+
+### 2026-08-25 — session summary
+
+Fresh spec review split verified park into #152 and managed worktree lifecycle
+into #153, then drove the remaining durable identity contract to an approved
+transactional shape: repository-scoped composite artifact addressing, a locked
+revisioned ThreadStore, recoverable pre-exec start handshake, provider
+version/digest reconciliation including creating reservations, and exact
+per-path/per-agent launch-profile memory. #151 owns the selector presentation;
+#152 resumes with the thread's exact latest profile rather than new-thread
+defaults (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
 
 ### 2026-08-21
 
