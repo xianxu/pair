@@ -1124,8 +1124,10 @@ this plan, and `cmd/internal/couchtty/core_concepts_contract_test.go`.
   inactive child exit and verify its row disappears while a surviving selected
   row is retained or the first visible row is selected. Escape and mid-output
   home must still work. Record each observation, not a blanket “passed.”
-- [ ] Only after operator confirmation, complete original Task 4.6 and run
+- [x] Only after operator confirmation, complete original Task 4.6 and run
   `sdlc close --issue 146 --verified '<evidence>'` without hand-typing actual.
+  (Operator confirmation is recorded; prepared for the immediately following
+  close retry.)
 
 ### 2026-08-24 — delete `Pick` with its final Console caller
 
@@ -1141,3 +1143,14 @@ deletes command mode and `Pick` atomically, then updates the original Core
 concept row, its adjacent prose, and `conceptInventory` from `Pick` to
 `SelectTree`. The final architecture contract and shipped behavior are
 unchanged; only the compilable commit boundary moves.
+
+### 2026-08-25 — normalize the pre-#201 M3 review artifact before issue close
+
+**Reason:** the first whole-issue close failed before dispatch with E2BIG because
+the M3 review sidecar stored five raw Codex process streams and therefore made
+the current review prompt exceed the host argv limit.
+
+**Delta:** no implementation scope changed. The M3 sidecar retains each review's
+metadata and semantic final response but drops prompt/diff/tool/diagnostic
+traffic. Ariadne#201 fixes this output contract for future review writes; prompt
+transport and window sizing remain ariadne#162.

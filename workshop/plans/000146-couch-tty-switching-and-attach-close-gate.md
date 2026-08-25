@@ -1011,6 +1011,12 @@ rounds:
           round: 13
       boundary: M3
       blocked: false
+    - "n": 14
+      timestamp: "2026-08-25T07:29:38-07:00"
+      agent: ""
+      no_cap: true
+      blocked: true
+      protocol_error: 'review did not run: dispatch codex (owner bin "/Users/xianxu/workspace/ariadne/bin" prepended to PATH=/Users/xianxu/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/TeX/texbin:/Users/xianxu/workspace/ariadne/bin:/opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex-path:/Users/xianxu/.codex/tmp/arg0/codex-arg0Y9MH27:/Users/xianxu/workspace/pair/bin:/Library/Java/JavaVirtualMachines/jdk-25.jdk/Contents/Home/bin:/Users/xianxu/.local/share/bob/nvim-bin:/Users/xianxu/.luarocks/bin:/opt/homebrew/opt/lua@5.4/bin:/Users/xianxu/.local/bin:/opt/homebrew/opt/ruby/bin:/Users/xianxu:.mix/escripts:/Users/xianxu/bin:/usr/local/sbin:/Applications/Ghostty.app/Contents/MacOS:/opt/homebrew/opt/fzf/bin): fork/exec /opt/homebrew/bin/codex: argument list too long'
 ---
 
 # Gate ledger — pair#146 (boundary-review)
@@ -1551,6 +1557,10 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - BR-45 — addressed — The corrected table and bidirectional inventory contract cover all three original drift modes, and isolated mutations made each mode fail.
+
+## Round 14 — 2026-08-25T07:29:38-07:00 () — BLOCKED
+
+**Protocol error:** review did not run: dispatch codex (owner bin "/Users/xianxu/workspace/ariadne/bin" prepended to PATH=/Users/xianxu/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/TeX/texbin:/Users/xianxu/workspace/ariadne/bin:/opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex-path:/Users/xianxu/.codex/tmp/arg0/codex-arg0Y9MH27:/Users/xianxu/workspace/pair/bin:/Library/Java/JavaVirtualMachines/jdk-25.jdk/Contents/Home/bin:/Users/xianxu/.local/share/bob/nvim-bin:/Users/xianxu/.luarocks/bin:/opt/homebrew/opt/lua@5.4/bin:/Users/xianxu/.local/bin:/opt/homebrew/opt/ruby/bin:/Users/xianxu:.mix/escripts:/Users/xianxu/bin:/usr/local/sbin:/Applications/Ghostty.app/Contents/MacOS:/opt/homebrew/opt/fzf/bin): fork/exec /opt/homebrew/bin/codex: argument list too long — this round contributed no findings.
 
 ## Open findings
 

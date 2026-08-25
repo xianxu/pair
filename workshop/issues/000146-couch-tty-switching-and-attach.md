@@ -1738,3 +1738,18 @@ cancelled while retaining list state; Enter on the already-active root returned
 immediately with a clean screen and no mingled panel; parked-row Enter started
 that exact path where available; and switching to another live actor remained
 normal. This supplies the final external evidence for Tasks 4.5c and 4.6.
+
+### 2026-08-25 -- close-review artifact recovered after E2BIG
+
+The first whole-issue close could not launch Codex because the tracked M3 review
+sidecar contained five full CLI process streams (prompt, diff, tool traffic,
+diagnostics, and duplicated final response), making the review argv exceed the
+host limit. The failed dispatch is retained as no-cap boundary round 14.
+
+Ariadne#201 now separates semantic stdout from diagnostic stderr for future
+reviews. The already-generated M3 sidecar was mechanically normalized from
+5,030,034 bytes to 30,205 bytes by preserving each of its five metadata blocks
+and final post-`tokens used` response. All five verdict/finding narratives remain;
+only raw process traffic was removed. The untouched original is temporarily
+recoverable at `/tmp/pair-146-m3-review.raw.md`. No product code changed;
+`git diff --check` passes before the close retry.
