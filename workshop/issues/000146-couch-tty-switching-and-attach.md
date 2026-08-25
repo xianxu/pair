@@ -230,17 +230,26 @@ needed to close this switcher safely:
   path. Enter with no visible selection does nothing and reports that there is
   no selection.
 - Opening and cancelling the start input preserves the list's filter and
-  selected identity. Success or asynchronous fleet change rebuilds the list,
-  retains that identity if it still exists and remains visible, and otherwise
-  selects the first visible row. An operation error returns to the same list and
-  appears in the existing notice feed. Leaving the panel clears its transient
-  filter; reopening starts from the full list.
+  selected identity. Printable keys append to the path and Backspace removes
+  the last decoded character. Enter dispatches `start`: an empty path reuses the
+  operation's existing `.` default and a non-empty path is passed unchanged.
+  Success returns to the flat list with the new live row selected; failure
+  returns to the same list state and appears in the existing notice feed.
+- Filtering retains the selected row while it remains visible; when it falls
+  out of the result, the first visible row becomes selected. A zero-match list
+  has no selection. Backspace removes the last filter character. Success or an
+  asynchronous fleet change rebuilds the list, retains the selected identity if
+  it still exists and remains visible, and otherwise selects the first visible
+  row. Leaving the panel clears its transient filter; reopening starts from the
+  full list.
 
 The current parked rows are retained as historically active worktrees. This is
 only a compatibility projection: once `#149` lands, the panel lists durable work
 threads, multiple threads may share one path, and a parked thread is resumed
 rather than treated as a worktree with no process. That future menu uses `park`,
-not `stop thread`, for ending live execution while retaining continuity.
+not `stop thread`, for ending live execution while retaining continuity. Its
+delivery is tracked by `#151`, after `#149` supplies durable work-thread
+identity.
 
 The direct latency invariant is now satisfied by Enter on a visibly selected
 row, not by a numbered shortcut. Tests must cover the complete flat transition

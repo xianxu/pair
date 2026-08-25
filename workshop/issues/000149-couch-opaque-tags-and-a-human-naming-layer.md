@@ -49,18 +49,22 @@ want to work on arc-agi-3". `couch start <file-path>` says *start me somewhere*.
 The repo portion of that path is merely a container that supplies git as a
 facility: history tracking and work isolation. It is not identity.
 
-**Concurrency becomes a configurable per-repo limit**, replacing "one agent per
-tree" plus an escape hatch. The real question is whether work at a path
-typically conflicts:
+**Concurrency becomes a configurable repository policy**, replacing "one agent
+per tree" plus an escape hatch. The policy derives a conflict key and live limit
+from the repository's work shape:
 
 - `pair`, `ariadne`, `parley` — the checkout is the installation, one branch and
-  one index, so a limit of 1.
+  one index, so the repository root is the conflict key and its limit is 1.
 - `brain` — a capture repo where threads append to different files, much like
-  separate chat threads; a limit of N, and no override involved on the normal
-  path. Under `#145`'s model this case needed `--same-tree` every time, which is
-  a smell: an escape hatch on the ordinary path.
-- `kbench` — several competition subdirectories sharing one branch. Genuinely a
-  judgement call, which is why it is configuration rather than a rule.
+  separate chat threads; the policy is unbounded (realistically fewer than five
+  live threads), and no override is involved on the normal path. Under `#145`'s
+  model this case needed `--same-tree` every time, which is a smell: an escape
+  hatch on the ordinary path.
+- `kbench` — each competition directory is a conflict key with a limit of 1;
+  distinct competitions may run concurrently in the shared checkout.
+- worktree-managed application repositories — each generated worktree path is a
+  conflict key with a limit of 1; repository policy also owns creation and later
+  garbage collection of those worktrees.
 
 `--same-tree` therefore stops being a special flag and becomes "exceed the
 configured limit", which is a cleaner thing to announce loudly.
@@ -126,16 +130,10 @@ and tree; keep the id for `show` and diagnostics.
 - **`--same-tree`** yields two spaces in one tree — two drafts, two ledgers,
   two ids. That falls out rather than needing a special case.
 
-### Open questions to settle before implementation
-
-- **What does the limit count?** Configuring per repo and counting sessions
-  whose path falls inside it is simplest, but it means `kbench`'s competition
-  subdirectories share one budget. Per-path would let them run independently
-  while still sharing git. Leaning per-repo, because the conflict being limited
-  is git-level and git is repo-scoped.
-- **Live sessions or all spaces?** Live, presumably — a parked space should not
-  consume budget. The difference is between "one agent at a time" and "one
-  thread ever".
+The limit counts live actor incarnations only. Parked work threads remain in the
+inventory but consume no live concurrency slot. These policies are the couch
+consumer of the repository strategy model tracked in `ariadne#200`; they are not
+hard-coded actor subclasses.
 
 ## Revisions
 
@@ -171,15 +169,22 @@ The eventual couch panel lists work threads, including inactive historically
 active ones. Enter attaches to a live thread and resumes a parked one. Tab opens
 thread-level actions; rename and description therefore target the selected
 thread without ambiguity. Multiple threads at one path are distinct rows even
-when unnamed. This hierarchical menu is sequenced after this issue supplies the
-identity; `#146` keeps its flat transitional worktree panel rather than building
-an actor submenu that would immediately be discarded.
+when unnamed. The hierarchical menu is sequenced in `#151`, which depends on
+this issue; `#146` keeps its flat transitional worktree panel rather than
+building an actor submenu that would immediately be discarded.
 
 Thread summaries expose exact live/parked state and a last-active time. The
 panel may map that age to progressively dimmer terminal grays, but color is only
 a secondary cue: live/parked state and relative age remain readable in text and
 on terminals without grayscale. Last-active is an observed lifecycle fact, not
 an agent-authored status claim.
+
+The concurrency questions are also settled by repository policy rather than one
+global granularity: singleton local-tool checkouts key at repo root, brain is
+unbounded in place, kbench keys by competition directory, and worktree-managed
+repos key each generated worktree. Only live incarnations count. This records
+the operator decisions already captured in `ariadne#200` and removes the stale
+per-repo-versus-per-path open question.
 
 ## Done when
 
