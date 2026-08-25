@@ -892,14 +892,13 @@ func (c *Console) showPanel() {
 		c.rebuildPanel()
 		c.mu.Lock()
 	}
-	m, query, resolve, prompt := c.panel, c.query, c.resolve, c.prompt
-	c.mu.Unlock()
-
-	rows := m.Filter(query, resolve)
-	body := RenderPanelWithQuery(query, rows, m.Cursor())
+	query, prompt := c.query, c.prompt
+	rows := c.panel.Filter(query, c.resolve)
+	body := RenderPanelWithQuery(query, rows, c.panel.Cursor())
 	if prompt != "" {
 		body += "\r\n  " + prompt + "\r\n"
 	}
+	c.mu.Unlock()
 	c.takeOverScreen([]byte(body))
 	c.paintNow()
 }
@@ -1063,12 +1062,11 @@ func (c *Console) setNotice(text string) {
 
 func (c *Console) selectedRow() (PanelRow, bool) {
 	c.mu.Lock()
-	m := c.panel
-	c.mu.Unlock()
-	if m == nil {
+	defer c.mu.Unlock()
+	if c.panel == nil {
 		return PanelRow{}, false
 	}
-	return m.Selected()
+	return c.panel.Selected()
 }
 
 func (c *Console) appendQuery(b rune) {

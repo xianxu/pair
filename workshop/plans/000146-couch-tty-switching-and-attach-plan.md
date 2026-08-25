@@ -931,19 +931,19 @@ rather than adding another shortcut layer (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
 `cmd/internal/couchtty/panelkeys_test.go`, the original Core-concepts row in
 this plan, and `cmd/internal/couchtty/core_concepts_contract_test.go`.
 
-- [ ] **RED — stable selection:** add focused pure tests proving (a) narrowing a
+- [x] **RED — stable selection:** add focused pure tests proving (a) narrowing a
   filter retains the selected worktree when it remains visible; (b) removing it
   selects the first visible row; (c) zero matches has no selection; (d) a model
   rebuilt from reordered summaries can select a requested worktree by identity.
   Run `go test ./cmd/internal/couchtty -run 'TestPanel(FilterPreservesSelectedTree|FilterFallsBackToFirstMatch|ZeroMatchesHaveNoSelection|SelectTreeAfterRefresh)' -count=1`; expect FAIL because selection is cursor-only and `SelectTree` does not exist.
-- [ ] **RED — controls:** replace numbered/action expectations with exact tests
+- [x] **RED — controls:** replace numbered/action expectations with exact tests
   requiring printable typeahead, arrows, Enter, Ctrl-Space start, and Escape;
   label Escape `clear/back`. Require `PanelActions()` to contain only `start`
   and change `PanelActionKeys()` to map it to both `Ctrl-Space` and
   `Enter parked`.
   Assert rendered rows have no numeric-jump prefix and help contains no `:`
   command. Run `go test ./cmd/internal/couchtty -run 'TestPanel(ControlsMatchFlatContract|ActionsAreDeclaredOperations|RendersWithoutNumberedJumpHints)' -count=1`; expect FAIL on the old inventory/render.
-- [ ] **Superseded pure-contract sweep:** remove
+- [x] **Superseded pure-contract sweep:** remove
   `TestPickIndexesTheFilteredRows` and `TestPickRejectsOutOfRange`; replace the
   `Pick(1)` assertion inside `TestPanelFilterKeepsTheModelsOrderNotTheResolvers`
   with stable selected-tree assertions; rename
@@ -951,12 +951,12 @@ this plan, and `cmd/internal/couchtty/core_concepts_contract_test.go`.
   `TestPanelOffersOnlyTheFlatOperatorAction`; and rewrite
   `TestEveryPanelActionHasAKey` for the two `start` routes and no `:` keys. Run
   `rg -n 'Pick\(|numbered|command namespace|not in the.*namespace' cmd/internal/couchtty/panel_test.go`; expect no active numeric/namespace contract.
-- [ ] **RED/GREEN — decoded-character helper:** add `TestRemoveLastRune`, checking
+- [x] **RED/GREEN — decoded-character helper:** add `TestRemoveLastRune`, checking
   `路径 → 路`. Run `go test ./cmd/internal/couchtty -run '^TestRemoveLastRune$' -count=1`; expect compile FAIL because `removeLastRune` is absent. Add the pure helper with `utf8.DecodeLastRuneInString`, rerun, and expect PASS.
-- [ ] **RED — decoded key:** add `TestDecodePanelKeysHoldsSplitUTF8Rune`, checking
+- [x] **RED — decoded key:** add `TestDecodePanelKeysHoldsSplitUTF8Rune`, checking
   every split of a multibyte printable rune. Run
   `go test ./cmd/internal/couchtty -run '^TestDecodePanelKeysHoldsSplitUTF8Rune$' -count=1`; expect FAIL with `keys = [], want [路]` because high bytes are currently dropped.
-- [ ] **GREEN:** add `PanelModel.SelectTree(couchcore.Worktree) bool` and a
+- [x] **GREEN:** add `PanelModel.SelectTree(couchcore.Worktree) bool` and a
   private selected-key helper. In `Filter`, snapshot the selected tree, rebuild
   `shown` in model order, then restore that tree or choose index 0; represent an
   empty result with cursor `-1`. Delete `Pick`. Change `panelControls` to
@@ -966,27 +966,27 @@ this plan, and `cmd/internal/couchtty/core_concepts_contract_test.go`.
   `func PanelActionKeys() map[string][]string`;
   remove numeric prefixes from `RenderPanel` while retaining `▸`, parked, and
   bell markers.
-- [ ] **GREEN — decoded characters:** change `PanelKey.Rune` to `rune`. Decode
+- [x] **GREEN — decoded characters:** change `PanelKey.Rune` to `rune`. Decode
   valid printable UTF-8 with `utf8.DecodeRune` + `unicode.IsPrint`, holding a
   trailing incomplete rune and dropping invalid complete bytes; let unmodified
   CSI-u printable codepoints use the same rune path. Task 4.5b wires the new
   helper into both Console edit sites. ASCII and all escape framing remain
   unchanged.
-- [ ] **Architecture contract:** in the original Core-concepts table replace
+- [x] **Architecture contract:** in the original Core-concepts table replace
   `PanelModel / Filter / Pick / target join` with
   `PanelModel / Filter / SelectTree / target join`; make the identical name
   change in `conceptInventory`, and revise the adjacent concept prose so it
   describes stable selected-worktree restoration rather than `Pick(digit)`.
   Run
   `go test ./cmd/internal/couchtty -run 'TestCoreConceptsContract|TestConceptInventoryRejectsWholeRowDeletion' -count=1`; expect PASS. This change ships in the same commit as deleting `Pick`, never as a prose-only intermediate.
-- [ ] Run `gofmt -w cmd/internal/couchtty/panel.go cmd/internal/couchtty/panel_test.go cmd/internal/couchtty/panelkeys.go cmd/internal/couchtty/panelkeys_test.go cmd/internal/couchtty/core_concepts_contract_test.go` and `go test ./cmd/internal/couchtty -run 'TestPanel|TestDecodePanelKeys|TestCoreConceptsContract|TestConceptInventoryRejectsWholeRowDeletion' -count=1`; expect PASS.
-- [ ] **Deletion/mutation check:** temporarily replace identity restoration with
+- [x] Run `gofmt -w cmd/internal/couchtty/panel.go cmd/internal/couchtty/panel_test.go cmd/internal/couchtty/panelkeys.go cmd/internal/couchtty/panelkeys_test.go cmd/internal/couchtty/core_concepts_contract_test.go` and `go test ./cmd/internal/couchtty -run 'TestPanel|TestDecodePanelKeys|TestCoreConceptsContract|TestConceptInventoryRejectsWholeRowDeletion' -count=1`; expect PASS.
+- [x] **Deletion/mutation check:** temporarily replace identity restoration with
   numeric `clampCursor`; rerun the four stable-selection tests and require at
   least the retain/fallback case RED. Restore and rerun GREEN.
-- [ ] **Mutation check:** drop incomplete UTF-8 instead of holding it and require
+- [x] **Mutation check:** drop incomplete UTF-8 instead of holding it and require
   the split-rune test RED; replace `DecodeLastRuneInString` with one-byte slicing
   and require `TestRemoveLastRune` RED. Restore and rerun GREEN.
-- [ ] Commit: `git add cmd/internal/couchtty/panel.go cmd/internal/couchtty/panel_test.go cmd/internal/couchtty/panelkeys.go cmd/internal/couchtty/panelkeys_test.go cmd/internal/couchtty/core_concepts_contract_test.go workshop/plans/000146-couch-tty-switching-and-attach-plan.md && git commit -m '#146 M4: make flat panel selection stable'`.
+- [x] Commit: `git add cmd/internal/couchtty/panel.go cmd/internal/couchtty/panel_test.go cmd/internal/couchtty/panelkeys.go cmd/internal/couchtty/panelkeys_test.go cmd/internal/couchtty/core_concepts_contract_test.go workshop/plans/000146-couch-tty-switching-and-attach-plan.md && git commit -m '#146 M4: make flat panel selection stable'`.
 
 ### Task 4.5b — total panel hotkey, Enter, prompt, and refresh transitions
 
@@ -995,23 +995,23 @@ this plan, and `cmd/internal/couchtty/core_concepts_contract_test.go`.
 `cmd/internal/couchtty/console_panel_regression_test.go`; add
 `cmd/internal/couchcore/ops_test.go` for the existing empty-path default.
 
-- [ ] **RED — Ctrl-Space start:** replace both `:s` start tests with a table over
+- [x] **RED — Ctrl-Space start:** replace both `:s` start tests with a table over
   legacy NUL and Kitty CSI-u Ctrl-Space. First hotkey opens the panel; the next
   opens `start in path:`. Add a case that types a partial path, sends another
   Ctrl-Space, and proves the prompt/text are unchanged. Run
   `go test ./cmd/internal/couchtty -run 'TestPanelCtrlSpace(Start|IsNoOpInsideStartPrompt)' -count=1`; expect the start cases FAIL with `prompt = "", want "start in path:"`; after the minimal panel-start branch, run the no-op case RED and expect `prompt arg = "", want "../pa"` until the active-prompt guard exists.
-- [ ] **RED — printable-only input:** replace
+- [x] **RED — printable-only input:** replace
   `TestPanelNamespacedDigitSwitchesDirectly` with a test typing `:2`; assert the
   filter becomes `:2`, focus stays panel, and no child receives input. Extend
   the existing printable table with bare `:`, `1`, and `9`. Name the replacement
   `TestPanelColonAndDigitsAreFilterText`. Run
   `go test ./cmd/internal/couchtty -run 'TestPanel(ColonAndDigitsAreFilterText|PrintableCommandRunesAreTypeahead)' -count=1`; expect FAIL with `query = "", want ":2"` or focus leaving the panel because command mode still dispatches.
-- [ ] **RED — one panel landing path:** add
+- [x] **RED — one panel landing path:** add
   `TestPanelEnterOnAlreadyActiveActorForcesClearAndReplay`: open the one-row root
   panel, reset host writes, feed detached output, press Enter, and require
   `hostty.HomeAndClear`, replayed output, actor focus, and no panel text after the
   final clear. Run it and expect FAIL because Enter calls ordinary `onSwitch`.
-- [ ] **RED — parked start:** inject summaries containing a parked worktree and
+- [x] **RED — parked start:** inject summaries containing a parked worktree and
   a stateful operation fake. Enter on its selected row must dispatch `start`
   with that exact path; operation error must preserve query/selection and appear
   in the notice feed. On success, the returned terminal child must attach, the
@@ -1023,34 +1023,34 @@ this plan, and `cmd/internal/couchtty/core_concepts_contract_test.go`.
   The success test must additionally require `focus.IsPanel()` and a final
   rendered panel containing the started row; landing on the new actor is a
   failure even if attach/selection happened.
-- [ ] **Characterization — existing prompt mechanics:** after the minimal
+- [x] **Characterization — existing prompt mechanics:** after the minimal
   Ctrl-Space panel-start branch exists, add
   `TestPanelStartPromptCancelPreservesListState`,
   and `TestPanelEmptyStartUsesOperationDotDefault`. Require Escape to preserve
   the pre-prompt query/selection and the console dispatcher to receive an empty
   path rather than duplicating `.`. Run
   `go test ./cmd/internal/couchtty -run 'TestPanel(StartPromptCancelPreservesListState|EmptyStartUsesOperationDotDefault)' -count=1`; expect PASS because the existing generic prompt already owns cancel and forwards exact input.
-- [ ] **RED — Console decoded-character editing:** add
+- [x] **RED — Console decoded-character editing:** add
   `TestPanelBackspaceRemovesLastDecodedCharacter`, covering filter `路径 → 路`
   and prompt `/tmp/路径 → /tmp/路`. Run
   `go test ./cmd/internal/couchtty -run '^TestPanelBackspaceRemovesLastDecodedCharacter$' -count=1`; expect FAIL with invalid UTF-8/corrupted trailing bytes because both Console branches slice one byte. Wire both branches to `removeLastRune` and rerun PASS.
-- [ ] **RED — filter edges:** add
+- [x] **RED — filter edges:** add
   `TestPanelEnterWithNoMatchReportsNoSelection`, and
   `TestPanelRefreshPreservesOrFallsBackSelection`. Run
   `go test ./cmd/internal/couchtty -run 'TestPanel(EnterWithNoMatchReportsNoSelection|RefreshPreservesOrFallsBackSelection)' -count=1`; expect the first FAIL with `notice = "", want "no selection"` and the second FAIL with `selected = <old index target>, want <retained-or-first tree>`.
-- [ ] **Characterization — operation-owned default:** before changing console
+- [x] **Characterization — operation-owned default:** before changing console
   code, have `TestStartOperationDefaultsEmptyPathToDot` derive
   `cwd := NormalizePath(".")`, seed `newTestEnv(t, cwd)`, and invoke the real
   `start` operation with an empty argument map. Require both
   `StartResult.Record.Args.Cwd == cwd` and the fake runner's launch directory to
   equal `cwd`. Run
   `go test ./cmd/internal/couchcore -run '^TestStartOperationDefaultsEmptyPathToDot$' -count=1`; expect PASS with the canonical absolute cwd. Temporarily remove the `path = "."` default in `Operations()` and require this test RED with `spawn: no path given`, then restore. This is characterization, not falsely labeled pre-change RED.
-- [ ] **RED — panel-visible fleet refresh:** add
+- [x] **RED — panel-visible fleet refresh:** add
   `TestPanelRefreshesWhenInactiveChildExitsWhileOpen`: open a two-child panel,
   select the second row, exit the first child, and require the dead row to
   disappear immediately while the surviving selection remains. Run
   `go test ./cmd/internal/couchtty -run '^TestPanelRefreshesWhenInactiveChildExitsWhileOpen$' -count=1`; expect FAIL with the dead label still present because `onExit` currently rebuilds only when the exited child had actor focus.
-- [ ] **Superseded-test sweep:** move the new regression tests into
+- [x] **Superseded-test sweep:** move the new regression tests into
   `console_panel_regression_test.go` and remove/replace the four old contracts in
   `console_test.go`: `TestPanelNamespacedDigitSwitchesDirectly`,
   `TestPanelStartAttachesTheReturnedTerminalChild`,
@@ -1058,27 +1058,27 @@ this plan, and `cmd/internal/couchtty/core_concepts_contract_test.go`.
   `TestPanelActionWithoutOpsSaysSo`. Replace the last with
   `TestPanelStartWithoutOpsSaysSo`, driven by panel Ctrl-Space plus Enter. Run
   `rg -n 'NamespacedDigit|stdin.Write\(\[\]byte\(":s"\)\)|":x"|command namespace' cmd/internal/couchtty --glob '*_test.go'`; expect no active tests for the removed namespace.
-- [ ] **Whole stale-contract sweep:** run
+- [x] **Whole stale-contract sweep:** run
   `rg -n 'Pick\(|numbered|NamespacedDigit|command namespace|":s"|":x"|start.*stop.*name.*describe' cmd/internal/couchtty --glob '*_test.go'`; expect no assertion or fixture for numeric jumps, `:` actions, or the old four-action inventory. Historical prose outside active tests may remain only where a later revision explicitly supersedes it.
-- [ ] **GREEN — hotkey:** at the start of `onHotkey`, if focus is panel, inspect
+- [x] **GREEN — hotkey:** at the start of `onHotkey`, if focus is panel, inspect
   `promptFn`; open the existing start prompt only when nil, call `showPanel`, and
   otherwise return without mutation. Do not route Ctrl-Space through
   `DecodePanelKeys` or create a second operation path.
-- [ ] **GREEN — panel keys:** delete `Console.command` and all command-mode
+- [x] **GREEN — panel keys:** delete `Console.command` and all command-mode
   branches. `KeyRune` always appends to the current filter. On Enter, report no
   selection when absent; dispatch `start{path: row.Tree}` for a parked row;
   otherwise clear the query and call `forceSwitch(row.Target)`. Escape retains
   its clear-query-then-forced-return behavior. Tab/control bytes stay ignored
   and absent from rendered help until `#151`.
-- [ ] **GREEN — refresh identity:** have `rebuildPanel` snapshot the selected
+- [x] **GREEN — refresh identity:** have `rebuildPanel` snapshot the selected
   tree rather than cursor index and restore it through `SelectTree`. After a
   successful `StartResult`, attach the terminal, clear the query, rebuild, and
   select the started worktree. Failed operations leave the flat model/query
   untouched and write through `Feed`. When `onExit` observes panel focus,
   rebuild and show the panel even though the exited child was not actor-focused;
   identity restoration chooses the surviving row or first visible fallback.
-- [ ] Run `gofmt -w cmd/internal/couchtty/console.go cmd/internal/couchtty/console_test.go cmd/internal/couchtty/console_panel_regression_test.go cmd/internal/couchcore/ops_test.go` and `go test ./cmd/internal/couchtty ./cmd/internal/couchcore -count=1`; expect PASS.
-- [ ] **Mutation checks, one at a time:** (a) same-active Enter → `onSwitch`
+- [x] Run `gofmt -w cmd/internal/couchtty/console.go cmd/internal/couchtty/console_test.go cmd/internal/couchtty/console_panel_regression_test.go cmd/internal/couchcore/ops_test.go` and `go test ./cmd/internal/couchtty ./cmd/internal/couchcore -count=1`; expect PASS.
+- [x] **Mutation checks, one at a time:** (a) same-active Enter → `onSwitch`
   makes its replay test RED; (b) remove panel `onHotkey` branch makes
   Ctrl-Space-start RED; (c) restore `:` command recognition makes
   printable-only RED; (d) route parked Enter to empty-target switching makes
@@ -1096,23 +1096,23 @@ this plan, and `cmd/internal/couchtty/core_concepts_contract_test.go`.
   failure-retention RED; (o) switch focus to the new actor after successful
   start makes the success test's panel-focus/final-render assertions RED.
   Restore after each and rerun both packages GREEN.
-- [ ] Commit: `git add cmd/internal/couchtty/console.go cmd/internal/couchtty/console_test.go cmd/internal/couchtty/console_panel_regression_test.go cmd/internal/couchcore/ops_test.go && git commit -m '#146 M4: repair flat panel transitions'`.
+- [x] Commit: `git add cmd/internal/couchtty/console.go cmd/internal/couchtty/console_test.go cmd/internal/couchtty/console_panel_regression_test.go cmd/internal/couchcore/ops_test.go && git commit -m '#146 M4: repair flat panel transitions'`.
 
 ### Task 4.5c — current-state docs and close evidence
 
 **Files:** modify `README.md`, `atlas/couch.md`,
 `workshop/issues/000146-couch-tty-switching-and-attach.md`, and this plan.
 
-- [ ] Replace the README and atlas `:` namespace/numbered-jump descriptions
+- [x] Replace the README and atlas `:` namespace/numbered-jump descriptions
   with the flat contract. State explicitly that Tab/thread actions follow in
   `#151` after `#149`; do not describe the future hierarchy as shipped.
-- [ ] Update M3's historical summaries only by marking numbered/actions as
+- [x] Update M3's historical summaries only by marking numbered/actions as
   superseded by this M4 revision; preserve the record of what M3 originally
   shipped. Keep the Acceptance mapping's five new rows aligned with the issue's
   five regression Done-when bullets; no row may still point to `Pick` or a
   numbered shortcut. Tick Tasks 4.5a–4.5c and append the observed
   RED/GREEN/mutation and operator-smoke evidence to the issue Log.
-- [ ] Run `go test ./cmd/internal/couchtty -count=1`, `go test ./... -count=1`,
+- [x] Run `go test ./cmd/internal/couchtty -count=1`, `go test ./... -count=1`,
   `make test-race`, `make test-live`, `make test`, `make test-smoke`,
   `sdlc issue validate --issue 146`, and `git diff --check`; expect all PASS.
 - [ ] Final operator smoke in the real layout2 stack: verify root Ctrl-Space

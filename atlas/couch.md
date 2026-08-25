@@ -108,14 +108,19 @@ arrow sequence; the Run loop's ambiguity timer turns it into an Escape key only
 when no continuation arrives.
 
 The panel is couch's own screen. It owns input while visible, suppresses
-background-child painting, and supports arrows + Enter, Escape, direct
-typeahead, and a `:` command namespace (`:1`–`:9`, `:s`, `:x`, `:n`, `:d`).
-Every action
-dispatches through `couchcore.Operations()`; `start`'s returned `StartResult` is
-load-bearing because the console consumes it to attach the new terminal child.
-The printable namespace is intentionally collision-free: ordinary letters and
-digits always begin a filter, rather than sometimes becoming a command because
-the query happened to be empty.
+background-child painting, and has one flat interaction language. Printable
+input—including colons and digits—is typeahead; arrows move selection; Enter
+forces the selected live actor's clear-and-replay attach path or starts a
+selected parked worktree; Escape clears the filter or returns. Ctrl-Space from
+the panel opens the start-path input, and Ctrl-Space inside that input is inert.
+`start` dispatches through `couchcore.Operations()`; its returned `StartResult`
+is load-bearing because the console attaches the new terminal child, rebuilds
+the list, and selects its worktree without leaving the panel. Failed starts
+retain filter and selection and report through the notice feed.
+
+There is no numbered jump or `:` command state. Tab/thread actions are deferred
+to #151 after #149 provides the durable work-thread identity those actions
+target; the current panel does not advertise Tab.
 
 A panel row carries two identities that must not be conflated: the canonical
 worktree feeds the shared human resolver, while the console-local child id is

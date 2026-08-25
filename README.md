@@ -292,7 +292,7 @@ couch. Couch requests this behavior through a temporary one-shot
 inherited by sidecars, zellij, or panes. Direct Pair launches keep their normal
 saved-config picker behavior.
 
-**`ctrl-space` belongs to couch while a session is hosted.** It is intercepted
+**`Ctrl-Space` belongs to couch while a session is hosted.** It is intercepted
 before the child sees it, in both encodings a terminal may send it (the legacy
 NUL and the Kitty protocol's `CSI 32;5u`), so it will not reach your editor or
 agent inside a couch-hosted session. Every other chord — `Alt+j`, `Alt+k`,
@@ -302,10 +302,12 @@ the old spawn-and-inherit-stdio behaviour with no interception at all.
 Focus has three levels. From a non-home actor, `ctrl-space` returns to the first
 actor couch hosted (home); from home it opens the actors panel. In the panel,
 ordinary printable input is direct typeahead. Use `↑↓` and `Enter` to select and
-switch, `Escape` to clear the filter or return, and the `:` command namespace:
-`:1–:9` jumps to a numbered row, `:s` starts, `:x` stops, `:n` names, and `:d`
-describes a tree. Keeping commands behind `:` means names beginning with `s`,
-`x`, `n`, `d`, or a digit remain searchable.
+switch; Enter on a parked row starts in that path. `Escape` clears the filter
+or returns. Press `ctrl-space` again from the panel to enter a path for a new
+actor; an empty path uses the existing `.` default. Colons and digits are
+ordinary filter text—there is no command namespace or numbered jump mode.
+Thread actions behind Tab follow in #151 after #149 supplies durable thread
+identity; Tab is intentionally inactive for now.
 
 ## Command Usage
 

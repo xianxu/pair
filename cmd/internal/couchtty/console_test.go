@@ -739,7 +739,7 @@ func TestHotkeyFromTheRootActorOpensThePanel(t *testing.T) {
 		return strings.Contains(f.host.Written(), "couch — actors")
 	})
 	got := f.host.Written()
-	for _, want := range []string{"1", "brain", "2", "ariadne"} {
+	for _, want := range []string{"▸    brain", "     ariadne"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("the panel does not list %q: %q", want, got)
 		}

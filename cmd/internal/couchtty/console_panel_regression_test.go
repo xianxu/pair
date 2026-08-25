@@ -185,6 +185,13 @@ func TestPanelStartSuccessAttachesAndSelectsReturnedTree(t *testing.T) {
 
 func TestPanelStartPromptCancelPreservesListState(t *testing.T) {
 	f := parkedFixture(t)
+	f.con.SetResolver(func(string) []couchcore.Worktree { return []couchcore.Worktree{"/w/parked"} })
+	_, _ = f.stdin.Write([]byte("park"))
+	waitFor(t, "the filtered parked row", func() bool {
+		f.con.mu.Lock()
+		defer f.con.mu.Unlock()
+		return f.con.query == "park"
+	})
 	_, _ = f.stdin.Write([]byte("\x00/tmp/nope\x1b"))
 	waitFor(t, "prompt cancellation", func() bool {
 		f.con.mu.Lock()
@@ -192,8 +199,11 @@ func TestPanelStartPromptCancelPreservesListState(t *testing.T) {
 		return f.con.promptFn == nil
 	})
 	row, ok := f.con.selectedRow()
-	if !ok || row.Tree != "/w/parked" {
-		t.Fatalf("cancel changed selection: %+v, %v", row, ok)
+	f.con.mu.Lock()
+	query := f.con.query
+	f.con.mu.Unlock()
+	if query != "park" || !ok || row.Tree != "/w/parked" {
+		t.Fatalf("cancel changed list state: query=%q row=%+v ok=%v", query, row, ok)
 	}
 }
 
@@ -250,6 +260,12 @@ func TestPanelEnterWithNoMatchReportsNoSelection(t *testing.T) {
 
 func TestPanelRefreshPreservesOrFallsBackSelection(t *testing.T) {
 	f := parkedFixture(t)
+	f.con.SetSummaries(func() []couchcore.TreeSummary {
+		return []couchcore.TreeSummary{
+			{Tree: "/w/parked", Name: "parked"},
+			{Tree: "c1", Name: "brain", Actors: []couchcore.ActorView{{Live: true}}},
+		}
+	})
 	f.con.rebuildPanel()
 	row, ok := f.con.selectedRow()
 	if !ok || row.Tree != "/w/parked" {

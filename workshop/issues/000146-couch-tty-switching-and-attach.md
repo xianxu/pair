@@ -1679,3 +1679,51 @@ names both extracted halves (`ptychild`, `hostty`) and their second consumer
 (`pair term`), and the operation set remains intentionally unenumerated. The
 built `bin/couch --help` renders `start`'s `<no-console>` / `--no-console`
 fallback (ARCH-PURPOSE).
+
+### 2026-08-24 -- M4 flat-panel smoke regressions repaired
+
+The M3 `:` command state and numbered row prefixes are gone. Panel selection is
+now keyed by canonical worktree across filtering and fleet refresh; zero matches
+has no selection. Printable UTF-8 is decoded as runes, and both filter and
+start-path Backspace remove one decoded character. The only flat-panel
+operation is `start`, reached by a second Ctrl-Space or Enter on a parked row.
+
+Console regressions now cover both Ctrl-Space encodings, an inert Ctrl-Space
+inside the path prompt, literal colon/digit filtering, forced clear-and-replay
+when Enter selects the already-active actor, exact parked-path dispatch,
+failure state retention, successful terminal attach with the new row selected
+while the panel stays open, prompt cancellation, empty-path forwarding to the
+operation-owned `.` default, Unicode editing, zero-match Enter, and immediate
+panel refresh on an inactive exit. The original same-active implementation
+timed out RED when `forceSwitch` was mutated back to `onSwitch`; omitting the
+panel-visible exit refresh and omitting successful-start selection each timed
+out RED; removing `Operations()`'s `.` default failed with `spawn: no path
+given`. The restored implementations pass both affected packages. The earlier
+pure-model mutations separately proved worktree selection restoration,
+split-UTF-8 holding, and rune-safe deletion.
+
+Current-state README and atlas documentation now describe the flat controls.
+The future Tab hierarchy is explicitly assigned to #151 after #149 supplies
+durable work-thread identity; neither is claimed as shipped here
+(ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-24 -- M4 regression verification repaired two weak boundaries
+
+The first whole-tree run failed the executable README contract because the
+inventory spells `Ctrl-Space` while the new prose used lowercase; the README
+now contains the exact rendered key. The first race run then found that
+`showPanel` held the Console mutex only while copying the panel pointer before
+mutating `PanelModel.Filter`, while concurrent selection reads used the same
+model after dropping that lock. Console now owns both live filtering/render
+snapshot and selection reads under its mutex. The focused three-regression race
+suite passed ten repetitions and the full `make test-race` passed.
+
+The first aggregate `make test` also exposed an older panel-open test that still
+looked for bare characters `1` and `2`; unrelated terminal output had allowed
+that assertion to pass accidentally. It now requires exact selected/unselected
+row text, so numbered prefixes cannot return unnoticed. After those fixes:
+`go test ./... -count=1`, `make test-race`, `make test-live`, `make test`, and
+`make test-smoke` all pass; the smoke reports 8/8 terminal steps plus zellij
+client survival under SIGTERM and SIGKILL. `sdlc issue validate --issue 146`
+and `git diff --check` pass. Real layout2 operator smoke remains deliberately
+open before issue close (ARCH-PURE, ARCH-PURPOSE).
