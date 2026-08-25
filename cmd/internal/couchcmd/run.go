@@ -229,7 +229,7 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 		return 1
 	}
 	label := start.Record.Args.Worktree.Repo()
-	console.AttachTree(start.Handle.ID(), start.Record.Args.Worktree, label, th.Terminal())
+	console.AttachActor(start.Handle.ID(), start.Record.ID, start.Record.Args.Worktree, label, th.Terminal())
 	return console.Run()
 }
 
@@ -241,6 +241,7 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
 	console.SetResolver(c.LookupTrees)
 	console.SetSummaries(func() []couchcore.TreeSummary { return c.Summarize(nil) })
+	console.SetForget(c.Forget)
 
 	// The panel's actions run through the SAME declared table the CLI
 	// dispatches: the console names an operation and couchcore performs it, so

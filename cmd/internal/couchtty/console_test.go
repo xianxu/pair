@@ -69,6 +69,72 @@ func newFixture(t *testing.T, rows, cols uint16) *consoleFixture {
 	return f
 }
 
+func TestActiveChildExitFocusesPanelRecordsCauseAndForgetsActor(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	other := ptychild.NewFakeChild(nil)
+	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+	f.con.AttachTree("c2", "/w/pair", "pair", other)
+
+	var forgotTree couchcore.Worktree
+	var forgotID couchcore.ActorID
+	f.con.SetForget(func(tree couchcore.Worktree, id couchcore.ActorID) error {
+		forgotTree, forgotID = tree, id
+		return nil
+	})
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+
+	f.child.Exit(7)
+	waitFor(t, "the active exit to land on the panel", func() bool {
+		f.con.mu.Lock()
+		defer f.con.mu.Unlock()
+		_, deadPanePresent := f.con.panes["c1"]
+		return f.con.focus.IsPanel() && !deadPanePresent
+	})
+
+	if forgotTree != "c1" || forgotID != "c1" {
+		t.Fatalf("forgot (%q, %q), want (c1, c1)", forgotTree, forgotID)
+	}
+	if got := f.host.Written(); !strings.Contains(got, "brain") || !strings.Contains(got, "7") {
+		t.Fatalf("exit landing does not name actor and code: %q", got)
+	}
+	select {
+	case code := <-f.done:
+		t.Fatalf("console exited with %d while another child remained", code)
+	default:
+	}
+}
+
+func TestInactiveChildExitKeepsFocusAndRecordsNotice(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	other := ptychild.NewFakeChild([]byte("pair screen"))
+	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+	f.con.AttachTree("c2", "/w/pair", "pair", other)
+	f.con.SetForget(func(couchcore.Worktree, couchcore.ActorID) error { return nil })
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	f.con.Switch("c2")
+	waitFor(t, "pair to become active", func() bool {
+		f.con.mu.Lock()
+		defer f.con.mu.Unlock()
+		return f.con.focus == FocusActor("c2")
+	})
+	f.host.Reset()
+
+	f.child.Exit(19)
+	waitFor(t, "the inactive exit notice", func() bool {
+		return strings.Contains(f.host.Written(), "brain") && strings.Contains(f.host.Written(), "19")
+	})
+	f.con.mu.Lock()
+	focus := f.con.focus
+	_, deadPanePresent := f.con.panes["c1"]
+	f.con.mu.Unlock()
+	if focus != FocusActor("c2") {
+		t.Fatalf("inactive exit stole focus: got %+v, want c2", focus)
+	}
+	if deadPanePresent {
+		t.Fatal("inactive dead pane remained attached")
+	}
+}
+
 // The whole reserved-row design in one assertion: the child is sized one row
 // short of the host, never the full height.
 func TestConsoleSizesTheChildOneRowShort(t *testing.T) {

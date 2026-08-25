@@ -546,6 +546,28 @@ func TestConsoleGetsAnActionDispatcher(t *testing.T) {
 	}
 }
 
+func TestConsoleExitForgetsThroughCouchRegistry(t *testing.T) {
+	rt := newRT(t, "/repo")
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatalf("NewCouch: %v", err)
+	}
+	console, _ := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
+	rec, h, err := c.Spawn(couchcore.StartArgs{Cwd: "/repo"})
+	if err != nil {
+		t.Fatalf("Spawn: %v", err)
+	}
+	if len(c.List()) != 1 {
+		t.Fatal("test setup has no registered actor")
+	}
+
+	runConsole(console, c, couchcore.StartResult{Record: rec, Handle: h}, &bytes.Buffer{})
+
+	if got := c.List(); len(got) != 0 {
+		t.Fatalf("registry after terminal child exit = %+v, want empty", got)
+	}
+}
+
 // A refusal is a next-action spec: every remedy it names must be a command the
 // operator can run.
 //

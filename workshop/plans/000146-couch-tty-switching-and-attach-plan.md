@@ -394,9 +394,9 @@ The milestone that answers both terminal risks: does `pair` run correctly in a c
 
 **Contract:** on child exit — focus the panel, emit `exit:<id>` as a **control** notice carrying the actor and the exit code, and unregister through `couchcore` so the tree is freed (`Couch.Forget`, the path `PruneDead` already models).
 
-- [ ] **Tests must catch:** (a) exit while that child is **active** focuses the panel; (b) exit while it is **inactive** does not steal focus but does record the notice — a switcher that yanks the operator out of the child they are typing in is worse than the dead pane; (c) the notice names the actor and the code; (d) the registry entry is gone afterwards.
-- [ ] **Deletion check:** drop the Forget call → (d) red.
-- [ ] Commit.
+- [x] **Tests must catch:** (a) exit while that child is **active** focuses the panel; (b) exit while it is **inactive** does not steal focus but does record the notice — a switcher that yanks the operator out of the child they are typing in is worse than the dead pane; (c) the notice names the actor and the code; (d) the registry entry is gone afterwards.
+- [x] **Deletion check:** drop the Forget call → (d) red.
+- [x] Commit.
 
 ### Task 4.2 — `Feed` over `couchcore.Enqueue`, and the row says something
 

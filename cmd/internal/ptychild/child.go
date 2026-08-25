@@ -211,6 +211,12 @@ func (c *Child) Done() bool {
 	}
 }
 
+// Exited closes when the child has exited and been reaped. Consumers that
+// supervise several children select on this signal, then call Wait for the
+// already-published exit code; exposing the signal avoids one permanently
+// blocked waiter goroutine per warm detached child.
+func (c *Child) Exited() <-chan struct{} { return c.done }
+
 // Wait blocks until the child exits and returns its code.
 func (c *Child) Wait() int {
 	<-c.done

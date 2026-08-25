@@ -1487,3 +1487,14 @@ row contents. Deleting the entire `PanelKey` / `DecodePanelKeys` row was
 observed RED (`missing PURE row ...`) and restoration returned the contract to
 GREEN. The plan's Core concepts table can no longer silently omit the class of
 entity that originally triggered BR-45 (ARCH-PURPOSE).
+
+### 2026-08-24 -- M4 Task 4.1: child exits remove dead panes
+
+The console now supervises every attached child rather than waiting only for
+the initially active one. An active exit lands on the panel while another child
+remains; an inactive exit records the cause without stealing focus. Both paths
+remove the pane and invoke the injected `Couch.Forget` seam. TDD exposed that a
+PTY handle ID and a registry `ActorID` are different identities in both the
+fake and real runners; panes now retain both, using the handle for byte routing
+and the actor ID for notices and persistence. Dropping the Forget wiring leaves
+the registry test RED (ARCH-PURE, ARCH-PURPOSE).

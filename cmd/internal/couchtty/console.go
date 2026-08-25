@@ -19,11 +19,17 @@ type chunk struct {
 	data []byte
 }
 
+type childExit struct {
+	id   string
+	code int
+}
+
 type pane struct {
-	tree  couchcore.Worktree
-	label string
-	desc  string
-	child *ptychild.Child
+	tree    couchcore.Worktree
+	actorID couchcore.ActorID
+	label   string
+	desc    string
+	child   *ptychild.Child
 
 	// bell is sticky until the operator looks at this actor. The row's job is
 	// to say who wants attention, so a signal that cleared itself on the next
@@ -91,6 +97,7 @@ type Console struct {
 	// what an operation IS -- it names one and couchcore runs it, which is
 	// what keeps the panel from growing a private verb (#148's design test).
 	ops    func(name string, args map[string]string) (any, error)
+	forget func(couchcore.Worktree, couchcore.ActorID) error
 	notice string
 	size   ptychild.Size
 
@@ -121,6 +128,7 @@ type Console struct {
 	resized   chan struct{}
 	switching chan string
 	input     chan []byte
+	exited    chan childExit
 	stop      chan struct{}
 	once      sync.Once
 }
@@ -143,12 +151,22 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		resized:   make(chan struct{}, 1),
 		switching: make(chan string, 8),
 		input:     make(chan []byte, 64),
+		exited:    make(chan childExit, 64),
 		stop:      make(chan struct{}),
 	}
 	if s, err := host.Size(); err == nil {
 		c.size = s
 	}
 	return c
+}
+
+// SetForget injects registry removal. Production passes Couch.Forget; keeping
+// it as a narrow seam lets Console own exit ordering without owning registry
+// persistence or process policy.
+func (c *Console) SetForget(f func(couchcore.Worktree, couchcore.ActorID) error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.forget = f
 }
 
 // SetOps injects the action dispatcher: `couchcmd` passes one that runs
@@ -237,21 +255,39 @@ func (c *Console) Deliver(id string, data []byte) {
 // as a test/helper convenience; production must call AttachTree so typeahead
 // resolves against the real worktree identity.
 func (c *Console) Attach(id, label string, child *ptychild.Child) {
-	c.AttachTree(id, couchcore.Worktree(id), label, child)
+	c.AttachActor(id, couchcore.ActorID(id), couchcore.Worktree(id), label, child)
 }
 
 // AttachTree registers a child with both identities the panel needs: worktree
 // for human resolution, actor id for deterministic switching.
 func (c *Console) AttachTree(id string, tree couchcore.Worktree, label string, child *ptychild.Child) {
+	c.AttachActor(id, couchcore.ActorID(id), tree, label, child)
+}
+
+// AttachActor registers all three identities a hosted pane carries. handleID
+// routes PTY bytes inside this console; actorID is the durable registry identity
+// used by notices and Forget; tree is the human-resolution and concurrency key.
+func (c *Console) AttachActor(handleID string, actorID couchcore.ActorID, tree couchcore.Worktree, label string, child *ptychild.Child) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.panes[id] = &pane{tree: tree, label: label, child: child}
-	c.order = append(c.order, id)
+	c.panes[handleID] = &pane{tree: tree, actorID: actorID, label: label, child: child}
+	c.order = append(c.order, handleID)
 	if c.active == "" {
-		c.active = id
-		c.root = id
-		c.focus = FocusActor(id)
+		c.active = handleID
+		c.root = handleID
+		c.focus = FocusActor(handleID)
 	}
+	c.mu.Unlock()
+
+	go func() {
+		select {
+		case <-child.Exited():
+			select {
+			case c.exited <- childExit{id: handleID, code: child.Wait()}:
+			case <-c.stop:
+			}
+		case <-c.stop:
+		}
+	}()
 }
 
 // PaneRowDirty reports whether a pane still owes a row repaint. Exported for
@@ -320,8 +356,8 @@ func (c *Console) switchTo(id string, force bool) {
 // goroutine.
 func (c *Console) Stop() { c.once.Do(func() { close(c.stop) }) }
 
-// Run owns the operator's terminal until the active child exits or Stop is
-// called. It returns the child's exit code.
+// Run owns the operator's terminal until the last child exits or Stop is
+// called. It returns the last child's exit code.
 func (c *Console) Run() int {
 	restore, err := c.host.MakeRaw()
 	if err != nil {
@@ -340,11 +376,6 @@ func (c *Console) Run() int {
 
 	go c.pumpStdin()
 	go c.watchResize()
-
-	exited := make(chan int, 1)
-	if child := c.activeChild(); child != nil {
-		go func() { exited <- child.Wait() }()
-	}
 
 	var it Interceptor
 	var inputEscapeTimer, panelEscapeTimer *time.Timer
@@ -439,12 +470,67 @@ func (c *Console) Run() int {
 			panelEscapeC = nil
 			c.panelHeld = nil
 			c.onPanelKey(PanelKey{Kind: KeyEscape})
-		case code := <-exited:
-			return code
+		case event := <-c.exited:
+			if c.onExit(event) {
+				return event.code
+			}
 		case <-c.stop:
 			return 0
 		}
 	}
+}
+
+// onExit removes a dead child from the console and registry. An active exit
+// lands on the panel; an inactive exit only repaints the notice so it cannot
+// steal the operator from the child they are typing in. It reports whether no
+// hosted children remain.
+func (c *Console) onExit(event childExit) bool {
+	c.mu.Lock()
+	p, known := c.panes[event.id]
+	if !known {
+		last := len(c.panes) == 0
+		c.mu.Unlock()
+		return last
+	}
+	wasFocused := c.focus == FocusActor(event.id)
+	delete(c.panes, event.id)
+	for i, id := range c.order {
+		if id == event.id {
+			c.order = append(c.order[:i:i], c.order[i+1:]...)
+			break
+		}
+	}
+	if event.id == c.root {
+		c.root = ""
+		if len(c.order) > 0 {
+			c.root = c.order[0]
+		}
+	}
+	if wasFocused {
+		c.active = ""
+		c.focus = FocusPanel()
+	}
+	exitNotice := ExitNotice(p.actorID, p.label, event.code)
+	c.notice = exitNotice.Body
+	forget := c.forget
+	last := len(c.panes) == 0
+	c.mu.Unlock()
+
+	if forget != nil {
+		if err := forget(p.tree, p.actorID); err != nil {
+			c.setNotice(fmt.Sprintf("forget %s: %v", p.label, err))
+		}
+	}
+	if last {
+		return true
+	}
+	if wasFocused {
+		c.rebuildPanel()
+		c.showPanel()
+	} else {
+		c.paintNow()
+	}
+	return false
 }
 
 // release puts the terminal back: region reset, then the reserved row cleared,
@@ -962,7 +1048,7 @@ func (c *Console) runOp(name string, args map[string]string) {
 			c.setNotice("start: child has no terminal to attach")
 			return
 		}
-		c.AttachTree(start.Handle.ID(), start.Record.Args.Worktree,
+		c.AttachActor(start.Handle.ID(), start.Record.ID, start.Record.Args.Worktree,
 			start.Record.Args.Worktree.Repo(), th.Terminal())
 	}
 	c.setNotice(name + ": done")
