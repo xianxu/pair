@@ -145,6 +145,62 @@ separately and was confirmed by the operator on 2026-08-24. This corrects an
 inapplicable evidence request; it does not relabel an unrun layout3 test—or an
 unrecorded draft interaction—as passed.
 
+### 2026-08-24 — the panel is a filtered hierarchical menu, not a command line
+
+**Reason:** the final M4 operator smoke found that the `:` command namespace
+introduced during M3 is not discoverable: `:s` is an unintuitive way to start,
+and `:1`–`:9` are especially hard to infer. The same smoke exposed a separate
+reattach regression. Pressing Enter on the already-active root actor changed
+focus away from the panel but took the ordinary switch path, whose same-active
+short circuit correctly avoids redundant actor-to-actor replay and incorrectly
+left the panel painted on screen. Pair then resumed drawing through that panel,
+producing a slow, mingled display. Escape was fast because it already used the
+forced clear-and-replay panel-return path.
+
+**Delta:** the panel becomes a conventional filtered hierarchical menu. At the
+actor-list level, printable input—including `:` and digits—is always typeahead;
+Up/Down move the selected row; Enter invokes that row's primary action and
+switches to the actor; Tab descends into the selected actor's secondary menu;
+Escape ascends or returns to the actor; and Ctrl-Space opens the start-path
+input. Thus root actor → Ctrl-Space opens the panel, and panel → Ctrl-Space
+starts collecting a path for a new actor. The `:` command state, `:1`–`:9`
+direct jumps, and `:s`/`:x`/`:n`/`:d` bindings are removed rather than retained
+as a parallel interaction language. Enter remains a deterministic, LLM-free
+direct route, so this revision changes the means—not the latency invariant—of
+the original numbered/direct Done-when clause.
+
+Every list level owns its filter text and selected item. Tab pushes a child
+level; Escape pops one level and restores the parent's filter and selection
+exactly. Filtering retains the selected item when it remains visible and falls
+back to the first match otherwise. The selected row uses terminal reverse video
+plus the existing `▸` marker, so selection remains legible without color. An
+actor's secondary menu renders to the right of the actor row when the terminal
+is wide enough and below it when narrow. Up/Down navigate the current level;
+Enter invokes its selected action; Escape returns to the previous level. Text
+inputs return to the action level on cancellation. A stop request descends to a
+confirmation level and cannot dispatch until `stop actor` is explicitly
+selected there.
+
+The actor list is one row per hosted actor, not one row per worktree. Each row
+retains both identities already present in the console: actor/handle identity
+for terminal switching and `stop`, and worktree identity for resolution and
+tree-level metadata. The initial secondary actions are `stop actor`, `rename
+thread`, and `describe thread`; the latter two deliberately dispatch couch's
+existing worktree-scoped `name` and `describe` operations rather than claiming
+new actor-scoped metadata. Multiple actors in one tree may therefore share the
+same visible repo/thread label for now, but they remain distinct selectable
+rows and actions always dispatch against the row whose submenu was opened.
+Resolving the longer-term actor display-name vocabulary is outside this
+revision.
+
+All panel exits—including Enter on the already-active actor—use the one forced
+clear-and-replay attach path. Tests must pin Ctrl-Space start, printable digit
+and colon filtering, same-active Enter replay, actor-per-row targeting,
+parent-state restoration across Tab/Escape/prompts, stop confirmation, and both
+wide and narrow rendering. Existing Kitty keyboard, mouse framing, warm-child,
+mid-output, and direct-switch tests remain regression coverage (ARCH-DRY,
+ARCH-PURE, ARCH-PURPOSE).
+
 ## Done when
 
 - couch supervises N sessions and switches the operator tty between them.
