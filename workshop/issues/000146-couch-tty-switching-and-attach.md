@@ -312,7 +312,7 @@ first) but are folded into the milestone whose risk they answer.
       numbered/action namespace M3 originally shipped and M4 now supersedes.
       **Smoke step 2** (two real children, switching, `ctrl-space` from a
       mid-output child) lands here.
-- [ ] M4 — **exits, detach, and what the row says.** Child exit lands in the
+- [x] M4 — **exits, detach, and what the row says.** Child exit lands in the
       panel with actor + code, detach/reattach stays warm, notices over
       `couchcore.Enqueue`, terminal restored on every exit path including
       signals, atlas reconciled; final-smoke flat-panel regressions are repaired
@@ -1727,3 +1727,14 @@ row text, so numbered prefixes cannot return unnoticed. After those fixes:
 client survival under SIGTERM and SIGKILL. `sdlc issue validate --issue 146`
 and `git diff --check` pass. Real layout2 operator smoke remains deliberately
 open before issue close (ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-25 -- final layout2 operator smoke passed
+
+After rebuilding the workspace `bin/couch`, the operator confirmed the complete
+enumerated regression smoke: root Ctrl-Space opened the panel; `:2` remained
+literal filter text without switching; a second Ctrl-Space opened the
+start-path prompt; another Ctrl-Space preserved the partial path; Escape
+cancelled while retaining list state; Enter on the already-active root returned
+immediately with a clean screen and no mingled panel; parked-row Enter started
+that exact path where available; and switching to another live actor remained
+normal. This supplies the final external evidence for Tasks 4.5c and 4.6.

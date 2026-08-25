@@ -440,8 +440,8 @@ The milestone that answers both terminal risks: does `pair` run correctly in a c
 
 ### Task 4.6 — close
 
-- [ ] Whole-tree tests, `-race`, `make test-live`, `make test` for the shell suites that touch `pair term`.
-- [ ] Final operator smoke: a full session — start, roam, get paged by the row, come home, exit.
+- [x] Whole-tree tests, `-race`, `make test-live`, `make test` for the shell suites that touch `pair term`.
+- [x] Final operator smoke: a full session — start, roam, get paged by the row, come home, exit.
 - [ ] `sdlc close --issue 146 --verified '<evidence>'` (let it measure `--actual`; do not hand-type hours).
 
 ---
@@ -1115,7 +1115,7 @@ this plan, and `cmd/internal/couchtty/core_concepts_contract_test.go`.
 - [x] Run `go test ./cmd/internal/couchtty -count=1`, `go test ./... -count=1`,
   `make test-race`, `make test-live`, `make test`, `make test-smoke`,
   `sdlc issue validate --issue 146`, and `git diff --check`; expect all PASS.
-- [ ] Final operator smoke in the real layout2 stack: verify root Ctrl-Space
+- [x] Final operator smoke in the real layout2 stack: verify root Ctrl-Space
   opens the panel; printable `:`, digits, and repo text filter; second
   Ctrl-Space opens start path; after typing a partial path, another Ctrl-Space
   leaves it unchanged; prompt cancel preserves the list; Enter on root is
