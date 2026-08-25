@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -281,6 +282,7 @@ func TestConsoleReassertsTheRegionWhenAChildDropsIt(t *testing.T) {
 func TestConsoleRestoresTheTerminalWhenTheChildExits(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	f.host.Reset()
 
 	f.child.Exit(3)
 	select {
@@ -291,12 +293,7 @@ func TestConsoleRestoresTheTerminalWhenTheChildExits(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("Run() did not return after the child exited")
 	}
-	if !strings.Contains(f.host.Written(), hostty.ResetRegion) {
-		t.Fatalf("the scrolling region was not reset: %q", f.host.Written())
-	}
-	if f.host.RawDepth() != 0 {
-		t.Fatalf("raw mode left on: RawDepth = %d", f.host.RawDepth())
-	}
+	assertConsoleRestored(t, f)
 }
 
 // Restoration on the MID-STREAM teardown path. A restore that only runs on the
@@ -304,6 +301,7 @@ func TestConsoleRestoresTheTerminalWhenTheChildExits(t *testing.T) {
 func TestConsoleRestoresTheTerminalOnTeardownMidStream(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	f.host.Reset()
 
 	f.con.Stop()
 	select {
@@ -311,11 +309,48 @@ func TestConsoleRestoresTheTerminalOnTeardownMidStream(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("Run() did not return after Stop")
 	}
-	if !strings.Contains(f.host.Written(), hostty.ResetRegion) {
-		t.Fatalf("the scrolling region was not reset on teardown: %q", f.host.Written())
+	assertConsoleRestored(t, f)
+}
+
+func TestConsoleRestoresTheTerminalOnTerminationSignal(t *testing.T) {
+	for _, sig := range []syscall.Signal{syscall.SIGTERM, syscall.SIGHUP} {
+		t.Run(sig.String(), func(t *testing.T) {
+			f := newFixture(t, 24, 80)
+			waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+			f.host.Reset()
+
+			f.host.Terminate(sig)
+			select {
+			case code := <-f.done:
+				if code != 0 {
+					t.Fatalf("Run() = %d after %v, want 0", code, sig)
+				}
+			case <-time.After(3 * time.Second):
+				t.Fatalf("Run() did not return after %v", sig)
+			}
+			assertConsoleRestored(t, f)
+		})
+	}
+}
+
+func assertConsoleRestored(t *testing.T, f *consoleFixture) {
+	t.Helper()
+	written := f.host.Written()
+	for name, want := range map[string]string{
+		"scroll region reset":   hostty.ResetRegion,
+		"saved cursor restore":  hostty.RestoreCursor,
+		"alternate-screen exit": hostty.LeaveAltScreen,
+		"cursor visibility":     hostty.ShowCursor,
+	} {
+		if !strings.Contains(written, want) {
+			t.Errorf("missing %s %q in teardown %q", name, want, written)
+		}
 	}
 	if f.host.RawDepth() != 0 {
-		t.Fatalf("raw mode left on after teardown: RawDepth = %d", f.host.RawDepth())
+		t.Errorf("raw mode left on: RawDepth = %d", f.host.RawDepth())
+	}
+	if !f.host.Closed() {
+		t.Error("host signal/resize watchers were not closed")
 	}
 }
 

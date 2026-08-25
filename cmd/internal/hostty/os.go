@@ -18,20 +18,26 @@ type OSHost struct {
 	in  *os.File
 	out *os.File
 
-	resized chan struct{}
-	sigs    chan os.Signal
-	once    sync.Once
+	resized    chan struct{}
+	sigs       chan os.Signal
+	terminated chan os.Signal
+	once       sync.Once
 }
 
 var _ Host = (*OSHost)(nil)
+var _ TerminationHost = (*OSHost)(nil)
 
 // NewOSHost wraps a terminal. in is the fd measured and switched to raw mode;
 // out is where the console draws.
 func NewOSHost(in, out *os.File) *OSHost {
-	h := &OSHost{in: in, out: out, resized: make(chan struct{}, 1)}
+	h := &OSHost{
+		in: in, out: out, resized: make(chan struct{}, 1),
+		terminated: make(chan os.Signal, 1),
+	}
 	if in != nil {
 		h.sigs = make(chan os.Signal, 1)
 		signal.Notify(h.sigs, syscall.SIGWINCH)
+		signal.Notify(h.terminated, syscall.SIGTERM, syscall.SIGHUP)
 		go h.watch()
 	}
 	return h
@@ -88,7 +94,8 @@ func (h *OSHost) MakeRaw() (func() error, error) {
 	}, nil
 }
 
-func (h *OSHost) Resized() <-chan struct{} { return h.resized }
+func (h *OSHost) Resized() <-chan struct{}     { return h.resized }
+func (h *OSHost) Terminated() <-chan os.Signal { return h.terminated }
 
 // Close stops watching for resizes and releases anyone ranging over Resized().
 //
@@ -101,9 +108,11 @@ func (h *OSHost) Close() error {
 		if h.sigs != nil {
 			signal.Stop(h.sigs)
 			close(h.sigs)
-			return
+		} else {
+			close(h.resized)
 		}
-		close(h.resized)
+		signal.Stop(h.terminated)
+		close(h.terminated)
 	})
 	return nil
 }

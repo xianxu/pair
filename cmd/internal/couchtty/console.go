@@ -131,6 +131,7 @@ type Console struct {
 	exited    chan childExit
 	stop      chan struct{}
 	once      sync.Once
+	workers   sync.WaitGroup
 }
 
 // errw is where the console reports its own failures. Separate from the host
@@ -279,7 +280,9 @@ func (c *Console) AttachActor(handleID string, actorID couchcore.ActorID, tree c
 	}
 	c.mu.Unlock()
 
+	c.workers.Add(1)
 	go func() {
+		defer c.workers.Done()
 		select {
 		case <-child.Exited():
 			select {
@@ -367,16 +370,18 @@ func (c *Console) Run() int {
 		fmt.Fprintf(c.errw(), "couch: cannot take the terminal: %v\n", err)
 		return 1
 	}
-	// Restoration is deferred FIRST so it runs LAST, after the region reset
-	// below -- the escapes have to reach a terminal that is still ours.
-	defer func() { _ = restore() }()
-	defer c.release()
+	defer c.teardown(restore)
 
 	c.applyLayout()
 	c.paintNow()
 
-	go c.pumpStdin()
-	go c.watchResize()
+	c.workers.Add(2)
+	go func() { defer c.workers.Done(); c.pumpStdin() }()
+	go func() { defer c.workers.Done(); c.watchResize() }()
+	var terminated <-chan os.Signal
+	if h, ok := c.host.(hostty.TerminationHost); ok {
+		terminated = h.Terminated()
+	}
 
 	var it Interceptor
 	var inputEscapeTimer, panelEscapeTimer *time.Timer
@@ -475,10 +480,32 @@ func (c *Console) Run() int {
 			if c.onExit(event) {
 				return event.code
 			}
+		case <-terminated:
+			return 0
 		case <-c.stop:
 			return 0
 		}
 	}
+}
+
+// teardown is the one lifecycle owner: restore the visible terminal while it
+// is still writable/raw, stop every event source, close the blocking input seam,
+// and join every worker before Run returns.
+func (c *Console) teardown(restore func() error) {
+	c.release()
+	if err := restore(); err != nil {
+		fmt.Fprintf(c.errw(), "couch: restore terminal: %v\n", err)
+	}
+	c.Stop()
+	if err := c.host.Close(); err != nil {
+		fmt.Fprintf(c.errw(), "couch: close terminal host: %v\n", err)
+	}
+	if closer, ok := c.stdin.(io.Closer); ok {
+		if err := closer.Close(); err != nil {
+			fmt.Fprintf(c.errw(), "couch: close terminal input: %v\n", err)
+		}
+	}
+	c.workers.Wait()
 }
 
 // onExit removes a dead child from the console and registry. An active exit
@@ -542,7 +569,8 @@ func (c *Console) release() {
 	c.mu.Unlock()
 	// Teardown writes UNCONDITIONALLY: a half-restored terminal is worse than a
 	// spliced sequence, and the child is finished with the screen by now.
-	_, _ = io.WriteString(c.host, Release()+PaintRow(rows, ""))
+	_, _ = io.WriteString(c.host,
+		Release()+PaintRow(rows, "")+hostty.LeaveAltScreen+hostty.ResetRegion+hostty.ShowCursor)
 }
 
 func (c *Console) activeChild() *ptychild.Child {

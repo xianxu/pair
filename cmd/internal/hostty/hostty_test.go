@@ -21,11 +21,32 @@ func TestControlSequences(t *testing.T) {
 		{"reset region", ResetRegion, "\x1b[r"},
 		{"move to", MoveTo(24, 1), "\x1b[24;1H"},
 		{"home and clear", HomeAndClear, "\x1b[1;1H\x1b[J"},
+		{"leave alternate screen", LeaveAltScreen, "\x1b[?1049l"},
+		{"show cursor", ShowCursor, "\x1b[?25h"},
 	}
 	for _, c := range cases {
 		if c.got != c.want {
 			t.Errorf("%s = %q, want %q", c.name, c.got, c.want)
 		}
+	}
+}
+
+func TestFakeHostTerminationIsObservableAndCoalesced(t *testing.T) {
+	h := NewFakeHost(ptychild.Size{Rows: 24, Cols: 80})
+	h.Terminate(syscall.SIGTERM)
+	h.Terminate(syscall.SIGHUP)
+	select {
+	case got := <-h.Terminated():
+		if got != syscall.SIGTERM {
+			t.Fatalf("termination = %v, want first pending SIGTERM", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("fake termination was not observable")
+	}
+	select {
+	case extra := <-h.Terminated():
+		t.Fatalf("termination burst did not coalesce: extra %v", extra)
+	default:
 	}
 }
 

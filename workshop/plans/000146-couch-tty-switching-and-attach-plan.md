@@ -86,7 +86,7 @@ Terminal code has its own standing moves, all of them lessons already paid for i
 | `StatusModel` / `RenderStatusRow` | `cmd/internal/couchtty/reserve.go` | new |
 | `Interceptor` | `cmd/internal/couchtty/keys.go` | new |
 | `Reserve` / `Release` / `PaintRow` | `cmd/internal/couchtty/reserve.go` | new |
-| `ResetRegion` / `SaveCursor` / `RestoreCursor` / `ClearLine` / `HomeAndClear` / `SetRegion` / `MoveTo` | `cmd/internal/hostty/control.go` | new (`\x1b[r` moved from `termcmd/run.go`) |
+| `ResetRegion` / `SaveCursor` / `RestoreCursor` / `ClearLine` / `HomeAndClear` / `LeaveAltScreen` / `ShowCursor` / `SetRegion` / `MoveTo` | `cmd/internal/hostty/control.go` | new (`\x1b[r` moved from `termcmd/run.go`) |
 | `Notice` / `Feed` | `cmd/internal/couchtty/notice.go` | new |
 
 - **Ring** — a bounded byte buffer with a snapshot. `Append([]byte)`, `Snapshot() []byte` (an independent copy). Cap 128KB, lifted from `termcmd.appendBuffer`.
@@ -139,6 +139,7 @@ Terminal code has its own standing moves, all of them lessons already paid for i
 | `couchcore.PtyRunner` | `cmd/internal/couchcore/ptyrunner.go` | new | `ptychild.Child` behind `Runner` |
 | `FakeRunner` terminal double | `cmd/internal/couchcore/runner_fake.go` | modified | in-memory stand-in for a pty |
 | `hostty.Host` | `cmd/internal/hostty/host.go` | new | the operator's terminal: size, raw mode, resize signal |
+| `hostty.TerminationHost` | `cmd/internal/hostty/host.go` | new | optional `SIGTERM`/`SIGHUP` lifecycle capability consumed by couch |
 | `hostty.OSHost` / `hostty.FakeHost` | `cmd/internal/hostty/os.go`, `fake.go` | new | `x/term`, `creack/pty` sizing, `SIGWINCH` |
 | `couchtty.Console` | `cmd/internal/couchtty/console.go` | new | drives `hostty.Host` + N `ptychild.Child` |
 | `runShell` host half | `cmd/internal/termcmd/run.go` | modified | raw/`SIGWINCH`/restore move behind `hostty.Host` |
@@ -418,9 +419,9 @@ The milestone that answers both terminal risks: does `pair` run correctly in a c
 
 **Files:** Modify `cmd/internal/couchtty/console.go`.
 
-- [ ] Region reset, cursor restored, raw mode restored, alt screen left — on normal quit, on last-child exit, and on `SIGTERM`/`SIGHUP` to couch itself.
-- [ ] **Tests must catch:** the signal path specifically, driven through `hostty.FakeHost` (which is why Task 1.4a exists). A `defer` covers the happy path and does not run on a signal; a console that leaves the operator's terminal with a pinned scroll region after a `kill` is the worst failure this milestone can ship.
-- [ ] Commit.
+- [x] Region reset, cursor restored, raw mode restored, alt screen left — on normal quit, on last-child exit, and on `SIGTERM`/`SIGHUP` to couch itself.
+- [x] **Tests must catch:** the signal path specifically, driven through `hostty.FakeHost` (which is why Task 1.4a exists). A `defer` covers the happy path and does not run on a signal; a console that leaves the operator's terminal with a pinned scroll region after a `kill` is the worst failure this milestone can ship.
+- [x] Commit.
 
 ### Task 4.5 — docs and the map
 
@@ -842,3 +843,21 @@ and direct test coverage. Deleting the complete `PanelKey` /
 `DecodePanelKeys` row was observed RED with a precise missing-row error, then
 restored GREEN. This makes the audit bidirectional rather than trusting the
 prose to enumerate its own required inputs (ARCH-PURPOSE).
+
+### 2026-08-24 — M4 Task 4.4: optional termination host and one teardown owner
+
+**Reason:** Task 4.4 required FakeHost-driven `SIGTERM`/`SIGHUP`, but the M1
+host seam exposed only resize. Extending the base `Host` would unnecessarily
+force pair term's host doubles to implement couch process lifecycle. The first
+integration run also showed the VT test double treating `Host.Close` as screen
+destruction even though the interface defines it as stopping event sources.
+
+**Delta:** `hostty.TerminationHost` is an optional capability implemented by
+`OSHost` and `FakeHost`; Console consumes it without inflating the shared base
+interface. One teardown owner writes the visible restoration sequence, restores
+raw mode, stops the console and host event sources, closes the blocking input
+seam, and joins every console worker before returning. `Host.Close` retains its
+event-source meaning so the following shell keeps the terminal screen. Normal
+stop, last-child exit, SIGTERM, and SIGHUP tests require region/cursor/alternate-
+screen/raw restoration and host close; removing the signal channel from Run
+timed out RED (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).

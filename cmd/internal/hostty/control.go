@@ -32,6 +32,11 @@ const (
 
 	// HomeAndClear is the prelude to a repaint.
 	HomeAndClear = "\x1b[1;1H\x1b[J"
+
+	// LeaveAltScreen and ShowCursor are unconditional teardown guards. A child
+	// may die or couch may be signalled before it emits its own paired restore.
+	LeaveAltScreen = "\x1b[?1049l"
+	ShowCursor     = "\x1b[?25h"
 )
 
 // SetRegion pins the scrolling region to rows top..bottom (1-based, inclusive).

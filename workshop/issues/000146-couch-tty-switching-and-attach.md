@@ -1523,3 +1523,17 @@ console costs the view, not the work. Longer-lived warmth belongs to zellij's
 server session plus the forced Pair tag from Task 2.6a; restarting couch creates
 a new client that deterministically reattaches. The pair#147 daemon/transport
 is not on this durability path (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-24 -- M4 Task 4.4: ordered teardown on every exit path
+
+`hostty.TerminationHost` now carries coalesced SIGTERM/SIGHUP through both the
+real host and FakeHost without widening the base Host contract shared by pair
+term. Console teardown has one owner and one order: release the scroll region
+and row, leave alternate screen, show/restore the cursor, restore raw mode,
+stop console and host event sources, close the blocking input seam, then join
+all resize/input/child watchers before `Run` returns. Normal stop, last-child
+exit, SIGTERM, and SIGHUP use this same path. Removing Run's termination input
+timed out the FakeHost signal regression RED. A broader run caught and fixed a
+VT test double that destroyed the screen on `Host.Close`; Close's contract is
+event-source shutdown, because the following shell still owns the screen
+(ARCH-DRY, ARCH-PURE).

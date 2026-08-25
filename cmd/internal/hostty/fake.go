@@ -1,6 +1,7 @@
 package hostty
 
 import (
+	"os"
 	"strings"
 	"sync"
 
@@ -17,18 +18,23 @@ import (
 //     times it is called.
 //   - Write appends to Written().
 type FakeHost struct {
-	mu       sync.Mutex
-	size     ptychild.Size
-	written  strings.Builder
-	rawDepth int
-	resized  chan struct{}
-	closed   bool
+	mu         sync.Mutex
+	size       ptychild.Size
+	written    strings.Builder
+	rawDepth   int
+	resized    chan struct{}
+	terminated chan os.Signal
+	closed     bool
 }
 
 var _ Host = (*FakeHost)(nil)
+var _ TerminationHost = (*FakeHost)(nil)
 
 func NewFakeHost(size ptychild.Size) *FakeHost {
-	return &FakeHost{size: size, resized: make(chan struct{}, 1)}
+	return &FakeHost{
+		size: size, resized: make(chan struct{}, 1),
+		terminated: make(chan os.Signal, 1),
+	}
 }
 
 func (h *FakeHost) Write(p []byte) (int, error) {
@@ -103,6 +109,22 @@ func (h *FakeHost) RawDepth() int {
 
 func (h *FakeHost) Resized() <-chan struct{} { return h.resized }
 
+func (h *FakeHost) Terminated() <-chan os.Signal { return h.terminated }
+
+// Terminate injects the process-level signal Console would receive through an
+// OSHost. Bursts coalesce exactly like signal.Notify on a capacity-one channel.
+func (h *FakeHost) Terminate(sig os.Signal) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.closed {
+		return
+	}
+	select {
+	case h.terminated <- sig:
+	default:
+	}
+}
+
 // Close matches OSHost: it releases anyone ranging over Resized().
 func (h *FakeHost) Close() error {
 	h.mu.Lock()
@@ -110,6 +132,7 @@ func (h *FakeHost) Close() error {
 	if !h.closed {
 		h.closed = true
 		close(h.resized)
+		close(h.terminated)
 	}
 	return nil
 }

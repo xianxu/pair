@@ -55,9 +55,8 @@ func (h *vtHost) Write(p []byte) (int, error) {
 }
 
 func (h *vtHost) Close() error {
-	h.mu.Lock()
-	_ = h.em.Close()
-	h.mu.Unlock()
+	// Host.Close stops event sources; it does not destroy the screen the shell
+	// receives after Console.Run returns. FakeHost owns those sources here.
 	return h.FakeHost.Close()
 }
 

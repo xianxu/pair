@@ -2,6 +2,7 @@ package hostty
 
 import (
 	"io"
+	"os"
 
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
@@ -30,4 +31,11 @@ type Host interface {
 
 	// Close stops watching for resizes.
 	Close() error
+}
+
+// TerminationHost is the optional process-lifecycle half needed by couch.
+// pair term consumes the same Host seam but owns its lifecycle elsewhere, so
+// termination does not inflate the shared base interface.
+type TerminationHost interface {
+	Terminated() <-chan os.Signal
 }
