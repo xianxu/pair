@@ -1,11 +1,12 @@
 ---
 id: 000149
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-08-21
-updated: 2026-08-21
+updated: 2026-08-25
 estimate_hours:
+started: 2026-08-25T14:21:34-07:00
 ---
 
 # couch: opaque tags and a human naming layer
