@@ -7,7 +7,8 @@ supervisor bug must not break the ability to fix it; the fallback is always to
 launch pair the old way.
 
 Project: `workshop/projects/couch.md`. Registry/spawn shipped in `pair#145`;
-the console and switcher through the actor panel shipped in `pair#146` M1-M3.
+the pty console, actor panel, notices, and complete local lifecycle shipped in
+`pair#146` M1-M4.
 
 ## What exists today
 
@@ -129,6 +130,37 @@ That direction matters: building rows from hosted panes would silently omit a
 parked tree and leave successful name/description changes stale in the running
 panel.
 
+## Exit, detach, and terminal lifecycle
+
+Every hosted pane retains three identities with separate jobs: the pty handle
+routes bytes inside this console, `ActorID` addresses registry persistence and
+notices, and the canonical worktree drives human resolution and concurrency.
+They are not interchangeable: both real and fake runners mint a handle ID that
+differs from the actor ID.
+
+Each attached child publishes its own exit. If the focused child exits while
+others remain, the operator lands on the panel; an inactive exit records the
+cause without stealing focus. Either way the dead pane is removed and
+`Couch.Forget` frees its tree. Exit and bell notices share one bounded `Feed`
+over `couchcore.Enqueue`: keys include the actor (`exit:<id>`, `bell:<id>`), so
+repeated bells from one actor collapse while two actors remain two obligations,
+and exit controls are never discarded for capacity.
+
+Detach inside a live console means focus moved, not process stopped. The child
+keeps running and filling its bounded replay ring; returning from the panel and
+switching between children use the same clear-and-replay attach path. Beyond a
+console process, warmth belongs to zellij's server session plus couch's forced
+Pair tag: the console hosts a zellij client, so losing the client loses the view
+and a new couch deterministically reattaches. `pair#147` transport is not on
+that path.
+
+Console teardown has one owner. Normal stop, last-child exit, SIGTERM, and
+SIGHUP all reset the scrolling region, clear the reserved row, leave alternate
+screen, restore/show the cursor, restore raw mode, stop host event sources,
+close the blocking input seam, and join console workers before returning.
+`hostty.TerminationHost` is optional because couch consumes process termination
+while the other `hostty.Host` consumer, `pair term`, owns lifecycle elsewhere.
+
 ## Spawning: `pair resume <tag> --layout2`
 
 The tag derives from the worktree root, so re-entry is deterministic and a
@@ -229,6 +261,6 @@ not fidelity to Erlang.
 
 ## Planned, not built
 
-`pair#146` M4 exits/detach/notices · `pair#147` cluster transport and queries ·
-`pair#148` brain as advisor. Cross-repo enablers: `ariadne#199` (exposed query
-API), `ariadne#200` (fleet inventory).
+`pair#147` cluster transport and queries · `pair#148` brain as advisor.
+Cross-repo enablers: `ariadne#199` (exposed query API), `ariadne#200` (fleet
+inventory).

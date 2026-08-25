@@ -1537,3 +1537,14 @@ timed out the FakeHost signal regression RED. A broader run caught and fixed a
 VT test double that destroyed the screen on `Host.Close`; Close's contract is
 event-source shutdown, because the following shell still owns the screen
 (ARCH-DRY, ARCH-PURE).
+
+### 2026-08-24 -- M4 Task 4.5: atlas reconciled to the complete local console
+
+`atlas/couch.md` now maps per-pane handle/actor/tree identity, active versus
+inactive exit behavior, the Enqueue-backed feed, console-scoped detach versus
+zellij-owned warmth, and the single terminal teardown path. Its planned section
+no longer lists pair#146 M4. The existing terminal-plumbing section already
+names both extracted halves (`ptychild`, `hostty`) and their second consumer
+(`pair term`), and the operation set remains intentionally unenumerated. The
+built `bin/couch --help` renders `start`'s `<no-console>` / `--no-console`
+fallback (ARCH-PURPOSE).

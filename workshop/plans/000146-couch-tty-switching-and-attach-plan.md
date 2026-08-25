@@ -427,10 +427,10 @@ The milestone that answers both terminal risks: does `pair` run correctly in a c
 
 **Files:** Modify `atlas/couch.md`; verify `couch --help` renders the new arg.
 
-- [ ] Rewrite the atlas's **"There is no pty yet"** and **"Planned, not built"** paragraphs — they are current-state claims that this issue falsifies, and the atlas holds only current state.
-- [ ] Add the console and the reserved row to `atlas/couch.md`, and describe `ptychild` **and `hostty`** as shared with `pair term` — name the second consumer in both cases, or the next reader re-derives it. `pair term` is now a client of two extracted packages; `atlas/` must say so, since a reader of `termcmd` alone would not guess it.
-- [ ] Do **not** enumerate the operation set in prose — the atlas already records why that drifts.
-- [ ] Commit.
+- [x] Rewrite the atlas's **"There is no pty yet"** and **"Planned, not built"** paragraphs — they are current-state claims that this issue falsifies, and the atlas holds only current state.
+- [x] Add the console and the reserved row to `atlas/couch.md`, and describe `ptychild` **and `hostty`** as shared with `pair term` — name the second consumer in both cases, or the next reader re-derives it. `pair term` is now a client of two extracted packages; `atlas/` must say so, since a reader of `termcmd` alone would not guess it.
+- [x] Do **not** enumerate the operation set in prose — the atlas already records why that drifts.
+- [x] Commit.
 
 ### Task 4.6 — close
 
