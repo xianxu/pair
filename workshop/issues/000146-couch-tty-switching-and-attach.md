@@ -1498,3 +1498,14 @@ PTY handle ID and a registry `ActorID` are different identities in both the
 fake and real runners; panes now retain both, using the handle for byte routing
 and the actor ID for notices and persistence. Dropping the Forget wiring leaves
 the registry test RED (ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-24 -- M4 Task 4.2: one notice policy for the status feed
+
+`Notice` supplies per-actor keys (`bell:<ActorID>` and `exit:<ActorID>`) and
+`Feed` delegates collapse, capacity, and control priority to
+`couchcore.Enqueue`. Repeated bells from one actor collapse to the newest;
+different actors remain distinct; control-only overflow retains every exit
+while reporting the capacity violation. The console's bell, exit, and operation
+messages now render from the feed's latest retained entry. Mutating bell keys
+to bare `bell` made the two-actor test RED. Existing renderer and console tests
+pin `[active]` versus `pending*` (ARCH-DRY, ARCH-PURE).

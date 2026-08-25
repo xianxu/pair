@@ -33,3 +33,46 @@ func ExitNotice(actor couchcore.ActorID, label string, code int) Notice {
 		Body: fmt.Sprintf("%s [%s] exited (%d)", label, actor, code),
 	}
 }
+
+// BellNotice is deliberately keyed by actor rather than by the global kind
+// "bell": repeated pages from one actor collapse, while two actors remain two
+// obligations.
+func BellNotice(actor couchcore.ActorID, label string) Notice {
+	return Notice{Actor: actor, Kind: "bell", Body: label + " wants you"}
+}
+
+// Feed is the bounded rolling status-row history. couchcore.Enqueue remains the
+// single owner of collapse, capacity, and control-priority policy; Feed owns
+// only the capacity and Notice-to-Message key convention.
+type Feed struct {
+	capacity int
+	queue    []couchcore.Message
+}
+
+func NewFeed(capacity int) *Feed { return &Feed{capacity: capacity} }
+
+// Push adds a notice and reports whether the capacity invariant held.
+func (f *Feed) Push(n Notice) bool {
+	if f == nil {
+		return false
+	}
+	next, _, ok := couchcore.Enqueue(f.queue, n.Message(), f.capacity)
+	f.queue = next
+	return ok
+}
+
+// Latest is the row-sized projection: the newest retained notice body.
+func (f *Feed) Latest() string {
+	if f == nil || len(f.queue) == 0 {
+		return ""
+	}
+	return f.queue[len(f.queue)-1].Body
+}
+
+// Messages returns an independent snapshot for audits and tests.
+func (f *Feed) Messages() []couchcore.Message {
+	if f == nil {
+		return nil
+	}
+	return append([]couchcore.Message(nil), f.queue...)
+}

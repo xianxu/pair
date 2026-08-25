@@ -98,7 +98,7 @@ type Console struct {
 	// what keeps the panel from growing a private verb (#148's design test).
 	ops    func(name string, args map[string]string) (any, error)
 	forget func(couchcore.Worktree, couchcore.ActorID) error
-	notice string
+	feed   *Feed
 	size   ptychild.Size
 
 	// paintPending means a repaint was wanted while the host stream was
@@ -153,6 +153,7 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		input:     make(chan []byte, 64),
 		exited:    make(chan childExit, 64),
 		stop:      make(chan struct{}),
+		feed:      NewFeed(8),
 	}
 	if s, err := host.Size(); err == nil {
 		c.size = s
@@ -511,7 +512,7 @@ func (c *Console) onExit(event childExit) bool {
 		c.focus = FocusPanel()
 	}
 	exitNotice := ExitNotice(p.actorID, p.label, event.code)
-	c.notice = exitNotice.Body
+	c.feed.Push(exitNotice)
 	forget := c.forget
 	last := len(c.panes) == 0
 	c.mu.Unlock()
@@ -645,7 +646,7 @@ func (c *Console) paintNow() {
 	c.paintPending = false
 	rows := c.size.Rows
 	cols := int(c.size.Cols)
-	model := StatusModel{Notice: c.notice}
+	model := StatusModel{Notice: c.feed.Latest()}
 	for _, id := range c.order {
 		p := c.panes[id]
 		model.Actors = append(model.Actors, StatusActor{
@@ -698,7 +699,7 @@ func (c *Console) onChunk(ch chunk) {
 		// An actor the operator is already looking at is not "wanting" them.
 		if !isActive {
 			p.bell = true
-			c.notice = p.label + " wants you"
+			c.feed.Push(BellNotice(p.actorID, p.label))
 		}
 		c.mu.Unlock()
 		c.repaint()
@@ -1057,7 +1058,7 @@ func (c *Console) runOp(name string, args map[string]string) {
 
 func (c *Console) setNotice(text string) {
 	c.mu.Lock()
-	c.notice = text
+	c.feed.Push(Notice{Kind: "status", Body: text})
 	c.mu.Unlock()
 }
 

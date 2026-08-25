@@ -87,7 +87,7 @@ Terminal code has its own standing moves, all of them lessons already paid for i
 | `Interceptor` | `cmd/internal/couchtty/keys.go` | new |
 | `Reserve` / `Release` / `PaintRow` | `cmd/internal/couchtty/reserve.go` | new |
 | `ResetRegion` / `SaveCursor` / `RestoreCursor` / `ClearLine` / `HomeAndClear` / `SetRegion` / `MoveTo` | `cmd/internal/hostty/control.go` | new (`\x1b[r` moved from `termcmd/run.go`) |
-| `Notice` / `Feed` | `cmd/internal/couchtty/notice.go` | planned for M4 (not delivered at M3) |
+| `Notice` / `Feed` | `cmd/internal/couchtty/notice.go` | new |
 
 - **Ring** — a bounded byte buffer with a snapshot. `Append([]byte)`, `Snapshot() []byte` (an independent copy). Cap 128KB, lifted from `termcmd.appendBuffer`.
   - **Relationships:** 1:1 with `ptychild.Child`.
@@ -402,9 +402,9 @@ The milestone that answers both terminal risks: does `pair` run correctly in a c
 
 **Files:** Modify `cmd/internal/couchtty/notice.go`, `reserve.go`, `console.go`.
 
-- [ ] **Tests must catch:** (a) two bells from the *same* actor collapse to one entry; (b) bells from *different* actors do **not** collapse (the key is per-actor — a global `bell` kind would merge the fleet into one notice); (c) an exit notice is never dropped under capacity pressure; (d) the row marks an actor with a pending bell distinctly from the active one.
-- [ ] **Deletion check:** key notices as bare `bell` → (b) red.
-- [ ] Commit.
+- [x] **Tests must catch:** (a) two bells from the *same* actor collapse to one entry; (b) bells from *different* actors do **not** collapse (the key is per-actor — a global `bell` kind would merge the fleet into one notice); (c) an exit notice is never dropped under capacity pressure; (d) the row marks an actor with a pending bell distinctly from the active one.
+- [x] **Deletion check:** key notices as bare `bell` → (b) red.
+- [x] Commit.
 
 ### Task 4.3 — detach and reattach stay warm
 
