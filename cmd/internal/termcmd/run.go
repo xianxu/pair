@@ -704,13 +704,17 @@ func (m *terminalMux) newTab() error {
 	size := m.childSizeLocked()
 	m.mu.Unlock()
 
+	ready := make(chan struct{})
 	child, err := ptychild.Start(ptychild.Options{
 		Argv: append([]string{m.shellName}, m.shellArgs...),
 		Size: size,
 		// The sink hands each chunk to the existing pump. Routing it to the
 		// screen stays this mux's decision -- ptychild never learns which tab
 		// is active.
-		Sink: func(chunk []byte) { m.output <- ptyChunk{id: id, data: chunk} },
+		Sink: func(chunk []byte) {
+			<-ready
+			m.output <- ptyChunk{id: id, data: chunk}
+		},
 	})
 	if err != nil {
 		return err
@@ -720,10 +724,14 @@ func (m *terminalMux) newTab() error {
 	m.mu.Lock()
 	m.tabs = append(m.tabs, tab)
 	m.active = len(m.tabs) - 1
-	snapshot := replaySnapshotLocked(tab)
 	m.mu.Unlock()
 	m.renamePane()
-	m.redrawTab(snapshot)
+	// Clear before releasing startup output. The child's pump may already have
+	// read bytes, but its sink is gated until the tab is registered and the
+	// screen is ready; replaying that same buffer here would duplicate it when
+	// the queued live copy arrives (BR-9).
+	m.redrawTab(nil)
+	close(ready)
 
 	// The child's own pump feeds Sink; when it ends, the tab is gone.
 	go func() {
@@ -1058,8 +1066,6 @@ func (m *terminalMux) renamePaneTitleLocked(tabID int, editor RenameEditor) stri
 // calling, so snapshotting there costs nothing and avoids inventing a "no caller
 // may hold m.mu" contract whose violation mode would be a deadlock.
 //
-// Capability queries are stripped so the replay cannot re-ask the host terminal
-// (#127); see queries.go.
 // redrawTab repaints from a REPLAY taken by the caller under m.mu.
 //
 // The query stripping lives in ptychild.Child.Replay, NOT here. It used to be

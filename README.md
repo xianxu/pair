@@ -306,6 +306,8 @@ switch; Enter on a parked row starts in that path. `Escape` clears the filter
 or returns. Press `ctrl-space` again from the panel to enter a path for a new
 actor; an empty path uses the existing `.` default. Colons and digits are
 ordinary filter text—there is no command namespace or numbered jump mode.
+If a row is live in another couch process, Enter leaves it selected and explains
+that cross-process attachment follows in #147; it never starts a duplicate.
 Thread actions behind Tab follow in #151 after #149 supplies durable thread
 identity; Tab is intentionally inactive for now.
 

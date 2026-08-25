@@ -28,6 +28,9 @@ func TestChildRowsIsOneLessThanTheHost(t *testing.T) {
 	if got := ChildRows(1); got != 1 {
 		t.Fatalf("ChildRows(1) = %d, want 1 — a zero-row pty is not a thing", got)
 	}
+	if got := ChildRows(0); got != 1 {
+		t.Fatalf("ChildRows(0) = %d, want 1 — a zero-row pty is not a thing", got)
+	}
 }
 
 // Without save/restore the child's cursor lands wherever the row was painted,

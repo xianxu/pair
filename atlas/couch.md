@@ -118,6 +118,12 @@ is load-bearing because the console attaches the new terminal child, rebuilds
 the list, and selects its worktree without leaving the panel. Failed starts
 retain filter and selection and report through the notice feed.
 
+The row state is three-way: a local-live row has a console routing target and
+Enter switches to it; a remote-live row is present in the global summary but
+has no local target and reports that #147 transport is required; only a
+non-live parked row dispatches `start`. Liveness and local routing capability
+are deliberately separate facts (ARCH-PURPOSE).
+
 There is no numbered jump or `:` command state. Tab/thread actions are deferred
 to #151 after #149 provides the durable work-thread identity those actions
 target; the current panel does not advertise Tab.

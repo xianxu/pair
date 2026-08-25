@@ -116,10 +116,11 @@ func (c *Child) pump() {
 			c.mu.Lock()
 			c.ring.Append(chunk)
 			c.screen.Feed(chunk)
+			sink := c.sink
 			c.mu.Unlock()
 
-			if c.sink != nil {
-				c.sink(chunk)
+			if sink != nil {
+				sink(chunk)
 			}
 		}
 		if err != nil {

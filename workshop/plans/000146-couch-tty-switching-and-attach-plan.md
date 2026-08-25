@@ -1154,3 +1154,19 @@ the current review prompt exceed the host argv limit.
 metadata and semantic final response but drops prompt/diff/tool/diagnostic
 traffic. Ariadne#201 fixes this output contract for future review writes; prompt
 transport and window sizing remain ariadne#162.
+
+### 2026-08-25 — distinguish remote-live rows at the whole-issue boundary
+
+**Reason:** close review round 15 found that the panel treated every row without
+a console-local routing target as parked. Global summaries can also contain a
+live actor hosted by another couch process, so Enter attempted a duplicate
+start instead of identifying the unavailable transport.
+
+**Delta:** preserve `Live` and `Target` as independent facts and make Enter's
+three states explicit: local-live switches, remote-live reports that attachment
+requires #147, and only parked starts. Add a composed Console regression and
+current-state README/atlas coverage. Also pin the production `consoleRunner`
+link with a real PTY, make operation-doc matching token-exact, and resolve the
+review's low-risk lifecycle/contract findings for synchronized fake sinks,
+zero-row sizing, queued final output, startup replay duplication, and stale
+comments. The shipped interaction contract is otherwise unchanged.

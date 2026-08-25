@@ -3,6 +3,7 @@ package couchcmd
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -48,15 +49,28 @@ func TestREADMEDocumentsEveryPanelControl(t *testing.T) {
 // home.
 var agentFacing = map[string]bool{"publish-description": true}
 
+func documentsCommand(doc, command string) bool {
+	return regexp.MustCompile(regexp.QuoteMeta(command) + "(?:\\s|`|$)").MatchString(doc)
+}
+
 func TestREADMEDocumentsEveryOperation(t *testing.T) {
 	doc := readme(t)
 	for _, op := range couchcore.Operations() {
 		if agentFacing[op.Name] {
 			continue // checked against the atlas instead, below
 		}
-		if !strings.Contains(doc, "couch "+op.Name) {
+		if !documentsCommand(doc, "couch "+op.Name) {
 			t.Errorf("README does not document `couch %s`", op.Name)
 		}
+	}
+}
+
+func TestDocumentsCommandDoesNotAcceptALongerOperationPrefix(t *testing.T) {
+	if documentsCommand("run `couch stop-all` here", "couch stop") {
+		t.Fatal("couch stop-all must not document couch stop")
+	}
+	if !documentsCommand("run `couch stop TAG` here", "couch stop") {
+		t.Fatal("couch stop TAG should document couch stop")
 	}
 }
 

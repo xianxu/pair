@@ -274,8 +274,9 @@ func (s *Screen) classify(seq []byte) {
 		// DECSTBM: `\x1b[r` or `\x1b[<top>;<bottom>r`, no private introducer.
 		s.rowDirty = true
 	case 'J':
-		// ED, every form. Erasing the display takes the reserved row with it
-		// even though the region survives.
+		// Treat every ED form conservatively as possible reserved-row damage.
+		// Some forms erase only part of the display, but repainting one status
+		// row is cheaper and safer than duplicating cursor-aware ED semantics.
 		s.rowDirty = true
 	}
 }

@@ -476,6 +476,11 @@ func (c *Console) Run() int {
 			c.panelHeld = nil
 			c.onPanelKey(PanelKey{Kind: KeyEscape})
 		case event := <-c.exited:
+			// A child's pump delivers every chunk before it closes Exited, but
+			// select may choose the exit channel while those chunks are already
+			// queued. Drain them before removing the pane so its final output is
+			// not discarded as belonging to an unknown child (BR-35).
+			c.drainChunks()
 			if c.onExit(event) {
 				return event.code
 			}
@@ -483,6 +488,17 @@ func (c *Console) Run() int {
 			return 0
 		case <-c.stop:
 			return 0
+		}
+	}
+}
+
+func (c *Console) drainChunks() {
+	for {
+		select {
+		case ch := <-c.chunks:
+			c.onChunk(ch)
+		default:
+			return
 		}
 	}
 }
@@ -963,6 +979,10 @@ func (c *Console) onPanelKey(k PanelKey) {
 		row, ok := c.selectedRow()
 		if !ok {
 			c.setNotice("no selection")
+			break
+		}
+		if row.Target == "" && row.Live {
+			c.setNotice("live in another couch; attachment requires cluster transport (#147)")
 			break
 		}
 		if row.Target == "" {

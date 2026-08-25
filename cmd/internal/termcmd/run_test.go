@@ -704,6 +704,34 @@ func TestTerminalMuxNewTabClearsPreviousTabViewport(t *testing.T) {
 	}
 }
 
+func TestTerminalMuxNewTabPrintsStartupOutputOnce(t *testing.T) {
+	var stdout bytes.Buffer
+	mux := newTerminalMux("/bin/sh", []string{"-c", "printf unique-startup-marker"}, &stdout, io.Discard, &fakeRuntime{})
+	go mux.copyActiveOutput()
+	if err := mux.newTab(); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		mux.mu.Lock()
+		done := len(mux.tabs) == 0
+		mux.mu.Unlock()
+		if done {
+			break
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	mux.mu.Lock()
+	remaining := len(mux.tabs)
+	mux.mu.Unlock()
+	if remaining != 0 {
+		t.Fatal("startup command did not exit")
+	}
+	if got := strings.Count(stdout.String(), "unique-startup-marker"); got != 1 {
+		t.Fatalf("startup marker rendered %d times, want once: %q", got, stdout.String())
+	}
+}
+
 func TestTerminalMuxBackgroundExitPreservesActiveTab(t *testing.T) {
 
 	mux := &terminalMux{

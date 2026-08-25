@@ -135,6 +135,33 @@ func TestPanelEnterOnParkedRowStartsItsPath(t *testing.T) {
 	}
 }
 
+func TestPanelEnterOnRemoteLiveRowExplainsAttachmentIsDeferred(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	f.con.SetSummaries(func() []couchcore.TreeSummary {
+		return []couchcore.TreeSummary{
+			{Tree: "c1", Name: "brain", Actors: []couchcore.ActorView{{Live: true}}},
+			{Tree: "/w/remote", Name: "remote", Actors: []couchcore.ActorView{{Live: true}}},
+		}
+	})
+	called := false
+	f.con.SetOps(func(string, map[string]string) (any, error) {
+		called = true
+		return nil, nil
+	})
+	openPanel(t, f)
+	_, _ = f.stdin.Write([]byte("\x1b[B\r"))
+	waitFor(t, "remote attachment notice", func() bool {
+		return strings.Contains(f.host.Written(), "live in another couch")
+	})
+	if called {
+		t.Fatal("remote live row dispatched start as if it were parked")
+	}
+	row, ok := f.con.selectedRow()
+	if !ok || row.Tree != "/w/remote" || !row.Live || row.Target != "" {
+		t.Fatalf("remote row state = %+v, %v", row, ok)
+	}
+}
+
 func TestPanelStartFailurePreservesListState(t *testing.T) {
 	f := parkedFixture(t)
 	f.con.SetResolver(func(string) []couchcore.Worktree { return []couchcore.Worktree{"/w/parked"} })

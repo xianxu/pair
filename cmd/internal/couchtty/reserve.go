@@ -19,7 +19,10 @@ import (
 // the whole thing and the row is simply not drawn -- a zero-row pty is not a
 // thing, and clamping here keeps every caller from re-deciding it.
 func ChildRows(hostRows uint16) uint16 {
-	if hostRows <= 1 {
+	if hostRows == 0 {
+		return 1
+	}
+	if hostRows == 1 {
 		return hostRows
 	}
 	return hostRows - 1

@@ -60,15 +60,20 @@ func (c *Child) Feed(p []byte) {
 	c.mu.Lock()
 	c.ring.Append(chunk)
 	c.screen.Feed(chunk)
+	sink := c.sink
 	c.mu.Unlock()
-	if c.sink != nil {
-		c.sink(chunk)
+	if sink != nil {
+		sink(chunk)
 	}
 }
 
 // SetSink installs a sink after construction, for a fake whose consumer is not
 // known at the point it is built.
-func (c *Child) SetSink(sink func([]byte)) { c.sink = sink }
+func (c *Child) SetSink(sink func([]byte)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.sink = sink
+}
 
 // Writes returns what the caller wrote to this child.
 func (c *Child) Writes() [][]byte {

@@ -104,6 +104,23 @@ func TestActiveChildExitFocusesPanelRecordsCauseAndForgetsActor(t *testing.T) {
 	}
 }
 
+func TestFinalQueuedOutputIsWrittenBeforeLastChildExit(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	f.host.Reset()
+
+	f.con.Deliver("c1", []byte("final output"))
+	f.child.Exit(0)
+	select {
+	case <-f.done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("console did not exit")
+	}
+	if got := f.host.Written(); !strings.Contains(got, "final output") {
+		t.Fatalf("final queued output was dropped: %q", got)
+	}
+}
+
 func TestInactiveChildExitKeepsFocusAndRecordsNotice(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	other := ptychild.NewFakeChild([]byte("pair screen"))

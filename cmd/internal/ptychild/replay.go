@@ -34,7 +34,7 @@ import (
 // behavior. There is no live conformance check behind it.
 //
 // Note replies DO reach this buffer — the pump writes one into the child's PTY,
-// the shell's line discipline echoes it, and it returns through readPTY. So the
+// the shell's line discipline echoes it, and the pump reads it back. So the
 // rows are deliberately shaped so that no reply form matches: DECRPM replies
 // terminate `$y` not `$p`, the Kitty reply `\x1b[?0u` is not the `\x1b[?u`
 // literal, and `\x1b[?62;4;52c` is neither `\x1b[c` nor `\x1b[0c`.

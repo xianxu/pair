@@ -1017,6 +1017,74 @@ rounds:
       no_cap: true
       blocked: true
       protocol_error: 'review did not run: dispatch codex (owner bin "/Users/xianxu/workspace/ariadne/bin" prepended to PATH=/Users/xianxu/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/TeX/texbin:/Users/xianxu/workspace/ariadne/bin:/opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex-path:/Users/xianxu/.codex/tmp/arg0/codex-arg0Y9MH27:/Users/xianxu/workspace/pair/bin:/Library/Java/JavaVirtualMachines/jdk-25.jdk/Contents/Home/bin:/Users/xianxu/.local/share/bob/nvim-bin:/Users/xianxu/.luarocks/bin:/opt/homebrew/opt/lua@5.4/bin:/Users/xianxu/.local/bin:/opt/homebrew/opt/ruby/bin:/Users/xianxu:.mix/escripts:/Users/xianxu/bin:/usr/local/sbin:/Applications/Ghostty.app/Contents/MacOS:/opt/homebrew/opt/fzf/bin): fork/exec /opt/homebrew/bin/codex: argument list too long'
+    - "n": 15
+      timestamp: "2026-08-25T13:25:54-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Over-long sequences now retain framing state instead of rescanning payload as text; long OSC/ST split regressions and latch-aware fuzz coverage pin the false-bell case.
+          round: 15
+        - id: BR-7
+          disposition: not-addressed
+          note: termcmd/run.go still cites deleted queries.go, and ptychild/replay.go still says output returns through deleted readPTY.
+          round: 15
+        - id: BR-8
+          disposition: not-addressed
+          note: Child.SetSink still writes c.sink without synchronization or a fake-only guard while the real pump reads it.
+          round: 15
+        - id: BR-9
+          disposition: not-addressed
+          note: newTab still snapshots after Start launches the pump, leaving a window where one chunk is replayed and later written from the live queue.
+          round: 15
+        - id: BR-19
+          disposition: addressed
+          note: frame routes DCS, APC, PM, and SOS through string-terminator framing, with tests covering false bells and nested tmux controls.
+          round: 15
+        - id: BR-20
+          disposition: not-addressed
+          note: Both production repaint sites now call Child.Replay, but replacing the helper call with the former StripQueries(Snapshot()) composition leaves the behavioral test green, so helper adoption itself is not pinned.
+          round: 15
+        - id: BR-24
+          disposition: not-addressed
+          note: consoleRunnerFor and the path default are pinned, but the production consoleRunner link is not; terminal-path tests bypass it by calling consoleRunnerFor directly.
+          round: 15
+        - id: BR-32
+          disposition: not-addressed
+          note: ChildRows(0) still returns zero despite the documented invariant, and the boundary test still begins at one.
+          round: 15
+        - id: BR-33
+          disposition: not-addressed
+          note: Normal Run teardown is fixed, but MakeRaw failure returns before teardown and RunWithRuntime constructs OSHost before domain errors that can return without ever running or closing the console.
+          round: 15
+        - id: BR-34
+          disposition: not-addressed
+          note: Screen still says ED every form, ops.go says the default is applied at the CLI, and keys.go still describes Console as policy-free glue.
+          round: 15
+        - id: BR-35
+          disposition: not-addressed
+          note: Run can still select the exit event before draining already-queued final chunks, and doneBeforeExit is still sampled after the write that may end the live child.
+          round: 15
+        - id: BR-39
+          disposition: addressed
+          note: Inactive row damage is retained in pane.rowDirty and a consumer-ordered regression test observes it before switching.
+          round: 15
+        - id: BR-40
+          disposition: addressed
+          note: Console and terminal-writing entities are classified as Integration, and the bidirectional Core concepts contract pins missing, extra, relocated, and misclassified rows.
+          round: 15
+        - id: BR-41
+          disposition: not-addressed
+          note: The atlas redirection is now enforced, but the operator-operation check remains prefix-ambiguous because it uses strings.Contains on couch plus the operation name.
+          round: 15
+      findings:
+        - id: BR-50
+          severity: Important
+          title: Enter treats a live actor hosted elsewhere as a parked worktree and dispatches start
+          detail: Couch.Summarize(nil) includes globally registered live actors, but BindTargets adds a Target only for children hosted by this Console. console.go:968 checks Target alone, so a Live row with no local Target takes the parked-start branch and reaches the occupied-tree refusal. Model local-live, remote-live, and parked as distinct states; only parked should start, while remote-live should explain that attachment requires pair#147. Add a composed test because existing fixtures cover only local-live and parked rows (ARCH-PURPOSE).
+          family: routing-capability-conflated-with-liveness
+          round: 15
+      blocked: true
 ---
 
 # Gate ledger — pair#146 (boundary-review)
@@ -1562,19 +1630,40 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 **Protocol error:** review did not run: dispatch codex (owner bin "/Users/xianxu/workspace/ariadne/bin" prepended to PATH=/Users/xianxu/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/TeX/texbin:/Users/xianxu/workspace/ariadne/bin:/opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex-path:/Users/xianxu/.codex/tmp/arg0/codex-arg0Y9MH27:/Users/xianxu/workspace/pair/bin:/Library/Java/JavaVirtualMachines/jdk-25.jdk/Contents/Home/bin:/Users/xianxu/.local/share/bob/nvim-bin:/Users/xianxu/.luarocks/bin:/opt/homebrew/opt/lua@5.4/bin:/Users/xianxu/.local/bin:/opt/homebrew/opt/ruby/bin:/Users/xianxu:.mix/escripts:/Users/xianxu/bin:/usr/local/sbin:/Applications/Ghostty.app/Contents/MacOS:/opt/homebrew/opt/fzf/bin): fork/exec /opt/homebrew/bin/codex: argument list too long — this round contributed no findings.
 
+## Round 15 — 2026-08-25T13:25:54-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Over-long sequences now retain framing state instead of rescanning payload as text; long OSC/ST split regressions and latch-aware fuzz coverage pin the false-bell case.
+- BR-7 — not-addressed — termcmd/run.go still cites deleted queries.go, and ptychild/replay.go still says output returns through deleted readPTY.
+- BR-8 — not-addressed — Child.SetSink still writes c.sink without synchronization or a fake-only guard while the real pump reads it.
+- BR-9 — not-addressed — newTab still snapshots after Start launches the pump, leaving a window where one chunk is replayed and later written from the live queue.
+- BR-19 — addressed — frame routes DCS, APC, PM, and SOS through string-terminator framing, with tests covering false bells and nested tmux controls.
+- BR-20 — not-addressed — Both production repaint sites now call Child.Replay, but replacing the helper call with the former StripQueries(Snapshot()) composition leaves the behavioral test green, so helper adoption itself is not pinned.
+- BR-24 — not-addressed — consoleRunnerFor and the path default are pinned, but the production consoleRunner link is not; terminal-path tests bypass it by calling consoleRunnerFor directly.
+- BR-32 — not-addressed — ChildRows(0) still returns zero despite the documented invariant, and the boundary test still begins at one.
+- BR-33 — not-addressed — Normal Run teardown is fixed, but MakeRaw failure returns before teardown and RunWithRuntime constructs OSHost before domain errors that can return without ever running or closing the console.
+- BR-34 — not-addressed — Screen still says ED every form, ops.go says the default is applied at the CLI, and keys.go still describes Console as policy-free glue.
+- BR-35 — not-addressed — Run can still select the exit event before draining already-queued final chunks, and doneBeforeExit is still sampled after the write that may end the live child.
+- BR-39 — addressed — Inactive row damage is retained in pane.rowDirty and a consumer-ordered regression test observes it before switching.
+- BR-40 — addressed — Console and terminal-writing entities are classified as Integration, and the bidirectional Core concepts contract pins missing, extra, relocated, and misclassified rows.
+- BR-41 — not-addressed — The atlas redirection is now enforced, but the operator-operation check remains prefix-ambiguous because it uses strings.Contains on couch plus the operation name.
+
+### Raised
+
+- **BR-50** [Important] `routing-capability-conflated-with-liveness` Enter treats a live actor hosted elsewhere as a parked worktree and dispatches start
+  Couch.Summarize(nil) includes globally registered live actors, but BindTargets adds a Target only for children hosted by this Console. console.go:968 checks Target alone, so a Live row with no local Target takes the parked-start branch and reaches the occupied-tree refusal. Model local-live, remote-live, and parked as distinct states; only parked should start, while remote-live should explain that attachment requires pair#147. Add a composed test because existing fixtures cover only local-live and parked rows (ARCH-PURPOSE).
+
 ## Open findings
 
-- **BR-1** [Important] `chunking-invariance` Screen raises a false bell for any sequence longer than maxPending split across two reads
 - **BR-7** [Minor] `stale-comment-reference` comments still cite queries.go, appendBuffer, tab.buffer and readPTY, all deleted by this diff
 - **BR-8** [Minor] `unsynchronised-shared-state` Child.SetSink writes c.sink unlocked with no fake-only guard while the pump reads it
 - **BR-9** [Minor] `replay-duplicates-live-output` newTab widens the window where a chunk is both replayed and written live
-- **BR-19** [Minor] `framing-omits-sequence-class` frame treats DCS/APC/PM/SOS as two-byte escapes, so their payloads are scanned as plain text and a BEL inside one falsely rings
 - **BR-20** [Minor] `needless-indirection` Child.Replay has zero production callers while the one repaint site reimplements it
 - **BR-24** [Important] `fix-not-pinned-by-failing-test` the milestone's central wiring is unpinned -- disabling the console entirely leaves the whole suite green
 - **BR-32** [Minor] `uncovered-negative-assertion` ChildRows(0) returns 0 while its doc says "It never returns zero", and no test covers the boundary case
 - **BR-33** [Minor] `signal-goroutine-outlives-close` Console.Run never calls Stop() or host.Close(), so the resize watcher and the SIGWINCH registration outlive the console
 - **BR-34** [Minor] `stale-comment-reference` several comments overstate or misplace what the code does
 - **BR-35** [Minor] `test-harness-races` the live conformance scenario and Run's exit select are both racy by construction
-- **BR-39** [Minor] `latch-consumed-by-wrong-consumer` onChunk consumes TakeRowDirty for every pane but acts on it only for the active one, so an inactive pane's dirty-row latch is thrown away
-- **BR-40** [Important] `plan-table-drift` the sweep that closed this family filed Console under "Pure entities" while the row itself calls it a thin IO shell
 - **BR-41** [Important] `docs-lag-the-surface` the README enumeration's one hand-written exemption points at atlas/couch.md, which does not document publish-description either
+- **BR-50** [Important] `routing-capability-conflated-with-liveness` Enter treats a live actor hosted elsewhere as a parked worktree and dispatches start

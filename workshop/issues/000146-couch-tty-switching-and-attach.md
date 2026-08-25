@@ -1753,3 +1753,21 @@ and final post-`tokens used` response. All five verdict/finding narratives remai
 only raw process traffic was removed. The untouched original is temporarily
 recoverable at `/tmp/pair-146-m3-review.raw.md`. No product code changed;
 `git diff --check` passes before the close retry.
+
+### 2026-08-25 -- whole-issue review round 15: remote liveness was not routability
+
+The normalized close prompt dispatched successfully and persisted only the
+9.1 KB semantic review. It returned REWORK with three Important findings. The
+production `consoleRunner` entry is now exercised against a real PTY rather
+than only through its inner helper; README operation coverage requires a full
+command boundary, so `stop-all` cannot satisfy `stop`; and panel Enter models
+local-live, remote-live, and parked separately. A remote-live row remains
+selected and reports that attachment requires #147 instead of dispatching a
+duplicate start (ARCH-PURPOSE).
+
+The same pass resolved adjacent Minor findings where the class was local and
+testable: fake-child sink access is synchronized; `ChildRows(0)` honors its
+nonzero contract; queued final output drains before an exit removes its pane;
+new terminal tabs gate startup output until registration and clear the screen
+without replaying the same bytes; and stale comments now describe the current
+owners. Targeted couchcmd/couchtty/ptychild/termcmd tests pass.

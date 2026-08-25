@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
 
@@ -453,6 +454,26 @@ func TestConsoleRunnerWiresThePtyRunnerWhenATerminalExists(t *testing.T) {
 	}
 	if _, ok := runner.(*couchcore.PtyRunner); !ok {
 		t.Fatalf("runner = %T, want *couchcore.PtyRunner — children would get no pty", runner)
+	}
+}
+
+// Pin the production entry link, including its real terminal detection. A
+// consoleRunnerFor-only test stays green if consoleRunner is replaced with the
+// fallback outright (BR-24).
+func TestConsoleRunnerDetectsARealPTY(t *testing.T) {
+	master, slave, err := pty.Open()
+	if err != nil {
+		t.Fatalf("open pty: %v", err)
+	}
+	defer master.Close()
+	defer slave.Close()
+
+	console, runner := consoleRunner("start", map[string]string{}, slave, slave)
+	if console == nil {
+		t.Fatal("production consoleRunner declined a real pty")
+	}
+	if _, ok := runner.(*couchcore.PtyRunner); !ok {
+		t.Fatalf("runner = %T, want *couchcore.PtyRunner", runner)
 	}
 }
 

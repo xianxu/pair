@@ -61,7 +61,7 @@ func Operations() []Operation {
 			Name:    "start",
 			Summary: "Start an agent on a peer repo (or a subdirectory of one)",
 			Args: []ArgSpec{
-				// Optional, defaulting to "." at the CLI: `cd brain && couch
+				// Optional, defaulting to "." in the start operation: `cd brain && couch
 				// start` is what makes brain home, which is the Spec's
 				// "whatever session couch launched in" delivered by convention
 				// rather than by couch knowing about brain (Decision 1).
