@@ -24,8 +24,9 @@ returns to.
 **A filtered hierarchical menu over work threads.** The root list is one row per
 durable work thread from `#149`, including parked historically active threads.
 Rows lead with the human name when present and the opaque tag fallback when not,
-then show path, live/parked state, relative last-active age, and notification
-state. Multiple threads at one path therefore remain visibly distinct.
+then show path, live/parked state, notification state, and—when parked—relative
+last-active age. A live row says `live` rather than presenting a historical age.
+Multiple threads at one path therefore remain visibly distinct.
 
 Every menu level is a frame with its own stable item identities, filter text,
 and selected identity. Printable input filters the current list. Filtering keeps
@@ -36,13 +37,23 @@ returns with its filter and selection unchanged. Enter invokes the selected
 item's primary action. With no selection, Enter and Tab report `no selection`
 and do not change levels.
 
+Escape at the root follows the transitional panel's familiar two-step rule: a
+non-empty filter is cleared while retaining the selected thread when possible;
+with an empty filter, Escape returns to the active thread through the forced
+clear-and-replay attach path. If no live thread can receive focus, the root menu
+stays visible and reports why. Escape from a nested list always returns one
+level even when that child has a filter; the parent frame is restored exactly.
+
 At the thread level, Enter attaches to a live thread or resumes a parked one.
 Tab opens that thread's secondary actions. The first actions are `park` for a
 live thread, `rename`, and `describe`; a parked thread offers `resume` instead
 of `park`. Actions capture the durable thread ID when the submenu opens and
 revalidate it at dispatch. A thread that disappears produces a notice and pops
 back to the refreshed root list; it can never redirect an action to whichever
-row moved into the old screen position.
+row moved into the old screen position. Dispatch also revalidates action
+applicability against current live/parked state. If the state changed, no stale
+action runs; the menu returns to the refreshed root list with that thread
+selected and reports the change.
 
 `park` always enters a confirmation frame. Its rows are `cancel` (selected by
 default) and `park <thread label>`; Escape or Enter on cancel returns to the
@@ -62,7 +73,9 @@ Ctrl-Space is the global start action while any menu-list frame is visible: it
 opens a start-path input without discarding the menu stack. Escape restores that
 stack; Enter starts with `.` for empty input or the exact entered path, then
 returns to the refreshed root list with the new thread selected. Ctrl-Space is a
-no-op while any text input is already active.
+no-op while any text input is already active. A failed start keeps the input,
+typed path, originating menu stack, filters, and selections intact and reports
+through the notice feed.
 
 The current selection uses reverse video plus `▸`, so it remains visible without
 color. A child menu renders to the right of its parent row when space permits
@@ -76,6 +89,20 @@ decision are pure. Rendering and operation dispatch are thin injected edges.
 Thread summaries, resolution, and operations come from their existing shared
 sources rather than being restated in the terminal package (ARCH-PURE,
 ARCH-PURPOSE).
+
+## Revisions
+
+### 2026-08-24 — root exit, stale state, and failed start are total transitions
+
+**Reason:** spec review found three missing edges in the menu state machine and
+one inconsistent recency sentence.
+
+**Delta:** root Escape now clears filter then returns to the active thread;
+nested Escape pops exactly one level. Dispatch revalidates both durable identity
+and current action applicability. Failed start preserves its input and the full
+originating stack. Only parked rows show historical age/grayscale; live rows say
+`live`. These rules make every reported edge deterministic without adding a
+second operation or state source (ARCH-DRY, ARCH-PURPOSE).
 
 ## Done when
 

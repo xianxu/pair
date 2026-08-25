@@ -157,9 +157,14 @@ introduced.
 
 The lifecycle vocabulary follows the identity:
 
-- **park** ends or suspends the live incarnation and frees the configured
-  concurrency slot while preserving the work thread and all durable context;
-- **resume** creates or reattaches a live incarnation using the same opaque tag;
+- **park** succeeds only after every process in the live incarnation that can
+  modify the workspace has stopped and durable output has been flushed. It then
+  frees the configured concurrency slot while preserving the work thread and
+  all durable context. A surviving zellij session or agent process means the
+  thread is still live; a partial stop is a failed park and retains its slot;
+- **resume** creates a new live incarnation using the same opaque tag and may
+  reattach a native agent session whose durable resume identity belongs to that
+  tag;
 - **archive/forget** is a later retention/garbage-collection decision about the
   durable work thread, not a synonym for stopping its process;
 - **kill** may remain a low-level recovery action for a wedged harness, but is
@@ -173,11 +178,16 @@ when unnamed. The hierarchical menu is sequenced in `#151`, which depends on
 this issue; `#146` keeps its flat transitional worktree panel rather than
 building an actor submenu that would immediately be discarded.
 
-Thread summaries expose exact live/parked state and a last-active time. The
-panel may map that age to progressively dimmer terminal grays, but color is only
-a secondary cue: live/parked state and relative age remain readable in text and
-on terminals without grayscale. Last-active is an observed lifecycle fact, not
-an agent-authored status claim.
+Thread summaries expose exact live/parked state and a durable `last_active_at`.
+A live thread presents as active now. When successful park or reconciliation
+verifies that the entire incarnation is no longer able to modify the workspace,
+couch monotonically records the time of that observation in pair's
+thread/session index; a child-client exit alone, failed park, or unknown
+liveness does not advance it or free the slot. The timestamp survives couch
+restart and is never supplied by the agent. The panel may map its age to
+progressively dimmer terminal grays, but color is only a secondary cue:
+live/parked state and relative age remain readable in text and on terminals
+without grayscale.
 
 The concurrency questions are also settled by repository policy rather than one
 global granularity: singleton local-tool checkouts key at repo root, brain is
@@ -185,6 +195,20 @@ unbounded in place, kbench keys by competition directory, and worktree-managed
 repos key each generated worktree. Only live incarnations count. This records
 the operator decisions already captured in `ariadne#200` and removes the stale
 per-repo-versus-per-path open question.
+
+### 2026-08-24 — park and recency become observed lifecycle facts
+
+**Reason:** spec review found that “end or suspend” could call a detached but
+still-running zellij/agent process parked and release its collision guard. It
+also found no authoritative event behind the proposed recency display.
+
+**Delta:** park is now an all-or-fail transition to no workspace-writing process;
+only its success frees capacity. Resume always creates a new couch incarnation,
+though the underlying agent may use its persisted native resume ID. A monotonic
+`last_active_at` is persisted on an observed live→parked transition and remains
+unchanged for failures or unknown liveness. Done-when now enumerates every
+repository-policy case rather than accepting one generic limit test
+(ARCH-PURPOSE, ARCH-MOCK).
 
 ## Done when
 
@@ -197,24 +221,30 @@ per-repo-versus-per-path open question.
 - `pair claude` standalone still asks for a tag exactly as it does today.
 - `couch list` no longer leads with the system id.
 - Two work threads in one tree keep separate drafts and ledgers.
-- A repo configured with a limit above 1 accepts concurrent work threads with no
-  escape-hatch flag on the normal path.
+- Local-tool policy rejects a second live work thread under the same repository
+  root; brain policy admits multiple live in-place threads without an override;
+  kbench admits distinct competition directories but rejects two live threads
+  in one competition; and worktree policy gives each generated worktree a
+  singleton live slot.
 - `couch start <path>` twice creates two work threads where the limit allows it,
   and resuming a specific one is an explicit act.
 - Each durable work thread can be parked and resumed under the same opaque tag;
   parking frees the live concurrency slot without deleting its history.
 - Thread inventory distinguishes multiple threads at one path and exposes
-  live/parked state plus observed last-active time for terminal presentation.
+  live/parked state plus persisted observed last-active time for terminal
+  presentation.
 
 ## Plan
 
 - [ ] Make the tag opaque and durable; `Spawn` resolves rather than mints.
-- [ ] Promote the name↔space mapping in `launcher/session_index.go` to a rename
+- [ ] Promote the name↔work-thread mapping in `launcher/session_index.go` to a rename
       layer; pair resolves standalone.
 - [ ] Picker shows names, falling back to the hex string.
 - [ ] couch reads pair's index instead of keeping its own naming table.
 - [ ] Drop the system id from `couch list`'s common output.
-- [ ] Reconcile `#135`'s tag-as-work-identity with space.
+- [ ] Reconcile `#135`'s tag-as-work-identity with work thread.
+- [ ] Implement repository-policy conflict keys and live-slot accounting.
+- [ ] Make park/resume and persisted last-active explicit lifecycle transitions.
 
 ## Log
 

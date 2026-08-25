@@ -257,6 +257,17 @@ table above, including same-active Enter, parked-row start, prompt cancellation,
 zero matches, stale selection fallback, Ctrl-Space during the prompt, and
 printable colon/digits (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
 
+### 2026-08-24 — narrowed panel repairs become close criteria
+
+**Reason:** spec review found that the revised flat-panel contract was detailed
+in Revisions but absent from Done-when, allowing the issue to close against its
+superseded M3 acceptance alone.
+
+**Delta:** Done-when now names the five operator-visible repairs: Ctrl-Space
+start, printable-only filtering, forced same-active Enter, parked-row start, and
+deterministic prompt/filter selection. These are additions to M4's final smoke,
+not a revival of the deferred hierarchical menu (ARCH-PURPOSE).
+
 ## Done when
 
 - couch supervises N sessions and switches the operator tty between them.
@@ -270,6 +281,13 @@ printable colon/digits (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
 - Detach and reattach leave children running and warm.
 - A direct switch path—Enter on the visibly selected row—exists without
   natural-language or model resolution.
+- Ctrl-Space at the panel opens the start-path input; Ctrl-Space inside that
+  input does not corrupt it.
+- Colons and digits are filter text, with no hidden command namespace.
+- Enter on the already-active actor clears and replays its screen; Enter on a
+  parked worktree starts in that path.
+- Prompt cancellation and fleet refresh preserve a still-valid filter/selection
+  and fall back deterministically when the selected row disappears.
 
 ## Plan
 
