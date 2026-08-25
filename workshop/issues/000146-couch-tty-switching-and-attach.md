@@ -308,14 +308,15 @@ first) but are folded into the milestone whose risk they answer.
       and out) lands here; the `kill -9` reattach moved to M3 — see the
       2026-08-23 carry note.
 - [x] M3 — **many children and the panel.** Up-one-level focus, per-child ring
-      replay (or a resize nudge for alt-screen children), typeahead + numbered
-      direct switch, panel actions dispatching through `couchcore.Operations()`.
+      replay (or a resize nudge for alt-screen children), typeahead + the
+      numbered/action namespace M3 originally shipped and M4 now supersedes.
       **Smoke step 2** (two real children, switching, `ctrl-space` from a
       mid-output child) lands here.
 - [ ] M4 — **exits, detach, and what the row says.** Child exit lands in the
       panel with actor + code, detach/reattach stays warm, notices over
       `couchcore.Enqueue`, terminal restored on every exit path including
-      signals, atlas reconciled.
+      signals, atlas reconciled; final-smoke flat-panel regressions are repaired
+      by Tasks 4.5a–4.5c in the durable plan.
 
 ## Estimate
 
