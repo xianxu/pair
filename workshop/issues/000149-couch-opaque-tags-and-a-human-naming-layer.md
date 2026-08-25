@@ -49,18 +49,22 @@ want to work on arc-agi-3". `couch start <file-path>` says *start me somewhere*.
 The repo portion of that path is merely a container that supplies git as a
 facility: history tracking and work isolation. It is not identity.
 
-**Concurrency becomes a configurable per-repo limit**, replacing "one agent per
-tree" plus an escape hatch. The real question is whether work at a path
-typically conflicts:
+**Concurrency becomes a configurable repository policy**, replacing "one agent
+per tree" plus an escape hatch. The policy derives a conflict key and live limit
+from the repository's work shape:
 
 - `pair`, `ariadne`, `parley` — the checkout is the installation, one branch and
-  one index, so a limit of 1.
+  one index, so the repository root is the conflict key and its limit is 1.
 - `brain` — a capture repo where threads append to different files, much like
-  separate chat threads; a limit of N, and no override involved on the normal
-  path. Under `#145`'s model this case needed `--same-tree` every time, which is
-  a smell: an escape hatch on the ordinary path.
-- `kbench` — several competition subdirectories sharing one branch. Genuinely a
-  judgement call, which is why it is configuration rather than a rule.
+  separate chat threads; the policy is unbounded (realistically fewer than five
+  live threads), and no override is involved on the normal path. Under `#145`'s
+  model this case needed `--same-tree` every time, which is a smell: an escape
+  hatch on the ordinary path.
+- `kbench` — each competition directory is a conflict key with a limit of 1;
+  distinct competitions may run concurrently in the shared checkout.
+- worktree-managed application repositories — each generated worktree path is a
+  conflict key with a limit of 1; repository policy also owns creation and later
+  garbage collection of those worktrees.
 
 `--same-tree` therefore stops being a special flag and becomes "exceed the
 configured limit", which is a cleaner thing to announce loudly.
@@ -126,42 +130,121 @@ and tree; keep the id for `show` and diagnostics.
 - **`--same-tree`** yields two spaces in one tree — two drafts, two ledgers,
   two ids. That falls out rather than needing a special case.
 
-### Open questions to settle before implementation
+The limit counts live actor incarnations only. Parked work threads remain in the
+inventory but consume no live concurrency slot. These policies are the couch
+consumer of the repository strategy model tracked in `ariadne#200`; they are not
+hard-coded actor subclasses.
 
-- **What does the limit count?** Configuring per repo and counting sessions
-  whose path falls inside it is simplest, but it means `kbench`'s competition
-  subdirectories share one budget. Per-path would let them run independently
-  while still sharing git. Leaning per-repo, because the conflict being limited
-  is git-level and git is repo-scoped.
-- **Live sessions or all spaces?** Live, presumably — a parked space should not
-  consume budget. The difference is between "one agent at a time" and "one
-  thread ever".
+## Revisions
+
+### 2026-08-24 — “space” becomes the durable work thread
+
+**Reason:** designing `#146`'s panel actions exposed that an actor/process is the
+wrong durable row. The operator returns to a thread of work whose transcript,
+draft, ledger, continuation, human name, and description survive after the
+harness stops. A path may host several such threads (ordinary behavior in
+brain), and one thread may be inactive without ceasing to exist.
+
+**Delta:** **work thread** supersedes **space** as the human-facing noun in this
+issue. The opaque Pair tag is the work thread's durable ID. Its starting/current
+path is an attribute, and the system maintains the conceptual index
+`path → [work threads]`; identity and human metadata belong to each work thread,
+not to that index edge. A thread has zero or one live actor incarnation. The
+actor is the runtime—deterministic couch actor plus agent harness/native LLM
+session—not the continuity record. `{thread ID, process identity}` is sufficient
+to reject replies from an obsolete incarnation; no second durable actor ID is
+introduced.
+
+The lifecycle vocabulary follows the identity:
+
+- **park** succeeds only after every process in the live incarnation that can
+  modify the workspace has stopped and durable output has been flushed. It then
+  frees the configured concurrency slot while preserving the work thread and
+  all durable context. A surviving zellij session or agent process means the
+  thread is still live; a partial stop is a failed park and retains its slot;
+- **resume** creates a new live incarnation using the same opaque tag and may
+  reattach a native agent session whose durable resume identity belongs to that
+  tag;
+- **archive/forget** is a later retention/garbage-collection decision about the
+  durable work thread, not a synonym for stopping its process;
+- **kill** may remain a low-level recovery action for a wedged harness, but is
+  not the normal thread-menu verb.
+
+The eventual couch panel lists work threads, including inactive historically
+active ones. Enter attaches to a live thread and resumes a parked one. Tab opens
+thread-level actions; rename and description therefore target the selected
+thread without ambiguity. Multiple threads at one path are distinct rows even
+when unnamed. The hierarchical menu is sequenced in `#151`, which depends on
+this issue; `#146` keeps its flat transitional worktree panel rather than
+building an actor submenu that would immediately be discarded.
+
+Thread summaries expose exact live/parked state and a durable `last_active_at`.
+A live thread presents as active now. When successful park or reconciliation
+verifies that the entire incarnation is no longer able to modify the workspace,
+couch monotonically records the time of that observation in pair's
+thread/session index; a child-client exit alone, failed park, or unknown
+liveness does not advance it or free the slot. The timestamp survives couch
+restart and is never supplied by the agent. The panel may map its age to
+progressively dimmer terminal grays, but color is only a secondary cue:
+live/parked state and relative age remain readable in text and on terminals
+without grayscale.
+
+The concurrency questions are also settled by repository policy rather than one
+global granularity: singleton local-tool checkouts key at repo root, brain is
+unbounded in place, kbench keys by competition directory, and worktree-managed
+repos key each generated worktree. Only live incarnations count. This records
+the operator decisions already captured in `ariadne#200` and removes the stale
+per-repo-versus-per-path open question.
+
+### 2026-08-24 — park and recency become observed lifecycle facts
+
+**Reason:** spec review found that “end or suspend” could call a detached but
+still-running zellij/agent process parked and release its collision guard. It
+also found no authoritative event behind the proposed recency display.
+
+**Delta:** park is now an all-or-fail transition to no workspace-writing process;
+only its success frees capacity. Resume always creates a new couch incarnation,
+though the underlying agent may use its persisted native resume ID. A monotonic
+`last_active_at` is persisted on an observed live→parked transition and remains
+unchanged for failures or unknown liveness. Done-when now enumerates every
+repository-policy case rather than accepting one generic limit test
+(ARCH-PURPOSE, ARCH-MOCK).
 
 ## Done when
 
-- A couch-launched session gets a generated durable tag, and a revival of the
-  same space reuses it — verified by the draft and ledger surviving a restart.
-- An operator can name a space after the fact and rename it, with no file moved
-  and no state lost.
+- A couch-launched work thread gets a generated durable tag, and a revival of
+  that thread reuses it — verified by the draft and ledger surviving a restart.
+- An operator can name a work thread after the fact and rename it, with no file
+  moved and no state lost.
 - pair's picker shows the human name where one exists and the hex string where
-  none does, and resolves a name to its space with couch not running.
+  none does, and resolves a name to its work thread with couch not running.
 - `pair claude` standalone still asks for a tag exactly as it does today.
 - `couch list` no longer leads with the system id.
-- Two spaces in one tree keep separate drafts and ledgers.
-- A repo configured with a limit above 1 accepts concurrent spaces with no
-  escape-hatch flag on the normal path.
-- `couch start <path>` twice creates two spaces where the limit allows it, and
-  resuming a specific one is an explicit act.
+- Two work threads in one tree keep separate drafts and ledgers.
+- Local-tool policy rejects a second live work thread under the same repository
+  root; brain policy admits multiple live in-place threads without an override;
+  kbench admits distinct competition directories but rejects two live threads
+  in one competition; and worktree policy gives each generated worktree a
+  singleton live slot.
+- `couch start <path>` twice creates two work threads where the limit allows it,
+  and resuming a specific one is an explicit act.
+- Each durable work thread can be parked and resumed under the same opaque tag;
+  parking frees the live concurrency slot without deleting its history.
+- Thread inventory distinguishes multiple threads at one path and exposes
+  live/parked state plus persisted observed last-active time for terminal
+  presentation.
 
 ## Plan
 
 - [ ] Make the tag opaque and durable; `Spawn` resolves rather than mints.
-- [ ] Promote the name↔space mapping in `launcher/session_index.go` to a rename
+- [ ] Promote the name↔work-thread mapping in `launcher/session_index.go` to a rename
       layer; pair resolves standalone.
 - [ ] Picker shows names, falling back to the hex string.
 - [ ] couch reads pair's index instead of keeping its own naming table.
 - [ ] Drop the system id from `couch list`'s common output.
-- [ ] Reconcile `#135`'s tag-as-work-identity with space.
+- [ ] Reconcile `#135`'s tag-as-work-identity with work thread.
+- [ ] Implement repository-policy conflict keys and live-slot accounting.
+- [ ] Make park/resume and persisted last-active explicit lifecycle transitions.
 
 ## Log
 
@@ -188,3 +271,24 @@ Two consequences recorded above rather than discovered later: `couch start
 <path>` always creates rather than resuming, since a path may name zero or
 several spaces; and the limit's granularity and whether it counts live sessions
 or all spaces both need settling before implementation.
+
+### 2026-08-22 -- inherited from `#146` M2's smoke: the config picker
+
+`#146` made `couch start` spawn `pair resume <tag>`, which removes the name
+prompt and `DecideLaunch`'s session picker. One prompt survives and lands inside
+couch's own pty: `runConfigPicker` (`launcher/createflow.go:646`), the
+saved-config restore choice -- "use saved params + session / use saved params /
+use new params".
+
+It fires only on a COLD start of a tag that has a saved config; once a session
+is live, `couch start` attaches and prompts nothing. The operator's call on
+2026-08-22 was to leave it, because choosing fresh-vs-resume at a cold start is
+a reasonable thing to be asked.
+
+Why it belongs here rather than there: the picker is skipped only when argv
+already pins an explicit resume (`extractExplicitResume`, `createlogic.go:57`),
+which needs the **agent session id**. couch has no way to know one today. This
+issue's model -- the tag as the space's durable identity, with its draft, ledger
+and session surviving revival -- is what would let a couch-launched session
+resume without asking. Whoever implements that should decide whether a
+non-interactive restore is part of it.

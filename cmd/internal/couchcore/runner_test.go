@@ -88,3 +88,44 @@ func TestExecRunnerPropagatesExitCode(t *testing.T) {
 		t.Fatal("PID must be recorded")
 	}
 }
+
+// One child, ONE notion of exited. The fake used to end its handle while its
+// terminal double kept running, which hung a console test rather than failing
+// it -- the same divergence class as BR-18, at a different seam.
+func TestFakeRunnerExitEndsTheHandleAndTheTerminalTogether(t *testing.T) {
+	f := NewFakeRunner()
+	h, err := f.Start("/repo", []string{"pair"}, nil)
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	child := h.(TerminalHandle).Terminal()
+
+	if child.Done() {
+		t.Fatal("the terminal double reports exited before the child did")
+	}
+	f.SetExited(h.ID(), 5)
+
+	if h.Alive() {
+		t.Fatal("handle still alive after SetExited")
+	}
+	if !child.Done() {
+		t.Fatal("the terminal double is still running after the handle exited")
+	}
+	if got := child.Wait(); got != 5 {
+		t.Fatalf("terminal Wait() = %d, want the handle's code 5", got)
+	}
+}
+
+// AutoExit models "the child ran and exited"; both halves must reflect that or
+// a CLI test that relies on it hangs.
+func TestFakeRunnerAutoExitEndsTheTerminalToo(t *testing.T) {
+	f := NewFakeRunner()
+	f.AutoExit(0)
+	h, err := f.Start("/repo", []string{"pair"}, nil)
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if !h.(TerminalHandle).Terminal().Done() {
+		t.Fatal("AutoExit left the terminal double running")
+	}
+}

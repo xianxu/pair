@@ -17,6 +17,8 @@ import (
 	"golang.org/x/term"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchtty"
+	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
@@ -26,6 +28,10 @@ import (
 type Runtime interface {
 	Getenv(string) string
 	StoreDir() string
+	// NewCouchWith builds the domain against a caller-supplied Runner. The
+	// console needs a PtyRunner it has already wired its own sink and size
+	// supplier into, which cannot be constructed inside NewCouch.
+	NewCouchWith(couchcore.Runner) (*couchcore.Couch, error)
 	// NewCouch builds the domain with its seams.
 	//
 	// It is on the Runtime rather than inline in RunWithRuntime because
@@ -53,11 +59,24 @@ func (r OSRuntime) StoreDir() string {
 }
 
 func (r OSRuntime) NewCouch() (*couchcore.Couch, error) {
+	return r.NewCouchWith(couchcore.ExecRunner{})
+}
+
+func (r OSRuntime) NewCouchWith(runner couchcore.Runner) (*couchcore.Couch, error) {
 	return couchcore.New(
-		couchcore.ExecRunner{}, couchcore.OSPathOps{}, couchcore.ExecGit{},
+		runner, couchcore.OSPathOps{}, couchcore.ExecGit{},
 		couchcore.OSProcOps{}, couchcore.NewStore(r.StoreDir()),
 		couchcore.SystemClock{}, couchcore.NewRandomIDGen(),
 	)
+}
+
+// isTerminal reports whether f is a real terminal. Nil-safe: a non-*os.File
+// stdio (a pipe, a test buffer) arrives here as nil.
+func isTerminal(f *os.File) bool {
+	if f == nil {
+		return false
+	}
+	return term.IsTerminal(int(f.Fd()))
 }
 
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
@@ -111,7 +130,15 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		return 2
 	}
 
-	c, err := rt.NewCouch()
+	// `start` without --no-console becomes THE CONSOLE: it allocates a pty per
+	// child and owns the operator's terminal for its lifetime. Everything else
+	// -- and --no-console -- keeps the stdio-inheriting runner.
+	//
+	// couchcmd constructs and drives the Console; couchcore never learns that a
+	// terminal exists.
+	console, runner := consoleRunner(op.Name, parsed, stdin, stdout)
+
+	c, err := rt.NewCouchWith(runner)
 	if err != nil {
 		fmt.Fprintf(stderr, "couch: %v\n", err)
 		return 1
@@ -122,7 +149,111 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		renderError(stderr, err)
 		return 1
 	}
+	if console != nil {
+		if start, ok := result.(couchcore.StartResult); ok {
+			return runConsole(console, c, start, stdout)
+		}
+	}
 	return render(stdout, op, result)
+}
+
+// consoleRunner decides which Runner this invocation gets, and builds the
+// Console when it is the pty one.
+//
+// Returning (nil, ExecRunner{}) is the fallback path: `--no-console` and every
+// non-start operation. The escape hatch announces itself at render time rather
+// than degrading silently.
+// WantsConsole is the console DECISION, separated from building one.
+//
+// Pure, and that is the point: the previous pins for this needed a real pty and
+// so skipped in the sandbox this issue documents as its environment -- meaning
+// the mutation "disable the console entirely" stayed green, which is the
+// gated-only-pin lesson for the third time. The decision is the thing worth
+// pinning; constructing a Console is plumbing.
+//
+// hasTerminal must be true for BOTH directions. couch measures the input fd and
+// draws on the output fd, so a redirected stdout with a tty stdin would
+// otherwise build a console that paints into a file.
+func WantsConsole(name string, args map[string]string, hasTerminal bool) bool {
+	return name == "start" && args["no-console"] != "true" && hasTerminal
+}
+
+func consoleRunner(name string, args map[string]string, stdin io.Reader, stdout io.Writer) (*couchtty.Console, couchcore.Runner) {
+	inFile, _ := stdin.(*os.File)
+	outFile, _ := stdout.(*os.File)
+
+	// No terminal, no console. Piped, redirected, or run from a script, the
+	// console cannot measure a size or go raw -- and the first cut of this
+	// spawned the child anyway, sized it to a ZERO-ROW pty, then exited 1 with
+	// nothing printed (M2 BR-23). Falling back means the operator gets a working
+	// session and a reason, instead of a registered actor they cannot see.
+	return consoleRunnerFor(name, args, stdin, isTerminal(inFile) && isTerminal(outFile), inFile, outFile)
+}
+
+// consoleRunnerFor is consoleRunner with the terminal question already answered,
+// so the WIRING can be pinned without a pty.
+//
+// Splitting it is not decoration: pinning only WantsConsole left "does
+// consoleRunner actually use it" uncovered, and forcing consoleRunner to return
+// (nil, ExecRunner) kept the whole suite green (M2 BR-24, twice).
+func consoleRunnerFor(name string, args map[string]string, stdin io.Reader, hasTerminal bool, inFile, outFile *os.File) (*couchtty.Console, couchcore.Runner) {
+	if !WantsConsole(name, args, hasTerminal) {
+		return nil, couchcore.ExecRunner{}
+	}
+
+	host := hostty.NewOSHost(inFile, outFile)
+	console := couchtty.New(host, stdin)
+	return console, &couchcore.PtyRunner{
+		Size: console.ChildSize,
+		Sink: console.Deliver,
+	}
+}
+
+// runConsole attaches the spawned child and hands the terminal over. This
+// displaces render's StartResult branch, which printed a line and then blocked
+// on Handle.Wait for the child's lifetime.
+func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, stdout io.Writer) int {
+	// Wire the panel's match rule HERE, on the path that actually runs a
+	// console -- not at a call site a test can bypass. An injection seam
+	// nothing passes is a seam that does nothing (Decision 12's wiring check),
+	// and the panel would silently degrade to "show everything".
+	wireResolver(console, c)
+
+	th, ok := start.Handle.(couchcore.TerminalHandle)
+	if !ok {
+		// A runner that cannot offer a terminal: fall back rather than crash.
+		fmt.Fprintf(stdout, "couch: no terminal available; running without a console\n")
+		if start.Handle != nil {
+			return start.Handle.Wait()
+		}
+		return 1
+	}
+	label := start.Record.Args.Worktree.Repo()
+	console.AttachActor(start.Handle.ID(), start.Record.ID, start.Record.Args.Worktree, label, th.Terminal())
+	return console.Run()
+}
+
+// wireResolver gives the panel couch's OWN match rule.
+//
+// Without this the injection seam exists and nothing uses it, which is the
+// failure mode Decision 12's wiring check names: the panel would silently fall
+// back to "show everything" and typeahead would do nothing.
+func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
+	console.SetResolver(c.LookupTrees)
+	console.SetSummaries(func() []couchcore.TreeSummary { return c.Summarize(nil) })
+	console.SetForget(c.Forget)
+
+	// The panel's actions run through the SAME declared table the CLI
+	// dispatches: the console names an operation and couchcore performs it, so
+	// there is no operator action the advisor cannot also perform (#148's
+	// design test) and no way for the panel to grow a private verb.
+	console.SetOps(func(name string, args map[string]string) (any, error) {
+		op, ok := Resolve(name)
+		if !ok {
+			return nil, fmt.Errorf("unknown operation %q", name)
+		}
+		return op.Invoke(c, args)
+	})
 }
 
 // bindArgs maps positional argv onto the operation's declared ArgSpecs, plus
@@ -169,6 +300,10 @@ func bindArgs(op couchcore.Operation, argv []string) (map[string]string, error) 
 func render(w io.Writer, op couchcore.Operation, result any) int {
 	switch v := result.(type) {
 	case couchcore.StartResult:
+		// Reached on --no-console, and when there is no terminal to drive.
+		// Loud either way: a silent degradation is how an escape hatch becomes
+		// the default nobody noticed (Decision 2).
+		fmt.Fprintf(w, "couch: no console — inheriting stdio, no pty, no reserved row\n")
 		fmt.Fprintf(w, "started %s on %s (pid %d)\n", v.Record.ID, v.Record.Args.Worktree, v.Record.PID)
 		if v.Handle != nil {
 			// couch start blocks for the child's lifetime: this milestone has
@@ -256,14 +391,21 @@ func renderError(w io.Writer, err error) {
 		fmt.Fprintf(w, "  %s (pid %d)\n", a.ID, a.PID)
 	}
 	fmt.Fprintf(w, "They would share a branch and index.\n")
-	switch occ.Mode {
-	case couchcore.WorktreeParallel:
-		fmt.Fprintf(w, "  -> new worktree (cheap here), or switch to it, or --same-tree\n")
-	case couchcore.HeavyLocalState:
-		fmt.Fprintf(w, "  -> switch to it, or --same-tree (worktrees are expensive in this repo)\n")
-	default:
-		fmt.Fprintf(w, "  -> switch to it, or --same-tree (this repo runs one agent at a time)\n")
+
+	// Offer COMMANDS, not intentions.
+	//
+	// This used to say "switch to it", which names a remedy couch has no verb
+	// for: attaching to a session hosted by another couch process needs the
+	// transport in pair#147. An operator who follows unactionable advice ends up
+	// reaching for --same-tree, which is the one option that bypasses the guard.
+	// A refusal is a next-action spec.
+	ref := occ.Tree.Repo()
+	fmt.Fprintf(w, "  -> couch stop %s        end it, then start again\n", ref)
+	fmt.Fprintf(w, "  -> couch start %s --same-tree   run a second agent anyway (recorded)\n", ref)
+	if occ.Mode == couchcore.WorktreeParallel {
+		fmt.Fprintf(w, "  -> or start in a new worktree, which is cheap in this repo\n")
 	}
+	fmt.Fprintf(w, "  (attaching to a session another couch is hosting needs pair#147)\n")
 }
 
 func usage(w io.Writer, table map[string]couchcore.Operation) {

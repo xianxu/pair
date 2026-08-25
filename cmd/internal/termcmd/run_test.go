@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
@@ -636,27 +637,9 @@ func TestParseSGRMousePress(t *testing.T) {
 	}
 }
 
-func TestUpdateMouseMode(t *testing.T) {
-	tests := []struct {
-		name  string
-		start bool
-		data  []byte
-		want  bool
-	}{
-		{name: "enable basic mouse", data: []byte("\x1b[?1000h"), want: true},
-		{name: "enable sgr mouse", data: []byte("\x1b[?1006h"), want: true},
-		{name: "enable multiple modes", data: []byte("\x1b[?1000;1006h"), want: true},
-		{name: "disable mouse", start: true, data: []byte("\x1b[?1000l"), want: false},
-		{name: "unrelated private mode preserves state", start: true, data: []byte("\x1b[?25l"), want: true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := updateMouseMode(tt.start, tt.data); got != tt.want {
-				t.Fatalf("updateMouseMode(%v, %q) = %v, want %v", tt.start, tt.data, got, tt.want)
-			}
-		})
-	}
-}
+// TestUpdateMouseMode moved to ptychild's TestScreenMouseMode with every case
+// intact, plus the split-read case the old chunk-at-a-time scanner could not
+// pass. Mouse state is the child's now, read through tab.child.Mouse().
 
 func TestTerminalMuxPaneTitleShowsTabs(t *testing.T) {
 	mux := &terminalMux{
@@ -687,8 +670,8 @@ func TestTerminalMuxSwitchTabAtColumn(t *testing.T) {
 		stdout: stdoutWriter{&stdout},
 		rt:     rt,
 		tabs: []*terminalTab{
-			{id: 1, name: "terminal 1", buffer: []byte("one")},
-			{id: 2, name: "work", buffer: []byte("two")},
+			{id: 1, name: "terminal 1", child: ptychild.NewFakeChild([]byte("one"))},
+			{id: 2, name: "work", child: ptychild.NewFakeChild([]byte("two"))},
 		},
 		active: 0,
 		cols:   40,
@@ -721,33 +704,44 @@ func TestTerminalMuxNewTabClearsPreviousTabViewport(t *testing.T) {
 	}
 }
 
+func TestTerminalMuxNewTabPrintsStartupOutputOnce(t *testing.T) {
+	var stdout bytes.Buffer
+	mux := newTerminalMux("/bin/sh", []string{"-c", "printf unique-startup-marker"}, &stdout, io.Discard, &fakeRuntime{})
+	go mux.copyActiveOutput()
+	if err := mux.newTab(); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		mux.mu.Lock()
+		done := len(mux.tabs) == 0
+		mux.mu.Unlock()
+		if done {
+			break
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	mux.mu.Lock()
+	remaining := len(mux.tabs)
+	mux.mu.Unlock()
+	if remaining != 0 {
+		t.Fatal("startup command did not exit")
+	}
+	if got := strings.Count(stdout.String(), "unique-startup-marker"); got != 1 {
+		t.Fatalf("startup marker rendered %d times, want once: %q", got, stdout.String())
+	}
+}
+
 func TestTerminalMuxBackgroundExitPreservesActiveTab(t *testing.T) {
-	pty1, peer1, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer peer1.Close()
-	pty2, peer2, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer peer2.Close()
-	defer pty2.Close()
-	pty3, peer3, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer peer3.Close()
-	defer pty3.Close()
 
 	mux := &terminalMux{
 		stdout: io.Discard,
 		rt:     &fakeRuntime{},
 		done:   make(chan struct{}),
 		tabs: []*terminalTab{
-			{id: 1, name: "one", cmd: exec.Command("true"), pty: pty1},
-			{id: 2, name: "two", cmd: exec.Command("true"), pty: pty2},
-			{id: 3, name: "three", cmd: exec.Command("true"), pty: pty3},
+			{id: 1, name: "one"},
+			{id: 2, name: "two"},
+			{id: 3, name: "three"},
 		},
 		active: 1,
 	}
@@ -760,18 +754,6 @@ func TestTerminalMuxBackgroundExitPreservesActiveTab(t *testing.T) {
 }
 
 func TestTerminalMuxRenameCommitDoesNotRenameReplacementActiveTab(t *testing.T) {
-	pty1, peer1, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer peer1.Close()
-	defer pty1.Close()
-	pty2, peer2, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer peer2.Close()
-	defer pty2.Close()
 
 	rt := &fakeRuntime{}
 	mux := &terminalMux{
@@ -779,8 +761,8 @@ func TestTerminalMuxRenameCommitDoesNotRenameReplacementActiveTab(t *testing.T) 
 		rt:     rt,
 		done:   make(chan struct{}),
 		tabs: []*terminalTab{
-			{id: 1, name: "one", cmd: exec.Command("true"), pty: pty1},
-			{id: 2, name: "two", cmd: exec.Command("true"), pty: pty2},
+			{id: 1, name: "one"},
+			{id: 2, name: "two"},
 		},
 		active: 0,
 	}
@@ -812,17 +794,6 @@ func TestTerminalMuxRenameCommitDoesNotRenameReplacementActiveTab(t *testing.T) 
 }
 
 func TestTerminalMuxBackgroundExitPreservesRenameTitleAndViewport(t *testing.T) {
-	pty1, peer1, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer peer1.Close()
-	pty2, peer2, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer peer2.Close()
-	defer pty2.Close()
 
 	var stdout bytes.Buffer
 	rt := &fakeRuntime{}
@@ -831,8 +802,8 @@ func TestTerminalMuxBackgroundExitPreservesRenameTitleAndViewport(t *testing.T) 
 		rt:     rt,
 		done:   make(chan struct{}),
 		tabs: []*terminalTab{
-			{id: 1, name: "one", cmd: exec.Command("true"), pty: pty1},
-			{id: 2, name: "two", cmd: exec.Command("true"), pty: pty2, buffer: []byte("active output")},
+			{id: 1, name: "one"},
+			{id: 2, name: "two", child: ptychild.NewFakeChild([]byte("active output"))},
 		},
 		active: 1,
 	}

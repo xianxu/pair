@@ -429,10 +429,42 @@ opposite directions, and the asymmetry is deliberate:
 - *Output, replay only.* `redrawTab` repaints a tab from its stored output. That
   buffer still holds the app's **capability queries** (DA1, DECRQM, Kitty flags,
   DSR, OSC colour), so replaying re-ASKED the host terminal and its answers were
-  typed into whichever tab was then active. `stripTerminalQueries`
-  (`queries.go`) removes them from the replay. The live path is untouched —
+  typed into whichever tab was then active. `ptychild.StripQueries`
+  (`replay.go`) removes them from the replay. The live path is untouched —
   `copyActiveOutput` writes each chunk to stdout separately — so an app's first
   real query still reaches the terminal and still gets its answer.
+
+**The terminal plumbing is shared with `couch` (#146).** `pair term` is a
+switcher — pty-backed tabs, a bounded replay window, redraw-from-snapshot on
+switch, resize propagation — and so is `couch`. Rather than a second copy, the
+mechanism sits in two packages that both drive:
+
+- **`cmd/internal/ptychild`** — the CHILD half. `Child` (a process on a pty plus
+  its read pump), `Ring` (the bounded replay window, 128 KiB), `StripQueries`
+  (the deny-list above), `Screen` (one scanner over the child's output), and
+  `NewFakeChild` (a child with no process, for switching-policy tests).
+- **`cmd/internal/hostty`** — the HOST half. The `Host` seam over the operator's
+  terminal (size, raw mode, coalesced resize notifications), `OSHost`,
+  `FakeHost`, and the terminal-control constants. `\x1b[r` lives here and only
+  here; it was about to exist in two packages.
+
+**What is shared is structure; what stays is policy.** `termcmd` keeps numbered
+tabs, rename, the zellij pane title, and exit-when-empty; `couch` switches named
+actors and falls back to a panel. That is the same split `cmd/internal/ansi`
+makes for escape sequences, and for the same reason — `wrapcmd`'s capability
+table is *opposed* to the replay deny-list, so merging those would be the bug.
+
+`Screen` is one scanner, not several: it reports alt-screen state, mouse mode,
+whether a reserved row may have been destroyed (`TakeRowDirty` — a margin reset,
+RIS, an alt-screen transition, or an ERASE; DECSTBM restricts scrolling, not
+erasing, so a full-screen app's startup clear takes the row while the region
+survives), whether the stream currently ends mid-sequence (`MidSequence`, which
+is what lets a console interleave its own output without corrupting the child's),
+and BEL. It frames sequences via `ansi` rather than
+scanning for them, which is what lets it see a sequence **split across two pty
+reads** — its predecessor, `updateMouseMode`, scanned each read independently
+and could not. BEL is likewise counted only outside a sequence: every title
+change ends in BEL, so grepping for it would fire constantly.
 
 Replies are deliberately **not** filtered on input: one arriving while its own
 tab is active is solicited, and dropping it would break capability negotiation.

@@ -80,23 +80,10 @@ func (ExecRunner) Start(dir string, argv, env []string) (Handle, error) {
 	// Reaping here also makes liveness a closed channel rather than a syscall,
 	// which is the same shape FakeRunner models.
 	go func() {
-		h.code = waitCode(cmd)
+		h.code = procutil.WaitCode(cmd)
 		close(h.done)
 	}()
 	return h, nil
-}
-
-// waitCode waits for cmd and maps the result to an exit code.
-func waitCode(cmd *exec.Cmd) int {
-	err := cmd.Wait()
-	if err == nil {
-		return 0
-	}
-	var ee *exec.ExitError
-	if asExitError(err, &ee) {
-		return ee.ExitCode()
-	}
-	return -1
 }
 
 type execHandle struct {

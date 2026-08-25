@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
 // Couch is the composition root: every seam in one place, every operation a
@@ -44,6 +46,17 @@ func (c *Couch) ResolveTree(path string) (Worktree, error) { return Resolve(path
 // after Wait a second shell running `couch list` would see an empty registry
 // for the entire session -- which is most of the time.
 func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
+	// An empty path is refused rather than quietly meaning "wherever this
+	// process happens to be".
+	//
+	// `filepath.Abs("")` returns the cwd, so an unset path used to spawn
+	// somewhere plausible by accident -- which made the CLI's explicit `.`
+	// default dead weight that could be deleted with every test still green
+	// (found while deletion-checking M2 BR-24). Two mechanisms producing one
+	// result means neither is pinned; this leaves the explicit one.
+	if args.WorkingDir() == "" {
+		return ActorRecord{}, nil, fmt.Errorf("spawn: no path given")
+	}
 	tree, err := c.ResolveTree(args.WorkingDir())
 	if err != nil {
 		return ActorRecord{}, nil, err
@@ -75,7 +88,34 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 		return ActorRecord{}, nil, err
 	}
 
-	argv := append([]string{"pair", "--layout2"}, args.ExtraArgs...)
+	// `pair resume <tag> --layout2` rather than a bare `pair`.
+	//
+	// The tag: with none, launcher.DecideLaunch returns ActionPick as soon as a
+	// detached session exists (decision.go:47), which inside couch's own pty is
+	// an fzf picker waiting on an operator who only asked to start. `resume`
+	// takes the ForcedTag branch -- attach if live or detached, create
+	// otherwise -- and skips the name prompt (help.go:15). It derives from the
+	// TREE, so going back in is deterministic: the same tree always resumes the
+	// same session. `launcher.DefaultTag` is pair's own create-flow derivation,
+	// reused rather than re-implemented.
+	//
+	// The layout: pinned to layout2 by operator decision 2026-08-22. couch owns
+	// terminal switching now, so layout3's third pane -- pair's own user
+	// terminal -- is the layer couch replaces. Provisional ("for now"), which is
+	// why it is a literal here rather than a knob nobody has asked for.
+	//
+	// A correction worth keeping: an earlier version of this comment claimed
+	// `resume` REFUSES a third argv element and that --layout2 was therefore
+	// impossible. Only POSITIONALS are refused -- `ParseArgs` runs
+	// `extractLayoutRequest` first (args.go:51), which strips layout flags
+	// before the guard ever sees them, and `launchArgsAcceptLayout` admits them
+	// for resume because its Command is "". Measured, not reasoned:
+	// `resume mytag --layout2` parses to {tag, layout2}; `resume mytag stray`
+	// is the thing that errors.
+	//
+	// This is a deliberate slice of #149, which makes the tag the space's
+	// durable identity; #146 needs only that re-entry is deterministic.
+	argv := append([]string{"pair", "resume", launcher.DefaultTag(string(tree)), "--layout2"}, args.ExtraArgs...)
 	// The child is told which tree it is and where couch keeps state, so the
 	// agent inside it can publish its own one-line description. Without this
 	// the description cache has no source: an operator typing `couch describe`
@@ -83,6 +123,7 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	env := []string{
 		"COUCH_TREE=" + string(tree),
 		"COUCH_STORE_DIR=" + c.Store.Dir(),
+		"PAIR_USE_REPO_DEFAULT=1",
 	}
 	h, err := c.Runner.Start(args.WorkingDir(), argv, env)
 	if err != nil {
@@ -189,10 +230,11 @@ func (c *Couch) knownTrees() []Worktree {
 
 // LookupTrees resolves a fuzzy human reference to every tree it could mean.
 //
-// It matches the operator's name, the operator's typed description, AND the
-// agent's own published line. All three answer "what is this thread called",
-// so all three derive from one lookup -- displaying the agent's description
-// while resolving only the operator's delivers half the behaviour.
+// It matches the repo basename rendered as an unnamed tree's fallback label,
+// the operator's name and typed description, AND the agent's own published
+// line. All four answer "what is this thread called", so all four derive from
+// one lookup -- displaying a label while making it unsearchable delivers half
+// the behaviour.
 func (c *Couch) LookupTrees(ref string) []Worktree {
 	needle := strings.ToLower(strings.TrimSpace(ref))
 	if needle == "" {
@@ -210,7 +252,8 @@ func (c *Couch) LookupTrees(ref string) []Worktree {
 		if seen[w.Key()] {
 			continue
 		}
-		if strings.Contains(strings.ToLower(c.Describe(w)), needle) {
+		if strings.Contains(strings.ToLower(w.Repo()), needle) ||
+			strings.Contains(strings.ToLower(c.Describe(w)), needle) {
 			seen[w.Key()] = true
 			out = append(out, w)
 		}

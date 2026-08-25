@@ -20,6 +20,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
 
 func liveOnly(t *testing.T) {
@@ -222,5 +224,74 @@ func TestGitConformance_LinkedWorktree(t *testing.T) {
 	}
 	if fakeRoot != primaryRoot {
 		t.Errorf("fake resolved %q, real resolved %q", fakeRoot, primaryRoot)
+	}
+}
+
+// Terminal conformance: does FakeRunner's pty double behave like a real pty?
+//
+// The comparison is over CONTRACT PREDICATES that neither side is told -- does
+// a write succeed while running and fail after exit, does a resize, does Done
+// flip, does Wait report the scripted code. The first draft of this compared
+// snapshot CONTENT, which the fake side had to be hand-fed with Emit; a check
+// that drives the fake to the value it then asserts tests nothing, and this repo
+// has a lesson saying so. Content is the wrong axis anyway: a fake has no shell,
+// so making it produce shell output proves only that Emit works.
+//
+// The property that content WOULD have covered -- "the child actually observed
+// the resize", the drift a silently-accepting fake would hide -- is pinned on
+// the real side where it is meaningful, by
+// ptychild.TestChildResizeIsObservedByTheChild.
+func TestTerminalConformance_LifecyclePredicates(t *testing.T) {
+	liveOnly(t)
+
+	type predicates struct {
+		writeWhileRunningOK  bool
+		resizeWhileRunningOK bool
+		doneBeforeExit       bool
+		doneAfterExit        bool
+		waitCode             int
+		writeAfterExitErrors bool
+	}
+
+	observe := func(child *ptychild.Child, end func()) predicates {
+		var p predicates
+		_, err := child.Write([]byte("ping\n"))
+		p.writeWhileRunningOK = err == nil
+		p.resizeWhileRunningOK = child.Resize(ptychild.Size{Rows: 40, Cols: 100}) == nil
+		p.doneBeforeExit = child.Done()
+
+		end()
+		p.waitCode = child.Wait()
+		p.doneAfterExit = child.Done()
+		_, err = child.Write([]byte("after"))
+		p.writeAfterExitErrors = err != nil
+		return p
+	}
+
+	r := &PtyRunner{Size: func() ptychild.Size { return ptychild.Size{Rows: 24, Cols: 80} }}
+	rh, err := r.Start(t.TempDir(), []string{"sh", "-c", "read line; exit 3"}, nil)
+	if err != nil {
+		t.Fatalf("real Start: %v", err)
+	}
+	realChild := rh.(TerminalHandle).Terminal()
+	realPreds := observe(realChild, func() {
+		// The child exits on its own once it has read the line written above.
+	})
+
+	f := NewFakeRunner()
+	fh, err := f.Start(t.TempDir(), []string{"sh"}, nil)
+	if err != nil {
+		t.Fatalf("fake Start: %v", err)
+	}
+	fakeChild := fh.(TerminalHandle).Terminal()
+	fakePreds := observe(fakeChild, func() { fakeChild.Exit(3) })
+
+	if realPreds != fakePreds {
+		t.Fatalf("terminal conformance drift:\n  real = %+v\n  fake = %+v", realPreds, fakePreds)
+	}
+	// A scenario where nothing was running and nothing exited would compare two
+	// sets of zeroes and pass.
+	if !realPreds.writeWhileRunningOK || realPreds.doneBeforeExit || !realPreds.doneAfterExit {
+		t.Fatalf("the shared scenario never exercised a running-then-exited child: %+v", realPreds)
 	}
 }

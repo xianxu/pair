@@ -1,4 +1,4 @@
-package termcmd
+package ptychild
 
 import (
 	"bytes"
@@ -8,27 +8,33 @@ import (
 
 // Terminal capability queries, and why they must not be replayed (#127).
 //
-// `redrawTab` repaints a tab by writing its stored raw output back to the real
+// A repaint replays a child by writing its stored raw output back to the real
 // terminal. That output still contains whatever CAPABILITY QUERIES the app in
 // that tab emitted at startup — DA1, DECRQM, the Kitty keyboard flags probe.
 // Replaying them re-ASKS the host terminal, which answers on our stdin; the
-// pump then hands that answer to the currently active tab's shell, which tries
+// pump then hands that answer to the currently active child, which tries
 // to run it as a command. Observed as a shell line reading
 // `execute: …\x1b[?62;4;52c\x1b[?2026;2$y…`.
 //
 // The fix is to strip queries out of the REPLAY only. The live path is
-// untouched (`copyActiveOutput` writes each chunk to stdout separately), so an
+// untouched (a live chunk goes to the terminal unmodified), so an
 // app's first, real query still reaches the terminal and still gets its answer —
 // capability negotiation is not disturbed. We deliberately do NOT filter replies
 // on the input path: a reply arriving while its own tab is active is solicited
 // and correct, and dropping it would silently break that negotiation.
+//
+// Moved out of termcmd for #146: `couch`'s repaint-on-attach is the same
+// operation `redrawTab` performs, so this deny-list is ONE policy with two
+// sites rather than two policies. Contrast wrapcmd's table, which is opposed to
+// this one (it strips `\x1b[>7u`; here `\x1b[>1u` must survive) and correctly
+// stays where it is.
 //
 // This table is a best-effort DENY-LIST of what nvim / zsh / fzf actually emit.
 // It does not need to be exhaustive: a query we miss simply degrades to the old
 // behavior. There is no live conformance check behind it.
 //
 // Note replies DO reach this buffer — the pump writes one into the child's PTY,
-// the shell's line discipline echoes it, and it returns through readPTY. So the
+// the shell's line discipline echoes it, and the pump reads it back. So the
 // rows are deliberately shaped so that no reply form matches: DECRPM replies
 // terminate `$y` not `$p`, the Kitty reply `\x1b[?0u` is not the `\x1b[?u`
 // literal, and `\x1b[?62;4;52c` is neither `\x1b[c` nor `\x1b[0c`.
@@ -55,15 +61,14 @@ var terminalQueryLiterals = [][]byte{
 	[]byte("\x1b]11;?"), // OSC 11 — background colour
 }
 
-// stripTerminalQueries removes capability queries from a tab's stored output so
-// a redraw cannot re-issue them. Pure: no IO, no state.
+// StripQueries removes capability queries from a child's stored output so a
+// repaint cannot re-issue them. Pure: no IO, no state.
 //
 // An unterminated escape at end-of-buffer is emitted VERBATIM. The buffer can
-// legitimately begin or end mid-sequence — `appendBuffer` re-slices to the last
-// 128 KiB, which bisects whatever spans that boundary — and a "no final byte
+// legitimately begin or end mid-sequence — `Ring` keeps only the last `DefaultRingBytes`, which bisects whatever spans that boundary — and a "no final byte
 // found, drop the rest" rule would silently swallow the tail of the replay, i.e.
 // the visible screen.
-func stripTerminalQueries(buf []byte) []byte {
+func StripQueries(buf []byte) []byte {
 	if len(buf) == 0 {
 		return buf
 	}
@@ -81,7 +86,7 @@ func stripTerminalQueries(buf []byte) []byte {
 			i += next
 			continue
 		}
-		size, isQuery, ok := terminalSequenceAt(buf[i:])
+		size, isQuery, ok := sequenceAt(buf[i:])
 		if !ok {
 			// Unterminated (or not an escape we frame) — emit the rest as-is.
 			out = append(out, buf[i:]...)
@@ -95,15 +100,18 @@ func stripTerminalQueries(buf []byte) []byte {
 	return out
 }
 
-// terminalSequenceAt frames the escape sequence at the start of buf and reports
-// whether it is a capability query. ok is false when the sequence is not
-// terminated within buf (a truncated tail), which the caller emits verbatim.
-func terminalSequenceAt(buf []byte) (size int, isQuery bool, ok bool) {
+// sequenceAt frames the escape sequence at the start of buf and reports whether
+// it is a capability query. ok is false when the sequence is not terminated
+// within buf (a truncated tail), which the caller emits verbatim.
+//
+// Framing itself is `frame` (screen.go) -- one site per package decides where a
+// sequence ends. This function is only the query POLICY over that framing.
+func sequenceAt(buf []byte) (size int, isQuery bool, ok bool) {
 	for _, lit := range terminalQueryLiterals {
 		if bytes.HasPrefix(buf, lit) {
 			// OSC literals still need their terminator consumed.
 			if lit[1] == ']' {
-				if end, found := oscEnd(buf); found {
+				if end, found := ansi.OSCEnd(buf, ansi.Lenient); found {
 					return end, true, true
 				}
 				return 0, false, false
@@ -111,53 +119,19 @@ func terminalSequenceAt(buf []byte) (size int, isQuery bool, ok bool) {
 			return len(lit), true, true
 		}
 	}
-	if len(buf) < 2 {
+	size, ok = frame(buf)
+	if !ok {
 		return 0, false, false
 	}
 	switch buf[1] {
 	case '[':
-		end := csiEnd(buf)
-		if end < 0 {
-			return 0, false, false
-		}
-		return end, isParameterizedCSIQuery(buf[:end]), true
+		return size, isParameterizedCSIQuery(buf[:size]), true
 	case ']':
-		end, found := oscEnd(buf)
-		if !found {
-			return 0, false, false
-		}
-		return end, isParameterizedOSCQuery(buf[:end]), true
+		return size, isParameterizedOSCQuery(buf[:size]), true
 	default:
-		return 2, false, true
+		return size, false, true
 	}
 }
-
-// csiEnd returns the length of the parameterised sequence at the start of buf, or
-// -1 when it is not terminated within buf.
-//
-// The framing itself now lives in cmd/internal/ansi (#128), which is why this is a
-// one-liner. Two properties are deliberate and load-bearing, so this delegates to
-// TerminatorScan and NOT to ansi.Frame:
-//   - introducer-INDEPENDENT: malformedEscapeSize routes SS3 (`\x1bO…`) through
-//     here, and a dispatch on buf[1] would frame "\x1bOX" as a two-byte escape and
-//     leak the X into a tab name.
-//   - LENIENT: no param/intermediate range validation. rename_input.go feeds this
-//     result into `input = input[size:]`, so stricter framing would consume the
-//     whole buffer and swallow the user's next keystrokes mid-rename.
-//
-// The -1 sentinel is preserved because escapeSequenceIncomplete (rename_input.go)
-// reads `< 0` as "incomplete", and malformedEscapeSize's `>= 0` guard is what keeps
-// the decoder loop advancing.
-func csiEnd(buf []byte) int { return ansi.TerminatorScan(buf) }
-
-// oscEnd returns the length of the OSC sequence at the start of buf, terminated by
-// BEL or ST (ESC \).
-//
-// Lenient mode (#128): it scans PAST a bare ESC looking for a terminator, where
-// wrapcmd's framing stops at one. That difference is real and deliberate — see
-// ansi.Mode — and tightening it here would change how malformed input is consumed
-// on the rename path.
-func oscEnd(buf []byte) (int, bool) { return ansi.OSCEnd(buf, ansi.Lenient) }
 
 // isParameterizedCSIQuery matches DECRQM — `\x1b[?<digits>$p`. Deliberately
 // narrow: DECSET/DECRST (`\x1b[?1006h`) share the `\x1b[?` prefix and must

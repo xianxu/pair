@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"sync"
+
+	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
 
 // FakeChild is the fake's per-child state, modelled across calls.
@@ -16,6 +18,11 @@ type FakeChild struct {
 	alive   bool
 	code    int
 	done    chan struct{}
+
+	// terminal is the pty double. It is a real *ptychild.Child in its fake
+	// mode -- the SAME type PtyRunner hands out -- so the console cannot be
+	// exercising a different shape in tests than in production (ARCH-MOCK).
+	terminal *ptychild.Child
 }
 
 // FakeRunner is the stateful double ARCH-MOCK requires.
@@ -60,10 +67,15 @@ func (f *FakeRunner) Start(dir string, argv, env []string) (Handle, error) {
 		return nil, err
 	}
 	id := fmt.Sprintf("couch-fake-%d", len(f.order)+1)
+	// The terminal double is a real *ptychild.Child in fake mode, so a test
+	// that needs this child to produce output calls Feed on it directly --
+	// there is no second emit path to keep in step.
+	child := ptychild.NewFakeChild(nil)
 	f.children[id] = &FakeChild{
 		Dir: dir, Argv: argv, Env: env,
 		diesOn: map[os.Signal]int{},
 		alive:  true, done: make(chan struct{}),
+		terminal: child,
 	}
 	f.order = append(f.order, id)
 	f.Ops = append(f.Ops, "start "+dir+": "+joinArgs(argv))
@@ -71,6 +83,11 @@ func (f *FakeRunner) Start(dir string, argv, env []string) (Handle, error) {
 		c := f.children[id]
 		c.alive, c.code = false, *f.autoExit
 		close(c.done)
+		// The TERMINAL double ends with the child. A fake with two notions of
+		// "exited" -- one for the handle, one for its pty -- lets a console
+		// test hang forever waiting on the half that never ends, which is
+		// exactly how this was found.
+		c.terminal.Exit(*f.autoExit)
 	}
 	return &fakeHandle{runner: f, id: id}, nil
 }
@@ -113,6 +130,10 @@ func (f *FakeRunner) SetExited(id string, code int) {
 	}
 	c.alive, c.code = false, code
 	close(c.done)
+	// End the terminal double with it. One child, one notion of "exited": a
+	// fake whose handle has exited while its pty is still running lets a
+	// console test hang forever on the half that never ends.
+	c.terminal.Exit(code)
 }
 
 func (f *FakeRunner) Child(id string) FakeChild {
@@ -139,6 +160,13 @@ type fakeHandle struct {
 }
 
 func (h *fakeHandle) ID() string { return h.id }
+
+// Terminal makes the fake handle a TerminalHandle, exactly as PtyRunner's is.
+// A console test that type-asserts the capability therefore takes the same
+// branch production takes.
+func (h *fakeHandle) Terminal() *ptychild.Child { return h.runner.Terminal(h.id) }
+
+var _ TerminalHandle = (*fakeHandle)(nil)
 
 func (h *fakeHandle) PID() int {
 	h.runner.mu.Lock()
@@ -187,4 +215,14 @@ func (h *fakeHandle) Wait() int {
 	h.runner.mu.Lock()
 	defer h.runner.mu.Unlock()
 	return c.code
+}
+
+// Terminal exposes the pty double, so a fakeHandle can satisfy TerminalHandle.
+func (f *FakeRunner) Terminal(id string) *ptychild.Child {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if c, ok := f.children[id]; ok {
+		return c.terminal
+	}
+	return nil
 }

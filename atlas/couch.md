@@ -6,7 +6,9 @@ is **not** an extension of `pair`. pair is what the operator sits inside, so a
 supervisor bug must not break the ability to fix it; the fallback is always to
 launch pair the old way.
 
-Project: `workshop/projects/couch.md`. Built in `pair#145`.
+Project: `workshop/projects/couch.md`. Registry/spawn shipped in `pair#145`;
+the pty console, actor panel, notices, and complete local lifecycle shipped in
+`pair#146` M1-M4.
 
 ## What exists today
 
@@ -19,15 +21,181 @@ are identical -- so any list in prose is a second copy that drifts. It already
 did: this file named six operations while seven shipped. Run `couch --help`,
 which renders the declared set.
 
-**couch hosts `pair` whole.** The stack is couch → pair → zellij → claude+nvim.
-couch spawns `pair --layout2` and hands it couch's own stdio, so `couch start`
-blocks for the child's lifetime. Verified by operator smoke on 2026-08-21; the
+**couch hosts `pair` whole.** The stack is couch → pair → zellij → agent+nvim.
+couch starts `pair resume <tag> --layout2` inside a child pty and owns the
+operator tty until the console exits. Verified by operator smoke; the
 alternative (couch absorbing zellij's role) was considered and rejected because
 the agent child is never spawned by Go — zellij spawns it from a KDL layout, and
 `entrypoint.ValidRootMarkers` *defines* a valid pair install as having those
 layouts.
 
-**There is no pty yet.** Attaching, switching and detaching are `pair#146`.
+**`couch start` IS the console (`pair#146` M2).** It allocates a pty per child,
+puts the operator's terminal in raw mode, and routes bytes -- so it no longer
+hands the child its own stdio and blocks. The mechanism is shared with `pair term`
+rather than written twice: `cmd/internal/ptychild` (a child on a pty, its
+bounded replay ring, the #127 query deny-list, one scanner over its output) and
+`cmd/internal/hostty` (the operator's terminal: size, raw mode, coalesced
+resizes, the control constants). See `atlas/architecture.md`, "The terminal
+plumbing is shared with couch".
+
+`--no-console` keeps the stdio-inheriting path, and announces itself loudly. It
+is not dead code kept for symmetry: it is the fallback if the tty layer
+misbehaves, which is why `ExecRunner` stays a live production path with a live
+conformance check behind it.
+
+**The pty is a CAPABILITY on a handle, not a second Runner signature.**
+`Runner.Start` is unchanged; a handle from `PtyRunner` additionally satisfies
+`TerminalHandle`. `ExecRunner`'s does not, and a test asserts that -- a
+capability check no runner can fail is vacuous. `Terminal()` returns the
+concrete `*ptychild.Child` rather than an interface, because `FakeRunner`'s
+double IS one, so a test takes the branch production takes.
+
+## The reserved row: a reservation, not compositing
+
+The child is given a terminal one row shorter and the host's scrolling region is
+pinned above the last row (DECSTBM). The child is never told, so this is a
+resize rather than compositing.
+
+Three things that design has to survive, each learned the expensive way:
+
+- **Scrolling.** What DECSTBM is for. A child scrolling at the bottom of its own
+  screen scrolls inside the region.
+- **Erasing.** DECSTBM does *not* cover it. Every full-screen app clears the
+  display on startup and that takes the row with it while the region stays
+  intact -- which is why the signal is `Screen.TakeRowDirty` (erase, margin
+  reset, RIS, alt-screen transition) rather than anything named for the region.
+  The console repaints on it.
+- **Not corrupting the child.** A pty read boundary falls wherever the kernel
+  puts it, so a paint written between two chunks can land inside one of the
+  child's escape sequences. Two rules keep that impossible rather than unlikely:
+  **`Console.Run` is the only goroutine that writes to the host** (resizes and
+  hotkeys are events it drains, not writers), and every console-originated write
+  goes through a gate that defers while the CHILD's stream is mid-sequence,
+  paying the debt on the next chunk that ends on a boundary.
+
+  Both halves were learned by getting them wrong. Asking the *child* whether it
+  was mid-sequence answered about a later chunk, because ptychild's pump feeds
+  its scanner before the console has drained the earlier one -- so the tracking
+  belongs to the stream the console WRITES. And feeding the console's own
+  escapes into that scanner let it frame our bytes together with the child's
+  partial and report "safe" precisely when it was not, so the scanner is fed
+  child bytes only.
+
+Verified against a real terminal emulator (`vtscreen_test.go`) and against a
+real pty child (`console_live_test.go`, `PAIR_LIVE_COUCH=1`), and confirmed by
+operator smoke on the full Ghostty -> couch -> pair -> zellij -> claude stack
+2026-08-23.
+
+## Navigation
+
+`ctrl-space` is intercepted before the child sees it. It arrives in TWO
+encodings and both are recognised: the legacy `0x00`, and CSI-u
+`\x1b[32;5u` under the Kitty keyboard protocol, which zellij enables -- so the
+legacy byte is the one a real session almost never sends. The interceptor
+returns a SPLIT (bytes for the focus being left, bytes for the focus landed on),
+because a concatenated buffer cannot say which child the tail belongs to. It
+suspends inside a bracketed paste: a pasted NUL that switched actors and ate a
+byte would be untraceable data loss.
+
+The focus ladder is deliberately small: a non-root child goes to the root
+actor, the root actor goes to couch's panel, and the panel stays put. Liveness
+is consulted before going home so a dead root cannot become a frozen landing.
+The stdin pump does not treat a `Read` boundary as an event boundary: after it
+finds a hotkey, it waits for the Run loop to acknowledge the focus transition
+before routing the suffix. The same stream rule holds for legacy Escape in the
+panel — a bare ESC is held briefly because it may be the first byte of a split
+arrow sequence; the Run loop's ambiguity timer turns it into an Escape key only
+when no continuation arrives.
+
+The panel is couch's own screen. It owns input while visible, suppresses
+background-child painting, and has one flat interaction language. Printable
+input—including colons and digits—is typeahead; arrows move selection; Enter
+forces the selected live actor's clear-and-replay attach path or starts a
+selected parked worktree; Escape clears the filter or returns. Ctrl-Space from
+the panel opens the start-path input, and Ctrl-Space inside that input is inert.
+`start` dispatches through `couchcore.Operations()`; its returned `StartResult`
+is load-bearing because the console attaches the new terminal child, rebuilds
+the list, and selects its worktree without leaving the panel. Failed starts
+retain filter and selection and report through the notice feed.
+
+The row state is three-way: a local-live row has a console routing target and
+Enter switches to it; a remote-live row is present in the global summary but
+has no local target and reports that #147 transport is required; only a
+non-live parked row dispatches `start`. Liveness and local routing capability
+are deliberately separate facts (ARCH-PURPOSE).
+
+There is no numbered jump or `:` command state. Tab/thread actions are deferred
+to #151 after #149 provides the durable work-thread identity those actions
+target; the current panel does not advertise Tab.
+
+A panel row carries two identities that must not be conflated: the canonical
+worktree feeds the shared human resolver, while the console-local child id is
+the deterministic switch and bell target. `Couch.LookupTrees` is the one match
+rule for the panel, CLI and future advisor; it searches the displayed repo-name
+fallback, operator name/description, and agent-published description. This is
+why a row displayed as `pair` is findable by typing `pair`.
+
+Rows themselves always start at `Couch.Summarize(nil)`, the same durable source
+as `couch list`; a pure join adds only hosted-child routing IDs and bell state.
+That direction matters: building rows from hosted panes would silently omit a
+parked tree and leave successful name/description changes stale in the running
+panel.
+
+## Exit, detach, and terminal lifecycle
+
+Every hosted pane retains three identities with separate jobs: the pty handle
+routes bytes inside this console, `ActorID` addresses registry persistence and
+notices, and the canonical worktree drives human resolution and concurrency.
+They are not interchangeable: both real and fake runners mint a handle ID that
+differs from the actor ID.
+
+Each attached child publishes its own exit. If the focused child exits while
+others remain, the operator lands on the panel; an inactive exit records the
+cause without stealing focus. Either way the dead pane is removed and
+`Couch.Forget` frees its tree. Exit and bell notices share one bounded `Feed`
+over `couchcore.Enqueue`: keys include the actor (`exit:<id>`, `bell:<id>`), so
+repeated bells from one actor collapse while two actors remain two obligations,
+and exit controls are never discarded for capacity.
+
+Detach inside a live console means focus moved, not process stopped. The child
+keeps running and filling its bounded replay ring; returning from the panel and
+switching between children use the same clear-and-replay attach path. Beyond a
+console process, warmth belongs to zellij's server session plus couch's forced
+Pair tag: the console hosts a zellij client, so losing the client loses the view
+and a new couch deterministically reattaches. `pair#147` transport is not on
+that path.
+
+Console teardown has one owner. Normal stop, last-child exit, SIGTERM, and
+SIGHUP all reset the scrolling region, clear the reserved row, leave alternate
+screen, restore/show the cursor, restore raw mode, stop host event sources,
+close the blocking input seam, and join console workers before returning.
+`hostty.TerminationHost` is optional because couch consumes process termination
+while the other `hostty.Host` consumer, `pair term`, owns lifecycle elsewhere.
+
+## Spawning: `pair resume <tag> --layout2`
+
+The tag derives from the worktree root, so re-entry is deterministic and a
+console restart reattaches the same session rather than landing on pair's
+session picker. Layout is pinned to layout2 for now: couch owns terminal
+switching, so layout3's third pane is the layer couch replaces.
+
+On a COLD create, couch asks Pair to use the repo's saved agent-argument default
+without opening `runConfigPicker`; no default means no user-configured args.
+Pair consumes the temporary `PAIR_USE_REPO_DEFAULT=1` handoff at process entry
+and carries only typed launch policy downstream, so sidecars, zellij, and panes
+cannot inherit it. Existing live sessions still take the attach path unchanged.
+Direct `pair resume <tag>` still owns the saved-config choice, and direct
+`pair -- <agent-arguments>` is the current way to replace the repo default.
+
+## The agent-facing operation
+
+`couch publish-description` is run BY a session, inside its own tree, not by the
+operator -- which is why it is the one operation the README does not carry. A
+spawned child is told `$COUCH_TREE`, so the agent can name what it is working on
+in one line, and `Describe` prefers that sidecar over anything the operator
+typed. It is a LABEL, not state: a stale one still finds the right tree, which
+is why it is allowed to go stale where a published status document would not be
+(see the cold-revival experiment in the project file).
 
 ## Identity: the working tree
 
@@ -104,6 +272,6 @@ not fidelity to Erlang.
 
 ## Planned, not built
 
-`pair#146` tty switching · `pair#147` cluster transport and queries ·
-`pair#148` brain as advisor. Cross-repo enablers: `ariadne#199` (exposed query
-API), `ariadne#200` (fleet inventory).
+`pair#147` cluster transport and queries · `pair#148` brain as advisor.
+Cross-repo enablers: `ariadne#199` (exposed query API), `ariadne#200` (fleet
+inventory).

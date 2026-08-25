@@ -258,10 +258,58 @@ shell runtime; `zellij`, `nvim`, `fzf`, and the agent CLIs are the only external
 programs.
 
 `make install` also installs a second binary, **`couch`** — a supervisor that
-registers agent sessions one-per-worktree and can spawn them. It is separate
-from `pair` on purpose: pair is what you sit inside, so a supervisor bug must
-not break your ability to fix it, and launching pair directly always still
-works. See [atlas/couch.md](atlas/couch.md).
+registers agent sessions one-per-worktree, spawns them, and hosts one in your
+terminal. It is separate from `pair` on purpose: pair is what you sit inside, so
+a supervisor bug must not break your ability to fix it, and launching pair
+directly always still works. See [atlas/couch.md](atlas/couch.md).
+
+```
+couch start [<repo>]     host a session in this terminal (default: .)
+couch start . --no-console   spawn without taking the terminal (no pty, no row)
+couch list               every registered actor across all worktrees
+couch show <ref>         the actors on one tree, by path or name
+couch stop <ref>         signal an actor's child and forget it
+couch name <ref> <name>  give a tree a short human name
+couch describe <ref> [<text>]  read or set a tree's one-line description
+```
+
+`couch start` refuses a second agent on a tree that already has one — two agents
+sharing one branch and index is what the registry exists to prevent. `--same-tree`
+overrides it, and the override is recorded.
+
+`couch start` allocates a pty for the session and **reserves the bottom row of
+your screen** for a status line. The path argument is optional and defaults to
+`.`, so `cd <repo> && couch start` is the usual form — the first session you
+start is "home".
+
+On a cold start, couch uses that repository's saved agent-argument default
+without reopening Pair's tag-specific saved-config picker. If no repo default
+exists, it starts with no user-configured agent arguments (Pair may still add
+its normal runtime flags). For now, change the default by launching Pair
+directly in that repo with `pair -- <agent-arguments>` before returning to
+couch. Couch requests this behavior through a temporary one-shot
+`PAIR_USE_REPO_DEFAULT=1` handoff; Pair consumes the value at entry so it is not
+inherited by sidecars, zellij, or panes. Direct Pair launches keep their normal
+saved-config picker behavior.
+
+**`Ctrl-Space` belongs to couch while a session is hosted.** It is intercepted
+before the child sees it, in both encodings a terminal may send it (the legacy
+NUL and the Kitty protocol's `CSI 32;5u`), so it will not reach your editor or
+agent inside a couch-hosted session. Every other chord — `Alt+j`, `Alt+k`,
+`Alt+t` and the rest — passes through untouched. Use `--no-console` if you want
+the old spawn-and-inherit-stdio behaviour with no interception at all.
+
+Focus has three levels. From a non-home actor, `ctrl-space` returns to the first
+actor couch hosted (home); from home it opens the actors panel. In the panel,
+ordinary printable input is direct typeahead. Use `↑↓` and `Enter` to select and
+switch; Enter on a parked row starts in that path. `Escape` clears the filter
+or returns. Press `ctrl-space` again from the panel to enter a path for a new
+actor; an empty path uses the existing `.` default. Colons and digits are
+ordinary filter text—there is no command namespace or numbered jump mode.
+If a row is live in another couch process, Enter leaves it selected and explains
+that cross-process attachment follows in #147; it never starts a duplicate.
+Thread actions behind Tab follow in #151 after #149 supplies durable thread
+identity; Tab is intentionally inactive for now.
 
 ## Command Usage
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -67,8 +68,17 @@ func TestSpawnStartsPairAndRecordsTheActor(t *testing.T) {
 	}
 	// couch spawns pair, not claude: pair owns zellij, the layout, and the
 	// agent's resume/session-id knowledge.
-	if got := env.Runner.Ops[0]; got != "start /repo: pair --layout2" {
+	if got := env.Runner.Ops[0]; got != "start /repo: pair resume repo --layout2" {
 		t.Fatalf("Ops[0] = %q", got)
+	}
+	child := env.Runner.Child(env.Runner.order[0])
+	wantEnv := []string{
+		"COUCH_TREE=/repo",
+		"COUCH_STORE_DIR=" + env.Dir,
+		"PAIR_USE_REPO_DEFAULT=1",
+	}
+	if !slices.Equal(child.Env, wantEnv) {
+		t.Fatalf("child env = %q, want %q", child.Env, wantEnv)
 	}
 	if !rec.StartedAt.Equal(env.Now) {
 		t.Fatalf("StartedAt = %v, want the injected clock", rec.StartedAt)
@@ -173,6 +183,19 @@ func TestResolveRefFindsActorsByOperatorName(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].ID != rec.ID {
 		t.Fatalf("ResolveRef = %+v", got)
+	}
+}
+
+// The panel renders Worktree.Repo() when a tree has no explicit name. A label
+// that is visible but cannot be typed back into the shared resolver makes
+// typeahead lie: it shows "pair" and returns no match for "pair".
+func TestLookupTreesMatchesTheDisplayedRepoFallback(t *testing.T) {
+	env := newTestEnv(t, "/w/pair")
+	env.spawn(t, StartArgs{Worktree: "/w/pair"})
+
+	got := env.Couch.LookupTrees("pair")
+	if len(got) != 1 || got[0] != "/w/pair" {
+		t.Fatalf("LookupTrees(pair) = %v, want [/w/pair]", got)
 	}
 }
 
@@ -565,5 +588,71 @@ func TestPersistedCwdIsCanonicalNotAsTyped(t *testing.T) {
 	got := reg.Get("/w/kbench")
 	if len(got) != 1 || got[0].Args.Cwd != rec.Args.Cwd {
 		t.Fatalf("round-tripped cwd = %+v", got)
+	}
+}
+
+// Spawn resumes a tag rather than creating an unnamed session, so a console
+// restart lands back on the SAME zellij session instead of pair's fzf picker
+// (Decision 11). DecideLaunch with no tag and a detached session present
+// returns ActionPick, which inside couch's own pty is an interactive prompt the
+// operator never asked for.
+func TestSpawnResumesATagDerivedFromTheTree(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	if _, _, err := env.Couch.Spawn(StartArgs{Cwd: "/repo"}); err != nil {
+		t.Fatalf("Spawn: %v", err)
+	}
+
+	got := env.Runner.Ops[0]
+	if !strings.Contains(got, "pair resume ") {
+		t.Fatalf("argv = %q, want `pair resume <tag>`", got)
+	}
+	// Layout pinned to layout2 (operator decision 2026-08-22): couch owns
+	// terminal switching, so layout3's third pane is the layer couch replaces.
+	// This is accepted BECAUSE ParseArgs strips layout flags before the
+	// positional guard -- only a stray positional errors.
+	if !strings.Contains(got, "--layout2") {
+		t.Fatalf("argv does not pin layout2: %q", got)
+	}
+}
+
+// The tag comes from the WORKTREE ROOT, not the cwd. A spawn inside
+// kbench/competition/arc-agi-3/ must resume kbench's tag, because kbench is the
+// tree couch keyed the actor on.
+func TestSpawnDerivesTheTagFromTheTreeNotTheCwd(t *testing.T) {
+	env := newTestEnv(t)
+	env.Git.replies[GitCall{Dir: "/repo/sub/dir", Args: "rev-parse --show-toplevel"}] = "/repo"
+
+	if _, _, err := env.Couch.Spawn(StartArgs{Cwd: "/repo/sub/dir"}); err != nil {
+		t.Fatalf("Spawn: %v", err)
+	}
+	got := env.Runner.Ops[0]
+	if !strings.Contains(got, "pair resume repo") {
+		t.Fatalf("argv = %q, want the tree's tag (repo), not the cwd's (dir)", got)
+	}
+}
+
+// Determinism is the whole point: the same tree must produce the same tag, or
+// every restart creates a new session and the fleet accumulates.
+func TestSpawnProducesTheSameTagForTheSameTree(t *testing.T) {
+	run := func() string {
+		env := newTestEnv(t, "/repo")
+		if _, _, err := env.Couch.Spawn(StartArgs{Cwd: "/repo"}); err != nil {
+			t.Fatalf("Spawn: %v", err)
+		}
+		return env.Runner.Ops[0]
+	}
+	if a, b := run(), run(); a != b {
+		t.Fatalf("the same tree produced different argv:\n  %q\n  %q", a, b)
+	}
+}
+
+// An empty path must be refused, not resolved to wherever the process happens
+// to be. `filepath.Abs("")` returns the cwd, so without this the CLI's explicit
+// "." default was dead weight -- deletable with every test still green, which is
+// two mechanisms for one result and therefore neither pinned.
+func TestSpawnRefusesAnEmptyPath(t *testing.T) {
+	env := newTestEnv(t)
+	if _, _, err := env.Couch.Spawn(StartArgs{}); err == nil {
+		t.Fatal("Spawn with no path returned nil error")
 	}
 }

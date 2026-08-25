@@ -6,7 +6,7 @@ done_when: The operator works inside a single terminal window, managing a fleet 
 status: defined
 mvp_scope: [pair#145, pair#146, pair#147, pair#148, ariadne#199, ariadne#200]
 created: 2026-08-21
-updated: 2026-08-21
+updated: 2026-08-23
 sources: [brain/workshop/pensive/2026-08-20-01-pensive-couch-agent-switcher.md]
 ---
 
@@ -158,11 +158,121 @@ the runtime (bringing actors up, tty routing, transport, live registry). They
 gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 
 - [x] spawn + registry [pair#145]
-- [ ] tty switching and attach [pair#146]
+- [x] shared pty-child core [pair#146 M1]
+- [x] console over one child, with the reserved row [pair#146 M2]
+- [x] many children and the panel [pair#146 M3]
+- [x] exits, detach, and what the row says [pair#146 M4]
 - [ ] expose query API to peer actors [ariadne#199]
 - [ ] fleet thread inventory [ariadne#200]
 - [ ] cluster transport and queries [pair#147]
 - [ ] brain advisor role [pair#148]
+
+<a id="pair-146-m3"></a>
+### pair#146 M3 — many children and the panel
+
+**est:** 10.32 (whole issue)
+**actual:** 9.20h
+**closed:** 2026-08-24
+
+Couch now hosts multiple warm Pair children and switches the operator among
+them through a deterministic panel: `ctrl-space` climbs child → root → panel;
+arrows/Enter, digits and typeahead select a destination; panel actions reuse the
+same operation table the CLI and future advisor consume. Panel rows keep
+worktree identity for human resolution separate from console-local child
+identity for routing.
+
+The real smoke was the milestone's design review. It found that key decoding
+worked only in legacy encoding, actions were declared but initially inert, a
+started actor never joined the live console, and the panel displayed repo-name
+fallbacks its resolver could not search. The fixes addressed those classes at
+their shared boundaries; the operator confirmed the final two-actor smoke.
+
+**Scope event — 2026-08-24:** the first M3 boundary review returned REWORK, so
+the provisional `actual`/`closed` metadata above is not the final milestone
+record and the portfolio row remains open. Follow-up operator evidence confirmed
+that killing the couch console and starting it again reattaches the same zellij
+session. The same cold-start pass removed Pair's saved-config picker from the
+couch path: couch now requests the repo default through a consumed one-shot
+entry policy, while direct Pair retains its picker and manual default override.
+Final measured time and close date will replace the provisional record only
+when `sdlc milestone-close` accepts the boundary.
+
+<a id="pair-146-m2"></a>
+### pair#146 M2 — console over one child, with the reserved row
+
+**est:** 10.32 (whole issue)
+**actual:** 9.35h
+**closed:** 2026-08-23
+
+`couch start` became the console: a pty per child, the operator's terminal in
+raw mode, and a status row reserved by pinning the scrolling region. `PtyRunner`
+sits behind the existing `Runner` seam as a capability on the handle, so
+`--no-console` keeps the stdio path alive rather than leaving it as dead code.
+
+**The milestone's value was in what the verification found, not in the code
+being hard.** Four real bugs, each invisible to the layer above it:
+
+- The reserved row is destroyed by an ERASE, not just by scrolling. DECSTBM
+  covers scrolling only, and every full-screen app clears on startup. Found by
+  operator smoke; the emulator tests were green because a scrolling child never
+  clears.
+- The console spliced its row paint into the middle of the child's escape
+  sequences, corrupting output. Found by putting a REAL pty child under the
+  console; no fake-child test could produce it, because a fake emits only what
+  the test hands it whole.
+- `ctrl-space` was never intercepted: zellij enables the Kitty keyboard
+  protocol, so the terminal sends CSI-u rather than NUL. The evidence was
+  already in the tree — pair's own chord table carries both encodings.
+- A production data race in the pty handle id, caught by the whole-tree `-race`
+  target that had no runnable directory until M1's boundary review fixed it.
+
+**The transferable lesson is about test ladders.** Fake child → emulator →
+real pty child → real stack: each rung caught something the rung below reported
+as green. Two of the four came from the operator's keyboard. Worth carrying into
+M3, where the panel and multi-child switching have the same shape of risk.
+
+**Measurement caveat.** The 9.35h increment is `sdlc actual`'s cumulative 12.91h
+minus M1's 3.56h, over a window spanning 2026-08-22 19:34 to 2026-08-23 08:01 —
+which contains an ~8h overnight gap and several operator-wait gaps. Idle removal
+is the engine's, not mine; read it as "measured, window not clean" rather than
+as focused hours.
+
+<a id="pair-146-m1"></a>
+### pair#146 M1 — shared pty-child core
+
+**est:** 10.32 (whole issue; M1 is roughly its first quarter)
+**actual:** 3.56h
+**closed:** 2026-08-22
+
+Extracted the terminal plumbing out of `pair term` into two packages both it and
+`couch` drive -- `cmd/internal/ptychild` (a child on a pty, its bounded replay
+ring, the #127 query deny-list, and one scanner over its output) and
+`cmd/internal/hostty` (the operator's terminal: size, raw mode, coalesced
+resizes, and the control constants). `pair term` migrated onto both in the same
+milestone, deliberately: extracted code with no second consumer is unvalidated
+new code, and termcmd's existing suite is the only net that could prove the
+extraction faithful.
+
+**The surprise was that extracting found bugs rather than just moving code.**
+The ring's trim re-sliced instead of copying, so its bound depended on `append`
+happening to reallocate -- invisible from outside, because `Snapshot` reports
+the window not the allocation. `updateMouseMode` scanned each pty read
+independently and could not see a sequence split across a read boundary. And BEL
+was about to be grepped rather than framed, which would have fired the status
+row's one activity signal on every title change.
+
+**Worth preserving for the rest of the project:** the structure/policy split is
+what makes one mechanism serve two switchers -- `termcmd` keeps numbered tabs,
+rename and the zellij pane title; `couch` will keep named actors and a panel.
+The same split `cmd/internal/ansi` already documents, and the reason
+`wrapcmd`'s opposed capability table correctly stayed where it was.
+
+**Measurement caveat for calibration.** The 3.56h is engine-measured
+(active-time-v3, 15-min idle threshold) over `d0a3b251 → fedf3853`, but that
+window spans 12:53–18:05 wall clock and contains a **3h48m gap** where the
+session was waiting on an operator smoke test, plus roughly 0.65h of pre-window
+planning after the claim. Read the number as "measured, window not clean"
+rather than as a tight figure.
 
 ## Log
 
@@ -282,11 +392,23 @@ the cheap currency.
 
 Two things this makes explicit rather than assumed:
 
-- **`couch stop` is a kill, not a park.** It sends SIGTERM; nothing instructs
-  the agent to write out first, and no harness produces a continuation from a
-  signal. Parking before shutdown is an operator step today. Having `stop`
-  invoke pair's existing park/continue flow is a later issue, not v1 -- it needs
-  the agent responsive and it takes time.
+- **`couch stop` is a PARK, not a kill -- corrected 2026-08-22 from a
+  measurement.** This entry originally asserted the opposite and was never
+  tested. `probes/zellijpark` creates a throwaway zellij session, kills its
+  CLIENT, and looks: the session survives **both SIGTERM and SIGKILL**. pair
+  installs no SIGTERM handler, and `DeleteSession` is reached only from explicit
+  quit/restart/layout paths -- so signalling pair does not take its session with
+  it. Measured at the zellij layer; the full `couch stop` path is confirmed by
+  operator smoke in `pair#146` M2.
+
+  What that changes: `stop` frees the tree and ends the *view*, while the work
+  keeps running detached and is resumable. What it does NOT change is the
+  original entry's real point -- **nothing tells the agent to write out first**.
+  A parked session still holds un-externalised reasoning, so "the repo is the
+  agent's state" is unaffected: the bet is that a revival reconstructs from
+  commits, issue Logs and the tee'd scrollback, not that a park is a graceful
+  shutdown. Having `stop` invoke pair's park/continue flow remains a later
+  issue.
 - **Silence detection stays in `pair#148`**, as a signal rather than a forcing
   function: a space dirty and uncommitted for hours is one whose reconstruction
   will be expensive, and knowing that while it is still live beats discovering
@@ -309,3 +431,7 @@ run; names live in pair's session index because pair must resolve them with
 couch not running; opaque tags and the picker ship together or not at all; an
 unnamed space shows its hex string; `pair claude` standalone is unchanged; and
 naming doubles as the retention signal that makes cleanup decidable.
+
+[pair#146 M1]: #pair-146-m1
+[pair#146 M2]: #pair-146-m2
+[pair#146 M3]: #pair-146-m3

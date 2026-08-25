@@ -14,6 +14,13 @@
 
 ## See also
 
+- `probes/` — committed probe drivers that exercise real binaries end to end.
+  `make test-smoke` runs **every** directory under `probes/`, so a new probe is
+  covered by existing it rather than by remembering to add a line. A probe earns
+  a place here when its output is quoted as close evidence; each explains in its
+  own header what question it answers, which is where to look rather than in a
+  list here that would drift.
+
 - `doctor/README.md` — `pair-doctor`: read the adaptation flight recorder to diagnose harness integration drift (see the bring-up guide §3 for the signal registry). Primary entry is the agent-agnostic `:PairDoctor` nvim command (`nvim/doctor.lua`); the procedure is single-sourced in `doctor/SKILL.md`, optionally registerable as a Claude skill.
 - `README.md` (repo root) — install and usage.
 - Design pensive (sibling repo): `~/workspace/brain/docs/vision/2026-05-02-01-pensive-nvim-as-input-field-for-tui-coding-agents.md`

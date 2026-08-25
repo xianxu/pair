@@ -300,7 +300,18 @@ real symbol or revise the row to the implemented function/type. Conceptual
 groupings must be explicitly labeled as such, not formatted like nonexistent
 APIs. Also search completed task prose and unchecked rows—the revisions section
 does not cancel stale contradictory instructions elsewhere in the same plan.
-Caught in #000117 close review.
+Categorization is part of the audit: a row under Pure must be free of IO and
+have a direct unit test; a future-milestone entity must say “planned,” not “new.”
+Caught in #000117 close review; the classification extension was caught again
+in #000146 M3 review.
+After repeated drift, the audit must be executable: parse the table and make a
+wrong symbol, path, deletion status, or PURE classification fail. A manual grep
+record can correct today’s rows but cannot prevent the next edit from restoring
+the same family. Caught in #000146 M3 review round 3.
+An executable prose-table audit must also pin the expected row set. Validating
+only rows that remain is one-way: deleting a whole row deletes the test input
+and passes. Reject missing, extra, and duplicate rows before checking their
+contents. Caught in #000146 M3 review round 4.
 
 ## Cross-language cache tests must use the producer's exact JSON types
 
@@ -1738,3 +1749,272 @@ step caught.
 **Rule.** Tick a checklist item only for steps actually performed; record the
 rest as unrun in the same breath. When a Log says "steps 2-5 not exercised" and
 a checkbox says done, believe the Log. Caught in #000145 close review round 1.
+
+## An aliasing test must force an in-place OVERWRITE, not just a later write
+
+#146 Task 1.1's first `Snapshot` aliasing test appended to a ring with spare
+capacity, then asserted the snapshot was unchanged. It passed against
+`return r.data` — the aliasing bug it existed to catch — because `append` wrote
+*past* the snapshot's bytes rather than over them. The deletion check caught it;
+inspection would not have.
+
+**Rule.** To pin "this returns a copy", construct the case where the next
+mutation writes **into the same indices** the returned value occupies — for a
+bounded buffer that means filling to capacity so the trim's `copy()` shifts, not
+leaving headroom so `append` extends. Same shape for any snapshot/defensive-copy
+assertion: if the mutation you perform cannot reach the bytes you assert on, the
+test passes with the copy removed.
+
+Corollary for bounded buffers: `Snapshot` reports the *window*, so a buffer that
+grows its backing array without bound looks identical from outside. Pin the
+allocation separately (`cap()`), or "bounded" is untested.
+
+## A smoke instruction must put the affordance in the operator's view
+
+#146 M1 migrated `pair term`'s multiplexer onto extracted packages, and the
+smoke instruction sent the operator to standalone `pair term` — the one mode
+where `pair term` has **no tab indicator at all**. Its tab strip is rendered as
+the *zellij pane title* (`renamePane` → `zellij action rename-pane "[terminal 1]
+work"`), so outside zellij the call fails and is swallowed. The operator
+reasonably read "I press Alt+t and nothing visibly happens" as a crash, and only
+found the tabs by noticing that changing one tab's contents changed what came
+back on switch.
+
+**Rule.** Before writing smoke steps, ask *where does the thing I want observed
+actually render?* If the affordance lives in a host the reduced-scope harness
+does not have (a zellij pane title, a status bar, a notification centre), the
+reduced harness cannot smoke it — either give steps in the real environment, or
+say up front which signal is missing and what to substitute. A "simpler"
+repro that removes the observable is not simpler, it is unfalsifiable.
+
+Corollary: when the operator reports "X seems broken", check whether X is
+*observable* in the setup you sent them to before investigating X.
+
+## A deletion check proves nothing until you confirm the mutation APPLIED and traversed
+
+#146 M1's boundary review found a "verified" claim that was false (BR-4: the
+`Ring` copy-vs-re-slice change was logged as a bug fix pinned by a deletion
+check; reverting it left the named test green). Fixing that round produced the
+same failure twice more:
+
+- A mutation written as a Python string containing `\x1b` silently became a real
+  ESC byte, so `str.replace` matched nothing. The file was unchanged, the suite
+  stayed green, and "the check passed" would have meant *the check never ran*.
+- A mutation that did apply removed a `return` the test's input never reached —
+  `\x1b[?1049r` exits at an earlier `final != 'h' && final != 'l'` guard, so
+  deleting the later one changed nothing for that case.
+
+**Rule.** A deletion check has three obligations, and only the first is usually
+performed:
+1. **Mutate.** Confirm the file actually changed (`git diff --stat`, or assert
+   the replacement matched) — a no-op edit is indistinguishable from a passing
+   check.
+2. **Compile.** A build failure is not a red test; it proves nothing about the
+   assertion.
+3. **Traverse.** Confirm the mutated line is on the path the test's input takes.
+   Removing a guard the input never reaches is a green check with no meaning.
+
+**The same three obligations apply to ORDINARY edits, not just mutations.** Three
+times in #146 M1 a scripted edit silently failed — a `str.replace` whose pattern
+did not match, a script that raised before its `write()`, so *nothing* in it
+landed — and each time the suite stayed green and the edit was reported as done.
+An edit is not applied because you wrote it; it is applied because you checked.
+Assert the match inside the script, or grep the result afterwards.
+
+And name the mutation precisely in any log entry. "Ring trim" covered *removing
+the trim entirely* and was true; it was written up as covering *copy vs
+re-slice*, which it never touched. The gap between the mutation you ran and the
+claim you make from it is where this class of lie lives.
+
+## An async assertion must prove the change LANDED, not just poll for a state
+
+#146 M2's operator smoke reported the reserved row appearing and then vanishing.
+The emulator tests written to reproduce it **passed** — in 0.01s, on all five
+cases. They fed the child a clear and immediately polled "is the row there?",
+which was true from *before* the clear: the chunk had not reached the screen
+yet. A green suite reported the bug as fixed while it was still live.
+
+The second shape was wrong the other way. Waiting to OBSERVE the damage ("poll
+until the row is gone, then poll until it returns") is flaky by construction:
+when the repair is fast the damaged state may never be visible at all, and the
+case that was already handled (RIS) started failing for the wrong reason.
+
+**The marker must be set by the CONSUMER, not the producer.** This recurred five
+times across #146 M2/M3 despite the rule below, and every recurrence had the
+same shape: the wait condition polled something the PRODUCER sets synchronously
+(`child.Feed` updates the ring immediately), so it was already true before the
+consumer had looked at anything. Twice that produced a false PASS on a live bug;
+twice a deletion check failed to fire and the test was proving nothing; once a
+false FAIL.
+
+Ask of every wait condition: **could this be true before the code under test
+ran?** If yes, it is not a marker. Reach for something only the consumer can
+set — output it emits, or state it records — and remember the queue is FIFO, so
+a later marker proves the earlier item was drained.
+
+**Rule.** For a poll-based assertion over an async pipeline, establish ordering
+with a MARKER rather than with timing. Send the stimulus, then send something
+whose arrival is observable and ordered behind it; wait for the marker, then
+assert. Ordering through a channel or a stream is a guarantee — "it has probably
+happened by now" is not, in either direction.
+
+Corollary, and the reason this class keeps recurring: ask what the assertion
+reports **before** the action runs. If it is already the value you want, the
+test cannot fail for the reason you think it can. Same defect as an aliasing
+test whose mutation cannot reach the bytes it asserts on.
+
+## Injecting into a stream you don't own needs a single writer AND a scanner fed only by that stream
+
+#146 M2 shipped a status row painted into the same terminal a child is writing
+to. Getting that right took three attempts, and each wrong one looked correct:
+
+1. **Ask the child whether it is mid-sequence.** Wrong stream: the child's
+   scanner had already consumed chunks the console had not yet written, so the
+   answer described a different point in time.
+2. **Track the stream the console writes — but only guard one writer.**
+   `applyLayout` (on SIGWINCH) and the hotkey path still wrote from their own
+   goroutines, so two of three writers bypassed the check.
+3. **Feed the console's own escapes into that scanner.** Appending `\x1b[1;23r`
+   to a pending `\x1b[38;2;76` let the scanner frame them together as one
+   complete sequence, so it reported "safe" exactly when it was not.
+
+**Rule.** To interleave your own output into a stream produced by something
+else: (a) make ONE goroutine the only writer, so everything else sends events
+rather than bytes; (b) frame the stream at the point of writing, not at the
+point of reading; (c) feed the framing scanner ONLY the other party's bytes —
+your own are known-complete and including them corrupts the very state you are
+consulting.
+
+Corollary for tests: the bug lives in the SKEW between producer and consumer, so
+a test that synchronises them cannot see it. A reviewer's phrase for the version
+that waited for the console to catch up before continuing: "avoids the window
+rather than covering it."
+
+## A capability audit that checks DECLARATION passes on a list that does nothing
+
+`#146` M3 shipped a panel whose `PanelActions()` returned `start, stop, name,
+describe`, with an audit asserting every name is a declared `couchcore`
+operation. It passed. Nothing was wired: no keystroke reached any of them, so
+the operator opened the panel and had no way to start a second child. The audit
+was satisfied by a string slice.
+
+Same shape as a gated-only pin, one level up: the check tested that the CLAIM was
+well-formed, never that the claim was true.
+
+**Rule.** When a component declares what it can do, the audit must check the
+declaration is REACHABLE, not merely consistent. For a keyboard surface that
+means every declared action maps to a key and no two share one; for an API it
+means every declared operation has a call path a test exercises. Pair the
+subset check ("nothing undeclared") with a coverage check ("nothing declared
+that cannot be invoked") — the first alone is passed by an empty implementation.
+
+Corollary, and it is the cheaper detector: if a feature is declared and the
+operator asks *"how do I actually do this?"*, the audit that should have caught
+it was checking the wrong direction.
+
+## Framing input is not optional once you accept keystrokes
+
+The same `#146` panel took any printable byte as typeahead. An SGR mouse report
+is `\x1b[<0;12;4M` — every byte after the ESC is printable — so moving the
+mouse over the panel typed `[<;0;M[<;;M…` into the filter, which then matched
+nothing, rendered "(nothing running)", and left no way back because Escape was
+not handled either.
+
+**Rule.** Any surface that consumes terminal input must FRAME escape sequences
+before interpreting bytes, and drop the ones it does not use rather than letting
+them decay into text. Route it through the repo's existing scanner
+(`cmd/internal/ansi`) — a second framing decision is the bug this repo has paid
+for repeatedly. And decide explicitly what the ESCAPE key does: a picker with no
+way out is a trap, and "nothing happens" is what the operator sees.
+
+## A key encoding fix must cover EVERY key, not the one that was reported
+
+`#146` M2: ctrl-space never reached couch, because zellij enables the Kitty
+keyboard protocol and the terminal sends `\x1b[32;5u` rather than NUL. Fixed —
+for ctrl-space. M3 then shipped a panel whose Escape, Enter and arrows were all
+dead for the identical reason, and the operator reported the same class of bug a
+second time.
+
+The evidence was in the tree both times: pair's own chord table carries BOTH
+encodings for every chord (`workbenchshortcut/shortcut.go`), which is what a
+keyboard surface in this repo is supposed to look like.
+
+**Rule.** Terminal key encoding is a property of the MODE the terminal is in,
+not of a particular key. When one key turns out to arrive in an unexpected
+encoding, enumerate every key the surface consumes and handle both forms for all
+of them in the same change — a per-key fix guarantees the next key reports the
+same bug. Decode the codepoint (`CSI <n> ; <mods> u`) rather than listing byte
+strings, so a key nobody thought about still decodes.
+
+Corollary: a surface that takes over the screen inherits whatever keyboard mode
+the previous occupant set. It does not get to assume the default.
+
+## A refusal that names an action you cannot perform pushes the operator to the bypass
+
+`#146`'s one-agent-per-tree guard refused correctly and then advised "switch to
+it, or --same-tree". couch has no switch verb -- attaching to a session another
+process hosts is a different issue's work. So the only followable half of the
+advice was the flag that turns the guard OFF.
+
+**Rule.** Every remedy a refusal offers must be a command that exists today. If
+the natural remedy is not built yet, say so explicitly ("attaching needs X")
+rather than naming it as an option -- an operator who cannot follow the safe
+advice will follow the unsafe one. Where the surface has a declared verb set,
+assert in a test that each suggested command is in it, so the advice cannot
+drift from the implementation.
+
+## A stream split is not an event boundary
+
+`#146` M3's interceptor correctly returned `before / hotkey / rest`, but the
+stdin goroutine queued the hotkey and immediately routed `rest`. The Run
+goroutine had not necessarily changed focus yet, so bytes logically after the
+hotkey could still reach the actor being left. The unit test proved the parser's
+split and missed the consumer's scheduling race.
+
+**Rule.** If bytes after an input control depend on that control taking effect,
+the control needs an acknowledgment (or all routing belongs on one event loop)
+before the suffix is consumed. Enumerate every legal read split in a composed
+test; parser tests alone cannot prove routing order. The same rule applies to a
+bare ESC that might be the prefix of a following CSI: read boundaries carry no
+semantic meaning, so resolve the ambiguity explicitly.
+Generate the split cases from the production recognition table; a handwritten
+representative split is how the first-byte boundary escaped #000146 M3 twice.
+
+## A displayed model must have one production constructor
+
+`#146` M3 built and thoroughly tested `NewPanelModel(TreeSummary)`, including
+parked trees, then production constructed a second `PanelModel` directly from
+hosted panes. Both versions rendered, so ordinary live-actor smoke passed while
+parked rows and refreshed metadata disappeared.
+
+**Rule.** When a pure model constructor is the declared source of UI state,
+production must call it. Runtime-only data may be joined afterward through a
+named pure transform; it must not become a parallel constructor. Pin the real
+wiring with one fixture containing state that exists only in the domain source
+(here: a parked tree), because the intersection of two sources cannot reveal
+which one production consumed.
+
+## Printable command keys and direct typeahead cannot share a mode
+
+`#146` M3 treated `s`, `x`, `n`, `d`, and digits as commands only while the
+query was empty. That made a query's interpretation depend on its first byte:
+some visible names could never be typed even though typeahead appeared to accept
+ordinary text.
+
+**Rule.** A typeahead surface that promises direct printable input reserves no
+printable prefix for commands in the same mode. Put commands behind an explicit
+namespace or modifier and test every command rune as the first query byte. A
+help line is part of this contract and must be updated from the same inventory.
+
+## Liveness is not local routability
+
+`#146`'s panel joined a global live-actor summary with console-local child
+targets, then treated a missing target as proof that the worktree was parked.
+A live actor hosted by another couch process has exactly that shape, so Enter
+attempted to start a duplicate instead of explaining that attachment transport
+was unavailable.
+
+**Rule.** When global state is joined with process-local capabilities, model
+the facts independently. Test all resulting states—in this case local-live,
+remote-live, and parked—and authorize an action from the capability it needs,
+not from the absence of a different capability (ARCH-PURPOSE).
