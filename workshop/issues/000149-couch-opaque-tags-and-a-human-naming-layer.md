@@ -137,21 +137,69 @@ and tree; keep the id for `show` and diagnostics.
   consume budget. The difference is between "one agent at a time" and "one
   thread ever".
 
+## Revisions
+
+### 2026-08-24 — “space” becomes the durable work thread
+
+**Reason:** designing `#146`'s panel actions exposed that an actor/process is the
+wrong durable row. The operator returns to a thread of work whose transcript,
+draft, ledger, continuation, human name, and description survive after the
+harness stops. A path may host several such threads (ordinary behavior in
+brain), and one thread may be inactive without ceasing to exist.
+
+**Delta:** **work thread** supersedes **space** as the human-facing noun in this
+issue. The opaque Pair tag is the work thread's durable ID. Its starting/current
+path is an attribute, and the system maintains the conceptual index
+`path → [work threads]`; identity and human metadata belong to each work thread,
+not to that index edge. A thread has zero or one live actor incarnation. The
+actor is the runtime—deterministic couch actor plus agent harness/native LLM
+session—not the continuity record. `{thread ID, process identity}` is sufficient
+to reject replies from an obsolete incarnation; no second durable actor ID is
+introduced.
+
+The lifecycle vocabulary follows the identity:
+
+- **park** ends or suspends the live incarnation and frees the configured
+  concurrency slot while preserving the work thread and all durable context;
+- **resume** creates or reattaches a live incarnation using the same opaque tag;
+- **archive/forget** is a later retention/garbage-collection decision about the
+  durable work thread, not a synonym for stopping its process;
+- **kill** may remain a low-level recovery action for a wedged harness, but is
+  not the normal thread-menu verb.
+
+The eventual couch panel lists work threads, including inactive historically
+active ones. Enter attaches to a live thread and resumes a parked one. Tab opens
+thread-level actions; rename and description therefore target the selected
+thread without ambiguity. Multiple threads at one path are distinct rows even
+when unnamed. This hierarchical menu is sequenced after this issue supplies the
+identity; `#146` keeps its flat transitional worktree panel rather than building
+an actor submenu that would immediately be discarded.
+
+Thread summaries expose exact live/parked state and a last-active time. The
+panel may map that age to progressively dimmer terminal grays, but color is only
+a secondary cue: live/parked state and relative age remain readable in text and
+on terminals without grayscale. Last-active is an observed lifecycle fact, not
+an agent-authored status claim.
+
 ## Done when
 
-- A couch-launched session gets a generated durable tag, and a revival of the
-  same space reuses it — verified by the draft and ledger surviving a restart.
-- An operator can name a space after the fact and rename it, with no file moved
-  and no state lost.
+- A couch-launched work thread gets a generated durable tag, and a revival of
+  that thread reuses it — verified by the draft and ledger surviving a restart.
+- An operator can name a work thread after the fact and rename it, with no file
+  moved and no state lost.
 - pair's picker shows the human name where one exists and the hex string where
-  none does, and resolves a name to its space with couch not running.
+  none does, and resolves a name to its work thread with couch not running.
 - `pair claude` standalone still asks for a tag exactly as it does today.
 - `couch list` no longer leads with the system id.
-- Two spaces in one tree keep separate drafts and ledgers.
-- A repo configured with a limit above 1 accepts concurrent spaces with no
+- Two work threads in one tree keep separate drafts and ledgers.
+- A repo configured with a limit above 1 accepts concurrent work threads with no
   escape-hatch flag on the normal path.
-- `couch start <path>` twice creates two spaces where the limit allows it, and
-  resuming a specific one is an explicit act.
+- `couch start <path>` twice creates two work threads where the limit allows it,
+  and resuming a specific one is an explicit act.
+- Each durable work thread can be parked and resumed under the same opaque tag;
+  parking frees the live concurrency slot without deleting its history.
+- Thread inventory distinguishes multiple threads at one path and exposes
+  live/parked state plus observed last-active time for terminal presentation.
 
 ## Plan
 

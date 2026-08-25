@@ -50,7 +50,7 @@ deliberately deferred until the operator catches themselves wanting one.
 fuzzy reference sits *above* the switch (`#148`); the switch itself is a direct
 call. A model turn inside this path reintroduces exactly the latency that sends
 the operator back to tabs, so a direct route that skips resolution entirely —
-hotkey home, a numbered list — must always exist.
+hotkey home, Enter on a visibly selected row — must always exist.
 
 **Detach and reattach without killing children.** A detached actor keeps running;
 its child harness stays warm. Reuse what already exists rather than writing
@@ -201,6 +201,53 @@ wide and narrow rendering. Existing Kitty keyboard, mouse framing, warm-child,
 mid-output, and direct-switch tests remain regression coverage (ARCH-DRY,
 ARCH-PURE, ARCH-PURPOSE).
 
+### 2026-08-24 — hierarchy belongs to durable work threads, not live actors
+
+**Reason:** review of the preceding revision exposed the missing noun. A live
+actor is an execution harness; the durable thing the operator returns to is a
+work thread whose transcript, draft, ledger, continuation, name, and description
+survive across harness incarnations. Building actor-specific submenus before
+`#149` supplies that identity would attach durable metadata to an ephemeral row
+and make the current worktree grouping even harder to unwind.
+
+**Delta:** this entry supersedes the preceding revision's actor-per-row and
+hierarchical-menu requirements. `#146` remains a flat transitional switcher over
+the identities it already has; `#149` owns the durable work-thread model and the
+later hierarchical thread/action menu. M4 makes only the interaction correction
+needed to close this switcher safely:
+
+- Ctrl-Space still climbs child → root → panel. At the flat panel, Ctrl-Space
+  opens the start-path input. A further Ctrl-Space while that input is active is
+  a no-op; Escape cancels it and restores the list.
+- Printable input, including `:` and digits, is exclusively filter text.
+  Up/Down select, Enter invokes the selected row, and Escape clears a non-empty
+  filter before returning to the active actor. The `:` command state and all
+  namespaced jump/start/stop/name/describe bindings disappear. Tab has no interim
+  meaning and is not advertised until `#149` provides the submenu's durable
+  target.
+- Enter on a live row attaches through the forced clear-and-replay path even
+  when it is the already-active root. Enter on a parked worktree starts in that
+  path. Enter with no visible selection does nothing and reports that there is
+  no selection.
+- Opening and cancelling the start input preserves the list's filter and
+  selected identity. Success or asynchronous fleet change rebuilds the list,
+  retains that identity if it still exists and remains visible, and otherwise
+  selects the first visible row. An operation error returns to the same list and
+  appears in the existing notice feed. Leaving the panel clears its transient
+  filter; reopening starts from the full list.
+
+The current parked rows are retained as historically active worktrees. This is
+only a compatibility projection: once `#149` lands, the panel lists durable work
+threads, multiple threads may share one path, and a parked thread is resumed
+rather than treated as a worktree with no process. That future menu uses `park`,
+not `stop thread`, for ending live execution while retaining continuity.
+
+The direct latency invariant is now satisfied by Enter on a visibly selected
+row, not by a numbered shortcut. Tests must cover the complete flat transition
+table above, including same-active Enter, parked-row start, prompt cancellation,
+zero matches, stale selection fallback, Ctrl-Space during the prompt, and
+printable colon/digits (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
 ## Done when
 
 - couch supervises N sessions and switches the operator tty between them.
@@ -212,8 +259,8 @@ ARCH-PURE, ARCH-PURPOSE).
   exited and why — never on a dead pane.
 - Landing on a session shows recent context rather than a blank screen.
 - Detach and reattach leave children running and warm.
-- A numbered/direct switch path exists that requires no natural-language
-  resolution.
+- A direct switch path—Enter on the visibly selected row—exists without
+  natural-language or model resolution.
 
 ## Plan
 
