@@ -252,7 +252,7 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 		return 1
 	}
 	label := start.Record.Args.Worktree.Repo()
-	console.AttachActor(start.Handle.ID(), start.Record.ID, start.Record.Args.Worktree, label, th.Terminal())
+	console.AttachThreadActor(start.Handle.ID(), start.Record.ID, start.Record.Thread, start.Record.Args.Worktree, label, th.Terminal())
 	return console.Run()
 }
 
@@ -262,8 +262,18 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 // failure mode Decision 12's wiring check names: the panel would silently fall
 // back to "show everything" and typeahead would do nothing.
 func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
-	console.SetResolver(c.LookupTrees)
-	console.SetSummaries(func() []couchcore.TreeSummary { return c.Summarize(nil) })
+	console.SetResolver(func(ref string) []couchcore.ThreadAddress {
+		matches, _ := c.ResolveThreadReference("", ref)
+		addresses := make([]couchcore.ThreadAddress, len(matches))
+		for i := range matches {
+			addresses[i] = matches[i].Address
+		}
+		return addresses
+	})
+	console.SetSummaries(func() []couchcore.ThreadSummary {
+		rows, _ := c.ThreadInventory()
+		return rows
+	})
 	console.SetForget(c.Forget)
 
 	// The panel's actions run through the SAME declared table the CLI

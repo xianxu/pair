@@ -939,3 +939,20 @@ issue's model -- the tag as the space's durable identity, with its draft, ledger
 and session surviving revival -- is what would let a couch-launched session
 resume without asking. Whoever implements that should decide whether a
 non-interactive restore is part of it.
+
+### 2026-08-26 — share composite thread inventory with the panel
+
+Thread metadata and resolution now use revision-checked composite addresses;
+an omitted metadata field is distinct from explicitly clearing it, publication
+can update only the current thread's agent summary, and ambiguous human refs
+return every candidate instead of choosing one. CLI list/show and the Couch
+panel consume the same one-row-per-thread inventory, with human name leading,
+opaque tag only as the unnamed fallback, and operator description kept distinct
+from the agent-published summary.
+
+Panel filtering, selection, and live target joins now use `{repo scope, tag}`.
+Two Brain threads in one working path therefore remain distinct and bind only
+their exact hosted actor. Pair #146's `SelectTree` compatibility surface remains
+only as a fail-closed adapter: it refuses a path shared by multiple visible
+threads. Full `go test ./... -count=1` and `git diff --check` pass
+(ARCH-DRY, ARCH-PURPOSE).

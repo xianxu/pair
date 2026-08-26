@@ -57,7 +57,7 @@ func TestPanelCtrlSpaceIsNoOpInsideStartPrompt(t *testing.T) {
 
 func TestPanelColonAndDigitsAreFilterText(t *testing.T) {
 	f := newFixture(t, 24, 80)
-	f.con.SetResolver(func(string) []couchcore.Worktree { return nil })
+	f.con.SetResolver(func(string) []couchcore.ThreadAddress { return nil })
 	openPanel(t, f)
 	before := len(f.child.Writes())
 	_, _ = f.stdin.Write([]byte(":2"))
@@ -94,10 +94,10 @@ func TestPanelEnterOnAlreadyActiveActorForcesClearAndReplay(t *testing.T) {
 func parkedFixture(t *testing.T) *consoleFixture {
 	t.Helper()
 	f := newFixture(t, 24, 80)
-	f.con.SetSummaries(func() []couchcore.TreeSummary {
-		return []couchcore.TreeSummary{
-			{Tree: "c1", Name: "brain", Actors: []couchcore.ActorView{{Live: true}}},
-			{Tree: "/w/parked", Name: "parked"},
+	f.con.SetSummaries(func() []couchcore.ThreadSummary {
+		return []couchcore.ThreadSummary{
+			{Address: panelAddress("c1"), WorkingPath: "c1", Name: "brain", Incarnations: []couchcore.ThreadIncarnation{{State: couchcore.IncarnationLive}}},
+			{Address: panelAddress("parked"), WorkingPath: "/w/parked", Name: "parked"},
 		}
 	})
 	openPanel(t, f)
@@ -137,10 +137,10 @@ func TestPanelEnterOnParkedRowStartsItsPath(t *testing.T) {
 
 func TestPanelEnterOnRemoteLiveRowExplainsAttachmentIsDeferred(t *testing.T) {
 	f := newFixture(t, 24, 80)
-	f.con.SetSummaries(func() []couchcore.TreeSummary {
-		return []couchcore.TreeSummary{
-			{Tree: "c1", Name: "brain", Actors: []couchcore.ActorView{{Live: true}}},
-			{Tree: "/w/remote", Name: "remote", Actors: []couchcore.ActorView{{Live: true}}},
+	f.con.SetSummaries(func() []couchcore.ThreadSummary {
+		return []couchcore.ThreadSummary{
+			{Address: panelAddress("c1"), WorkingPath: "c1", Name: "brain", Incarnations: []couchcore.ThreadIncarnation{{State: couchcore.IncarnationLive}}},
+			{Address: panelAddress("remote"), WorkingPath: "/w/remote", Name: "remote", Incarnations: []couchcore.ThreadIncarnation{{State: couchcore.IncarnationLive}}},
 		}
 	})
 	called := false
@@ -164,7 +164,7 @@ func TestPanelEnterOnRemoteLiveRowExplainsAttachmentIsDeferred(t *testing.T) {
 
 func TestPanelStartFailurePreservesListState(t *testing.T) {
 	f := parkedFixture(t)
-	f.con.SetResolver(func(string) []couchcore.Worktree { return []couchcore.Worktree{"/w/parked"} })
+	f.con.SetResolver(func(string) []couchcore.ThreadAddress { return []couchcore.ThreadAddress{panelAddress("parked")} })
 	_, _ = f.stdin.Write([]byte("p"))
 	waitFor(t, "the retained filter", func() bool {
 		f.con.mu.Lock()
@@ -193,7 +193,11 @@ func TestPanelStartSuccessAttachesAndSelectsReturnedTree(t *testing.T) {
 	}
 	f.con.SetOps(func(string, map[string]string) (any, error) {
 		return couchcore.StartResult{
-			Record: couchcore.ActorRecord{ID: "actor-parked", Args: couchcore.StartArgs{Worktree: "/w/parked"}},
+			Record: couchcore.ActorRecord{
+				ID:     "actor-parked",
+				Thread: panelAddress("parked"),
+				Args:   couchcore.StartArgs{Worktree: "/w/parked"},
+			},
 			Handle: h,
 		}, nil
 	})
@@ -212,7 +216,7 @@ func TestPanelStartSuccessAttachesAndSelectsReturnedTree(t *testing.T) {
 
 func TestPanelStartPromptCancelPreservesListState(t *testing.T) {
 	f := parkedFixture(t)
-	f.con.SetResolver(func(string) []couchcore.Worktree { return []couchcore.Worktree{"/w/parked"} })
+	f.con.SetResolver(func(string) []couchcore.ThreadAddress { return []couchcore.ThreadAddress{panelAddress("parked")} })
 	_, _ = f.stdin.Write([]byte("park"))
 	waitFor(t, "the filtered parked row", func() bool {
 		f.con.mu.Lock()
@@ -277,7 +281,7 @@ func TestPanelBackspaceRemovesLastDecodedCharacter(t *testing.T) {
 
 func TestPanelEnterWithNoMatchReportsNoSelection(t *testing.T) {
 	f := newFixture(t, 24, 80)
-	f.con.SetResolver(func(string) []couchcore.Worktree { return nil })
+	f.con.SetResolver(func(string) []couchcore.ThreadAddress { return nil })
 	openPanel(t, f)
 	_, _ = f.stdin.Write([]byte("nothing\r"))
 	waitFor(t, "the no-selection notice", func() bool {
@@ -287,10 +291,10 @@ func TestPanelEnterWithNoMatchReportsNoSelection(t *testing.T) {
 
 func TestPanelRefreshPreservesOrFallsBackSelection(t *testing.T) {
 	f := parkedFixture(t)
-	f.con.SetSummaries(func() []couchcore.TreeSummary {
-		return []couchcore.TreeSummary{
-			{Tree: "/w/parked", Name: "parked"},
-			{Tree: "c1", Name: "brain", Actors: []couchcore.ActorView{{Live: true}}},
+	f.con.SetSummaries(func() []couchcore.ThreadSummary {
+		return []couchcore.ThreadSummary{
+			{Address: panelAddress("parked"), WorkingPath: "/w/parked", Name: "parked"},
+			{Address: panelAddress("c1"), WorkingPath: "c1", Name: "brain", Incarnations: []couchcore.ThreadIncarnation{{State: couchcore.IncarnationLive}}},
 		}
 	})
 	f.con.rebuildPanel()
@@ -298,8 +302,8 @@ func TestPanelRefreshPreservesOrFallsBackSelection(t *testing.T) {
 	if !ok || row.Tree != "/w/parked" {
 		t.Fatalf("refresh lost visible selection: %+v, %v", row, ok)
 	}
-	f.con.SetSummaries(func() []couchcore.TreeSummary {
-		return []couchcore.TreeSummary{{Tree: "c1", Name: "brain", Actors: []couchcore.ActorView{{Live: true}}}}
+	f.con.SetSummaries(func() []couchcore.ThreadSummary {
+		return []couchcore.ThreadSummary{{Address: panelAddress("c1"), WorkingPath: "c1", Name: "brain", Incarnations: []couchcore.ThreadIncarnation{{State: couchcore.IncarnationLive}}}}
 	})
 	f.con.rebuildPanel()
 	row, ok = f.con.selectedRow()

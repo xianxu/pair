@@ -492,7 +492,7 @@ inventory, never a couch enum (ARCH-DRY).
 
 - [x] **Step 1:** Run the real-process `ReconcileStart` strategy and committed M2 probe.
 - [x] **Step 2:** Run the Verification commands and `git diff --check`.
-- [ ] **Step 3:** Commit and run `sdlc milestone-close --issue 149 --milestone M2`; resolve all
+- [x] **Step 3:** Commit and run `sdlc milestone-close --issue 149 --milestone M2`; resolve all
    boundary findings before metadata work.
 
 ## Chunk 3: Milestone M3 — metadata, inventory, and standalone resolution
@@ -510,10 +510,10 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Write failing `ApplyThreadMetadata` and `ResolveThreadReference` tests
+- [x] **Step 1:** Write failing `ApplyThreadMetadata` and `ResolveThreadReference` tests
    from the strategy table.
-- [ ] **Step 2:** Implement composite CAS metadata operations and scoped publish context.
-- [ ] **Step 3:** Run metadata/ops focused tests; expect PASS, then commit.
+- [x] **Step 2:** Implement composite CAS metadata operations and scoped publish context.
+- [x] **Step 3:** Run metadata/ops focused tests; expect PASS, then commit.
 
 ### Task 2: Shared inventory and rendering
 
@@ -529,10 +529,10 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Write failing `BuildThreadInventory`/render tests from the strategy table.
-- [ ] **Step 2:** Implement shared exact-state inventory and name-first common rendering for
+- [x] **Step 1:** Write failing `BuildThreadInventory`/render tests from the strategy table.
+- [x] **Step 2:** Implement shared exact-state inventory and name-first common rendering for
    CLI/panel consumers without #151 hierarchy.
-- [ ] **Step 3:** Run inventory/render focused tests; expect PASS, then commit.
+- [x] **Step 3:** Run inventory/render focused tests; expect PASS, then commit.
 
 ### Task 3: Route every effectful human action through declared operations
 

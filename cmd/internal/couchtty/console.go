@@ -26,6 +26,7 @@ type childExit struct {
 
 type pane struct {
 	tree    couchcore.Worktree
+	thread  couchcore.ThreadAddress
 	actorID couchcore.ActorID
 	label   string
 	desc    string
@@ -74,8 +75,8 @@ type Console struct {
 	// CLI and #148's advisor resolve (Decision 12). Nil degrades to showing
 	// everything rather than to a private match rule.
 	query     string
-	resolve   func(string) []couchcore.Worktree
-	summaries func() []couchcore.TreeSummary
+	resolve   func(string) []couchcore.ThreadAddress
+	summaries func() []couchcore.ThreadSummary
 
 	// panel is live state, not rebuilt per keystroke: the highlight has to
 	// survive typing, or the cursor resets under the operator's fingers.
@@ -187,9 +188,8 @@ func (c *Console) Ops() func(string, map[string]string) (any, error) {
 	return c.ops
 }
 
-// SetResolver injects the panel's match rule. Production passes
-// `couch.LookupTrees`; without it the seam is one nothing uses.
-func (c *Console) SetResolver(f func(string) []couchcore.Worktree) {
+// SetResolver injects the panel's shared thread-reference match rule.
+func (c *Console) SetResolver(f func(string) []couchcore.ThreadAddress) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.resolve = f
@@ -198,22 +198,22 @@ func (c *Console) SetResolver(f func(string) []couchcore.Worktree) {
 // Resolver returns the injected match rule, so a wiring test can assert one was
 // actually passed -- a nil resolver still renders a panel, so nothing else
 // would notice.
-func (c *Console) Resolver() func(string) []couchcore.Worktree {
+func (c *Console) Resolver() func(string) []couchcore.ThreadAddress {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.resolve
 }
 
-// SetSummaries injects Couch's authoritative panel source. Production passes
-// Couch.Summarize(nil); the console contributes only ephemeral routing data.
-func (c *Console) SetSummaries(f func() []couchcore.TreeSummary) {
+// SetSummaries injects Pair's authoritative thread inventory through Couch;
+// the console contributes only ephemeral routing data.
+func (c *Console) SetSummaries(f func() []couchcore.ThreadSummary) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.summaries = f
 }
 
 // Summaries returns the injected provider for production wiring tests.
-func (c *Console) Summaries() func() []couchcore.TreeSummary {
+func (c *Console) Summaries() func() []couchcore.ThreadSummary {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.summaries
@@ -252,25 +252,29 @@ func (c *Console) Deliver(id string, data []byte) {
 	}
 }
 
-// Attach registers a child using its actor id as a synthetic tree. It remains
-// as a test/helper convenience; production must call AttachTree so typeahead
-// resolves against the real worktree identity.
+// Attach registers a child with a synthetic legacy thread address. It remains
+// as a test/helper convenience; production supplies the durable address.
 func (c *Console) Attach(id, label string, child *ptychild.Child) {
 	c.AttachActor(id, couchcore.ActorID(id), couchcore.Worktree(id), label, child)
 }
 
-// AttachTree registers a child with both identities the panel needs: worktree
-// for human resolution, actor id for deterministic switching.
+// AttachTree registers a child with a synthetic legacy thread address and its
+// working path. It remains for callers predating composite thread identity.
 func (c *Console) AttachTree(id string, tree couchcore.Worktree, label string, child *ptychild.Child) {
 	c.AttachActor(id, couchcore.ActorID(id), tree, label, child)
 }
 
-// AttachActor registers all three identities a hosted pane carries. handleID
-// routes PTY bytes inside this console; actorID is the durable registry identity
-// used by notices and Forget; tree is the human-resolution and concurrency key.
+// AttachActor is the legacy-address form of AttachThreadActor.
 func (c *Console) AttachActor(handleID string, actorID couchcore.ActorID, tree couchcore.Worktree, label string, child *ptychild.Child) {
+	c.AttachThreadActor(handleID, actorID, couchcore.ThreadAddress{RepoScope: "legacy", Tag: couchcore.ThreadTag(actorID)}, tree, label, child)
+}
+
+// AttachThreadActor registers every identity a hosted pane carries. handleID
+// routes PTY bytes inside this console; actorID identifies the live registry
+// incarnation; thread identifies durable work; tree is only its working path.
+func (c *Console) AttachThreadActor(handleID string, actorID couchcore.ActorID, thread couchcore.ThreadAddress, tree couchcore.Worktree, label string, child *ptychild.Child) {
 	c.mu.Lock()
-	c.panes[handleID] = &pane{tree: tree, actorID: actorID, label: label, child: child}
+	c.panes[handleID] = &pane{tree: tree, thread: thread, actorID: actorID, label: label, child: child}
 	c.order = append(c.order, handleID)
 	if c.active == "" {
 		c.active = handleID
@@ -863,23 +867,24 @@ func (c *Console) actorAlive(id string) bool {
 func (c *Console) rebuildPanel() {
 	c.mu.Lock()
 	provider := c.summaries
-	var fallback []couchcore.TreeSummary
+	var fallback []couchcore.ThreadSummary
 	targets := make([]PanelTarget, 0, len(c.order))
 	for _, id := range c.order {
 		p := c.panes[id]
-		targets = append(targets, PanelTarget{Tree: p.tree, Target: id, Bell: p.bell})
+		targets = append(targets, PanelTarget{Address: p.thread, Tree: p.tree, Target: id, Bell: p.bell})
 		if provider == nil {
-			fallback = append(fallback, couchcore.TreeSummary{
-				Tree: p.tree, Name: p.label, Desc: p.desc,
-				Actors: []couchcore.ActorView{{Live: !p.child.Done()}},
-			})
+			incarnations := []couchcore.ThreadIncarnation{}
+			if !p.child.Done() {
+				incarnations = append(incarnations, couchcore.ThreadIncarnation{State: couchcore.IncarnationLive})
+			}
+			fallback = append(fallback, couchcore.ThreadSummary{Address: p.thread, WorkingPath: string(p.tree), Name: p.label, PublishedSummary: p.desc, Incarnations: incarnations})
 		}
 	}
-	var selected couchcore.Worktree
+	var selected couchcore.ThreadAddress
 	query, resolve := c.query, c.resolve
 	if c.panel != nil {
 		if row, ok := c.panel.Selected(); ok {
-			selected = row.Tree
+			selected = row.Address
 		}
 	}
 	c.mu.Unlock()
@@ -891,8 +896,8 @@ func (c *Console) rebuildPanel() {
 	m := NewPanelModel(summaries)
 	m.BindTargets(targets)
 	m.Filter(query, resolve)
-	if selected != "" {
-		m.SelectTree(selected)
+	if selected != (couchcore.ThreadAddress{}) {
+		m.SelectAddress(selected)
 	}
 
 	c.mu.Lock()
@@ -1058,13 +1063,13 @@ func (c *Console) runOp(name string, args map[string]string) {
 			c.setNotice("start: child has no terminal to attach")
 			return
 		}
-		c.AttachActor(start.Handle.ID(), start.Record.ID, start.Record.Args.Worktree,
+		c.AttachThreadActor(start.Handle.ID(), start.Record.ID, start.Record.Thread, start.Record.Args.Worktree,
 			start.Record.Args.Worktree.Repo(), th.Terminal())
 		c.clearQuery()
 		c.rebuildPanel()
 		c.mu.Lock()
 		if c.panel != nil {
-			c.panel.SelectTree(start.Record.Args.Worktree)
+			c.panel.SelectAddress(start.Record.Thread)
 		}
 		c.mu.Unlock()
 		c.setNotice(name + ": done")
