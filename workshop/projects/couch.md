@@ -164,6 +164,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] exits, detach, and what the row says [pair#146 M4]
 - [ ] durable work-thread identity, naming, and launch profiles [pair#149]
 - [x] singleton namespace and normalized admission [pair#149 M1]
+- [ ] recoverable pre-exec start transaction [pair#149 M2]
 - [ ] hierarchical thread menu [pair#151]
 - [ ] verified park and activity age [pair#152]
 - [ ] managed-worktree lifecycle [pair#153]
@@ -189,6 +190,23 @@ CLI flags: deleting one enum without sweeping every decision consumer would
 have left a functioning bypass. Pair owns a scheduled live conformance check
 against the real provider so the stateful fake and strict decoder cannot drift
 silently (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+<a id="pair-149-m2"></a>
+### pair#149 M2 — recoverable pre-exec start transaction
+
+**est:** 17.80 (whole issue)
+**actual:** 1.88h
+
+Couch now forks an internal helper that cannot exec Pair until the exact
+nonce/supervisor/helper tuple is durable. Pair's composite address claim is the
+registration oracle, so a successful pipe write or live PID cannot prematurely
+promote the thread. Restart reconciliation preserves the occupied-or-proven-free
+invariant: dead and unregistered rolls back by nonce and revision; established
+survivors promote; unknown evidence stays occupied. The surprising integration
+fact is that the PTY runner had to inherit the same close-on-exec descriptor as
+the stdio runner—otherwise console starts and `--no-console` starts would have
+different crash safety. A committed real-process probe exercises both restart
+outcomes against kernel process identities (ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
 
 <a id="pair-146-m3"></a>
 ### pair#146 M3 — many children and the panel
@@ -520,3 +538,4 @@ cancelled selection nor a failed start changes the remembered preference.
 [pair#146 M2]: #pair-146-m2
 [pair#146 M3]: #pair-146-m3
 [pair#149 M1]: #pair-149-m1
+[pair#149 M2]: #pair-149-m2
