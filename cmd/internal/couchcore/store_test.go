@@ -1,8 +1,6 @@
 package couchcore
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 )
 
@@ -11,13 +9,13 @@ func TestStoreRoundTripsRegistryAndNaming(t *testing.T) {
 	s := NewStore(dir)
 
 	w := Worktree("/Users/x/KBench")
-	reg, _ := NewRegistry().Register(ActorRecord{ID: "couch-a", Args: StartArgs{Worktree: w}, PID: 42, Identity: "tok"})
+	reg := NewRegistry().Insert(ActorRecord{ID: "couch-a", Args: StartArgs{Worktree: w}, PID: 42, Identity: "tok"})
 	names := NewNamingTable().SetName(w, "kaggle").SetDescription(w, "arc-agi-3")
 
 	if err := s.Save(reg, names); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
-	gotReg, gotNames, _, err := s.Load()
+	gotReg, gotNames, err := s.Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -34,30 +32,12 @@ func TestStoreRoundTripsRegistryAndNaming(t *testing.T) {
 }
 
 func TestLoadOnMissingStoreIsEmptyNotError(t *testing.T) {
-	reg, names, pol, err := NewStore(t.TempDir()).Load()
+	reg, names, err := NewStore(t.TempDir()).Load()
 	if err != nil {
 		t.Fatalf("first run must not error: %v", err)
 	}
 	if len(reg.Records()) != 0 || len(names.All()) != 0 {
 		t.Fatal("expected empty state")
-	}
-	if got := pol.Mode("anything"); got != InPlaceSerial {
-		t.Fatalf("default mode = %q", got)
-	}
-}
-
-func TestLoadReadsRecordedPolicy(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "policy.json"),
-		[]byte(`{"kbench":"heavy-local-state","xianxu.dev":"worktree-parallel"}`), 0o644); err != nil {
-		t.Fatalf("seed policy: %v", err)
-	}
-	_, _, pol, err := NewStore(dir).Load()
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	if got := pol.Mode("kbench"); got != HeavyLocalState {
-		t.Fatalf("kbench = %q; policy must be READ, not inferred", got)
 	}
 }
 
@@ -67,11 +47,11 @@ func TestSaveIsAtomicallyReplaceable(t *testing.T) {
 	if err := s.Save(NewRegistry(), NewNamingTable()); err != nil {
 		t.Fatalf("first Save: %v", err)
 	}
-	reg, _ := NewRegistry().Register(ActorRecord{ID: "couch-a", Args: StartArgs{Worktree: "/repo"}})
+	reg := NewRegistry().Insert(ActorRecord{ID: "couch-a", Args: StartArgs{Worktree: "/repo"}})
 	if err := s.Save(reg, NewNamingTable()); err != nil {
 		t.Fatalf("second Save: %v", err)
 	}
-	got, _, _, _ := s.Load()
+	got, _, _ := s.Load()
 	if len(got.Records()) != 1 {
 		t.Fatalf("second Save did not replace the snapshot: %+v", got.Records())
 	}

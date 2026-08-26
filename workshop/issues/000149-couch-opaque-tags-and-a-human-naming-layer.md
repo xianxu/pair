@@ -621,6 +621,13 @@ incarnations alone are pruned; unknown and creating occupants fail closed under
 bounded policy. Focused admission tests and the full couchcore suite pass
 (ARCH-DRY, ARCH-MOCK, ARCH-PURE, ARCH-PURPOSE).
 
+Removed the complete local-policy shadow class: `PolicyTable`, repository
+`Mode`, `policy.json`, registry admission, and the public same-path bypass.
+A source sweep now prevents any of those decision surfaces from returning.
+Capacity refusals render normalized provider evidence; provision-worktree
+refusals name #153 and create no path. Removing the bypass also exposed and
+fixed acceptance of undeclared CLI flags. `go test ./... -count=1` passes.
+
 ### 2026-08-25 — session summary
 
 Fresh spec review split verified park into #152 and managed worktree lifecycle

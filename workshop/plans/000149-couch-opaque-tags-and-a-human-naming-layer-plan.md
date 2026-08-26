@@ -369,16 +369,16 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Add a source-level shadow sweep that fails on production `PolicyTable`, old
+- [x] **Step 1:** Add a source-level shadow sweep that fails on production `PolicyTable`, old
    `Mode` constants, `policy.json`, `Couch.Policy`, and admission use of
    `SameTree`/`--same-tree`.
-- [ ] **Step 2:** Remove the public `--same-tree` argument and all admission bypass behavior.
+- [x] **Step 2:** Remove the public `--same-tree` argument and all admission bypass behavior.
    Preserve only the legacy serialized field needed for M5 replay, clearly
    quarantined from new decisions.
-- [ ] **Step 3:** Replace `TreeOccupiedError.Mode` and policy-specific prose with the typed
+- [x] **Step 3:** Replace `TreeOccupiedError.Mode` and policy-specific prose with the typed
    capacity/action refusal. `provision-worktree` names #153 and performs no
    path mutation.
-- [ ] **Step 4:** Remove `Store.policyPath`, PolicyTable loading, repository-name defaults,
+- [x] **Step 4:** Remove `Store.policyPath`, PolicyTable loading, repository-name defaults,
    and tests that bless local policy inference.
 
 ### Task 6: Cross-repo conformance and M1 boundary

@@ -14,9 +14,8 @@ type ArgSpec struct {
 	Summary  string `json:"summary"`
 	Required bool   `json:"required"`
 	// FlagOnly arguments never bind positionally; they must be named with
-	// --name. Set it on anything that bypasses a guard, so a stray positional
-	// word cannot disable a refusal -- `couch start /repo true` silently
-	// turned off the one-agent-per-tree guard before this existed.
+	// --name. Use it for switches whose positional interpretation would be
+	// surprising or unsafe.
 	FlagOnly bool `json:"flag_only,omitempty"`
 }
 
@@ -64,7 +63,6 @@ type ActorView struct {
 	State  Liveness    `json:"state"`
 	Name   string      `json:"name,omitempty"`
 	Desc   string      `json:"description,omitempty"`
-	Mode   Mode        `json:"mode"`
 }
 
 func Operations() []Operation {
@@ -79,10 +77,8 @@ func Operations() []Operation {
 				// "whatever session couch launched in" delivered by convention
 				// rather than by couch knowing about brain (Decision 1).
 				{Name: "path", Summary: "repo or subdirectory to start in (default: .)", Required: false},
-				{Name: "same-tree", Summary: "override the one-agent-per-tree guard (--same-tree)", Required: false, FlagOnly: true},
-				// FlagOnly for the same reason same-tree is: it bypasses the
-				// console, and a stray positional word must not be able to
-				// turn off a whole layer.
+				// A stray positional word must not be able to turn off a whole
+				// layer of terminal ownership.
 				{Name: "no-console", Summary: "inherit couch's stdio instead of allocating a pty (--no-console)", Required: false, FlagOnly: true},
 			},
 			Invoke: func(c *Couch, a map[string]string) (any, error) {
@@ -90,10 +86,7 @@ func Operations() []Operation {
 				if path == "" {
 					path = "."
 				}
-				rec, h, err := c.Spawn(StartArgs{
-					Cwd:      path,
-					SameTree: a["same-tree"] == "true",
-				})
+				rec, h, err := c.Spawn(StartArgs{Cwd: path})
 				if err != nil {
 					return nil, err
 				}
@@ -138,9 +131,8 @@ func Operations() []Operation {
 					// disambiguation problem it is not.
 					return nil, fmt.Errorf("%q has no running actor to stop", a["ref"])
 				case len(recs) > 1:
-					// --same-tree co-tenants share a path and a label, so the
-					// ActorID is the only handle that separates them. Name it,
-					// or the escape hatch creates a state couch cannot exit.
+					// Legacy co-tenants can share a path and a label, so ActorID is
+					// the only handle that separates them during migration.
 					ids := make([]string, 0, len(recs))
 					for _, r := range recs {
 						ids = append(ids, string(r.ID))

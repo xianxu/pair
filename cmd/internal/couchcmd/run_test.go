@@ -152,6 +152,17 @@ func (rt testRT) markLive(t *testing.T) {
 	}
 }
 
+func (rt testRT) boundedOne(path string) {
+	rt.policy.SetDefault(couchcore.PolicyResult{
+		PolicyVersion: 1,
+		PolicyDigest:  strings.Repeat("a", 64),
+		RepoIdentity:  "repo",
+		AdmissionKey:  path,
+		Capacity:      couchcore.PolicyCapacity{Kind: couchcore.CapacityBounded, Limit: 1},
+		OnCapacity:    couchcore.CapacityReject,
+	}, nil)
+}
+
 func runRT(rt testRT, args ...string) (string, string, int) {
 	var out, errw bytes.Buffer
 	code := RunWithRuntime(args, strings.NewReader(""), &out, &errw, rt)
@@ -188,7 +199,7 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 func TestOperationArityMatchesExpectation(t *testing.T) {
 	// Declared in the test rather than read from the operation itself, so
 	// this cannot degrade into asserting X == X.
-	want := map[string]int{"start": 3, "list": 0, "show": 1, "stop": 1, "name": 2, "describe": 2, "publish-description": 2}
+	want := map[string]int{"start": 2, "list": 0, "show": 1, "stop": 1, "name": 2, "describe": 2, "publish-description": 2}
 	for _, op := range couchcore.Operations() {
 		if got := len(op.Args); got != want[op.Name] {
 			t.Errorf("%s has %d args, want %d", op.Name, got, want[op.Name])
@@ -246,11 +257,11 @@ func TestBindArgsAcceptsFlagsAndPositionals(t *testing.T) {
 			start = op
 		}
 	}
-	got, err := bindArgs(start, []string{"../pair", "--same-tree"})
+	got, err := bindArgs(start, []string{"../pair", "--no-console"})
 	if err != nil {
 		t.Fatalf("bindArgs: %v", err)
 	}
-	if got["path"] != "../pair" || got["same-tree"] != "true" {
+	if got["path"] != "../pair" || got["no-console"] != "true" {
 		t.Fatalf("bound = %v", got)
 	}
 }
@@ -333,6 +344,7 @@ func TestCLIAcceptsExactlyTheDeclaredOperations(t *testing.T) {
 func TestStartRendersTheRefusalWithThePolicyShapedOffer(t *testing.T) {
 	// Done-when 2's rendering had no reachable test before the Runtime seam.
 	rt := newRT(t, "/repo")
+	rt.boundedOne("/repo")
 	if out, errw, code := runRT(rt, "start", "/repo"); code != 0 {
 		t.Fatalf("first start: code=%d out=%q err=%q", code, out, errw)
 	}
@@ -342,10 +354,25 @@ func TestStartRendersTheRefusalWithThePolicyShapedOffer(t *testing.T) {
 	if code == 0 {
 		t.Fatal("a second start on an occupied tree must fail")
 	}
-	for _, want := range []string{"already has an agent", "share a branch and index", "--same-tree"} {
+	for _, want := range []string{"at capacity 1", `admission key "/repo"`, "couch list"} {
 		if !strings.Contains(errw, want) {
 			t.Errorf("refusal missing %q; got %q", want, errw)
 		}
+	}
+}
+
+func TestProvisionWorktreeRefusalNames153WithoutInventingAPath(t *testing.T) {
+	var out bytes.Buffer
+	renderError(&out, &couchcore.CapacityExceededError{
+		RepoIdentity: "web", AdmissionKey: "/repo", Limit: 1,
+		Action: couchcore.CapacityProvisionWorktree,
+	})
+	got := out.String()
+	if !strings.Contains(got, "pair#153") || !strings.Contains(got, "no path was created") {
+		t.Fatalf("provision refusal = %q", got)
+	}
+	if strings.Contains(got, "couch start ") {
+		t.Fatalf("provision refusal invented a runnable path: %q", got)
 	}
 }
 
@@ -364,26 +391,17 @@ func TestStopReportsWhetherItActuallySignalled(t *testing.T) {
 	}
 }
 
-func TestGuardBypassCannotBindPositionally(t *testing.T) {
-	// BR-31. `couch start /repo true` bound "true" to same-tree and silently
-	// disabled the one-agent-per-tree refusal.
+func TestRemovedAdmissionBypassCannotBindInAnyForm(t *testing.T) {
 	rt := newRT(t, "/repo")
-	if _, errw, code := runRT(rt, "start", "/repo"); code != 0 {
-		t.Fatalf("first start: %s", errw)
-	}
-	rt.markLive(t)
-
 	_, errw, code := runRT(rt, "start", "/repo", "true")
 	if code == 0 {
-		t.Fatal("a positional word must not enable --same-tree and bypass the guard")
+		t.Fatal("a positional word was accepted as an admission bypass")
 	}
-	if !strings.Contains(errw, "unexpected argument") && !strings.Contains(errw, "already has an agent") {
+	if !strings.Contains(errw, "unexpected argument") {
 		t.Fatalf("stderr = %q", errw)
 	}
-
-	// The explicit flag still works.
-	if _, errw, code := runRT(rt, "start", "/repo", "--same-tree"); code != 0 {
-		t.Fatalf("--same-tree refused: %s", errw)
+	if _, errw, code := runRT(rt, "start", "/repo", "--same-tree"); code == 0 || !strings.Contains(errw, "unknown flag") {
+		t.Fatalf("removed bypass was accepted: code=%d stderr=%q", code, errw)
 	}
 }
 
@@ -419,7 +437,7 @@ func TestStartWithNoConsoleAnnouncesTheFallback(t *testing.T) {
 }
 
 // A guard bypass must never bind positionally: a stray word must not be able to
-// turn off the console. Mirrors the same rule's test for --same-tree.
+// turn off the console. It must remain explicitly named.
 func TestNoConsoleNeverBindsPositionally(t *testing.T) {
 	_, errw, code := runRT(newRT(t, "/repo"), "start", "/repo", "no-console")
 	if code == 0 {
@@ -661,13 +679,9 @@ func TestConsoleExitForgetsThroughCouchRegistry(t *testing.T) {
 
 // A refusal is a next-action spec: every remedy it names must be a command the
 // operator can run.
-//
-// It used to say "switch to it", which couch has no verb for -- attaching to a
-// session another couch process hosts needs pair#147's transport. Advice that
-// cannot be followed pushes the operator to --same-tree, the one option that
-// bypasses the guard.
-func TestTreeOccupiedRefusalNamesRunnableCommands(t *testing.T) {
+func TestCapacityRefusalNamesOnlyRunnableCommands(t *testing.T) {
 	rt := newRT(t, "/repo")
+	rt.boundedOne("/repo")
 	if _, errw, code := runRT(rt, "start", "/repo"); code != 0 {
 		t.Fatalf("first start failed: %d %q", code, errw)
 	}

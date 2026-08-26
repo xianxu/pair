@@ -204,14 +204,12 @@ func TestGitConformance_LinkedWorktree(t *testing.T) {
 			"both could then never host agents concurrently", primaryRoot)
 	}
 
-	// The registry must treat them as two trees, which is what makes
-	// worktree-parallel work at all.
-	reg, err := NewRegistry().Register(ActorRecord{ID: "a", Args: StartArgs{Worktree: primaryRoot}})
-	if err != nil {
-		t.Fatalf("register primary: %v", err)
-	}
-	if _, err := reg.Register(ActorRecord{ID: "b", Args: StartArgs{Worktree: linkedRoot}}); err != nil {
-		t.Fatalf("linked worktree refused against a real repo: %v", err)
+	// The transitional display cache must preserve them as two trees. Runtime
+	// admission itself comes only from normalized provider keys.
+	reg := NewRegistry().Insert(ActorRecord{ID: "a", Args: StartArgs{Worktree: primaryRoot}})
+	reg = reg.Insert(ActorRecord{ID: "b", Args: StartArgs{Worktree: linkedRoot}})
+	if len(reg.Get(primaryRoot)) != 1 || len(reg.Get(linkedRoot)) != 1 {
+		t.Fatalf("linked worktree cache collapsed: %+v", reg.Records())
 	}
 
 	// And FakeGit, canned from the real answers, must agree.

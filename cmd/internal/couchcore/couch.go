@@ -28,9 +28,8 @@ type Couch struct {
 	Threads        *ThreadStore
 	Entropy        io.Reader
 
-	reg    Registry
-	names  NamingTable
-	policy PolicyTable
+	reg   Registry
+	names NamingTable
 }
 
 func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOps, s Store, c Clock, ids IDGen, resolver PolicyResolver, entropy io.Reader) (*Couch, error) {
@@ -46,7 +45,7 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 	if entropy == nil {
 		entropy = rand.Reader
 	}
-	reg, names, policy, err := s.Load()
+	reg, names, err := s.Load()
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +58,7 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 		Runner:    r, Path: p, Git: g, Proc: proc, Store: s, Clock: c, IDs: ids,
 		PolicyResolver: resolver,
 		Threads:        threads, Entropy: entropy,
-		reg: reg, names: names, policy: policy,
+		reg: reg, names: names,
 	}, nil
 }
 
@@ -227,7 +226,6 @@ func (c *Couch) List() []ActorRecord {
 
 func (c *Couch) Get(w Worktree) []ActorRecord { return c.reg.Get(w) }
 func (c *Couch) Entry(w Worktree) NameEntry   { return c.names.Entry(w) }
-func (c *Couch) Policy() PolicyTable          { return c.policy }
 
 func (c *Couch) SetName(w Worktree, name string) error {
 	c.names = c.names.SetName(w, name)
@@ -302,10 +300,8 @@ func (c *Couch) LookupTrees(ref string) []Worktree {
 // ResolveRef turns a human reference into the actors it names.
 //
 // A reference may be an ActorID, a label (operator name, operator description,
-// or the agent's published line), or a path. The ActorID branch exists because
-// --same-tree puts two actors on one tree sharing a path AND a label; without
-// it that state cannot be exited, since stop refuses on ambiguity and the
-// remedy it suggested did not exist.
+// or the agent's published line), or a path. ActorID also distinguishes legacy
+// co-tenants retained during migration.
 func (c *Couch) ResolveRef(ref string) ([]ActorRecord, []Worktree, error) {
 	trimmed := strings.TrimSpace(ref)
 
@@ -342,7 +338,6 @@ func (c *Couch) Views(recs []ActorRecord) []ActorView {
 			State:  c.Liveness(r),
 			Name:   e.Name,
 			Desc:   c.Describe(r.Args.Worktree),
-			Mode:   c.policy.Mode(r.Args.Worktree.Repo()),
 		})
 	}
 	return out
@@ -379,7 +374,6 @@ type TreeSummary struct {
 	Tree   Worktree    `json:"tree"`
 	Name   string      `json:"name,omitempty"`
 	Desc   string      `json:"description,omitempty"`
-	Mode   Mode        `json:"mode"`
 	Actors []ActorView `json:"actors,omitempty"`
 }
 
@@ -404,7 +398,7 @@ func (c *Couch) Summarize(trees []Worktree) []TreeSummary {
 			return s
 		}
 		e := c.names.Entry(w)
-		s := &TreeSummary{Tree: w, Name: e.Name, Desc: c.Describe(w), Mode: c.policy.Mode(w.Repo())}
+		s := &TreeSummary{Tree: w, Name: e.Name, Desc: c.Describe(w)}
 		seen[w.Key()] = s
 		order = append(order, w.Key())
 		return s

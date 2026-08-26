@@ -276,10 +276,17 @@ func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
 // --flag=value form for the optional ones.
 func bindArgs(op couchcore.Operation, argv []string) (map[string]string, error) {
 	out := map[string]string{}
+	known := make(map[string]bool, len(op.Args))
+	for _, spec := range op.Args {
+		known[spec.Name] = true
+	}
 	var positional []string
 	for _, a := range argv {
 		if strings.HasPrefix(a, "--") {
 			name, value, found := strings.Cut(strings.TrimPrefix(a, "--"), "=")
+			if !known[name] {
+				return nil, fmt.Errorf("unknown flag --%s", name)
+			}
 			if !found {
 				value = "true"
 			}
@@ -393,35 +400,23 @@ func dimCodes(w io.Writer) (string, string) {
 	return "\x1b[2m", "\x1b[0m"
 }
 
-// renderError gives the tree-occupied refusal the shape the project asks for:
-// a decision at the moment the operator has context, with the offer chosen by
-// the repo's recorded concurrency policy.
+// renderError gives normalized capacity refusal a next-action shape without
+// inventing local policy or mutating paths on the provider's behalf.
 func renderError(w io.Writer, err error) {
-	var occ *couchcore.TreeOccupiedError
-	if !asTreeOccupied(err, &occ) {
+	var full *couchcore.CapacityExceededError
+	if !asCapacityExceeded(err, &full) {
 		fmt.Fprintf(w, "couch: %v\n", err)
 		return
 	}
-	fmt.Fprintf(w, "%s already has an agent:\n", occ.Tree)
-	for _, a := range occ.Incumbents {
-		fmt.Fprintf(w, "  %s (pid %d)\n", a.ID, a.PID)
+	fmt.Fprintf(w, "couch: %s is at capacity %d for admission key %q\n", full.RepoIdentity, full.Limit, full.AdmissionKey)
+	for _, address := range full.Incumbents {
+		fmt.Fprintf(w, "  %s/%s\n", address.RepoScope, address.Tag)
 	}
-	fmt.Fprintf(w, "They would share a branch and index.\n")
-
-	// Offer COMMANDS, not intentions.
-	//
-	// This used to say "switch to it", which names a remedy couch has no verb
-	// for: attaching to a session hosted by another couch process needs the
-	// transport in pair#147. An operator who follows unactionable advice ends up
-	// reaching for --same-tree, which is the one option that bypasses the guard.
-	// A refusal is a next-action spec.
-	ref := occ.Tree.Repo()
-	fmt.Fprintf(w, "  -> couch stop %s        end it, then start again\n", ref)
-	fmt.Fprintf(w, "  -> couch start %s --same-tree   run a second agent anyway (recorded)\n", ref)
-	if occ.Mode == couchcore.WorktreeParallel {
-		fmt.Fprintf(w, "  -> or start in a new worktree, which is cheap in this repo\n")
+	if full.Action == couchcore.CapacityProvisionWorktree {
+		fmt.Fprintln(w, "  -> managed worktree provisioning is tracked by pair#153; no path was created")
+	} else {
+		fmt.Fprintln(w, "  -> couch list   inspect the existing thread")
 	}
-	fmt.Fprintf(w, "  (attaching to a session another couch is hosting needs pair#147)\n")
 }
 
 func usage(w io.Writer, table map[string]couchcore.Operation) {

@@ -168,7 +168,7 @@ func TestRefusedSpawnStartsNoProcess(t *testing.T) {
 	_, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
 	var occ *CapacityExceededError
 	if !errors.As(err, &occ) {
-		t.Fatalf("err = %v, want *TreeOccupiedError", err)
+		t.Fatalf("err = %v, want *CapacityExceededError", err)
 	}
 	if len(env.Runner.Ops) != before {
 		t.Fatal("a refused spawn must not fork a child")
@@ -429,14 +429,14 @@ func TestReplayPreservesSameTreeExactly(t *testing.T) {
 		t.Fatalf("Save: %v", err)
 	}
 
-	loaded, names, _, err := s.Load()
+	loaded, names, err := s.Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
 	if err := s.Save(loaded, names); err != nil { // round two is where the lie used to stick
 		t.Fatalf("re-Save: %v", err)
 	}
-	again, _, _, _ := s.Load()
+	again, _, _ := s.Load()
 
 	byID := map[ActorID]bool{}
 	for _, r := range again.Records() {
@@ -463,7 +463,7 @@ func TestUnreadableRegistryErrorsRatherThanReadingAsFirstRun(t *testing.T) {
 	}
 	defer func() { _ = os.Chmod(filepath.Join(dir, "registry.json"), 0o644) }()
 
-	if _, _, _, err := s.Load(); err == nil {
+	if _, _, err := s.Load(); err == nil {
 		t.Fatal("an unreadable registry must error, not read as an empty one")
 	}
 }
@@ -666,7 +666,7 @@ func TestPersistedCwdIsCanonicalNotAsTyped(t *testing.T) {
 	}
 
 	// And it survives a round trip, which is the point of persisting it.
-	reg, _, _, err := env.Couch.Store.Load()
+	reg, _, err := env.Couch.Store.Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}

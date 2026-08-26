@@ -105,7 +105,7 @@ func TestGuardRefusesAgainstARealLiveProcess(t *testing.T) {
 	_, _, err = c.Spawn(StartArgs{Worktree: tree, Cwd: string(tree)})
 	var occ *CapacityExceededError
 	if !errors.As(err, &occ) {
-		t.Fatalf("second spawn err = %v, want *TreeOccupiedError -- a live actor "+
+		t.Fatalf("second spawn err = %v, want *CapacityExceededError -- a live actor "+
 			"must refuse its tree when probed for real", err)
 	}
 	if len(occ.Incumbents) != 1 {

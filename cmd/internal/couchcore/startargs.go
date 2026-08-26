@@ -13,9 +13,8 @@ type StartArgs struct {
 	Stack     string   `json:"stack,omitempty"`
 	Issue     string   `json:"issue,omitempty"`
 	ExtraArgs []string `json:"extra_args,omitempty"`
-	// SameTree is the loud escape hatch past the one-agent-per-tree guard.
-	// It is recorded here and nowhere else -- a duplicate flag on ActorRecord
-	// would leave a test unable to say which one Register read.
+	// SameTree is an inert legacy serialization field retained until M5 can
+	// migrate old registry snapshots. New decisions must never read it.
 	SameTree bool `json:"same_tree,omitempty"`
 }
 
