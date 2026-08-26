@@ -290,6 +290,16 @@ rounds:
           round: 11
       boundary: M2
       blocked: false
+    - "n": 12
+      timestamp: "2026-08-26T15:26:01-07:00"
+      agent: codex
+      dispose:
+        - id: BR-17
+          disposition: addressed
+          note: 'The live test now makes OS termination load-bearing: an exact-argv sentinel survives ordinary zellij deletion, must be discovered and identity-reauthorized through production, and sets killedSentinel only at the injected killProcess boundary.'
+          round: 12
+      boundary: M2
+      blocked: false
 ---
 
 # Gate ledger — pair#149 (boundary-review)
@@ -424,6 +434,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-12 — addressed — Post-ack cleanup retains the handle until process-group and session absence are proven, and reverting reusable wait ownership makes TestPostAckHandleRetriesReuseOneWaiterUntilReap fail with three waiters instead of one.
 - BR-17 — not-addressed — The live decorator sets killAttempted before calling the inner KillServer, so it does not prove that the production killProcess operation actually dispatches; delete-session can produce final absence while that external operation is ineffective.
 
+## Round 12 — 2026-08-26T15:26:01-07:00 (codex) — passed
+
+### Disposed
+
+- BR-17 — addressed — The live test now makes OS termination load-bearing: an exact-argv sentinel survives ordinary zellij deletion, must be discovered and identity-reauthorized through production, and sets killedSentinel only at the injected killProcess boundary.
+
 ## Open findings
 
-- **BR-17** [Important] `live-conformance-target-interface` The new zellij quiescence seam has no live conformance target
+(none — every finding has been disposed)

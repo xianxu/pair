@@ -652,3 +652,83 @@ Passed:
 7. Plan revision recommendations
 
 Append a `## Revisions` entry clarifying that live conformance must observe the underlying OS kill dispatch, not merely entry into `SessionQuiescence.KillServer`. Until that lands, revise the issue/atlas claim that exact-server kill dispatch is explicitly verified.
+
+---
+
+## Re-review — 2026-08-26T15:26:01-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 149 — couch: opaque tags and a human naming layer |
+| repo | pair |
+| issue file | workshop/issues/000149-couch-opaque-tags-and-a-human-naming-layer.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | eb47a9bb07846d149c9dc971f3f25dfea1bd5fef..fdae53942e6362f4187964a4a80e0a4d75f22b15 |
+| command | sdlc milestone-close --issue 149 --milestone M2 |
+| reviewer | codex |
+| timestamp | 2026-08-26T15:26:01-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+BR-17 is addressed. The live conformance test now creates a separately owned exact-argv sentinel, observes it through the production process-table parser, and requires the underlying OS kill dispatch before accepting absence. The implementation, Spec/Plan, Core concepts table, atlas, and M2 checklist agree; no new blocking findings emerged.
+
+```findings
+dispose:
+  - id: BR-17
+    disposition: addressed
+    note: |
+      The live test now makes OS termination load-bearing: an exact-argv sentinel survives ordinary zellij deletion, must be discovered and identity-reauthorized through production, and sets killedSentinel only at the injected killProcess boundary.
+```
+
+1. Strengths
+
+- The sentinel cannot be removed by ordinary `delete-session`; success requires production `SessionServers`, exact identity/argv reauthorization, and `killProcess` dispatch ([session_quiescence_live_test.go](/Users/xianxu/workspace/pair/cmd/internal/launcher/session_quiescence_live_test.go:99)).
+- The final `killedSentinel` assertion independently prevents method-entry instrumentation from masquerading as external-effect coverage ([session_quiescence_live_test.go](/Users/xianxu/workspace/pair/cmd/internal/launcher/session_quiescence_live_test.go:136)).
+- Weekly/manual and change-triggered macOS conformance cadence is committed in [couch-zellij-conformance.yml](/Users/xianxu/workspace/pair/.github/workflows/couch-zellij-conformance.yml:1).
+- Start recovery remains a deterministic pure core surrounded by narrow process, storage, and zellij integration seams.
+- Atlas accurately documents the lowest-level kill requirement and cadence ([couch.md](/Users/xianxu/workspace/pair/atlas/couch.md:311)).
+
+2. Critical findings
+
+None.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+Passed:
+
+- Focused couchcore, launcher, and ptychild tests
+- Corresponding race suites
+- `go test ./... -count=1`
+- `go vet ./...`
+- `make test-couch-start-recovery`
+- `git diff --check`
+
+`make test-couch-zellij-live` failed closed because this review sandbox prohibits `/bin/ps`; it reached the intended production seam but could not complete locally. The regression is structurally load-bearing: without the real kill dispatch, the sentinel remains discoverable and the absence loop/final assertion fails. No scratch revert was performed because the review contract is read-only.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: pass—blocked-start, transition, and session-quiescence behavior each have one authority.
+- `ARCH-PURE`: pass—`ThreadRecord` and `StartTransaction` direct tests remain free of IO and integration fakes.
+- `ARCH-PURPOSE`: pass—the boundary delivers recoverable starts and proves whole-incarnation cleanup rather than only client termination.
+- `ARCH-MOCK`: pass—the stateful fake shares the production seam, while the committed live target makes every relied-upon zellij/process operation load-bearing.
+
+No README update is required: this boundary adds internal recovery machinery and developer conformance targets, not a new user command, flag, or configuration key.
+
+7. Plan revision recommendations
+
+None. The existing revisions accurately describe the sentinel, lowest-level kill instrumentation, and live cadence.

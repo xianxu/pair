@@ -593,7 +593,7 @@ total: 17.80
       occupants, remove every legacy admission writer and the shadow policy
       table, enforce one supervisor lease per store namespace, and close this
       exact milestone before ariadne#200 closes.
-- [ ] M2 — widen that same `ThreadStore` for the blocked pre-exec handshake,
+- [x] M2 — widen that same `ThreadStore` for the blocked pre-exec handshake,
       journaled start transaction, and restart reconciliation.
 - [ ] M3 — add mutable name/description/published-summary operations, scoped
       standalone Pair resolution, shared inventory, and common rendering without
@@ -611,6 +611,7 @@ total: 17.80
 ## Log
 
 ### 2026-08-26 — M2 live conformance reaches the OS kill boundary
+- 2026-08-26: closed M2 — make test; go test ./... -count=1; race couchcore/launcher/ptychild; real zellij OS-kill and Ariadne live conformance; real-process start recovery; go vet; zellij config/layout2/layout3; git diff --check; review verdict: SHIP
 
 The seventh M2 review accepted reusable wait ownership but showed that observing
 entry into `KillServer` did not prove its guarded `killProcess` operation ran:

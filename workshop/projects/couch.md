@@ -164,7 +164,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] exits, detach, and what the row says [pair#146 M4]
 - [ ] durable work-thread identity, naming, and launch profiles [pair#149]
 - [x] singleton namespace and normalized admission [pair#149 M1]
-- [ ] recoverable pre-exec start transaction [pair#149 M2]
+- [x] recoverable pre-exec start transaction [pair#149 M2]
 - [ ] hierarchical thread menu [pair#151]
 - [ ] verified park and activity age [pair#152]
 - [ ] managed-worktree lifecycle [pair#153]
@@ -195,7 +195,8 @@ silently (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
 ### pair#149 M2 — recoverable pre-exec start transaction
 
 **est:** 17.80 (whole issue)
-**actual:** 1.88h
+**closed:** 2026-08-26
+**actual:** 4.44h
 
 Couch now forks an internal helper that cannot exec Pair until the exact
 nonce/supervisor/helper tuple is durable. Pair's composite address claim is the
