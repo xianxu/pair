@@ -235,6 +235,29 @@ rounds:
           round: 8
       boundary: M2
       blocked: true
+    - "n": 9
+      timestamp: "2026-08-26T14:47:29-07:00"
+      agent: codex
+      dispose:
+        - id: BR-12
+          disposition: not-addressed
+          note: This is the 3rd finding in family `incarnation-quiescence-before-capacity-release`. Successful cleanup now proves absence, but query, deletion, kill, timeout, or process-group quiescence errors return from Spawn with the handle discarded by Operations.Invoke; durable occupied state does not supervise a surviving workspace writer.
+          round: 9
+      findings:
+        - id: BR-16
+          severity: Critical
+          title: Zellij cleanup can kill a process that reused an observed server PID
+          detail: 'ARCH-PURPOSE: SessionServerPIDs returns bare integers at cmd/internal/launcher/session_quiescence.go:19 and KillProcess signals that PID later at lines 104-113 without checking a process-start identity. If the observed server exits and its PID is reused, cleanup can kill an unrelated process. Carry exact process-incarnation evidence through the seam and reauthorize immediately before signaling; add a stateful PID-reuse regression.'
+          family: destructive-process-action-exact-identity
+          round: 9
+        - id: BR-17
+          severity: Important
+          title: The new zellij quiescence seam has no live conformance target
+          detail: This is the 2nd finding in family `live-conformance-target-interface`. ARCH-MOCK requires live checks for the external behavior being modeled, but the committed coverage exercises only the stateful fake and parser literals; no target verifies the actual list-sessions, process-table, delete-session, and server-termination interface. State the live-interface rule for every SessionQuiescence operation and add an ephemeral-session conformance probe with a documented target and cadence.
+          family: live-conformance-target-interface
+          round: 9
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — pair#149 (boundary-review)
@@ -341,6 +364,21 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-12 — not-addressed — Process-group cleanup now covers real stdio and PTY descendants, but detached zellij quiescence is still unverified: OSRuntime.DeleteSession swallows the lingering-server kill result and returns success without proving the exact session absent, while the tests only assert that a recording deleter was called.
 
+## Round 9 — 2026-08-26T14:47:29-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-12 — not-addressed — This is the 3rd finding in family `incarnation-quiescence-before-capacity-release`. Successful cleanup now proves absence, but query, deletion, kill, timeout, or process-group quiescence errors return from Spawn with the handle discarded by Operations.Invoke; durable occupied state does not supervise a surviving workspace writer.
+
+### Raised
+
+- **BR-16** [Critical] `destructive-process-action-exact-identity` Zellij cleanup can kill a process that reused an observed server PID
+  ARCH-PURPOSE: SessionServerPIDs returns bare integers at cmd/internal/launcher/session_quiescence.go:19 and KillProcess signals that PID later at lines 104-113 without checking a process-start identity. If the observed server exits and its PID is reused, cleanup can kill an unrelated process. Carry exact process-incarnation evidence through the seam and reauthorize immediately before signaling; add a stateful PID-reuse regression.
+- **BR-17** [Important] `live-conformance-target-interface` The new zellij quiescence seam has no live conformance target
+  This is the 2nd finding in family `live-conformance-target-interface`. ARCH-MOCK requires live checks for the external behavior being modeled, but the committed coverage exercises only the stateful fake and parser literals; no target verifies the actual list-sessions, process-table, delete-session, and server-termination interface. State the live-interface rule for every SessionQuiescence operation and add an ephemeral-session conformance probe with a documented target and cadence.
+
 ## Open findings
 
 - **BR-12** [Critical] `incarnation-quiescence-before-capacity-release` Post-ack failures return an error while leaving the workspace writer unowned
+- **BR-16** [Critical] `destructive-process-action-exact-identity` Zellij cleanup can kill a process that reused an observed server PID
+- **BR-17** [Important] `live-conformance-target-interface` The new zellij quiescence seam has no live conformance target

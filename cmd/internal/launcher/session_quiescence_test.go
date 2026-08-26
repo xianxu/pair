@@ -9,15 +9,18 @@ import (
 )
 
 type statefulSessionQuiescenceOps struct {
-	present       bool
-	serverPID     int
-	serverAlive   bool
-	probeErr      error
-	deleteErr     error
-	killErr       error
-	deleteCalls   int
-	killed        []int
-	reRegistrates int
+	present         bool
+	serverPID       int
+	serverIdentity  string
+	serverAlive     bool
+	reuseBeforeKill bool
+	unrelatedKilled bool
+	probeErr        error
+	deleteErr       error
+	killErr         error
+	deleteCalls     int
+	killed          []int
+	reRegistrates   int
 }
 
 func (f *statefulSessionQuiescenceOps) SessionPresent(context.Context, string) (bool, error) {
@@ -27,9 +30,13 @@ func (f *statefulSessionQuiescenceOps) SessionPresent(context.Context, string) (
 	return f.present, nil
 }
 
-func (f *statefulSessionQuiescenceOps) SessionServerPIDs(context.Context, string) ([]int, error) {
+func (f *statefulSessionQuiescenceOps) SessionServers(_ context.Context, session string) ([]sessionServerIdentity, error) {
 	if f.serverAlive {
-		return []int{f.serverPID}, nil
+		identity := f.serverIdentity
+		if identity == "" {
+			identity = "start-a"
+		}
+		return []sessionServerIdentity{{PID: f.serverPID, Identity: identity, Session: session}}, nil
 	}
 	return nil, nil
 }
@@ -47,15 +54,57 @@ func (f *statefulSessionQuiescenceOps) DeleteSessionRecord(context.Context, stri
 	return nil
 }
 
-func (f *statefulSessionQuiescenceOps) KillProcess(pid int) error {
-	f.killed = append(f.killed, pid)
+func (f *statefulSessionQuiescenceOps) KillServer(server sessionServerIdentity) error {
+	f.killed = append(f.killed, server.PID)
 	if f.killErr != nil {
 		return f.killErr
 	}
-	if pid == f.serverPID {
+	if f.reuseBeforeKill {
+		f.serverAlive = false
+		f.unrelatedKilled = false
+		return nil
+	}
+	if server.PID == f.serverPID {
 		f.serverAlive = false
 	}
 	return nil
+}
+
+func TestOSSessionKillReauthorizesExactProcessIdentity(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		identities []string
+		command    string
+		wantKill   bool
+	}{
+		{name: "PID reused", identities: []string{"reused-start"}, command: "/opt/bin/zellij --server /tmp/pair-work"},
+		{name: "process execed away", identities: []string{"zellij-start"}, command: "/usr/bin/unrelated --worker"},
+		{name: "reuse during reauthorization", identities: []string{"zellij-start", "reused-start"}, command: "/opt/bin/zellij --server /tmp/pair-work"},
+		{name: "exact incarnation", identities: []string{"zellij-start"}, command: "/opt/bin/zellij --server /tmp/pair-work", wantKill: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			killed := false
+			identityCall := 0
+			ops := osSessionQuiescenceOps{
+				processIdentity: func(string) string {
+					index := identityCall
+					identityCall++
+					if index >= len(tc.identities) {
+						index = len(tc.identities) - 1
+					}
+					return tc.identities[index]
+				},
+				processCommand: func(string) string { return tc.command },
+				killProcess:    func(int) error { killed = true; return nil },
+			}
+			if err := ops.KillServer(sessionServerIdentity{PID: 4242, Identity: "zellij-start", Session: "pair-work"}); err != nil {
+				t.Fatal(err)
+			}
+			if killed != tc.wantKill {
+				t.Fatalf("killed = %v, want %v", killed, tc.wantKill)
+			}
+		})
+	}
 }
 
 func TestOSRuntimeDeleteSessionProvesReRegisteringServerAbsent(t *testing.T) {

@@ -373,3 +373,108 @@ Append a `## Revisions` entry stating that:
 - cleanup-command errors cannot be swallowed when their result is used as quiescence evidence;
 - M2 requires a stateful or live-conformance regression where a lingering server attempts to survive or re-register;
 - atlas’s “no error return can leave an unowned workspace writer” claim becomes valid only after that regression passes.
+
+---
+
+## Re-review — 2026-08-26T14:47:29-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 149 — couch: opaque tags and a human naming layer |
+| repo | pair |
+| issue file | workshop/issues/000149-couch-opaque-tags-and-a-human-naming-layer.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | eb47a9bb07846d149c9dc971f3f25dfea1bd5fef..371e2a4115cf5f72f2d52ba33fc068039cb50f3c |
+| command | sdlc milestone-close --issue 149 --milestone M2 |
+| reviewer | codex |
+| timestamp | 2026-08-26T14:47:29-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The observed-absence loop, stateful re-registration fake, blocked-helper transaction, and process-group cleanup are substantial improvements, and the regression turns red when absence verification is removed. M2 still cannot close: cleanup errors can return through `Operations().start` while runtime ownership is discarded, and zellij server termination uses a bare PID without revalidating the process incarnation. The external zellij seam also lacks live conformance coverage.
+
+```findings
+dispose:
+  - id: BR-12
+    disposition: not-addressed
+    note: |
+      This is the 3rd finding in family `incarnation-quiescence-before-capacity-release`. Successful cleanup now proves absence, but query, deletion, kill, timeout, or process-group quiescence errors return from Spawn with the handle discarded by Operations.Invoke; durable occupied state does not supervise a surviving workspace writer.
+findings:
+  - id: new
+    severity: Critical
+    family: destructive-process-action-exact-identity
+    title: |
+      Zellij cleanup can kill a process that reused an observed server PID
+    detail: |
+      ARCH-PURPOSE: SessionServerPIDs returns bare integers at cmd/internal/launcher/session_quiescence.go:19 and KillProcess signals that PID later at lines 104-113 without checking a process-start identity. If the observed server exits and its PID is reused, cleanup can kill an unrelated process. Carry exact process-incarnation evidence through the seam and reauthorize immediately before signaling; add a stateful PID-reuse regression.
+  - id: new
+    severity: Important
+    family: live-conformance-target-interface
+    title: |
+      The new zellij quiescence seam has no live conformance target
+    detail: |
+      This is the 2nd finding in family `live-conformance-target-interface`. ARCH-MOCK requires live checks for the external behavior being modeled, but the committed coverage exercises only the stateful fake and parser literals; no target verifies the actual list-sessions, process-table, delete-session, and server-termination interface. State the live-interface rule for every SessionQuiescence operation and add an ephemeral-session conformance probe with a documented target and cadence.
+```
+
+1. Strengths
+
+- Both stdio and PTY paths share one blocked-start authority, with structural regression coverage.
+- All four post-ack failure sites route through `failPostAckStart`.
+- The stateful zellij fake models re-registration and requires two stable absence observations.
+- Removing the post-cleanup observation loop in a scratch export makes `TestOSRuntimeDeleteSessionProvesReRegisteringServerAbsent` fail.
+- Atlas covers the new helper, transaction, registration, and quiescence surfaces; no README update is needed for the internal helper.
+
+2. Critical findings
+
+- **BR-12 remains open.** [`failPostAckStart`](/Users/xianxu/workspace/pair/cmd/internal/couchcore/couch.go:264) returns immediately when process-group or session quiescence fails. [`Operations().start`](/Users/xianxu/workspace/pair/cmd/internal/couchcore/ops.go:89) then discards the returned handle on error. Fix the class by retaining supervisor ownership and retry responsibility until absence is proven or ownership is successfully transferred.
+- **Bare-PID destructive action.** [`KillProcess`](/Users/xianxu/workspace/pair/cmd/internal/launcher/session_quiescence.go:104) must operate on an exact PID/start-token identity, not a PID observed during an earlier process-table scan.
+
+3. Important findings
+
+- Add live conformance for the complete `SessionQuiescence` external interface. Existing zellij tests do not exercise this production lifecycle.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+Passed:
+
+- `make test`
+- `go test ./... -count=1`
+- Race tests for `couchcore`, `launcher`, and `ptychild`
+- `go vet ./...`
+- `make test-couch-start-recovery`
+- `git diff --check`
+
+Missing load-bearing cases:
+
+- Cleanup probe/delete/kill failure followed by proof that a supervisor still owns and retries the live incarnation.
+- PID reuse between server observation and destructive signal.
+- Live conformance against an ephemeral real zellij session.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: **pass** — handshake and session-quiescence orchestration each have one authority.
+- `ARCH-PURE`: **pass** — `ThreadRecord` and `StartTransaction` direct tests remain IO-free; integration behavior is separated.
+- `ARCH-PURPOSE`: **flag** — occupied durable state alone does not fulfill “no untracked workspace writer,” and bare-PID killing violates exact-incarnation safety.
+- `ARCH-MOCK`: **flag** — the stateful fake is valuable, but it cannot model PID reuse through the current API and has no live conformance counterpart.
+
+7. Plan revision recommendations
+
+Append a `## Revisions` entry stating:
+
+- every post-ack exit retains active supervisor responsibility until whole-incarnation absence is proven;
+- cleanup failure means retryable owned state, not merely occupied durable capacity;
+- destructive server signaling carries and revalidates process-start identity;
+- `SessionQuiescence` has a committed live-conformance target and cadence.
+
+Also revise the atlas claim that “No error return can leave an unowned workspace writer” until BR-12 is actually closed.

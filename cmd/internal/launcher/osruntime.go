@@ -717,7 +717,7 @@ func (OSRuntime) ExecKillSession(session string) {
 func (r OSRuntime) DeleteSession(session string) error {
 	ops := r.sessionQuiescence
 	if ops == nil {
-		ops = osSessionQuiescenceOps{}
+		ops = newOSSessionQuiescenceOps()
 	}
 	wait := r.sessionQuiesceWait
 	if wait <= 0 {

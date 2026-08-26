@@ -215,7 +215,10 @@ kill errors fail closed rather than becoming quiescence evidence. Only after
 whole-incarnation quiescence is proven does Couch reconcile durable state: an
 unfinished transaction remains creating or becomes conservative unknown,
 while an already-promoted exact incarnation is marked unknown. No error return
-can leave an unowned workspace writer.
+can leave an unowned workspace writer. A failed cleanup attempt does not return:
+the start call stack retains the handle and retries until it proves absence.
+Server escalation carries PID plus kernel start identity and reauthorizes the
+identity and exact server argv immediately before signalling.
 
 On supervisor restart, the pure `ReconcileStart` decision
 uses exact owner/helper identities plus that registration evidence: dead and
@@ -306,7 +309,11 @@ policy fake and strict consumer against Ariadne's real provider, including a
 policy epoch transition and typed missing-declaration refusal. The latter runs
 on resolver changes plus a weekly/manual workflow. The process check found a
 real bug -- `Alive()` reporting a zombie as running -- which no test against the
-fake could have.
+fake could have. `TestSessionQuiescenceLive`, run by both `make test-live` and
+the focused `make test-couch-zellij-live`,
+creates and deletes an ephemeral real zellij session through the production
+observation seam; a separate macOS workflow runs it on relevant changes and
+weekly/manual cadence.
 
 `Runner` was genuinely new — pair has no async process-exec seam.
 `launcher.ProcOps` is named for pair's own sidecars, and `wrapcmd` spawns its

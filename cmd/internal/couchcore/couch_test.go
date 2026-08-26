@@ -380,6 +380,61 @@ func TestSpawnPossiblyDeliveredAcknowledgementQuiescesBeforeRollback(t *testing.
 	}
 }
 
+func TestSpawnRetainsOwnershipAndRetriesUntilQuiescenceIsProven(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	env.Couch.postAckRetryDelay = time.Millisecond
+	env.Artifacts.SetRegistration(ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}, RegistrationUnknown, errors.New("registration unreadable"))
+
+	var mu sync.Mutex
+	failing := true
+	attempts := 0
+	env.Artifacts.QuiesceHook = func(ThreadAddress) error {
+		mu.Lock()
+		defer mu.Unlock()
+		attempts++
+		if failing {
+			return errors.New("zellij absence unobservable")
+		}
+		return nil
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
+		done <- err
+	}()
+
+	deadline := time.Now().Add(time.Second)
+	for {
+		mu.Lock()
+		gotAttempts := attempts
+		mu.Unlock()
+		if gotAttempts >= 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("cleanup owner did not retry")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	select {
+	case err := <-done:
+		t.Fatalf("Spawn returned before quiescence proof: %v", err)
+	default:
+	}
+
+	mu.Lock()
+	failing = false
+	mu.Unlock()
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "zellij absence unobservable") {
+			t.Fatalf("Spawn retry result = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Spawn did not return after quiescence proof")
+	}
+}
+
 func TestSpawnPostAckFailuresQuiesceRealPersistentDescendant(t *testing.T) {
 	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
 	for _, runnerMode := range []struct {

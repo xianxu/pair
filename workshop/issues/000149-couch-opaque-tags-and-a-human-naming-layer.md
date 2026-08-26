@@ -610,6 +610,21 @@ total: 17.80
 
 ## Log
 
+### 2026-08-26 — M2 owned cleanup retries and exact server identity
+
+The fifth M2 review found that cleanup failure still returned ownership to an
+operation caller that discards handles on error. Post-ack cleanup now retries
+under the retained start call stack without a give-up return; only proven group
+and session absence permits `Spawn` to return its original failure.
+
+Server destruction carries PID, kernel start identity, and session. Production
+reauthorizes identity → exact argv → identity immediately before SIGKILL, with
+stateful PID-reuse/exec-away regressions. A real throwaway zellij session now
+checks the complete external seam under `make test-live`, backed by a weekly and
+manual macOS workflow. That live test found zellij may exit 2 after successful
+deletion, so command errors are retained for failure diagnostics while exact
+observed absence alone authorizes success (ARCH-PURPOSE, ARCH-MOCK).
+
 ### 2026-08-26 — M2 observable detached-session teardown
 
 The fourth M2 review accepted process-group ownership but found the detached

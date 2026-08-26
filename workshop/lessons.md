@@ -2085,7 +2085,10 @@ sidecars in an actor-owned process group, and clean separately detached servers
 through their exact durable binding. A destructive command returning does not
 prove absence: observe the exact external state afterward, model re-registration
 in the stateful fake, and fail closed on query, deletion, or escalation errors
-(ARCH-PURPOSE, ARCH-MOCK).
+without returning ownership. A process-table match is not destructive authority:
+carry PID plus a kernel start token and reauthorize both identity and exact argv
+immediately before signalling. Every stateful external fake also needs a
+committed live target and cadence (ARCH-PURPOSE, ARCH-MOCK).
 
 ## Crash-recovery evidence must be atomically published
 

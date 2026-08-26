@@ -1034,3 +1034,25 @@ Query, deletion, or kill errors fail closed. The stateful regression requires a
 server to re-register once, then proves the second delete and exact kill; parser
 coverage rejects neighboring names and shell-command false positives
 (ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — retain ownership through cleanup failure
+
+**Reason:** the fifth M2 review separated successful cleanup from failed cleanup.
+Although success now proved absence, a query/delete/kill/timeout error still
+returned from `Spawn`; `Operation.Invoke` then discarded the handle. The review
+also found destructive zellij escalation carried only a previously observed
+PID and that the new external seam lacked live conformance.
+
+**Delta:** post-ack cleanup has no give-up return. It retains the exact handle
+on the start call stack and retries each unproven cleanup class until absence is
+proved, so persistent external failure blocks under an active owner rather than
+creating an untracked writer. Zellij server observations now carry PID plus
+kernel start identity and session; immediately before SIGKILL production checks
+identity, exact argv, then identity again. A stateful table covers PID reuse,
+exec-away, reuse during reauthorization, and the exact accepted incarnation.
+An ephemeral real-zellij PTY test exercises list, process observation, deletion,
+and verified absence through production; `make test-live` exposes it locally
+and a weekly/manual macOS workflow supplies the committed cadence. The live run
+also captured zellij's exit-2-after-success behavior: command errors remain in
+timeout diagnostics but only observed absence decides success
+(ARCH-PURPOSE, ARCH-MOCK).

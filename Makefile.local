@@ -73,6 +73,10 @@ test-couch-policy-live:
 	test -n "$$sdlc_bin"; \
 	PAIR_LIVE_FLEET_POLICY=1 PAIR_SDLC_BIN="$$sdlc_bin" go test ./cmd/internal/couchcore -run '^TestFleetPolicyResolverConformance$$' -count=1
 
+.PHONY: test-couch-zellij-live
+test-couch-zellij-live:
+	PAIR_LIVE_COUCH=1 go test ./cmd/internal/launcher -run '^TestSessionQuiescenceLive$$' -count=1 -v
+
 .PHONY: test-couch-start-recovery
 test-couch-start-recovery: $(BIN_DIR)/pair-launch-helper
 	go run ./cmd/probes/couchstartrecovery $(CURDIR)/$(BIN_DIR)/pair-launch-helper

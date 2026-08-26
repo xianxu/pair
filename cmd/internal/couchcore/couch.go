@@ -36,6 +36,8 @@ type Couch struct {
 	reg                   Registry
 	names                 NamingTable
 	postAckQuiesceTimeout time.Duration
+	postAckRetryDelay     time.Duration
+	sleep                 func(time.Duration)
 }
 
 func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOps, s Store, c Clock, ids IDGen, resolver PolicyResolver, entropy io.Reader, artifacts ThreadArtifactController) (*Couch, error) {
@@ -70,6 +72,8 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 		Artifacts: artifacts,
 		reg:       reg, names: names,
 		postAckQuiesceTimeout: 500 * time.Millisecond,
+		postAckRetryDelay:     100 * time.Millisecond,
+		sleep:                 time.Sleep,
 	}
 	if err := result.reconcileInterruptedStarts(); err != nil {
 		return nil, fmt.Errorf("reconcile interrupted starts: %w", err)
@@ -262,12 +266,7 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 // that exact handle is reaped; only then may durable state be reconciled. If
 // quiescence cannot be proved, the creating/live record remains occupied.
 func (c *Couch) failPostAckStart(address ThreadAddress, h Handle, cause error) error {
-	if err := quiesceHandle(h, c.postAckQuiesceTimeout); err != nil {
-		return errors.Join(cause, fmt.Errorf("quiesce post-ack child %d/%q: %w", h.PID(), h.Identity(), err))
-	}
-	if err := c.Artifacts.Quiesce(address); err != nil {
-		return errors.Join(cause, fmt.Errorf("quiesce durable Pair session %+v: %w", address, err))
-	}
+	cleanupErr := c.quiescePostAckStart(address, h)
 
 	reconcileErr := c.reconcileInterruptedStarts()
 	current, getErr := c.Threads.GetThread(address)
@@ -283,7 +282,50 @@ func (c *Couch) failPostAckStart(address ThreadAddress, h Handle, cause error) e
 	} else if !errors.Is(getErr, ErrThreadNotFound) {
 		markErr = getErr
 	}
-	return errors.Join(cause, reconcileErr, markErr)
+	return errors.Join(cause, cleanupErr, reconcileErr, markErr)
+}
+
+// quiescePostAckStart retains the live Handle on this call stack and retries
+// every unproven cleanup class. It deliberately has no bounded "give up" path:
+// returning would transfer an error without a supervisor, and the operation
+// caller is allowed to discard handles on error. A persistent external failure
+// therefore leaves the owning start operation blocked and retrying, not a
+// workspace writer merely represented by an occupied durable record.
+func (c *Couch) quiescePostAckStart(address ThreadAddress, h Handle) error {
+	var firstErr error
+	handleQuiet := false
+	for {
+		if !handleQuiet {
+			if err := quiesceHandle(h, c.postAckQuiesceTimeout); err != nil {
+				if firstErr == nil {
+					firstErr = fmt.Errorf("quiesce post-ack child %d/%q: %w", h.PID(), h.Identity(), err)
+				}
+				c.sleepPostAckRetry()
+				continue
+			}
+			handleQuiet = true
+		}
+		if err := c.Artifacts.Quiesce(address); err != nil {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("quiesce durable Pair session %+v: %w", address, err)
+			}
+			c.sleepPostAckRetry()
+			continue
+		}
+		return firstErr
+	}
+}
+
+func (c *Couch) sleepPostAckRetry() {
+	delay := c.postAckRetryDelay
+	if delay <= 0 {
+		delay = 100 * time.Millisecond
+	}
+	sleep := c.sleep
+	if sleep == nil {
+		sleep = time.Sleep
+	}
+	sleep(delay)
 }
 
 func quiesceHandle(h Handle, timeout time.Duration) error {
