@@ -1,9 +1,7 @@
 package couchcore
 
 import (
-	"fmt"
 	"sort"
-	"strings"
 )
 
 // ArgSpec describes one argument of an operation, so a caller that is not a
@@ -34,15 +32,54 @@ const (
 	ExecuteLiveOwner
 )
 
+// OperationEffect classifies what observable state an operation may change.
+// Zero is invalid so adding a declaration cannot silently inherit authority.
+type OperationEffect uint8
+
+const (
+	EffectUnknown OperationEffect = iota
+	EffectRead
+	EffectMetadata
+	EffectProcess
+	EffectConsole
+)
+
+// OperationConfirmation tells presentation layers whether an explicit human
+// confirmation belongs before dispatch. Dispatch assumes that contract was
+// satisfied; #151 owns the menu presentation.
+type OperationConfirmation uint8
+
+const (
+	ConfirmUnknown OperationConfirmation = iota
+	ConfirmNone
+	ConfirmRequired
+)
+
+// OperationResult describes the stable result family without embedding Go
+// execution in the declaration.
+type OperationResult uint8
+
+const (
+	ResultUnknown OperationResult = iota
+	ResultStart
+	ResultThreadInventory
+	ResultStop
+	ResultThread
+	ResultDescription
+	ResultConsole
+)
+
 // Operation is one thing couch can do. The terminal UI and the advisor are
 // both clients of this set; there is deliberately no second dispatch path, so
 // the operator's surface and the advisor's cannot drift apart.
 type Operation struct {
-	Name      string
-	Summary   string
-	Args      []ArgSpec
-	Execution OperationExecution
-	Invoke    func(c *Couch, args map[string]string) (any, error)
+	Name         string
+	Summary      string
+	Args         []ArgSpec
+	Execution    OperationExecution
+	Effect       OperationEffect
+	Confirmation OperationConfirmation
+	Result       OperationResult
 }
 
 // StartResult is what `start` returns before the caller waits on the child.
@@ -72,9 +109,8 @@ type ActorView struct {
 func Operations() []Operation {
 	return []Operation{
 		{
-			Name:      "start",
-			Summary:   "Start an agent on a peer repo (or a subdirectory of one)",
-			Execution: ExecuteLiveOwner,
+			Name: "start", Summary: "Start an agent on a peer repo (or a subdirectory of one)",
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
 			Args: []ArgSpec{
 				// Optional, defaulting to "." in the start operation: `cd brain && couch
 				// start` is what makes brain home, which is the Spec's
@@ -85,126 +121,62 @@ func Operations() []Operation {
 				// layer of terminal ownership.
 				{Name: "no-console", Summary: "inherit couch's stdio instead of allocating a pty (--no-console)", Required: false, FlagOnly: true},
 			},
-			Invoke: func(c *Couch, a map[string]string) (any, error) {
-				path := a["path"]
-				if path == "" {
-					path = "."
-				}
-				rec, h, err := c.Spawn(StartArgs{Cwd: path})
-				if err != nil {
-					return nil, err
-				}
-				return StartResult{Record: rec, Handle: h}, nil
-			},
 		},
 		{
-			Name:      "list",
-			Summary:   "List every durable work thread",
-			Execution: ExecuteDirectStore,
-			Invoke: func(c *Couch, _ map[string]string) (any, error) {
-				return c.ThreadInventory()
-			},
+			Name: "list", Summary: "List every durable work thread",
+			Execution: ExecuteDirectStore, Effect: EffectRead, Confirmation: ConfirmNone, Result: ResultThreadInventory,
 		},
 		{
-			Name:      "show",
-			Summary:   "Show one work thread by tag, path, or name",
-			Execution: ExecuteDirectStore,
-			Args:      []ArgSpec{{Name: "ref", Summary: "thread tag, path, or operator-assigned name", Required: true}},
-			Invoke: func(c *Couch, a map[string]string) (any, error) {
-				matches, err := c.ResolveThreadReference("", a["ref"])
-				if err != nil {
-					return nil, err
-				}
-				return BuildThreadInventory(matches), nil
-			},
+			Name: "show", Summary: "Show one work thread by tag, path, or name",
+			Execution: ExecuteDirectStore, Effect: EffectRead, Confirmation: ConfirmNone, Result: ResultThreadInventory,
+			Args: []ArgSpec{{Name: "ref", Summary: "thread tag, path, or operator-assigned name", Required: true}},
 		},
 		{
-			Name:      "stop",
-			Summary:   "Signal an actor's child and forget it",
-			Execution: ExecuteLiveOwner,
-			Args:      []ArgSpec{{Name: "ref", Summary: "path or operator-assigned name", Required: true}},
-			Invoke: func(c *Couch, a map[string]string) (any, error) {
-				recs, _, err := c.ResolveRef(a["ref"])
-				if err != nil {
-					return nil, err
-				}
-				switch {
-				case len(recs) == 0:
-					// Absence is not ambiguity. A parked tree used to produce
-					// "matches 0 actors; be specific", which reads as a
-					// disambiguation problem it is not.
-					return nil, fmt.Errorf("%q has no running actor to stop", a["ref"])
-				case len(recs) > 1:
-					// Legacy co-tenants can share a path and a label, so ActorID is
-					// the only handle that separates them during migration.
-					ids := make([]string, 0, len(recs))
-					for _, r := range recs {
-						ids = append(ids, string(r.ID))
-					}
-					return nil, fmt.Errorf("%q matches %d actors; stop one by id: %s",
-						a["ref"], len(recs), strings.Join(ids, " "))
-				}
-				signalled, err := c.Stop(recs[0])
-				if err != nil {
-					return nil, err
-				}
-				return StopResult{Record: recs[0], Signalled: signalled}, nil
-			},
+			Name: "stop", Summary: "Signal an actor's child and forget it",
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultStop,
+			Args: []ArgSpec{{Name: "ref", Summary: "path or operator-assigned name", Required: true}},
 		},
 		{
-			Name:      "name",
-			Summary:   "Give a work thread a short human name",
-			Execution: ExecuteDirectStore,
+			Name: "name", Summary: "Give a work thread a short human name",
+			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultThread,
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "thread tag, path, or existing name", Required: true},
 				{Name: "name", Summary: "the new short name", Required: true},
 				{Name: "repo-scope", Summary: "optional repository scope from caller context", Implicit: true},
 			},
-			Invoke: func(c *Couch, a map[string]string) (any, error) {
-				matches, err := c.ResolveThreadReference(a["repo-scope"], a["ref"])
-				if err != nil {
-					return nil, err
-				}
-				name := a["name"]
-				return c.ApplyThreadMetadata(matches[0].Address, ThreadMetadataPatch{Name: &name})
-			},
 		},
 		{
-			Name:      "describe",
-			Summary:   "Read or set a work thread's operator description",
-			Execution: ExecuteDirectStore,
+			Name: "describe", Summary: "Read or set a work thread's operator description",
+			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultDescription,
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "thread tag, path, or name", Required: true},
 				{Name: "description", Summary: "omit to read the cached value", Required: false},
 				{Name: "repo-scope", Summary: "optional repository scope from caller context", Implicit: true},
 			},
-			Invoke: func(c *Couch, a map[string]string) (any, error) {
-				matches, err := c.ResolveThreadReference(a["repo-scope"], a["ref"])
-				if err != nil {
-					return nil, err
-				}
-				if d := a["description"]; d != "" {
-					return c.ApplyThreadMetadata(matches[0].Address, ThreadMetadataPatch{Description: &d})
-				}
-				return matches[0].Description, nil
-			},
 		},
 		{
-			Name:      "publish-description",
-			Summary:   "Publish this session's own one-line summary (run by the agent inside its thread)",
-			Execution: ExecuteDirectStore,
+			Name: "publish-description", Summary: "Publish this session's own one-line summary (run by the agent inside its thread)",
+			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultThread,
 			Args: []ArgSpec{
 				{Name: "description", Summary: "what this session is working on", Required: true},
 				{Name: "repo-scope", Summary: "exact thread scope from $COUCH_THREAD_SCOPE", Implicit: true},
 				{Name: "tag", Summary: "exact thread tag from $COUCH_THREAD_TAG", Implicit: true},
 			},
-			Invoke: func(c *Couch, a map[string]string) (any, error) {
-				if a["repo-scope"] == "" || a["tag"] == "" {
-					return nil, fmt.Errorf("thread scope/tag are unavailable -- run this inside a couch-spawned session")
-				}
-				address := ThreadAddress{RepoScope: a["repo-scope"], Tag: ThreadTag(a["tag"])}
-				summary := a["description"]
-				return c.ApplyThreadMetadata(address, ThreadMetadataPatch{PublishedSummary: &summary})
+		},
+		{
+			Name: "switch", Summary: "Switch the operator terminal to a hosted work thread",
+			Execution: ExecuteLiveOwner, Effect: EffectConsole, Confirmation: ConfirmNone, Result: ResultConsole,
+			Args: []ArgSpec{
+				{Name: "repo-scope", Summary: "exact hosted thread scope", Required: true, Implicit: true},
+				{Name: "tag", Summary: "exact hosted thread tag", Required: true, Implicit: true},
+			},
+		},
+		{
+			Name: "attach", Summary: "Attach a newly started terminal to its durable work thread",
+			Execution: ExecuteLiveOwner, Effect: EffectConsole, Confirmation: ConfirmNone, Result: ResultConsole,
+			Args: []ArgSpec{
+				{Name: "repo-scope", Summary: "exact started thread scope", Required: true, Implicit: true},
+				{Name: "tag", Summary: "exact started thread tag", Required: true, Implicit: true},
 			},
 		},
 	}

@@ -956,3 +956,21 @@ their exact hosted actor. Pair #146's `SelectTree` compatibility surface remains
 only as a fail-closed adapter: it refuses a path shared by multiple visible
 threads. Full `go test ./... -count=1` and `git diff --check` pass
 (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-26 — unify human and programmatic operation dispatch
+
+`Operation` is now a closure-free capability declaration with argument,
+result, effect, confirmation, and execution-owner metadata. One generic
+`DispatchOperation` validates the declaration and invokes exactly one injected
+direct-store or live-owner executor. A missing owner returns the typed
+`routing requires #147` refusal before it can fall back, fork, or touch state.
+
+The console's Enter switch and post-start attach are declared operations keyed
+by the exact composite thread address. Their terminal effects exist only in the
+singleton console executor; stale targets fail without changing focus, and
+attach carries a typed `StartResult` whose address must match. CLI and panel
+store/lifecycle effects use the same executors, while external stop/switch/
+attach refuse until #147 supplies transport. Explicit empty descriptions now
+flow through dispatch as a clear rather than a read. The prescribed operation
+suite and full `go test ./... -count=1` pass (ARCH-DRY, ARCH-PURE,
+ARCH-PURPOSE).

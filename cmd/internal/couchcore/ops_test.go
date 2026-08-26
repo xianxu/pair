@@ -14,6 +14,8 @@ func TestOperationsDeclareTheirExecutionOwner(t *testing.T) {
 		"name":                ExecuteDirectStore,
 		"describe":            ExecuteDirectStore,
 		"publish-description": ExecuteDirectStore,
+		"switch":              ExecuteLiveOwner,
+		"attach":              ExecuteLiveOwner,
 	}
 	for _, op := range Operations() {
 		if op.Execution == ExecuteUnknown {
@@ -28,18 +30,7 @@ func TestOperationsDeclareTheirExecutionOwner(t *testing.T) {
 func TestStartOperationDefaultsEmptyPathToDot(t *testing.T) {
 	cwd := NormalizePath(".")
 	env := newTestEnv(t, cwd)
-	var start Operation
-	for _, op := range Operations() {
-		if op.Name == "start" {
-			start = op
-			break
-		}
-	}
-	if start.Invoke == nil {
-		t.Fatal("start operation not found")
-	}
-
-	result, err := start.Invoke(env.Couch, map[string]string{})
+	result, err := dispatchTestOperation(env.Couch, "start", map[string]string{})
 	if err != nil {
 		t.Fatalf("start empty path: %v", err)
 	}
@@ -55,15 +46,11 @@ func TestStartOperationDefaultsEmptyPathToDot(t *testing.T) {
 	}
 }
 
-func operationNamed(t *testing.T, name string) Operation {
-	t.Helper()
-	for _, op := range Operations() {
-		if op.Name == name {
-			return op
-		}
-	}
-	t.Fatalf("operation %q not found", name)
-	return Operation{}
+func dispatchTestOperation(c *Couch, name string, args map[string]string) (any, error) {
+	return DispatchOperation(OperationExecutors{
+		DirectStore: DirectStoreExecutor(c),
+		LiveOwner:   CouchLiveOwnerExecutor(c),
+	}, OperationCall{Name: name, Args: args, Implicit: true})
 }
 
 func createOperationThread(t *testing.T, c *Couch) ThreadRecord {
@@ -81,7 +68,7 @@ func TestMetadataOperationsMutateCompositeThreadRecord(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	created := createOperationThread(t, env.Couch)
 
-	result, err := operationNamed(t, "name").Invoke(env.Couch, map[string]string{
+	result, err := dispatchTestOperation(env.Couch, "name", map[string]string{
 		"ref": string(created.Address.Tag), "name": "compiler", "repo-scope": created.Address.RepoScope,
 	})
 	if err != nil {
@@ -92,7 +79,7 @@ func TestMetadataOperationsMutateCompositeThreadRecord(t *testing.T) {
 		t.Fatalf("name result = %#v", result)
 	}
 
-	result, err = operationNamed(t, "describe").Invoke(env.Couch, map[string]string{
+	result, err = dispatchTestOperation(env.Couch, "describe", map[string]string{
 		"ref": string(created.Address.Tag), "description": "operator context", "repo-scope": created.Address.RepoScope,
 	})
 	if err != nil {
@@ -102,13 +89,24 @@ func TestMetadataOperationsMutateCompositeThreadRecord(t *testing.T) {
 	if described.Name != "compiler" || described.Description != "operator context" || described.PublishedSummary != "agent summary" {
 		t.Fatalf("describe crossed metadata fields: %+v", described)
 	}
+
+	result, err = dispatchTestOperation(env.Couch, "describe", map[string]string{
+		"ref": string(created.Address.Tag), "description": "", "repo-scope": created.Address.RepoScope,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cleared, ok := result.(ThreadRecord)
+	if !ok || cleared.Description != "" || cleared.Name != "compiler" {
+		t.Fatalf("explicit empty description did not clear only that field: %#v", result)
+	}
 }
 
 func TestPublishDescriptionUsesExactCompositeContextAndDistinctField(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	created := createOperationThread(t, env.Couch)
 
-	result, err := operationNamed(t, "publish-description").Invoke(env.Couch, map[string]string{
+	result, err := dispatchTestOperation(env.Couch, "publish-description", map[string]string{
 		"description": "agent is fixing parser",
 		"repo-scope":  created.Address.RepoScope,
 		"tag":         string(created.Address.Tag),

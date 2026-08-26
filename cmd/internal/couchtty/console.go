@@ -96,7 +96,7 @@ type Console struct {
 	// Ops dispatches an operator action. Injected so the console never learns
 	// what an operation IS -- it names one and couchcore runs it, which is
 	// what keeps the panel from growing a private verb (#148's design test).
-	ops    func(name string, args map[string]string) (any, error)
+	ops    func(couchcore.OperationCall) (any, error)
 	forget func(couchcore.Worktree, couchcore.ActorID) error
 	feed   *Feed
 	size   ptychild.Size
@@ -171,10 +171,9 @@ func (c *Console) SetForget(f func(couchcore.Worktree, couchcore.ActorID) error)
 	c.forget = f
 }
 
-// SetOps injects the action dispatcher: `couchcmd` passes one that runs
-// couchcore.Operations(). Without it the panel can still switch -- which is
-// read-only -- but its actions refuse loudly rather than doing nothing.
-func (c *Console) SetOps(f func(string, map[string]string) (any, error)) {
+// SetOperationDispatcher installs the typed generic dispatcher. Without it,
+// every effectful panel action refuses loudly rather than taking a private path.
+func (c *Console) SetOperationDispatcher(f func(couchcore.OperationCall) (any, error)) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.ops = f
@@ -182,7 +181,7 @@ func (c *Console) SetOps(f func(string, map[string]string) (any, error)) {
 
 // Ops returns the injected dispatcher, so a wiring test can assert one was
 // passed -- the panel renders identically without it.
-func (c *Console) Ops() func(string, map[string]string) (any, error) {
+func (c *Console) Ops() func(couchcore.OperationCall) (any, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.ops
@@ -994,8 +993,10 @@ func (c *Console) onPanelKey(k PanelKey) {
 			c.runOp("start", map[string]string{"path": string(row.Tree)})
 			break
 		}
-		c.clearQuery()
-		c.forceSwitch(row.Target)
+		c.runOp("switch", map[string]string{
+			"repo-scope": row.Address.RepoScope,
+			"tag":        string(row.Address.Tag),
+		})
 		return
 	case KeyRune:
 		c.appendQuery(k.Rune)
@@ -1052,19 +1053,24 @@ func (c *Console) runOp(name string, args map[string]string) {
 		c.setNotice("no action dispatcher wired")
 		return
 	}
-	result, err := fn(name, args)
+	result, err := fn(couchcore.OperationCall{Name: name, Args: args, Implicit: true})
 	if err != nil {
 		c.setNotice(name + ": " + err.Error())
 		return
 	}
 	if start, ok := result.(couchcore.StartResult); ok {
-		th, terminal := start.Handle.(couchcore.TerminalHandle)
-		if !terminal {
-			c.setNotice("start: child has no terminal to attach")
+		_, err := fn(couchcore.OperationCall{
+			Name: "attach",
+			Args: map[string]string{
+				"repo-scope": start.Record.Thread.RepoScope,
+				"tag":        string(start.Record.Thread.Tag),
+			},
+			Implicit: true, TypedPayload: start,
+		})
+		if err != nil {
+			c.setNotice("attach: " + err.Error())
 			return
 		}
-		c.AttachThreadActor(start.Handle.ID(), start.Record.ID, start.Record.Thread, start.Record.Args.Worktree,
-			start.Record.Args.Worktree.Repo(), th.Terminal())
 		c.clearQuery()
 		c.rebuildPanel()
 		c.mu.Lock()
@@ -1075,8 +1081,52 @@ func (c *Console) runOp(name string, args map[string]string) {
 		c.setNotice(name + ": done")
 		return
 	}
+	if name == "switch" {
+		return
+	}
 	c.setNotice(name + ": done")
 	c.rebuildPanel()
+}
+
+// ExecuteConsoleOperation is the owner-local executor for effects that cannot
+// exist in couchcore: routing the human terminal and attaching its PTY.
+func (c *Console) ExecuteConsoleOperation(call couchcore.OperationCall) (any, error) {
+	address := couchcore.ThreadAddress{RepoScope: call.Args["repo-scope"], Tag: couchcore.ThreadTag(call.Args["tag"])}
+	switch call.Name {
+	case "switch":
+		c.mu.Lock()
+		var target string
+		for id, p := range c.panes {
+			if p.thread == address {
+				target = id
+				break
+			}
+		}
+		c.mu.Unlock()
+		if target == "" {
+			return nil, fmt.Errorf("thread %s/%s is not attached to this console", address.RepoScope, address.Tag)
+		}
+		c.clearQuery()
+		c.forceSwitch(target)
+		return address, nil
+	case "attach":
+		start, ok := call.TypedPayload.(couchcore.StartResult)
+		if !ok {
+			return nil, fmt.Errorf("attach requires a typed start result")
+		}
+		if start.Record.Thread != address {
+			return nil, fmt.Errorf("attach address does not match started thread")
+		}
+		th, ok := start.Handle.(couchcore.TerminalHandle)
+		if !ok {
+			return nil, fmt.Errorf("child has no terminal to attach")
+		}
+		c.AttachThreadActor(start.Handle.ID(), start.Record.ID, start.Record.Thread,
+			start.Record.Args.Worktree, start.Record.Args.Worktree.Repo(), th.Terminal())
+		return address, nil
+	default:
+		return nil, fmt.Errorf("%s is not a console-local operation", call.Name)
+	}
 }
 
 func (c *Console) setNotice(text string) {

@@ -144,7 +144,11 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		fmt.Fprintf(stderr, "couch: %v\n", err)
 		return 1
 	}
-	if op.Execution == couchcore.ExecuteLiveOwner {
+	// A fresh `start` invocation becomes the singleton owner. Every other
+	// owner-required CLI call must route to an already-running owner, which is
+	// deliberately unavailable until #147.
+	ownsLive := op.Name == "start"
+	if ownsLive {
 		lease, err := rt.AcquireSupervisor(namespace)
 		if err != nil {
 			renderError(stderr, err)
@@ -167,7 +171,13 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		return 1
 	}
 
-	result, err := op.Invoke(c, parsed)
+	executors := couchcore.OperationExecutors{DirectStore: couchcore.DirectStoreExecutor(c)}
+	if ownsLive {
+		executors.LiveOwner = couchcore.CouchLiveOwnerExecutor(c)
+	}
+	result, err := couchcore.DispatchOperation(executors, couchcore.OperationCall{
+		Name: op.Name, Args: parsed, Implicit: true,
+	})
 	if err != nil {
 		renderError(stderr, err)
 		return 1
@@ -280,12 +290,17 @@ func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
 	// dispatches: the console names an operation and couchcore performs it, so
 	// there is no operator action the advisor cannot also perform (#148's
 	// design test) and no way for the panel to grow a private verb.
-	console.SetOps(func(name string, args map[string]string) (any, error) {
-		op, ok := Resolve(name)
-		if !ok {
-			return nil, fmt.Errorf("unknown operation %q", name)
-		}
-		return op.Invoke(c, args)
+	couchLive := couchcore.CouchLiveOwnerExecutor(c)
+	console.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
+		return couchcore.DispatchOperation(couchcore.OperationExecutors{
+			DirectStore: couchcore.DirectStoreExecutor(c),
+			LiveOwner: func(call couchcore.OperationCall) (any, error) {
+				if call.Operation.Effect == couchcore.EffectConsole {
+					return console.ExecuteConsoleOperation(call)
+				}
+				return couchLive(call)
+			},
+		}, call)
 	})
 }
 

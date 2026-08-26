@@ -113,7 +113,7 @@ func TestPanelEnterOnParkedRowStartsItsPath(t *testing.T) {
 	f := parkedFixture(t)
 	var mu sync.Mutex
 	var called map[string]string
-	f.con.SetOps(func(name string, args map[string]string) (any, error) {
+	setTestOps(f.con, func(name string, args map[string]string) (any, error) {
 		if name != "start" {
 			t.Fatalf("operation = %q, want start", name)
 		}
@@ -144,7 +144,7 @@ func TestPanelEnterOnRemoteLiveRowExplainsAttachmentIsDeferred(t *testing.T) {
 		}
 	})
 	called := false
-	f.con.SetOps(func(string, map[string]string) (any, error) {
+	setTestOps(f.con, func(string, map[string]string) (any, error) {
 		called = true
 		return nil, nil
 	})
@@ -171,7 +171,7 @@ func TestPanelStartFailurePreservesListState(t *testing.T) {
 		defer f.con.mu.Unlock()
 		return f.con.query == "p"
 	})
-	f.con.SetOps(func(string, map[string]string) (any, error) { return nil, errors.New("boom") })
+	setTestOps(f.con, func(string, map[string]string) (any, error) { return nil, errors.New("boom") })
 	_, _ = f.stdin.Write([]byte("\r"))
 	waitFor(t, "the failure notice", func() bool { return strings.Contains(f.host.Written(), "start: boom") })
 	f.con.mu.Lock()
@@ -191,7 +191,7 @@ func TestPanelStartSuccessAttachesAndSelectsReturnedTree(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.con.SetOps(func(string, map[string]string) (any, error) {
+	setTestOps(f.con, func(string, map[string]string) (any, error) {
 		return couchcore.StartResult{
 			Record: couchcore.ActorRecord{
 				ID:     "actor-parked",
@@ -242,7 +242,7 @@ func TestPanelEmptyStartUsesOperationDotDefault(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	var mu sync.Mutex
 	got := "not called"
-	f.con.SetOps(func(_ string, args map[string]string) (any, error) {
+	setTestOps(f.con, func(_ string, args map[string]string) (any, error) {
 		mu.Lock()
 		got = args["path"]
 		mu.Unlock()
@@ -336,6 +336,9 @@ func TestPanelRefreshesWhenInactiveChildExitsWhileOpen(t *testing.T) {
 
 func TestPanelStartWithoutOpsSaysSo(t *testing.T) {
 	f := newFixture(t, 24, 80)
+	f.con.mu.Lock()
+	f.con.ops = nil
+	f.con.mu.Unlock()
 	openPanel(t, f)
 	_, _ = f.stdin.Write([]byte("\x00\r"))
 	waitFor(t, "the dispatcher refusal", func() bool {

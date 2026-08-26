@@ -59,6 +59,7 @@ func newFixture(t *testing.T, rows, cols uint16) *consoleFixture {
 	child := ptychild.NewFakeChild(nil)
 	child.SetSink(func(chunk []byte) { con.Deliver("c1", chunk) })
 	con.Attach("c1", "brain", child)
+	setTestOps(con, func(string, map[string]string) (any, error) { return nil, nil })
 
 	f := &consoleFixture{host: host, child: child, con: con, stdin: pw, done: make(chan int, 1)}
 	go func() { f.done <- con.Run() }()
@@ -67,6 +68,57 @@ func newFixture(t *testing.T, rows, cols uint16) *consoleFixture {
 		_ = pw.Close()
 	})
 	return f
+}
+
+func setTestOps(con *Console, effect func(string, map[string]string) (any, error)) {
+	con.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
+		delegate := func(call couchcore.OperationCall) (any, error) {
+			if call.Operation.Effect == couchcore.EffectConsole {
+				return con.ExecuteConsoleOperation(call)
+			}
+			return effect(call.Name, call.Args)
+		}
+		return couchcore.DispatchOperation(couchcore.OperationExecutors{
+			DirectStore: delegate,
+			LiveOwner:   delegate,
+		}, call)
+	})
+}
+
+func TestConsoleSwitchOperationUsesExactThreadAndRefusesStaleTarget(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	other := ptychild.NewFakeChild(nil)
+	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+	f.con.AttachThreadActor("c2", "c2", panelAddress("c2"), "c1", "brain", other)
+
+	dispatch := f.con.Ops()
+	_, err := dispatch(couchcore.OperationCall{
+		Name: "switch", Implicit: true,
+		Args: map[string]string{"repo-scope": "legacy", "tag": "missing"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "not attached") {
+		t.Fatalf("stale switch error = %v", err)
+	}
+	f.con.mu.Lock()
+	active := f.con.active
+	f.con.mu.Unlock()
+	if active != "c1" {
+		t.Fatalf("stale switch changed active pane to %q", active)
+	}
+
+	_, err = dispatch(couchcore.OperationCall{
+		Name: "switch", Implicit: true,
+		Args: map[string]string{"repo-scope": panelAddress("c2").RepoScope, "tag": string(panelAddress("c2").Tag)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.con.mu.Lock()
+	active = f.con.active
+	f.con.mu.Unlock()
+	if active != "c2" {
+		t.Fatalf("exact switch left active pane %q", active)
+	}
 }
 
 func TestActiveChildExitFocusesPanelRecordsCauseAndForgetsActor(t *testing.T) {

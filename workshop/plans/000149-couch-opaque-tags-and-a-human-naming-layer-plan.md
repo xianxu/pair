@@ -551,15 +551,15 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Write `DispatchOperation` schema-surface conformance using the
+- [x] **Step 1:** Write `DispatchOperation` schema-surface conformance using the
    strategy table across CLI, explicit/implicit panel effects, and a test-only
    generic consumer. Pure UI navigation is explicitly classified and exempt.
-- [ ] **Step 2:** Implement declaration-only generic dispatch and console-local typed
+- [x] **Step 2:** Implement declaration-only generic dispatch and console-local typed
    switch/attach handlers specified in Architecture; create no #147/#148 client
    or transport.
-- [ ] **Step 3:** Run `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd
+- [x] **Step 3:** Run `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd
    ./cmd/internal/couchtty -run 'Test.*Operation' -count=1`; expect PASS.
-- [ ] **Step 4:** Commit with `git commit -m '#149 M3: unify human and advisor operations'`
+- [x] **Step 4:** Commit with `git commit -m '#149 M3: unify human and advisor operations'`
    after adding only the files above.
 
 ### Task 4: Standalone Pair lookup and picker

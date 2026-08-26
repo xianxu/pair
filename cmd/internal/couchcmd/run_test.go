@@ -216,8 +216,8 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 				t.Errorf("%s: arg %q has no summary", op.Name, a.Name)
 			}
 		}
-		if op.Invoke == nil {
-			t.Errorf("%s: declared but not invocable", op.Name)
+		if op.Effect == couchcore.EffectUnknown || op.Confirmation == couchcore.ConfirmUnknown || op.Result == couchcore.ResultUnknown {
+			t.Errorf("%s: incomplete declaration", op.Name)
 		}
 	}
 }
@@ -225,7 +225,7 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 func TestOperationArityMatchesExpectation(t *testing.T) {
 	// Declared in the test rather than read from the operation itself, so
 	// this cannot degrade into asserting X == X.
-	want := map[string]int{"start": 2, "list": 0, "show": 1, "stop": 1, "name": 3, "describe": 3, "publish-description": 3}
+	want := map[string]int{"start": 2, "list": 0, "show": 1, "stop": 1, "name": 3, "describe": 3, "publish-description": 3, "switch": 2, "attach": 2}
 	for _, op := range couchcore.Operations() {
 		if got := len(op.Args); got != want[op.Name] {
 			t.Errorf("%s has %d args, want %d", op.Name, got, want[op.Name])
@@ -478,18 +478,15 @@ func TestProvisionWorktreeRefusalNames153WithoutInventingAPath(t *testing.T) {
 	}
 }
 
-func TestStopReportsWhetherItActuallySignalled(t *testing.T) {
+func TestExternalStopRefusesUntilOwnerRoutingExists(t *testing.T) {
 	rt := newRT(t, "/repo")
 	if _, errw, code := runRT(rt, "start", "/repo"); code != 0 {
 		t.Fatalf("start: %s", errw)
 	}
 	rt.markLive(t)
-	out, errw, code := runRT(rt, "stop", "/repo")
-	if code != 0 {
+	_, errw, code := runRT(rt, "stop", "/repo")
+	if code == 0 || !strings.Contains(errw, "routing requires #147") {
 		t.Fatalf("stop: code=%d err=%q", code, errw)
-	}
-	if !strings.Contains(out, "signalled") {
-		t.Fatalf("out = %q; stop must say it signalled a live child", out)
 	}
 }
 
@@ -749,11 +746,11 @@ func TestConsoleGetsAnActionDispatcher(t *testing.T) {
 	}
 	// It must reach couch's own table: an unknown name is refused rather than
 	// silently succeeding.
-	if _, err := ops("no-such-operation", nil); err == nil {
+	if _, err := ops(couchcore.OperationCall{Name: "no-such-operation"}); err == nil {
 		t.Fatal("the dispatcher accepted an operation couch does not declare")
 	}
 	// And a real one is accepted.
-	if _, err := ops("list", nil); err != nil {
+	if _, err := ops(couchcore.OperationCall{Name: "list"}); err != nil {
 		t.Fatalf("list through the panel dispatcher: %v", err)
 	}
 }

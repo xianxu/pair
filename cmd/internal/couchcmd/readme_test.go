@@ -47,7 +47,11 @@ func TestREADMEDocumentsEveryPanelControl(t *testing.T) {
 // `continue` with a comment pointing at atlas/couch.md, which did not document
 // it either (M2 BR-39). An exemption that names another home has to check that
 // home.
-var agentFacing = map[string]bool{"publish-description": true}
+var agentFacing = map[string]bool{
+	"publish-description": true,
+	"switch":              true,
+	"attach":              true,
+}
 
 func documentsCommand(doc, command string) bool {
 	return regexp.MustCompile(regexp.QuoteMeta(command) + "(?:\\s|`|$)").MatchString(doc)
