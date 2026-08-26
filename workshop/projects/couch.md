@@ -6,7 +6,7 @@ done_when: The operator works inside a single terminal window, managing a fleet 
 status: defined
 mvp_scope: [pair#145, pair#146, pair#147, pair#148, ariadne#199, ariadne#200]
 created: 2026-08-21
-updated: 2026-08-23
+updated: 2026-08-26
 sources: [brain/workshop/pensive/2026-08-20-01-pensive-couch-agent-switcher.md]
 ---
 
@@ -353,6 +353,22 @@ Operator-facing shape, folded into `#145`/`#146`:
 - Everything in couch's TUI is the same operation surface the advisor's tools
   call. `/start ../pair` and the LLM's `start` are two clients, never two
   implementations.
+
+**Scope event — 2026-08-26:** the canonical couch store is the durable namespace
+and has one live supervisor lease. Couch restarts adopt that namespace; a second
+supervisor refuses rather than creating console-invisible actors. Ordinary
+read/metadata clients may share the locked store, while owner-required actions
+route through #147. #148 exposes the same declared operation surface to the root
+agent through a thin Ariadne-distributed skill; Pair remains the authority for
+operations and Ariadne only distributes the adapter.
+
+The namespace is the once-resolved absolute physical store path, not a process
+incarnation or caller spelling. Its lifetime supervisor lease is non-inheritable
+by children. Transport, mailboxes, manifests, and notifications address exact
+composite work threads inside that namespace; a path is only a discovery and
+admission input. Even implicit human actions such as Enter-to-switch dispatch a
+declared owner-required operation available through the same generic advisor
+client.
 
 **Open fork for `#146`, to answer empirically first:** does couch host `pair` as
 it exists (couch → pair → zellij → claude+nvim, three layers of terminal

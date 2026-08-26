@@ -4,7 +4,7 @@ status: open
 deps: [ariadne#200]
 github_issue:
 created: 2026-08-21
-updated: 2026-08-21
+updated: 2026-08-26
 estimate_hours:
 ---
 
@@ -66,6 +66,41 @@ leaving the detail one question away.
 actor's shell reports its own mailbox depth and fires its own timers, so most of
 what an external observer used to be needed for is now intrinsic.
 
+## Revisions
+
+### 2026-08-26 — distribute a thin advisor skill, keep authority in Pair
+
+**Reason:** the operator requires every operation available through the human
+panel to be available to the root agent as well, including thread lookup,
+naming, rename, description, start, attach/switch, and later lifecycle actions.
+The root role is conventional rather than brain-specific, so a brain-only skill
+would put the adapter at the wrong boundary.
+
+**Delta:** Ariadne distributes a shared couch-advisor skill to agent repos. The
+skill teaches when to enumerate, how to resolve fuzzy human references, when to
+show the exact composite target and request confirmation, and how to invoke the
+local couch client. It contains no authoritative verb list or concurrency
+policy: Pair's discoverable `couchcore.Operations()` schema remains the source
+for names, typed arguments, effect class, owner requirement, fallback safety,
+and confirmation requirement. Adding a human panel action without declaring it
+there remains a conformance failure, so human and root-agent capabilities cannot
+drift (ARCH-DRY, ARCH-PURPOSE).
+
+The skill operates only in the root actor's inherited couch namespace and sends
+owner-required calls through #147's local endpoint. It never discovers another
+`COUCH_STORE_DIR`, executes a peer actor's repo commands itself, or turns fuzzy
+text directly into a destructive call. Pair owns behavior and exact results;
+Ariadne owns portable skill distribution and adaptation to supported harnesses.
+
+Every effectful human interaction is a declared operation, including implicit
+key behavior such as Enter on a live row. Pair declares explicit owner-required
+`switch` and `attach` operations rather than letting the console call a private
+`forceSwitch` path. A conformance test enumerates keyed actions, implicit row
+actions, CLI dispatch, and the generic advisor client and requires all four to
+resolve through the same schema. Rendering/filter/navigation may remain local
+pure UI behavior; creating, attaching, switching, naming, describing, and later
+lifecycle transitions may not (ARCH-DRY, ARCH-PURPOSE).
+
 ## Done when
 
 - A brain session answers "what is going on" from precomputed state fast enough
@@ -77,11 +112,15 @@ what an external observer used to be needed for is now intrinsic.
 - Notifications surface to the operator while attached elsewhere, as a queue —
   not a dashboard.
 - No portfolio state is stored as a maintained document.
+- Every effectful operation available to the human, including implicit
+  Enter-to-switch/attach, is callable through the root advisor's generic client.
 
 ## Plan
 
 - [ ] Advisor reads registry + inventory + mailbox facts; no stored charter.
 - [ ] Fuzzy reference resolution returning a shown canonical id.
+- [ ] Ariadne-distributed couch-advisor skill derived from Pair's operation
+      schema, with target display and confirmation semantics.
 - [ ] Notification surfacing as an escalation queue.
 - [ ] Silence/at-risk detection for not-running actors.
 - [ ] Router-not-relay switching from the advisor.

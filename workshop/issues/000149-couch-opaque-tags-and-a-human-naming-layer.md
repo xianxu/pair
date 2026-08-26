@@ -4,7 +4,7 @@ status: working
 deps: []
 github_issue:
 created: 2026-08-21
-updated: 2026-08-25
+updated: 2026-08-26
 estimate_hours:
 started: 2026-08-25T14:21:34-07:00
 ---
@@ -412,6 +412,87 @@ verified parked state are #152 outcomes; managed missing-path reprovision and
 working-path rebind are #153 outcomes. Older start/resume and generated-tree
 acceptance text is superseded by this boundary.
 
+### 2026-08-26 — align the first boundary with transactional admission
+
+**Reason:** implementation planning made a dependency in the milestone shorthand
+explicit: M1 cannot count cross-process `creating` occupants safely if the sole
+locked/revisioned store does not exist until M2. A temporary admission store
+would create exactly the shadow authority this issue removes. Plan review also
+made the provider-IO and one-file-per-thread persistence protocols explicit.
+
+**Delta:** M1 introduces the final `ThreadStore` lock/revision transaction
+kernel and the minimal per-thread admission/reservation schema. No legacy
+registry writer participates in admission after M1. M2 widens that same store
+for composite identity, tag claims, journaled start, and the blocked pre-exec
+helper; it does not replace or rebuild the M1 authority.
+
+Provider subprocess IO never runs while holding the global store lock. Admission
+captures relevant record revisions under lock, resolves the candidate and stale
+incumbents outside it, then reacquires the lock and either applies a pure
+prune/group/claim mutation against unchanged revisions or retries. Resolution
+failure remains occupied and no child forks.
+
+The store retains one atomic file per composite work thread. Store-level
+journals/manifests coordinate only mutations spanning multiple records (for
+example thread plus path preference or migration), with idempotent recovery;
+there is no monolithic all-thread snapshot in the final schema. Launch-profile
+resolution records agent provenance (`explicit`, `path`, or `root`) separately
+from argument provenance (`path` or `repo-default`), because those axes combine
+independently.
+
+M1 cuts admission over under the global lock: before the new authority can
+admit, it idempotently imports every legacy registry actor into minimal
+per-thread records, retains same-tree co-tenants as separate conservative
+incarnations, and persists a manifest cutover marker. Corrupt or ambiguous
+legacy input refuses the cutover. M5 later enriches these records and migrates
+metadata/artifact access; it does not first discover live admission occupants.
+During stale-policy refresh, every successful result for one repository must
+share the candidate's provider version and declaration digest. A mixed epoch
+retries the whole cohort; bounded exhaustion fails closed without forking.
+
+### 2026-08-26 — make the couch store the singleton namespace
+
+**Reason:** exposing thread naming to the root advisor raised the ownership
+question directly: if two couch consoles can supervise the same durable store,
+each can create a child the other cannot attach to, and “root” stops naming one
+place. Conversely, making every couch process a new namespace would orphan
+durable threads whenever couch restarts.
+
+**Delta:** the canonical `COUCH_STORE_DIR` is the durable couch namespace. The
+default Pair data store is the one ordinary namespace for this OS user. A
+thread's complete address inside it remains `{repo_scope, tag}`; if multiple
+stores are ever promoted to product behavior, the global address naturally
+becomes `{couch_namespace, repo_scope, tag}` without changing stored records.
+An explicit alternate store remains a test/isolation facility, not v1 UX.
+
+Pair resolves the namespace once at process entry, before constructing the
+lease, store, or local endpoint: make an explicit relative value absolute
+against the startup cwd, normalize it, create the directory if absent, resolve
+all physical symlinks, and reject any failure. That exact absolute physical path
+is used for the lifetime lease, endpoint, ThreadStore, and inherited
+`COUCH_STORE_DIR`; no child reinterprets a relative path from its own cwd.
+
+Exactly one couch process holds the namespace's supervisor lease. The lease is
+an OS advisory lock held for the owner's lifetime on a close-on-exec,
+non-inheritable descriptor, so no spawned or execed child retains ownership.
+Only after acquisition does the owner atomically publish its PID and
+process-start identity for diagnostics; a refusal reports that identity only
+after verifying it still denotes the lock owner. A crash therefore releases
+authority without relying on stale file deletion, even while children survive.
+Restarting couch acquires the same namespace and adopts its
+durable inventory—it does not mint a new namespace. A second supervising
+`couch start`, including consoleless mode, refuses with the current owner
+identity. Read and metadata clients may transact against the locked ThreadStore,
+but an operation that creates or attaches an actor must execute in the owner so
+the resulting child belongs to the console that can route its terminal. Until
+#147 supplies owner routing, an external actor-creating client refuses rather
+than starting an invisible second supervisor (ARCH-PURPOSE, ARCH-MOCK).
+
+The root actor and every child inherit the canonical namespace location plus
+their composite thread address. A couch process incarnation may have an
+ephemeral diagnostic ID, but it is never part of thread identity or artifact
+addressing.
+
 ## Done when
 
 - A couch-launched work thread gets a generated composite durable address;
@@ -439,16 +520,23 @@ acceptance text is superseded by this boundary.
 - Thread inventory distinguishes multiple threads at one path and exposes exact
   live versus non-live/unknown state; verified parked state, resume, and
   historical-age presentation follow `#152`.
+- Relative and symlinked spellings resolve to one physical couch namespace; one
+  console or consoleless supervisor owns it at a time, a concurrent supervisor
+  refuses with verified owner identity, and killing the owner releases the
+  lease immediately even if its child remains alive.
 
 ## Plan
 
-- [ ] M1 — consume ariadne#200's versioned/digested normalized policy through an
-      injected resolver; reconcile stale evidence, account for live/unknown/
-      creating occupants, remove the shadow policy table, and close this exact
-      milestone before ariadne#200 closes.
-- [ ] M2 — build the locked/revisioned `ThreadStore`, composite address, atomic
-      opaque-tag claim, blocked pre-exec handshake, journaled start transaction,
-      and restart reconciliation.
+- [ ] M1 — introduce the final locked/revisioned `ThreadStore` kernel and its
+      minimal per-thread admission/reservation schema; consume ariadne#200's
+      versioned/digested normalized policy through an injected resolver,
+      reconcile stale evidence, account for live/unknown/creating occupants,
+      remove every legacy admission writer and the shadow policy table, enforce
+      one supervisor lease per store namespace, and close this exact milestone
+      before ariadne#200 closes.
+- [ ] M2 — widen that same `ThreadStore` for composite address, atomic opaque-tag
+      claim, blocked pre-exec handshake, journaled start transaction, and
+      restart reconciliation.
 - [ ] M3 — add mutable name/description/published-summary operations, scoped
       standalone Pair resolution, shared inventory, and common rendering without
       a leading system id.
