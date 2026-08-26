@@ -258,10 +258,10 @@ shell runtime; `zellij`, `nvim`, `fzf`, and the agent CLIs are the only external
 programs.
 
 `make install` also installs a second binary, **`couch`** — a supervisor that
-registers agent sessions one-per-worktree, spawns them, and hosts one in your
-terminal. It is separate from `pair` on purpose: pair is what you sit inside, so
-a supervisor bug must not break your ability to fix it, and launching pair
-directly always still works. See [atlas/couch.md](atlas/couch.md).
+registers durable work threads, spawns them, and hosts one in your terminal. It
+is separate from `pair` on purpose: pair is what you sit inside, so a supervisor
+bug must not break your ability to fix it, and launching pair directly always
+still works. See [atlas/couch.md](atlas/couch.md).
 
 ```
 couch start [<repo>]     host a session in this terminal (default: .)
@@ -273,9 +273,11 @@ couch name <ref> <name>  give a tree a short human name
 couch describe <ref> [<text>]  read or set a tree's one-line description
 ```
 
-`couch start` refuses a second agent on a tree that already has one — two agents
-sharing one branch and index is what the registry exists to prevent. `--same-tree`
-overrides it, and the override is recorded.
+Every `couch start` allocates a distinct opaque durable thread. Admission comes
+from the repository's normalized Ariadne fleet policy (`sdlc fleet policy`): a
+bounded key refuses when occupied, while an unbounded path admits concurrent
+threads. A `provision-worktree` policy currently returns a typed refusal; managed
+worktree creation belongs to Pair #153. There is no local admission override.
 
 `couch start` allocates a pty for the session and **reserves the bottom row of
 your screen** for a status line. The path argument is optional and defaults to

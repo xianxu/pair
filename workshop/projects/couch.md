@@ -163,7 +163,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] many children and the panel [pair#146 M3]
 - [x] exits, detach, and what the row says [pair#146 M4]
 - [ ] durable work-thread identity, naming, and launch profiles [pair#149]
-  - [ ] singleton namespace and normalized admission [pair#149 M1]
+- [ ] singleton namespace and normalized admission [pair#149 M1]
 - [ ] hierarchical thread menu [pair#151]
 - [ ] verified park and activity age [pair#152]
 - [ ] managed-worktree lifecycle [pair#153]

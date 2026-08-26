@@ -75,7 +75,7 @@ func (t testRT) NewCouchWith(couchcore.Runner, couchcore.CouchNamespace) (*couch
 	return couchcore.New(
 		t.namespace, t.runner, couchcore.NewFakePathOps(nil), t.git, t.proc,
 		couchcore.NewStore(t.dir), couchcore.FixedClock{T: time.Unix(1, 0)}, t.ids, t.policy,
-		rand.Reader,
+		rand.Reader, couchcore.NoThreadArtifactCollisions{},
 	)
 }
 
@@ -247,6 +247,17 @@ func TestHelpListsEveryDeclaredOperation(t *testing.T) {
 		if !strings.Contains(out, name) {
 			t.Errorf("help omits %q", name)
 		}
+	}
+}
+
+func TestReadmeDoesNotAdvertiseRemovedAdmissionFlags(t *testing.T) {
+	raw, err := os.ReadFile("../../../README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	removed := "--same" + "-tree"
+	if strings.Contains(string(raw), removed) {
+		t.Fatalf("README still advertises removed flag %s", removed)
 	}
 }
 

@@ -27,12 +27,13 @@ type Couch struct {
 	PolicyResolver PolicyResolver
 	Threads        *ThreadStore
 	Entropy        io.Reader
+	Artifacts      ThreadArtifactCollisionChecker
 
 	reg   Registry
 	names NamingTable
 }
 
-func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOps, s Store, c Clock, ids IDGen, resolver PolicyResolver, entropy io.Reader) (*Couch, error) {
+func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOps, s Store, c Clock, ids IDGen, resolver PolicyResolver, entropy io.Reader, artifacts ThreadArtifactCollisionChecker) (*Couch, error) {
 	if namespace.Dir() == "" {
 		return nil, fmt.Errorf("new couch: empty namespace")
 	}
@@ -44,6 +45,9 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 	}
 	if entropy == nil {
 		entropy = rand.Reader
+	}
+	if artifacts == nil {
+		return nil, fmt.Errorf("new couch: nil artifact collision checker")
 	}
 	reg, names, err := s.Load()
 	if err != nil {
@@ -58,7 +62,8 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 		Runner:    r, Path: p, Git: g, Proc: proc, Store: s, Clock: c, IDs: ids,
 		PolicyResolver: resolver,
 		Threads:        threads, Entropy: entropy,
-		reg: reg, names: names,
+		Artifacts: artifacts,
+		reg:       reg, names: names,
 	}, nil
 }
 
@@ -113,11 +118,11 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 		return ActorRecord{}, nil, err
 	}
 	startedAt := c.Clock.Now()
-	thread, err := c.Threads.AllocateThreadTag(scope.Key, args.Cwd, startedAt, c.Entropy)
+	thread, err := c.Threads.AllocateThreadTag(scope.Key, args.Cwd, startedAt, c.Entropy, c.Artifacts)
 	if err != nil {
 		return ActorRecord{}, nil, err
 	}
-	thread, err = ReconcileAdmission(context.Background(), c.Threads, c.PolicyResolver, c.Proc, thread.Address, startedAt)
+	thread, err = ReconcileAdmission(context.Background(), c.Threads, c.PolicyResolver, thread.Address, startedAt)
 	if err != nil {
 		return ActorRecord{}, nil, err
 	}
@@ -128,10 +133,9 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	// detached session exists (decision.go:47), which inside couch's own pty is
 	// an fzf picker waiting on an operator who only asked to start. `resume`
 	// takes the ForcedTag branch -- attach if live or detached, create
-	// otherwise -- and skips the name prompt (help.go:15). It derives from the
-	// TREE, so going back in is deterministic: the same tree always resumes the
-	// same session. `launcher.DefaultTag` is pair's own create-flow derivation,
-	// reused rather than re-implemented.
+	// otherwise -- and skips the name prompt (help.go:15). The final opaque tag
+	// was claimed in ThreadStore before admission, so each accepted start owns a
+	// distinct durable Pair session even when several threads share one path.
 	//
 	// The layout: pinned to layout2 by operator decision 2026-08-22. couch owns
 	// terminal switching now, so layout3's third pane -- pair's own user

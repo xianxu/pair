@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
 type testEnv struct {
@@ -27,7 +29,7 @@ func TestStoreNamespaceMustMatchCouchNamespace(t *testing.T) {
 	_, err := New(
 		ns,
 		NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), NewFakeProcOps(),
-		NewStore(other), FixedClock{}, NewFixedIDGen("id"), NewFakePolicyResolver(), bytes.NewReader(make([]byte, 8)),
+		NewStore(other), FixedClock{}, NewFixedIDGen("id"), NewFakePolicyResolver(), bytes.NewReader(make([]byte, 8)), NoThreadArtifactCollisions{},
 	)
 	if err == nil || !strings.Contains(err.Error(), "does not match") {
 		t.Fatalf("New mismatched store err = %v", err)
@@ -40,7 +42,7 @@ func TestCouchRetainsInjectedPolicyResolver(t *testing.T) {
 	c, err := New(
 		ns,
 		NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), NewFakeProcOps(),
-		NewStore(ns.Dir()), FixedClock{}, NewFixedIDGen("id"), resolver, bytes.NewReader(make([]byte, 8)),
+		NewStore(ns.Dir()), FixedClock{}, NewFixedIDGen("id"), resolver, bytes.NewReader(make([]byte, 8)), NoThreadArtifactCollisions{},
 	)
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -68,7 +70,7 @@ func newTestEnv(t *testing.T, trees ...string) *testEnv {
 	}
 	dir = ns.Dir()
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
-	c, err := New(ns, r, NewFakePathOps(nil), g, proc, NewStore(dir), FixedClock{T: now}, NewFixedIDGen("ah8d", "b2c1"), NewFakePolicyResolver(), newIncrementingEntropy())
+	c, err := New(ns, r, NewFakePathOps(nil), g, proc, NewStore(dir), FixedClock{T: now}, NewFixedIDGen("ah8d", "b2c1"), NewFakePolicyResolver(), newIncrementingEntropy(), NoThreadArtifactCollisions{})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -235,6 +237,49 @@ func TestSpawnCapacityRefusalDoesNotForkAndRollsBackOpaqueReservation(t *testing
 	}
 }
 
+func TestSpawnPolicyInstabilityDoesNotForkAndRollsBackOpaqueReservation(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	scope, err := launcher.ResolveRepoScope("/repo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	incumbent, err := env.Couch.Threads.AllocateThreadTag(scope.Key, "/repo", env.Now, bytes.NewReader(bytes.Repeat([]byte{9}, 8)), NoThreadArtifactCollisions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.Couch.Threads.UpdateExistingThread(incumbent.Address, incumbent.Revision, func(next *ThreadRecord) error {
+		next.Reservation = false
+		next.Incarnations = []ThreadIncarnation{{State: IncarnationCreating, StartedAt: env.Now}}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	epochA := PolicyResult{
+		PolicyVersion: 1, PolicyDigest: strings.Repeat("a", 64), RepoIdentity: "repo", AdmissionKey: "/repo",
+		Capacity: PolicyCapacity{Kind: CapacityBounded, Limit: 2}, OnCapacity: CapacityReject,
+	}
+	epochB := epochA
+	epochB.PolicyDigest = strings.Repeat("b", 64)
+	resolver := env.Couch.PolicyResolver.(*FakePolicyResolver)
+	for range 3 {
+		resolver.Queue("/repo", epochA, nil)
+		resolver.Queue("/repo", epochB, nil)
+	}
+	before := len(env.Runner.Ops)
+	_, _, err = env.Couch.Spawn(StartArgs{Worktree: "/repo"})
+	var unstable *PolicyUnstableError
+	if !errors.As(err, &unstable) {
+		t.Fatalf("err = %T %v, want *PolicyUnstableError", err, err)
+	}
+	if len(env.Runner.Ops) != before {
+		t.Fatal("unstable policy forked a child")
+	}
+	snapshot, err := env.Couch.Threads.Snapshot()
+	if err != nil || len(snapshot.Records) != 1 || snapshot.Records[0].Address != incumbent.Address {
+		t.Fatalf("unstable reservation leaked: %+v, %v", snapshot.Records, err)
+	}
+}
+
 func TestIsLiveRejectsARecycledPID(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	rec, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
@@ -323,10 +368,9 @@ func TestNameSurvivesActorReplacement(t *testing.T) {
 
 // --- close-review regressions: each of these fails against the shipped code ---
 
-func TestDeadActorDoesNotBlockItsTreeForever(t *testing.T) {
-	// BR-1. `couch start` blocks until the child exits and nothing unregisters
-	// on exit, so the ORDINARY end of a session used to leave a record that
-	// refused its own tree permanently.
+func TestDeadPairClientDoesNotFreeWholeIncarnationCapacity(t *testing.T) {
+	// A Pair client can die while its detached zellij session and workspace-
+	// writing panes survive. Client death is not whole-incarnation quiescence.
 	env := newTestEnv(t, "/repo")
 	env.boundedOne("/repo")
 	first, h := env.spawn(t, StartArgs{Worktree: "/repo"})
@@ -334,15 +378,14 @@ func TestDeadActorDoesNotBlockItsTreeForever(t *testing.T) {
 	env.Runner.SetExited(h.ID(), 0)
 	env.Proc.Kill(first.PID) // the process is gone; the record is not
 
-	second, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
-	if err != nil {
-		t.Fatalf("a dead actor still refused its tree: %v", err)
+	_, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
+	var full *CapacityExceededError
+	if !errors.As(err, &full) {
+		t.Fatalf("dead client err = %T %v, want occupied capacity", err, err)
 	}
-	if second.ID == first.ID {
-		t.Fatal("expected a fresh incarnation")
-	}
-	if got := env.Couch.Get("/repo"); len(got) != 1 {
-		t.Fatalf("tree holds %d actors; the dead one should have been pruned", len(got))
+	thread, err := env.Couch.Threads.GetThread(first.Thread)
+	if err != nil || len(thread.Incarnations) != 1 {
+		t.Fatalf("whole incarnation was freed with its client: %+v, %v", thread, err)
 	}
 }
 
@@ -568,23 +611,6 @@ func TestStopSignalsEvenWhenLivenessIsUnknown(t *testing.T) {
 	}
 	if !signalled {
 		t.Fatal("Stop must attempt a signal when liveness is unknown")
-	}
-}
-
-func TestKnownDeadIsStillPruned(t *testing.T) {
-	// The complement: failing closed must not disable pruning entirely, or
-	// BR-1 comes back.
-	env := newTestEnv(t, "/repo")
-	env.boundedOne("/repo")
-	rec, h := env.spawn(t, StartArgs{Worktree: "/repo"})
-	env.Runner.SetExited(h.ID(), 0)
-	env.Proc.Kill(rec.PID)
-
-	if got := env.Couch.Liveness(rec); got != Dead {
-		t.Fatalf("Liveness = %v, want Dead", got)
-	}
-	if _, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"}); err != nil {
-		t.Fatalf("a known-dead actor still refused its tree: %v", err)
 	}
 }
 

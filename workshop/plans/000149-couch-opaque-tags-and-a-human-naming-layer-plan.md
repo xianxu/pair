@@ -36,18 +36,18 @@ remains #153. #149 returns typed refusals for those unavailable outcomes.
 
 ### Core concepts
 
-| Pure entity | Lives in | Status |
-|---|---|---|
-| `CouchNamespace` | `cmd/internal/couchcore/namespace.go` | new in M1 |
-| `PolicyResult` / `PolicyCapacity` | `cmd/internal/couchcore/policyresolver.go` | new in M1 |
-| `AdmissionDecision` | `cmd/internal/couchcore/admission.go` | new in M1 |
-| `PolicyTable` / repository `Mode` | `cmd/internal/couchcore/policy.go` | deleted in M1 |
-| `ThreadAddress` / minimal `ThreadRecord` | `cmd/internal/couchcore/thread.go` | new in M1, widened in M2 |
-| `StartTransaction` | `cmd/internal/couchcore/starttransaction.go` | new in M2 |
-| `ThreadMetadata` / `ThreadSummary` | `cmd/internal/couchcore/threadmetadata.go`, `threadinventory.go` | new in M3 |
-| `Operation` effect/owner declaration | `cmd/internal/couchcore/ops.go` | modified in M1 and M3 |
-| `LaunchProfileResolution` | `cmd/internal/couchcore/launchprofile.go` | new in M4 |
-| `ArtifactFamily` | `cmd/internal/artifactpath/paths.go` | new in M5 |
+| Entity | Kind | Lives in | Status |
+|---|---|---|---|
+| `CouchNamespace` / `ResolveCouchNamespace` | integration | `cmd/internal/couchcore/namespace.go` | new in M1 |
+| `PolicyResult` / `PolicyCapacity` | pure | `cmd/internal/couchcore/policyresolver.go` | new in M1 |
+| `AdmissionDecision` | pure | `cmd/internal/couchcore/admission.go` | new in M1 |
+| `PolicyTable` / repository `Mode` | pure | `cmd/internal/couchcore/policy.go` | deleted in M1 |
+| `ThreadAddress` / minimal `ThreadRecord` | pure | `cmd/internal/couchcore/thread.go` | new in M1, widened in M2 |
+| `StartTransaction` | pure | `cmd/internal/couchcore/starttransaction.go` | new in M2 |
+| `ThreadMetadata` / `ThreadSummary` | pure | `cmd/internal/couchcore/threadmetadata.go`, `threadinventory.go` | new in M3 |
+| `Operation` effect/owner declaration | pure | `cmd/internal/couchcore/ops.go` | modified in M1 and M3 |
+| `LaunchProfileResolution` | pure | `cmd/internal/couchcore/launchprofile.go` | new in M4 |
+| `ArtifactFamily` | pure | `cmd/internal/artifactpath/paths.go` | new in M5 |
 
 - **`CouchNamespace`** — the absolute physical store path used as the durable
   namespace key. One namespace owns many work threads and zero or one live
@@ -72,7 +72,7 @@ remains #153. #149 returns typed refusals for those unavailable outcomes.
 
 | Integration | Lives in | Status | Wraps |
 |---|---|---|---|
-| `NamespaceResolver` | `cmd/internal/couchcore/namespace.go` | new in M1 | startup cwd, mkdir, physical-path resolution |
+| `CouchNamespace` / `ResolveCouchNamespace` | `cmd/internal/couchcore/namespace.go` | new in M1 | startup cwd, mkdir, physical-path resolution |
 | `SupervisorLease` | `cmd/internal/couchcore/supervisorlease.go`, `supervisorlease_unix.go` | new in M1 | non-inheritable OS advisory lock and owner metadata through existing `ProcOps` identity |
 | `PolicyResolver` / `ExecPolicyResolver` | `cmd/internal/couchcore/policyresolver.go`, `policyresolver_exec.go` | new in M1 | `sdlc fleet policy` subprocess |
 | `ThreadStore` | `cmd/internal/couchcore/threadstore.go` | new in M1, widened later | filesystem lock, per-thread records, WAL/manifest |
@@ -177,8 +177,10 @@ live, or unknown incarnation. Before admitting a start, capture relevant record
 revisions under the store lock, release it, resolve the candidate, and—when
 version/digest differ—resolve every live/unknown/creating incumbent in the same
 repository. Reacquire the lock, verify the captured revisions/evidence are
-unchanged, and either apply a pure proven-dead prune/group/claim mutation or
-retry the read/resolve phase. Provider subprocess IO never runs under the
+unchanged, and either apply a pure group/claim mutation or retry the
+read/resolve phase. Pair-client death does not prove whole-incarnation
+quiescence, so M1 never releases durable capacity from PID evidence; #152 owns
+that proof and transition. Provider subprocess IO never runs under the
 global lock and no admission decision uses a stale snapshot. Every refreshed
 result in one repository must have the candidate's provider version and
 declaration digest; a mismatch retries the entire cohort, including the
@@ -822,7 +824,7 @@ inventory, never a couch enum (ARCH-DRY).
 - Focused pure/stateful functions: commands named in each task, implementing the
   risky-function strategy table through shared fakes.
 - Real boundaries: `make test-live` plus `make test-couch-policy-live
-  ARIADNE_SDLC_BIN=../ariadne/bin/sdlc`.
+  SDLC_BIN=../ariadne/bin/sdlc`.
 - Repository: `go test ./... -count=1`, `go test -race ./cmd/internal/couchcore
   -count=1`, `make test`, `zellij --config-dir zellij setup --check`, both
   `zellij setup --dump-layout` commands, and `git diff --check`.
@@ -878,3 +880,18 @@ admission/fork; M2 now only widens start recovery. A named risky-function table
 single-sources adversarial strategies used by compact task steps. Pair owns a
 weekly/manual Ariadne provider conformance workflow in addition to M1 boundary
 evidence and stateful fake tests (ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — incorporate M1 boundary review
+
+**Reason:** the first mandatory boundary review found that Pair-client death
+was being mistaken for whole zellij-session quiescence, opaque allocation did
+not account for preexisting scoped Pair artifacts, and several public and plan
+contracts had drifted from the implementation.
+
+**Delta:** M1 retains occupied incarnations until #152 can prove quiescence and
+checks every current scoped artifact family plus detached-session bindings
+before claiming an opaque address. Reconciliation now makes exactly three
+cohort attempts and returns typed `PolicyUnstableError`. The architecture table
+classifies namespace resolution as integration, the README documents only
+provider-owned admission, and the live conformance target accepts the canonical
+`SDLC_BIN` interface with relative paths (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).

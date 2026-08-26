@@ -19,7 +19,7 @@ func openPanel(t *testing.T, f *consoleFixture) {
 	waitFor(t, "the panel", func() bool {
 		f.con.mu.Lock()
 		defer f.con.mu.Unlock()
-		return f.con.focus.IsPanel()
+		return f.con.focus.IsPanel() && f.con.panel != nil
 	})
 }
 

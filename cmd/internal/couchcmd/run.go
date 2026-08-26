@@ -66,10 +66,12 @@ func (r OSRuntime) AcquireSupervisor(namespace couchcore.CouchNamespace) (io.Clo
 }
 
 func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.CouchNamespace) (*couchcore.Couch, error) {
+	dataDir := launcher.ResolveDataDir(r.Getenv("HOME"), r.Getenv("XDG_DATA_HOME"))
 	return couchcore.New(
 		namespace, runner, couchcore.OSPathOps{}, couchcore.ExecGit{},
 		couchcore.OSProcOps{}, couchcore.NewStore(namespace.Dir()),
 		couchcore.SystemClock{}, couchcore.NewRandomIDGen(), couchcore.NewExecPolicyResolver("sdlc"), rand.Reader,
+		couchcore.NewScopedThreadArtifactCollisionChecker(dataDir),
 	)
 }
 

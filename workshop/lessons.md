@@ -2018,3 +2018,28 @@ was unavailable.
 the facts independently. Test all resulting states—in this case local-live,
 remote-live, and parked—and authorize an action from the capability it needs,
 not from the absence of a different capability (ARCH-PURPOSE).
+
+## A client PID is not the lifetime of the durable session it views
+
+`#149` M1 initially released bounded-path capacity when the recorded Pair
+client PID died. Pair is only a zellij client, however; the zellij session and
+its workspace-writing panes can survive it, so this admitted a second writer
+while the first durable incarnation was still active.
+
+**Rule.** Release concurrency capacity only from evidence about the complete
+incarnation named by the policy, not a convenient child or client process.
+When a harness has a server/client split, test client death with the server
+still live and retain occupancy until a whole-incarnation quiescence seam says
+otherwise (ARCH-PURPOSE, ARCH-MOCK).
+
+## Uniqueness must cover every durable representation of an identity
+
+`#149` M1 first checked opaque tags only against ThreadStore. Existing Pair
+drafts, configs, logs, and detached-session bindings could therefore already
+own the same composite address even when no ThreadStore record existed.
+
+**Rule.** Before claiming a generated identity, enumerate and check every
+durable representation that can resolve to it. Build the regression table from
+the canonical path constructor rather than representative filenames, and keep
+the collision seam explicit until all producers share one transaction
+(ARCH-DRY, ARCH-PURPOSE).

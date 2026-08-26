@@ -12,6 +12,7 @@ func TestAllocateThreadTagClaimsCryptographicOpaqueAddress(t *testing.T) {
 	record, err := store.AllocateThreadTag(
 		"0123456789abcdef", ns.Dir(), time.Date(2026, 8, 26, 13, 0, 0, 0, time.UTC),
 		bytes.NewReader([]byte{0, 1, 2, 3, 4, 5, 6, 7}),
+		NoThreadArtifactCollisions{},
 	)
 	if err != nil {
 		t.Fatalf("AllocateThreadTag: %v", err)
@@ -36,7 +37,7 @@ func TestAllocateThreadTagRetriesCollisionWithoutReplacingExistingThread(t *test
 	}
 
 	entropy := append(make([]byte, 8), []byte{1, 1, 1, 1, 1, 1, 1, 1}...)
-	allocated, err := store.AllocateThreadTag(existing.Address.RepoScope, ns.Dir(), existing.CreatedAt.Add(time.Second), bytes.NewReader(entropy))
+	allocated, err := store.AllocateThreadTag(existing.Address.RepoScope, ns.Dir(), existing.CreatedAt.Add(time.Second), bytes.NewReader(entropy), NoThreadArtifactCollisions{})
 	if err != nil {
 		t.Fatalf("AllocateThreadTag: %v", err)
 	}
@@ -52,6 +53,27 @@ func TestAllocateThreadTagRetriesCollisionWithoutReplacingExistingThread(t *test
 	}
 }
 
+func TestAllocateThreadTagRetriesScopedArtifactCollision(t *testing.T) {
+	store, ns := newTestThreadStore(t)
+	checker := NewFakeThreadArtifactCollisionChecker()
+	first := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0000000000000000"}
+	checker.Set(first, true, nil)
+	entropy := append(make([]byte, 8), bytes.Repeat([]byte{1}, 8)...)
+	allocated, err := store.AllocateThreadTag(first.RepoScope, ns.Dir(), time.Now(), bytes.NewReader(entropy), checker)
+	if err != nil {
+		t.Fatalf("AllocateThreadTag: %v", err)
+	}
+	if allocated.Address.Tag != "couch-0101010101010101" {
+		t.Fatalf("allocated tag = %q", allocated.Address.Tag)
+	}
+	if got := checker.Calls(); len(got) != 2 || got[0] != first || got[1] != allocated.Address {
+		t.Fatalf("artifact collision calls = %+v", got)
+	}
+	if collision, _ := checker.Collides(first); !collision {
+		t.Fatal("allocation mutated the pre-existing artifact collision")
+	}
+}
+
 func TestAllocateThreadTagFailsAfterEightCollisionsAndOnEntropyError(t *testing.T) {
 	store, ns := newTestThreadStore(t)
 	existing := validThreadRecord(t)
@@ -60,12 +82,12 @@ func TestAllocateThreadTagFailsAfterEightCollisionsAndOnEntropyError(t *testing.
 	if _, err := store.CreateThread(existing); err != nil {
 		t.Fatalf("CreateThread: %v", err)
 	}
-	if _, err := store.AllocateThreadTag(existing.Address.RepoScope, ns.Dir(), existing.CreatedAt, bytes.NewReader(make([]byte, 8*8))); err == nil {
+	if _, err := store.AllocateThreadTag(existing.Address.RepoScope, ns.Dir(), existing.CreatedAt, bytes.NewReader(make([]byte, 8*8)), NoThreadArtifactCollisions{}); err == nil {
 		t.Fatal("eight collisions must fail, not reuse an existing tag")
 	}
 
 	broken := errorReader{err: errors.New("entropy unavailable")}
-	if _, err := store.AllocateThreadTag("fedcba9876543210", ns.Dir(), existing.CreatedAt, broken); !errors.Is(err, broken.err) {
+	if _, err := store.AllocateThreadTag("fedcba9876543210", ns.Dir(), existing.CreatedAt, broken, NoThreadArtifactCollisions{}); !errors.Is(err, broken.err) {
 		t.Fatalf("entropy failure err = %v", err)
 	}
 }

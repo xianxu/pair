@@ -11,7 +11,7 @@ import (
 
 func allocateAdmissionCandidate(t *testing.T, store *ThreadStore, ns CouchNamespace, scope string, suffix byte, created time.Time) ThreadRecord {
 	t.Helper()
-	record, err := store.AllocateThreadTag(scope, ns.Dir(), created, bytes.NewReader(bytes.Repeat([]byte{suffix}, 8)))
+	record, err := store.AllocateThreadTag(scope, ns.Dir(), created, bytes.NewReader(bytes.Repeat([]byte{suffix}, 8)), NoThreadArtifactCollisions{})
 	if err != nil {
 		t.Fatalf("AllocateThreadTag: %v", err)
 	}
@@ -33,7 +33,7 @@ func TestAdmissionReconcileResolvesOutsideStoreLockAndCommitsCreatingOccupant(t 
 		}
 		return policy, nil
 	})
-	claimed, err := ReconcileAdmission(context.Background(), store, resolver, NewFakeProcOps(), candidate.Address, time.Now())
+	claimed, err := ReconcileAdmission(context.Background(), store, resolver, candidate.Address, time.Now())
 	if err != nil {
 		t.Fatalf("ReconcileAdmission: %v", err)
 	}
@@ -59,10 +59,7 @@ func TestAdmissionReconcileCountsUnknownAndRollsBackRefusedCandidate(t *testing.
 	resolver := NewFakePolicyResolver()
 	resolver.Queue(candidate.WorkingPath, policy, nil)
 	resolver.Queue(incumbent.WorkingPath, policy, nil)
-	proc := NewFakeProcOps()
-	proc.SetUnknown(42)
-
-	_, err = ReconcileAdmission(context.Background(), store, resolver, proc, candidate.Address, now)
+	_, err = ReconcileAdmission(context.Background(), store, resolver, candidate.Address, now)
 	var full *CapacityExceededError
 	if !errors.As(err, &full) {
 		t.Fatalf("err = %T %v, want capacity refusal", err, err)
@@ -76,7 +73,7 @@ func TestAdmissionReconcileCountsUnknownAndRollsBackRefusedCandidate(t *testing.
 	}
 }
 
-func TestAdmissionReconcilePrunesOnlyProvenDeadIncarnation(t *testing.T) {
+func TestAdmissionReconcileRetainsDeadClientWithoutWholeIncarnationProof(t *testing.T) {
 	store, ns := newTestThreadStore(t)
 	now := time.Now()
 	incumbent := allocateAdmissionCandidate(t, store, ns, "0123456789abcdef", 1, now)
@@ -94,16 +91,14 @@ func TestAdmissionReconcilePrunesOnlyProvenDeadIncarnation(t *testing.T) {
 	resolver.Queue(candidate.WorkingPath, policy, nil)
 	resolver.Queue(incumbent.WorkingPath, policy, nil)
 
-	claimed, err := ReconcileAdmission(context.Background(), store, resolver, NewFakeProcOps(), candidate.Address, now)
-	if err != nil {
-		t.Fatalf("ReconcileAdmission: %v", err)
+	_, err = ReconcileAdmission(context.Background(), store, resolver, candidate.Address, now)
+	var full *CapacityExceededError
+	if !errors.As(err, &full) {
+		t.Fatalf("dead client err = %T %v, want occupied capacity", err, err)
 	}
-	if len(claimed.Incarnations) != 1 || claimed.Incarnations[0].State != IncarnationCreating {
-		t.Fatalf("candidate = %+v", claimed)
-	}
-	pruned, err := store.GetThread(incumbent.Address)
-	if err != nil || len(pruned.Incarnations) != 0 {
-		t.Fatalf("proven-dead incumbent = %+v, %v", pruned, err)
+	kept, err := store.GetThread(incumbent.Address)
+	if err != nil || len(kept.Incarnations) != 1 {
+		t.Fatalf("dead client lost whole-incarnation occupancy: %+v, %v", kept, err)
 	}
 }
 
@@ -118,10 +113,10 @@ func TestAdmissionReconcileEarlierReservationWinsBoundedRace(t *testing.T) {
 	resolver.Queue(second.WorkingPath, policy, nil)
 	resolver.Queue(first.WorkingPath, policy, nil)
 
-	if _, err := ReconcileAdmission(context.Background(), store, resolver, NewFakeProcOps(), second.Address, now); err == nil {
+	if _, err := ReconcileAdmission(context.Background(), store, resolver, second.Address, now); err == nil {
 		t.Fatal("later reservation bypassed earlier bounded claim")
 	}
-	if _, err := ReconcileAdmission(context.Background(), store, resolver, NewFakeProcOps(), first.Address, now); err != nil {
+	if _, err := ReconcileAdmission(context.Background(), store, resolver, first.Address, now); err != nil {
 		t.Fatalf("earlier reservation did not win: %v", err)
 	}
 }
@@ -148,12 +143,46 @@ func TestAdmissionReconcileRetriesWholeCohortAcrossPolicyEpochChange(t *testing.
 	resolver.Queue(incumbent.WorkingPath, epochB, nil)
 	resolver.Queue(candidate.WorkingPath, epochB, nil)
 	resolver.Queue(incumbent.WorkingPath, epochB, nil)
-	claimed, err := ReconcileAdmission(context.Background(), store, resolver, NewFakeProcOps(), candidate.Address, now)
+	claimed, err := ReconcileAdmission(context.Background(), store, resolver, candidate.Address, now)
 	if err != nil {
 		t.Fatalf("ReconcileAdmission: %v", err)
 	}
 	if claimed.Incarnations[0].Policy.PolicyDigest != epochB.PolicyDigest {
 		t.Fatalf("candidate retained mixed epoch: %+v", claimed.Incarnations[0].Policy)
+	}
+}
+
+func TestAdmissionReconcileReturnsTypedPolicyUnstableAfterThreeCohorts(t *testing.T) {
+	store, ns := newTestThreadStore(t)
+	now := time.Now()
+	incumbent := allocateAdmissionCandidate(t, store, ns, "0123456789abcdef", 1, now)
+	incumbent, err := store.UpdateExistingThread(incumbent.Address, incumbent.Revision, func(next *ThreadRecord) error {
+		next.Reservation = false
+		next.Incarnations = []ThreadIncarnation{{State: IncarnationCreating, StartedAt: now}}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidate := allocateAdmissionCandidate(t, store, ns, incumbent.Address.RepoScope, 2, now.Add(time.Second))
+	epochA := admissionPolicy(CapacityBounded, 2, CapacityReject)
+	epochB := epochA
+	epochB.PolicyDigest = strings.Repeat("b", 64)
+	resolver := NewFakePolicyResolver()
+	for range 3 {
+		resolver.Queue(candidate.WorkingPath, epochA, nil)
+		resolver.Queue(incumbent.WorkingPath, epochB, nil)
+	}
+	_, err = ReconcileAdmission(context.Background(), store, resolver, candidate.Address, now)
+	var unstable *PolicyUnstableError
+	if !errors.As(err, &unstable) || unstable.Attempts != 3 {
+		t.Fatalf("err = %T %v, want three-attempt *PolicyUnstableError", err, err)
+	}
+	if got := len(resolver.Calls()); got != 6 {
+		t.Fatalf("provider calls = %d, want 6 for three whole cohorts", got)
+	}
+	if _, err := store.GetThread(candidate.Address); !errors.Is(err, ErrThreadNotFound) {
+		t.Fatalf("unstable candidate reservation leaked: %v", err)
 	}
 }
 
@@ -179,7 +208,7 @@ func TestAdmissionReconcileRetriesStaleSnapshotWithoutLosingConcurrentMetadata(t
 		}
 		return policy, nil
 	})
-	claimed, err := ReconcileAdmission(context.Background(), store, resolver, NewFakeProcOps(), candidate.Address, now)
+	claimed, err := ReconcileAdmission(context.Background(), store, resolver, candidate.Address, now)
 	if err != nil {
 		t.Fatalf("ReconcileAdmission: %v", err)
 	}
@@ -195,7 +224,7 @@ func TestDeleteUnstartedThreadRefusesAfterConcurrentMetadata(t *testing.T) {
 	policy := admissionPolicy(CapacityUnbounded, 0, CapacityActionUnknown)
 	resolver := NewFakePolicyResolver()
 	resolver.Queue(candidate.WorkingPath, policy, nil)
-	claimed, err := ReconcileAdmission(context.Background(), store, resolver, NewFakeProcOps(), candidate.Address, now)
+	claimed, err := ReconcileAdmission(context.Background(), store, resolver, candidate.Address, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,7 +249,7 @@ func TestActivateCreatingThreadRequiresExactClaimRevision(t *testing.T) {
 	policy := admissionPolicy(CapacityUnbounded, 0, CapacityActionUnknown)
 	resolver := NewFakePolicyResolver()
 	resolver.Queue(candidate.WorkingPath, policy, nil)
-	claimed, err := ReconcileAdmission(context.Background(), store, resolver, NewFakeProcOps(), candidate.Address, now)
+	claimed, err := ReconcileAdmission(context.Background(), store, resolver, candidate.Address, now)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -59,20 +59,28 @@ func (Admission) Decide(candidate PolicyResult, occupants []AdmissionOccupant) (
 	return AdmissionDecision{Admitted: true}, nil
 }
 
-const admissionReconcileAttempts = 4
+const admissionReconcileAttempts = 3
 
-var errPolicyEpochChanged = errors.New("fleet policy epoch changed during admission")
+type PolicyUnstableError struct {
+	Attempts     int
+	RepoIdentity string
+}
+
+func (e *PolicyUnstableError) Error() string {
+	return fmt.Sprintf("fleet policy unstable for %q after %d cohort attempts", e.RepoIdentity, e.Attempts)
+}
 
 // ReconcileAdmission resolves provider evidence without the store lock, then
 // commits pruning and the candidate's creating incarnation only if the exact
 // snapshot is still current. Refused pristine reservations are rolled back.
-func ReconcileAdmission(ctx context.Context, store *ThreadStore, resolver PolicyResolver, proc ProcOps, candidateAddress ThreadAddress, startedAt time.Time) (ThreadRecord, error) {
-	if store == nil || resolver == nil || proc == nil {
+func ReconcileAdmission(ctx context.Context, store *ThreadStore, resolver PolicyResolver, candidateAddress ThreadAddress, startedAt time.Time) (ThreadRecord, error) {
+	if store == nil || resolver == nil {
 		return ThreadRecord{}, errors.New("reconcile admission: nil dependency")
 	}
 	rollback := func(primary error) (ThreadRecord, error) {
 		return ThreadRecord{}, errors.Join(primary, store.DeletePristineThread(candidateAddress))
 	}
+	lastRepoIdentity := ""
 	for attempt := 0; attempt < admissionReconcileAttempts; attempt++ {
 		snapshot, err := store.Snapshot()
 		if err != nil {
@@ -92,6 +100,7 @@ func ReconcileAdmission(ctx context.Context, store *ThreadStore, resolver Policy
 		if err := ValidatePolicyResult(candidatePolicy); err != nil {
 			return rollback(fmt.Errorf("candidate provider result: %w", err))
 		}
+		lastRepoIdentity = candidatePolicy.RepoIdentity
 
 		occupants := []AdmissionOccupant{}
 		replacements := []ThreadRecord{}
@@ -100,7 +109,9 @@ func ReconcileAdmission(ctx context.Context, store *ThreadStore, resolver Policy
 			if current.Address == candidateAddress {
 				continue
 			}
-			next, count, changed := pruneDeadIncarnations(current, proc)
+			next := cloneThreadRecord(current)
+			count := len(next.Incarnations)
+			changed := false
 			if count == 0 && next.Reservation && next.ClaimGeneration < candidate.ClaimGeneration {
 				count = 1
 			}
@@ -159,7 +170,7 @@ func ReconcileAdmission(ctx context.Context, store *ThreadStore, resolver Policy
 		}
 		return cloneThreadRecord(candidate), nil
 	}
-	return rollback(fmt.Errorf("reconcile admission: exhausted %d retries", admissionReconcileAttempts))
+	return rollback(&PolicyUnstableError{Attempts: admissionReconcileAttempts, RepoIdentity: lastRepoIdentity})
 }
 
 func snapshotThread(snapshot ThreadSnapshot, address ThreadAddress) (ThreadRecord, bool) {
@@ -169,34 +180,6 @@ func snapshotThread(snapshot ThreadSnapshot, address ThreadAddress) (ThreadRecor
 		}
 	}
 	return ThreadRecord{}, false
-}
-
-func pruneDeadIncarnations(record ThreadRecord, proc ProcOps) (ThreadRecord, int, bool) {
-	next := cloneThreadRecord(record)
-	next.Incarnations = next.Incarnations[:0]
-	changed := false
-	for _, incarnation := range record.Incarnations {
-		if incarnationProvenDead(incarnation, proc) {
-			changed = true
-			continue
-		}
-		next.Incarnations = append(next.Incarnations, incarnation)
-	}
-	return next, len(next.Incarnations), changed
-}
-
-func incarnationProvenDead(incarnation ThreadIncarnation, proc ProcOps) bool {
-	if incarnation.State == IncarnationCreating || incarnation.PID <= 0 || incarnation.Identity == "" {
-		return false
-	}
-	switch proc.Exists(incarnation.PID) {
-	case Dead:
-		return true
-	case Unknown:
-		return false
-	}
-	identity, err := proc.Identity(incarnation.PID)
-	return err == nil && identity != incarnation.Identity
 }
 
 func coherentCurrentPolicy(record ThreadRecord, candidate PolicyResult) (PolicyResult, bool) {

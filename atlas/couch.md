@@ -162,9 +162,10 @@ differs from the actor ID.
 Each attached child publishes its own exit. If the focused child exits while
 others remain, the operator lands on the panel; an inactive exit records the
 cause without stealing focus. Either way the dead pane is removed and
-`Couch.Forget` removes the registry-cache incarnation. Durable occupancy is
-changed only by ThreadStore reconciliation, which prunes it after process
-identity proves it dead. Exit and bell notices share one bounded `Feed`
+`Couch.Forget` removes the registry-cache incarnation. A dead Pair client does
+not prove its zellij session quiescent, so M1 retains durable occupancy until
+#152 supplies whole-incarnation quiescence evidence. Exit and bell notices
+share one bounded `Feed`
 over `couchcore.Enqueue`: keys include the actor (`exit:<id>`, `bell:<id>`), so
 repeated bells from one actor collapse while two actors remain two obligations,
 and exit controls are never discarded for capacity.
@@ -232,8 +233,9 @@ admission key, capacity/action, provider version, and declaration digest with
 each occupied incarnation. It never parses declarations or infers policy from
 a repo name. Reconciliation performs provider IO outside the ThreadStore lock,
 then compare-and-swaps the exact cohort snapshot; live, unknown, and creating
-incarnations count, and only a PID with disproven process-start identity is
-pruned. Mixed policy epochs retry as a cohort and fail closed.
+incarnations all count. Client PID evidence never releases capacity because the
+zellij session can outlive that client; #152 owns verified quiescence. Mixed
+policy epochs retry as a cohort and fail closed after three attempts.
 
 Bounded policy returns either `reject` or the typed `provision-worktree` action;
 #149 never creates the path (#153 owns that lifecycle). Unbounded policy admits

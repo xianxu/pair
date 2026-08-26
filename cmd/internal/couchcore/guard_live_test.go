@@ -94,7 +94,7 @@ func TestGuardRefusesAgainstARealLiveProcess(t *testing.T) {
 		RepoIdentity: "live-repo", AdmissionKey: string(tree),
 		Capacity: PolicyCapacity{Kind: CapacityBounded, Limit: 1}, OnCapacity: CapacityReject,
 	}, nil)
-	c, err := New(ns, runner, OSPathOps{}, ExecGit{}, proc, store, SystemClock{}, NewRandomIDGen(), resolver, rand.Reader)
+	c, err := New(ns, runner, OSPathOps{}, ExecGit{}, proc, store, SystemClock{}, NewRandomIDGen(), resolver, rand.Reader, NoThreadArtifactCollisions{})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

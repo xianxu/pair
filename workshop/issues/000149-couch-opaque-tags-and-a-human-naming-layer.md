@@ -637,6 +637,25 @@ namespace inheritance, and `git diff --check` pass. `actionlint` is not
 installed locally; the workflow is also exercised command-for-command outside
 GitHub Actions.
 
+### 2026-08-26 — M1 boundary review corrections
+
+Boundary review corrected a lifecycle conflation in the preceding entry: a
+dead Pair client is not proof that its zellij session is quiescent. M1 now
+retains that incarnation and its capacity until #152 supplies
+whole-incarnation proof. Opaque allocation also rejects collisions with every
+current scoped Pair artifact family and the detached-session binding before
+claiming ThreadStore state. Policy churn makes exactly three attempts before
+returning typed `PolicyUnstableError`; the public README and live conformance
+interface now match provider-owned admission (ARCH-DRY, ARCH-PURPOSE).
+
+Verification passes with `go test ./... -count=1`, `go test -race
+./cmd/internal/couchcore -count=1`, the full `make test`, relative-path
+`make test-couch-policy-live SDLC_BIN=../ariadne/bin/sdlc`, both zellij layout
+dumps, zellij config validation, and `git diff --check`. The first full-suite
+rerun exposed a test-only synchronization race in the panel fixture: focus is
+published before the panel model, while the helper waited for focus alone. The
+helper now waits for both facts, and 50 consecutive couchtty package runs pass.
+
 ### 2026-08-25 — session summary
 
 Fresh spec review split verified park into #152 and managed worktree lifecycle

@@ -63,7 +63,13 @@ SDLC_BIN ?= sdlc
 
 .PHONY: test-couch-policy-live
 test-couch-policy-live:
-	PAIR_LIVE_FLEET_POLICY=1 PAIR_SDLC_BIN="$(SDLC_BIN)" go test ./cmd/internal/couchcore -run '^TestFleetPolicyResolverConformance$$' -count=1
+	@sdlc_bin="$(SDLC_BIN)"; \
+	case "$$sdlc_bin" in \
+	  */*) sdlc_bin="$$(cd "$$(dirname "$$sdlc_bin")" && pwd -P)/$$(basename "$$sdlc_bin")" ;; \
+	  *) sdlc_bin="$$(command -v "$$sdlc_bin")" ;; \
+	esac; \
+	test -n "$$sdlc_bin"; \
+	PAIR_LIVE_FLEET_POLICY=1 PAIR_SDLC_BIN="$$sdlc_bin" go test ./cmd/internal/couchcore -run '^TestFleetPolicyResolverConformance$$' -count=1
 
 build: $(addprefix $(BIN_DIR)/,$(GO_BINS)) $(addprefix $(BIN_DIR)/,$(BUSYBOX_LINKS))
 
