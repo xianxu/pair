@@ -28,6 +28,23 @@ func TestFakeRunnerSignalDoesNotKill(t *testing.T) {
 	}
 }
 
+func TestFakeRunnerKillAlwaysEndsExactChild(t *testing.T) {
+	r := NewFakeRunner()
+	h, err := r.Start("/repo", []string{"pair"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.Signal(os.Kill); err != nil {
+		t.Fatal(err)
+	}
+	if h.Alive() {
+		t.Fatalf("killed child remained live: %+v", r.Child(h.ID()))
+	}
+	if h.Wait() != -1 || !r.Terminal(h.ID()).Done() {
+		t.Fatalf("killed child did not complete as killed: %+v", r.Child(h.ID()))
+	}
+}
+
 func TestFakeRunnerSetExitedEndsChildAndUnblocksWait(t *testing.T) {
 	r := NewFakeRunner()
 	h, _ := r.Start("/repo", []string{"pair"}, nil)

@@ -17,6 +17,30 @@ import (
 const launchAckByte byte = 0x1
 
 type launchTargetExec func(argv, env []string) error
+type blockedChildStarter func(dir string, argv, env []string, extraFiles []*os.File) (Handle, error)
+
+// startBlockedChild is the single parent-side authority for the acknowledgement
+// pipe and helper wrapper. ExecRunner and PtyRunner vary only in how the helper
+// process itself is started.
+func startBlockedChild(start blockedChildStarter, helper, dir string, argv, env []string, timeout time.Duration) (BlockedHandle, error) {
+	if len(argv) == 0 {
+		return nil, fmt.Errorf("start blocked: empty argv")
+	}
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		return nil, fmt.Errorf("start blocked: acknowledgement pipe: %w", err)
+	}
+	h, err := start(dir, launchHelperArgv(helper, timeout, argv), env, []*os.File{reader})
+	closeErr := reader.Close()
+	if err != nil {
+		return nil, errors.Join(err, closeErr, writer.Close())
+	}
+	if closeErr != nil {
+		_ = writer.Close()
+		return nil, closeErr
+	}
+	return newAcknowledgedHandle(h, writer), nil
+}
 
 // RunLaunchHelper blocks before target exec until its parent supplies one exact
 // acknowledgement byte. Closing the channel or reaching the deadline closes

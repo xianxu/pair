@@ -354,6 +354,45 @@ func (s *ThreadStore) AdvanceStart(address ThreadAddress, expectedRevision uint6
 	})
 }
 
+// MarkIncarnationUnknown retains capacity for one exact live process after its
+// in-memory handle has been quiesced but a higher-level ownership handoff
+// failed. PID alone is never sufficient because it may already have been
+// reused. Revision conflicts retry against the new record so unrelated
+// metadata updates survive.
+func (s *ThreadStore) MarkIncarnationUnknown(address ThreadAddress, expected ProcessIdentity) (ThreadRecord, error) {
+	for {
+		current, err := s.GetThread(address)
+		if err != nil {
+			return ThreadRecord{}, err
+		}
+		found := false
+		for _, incarnation := range current.Incarnations {
+			if incarnation.PID == expected.PID && incarnation.Identity == expected.Identity && incarnation.State == IncarnationLive {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return ThreadRecord{}, fmt.Errorf("live incarnation %d/%q not found in thread %+v", expected.PID, expected.Identity, address)
+		}
+		updated, err := s.UpdateExistingThread(address, current.Revision, func(next *ThreadRecord) error {
+			for i := range next.Incarnations {
+				incarnation := &next.Incarnations[i]
+				if incarnation.PID == expected.PID && incarnation.Identity == expected.Identity && incarnation.State == IncarnationLive {
+					incarnation.State = IncarnationUnknown
+					return nil
+				}
+			}
+			return fmt.Errorf("live incarnation %d/%q disappeared from thread %+v", expected.PID, expected.Identity, address)
+		})
+		var conflict *ThreadRevisionError
+		if errors.As(err, &conflict) {
+			continue
+		}
+		return updated, err
+	}
+}
+
 // DeleteStart removes only the exact nonce/revision after reconciliation has
 // proven its pre-exec helper absent. Any concurrent metadata or state change
 // leaves the transaction occupied.

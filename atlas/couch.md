@@ -200,7 +200,15 @@ helper without starting any workspace writer.
 After acknowledgement, Pair changes the same composite address claim from
 `reserved` to `established`; that is the registration oracle, not PID liveness
 or a successful pipe write. Only then does Couch clear the transaction and mark
-the incarnation live. On supervisor restart, the pure `ReconcileStart` decision
+the incarnation live. Any post-ack error before `Spawn` successfully transfers
+the handle—registration read failure, promotion conflict, or legacy-registry
+save failure—first sends TERM, escalates to KILL after a bounded wait, and reaps
+that exact handle. Only after quiescence is proven does Couch reconcile durable
+state: an unfinished transaction remains creating or becomes conservative
+unknown, while an already-promoted exact incarnation is marked unknown. No
+error return can leave an unowned workspace writer.
+
+On supervisor restart, the pure `ReconcileStart` decision
 uses exact owner/helper identities plus that registration evidence: dead and
 unregistered is proven free and rolls back by nonce+revision, established and
 live promotes live, established but gone promotes conservative unknown, and

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -78,6 +79,7 @@ func newTestEnv(t *testing.T, trees ...string) *testEnv {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
+	c.postAckQuiesceTimeout = 5 * time.Millisecond
 	return &testEnv{Couch: c, Runner: r, Git: g, Proc: proc, Artifacts: artifacts, Dir: dir, Now: now}
 }
 
@@ -180,21 +182,84 @@ func TestSpawnPersistsHelperIdentityBeforeAcknowledgingExec(t *testing.T) {
 	}
 }
 
-func TestSpawnRegistrationFailureLeavesTrackedCreatingIncarnationOccupied(t *testing.T) {
-	env := newTestEnv(t, "/repo")
+func TestSpawnPostAcknowledgementFailuresNeverLeaveWorkspaceWriter(t *testing.T) {
 	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
-	env.Artifacts.SetRegistration(address, RegistrationUnknown, errors.New("registration unreadable"))
-	record, handle, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
-	if err == nil || handle == nil || record.ID != "" {
-		t.Fatalf("Spawn = %+v, %T, %v", record, handle, err)
+	tests := []struct {
+		name      string
+		setup     func(*testing.T, *testEnv)
+		wantState IncarnationState
+		wantStart bool
+		wantDesc  string
+	}{
+		{
+			name: "registration evidence failure",
+			setup: func(_ *testing.T, env *testEnv) {
+				env.Artifacts.SetRegistration(address, RegistrationUnknown, errors.New("registration unreadable"))
+			},
+			wantState: IncarnationCreating,
+			wantStart: true,
+		},
+		{
+			name: "durable promotion conflict",
+			setup: func(t *testing.T, env *testEnv) {
+				var once sync.Once
+				env.Artifacts.BeforeRegistration = func(got ThreadAddress) error {
+					var hookErr error
+					once.Do(func() {
+						current, err := env.Couch.Threads.GetThread(got)
+						if err != nil {
+							hookErr = err
+							return
+						}
+						_, hookErr = env.Couch.Threads.UpdateExistingThread(got, current.Revision, func(next *ThreadRecord) error {
+							next.Description = "concurrent description"
+							return nil
+						})
+					})
+					return hookErr
+				}
+			},
+			wantState: IncarnationUnknown,
+			wantDesc:  "concurrent description",
+		},
+		{
+			name: "legacy registry persistence failure",
+			setup: func(t *testing.T, env *testEnv) {
+				badStorePath := filepath.Join(t.TempDir(), "not-a-directory")
+				if err := os.WriteFile(badStorePath, []byte("occupied"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				env.Couch.Store = NewStore(badStorePath)
+			},
+			wantState: IncarnationUnknown,
+		},
 	}
-	thread, getErr := env.Couch.Threads.GetThread(address)
-	if getErr != nil || len(thread.Incarnations) != 1 {
-		t.Fatalf("tracked thread = %+v, %v", thread, getErr)
-	}
-	incarnation := thread.Incarnations[0]
-	if incarnation.State != IncarnationCreating || incarnation.Start == nil || incarnation.PID != handle.PID() || env.Runner.Child(handle.ID()).ExecCount != 1 {
-		t.Fatalf("tracked failed registration = %+v / %+v", incarnation, env.Runner.Child(handle.ID()))
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := newTestEnv(t, "/repo")
+			tt.setup(t, env)
+
+			_, handle, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
+			if err == nil || handle == nil {
+				t.Fatalf("Spawn handle/error = %T, %v", handle, err)
+			}
+			child := env.Runner.Child(handle.ID())
+			if handle.Alive() || child.ExecCount != 1 {
+				t.Fatalf("post-ack child survived or never execed: %+v", child)
+			}
+			thread, getErr := env.Couch.Threads.GetThread(address)
+			if getErr != nil || len(thread.Incarnations) != 1 {
+				t.Fatalf("durable occupied thread = %+v, %v", thread, getErr)
+			}
+			incarnation := thread.Incarnations[0]
+			if incarnation.State != tt.wantState || (incarnation.Start != nil) != tt.wantStart || thread.Description != tt.wantDesc {
+				t.Fatalf("durable post-ack failure = %+v", thread)
+			}
+			if got := len(env.Couch.reg.Records()); got != 0 {
+				t.Fatalf("failed handoff retained %d legacy registry actor(s)", got)
+			}
+		})
 	}
 }
 

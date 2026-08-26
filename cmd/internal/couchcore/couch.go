@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -31,8 +33,9 @@ type Couch struct {
 	Entropy        io.Reader
 	Artifacts      ThreadArtifactClaimer
 
-	reg   Registry
-	names NamingTable
+	reg                   Registry
+	names                 NamingTable
+	postAckQuiesceTimeout time.Duration
 }
 
 func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOps, s Store, c Clock, ids IDGen, resolver PolicyResolver, entropy io.Reader, artifacts ThreadArtifactClaimer) (*Couch, error) {
@@ -66,6 +69,7 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 		Threads:        threads, Entropy: entropy,
 		Artifacts: artifacts,
 		reg:       reg, names: names,
+		postAckQuiesceTimeout: 500 * time.Millisecond,
 	}
 	if err := result.reconcileInterruptedStarts(); err != nil {
 		return nil, fmt.Errorf("reconcile interrupted starts: %w", err)
@@ -229,11 +233,13 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	err = c.awaitThreadRegistration(registrationContext, thread.Address)
 	cancelRegistration()
 	if err != nil {
-		return ActorRecord{}, h, fmt.Errorf("await Pair registration %+v: %w", thread.Address, err)
+		cause := fmt.Errorf("await Pair registration %+v: %w", thread.Address, err)
+		return ActorRecord{}, h, c.failPostAckStart(thread.Address, h, cause)
 	}
 	registeredThread, err := c.Threads.AdvanceStart(thread.Address, thread.Revision, StartEvent{Kind: StartRegistered, Nonce: nonce})
 	if err != nil {
-		return ActorRecord{}, h, fmt.Errorf("promote registered thread %+v: %w", thread.Address, err)
+		cause := fmt.Errorf("promote registered thread %+v: %w", thread.Address, err)
+		return ActorRecord{}, h, c.failPostAckStart(thread.Address, h, cause)
 	}
 	thread = registeredThread
 
@@ -248,9 +254,64 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	c.reg = c.reg.Insert(record)
 
 	if err := c.Store.Save(c.reg, c.names); err != nil {
-		return record, h, fmt.Errorf("persist registry: %w", err)
+		c.reg = c.reg.RemoveActor(args.Worktree, record.ID)
+		return record, h, c.failPostAckStart(thread.Address, h, fmt.Errorf("persist registry: %w", err))
 	}
 	return record, h, nil
+}
+
+// failPostAckStart owns every error exit after the helper has executed the
+// target and before Spawn transfers the handle to its caller. It first proves
+// that exact handle is reaped; only then may durable state be reconciled. If
+// quiescence cannot be proved, the creating/live record remains occupied.
+func (c *Couch) failPostAckStart(address ThreadAddress, h Handle, cause error) error {
+	if err := quiesceHandle(h, c.postAckQuiesceTimeout); err != nil {
+		return errors.Join(cause, fmt.Errorf("quiesce post-ack child %d/%q: %w", h.PID(), h.Identity(), err))
+	}
+
+	reconcileErr := c.reconcileInterruptedStarts()
+	current, getErr := c.Threads.GetThread(address)
+	var markErr error
+	if getErr == nil {
+		expected := ProcessIdentity{PID: h.PID(), Identity: h.Identity()}
+		for _, incarnation := range current.Incarnations {
+			if incarnation.PID == expected.PID && incarnation.Identity == expected.Identity && incarnation.State == IncarnationLive {
+				_, markErr = c.Threads.MarkIncarnationUnknown(address, expected)
+				break
+			}
+		}
+	} else if !errors.Is(getErr, ErrThreadNotFound) {
+		markErr = getErr
+	}
+	return errors.Join(cause, reconcileErr, markErr)
+}
+
+func quiesceHandle(h Handle, timeout time.Duration) error {
+	if timeout <= 0 {
+		timeout = 500 * time.Millisecond
+	}
+	waited := make(chan int, 1)
+	go func() { waited <- h.Wait() }()
+	if !h.Alive() {
+		<-waited
+		return nil
+	}
+	termErr := h.Signal(syscall.SIGTERM)
+	select {
+	case <-waited:
+		return termErr
+	case <-time.After(timeout):
+	}
+	killErr := h.Signal(os.Kill)
+	select {
+	case <-waited:
+		if h.Alive() {
+			return errors.Join(termErr, killErr, errors.New("handle remained alive after reap"))
+		}
+		return errors.Join(termErr, killErr)
+	case <-time.After(timeout):
+		return errors.Join(termErr, killErr, errors.New("timed out waiting for killed child"))
+	}
 }
 
 func allocateStartNonce(entropy io.Reader) (string, error) {

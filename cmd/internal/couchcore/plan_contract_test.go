@@ -97,3 +97,17 @@ func TestOpaqueIdentityCommentDoesNotReintroducePathDerivedContract(t *testing.T
 		}
 	}
 }
+
+func TestIssue149PureCoreTestsStayAtPureBoundary(t *testing.T) {
+	for _, name := range []string{"thread_test.go", "starttransaction_test.go", "admission_test.go"} {
+		raw, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, forbidden := range []string{"testCouchNamespace(", "t.TempDir(", "NewFake", "NewThreadStore(", "newTestThreadStore(", "os.", "exec."} {
+			if strings.Contains(string(raw), forbidden) {
+				t.Errorf("PURE direct test %s crosses integration boundary with %q", name, forbidden)
+			}
+		}
+	}
+}

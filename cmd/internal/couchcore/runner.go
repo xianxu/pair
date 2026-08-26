@@ -1,7 +1,6 @@
 package couchcore
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -65,23 +64,7 @@ func (ExecRunner) Start(dir string, argv, env []string) (Handle, error) {
 }
 
 func (r ExecRunner) StartBlocked(dir string, argv, env []string, timeout time.Duration) (BlockedHandle, error) {
-	if len(argv) == 0 {
-		return nil, fmt.Errorf("start blocked: empty argv")
-	}
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		return nil, fmt.Errorf("start blocked: acknowledgement pipe: %w", err)
-	}
-	h, err := startExecChild(dir, launchHelperArgv(r.LaunchHelper, timeout, argv), env, []*os.File{reader})
-	closeErr := reader.Close()
-	if err != nil {
-		return nil, errors.Join(err, closeErr, writer.Close())
-	}
-	if closeErr != nil {
-		_ = writer.Close()
-		return nil, closeErr
-	}
-	return newAcknowledgedHandle(h, writer), nil
+	return startBlockedChild(startExecChild, r.LaunchHelper, dir, argv, env, timeout)
 }
 
 func startExecChild(dir string, argv, env []string, extraFiles []*os.File) (Handle, error) {

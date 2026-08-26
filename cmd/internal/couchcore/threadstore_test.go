@@ -200,3 +200,27 @@ func TestThreadStoreIndependentInstancesSerializeRevisionUpdates(t *testing.T) {
 		t.Fatalf("successes/conflicts = %d/%d, errors=%v", successes, conflicts, errs)
 	}
 }
+
+func TestThreadStoreMarksOnlyExactLiveIncarnationUnknown(t *testing.T) {
+	store, ns := newTestThreadStore(t)
+	record := validThreadRecord(t)
+	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
+	record.Incarnations = []ThreadIncarnation{
+		{PID: 41, Identity: "older", State: IncarnationLive, StartedAt: record.CreatedAt},
+		{PID: 42, Identity: "target", State: IncarnationLive, StartedAt: record.CreatedAt},
+	}
+	created, err := store.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	marked, err := store.MarkIncarnationUnknown(record.Address, ProcessIdentity{PID: 42, Identity: "target"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if marked.Revision != created.Revision+1 || marked.Incarnations[0].State != IncarnationLive || marked.Incarnations[1].State != IncarnationUnknown {
+		t.Fatalf("exact incarnation mark = %+v", marked)
+	}
+	if _, err := store.MarkIncarnationUnknown(record.Address, ProcessIdentity{PID: 42, Identity: "reused"}); err == nil {
+		t.Fatal("PID-only match changed a different process incarnation")
+	}
+}

@@ -2062,3 +2062,29 @@ owned it.
 **Rule.** Install every handler and initialize every state transition that a
 pidfile-triggered caller depends on before publishing the pidfile. Tests should
 act immediately when the file appears; adding sleep only widens the disguise.
+
+## Acknowledgement transfers execution permission, not ownership
+
+`#149` M2 initially acknowledged the pre-exec helper and then returned errors
+from registration, promotion, or cache persistence while the target kept
+running. The caller discarded the handle on error, leaving a workspace writer
+with no supervisor responsible for it.
+
+**Rule.** Enumerate every error exit after an exec/start acknowledgement and
+before ownership handoff. Each must either transfer the exact handle to a live
+owner or quiesce, escalate, reap, and verify that exact process incarnation
+before returning. Preserve occupied durable state whenever reconciliation is
+uncertain. Test the complete failure-site table, not one representative branch
+(ARCH-PURPOSE).
+
+## PURE fixtures must be literal at their direct boundary
+
+`#149` called `ThreadRecord` and `StartTransaction` pure, but their shared
+fixture created and resolved temporary directories, and a runner lifecycle test
+sat beside the direct transition tests. The production functions were pure;
+their claimed direct tests were not.
+
+**Rule.** Direct tests for a PURE entity use literal values and no filesystem,
+process, network, or integration fake. Put store/runner conformance in an
+explicitly integration-named file, and mechanically reject integration seams
+from the direct-test files (ARCH-PURE).

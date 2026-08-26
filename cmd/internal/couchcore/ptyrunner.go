@@ -1,7 +1,6 @@
 package couchcore
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -53,23 +52,7 @@ func (r *PtyRunner) Start(dir string, argv, env []string) (Handle, error) {
 }
 
 func (r *PtyRunner) StartBlocked(dir string, argv, env []string, timeout time.Duration) (BlockedHandle, error) {
-	if len(argv) == 0 {
-		return nil, fmt.Errorf("start blocked: empty argv")
-	}
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		return nil, fmt.Errorf("start blocked: acknowledgement pipe: %w", err)
-	}
-	h, err := r.start(dir, launchHelperArgv(r.LaunchHelper, timeout, argv), env, []*os.File{reader})
-	closeErr := reader.Close()
-	if err != nil {
-		return nil, errors.Join(err, closeErr, writer.Close())
-	}
-	if closeErr != nil {
-		_ = writer.Close()
-		return nil, closeErr
-	}
-	return newAcknowledgedHandle(h, writer), nil
+	return startBlockedChild(r.start, r.LaunchHelper, dir, argv, env, timeout)
 }
 
 func (r *PtyRunner) start(dir string, argv, env []string, extraFiles []*os.File) (Handle, error) {

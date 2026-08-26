@@ -33,7 +33,8 @@ type FakeChild struct {
 // Contract, fixed here rather than inferred from tests:
 //   - Start records {argv, dir, env}, marks the child alive, and returns a
 //     handle with a deterministic id (couch-fake-N).
-//   - Signal appends to the child's signal log and does NOT kill it.
+//   - Signal appends to the child's signal log. Catchable signals do not kill
+//     by default; os.Kill always does, matching the kernel contract.
 //   - SetExited(id, code) is the only thing that ends a child; it unblocks Wait.
 //   - Wait blocks until exited; returns immediately if already exited.
 //   - Handles record into the Runner's Ops log, not their own, so ordering
@@ -265,9 +266,14 @@ func (h *fakeHandle) Signal(sig os.Signal) error {
 	}
 	c.Signals = append(c.Signals, sig)
 	h.runner.Ops = append(h.runner.Ops, "signal "+h.id+": "+sig.String())
-	if code, fatal := c.diesOn[sig]; fatal && c.alive {
+	code, fatal := c.diesOn[sig]
+	if sig == os.Kill {
+		code, fatal = -1, true
+	}
+	if fatal && c.alive {
 		c.alive, c.code = false, code
 		close(c.done)
+		c.terminal.Exit(code)
 	}
 	return nil
 }

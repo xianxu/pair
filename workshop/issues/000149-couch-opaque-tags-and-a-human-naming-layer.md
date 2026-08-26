@@ -610,6 +610,28 @@ total: 17.80
 
 ## Log
 
+### 2026-08-26 — M2 boundary review corrections
+
+The first M2 review found one ownership gap shared by every error after target
+exec acknowledgement and before `Spawn` handoff. Registration-read failure,
+promotion revision conflict, and registry-cache persistence failure now all
+quiesce and reap the exact handle before returning. Durable reconciliation
+then rolls back only proven-free starts, retains unreadable creating state, or
+marks an established dead incarnation unknown; a table-driven integration test
+covers all three sites and preserves a concurrent description update
+(ARCH-PURPOSE, ARCH-MOCK).
+
+The direct `ThreadRecord` and `StartTransaction` tests now use literal absolute
+paths, while runner/store lifecycle checks are explicitly integration tests; a
+contract test prevents IO and integration fakes from returning to the PURE
+files (ARCH-PURE). ExecRunner and PtyRunner now delegate their complete blocked-
+start pipe protocol to one `startBlockedChild` authority (ARCH-DRY).
+
+Fresh verification passes: `make test`; `go test ./... -count=1`; race tests
+for couchcore, launcher, and ptychild; live Ariadne policy conformance; the real-
+process start-recovery probe; `go vet ./...`; Zellij config plus layout2/layout3
+validation; and `git diff --check`.
+
 ### 2026-08-26 — M2 recoverable-start record boundary
 
 The store schema now groups each nonce with the exact supervising process

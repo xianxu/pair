@@ -962,3 +962,21 @@ to become established, then promotes. Startup reconciliation reads the same
 oracle and exact process-start identities; unreadable evidence reports an error,
 unknown liveness stays occupied, and rollback uses nonce plus revision before
 releasing the address claim (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — incorporate M2 boundary review
+
+**Reason:** the mandatory M2 review enumerated three post-ack exits that could
+return an error while Pair still wrote the workspace: registration evidence,
+durable promotion CAS, and legacy registry persistence. It also found that
+PURE start tests inherited temporary-directory IO and that stdio/PTY blocked
+starts duplicated the full acknowledgement-pipe protocol.
+
+**Delta:** every post-ack exit before handle handoff now goes through one exact-
+incarnation quiescence rule: TERM, bounded escalation to KILL, reap proof, then
+durable reconciliation while uncertain evidence remains occupied. One table-
+driven integration test covers the complete three-site enumeration, including
+concurrent metadata preservation. Direct `ThreadRecord`, `StartTransaction`,
+and admission tests are mechanically barred from filesystem/process/fake
+seams; runner and store lifecycle checks live in an explicitly integration-
+named file. `startBlockedChild` is the sole pipe/helper/descriptor authority
+used by both production runners (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).

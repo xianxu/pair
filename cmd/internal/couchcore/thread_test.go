@@ -11,8 +11,8 @@ func validThreadRecord(t *testing.T) ThreadRecord {
 	return ThreadRecord{
 		SchemaVersion: ThreadSchemaVersion,
 		Address:       ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0123456789abcdef"},
-		StartingPath:  testCouchNamespace(t).Dir(),
-		WorkingPath:   testCouchNamespace(t).Dir(),
+		StartingPath:  "/repo",
+		WorkingPath:   "/repo",
 		CreatedAt:     time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC),
 		Revision:      1,
 	}
