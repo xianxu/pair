@@ -276,6 +276,20 @@ rounds:
           round: 10
       boundary: M2
       blocked: true
+    - "n": 11
+      timestamp: "2026-08-26T15:16:18-07:00"
+      agent: codex
+      dispose:
+        - id: BR-12
+          disposition: addressed
+          note: Post-ack cleanup retains the handle until process-group and session absence are proven, and reverting reusable wait ownership makes TestPostAckHandleRetriesReuseOneWaiterUntilReap fail with three waiters instead of one.
+          round: 11
+        - id: BR-17
+          disposition: not-addressed
+          note: The live decorator sets killAttempted before calling the inner KillServer, so it does not prove that the production killProcess operation actually dispatches; delete-session can produce final absence while that external operation is ineffective.
+          round: 11
+      boundary: M2
+      blocked: false
 ---
 
 # Gate ledger — pair#149 (boundary-review)
@@ -403,7 +417,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-16 — addressed — Server observations carry PID plus start identity, production reauthorizes identity-command-identity immediately before signaling, and the PID-reuse table fails if bare-PID killing returns.
 - BR-17 — not-addressed — The scheduled live target exists, but its test can pass when SessionServers returns no servers or KillServer is removed because ordinary delete-session may perform all termination itself.
 
+## Round 11 — 2026-08-26T15:16:18-07:00 (codex) — passed
+
+### Disposed
+
+- BR-12 — addressed — Post-ack cleanup retains the handle until process-group and session absence are proven, and reverting reusable wait ownership makes TestPostAckHandleRetriesReuseOneWaiterUntilReap fail with three waiters instead of one.
+- BR-17 — not-addressed — The live decorator sets killAttempted before calling the inner KillServer, so it does not prove that the production killProcess operation actually dispatches; delete-session can produce final absence while that external operation is ineffective.
+
 ## Open findings
 
-- **BR-12** [Critical] `incarnation-quiescence-before-capacity-release` Post-ack failures return an error while leaving the workspace writer unowned
 - **BR-17** [Important] `live-conformance-target-interface` The new zellij quiescence seam has no live conformance target

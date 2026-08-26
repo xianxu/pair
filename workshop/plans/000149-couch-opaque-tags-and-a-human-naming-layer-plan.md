@@ -1072,3 +1072,18 @@ and a weekly/manual macOS workflow supplies the committed cadence. The live run
 also captured zellij's exit-2-after-success behavior: command errors remain in
 timeout diagnostics but only observed absence decides success
 (ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — drive live conformance through the lowest kill seam
+
+**Reason:** the seventh M2 review accepted `KillServer` reachability but showed
+that its observing decorator set the flag before exact-identity reauthorization
+and the underlying `killProcess` call. Because ordinary zellij deletion usually
+terminates the real server first, that assertion could remain green with an
+ineffective OS-kill boundary.
+
+**Delta:** the live test adds a separately owned test process whose exact argv
+matches the target zellij server and records the injected production
+`killProcess` dispatch for that PID. Session deletion cannot remove the
+sentinel, so successful conformance now requires real process-table discovery,
+start-identity reauthorization, and the underlying OS kill operation before
+verified absence (ARCH-PURPOSE, ARCH-MOCK).

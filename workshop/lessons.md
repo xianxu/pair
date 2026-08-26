@@ -2093,8 +2093,10 @@ reuse one wait-result channel for the exact process; a fresh `Wait` goroutine on
 each attempt leaks blocked waiters. A live conformance test must make every
 relied-on external operation load-bearing—for zellij teardown, explicitly
 observe server enumeration, delete dispatch, and exact-server escalation—not
-only assert a final absence that a weaker path can also produce
-(ARCH-PURPOSE, ARCH-MOCK).
+only assert a final absence that a weaker path can also produce. Instrument the
+lowest injected effect seam, and construct a live target that the preceding
+operation cannot remove, so a higher-level method-entry flag cannot stand in
+for the external effect (ARCH-PURPOSE, ARCH-MOCK).
 
 ## Crash-recovery evidence must be atomically published
 

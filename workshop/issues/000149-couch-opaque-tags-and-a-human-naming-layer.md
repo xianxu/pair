@@ -610,6 +610,16 @@ total: 17.80
 
 ## Log
 
+### 2026-08-26 — M2 live conformance reaches the OS kill boundary
+
+The seventh M2 review accepted reusable wait ownership but showed that observing
+entry into `KillServer` did not prove its guarded `killProcess` operation ran:
+ordinary `delete-session` usually removes the real server first. The live test
+now starts a separate process with exact zellij-server argv that session
+deletion cannot own. Production must discover its real PID/start identity,
+reauthorize it, and dispatch the underlying OS kill before the test accepts
+absence (ARCH-PURPOSE, ARCH-MOCK).
+
 ### 2026-08-26 — M2 retry ownership and load-bearing live conformance
 
 The sixth M2 review found that retaining the handle was not sufficient while

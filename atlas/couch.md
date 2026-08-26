@@ -315,8 +315,9 @@ fake could have. `TestSessionQuiescenceLive`, run by both `make test-live` and
 the focused `make test-couch-zellij-live`,
 creates and deletes an ephemeral real zellij session through the production
 observation seam and explicitly requires real server discovery, session-delete
-dispatch, and exact-server kill dispatch before accepting verified absence. A
-separate macOS workflow runs it on relevant changes and weekly/manual cadence.
+dispatch, and an underlying OS kill dispatch against an exact-argv sentinel
+that ordinary zellij deletion does not own before accepting verified absence.
+A separate macOS workflow runs it on relevant changes and weekly/manual cadence.
 
 `Runner` was genuinely new — pair has no async process-exec seam.
 `launcher.ProcOps` is named for pair's own sidecars, and `wrapcmd` spawns its

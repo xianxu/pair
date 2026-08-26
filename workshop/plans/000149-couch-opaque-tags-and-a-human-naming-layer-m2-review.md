@@ -568,3 +568,87 @@ Append a `## Revisions` entry stating that:
 - process-group cleanup retries reuse one wait/reap observation rather than spawning a waiter per attempt;
 - a load-bearing regression covers repeated signal, liveness, and reap failures before recovery;
 - live zellij conformance must explicitly observe a real server identity and prove the production `KillServer` path was invoked.
+
+---
+
+## Re-review — 2026-08-26T15:16:17-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 149 — couch: opaque tags and a human naming layer |
+| repo | pair |
+| issue file | workshop/issues/000149-couch-opaque-tags-and-a-human-naming-layer.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | eb47a9bb07846d149c9dc971f3f25dfea1bd5fef..ca2926ac2057b3a01451ee14894783cf0baa51ba |
+| command | sdlc milestone-close --issue 149 --milestone M2 |
+| reviewer | codex |
+| timestamp | 2026-08-26T15:16:17-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-12 is now genuinely addressed: post-ack cleanup retains ownership, reuses one waiter, and its regression fails when that fix is reverted. BR-17 remains open because the live decorator records entry into `KillServer`, not whether the real OS termination operation occurred; ordinary `delete-session` can remove the server first, allowing the live check to pass if the underlying kill dispatch becomes a no-op.
+
+```findings
+dispose:
+  - id: BR-12
+    disposition: addressed
+    note: |
+      Post-ack cleanup retains the handle until process-group and session absence are proven, and reverting reusable wait ownership makes TestPostAckHandleRetriesReuseOneWaiterUntilReap fail with three waiters instead of one.
+  - id: BR-17
+    disposition: not-addressed
+    note: |
+      The live decorator sets killAttempted before calling the inner KillServer, so it does not prove that the production killProcess operation actually dispatches; delete-session can produce final absence while that external operation is ineffective.
+```
+
+1. Strengths
+
+- All post-ack failure sites route through the same ownership-retaining cleanup path ([couch.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/couch.go:225)).
+- One `handleCleanup` and wait channel are reused across retries ([couch.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/couch.go:294)). Reverting this change made the focused regression fail with `waits:3`, expected `1`.
+- Session-name binding is published before sidecars and zellij launch, validating the missing-binding pre-session proof ([createflow.go](/Users/xianxu/workspace/pair/cmd/internal/launcher/createflow.go:450)).
+- Exact server identity is reauthorized using identity → argv → identity before signaling ([session_quiescence.go](/Users/xianxu/workspace/pair/cmd/internal/launcher/session_quiescence.go:154)).
+- Core-concept paths and PURE/INTEGRATION classifications match the implementation.
+
+2. Critical findings
+
+None.
+
+3. Important findings
+
+- **BR-17 remains open — `live-conformance-target-interface`, `ARCH-MOCK`, `ARCH-PURPOSE`.** The decorator sets `killAttempted` before delegating ([session_quiescence_live_test.go](/Users/xianxu/workspace/pair/cmd/internal/launcher/session_quiescence_live_test.go:38)), and the final assertion checks only that flag ([session_quiescence_live_test.go](/Users/xianxu/workspace/pair/cmd/internal/launcher/session_quiescence_live_test.go:94)). It therefore proves method reachability, not actual `os.Process.Kill` dispatch. Instrument the underlying `killProcess` seam in the live test and require a real dispatch; adjust teardown ordering or the probe setup so deletion cannot make that assertion vacuous.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+Passed:
+
+- `make test`
+- `make test-couch-start-recovery`
+- Focused couchcore/launcher/ptychild tests
+- Corresponding race suites
+- `go test ./... -count=1`
+- `go vet ./...`
+- `git diff --check`
+- BR-12 scratch red-without-fix verification
+
+`make test-couch-zellij-live` failed closed because this review sandbox prohibits `/bin/ps` execution. That is an environment limitation, not evidence of a product failure, but it prevented a successful local live run.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: pass—blocked-start and cleanup orchestration have shared authorities.
+- `ARCH-PURE`: pass—state transitions have IO-free direct tests.
+- `ARCH-PURPOSE`: flag—live conformance still verifies the easy observable method call rather than the actual external termination operation.
+- `ARCH-MOCK`: flag—the stateful fake is strong, but the live counterpart does not yet validate the lowest production kill boundary.
+
+7. Plan revision recommendations
+
+Append a `## Revisions` entry clarifying that live conformance must observe the underlying OS kill dispatch, not merely entry into `SessionQuiescence.KillServer`. Until that lands, revise the issue/atlas claim that exact-server kill dispatch is explicitly verified.
