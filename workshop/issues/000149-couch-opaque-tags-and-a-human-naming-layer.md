@@ -610,6 +610,21 @@ total: 17.80
 
 ## Log
 
+### 2026-08-26 — M2 retry ownership and load-bearing live conformance
+
+The sixth M2 review found that retaining the handle was not sufficient while
+each cleanup retry started another goroutine blocked in `Wait`. Post-ack cleanup
+now creates one wait-result channel for the owned handle and reuses it through
+every TERM/KILL/absence attempt. A delayed-reap regression requires three kill
+attempts while proving exactly one waiter exists, including under the race
+detector.
+
+The real-zellij test now observes the production boundary and requires server
+enumeration, session-record deletion, and exact-server kill dispatch in
+addition to final absence. Removing either the enumeration or escalation path
+therefore breaks live conformance instead of passing through zellij's ordinary
+delete behavior (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
 ### 2026-08-26 — M2 owned cleanup retries and exact server identity
 
 The fifth M2 review found that cleanup failure still returned ownership to an

@@ -258,6 +258,24 @@ rounds:
           round: 9
       boundary: M2
       blocked: true
+    - "n": 10
+      timestamp: "2026-08-26T15:00:41-07:00"
+      agent: codex
+      dispose:
+        - id: BR-12
+          disposition: not-addressed
+          note: Persistent handle-quiescence failure retries quiesceHandle with a new blocked Wait goroutine each attempt, while the retry regression exercises only artifact quiescence after the fake handle has already been reaped.
+          round: 10
+        - id: BR-16
+          disposition: addressed
+          note: Server observations carry PID plus start identity, production reauthorizes identity-command-identity immediately before signaling, and the PID-reuse table fails if bare-PID killing returns.
+          round: 10
+        - id: BR-17
+          disposition: not-addressed
+          note: The scheduled live target exists, but its test can pass when SessionServers returns no servers or KillServer is removed because ordinary delete-session may perform all termination itself.
+          round: 10
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — pair#149 (boundary-review)
@@ -377,8 +395,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-17** [Important] `live-conformance-target-interface` The new zellij quiescence seam has no live conformance target
   This is the 2nd finding in family `live-conformance-target-interface`. ARCH-MOCK requires live checks for the external behavior being modeled, but the committed coverage exercises only the stateful fake and parser literals; no target verifies the actual list-sessions, process-table, delete-session, and server-termination interface. State the live-interface rule for every SessionQuiescence operation and add an ephemeral-session conformance probe with a documented target and cadence.
 
+## Round 10 — 2026-08-26T15:00:41-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-12 — not-addressed — Persistent handle-quiescence failure retries quiesceHandle with a new blocked Wait goroutine each attempt, while the retry regression exercises only artifact quiescence after the fake handle has already been reaped.
+- BR-16 — addressed — Server observations carry PID plus start identity, production reauthorizes identity-command-identity immediately before signaling, and the PID-reuse table fails if bare-PID killing returns.
+- BR-17 — not-addressed — The scheduled live target exists, but its test can pass when SessionServers returns no servers or KillServer is removed because ordinary delete-session may perform all termination itself.
+
 ## Open findings
 
 - **BR-12** [Critical] `incarnation-quiescence-before-capacity-release` Post-ack failures return an error while leaving the workspace writer unowned
-- **BR-16** [Critical] `destructive-process-action-exact-identity` Zellij cleanup can kill a process that reused an observed server PID
 - **BR-17** [Important] `live-conformance-target-interface` The new zellij quiescence seam has no live conformance target

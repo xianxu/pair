@@ -294,9 +294,10 @@ func (c *Couch) failPostAckStart(address ThreadAddress, h Handle, cause error) e
 func (c *Couch) quiescePostAckStart(address ThreadAddress, h Handle) error {
 	var firstErr error
 	handleQuiet := false
+	handleCleanup := newHandleCleanup(h)
 	for {
 		if !handleQuiet {
-			if err := quiesceHandle(h, c.postAckQuiesceTimeout); err != nil {
+			if err := handleCleanup.attempt(c.postAckQuiesceTimeout); err != nil {
 				if firstErr == nil {
 					firstErr = fmt.Errorf("quiesce post-ack child %d/%q: %w", h.PID(), h.Identity(), err)
 				}
@@ -328,36 +329,45 @@ func (c *Couch) sleepPostAckRetry() {
 	sleep(delay)
 }
 
-func quiesceHandle(h Handle, timeout time.Duration) error {
+type handleCleanup struct {
+	h            Handle
+	waited       chan int
+	directReaped bool
+}
+
+func newHandleCleanup(h Handle) *handleCleanup {
+	waited := make(chan int, 1)
+	go func() { waited <- h.Wait() }()
+	return &handleCleanup{h: h, waited: waited}
+}
+
+func (q *handleCleanup) attempt(timeout time.Duration) error {
 	if timeout <= 0 {
 		timeout = 500 * time.Millisecond
 	}
-	waited := make(chan int, 1)
-	go func() { waited <- h.Wait() }()
-	directReaped := false
-	termErr := h.Signal(syscall.SIGTERM)
+	termErr := q.h.Signal(syscall.SIGTERM)
 	select {
-	case <-waited:
-		directReaped = true
+	case <-q.waited:
+		q.directReaped = true
 	case <-time.After(timeout):
 	}
 	// TERM may reap the direct Pair client while a TERM-resistant sidecar or
 	// child remains in its owned process group. KILL is therefore unconditional:
 	// this path is rollback, not graceful actor shutdown.
-	killErr := h.Signal(os.Kill)
-	if !directReaped {
+	killErr := q.h.Signal(os.Kill)
+	if !q.directReaped {
 		select {
-		case <-waited:
-			directReaped = true
+		case <-q.waited:
+			q.directReaped = true
 		case <-time.After(timeout):
 			return errors.Join(termErr, killErr, errors.New("timed out waiting for killed child"))
 		}
 	}
 	deadline := time.Now().Add(timeout)
-	for h.Alive() && time.Now().Before(deadline) {
+	for q.h.Alive() && time.Now().Before(deadline) {
 		time.Sleep(5 * time.Millisecond)
 	}
-	if h.Alive() {
+	if q.h.Alive() {
 		return errors.Join(termErr, killErr, errors.New("owned process group remained alive after reap"))
 	}
 	return errors.Join(termErr, killErr)

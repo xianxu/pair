@@ -2088,7 +2088,13 @@ in the stateful fake, and fail closed on query, deletion, or escalation errors
 without returning ownership. A process-table match is not destructive authority:
 carry PID plus a kernel start token and reauthorize both identity and exact argv
 immediately before signalling. Every stateful external fake also needs a
-committed live target and cadence (ARCH-PURPOSE, ARCH-MOCK).
+committed live target and cadence. Retrying while ownership is retained must
+reuse one wait-result channel for the exact process; a fresh `Wait` goroutine on
+each attempt leaks blocked waiters. A live conformance test must make every
+relied-on external operation load-bearing—for zellij teardown, explicitly
+observe server enumeration, delete dispatch, and exact-server escalation—not
+only assert a final absence that a weaker path can also produce
+(ARCH-PURPOSE, ARCH-MOCK).
 
 ## Crash-recovery evidence must be atomically published
 

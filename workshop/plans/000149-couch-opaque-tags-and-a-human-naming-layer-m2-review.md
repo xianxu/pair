@@ -478,3 +478,93 @@ Append a `## Revisions` entry stating:
 - `SessionQuiescence` has a committed live-conformance target and cadence.
 
 Also revise the atlas claim that “No error return can leave an unowned workspace writer” until BR-12 is actually closed.
+
+---
+
+## Re-review — 2026-08-26T15:00:41-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 149 — couch: opaque tags and a human naming layer |
+| repo | pair |
+| issue file | workshop/issues/000149-couch-opaque-tags-and-a-human-naming-layer.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | eb47a9bb07846d149c9dc971f3f25dfea1bd5fef..5cbcd71ab3d878beb6bf86e63dddbce31fb0b023 |
+| command | sdlc milestone-close --issue 149 --milestone M2 |
+| reviewer | codex |
+| timestamp | 2026-08-26T15:00:41-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The exact zellij identity fix is sound, and the transaction, process-group, and stateful-quiescence designs are strong. M2 still cannot close: BR-12’s process-group retry path can accumulate blocked waiter goroutines indefinitely and lacks the required failure regression. BR-17 also remains open because the live test does not require server enumeration and `KillServer` to be exercised.
+
+```findings
+dispose:
+  - id: BR-12
+    disposition: not-addressed
+    note: |
+      Persistent handle-quiescence failure retries quiesceHandle with a new blocked Wait goroutine each attempt, while the retry regression exercises only artifact quiescence after the fake handle has already been reaped.
+  - id: BR-16
+    disposition: addressed
+    note: |
+      Server observations carry PID plus start identity, production reauthorizes identity-command-identity immediately before signaling, and the PID-reuse table fails if bare-PID killing returns.
+  - id: BR-17
+    disposition: not-addressed
+    note: |
+      The scheduled live target exists, but its test can pass when SessionServers returns no servers or KillServer is removed because ordinary delete-session may perform all termination itself.
+```
+
+1. Strengths
+
+- `AdvanceStartTransaction` and `ReconcileStart` remain deterministic, IO-free transition authorities with literal direct tests.
+- All four post-ack failure sites use the same cleanup path and have real descendant coverage under stdio and PTY runners ([couch_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/couch_test.go:438)).
+- Zellij server observations now carry exact process identity, and signaling is guarded by identity → exact argv → identity reauthorization ([session_quiescence.go](/Users/xianxu/workspace/pair/cmd/internal/launcher/session_quiescence.go:127)).
+- The PID-reuse, exec-away, and reuse-during-authorization cases directly pin BR-16 ([session_quiescence_test.go](/Users/xianxu/workspace/pair/cmd/internal/launcher/session_quiescence_test.go:73)).
+- Atlas and the Core concepts table cover the new helper, start transaction, and session-quiescence surface. No README update is needed for the internal helper.
+
+2. Critical findings
+
+- **BR-12 remains open — `incarnation-quiescence-before-capacity-release`.** Every call to `quiesceHandle` creates a new goroutine blocked on `h.Wait()` ([couch.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/couch.go:331)), while `quiescePostAckStart` calls it repeatedly after any process-group cleanup failure ([couch.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/couch.go:294)). A persistently unkillable or unreapable child therefore accumulates roughly one waiter per retry until supervisor resource exhaustion can terminate ownership.
+
+  The existing retry regression injects only `Artifacts.Quiesce` failures after fake KILL has reaped the handle ([couch_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/couch_test.go:382)); it remains green if handle-cleanup retries leak or stop retaining responsibility. Establish one reusable wait-result channel for the complete cleanup transaction, and add an injected handle test that fails several signal/liveness/reap attempts before succeeding while proving one waiter and no early return.
+
+3. Important findings
+
+- **BR-17 remains open — third finding in family `live-conformance-target-interface` (`ARCH-MOCK`, `ARCH-PURPOSE`).** The workflow and target provide cadence, but `TestSessionQuiescenceLive` only checks the final `DeleteSession` result ([session_quiescence_live_test.go](/Users/xianxu/workspace/pair/cmd/internal/launcher/session_quiescence_live_test.go:17)). It does not assert that `SessionServers` returned the ephemeral server or that `KillServer` was invoked. The test can consequently pass with a broken process parser or removed kill branch whenever zellij’s ordinary deletion terminates the server. Wrap the production operations with an observing decorator and require nonempty exact-server observation plus a kill attempt.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+Passed:
+
+- `go test ./cmd/internal/couchcore ./cmd/internal/launcher ./cmd/internal/ptychild -count=1`
+- `go test ./... -count=1`
+- `go test -race ./cmd/internal/couchcore ./cmd/internal/launcher ./cmd/internal/ptychild -count=1`
+- `git diff --check`
+
+`make test-couch-zellij-live` reached the production seam but was inconclusive in this restricted review environment: Go could not fork `/bin/ps` (`operation not permitted`), so the test correctly failed closed after its deadline.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: **pass** — blocked-start and session-quiescence orchestration each have a single production authority.
+- `ARCH-PURE`: **pass** — direct state-transition tests remain free of filesystem, process, and fake-runner dependencies.
+- `ARCH-PURPOSE`: **flag** — indefinite ownership must remain viable under persistent process-group failure; unbounded waiter accumulation undermines that promise.
+- `ARCH-MOCK`: **flag** — the stateful fake is useful, but live conformance does not prove every external operation in the seam is exercised.
+
+7. Plan revision recommendations
+
+Append a `## Revisions` entry stating that:
+
+- process-group cleanup retries reuse one wait/reap observation rather than spawning a waiter per attempt;
+- a load-bearing regression covers repeated signal, liveness, and reap failures before recovery;
+- live zellij conformance must explicitly observe a real server identity and prove the production `KillServer` path was invoked.

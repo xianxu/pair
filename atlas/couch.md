@@ -216,7 +216,9 @@ whole-incarnation quiescence is proven does Couch reconcile durable state: an
 unfinished transaction remains creating or becomes conservative unknown,
 while an already-promoted exact incarnation is marked unknown. No error return
 can leave an unowned workspace writer. A failed cleanup attempt does not return:
-the start call stack retains the handle and retries until it proves absence.
+the start call stack retains the handle and one reusable wait-result channel,
+then retries until it proves absence. Retry does not create another goroutine
+blocked on the same process handle.
 Server escalation carries PID plus kernel start identity and reauthorizes the
 identity and exact server argv immediately before signalling.
 
@@ -312,8 +314,9 @@ real bug -- `Alive()` reporting a zombie as running -- which no test against the
 fake could have. `TestSessionQuiescenceLive`, run by both `make test-live` and
 the focused `make test-couch-zellij-live`,
 creates and deletes an ephemeral real zellij session through the production
-observation seam; a separate macOS workflow runs it on relevant changes and
-weekly/manual cadence.
+observation seam and explicitly requires real server discovery, session-delete
+dispatch, and exact-server kill dispatch before accepting verified absence. A
+separate macOS workflow runs it on relevant changes and weekly/manual cadence.
 
 `Runner` was genuinely new — pair has no async process-exec seam.
 `launcher.ProcOps` is named for pair's own sidecars, and `wrapcmd` spawns its

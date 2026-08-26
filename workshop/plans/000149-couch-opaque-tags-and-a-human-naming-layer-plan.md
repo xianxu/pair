@@ -1035,6 +1035,22 @@ server to re-register once, then proves the second delete and exact kill; parser
 coverage rejects neighboring names and shell-command false positives
 (ARCH-PURPOSE, ARCH-MOCK).
 
+### 2026-08-26 — reuse cleanup wait ownership and make live checks load-bearing
+
+**Reason:** the sixth M2 review showed that an unbounded ownership retry also
+needs one reusable reap observer: starting a fresh `Wait` goroutine on every
+attempt can strand one waiter per failure. It also showed that final-session
+absence alone did not prove the live test exercised server enumeration or
+exact-server escalation, because ordinary zellij deletion can reach the same
+end state.
+
+**Delta:** post-ack cleanup now constructs one handle-cleanup owner with one
+wait-result channel and reuses both across every attempt; a delayed-reap
+regression requires multiple KILL retries, one waiter, and eventual absence.
+The live real-zellij decorator records and requires server observation,
+session-record deletion, and `KillServer` dispatch before accepting the final
+absence assertion (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
 ### 2026-08-26 — retain ownership through cleanup failure
 
 **Reason:** the fifth M2 review separated successful cleanup from failed cleanup.

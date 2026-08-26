@@ -435,6 +435,71 @@ func TestSpawnRetainsOwnershipAndRetriesUntilQuiescenceIsProven(t *testing.T) {
 	}
 }
 
+type delayedQuiescenceHandle struct {
+	mu        sync.Mutex
+	done      chan struct{}
+	waits     int
+	kills     int
+	alive     bool
+	closeOnce sync.Once
+}
+
+func newDelayedQuiescenceHandle() *delayedQuiescenceHandle {
+	return &delayedQuiescenceHandle{done: make(chan struct{}), alive: true}
+}
+
+func (h *delayedQuiescenceHandle) ID() string       { return "delayed" }
+func (h *delayedQuiescenceHandle) PID() int         { return 4242 }
+func (h *delayedQuiescenceHandle) Identity() string { return "start-token" }
+func (h *delayedQuiescenceHandle) Alive() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.alive
+}
+func (h *delayedQuiescenceHandle) Signal(sig os.Signal) error {
+	if sig != os.Kill {
+		return nil
+	}
+	h.mu.Lock()
+	h.kills++
+	kills := h.kills
+	h.mu.Unlock()
+	if kills >= 3 {
+		h.closeOnce.Do(func() {
+			h.mu.Lock()
+			h.alive = false
+			h.mu.Unlock()
+			close(h.done)
+		})
+	}
+	return nil
+}
+func (h *delayedQuiescenceHandle) Wait() int {
+	h.mu.Lock()
+	h.waits++
+	h.mu.Unlock()
+	<-h.done
+	return -1
+}
+
+func TestPostAckHandleRetriesReuseOneWaiterUntilReap(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	env.Couch.postAckQuiesceTimeout = 2 * time.Millisecond
+	env.Couch.postAckRetryDelay = time.Millisecond
+	h := newDelayedQuiescenceHandle()
+	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
+
+	if err := env.Couch.quiescePostAckStart(address, h); err == nil {
+		t.Fatal("transient handle cleanup errors were not retained")
+	}
+	h.mu.Lock()
+	waits, kills := h.waits, h.kills
+	h.mu.Unlock()
+	if waits != 1 || kills != 3 || h.Alive() {
+		t.Fatalf("cleanup ownership = waits:%d kills:%d alive:%v", waits, kills, h.Alive())
+	}
+}
+
 func TestSpawnPostAckFailuresQuiesceRealPersistentDescendant(t *testing.T) {
 	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
 	for _, runnerMode := range []struct {

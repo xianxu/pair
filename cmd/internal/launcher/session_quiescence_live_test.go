@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -9,6 +10,35 @@ import (
 
 	"github.com/creack/pty"
 )
+
+type observingLiveSessionOps struct {
+	inner           sessionQuiescenceOps
+	serverObserved  bool
+	deleteAttempted bool
+	killAttempted   bool
+}
+
+func (o *observingLiveSessionOps) SessionPresent(ctx context.Context, session string) (bool, error) {
+	return o.inner.SessionPresent(ctx, session)
+}
+
+func (o *observingLiveSessionOps) SessionServers(ctx context.Context, session string) ([]sessionServerIdentity, error) {
+	servers, err := o.inner.SessionServers(ctx, session)
+	if len(servers) > 0 {
+		o.serverObserved = true
+	}
+	return servers, err
+}
+
+func (o *observingLiveSessionOps) DeleteSessionRecord(ctx context.Context, session string) error {
+	o.deleteAttempted = true
+	return o.inner.DeleteSessionRecord(ctx, session)
+}
+
+func (o *observingLiveSessionOps) KillServer(server sessionServerIdentity) error {
+	o.killAttempted = true
+	return o.inner.KillServer(server)
+}
 
 // TestSessionQuiescenceLive is the external-interface counterpart to the
 // stateful re-registration fake. `make test-live` runs it locally; the weekly
@@ -56,8 +86,12 @@ func TestSessionQuiescenceLive(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	rt := OSRuntime{sessionQuiesceWait: 10 * time.Second, sessionQuiescePoll: 50 * time.Millisecond}
+	observed := &observingLiveSessionOps{inner: ops}
+	rt := OSRuntime{sessionQuiescence: observed, sessionQuiesceWait: 10 * time.Second, sessionQuiescePoll: 50 * time.Millisecond}
 	if err := rt.DeleteSession(session); err != nil {
 		t.Fatalf("DeleteSession live conformance: %v", err)
+	}
+	if !observed.serverObserved || !observed.deleteAttempted || !observed.killAttempted {
+		t.Fatalf("incomplete live interface coverage: %+v", observed)
 	}
 }
