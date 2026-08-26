@@ -3,11 +3,13 @@ package couchcore
 import (
 	"context"
 	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
@@ -57,14 +59,18 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 	if err := threads.CutoverLegacyActors(reg.Records()); err != nil {
 		return nil, fmt.Errorf("cut over legacy actors: %w", err)
 	}
-	return &Couch{
+	result := &Couch{
 		Namespace: namespace,
 		Runner:    r, Path: p, Git: g, Proc: proc, Store: s, Clock: c, IDs: ids,
 		PolicyResolver: resolver,
 		Threads:        threads, Entropy: entropy,
 		Artifacts: artifacts,
 		reg:       reg, names: names,
-	}, nil
+	}
+	if err := result.reconcileInterruptedStarts(); err != nil {
+		return nil, fmt.Errorf("reconcile interrupted starts: %w", err)
+	}
+	return result, nil
 }
 
 // ResolveTree turns an operator-supplied path into a canonical worktree.
@@ -127,6 +133,24 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	if err != nil {
 		return ActorRecord{}, nil, errors.Join(err, c.releaseClaimIfThreadAbsent(threadAddress))
 	}
+	owner, err := c.Proc.Current()
+	if err != nil {
+		return ActorRecord{}, nil, errors.Join(fmt.Errorf("identify couch supervisor: %w", err), c.rollbackUnforkedStart(thread))
+	}
+	nonce, err := allocateStartNonce(c.Entropy)
+	if err != nil {
+		return ActorRecord{}, nil, errors.Join(err, c.rollbackUnforkedStart(thread))
+	}
+	admittedThread := thread
+	startedThread, err := c.Threads.AdvanceStart(thread.Address, thread.Revision, StartEvent{
+		Kind:  StartClaimed,
+		Nonce: nonce,
+		Owner: SupervisorOwner{PID: owner.PID, Identity: owner.Identity},
+	})
+	if err != nil {
+		return ActorRecord{}, nil, errors.Join(fmt.Errorf("record start transaction: %w", err), c.rollbackUnforkedStart(admittedThread))
+	}
+	thread = startedThread
 
 	// `pair resume <tag> --layout2` rather than a bare `pair`.
 	//
@@ -166,23 +190,52 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 		"COUCH_THREAD_TAG=" + string(thread.Address.Tag),
 		"PAIR_USE_REPO_DEFAULT=1",
 	}
-	h, err := c.Runner.Start(args.WorkingDir(), argv, env)
+	h, err := c.Runner.StartBlocked(args.WorkingDir(), argv, env, 10*time.Second)
 	if err != nil {
-		deleteErr := c.Threads.DeleteUnstartedThread(thread.Address, thread.Revision)
-		var claimErr error
-		if deleteErr == nil {
-			claimErr = c.releaseClaimIfThreadAbsent(thread.Address)
-		}
 		return ActorRecord{}, nil, errors.Join(
 			fmt.Errorf("spawn %s: %w", tree, err),
-			deleteErr,
-			claimErr,
+			c.rollbackTrackedStart(thread, nonce),
 		)
 	}
-	thread, err = c.Threads.ActivateCreatingThread(thread.Address, thread.Revision, h.PID(), h.Identity())
+	recorded, err := c.Threads.AdvanceStart(thread.Address, thread.Revision, StartEvent{
+		Kind:   StartHelperRecorded,
+		Nonce:  nonce,
+		Helper: ProcessIdentity{PID: h.PID(), Identity: h.Identity()},
+	})
 	if err != nil {
-		return ActorRecord{}, h, fmt.Errorf("record spawned thread %+v: %w", thread.Address, err)
+		cancelErr := h.Cancel()
+		if cancelErr == nil {
+			_ = h.Wait()
+		}
+		var rollbackErr error
+		if cancelErr == nil && !h.Alive() {
+			rollbackErr = c.rollbackTrackedStart(thread, nonce)
+		}
+		return ActorRecord{}, h, errors.Join(fmt.Errorf("record blocked helper %+v: %w", thread.Address, err), cancelErr, rollbackErr)
 	}
+	thread = recorded
+	if err := h.Acknowledge(); err != nil {
+		cancelErr := h.Cancel()
+		var rollbackErr error
+		if cancelErr == nil {
+			_ = h.Wait()
+			if !h.Alive() {
+				rollbackErr = c.rollbackTrackedStart(thread, nonce)
+			}
+		}
+		return ActorRecord{}, h, errors.Join(fmt.Errorf("acknowledge blocked helper %+v: %w", thread.Address, err), cancelErr, rollbackErr)
+	}
+	registrationContext, cancelRegistration := context.WithTimeout(context.Background(), 5*time.Second)
+	err = c.awaitThreadRegistration(registrationContext, thread.Address)
+	cancelRegistration()
+	if err != nil {
+		return ActorRecord{}, h, fmt.Errorf("await Pair registration %+v: %w", thread.Address, err)
+	}
+	registeredThread, err := c.Threads.AdvanceStart(thread.Address, thread.Revision, StartEvent{Kind: StartRegistered, Nonce: nonce})
+	if err != nil {
+		return ActorRecord{}, h, fmt.Errorf("promote registered thread %+v: %w", thread.Address, err)
+	}
+	thread = registeredThread
 
 	record := ActorRecord{
 		ID:        c.IDs.NewID(),
@@ -198,6 +251,120 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 		return record, h, fmt.Errorf("persist registry: %w", err)
 	}
 	return record, h, nil
+}
+
+func allocateStartNonce(entropy io.Reader) (string, error) {
+	var random [8]byte
+	if _, err := io.ReadFull(entropy, random[:]); err != nil {
+		return "", fmt.Errorf("allocate start nonce: %w", err)
+	}
+	return "start-" + hex.EncodeToString(random[:]), nil
+}
+
+func (c *Couch) rollbackUnforkedStart(thread ThreadRecord) error {
+	deleteErr := c.Threads.DeleteUnstartedThread(thread.Address, thread.Revision)
+	if deleteErr != nil {
+		return deleteErr
+	}
+	return c.releaseClaimIfThreadAbsent(thread.Address)
+}
+
+func (c *Couch) rollbackTrackedStart(thread ThreadRecord, nonce string) error {
+	deleteErr := c.Threads.DeleteStart(thread.Address, thread.Revision, nonce)
+	if deleteErr != nil {
+		return deleteErr
+	}
+	return c.releaseClaimIfThreadAbsent(thread.Address)
+}
+
+func (c *Couch) awaitThreadRegistration(ctx context.Context, address ThreadAddress) error {
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		evidence, err := c.Artifacts.Registration(address)
+		if err != nil {
+			return err
+		}
+		switch evidence {
+		case RegistrationEstablished:
+			return nil
+		case RegistrationUnknown:
+			return errors.New("Pair registration evidence is unknown")
+		case RegistrationAbsent:
+		default:
+			return fmt.Errorf("invalid Pair registration evidence %q", evidence)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+func (c *Couch) reconcileInterruptedStarts() error {
+	snapshot, err := c.Threads.Snapshot()
+	if err != nil {
+		return err
+	}
+	for _, record := range snapshot.Records {
+		transaction, err := CurrentStartTransaction(record)
+		if err != nil {
+			continue
+		}
+		observation := StartObservation{
+			Owner:  observeExactProcess(c.Proc, transaction.Owner),
+			Helper: Dead,
+		}
+		if transaction.Helper != nil {
+			observation.Helper = observeExactProcess(c.Proc, *transaction.Helper)
+		}
+		registration, registrationErr := c.Artifacts.Registration(record.Address)
+		if registrationErr != nil {
+			return fmt.Errorf("read Pair registration for %+v: %w", record.Address, registrationErr)
+		}
+		observation.Registration = registration
+		decision, err := ReconcileStart(record, observation)
+		if err != nil {
+			return err
+		}
+		switch decision.Action {
+		case StartKeepOccupied:
+			continue
+		case StartRollback:
+			if err := c.rollbackTrackedStart(record, decision.Nonce); err != nil {
+				return err
+			}
+		case StartPromoteLive:
+			if _, err := c.Threads.AdvanceStart(record.Address, record.Revision, StartEvent{Kind: StartRegistered, Nonce: decision.Nonce}); err != nil {
+				return err
+			}
+		case StartPromoteUnknown:
+			if _, err := c.Threads.AdvanceStart(record.Address, record.Revision, StartEvent{Kind: StartRecoveredUnknown, Nonce: decision.Nonce}); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("unknown start reconciliation action %q", decision.Action)
+		}
+	}
+	return nil
+}
+
+func observeExactProcess(proc ProcOps, expected ProcessIdentity) Liveness {
+	switch proc.Exists(expected.PID) {
+	case Dead:
+		return Dead
+	case Unknown:
+		return Unknown
+	}
+	identity, err := proc.Identity(expected.PID)
+	if err != nil {
+		return Unknown
+	}
+	if identity != expected.Identity {
+		return Dead
+	}
+	return Live
 }
 
 func (c *Couch) releaseClaimIfThreadAbsent(address ThreadAddress) error {

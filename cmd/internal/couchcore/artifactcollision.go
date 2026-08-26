@@ -17,6 +17,7 @@ type ThreadArtifactClaim interface {
 type ThreadArtifactClaimer interface {
 	Claim(ThreadAddress) (ThreadArtifactClaim, error)
 	Release(ThreadAddress) error
+	Registration(ThreadAddress) (RegistrationEvidence, error)
 }
 
 type noopThreadArtifactClaim struct{}
@@ -29,6 +30,9 @@ func (NoThreadArtifactCollisions) Claim(ThreadAddress) (ThreadArtifactClaim, err
 	return noopThreadArtifactClaim{}, nil
 }
 func (NoThreadArtifactCollisions) Release(ThreadAddress) error { return nil }
+func (NoThreadArtifactCollisions) Registration(ThreadAddress) (RegistrationEvidence, error) {
+	return RegistrationEstablished, nil
+}
 
 type ScopedThreadArtifactCollisionChecker struct{ GlobalDataDir string }
 
@@ -55,4 +59,19 @@ func (c ScopedThreadArtifactCollisionChecker) Release(address ThreadAddress) err
 	paths := launcher.NewScopedPaths(c.GlobalDataDir,
 		launcher.RepoScope{Key: address.RepoScope}, string(address.Tag))
 	return launcher.ReleaseThreadAddressClaim(paths.ThreadClaim())
+}
+
+func (c ScopedThreadArtifactCollisionChecker) Registration(address ThreadAddress) (RegistrationEvidence, error) {
+	if err := validateThreadAddress(address); err != nil {
+		return RegistrationUnknown, err
+	}
+	established, err := launcher.ThreadAddressEstablished(c.GlobalDataDir,
+		launcher.RepoScope{Key: address.RepoScope}, string(address.Tag))
+	if err != nil {
+		return RegistrationUnknown, err
+	}
+	if established {
+		return RegistrationEstablished, nil
+	}
+	return RegistrationAbsent, nil
 }

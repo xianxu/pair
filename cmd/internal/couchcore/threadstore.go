@@ -319,42 +319,11 @@ func (s *ThreadStore) CommitThreadReplacements(snapshot ThreadSnapshot, replacem
 }
 
 func (s *ThreadStore) DeletePristineThread(address ThreadAddress) error {
-	if err := validateThreadAddress(address); err != nil {
-		return err
-	}
-	return s.withLock(func() error {
-		manifest, manifestRaw, _, err := s.loadManifestLocked()
-		if err != nil {
-			return err
-		}
-		raw, exists, err := readOptionalFile(s.recordPath(address))
-		if err != nil {
-			return err
-		}
-		if !exists {
-			return nil
-		}
-		record, err := s.decodeThreadRaw(address, raw)
-		if err != nil {
-			return err
-		}
+	return s.deleteThreadIf(address, func(record ThreadRecord) error {
 		if !record.Reservation || len(record.Incarnations) != 0 {
 			return fmt.Errorf("thread %+v is no longer a pristine reservation", address)
 		}
-		nextManifest := manifest
-		nextManifest.Generation++
-		nextManifest.Threads = removeThreadAddress(nextManifest.Threads, address)
-		nextRaw, err := json.MarshalIndent(nextManifest, "", "  ")
-		if err != nil {
-			return err
-		}
-		expectedRecord := append([]byte{}, raw...)
-		expectedManifest := append([]byte{}, manifestRaw...)
-		afterManifest := append(nextRaw, '\n')
-		return s.commitJournalLocked(storeJournal{SchemaVersion: 1, Entries: []storeJournalEntry{
-			{Path: relativeStorePath(s.root, s.recordPath(address)), Expected: &expectedRecord},
-			{Path: relativeStorePath(s.root, s.manifestPath()), Expected: &expectedManifest, After: &afterManifest},
-		}})
+		return nil
 	})
 }
 
@@ -362,6 +331,46 @@ func (s *ThreadStore) DeletePristineThread(address ThreadAddress) error {
 // admission but never forked. Any concurrent metadata or state change leaves
 // the record occupied for later reconciliation.
 func (s *ThreadStore) DeleteUnstartedThread(address ThreadAddress, expectedRevision uint64) error {
+	return s.deleteThreadIf(address, func(record ThreadRecord) error {
+		if record.Revision != expectedRevision || record.Reservation || record.Description != "" || len(record.Incarnations) != 1 {
+			return fmt.Errorf("thread %+v is no longer the expected unstarted claim", address)
+		}
+		incarnation := record.Incarnations[0]
+		if incarnation.State != IncarnationCreating || incarnation.Start != nil || incarnation.PID != 0 || incarnation.Identity != "" {
+			return fmt.Errorf("thread %+v is no longer the expected unstarted claim", address)
+		}
+		return nil
+	})
+}
+
+func (s *ThreadStore) AdvanceStart(address ThreadAddress, expectedRevision uint64, event StartEvent) (ThreadRecord, error) {
+	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+		advanced, err := AdvanceStartTransaction(*next, event)
+		if err != nil {
+			return err
+		}
+		*next = advanced
+		return nil
+	})
+}
+
+// DeleteStart removes only the exact nonce/revision after reconciliation has
+// proven its pre-exec helper absent. Any concurrent metadata or state change
+// leaves the transaction occupied.
+func (s *ThreadStore) DeleteStart(address ThreadAddress, expectedRevision uint64, nonce string) error {
+	return s.deleteThreadIf(address, func(record ThreadRecord) error {
+		if record.Revision != expectedRevision || record.Reservation || record.Description != "" || len(record.Incarnations) != 1 {
+			return fmt.Errorf("thread %+v is no longer start %q at revision %d", address, nonce, expectedRevision)
+		}
+		incarnation := record.Incarnations[0]
+		if incarnation.State != IncarnationCreating || incarnation.Start == nil || incarnation.Start.Nonce != nonce {
+			return fmt.Errorf("thread %+v is no longer start %q at revision %d", address, nonce, expectedRevision)
+		}
+		return nil
+	})
+}
+
+func (s *ThreadStore) deleteThreadIf(address ThreadAddress, accept func(ThreadRecord) error) error {
 	if err := validateThreadAddress(address); err != nil {
 		return err
 	}
@@ -381,12 +390,11 @@ func (s *ThreadStore) DeleteUnstartedThread(address ThreadAddress, expectedRevis
 		if err != nil {
 			return err
 		}
-		if record.Revision != expectedRevision || record.Reservation || record.Description != "" || len(record.Incarnations) != 1 {
-			return fmt.Errorf("thread %+v is no longer the expected unstarted claim", address)
+		if accept == nil {
+			return errors.New("thread delete has nil predicate")
 		}
-		incarnation := record.Incarnations[0]
-		if incarnation.State != IncarnationCreating || incarnation.PID != 0 || incarnation.Identity != "" {
-			return fmt.Errorf("thread %+v is no longer the expected unstarted claim", address)
+		if err := accept(record); err != nil {
+			return err
 		}
 		nextManifest := manifest
 		nextManifest.Generation++
@@ -402,27 +410,6 @@ func (s *ThreadStore) DeleteUnstartedThread(address ThreadAddress, expectedRevis
 			{Path: relativeStorePath(s.root, s.recordPath(address)), Expected: &expectedRecord},
 			{Path: relativeStorePath(s.root, s.manifestPath()), Expected: &expectedManifest, After: &afterManifest},
 		}})
-	})
-}
-
-// ActivateCreatingThread records the child identity without weakening an
-// optimistic admission claim. A conflict remains occupied as creating.
-func (s *ThreadStore) ActivateCreatingThread(address ThreadAddress, expectedRevision uint64, pid int, identity string) (ThreadRecord, error) {
-	if pid <= 0 || identity == "" {
-		return ThreadRecord{}, errors.New("activate creating thread: pid and identity are required")
-	}
-	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
-		if next.Reservation || len(next.Incarnations) != 1 {
-			return errors.New("activate creating thread: claim is not uniquely creating")
-		}
-		incarnation := &next.Incarnations[0]
-		if incarnation.State != IncarnationCreating || incarnation.PID != 0 || incarnation.Identity != "" {
-			return errors.New("activate creating thread: claim is not uniquely creating")
-		}
-		incarnation.PID = pid
-		incarnation.Identity = identity
-		incarnation.State = IncarnationLive
-		return nil
 	})
 }
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -72,6 +73,7 @@ func newTestEnv(t *testing.T, trees ...string) *testEnv {
 	dir = ns.Dir()
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
 	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.AutoEstablish(true)
 	c, err := New(ns, r, NewFakePathOps(nil), g, proc, NewStore(dir), FixedClock{T: now}, NewFixedIDGen("ah8d", "b2c1"), NewFakePolicyResolver(), newIncrementingEntropy(), artifacts)
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -146,6 +148,128 @@ func TestSpawnStartsPairAndRecordsTheActor(t *testing.T) {
 		t.Fatalf("durable thread after spawn = %+v, %v", thread, err)
 	}
 	_ = h
+}
+
+func TestSpawnPersistsHelperIdentityBeforeAcknowledgingExec(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
+	env.Runner.BeforeAcknowledge = func(id string) error {
+		thread, err := env.Couch.Threads.GetThread(address)
+		if err != nil {
+			return err
+		}
+		if len(thread.Incarnations) != 1 {
+			return fmt.Errorf("incarnations = %+v", thread.Incarnations)
+		}
+		incarnation := thread.Incarnations[0]
+		if incarnation.State != IncarnationCreating || incarnation.Start == nil || incarnation.PID == 0 || incarnation.Identity == "" {
+			return fmt.Errorf("helper was not durably recorded before ack: %+v", incarnation)
+		}
+		child := env.Runner.Child(id)
+		if !child.Blocked || child.ExecCount != 0 {
+			return fmt.Errorf("target ran before durable helper record: %+v", child)
+		}
+		return nil
+	}
+	record, handle, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
+	if err != nil {
+		t.Fatalf("Spawn: %v", err)
+	}
+	if record.Thread != address || env.Runner.Child(handle.ID()).ExecCount != 1 {
+		t.Fatalf("record/child = %+v / %+v", record, env.Runner.Child(handle.ID()))
+	}
+}
+
+func TestSpawnRegistrationFailureLeavesTrackedCreatingIncarnationOccupied(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
+	env.Artifacts.SetRegistration(address, RegistrationUnknown, errors.New("registration unreadable"))
+	record, handle, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
+	if err == nil || handle == nil || record.ID != "" {
+		t.Fatalf("Spawn = %+v, %T, %v", record, handle, err)
+	}
+	thread, getErr := env.Couch.Threads.GetThread(address)
+	if getErr != nil || len(thread.Incarnations) != 1 {
+		t.Fatalf("tracked thread = %+v, %v", thread, getErr)
+	}
+	incarnation := thread.Incarnations[0]
+	if incarnation.State != IncarnationCreating || incarnation.Start == nil || incarnation.PID != handle.PID() || env.Runner.Child(handle.ID()).ExecCount != 1 {
+		t.Fatalf("tracked failed registration = %+v / %+v", incarnation, env.Runner.Child(handle.ID()))
+	}
+}
+
+func TestSpawnAcknowledgementFailureCancelsHelperBeforeRollback(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
+	env.Runner.BeforeAcknowledge = func(string) error { return errors.New("ack transport failed") }
+	_, handle, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
+	if err == nil || handle == nil {
+		t.Fatalf("Spawn = %T, %v", handle, err)
+	}
+	if handle.Alive() || env.Runner.Child(handle.ID()).ExecCount != 0 {
+		t.Fatalf("failed ack helper = %+v", env.Runner.Child(handle.ID()))
+	}
+	if _, err := env.Couch.Threads.GetThread(address); !errors.Is(err, ErrThreadNotFound) {
+		t.Fatalf("cancelled exact start remained: %v", err)
+	}
+}
+
+func TestNewReconcilesDeadUnregisteredHelperByExactNonce(t *testing.T) {
+	ns := testCouchNamespace(t)
+	store := NewThreadStore(ns)
+	record := admittedStartRecord(t)
+	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
+	record, _ = AdvanceStartTransaction(record, StartEvent{
+		Kind: StartClaimed, Nonce: "start-0123456789abcdef",
+		Owner: SupervisorOwner{PID: 41, Identity: "owner-token"},
+	})
+	record, _ = AdvanceStartTransaction(record, StartEvent{
+		Kind: StartHelperRecorded, Nonce: "start-0123456789abcdef",
+		Helper: ProcessIdentity{PID: 42, Identity: "helper-token"},
+	})
+	if _, err := store.CreateThread(record); err != nil {
+		t.Fatal(err)
+	}
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetRegistration(record.Address, RegistrationAbsent, nil)
+	_, err := New(ns, NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), NewFakeProcOps(), NewStore(ns.Dir()), FixedClock{}, NewFixedIDGen("id"), NewFakePolicyResolver(), newIncrementingEntropy(), artifacts)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if _, err := store.GetThread(record.Address); !errors.Is(err, ErrThreadNotFound) {
+		t.Fatalf("dead unregistered start remained: %v", err)
+	}
+}
+
+func TestNewPromotesEstablishedSurvivingHelper(t *testing.T) {
+	ns := testCouchNamespace(t)
+	store := NewThreadStore(ns)
+	record := admittedStartRecord(t)
+	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
+	record, _ = AdvanceStartTransaction(record, StartEvent{
+		Kind: StartClaimed, Nonce: "start-0123456789abcdef",
+		Owner: SupervisorOwner{PID: 41, Identity: "owner-token"},
+	})
+	record, _ = AdvanceStartTransaction(record, StartEvent{
+		Kind: StartHelperRecorded, Nonce: "start-0123456789abcdef",
+		Helper: ProcessIdentity{PID: 42, Identity: "helper-token"},
+	})
+	created, err := store.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proc := NewFakeProcOps()
+	proc.Set(42, "helper-token")
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetRegistration(record.Address, RegistrationEstablished, nil)
+	_, err = New(ns, NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), proc, NewStore(ns.Dir()), FixedClock{}, NewFixedIDGen("id"), NewFakePolicyResolver(), newIncrementingEntropy(), artifacts)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	got, err := store.GetThread(record.Address)
+	if err != nil || got.Revision != created.Revision+1 || got.Incarnations[0].State != IncarnationLive || got.Incarnations[0].Start != nil {
+		t.Fatalf("promoted thread = %+v, %v", got, err)
+	}
 }
 
 func TestSpawnStartsInASubdirectoryButRegistersTheTree(t *testing.T) {

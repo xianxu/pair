@@ -30,6 +30,26 @@ func TestAllocateThreadTagAtomicallyClaimsAgainstArtifactProducers(t *testing.T)
 	}
 }
 
+func TestScopedArtifactCheckerReportsPairRegistrationEvidence(t *testing.T) {
+	dataDir := t.TempDir()
+	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
+	checker := NewScopedThreadArtifactCollisionChecker(dataDir)
+	claim, err := checker.Claim(address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = claim.Release() })
+	if got, err := checker.Registration(address); err != nil || got != RegistrationAbsent {
+		t.Fatalf("reserved registration = %q, %v", got, err)
+	}
+	if err := launcher.EnsureThreadAddressForPair(dataDir, launcher.RepoScope{Key: address.RepoScope}, string(address.Tag), true); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := checker.Registration(address); err != nil || got != RegistrationEstablished {
+		t.Fatalf("established registration = %q, %v", got, err)
+	}
+}
+
 func TestScopedArtifactCollisionCheckerFindsEveryTagNameShape(t *testing.T) {
 	dataDir := t.TempDir()
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}

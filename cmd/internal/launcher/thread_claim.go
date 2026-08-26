@@ -159,6 +159,34 @@ func establishReservedThreadAddress(paths ScopedPaths, scope RepoScope, tag stri
 	return f.Close()
 }
 
+// ThreadAddressEstablished reports Pair's durable registration evidence for a
+// Couch-owned address. Missing/reserved is absent evidence; malformed or
+// mismatched markers are errors and therefore never interpreted as free.
+func ThreadAddressEstablished(globalDataDir string, scope RepoScope, tag string) (bool, error) {
+	paths := NewScopedPaths(globalDataDir, scope, tag)
+	if err := paths.Validate(); err != nil {
+		return false, err
+	}
+	record, err := readThreadAddressClaim(paths.ThreadClaim())
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("read Pair thread registration: %w", err)
+	}
+	if record.Schema != 1 || record.Scope != scope.Key || record.Tag != tag {
+		return false, fmt.Errorf("Pair thread registration does not match requested address")
+	}
+	switch record.State {
+	case "reserved":
+		return false, nil
+	case "established":
+		return true, nil
+	default:
+		return false, fmt.Errorf("invalid Pair thread registration state %q", record.State)
+	}
+}
+
 func readThreadAddressClaim(path string) (threadAddressClaimRecord, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {

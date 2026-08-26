@@ -39,12 +39,13 @@ type FakeChild struct {
 //   - Handles record into the Runner's Ops log, not their own, so ordering
 //     across children is assertable.
 type FakeRunner struct {
-	mu       sync.Mutex
-	children map[string]*FakeChild
-	order    []string
-	failNext error
-	autoExit *int
-	Ops      []string
+	mu                sync.Mutex
+	children          map[string]*FakeChild
+	order             []string
+	failNext          error
+	autoExit          *int
+	Ops               []string
+	BeforeAcknowledge func(id string) error
 }
 
 var _ Runner = (*FakeRunner)(nil)
@@ -181,8 +182,21 @@ type fakeBlockedHandle struct {
 
 func (h *fakeBlockedHandle) Acknowledge() error {
 	h.runner.mu.Lock()
-	defer h.runner.mu.Unlock()
 	c, ok := h.runner.children[h.id]
+	if !ok || !c.alive || !c.Blocked {
+		h.runner.mu.Unlock()
+		return fmt.Errorf("fake runner: blocked start %s already resolved", h.id)
+	}
+	hook := h.runner.BeforeAcknowledge
+	h.runner.mu.Unlock()
+	if hook != nil {
+		if err := hook(h.id); err != nil {
+			return err
+		}
+	}
+	h.runner.mu.Lock()
+	defer h.runner.mu.Unlock()
+	c, ok = h.runner.children[h.id]
 	if !ok || !c.alive || !c.Blocked {
 		return fmt.Errorf("fake runner: blocked start %s already resolved", h.id)
 	}

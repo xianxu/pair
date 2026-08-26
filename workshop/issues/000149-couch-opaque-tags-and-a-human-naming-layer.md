@@ -647,6 +647,28 @@ gone/unverifiable helper to conservative unknown. The same transition sequence
 runs against `FakeRunner`, pinning zero target execs before durable helper state
 and exactly one after acknowledgement (ARCH-PURE, ARCH-PURPOSE).
 
+### 2026-08-26 — M2 start transaction integrated
+
+Production `Spawn` now persists the nonce and exact supervisor identity, forks
+Pair through `Runner.StartBlocked`, persists the helper PID/start token, and
+only then acknowledges exec. Pair's existing composite address claim changing
+from `reserved` to `established` is the registration oracle; the live
+incarnation transition happens only after that exact evidence. Registration
+failure leaves the helper tuple creating and occupied. Pre-exec fork/ack
+failure cancels and reaps the helper before an exact nonce/revision rollback.
+
+`New` idempotently reconciles every interrupted start: dead plus unregistered
+rolls back and releases its address; an established exact live helper promotes
+live; an established gone helper promotes conservative unknown; any unknown
+process evidence stays occupied. The obsolete helper-less activation method is
+removed so no production or test path can bypass the transaction authority
+(ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
+Focused and race runs pass across couchcore, couchcmd, launcher, and ptychild.
+Regressions inspect ThreadStore from the fake's pre-ack hook to prove the helper
+tuple is durable while target exec count remains zero, then prove exactly one
+exec and registration; restart fixtures cover rollback and promotion.
+
 ### 2026-08-26 — M1 admission kernel integrated
 - 2026-08-26: closed M1 — make test; go test ./... -count=1; go test -race ./cmd/internal/couchcore ./cmd/internal/launcher -count=1; make test-couch-policy-live SDLC_BIN=../ariadne/bin/sdlc; zellij config and main-2/main-3 layout validation; git diff --check; review verdict: SHIP
 

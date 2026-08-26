@@ -16,11 +16,17 @@ func TestThreadAddressClaimSerializesCurrentPairAndCouchProducers(t *testing.T) 
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = claim.Release() })
+	if established, err := ThreadAddressEstablished(global, scope, "couch-0001020304050607"); err != nil || established {
+		t.Fatalf("reserved claim registration = %v, %v", established, err)
+	}
 	if err := EnsureThreadAddressForPair(global, scope, "couch-0001020304050607", false); !errors.Is(err, ErrThreadAddressClaimed) {
 		t.Fatalf("direct Pair raced marker-only Couch claim: %v", err)
 	}
 	if err := EnsureThreadAddressForPair(global, scope, "couch-0001020304050607", true); err != nil {
 		t.Fatalf("Couch child did not adopt parent claim: %v", err)
+	}
+	if established, err := ThreadAddressEstablished(global, scope, "couch-0001020304050607"); err != nil || !established {
+		t.Fatalf("established claim registration = %v, %v", established, err)
 	}
 }
 

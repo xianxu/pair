@@ -475,10 +475,10 @@ inventory, never a couch enum (ARCH-DRY).
 
 - [x] **Step 1:** Write model tests for `AdvanceStartTransaction` and `ReconcileStart`
    using the strategy table, then run them against `FakeRunner` state.
-- [ ] **Step 2:** Implement nonce-addressed promotion/reconciliation with the occupied-or-
+- [x] **Step 2:** Implement nonce-addressed promotion/reconciliation with the occupied-or-
    proven-free invariant from Architecture and pass the composite address to
    Pair.
-- [ ] **Step 3:** Run start/recovery focused and restart tests; expect PASS, then commit.
+- [x] **Step 3:** Run start/recovery focused and restart tests; expect PASS, then commit.
 
 ### Task 4: M2 integration boundary
 
@@ -945,3 +945,20 @@ internal installed binary, not a new user command. `Runner.StartBlocked` passes
 one read descriptor to either real child path; its stateful fake models the
 same no-exec/ack/cancel lifecycle and the PTY wrapper preserves
 `TerminalHandle` capability (ARCH-DRY, ARCH-MOCK).
+
+### 2026-08-26 — use Pair's established address claim as registration evidence
+
+**Reason:** M2's promotion step needs durable Pair-owned evidence after helper
+exec; PID liveness or a successful pipe write proves neither that Pair reached
+its own startup path nor that it adopted the intended composite address. The
+existing reserved → established thread-address claim is the earliest exact
+evidence already written by the production Pair launcher.
+
+**Delta:** Task 3 also widens `ThreadArtifactClaimer`, its stateful fake,
+`launcher/thread_claim.go`, `ProcOps`, and ThreadStore's exact-nonce mutation
+helpers. Couch records the current supervisor identity through `ProcOps`,
+acknowledges only after the helper tuple commits, waits for the matching claim
+to become established, then promotes. Startup reconciliation reads the same
+oracle and exact process-start identities; unreadable evidence reports an error,
+unknown liveness stays occupied, and rollback uses nonce plus revision before
+releasing the address claim (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).

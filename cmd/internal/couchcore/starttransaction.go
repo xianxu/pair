@@ -21,9 +21,10 @@ type StartTransaction struct {
 type StartEventKind string
 
 const (
-	StartClaimed        StartEventKind = "claimed"
-	StartHelperRecorded StartEventKind = "helper-recorded"
-	StartRegistered     StartEventKind = "registered"
+	StartClaimed          StartEventKind = "claimed"
+	StartHelperRecorded   StartEventKind = "helper-recorded"
+	StartRegistered       StartEventKind = "registered"
+	StartRecoveredUnknown StartEventKind = "recovered-unknown"
 )
 
 type StartEvent struct {
@@ -65,7 +66,7 @@ func AdvanceStartTransaction(record ThreadRecord, event StartEvent) (ThreadRecor
 		}
 		incarnation.PID = event.Helper.PID
 		incarnation.Identity = event.Helper.Identity
-	case StartRegistered:
+	case StartRegistered, StartRecoveredUnknown:
 		incarnation, err := exactStartIncarnation(&next, event.Nonce)
 		if err != nil {
 			return ThreadRecord{}, err
@@ -73,7 +74,11 @@ func AdvanceStartTransaction(record ThreadRecord, event StartEvent) (ThreadRecor
 		if incarnation.PID <= 0 || incarnation.Identity == "" {
 			return ThreadRecord{}, errors.New("cannot register start before helper identity")
 		}
-		incarnation.State = IncarnationLive
+		if event.Kind == StartRegistered {
+			incarnation.State = IncarnationLive
+		} else {
+			incarnation.State = IncarnationUnknown
+		}
 		incarnation.Start = nil
 	default:
 		return ThreadRecord{}, fmt.Errorf("unknown start event %q", event.Kind)

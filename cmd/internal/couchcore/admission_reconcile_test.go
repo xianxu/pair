@@ -242,7 +242,7 @@ func TestDeleteUnstartedThreadRefusesAfterConcurrentMetadata(t *testing.T) {
 	}
 }
 
-func TestActivateCreatingThreadRequiresExactClaimRevision(t *testing.T) {
+func TestAdvanceStartRequiresExactClaimRevision(t *testing.T) {
 	store, ns := newTestThreadStore(t)
 	now := time.Now()
 	candidate := allocateAdmissionCandidate(t, store, ns, "0123456789abcdef", 1, now)
@@ -253,15 +253,28 @@ func TestActivateCreatingThreadRequiresExactClaimRevision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	live, err := store.ActivateCreatingThread(claimed.Address, claimed.Revision, 42, "process-start")
+	started, err := store.AdvanceStart(claimed.Address, claimed.Revision, StartEvent{
+		Kind: StartClaimed, Nonce: "start-0123456789abcdef",
+		Owner: SupervisorOwner{PID: 41, Identity: "owner-start"},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if live.Incarnations[0].State != IncarnationLive || live.Incarnations[0].PID != 42 || live.Incarnations[0].Identity != "process-start" {
-		t.Fatalf("activated thread = %+v", live)
+	if _, err := store.AdvanceStart(claimed.Address, claimed.Revision, StartEvent{
+		Kind: StartClaimed, Nonce: "start-other", Owner: SupervisorOwner{PID: 43, Identity: "other"},
+	}); err == nil {
+		t.Fatal("stale start claim succeeded")
 	}
-	if _, err := store.ActivateCreatingThread(claimed.Address, claimed.Revision, 43, "other"); err == nil {
-		t.Fatal("stale activation succeeded")
+	helper, err := store.AdvanceStart(claimed.Address, started.Revision, StartEvent{
+		Kind: StartHelperRecorded, Nonce: "start-0123456789abcdef",
+		Helper: ProcessIdentity{PID: 42, Identity: "process-start"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	live, err := store.AdvanceStart(claimed.Address, helper.Revision, StartEvent{Kind: StartRegistered, Nonce: "start-0123456789abcdef"})
+	if err != nil || live.Incarnations[0].State != IncarnationLive {
+		t.Fatalf("registered thread = %+v, %v", live, err)
 	}
 }
 
