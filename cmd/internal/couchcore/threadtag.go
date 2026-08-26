@@ -31,6 +31,7 @@ func (s *ThreadStore) AllocateThreadTag(repoScope, workingPath string, createdAt
 			WorkingPath:  workingPath,
 			CreatedAt:    createdAt,
 			Revision:     1,
+			Reservation:  true,
 		}
 		created, err := s.CreateThread(record)
 		if err == nil {

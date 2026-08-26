@@ -25,6 +25,19 @@ type ThreadRevisionError struct {
 	Got     uint64
 }
 
+type ThreadSnapshotConflictError struct{ Detail string }
+
+func (e *ThreadSnapshotConflictError) Error() string {
+	return "thread store snapshot changed: " + e.Detail
+}
+
+type ThreadSnapshot struct {
+	Generation uint64
+	Records    []ThreadRecord
+	manifest   []byte
+	raw        map[ThreadAddress][]byte
+}
+
 func (e *ThreadRevisionError) Error() string {
 	return fmt.Sprintf("thread revision conflict for %+v: expected %d, found %d", e.Address, e.Want, e.Got)
 }
@@ -214,6 +227,205 @@ func (s *ThreadStore) ManifestGeneration() (uint64, error) {
 	return generation, err
 }
 
+func (s *ThreadStore) Snapshot() (ThreadSnapshot, error) {
+	var snapshot ThreadSnapshot
+	err := s.withLock(func() error {
+		manifest, manifestRaw, _, err := s.loadManifestLocked()
+		if err != nil {
+			return err
+		}
+		snapshot = ThreadSnapshot{Generation: manifest.Generation, manifest: append([]byte{}, manifestRaw...), raw: map[ThreadAddress][]byte{}}
+		for _, address := range manifest.Threads {
+			raw, err := os.ReadFile(s.recordPath(address))
+			if err != nil {
+				return fmt.Errorf("read manifest thread %+v: %w", address, err)
+			}
+			record, err := s.decodeThreadRaw(address, raw)
+			if err != nil {
+				return err
+			}
+			snapshot.Records = append(snapshot.Records, cloneThreadRecord(record))
+			snapshot.raw[address] = append([]byte{}, raw...)
+		}
+		return nil
+	})
+	return snapshot, err
+}
+
+func (s *ThreadStore) CommitThreadReplacements(snapshot ThreadSnapshot, replacements []ThreadRecord) error {
+	return s.withLock(func() error {
+		manifest, manifestRaw, _, err := s.loadManifestLocked()
+		if err != nil {
+			return err
+		}
+		if manifest.Generation != snapshot.Generation || !reflectBytesEqual(manifestRaw, snapshot.manifest) {
+			return &ThreadSnapshotConflictError{Detail: "manifest generation or image"}
+		}
+		for address, expected := range snapshot.raw {
+			current, exists, err := readOptionalFile(s.recordPath(address))
+			if err != nil {
+				return err
+			}
+			if !exists || !reflectBytesEqual(current, expected) {
+				return &ThreadSnapshotConflictError{Detail: fmt.Sprintf("record %+v", address)}
+			}
+		}
+		if len(replacements) == 0 {
+			return nil
+		}
+		entries := make([]storeJournalEntry, 0, len(replacements)+1)
+		seen := map[ThreadAddress]bool{}
+		for _, replacement := range replacements {
+			if seen[replacement.Address] {
+				return fmt.Errorf("duplicate replacement %+v", replacement.Address)
+			}
+			seen[replacement.Address] = true
+			expected, ok := snapshot.raw[replacement.Address]
+			if !ok {
+				return fmt.Errorf("replacement %+v absent from snapshot", replacement.Address)
+			}
+			previous, err := s.decodeThreadRaw(replacement.Address, expected)
+			if err != nil {
+				return err
+			}
+			if replacement.Revision != previous.Revision+1 || replacement.Address != previous.Address || replacement.SchemaVersion != previous.SchemaVersion || replacement.StartingPath != previous.StartingPath || replacement.CreatedAt != previous.CreatedAt || replacement.ClaimGeneration != previous.ClaimGeneration {
+				return fmt.Errorf("replacement %+v violates revision or immutable fields", replacement.Address)
+			}
+			if err := ValidateThreadRecord(replacement); err != nil {
+				return err
+			}
+			raw, err := json.MarshalIndent(replacement, "", "  ")
+			if err != nil {
+				return err
+			}
+			after := append(raw, '\n')
+			expectedCopy := append([]byte{}, expected...)
+			entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, s.recordPath(replacement.Address)), Expected: &expectedCopy, After: &after})
+		}
+		if len(entries) == 1 {
+			return s.applyJournalEntry(entries[0])
+		}
+		nextManifest := manifest
+		nextManifest.Generation++
+		nextRaw, err := json.MarshalIndent(nextManifest, "", "  ")
+		if err != nil {
+			return err
+		}
+		afterManifest := append(nextRaw, '\n')
+		expectedManifest := append([]byte{}, manifestRaw...)
+		entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, s.manifestPath()), Expected: &expectedManifest, After: &afterManifest})
+		return s.commitJournalLocked(storeJournal{SchemaVersion: 1, Entries: entries})
+	})
+}
+
+func (s *ThreadStore) DeletePristineThread(address ThreadAddress) error {
+	if err := validateThreadAddress(address); err != nil {
+		return err
+	}
+	return s.withLock(func() error {
+		manifest, manifestRaw, _, err := s.loadManifestLocked()
+		if err != nil {
+			return err
+		}
+		raw, exists, err := readOptionalFile(s.recordPath(address))
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return nil
+		}
+		record, err := s.decodeThreadRaw(address, raw)
+		if err != nil {
+			return err
+		}
+		if !record.Reservation || len(record.Incarnations) != 0 {
+			return fmt.Errorf("thread %+v is no longer a pristine reservation", address)
+		}
+		nextManifest := manifest
+		nextManifest.Generation++
+		nextManifest.Threads = removeThreadAddress(nextManifest.Threads, address)
+		nextRaw, err := json.MarshalIndent(nextManifest, "", "  ")
+		if err != nil {
+			return err
+		}
+		expectedRecord := append([]byte{}, raw...)
+		expectedManifest := append([]byte{}, manifestRaw...)
+		afterManifest := append(nextRaw, '\n')
+		return s.commitJournalLocked(storeJournal{SchemaVersion: 1, Entries: []storeJournalEntry{
+			{Path: relativeStorePath(s.root, s.recordPath(address)), Expected: &expectedRecord},
+			{Path: relativeStorePath(s.root, s.manifestPath()), Expected: &expectedManifest, After: &afterManifest},
+		}})
+	})
+}
+
+// DeleteUnstartedThread rolls back only the exact creating claim that reached
+// admission but never forked. Any concurrent metadata or state change leaves
+// the record occupied for later reconciliation.
+func (s *ThreadStore) DeleteUnstartedThread(address ThreadAddress, expectedRevision uint64) error {
+	if err := validateThreadAddress(address); err != nil {
+		return err
+	}
+	return s.withLock(func() error {
+		manifest, manifestRaw, _, err := s.loadManifestLocked()
+		if err != nil {
+			return err
+		}
+		raw, exists, err := readOptionalFile(s.recordPath(address))
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return nil
+		}
+		record, err := s.decodeThreadRaw(address, raw)
+		if err != nil {
+			return err
+		}
+		if record.Revision != expectedRevision || record.Reservation || record.Description != "" || len(record.Incarnations) != 1 {
+			return fmt.Errorf("thread %+v is no longer the expected unstarted claim", address)
+		}
+		incarnation := record.Incarnations[0]
+		if incarnation.State != IncarnationCreating || incarnation.PID != 0 || incarnation.Identity != "" {
+			return fmt.Errorf("thread %+v is no longer the expected unstarted claim", address)
+		}
+		nextManifest := manifest
+		nextManifest.Generation++
+		nextManifest.Threads = removeThreadAddress(nextManifest.Threads, address)
+		nextRaw, err := json.MarshalIndent(nextManifest, "", "  ")
+		if err != nil {
+			return err
+		}
+		expectedRecord := append([]byte{}, raw...)
+		expectedManifest := append([]byte{}, manifestRaw...)
+		afterManifest := append(nextRaw, '\n')
+		return s.commitJournalLocked(storeJournal{SchemaVersion: 1, Entries: []storeJournalEntry{
+			{Path: relativeStorePath(s.root, s.recordPath(address)), Expected: &expectedRecord},
+			{Path: relativeStorePath(s.root, s.manifestPath()), Expected: &expectedManifest, After: &afterManifest},
+		}})
+	})
+}
+
+// ActivateCreatingThread records the child identity without weakening an
+// optimistic admission claim. A conflict remains occupied as creating.
+func (s *ThreadStore) ActivateCreatingThread(address ThreadAddress, expectedRevision uint64, pid int, identity string) (ThreadRecord, error) {
+	if pid <= 0 || identity == "" {
+		return ThreadRecord{}, errors.New("activate creating thread: pid and identity are required")
+	}
+	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+		if next.Reservation || len(next.Incarnations) != 1 {
+			return errors.New("activate creating thread: claim is not uniquely creating")
+		}
+		incarnation := &next.Incarnations[0]
+		if incarnation.State != IncarnationCreating || incarnation.PID != 0 || incarnation.Identity != "" {
+			return errors.New("activate creating thread: claim is not uniquely creating")
+		}
+		incarnation.PID = pid
+		incarnation.Identity = identity
+		incarnation.State = IncarnationLive
+		return nil
+	})
+}
+
 // CutoverLegacyActors imports the old tree-keyed registry as one journaled
 // membership mutation. Co-tenants remain conservative unknown incarnations of
 // one legacy thread; identical display tags in different repo scopes remain
@@ -334,6 +546,10 @@ func (s *ThreadStore) readThreadLocked(address ThreadAddress) (ThreadRecord, err
 	if err != nil {
 		return ThreadRecord{}, err
 	}
+	return s.decodeThreadRaw(address, raw)
+}
+
+func (s *ThreadStore) decodeThreadRaw(address ThreadAddress, raw []byte) (ThreadRecord, error) {
 	var record ThreadRecord
 	if err := strictThreadStoreJSON(raw, &record); err != nil {
 		return ThreadRecord{}, err
@@ -385,6 +601,28 @@ func manifestContains(manifest threadManifest, address ThreadAddress) bool {
 		}
 	}
 	return false
+}
+
+func removeThreadAddress(addresses []ThreadAddress, remove ThreadAddress) []ThreadAddress {
+	out := make([]ThreadAddress, 0, len(addresses))
+	for _, address := range addresses {
+		if address != remove {
+			out = append(out, address)
+		}
+	}
+	return out
+}
+
+func reflectBytesEqual(left, right []byte) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func relativeStorePath(root, path string) string {

@@ -2,6 +2,7 @@ package couchcmd
 
 import (
 	"bytes"
+	"crypto/rand"
 	"fmt"
 	"io"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -72,7 +74,8 @@ func (t testRT) NewCouch() (*couchcore.Couch, error) {
 func (t testRT) NewCouchWith(couchcore.Runner, couchcore.CouchNamespace) (*couchcore.Couch, error) {
 	return couchcore.New(
 		t.namespace, t.runner, couchcore.NewFakePathOps(nil), t.git, t.proc,
-		couchcore.NewStore(t.dir), couchcore.FixedClock{}, t.ids, t.policy,
+		couchcore.NewStore(t.dir), couchcore.FixedClock{T: time.Unix(1, 0)}, t.ids, t.policy,
+		rand.Reader,
 	)
 }
 

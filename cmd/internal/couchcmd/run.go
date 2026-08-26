@@ -7,6 +7,7 @@
 package couchcmd
 
 import (
+	"crypto/rand"
 	"fmt"
 	"io"
 	"os"
@@ -68,7 +69,7 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 	return couchcore.New(
 		namespace, runner, couchcore.OSPathOps{}, couchcore.ExecGit{},
 		couchcore.OSProcOps{}, couchcore.NewStore(namespace.Dir()),
-		couchcore.SystemClock{}, couchcore.NewRandomIDGen(), couchcore.NewExecPolicyResolver("sdlc"),
+		couchcore.SystemClock{}, couchcore.NewRandomIDGen(), couchcore.NewExecPolicyResolver("sdlc"), rand.Reader,
 	)
 }
 

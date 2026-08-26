@@ -41,6 +41,7 @@ type ThreadRecord struct {
 	CreatedAt       time.Time           `json:"created_at"`
 	Revision        uint64              `json:"revision"`
 	ClaimGeneration uint64              `json:"claim_generation"`
+	Reservation     bool                `json:"reservation,omitempty"`
 	Description     string              `json:"description,omitempty"`
 	Incarnations    []ThreadIncarnation `json:"incarnations,omitempty"`
 }

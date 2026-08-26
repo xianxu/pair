@@ -1,7 +1,11 @@
 package couchcore
 
 import (
+	"context"
+	"crypto/rand"
+	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 
@@ -21,13 +25,15 @@ type Couch struct {
 	Clock          Clock
 	IDs            IDGen
 	PolicyResolver PolicyResolver
+	Threads        *ThreadStore
+	Entropy        io.Reader
 
 	reg    Registry
 	names  NamingTable
 	policy PolicyTable
 }
 
-func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOps, s Store, c Clock, ids IDGen, resolver PolicyResolver) (*Couch, error) {
+func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOps, s Store, c Clock, ids IDGen, resolver PolicyResolver, entropy io.Reader) (*Couch, error) {
 	if namespace.Dir() == "" {
 		return nil, fmt.Errorf("new couch: empty namespace")
 	}
@@ -37,15 +43,23 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 	if resolver == nil {
 		return nil, fmt.Errorf("new couch: nil policy resolver")
 	}
+	if entropy == nil {
+		entropy = rand.Reader
+	}
 	reg, names, policy, err := s.Load()
 	if err != nil {
 		return nil, err
+	}
+	threads := NewThreadStore(namespace)
+	if err := threads.CutoverLegacyActors(reg.Records()); err != nil {
+		return nil, fmt.Errorf("cut over legacy actors: %w", err)
 	}
 	return &Couch{
 		Namespace: namespace,
 		Runner:    r, Path: p, Git: g, Proc: proc, Store: s, Clock: c, IDs: ids,
 		PolicyResolver: resolver,
-		reg:            reg, names: names, policy: policy,
+		Threads:        threads, Entropy: entropy,
+		reg: reg, names: names, policy: policy,
 	}, nil
 }
 
@@ -84,7 +98,7 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 		args.Cwd = NormalizePath(args.WorkingDir())
 	}
 
-	// Drop records whose process is gone BEFORE consulting the guard.
+	// Keep the transitional registry cache tidy for old list/attach clients.
 	//
 	// Without this the guard refuses on registry membership alone, and since
 	// `couch start` blocks until the child exits and nothing unregisters on
@@ -95,9 +109,17 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 		return ActorRecord{}, nil, err
 	}
 
-	// The guard is evaluated before anything is forked: a refused spawn must
-	// not leave a stray child behind.
-	if err := c.reg.CheckAvailable(tree, args.SameTree, c.policy); err != nil {
+	scope, err := launcher.ResolveRepoScope(string(tree))
+	if err != nil {
+		return ActorRecord{}, nil, err
+	}
+	startedAt := c.Clock.Now()
+	thread, err := c.Threads.AllocateThreadTag(scope.Key, args.Cwd, startedAt, c.Entropy)
+	if err != nil {
+		return ActorRecord{}, nil, err
+	}
+	thread, err = ReconcileAdmission(context.Background(), c.Threads, c.PolicyResolver, c.Proc, thread.Address, startedAt)
+	if err != nil {
 		return ActorRecord{}, nil, err
 	}
 
@@ -128,7 +150,7 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	//
 	// This is a deliberate slice of #149, which makes the tag the space's
 	// durable identity; #146 needs only that re-entry is deterministic.
-	argv := append([]string{"pair", "resume", launcher.DefaultTag(string(tree)), "--layout2"}, args.ExtraArgs...)
+	argv := append([]string{"pair", "resume", string(thread.Address.Tag), "--layout2"}, args.ExtraArgs...)
 	// The child is told which tree it is and where couch keeps state, so the
 	// agent inside it can publish its own one-line description. Without this
 	// the description cache has no source: an operator typing `couch describe`
@@ -136,25 +158,28 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	env := []string{
 		"COUCH_TREE=" + string(tree),
 		"COUCH_STORE_DIR=" + c.Namespace.Dir(),
+		"COUCH_THREAD_SCOPE=" + thread.Address.RepoScope,
+		"COUCH_THREAD_TAG=" + string(thread.Address.Tag),
 		"PAIR_USE_REPO_DEFAULT=1",
 	}
 	h, err := c.Runner.Start(args.WorkingDir(), argv, env)
 	if err != nil {
-		return ActorRecord{}, nil, fmt.Errorf("spawn %s: %w", tree, err)
+		return ActorRecord{}, nil, errors.Join(fmt.Errorf("spawn %s: %w", tree, err), c.Threads.DeleteUnstartedThread(thread.Address, thread.Revision))
+	}
+	thread, err = c.Threads.ActivateCreatingThread(thread.Address, thread.Revision, h.PID(), h.Identity())
+	if err != nil {
+		return ActorRecord{}, h, fmt.Errorf("record spawned thread %+v: %w", thread.Address, err)
 	}
 
 	record := ActorRecord{
 		ID:        c.IDs.NewID(),
+		Thread:    thread.Address,
 		Args:      args,
-		StartedAt: c.Clock.Now(),
+		StartedAt: startedAt,
 		PID:       h.PID(),
 		Identity:  h.Identity(),
 	}
-	next, err := c.reg.RegisterWithPolicy(record, c.policy)
-	if err != nil {
-		return ActorRecord{}, h, err
-	}
-	c.reg = next
+	c.reg = c.reg.Insert(record)
 
 	if err := c.Store.Save(c.reg, c.names); err != nil {
 		return record, h, fmt.Errorf("persist registry: %w", err)

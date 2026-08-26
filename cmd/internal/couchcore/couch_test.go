@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"os"
@@ -26,7 +27,7 @@ func TestStoreNamespaceMustMatchCouchNamespace(t *testing.T) {
 	_, err := New(
 		ns,
 		NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), NewFakeProcOps(),
-		NewStore(other), FixedClock{}, NewFixedIDGen("id"), NewFakePolicyResolver(),
+		NewStore(other), FixedClock{}, NewFixedIDGen("id"), NewFakePolicyResolver(), bytes.NewReader(make([]byte, 8)),
 	)
 	if err == nil || !strings.Contains(err.Error(), "does not match") {
 		t.Fatalf("New mismatched store err = %v", err)
@@ -39,7 +40,7 @@ func TestCouchRetainsInjectedPolicyResolver(t *testing.T) {
 	c, err := New(
 		ns,
 		NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), NewFakeProcOps(),
-		NewStore(ns.Dir()), FixedClock{}, NewFixedIDGen("id"), resolver,
+		NewStore(ns.Dir()), FixedClock{}, NewFixedIDGen("id"), resolver, bytes.NewReader(make([]byte, 8)),
 	)
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -67,7 +68,7 @@ func newTestEnv(t *testing.T, trees ...string) *testEnv {
 	}
 	dir = ns.Dir()
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
-	c, err := New(ns, r, NewFakePathOps(nil), g, proc, NewStore(dir), FixedClock{T: now}, NewFixedIDGen("ah8d", "b2c1"), NewFakePolicyResolver())
+	c, err := New(ns, r, NewFakePathOps(nil), g, proc, NewStore(dir), FixedClock{T: now}, NewFixedIDGen("ah8d", "b2c1"), NewFakePolicyResolver(), newIncrementingEntropy())
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -91,6 +92,17 @@ func (e *testEnv) cannedTree(tree, cwd string) {
 	e.Git.replies[GitCall{Dir: cwd, Args: "rev-parse --show-toplevel"}] = tree
 }
 
+func (e *testEnv) boundedOne(path string) {
+	e.Couch.PolicyResolver.(*FakePolicyResolver).SetDefault(PolicyResult{
+		PolicyVersion: 1,
+		PolicyDigest:  strings.Repeat("a", 64),
+		RepoIdentity:  "fake-repo",
+		AdmissionKey:  path,
+		Capacity:      PolicyCapacity{Kind: CapacityBounded, Limit: 1},
+		OnCapacity:    CapacityReject,
+	}, nil)
+}
+
 func TestSpawnStartsPairAndRecordsTheActor(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	rec, h, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
@@ -102,13 +114,15 @@ func TestSpawnStartsPairAndRecordsTheActor(t *testing.T) {
 	}
 	// couch spawns pair, not claude: pair owns zellij, the layout, and the
 	// agent's resume/session-id knowledge.
-	if got := env.Runner.Ops[0]; got != "start /repo: pair resume repo --layout2" {
+	if got := env.Runner.Ops[0]; got != "start /repo: pair resume couch-0102030405060708 --layout2" {
 		t.Fatalf("Ops[0] = %q", got)
 	}
 	child := env.Runner.Child(env.Runner.order[0])
 	wantEnv := []string{
 		"COUCH_TREE=/repo",
 		"COUCH_STORE_DIR=" + env.Dir,
+		"COUCH_THREAD_SCOPE=816fc349d3faebf8",
+		"COUCH_THREAD_TAG=couch-0102030405060708",
 		"PAIR_USE_REPO_DEFAULT=1",
 	}
 	if !slices.Equal(child.Env, wantEnv) {
@@ -119,6 +133,13 @@ func TestSpawnStartsPairAndRecordsTheActor(t *testing.T) {
 	}
 	if rec.Identity == "" || rec.PID == 0 {
 		t.Fatalf("liveness fields not recorded: %+v", rec)
+	}
+	if rec.Thread != (ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}) {
+		t.Fatalf("thread address = %+v", rec.Thread)
+	}
+	thread, err := env.Couch.Threads.GetThread(rec.Thread)
+	if err != nil || len(thread.Incarnations) != 1 || thread.Incarnations[0].State != IncarnationLive {
+		t.Fatalf("durable thread after spawn = %+v, %v", thread, err)
 	}
 	_ = h
 }
@@ -141,10 +162,11 @@ func TestSpawnStartsInASubdirectoryButRegistersTheTree(t *testing.T) {
 
 func TestRefusedSpawnStartsNoProcess(t *testing.T) {
 	env := newTestEnv(t, "/repo")
+	env.boundedOne("/repo")
 	env.spawn(t, StartArgs{Worktree: "/repo"})
 	before := len(env.Runner.Ops)
 	_, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
-	var occ *TreeOccupiedError
+	var occ *CapacityExceededError
 	if !errors.As(err, &occ) {
 		t.Fatalf("err = %v, want *TreeOccupiedError", err)
 	}
@@ -185,6 +207,31 @@ func TestSpawnFailureLeavesTheTreeFree(t *testing.T) {
 	}
 	if _, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"}); err != nil {
 		t.Fatalf("tree still held after a failed spawn: %v", err)
+	}
+}
+
+func TestSpawnCapacityRefusalDoesNotForkAndRollsBackOpaqueReservation(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	bounded := PolicyResult{
+		PolicyVersion: 1, PolicyDigest: strings.Repeat("a", 64),
+		RepoIdentity: "repo", AdmissionKey: "/repo",
+		Capacity: PolicyCapacity{Kind: CapacityBounded, Limit: 1}, OnCapacity: CapacityReject,
+	}
+	env.Couch.PolicyResolver.(*FakePolicyResolver).SetDefault(bounded, nil)
+	first, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
+	before := len(env.Runner.Ops)
+	if _, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"}); err == nil {
+		t.Fatal("second bounded spawn was admitted")
+	}
+	if len(env.Runner.Ops) != before {
+		t.Fatal("capacity refusal forked a child")
+	}
+	snapshot, err := env.Couch.Threads.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.Records) != 1 || snapshot.Records[0].Address != first.Thread {
+		t.Fatalf("refused reservation leaked: %+v", snapshot.Records)
 	}
 }
 
@@ -281,6 +328,7 @@ func TestDeadActorDoesNotBlockItsTreeForever(t *testing.T) {
 	// on exit, so the ORDINARY end of a session used to leave a record that
 	// refused its own tree permanently.
 	env := newTestEnv(t, "/repo")
+	env.boundedOne("/repo")
 	first, h := env.spawn(t, StartArgs{Worktree: "/repo"})
 
 	env.Runner.SetExited(h.ID(), 0)
@@ -301,6 +349,7 @@ func TestDeadActorDoesNotBlockItsTreeForever(t *testing.T) {
 func TestLiveActorStillBlocksItsTree(t *testing.T) {
 	// The complement of BR-1: pruning must not weaken the guard.
 	env := newTestEnv(t, "/repo")
+	env.boundedOne("/repo")
 	env.spawn(t, StartArgs{Worktree: "/repo"})
 	if _, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"}); err == nil {
 		t.Fatal("a live actor must still refuse its tree")
@@ -476,6 +525,7 @@ func TestPruneKeepsRecordsWhoseLivenessIsUnknown(t *testing.T) {
 	// record was pruned, and a second agent was let onto a tree that already
 	// had a running one. Unknown must fail CLOSED.
 	env := newTestEnv(t, "/repo")
+	env.boundedOne("/repo")
 	rec, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
 	env.Proc.SetUnknown(rec.PID)
 
@@ -525,6 +575,7 @@ func TestKnownDeadIsStillPruned(t *testing.T) {
 	// The complement: failing closed must not disable pruning entirely, or
 	// BR-1 comes back.
 	env := newTestEnv(t, "/repo")
+	env.boundedOne("/repo")
 	rec, h := env.spawn(t, StartArgs{Worktree: "/repo"})
 	env.Runner.SetExited(h.ID(), 0)
 	env.Proc.Kill(rec.PID)
@@ -630,7 +681,7 @@ func TestPersistedCwdIsCanonicalNotAsTyped(t *testing.T) {
 // (Decision 11). DecideLaunch with no tag and a detached session present
 // returns ActionPick, which inside couch's own pty is an interactive prompt the
 // operator never asked for.
-func TestSpawnResumesATagDerivedFromTheTree(t *testing.T) {
+func TestSpawnResumesAnOpaqueThreadTag(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	if _, _, err := env.Couch.Spawn(StartArgs{Cwd: "/repo"}); err != nil {
 		t.Fatalf("Spawn: %v", err)
@@ -652,7 +703,7 @@ func TestSpawnResumesATagDerivedFromTheTree(t *testing.T) {
 // The tag comes from the WORKTREE ROOT, not the cwd. A spawn inside
 // kbench/competition/arc-agi-3/ must resume kbench's tag, because kbench is the
 // tree couch keyed the actor on.
-func TestSpawnDerivesTheTagFromTheTreeNotTheCwd(t *testing.T) {
+func TestSpawnUsesRepoScopeButKeepsRequestedSubdirectoryAsWorkingPath(t *testing.T) {
 	env := newTestEnv(t)
 	env.Git.replies[GitCall{Dir: "/repo/sub/dir", Args: "rev-parse --show-toplevel"}] = "/repo"
 
@@ -660,24 +711,25 @@ func TestSpawnDerivesTheTagFromTheTreeNotTheCwd(t *testing.T) {
 		t.Fatalf("Spawn: %v", err)
 	}
 	got := env.Runner.Ops[0]
-	if !strings.Contains(got, "pair resume repo") {
-		t.Fatalf("argv = %q, want the tree's tag (repo), not the cwd's (dir)", got)
+	if !strings.Contains(got, "pair resume couch-0102030405060708") {
+		t.Fatalf("argv = %q, want opaque thread tag", got)
+	}
+	snapshot, err := env.Couch.Threads.Snapshot()
+	if err != nil || len(snapshot.Records) != 1 || snapshot.Records[0].WorkingPath != "/repo/sub/dir" {
+		t.Fatalf("thread working path = %+v, %v", snapshot.Records, err)
 	}
 }
 
-// Determinism is the whole point: the same tree must produce the same tag, or
-// every restart creates a new session and the fleet accumulates.
-func TestSpawnProducesTheSameTagForTheSameTree(t *testing.T) {
-	run := func() string {
-		env := newTestEnv(t, "/repo")
-		if _, _, err := env.Couch.Spawn(StartArgs{Cwd: "/repo"}); err != nil {
-			t.Fatalf("Spawn: %v", err)
-		}
-		return env.Runner.Ops[0]
+func newIncrementingEntropy() *incrementingEntropy { return &incrementingEntropy{next: 1} }
+
+type incrementingEntropy struct{ next byte }
+
+func (r *incrementingEntropy) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = r.next
+		r.next++
 	}
-	if a, b := run(), run(); a != b {
-		t.Fatalf("the same tree produced different argv:\n  %q\n  %q", a, b)
-	}
+	return len(p), nil
 }
 
 // An empty path must be refused, not resolved to wherever the process happens

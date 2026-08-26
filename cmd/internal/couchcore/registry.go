@@ -9,11 +9,12 @@ import (
 // of process by comparing Identity, because `couch start` blocks and so every
 // read runs in a second process with no Handle.
 type ActorRecord struct {
-	ID        ActorID   `json:"id"`
-	Args      StartArgs `json:"args"`
-	StartedAt time.Time `json:"started_at"`
-	PID       int       `json:"pid"`
-	Identity  string    `json:"identity"`
+	ID        ActorID       `json:"id"`
+	Thread    ThreadAddress `json:"thread,omitempty"`
+	Args      StartArgs     `json:"args"`
+	StartedAt time.Time     `json:"started_at"`
+	PID       int           `json:"pid"`
+	Identity  string        `json:"identity"`
 }
 
 // TreeOccupiedError reports a refused registration. It carries the incumbents

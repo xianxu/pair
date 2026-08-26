@@ -261,15 +261,15 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Write failing `ResolveCouchNamespace`, `AcquireSupervisorLease`, and
+- [x] **Step 1:** Write failing `ResolveCouchNamespace`, `AcquireSupervisorLease`, and
    `VerifiedOwner` tests using the strategy table.
-- [ ] **Step 2:** Run `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd -run
+- [x] **Step 2:** Run `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd -run
    'Test(CouchNamespace|StoreNamespace|SupervisorLease)' -count=1`; expect FAIL.
-- [ ] **Step 3:** Implement the namespace value, non-inherited lifetime lease, verified
+- [x] **Step 3:** Implement the namespace value, non-inherited lifetime lease, verified
    `ProcOps` owner metadata, and operation execution classification specified in
    Architecture. Keep the lifetime lease independent from ThreadStore locking.
-- [ ] **Step 4:** Rerun the focused command and the subprocess crash probe; expect PASS.
-- [ ] **Step 5:** Commit the namespace/lease slice with `git add` on only the files above and
+- [x] **Step 4:** Rerun the focused command and the subprocess crash probe; expect PASS.
+- [x] **Step 5:** Commit the namespace/lease slice with `git add` on only the files above and
    `git commit -m '#149 M1: establish the couch supervisor namespace'`.
 
 ### Task 2: Specify the provider seam and strict decoder
@@ -285,14 +285,14 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Write failing fuzz/table tests for `DecodePolicyResponse` using the
+- [x] **Step 1:** Write failing fuzz/table tests for `DecodePolicyResponse` using the
    strategy table and production seam contract.
-- [ ] **Step 2:** Run `go test ./cmd/internal/couchcore -run TestPolicyResolver -count=1`;
+- [x] **Step 2:** Run `go test ./cmd/internal/couchcore -run TestPolicyResolver -count=1`;
    expect FAIL.
-- [ ] **Step 3:** Implement defensive normalized values, stateful fake, strict decoder,
+- [x] **Step 3:** Implement defensive normalized values, stateful fake, strict decoder,
    deadline-bound executor, and couchcmd injection; Pair never parses fleet
    declarations or models admission-key kind.
-- [ ] **Step 4:** Rerun the focused command; expect PASS, then commit the provider slice.
+- [x] **Step 4:** Rerun the focused command; expect PASS, then commit the provider slice.
 
 ### Task 3: Introduce the ThreadStore transaction kernel
 
@@ -318,15 +318,15 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Write failing `UpdateExistingThread`, `RecoverStoreJournal`, and
+- [x] **Step 1:** Write failing `UpdateExistingThread`, `RecoverStoreJournal`, and
    `AllocateThreadTag` tests using the strategy table.
-- [ ] **Step 2:** Run `go test ./cmd/internal/couchcore -run
+- [x] **Step 2:** Run `go test ./cmd/internal/couchcore -run
    'Test(ThreadStore|StoreJournal|AllocateThreadTag)' -count=1`; expect FAIL.
-- [ ] **Step 3:** Implement the M1 composite record/tag and the two persistence classes
+- [x] **Step 3:** Implement the M1 composite record/tag and the two persistence classes
    specified in Architecture, including journaled legacy-occupant cutover. New
    starts launch only after their final opaque address is claimed.
-- [ ] **Step 4:** Rerun focused tests plus independent-store crash probes; expect PASS.
-- [ ] **Step 5:** Commit the ThreadStore/identity slice.
+- [x] **Step 4:** Rerun focused tests plus independent-store crash probes; expect PASS.
+- [x] **Step 5:** Commit the ThreadStore/identity slice.
 
 ### Task 4: Make admission pure and conservative
 
@@ -341,15 +341,15 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Write failing pure/stateful tests for `Admission.Decide` and
+- [x] **Step 1:** Write failing pure/stateful tests for `Admission.Decide` and
    `ReconcileAdmission` using the strategy table.
-- [ ] **Step 2:** Run `go test ./cmd/internal/couchcore -run TestAdmission -count=1`;
+- [x] **Step 2:** Run `go test ./cmd/internal/couchcore -run TestAdmission -count=1`;
    expect FAIL.
-- [ ] **Step 3:** Implement pure admission plus optimistic unlocked-IO reconciliation as
+- [x] **Step 3:** Implement pure admission plus optimistic unlocked-IO reconciliation as
    specified in Architecture. Fork only after committed admission; uncertain
    post-fork state remains occupied until M2.
-- [ ] **Step 4:** Rerun focused tests with independent Couch/store instances; expect PASS.
-- [ ] **Step 5:** Commit the admission slice.
+- [x] **Step 4:** Rerun focused tests with independent Couch/store instances; expect PASS.
+- [x] **Step 5:** Commit the admission slice.
 
 ### Task 5: Remove every local policy bypass
 

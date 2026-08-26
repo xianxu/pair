@@ -610,6 +610,17 @@ total: 17.80
 
 ## Log
 
+### 2026-08-26 — M1 admission kernel integrated
+
+Added the locked/revisioned composite ThreadStore, strict normalized fleet
+policy consumer, and optimistic admission reconciliation. New Couch starts now
+claim their final opaque `couch-<16hex>` address before admission, fork only
+after a durable creating incarnation exists, pass the composite scope/tag to
+Pair, and conservatively retain uncertain post-fork state. Proven-dead
+incarnations alone are pruned; unknown and creating occupants fail closed under
+bounded policy. Focused admission tests and the full couchcore suite pass
+(ARCH-DRY, ARCH-MOCK, ARCH-PURE, ARCH-PURPOSE).
+
 ### 2026-08-25 — session summary
 
 Fresh spec review split verified park into #152 and managed worktree lifecycle

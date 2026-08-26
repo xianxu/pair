@@ -170,6 +170,33 @@ func normalizePolicyValue(value policyResultValueWire) (PolicyResult, error) {
 	return result, nil
 }
 
+// ValidatePolicyResult applies the same fail-closed checks to injected and
+// persisted normalized evidence that DecodePolicyResponse applies to wire data.
+func ValidatePolicyResult(result PolicyResult) error {
+	if result.PolicyVersion != 1 {
+		return fmt.Errorf("unsupported fleet policy version %d", result.PolicyVersion)
+	}
+	if !policyDigestPattern.MatchString(result.PolicyDigest) {
+		return errors.New("fleet policy digest must be 64 lowercase hexadecimal characters")
+	}
+	if result.RepoIdentity == "" || result.AdmissionKey == "" {
+		return errors.New("fleet policy requires repo identity and admission key")
+	}
+	switch result.Capacity.Kind {
+	case CapacityBounded:
+		if result.Capacity.Limit <= 0 || result.OnCapacity != CapacityReject && result.OnCapacity != CapacityProvisionWorktree {
+			return errors.New("bounded fleet capacity requires positive limit and supported action")
+		}
+	case CapacityUnbounded:
+		if result.Capacity.Limit != 0 || result.OnCapacity != CapacityActionUnknown {
+			return errors.New("unbounded fleet capacity forbids limit and on_capacity")
+		}
+	default:
+		return fmt.Errorf("unknown fleet capacity kind %q", result.Capacity.Kind)
+	}
+	return nil
+}
+
 func normalizePolicyDiagnostic(value policyDiagnosticWire) (PolicyDiagnostic, error) {
 	if !diagnosticCodePattern.MatchString(value.Code) || value.Message == "" {
 		return PolicyDiagnostic{}, errors.New("fleet policy diagnostic requires a safe code and message")
