@@ -26,6 +26,7 @@ type testRT struct {
 	proc       *couchcore.FakeProcOps
 	git        *couchcore.FakeGit
 	supervisor *fakeSupervisor
+	policy     *couchcore.FakePolicyResolver
 	// ids is shared across invocations. Minting a fresh generator per
 	// NewCouch restarts the sequence, so two starts both produce couch-ah8d
 	// and no CLI test can hold two distinguishable actors.
@@ -71,7 +72,7 @@ func (t testRT) NewCouch() (*couchcore.Couch, error) {
 func (t testRT) NewCouchWith(couchcore.Runner, couchcore.CouchNamespace) (*couchcore.Couch, error) {
 	return couchcore.New(
 		t.namespace, t.runner, couchcore.NewFakePathOps(nil), t.git, t.proc,
-		couchcore.NewStore(t.dir), couchcore.FixedClock{}, t.ids,
+		couchcore.NewStore(t.dir), couchcore.FixedClock{}, t.ids, t.policy,
 	)
 }
 
@@ -98,6 +99,7 @@ func newRT(t *testing.T, trees ...string) testRT {
 		proc:       couchcore.NewFakeProcOps(),
 		git:        couchcore.NewFakeGit(replies),
 		supervisor: &fakeSupervisor{},
+		policy:     couchcore.NewFakePolicyResolver(),
 		ids:        couchcore.NewFixedIDGen("ah8d", "b2c1", "c3d2", "e4f5"),
 	}
 }

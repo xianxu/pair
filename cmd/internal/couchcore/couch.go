@@ -12,26 +12,30 @@ import (
 // method on it. The terminal UI and (later) the advisor's tools are both
 // clients of these methods -- never of two separate implementations.
 type Couch struct {
-	Namespace CouchNamespace
-	Runner    Runner
-	Path      PathOps
-	Git       GitRunner
-	Proc      ProcOps
-	Store     Store
-	Clock     Clock
-	IDs       IDGen
+	Namespace      CouchNamespace
+	Runner         Runner
+	Path           PathOps
+	Git            GitRunner
+	Proc           ProcOps
+	Store          Store
+	Clock          Clock
+	IDs            IDGen
+	PolicyResolver PolicyResolver
 
 	reg    Registry
 	names  NamingTable
 	policy PolicyTable
 }
 
-func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOps, s Store, c Clock, ids IDGen) (*Couch, error) {
+func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOps, s Store, c Clock, ids IDGen, resolver PolicyResolver) (*Couch, error) {
 	if namespace.Dir() == "" {
 		return nil, fmt.Errorf("new couch: empty namespace")
 	}
 	if s.Dir() != namespace.Dir() {
 		return nil, fmt.Errorf("store directory %q does not match couch namespace %q", s.Dir(), namespace.Dir())
+	}
+	if resolver == nil {
+		return nil, fmt.Errorf("new couch: nil policy resolver")
 	}
 	reg, names, policy, err := s.Load()
 	if err != nil {
@@ -40,7 +44,8 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 	return &Couch{
 		Namespace: namespace,
 		Runner:    r, Path: p, Git: g, Proc: proc, Store: s, Clock: c, IDs: ids,
-		reg: reg, names: names, policy: policy,
+		PolicyResolver: resolver,
+		reg:            reg, names: names, policy: policy,
 	}, nil
 }
 

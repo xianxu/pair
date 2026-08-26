@@ -26,10 +26,26 @@ func TestStoreNamespaceMustMatchCouchNamespace(t *testing.T) {
 	_, err := New(
 		ns,
 		NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), NewFakeProcOps(),
-		NewStore(other), FixedClock{}, NewFixedIDGen("id"),
+		NewStore(other), FixedClock{}, NewFixedIDGen("id"), NewFakePolicyResolver(),
 	)
 	if err == nil || !strings.Contains(err.Error(), "does not match") {
 		t.Fatalf("New mismatched store err = %v", err)
+	}
+}
+
+func TestCouchRetainsInjectedPolicyResolver(t *testing.T) {
+	ns := testCouchNamespace(t)
+	resolver := NewFakePolicyResolver()
+	c, err := New(
+		ns,
+		NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), NewFakeProcOps(),
+		NewStore(ns.Dir()), FixedClock{}, NewFixedIDGen("id"), resolver,
+	)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if c.PolicyResolver != resolver {
+		t.Fatal("Couch did not retain the injected policy resolver")
 	}
 }
 
@@ -51,7 +67,7 @@ func newTestEnv(t *testing.T, trees ...string) *testEnv {
 	}
 	dir = ns.Dir()
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
-	c, err := New(ns, r, NewFakePathOps(nil), g, proc, NewStore(dir), FixedClock{T: now}, NewFixedIDGen("ah8d", "b2c1"))
+	c, err := New(ns, r, NewFakePathOps(nil), g, proc, NewStore(dir), FixedClock{T: now}, NewFixedIDGen("ah8d", "b2c1"), NewFakePolicyResolver())
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

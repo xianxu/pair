@@ -86,7 +86,7 @@ func TestGuardRefusesAgainstARealLiveProcess(t *testing.T) {
 		t.Fatalf("seed registry: %v", err)
 	}
 
-	c, err := New(ns, runner, OSPathOps{}, ExecGit{}, proc, store, SystemClock{}, NewRandomIDGen())
+	c, err := New(ns, runner, OSPathOps{}, ExecGit{}, proc, store, SystemClock{}, NewRandomIDGen(), NewFakePolicyResolver())
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
