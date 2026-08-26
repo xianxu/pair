@@ -77,6 +77,7 @@ remains #153. #149 returns typed refusals for those unavailable outcomes.
 | `PolicyResolver` / `ExecPolicyResolver` | `cmd/internal/couchcore/policyresolver.go`, `policyresolver_exec.go` | new in M1 | `sdlc fleet policy` subprocess |
 | `ThreadStore` | `cmd/internal/couchcore/threadstore.go` | new in M1, widened later | filesystem lock, per-thread records, WAL/manifest |
 | `LaunchHelper` | `cmd/internal/couchcore/launchhelper.go`, `cmd/pair-launch-helper/main.go` | new in M2 | fork/exec acknowledgement boundary |
+| `SessionQuiescence` | `cmd/internal/launcher/session_quiescence.go` | new in M2 | observable zellij session/server teardown |
 | `OperationExecutors` | `cmd/internal/couchcore/operationdispatch.go` | new in M3 | direct-store effects and optional live-owner effects |
 | `AgentInventory` / repo defaults | `cmd/internal/launcher/agent_defaults.go` | modified in M4 | supported harnesses and scoped argv defaults |
 
@@ -1017,3 +1018,19 @@ empty before deleting the indexed session. The four-site real descendant table
 runs through both stdio and PTY production runners with no cleanup fake, and a
 real subprocess test proves Couch sidecars inherit the owned group while direct
 Pair sidecars retain `setsid` (ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — require observed absence from destructive seams
+
+**Reason:** the fourth M2 review found that exact session selection still ended
+in best-effort deletion: `DeleteSession` discarded lingering-server kill errors
+and never observed the session/server absent. Its recording doubles proved only
+that deletion was attempted, not that quiescence was achieved.
+
+**Delta:** `SessionQuiescence` is now an explicit integration boundary shared by
+production and a stateful re-registration fake. It repeatedly observes the
+exact session record and exact server PID set, deletes the record, kills only
+those servers, and returns success only after two stable absent observations.
+Query, deletion, or kill errors fail closed. The stateful regression requires a
+server to re-register once, then proves the second delete and exact kill; parser
+coverage rejects neighboring names and shell-command false positives
+(ARCH-PURPOSE, ARCH-MOCK).

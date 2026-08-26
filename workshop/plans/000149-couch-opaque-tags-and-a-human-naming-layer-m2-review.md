@@ -283,3 +283,93 @@ Atlas coverage exists and README needs no change because the helper is internal.
 7. Plan revision recommendations
 
 Append a `## Revisions` entry stating that whole-incarnation quiescence must enumerate every process class started before handoff, that production and test flows must share the same cleanup boundary, and that M2 requires a live or production-controller descendant test—not a fake hook that performs the cleanup itself.
+
+---
+
+## Re-review — 2026-08-26T14:32:42-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 149 — couch: opaque tags and a human naming layer |
+| repo | pair |
+| issue file | workshop/issues/000149-couch-opaque-tags-and-a-human-naming-layer.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | eb47a9bb07846d149c9dc971f3f25dfea1bd5fef..c2062a79cdbd619dc38571e20c238a99992dd402 |
+| command | sdlc milestone-close --issue 149 --milestone M2 |
+| reviewer | codex |
+| timestamp | 2026-08-26T14:32:42-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The blocked-helper transaction, process-group ownership, atomic registration publication, and restart reconciliation are well implemented. BR-12 nevertheless remains open: process-group cleanup is now production-shaped, but detached zellij cleanup reports success without proving the server and panes are gone. The regression tests use recording deleters and therefore remain green if the best-effort lingering-server kill is removed or fails.
+
+```findings
+dispose:
+  - id: BR-12
+    disposition: not-addressed
+    note: |
+      Process-group cleanup now covers real stdio and PTY descendants, but detached zellij quiescence is still unverified: OSRuntime.DeleteSession swallows the lingering-server kill result and returns success without proving the exact session absent, while the tests only assert that a recording deleter was called.
+```
+
+1. Strengths
+
+- All four post-ack exits—ambiguous acknowledgement, registration failure, promotion conflict, and registry persistence failure—share `failPostAckStart` and are exercised with real TERM-resistant descendants under both runners.
+- Both runners use one blocked-start authority, and a structural regression prevents local handshake implementations from returning.
+- `AdvanceStartTransaction` and `ReconcileStart` remain deterministic PURE entities with literal, IO-free direct tests.
+- Registration evidence now uses write–sync–rename–directory-sync publication with a synchronized reader regression.
+- Session identity is resolved through the exact `{scope, tag}` binding before deletion; unrelated or malformed evidence fails closed.
+
+2. Critical findings
+
+- **BR-12 remains open — third finding in family `incarnation-quiescence-before-capacity-release`.** [`OSRuntime.DeleteSession`](</Users/xianxu/workspace/pair/cmd/internal/launcher/osruntime.go:711>) runs `zellij delete-session --force`, then calls the best-effort `pkillF` at line 717. `pkillF` discards every error, and no subsequent probe verifies that the exact zellij server/session and its panes are absent. Nevertheless, [`QuiesceThreadSession`](</Users/xianxu/workspace/pair/cmd/internal/launcher/thread_claim.go:275>) treats a nil return as proof of quiescence, allowing `failPostAckStart` to reconcile durable state.
+
+  The implementation’s own comment acknowledges that a lingering server can re-register the session. State the class rule: every cleanup boundary used as quiescence evidence must return success only after exact absence is observed. Make zellij termination observable through an injectable, stateful seam; retry/escalate as needed and fail closed if absence cannot be established.
+
+3. Important findings
+
+None beyond BR-12.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+The following passed:
+
+- Focused four-site real-descendant coverage for stdio and PTY
+- Focused atomic-publication, sidecar-group, and exact-session-binding tests
+- `go test ./... -count=1`
+- Race tests for `couchcore`, `launcher`, and `ptychild`
+- `go vet ./...`
+- `make test-couch-start-recovery`
+- `git diff --check`
+
+The BR-12 requirement that a test fail without the fix is unmet for the detached-session class. [`TestQuiesceThreadSessionDeletesOnlyExactIndexedPairSession`](</Users/xianxu/workspace/pair/cmd/internal/launcher/thread_claim_test.go:151>) and [`TestScopedArtifactCheckerQuiescesExactIndexedSession`](</Users/xianxu/workspace/pair/cmd/internal/couchcore/artifactcollision_test.go:61>) only assert invocation of recording deleters. Neither invokes `OSRuntime.DeleteSession`, models re-registration, observes server liveness, or fails if line 717 is deleted.
+
+The M2 Core concepts rows exist at their declared paths and their PURE/INTEGRATION classifications match the implementation.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: pass. Blocked-start and post-ack cleanup orchestration each have one authority.
+- `ARCH-PURE`: pass. State transitions are isolated from IO and directly tested.
+- `ARCH-PURPOSE`: flag. “Whole-incarnation quiescence proven” is not fulfilled until detached zellij absence is observed, rather than inferred from attempted deletion.
+- `ARCH-MOCK`: flag. The new external zellij behavior is covered only by call-recording doubles, with no stateful re-registration case or live conformance check through the production boundary.
+
+Atlas coverage is present and README does not need an entry for the internal helper. However, `atlas/couch.md` currently overstates that whole-incarnation quiescence is proven.
+
+7. Plan revision recommendations
+
+Append a `## Revisions` entry stating that:
+
+- successful zellij cleanup requires observing the exact session/server absent after deletion and lingering-server escalation;
+- cleanup-command errors cannot be swallowed when their result is used as quiescence evidence;
+- M2 requires a stateful or live-conformance regression where a lingering server attempts to survive or re-register;
+- atlas’s “no error return can leave an unowned workspace writer” claim becomes valid only after that regression passes.

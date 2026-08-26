@@ -610,6 +610,19 @@ total: 17.80
 
 ## Log
 
+### 2026-08-26 — M2 observable detached-session teardown
+
+The fourth M2 review accepted process-group ownership but found the detached
+zellij cleanup still treated an attempted command as proof. `DeleteSession` now
+delegates through a stateful `SessionQuiescence` boundary: observe the exact
+session/server set, delete, kill exact lingering server PIDs, and require two
+stable absent observations. Any query, deletion, or kill error fails closed.
+
+A stateful fake re-registers the session after its first deletion and requires
+the production orchestrator to kill the server and delete again. Exact process-
+table parsing excludes neighbor sessions and commands that merely mention the
+server argv (ARCH-PURPOSE, ARCH-MOCK).
+
 ### 2026-08-26 — M2 production-shaped whole-incarnation quiescence
 
 The third M2 review correctly rejected the descendant regression: its fake

@@ -2082,7 +2082,10 @@ cleanup through the production ownership boundary; a fake hook that kills the
 descendant itself proves a capability production may not have. Enumerate every
 pre-handoff process class: keep ordinary descendants and Couch-launched
 sidecars in an actor-owned process group, and clean separately detached servers
-through their exact durable binding (ARCH-PURPOSE, ARCH-MOCK).
+through their exact durable binding. A destructive command returning does not
+prove absence: observe the exact external state afterward, model re-registration
+in the stateful fake, and fail closed on query, deletion, or escalation errors
+(ARCH-PURPOSE, ARCH-MOCK).
 
 ## Crash-recovery evidence must be atomically published
 

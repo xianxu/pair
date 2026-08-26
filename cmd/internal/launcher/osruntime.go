@@ -33,6 +33,10 @@ type OSRuntime struct {
 	DataDir       string
 	GlobalDataDir string
 	PairHome      string
+
+	sessionQuiescence  sessionQuiescenceOps
+	sessionQuiesceWait time.Duration
+	sessionQuiescePoll time.Duration
 }
 
 // NewOSRuntime builds the concrete runtime for a resolved data dir + asset root.
@@ -706,16 +710,24 @@ func (OSRuntime) ExecKillSession(session string) {
 	}
 }
 
-// DeleteSession removes the zellij session record, then SIGKILLs a lingering
-// `zellij --server …/<session>` that re-registered the record on a heartbeat.
-func (OSRuntime) DeleteSession(session string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
-	defer cancel()
-	if out, err := exec.CommandContext(ctx, "zellij", "delete-session", session, "--force").CombinedOutput(); err != nil {
-		return fmt.Errorf("%s: %w", strings.TrimSpace(string(out)), err)
+// DeleteSession returns success only after both the exact session record and
+// every exact server process are observed absent. A lingering server can
+// re-register the record after delete-session, so attempted deletion alone is
+// not quiescence evidence.
+func (r OSRuntime) DeleteSession(session string) error {
+	ops := r.sessionQuiescence
+	if ops == nil {
+		ops = osSessionQuiescenceOps{}
 	}
-	pkillF("zellij --server .*/" + session + "$")
-	return nil
+	wait := r.sessionQuiesceWait
+	if wait <= 0 {
+		wait = zjTimeout
+	}
+	poll := r.sessionQuiescePoll
+	if poll <= 0 {
+		poll = 25 * time.Millisecond
+	}
+	return quiesceZellijSession(session, ops, wait, poll)
 }
 
 // pkillF runs `pkill -9 -f <pattern>` (best-effort; macOS pkill -f is BRE).

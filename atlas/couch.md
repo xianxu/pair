@@ -209,8 +209,10 @@ session-watcher and title-poller sidecars inherit that group rather than
 detaching. Couch sends TERM and then unconditional KILL to the group, reaps the
 client, and proves the group empty. The remaining process class is the zellij
 server and its panes: Couch resolves the exact `{scope, tag}` session-name
-binding and force-deletes that owned session. Only after whole-
-incarnation quiescence is proven does Couch reconcile durable state: an
+binding, observes its record and exact server PID set, deletes and escalates,
+then requires two stable observations with both absent. Query, deletion, and
+kill errors fail closed rather than becoming quiescence evidence. Only after
+whole-incarnation quiescence is proven does Couch reconcile durable state: an
 unfinished transaction remains creating or becomes conservative unknown,
 while an already-promoted exact incarnation is marked unknown. No error return
 can leave an unowned workspace writer.

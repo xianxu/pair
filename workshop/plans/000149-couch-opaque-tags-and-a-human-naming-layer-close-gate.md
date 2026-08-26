@@ -225,6 +225,16 @@ rounds:
           round: 7
       boundary: M2
       blocked: true
+    - "n": 8
+      timestamp: "2026-08-26T14:32:42-07:00"
+      agent: codex
+      dispose:
+        - id: BR-12
+          disposition: not-addressed
+          note: 'Process-group cleanup now covers real stdio and PTY descendants, but detached zellij quiescence is still unverified: OSRuntime.DeleteSession swallows the lingering-server kill result and returns success without proving the exact session absent, while the tests only assert that a recording deleter was called.'
+          round: 8
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — pair#149 (boundary-review)
@@ -324,6 +334,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-12 — not-addressed — The real-descendant regression kills the descendant inside FakeThreadArtifactCollisionChecker.QuiesceHook; production ScopedThreadArtifactCollisionChecker.Quiesce only deletes an indexed zellij session, so the test proves a stronger fake behavior than the shipped boundary and leaves the whole-incarnation contract unverified.
 - BR-14 — addressed — Both production runners delegate to startBlockedChild, and TestIssue149BlockedRunnersDelegateToOneHandshakeAuthority fails if either restores local pipe or acknowledged-handle construction.
 - BR-15 — addressed — Registration now uses synced same-directory temporary publication, atomic rename, and directory sync; the synchronized filesystem regression observes complete reserved state before rename and complete established state afterward.
+
+## Round 8 — 2026-08-26T14:32:42-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-12 — not-addressed — Process-group cleanup now covers real stdio and PTY descendants, but detached zellij quiescence is still unverified: OSRuntime.DeleteSession swallows the lingering-server kill result and returns success without proving the exact session absent, while the tests only assert that a recording deleter was called.
 
 ## Open findings
 

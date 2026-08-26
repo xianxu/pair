@@ -198,9 +198,9 @@ type LifecycleOps interface {
 	// TERMINAL (replaces the process), so the compaction pane dies and the outer
 	// bin/pair regains the tty (shell 1060). PAIR_KILL_CMD overrides for tests.
 	ExecKillSession(session string)
-	// DeleteSession removes the zellij session record (delete-session --force)
-	// and SIGKILLs any lingering `zellij --server …/<session>` process, shell
-	// 1528-1534.
+	// DeleteSession removes the zellij session record, SIGKILLs exact lingering
+	// server processes, and returns success only after record + servers are
+	// observed absent.
 	DeleteSession(session string) error
 	// ReapNvim kills this tag's nvim --embed children (pidfiles + pattern sweep),
 	// shell 1089-1112.
