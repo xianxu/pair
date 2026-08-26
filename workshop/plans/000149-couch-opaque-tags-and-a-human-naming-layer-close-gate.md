@@ -342,6 +342,49 @@ rounds:
           round: 13
       boundary: M3
       blocked: true
+    - "n": 14
+      timestamp: "2026-08-26T16:43:44-07:00"
+      agent: codex
+      dispose:
+        - id: BR-18
+          disposition: addressed
+          note: Production launch now distinguishes typed store absence from corruption, with corrupt-index and absent-store flow regressions.
+          round: 14
+        - id: BR-19
+          disposition: addressed
+          note: Required arguments now validate map presence, and CLI tests pin empty name, description, and published-summary clearing.
+          round: 14
+        - id: BR-20
+          disposition: addressed
+          note: CLI show, name, and describe derive Git-root repository scope; a repeated-tag regression covers reads and writes across scopes.
+          round: 14
+        - id: BR-21
+          disposition: addressed
+          note: Initial attachment dispatches the typed attach operation, and exact pane registration is private to the console executor.
+          round: 14
+        - id: BR-22
+          disposition: addressed
+          note: The audited Core concepts table names greppable PURE entities separately from INTEGRATION store and executor surfaces.
+          round: 14
+        - id: BR-23
+          disposition: addressed
+          note: README now inventories M3 commands, scoped lookup, rendering, clearing, standalone resolution, and picker behavior.
+          round: 14
+      findings:
+        - id: BR-24
+          severity: Critical
+          title: Named couch show output drops the durable tag promised for diagnostics
+          detail: The Spec requires list to stop leading with the system id while retaining it for show and diagnostics, but run.go:432-433 sends list and show through the same renderer and run.go:454-480 emits only ThreadSummary.Label(), which replaces a named thread's tag completely. A named `couch show compiler` therefore cannot reveal the immutable address needed for exact follow-up operations. Preserve name-first list output while making show include the opaque tag, and add a named-show CLI regression that fails when the tag is absent (ARCH-PURPOSE).
+          family: detail-view-preserves-durable-identity
+          round: 14
+        - id: BR-25
+          severity: Critical
+          title: Panel callbacks silently turn authoritative ThreadStore failures into empty results
+          detail: 'This is the 2nd finding in family `durable-index-read-failure-authority`. run.go:331-341 discards errors from both ResolveThreadReference and ThreadInventory, while console.go:190-218 and console.go:868-906 expose callbacks that cannot return an error. A corrupt or incomplete store can therefore replace the authoritative panel with an empty list or no matches without any notice. Do not patch only one closure: state the rule that every durable-record read either returns valid state or surfaces its failure, change the callback boundary accordingly, and add a production-wiring regression using a failing store read (ARCH-PURPOSE).'
+          family: durable-index-read-failure-authority
+          round: 14
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — pair#149 (boundary-review)
@@ -499,11 +542,25 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-23** [Important] `user-facing-policy-docs` README still documents the pre-M3 tree and actor interface
   This is the 2nd finding in family `user-facing-policy-docs`. README.md:267-272 still says list shows actors, show targets one tree, and name/describe mutate tree metadata; README.md:326 documents only resume-by-tag and omits human-name resolution and picker behavior. Do not fix only these lines: enumerate every M3 user-facing command, lookup, rendering, and clearing behavior and sweep the README against that inventory.
 
+## Round 14 — 2026-08-26T16:43:44-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-18 — addressed — Production launch now distinguishes typed store absence from corruption, with corrupt-index and absent-store flow regressions.
+- BR-19 — addressed — Required arguments now validate map presence, and CLI tests pin empty name, description, and published-summary clearing.
+- BR-20 — addressed — CLI show, name, and describe derive Git-root repository scope; a repeated-tag regression covers reads and writes across scopes.
+- BR-21 — addressed — Initial attachment dispatches the typed attach operation, and exact pane registration is private to the console executor.
+- BR-22 — addressed — The audited Core concepts table names greppable PURE entities separately from INTEGRATION store and executor surfaces.
+- BR-23 — addressed — README now inventories M3 commands, scoped lookup, rendering, clearing, standalone resolution, and picker behavior.
+
+### Raised
+
+- **BR-24** [Critical] `detail-view-preserves-durable-identity` Named couch show output drops the durable tag promised for diagnostics
+  The Spec requires list to stop leading with the system id while retaining it for show and diagnostics, but run.go:432-433 sends list and show through the same renderer and run.go:454-480 emits only ThreadSummary.Label(), which replaces a named thread's tag completely. A named `couch show compiler` therefore cannot reveal the immutable address needed for exact follow-up operations. Preserve name-first list output while making show include the opaque tag, and add a named-show CLI regression that fails when the tag is absent (ARCH-PURPOSE).
+- **BR-25** [Critical] `durable-index-read-failure-authority` Panel callbacks silently turn authoritative ThreadStore failures into empty results
+  This is the 2nd finding in family `durable-index-read-failure-authority`. run.go:331-341 discards errors from both ResolveThreadReference and ThreadInventory, while console.go:190-218 and console.go:868-906 expose callbacks that cannot return an error. A corrupt or incomplete store can therefore replace the authoritative panel with an empty list or no matches without any notice. Do not patch only one closure: state the rule that every durable-record read either returns valid state or surfaces its failure, change the callback boundary accordingly, and add a production-wiring regression using a failing store read (ARCH-PURPOSE).
+
 ## Open findings
 
-- **BR-18** [Critical] `durable-index-read-failure-authority` Corrupt ThreadIndex errors silently fall back to launching the input as a legacy tag
-- **BR-19** [Critical] `metadata-empty-value-contract` Required-argument validation makes documented metadata clearing unreachable
-- **BR-20** [Critical] `composite-address-collision-domain` CLI metadata operations cannot supply the repository scope needed to address repeated tags
-- **BR-21** [Critical] `operation-dispatch-single-authority` Initial console attachment bypasses the declared attach operation
-- **BR-22** [Critical] `core-concept-kind-contract` The Core concepts table no longer describes the M3 entities and purity boundary
-- **BR-23** [Important] `user-facing-policy-docs` README still documents the pre-M3 tree and actor interface
+- **BR-24** [Critical] `detail-view-preserves-durable-identity` Named couch show output drops the durable tag promised for diagnostics
+- **BR-25** [Critical] `durable-index-read-failure-authority` Panel callbacks silently turn authoritative ThreadStore failures into empty results

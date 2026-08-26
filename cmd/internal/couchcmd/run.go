@@ -8,6 +8,7 @@ package couchcmd
 
 import (
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -328,17 +329,20 @@ func dispatchInitialAttach(console *couchtty.Console, start couchcore.StartResul
 // failure mode Decision 12's wiring check names: the panel would silently fall
 // back to "show everything" and typeahead would do nothing.
 func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
-	console.SetResolver(func(ref string) []couchcore.ThreadAddress {
-		matches, _ := c.ResolveThreadReference("", ref)
+	console.SetResolver(func(ref string) ([]couchcore.ThreadAddress, error) {
+		matches, err := c.ResolveThreadReference("", ref)
+		var ambiguous *couchcore.AmbiguousThreadReferenceError
+		if err != nil && !errors.Is(err, couchcore.ErrThreadReferenceNotFound) && !errors.As(err, &ambiguous) {
+			return nil, err
+		}
 		addresses := make([]couchcore.ThreadAddress, len(matches))
 		for i := range matches {
 			addresses[i] = matches[i].Address
 		}
-		return addresses
+		return addresses, nil
 	})
-	console.SetSummaries(func() []couchcore.ThreadSummary {
-		rows, _ := c.ThreadInventory()
-		return rows
+	console.SetSummaries(func() ([]couchcore.ThreadSummary, error) {
+		return c.ThreadInventory()
 	})
 	console.SetForget(c.Forget)
 
@@ -430,7 +434,11 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 	case []couchcore.TreeSummary:
 		renderTrees(w, v)
 	case []couchcore.ThreadSummary:
-		renderThreads(w, v)
+		if op.Name == "show" {
+			renderThreadDetails(w, v)
+		} else {
+			renderThreads(w, v)
+		}
 	case couchcore.Worktree:
 		fmt.Fprintf(w, "%s\n", v)
 	case couchcore.StopResult:
@@ -455,6 +463,17 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 // the panel and advisor. Human names lead named rows; only unnamed rows expose
 // the opaque tag as their fallback label.
 func renderThreads(w io.Writer, threads []couchcore.ThreadSummary) {
+	renderThreadRows(w, threads, false)
+}
+
+// renderThreadDetails keeps the immutable composite address available for
+// diagnostics and exact follow-up operations. List intentionally stays
+// name-first and compact; show is the detail view.
+func renderThreadDetails(w io.Writer, threads []couchcore.ThreadSummary) {
+	renderThreadRows(w, threads, true)
+}
+
+func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAddress bool) {
 	if len(threads) == 0 {
 		fmt.Fprintln(w, "no threads")
 		return
@@ -466,6 +485,9 @@ func renderThreads(w io.Writer, threads []couchcore.ThreadSummary) {
 			open, close = "", ""
 		}
 		fmt.Fprintf(w, "%s%-22s %s%s\n", open, thread.Label(), thread.WorkingPath, close)
+		if includeAddress {
+			fmt.Fprintf(w, "%s  address: %s/%s%s\n", open, thread.Address.RepoScope, thread.Address.Tag, close)
+		}
 		if summary := thread.DisplaySummary(); summary != "" {
 			fmt.Fprintf(w, "%s  %s%s\n", open, summary, close)
 		}

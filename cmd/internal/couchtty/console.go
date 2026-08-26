@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -75,12 +76,15 @@ type Console struct {
 	// CLI and #148's advisor resolve (Decision 12). Nil degrades to showing
 	// everything rather than to a private match rule.
 	query     string
-	resolve   func(string) []couchcore.ThreadAddress
-	summaries func() []couchcore.ThreadSummary
+	resolve   func(string) ([]couchcore.ThreadAddress, error)
+	summaries func() ([]couchcore.ThreadSummary, error)
 
 	// panel is live state, not rebuilt per keystroke: the highlight has to
 	// survive typing, or the cursor resets under the operator's fingers.
 	panel *PanelModel
+	// panelErr is rendered inside the owned screen. Durable-read failures must
+	// never masquerade as an authoritative empty inventory or no-match result.
+	panelErr string
 
 	// prompt is non-empty while the panel is collecting an argument for an
 	// action -- a path for `start`, say. Actions that need input cannot be a
@@ -188,7 +192,7 @@ func (c *Console) Ops() func(couchcore.OperationCall) (any, error) {
 }
 
 // SetResolver injects the panel's shared thread-reference match rule.
-func (c *Console) SetResolver(f func(string) []couchcore.ThreadAddress) {
+func (c *Console) SetResolver(f func(string) ([]couchcore.ThreadAddress, error)) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.resolve = f
@@ -197,7 +201,7 @@ func (c *Console) SetResolver(f func(string) []couchcore.ThreadAddress) {
 // Resolver returns the injected match rule, so a wiring test can assert one was
 // actually passed -- a nil resolver still renders a panel, so nothing else
 // would notice.
-func (c *Console) Resolver() func(string) []couchcore.ThreadAddress {
+func (c *Console) Resolver() func(string) ([]couchcore.ThreadAddress, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.resolve
@@ -205,14 +209,14 @@ func (c *Console) Resolver() func(string) []couchcore.ThreadAddress {
 
 // SetSummaries injects Pair's authoritative thread inventory through Couch;
 // the console contributes only ephemeral routing data.
-func (c *Console) SetSummaries(f func() []couchcore.ThreadSummary) {
+func (c *Console) SetSummaries(f func() ([]couchcore.ThreadSummary, error)) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.summaries = f
 }
 
 // Summaries returns the injected provider for production wiring tests.
-func (c *Console) Summaries() func() []couchcore.ThreadSummary {
+func (c *Console) Summaries() func() ([]couchcore.ThreadSummary, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.summaries
@@ -892,17 +896,42 @@ func (c *Console) rebuildPanel() {
 
 	summaries := fallback
 	if provider != nil {
-		summaries = provider()
+		var err error
+		summaries, err = provider()
+		if err != nil {
+			c.mu.Lock()
+			if c.panel == nil {
+				c.panel = NewPanelModel(nil)
+			}
+			c.panelErr = "thread inventory unavailable: " + err.Error()
+			c.mu.Unlock()
+			return
+		}
 	}
 	m := NewPanelModel(summaries)
 	m.BindTargets(targets)
-	m.Filter(query, resolve)
+	if query == "" || resolve == nil {
+		m.Filter(query, nil)
+	} else {
+		addresses, err := resolve(query)
+		if err != nil {
+			c.mu.Lock()
+			if c.panel == nil {
+				c.panel = m
+			}
+			c.panelErr = "thread reference unavailable: " + err.Error()
+			c.mu.Unlock()
+			return
+		}
+		m.Filter(query, func(string) []couchcore.ThreadAddress { return addresses })
+	}
 	if selected != (couchcore.ThreadAddress{}) {
 		m.SelectAddress(selected)
 	}
 
 	c.mu.Lock()
 	c.panel = m
+	c.panelErr = ""
 	c.mu.Unlock()
 }
 
@@ -914,12 +943,36 @@ func (c *Console) showPanel() {
 		c.rebuildPanel()
 		c.mu.Lock()
 	}
-	query, prompt := c.query, c.prompt
-	rows := c.panel.Filter(query, c.resolve)
-	body := RenderPanelWithQuery(query, rows, c.panel.Cursor())
+	query, resolve := c.query, c.resolve
+	c.mu.Unlock()
+
+	var addresses []couchcore.ThreadAddress
+	var resolveErr error
+	if query != "" && resolve != nil {
+		addresses, resolveErr = resolve(query)
+	}
+
+	c.mu.Lock()
+	panel, prompt, panelErr := c.panel, c.prompt, c.panelErr
+	rows := panel.Shown()
+	if query == "" || resolve == nil {
+		rows = panel.Filter(query, nil)
+	} else if resolveErr != nil {
+		panelErr = "thread reference unavailable: " + resolveErr.Error()
+	} else {
+		rows = panel.Filter(query, func(string) []couchcore.ThreadAddress { return addresses })
+		if strings.HasPrefix(panelErr, "thread reference unavailable:") {
+			panelErr = ""
+		}
+	}
+	body := RenderPanelWithQuery(query, rows, panel.Cursor())
+	if panelErr != "" {
+		body += "\r\n  error: " + panelErr + "\r\n"
+	}
 	if prompt != "" {
 		body += "\r\n  " + prompt + "\r\n"
 	}
+	c.panelErr = panelErr
 	c.mu.Unlock()
 	c.takeOverScreen([]byte(body))
 	c.paintNow()

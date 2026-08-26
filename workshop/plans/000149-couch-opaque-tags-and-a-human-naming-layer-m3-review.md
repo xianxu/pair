@@ -114,3 +114,117 @@ Append a `## Revisions` entry recording:
 - fail-closed handling for malformed/incomplete ThreadIndex state;
 - attach as a universally dispatched effect;
 - the actual Task 2 file placement (`threadinventory.go` rather than the planned `couch.go` changes).
+
+---
+
+## Re-review — 2026-08-26T16:43:44-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 149 — couch: opaque tags and a human naming layer |
+| repo | pair |
+| issue file | workshop/issues/000149-couch-opaque-tags-and-a-human-naming-layer.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | cd7168cb4ac6023f6988b7198099c322a00ec74c..0d3bd4cb52c2fed65b2792c36e5dd01826fde7c7 |
+| command | sdlc milestone-close --issue 149 --milestone M3 |
+| reviewer | codex |
+| timestamp | 2026-08-26T16:43:44-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The six prior findings are addressed with reachable production paths and regressions, and the focused and full Go suites pass. Two Critical M3 contract gaps remain: named `couch show` output omits the durable tag explicitly required for diagnostics, and panel inventory/reference callbacks silently swallow authoritative ThreadStore failures.
+
+```findings
+dispose:
+  - id: BR-18
+    disposition: addressed
+    note: |
+      Production launch now distinguishes typed store absence from corruption, with corrupt-index and absent-store flow regressions.
+  - id: BR-19
+    disposition: addressed
+    note: |
+      Required arguments now validate map presence, and CLI tests pin empty name, description, and published-summary clearing.
+  - id: BR-20
+    disposition: addressed
+    note: |
+      CLI show, name, and describe derive Git-root repository scope; a repeated-tag regression covers reads and writes across scopes.
+  - id: BR-21
+    disposition: addressed
+    note: |
+      Initial attachment dispatches the typed attach operation, and exact pane registration is private to the console executor.
+  - id: BR-22
+    disposition: addressed
+    note: |
+      The audited Core concepts table names greppable PURE entities separately from INTEGRATION store and executor surfaces.
+  - id: BR-23
+    disposition: addressed
+    note: |
+      README now inventories M3 commands, scoped lookup, rendering, clearing, standalone resolution, and picker behavior.
+findings:
+  - id: new
+    severity: Critical
+    family: detail-view-preserves-durable-identity
+    title: |
+      Named couch show output drops the durable tag promised for diagnostics
+    detail: |
+      The Spec requires list to stop leading with the system id while retaining it for show and diagnostics, but run.go:432-433 sends list and show through the same renderer and run.go:454-480 emits only ThreadSummary.Label(), which replaces a named thread's tag completely. A named `couch show compiler` therefore cannot reveal the immutable address needed for exact follow-up operations. Preserve name-first list output while making show include the opaque tag, and add a named-show CLI regression that fails when the tag is absent (ARCH-PURPOSE).
+  - id: new
+    severity: Critical
+    family: durable-index-read-failure-authority
+    title: |
+      Panel callbacks silently turn authoritative ThreadStore failures into empty results
+    detail: |
+      This is the 2nd finding in family `durable-index-read-failure-authority`. run.go:331-341 discards errors from both ResolveThreadReference and ThreadInventory, while console.go:190-218 and console.go:868-906 expose callbacks that cannot return an error. A corrupt or incomplete store can therefore replace the authoritative panel with an empty list or no matches without any notice. Do not patch only one closure: state the rule that every durable-record read either returns valid state or surfaces its failure, change the callback boundary accordingly, and add a production-wiring regression using a failing store read (ARCH-PURPOSE).
+```
+
+### Strengths
+
+- Composite addresses remain intact through inventory, panel filtering, selection, and terminal target binding; same-path thread regressions exercise the distinction.
+- Metadata transitions are pure and field-independent, while store updates use revision CAS.
+- Operation declarations are closure-free and dispatch selects exactly one injected executor; missing owner capability cannot fall back.
+- Standalone Pair reads the real file-backed ThreadStore projection, preserves opaque artifact tags, and distinguishes absent from corrupt durable state.
+- Atlas and README coverage now describe the principal M3 surfaces.
+
+### Critical findings
+
+The two findings above must be fixed before rerunning the M3 boundary.
+
+### Important findings
+
+None.
+
+### Minor findings
+
+None.
+
+### Test coverage notes
+
+Fresh verification:
+
+- Focused packages passed: `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/internal/couchtty ./cmd/internal/launcher -count=1`
+- Full suite passed on rerun: `go test ./... -count=1`
+- `git diff --check cd7168c..0d3bd4c` passed.
+- An initial full-suite run timed out in `TestOSRuntimeProbeLiveLayoutUsesSessionScopedPaneReport`; the test then passed three consecutive isolated runs, the launcher package passed, and the full rerun passed.
+- Missing regressions correspond directly to the new findings: named `show` retaining its tag and panel behavior under a failing authoritative store read.
+
+### Architectural notes for upcoming work
+
+- **ARCH-DRY:** Pass. Matcher, inventory construction, and operation dispatch are shared rather than restated by clients.
+- **ARCH-PURE:** Pass. Metadata transition, inventory construction, reference matching, and operation declarations have direct IO-free tests.
+- **ARCH-PURPOSE:** Flag. Diagnostic identity and fail-closed panel reads are committed behavior that the current diff under-delivers.
+- **ARCH-MOCK:** Pass. Production and tests share the store/runtime/executor seams, including a portable file-backed conformance fixture.
+
+### Plan revision recommendations
+
+Append a `## Revisions` entry recording:
+
+- the rendering rule: list is name-first and may hide a named tag, while `show` must retain the immutable tag for diagnostics;
+- the durable-read rule: panel inventory and resolver boundaries propagate ThreadStore failures visibly instead of converting them to empty state;
+- the corresponding named-show and failing-store production-wiring regressions.

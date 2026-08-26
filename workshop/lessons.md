@@ -2160,3 +2160,25 @@ startup path can invoke the primitive directly.
 then test the typed declaration emitted by each external wiring path. This
 turns dispatcher bypass into a compile error rather than a review convention
 (ARCH-DRY, ARCH-PURPOSE).
+
+## Durable-read callback types must carry failure
+
+An error-aware store is still fail-open when a UI callback returns only a
+slice: the adapter has no representation except “empty,” so corruption becomes
+indistinguishable from valid absence.
+
+**Rule.** Every callback crossing a durable-record read returns `(value,
+error)`. The consumer preserves the last valid state where possible and shows
+the failure in its owned surface. Test the production adapter with a failing
+real store read as well as the consumer's visible error behavior
+(ARCH-PURPOSE, ARCH-MOCK).
+
+## Compact and diagnostic renderers have different identity duties
+
+Human-first lists reduce noise, but a detail view must still expose immutable
+identity for exact commands and support.
+
+**Rule.** Share row rendering mechanics while making identity visibility an
+explicit mode: compact lists may hide a named system id; diagnostic views must
+always print the full durable address. Pin both halves so one shared renderer
+cannot flatten the distinction (ARCH-DRY, ARCH-PURPOSE).

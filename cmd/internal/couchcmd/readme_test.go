@@ -108,6 +108,8 @@ func TestREADMEDocumentsM3ThreadSemantics(t *testing.T) {
 		"parked threads",
 		"duplicate labels",
 		"malformed or incomplete index fails closed",
+		"diagnostic view",
+		"`{repository scope}/{opaque tag}`",
 	} {
 		if !strings.Contains(doc, want) {
 			t.Errorf("README does not document M3 behavior %q", want)

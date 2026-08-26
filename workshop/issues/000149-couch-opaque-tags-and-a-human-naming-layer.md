@@ -1007,3 +1007,14 @@ repository's thread. Initial console attachment now dispatches the same typed
 primitive hidden behind the console executor. The plan's architectural entity
 table and README's complete M3 surface were audited rather than patched one
 cell or command at a time (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-26 — resolve second M3 boundary findings
+
+BR-24 separates compact list rendering from diagnostic show rendering: a named
+thread still leads with its human label, but `show` now prints the immutable
+scope/tag address. BR-25 widens both panel durable-read callbacks to propagate
+errors; rebuild and typeahead preserve the last valid rows and display the
+failure instead of presenting corruption as empty state. Tests exercise the
+named CLI detail view, both production callbacks against a corrupted real
+ThreadStore manifest, and visible inventory/reference failures in the hosted
+panel (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).

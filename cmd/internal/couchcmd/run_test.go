@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -430,7 +431,7 @@ func TestCLIEmptyNameClearsHumanThreadName(t *testing.T) {
 
 func TestShowResolvesANameToItsTreePath(t *testing.T) {
 	rt := newRT(t, "/repo")
-	seedThread(t, rt, "/repo")
+	created := seedThread(t, rt, "/repo")
 	if _, errw, code := runRT(rt, "name", "/repo", "pairtree"); code != 0 {
 		t.Fatalf("name failed: %s", errw)
 	}
@@ -440,6 +441,9 @@ func TestShowResolvesANameToItsTreePath(t *testing.T) {
 	}
 	if !strings.Contains(out, "/repo") {
 		t.Fatalf("out = %q; show must print the tree path", out)
+	}
+	if !strings.Contains(out, string(created.Address.Tag)) {
+		t.Fatalf("out = %q; show must retain the immutable thread tag", out)
 	}
 }
 
@@ -832,8 +836,58 @@ func TestConsoleGetsCouchsOwnResolver(t *testing.T) {
 	if console.Summaries() == nil {
 		t.Fatal("the run path left the panel's summary provider nil — parked trees would disappear")
 	}
-	if got := console.Resolver()("anything"); len(got) != 0 {
-		t.Fatalf("resolver returned %v for an empty registry", got)
+	if got, err := console.Resolver()("anything"); err != nil || len(got) != 0 {
+		t.Fatalf("resolver returned %v, %v for an empty registry", got, err)
+	}
+}
+
+func TestConsoleWiringPropagatesAuthoritativeThreadStoreFailures(t *testing.T) {
+	rt := newRT(t, "/repo")
+	seedThread(t, rt, "/repo")
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	console, _ := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
+	wireResolver(console, c)
+	if err := os.WriteFile(filepath.Join(rt.dir, "threadstore", "manifest.json"), []byte("{corrupt"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := console.Summaries()(); err == nil {
+		t.Fatal("production summary callback swallowed corrupt ThreadStore")
+	}
+	if _, err := console.Resolver()("repo"); err == nil {
+		t.Fatal("production reference callback swallowed corrupt ThreadStore")
+	}
+}
+
+func TestConsoleWiringReturnsEveryAmbiguousHumanMatch(t *testing.T) {
+	rt := newRT(t, "/repo")
+	localScope, err := launcher.ResolveRepoScope("/repo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherScope, err := launcher.ResolveRepoScope("/other")
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := seedThreadAtAddress(t, rt, localScope.Key, "couch-0102030405060708", "/repo")
+	second := seedThreadAtAddress(t, rt, otherScope.Key, "couch-1112131415161718", "/other")
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	name := "compiler"
+	for _, address := range []couchcore.ThreadAddress{first.Address, second.Address} {
+		if _, err := c.ApplyThreadMetadata(address, couchcore.ThreadMetadataPatch{Name: &name}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	console, _ := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
+	wireResolver(console, c)
+	matches, err := console.Resolver()(name)
+	if err != nil || len(matches) != 2 {
+		t.Fatalf("ambiguous typeahead matches = %+v, %v", matches, err)
 	}
 }
 

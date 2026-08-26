@@ -818,11 +818,11 @@ func TestHotkeyFromTheRootActorOpensThePanel(t *testing.T) {
 func TestConsolePanelRefreshUsesInjectedSummaries(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	name := "parked"
-	f.con.SetSummaries(func() []couchcore.ThreadSummary {
+	f.con.SetSummaries(func() ([]couchcore.ThreadSummary, error) {
 		return []couchcore.ThreadSummary{
 			{Address: panelAddress("c1"), WorkingPath: "c1", Name: "brain", Incarnations: []couchcore.ThreadIncarnation{{State: couchcore.IncarnationLive}}},
 			{Address: panelAddress("pair"), WorkingPath: "/w/pair", Name: name, PublishedSummary: "waiting for review"},
-		}
+		}, nil
 	})
 	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
 
@@ -840,6 +840,34 @@ func TestConsolePanelRefreshUsesInjectedSummaries(t *testing.T) {
 	if len(rows) != 2 || rows[1].Label != "renamed" {
 		t.Fatalf("refreshed rows = %+v, want renamed summary", rows)
 	}
+}
+
+func TestConsolePanelSurfacesDurableReadFailures(t *testing.T) {
+	t.Run("inventory", func(t *testing.T) {
+		f := newFixture(t, 24, 80)
+		f.con.SetSummaries(func() ([]couchcore.ThreadSummary, error) {
+			return nil, errors.New("corrupt manifest")
+		})
+		waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+		_, _ = f.stdin.Write([]byte("\x00"))
+		waitFor(t, "the durable inventory error", func() bool {
+			return strings.Contains(f.host.Written(), "error: thread inventory unavailable: corrupt manifest")
+		})
+	})
+
+	t.Run("reference", func(t *testing.T) {
+		f := newFixture(t, 24, 80)
+		f.con.SetResolver(func(string) ([]couchcore.ThreadAddress, error) {
+			return nil, errors.New("missing addressed record")
+		})
+		waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+		_, _ = f.stdin.Write([]byte("\x00"))
+		waitFor(t, "the panel", func() bool { return strings.Contains(f.host.Written(), "couch — actors") })
+		_, _ = f.stdin.Write([]byte("x"))
+		waitFor(t, "the durable reference error", func() bool {
+			return strings.Contains(f.host.Written(), "error: thread reference unavailable: missing addressed record")
+		})
+	})
 }
 
 // The property the whole project rests on: from a NON-root child, one key goes
@@ -868,7 +896,7 @@ func TestPanelPrintableCommandRunesAreTypeahead(t *testing.T) {
 	for _, query := range []string{"start", "xray", "name", "describe", "2fa", ":", "1", "9"} {
 		t.Run(query, func(t *testing.T) {
 			f := newFixture(t, 24, 80)
-			f.con.SetResolver(func(string) []couchcore.ThreadAddress { return nil })
+			f.con.SetResolver(func(string) ([]couchcore.ThreadAddress, error) { return nil, nil })
 			waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
 			_, _ = f.stdin.Write([]byte("\x00"))
 			waitFor(t, "the panel", func() bool { return strings.Contains(f.host.Written(), "couch — actors") })
@@ -889,12 +917,12 @@ func TestPanelTypeaheadUsesTheInjectedResolver(t *testing.T) {
 	f.con.AttachTree("c2", "/w/ariadne", "ariadne", other)
 
 	asked := ""
-	f.con.SetResolver(func(q string) []couchcore.ThreadAddress {
+	f.con.SetResolver(func(q string) ([]couchcore.ThreadAddress, error) {
 		asked = q
 		// Production resolves human text to the child's WORKTREE, not to its
 		// per-incarnation actor id. The panel must retain both identities:
 		// worktree for matching, actor id for switching.
-		return []couchcore.ThreadAddress{panelAddress("c2")}
+		return []couchcore.ThreadAddress{panelAddress("c2")}, nil
 	})
 	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
 

@@ -282,6 +282,11 @@ path. A human name leads when present; otherwise the opaque tag is the label.
 The agent-published summary is displayed ahead of the operator description,
 without overwriting it.
 
+`couch list` stays compact and name-first. `couch show` is the diagnostic view:
+it always prints the immutable `{repository scope}/{opaque tag}` address, even
+when a human name is present, so exact follow-up operations never depend on a
+mutable label.
+
 Omit the description from `couch describe <ref>` to read it. Pass an explicit
 empty string to `name`, `describe`, or `publish-description` to clear only that
 field. `publish-description` uses the exact scope and tag injected into a

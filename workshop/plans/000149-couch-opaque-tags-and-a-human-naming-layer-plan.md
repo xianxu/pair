@@ -1113,3 +1113,20 @@ dispatch executors are INTEGRATION. Task 2's implemented inventory placement
 is `threadinventory.go`; its planned `couch.go`/`couch_test.go` changes were not
 needed. README now inventories the full M3 command, lookup, rendering, picker,
 and empty-value behavior (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-26 — incorporate second M3 boundary review
+
+**Reason:** the second M3 review confirmed BR-18 through BR-23 but found that
+the shared compact renderer erased a named thread's immutable tag from `show`,
+and that both panel callbacks converted authoritative ThreadStore failures to
+empty results.
+
+**Delta:** rendering now has an explicit detail contract: `list` remains
+name-first and compact, while `show` always emits the full `{repo scope, tag}`
+address for diagnostics and exact follow-up. The durable-read invariant covers
+every panel record read, not only standalone Pair: inventory and reference
+callbacks return errors, the console preserves the last valid model when one
+exists, and the owned screen displays the failure. A named-show CLI regression,
+a real corrupt-ThreadStore wiring regression for both callbacks, and visible
+inventory/reference error tests pin the class (ARCH-DRY, ARCH-PURPOSE,
+ARCH-MOCK).

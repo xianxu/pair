@@ -154,6 +154,12 @@ snapshot as `couch list`; a pure join adds only hosted-child routing IDs and
 bell state. Human name leads, the opaque tag is the unnamed fallback, and
 operator description remains separate from the agent-published summary. The
 legacy `SelectTree` adapter succeeds only when one visible thread has that path.
+The inventory and reference callbacks both carry errors. A failed authoritative
+ThreadStore read preserves the last valid panel model (or starts empty if none
+exists) and renders the failure in the owned screen; it never turns corruption
+into an authoritative empty inventory or no-match result. CLI `list` remains
+name-first, while `show` always includes the full immutable composite address
+for diagnostics.
 
 ## Exit, detach, and terminal lifecycle
 
