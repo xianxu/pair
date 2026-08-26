@@ -42,7 +42,7 @@ remains #153. #149 returns typed refusals for those unavailable outcomes.
 | `PolicyResult` / `PolicyCapacity` | `cmd/internal/couchcore/policyresolver.go` | new in M1 |
 | `AdmissionDecision` | `cmd/internal/couchcore/admission.go` | new in M1 |
 | `PolicyTable` / repository `Mode` | `cmd/internal/couchcore/policy.go` | deleted in M1 |
-| `ThreadAddress` / `ThreadRecord` | `cmd/internal/couchcore/thread.go` | new in M2 |
+| `ThreadAddress` / minimal `ThreadRecord` | `cmd/internal/couchcore/thread.go` | new in M1, widened in M2 |
 | `StartTransaction` | `cmd/internal/couchcore/starttransaction.go` | new in M2 |
 | `ThreadMetadata` / `ThreadSummary` | `cmd/internal/couchcore/threadmetadata.go`, `threadinventory.go` | new in M3 |
 | `Operation` effect/owner declaration | `cmd/internal/couchcore/ops.go` | modified in M1 and M3 |
@@ -85,6 +85,28 @@ particular, namespace/lease tests use independent processes and inherited file
 descriptors; policy tests use a changing stateful resolver plus the live
 Ariadne binary; store tests use independent store instances over one directory.
 
+### Risky function test strategies
+
+| Function | Adversarial strategy and mechanical guard |
+|---|---|
+| `ResolveCouchNamespace` | Fuzz path spellings/filesystem alias fixtures; require one absolute physical output or typed refusal. |
+| `AcquireSupervisorLease` / `VerifiedOwner` | Stateful `ProcOps` plus subprocess crash/FD probes; display only identity proven against the held lock. |
+| `DecodePolicyResponse` | Fuzz arbitrary bytes, discriminator deletion, and exit/output combinations; accept exactly one validated envelope. |
+| `RecoverStoreJournal` | Model crash at each state transition and corrupt after-images; roll forward only expected-before/exact-after states. |
+| `AllocateThreadTag` | Script entropy failures and collision streams; no-replace claim or typed failure within eight attempts. |
+| `ValidateThreadRecord` | Fuzz composite/schema values; reject invalid boundaries while defensively copying accepted state. |
+| `ReconcileAdmission` / `Admission.Decide` | Stateful provider/store interleavings; commit only one manifest generation and coherent provider epoch, never fork on refusal. |
+| `AdvanceStartTransaction` / `ReconcileStart` | Generate interruption event sequences; every state has at most one tracked helper and occupied-or-proven-free capacity. |
+| `ResolveThreadReference` | Fuzz duplicate/fuzzy candidates; exact scoped tag wins and every ambiguous result refuses with candidates. |
+| `ApplyThreadMetadata` / `BuildThreadInventory` | Generate stale revisions and equal-path records; preserve independent fields and one exact-state row per thread. |
+| `DispatchOperation` | Schema-surface conformance plus stale targets; effect executes only through its declared executor and owner absence never forks. |
+| `ResolveLaunchProfile` | Cartesian source properties; agent and argv provenance resolve independently and never cross agents. |
+| `MigrateLegacyRecord` | Model interruption/corruption/repeated tags; rerun is idempotent and never drops unreadable input or occupancy. |
+| `artifactpath.Resolve` / manifest coverage | Fuzz traversal and scan all production constructors; output remains scoped and every constructor is classified. |
+
+Task test steps below name these functions and their focused/full commands; this
+table owns adversarial classes so tasks do not duplicate case inventories.
+
 ### One authority, introduced incrementally
 
 `couchcore.ThreadStore` is the only mutable authority for thread records,
@@ -96,10 +118,10 @@ never retain a mutable registry snapshot and later overwrite the store.
 
 M1 needs durable `creating` reservations to make policy admission safe across
 processes. Therefore M1 introduces the non-throwaway ThreadStore transaction
-kernel and the admission/incarnation subset of its schema. M2 widens the same
-schema and API to full thread identity, tag claims, journaled starts, and the
-pre-exec helper. This is a dependency correction to the issue's shorthand
-milestone rows, not a second store or a change in final ownership
+kernel, composite opaque identity for new starts, and the
+admission/incarnation subset of its schema. M2 widens the same schema and API to
+journaled starts and the pre-exec helper. This is a dependency correction to the
+issue's shorthand milestone rows, not a second store or a change in final ownership
 (ARCH-DRY, ARCH-PURE).
 
 Use an OS advisory lock around the store directory, acquired through an
@@ -239,43 +261,15 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Write failing pure tests for default, absolute, relative, missing-directory,
-   `..`, symlink, and invalid store inputs. Assert all aliases resolve to one
-   absolute physical `CouchNamespace` before any Couch/store construction and
-   that the exact path is inherited by a child launched from another cwd.
+- [ ] **Step 1:** Write failing `ResolveCouchNamespace`, `AcquireSupervisorLease`, and
+   `VerifiedOwner` tests using the strategy table.
 - [ ] **Step 2:** Run `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd -run
-   'Test(CouchNamespace|StoreNamespace)' -count=1`; expect failures because the
-   resolver and composition seam do not exist.
-- [ ] **Step 3:** Implement `ResolveCouchNamespace(startupCWD, configured, defaultPath)` with
-   mkdir plus physical resolution. Change `OSRuntime` to resolve it once and
-   pass the value into lease, ThreadStore, and child env;
-   remove every later interpretation of a raw relative `COUCH_STORE_DIR`.
-- [ ] **Step 4:** Add `Operation.Execution` as a closed enum (`direct-store-safe` or
-   `owner-required`) plus effect/confirmation metadata. Classify every existing
-   operation explicitly; source-level tests fail on an omitted/zero class.
-- [ ] **Step 5:** Write failing two-process lease tests: console vs console, console vs
-   `--no-console`, and reversed order. A refusal must report the atomically
-   published PID/process-start identity only after verifying it through the
-   existing `ProcOps` seam. Cover stale/malformed metadata, PID reuse, and
-   identity-probe unknown/error; unverified owner metadata is never displayed.
-- [ ] **Step 6:** Implement `SupervisorLease` with an injected fake and Unix production lock.
-   Acquire before actor-owning Couch construction, set close-on-exec before any
-   fork, atomically publish metadata while holding the lock, and hold the handle
-   until all supervised work and console teardown complete. Owner-required
-   external calls refuse while another owner exists; direct-store-safe calls do
-   not take the lifetime lease. Reuse `ProcOps` for PID/start identity rather
-   than creating a second process-identity implementation; publication failure
-   releases the lease and cannot leave apparent ownership.
-- [ ] **Step 7:** Add a subprocess test whose supervisor forks a long-lived child, then is
-   killed with SIGKILL. Assert another process immediately acquires the lease
-   while the child remains alive; this proves the descriptor was not inherited.
-- [ ] **Step 8:** While the lifetime lease is held, perform repeated direct-store-safe
-   metadata writes through the short ThreadStore lock. Prove releasing each
-   store lock cannot release the supervisor lease and another supervisor still
-   refuses; then release the lease and prove acquisition succeeds.
-- [ ] **Step 9:** Run `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd -run
-   'Test(CouchNamespace|StoreNamespace|SupervisorLease)' -count=1`; expect PASS.
-- [ ] **Step 10:** Commit the namespace/lease slice with `git add` on only the files above and
+   'Test(CouchNamespace|StoreNamespace|SupervisorLease)' -count=1`; expect FAIL.
+- [ ] **Step 3:** Implement the namespace value, non-inherited lifetime lease, verified
+   `ProcOps` owner metadata, and operation execution classification specified in
+   Architecture. Keep the lifetime lease independent from ThreadStore locking.
+- [ ] **Step 4:** Rerun the focused command and the subprocess crash probe; expect PASS.
+- [ ] **Step 5:** Commit the namespace/lease slice with `git add` on only the files above and
    `git commit -m '#149 M1: establish the couch supervisor namespace'`.
 
 ### Task 2: Specify the provider seam and strict decoder
@@ -291,19 +285,14 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Write table tests for bounded/unbounded success envelopes, diagnostic
-   envelopes, malformed JSON, missing discriminators, invalid limit/action,
-   version/digest absence, unexpected exit status, stderr capture, and timeout.
-- [ ] **Step 2:** Define defensive `PolicyResult`, `PolicyCapacity`, `CapacityAction`,
-   `PolicyDiagnostic`, and `PolicyResolver.Resolve(ctx, path)` values. Keep
-   admission-key kind absent from the consumer model.
-- [ ] **Step 3:** Implement a stateful fake keyed by canonical path, recording calls and
-   allowing results/errors to change between resolutions.
-- [ ] **Step 4:** Implement the deadline-bound production command seam and strict JSON
-   decoding. Accept Ariadne's typed diagnostic on its documented nonzero exit;
-   refuse malformed, noisy, or protocol-incompatible responses.
-- [ ] **Step 5:** Inject the resolver through couchcmd runtime construction; do not discover
-   or parse `.sdlc/fleet.json` in Pair.
+- [ ] **Step 1:** Write failing fuzz/table tests for `DecodePolicyResponse` using the
+   strategy table and production seam contract.
+- [ ] **Step 2:** Run `go test ./cmd/internal/couchcore -run TestPolicyResolver -count=1`;
+   expect FAIL.
+- [ ] **Step 3:** Implement defensive normalized values, stateful fake, strict decoder,
+   deadline-bound executor, and couchcmd injection; Pair never parses fleet
+   declarations or models admission-key kind.
+- [ ] **Step 4:** Rerun the focused command; expect PASS, then commit the provider slice.
 
 ### Task 3: Introduce the ThreadStore transaction kernel
 
@@ -311,6 +300,10 @@ inventory, never a couch enum (ARCH-DRY).
 
 - Create `cmd/internal/couchcore/threadstore.go`
 - Create `cmd/internal/couchcore/threadstore_test.go`
+- Create `cmd/internal/couchcore/thread.go`
+- Create `cmd/internal/couchcore/thread_test.go`
+- Create `cmd/internal/couchcore/threadtag.go`
+- Create `cmd/internal/couchcore/threadtag_test.go`
 - Create `cmd/internal/couchcore/storelock.go`
 - Create `cmd/internal/couchcore/storelock_unix.go`
 - Create `cmd/internal/couchcore/storelock_test.go`
@@ -318,40 +311,22 @@ inventory, never a couch enum (ARCH-DRY).
 - Create `cmd/internal/couchcore/storejournal_test.go`
 - Modify `cmd/internal/couchcore/store.go`
 - Modify `cmd/internal/couchcore/store_test.go`
+- Modify `cmd/internal/couchcore/actorid.go`
+- Modify `cmd/internal/couchcore/clock_test.go`
+- Modify `cmd/internal/launcher/tag.go`
+- Modify `cmd/internal/launcher/tag_test.go`
 
 **Steps:**
 
-- [ ] **Step 1:** Write failing two-store/process-boundary tests proving serialized updates,
-   monotonic revisions, stale expected-revision refusal, reader immutability,
-   atomic failure behavior, and lock acquisition/release error propagation.
-- [ ] **Step 2:** Define the versioned minimal M1 per-thread record: the existing
-   path-derived tag plus derived repo scope, reservation nonce/status
-   (`creating`, `live`, `unknown`), canonical path, process identity when
-   known, normalized policy evidence, and revision. Store it at
-   `threads/<scope>/<tag>.json`; M2 changes new-start allocation to opaque tags
-   without replacing this format.
-- [ ] **Step 3:** Implement `UpdateExistingThread`: acquire the short global lock,
-   strictly decode the addressed record, apply a pure mutation, increment its
-   revision, and atomically replace only that record. Add crash-point tests
-   proving readers see old or new complete content and manifest generation does
-   not change.
-- [ ] **Step 4:** Implement journaled membership/multi-record transactions for
-   create, delete, cutover, and later preference/migration writes. Journal all
-   expected-before values and after-images, replace idempotently, then advance
-   manifest membership/generation and clear. Recovery accepts only
-   expected-before or exact after-image; crash-point tests cover every boundary
-   and third-state/corrupt input fails closed.
-- [ ] **Step 5:** Route all M1 admission/reservation mutations through these primitives. The
-   existing `registry.json` becomes read-only after the admission bootstrap in
-   the next step; no new admission code calls legacy `Store.Load` + `Store.Save`
-   and no legacy writer can participate in admission.
-- [ ] **Step 6:** Before admitting through the new store, perform an idempotent cutover under
-   the global lock: strictly decode every legacy actor, derive its minimal
-   composite record, preserve same-tree co-tenants as distinct conservative
-   incarnations, and persist a manifest cutover marker in the same journaled
-   transaction. Corrupt/ambiguous input refuses cutover and admission. Test
-   interruption after every after-image and prove rerun convergence. M5 later
-   enriches metadata/artifacts; it does not import admission occupants.
+- [ ] **Step 1:** Write failing `UpdateExistingThread`, `RecoverStoreJournal`, and
+   `AllocateThreadTag` tests using the strategy table.
+- [ ] **Step 2:** Run `go test ./cmd/internal/couchcore -run
+   'Test(ThreadStore|StoreJournal|AllocateThreadTag)' -count=1`; expect FAIL.
+- [ ] **Step 3:** Implement the M1 composite record/tag and the two persistence classes
+   specified in Architecture, including journaled legacy-occupant cutover. New
+   starts launch only after their final opaque address is claimed.
+- [ ] **Step 4:** Rerun focused tests plus independent-store crash probes; expect PASS.
+- [ ] **Step 5:** Commit the ThreadStore/identity slice.
 
 ### Task 4: Make admission pure and conservative
 
@@ -366,33 +341,15 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Write a decision matrix for zero/below-limit/at-limit bounded occupancy,
-   unbounded capacity, `reject`, `provision-worktree`, live, unknown, creating,
-   and proven-dead records.
-- [ ] **Step 2:** Write stale-evidence tests for the optimistic protocol: capture the manifest
-   and all possibly relevant occupant revisions under lock; resolve the
-   candidate plus stale same-repository incumbents outside the lock; retry when
-   the manifest or any captured record changes before commit. Digest/version
-   match avoids incumbent refresh; mismatch re-resolves each same-repository
-   incumbent path; moved keys are counted under the refreshed result;
-   unresolved/invalid incumbents remain occupied; creating records are never
-   silently rekeyed.
-- [ ] **Step 3:** With the stateful resolver, change the provider digest between candidate and
-   incumbent calls. Require a full-cohort retry whose successful results share
-   one `{version,digest}`; after three mixed epochs, return `policy-unstable`,
-   retain occupancy, and prove no fork.
-- [ ] **Step 4:** Implement pure occupancy grouping and `Admission.Decide`, returning typed
-   `CapacityRefusal` values suitable for both CLI and future TUI clients.
-- [ ] **Step 5:** Change `Couch.Spawn` to run read-under-lock/revision capture → unlocked
-   provider/liveness IO → relock/revision validation → pure
-   prune/group/reserve. Retry on concurrent change. Continue to use
-   three-valued `ProcOps` liveness and prune only proven-dead records.
-- [ ] **Step 6:** Prove with two independently constructed Couch instances that simultaneous
-   starts at a limit of one produce exactly one reservation/fork. Prove every
-   diagnostic/refusal/failure path forks zero children.
-- [ ] **Step 7:** In M1, release a pristine reservation on pre-fork failure. Until M2's helper
-   handshake exists, any uncertain post-fork failure remains an occupied
-   recovery record; never claim that such a record is free.
+- [ ] **Step 1:** Write failing pure/stateful tests for `Admission.Decide` and
+   `ReconcileAdmission` using the strategy table.
+- [ ] **Step 2:** Run `go test ./cmd/internal/couchcore -run TestAdmission -count=1`;
+   expect FAIL.
+- [ ] **Step 3:** Implement pure admission plus optimistic unlocked-IO reconciliation as
+   specified in Architecture. Fork only after committed admission; uncertain
+   post-fork state remains occupied until M2.
+- [ ] **Step 4:** Rerun focused tests with independent Couch/store instances; expect PASS.
+- [ ] **Step 5:** Commit the admission slice.
 
 ### Task 5: Remove every local policy bypass
 
@@ -430,6 +387,7 @@ inventory, never a couch enum (ARCH-DRY).
 
 - Modify `cmd/internal/couchcore/conformance_live_test.go`
 - Modify `Makefile`
+- Create `.github/workflows/couch-policy-conformance.yml`
 - Modify `atlas/couch.md`
 - Modify `atlas/index.md` only if a new atlas page is added
 - Modify `workshop/issues/000149-couch-opaque-tags-and-a-human-naming-layer.md`
@@ -437,33 +395,35 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Add an opt-in live conformance target that accepts an Ariadne `sdlc` binary
-   path, creates temporary declared repositories, and proves local-tool,
-   brain-unbounded, kbench declared-root, and worktree-capacity results pass
-   through the production resolver unchanged. Standard unit tests continue to
-   use the stateful fake.
-- [ ] **Step 2:** Run focused tests, `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd
+- [ ] **Step 1:** Add `test-couch-policy-live`, accepting an Ariadne `sdlc` binary and
+   running production `ExecPolicyResolver` against temporary declarations. Pair
+   owns the check; its stateful fake remains the ordinary test backend.
+- [ ] **Step 2:** Add the Pair-owned weekly and manual GitHub workflow: bootstrap the
+   sibling Ariadne dependency, build its current `sdlc`, then run
+   `test-couch-policy-live`. Also run the target at M1 close and whenever Pair's
+   resolver wire contract changes; the weekly workflow detects Ariadne-side
+   drift between Pair changes (ARCH-MOCK).
+- [ ] **Step 3:** Run focused tests, `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd
    -count=1`, the live provider target against the locally built Ariadne #200
    binary, `go test ./... -count=1`, repository shell/Lua tests, layout checks,
    and `git diff --check`.
-- [ ] **Step 3:** Run the real namespace matrix from distinct cwd/symlink spellings plus the
-   SIGKILL-with-live-child lease test; assert one owner and exact inherited
-   canonical `COUCH_STORE_DIR`.
-- [ ] **Step 4:** Update atlas ownership: Ariadne declares/measures/resolves policy; Pair
+- [ ] **Step 4:** Run the real-process namespace/lease strategies from the table; assert
+   one owner and exact inherited namespace.
+- [ ] **Step 5:** Update atlas ownership: Ariadne declares/measures/resolves policy; Pair
    validates normalized evidence, owns the singleton namespace, and performs
    runtime admission.
-- [ ] **Step 5:** Commit the verified M1 window and run
+- [ ] **Step 6:** Commit the verified M1 window and run
    `sdlc milestone-close --issue 149 --milestone M1`. Fix all Critical/Important
    findings. Only after the Approved boundary may Ariadne #200 close/merge.
 
 ## Chunk 2: Milestone M2 — durable identity and recoverable start
 
-### Task 1: Complete the ThreadStore schema and composite address
+### Task 1: Widen the ThreadStore record for recoverable starts
 
 **Files:**
 
-- Create `cmd/internal/couchcore/thread.go`
-- Create `cmd/internal/couchcore/thread_test.go`
+- Modify `cmd/internal/couchcore/thread.go`
+- Modify `cmd/internal/couchcore/thread_test.go`
 - Modify `cmd/internal/couchcore/threadstore.go`
 - Modify `cmd/internal/couchcore/threadstore_test.go`
 - Modify `cmd/internal/launcher/scope.go`
@@ -472,38 +432,12 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Define `ThreadAddress{RepoScope, Tag}`, immutable `StartingPath`, current
-   `WorkingPath`, creation time, metadata placeholders, incarnations,
-   transactions, and per-record revision. Validate tags and scope keys at the
-   boundary and defensively copy all slices/maps.
-- [ ] **Step 2:** Make canonical physical path resolution preserve the exact requested nested
-   directory while deriving its repository scope separately. Refuse missing
-   paths at start; enumeration remains able to report a later-missing path.
-- [ ] **Step 3:** Prove equal tags in different scopes coexist and no API performs tag-only
-   lookup across scopes.
+- [ ] **Step 1:** Write failing `ValidateThreadRecord` tests from the strategy table.
+- [ ] **Step 2:** Widen the record for M2 start transactions while preserving M1 identity,
+   path, and revision invariants.
+- [ ] **Step 3:** Run thread/store focused tests; expect PASS, then commit.
 
-### Task 2: Allocate and claim opaque tags atomically
-
-**Files:**
-
-- Replace `cmd/internal/couchcore/actorid.go` with thread-tag allocation
-- Modify `cmd/internal/couchcore/clock_test.go`
-- Create `cmd/internal/couchcore/tagclaim_test.go`
-- Modify `cmd/internal/launcher/tag.go`
-- Modify `cmd/internal/launcher/tag_test.go`
-
-**Steps:**
-
-- [ ] **Step 1:** Test the exact `couch-[0-9a-f]{16}` shape, entropy errors, record collisions,
-   scoped-artifact collisions, success after retries, and distinct exhaustion
-   after eight attempts. Remove the all-zero entropy fallback.
-- [ ] **Step 2:** Inject a byte-source that can fail/script collisions. Under the store lock,
-   no-replace claim the composite record only after both record and
-   `ScopedPaths` artifact checks pass.
-- [ ] **Step 3:** Keep standalone human Pair tags accepted; generated-tag rules apply only to
-   couch allocation.
-
-### Task 3: Add the blocked pre-exec helper
+### Task 2: Add the blocked pre-exec helper
 
 **Files:**
 
@@ -517,16 +451,14 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Write subprocess tests proving no acknowledgement, parent EOF, malformed
-   nonce, and deadline expiry exit before the target command; acknowledgement
-   execs once with exact argv/env/cwd; descriptors are close-on-exec.
-- [ ] **Step 2:** Extend the Runner seam to return the blocked helper's PID/process identity
-   and an acknowledge/cancel capability without exposing OS pipes to the domain.
-- [ ] **Step 3:** Have production runners fork only the helper. The parent records its identity
-   under the transaction nonce before acknowledging. FakeRunner models each
-   boundary and supports injected parent death/registration failures.
+- [ ] **Step 1:** Write subprocess/model tests for the helper boundary and
+   `AdvanceStartTransaction` using the strategy table; the oracle is no target
+   exec before durable acknowledgement and exactly one exec afterward.
+- [ ] **Step 2:** Implement the blocked-helper Runner capability specified in Architecture;
+   keep OS descriptors outside domain state and mirror behavior in FakeRunner.
+- [ ] **Step 3:** Run helper/runner focused tests; expect PASS, then commit.
 
-### Task 4: Implement and reconcile the start state machine
+### Task 3: Implement and reconcile the start state machine
 
 **Files:**
 
@@ -539,21 +471,14 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Table-test interruption before claim, after claim, after helper fork, after
-   helper record, after acknowledgement, and after readiness/registration.
-- [ ] **Step 2:** Persist one nonce through reservation, helper identity, and live promotion.
-   Roll back only the exact matching pristine transaction.
-- [ ] **Step 3:** If post-fork cleanup cannot verify death, retain occupied recovery evidence.
-   Reconciliation classifies owner/helper identities idempotently, releases only
-   failed pre-exec transactions with no matching live helper, and never forks a
-   duplicate child.
-- [ ] **Step 4:** Pass `COUCH_THREAD_SCOPE`, `COUCH_THREAD_TAG`, store location, and nonce to
-   Pair; remove `COUCH_TREE` as identity (it may remain temporarily as a
-   compatibility path hint until M5).
-- [ ] **Step 5:** Prove restart reloads the same address and a second call to `couch start`
-   always claims a new thread where policy permits.
+- [ ] **Step 1:** Write model tests for `AdvanceStartTransaction` and `ReconcileStart`
+   using the strategy table, then run them against `FakeRunner` state.
+- [ ] **Step 2:** Implement nonce-addressed promotion/reconciliation with the occupied-or-
+   proven-free invariant from Architecture and pass the composite address to
+   Pair.
+- [ ] **Step 3:** Run start/recovery focused and restart tests; expect PASS, then commit.
 
-### Task 5: M2 integration boundary
+### Task 4: M2 integration boundary
 
 **Files:**
 
@@ -562,11 +487,8 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Add a real-process integration test that kills the parent at each exposed
-   helper boundary and asserts no untracked target process and no falsely free
-   slot.
-- [ ] **Step 2:** Run focused, full Go, shell/Lua, zellij layout, race-enabled ThreadStore
-   tests, and `git diff --check`.
+- [ ] **Step 1:** Run the real-process `ReconcileStart` strategy and committed M2 probe.
+- [ ] **Step 2:** Run the Verification commands and `git diff --check`.
 - [ ] **Step 3:** Commit and run `sdlc milestone-close --issue 149 --milestone M2`; resolve all
    boundary findings before metadata work.
 
@@ -585,13 +507,10 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Implement CAS-backed rename, clear-name, describe, and publish-summary
-   mutations over a selected composite address. Preserve independent fields and
-   refuse stale revisions without lost updates.
-- [ ] **Step 2:** Change advisor publish context to `COUCH_THREAD_SCOPE` and
-   `COUCH_THREAD_TAG`; do not infer identity from path or zellij name.
-- [ ] **Step 3:** Keep duplicate human names legal and test exact tag precedence plus
-   ambiguous name/path refusal with returned candidates.
+- [ ] **Step 1:** Write failing `ApplyThreadMetadata` and `ResolveThreadReference` tests
+   from the strategy table.
+- [ ] **Step 2:** Implement composite CAS metadata operations and scoped publish context.
+- [ ] **Step 3:** Run metadata/ops focused tests; expect PASS, then commit.
 
 ### Task 2: Shared inventory and rendering
 
@@ -607,13 +526,10 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Produce one row per thread, even at a shared path, with exact live,
-   non-live, unknown, or creating state from durable/process evidence.
-- [ ] **Step 2:** Render named rows name-first and unnamed rows tag-first; common `couch list`
-   output never leads a named row with the system tag. Keep tag in structured
-   output/show/diagnostics.
-- [ ] **Step 3:** Make the console/panel consume the same inventory values and operation table
-   as the CLI, without implementing #151's final hierarchical UI.
+- [ ] **Step 1:** Write failing `BuildThreadInventory`/render tests from the strategy table.
+- [ ] **Step 2:** Implement shared exact-state inventory and name-first common rendering for
+   CLI/panel consumers without #151 hierarchy.
+- [ ] **Step 3:** Run inventory/render focused tests; expect PASS, then commit.
 
 ### Task 3: Route every effectful human action through declared operations
 
@@ -632,37 +548,15 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Replace `Operation.Invoke(*Couch)` with declaration-only rows plus
-   generic dispatch over injected `OperationExecutors{DirectStore,
-   LiveOwner}`. The direct executor owns declared safe ThreadStore effects; the
-   optional owner executor owns console-local effects. Missing owner execution
-   returns typed `OwnerUnavailable{Reason: "owner routing requires #147"}` and
-   never falls back or forks.
-- [ ] **Step 2:** Write a conformance test that enumerates CLI dispatch, explicit panel
-   actions, implicit row actions, and a generic advisor-client fixture. Require
-   every effectful behavior to resolve the same declared operation and typed
-   arguments; rendering, filtering, cursor movement, and submenu navigation are
-   the only exempt pure UI behaviors.
-- [ ] **Step 3:** Add `switch` and `attach` rows with typed
-   `ThreadTargetArgs{Scope,Tag,ExpectedRevision}` and
-   `ThreadTargetResult{Address,Revision,Action}`. `switch` requires a live
-   incarnation already hosted in the console and selects its terminal; `attach`
-   requires a live owner-held terminal not yet selected and binds/selects it.
-   Missing, non-live, unknown, stale-revision, or non-owner targets return typed
-   refusals; neither operation creates, revives, or forks a thread.
-- [ ] **Step 4:** Implement #149's console-local `LiveOwner` handlers and replace
-   Enter-on-live-row's direct `forceSwitch` call and every other
-   effectful console shortcut with generic operation dispatch. Keep terminal
-   mechanics behind the owner implementation. #147 later transports to this
-   handler; this task creates no endpoint/client, and its schema-consumer
-   fixture is test-only rather than a #148 advisor implementation.
-- [ ] **Step 5:** Prove the generic schema-consumer fixture can invoke name, rename,
-   describe, start, switch,
-   and attach with the same schema, while an external owner-required call gets
-   a typed “owner routing requires #147” refusal rather than executing locally.
-- [ ] **Step 6:** Run `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd
+- [ ] **Step 1:** Write `DispatchOperation` schema-surface conformance using the
+   strategy table across CLI, explicit/implicit panel effects, and a test-only
+   generic consumer. Pure UI navigation is explicitly classified and exempt.
+- [ ] **Step 2:** Implement declaration-only generic dispatch and console-local typed
+   switch/attach handlers specified in Architecture; create no #147/#148 client
+   or transport.
+- [ ] **Step 3:** Run `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd
    ./cmd/internal/couchtty -run 'Test.*Operation' -count=1`; expect PASS.
-- [ ] **Step 7:** Commit with `git commit -m '#149 M3: unify human and advisor operations'`
+- [ ] **Step 4:** Commit with `git commit -m '#149 M3: unify human and advisor operations'`
    after adding only the files above.
 
 ### Task 4: Standalone Pair lookup and picker
@@ -680,14 +574,11 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Add a read/write seam for the same ThreadStore records usable when couch is
-   absent. Derive repo scope from Pair's canonical repository and restrict all
-   resolution to it.
-- [ ] **Step 2:** Show mutable human names in the picker, falling back to opaque tag. Refuse
-   duplicate/fuzzy ambiguity with candidates; never mutate
-   `SessionNameEntry.SessionName` to hold the human thread name.
-- [ ] **Step 3:** Preserve direct `pair claude`/`pair codex` tag prompting exactly when no
-   couch composite context is present.
+- [ ] **Step 1:** Write failing standalone index/picker tests using
+   `ResolveThreadReference` strategy.
+- [ ] **Step 2:** Implement scoped ThreadStore lookup/picker display while preserving direct
+   Pair prompting and zellij `SessionNameEntry` ownership.
+- [ ] **Step 3:** Run launcher focused tests; expect PASS, then commit.
 
 ### Task 5: M3 integration boundary
 
@@ -697,9 +588,8 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Integration-test two threads in one allowed path with separate records,
-   mutable names/descriptions, couch-offline picker resolution, and no file
-   moves after rename.
+- [ ] **Step 1:** Run the M3 end-to-end composite identity/metadata scenario and assert
+   offline Pair resolution preserves scoped artifacts.
 - [ ] **Step 2:** Run focused/full suites and `git diff --check`; commit and run
    `sdlc milestone-close --issue 149 --milestone M3`.
 
@@ -716,17 +606,12 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Add per-thread latest-successful `{agent, argv}` and path preference keyed by
-   normalized repo identity plus canonical physical path, with `last_agent` and
-   `argv_by_agent`.
-- [ ] **Step 2:** Test the complete resolution matrix: explicit agent > path last agent > root
-   agent; selected-agent path argv > selected-agent Pair repo default; switching
-   agents never leaks another agent's argv; returning restores its own argv.
-- [ ] **Step 3:** Return two independent provenance values so #151 need not reverse-infer
-   them: `AgentSource{explicit,path,root}` and
-   `ArgvSource{path,repo-default}`. Test their Cartesian combinations,
-   including root-agent plus path argv and explicit-agent plus repo-default
-   argv.
+- [ ] **Step 1:** Write failing `ResolveLaunchProfile` property tests using the strategy
+   table; run `go test ./cmd/internal/couchcore -run TestLaunchProfile -count=1`
+   and expect FAIL.
+- [ ] **Step 2:** Implement per-thread/path preferences and independent
+   `AgentSource`/`ArgvSource` resolution with the precedence in Architecture.
+- [ ] **Step 3:** Rerun the focused command; expect PASS, then commit the pure profile slice.
 
 ### Task 2: Reuse Pair's shared agent inventory/defaults
 
@@ -740,13 +625,10 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Extract or expose a narrow agent-inventory and repo-default seam already
-   backed by Pair's scoped defaults; do not add a couch-specific agent enum.
-- [ ] **Step 2:** Supply the root actor's actual agent explicitly to Couch. Treat missing root
-   evidence as a typed resolution failure rather than guessing a harness.
-- [ ] **Step 3:** Pass the resolved exact argv to the child while retaining the existing
-   one-shot `PAIR_USE_REPO_DEFAULT` behavior only when `ArgvSource` is
-   `repo-default`.
+- [ ] **Step 1:** Write failing composition tests against Pair's shared agent/default seam.
+- [ ] **Step 2:** Wire root-agent evidence and resolved argv without a couch agent enum;
+   `PAIR_USE_REPO_DEFAULT` is emitted only for its matching provenance.
+- [ ] **Step 3:** Run launcher/couch focused tests; expect PASS, then commit the wiring slice.
 
 ### Task 3: Commit preferences only on successful registration
 
@@ -759,13 +641,12 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Test selection cancellation, policy refusal, tag failure, fork failure,
-   helper timeout, failed registration, and unknown cleanup: none updates
-   preferences.
-- [ ] **Step 2:** Atomically promote the incarnation and update both its exact profile and the
-   path preference only after successful registration/readiness evidence.
-- [ ] **Step 3:** Prove two concurrent successful registrations at different paths merge
-   preferences without stale-snapshot loss.
+- [ ] **Step 1:** Drive unsuccessful `AdvanceStartTransaction` states from the model and
+   assert none commit thread/path preferences.
+- [ ] **Step 2:** Commit thread and path preferences in the successful-registration
+   transaction only; use the store concurrency invariant from the strategy
+   table.
+- [ ] **Step 3:** Run start/profile focused tests; expect PASS, then commit.
 
 ### Task 4: M4 integration boundary
 
@@ -775,8 +656,8 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Integration-test Claude→Codex→Claude at one path, fallback at a fresh path,
-   and couch restart persistence, asserting exact argv and recorded sources.
+- [ ] **Step 1:** Run the end-to-end launch-profile provenance scenario and assert exact
+   argv/source persistence across couch restart.
 - [ ] **Step 2:** Run focused/full suites and `git diff --check`; commit and run
    `sdlc milestone-close --issue 149 --milestone M4`.
 
@@ -794,9 +675,9 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Begin from M1's cut-over minimal admission records, then fixture legacy
-   names/descriptions, repeated tags in different repo scopes, same-tree
-   co-tenants, corrupt metadata, and failures after every enrichment step.
+- [ ] **Step 1:** Write `MigrateLegacyRecord` model tests from the strategy table,
+   beginning with M1 cutover records and treating unreadable legacy input as
+   preserved conservative state.
 - [ ] **Step 2:** Under the global lock, write a schema-versioned nonce journal and advance
    idempotently. Preserve every legacy file and unreadable record. Enrich the
    M1 path-derived composite records without changing their admission evidence;
@@ -908,10 +789,9 @@ inventory, never a couch enum (ARCH-DRY).
    rebuilding it from tag/data-dir; pure consumers of an exact path remain
    classified reads. Run `make runtimebundle-generate` and commit the generated
    `cmd/internal/runtimebundle/assets/runtime` mirror instead of hand-editing it.
-- [ ] **Step 4:** Test two repositories with the same legacy tag across every manifest family;
-   reads/writes/rename/picker/session-name/native-session lookup in one scope
-   never observes or mutates the other. Run the same matrix through at least one
-   Go command, one shell helper, one Neovim consumer, and both layout modes.
+- [ ] **Step 4:** Run `artifactpath.Resolve` and manifest-coverage strategies across two
+   scopes with the same legacy tag, including representative Go, shell, Neovim,
+   and both layout consumers; cross-scope observation/mutation is the oracle.
 - [ ] **Step 5:** Have standalone Pair upsert its thread record in the same transaction model
    without changing its ordinary tag prompt.
 
@@ -929,29 +809,25 @@ inventory, never a couch enum (ARCH-DRY).
 - [ ] **Step 1:** Reconcile #135 terminology and addressing with composite durable work-thread
    identity. Record #152 as owner of verified park/resume/`last_active_at` and
    #153 as owner of provisioning/path rebind; do not implement either here.
-- [ ] **Step 2:** Run migration interruption/conformance tests, all Go tests, shell/Lua tests,
-   zellij layout checks, race tests for the store/start transaction, a real
-   couch smoke for multi-thread Brain plus local-tool refusal, and
-   `git diff --check`.
+- [ ] **Step 2:** Run the Verification commands, repository full suite, race suite, real couch
+   smoke, and `git diff --check`.
 - [ ] **Step 3:** Update issue/project/atlas evidence and check every issue plan row.
 - [ ] **Step 4:** Commit the final window and run
    `sdlc milestone-close --issue 149 --milestone M5`, fixing all boundary
    findings. Then run `sdlc close --issue 149 --verified '<exact evidence>'`;
    let SDLC measure actual time and archive the issue/plan.
 
-## Verification matrix
+## Verification commands
 
-- **Pure/unit:** strict provider decoding, admission matrix, profile resolution,
-  composite validation, tag generation, lookup ambiguity, migration steps.
-- **Stateful fake:** changing provider results, three-valued liveness, runner
-  acknowledgement/failure boundaries, concurrent ThreadStore clients.
-- **Real process:** canonical namespace aliases, non-inherited supervisor lease,
-  SIGKILL with a surviving child, advisory store locking, helper
-  EOF/timeout/no-exec, parent-death recovery, and production `sdlc fleet policy`
-  protocol.
-- **End to end:** local-tool rejection, Brain multiple in-place threads, kbench
-  per-competition keys, worktree typed action, duplicate path threads with
-  separate artifacts, restart persistence, agent-profile memory.
+- Focused pure/stateful functions: commands named in each task, implementing the
+  risky-function strategy table through shared fakes.
+- Real boundaries: `make test-live` plus `make test-couch-policy-live
+  ARIADNE_SDLC_BIN=../ariadne/bin/sdlc`.
+- Repository: `go test ./... -count=1`, `go test -race ./cmd/internal/couchcore
+  -count=1`, `make test`, `zellij --config-dir zellij setup --check`, both
+  `zellij setup --dump-layout` commands, and `git diff --check`.
+- Milestone smoke commands are committed probes/targets before their evidence is
+  cited; no remembered one-off command satisfies a boundary.
 
 ## Risks and constraints
 
@@ -966,8 +842,9 @@ inventory, never a couch enum (ARCH-DRY).
   does not add namespace discovery, naming, federation, or multi-couch UX.
 - M1's helper-less post-fork interval remains conservatively occupied. It is
   not described as fully recoverable until M2 closes.
-- The live provider test is opt-in and consumes the locally built Ariadne #200
-  binary until that issue merges; ordinary Pair CI remains hermetic.
+- The live provider test consumes a built Ariadne binary: deterministic tests
+  stay on the fake, while Pair's weekly/manual workflow owns recurring protocol
+  conformance after Ariadne #200 merges.
 - Legacy global tag files are not moved. Scope selection contains them; M5
   proves the containment before #149 closes.
 - Picker hierarchy and presentation belong to #151. M3 supplies shared rows and
@@ -989,3 +866,15 @@ external owner-required calls fail safely. M3 declares switch/attach and removes
 implicit human-only effect paths. #147 remains responsible for routing those
 owner-required client calls, and #148 for the thin Ariadne-distributed skill;
 #149 supplies the shared schema but implements neither downstream subsystem.
+
+### 2026-08-26 — close implementation-gate ordering and test-contract gaps
+
+**Reason:** the stateful SDLC plan gate found that M1 could admit two Brain
+starts before M2 gave them distinct tags, and that prose case inventories plus
+a one-shot live provider check did not define durable test ownership.
+
+**Delta:** final opaque composite allocation/claim moves into M1 before
+admission/fork; M2 now only widens start recovery. A named risky-function table
+single-sources adversarial strategies used by compact task steps. Pair owns a
+weekly/manual Ariadne provider conformance workflow in addition to M1 boundary
+evidence and stateful fake tests (ARCH-PURPOSE, ARCH-MOCK).

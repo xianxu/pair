@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-08-21
 updated: 2026-08-26
-estimate_hours:
+estimate_hours: 17.80
 started: 2026-08-25T14:21:34-07:00
 ---
 
@@ -493,6 +493,21 @@ their composite thread address. A couch process incarnation may have an
 ephemeral diagnostic ID, but it is never part of thread identity or artifact
 addressing.
 
+### 2026-08-26 — opaque identity joins admission in M1
+
+**Reason:** the implementation gate found that normalized Brain policy would
+admit two same-path starts in M1 while both still launched Pair's path-derived
+tag. Those nominal threads would attach to one native session and share
+artifacts until M2, violating the identity this issue exists to establish.
+
+**Delta:** M1 allocates and atomically claims the final composite
+`{repo_scope, couch-<16 hex>}` address for every new couch start before policy
+admission/fork. It launches Pair with that exact tag and scoped environment, so
+unbounded same-path starts are distinct from the first milestone. The M1 legacy
+bootstrap alone retains path-derived tags for already-existing actors. M2 no
+longer introduces identity; it widens the same record into the journaled
+blocked-helper start transaction and restart reconciliation (ARCH-PURPOSE).
+
 ## Done when
 
 - A couch-launched work thread gets a generated composite durable address;
@@ -525,18 +540,61 @@ addressing.
   refuses with verified owner identity, and killing the owner releases the
   lease immediately even if its child remains alive.
 
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. `sdlc estimate-source` reports the calibration
+source as stale, so this is provisional but uses the required method. The
+service-scale item is the lock/revision/WAL-backed ThreadStore and recoverable
+start authority; the remaining items separate its OS, policy, UI, migration,
+and integration boundaries.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.80 impl=0.08
+item: smaller-go-module design=0.06 impl=0.16
+item: greenfield-go-module design=0.40 impl=0.32
+item: api-integration design=0.60 impl=0.60
+item: greenfield-service design=2.00 impl=2.80
+item: greenfield-go-module design=0.40 impl=0.32
+item: cross-cutting-refactor design=0.20 impl=0.20
+item: smaller-go-module design=0.06 impl=0.16
+item: greenfield-go-module design=0.40 impl=0.32
+item: greenfield-go-module design=0.40 impl=0.32
+item: smaller-go-module design=0.06 impl=0.16
+item: smaller-go-module design=0.06 impl=0.16
+item: skill-or-dispatcher design=0.40 impl=0.16
+item: tui-screen design=0.40 impl=0.40
+item: smaller-go-module design=0.06 impl=0.16
+item: smaller-go-module design=0.06 impl=0.16
+item: smaller-go-module design=0.06 impl=0.16
+item: greenfield-go-module design=0.40 impl=0.32
+item: cross-cutting-refactor design=0.80 impl=0.20
+item: cross-repo-refactor-small design=0.06 impl=0.12
+item: real-api-discovery design=0.00 impl=0.24
+item: atlas-docs design=0.20 impl=0.16
+item: milestone-review design=0.08 impl=0.12
+item: milestone-review design=0.08 impl=0.12
+item: milestone-review design=0.08 impl=0.12
+item: milestone-review design=0.08 impl=0.12
+item: milestone-review design=0.08 impl=0.12
+design-buffer: 0.15
+total: 17.80
+```
+
 ## Plan
 
 - [ ] M1 — introduce the final locked/revisioned `ThreadStore` kernel and its
-      minimal per-thread admission/reservation schema; consume ariadne#200's
-      versioned/digested normalized policy through an injected resolver,
-      reconcile stale evidence, account for live/unknown/creating occupants,
-      remove every legacy admission writer and the shadow policy table, enforce
-      one supervisor lease per store namespace, and close this exact milestone
-      before ariadne#200 closes.
-- [ ] M2 — widen that same `ThreadStore` for composite address, atomic opaque-tag
-      claim, blocked pre-exec handshake, journaled start transaction, and
-      restart reconciliation.
+      minimal per-thread admission/reservation schema; allocate and atomically
+      claim final composite opaque addresses for new starts; consume
+      ariadne#200's versioned/digested normalized policy through an injected
+      resolver, reconcile stale evidence, account for live/unknown/creating
+      occupants, remove every legacy admission writer and the shadow policy
+      table, enforce one supervisor lease per store namespace, and close this
+      exact milestone before ariadne#200 closes.
+- [ ] M2 — widen that same `ThreadStore` for the blocked pre-exec handshake,
+      journaled start transaction, and restart reconciliation.
 - [ ] M3 — add mutable name/description/published-summary operations, scoped
       standalone Pair resolution, shared inventory, and common rendering without
       a leading system id.
