@@ -2,24 +2,33 @@ package couchcore
 
 import (
 	"errors"
-	"fmt"
-	"io/fs"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
-// ThreadArtifactCollisionChecker reports whether Pair already owns any durable
-// tag-scoped state outside ThreadStore for a prospective composite address.
-type ThreadArtifactCollisionChecker interface {
-	Collides(ThreadAddress) (bool, error)
+// ThreadArtifactClaim is retained when ThreadStore accepts the same address and
+// released only when its subsequent no-replace record claim fails.
+type ThreadArtifactClaim interface {
+	Release() error
 }
+
+// ThreadArtifactClaimer atomically serializes a prospective composite address
+// with every current Pair artifact/session producer.
+type ThreadArtifactClaimer interface {
+	Claim(ThreadAddress) (ThreadArtifactClaim, error)
+	Release(ThreadAddress) error
+}
+
+type noopThreadArtifactClaim struct{}
+
+func (noopThreadArtifactClaim) Release() error { return nil }
 
 type NoThreadArtifactCollisions struct{}
 
-func (NoThreadArtifactCollisions) Collides(ThreadAddress) (bool, error) { return false, nil }
+func (NoThreadArtifactCollisions) Claim(ThreadAddress) (ThreadArtifactClaim, error) {
+	return noopThreadArtifactClaim{}, nil
+}
+func (NoThreadArtifactCollisions) Release(ThreadAddress) error { return nil }
 
 type ScopedThreadArtifactCollisionChecker struct{ GlobalDataDir string }
 
@@ -27,69 +36,23 @@ func NewScopedThreadArtifactCollisionChecker(globalDataDir string) ScopedThreadA
 	return ScopedThreadArtifactCollisionChecker{GlobalDataDir: globalDataDir}
 }
 
-func (c ScopedThreadArtifactCollisionChecker) Collides(address ThreadAddress) (bool, error) {
+func (c ScopedThreadArtifactCollisionChecker) Claim(address ThreadAddress) (ThreadArtifactClaim, error) {
 	if err := validateThreadAddress(address); err != nil {
-		return false, err
+		return nil, err
 	}
 	if c.GlobalDataDir == "" {
-		return false, errors.New("artifact collision checker has no Pair data directory")
+		return nil, errors.New("artifact claimer has no Pair data directory")
 	}
-	scope := launcher.RepoScope{Key: address.RepoScope}
-	paths := launcher.NewScopedPaths(c.GlobalDataDir, scope, string(address.Tag))
-	entries, err := os.ReadDir(paths.ScopeDir())
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return false, fmt.Errorf("scan scoped Pair artifacts: %w", err)
-	}
-	for _, entry := range entries {
-		if isTagScopedArtifactName(entry.Name(), string(address.Tag)) {
-			return true, nil
-		}
-	}
-
-	raw, err := os.ReadFile(filepath.Join(c.GlobalDataDir, "session-names.jsonl"))
-	if errors.Is(err, fs.ErrNotExist) {
-		return false, nil
-	}
+	claim, err := launcher.ClaimNewThreadAddress(c.GlobalDataDir,
+		launcher.RepoScope{Key: address.RepoScope}, string(address.Tag))
 	if err != nil {
-		return false, fmt.Errorf("read Pair session-name index: %w", err)
+		return nil, err
 	}
-	for _, entry := range launcher.ParseSessionNameIndex(string(raw)).Entries {
-		if entry.ScopeKey == address.RepoScope && entry.Tag == string(address.Tag) {
-			return true, nil
-		}
-	}
-	return false, nil
+	return claim, nil
 }
 
-func isTagScopedArtifactName(name, tag string) bool {
-	exact := map[string]bool{
-		"ledger-" + tag + ".jsonl":        true,
-		"draft-" + tag + ".md":            true,
-		"log-" + tag + ".md":              true,
-		"queue-" + tag:                    true,
-		"agent-" + tag:                    true,
-		"agent-pid-" + tag:                true,
-		"agent-output-" + tag:             true,
-		"agent-picks-" + tag:              true,
-		"adapt-" + tag + ".jsonl":         true,
-		"outer-tty-" + tag:                true,
-		"nvim-pid-" + tag + "-draft":      true,
-		"nvim-pid-" + tag + "-scrollback": true,
-	}
-	if exact[name] {
-		return true
-	}
-	for _, prefix := range []string{
-		"config-" + tag + "-",
-		"agent-ready-" + tag + "-",
-		"pane-" + tag + "-",
-		"scrollback-" + tag + "-",
-		"changelog-" + tag + "-",
-		"draft-" + tag + "-",
-	} {
-		if strings.HasPrefix(name, prefix) {
-			return true
-		}
-	}
-	return false
+func (c ScopedThreadArtifactCollisionChecker) Release(address ThreadAddress) error {
+	paths := launcher.NewScopedPaths(c.GlobalDataDir,
+		launcher.RepoScope{Key: address.RepoScope}, string(address.Tag))
+	return launcher.ReleaseThreadAddressClaim(paths.ThreadClaim())
 }

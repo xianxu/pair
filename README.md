@@ -268,10 +268,14 @@ couch start [<repo>]     host a session in this terminal (default: .)
 couch start . --no-console   spawn without taking the terminal (no pty, no row)
 couch list               every registered actor across all worktrees
 couch show <ref>         the actors on one tree, by path or name
-couch stop <ref>         signal an actor's child and forget it
 couch name <ref> <name>  give a tree a short human name
 couch describe <ref> [<text>]  read or set a tree's one-line description
 ```
+
+Start and stop are live-owner operations. The root console invokes them through
+its panel; a second `couch` process cannot route them while that console holds
+the singleton namespace. The `couch stop` CLI spelling is therefore not usable
+against a live root console; cross-process owner routing belongs to Pair #147.
 
 Every `couch start` allocates a distinct opaque durable thread. Admission comes
 from the repository's normalized Ariadne fleet policy (`sdlc fleet policy`): a

@@ -44,6 +44,10 @@ func NewScopedOSRuntime(globalDataDir, dataDir, pairHome string) *OSRuntime {
 	return &OSRuntime{DataDir: dataDir, GlobalDataDir: globalDataDir, PairHome: pairHome}
 }
 
+func (r OSRuntime) EnsureThreadAddress(scope RepoScope, tag string, couchOwned bool) error {
+	return EnsureThreadAddressForPair(r.GlobalDataDir, scope, tag, couchOwned)
+}
+
 const zjTimeout = 5 * time.Second
 
 // zj runs a read-only zellij query under a hard timeout, returning combined

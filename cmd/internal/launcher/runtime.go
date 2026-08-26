@@ -138,6 +138,10 @@ type SessionNameStoreOps interface {
 	AppendSessionNameIndex(entry SessionNameEntry) error
 }
 
+type ThreadAddressClaimOps interface {
+	EnsureThreadAddress(scope RepoScope, tag string, couchOwned bool) error
+}
+
 type ReadinessOps interface {
 	RemoveReadyRecord(tag, agent string)
 	MintLaunchNonce() string
@@ -237,6 +241,7 @@ type Runtime interface {
 	IDOps
 	LedgerOps
 	SessionNameStoreOps
+	ThreadAddressClaimOps
 	ReadinessOps
 	AgentDefaultOps
 	FSOps

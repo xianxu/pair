@@ -2043,3 +2043,20 @@ durable representation that can resolve to it. Build the regression table from
 the canonical path constructor rather than representative filenames, and keep
 the collision seam explicit until all producers share one transaction
 (ARCH-DRY, ARCH-PURPOSE).
+
+A scan followed by a separate claim is still a collision bug: another producer
+can create state in the interval. The shared authority must be acquired first
+(for files, an O_EXCL marker is sufficient), and every current producer must
+participate before writing its first durable representation. Test simultaneous
+claimers and the reserved-to-established handoff, not only preexisting files.
+
+## A pidfile is a readiness promise, not merely process metadata
+
+The wrapper wrote `pair-wrap-pid-<tag>` before registering its SIGUSR2 handler.
+Tests usually slept long enough to hide the interval, but a loaded full suite
+could observe the pidfile, send restart, and lose the signal before the handler
+owned it.
+
+**Rule.** Install every handler and initialize every state transition that a
+pidfile-triggered caller depends on before publishing the pidfile. Tests should
+act immediately when the file appears; adding sleep only widens the disguise.

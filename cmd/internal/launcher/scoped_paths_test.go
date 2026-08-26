@@ -1,6 +1,9 @@
 package launcher
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 func TestScopedPaths(t *testing.T) {
 	scope, err := ResolveRepoScope("/Users/x/workspace/pair")
@@ -25,6 +28,7 @@ func TestScopedPaths(t *testing.T) {
 		"OuterTTY":          scopeDir + "/outer-tty-work",
 		"NvimDraftPID":      scopeDir + "/nvim-pid-work-draft",
 		"NvimScrollbackPID": scopeDir + "/nvim-pid-work-scrollback",
+		"ThreadClaim":       scopeDir + "/thread-claim-work.json",
 	}
 
 	got := map[string]string{
@@ -42,11 +46,32 @@ func TestScopedPaths(t *testing.T) {
 		"OuterTTY":          paths.OuterTTY(),
 		"NvimDraftPID":      paths.NvimDraftPID(),
 		"NvimScrollbackPID": paths.NvimScrollbackPID(),
+		"ThreadClaim":       paths.ThreadClaim(),
 	}
 	for name, want := range checks {
 		if got[name] != want {
 			t.Fatalf("%s = %q, want %q", name, got[name], want)
 		}
+	}
+}
+
+func TestOwnsTagArtifactCoversEveryScopedTagConstructor(t *testing.T) {
+	paths := NewScopedPaths("/data", RepoScope{Key: "0123456789abcdef"}, "work")
+	for _, path := range []string{
+		paths.Ledger(), paths.Draft(), paths.Log(), paths.QueueDir(), paths.Agent(),
+		paths.AgentPID(), paths.AgentOutput(), paths.AgentPicks(), paths.AdaptLog(),
+		paths.OuterTTY(), paths.NvimDraftPID(), paths.NvimScrollbackPID(),
+		paths.Config("codex"), paths.LegacyCodexConfig(), paths.AgentReady("claude"),
+		paths.Pane("codex"), paths.ScrollbackRaw("codex"), paths.ScrollbackANSI("codex"),
+		paths.ScrollbackEvents("codex"), paths.ScrollbackViewport("codex"),
+		paths.Changelog("codex"), paths.AgentDraft("codex"), paths.ThreadClaim(),
+	} {
+		if !OwnsTagArtifact(filepath.Base(path), "work") {
+			t.Errorf("artifact inventory omits %s", filepath.Base(path))
+		}
+	}
+	if OwnsTagArtifact("draft-worker.md", "work") {
+		t.Fatal("artifact inventory matched neighboring tag")
 	}
 }
 

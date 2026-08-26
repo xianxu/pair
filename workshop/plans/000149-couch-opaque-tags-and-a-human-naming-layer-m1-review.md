@@ -172,3 +172,148 @@ findings:
     detail: |
       couch.go:125-134 describes the superseded path-derived tag behavior immediately above code that launches the newly allocated opaque thread tag.
 ```
+
+---
+
+## Re-review — 2026-08-26T12:10:20-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 149 — couch: opaque tags and a human naming layer |
+| repo | pair |
+| issue file | workshop/issues/000149-couch-opaque-tags-and-a-human-naming-layer.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | a271432590da8a4177fea6c523607182536861a2^..b8a72ecf3bc4ecf043e148d148b6150e112fe3c3 |
+| command | sdlc milestone-close --issue 149 --milestone M1 |
+| reviewer | codex |
+| timestamp | 2026-08-26T12:10:20-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The prior lifecycle, README, retry, conformance-command, whitespace, and sequential artifact-collision fixes are substantively present, with most pinned by tests that fail under mutation. The boundary remains blocked because artifact collision checking is only a preflight scan—not the promised atomic claim—and the Core concepts table still misclassifies an effectful `Operation` as PURE without a regression protecting the corrected classification.
+
+## 1. Strengths
+
+- Admission now retains all incarnations until whole-incarnation quiescence is proven. Mutating the occupant count to release them makes `TestAdmissionReconcileRetainsDeadClientWithoutWholeIncarnationProof` fail.
+- The scoped-artifact retry is wired into production and load-bearing: removing the collision branch makes `TestAllocateThreadTagRetriesScopedArtifactCollision` fail.
+- Policy exhaustion now returns `PolicyUnstableError` after exactly three cohorts; restoring four attempts makes its regression fail.
+- The relative `SDLC_BIN` target passes, while the old direct relative invocation fails from the package working directory.
+- Provider decoding, ThreadStore journaling, supervisor leasing, README, and atlas coverage are substantial and well tested.
+
+## 2. Critical findings
+
+### BR-3 remains open — Core concepts still contradict the implementation
+
+The namespace row was corrected, but no test protects the plan’s classification. More importantly, [the plan](/Users/xianxu/workspace/pair/workshop/plans/000149-couch-opaque-tags-and-a-human-naming-layer-plan.md:48) now calls `Operation` PURE while [Operation](/Users/xianxu/workspace/pair/cmd/internal/couchcore/ops.go:34) embeds effectful `Invoke` closures. Its test invokes `Couch.Spawn`, a temporary ThreadStore, and a runner at [ops_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/ops_test.go:24).
+
+This is the 2nd finding in family `core-concept-kind-contract`. The rule is: every current Core concepts row must describe the entity’s current executable boundary, not its intended later M3 shape. Classify the current operation surface as integration/mixed, or split pure declarations from effectful executors now. Add a plan-contract regression comparable to the existing #146 contract test. `ARCH-PURE`.
+
+### New — Artifact collision checking is not atomic with the ThreadStore claim
+
+[threadtag.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/threadtag.go:39) calls `Collides`, releases that observation, and only afterward calls `CreateThread`. No lock or reservation is shared with scoped-artifact or session-binding producers. A scratch interleaving test created an artifact after `Collides` observed absence but before `CreateThread`; allocation still succeeded with that address.
+
+This is the 2nd finding in family `composite-address-collision-domain`. Do not add another recheck. State and enforce the class rule: one atomic address-claim authority must serialize ThreadStore records and every current artifact/session producer. The sweep includes scoped filenames, the session-name index, malformed index handling, and future constructors. The hard-coded filename list at [artifactcollision.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/artifactcollision.go:64) should also derive from one artifact-family inventory rather than restating `ScopedPaths`. `ARCH-DRY`, `ARCH-PURPOSE`, `ARCH-MOCK`.
+
+## 3. Important findings
+
+- [README.md](/Users/xianxu/workspace/pair/README.md:271) advertises `couch stop <ref>` as operational, but `stop` is `ExecuteLiveOwner` and [RunWithRuntime](/Users/xianxu/workspace/pair/cmd/internal/couchcmd/run.go:142) tries to acquire the already-held supervisor lease. While a console owns the namespace, an external `couch stop` therefore refuses; no #147 routing exists. Document this limitation or provide an owner-local route and regression. Family: `owner-required-command-reachability`.
+- [workshop/projects/couch.md](/Users/xianxu/workspace/pair/workshop/projects/couch.md:166) leaves M1 unchecked while lines 179–180 record an actual and closed date. This contradicts the issue log’s statement that close metadata is added only after milestone acceptance. Family: `milestone-state-truthfulness`.
+
+## 4. Minor findings
+
+- BR-8’s comment is now accurate, but the required red-without-fix regression is absent. A source-level identity-comment guard would dispose it under the stated review protocol.
+
+## 5. Test coverage notes
+
+Fresh verification:
+
+- `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd -count=1` — pass.
+- `go test -race ./cmd/internal/couchcore -count=1` — pass.
+- `go test ./... -count=1` — pass.
+- `make test` — pass.
+- `make test-couch-policy-live SDLC_BIN=../ariadne/bin/sdlc` — pass.
+- Exact-window `git diff --check` — pass.
+- Worktree returned clean after verification.
+
+Mutation checks confirmed BR-1, BR-2’s sequential case, and BR-5 are load-bearing. The new concurrent artifact-creation test fails against HEAD.
+
+## 6. Architectural notes for upcoming work
+
+- `ARCH-DRY` — flag: collision filenames duplicate `ScopedPaths`.
+- `ARCH-PURE` — flag: current `Operation` values contain effectful closures.
+- `ARCH-PURPOSE` — flag: the promised atomic composite claim is currently a preflight check.
+- `ARCH-MOCK` — flag: the artifact fake covers sequential results but not producer interleavings through the production boundary.
+
+## 7. Plan revision recommendations
+
+Append a `## Revisions` entry recording:
+
+1. The atomic address-claim authority shared by ThreadStore and all artifact/session producers.
+2. The current M1 `Operation` kind, distinct from the planned M3 declaration/executor split.
+3. External behavior of owner-required commands before #147 routing.
+4. Correction of project milestone state so `closed` cannot coexist with an unaccepted boundary.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The dead-client release path is removed, and mutation of incumbent counting makes the whole-incarnation regression fail.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The requested sequential scoped-artifact collision seam and retry regression are present and fail when the collision branch is removed; a separate atomicity sibling is raised below.
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      The namespace text changed but has no red-without-fix contract test, and the same table still labels the effectful current Operation surface PURE.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      README now documents provider-owned admission, and its negative removed-flag test would fail on the prior text.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      PolicyUnstableError, three exact cohorts, call count, and rollback are pinned; restoring four attempts makes the regression fail.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      The target canonicalizes SDLC_BIN and the documented relative invocation passes; the prior direct relative invocation still demonstrates the original failure.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Exact-window git diff --check now exits successfully.
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      The comment is corrected, but no test fails if the obsolete path-derived identity claim returns.
+findings:
+  - id: new
+    severity: Critical
+    family: composite-address-collision-domain
+    title: |
+      scoped artifact checking is a racy preflight rather than an atomic address claim
+    detail: |
+      AllocateThreadTag checks artifacts before independently acquiring ThreadStore state. An artifact can appear between those operations and allocation still succeeds. This is the 2nd finding in this family: define one claim rule shared by every record, scoped-artifact, and session-binding producer rather than fixing another individual filename or adding a second scan.
+  - id: new
+    severity: Important
+    family: owner-required-command-reachability
+    title: |
+      README advertises couch stop although an active supervisor makes the CLI route refuse
+    detail: |
+      stop requires ExecuteLiveOwner, so a second CLI process cannot acquire the lease held by the running console. Document the pre-147 limitation or route stop through the existing owner, with a held-lease regression.
+  - id: new
+    severity: Important
+    family: milestone-state-truthfulness
+    title: |
+      the project records M1 closed while its milestone row and boundary remain open
+    detail: |
+      workshop/projects/couch.md leaves pair#149 M1 unchecked but records actual and closed metadata, contradicting the issue log's acceptance rule.
+```

@@ -27,13 +27,13 @@ type Couch struct {
 	PolicyResolver PolicyResolver
 	Threads        *ThreadStore
 	Entropy        io.Reader
-	Artifacts      ThreadArtifactCollisionChecker
+	Artifacts      ThreadArtifactClaimer
 
 	reg   Registry
 	names NamingTable
 }
 
-func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOps, s Store, c Clock, ids IDGen, resolver PolicyResolver, entropy io.Reader, artifacts ThreadArtifactCollisionChecker) (*Couch, error) {
+func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOps, s Store, c Clock, ids IDGen, resolver PolicyResolver, entropy io.Reader, artifacts ThreadArtifactClaimer) (*Couch, error) {
 	if namespace.Dir() == "" {
 		return nil, fmt.Errorf("new couch: empty namespace")
 	}
@@ -122,9 +122,10 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	if err != nil {
 		return ActorRecord{}, nil, err
 	}
-	thread, err = ReconcileAdmission(context.Background(), c.Threads, c.PolicyResolver, thread.Address, startedAt)
+	threadAddress := thread.Address
+	thread, err = ReconcileAdmission(context.Background(), c.Threads, c.PolicyResolver, threadAddress, startedAt)
 	if err != nil {
-		return ActorRecord{}, nil, err
+		return ActorRecord{}, nil, errors.Join(err, c.releaseClaimIfThreadAbsent(threadAddress))
 	}
 
 	// `pair resume <tag> --layout2` rather than a bare `pair`.
@@ -167,7 +168,16 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	}
 	h, err := c.Runner.Start(args.WorkingDir(), argv, env)
 	if err != nil {
-		return ActorRecord{}, nil, errors.Join(fmt.Errorf("spawn %s: %w", tree, err), c.Threads.DeleteUnstartedThread(thread.Address, thread.Revision))
+		deleteErr := c.Threads.DeleteUnstartedThread(thread.Address, thread.Revision)
+		var claimErr error
+		if deleteErr == nil {
+			claimErr = c.releaseClaimIfThreadAbsent(thread.Address)
+		}
+		return ActorRecord{}, nil, errors.Join(
+			fmt.Errorf("spawn %s: %w", tree, err),
+			deleteErr,
+			claimErr,
+		)
 	}
 	thread, err = c.Threads.ActivateCreatingThread(thread.Address, thread.Revision, h.PID(), h.Identity())
 	if err != nil {
@@ -188,6 +198,17 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 		return record, h, fmt.Errorf("persist registry: %w", err)
 	}
 	return record, h, nil
+}
+
+func (c *Couch) releaseClaimIfThreadAbsent(address ThreadAddress) error {
+	_, err := c.Threads.GetThread(address)
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, ErrThreadNotFound) {
+		return err
+	}
+	return c.Artifacts.Release(address)
 }
 
 // Liveness recomputes an actor's state from the persisted {PID, Identity}.

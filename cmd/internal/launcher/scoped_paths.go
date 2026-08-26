@@ -1,6 +1,9 @@
 package launcher
 
-import "path/filepath"
+import (
+	"path/filepath"
+	"strings"
+)
 
 // ScopedPaths derives every tag-scoped sidecar path underneath one repo scope
 // directory. It is pure; callers decide when to use legacy flat fallbacks.
@@ -98,4 +101,45 @@ func (p ScopedPaths) Changelog(agent string) string {
 
 func (p ScopedPaths) AgentDraft(agent string) string {
 	return filepath.Join(p.ScopeDir(), "draft-"+p.Tag+"-"+agent+".md")
+}
+
+func (p ScopedPaths) ThreadClaim() string {
+	return filepath.Join(p.ScopeDir(), "thread-claim-"+p.Tag+".json")
+}
+
+// OwnsTagArtifact is the single inventory for filenames whose identity is a
+// Pair tag. Allocation and migration use it to prevent a new thread from
+// adopting any durable sidecar that already belongs to another one.
+func OwnsTagArtifact(name, tag string) bool {
+	exact := map[string]bool{
+		"ledger-" + tag + ".jsonl":        true,
+		"draft-" + tag + ".md":            true,
+		"log-" + tag + ".md":              true,
+		"queue-" + tag:                    true,
+		"agent-" + tag:                    true,
+		"agent-pid-" + tag:                true,
+		"agent-output-" + tag:             true,
+		"agent-picks-" + tag:              true,
+		"adapt-" + tag + ".jsonl":         true,
+		"outer-tty-" + tag:                true,
+		"nvim-pid-" + tag + "-draft":      true,
+		"nvim-pid-" + tag + "-scrollback": true,
+		"thread-claim-" + tag + ".json":   true,
+	}
+	if exact[name] {
+		return true
+	}
+	for _, prefix := range []string{
+		"config-" + tag + "-",
+		"agent-ready-" + tag + "-",
+		"pane-" + tag + "-",
+		"scrollback-" + tag + "-",
+		"changelog-" + tag + "-",
+		"draft-" + tag + "-",
+	} {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
 }

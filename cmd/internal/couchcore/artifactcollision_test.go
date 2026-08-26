@@ -1,12 +1,34 @@
 package couchcore
 
 import (
+	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
+
+func TestAllocateThreadTagAtomicallyClaimsAgainstArtifactProducers(t *testing.T) {
+	dataDir := t.TempDir()
+	scope := launcher.RepoScope{Key: "0123456789abcdef"}
+	producer, err := launcher.ClaimNewThreadAddress(dataDir, scope, "couch-0000000000000000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = producer.Release() })
+	store, ns := newTestThreadStore(t)
+	entropy := append(make([]byte, 8), []byte{1, 2, 3, 4, 5, 6, 7, 8}...)
+	got, err := store.AllocateThreadTag(scope.Key, ns.Dir(), time.Now(), bytes.NewReader(entropy), NewScopedThreadArtifactCollisionChecker(dataDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Address.Tag != "couch-0102030405060708" {
+		t.Fatalf("allocation reused producer-owned address: %+v", got.Address)
+	}
+}
 
 func TestScopedArtifactCollisionCheckerFindsEveryTagNameShape(t *testing.T) {
 	dataDir := t.TempDir()
@@ -31,9 +53,9 @@ func TestScopedArtifactCollisionCheckerFindsEveryTagNameShape(t *testing.T) {
 			if err := os.WriteFile(path, []byte("owned"), 0o600); err != nil {
 				t.Fatal(err)
 			}
-			collision, err := checker.Collides(address)
-			if err != nil || !collision {
-				t.Fatalf("Collides = %v, %v", collision, err)
+			claim, err := checker.Claim(address)
+			if !errors.Is(err, launcher.ErrThreadAddressClaimed) || claim != nil {
+				t.Fatalf("Claim = %T, %v", claim, err)
 			}
 			if err := os.Remove(path); err != nil {
 				t.Fatal(err)
@@ -43,9 +65,11 @@ func TestScopedArtifactCollisionCheckerFindsEveryTagNameShape(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(scopeDir, "draft-couch-00010203040506070.md"), []byte("neighbor"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if collision, err := checker.Collides(address); err != nil || collision {
-		t.Fatalf("neighbor tag collision = %v, %v", collision, err)
+	claim, err := checker.Claim(address)
+	if err != nil {
+		t.Fatalf("neighbor tag claim: %v", err)
 	}
+	_ = claim.Release()
 }
 
 func TestScopedArtifactCollisionCheckerFindsDetachedSessionBinding(t *testing.T) {
@@ -60,8 +84,8 @@ func TestScopedArtifactCollisionCheckerFindsDetachedSessionBinding(t *testing.T)
 	if err := os.WriteFile(filepath.Join(dataDir, "session-names.jsonl"), []byte(line+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	collision, err := NewScopedThreadArtifactCollisionChecker(dataDir).Collides(address)
-	if err != nil || !collision {
-		t.Fatalf("session binding collision = %v, %v", collision, err)
+	claim, err := NewScopedThreadArtifactCollisionChecker(dataDir).Claim(address)
+	if !errors.Is(err, launcher.ErrThreadAddressClaimed) || claim != nil {
+		t.Fatalf("session binding claim = %T, %v", claim, err)
 	}
 }

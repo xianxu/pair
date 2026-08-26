@@ -81,13 +81,15 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 		launchDataDir = explicit
 	}
 	env := Env{
-		Home:     home,
-		XDGData:  xdg,
-		Cwd:      cwd,
-		RepoRoot: repoRoot,
-		Now:      time.Now(),
-		HistoryD: historyDays(),
-		DataDir:  launchDataDir,
+		Home:             home,
+		XDGData:          xdg,
+		Cwd:              cwd,
+		RepoRoot:         repoRoot,
+		Now:              time.Now(),
+		HistoryD:         historyDays(),
+		DataDir:          launchDataDir,
+		CouchThreadScope: os.Getenv("COUCH_THREAD_SCOPE"),
+		CouchThreadTag:   os.Getenv("COUCH_THREAD_TAG"),
 	}
 	rt := NewScopedOSRuntime(dataDir, env.DataDir, pairHome)
 

@@ -656,6 +656,31 @@ rerun exposed a test-only synchronization race in the panel fixture: focus is
 published before the panel model, while the helper waited for focus alone. The
 helper now waits for both facts, and 50 consecutive couchtty package runs pass.
 
+### 2026-08-26 — M1 atomic address authority
+
+The second boundary review demonstrated a scan/claim interleaving, so the
+sequential artifact checker became a durable O_EXCL address claim shared by
+Couch and native Pair. A Couch reservation blocks direct Pair until the exact
+child establishes it; direct Pair claims before its first artifact; ThreadStore
+failure rolls back only its matching marker. The artifact-family inventory now
+lives beside `ScopedPaths`, including the claim marker, while malformed session
+indexes fail closed. Concurrency, historical adoption, Couch-child adoption,
+all constructor families, and zero-write refusal paths have stateful tests
+(ARCH-DRY, ARCH-MOCK, ARCH-PURPOSE).
+
+The current M1 `Operation` is explicitly integration because it still contains
+effectful `Invoke` closures; a plan-contract test protects every current kind,
+and M3 retains the declaration/executor split. README no longer advertises
+owner-required stop as a second-process command before #147 routing, and M1's
+project close date remains unset until the boundary accepts it.
+
+Verification passes with the full `make test`, `go test ./... -count=1`, race
+tests over Couch and launcher, relative-path live provider conformance, 100
+immediate SIGUSR2 wrapper restarts, zellij config/layout validation, and `git
+diff --check`. The full gate exposed a separate pidfile readiness race: the
+wrapper published its PID before registering SIGUSR2. The handler now owns the
+signal before the pidfile becomes visible (side-quest commit `7dbd8ac`).
+
 ### 2026-08-25 — session summary
 
 Fresh spec review split verified park into #152 and managed worktree lifecycle

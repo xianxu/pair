@@ -3,8 +3,11 @@ package couchcore
 import (
 	"bytes"
 	"errors"
+	"os"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
 func TestAllocateThreadTagClaimsCryptographicOpaqueAddress(t *testing.T) {
@@ -69,8 +72,32 @@ func TestAllocateThreadTagRetriesScopedArtifactCollision(t *testing.T) {
 	if got := checker.Calls(); len(got) != 2 || got[0] != first || got[1] != allocated.Address {
 		t.Fatalf("artifact collision calls = %+v", got)
 	}
-	if collision, _ := checker.Collides(first); !collision {
-		t.Fatal("allocation mutated the pre-existing artifact collision")
+	if claim, err := checker.Claim(first); !errors.Is(err, launcher.ErrThreadAddressClaimed) || claim != nil {
+		t.Fatalf("allocation mutated the pre-existing artifact collision: %T, %v", claim, err)
+	}
+}
+
+func TestAllocateThreadTagReleasesMarkerWhenThreadStoreClaimLoses(t *testing.T) {
+	store, ns := newTestThreadStore(t)
+	first := validThreadRecord(t)
+	first.Address = ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0000000000000000"}
+	first.StartingPath, first.WorkingPath = ns.Dir(), ns.Dir()
+	if _, err := store.CreateThread(first); err != nil {
+		t.Fatal(err)
+	}
+	dataDir := t.TempDir()
+	entropy := append(make([]byte, 8), bytes.Repeat([]byte{1}, 8)...)
+	got, err := store.AllocateThreadTag(first.Address.RepoScope, ns.Dir(), time.Now(), bytes.NewReader(entropy), NewScopedThreadArtifactCollisionChecker(dataDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths := launcher.NewScopedPaths(dataDir, launcher.RepoScope{Key: first.Address.RepoScope}, string(first.Address.Tag))
+	if _, err := os.Stat(paths.ThreadClaim()); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("losing marker was not released: %v", err)
+	}
+	winner := launcher.NewScopedPaths(dataDir, launcher.RepoScope{Key: got.Address.RepoScope}, string(got.Address.Tag))
+	if _, err := os.Stat(winner.ThreadClaim()); err != nil {
+		t.Fatalf("winning marker missing: %v", err)
 	}
 }
 

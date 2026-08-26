@@ -45,6 +45,8 @@ type fakeRuntime struct {
 	probeErr            error
 	appendLedgerErr     error
 	appendIndexErr      error
+	threadClaimErr      error
+	threadClaims        []string
 	writeFailAt         string
 	inferAgent          map[string]string // tag -> paired agent (for `resume <tag>`)
 	pickFunc            func(header string, options []string) string
@@ -102,6 +104,11 @@ type fakeRuntime struct {
 	parked        []string   // "tag|agent|move" per ParkScrollback
 	killedPollers []string   // tags handed to KillTitlePoller
 	cmuxCleared   int        // ClearCmuxOwner calls
+}
+
+func (f *fakeRuntime) EnsureThreadAddress(scope RepoScope, tag string, couchOwned bool) error {
+	f.threadClaims = append(f.threadClaims, fmt.Sprintf("%s|%s|%t", scope.Key, tag, couchOwned))
+	return f.threadClaimErr
 }
 
 func newFakeRuntime() *fakeRuntime {
@@ -437,6 +444,38 @@ func run(t *testing.T, opts LaunchOptions, rt *fakeRuntime) (int, error) {
 		t.Logf("stderr: %s", stderr.String())
 	}
 	return code, err
+}
+
+func TestCreateClaimsThreadAddressBeforeDurableWrites(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.threadClaimErr = errors.New("occupied")
+	code, err := run(t, baseOpts(LaunchArgs{ForcedTag: "work"}), rt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 1 || len(rt.threadClaims) != 1 {
+		t.Fatalf("code=%d claims=%v", code, rt.threadClaims)
+	}
+	if len(rt.ledger) != 0 || len(rt.files) != 0 || rt.launched != "" {
+		t.Fatalf("claim refusal wrote durable state: ledger=%v files=%v launched=%q", rt.ledger, rt.files, rt.launched)
+	}
+}
+
+func TestCreateIdentifiesExactCouchOwnedClaim(t *testing.T) {
+	rt := newFakeRuntime()
+	opts := baseOpts(LaunchArgs{ForcedTag: "work"})
+	scope, err := ResolveRepoScope(opts.Env.Cwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts.Env.CouchThreadScope = scope.Key
+	opts.Env.CouchThreadTag = "work"
+	if code, err := run(t, opts, rt); err != nil || code != 0 {
+		t.Fatalf("run = %d, %v", code, err)
+	}
+	if got := rt.threadClaims; len(got) != 1 || !strings.HasSuffix(got[0], "|work|true") {
+		t.Fatalf("claims = %v", got)
+	}
 }
 
 // RunLaunch must front the resolved asset root's bin/ on PATH at entry (#95),

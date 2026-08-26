@@ -57,6 +57,63 @@ rounds:
           round: 1
       boundary: M1
       blocked: true
+    - "n": 2
+      timestamp: "2026-08-26T12:10:20-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The dead-client release path is removed, and mutation of incumbent counting makes the whole-incarnation regression fail.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: The requested sequential scoped-artifact collision seam and retry regression are present and fail when the collision branch is removed; a separate atomicity sibling is raised below.
+          round: 2
+        - id: BR-3
+          disposition: not-addressed
+          note: The namespace text changed but has no red-without-fix contract test, and the same table still labels the effectful current Operation surface PURE.
+          round: 2
+        - id: BR-4
+          disposition: addressed
+          note: README now documents provider-owned admission, and its negative removed-flag test would fail on the prior text.
+          round: 2
+        - id: BR-5
+          disposition: addressed
+          note: PolicyUnstableError, three exact cohorts, call count, and rollback are pinned; restoring four attempts makes the regression fail.
+          round: 2
+        - id: BR-6
+          disposition: addressed
+          note: The target canonicalizes SDLC_BIN and the documented relative invocation passes; the prior direct relative invocation still demonstrates the original failure.
+          round: 2
+        - id: BR-7
+          disposition: addressed
+          note: Exact-window git diff --check now exits successfully.
+          round: 2
+        - id: BR-8
+          disposition: not-addressed
+          note: The comment is corrected, but no test fails if the obsolete path-derived identity claim returns.
+          round: 2
+      findings:
+        - id: BR-9
+          severity: Critical
+          title: scoped artifact checking is a racy preflight rather than an atomic address claim
+          detail: 'AllocateThreadTag checks artifacts before independently acquiring ThreadStore state. An artifact can appear between those operations and allocation still succeeds. This is the 2nd finding in this family: define one claim rule shared by every record, scoped-artifact, and session-binding producer rather than fixing another individual filename or adding a second scan.'
+          family: composite-address-collision-domain
+          round: 2
+        - id: BR-10
+          severity: Important
+          title: README advertises couch stop although an active supervisor makes the CLI route refuse
+          detail: stop requires ExecuteLiveOwner, so a second CLI process cannot acquire the lease held by the running console. Document the pre-147 limitation or route stop through the existing owner, with a held-lease regression.
+          family: owner-required-command-reachability
+          round: 2
+        - id: BR-11
+          severity: Important
+          title: the project records M1 closed while its milestone row and boundary remain open
+          detail: workshop/projects/couch.md leaves pair#149 M1 unchecked but records actual and closed metadata, contradicting the issue log's acceptance rule.
+          family: milestone-state-truthfulness
+          round: 2
+      boundary: M1
+      blocked: true
 ---
 
 # Gate ledger — pair#149 (boundary-review)
@@ -85,13 +142,32 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-8** [Minor] `identity-comment-truthfulness` Spawn still comments that tags derive from trees and same-tree starts resume one session
   couch.go:125-134 describes the superseded path-derived tag behavior immediately above code that launches the newly allocated opaque thread tag.
 
+## Round 2 — 2026-08-26T12:10:20-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — The dead-client release path is removed, and mutation of incumbent counting makes the whole-incarnation regression fail.
+- BR-2 — addressed — The requested sequential scoped-artifact collision seam and retry regression are present and fail when the collision branch is removed; a separate atomicity sibling is raised below.
+- BR-3 — not-addressed — The namespace text changed but has no red-without-fix contract test, and the same table still labels the effectful current Operation surface PURE.
+- BR-4 — addressed — README now documents provider-owned admission, and its negative removed-flag test would fail on the prior text.
+- BR-5 — addressed — PolicyUnstableError, three exact cohorts, call count, and rollback are pinned; restoring four attempts makes the regression fail.
+- BR-6 — addressed — The target canonicalizes SDLC_BIN and the documented relative invocation passes; the prior direct relative invocation still demonstrates the original failure.
+- BR-7 — addressed — Exact-window git diff --check now exits successfully.
+- BR-8 — not-addressed — The comment is corrected, but no test fails if the obsolete path-derived identity claim returns.
+
+### Raised
+
+- **BR-9** [Critical] `composite-address-collision-domain` scoped artifact checking is a racy preflight rather than an atomic address claim
+  AllocateThreadTag checks artifacts before independently acquiring ThreadStore state. An artifact can appear between those operations and allocation still succeeds. This is the 2nd finding in this family: define one claim rule shared by every record, scoped-artifact, and session-binding producer rather than fixing another individual filename or adding a second scan.
+- **BR-10** [Important] `owner-required-command-reachability` README advertises couch stop although an active supervisor makes the CLI route refuse
+  stop requires ExecuteLiveOwner, so a second CLI process cannot acquire the lease held by the running console. Document the pre-147 limitation or route stop through the existing owner, with a held-lease regression.
+- **BR-11** [Important] `milestone-state-truthfulness` the project records M1 closed while its milestone row and boundary remain open
+  workshop/projects/couch.md leaves pair#149 M1 unchecked but records actual and closed metadata, contradicting the issue log's acceptance rule.
+
 ## Open findings
 
-- **BR-1** [Critical] `incarnation-quiescence-before-capacity-release` a dead Pair client frees capacity while its zellij session can still write
-- **BR-2** [Critical] `composite-address-collision-domain` opaque tag allocation checks ThreadStore records but not scoped artifacts
 - **BR-3** [Critical] `core-concept-kind-contract` the Core concepts table labels a filesystem-backed namespace PURE and names a nonexistent integration
-- **BR-4** [Important] `user-facing-policy-docs` README still advertises the removed one-tree guard and --same-tree bypass
-- **BR-5** [Important] `typed-retry-exhaustion-contract` policy epoch exhaustion uses four attempts and a generic error instead of the promised typed refusal
-- **BR-6** [Important] `live-conformance-target-interface` the plan's live-provider command uses the wrong variable and a nonportable relative binary
-- **BR-7** [Minor] `verification-window-cleanliness` git diff --check fails over the requested boundary
 - **BR-8** [Minor] `identity-comment-truthfulness` Spawn still comments that tags derive from trees and same-tree starts resume one session
+- **BR-9** [Critical] `composite-address-collision-domain` scoped artifact checking is a racy preflight rather than an atomic address claim
+- **BR-10** [Important] `owner-required-command-reachability` README advertises couch stop although an active supervisor makes the CLI route refuse
+- **BR-11** [Important] `milestone-state-truthfulness` the project records M1 closed while its milestone row and boundary remain open

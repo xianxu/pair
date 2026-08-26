@@ -45,7 +45,7 @@ remains #153. #149 returns typed refusals for those unavailable outcomes.
 | `ThreadAddress` / minimal `ThreadRecord` | pure | `cmd/internal/couchcore/thread.go` | new in M1, widened in M2 |
 | `StartTransaction` | pure | `cmd/internal/couchcore/starttransaction.go` | new in M2 |
 | `ThreadMetadata` / `ThreadSummary` | pure | `cmd/internal/couchcore/threadmetadata.go`, `threadinventory.go` | new in M3 |
-| `Operation` effect/owner declaration | pure | `cmd/internal/couchcore/ops.go` | modified in M1 and M3 |
+| `Operation` effect/owner declaration | integration | `cmd/internal/couchcore/ops.go` | modified in M1; split into pure declarations/executors in M3 |
 | `LaunchProfileResolution` | pure | `cmd/internal/couchcore/launchprofile.go` | new in M4 |
 | `ArtifactFamily` | pure | `cmd/internal/artifactpath/paths.go` | new in M5 |
 
@@ -895,3 +895,21 @@ cohort attempts and returns typed `PolicyUnstableError`. The architecture table
 classifies namespace resolution as integration, the README documents only
 provider-owned admission, and the live conformance target accepts the canonical
 `SDLC_BIN` interface with relative paths (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-26 — make composite allocation one producer authority
+
+**Reason:** the second M1 boundary review proved that scanning artifacts before
+claiming ThreadStore left a creation interval in which another Pair producer
+could acquire the same address. It also found that the current M1 `Operation`
+surface still embeds effectful closures, external live-owner commands lack #147
+routing, and project close metadata preceded boundary acceptance.
+
+**Delta:** an O_EXCL scoped thread-claim marker now serializes Couch allocation
+and the native Pair create flow before either writes artifacts or session
+bindings. Couch reservations are distinct from established Pair claims; every
+current constructor derives collision membership from `ScopedPaths`, malformed
+session indexes fail closed, and only a failed ThreadStore claim releases its
+marker. `Operation` is classified as integration until M3 separates declaration
+from execution. README exposes live-owner start/stop through the root console
+and names #147 for second-process routing; project `closed` remains absent until
+the boundary succeeds (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).

@@ -195,6 +195,14 @@ PID/process-start identity as live. An uncertain post-fork update remains
 occupied for later reconciliation rather than failing open; M2 adds the
 blocked pre-exec handshake and complete restart state machine.
 
+Composite allocation and Pair artifacts share one durable address authority:
+`thread-claim-<tag>.json` is created with O_EXCL before either Couch commits the
+ThreadStore record or native Pair writes a sidecar/session binding. Couch writes
+a reserved claim; only the child carrying the exact scope/tag establishes it.
+Direct Pair creates an established claim before its first artifact and adopts
+historical tags into the same scheme. The canonical `ScopedPaths` inventory
+drives collision recognition, and a malformed session-name index fails closed.
+
 The child receives the canonical namespace plus `COUCH_THREAD_SCOPE` and
 `COUCH_THREAD_TAG`, and launches as `pair resume <opaque-tag> --layout2`.
 Distinct starts at one policy-unbounded path therefore use distinct Pair

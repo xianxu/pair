@@ -363,6 +363,16 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		fmt.Fprintf(stderr, "      machine's socket path (%s). Pick a shorter tag.\n", session)
 		return launchStep{code: 1}, nil
 	}
+	scope, err := ResolveRepoScope(envScopeRoot(env))
+	if err != nil {
+		fmt.Fprintf(stderr, "pair: cannot resolve thread scope: %v\n", err)
+		return launchStep{code: 1}, nil
+	}
+	couchOwned := env.CouchThreadScope == scope.Key && env.CouchThreadTag == chosenTag
+	if err := rt.EnsureThreadAddress(scope, chosenTag, couchOwned); err != nil {
+		fmt.Fprintf(stderr, "pair: cannot claim thread '%s': %v\n", chosenTag, err)
+		return launchStep{code: 1}, nil
+	}
 	// Free the name (clear a stale EXITED resurrect record) and guard against a
 	// live session unexpectedly occupying it before any source-of-truth writes.
 	if rt.SessionBlocksReuse(session) {

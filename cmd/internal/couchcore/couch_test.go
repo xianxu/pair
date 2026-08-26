@@ -15,12 +15,13 @@ import (
 )
 
 type testEnv struct {
-	Couch  *Couch
-	Runner *FakeRunner
-	Git    *FakeGit
-	Proc   *FakeProcOps
-	Dir    string
-	Now    time.Time
+	Couch     *Couch
+	Runner    *FakeRunner
+	Git       *FakeGit
+	Proc      *FakeProcOps
+	Artifacts *FakeThreadArtifactCollisionChecker
+	Dir       string
+	Now       time.Time
 }
 
 func TestStoreNamespaceMustMatchCouchNamespace(t *testing.T) {
@@ -70,11 +71,12 @@ func newTestEnv(t *testing.T, trees ...string) *testEnv {
 	}
 	dir = ns.Dir()
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
-	c, err := New(ns, r, NewFakePathOps(nil), g, proc, NewStore(dir), FixedClock{T: now}, NewFixedIDGen("ah8d", "b2c1"), NewFakePolicyResolver(), newIncrementingEntropy(), NoThreadArtifactCollisions{})
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	c, err := New(ns, r, NewFakePathOps(nil), g, proc, NewStore(dir), FixedClock{T: now}, NewFixedIDGen("ah8d", "b2c1"), NewFakePolicyResolver(), newIncrementingEntropy(), artifacts)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	return &testEnv{Couch: c, Runner: r, Git: g, Proc: proc, Dir: dir, Now: now}
+	return &testEnv{Couch: c, Runner: r, Git: g, Proc: proc, Artifacts: artifacts, Dir: dir, Now: now}
 }
 
 // spawn spawns and then marks the child live in FakeProcOps, which is what a
@@ -235,6 +237,9 @@ func TestSpawnCapacityRefusalDoesNotForkAndRollsBackOpaqueReservation(t *testing
 	if len(snapshot.Records) != 1 || snapshot.Records[0].Address != first.Thread {
 		t.Fatalf("refused reservation leaked: %+v", snapshot.Records)
 	}
+	if got := env.Artifacts.Releases(); len(got) != 1 {
+		t.Fatalf("capacity refusal released claims = %+v", got)
+	}
 }
 
 func TestSpawnPolicyInstabilityDoesNotForkAndRollsBackOpaqueReservation(t *testing.T) {
@@ -277,6 +282,9 @@ func TestSpawnPolicyInstabilityDoesNotForkAndRollsBackOpaqueReservation(t *testi
 	snapshot, err := env.Couch.Threads.Snapshot()
 	if err != nil || len(snapshot.Records) != 1 || snapshot.Records[0].Address != incumbent.Address {
 		t.Fatalf("unstable reservation leaked: %+v, %v", snapshot.Records, err)
+	}
+	if got := env.Artifacts.Releases(); len(got) != 1 {
+		t.Fatalf("unstable policy released claims = %+v", got)
 	}
 }
 

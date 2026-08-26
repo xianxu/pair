@@ -261,6 +261,16 @@ func TestReadmeDoesNotAdvertiseRemovedAdmissionFlags(t *testing.T) {
 	}
 }
 
+func TestReadmeDoesNotAdvertiseOwnerRequiredStopAsExternalCommand(t *testing.T) {
+	raw, err := os.ReadFile("../../../README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "couch stop <ref>") {
+		t.Fatal("README advertises stop as a second-process command before #147 owner routing exists")
+	}
+}
+
 func TestBindArgsAcceptsFlagsAndPositionals(t *testing.T) {
 	var start couchcore.Operation
 	for _, op := range couchcore.Operations() {

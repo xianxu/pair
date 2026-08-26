@@ -6,13 +6,15 @@ import (
 
 // Env is the explicit runtime environment for launch decisions.
 type Env struct {
-	Home     string
-	XDGData  string
-	Cwd      string
-	RepoRoot string
-	Now      time.Time
-	HistoryD int
-	DataDir  string
+	Home             string
+	XDGData          string
+	Cwd              string
+	RepoRoot         string
+	Now              time.Time
+	HistoryD         int
+	DataDir          string
+	CouchThreadScope string
+	CouchThreadTag   string
 }
 
 // SessionSource supplies zellij session state.

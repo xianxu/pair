@@ -177,7 +177,6 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 
 **est:** 17.80
 **actual:** 35.47h
-**closed:** 2026-08-26
 
 Couch now resolves one physical store namespace and protects it with one
 non-inherited supervisor lease. Its locked/revisioned ThreadStore atomically
