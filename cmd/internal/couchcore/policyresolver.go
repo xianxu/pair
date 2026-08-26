@@ -29,19 +29,19 @@ const (
 )
 
 type PolicyCapacity struct {
-	Kind  PolicyCapacityKind
-	Limit int
+	Kind  PolicyCapacityKind `json:"kind"`
+	Limit int                `json:"limit,omitempty"`
 }
 
 // PolicyResult is the Pair-owned normalized evidence used by admission. It
 // intentionally contains no provider declaration or admission-key-kind model.
 type PolicyResult struct {
-	PolicyVersion int
-	PolicyDigest  string
-	RepoIdentity  string
-	AdmissionKey  string
-	Capacity      PolicyCapacity
-	OnCapacity    CapacityAction
+	PolicyVersion int            `json:"policy_version"`
+	PolicyDigest  string         `json:"policy_digest"`
+	RepoIdentity  string         `json:"repo_identity"`
+	AdmissionKey  string         `json:"admission_key"`
+	Capacity      PolicyCapacity `json:"capacity"`
+	OnCapacity    CapacityAction `json:"on_capacity,omitempty"`
 }
 
 type PolicyDiagnostic struct {
@@ -181,7 +181,7 @@ func normalizePolicyDiagnostic(value policyDiagnosticWire) (PolicyDiagnostic, er
 }
 
 func strictPolicyJSON(raw []byte, target any) error {
-	if err := rejectDuplicatePolicyJSONKeys(raw); err != nil {
+	if err := rejectDuplicateJSONKeys(raw); err != nil {
 		return err
 	}
 	dec := json.NewDecoder(bytes.NewReader(raw))
@@ -199,9 +199,9 @@ func strictPolicyJSON(raw []byte, target any) error {
 	return nil
 }
 
-func rejectDuplicatePolicyJSONKeys(raw []byte) error {
+func rejectDuplicateJSONKeys(raw []byte) error {
 	dec := json.NewDecoder(bytes.NewReader(raw))
-	if err := scanPolicyJSONValue(dec); err != nil {
+	if err := scanJSONValueNoDuplicates(dec); err != nil {
 		return err
 	}
 	var extra any
@@ -214,7 +214,7 @@ func rejectDuplicatePolicyJSONKeys(raw []byte) error {
 	return nil
 }
 
-func scanPolicyJSONValue(dec *json.Decoder) error {
+func scanJSONValueNoDuplicates(dec *json.Decoder) error {
 	token, err := dec.Token()
 	if err != nil {
 		return err
@@ -239,7 +239,7 @@ func scanPolicyJSONValue(dec *json.Decoder) error {
 				return fmt.Errorf("duplicate JSON object key %q", key)
 			}
 			seen[key] = struct{}{}
-			if err := scanPolicyJSONValue(dec); err != nil {
+			if err := scanJSONValueNoDuplicates(dec); err != nil {
 				return err
 			}
 		}
@@ -247,7 +247,7 @@ func scanPolicyJSONValue(dec *json.Decoder) error {
 		return err
 	case '[':
 		for dec.More() {
-			if err := scanPolicyJSONValue(dec); err != nil {
+			if err := scanJSONValueNoDuplicates(dec); err != nil {
 				return err
 			}
 		}
