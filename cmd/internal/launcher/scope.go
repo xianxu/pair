@@ -5,7 +5,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"path/filepath"
+	"regexp"
 )
+
+var scopedComponentPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 // RepoScope is the hidden repo identity Pair uses to keep display tags local to
 // a repo while avoiding sidecar/session collisions between same-name repos.
@@ -28,6 +31,25 @@ func ResolveRepoScope(root string) (RepoScope, error) {
 		DisplayName: repoDisplayName(clean),
 		Key:         hex.EncodeToString(sum[:])[:16],
 	}, nil
+}
+
+// ValidateRepoScopeKey validates an already-resolved hidden scope before it is
+// used as a path component. Resolution and validation are separate because
+// persisted records and child environments carry only the key.
+func ValidateRepoScopeKey(key string) error {
+	if !scopedComponentPattern.MatchString(key) {
+		return fmt.Errorf("invalid repo scope key %q", key)
+	}
+	return nil
+}
+
+// ValidatePairTag validates the durable tag component shared by Pair sidecars,
+// native sessions, and Couch thread records.
+func ValidatePairTag(tag string) error {
+	if !scopedComponentPattern.MatchString(tag) {
+		return fmt.Errorf("invalid pair tag %q", tag)
+	}
+	return nil
 }
 
 func repoDisplayName(root string) string {

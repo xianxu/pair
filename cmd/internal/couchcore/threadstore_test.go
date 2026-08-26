@@ -125,6 +125,43 @@ func TestThreadStoreReturnsDefensiveIncarnationCopies(t *testing.T) {
 	}
 }
 
+func TestThreadStorePersistsAndDefensivelyCopiesRecoverableStartClaim(t *testing.T) {
+	store, ns := newTestThreadStore(t)
+	record := validThreadRecord(t)
+	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
+	record.Reservation = false
+	record.Incarnations = []ThreadIncarnation{{
+		State: IncarnationCreating,
+		Start: &ThreadStartClaim{
+			Nonce:         "start-0123456789abcdef",
+			OwnerPID:      41,
+			OwnerIdentity: "owner-start-token",
+		},
+	}}
+
+	created, err := store.CreateThread(record)
+	if err != nil {
+		t.Fatalf("CreateThread: %v", err)
+	}
+	created.Incarnations[0].Start.OwnerIdentity = "caller mutation"
+
+	got, err := store.GetThread(record.Address)
+	if err != nil {
+		t.Fatalf("GetThread: %v", err)
+	}
+	if got.Incarnations[0].Start == nil || got.Incarnations[0].Start.OwnerIdentity != "owner-start-token" {
+		t.Fatalf("stored start claim aliased caller: %+v", got.Incarnations[0].Start)
+	}
+	got.Incarnations[0].Start.Nonce = "read mutation"
+	again, err := store.GetThread(record.Address)
+	if err != nil {
+		t.Fatalf("GetThread again: %v", err)
+	}
+	if again.Incarnations[0].Start.Nonce != "start-0123456789abcdef" {
+		t.Fatalf("read start claim aliased store: %+v", again.Incarnations[0].Start)
+	}
+}
+
 func TestThreadStoreIndependentInstancesSerializeRevisionUpdates(t *testing.T) {
 	store, ns := newTestThreadStore(t)
 	record := validThreadRecord(t)

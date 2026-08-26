@@ -55,6 +55,22 @@ func TestScopedPaths(t *testing.T) {
 	}
 }
 
+func TestScopedPathsValidateCompositeBoundary(t *testing.T) {
+	valid := NewScopedPaths("/data", RepoScope{Key: "0123456789abcdef"}, "couch-0123456789abcdef")
+	if err := valid.Validate(); err != nil {
+		t.Fatalf("valid scoped paths rejected: %v", err)
+	}
+	for _, paths := range []ScopedPaths{
+		NewScopedPaths("relative", valid.Scope, valid.Tag),
+		NewScopedPaths("/data", RepoScope{Key: "../scope"}, valid.Tag),
+		NewScopedPaths("/data", valid.Scope, "../tag"),
+	} {
+		if err := paths.Validate(); err == nil {
+			t.Errorf("unsafe scoped paths accepted: %+v", paths)
+		}
+	}
+}
+
 func TestOwnsTagArtifactCoversEveryScopedTagConstructor(t *testing.T) {
 	paths := NewScopedPaths("/data", RepoScope{Key: "0123456789abcdef"}, "work")
 	for _, path := range []string{

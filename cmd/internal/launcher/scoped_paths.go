@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 )
@@ -15,6 +16,22 @@ type ScopedPaths struct {
 
 func NewScopedPaths(globalDataDir string, scope RepoScope, tag string) ScopedPaths {
 	return ScopedPaths{GlobalDataDir: globalDataDir, Scope: scope, Tag: tag}
+}
+
+// Validate proves the composite scope/tag boundary before a caller performs
+// artifact IO. Existing constructors remain pure so legacy readers can derive
+// paths, while new transaction/helper boundaries can fail closed first.
+func (p ScopedPaths) Validate() error {
+	if !filepath.IsAbs(p.GlobalDataDir) {
+		return fmt.Errorf("pair data directory must be absolute")
+	}
+	if err := ValidateRepoScopeKey(p.Scope.Key); err != nil {
+		return err
+	}
+	if err := ValidatePairTag(p.Tag); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (p ScopedPaths) ScopeDir() string {

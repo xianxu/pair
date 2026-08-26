@@ -610,6 +610,21 @@ total: 17.80
 
 ## Log
 
+### 2026-08-26 — M2 recoverable-start record boundary
+
+The store schema now groups each nonce with the exact supervising process
+identity that created it; the incarnation's existing PID/start-token pair names
+the blocked helper before exec and remains stable across exec. Validation permits
+the pre-fork and helper-recorded creating states, rejects partial identities,
+unsafe nonces, live records carrying an unfinished start, and more than one
+tracked start per thread, while continuing to read M1 and legacy incarnations.
+`launcher.ScopedPaths.Validate` and shared repo-scope/tag validators establish
+the same composite boundary for the upcoming helper instead of duplicating path
+rules (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
+The initial tests failed to compile before the new model existed. Focused and
+race runs now pass for `./cmd/internal/couchcore ./cmd/internal/launcher`.
+
 ### 2026-08-26 — M1 admission kernel integrated
 - 2026-08-26: closed M1 — make test; go test ./... -count=1; go test -race ./cmd/internal/couchcore ./cmd/internal/launcher -count=1; make test-couch-policy-live SDLC_BIN=../ariadne/bin/sdlc; zellij config and main-2/main-3 layout validation; git diff --check; review verdict: SHIP
 

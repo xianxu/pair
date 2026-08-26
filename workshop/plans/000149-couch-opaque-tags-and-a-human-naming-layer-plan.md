@@ -414,7 +414,7 @@ inventory, never a couch enum (ARCH-DRY).
 - [x] **Step 5:** Update atlas ownership: Ariadne declares/measures/resolves policy; Pair
    validates normalized evidence, owns the singleton namespace, and performs
    runtime admission.
-- [ ] **Step 6:** Commit the verified M1 window and run
+- [x] **Step 6:** Commit the verified M1 window and run
    `sdlc milestone-close --issue 149 --milestone M1`. Fix all Critical/Important
    findings. Only after the Approved boundary may Ariadne #200 close/merge.
 
@@ -434,10 +434,10 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Write failing `ValidateThreadRecord` tests from the strategy table.
-- [ ] **Step 2:** Widen the record for M2 start transactions while preserving M1 identity,
+- [x] **Step 1:** Write failing `ValidateThreadRecord` tests from the strategy table.
+- [x] **Step 2:** Widen the record for M2 start transactions while preserving M1 identity,
    path, and revision invariants.
-- [ ] **Step 3:** Run thread/store focused tests; expect PASS, then commit.
+- [x] **Step 3:** Run thread/store focused tests; expect PASS, then commit.
 
 ### Task 2: Add the blocked pre-exec helper
 
