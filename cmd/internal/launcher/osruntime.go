@@ -360,9 +360,9 @@ func (OSRuntime) DevRebuild(pairHome string) {
 	cmd.Run()
 }
 
-// spawnDetached backgrounds argv[0] in its own session (setsid) with stdio to
-// /dev/null — the Go analogue of the shell's `… </dev/null >/dev/null 2>&1 &`
-// + disown, so the child survives the launcher and never leaks a job line.
+// spawnDetached backgrounds argv[0] with stdio to /dev/null. Direct Pair puts
+// it in its own session (the historical disown behavior); Couch-launched Pair
+// leaves it in the actor-owned process group until ownership handoff.
 func spawnDetached(argv []string, extraEnv []string) {
 	devNull, err := os.Open(os.DevNull)
 	if err != nil {
@@ -372,11 +372,22 @@ func spawnDetached(argv []string, extraEnv []string) {
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Env = append(os.Environ(), extraEnv...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = devNull, devNull, devNull
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	cmd.SysProcAttr = sidecarProcessAttributes(os.Getenv("COUCH_THREAD_SCOPE"), os.Getenv("COUCH_THREAD_TAG"))
 	if err := cmd.Start(); err != nil {
 		return
 	}
-	go func() { _ = cmd.Wait() }() // reap our bookkeeping; the child is reparented.
+	go func() { _ = cmd.Wait() }() // reap our bookkeeping when the sidecar exits.
+}
+
+// A Couch-launched Pair already runs in an actor-owned process group. Its
+// pre-handoff sidecars must remain in that group so Couch can quiesce the whole
+// incarnation on a failed start. Direct Pair sidecars retain the historical
+// detached-session behavior.
+func sidecarProcessAttributes(couchScope, couchTag string) *syscall.SysProcAttr {
+	if couchScope != "" && couchTag != "" {
+		return nil
+	}
+	return &syscall.SysProcAttr{Setsid: true}
 }
 
 // --- EnvOps ----------------------------------------------------------------

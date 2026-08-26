@@ -31,6 +31,7 @@ type testEnv struct {
 type realDescendantRunner struct {
 	marker         string
 	acknowledgeErr error
+	pty            bool
 }
 
 func (r realDescendantRunner) Start(_ string, argv, env []string) (Handle, error) {
@@ -39,10 +40,18 @@ func (r realDescendantRunner) Start(_ string, argv, env []string) (Handle, error
 
 func (r realDescendantRunner) StartBlocked(_ string, _ []string, _ []string, timeout time.Duration) (BlockedHandle, error) {
 	script := `trap '' TERM; sleep 300 & child=$!; printf '%s' "$child" > "$PAIR_TEST_DESCENDANT_PID"; wait "$child"`
-	h, err := (ExecRunner{LaunchHelper: os.Args[0]}).StartBlocked(filepath.Dir(r.marker), []string{"sh", "-c", script}, []string{
+	argv := []string{"sh", "-c", script}
+	env := []string{
 		"PAIR_TEST_RUNNER_HELPER=1",
 		"PAIR_TEST_DESCENDANT_PID=" + r.marker,
-	}, timeout)
+	}
+	var h BlockedHandle
+	var err error
+	if r.pty {
+		h, err = (&PtyRunner{LaunchHelper: os.Args[0]}).StartBlocked(filepath.Dir(r.marker), argv, env, timeout)
+	} else {
+		h, err = (ExecRunner{LaunchHelper: os.Args[0]}).StartBlocked(filepath.Dir(r.marker), argv, env, timeout)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -373,76 +382,76 @@ func TestSpawnPossiblyDeliveredAcknowledgementQuiescesBeforeRollback(t *testing.
 
 func TestSpawnPostAckFailuresQuiesceRealPersistentDescendant(t *testing.T) {
 	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
-	for _, mode := range []string{"acknowledgement ambiguous", "registration", "promotion", "registry save"} {
-		t.Run(mode, func(t *testing.T) {
-			env := newTestEnv(t, "/repo")
-			env.Couch.postAckQuiesceTimeout = 250 * time.Millisecond
-			marker := filepath.Join(t.TempDir(), "descendant.pid")
-			runner := realDescendantRunner{marker: marker}
-			if mode == "acknowledgement ambiguous" {
-				runner.acknowledgeErr = errors.New("close after acknowledgement delivery")
-				env.Artifacts.AutoEstablish(false)
-			}
-			env.Couch.Runner = runner
-			if mode == "registration" {
-				env.Artifacts.SetRegistration(address, RegistrationUnknown, errors.New("registration unreadable"))
-			}
-			if mode == "promotion" {
-				var once sync.Once
-				env.Artifacts.BeforeRegistration = func(got ThreadAddress) error {
-					var hookErr error
-					once.Do(func() {
-						current, err := env.Couch.Threads.GetThread(got)
-						if err != nil {
-							hookErr = err
-							return
+	for _, runnerMode := range []struct {
+		name string
+		pty  bool
+	}{{name: "stdio"}, {name: "pty", pty: true}} {
+		t.Run(runnerMode.name, func(t *testing.T) {
+			for _, mode := range []string{"acknowledgement ambiguous", "registration", "promotion", "registry save"} {
+				t.Run(mode, func(t *testing.T) {
+					env := newTestEnv(t, "/repo")
+					env.Couch.postAckQuiesceTimeout = 250 * time.Millisecond
+					marker := filepath.Join(t.TempDir(), "descendant.pid")
+					runner := realDescendantRunner{marker: marker, pty: runnerMode.pty}
+					if mode == "acknowledgement ambiguous" {
+						runner.acknowledgeErr = errors.New("close after acknowledgement delivery")
+						env.Artifacts.AutoEstablish(false)
+					}
+					env.Couch.Runner = runner
+					if mode == "registration" {
+						env.Artifacts.SetRegistration(address, RegistrationUnknown, errors.New("registration unreadable"))
+					}
+					if mode == "promotion" {
+						var once sync.Once
+						env.Artifacts.BeforeRegistration = func(got ThreadAddress) error {
+							var hookErr error
+							once.Do(func() {
+								current, err := env.Couch.Threads.GetThread(got)
+								if err != nil {
+									hookErr = err
+									return
+								}
+								_, hookErr = env.Couch.Threads.UpdateExistingThread(got, current.Revision, func(next *ThreadRecord) error {
+									next.Description = "concurrent description"
+									return nil
+								})
+							})
+							return hookErr
 						}
-						_, hookErr = env.Couch.Threads.UpdateExistingThread(got, current.Revision, func(next *ThreadRecord) error {
-							next.Description = "concurrent description"
-							return nil
-						})
+					}
+					if mode == "registry save" {
+						badStorePath := filepath.Join(t.TempDir(), "not-a-directory")
+						if err := os.WriteFile(badStorePath, []byte("occupied"), 0o600); err != nil {
+							t.Fatal(err)
+						}
+						env.Couch.Store = NewStore(badStorePath)
+					}
+
+					var descendantPID int
+					t.Cleanup(func() {
+						if descendantPID == 0 {
+							descendantPID, _ = waitForPIDFile(marker, 50*time.Millisecond)
+						}
+						if descendantPID != 0 {
+							_ = killAndVerifyProcess(descendantPID, 100*time.Millisecond)
+						}
 					})
-					return hookErr
-				}
-			}
-			if mode == "registry save" {
-				badStorePath := filepath.Join(t.TempDir(), "not-a-directory")
-				if err := os.WriteFile(badStorePath, []byte("occupied"), 0o600); err != nil {
-					t.Fatal(err)
-				}
-				env.Couch.Store = NewStore(badStorePath)
-			}
 
-			var descendantPID int
-			env.Artifacts.QuiesceHook = func(got ThreadAddress) error {
-				if got != address {
-					return fmt.Errorf("quiesce address = %+v", got)
-				}
-				pid, err := waitForPIDFile(marker, time.Second)
-				if err != nil {
-					return err
-				}
-				descendantPID = pid
-				return killAndVerifyProcess(pid, time.Second)
-			}
-			t.Cleanup(func() {
-				if descendantPID == 0 {
-					descendantPID, _ = waitForPIDFile(marker, 50*time.Millisecond)
-				}
-				if descendantPID != 0 {
-					_ = killAndVerifyProcess(descendantPID, 100*time.Millisecond)
-				}
-			})
-
-			_, handle, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
-			if err == nil || handle == nil {
-				t.Fatalf("Spawn = %T, %v", handle, err)
-			}
-			if handle.Alive() || descendantPID == 0 {
-				t.Fatalf("quiescence did not cover client and descendant: handle_alive=%v descendant=%d", handle.Alive(), descendantPID)
-			}
-			if err := syscall.Kill(descendantPID, 0); !errors.Is(err, syscall.ESRCH) {
-				t.Fatalf("persistent descendant %d survived: %v", descendantPID, err)
+					_, handle, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
+					if err == nil || handle == nil {
+						t.Fatalf("Spawn = %T, %v", handle, err)
+					}
+					descendantPID, err = waitForPIDFile(marker, time.Second)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if handle.Alive() || descendantPID == 0 {
+						t.Fatalf("quiescence did not cover client and descendant: handle_alive=%v descendant=%d", handle.Alive(), descendantPID)
+					}
+					if err := syscall.Kill(descendantPID, 0); !errors.Is(err, syscall.ESRCH) {
+						t.Fatalf("persistent descendant %d survived: %v", descendantPID, err)
+					}
+				})
 			}
 		})
 	}

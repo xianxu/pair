@@ -5,7 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -451,4 +453,60 @@ func TestSidecarSpawnArgvSelfExecsPair(t *testing.T) {
 			t.Fatalf("sidecar spawn target must self-exec pair, not a standalone binary: %q", argv[0])
 		}
 	}
+}
+
+func TestSidecarProcessOwnershipFollowsCouchIncarnation(t *testing.T) {
+	if got := sidecarProcessAttributes("0123456789abcdef", "couch-0001020304050607"); got != nil {
+		t.Fatalf("Couch sidecar escaped actor process group: %+v", got)
+	}
+	for _, tc := range []struct{ scope, tag string }{{"", ""}, {"scope", ""}, {"", "tag"}} {
+		got := sidecarProcessAttributes(tc.scope, tc.tag)
+		if got == nil || !got.Setsid {
+			t.Fatalf("direct Pair sidecar attributes for %q/%q = %+v", tc.scope, tc.tag, got)
+		}
+	}
+}
+
+func TestSpawnDetachedKeepsCouchSidecarInOwnedProcessGroup(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "sidecar-pgid")
+	t.Setenv("COUCH_THREAD_SCOPE", "0123456789abcdef")
+	t.Setenv("COUCH_THREAD_TAG", "couch-0001020304050607")
+	spawnDetached([]string{os.Args[0], "-test.run=^TestSidecarProcessGroupProbe$"}, []string{"PAIR_TEST_SIDECAR_PG_MARKER=" + marker})
+
+	deadline := time.Now().Add(2 * time.Second)
+	var fields []string
+	for time.Now().Before(deadline) {
+		raw, err := os.ReadFile(marker)
+		if err == nil {
+			fields = strings.Fields(string(raw))
+			if len(fields) == 2 {
+				break
+			}
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if len(fields) != 2 {
+		t.Fatalf("sidecar process-group probe = %v", fields)
+	}
+	pid, _ := strconv.Atoi(fields[0])
+	pgid, _ := strconv.Atoi(fields[1])
+	t.Cleanup(func() {
+		if process, err := os.FindProcess(pid); err == nil {
+			_ = process.Kill()
+		}
+	})
+	if pgid != syscall.Getpgrp() {
+		t.Fatalf("Couch sidecar pgid = %d, want inherited actor pgid %d", pgid, syscall.Getpgrp())
+	}
+}
+
+func TestSidecarProcessGroupProbe(t *testing.T) {
+	marker := os.Getenv("PAIR_TEST_SIDECAR_PG_MARKER")
+	if marker == "" {
+		return
+	}
+	if err := os.WriteFile(marker, []byte(fmt.Sprintf("%d %d\n", os.Getpid(), syscall.Getpgrp())), 0o600); err != nil {
+		os.Exit(2)
+	}
+	time.Sleep(30 * time.Second)
 }

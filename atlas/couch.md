@@ -203,10 +203,13 @@ or a successful pipe write. Only then does Couch clear the transaction and mark
 the incarnation live. Any post-ack error before `Spawn` successfully transfers
 the handle—including an acknowledgement error after the byte may already have
 been delivered, registration read failure, promotion conflict, or legacy-
-registry save failure—treats exec as possible. Couch first sends TERM,
-escalates to KILL after a bounded wait, and reaps that exact client; it then
-resolves the exact `{scope, tag}` session-name binding and force-deletes the
-owned zellij session, including its persistent panes. Only after whole-
+registry save failure—treats exec as possible. Both stdio and PTY runners make
+the Pair client the leader of one actor-owned process group; Couch-launched
+session-watcher and title-poller sidecars inherit that group rather than
+detaching. Couch sends TERM and then unconditional KILL to the group, reaps the
+client, and proves the group empty. The remaining process class is the zellij
+server and its panes: Couch resolves the exact `{scope, tag}` session-name
+binding and force-deletes that owned session. Only after whole-
 incarnation quiescence is proven does Couch reconcile durable state: an
 unfinished transaction remains creating or becomes conservative unknown,
 while an already-promoted exact incarnation is marked unknown. No error return

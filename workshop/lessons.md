@@ -2077,7 +2077,12 @@ either transfer ownership or quiesce the whole incarnation—not merely the held
 client when it can leave a server/session and workspace-writing descendants—
 then preserve occupied durable state whenever reconciliation is uncertain.
 Test the complete failure-site table with a real orphanable descendant, not one
-representative branch or a single-process fake (ARCH-PURPOSE, ARCH-MOCK).
+representative branch or a single-process fake. The regression must perform
+cleanup through the production ownership boundary; a fake hook that kills the
+descendant itself proves a capability production may not have. Enumerate every
+pre-handoff process class: keep ordinary descendants and Couch-launched
+sidecars in an actor-owned process group, and clean separately detached servers
+through their exact durable binding (ARCH-PURPOSE, ARCH-MOCK).
 
 ## Crash-recovery evidence must be atomically published
 

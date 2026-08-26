@@ -207,6 +207,24 @@ rounds:
           round: 6
       boundary: M2
       blocked: true
+    - "n": 7
+      timestamp: "2026-08-26T14:19:04-07:00"
+      agent: codex
+      dispose:
+        - id: BR-12
+          disposition: not-addressed
+          note: The real-descendant regression kills the descendant inside FakeThreadArtifactCollisionChecker.QuiesceHook; production ScopedThreadArtifactCollisionChecker.Quiesce only deletes an indexed zellij session, so the test proves a stronger fake behavior than the shipped boundary and leaves the whole-incarnation contract unverified.
+          round: 7
+        - id: BR-14
+          disposition: addressed
+          note: Both production runners delegate to startBlockedChild, and TestIssue149BlockedRunnersDelegateToOneHandshakeAuthority fails if either restores local pipe or acknowledged-handle construction.
+          round: 7
+        - id: BR-15
+          disposition: addressed
+          note: Registration now uses synced same-directory temporary publication, atomic rename, and directory sync; the synchronized filesystem regression observes complete reserved state before rename and complete established state afterward.
+          round: 7
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — pair#149 (boundary-review)
@@ -299,8 +317,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-15** [Critical] `registration-evidence-atomic-publication` The durable registration oracle is published through a truncate-and-rewrite window
   ARCH-PURPOSE and ARCH-MOCK: establishReservedThreadAddress truncates the live claim before writing established state at cmd/internal/launcher/thread_claim.go:147, while Couch concurrently polls and strictly decodes that same path. A reader can observe empty or partial JSON and abort a valid start, and a crash can permanently strand malformed recovery evidence. Publish the transition atomically and add a synchronized real-filesystem test that proves readers observe only complete reserved or established records.
 
+## Round 7 — 2026-08-26T14:19:04-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-12 — not-addressed — The real-descendant regression kills the descendant inside FakeThreadArtifactCollisionChecker.QuiesceHook; production ScopedThreadArtifactCollisionChecker.Quiesce only deletes an indexed zellij session, so the test proves a stronger fake behavior than the shipped boundary and leaves the whole-incarnation contract unverified.
+- BR-14 — addressed — Both production runners delegate to startBlockedChild, and TestIssue149BlockedRunnersDelegateToOneHandshakeAuthority fails if either restores local pipe or acknowledged-handle construction.
+- BR-15 — addressed — Registration now uses synced same-directory temporary publication, atomic rename, and directory sync; the synchronized filesystem regression observes complete reserved state before rename and complete established state afterward.
+
 ## Open findings
 
 - **BR-12** [Critical] `incarnation-quiescence-before-capacity-release` Post-ack failures return an error while leaving the workspace writer unowned
-- **BR-14** [Important] `blocked-runner-handshake-authority` The blocked-start pipe protocol has two copy-pasted production authorities
-- **BR-15** [Critical] `registration-evidence-atomic-publication` The durable registration oracle is published through a truncate-and-rewrite window

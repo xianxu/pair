@@ -195,3 +195,91 @@ Append a `## Revisions` entry stating:
 - Pair client exit alone is not zellij/workspace quiescence;
 - the registration oracle must be atomically published and tested against concurrent real-filesystem readers;
 - the M2 integration test inventory includes transport ambiguity and persistent descendants, not only a single fake handle.
+
+---
+
+## Re-review — 2026-08-26T14:19:04-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 149 — couch: opaque tags and a human naming layer |
+| repo | pair |
+| issue file | workshop/issues/000149-couch-opaque-tags-and-a-human-naming-layer.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | eb47a9bb07846d149c9dc971f3f25dfea1bd5fef..3709f777769005e88756a0640302d3bf830b6afc |
+| command | sdlc milestone-close --issue 149 --milestone M2 |
+| reviewer | codex |
+| timestamp | 2026-08-26T14:19:04-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-14 and BR-15 are addressed with load-bearing regressions. BR-12 remains open: the new real-descendant test kills the descendant through a test-only hook, while production quiescence only deletes an indexed zellij session. Consequently, the test does not prove that every post-ack workspace writer is stopped through the production boundary.
+
+```findings
+dispose:
+  - id: BR-12
+    disposition: not-addressed
+    note: |
+      The real-descendant regression kills the descendant inside FakeThreadArtifactCollisionChecker.QuiesceHook; production ScopedThreadArtifactCollisionChecker.Quiesce only deletes an indexed zellij session, so the test proves a stronger fake behavior than the shipped boundary and leaves the whole-incarnation contract unverified.
+  - id: BR-14
+    disposition: addressed
+    note: |
+      Both production runners delegate to startBlockedChild, and TestIssue149BlockedRunnersDelegateToOneHandshakeAuthority fails if either restores local pipe or acknowledged-handle construction.
+  - id: BR-15
+    disposition: addressed
+    note: |
+      Registration now uses synced same-directory temporary publication, atomic rename, and directory sync; the synchronized filesystem regression observes complete reserved state before rename and complete established state afterward.
+```
+
+1. Strengths
+
+- Acknowledgement errors now correctly enter the possibly-delivered cleanup path at [couch.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/couch.go:221).
+- All four post-ack exit sites are enumerated in integration coverage: acknowledgement ambiguity, registration, promotion, and registry persistence.
+- `startBlockedChild` is now the single handshake authority for both exec and PTY runners, with a structural regression preventing drift.
+- Registration publication follows the correct write–sync–rename–directory-sync protocol at [thread_claim.go](/Users/xianxu/workspace/pair/cmd/internal/launcher/thread_claim.go:158).
+- The pure transaction core remains deterministic and directly tested without IO.
+
+2. Critical findings
+
+- **BR-12 remains open — third finding in family `incarnation-quiescence-before-capacity-release`.** The real descendant is killed explicitly by `QuiesceHook` at [couch_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/couch_test.go:417). Production instead calls `QuiesceThreadSession`, which only resolves an index entry and invokes `DeleteSession` at [thread_claim.go](/Users/xianxu/workspace/pair/cmd/internal/launcher/thread_claim.go:238). It does not own arbitrary detached descendants, and missing session binding returns success. Do not patch this test instance: state the complete production rule for every process class Pair can start before ownership transfer, implement that rule behind `ThreadArtifactController.Quiesce`, and run the descendant regression through the production controller or a live-conformant equivalent.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+Passed:
+
+- `go test ./cmd/internal/couchcore ./cmd/internal/launcher ./cmd/internal/ptychild -count=1`
+- `go test ./... -count=1`
+- `go test -race ./cmd/internal/couchcore ./cmd/internal/launcher ./cmd/internal/ptychild -count=1`
+- `go vet ./...`
+- Real `couchstartrecovery` probe
+- `git diff --check`
+
+BR-14 and BR-15 have regressions that fail when their fixes are removed. BR-12’s regression is reachable but substitutes test-only descendant termination for production behavior.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: pass. Both blocked runners share one protocol authority.
+- `ARCH-PURE`: pass. Transaction decisions are isolated from IO and directly unit-tested.
+- `ARCH-PURPOSE`: flag. “No untracked workspace writer” is not proven by killing the held client plus a test-hook descendant.
+- `ARCH-MOCK`: flag. The fake’s `QuiesceHook` models capabilities absent from production, and no live conformance check proves the real quiescence boundary stops the persistent descendant class.
+
+Atlas coverage exists and README needs no change because the helper is internal. However, atlas’s claim that no error can leave an unowned writer currently overstates the verified behavior.
+
+7. Plan revision recommendations
+
+Append a `## Revisions` entry stating that whole-incarnation quiescence must enumerate every process class started before handoff, that production and test flows must share the same cleanup boundary, and that M2 requires a live or production-controller descendant test—not a fake hook that performs the cleanup itself.

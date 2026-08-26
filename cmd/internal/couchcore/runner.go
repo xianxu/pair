@@ -1,10 +1,12 @@
 package couchcore
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
@@ -78,6 +80,11 @@ func startExecChild(dir string, argv, env []string, extraFiles []*os.File) (Hand
 	}
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	cmd.ExtraFiles = extraFiles
+	// Every Couch child is the leader of one owned process group. Pair may
+	// start pre-handoff helpers before the zellij session exists; keeping those
+	// helpers in this group gives the handle one production authority over the
+	// complete pre-session incarnation rather than only its direct child.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start %s in %s: %w", argv[0], dir, err)
 	}
@@ -120,21 +127,34 @@ func (h *execHandle) ID() string       { return strconv.Itoa(h.pid) }
 func (h *execHandle) PID() int         { return h.pid }
 func (h *execHandle) Identity() string { return h.identity }
 
-// Alive reports whether the child has been reaped. It deliberately does NOT
-// consult procutil.Alive: `kill -0` succeeds for a zombie, so a child that has
-// exited but not been waited on would read as running.
-func (h *execHandle) Alive() bool {
-	select {
-	case <-h.done:
-		return false
-	default:
-		return true
-	}
-}
+// Alive reports whether any member of this handle's owned process group still
+// exists. The direct child may already be reaped while a pre-handoff sidecar
+// remains, so direct-child liveness is insufficient for rollback.
+func (h *execHandle) Alive() bool { return ownedProcessGroupAlive(h.pid) }
 
-func (h *execHandle) Signal(sig os.Signal) error { return h.cmd.Process.Signal(sig) }
+func (h *execHandle) Signal(sig os.Signal) error { return signalOwnedProcessGroup(h.pid, sig) }
 
 func (h *execHandle) Wait() int {
 	<-h.done
 	return h.code
+}
+
+func signalOwnedProcessGroup(pid int, sig os.Signal) error {
+	unixSignal, ok := sig.(syscall.Signal)
+	if !ok {
+		return fmt.Errorf("signal owned process group %d: unsupported signal %T", pid, sig)
+	}
+	err := syscall.Kill(-pid, unixSignal)
+	if errors.Is(err, syscall.ESRCH) {
+		return nil
+	}
+	return err
+}
+
+func ownedProcessGroupAlive(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	err := syscall.Kill(-pid, syscall.Signal(0))
+	return err == nil || errors.Is(err, syscall.EPERM)
 }

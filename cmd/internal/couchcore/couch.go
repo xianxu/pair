@@ -292,26 +292,33 @@ func quiesceHandle(h Handle, timeout time.Duration) error {
 	}
 	waited := make(chan int, 1)
 	go func() { waited <- h.Wait() }()
-	if !h.Alive() {
-		<-waited
-		return nil
-	}
+	directReaped := false
 	termErr := h.Signal(syscall.SIGTERM)
 	select {
 	case <-waited:
-		return termErr
+		directReaped = true
 	case <-time.After(timeout):
 	}
+	// TERM may reap the direct Pair client while a TERM-resistant sidecar or
+	// child remains in its owned process group. KILL is therefore unconditional:
+	// this path is rollback, not graceful actor shutdown.
 	killErr := h.Signal(os.Kill)
-	select {
-	case <-waited:
-		if h.Alive() {
-			return errors.Join(termErr, killErr, errors.New("handle remained alive after reap"))
+	if !directReaped {
+		select {
+		case <-waited:
+			directReaped = true
+		case <-time.After(timeout):
+			return errors.Join(termErr, killErr, errors.New("timed out waiting for killed child"))
 		}
-		return errors.Join(termErr, killErr)
-	case <-time.After(timeout):
-		return errors.Join(termErr, killErr, errors.New("timed out waiting for killed child"))
 	}
+	deadline := time.Now().Add(timeout)
+	for h.Alive() && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if h.Alive() {
+		return errors.Join(termErr, killErr, errors.New("owned process group remained alive after reap"))
+	}
+	return errors.Join(termErr, killErr)
 }
 
 func allocateStartNonce(entropy io.Reader) (string, error) {

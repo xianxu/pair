@@ -1000,3 +1000,20 @@ atomic rename + directory sync with a synchronized concurrent-reader test.
 The structural runner contract requires both `StartBlocked` methods to delegate
 to the one handshake authority and rejects local pipe/wrapper construction
 (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — make quiescence production-shaped
+
+**Reason:** the third M2 review showed that the real-descendant regression used
+a fake artifact hook to kill the orphan itself. Production could delete an
+indexed zellij session but did not own arbitrary pre-session descendants, so
+the test asserted a stronger boundary than the shipped implementation.
+
+**Delta:** the pre-handoff process inventory is now explicit. The helper/Pair
+client leads one actor-owned process group; Couch-launched session-watcher and
+title-poller sidecars remain in it; the zellij server and panes are the one
+separately detached class and remain controlled by the exact composite-address
+session binding. Rollback unconditionally kills and proves the process group
+empty before deleting the indexed session. The four-site real descendant table
+runs through both stdio and PTY production runners with no cleanup fake, and a
+real subprocess test proves Couch sidecars inherit the owned group while direct
+Pair sidecars retain `setsid` (ARCH-PURPOSE, ARCH-MOCK).

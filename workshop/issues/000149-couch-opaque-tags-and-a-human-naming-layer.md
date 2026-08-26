@@ -610,6 +610,21 @@ total: 17.80
 
 ## Log
 
+### 2026-08-26 — M2 production-shaped whole-incarnation quiescence
+
+The third M2 review correctly rejected the descendant regression: its fake
+artifact hook killed the orphan, while production only deleted an indexed
+zellij session. The pre-handoff process inventory is now one owned group for
+the helper/Pair client and Couch-launched watcher/poller sidecars, plus the
+separately detached zellij server/panes addressed by the exact session binding.
+Rollback sends unconditional group KILL after TERM, reaps the client, proves
+the group empty, and only then deletes the session and reconciles state.
+
+The four post-ack failure exits run against real TERM-resistant descendants
+through both stdio and PTY production runners, with no fake cleanup hook. A
+real subprocess regression also proves Couch sidecars inherit the actor group;
+direct Pair retains its historical detached sidecars (ARCH-PURPOSE, ARCH-MOCK).
+
 ### 2026-08-26 — M2 second boundary review corrections
 
 Acknowledgement failure is now conservatively “possibly delivered”: even a
