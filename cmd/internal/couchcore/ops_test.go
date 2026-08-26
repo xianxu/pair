@@ -2,6 +2,26 @@ package couchcore
 
 import "testing"
 
+func TestOperationsDeclareTheirExecutionOwner(t *testing.T) {
+	want := map[string]OperationExecution{
+		"start":               ExecuteLiveOwner,
+		"list":                ExecuteDirectStore,
+		"show":                ExecuteDirectStore,
+		"stop":                ExecuteLiveOwner,
+		"name":                ExecuteDirectStore,
+		"describe":            ExecuteDirectStore,
+		"publish-description": ExecuteDirectStore,
+	}
+	for _, op := range Operations() {
+		if op.Execution == ExecuteUnknown {
+			t.Errorf("%s has fail-open zero execution owner", op.Name)
+		}
+		if op.Execution != want[op.Name] {
+			t.Errorf("%s execution = %v, want %v", op.Name, op.Execution, want[op.Name])
+		}
+	}
+}
+
 func TestStartOperationDefaultsEmptyPathToDot(t *testing.T) {
 	cwd := NormalizePath(".")
 	env := newTestEnv(t, cwd)

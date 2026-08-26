@@ -77,12 +77,16 @@ func TestGuardRefusesAgainstARealLiveProcess(t *testing.T) {
 		t.Fatalf("real running child probes as %v -- the guard cannot work", got)
 	}
 
-	store := NewStore(t.TempDir())
+	ns, err := ResolveCouchNamespace(t.TempDir(), "/unused")
+	if err != nil {
+		t.Fatalf("ResolveCouchNamespace: %v", err)
+	}
+	store := NewStore(ns.Dir())
 	if err := store.Save(NewRegistry().Insert(rec), NewNamingTable()); err != nil {
 		t.Fatalf("seed registry: %v", err)
 	}
 
-	c, err := New(runner, OSPathOps{}, ExecGit{}, proc, store, SystemClock{}, NewRandomIDGen())
+	c, err := New(ns, runner, OSPathOps{}, ExecGit{}, proc, store, SystemClock{}, NewRandomIDGen())
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

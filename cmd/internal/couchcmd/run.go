@@ -28,18 +28,12 @@ import (
 type Runtime interface {
 	Getenv(string) string
 	StoreDir() string
+	ResolveNamespace() (couchcore.CouchNamespace, error)
+	AcquireSupervisor(couchcore.CouchNamespace) (io.Closer, error)
 	// NewCouchWith builds the domain against a caller-supplied Runner. The
 	// console needs a PtyRunner it has already wired its own sink and size
 	// supplier into, which cannot be constructed inside NewCouch.
-	NewCouchWith(couchcore.Runner) (*couchcore.Couch, error)
-	// NewCouch builds the domain with its seams.
-	//
-	// It is on the Runtime rather than inline in RunWithRuntime because
-	// otherwise production and test flow do not share this boundary: with
-	// ExecRunner and friends hard-wired here, no test could reach start, stop
-	// or the refusal rendering. Three Critical findings shipped through that
-	// gap at close review (ARCH-MOCK).
-	NewCouch() (*couchcore.Couch, error)
+	NewCouchWith(couchcore.Runner, couchcore.CouchNamespace) (*couchcore.Couch, error)
 }
 
 type OSRuntime struct{}
@@ -58,14 +52,22 @@ func (r OSRuntime) StoreDir() string {
 	return filepath.Join(launcher.ResolveDataDir(r.Getenv("HOME"), r.Getenv("XDG_DATA_HOME")), "couch")
 }
 
-func (r OSRuntime) NewCouch() (*couchcore.Couch, error) {
-	return r.NewCouchWith(couchcore.ExecRunner{})
+func (r OSRuntime) ResolveNamespace() (couchcore.CouchNamespace, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return couchcore.CouchNamespace{}, fmt.Errorf("get startup cwd: %w", err)
+	}
+	return couchcore.ResolveCouchNamespace(r.StoreDir(), cwd)
 }
 
-func (r OSRuntime) NewCouchWith(runner couchcore.Runner) (*couchcore.Couch, error) {
+func (r OSRuntime) AcquireSupervisor(namespace couchcore.CouchNamespace) (io.Closer, error) {
+	return couchcore.AcquireSupervisorLease(namespace, couchcore.OSProcOps{})
+}
+
+func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.CouchNamespace) (*couchcore.Couch, error) {
 	return couchcore.New(
-		runner, couchcore.OSPathOps{}, couchcore.ExecGit{},
-		couchcore.OSProcOps{}, couchcore.NewStore(r.StoreDir()),
+		namespace, runner, couchcore.OSPathOps{}, couchcore.ExecGit{},
+		couchcore.OSProcOps{}, couchcore.NewStore(namespace.Dir()),
 		couchcore.SystemClock{}, couchcore.NewRandomIDGen(),
 	)
 }
@@ -129,6 +131,19 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		fmt.Fprintf(stderr, "couch %s: %v\n", op.Name, err)
 		return 2
 	}
+	namespace, err := rt.ResolveNamespace()
+	if err != nil {
+		fmt.Fprintf(stderr, "couch: %v\n", err)
+		return 1
+	}
+	if op.Execution == couchcore.ExecuteLiveOwner {
+		lease, err := rt.AcquireSupervisor(namespace)
+		if err != nil {
+			renderError(stderr, err)
+			return 1
+		}
+		defer lease.Close()
+	}
 
 	// `start` without --no-console becomes THE CONSOLE: it allocates a pty per
 	// child and owns the operator's terminal for its lifetime. Everything else
@@ -138,7 +153,7 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 	// terminal exists.
 	console, runner := consoleRunner(op.Name, parsed, stdin, stdout)
 
-	c, err := rt.NewCouchWith(runner)
+	c, err := rt.NewCouchWith(runner, namespace)
 	if err != nil {
 		fmt.Fprintf(stderr, "couch: %v\n", err)
 		return 1

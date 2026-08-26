@@ -12,26 +12,34 @@ import (
 // method on it. The terminal UI and (later) the advisor's tools are both
 // clients of these methods -- never of two separate implementations.
 type Couch struct {
-	Runner Runner
-	Path   PathOps
-	Git    GitRunner
-	Proc   ProcOps
-	Store  Store
-	Clock  Clock
-	IDs    IDGen
+	Namespace CouchNamespace
+	Runner    Runner
+	Path      PathOps
+	Git       GitRunner
+	Proc      ProcOps
+	Store     Store
+	Clock     Clock
+	IDs       IDGen
 
 	reg    Registry
 	names  NamingTable
 	policy PolicyTable
 }
 
-func New(r Runner, p PathOps, g GitRunner, proc ProcOps, s Store, c Clock, ids IDGen) (*Couch, error) {
+func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOps, s Store, c Clock, ids IDGen) (*Couch, error) {
+	if namespace.Dir() == "" {
+		return nil, fmt.Errorf("new couch: empty namespace")
+	}
+	if s.Dir() != namespace.Dir() {
+		return nil, fmt.Errorf("store directory %q does not match couch namespace %q", s.Dir(), namespace.Dir())
+	}
 	reg, names, policy, err := s.Load()
 	if err != nil {
 		return nil, err
 	}
 	return &Couch{
-		Runner: r, Path: p, Git: g, Proc: proc, Store: s, Clock: c, IDs: ids,
+		Namespace: namespace,
+		Runner:    r, Path: p, Git: g, Proc: proc, Store: s, Clock: c, IDs: ids,
 		reg: reg, names: names, policy: policy,
 	}, nil
 }
@@ -122,7 +130,7 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	// is not "agent-supplied".
 	env := []string{
 		"COUCH_TREE=" + string(tree),
-		"COUCH_STORE_DIR=" + c.Store.Dir(),
+		"COUCH_STORE_DIR=" + c.Namespace.Dir(),
 		"PAIR_USE_REPO_DEFAULT=1",
 	}
 	h, err := c.Runner.Start(args.WorkingDir(), argv, env)

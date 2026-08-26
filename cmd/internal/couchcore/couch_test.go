@@ -20,6 +20,19 @@ type testEnv struct {
 	Now    time.Time
 }
 
+func TestStoreNamespaceMustMatchCouchNamespace(t *testing.T) {
+	ns := testCouchNamespace(t)
+	other := t.TempDir()
+	_, err := New(
+		ns,
+		NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), NewFakeProcOps(),
+		NewStore(other), FixedClock{}, NewFixedIDGen("id"),
+	)
+	if err == nil || !strings.Contains(err.Error(), "does not match") {
+		t.Fatalf("New mismatched store err = %v", err)
+	}
+}
+
 // newTestEnv wires the whole composition root against fakes, with a fixed
 // clock and a scripted id generator so every assertion is deterministic.
 func newTestEnv(t *testing.T, trees ...string) *testEnv {
@@ -32,8 +45,13 @@ func newTestEnv(t *testing.T, trees ...string) *testEnv {
 	r := NewFakeRunner()
 	proc := NewFakeProcOps()
 	dir := t.TempDir()
+	ns, err := ResolveCouchNamespace(dir, "/unused")
+	if err != nil {
+		t.Fatalf("ResolveCouchNamespace: %v", err)
+	}
+	dir = ns.Dir()
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
-	c, err := New(r, NewFakePathOps(nil), g, proc, NewStore(dir), FixedClock{T: now}, NewFixedIDGen("ah8d", "b2c1"))
+	c, err := New(ns, r, NewFakePathOps(nil), g, proc, NewStore(dir), FixedClock{T: now}, NewFixedIDGen("ah8d", "b2c1"))
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

@@ -20,14 +20,26 @@ type ArgSpec struct {
 	FlagOnly bool `json:"flag_only,omitempty"`
 }
 
+// OperationExecution names the authority required to perform an operation.
+// Zero is deliberately non-authorizing: newly added operations must choose an
+// owner before any dispatcher can execute them.
+type OperationExecution uint8
+
+const (
+	ExecuteUnknown OperationExecution = iota
+	ExecuteDirectStore
+	ExecuteLiveOwner
+)
+
 // Operation is one thing couch can do. The terminal UI and the advisor are
 // both clients of this set; there is deliberately no second dispatch path, so
 // the operator's surface and the advisor's cannot drift apart.
 type Operation struct {
-	Name    string
-	Summary string
-	Args    []ArgSpec
-	Invoke  func(c *Couch, args map[string]string) (any, error)
+	Name      string
+	Summary   string
+	Args      []ArgSpec
+	Execution OperationExecution
+	Invoke    func(c *Couch, args map[string]string) (any, error)
 }
 
 // StartResult is what `start` returns before the caller waits on the child.
@@ -58,8 +70,9 @@ type ActorView struct {
 func Operations() []Operation {
 	return []Operation{
 		{
-			Name:    "start",
-			Summary: "Start an agent on a peer repo (or a subdirectory of one)",
+			Name:      "start",
+			Summary:   "Start an agent on a peer repo (or a subdirectory of one)",
+			Execution: ExecuteLiveOwner,
 			Args: []ArgSpec{
 				// Optional, defaulting to "." in the start operation: `cd brain && couch
 				// start` is what makes brain home, which is the Spec's
@@ -88,16 +101,18 @@ func Operations() []Operation {
 			},
 		},
 		{
-			Name:    "list",
-			Summary: "List every registered actor across all worktrees",
+			Name:      "list",
+			Summary:   "List every registered actor across all worktrees",
+			Execution: ExecuteDirectStore,
 			Invoke: func(c *Couch, _ map[string]string) (any, error) {
 				return c.Summarize(nil), nil
 			},
 		},
 		{
-			Name:    "show",
-			Summary: "Show the actors on one tree, by path or by name",
-			Args:    []ArgSpec{{Name: "ref", Summary: "path or operator-assigned name", Required: true}},
+			Name:      "show",
+			Summary:   "Show the actors on one tree, by path or by name",
+			Execution: ExecuteDirectStore,
+			Args:      []ArgSpec{{Name: "ref", Summary: "path or operator-assigned name", Required: true}},
 			Invoke: func(c *Couch, a map[string]string) (any, error) {
 				_, trees, err := c.ResolveRef(a["ref"])
 				if err != nil {
@@ -107,9 +122,10 @@ func Operations() []Operation {
 			},
 		},
 		{
-			Name:    "stop",
-			Summary: "Signal an actor's child and forget it",
-			Args:    []ArgSpec{{Name: "ref", Summary: "path or operator-assigned name", Required: true}},
+			Name:      "stop",
+			Summary:   "Signal an actor's child and forget it",
+			Execution: ExecuteLiveOwner,
+			Args:      []ArgSpec{{Name: "ref", Summary: "path or operator-assigned name", Required: true}},
 			Invoke: func(c *Couch, a map[string]string) (any, error) {
 				recs, _, err := c.ResolveRef(a["ref"])
 				if err != nil {
@@ -140,8 +156,9 @@ func Operations() []Operation {
 			},
 		},
 		{
-			Name:    "name",
-			Summary: "Give a tree a short human name",
+			Name:      "name",
+			Summary:   "Give a tree a short human name",
+			Execution: ExecuteDirectStore,
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "path or existing name", Required: true},
 				{Name: "name", Summary: "the new short name", Required: true},
@@ -155,8 +172,9 @@ func Operations() []Operation {
 			},
 		},
 		{
-			Name:    "describe",
-			Summary: "Read or set a tree's one-line description",
+			Name:      "describe",
+			Summary:   "Read or set a tree's one-line description",
+			Execution: ExecuteDirectStore,
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "path or name", Required: true},
 				{Name: "description", Summary: "omit to read the cached value", Required: false},
@@ -173,8 +191,9 @@ func Operations() []Operation {
 			},
 		},
 		{
-			Name:    "publish-description",
-			Summary: "Publish this session's own one-line description (run by the agent, inside its tree)",
+			Name:      "publish-description",
+			Summary:   "Publish this session's own one-line description (run by the agent, inside its tree)",
+			Execution: ExecuteDirectStore,
 			Args: []ArgSpec{
 				{Name: "description", Summary: "what this session is working on", Required: true},
 				{Name: "tree", Summary: "tree to publish for; defaults to $COUCH_TREE", Required: false},

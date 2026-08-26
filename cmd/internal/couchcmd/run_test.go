@@ -2,6 +2,8 @@ package couchcmd
 
 import (
 	"bytes"
+	"fmt"
+	"io"
 	"os"
 	"reflect"
 	"sort"
@@ -18,10 +20,12 @@ import (
 // layout rather than on couch. One such test passed here and failed in a
 // pristine worktree of the same commit.
 type testRT struct {
-	dir    string
-	runner *couchcore.FakeRunner
-	proc   *couchcore.FakeProcOps
-	git    *couchcore.FakeGit
+	dir        string
+	namespace  couchcore.CouchNamespace
+	runner     *couchcore.FakeRunner
+	proc       *couchcore.FakeProcOps
+	git        *couchcore.FakeGit
+	supervisor *fakeSupervisor
 	// ids is shared across invocations. Minting a fresh generator per
 	// NewCouch restarts the sequence, so two starts both produce couch-ah8d
 	// and no CLI test can hold two distinguishable actors.
@@ -30,9 +34,32 @@ type testRT struct {
 
 func (t testRT) Getenv(string) string { return "" }
 func (t testRT) StoreDir() string     { return t.dir }
+func (t testRT) ResolveNamespace() (couchcore.CouchNamespace, error) {
+	return t.namespace, nil
+}
+func (t testRT) AcquireSupervisor(couchcore.CouchNamespace) (io.Closer, error) {
+	if t.supervisor.err != nil {
+		return nil, t.supervisor.err
+	}
+	t.supervisor.acquired++
+	return fakeSupervisorLease{state: t.supervisor}, nil
+}
+
+type fakeSupervisor struct {
+	acquired int
+	released int
+	err      error
+}
+
+type fakeSupervisorLease struct{ state *fakeSupervisor }
+
+func (l fakeSupervisorLease) Close() error {
+	l.state.released++
+	return nil
+}
 
 func (t testRT) NewCouch() (*couchcore.Couch, error) {
-	return t.NewCouchWith(t.runner)
+	return t.NewCouchWith(t.runner, t.namespace)
 }
 
 // NewCouchWith IGNORES the caller's runner and keeps the fake.
@@ -41,9 +68,9 @@ func (t testRT) NewCouch() (*couchcore.Couch, error) {
 // must still drive the whole dispatch against fakes. What the test asserts is
 // which BRANCH was taken (console vs --no-console), which is observable in the
 // rendered output, not which concrete runner object was constructed.
-func (t testRT) NewCouchWith(couchcore.Runner) (*couchcore.Couch, error) {
+func (t testRT) NewCouchWith(couchcore.Runner, couchcore.CouchNamespace) (*couchcore.Couch, error) {
 	return couchcore.New(
-		t.runner, couchcore.NewFakePathOps(nil), t.git, t.proc,
+		t.namespace, t.runner, couchcore.NewFakePathOps(nil), t.git, t.proc,
 		couchcore.NewStore(t.dir), couchcore.FixedClock{}, t.ids,
 	)
 }
@@ -60,12 +87,50 @@ func newRT(t *testing.T, trees ...string) testRT {
 	for _, tr := range trees {
 		replies[couchcore.GitCall{Dir: tr, Args: "rev-parse --show-toplevel"}] = tr
 	}
+	ns, err := couchcore.ResolveCouchNamespace(t.TempDir(), "/unused")
+	if err != nil {
+		t.Fatalf("ResolveCouchNamespace: %v", err)
+	}
 	return testRT{
-		dir:    t.TempDir(),
-		runner: runner,
-		proc:   couchcore.NewFakeProcOps(),
-		git:    couchcore.NewFakeGit(replies),
-		ids:    couchcore.NewFixedIDGen("ah8d", "b2c1", "c3d2", "e4f5"),
+		dir:        ns.Dir(),
+		namespace:  ns,
+		runner:     runner,
+		proc:       couchcore.NewFakeProcOps(),
+		git:        couchcore.NewFakeGit(replies),
+		supervisor: &fakeSupervisor{},
+		ids:        couchcore.NewFixedIDGen("ah8d", "b2c1", "c3d2", "e4f5"),
+	}
+}
+
+func TestStartAcquiresAndReleasesSupervisorLease(t *testing.T) {
+	rt := newRT(t, "/repo")
+	if _, errw, code := runRT(rt, "start", "/repo"); code != 0 {
+		t.Fatalf("start: code=%d stderr=%q", code, errw)
+	}
+	if rt.supervisor.acquired != 1 || rt.supervisor.released != 1 {
+		t.Fatalf("supervisor acquire/release = %d/%d, want 1/1", rt.supervisor.acquired, rt.supervisor.released)
+	}
+}
+
+func TestDirectStoreOperationDoesNotAcquireSupervisorLease(t *testing.T) {
+	rt := newRT(t)
+	if _, errw, code := runRT(rt, "list"); code != 0 {
+		t.Fatalf("list: code=%d stderr=%q", code, errw)
+	}
+	if rt.supervisor.acquired != 0 || rt.supervisor.released != 0 {
+		t.Fatalf("direct-store list touched supervisor lease: %d/%d", rt.supervisor.acquired, rt.supervisor.released)
+	}
+}
+
+func TestHeldSupervisorRefusesBeforeStartingActor(t *testing.T) {
+	rt := newRT(t, "/repo")
+	rt.supervisor.err = fmt.Errorf("namespace is supervised by pid 42")
+	_, errw, code := runRT(rt, "start", "/repo")
+	if code == 0 || !strings.Contains(errw, "pid 42") {
+		t.Fatalf("start: code=%d stderr=%q", code, errw)
+	}
+	if len(rt.runner.Ops) != 0 {
+		t.Fatalf("refused start ran child operations: %v", rt.runner.Ops)
 	}
 }
 
