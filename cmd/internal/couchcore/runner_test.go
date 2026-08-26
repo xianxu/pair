@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
@@ -89,6 +90,52 @@ func TestExecRunnerPropagatesExitCode(t *testing.T) {
 	}
 }
 
+func TestExecRunnerBlockedStartRunsTargetOnlyAfterAcknowledgement(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "target-ran")
+	r := ExecRunner{LaunchHelper: os.Args[0]}
+	h, err := r.StartBlocked(t.TempDir(), []string{"sh", "-c", "printf exec > \"$PAIR_TEST_TARGET_MARKER\""}, []string{
+		"PAIR_TEST_RUNNER_HELPER=1",
+		"PAIR_TEST_TARGET_MARKER=" + marker,
+	}, 2*time.Second)
+	if err != nil {
+		t.Fatalf("StartBlocked: %v", err)
+	}
+	time.Sleep(75 * time.Millisecond)
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("target ran before acknowledgement: %v", err)
+	}
+	if err := h.Acknowledge(); err != nil {
+		t.Fatalf("Acknowledge: %v", err)
+	}
+	if code := h.Wait(); code != 0 {
+		t.Fatalf("Wait = %d", code)
+	}
+	if raw, err := os.ReadFile(marker); err != nil || string(raw) != "exec" {
+		t.Fatalf("target marker = %q, %v", raw, err)
+	}
+}
+
+func TestExecRunnerBlockedStartCancelNeverRunsTarget(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "target-ran")
+	r := ExecRunner{LaunchHelper: os.Args[0]}
+	h, err := r.StartBlocked(t.TempDir(), []string{"sh", "-c", "printf exec > \"$PAIR_TEST_TARGET_MARKER\""}, []string{
+		"PAIR_TEST_RUNNER_HELPER=1",
+		"PAIR_TEST_TARGET_MARKER=" + marker,
+	}, 2*time.Second)
+	if err != nil {
+		t.Fatalf("StartBlocked: %v", err)
+	}
+	if err := h.Cancel(); err != nil {
+		t.Fatalf("Cancel: %v", err)
+	}
+	if code := h.Wait(); code == 0 {
+		t.Fatal("cancelled helper exited successfully")
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("cancelled helper ran target: %v", err)
+	}
+}
+
 // One child, ONE notion of exited. The fake used to end its handle while its
 // terminal double kept running, which hung a console test rather than failing
 // it -- the same divergence class as BR-18, at a different seam.
@@ -127,5 +174,42 @@ func TestFakeRunnerAutoExitEndsTheTerminalToo(t *testing.T) {
 	}
 	if !h.(TerminalHandle).Terminal().Done() {
 		t.Fatal("AutoExit left the terminal double running")
+	}
+}
+
+func TestFakeRunnerBlockedStartDoesNotExecUntilAcknowledged(t *testing.T) {
+	f := NewFakeRunner()
+	h, err := f.StartBlocked("/repo", []string{"pair", "resume", "tag"}, []string{"K=V"}, time.Second)
+	if err != nil {
+		t.Fatalf("StartBlocked: %v", err)
+	}
+	before := f.Child(h.ID())
+	if !before.Blocked || before.ExecCount != 0 {
+		t.Fatalf("before ack = %+v", before)
+	}
+	if err := h.Acknowledge(); err != nil {
+		t.Fatalf("Acknowledge: %v", err)
+	}
+	after := f.Child(h.ID())
+	if after.Blocked || after.ExecCount != 1 {
+		t.Fatalf("after ack = %+v", after)
+	}
+	if err := h.Acknowledge(); err == nil || f.Child(h.ID()).ExecCount != 1 {
+		t.Fatalf("second acknowledgement = %v, child=%+v", err, f.Child(h.ID()))
+	}
+}
+
+func TestFakeRunnerBlockedStartCancelNeverExecs(t *testing.T) {
+	f := NewFakeRunner()
+	h, err := f.StartBlocked("/repo", []string{"pair"}, nil, time.Second)
+	if err != nil {
+		t.Fatalf("StartBlocked: %v", err)
+	}
+	if err := h.Cancel(); err != nil {
+		t.Fatalf("Cancel: %v", err)
+	}
+	child := f.Child(h.ID())
+	if child.ExecCount != 0 || child.alive {
+		t.Fatalf("cancelled child = %+v", child)
 	}
 }

@@ -26,8 +26,10 @@
 
 BIN_DIR     := bin
 INSTALL_DIR := $(HOME)/.local/bin
-# The single binary (#104). Every former helper is a `pair <subcommand>`.
-GO_BINS     := pair couch
+# Pair remains the single user-facing toolbox binary (#104). Couch's internal
+# pre-exec helper is installed beside couch because it must exist as a separate
+# blocked process before Pair can safely exec.
+GO_BINS     := pair couch pair-launch-helper
 # BUSYBOX_LINKS: pair invoked under one of these names routes to the matching
 # subcommand (entrypoint busybox dispatch). Only pair-slug survives — the
 # external Claude Stop hook may still call it by bare name. Emitted as symlinks
@@ -321,6 +323,9 @@ $(BIN_DIR)/pair: $(PAIR_GO_SRCS)
 # PAIR_HOME_LDFLAGS -- couch resolves nothing from an asset root.
 $(BIN_DIR)/couch: $(PAIR_GO_SRCS)
 	go build -o $@ ./cmd/couch
+
+$(BIN_DIR)/pair-launch-helper: $(PAIR_GO_SRCS)
+	go build -o $@ ./cmd/pair-launch-helper
 
 # Busybox symlinks (pair-slug → pair): a real target each, so `build` restores a
 # deleted symlink even when bin/pair is already up-to-date (not only when the pair

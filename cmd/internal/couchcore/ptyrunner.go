@@ -1,10 +1,12 @@
 package couchcore
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"sync/atomic"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
@@ -19,6 +21,8 @@ import (
 // Couch gets is the composition root's decision; nothing in the domain learns
 // that a terminal exists.
 type PtyRunner struct {
+	LaunchHelper string
+
 	// Size supplies a new child's dimensions, called at Start. A func rather
 	// than a value because the console's size changes: the reserved row means
 	// a child is one row shorter than the host, and the host is resizable.
@@ -45,6 +49,30 @@ type TerminalHandle interface {
 }
 
 func (r *PtyRunner) Start(dir string, argv, env []string) (Handle, error) {
+	return r.start(dir, argv, env, nil)
+}
+
+func (r *PtyRunner) StartBlocked(dir string, argv, env []string, timeout time.Duration) (BlockedHandle, error) {
+	if len(argv) == 0 {
+		return nil, fmt.Errorf("start blocked: empty argv")
+	}
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		return nil, fmt.Errorf("start blocked: acknowledgement pipe: %w", err)
+	}
+	h, err := r.start(dir, launchHelperArgv(r.LaunchHelper, timeout, argv), env, []*os.File{reader})
+	closeErr := reader.Close()
+	if err != nil {
+		return nil, errors.Join(err, closeErr, writer.Close())
+	}
+	if closeErr != nil {
+		_ = writer.Close()
+		return nil, closeErr
+	}
+	return newAcknowledgedHandle(h, writer), nil
+}
+
+func (r *PtyRunner) start(dir string, argv, env []string, extraFiles []*os.File) (Handle, error) {
 	if len(argv) == 0 {
 		return nil, fmt.Errorf("start: empty argv")
 	}
@@ -64,10 +92,11 @@ func (r *PtyRunner) Start(dir string, argv, env []string) (Handle, error) {
 	// from the pump.
 	h := &ptyHandle{id: fmt.Sprintf("couch-pty-%d", ptySeq.Add(1))}
 	child, err := ptychild.Start(ptychild.Options{
-		Dir:  dir,
-		Argv: argv,
-		Env:  env,
-		Size: size,
+		Dir:        dir,
+		Argv:       argv,
+		Env:        env,
+		Size:       size,
+		ExtraFiles: extraFiles,
 		Sink: func(chunk []byte) {
 			if r.Sink != nil {
 				r.Sink(h.ID(), chunk)

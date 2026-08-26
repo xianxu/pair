@@ -625,6 +625,19 @@ rules (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
 The initial tests failed to compile before the new model existed. Focused and
 race runs now pass for `./cmd/internal/couchcore ./cmd/internal/launcher`.
 
+### 2026-08-26 — M2 blocked pre-exec helper
+
+`pair-launch-helper` now owns the only pre-exec wait: descriptor 3 carries one
+exact acknowledgement byte, is close-on-exec, and is closed before replacing
+the helper with Pair. EOF, a wrong byte, or a bounded timeout exits without
+target exec. Both stdio and PTY runners pass the same pipe capability and retain
+their existing handle/terminal behavior; `FakeRunner` models blocked, acked,
+cancelled, and exact exec-count state across calls (ARCH-PURE, ARCH-MOCK).
+
+Subprocess regressions observe no target marker before acknowledgement, exactly
+one afterward, and none after cancel/EOF. Focused, race, and command-build tests
+pass for couchcore, couchcmd, ptychild, and `cmd/pair-launch-helper`.
+
 ### 2026-08-26 — M1 admission kernel integrated
 - 2026-08-26: closed M1 — make test; go test ./... -count=1; go test -race ./cmd/internal/couchcore ./cmd/internal/launcher -count=1; make test-couch-policy-live SDLC_BIN=../ariadne/bin/sdlc; zellij config and main-2/main-3 layout validation; git diff --check; review verdict: SHIP
 

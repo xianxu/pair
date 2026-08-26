@@ -929,3 +929,19 @@ representation. A reusable project-artifact contract walks every milestone
 detail block and rejects non-empty `closed` metadata whenever its referenced
 task row is unchecked. Both corrections have explicit red-without-fix tests
 (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-26 — carry the acknowledgement descriptor through the real PTY seam
+
+**Reason:** implementing M2's planned separate pre-exec command made two implied
+integration files explicit: the helper must be built and installed beside
+`couch`, and the production PTY child must be able to inherit the same
+close-on-exec acknowledgement descriptor as the stdio runner. Without the
+latter, console starts would test a different safety boundary from
+`--no-console` starts.
+
+**Delta:** Task 2 also modifies `Makefile.local` and
+`cmd/internal/ptychild/child.go` plus its conformance coverage. The helper is an
+internal installed binary, not a new user command. `Runner.StartBlocked` passes
+one read descriptor to either real child path; its stateful fake models the
+same no-exec/ack/cancel lifecycle and the PTY wrapper preserves
+`TerminalHandle` capability (ARCH-DRY, ARCH-MOCK).
