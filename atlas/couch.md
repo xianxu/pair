@@ -19,17 +19,20 @@ the mutable authority for composite thread records and admission incumbency,
 using one global store lock, revision-checked record updates, and a recoverable
 write-ahead journal for membership or multi-record changes.
 
-`registry.json` remains as a transitional display/handle cache for the shipped
-console. It is not an admission authority. On first load, Couch journal-imports
-its actors into ThreadStore as conservative unknown legacy incarnations and
-marks the cutover. The operation set remains shared by CLI, console, and the
-future advisor.
+`registry.json` remains as a transitional live-handle cache for the shipped
+console. It is not an admission, metadata, or display authority. On first load,
+Couch journal-imports its actors into ThreadStore as conservative unknown
+legacy incarnations and marks the cutover. CLI and panel read the same
+one-row-per-composite-thread inventory.
 
 **The operation set is deliberately not listed here.** `couchcore.Operations()`
-is the single source, the CLI dispatches through it, and a test asserts the two
-are identical -- so any list in prose is a second copy that drifts. It already
-did: this file named six operations while seven shipped. Run `couch --help`,
-which renders the declared set.
+is the closure-free capability schema: typed argument/result family, effect,
+confirmation, and execution owner. `DispatchOperation` validates a call and
+invokes exactly one injected direct-store or live-owner executor. Missing owner
+capability returns the typed #147 routing refusal; it never falls back to a
+second process. The console supplies exact-address switch/attach effects, while
+CLI and future advisor consume the same declarations. Run `couch --help`, which
+renders the declared set.
 
 **couch hosts `pair` whole.** The stack is couch → pair → zellij → agent+nvim.
 couch starts `pair resume <tag> --layout2` inside a child pty and owns the
@@ -123,9 +126,10 @@ input—including colons and digits—is typeahead; arrows move selection; Enter
 forces the selected live actor's clear-and-replay attach path or starts a
 selected parked worktree; Escape clears the filter or returns. Ctrl-Space from
 the panel opens the start-path input, and Ctrl-Space inside that input is inert.
-`start` dispatches through `couchcore.Operations()`; its returned `StartResult`
-is load-bearing because the console attaches the new terminal child, rebuilds
-the list, and selects its worktree without leaving the panel. Failed starts
+`start` dispatches through `DispatchOperation`; its returned `StartResult`
+is load-bearing because a separately declared typed `attach` operation joins
+the terminal to its exact thread, rebuilds the list, and selects that address
+without leaving the panel. Failed starts
 retain filter and selection and report through the notice feed.
 
 The row state is three-way: a local-live row has a console routing target and
@@ -138,18 +142,18 @@ There is no numbered jump or `:` command state. Tab/thread actions are deferred
 to #151 after #149 provides the durable work-thread identity those actions
 target; the current panel does not advertise Tab.
 
-A panel row carries two identities that must not be conflated: the canonical
-worktree feeds the shared human resolver, while the console-local child id is
-the deterministic switch and bell target. `Couch.LookupTrees` is the one match
-rule for the panel, CLI and future advisor; it searches the displayed repo-name
-fallback, operator name/description, and agent-published description. This is
-why a row displayed as `pair` is findable by typing `pair`.
+A panel row carries three non-interchangeable addresses: `ThreadAddress`
+(`{repo scope, tag}`) is durable identity, working path is a displayed/start
+attribute, and the console-local child id routes terminal bytes and bells.
+Filtering delegates to launcher's portable thread matcher; target joins and
+selection use only `ThreadAddress`. Two Brain threads at one path therefore
+remain distinct rows and cannot steal each other's local target.
 
-Rows themselves always start at `Couch.Summarize(nil)`, the same durable source
-as `couch list`; a pure join adds only hosted-child routing IDs and bell state.
-That direction matters: building rows from hosted panes would silently omit a
-parked tree and leave successful name/description changes stale in the running
-panel.
+Rows always start at `Couch.ThreadInventory()`, the same exact ThreadStore
+snapshot as `couch list`; a pure join adds only hosted-child routing IDs and
+bell state. Human name leads, the opaque tag is the unnamed fallback, and
+operator description remains separate from the agent-published summary. The
+legacy `SelectTree` adapter succeeds only when one visible thread has that path.
 
 ## Exit, detach, and terminal lifecycle
 
@@ -257,15 +261,22 @@ cannot inherit it. Existing live sessions still take the attach path unchanged.
 Direct `pair resume <tag>` still owns the saved-config choice, and direct
 `pair -- <agent-arguments>` is the current way to replace the repo default.
 
-## The agent-facing operation
+## Metadata and standalone Pair lookup
 
-`couch publish-description` is run BY a session, inside its own tree, not by the
-operator -- which is why it is the one operation the README does not carry. A
-spawned child is told `$COUCH_TREE`, so the agent can name what it is working on
-in one line, and `Describe` prefers that sidecar over anything the operator
-typed. It is a LABEL, not state: a stale one still finds the right tree, which
-is why it is allowed to go stale where a published status document would not be
-(see the cold-revival experiment in the project file).
+Name, operator description, and agent-published summary are independent mutable
+fields on the revisioned ThreadRecord. `couch publish-description` is run by a
+session with its exact `$COUCH_THREAD_SCOPE` and `$COUCH_THREAD_TAG`; it cannot
+resolve a mutable path/name or overwrite operator prose.
+
+Launcher owns the portable read-only ThreadIndex projection and the shared
+scoped exact-tag/name/path matcher. Standalone `pair resume <human-name>` and
+the Pair picker therefore work while Couch is absent. The picker merges durable
+parked records with sidecar history, decorates live rows, and always carries the
+opaque tag behind a human-facing label. Duplicate labels gain tag
+disambiguators rather than collapsing. Existing direct Pair artifacts take
+exact precedence over fuzzy thread matching. `SessionNameEntry` remains only
+the stable zellij socket binding; a mutable human thread name never renames that
+socket or the tag-scoped files.
 
 ## Identity and admission
 
@@ -291,9 +302,10 @@ multiple threads. The former public same-path override and local policy file no
 longer exist. A source-level shadow sweep prevents those parallel authorities
 from returning (ARCH-DRY, ARCH-PURPOSE).
 
-`Worktree`, `ActorID`, and `registry.json` remain transitional console
-identities. `Worktree` locates display rows and `ActorID` routes a hosted child;
-neither decides admission or addresses durable thread artifacts.
+`Worktree`, `ActorID`, and `registry.json` remain transitional live-console
+data. Working path is a start/display attribute and `ActorID` identifies one
+registry incarnation; neither selects a durable row, decides admission, or
+addresses Pair artifacts.
 
 ## Seams
 

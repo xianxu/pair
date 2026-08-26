@@ -165,6 +165,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [ ] durable work-thread identity, naming, and launch profiles [pair#149]
 - [x] singleton namespace and normalized admission [pair#149 M1]
 - [x] recoverable pre-exec start transaction [pair#149 M2]
+- [ ] shared thread metadata, operations, and standalone lookup [pair#149 M3]
 - [ ] hierarchical thread menu [pair#151]
 - [ ] verified park and activity age [pair#152]
 - [ ] managed-worktree lifecycle [pair#153]
@@ -208,6 +209,22 @@ fact is that the PTY runner had to inherit the same close-on-exec descriptor as
 the stdio runner—otherwise console starts and `--no-console` starts would have
 different crash safety. A committed real-process probe exercises both restart
 outcomes against kernel process identities (ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
+<a id="pair-149-m3"></a>
+### pair#149 M3 — shared thread metadata, operations, and standalone lookup
+
+**est:** 17.80 (whole issue)
+**status:** implementation ready for boundary review
+
+Human names, operator descriptions, and agent summaries now live as independent
+revisioned fields on the composite ThreadStore record. CLI and panel render one
+shared inventory; selection and hosted-target joins use `{repo scope, tag}` so
+same-path Brain threads remain separate. A closure-free operation schema routes
+human and future advisor effects through explicit direct-store/live-owner
+executors, with console-local exact switch/attach and typed #147 refusal when no
+owner is available. Pair's portable read-only ThreadIndex makes names and parked
+threads available to standalone resume/picker flows without mutating opaque
+artifacts or zellij session-name bindings (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
 
 <a id="pair-146-m3"></a>
 ### pair#146 M3 — many children and the panel
@@ -317,6 +334,17 @@ planning after the claim. Read the number as "measured, window not clean"
 rather than as a tight figure.
 
 ## Log
+
+### 2026-08-26 — pair#149 M3 implementation ready for boundary
+
+The durable naming layer is now usable from Couch and standalone Pair: one
+composite record, one matcher, one inventory, and one declared operation
+surface. The boundary test writes a real Couch ThreadStore record, updates its
+human name, resolves it through launcher with Couch absent, and verifies the
+scoped Pair draft remains under the opaque tag. Duplicate names refuse or gain
+picker-only tag disambiguators; direct Pair tags retain exact precedence. The
+portfolio row stays open until `sdlc milestone-close` records review verdict,
+measured actual, and closure (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
 
 ### 2026-08-26 — pair#149 M1 implementation ready for boundary
 
@@ -540,3 +568,4 @@ cancelled selection nor a failed start changes the remembered preference.
 [pair#146 M3]: #pair-146-m3
 [pair#149 M1]: #pair-149-m1
 [pair#149 M2]: #pair-149-m2
+[pair#149 M3]: #pair-149-m3

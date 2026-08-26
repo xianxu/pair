@@ -591,7 +591,7 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Run the M3 end-to-end composite identity/metadata scenario and assert
+- [x] **Step 1:** Run the M3 end-to-end composite identity/metadata scenario and assert
    offline Pair resolution preserves scoped artifacts.
 - [ ] **Step 2:** Run focused/full suites and `git diff --check`; commit and run
    `sdlc milestone-close --issue 149 --milestone M3`.
