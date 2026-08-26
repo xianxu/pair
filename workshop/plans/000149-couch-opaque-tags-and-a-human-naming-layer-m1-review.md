@@ -433,3 +433,89 @@ dispose:
     note: |
       The premature closed field was removed, but no regression fails if closed metadata returns beside the unchecked M1 row; the gate contract therefore does not permit an addressed disposition.
 ```
+
+---
+
+## Re-review — 2026-08-26T12:54:06-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 149 — couch: opaque tags and a human naming layer |
+| repo | pair |
+| issue file | workshop/issues/000149-couch-opaque-tags-and-a-human-naming-layer.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | a271432590da8a4177fea6c523607182536861a2^..085956a40ab38eb9f62ce394ea5bdb35054a877c |
+| command | sdlc milestone-close --issue 149 --milestone M1 |
+| reviewer | codex |
+| timestamp | 2026-08-26T12:54:06-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+Both open findings are addressed and protected by load-bearing regressions. The composite-address claim now covers existing, future, and concurrently created artifacts, while project milestone state is checked repository-wide. No new blocking findings surfaced; focused, race, full repository, vet, live-conformance, and diff-cleanliness checks passed.
+
+## 1. Strengths
+
+- The O_EXCL marker is acquired before artifact inspection, closing the prior scan/claim race ([thread_claim.go](/Users/xianxu/workspace/pair/cmd/internal/launcher/thread_claim.go:44)).
+- Artifact collision detection uses a general delimiter rule rather than another incomplete prefix inventory ([scoped_paths.go](/Users/xianxu/workspace/pair/cmd/internal/launcher/scoped_paths.go:110)).
+- `AllocateThreadTag` claims the shared artifact authority before creating the ThreadStore record and releases it on record-claim failure ([threadtag.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/threadtag.go:41)).
+- The project-state regression scans every project rather than special-casing pair#149 ([project_state_contract_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/project_state_contract_test.go:18)).
+- Weekly, push, PR, and manual policy-provider conformance are committed ([couch-policy-conformance.yml](/Users/xianxu/workspace/pair/.github/workflows/couch-policy-conformance.yml:3)).
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+None.
+
+## 4. Minor findings
+
+None.
+
+## 5. Test coverage notes
+
+Verified successfully:
+
+- Focused launcher, couchcore, and couchcmd tests.
+- Race tests for launcher and couchcore.
+- `go test ./... -count=1`.
+- `go vet ./...`.
+- `make test`.
+- Live Ariadne policy conformance.
+- Exact-window `git diff --check`.
+
+Scratch mutation checks:
+
+- Disabling `OwnsTagArtifact` made the scoped, non-scoped, and future-family collision tests fail.
+- Restoring M1’s premature `**closed:**` metadata made `TestUncheckedProjectMilestoneHasNoClosedMetadata` fail.
+
+## 6. Architectural notes for upcoming work
+
+- **ARCH-DRY — pass.** One structural filename rule covers tag-bearing artifact families without duplicating constructor lists.
+- **ARCH-PURE — pass.** `Admission.Decide` remains deterministic and directly unit-tested; filesystem, provider, and store behavior remain in integration seams.
+- **ARCH-PURPOSE — pass.** The implementation now protects the complete composite-address collision class, not only previously named filenames.
+- **ARCH-MOCK — pass.** Stateful fakes cover policy and artifact behavior, filesystem claims exercise the production boundary, and scheduled live conformance checks the real provider.
+
+## 7. Plan revision recommendations
+
+None. The latest revisions accurately describe the delivered M1 behavior and integration classifications.
+
+```findings
+dispose:
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The shared O_EXCL authority now precedes both Couch and native Pair creation, and the structural tag-boundary rule detects current non-ScopedPaths and unknown future artifact families. Disabling that rule makes the production-path collision regressions fail.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      Premature closed metadata is absent, and a repository-wide invariant rejects closed metadata beside any unchecked milestone. Restoring pair#149 M1's prior closed line makes the regression fail.
+```

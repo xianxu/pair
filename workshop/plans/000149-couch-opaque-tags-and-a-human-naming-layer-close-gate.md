@@ -144,6 +144,20 @@ rounds:
           round: 3
       boundary: M1
       blocked: true
+    - "n": 4
+      timestamp: "2026-08-26T12:54:06-07:00"
+      agent: codex
+      dispose:
+        - id: BR-2
+          disposition: addressed
+          note: The shared O_EXCL authority now precedes both Couch and native Pair creation, and the structural tag-boundary rule detects current non-ScopedPaths and unknown future artifact families. Disabling that rule makes the production-path collision regressions fail.
+          round: 4
+        - id: BR-11
+          disposition: addressed
+          note: Premature closed metadata is absent, and a repository-wide invariant rejects closed metadata beside any unchecked milestone. Restoring pair#149 M1's prior closed line makes the regression fail.
+          round: 4
+      boundary: M1
+      blocked: false
 ---
 
 # Gate ledger — pair#149 (boundary-review)
@@ -205,7 +219,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-10 — addressed — README removes couch stop from the external command list, documents the pre-147 owner-routing limitation, and the regression fails on the prior advertised spelling.
 - BR-11 — not-addressed — The premature closed field was removed, but no regression fails if closed metadata returns beside the unchecked M1 row; the gate contract therefore does not permit an addressed disposition.
 
+## Round 4 — 2026-08-26T12:54:06-07:00 (codex) — passed
+
+### Disposed
+
+- BR-2 — addressed — The shared O_EXCL authority now precedes both Couch and native Pair creation, and the structural tag-boundary rule detects current non-ScopedPaths and unknown future artifact families. Disabling that rule makes the production-path collision regressions fail.
+- BR-11 — addressed — Premature closed metadata is absent, and a repository-wide invariant rejects closed metadata beside any unchecked milestone. Restoring pair#149 M1's prior closed line makes the regression fail.
+
 ## Open findings
 
-- **BR-2** [Critical] `composite-address-collision-domain` opaque tag allocation checks ThreadStore records but not scoped artifacts
-- **BR-11** [Important] `milestone-state-truthfulness` the project records M1 closed while its milestone row and boundary remain open
+(none — every finding has been disposed)
