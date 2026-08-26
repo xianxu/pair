@@ -163,6 +163,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] many children and the panel [pair#146 M3]
 - [x] exits, detach, and what the row says [pair#146 M4]
 - [ ] durable work-thread identity, naming, and launch profiles [pair#149]
+  - [ ] singleton namespace and normalized admission [pair#149 M1]
 - [ ] hierarchical thread menu [pair#151]
 - [ ] verified park and activity age [pair#152]
 - [ ] managed-worktree lifecycle [pair#153]
@@ -170,6 +171,24 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [ ] fleet thread inventory [ariadne#200]
 - [ ] cluster transport and queries [pair#147]
 - [ ] brain advisor role [pair#148]
+
+<a id="pair-149-m1"></a>
+### pair#149 M1 — singleton namespace and normalized admission
+
+**est:** 17.80
+**actual:** 35.47h
+**closed:** 2026-08-26
+
+Couch now resolves one physical store namespace and protects it with one
+non-inherited supervisor lease. Its locked/revisioned ThreadStore atomically
+claims final composite opaque tags before a child can fork and conservatively
+reconciles creating/live/unknown incarnations against Ariadne #200's normalized
+policy evidence. The surprise worth preserving is that removing the old local
+policy model also required removing registry admission and validating unknown
+CLI flags: deleting one enum without sweeping every decision consumer would
+have left a functioning bypass. Pair owns a scheduled live conformance check
+against the real provider so the stateful fake and strict decoder cannot drift
+silently (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
 
 <a id="pair-146-m3"></a>
 ### pair#146 M3 — many children and the panel
@@ -500,3 +519,4 @@ cancelled selection nor a failed start changes the remembered preference.
 [pair#146 M1]: #pair-146-m1
 [pair#146 M2]: #pair-146-m2
 [pair#146 M3]: #pair-146-m3
+[pair#149 M1]: #pair-149-m1
