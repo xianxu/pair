@@ -59,6 +59,12 @@ test-live:
 	# parallelism makes them interfere rather than exercise independent systems.
 	PAIR_LIVE_COUCH=1 go test -p 1 ./cmd/... -count=1
 
+SDLC_BIN ?= sdlc
+
+.PHONY: test-couch-policy-live
+test-couch-policy-live:
+	PAIR_LIVE_FLEET_POLICY=1 PAIR_SDLC_BIN="$(SDLC_BIN)" go test ./cmd/internal/couchcore -run '^TestFleetPolicyResolverConformance$$' -count=1
+
 build: $(addprefix $(BIN_DIR)/,$(GO_BINS)) $(addprefix $(BIN_DIR)/,$(BUSYBOX_LINKS))
 
 install: build

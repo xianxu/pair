@@ -4,7 +4,7 @@ name: couch
 goal: Stop losing track of concurrent work across peer repos by turning agent sessions into addressable actors the operator can enumerate, switch between, and be paged by.
 done_when: The operator works inside a single terminal window, managing a fleet of agents across peer repos, and it works better than today's manual tracking across many tabs.
 status: defined
-mvp_scope: [pair#145, pair#146, pair#147, pair#148, ariadne#199, ariadne#200]
+mvp_scope: [pair#145, pair#146, pair#147, pair#148, pair#149, pair#151, pair#152, pair#153, ariadne#199, ariadne#200]
 created: 2026-08-21
 updated: 2026-08-26
 sources: [brain/workshop/pensive/2026-08-20-01-pensive-couch-agent-switcher.md]
@@ -162,6 +162,10 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] console over one child, with the reserved row [pair#146 M2]
 - [x] many children and the panel [pair#146 M3]
 - [x] exits, detach, and what the row says [pair#146 M4]
+- [ ] durable work-thread identity, naming, and launch profiles [pair#149]
+- [ ] hierarchical thread menu [pair#151]
+- [ ] verified park and activity age [pair#152]
+- [ ] managed-worktree lifecycle [pair#153]
 - [ ] expose query API to peer actors [ariadne#199]
 - [ ] fleet thread inventory [ariadne#200]
 - [ ] cluster transport and queries [pair#147]
@@ -275,6 +279,17 @@ planning after the claim. Read the number as "measured, window not clean"
 rather than as a tight figure.
 
 ## Log
+
+### 2026-08-26 — pair#149 M1 implementation ready for boundary
+
+Couch now owns one leased physical namespace and a locked/revisioned
+ThreadStore. New starts claim final composite opaque tags and consume
+Ariadne #200's normalized policy result; Pair no longer has a repo-name policy
+table or same-path admission bypass. Live provider conformance covers bounded,
+unbounded, epoch-change, and typed-refusal behavior. The portfolio row remains
+open because #149 still has M2-M5; measured M1 actual/close evidence is added
+only after `sdlc milestone-close` accepts the boundary (ARCH-DRY,
+ARCH-PURPOSE, ARCH-MOCK).
 
 ### 2026-08-21 — project opened
 

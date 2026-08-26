@@ -628,6 +628,15 @@ Capacity refusals render normalized provider evidence; provision-worktree
 refusals name #153 and create no path. Removing the bypass also exposed and
 fixed acceptance of undeclared CLI flags. `go test ./... -count=1` passes.
 
+The M1 integration boundary adds a live conformance target against a caller-
+supplied Ariadne `sdlc`, plus weekly/manual and resolver-change CI. It exercised
+bounded→unbounded declaration changes and exact typed refusal using a freshly
+built sibling binary. Full `make test`, focused Couch packages, layout/config
+validation, real supervisor crash/exec/contender probes, exact physical
+namespace inheritance, and `git diff --check` pass. `actionlint` is not
+installed locally; the workflow is also exercised command-for-command outside
+GitHub Actions.
+
 ### 2026-08-25 — session summary
 
 Fresh spec review split verified park into #152 and managed worktree lifecycle

@@ -395,21 +395,21 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Add `test-couch-policy-live`, accepting an Ariadne `sdlc` binary and
+- [x] **Step 1:** Add `test-couch-policy-live`, accepting an Ariadne `sdlc` binary and
    running production `ExecPolicyResolver` against temporary declarations. Pair
    owns the check; its stateful fake remains the ordinary test backend.
-- [ ] **Step 2:** Add the Pair-owned weekly and manual GitHub workflow: bootstrap the
+- [x] **Step 2:** Add the Pair-owned weekly and manual GitHub workflow: bootstrap the
    sibling Ariadne dependency, build its current `sdlc`, then run
    `test-couch-policy-live`. Also run the target at M1 close and whenever Pair's
    resolver wire contract changes; the weekly workflow detects Ariadne-side
    drift between Pair changes (ARCH-MOCK).
-- [ ] **Step 3:** Run focused tests, `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd
+- [x] **Step 3:** Run focused tests, `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd
    -count=1`, the live provider target against the locally built Ariadne #200
    binary, `go test ./... -count=1`, repository shell/Lua tests, layout checks,
    and `git diff --check`.
-- [ ] **Step 4:** Run the real-process namespace/lease strategies from the table; assert
+- [x] **Step 4:** Run the real-process namespace/lease strategies from the table; assert
    one owner and exact inherited namespace.
-- [ ] **Step 5:** Update atlas ownership: Ariadne declares/measures/resolves policy; Pair
+- [x] **Step 5:** Update atlas ownership: Ariadne declares/measures/resolves policy; Pair
    validates normalized evidence, owns the singleton namespace, and performs
    runtime admission.
 - [ ] **Step 6:** Commit the verified M1 window and run
