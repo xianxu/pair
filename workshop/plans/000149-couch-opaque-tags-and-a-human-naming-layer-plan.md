@@ -980,3 +980,23 @@ and admission tests are mechanically barred from filesystem/process/fake
 seams; runner and store lifecycle checks live in an explicitly integration-
 named file. `startBlockedChild` is the sole pipe/helper/descriptor authority
 used by both production runners (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — incorporate second M2 boundary review
+
+**Reason:** the next review demonstrated that acknowledgement outcome is not
+binary—a byte can be delivered before close reports an error—and that Pair's
+held client can leave a durable zellij session with workspace-writing panes.
+It also found the reserved → established registration oracle used an in-place
+truncate/write window, and that the shared runner authority lacked a load-
+bearing regression.
+
+**Delta:** every acknowledgement error is treated as possibly delivered. The
+post-attempt failure rule first reaps the exact client, then resolves and force-
+deletes the zellij session bound to the exact composite address; only complete
+whole-incarnation quiescence permits reconciliation. The integration inventory
+now injects all four exits against a real target with a TERM-resistant child
+and proves both processes gone. Registration publication uses synced temp +
+atomic rename + directory sync with a synchronized concurrent-reader test.
+The structural runner contract requires both `StartBlocked` methods to delegate
+to the one handshake authority and rejects local pipe/wrapper construction
+(ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).

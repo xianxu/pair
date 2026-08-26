@@ -8,8 +8,10 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -24,6 +26,74 @@ type testEnv struct {
 	Artifacts *FakeThreadArtifactCollisionChecker
 	Dir       string
 	Now       time.Time
+}
+
+type realDescendantRunner struct {
+	marker         string
+	acknowledgeErr error
+}
+
+func (r realDescendantRunner) Start(_ string, argv, env []string) (Handle, error) {
+	return ExecRunner{}.Start(filepath.Dir(r.marker), argv, env)
+}
+
+func (r realDescendantRunner) StartBlocked(_ string, _ []string, _ []string, timeout time.Duration) (BlockedHandle, error) {
+	script := `trap '' TERM; sleep 300 & child=$!; printf '%s' "$child" > "$PAIR_TEST_DESCENDANT_PID"; wait "$child"`
+	h, err := (ExecRunner{LaunchHelper: os.Args[0]}).StartBlocked(filepath.Dir(r.marker), []string{"sh", "-c", script}, []string{
+		"PAIR_TEST_RUNNER_HELPER=1",
+		"PAIR_TEST_DESCENDANT_PID=" + r.marker,
+	}, timeout)
+	if err != nil {
+		return nil, err
+	}
+	return &realDescendantBlockedHandle{BlockedHandle: h, marker: r.marker, acknowledgeErr: r.acknowledgeErr}, nil
+}
+
+type realDescendantBlockedHandle struct {
+	BlockedHandle
+	marker         string
+	acknowledgeErr error
+}
+
+func (h *realDescendantBlockedHandle) Acknowledge() error {
+	if err := h.BlockedHandle.Acknowledge(); err != nil {
+		return err
+	}
+	if _, err := waitForPIDFile(h.marker, 2*time.Second); err != nil {
+		return err
+	}
+	return h.acknowledgeErr
+}
+
+func waitForPIDFile(path string, timeout time.Duration) (int, error) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		raw, err := os.ReadFile(path)
+		if err == nil {
+			pid, parseErr := strconv.Atoi(strings.TrimSpace(string(raw)))
+			if parseErr == nil && pid > 0 {
+				return pid, nil
+			}
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	return 0, fmt.Errorf("timed out waiting for descendant pidfile %s", path)
+}
+
+func killAndVerifyProcess(pid int, timeout time.Duration) error {
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return err
+	}
+	_ = proc.Kill()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if err := syscall.Kill(pid, 0); errors.Is(err, syscall.ESRCH) {
+			return nil
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	return fmt.Errorf("process %d remained after kill", pid)
 }
 
 func TestStoreNamespaceMustMatchCouchNamespace(t *testing.T) {
@@ -259,6 +329,9 @@ func TestSpawnPostAcknowledgementFailuresNeverLeaveWorkspaceWriter(t *testing.T)
 			if got := len(env.Couch.reg.Records()); got != 0 {
 				t.Fatalf("failed handoff retained %d legacy registry actor(s)", got)
 			}
+			if got := env.Artifacts.Quiesces(); !slices.Equal(got, []ThreadAddress{address}) {
+				t.Fatalf("whole-incarnation quiescence calls = %+v", got)
+			}
 		})
 	}
 }
@@ -266,6 +339,7 @@ func TestSpawnPostAcknowledgementFailuresNeverLeaveWorkspaceWriter(t *testing.T)
 func TestSpawnAcknowledgementFailureCancelsHelperBeforeRollback(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
+	env.Artifacts.AutoEstablish(false)
 	env.Runner.BeforeAcknowledge = func(string) error { return errors.New("ack transport failed") }
 	_, handle, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
 	if err == nil || handle == nil {
@@ -276,6 +350,101 @@ func TestSpawnAcknowledgementFailureCancelsHelperBeforeRollback(t *testing.T) {
 	}
 	if _, err := env.Couch.Threads.GetThread(address); !errors.Is(err, ErrThreadNotFound) {
 		t.Fatalf("cancelled exact start remained: %v", err)
+	}
+}
+
+func TestSpawnPossiblyDeliveredAcknowledgementQuiescesBeforeRollback(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
+	env.Artifacts.AutoEstablish(false)
+	env.Runner.AfterAcknowledge = func(string) error { return errors.New("close after delivered acknowledgement") }
+	_, handle, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
+	if err == nil || handle == nil {
+		t.Fatalf("Spawn = %T, %v", handle, err)
+	}
+	child := env.Runner.Child(handle.ID())
+	if child.ExecCount != 1 || handle.Alive() {
+		t.Fatalf("possibly delivered acknowledgement left writer: %+v", child)
+	}
+	if _, err := env.Couch.Threads.GetThread(address); !errors.Is(err, ErrThreadNotFound) {
+		t.Fatalf("dead unregistered ambiguous start remained: %v", err)
+	}
+}
+
+func TestSpawnPostAckFailuresQuiesceRealPersistentDescendant(t *testing.T) {
+	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
+	for _, mode := range []string{"acknowledgement ambiguous", "registration", "promotion", "registry save"} {
+		t.Run(mode, func(t *testing.T) {
+			env := newTestEnv(t, "/repo")
+			env.Couch.postAckQuiesceTimeout = 250 * time.Millisecond
+			marker := filepath.Join(t.TempDir(), "descendant.pid")
+			runner := realDescendantRunner{marker: marker}
+			if mode == "acknowledgement ambiguous" {
+				runner.acknowledgeErr = errors.New("close after acknowledgement delivery")
+				env.Artifacts.AutoEstablish(false)
+			}
+			env.Couch.Runner = runner
+			if mode == "registration" {
+				env.Artifacts.SetRegistration(address, RegistrationUnknown, errors.New("registration unreadable"))
+			}
+			if mode == "promotion" {
+				var once sync.Once
+				env.Artifacts.BeforeRegistration = func(got ThreadAddress) error {
+					var hookErr error
+					once.Do(func() {
+						current, err := env.Couch.Threads.GetThread(got)
+						if err != nil {
+							hookErr = err
+							return
+						}
+						_, hookErr = env.Couch.Threads.UpdateExistingThread(got, current.Revision, func(next *ThreadRecord) error {
+							next.Description = "concurrent description"
+							return nil
+						})
+					})
+					return hookErr
+				}
+			}
+			if mode == "registry save" {
+				badStorePath := filepath.Join(t.TempDir(), "not-a-directory")
+				if err := os.WriteFile(badStorePath, []byte("occupied"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				env.Couch.Store = NewStore(badStorePath)
+			}
+
+			var descendantPID int
+			env.Artifacts.QuiesceHook = func(got ThreadAddress) error {
+				if got != address {
+					return fmt.Errorf("quiesce address = %+v", got)
+				}
+				pid, err := waitForPIDFile(marker, time.Second)
+				if err != nil {
+					return err
+				}
+				descendantPID = pid
+				return killAndVerifyProcess(pid, time.Second)
+			}
+			t.Cleanup(func() {
+				if descendantPID == 0 {
+					descendantPID, _ = waitForPIDFile(marker, 50*time.Millisecond)
+				}
+				if descendantPID != 0 {
+					_ = killAndVerifyProcess(descendantPID, 100*time.Millisecond)
+				}
+			})
+
+			_, handle, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
+			if err == nil || handle == nil {
+				t.Fatalf("Spawn = %T, %v", handle, err)
+			}
+			if handle.Alive() || descendantPID == 0 {
+				t.Fatalf("quiescence did not cover client and descendant: handle_alive=%v descendant=%d", handle.Alive(), descendantPID)
+			}
+			if err := syscall.Kill(descendantPID, 0); !errors.Is(err, syscall.ESRCH) {
+				t.Fatalf("persistent descendant %d survived: %v", descendantPID, err)
+			}
+		})
 	}
 }
 

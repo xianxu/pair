@@ -182,6 +182,31 @@ rounds:
           round: 5
       boundary: M2
       blocked: true
+    - "n": 6
+      timestamp: "2026-08-26T13:51:42-07:00"
+      agent: codex
+      dispose:
+        - id: BR-12
+          disposition: not-addressed
+          note: Acknowledge can deliver the exec byte and then return a close error, after which Spawn calls an already-resolved Cancel and returns without quiescence; moreover the post-ack test models no durable descendants, while quiesceHandle proves only the Pair client exited.
+          round: 6
+        - id: BR-13
+          disposition: addressed
+          note: Direct ThreadRecord, StartTransaction, and Admission tests now use literal values, and TestIssue149PureCoreTestsStayAtPureBoundary fails if the forbidden IO or fake seams return.
+          round: 6
+        - id: BR-14
+          disposition: not-addressed
+          note: Both production runners now delegate to startBlockedChild, but no test fails if either runner reintroduces its own handshake protocol; the claimed-fix contract therefore remains unmet.
+          round: 6
+      findings:
+        - id: BR-15
+          severity: Critical
+          title: The durable registration oracle is published through a truncate-and-rewrite window
+          detail: 'ARCH-PURPOSE and ARCH-MOCK: establishReservedThreadAddress truncates the live claim before writing established state at cmd/internal/launcher/thread_claim.go:147, while Couch concurrently polls and strictly decodes that same path. A reader can observe empty or partial JSON and abort a valid start, and a crash can permanently strand malformed recovery evidence. Publish the transition atomically and add a synchronized real-filesystem test that proves readers observe only complete reserved or established records.'
+          family: registration-evidence-atomic-publication
+          round: 6
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — pair#149 (boundary-review)
@@ -261,8 +286,21 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-14** [Important] `blocked-runner-handshake-authority` The blocked-start pipe protocol has two copy-pasted production authorities
   ARCH-DRY: ExecRunner.StartBlocked at cmd/internal/couchcore/runner.go:67 and PtyRunner.StartBlocked at cmd/internal/couchcore/ptyrunner.go:55 duplicate the complete pipe creation, helper wrapping, descriptor-close, error-join, and acknowledged-handle protocol. Extract one shared helper parameterized by the underlying child-start function so future safety changes cannot drift between console and no-console starts.
 
+## Round 6 — 2026-08-26T13:51:42-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-12 — not-addressed — Acknowledge can deliver the exec byte and then return a close error, after which Spawn calls an already-resolved Cancel and returns without quiescence; moreover the post-ack test models no durable descendants, while quiesceHandle proves only the Pair client exited.
+- BR-13 — addressed — Direct ThreadRecord, StartTransaction, and Admission tests now use literal values, and TestIssue149PureCoreTestsStayAtPureBoundary fails if the forbidden IO or fake seams return.
+- BR-14 — not-addressed — Both production runners now delegate to startBlockedChild, but no test fails if either runner reintroduces its own handshake protocol; the claimed-fix contract therefore remains unmet.
+
+### Raised
+
+- **BR-15** [Critical] `registration-evidence-atomic-publication` The durable registration oracle is published through a truncate-and-rewrite window
+  ARCH-PURPOSE and ARCH-MOCK: establishReservedThreadAddress truncates the live claim before writing established state at cmd/internal/launcher/thread_claim.go:147, while Couch concurrently polls and strictly decodes that same path. A reader can observe empty or partial JSON and abort a valid start, and a crash can permanently strand malformed recovery evidence. Publish the transition atomically and add a synchronized real-filesystem test that proves readers observe only complete reserved or established records.
+
 ## Open findings
 
 - **BR-12** [Critical] `incarnation-quiescence-before-capacity-release` Post-ack failures return an error while leaving the workspace writer unowned
-- **BR-13** [Critical] `core-concept-kind-contract` PURE start entities are tested through mutable filesystem setup
 - **BR-14** [Important] `blocked-runner-handshake-authority` The blocked-start pipe protocol has two copy-pasted production authorities
+- **BR-15** [Critical] `registration-evidence-atomic-publication` The durable registration oracle is published through a truncate-and-rewrite window

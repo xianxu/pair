@@ -13,6 +13,10 @@ import (
 
 var ErrThreadAddressClaimed = errors.New("Pair thread address already claimed")
 
+type SessionDeleter interface {
+	DeleteSession(string) error
+}
+
 // ThreadAddressClaim is the durable O_EXCL marker that serializes every
 // current Pair create flow with Couch's ThreadStore allocation. The marker is
 // retained for the lifetime of the durable thread; Release is only for rolling
@@ -135,6 +139,10 @@ func EnsureThreadAddressForPair(globalDataDir string, scope RepoScope, tag strin
 }
 
 func establishReservedThreadAddress(paths ScopedPaths, scope RepoScope, tag string) error {
+	return establishReservedThreadAddressWithHook(paths, scope, tag, nil)
+}
+
+func establishReservedThreadAddressWithHook(paths ScopedPaths, scope RepoScope, tag string, beforeRename func()) error {
 	record, err := readThreadAddressClaim(paths.ThreadClaim())
 	if err != nil {
 		return fmt.Errorf("Couch thread claim missing: %w", err)
@@ -144,19 +152,42 @@ func establishReservedThreadAddress(paths ScopedPaths, scope RepoScope, tag stri
 	}
 	record.State = "established"
 	payload, _ := json.Marshal(record)
-	f, err := os.OpenFile(paths.ThreadClaim(), os.O_WRONLY|os.O_TRUNC, 0o600)
+	return writeThreadAddressClaimAtomic(paths.ThreadClaim(), append(payload, '\n'), beforeRename)
+}
+
+func writeThreadAddressClaimAtomic(path string, payload []byte, beforeRename func()) (err error) {
+	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".publish-")
 	if err != nil {
 		return err
 	}
-	if _, err := f.Write(append(payload, '\n')); err != nil {
-		_ = f.Close()
+	tmpPath := tmp.Name()
+	defer func() { _ = os.Remove(tmpPath) }()
+	if err := tmp.Chmod(0o600); err != nil {
+		_ = tmp.Close()
 		return err
 	}
-	if err := f.Sync(); err != nil {
-		_ = f.Close()
+	if _, err := tmp.Write(payload); err != nil {
+		_ = tmp.Close()
 		return err
 	}
-	return f.Close()
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if beforeRename != nil {
+		beforeRename()
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		return err
+	}
+	dir, err := os.Open(filepath.Dir(path))
+	if err != nil {
+		return err
+	}
+	return errors.Join(dir.Sync(), dir.Close())
 }
 
 // ThreadAddressEstablished reports Pair's durable registration evidence for a
@@ -197,6 +228,54 @@ func readThreadAddressClaim(path string) (threadAddressClaimRecord, error) {
 		return threadAddressClaimRecord{}, err
 	}
 	return record, nil
+}
+
+// QuiesceThreadSession resolves the public zellij session only through the
+// durable composite-address index, then delegates deletion through the
+// launcher's existing session lifecycle seam. Missing binding is proof that
+// Pair had not reached the pre-session publication point; malformed or
+// reassigned evidence fails closed.
+func QuiesceThreadSession(globalDataDir, scopeKey, tag string, deleter SessionDeleter) error {
+	if deleter == nil {
+		return errors.New("quiesce Pair thread session: nil session deleter")
+	}
+	path := filepath.Join(globalDataDir, "session-names.jsonl")
+	f, err := os.Open(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read Pair session-name index: %w", err)
+	}
+	defer f.Close()
+	var index SessionNameIndex
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var entry SessionNameEntry
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			return fmt.Errorf("malformed Pair session-name index: %w", err)
+		}
+		index.Entries = append(index.Entries, entry)
+	}
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("read Pair session-name index: %w", err)
+	}
+	entry, ok := index.latestFor(scopeKey, tag)
+	if !ok {
+		return nil
+	}
+	owner, owned := index.ownerOf(entry.SessionName)
+	if !owned || owner.ScopeKey != scopeKey || owner.Tag != tag || !isPairSessionName(entry.SessionName) {
+		return fmt.Errorf("Pair session binding for %s/%s is not exclusively owned", scopeKey, tag)
+	}
+	if err := deleter.DeleteSession(entry.SessionName); err != nil {
+		return fmt.Errorf("delete Pair session %q: %w", entry.SessionName, err)
+	}
+	return nil
 }
 
 func strictSessionBindingCollision(path, scopeKey, tag string) (bool, error) {

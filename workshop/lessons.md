@@ -2070,12 +2070,26 @@ from registration, promotion, or cache persistence while the target kept
 running. The caller discarded the handle on error, leaving a workspace writer
 with no supervisor responsible for it.
 
-**Rule.** Enumerate every error exit after an exec/start acknowledgement and
-before ownership handoff. Each must either transfer the exact handle to a live
-owner or quiesce, escalate, reap, and verify that exact process incarnation
-before returning. Preserve occupied durable state whenever reconciliation is
-uncertain. Test the complete failure-site table, not one representative branch
-(ARCH-PURPOSE).
+**Rule.** Treat acknowledgement errors as possibly delivered: a successful
+write followed by a close error cannot be revoked by `Cancel`. Enumerate every
+exit after an acknowledgement attempt and before ownership handoff. Each must
+either transfer ownership or quiesce the whole incarnation—not merely the held
+client when it can leave a server/session and workspace-writing descendants—
+then preserve occupied durable state whenever reconciliation is uncertain.
+Test the complete failure-site table with a real orphanable descendant, not one
+representative branch or a single-process fake (ARCH-PURPOSE, ARCH-MOCK).
+
+## Crash-recovery evidence must be atomically published
+
+`#149` M2 changed the durable registration marker from reserved to established
+with `O_TRUNC` followed by write. Concurrent readers could observe empty or
+partial JSON, and a crash could permanently strand malformed evidence.
+
+**Rule.** Publish a state transition used as concurrent or crash-recovery
+evidence by writing and syncing a same-directory temporary file, atomically
+renaming it, then syncing the directory. Synchronize a reader before rename and
+prove it sees the complete old value, then the complete new value—never a
+transient parse error (ARCH-PURPOSE).
 
 ## PURE fixtures must be literal at their direct boundary
 

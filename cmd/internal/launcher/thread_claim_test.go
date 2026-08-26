@@ -30,6 +30,41 @@ func TestThreadAddressClaimSerializesCurrentPairAndCouchProducers(t *testing.T) 
 	}
 }
 
+func TestReservedThreadAddressPublicationIsAtomicForConcurrentReaders(t *testing.T) {
+	global := t.TempDir()
+	scope := RepoScope{Key: "0123456789abcdef"}
+	tag := "couch-0001020304050607"
+	claim, err := ClaimNewThreadAddress(global, scope, tag)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = claim.Release() })
+
+	ready := make(chan struct{})
+	publish := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		done <- establishReservedThreadAddressWithHook(NewScopedPaths(global, scope, tag), scope, tag, func() {
+			close(ready)
+			<-publish
+		})
+	}()
+	<-ready
+	for i := 0; i < 100; i++ {
+		established, err := ThreadAddressEstablished(global, scope, tag)
+		if err != nil || established {
+			t.Fatalf("reader during publication = %v, %v; want complete reserved record", established, err)
+		}
+	}
+	close(publish)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if established, err := ThreadAddressEstablished(global, scope, tag); err != nil || !established {
+		t.Fatalf("reader after publication = %v, %v", established, err)
+	}
+}
+
 func TestDirectPairAdoptsClaimBeforeHistoricalArtifacts(t *testing.T) {
 	global := t.TempDir()
 	scope := RepoScope{Key: "0123456789abcdef"}
@@ -100,5 +135,43 @@ func TestClaimNewThreadAddressFailsClosedOnMalformedSessionIndex(t *testing.T) {
 	}
 	if _, statErr := os.Stat(NewScopedPaths(global, scope, "couch-0001020304050607").ThreadClaim()); !errors.Is(statErr, os.ErrNotExist) {
 		t.Fatalf("failed claim marker not rolled back: %v", statErr)
+	}
+}
+
+type recordingSessionDeleter struct {
+	deleted []string
+	err     error
+}
+
+func (d *recordingSessionDeleter) DeleteSession(name string) error {
+	d.deleted = append(d.deleted, name)
+	return d.err
+}
+
+func TestQuiesceThreadSessionDeletesOnlyExactIndexedPairSession(t *testing.T) {
+	global := t.TempDir()
+	index := filepath.Join(global, "session-names.jsonl")
+	rows := "not-json\n"
+	deleter := &recordingSessionDeleter{}
+	if err := os.WriteFile(index, []byte(rows), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := QuiesceThreadSession(global, "0123456789abcdef", "couch-0001020304050607", deleter); err == nil || len(deleter.deleted) != 0 {
+		t.Fatalf("malformed index quiescence = %v, deleted=%v", err, deleter.deleted)
+	}
+
+	entry := SessionNameEntry{SessionName: "📁pair-couch", ScopeKey: "0123456789abcdef", Tag: "couch-0001020304050607"}
+	line, err := BuildSessionNameIndexLine(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(index, []byte(line+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := QuiesceThreadSession(global, entry.ScopeKey, entry.Tag, deleter); err != nil {
+		t.Fatal(err)
+	}
+	if len(deleter.deleted) != 1 || deleter.deleted[0] != entry.SessionName {
+		t.Fatalf("deleted sessions = %v", deleter.deleted)
 	}
 }

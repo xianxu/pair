@@ -16,8 +16,15 @@ type ThreadArtifactClaim interface {
 // with every current Pair artifact/session producer.
 type ThreadArtifactClaimer interface {
 	Claim(ThreadAddress) (ThreadArtifactClaim, error)
+}
+
+// ThreadArtifactController owns the full durable Pair-address lifecycle used
+// by Couch. Allocation depends only on the narrower claimer capability.
+type ThreadArtifactController interface {
+	ThreadArtifactClaimer
 	Release(ThreadAddress) error
 	Registration(ThreadAddress) (RegistrationEvidence, error)
+	Quiesce(ThreadAddress) error
 }
 
 type noopThreadArtifactClaim struct{}
@@ -33,11 +40,15 @@ func (NoThreadArtifactCollisions) Release(ThreadAddress) error { return nil }
 func (NoThreadArtifactCollisions) Registration(ThreadAddress) (RegistrationEvidence, error) {
 	return RegistrationEstablished, nil
 }
+func (NoThreadArtifactCollisions) Quiesce(ThreadAddress) error { return nil }
 
-type ScopedThreadArtifactCollisionChecker struct{ GlobalDataDir string }
+type ScopedThreadArtifactCollisionChecker struct {
+	GlobalDataDir string
+	Sessions      launcher.SessionDeleter
+}
 
 func NewScopedThreadArtifactCollisionChecker(globalDataDir string) ScopedThreadArtifactCollisionChecker {
-	return ScopedThreadArtifactCollisionChecker{GlobalDataDir: globalDataDir}
+	return ScopedThreadArtifactCollisionChecker{GlobalDataDir: globalDataDir, Sessions: launcher.OSRuntime{}}
 }
 
 func (c ScopedThreadArtifactCollisionChecker) Claim(address ThreadAddress) (ThreadArtifactClaim, error) {
@@ -74,4 +85,14 @@ func (c ScopedThreadArtifactCollisionChecker) Registration(address ThreadAddress
 		return RegistrationEstablished, nil
 	}
 	return RegistrationAbsent, nil
+}
+
+func (c ScopedThreadArtifactCollisionChecker) Quiesce(address ThreadAddress) error {
+	if err := validateThreadAddress(address); err != nil {
+		return err
+	}
+	if c.GlobalDataDir == "" {
+		return errors.New("artifact claimer has no Pair data directory")
+	}
+	return launcher.QuiesceThreadSession(c.GlobalDataDir, address.RepoScope, string(address.Tag), c.Sessions)
 }

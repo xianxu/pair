@@ -31,14 +31,14 @@ type Couch struct {
 	PolicyResolver PolicyResolver
 	Threads        *ThreadStore
 	Entropy        io.Reader
-	Artifacts      ThreadArtifactClaimer
+	Artifacts      ThreadArtifactController
 
 	reg                   Registry
 	names                 NamingTable
 	postAckQuiesceTimeout time.Duration
 }
 
-func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOps, s Store, c Clock, ids IDGen, resolver PolicyResolver, entropy io.Reader, artifacts ThreadArtifactClaimer) (*Couch, error) {
+func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOps, s Store, c Clock, ids IDGen, resolver PolicyResolver, entropy io.Reader, artifacts ThreadArtifactController) (*Couch, error) {
 	if namespace.Dir() == "" {
 		return nil, fmt.Errorf("new couch: empty namespace")
 	}
@@ -219,15 +219,12 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	}
 	thread = recorded
 	if err := h.Acknowledge(); err != nil {
-		cancelErr := h.Cancel()
-		var rollbackErr error
-		if cancelErr == nil {
-			_ = h.Wait()
-			if !h.Alive() {
-				rollbackErr = c.rollbackTrackedStart(thread, nonce)
-			}
-		}
-		return ActorRecord{}, h, errors.Join(fmt.Errorf("acknowledge blocked helper %+v: %w", thread.Address, err), cancelErr, rollbackErr)
+		// An acknowledgement error is transport-ambiguous: the byte may have
+		// reached the helper before a close error was reported. Treat every
+		// failed attempt as possibly delivered and take the post-ack quiescence
+		// path; Cancel cannot revoke a byte already consumed.
+		cause := fmt.Errorf("acknowledge blocked helper %+v: %w", thread.Address, err)
+		return ActorRecord{}, h, c.failPostAckStart(thread.Address, h, cause)
 	}
 	registrationContext, cancelRegistration := context.WithTimeout(context.Background(), 5*time.Second)
 	err = c.awaitThreadRegistration(registrationContext, thread.Address)
@@ -267,6 +264,9 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 func (c *Couch) failPostAckStart(address ThreadAddress, h Handle, cause error) error {
 	if err := quiesceHandle(h, c.postAckQuiesceTimeout); err != nil {
 		return errors.Join(cause, fmt.Errorf("quiesce post-ack child %d/%q: %w", h.PID(), h.Identity(), err))
+	}
+	if err := c.Artifacts.Quiesce(address); err != nil {
+		return errors.Join(cause, fmt.Errorf("quiesce durable Pair session %+v: %w", address, err))
 	}
 
 	reconcileErr := c.reconcileInterruptedStarts()

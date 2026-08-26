@@ -18,6 +18,8 @@ type FakeThreadArtifactCollisionChecker struct {
 	released      []ThreadAddress
 	registrations map[ThreadAddress]fakeRegistration
 	autoEstablish bool
+	quiesced      []ThreadAddress
+	QuiesceHook   func(ThreadAddress) error
 	// BeforeRegistration lets an integration test interleave a durable state
 	// change at the registration boundary. It is called outside mu because the
 	// hook may consult another stateful fake or call back into this one.
@@ -93,6 +95,23 @@ func (f *FakeThreadArtifactCollisionChecker) Registration(address ThreadAddress)
 		return RegistrationEstablished, nil
 	}
 	return RegistrationAbsent, nil
+}
+
+func (f *FakeThreadArtifactCollisionChecker) Quiesce(address ThreadAddress) error {
+	f.mu.Lock()
+	f.quiesced = append(f.quiesced, address)
+	hook := f.QuiesceHook
+	f.mu.Unlock()
+	if hook != nil {
+		return hook(address)
+	}
+	return nil
+}
+
+func (f *FakeThreadArtifactCollisionChecker) Quiesces() []ThreadAddress {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]ThreadAddress{}, f.quiesced...)
 }
 
 func (f *FakeThreadArtifactCollisionChecker) Releases() []ThreadAddress {

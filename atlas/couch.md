@@ -201,12 +201,16 @@ After acknowledgement, Pair changes the same composite address claim from
 `reserved` to `established`; that is the registration oracle, not PID liveness
 or a successful pipe write. Only then does Couch clear the transaction and mark
 the incarnation live. Any post-ack error before `Spawn` successfully transfers
-the handle—registration read failure, promotion conflict, or legacy-registry
-save failure—first sends TERM, escalates to KILL after a bounded wait, and reaps
-that exact handle. Only after quiescence is proven does Couch reconcile durable
-state: an unfinished transaction remains creating or becomes conservative
-unknown, while an already-promoted exact incarnation is marked unknown. No
-error return can leave an unowned workspace writer.
+the handle—including an acknowledgement error after the byte may already have
+been delivered, registration read failure, promotion conflict, or legacy-
+registry save failure—treats exec as possible. Couch first sends TERM,
+escalates to KILL after a bounded wait, and reaps that exact client; it then
+resolves the exact `{scope, tag}` session-name binding and force-deletes the
+owned zellij session, including its persistent panes. Only after whole-
+incarnation quiescence is proven does Couch reconcile durable state: an
+unfinished transaction remains creating or becomes conservative unknown,
+while an already-promoted exact incarnation is marked unknown. No error return
+can leave an unowned workspace writer.
 
 On supervisor restart, the pure `ReconcileStart` decision
 uses exact owner/helper identities plus that registration evidence: dead and
@@ -219,6 +223,9 @@ Composite allocation and Pair artifacts share one durable address authority:
 `thread-claim-<tag>.json` is created with O_EXCL before either Couch commits the
 ThreadStore record or native Pair writes a sidecar/session binding. Couch writes
 a reserved claim; only the child carrying the exact scope/tag establishes it.
+That reserved → established transition writes and fsyncs a sibling temporary
+file, atomically renames it, then syncs the directory, so concurrent recovery
+readers observe one complete state and a crash cannot leave truncated evidence.
 Direct Pair creates an established claim before its first artifact and adopts
 historical tags into the same scheme. Within Pair's owned scope directory, a
 generic delimiter rule recognizes any filename carrying the exact tag, so Go,

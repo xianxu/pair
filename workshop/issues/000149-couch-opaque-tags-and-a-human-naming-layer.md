@@ -610,6 +610,30 @@ total: 17.80
 
 ## Log
 
+### 2026-08-26 — M2 second boundary review corrections
+
+Acknowledgement failure is now conservatively “possibly delivered”: even a
+pre-write test error takes the same quiescence path because a successful byte
+write followed by close failure cannot be revoked. Whole-incarnation cleanup
+reaps the exact held client and then resolves and force-deletes only the zellij
+session durably bound to the same `{repo_scope, tag}`. A real-process table
+drives acknowledgement ambiguity plus registration, promotion, and registry-
+save failures through a TERM-resistant shell child and proves both client and
+orphanable descendant are gone before return (ARCH-PURPOSE, ARCH-MOCK).
+
+The reserved → established registration oracle now publishes through a synced
+sibling temporary file, atomic rename, and directory sync. A synchronized
+filesystem test holds publication before rename and reads the marker 100 times,
+observing only complete reserved evidence, then complete established evidence
+(ARCH-PURPOSE). A source contract now requires both production `StartBlocked`
+methods to delegate to `startBlockedChild` and forbids either parallel pipe or
+wrapper construction from returning (ARCH-DRY).
+
+Fresh verification passes: full `make test` and `go test ./... -count=1`; race
+tests for couchcore, launcher, and ptychild; live Ariadne policy conformance;
+real-process start recovery; `go vet ./...`; Zellij config and both layouts;
+and `git diff --check`.
+
 ### 2026-08-26 — M2 boundary review corrections
 
 The first M2 review found one ownership gap shared by every error after target

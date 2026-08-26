@@ -47,6 +47,7 @@ type FakeRunner struct {
 	autoExit          *int
 	Ops               []string
 	BeforeAcknowledge func(id string) error
+	AfterAcknowledge  func(id string) error
 }
 
 var _ Runner = (*FakeRunner)(nil)
@@ -196,9 +197,9 @@ func (h *fakeBlockedHandle) Acknowledge() error {
 		}
 	}
 	h.runner.mu.Lock()
-	defer h.runner.mu.Unlock()
 	c, ok = h.runner.children[h.id]
 	if !ok || !c.alive || !c.Blocked {
+		h.runner.mu.Unlock()
 		return fmt.Errorf("fake runner: blocked start %s already resolved", h.id)
 	}
 	c.Blocked = false
@@ -208,6 +209,11 @@ func (h *fakeBlockedHandle) Acknowledge() error {
 		c.alive, c.code = false, *h.runner.autoExit
 		close(c.done)
 		c.terminal.Exit(*h.runner.autoExit)
+	}
+	hook = h.runner.AfterAcknowledge
+	h.runner.mu.Unlock()
+	if hook != nil {
+		return hook(h.id)
 	}
 	return nil
 }

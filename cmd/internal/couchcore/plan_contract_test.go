@@ -111,3 +111,25 @@ func TestIssue149PureCoreTestsStayAtPureBoundary(t *testing.T) {
 		}
 	}
 }
+
+func TestIssue149BlockedRunnersDelegateToOneHandshakeAuthority(t *testing.T) {
+	want := map[string]string{
+		"runner.go":    "return startBlockedChild(startExecChild, r.LaunchHelper, dir, argv, env, timeout)",
+		"ptyrunner.go": "return startBlockedChild(r.start, r.LaunchHelper, dir, argv, env, timeout)",
+	}
+	for name, delegation := range want {
+		raw, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := string(raw)
+		if !strings.Contains(text, delegation) {
+			t.Errorf("%s no longer delegates StartBlocked to shared authority", name)
+		}
+		for _, parallelAuthority := range []string{"os.Pipe(", "newAcknowledgedHandle("} {
+			if strings.Contains(text, parallelAuthority) {
+				t.Errorf("%s reintroduced blocked-start protocol %q", name, parallelAuthority)
+			}
+		}
+	}
+}

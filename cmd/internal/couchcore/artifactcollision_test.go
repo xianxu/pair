@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -47,6 +48,35 @@ func TestScopedArtifactCheckerReportsPairRegistrationEvidence(t *testing.T) {
 	}
 	if got, err := checker.Registration(address); err != nil || got != RegistrationEstablished {
 		t.Fatalf("established registration = %q, %v", got, err)
+	}
+}
+
+type fakeSessionDeleter struct{ deleted []string }
+
+func (d *fakeSessionDeleter) DeleteSession(name string) error {
+	d.deleted = append(d.deleted, name)
+	return nil
+}
+
+func TestScopedArtifactCheckerQuiescesExactIndexedSession(t *testing.T) {
+	global := t.TempDir()
+	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
+	entry := launcher.SessionNameEntry{SessionName: "📁pair-couch", ScopeKey: address.RepoScope, Tag: string(address.Tag)}
+	line, err := launcher.BuildSessionNameIndexLine(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(global, "session-names.jsonl"), []byte(line+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	deleter := &fakeSessionDeleter{}
+	checker := NewScopedThreadArtifactCollisionChecker(global)
+	checker.Sessions = deleter
+	if err := checker.Quiesce(address); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(deleter.deleted, []string{entry.SessionName}) {
+		t.Fatalf("deleted = %v", deleter.deleted)
 	}
 }
 
