@@ -2369,6 +2369,39 @@ argsDone:
 	// Initial winsize copy + SIGWINCH handler.
 	p.setWinsize()
 
+	// Install signal delivery before publishing pair-wrap-pid. The pidfile is a
+	// readiness promise used by Alt+i and agent restart; writing it first left a
+	// real interval where SIGUSR1/SIGUSR2 was sent to the process before Notify
+	// owned those signals.
+	sigCh := make(chan os.Signal, 4)
+	signal.Notify(sigCh, syscall.SIGWINCH, syscall.SIGUSR1, syscall.SIGUSR2)
+	signalDone := make(chan struct{})
+	go func() {
+		defer close(signalDone)
+		for s := range sigCh {
+			switch s {
+			case syscall.SIGWINCH:
+				p.setWinsize()
+			case syscall.SIGUSR1:
+				p.armCapture()
+			case syscall.SIGUSR2:
+				if p.restartFresh.CompareAndSwap(false, true) && p.cmd != nil && p.cmd.Process != nil {
+					p.traceWrap("agent-restart-request", nil)
+					pid := p.cmd.Process.Pid
+					if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil {
+						_ = p.cmd.Process.Kill()
+					}
+					go func() {
+						time.Sleep(time.Second)
+						if p.restartFresh.Load() {
+							_ = syscall.Kill(-pid, syscall.SIGKILL)
+						}
+					}()
+				}
+			}
+		}
+	}()
+
 	// Image-capture wiring. Drop the pidfile so nvim's Alt+i knows where
 	// to send SIGUSR1; only enabled when PAIR_TAG/PAIR_DATA_DIR resolved
 	// a valid output path.
@@ -2421,35 +2454,6 @@ argsDone:
 		}
 	}()
 
-	// Signal handling.
-	sigCh := make(chan os.Signal, 4)
-	signal.Notify(sigCh, syscall.SIGWINCH, syscall.SIGUSR1, syscall.SIGUSR2)
-	signalDone := make(chan struct{})
-	go func() {
-		defer close(signalDone)
-		for s := range sigCh {
-			switch s {
-			case syscall.SIGWINCH:
-				p.setWinsize()
-			case syscall.SIGUSR1:
-				p.armCapture()
-			case syscall.SIGUSR2:
-				if p.restartFresh.CompareAndSwap(false, true) && p.cmd != nil && p.cmd.Process != nil {
-					p.traceWrap("agent-restart-request", nil)
-					pid := p.cmd.Process.Pid
-					if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil {
-						_ = p.cmd.Process.Kill()
-					}
-					go func() {
-						time.Sleep(time.Second)
-						if p.restartFresh.Load() {
-							_ = syscall.Kill(-pid, syscall.SIGKILL)
-						}
-					}()
-				}
-			}
-		}
-	}()
 	defer func() {
 		signal.Stop(sigCh)
 		close(sigCh)
