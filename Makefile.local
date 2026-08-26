@@ -49,7 +49,7 @@ RUNTIMEBUNDLE_ASSETS := cmd/internal/runtimebundle/assets/runtime/manifest.json
 # remembered `go run` line (#146 M1 BR-16). Not in `test`: it drives a real
 # terminal child and takes ~20s.
 .PHONY: test-smoke
-test-smoke: $(BIN_DIR)/pair
+test-smoke: $(BIN_DIR)/pair $(BIN_DIR)/pair-launch-helper
 	@for p in probes/*/; do \
 	    echo "==> $$p"; \
 	    go run ./$$p || exit 1; \
@@ -72,6 +72,10 @@ test-couch-policy-live:
 	esac; \
 	test -n "$$sdlc_bin"; \
 	PAIR_LIVE_FLEET_POLICY=1 PAIR_SDLC_BIN="$$sdlc_bin" go test ./cmd/internal/couchcore -run '^TestFleetPolicyResolverConformance$$' -count=1
+
+.PHONY: test-couch-start-recovery
+test-couch-start-recovery: $(BIN_DIR)/pair-launch-helper
+	go run ./cmd/probes/couchstartrecovery $(CURDIR)/$(BIN_DIR)/pair-launch-helper
 
 build: $(addprefix $(BIN_DIR)/,$(GO_BINS)) $(addprefix $(BIN_DIR)/,$(BUSYBOX_LINKS))
 

@@ -190,10 +190,22 @@ while the other `hostty.Host` consumer, `pair term`, owns lifecycle elsewhere.
 Every new start first atomically claims a final composite address
 `{repo_scope, couch-<16 lowercase hex>}`. Couch resolves normalized fleet
 policy and commits a `creating` incarnation before it forks; capacity or
-provider refusal therefore starts no child. After fork it records the exact
-PID/process-start identity as live. An uncertain post-fork update remains
-occupied for later reconciliation rather than failing open; M2 adds the
-blocked pre-exec handshake and complete restart state machine.
+provider refusal therefore starts no child. The creating record then gains one
+`start-<16 hex>` nonce plus the exact supervisor identity. Couch forks the
+internal `pair-launch-helper`, which cannot exec Pair until Couch durably adds
+the helper's PID/process-start identity and sends one acknowledgement byte over
+an inherited close-on-exec descriptor. EOF, cancellation, or timeout exits the
+helper without starting any workspace writer.
+
+After acknowledgement, Pair changes the same composite address claim from
+`reserved` to `established`; that is the registration oracle, not PID liveness
+or a successful pipe write. Only then does Couch clear the transaction and mark
+the incarnation live. On supervisor restart, the pure `ReconcileStart` decision
+uses exact owner/helper identities plus that registration evidence: dead and
+unregistered is proven free and rolls back by nonce+revision, established and
+live promotes live, established but gone promotes conservative unknown, and
+any unknown evidence stays occupied. The ThreadStore is therefore always
+occupied or proven free across every interruption point.
 
 Composite allocation and Pair artifacts share one durable address authority:
 `thread-claim-<tag>.json` is created with O_EXCL before either Couch commits the

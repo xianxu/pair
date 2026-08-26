@@ -489,7 +489,7 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Run the real-process `ReconcileStart` strategy and committed M2 probe.
+- [x] **Step 1:** Run the real-process `ReconcileStart` strategy and committed M2 probe.
 - [ ] **Step 2:** Run the Verification commands and `git diff --check`.
 - [ ] **Step 3:** Commit and run `sdlc milestone-close --issue 149 --milestone M2`; resolve all
    boundary findings before metadata work.

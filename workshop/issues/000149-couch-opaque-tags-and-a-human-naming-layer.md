@@ -669,6 +669,12 @@ Regressions inspect ThreadStore from the fake's pre-ack hook to prove the helper
 tuple is durable while target exec count remains zero, then prove exactly one
 exec and registration; restart fixtures cover rollback and promotion.
 
+The committed `make test-couch-start-recovery` probe drives the installed
+helper and real kernel process identities through both restart outcomes. It
+passes: a cancelled pre-exec helper produces EOF and the exact unregistered
+nonce rolls back; an acknowledged target with the matching established Pair
+claim survives reconstruction and promotes live.
+
 ### 2026-08-26 — M1 admission kernel integrated
 - 2026-08-26: closed M1 — make test; go test ./... -count=1; go test -race ./cmd/internal/couchcore ./cmd/internal/launcher -count=1; make test-couch-policy-live SDLC_BIN=../ariadne/bin/sdlc; zellij config and main-2/main-3 layout validation; git diff --check; review verdict: SHIP
 
