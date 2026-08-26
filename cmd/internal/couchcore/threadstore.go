@@ -332,7 +332,7 @@ func (s *ThreadStore) DeletePristineThread(address ThreadAddress) error {
 // the record occupied for later reconciliation.
 func (s *ThreadStore) DeleteUnstartedThread(address ThreadAddress, expectedRevision uint64) error {
 	return s.deleteThreadIf(address, func(record ThreadRecord) error {
-		if record.Revision != expectedRevision || record.Reservation || record.Description != "" || len(record.Incarnations) != 1 {
+		if record.Revision != expectedRevision || record.Reservation || threadHasMetadata(record) || len(record.Incarnations) != 1 {
 			return fmt.Errorf("thread %+v is no longer the expected unstarted claim", address)
 		}
 		incarnation := record.Incarnations[0]
@@ -398,7 +398,7 @@ func (s *ThreadStore) MarkIncarnationUnknown(address ThreadAddress, expected Pro
 // leaves the transaction occupied.
 func (s *ThreadStore) DeleteStart(address ThreadAddress, expectedRevision uint64, nonce string) error {
 	return s.deleteThreadIf(address, func(record ThreadRecord) error {
-		if record.Revision != expectedRevision || record.Reservation || record.Description != "" || len(record.Incarnations) != 1 {
+		if record.Revision != expectedRevision || record.Reservation || threadHasMetadata(record) || len(record.Incarnations) != 1 {
 			return fmt.Errorf("thread %+v is no longer start %q at revision %d", address, nonce, expectedRevision)
 		}
 		incarnation := record.Incarnations[0]

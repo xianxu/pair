@@ -125,10 +125,15 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 	}
 
 	parsed, err := bindArgs(op, args[1:])
-	// $COUCH_TREE is how a spawned child knows which tree it is, so an agent
-	// can publish a description without being told twice.
-	if op.Name == "publish-description" && parsed != nil && parsed["tree"] == "" {
-		parsed["tree"] = rt.Getenv("COUCH_TREE")
+	// A spawned child receives the exact composite thread address, so an agent
+	// can publish its summary without resolving a mutable path or human label.
+	if op.Name == "publish-description" && parsed != nil {
+		if parsed["repo-scope"] == "" {
+			parsed["repo-scope"] = rt.Getenv("COUCH_THREAD_SCOPE")
+		}
+		if parsed["tag"] == "" {
+			parsed["tag"] = rt.Getenv("COUCH_THREAD_TAG")
+		}
 	}
 	if err != nil {
 		fmt.Fprintf(stderr, "couch %s: %v\n", op.Name, err)
@@ -280,7 +285,9 @@ func bindArgs(op couchcore.Operation, argv []string) (map[string]string, error) 
 	out := map[string]string{}
 	known := make(map[string]bool, len(op.Args))
 	for _, spec := range op.Args {
-		known[spec.Name] = true
+		if !spec.Implicit {
+			known[spec.Name] = true
+		}
 	}
 	var positional []string
 	for _, a := range argv {
@@ -299,6 +306,9 @@ func bindArgs(op couchcore.Operation, argv []string) (map[string]string, error) 
 	}
 	i := 0
 	for _, spec := range op.Args {
+		if spec.Implicit {
+			continue
+		}
 		if _, already := out[spec.Name]; already {
 			continue
 		}
@@ -338,6 +348,8 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 		return 0
 	case []couchcore.TreeSummary:
 		renderTrees(w, v)
+	case []couchcore.ThreadSummary:
+		renderThreads(w, v)
 	case couchcore.Worktree:
 		fmt.Fprintf(w, "%s\n", v)
 	case couchcore.StopResult:
@@ -356,6 +368,37 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 		fmt.Fprintf(w, "%v\n", v)
 	}
 	return 0
+}
+
+// renderThreads consumes the same one-row-per-composite-thread inventory as
+// the panel and advisor. Human names lead named rows; only unnamed rows expose
+// the opaque tag as their fallback label.
+func renderThreads(w io.Writer, threads []couchcore.ThreadSummary) {
+	if len(threads) == 0 {
+		fmt.Fprintln(w, "no threads")
+		return
+	}
+	dim, reset := dimCodes(w)
+	for _, thread := range threads {
+		open, close := dim, reset
+		if thread.Live() {
+			open, close = "", ""
+		}
+		fmt.Fprintf(w, "%s%-22s %s%s\n", open, thread.Label(), thread.WorkingPath, close)
+		if summary := thread.DisplaySummary(); summary != "" {
+			fmt.Fprintf(w, "%s  %s%s\n", open, summary, close)
+		}
+		for _, incarnation := range thread.Incarnations {
+			if incarnation.PID > 0 {
+				fmt.Fprintf(w, "%s  %-14s pid %d%s\n", open, incarnation.State, incarnation.PID, close)
+			} else {
+				fmt.Fprintf(w, "%s  %s%s\n", open, incarnation.State, close)
+			}
+		}
+		if len(thread.Incarnations) == 0 {
+			fmt.Fprintf(w, "%s  (no agent running)%s\n", open, close)
+		}
+	}
 }
 
 // renderTrees prints one block per worktree. A tree with no live actor is

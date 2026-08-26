@@ -47,16 +47,18 @@ type ThreadIncarnation struct {
 }
 
 type ThreadRecord struct {
-	SchemaVersion   int                 `json:"schema_version"`
-	Address         ThreadAddress       `json:"address"`
-	StartingPath    string              `json:"starting_path"`
-	WorkingPath     string              `json:"working_path"`
-	CreatedAt       time.Time           `json:"created_at"`
-	Revision        uint64              `json:"revision"`
-	ClaimGeneration uint64              `json:"claim_generation"`
-	Reservation     bool                `json:"reservation,omitempty"`
-	Description     string              `json:"description,omitempty"`
-	Incarnations    []ThreadIncarnation `json:"incarnations,omitempty"`
+	SchemaVersion    int                 `json:"schema_version"`
+	Address          ThreadAddress       `json:"address"`
+	StartingPath     string              `json:"starting_path"`
+	WorkingPath      string              `json:"working_path"`
+	CreatedAt        time.Time           `json:"created_at"`
+	Revision         uint64              `json:"revision"`
+	ClaimGeneration  uint64              `json:"claim_generation"`
+	Reservation      bool                `json:"reservation,omitempty"`
+	Name             string              `json:"name,omitempty"`
+	Description      string              `json:"description,omitempty"`
+	PublishedSummary string              `json:"published_summary,omitempty"`
+	Incarnations     []ThreadIncarnation `json:"incarnations,omitempty"`
 }
 
 var threadComponentPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)

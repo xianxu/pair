@@ -17,6 +17,10 @@ type ArgSpec struct {
 	// --name. Use it for switches whose positional interpretation would be
 	// surprising or unsafe.
 	FlagOnly bool `json:"flag_only,omitempty"`
+	// Implicit arguments are supplied by a trusted caller context rather than
+	// accepted from CLI argv. The advisor/console dispatch schema can still name
+	// them without exposing a user bypass flag.
+	Implicit bool `json:"implicit,omitempty"`
 }
 
 // OperationExecution names the authority required to perform an operation.
@@ -95,23 +99,23 @@ func Operations() []Operation {
 		},
 		{
 			Name:      "list",
-			Summary:   "List every registered actor across all worktrees",
+			Summary:   "List every durable work thread",
 			Execution: ExecuteDirectStore,
 			Invoke: func(c *Couch, _ map[string]string) (any, error) {
-				return c.Summarize(nil), nil
+				return c.ThreadInventory()
 			},
 		},
 		{
 			Name:      "show",
-			Summary:   "Show the actors on one tree, by path or by name",
+			Summary:   "Show one work thread by tag, path, or name",
 			Execution: ExecuteDirectStore,
-			Args:      []ArgSpec{{Name: "ref", Summary: "path or operator-assigned name", Required: true}},
+			Args:      []ArgSpec{{Name: "ref", Summary: "thread tag, path, or operator-assigned name", Required: true}},
 			Invoke: func(c *Couch, a map[string]string) (any, error) {
-				_, trees, err := c.ResolveRef(a["ref"])
+				matches, err := c.ResolveThreadReference("", a["ref"])
 				if err != nil {
 					return nil, err
 				}
-				return c.Summarize(trees), nil
+				return BuildThreadInventory(matches), nil
 			},
 		},
 		{
@@ -149,57 +153,58 @@ func Operations() []Operation {
 		},
 		{
 			Name:      "name",
-			Summary:   "Give a tree a short human name",
+			Summary:   "Give a work thread a short human name",
 			Execution: ExecuteDirectStore,
 			Args: []ArgSpec{
-				{Name: "ref", Summary: "path or existing name", Required: true},
+				{Name: "ref", Summary: "thread tag, path, or existing name", Required: true},
 				{Name: "name", Summary: "the new short name", Required: true},
+				{Name: "repo-scope", Summary: "optional repository scope from caller context", Implicit: true},
 			},
 			Invoke: func(c *Couch, a map[string]string) (any, error) {
-				w, err := c.treeFor(a["ref"])
+				matches, err := c.ResolveThreadReference(a["repo-scope"], a["ref"])
 				if err != nil {
 					return nil, err
 				}
-				return w, c.SetName(w, a["name"])
+				name := a["name"]
+				return c.ApplyThreadMetadata(matches[0].Address, ThreadMetadataPatch{Name: &name})
 			},
 		},
 		{
 			Name:      "describe",
-			Summary:   "Read or set a tree's one-line description",
+			Summary:   "Read or set a work thread's operator description",
 			Execution: ExecuteDirectStore,
 			Args: []ArgSpec{
-				{Name: "ref", Summary: "path or name", Required: true},
+				{Name: "ref", Summary: "thread tag, path, or name", Required: true},
 				{Name: "description", Summary: "omit to read the cached value", Required: false},
+				{Name: "repo-scope", Summary: "optional repository scope from caller context", Implicit: true},
 			},
 			Invoke: func(c *Couch, a map[string]string) (any, error) {
-				w, err := c.treeFor(a["ref"])
+				matches, err := c.ResolveThreadReference(a["repo-scope"], a["ref"])
 				if err != nil {
 					return nil, err
 				}
 				if d := a["description"]; d != "" {
-					return w, c.SetDescription(w, d)
+					return c.ApplyThreadMetadata(matches[0].Address, ThreadMetadataPatch{Description: &d})
 				}
-				return c.Describe(w), nil
+				return matches[0].Description, nil
 			},
 		},
 		{
 			Name:      "publish-description",
-			Summary:   "Publish this session's own one-line description (run by the agent, inside its tree)",
+			Summary:   "Publish this session's own one-line summary (run by the agent inside its thread)",
 			Execution: ExecuteDirectStore,
 			Args: []ArgSpec{
 				{Name: "description", Summary: "what this session is working on", Required: true},
-				{Name: "tree", Summary: "tree to publish for; defaults to $COUCH_TREE", Required: false},
+				{Name: "repo-scope", Summary: "exact thread scope from $COUCH_THREAD_SCOPE", Implicit: true},
+				{Name: "tag", Summary: "exact thread tag from $COUCH_THREAD_TAG", Implicit: true},
 			},
 			Invoke: func(c *Couch, a map[string]string) (any, error) {
-				ref := a["tree"]
-				if ref == "" {
-					return nil, fmt.Errorf("no tree given and $COUCH_TREE is unset -- run this inside a couch-spawned session")
+				if a["repo-scope"] == "" || a["tag"] == "" {
+					return nil, fmt.Errorf("thread scope/tag are unavailable -- run this inside a couch-spawned session")
 				}
-				w, err := c.treeFor(ref)
-				if err != nil {
-					return nil, err
-				}
-				return w, c.PublishDescription(w, a["description"])
+				address := ThreadAddress{RepoScope: a["repo-scope"], Tag: ThreadTag(a["tag"])}
+				summary := a["description"]
+				return c.ApplyThreadMetadata(address, ThreadMetadataPatch{PublishedSummary: &summary})
 			},
 		},
 	}

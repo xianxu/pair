@@ -29,14 +29,15 @@ type testRT struct {
 	git        *couchcore.FakeGit
 	supervisor *fakeSupervisor
 	policy     *couchcore.FakePolicyResolver
+	env        map[string]string
 	// ids is shared across invocations. Minting a fresh generator per
 	// NewCouch restarts the sequence, so two starts both produce couch-ah8d
 	// and no CLI test can hold two distinguishable actors.
 	ids couchcore.IDGen
 }
 
-func (t testRT) Getenv(string) string { return "" }
-func (t testRT) StoreDir() string     { return t.dir }
+func (t testRT) Getenv(key string) string { return t.env[key] }
+func (t testRT) StoreDir() string         { return t.dir }
 func (t testRT) ResolveNamespace() (couchcore.CouchNamespace, error) {
 	return t.namespace, nil
 }
@@ -103,8 +104,33 @@ func newRT(t *testing.T, trees ...string) testRT {
 		git:        couchcore.NewFakeGit(replies),
 		supervisor: &fakeSupervisor{},
 		policy:     couchcore.NewFakePolicyResolver(),
+		env:        map[string]string{},
 		ids:        couchcore.NewFixedIDGen("ah8d", "b2c1", "c3d2", "e4f5"),
 	}
+}
+
+func seedThread(t *testing.T, rt testRT, path string) couchcore.ThreadRecord {
+	t.Helper()
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := couchcore.ThreadRecord{
+		SchemaVersion: couchcore.ThreadSchemaVersion,
+		Address: couchcore.ThreadAddress{
+			RepoScope: "816fc349d3faebf8",
+			Tag:       "couch-0102030405060708",
+		},
+		StartingPath: path,
+		WorkingPath:  path,
+		CreatedAt:    time.Unix(1, 0).UTC(),
+		Revision:     1,
+	}
+	created, err := c.Threads.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return created
 }
 
 func TestStartAcquiresAndReleasesSupervisorLease(t *testing.T) {
@@ -199,7 +225,7 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 func TestOperationArityMatchesExpectation(t *testing.T) {
 	// Declared in the test rather than read from the operation itself, so
 	// this cannot degrade into asserting X == X.
-	want := map[string]int{"start": 2, "list": 0, "show": 1, "stop": 1, "name": 2, "describe": 2, "publish-description": 2}
+	want := map[string]int{"start": 2, "list": 0, "show": 1, "stop": 1, "name": 3, "describe": 3, "publish-description": 3}
 	for _, op := range couchcore.Operations() {
 		if got := len(op.Args); got != want[op.Name] {
 			t.Errorf("%s has %d args, want %d", op.Name, got, want[op.Name])
@@ -207,12 +233,48 @@ func TestOperationArityMatchesExpectation(t *testing.T) {
 	}
 }
 
-func TestListOnEmptyRegistry(t *testing.T) {
+func TestPublishDescriptionUsesCompositeThreadEnvironment(t *testing.T) {
+	rt := newRT(t)
+	record := couchcore.ThreadRecord{
+		SchemaVersion: couchcore.ThreadSchemaVersion,
+		Address: couchcore.ThreadAddress{
+			RepoScope: "816fc349d3faebf8",
+			Tag:       "couch-0102030405060708",
+		},
+		StartingPath: "/repo/task",
+		WorkingPath:  "/repo/task",
+		CreatedAt:    time.Unix(1, 0).UTC(),
+		Revision:     1,
+	}
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, err := c.Threads.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt.env["COUCH_THREAD_SCOPE"] = created.Address.RepoScope
+	rt.env["COUCH_THREAD_TAG"] = string(created.Address.Tag)
+
+	if _, errw, code := runRT(rt, "publish-description", "agent summary"); code != 0 {
+		t.Fatalf("publish-description: code=%d stderr=%q", code, errw)
+	}
+	got, err := c.Threads.GetThread(created.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.PublishedSummary != "agent summary" || got.Description != "" {
+		t.Fatalf("published thread = %+v", got)
+	}
+}
+
+func TestListOnEmptyThreadStore(t *testing.T) {
 	out, errw, code := runRT(newRT(t), "list")
 	if code != 0 {
 		t.Fatalf("exit %d, stderr %q", code, errw)
 	}
-	if !strings.Contains(out, "no trees") {
+	if !strings.Contains(out, "no threads") {
 		t.Fatalf("out = %q", out)
 	}
 }
@@ -292,6 +354,7 @@ func TestListShowsANamedTreeWithNoAgent(t *testing.T) {
 	// but it is exactly the thread the operator loses track of. It must be a
 	// visible row, not filtered out.
 	rt := newRT(t, "/repo")
+	seedThread(t, rt, "/repo")
 	if _, errw, code := runRT(rt, "name", "/repo", "the pair tree"); code != 0 {
 		t.Fatalf("name failed: %s", errw)
 	}
@@ -309,6 +372,7 @@ func TestListShowsANamedTreeWithNoAgent(t *testing.T) {
 
 func TestShowResolvesANameToItsTreePath(t *testing.T) {
 	rt := newRT(t, "/repo")
+	seedThread(t, rt, "/repo")
 	if _, errw, code := runRT(rt, "name", "/repo", "pairtree"); code != 0 {
 		t.Fatalf("name failed: %s", errw)
 	}
@@ -325,10 +389,27 @@ func TestRenderedOutputHasNoANSIWhenNotATerminal(t *testing.T) {
 	// A bytes.Buffer is not a terminal, so dimming must be suppressed --
 	// otherwise piped or captured output carries escape codes.
 	rt := newRT(t, "/repo")
+	seedThread(t, rt, "/repo")
 	_, _, _ = runRT(rt, "name", "/repo", "plain")
 	out, _, _ := runRT(rt, "list")
 	if strings.Contains(out, "\x1b[") {
 		t.Fatalf("ANSI leaked into non-terminal output: %q", out)
+	}
+}
+
+func TestRenderThreadsIsNameFirstAndKeepsSamePathThreadsDistinct(t *testing.T) {
+	rows := []couchcore.ThreadSummary{
+		{Address: couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0000000000000001"}, WorkingPath: "/repo", Name: "compiler", PublishedSummary: "agent work"},
+		{Address: couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0000000000000002"}, WorkingPath: "/repo"},
+	}
+	var out bytes.Buffer
+	renderThreads(&out, rows)
+	text := out.String()
+	if !strings.Contains(text, "compiler") || strings.Contains(strings.Split(text, "\n")[0], "couch-0000000000000001") {
+		t.Fatalf("named row leads with opaque id: %q", text)
+	}
+	if !strings.Contains(text, "couch-0000000000000002") || strings.Count(text, "/repo") != 2 {
+		t.Fatalf("same-path thread rows collapsed: %q", text)
 	}
 }
 
@@ -430,6 +511,7 @@ func TestOptionalPositionalArgsStillBind(t *testing.T) {
 	// The rule is "guard bypasses are flag-only", NOT "optional args never
 	// bind" -- the broader version broke `couch describe <ref> <text>`.
 	rt := newRT(t, "/repo")
+	seedThread(t, rt, "/repo")
 	if _, errw, code := runRT(rt, "name", "/repo", "thing"); code != 0 {
 		t.Fatalf("name: %s", errw)
 	}
