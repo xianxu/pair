@@ -577,11 +577,11 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Write failing standalone index/picker tests using
+- [x] **Step 1:** Write failing standalone index/picker tests using
    `ResolveThreadReference` strategy.
-- [ ] **Step 2:** Implement scoped ThreadStore lookup/picker display while preserving direct
+- [x] **Step 2:** Implement scoped ThreadStore lookup/picker display while preserving direct
    Pair prompting and zellij `SessionNameEntry` ownership.
-- [ ] **Step 3:** Run launcher focused tests; expect PASS, then commit.
+- [x] **Step 3:** Run launcher focused tests; expect PASS, then commit.
 
 ### Task 5: M3 integration boundary
 

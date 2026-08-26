@@ -940,6 +940,25 @@ and session surviving revival -- is what would let a couch-launched session
 resume without asking. Whoever implements that should decide whether a
 non-interactive restore is part of it.
 
+### 2026-08-26 — make human thread lookup standalone in Pair
+
+Launcher now owns a portable read-only projection of the durable ThreadStore
+manifest and records. Its scoped exact-tag/name/path matcher is the one
+authority used both by standalone Pair and Couch's richer record adapter, so
+`pair resume <human-name>` preserves the opaque tag without requiring Couch to
+be running. Duplicate names return all candidates and refuse; existing direct
+Pair tags—including cold tags outside the history cutoff—win through their
+durable artifacts before fuzzy thread matching.
+
+The Pair picker merges durable parked records with sidecar history and decorates
+live rows from the same index. Human names lead while selection continues to
+carry the opaque tag; duplicate display names gain tag disambiguators rather
+than collapsing in the fzf lookup map. Mutable thread names remain separate
+from `SessionNameEntry`, the zellij socket binding, and legacy `pair rename`
+never treats a human thread name as permission to move opaque-tag artifacts.
+Full tests and launcher/couchcore race tests pass (ARCH-DRY, ARCH-PURE,
+ARCH-PURPOSE).
+
 ### 2026-08-26 — share composite thread inventory with the panel
 
 Thread metadata and resolution now use revision-checked composite addresses;

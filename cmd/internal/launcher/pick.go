@@ -51,15 +51,18 @@ func buildPickRows(snap SessionSnapshot, base string, nowEpoch int64) (display [
 }
 
 func buildPickRowsWithPolicy(snap SessionSnapshot, base string, nowEpoch int64, policy PickPolicy) (display []string, byPlain map[string]pickSelection) {
-	byPlain = map[string]pickSelection{}
+	type row struct {
+		plain, colored string
+		selection      pickSelection
+	}
+	var rows []row
 	live := map[string]bool{}
 	for _, s := range snap.Sessions {
 		live[sessionTag(s)] = true
 	}
 
 	add := func(plain, colored string, sel pickSelection) {
-		display = append(display, colored)
-		byPlain[plain] = sel
+		rows = append(rows, row{plain: plain, colored: colored, selection: sel})
 	}
 
 	for _, s := range snap.Sessions {
@@ -107,6 +110,22 @@ func buildPickRowsWithPolicy(snap SessionSnapshot, base string, nowEpoch int64, 
 
 	newLabel := fmt.Sprintf("+ new %s session", base)
 	add(newLabel, newLabel, pickSelection{isNew: true})
+
+	counts := map[string]int{}
+	for _, row := range rows {
+		counts[row.plain]++
+	}
+	byPlain = make(map[string]pickSelection, len(rows))
+	for _, row := range rows {
+		plain, colored := row.plain, row.colored
+		if counts[plain] > 1 {
+			disambiguator := " [" + row.selection.tag + "]"
+			plain += disambiguator
+			colored += disambiguator
+		}
+		display = append(display, colored)
+		byPlain[plain] = row.selection
+	}
 	return display, byPlain
 }
 
@@ -146,13 +165,21 @@ func livePickLabel(s Session, policy PickPolicy) string {
 		if repo == "" {
 			repo = "?"
 		}
-		return fmt.Sprintf("%s/%s  %s  (%s)", repo, sessionTag(s), agent, state)
+		identity := sessionTag(s)
+		if s.ThreadName != "" {
+			identity = s.ThreadName
+		}
+		return fmt.Sprintf("%s/%s  %s  (%s)", repo, identity, agent, state)
 	}
 	return s.Name
 }
 
 func historicalPickLabel(h HistoricalTag, nowEpoch int64) string {
 	age := FormatAge(nowEpoch, h.MTime.Unix())
+	identity := h.Tag
+	if h.Name != "" {
+		identity = h.Name
+	}
 	if h.RepoName != "" || h.Agent != "" {
 		agent := h.Agent
 		if agent == "" {
@@ -162,12 +189,12 @@ func historicalPickLabel(h HistoricalTag, nowEpoch int64) string {
 		if repo == "" {
 			repo = "?"
 		}
-		return fmt.Sprintf("%s/%s  %s  (%s, no live session)", repo, h.Tag, agent, age)
+		return fmt.Sprintf("%s/%s  %s  (%s, no live session)", repo, identity, agent, age)
 	}
 	// Bare tag, not a spelled-out session name (#130): under the 📁 scheme this
 	// row would otherwise read `pair-work` right next to a live `📁repo-work`
 	// row for the same tag.
-	return fmt.Sprintf("%s  (%s, no live session)", h.Tag, age)
+	return fmt.Sprintf("%s  (%s, no live session)", identity, age)
 }
 
 // resolvePick presents the picker and maps the choice into a concrete launch

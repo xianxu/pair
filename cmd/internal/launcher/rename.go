@@ -165,9 +165,9 @@ func runRenameScoped(rt Runtime, args LaunchArgs, dataDir, scopeKey string, stdo
 	// is what lets the nvim rename prompt drop its own strip + charset twin and
 	// hand the whole question to the binary — see nvim/init.lua.
 	oldRaw := args.RenameOld
-	if resolved, ok := resolveResumeTag(rt, oldRaw); ok {
+	if resolved, ok := resolveSessionNameTag(rt, oldRaw); ok {
 		oldRaw = resolved
-	} else if strings.HasPrefix(oldRaw, sessionPrefix) {
+	} else {
 		fmt.Fprintf(stderr, "pair rename: '%s' is a session name with no ledger entry; rename by its tag instead.\n", oldRaw)
 		return 1
 	}

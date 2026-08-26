@@ -33,6 +33,7 @@ type OSRuntime struct {
 	DataDir       string
 	GlobalDataDir string
 	PairHome      string
+	CouchStoreDir string
 
 	sessionQuiescence  sessionQuiescenceOps
 	sessionQuiesceWait time.Duration
@@ -599,6 +600,21 @@ func (r OSRuntime) AppendSessionNameIndex(entry SessionNameEntry) error {
 	}
 	raw += line + "\n"
 	return r.WriteAtomic(path, raw)
+}
+
+func (r OSRuntime) ReadThreadIndex() (ThreadIndex, error) {
+	root := r.CouchStoreDir
+	if root == "" {
+		root = filepath.Join(r.globalDataDir(), "couch")
+	}
+	if !filepath.IsAbs(root) {
+		absolute, err := filepath.Abs(root)
+		if err != nil {
+			return ThreadIndex{}, err
+		}
+		root = absolute
+	}
+	return LoadThreadIndex(root, r.ReadFile)
 }
 
 func (r OSRuntime) globalDataDir() string {

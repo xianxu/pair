@@ -109,6 +109,8 @@ func alnumTokens(normalized string) []string {
 }
 
 type SessionNameEntry struct {
+	// SessionName is the stable zellij socket binding. It is deliberately not
+	// the mutable human thread name; ThreadIndex owns that separate attribute.
 	SessionName string `json:"session_name"`
 	ScopeKey    string `json:"scope_key"`
 	RepoRoot    string `json:"repo_root"`

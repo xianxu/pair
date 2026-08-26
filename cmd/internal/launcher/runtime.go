@@ -136,6 +136,7 @@ type LedgerOps interface {
 type SessionNameStoreOps interface {
 	ReadSessionNameIndex() (SessionNameIndex, error)
 	AppendSessionNameIndex(entry SessionNameEntry) error
+	ReadThreadIndex() (ThreadIndex, error)
 }
 
 type ThreadAddressClaimOps interface {

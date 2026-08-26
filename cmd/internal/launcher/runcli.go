@@ -92,6 +92,7 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 		CouchThreadTag:   os.Getenv("COUCH_THREAD_TAG"),
 	}
 	rt := NewScopedOSRuntime(dataDir, env.DataDir, pairHome)
+	rt.CouchStoreDir = os.Getenv("COUCH_STORE_DIR")
 
 	// `list`/`ls` is a read-only listing that prints to stdout and exits — no
 	// launch, no zellij handoff (#99 M5a).

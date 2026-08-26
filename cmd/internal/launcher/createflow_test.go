@@ -36,6 +36,8 @@ type fakeRuntime struct {
 	files               map[string]string
 	ledger              map[string][]LedgerEntry
 	sessionIndex        SessionNameIndex
+	threadIndex         ThreadIndex
+	threadIndexErr      error
 	agentSessions       map[string]bool // "agent|sid" -> native artifact exists
 	liveAgentSessions   map[string]string
 	uuids               []string // MintUUID pops these in order
@@ -250,6 +252,9 @@ func (f *fakeRuntime) AppendLedger(tag string, entry LedgerEntry) error {
 }
 func (f *fakeRuntime) ReadSessionNameIndex() (SessionNameIndex, error) {
 	return f.sessionIndex, nil
+}
+func (f *fakeRuntime) ReadThreadIndex() (ThreadIndex, error) {
+	return f.threadIndex, f.threadIndexErr
 }
 func (f *fakeRuntime) AppendSessionNameIndex(entry SessionNameEntry) error {
 	if f.appendIndexErr != nil {
@@ -1488,6 +1493,101 @@ func TestRunLaunchPickInferredAgentMustNotInheritCliArgs(t *testing.T) {
 	}
 	if rt.launched != "📁work-2" {
 		t.Fatalf("launched = %q, want scoped next-free public session name", rt.launched)
+	}
+}
+
+func TestRunLaunchStandaloneResolvesHumanThreadNameToOpaqueTag(t *testing.T) {
+	rt := newFakeRuntime()
+	scope := mustScope(t, "/home/u/work")
+	rt.threadIndex = ThreadIndex{Entries: []ThreadIndexEntry{
+		indexEntry(scope.Key, "couch-0102030405060708", "/home/u/work", "compiler"),
+	}}
+	rt.uuids = []string{"SID"}
+	opts := baseOpts(LaunchArgs{ForcedTag: "compiler"})
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if got := rt.env["PAIR_TAG"]; got != "couch-0102030405060708" {
+		t.Fatalf("PAIR_TAG = %q, want opaque thread tag", got)
+	}
+}
+
+func TestRunLaunchKnownDirectPairTagWinsOverThreadFuzzyMatch(t *testing.T) {
+	rt := newFakeRuntime()
+	scope := mustScope(t, "/home/u/work")
+	rt.historical = []HistoricalTag{{Tag: "work", MTime: time.Unix(1_699_900_000, 0)}}
+	rt.threadIndex = ThreadIndex{Entries: []ThreadIndexEntry{
+		indexEntry(scope.Key, "couch-0102030405060708", "/home/u/work", "compiler"),
+	}}
+	rt.uuids = []string{"SID"}
+	code, err := run(t, baseOpts(LaunchArgs{ForcedTag: "work"}), rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if got := rt.env["PAIR_TAG"]; got != "work" {
+		t.Fatalf("PAIR_TAG = %q, want existing direct Pair tag", got)
+	}
+}
+
+func TestRunLaunchColdDirectPairTagArtifactWinsOverThreadFuzzyMatch(t *testing.T) {
+	rt := newFakeRuntime()
+	scope := mustScope(t, "/home/u/work")
+	rt.threadIndex = ThreadIndex{Entries: []ThreadIndexEntry{
+		indexEntry(scope.Key, "couch-0102030405060708", "/home/u/work", "compiler"),
+	}}
+	rt.files[NewScopedPaths("/global", scope, "work").Draft()] = "old but durable"
+	rt.uuids = []string{"SID"}
+	opts := baseOpts(LaunchArgs{ForcedTag: "work"})
+	opts.GlobalDataDir = "/global"
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if got := rt.env["PAIR_TAG"]; got != "work" {
+		t.Fatalf("PAIR_TAG = %q, want cold direct Pair tag", got)
+	}
+}
+
+func TestRunLaunchPickerIncludesNamedParkedThreadFromIndex(t *testing.T) {
+	rt := newFakeRuntime()
+	scope := mustScope(t, "/home/u/work")
+	entry := indexEntry(scope.Key, "couch-0102030405060708", "/home/u/work", "compiler")
+	entry.CreatedAt = time.Unix(1_699_900_000, 0)
+	rt.threadIndex = ThreadIndex{Entries: []ThreadIndexEntry{entry}}
+	rt.uuids = []string{"SID"}
+	rt.pickFunc = func(_ string, options []string) string {
+		for _, option := range options {
+			plain := stripANSI(option)
+			if strings.Contains(plain, "work/compiler") {
+				return plain
+			}
+		}
+		t.Fatalf("picker options = %q, want named parked thread", options)
+		return ""
+	}
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude"}), rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if got := rt.env["PAIR_TAG"]; got != entry.Address.Tag {
+		t.Fatalf("PAIR_TAG = %q, want %q", got, entry.Address.Tag)
+	}
+}
+
+func TestRunLaunchStandaloneRefusesAmbiguousThreadName(t *testing.T) {
+	rt := newFakeRuntime()
+	scope := mustScope(t, "/home/u/work")
+	rt.threadIndex = ThreadIndex{Entries: []ThreadIndexEntry{
+		indexEntry(scope.Key, "couch-0102030405060708", "/home/u/work/one", "compiler"),
+		indexEntry(scope.Key, "couch-1112131415161718", "/home/u/work/two", "compiler"),
+	}}
+	code, err := run(t, baseOpts(LaunchArgs{ForcedTag: "compiler"}), rt)
+	if err != nil || code != 1 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.launched != "" {
+		t.Fatalf("ambiguous name launched %q", rt.launched)
 	}
 }
 
