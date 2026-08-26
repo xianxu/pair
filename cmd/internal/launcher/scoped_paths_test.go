@@ -75,6 +75,52 @@ func TestOwnsTagArtifactCoversEveryScopedTagConstructor(t *testing.T) {
 	}
 }
 
+func TestOwnsTagArtifactCoversCurrentNonScopedPathsAndFutureFamilies(t *testing.T) {
+	tag := "couch-0001020304050607"
+	for _, name := range []string{
+		"draft-pane-" + tag + ".json",
+		"image-capture-" + tag,
+		"image-capture-" + tag + ".done",
+		"pair-wrap-pid-" + tag,
+		"wrap-events-" + tag + ".jsonl",
+		"parked-" + tag,
+		"parked-scrollback-" + tag + "-20260826.raw",
+		"last-left-pane-" + tag,
+		"last-terminal-pane-" + tag,
+		"terminal-panes-" + tag,
+		"title-pid-" + tag,
+		"layout-mode-" + tag,
+		"workbench-layout-" + tag,
+		"quote-" + tag,
+		"slug-" + tag,
+		"slug-proposed-" + tag,
+		"scrollback-pending-" + tag + ".md",
+		"zellij-actions-" + tag + ".jsonl",
+		"review-" + tag + ".open",
+		"review-" + tag + ".mode",
+		"review-target-" + tag + ".json",
+		"review-context-" + tag + ".md",
+		"review-handoff-" + tag + ".json",
+		"review-landed-" + tag + ".json",
+		"review-definition-request-" + tag + ".json",
+		"review-definition-result-" + tag + ".json",
+		"future-consumer-" + tag + "-variant.bin",
+	} {
+		if !OwnsTagArtifact(name, tag) {
+			t.Errorf("generic tag boundary omitted %s", name)
+		}
+	}
+	for _, neighbor := range []string{
+		"draft-" + tag + "0.md",
+		"draft-x" + tag + ".md",
+		"draft-couch-0001020304050608.md",
+	} {
+		if OwnsTagArtifact(neighbor, tag) {
+			t.Errorf("generic tag boundary matched neighbor %s", neighbor)
+		}
+	}
+}
+
 func TestScopedAgentPaths(t *testing.T) {
 	scope, err := ResolveRepoScope("/Users/x/workspace/pair")
 	if err != nil {

@@ -681,6 +681,23 @@ diff --check`. The full gate exposed a separate pidfile readiness race: the
 wrapper published its PID before registering SIGUSR2. The handler now owns the
 signal before the pidfile becomes visible (side-quest commit `7dbd8ac`).
 
+### 2026-08-26 — M1 complete collision-domain rule
+
+The third boundary review swept beyond `ScopedPaths` and found active Go/Lua/UI
+families such as `draft-pane`, `image-capture`, parked scrollback, pane memory,
+slug, and review sidecars. Collision recognition now uses a structural rule over
+the Pair-owned scope directory: the exact tag must have a hyphen boundary on
+the left and end/dot/hyphen on the right. This covers every current and future
+family without a duplicated prefix inventory while rejecting neighboring opaque
+tags. Integration tests precreate both current out-of-`ScopedPaths` families and
+an unknown future family and require allocation refusal (ARCH-DRY,
+ARCH-PURPOSE).
+
+A reusable project-state contract now walks every project artifact and rejects
+closed metadata beside an unchecked milestone row. Restoring M1's premature
+`**closed:**` line makes that repository test fail exactly; successful SDLC
+acceptance remains the only point that may check the row and record closure.
+
 ### 2026-08-25 — session summary
 
 Fresh spec review split verified park into #152 and managed worktree lifecycle

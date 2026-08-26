@@ -114,6 +114,36 @@ rounds:
           round: 2
       boundary: M1
       blocked: true
+    - "n": 3
+      timestamp: "2026-08-26T12:39:39-07:00"
+      agent: codex
+      dispose:
+        - id: BR-2
+          disposition: not-addressed
+          note: The new claim scans only the ScopedPaths inventory; a source sweep found at least 18 current tag-owned filename shapes outside it, so orphaned artifacts such as draft-pane-, image-capture-, parked-, slug-, and review-* remain claimable. This is the 3rd finding in family composite-address-collision-domain.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: The plan classifies namespace resolution and the current effectful Operation surface as integration, and TestIssue149CurrentCoreConceptKinds fails on the prior table.
+          round: 3
+        - id: BR-8
+          disposition: addressed
+          note: The comment now describes opaque allocation, and TestOpaqueIdentityCommentDoesNotReintroducePathDerivedContract rejects both exact obsolete claims from the prior text.
+          round: 3
+        - id: BR-9
+          disposition: addressed
+          note: Couch and native Pair now acquire one O_EXCL marker before creation; concurrent-winner and cross-producer tests fail if that shared atomic authority is removed.
+          round: 3
+        - id: BR-10
+          disposition: addressed
+          note: README removes couch stop from the external command list, documents the pre-147 owner-routing limitation, and the regression fails on the prior advertised spelling.
+          round: 3
+        - id: BR-11
+          disposition: not-addressed
+          note: The premature closed field was removed, but no regression fails if closed metadata returns beside the unchecked M1 row; the gate contract therefore does not permit an addressed disposition.
+          round: 3
+      boundary: M1
+      blocked: true
 ---
 
 # Gate ledger — pair#149 (boundary-review)
@@ -164,10 +194,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-11** [Important] `milestone-state-truthfulness` the project records M1 closed while its milestone row and boundary remain open
   workshop/projects/couch.md leaves pair#149 M1 unchecked but records actual and closed metadata, contradicting the issue log's acceptance rule.
 
+## Round 3 — 2026-08-26T12:39:39-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-2 — not-addressed — The new claim scans only the ScopedPaths inventory; a source sweep found at least 18 current tag-owned filename shapes outside it, so orphaned artifacts such as draft-pane-, image-capture-, parked-, slug-, and review-* remain claimable. This is the 3rd finding in family composite-address-collision-domain.
+- BR-3 — addressed — The plan classifies namespace resolution and the current effectful Operation surface as integration, and TestIssue149CurrentCoreConceptKinds fails on the prior table.
+- BR-8 — addressed — The comment now describes opaque allocation, and TestOpaqueIdentityCommentDoesNotReintroducePathDerivedContract rejects both exact obsolete claims from the prior text.
+- BR-9 — addressed — Couch and native Pair now acquire one O_EXCL marker before creation; concurrent-winner and cross-producer tests fail if that shared atomic authority is removed.
+- BR-10 — addressed — README removes couch stop from the external command list, documents the pre-147 owner-routing limitation, and the regression fails on the prior advertised spelling.
+- BR-11 — not-addressed — The premature closed field was removed, but no regression fails if closed metadata returns beside the unchecked M1 row; the gate contract therefore does not permit an addressed disposition.
+
 ## Open findings
 
-- **BR-3** [Critical] `core-concept-kind-contract` the Core concepts table labels a filesystem-backed namespace PURE and names a nonexistent integration
-- **BR-8** [Minor] `identity-comment-truthfulness` Spawn still comments that tags derive from trees and same-tree starts resume one session
-- **BR-9** [Critical] `composite-address-collision-domain` scoped artifact checking is a racy preflight rather than an atomic address claim
-- **BR-10** [Important] `owner-required-command-reachability` README advertises couch stop although an active supervisor makes the CLI route refuse
+- **BR-2** [Critical] `composite-address-collision-domain` opaque tag allocation checks ThreadStore records but not scoped artifacts
 - **BR-11** [Important] `milestone-state-truthfulness` the project records M1 closed while its milestone row and boundary remain open

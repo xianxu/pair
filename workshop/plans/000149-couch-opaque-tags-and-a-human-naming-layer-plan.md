@@ -913,3 +913,19 @@ marker. `Operation` is classified as integration until M3 separates declaration
 from execution. README exposes live-owner start/stop through the root console
 and names #147 for second-process routing; project `closed` remains absent until
 the boundary succeeds (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — close the full artifact and project-state classes
+
+**Reason:** the third M1 boundary review showed that an inventory limited to
+`ScopedPaths` omitted active tag-bearing paths produced by Go, Lua, and layouts,
+and that removing premature project close metadata lacked a load-bearing
+invariant.
+
+**Delta:** collision recognition is now a structural filename-boundary rule
+inside Pair's owned scope rather than a hand-maintained family list. It covers
+all current non-`ScopedPaths` artifacts and arbitrary future families while
+rejecting neighboring tags; the global session index remains a strict separate
+representation. A reusable project-artifact contract walks every milestone
+detail block and rejects non-empty `closed` metadata whenever its referenced
+task row is unchecked. Both corrections have explicit red-without-fix tests
+(ARCH-DRY, ARCH-PURPOSE).

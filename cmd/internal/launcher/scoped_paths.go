@@ -107,39 +107,29 @@ func (p ScopedPaths) ThreadClaim() string {
 	return filepath.Join(p.ScopeDir(), "thread-claim-"+p.Tag+".json")
 }
 
-// OwnsTagArtifact is the single inventory for filenames whose identity is a
-// Pair tag. Allocation and migration use it to prevent a new thread from
-// adopting any durable sidecar that already belongs to another one.
+// OwnsTagArtifact recognizes every tag-bearing filename in a Pair-owned scope,
+// including families introduced by non-Go consumers. Pair filenames delimit a
+// tag with '-' on the left and end, '.', or '-' on the right. This boundary
+// rule covers future families without a second hand-maintained prefix enum;
+// conservative false positives are safe because allocation retries a random
+// opaque tag.
 func OwnsTagArtifact(name, tag string) bool {
-	exact := map[string]bool{
-		"ledger-" + tag + ".jsonl":        true,
-		"draft-" + tag + ".md":            true,
-		"log-" + tag + ".md":              true,
-		"queue-" + tag:                    true,
-		"agent-" + tag:                    true,
-		"agent-pid-" + tag:                true,
-		"agent-output-" + tag:             true,
-		"agent-picks-" + tag:              true,
-		"adapt-" + tag + ".jsonl":         true,
-		"outer-tty-" + tag:                true,
-		"nvim-pid-" + tag + "-draft":      true,
-		"nvim-pid-" + tag + "-scrollback": true,
-		"thread-claim-" + tag + ".json":   true,
+	if tag == "" {
+		return false
 	}
-	if exact[name] {
-		return true
-	}
-	for _, prefix := range []string{
-		"config-" + tag + "-",
-		"agent-ready-" + tag + "-",
-		"pane-" + tag + "-",
-		"scrollback-" + tag + "-",
-		"changelog-" + tag + "-",
-		"draft-" + tag + "-",
-	} {
-		if strings.HasPrefix(name, prefix) {
+	for offset := 0; offset <= len(name)-len(tag); {
+		relative := strings.Index(name[offset:], tag)
+		if relative < 0 {
+			return false
+		}
+		start := offset + relative
+		end := start + len(tag)
+		left := start == 0 || name[start-1] == '-'
+		right := end == len(name) || name[end] == '.' || name[end] == '-'
+		if left && right {
 			return true
 		}
+		offset = start + 1
 	}
 	return false
 }

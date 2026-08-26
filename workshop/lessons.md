@@ -2039,10 +2039,12 @@ drafts, configs, logs, and detached-session bindings could therefore already
 own the same composite address even when no ThreadStore record existed.
 
 **Rule.** Before claiming a generated identity, enumerate and check every
-durable representation that can resolve to it. Build the regression table from
-the canonical path constructor rather than representative filenames, and keep
-the collision seam explicit until all producers share one transaction
-(ARCH-DRY, ARCH-PURPOSE).
+durable representation that can resolve to it. Prefer a structural ownership
+rule that covers the whole namespace (here: an exact tag token with filename
+boundaries inside Pair's owned scope) over a prefix enum: constructors in Go,
+Lua, layouts, and future consumers otherwise drift independently. Keep the
+collision seam explicit until all producers share one transaction (ARCH-DRY,
+ARCH-PURPOSE).
 
 A scan followed by a separate claim is still a collision bug: another producer
 can create state in the interval. The shared authority must be acquired first

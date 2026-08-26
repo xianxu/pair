@@ -89,3 +89,34 @@ func TestScopedArtifactCollisionCheckerFindsDetachedSessionBinding(t *testing.T)
 		t.Fatalf("session binding claim = %T, %v", claim, err)
 	}
 }
+
+func TestScopedArtifactClaimerRejectsNonScopedPathsAndFutureFamilies(t *testing.T) {
+	dataDir := t.TempDir()
+	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
+	paths := launcher.NewScopedPaths(dataDir, launcher.RepoScope{Key: address.RepoScope}, string(address.Tag))
+	if err := os.MkdirAll(paths.ScopeDir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{
+		"draft-pane-couch-0001020304050607.json",
+		"image-capture-couch-0001020304050607.done",
+		"parked-scrollback-couch-0001020304050607-20260826.raw",
+		"last-terminal-pane-couch-0001020304050607",
+		"review-definition-request-couch-0001020304050607.json",
+		"future-family-couch-0001020304050607-variant.bin",
+	} {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(paths.ScopeDir(), name)
+			if err := os.WriteFile(path, []byte("owned"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			claim, err := NewScopedThreadArtifactCollisionChecker(dataDir).Claim(address)
+			if !errors.Is(err, launcher.ErrThreadAddressClaimed) || claim != nil {
+				t.Fatalf("Claim = %T, %v", claim, err)
+			}
+			if err := os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}

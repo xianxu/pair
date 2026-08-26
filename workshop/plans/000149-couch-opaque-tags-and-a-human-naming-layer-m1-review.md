@@ -317,3 +317,119 @@ findings:
     detail: |
       workshop/projects/couch.md leaves pair#149 M1 unchecked but records actual and closed metadata, contradicting the issue log's acceptance rule.
 ```
+
+---
+
+## Re-review — 2026-08-26T12:39:39-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 149 — couch: opaque tags and a human naming layer |
+| repo | pair |
+| issue file | workshop/issues/000149-couch-opaque-tags-and-a-human-naming-layer.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | a271432590da8a4177fea6c523607182536861a2^..1587f8efa6fb4ecd62b4f1b4c873bfcdb92022c4 |
+| command | sdlc milestone-close --issue 149 --milestone M1 |
+| reviewer | codex |
+| timestamp | 2026-08-26T12:39:39-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The shared O_EXCL claim resolves BR-9’s race, and the policy, namespace, documentation, and project-state edits are directionally correct. The boundary still cannot close: BR-2’s artifact collision sweep remains incomplete, while BR-11 has no regression test and therefore cannot be disposed as addressed under this gate’s explicit red-without-fix rule.
+
+## 1. Strengths
+
+- The O_EXCL marker now serializes Couch and native Pair creation before either writes artifacts. The concurrent-winner and cross-producer tests are meaningful filesystem-backed coverage in [thread_claim_test.go](/Users/xianxu/workspace/pair/cmd/internal/launcher/thread_claim_test.go:11).
+- BR-3 is pinned: [plan_contract_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/plan_contract_test.go:11) rejects the previous PURE classifications for both namespace resolution and the effectful `Operation` surface.
+- BR-8 and BR-10 have regressions containing the exact superseded text, so restoring the prior comment or README command makes them fail.
+- Admission remains conservative after client death, provider epochs are reconciled outside the store lock, and live conformance against the real Ariadne provider passes.
+- README and atlas comprehensively describe the new namespace, admission, opaque identity, and owner-routing limitations.
+
+## 2. Critical findings
+
+### BR-2 remains open — the scoped-artifact inventory omits active tag-owned families
+
+[OwnsTagArtifact](/Users/xianxu/workspace/pair/cmd/internal/launcher/scoped_paths.go:110) recognizes only constructors represented by `ScopedPaths`, and its coverage test merely iterates that same hand-maintained subset. Production still creates tag-owned artifacts outside it, including:
+
+- `draft-pane-<tag>.json` in [route.go](/Users/xianxu/workspace/pair/cmd/internal/draftroute/route.go:61)
+- `image-capture-`, `pair-wrap-pid-`, and `wrap-events-` in [wrap.go](/Users/xianxu/workspace/pair/cmd/internal/wrapcmd/wrap.go:448)
+- `parked-` and `parked-scrollback-` in [osruntime.go](/Users/xianxu/workspace/pair/cmd/internal/launcher/osruntime.go:764)
+- `last-left-pane-`, `last-terminal-pane-`, and `terminal-panes-` in [shortcut.go](/Users/xianxu/workspace/pair/cmd/internal/workbenchshortcut/shortcut.go:420)
+
+A source sweep found at least 18 omitted filename shapes, also including title, layout, quote, slug, and review artifacts. An orphaned omitted artifact therefore still permits opaque allocation to adopt an existing tag address.
+
+This is the 3rd finding in family `composite-address-collision-domain`. Do not add these examples individually. Establish one checked inventory derived by every production constructor, and add a source-level coverage test so introducing any unclassified tag-bearing path fails. This flags ARCH-DRY and ARCH-PURPOSE.
+
+## 3. Important findings
+
+### BR-11 remains open — project-state correction has no load-bearing regression
+
+The erroneous `**closed:**` field was removed from [couch.md](/Users/xianxu/workspace/pair/workshop/projects/couch.md:175), while the M1 row remains open. However, no test or tracker contract fails if closed metadata is restored beside an unchecked milestone. Under the supplied prior-finding protocol, a plausible edit without a red-without-fix test is `not-addressed`.
+
+Fix sketch: add a reusable project-state contract asserting that an unchecked milestone cannot carry accepted/closed metadata. Avoid a one-off pair#149 string check; this is the 2nd finding in family `milestone-state-truthfulness`.
+
+## 4. Minor findings
+
+None.
+
+## 5. Test coverage notes
+
+Fresh verification:
+
+- `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/internal/launcher -count=1` — pass.
+- `go test -race ./cmd/internal/couchcore ./cmd/internal/launcher -count=1` — pass.
+- `go test ./... -count=1` — pass on rerun.
+- `make test-couch-policy-live SDLC_BIN=../ariadne/bin/sdlc` — pass.
+- Exact-window `git diff --check` — pass.
+
+The first full-suite run hit a pre-existing launcher fake’s five-second subprocess timeout. The focused test then passed five consecutive runs, and the full rerun passed; no change in this boundary touched that test.
+
+## 6. Architectural notes for upcoming work
+
+- **ARCH-DRY — flag.** `OwnsTagArtifact` claims to be the single inventory, but numerous production constructors live outside it.
+- **ARCH-PURE — pass.** Namespace and operations are now truthfully classified as integration; admission decisions remain pure and directly unit-tested.
+- **ARCH-PURPOSE — flag.** Atomic producer serialization landed, but the promised complete scoped-artifact collision domain did not.
+- **ARCH-MOCK — pass.** Filesystem claims use real portable directories, process/policy seams have stateful fakes, and the policy seam has passing live conformance.
+
+## 7. Plan revision recommendations
+
+Append a `## Revisions` entry recording:
+
+1. M1’s collision authority must derive from a checked enumeration of every current tag-bearing constructor, including Go and Lua consumers—not only `ScopedPaths`.
+2. The enumeration needs a source-level coverage regression so an unclassified constructor fails automatically.
+3. Project milestone metadata requires a reusable invariant test: unchecked boundary rows cannot carry accepted/closed state.
+
+```findings
+dispose:
+  - id: BR-2
+    disposition: not-addressed
+    note: |
+      The new claim scans only the ScopedPaths inventory; a source sweep found at least 18 current tag-owned filename shapes outside it, so orphaned artifacts such as draft-pane-, image-capture-, parked-, slug-, and review-* remain claimable. This is the 3rd finding in family composite-address-collision-domain.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      The plan classifies namespace resolution and the current effectful Operation surface as integration, and TestIssue149CurrentCoreConceptKinds fails on the prior table.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      The comment now describes opaque allocation, and TestOpaqueIdentityCommentDoesNotReintroducePathDerivedContract rejects both exact obsolete claims from the prior text.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Couch and native Pair now acquire one O_EXCL marker before creation; concurrent-winner and cross-producer tests fail if that shared atomic authority is removed.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      README removes couch stop from the external command list, documents the pre-147 owner-routing limitation, and the regression fails on the prior advertised spelling.
+  - id: BR-11
+    disposition: not-addressed
+    note: |
+      The premature closed field was removed, but no regression fails if closed metadata returns beside the unchecked M1 row; the gate contract therefore does not permit an addressed disposition.
+```

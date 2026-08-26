@@ -200,8 +200,11 @@ Composite allocation and Pair artifacts share one durable address authority:
 ThreadStore record or native Pair writes a sidecar/session binding. Couch writes
 a reserved claim; only the child carrying the exact scope/tag establishes it.
 Direct Pair creates an established claim before its first artifact and adopts
-historical tags into the same scheme. The canonical `ScopedPaths` inventory
-drives collision recognition, and a malformed session-name index fails closed.
+historical tags into the same scheme. Within Pair's owned scope directory, a
+generic delimiter rule recognizes any filename carrying the exact tag, so Go,
+Lua, layout, and future artifact families need no parallel prefix enum. The
+global session binding remains a separately strict check; malformed indexes
+fail closed.
 
 The child receives the canonical namespace plus `COUCH_THREAD_SCOPE` and
 `COUCH_THREAD_TAG`, and launches as `pair resume <opaque-tag> --layout2`.
