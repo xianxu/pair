@@ -675,6 +675,11 @@ passes: a cancelled pre-exec helper produces EOF and the exact unregistered
 nonce rolls back; an acknowledged target with the matching established Pair
 claim survives reconstruction and promotes live.
 
+M2 close verification passes: `make test`; race tests for couchcore, launcher,
+and ptychild; live Ariadne policy conformance; the committed real-process start
+recovery probe; `go vet ./...`; Zellij config and both layouts; and
+`git diff --check`.
+
 ### 2026-08-26 — M1 admission kernel integrated
 - 2026-08-26: closed M1 — make test; go test ./... -count=1; go test -race ./cmd/internal/couchcore ./cmd/internal/launcher -count=1; make test-couch-policy-live SDLC_BIN=../ariadne/bin/sdlc; zellij config and main-2/main-3 layout validation; git diff --check; review verdict: SHIP
 
