@@ -162,7 +162,12 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 	}
 	scope, scopeErr := ResolveRepoScope(scopeRoot)
 	threadIndex, threadIndexErr := rt.ReadThreadIndex()
-	if scopeErr == nil && threadIndexErr == nil {
+	threadIndexAvailable := threadIndexErr == nil
+	if threadIndexErr != nil && !errors.Is(threadIndexErr, ErrThreadIndexAbsent) {
+		fmt.Fprintf(stderr, "pair: failed to read couch thread index: %v\n", threadIndexErr)
+		return launchStep{code: 1}, nil
+	}
+	if scopeErr == nil && threadIndexAvailable {
 		historical = MergeThreadHistory(historical, threadIndex, scope)
 	}
 	// A 📁 name typed at `pair resume` is still a NAME here; turn it into a tag
@@ -178,7 +183,7 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 		knownDirectTag = scopedArtifactsContainTag(rt, opts.GlobalDataDir, scope, opts.Args.ForcedTag)
 	}
 	if !knownDirectTag {
-		resolved, resolvedOK = resolveResumeTag(rt, scopeKey, opts.Args.ForcedTag)
+		resolved, resolvedOK = resolveResumeTag(rt, threadIndex, threadIndexAvailable, scopeKey, opts.Args.ForcedTag)
 	}
 	if resolvedOK {
 		opts.Args.ForcedTag = resolved
@@ -194,7 +199,7 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 	if !ok {
 		return launchStep{code: 1}, nil
 	}
-	if scopeErr == nil && threadIndexErr == nil {
+	if scopeErr == nil && threadIndexAvailable {
 		scopedSessions = DecorateThreadSessions(scopedSessions, threadIndex, scope)
 	}
 	snap := SessionSnapshot{BaseTag: base, Sessions: scopedSessions, Historical: historical, SessionNames: sessionNames}
@@ -842,14 +847,14 @@ func firstNonEmpty(vals ...string) string {
 // resolveResumeTag resolves both public zellij names and durable thread
 // names/tags. An unknown bare value remains a legacy direct-Pair tag; an
 // ambiguous thread name and a non-invertible unknown 📁 name fail closed.
-func resolveResumeTag(rt Runtime, scopeKey, arg string) (string, bool) {
+func resolveResumeTag(rt Runtime, index ThreadIndex, indexAvailable bool, scopeKey, arg string) (string, bool) {
 	if arg == "" {
 		return "", true
 	}
 	if strings.HasPrefix(arg, sessionPrefix) {
 		return resolveSessionNameTag(rt, arg)
 	}
-	if index, err := rt.ReadThreadIndex(); err == nil {
+	if indexAvailable {
 		matches, resolveErr := ResolveThreadIndexReference(index.Entries, scopeKey, arg)
 		if resolveErr == nil {
 			return matches[0].Address.Tag, true

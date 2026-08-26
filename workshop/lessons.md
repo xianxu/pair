@@ -2121,3 +2121,42 @@ their claimed direct tests were not.
 process, network, or integration fake. Put store/runner conformance in an
 explicitly integration-named file, and mechanically reject integration seams
 from the direct-test files (ARCH-PURE).
+
+## Optional durable indexes need a typed absence state
+
+An optional index reader cannot collapse missing, corrupt, and incomplete into
+one error branch. Once durable authority exists, falling back to legacy lookup
+can silently create a second identity.
+
+**Rule.** Tolerate only a typed absent-store result. Propagate every malformed
+or incomplete authoritative read before any launch or mutation, and test both
+directions through the production decision flow (ARCH-PURPOSE).
+
+## Required string arguments validate presence, not truthiness
+
+Empty strings can be meaningful commands, especially clearing metadata. A
+schema check using `value == ""` erases the distinction a patch type preserved.
+
+**Rule.** Validate required map keys by membership. Let the operation-specific
+executor decide whether an explicitly empty value is valid, and pin every
+declared clearing path.
+
+## Composite references carry their collision domain
+
+A tag, path, or human name is not an address when the same value can occur in
+several repository scopes. Correct storage does not help if one CLI consumer
+drops scope before resolution.
+
+**Rule.** Every composite-address consumer either carries the exact address or
+derives scope at its boundary. Test a repeated tag across scopes at the public
+entry point, including reads as well as writes (ARCH-PURPOSE).
+
+## A declared effect needs one mechanically enforced authority
+
+Routing most calls through a dispatcher still leaves two semantics if a
+startup path can invoke the primitive directly.
+
+**Rule.** Keep the lowest effect primitive private to its executor's package,
+then test the typed declaration emitted by each external wiring path. This
+turns dispatcher bypass into a compile error rather than a review convention
+(ARCH-DRY, ARCH-PURPOSE).

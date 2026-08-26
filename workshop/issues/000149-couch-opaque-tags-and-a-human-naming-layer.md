@@ -993,3 +993,17 @@ attach refuse until #147 supplies transport. Explicit empty descriptions now
 flow through dispatch as a clear rather than a read. The prescribed operation
 suite and full `go test ./... -count=1` pass (ARCH-DRY, ARCH-PURE,
 ARCH-PURPOSE).
+
+### 2026-08-26 — resolve first M3 boundary findings
+
+The REWORK review produced BR-18 through BR-23. ThreadIndex loading now treats
+only a genuinely absent manifest as legacy-compatible; corrupt or incomplete
+authoritative state stops standalone Pair before launch. Required operation
+arguments use presence semantics, preserving explicit-empty clearing for human
+names and agent summaries. CLI show/name/describe derive the current Git-root
+scope and a repeated-tag regression proves they read or mutate only that
+repository's thread. Initial console attachment now dispatches the same typed
+`attach` declaration as panel-start attachment, with the composite pane
+primitive hidden behind the console executor. The plan's architectural entity
+table and README's complete M3 surface were audited rather than patched one
+cell or command at a time (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).

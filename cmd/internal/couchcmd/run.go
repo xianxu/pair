@@ -29,6 +29,7 @@ import (
 type Runtime interface {
 	Getenv(string) string
 	StoreDir() string
+	CurrentRepoScope() (string, error)
 	ResolveNamespace() (couchcore.CouchNamespace, error)
 	AcquireSupervisor(couchcore.CouchNamespace) (io.Closer, error)
 	// NewCouchWith builds the domain against a caller-supplied Runner. The
@@ -51,6 +52,26 @@ func (r OSRuntime) StoreDir() string {
 	// scope directory would mean spawning in /a and listing from /b read
 	// different files.
 	return filepath.Join(launcher.ResolveDataDir(r.Getenv("HOME"), r.Getenv("XDG_DATA_HOME")), "couch")
+}
+
+func (r OSRuntime) CurrentRepoScope() (string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("get startup cwd: %w", err)
+	}
+	return resolveCurrentRepoScope(cwd, couchcore.ExecGit{}, couchcore.OSPathOps{})
+}
+
+func resolveCurrentRepoScope(cwd string, git couchcore.GitRunner, paths couchcore.PathOps) (string, error) {
+	tree, err := couchcore.Resolve(cwd, git, paths)
+	if err != nil {
+		return "", err
+	}
+	scope, err := launcher.ResolveRepoScope(string(tree))
+	if err != nil {
+		return "", err
+	}
+	return scope.Key, nil
 }
 
 func (r OSRuntime) ResolveNamespace() (couchcore.CouchNamespace, error) {
@@ -139,6 +160,14 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		fmt.Fprintf(stderr, "couch %s: %v\n", op.Name, err)
 		return 2
 	}
+	if operationUsesCurrentRepoScope(op.Name) {
+		scope, err := rt.CurrentRepoScope()
+		if err != nil {
+			fmt.Fprintf(stderr, "couch %s: resolve current repository scope: %v\n", op.Name, err)
+			return 1
+		}
+		parsed["repo-scope"] = scope
+	}
 	namespace, err := rt.ResolveNamespace()
 	if err != nil {
 		fmt.Fprintf(stderr, "couch: %v\n", err)
@@ -188,6 +217,15 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		}
 	}
 	return render(stdout, op, result)
+}
+
+func operationUsesCurrentRepoScope(name string) bool {
+	switch name {
+	case "show", "name", "describe":
+		return true
+	default:
+		return false
+	}
 }
 
 // consoleRunner decides which Runner this invocation gets, and builds the
@@ -252,7 +290,7 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 	// and the panel would silently degrade to "show everything".
 	wireResolver(console, c)
 
-	th, ok := start.Handle.(couchcore.TerminalHandle)
+	_, ok := start.Handle.(couchcore.TerminalHandle)
 	if !ok {
 		// A runner that cannot offer a terminal: fall back rather than crash.
 		fmt.Fprintf(stdout, "couch: no terminal available; running without a console\n")
@@ -261,9 +299,27 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 		}
 		return 1
 	}
-	label := start.Record.Args.Worktree.Repo()
-	console.AttachThreadActor(start.Handle.ID(), start.Record.ID, start.Record.Thread, start.Record.Args.Worktree, label, th.Terminal())
+	if err := dispatchInitialAttach(console, start); err != nil {
+		renderError(stdout, err)
+		return 1
+	}
 	return console.Run()
+}
+
+func dispatchInitialAttach(console *couchtty.Console, start couchcore.StartResult) error {
+	dispatch := console.Ops()
+	if dispatch == nil {
+		return fmt.Errorf("console operation dispatcher is unavailable")
+	}
+	_, err := dispatch(couchcore.OperationCall{
+		Name: "attach",
+		Args: map[string]string{
+			"repo-scope": start.Record.Thread.RepoScope,
+			"tag":        string(start.Record.Thread.Tag),
+		},
+		Implicit: true, TypedPayload: start,
+	})
+	return err
 }
 
 // wireResolver gives the panel couch's OWN match rule.

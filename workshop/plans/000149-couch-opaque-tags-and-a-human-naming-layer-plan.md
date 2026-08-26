@@ -41,11 +41,11 @@ remains #153. #149 returns typed refusals for those unavailable outcomes.
 | `CouchNamespace` / `ResolveCouchNamespace` | integration | `cmd/internal/couchcore/namespace.go` | new in M1 |
 | `PolicyResult` / `PolicyCapacity` | pure | `cmd/internal/couchcore/policyresolver.go` | new in M1 |
 | `AdmissionDecision` | pure | `cmd/internal/couchcore/admission.go` | new in M1 |
-| `PolicyTable` / repository `Mode` | pure | `cmd/internal/couchcore/policy.go` | deleted in M1 |
-| `ThreadAddress` / minimal `ThreadRecord` | pure | `cmd/internal/couchcore/thread.go` | new in M1, widened in M2 |
+| `ThreadAddress` / `ThreadRecord` | pure | `cmd/internal/couchcore/thread.go` | new in M1, widened in M2 and M3 |
 | `StartTransaction` | pure | `cmd/internal/couchcore/starttransaction.go` | new in M2 |
-| `ThreadMetadata` / `ThreadSummary` | pure | `cmd/internal/couchcore/threadmetadata.go`, `threadinventory.go` | new in M3 |
-| `Operation` effect/owner declaration | integration | `cmd/internal/couchcore/ops.go` | modified in M1; split into pure declarations/executors in M3 |
+| `ThreadMetadataPatch` / `ApplyThreadMetadata` | pure | `cmd/internal/couchcore/threadmetadata_model.go` | new in M3 |
+| `ThreadSummary` / `BuildThreadInventory` | pure | `cmd/internal/couchcore/threadinventory.go` | new in M3 |
+| `Operation` / `Operations` effect-owner declarations | pure | `cmd/internal/couchcore/ops.go` | modified in M1; split from executors in M3 |
 | `LaunchProfileResolution` | pure | `cmd/internal/couchcore/launchprofile.go` | new in M4 |
 | `ArtifactFamily` | pure | `cmd/internal/artifactpath/paths.go` | new in M5 |
 
@@ -76,9 +76,11 @@ remains #153. #149 returns typed refusals for those unavailable outcomes.
 | `SupervisorLease` | `cmd/internal/couchcore/supervisorlease.go`, `supervisorlease_unix.go` | new in M1 | non-inheritable OS advisory lock and owner metadata through existing `ProcOps` identity |
 | `PolicyResolver` / `ExecPolicyResolver` | `cmd/internal/couchcore/policyresolver.go`, `policyresolver_exec.go` | new in M1 | `sdlc fleet policy` subprocess |
 | `ThreadStore` | `cmd/internal/couchcore/threadstore.go` | new in M1, widened later | filesystem lock, per-thread records, WAL/manifest |
+| `ThreadStore.ApplyThreadMetadata` | `cmd/internal/couchcore/threadmetadata.go` | new in M3 | revision-CAS store transition and reference snapshot |
 | `LaunchHelper` | `cmd/internal/couchcore/launchhelper.go`, `cmd/pair-launch-helper/main.go` | new in M2 | fork/exec acknowledgement boundary |
 | `SessionQuiescence` | `cmd/internal/launcher/session_quiescence.go` | new in M2 | observable zellij session/server teardown |
-| `OperationExecutors` | `cmd/internal/couchcore/operationdispatch.go` | new in M3 | direct-store effects and optional live-owner effects |
+| `DispatchOperation` / `OperationExecutors` / `DirectStoreExecutor` / `CouchLiveOwnerExecutor` | `cmd/internal/couchcore/operationdispatch.go` | new in M3 | validated dispatch, direct-store effects, and optional live-owner effects |
+| `Console.ExecuteConsoleOperation` | `cmd/internal/couchtty/console.go` | new in M3 | terminal-local switch and typed attach effects |
 | `AgentInventory` / repo defaults | `cmd/internal/launcher/agent_defaults.go` | modified in M4 | supported harnesses and scoped argv defaults |
 
 Every integration has a stateful fake or real-process conformance test. In
@@ -1087,3 +1089,27 @@ matches the target zellij server and records the injected production
 sentinel, so successful conformance now requires real process-table discovery,
 start-identity reauthorization, and the underlying OS kill operation before
 verified absence (ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — incorporate M3 boundary review
+
+**Reason:** the first M3 boundary review found five unreachable or parallel
+contracts plus stale public documentation: authoritative ThreadIndex failures
+fell back to legacy launch, empty required metadata values were treated as
+missing, CLI reference consumers lost repository scope, initial terminal
+attachment bypassed the operation dispatcher, and the Core concepts table no
+longer matched the implemented purity boundary.
+
+**Delta:** absence of a Couch index is now a typed condition distinct from
+malformed or incomplete durable state, which fails closed. Every CLI consumer
+of a mutable composite reference (`show`, `name`, and `describe`) derives the
+current Git-root scope; exact-address callers continue to carry both scope and
+tag. Required operation arguments validate map presence so empty metadata
+values retain their clearing meaning. Both initial and later attachment use
+the declared typed `attach` effect, and the exact pane-registration primitive
+is private to the console package. The architecture tables now obey the rule
+that each row names a greppable entity with exactly one architectural kind:
+metadata transition and operation declarations are PURE, while store CAS and
+dispatch executors are INTEGRATION. Task 2's implemented inventory placement
+is `threadinventory.go`; its planned `couch.go`/`couch_test.go` changes were not
+needed. README now inventories the full M3 command, lookup, rendering, picker,
+and empty-value behavior (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).

@@ -24,18 +24,6 @@ func metadataThread(scope string, tag ThreadTag, path, name string) ThreadRecord
 
 func metadataValue(value string) *string { return &value }
 
-func TestApplyThreadMetadataPreservesIndependentFields(t *testing.T) {
-	record := metadataThread("816fc349d3faebf8", "couch-0102030405060708", "/repo/task", "old name")
-
-	next := ApplyThreadMetadata(record, ThreadMetadataPatch{Name: metadataValue("")})
-	if next.Name != "" || next.Description != record.Description || next.PublishedSummary != record.PublishedSummary {
-		t.Fatalf("metadata patch crossed fields: %+v", next)
-	}
-	if record.Name != "old name" {
-		t.Fatalf("ApplyThreadMetadata mutated its input: %+v", record)
-	}
-}
-
 func TestThreadStoreMetadataUpdateUsesRevisionCAS(t *testing.T) {
 	store, _ := newTestThreadStore(t)
 	record := metadataThread("816fc349d3faebf8", "couch-0102030405060708", "/repo/task", "old name")

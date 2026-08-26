@@ -17,12 +17,14 @@ func TestIssue149CurrentCoreConceptKinds(t *testing.T) {
 	}
 	defer f.Close()
 	want := map[string]string{
-		"CouchNamespace":    "integration",
-		"PolicyResult":      "pure",
-		"AdmissionDecision": "pure",
-		"PolicyTable":       "pure",
-		"ThreadAddress":     "pure",
-		"Operation":         "integration",
+		"CouchNamespace":      "integration",
+		"PolicyResult":        "pure",
+		"AdmissionDecision":   "pure",
+		"ThreadAddress":       "pure",
+		"StartTransaction":    "pure",
+		"ThreadMetadataPatch": "pure",
+		"ThreadSummary":       "pure",
+		"Operation":           "pure",
 	}
 	seen := map[string]bool{}
 	inTable := false
@@ -99,7 +101,7 @@ func TestOpaqueIdentityCommentDoesNotReintroducePathDerivedContract(t *testing.T
 }
 
 func TestIssue149PureCoreTestsStayAtPureBoundary(t *testing.T) {
-	for _, name := range []string{"thread_test.go", "starttransaction_test.go", "admission_test.go"} {
+	for _, name := range []string{"thread_test.go", "starttransaction_test.go", "admission_test.go", "threadmetadata_model_test.go", "ops_declarations_test.go"} {
 		raw, err := os.ReadFile(name)
 		if err != nil {
 			t.Fatal(err)

@@ -266,16 +266,35 @@ still works. See [atlas/couch.md](atlas/couch.md).
 ```
 couch start [<repo>]     host a session in this terminal (default: .)
 couch start . --no-console   spawn without taking the terminal (no pty, no row)
-couch list               every registered actor across all worktrees
-couch show <ref>         the actors on one tree, by path or name
-couch name <ref> <name>  give a tree a short human name
-couch describe <ref> [<text>]  read or set a tree's one-line description
+couch list               every durable work thread across all repositories
+couch show <ref>         one current-repository thread by tag, path, or name
+couch name <ref> <name>  set a thread's short human name ("" clears it)
+couch describe <ref> [<text>]  read or set its operator description ("" clears)
+couch publish-description <text>  publish this hosted agent's summary ("" clears)
 ```
 
-Start and stop are live-owner operations. The root console invokes them through
-its panel; a second `couch` process cannot route them while that console holds
-the singleton namespace. The `couch stop` CLI spelling is therefore not usable
-against a live root console; cross-process owner routing belongs to Pair #147.
+`<ref>` resolution for `show`, `name`, and `describe` is scoped to the Git
+repository containing the current directory. An exact opaque tag wins; human
+name and canonical working path are also accepted, and an ambiguous match
+refuses instead of choosing. `list` is intentionally global. It renders one
+row per `{repository scope, opaque tag}` even when several threads share one
+path. A human name leads when present; otherwise the opaque tag is the label.
+The agent-published summary is displayed ahead of the operator description,
+without overwriting it.
+
+Omit the description from `couch describe <ref>` to read it. Pass an explicit
+empty string to `name`, `describe`, or `publish-description` to clear only that
+field. `publish-description` uses the exact scope and tag injected into a
+couch-hosted session, so it refuses outside one rather than resolving mutable
+human text.
+
+Start, stop, switch, and attach are live-owner operations. The root console
+invokes them through the same declared operation dispatcher used by the CLI and
+future advisor; switch and attach carry exact composite addresses and are
+console-internal. A second `couch` process cannot route these operations while
+the console holds the singleton namespace. The `couch stop`, `switch`, and
+`attach` CLI spellings are therefore not usable against a live root console;
+cross-process owner routing belongs to Pair #147.
 
 Every `couch start` allocates a distinct opaque durable thread. Admission comes
 from the repository's normalized Ariadne fleet policy (`sdlc fleet policy`): a
@@ -323,7 +342,7 @@ identity; Tab is intentionally inactive for now.
 pair                             # default: claude
 pair <agent>                     # claude / codex / agy
 pair <agent> --layout3           # workbench with the user terminal on the right
-pair resume <tag>                # restart a tag with its saved config (native session)
+pair resume <tag-or-thread-name> # restart by opaque tag or scoped human thread name
 pair continue                    # list saved continuations (durable session handoffs)
 pair continue <slug> [agent]     # new session seeded from a continuation doc; prompts
                                  # for the tag, and forwards -- <args> to the agent
@@ -343,6 +362,15 @@ pair keys                        # in-session keybindings (what Alt+h shows)
 pair version, --version          # print launcher version metadata
 pair -h, --help                  # show full help
 ```
+
+Standalone Pair reads Couch's durable thread index without requiring Couch to
+be running. Its resume picker includes parked threads, displays human names
+ahead of opaque tags, and adds the tag when duplicate labels need
+disambiguation; selection still resumes the opaque tag and its existing
+artifacts. An existing direct-Pair tag takes precedence over fuzzy thread-name
+matching. A missing Couch store preserves legacy Pair behavior, while a
+malformed or incomplete index fails closed instead of launching the typed text
+as a new legacy tag.
 
 Use `--` to separate pair's positional from agent flags. Without it, pair only takes `<agent>` as a positional and everything else is rejected.
 

@@ -129,7 +129,10 @@ func Operations() []Operation {
 		{
 			Name: "show", Summary: "Show one work thread by tag, path, or name",
 			Execution: ExecuteDirectStore, Effect: EffectRead, Confirmation: ConfirmNone, Result: ResultThreadInventory,
-			Args: []ArgSpec{{Name: "ref", Summary: "thread tag, path, or operator-assigned name", Required: true}},
+			Args: []ArgSpec{
+				{Name: "ref", Summary: "thread tag, path, or operator-assigned name", Required: true},
+				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
+			},
 		},
 		{
 			Name: "stop", Summary: "Signal an actor's child and forget it",
@@ -142,7 +145,7 @@ func Operations() []Operation {
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "thread tag, path, or existing name", Required: true},
 				{Name: "name", Summary: "the new short name", Required: true},
-				{Name: "repo-scope", Summary: "optional repository scope from caller context", Implicit: true},
+				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
 			},
 		},
 		{
@@ -151,7 +154,7 @@ func Operations() []Operation {
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "thread tag, path, or name", Required: true},
 				{Name: "description", Summary: "omit to read the cached value", Required: false},
-				{Name: "repo-scope", Summary: "optional repository scope from caller context", Implicit: true},
+				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
 			},
 		},
 		{

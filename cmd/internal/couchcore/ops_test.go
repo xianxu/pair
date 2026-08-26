@@ -5,28 +5,6 @@ import (
 	"time"
 )
 
-func TestOperationsDeclareTheirExecutionOwner(t *testing.T) {
-	want := map[string]OperationExecution{
-		"start":               ExecuteLiveOwner,
-		"list":                ExecuteDirectStore,
-		"show":                ExecuteDirectStore,
-		"stop":                ExecuteLiveOwner,
-		"name":                ExecuteDirectStore,
-		"describe":            ExecuteDirectStore,
-		"publish-description": ExecuteDirectStore,
-		"switch":              ExecuteLiveOwner,
-		"attach":              ExecuteLiveOwner,
-	}
-	for _, op := range Operations() {
-		if op.Execution == ExecuteUnknown {
-			t.Errorf("%s has fail-open zero execution owner", op.Name)
-		}
-		if op.Execution != want[op.Name] {
-			t.Errorf("%s execution = %v, want %v", op.Name, op.Execution, want[op.Name])
-		}
-	}
-}
-
 func TestStartOperationDefaultsEmptyPathToDot(t *testing.T) {
 	cwd := NormalizePath(".")
 	env := newTestEnv(t, cwd)
@@ -100,6 +78,34 @@ func TestMetadataOperationsMutateCompositeThreadRecord(t *testing.T) {
 	if !ok || cleared.Description != "" || cleared.Name != "compiler" {
 		t.Fatalf("explicit empty description did not clear only that field: %#v", result)
 	}
+
+	result, err = dispatchTestOperation(env.Couch, "name", map[string]string{
+		"ref": string(created.Address.Tag), "name": "", "repo-scope": created.Address.RepoScope,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cleared = result.(ThreadRecord)
+	if cleared.Name != "" || cleared.Description != "" {
+		t.Fatalf("explicit empty name did not clear only that field: %#v", result)
+	}
+}
+
+func TestCompositeReferenceOperationsRefuseEmptyRepositoryScope(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	created := createOperationThread(t, env.Couch)
+	for _, call := range []struct {
+		name string
+		args map[string]string
+	}{
+		{"show", map[string]string{"ref": string(created.Address.Tag), "repo-scope": ""}},
+		{"name", map[string]string{"ref": string(created.Address.Tag), "name": "x", "repo-scope": ""}},
+		{"describe", map[string]string{"ref": string(created.Address.Tag), "repo-scope": ""}},
+	} {
+		if _, err := dispatchTestOperation(env.Couch, call.name, call.args); err == nil {
+			t.Errorf("%s accepted an empty collision domain", call.name)
+		}
+	}
 }
 
 func TestPublishDescriptionUsesExactCompositeContextAndDistinctField(t *testing.T) {
@@ -117,5 +123,18 @@ func TestPublishDescriptionUsesExactCompositeContextAndDistinctField(t *testing.
 	published := result.(ThreadRecord)
 	if published.PublishedSummary != "agent is fixing parser" || published.Description != "operator description" {
 		t.Fatalf("published metadata = %+v", published)
+	}
+
+	result, err = dispatchTestOperation(env.Couch, "publish-description", map[string]string{
+		"description": "",
+		"repo-scope":  created.Address.RepoScope,
+		"tag":         string(created.Address.Tag),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	published = result.(ThreadRecord)
+	if published.PublishedSummary != "" || published.Description != "operator description" {
+		t.Fatalf("explicit empty published summary did not clear only that field: %+v", published)
 	}
 }

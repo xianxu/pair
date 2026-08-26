@@ -88,7 +88,7 @@ func validateOperationCall(op Operation, call OperationCall) error {
 		}
 	}
 	for _, arg := range op.Args {
-		if arg.Required && call.Args[arg.Name] == "" {
+		if _, supplied := call.Args[arg.Name]; arg.Required && !supplied {
 			return fmt.Errorf("%s: missing required argument %q", op.Name, arg.Name)
 		}
 	}
@@ -116,12 +116,18 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 		case "list":
 			return c.ThreadInventory()
 		case "show":
-			matches, err := c.ResolveThreadReference("", a["ref"])
+			if err := requireOperationRepoScope(a); err != nil {
+				return nil, err
+			}
+			matches, err := c.ResolveThreadReference(a["repo-scope"], a["ref"])
 			if err != nil {
 				return nil, err
 			}
 			return BuildThreadInventory(matches), nil
 		case "name":
+			if err := requireOperationRepoScope(a); err != nil {
+				return nil, err
+			}
 			matches, err := c.ResolveThreadReference(a["repo-scope"], a["ref"])
 			if err != nil {
 				return nil, err
@@ -129,6 +135,9 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 			name := a["name"]
 			return c.ApplyThreadMetadata(matches[0].Address, ThreadMetadataPatch{Name: &name})
 		case "describe":
+			if err := requireOperationRepoScope(a); err != nil {
+				return nil, err
+			}
 			matches, err := c.ResolveThreadReference(a["repo-scope"], a["ref"])
 			if err != nil {
 				return nil, err
@@ -148,6 +157,13 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 			return nil, fmt.Errorf("%s is not a direct-store operation", call.Operation.Name)
 		}
 	}
+}
+
+func requireOperationRepoScope(args map[string]string) error {
+	if args["repo-scope"] == "" {
+		return fmt.Errorf("repository scope is unavailable")
+	}
+	return nil
 }
 
 // CouchLiveOwnerExecutor performs actor lifecycle effects owned by Couch. The

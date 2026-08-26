@@ -263,15 +263,17 @@ func (c *Console) AttachTree(id string, tree couchcore.Worktree, label string, c
 	c.AttachActor(id, couchcore.ActorID(id), tree, label, child)
 }
 
-// AttachActor is the legacy-address form of AttachThreadActor.
+// AttachActor is the legacy-address test/helper form of attachThreadActor.
 func (c *Console) AttachActor(handleID string, actorID couchcore.ActorID, tree couchcore.Worktree, label string, child *ptychild.Child) {
-	c.AttachThreadActor(handleID, actorID, couchcore.ThreadAddress{RepoScope: "legacy", Tag: couchcore.ThreadTag(actorID)}, tree, label, child)
+	c.attachThreadActor(handleID, actorID, couchcore.ThreadAddress{RepoScope: "legacy", Tag: couchcore.ThreadTag(actorID)}, tree, label, child)
 }
 
-// AttachThreadActor registers every identity a hosted pane carries. handleID
+// attachThreadActor registers every identity a hosted pane carries. handleID
 // routes PTY bytes inside this console; actorID identifies the live registry
 // incarnation; thread identifies durable work; tree is only its working path.
-func (c *Console) AttachThreadActor(handleID string, actorID couchcore.ActorID, thread couchcore.ThreadAddress, tree couchcore.Worktree, label string, child *ptychild.Child) {
+// It stays package-private so production callers cannot bypass the declared
+// attach operation with an exact composite address.
+func (c *Console) attachThreadActor(handleID string, actorID couchcore.ActorID, thread couchcore.ThreadAddress, tree couchcore.Worktree, label string, child *ptychild.Child) {
 	c.mu.Lock()
 	c.panes[handleID] = &pane{tree: tree, thread: thread, actorID: actorID, label: label, child: child}
 	c.order = append(c.order, handleID)
@@ -1121,7 +1123,7 @@ func (c *Console) ExecuteConsoleOperation(call couchcore.OperationCall) (any, er
 		if !ok {
 			return nil, fmt.Errorf("child has no terminal to attach")
 		}
-		c.AttachThreadActor(start.Handle.ID(), start.Record.ID, start.Record.Thread,
+		c.attachThreadActor(start.Handle.ID(), start.Record.ID, start.Record.Thread,
 			start.Record.Args.Worktree, start.Record.Args.Worktree.Repo(), th.Terminal())
 		return address, nil
 	default:

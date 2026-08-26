@@ -1513,6 +1513,34 @@ func TestRunLaunchStandaloneResolvesHumanThreadNameToOpaqueTag(t *testing.T) {
 	}
 }
 
+func TestRunLaunchRefusesCorruptAuthoritativeThreadIndex(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.threadIndexErr = errors.New("decode thread manifest: invalid character")
+	rt.uuids = []string{"SID"}
+
+	code, err := run(t, baseOpts(LaunchArgs{ForcedTag: "compiler"}), rt)
+	if err != nil || code != 1 {
+		t.Fatalf("code=%d err=%v, want handled refusal", code, err)
+	}
+	if rt.launched != "" || rt.env["PAIR_TAG"] != "" {
+		t.Fatalf("corrupt index fell back to legacy launch: launched=%q PAIR_TAG=%q", rt.launched, rt.env["PAIR_TAG"])
+	}
+}
+
+func TestRunLaunchKeepsLegacyBehaviorWhenThreadIndexIsAbsent(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.threadIndexErr = fmt.Errorf("read manifest: %w", ErrThreadIndexAbsent)
+	rt.uuids = []string{"SID"}
+
+	code, err := run(t, baseOpts(LaunchArgs{ForcedTag: "legacy-work"}), rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.env["PAIR_TAG"] != "legacy-work" {
+		t.Fatalf("PAIR_TAG = %q, want legacy direct tag", rt.env["PAIR_TAG"])
+	}
+}
+
 func TestRunLaunchKnownDirectPairTagWinsOverThreadFuzzyMatch(t *testing.T) {
 	rt := newFakeRuntime()
 	scope := mustScope(t, "/home/u/work")

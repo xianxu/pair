@@ -3,6 +3,7 @@ package launcher
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -72,6 +73,46 @@ func TestLoadThreadIndexReadsManifestAddressedRecords(t *testing.T) {
 	want.PublishedSummary = "agent context"
 	if !reflect.DeepEqual(index.Entries, []ThreadIndexEntry{want}) {
 		t.Fatalf("index = %#v", index)
+	}
+}
+
+func TestLoadThreadIndexTreatsCorruptStateAsAuthoritative(t *testing.T) {
+	_, err := LoadThreadIndex("/global/couch", func(string) (string, error) {
+		return "{not-json", nil
+	})
+	if err == nil || errors.Is(err, ErrThreadIndexAbsent) {
+		t.Fatalf("corrupt manifest error = %v, want authoritative corruption", err)
+	}
+}
+
+func TestOSRuntimeThreadIndexDistinguishesAbsentStoreFromIncompleteStore(t *testing.T) {
+	root := t.TempDir()
+	rt := OSRuntime{CouchStoreDir: root}
+	_, err := rt.ReadThreadIndex()
+	if !errors.Is(err, ErrThreadIndexAbsent) {
+		t.Fatalf("absent store error = %v, want ErrThreadIndexAbsent", err)
+	}
+
+	if err := os.Mkdir(filepath.Join(root, "threadstore"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_, err = rt.ReadThreadIndex()
+	if err == nil || errors.Is(err, ErrThreadIndexAbsent) {
+		t.Fatalf("incomplete store error = %v, want authoritative failure", err)
+	}
+}
+
+func TestLoadThreadIndexRejectsMissingAddressedRecord(t *testing.T) {
+	root := "/global/couch"
+	manifestPath := filepath.Join(root, "threadstore", "manifest.json")
+	_, err := LoadThreadIndex(root, func(path string) (string, error) {
+		if path == manifestPath {
+			return `{"schema_version":1,"threads":[{"repo_scope":"816fc349d3faebf8","tag":"couch-0102030405060708"}]}`, nil
+		}
+		return "", os.ErrNotExist
+	})
+	if err == nil || errors.Is(err, ErrThreadIndexAbsent) {
+		t.Fatalf("missing addressed record error = %v, want authoritative failure", err)
 	}
 }
 

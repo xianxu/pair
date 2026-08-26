@@ -614,6 +614,13 @@ func (r OSRuntime) ReadThreadIndex() (ThreadIndex, error) {
 		}
 		root = absolute
 	}
+	threadStoreDir := filepath.Join(root, "threadstore")
+	if _, err := os.Stat(threadStoreDir); err != nil {
+		if os.IsNotExist(err) {
+			return ThreadIndex{}, fmt.Errorf("%w: %v", ErrThreadIndexAbsent, err)
+		}
+		return ThreadIndex{}, fmt.Errorf("inspect thread index store: %w", err)
+	}
 	return LoadThreadIndex(root, r.ReadFile)
 }
 

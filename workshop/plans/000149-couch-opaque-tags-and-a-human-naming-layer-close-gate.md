@@ -300,6 +300,48 @@ rounds:
           round: 12
       boundary: M2
       blocked: false
+    - "n": 13
+      timestamp: "2026-08-26T16:19:43-07:00"
+      agent: codex
+      findings:
+        - id: BR-18
+          severity: Critical
+          title: Corrupt ThreadIndex errors silently fall back to launching the input as a legacy tag
+          detail: LoadThreadIndex explicitly fails closed on corrupt or incomplete state, but createflow.go:164-166 ignores that error and resolveResumeTag at createflow.go:852-862 returns the original argument for every read failure. Thus `pair resume compiler` can create or resume a direct `compiler` tag when the authoritative index is corrupt. Distinguish an absent store from malformed/incomplete state, surface the latter, and add a production-flow regression that fails without the error propagation (ARCH-PURPOSE).
+          family: durable-index-read-failure-authority
+          round: 13
+        - id: BR-19
+          severity: Critical
+          title: Required-argument validation makes documented metadata clearing unreachable
+          detail: validateOperationCall at operationdispatch.go:90-93 treats an empty value as omission. Consequently `couch name <ref> ""` and `couch publish-description ""` are rejected even though ThreadMetadataPatch promises explicit empty values clear those fields. Validate required argument presence rather than non-empty content where empty is meaningful, and pin both operation paths with red-without-fix tests.
+          family: metadata-empty-value-contract
+          round: 13
+        - id: BR-20
+          severity: Critical
+          title: CLI metadata operations cannot supply the repository scope needed to address repeated tags
+          detail: 'This is the 3rd finding in family `composite-address-collision-domain`. name/describe declare repo-scope as implicit at ops.go:140-155, but bindArgs excludes implicit fields and RunWithRuntime only populates scope/tag for publish-description at run.go:127-137. DirectStoreExecutor therefore resolves CLI name/describe with an empty scope at operationdispatch.go:124-138, making a repeated legacy tag globally ambiguous even when invoked from its repository. Do not patch only name: state and enforce the rule that every composite-address consumer either carries an exact address or derives the current repository scope, then sweep show/name/describe and future metadata clients. Add a CLI-level repeated-tag regression (ARCH-PURPOSE).'
+          family: composite-address-collision-domain
+          round: 13
+        - id: BR-21
+          severity: Critical
+          title: Initial console attachment bypasses the declared attach operation
+          detail: The plan requires every effectful human action to flow through DispatchOperation, and attach is declared specifically for a newly started terminal. Panel starts comply at console.go:1061-1069, but the initial `couch start` path calls AttachThreadActor directly at run.go:248-266. Route this path through the same typed attach executor and add a wiring test that fails if the declaration is bypassed (ARCH-DRY, ARCH-PURPOSE).
+          family: operation-dispatch-single-authority
+          round: 13
+        - id: BR-22
+          severity: Critical
+          title: The Core concepts table no longer describes the M3 entities and purity boundary
+          detail: 'This is the 3rd finding in family `core-concept-kind-contract`. The plan names a nonexistent `ThreadMetadata` entity and classifies its mixed pure/store file as PURE at plan.md:47, while `Operation` remains classified INTEGRATION at line 48 after its declarations became pure and its executors moved to the integration table at line 81. Do not patch these two cells in isolation: state the rule that each row names a greppable entity and one architectural kind, audit the full table, and append a plan revision recording the corrected PURE metadata transition/declarations and INTEGRATION store/executor surfaces.'
+          family: core-concept-kind-contract
+          round: 13
+        - id: BR-23
+          severity: Important
+          title: README still documents the pre-M3 tree and actor interface
+          detail: 'This is the 2nd finding in family `user-facing-policy-docs`. README.md:267-272 still says list shows actors, show targets one tree, and name/describe mutate tree metadata; README.md:326 documents only resume-by-tag and omits human-name resolution and picker behavior. Do not fix only these lines: enumerate every M3 user-facing command, lookup, rendering, and clearing behavior and sweep the README against that inventory.'
+          family: user-facing-policy-docs
+          round: 13
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — pair#149 (boundary-review)
@@ -440,6 +482,28 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-17 — addressed — The live test now makes OS termination load-bearing: an exact-argv sentinel survives ordinary zellij deletion, must be discovered and identity-reauthorized through production, and sets killedSentinel only at the injected killProcess boundary.
 
+## Round 13 — 2026-08-26T16:19:43-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-18** [Critical] `durable-index-read-failure-authority` Corrupt ThreadIndex errors silently fall back to launching the input as a legacy tag
+  LoadThreadIndex explicitly fails closed on corrupt or incomplete state, but createflow.go:164-166 ignores that error and resolveResumeTag at createflow.go:852-862 returns the original argument for every read failure. Thus `pair resume compiler` can create or resume a direct `compiler` tag when the authoritative index is corrupt. Distinguish an absent store from malformed/incomplete state, surface the latter, and add a production-flow regression that fails without the error propagation (ARCH-PURPOSE).
+- **BR-19** [Critical] `metadata-empty-value-contract` Required-argument validation makes documented metadata clearing unreachable
+  validateOperationCall at operationdispatch.go:90-93 treats an empty value as omission. Consequently `couch name <ref> ""` and `couch publish-description ""` are rejected even though ThreadMetadataPatch promises explicit empty values clear those fields. Validate required argument presence rather than non-empty content where empty is meaningful, and pin both operation paths with red-without-fix tests.
+- **BR-20** [Critical] `composite-address-collision-domain` CLI metadata operations cannot supply the repository scope needed to address repeated tags
+  This is the 3rd finding in family `composite-address-collision-domain`. name/describe declare repo-scope as implicit at ops.go:140-155, but bindArgs excludes implicit fields and RunWithRuntime only populates scope/tag for publish-description at run.go:127-137. DirectStoreExecutor therefore resolves CLI name/describe with an empty scope at operationdispatch.go:124-138, making a repeated legacy tag globally ambiguous even when invoked from its repository. Do not patch only name: state and enforce the rule that every composite-address consumer either carries an exact address or derives the current repository scope, then sweep show/name/describe and future metadata clients. Add a CLI-level repeated-tag regression (ARCH-PURPOSE).
+- **BR-21** [Critical] `operation-dispatch-single-authority` Initial console attachment bypasses the declared attach operation
+  The plan requires every effectful human action to flow through DispatchOperation, and attach is declared specifically for a newly started terminal. Panel starts comply at console.go:1061-1069, but the initial `couch start` path calls AttachThreadActor directly at run.go:248-266. Route this path through the same typed attach executor and add a wiring test that fails if the declaration is bypassed (ARCH-DRY, ARCH-PURPOSE).
+- **BR-22** [Critical] `core-concept-kind-contract` The Core concepts table no longer describes the M3 entities and purity boundary
+  This is the 3rd finding in family `core-concept-kind-contract`. The plan names a nonexistent `ThreadMetadata` entity and classifies its mixed pure/store file as PURE at plan.md:47, while `Operation` remains classified INTEGRATION at line 48 after its declarations became pure and its executors moved to the integration table at line 81. Do not patch these two cells in isolation: state the rule that each row names a greppable entity and one architectural kind, audit the full table, and append a plan revision recording the corrected PURE metadata transition/declarations and INTEGRATION store/executor surfaces.
+- **BR-23** [Important] `user-facing-policy-docs` README still documents the pre-M3 tree and actor interface
+  This is the 2nd finding in family `user-facing-policy-docs`. README.md:267-272 still says list shows actors, show targets one tree, and name/describe mutate tree metadata; README.md:326 documents only resume-by-tag and omits human-name resolution and picker behavior. Do not fix only these lines: enumerate every M3 user-facing command, lookup, rendering, and clearing behavior and sweep the README against that inventory.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-18** [Critical] `durable-index-read-failure-authority` Corrupt ThreadIndex errors silently fall back to launching the input as a legacy tag
+- **BR-19** [Critical] `metadata-empty-value-contract` Required-argument validation makes documented metadata clearing unreachable
+- **BR-20** [Critical] `composite-address-collision-domain` CLI metadata operations cannot supply the repository scope needed to address repeated tags
+- **BR-21** [Critical] `operation-dispatch-single-authority` Initial console attachment bypasses the declared attach operation
+- **BR-22** [Critical] `core-concept-kind-contract` The Core concepts table no longer describes the M3 entities and purity boundary
+- **BR-23** [Important] `user-facing-policy-docs` README still documents the pre-M3 tree and actor interface

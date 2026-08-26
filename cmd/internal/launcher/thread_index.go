@@ -10,7 +10,13 @@ import (
 	"time"
 )
 
-var ErrThreadIndexReferenceNotFound = errors.New("thread reference not found")
+var (
+	ErrThreadIndexReferenceNotFound = errors.New("thread reference not found")
+	// ErrThreadIndexAbsent is the only read failure that permits standalone
+	// Pair to use its legacy tag behavior. Once a Couch manifest exists it is
+	// authoritative: malformed or incomplete state must fail closed.
+	ErrThreadIndexAbsent = errors.New("thread index absent")
+)
 
 type ThreadIndexAddress struct {
 	RepoScope string `json:"repo_scope"`

@@ -14,6 +14,7 @@ import (
 
 	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
 // testRT builds the domain over fakes. There is deliberately NO production
@@ -33,11 +34,18 @@ type testRT struct {
 	// ids is shared across invocations. Minting a fresh generator per
 	// NewCouch restarts the sequence, so two starts both produce couch-ah8d
 	// and no CLI test can hold two distinguishable actors.
-	ids couchcore.IDGen
+	ids              couchcore.IDGen
+	currentRepoScope string
 }
 
 func (t testRT) Getenv(key string) string { return t.env[key] }
 func (t testRT) StoreDir() string         { return t.dir }
+func (t testRT) CurrentRepoScope() (string, error) {
+	if t.currentRepoScope == "" {
+		return "", fmt.Errorf("test runtime has no current repository scope")
+	}
+	return t.currentRepoScope, nil
+}
 func (t testRT) ResolveNamespace() (couchcore.CouchNamespace, error) {
 	return t.namespace, nil
 }
@@ -96,20 +104,38 @@ func newRT(t *testing.T, trees ...string) testRT {
 	if err != nil {
 		t.Fatalf("ResolveCouchNamespace: %v", err)
 	}
+	var currentScope string
+	if len(trees) > 0 {
+		scope, err := launcher.ResolveRepoScope(trees[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		currentScope = scope.Key
+	}
 	return testRT{
-		dir:        ns.Dir(),
-		namespace:  ns,
-		runner:     runner,
-		proc:       couchcore.NewFakeProcOps(),
-		git:        couchcore.NewFakeGit(replies),
-		supervisor: &fakeSupervisor{},
-		policy:     couchcore.NewFakePolicyResolver(),
-		env:        map[string]string{},
-		ids:        couchcore.NewFixedIDGen("ah8d", "b2c1", "c3d2", "e4f5"),
+		dir:              ns.Dir(),
+		namespace:        ns,
+		runner:           runner,
+		proc:             couchcore.NewFakeProcOps(),
+		git:              couchcore.NewFakeGit(replies),
+		supervisor:       &fakeSupervisor{},
+		policy:           couchcore.NewFakePolicyResolver(),
+		env:              map[string]string{},
+		ids:              couchcore.NewFixedIDGen("ah8d", "b2c1", "c3d2", "e4f5"),
+		currentRepoScope: currentScope,
 	}
 }
 
 func seedThread(t *testing.T, rt testRT, path string) couchcore.ThreadRecord {
+	t.Helper()
+	scope, err := launcher.ResolveRepoScope(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return seedThreadAtAddress(t, rt, scope.Key, "couch-0102030405060708", path)
+}
+
+func seedThreadAtAddress(t *testing.T, rt testRT, scope, tag, path string) couchcore.ThreadRecord {
 	t.Helper()
 	c, err := rt.NewCouch()
 	if err != nil {
@@ -118,8 +144,8 @@ func seedThread(t *testing.T, rt testRT, path string) couchcore.ThreadRecord {
 	record := couchcore.ThreadRecord{
 		SchemaVersion: couchcore.ThreadSchemaVersion,
 		Address: couchcore.ThreadAddress{
-			RepoScope: "816fc349d3faebf8",
-			Tag:       "couch-0102030405060708",
+			RepoScope: scope,
+			Tag:       couchcore.ThreadTag(tag),
 		},
 		StartingPath: path,
 		WorkingPath:  path,
@@ -225,7 +251,7 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 func TestOperationArityMatchesExpectation(t *testing.T) {
 	// Declared in the test rather than read from the operation itself, so
 	// this cannot degrade into asserting X == X.
-	want := map[string]int{"start": 2, "list": 0, "show": 1, "stop": 1, "name": 3, "describe": 3, "publish-description": 3, "switch": 2, "attach": 2}
+	want := map[string]int{"start": 2, "list": 0, "show": 2, "stop": 1, "name": 3, "describe": 3, "publish-description": 3, "switch": 2, "attach": 2}
 	for _, op := range couchcore.Operations() {
 		if got := len(op.Args); got != want[op.Name] {
 			t.Errorf("%s has %d args, want %d", op.Name, got, want[op.Name])
@@ -266,6 +292,16 @@ func TestPublishDescriptionUsesCompositeThreadEnvironment(t *testing.T) {
 	}
 	if got.PublishedSummary != "agent summary" || got.Description != "" {
 		t.Fatalf("published thread = %+v", got)
+	}
+	if _, errw, code := runRT(rt, "publish-description", ""); code != 0 {
+		t.Fatalf("clear publish-description: code=%d stderr=%q", code, errw)
+	}
+	got, err = c.Threads.GetThread(created.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.PublishedSummary != "" {
+		t.Fatalf("empty CLI summary did not clear field: %+v", got)
 	}
 }
 
@@ -370,6 +406,28 @@ func TestListShowsANamedTreeWithNoAgent(t *testing.T) {
 	}
 }
 
+func TestCLIEmptyNameClearsHumanThreadName(t *testing.T) {
+	rt := newRT(t, "/repo")
+	created := seedThread(t, rt, "/repo")
+	if _, errw, code := runRT(rt, "name", string(created.Address.Tag), "compiler"); code != 0 {
+		t.Fatalf("set name: code=%d stderr=%q", code, errw)
+	}
+	if _, errw, code := runRT(rt, "name", string(created.Address.Tag), ""); code != 0 {
+		t.Fatalf("clear name: code=%d stderr=%q", code, errw)
+	}
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := c.Threads.GetThread(created.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "" {
+		t.Fatalf("empty CLI name did not clear field: %+v", got)
+	}
+}
+
 func TestShowResolvesANameToItsTreePath(t *testing.T) {
 	rt := newRT(t, "/repo")
 	seedThread(t, rt, "/repo")
@@ -382,6 +440,68 @@ func TestShowResolvesANameToItsTreePath(t *testing.T) {
 	}
 	if !strings.Contains(out, "/repo") {
 		t.Fatalf("out = %q; show must print the tree path", out)
+	}
+}
+
+func TestCLICompositeReferencesDeriveCurrentRepositoryScope(t *testing.T) {
+	rt := newRT(t, "/repo")
+	localScope, err := launcher.ResolveRepoScope("/repo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherScope, err := launcher.ResolveRepoScope("/other")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const repeatedTag = "couch-0102030405060708"
+	local := seedThreadAtAddress(t, rt, localScope.Key, repeatedTag, "/repo")
+	other := seedThreadAtAddress(t, rt, otherScope.Key, repeatedTag, "/other")
+
+	if _, errw, code := runRT(rt, "name", repeatedTag, "local thread"); code != 0 {
+		t.Fatalf("name: code=%d stderr=%q", code, errw)
+	}
+	if _, errw, code := runRT(rt, "describe", repeatedTag, "local description"); code != 0 {
+		t.Fatalf("describe: code=%d stderr=%q", code, errw)
+	}
+	out, errw, code := runRT(rt, "show", repeatedTag)
+	if code != 0 || !strings.Contains(out, "/repo") || strings.Contains(out, "/other") {
+		t.Fatalf("show: code=%d out=%q stderr=%q", code, out, errw)
+	}
+
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotLocal, err := c.Threads.GetThread(local.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotOther, err := c.Threads.GetThread(other.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotLocal.Name != "local thread" || gotLocal.Description != "local description" {
+		t.Fatalf("local metadata = name %q description %q", gotLocal.Name, gotLocal.Description)
+	}
+	if gotOther.Name != "" || gotOther.Description != "" {
+		t.Fatalf("other repository thread was mutated: %+v", gotOther)
+	}
+}
+
+func TestCurrentRepoScopeUsesGitRootFromSubdirectory(t *testing.T) {
+	git := couchcore.NewFakeGit(map[couchcore.GitCall]string{
+		{Dir: "/repo/subdir", Args: "rev-parse --show-toplevel"}: "/repo",
+	})
+	got, err := resolveCurrentRepoScope("/repo/subdir", git, couchcore.NewFakePathOps(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := launcher.ResolveRepoScope("/repo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want.Key {
+		t.Fatalf("scope = %q, want Git-root scope %q", got, want.Key)
 	}
 }
 
@@ -752,6 +872,28 @@ func TestConsoleGetsAnActionDispatcher(t *testing.T) {
 	// And a real one is accepted.
 	if _, err := ops(couchcore.OperationCall{Name: "list"}); err != nil {
 		t.Fatalf("list through the panel dispatcher: %v", err)
+	}
+}
+
+func TestInitialConsoleAttachDispatchesDeclaredOperation(t *testing.T) {
+	console, _ := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
+	if console == nil {
+		t.Fatal("no console")
+	}
+	wantAddress := couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
+	start := couchcore.StartResult{Record: couchcore.ActorRecord{Thread: wantAddress}}
+	var got couchcore.OperationCall
+	console.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
+		got = call
+		return wantAddress, nil
+	})
+
+	if err := dispatchInitialAttach(console, start); err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "attach" || !got.Implicit || !reflect.DeepEqual(got.TypedPayload, start) ||
+		got.Args["repo-scope"] != wantAddress.RepoScope || got.Args["tag"] != string(wantAddress.Tag) {
+		t.Fatalf("initial attach call = %+v", got)
 	}
 }
 
