@@ -453,12 +453,12 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Write subprocess/model tests for the helper boundary and
+- [x] **Step 1:** Write subprocess/model tests for the helper boundary and
    `AdvanceStartTransaction` using the strategy table; the oracle is no target
    exec before durable acknowledgement and exactly one exec afterward.
-- [ ] **Step 2:** Implement the blocked-helper Runner capability specified in Architecture;
+- [x] **Step 2:** Implement the blocked-helper Runner capability specified in Architecture;
    keep OS descriptors outside domain state and mirror behavior in FakeRunner.
-- [ ] **Step 3:** Run helper/runner focused tests; expect PASS, then commit.
+- [x] **Step 3:** Run helper/runner focused tests; expect PASS, then commit.
 
 ### Task 3: Implement and reconcile the start state machine
 
@@ -473,7 +473,7 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Write model tests for `AdvanceStartTransaction` and `ReconcileStart`
+- [x] **Step 1:** Write model tests for `AdvanceStartTransaction` and `ReconcileStart`
    using the strategy table, then run them against `FakeRunner` state.
 - [ ] **Step 2:** Implement nonce-addressed promotion/reconciliation with the occupied-or-
    proven-free invariant from Architecture and pass the composite address to

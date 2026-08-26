@@ -638,6 +638,15 @@ Subprocess regressions observe no target marker before acknowledgement, exactly
 one afterward, and none after cancel/EOF. Focused, race, and command-build tests
 pass for couchcore, couchcmd, ptychild, and `cmd/pair-launch-helper`.
 
+The pure `StartTransaction` projection and `AdvanceStartTransaction` now own
+the legal claim → helper-recorded → registered sequence. Generated interruption
+cases drive `ReconcileStart`: absent evidence rolls back only when the relevant
+owner/helper is proven dead; unknown process or registration evidence remains
+occupied; established Pair evidence promotes a live exact helper to live and a
+gone/unverifiable helper to conservative unknown. The same transition sequence
+runs against `FakeRunner`, pinning zero target execs before durable helper state
+and exactly one after acknowledgement (ARCH-PURE, ARCH-PURPOSE).
+
 ### 2026-08-26 — M1 admission kernel integrated
 - 2026-08-26: closed M1 — make test; go test ./... -count=1; go test -race ./cmd/internal/couchcore ./cmd/internal/launcher -count=1; make test-couch-policy-live SDLC_BIN=../ariadne/bin/sdlc; zellij config and main-2/main-3 layout validation; git diff --check; review verdict: SHIP
 
