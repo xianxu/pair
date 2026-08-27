@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
 
 // RunLaunch is the native launcher's in-process driver (#99 M2 create + M3
@@ -442,6 +444,11 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		return launchStep{code: 1}, nil
 	}
 	dataDir := env.DataDir
+	artifactPaths, pathErr := artifactpath.ResolveScoped(dataDir, chosenTag)
+	if pathErr != nil {
+		fmt.Fprintf(stderr, "pair: cannot resolve artifact namespace: %v\n", pathErr)
+		return launchStep{code: 1}, nil
+	}
 	legacyImported := false
 	if decision.LegacyImport {
 		legacyImported = importLegacyFlatTag(rt, chosenTag, opts.GlobalDataDir, dataDir)
@@ -549,6 +556,21 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		fmt.Fprintf(stderr, "pair: failed to record workbench layout for tag '%s': %v\n", chosenTag, err)
 		return launchStep{code: 1}, nil
 	}
+	if !couchOwned && opts.RegisterStandaloneThread != nil {
+		if err := opts.RegisterStandaloneThread(StandaloneThreadRegistration{
+			GlobalDataDir: opts.GlobalDataDir,
+			CouchStoreDir: opts.CouchStoreDir,
+			RepoScope:     scope.Key,
+			Tag:           chosenTag,
+			WorkingPath:   env.Cwd,
+			CreatedAt:     env.Now,
+			Agent:         agent,
+			Argv:          append([]string{}, persistedArgs...),
+		}); err != nil {
+			fmt.Fprintf(stderr, "pair: failed to register thread '%s': %v\n", chosenTag, err)
+			return launchStep{code: 1}, nil
+		}
+	}
 
 	// Env exports every child (watcher, poller, zellij + its panes) inherits.
 	rt.SetEnv("PAIR_HOME", opts.PairHome)
@@ -557,8 +579,16 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	rt.SetEnv("PAIR_AGENT", agent)
 	rt.SetEnv("PAIR_SESSION_NAME", session)
 	rt.SetEnv("PAIR_WORKBENCH_LAYOUT", string(layoutResolution.Mode))
+	bindings, bindingErr := artifactPaths.EnvironmentBindings(agent)
+	if bindingErr != nil {
+		fmt.Fprintf(stderr, "pair: cannot resolve artifact bindings: %v\n", bindingErr)
+		return launchStep{code: 1}, nil
+	}
+	for _, binding := range bindings {
+		rt.SetEnv(binding.Name, binding.Path)
+	}
 
-	draft := filepath.Join(dataDir, "draft-"+chosenTag+".md")
+	draft := artifactPaths.Draft()
 	_ = rt.Touch(draft)
 	if opts.ContinueDoc != "" {
 		_ = rt.WriteAtomic(draft, fmt.Sprintf("Read workshop/continuation/%s and continue from its NEXT ACTION.\n", filepath.Base(opts.ContinueDoc)))
@@ -572,7 +602,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	}
 
 	// Record the agent for `pair list` / the title poller (survives detach).
-	_ = rt.WriteAtomic(filepath.Join(dataDir, "agent-"+chosenTag), agent+"\n")
+	_ = rt.WriteAtomic(artifactPaths.Agent(), agent+"\n")
 	if sessionID != "" {
 		writeConfig(rt, configPath, agent, persistedArgs, sessionID)
 	}
@@ -586,7 +616,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	rt.SetEnv("PAIR_PANE_TITLE", agent)
 
 	// Truncate the adaptation flight recorder once, before any appender starts.
-	_ = rt.WriteAtomic(filepath.Join(dataDir, "adapt-"+chosenTag+".jsonl"), "")
+	_ = rt.WriteAtomic(artifactPaths.AdaptLog(), "")
 
 	// Spawn the (already-Go) sidecars + set the frame title. agentArgs is the
 	// final resolved vector (post mint / codex / resume compose).

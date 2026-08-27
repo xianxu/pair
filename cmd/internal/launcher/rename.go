@@ -5,6 +5,8 @@ import (
 	"io"
 	"path/filepath"
 	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
 
 // The `pair rename <old> <new>` offline subcommand + the inside-session rename
@@ -18,31 +20,22 @@ import (
 // zip(renamePathsFor(old), renamePathsFor(new)) yields the (src,dst) pairing
 // directly — no base-name substitution needed (ARCH-PURE, drops shell 445-486).
 func renamePathsFor(tag, dataDir string) []string {
-	var out []string
-	for _, fam := range []string{
-		"outer-tty", "pair-wrap-pid", "title-pid",
-		"agent", "agent-pid", "agent-output", "agent-picks",
-		"layout-mode", "workbench-layout", "queue", "quote", "image-capture",
-	} {
-		out = append(out, filepath.Join(dataDir, fam+"-"+tag))
+	paths, err := artifactpath.ResolveScoped(dataDir, tag)
+	if err != nil {
+		return nil
 	}
-	out = append(out,
-		filepath.Join(dataDir, "image-capture-"+tag+".done"),
-		filepath.Join(dataDir, "draft-"+tag+".md"),
-		filepath.Join(dataDir, "log-"+tag+".md"),
-		filepath.Join(dataDir, "ledger-"+tag+".jsonl"),
-		filepath.Join(dataDir, "nvim-pid-"+tag+"-draft"),
-		filepath.Join(dataDir, "nvim-pid-"+tag+"-scrollback"),
-	)
+	out := []string{
+		paths.OuterTTY(), paths.PairWrapPID(), paths.TitlePID(), paths.Agent(),
+		paths.AgentPID(), paths.AgentOutput(), paths.AgentPicks(), paths.LayoutMode(),
+		paths.WorkbenchLayout(), paths.QueueDir(), paths.Quote(), paths.ImageCapture(),
+		paths.ImageCaptureDone(), paths.Draft(), paths.Log(), paths.Ledger(),
+		paths.NvimPID("draft"), paths.NvimPID("scrollback"),
+	}
 	for _, a := range AgentInventory() {
 		out = append(out,
-			filepath.Join(dataDir, "config-"+tag+"-"+a+".json"),
-			filepath.Join(dataDir, "pane-"+tag+"-"+a+".json"),
-			filepath.Join(dataDir, "scrollback-"+tag+"-"+a+".ansi"),
-			filepath.Join(dataDir, "scrollback-"+tag+"-"+a+".raw"),
-			filepath.Join(dataDir, "scrollback-"+tag+"-"+a+".viewport"),
-			filepath.Join(dataDir, "scrollback-"+tag+"-"+a+".events.jsonl"),
-			filepath.Join(dataDir, "draft-"+tag+"-"+a+".md"),
+			paths.Config(a), paths.Pane(a), paths.ScrollbackANSI(a),
+			paths.ScrollbackRaw(a), paths.ScrollbackViewport(a),
+			paths.ScrollbackEvents(a), paths.AgentDraft(a),
 		)
 	}
 	return out

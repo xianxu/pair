@@ -60,25 +60,27 @@ func TestEmbeddedManifestIsConfigAndShimsOnly(t *testing.T) {
 	}
 }
 
-func TestEmbeddedMainLayoutsHonorPairDataDirForDraft(t *testing.T) {
+func TestEmbeddedMainLayoutsConsumeExactArtifactBindings(t *testing.T) {
 	for _, path := range []string{"zellij/layouts/main-2.kdl", "zellij/layouts/main-3.kdl"} {
 		data, err := EmbeddedAsset(path)
 		if err != nil {
 			t.Fatalf("EmbeddedAsset(%s): %v", path, err)
 		}
-		if !strings.Contains(string(data), `${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}`) {
-			t.Fatalf("%s draft pane must inherit PAIR_DATA_DIR", path)
+		for _, binding := range []string{"$PAIR_DRAFT_PATH", "$PAIR_NVIM_DRAFT_PID_PATH", "$PAIR_AGENT_PANE_PATH", "$PAIR_SCROLLBACK_RAW_PATH"} {
+			if !strings.Contains(string(data), binding) {
+				t.Fatalf("%s must consume exact binding %s", path, binding)
+			}
 		}
 	}
 }
 
-func TestEmbeddedNvimLayoutStateHonorsPairDataDir(t *testing.T) {
+func TestEmbeddedNvimLayoutStateConsumesExactArtifactBinding(t *testing.T) {
 	data, err := EmbeddedAsset("nvim/init.lua")
 	if err != nil {
 		t.Fatalf("EmbeddedAsset(nvim/init.lua): %v", err)
 	}
 	init := string(data)
-	if !strings.Contains(init, "local LAYOUT_STATE_FILE = pair_data_dir()") {
-		t.Fatalf("layout state must use inherited PAIR_DATA_DIR instead of reconstructing the flat data dir")
+	if !strings.Contains(init, "local LAYOUT_STATE_FILE = vim.env.PAIR_LAYOUT_MODE_PATH") {
+		t.Fatalf("layout state must consume PAIR_LAYOUT_MODE_PATH")
 	}
 }

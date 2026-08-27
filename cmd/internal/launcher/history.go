@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
 
 // HistorySource scans Pair draft/log/ledger sidecars under the data directory.
@@ -112,7 +114,11 @@ func (s HistorySource) scanLegacy(base string, cutoff time.Time, scoped map[stri
 // <digits>.md file (queue_count_for, shell 1335). Surfaced as the picker's amber
 // badge so a forgotten queue is visible before resuming.
 func (s HistorySource) queueCount(tag string) int {
-	matches, err := filepath.Glob(filepath.Join(s.DataDir, "queue-"+tag, "[0-9]*.md"))
+	paths, err := artifactpath.ResolveScoped(s.DataDir, tag)
+	if err != nil {
+		return 0
+	}
+	matches, err := filepath.Glob(filepath.Join(paths.QueueDir(), "[0-9]*.md"))
 	if err != nil {
 		return 0
 	}
@@ -145,7 +151,11 @@ func matchesHistoryBase(tag, base string) bool {
 }
 
 func (s HistorySource) latestLedgerEntry(tag string) (LedgerEntry, bool) {
-	raw, err := os.ReadFile(filepath.Join(s.DataDir, "ledger-"+tag+".jsonl"))
+	paths, err := artifactpath.ResolveScoped(s.DataDir, tag)
+	if err != nil {
+		return LedgerEntry{}, false
+	}
+	raw, err := os.ReadFile(paths.Ledger())
 	if err != nil {
 		return LedgerEntry{}, false
 	}

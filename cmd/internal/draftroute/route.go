@@ -7,8 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
@@ -58,7 +58,11 @@ func CachedDraftPaneIDFromEnv() (string, bool) {
 	if dataDir == "" || tag == "" || session == "" {
 		return "", false
 	}
-	data, err := os.ReadFile(filepath.Join(dataDir, "draft-pane-"+tag+".json"))
+	paths, err := artifactpath.ResolveScoped(dataDir, tag)
+	if err != nil {
+		return "", false
+	}
+	data, err := os.ReadFile(paths.DraftPane())
 	if err != nil {
 		return "", false
 	}

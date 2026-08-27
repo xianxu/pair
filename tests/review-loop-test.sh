@@ -161,6 +161,8 @@ LUA
 
 ( cd "$REPO"
   PAIR_ROOT="$ROOT" RESULT="$RESULT" UNDODIR="$RT/undo" AGENT_LOG="$RT/agent.log" \
+    PAIR_REVIEW_HANDOFF_PATH="$RT/xdg/pair/review-handoff-doc.json" \
+    PAIR_REVIEW_LANDED_PATH="$RT/xdg/pair/review-landed-doc.json" \
     XDG_DATA_HOME="$RT/xdg" DOCFLOW_BIN="$ROOT/tests/lib/fake-docflow.sh" \
     run_headless --timeout 40 -- nvim --headless -u NONE -c "luafile $RT/driver.lua" -c 'qa!' )
 

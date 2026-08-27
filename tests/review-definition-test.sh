@@ -42,7 +42,7 @@ vim.fn.setpos("'>", { 0, 1, 12, 0 })
 local visual_req = _G.PairReviewPane.request_visual_definition(buf, file, { poke = false })
 ok(type(visual_req) == 'table' and visual_req.term == 'ASIN',
   'visual definition normalizes 1-based inclusive marks to selected term')
-local visual_result = os.getenv('PAIR_DATA_DIR') .. '/review-definition-result-def.json'
+local visual_result = os.getenv('PAIR_REVIEW_DEFINITION_RESULT_PATH')
 vim.fn.writefile({
   vim.json.encode({
     request_id = visual_req.request_id,
@@ -60,7 +60,7 @@ apply.clear_all(buf)
 
 local stale_req = _G.PairReviewPane.request_definition(buf, file, { 1, 8 }, { 1, 11 }, { poke = false })
 vim.api.nvim_buf_set_text(buf, 0, 0, 0, 0, { 'PREFIX ' })
-local stale_result = os.getenv('PAIR_DATA_DIR') .. '/review-definition-result-def.json'
+local stale_result = os.getenv('PAIR_REVIEW_DEFINITION_RESULT_PATH')
 vim.fn.writefile({
   vim.json.encode({
     request_id = stale_req.request_id,
@@ -78,12 +78,12 @@ apply.clear_all(buf)
 
 local req = _G.PairReviewPane.request_definition(buf, file, { 1, 8 }, { 1, 11 }, { poke = false })
 ok(type(req) == 'table' and req.request_id ~= nil and req.term == 'ASIN', 'request helper returns request metadata')
-local req_path = os.getenv('PAIR_DATA_DIR') .. '/review-definition-request-def.json'
+local req_path = os.getenv('PAIR_REVIEW_DEFINITION_REQUEST_PATH')
 local request_doc = read_json(req_path)
 ok(request_doc.request_id == req.request_id and request_doc.term == 'ASIN', 'request json records id and term')
 ok(request_doc.context == 'here is ASIN in context', 'request context is current document text')
 
-local result_path = os.getenv('PAIR_DATA_DIR') .. '/review-definition-result-def.json'
+local result_path = os.getenv('PAIR_REVIEW_DEFINITION_RESULT_PATH')
 vim.fn.writefile({
   vim.json.encode({
     request_id = req.request_id,
@@ -171,6 +171,9 @@ OUT:close()
 LUA
 
 PAIR_ROOT="$ROOT" RESULT="$RESULT" DOC="$RT/doc.md" PAIR_DATA_DIR="$RT" PAIR_TAG=def \
+  PAIR_REVIEW_DEFINITION_REQUEST_PATH="$RT/review-definition-request-def.json" \
+  PAIR_REVIEW_DEFINITION_RESULT_PATH="$RT/review-definition-result-def.json" \
+  PAIR_REVIEW_CONTEXT_PATH="$RT/review-context-def.md" \
   run_headless --timeout 30 -- nvim --headless -u NONE -c "luafile $RT/driver.lua" -c 'qa!'
 
 echo "--- results ---"; cat "$RESULT"

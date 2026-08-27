@@ -2,8 +2,8 @@ package launcher
 
 import (
 	"fmt"
-	"path/filepath"
 
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 )
 
@@ -15,7 +15,11 @@ type ReadyExpectation struct {
 }
 
 func AgentReadyPath(dataDir, tag, agent string) string {
-	return filepath.Join(dataDir, "agent-ready-"+tag+"-"+agentDefaultPathComponent(agent)+".json")
+	paths, err := artifactpath.ResolveScoped(dataDir, tag)
+	if err != nil {
+		return ""
+	}
+	return paths.AgentReady(agentDefaultPathComponent(agent))
 }
 
 func MatchReadyRecord(expect ReadyExpectation, record readiness.ReadyRecord, pidAlive func(int) bool) error {

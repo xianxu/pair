@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
 
 // Options are a viewer launcher's inputs after CLI/env resolution.
@@ -58,7 +60,17 @@ func RunScrollback(opts Options, rt Runtime, stderr io.Writer) int {
 		rt.Sleep(3 * time.Second)
 		return 1
 	}
-	sb := opts.DataDir + "/scrollback-" + opts.Tag + "-" + opts.Agent
+	paths, err := artifactpath.ResolveScoped(opts.DataDir, opts.Tag)
+	if err != nil {
+		fmt.Fprintf(stderr, "pair-scrollback-open: resolve artifact namespace: %v\n", err)
+		return 1
+	}
+	raw, err := paths.ScrollbackChecked(opts.Agent, "raw")
+	if err != nil {
+		fmt.Fprintf(stderr, "pair-scrollback-open: resolve scrollback artifact: %v\n", err)
+		return 1
+	}
+	sb := strings.TrimSuffix(raw, ".raw")
 	lock := sb + ".openlock"
 
 	// Re-entrancy: a second Alt+/ while a viewer is up exits (focus falls back).
@@ -68,7 +80,7 @@ func RunScrollback(opts Options, rt Runtime, stderr io.Writer) int {
 		}
 	}
 
-	raw, events, ansi := sb+".raw", sb+".events.jsonl", sb+".ansi"
+	events, ansi := sb+".events.jsonl", sb+".ansi"
 	if sz, ok := rt.FileSize(raw); !ok || sz == 0 {
 		fmt.Fprintf(stderr, "pair-scrollback-open: no scrollback yet for %s/%s\n", opts.Tag, opts.Agent)
 		fmt.Fprintf(stderr, "  (capture starts when the agent pane begins emitting output.)\n")
@@ -84,7 +96,7 @@ func RunScrollback(opts Options, rt Runtime, stderr io.Writer) int {
 	overlayViewport(opts, rt, sb, ansi)
 
 	env := []string{
-		"PAIR_NVIM_PID_FILE=" + opts.DataDir + "/nvim-pid-" + opts.Tag + "-scrollback",
+		"PAIR_NVIM_PID_FILE=" + paths.NvimPID("scrollback"),
 		"PAIR_SCROLLBACK_JUMP=" + opts.Jump,
 	}
 	_ = rt.WriteFile(lock, rt.Getpid()+"\n")
@@ -130,15 +142,34 @@ func RunChangelog(opts Options, rt Runtime, stderr io.Writer) int {
 		rt.Sleep(3 * time.Second)
 		return 1
 	}
+	paths, err := artifactpath.ResolveScoped(opts.DataDir, opts.Tag)
+	if err != nil {
+		fmt.Fprintf(stderr, "pair-changelog-open: resolve artifact namespace: %v\n", err)
+		return 1
+	}
 
 	sid := opts.SessionID
 	if sid == "" {
-		if cfg, err := rt.ReadFile(opts.DataDir + "/config-" + opts.Tag + "-" + opts.Agent + ".json"); err == nil {
+		configPath, pathErr := paths.ConfigChecked(opts.Agent)
+		if pathErr != nil {
+			fmt.Fprintf(stderr, "pair-changelog-open: resolve config artifact: %v\n", pathErr)
+			return 1
+		}
+		if cfg, err := rt.ReadFile(configPath); err == nil {
 			sid = resolveSessionID("", []byte(cfg))
 		}
 	}
-	base := changelogBase(opts.DataDir, opts.Tag, opts.Agent, sid)
-	sb := opts.DataDir + "/scrollback-" + opts.Tag + "-" + opts.Agent
+	base, pathErr := paths.ChangelogSessionChecked(opts.Agent, sid)
+	if pathErr != nil {
+		fmt.Fprintf(stderr, "pair-changelog-open: resolve changelog artifact: %v\n", pathErr)
+		return 1
+	}
+	rawPath, pathErr := paths.ScrollbackChecked(opts.Agent, "raw")
+	if pathErr != nil {
+		fmt.Fprintf(stderr, "pair-changelog-open: resolve scrollback artifact: %v\n", pathErr)
+		return 1
+	}
+	sb := strings.TrimSuffix(rawPath, ".raw")
 	raw, events := sb+".raw", sb+".events.jsonl"
 	log, anchor, cleaned := base+".md", base+".anchor", base+".cleaned"
 	openlock, dlock, status := base+".openlock", base+".distill.lock", base+".status"

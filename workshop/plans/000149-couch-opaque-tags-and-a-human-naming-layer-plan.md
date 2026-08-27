@@ -800,7 +800,7 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Create dependency-leaf package `artifactpath` (stdlib imports only) with
+- [x] **Step 1:** Create dependency-leaf package `artifactpath` (stdlib imports only) with
    the validated composite path value, checked artifact-family manifest, and
    constructors covering draft,
    ledger, log, scrollback, queue, config/native-session identity, pane/agent/
@@ -810,20 +810,20 @@ inventory, never a couch enum (ARCH-DRY).
    tag-bearing constructor or consumer is neither registered nor explicitly
    classified. `launcher` becomes a consumer/wrapper of this leaf so
    `sessionwatch` can import it without an import cycle.
-- [ ] **Step 2:** Change every Go accessor listed above—including
+- [x] **Step 2:** Change every Go accessor listed above—including
    `launcher/legacy_live.go`, `osruntime.go`, `readiness.go`, `layoutflow.go`,
    `migrate.go`, and non-launcher command packages—to accept/derive the leaf
    validated paths. Enforce that every result remains below the selected scope
    directory; remove ad hoc `dataDir + tag` joins.
-- [ ] **Step 3:** Classify every listed shell/Lua/KDL consumer. A consumer that needs an
+- [x] **Step 3:** Classify every listed shell/Lua/KDL consumer. A consumer that needs an
    artifact receives its exact resolved path from Go/environment rather than
    rebuilding it from tag/data-dir; pure consumers of an exact path remain
    classified reads. Run `make runtimebundle-generate` and commit the generated
    `cmd/internal/runtimebundle/assets/runtime` mirror instead of hand-editing it.
-- [ ] **Step 4:** Run `artifactpath.Resolve` and manifest-coverage strategies across two
+- [x] **Step 4:** Run `artifactpath.Resolve` and manifest-coverage strategies across two
    scopes with the same legacy tag, including representative Go, shell, Neovim,
    and both layout consumers; cross-scope observation/mutation is the oracle.
-- [ ] **Step 5:** Have standalone Pair upsert its thread record in the same transaction model
+- [x] **Step 5:** Have standalone Pair upsert its thread record in the same transaction model
    without changing its ordinary tag prompt.
 
 ### Task 3: Final reconciliation and closure

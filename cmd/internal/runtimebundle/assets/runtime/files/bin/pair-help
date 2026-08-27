@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# pair-help — display the in-session keybindings in a pager that exits on ESC or q.
+#
+# less treats ESC as a meta-key prefix by default, so we override its keymap
+# via LESSKEYIN_SYSTEM (supported by less >= 582) to bind a bare ESC to quit.
+
+set -euo pipefail
+
+keyfile="$(mktemp -t pair-help-keys.XXXXXX)"
+trap 'rm -f "$keyfile"' EXIT
+
+# lesskey source format. \e is a literal ESC in lesskey syntax. \e\e covers
+# terminals/intermediaries that emit double-ESC for a single ESC press.
+cat > "$keyfile" <<'EOF'
+#command
+\e quit
+\e\e quit
+EOF
+
+# Export — the var must be visible to `less` (the right side of the pipe),
+# not only to `pair keys`. A `VAR=x cmd1 | cmd2` prefix only sets VAR on cmd1.
+export LESSKEYIN_SYSTEM="$keyfile"
+
+# Alt+h shows the KEYBINDINGS (`pair keys`), not the CLI synopsis (#132). It used
+# to page `pair -h`, whose last line read "In-session keybindings are on Alt+h" —
+# so the help key answered itself.
+#
+# Centering moved into Go (`--center`). The awk `length` this used to measure with
+# counts BYTES, so glyph keys like Alt+⏎ / Alt+← inflated the width and skewed the
+# margin; `pair keys` reuses the one column-measuring rule (cmd/internal/textwidth)
+# instead of a second, wrong one in shell.
+#
+# `pair keys` always exits 0, even if it cannot read its sources — under
+# `set -euo pipefail` a non-zero exit here would kill the floating pane before
+# `less` opened, turning a useless help key into a dead one.
+cols="$(tput cols 2>/dev/null || echo 80)"
+pair keys --center "$cols" | less -R

@@ -42,6 +42,7 @@ PATH="$RT/bin:$PATH" \
 PAIR_ROOT="$ROOT" \
 PAIR_DATA_DIR="$RT" \
 PAIR_TAG=trace \
+PAIR_ZELLIJ_ACTIONS_PATH="$RT/zellij-actions-trace.jsonl" \
 RESULT="$RESULT" \
   run_headless --timeout 30 -- nvim --headless -u NONE -c "luafile $RT/driver.lua"
 

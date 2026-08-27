@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/contextcmd"
 	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/procutil"
@@ -61,7 +62,11 @@ func (OSRuntime) CmuxRenameWorkspace(title string) error {
 // the filename; pane_id from the JSON). The file's "cwd" is intentionally not
 // decoded — no title carries a cwd since #133.
 func (OSRuntime) PaneFiles(dataDir, tag string) []PaneInfo {
-	matches, _ := filepath.Glob(filepath.Join(dataDir, "pane-"+tag+"-*.json"))
+	paths, err := artifactpath.ResolveScoped(dataDir, tag)
+	if err != nil {
+		return nil
+	}
+	matches, _ := filepath.Glob(paths.PaneGlob())
 	prefix := "pane-" + tag + "-"
 	var out []PaneInfo
 	for _, m := range matches {

@@ -15,6 +15,8 @@ package opener
 import (
 	"encoding/json"
 	"regexp"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
 
 // sgrEscape matches an ANSI CSI SGR (and other CSI) escape so a rendered .ansi
@@ -122,10 +124,11 @@ func resolveSessionID(envSID string, configJSON []byte) string {
 // changelogBase is the per-session change-log path stem: the sid suffix is
 // appended only when resolved (fresh sessions branch; a resume reuses it).
 func changelogBase(dataDir, tag, agent, sid string) string {
-	base := dataDir + "/changelog-" + tag + "-" + agent
-	if sid != "" {
-		base += "-" + sid
+	paths, err := artifactpath.ResolveScoped(dataDir, tag)
+	if err != nil {
+		return ""
 	}
+	base, _ := paths.ChangelogSessionChecked(agent, sid)
 	return base
 }
 

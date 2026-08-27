@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/transcript"
 )
 
@@ -66,6 +67,10 @@ func Run(opts Options, rt Runtime) error {
 	if !ok || opts.Tag == "" || opts.DataDir == "" {
 		return nil
 	}
+	paths, err := artifactpath.ResolveScoped(opts.DataDir, opts.Tag)
+	if err != nil {
+		return err
+	}
 	if opts.PIDWait <= 0 {
 		opts.PIDWait = 2 * time.Second
 	}
@@ -88,8 +93,11 @@ func Run(opts Options, rt Runtime) error {
 	}
 
 	watchStart := rt.Now()
-	pidFile := filepath.Join(opts.DataDir, "agent-pid-"+opts.Tag)
-	out := filepath.Join(opts.DataDir, "config-"+opts.Tag+"-"+opts.Agent+".json")
+	pidFile := paths.AgentPID()
+	out, err := paths.ConfigChecked(opts.Agent)
+	if err != nil {
+		return err
+	}
 
 	pidDeadline := watchStart.Add(opts.PIDWait)
 	for {
@@ -151,7 +159,7 @@ func Run(opts Options, rt Runtime) error {
 			if err != nil {
 				return err
 			}
-			if err := appendSessionLedger(rt, filepath.Join(opts.DataDir, "ledger-"+opts.Tag+".jsonl"), sessionLedgerEntry{
+			if err := appendSessionLedger(rt, paths.Ledger(), sessionLedgerEntry{
 				Agent:      opts.Agent,
 				Args:       StripResumeArgs(opts.Agent, opts.Args),
 				SessionID:  result.ID,

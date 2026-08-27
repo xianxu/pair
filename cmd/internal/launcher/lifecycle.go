@@ -5,6 +5,8 @@ import (
 	"io"
 	"path/filepath"
 	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
 
 // The attach + quit-cleanup orchestrators behind RunLaunch's in-process restart
@@ -32,7 +34,11 @@ func runAttach(opts LaunchOptions, env Env, rt Runtime, tag, session, agent stri
 	rt.SetEnv("PAIR_SESSION_NAME", session)
 
 	// zellij creates the draft on new-session but not on attach; ensure it.
-	_ = rt.Touch(filepath.Join(env.DataDir, "draft-"+tag+".md"))
+	paths, err := artifactpath.ResolveScoped(env.DataDir, tag)
+	if err != nil {
+		return 1, err
+	}
+	_ = rt.Touch(paths.Draft())
 	rt.SetTerminalTitle(session)
 	rt.RecordOuterTTY(tag)
 	rt.CmuxRename(tag, session)
@@ -56,6 +62,10 @@ func runCleanup(env Env, rt Runtime, step launchStep, parkTimeout int, out io.Wr
 		return
 	}
 	dataDir := env.DataDir
+	paths, err := artifactpath.ResolveScoped(dataDir, step.tag)
+	if err != nil {
+		return
+	}
 	// Resolve the agent this tag was paired with BEFORE the agent-<tag> record is
 	// removed below, so the park path + resume hint name the right binary
 	// (InferAgent reads agent-<tag> first, matching the shell, then falls back to
@@ -72,7 +82,11 @@ func runCleanup(env Env, rt Runtime, step launchStep, parkTimeout int, out io.Wr
 	// Alt+x is about to discard it — offer to preserve it. Gated on an
 	// interactive tty with a non-empty raw capture, and skipped when a restart is
 	// pending (a restart keeps the work, so re-asking is noise).
-	sbBase := filepath.Join(dataDir, "scrollback-"+step.tag+"-"+quitAgent)
+	sbRaw, pathErr := paths.ScrollbackChecked(quitAgent, "raw")
+	if pathErr != nil {
+		return
+	}
+	sbBase := strings.TrimSuffix(sbRaw, ".raw")
 	parked := false
 	if size, ok := rt.FileSize(sbBase + ".raw"); ok && size > 0 && rt.IsTTY() && !rt.RestartMarkerPresent(step.session) {
 		if rt.ConfirmParkNudge(step.session, parkTimeout) {
@@ -88,17 +102,14 @@ func runCleanup(env Env, rt Runtime, step launchStep, parkTimeout int, out io.Wr
 	// omitted here — the leak behind #97: a surviving twin misled the frame
 	// poller when the tag was later paired with a different agent. Cleaning it on
 	// quit stops new twins at the source (the poller also filters defensively).
-	for _, rel := range []string{
-		"outer-tty-" + step.tag,
-		"agent-" + step.tag,
-		"agent-output-" + step.tag,
-		"pair-wrap-pid-" + step.tag,
-		"adapt-" + step.tag + ".jsonl",
-		"image-capture-" + step.tag,
-		"image-capture-" + step.tag + ".done",
-		"pane-" + step.tag + "-" + quitAgent + ".json",
+	panePath, _ := paths.PaneChecked(quitAgent)
+	for _, path := range []string{
+		paths.OuterTTY(), paths.Agent(), paths.AgentOutput(), paths.PairWrapPID(),
+		paths.AdaptLog(), paths.ImageCapture(), paths.ImageCaptureDone(), panePath,
 	} {
-		rt.Remove(filepath.Join(dataDir, rel))
+		if path != "" {
+			rt.Remove(path)
+		}
 	}
 	rt.Remove(sbBase + ".ansi")
 	// Remove the raw capture only when it wasn't parked (preserved above).

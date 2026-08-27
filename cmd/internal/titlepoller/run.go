@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
 
 // Options are the poller inputs after CLI/env resolution.
@@ -81,7 +83,11 @@ func Run(opts Options, rt Runtime) int {
 		// no recorded name is all this can serve.
 		session = "pair-" + opts.Tag
 	}
-	pidfile := filepath.Join(opts.DataDir, "title-pid-"+opts.Tag)
+	paths, err := artifactpath.ResolveScoped(opts.DataDir, opts.Tag)
+	if err != nil {
+		return 1
+	}
+	pidfile := paths.TitlePID()
 
 	// Single-instance: bail only if a prior poller for this tag is genuinely
 	// still running. Identity-checked (not a bare liveness check) so a recycled
@@ -160,7 +166,11 @@ func Run(opts Options, rt Runtime) int {
 // same path `pair context` uses). Zero time ⇒ nothing resolved yet.
 func activityMTime(opts Options, rt Runtime) time.Time {
 	var latest time.Time
-	candidates := []string{filepath.Join(opts.DataDir, "draft-"+opts.Tag+".md")}
+	paths, err := artifactpath.ResolveScoped(opts.DataDir, opts.Tag)
+	if err != nil {
+		return time.Time{}
+	}
+	candidates := []string{paths.Draft()}
 	if tp := rt.TranscriptPath(opts.Tag, opts.Agent); tp != "" {
 		candidates = append(candidates, tp)
 	}

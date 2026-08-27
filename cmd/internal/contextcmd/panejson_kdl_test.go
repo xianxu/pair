@@ -103,6 +103,7 @@ func TestAgentPaneJSONRoundTripsThroughKDL(t *testing.T) {
 			paneCwdDir := t.TempDir()
 			binDir := t.TempDir()
 			argvLog := filepath.Join(dataDir, "zellij-argv")
+			panePath := filepath.Join(dataDir, "pane-t-claude.json")
 			recordingStub(t, binDir, "zellij", argvLog)
 			stubBin(t, binDir, "pair")
 
@@ -113,6 +114,8 @@ func TestAgentPaneJSONRoundTripsThroughKDL(t *testing.T) {
 				"PAIR_DATA_DIR=" + dataDir,
 				"PAIR_TAG=t",
 				"PAIR_AGENT=claude",
+				"PAIR_AGENT_PANE_PATH=" + panePath,
+				"PAIR_SCROLLBACK_RAW_PATH=" + filepath.Join(dataDir, "scrollback-t-claude.raw"),
 				"ZELLIJ_PANE_ID=7",
 				// The startup title createflow exports; the KDL reads it as
 				// ${PAIR_PANE_TITLE:-agent} and hands it to rename-pane.
@@ -131,7 +134,7 @@ func TestAgentPaneJSONRoundTripsThroughKDL(t *testing.T) {
 				t.Errorf("paneCwd = %q, want %q", got, paneCwdDir)
 			}
 
-			raw, err := os.ReadFile(filepath.Join(dataDir, "pane-t-claude.json"))
+			raw, err := os.ReadFile(panePath)
 			if err != nil {
 				t.Fatal(err)
 			}

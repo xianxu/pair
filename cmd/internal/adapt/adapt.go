@@ -26,6 +26,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
 
 // maxDetail caps the free-text detail field. detail can carry a snippet of
@@ -104,7 +106,11 @@ func Open(comp, agent string) *Logger {
 	if tag == "" {
 		return nil
 	}
-	path := filepath.Join(DataDir(), "adapt-"+tag+".jsonl")
+	paths, err := artifactpath.ResolveScoped(DataDir(), tag)
+	if err != nil {
+		return nil
+	}
+	path := paths.AdaptLog()
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return nil

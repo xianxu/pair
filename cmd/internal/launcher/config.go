@@ -3,6 +3,8 @@ package launcher
 import (
 	"path/filepath"
 	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
 
 // Per-tag config + agent-transcript path derivations, and the one config
@@ -12,13 +14,22 @@ import (
 
 // CanonicalConfigPath is where a launch writes config-<tag>-<agent>.json.
 func CanonicalConfigPath(dataDir, tag, agent string) string {
-	return filepath.Join(dataDir, "config-"+tag+"-"+agent+".json")
+	paths, err := artifactpath.ResolveScoped(dataDir, tag)
+	if err != nil {
+		return ""
+	}
+	path, _ := paths.ConfigChecked(agent)
+	return path
 }
 
 // LegacyCodexConfigPath is the pre-#67 doubled shape config-<tag>-codex-codex.json
 // that older Codex sessions on disk still use.
 func LegacyCodexConfigPath(dataDir, tag string) string {
-	return filepath.Join(dataDir, "config-"+tag+"-codex-codex.json")
+	paths, err := artifactpath.ResolveScoped(dataDir, tag)
+	if err != nil {
+		return ""
+	}
+	return paths.LegacyCodexConfig()
 }
 
 // ShouldMigrateLegacyCodex decides whether resolve_config_file should rename the

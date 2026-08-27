@@ -18,6 +18,7 @@ import (
 	"regexp"
 	"strconv"
 
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
 
@@ -69,8 +70,12 @@ var nvimNameRe = regexp.MustCompile(`nvim`)
 
 // quoteFile is where clipboard-to-pane stages the raw selection for nvim's
 // PairPasteQuote to read ($PAIR_DATA_DIR/quote-<tag>).
-func quoteFile(dataDir, tag string) string {
-	return filepath.Join(dataDir, "quote-"+tag)
+func quoteFile(dataDir, tag string) (string, error) {
+	paths, err := artifactpath.ResolveScoped(dataDir, tag)
+	if err != nil {
+		return "", err
+	}
+	return paths.Quote(), nil
 }
 
 // pickTag resolves the pane tag the quote file is keyed by: PAIR_TAG, else

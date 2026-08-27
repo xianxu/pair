@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
 
 // AgentDefault is the repo-scoped launch default for one agent. It deliberately
@@ -31,7 +32,12 @@ func IsSupportedAgent(agent string) bool {
 }
 
 func AgentDefaultPath(dataDir, agent string) string {
-	return filepath.Join(dataDir, "agent-default-"+agentDefaultPathComponent(agent)+".json")
+	scope, err := artifactpath.ResolveSelectedScope(dataDir)
+	if err != nil {
+		return ""
+	}
+	path, _ := scope.AgentDefault(agentDefaultPathComponent(agent))
+	return path
 }
 
 func ParseAgentDefault(expectedAgent, raw string) (AgentDefault, error) {

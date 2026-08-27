@@ -11,9 +11,9 @@ local function eq(got, want, msg)
   end
 end
 
-eq(M.mode_path('/tmp/pair', 'abc'), '/tmp/pair/review-abc.mode', 'mode path tagged')
-eq(M.mode_path('/tmp/pair', ''), '/tmp/pair/review-default.mode', 'mode path default tag')
-eq(M.mode_path('', 'abc'), nil, 'mode path missing data dir')
+eq(M.mode_path('/tmp/pair/review-abc.mode'), '/tmp/pair/review-abc.mode', 'mode path exact')
+eq(M.mode_path(''), nil, 'mode path missing binding')
+eq(M.tag(''), 'default', 'legacy default tag helper')
 
 eq(M.default_mode(), 'edit', 'default mode id')
 eq(M.normalize_mode(nil), 'edit', 'nil normalizes to default')

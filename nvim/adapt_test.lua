@@ -13,6 +13,7 @@ vim.env.PAIR_TAG = 'adapttest'
 vim.env.PAIR_DATA_DIR = tmp
 vim.env.PAIR_AGENT = 'codex'
 local path = tmp .. '/adapt-adapttest.jsonl'
+vim.env.PAIR_ADAPT_LOG_PATH = path
 os.remove(path)
 
 -- 100 × 'あ' (U+3042, 3 bytes) = 300 bytes; must cap to <=200 bytes WITHOUT

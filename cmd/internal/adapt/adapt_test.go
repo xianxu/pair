@@ -135,6 +135,20 @@ func TestOpenNoTagReturnsNilNoOp(t *testing.T) {
 	}
 }
 
+func TestOpenRejectsUnsafeTagBeforeArtifactIO(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "adapt-.."), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PAIR_DATA_DIR", dir)
+	t.Setenv("PAIR_TAG", "../escape")
+
+	if logger := Open("pair-wrap", "codex"); logger != nil {
+		_ = logger.Close()
+		t.Fatal("Open accepted an unsafe composite artifact tag")
+	}
+}
+
 func TestOpenAppendsAcrossOpens(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PAIR_TAG", "t1")

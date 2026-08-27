@@ -6,6 +6,8 @@ import (
 	"io"
 	"path/filepath"
 	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
 
 // Runtime is the IO/process boundary for the review helpers. The fs primitives
@@ -62,11 +64,16 @@ func RunTarget(opts TargetOptions, rt Runtime, stdout, stderr io.Writer) int {
 		return 1
 	}
 	tag := orDefault(opts.Tag, "default")
+	paths, err := artifactpath.ResolveScoped(opts.DataDir, tag)
+	if err != nil {
+		fmt.Fprintf(stderr, "pair-review-target: resolve artifact namespace: %v\n", err)
+		return 1
+	}
 	agent := orDefault(opts.Agent, "claude")
 	sid := resolveTargetSession(rt, opts.DataDir, tag, agent, opts.SessionID)
 	file := rt.AbsFile(opts.File)
 
-	out := filepath.Join(opts.DataDir, "review-target-"+tag+".json")
+	out := paths.ReviewTarget()
 	_ = rt.WriteAtomic(out, targetJSON(file, opts.Status, sid))
 	fmt.Fprintf(stdout, "review target %s: %s (session %s)\n", opts.Status, file, orDefault(sid, "none"))
 	return 0
@@ -95,9 +102,14 @@ func RunDefinition(opts DefinitionOptions, rt Runtime, stdout, stderr io.Writer)
 		return 2
 	}
 	tag := orDefault(opts.Tag, "default")
+	paths, err := artifactpath.ResolveScoped(opts.DataDir, tag)
+	if err != nil {
+		fmt.Fprintf(stderr, "pair-review-definition: resolve artifact namespace: %v\n", err)
+		return 1
+	}
 	agent := orDefault(opts.Agent, "claude")
 	sid := resolveTargetSession(rt, opts.DataDir, tag, agent, opts.SessionID)
-	out := filepath.Join(opts.DataDir, "review-definition-result-"+tag+".json")
+	out := paths.ReviewDefinitionResult()
 	if err := rt.WriteAtomic(out, definitionJSON(opts.RequestID, opts.Term, opts.Definition, sid)); err != nil {
 		fmt.Fprintf(stderr, "pair-review-definition: write %s: %v\n", out, err)
 		return 1
@@ -147,7 +159,12 @@ func RunOpen(opts OpenOptions, rt Runtime, stderr io.Writer) int {
 
 	// Single review pane: replace any LIVE review (kill the old nvim → its
 	// close_on_exit floating pane self-dismisses) before spawning the new one.
-	state := filepath.Join(opts.DataDir, "review-"+opts.Tag+".open")
+	paths, err := artifactpath.ResolveScoped(opts.DataDir, opts.Tag)
+	if err != nil {
+		fmt.Fprintf(stderr, "pair-review-open: resolve artifact namespace: %v\n", err)
+		return 1
+	}
+	state := paths.ReviewOpen()
 	if content, err := rt.ReadFile(state); err == nil {
 		if old := firstLine(content); old != "" && rt.ProcessAlive(old) {
 			rt.Kill(old)
@@ -157,7 +174,7 @@ func RunOpen(opts OpenOptions, rt Runtime, stderr io.Writer) int {
 
 	dir := rt.LogicalDir(opts.File)
 	abs := filepath.Join(dir, filepath.Base(opts.File))
-	nvimPid := filepath.Join(opts.DataDir, "nvim-pid-"+opts.Tag+"-review")
+	nvimPid := paths.NvimPID("review")
 	if err := rt.SpawnReviewPane(dir, opts.PairHome+"/nvim/review.lua", abs, nvimPid); err != nil {
 		fmt.Fprintf(stderr, "pair-review-open: %v\n", err)
 		return 1
@@ -309,8 +326,9 @@ func prepare(opts ReadinessOptions, rt Runtime, stdout io.Writer, reviewCase str
 	// Mark the target ready in-process (the shell shelled out to pair-review-target).
 	sid := resolveTargetSession(rt, opts.DataDir, orDefault(opts.Tag, "default"), orDefault(opts.Agent, "claude"), opts.SessionID)
 	if opts.DataDir != "" {
-		out := filepath.Join(opts.DataDir, "review-target-"+orDefault(opts.Tag, "default")+".json")
-		_ = rt.WriteAtomic(out, targetJSON(gi.abs, "ready", sid))
+		if paths, err := artifactpath.ResolveScoped(opts.DataDir, orDefault(opts.Tag, "default")); err == nil {
+			_ = rt.WriteAtomic(paths.ReviewTarget(), targetJSON(gi.abs, "ready", sid))
+		}
 	}
 
 	fmt.Fprintf(stdout, "review prepared: %s %s on %s. Do not load xx-fix for this ack; when asked to review this file, load the full xx-fix skill directly and follow its Pair review workbench protocol. Reply \"ready\".\n", action, gi.abs, reviewBranch)

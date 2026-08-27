@@ -8,11 +8,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/continuationcmd"
 	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/procutil"
@@ -422,7 +424,11 @@ func (OSRuntime) CommandExists(name string) bool {
 }
 
 func (r OSRuntime) RecordOuterTTY(tag string) {
-	path := filepath.Join(r.DataDir, "outer-tty-"+tag)
+	paths, err := artifactpath.ResolveScoped(r.DataDir, tag)
+	if err != nil {
+		return
+	}
+	path := paths.OuterTTY()
 	cmd := exec.Command("tty")
 	cmd.Stdin = os.Stdin
 	out, _ := cmd.Output()
@@ -531,17 +537,21 @@ func (r OSRuntime) WriteAgentDefault(agent string, args []string) error {
 // InferAgent reads the agent-<tag> record (primary) or the agent encoded in a
 // config-<tag>-<agent>.json filename (fallback for Alt+x'd sessions).
 func (r OSRuntime) InferAgent(tag string) string {
+	paths, pathErr := artifactpath.ResolveScoped(r.DataDir, tag)
+	if pathErr != nil {
+		return ""
+	}
 	if entries, err := r.ReadLedger(tag); err == nil {
 		if latest, ok := LatestLedgerEntry(entries); ok && latest.Agent != "" {
 			return latest.Agent
 		}
 	}
-	if raw, err := r.ReadFile(filepath.Join(r.DataDir, "agent-"+tag)); err == nil {
+	if raw, err := r.ReadFile(paths.Agent()); err == nil {
 		if a := strings.TrimSpace(raw); a != "" {
 			return a
 		}
 	}
-	matches, _ := filepath.Glob(filepath.Join(r.DataDir, "config-"+tag+"-*.json"))
+	matches, _ := filepath.Glob(paths.ConfigGlob())
 	for _, m := range matches {
 		if raw, err := r.ReadFile(m); err == nil {
 			if cfg, err := parseConfig(raw); err == nil && cfg.Agent != "" {
@@ -553,7 +563,11 @@ func (r OSRuntime) InferAgent(tag string) string {
 }
 
 func (r OSRuntime) ReadLedger(tag string) ([]LedgerEntry, error) {
-	raw, err := r.ReadFile(filepath.Join(r.DataDir, "ledger-"+tag+".jsonl"))
+	paths, err := artifactpath.ResolveScoped(r.DataDir, tag)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := r.ReadFile(paths.Ledger())
 	if err != nil {
 		return nil, err
 	}
@@ -561,7 +575,11 @@ func (r OSRuntime) ReadLedger(tag string) ([]LedgerEntry, error) {
 }
 
 func (r OSRuntime) AppendLedger(tag string, entry LedgerEntry) error {
-	path := filepath.Join(r.DataDir, "ledger-"+tag+".jsonl")
+	paths, err := artifactpath.ResolveScoped(r.DataDir, tag)
+	if err != nil {
+		return err
+	}
+	path := paths.Ledger()
 	var raw string
 	if existing, err := r.ReadFile(path); err == nil {
 		raw = existing
@@ -578,7 +596,11 @@ func (r OSRuntime) AppendLedger(tag string, entry LedgerEntry) error {
 }
 
 func (r OSRuntime) ReadSessionNameIndex() (SessionNameIndex, error) {
-	raw, err := r.ReadFile(filepath.Join(r.globalDataDir(), "session-names.jsonl"))
+	scope, err := artifactpath.ResolveSelectedScope(r.DataDir)
+	if err != nil {
+		return SessionNameIndex{}, err
+	}
+	raw, err := r.ReadFile(scope.SessionBindings())
 	if err != nil {
 		return SessionNameIndex{}, err
 	}
@@ -586,7 +608,11 @@ func (r OSRuntime) ReadSessionNameIndex() (SessionNameIndex, error) {
 }
 
 func (r OSRuntime) AppendSessionNameIndex(entry SessionNameEntry) error {
-	path := filepath.Join(r.globalDataDir(), "session-names.jsonl")
+	scope, err := artifactpath.ResolveSelectedScope(r.DataDir)
+	if err != nil {
+		return err
+	}
+	path := scope.SessionBindings()
 	var raw string
 	if existing, err := r.ReadFile(path); err == nil {
 		raw = existing
@@ -654,7 +680,11 @@ func (r OSRuntime) LiveAgentSessionID(agent, tag string) string {
 	if agent != "codex" || tag == "" {
 		return ""
 	}
-	raw, err := r.ReadFile(filepath.Join(r.DataDir, "agent-pid-"+tag))
+	paths, err := artifactpath.ResolveScoped(r.DataDir, tag)
+	if err != nil {
+		return ""
+	}
+	raw, err := r.ReadFile(paths.AgentPID())
 	if err != nil {
 		return ""
 	}
@@ -759,8 +789,12 @@ func pkillF(pattern string) { _ = exec.Command("pkill", "-9", "-f", pattern).Run
 // ReapNvim kills this tag's nvim --embed children: the deterministic pidfiles
 // first, then a scoped pkill for the missing-pidfile case (shell 1089-1112).
 func (r OSRuntime) ReapNvim(tag string) {
+	paths, err := artifactpath.ResolveScoped(r.DataDir, tag)
+	if err != nil {
+		return
+	}
 	for _, kind := range []string{"draft", "scrollback"} {
-		pf := filepath.Join(r.DataDir, "nvim-pid-"+tag+"-"+kind)
+		pf := paths.NvimPID(kind)
 		if raw, err := r.ReadFile(pf); err == nil {
 			if pid := strings.TrimSpace(raw); pid != "" {
 				_ = exec.Command("kill", "-9", pid).Run()
@@ -768,8 +802,8 @@ func (r OSRuntime) ReapNvim(tag string) {
 			r.Remove(pf)
 		}
 	}
-	pkillF("nvim --embed.*" + r.DataDir + "/draft-" + tag + `\.md$`)
-	pkillF("nvim --embed.*" + r.DataDir + "/scrollback-" + tag + "-")
+	pkillF("nvim --embed.*" + regexp.QuoteMeta(paths.Draft()) + `$`)
+	pkillF("nvim --embed.*" + regexp.QuoteMeta(paths.ScrollbackPrefix()))
 }
 
 // SweepOrphanNvim reaps nvim --embed processes whose Pair session is not live —
@@ -812,18 +846,29 @@ func (r OSRuntime) SweepOrphanNvim(liveTags []string) {
 // touches parked-<tag> (shell 696-708). The timestamp is taken here (time.Now is
 // live in OSRuntime, unlike a pure decider).
 func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
-	base := filepath.Join(r.DataDir, "scrollback-"+tag+"-"+agent)
+	paths, err := artifactpath.ResolveScoped(r.DataDir, tag)
+	if err != nil {
+		return "", false
+	}
+	rawPath, err := paths.ScrollbackChecked(agent, "raw")
+	if err != nil {
+		return "", false
+	}
+	base := strings.TrimSuffix(rawPath, ".raw")
 	if size, ok := r.FileSize(base + ".raw"); !ok || size == 0 {
 		return "", false
 	}
-	pbase := filepath.Join(r.DataDir, "parked-scrollback-"+tag+"-"+time.Now().Format("20060102T150405"))
+	pbase, err := paths.ParkedScrollbackChecked(time.Now().Format("20060102T150405"))
+	if err != nil {
+		return "", false
+	}
 	if !transferFile(base+".raw", pbase+".raw", move) {
 		return "", false
 	}
 	if _, ok := r.FileSize(base + ".events.jsonl"); ok {
 		transferFile(base+".events.jsonl", pbase+".events.jsonl", move)
 	}
-	_ = r.Touch(filepath.Join(r.DataDir, "parked-"+tag))
+	_ = r.Touch(paths.Parked())
 	return pbase, true
 }
 
@@ -887,7 +932,11 @@ func (OSRuntime) IsTTY() bool {
 
 // KillTitlePoller SIGTERMs (not -9: it self-cleans) + clears the poller pidfile.
 func (r OSRuntime) KillTitlePoller(tag string) {
-	pf := filepath.Join(r.DataDir, "title-pid-"+tag)
+	paths, err := artifactpath.ResolveScoped(r.DataDir, tag)
+	if err != nil {
+		return
+	}
+	pf := paths.TitlePID()
 	if raw, err := r.ReadFile(pf); err == nil {
 		if pid := strings.TrimSpace(raw); pid != "" {
 			_ = exec.Command("kill", pid).Run()

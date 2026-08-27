@@ -3,7 +3,6 @@ package launcher
 import (
 	"errors"
 	"os"
-	"path/filepath"
 	"sync"
 	"testing"
 )
@@ -126,7 +125,11 @@ func TestClaimNewThreadAddressHasOneAtomicWinner(t *testing.T) {
 func TestClaimNewThreadAddressFailsClosedOnMalformedSessionIndex(t *testing.T) {
 	global := t.TempDir()
 	scope := RepoScope{Key: "0123456789abcdef"}
-	if err := os.WriteFile(filepath.Join(global, "session-names.jsonl"), []byte("not-json\n"), 0o600); err != nil {
+	paths := NewScopedPaths(global, scope, "couch-0001020304050607")
+	if err := os.MkdirAll(paths.ScopeDir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.resolved().SessionBindings(), []byte("not-json\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	claim, err := ClaimNewThreadAddress(global, scope, "couch-0001020304050607")
@@ -150,7 +153,11 @@ func (d *recordingSessionDeleter) DeleteSession(name string) error {
 
 func TestQuiesceThreadSessionDeletesOnlyExactIndexedPairSession(t *testing.T) {
 	global := t.TempDir()
-	index := filepath.Join(global, "session-names.jsonl")
+	paths := NewScopedPaths(global, RepoScope{Key: "0123456789abcdef"}, "couch-0001020304050607")
+	if err := os.MkdirAll(paths.ScopeDir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	index := paths.resolved().SessionBindings()
 	rows := "not-json\n"
 	deleter := &recordingSessionDeleter{}
 	if err := os.WriteFile(index, []byte(rows), 0o600); err != nil {

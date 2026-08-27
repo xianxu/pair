@@ -61,6 +61,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/draftroute"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/layoutcmd"
@@ -441,16 +442,20 @@ func (p *proxy) resolvePaths() {
 		return
 	}
 	dir := adapt.DataDir()
-	p.outerTTYFile = filepath.Join(dir, "outer-tty-"+tag)
-	if spanExtractionAgents[p.agentBasename] {
-		p.agentOutputFile = filepath.Join(dir, "agent-output-"+tag)
+	paths, err := artifactpath.ResolveScoped(dir, tag)
+	if err != nil {
+		return
 	}
-	p.captureOutPath = filepath.Join(dir, "image-capture-"+tag)
-	p.captureDonePath = p.captureOutPath + ".done"
-	p.capturePIDPath = filepath.Join(dir, "pair-wrap-pid-"+tag)
-	p.agentPIDPath = filepath.Join(dir, "agent-pid-"+tag)
-	p.agentReadyPath = launcher.AgentReadyPath(dir, tag, p.agentBasename)
-	p.wrapEventsPath = filepath.Join(dir, "wrap-events-"+tag+".jsonl")
+	p.outerTTYFile = paths.OuterTTY()
+	if spanExtractionAgents[p.agentBasename] {
+		p.agentOutputFile = paths.AgentOutput()
+	}
+	p.captureOutPath = paths.ImageCapture()
+	p.captureDonePath = paths.ImageCaptureDone()
+	p.capturePIDPath = paths.PairWrapPID()
+	p.agentPIDPath = paths.AgentPID()
+	p.agentReadyPath, _ = paths.AgentReadyChecked(p.agentBasename)
+	p.wrapEventsPath = paths.WrapEvents()
 }
 
 func (p *proxy) publishAgentReady(pid int) error {
@@ -477,12 +482,11 @@ func (p *proxy) publishAgentReady(pid int) error {
 	return os.Rename(tmp, p.agentReadyPath)
 }
 
-func dataDirFlag(name string) bool {
-	tag := os.Getenv("PAIR_TAG")
-	if tag == "" {
+func codexFilterKKPFlag() bool {
+	path := os.Getenv("PAIR_CODEX_FILTER_KKP_PATH")
+	if path == "" {
 		return false
 	}
-	path := filepath.Join(adapt.DataDir(), name+"-"+tag)
 	if _, err := os.Stat(path); err == nil {
 		return true
 	}
@@ -2101,7 +2105,14 @@ func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv [
 	}
 	tag := envValue(env, "PAIR_TAG")
 	if dataDir != "" && tag != "" {
-		configPath := filepath.Join(dataDir, "config-"+tag+"-"+agent+".json")
+		paths, err := artifactpath.ResolveScoped(dataDir, tag)
+		if err != nil {
+			return nil, err
+		}
+		configPath, err := paths.ConfigChecked(agent)
+		if err != nil {
+			return nil, err
+		}
 		if agent == "claude" {
 			payload, err := sessionwatch.ConfigJSON(sessionwatch.ConfigPayload{
 				Agent: agent, Args: configArgs, SessionID: sessionID,
@@ -2265,7 +2276,7 @@ argsDone:
 	p.agentBasename = filepath.Base(argv[0])
 	p.codexSyncPassthrough = envFlag("PAIR_CODEX_SYNC_PASSTHROUGH")
 	p.resolvePaths()
-	p.codexFilterKKP = envFlag("PAIR_CODEX_FILTER_KKP") || dataDirFlag("codex-filter-kkp")
+	p.codexFilterKKP = envFlag("PAIR_CODEX_FILTER_KKP") || codexFilterKKPFlag()
 
 	// Open the always-on adaptation flight recorder. bin/pair truncates the
 	// file once per session launch, so we append. nil when PAIR_TAG is unset.

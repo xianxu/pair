@@ -72,7 +72,7 @@ func ClaimNewThreadAddress(globalDataDir string, scope RepoScope, tag string) (*
 			return rollback(ErrThreadAddressClaimed)
 		}
 	}
-	collision, err := strictSessionBindingCollision(filepath.Join(globalDataDir, "session-names.jsonl"), scope.Key, tag)
+	collision, err := strictSessionBindingCollision(paths.resolved().SessionBindings(), scope.Key, tag)
 	if err != nil {
 		return rollback(err)
 	}
@@ -239,7 +239,11 @@ func QuiesceThreadSession(globalDataDir, scopeKey, tag string, deleter SessionDe
 	if deleter == nil {
 		return errors.New("quiesce Pair thread session: nil session deleter")
 	}
-	path := filepath.Join(globalDataDir, "session-names.jsonl")
+	paths := NewScopedPaths(globalDataDir, RepoScope{Key: scopeKey}, tag)
+	if err := paths.Validate(); err != nil {
+		return err
+	}
+	path := paths.resolved().SessionBindings()
 	f, err := os.Open(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil

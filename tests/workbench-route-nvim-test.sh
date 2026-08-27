@@ -28,7 +28,7 @@ vim.fn.writefile({ vim.json.encode({
   session = vim.env.ZELLIJ_SESSION_NAME,
   pane_id = '42',
   pid = vim.fn.getpid(),
-}) }, vim.env.PAIR_DATA_DIR .. '/draft-pane-' .. vim.env.PAIR_TAG .. '.json')
+}) }, vim.env.PAIR_DRAFT_PANE_PATH)
 local routed = route.route('PairConfirmRestart', true)
 if vim.env.EXPECT_FAIL == '1' then
   assert(not routed)
@@ -40,6 +40,7 @@ LUA
 
 mkdir -p "$tmp/data"
 PATH="$tmp/bin:$PATH" PAIR_HOME="$ROOT" PAIR_DATA_DIR="$tmp/data" PAIR_TAG=t \
+  PAIR_DRAFT_PANE_PATH="$tmp/data/draft-pane-t.json" \
   ZELLIJ_SESSION_NAME=pair-t \
   run_headless -- nvim --headless -u NONE -l "$tmp/driver.lua"
 
@@ -61,6 +62,7 @@ fi
 : > "$tmp/actions"
 : > "$tmp/all-actions"
 PATH="$tmp/bin:$PATH" PAIR_HOME="$ROOT" PAIR_DATA_DIR="$tmp/data" PAIR_TAG=t \
+  PAIR_DRAFT_PANE_PATH="$tmp/data/draft-pane-t.json" \
   ZELLIJ_SESSION_NAME=pair-t FAIL_FOCUS=1 EXPECT_FAIL=1 \
   run_headless -- nvim --headless -u NONE -l "$tmp/driver.lua"
 [ ! -s "$tmp/actions" ] || {
@@ -78,7 +80,7 @@ vim.fn.writefile({ vim.json.encode({
   session = vim.env.ZELLIJ_SESSION_NAME,
   pane_id = '42',
   pid = vim.fn.getpid(),
-}) }, vim.env.PAIR_DATA_DIR .. '/draft-pane-' .. vim.env.PAIR_TAG .. '.json')
+}) }, vim.env.PAIR_DRAFT_PANE_PATH)
 local mapping = vim.fn.maparg(vim.env.TEST_KEY, 'n', false, true)
 assert(type(mapping.callback) == 'function',
   vim.env.TEST_INIT .. ' missing effective ' .. vim.env.TEST_KEY .. ' callback')
@@ -94,6 +96,7 @@ run_overlay_map() {
   : > "$tmp/all-actions"
   : > "$tmp/view-$init.md"
   PATH="$tmp/bin:$PATH" PAIR_HOME="$ROOT" PAIR_DATA_DIR="$tmp/data" PAIR_TAG=t \
+    PAIR_DRAFT_PANE_PATH="$tmp/data/draft-pane-t.json" \
     ZELLIJ_SESSION_NAME=pair-t TEST_INIT="$init" TEST_KEY="$key" \
     FAIL_FOCUS="$fail_focus" \
     run_headless -- nvim --headless -u "$ROOT/nvim/$init.lua" \
@@ -143,7 +146,7 @@ for init in init.lua review.lua scrollback.lua changelog.lua; do
     { printf 'FAIL %s does not install global maps\n' "$init"; exit 1; }
 done
 
-grep -Fq "draft-pane-" "$ROOT/nvim/init.lua" ||
+grep -Fq "PAIR_DRAFT_PANE_PATH" "$ROOT/nvim/init.lua" ||
   { printf 'FAIL draft init does not publish pane locator\n'; exit 1; }
 
 printf 'workbench-route-nvim-test ok\n'

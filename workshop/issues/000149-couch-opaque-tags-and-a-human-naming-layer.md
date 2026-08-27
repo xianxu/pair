@@ -1104,3 +1104,19 @@ one nonce-bearing journal publishes record revisions plus the versioned
 manifest marker. Corrupt input and the preserved registry remain byte-exact;
 interruption rolls forward the whole mutation; rerun is byte-stable
 (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-26 — M5 composite artifact authority
+
+A stdlib-only `artifactpath` leaf now validates `{repo_scope, tag}` once and
+owns every tag-bearing Pair artifact family. Go consumers use those checked
+paths directly; the launcher exports exact resolved bindings to shell,
+Neovim, and both Zellij layouts, whose filename reconstruction has been
+removed. An exact source/family manifest fails on new unclassified production
+references and explicitly accounts for every generated runtime file. A real
+two-scope strategy writes through Go, shell, and Neovim with one repeated
+legacy tag and proves neither scope observes the other's mutation while both
+layouts consume only exact bindings. Standalone Pair keeps its existing tag
+prompt but now registers successful create flow state through Couch's locked,
+revisioned `ThreadStore`; Couch-owned starts bypass the adapter because their
+transaction already exists. `make test` and `go test ./... -count=1` pass
+(ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).

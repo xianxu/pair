@@ -257,6 +257,7 @@ type LaunchOptions struct {
 	Env                  Env
 	PairHome             string
 	GlobalDataDir        string
+	CouchStoreDir        string
 	ContinueDoc          string // seed the draft to read this continuation (create-only)
 	ContinueText         string // seed the draft with generated continuation instructions
 	CodexAltScreenOptOut bool   // PAIR_CODEX_ALT_SCREEN=1: leave codex in alt-screen
@@ -276,4 +277,23 @@ type LaunchOptions struct {
 	// couch requested the repo default at process entry. In either case the
 	// normal saved-config picker must not re-open.
 	SkipConfigPicker bool
+
+	// RegisterStandaloneThread joins an ordinary Pair create to Couch's durable
+	// thread inventory. The composition root supplies the implementation so this
+	// package stays below couchcore in the dependency graph. Couch-owned creates
+	// already have a transactional record and never call this hook.
+	RegisterStandaloneThread StandaloneThreadRegistrar
 }
+
+type StandaloneThreadRegistration struct {
+	GlobalDataDir string
+	CouchStoreDir string
+	RepoScope     string
+	Tag           string
+	WorkingPath   string
+	CreatedAt     time.Time
+	Agent         string
+	Argv          []string
+}
+
+type StandaloneThreadRegistrar func(StandaloneThreadRegistration) error

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/ctxmeter"
 	"github.com/xianxu/pair/cmd/internal/transcript"
 )
@@ -72,7 +73,15 @@ func resolveDataDir(env Env) string {
 }
 
 func paneCwd(dataDir, tag, agent string) string {
-	b, err := os.ReadFile(filepath.Join(dataDir, "pane-"+tag+"-"+agent+".json"))
+	paths, err := artifactpath.ResolveScoped(dataDir, tag)
+	if err != nil {
+		return ""
+	}
+	panePath, err := paths.PaneChecked(agent)
+	if err != nil {
+		return ""
+	}
+	b, err := os.ReadFile(panePath)
 	if err != nil {
 		return ""
 	}

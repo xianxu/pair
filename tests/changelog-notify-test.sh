@@ -92,6 +92,9 @@ LUA
 
 run_headless --timeout 45 -- \
   env PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=claude \
+  PAIR_DRAFT_PATH="$RT/draft-test.md" PAIR_LAYOUT_MODE_PATH="$RT/layout-mode-test" \
+  PAIR_CHANGELOG_PATH="$RT/changelog-test-claude.md" \
+  PAIR_AGENT_CONFIG_PATH="$RT/config-test-claude.json" \
   nvim --headless -u "$INIT" "$RT/draft-test.md" \
   -c "luafile $RT/driver.lua"
 

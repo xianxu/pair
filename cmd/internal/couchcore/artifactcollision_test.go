@@ -62,11 +62,15 @@ func TestScopedArtifactCheckerQuiescesExactIndexedSession(t *testing.T) {
 	global := t.TempDir()
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
 	entry := launcher.SessionNameEntry{SessionName: "📁pair-couch", ScopeKey: address.RepoScope, Tag: string(address.Tag)}
+	paths := launcher.NewScopedPaths(global, launcher.RepoScope{Key: address.RepoScope}, string(address.Tag))
+	if err := os.MkdirAll(paths.ScopeDir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
 	line, err := launcher.BuildSessionNameIndexLine(entry)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(global, "session-names.jsonl"), []byte(line+"\n"), 0o600); err != nil {
+	if err := os.WriteFile(paths.SessionBindings(), []byte(line+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	deleter := &fakeSessionDeleter{}
@@ -83,12 +87,12 @@ func TestScopedArtifactCheckerQuiescesExactIndexedSession(t *testing.T) {
 func TestScopedArtifactCollisionCheckerFindsEveryTagNameShape(t *testing.T) {
 	dataDir := t.TempDir()
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
+	paths := launcher.NewScopedPaths(dataDir, launcher.RepoScope{Key: address.RepoScope}, string(address.Tag))
 	checker := NewScopedThreadArtifactCollisionChecker(dataDir)
-	scopeDir := launcher.NewScopedPaths(dataDir, launcher.RepoScope{Key: address.RepoScope}, string(address.Tag)).ScopeDir()
+	scopeDir := paths.ScopeDir()
 	if err := os.MkdirAll(scopeDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	paths := launcher.NewScopedPaths(dataDir, launcher.RepoScope{Key: address.RepoScope}, string(address.Tag))
 	for _, path := range []string{
 		paths.Ledger(), paths.Draft(), paths.Log(), paths.QueueDir(), paths.Agent(),
 		paths.AgentPID(), paths.AgentOutput(), paths.AgentPicks(), paths.AdaptLog(),
@@ -125,13 +129,17 @@ func TestScopedArtifactCollisionCheckerFindsEveryTagNameShape(t *testing.T) {
 func TestScopedArtifactCollisionCheckerFindsDetachedSessionBinding(t *testing.T) {
 	dataDir := t.TempDir()
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
+	paths := launcher.NewScopedPaths(dataDir, launcher.RepoScope{Key: address.RepoScope}, string(address.Tag))
+	if err := os.MkdirAll(paths.ScopeDir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
 	line, err := launcher.BuildSessionNameIndexLine(launcher.SessionNameEntry{
 		SessionName: "session", ScopeKey: address.RepoScope, Tag: string(address.Tag),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dataDir, "session-names.jsonl"), []byte(line+"\n"), 0o600); err != nil {
+	if err := os.WriteFile(paths.SessionBindings(), []byte(line+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	claim, err := NewScopedThreadArtifactCollisionChecker(dataDir).Claim(address)

@@ -32,6 +32,7 @@ import (
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/model"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	transcriptpkg "github.com/xianxu/pair/cmd/internal/transcript"
@@ -80,7 +81,11 @@ func repoBase(dir string) string {
 }
 
 func resolveLiveCodexTranscript(dataDir, tag, home string) string {
-	b, err := os.ReadFile(filepath.Join(dataDir, "agent-pid-"+tag))
+	paths, err := artifactpath.ResolveScoped(dataDir, tag)
+	if err != nil {
+		return ""
+	}
+	b, err := os.ReadFile(paths.AgentPID())
 	if err != nil {
 		return ""
 	}
@@ -112,6 +117,11 @@ func Run() int {
 	dataDir := os.Getenv("PAIR_DATA_DIR")
 	if tag == "" || dataDir == "" {
 		logf("no PAIR_TAG/PAIR_DATA_DIR; not inside a pair session")
+		return 0
+	}
+	paths, err := artifactpath.ResolveScoped(dataDir, tag)
+	if err != nil {
+		logf("unsafe artifact namespace: %v", err)
 		return 0
 	}
 	agent := os.Getenv("PAIR_AGENT")
@@ -168,7 +178,7 @@ func Run() int {
 
 	// prev is the effective slug nvim last wrote (includes user edits).
 	prev := ""
-	if b, err := os.ReadFile(filepath.Join(dataDir, "slug-"+tag)); err == nil {
+	if b, err := os.ReadFile(paths.Slug()); err == nil {
 		prev = strings.TrimSpace(string(b))
 	}
 
@@ -199,7 +209,7 @@ func Run() int {
 
 	// Atomic write: nvim is a concurrent reader of slug-proposed-<tag>; write
 	// to a temp sibling then rename so it never observes a torn file.
-	proposed := filepath.Join(dataDir, "slug-proposed-"+tag)
+	proposed := paths.SlugProposed()
 	tmp := proposed + ".tmp"
 	if err := os.WriteFile(tmp, []byte(value+"\n"), 0o644); err != nil {
 		logf("write %q: %v", tmp, err)

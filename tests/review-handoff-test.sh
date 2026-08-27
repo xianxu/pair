@@ -33,6 +33,7 @@ ok(got and got[1] and got[1].new_occurrence == 1, 'records carry new_occurrence'
 ok(vim.uv.fs_stat(handoff.path(tag)) == nil, 'handoff unlinked after consume')
 
 -- malformed handoff: must SURFACE (notify) + consume the file, never silent
+vim.env.PAIR_REVIEW_HANDOFF_PATH = os.getenv('BAD_HANDOFF')
 local note = {}
 local orig = vim.notify
 vim.notify = function(m) note[#note + 1] = tostring(m) end
@@ -51,6 +52,7 @@ OUT:close()
 LUA
 
 PAIR_ROOT="$ROOT" RESULT="$RESULT" XDG_DATA_HOME="$RT/xdg" \
+PAIR_REVIEW_HANDOFF_PATH="$RT/handoff-test.json" BAD_HANDOFF="$RT/handoff-bad.json" \
   run_headless --timeout 30 -- nvim --headless -u NONE -c "luafile $RT/driver.lua" -c 'qa!'
 
 echo "--- results ---"; cat "$RESULT"

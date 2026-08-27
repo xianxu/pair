@@ -483,6 +483,63 @@ func TestCreateIdentifiesExactCouchOwnedClaim(t *testing.T) {
 	}
 }
 
+func TestStandaloneCreateRegistersCompositeThreadBeforeLaunching(t *testing.T) {
+	rt := newFakeRuntime()
+	var got StandaloneThreadRegistration
+	opts := baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "work", AgentArgs: []string{"--sandbox", "workspace-write"}, AgentArgsExplicit: true})
+	opts.GlobalDataDir = "/global"
+	opts.RegisterStandaloneThread = func(registration StandaloneThreadRegistration) error {
+		if rt.launched != "" {
+			t.Fatal("standalone thread registered after workspace child launched")
+		}
+		got = registration
+		return nil
+	}
+	if code, err := run(t, opts, rt); err != nil || code != 0 {
+		t.Fatalf("run = %d, %v", code, err)
+	}
+	scope, err := ResolveRepoScope(opts.Env.Cwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.RepoScope != scope.Key || got.Tag != "work" || got.WorkingPath != opts.Env.Cwd || got.GlobalDataDir != "/global" {
+		t.Fatalf("registration identity = %+v", got)
+	}
+	if got.Agent != "codex" || !reflect.DeepEqual(got.Argv, []string{"--sandbox", "workspace-write", "--no-alt-screen"}) {
+		t.Fatalf("registration profile = %+v", got)
+	}
+}
+
+func TestStandaloneRegistrationFailureRefusesWorkspaceChild(t *testing.T) {
+	rt := newFakeRuntime()
+	opts := baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "work"})
+	opts.RegisterStandaloneThread = func(StandaloneThreadRegistration) error { return errors.New("store unavailable") }
+	if code, err := run(t, opts, rt); err != nil || code != 1 {
+		t.Fatalf("run = %d, %v", code, err)
+	}
+	if rt.launched != "" || len(rt.watchers) != 0 || len(rt.pollers) != 0 {
+		t.Fatalf("registration failure started workspace effects: launched=%q watchers=%v pollers=%v", rt.launched, rt.watchers, rt.pollers)
+	}
+}
+
+func TestCouchOwnedCreateDoesNotRegisterAsStandalone(t *testing.T) {
+	rt := newFakeRuntime()
+	opts := baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "work"})
+	scope, err := ResolveRepoScope(opts.Env.Cwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts.Env.CouchThreadScope = scope.Key
+	opts.Env.CouchThreadTag = "work"
+	opts.RegisterStandaloneThread = func(StandaloneThreadRegistration) error {
+		t.Fatal("couch-owned create registered twice")
+		return nil
+	}
+	if code, err := run(t, opts, rt); err != nil || code != 0 {
+		t.Fatalf("run = %d, %v", code, err)
+	}
+}
+
 // RunLaunch must front the resolved asset root's bin/ on PATH at entry (#95),
 // so zellij resolves the shell shims (pair-help/pair-notify) and, in dev, `pair`.
 // Since #104 M3 it also fronts the running executable's dir (where `pair` lives

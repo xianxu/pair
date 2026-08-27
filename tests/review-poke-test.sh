@@ -47,6 +47,7 @@ OUT:write('sent\n'); OUT:close()
 LUA
 
 PATH="$RT/bin:$PATH" PAIR_ROOT="$ROOT" RESULT="$RESULT" PAIR_DATA_DIR="$RT" PAIR_TAG=poke \
+  PAIR_ZELLIJ_ACTIONS_PATH="$RT/zellij-actions-poke.jsonl" \
   run_headless --timeout 30 -- nvim --headless -u NONE -c "luafile $RT/driver.lua" -c 'qa!'
 
 fails=0
