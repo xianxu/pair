@@ -62,7 +62,7 @@ than adding only the entity named by a review finding.
 | `artifactpath.Address` / `Paths` / `ScopePaths` / `Binding` | pure | `cmd/internal/artifactpath/paths.go` | new in M5 |
 | `artifactpath.PairCachePaths` | pure | `cmd/internal/artifactpath/paths.go` | added in M5 boundary disposition |
 | `artifactpath.ScrollbackArtifactSet` / `ParkedScrollbackArtifactSet` / `ChangelogArtifactSet` | pure | `cmd/internal/artifactpath/paths.go` | added in M5 boundary disposition |
-| `artifactpath.Family` / `SourceKind` / `SourceClassification` / `NonArtifactSources` | pure declarations | `cmd/internal/artifactpath/manifest.go` | new in M5; exhaustive source inventory added in boundary disposition |
+| `artifactpath.Family` / `Families` / `SourceKind` / `SourceClassification` / `SourceClassifications` / `NonArtifactSources` | pure declarations | `cmd/internal/artifactpath/manifest.go` | new in M5; exhaustive source inventory added in boundary disposition |
 | `artifactpath.VocabularyContext` / `VocabularyAllowance` | pure declarations | `cmd/internal/artifactpath/manifest.go` | added in M5 boundary disposition |
 | `artifactpath.ResolvedBinding` / `ResolvedBindings` | pure declarations | `cmd/internal/artifactpath/manifest.go` | added in M5 boundary disposition |
 | `artifactpath.LegacyRootPaths` / `LegacyPaths` / `TagFromHistorySidecar` | pure | `cmd/internal/artifactpath/paths.go` | added in M5 boundary disposition |
@@ -1611,3 +1611,28 @@ pure-declaration and integration row as an exact `{entity, kind/path, status}`
 record; table deletion or field mutation for each row must fail. Together these
 tests distinguish participation from exclusive derivation and make the
 whole-diff entity sweep executable (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — cover runtime assembly and derive artifact concepts from code
+
+**Reason:** constant-expression evaluation still missed runtime assembly such
+as `strings.Join([]string{"dra", "ft-"}, "")`, and the exact-row concept test
+became another hand-maintained restatement. The artifact concept row also named
+the element types but omitted the exported `Families` and
+`SourceClassifications` catalogs.
+
+**Delta:** resolved-source enforcement conservatively concatenates non-allowed
+literal fragments within every call expression and across each function body.
+This covers runtime joins, formatters/replacers/helpers, and multi-call
+`strings.Builder` assembly without maintaining a parallel list of constructor
+APIs; exact vocabulary allowances are removed before assembly. Mutations place
+valid family witnesses beside both `strings.Join` and builder-based illicit
+constructors.
+
+The issue-149 concept contract no longer owns an expected prose-row list. It
+parses the exported type and variable declarations directly from the wholly
+M5-created `artifactpath/manifest.go` and `paths.go`, then requires each derived
+entity to appear exactly once in the plan's Core concepts table with a pure
+kind, its actual source path, and M5 status. Deletion plus kind/path/status
+mutations run for every source-derived entity. The plan row now includes the
+derived `Families` and `SourceClassifications` catalogs (ARCH-DRY,
+ARCH-PURPOSE).

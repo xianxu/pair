@@ -1283,3 +1283,18 @@ pure-declaration and integration row. Removing any row or changing its entity,
 kind/path, or status fails the mutation matrix. This turns the whole-diff
 concept sweep into repository evidence rather than review-only prose
 (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-27 — M5 boundary review round 9
+
+BR-32 now covers runtime construction as a class rather than naming
+`strings.Join`: non-vocabulary literal fragments are conservatively assembled
+within calls and across function bodies, catching join, formatter/replacer,
+helper, and multi-call builder shapes. Valid family witnesses placed beside
+runtime-join and builder constructors do not authorize them.
+
+BR-37's executable inventory is now derived from exported type/catalog
+declarations in the M5-created artifact authority rather than a second list of
+plan rows. Every derived entity must have one correct kind/path/status row, and
+per-entity mutations remove the entity or corrupt each field. The derivation
+surfaced and added the missing `Families` and `SourceClassifications` catalogs
+(ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).

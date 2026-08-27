@@ -35,7 +35,11 @@ classes or as a non-artifact source; new files have no implicit default, and Go
 constant concatenation cannot hide artifact vocabulary in the latter class.
 Witnesses track lexical resolver-result identity and require a non-discarded
 member use; constant concatenations in resolved sources are checked separately,
-so one valid witness cannot authorize another construction in the same file.
+and runtime literal fragments are conservatively assembled across calls and
+function bodies, so one valid witness cannot authorize another join/builder
+construction in the same file. The Core concepts contract derives the artifact
+authority's type/catalog inventory from its exported declarations rather than
+copying a second expected list.
 Generated-runtime coverage builds a temporary mirror from declared source
 inputs. The clean-bootstrap regression starts without `.git` or that mirror and
 proves the public test target generates it before every consumer.

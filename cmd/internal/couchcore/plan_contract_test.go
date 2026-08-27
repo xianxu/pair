@@ -2,28 +2,19 @@ package couchcore
 
 import (
 	"bufio"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 )
 
-var issue149M5ConceptRows = []string{
-	"| `MigrateLegacyRecord` | pure | `cmd/internal/couchcore/migration.go` | new in M5 |",
-	"| `artifactpath.Address` / `Paths` / `ScopePaths` / `Binding` | pure | `cmd/internal/artifactpath/paths.go` | new in M5 |",
-	"| `artifactpath.PairCachePaths` | pure | `cmd/internal/artifactpath/paths.go` | added in M5 boundary disposition |",
-	"| `artifactpath.ScrollbackArtifactSet` / `ParkedScrollbackArtifactSet` / `ChangelogArtifactSet` | pure | `cmd/internal/artifactpath/paths.go` | added in M5 boundary disposition |",
-	"| `artifactpath.Family` / `SourceKind` / `SourceClassification` / `NonArtifactSources` | pure declarations | `cmd/internal/artifactpath/manifest.go` | new in M5; exhaustive source inventory added in boundary disposition |",
-	"| `artifactpath.VocabularyContext` / `VocabularyAllowance` | pure declarations | `cmd/internal/artifactpath/manifest.go` | added in M5 boundary disposition |",
-	"| `artifactpath.ResolvedBinding` / `ResolvedBindings` | pure declarations | `cmd/internal/artifactpath/manifest.go` | added in M5 boundary disposition |",
-	"| `artifactpath.LegacyRootPaths` / `LegacyPaths` / `TagFromHistorySidecar` | pure | `cmd/internal/artifactpath/paths.go` | added in M5 boundary disposition |",
-	"| `DecodeSessionNameIndex` | pure | `cmd/internal/launcher/session_index.go` | added in M5 boundary disposition |",
-	"| `StandaloneThreadRegistration` / `StandaloneThreadRegistrar` | pure seam types | `cmd/internal/launcher/runtime.go` | new in M5 |",
-	"| `ThreadStore.MigrateLegacyRecords` | `cmd/internal/couchcore/migration.go` | new in M5 | one locked journal transaction over cutover records and manifest completion |",
-	"| `LaunchNativeWithStandaloneRegistrar` / `RegisterStandalonePair` | `cmd/internal/launcher/runcli.go`, `cmd/internal/couchcore/standalone.go`, `cmd/pair-go/main.go` | new in M5 | composition-root injection of direct Pair registration without reversing the launcher→Couch package boundary |",
-	"| `ThreadStore.UpsertStandalonePair` | `cmd/internal/couchcore/standalone.go` | new in M5 | locked/revisioned direct-Pair incarnation publication with metadata preservation |",
-	"| `OSRuntime.ReadSessionNameIndex` | `cmd/internal/launcher/osruntime.go` | modified in M5 and its boundary disposition | strict merge of legacy-global and selected-scope durable bindings; missing files mean empty, malformed/unreadable files fail closed |",
-	"| `readSessionNameIndexes` | `cmd/internal/launcher/session_index.go` | added in M5 boundary disposition | one injected-IO overlap reader used by runtime, address claim, and quiescence |",
+type issue149ConceptRequirement struct {
+	name string
+	path string
 }
 
 func TestIssue149M5CoreConceptInventoryContract(t *testing.T) {
@@ -32,32 +23,123 @@ func TestIssue149M5CoreConceptInventoryContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, problem := range issue149M5ConceptProblems(string(raw)) {
+	requirements := issue149ArtifactConceptRequirements(t, root)
+	for _, problem := range issue149M5ConceptProblems(string(raw), requirements) {
 		t.Error(problem)
 	}
 }
 
 func TestIssue149M5CoreConceptInventoryRejectsRowMutation(t *testing.T) {
-	complete := strings.Join(issue149M5ConceptRows, "\n")
-	for _, row := range issue149M5ConceptRows {
-		if problems := issue149M5ConceptProblems(strings.Replace(complete, row, "", 1)); len(problems) == 0 {
-			t.Fatalf("row deletion escaped contract: %s", row)
+	root := filepath.Join("..", "..", "..")
+	raw, err := os.ReadFile(findIssue149Plan(t, root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	requirements := issue149ArtifactConceptRequirements(t, root)
+	plan := string(raw)
+	for _, requirement := range requirements {
+		row := ""
+		needle := ""
+		for _, line := range issue149PureConceptRows(plan) {
+			for _, candidate := range []string{"`" + requirement.name + "`", "`artifactpath." + requirement.name + "`"} {
+				if !strings.Contains(line, candidate) {
+					continue
+				}
+				row = line
+				needle = candidate
+				break
+			}
+			if row != "" {
+				break
+			}
 		}
-		mutated := strings.Replace(row, " | ", " | wrong-", 1)
-		if problems := issue149M5ConceptProblems(strings.Replace(complete, row, mutated, 1)); len(problems) == 0 {
-			t.Fatalf("row field mutation escaped contract: %s", row)
+		mutated := strings.Replace(plan, needle, "`removed`", 1)
+		if problems := issue149M5ConceptProblems(mutated, requirements); len(problems) == 0 {
+			t.Fatalf("entity deletion escaped derived contract: %s", requirement.name)
+		}
+		for label, replacement := range map[string]string{
+			"kind":   strings.Replace(plan, row, strings.Replace(row, "| pure", "| integration", 1), 1),
+			"path":   strings.Replace(plan, row, strings.Replace(row, "`"+requirement.path+"`", "`wrong/path.go`", 1), 1),
+			"status": strings.Replace(plan, row, strings.Replace(row, "M5", "M4", 1), 1),
+		} {
+			if problems := issue149M5ConceptProblems(replacement, requirements); len(problems) == 0 {
+				t.Fatalf("%s mutation escaped derived contract for %s", label, requirement.name)
+			}
 		}
 	}
 }
 
-func issue149M5ConceptProblems(plan string) []string {
+func issue149M5ConceptProblems(plan string, requirements []issue149ConceptRequirement) []string {
 	var problems []string
-	for _, row := range issue149M5ConceptRows {
-		if strings.Count(plan, row) != 1 {
-			problems = append(problems, "M5 Core concepts row must appear exactly once: "+row)
+	lines := issue149PureConceptRows(plan)
+	for _, requirement := range requirements {
+		var matches []string
+		for _, line := range lines {
+			if strings.Contains(line, "`"+requirement.name+"`") || strings.Contains(line, "`artifactpath."+requirement.name+"`") {
+				matches = append(matches, line)
+			}
+		}
+		if len(matches) != 1 {
+			problems = append(problems, "M5 artifact concept must appear in exactly one row: "+requirement.name)
+			continue
+		}
+		row := matches[0]
+		if !strings.Contains(strings.ToLower(row), "| pure") || !strings.Contains(row, "`"+requirement.path+"`") || !strings.Contains(row, "M5") {
+			problems = append(problems, "M5 artifact concept has wrong kind/path/status: "+requirement.name)
 		}
 	}
 	return problems
+}
+
+func issue149PureConceptRows(plan string) []string {
+	var rows []string
+	inTable := false
+	for _, line := range strings.Split(plan, "\n") {
+		if line == "| Entity | Kind | Lives in | Status |" {
+			inTable = true
+			continue
+		}
+		if inTable && line == "" {
+			break
+		}
+		if inTable && strings.HasPrefix(line, "| `") {
+			rows = append(rows, line)
+		}
+	}
+	return rows
+}
+
+func issue149ArtifactConceptRequirements(t *testing.T, root string) []issue149ConceptRequirement {
+	t.Helper()
+	var requirements []issue149ConceptRequirement
+	for _, rel := range []string{"cmd/internal/artifactpath/manifest.go", "cmd/internal/artifactpath/paths.go"} {
+		file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, rel), nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, decl := range file.Decls {
+			gen, ok := decl.(*ast.GenDecl)
+			if !ok || gen.Tok != token.TYPE && gen.Tok != token.VAR {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				switch typed := spec.(type) {
+				case *ast.TypeSpec:
+					if ast.IsExported(typed.Name.Name) {
+						requirements = append(requirements, issue149ConceptRequirement{name: typed.Name.Name, path: rel})
+					}
+				case *ast.ValueSpec:
+					for _, name := range typed.Names {
+						if ast.IsExported(name.Name) {
+							requirements = append(requirements, issue149ConceptRequirement{name: name.Name, path: rel})
+						}
+					}
+				}
+			}
+		}
+	}
+	sort.Slice(requirements, func(i, j int) bool { return requirements[i].name < requirements[j].name })
+	return requirements
 }
 
 func TestIssue149CurrentCoreConceptKinds(t *testing.T) {

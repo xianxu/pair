@@ -691,3 +691,12 @@ so a valid family witness cannot hide a second constructor in the same source.
 The complete M5 Core concepts and integration inventory is now an executable
 exact-row contract with deletion and field-mutation coverage (ARCH-DRY,
 ARCH-PURPOSE).
+
+### 2026-08-27 — pair#149 M5 runtime assembly and derived inventory
+
+The constructor guard now assembles runtime literal fragments across calls and
+function bodies, covering joins and builders beside otherwise valid witnesses.
+The artifact Core concepts contract derives its entity set directly from the
+M5-created package's exported type/catalog declarations, including `Families`
+and `SourceClassifications`, then mutates every plan consumer field
+(ARCH-DRY, ARCH-PURPOSE).

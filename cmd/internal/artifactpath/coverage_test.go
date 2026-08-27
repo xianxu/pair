@@ -229,23 +229,31 @@ func artifactConstructorViolations(repoRoot string, roots []string, classificati
 				if !ok {
 					return true
 				}
-				value, ok := constantString(expr)
-				if !ok {
-					return true
+				values := []string{}
+				if value, exact := constantString(expr); exact {
+					values = append(values, value)
 				}
-				for _, familyName := range classification.Families {
-					if familyName == "restart" || familyName == "native-session" {
-						continue
-					}
-					for _, family := range Families {
-						if family.Name == familyName && strings.Contains(value, family.Token) && !classificationAllowsVocabulary(classification, familyName, value) {
-							line := fileSet.Position(node.Pos()).Line
-							violations[fmt.Sprintf("%s:%d: resolved consumer contains %s constant construction %q", rel, line, familyName, value)] = true
+				if value, assembled := assembledStringFragments(expr, classification); assembled {
+					values = append(values, value)
+				}
+				for _, value := range values {
+					for _, familyName := range classification.Families {
+						if familyName == "restart" || familyName == "native-session" {
+							continue
+						}
+						for _, family := range Families {
+							if family.Name == familyName && strings.Contains(value, family.Token) && !classificationAllowsVocabulary(classification, familyName, value) {
+								line := fileSet.Position(node.Pos()).Line
+								violations[fmt.Sprintf("%s:%d: resolved consumer contains %s assembled construction %q", rel, line, familyName, value)] = true
+							}
 						}
 					}
 				}
 				return true
 			})
+			for _, violation := range resolvedFunctionAssemblyViolations(rel, fileSet, file, classification) {
+				violations[violation] = true
+			}
 			return nil
 		})
 		if err != nil {
@@ -258,6 +266,41 @@ func artifactConstructorViolations(repoRoot string, roots []string, classificati
 	}
 	sort.Strings(out)
 	return out, nil
+}
+
+func resolvedFunctionAssemblyViolations(rel string, fileSet *token.FileSet, file *ast.File, classification SourceClassification) []string {
+	var violations []string
+	for _, decl := range file.Decls {
+		function, ok := decl.(*ast.FuncDecl)
+		if !ok || function.Body == nil {
+			continue
+		}
+		var fragments []string
+		ast.Inspect(function.Body, func(node ast.Node) bool {
+			literal, ok := node.(*ast.BasicLit)
+			if !ok || literal.Kind != token.STRING {
+				return true
+			}
+			value, err := strconv.Unquote(literal.Value)
+			if err == nil && !classificationAllowsAnyVocabulary(classification, value) {
+				fragments = append(fragments, value)
+			}
+			return true
+		})
+		assembled := strings.Join(fragments, "")
+		for _, familyName := range classification.Families {
+			if familyName == "restart" || familyName == "native-session" {
+				continue
+			}
+			for _, family := range Families {
+				if family.Name == familyName && strings.Contains(assembled, family.Token) {
+					line := fileSet.Position(function.Pos()).Line
+					violations = append(violations, fmt.Sprintf("%s:%d: resolved consumer function %s assembles %s vocabulary across runtime fragments", rel, line, function.Name.Name, familyName))
+				}
+			}
+		}
+	}
+	return violations
 }
 
 const artifactpathImportPath = "github.com/xianxu/pair/cmd/internal/artifactpath"
@@ -843,6 +886,24 @@ func TestResolvedConsumerRequiresFamilyCorrelatedBinding(t *testing.T) {
 			wantViolation: true,
 		},
 		{
+			name: "valid witness beside runtime-assembled constructor",
+			body: "package mutation\nimport (\"path/filepath\"; \"strings\"; \"github.com/xianxu/pair/cmd/internal/artifactpath\")\n" +
+				"func good(root, tag string) string { paths, _ := artifactpath.ResolveScoped(root, tag); return paths.Draft() }\n" +
+				"func bad(root, tag string) string { prefix := strings.Join([]string{\"dra\", \"ft-\"}, \"\"); return filepath.Join(root, prefix + tag + \".md\") }\n",
+			families:      []string{"draft"},
+			bindingNames:  []string{"scoped-draft"},
+			wantViolation: true,
+		},
+		{
+			name: "valid witness beside builder-assembled constructor",
+			body: "package mutation\nimport (\"path/filepath\"; \"strings\"; \"github.com/xianxu/pair/cmd/internal/artifactpath\")\n" +
+				"func good(root, tag string) string { paths, _ := artifactpath.ResolveScoped(root, tag); return paths.Draft() }\n" +
+				"func bad(root, tag string) string { var b strings.Builder; b.WriteString(\"dra\"); b.WriteString(\"ft-\"); return filepath.Join(root, b.String() + tag + \".md\") }\n",
+			families:      []string{"draft"},
+			bindingNames:  []string{"scoped-draft"},
+			wantViolation: true,
+		},
+		{
 			name: "resolver and family member",
 			body: "package mutation\nimport ap \"github.com/xianxu/pair/cmd/internal/artifactpath\"\n" +
 				"func good(root, tag string) string { paths, _ := ap.ResolveScoped(root, tag); return paths.Draft() }\n",
@@ -1175,6 +1236,41 @@ func constantString(expr ast.Expr) (string, bool) {
 	default:
 		return "", false
 	}
+}
+
+// assembledStringFragments conservatively models runtime string constructors:
+// every literal fragment under one call expression is concatenated in source
+// order. This covers joins, formatters, replacers, builders passed through a
+// helper, and filepath calls without maintaining a parallel constructor list.
+func assembledStringFragments(expr ast.Expr, classification SourceClassification) (string, bool) {
+	if _, ok := expr.(*ast.CallExpr); !ok {
+		return "", false
+	}
+	var fragments []string
+	ast.Inspect(expr, func(node ast.Node) bool {
+		literal, ok := node.(*ast.BasicLit)
+		if !ok || literal.Kind != token.STRING {
+			return true
+		}
+		value, err := strconv.Unquote(literal.Value)
+		if err == nil && !classificationAllowsAnyVocabulary(classification, value) {
+			fragments = append(fragments, value)
+		}
+		return true
+	})
+	if len(fragments) < 2 {
+		return "", false
+	}
+	return strings.Join(fragments, ""), true
+}
+
+func classificationAllowsAnyVocabulary(classification SourceClassification, value string) bool {
+	for _, allowance := range classification.Vocabulary {
+		if allowance.Value == value {
+			return true
+		}
+	}
+	return false
 }
 
 func TestProductionRootsCoverTopLevelCommandPackages(t *testing.T) {
