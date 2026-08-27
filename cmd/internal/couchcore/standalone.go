@@ -14,6 +14,7 @@ const standaloneUpsertAttempts = 8
 // RegisterStandalonePair is the cmd/pair-go composition adapter. It resolves
 // the same canonical Couch namespace as the supervisor, identifies the Pair
 // process with a PID-reuse-safe token, and delegates persistence to ThreadStore.
+// pair:m5-concept integration
 func RegisterStandalonePair(registration launcher.StandaloneThreadRegistration) error {
 	storeDir := registration.CouchStoreDir
 	if storeDir == "" {
@@ -35,6 +36,7 @@ func RegisterStandalonePair(registration launcher.StandaloneThreadRegistration) 
 // authoritative per-thread records. Create and update both use the store lock,
 // atomic record writes, and revision CAS; concurrent first writers converge by
 // retrying the existing record rather than maintaining a shadow registry.
+// pair:m5-concept integration
 func (s *ThreadStore) UpsertStandalonePair(registration launcher.StandaloneThreadRegistration, process ProcessIdentity) (ThreadRecord, error) {
 	address := ThreadAddress{RepoScope: registration.RepoScope, Tag: ThreadTag(registration.Tag)}
 	profile := LaunchProfile{Agent: registration.Agent, Argv: cloneArgv(registration.Argv)}

@@ -285,6 +285,7 @@ type LaunchOptions struct {
 	RegisterStandaloneThread StandaloneThreadRegistrar
 }
 
+// pair:m5-concept pure
 type StandaloneThreadRegistration struct {
 	GlobalDataDir string
 	CouchStoreDir string
@@ -296,4 +297,5 @@ type StandaloneThreadRegistration struct {
 	Argv          []string
 }
 
+// pair:m5-concept pure
 type StandaloneThreadRegistrar func(StandaloneThreadRegistration) error

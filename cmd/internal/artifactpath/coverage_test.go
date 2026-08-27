@@ -254,6 +254,9 @@ func artifactConstructorViolations(repoRoot string, roots []string, classificati
 			for _, violation := range resolvedFunctionAssemblyViolations(rel, fileSet, file, classification) {
 				violations[violation] = true
 			}
+			for _, violation := range resolvedDataflowAssemblyViolations(rel, fileSet, file, classification) {
+				violations[violation] = true
+			}
 			return nil
 		})
 		if err != nil {
@@ -266,6 +269,222 @@ func artifactConstructorViolations(repoRoot string, roots []string, classificati
 	}
 	sort.Strings(out)
 	return out, nil
+}
+
+type stringFlow struct {
+	classification SourceClassification
+	summaries      map[string]string
+	vars           map[*ast.Object]string
+	builders       map[*ast.Object]string
+	values         []string
+	returns        []string
+}
+
+func resolvedDataflowAssemblyViolations(rel string, fileSet *token.FileSet, file *ast.File, classification SourceClassification) []string {
+	summaries := map[string]string{}
+	for range 8 {
+		changed := false
+		for _, decl := range file.Decls {
+			function, ok := decl.(*ast.FuncDecl)
+			if !ok || function.Body == nil {
+				continue
+			}
+			flow := newStringFlow(classification, summaries)
+			flow.block(function.Body)
+			summary := strings.Join(flow.returns, "")
+			if summaries[function.Name.Name] != summary {
+				summaries[function.Name.Name] = summary
+				changed = true
+			}
+		}
+		if !changed {
+			break
+		}
+	}
+
+	var violations []string
+	for _, decl := range file.Decls {
+		function, ok := decl.(*ast.FuncDecl)
+		if !ok || function.Body == nil {
+			continue
+		}
+		flow := newStringFlow(classification, summaries)
+		flow.block(function.Body)
+		for _, value := range flow.values {
+			for _, familyName := range classification.Families {
+				if familyName == "restart" || familyName == "native-session" {
+					continue
+				}
+				for _, family := range Families {
+					if family.Name == familyName && strings.Contains(value, family.Token) {
+						line := fileSet.Position(function.Pos()).Line
+						violations = append(violations, fmt.Sprintf("%s:%d: resolved consumer function %s dataflow assembles %s vocabulary", rel, line, function.Name.Name, familyName))
+					}
+				}
+			}
+		}
+	}
+	return violations
+}
+
+func newStringFlow(classification SourceClassification, summaries map[string]string) *stringFlow {
+	return &stringFlow{
+		classification: classification,
+		summaries:      summaries,
+		vars:           map[*ast.Object]string{},
+		builders:       map[*ast.Object]string{},
+	}
+}
+
+func (f *stringFlow) block(block *ast.BlockStmt) {
+	for _, statement := range block.List {
+		f.statement(statement)
+	}
+}
+
+func (f *stringFlow) statement(statement ast.Stmt) {
+	switch typed := statement.(type) {
+	case *ast.AssignStmt:
+		for i, rhs := range typed.Rhs {
+			value := f.expression(rhs)
+			f.record(value)
+			if i < len(typed.Lhs) {
+				if ident, ok := typed.Lhs[i].(*ast.Ident); ok && ident.Obj != nil {
+					f.vars[ident.Obj] = value
+				}
+			}
+		}
+	case *ast.DeclStmt:
+		gen, ok := typed.Decl.(*ast.GenDecl)
+		if !ok {
+			return
+		}
+		for _, spec := range gen.Specs {
+			valueSpec, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			for i, valueExpr := range valueSpec.Values {
+				value := f.expression(valueExpr)
+				f.record(value)
+				if i < len(valueSpec.Names) && valueSpec.Names[i].Obj != nil {
+					f.vars[valueSpec.Names[i].Obj] = value
+				}
+			}
+		}
+	case *ast.ExprStmt:
+		f.record(f.expression(typed.X))
+	case *ast.ReturnStmt:
+		for _, result := range typed.Results {
+			value := f.expression(result)
+			f.record(value)
+			f.returns = append(f.returns, value)
+		}
+	case *ast.IfStmt:
+		if typed.Init != nil {
+			f.statement(typed.Init)
+		}
+		f.expression(typed.Cond)
+		f.block(typed.Body)
+		if typed.Else != nil {
+			f.statement(typed.Else)
+		}
+	case *ast.BlockStmt:
+		f.block(typed)
+	case *ast.ForStmt:
+		if typed.Init != nil {
+			f.statement(typed.Init)
+		}
+		if typed.Cond != nil {
+			f.expression(typed.Cond)
+		}
+		f.block(typed.Body)
+		if typed.Post != nil {
+			f.statement(typed.Post)
+		}
+	case *ast.RangeStmt:
+		f.expression(typed.X)
+		f.block(typed.Body)
+	case *ast.SwitchStmt:
+		if typed.Init != nil {
+			f.statement(typed.Init)
+		}
+		if typed.Tag != nil {
+			f.expression(typed.Tag)
+		}
+		for _, item := range typed.Body.List {
+			clause, _ := item.(*ast.CaseClause)
+			for _, child := range clause.Body {
+				f.statement(child)
+			}
+		}
+	}
+}
+
+func (f *stringFlow) expression(expr ast.Expr) string {
+	switch typed := expr.(type) {
+	case *ast.BasicLit:
+		if typed.Kind != token.STRING {
+			return ""
+		}
+		value, err := strconv.Unquote(typed.Value)
+		if err != nil || classificationAllowsAnyVocabulary(f.classification, value) {
+			return ""
+		}
+		return value
+	case *ast.Ident:
+		return f.vars[typed.Obj]
+	case *ast.ParenExpr:
+		return f.expression(typed.X)
+	case *ast.BinaryExpr:
+		return f.expression(typed.X) + f.expression(typed.Y)
+	case *ast.CompositeLit:
+		var out strings.Builder
+		for _, element := range typed.Elts {
+			if keyValue, ok := element.(*ast.KeyValueExpr); ok {
+				out.WriteString(f.expression(keyValue.Value))
+			} else if value, ok := element.(ast.Expr); ok {
+				out.WriteString(f.expression(value))
+			}
+		}
+		return out.String()
+	case *ast.CallExpr:
+		if selector, ok := typed.Fun.(*ast.SelectorExpr); ok {
+			if owner, ok := selector.X.(*ast.Ident); ok && owner.Obj != nil {
+				switch selector.Sel.Name {
+				case "WriteString":
+					for _, arg := range typed.Args {
+						f.builders[owner.Obj] += f.expression(arg)
+					}
+					return ""
+				case "String":
+					if value, exists := f.builders[owner.Obj]; exists {
+						return value
+					}
+				}
+			}
+		}
+		if function, ok := typed.Fun.(*ast.Ident); ok && f.summaries[function.Name] != "" {
+			return f.summaries[function.Name]
+		}
+		var out strings.Builder
+		for _, arg := range typed.Args {
+			out.WriteString(f.expression(arg))
+		}
+		return out.String()
+	case *ast.UnaryExpr:
+		return f.expression(typed.X)
+	case *ast.IndexExpr:
+		return f.expression(typed.X) + f.expression(typed.Index)
+	default:
+		return ""
+	}
+}
+
+func (f *stringFlow) record(value string) {
+	if value != "" {
+		f.values = append(f.values, value)
+	}
 }
 
 func resolvedFunctionAssemblyViolations(rel string, fileSet *token.FileSet, file *ast.File, classification SourceClassification) []string {
@@ -899,6 +1118,25 @@ func TestResolvedConsumerRequiresFamilyCorrelatedBinding(t *testing.T) {
 			body: "package mutation\nimport (\"path/filepath\"; \"strings\"; \"github.com/xianxu/pair/cmd/internal/artifactpath\")\n" +
 				"func good(root, tag string) string { paths, _ := artifactpath.ResolveScoped(root, tag); return paths.Draft() }\n" +
 				"func bad(root, tag string) string { var b strings.Builder; b.WriteString(\"dra\"); b.WriteString(\"ft-\"); return filepath.Join(root, b.String() + tag + \".md\") }\n",
+			families:      []string{"draft"},
+			bindingNames:  []string{"scoped-draft"},
+			wantViolation: true,
+		},
+		{
+			name: "valid witness beside reversed-definition constructor",
+			body: "package mutation\nimport (\"path/filepath\"; \"github.com/xianxu/pair/cmd/internal/artifactpath\")\n" +
+				"func good(root, tag string) string { paths, _ := artifactpath.ResolveScoped(root, tag); return paths.Draft() }\n" +
+				"func bad(root, tag string) string { tail := \"ft-\"; head := \"dra\"; return filepath.Join(root, head + tail + tag + \".md\") }\n",
+			families:      []string{"draft"},
+			bindingNames:  []string{"scoped-draft"},
+			wantViolation: true,
+		},
+		{
+			name: "valid witness beside cross-helper constructor",
+			body: "package mutation\nimport (\"path/filepath\"; \"github.com/xianxu/pair/cmd/internal/artifactpath\")\n" +
+				"func good(root, tag string) string { paths, _ := artifactpath.ResolveScoped(root, tag); return paths.Draft() }\n" +
+				"func head() string { return \"dra\" }\nfunc tail() string { return \"ft-\" }\n" +
+				"func bad(root, tag string) string { return filepath.Join(root, head() + tail() + tag + \".md\") }\n",
 			families:      []string{"draft"},
 			bindingNames:  []string{"scoped-draft"},
 			wantViolation: true,

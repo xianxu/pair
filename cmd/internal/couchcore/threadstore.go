@@ -54,6 +54,7 @@ type threadManifest struct {
 	LegacyMigrationVersion int `json:"legacy_migration_version,omitempty"`
 }
 
+// pair:m5-concept integration
 type ThreadStore struct {
 	namespace CouchNamespace
 	root      string

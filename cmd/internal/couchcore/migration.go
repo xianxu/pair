@@ -10,6 +10,7 @@ const legacyMigrationVersion = 1
 // MigrateLegacyRecord enriches one M1 cutover record from the old tree-keyed
 // naming table. It is deliberately pure: the ThreadStore owns revision and
 // journal publication after every candidate has been validated together.
+// pair:m5-concept pure
 func MigrateLegacyRecord(record ThreadRecord, legacy NameEntry) (ThreadRecord, bool, error) {
 	if err := ValidateThreadRecord(record); err != nil {
 		return ThreadRecord{}, false, err
@@ -46,6 +47,7 @@ func MigrateLegacyRecord(record ThreadRecord, legacy NameEntry) (ThreadRecord, b
 // MigrateLegacyRecords atomically enriches every M1 cutover record and marks
 // the manifest only after all addressed records have decoded and validated.
 // The legacy registry is an input owned by Store and is never a journal target.
+// pair:m5-concept integration
 func (s *ThreadStore) MigrateLegacyRecords(names NamingTable) error {
 	return s.withLock(func() error {
 		manifest, manifestRaw, manifestExists, err := s.loadManifestLocked()

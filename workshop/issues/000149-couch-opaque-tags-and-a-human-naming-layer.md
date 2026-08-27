@@ -1298,3 +1298,20 @@ plan rows. Every derived entity must have one correct kind/path/status row, and
 per-entity mutations remove the entity or corrupt each field. The derivation
 surfaced and added the missing `Families` and `SourceClassifications` catalogs
 (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-27 — M5 boundary review round 10
+
+BR-32's remaining source-order escape is now covered by an intra-file dataflow
+proof. Reversed fragment definitions and local helper returns are evaluated in
+construction order, and both adversarial mutations fail even when the source
+also contains a legitimate family witness.
+
+BR-37 now derives from the complete M5 Go-source diff rather than selected
+packages. Source-local `pair:m5-concept` markers distinguish architectural
+declarations from explicitly non-architectural implementation details; Git
+checks the checked-in source set when available, and clean archives retain the
+same oracle without requiring `.git`. The marked architectural set is compared
+to both plan tables for unique name, kind, path, and M5 status. The plan-review
+contract now requires positive witnesses, reordered/indirected/runtime bypass
+mutations, an executable enumeration source, and an exact initial state
+(ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).

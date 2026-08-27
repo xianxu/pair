@@ -1636,3 +1636,31 @@ kind, its actual source path, and M5 status. Deletion plus kind/path/status
 mutations run for every source-derived entity. The plan row now includes the
 derived `Families` and `SourceClassifications` catalogs (ARCH-DRY,
 ARCH-PURPOSE).
+
+### 2026-08-27 — make derivation and concept evidence adversarial and exhaustive
+
+**Reason:** boundary review showed that lexical-order fragment collection was
+not a provenance proof: reversed variable definitions and helper-mediated
+assembly escaped it. The concept oracle likewise derived only from two selected
+artifact files, so architectural functions, seams, and integrations elsewhere
+in the milestone diff could disappear from the plan without failing.
+
+**Delta:** resolved-consumer analysis now follows literal provenance through
+expression use order, local variables, local helper return summaries, call
+arguments, and builder state. The mutation matrix requires both reversed
+definition order and cross-helper construction to fail beside a valid resolver
+witness. M5 declaration disposition now starts from the exhaustive set of Go
+files in the pinned `6a714336..HEAD` milestone diff; an integration assertion
+keeps that set equal to Git when metadata exists, while clean source archives
+use the checked-in set. Every declaration in those sources has one source-local
+rule: `pair:m5-concept <kind>` marks an architectural entity and absence marks
+an implementation detail. The architectural subset is derived from those AST
+markers and compared mechanically with the plan's Core concepts and Integration
+tables for unique name, kind, path, and M5 status.
+
+Plan review must reject a single-authority or whole-diff claim unless its
+verification names both the positive derivation witness and an adversarial
+matrix that changes ordering, indirection, and runtime composition, and unless
+its inventory names the executable enumeration source plus the exact initial
+filesystem state. That is the at-plan application of ARCH-PURPOSE: evidence must
+prove the promised class, not only the most natural implementation shape.

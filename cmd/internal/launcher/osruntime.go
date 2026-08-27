@@ -598,6 +598,7 @@ func (r OSRuntime) AppendLedger(tag string, entry LedgerEntry) error {
 	return r.WriteAtomic(path, raw)
 }
 
+// pair:m5-concept integration
 func (r OSRuntime) ReadSessionNameIndex() (SessionNameIndex, error) {
 	return readSessionNameIndexes(r.globalDataDir(), r.DataDir, r.ReadFile)
 }

@@ -56,6 +56,7 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 // by cmd/pair-go. Keeping the registrar outside launcher avoids a launcher ↔
 // couchcore package cycle while standalone Pair and Couch still mutate the one
 // ThreadStore authority.
+// pair:m5-concept integration
 func LaunchNativeWithStandaloneRegistrar(launchArgs []string, pairHome string, stdout, stderr io.Writer, registrar StandaloneThreadRegistrar) (int, error) {
 	useRepoDefault := consumeRepoDefaultPolicy(os.Getenv, os.Unsetenv)
 	couchProfile := os.Getenv(CouchLaunchProfileEnv)

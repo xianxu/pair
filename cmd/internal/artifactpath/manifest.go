@@ -2,12 +2,14 @@ package artifactpath
 
 // Family is one checked artifact filename family. Token is the stable literal
 // a source-coverage test uses to find constructors and exact-path consumers.
+// pair:m5-concept pure
 type Family struct {
 	Name  string
 	Token string
 }
 
 // SourceKind records why a production source may mention an artifact token.
+// pair:m5-concept pure
 type SourceKind string
 
 const (
@@ -17,6 +19,7 @@ const (
 	GeneratedMirror    SourceKind = "generated-mirror"
 )
 
+// pair:m5-concept pure
 type VocabularyContext string
 
 const (
@@ -29,6 +32,7 @@ const (
 
 // VocabularyAllowance names one exact non-path use of an artifact-family token.
 // Count makes the manifest exhaustive rather than an open-ended allowlist.
+// pair:m5-concept pure
 type VocabularyAllowance struct {
 	Family   string
 	Value    string
@@ -41,6 +45,7 @@ type VocabularyAllowance struct {
 // ResolvedBinding is one canonical positive derivation witness. Resolver is an
 // exported artifactpath function call; Member is the family-specific method
 // consumed from its returned value.
+// pair:m5-concept pure
 type ResolvedBinding struct {
 	Name     string
 	Family   string
@@ -48,6 +53,7 @@ type ResolvedBinding struct {
 	Member   string
 }
 
+// pair:m5-concept pure
 var ResolvedBindings = []ResolvedBinding{
 	{Name: "cache-restart", Family: "restart", Resolver: "ResolvePairCache", Member: "Restart"},
 	{Name: "legacy-pane", Family: "pane", Resolver: "ResolveLegacyRoot", Member: "PanePrefix"},
@@ -83,6 +89,7 @@ var ResolvedBindings = []ResolvedBinding{
 // SourceClassification is deliberately exact: Path names one repository file
 // and Families names every artifact family it constructs or consumes. New
 // files cannot disappear behind directory or wildcard exemptions.
+// pair:m5-concept pure
 type SourceClassification struct {
 	Path         string
 	Kind         SourceKind
@@ -93,6 +100,7 @@ type SourceClassification struct {
 
 // Families is the exhaustive tag-bearing artifact vocabulary. Adding a new
 // family requires adding its constructor and classifying every source consumer.
+// pair:m5-concept pure
 var Families = []Family{
 	{Name: "draft", Token: "draft-"},
 	{Name: "ledger", Token: "ledger-"},
@@ -135,6 +143,7 @@ var Families = []Family{
 
 // SourceClassifications is checked by coverage_test.go against production Go,
 // shell, Lua, and KDL sources.
+// pair:m5-concept pure
 var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/artifactpath/paths.go", Kind: Constructor, Families: []string{
 		"adapt", "agent", "agent-pid", "agent-ready", "changelog", "config",
@@ -268,6 +277,7 @@ var SourceClassifications = []SourceClassification{
 // NonArtifactSources completes the production-source inventory. Entries here
 // contain no Pair artifact constructor or filename vocabulary; moving one into
 // the artifact namespace requires an explicit SourceClassification.
+// pair:m5-concept pure
 var NonArtifactSources = []string{
 	"bin/lib/adapt-log.sh",
 	"bin/lib/dev-rebuild.sh",

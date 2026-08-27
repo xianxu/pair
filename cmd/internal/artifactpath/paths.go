@@ -13,6 +13,7 @@ import (
 var componentPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 // Address identifies one Pair work thread's artifact namespace.
+// pair:m5-concept pure
 type Address struct {
 	DataDir   string
 	RepoScope string
@@ -20,6 +21,7 @@ type Address struct {
 }
 
 // Paths is a validated composite artifact namespace.
+// pair:m5-concept pure
 type Paths struct {
 	scopeDir string
 	tag      string
@@ -27,6 +29,7 @@ type Paths struct {
 
 // ScopePaths is the validated, tag-independent portion of one selected repo
 // scope. Per-path launch defaults and session-name bindings live here.
+// pair:m5-concept pure
 type ScopePaths struct {
 	scopeDir string
 }
@@ -34,6 +37,7 @@ type ScopePaths struct {
 // PairCachePaths owns the compatibility restart/quit marker namespace. These
 // markers are session-scoped rather than work-thread artifacts, but their
 // filename vocabulary still has one constructor authority.
+// pair:m5-concept pure
 type PairCachePaths struct {
 	dir string
 }
@@ -42,10 +46,12 @@ type PairCachePaths struct {
 // pre-composite flat data directory. New writes use Paths; compatibility code
 // must name old locations through these types instead of reopening filename
 // construction throughout launcher.
+// pair:m5-concept pure
 type LegacyRootPaths struct {
 	dataDir string
 }
 
+// pair:m5-concept pure
 type LegacyPaths struct {
 	root LegacyRootPaths
 	tag  string
@@ -73,11 +79,13 @@ func (p PairCachePaths) Quit(session string) (string, error) {
 }
 
 // Binding is one exact artifact path exported to non-Go consumers.
+// pair:m5-concept pure
 type Binding struct {
 	Name string
 	Path string
 }
 
+// pair:m5-concept pure
 type ScrollbackArtifactSet struct {
 	Raw      string
 	Events   string
@@ -86,6 +94,7 @@ type ScrollbackArtifactSet struct {
 	OpenLock string
 }
 
+// pair:m5-concept pure
 type ChangelogArtifactSet struct {
 	Log         string
 	Anchor      string
@@ -96,6 +105,7 @@ type ChangelogArtifactSet struct {
 	Ready       string
 }
 
+// pair:m5-concept pure
 type ParkedScrollbackArtifactSet struct {
 	Base   string
 	Raw    string
@@ -138,6 +148,7 @@ func (p LegacyRootPaths) HistoryGlobs() []string {
 
 // TagFromHistorySidecar recognizes only the three history-bearing families.
 // It is shared by current-scope and legacy-flat scanners.
+// pair:m5-concept pure
 func TagFromHistorySidecar(name string) (string, bool) {
 	for _, pattern := range []struct {
 		prefix string

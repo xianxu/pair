@@ -164,6 +164,7 @@ func ParseSessionNameIndex(raw string) SessionNameIndex {
 // ParseSessionNameIndex display/import helper. A present index is authority:
 // one malformed row makes the whole read unusable rather than silently
 // converting known live sessions into unowned ones.
+// pair:m5-concept pure
 func DecodeSessionNameIndex(raw string) (SessionNameIndex, error) {
 	var index SessionNameIndex
 	for lineNumber, line := range strings.Split(raw, "\n") {
@@ -202,6 +203,7 @@ func validateSessionNameEntry(entry SessionNameEntry) error {
 // readSessionNameIndexes is the one strict compatibility reader for the
 // relocation epoch: legacy-global rows precede selected-scope rows, missing
 // files are empty, and every present file is authoritative and must decode.
+// pair:m5-concept integration
 func readSessionNameIndexes(globalDataDir, selectedScopeDir string, readFile func(string) (string, error)) (SessionNameIndex, error) {
 	legacy, err := artifactpath.ResolveLegacyRoot(globalDataDir)
 	if err != nil {

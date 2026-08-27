@@ -700,3 +700,12 @@ The artifact Core concepts contract derives its entity set directly from the
 M5-created package's exported type/catalog declarations, including `Families`
 and `SourceClassifications`, then mutates every plan consumer field
 (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — pair#149 M5 order-independent proof and diff-wide dispositions
+
+Artifact constructor enforcement now follows runtime string provenance through
+variable use order and local helpers, with reversed-order and cross-helper
+mutations. The M5 concept contract classifies every declaration in the complete
+milestone Go diff and derives the plan-visible architectural subset from
+source-local markers, including pure, seam, and integration entities outside
+`artifactpath` (ARCH-DRY, ARCH-PURPOSE).
