@@ -1196,3 +1196,12 @@ when they introduce a constructor, including the attempted self-classification
 escape. The complete scrollback/changelog atlas class now describes exact
 bindings and distinguishes session-keyed changelog data from the stable ready
 marker (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-26 — M5 review-window source correction
+
+The generated runtime mirror is again an ignored build output rather than a
+tracked duplicate of its source files. `make runtimebundle-generate` continues
+to produce it locally, while deterministic generation and drift tests supply
+the review evidence. This removes about 930 KB of redundant bytes from the M5
+Git window without reducing generated-path coverage or release-build behavior
+(ARCH-DRY, ARCH-PURPOSE).

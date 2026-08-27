@@ -1334,3 +1334,18 @@ fails the authority check. The atlas now states exact scrollback companion
 bindings, exact viewer refresh inputs, session-keyed changelog data, and the
 separate stable `$PAIR_CHANGELOG_READY_PATH` binding throughout (ARCH-DRY,
 ARCH-PURPOSE).
+
+### 2026-08-26 — keep generated runtime mirrors outside review windows
+
+**Reason:** Step 3's instruction to commit the generated runtime mirror
+contradicted the repository's established ignored-build-output boundary and
+expanded the M5 review window by roughly 930 KB without adding an authoritative
+implementation surface.
+
+**Delta:** the instruction to commit
+`cmd/internal/runtimebundle/assets/runtime` is superseded. The mirror remains
+ignored and is regenerated only by `make runtimebundle-generate`; deterministic
+generation and drift tests prove that it matches the tracked source inputs.
+Coverage still classifies every generated path through the generated manifest,
+but reviewers inspect the authoritative Go, shell, Lua, and KDL sources rather
+than duplicated mirror bytes (ARCH-DRY, ARCH-PURPOSE).
