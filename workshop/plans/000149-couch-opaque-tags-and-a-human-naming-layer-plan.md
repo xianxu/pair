@@ -60,8 +60,11 @@ than adding only the entity named by a review finding.
 | `mergeChildEnvironment` | pure | `cmd/internal/couchcore/runner.go` | authoritative child overlay added in M4 review disposition |
 | `MigrateLegacyRecord` | pure | `cmd/internal/couchcore/migration.go` | new in M5 |
 | `artifactpath.Address` / `Paths` / `ScopePaths` / `Binding` | pure | `cmd/internal/artifactpath/paths.go` | new in M5 |
+| `artifactpath.PairCachePaths` | pure | `cmd/internal/artifactpath/paths.go` | added in M5 boundary disposition |
 | `artifactpath.ScrollbackArtifactSet` / `ParkedScrollbackArtifactSet` / `ChangelogArtifactSet` | pure | `cmd/internal/artifactpath/paths.go` | added in M5 boundary disposition |
-| `artifactpath.Family` / `SourceClassification` | pure | `cmd/internal/artifactpath/manifest.go` | new in M5 |
+| `artifactpath.Family` / `SourceKind` / `SourceClassification` / `NonArtifactSources` | pure declarations | `cmd/internal/artifactpath/manifest.go` | new in M5; exhaustive source inventory added in boundary disposition |
+| `artifactpath.VocabularyContext` / `VocabularyAllowance` | pure declarations | `cmd/internal/artifactpath/manifest.go` | added in M5 boundary disposition |
+| `artifactpath.ResolvedBinding` / `ResolvedBindings` | pure declarations | `cmd/internal/artifactpath/manifest.go` | added in M5 boundary disposition |
 | `artifactpath.LegacyRootPaths` / `LegacyPaths` / `TagFromHistorySidecar` | pure | `cmd/internal/artifactpath/paths.go` | added in M5 boundary disposition |
 | `DecodeSessionNameIndex` | pure | `cmd/internal/launcher/session_index.go` | added in M5 boundary disposition |
 | `StandaloneThreadRegistration` / `StandaloneThreadRegistrar` | pure seam types | `cmd/internal/launcher/runtime.go` | new in M5 |
@@ -84,7 +87,11 @@ than adding only the entity named by a review finding.
   argv provenance so valid source combinations remain representable.
 - **`artifactpath.Family` and `SourceClassification`** — checked inventory of
   every tag-bearing Pair path and every source allowed to mention its filename
-  token; new sidecars extend the manifest rather than constructing paths ad hoc.
+  token. `ResolvedBinding` supplies positive resolver/member evidence,
+  `VocabularyAllowance` closes exact non-path uses, and `NonArtifactSources`
+  makes source participation exhaustive rather than token-discovered; new
+  sidecars or production files extend the manifest rather than inheriting an
+  implicit default.
 
 ### Integration points
 
@@ -1557,3 +1564,31 @@ are absent, reconnects the resolved Ariadne base Makefiles, and invokes
 generator to be the first command. The bootstrap target remains outside
 `test`, preventing recursive full-suite dispatch while making the exact
 starting state executable and reviewable (ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-27 — make source participation exhaustive and resweep M5 entities
+
+**Reason:** boundary review showed that positive bindings still began after a
+token-discovery filter: an unlisted production file with a split family literal
+could therefore evade the classification boundary. It also showed that binding
+member matching used identifier spelling rather than lexical identity, counted
+discarded calls, and that the Core concepts table had not incorporated the
+authority types added during review disposition.
+
+**Delta:** every production Go, shell, Lua, KDL, and extensionless shebang file
+under the checked roots is now present in exactly one exhaustive inventory:
+either `SourceClassifications` or `NonArtifactSources`. A new file fails even
+when it contains no recognizable token. Non-artifact Go files are AST-scanned
+with constant concatenation evaluation, so a listed file cannot launder
+`"dra" + "ft-"` through that class. Resolved witnesses track `*ast.Object`
+identity from the actual resolver result (including local propagation), and a
+family member counts only when its result is not an expression statement or
+blank assignment. Mutations pin unlisted plain and split-token files, shadowed
+resolver variables, and discarded/blank member calls. The M5 Core concepts and
+integration tables are reswept across the full milestone diff, including cache
+paths, vocabulary/binding declarations, exhaustive inventory, and standalone
+registration (ARCH-DRY, ARCH-PURPOSE).
+
+The bootstrap patch application now distinguishes an empty clean-HEAD diff
+from a real patch before invoking `git apply`; the same committed
+`test-clean-bootstrap` command is the clean-HEAD regression (ARCH-PURPOSE,
+ARCH-MOCK).

@@ -30,7 +30,11 @@ files. Couch and standalone Pair select `{repo_scope, tag}`; the launcher then
 exports exact paths to Go helpers, shell, Neovim, and both Zellij layouts.
 Each resolved-consumer family is tied to a named resolver/member witness;
 closed vocabulary allowances separately cover exact non-path protocol and CLI
-uses. Generated-runtime coverage builds a temporary mirror from declared
+uses. Every production source is exhaustively inventoried as one of those
+classes or as a non-artifact source; new files have no implicit default, and Go
+constant concatenation cannot hide artifact vocabulary in the latter class.
+Witnesses track lexical resolver-result identity and require a non-discarded
+member use. Generated-runtime coverage builds a temporary mirror from declared
 source inputs. The clean-bootstrap regression starts without `.git` or that
 mirror and proves the public test target generates it before every consumer.
 

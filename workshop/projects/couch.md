@@ -674,3 +674,12 @@ generated mirror, `make test` generates first and passes the complete suite.
 Compatibility restart/quit markers use the same path authority with a safe
 Unicode-basename contract for public Zellij session names (ARCH-DRY,
 ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-27 — pair#149 M5 exhaustive production participation
+
+Every production source now declares artifact participation or explicit
+non-participation, so a new or split-token file cannot bypass discovery. Binding
+witnesses follow the resolver object's lexical identity into a non-discarded
+family-member use. The clean-bootstrap oracle also handles the clean-HEAD
+empty-patch case, and the milestone entity table has been reswept across the
+whole M5 diff (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).

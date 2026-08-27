@@ -2240,8 +2240,10 @@ self-declared classification is not evidence that it consumed the authority.
 
 **Rule.** For every claimed artifact family, require a positive, mechanically
 checked derivation witness from the owning resolver through the family-specific
-member. Keep exact protocol/CLI vocabulary in a closed, counted allowance that
-cannot witness path authority. In plans, state verification recipes from their
-initial filesystem and environment state—such as no `.git` and no generated
-assets—so review can reject a proof that silently depends on developer residue
-(ARCH-DRY, ARCH-PURPOSE).
+member, and make every production source explicitly participate or explicitly
+declare non-participation independent of token discovery. Track lexical value
+identity and reject discarded witnesses. Keep exact protocol/CLI vocabulary in
+a closed, counted allowance that cannot witness path authority. In plans, state
+verification recipes from their initial filesystem and environment state—such
+as no `.git` and no generated assets—so review can reject a proof that silently
+depends on developer residue (ARCH-DRY, ARCH-PURPOSE).

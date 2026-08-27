@@ -1251,3 +1251,21 @@ exact regression also exposed and pinned the compatibility requirement that
 cache restart/quit markers accept safe Unicode Zellij session basenames such
 as `📁pair-work` while rejecting traversal (ARCH-DRY, ARCH-PURE,
 ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-27 — M5 boundary review round 7
+
+The reviewer found that positive binding validation still began after lexical
+token discovery, so an unlisted split-token source could evade the entire
+boundary. Production participation is now exhaustive: every production source
+is either an artifact classification or an explicit non-artifact entry, and
+new files fail independent of their contents. Non-artifact Go source also gets
+constant-expression scanning, while resolved bindings follow lexical object
+identity from the actual resolver result and reject shadowed, discarded, or
+blank-assigned member calls.
+
+The clean-bootstrap script now skips `git apply` for a clean `HEAD` rather than
+feeding it empty input. The full M5 entity inventory was reswept to include the
+cache authority, source/vocabulary/binding declarations, exhaustive source
+inventory, and standalone registration integration. Mutation tests and the
+committed clean-HEAD bootstrap pin all three review classes (ARCH-DRY,
+ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).

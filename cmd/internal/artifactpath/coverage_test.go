@@ -162,6 +162,11 @@ func TestProductionArtifactReferencesAreExactlyClassified(t *testing.T) {
 		t.Fatal(err)
 	}
 	missing = append(missing, referenceViolations...)
+	inventoryViolations, err := productionSourceInventoryViolations(repoRoot, productionRoots, SourceClassifications, NonArtifactSources)
+	if err != nil {
+		t.Fatal(err)
+	}
+	missing = append(missing, inventoryViolations...)
 	constructorViolations, err := artifactConstructorViolations(repoRoot, productionRoots, SourceClassifications)
 	if err != nil {
 		t.Fatal(err)
@@ -309,6 +314,7 @@ func resolvedBindingViolations(rel string, file *ast.File, classification Source
 		return violations
 	}
 	resultsByResolver := resolverResults(file, artifactAlias)
+	parents := astParents(file)
 	for _, name := range classification.BindingNames {
 		binding, ok := definitions[name]
 		if !ok || !claimedFamilies[binding.Family] {
@@ -319,7 +325,7 @@ func resolvedBindingViolations(rel string, file *ast.File, classification Source
 			violations = append(violations, fmt.Sprintf("%s: binding %s resolver %s is not called", rel, name, binding.Resolver))
 			continue
 		}
-		if binding.Member != "" && !resultMemberConsumed(file, results, binding.Member) {
+		if binding.Member != "" && !resultMemberConsumed(file, parents, results, binding.Member) {
 			violations = append(violations, fmt.Sprintf("%s: binding %s member %s is not consumed", rel, name, binding.Member))
 		}
 	}
@@ -342,8 +348,8 @@ func importAliases(file *ast.File) map[string]string {
 	return aliases
 }
 
-func resolverResults(file *ast.File, artifactAlias string) map[string]map[string]bool {
-	results := map[string]map[string]bool{}
+func resolverResults(file *ast.File, artifactAlias string) map[string]map[*ast.Object]bool {
+	results := map[string]map[*ast.Object]bool{}
 	ast.Inspect(file, func(node ast.Node) bool {
 		assign, ok := node.(*ast.AssignStmt)
 		if !ok {
@@ -360,15 +366,16 @@ func resolverResults(file *ast.File, artifactAlias string) map[string]map[string
 				continue
 			}
 			result, ok := assign.Lhs[i].(*ast.Ident)
-			if !ok || result.Name == "_" {
+			if !ok || result.Name == "_" || result.Obj == nil {
 				continue
 			}
 			resolver := ""
 			if owner == artifactAlias {
 				resolver = selector.Sel.Name
 			} else {
-				for candidate, names := range results {
-					if names[owner] {
+				ownerIdent, _ := selector.X.(*ast.Ident)
+				for candidate, objects := range results {
+					if ownerIdent != nil && objects[ownerIdent.Obj] {
 						resolver = candidate
 						break
 					}
@@ -378,9 +385,9 @@ func resolverResults(file *ast.File, artifactAlias string) map[string]map[string
 				continue
 			}
 			if results[resolver] == nil {
-				results[resolver] = map[string]bool{}
+				results[resolver] = map[*ast.Object]bool{}
 			}
-			results[resolver][result.Name] = true
+			results[resolver][result.Obj] = true
 		}
 		return true
 	})
@@ -398,7 +405,7 @@ func selectorOwner(selector *ast.SelectorExpr) (string, bool) {
 	return owner.Name, true
 }
 
-func resultMemberConsumed(file *ast.File, results map[string]bool, member string) bool {
+func resultMemberConsumed(file *ast.File, parents map[ast.Node]ast.Node, results map[*ast.Object]bool, member string) bool {
 	found := false
 	ast.Inspect(file, func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
@@ -406,13 +413,47 @@ func resultMemberConsumed(file *ast.File, results map[string]bool, member string
 			return !found
 		}
 		selector, ok := call.Fun.(*ast.SelectorExpr)
-		owner, ownerOK := selectorOwner(selector)
-		if ok && ownerOK && results[owner] && selector.Sel.Name == member {
+		if !ok {
+			return !found
+		}
+		owner, ownerOK := selector.X.(*ast.Ident)
+		if ownerOK && owner.Obj != nil && results[owner.Obj] && selector.Sel.Name == member && callResultConsumed(parents, call) {
 			found = true
 		}
 		return !found
 	})
 	return found
+}
+
+func callResultConsumed(parents map[ast.Node]ast.Node, call *ast.CallExpr) bool {
+	switch parent := parents[call].(type) {
+	case *ast.ExprStmt:
+		return false
+	case *ast.AssignStmt:
+		if len(parent.Rhs) == len(parent.Lhs) {
+			for i, rhs := range parent.Rhs {
+				if rhs == call {
+					ident, blank := parent.Lhs[i].(*ast.Ident)
+					return !blank || ident.Name != "_"
+				}
+			}
+		}
+		for _, lhs := range parent.Lhs {
+			if ident, ok := lhs.(*ast.Ident); !ok || ident.Name != "_" {
+				return true
+			}
+		}
+		return false
+	case *ast.ValueSpec:
+		for _, name := range parent.Names {
+			if name.Name != "_" {
+				return true
+			}
+		}
+		return false
+	default:
+		return true
+	}
 }
 
 func goVocabularyViolations(rel string, fileSet *token.FileSet, file *ast.File, classification SourceClassification) []string {
@@ -768,6 +809,31 @@ func TestResolvedConsumerRequiresFamilyCorrelatedBinding(t *testing.T) {
 			wantViolation: true,
 		},
 		{
+			name: "discarded family member call",
+			body: "package mutation\nimport \"github.com/xianxu/pair/cmd/internal/artifactpath\"\n" +
+				"func bad(root, tag string) { paths, _ := artifactpath.ResolveScoped(root, tag); paths.Draft() }\n",
+			families:      []string{"draft"},
+			bindingNames:  []string{"scoped-draft"},
+			wantViolation: true,
+		},
+		{
+			name: "blank-assigned family member call",
+			body: "package mutation\nimport \"github.com/xianxu/pair/cmd/internal/artifactpath\"\n" +
+				"func bad(root, tag string) { paths, _ := artifactpath.ResolveScoped(root, tag); _ = paths.Draft() }\n",
+			families:      []string{"draft"},
+			bindingNames:  []string{"scoped-draft"},
+			wantViolation: true,
+		},
+		{
+			name: "shadowed resolver result",
+			body: "package mutation\nimport \"github.com/xianxu/pair/cmd/internal/artifactpath\"\n" +
+				"type fake struct{}\nfunc (fake) Draft() string { return \"notes.md\" }\n" +
+				"func bad(root, tag string) string { paths, _ := artifactpath.ResolveScoped(root, tag); _ = paths; return func(paths fake) string { return paths.Draft() }(fake{}) }\n",
+			families:      []string{"draft"},
+			bindingNames:  []string{"scoped-draft"},
+			wantViolation: true,
+		},
+		{
 			name: "resolver and family member",
 			body: "package mutation\nimport ap \"github.com/xianxu/pair/cmd/internal/artifactpath\"\n" +
 				"func good(root, tag string) string { paths, _ := ap.ResolveScoped(root, tag); return paths.Draft() }\n",
@@ -797,6 +863,39 @@ func TestResolvedConsumerRequiresFamilyCorrelatedBinding(t *testing.T) {
 				t.Fatalf("violation = %v, want %v: %v", got, tc.wantViolation, violations)
 			}
 		})
+	}
+}
+
+func TestProductionSourceInventoryIsIndependentOfArtifactTokens(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	for rel, body := range map[string]string{
+		"cmd/pair-go/plain.go": "package mutation\nfunc okay() {}\n",
+		"cmd/pair-go/split.go": "package mutation\nfunc bad(tag string) string { return \"dra\" + \"ft-\" + tag + \".md\" }\n",
+	} {
+		path := filepath.Join(repoRoot, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	violations, err := productionSourceInventoryViolations(repoRoot, []string{"cmd"}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(violations) != 2 {
+		t.Fatalf("unlisted production sources = %v, want both plain and split-token files", violations)
+	}
+
+	violations, err = productionSourceInventoryViolations(repoRoot, []string{"cmd"}, nil, []string{"cmd/pair-go/plain.go", "cmd/pair-go/split.go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(violations) != 1 || !strings.Contains(violations[0], "split.go") {
+		t.Fatalf("split-token source escaped the non-artifact contract: %v", violations)
 	}
 }
 
@@ -942,6 +1041,131 @@ func artifactReferenceViolations(repoRoot string, roots []string, classified map
 	}
 	sort.Strings(violations)
 	return violations, nil
+}
+
+// productionSourceInventoryViolations makes source participation independent
+// of artifact-token discovery. Every production source is either an explicit
+// artifact classification or an explicit non-artifact source; a newly added
+// file cannot inherit an implicit "irrelevant" default.
+func productionSourceInventoryViolations(repoRoot string, roots []string, classifications []SourceClassification, nonArtifactSources []string) ([]string, error) {
+	declared := make(map[string]string, len(classifications)+len(nonArtifactSources))
+	var violations []string
+	for _, classification := range classifications {
+		declared[classification.Path] = "artifact classification"
+	}
+	for _, rel := range nonArtifactSources {
+		if prior := declared[rel]; prior != "" {
+			violations = append(violations, fmt.Sprintf("%s: both %s and non-artifact source", rel, prior))
+			continue
+		}
+		declared[rel] = "non-artifact source"
+	}
+
+	seen := map[string]bool{}
+	for _, root := range roots {
+		err := filepath.WalkDir(filepath.Join(repoRoot, root), func(path string, entry os.DirEntry, walkErr error) error {
+			if walkErr != nil || entry.IsDir() {
+				return walkErr
+			}
+			rel, err := filepath.Rel(repoRoot, path)
+			if err != nil {
+				return err
+			}
+			rel = filepath.ToSlash(rel)
+			if !productionSourceFile(rel, path) {
+				return nil
+			}
+			seen[rel] = true
+			if declared[rel] == "" {
+				violations = append(violations, rel+": production source is absent from the exhaustive inventory")
+			} else if declared[rel] == "non-artifact source" {
+				sourceViolations, err := nonArtifactSourceViolations(rel, path)
+				if err != nil {
+					return err
+				}
+				violations = append(violations, sourceViolations...)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+	for _, rel := range nonArtifactSources {
+		if !seen[rel] {
+			violations = append(violations, rel+": non-artifact source inventory entry is absent")
+		}
+	}
+	sort.Strings(violations)
+	return violations, nil
+}
+
+func nonArtifactSourceViolations(rel, path string) ([]string, error) {
+	if filepath.Ext(rel) != ".go" {
+		families, err := artifactFamiliesInFile(path)
+		if err != nil {
+			return nil, err
+		}
+		if len(families) == 0 {
+			return nil, nil
+		}
+		return []string{fmt.Sprintf("%s: non-artifact source contains %s vocabulary", rel, strings.Join(families, ", "))}, nil
+	}
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	ast.Inspect(file, func(node ast.Node) bool {
+		expr, ok := node.(ast.Expr)
+		if !ok {
+			return true
+		}
+		value, ok := constantString(expr)
+		if !ok {
+			return true
+		}
+		for _, family := range Families {
+			if strings.HasPrefix(value, family.Token) || artifactTokenMentioned(value, family.Token) {
+				seen[family.Name] = true
+			}
+		}
+		return true
+	})
+	if len(seen) == 0 {
+		return nil, nil
+	}
+	families := make([]string, 0, len(seen))
+	for family := range seen {
+		families = append(families, family)
+	}
+	sort.Strings(families)
+	return []string{fmt.Sprintf("%s: non-artifact source contains constant %s vocabulary", rel, strings.Join(families, ", "))}, nil
+}
+
+func constantString(expr ast.Expr) (string, bool) {
+	switch value := expr.(type) {
+	case *ast.BasicLit:
+		if value.Kind != token.STRING {
+			return "", false
+		}
+		unquoted, err := strconv.Unquote(value.Value)
+		return unquoted, err == nil
+	case *ast.ParenExpr:
+		return constantString(value.X)
+	case *ast.BinaryExpr:
+		if value.Op != token.ADD {
+			return "", false
+		}
+		left, leftOK := constantString(value.X)
+		right, rightOK := constantString(value.Y)
+		if !leftOK || !rightOK {
+			return "", false
+		}
+		return left + right, true
+	default:
+		return "", false
+	}
 }
 
 func TestProductionRootsCoverTopLevelCommandPackages(t *testing.T) {

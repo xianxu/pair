@@ -8,11 +8,16 @@ clean_root="$(mktemp -d "${TMPDIR:-/tmp}/pair-clean-bootstrap.XXXXXX")"
 trap 'rm -rf "$clean_root"' EXIT
 
 git -C "$root" archive HEAD | tar -x -C "$clean_root"
-git -C "$root" diff HEAD --binary -- \
+if ! git -C "$root" diff --quiet HEAD -- \
   . \
   ':(exclude)workshop/plans/*-close-gate.md' \
-  ':(exclude)workshop/plans/*-review.md' |
-  git -C "$clean_root" apply --binary
+  ':(exclude)workshop/plans/*-review.md'; then
+  git -C "$root" diff HEAD --binary -- \
+    . \
+    ':(exclude)workshop/plans/*-close-gate.md' \
+    ':(exclude)workshop/plans/*-review.md' |
+    git -C "$clean_root" apply --binary
+fi
 
 test ! -e "$clean_root/.git"
 test ! -e "$clean_root/cmd/internal/runtimebundle/assets/runtime"
