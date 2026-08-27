@@ -598,7 +598,7 @@ total: 17.80
 - [x] M3 — add mutable name/description/published-summary operations, scoped
       standalone Pair resolution, shared inventory, and common rendering without
       a leading system id.
-- [ ] M4 — persist per-thread and per-path/per-agent launch profiles; resolve
+- [x] M4 — persist per-thread and per-path/per-agent launch profiles; resolve
       explicit/path/root agent defaults and path/repository argument defaults,
       updating preferences only after successful registration.
 - [ ] M5 — migrate legacy tags, artifacts, sessions, registry state, and
@@ -611,6 +611,7 @@ total: 17.80
 ## Log
 
 ### 2026-08-26 — M2 live conformance reaches the OS kill boundary
+- 2026-08-26: closed M4 — make test; go test ./... -count=1; focused M4 race suite; go vet ./...; Zellij checks; transport-neutral flag rejection; Couch authoritative negative repo-default state; pure unique child-env overlay; real ExecRunner stale-parent probe; exact committed M4 range git diff --check; review verdict: FIX-THEN-SHIP
 - 2026-08-26: closed M3 — BR-26: shared persisted thread wire/validator used by ThreadStore writes, Couch reads, and standalone Pair reads; real-file cross-reader mutation parity; focused race suite, make test, go test ./..., go vet, zellij config and layout2/layout3 checks, and git diff --check all pass; review verdict: SHIP
 - 2026-08-26: closed M2 — make test; go test ./... -count=1; race couchcore/launcher/ptychild; real zellij OS-kill and Ariadne live conformance; real-process start recovery; go vet; zellij config/layout2/layout3; git diff --check; review verdict: SHIP
 
@@ -1079,3 +1080,15 @@ removes inherited duplicates for every supplied child key and makes the final
 supplied value authoritative. A real subprocess probe starts under stale
 parent state and observes one empty child entry; the restart scenario also
 requires Couch to emit that negative state (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — M4 boundary review round 4 and close disposition
+
+The gate accepted M4 at its four-round cap but correctly kept BR-30's
+FIX-THEN-SHIP obligation: the real Go child probe stayed green when the
+production merge call was removed because `os/exec` normalized duplicates
+before observation. Production command construction now runs through one
+`buildExecCommand` seam whose test inspects raw `exec.Cmd.Env`. Replacing its
+sanitizer with inherited-plus-appended values makes the test fail with both
+the stale `=1` and authoritative empty entry; current code passes along with
+the real subprocess probe. M4 closed with 1.52 measured hours
+(ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).

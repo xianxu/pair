@@ -476,6 +476,16 @@ rounds:
           round: 19
       boundary: M4
       blocked: true
+    - "n": 20
+      timestamp: "2026-08-26T18:26:06-07:00"
+      agent: codex
+      dispose:
+        - id: BR-30
+          disposition: not-addressed
+          note: The explicit negative value and merge helper exist, but reverting startExecChild to the old inherited-plus-appended environment leaves TestExecRunnerChildEnvironmentOverridesInheritedValue green; the production wiring therefore lacks a test that fails without it.
+          round: 20
+      boundary: M4
+      blocked: false
 ---
 
 # Gate ledger — pair#149 (boundary-review)
@@ -701,6 +711,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - **BR-30** [Important] `child-policy-environment-isolation` Inherited repository-default policy can reject a valid remembered path profile
   ARCH-PURPOSE and ARCH-MOCK: Couch emits PAIR_USE_REPO_DEFAULT only for repository-default provenance, while ExecRunner inherits the parent environment. A stale inherited value of 1 therefore reaches Pair during a path-derived launch and contradicts the otherwise valid profile. Sanitize the inherited launch-owned key and emit one authoritative state for both provenance outcomes, with a production-runner regression that starts under stale parent state.
+
+## Round 20 — 2026-08-26T18:26:06-07:00 (codex) — passed
+
+### Disposed
+
+- BR-30 — not-addressed — The explicit negative value and merge helper exist, but reverting startExecChild to the old inherited-plus-appended environment leaves TestExecRunnerChildEnvironmentOverridesInheritedValue green; the production wiring therefore lacks a test that fails without it.
 
 ## Open findings
 

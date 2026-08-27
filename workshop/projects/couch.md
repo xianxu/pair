@@ -166,7 +166,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] singleton namespace and normalized admission [pair#149 M1]
 - [x] recoverable pre-exec start transaction [pair#149 M2]
 - [x] shared thread metadata, operations, and standalone lookup [pair#149 M3]
-- [ ] remembered per-path agent and argument profiles [pair#149 M4]
+- [x] remembered per-path agent and argument profiles [pair#149 M4]
 - [ ] hierarchical thread menu [pair#151]
 - [ ] verified park and activity age [pair#152]
 - [ ] managed-worktree lifecycle [pair#153]
@@ -232,7 +232,8 @@ artifacts or zellij session-name bindings (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
 ### pair#149 M4 — remembered per-path agent and argument profiles
 
 **est:** 17.80 (whole issue)
-**status:** implementation ready for boundary review
+**closed:** 2026-08-26
+**actual:** 1.52h
 
 Couch resolves agent and argv provenance independently, using Pair's shared
 harness inventory and repo-scoped defaults. A successful registration journals

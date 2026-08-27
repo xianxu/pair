@@ -110,24 +110,37 @@ func TestExecRunnerPropagatesExitCode(t *testing.T) {
 
 func TestExecRunnerChildEnvironmentOverridesInheritedValue(t *testing.T) {
 	t.Setenv("PAIR_USE_REPO_DEFAULT", "1")
-	output := filepath.Join(t.TempDir(), "child-env")
-	h, err := ExecRunner{}.Start(t.TempDir(), []string{os.Args[0], "-test.run=TestExecRunnerEnvironmentProbe"}, []string{
-		"PAIR_USE_REPO_DEFAULT=",
-		"PAIR_TEST_ENV_PROBE=1",
-		"PAIR_TEST_ENV_OUTPUT=" + output,
-	})
+	output := filepath.Join(t.TempDir(), "raw-child-env")
+	capture, err := os.Create(output)
 	if err != nil {
 		t.Fatal(err)
 	}
+	oldStdout := os.Stdout
+	os.Stdout = capture
+	h, startErr := ExecRunner{}.Start(t.TempDir(), []string{"env"}, []string{"PAIR_USE_REPO_DEFAULT="})
+	os.Stdout = oldStdout
+	if startErr != nil {
+		_ = capture.Close()
+		t.Fatal(startErr)
+	}
 	if code := h.Wait(); code != 0 {
 		t.Fatalf("Wait = %d", code)
+	}
+	if err := capture.Close(); err != nil {
+		t.Fatal(err)
 	}
 	raw, err := os.ReadFile(output)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(raw) != "PAIR_USE_REPO_DEFAULT=" {
-		t.Fatalf("child policy environment = %q, want one authoritative empty entry", raw)
+	var entries []string
+	for _, item := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+		if strings.HasPrefix(item, "PAIR_USE_REPO_DEFAULT=") {
+			entries = append(entries, item)
+		}
+	}
+	if !reflect.DeepEqual(entries, []string{"PAIR_USE_REPO_DEFAULT="}) {
+		t.Fatalf("raw child policy environment = %q, want one authoritative empty entry", entries)
 	}
 }
 
@@ -142,18 +155,20 @@ func TestMergeChildEnvironmentMakesSuppliedKeysUniqueAndAuthoritative(t *testing
 	}
 }
 
-func TestExecRunnerEnvironmentProbe(t *testing.T) {
-	if os.Getenv("PAIR_TEST_ENV_PROBE") != "1" {
-		return
+func TestExecRunnerBuildsCommandWithUniqueAuthoritativeChildEnvironment(t *testing.T) {
+	t.Setenv("PAIR_USE_REPO_DEFAULT", "1")
+	cmd, err := buildExecCommand(t.TempDir(), []string{"env"}, []string{"PAIR_USE_REPO_DEFAULT="}, nil)
+	if err != nil {
+		t.Fatal(err)
 	}
 	var entries []string
-	for _, item := range os.Environ() {
+	for _, item := range cmd.Env {
 		if strings.HasPrefix(item, "PAIR_USE_REPO_DEFAULT=") {
 			entries = append(entries, item)
 		}
 	}
-	if err := os.WriteFile(os.Getenv("PAIR_TEST_ENV_OUTPUT"), []byte(strings.Join(entries, "\n")), 0o600); err != nil {
-		t.Fatal(err)
+	if !reflect.DeepEqual(entries, []string{"PAIR_USE_REPO_DEFAULT="}) {
+		t.Fatalf("raw exec.Cmd policy environment = %q, want one authoritative empty entry", entries)
 	}
 }
 

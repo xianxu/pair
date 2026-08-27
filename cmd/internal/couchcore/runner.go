@@ -71,21 +71,10 @@ func (r ExecRunner) StartBlocked(dir string, argv, env []string, timeout time.Du
 }
 
 func startExecChild(dir string, argv, env []string, extraFiles []*os.File) (Handle, error) {
-	if len(argv) == 0 {
-		return nil, fmt.Errorf("start: empty argv")
+	cmd, err := buildExecCommand(dir, argv, env, extraFiles)
+	if err != nil {
+		return nil, err
 	}
-	cmd := exec.Command(argv[0], argv[1:]...)
-	cmd.Dir = dir
-	if env != nil {
-		cmd.Env = mergeChildEnvironment(os.Environ(), env)
-	}
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-	cmd.ExtraFiles = extraFiles
-	// Every Couch child is the leader of one owned process group. Pair may
-	// start pre-handoff helpers before the zellij session exists; keeping those
-	// helpers in this group gives the handle one production authority over the
-	// complete pre-session incarnation rather than only its direct child.
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start %s in %s: %w", argv[0], dir, err)
 	}
@@ -111,6 +100,25 @@ func startExecChild(dir string, argv, env []string, extraFiles []*os.File) (Hand
 		close(h.done)
 	}()
 	return h, nil
+}
+
+func buildExecCommand(dir string, argv, env []string, extraFiles []*os.File) (*exec.Cmd, error) {
+	if len(argv) == 0 {
+		return nil, fmt.Errorf("start: empty argv")
+	}
+	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd.Dir = dir
+	if env != nil {
+		cmd.Env = mergeChildEnvironment(os.Environ(), env)
+	}
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	cmd.ExtraFiles = extraFiles
+	// Every Couch child is the leader of one owned process group. Pair may
+	// start pre-handoff helpers before the zellij session exists; keeping those
+	// helpers in this group gives the handle one production authority over the
+	// complete pre-session incarnation rather than only its direct child.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	return cmd, nil
 }
 
 // mergeChildEnvironment makes every supplied child key authoritative over the

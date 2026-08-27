@@ -257,3 +257,79 @@ findings:
     detail: |
       ARCH-PURPOSE and ARCH-MOCK: Couch emits PAIR_USE_REPO_DEFAULT only for repository-default provenance, while ExecRunner inherits the parent environment. A stale inherited value of 1 therefore reaches Pair during a path-derived launch and contradicts the otherwise valid profile. Sanitize the inherited launch-owned key and emit one authoritative state for both provenance outcomes, with a production-runner regression that starts under stale parent state.
 ```
+
+---
+
+## Re-review — 2026-08-26T18:26:06-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 149 — couch: opaque tags and a human naming layer |
+| repo | pair |
+| issue file | workshop/issues/000149-couch-opaque-tags-and-a-human-naming-layer.md |
+| boundary | milestone M4 |
+| milestone | M4 |
+| window | a3d7d7170f0f44f990d362c085d79d40d6c42fc7..a3d7d7170f0f44f990d362c085d79d40d6c42fc7 |
+| command | sdlc milestone-close --issue 149 --milestone M4 |
+| reviewer | codex |
+| timestamp | 2026-08-26T18:26:06-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+M4’s implementation, documentation, and broader test suite are sound, but BR-30 is not yet addressed under the boundary’s load-bearing-test rule. The production-runner regression still passes when the production call to `mergeChildEnvironment` is reverted to the old environment append behavior. The gate should rerun after adding a regression that observes the environment before Go runtime normalization.
+
+## 1. Strengths
+
+- [couch.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/couch.go:210) supplies exactly one explicit policy value—empty or `1`—from Couch.
+- [runner.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/runner.go:120) centralizes authoritative child-environment merging with last-supplied-value semantics.
+- The Core concepts table accurately inventories the new pure helper and modified `ExecRunner`.
+- README and atlas document the negative policy state and environment isolation.
+- The complete M4 range is whitespace-clean and the worktree is clean.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+- [runner_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/runner_test.go:111) — **BR-30 remains open; ARCH-PURPOSE, ARCH-MOCK.** Reverting [runner.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/runner.go:80) to `append(os.Environ(), env...)` leaves `TestExecRunnerChildEnvironmentOverridesInheritedValue` green. Its Go child observes the runtime-normalized environment rather than the raw environment supplied to `exec`, while the pure helper test does not prove production wiring. Add a production-runner regression that captures raw environment output—for example, execute `env` with inherited stdout redirected to a temporary file—and requires exactly one empty policy entry. Confirm that reverting line 80 makes it fail.
+
+## 4. Minor findings
+
+None.
+
+## 5. Test coverage notes
+
+- `make test`: passed.
+- `go test ./... -count=1`: passed.
+- `go test -race ./cmd/internal/couchcore ./cmd/internal/launcher -count=1`: passed.
+- `go vet ./...`: passed.
+- `git diff --check 328551b..HEAD`: passed.
+- Focused BR-30 tests pass in the current tree.
+- Mutation result: the claimed production-runner regression remained green after reverting the production environment merge call. The temporary scratch copy was outside the repository.
+- The supplied `Base == Head` window is empty; substantive verification used the recorded M4 range `328551b..HEAD` and the BR-30 disposition commit.
+
+## 6. Architectural notes for upcoming work
+
+- **ARCH-DRY — pass:** one helper owns child-environment overlay semantics.
+- **ARCH-PURE — pass:** merging remains deterministic and separate from process IO.
+- **ARCH-PURPOSE — flag:** the intended policy isolation exists in code but lacks the required load-bearing production-wiring proof.
+- **ARCH-MOCK — flag:** the current real-process probe crosses the runner seam but observes normalized Go runtime state, so it cannot detect removal of the production merge call.
+
+## 7. Plan revision recommendations
+
+None. The plan matches the intended implementation; only its verification evidence and the M4 issue log should be corrected when the load-bearing regression lands.
+
+```findings
+dispose:
+  - id: BR-30
+    disposition: not-addressed
+    note: |
+      The explicit negative value and merge helper exist, but reverting startExecChild to the old inherited-plus-appended environment leaves TestExecRunnerChildEnvironmentOverridesInheritedValue green; the production wiring therefore lacks a test that fails without it.
+```

@@ -95,7 +95,7 @@ than adding only the entity named by a review finding.
 | `Couch.resolveLaunchProfile` / `RepoAgentDefault` | `cmd/internal/couchcore/couch.go`, `cmd/internal/couchcmd/run.go` | new in M4 | strict path preference reads and injected Pair repo-default reads |
 | `OSRuntime.ReadAgentDefault` | `cmd/internal/launcher/osruntime.go` | reused in M4 | Pair-owned scoped argv-default storage |
 | `applyCouchLaunchEnvironment` | `cmd/internal/launcher/runcli.go` | new in M4 | consumes the tag-bound profile and cross-checks repo-default provenance at Pair entry |
-| `ExecRunner` | `cmd/internal/couchcore/runner.go` | modified in M4 review disposition | inherited process environment with authoritative child-key overlay |
+| `ExecRunner` / `buildExecCommand` | `cmd/internal/couchcore/runner.go` | modified in M4 review disposition | one production command path over inherited environment with authoritative child-key overlay |
 
 Every integration has a stateful fake or real-process conformance test. In
 particular, namespace/lease tests use independent processes and inherited file
@@ -687,7 +687,7 @@ inventory, never a couch enum (ARCH-DRY).
 
 - [x] **Step 1:** Run the end-to-end launch-profile provenance scenario and assert exact
    argv/source persistence across couch restart.
-- [ ] **Step 2:** Run focused/full suites and `git diff --check`; commit and run
+- [x] **Step 2:** Run focused/full suites and `git diff --check`; commit and run
    `sdlc milestone-close --issue 149 --milestone M4`.
 
 ## Chunk 5: Milestone M5 — legacy migration and composite artifact proof
@@ -1219,3 +1219,17 @@ removing inherited and supplied duplicates. A real subprocess probe verifies a
 stale parent `=1` becomes one authoritative empty child entry, while a pure
 merge table fixes last-supplied-wins semantics and the restart scenario pins
 Couch's negative emission (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — make production environment wiring load-bearing
+
+**Reason:** the fourth M4 review confirmed the child behavior but reverted the
+production merge call without reddening the subprocess test. Go's `os/exec`
+normalizes duplicate keys before the Go helper observes them, so that test
+could not distinguish our sanitizer from the runtime's incidental behavior.
+
+**Delta:** `buildExecCommand` is now the single production command-construction
+path. Its regression inspects the raw `exec.Cmd.Env` before runtime
+normalization and requires exactly one authoritative policy entry; changing
+that production line back to inherited-plus-appended entries makes the test
+fail with both `=1` and empty values. The real subprocess probe remains as
+end-to-end behavior evidence (ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
