@@ -36,6 +36,7 @@ type fakeRuntime struct {
 	files               map[string]string
 	ledger              map[string][]LedgerEntry
 	sessionIndex        SessionNameIndex
+	sessionIndexErr     error
 	threadIndex         ThreadIndex
 	threadIndexErr      error
 	agentSessions       map[string]bool // "agent|sid" -> native artifact exists
@@ -251,7 +252,7 @@ func (f *fakeRuntime) AppendLedger(tag string, entry LedgerEntry) error {
 	return nil
 }
 func (f *fakeRuntime) ReadSessionNameIndex() (SessionNameIndex, error) {
-	return f.sessionIndex, nil
+	return f.sessionIndex, f.sessionIndexErr
 }
 func (f *fakeRuntime) ReadThreadIndex() (ThreadIndex, error) {
 	return f.threadIndex, f.threadIndexErr
@@ -262,6 +263,19 @@ func (f *fakeRuntime) AppendSessionNameIndex(entry SessionNameEntry) error {
 	}
 	f.sessionIndex.Entries = append(f.sessionIndex.Entries, entry)
 	return nil
+}
+
+func TestAssignLaunchSessionNamesRefusesUnreadableIndex(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.sessionIndexErr = errors.New("index unreadable")
+	var stderr bytes.Buffer
+	_, _, _, ok := assignLaunchSessionNames(rt, nil, "/repo", "/global", LaunchArgs{ForcedTag: "work"}, "work", &stderr)
+	if ok {
+		t.Fatal("assignLaunchSessionNames accepted an unreadable durable index")
+	}
+	if !strings.Contains(stderr.String(), "index unreadable") {
+		t.Fatalf("stderr = %q, want durable index error", stderr.String())
+	}
 }
 
 func (f *fakeRuntime) RemoveReadyRecord(tag, agent string) {

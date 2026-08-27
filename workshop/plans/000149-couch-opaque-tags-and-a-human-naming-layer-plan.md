@@ -59,7 +59,11 @@ than adding only the entity named by a review finding.
 | `couchLaunchProfileWire` / `BuildCouchLaunchProfile` / `ApplyCouchLaunchProfile` | pure | `cmd/internal/launcher/launch_args_policy.go` | strict one-shot codec added in M4 |
 | `mergeChildEnvironment` | pure | `cmd/internal/couchcore/runner.go` | authoritative child overlay added in M4 review disposition |
 | `MigrateLegacyRecord` | pure | `cmd/internal/couchcore/migration.go` | new in M5 |
-| `ArtifactFamily` | pure | `cmd/internal/artifactpath/paths.go` | new in M5 |
+| `artifactpath.Address` / `Paths` / `ScopePaths` / `Binding` | pure | `cmd/internal/artifactpath/paths.go` | new in M5 |
+| `artifactpath.Family` / `SourceClassification` | pure | `cmd/internal/artifactpath/manifest.go` | new in M5 |
+| `artifactpath.LegacyRootPaths` / `LegacyPaths` / `TagFromHistorySidecar` | pure | `cmd/internal/artifactpath/paths.go` | added in M5 boundary disposition |
+| `DecodeSessionNameIndex` | pure | `cmd/internal/launcher/session_index.go` | added in M5 boundary disposition |
+| `StandaloneThreadRegistration` / `StandaloneThreadRegistrar` | pure seam types | `cmd/internal/launcher/runtime.go` | new in M5 |
 
 - **`CouchNamespace`** — the absolute physical store path used as the durable
   namespace key. One namespace owns many work threads and zero or one live
@@ -77,8 +81,9 @@ than adding only the entity named by a review finding.
   capabilities instead of copying verbs.
 - **`LaunchProfileResolution`** — independently records agent provenance and
   argv provenance so valid source combinations remain representable.
-- **`ArtifactFamily`** — checked inventory of every tag-bearing Pair path; new
-  sidecars extend the manifest rather than constructing paths ad hoc.
+- **`artifactpath.Family` and `SourceClassification`** — checked inventory of
+  every tag-bearing Pair path and every source allowed to mention its filename
+  token; new sidecars extend the manifest rather than constructing paths ad hoc.
 
 ### Integration points
 
@@ -98,6 +103,9 @@ than adding only the entity named by a review finding.
 | `applyCouchLaunchEnvironment` | `cmd/internal/launcher/runcli.go` | new in M4 | consumes the tag-bound profile and cross-checks repo-default provenance at Pair entry |
 | `ExecRunner` / `buildExecCommand` | `cmd/internal/couchcore/runner.go` | modified in M4 review disposition | one production command path over inherited environment with authoritative child-key overlay |
 | `ThreadStore.MigrateLegacyRecords` | `cmd/internal/couchcore/migration.go` | new in M5 | one locked journal transaction over cutover records and manifest completion |
+| `LaunchNativeWithStandaloneRegistrar` / `RegisterStandalonePair` | `cmd/internal/launcher/runcli.go`, `cmd/internal/couchcore/standalone.go`, `cmd/pair-go/main.go` | new in M5 | composition-root injection of direct Pair registration without reversing the launcher→Couch package boundary |
+| `ThreadStore.UpsertStandalonePair` | `cmd/internal/couchcore/standalone.go` | new in M5 | locked/revisioned direct-Pair incarnation publication with metadata preservation |
+| `OSRuntime.ReadSessionNameIndex` | `cmd/internal/launcher/osruntime.go` | modified in M5 and its boundary disposition | strict merge of legacy-global and selected-scope durable bindings; missing files mean empty, malformed/unreadable files fail closed |
 
 Every integration has a stateful fake or real-process conformance test. In
 particular, namespace/lease tests use independent processes and inherited file
@@ -843,7 +851,7 @@ inventory, never a couch enum (ARCH-DRY).
 - [x] **Step 2:** Run the Verification commands, repository full suite, race suite, real couch
    smoke, and `git diff --check`.
 - [x] **Step 3:** Update issue/project/atlas evidence and check every issue plan row.
-- [x] **Step 4:** Commit the final window and run
+- [ ] **Step 4:** Commit the final window and run
    `sdlc milestone-close --issue 149 --milestone M5`, fixing all boundary
    findings. Then run `sdlc close --issue 149 --verified '<exact evidence>'`;
    let SDLC measure actual time and archive the issue/plan.
@@ -1253,3 +1261,26 @@ is required. Tests retain same-tag cross-scope separation and co-tenant
 occupancy from M1, prove exact metadata enrichment, preserve corrupt bytes and
 an incomplete marker on refusal, recover an interrupted multi-target journal,
 and require byte-stable reruns (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-26 — close constructor and durable-index compatibility classes
+
+**Reason:** the first M5 boundary review showed that moving
+`session-names.jsonl` to the selected scope had no compatibility read for live
+sessions indexed only in the former global file, extensionless scripts escaped
+the artifact-source guard, two non-Go consumers still derived selected paths,
+and the Core concepts table named a nonexistent `ArtifactFamily` in the wrong
+file.
+
+**Delta:** durable session-index reads strictly merge the legacy-global and
+selected-scope files, treat absence as empty, and fail closed on malformed or
+unreadable present state at every destructive/identity-dependent caller. The
+artifact source class now includes extensionless shebang programs; intentional
+legacy-flat reads derive through `LegacyRootPaths`/`LegacyPaths`, while current
+shell and Neovim consumers require their exact exported bindings. The complete
+M5 entity sweep records the actual `Address`/`Paths`/`ScopePaths`/`Binding`,
+`Family`/`SourceClassification`, standalone-registration, migration, legacy
+compatibility, and strict index-decoder entities at their real paths. Regression
+tests start with only a global binding plus a detached session, inject corrupt
+and unreadable indexes through each effect path, discover an extensionless
+constructor, and forbid the two selected-path derivations (ARCH-DRY,
+ARCH-PURE, ARCH-PURPOSE).

@@ -601,7 +601,7 @@ total: 17.80
 - [x] M4 — persist per-thread and per-path/per-agent launch profiles; resolve
       explicit/path/root agent defaults and path/repository argument defaults,
       updating preferences only after successful registration.
-- [x] M5 — migrate legacy tags, artifacts, sessions, registry state, and
+- [ ] M5 — migrate legacy tags, artifacts, sessions, registry state, and
       same-tree co-tenants idempotently under the store lock, proving every
       artifact lookup is scoped by the composite address.
 - [x] Reconcile `#135` with composite work-thread identity; leave verified park,
@@ -1135,3 +1135,23 @@ start-recovery probe. The only smoke interruption was an empty untracked local
 directory; root-cause inspection showed it was never repository state, and
 removing that empty directory restored the target without a code change
 (ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — M5 boundary review round 1
+
+The fresh review accepted the migration transaction, composite path value,
+cross-scope integration, and standalone registration ordering, then reported
+BR-31–BR-34. The repeated durable-index class now has an overlap-read rule:
+legacy-global and selected-scope bindings merge strictly, absence alone is
+empty, and unreadable state stops orphan cleanup, attachment/name assignment,
+restart, rename, and list rather than becoming an empty index. The constructor
+class now scans extensionless shebang sources, routes legacy flat reads through
+`LegacyRootPaths`/`LegacyPaths`, and pins exact shell/Neovim bindings without
+sibling derivation. A complete M5 entity-table sweep and atlas formula sweep
+replace the nonexistent `ArtifactFamily` claim and global-layout prose
+(ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
+The disposition rerun passed the full `make test` suite, uncached
+`go test ./...`, focused artifact/launcher tests, Couch+launcher race tests,
+`make test-live`, live Ariadne policy conformance, terminal and Zellij park
+smokes, real start recovery, deterministic runtime generation, both layout
+parsers, issue validation, and `git diff --check`.

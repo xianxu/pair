@@ -94,7 +94,7 @@ func TestProductionArtifactReferencesAreExactlyClassified(t *testing.T) {
 				return err
 			}
 			rel = filepath.ToSlash(rel)
-			if !productionSource(rel) {
+			if !productionSourceFile(rel, path) {
 				return nil
 			}
 			found, err := artifactFamiliesInFile(path)
@@ -130,6 +130,40 @@ func TestProductionArtifactReferencesAreExactlyClassified(t *testing.T) {
 	}
 }
 
+func TestProductionSourceFileRecognizesExtensionlessShebang(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "pair-notify")
+	if err := os.WriteFile(path, []byte("#!/usr/bin/env bash\necho outer-tty-work\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if !productionSourceFile("bin/pair-notify", path) {
+		t.Fatal("extensionless shebang source escaped production coverage")
+	}
+}
+
+func TestNonGoConsumersUseExactPathBindings(t *testing.T) {
+	repoRoot := filepath.Clean(filepath.Join("..", "..", ".."))
+	for _, tc := range []struct {
+		path      string
+		required  string
+		forbidden string
+	}{
+		{path: "bin/pair-notify", required: "PAIR_OUTER_TTY_PATH", forbidden: "outer-tty-$tag"},
+		{path: "nvim/init.lua", required: "PAIR_IMAGE_CAPTURE_DONE_PATH", forbidden: "cap_path .. '.done'"},
+	} {
+		raw, err := os.ReadFile(filepath.Join(repoRoot, filepath.FromSlash(tc.path)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		body := string(raw)
+		if !strings.Contains(body, tc.required) {
+			t.Errorf("%s does not consume exact binding %s", tc.path, tc.required)
+		}
+		if strings.Contains(body, tc.forbidden) {
+			t.Errorf("%s still derives a selected path with %q", tc.path, tc.forbidden)
+		}
+	}
+}
+
 func productionSource(path string) bool {
 	if strings.Contains(path, "/testdata/") || strings.HasSuffix(path, "_test.go") || strings.HasSuffix(path, "_test.lua") || strings.HasSuffix(path, "_test.sh") {
 		return false
@@ -140,6 +174,23 @@ func productionSource(path string) bool {
 	default:
 		return false
 	}
+}
+
+func productionSourceFile(rel, path string) bool {
+	if productionSource(rel) {
+		return true
+	}
+	if filepath.Ext(rel) != "" {
+		return false
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	var header [2]byte
+	n, _ := f.Read(header[:])
+	return n == len(header) && string(header[:]) == "#!"
 }
 
 func artifactFamiliesInFile(path string) ([]string, error) {

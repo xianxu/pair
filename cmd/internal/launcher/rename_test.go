@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -159,6 +160,18 @@ func TestRunRenameHappyPath(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "ok") {
 		t.Fatalf("stdout = %q", out.String())
+	}
+}
+
+func TestRunRenameRefusesUnreadableSessionIndex(t *testing.T) {
+	rt := renameFake(t)
+	rt.sessionIndexErr = errors.New("index unreadable")
+	var out, errBuf bytes.Buffer
+	if code := runRename(rt, LaunchArgs{RenameOld: "old", RenameNew: "new"}, "/data", &out, &errBuf); code != 1 {
+		t.Fatalf("code=%d stdout=%s stderr=%s", code, out.String(), errBuf.String())
+	}
+	if len(rt.renamed) != 0 {
+		t.Fatalf("unreadable index must not rename: %v", rt.renamed)
 	}
 }
 

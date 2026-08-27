@@ -2195,3 +2195,27 @@ all readers and writers. Project only after that shared decode succeeds. Keep a
 cross-reader mutation table enumerating every required top-level, address,
 nested-record, generation, and path-binding invariant; each reader must reject
 every mutation (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+## Durable index relocation needs an overlap-read epoch
+
+Moving the writer to a scoped location does not move already-live state. A
+reader that switches locations atomically can strand detached sessions even
+though both old and new files are individually valid.
+
+**Rule.** During a durable-index relocation, read and strictly merge every
+prior authoritative location before the new one, while writing only the new
+location. Tolerate missing files only; malformed or unreadable present state
+must stop every identity-dependent or destructive caller. Pin a legacy-only
+live record, a mixed old/new record, and each fail-closed effect path.
+
+## Constructor closure includes source shape and derived companions
+
+An extension-only source scan misses extensionless scripts, and a token scan
+misses `exact_path .. suffix` derivations. Both allow a claimed path authority
+to coexist with real constructors outside it.
+
+**Rule.** Enumerate production source by language extension or shebang, route
+intentional legacy reads through an explicit compatibility API, and test exact
+non-Go bindings against forbidden sibling derivations. When one artifact has
+companions, their derivation belongs in the path authority too
+(ARCH-DRY, ARCH-PURPOSE).

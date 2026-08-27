@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -334,6 +335,22 @@ func TestRunLaunchSweepsOnce(t *testing.T) {
 	}
 	if !reflect.DeepEqual(rt.swept[0], []string{"a", "b"}) {
 		t.Fatalf("swept live tags = %v, want [a b]", rt.swept[0])
+	}
+}
+
+func TestRunLaunchRefusesUnreadableSessionIndexBeforeOrphanSweep(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.sessionIndexErr = errors.New("index unreadable")
+	opts := baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "fresh"})
+	code, err := run(t, opts, rt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 1 {
+		t.Fatalf("code = %d, want 1", code)
+	}
+	if len(rt.swept) != 0 || rt.launched != "" {
+		t.Fatalf("unreadable index must stop before sweep/launch: swept=%v launched=%q", rt.swept, rt.launched)
 	}
 }
 

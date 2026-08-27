@@ -173,7 +173,11 @@ func runRenameScoped(rt Runtime, args LaunchArgs, dataDir, scopeKey string, stdo
 	// the shell's `|| true` (gate skipped). --restart-check skips the live-old
 	// gate (the real mv runs post-kill from the restart re-entry).
 	sessions, _ := rt.Sessions()
-	index, _ := rt.ReadSessionNameIndex()
+	index, err := rt.ReadSessionNameIndex()
+	if err != nil {
+		fmt.Fprintf(stderr, "pair rename: read session-name index: %v\n", err)
+		return 1
+	}
 	if !args.RenameCheckOnly && sessionTrackedForTag(sessions, index, scopeKey, old) {
 		fmt.Fprintf(stderr, "pair rename: tag '%s' still has a session tracked by zellij.\n", old)
 		fmt.Fprintf(stderr, "             Quit it first (Alt+x), or use the in-session rename.\n")

@@ -60,7 +60,11 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 	// gone (an external kill / reboot leaves no quit marker). Once, up front — a
 	// clean restart below leaves nothing new to sweep.
 	if sessions, err := rt.Sessions(); err == nil {
-		index, _ := rt.ReadSessionNameIndex()
+		index, err := rt.ReadSessionNameIndex()
+		if err != nil {
+			fmt.Fprintf(stderr, "pair: read session-name index: %v\n", err)
+			return 1, nil
+		}
 		rt.SweepOrphanNvim(liveTagsForSweep(sessions, index, scopeKeyFromDataDir(opts.GlobalDataDir, env.DataDir)))
 	}
 
@@ -344,7 +348,8 @@ func assignLaunchSessionNames(rt Runtime, live []Session, repoRoot, globalDataDi
 	}
 	index, err := rt.ReadSessionNameIndex()
 	if err != nil {
-		index = SessionNameIndex{}
+		fmt.Fprintf(stderr, "pair: read session-name index: %v\n", err)
+		return nil, nil, nil, false
 	}
 	scopedLive := SessionsForScope(live, index, scope)
 	scopedLive = append(scopedLive, legacyLiveSessionsForScope(rt, live, index, scope, globalDataDir)...)
@@ -694,7 +699,8 @@ func assignSingleSessionName(rt Runtime, live []Session, cwd, tag string, stderr
 	}
 	index, err := rt.ReadSessionNameIndex()
 	if err != nil {
-		index = SessionNameIndex{}
+		fmt.Fprintf(stderr, "pair: read session-name index: %v\n", err)
+		return "", SessionNameEntry{}, false
 	}
 	name, updated, err := AssignSessionName(index, live, scope, tag, func(session string) bool {
 		return rt.ProbeSessionName(session) == nil

@@ -21,8 +21,8 @@
     {
       "Path": "bin/pair-notify",
       "Mode": 493,
-      "Size": 2352,
-      "Digest": "sha256:7d053c6fa9c69e1a1d3b294dac10eb64bd592c0d603cd82e8630e3dedb29c129"
+      "Size": 2405,
+      "Digest": "sha256:7211909294ecd0165573ca84e17931b01dff197833efbbd0508e691e0933066e"
     },
     {
       "Path": "doctor/README.md",
@@ -75,8 +75,8 @@
     {
       "Path": "nvim/init.lua",
       "Mode": 420,
-      "Size": 185381,
-      "Digest": "sha256:1b035f36072073184b24d549ab8b2e9eca57eae7685bba0101f1934cf909246a"
+      "Size": 185625,
+      "Digest": "sha256:711e44cecbfe0f31bacdeb9d22a853b23c4fb21fe95f994034edb9ebcb9669e1"
     },
     {
       "Path": "nvim/marker_codec.lua",

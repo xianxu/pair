@@ -2,6 +2,8 @@ package launcher
 
 import "path/filepath"
 
+import "github.com/xianxu/pair/cmd/internal/artifactpath"
+
 type legacyImportPair struct {
 	src string
 	dst string
@@ -31,6 +33,10 @@ func importLegacyFlatTag(rt Runtime, tag, globalDataDir, scopedDataDir string) b
 		return false
 	}
 	imported := false
+	legacy, err := artifactpath.ResolveLegacyFlat(globalDataDir, tag)
+	if err != nil {
+		return false
+	}
 	for _, pair := range legacyImportPlan(tag, globalDataDir, scopedDataDir, func(p string) bool {
 		_, ok := rt.FileSize(p)
 		return ok
@@ -39,7 +45,11 @@ func importLegacyFlatTag(rt Runtime, tag, globalDataDir, scopedDataDir string) b
 			imported = true
 		}
 	}
-	if copyLegacyPath(rt, filepath.Join(globalDataDir, "queue-"+tag), filepath.Join(scopedDataDir, "queue-"+tag)) {
+	current, err := artifactpath.ResolveScoped(scopedDataDir, tag)
+	if err != nil {
+		return imported
+	}
+	if copyLegacyPath(rt, legacy.QueueDir(), current.QueueDir()) {
 		imported = true
 	}
 	return imported

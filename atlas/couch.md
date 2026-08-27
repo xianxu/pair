@@ -256,8 +256,9 @@ Direct Pair creates an established claim before its first artifact and adopts
 historical tags into the same scheme. Collision detection uses the exact
 structural tag boundary, while actual access goes only through
 `artifactpath.Paths`; no consumer scans its way to a selected file. The session
-binding index now lives in the same selected repository scope and remains a
-separately strict representation; malformed indexes fail closed.
+binding index now lives in the same selected repository scope; strict reads
+merge the former global file for upgrade compatibility, and malformed or
+unreadable present state fails closed.
 
 The child receives the canonical namespace plus `COUCH_THREAD_SCOPE` and
 `COUCH_THREAD_TAG`, and launches as `pair resume <opaque-tag> --layout2`.

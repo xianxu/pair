@@ -401,6 +401,56 @@ func TestOSRuntimeSessionNameIndexUsesSelectedScopeDir(t *testing.T) {
 	}
 }
 
+func TestOSRuntimeSessionNameIndexReadsLegacyGlobalEntriesAlongsideScopedEntries(t *testing.T) {
+	globalDir := t.TempDir()
+	scopedDir := t.TempDir()
+	scope := RepoScope{Key: "scope1", Root: "/repo", DisplayName: "pair"}
+	legacy := SessionNameEntry{SessionName: "📁pair-work", ScopeKey: scope.Key, RepoRoot: scope.Root, RepoName: scope.DisplayName, Tag: "work"}
+	line, err := BuildSessionNameIndexLine(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(globalDir, "session-names.jsonl"), []byte(line+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	rt := NewScopedOSRuntime(globalDir, scopedDir, "/pair")
+	index, err := rt.ReadSessionNameIndex()
+	if err != nil {
+		t.Fatalf("ReadSessionNameIndex: %v", err)
+	}
+	name, _, err := AssignSessionName(index, []Session{{Name: legacy.SessionName, State: SessionDetached}}, scope, legacy.Tag, acceptAllSessionNames)
+	if err != nil {
+		t.Fatalf("AssignSessionName: %v", err)
+	}
+	if name != legacy.SessionName {
+		t.Fatalf("legacy live session assigned %q, want existing %q", name, legacy.SessionName)
+	}
+
+	scoped := SessionNameEntry{SessionName: "📁pair-next", ScopeKey: scope.Key, RepoRoot: scope.Root, RepoName: scope.DisplayName, Tag: "next"}
+	if err := rt.AppendSessionNameIndex(scoped); err != nil {
+		t.Fatal(err)
+	}
+	index, err = rt.ReadSessionNameIndex()
+	if err != nil {
+		t.Fatalf("ReadSessionNameIndex after scoped append: %v", err)
+	}
+	if len(index.Entries) != 2 || index.Entries[0] != legacy || index.Entries[1] != scoped {
+		t.Fatalf("merged index = %#v, want legacy then scoped", index)
+	}
+}
+
+func TestOSRuntimeSessionNameIndexRejectsMalformedDurableRows(t *testing.T) {
+	globalDir := t.TempDir()
+	scopedDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(scopedDir, "session-names.jsonl"), []byte("not-json\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewScopedOSRuntime(globalDir, scopedDir, "/pair").ReadSessionNameIndex(); err == nil {
+		t.Fatal("ReadSessionNameIndex accepted a malformed durable row")
+	}
+}
+
 func timeUnix(sec int64) time.Time { return time.Unix(sec, 0).UTC() }
 
 func TestOSRuntimeReapAndPollerRemovePidfiles(t *testing.T) {

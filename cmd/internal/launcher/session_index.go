@@ -156,6 +156,26 @@ func ParseSessionNameIndex(raw string) SessionNameIndex {
 	return index
 }
 
+// DecodeSessionNameIndex is the durable-reader counterpart to the tolerant
+// ParseSessionNameIndex display/import helper. A present index is authority:
+// one malformed row makes the whole read unusable rather than silently
+// converting known live sessions into unowned ones.
+func DecodeSessionNameIndex(raw string) (SessionNameIndex, error) {
+	var index SessionNameIndex
+	for lineNumber, line := range strings.Split(raw, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var entry SessionNameEntry
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			return SessionNameIndex{}, fmt.Errorf("session-name index line %d: %w", lineNumber+1, err)
+		}
+		index.Entries = append(index.Entries, entry)
+	}
+	return index, nil
+}
+
 type SessionNameExhausted struct {
 	RepoName string
 	Tag      string

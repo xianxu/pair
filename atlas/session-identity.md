@@ -58,6 +58,11 @@ is:
 📁{repo}[-{residual tag tokens}]
 ```
 
+Reads merge the former global index before the selected-scope index so live
+pre-M5 sessions remain visible during upgrade; new rows are written only to the
+selected scope. Missing files mean no bindings, while malformed or unreadable
+present files fail closed before attachment, rename, restart, or orphan cleanup.
+
 The first `pair/work` session becomes `📁pair-work`; a `pair` tag in the `pair`
 repo becomes just `📁pair`, because a tag token already carried by the repo is
 dropped. `parley.nvim` with tag `parley_nvim` becomes `📁parley-nvim`.

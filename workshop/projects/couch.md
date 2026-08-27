@@ -167,6 +167,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] recoverable pre-exec start transaction [pair#149 M2]
 - [x] shared thread metadata, operations, and standalone lookup [pair#149 M3]
 - [x] remembered per-path agent and argument profiles [pair#149 M4]
+- [ ] legacy migration and composite artifact proof [pair#149 M5]
 - [ ] hierarchical thread menu [pair#151]
 - [ ] verified park and activity age [pair#152]
 - [ ] managed-worktree lifecycle [pair#153]
@@ -379,6 +380,12 @@ row remains open until the M5 review boundary and final issue close record their
 verdict and measured actual. Full, race, live-process, policy-provider,
 terminal/Zellij, crash-recovery, layout, and bundle-determinism checks are green
 (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
+The first boundary review's upgrade and constructor-closure findings are now
+covered by strict old/new index overlap reads, extensionless-source discovery,
+explicit legacy-path authority, exact non-Go bindings, a mechanically truthful
+entity inventory, and an atlas-wide obsolete-formula sweep. Full, race, live,
+policy, terminal, recovery, bundle, and layout checks pass on the disposition.
 
 ### 2026-08-26 — pair#149 M3 implementation ready for boundary
 

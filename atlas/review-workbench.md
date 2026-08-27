@@ -162,7 +162,7 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   (file-select). Pure decision `_pair_review_toggle_action(alive, visible, status)`.
   Review-targets are scoped to the current conversation id so fresh sessions ignore
   stale targets while resumed sessions keep their in-progress target. Neovim resolves
-  only `PAIR_SESSION_ID` → `config-<tag>-<agent>.json`; it does not inspect processes or
+  only `PAIR_SESSION_ID` → exact `$PAIR_AGENT_CONFIG_PATH`; it does not inspect processes or
   parse rollout filenames. Codex/agy learn ids asynchronously through Pair's watcher,
   which publishes the validated config consumed here. `Alt+r` is deliberately free inside the review
   pane for reject.
@@ -179,7 +179,7 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   so review mode is visible even when the pane is hidden. A 1.5s timer recomputes the segment (counts parsed from `git log` round
   subjects, **branch-scoped** to the active `review/<slug>` so other docs' shipped reviews
   don't leak in — `🤖 0/0` off a review branch / in M3 render-only; mode from
-  `$PAIR_DATA_DIR/review-<tag>.mode`, defaulting to Edit) and triggers a redraw
+  exact `$PAIR_REVIEW_MODE_PATH`, defaulting to Edit) and triggers a redraw
   only on change; the hot render path never shells git. (This **supersedes** an earlier
   line-1 `=== review … ===` indicator — line 1 is the user's to edit. New draft-side
   review helpers live in `do`-blocks sharing `_G._pair_review` — init.lua is at Lua's

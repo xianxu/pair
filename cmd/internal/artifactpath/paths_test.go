@@ -2,6 +2,7 @@ package artifactpath
 
 import (
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -134,6 +135,29 @@ func TestResolveSelectedScopeOwnsTagIndependentArtifacts(t *testing.T) {
 	}
 	if _, err := scope.AgentDefault("../codex"); err == nil {
 		t.Fatal("unsafe agent default component accepted")
+	}
+}
+
+func TestLegacyFlatPathsAreValidatedByArtifactAuthority(t *testing.T) {
+	legacy, err := ResolveLegacyFlat("/data", "work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := legacy.QueueDir(); got != "/data/queue-work" {
+		t.Fatalf("QueueDir() = %q", got)
+	}
+	if got := legacy.PanePrefix(); got != "pane-work-" {
+		t.Fatalf("PanePrefix() = %q", got)
+	}
+	if got := legacy.HistoryGlobs(); !reflect.DeepEqual(got, []string{"/data/draft-*.md", "/data/log-*.md", "/data/ledger-*.jsonl"}) {
+		t.Fatalf("HistoryGlobs() = %#v", got)
+	}
+	if _, err := ResolveLegacyFlat("/data", "../escape"); err == nil {
+		t.Fatal("ResolveLegacyFlat accepted an invalid tag")
+	}
+	root, err := ResolveLegacyRoot("/data")
+	if err != nil || root.SessionBindings() != "/data/session-names.jsonl" {
+		t.Fatalf("legacy SessionBindings = %q, %v", root.SessionBindings(), err)
 	}
 }
 

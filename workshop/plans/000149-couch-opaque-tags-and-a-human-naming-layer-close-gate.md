@@ -486,6 +486,36 @@ rounds:
           round: 20
       boundary: M4
       blocked: false
+    - "n": 21
+      timestamp: "2026-08-26T20:13:00-07:00"
+      agent: codex
+      findings:
+        - id: BR-31
+          severity: Critical
+          title: Moving the session-name index strands existing live sessions
+          detail: This is the 4th finding in family durable-index-read-failure-authority. ReadSessionNameIndex now reads only the selected scope, while callers convert absence into an empty index; no migration or compatibility read preserves the former global index. Existing live indexed sessions therefore disappear from attach and picker views and are treated as foreign-name collisions. State the class rule for durable index relocation, migrate or compat-read all prior authoritative locations, and fail closed on genuine corruption.
+          family: durable-index-read-failure-authority
+          round: 21
+        - id: BR-32
+          severity: Critical
+          title: The artifact coverage guard does not enforce its claimed constructor closure
+          detail: ARCH-DRY and ARCH-PURPOSE fail. productionSource excludes extensionless production scripts, allowing bin/pair-notify to reconstruct outer-tty paths undetected. The manifest also labels launcher/migrate.go and launcher/legacy_live.go resolved consumers although they still construct legacy names, while Neovim derives the image done path instead of consuming its exported binding. Enumerate the entire source class, place intentional legacy constructors behind an explicit artifactpath API, and add negative tests that fail on every constructor outside that authority.
+          family: artifact-construction-single-authority
+          round: 21
+        - id: BR-33
+          severity: Critical
+          title: The M5 Core concepts row names an entity that does not exist at its declared path
+          detail: 'This is the 5th finding in family core-concept-kind-contract. The plan declares pure ArtifactFamily in paths.go, but the implementation defines Family in manifest.go. Do not patch only this row: reapply the inventory rule to every M5 entity and append a plan revision so name, kind, location, and status are mechanically truthful.'
+          family: core-concept-kind-contract
+          round: 21
+        - id: BR-34
+          severity: Important
+          title: Atlas documentation still publishes the retired global artifact layout
+          detail: This is the 3rd finding in family user-facing-policy-docs. atlas/architecture.md and the pair-notify row in atlas/go-migration-inventory.md still instruct readers to use global data-dir plus tag formulas. Sweep the documentation class for old artifact formulas and describe exact scoped bindings consistently.
+          family: user-facing-policy-docs
+          round: 21
+      boundary: M5
+      blocked: true
 ---
 
 # Gate ledger — pair#149 (boundary-review)
@@ -718,6 +748,23 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-30 — not-addressed — The explicit negative value and merge helper exist, but reverting startExecChild to the old inherited-plus-appended environment leaves TestExecRunnerChildEnvironmentOverridesInheritedValue green; the production wiring therefore lacks a test that fails without it.
 
+## Round 21 — 2026-08-26T20:13:00-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-31** [Critical] `durable-index-read-failure-authority` Moving the session-name index strands existing live sessions
+  This is the 4th finding in family durable-index-read-failure-authority. ReadSessionNameIndex now reads only the selected scope, while callers convert absence into an empty index; no migration or compatibility read preserves the former global index. Existing live indexed sessions therefore disappear from attach and picker views and are treated as foreign-name collisions. State the class rule for durable index relocation, migrate or compat-read all prior authoritative locations, and fail closed on genuine corruption.
+- **BR-32** [Critical] `artifact-construction-single-authority` The artifact coverage guard does not enforce its claimed constructor closure
+  ARCH-DRY and ARCH-PURPOSE fail. productionSource excludes extensionless production scripts, allowing bin/pair-notify to reconstruct outer-tty paths undetected. The manifest also labels launcher/migrate.go and launcher/legacy_live.go resolved consumers although they still construct legacy names, while Neovim derives the image done path instead of consuming its exported binding. Enumerate the entire source class, place intentional legacy constructors behind an explicit artifactpath API, and add negative tests that fail on every constructor outside that authority.
+- **BR-33** [Critical] `core-concept-kind-contract` The M5 Core concepts row names an entity that does not exist at its declared path
+  This is the 5th finding in family core-concept-kind-contract. The plan declares pure ArtifactFamily in paths.go, but the implementation defines Family in manifest.go. Do not patch only this row: reapply the inventory rule to every M5 entity and append a plan revision so name, kind, location, and status are mechanically truthful.
+- **BR-34** [Important] `user-facing-policy-docs` Atlas documentation still publishes the retired global artifact layout
+  This is the 3rd finding in family user-facing-policy-docs. atlas/architecture.md and the pair-notify row in atlas/go-migration-inventory.md still instruct readers to use global data-dir plus tag formulas. Sweep the documentation class for old artifact formulas and describe exact scoped bindings consistently.
+
 ## Open findings
 
 - **BR-30** [Important] `child-policy-environment-isolation` Inherited repository-default policy can reject a valid remembered path profile
+- **BR-31** [Critical] `durable-index-read-failure-authority` Moving the session-name index strands existing live sessions
+- **BR-32** [Critical] `artifact-construction-single-authority` The artifact coverage guard does not enforce its claimed constructor closure
+- **BR-33** [Critical] `core-concept-kind-contract` The M5 Core concepts row names an entity that does not exist at its declared path
+- **BR-34** [Important] `user-facing-policy-docs` Atlas documentation still publishes the retired global artifact layout

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 var componentPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
@@ -30,11 +31,92 @@ type ScopePaths struct {
 	scopeDir string
 }
 
+// LegacyRootPaths and LegacyPaths are the read/import-only authority for the
+// pre-composite flat data directory. New writes use Paths; compatibility code
+// must name old locations through these types instead of reopening filename
+// construction throughout launcher.
+type LegacyRootPaths struct {
+	dataDir string
+}
+
+type LegacyPaths struct {
+	root LegacyRootPaths
+	tag  string
+}
+
 // Binding is one exact artifact path exported to non-Go consumers.
 type Binding struct {
 	Name string
 	Path string
 }
+
+func ResolveLegacyRoot(dataDir string) (LegacyRootPaths, error) {
+	if !filepath.IsAbs(dataDir) {
+		return LegacyRootPaths{}, fmt.Errorf("pair data directory must be absolute")
+	}
+	return LegacyRootPaths{dataDir: filepath.Clean(dataDir)}, nil
+}
+
+func ResolveLegacyFlat(dataDir, tag string) (LegacyPaths, error) {
+	root, err := ResolveLegacyRoot(dataDir)
+	if err != nil {
+		return LegacyPaths{}, err
+	}
+	return root.ForTag(tag)
+}
+
+func (p LegacyRootPaths) ForTag(tag string) (LegacyPaths, error) {
+	if err := validateComponent("pair tag", tag); err != nil {
+		return LegacyPaths{}, err
+	}
+	return LegacyPaths{root: p, tag: tag}, nil
+}
+
+func (p LegacyRootPaths) SessionBindings() string {
+	return filepath.Join(p.dataDir, "session-names.jsonl")
+}
+
+func (p LegacyRootPaths) HistoryGlobs() []string {
+	return []string{
+		filepath.Join(p.dataDir, "draft-*.md"),
+		filepath.Join(p.dataDir, "log-*.md"),
+		filepath.Join(p.dataDir, "ledger-*.jsonl"),
+	}
+}
+
+// TagFromHistorySidecar recognizes only the three history-bearing families.
+// It is shared by current-scope and legacy-flat scanners.
+func TagFromHistorySidecar(name string) (string, bool) {
+	for _, pattern := range []struct {
+		prefix string
+		suffix string
+	}{
+		{prefix: "draft-", suffix: ".md"},
+		{prefix: "log-", suffix: ".md"},
+		{prefix: "ledger-", suffix: ".jsonl"},
+	} {
+		if len(name) > len(pattern.prefix)+len(pattern.suffix) &&
+			strings.HasPrefix(name, pattern.prefix) && strings.HasSuffix(name, pattern.suffix) {
+			return strings.TrimSuffix(strings.TrimPrefix(name, pattern.prefix), pattern.suffix), true
+		}
+	}
+	return "", false
+}
+
+func (p LegacyRootPaths) Entry(name string) (string, error) {
+	if name == "" || filepath.Base(name) != name {
+		return "", fmt.Errorf("invalid legacy artifact entry %q", name)
+	}
+	return filepath.Join(p.dataDir, name), nil
+}
+
+func (p LegacyPaths) QueueDir() string {
+	return filepath.Join(p.root.dataDir, "queue-"+p.tag)
+}
+
+func (p LegacyPaths) PanePrefix() string { return "pane-" + p.tag + "-" }
+
+func (p LegacyPaths) HistoryGlobs() []string { return p.root.HistoryGlobs() }
 
 // ResolveSelectedScope validates a scope directory already selected by Pair.
 func ResolveSelectedScope(scopeDir string) (ScopePaths, error) {
@@ -46,6 +128,14 @@ func ResolveSelectedScope(scopeDir string) (ScopePaths, error) {
 
 func (p ScopePaths) SessionBindings() string {
 	return filepath.Join(p.scopeDir, "session-names.jsonl")
+}
+
+func (p ScopePaths) HistoryGlobs() []string {
+	return []string{
+		filepath.Join(p.scopeDir, "draft-*.md"),
+		filepath.Join(p.scopeDir, "log-*.md"),
+		filepath.Join(p.scopeDir, "ledger-*.jsonl"),
+	}
 }
 
 func (p ScopePaths) AgentDefault(agent string) (string, error) {

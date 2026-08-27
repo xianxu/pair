@@ -1263,10 +1263,15 @@ local function attach_image()
                vim.log.levels.ERROR)
     return
   end
-  local dd = pair_data_dir()
   local pid_path = vim.env.PAIR_PAIR_WRAP_PID_PATH
   local cap_path = vim.env.PAIR_IMAGE_CAPTURE_PATH
-  local done_path = cap_path .. '.done'
+  local done_path = vim.env.PAIR_IMAGE_CAPTURE_DONE_PATH
+  if not pid_path or pid_path == '' or not cap_path or cap_path == '' or
+      not done_path or done_path == '' then
+    vim.notify('pair: exact image-capture paths unset — restart the pair session',
+               vim.log.levels.ERROR)
+    return
+  end
 
   -- Read pid (file I/O — microseconds). We defer the kill -0 alive check
   -- to the SIGUSR1 below; an explicit kill -0 here would fork a subprocess

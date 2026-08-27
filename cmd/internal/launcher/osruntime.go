@@ -167,7 +167,10 @@ func (r OSRuntime) ListSessions() ([]ListRow, error) {
 	}
 	raw := zj("list-sessions", "--no-formatting")
 	names := pairSessionNames(zj("list-sessions", "--short"))
-	index, _ := r.ReadSessionNameIndex()
+	index, err := r.ReadSessionNameIndex()
+	if err != nil {
+		return nil, fmt.Errorf("read session-name index: %w", err)
+	}
 	return buildListRowsForScope(names, raw, index, scopeKeyFromDataDir(r.GlobalDataDir, r.DataDir), r.InferAgent, func(session string) int {
 		return parseClientCount(zj("--session", session, "action", "list-clients"))
 	}), nil
@@ -600,11 +603,30 @@ func (r OSRuntime) ReadSessionNameIndex() (SessionNameIndex, error) {
 	if err != nil {
 		return SessionNameIndex{}, err
 	}
-	raw, err := r.ReadFile(scope.SessionBindings())
+	legacyRoot, err := artifactpath.ResolveLegacyRoot(r.globalDataDir())
 	if err != nil {
 		return SessionNameIndex{}, err
 	}
-	return ParseSessionNameIndex(raw), nil
+	paths := []string{legacyRoot.SessionBindings()}
+	if scoped := scope.SessionBindings(); scoped != paths[0] {
+		paths = append(paths, scoped)
+	}
+	var merged SessionNameIndex
+	for _, path := range paths {
+		raw, err := r.ReadFile(path)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return SessionNameIndex{}, fmt.Errorf("read session-name index %s: %w", path, err)
+		}
+		index, err := DecodeSessionNameIndex(raw)
+		if err != nil {
+			return SessionNameIndex{}, fmt.Errorf("decode session-name index %s: %w", path, err)
+		}
+		merged.Entries = append(merged.Entries, index.Entries...)
+	}
+	return merged, nil
 }
 
 func (r OSRuntime) AppendSessionNameIndex(entry SessionNameEntry) error {
